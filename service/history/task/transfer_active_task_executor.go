@@ -526,6 +526,28 @@ func (t *transferActiveTaskExecutor) processCloseExecutionTaskHelper(
 		}
 	}
 
+	immediateArchival := true
+	if immediateArchival {
+
+		t.archiverClient.Archive(ctx, &archiver.ClientRequest{
+			ArchiveRequest: &archiver.ArchiveRequest{
+				DomainID:   task.DomainID,
+				WorkflowID: task.WorkflowID,
+				RunID:      task.RunID,
+
+				ShardID:              t.shard.GetShardID(),
+				BranchToken:          executionInfo.BranchToken,
+				NextEventID:          executionInfo.NextEventID,
+				CloseFailoverVersion: completionEvent.Version, // ? need to confirm if htis is correct
+				URI:                  domainEntry.GetConfig().HistoryArchivalURI,
+
+				Targets: []archiver.ArchivalTarget{archiver.ArchiveTargetHistory, archiver.ArchiveTargetExecution},
+			},
+			CallerService:        "history",
+			AttemptArchiveInline: true,
+		})
+	}
+
 	return nil
 }
 

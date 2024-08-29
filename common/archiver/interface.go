@@ -44,6 +44,22 @@ type (
 		CloseFailoverVersion int64
 	}
 
+	// ArchiveExecutionRequest is request to Archive workflow execution records
+	ArchiveExecutionRequest struct {
+		ShardID    int
+		DomainID   string
+		DomainName string
+		WorkflowID string
+		RunID      string
+	}
+
+	// GetExecutionRequest is the request to Get archived Execution records
+	GetExecutionRequest struct {
+		DomainID   string
+		WorkflowID string
+		RunID      string
+	}
+
 	// GetHistoryRequest is the request to Get archived history
 	GetHistoryRequest struct {
 		DomainID             string
@@ -60,6 +76,11 @@ type (
 		NextPageToken  []byte
 	}
 
+	// GetExecutionResponse is the response of Get archived execution records
+	GetExecutionResponse struct {
+		*persistence.WorkflowMutableState
+	}
+
 	// HistoryBootstrapContainer contains components needed by all history Archiver implementations
 	HistoryBootstrapContainer struct {
 		HistoryV2Manager persistence.HistoryManager
@@ -67,6 +88,13 @@ type (
 		MetricsClient    metrics.Client
 		ClusterMetadata  cluster.Metadata
 		DomainCache      cache.DomainCache
+	}
+
+	// ExecutionArchiver is used to get and store execution data
+	ExecutionArchiver interface {
+		ArchiveExecution(context.Context, URI, *ArchiveExecutionRequest, ...ArchiveOption) error
+		GetWorkflowExecution(context.Context, URI, *GetExecutionRequest) (*GetExecutionResponse, error)
+		ValidateExecutionURI(URI) error
 	}
 
 	// HistoryArchiver is used to archive history and read archived history
@@ -82,6 +110,13 @@ type (
 		MetricsClient   metrics.Client
 		ClusterMetadata cluster.Metadata
 		DomainCache     cache.DomainCache
+	}
+
+	ExecutionBootstrapContainer struct {
+		Logger        log.Logger
+		MetricsClient metrics.Client
+		//ClusterMetadata cluster.Metadata
+		//DomainCache     cache.DomainCache
 	}
 
 	// ArchiveVisibilityRequest is request to Archive single workflow visibility record
@@ -120,5 +155,10 @@ type (
 		Archive(context.Context, URI, *ArchiveVisibilityRequest, ...ArchiveOption) error
 		Query(context.Context, URI, *QueryVisibilityRequest) (*QueryVisibilityResponse, error)
 		ValidateURI(URI) error
+	}
+
+	WarmStorage interface {
+		ExecutionArchiver
+		HistoryArchiver
 	}
 )

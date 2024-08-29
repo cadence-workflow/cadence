@@ -752,6 +752,8 @@ func (t *timerActiveTaskExecutor) executeWorkflowTimeoutTask(
 		return t.updateWorkflowExecution(ctx, wfContext, mutableState, false)
 	}
 
+	// maybe add archival here?
+
 	// workflow timeout, but a retry or cron is needed, so we do continue as new to retry or cron
 	startEvent, err := mutableState.GetStartEvent(ctx)
 	if err != nil {

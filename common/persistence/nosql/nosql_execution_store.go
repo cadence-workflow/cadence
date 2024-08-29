@@ -178,7 +178,6 @@ func (d *nosqlExecutionStore) GetWorkflowExecution(
 					execution.WorkflowID, execution.RunID),
 			}
 		}
-
 		return nil, convertCommonErrors(d.db, "GetWorkflowExecution", err)
 	}
 

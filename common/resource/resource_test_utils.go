@@ -464,7 +464,6 @@ func (s *Test) Finish(
 	t mock.TestingT,
 ) {
 	s.ArchivalMetadata.AssertExpectations(t)
-	s.ArchiverProvider.AssertExpectations(t)
 
 	s.MetadataMgr.AssertExpectations(t)
 	s.TaskMgr.AssertExpectations(t)

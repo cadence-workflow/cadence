@@ -30,6 +30,8 @@ import (
 	"github.com/uber/cadence/common/syncmap"
 )
 
+//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination provider_mock.go -self_package github.com/uber/cadence/common/archival
+
 var (
 	// ErrUnknownScheme is the error for unknown archiver scheme
 	ErrUnknownScheme = errors.New("unknown archiver scheme")
@@ -54,6 +56,7 @@ type (
 		) error
 		GetHistoryArchiver(scheme, serviceName string) (archiver.HistoryArchiver, error)
 		GetVisibilityArchiver(scheme, serviceName string) (archiver.VisibilityArchiver, error)
+		GetExecutionArchiver(scheme, serviceName string) (archiver.ExecutionArchiver, error)
 	}
 
 	archiverProvider struct {
@@ -61,14 +64,17 @@ type (
 
 		historyArchiverConfigs    config.HistoryArchiverProvider
 		visibilityArchiverConfigs config.VisibilityArchiverProvider
+		executionArchiverConfigs  config.ExecutionArchiverProvider
 
 		// Key for the container is just serviceName
 		historyContainers    map[string]*archiver.HistoryBootstrapContainer
 		visibilityContainers map[string]*archiver.VisibilityBootstrapContainer
+		executionContainers  map[string]*archiver.ExecutionBootstrapContainer
 
 		// Key for the archiver is scheme + serviceName
 		historyArchivers    map[string]archiver.HistoryArchiver
 		visibilityArchivers map[string]archiver.VisibilityArchiver
+		executionArchivers  map[string]archiver.ExecutionArchiver
 	}
 
 	historyConstructor struct {
@@ -83,11 +89,18 @@ type (
 		// This almost certainly should be the same as the scheme, but that'll need more work.
 		configKey string
 	}
+	executionConstructor struct {
+		fn func(cfg *config.YamlNode, container *archiver.ExecutionBootstrapContainer) (archiver.ExecutionArchiver, error)
+		// yaml key where this config exists, under archival.visibility.provider.
+		// This almost certainly should be the same as the scheme, but that'll need more work.
+		configKey string
+	}
 )
 
 var (
 	historyConstructors    = syncmap.New[string, historyConstructor]()
 	visibilityConstructors = syncmap.New[string, visibilityConstructor]()
+	executionConstructors  = syncmap.New[string, executionConstructor]()
 )
 
 func RegisterHistoryArchiver(scheme, configKey string, constructor func(cfg *config.YamlNode, container *archiver.HistoryBootstrapContainer) (archiver.HistoryArchiver, error)) error {
@@ -124,6 +137,7 @@ func NewArchiverProvider(
 		visibilityContainers:      make(map[string]*archiver.VisibilityBootstrapContainer),
 		historyArchivers:          make(map[string]archiver.HistoryArchiver),
 		visibilityArchivers:       make(map[string]archiver.VisibilityArchiver),
+		executionArchivers:        map[string]archiver.ExecutionArchiver{},
 	}
 }
 
@@ -235,4 +249,42 @@ func (p *archiverProvider) GetVisibilityArchiver(scheme, serviceName string) (ar
 
 func (p *archiverProvider) getArchiverKey(scheme, serviceName string) string {
 	return scheme + ":" + serviceName
+}
+
+func (p *archiverProvider) GetExecutionArchiver(scheme, serviceName string) (archiver.ExecutionArchiver, error) {
+	archiverKey := p.getArchiverKey(scheme, serviceName)
+	p.RLock()
+	if executionArchiver, ok := p.executionArchivers[archiverKey]; ok {
+		p.RUnlock()
+		return executionArchiver, nil
+	}
+	p.RUnlock()
+
+	container, ok := p.executionContainers[serviceName]
+	if !ok {
+		return nil, ErrBootstrapContainerNotFound
+	}
+
+	constructor, ok := executionConstructors.Get(scheme)
+	if !ok {
+		return nil, fmt.Errorf("no visibility archiver constructor for scheme %q", scheme)
+	}
+
+	cfg, ok := p.executionArchiverConfigs[constructor.configKey]
+	if !ok {
+		return nil, fmt.Errorf("no visibility archiver config for scheme %q, config key %q", scheme, constructor.configKey)
+	}
+
+	executionArchiver, err := constructor.fn(cfg, container)
+	if err != nil {
+		return nil, fmt.Errorf("visibility archiver constructor failed for scheme %q, config key %q: err: %w", scheme, constructor.configKey, err)
+	}
+
+	p.Lock()
+	defer p.Unlock()
+	if existingExecutionArchiver, ok := p.executionArchivers[archiverKey]; ok {
+		return existingExecutionArchiver, nil
+	}
+	p.executionArchivers[archiverKey] = executionArchiver
+	return executionArchiver, nil
 }

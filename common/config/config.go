@@ -531,6 +531,9 @@ type (
 	// For handling hardcoded config, see ToYamlNode.
 	VisibilityArchiverProvider map[string]*YamlNode
 
+	// todo
+	ExecutionArchiverProvider map[string]*YamlNode
+
 	// FilestoreArchiver contain the config for filestore archiver
 	FilestoreArchiver struct {
 		FileMode string `yaml:"fileMode"`

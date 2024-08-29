@@ -48,6 +48,10 @@ func (*noOpArchiverProvider) GetVisibilityArchiver(scheme, serviceName string) (
 	return &noOpVisibilityArchiver{}, nil
 }
 
+func (*noOpArchiverProvider) GetExecutionArchiver(scheme, serviceName string) (archiver.ExecutionArchiver, error) {
+	return nil, nil
+}
+
 type noOpHistoryArchiver struct{}
 
 func (*noOpHistoryArchiver) Archive(context.Context, archiver.URI, *archiver.ArchiveHistoryRequest, ...archiver.ArchiveOption) error {
