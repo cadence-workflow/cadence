@@ -266,10 +266,16 @@ func New(
 		ClusterMetadata: params.ClusterMetadata,
 		DomainCache:     domainCache,
 	}
+	executionArchiverBootstrapContainer := &archiver.ExecutionBootstrapContainer{
+		Logger:        logger,
+		MetricsClient: params.MetricsClient,
+		DomainCache:   domainCache,
+	}
 	if err := params.ArchiverProvider.RegisterBootstrapContainer(
 		serviceName,
 		historyArchiverBootstrapContainer,
 		visibilityArchiverBootstrapContainer,
+		executionArchiverBootstrapContainer,
 	); err != nil {
 		return nil, err
 	}

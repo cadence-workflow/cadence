@@ -85,11 +85,16 @@ func deserializeQueryVisibilityToken(bytes []byte) (*queryVisibilityToken, error
 // File name construction
 
 func constructHistoryFilename(domainID, workflowID, runID string, version int64) string {
-	combinedHash := constructHistoryFilenamePrefix(domainID, workflowID, runID)
+	combinedHash := constructFilenamePrefix(domainID, workflowID, runID)
 	return fmt.Sprintf("%s_%v.history", combinedHash, version)
 }
 
-func constructHistoryFilenamePrefix(domainID, workflowID, runID string) string {
+func constructExecutionFilename(domainID, workflowID, runID string) string {
+	combinedHash := constructFilenamePrefix(domainID, workflowID, runID)
+	return fmt.Sprintf("%s_.concrete_execution", combinedHash)
+}
+
+func constructFilenamePrefix(domainID, workflowID, runID string) string {
 	return strings.Join([]string{hash(domainID), hash(workflowID), hash(runID)}, "")
 }
 

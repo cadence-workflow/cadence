@@ -24,17 +24,70 @@ package filestore
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strconv"
+
+	"github.com/uber/cadence/common/archiver"
+	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/util"
-	"path"
-
-	"github.com/uber/cadence/common/archiver"
 )
 
 type executionArchiver struct {
-	// todo
+	container *archiver.ExecutionBootstrapContainer
+
+	fileMode os.FileMode
+	dirMode  os.FileMode
+}
+
+// NewHistoryArchiver creates a new archiver.HistoryArchiver based on filestore
+func NewExecutionArchiver(
+	container *archiver.ExecutionBootstrapContainer,
+	config *config.FilestoreArchiver,
+) (archiver.ExecutionArchiver, error) {
+	return newExecutionArchiver(container, config)
+}
+
+func newExecutionArchiver(
+	container *archiver.ExecutionBootstrapContainer,
+	config *config.FilestoreArchiver,
+) (*executionArchiver, error) {
+	fileMode, err := strconv.ParseUint(config.FileMode, 0, 32)
+	if err != nil {
+		return nil, errInvalidFileMode
+	}
+	dirMode, err := strconv.ParseUint(config.DirMode, 0, 32)
+	if err != nil {
+		return nil, errInvalidDirMode
+	}
+	return &executionArchiver{
+		container: container,
+		fileMode:  os.FileMode(fileMode),
+		dirMode:   os.FileMode(dirMode),
+	}, nil
+}
+
+func (e *executionArchiver) ValidateExecutionURI(URI archiver.URI) error {
+	if URI == nil || URI.Path() == "" {
+		return archiver.ErrInvalidURI
+	}
+	return nil
+}
+
+func (e *executionArchiver) ValidateExecutionArchiveRequest(req *archiver.ArchiveHistoryRequest, uri archiver.URI) error {
+	if req == nil {
+		return &archiver.ErrInvalidArchivalRequest{
+			Message: "Invalid execution archival request",
+			URI:     uri,
+			Request: req,
+		}
+	}
+	return nil
 }
 
 func (e *executionArchiver) ArchiveExecution(ctx context.Context, URI archiver.URI, req *archiver.ArchiveExecutionRequest, opts ...archiver.ArchiveOption) (err error) {
@@ -46,76 +99,88 @@ func (e *executionArchiver) ArchiveExecution(ctx context.Context, URI archiver.U
 		}
 	}()
 
-	logger := archiver.TagLoggerWithArchiveHistoryRequestAndURI(h.container.Logger, request, URI.String())
+	logger := archiver.TagLoggerWithArchiveExecutionRequestAndURI(e.container.Logger, req, URI.String())
 
-	if err := h.ValidateURI(URI); err != nil {
+	if err := e.ValidateExecutionURI(URI); err != nil {
 		logger.Error(archiver.ArchiveNonRetriableErrorMsg, tag.ArchivalArchiveFailReason(archiver.ErrReasonInvalidURI), tag.Error(err))
 		return err
 	}
 
-	if err := archiver.ValidateHistoryArchiveRequest(request); err != nil {
+	if err := archiver.ValidateExecutionArchiveRequest(req); err != nil {
 		logger.Error(archiver.ArchiveNonRetriableErrorMsg, tag.ArchivalArchiveFailReason(archiver.ErrReasonInvalidArchiveRequest), tag.Error(err))
 		return err
 	}
 
-	historyIterator := h.historyIterator
-	if historyIterator == nil { // will only be set by testing code
-		historyIterator = archiver.NewHistoryIterator(ctx, request, h.container.HistoryV2Manager, targetHistoryBlobSize)
-	}
-
-	historyBatches := []*types.History{}
-	for historyIterator.HasNext() {
-		historyBlob, err := getNextHistoryBlob(ctx, historyIterator)
-		if err != nil {
-			if common.IsEntityNotExistsError(err) {
-				// workflow history no longer exists, may due to duplicated archival signal
-				// this may happen even in the middle of iterating history as two archival signals
-				// can be processed concurrently.
-				logger.Info(archiver.ArchiveSkippedInfoMsg)
-				return nil
-			}
-
-			logger := logger.WithTags(tag.ArchivalArchiveFailReason(archiver.ErrReasonReadHistory), tag.Error(err))
-			if !persistence.IsTransientError(err) {
-				logger.Error(archiver.ArchiveNonRetriableErrorMsg)
-			} else {
-				logger.Error(archiver.ArchiveTransientErrorMsg)
-			}
-			return err
-		}
-
-		if archiver.IsHistoryMutated(request, historyBlob.Body, *historyBlob.Header.IsLast, logger) {
-			if !featureCatalog.ArchiveIncompleteHistory() {
-				return archiver.ErrHistoryMutated
-			}
-		}
-
-		historyBatches = append(historyBatches, historyBlob.Body...)
-	}
-
-	encodedHistoryBatches, err := encode(historyBatches)
+	executionMgr, err := e.container.ExecutionMgr(req.ShardID)
 	if err != nil {
-		logger.Error(archiver.ArchiveNonRetriableErrorMsg, tag.ArchivalArchiveFailReason(errEncodeHistory), tag.Error(err))
-		return err
+		return fmt.Errorf("could not get shard manager: %w", err)
+	}
+
+	execution, err := executionMgr.GetWorkflowExecution(ctx, &persistence.GetWorkflowExecutionRequest{
+		DomainID: req.DomainID,
+		Execution: types.WorkflowExecution{
+			WorkflowID: req.WorkflowID,
+			RunID:      req.RunID,
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to get workflow for archival: %w", err)
+	}
+
+	err = archiver.ValidateExecutionArchiveResponse(execution)
+	if err != nil {
+		logger.Error("couldn't not archive workflow, it failed validation", tag.Error(err))
+		return fmt.Errorf("could not archive workflow execution: %w", err)
+	}
+
+	jsonEncoded, err := json.Marshal(execution.State)
+	if err != nil {
+		logger.Error("couldn't not archive workflow, encoding failed", tag.Error(err))
+		return fmt.Errorf("could not encode workflow execution for archival: %w", err)
 	}
 
 	dirPath := URI.Path()
-	if err = util.MkdirAll(dirPath, h.dirMode); err != nil {
-		logger.Error(archiver.ArchiveNonRetriableErrorMsg, tag.ArchivalArchiveFailReason(errMakeDirectory), tag.Error(err))
-		return err
+
+	wfPath := constructExecutionFilename(req.DomainID, req.WorkflowID, req.RunID)
+	err = util.MkdirAll(dirPath, e.dirMode)
+	if err != nil {
+		logger.Error("couldn't not create folder for archival", tag.Error(err), tag.Dynamic("filepath", dirPath))
+		return fmt.Errorf("could not create folder for archival: %w", err)
 	}
 
-	filename := constructHistoryFilename(request.DomainID, request.WorkflowID, request.RunID, request.CloseFailoverVersion)
-	if err := util.WriteFile(path.Join(dirPath, filename), encodedHistoryBatches, h.fileMode); err != nil {
-		logger.Error(archiver.ArchiveNonRetriableErrorMsg, tag.ArchivalArchiveFailReason(errWriteFile), tag.Error(err))
-		return err
+	err = util.WriteFile(filepath.Join(dirPath, wfPath), jsonEncoded, e.fileMode)
+	if err != nil {
+		logger.Error("failed to write file for archival", tag.Error(err))
+		return fmt.Errorf("failed to write file to %q, error: %w", filepath.Join(dirPath, wfPath), err)
 	}
 
-	panic("not implemented")
+	return nil
 }
-func (e *executionArchiver) GetWorkflowExecution(context.Context, archiver.URI, *archiver.GetExecutionRequest) (*archiver.GetExecutionResponse, error) {
-	panic("not implementd")
+
+func (e *executionArchiver) GetWorkflowExecutionForPersistence(ctx context.Context, req *archiver.GetExecutionRequest) (*archiver.GetExecutionResponse, error) {
+	domain, err := e.container.DomainCache.GetDomainByID(req.DomainID)
+	if err != nil {
+		return nil, err
+	}
+
+	uri, err := archiver.NewURI(domain.GetConfig().HistoryArchivalURI)
+	if err != nil {
+		return nil, err
+	}
+	return e.GetWorkflowExecution(ctx, uri, req)
 }
-func (e *executionArchiver) ValidateExecutionURI(archiver.URI) error {
-	panic("not implemented")
+
+func (e *executionArchiver) GetWorkflowExecution(ctx context.Context, URI archiver.URI, req *archiver.GetExecutionRequest) (*archiver.GetExecutionResponse, error) {
+	dirPath := URI.Path()
+	wfPath := constructExecutionFilename(req.DomainID, req.WorkflowID, req.RunID)
+	data, err := util.ReadFile(filepath.Join(dirPath, wfPath))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read workflow execution from archived filepath: %w", err)
+	}
+
+	var ms persistence.WorkflowMutableState
+	json.Unmarshal(data, &ms)
+	return &archiver.GetExecutionResponse{
+		MutableState: &ms,
+	}, nil
 }

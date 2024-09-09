@@ -274,6 +274,15 @@ const (
 
 const numItemsInGarbageInfo = 3
 
+type StorageLocation int
+
+const (
+	StorageLocationUnknown     StorageLocation = iota
+	StorageLocationDatabase    StorageLocation = iota
+	StorageLocationWarmStorage StorageLocation = iota
+	StorageLocationArchival    StorageLocation = iota
+)
+
 type ConfigType int
 
 const (
@@ -657,6 +666,7 @@ type (
 	GetWorkflowExecutionResponse struct {
 		State             *WorkflowMutableState
 		MutableStateStats *MutableStateStats
+		StorageLocation   StorageLocation
 	}
 
 	// GetCurrentExecutionRequest is used to retrieve the current RunId for an execution

@@ -22,6 +22,7 @@ package thrift
 
 import (
 	"github.com/uber/cadence/.gen/go/history"
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -273,6 +274,7 @@ func FromHistoryGetMutableStateResponse(t *types.GetMutableStateResponse) *histo
 		VersionHistories:                     FromVersionHistories(t.VersionHistories),
 		IsStickyTaskListEnabled:              &t.IsStickyTaskListEnabled,
 		HistorySize:                          &t.HistorySize,
+		StorageLocation:                      common.Ptr(int64(t.StorageLocation)),
 	}
 }
 
@@ -301,6 +303,7 @@ func ToHistoryGetMutableStateResponse(t *history.GetMutableStateResponse) *types
 		VersionHistories:                     ToVersionHistories(t.VersionHistories),
 		IsStickyTaskListEnabled:              t.GetIsStickyTaskListEnabled(),
 		HistorySize:                          t.GetHistorySize(),
+		StorageLocation:                      types.StorageLocation(t.GetStorageLocation()),
 	}
 }
 

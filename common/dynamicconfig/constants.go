@@ -2076,6 +2076,12 @@ const (
 	// Default value: true
 	EnableShardIDMetrics
 
+	// EnableWarmPersistenceLayer
+	// KeyName: system.enableWarmPersistenceLayer
+	// Value type: Bool
+	// Default value: true
+	EnableWarmPersistenceLayer
+
 	EnableTimerDebugLogByDomainID
 
 	// EnableTaskVal is which allows the taskvalidation to be enabled.
@@ -4447,6 +4453,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	EnableShardIDMetrics: {
 		KeyName:      "system.enableShardIDMetrics",
 		Description:  "Enable shardId metrics in persistence client",
+		DefaultValue: true,
+	},
+	EnableWarmPersistenceLayer: {
+		KeyName:      "system.enableWarmPersistenceLayer",
+		Description:  "enables storage of workflows after their being closed in warm storage",
 		DefaultValue: true,
 	},
 	EnableTimerDebugLogByDomainID: {

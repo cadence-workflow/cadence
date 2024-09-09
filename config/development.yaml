@@ -92,6 +92,13 @@ dcRedirectionPolicy:
   toDC: ""
 
 archival:
+  execution:
+    status: "enabled"
+    enableRead: true
+    provider:
+      filestore:
+        fileMode: "0666"
+        dirMode: "0766"
   history:
     status: "enabled"
     enableRead: true
@@ -99,8 +106,6 @@ archival:
       filestore:
         fileMode: "0666"
         dirMode: "0766"
-      gstorage:
-        credentialsPath: "/tmp/gcloud/keyfile.json"
   visibility:
     status: "enabled"
     enableRead: true
@@ -117,6 +122,9 @@ domainDefaults:
     visibility:
       status: "enabled"
       URI: "file:///tmp/cadence_vis_archival/development"
+    execution:
+      status: "enabled"
+      URI: "file:///tmp/cadence_archival/development"
 
 dynamicconfig:
   client: filebased

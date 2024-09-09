@@ -337,7 +337,7 @@ func (c *client) archiveExecutionInline(ctx context.Context, request *ClientRequ
 	//scopeWithDomainTag := c.metricsScope.Tagged(metrics.DomainTag(request.ArchiveRequest.DomainName))
 	if !c.inlineVisibilityRateLimiter.Allow() {
 		//scopeWithDomainTag.IncCounter(metrics.ArchiverClientVisibilityInlineArchiveThrottledCountPerDomain)
-		logger.Debug("inline visibility archival throttled")
+		logger.Debug("inline execution archival throttled")
 		errCh <- errInlineArchivalThrottled
 		return
 	}
@@ -346,7 +346,7 @@ func (c *client) archiveExecutionInline(ctx context.Context, request *ClientRequ
 	defer func() {
 		if err != nil {
 			//scopeWithDomainTag.IncCounter(metrics.ArchiverClientVisibilityInlineArchiveFailureCountPerDomain)
-			logger.Info("failed to perform visibility archival inline", tag.Error(err))
+			logger.Info("failed to perform execution archival inline", tag.Error(err))
 		}
 		errCh <- err
 	}()
@@ -366,5 +366,6 @@ func (c *client) archiveExecutionInline(ctx context.Context, request *ClientRequ
 		DomainName: request.ArchiveRequest.DomainName,
 		WorkflowID: request.ArchiveRequest.WorkflowID,
 		RunID:      request.ArchiveRequest.RunID,
+		ShardID:    request.ArchiveRequest.ShardID,
 	})
 }

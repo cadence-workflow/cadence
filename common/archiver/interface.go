@@ -78,7 +78,7 @@ type (
 
 	// GetExecutionResponse is the response of Get archived execution records
 	GetExecutionResponse struct {
-		*persistence.WorkflowMutableState
+		MutableState *persistence.WorkflowMutableState
 	}
 
 	// HistoryBootstrapContainer contains components needed by all history Archiver implementations
@@ -93,13 +93,22 @@ type (
 	// ExecutionArchiver is used to get and store execution data
 	ExecutionArchiver interface {
 		ArchiveExecution(context.Context, URI, *ArchiveExecutionRequest, ...ArchiveOption) error
-		GetWorkflowExecution(context.Context, URI, *GetExecutionRequest) (*GetExecutionResponse, error)
+		//GetWorkflowExecutionForPersistence(context.Context, *GetExecutionRequest) (*GetExecutionResponse, error)
+		//GetWorkflowExecution(context.Context, URI, *GetExecutionRequest) (*GetExecutionResponse, error)
 		ValidateExecutionURI(URI) error
+	}
+
+	// Reader is used to get execution data
+	ExecutionReader interface {
+		GetWorkflowExecutionForPersistence(context.Context, *GetExecutionRequest) (*GetExecutionResponse, error)
+		GetWorkflowExecution(context.Context, URI, *GetExecutionRequest) (*GetExecutionResponse, error)
 	}
 
 	// HistoryArchiver is used to archive history and read archived history
 	HistoryArchiver interface {
 		Archive(context.Context, URI, *ArchiveHistoryRequest, ...ArchiveOption) error
+		// todo (david.porter) maybe delete this
+		//GetWorkflowHistoryForPersistence(context.Context, *GetHistoryRequest) (*GetHistoryResponse, error)
 		Get(context.Context, URI, *GetHistoryRequest) (*GetHistoryResponse, error)
 		ValidateURI(URI) error
 	}
@@ -113,10 +122,11 @@ type (
 	}
 
 	ExecutionBootstrapContainer struct {
-		Logger        log.Logger
-		MetricsClient metrics.Client
-		//ClusterMetadata cluster.Metadata
-		//DomainCache     cache.DomainCache
+		Logger          log.Logger
+		MetricsClient   metrics.Client
+		ClusterMetadata cluster.Metadata
+		ExecutionMgr    func(shard int) (persistence.ExecutionManager, error)
+		DomainCache     cache.DomainCache
 	}
 
 	// ArchiveVisibilityRequest is request to Archive single workflow visibility record

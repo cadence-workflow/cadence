@@ -39,6 +39,7 @@ import (
 	pinotVisibility "github.com/uber/cadence/common/persistence/pinot"
 	"github.com/uber/cadence/common/persistence/serialization"
 	"github.com/uber/cadence/common/persistence/sql"
+	warm_storage "github.com/uber/cadence/common/persistence/warm-storage"
 	"github.com/uber/cadence/common/persistence/wrappers/errorinjectors"
 	"github.com/uber/cadence/common/persistence/wrappers/metered"
 	"github.com/uber/cadence/common/persistence/wrappers/ratelimited"
@@ -261,6 +262,14 @@ func (f *factoryImpl) NewExecutionManager(shardID int) (p.ExecutionManager, erro
 	}
 	if f.metricsClient != nil {
 		result = metered.NewExecutionManager(result, f.metricsClient, f.logger, f.config, f.dc.PersistenceSampleLoggingRate, f.dc.EnableShardIDMetrics)
+	}
+
+	if f.dc.EnableWarmStoragePersistenceLayer() {
+
+		result, err = warm_storage.NewWarmStorageExecutionManager(f.logger, f.metricsClient, result)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return result, nil
 }

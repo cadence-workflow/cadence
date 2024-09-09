@@ -53,6 +53,7 @@ type (
 			serviceName string,
 			historyContainer *archiver.HistoryBootstrapContainer,
 			visibilityContainter *archiver.VisibilityBootstrapContainer,
+			executionContainer *archiver.ExecutionBootstrapContainer,
 		) error
 		GetHistoryArchiver(scheme, serviceName string) (archiver.HistoryArchiver, error)
 		GetVisibilityArchiver(scheme, serviceName string) (archiver.VisibilityArchiver, error)
@@ -114,6 +115,17 @@ func RegisterHistoryArchiver(scheme, configKey string, constructor func(cfg *con
 	return nil
 }
 
+func RegisterExecutionArchiver(scheme, configKey string, constructor func(cfg *config.YamlNode, container *archiver.ExecutionBootstrapContainer) (archiver.ExecutionArchiver, error)) error {
+	inserted := executionConstructors.Put(scheme, executionConstructor{
+		fn:        constructor,
+		configKey: configKey,
+	})
+	if !inserted {
+		return fmt.Errorf("history archiver already registered for scheme %q", scheme)
+	}
+	return nil
+}
+
 func RegisterVisibilityArchiver(scheme, configKey string, constructor func(cfg *config.YamlNode, container *archiver.VisibilityBootstrapContainer) (archiver.VisibilityArchiver, error)) error {
 	inserted := visibilityConstructors.Put(scheme, visibilityConstructor{
 		fn:        constructor,
@@ -129,15 +141,18 @@ func RegisterVisibilityArchiver(scheme, configKey string, constructor func(cfg *
 func NewArchiverProvider(
 	historyArchiverConfigs config.HistoryArchiverProvider,
 	visibilityArchiverConfigs config.VisibilityArchiverProvider,
+	executionArchiverConfigs config.ExecutionArchiverProvider,
 ) ArchiverProvider {
 	return &archiverProvider{
 		historyArchiverConfigs:    historyArchiverConfigs,
 		visibilityArchiverConfigs: visibilityArchiverConfigs,
+		executionArchiverConfigs:  executionArchiverConfigs,
 		historyContainers:         make(map[string]*archiver.HistoryBootstrapContainer),
 		visibilityContainers:      make(map[string]*archiver.VisibilityBootstrapContainer),
+		executionContainers:       make(map[string]*archiver.ExecutionBootstrapContainer),
 		historyArchivers:          make(map[string]archiver.HistoryArchiver),
 		visibilityArchivers:       make(map[string]archiver.VisibilityArchiver),
-		executionArchivers:        map[string]archiver.ExecutionArchiver{},
+		executionArchivers:        make(map[string]archiver.ExecutionArchiver),
 	}
 }
 
@@ -150,6 +165,7 @@ func (p *archiverProvider) RegisterBootstrapContainer(
 	serviceName string,
 	historyContainer *archiver.HistoryBootstrapContainer,
 	visibilityContainter *archiver.VisibilityBootstrapContainer,
+	executionContainer *archiver.ExecutionBootstrapContainer,
 ) error {
 	p.Lock()
 	defer p.Unlock()
@@ -160,12 +176,18 @@ func (p *archiverProvider) RegisterBootstrapContainer(
 	if _, ok := p.visibilityContainers[serviceName]; ok && visibilityContainter != nil {
 		return ErrBootstrapContainerAlreadyRegistered
 	}
+	if _, ok := p.executionContainers[serviceName]; ok && executionContainer != nil {
+		return ErrBootstrapContainerAlreadyRegistered
+	}
 
 	if historyContainer != nil {
 		p.historyContainers[serviceName] = historyContainer
 	}
 	if visibilityContainter != nil {
 		p.visibilityContainers[serviceName] = visibilityContainter
+	}
+	if executionContainer != nil {
+		p.executionContainers[serviceName] = executionContainer
 	}
 	return nil
 }

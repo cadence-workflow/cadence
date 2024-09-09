@@ -130,6 +130,7 @@ type (
 		GetCurrentBranchToken() ([]byte, error)
 		GetVersionHistories() *persistence.VersionHistories
 		GetCurrentVersion() int64
+		GetShardID() int
 		GetExecutionInfo() *persistence.WorkflowExecutionInfo
 		GetHistoryBuilder() *HistoryBuilder
 		GetInFlightDecision() (*DecisionInfo, bool)
@@ -236,5 +237,8 @@ type (
 
 		GetHistorySize() int64
 		SetHistorySize(size int64)
+
+		GetStorageLocation() types.StorageLocation
+		SetStorageLocation(loc types.StorageLocation)
 	}
 )

@@ -2016,9 +2016,8 @@ func (wh *WorkflowHandler) GetWorkflowExecutionHistory(
 
 	scope := getMetricsScopeWithDomain(metrics.FrontendGetWorkflowExecutionHistoryScope, getRequest, wh.GetMetricsClient()).Tagged(metrics.GetContextTags(ctx)...)
 	if !getRequest.GetSkipArchival() {
-		enableArchivalRead := wh.GetArchivalMetadata().GetHistoryConfig().ReadEnabled()
 		historyArchived := wh.historyArchived(ctx, getRequest, domainID)
-		if enableArchivalRead && historyArchived {
+		if historyArchived {
 			return wh.getArchivedHistory(ctx, getRequest, domainID)
 		}
 	}
@@ -2134,6 +2133,7 @@ func (wh *WorkflowHandler) GetWorkflowExecutionHistory(
 
 	// helper function to just getHistory
 	getHistory := func(firstEventID, nextEventID int64, nextPageToken []byte) error {
+		// todo (david.porter) work out if we need raw history
 		if isRawHistoryEnabled {
 			historyBlob, token.PersistenceToken, err = wh.getRawHistory(
 				ctx,
@@ -3958,13 +3958,19 @@ func (wh *WorkflowHandler) historyArchived(ctx context.Context, request *types.G
 		DomainUUID: domainID,
 		Execution:  request.Execution,
 	}
-	_, err := wh.GetHistoryClient().GetMutableState(ctx, getMutableStateRequest)
-	if err == nil {
-		return false
+	res, err := wh.GetHistoryClient().GetMutableState(ctx, getMutableStateRequest)
+	if err == nil && res != nil {
+		switch res.StorageLocation {
+		case types.StorageLocation(persistence.StorageLocationDatabase):
+			return false
+		case types.StorageLocation(persistence.StorageLocationWarmStorage), types.StorageLocation(persistence.StorageLocationArchival):
+			return true
+		default:
+			return false
+		}
 	}
 	switch err.(type) {
 	case *types.EntityNotExistsError:
-		// the only case in which history is assumed to be archived is if getting mutable state returns entity not found error
 		return true
 	}
 	return false

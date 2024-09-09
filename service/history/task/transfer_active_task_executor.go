@@ -39,6 +39,7 @@ import (
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
+	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/config"
 	"github.com/uber/cadence/service/history/execution"
@@ -527,25 +528,70 @@ func (t *transferActiveTaskExecutor) processCloseExecutionTaskHelper(
 	}
 
 	immediateArchival := true
+
 	if immediateArchival {
 
-		t.archiverClient.Archive(ctx, &archiver.ClientRequest{
-			ArchiveRequest: &archiver.ArchiveRequest{
-				DomainID:   task.DomainID,
-				WorkflowID: task.WorkflowID,
-				RunID:      task.RunID,
+		latestBranchToken := mutableState.GetVersionHistories().Histories[len(mutableState.GetVersionHistories().Histories)-1].BranchToken
 
-				ShardID:              t.shard.GetShardID(),
-				BranchToken:          executionInfo.BranchToken,
+		res, err := t.archiverClient.Archive(ctx, &archiver.ClientRequest{
+			ArchiveRequest: &archiver.ArchiveRequest{
+				DomainID:             executionInfo.DomainID,
+				DomainName:           domainName,
+				WorkflowID:           task.WorkflowID,
+				RunID:                task.RunID,
+				ShardID:              mutableState.GetShardID(),
+				BranchToken:          latestBranchToken,
 				NextEventID:          executionInfo.NextEventID,
 				CloseFailoverVersion: completionEvent.Version, // ? need to confirm if htis is correct
 				URI:                  domainEntry.GetConfig().HistoryArchivalURI,
-
-				Targets: []archiver.ArchivalTarget{archiver.ArchiveTargetHistory, archiver.ArchiveTargetExecution},
+				Targets:              []archiver.ArchivalTarget{archiver.ArchiveTargetHistory, archiver.ArchiveTargetExecution},
 			},
-			CallerService:        "history",
+			CallerService:        service.History,
 			AttemptArchiveInline: true,
 		})
+		if err != nil {
+			return err
+		}
+
+		if res.HistoryArchivedInline {
+			err = t.throttleRetry.Do(ctx, func() error {
+				return t.shard.GetExecutionManager().DeleteWorkflowExecution(ctx, &persistence.DeleteWorkflowExecutionRequest{
+					DomainID:   executionInfo.DomainID,
+					WorkflowID: executionInfo.WorkflowID,
+					RunID:      executionInfo.RunID,
+				})
+			})
+			if err != nil {
+				t.logger.Error("couldn't delete workflow after archival", tag.Error(err))
+			}
+
+			err = t.throttleRetry.Do(ctx, func() error {
+				return t.shard.GetExecutionManager().DeleteCurrentWorkflowExecution(ctx, &persistence.DeleteCurrentWorkflowExecutionRequest{
+					DomainID:   task.DomainID,
+					WorkflowID: task.WorkflowID,
+					RunID:      task.RunID,
+					DomainName: domainName,
+				})
+			})
+			if err != nil {
+				t.logger.Error("couldn't current delete workflow after archival", tag.Error(err))
+			}
+
+			err = t.throttleRetry.Do(ctx, func() error {
+				request := &persistence.VisibilityDeleteWorkflowExecutionRequest{
+					DomainID:   task.DomainID,
+					Domain:     domainName,
+					WorkflowID: task.WorkflowID,
+					RunID:      task.RunID,
+					TaskID:     task.TaskID,
+				}
+				// TODO: expose GetVisibilityManager method on shardContext interface
+				return t.shard.GetService().GetVisibilityManager().DeleteWorkflowExecution(ctx, request) // delete from db
+			})
+			if err != nil {
+				t.logger.Error("couldn't delete visibility workflow after archival", tag.Error(err))
+			}
+		}
 	}
 
 	return nil

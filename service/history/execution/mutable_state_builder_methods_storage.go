@@ -20,14 +20,16 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-package warm_storage
+package execution
 
-import "github.com/uber/cadence/common/persistence"
+import (
+	"github.com/uber/cadence/common/types"
+)
 
-type WarmStorageExecutionManager interface {
-	persistence.ExecutionManager
+func (e *mutableStateBuilder) GetStorageLocation() types.StorageLocation {
+	return e.storageLocation
 }
 
-type WarmStorageHistoryManager interface {
-	persistence.HistoryManager
+func (e *mutableStateBuilder) SetStorageLocation(loc types.StorageLocation) {
+	e.storageLocation = loc
 }

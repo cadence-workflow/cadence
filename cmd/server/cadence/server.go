@@ -294,7 +294,11 @@ func (s *server) startService() common.Daemon {
 		&s.cfg.DomainDefaults.Archival,
 	)
 
-	params.ArchiverProvider = provider.NewArchiverProvider(s.cfg.Archival.History.Provider, s.cfg.Archival.Visibility.Provider)
+	params.ArchiverProvider = provider.NewArchiverProvider(
+		s.cfg.Archival.History.Provider,
+		s.cfg.Archival.Visibility.Provider,
+		s.cfg.Archival.Execution.Provider,
+	)
 	params.PersistenceConfig.TransactionSizeLimit = dc.GetIntProperty(dynamicconfig.TransactionSizeLimit)
 	params.PersistenceConfig.ErrorInjectionRate = dc.GetFloat64Property(dynamicconfig.PersistenceErrorInjectionRate)
 	params.AuthorizationConfig = s.cfg.Authorization

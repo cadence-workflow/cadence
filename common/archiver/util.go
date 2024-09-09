@@ -22,9 +22,11 @@ package archiver
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -39,6 +41,20 @@ var (
 	errEmptyCloseTime        = errors.New("CloseTimestamp is empty")
 	errEmptyQuery            = errors.New("Query string is empty")
 )
+
+// TagLoggerWithArchiveHistoryRequestAndURI tags logger with fields in the archive history request and the URI
+func TagLoggerWithArchiveExecutionRequestAndURI(logger log.Logger, request *ArchiveExecutionRequest, URI string) log.Logger {
+	return logger.WithTags(
+		tag.ShardID(request.ShardID),
+		tag.ArchivalRequestDomainID(request.DomainID),
+		tag.ArchivalRequestDomainName(request.DomainName),
+		tag.ArchivalRequestWorkflowID(request.WorkflowID),
+		tag.ArchivalRequestRunID(request.RunID),
+		tag.ArchivalURI(URI),
+		tag.WorkflowID(request.WorkflowID),
+		tag.WorkflowRunID(request.RunID),
+	)
+}
 
 // TagLoggerWithArchiveHistoryRequestAndURI tags logger with fields in the archive history request and the URI
 func TagLoggerWithArchiveHistoryRequestAndURI(logger log.Logger, request *ArchiveHistoryRequest, URI string) log.Logger {
@@ -82,6 +98,43 @@ func ValidateHistoryArchiveRequest(request *ArchiveHistoryRequest) error {
 	}
 	if request.DomainName == "" {
 		return errEmptyDomainName
+	}
+	return nil
+}
+
+// ValidateExecutionArchiveRequest validates the archive execution request
+func ValidateExecutionArchiveRequest(req *ArchiveExecutionRequest) error {
+	if req == nil {
+		return &ErrInvalidArchivalRequest{
+			Message: "Invalid execution archival request",
+			Request: req,
+		}
+	}
+	if req.DomainID == "" {
+		return errEmptyDomainID
+	}
+	if req.ShardID < 0 {
+		return errEmptyDomainID
+	}
+	if req.WorkflowID == "" {
+		return errEmptyWorkflowID
+	}
+	if req.RunID == "" {
+		return errEmptyRunID
+	}
+	if req.DomainName == "" {
+		return errEmptyDomainName
+	}
+	return nil
+}
+
+// ValidateExecutionArchiveResponse checks the workflow execution is sane to archive/delete
+func ValidateExecutionArchiveResponse(res *persistence.GetWorkflowExecutionResponse) error {
+	if res == nil || res.State == nil {
+		return nil
+	}
+	if res.State.ExecutionInfo.State != persistence.WorkflowStateCompleted {
+		return fmt.Errorf("workflow is not closed. Cannot archive workflow")
 	}
 	return nil
 }

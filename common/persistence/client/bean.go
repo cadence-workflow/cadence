@@ -23,6 +23,7 @@
 package client
 
 import (
+	"github.com/uber/cadence/common/archiver"
 	"sync"
 
 	"github.com/uber/cadence/common/config"
@@ -88,6 +89,7 @@ type (
 		ESConfig          *config.ElasticSearchConfig
 		PinotConfig       *config.PinotVisibilityConfig
 		PinotClient       pinot.GenericClient
+		ExecutionArchiver archiver.ExecutionArchiver
 	}
 )
 

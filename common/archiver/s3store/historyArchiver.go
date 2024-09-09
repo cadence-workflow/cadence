@@ -115,6 +115,7 @@ func newHistoryArchiver(
 		historyIterator: historyIterator,
 	}, nil
 }
+
 func (h *historyArchiver) Archive(
 	ctx context.Context,
 	URI archiver.URI,
@@ -260,6 +261,14 @@ func saveHistoryIteratorState(ctx context.Context, featureCatalog *archiver.Arch
 			return
 		}
 	}
+}
+
+func (h *historyArchiver) GetWorkflowHistoryForPersistence(
+	ctx context.Context,
+	request *archiver.GetHistoryRequest,
+) (*archiver.GetHistoryResponse, error) {
+	panic("not implemented")
+	return nil, nil
 }
 
 func (h *historyArchiver) Get(
