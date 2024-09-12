@@ -39,24 +39,23 @@ func NewWarmStorageExecutionManager(
 	log log.Logger,
 	metrics metrics.Client,
 	mgr persistence.ExecutionManager,
-	arc archiver.ExecutionArchiver,
 ) (WarmStorageExecutionManager, error) {
 
 	return &executionWarmStorageImpl{
 		ExecutionManager: mgr,
 		log:              log,
 		metrics:          metrics,
+		archiveReader:    nil, // set after instantiation
 	}, nil
 }
 
 type executionWarmStorageImpl struct {
 	persistence.ExecutionManager
 
-	dc      dynamicconfig.Client
-	log     log.Logger
-	metrics metrics.Client
-	//archiveCfg archiver.ArchivalConfig
-	archiver archiver.ExecutionArchiver
+	dc            dynamicconfig.Client
+	log           log.Logger
+	metrics       metrics.Client
+	archiveReader archiver.ExecutionReader
 }
 
 var _ persistence.ExecutionManager = &executionWarmStorageImpl{}
@@ -73,6 +72,11 @@ func (w *executionWarmStorageImpl) GetWorkflowExecution(
 		return res, nil
 	}
 
+	// it's possible for this to be not set during loadup, so bail early if that's the case
+	if w.archiveReader == nil {
+		return res, lookupErr
+	}
+
 	// if the lookup *is not* a not-found error, handle that by
 	// returning it unchanged
 	var e *types.EntityNotExistsError
@@ -86,7 +90,7 @@ func (w *executionWarmStorageImpl) GetWorkflowExecution(
 		WorkflowID: request.Execution.GetWorkflowID(),
 		RunID:      request.Execution.GetRunID(),
 	}
-	archiverRes, err := w.archiver.GetWorkflowExecutionForPersistence(ctx, &req)
+	archiverRes, err := w.archiveReader.GetWorkflowExecutionForPersistence(ctx, &req)
 	if err != nil {
 		return nil, err
 	}
@@ -96,21 +100,9 @@ func (w *executionWarmStorageImpl) GetWorkflowExecution(
 	}, nil
 }
 
-// Todo (david.porter) considering adding support for current records
-//func (w *executionWarmStorageImpl) GetCurrentExecution(
-//	ctx context.Context,
-//	request *persistence.GetCurrentExecutionRequest,
-//) (*persistence.GetCurrentExecutionResponse, error) {
-//	res, err := w.ExecutionManager.GetCurrentExecution(ctx, request)
-//	if err == nil {
-//		return res, nil
-//	}
-//	var e *types.EntityNotExistsError
-//	if errors.As(err, &e) {
-//		return w.warmStorage.GetCurrentExecution(ctx, request)
-//	}
-//	return nil, err
-//}
+func (w *executionWarmStorageImpl) SetArchiveReader(a archiver.ExecutionReader) {
+	w.archiveReader = a
+}
 
 func (w *executionWarmStorageImpl) IsWorkflowExecutionExists(
 	ctx context.Context,
@@ -134,7 +126,7 @@ func (w *executionWarmStorageImpl) IsWorkflowExecutionExists(
 		RunID:      request.RunID,
 	}
 
-	archiverRes, err := w.archiver.GetWorkflowExecutionForPersistence(ctx, &req)
+	archiverRes, err := w.archiveReader.GetWorkflowExecutionForPersistence(ctx, &req)
 	if err == nil && archiverRes.MutableState != nil {
 		return &persistence.IsWorkflowExecutionExistsResponse{Exists: true}, nil
 	}

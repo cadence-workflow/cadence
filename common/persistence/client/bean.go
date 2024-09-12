@@ -23,7 +23,6 @@
 package client
 
 import (
-	"github.com/uber/cadence/common/archiver"
 	"sync"
 
 	"github.com/uber/cadence/common/config"
@@ -67,6 +66,7 @@ type (
 
 	// BeanImpl stores persistence managers
 	BeanImpl struct {
+		params                        *Params
 		domainManager                 persistence.DomainManager
 		taskManager                   persistence.TaskManager
 		visibilityManager             persistence.VisibilityManager
@@ -82,21 +82,20 @@ type (
 
 	// Params contains dependencies for persistence
 	Params struct {
-		PersistenceConfig config.Persistence
-		MetricsClient     metrics.Client
-		MessagingClient   messaging.Client
-		ESClient          es.GenericClient
-		ESConfig          *config.ElasticSearchConfig
-		PinotConfig       *config.PinotVisibilityConfig
-		PinotClient       pinot.GenericClient
-		ExecutionArchiver archiver.ExecutionArchiver
+		PersistenceConfig        config.Persistence
+		MetricsClient            metrics.Client
+		MessagingClient          messaging.Client
+		ESClient                 es.GenericClient
+		ESConfig                 *config.ElasticSearchConfig
+		PinotConfig              *config.PinotVisibilityConfig
+		PinotClient              pinot.GenericClient
+		ExecutionManagerWrappers persistence.ExecutionWrappers
 	}
 )
 
 // NewBeanFromFactory crate a new store bean using factory
 func NewBeanFromFactory(
 	factory Factory,
-	params *Params,
 	serviceConfig *service.Config,
 ) (*BeanImpl, error) {
 
@@ -110,7 +109,7 @@ func NewBeanFromFactory(
 		return nil, err
 	}
 
-	visibilityMgr, err := factory.NewVisibilityManager(params, serviceConfig)
+	visibilityMgr, err := factory.NewVisibilityManager(factory.GetParams(), serviceConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -313,7 +312,7 @@ func (s *BeanImpl) GetExecutionManager(
 		return executionManager, nil
 	}
 
-	executionManager, err := s.executionManagerFactory.NewExecutionManager(shardID)
+	executionManager, err := s.executionManagerFactory.NewExecutionManager(shardID, s.params.ExecutionManagerWrappers)
 	if err != nil {
 		return nil, err
 	}

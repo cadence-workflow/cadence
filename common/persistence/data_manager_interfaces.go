@@ -54,6 +54,7 @@ package persistence
 import (
 	"context"
 	"fmt"
+	"github.com/uber/cadence/common/config"
 	"strings"
 	"time"
 
@@ -1574,6 +1575,8 @@ type (
 		ListConcreteExecutions(ctx context.Context, request *ListConcreteExecutionsRequest) (*ListConcreteExecutionsResponse, error)
 		ListCurrentExecutions(ctx context.Context, request *ListCurrentExecutionsRequest) (*ListCurrentExecutionsResponse, error)
 	}
+
+	ExecutionWrappers []func(ExecutionManager, *config.Persistence) ExecutionManager
 
 	// ExecutionManagerFactory creates an instance of ExecutionManager for a given shard
 	ExecutionManagerFactory interface {

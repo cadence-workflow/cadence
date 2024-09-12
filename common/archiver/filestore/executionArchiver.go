@@ -39,7 +39,7 @@ import (
 )
 
 type executionArchiver struct {
-	container *archiver.ExecutionBootstrapContainer
+	container archiver.ExecutionArchiverBootstrapContainer
 
 	fileMode os.FileMode
 	dirMode  os.FileMode
@@ -47,14 +47,14 @@ type executionArchiver struct {
 
 // NewHistoryArchiver creates a new archiver.HistoryArchiver based on filestore
 func NewExecutionArchiver(
-	container *archiver.ExecutionBootstrapContainer,
+	container archiver.ExecutionArchiverBootstrapContainer,
 	config *config.FilestoreArchiver,
 ) (archiver.ExecutionArchiver, error) {
 	return newExecutionArchiver(container, config)
 }
 
 func newExecutionArchiver(
-	container *archiver.ExecutionBootstrapContainer,
+	container archiver.ExecutionArchiverBootstrapContainer,
 	config *config.FilestoreArchiver,
 ) (*executionArchiver, error) {
 	fileMode, err := strconv.ParseUint(config.FileMode, 0, 32)
@@ -155,32 +155,4 @@ func (e *executionArchiver) ArchiveExecution(ctx context.Context, URI archiver.U
 	}
 
 	return nil
-}
-
-func (e *executionArchiver) GetWorkflowExecutionForPersistence(ctx context.Context, req *archiver.GetExecutionRequest) (*archiver.GetExecutionResponse, error) {
-	domain, err := e.container.DomainCache.GetDomainByID(req.DomainID)
-	if err != nil {
-		return nil, err
-	}
-
-	uri, err := archiver.NewURI(domain.GetConfig().HistoryArchivalURI)
-	if err != nil {
-		return nil, err
-	}
-	return e.GetWorkflowExecution(ctx, uri, req)
-}
-
-func (e *executionArchiver) GetWorkflowExecution(ctx context.Context, URI archiver.URI, req *archiver.GetExecutionRequest) (*archiver.GetExecutionResponse, error) {
-	dirPath := URI.Path()
-	wfPath := constructExecutionFilename(req.DomainID, req.WorkflowID, req.RunID)
-	data, err := util.ReadFile(filepath.Join(dirPath, wfPath))
-	if err != nil {
-		return nil, fmt.Errorf("failed to read workflow execution from archived filepath: %w", err)
-	}
-
-	var ms persistence.WorkflowMutableState
-	json.Unmarshal(data, &ms)
-	return &archiver.GetExecutionResponse{
-		MutableState: &ms,
-	}, nil
 }

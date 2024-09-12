@@ -102,6 +102,18 @@ type (
 	ExecutionReader interface {
 		GetWorkflowExecutionForPersistence(context.Context, *GetExecutionRequest) (*GetExecutionResponse, error)
 		GetWorkflowExecution(context.Context, URI, *GetExecutionRequest) (*GetExecutionResponse, error)
+		SetDomainCache(domainCache cache.DomainCache)
+	}
+
+	// ExecutionReadContainer is the layer responsible for coordinating between all the various
+	// plugins and proxying read requests to them if they're instantiated and lazily instantiating them
+	// if they're not.
+	ExecutionReadContainer interface {
+		GetWorkflowExecutionForPersistence(ctx context.Context, req *GetExecutionRequest) (*GetExecutionResponse, error)
+		SetDomainCache(domainCache cache.DomainCache)
+		GetDomainCache() cache.DomainCache
+		GetLog() log.Logger
+		GetMetrics() metrics.Client
 	}
 
 	// HistoryArchiver is used to archive history and read archived history
@@ -121,7 +133,7 @@ type (
 		DomainCache     cache.DomainCache
 	}
 
-	ExecutionBootstrapContainer struct {
+	ExecutionArchiverBootstrapContainer struct {
 		Logger          log.Logger
 		MetricsClient   metrics.Client
 		ClusterMetadata cluster.Metadata

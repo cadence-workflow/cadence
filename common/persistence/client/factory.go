@@ -39,7 +39,6 @@ import (
 	pinotVisibility "github.com/uber/cadence/common/persistence/pinot"
 	"github.com/uber/cadence/common/persistence/serialization"
 	"github.com/uber/cadence/common/persistence/sql"
-	warm_storage "github.com/uber/cadence/common/persistence/warm-storage"
 	"github.com/uber/cadence/common/persistence/wrappers/errorinjectors"
 	"github.com/uber/cadence/common/persistence/wrappers/metered"
 	"github.com/uber/cadence/common/persistence/wrappers/ratelimited"
@@ -72,6 +71,9 @@ type (
 		NewDomainReplicationQueueManager() (p.QueueManager, error)
 		// NewConfigStoreManager returns a new config store manager
 		NewConfigStoreManager() (p.ConfigStoreManager, error)
+
+		// Gets the input params and overrides for the factory
+		GetParams() *Params
 	}
 	// DataStoreFactory is a low level interface to be implemented by a datastore
 	// Examples of datastores are cassandra, mysql etc
@@ -110,6 +112,7 @@ type (
 		datastores    map[storeType]Datastore
 		clusterName   string
 		dc            *p.DynamicConfiguration
+		params        *Params
 	}
 
 	storeType int
@@ -151,8 +154,10 @@ func NewFactory(
 	metricsClient metrics.Client,
 	logger log.Logger,
 	dc *p.DynamicConfiguration,
+	params *Params,
 ) Factory {
 	factory := &factoryImpl{
+		params:        params,
 		config:        cfg,
 		metricsClient: metricsClient,
 		logger:        logger,
@@ -246,6 +251,10 @@ func (f *factoryImpl) NewDomainManager() (p.DomainManager, error) {
 	return result, nil
 }
 
+func (f *factoryImpl) GetParams() *Params {
+	return f.params
+}
+
 // NewExecutionManager returns a new execution manager for a given shardID
 func (f *factoryImpl) NewExecutionManager(shardID int) (p.ExecutionManager, error) {
 	ds := f.datastores[storeTypeExecution]
@@ -253,25 +262,23 @@ func (f *factoryImpl) NewExecutionManager(shardID int) (p.ExecutionManager, erro
 	if err != nil {
 		return nil, err
 	}
-	result := p.NewExecutionManagerImpl(store, f.logger, p.NewPayloadSerializer())
+	executionMgr := p.NewExecutionManagerImpl(store, f.logger, p.NewPayloadSerializer())
+
 	if errorRate := f.config.ErrorInjectionRate(); errorRate != 0 {
-		result = errorinjectors.NewExecutionManager(result, errorRate, f.logger)
+		executionMgr = errorinjectors.NewExecutionManager(executionMgr, errorRate, f.logger)
 	}
 	if ds.ratelimit != nil {
-		result = ratelimited.NewExecutionManager(result, ds.ratelimit)
+		executionMgr = ratelimited.NewExecutionManager(executionMgr, ds.ratelimit)
 	}
 	if f.metricsClient != nil {
-		result = metered.NewExecutionManager(result, f.metricsClient, f.logger, f.config, f.dc.PersistenceSampleLoggingRate, f.dc.EnableShardIDMetrics)
+		executionMgr = metered.NewExecutionManager(executionMgr, f.metricsClient, f.logger, f.config, f.dc.PersistenceSampleLoggingRate, f.dc.EnableShardIDMetrics)
 	}
 
-	if f.dc.EnableWarmStoragePersistenceLayer() {
-
-		result, err = warm_storage.NewWarmStorageExecutionManager(f.logger, f.metricsClient, result)
-		if err != nil {
-			return nil, err
-		}
+	for _, w := range f.params.ExecutionManagerWrappers {
+		executionMgr = w(executionMgr, f.config)
 	}
-	return result, nil
+
+	return executionMgr, nil
 }
 
 // NewVisibilityManager returns a new visibility manager

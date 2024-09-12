@@ -22,10 +22,14 @@
 
 package warm_storage
 
-import "github.com/uber/cadence/common/persistence"
+import (
+	"github.com/uber/cadence/common/archiver"
+	"github.com/uber/cadence/common/persistence"
+)
 
 type WarmStorageExecutionManager interface {
 	persistence.ExecutionManager
+	SetArchiveReader(archiver.ExecutionReader)
 }
 
 type WarmStorageHistoryManager interface {

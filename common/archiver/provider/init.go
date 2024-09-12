@@ -51,7 +51,14 @@ func init() {
 		}
 		return filestore.NewHistoryArchiver(container, out)
 	}))
-	must(RegisterExecutionArchiver(filestore.URIScheme, config.FilestoreConfig, func(cfg *config.YamlNode, container *archiver.ExecutionBootstrapContainer) (archiver.ExecutionArchiver, error) {
+	must(RegisterExecutionArchiver(filestore.URIScheme, config.FilestoreConfig, func(cfg *config.YamlNode, container ExecutionReadContainer) (archiver.ExecutionArchiver, error) {
+		var out *config.FilestoreArchiver
+		if err := cfg.Decode(&out); err != nil {
+			return nil, fmt.Errorf("bad config: %w", err)
+		}
+		return filestore.NewExecutionArchiver(container, out)
+	}))
+	must(RegisterExecutionReader(filestore.URIScheme, config.FilestoreConfig, func(cfg *config.YamlNode, container ExecutionReadContainer) (archiver.ExecutionArchiver, error) {
 		var out *config.FilestoreArchiver
 		if err := cfg.Decode(&out); err != nil {
 			return nil, fmt.Errorf("bad config: %w", err)

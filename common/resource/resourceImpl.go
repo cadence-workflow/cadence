@@ -21,6 +21,8 @@
 package resource
 
 import (
+	"github.com/uber/cadence/common/config"
+	warm_storage "github.com/uber/cadence/common/persistence/warm-storage"
 	"math/rand"
 	"sync/atomic"
 	"time"
@@ -179,6 +181,13 @@ func New(
 		return nil, err
 	}
 
+	executionReaderBootstrapContainer := &archiver.ExecutionReaderBootstrapContainer{
+		Logger:        logger,
+		MetricsClient: params.MetricsClient,
+	}
+
+	var warmStorageLayer warm_storage.WarmStorageExecutionManager
+
 	persistenceBean, err := persistenceClient.NewBeanFromFactory(persistenceClient.NewFactory(
 		&params.PersistenceConfig,
 		func() float64 {
@@ -193,15 +202,26 @@ func New(
 		params.MetricsClient,
 		logger,
 		persistence.NewDynamicConfiguration(dynamicCollection),
-	), &persistenceClient.Params{
-		PersistenceConfig: params.PersistenceConfig,
-		MetricsClient:     params.MetricsClient,
-		MessagingClient:   params.MessagingClient,
-		ESClient:          params.ESClient,
-		ESConfig:          params.ESConfig,
-		PinotConfig:       params.PinotConfig,
-		PinotClient:       params.PinotClient,
-	}, serviceConfig)
+		&persistenceClient.Params{
+			PersistenceConfig: params.PersistenceConfig,
+			MetricsClient:     params.MetricsClient,
+			MessagingClient:   params.MessagingClient,
+			ESClient:          params.ESClient,
+			ESConfig:          params.ESConfig,
+			PinotConfig:       params.PinotConfig,
+			PinotClient:       params.PinotClient,
+			ExecutionManagerWrappers: []func(manager persistence.ExecutionManager, config *config.Persistence) persistence.ExecutionManager{
+				func(em persistence.ExecutionManager, cfg *config.Persistence) persistence.ExecutionManager {
+					ws, err := warm_storage.NewWarmStorageExecutionManager(params.Logger, params.MetricsClient, em)
+					if err != nil {
+						params.Logger.Fatal("could not load up warm storage layer", tag.Error(err))
+						warmStorageLayer = ws
+					}
+					return ws
+				},
+			},
+		},
+	), serviceConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -266,19 +286,28 @@ func New(
 		ClusterMetadata: params.ClusterMetadata,
 		DomainCache:     domainCache,
 	}
-	executionArchiverBootstrapContainer := &archiver.ExecutionBootstrapContainer{
+	executionArchiverBootstrapContainer := &archiver.ExecutionArchiverBootstrapContainer{
 		Logger:        logger,
 		MetricsClient: params.MetricsClient,
 		DomainCache:   domainCache,
+		ExecutionMgr: func(shard int) (persistence.ExecutionManager, error) {
+			return persistenceBean.GetExecutionManager(shard)
+		},
 	}
+
 	if err := params.ArchiverProvider.RegisterBootstrapContainer(
 		serviceName,
 		historyArchiverBootstrapContainer,
 		visibilityArchiverBootstrapContainer,
 		executionArchiverBootstrapContainer,
+		executionReaderBootstrapContainer,
 	); err != nil {
 		return nil, err
 	}
+
+	provider.NewExecutionContainer(serviceName, )
+
+	warmStorageLayer.SetArchiveReaderFactory(params.ArchiverProvider.GetExecutionArchiver)
 
 	isolationGroupStore := createConfigStoreOrDefault(params, dynamicCollection)
 
