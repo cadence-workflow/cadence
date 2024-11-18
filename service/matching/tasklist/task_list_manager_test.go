@@ -1122,6 +1122,16 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 			},
 		},
 		{
+			name: "success - no op, nil pointer",
+			req: &types.TaskListPartitionConfig{
+				NumReadPartitions:  1,
+				NumWritePartitions: 1,
+			},
+			originalConfig: nil,
+			setupMocks:     func(m *mockDeps) {},
+			expectedConfig: nil,
+		},
+		{
 			name: "success - update",
 			req: &types.TaskListPartitionConfig{
 				NumReadPartitions:  3,
@@ -1314,7 +1324,7 @@ func TestUpdateTaskListPartitionConfigConcurrency(t *testing.T) {
 	tlm.startWG.Done()
 
 	var g errgroup.Group
-	for i := 0; i < 100; i++ {
+	for i := 2; i < 102; i++ {
 		v := i
 		g.Go(func() error {
 			return tlm.UpdateTaskListPartitionConfig(context.Background(), &types.TaskListPartitionConfig{NumReadPartitions: int32(v), NumWritePartitions: int32(v)})

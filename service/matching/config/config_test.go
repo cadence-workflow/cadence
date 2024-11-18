@@ -81,6 +81,12 @@ func TestNewConfig(t *testing.T) {
 		"AllIsolationGroups":                   {nil, []string{"zone-1", "zone-2"}},
 		"EnableTasklistOwnershipGuard":         {dynamicconfig.MatchingEnableTasklistGuardAgainstOwnershipShardLoss, false},
 		"EnableGetNumberOfPartitionsFromCache": {dynamicconfig.MatchingEnableGetNumberOfPartitionsFromCache, false},
+		"PartitionUpscaleRPS":                  {dynamicconfig.MatchingPartitionUpscaleRPS, 30},
+		"PartitionDownscaleRPS":                {dynamicconfig.MatchingPartitionDownscaleRPS, 31},
+		"PartitionUpscaleSustainedDuration":    {dynamicconfig.MatchingPartitionUpscaleSustainedDuration, time.Duration(32)},
+		"PartitionDownscaleSustainedDuration":  {dynamicconfig.MatchingPartitionDownscaleSustainedDuration, time.Duration(33)},
+		"AdaptiveScalerUpdateInterval":         {dynamicconfig.MatchingAdaptiveScalerUpdateInterval, time.Duration(34)},
+		"EnableAdaptiveScaler":                 {dynamicconfig.MatchingEnableAdaptiveScaler, true},
 	}
 	client := dynamicconfig.NewInMemoryClient()
 	for fieldName, expected := range fields {

@@ -139,6 +139,7 @@ var (
 	ComponentMapQTree                   = component("mapq-tree")
 	ComponentMapQTreeNode               = component("mapq-tree-node")
 	ComponentRPCFactory                 = component("rpc-factory")
+	ComponentTaskListAdaptiveScaler     = component("task-list-adaptive-scaler")
 )
 
 // Pre-defined values for TagSysLifecycle

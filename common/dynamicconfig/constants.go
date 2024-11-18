@@ -813,6 +813,9 @@ const (
 	// Allowed filters: DomainName,TasklistName,TasklistType
 	MatchingForwarderMaxChildrenPerNode
 
+	MatchingPartitionUpscaleRPS
+	MatchingPartitionDownscaleRPS
+
 	// key for history
 
 	// HistoryRPS is request rate per second for each history host
@@ -1648,6 +1651,7 @@ const (
 	MatchingEnableTasklistGuardAgainstOwnershipShardLoss
 
 	MatchingEnableGetNumberOfPartitionsFromCache
+	MatchingEnableAdaptiveScaler
 
 	// key for history
 
@@ -2414,6 +2418,10 @@ const (
 	// Default value: 100ms
 	// Allowed filters: DomainName
 	MatchingActivityTaskSyncMatchWaitTime
+
+	MatchingPartitionUpscaleSustainedDuration
+	MatchingPartitionDownscaleSustainedDuration
+	MatchingAdaptiveScalerUpdateInterval
 
 	// HistoryLongPollExpirationInterval is the long poll expiration interval in the history service
 	// KeyName: history.longPollExpirationInterval
@@ -3279,6 +3287,18 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "MatchingForwarderMaxChildrenPerNode is the max number of children per node in the task list partition tree",
 		DefaultValue: 20,
 	},
+	MatchingPartitionUpscaleRPS: {
+		KeyName:      "matching.partitionUpscaleRPS",
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
+		Description:  "MatchingPartitionUpscaleRPS is the threshold of adding tasks RPS per partition to trigger upscale",
+		DefaultValue: 200,
+	},
+	MatchingPartitionDownscaleRPS: {
+		KeyName:      "matching.partitionDownscaleRPS",
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
+		Description:  "MatchingPartitionDownscaleRPS is the threshold of adding tasks RPS per partition to trigger downscale",
+		DefaultValue: 100,
+	},
 	HistoryRPS: {
 		KeyName:      "history.rps",
 		Description:  "HistoryRPS is request rate per second for each history host",
@@ -4011,6 +4031,12 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "MatchingEnableGetNumberOfPartitionsFromCache is to enable getting number of partitions from cache instead of dynamic config",
 		DefaultValue: false,
 	},
+	MatchingEnableAdaptiveScaler: {
+		KeyName:      "matching.enableAdaptiveScaler",
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
+		Description:  "MatchingEnableAdaptiveScaler is to enable adaptive task list scaling",
+		DefaultValue: false,
+	},
 	EventsCacheGlobalEnable: {
 		KeyName:      "history.eventsCacheGlobalEnable",
 		Description:  "EventsCacheGlobalEnable is enables global cache over all history shards",
@@ -4693,6 +4719,24 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		Filters:      []Filter{DomainName},
 		Description:  "MatchingActivityTaskSyncMatchWaitTime is the amount of time activity task will wait to be sync matched",
 		DefaultValue: time.Millisecond * 50,
+	},
+	MatchingPartitionUpscaleSustainedDuration: {
+		KeyName:      "matching.partitionUpscaleSustainedDuration",
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
+		Description:  "MatchingPartitionUpscaleSustainedDuration is the sustained period to wait before upscaling the number of partitions",
+		DefaultValue: time.Minute,
+	},
+	MatchingPartitionDownscaleSustainedDuration: {
+		KeyName:      "matching.partitionDownscaleSustainedDuration",
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
+		Description:  "MatchingPartitionDownscaleSustainedDuration is the sustained period to wait before downscaling the number of partitions",
+		DefaultValue: time.Minute,
+	},
+	MatchingAdaptiveScalerUpdateInterval: {
+		KeyName:      "matching.adaptiveScalerUpdateInterval",
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
+		Description:  "MatchingAdaptiveScalerUpdateInterval is the internal for adaptive scaler to update",
+		DefaultValue: time.Second * 15,
 	},
 	HistoryLongPollExpirationInterval: {
 		KeyName:      "history.longPollExpirationInterval",

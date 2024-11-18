@@ -1329,6 +1329,8 @@ const (
 	MatchingAddTaskScope
 	// MatchingTaskListMgrScope is the metrics scope for matching.TaskListManager component
 	MatchingTaskListMgrScope
+	// MatchingAdaptiveScalerScope is hte metrics scope for matching's Adaptive Scaler component
+	MatchingAdaptiveScalerScope
 	// MatchingQueryWorkflowScope tracks AddDecisionTask API calls received by service
 	MatchingQueryWorkflowScope
 	// MatchingRespondQueryTaskCompletedScope tracks AddDecisionTask API calls received by service
@@ -2001,6 +2003,7 @@ var ScopeDefs = map[ServiceIdx]map[int]scopeDefinition{
 		MatchingAddDecisionTaskScope:                {operation: "AddDecisionTask"},
 		MatchingAddTaskScope:                        {operation: "AddTask"},
 		MatchingTaskListMgrScope:                    {operation: "TaskListMgr"},
+		MatchingAdaptiveScalerScope:                 {operation: "adaptivescaler"},
 		MatchingQueryWorkflowScope:                  {operation: "QueryWorkflow"},
 		MatchingRespondQueryTaskCompletedScope:      {operation: "RespondQueryTaskCompleted"},
 		MatchingCancelOutstandingPollScope:          {operation: "CancelOutstandingPoll"},

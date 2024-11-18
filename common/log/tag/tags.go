@@ -1021,3 +1021,15 @@ func GlobalRatelimiterCollectionName(name string) Tag {
 func GlobalRatelimiterPeer(peer string) Tag {
 	return newStringTag("global-ratelimit-peer", peer)
 }
+
+func CurrentQPS(qps float64) Tag {
+	return newFloat64Tag("current-qps", qps)
+}
+
+func NumReadPartitions(n int32) Tag {
+	return newInt32("num-read-partitions", n)
+}
+
+func NumWritePartitions(n int32) Tag {
+	return newInt32("num-write-partitions", n)
+}
