@@ -89,6 +89,11 @@ func toTaskListPartitionConfig(v interface{}) *persistence.TaskListPartitionConf
 	version := partition["version"].(int64)
 	numRead := partition["num_read_partitions"].(int)
 	numWrite := partition["num_write_partitions"].(int)
+
+	if version == 0 && numRead == 0 && numWrite == 0 {
+		return nil
+	}
+
 	return &persistence.TaskListPartitionConfig{
 		Version:            version,
 		NumReadPartitions:  numRead,
