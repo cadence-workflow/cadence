@@ -35,6 +35,7 @@ import (
 	"github.com/uber-go/tally"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
@@ -48,6 +49,7 @@ import (
 	"github.com/uber/cadence/common/partition"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/history/constants"
 	"github.com/uber/cadence/service/matching/config"
 	"github.com/uber/cadence/service/matching/poller"
 )
@@ -77,6 +79,8 @@ func setupMocksForTaskListManager(t *testing.T, taskListID *Identifier, taskList
 	}
 	deps.mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("domainName", nil).Times(1)
 	config := config.NewConfig(dynamicconfig.NewCollection(dynamicClient, logger), "hostname", getIsolationgroupsHelper)
+	mockHistoryService := history.NewMockClient(ctrl)
+
 	tlm, err := NewManager(
 		deps.mockDomainCache,
 		logger,
@@ -91,6 +95,7 @@ func setupMocksForTaskListManager(t *testing.T, taskListID *Identifier, taskList
 		config,
 		deps.mockTimeSource,
 		deps.mockTimeSource.Now(),
+		mockHistoryService,
 	)
 	require.NoError(t, err)
 	return tlm.(*taskListManagerImpl), deps
@@ -219,6 +224,7 @@ func createTestTaskListManagerWithConfig(t *testing.T, logger log.Logger, contro
 	mockDomainCache := cache.NewMockDomainCache(controller)
 	mockDomainCache.EXPECT().GetDomainByID(gomock.Any()).Return(cache.CreateDomainCacheEntry("domainName"), nil).AnyTimes()
 	mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("domainName", nil).AnyTimes()
+	mockHistoryService := history.NewMockClient(controller)
 	tl := "tl"
 	dID := "domain"
 	tlID, err := NewIdentifier(dID, tl, persistence.TaskListTypeActivity)
@@ -226,7 +232,7 @@ func createTestTaskListManagerWithConfig(t *testing.T, logger log.Logger, contro
 		panic(err)
 	}
 	tlKind := types.TaskListKindNormal
-	tlMgr, err := NewManager(mockDomainCache, logger, metrics.NewClient(tally.NoopScope, metrics.Matching), tm, cluster.GetTestClusterMetadata(true), mockPartitioner, nil, func(Manager) {}, tlID, &tlKind, cfg, clock.NewRealTimeSource(), time.Now())
+	tlMgr, err := NewManager(mockDomainCache, logger, metrics.NewClient(tally.NoopScope, metrics.Matching), tm, cluster.GetTestClusterMetadata(true), mockPartitioner, nil, func(Manager) {}, tlID, &tlKind, cfg, clock.NewRealTimeSource(), time.Now(), mockHistoryService)
 	if err != nil {
 		logger.Fatal("error when createTestTaskListManager", tag.Error(err))
 	}
@@ -608,6 +614,7 @@ func TestTaskListManagerGetTaskBatch(t *testing.T) {
 	mockDomainCache := cache.NewMockDomainCache(controller)
 	mockDomainCache.EXPECT().GetDomainByID(gomock.Any()).Return(cache.CreateDomainCacheEntry("domainName"), nil).AnyTimes()
 	mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("domainName", nil).AnyTimes()
+	mockHistoryService := history.NewMockClient(controller)
 	logger := testlogger.New(t)
 	timeSource := clock.NewRealTimeSource()
 	tm := NewTestTaskManager(t, logger, timeSource)
@@ -628,6 +635,7 @@ func TestTaskListManagerGetTaskBatch(t *testing.T) {
 		cfg,
 		timeSource,
 		timeSource.Now(),
+		mockHistoryService,
 	)
 	assert.NoError(t, err)
 	tlm := tlMgr.(*taskListManagerImpl)
@@ -698,6 +706,7 @@ func TestTaskListManagerGetTaskBatch(t *testing.T) {
 		cfg,
 		timeSource,
 		timeSource.Now(),
+		mockHistoryService,
 	)
 	assert.NoError(t, err)
 	tlm = tlMgr.(*taskListManagerImpl)
@@ -731,6 +740,7 @@ func TestTaskListReaderPumpAdvancesAckLevelAfterEmptyReads(t *testing.T) {
 	mockDomainCache := cache.NewMockDomainCache(controller)
 	mockDomainCache.EXPECT().GetDomainByID(gomock.Any()).Return(cache.CreateDomainCacheEntry("domainName"), nil).AnyTimes()
 	mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("domainName", nil).AnyTimes()
+	mockHistoryService := history.NewMockClient(controller)
 
 	logger := testlogger.New(t)
 	timeSource := clock.NewRealTimeSource()
@@ -753,6 +763,7 @@ func TestTaskListReaderPumpAdvancesAckLevelAfterEmptyReads(t *testing.T) {
 		cfg,
 		timeSource,
 		timeSource.Now(),
+		mockHistoryService,
 	)
 	require.NoError(t, err)
 	tlm := tlMgr.(*taskListManagerImpl)
@@ -863,6 +874,7 @@ func TestTaskExpiryAndCompletion(t *testing.T) {
 			mockDomainCache := cache.NewMockDomainCache(controller)
 			mockDomainCache.EXPECT().GetDomainByID(gomock.Any()).Return(cache.CreateDomainCacheEntry("domainName"), nil).AnyTimes()
 			mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("domainName", nil).AnyTimes()
+			mockHistoryService := history.NewMockClient(controller)
 			logger := testlogger.New(t)
 			timeSource := clock.NewRealTimeSource()
 			tm := NewTestTaskManager(t, logger, timeSource)
@@ -888,6 +900,7 @@ func TestTaskExpiryAndCompletion(t *testing.T) {
 				cfg,
 				timeSource,
 				timeSource.Now(),
+				mockHistoryService,
 			)
 			assert.NoError(t, err)
 			tlm := tlMgr.(*taskListManagerImpl)
@@ -1389,4 +1402,114 @@ func TestManagerStart_NonRootPartition(t *testing.T) {
 		NumReadPartitions:  3,
 		NumWritePartitions: 3,
 	}, tlm.TaskListPartitionConfig())
+}
+
+func TestDispatchTask(t *testing.T) {
+	testCases := []struct {
+		name                        string
+		mockSetup                   func(matcher *MockTaskMatcher, taskCompleter *MockTaskCompleter, ctx context.Context, task *InternalTask)
+		enableStandByTaskCompletion bool
+		err                         error
+	}{
+		{
+			name: "active side - disabled StandByTaskCompletion - task sent to MustOffer and no error returned",
+			mockSetup: func(matcher *MockTaskMatcher, taskCompleter *MockTaskCompleter, ctx context.Context, task *InternalTask) {
+				matcher.EXPECT().MustOffer(ctx, task).Return(nil).Times(1)
+			},
+			err: nil,
+		},
+		{
+			name: "active side - disabled StandByTaskCompletion - task sent to MustOffer and error returned",
+			mockSetup: func(matcher *MockTaskMatcher, taskCompleter *MockTaskCompleter, ctx context.Context, task *InternalTask) {
+				matcher.EXPECT().MustOffer(ctx, task).Return(errors.New("no-task-completion-must-offer-error")).Times(1)
+			},
+			err: errors.New("no-task-completion-must-offer-error"),
+		},
+		{
+			name: "active side - enabled StandByTaskCompletion - task sent to MustOffer and no error returned",
+			mockSetup: func(matcher *MockTaskMatcher, taskCompleter *MockTaskCompleter, ctx context.Context, task *InternalTask) {
+				taskCompleter.EXPECT().CompleteTaskIfStarted(ctx, task).Return(errDomainIsActive).Times(1)
+				matcher.EXPECT().MustOffer(ctx, task).Return(nil).Times(1)
+			},
+			enableStandByTaskCompletion: true,
+			err:                         nil,
+		},
+		{
+			name: "active side - enabled StandByTaskCompletion - task sent to MustOffer and error returned",
+			mockSetup: func(matcher *MockTaskMatcher, taskCompleter *MockTaskCompleter, ctx context.Context, task *InternalTask) {
+				taskCompleter.EXPECT().CompleteTaskIfStarted(ctx, task).Return(errDomainIsActive).Times(1)
+				matcher.EXPECT().MustOffer(ctx, task).Return(errors.New("task-completion-must-offer-error")).Times(1)
+			},
+			enableStandByTaskCompletion: true,
+			err:                         errors.New("task-completion-must-offer-error"),
+		},
+		{
+			name: "standby side - disabled StandByTaskCompletion - task sent to MustOffer and no error returned",
+			mockSetup: func(matcher *MockTaskMatcher, taskCompleter *MockTaskCompleter, ctx context.Context, task *InternalTask) {
+				matcher.EXPECT().MustOffer(ctx, task).Return(nil).Times(1)
+			},
+			err: nil,
+		},
+		{
+			name: "standby side - disabled StandByTaskCompletion - task sent to MustOffer and error returned",
+			mockSetup: func(matcher *MockTaskMatcher, taskCompleter *MockTaskCompleter, ctx context.Context, task *InternalTask) {
+				matcher.EXPECT().MustOffer(ctx, task).Return(errors.New("no-task-completion-must-offer-error")).Times(1)
+			},
+			err: errors.New("no-task-completion-must-offer-error"),
+		},
+		{
+			name: "standby side - enabled StandByTaskCompletion - task completed",
+			mockSetup: func(matcher *MockTaskMatcher, taskCompleter *MockTaskCompleter, ctx context.Context, task *InternalTask) {
+				taskCompleter.EXPECT().CompleteTaskIfStarted(ctx, task).Return(nil).Times(1)
+			},
+			enableStandByTaskCompletion: true,
+			err:                         nil,
+		},
+		{
+			name: "standby side - enabled StandByTaskCompletion - task completion error",
+			mockSetup: func(matcher *MockTaskMatcher, taskCompleter *MockTaskCompleter, ctx context.Context, task *InternalTask) {
+				taskCompleter.EXPECT().CompleteTaskIfStarted(ctx, task).Return(errTaskNotStarted).Times(1)
+			},
+			enableStandByTaskCompletion: true,
+			err:                         errTaskNotStarted,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			controller := gomock.NewController(t)
+			logger := testlogger.New(t)
+			tlm := createTestTaskListManager(t, logger, controller)
+
+			task := &InternalTask{
+				Event: &genericTaskInfo{
+					TaskInfo: &persistence.TaskInfo{
+						DomainID:   constants.TestDomainID,
+						WorkflowID: constants.TestWorkflowID,
+						RunID:      constants.TestRunID,
+					},
+				},
+			}
+
+			taskMatcher := NewMockTaskMatcher(controller)
+			taskCompleter := NewMockTaskCompleter(controller)
+			tlm.matcher = taskMatcher
+			tlm.taskCompleter = taskCompleter
+			tlm.config.EnableStandByTaskCompletion = func() bool {
+				return tc.enableStandByTaskCompletion
+			}
+
+			ctx := context.Background()
+			tc.mockSetup(taskMatcher, taskCompleter, ctx, task)
+
+			err := tlm.DispatchTask(ctx, task)
+
+			if tc.err != nil {
+				assert.Error(t, err)
+				assert.Equal(t, tc.err, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }

@@ -36,6 +36,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
@@ -129,6 +130,8 @@ type (
 
 		partitionConfigLock sync.RWMutex
 		partitionConfig     *types.TaskListPartitionConfig
+		historyService      history.Client
+		taskCompleter       TaskCompleter
 	}
 )
 
@@ -153,6 +156,7 @@ func NewManager(
 	cfg *config.Config,
 	timeSource clock.TimeSource,
 	createTime time.Time,
+	historyService history.Client,
 ) (Manager, error) {
 	domainName, err := domainCache.GetDomainName(taskList.GetDomainID())
 	if err != nil {
@@ -193,6 +197,7 @@ func NewManager(
 			backoff.WithRetryPolicy(persistenceOperationRetryPolicy),
 			backoff.WithRetryableError(persistence.IsTransientError),
 		),
+		historyService: historyService,
 	}
 
 	tlMgr.pollerHistory = poller.NewPollerHistory(func() {
@@ -223,6 +228,7 @@ func NewManager(
 	tlMgr.matcher = newTaskMatcher(taskListConfig, fwdr, tlMgr.scope, isolationGroups, tlMgr.logger, taskList, *taskListKind, numReadPartitionsFn).(*taskMatcherImpl)
 	tlMgr.taskWriter = newTaskWriter(tlMgr)
 	tlMgr.taskReader = newTaskReader(tlMgr, isolationGroups)
+	tlMgr.taskCompleter = newTaskCompleter(tlMgr, historyServiceOperationRetryPolicy)
 	tlMgr.startWG.Add(1)
 	return tlMgr, nil
 }
@@ -491,10 +497,25 @@ func (c *taskListManagerImpl) AddTask(ctx context.Context, params AddTaskParams)
 	return syncMatch, err
 }
 
-// DispatchTask dispatches a task to a poller. When there are no pollers to pick
-// up the task or if rate limit is exceeded, this method will return error. Task
-// *will not* be persisted to db
+// DispatchTask dispatches a task to a poller on the active side. When there are no pollers to pick
+// up the task or if the rate limit is exceeded, this method will return error. Task
+// *will not* be persisted to db. On the passive side, dispatches the task to the taskCompleter; it will attempt
+// to complete the task if it has already been started.
 func (c *taskListManagerImpl) DispatchTask(ctx context.Context, task *InternalTask) error {
+	// optional configuration to enable clean up of standby tasks that have already been started
+	if c.config.EnableStandByTaskCompletion() {
+		// add a timer to measure latency in case the task is in the active side
+
+		if err := c.taskCompleter.CompleteTaskIfStarted(ctx, task); err != nil {
+			if errors.Is(err, errDomainIsActive) {
+				return c.matcher.MustOffer(ctx, task)
+			}
+			return err
+		}
+
+		return nil
+	}
+
 	return c.matcher.MustOffer(ctx, task)
 }
 
@@ -958,6 +979,9 @@ func newTaskListConfig(id *Identifier, cfg *config.Config, domainName string) *c
 		TaskDispatchRPS:           cfg.TaskDispatchRPS,
 		TaskDispatchRPSTTL:        cfg.TaskDispatchRPSTTL,
 		MaxTimeBetweenTaskDeletes: cfg.MaxTimeBetweenTaskDeletes,
+		EnableStandByTaskCompletion: func() bool {
+			return cfg.EnableStandByTaskCompletion(domainName, taskListName, taskType)
+		},
 	}
 }
 

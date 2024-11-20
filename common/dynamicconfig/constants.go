@@ -1646,6 +1646,12 @@ const (
 	// Value type: Bool
 	// Default value: false
 	MatchingEnableTasklistGuardAgainstOwnershipShardLoss
+	// MatchingEnableStandbyTaskCompletion is to enable completion of tasks in the domain's passive side
+	// KeyName: matching.enableStandbyTaskCompletion
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: DomainName,TasklistName,TasklistType
+	MatchingEnableStandbyTaskCompletion
 
 	MatchingEnableGetNumberOfPartitionsFromCache
 
@@ -4009,6 +4015,12 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "matching.enableGetNumberOfPartitionsFromCache",
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
 		Description:  "MatchingEnableGetNumberOfPartitionsFromCache is to enable getting number of partitions from cache instead of dynamic config",
+		DefaultValue: false,
+	},
+	MatchingEnableStandbyTaskCompletion: {
+		KeyName:      "matching.enableStandbyTaskCompletion",
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
+		Description:  "MatchingEnableStandbyTaskCompletion is to enable completion of tasks in the domain's passive side",
 		DefaultValue: false,
 	},
 	EventsCacheGlobalEnable: {
