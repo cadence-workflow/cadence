@@ -131,12 +131,7 @@ func (tc *taskCompleterImpl) CompleteTaskIfStarted(ctx context.Context, task *In
 
 	err := tc.throttleRetry.Do(ctx, op)
 
-	if errors.Is(err, errDomainIsActive) {
-		// add metric
-		return err
-	}
-
-	if err == nil || !isRetryableError(err) {
+	if err == nil {
 		// add metric
 		task.Finish(nil)
 		return nil

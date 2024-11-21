@@ -502,10 +502,8 @@ func (c *taskListManagerImpl) AddTask(ctx context.Context, params AddTaskParams)
 // *will not* be persisted to db. On the passive side, dispatches the task to the taskCompleter; it will attempt
 // to complete the task if it has already been started.
 func (c *taskListManagerImpl) DispatchTask(ctx context.Context, task *InternalTask) error {
-	// optional configuration to enable clean up of standby tasks that have already been started
+	// optional configuration to enable cleanup of tasks, in the standby cluster, that have already been started
 	if c.config.EnableStandbyTaskCompletion() {
-		// add a timer to measure latency in case the task is in the active side
-
 		if err := c.taskCompleter.CompleteTaskIfStarted(ctx, task); err != nil {
 			if errors.Is(err, errDomainIsActive) {
 				return c.matcher.MustOffer(ctx, task)
