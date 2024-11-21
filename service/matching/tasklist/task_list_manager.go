@@ -503,7 +503,7 @@ func (c *taskListManagerImpl) AddTask(ctx context.Context, params AddTaskParams)
 // to complete the task if it has already been started.
 func (c *taskListManagerImpl) DispatchTask(ctx context.Context, task *InternalTask) error {
 	// optional configuration to enable clean up of standby tasks that have already been started
-	if c.config.EnableStandByTaskCompletion() {
+	if c.config.EnableStandbyTaskCompletion() {
 		// add a timer to measure latency in case the task is in the active side
 
 		if err := c.taskCompleter.CompleteTaskIfStarted(ctx, task); err != nil {
@@ -979,8 +979,8 @@ func newTaskListConfig(id *Identifier, cfg *config.Config, domainName string) *c
 		TaskDispatchRPS:           cfg.TaskDispatchRPS,
 		TaskDispatchRPSTTL:        cfg.TaskDispatchRPSTTL,
 		MaxTimeBetweenTaskDeletes: cfg.MaxTimeBetweenTaskDeletes,
-		EnableStandByTaskCompletion: func() bool {
-			return cfg.EnableStandByTaskCompletion(domainName, taskListName, taskType)
+		EnableStandbyTaskCompletion: func() bool {
+			return cfg.EnableStandbyTaskCompletion(domainName, taskListName, taskType)
 		},
 	}
 }

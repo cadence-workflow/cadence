@@ -81,6 +81,7 @@ func TestNewConfig(t *testing.T) {
 		"AllIsolationGroups":                   {nil, []string{"zone-1", "zone-2"}},
 		"EnableTasklistOwnershipGuard":         {dynamicconfig.MatchingEnableTasklistGuardAgainstOwnershipShardLoss, false},
 		"EnableGetNumberOfPartitionsFromCache": {dynamicconfig.MatchingEnableGetNumberOfPartitionsFromCache, false},
+		"EnableStandbyTaskCompletion":          {dynamicconfig.MatchingEnableStandbyTaskCompletion, false},
 	}
 	client := dynamicconfig.NewInMemoryClient()
 	for fieldName, expected := range fields {

@@ -1495,7 +1495,7 @@ func TestDispatchTask(t *testing.T) {
 			taskCompleter := NewMockTaskCompleter(controller)
 			tlm.matcher = taskMatcher
 			tlm.taskCompleter = taskCompleter
-			tlm.config.EnableStandByTaskCompletion = func() bool {
+			tlm.config.EnableStandbyTaskCompletion = func() bool {
 				return tc.enableStandByTaskCompletion
 			}
 
