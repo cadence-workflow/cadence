@@ -36,6 +36,10 @@ var (
 		NumReadPartitions:  3,
 		NumWritePartitions: 2,
 	}
+	LoadBalancerHints = types.LoadBalancerHints{
+		BacklogCount:  1000,
+		RatePerSecond: 1.0,
+	}
 	MatchingAddActivityTaskRequest = types.AddActivityTaskRequest{
 		DomainUUID:                    DomainID,
 		Execution:                     &WorkflowExecution,
@@ -110,6 +114,7 @@ var (
 		WorkflowDomain:                  DomainName,
 		Header:                          &Header,
 		PartitionConfig:                 &TaskListPartitionConfig,
+		LoadBalancerHints:               &LoadBalancerHints,
 	}
 	MatchingPollForDecisionTaskRequest = types.MatchingPollForDecisionTaskRequest{
 		DomainUUID:     DomainID,
@@ -137,6 +142,7 @@ var (
 		StartedTimestamp:          &Timestamp2,
 		Queries:                   WorkflowQueryMap,
 		PartitionConfig:           &TaskListPartitionConfig,
+		LoadBalancerHints:         &LoadBalancerHints,
 	}
 	MatchingQueryWorkflowRequest = types.MatchingQueryWorkflowRequest{
 		DomainUUID:    DomainID,

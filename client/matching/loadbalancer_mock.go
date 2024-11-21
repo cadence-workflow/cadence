@@ -86,13 +86,13 @@ func (mr *MockLoadBalancerMockRecorder) PickWritePartition(domainID, taskList, t
 }
 
 // UpdateWeight mocks base method.
-func (m *MockLoadBalancer) UpdateWeight(domainID string, taskList types.TaskList, taskListType int, forwardedFrom, partition string, weight int64) {
+func (m *MockLoadBalancer) UpdateWeight(domainID string, taskList types.TaskList, taskListType int, forwardedFrom, partition string, info *types.LoadBalancerHints) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "UpdateWeight", domainID, taskList, taskListType, forwardedFrom, partition, weight)
+	m.ctrl.Call(m, "UpdateWeight", domainID, taskList, taskListType, forwardedFrom, partition, info)
 }
 
 // UpdateWeight indicates an expected call of UpdateWeight.
-func (mr *MockLoadBalancerMockRecorder) UpdateWeight(domainID, taskList, taskListType, forwardedFrom, partition, weight interface{}) *gomock.Call {
+func (mr *MockLoadBalancerMockRecorder) UpdateWeight(domainID, taskList, taskListType, forwardedFrom, partition, info interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWeight", reflect.TypeOf((*MockLoadBalancer)(nil).UpdateWeight), domainID, taskList, taskListType, forwardedFrom, partition, weight)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWeight", reflect.TypeOf((*MockLoadBalancer)(nil).UpdateWeight), domainID, taskList, taskListType, forwardedFrom, partition, info)
 }

@@ -23,6 +23,7 @@
 package matching
 
 import (
+	"math"
 	"math/rand"
 	"path"
 	"sort"
@@ -112,6 +113,12 @@ func (pw *weightSelector) update(n, p int, weight int64) {
 	pw.initialized = true
 }
 
+func (pw *weightSelector) getWeights() []int64 {
+	pw.RLock()
+	defer pw.RUnlock()
+	return pw.weights
+}
+
 func NewWeightedLoadBalancer(
 	lb LoadBalancer,
 	provider PartitionConfigProvider,
@@ -179,12 +186,15 @@ func (lb *weightedLoadBalancer) UpdateWeight(
 	taskListType int,
 	forwardedFrom string,
 	partition string,
-	weight int64,
+	info *types.LoadBalancerHints,
 ) {
 	if forwardedFrom != "" || taskList.GetKind() == types.TaskListKindSticky {
 		return
 	}
 	if strings.HasPrefix(taskList.GetName(), common.ReservedTaskListPrefix) {
+		return
+	}
+	if info == nil {
 		return
 	}
 	p := 0
@@ -218,6 +228,20 @@ func (lb *weightedLoadBalancer) UpdateWeight(
 	if !ok {
 		return
 	}
-	lb.logger.Debug("update tasklist partition weight", tag.WorkflowDomainID(domainID), tag.WorkflowTaskListName(taskList.GetName()), tag.WorkflowTaskListType(taskListType), tag.Dynamic("weights", w.weights), tag.Dynamic("tasklist-partition", p), tag.Dynamic("weight", weight))
+	weight := calcWeightFromLoadBalancerHints(info)
+	lb.logger.Debug("update tasklist partition weight", tag.WorkflowDomainID(domainID), tag.WorkflowTaskListName(taskList.GetName()), tag.WorkflowTaskListType(taskListType), tag.Dynamic("weights", w.getWeights()), tag.Dynamic("tasklist-partition", p), tag.Dynamic("weight", weight), tag.Dynamic("load-balancer-hints", info))
 	w.update(n, p, weight)
+}
+
+func calcWeightFromLoadBalancerHints(info *types.LoadBalancerHints) int64 {
+	// according to Little's Law, the average number of tasks in the queue L = λW
+	// where λ is the average arrival rate and W is the average wait time a task spends in the queue
+	// here λ is the QPS and W is the average match latency which is 10ms
+	// so the backlog hint should be backlog count + L.
+	smoothingNumber := int64(0)
+	qps := info.RatePerSecond
+	if qps > 0.01 {
+		smoothingNumber = int64(math.Ceil(qps * 0.01))
+	}
+	return info.BacklogCount + smoothingNumber
 }

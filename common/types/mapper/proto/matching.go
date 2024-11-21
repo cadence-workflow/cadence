@@ -406,6 +406,7 @@ func FromMatchingPollForActivityTaskResponse(t *types.MatchingPollForActivityTas
 		WorkflowDomain:             t.WorkflowDomain,
 		Header:                     FromHeader(t.Header),
 		PartitionConfig:            FromTaskListPartitionConfig(t.PartitionConfig),
+		LoadBalancerHints:          FromLoadBalancerHints(t.LoadBalancerHints),
 	}
 }
 
@@ -431,6 +432,7 @@ func ToMatchingPollForActivityTaskResponse(t *matchingv1.PollForActivityTaskResp
 		WorkflowDomain:                  t.WorkflowDomain,
 		Header:                          ToHeader(t.Header),
 		PartitionConfig:                 ToTaskListPartitionConfig(t.PartitionConfig),
+		LoadBalancerHints:               ToLoadBalancerHints(t.LoadBalancerHints),
 	}
 }
 
@@ -484,6 +486,7 @@ func FromMatchingPollForDecisionTaskResponse(t *types.MatchingPollForDecisionTas
 		Queries:                   FromWorkflowQueryMap(t.Queries),
 		TotalHistoryBytes:         t.TotalHistoryBytes,
 		PartitionConfig:           FromTaskListPartitionConfig(t.PartitionConfig),
+		LoadBalancerHints:         FromLoadBalancerHints(t.LoadBalancerHints),
 	}
 }
 
@@ -511,6 +514,7 @@ func ToMatchingPollForDecisionTaskResponse(t *matchingv1.PollForDecisionTaskResp
 		Queries:                   ToWorkflowQueryMap(t.Queries),
 		TotalHistoryBytes:         t.TotalHistoryBytes,
 		PartitionConfig:           ToTaskListPartitionConfig(t.PartitionConfig),
+		LoadBalancerHints:         ToLoadBalancerHints(t.LoadBalancerHints),
 	}
 }
 
@@ -656,4 +660,24 @@ func ToMatchingRefreshTaskListPartitionConfigResponse(t *matchingv1.RefreshTaskL
 		return nil
 	}
 	return &types.MatchingRefreshTaskListPartitionConfigResponse{}
+}
+
+func FromLoadBalancerHints(t *types.LoadBalancerHints) *matchingv1.LoadBalancerHints {
+	if t == nil {
+		return nil
+	}
+	return &matchingv1.LoadBalancerHints{
+		BacklogCount:  t.BacklogCount,
+		RatePerSecond: t.RatePerSecond,
+	}
+}
+
+func ToLoadBalancerHints(t *matchingv1.LoadBalancerHints) *types.LoadBalancerHints {
+	if t == nil {
+		return nil
+	}
+	return &types.LoadBalancerHints{
+		BacklogCount:  t.BacklogCount,
+		RatePerSecond: t.RatePerSecond,
+	}
 }

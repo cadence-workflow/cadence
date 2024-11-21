@@ -99,7 +99,7 @@ func (lb *multiLoadBalancer) UpdateWeight(
 	taskListType int,
 	forwardedFrom string,
 	partition string,
-	weight int64,
+	info *types.LoadBalancerHints,
 ) {
 	domainName, err := lb.domainIDToName(domainID)
 	if err != nil {
@@ -111,5 +111,5 @@ func (lb *multiLoadBalancer) UpdateWeight(
 		lb.logger.Warn("unsupported load balancer strategy", tag.Value(strategy))
 		return
 	}
-	loadBalancer.UpdateWeight(domainID, taskList, taskListType, forwardedFrom, partition, weight)
+	loadBalancer.UpdateWeight(domainID, taskList, taskListType, forwardedFrom, partition, info)
 }

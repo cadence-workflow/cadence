@@ -445,6 +445,7 @@ type MatchingPollForDecisionTaskResponse struct {
 	Queries                   map[string]*WorkflowQuery `json:"queries,omitempty"`
 	TotalHistoryBytes         int64                     `json:"currentHistorySize,omitempty"`
 	PartitionConfig           *TaskListPartitionConfig
+	LoadBalancerHints         *LoadBalancerHints
 }
 
 // GetWorkflowExecution is an internal getter (TBD...)
@@ -514,6 +515,7 @@ type MatchingPollForActivityTaskResponse struct {
 	Header                          *Header            `json:"header,omitempty"`
 	BacklogCountHint                int64              `json:"backlogCountHint,omitempty"`
 	PartitionConfig                 *TaskListPartitionConfig
+	LoadBalancerHints               *LoadBalancerHints
 }
 
 // MatchingQueryWorkflowRequest is an internal type (TBD...)
@@ -678,3 +680,8 @@ func (v *MatchingRefreshTaskListPartitionConfigRequest) GetTaskListType() (o Tas
 }
 
 type MatchingRefreshTaskListPartitionConfigResponse struct{}
+
+type LoadBalancerHints struct {
+	BacklogCount  int64
+	RatePerSecond float64
+}

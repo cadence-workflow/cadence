@@ -561,7 +561,8 @@ pollLoop:
 					},
 				})
 				return &types.MatchingPollForDecisionTaskResponse{
-					PartitionConfig: tlMgr.TaskListPartitionConfig(),
+					PartitionConfig:   tlMgr.TaskListPartitionConfig(),
+					LoadBalancerHints: tlMgr.LoadBalancerHints(),
 				}, nil
 			}
 			return nil, fmt.Errorf("couldn't get task: %w", err)
@@ -577,8 +578,8 @@ pollLoop:
 				Host:         e.config.HostName,
 			})
 			resp := task.PollForDecisionResponse()
-			// set the backlog count to the current partition's backlog count
-			resp.BacklogCountHint = task.BacklogCountHint
+			resp.PartitionConfig = tlMgr.TaskListPartitionConfig()
+			resp.LoadBalancerHints = tlMgr.LoadBalancerHints()
 			return resp, nil
 			// TODO: Maybe add history expose here?
 		}
@@ -597,7 +598,8 @@ pollLoop:
 				// will notify query client that the query task failed
 				e.deliverQueryResult(task.Query.TaskID, &queryResult{internalError: err}) //nolint:errcheck
 				return &types.MatchingPollForDecisionTaskResponse{
-					PartitionConfig: tlMgr.TaskListPartitionConfig(),
+					PartitionConfig:   tlMgr.TaskListPartitionConfig(),
+					LoadBalancerHints: tlMgr.LoadBalancerHints(),
 				}, nil
 			}
 
@@ -615,7 +617,7 @@ pollLoop:
 				BranchToken:               mutableStateResp.CurrentBranchToken,
 				HistorySize:               mutableStateResp.HistorySize,
 			}
-			return e.createPollForDecisionTaskResponse(task, resp, hCtx.scope, tlMgr.TaskListPartitionConfig()), nil
+			return e.createPollForDecisionTaskResponse(task, resp, hCtx.scope, tlMgr.TaskListPartitionConfig(), tlMgr.LoadBalancerHints()), nil
 		}
 
 		e.emitTaskIsolationMetrics(hCtx.scope, task.Event.PartitionConfig, req.GetIsolationGroup())
@@ -672,7 +674,7 @@ pollLoop:
 			},
 		})
 
-		return e.createPollForDecisionTaskResponse(task, resp, hCtx.scope, tlMgr.TaskListPartitionConfig()), nil
+		return e.createPollForDecisionTaskResponse(task, resp, hCtx.scope, tlMgr.TaskListPartitionConfig(), tlMgr.LoadBalancerHints()), nil
 	}
 }
 
@@ -723,7 +725,8 @@ pollLoop:
 			// TODO: Is empty poll the best reply for errPumpClosed?
 			if errors.Is(err, tasklist.ErrNoTasks) || errors.Is(err, errPumpClosed) {
 				return &types.MatchingPollForActivityTaskResponse{
-					PartitionConfig: tlMgr.TaskListPartitionConfig(),
+					PartitionConfig:   tlMgr.TaskListPartitionConfig(),
+					LoadBalancerHints: tlMgr.LoadBalancerHints(),
 				}, nil
 			}
 			e.logger.Error("Received unexpected err while getting task",
@@ -736,13 +739,16 @@ pollLoop:
 
 		if task.IsStarted() {
 			// tasks received from remote are already started. So, simply forward the response
-			return task.PollForActivityResponse(), nil
+			resp := task.PollForActivityResponse()
+			resp.PartitionConfig = tlMgr.TaskListPartitionConfig()
+			resp.LoadBalancerHints = tlMgr.LoadBalancerHints()
+			return resp, nil
 		}
 		e.emitForwardedFromStats(hCtx.scope, task.IsForwarded(), req.GetForwardedFrom())
 		e.emitTaskIsolationMetrics(hCtx.scope, task.Event.PartitionConfig, req.GetIsolationGroup())
 		if task.ActivityTaskDispatchInfo != nil {
 			task.Finish(nil)
-			return e.createSyncMatchPollForActivityTaskResponse(task, task.ActivityTaskDispatchInfo, tlMgr.TaskListPartitionConfig()), nil
+			return e.createSyncMatchPollForActivityTaskResponse(task, task.ActivityTaskDispatchInfo, tlMgr.TaskListPartitionConfig(), tlMgr.LoadBalancerHints()), nil
 		}
 
 		resp, err := e.recordActivityTaskStarted(hCtx.Context, request, task)
@@ -774,7 +780,7 @@ pollLoop:
 			continue pollLoop
 		}
 		task.Finish(nil)
-		return e.createPollForActivityTaskResponse(task, resp, hCtx.scope, tlMgr.TaskListPartitionConfig()), nil
+		return e.createPollForActivityTaskResponse(task, resp, hCtx.scope, tlMgr.TaskListPartitionConfig(), tlMgr.LoadBalancerHints()), nil
 	}
 }
 
@@ -782,6 +788,7 @@ func (e *matchingEngineImpl) createSyncMatchPollForActivityTaskResponse(
 	task *tasklist.InternalTask,
 	activityTaskDispatchInfo *types.ActivityTaskDispatchInfo,
 	partitionConfig *types.TaskListPartitionConfig,
+	loadBalancerHints *types.LoadBalancerHints,
 ) *types.MatchingPollForActivityTaskResponse {
 
 	scheduledEvent := activityTaskDispatchInfo.ScheduledEvent
@@ -816,6 +823,7 @@ func (e *matchingEngineImpl) createSyncMatchPollForActivityTaskResponse(
 	response.WorkflowType = activityTaskDispatchInfo.WorkflowType
 	response.WorkflowDomain = activityTaskDispatchInfo.WorkflowDomain
 	response.PartitionConfig = partitionConfig
+	response.LoadBalancerHints = loadBalancerHints
 	return response
 }
 
@@ -1150,6 +1158,7 @@ func (e *matchingEngineImpl) createPollForDecisionTaskResponse(
 	historyResponse *types.RecordDecisionTaskStartedResponse,
 	scope metrics.Scope,
 	partitionConfig *types.TaskListPartitionConfig,
+	loadBalancerHints *types.LoadBalancerHints,
 ) *types.MatchingPollForDecisionTaskResponse {
 
 	var token []byte
@@ -1185,6 +1194,7 @@ func (e *matchingEngineImpl) createPollForDecisionTaskResponse(
 	}
 	response.BacklogCountHint = task.BacklogCountHint
 	response.PartitionConfig = partitionConfig
+	response.LoadBalancerHints = loadBalancerHints
 	return response
 }
 
@@ -1194,6 +1204,7 @@ func (e *matchingEngineImpl) createPollForActivityTaskResponse(
 	historyResponse *types.RecordActivityTaskStartedResponse,
 	scope metrics.Scope,
 	partitionConfig *types.TaskListPartitionConfig,
+	loadBalancerHints *types.LoadBalancerHints,
 ) *types.MatchingPollForActivityTaskResponse {
 
 	scheduledEvent := historyResponse.ScheduledEvent
@@ -1238,6 +1249,7 @@ func (e *matchingEngineImpl) createPollForActivityTaskResponse(
 	response.WorkflowType = historyResponse.WorkflowType
 	response.WorkflowDomain = historyResponse.WorkflowDomain
 	response.PartitionConfig = partitionConfig
+	response.LoadBalancerHints = loadBalancerHints
 	return response
 }
 

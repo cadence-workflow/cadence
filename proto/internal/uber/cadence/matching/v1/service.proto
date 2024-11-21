@@ -103,6 +103,11 @@ message TaskListPartitionConfig {
   int32 num_write_partitions = 3;
 }
 
+message LoadBalancerHints {
+  int64 backlog_count = 1;
+  double rate_per_second = 2;
+}
+
 message PollForDecisionTaskRequest {
   api.v1.PollForDecisionTaskRequest request = 1;
   string domain_id = 2;
@@ -131,6 +136,7 @@ message PollForDecisionTaskResponse {
   map<string, api.v1.WorkflowQuery> queries = 17;
   int64 total_history_bytes = 18;
   TaskListPartitionConfig partition_config = 19;
+  LoadBalancerHints load_balancer_hints = 20;
 }
 
 message PollForActivityTaskRequest {
@@ -158,6 +164,7 @@ message PollForActivityTaskResponse {
   api.v1.WorkflowType workflow_type = 14;
   string workflow_domain = 15;
   api.v1.Header header = 16;
+  LoadBalancerHints load_balancer_hints = 17;
   TaskListPartitionConfig partition_config = 19;
 }
 

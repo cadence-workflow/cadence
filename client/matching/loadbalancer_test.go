@@ -161,7 +161,7 @@ func Test_defaultLoadBalancer_UpdateWeight(t *testing.T) {
 		taskList := types.TaskList{Name: "test-task-list", Kind: types.TaskListKindNormal.Ptr()}
 
 		// Call UpdateWeight, should do nothing
-		loadBalancer.UpdateWeight("test-domain-id", taskList, 0, "", "partition", 10)
+		loadBalancer.UpdateWeight("test-domain-id", taskList, 0, "", "partition", nil)
 
 		// No expectations, just ensure no-op
 	})

@@ -23,6 +23,7 @@
 package matching
 
 import (
+	"math"
 	"math/rand"
 	"testing"
 	"time"
@@ -250,14 +251,14 @@ func TestWeightedLoadBalancer_PickReadPartition(t *testing.T) {
 
 func TestWeightedLoadBalancer_UpdateWeight(t *testing.T) {
 	testCases := []struct {
-		name          string
-		domainID      string
-		taskList      types.TaskList
-		taskListType  int
-		forwardedFrom string
-		partition     string
-		weight        int64
-		setupMock     func(*cache.MockCache, *MockPartitionConfigProvider)
+		name              string
+		domainID          string
+		taskList          types.TaskList
+		taskListType      int
+		forwardedFrom     string
+		partition         string
+		loadBalancerHints *types.LoadBalancerHints
+		setupMock         func(*cache.MockCache, *MockPartitionConfigProvider)
 	}{
 		{
 			name:     "Sticky task list",
@@ -276,8 +277,8 @@ func TestWeightedLoadBalancer_UpdateWeight(t *testing.T) {
 			taskList: types.TaskList{Name: "/__cadence_sys/aaa/1"},
 		},
 		{
-			name:     "domain Name lookup error",
-			domainID: "invalid-domainID",
+			name:     "nil loadBalancerHints",
+			domainID: "domainA",
 			taskList: types.TaskList{Name: "a"},
 		},
 		{
@@ -285,6 +286,9 @@ func TestWeightedLoadBalancer_UpdateWeight(t *testing.T) {
 			domainID:  "domainA",
 			taskList:  types.TaskList{Name: "a"},
 			partition: "a",
+			loadBalancerHints: &types.LoadBalancerHints{
+				BacklogCount: 1,
+			},
 			setupMock: func(mockCache *cache.MockCache, mockPartitionConfigProvider *MockPartitionConfigProvider) {
 				mockPartitionConfigProvider.EXPECT().GetNumberOfReadPartitions("domainA", types.TaskList{Name: "a"}, 0).Return(1)
 				mockCache.EXPECT().Delete(key{
@@ -299,7 +303,9 @@ func TestWeightedLoadBalancer_UpdateWeight(t *testing.T) {
 			domainID:  "domainA",
 			taskList:  types.TaskList{Name: "a"},
 			partition: "a",
-			weight:    1,
+			loadBalancerHints: &types.LoadBalancerHints{
+				BacklogCount: 1,
+			},
 			setupMock: func(mockCache *cache.MockCache, mockPartitionConfigProvider *MockPartitionConfigProvider) {
 				mockPartitionConfigProvider.EXPECT().GetNumberOfReadPartitions("domainA", types.TaskList{Name: "a"}, 0).Return(2)
 				mockCache.EXPECT().Get(key{
@@ -319,7 +325,9 @@ func TestWeightedLoadBalancer_UpdateWeight(t *testing.T) {
 			domainID:  "domainA",
 			taskList:  types.TaskList{Name: "a"},
 			partition: "/__cadence_sys/a/1",
-			weight:    1,
+			loadBalancerHints: &types.LoadBalancerHints{
+				BacklogCount: 1,
+			},
 			setupMock: func(mockCache *cache.MockCache, mockPartitionConfigProvider *MockPartitionConfigProvider) {
 				mockPartitionConfigProvider.EXPECT().GetNumberOfReadPartitions("domainA", types.TaskList{Name: "a"}, 0).Return(2)
 				mockCache.EXPECT().Get(key{
@@ -345,7 +353,48 @@ func TestWeightedLoadBalancer_UpdateWeight(t *testing.T) {
 				tc.setupMock(mockWeightCache, mockPartitionConfigProvider)
 			}
 
-			lb.UpdateWeight(tc.domainID, tc.taskList, tc.taskListType, tc.forwardedFrom, tc.partition, tc.weight)
+			lb.UpdateWeight(tc.domainID, tc.taskList, tc.taskListType, tc.forwardedFrom, tc.partition, tc.loadBalancerHints)
+		})
+	}
+}
+
+func TestCalcWeightFromLoadBalancerHints(t *testing.T) {
+	tests := []struct {
+		name     string
+		info     types.LoadBalancerHints
+		expected int64
+	}{
+		{
+			name:     "Zero QPS and backlog count",
+			info:     types.LoadBalancerHints{BacklogCount: 0, RatePerSecond: 0},
+			expected: 0,
+		},
+		{
+			name:     "Small QPS below threshold",
+			info:     types.LoadBalancerHints{BacklogCount: 10, RatePerSecond: 0.005},
+			expected: 10,
+		},
+		{
+			name:     "QPS above threshold with no backlog",
+			info:     types.LoadBalancerHints{BacklogCount: 0, RatePerSecond: 2},
+			expected: int64(math.Ceil(2 * 0.01)), // smoothingNumber calculation
+		},
+		{
+			name:     "QPS above threshold with backlog",
+			info:     types.LoadBalancerHints{BacklogCount: 100, RatePerSecond: 5},
+			expected: 100 + int64(math.Ceil(5*0.01)), // backlog + smoothingNumber
+		},
+		{
+			name:     "Large QPS",
+			info:     types.LoadBalancerHints{BacklogCount: 50, RatePerSecond: 100},
+			expected: 50 + int64(math.Ceil(100*0.01)), // backlog + smoothingNumber
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := calcWeightFromLoadBalancerHints(&tt.info)
+			assert.Equal(t, tt.expected, result, "unexpected result for %s", tt.name)
 		})
 	}
 }

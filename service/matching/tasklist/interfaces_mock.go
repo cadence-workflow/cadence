@@ -186,6 +186,20 @@ func (mr *MockManagerMockRecorder) HasPollerAfter(accessTime interface{}) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasPollerAfter", reflect.TypeOf((*MockManager)(nil).HasPollerAfter), accessTime)
 }
 
+// LoadBalancerHints mocks base method.
+func (m *MockManager) LoadBalancerHints() *types.LoadBalancerHints {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LoadBalancerHints")
+	ret0, _ := ret[0].(*types.LoadBalancerHints)
+	return ret0
+}
+
+// LoadBalancerHints indicates an expected call of LoadBalancerHints.
+func (mr *MockManagerMockRecorder) LoadBalancerHints() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LoadBalancerHints", reflect.TypeOf((*MockManager)(nil).LoadBalancerHints))
+}
+
 // RefreshTaskListPartitionConfig mocks base method.
 func (m *MockManager) RefreshTaskListPartitionConfig(arg0 context.Context, arg1 *types.TaskListPartitionConfig) error {
 	m.ctrl.T.Helper()
