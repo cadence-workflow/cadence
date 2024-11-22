@@ -55,7 +55,7 @@ type (
 		LocalTaskWaitTime                    dynamicconfig.DurationPropertyFnWithTaskListInfoFilters
 		EnableGetNumberOfPartitionsFromCache dynamicconfig.BoolPropertyFnWithTaskListInfoFilters
 		PartitionUpscaleRPS                  dynamicconfig.IntPropertyFnWithTaskListInfoFilters
-		PartitionDownscaleRPS                dynamicconfig.IntPropertyFnWithTaskListInfoFilters
+		PartitionDownscaleFactor             dynamicconfig.FloatPropertyFnWithTaskListInfoFilters
 		PartitionUpscaleSustainedDuration    dynamicconfig.DurationPropertyFnWithTaskListInfoFilters
 		PartitionDownscaleSustainedDuration  dynamicconfig.DurationPropertyFnWithTaskListInfoFilters
 		AdaptiveScalerUpdateInterval         dynamicconfig.DurationPropertyFnWithTaskListInfoFilters
@@ -116,7 +116,7 @@ type (
 		LocalPollWaitTime                   func() time.Duration
 		LocalTaskWaitTime                   func() time.Duration
 		PartitionUpscaleRPS                 func() int
-		PartitionDownscaleRPS               func() int
+		PartitionDownscaleFactor            func() float64
 		PartitionUpscaleSustainedDuration   func() time.Duration
 		PartitionDownscaleSustainedDuration func() time.Duration
 		AdaptiveScalerUpdateInterval        func() time.Duration
@@ -179,7 +179,7 @@ func NewConfig(dc *dynamicconfig.Collection, hostName string, getIsolationGroups
 		LocalPollWaitTime:                    dc.GetDurationPropertyFilteredByTaskListInfo(dynamicconfig.LocalPollWaitTime),
 		LocalTaskWaitTime:                    dc.GetDurationPropertyFilteredByTaskListInfo(dynamicconfig.LocalTaskWaitTime),
 		PartitionUpscaleRPS:                  dc.GetIntPropertyFilteredByTaskListInfo(dynamicconfig.MatchingPartitionUpscaleRPS),
-		PartitionDownscaleRPS:                dc.GetIntPropertyFilteredByTaskListInfo(dynamicconfig.MatchingPartitionDownscaleRPS),
+		PartitionDownscaleFactor:             dc.GetFloat64PropertyFilteredByTaskListInfo(dynamicconfig.MatchingPartitionDownscaleFactor),
 		PartitionUpscaleSustainedDuration:    dc.GetDurationPropertyFilteredByTaskListInfo(dynamicconfig.MatchingPartitionUpscaleSustainedDuration),
 		PartitionDownscaleSustainedDuration:  dc.GetDurationPropertyFilteredByTaskListInfo(dynamicconfig.MatchingPartitionDownscaleSustainedDuration),
 		AdaptiveScalerUpdateInterval:         dc.GetDurationPropertyFilteredByTaskListInfo(dynamicconfig.MatchingAdaptiveScalerUpdateInterval),

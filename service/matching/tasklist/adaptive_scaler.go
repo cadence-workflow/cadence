@@ -100,6 +100,7 @@ func (a *adaptiveScalerImpl) Start() {
 	if !atomic.CompareAndSwapInt32(&a.status, common.DaemonStatusInitialized, common.DaemonStatusStarted) {
 		return
 	}
+	a.logger.Info("adaptive task list scaler state changed", tag.LifeCycleStarted)
 	a.wg.Add(1)
 	go a.runPeriodicLoop()
 }
@@ -110,6 +111,7 @@ func (a *adaptiveScalerImpl) Stop() {
 	}
 	a.cancel()
 	a.wg.Wait()
+	a.logger.Info("adaptive task list scaler state changed", tag.LifeCycleStopped)
 }
 
 func (a *adaptiveScalerImpl) runPeriodicLoop() {
@@ -121,7 +123,6 @@ func (a *adaptiveScalerImpl) runPeriodicLoop() {
 		case <-a.ctx.Done():
 			return
 		case <-timer.Chan():
-			a.logger.Debug("timer")
 			a.run()
 			timer.Reset(a.config.AdaptiveScalerUpdateInterval())
 		}
@@ -133,7 +134,6 @@ func (a *adaptiveScalerImpl) run() {
 		return
 	}
 	qps := a.qpsTracker.QPS()
-	a.scope.UpdateGauge(metrics.EstimatedAddTaskQPSGauge, qps)
 	partitionConfig := a.getPartitionConfig()
 	// adjust the number of write partitions based on qps
 	numWritePartitions := a.adjustWritePartitions(qps, partitionConfig.NumWritePartitions)
@@ -143,7 +143,7 @@ func (a *adaptiveScalerImpl) run() {
 	if numReadPartitions == partitionConfig.NumReadPartitions && numWritePartitions == partitionConfig.NumWritePartitions {
 		return
 	}
-	a.logger.Info("update the number of partitions", tag.CurrentQPS(qps), tag.NumReadPartitions(numReadPartitions), tag.NumWritePartitions(numWritePartitions))
+	a.logger.Info("update the number of partitions", tag.CurrentQPS(qps), tag.NumReadPartitions(numReadPartitions), tag.NumWritePartitions(numWritePartitions), tag.Dynamic("task-list-partition-config", partitionConfig))
 	a.scope.IncCounter(metrics.CadenceRequests)
 	err := a.tlMgr.UpdateTaskListPartitionConfig(a.ctx, &types.TaskListPartitionConfig{
 		NumReadPartitions:  numReadPartitions,
@@ -168,11 +168,11 @@ func (a *adaptiveScalerImpl) getPartitionConfig() *types.TaskListPartitionConfig
 
 func (a *adaptiveScalerImpl) adjustWritePartitions(qps float64, numWritePartitions int32) int32 {
 	upscaleThreshold := float64(a.config.PartitionUpscaleRPS())
-	downscaleThreshold := float64(a.config.PartitionDownscaleRPS())
-	if downscaleThreshold > upscaleThreshold {
-		downscaleThreshold = upscaleThreshold
-		a.logger.Warn("downscale threshold is larger than upscale threshold, use upscale threshold for downscale threshold instead")
-	}
+	downscaleFactor := a.config.PartitionDownscaleFactor()
+	downscaleThreshold := float64(numWritePartitions-1) * upscaleThreshold * downscaleFactor / float64(numWritePartitions)
+	a.scope.UpdateGauge(metrics.EstimatedAddTaskQPSGauge, qps)
+	a.scope.UpdateGauge(metrics.TaskListPartitionUpscaleThresholdGauge, upscaleThreshold)
+	a.scope.UpdateGauge(metrics.TaskListPartitionDownscaleThresholdGauge, downscaleThreshold)
 
 	result := numWritePartitions
 	if qps > upscaleThreshold {
@@ -181,6 +181,7 @@ func (a *adaptiveScalerImpl) adjustWritePartitions(qps float64, numWritePartitio
 			a.overLoadStartTime = a.timeSource.Now()
 		} else if a.timeSource.Now().Sub(a.overLoadStartTime) > a.config.PartitionUpscaleSustainedDuration() {
 			result = getNumberOfPartitions(numWritePartitions, qps, upscaleThreshold)
+			a.logger.Info("adjust write partitions", tag.CurrentQPS(qps), tag.PartitionUpscaleThreshold(upscaleThreshold), tag.PartitionDownscaleThreshold(downscaleThreshold), tag.PartitionDownscaleFactor(downscaleFactor), tag.CurrentNumWritePartitions(numWritePartitions), tag.NumWritePartitions(result))
 			a.overLoad = false
 		}
 	} else {
@@ -192,6 +193,7 @@ func (a *adaptiveScalerImpl) adjustWritePartitions(qps float64, numWritePartitio
 			a.underLoadStartTime = a.timeSource.Now()
 		} else if a.timeSource.Now().Sub(a.underLoadStartTime) > a.config.PartitionDownscaleSustainedDuration() {
 			result = getNumberOfPartitions(numWritePartitions, qps, upscaleThreshold)
+			a.logger.Info("adjust write partitions", tag.CurrentQPS(qps), tag.PartitionUpscaleThreshold(upscaleThreshold), tag.PartitionDownscaleThreshold(downscaleThreshold), tag.PartitionDownscaleFactor(downscaleFactor), tag.CurrentNumWritePartitions(numWritePartitions), tag.NumWritePartitions(result))
 			a.underLoad = false
 		}
 	} else {
@@ -201,9 +203,11 @@ func (a *adaptiveScalerImpl) adjustWritePartitions(qps float64, numWritePartitio
 }
 
 func (a *adaptiveScalerImpl) adjustReadPartitions(numReadPartitions, numWritePartitions int32) int32 {
-	if numReadPartitions <= numWritePartitions {
+	if numReadPartitions < numWritePartitions {
+		a.logger.Info("adjust read partitions", tag.NumReadPartitions(numWritePartitions), tag.NumWritePartitions(numWritePartitions))
 		return numWritePartitions
 	}
+	changed := false
 	// check the backlog of the drained partitions
 	for i := numReadPartitions - 1; i >= numWritePartitions; i-- {
 		resp, err := a.matchingClient.DescribeTaskList(a.ctx, &types.MatchingDescribeTaskListRequest{
@@ -231,9 +235,13 @@ func (a *adaptiveScalerImpl) adjustReadPartitions(numReadPartitions, numWritePar
 		if resp.TaskListStatus.GetBacklogCountHint() == 0 && nw <= i {
 			// if the partition is drained, we can downscale the number of read partitions
 			numReadPartitions = i
+			changed = true
 		} else {
 			break
 		}
+	}
+	if changed {
+		a.logger.Info("adjust read partitions", tag.NumReadPartitions(numReadPartitions), tag.NumWritePartitions(numWritePartitions))
 	}
 	return numReadPartitions
 }

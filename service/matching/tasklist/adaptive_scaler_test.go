@@ -209,6 +209,35 @@ func TestAdaptiveScalerRun(t *testing.T) {
 			},
 			cycles: 2,
 		},
+		{
+			name: "overload but no fluctuation",
+			mockSetup: func(deps *mockAdaptiveScalerDeps) {
+				// overload start
+				deps.mockQPSTracker.EXPECT().QPS().Return(210.0)
+				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(nil)
+
+				// overload passing sustained period
+				deps.mockQPSTracker.EXPECT().QPS().Return(210.0)
+				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(nil)
+				deps.mockManager.EXPECT().UpdateTaskListPartitionConfig(gomock.Any(), &types.TaskListPartitionConfig{
+					NumReadPartitions:  2,
+					NumWritePartitions: 2,
+				}).Return(nil)
+
+				// not overload with 1 partition, but avoid fluctuation, so don't scale down
+				deps.mockQPSTracker.EXPECT().QPS().Return(190.0)
+				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(&types.TaskListPartitionConfig{
+					NumReadPartitions:  2,
+					NumWritePartitions: 2,
+				})
+				deps.mockQPSTracker.EXPECT().QPS().Return(190.0)
+				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(&types.TaskListPartitionConfig{
+					NumReadPartitions:  2,
+					NumWritePartitions: 2,
+				})
+			},
+			cycles: 4,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -219,7 +248,7 @@ func TestAdaptiveScalerRun(t *testing.T) {
 			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.MatchingEnableAdaptiveScaler, true))
 			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.MatchingEnableGetNumberOfPartitionsFromCache, true))
 			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.MatchingPartitionUpscaleRPS, 200))
-			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.MatchingPartitionDownscaleRPS, 100))
+			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.MatchingPartitionDownscaleFactor, 0.75))
 			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.MatchingPartitionUpscaleSustainedDuration, time.Second))
 			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.MatchingPartitionDownscaleSustainedDuration, time.Second))
 			tc.mockSetup(deps)

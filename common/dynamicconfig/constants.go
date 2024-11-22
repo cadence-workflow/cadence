@@ -814,7 +814,6 @@ const (
 	MatchingForwarderMaxChildrenPerNode
 
 	MatchingPartitionUpscaleRPS
-	MatchingPartitionDownscaleRPS
 
 	// key for history
 
@@ -2249,6 +2248,8 @@ const (
 	// Default value: 0.5
 	HistoryGlobalRatelimiterNewDataWeight
 
+	MatchingPartitionDownscaleFactor
+
 	// LastFloatKey must be the last one in this const group
 	LastFloatKey
 )
@@ -3292,12 +3293,6 @@ var IntKeys = map[IntKey]DynamicInt{
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
 		Description:  "MatchingPartitionUpscaleRPS is the threshold of adding tasks RPS per partition to trigger upscale",
 		DefaultValue: 200,
-	},
-	MatchingPartitionDownscaleRPS: {
-		KeyName:      "matching.partitionDownscaleRPS",
-		Filters:      []Filter{DomainName, TaskListName, TaskType},
-		Description:  "MatchingPartitionDownscaleRPS is the threshold of adding tasks RPS per partition to trigger downscale",
-		DefaultValue: 100,
 	},
 	HistoryRPS: {
 		KeyName:      "history.rps",
@@ -4551,6 +4546,12 @@ var FloatKeys = map[FloatKey]DynamicFloat{
 		KeyName:      "history.globalRatelimiterNewDataWeight",
 		Description:  "HistoryGlobalRatelimiterNewDataWeight defines how much weight to give each host's newest data, per update.  Must be between 0 and 1, higher values match new values more closely after a single update",
 		DefaultValue: 0.5,
+	},
+	MatchingPartitionDownscaleFactor: {
+		KeyName:      "matching.partitionDownscaleFactor",
+		Description:  "MatchingPartitionDownscaleFactor introduces hysteresis to prevent oscillation by setting a lower QPS threshold for downscaling, ensuring partitions are only removed when the load decreases significantly below the capacity of fewer partitions.",
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
+		DefaultValue: 0.75,
 	},
 }
 

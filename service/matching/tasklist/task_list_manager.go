@@ -975,8 +975,8 @@ func newTaskListConfig(id *Identifier, cfg *config.Config, domainName string) *c
 		PartitionUpscaleRPS: func() int {
 			return cfg.PartitionUpscaleRPS(domainName, taskListName, taskType)
 		},
-		PartitionDownscaleRPS: func() int {
-			return cfg.PartitionDownscaleRPS(domainName, taskListName, taskType)
+		PartitionDownscaleFactor: func() float64 {
+			return cfg.PartitionDownscaleFactor(domainName, taskListName, taskType)
 		},
 		PartitionUpscaleSustainedDuration: func() time.Duration {
 			return cfg.PartitionUpscaleSustainedDuration(domainName, taskListName, taskType)

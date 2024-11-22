@@ -82,7 +82,7 @@ func TestNewConfig(t *testing.T) {
 		"EnableTasklistOwnershipGuard":         {dynamicconfig.MatchingEnableTasklistGuardAgainstOwnershipShardLoss, false},
 		"EnableGetNumberOfPartitionsFromCache": {dynamicconfig.MatchingEnableGetNumberOfPartitionsFromCache, false},
 		"PartitionUpscaleRPS":                  {dynamicconfig.MatchingPartitionUpscaleRPS, 30},
-		"PartitionDownscaleRPS":                {dynamicconfig.MatchingPartitionDownscaleRPS, 31},
+		"PartitionDownscaleFactor":             {dynamicconfig.MatchingPartitionDownscaleFactor, 31.0},
 		"PartitionUpscaleSustainedDuration":    {dynamicconfig.MatchingPartitionUpscaleSustainedDuration, time.Duration(32)},
 		"PartitionDownscaleSustainedDuration":  {dynamicconfig.MatchingPartitionDownscaleSustainedDuration, time.Duration(33)},
 		"AdaptiveScalerUpdateInterval":         {dynamicconfig.MatchingAdaptiveScalerUpdateInterval, time.Duration(34)},
@@ -155,6 +155,8 @@ func getValue(f *reflect.Value) interface{} {
 			return fn()
 		case dynamicconfig.StringPropertyFn:
 			return fn()
+		case dynamicconfig.FloatPropertyFnWithTaskListInfoFilters:
+			return fn("domain", "tasklist", int(types.TaskListTypeDecision))
 		case func() []string:
 			return fn()
 		default:
