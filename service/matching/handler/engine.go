@@ -1025,6 +1025,13 @@ func (e *matchingEngineImpl) UpdateTaskListPartitionConfig(
 	if request.GetTaskListType() == types.TaskListTypeActivity {
 		taskListType = persistence.TaskListTypeActivity
 	}
+	domainName, err := e.domainCache.GetDomainName(domainID)
+	if err != nil {
+		return nil, err
+	}
+	if e.config.EnableAdaptiveScaler(domainName, taskListName, taskListType) {
+		return nil, &types.BadRequestError{Message: "Manual update is not allowed because adaptive scaler is enabled."}
+	}
 	if taskListKind != types.TaskListKindNormal {
 		return nil, &types.BadRequestError{Message: "Only normal tasklist's partition config can be updated."}
 	}

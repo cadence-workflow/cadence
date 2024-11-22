@@ -54,6 +54,12 @@ type (
 		LocalPollWaitTime                    dynamicconfig.DurationPropertyFnWithTaskListInfoFilters
 		LocalTaskWaitTime                    dynamicconfig.DurationPropertyFnWithTaskListInfoFilters
 		EnableGetNumberOfPartitionsFromCache dynamicconfig.BoolPropertyFnWithTaskListInfoFilters
+		PartitionUpscaleRPS                  dynamicconfig.IntPropertyFnWithTaskListInfoFilters
+		PartitionDownscaleFactor             dynamicconfig.FloatPropertyFnWithTaskListInfoFilters
+		PartitionUpscaleSustainedDuration    dynamicconfig.DurationPropertyFnWithTaskListInfoFilters
+		PartitionDownscaleSustainedDuration  dynamicconfig.DurationPropertyFnWithTaskListInfoFilters
+		AdaptiveScalerUpdateInterval         dynamicconfig.DurationPropertyFnWithTaskListInfoFilters
+		EnableAdaptiveScaler                 dynamicconfig.BoolPropertyFnWithTaskListInfoFilters
 
 		// Time to hold a poll request before returning an empty response if there are no tasks
 		LongPollExpirationInterval dynamicconfig.DurationPropertyFnWithTaskListInfoFilters
@@ -97,24 +103,30 @@ type (
 		ForwarderConfig
 		EnableSyncMatch func() bool
 		// Time to hold a poll request before returning an empty response if there are no tasks
-		LongPollExpirationInterval    func() time.Duration
-		RangeSize                     int64
-		ActivityTaskSyncMatchWaitTime dynamicconfig.DurationPropertyFnWithDomainFilter
-		GetTasksBatchSize             func() int
-		UpdateAckInterval             func() time.Duration
-		IdleTasklistCheckInterval     func() time.Duration
-		MaxTasklistIdleTime           func() time.Duration
-		MinTaskThrottlingBurstSize    func() int
-		MaxTaskDeleteBatchSize        func() int
-		AsyncTaskDispatchTimeout      func() time.Duration
-		LocalPollWaitTime             func() time.Duration
-		LocalTaskWaitTime             func() time.Duration
+		LongPollExpirationInterval          func() time.Duration
+		RangeSize                           int64
+		ActivityTaskSyncMatchWaitTime       dynamicconfig.DurationPropertyFnWithDomainFilter
+		GetTasksBatchSize                   func() int
+		UpdateAckInterval                   func() time.Duration
+		IdleTasklistCheckInterval           func() time.Duration
+		MaxTasklistIdleTime                 func() time.Duration
+		MinTaskThrottlingBurstSize          func() int
+		MaxTaskDeleteBatchSize              func() int
+		AsyncTaskDispatchTimeout            func() time.Duration
+		LocalPollWaitTime                   func() time.Duration
+		LocalTaskWaitTime                   func() time.Duration
+		PartitionUpscaleRPS                 func() int
+		PartitionDownscaleFactor            func() float64
+		PartitionUpscaleSustainedDuration   func() time.Duration
+		PartitionDownscaleSustainedDuration func() time.Duration
+		AdaptiveScalerUpdateInterval        func() time.Duration
 		// taskWriter configuration
 		OutstandingTaskAppendsThreshold      func() int
 		MaxTaskBatchSize                     func() int
 		NumWritePartitions                   func() int
 		NumReadPartitions                    func() int
 		EnableGetNumberOfPartitionsFromCache func() bool
+		EnableAdaptiveScaler                 func() bool
 		// isolation configuration
 		EnableTasklistIsolation func() bool
 		// A function which returns all the isolation groups
@@ -166,6 +178,12 @@ func NewConfig(dc *dynamicconfig.Collection, hostName string, getIsolationGroups
 		EnableTasklistOwnershipGuard:         dc.GetBoolProperty(dynamicconfig.MatchingEnableTasklistGuardAgainstOwnershipShardLoss),
 		LocalPollWaitTime:                    dc.GetDurationPropertyFilteredByTaskListInfo(dynamicconfig.LocalPollWaitTime),
 		LocalTaskWaitTime:                    dc.GetDurationPropertyFilteredByTaskListInfo(dynamicconfig.LocalTaskWaitTime),
+		PartitionUpscaleRPS:                  dc.GetIntPropertyFilteredByTaskListInfo(dynamicconfig.MatchingPartitionUpscaleRPS),
+		PartitionDownscaleFactor:             dc.GetFloat64PropertyFilteredByTaskListInfo(dynamicconfig.MatchingPartitionDownscaleFactor),
+		PartitionUpscaleSustainedDuration:    dc.GetDurationPropertyFilteredByTaskListInfo(dynamicconfig.MatchingPartitionUpscaleSustainedDuration),
+		PartitionDownscaleSustainedDuration:  dc.GetDurationPropertyFilteredByTaskListInfo(dynamicconfig.MatchingPartitionDownscaleSustainedDuration),
+		AdaptiveScalerUpdateInterval:         dc.GetDurationPropertyFilteredByTaskListInfo(dynamicconfig.MatchingAdaptiveScalerUpdateInterval),
+		EnableAdaptiveScaler:                 dc.GetBoolPropertyFilteredByTaskListInfo(dynamicconfig.MatchingEnableAdaptiveScaler),
 		HostName:                             hostName,
 		TaskDispatchRPS:                      100000.0,
 		TaskDispatchRPSTTL:                   time.Minute,

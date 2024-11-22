@@ -125,7 +125,8 @@ type (
 		closeCallback        func(Manager)
 		throttleRetry        *backoff.ThrottleRetry
 
-		qpsTracker stats.QPSTracker
+		qpsTracker     stats.QPSTracker
+		adaptiveScaler AdaptiveScaler
 
 		partitionConfigLock sync.RWMutex
 		partitionConfig     *types.TaskListPartitionConfig
@@ -206,6 +207,11 @@ func NewManager(
 		tlMgr.Stop()
 	})
 	tlMgr.qpsTracker = stats.NewEmaFixedWindowQPSTracker(timeSource, 0.5, 10*time.Second)
+	if taskList.IsRoot() && *taskListKind == types.TaskListKindNormal {
+		adaptiveScalerScope := common.NewPerTaskListScope(domainName, taskList.GetName(), *taskListKind, metricsClient, metrics.MatchingAdaptiveScalerScope).
+			Tagged(getTaskListTypeTag(taskList.GetType()))
+		tlMgr.adaptiveScaler = NewAdaptiveScaler(taskList, tlMgr, tlMgr.qpsTracker, taskListConfig, timeSource, tlMgr.logger, adaptiveScalerScope, matchingClient)
+	}
 	var isolationGroups []string
 	if tlMgr.isIsolationMatcherEnabled() {
 		isolationGroups = cfg.AllIsolationGroups()
@@ -265,6 +271,9 @@ func (c *taskListManagerImpl) Start() error {
 	c.liveness.Start()
 	c.taskReader.Start()
 	c.qpsTracker.Start()
+	if c.adaptiveScaler != nil {
+		c.adaptiveScaler.Start()
+	}
 
 	return nil
 }
@@ -275,6 +284,9 @@ func (c *taskListManagerImpl) Stop() {
 		return
 	}
 	c.closeCallback(c)
+	if c.adaptiveScaler != nil {
+		c.adaptiveScaler.Stop()
+	}
 	c.qpsTracker.Stop()
 	c.liveness.Stop()
 	c.taskWriter.Stop()
@@ -346,16 +358,30 @@ func (c *taskListManagerImpl) RefreshTaskListPartitionConfig(ctx context.Context
 
 func (c *taskListManagerImpl) UpdateTaskListPartitionConfig(ctx context.Context, config *types.TaskListPartitionConfig) error {
 	c.startWG.Wait()
+	numberOfPartitionsToRefresh, currentConfig, err := c.updatePartitionConfig(ctx, config)
+	if err != nil {
+		return err
+	}
+	// push update notification to all non-root partitions
+	c.notifyPartitionConfig(ctx, currentConfig, numberOfPartitionsToRefresh)
+	return nil
+}
+
+func (c *taskListManagerImpl) updatePartitionConfig(ctx context.Context, config *types.TaskListPartitionConfig) (int, types.TaskListPartitionConfig, error) {
 	var version int64
 	numberOfPartitionsToRefresh := 1
 	c.partitionConfigLock.Lock()
+	defer c.partitionConfigLock.Unlock()
 	if c.partitionConfig != nil {
 		numberOfPartitionsToRefresh = int(c.partitionConfig.NumReadPartitions)
 		if isTaskListPartitionConfigEqual(*c.partitionConfig, *config) {
-			c.partitionConfigLock.Unlock()
-			return nil
+			return 0, types.TaskListPartitionConfig{}, nil
 		}
 		version = c.partitionConfig.Version
+	} else {
+		if config.NumReadPartitions == 1 && config.NumWritePartitions == 1 {
+			return 0, types.TaskListPartitionConfig{}, nil
+		}
 	}
 	err := c.throttleRetry.Do(ctx, func() error {
 		return c.db.UpdateTaskListPartitionConfig(&persistence.TaskListPartitionConfig{
@@ -365,20 +391,16 @@ func (c *taskListManagerImpl) UpdateTaskListPartitionConfig(ctx context.Context,
 		})
 	})
 	if err != nil {
-		c.partitionConfigLock.Unlock()
 		// We're not sure whether the update was persisted or not,
 		// Stop the tasklist manager and let it be reloaded
 		c.scope.IncCounter(metrics.TaskListPartitionUpdateFailedCounter)
 		c.Stop()
-		return err
+		return 0, types.TaskListPartitionConfig{}, err
 	}
 	c.partitionConfig = c.db.PartitionConfig().ToInternalType()
 	currentConfig := *c.partitionConfig
 	numberOfPartitionsToRefresh = common.MaxInt(numberOfPartitionsToRefresh, int(currentConfig.NumReadPartitions))
-	c.partitionConfigLock.Unlock()
-	// push update notification to all non-root partitions
-	c.notifyPartitionConfig(ctx, currentConfig, numberOfPartitionsToRefresh)
-	return nil
+	return numberOfPartitionsToRefresh, currentConfig, nil
 }
 
 func (c *taskListManagerImpl) notifyPartitionConfig(ctx context.Context, config types.TaskListPartitionConfig, count int) {
@@ -419,6 +441,16 @@ func (c *taskListManagerImpl) AddTask(ctx context.Context, params AddTaskParams)
 	if c.shouldReload() {
 		c.Stop()
 		return false, errShutdown
+	}
+	if c.config.EnableGetNumberOfPartitionsFromCache() {
+		partitionConfig := c.TaskListPartitionConfig()
+		w := 1
+		if partitionConfig != nil {
+			w = int(partitionConfig.NumWritePartitions)
+		}
+		if w <= c.taskListID.Partition() {
+			return false, &types.InternalServiceError{Message: "Current partition is drained."}
+		}
 	}
 	if params.ForwardedFrom == "" {
 		// request sent by history service
@@ -939,6 +971,24 @@ func newTaskListConfig(id *Identifier, cfg *config.Config, domainName string) *c
 		},
 		LocalTaskWaitTime: func() time.Duration {
 			return cfg.LocalTaskWaitTime(domainName, taskListName, taskType)
+		},
+		PartitionUpscaleRPS: func() int {
+			return cfg.PartitionUpscaleRPS(domainName, taskListName, taskType)
+		},
+		PartitionDownscaleFactor: func() float64 {
+			return cfg.PartitionDownscaleFactor(domainName, taskListName, taskType)
+		},
+		PartitionUpscaleSustainedDuration: func() time.Duration {
+			return cfg.PartitionUpscaleSustainedDuration(domainName, taskListName, taskType)
+		},
+		PartitionDownscaleSustainedDuration: func() time.Duration {
+			return cfg.PartitionDownscaleSustainedDuration(domainName, taskListName, taskType)
+		},
+		AdaptiveScalerUpdateInterval: func() time.Duration {
+			return cfg.AdaptiveScalerUpdateInterval(domainName, taskListName, taskType)
+		},
+		EnableAdaptiveScaler: func() bool {
+			return cfg.EnableAdaptiveScaler(domainName, taskListName, taskType)
 		},
 		ForwarderConfig: config.ForwarderConfig{
 			ForwarderMaxOutstandingPolls: func() int {

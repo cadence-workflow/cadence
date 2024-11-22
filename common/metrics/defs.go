@@ -1329,6 +1329,8 @@ const (
 	MatchingAddTaskScope
 	// MatchingTaskListMgrScope is the metrics scope for matching.TaskListManager component
 	MatchingTaskListMgrScope
+	// MatchingAdaptiveScalerScope is hte metrics scope for matching's Adaptive Scaler component
+	MatchingAdaptiveScalerScope
 	// MatchingQueryWorkflowScope tracks AddDecisionTask API calls received by service
 	MatchingQueryWorkflowScope
 	// MatchingRespondQueryTaskCompletedScope tracks AddDecisionTask API calls received by service
@@ -2001,6 +2003,7 @@ var ScopeDefs = map[ServiceIdx]map[int]scopeDefinition{
 		MatchingAddDecisionTaskScope:                {operation: "AddDecisionTask"},
 		MatchingAddTaskScope:                        {operation: "AddTask"},
 		MatchingTaskListMgrScope:                    {operation: "TaskListMgr"},
+		MatchingAdaptiveScalerScope:                 {operation: "adaptivescaler"},
 		MatchingQueryWorkflowScope:                  {operation: "QueryWorkflow"},
 		MatchingRespondQueryTaskCompletedScope:      {operation: "RespondQueryTaskCompleted"},
 		MatchingCancelOutstandingPollScope:          {operation: "CancelOutstandingPoll"},
@@ -2629,6 +2632,8 @@ const (
 	TaskListReadWritePartitionMismatchGauge
 	TaskListPollerPartitionMismatchGauge
 	EstimatedAddTaskQPSGauge
+	TaskListPartitionUpscaleThresholdGauge
+	TaskListPartitionDownscaleThresholdGauge
 
 	NumMatchingMetrics
 )
@@ -3319,6 +3324,8 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		TaskListReadWritePartitionMismatchGauge:                 {metricName: "tasklist_read_write_partition_mismatch", metricType: Gauge},
 		TaskListPollerPartitionMismatchGauge:                    {metricName: "tasklist_poller_partition_mismatch", metricType: Gauge},
 		EstimatedAddTaskQPSGauge:                                {metricName: "estimated_add_task_qps_per_tl", metricType: Gauge},
+		TaskListPartitionUpscaleThresholdGauge:                  {metricName: "tasklist_partition_upscale_threshold", metricType: Gauge},
+		TaskListPartitionDownscaleThresholdGauge:                {metricName: "tasklist_partition_downscale_threshold", metricType: Gauge},
 	},
 	Worker: {
 		ReplicatorMessages:                            {metricName: "replicator_messages"},

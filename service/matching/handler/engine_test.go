@@ -728,12 +728,13 @@ func TestShutDownTasklistsNotOwned(t *testing.T) {
 
 func TestUpdateTaskListPartitionConfig(t *testing.T) {
 	testCases := []struct {
-		name          string
-		req           *types.MatchingUpdateTaskListPartitionConfigRequest
-		hCtx          *handlerContext
-		mockSetup     func(*tasklist.MockManager)
-		expectError   bool
-		expectedError string
+		name                 string
+		req                  *types.MatchingUpdateTaskListPartitionConfigRequest
+		enableAdaptiveScaler bool
+		hCtx                 *handlerContext
+		mockSetup            func(*tasklist.MockManager)
+		expectError          bool
+		expectedError        string
 	}{
 		{
 			name: "success",
@@ -911,11 +912,32 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 			expectError:   true,
 			expectedError: "Only normal tasklist's partition config can be updated.",
 		},
+		{
+			name: "manual update not allowed",
+			req: &types.MatchingUpdateTaskListPartitionConfigRequest{
+				DomainUUID: "test-domain-id",
+				TaskList: &types.TaskList{
+					Name: "test-tasklist",
+					Kind: types.TaskListKindSticky.Ptr(),
+				},
+				TaskListType: types.TaskListTypeActivity.Ptr(),
+			},
+			enableAdaptiveScaler: true,
+			hCtx: &handlerContext{
+				Context: context.Background(),
+			},
+			mockSetup: func(mockManager *tasklist.MockManager) {
+			},
+			expectError:   true,
+			expectedError: "Manual update is not allowed because adaptive scaler is enabled.",
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			mockCtrl := gomock.NewController(t)
+			mockDomainCache := cache.NewMockDomainCache(mockCtrl)
+			mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("test-domain", nil)
 			mockManager := tasklist.NewMockManager(mockCtrl)
 			tc.mockSetup(mockManager)
 			tasklistID, err := tasklist.NewIdentifier("test-domain-id", "test-tasklist", 1)
@@ -924,7 +946,11 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 				taskLists: map[tasklist.Identifier]tasklist.Manager{
 					*tasklistID: mockManager,
 				},
-				timeSource: clock.NewRealTimeSource(),
+				timeSource:  clock.NewRealTimeSource(),
+				domainCache: mockDomainCache,
+				config: &config.Config{
+					EnableAdaptiveScaler: dynamicconfig.GetBoolPropertyFilteredByTaskListInfo(tc.enableAdaptiveScaler),
+				},
 			}
 			_, err = engine.UpdateTaskListPartitionConfig(tc.hCtx, tc.req)
 			if tc.expectError {
