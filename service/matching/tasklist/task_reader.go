@@ -83,7 +83,7 @@ type (
 		handleErr                func(error) error
 		onFatalErr               func()
 		dispatchTask             func(context.Context, *InternalTask) error
-		getIsolationGroupForTask func(context.Context, *persistence.TaskInfo) (string, error)
+		getIsolationGroupForTask func(context.Context, *persistence.TaskInfo) (string, time.Duration, error)
 		ratePerSecond            func() float64
 
 		// stopWg is used to wait for all dispatchers to stop.
@@ -182,7 +182,7 @@ dispatchLoop:
 				TaskInfo:     *taskInfo,
 				EventName:    "Attempting to Dispatch Buffered Task",
 			})
-			breakDispatchLoop := tr.dispatchSingleTaskFromBufferWithRetries(isolationGroup, taskInfo)
+			breakDispatchLoop := tr.dispatchSingleTaskFromBufferWithRetries(taskInfo)
 			if breakDispatchLoop {
 				// shutting down
 				break dispatchLoop
@@ -323,7 +323,8 @@ func (tr *taskReader) addSingleTaskToBuffer(task *persistence.TaskInfo) bool {
 	if err != nil {
 		tr.logger.Fatal("critical bug when adding item to ackManager", tag.Error(err))
 	}
-	isolationGroup, err := tr.getIsolationGroupForTask(tr.cancelCtx, task)
+	// Ignore the isolation duration as we're just putting it into a buffer to be dispatched later.
+	isolationGroup, _, err := tr.getIsolationGroupForTask(tr.cancelCtx, task)
 	if err != nil {
 		// it only errors when the tasklist is a sticky tasklist and
 		// the sticky pollers are not available, in this case, we just complete the task
@@ -390,16 +391,10 @@ func (tr *taskReader) completeTask(task *persistence.TaskInfo, err error) {
 	tr.taskGC.Run(ackLevel)
 }
 
-func (tr *taskReader) newDispatchContext(isolationGroup string) (context.Context, context.CancelFunc) {
+func (tr *taskReader) newDispatchContext(isolationGroup string, isolationDuration time.Duration) (context.Context, context.CancelFunc) {
 	rps := tr.ratePerSecond()
 	if isolationGroup != "" || rps > 1e-7 { // 1e-7 is a random number chosen to avoid overflow, normally user don't set such a low rps
-		// this is the minimum timeout required to dispatch a task, if the timeout value is smaller than this
-		// async task dispatch can be completely throttled, which could happen when ratePerSecond is pretty low
-		minTimeout := time.Duration(float64(len(tr.taskBuffers))/rps) * time.Second
-		timeout := tr.config.AsyncTaskDispatchTimeout()
-		if timeout < minTimeout {
-			timeout = minTimeout
-		}
+		timeout := tr.getDispatchTimeout(rps, isolationDuration)
 		domainEntry, err := tr.domainCache.GetDomainByID(tr.taskListID.GetDomainID())
 		if err != nil {
 			// we don't know if the domain is active in the current cluster, assume it is active and set the timeout
@@ -413,21 +408,50 @@ func (tr *taskReader) newDispatchContext(isolationGroup string) (context.Context
 	return tr.cancelCtx, func() {}
 }
 
-func (tr *taskReader) dispatchSingleTaskFromBufferWithRetries(isolationGroup string, taskInfo *persistence.TaskInfo) (breakDispatchLoop bool) {
+func (tr *taskReader) getDispatchTimeout(rps float64, isolationDuration time.Duration) time.Duration {
+	// this is the minimum timeout required to dispatch a task, if the timeout value is smaller than this
+	// async task dispatch can be completely throttled, which could happen when ratePerSecond is pretty low
+	minTimeout := time.Duration(float64(len(tr.taskBuffers))/rps) * time.Second
+	// timeout = max (min(asyncDispatchTimeout, isolationDuration), minTimeout)
+	timeout := tr.config.AsyncTaskDispatchTimeout()
+	if timeout > isolationDuration && isolationDuration != noIsolationTimeout {
+		timeout = isolationDuration
+	}
+	if timeout < minTimeout {
+		timeout = minTimeout
+	}
+	return timeout
+}
+
+func (tr *taskReader) dispatchSingleTaskFromBufferWithRetries(taskInfo *persistence.TaskInfo) (breakDispatchLoop bool) {
 	// retry loop for dispatching a single task
 	for {
-		breakDispatchLoop, breakRetryLoop := tr.dispatchSingleTaskFromBuffer(isolationGroup, taskInfo)
+		breakDispatchLoop, breakRetryLoop := tr.dispatchSingleTaskFromBuffer(taskInfo)
 		if breakRetryLoop {
 			return breakDispatchLoop
 		}
 	}
 }
 
-func (tr *taskReader) dispatchSingleTaskFromBuffer(isolationGroup string, taskInfo *persistence.TaskInfo) (breakDispatchLoop bool, breakRetries bool) {
+func (tr *taskReader) dispatchSingleTaskFromBuffer(taskInfo *persistence.TaskInfo) (breakDispatchLoop bool, breakRetries bool) {
+	isolationGroup, isolationDuration, err := tr.getIsolationGroupForTask(tr.cancelCtx, taskInfo)
+	if err != nil {
+		// it should never happen, unless there is a bug in 'getIsolationGroupForTask' method
+		tr.logger.Error("taskReader: unexpected error getting isolation group",
+			tag.Error(err),
+			tag.PartitionConfig(taskInfo.PartitionConfig))
+		isolationGroup = defaultTaskBufferIsolationGroup
+		isolationDuration = noIsolationTimeout
+	}
+	_, isolationGroupIsKnown := tr.taskBuffers[isolationGroup]
+	if !isolationGroupIsKnown {
+		isolationGroup = defaultTaskBufferIsolationGroup
+		isolationDuration = noIsolationTimeout
+	}
 	task := newInternalTask(taskInfo, tr.completeTask, types.TaskSourceDbBacklog, "", false, nil, isolationGroup)
-	dispatchCtx, cancel := tr.newDispatchContext(isolationGroup)
+	dispatchCtx, cancel := tr.newDispatchContext(isolationGroup, isolationDuration)
 	timerScope := tr.scope.StartTimer(metrics.AsyncMatchLatencyPerTaskList)
-	err := tr.dispatchTask(dispatchCtx, task)
+	err = tr.dispatchTask(dispatchCtx, task)
 	timerScope.Stop()
 	cancel()
 
@@ -467,121 +491,7 @@ func (tr *taskReader) dispatchSingleTaskFromBuffer(isolationGroup string, taskIn
 		e.EventName = "Dispatch Timed Out"
 		event.Log(e)
 		tr.scope.IncCounter(metrics.AsyncMatchDispatchTimeoutCounterPerTaskList)
-
-		// the idea here is that by re-fetching the isolation-groups, if something has shifted
-		// it will get a new isolation group to be placed. If it needs re-routing, then
-		// this will be the new routing destination.
-		group, err := tr.getIsolationGroupForTask(tr.cancelCtx, taskInfo)
-		if err != nil {
-			// it only errors when the tasklist is a sticky tasklist and
-			// the sticky pollers are not available, in this case, we just complete the task
-			// and let the decision get timed out and rescheduled to non-sticky tasklist
-			if err == _stickyPollerUnavailableError {
-				tr.completeTask(taskInfo, nil)
-				e.EventName = "Dispatch Failed because StickyPollerUnavailable"
-				event.Log(e)
-				return false, true
-			}
-			// it should never happen, unless there is a bug in 'getIsolationGroupForTask' method
-			tr.logger.Error("taskReader: unexpected error getting isolation group",
-				tag.Error(err),
-				tag.IsolationGroup(group))
-
-			e.EventName = "Dispatch Failed due to unexpected error getting isolation group"
-			e.Payload = map[string]any{
-				"error": err,
-			}
-			event.Log(e)
-			e.Payload = nil
-
-			tr.completeTask(taskInfo, err)
-			return false, true
-		}
-
-		if group == isolationGroup {
-			// no change, retry to dispatch the task again
-			return false, false
-		}
-
-		// ensure the isolation group is configured and available
-		_, taskGroupReaderIsPresent := tr.taskBuffers[group]
-		if !taskGroupReaderIsPresent {
-			// there's a programmatic error. Something has gone wrong with tasklist instantiation
-			// don't block and redirect to the default group
-			tr.scope.IncCounter(metrics.BufferIsolationGroupRedirectFailureCounter)
-			tr.logger.Error("An isolation group buffer was misconfigured and couldn't be found. Redirecting to default",
-				tag.Dynamic("redirection-from-isolation-group", isolationGroup),
-				tag.Dynamic("redirection-to-isolation-group", group),
-				tag.IsolationGroup(group),
-				tag.WorkflowRunID(taskInfo.RunID),
-				tag.WorkflowID(taskInfo.WorkflowID),
-				tag.TaskID(taskInfo.TaskID),
-				tag.WorkflowDomainID(taskInfo.DomainID),
-			)
-
-			select {
-			case <-tr.cancelCtx.Done():
-				// the task reader is shutting down
-				e.EventName = "Dispatch Failed because task reader is shutting down"
-				event.Log(e)
-				return true, true
-			case tr.taskBuffers[defaultTaskBufferIsolationGroup] <- taskInfo:
-				// task successfully rerouted to default tasklist
-				e.EventName = "Task rerouted to default isolation group"
-				event.Log(e)
-				return false, true
-			default:
-				// couldn't redirect, loop and try again
-				e.EventName = "Task is not rerouted to default isolation group. Will retry dispatch"
-				event.Log(e)
-				return false, false
-			}
-		}
-
-		// if there is no poller in the isolation group or the isolation group is drained,
-		// we want to redistribute the tasks to other isolation groups in this case to drain
-		// the backlog.
-		select {
-		case <-tr.cancelCtx.Done():
-			// the task reader is shutting down
-			e.EventName = "Dispatch Failed because task reader is shutting down"
-			event.Log(e)
-			return true, true
-		case tr.taskBuffers[group] <- taskInfo:
-			// successful redirect
-			tr.scope.IncCounter(metrics.BufferIsolationGroupRedirectCounter)
-			tr.logger.Warn("some tasks were redirected to another isolation group.",
-				tag.Dynamic("redirection-from-isolation-group", isolationGroup),
-				tag.Dynamic("redirection-to-isolation-group", group),
-				tag.WorkflowRunID(taskInfo.RunID),
-				tag.WorkflowID(taskInfo.WorkflowID),
-				tag.TaskID(taskInfo.TaskID),
-				tag.WorkflowDomainID(taskInfo.DomainID),
-			)
-
-			e.EventName = "Task forwarded to another isolation group"
-			e.Payload = map[string]any{
-				"redirection-from-isolation-group": isolationGroup,
-				"redirection-to-isolation-group":   group,
-			}
-			event.Log(e)
-			e.Payload = nil
-			return false, true
-		default:
-			tr.scope.IncCounter(metrics.BufferIsolationGroupRedirectFailureCounter)
-			e.EventName = "Task is not rerouted to another isolation group. Will retry dispatch"
-			event.Log(e)
-			tr.logger.Error("some tasks could not be redirected to another isolation group as the buffer's already full",
-				tag.WorkflowRunID(taskInfo.RunID),
-				tag.Dynamic("redirection-from-isolation-group", isolationGroup),
-				tag.Dynamic("redirection-to-isolation-group", group),
-				tag.WorkflowID(taskInfo.WorkflowID),
-				tag.TaskID(taskInfo.TaskID),
-				tag.WorkflowDomainID(taskInfo.DomainID),
-			)
-			// the task async buffers on the other isolation-group are already full, wait and retry
-			return false, false
-		}
+		return false, false
 	}
 
 	if errors.Is(err, ErrTasklistThrottled) {

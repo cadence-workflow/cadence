@@ -26,9 +26,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
-
-	"github.com/dgryski/go-farm"
 
 	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/log"
@@ -113,32 +110,10 @@ func (r *defaultPartitioner) pickIsolationGroup(wfPartition defaultWorkflowParti
 	if isAvailable {
 		return wfPartition.WorkflowStartIsolationGroup
 	}
-
-	// it's drained, fall back to picking a deterministic but random group
-	var availableList []string
-	for k := range available {
-		availableList = append(availableList, k)
-	}
-	// sort the slice to ensure it's deterministic
-	sort.Slice(availableList, func(i int, j int) bool {
-		return availableList[i] > availableList[j]
-	})
-	fallback := pickIsolationGroupFallback(availableList, wfPartition)
-	r.log.Debug("isolation group falling back to an available zone",
-		tag.FallbackIsolationGroup(fallback),
+	r.log.Debug("isolation group falling back to any zone",
 		tag.IsolationGroup(wfPartition.WorkflowStartIsolationGroup),
 		tag.PollerGroupsConfiguration(available),
 		tag.WorkflowID(wfPartition.WFID),
 	)
-	return fallback
-}
-
-// Simple deterministic isolationGroup picker
-// which will pick a random healthy isolationGroup and place the workflow there
-func pickIsolationGroupFallback(available []string, wfConfig defaultWorkflowPartitionConfig) string {
-	if len(available) == 0 {
-		return ""
-	}
-	hashv := farm.Hash32([]byte(wfConfig.WFID))
-	return available[int(hashv)%len(available)]
+	return ""
 }

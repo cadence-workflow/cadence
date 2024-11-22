@@ -209,11 +209,11 @@ func TestReadLevelForAllExpiredTasksInBatch(t *testing.T) {
 }
 
 func createTestTaskListManager(t *testing.T, logger log.Logger, controller *gomock.Controller) *taskListManagerImpl {
-	return createTestTaskListManagerWithConfig(t, logger, controller, defaultTestConfig())
+	return createTestTaskListManagerWithConfig(t, logger, controller, defaultTestConfig(), clock.NewMockedTimeSource())
 }
 
-func createTestTaskListManagerWithConfig(t *testing.T, logger log.Logger, controller *gomock.Controller, cfg *config.Config) *taskListManagerImpl {
-	tm := NewTestTaskManager(t, logger, clock.NewRealTimeSource())
+func createTestTaskListManagerWithConfig(t *testing.T, logger log.Logger, controller *gomock.Controller, cfg *config.Config, timeSource clock.TimeSource) *taskListManagerImpl {
+	tm := NewTestTaskManager(t, logger, timeSource)
 	mockPartitioner := partition.NewMockPartitioner(controller)
 	mockPartitioner.EXPECT().GetIsolationGroupByDomainID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return("", nil).AnyTimes()
 	mockDomainCache := cache.NewMockDomainCache(controller)
@@ -226,7 +226,7 @@ func createTestTaskListManagerWithConfig(t *testing.T, logger log.Logger, contro
 		panic(err)
 	}
 	tlKind := types.TaskListKindNormal
-	tlMgr, err := NewManager(mockDomainCache, logger, metrics.NewClient(tally.NoopScope, metrics.Matching), tm, cluster.GetTestClusterMetadata(true), mockPartitioner, nil, func(Manager) {}, tlID, &tlKind, cfg, clock.NewRealTimeSource(), time.Now())
+	tlMgr, err := NewManager(mockDomainCache, logger, metrics.NewClient(tally.NoopScope, metrics.Matching), tm, cluster.GetTestClusterMetadata(true), mockPartitioner, nil, func(Manager) {}, tlID, &tlKind, cfg, timeSource, timeSource.Now())
 	if err != nil {
 		logger.Fatal("error when createTestTaskListManager", tag.Error(err))
 	}
@@ -298,7 +298,7 @@ func TestCheckIdleTaskList(t *testing.T) {
 
 	t.Run("Idle task-list", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-		tlm := createTestTaskListManagerWithConfig(t, testlogger.New(t), ctrl, cfg)
+		tlm := createTestTaskListManagerWithConfig(t, testlogger.New(t), ctrl, cfg, clock.NewRealTimeSource())
 		require.NoError(t, tlm.Start())
 
 		require.EqualValues(t, 0, atomic.LoadInt32(&tlm.stopped), "idle check interval had not passed yet")
@@ -308,10 +308,9 @@ func TestCheckIdleTaskList(t *testing.T) {
 
 	t.Run("Active poll-er", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-		tlm := createTestTaskListManagerWithConfig(t, testlogger.New(t), ctrl, cfg)
+		tlm := createTestTaskListManagerWithConfig(t, testlogger.New(t), ctrl, cfg, clock.NewRealTimeSource())
 		require.NoError(t, tlm.Start())
 
-		time.Sleep(8 * time.Millisecond)
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		_, _ = tlm.GetTask(ctx, nil)
 		cancel()
@@ -342,7 +341,7 @@ func TestCheckIdleTaskList(t *testing.T) {
 		}
 
 		ctrl := gomock.NewController(t)
-		tlm := createTestTaskListManagerWithConfig(t, testlogger.New(t), ctrl, cfg)
+		tlm := createTestTaskListManagerWithConfig(t, testlogger.New(t), ctrl, cfg, clock.NewRealTimeSource())
 		require.NoError(t, tlm.Start())
 
 		time.Sleep(8 * time.Millisecond)
@@ -368,7 +367,7 @@ func TestAddTaskStandby(t *testing.T) {
 	cfg := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", getIsolationgroupsHelper)
 	cfg.IdleTasklistCheckInterval = dynamicconfig.GetDurationPropertyFnFilteredByTaskListInfo(10 * time.Millisecond)
 
-	tlm := createTestTaskListManagerWithConfig(t, logger, controller, cfg)
+	tlm := createTestTaskListManagerWithConfig(t, logger, controller, cfg, clock.NewMockedTimeSource())
 	require.NoError(t, tlm.Start())
 
 	// stop taskWriter so that we can check if there's any call to it
@@ -420,26 +419,27 @@ func TestGetPollerIsolationGroup(t *testing.T) {
 	logger := testlogger.New(t)
 
 	config := defaultTestConfig()
+	mockClock := clock.NewMockedTimeSource()
 	config.LongPollExpirationInterval = dynamicconfig.GetDurationPropertyFnFilteredByTaskListInfo(30 * time.Second)
 	config.EnableTasklistIsolation = dynamicconfig.GetBoolPropertyFnFilteredByDomainID(true)
-	tlm := createTestTaskListManagerWithConfig(t, logger, controller, config)
+	tlm := createTestTaskListManagerWithConfig(t, logger, controller, config, mockClock)
 
 	bgCtx := ContextWithPollerID(context.Background(), "poller0")
 	bgCtx = ContextWithIdentity(bgCtx, "id0")
 	bgCtx = ContextWithIsolationGroup(bgCtx, getIsolationgroupsHelper()[0])
-	ctx, cancel := context.WithTimeout(bgCtx, time.Second)
+	ctx, cancel := context.WithTimeout(bgCtx, time.Millisecond)
 	_, err := tlm.GetTask(ctx, nil)
 	cancel()
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), ErrNoTasks.Error())
 
-	// we should get isolation groups that showed up within last 10 seconds
+	// we should get isolation groups that showed up within last isolationDuration
 	groups := tlm.getPollerIsolationGroups()
 	assert.Equal(t, 1, len(groups))
 	assert.Equal(t, getIsolationgroupsHelper()[0], groups[0])
 
-	// after 10s, the poller from that isolation group are cleared from the poller history
-	time.Sleep(10 * time.Second)
+	// after isolation duration, the poller from that isolation group are cleared from the poller history
+	mockClock.Advance((10 * time.Second) + time.Nanosecond)
 	groups = tlm.getPollerIsolationGroups()
 	assert.Equal(t, 0, len(groups))
 
@@ -448,14 +448,14 @@ func TestGetPollerIsolationGroup(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		ctx, cancel := context.WithTimeout(bgCtx, time.Second*20)
-		_, err := tlm.GetTask(ctx, nil)
+		tlm.GetTask(ctx, nil)
 		cancel()
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), ErrNoTasks.Error())
 	}()
-	time.Sleep(11 * time.Second)
+	awaitCondition(func() bool {
+		return len(tlm.getPollerIsolationGroups()) > 0
+	}, time.Second)
 	groups = tlm.getPollerIsolationGroups()
+	cancel()
 	wg.Wait()
 	assert.Equal(t, 1, len(groups))
 	assert.Equal(t, getIsolationgroupsHelper()[0], groups[0])
@@ -469,63 +469,18 @@ func TestRateLimitErrorsFromTasklistDispatch(t *testing.T) {
 
 	config := defaultTestConfig()
 	config.EnableTasklistIsolation = func(domain string) bool { return true }
-	tlm := createTestTaskListManagerWithConfig(t, logger, controller, config)
+	tlm := createTestTaskListManagerWithConfig(t, logger, controller, config, clock.NewMockedTimeSource())
 
 	tlm.taskReader.dispatchTask = func(ctx context.Context, task *InternalTask) error {
 		return ErrTasklistThrottled
 	}
-	tlm.taskReader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, error) { return "datacenterA", nil }
+	tlm.taskReader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration, error) {
+		return "datacenterA", -1, nil
+	}
 
-	breakDispatcher, breakRetryLoop := tlm.taskReader.dispatchSingleTaskFromBuffer("datacenterA", &persistence.TaskInfo{})
+	breakDispatcher, breakRetryLoop := tlm.taskReader.dispatchSingleTaskFromBuffer(&persistence.TaskInfo{})
 	assert.False(t, breakDispatcher)
 	assert.False(t, breakRetryLoop)
-}
-
-// The intent of this test: SingleTaskDispatch is one of two places where tasks are written to
-// the taskreader.taskBuffers channels. As such, it needs to take care to not accidentally
-// hit the channel when it's full, as it'll block, causing a deadlock (due to both this dispatch
-// and the async task pump blocking trying to read to the channel)
-func TestSingleTaskDispatchDoesNotDeadlock(t *testing.T) {
-	controller := gomock.NewController(t)
-	logger := testlogger.New(t)
-
-	config := defaultTestConfig()
-	config.EnableTasklistIsolation = func(domain string) bool { return true }
-	tlm := createTestTaskListManagerWithConfig(t, logger, controller, config)
-
-	// mock a timeout to cause tasks to be rerouted
-	tlm.taskReader.dispatchTask = func(ctx context.Context, task *InternalTask) error {
-		return context.DeadlineExceeded
-	}
-	tlm.taskReader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, error) {
-		// force this, on the second read, to always reroute to the other DC
-		return "datacenterB", nil
-	}
-
-	maxBufferSize := config.GetTasksBatchSize("", "", 0) - 1
-
-	tlm.taskReader.logger = testlogger.New(t)
-
-	for i := 0; i < maxBufferSize; i++ {
-		breakDispatcher, breakRetryLoop := tlm.taskReader.dispatchSingleTaskFromBuffer("datacenterA", &persistence.TaskInfo{})
-		assert.False(t, breakDispatcher, "dispatch isn't shutting down")
-		assert.True(t, breakRetryLoop, "should be able to successfully dispatch all these tasks to the other isolation group")
-	}
-	// We should see them all being redirected
-	assert.Len(t, tlm.taskReader.taskBuffers["datacenterB"], maxBufferSize)
-	// we should see none in DC A (they're not being redirected here)
-	assert.Len(t, tlm.taskReader.taskBuffers["datacenterA"], 0)
-
-	// ok, and here we try and ensure that this *does not block
-	// and instead complains and live-retries
-	breakDispatcher, breakRetryLoop := tlm.taskReader.dispatchSingleTaskFromBuffer("datacenterA", &persistence.TaskInfo{})
-	assert.False(t, breakDispatcher, "dispatch isn't shutting down")
-	assert.False(t, breakRetryLoop, "in the event of a task being unable to be cross-dispatched, the expectation is that it'll keep retrying")
-
-	// and to be certain and avoid any accidental off-by-one errors, one more time to just be sure
-	breakDispatcher, breakRetryLoop = tlm.taskReader.dispatchSingleTaskFromBuffer("datacenterA", &persistence.TaskInfo{})
-	assert.False(t, breakDispatcher, "dispatch isn't shutting down")
-	assert.False(t, breakRetryLoop, "in the event of a task being unable to be cross-dispatched, the expectation is that it'll keep retrying")
 }
 
 // This is a bit of a strange unit-test as it's
@@ -539,33 +494,36 @@ func TestMisconfiguredZoneDoesNotBlock(t *testing.T) {
 
 	config := defaultTestConfig()
 	config.EnableTasklistIsolation = func(domain string) bool { return true }
-	tlm := createTestTaskListManagerWithConfig(t, logger, controller, config)
+	tlm := createTestTaskListManagerWithConfig(t, logger, controller, config, clock.NewMockedTimeSource())
+	invalidIsolationGroup := "invalid"
+	dispatched := make(map[string]int)
 
-	// mock a timeout to cause tasks to be rerouted
+	// record dispatched isolation group
 	tlm.taskReader.dispatchTask = func(ctx context.Context, task *InternalTask) error {
-		return context.DeadlineExceeded
+		dispatched[task.isolationGroup] = dispatched[task.isolationGroup] + 1
+		return nil
 	}
-	tlm.taskReader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, error) {
-		return "a misconfigured isolation group", nil
+	tlm.taskReader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration, error) {
+		return invalidIsolationGroup, -1, nil
 	}
 
 	maxBufferSize := config.GetTasksBatchSize("", "", 0) - 1
 
 	for i := 0; i < maxBufferSize; i++ {
-		breakDispatcher, breakRetryLoop := tlm.taskReader.dispatchSingleTaskFromBuffer("datacenterA", &persistence.TaskInfo{})
+		breakDispatcher, breakRetryLoop := tlm.taskReader.dispatchSingleTaskFromBuffer(&persistence.TaskInfo{})
 		assert.False(t, breakDispatcher, "dispatch isn't shutting down")
 		assert.True(t, breakRetryLoop, "should be able to successfully dispatch all these tasks to the default isolation group")
 	}
 	// We should see them all being redirected
-	assert.Len(t, tlm.taskReader.taskBuffers[defaultTaskBufferIsolationGroup], maxBufferSize)
-	// we should see none in DC A (they're not being redirected here)
-	assert.Len(t, tlm.taskReader.taskBuffers["datacenterA"], 0)
+	assert.Equal(t, dispatched[""], maxBufferSize)
+	// we should see none in the returned isolation group
+	assert.Equal(t, dispatched[invalidIsolationGroup], 0)
 
 	// ok, and here we try and ensure that this *does not block
 	// and instead complains and live-retries
-	breakDispatcher, breakRetryLoop := tlm.taskReader.dispatchSingleTaskFromBuffer("datacenterA", &persistence.TaskInfo{})
+	breakDispatcher, breakRetryLoop := tlm.taskReader.dispatchSingleTaskFromBuffer(&persistence.TaskInfo{})
 	assert.False(t, breakDispatcher, "dispatch isn't shutting down")
-	assert.False(t, breakRetryLoop, "in the event of a task being unable to be cross-dispatched, the expectation is that it'll keep retrying")
+	assert.True(t, breakRetryLoop, "task should be dispatched to default channel")
 }
 
 func TestTaskWriterShutdown(t *testing.T) {
@@ -813,7 +771,7 @@ func TestTaskListManagerGetTaskBatch_ReadBatchDone(t *testing.T) {
 	config.RangeSize = rangeSize
 	controller := gomock.NewController(t)
 	logger := testlogger.New(t)
-	tlm := createTestTaskListManagerWithConfig(t, logger, controller, config)
+	tlm := createTestTaskListManagerWithConfig(t, logger, controller, config, clock.NewMockedTimeSource())
 
 	tlm.taskAckManager.SetReadLevel(0)
 	atomic.StoreInt64(&tlm.taskWriter.maxReadLevel, maxReadLevel)

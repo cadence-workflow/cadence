@@ -60,6 +60,7 @@ const (
 	// Time budget for empty task to propagate through the function stack and be returned to
 	// pollForActivityTask or pollForDecisionTask handler.
 	returnEmptyTaskTimeBudget = time.Second
+	noIsolationTimeout        = -1
 )
 
 var (
@@ -201,7 +202,7 @@ func NewManager(
 	}, timeSource)
 
 	livenessInterval := taskListConfig.IdleTasklistCheckInterval()
-	tlMgr.liveness = liveness.NewLiveness(clock.NewRealTimeSource(), livenessInterval, func() {
+	tlMgr.liveness = liveness.NewLiveness(timeSource, livenessInterval, func() {
 		tlMgr.logger.Info("Task list manager stopping because no recent events", tag.Dynamic("interval", livenessInterval))
 		tlMgr.Stop()
 	})
@@ -456,7 +457,7 @@ func (c *taskListManagerImpl) AddTask(ctx context.Context, params AddTaskParams)
 			return r, err
 		}
 
-		isolationGroup, err := c.getIsolationGroupForTask(ctx, params.TaskInfo)
+		isolationGroup, _, err := c.getIsolationGroupForTask(ctx, params.TaskInfo)
 		if err != nil {
 			return false, err
 		}
@@ -775,7 +776,7 @@ func (c *taskListManagerImpl) shouldReload() bool {
 	return c.config.EnableTasklistIsolation() != c.enableIsolation
 }
 
-func (c *taskListManagerImpl) getIsolationGroupForTask(ctx context.Context, taskInfo *persistence.TaskInfo) (string, error) {
+func (c *taskListManagerImpl) getIsolationGroupForTask(ctx context.Context, taskInfo *persistence.TaskInfo) (string, time.Duration, error) {
 	if c.enableIsolation && len(taskInfo.PartitionConfig) > 0 && c.taskListKind != types.TaskListKindSticky {
 		partitionConfig := make(map[string]string)
 		for k, v := range taskInfo.PartitionConfig {
@@ -787,7 +788,7 @@ func (c *taskListManagerImpl) getIsolationGroupForTask(ctx context.Context, task
 		// because we don't persist poller information in database, so in the first minute, we always assume
 		// pollers are available in all isolation groups to avoid the risk of leaking a task to another isolation group.
 		// Besides, for sticky and scalable tasklists, not all poller information are available, we also use all isolation group.
-		if c.timeSource.Now().Sub(c.createTime) > time.Minute && c.taskListKind != types.TaskListKindSticky && c.taskListID.IsRoot() {
+		if c.timeSource.Now().Sub(c.createTime) > time.Minute {
 			pollerIsolationGroups = c.getPollerIsolationGroups()
 			if len(pollerIsolationGroups) == 0 {
 				// we don't have any pollers, use all isolation groups and wait for pollers' arriving
@@ -796,31 +797,14 @@ func (c *taskListManagerImpl) getIsolationGroupForTask(ctx context.Context, task
 		}
 		group, err := c.partitioner.GetIsolationGroupByDomainID(ctx, taskInfo.DomainID, partitionConfig, pollerIsolationGroups)
 		if err != nil {
-			// For a sticky tasklist, return StickyUnavailableError to let it be added to the non-sticky tasklist.
-			if err == partition.ErrNoIsolationGroupsAvailable && c.taskListKind == types.TaskListKindSticky {
-				return "", _stickyPollerUnavailableError
-			}
 			// if we're unable to get the isolation group, log the error and fallback to no isolation
 			c.logger.Error("Failed to get isolation group from partition library", tag.WorkflowID(taskInfo.WorkflowID), tag.WorkflowRunID(taskInfo.RunID), tag.TaskID(taskInfo.TaskID), tag.Error(err))
-			return defaultTaskBufferIsolationGroup, nil
+			return defaultTaskBufferIsolationGroup, noIsolationTimeout, nil
 		}
 		c.logger.Debug("get isolation group", tag.PollerGroups(pollerIsolationGroups), tag.IsolationGroup(group), tag.PartitionConfig(partitionConfig))
-		// For a sticky tasklist, it is possible that when an isolation group is undrained, the tasks from one workflow is reassigned
-		// to the isolation group undrained. If there is no poller from the isolation group, we should return StickyUnavailableError
-		// to let the task to be re-enqueued to the non-sticky tasklist. If there is poller, just return an empty isolation group, because
-		// there is at most one isolation group for sticky tasklist and we could just use empty isolation group for matching.
-		if c.taskListKind == types.TaskListKindSticky {
-			pollerIsolationGroups = c.getPollerIsolationGroups()
-			for _, pollerGroup := range pollerIsolationGroups {
-				if group == pollerGroup {
-					return "", nil
-				}
-			}
-			return "", _stickyPollerUnavailableError
-		}
-		return group, nil
+		return group, noIsolationTimeout, nil
 	}
-	return defaultTaskBufferIsolationGroup, nil
+	return defaultTaskBufferIsolationGroup, noIsolationTimeout, nil
 }
 
 func (c *taskListManagerImpl) getPollerIsolationGroups() []string {
