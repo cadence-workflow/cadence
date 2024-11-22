@@ -133,6 +133,29 @@ func (a *adaptiveScalerImpl) run() {
 		return
 	}
 	qps := a.qpsTracker.QPS()
+	a.scope.UpdateGauge(metrics.EstimatedAddTaskQPSGauge, qps)
+	partitionConfig := a.getPartitionConfig()
+	// adjust the number of write partitions based on qps
+	numWritePartitions := a.adjustWritePartitions(qps, partitionConfig.NumWritePartitions)
+	// adjust the number of read partitions
+	numReadPartitions := a.adjustReadPartitions(partitionConfig.NumReadPartitions, numWritePartitions)
+
+	if numReadPartitions == partitionConfig.NumReadPartitions && numWritePartitions == partitionConfig.NumWritePartitions {
+		return
+	}
+	a.logger.Info("update the number of partitions", tag.CurrentQPS(qps), tag.NumReadPartitions(numReadPartitions), tag.NumWritePartitions(numWritePartitions))
+	a.scope.IncCounter(metrics.CadenceRequests)
+	err := a.tlMgr.UpdateTaskListPartitionConfig(a.ctx, &types.TaskListPartitionConfig{
+		NumReadPartitions:  numReadPartitions,
+		NumWritePartitions: numWritePartitions,
+	})
+	if err != nil {
+		a.logger.Error("failed to update task list partition config", tag.Error(err))
+		a.scope.IncCounter(metrics.CadenceFailures)
+	}
+}
+
+func (a *adaptiveScalerImpl) getPartitionConfig() *types.TaskListPartitionConfig {
 	partitionConfig := a.tlMgr.TaskListPartitionConfig()
 	if partitionConfig == nil {
 		partitionConfig = &types.TaskListPartitionConfig{
@@ -140,22 +163,24 @@ func (a *adaptiveScalerImpl) run() {
 			NumWritePartitions: 1,
 		}
 	}
-	// calculate the number of write partitions
+	return partitionConfig
+}
+
+func (a *adaptiveScalerImpl) adjustWritePartitions(qps float64, numWritePartitions int32) int32 {
 	upscaleThreshold := float64(a.config.PartitionUpscaleRPS())
 	downscaleThreshold := float64(a.config.PartitionDownscaleRPS())
 	if downscaleThreshold > upscaleThreshold {
 		downscaleThreshold = upscaleThreshold
 		a.logger.Warn("downscale threshold is larger than upscale threshold, use upscale threshold for downscale threshold instead")
 	}
-	numWritePartitions := partitionConfig.NumWritePartitions
-	numReadPartitions := partitionConfig.NumReadPartitions
-	a.scope.UpdateGauge(metrics.EstimatedAddTaskQPSGauge, qps)
+
+	result := numWritePartitions
 	if qps > upscaleThreshold {
 		if !a.overLoad {
 			a.overLoad = true
 			a.overLoadStartTime = a.timeSource.Now()
 		} else if a.timeSource.Now().Sub(a.overLoadStartTime) > a.config.PartitionUpscaleSustainedDuration() {
-			numWritePartitions = getNumberOfPartitions(partitionConfig.NumWritePartitions, qps, upscaleThreshold)
+			result = getNumberOfPartitions(numWritePartitions, qps, upscaleThreshold)
 			a.overLoad = false
 		}
 	} else {
@@ -166,26 +191,18 @@ func (a *adaptiveScalerImpl) run() {
 			a.underLoad = true
 			a.underLoadStartTime = a.timeSource.Now()
 		} else if a.timeSource.Now().Sub(a.underLoadStartTime) > a.config.PartitionDownscaleSustainedDuration() {
-			numWritePartitions = getNumberOfPartitions(partitionConfig.NumWritePartitions, qps, upscaleThreshold) // NOTE: this has to be upscaleThreshold
+			result = getNumberOfPartitions(numWritePartitions, qps, upscaleThreshold)
 			a.underLoad = false
 		}
 	} else {
 		a.underLoad = false
 	}
-	// determine the number of read partitions, it should be larger or equal to the number of write partitions
-	if numReadPartitions < numWritePartitions {
-		numReadPartitions = numWritePartitions
-		a.logger.Info("update the number of partitions", tag.CurrentQPS(qps), tag.NumReadPartitions(numReadPartitions), tag.NumWritePartitions(numWritePartitions))
-		a.scope.IncCounter(metrics.CadenceRequests)
-		err := a.tlMgr.UpdateTaskListPartitionConfig(a.ctx, &types.TaskListPartitionConfig{
-			NumReadPartitions:  numReadPartitions,
-			NumWritePartitions: numWritePartitions,
-		})
-		if err != nil {
-			a.logger.Error("failed to update task list partition config", tag.Error(err))
-			a.scope.IncCounter(metrics.CadenceFailures)
-		}
-		return
+	return result
+}
+
+func (a *adaptiveScalerImpl) adjustReadPartitions(numReadPartitions, numWritePartitions int32) int32 {
+	if numReadPartitions <= numWritePartitions {
+		return numWritePartitions
 	}
 	// check the backlog of the drained partitions
 	for i := numReadPartitions - 1; i >= numWritePartitions; i-- {
@@ -218,19 +235,7 @@ func (a *adaptiveScalerImpl) run() {
 			break
 		}
 	}
-	if numReadPartitions == partitionConfig.NumReadPartitions && numWritePartitions == partitionConfig.NumWritePartitions {
-		return
-	}
-	a.logger.Info("update the number of partitions", tag.CurrentQPS(qps), tag.NumReadPartitions(numReadPartitions), tag.NumWritePartitions(numWritePartitions))
-	a.scope.IncCounter(metrics.CadenceRequests)
-	err := a.tlMgr.UpdateTaskListPartitionConfig(a.ctx, &types.TaskListPartitionConfig{
-		NumReadPartitions:  numReadPartitions,
-		NumWritePartitions: numWritePartitions,
-	})
-	if err != nil {
-		a.logger.Error("failed to update task list partition config", tag.Error(err))
-		a.scope.IncCounter(metrics.CadenceFailures)
-	}
+	return numReadPartitions
 }
 
 func getTaskListType(taskListType int) *types.TaskListType {

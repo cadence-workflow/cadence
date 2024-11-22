@@ -4730,7 +4730,7 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		KeyName:      "matching.partitionDownscaleSustainedDuration",
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
 		Description:  "MatchingPartitionDownscaleSustainedDuration is the sustained period to wait before downscaling the number of partitions",
-		DefaultValue: time.Minute,
+		DefaultValue: 2 * time.Minute,
 	},
 	MatchingAdaptiveScalerUpdateInterval: {
 		KeyName:      "matching.adaptiveScalerUpdateInterval",
