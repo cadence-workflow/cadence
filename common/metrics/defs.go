@@ -2629,6 +2629,8 @@ const (
 	TaskListReadWritePartitionMismatchGauge
 	TaskListPollerPartitionMismatchGauge
 	EstimatedAddTaskQPSGauge
+	StandbyClusterTasksCompletedCounterPerTaskList
+	StandbyClusterTasksNotStartedCounterPerTaskList
 
 	NumMatchingMetrics
 )
@@ -3319,6 +3321,8 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		TaskListReadWritePartitionMismatchGauge:                 {metricName: "tasklist_read_write_partition_mismatch", metricType: Gauge},
 		TaskListPollerPartitionMismatchGauge:                    {metricName: "tasklist_poller_partition_mismatch", metricType: Gauge},
 		EstimatedAddTaskQPSGauge:                                {metricName: "estimated_add_task_qps_per_tl", metricType: Gauge},
+		StandbyClusterTasksCompletedCounterPerTaskList:          {metricName: "standby_cluster_tasks_completed_per_tl", metricType: Counter},
+		StandbyClusterTasksNotStartedCounterPerTaskList:         {metricName: "standby_cluster_tasks_not_started_per_tl", metricType: Counter},
 	},
 	Worker: {
 		ReplicatorMessages:                            {metricName: "replicator_messages"},

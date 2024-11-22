@@ -438,9 +438,9 @@ func TestCompleteTaskIfStarted(t *testing.T) {
 			if tc.err != nil {
 				assert.Error(t, err)
 				if errors.Unwrap(err) != nil {
-					assert.Equal(t, tc.err, errors.Unwrap(err))
+					assert.ErrorContains(t, errors.Unwrap(err), tc.err.Error())
 				} else {
-					assert.Equal(t, tc.err, err)
+					assert.ErrorContains(t, err, tc.err.Error())
 				}
 			} else {
 				assert.NoError(t, err)

@@ -26,6 +26,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/uber/cadence/common/log/tag"
 
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/common"
@@ -65,7 +66,7 @@ var (
 	errTaskTypeNotSupported            = errors.New("task type not supported")
 	errTaskNotStarted                  = errors.New("task not started")
 	errDomainIsActive                  = &DomainIsActiveInThisClusterError{Message: "domain is active"}
-	historyServiceOperationRetryPolicy = common.CreateHistoryServiceRetryPolicy()
+	historyServiceOperationRetryPolicy = common.CreateTaskCompleterRetryPolicy()
 )
 
 func newTaskCompleter(tlMgr *taskListManagerImpl, retryPolicy backoff.RetryPolicy) TaskCompleter {
@@ -126,18 +127,30 @@ func (tc *taskCompleterImpl) CompleteTaskIfStarted(ctx context.Context, task *In
 			return nil
 		}
 
+		tc.scope.
+			Tagged(metrics.DomainTag(task.domainName)).
+			Tagged(metrics.TaskListTag(tc.taskListID.GetName())).
+			IncCounter(metrics.StandbyClusterTasksNotStartedCounterPerTaskList)
+
 		return errTaskNotStarted
 	}
 
 	err := tc.throttleRetry.Do(ctx, op)
 
 	if err == nil {
-		// add metric
 		task.Finish(nil)
+
+		tc.scope.
+			Tagged(metrics.DomainTag(task.domainName)).
+			Tagged(metrics.TaskListTag(tc.taskListID.GetName())).
+			IncCounter(metrics.StandbyClusterTasksCompletedCounterPerTaskList)
+
 		return nil
 	}
 
-	// add metric
+	if !errors.Is(err, errDomainIsActive) && !errors.Is(err, errTaskNotStarted) {
+		tc.logger.Error("Error completing task on domain's standby cluster", tag.Error(err))
+	}
 
 	return err
 }
