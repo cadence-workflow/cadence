@@ -25,6 +25,9 @@ import (
 	"os"
 
 	"github.com/urfave/cli/v2"
+
+	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/loggerimpl"
 )
 
 // VerifyCompatibleVersion ensures that the installed version is greater than or equal to the expected version.
@@ -52,66 +55,70 @@ func VerifyCompatibleVersion(
 }
 
 // SetupFromConfig sets up schema tables based on the given config
-func SetupFromConfig(config *SetupConfig, db SchemaClient) error {
+func SetupFromConfig(config *SetupConfig, logger log.Logger, db SchemaClient) error {
 	if err := validateSetupConfig(config); err != nil {
 		return err
 	}
-	return newSetupSchemaTask(db, config).Run()
+	return newSetupSchemaTask(db, logger, config).Run()
 }
 
 // Setup sets up schema tables
 func Setup(cli *cli.Context, db SchemaClient) error {
-	cfg, err := newSetupConfig(cli)
+	cfg, logger, err := newSetupConfig(cli)
 	if err != nil {
 		return err
 	}
-	return newSetupSchemaTask(db, cfg).Run()
+	return SetupFromConfig(cfg, logger, db)
 }
 
 // UpdateFromConfig updates the schema for the specified database based on the given config
-func UpdateFromConfig(config *UpdateConfig, db SchemaClient) error {
+func UpdateFromConfig(config *UpdateConfig, logger log.Logger, db SchemaClient) error {
 	if err := validateUpdateConfig(config); err != nil {
 		return err
 	}
-	return NewUpdateSchemaTask(db, config).Run()
+	return NewUpdateSchemaTask(db, logger, config).Run()
 }
 
 // Update updates the schema for the specified database
 func Update(cli *cli.Context, db SchemaClient) error {
-	cfg, err := newUpdateConfig(cli)
+	cfg, logger, err := newUpdateConfig(cli)
 	if err != nil {
 		return err
 	}
-	return NewUpdateSchemaTask(db, cfg).Run()
+	return UpdateFromConfig(cfg, logger, db)
 }
 
-func newUpdateConfig(cli *cli.Context) (*UpdateConfig, error) {
+func newUpdateConfig(cli *cli.Context) (*UpdateConfig, log.Logger, error) {
 	config := new(UpdateConfig)
 	schemaDir := cli.String(CLIOptSchemaDir)
 	if len(schemaDir) == 0 {
-		return nil, NewConfigError("missing " + flag(CLIOptSchemaDir) + " argument ")
+		return nil, nil, NewConfigError("missing " + flag(CLIOptSchemaDir) + " argument ")
 	}
 	config.SchemaFS = os.DirFS(schemaDir)
 	config.IsDryRun = cli.Bool(CLIOptDryrun)
 	config.TargetVersion = cli.String(CLIOptTargetVersion)
 
-	if err := validateUpdateConfig(config); err != nil {
-		return nil, err
+	logger, err := loggerimpl.NewDevelopment()
+	if err != nil {
+		return nil, nil, fmt.Errorf("build logger: %w", err)
 	}
-	return config, nil
+
+	return config, logger, nil
 }
 
-func newSetupConfig(cli *cli.Context) (*SetupConfig, error) {
+func newSetupConfig(cli *cli.Context) (*SetupConfig, log.Logger, error) {
 	config := new(SetupConfig)
 	config.SchemaFilePath = cli.String(CLIOptSchemaFile)
 	config.InitialVersion = cli.String(CLIOptVersion)
 	config.DisableVersioning = cli.Bool(CLIOptDisableVersioning)
 	config.Overwrite = cli.Bool(CLIOptOverwrite)
 
-	if err := validateSetupConfig(config); err != nil {
-		return nil, err
+	logger, err := loggerimpl.NewDevelopment()
+	if err != nil {
+		return nil, nil, fmt.Errorf("build logger: %w", err)
 	}
-	return config, nil
+
+	return config, logger, nil
 }
 
 func validateSetupConfig(config *SetupConfig) error {

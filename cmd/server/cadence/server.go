@@ -40,7 +40,7 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig/configstore"
 	"github.com/uber/cadence/common/elasticsearch"
 	"github.com/uber/cadence/common/isolationgroup/isolationgroupapi"
-	"github.com/uber/cadence/common/log/loggerimpl"
+	cadenceLog "github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/messaging/kafka"
@@ -60,20 +60,22 @@ import (
 
 type (
 	server struct {
-		name   string
-		cfg    *config.Config
-		doneC  chan struct{}
-		daemon common.Daemon
+		name       string
+		cfg        *config.Config
+		doneC      chan struct{}
+		daemon     common.Daemon
+		rootLogger cadenceLog.Logger
 	}
 )
 
 // newServer returns a new instance of a daemon
 // that represents a cadence service
-func newServer(service string, cfg *config.Config) common.Daemon {
+func newServer(service string, cfg *config.Config, rootLogger cadenceLog.Logger) common.Daemon {
 	return &server{
-		cfg:   cfg,
-		name:  service,
-		doneC: make(chan struct{}),
+		cfg:        cfg,
+		name:       service,
+		doneC:      make(chan struct{}),
+		rootLogger: rootLogger,
 	}
 }
 
@@ -111,11 +113,7 @@ func (s *server) startService() common.Daemon {
 	params := resource.Params{}
 	params.Name = service.FullName(s.name)
 
-	zapLogger, err := s.cfg.Log.NewZapLogger()
-	if err != nil {
-		log.Fatal("failed to create the zap logger, err: ", err.Error())
-	}
-	params.Logger = loggerimpl.NewLogger(zapLogger).WithTags(tag.Service(params.Name))
+	params.Logger = s.rootLogger.WithTags(tag.Service(params.Name))
 
 	params.PersistenceConfig = s.cfg.Persistence
 

@@ -37,7 +37,9 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
+	cadenceLog "github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/loggerimpl"
+	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql"
 	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/service"
@@ -51,6 +53,7 @@ import (
 type ServerSuite struct {
 	*require.Assertions
 	suite.Suite
+	logger cadenceLog.Logger
 }
 
 func TestServerSuite(t *testing.T) {
@@ -60,6 +63,7 @@ func TestServerSuite(t *testing.T) {
 
 func (s *ServerSuite) SetupTest() {
 	s.Assertions = require.New(s.T())
+	s.logger = testlogger.New(s.T())
 }
 
 /*
@@ -107,7 +111,7 @@ func (s *ServerSuite) TestServerStartup() {
 	var daemons []common.Daemon
 	services := service.ShortNames(service.List)
 	for _, svc := range services {
-		server := newServer(svc, &cfg)
+		server := newServer(svc, &cfg, s.logger)
 		daemons = append(daemons, server)
 		server.Start()
 	}
