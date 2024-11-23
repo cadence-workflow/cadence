@@ -502,6 +502,16 @@ func (c *taskListManagerImpl) AddTask(ctx context.Context, params AddTaskParams)
 // *will not* be persisted to db. On the passive side, dispatches the task to the taskCompleter; it will attempt
 // to complete the task if it has already been started.
 func (c *taskListManagerImpl) DispatchTask(ctx context.Context, task *InternalTask) error {
+	// check if this is the active cluster for the domain
+	domainEntry, err := c.domainCache.GetDomainByID(task.Event.TaskInfo.DomainID)
+	if err != nil {
+		return fmt.Errorf("unable to fetch domain from cache: %w", err)
+	}
+
+	if _, err = domainEntry.IsActiveIn(c.clusterMetadata.GetCurrentClusterName()); err == nil {
+		return c.matcher.MustOffer(ctx, task)
+	}
+
 	// optional configuration to enable cleanup of tasks, in the standby cluster, that have already been started
 	if c.config.EnableStandbyTaskCompletion() {
 		if err := c.taskCompleter.CompleteTaskIfStarted(ctx, task); err != nil {
