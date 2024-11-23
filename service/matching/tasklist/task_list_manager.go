@@ -794,7 +794,13 @@ func (c *taskListManagerImpl) getIsolationGroupForTask(ctx context.Context, task
 				pollerIsolationGroups = c.config.AllIsolationGroups()
 			}
 		}
-		group, err := c.partitioner.GetIsolationGroupByDomainID(ctx, taskInfo.DomainID, partitionConfig, pollerIsolationGroups)
+
+		group, err := c.partitioner.GetIsolationGroupByDomainID(ctx,
+			partition.PollerInfo{
+				DomainID:                 taskInfo.DomainID,
+				TasklistName:             c.taskListID.name,
+				AvailableIsolationGroups: pollerIsolationGroups,
+			}, partitionConfig)
 		if err != nil {
 			// For a sticky tasklist, return StickyUnavailableError to let it be added to the non-sticky tasklist.
 			if err == partition.ErrNoIsolationGroupsAvailable && c.taskListKind == types.TaskListKindSticky {
