@@ -127,10 +127,7 @@ func (tc *taskCompleterImpl) CompleteTaskIfStarted(ctx context.Context, task *In
 			return nil
 		}
 
-		tc.scope.
-			Tagged(metrics.DomainTag(task.domainName)).
-			Tagged(metrics.TaskListTag(tc.taskListID.GetName())).
-			IncCounter(metrics.StandbyClusterTasksNotStartedCounterPerTaskList)
+		tc.scope.IncCounter(metrics.StandbyClusterTasksNotStartedCounterPerTaskList)
 
 		return errTaskNotStarted
 	}
@@ -140,15 +137,13 @@ func (tc *taskCompleterImpl) CompleteTaskIfStarted(ctx context.Context, task *In
 	if err == nil {
 		task.Finish(nil)
 
-		tc.scope.
-			Tagged(metrics.DomainTag(task.domainName)).
-			Tagged(metrics.TaskListTag(tc.taskListID.GetName())).
-			IncCounter(metrics.StandbyClusterTasksCompletedCounterPerTaskList)
+		tc.scope.IncCounter(metrics.StandbyClusterTasksCompletedCounterPerTaskList)
 
 		return nil
 	}
 
 	if !errors.Is(err, errDomainIsActive) && !errors.Is(err, errTaskNotStarted) {
+		tc.scope.IncCounter(metrics.StandbyClusterTasksCompletionFailurePerTaskList)
 		tc.logger.Error("Error completing task on domain's standby cluster", tag.Error(err))
 	}
 
