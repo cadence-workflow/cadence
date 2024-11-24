@@ -80,6 +80,10 @@ const (
 	replicationServiceBusyMaxInterval        = 10 * time.Second
 	replicationServiceBusyExpirationInterval = 5 * time.Minute
 
+	taskCompleterInitialInterval    = 1 * time.Second
+	taskCompleterMaxInterval        = 10 * time.Second
+	taskCompleterExpirationInterval = 5 * time.Minute
+
 	contextExpireThreshold = 10 * time.Millisecond
 
 	// FailureReasonCompleteResultExceedsLimit is failureReason for complete result exceeds limit
@@ -199,6 +203,15 @@ func CreateReplicationServiceBusyRetryPolicy() backoff.RetryPolicy {
 	policy := backoff.NewExponentialRetryPolicy(replicationServiceBusyInitialInterval)
 	policy.SetMaximumInterval(replicationServiceBusyMaxInterval)
 	policy.SetExpirationInterval(replicationServiceBusyExpirationInterval)
+
+	return policy
+}
+
+// CreateTaskCompleterRetryPolicy creates a retry policy to handle tasks not being started
+func CreateTaskCompleterRetryPolicy() backoff.RetryPolicy {
+	policy := backoff.NewExponentialRetryPolicy(taskCompleterInitialInterval)
+	policy.SetMaximumInterval(taskCompleterMaxInterval)
+	policy.SetExpirationInterval(taskCompleterExpirationInterval)
 
 	return policy
 }

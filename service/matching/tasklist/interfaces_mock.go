@@ -526,3 +526,40 @@ func (mr *MockForwarderMockRecorder) PollReqTokenC(isolationGroup interface{}) *
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PollReqTokenC", reflect.TypeOf((*MockForwarder)(nil).PollReqTokenC), isolationGroup)
 }
+
+// MockTaskCompleter is a mock of TaskCompleter interface.
+type MockTaskCompleter struct {
+	ctrl     *gomock.Controller
+	recorder *MockTaskCompleterMockRecorder
+}
+
+// MockTaskCompleterMockRecorder is the mock recorder for MockTaskCompleter.
+type MockTaskCompleterMockRecorder struct {
+	mock *MockTaskCompleter
+}
+
+// NewMockTaskCompleter creates a new mock instance.
+func NewMockTaskCompleter(ctrl *gomock.Controller) *MockTaskCompleter {
+	mock := &MockTaskCompleter{ctrl: ctrl}
+	mock.recorder = &MockTaskCompleterMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockTaskCompleter) EXPECT() *MockTaskCompleterMockRecorder {
+	return m.recorder
+}
+
+// CompleteTaskIfStarted mocks base method.
+func (m *MockTaskCompleter) CompleteTaskIfStarted(ctx context.Context, task *InternalTask) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CompleteTaskIfStarted", ctx, task)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CompleteTaskIfStarted indicates an expected call of CompleteTaskIfStarted.
+func (mr *MockTaskCompleterMockRecorder) CompleteTaskIfStarted(ctx, task interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CompleteTaskIfStarted", reflect.TypeOf((*MockTaskCompleter)(nil).CompleteTaskIfStarted), ctx, task)
+}

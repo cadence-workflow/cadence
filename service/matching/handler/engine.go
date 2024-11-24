@@ -245,6 +245,7 @@ func (e *matchingEngineImpl) getTaskListManager(taskList *tasklist.Identifier, t
 		e.config,
 		e.timeSource,
 		e.timeSource.Now(),
+		e.historyService,
 	)
 	if err != nil {
 		e.taskListsLock.Unlock()

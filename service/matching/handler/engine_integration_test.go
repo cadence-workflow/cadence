@@ -225,7 +225,8 @@ func (s *matchingEngineSuite) TestOnlyUnloadMatchingInstance() {
 		&tlKind,
 		s.matchingEngine.config,
 		s.matchingEngine.timeSource,
-		s.matchingEngine.timeSource.Now())
+		s.matchingEngine.timeSource.Now(),
+		s.matchingEngine.historyService)
 	s.Require().NoError(err)
 
 	// try to unload a different tlm instance with the same taskListID

@@ -592,6 +592,12 @@ func (tr *taskReader) dispatchSingleTaskFromBuffer(isolationGroup string, taskIn
 		return false, false
 	}
 
+	if errors.Is(err, errTaskNotStarted) {
+		e.EventName = "Dispatch failed on completing task on the passive side because task not started. Will retry dispatch"
+		event.Log(e)
+		return false, false
+	}
+
 	e.EventName = "Dispatch failed because of unknown error. Will retry dispatch"
 	e.Payload = map[string]any{
 		"error": err,
