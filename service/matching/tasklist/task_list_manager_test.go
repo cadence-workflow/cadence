@@ -1409,68 +1409,75 @@ func TestDispatchTask(t *testing.T) {
 		name                        string
 		mockSetup                   func(matcher *MockTaskMatcher, taskCompleter *MockTaskCompleter, ctx context.Context, task *InternalTask)
 		enableStandByTaskCompletion bool
+		activeClusterName           string
 		err                         error
 	}{
 		{
-			name: "active side - disabled StandByTaskCompletion - task sent to MustOffer and no error returned",
+			name: "active cluster - disabled StandByTaskCompletion - task sent to MustOffer and no error returned",
 			mockSetup: func(matcher *MockTaskMatcher, taskCompleter *MockTaskCompleter, ctx context.Context, task *InternalTask) {
 				matcher.EXPECT().MustOffer(ctx, task).Return(nil).Times(1)
 			},
-			err: nil,
+			activeClusterName: cluster.TestCurrentClusterName,
+			err:               nil,
 		},
 		{
-			name: "active side - disabled StandByTaskCompletion - task sent to MustOffer and error returned",
+			name: "active cluster - disabled StandByTaskCompletion - task sent to MustOffer and error returned",
 			mockSetup: func(matcher *MockTaskMatcher, taskCompleter *MockTaskCompleter, ctx context.Context, task *InternalTask) {
 				matcher.EXPECT().MustOffer(ctx, task).Return(errors.New("no-task-completion-must-offer-error")).Times(1)
 			},
-			err: errors.New("no-task-completion-must-offer-error"),
+			activeClusterName: cluster.TestCurrentClusterName,
+			err:               errors.New("no-task-completion-must-offer-error"),
 		},
 		{
-			name: "active side - enabled StandByTaskCompletion - task sent to MustOffer and no error returned",
+			name: "active cluster - enabled StandByTaskCompletion - task sent to MustOffer and no error returned",
 			mockSetup: func(matcher *MockTaskMatcher, taskCompleter *MockTaskCompleter, ctx context.Context, task *InternalTask) {
-				taskCompleter.EXPECT().CompleteTaskIfStarted(ctx, task).Return(errDomainIsActive).Times(1)
 				matcher.EXPECT().MustOffer(ctx, task).Return(nil).Times(1)
 			},
 			enableStandByTaskCompletion: true,
+			activeClusterName:           cluster.TestCurrentClusterName,
 			err:                         nil,
 		},
 		{
-			name: "active side - enabled StandByTaskCompletion - task sent to MustOffer and error returned",
+			name: "active cluster - enabled StandByTaskCompletion - task sent to MustOffer and error returned",
 			mockSetup: func(matcher *MockTaskMatcher, taskCompleter *MockTaskCompleter, ctx context.Context, task *InternalTask) {
-				taskCompleter.EXPECT().CompleteTaskIfStarted(ctx, task).Return(errDomainIsActive).Times(1)
 				matcher.EXPECT().MustOffer(ctx, task).Return(errors.New("task-completion-must-offer-error")).Times(1)
 			},
 			enableStandByTaskCompletion: true,
+			activeClusterName:           cluster.TestCurrentClusterName,
 			err:                         errors.New("task-completion-must-offer-error"),
 		},
 		{
-			name: "standby side - disabled StandByTaskCompletion - task sent to MustOffer and no error returned",
+			name: "standby cluster - disabled StandByTaskCompletion - task sent to MustOffer and no error returned",
 			mockSetup: func(matcher *MockTaskMatcher, taskCompleter *MockTaskCompleter, ctx context.Context, task *InternalTask) {
 				matcher.EXPECT().MustOffer(ctx, task).Return(nil).Times(1)
 			},
-			err: nil,
+			activeClusterName: cluster.TestAlternativeClusterName,
+			err:               nil,
 		},
 		{
-			name: "standby side - disabled StandByTaskCompletion - task sent to MustOffer and error returned",
+			name: "standby cluster - disabled StandByTaskCompletion - task sent to MustOffer and error returned",
 			mockSetup: func(matcher *MockTaskMatcher, taskCompleter *MockTaskCompleter, ctx context.Context, task *InternalTask) {
 				matcher.EXPECT().MustOffer(ctx, task).Return(errors.New("no-task-completion-must-offer-error")).Times(1)
 			},
-			err: errors.New("no-task-completion-must-offer-error"),
+			activeClusterName: cluster.TestAlternativeClusterName,
+			err:               errors.New("no-task-completion-must-offer-error"),
 		},
 		{
-			name: "standby side - enabled StandByTaskCompletion - task completed",
+			name: "standby cluster - enabled StandByTaskCompletion - task completed",
 			mockSetup: func(matcher *MockTaskMatcher, taskCompleter *MockTaskCompleter, ctx context.Context, task *InternalTask) {
 				taskCompleter.EXPECT().CompleteTaskIfStarted(ctx, task).Return(nil).Times(1)
 			},
 			enableStandByTaskCompletion: true,
+			activeClusterName:           cluster.TestAlternativeClusterName,
 			err:                         nil,
 		},
 		{
-			name: "standby side - enabled StandByTaskCompletion - task completion error",
+			name: "standby cluster - enabled StandByTaskCompletion - task completion error",
 			mockSetup: func(matcher *MockTaskMatcher, taskCompleter *MockTaskCompleter, ctx context.Context, task *InternalTask) {
 				taskCompleter.EXPECT().CompleteTaskIfStarted(ctx, task).Return(errTaskNotStarted).Times(1)
 			},
 			enableStandByTaskCompletion: true,
+			activeClusterName:           cluster.TestAlternativeClusterName,
 			err:                         errTaskNotStarted,
 		},
 	}
@@ -1498,6 +1505,20 @@ func TestDispatchTask(t *testing.T) {
 			tlm.config.EnableStandbyTaskCompletion = func() bool {
 				return tc.enableStandByTaskCompletion
 			}
+
+			mockDomainCache := cache.NewMockDomainCache(controller)
+			cacheEntry := cache.NewGlobalDomainCacheEntryForTest(
+				&persistence.DomainInfo{ID: constants.TestDomainID, Name: constants.TestDomainName},
+				&persistence.DomainConfig{Retention: 1},
+				&persistence.DomainReplicationConfig{
+					ActiveClusterName: tc.activeClusterName,
+					Clusters:          []*persistence.ClusterReplicationConfig{{ClusterName: cluster.TestCurrentClusterName}, {ClusterName: cluster.TestAlternativeClusterName}},
+				},
+				1,
+			)
+
+			mockDomainCache.EXPECT().GetDomainByID(constants.TestDomainID).Return(cacheEntry, nil).AnyTimes()
+			tlm.domainCache = mockDomainCache
 
 			ctx := context.Background()
 			tc.mockSetup(taskMatcher, taskCompleter, ctx, task)
