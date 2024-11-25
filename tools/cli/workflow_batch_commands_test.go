@@ -467,11 +467,11 @@ func TestListBatchJobs(t *testing.T) {
 			expectedOutput: []map[string]string{
 				{
 					"jobID":     "example-workflow-1",
-					"startTime": "1970-01-01T00:00:01Z",
+					"startTime": "1970-01-01T01:00:01+01:00",
 					"reason":    "Testing reason",
 					"operator":  "test-operator",
 					"status":    "COMPLETED",
-					"closeTime": "1970-01-01T00:00:00Z",
+					"closeTime": "1970-01-01T01:00:00+01:00",
 				},
 			},
 		},
