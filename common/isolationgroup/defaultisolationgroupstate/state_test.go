@@ -85,7 +85,7 @@ func TestAvailableIsolationGroupsHandler(t *testing.T) {
 			availablePollerIsolationGroups: []string{"zone-1", "zone-2"},
 			cfg: defaultConfig{
 				IsolationGroupEnabled: func(string) bool { return false },
-				AllIsolationGroups:    []string{"zone-1", "zone-2", "zone-3"},
+				AllIsolationGroups:    func() []string { return []string{"zone-1", "zone-2", "zone-3"} },
 			},
 			dcAffordance: func(client *dynamicconfig.MockClient) {},
 			domainAffordance: func(mock *cache.MockDomainCache) {
@@ -109,7 +109,7 @@ func TestAvailableIsolationGroupsHandler(t *testing.T) {
 			availablePollerIsolationGroups: []string{"zone-1", "zone-2"},
 			cfg: defaultConfig{
 				IsolationGroupEnabled: func(string) bool { return true },
-				AllIsolationGroups:    []string{"zone-1", "zone-2", "zone-3"},
+				AllIsolationGroups:    func() []string { return []string{"zone-1", "zone-2", "zone-3"} },
 			},
 			dcAffordance: func(client *dynamicconfig.MockClient) {
 				client.EXPECT().GetListValue(
@@ -139,7 +139,7 @@ func TestAvailableIsolationGroupsHandler(t *testing.T) {
 			availablePollerIsolationGroups: []string{"zone-1", "zone-2"},
 			cfg: defaultConfig{
 				IsolationGroupEnabled: func(string) bool { return true },
-				AllIsolationGroups:    []string{"zone-1", "zone-2", "zone-3"},
+				AllIsolationGroups:    func() []string { return []string{"zone-1", "zone-2", "zone-3"} },
 			},
 			dcAffordance: func(client *dynamicconfig.MockClient) {
 				client.EXPECT().GetListValue(
@@ -164,7 +164,7 @@ func TestAvailableIsolationGroupsHandler(t *testing.T) {
 			availablePollerIsolationGroups: []string{"zone-1", "zone-2"},
 			cfg: defaultConfig{
 				IsolationGroupEnabled: func(string) bool { return true },
-				AllIsolationGroups:    []string{"zone-1", "zone-2", "zone-3"},
+				AllIsolationGroups:    func() []string { return []string{"zone-1", "zone-2", "zone-3"} },
 			},
 			dcAffordance: func(client *dynamicconfig.MockClient) {
 				client.EXPECT().GetListValue(
@@ -193,7 +193,7 @@ func TestAvailableIsolationGroupsHandler(t *testing.T) {
 			availablePollerIsolationGroups: []string{"zone-1", "zone-2"},
 			cfg: defaultConfig{
 				IsolationGroupEnabled: func(string) bool { return true },
-				AllIsolationGroups:    []string{"zone-1", "zone-2", "zone-3"},
+				AllIsolationGroups:    func() []string { return []string{"zone-1", "zone-2", "zone-3"} },
 			},
 			dcAffordance: func(client *dynamicconfig.MockClient) {
 				client.EXPECT().GetListValue(
@@ -213,7 +213,7 @@ func TestAvailableIsolationGroupsHandler(t *testing.T) {
 			availablePollerIsolationGroups: []string{"zone-1", "zone-2"},
 			cfg: defaultConfig{
 				IsolationGroupEnabled: func(string) bool { return true },
-				AllIsolationGroups:    []string{"zone-1", "zone-2", "zone-3"},
+				AllIsolationGroups:    func() []string { return []string{"zone-1", "zone-2", "zone-3"} },
 			},
 			dcAffordance: func(client *dynamicconfig.MockClient) {},
 			domainAffordance: func(mock *cache.MockDomainCache) {
@@ -227,7 +227,7 @@ func TestAvailableIsolationGroupsHandler(t *testing.T) {
 			availablePollerIsolationGroups: []string{"zone-1", "zone-2"},
 			cfg: defaultConfig{
 				IsolationGroupEnabled: func(string) bool { return true },
-				AllIsolationGroups:    []string{"zone-1", "zone-2", "zone-3"},
+				AllIsolationGroups:    func() []string { return []string{"zone-1", "zone-2", "zone-3"} },
 			},
 			dcAffordance: func(client *dynamicconfig.MockClient) {
 				client.EXPECT().GetListValue(
@@ -247,7 +247,7 @@ func TestAvailableIsolationGroupsHandler(t *testing.T) {
 			availablePollerIsolationGroups: []string{"zone-1", "zone-2"},
 			cfg: defaultConfig{
 				IsolationGroupEnabled: func(string) bool { return true },
-				AllIsolationGroups:    []string{"zone-1", "zone-2", "zone-3"},
+				AllIsolationGroups:    func() []string { return []string{"zone-1", "zone-2", "zone-3"} },
 			},
 			dcAffordance: func(client *dynamicconfig.MockClient) {
 			},
@@ -263,7 +263,7 @@ func TestAvailableIsolationGroupsHandler(t *testing.T) {
 			availablePollerIsolationGroups: []string{"zone-1", "zone-2"},
 			cfg: defaultConfig{
 				IsolationGroupEnabled: func(string) bool { return true },
-				AllIsolationGroups:    []string{"zone-1", "zone-2", "zone-3"},
+				AllIsolationGroups:    func() []string { return []string{"zone-1", "zone-2", "zone-3"} },
 			},
 			dcAffordance: func(client *dynamicconfig.MockClient) {
 			},
@@ -279,7 +279,7 @@ func TestAvailableIsolationGroupsHandler(t *testing.T) {
 			availablePollerIsolationGroups: nil,
 			cfg: defaultConfig{
 				IsolationGroupEnabled: func(string) bool { return true },
-				AllIsolationGroups:    []string{"zone-1", "zone-2", "zone-3"},
+				AllIsolationGroups:    func() []string { return []string{"zone-1", "zone-2", "zone-3"} },
 			},
 			dcAffordance: func(client *dynamicconfig.MockClient) {
 				client.EXPECT().GetListValue(
@@ -311,7 +311,7 @@ func TestAvailableIsolationGroupsHandler(t *testing.T) {
 				config:                     td.cfg,
 				metricsClient:              metrics.NewNoopMetricsClient(),
 			}
-			res, err := handler.AvailableIsolationGroupsByDomainID(context.TODO(), "domain-id", td.availablePollerIsolationGroups)
+			res, err := handler.AvailableIsolationGroupsByDomainID(context.TODO(), "domain-id", "a-tasklist", td.availablePollerIsolationGroups)
 			assert.Equal(t, td.expected, res)
 			if td.expectedErr != nil {
 				assert.Equal(t, td.expectedErr.Error(), err.Error())
@@ -353,7 +353,7 @@ func TestIsDrainedHandler(t *testing.T) {
 			requestIsolationgroup: "zone-3", // no config specified for this
 			cfg: defaultConfig{
 				IsolationGroupEnabled: func(string) bool { return true },
-				AllIsolationGroups:    []string{"zone-1", "zone-2", "zone-3"},
+				AllIsolationGroups:    func() []string { return []string{"zone-1", "zone-2", "zone-3"} },
 			},
 			dcAffordance: func(client *dynamicconfig.MockClient) {
 				client.EXPECT().GetListValue(
@@ -372,7 +372,7 @@ func TestIsDrainedHandler(t *testing.T) {
 			requestIsolationgroup: "zone-2", // no config specified for this
 			cfg: defaultConfig{
 				IsolationGroupEnabled: func(string) bool { return true },
-				AllIsolationGroups:    []string{"zone-1", "zone-2", "zone-3"},
+				AllIsolationGroups:    func() []string { return []string{"zone-1", "zone-2", "zone-3"} },
 			},
 			dcAffordance: func(client *dynamicconfig.MockClient) {
 				client.EXPECT().GetListValue(
@@ -391,7 +391,7 @@ func TestIsDrainedHandler(t *testing.T) {
 			requestIsolationgroup: "zone-2", // no config specified for this
 			cfg: defaultConfig{
 				IsolationGroupEnabled: func(string) bool { return false },
-				AllIsolationGroups:    []string{"zone-1", "zone-2", "zone-3"},
+				AllIsolationGroups:    func() []string { return []string{"zone-1", "zone-2", "zone-3"} },
 			},
 			dcAffordance: func(client *dynamicconfig.MockClient) {},
 			domainAffordance: func(mock *cache.MockDomainCache) {

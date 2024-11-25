@@ -26,9 +26,18 @@ package partition
 
 import "context"
 
+// PollerInfo captures relevant information from the poller side
+type PollerInfo struct {
+	DomainID     string
+	TasklistName string
+	// The isolation groups that are known to have pollers in them and are able to receive tasks
+	// for this domain and tasklist.
+	AvailableIsolationGroups []string
+}
+
 type Partitioner interface {
 	// GetIsolationGroupByDomainID gets where the task workflow should be executing. Largely used by Matching
 	// when determining which isolationGroup to place the tasks in.
 	// Implementations ought to return (nil, nil) for when the feature is not enabled.
-	GetIsolationGroupByDomainID(ctx context.Context, DomainID string, partitionKey PartitionConfig, availableIsolationGroups []string) (string, error)
+	GetIsolationGroupByDomainID(ctx context.Context, pollerinfo PollerInfo, partitionKey PartitionConfig) (string, error)
 }

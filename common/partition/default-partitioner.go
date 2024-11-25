@@ -72,7 +72,7 @@ func NewDefaultPartitioner(
 	}
 }
 
-func (r *defaultPartitioner) GetIsolationGroupByDomainID(ctx context.Context, domainID string, wfPartitionData PartitionConfig, availablePollerIsolationGroups []string) (string, error) {
+func (r *defaultPartitioner) GetIsolationGroupByDomainID(ctx context.Context, pollerInfo PollerInfo, wfPartitionData PartitionConfig) (string, error) {
 	if wfPartitionData == nil {
 		return "", ErrInvalidPartitionConfig
 	}
@@ -81,7 +81,7 @@ func (r *defaultPartitioner) GetIsolationGroupByDomainID(ctx context.Context, do
 		return "", ErrInvalidPartitionConfig
 	}
 
-	available, err := r.isolationGroupState.AvailableIsolationGroupsByDomainID(ctx, domainID, availablePollerIsolationGroups)
+	available, err := r.isolationGroupState.AvailableIsolationGroupsByDomainID(ctx, pollerInfo.DomainID, pollerInfo.TasklistName, pollerInfo.AvailableIsolationGroups)
 	if err != nil {
 		return "", fmt.Errorf("failed to get available isolation groups: %w", err)
 	}
@@ -90,7 +90,7 @@ func (r *defaultPartitioner) GetIsolationGroupByDomainID(ctx context.Context, do
 		return "", ErrNoIsolationGroupsAvailable
 	}
 
-	ig := r.pickIsolationGroup(wfPartition, available)
+	ig := r.pickIsolationGroup(wfPartition, available, pollerInfo)
 	return ig, nil
 }
 
@@ -105,7 +105,7 @@ func mapPartitionConfigToDefaultPartitionConfig(config PartitionConfig) defaultW
 
 // picks an isolation group to run in. if the workflow was started there, it'll attempt to pin it, unless there is an explicit
 // drain.
-func (r *defaultPartitioner) pickIsolationGroup(wfPartition defaultWorkflowPartitionConfig, available types.IsolationGroupConfiguration) string {
+func (r *defaultPartitioner) pickIsolationGroup(wfPartition defaultWorkflowPartitionConfig, available types.IsolationGroupConfiguration, pollerInfo PollerInfo) string {
 	_, isAvailable := available[wfPartition.WorkflowStartIsolationGroup]
 	if isAvailable {
 		return wfPartition.WorkflowStartIsolationGroup
@@ -113,6 +113,7 @@ func (r *defaultPartitioner) pickIsolationGroup(wfPartition defaultWorkflowParti
 	r.log.Debug("isolation group falling back to any zone",
 		tag.IsolationGroup(wfPartition.WorkflowStartIsolationGroup),
 		tag.PollerGroupsConfiguration(available),
+		tag.WorkflowTaskListName(pollerInfo.TasklistName),
 		tag.WorkflowID(wfPartition.WFID),
 	)
 	return ""

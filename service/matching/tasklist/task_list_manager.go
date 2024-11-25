@@ -795,7 +795,13 @@ func (c *taskListManagerImpl) getIsolationGroupForTask(ctx context.Context, task
 				pollerIsolationGroups = c.config.AllIsolationGroups()
 			}
 		}
-		group, err := c.partitioner.GetIsolationGroupByDomainID(ctx, taskInfo.DomainID, partitionConfig, pollerIsolationGroups)
+
+		group, err := c.partitioner.GetIsolationGroupByDomainID(ctx,
+			partition.PollerInfo{
+				DomainID:                 taskInfo.DomainID,
+				TasklistName:             c.taskListID.name,
+				AvailableIsolationGroups: pollerIsolationGroups,
+			}, partitionConfig)
 		if err != nil {
 			// if we're unable to get the isolation group, log the error and fallback to no isolation
 			c.logger.Error("Failed to get isolation group from partition library", tag.WorkflowID(taskInfo.WorkflowID), tag.WorkflowRunID(taskInfo.RunID), tag.TaskID(taskInfo.TaskID), tag.Error(err))
