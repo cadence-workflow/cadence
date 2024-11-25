@@ -57,7 +57,7 @@ require (
 	go.uber.org/yarpc v1.70.3
 	go.uber.org/zap v1.13.0
 	golang.org/x/exp v0.0.0-20231226003508-02704c960a9b
-	golang.org/x/net v0.19.0
+	golang.org/x/net v0.23.0
 	golang.org/x/sync v0.5.0
 	golang.org/x/time v0.5.0
 	golang.org/x/tools v0.16.0
@@ -133,11 +133,11 @@ require (
 	go.uber.org/dig v1.10.0 // indirect
 	go.uber.org/goleak v1.0.0
 	go.uber.org/net/metrics v1.3.0 // indirect
-	golang.org/x/crypto v0.16.0 // indirect
+	golang.org/x/crypto v0.21.0 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20220218215828-6cf2b201936e // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
 	golang.org/x/mod v0.14.0 // indirect
-	golang.org/x/sys v0.15.0 // indirect
+	golang.org/x/sys v0.18.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20231030173426-d783a09b4405 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect
