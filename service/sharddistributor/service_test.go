@@ -30,6 +30,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/goleak"
+	"go.uber.org/yarpc"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/log"
@@ -51,10 +52,14 @@ func TestServiceStartStop(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+
+	testDispatcher := yarpc.NewDispatcher(yarpc.Config{Name: "test"})
 
 	resourceMock := resource.NewMockResource(ctrl)
 	resourceMock.EXPECT().GetLogger().Return(log.NewNoop()).AnyTimes()
+	resourceMock.EXPECT().GetMembershipResolver().Return(nil).AnyTimes()
+	resourceMock.EXPECT().GetMetricsClient().Return(nil).AnyTimes()
+	resourceMock.EXPECT().GetDispatcher().Return(testDispatcher).AnyTimes()
 	resourceMock.EXPECT().Start().Return()
 	resourceMock.EXPECT().Stop().Return()
 
