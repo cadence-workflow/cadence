@@ -65,7 +65,9 @@ func (item *VersionHistoryItem) Duplicate() *VersionHistoryItem {
 
 // ToInternalType return internal format of version history item
 func (item *VersionHistoryItem) ToInternalType() *types.VersionHistoryItem {
-
+	if item == nil {
+		return nil
+	}
 	return &types.VersionHistoryItem{
 		EventID: item.EventID,
 		Version: item.Version,
@@ -229,7 +231,6 @@ func (v *VersionHistory) AddOrUpdateItem(
 func (v *VersionHistory) ContainsItem(
 	item *VersionHistoryItem,
 ) bool {
-
 	prevEventID := common.FirstEventID - 1
 	for _, currentItem := range v.Items {
 		if item.Version == currentItem.Version {
@@ -301,11 +302,9 @@ func (v *VersionHistory) GetFirstItem() (*VersionHistoryItem, error) {
 
 // GetLastItem return the last version history item
 func (v *VersionHistory) GetLastItem() (*VersionHistoryItem, error) {
-
 	if len(v.Items) == 0 {
 		return nil, &types.BadRequestError{Message: "version history is empty"}
 	}
-
 	return v.Items[len(v.Items)-1].Duplicate(), nil
 }
 
@@ -406,6 +405,9 @@ func NewVersionHistoriesFromInternalType(
 
 // Duplicate duplicate VersionHistories
 func (h *VersionHistories) Duplicate() *VersionHistories {
+	if h == nil {
+		return nil
+	}
 
 	currentVersionHistoryIndex := h.CurrentVersionHistoryIndex
 	histories := []*VersionHistory{}
@@ -590,6 +592,5 @@ func (h *VersionHistories) GetCurrentVersionHistoryIndex() int {
 
 // GetCurrentVersionHistory get the current version history
 func (h *VersionHistories) GetCurrentVersionHistory() (*VersionHistory, error) {
-
 	return h.GetVersionHistory(h.GetCurrentVersionHistoryIndex())
 }

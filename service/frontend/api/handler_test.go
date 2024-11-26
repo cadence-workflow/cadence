@@ -1819,6 +1819,20 @@ func (s *workflowHandlerSuite) TestRestartWorkflowExecution__Success() {
 		},
 		LastFirstEventID: 0,
 		NextEventID:      2,
+		VersionHistories: &types.VersionHistories{
+			CurrentVersionHistoryIndex: 0,
+			Histories: []*types.VersionHistory{
+				{
+					BranchToken: []byte("token"),
+					Items: []*types.VersionHistoryItem{
+						{
+							EventID: 1,
+							Version: 1,
+						},
+					},
+				},
+			},
+		},
 	}, nil).AnyTimes()
 	s.mockDomainCache.EXPECT().GetDomainID(gomock.Any()).Return(s.testDomainID, nil).AnyTimes()
 	s.mockVersionChecker.EXPECT().SupportsRawHistoryQuery(gomock.Any(), gomock.Any()).Return(nil).Times(1)

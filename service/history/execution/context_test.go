@@ -1691,6 +1691,7 @@ func TestUpdateWorkflowExecutionWithNew(t *testing.T) {
 			newWorkflowTransactionPolicy:     TransactionPolicyActive.Ptr(),
 			workflowRequestMode:              persistence.CreateWorkflowRequestModeReplicated,
 			mockSetup: func(mockShard *shard.MockContext, mockDomainCache *cache.MockDomainCache, mockMutableState *MockMutableState, mockNewMutableState *MockMutableState, mockEngine *engine.MockEngine) {
+
 				mockMutableState.EXPECT().CloseTransactionAsMutation(gomock.Any(), TransactionPolicyActive).Return(&persistence.WorkflowMutation{
 					ExecutionInfo: &persistence.WorkflowExecutionInfo{
 						DomainID:   "test-domain-id",
@@ -1708,6 +1709,20 @@ func TestUpdateWorkflowExecutionWithNew(t *testing.T) {
 						BranchToken: []byte{1, 2, 3},
 					},
 				}, nil)
+				mockMutableState.EXPECT().GetVersionHistories().Return(&persistence.VersionHistories{
+					CurrentVersionHistoryIndex: 0,
+					Histories: []*persistence.VersionHistory{
+						{
+							BranchToken: []byte("branchtoken"),
+							Items: []*persistence.VersionHistoryItem{
+								{
+									EventID: 1,
+									Version: 1,
+								},
+							},
+						},
+					},
+				})
 				mockMutableState.EXPECT().GetNextEventID().Return(int64(11))
 				mockMutableState.EXPECT().SetHistorySize(int64(5))
 				mockNewMutableState.EXPECT().CloseTransactionAsSnapshot(gomock.Any(), TransactionPolicyActive).Return(&persistence.WorkflowSnapshot{
@@ -1728,7 +1743,6 @@ func TestUpdateWorkflowExecutionWithNew(t *testing.T) {
 				}, nil)
 				mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
 				mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("test-domain", nil)
-				mockMutableState.EXPECT().GetCurrentBranchToken().Return([]byte{5, 6}, nil)
 				mockMutableState.EXPECT().GetWorkflowStateCloseStatus().Return(persistence.WorkflowStateCompleted, persistence.WorkflowCloseStatusCompleted)
 				mockShard.EXPECT().GetEngine().Return(mockEngine)
 				mockEngine.EXPECT().NotifyNewHistoryEvent(gomock.Any())
@@ -2521,7 +2535,20 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 						MutableStateSize: 123,
 					},
 				}, nil)
-				mockResetMutableState.EXPECT().GetCurrentBranchToken().Return([]byte{1}, nil)
+				mockResetMutableState.EXPECT().GetVersionHistories().Return(&persistence.VersionHistories{
+					CurrentVersionHistoryIndex: 0,
+					Histories: []*persistence.VersionHistory{
+						{
+							BranchToken: []byte("123"),
+							Items: []*persistence.VersionHistoryItem{
+								{
+									EventID: 1,
+									Version: 1,
+								},
+							},
+						},
+					},
+				})
 				mockResetMutableState.EXPECT().GetWorkflowStateCloseStatus().Return(persistence.WorkflowStateCompleted, persistence.WorkflowCloseStatusCompleted)
 				mockShard.EXPECT().GetEngine().Return(mockEngine)
 				mockEngine.EXPECT().NotifyNewHistoryEvent(gomock.Any())

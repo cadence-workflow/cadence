@@ -86,8 +86,17 @@ func (s *notifierSuite) TestSingleSubscriberWatchingEvents() {
 	nextEventID := int64(18)
 	workflowState := persistence.WorkflowStateCreated
 	workflowCloseState := persistence.WorkflowCloseStatusNone
-	branchToken := make([]byte, 0)
-	historyEvent := NewNotification(domainID, execution, lastFirstEventID, nextEventID, previousStartedEventID, branchToken, workflowState, workflowCloseState)
+	versionHistory := persistence.VersionHistories{}
+	historyEvent := NewNotification(
+		domainID,
+		execution,
+		lastFirstEventID,
+		nextEventID,
+		previousStartedEventID,
+		workflowState,
+		workflowCloseState,
+		&versionHistory,
+	)
 	timerChan := time.NewTimer(time.Second * 2).C
 
 	subscriberID, channel, err := s.historyEventNotifier.WatchHistoryEvent(definition.NewWorkflowIdentifier(domainID, execution.GetWorkflowID(), execution.GetRunID()))
@@ -117,8 +126,8 @@ func (s *notifierSuite) TestMultipleSubscriberWatchingEvents() {
 	nextEventID := int64(18)
 	workflowState := persistence.WorkflowStateCreated
 	workflowCloseState := persistence.WorkflowCloseStatusNone
-	branchToken := make([]byte, 0)
-	historyEvent := NewNotification(domainID, execution, lastFirstEventID, nextEventID, previousStartedEventID, branchToken, workflowState, workflowCloseState)
+	versionHistories := &persistence.VersionHistories{}
+	historyEvent := NewNotification(domainID, execution, lastFirstEventID, nextEventID, previousStartedEventID, workflowState, workflowCloseState, versionHistories)
 	timerChan := time.NewTimer(time.Second * 5).C
 
 	subscriberCount := 100
