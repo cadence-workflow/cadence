@@ -240,40 +240,49 @@ func TestMultiLoadBalancer_UpdateWeight(t *testing.T) {
 		taskListType         int
 		forwardedFrom        string
 		partition            string
-		weight               int64
+		loadBalancerHints    *types.LoadBalancerHints
 		loadbalancerStrategy string
 		shouldUpdate         bool
 	}{
 		{
-			name:                 "do nothing when domainIDToName fails",
-			domainID:             "invalid-domain",
-			taskList:             types.TaskList{Name: "test-tasklist"},
-			taskListType:         1,
-			forwardedFrom:        "",
-			partition:            "partition-1",
-			weight:               10,
+			name:          "do nothing when domainIDToName fails",
+			domainID:      "invalid-domain",
+			taskList:      types.TaskList{Name: "test-tasklist"},
+			taskListType:  1,
+			forwardedFrom: "",
+			partition:     "partition-1",
+			loadBalancerHints: &types.LoadBalancerHints{
+				BacklogCount:  10,
+				RatePerSecond: 1,
+			},
 			loadbalancerStrategy: "random",
 			shouldUpdate:         false,
 		},
 		{
-			name:                 "update weight with round-robin load balancer",
-			domainID:             "valid-domain",
-			taskList:             types.TaskList{Name: "test-tasklist"},
-			taskListType:         1,
-			forwardedFrom:        "",
-			partition:            "partition-2",
-			weight:               20,
+			name:          "update weight with round-robin load balancer",
+			domainID:      "valid-domain",
+			taskList:      types.TaskList{Name: "test-tasklist"},
+			taskListType:  1,
+			forwardedFrom: "",
+			partition:     "partition-2",
+			loadBalancerHints: &types.LoadBalancerHints{
+				BacklogCount:  20,
+				RatePerSecond: 2,
+			},
 			loadbalancerStrategy: "round-robin",
 			shouldUpdate:         true,
 		},
 		{
-			name:                 "do nothing when strategy is unsupported",
-			domainID:             "valid-domain",
-			taskList:             types.TaskList{Name: "test-tasklist"},
-			taskListType:         1,
-			forwardedFrom:        "",
-			partition:            "partition-3",
-			weight:               30,
+			name:          "do nothing when strategy is unsupported",
+			domainID:      "valid-domain",
+			taskList:      types.TaskList{Name: "test-tasklist"},
+			taskListType:  1,
+			forwardedFrom: "",
+			partition:     "partition-3",
+			loadBalancerHints: &types.LoadBalancerHints{
+				BacklogCount:  30,
+				RatePerSecond: 3,
+			},
 			loadbalancerStrategy: "invalid-strategy",
 			shouldUpdate:         false,
 		},
@@ -289,7 +298,7 @@ func TestMultiLoadBalancer_UpdateWeight(t *testing.T) {
 			roundRobinMock := NewMockLoadBalancer(ctrl)
 
 			if tt.shouldUpdate {
-				roundRobinMock.EXPECT().UpdateWeight(tt.domainID, tt.taskList, tt.taskListType, tt.forwardedFrom, tt.partition, tt.weight).Times(1)
+				roundRobinMock.EXPECT().UpdateWeight(tt.domainID, tt.taskList, tt.taskListType, tt.forwardedFrom, tt.partition, tt.loadBalancerHints).Times(1)
 			} else {
 				roundRobinMock.EXPECT().UpdateWeight(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 			}
@@ -310,7 +319,7 @@ func TestMultiLoadBalancer_UpdateWeight(t *testing.T) {
 			}
 
 			// Call UpdateWeight
-			lb.UpdateWeight(tt.domainID, tt.taskList, tt.taskListType, tt.forwardedFrom, tt.partition, tt.weight)
+			lb.UpdateWeight(tt.domainID, tt.taskList, tt.taskListType, tt.forwardedFrom, tt.partition, tt.loadBalancerHints)
 		})
 	}
 }

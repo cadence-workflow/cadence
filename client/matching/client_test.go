@@ -236,6 +236,7 @@ func TestClient_withResponse(t *testing.T) {
 				p.EXPECT().FromTaskList(_testPartition).Return("peer0", nil)
 				c.EXPECT().PollForActivityTask(gomock.Any(), gomock.Any(), []yarpc.CallOption{yarpc.WithShardKey("peer0")}).Return(&types.MatchingPollForActivityTaskResponse{}, nil)
 				mp.EXPECT().UpdatePartitionConfig(_testDomainUUID, types.TaskList{Name: _testTaskList}, persistence.TaskListTypeActivity, nil)
+				balancer.EXPECT().UpdateWeight(_testDomainUUID, types.TaskList{Name: _testTaskList}, persistence.TaskListTypeActivity, "", _testPartition, nil)
 			},
 			want: &types.MatchingPollForActivityTaskResponse{},
 		},
@@ -274,7 +275,7 @@ func TestClient_withResponse(t *testing.T) {
 				p.EXPECT().FromTaskList(_testPartition).Return("peer0", nil)
 				c.EXPECT().PollForDecisionTask(gomock.Any(), gomock.Any(), []yarpc.CallOption{yarpc.WithShardKey("peer0")}).Return(&types.MatchingPollForDecisionTaskResponse{}, nil)
 				mp.EXPECT().UpdatePartitionConfig(_testDomainUUID, types.TaskList{Name: _testTaskList}, persistence.TaskListTypeDecision, nil)
-				balancer.EXPECT().UpdateWeight(_testDomainUUID, types.TaskList{Name: _testTaskList}, persistence.TaskListTypeDecision, "", _testPartition, int64(0))
+				balancer.EXPECT().UpdateWeight(_testDomainUUID, types.TaskList{Name: _testTaskList}, persistence.TaskListTypeDecision, "", _testPartition, nil)
 			},
 			want: &types.MatchingPollForDecisionTaskResponse{},
 		},

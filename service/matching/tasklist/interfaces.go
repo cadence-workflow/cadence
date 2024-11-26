@@ -63,6 +63,7 @@ type (
 		TaskListPartitionConfig() *types.TaskListPartitionConfig
 		UpdateTaskListPartitionConfig(context.Context, *types.TaskListPartitionConfig) error
 		RefreshTaskListPartitionConfig(context.Context, *types.TaskListPartitionConfig) error
+		LoadBalancerHints() *types.LoadBalancerHints
 	}
 
 	TaskMatcher interface {

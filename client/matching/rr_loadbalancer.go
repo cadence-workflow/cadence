@@ -140,6 +140,6 @@ func (lb *roundRobinLoadBalancer) UpdateWeight(
 	taskListType int,
 	forwardedFrom string,
 	partition string,
-	weight int64,
+	info *types.LoadBalancerHints,
 ) {
 }
