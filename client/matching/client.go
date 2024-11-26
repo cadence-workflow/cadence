@@ -133,7 +133,6 @@ func (c *clientImpl) PollForActivityTask(
 	if err != nil {
 		return nil, err
 	}
-	// TODO: update activity response to include backlog count hint and update the weight for partitions
 	resp, err := c.client.PollForActivityTask(ctx, request, append(opts, yarpc.WithShardKey(peer))...)
 	if err != nil {
 		return nil, err
@@ -144,6 +143,14 @@ func (c *clientImpl) PollForActivityTask(
 		*request.PollRequest.GetTaskList(),
 		persistence.TaskListTypeActivity,
 		resp.PartitionConfig,
+	)
+	c.loadBalancer.UpdateWeight(
+		request.GetDomainUUID(),
+		*request.PollRequest.GetTaskList(),
+		persistence.TaskListTypeActivity,
+		request.GetForwardedFrom(),
+		partition,
+		resp.LoadBalancerHints,
 	)
 	return resp, nil
 }
@@ -182,7 +189,7 @@ func (c *clientImpl) PollForDecisionTask(
 		persistence.TaskListTypeDecision,
 		request.GetForwardedFrom(),
 		partition,
-		resp.BacklogCountHint,
+		resp.LoadBalancerHints,
 	)
 	return resp, nil
 }

@@ -68,7 +68,7 @@ type (
 			taskListType int,
 			forwardedFrom string,
 			partition string,
-			weight int64,
+			info *types.LoadBalancerHints,
 		)
 	}
 
@@ -138,7 +138,7 @@ func (lb *defaultLoadBalancer) UpdateWeight(
 	taskListType int,
 	forwardedFrom string,
 	partition string,
-	weight int64,
+	info *types.LoadBalancerHints,
 ) {
 }
 

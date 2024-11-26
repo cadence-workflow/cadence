@@ -27,7 +27,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"reflect"
 	"sort"
 	"sync"
@@ -331,6 +330,17 @@ func (c *taskListManagerImpl) TaskListPartitionConfig() *types.TaskListPartition
 	return &config
 }
 
+func (c *taskListManagerImpl) LoadBalancerHints() *types.LoadBalancerHints {
+	c.startWG.Wait()
+	if c.timeSource.Now().Sub(c.createTime) < time.Second*10 {
+		return nil
+	}
+	return &types.LoadBalancerHints{
+		BacklogCount:  c.taskAckManager.GetBacklogCount(),
+		RatePerSecond: c.qpsTracker.QPS(),
+	}
+}
+
 func isTaskListPartitionConfigEqual(a types.TaskListPartitionConfig, b types.TaskListPartitionConfig) bool {
 	a.Version = b.Version
 	return reflect.DeepEqual(a, b)
@@ -592,18 +602,7 @@ func (c *taskListManagerImpl) GetTask(
 		return nil, fmt.Errorf("couldn't get task: %w", err)
 	}
 	task.domainName = c.domainName
-	// according to Little's Law, the average number of tasks in the queue L = λW
-	// where λ is the average arrival rate and W is the average wait time a task spends in the queue
-	// here λ is the QPS and W is the average match latency which is 10ms
-	// so the backlog hint should be backlog count + L.
-	smoothingNumber := int64(0)
-	if c.taskListKind != types.TaskListKindSticky {
-		qps := c.qpsTracker.QPS()
-		if qps > 0.01 {
-			smoothingNumber = int64(math.Ceil(qps * 0.01))
-		}
-	}
-	task.BacklogCountHint = c.taskAckManager.GetBacklogCount() + smoothingNumber
+	task.BacklogCountHint = c.taskAckManager.GetBacklogCount()
 	return task, nil
 }
 
