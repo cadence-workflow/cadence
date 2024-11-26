@@ -547,3 +547,30 @@ func TestTaskListPartitionConfigToInternalType(t *testing.T) {
 		})
 	}
 }
+
+func TestVersionHistoryCopy(t *testing.T) {
+	a := VersionHistories{
+		CurrentVersionHistoryIndex: 1,
+		Histories: []*VersionHistory{
+			{
+				BranchToken: []byte("token"),
+				Items: []*VersionHistoryItem{
+					{
+						EventID: 1,
+						Version: 2,
+					},
+				},
+			},
+			{
+				BranchToken: []byte("token"),
+				Items: []*VersionHistoryItem{
+					{
+						EventID: 1,
+						Version: 2,
+					},
+				},
+			},
+		},
+	}
+	assert.Equal(t, &a, a.Duplicate())
+}

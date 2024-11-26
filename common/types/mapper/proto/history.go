@@ -297,6 +297,7 @@ func FromHistoryGetMutableStateRequest(t *types.GetMutableStateRequest) *history
 		WorkflowExecution:   FromWorkflowExecution(t.Execution),
 		ExpectedNextEventId: t.ExpectedNextEventID,
 		CurrentBranchToken:  t.CurrentBranchToken,
+		VersionHistoryItem:  FromVersionHistoryItem(t.VersionHistoryItem),
 	}
 }
 
@@ -309,6 +310,7 @@ func ToHistoryGetMutableStateRequest(t *historyv1.GetMutableStateRequest) *types
 		Execution:           ToWorkflowExecution(t.WorkflowExecution),
 		ExpectedNextEventID: t.ExpectedNextEventId,
 		CurrentBranchToken:  t.CurrentBranchToken,
+		VersionHistoryItem:  ToVersionHistoryItem(t.VersionHistoryItem),
 	}
 }
 
