@@ -15,7 +15,7 @@ require (
 	github.com/emirpasic/gods v0.0.0-20190624094223-e689965507ab
 	github.com/fatih/color v1.13.0
 	github.com/go-sql-driver/mysql v1.7.1
-	github.com/gocql/gocql v0.0.0-20211015133455-b225f9b53fa1
+	github.com/gocql/gocql v1.7.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang-jwt/jwt/v5 v5.2.0
 	github.com/golang/mock v1.6.0
