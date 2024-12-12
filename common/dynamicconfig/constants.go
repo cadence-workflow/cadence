@@ -1520,6 +1520,12 @@ const (
 	// Default value: true
 	// Allowed filters: DomainName
 	EnableReadVisibilityFromPinot
+	// EnableReadVisibilityFromOS is key for enable read from opensearch or db visibility, usually using with AdvancedVisibilityWritingMode for seamless migration from db visibility to advanced visibility
+	// KeyName: system.enableReadVisibilityFromOS
+	// Value type: Bool
+	// Default value: true
+	// Allowed filters: DomainName
+	EnableReadVisibilityFromOS
 	// EnableVisibilityDoubleRead is the key for enable double read for a latency comparison
 	// KeyName: system.EnableVisibilityDoubleRead
 	// Value type: Bool
@@ -3906,6 +3912,12 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "system.enableReadVisibilityFromPinot",
 		Filters:      []Filter{DomainName},
 		Description:  "EnableReadVisibilityFromPinot is key for enable read from pinot or db visibility, usually using with AdvancedVisibilityWritingMode for seamless migration from db visibility to advanced visibility",
+		DefaultValue: true,
+	},
+	EnableReadVisibilityFromOS: {
+		KeyName:      "system.enableReadVisibilityFromOS",
+		Filters:      []Filter{DomainName},
+		Description:  "EnableReadVisibilityFromOS is key for enable read from OpenSearch or db visibility, usually using with AdvancedVisibilityWritingMode for seamless migration from db visibility to advanced visibility",
 		DefaultValue: true,
 	},
 	EnableVisibilityDoubleRead: {

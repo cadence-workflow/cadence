@@ -333,7 +333,7 @@ func (f *factoryImpl) NewVisibilityManager(
 				visibilityFromOS,
 				visibilityFromES,
 				resourceConfig.EnableReadVisibilityFromES, // Didn't add new config for EnableReadVisibilityFromOS since we will use es-visibility and version: "os2" when migration is done
-				resourceConfig.EnableReadVisibilityFromES, // this controls read from source(ES), will be the primary read source
+				resourceConfig.EnableReadVisibilityFromOS, // this controls read from source(ES), will be the primary read source
 				resourceConfig.AdvancedVisibilityMigrationWritingMode,
 				resourceConfig.EnableLogCustomerQueryParameter,
 				resourceConfig.EnableVisibilityDoubleRead,
@@ -343,7 +343,7 @@ func (f *factoryImpl) NewVisibilityManager(
 		return p.NewVisibilityDualManager(
 			visibilityFromDB,
 			visibilityFromOS,
-			resourceConfig.EnableReadVisibilityFromES, //Didn't add new config for EnableReadVisibilityFromOS since we will use es-visibility and version: "os2" when migration is done
+			resourceConfig.EnableReadVisibilityFromOS, //Didn't add new config for EnableReadVisibilityFromOS since we will use es-visibility and version: "os2" when migration is done
 			resourceConfig.AdvancedVisibilityWritingMode,
 			f.logger,
 		), nil

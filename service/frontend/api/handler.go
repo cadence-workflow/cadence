@@ -3204,8 +3204,8 @@ func (wh *WorkflowHandler) convertIndexedKeyToThrift(keys map[string]interface{}
 }
 
 func (wh *WorkflowHandler) isListRequestPageSizeTooLarge(pageSize int32, domain string) bool {
-	return common.IsAdvancedVisibilityReadingEnabled(wh.config.EnableReadVisibilityFromES(domain), wh.config.IsAdvancedVisConfigExist) &&
-		pageSize > int32(wh.config.ESIndexMaxResultWindow())
+	return common.IsAdvancedVisibilityReadingEnabled(wh.config.EnableReadVisibilityFromES(domain) || wh.config.EnableReadVisibilityFromOS(domain) || wh.config.EnableReadVisibilityFromPinot(domain),
+		wh.config.IsAdvancedVisConfigExist) && pageSize > int32(wh.config.ESIndexMaxResultWindow())
 }
 
 // GetClusterInfo return information about cadence deployment

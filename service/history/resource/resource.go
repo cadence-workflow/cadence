@@ -106,6 +106,7 @@ func New(
 			AdvancedVisibilityWritingMode:          config.AdvancedVisibilityWritingMode,
 			AdvancedVisibilityMigrationWritingMode: config.AdvancedVisibilityMigrationWritingMode,
 			EnableReadVisibilityFromPinot:          nil, // history service never read,
+			EnableReadVisibilityFromOS:             nil, // history service never read,
 			EnableLogCustomerQueryParameter:        nil, // log customer parameter will be done in front-end
 
 			EnableDBVisibilitySampling:                  config.EnableVisibilitySampling,

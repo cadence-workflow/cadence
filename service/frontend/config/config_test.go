@@ -55,6 +55,7 @@ func TestNewConfig(t *testing.T) {
 		"ESVisibilityListMaxQPS":                      {dynamicconfig.FrontendESVisibilityListMaxQPS, 5},
 		"EnableReadVisibilityFromES":                  {dynamicconfig.EnableReadVisibilityFromES, true},
 		"EnableReadVisibilityFromPinot":               {dynamicconfig.EnableReadVisibilityFromPinot, false},
+		"EnableReadVisibilityFromOS":                  {dynamicconfig.EnableReadVisibilityFromOS, false},
 		"EnableLogCustomerQueryParameter":             {dynamicconfig.EnableLogCustomerQueryParameter, true},
 		"EnableVisibilityDoubleRead":                  {dynamicconfig.EnableVisibilityDoubleRead, false},
 		"ESIndexMaxResultWindow":                      {dynamicconfig.FrontendESIndexMaxResultWindow, 6},
