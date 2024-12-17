@@ -148,7 +148,6 @@ func (c *wfCache) allow(domainID string, workflowID string, rateLimitType rateLi
 				domainName,
 				"external",
 				metrics.WorkflowIDCacheRequestsExternalRatelimitedCounter,
-				c.ratelimitExternalPerWorkflowID,
 			)
 			return false
 		}
@@ -162,7 +161,6 @@ func (c *wfCache) allow(domainID string, workflowID string, rateLimitType rateLi
 				domainName,
 				"internal",
 				metrics.WorkflowIDCacheRequestsInternalRatelimitedCounter,
-				c.ratelimitInternalPerWorkflowID,
 			)
 			return false
 		}
@@ -180,19 +178,10 @@ func (c *wfCache) emitRateLimitMetrics(
 	domainName string,
 	callType string,
 	metric int,
-	enabled dynamicconfig.BoolPropertyFnWithDomainFilter,
 ) {
-	var mode string
-	if enabled(domainName) {
-		mode = "enabled"
-	} else {
-		mode = "shadow"
-	}
-
 	c.metricsClient.Scope(
 		metrics.HistoryClientWfIDCacheScope,
 		metrics.DomainTag(domainName),
-		metrics.ModeTag(mode),
 	).IncCounter(metric)
 	c.logger.Info(
 		"Rate limiting workflowID",
@@ -200,7 +189,6 @@ func (c *wfCache) emitRateLimitMetrics(
 		tag.WorkflowDomainID(domainID),
 		tag.WorkflowDomainName(domainName),
 		tag.WorkflowID(workflowID),
-		tag.Mode(mode),
 	)
 }
 
