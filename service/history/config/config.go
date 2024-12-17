@@ -259,8 +259,6 @@ type Config struct {
 	EnableRecordWorkflowExecutionUninitialized         dynamicconfig.BoolPropertyFnWithDomainFilter
 
 	// The following are used by the history workflowID cache
-	WorkflowIDCacheExternalEnabled     dynamicconfig.BoolPropertyFnWithDomainFilter
-	WorkflowIDCacheInternalEnabled     dynamicconfig.BoolPropertyFnWithDomainFilter
 	WorkflowIDExternalRateLimitEnabled dynamicconfig.BoolPropertyFnWithDomainFilter
 	WorkflowIDInternalRateLimitEnabled dynamicconfig.BoolPropertyFnWithDomainFilter
 	WorkflowIDExternalRPS              dynamicconfig.IntPropertyFnWithDomainFilter
@@ -515,8 +513,6 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		EnableReplicationTaskGeneration:                    dc.GetBoolPropertyFilteredByDomainIDAndWorkflowID(dynamicconfig.EnableReplicationTaskGeneration),
 		EnableRecordWorkflowExecutionUninitialized:         dc.GetBoolPropertyFilteredByDomain(dynamicconfig.EnableRecordWorkflowExecutionUninitialized),
 
-		WorkflowIDCacheExternalEnabled:     dc.GetBoolPropertyFilteredByDomain(dynamicconfig.WorkflowIDCacheExternalEnabled),
-		WorkflowIDCacheInternalEnabled:     dc.GetBoolPropertyFilteredByDomain(dynamicconfig.WorkflowIDCacheInternalEnabled),
 		WorkflowIDExternalRateLimitEnabled: dc.GetBoolPropertyFilteredByDomain(dynamicconfig.WorkflowIDExternalRateLimitEnabled),
 		WorkflowIDInternalRateLimitEnabled: dc.GetBoolPropertyFilteredByDomain(dynamicconfig.WorkflowIDInternalRateLimitEnabled),
 		WorkflowIDExternalRPS:              dc.GetIntPropertyFilteredByDomain(dynamicconfig.WorkflowIDExternalRPS),

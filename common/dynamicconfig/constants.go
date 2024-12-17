@@ -4382,18 +4382,6 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "Enable TaskValidation",
 		DefaultValue: false,
 	},
-	WorkflowIDCacheExternalEnabled: {
-		KeyName:      "history.workflowIDCacheExternalEnabled",
-		Filters:      []Filter{DomainName},
-		Description:  "WorkflowIDCacheExternalEnabled is the key to enable/disable caching of workflowID specific information for external requests",
-		DefaultValue: false,
-	},
-	WorkflowIDCacheInternalEnabled: {
-		KeyName:      "history.workflowIDCacheInternalEnabled",
-		Filters:      []Filter{DomainName},
-		Description:  "WorkflowIDCacheInternalEnabled is the key to enable/disable caching of workflowID specific information for internal requests",
-		DefaultValue: false,
-	},
 	WorkflowIDExternalRateLimitEnabled: {
 		KeyName:      "history.workflowIDExternalRateLimitEnabled",
 		Filters:      []Filter{DomainName},

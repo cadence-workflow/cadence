@@ -53,7 +53,6 @@ func TestWorkflowIDInternalRateLimitIntegrationSuite(t *testing.T) {
 
 	clusterConfig.TimeSource = clock.NewMockedTimeSource()
 	clusterConfig.HistoryDynamicConfigOverrides = map[dynamicconfig.Key]interface{}{
-		dynamicconfig.WorkflowIDCacheInternalEnabled:     true,
 		dynamicconfig.WorkflowIDInternalRPS:              2,
 		dynamicconfig.WorkflowIDInternalRateLimitEnabled: true,
 	}
