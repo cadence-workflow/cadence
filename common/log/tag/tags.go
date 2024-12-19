@@ -1061,3 +1061,7 @@ func PartitionDownscaleThreshold(qps float64) Tag {
 func PartitionDownscaleFactor(qps float64) Tag {
 	return newFloat64Tag("partition-downscale-factor", qps)
 }
+
+func Namespace(name string) Tag {
+	return newStringTag("namespace", name)
+}

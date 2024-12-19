@@ -1399,6 +1399,14 @@ const (
 	NumWorkerScopes
 )
 
+// -- Operation scopes for ShardDistributor service --
+const (
+	// ShardDistributorGetShardOwnerScope tracks GetShardOwner API calls received by service
+	ShardDistributorGetShardOwnerScope = iota + NumCommonScopes
+
+	NumShardDistributorScopes
+)
+
 // ScopeDefs record the scopes for all services
 var ScopeDefs = map[ServiceIdx]map[int]scopeDefinition{
 	// common scope Names
@@ -2036,6 +2044,9 @@ var ScopeDefs = map[ServiceIdx]map[int]scopeDefinition{
 		ESAnalyzerScope:                        {operation: "ESAnalyzer"},
 		AsyncWorkflowConsumerScope:             {operation: "AsyncWorkflowConsumer"},
 		DiagnosticsWorkflowScope:               {operation: "DiagnosticsWorkflow"},
+	},
+	ShardDistributor: {
+		ShardDistributorGetShardOwnerScope: {operation: "GetShardOwner"},
 	},
 }
 
@@ -2728,6 +2739,16 @@ const (
 	NumWorkerMetrics
 )
 
+// ShardDistributor metrics enum
+const (
+	ShardDistributorRequests = iota + NumCommonMetrics
+	ShardDistributorFailures
+	ShardDistributorLatency
+	ShardDistributorErrContextTimeoutCounter
+	ShardDistributorErrNamespaceNotFound
+	NumShardDistributorMetrics
+)
+
 // MetricDefs record the metrics for all services
 var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 	Common: {
@@ -3415,6 +3436,13 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		DiagnosticsWorkflowStartedCount:               {metricName: "diagnostics_workflow_count", metricType: Counter},
 		DiagnosticsWorkflowSuccess:                    {metricName: "diagnostics_workflow_success", metricType: Counter},
 		DiagnosticsWorkflowExecutionLatency:           {metricName: "diagnostics_workflow_execution_latency", metricType: Timer},
+	},
+	ShardDistributor: {
+		ShardDistributorRequests:                 {metricName: "shard_distributor_requests", metricType: Counter},
+		ShardDistributorErrContextTimeoutCounter: {metricName: "shard_distributor_err_context_timeout", metricType: Counter},
+		ShardDistributorFailures:                 {metricName: "shard_distributor_failures", metricType: Counter},
+		ShardDistributorLatency:                  {metricName: "shard_distributor_latency", metricType: Timer},
+		ShardDistributorErrNamespaceNotFound:     {metricName: "shard_distributor_err_namespace_not_found", metricType: Counter},
 	},
 }
 

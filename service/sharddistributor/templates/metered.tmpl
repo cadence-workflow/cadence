@@ -1,0 +1,57 @@
+
+import (
+    "context"
+
+    "github.com/uber/cadence/common/log"
+    "github.com/uber/cadence/common/log/tag"
+    "github.com/uber/cadence/common/metrics"
+    "github.com/uber/cadence/common/types"
+    "github.com/uber/cadence/service/sharddistributor/handler"
+)
+
+{{- $interfaceName := .Interface.Name}}
+{{- $interfaceType := .Interface.Type}}
+{{- $handlerName := (index .Vars "handler")}}
+{{- $decorator := (printf "%s%s" (down $handlerName) $interfaceName) }}
+{{- $Decorator := (printf "%s%s" $handlerName $interfaceName) }}
+
+type {{$decorator}} struct {
+    handler {{.Interface.Type}}
+    logger log.Logger
+    metricsClient metrics.Client
+}
+
+func New{{$Decorator}}(handler {{$.Interface.Type}}, logger log.Logger, metricsClient metrics.Client) {{.Interface.Type}} {
+    return &{{$decorator}}{
+        handler: handler,
+        logger: logger,
+        metricsClient: metricsClient,
+    }
+}
+
+{{range $method := .Interface.Methods}}
+func (h *{{$decorator}}) {{$method.Declaration}} {
+    {{- if has $method.Name (list "Health" "Start" "Stop")}}
+        {{ $method.Pass "h.handler." }}
+    {{- else}}
+        defer func() { log.CapturePanic(recover(), h.logger, &err) }()
+
+        {{- $namespace := printf "%s.GetNamespace()" (index $method.Params 1).Name }}
+
+        scope := h.metricsClient.Scope({{ printf "metrics.ShardDistributor%sScope" $method.Name }})
+        scope = scope.Tagged(metrics.NamespaceTag({{ $namespace }}))
+        scope.IncCounter(metrics.ShardDistributorRequests)
+        sw := scope.StartTimer(metrics.ShardDistributorLatency)
+        defer sw.Stop()
+        logger := h.logger.WithTags(tag.Namespace({{ $namespace }}))
+
+        {{$method.ResultsNames}} = h.handler.{{ $method.Call }}
+
+        if err != nil {
+            h.handleErr(err, scope, logger)
+        }
+
+        return {{ $method.ResultsNames }}
+    {{- end}}
+}
+{{end}}

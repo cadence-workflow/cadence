@@ -33,6 +33,7 @@ import (
 	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/handler"
 	"github.com/uber/cadence/service/sharddistributor/wrappers/grpc"
+	"github.com/uber/cadence/service/sharddistributor/wrappers/metered"
 )
 
 // Service represents the shard distributor service
@@ -97,7 +98,10 @@ func (s *Service) Start() {
 	matchingPeerResolver := matching.NewPeerResolver(s.GetMembershipResolver(), membership.PortGRPC)
 	historyPeerResolver := history.NewPeerResolver(s.numHistoryShards, s.GetMembershipResolver(), membership.PortGRPC)
 
-	s.handler = handler.NewHandler(s.GetLogger(), s.GetMetricsClient(), matchingPeerResolver, historyPeerResolver)
+	rawHandler := handler.NewHandler(s.GetLogger(), s.GetMetricsClient(), matchingPeerResolver, historyPeerResolver)
+	meteredHandler := metered.NewMetricsHandler(rawHandler, s.GetLogger(), s.GetMetricsClient())
+
+	s.handler = meteredHandler
 
 	grpcHandler := grpc.NewGRPCHandler(s.handler)
 	grpcHandler.Register(s.GetDispatcher())

@@ -20,24 +20,35 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-package handler
+package metered
 
 import (
 	"context"
+	"errors"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 )
 
-//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination interfaces_mock.go
-//go:generate gowrap gen -g -p . -i Handler -t ../../templates/grpc.tmpl -o ../wrappers/grpc/grpc_handler_generated.go -v handler=GRPC -v package=sharddistributorv1 -v path=github.com/uber/cadence/.gen/proto/sharddistributor/v1 -v prefix=ShardDistributor
-//go:generate gowrap gen -g -p . -i Handler -t ../templates/metered.tmpl -o ../wrappers/metered/api_generated.go -v handler=Metrics
+func (h *metricsHandler) handleErr(err error, scope metrics.Scope, logger log.Logger) error {
+	switch {
+	case errors.As(err, new(*types.InternalServiceError)):
+		scope.IncCounter(metrics.ShardDistributorFailures)
+		logger.Error("Internal service error", tag.Error(err))
+		return err
+	case errors.As(err, new(*types.NamespaceNotFoundError)):
+		scope.IncCounter(metrics.ShardDistributorErrNamespaceNotFound)
+		return err
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		logger.Error("request timeout", tag.Error(err))
+		scope.IncCounter(metrics.ShardDistributorErrContextTimeoutCounter)
+		return err
+	}
 
-// Handler is the interface for shard distributor handler
-type Handler interface {
-	common.Daemon
-
-	Health(context.Context) (*types.HealthStatus, error)
-
-	GetShardOwner(context.Context, *types.GetShardOwnerRequest) (*types.GetShardOwnerResponse, error)
+	logger.Error("internal uncategorized error", tag.Error(err))
+	scope.IncCounter(metrics.ShardDistributorFailures)
+	return err
 }

@@ -342,3 +342,7 @@ func TopicTag(value string) Tag {
 func ModeTag(value string) Tag {
 	return metricWithUnknown(mode, value)
 }
+
+func NamespaceTag(namespace string) Tag {
+	return metricWithUnknown("namespace", namespace)
+}
