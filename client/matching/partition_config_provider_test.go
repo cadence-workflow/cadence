@@ -136,7 +136,7 @@ func TestGetNumberOfReadPartitions(t *testing.T) {
 			if tc.enableReadFromCache && tc.taskListKind == types.TaskListKindNormal {
 				if tc.cachedConfigExists {
 					mockCache.EXPECT().Get(gomock.Any()).Return(&syncedTaskListPartitionConfig{
-						TaskListPartitionConfig: types.TaskListPartitionConfig{NumReadPartitions: 4},
+						TaskListPartitionConfig: types.TaskListPartitionConfig{ReadPartitions: partitions(4)},
 					}).Times(1)
 				} else {
 					mockCache.EXPECT().Get(gomock.Any()).Return(nil).Times(1)
@@ -145,10 +145,10 @@ func TestGetNumberOfReadPartitions(t *testing.T) {
 
 			kind := tc.taskListKind
 			taskList := types.TaskList{Name: "test-task-list", Kind: &kind}
-			partitions := partitionProvider.GetNumberOfReadPartitions("test-domain-id", taskList, 0)
+			p := partitionProvider.GetNumberOfReadPartitions("test-domain-id", taskList, 0)
 
 			// Validate result
-			assert.Equal(t, tc.expectedPartitions, partitions)
+			assert.Equal(t, tc.expectedPartitions, p)
 		})
 	}
 }
@@ -196,7 +196,7 @@ func TestGetNumberOfWritePartitions(t *testing.T) {
 			if tc.enableReadFromCache && tc.taskListKind == types.TaskListKindNormal {
 				if tc.cachedConfigExists {
 					mockCache.EXPECT().Get(gomock.Any()).Return(&syncedTaskListPartitionConfig{
-						TaskListPartitionConfig: types.TaskListPartitionConfig{NumReadPartitions: 2, NumWritePartitions: 5},
+						TaskListPartitionConfig: types.TaskListPartitionConfig{ReadPartitions: partitions(2), WritePartitions: partitions(5)},
 					}).Times(1)
 				} else {
 					mockCache.EXPECT().Get(gomock.Any()).Return(nil).Times(1)
@@ -204,10 +204,10 @@ func TestGetNumberOfWritePartitions(t *testing.T) {
 			}
 			kind := tc.taskListKind
 			taskList := types.TaskList{Name: "test-task-list", Kind: &kind}
-			partitions := partitionProvider.GetNumberOfWritePartitions("test-domain-id", taskList, 0)
+			p := partitionProvider.GetNumberOfWritePartitions("test-domain-id", taskList, 0)
 
 			// Validate result
-			assert.Equal(t, tc.expectedPartitions, partitions)
+			assert.Equal(t, tc.expectedPartitions, p)
 		})
 	}
 }
@@ -252,4 +252,12 @@ func TestUpdatePartitionConfig(t *testing.T) {
 			partitionProvider.UpdatePartitionConfig("test-domain-id", taskList, 0, tc.input)
 		})
 	}
+}
+
+func partitions(num int) map[int]*types.TaskListPartition {
+	result := make(map[int]*types.TaskListPartition, num)
+	for i := 0; i < num; i++ {
+		result[i] = &types.TaskListPartition{}
+	}
+	return result
 }

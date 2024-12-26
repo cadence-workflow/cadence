@@ -97,10 +97,16 @@ service MatchingAPI {
   rpc RefreshTaskListPartitionConfig(RefreshTaskListPartitionConfigRequest) returns (RefreshTaskListPartitionConfigResponse);
 }
 
+message TaskListPartition {
+  repeated string isolation_groups = 1;
+}
+
 message TaskListPartitionConfig {
   int64 version = 1;
-  int32 num_read_partitions = 2;
-  int32 num_write_partitions = 3;
+  int32 num_read_partitions = 2 [deprecated = true];
+  int32 num_write_partitions = 3 [deprecated = true];
+  map<int32, TaskListPartition> read_partitions = 4;
+  map<int32, TaskListPartition> write_partitions = 5;
 }
 
 message LoadBalancerHints {

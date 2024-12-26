@@ -1034,20 +1034,20 @@ func CurrentQPS(qps float64) Tag {
 	return newFloat64Tag("current-qps", qps)
 }
 
-func NumReadPartitions(n int32) Tag {
-	return newInt32("num-read-partitions", n)
+func NumReadPartitions(n int) Tag {
+	return newInt("num-read-partitions", n)
 }
 
-func NumWritePartitions(n int32) Tag {
-	return newInt32("num-write-partitions", n)
+func NumWritePartitions(n int) Tag {
+	return newInt("num-write-partitions", n)
 }
 
-func CurrentNumReadPartitions(n int32) Tag {
-	return newInt32("current-num-read-partitions", n)
+func CurrentNumReadPartitions(n int) Tag {
+	return newInt("current-num-read-partitions", n)
 }
 
-func CurrentNumWritePartitions(n int32) Tag {
-	return newInt32("current-num-write-partitions", n)
+func CurrentNumWritePartitions(n int) Tag {
+	return newInt("current-num-write-partitions", n)
 }
 
 func PartitionUpscaleThreshold(qps float64) Tag {

@@ -283,8 +283,8 @@ func TestAdminUpdateTaskListPartitionConfig(t *testing.T) {
 						TaskList:     &types.TaskList{Name: "test-tasklist", Kind: types.TaskListKindNormal.Ptr()},
 						TaskListType: types.TaskListTypeDecision.Ptr(),
 						PartitionConfig: &types.TaskListPartitionConfig{
-							NumReadPartitions:  2,
-							NumWritePartitions: 2,
+							ReadPartitions:  createPartitions(2),
+							WritePartitions: createPartitions(2),
 						},
 					}).
 					Return(&types.UpdateTaskListPartitionConfigResponse{}, nil).
