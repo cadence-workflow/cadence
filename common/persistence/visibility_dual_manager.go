@@ -36,7 +36,7 @@ type (
 		logger                    log.Logger
 		dbVisibilityManager       VisibilityManager
 		advancedVisibilityManager VisibilityManager
-		readModeIsFromAdvanced    dynamicconfig.BoolPropertyFnWithDomainFilter
+		readVisibilityStoreName   dynamicconfig.StringPropertyFnWithDomainFilter
 		writeMode                 dynamicconfig.StringPropertyFn
 	}
 )
@@ -47,7 +47,7 @@ var _ VisibilityManager = (*visibilityDualManager)(nil)
 func NewVisibilityDualManager(
 	dbVisibilityManager VisibilityManager, // one of the VisibilityManager can be nil
 	advancedVisibilityManager VisibilityManager, // one of the VisibilityManager can be nil
-	readModeIsFromAdvanced dynamicconfig.BoolPropertyFnWithDomainFilter,
+	readVisibilityStoreName dynamicconfig.StringPropertyFnWithDomainFilter,
 	visWritingMode dynamicconfig.StringPropertyFn,
 	logger log.Logger,
 ) VisibilityManager {
@@ -58,7 +58,7 @@ func NewVisibilityDualManager(
 	return &visibilityDualManager{
 		dbVisibilityManager:       dbVisibilityManager,
 		advancedVisibilityManager: advancedVisibilityManager,
-		readModeIsFromAdvanced:    readModeIsFromAdvanced,
+		readVisibilityStoreName:   readVisibilityStoreName,
 		writeMode:                 visWritingMode,
 		logger:                    logger,
 	}
@@ -317,7 +317,7 @@ func (v *visibilityDualManager) CountWorkflowExecutions(
 
 func (v *visibilityDualManager) chooseVisibilityManagerForRead(domain string) VisibilityManager {
 	var visibilityMgr VisibilityManager
-	if v.readModeIsFromAdvanced(domain) {
+	if v.readVisibilityStoreName(domain) != "db" {
 		if v.advancedVisibilityManager != nil {
 			visibilityMgr = v.advancedVisibilityManager
 		} else {

@@ -3204,7 +3204,7 @@ func (wh *WorkflowHandler) convertIndexedKeyToThrift(keys map[string]interface{}
 }
 
 func (wh *WorkflowHandler) isListRequestPageSizeTooLarge(pageSize int32, domain string) bool {
-	return common.IsAdvancedVisibilityReadingEnabled(wh.config.EnableReadVisibilityFromES(domain) || wh.config.EnableReadVisibilityFromOS(domain) || wh.config.EnableReadVisibilityFromPinot(domain),
+	return common.IsAdvancedVisibilityReadingEnabled(wh.config.ReadVisibilityStoreName(domain) != "db",
 		wh.config.IsAdvancedVisConfigExist) && pageSize > int32(wh.config.ESIndexMaxResultWindow())
 }
 

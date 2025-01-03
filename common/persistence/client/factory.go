@@ -271,7 +271,7 @@ func (f *factoryImpl) NewVisibilityManager(
 	params *Params,
 	resourceConfig *service.Config,
 ) (p.VisibilityManager, error) {
-	if resourceConfig.EnableReadVisibilityFromES == nil && resourceConfig.EnableReadVisibilityFromPinot == nil && resourceConfig.AdvancedVisibilityWritingMode == nil {
+	if resourceConfig.ReadVisibilityStoreName == nil && resourceConfig.AdvancedVisibilityWritingMode == nil {
 		// No need to create visibility manager as no read/write needed
 		return nil, nil
 	}
@@ -301,8 +301,9 @@ func (f *factoryImpl) NewVisibilityManager(
 				visibilityFromDB,
 				visibilityFromPinot,
 				visibilityFromES,
-				resourceConfig.EnableReadVisibilityFromPinot,
-				resourceConfig.EnableReadVisibilityFromES,
+				resourceConfig.ReadVisibilityStoreName,
+				"es",    //source vis store
+				"pinot", //dest vis store
 				resourceConfig.AdvancedVisibilityMigrationWritingMode,
 				resourceConfig.EnableLogCustomerQueryParameter,
 				resourceConfig.EnableVisibilityDoubleRead,
@@ -313,7 +314,7 @@ func (f *factoryImpl) NewVisibilityManager(
 		return p.NewVisibilityDualManager(
 			visibilityFromDB,
 			visibilityFromPinot,
-			resourceConfig.EnableReadVisibilityFromPinot,
+			resourceConfig.ReadVisibilityStoreName,
 			resourceConfig.AdvancedVisibilityWritingMode,
 			f.logger,
 		), nil
@@ -332,8 +333,9 @@ func (f *factoryImpl) NewVisibilityManager(
 				visibilityFromDB,
 				visibilityFromOS,
 				visibilityFromES,
-				resourceConfig.EnableReadVisibilityFromES, // Didn't add new config for EnableReadVisibilityFromOS since we will use es-visibility and version: "os2" when migration is done
-				resourceConfig.EnableReadVisibilityFromOS, // this controls read from source(ES), will be the primary read source
+				resourceConfig.ReadVisibilityStoreName, // this controls read from source(ES), will be the primary read source
+				"es",                                   //source vis store
+				"os",                                   //dest vis store
 				resourceConfig.AdvancedVisibilityMigrationWritingMode,
 				resourceConfig.EnableLogCustomerQueryParameter,
 				resourceConfig.EnableVisibilityDoubleRead,
@@ -343,7 +345,7 @@ func (f *factoryImpl) NewVisibilityManager(
 		return p.NewVisibilityDualManager(
 			visibilityFromDB,
 			visibilityFromOS,
-			resourceConfig.EnableReadVisibilityFromOS, //Didn't add new config for EnableReadVisibilityFromOS since we will use es-visibility and version: "os2" when migration is done
+			resourceConfig.ReadVisibilityStoreName, //Didn't add new config for EnableReadVisibilityFromOS since we will use es-visibility and version: "os2" when migration is done
 			resourceConfig.AdvancedVisibilityWritingMode,
 			f.logger,
 		), nil
@@ -355,7 +357,7 @@ func (f *factoryImpl) NewVisibilityManager(
 		return p.NewVisibilityDualManager(
 			visibilityFromDB,
 			visibilityFromES,
-			resourceConfig.EnableReadVisibilityFromES,
+			resourceConfig.ReadVisibilityStoreName,
 			resourceConfig.AdvancedVisibilityWritingMode,
 			f.logger,
 		), nil
@@ -363,7 +365,7 @@ func (f *factoryImpl) NewVisibilityManager(
 		return p.NewVisibilityDualManager(
 			visibilityFromDB,
 			visibilityFromES,
-			resourceConfig.EnableReadVisibilityFromES,
+			resourceConfig.ReadVisibilityStoreName,
 			resourceConfig.AdvancedVisibilityWritingMode,
 			f.logger,
 		), nil

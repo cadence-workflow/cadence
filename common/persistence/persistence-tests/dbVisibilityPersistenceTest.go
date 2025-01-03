@@ -73,7 +73,7 @@ func (s *DBVisibilityPersistenceSuite) SetupSuite() {
 			},
 		},
 		&service.Config{
-			EnableReadVisibilityFromES:                  dynamicconfig.GetBoolPropertyFnFilteredByDomain(false),
+			ReadVisibilityStoreName:                     dynamicconfig.GetStringPropertyFnFilteredByDomain("db"),
 			AdvancedVisibilityWritingMode:               dynamicconfig.GetStringPropertyFn(common.AdvancedVisibilityWritingModeOff),
 			EnableReadDBVisibilityFromClosedExecutionV2: dynamicconfig.GetBoolPropertyFn(false),
 			EnableDBVisibilitySampling:                  dynamicconfig.GetBoolPropertyFn(false),

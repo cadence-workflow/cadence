@@ -107,7 +107,7 @@ func checkFailOverPermission(config *config.Config, domainName string) error {
 }
 
 func (v *requestValidatorImpl) isListRequestPageSizeTooLarge(pageSize int32, domain string) bool {
-	return common.IsAdvancedVisibilityReadingEnabled(v.config.EnableReadVisibilityFromES(domain), v.config.IsAdvancedVisConfigExist) &&
+	return common.IsAdvancedVisibilityReadingEnabled(v.config.ReadVisibilityStoreName(domain) != "db", v.config.IsAdvancedVisConfigExist) &&
 		pageSize > int32(v.config.ESIndexMaxResultWindow())
 }
 

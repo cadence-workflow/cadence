@@ -36,15 +36,14 @@ import (
 
 type (
 	visibilityTripleManager struct {
-		logger                       log.Logger
-		dbVisibilityManager          VisibilityManager
-		destinationVisibilityManager VisibilityManager
-		sourceVisibilityManager      VisibilityManager
-		readModeIsFromDestination    dynamicconfig.BoolPropertyFnWithDomainFilter
-		readModeIsFromSource         dynamicconfig.BoolPropertyFnWithDomainFilter
-		writeMode                    dynamicconfig.StringPropertyFn
-		logCustomerQueryParameter    dynamicconfig.BoolPropertyFnWithDomainFilter
-		readModeIsDouble             dynamicconfig.BoolPropertyFnWithDomainFilter
+		logger                    log.Logger
+		visibilityMgrs            map[string]VisibilityManager // which constains db, source and destination visibility manager
+		readVisibilityStoreName   dynamicconfig.StringPropertyFnWithDomainFilter
+		sourceVisStoreName        string
+		destinationVisStoreName   string
+		writeMode                 dynamicconfig.StringPropertyFn
+		logCustomerQueryParameter dynamicconfig.BoolPropertyFnWithDomainFilter
+		readModeIsDouble          dynamicconfig.BoolPropertyFnWithDomainFilter
 	}
 )
 
@@ -52,6 +51,7 @@ const (
 	VisibilityOverridePrimary   = "Primary"
 	VisibilityOverrideSecondary = "Secondary"
 	ContextKey                  = ResponseComparatorContextKey("visibility-override")
+	dbVisStoreName              = "db"
 )
 
 // ResponseComparatorContextKey is for Pinot/ES response comparator. This struct will be passed into ctx as a key.
@@ -76,8 +76,9 @@ func NewVisibilityTripleManager(
 	dbVisibilityManager VisibilityManager, // one of the VisibilityManager can be nil
 	destinationVisibilityManager VisibilityManager,
 	sourceVisibilityManager VisibilityManager,
-	readModeIsFromDestination dynamicconfig.BoolPropertyFnWithDomainFilter,
-	readModeIsFromSource dynamicconfig.BoolPropertyFnWithDomainFilter,
+	readVisibilityStoreName dynamicconfig.StringPropertyFnWithDomainFilter,
+	sourceVisStoreName string,
+	destinationVisStoreName string,
 	visWritingMode dynamicconfig.StringPropertyFn,
 	logCustomerQueryParameter dynamicconfig.BoolPropertyFnWithDomainFilter,
 	readModeIsDouble dynamicconfig.BoolPropertyFnWithDomainFilter,
@@ -88,37 +89,34 @@ func NewVisibilityTripleManager(
 		return nil
 	}
 	return &visibilityTripleManager{
-		dbVisibilityManager:          dbVisibilityManager,
-		destinationVisibilityManager: destinationVisibilityManager,
-		sourceVisibilityManager:      sourceVisibilityManager,
-		readModeIsFromDestination:    readModeIsFromDestination,
-		readModeIsFromSource:         readModeIsFromSource,
-		writeMode:                    visWritingMode,
-		logger:                       logger,
-		logCustomerQueryParameter:    logCustomerQueryParameter,
-		readModeIsDouble:             readModeIsDouble,
+		visibilityMgrs: map[string]VisibilityManager{
+			dbVisStoreName:          dbVisibilityManager,
+			sourceVisStoreName:      sourceVisibilityManager,
+			destinationVisStoreName: destinationVisibilityManager,
+		},
+		readVisibilityStoreName:   readVisibilityStoreName,
+		writeMode:                 visWritingMode,
+		logger:                    logger,
+		logCustomerQueryParameter: logCustomerQueryParameter,
+		readModeIsDouble:          readModeIsDouble,
 	}
 }
 
 func (v *visibilityTripleManager) Close() {
-	if v.dbVisibilityManager != nil {
-		v.dbVisibilityManager.Close()
-	}
-	if v.destinationVisibilityManager != nil {
-		v.destinationVisibilityManager.Close()
-	}
-	if v.sourceVisibilityManager != nil {
-		v.sourceVisibilityManager.Close()
+	for _, mgr := range v.visibilityMgrs {
+		if mgr != nil {
+			mgr.Close()
+		}
 	}
 }
 
 func (v *visibilityTripleManager) GetName() string {
-	if v.destinationVisibilityManager != nil {
-		return v.destinationVisibilityManager.GetName()
-	} else if v.sourceVisibilityManager != nil {
-		return v.sourceVisibilityManager.GetName()
+	if mgr, ok := v.visibilityMgrs[v.destinationVisStoreName]; ok && mgr != nil {
+		return mgr.GetName()
+	} else if mgr, ok := v.visibilityMgrs[v.sourceVisStoreName]; ok && mgr != nil {
+		return mgr.GetName()
 	}
-	return v.dbVisibilityManager.GetName()
+	return v.visibilityMgrs[dbVisStoreName].GetName() // db will always exist as a fallback
 }
 
 func (v *visibilityTripleManager) RecordWorkflowExecutionStarted(
@@ -128,13 +126,25 @@ func (v *visibilityTripleManager) RecordWorkflowExecutionStarted(
 	return v.chooseVisibilityManagerForWrite(
 		ctx,
 		func() error {
-			return v.dbVisibilityManager.RecordWorkflowExecutionStarted(ctx, request)
+			if mgr, ok := v.visibilityMgrs[dbVisStoreName]; ok && mgr != nil {
+				return mgr.RecordWorkflowExecutionStarted(ctx, request)
+			}
+			v.logger.Warn("basic visibility is not available to write")
+			return nil
 		},
 		func() error {
-			return v.sourceVisibilityManager.RecordWorkflowExecutionStarted(ctx, request)
+			if mgr, ok := v.visibilityMgrs[v.sourceVisStoreName]; ok && mgr != nil {
+				return mgr.RecordWorkflowExecutionStarted(ctx, request)
+			}
+			v.logger.Warn("advanced visibility is not available to write")
+			return nil
 		},
 		func() error {
-			return v.destinationVisibilityManager.RecordWorkflowExecutionStarted(ctx, request)
+			if mgr, ok := v.visibilityMgrs[v.destinationVisStoreName]; ok && mgr != nil {
+				return mgr.RecordWorkflowExecutionStarted(ctx, request)
+			}
+			v.logger.Warn("advanced visibility is not available to write")
+			return nil
 		},
 	)
 }
@@ -146,13 +156,25 @@ func (v *visibilityTripleManager) RecordWorkflowExecutionClosed(
 	return v.chooseVisibilityManagerForWrite(
 		ctx,
 		func() error {
-			return v.dbVisibilityManager.RecordWorkflowExecutionClosed(ctx, request)
+			if mgr, ok := v.visibilityMgrs[dbVisStoreName]; ok && mgr != nil {
+				return mgr.RecordWorkflowExecutionClosed(ctx, request)
+			}
+			v.logger.Warn("basic visibility is not available to write")
+			return nil
 		},
 		func() error {
-			return v.sourceVisibilityManager.RecordWorkflowExecutionClosed(ctx, request)
+			if mgr, ok := v.visibilityMgrs[v.sourceVisStoreName]; ok && mgr != nil {
+				return mgr.RecordWorkflowExecutionClosed(ctx, request)
+			}
+			v.logger.Warn("advanced visibility is not available to write")
+			return nil
 		},
 		func() error {
-			return v.destinationVisibilityManager.RecordWorkflowExecutionClosed(ctx, request)
+			if mgr, ok := v.visibilityMgrs[v.destinationVisStoreName]; ok && mgr != nil {
+				return mgr.RecordWorkflowExecutionClosed(ctx, request)
+			}
+			v.logger.Warn("advanced visibility is not available to write")
+			return nil
 		},
 	)
 }
@@ -164,13 +186,25 @@ func (v *visibilityTripleManager) RecordWorkflowExecutionUninitialized(
 	return v.chooseVisibilityManagerForWrite(
 		ctx,
 		func() error {
-			return v.dbVisibilityManager.RecordWorkflowExecutionUninitialized(ctx, request)
+			if mgr, ok := v.visibilityMgrs[dbVisStoreName]; ok && mgr != nil {
+				return mgr.RecordWorkflowExecutionUninitialized(ctx, request)
+			}
+			v.logger.Warn("basic visibility is not available to write")
+			return nil
 		},
 		func() error {
-			return v.sourceVisibilityManager.RecordWorkflowExecutionUninitialized(ctx, request)
+			if mgr, ok := v.visibilityMgrs[v.sourceVisStoreName]; ok && mgr != nil {
+				return mgr.RecordWorkflowExecutionUninitialized(ctx, request)
+			}
+			v.logger.Warn("advanced visibility is not available to write")
+			return nil
 		},
 		func() error {
-			return v.destinationVisibilityManager.RecordWorkflowExecutionUninitialized(ctx, request)
+			if mgr, ok := v.visibilityMgrs[v.destinationVisStoreName]; ok && mgr != nil {
+				return mgr.RecordWorkflowExecutionUninitialized(ctx, request)
+			}
+			v.logger.Warn("advanced visibility is not available to write")
+			return nil
 		},
 	)
 }
@@ -182,13 +216,25 @@ func (v *visibilityTripleManager) DeleteWorkflowExecution(
 	return v.chooseVisibilityManagerForWrite(
 		ctx,
 		func() error {
-			return v.dbVisibilityManager.DeleteWorkflowExecution(ctx, request)
+			if mgr, ok := v.visibilityMgrs[dbVisStoreName]; ok && mgr != nil {
+				return mgr.DeleteWorkflowExecution(ctx, request)
+			}
+			v.logger.Warn("basic visibility is not available to write")
+			return nil
 		},
 		func() error {
-			return v.sourceVisibilityManager.DeleteWorkflowExecution(ctx, request)
+			if mgr, ok := v.visibilityMgrs[v.sourceVisStoreName]; ok && mgr != nil {
+				return mgr.DeleteWorkflowExecution(ctx, request)
+			}
+			v.logger.Warn("advanced visibility is not available to write")
+			return nil
 		},
 		func() error {
-			return v.destinationVisibilityManager.DeleteWorkflowExecution(ctx, request)
+			if mgr, ok := v.visibilityMgrs[v.destinationVisStoreName]; ok && mgr != nil {
+				return mgr.DeleteWorkflowExecution(ctx, request)
+			}
+			v.logger.Warn("advanced visibility is not available to write")
+			return nil
 		},
 	)
 }
@@ -200,13 +246,25 @@ func (v *visibilityTripleManager) DeleteUninitializedWorkflowExecution(
 	return v.chooseVisibilityManagerForWrite(
 		ctx,
 		func() error {
-			return v.dbVisibilityManager.DeleteUninitializedWorkflowExecution(ctx, request)
+			if mgr, ok := v.visibilityMgrs[dbVisStoreName]; ok && mgr != nil {
+				return mgr.DeleteUninitializedWorkflowExecution(ctx, request)
+			}
+			v.logger.Warn("basic visibility is not available to write")
+			return nil
 		},
 		func() error {
-			return v.sourceVisibilityManager.DeleteUninitializedWorkflowExecution(ctx, request)
+			if mgr, ok := v.visibilityMgrs[v.sourceVisStoreName]; ok && mgr != nil {
+				return mgr.DeleteUninitializedWorkflowExecution(ctx, request)
+			}
+			v.logger.Warn("advanced visibility is not available to write")
+			return nil
 		},
 		func() error {
-			return v.destinationVisibilityManager.DeleteUninitializedWorkflowExecution(ctx, request)
+			if mgr, ok := v.visibilityMgrs[v.destinationVisStoreName]; ok && mgr != nil {
+				return mgr.DeleteUninitializedWorkflowExecution(ctx, request)
+			}
+			v.logger.Warn("advanced visibility is not available to write")
+			return nil
 		},
 	)
 }
@@ -218,26 +276,40 @@ func (v *visibilityTripleManager) UpsertWorkflowExecution(
 	return v.chooseVisibilityManagerForWrite(
 		ctx,
 		func() error {
-			return v.dbVisibilityManager.UpsertWorkflowExecution(ctx, request)
+			if mgr, ok := v.visibilityMgrs[dbVisStoreName]; ok && mgr != nil {
+				return mgr.UpsertWorkflowExecution(ctx, request)
+			}
+			v.logger.Warn("basic visibility is not available to write")
+			return nil
 		},
 		func() error {
-			return v.sourceVisibilityManager.UpsertWorkflowExecution(ctx, request)
+			if mgr, ok := v.visibilityMgrs[v.sourceVisStoreName]; ok && mgr != nil {
+				return mgr.UpsertWorkflowExecution(ctx, request)
+			}
+			v.logger.Warn("advanced visibility is not available to write")
+			return nil
 		},
 		func() error {
-			return v.destinationVisibilityManager.UpsertWorkflowExecution(ctx, request)
+			if mgr, ok := v.visibilityMgrs[v.destinationVisStoreName]; ok && mgr != nil {
+				return mgr.UpsertWorkflowExecution(ctx, request)
+			}
+			v.logger.Warn("advanced visibility is not available to write")
+			return nil
 		},
 	)
 }
 
 func (v *visibilityTripleManager) chooseVisibilityModeForAdmin() string {
 	switch {
-	case v.dbVisibilityManager != nil && v.sourceVisibilityManager != nil && v.destinationVisibilityManager != nil:
+	case v.visibilityMgrs[dbVisStoreName] != nil && v.visibilityMgrs[v.sourceVisStoreName] != nil && v.visibilityMgrs[v.destinationVisStoreName] != nil:
 		return common.AdvancedVisibilityMigrationWritingModeTriple
-	case v.sourceVisibilityManager != nil && v.destinationVisibilityManager != nil:
+	case v.visibilityMgrs[v.sourceVisStoreName] != nil && v.visibilityMgrs[v.destinationVisStoreName] != nil:
 		return common.AdvancedVisibilityMigrationWritingModeDual
-	case v.destinationVisibilityManager != nil:
+	case v.visibilityMgrs[v.destinationVisStoreName] != nil:
 		return common.AdvancedVisibilityMigrationWritingModeDestination
-	case v.dbVisibilityManager != nil:
+	case v.visibilityMgrs[v.sourceVisStoreName] != nil:
+		return common.AdvancedVisibilityMigrationWritingModeSource
+	case v.visibilityMgrs[dbVisStoreName] != nil:
 		return common.AdvancedVisibilityMigrationWritingModeOff
 	default:
 		return "INVALID_ADMIN_MODE"
@@ -259,19 +331,19 @@ func (v *visibilityTripleManager) chooseVisibilityManagerForWrite(ctx context.Co
 	// only perform as triple manager during migration by setting write mode to triple,
 	// other time perform as a dual visibility manager and db
 	case common.AdvancedVisibilityMigrationWritingModeOff:
-		if v.dbVisibilityManager != nil {
+		if mgr, ok := v.visibilityMgrs[dbVisStoreName]; ok && mgr != nil {
 			return dbVisFunc()
 		}
 		v.logger.Warn("basic visibility is not available to write, fall back to advanced visibility")
 		return destinationVisFunc()
 	case common.AdvancedVisibilityMigrationWritingModeSource:
-		if v.sourceVisibilityManager != nil {
+		if mgr, ok := v.visibilityMgrs[v.sourceVisStoreName]; ok && mgr != nil {
 			return sourceVisFunc()
 		}
 		v.logger.Warn("advanced visibility is not available to write, fall back to basic visibility")
 		return dbVisFunc()
 	case common.AdvancedVisibilityMigrationWritingModeDestination:
-		if v.destinationVisibilityManager != nil {
+		if mgr, ok := v.visibilityMgrs[v.destinationVisStoreName]; ok && mgr != nil {
 			return destinationVisFunc()
 		}
 		v.logger.Warn("advanced visibility is not available to write, fall back to basic visibility")
@@ -280,15 +352,21 @@ func (v *visibilityTripleManager) chooseVisibilityManagerForWrite(ctx context.Co
 		// by default the AdvancedVisibilityMigrationWritingMode is set to Dual
 		// this will enable double writes to both source and destination advanced visibility stores
 		// it is necessary during the migration period to ensure that both stores are in sync
-		if v.destinationVisibilityManager != nil && v.sourceVisibilityManager != nil {
+		sourceMgr, sourceAvailable := v.visibilityMgrs[v.sourceVisStoreName]
+		sourceAvailable = sourceAvailable && sourceMgr != nil
+
+		destMgr, destinationAvailable := v.visibilityMgrs[v.destinationVisStoreName]
+		destinationAvailable = destinationAvailable && destMgr != nil
+
+		if destinationAvailable && sourceAvailable {
 			if err := sourceVisFunc(); err != nil {
 				return err
 			}
 			return destinationVisFunc()
-		} else if v.destinationVisibilityManager != nil {
+		} else if destinationAvailable {
 			v.logger.Warn("Source advanced visibility is not available to write, fall back to destination advanced visibility")
 			return destinationVisFunc()
-		} else if v.sourceVisibilityManager != nil {
+		} else if sourceAvailable {
 			v.logger.Warn("Destination advanced visibility is not available to write, fall back to source advanced visibility")
 			return sourceVisFunc()
 		} else {
@@ -296,7 +374,7 @@ func (v *visibilityTripleManager) chooseVisibilityManagerForWrite(ctx context.Co
 			return dbVisFunc()
 		}
 	case common.AdvancedVisibilityMigrationWritingModeTriple:
-		if v.destinationVisibilityManager != nil && v.sourceVisibilityManager != nil && v.dbVisibilityManager != nil {
+		if v.visibilityMgrs[v.destinationVisStoreName] != nil && v.visibilityMgrs[v.sourceVisStoreName] != nil && v.visibilityMgrs[dbVisStoreName] != nil {
 			if err := sourceVisFunc(); err != nil {
 				return err
 			}
@@ -368,21 +446,21 @@ func (v *visibilityTripleManager) getShadowMgrForDoubleRead(domain string) Visib
 	}
 	// case1: when it is double read, and both advanced visibility are not available
 	// case2: when it is double read, and only one of advanced visibility is available
-	if v.destinationVisibilityManager == nil || v.sourceVisibilityManager == nil {
+	if v.visibilityMgrs[v.destinationVisStoreName] == nil || v.visibilityMgrs[v.sourceVisStoreName] == nil {
 		return nil
 	}
 
 	// Valid cases:
 	// case3: when it is double read, and both advanced visibility are available, and read mode is from source
 	// we first check readModeIsFromSource since we use this flag to control which is the primary visibility manager
-	if v.readModeIsFromSource(domain) {
-		return v.destinationVisibilityManager
+	if v.readVisibilityStoreName(domain) == v.sourceVisStoreName {
+		return v.visibilityMgrs[v.destinationVisStoreName]
 	}
 
 	// case4: when it is double read, and both advanced visibility are available, and read mode is from destination
 	// normally readModeIsFromDestination will always be true when it is in the migration mode
-	if v.readModeIsFromDestination(domain) {
-		return v.sourceVisibilityManager
+	if v.readVisibilityStoreName(domain) == v.destinationVisStoreName {
+		return v.visibilityMgrs[v.sourceVisStoreName]
 	}
 	// exclude all other cases
 	return nil
@@ -666,34 +744,34 @@ func (v *visibilityTripleManager) CountWorkflowExecutions(
 func (v *visibilityTripleManager) chooseVisibilityManagerForRead(ctx context.Context, domain string) VisibilityManager {
 	if override := ctx.Value(ContextKey); override == VisibilityOverridePrimary {
 		v.logger.Info("Visibility Migration log: Primary visibility manager was chosen for read.")
-		return v.sourceVisibilityManager
+		return v.visibilityMgrs[v.sourceVisStoreName]
 	} else if override == VisibilityOverrideSecondary {
 		v.logger.Info("Visibility Migration log: Secondary visibility manager was chosen for read.")
-		return v.destinationVisibilityManager
+		return v.visibilityMgrs[v.destinationVisStoreName]
 	}
 
 	var visibilityMgr VisibilityManager
-	if v.readModeIsFromSource(domain) {
-		if v.sourceVisibilityManager != nil {
-			visibilityMgr = v.sourceVisibilityManager
+	if v.readVisibilityStoreName(domain) == v.sourceVisStoreName {
+		if v.visibilityMgrs[v.sourceVisStoreName] != nil {
+			visibilityMgr = v.visibilityMgrs[v.sourceVisStoreName]
 		} else {
-			visibilityMgr = v.dbVisibilityManager
+			visibilityMgr = v.visibilityMgrs[dbVisStoreName]
 			v.logger.Warn("domain is configured to read from advanced visibility but it's not available, fall back to basic visibility",
 				tag.WorkflowDomainName(domain))
 		}
-	} else if v.readModeIsFromDestination(domain) {
-		if v.destinationVisibilityManager != nil {
-			visibilityMgr = v.destinationVisibilityManager
+	} else if v.readVisibilityStoreName(domain) == v.destinationVisStoreName {
+		if v.visibilityMgrs[v.destinationVisStoreName] != nil {
+			visibilityMgr = v.visibilityMgrs[v.destinationVisStoreName]
 		} else {
-			visibilityMgr = v.dbVisibilityManager
+			visibilityMgr = v.visibilityMgrs[dbVisStoreName]
 			v.logger.Warn("domain is configured to read from advanced visibility but it's not available, fall back to basic visibility",
 				tag.WorkflowDomainName(domain))
 		}
 	} else {
-		if v.dbVisibilityManager != nil {
-			visibilityMgr = v.dbVisibilityManager
+		if v.visibilityMgrs[dbVisStoreName] != nil {
+			visibilityMgr = v.visibilityMgrs[dbVisStoreName]
 		} else {
-			visibilityMgr = v.destinationVisibilityManager
+			visibilityMgr = v.visibilityMgrs[v.destinationVisStoreName]
 			v.logger.Warn("domain is configured to read from basic visibility but it's not available, fall back to advanced visibility",
 				tag.WorkflowDomainName(domain))
 		}
