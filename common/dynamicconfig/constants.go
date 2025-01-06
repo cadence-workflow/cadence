@@ -1793,18 +1793,6 @@ const (
 	// Default value: true
 	// Allowed filters: DomainName
 	EnableRecordWorkflowExecutionUninitialized
-	// WorkflowIDCacheExternalEnabled is the key to enable/disable caching of workflowID specific information for external requests
-	// KeyName: history.workflowIDCacheExternalEnabled
-	// Value type: Bool
-	// Default value: false
-	// Allowed filters: DomainName
-	WorkflowIDCacheExternalEnabled
-	// WorkflowIDCacheInternalEnabled is the key to enable/disable caching of workflowID specific information for internal requests
-	// KeyName: history.workflowIDCacheInternalEnabled
-	// Value type: Bool
-	// Default value: false
-	// Allowed filters: DomainName
-	WorkflowIDCacheInternalEnabled
 	// WorkflowIDExternalRateLimitEnabled is the key to enable/disable rate limiting for workflowID specific information for external requests
 	// KeyName: history.workflowIDExternalRateLimitEnabled
 	// Value type: Bool
