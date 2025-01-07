@@ -34,22 +34,15 @@ import (
 type Retry invariant.Invariant
 
 type retry struct {
-	workflowExecutionHistory *types.GetWorkflowExecutionHistoryResponse
 }
 
-type Params struct {
-	WorkflowExecutionHistory *types.GetWorkflowExecutionHistoryResponse
+func NewInvariant() Retry {
+	return &retry{}
 }
 
-func NewInvariant(p Params) Retry {
-	return &retry{
-		workflowExecutionHistory: p.WorkflowExecutionHistory,
-	}
-}
-
-func (r *retry) Check(context.Context) ([]invariant.InvariantCheckResult, error) {
+func (r *retry) Check(ctx context.Context, params invariant.InvariantCheckInput) ([]invariant.InvariantCheckResult, error) {
 	result := make([]invariant.InvariantCheckResult, 0)
-	events := r.workflowExecutionHistory.GetHistory().GetEvents()
+	events := params.WorkflowExecutionHistory.GetHistory().GetEvents()
 
 	lastEvent := fetchContinuedAsNewEvent(events)
 	startedEvent := fetchWfStartedEvent(events)
@@ -122,7 +115,7 @@ func checkRetryPolicy(policy *types.RetryPolicy) IssueType {
 	return ""
 }
 
-func (r *retry) RootCause(ctx context.Context, issues []invariant.InvariantCheckResult) ([]invariant.InvariantRootCauseResult, error) {
+func (r *retry) RootCause(ctx context.Context, params invariant.InvariantRootCauseInput) ([]invariant.InvariantRootCauseResult, error) {
 	// Not implemented since this invariant does not have any root cause.
 	// Issue identified in Check() are the root cause.
 	result := make([]invariant.InvariantRootCauseResult, 0)

@@ -25,6 +25,7 @@ package invariant
 import (
 	"context"
 	"encoding/json"
+	"github.com/uber/cadence/common/types"
 )
 
 // InvariantCheckResult is the result from the invariant check
@@ -40,6 +41,15 @@ type InvariantRootCauseResult struct {
 	Metadata  []byte
 }
 
+type InvariantCheckInput struct {
+	WorkflowExecutionHistory *types.GetWorkflowExecutionHistoryResponse
+	Domain                   string
+}
+
+type InvariantRootCauseInput struct {
+	Domain string
+	Issues []InvariantCheckResult
+}
 type RootCause string
 
 const (
@@ -61,8 +71,8 @@ func (r RootCause) String() string {
 
 // Invariant represents a condition of a workflow execution.
 type Invariant interface {
-	Check(context.Context) ([]InvariantCheckResult, error)
-	RootCause(context.Context, []InvariantCheckResult) ([]InvariantRootCauseResult, error)
+	Check(context.Context, InvariantCheckInput) ([]InvariantCheckResult, error)
+	RootCause(context.Context, InvariantRootCauseInput) ([]InvariantRootCauseResult, error)
 }
 
 func MarshalData(rc any) []byte {

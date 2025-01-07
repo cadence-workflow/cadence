@@ -148,9 +148,8 @@ func (w *dw) DiagnosticsWorkflow(ctx workflow.Context, params DiagnosticsWorkflo
 	}
 
 	err = workflow.ExecuteActivity(activityCtx, w.rootCauseIssues, rootCauseIssuesParams{
-		History: wfExecutionHistory,
-		Domain:  params.Domain,
-		Issues:  checkResult,
+		Domain: params.Domain,
+		Issues: checkResult,
 	}).Get(ctx, &rootCauseResult)
 	if err != nil {
 		return nil, fmt.Errorf("RootCauseIssues: %w", err)

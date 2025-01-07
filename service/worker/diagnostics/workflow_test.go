@@ -61,11 +61,12 @@ func (s *diagnosticsWorkflowTestSuite) SetupTest() {
 	s.workflowEnv = s.NewTestWorkflowEnvironment()
 	controller := gomock.NewController(s.T())
 	mockResource := resource.NewTest(s.T(), controller, metrics.Worker)
-
+	publicClient := mockResource.GetSDKClient()
 	s.dw = &dw{
-		svcClient:     mockResource.GetSDKClient(),
+		svcClient:     publicClient,
 		clientBean:    mockResource.ClientBean,
 		metricsClient: mockResource.GetMetricsClient(),
+		invariants:    []invariant.Invariant{timeout.NewInvariant(timeout.NewTimeoutParams{Client: publicClient}), failure.NewInvariant(), retry.NewInvariant()},
 	}
 
 	s.T().Cleanup(func() {

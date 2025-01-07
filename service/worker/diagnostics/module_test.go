@@ -23,6 +23,8 @@
 package diagnostics
 
 import (
+	"github.com/uber/cadence/service/worker/diagnostics/invariant"
+	"github.com/uber/cadence/service/worker/diagnostics/invariant/failure"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -56,5 +58,6 @@ func setuptest(t *testing.T) (DiagnosticsWorkflow, *resource.Test) {
 		ClientBean:    mockClientBean,
 		MetricsClient: nil,
 		TallyScope:    tally.TestScope(nil),
+		Invariants:    []invariant.Invariant{failure.NewInvariant()},
 	}), mockResource
 }

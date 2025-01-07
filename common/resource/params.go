@@ -22,6 +22,7 @@ package resource
 
 import (
 	"github.com/uber-go/tally"
+	"github.com/uber/cadence/service/worker/diagnostics/invariant"
 	"go.uber.org/cadence/.gen/go/cadence/workflowserviceclient"
 
 	"github.com/uber/cadence/client/history"
@@ -92,6 +93,7 @@ type (
 		// HistoryClientFn is used by integration tests to mock a history client
 		HistoryClientFn func() history.Client
 		// NewPersistenceBeanFn can be used to override the default persistence bean creation in unit tests to avoid DB setup
-		NewPersistenceBeanFn func(persistenceClient.Factory, *persistenceClient.Params, *service.Config) (persistenceClient.Bean, error)
+		NewPersistenceBeanFn  func(persistenceClient.Factory, *persistenceClient.Params, *service.Config) (persistenceClient.Bean, error)
+		DiagnosticsInvariants []invariant.Invariant
 	}
 )
