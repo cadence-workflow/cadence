@@ -307,13 +307,18 @@ func TestDescribeTaskList(t *testing.T) {
 			name:          "with status, tasks completed",
 			includeStatus: true,
 			allowance: func(_ *gomock.Controller, tlm *taskListManagerImpl) {
-				tlm.taskAckManager.SetAckLevel(5)
-				tlm.taskAckManager.SetReadLevel(10)
+				for i := startedID; i < 11; i++ {
+					err := tlm.taskAckManager.ReadItem(i)
+					require.NoError(t, err)
+				}
+				for i := startedID; i < 5; i++ {
+					tlm.taskAckManager.AckItem(i)
+				}
 			},
 			expectedStatus: &types.TaskListStatus{
-				BacklogCountHint: 0,
+				BacklogCountHint: 6,
 				ReadLevel:        10,
-				AckLevel:         5,
+				AckLevel:         4,
 				RatePerSecond:    defaultRps,
 				TaskIDBlock:      firstIDBlock,
 				IsolationGroupMetrics: map[string]*types.IsolationGroupMetrics{

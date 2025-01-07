@@ -726,12 +726,7 @@ func (c *taskListManagerImpl) DescribeTaskList(includeTaskListStatus bool) *type
 		return response
 	}
 
-	taskIDBlock := rangeIDToTaskIDBlock(c.db.RangeID(), c.config.RangeSize)
-	backlogCount, err := c.db.GetTaskListSize(c.taskAckManager.GetAckLevel())
-	if err != nil {
-		// fallback to im-memory backlog, if failed to get count from db
-		backlogCount = c.taskAckManager.GetBacklogCount()
-	}
+	idBlock := rangeIDToTaskIDBlock(c.db.RangeID(), c.config.RangeSize)
 	isolationGroups := c.config.AllIsolationGroups()
 	pollerCounts := c.getRecentPollersByIsolationGroup()
 	isolationGroupMetrics := make(map[string]*types.IsolationGroupMetrics, len(isolationGroups))
@@ -744,11 +739,11 @@ func (c *taskListManagerImpl) DescribeTaskList(includeTaskListStatus bool) *type
 	response.TaskListStatus = &types.TaskListStatus{
 		ReadLevel:        c.taskAckManager.GetReadLevel(),
 		AckLevel:         c.taskAckManager.GetAckLevel(),
-		BacklogCountHint: backlogCount,
+		BacklogCountHint: c.taskAckManager.GetBacklogCount(),
 		RatePerSecond:    c.matcher.Rate(),
 		TaskIDBlock: &types.TaskIDBlock{
-			StartID: taskIDBlock.start,
-			EndID:   taskIDBlock.end,
+			StartID: idBlock.start,
+			EndID:   idBlock.end,
 		},
 		IsolationGroupMetrics: isolationGroupMetrics,
 		NewTasksPerSecond:     c.qpsTracker.QPS(),
