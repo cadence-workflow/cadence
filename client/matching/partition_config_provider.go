@@ -195,7 +195,7 @@ func (p *partitionConfigProviderImpl) getPartitionConfig(domainID string, taskLi
 	}
 	cI := p.configCache.Get(taskListKey)
 	if cI == nil {
-		p.logger.Info("Partition config not found in cache", tag.WorkflowDomainID(domainID), tag.WorkflowTaskListName(taskList.Name), tag.WorkflowTaskListType(taskListType))
+		p.logger.Debug("Partition config not found in cache", tag.WorkflowDomainID(domainID), tag.WorkflowTaskListName(taskList.Name), tag.WorkflowTaskListType(taskListType))
 		return nil
 	}
 	c, ok := cI.(*syncedTaskListPartitionConfig)
