@@ -223,7 +223,8 @@ const (
 		`SET current_run_id = ?, ` +
 		`execution = {run_id: ?, create_request_id: ?, state: ?, close_status: ?}, ` +
 		`workflow_last_write_version = ?, ` +
-		`workflow_state = ? ` +
+		`workflow_state = ?, ` +
+		`last_updated_time = ? ` +
 		`WHERE shard_id = ? ` +
 		`and type = ? ` +
 		`and domain_id = ? ` +
@@ -238,12 +239,12 @@ const (
 		`and workflow_state = ? `
 
 	templateInsertWorkflowRequestQuery = `INSERT INTO executions (` +
-		`shard_id, type, domain_id, workflow_id, run_id, visibility_ts, task_id, current_run_id) ` +
-		`VALUES(?, ?, ?, ?, ?, ?, ?, ?) IF NOT EXISTS USING TTL ?`
+		`shard_id, type, domain_id, workflow_id, run_id, visibility_ts, task_id, current_run_id, created_time) ` +
+		`VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?) IF NOT EXISTS USING TTL ?`
 
 	templateUpsertWorkflowRequestQuery = `INSERT INTO executions (` +
-		`shard_id, type, domain_id, workflow_id, run_id, visibility_ts, task_id, current_run_id) ` +
-		`VALUES(?, ?, ?, ?, ?, ?, ?, ?) USING TTL ?`
+		`shard_id, type, domain_id, workflow_id, run_id, visibility_ts, task_id, current_run_id, last_updated_time) ` +
+		`VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?) USING TTL ?`
 
 	templateGetLatestWorkflowRequestQuery = `SELECT current_run_id ` +
 		`FROM executions ` +
@@ -256,31 +257,32 @@ const (
 		`LIMIT 1`
 
 	templateCreateCurrentWorkflowExecutionQuery = `INSERT INTO executions (` +
-		`shard_id, type, domain_id, workflow_id, run_id, visibility_ts, task_id, current_run_id, execution, workflow_last_write_version, workflow_state) ` +
-		`VALUES(?, ?, ?, ?, ?, ?, ?, ?, {run_id: ?, create_request_id: ?, state: ?, close_status: ?}, ?, ?) IF NOT EXISTS USING TTL 0 `
+		`shard_id, type, domain_id, workflow_id, run_id, visibility_ts, task_id, current_run_id, execution, workflow_last_write_version, workflow_state, created_time) ` +
+		`VALUES(?, ?, ?, ?, ?, ?, ?, ?, {run_id: ?, create_request_id: ?, state: ?, close_status: ?}, ?, ?, ?) IF NOT EXISTS USING TTL 0 `
 
 	templateCreateWorkflowExecutionWithVersionHistoriesQuery = `INSERT INTO executions (` +
-		`shard_id, domain_id, workflow_id, run_id, type, execution, next_event_id, visibility_ts, task_id, version_histories, version_histories_encoding, checksum, workflow_last_write_version, workflow_state) ` +
-		`VALUES(?, ?, ?, ?, ?, ` + templateWorkflowExecutionType + `, ?, ?, ?, ?, ?, ` + templateChecksumType + `, ?, ?) IF NOT EXISTS `
+		`shard_id, domain_id, workflow_id, run_id, type, execution, next_event_id, visibility_ts, task_id, version_histories, version_histories_encoding, checksum, workflow_last_write_version, workflow_state, created_time) ` +
+		`VALUES(?, ?, ?, ?, ?, ` + templateWorkflowExecutionType + `, ?, ?, ?, ?, ?, ` + templateChecksumType + `, ?, ?, ?) IF NOT EXISTS `
 
 	templateCreateTransferTaskQuery = `INSERT INTO executions (` +
-		`shard_id, type, domain_id, workflow_id, run_id, transfer, visibility_ts, task_id) ` +
-		`VALUES(?, ?, ?, ?, ?, ` + templateTransferTaskType + `, ?, ?)`
+		`shard_id, type, domain_id, workflow_id, run_id, transfer, visibility_ts, task_id, created_time) ` +
+		`VALUES(?, ?, ?, ?, ?, ` + templateTransferTaskType + `, ?, ?, ?)`
 
 	templateCreateCrossClusterTaskQuery = `INSERT INTO executions (` +
-		`shard_id, type, domain_id, workflow_id, run_id, cross_cluster, visibility_ts, task_id) ` +
-		`VALUES(?, ?, ?, ?, ?, ` + templateCrossClusterTaskType + `, ?, ?)`
+		`shard_id, type, domain_id, workflow_id, run_id, cross_cluster, visibility_ts, task_id, created_time) ` +
+		`VALUES(?, ?, ?, ?, ?, ` + templateCrossClusterTaskType + `, ?, ?, ?)`
 
 	templateCreateReplicationTaskQuery = `INSERT INTO executions (` +
-		`shard_id, type, domain_id, workflow_id, run_id, replication, visibility_ts, task_id) ` +
-		`VALUES(?, ?, ?, ?, ?, ` + templateReplicationTaskType + `, ?, ?)`
+		`shard_id, type, domain_id, workflow_id, run_id, replication, visibility_ts, task_id, created_time) ` +
+		`VALUES(?, ?, ?, ?, ?, ` + templateReplicationTaskType + `, ?, ?, ?)`
 
 	templateCreateTimerTaskQuery = `INSERT INTO executions (` +
-		`shard_id, type, domain_id, workflow_id, run_id, timer, visibility_ts, task_id) ` +
-		`VALUES(?, ?, ?, ?, ?, ` + templateTimerTaskType + `, ?, ?)`
+		`shard_id, type, domain_id, workflow_id, run_id, timer, visibility_ts, task_id, created_time) ` +
+		`VALUES(?, ?, ?, ?, ?, ` + templateTimerTaskType + `, ?, ?, ?)`
 
 	templateUpdateLeaseQuery = `UPDATE executions ` +
 		`SET range_id = ? ` +
+		`and last_updated_time = ? ` +
 		`WHERE shard_id = ? ` +
 		`and type = ? ` +
 		`and domain_id = ? ` +
@@ -341,6 +343,7 @@ const (
 		`, checksum = ` + templateChecksumType +
 		`, workflow_last_write_version = ? ` +
 		`, workflow_state = ? ` +
+		`, last_updated_time = ? ` +
 		`WHERE shard_id = ? ` +
 		`and type = ? ` +
 		`and domain_id = ? ` +
@@ -352,6 +355,7 @@ const (
 
 	templateUpdateActivityInfoQuery = `UPDATE executions ` +
 		`SET activity_map[ ? ] = ` + templateActivityInfoType + ` ` +
+		`, last_updated_time = ? ` +
 		`WHERE shard_id = ? ` +
 		`and type = ? ` +
 		`and domain_id = ? ` +
@@ -362,6 +366,7 @@ const (
 
 	templateResetActivityInfoQuery = `UPDATE executions ` +
 		`SET activity_map = ? ` +
+		`, last_updated_time = ? ` +
 		`WHERE shard_id = ? ` +
 		`and type = ? ` +
 		`and domain_id = ? ` +
@@ -372,6 +377,7 @@ const (
 
 	templateUpdateTimerInfoQuery = `UPDATE executions ` +
 		`SET timer_map[ ? ] = ` + templateTimerInfoType + ` ` +
+		`, last_updated_time = ? ` +
 		`WHERE shard_id = ? ` +
 		`and type = ? ` +
 		`and domain_id = ? ` +
@@ -382,6 +388,7 @@ const (
 
 	templateResetTimerInfoQuery = `UPDATE executions ` +
 		`SET timer_map = ? ` +
+		`, last_updated_time = ? ` +
 		`WHERE shard_id = ? ` +
 		`and type = ? ` +
 		`and domain_id = ? ` +
@@ -392,6 +399,7 @@ const (
 
 	templateUpdateChildExecutionInfoQuery = `UPDATE executions ` +
 		`SET child_executions_map[ ? ] = ` + templateChildExecutionInfoType + ` ` +
+		`, last_updated_time = ? ` +
 		`WHERE shard_id = ? ` +
 		`and type = ? ` +
 		`and domain_id = ? ` +
@@ -402,6 +410,7 @@ const (
 
 	templateResetChildExecutionInfoQuery = `UPDATE executions ` +
 		`SET child_executions_map = ?` +
+		`, last_updated_time = ? ` +
 		`WHERE shard_id = ? ` +
 		`and type = ? ` +
 		`and domain_id = ? ` +
@@ -412,6 +421,7 @@ const (
 
 	templateUpdateRequestCancelInfoQuery = `UPDATE executions ` +
 		`SET request_cancel_map[ ? ] = ` + templateRequestCancelInfoType + ` ` +
+		`, last_updated_time = ? ` +
 		`WHERE shard_id = ? ` +
 		`and type = ? ` +
 		`and domain_id = ? ` +
@@ -422,6 +432,7 @@ const (
 
 	templateResetRequestCancelInfoQuery = `UPDATE executions ` +
 		`SET request_cancel_map = ?` +
+		`, last_updated_time = ? ` +
 		`WHERE shard_id = ? ` +
 		`and type = ? ` +
 		`and domain_id = ? ` +
@@ -432,6 +443,7 @@ const (
 
 	templateUpdateSignalInfoQuery = `UPDATE executions ` +
 		`SET signal_map[ ? ] = ` + templateSignalInfoType + ` ` +
+		`, last_updated_time = ? ` +
 		`WHERE shard_id = ? ` +
 		`and type = ? ` +
 		`and domain_id = ? ` +
@@ -442,6 +454,7 @@ const (
 
 	templateResetSignalInfoQuery = `UPDATE executions ` +
 		`SET signal_map = ? ` +
+		`, last_updated_time = ? ` +
 		`WHERE shard_id = ? ` +
 		`and type = ? ` +
 		`and domain_id = ? ` +
@@ -452,6 +465,7 @@ const (
 
 	templateUpdateSignalRequestedQuery = `UPDATE executions ` +
 		`SET signal_requested = signal_requested + ? ` +
+		`, last_updated_time = ? ` +
 		`WHERE shard_id = ? ` +
 		`and type = ? ` +
 		`and domain_id = ? ` +
@@ -462,6 +476,7 @@ const (
 
 	templateResetSignalRequestedQuery = `UPDATE executions ` +
 		`SET signal_requested = ? ` +
+		`, last_updated_time = ? ` +
 		`WHERE shard_id = ? ` +
 		`and type = ? ` +
 		`and domain_id = ? ` +
@@ -472,6 +487,7 @@ const (
 
 	templateAppendBufferedEventsQuery = `UPDATE executions ` +
 		`SET buffered_events_list = buffered_events_list + ? ` +
+		`, last_updated_time = ? ` +
 		`WHERE shard_id = ? ` +
 		`and type = ? ` +
 		`and domain_id = ? ` +
@@ -482,6 +498,7 @@ const (
 
 	templateDeleteBufferedEventsQuery = `UPDATE executions ` +
 		`SET buffered_events_list = [] ` +
+		`, last_updated_time = ? ` +
 		`WHERE shard_id = ? ` +
 		`and type = ? ` +
 		`and domain_id = ? ` +
@@ -553,6 +570,7 @@ const (
 
 	templateDeleteWorkflowExecutionSignalRequestedQuery = `UPDATE executions ` +
 		`SET signal_requested = signal_requested - ? ` +
+		`, last_updated_time = ? ` +
 		`WHERE shard_id = ? ` +
 		`and type = ? ` +
 		`and domain_id = ? ` +

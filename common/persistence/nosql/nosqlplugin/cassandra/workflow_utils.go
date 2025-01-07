@@ -405,9 +405,10 @@ func newUnknownConditionFailureReason(
 	}
 }
 
-func assertShardRangeID(batch gocql.Batch, shardID int, rangeID int64) {
+func assertShardRangeID(batch gocql.Batch, shardID int, rangeID int64, timeStamp time.Time) {
 	batch.Query(templateUpdateLeaseQuery,
 		rangeID,
+		timeStamp,
 		shardID,
 		rowTypeShard,
 		rowTypeShardDomainID,
@@ -425,6 +426,7 @@ func createTimerTasks(
 	domainID string,
 	workflowID string,
 	timerTasks []*nosqlplugin.TimerTask,
+	timeStamp time.Time,
 ) error {
 	for _, task := range timerTasks {
 		// Ignoring possible type cast errors.
@@ -447,7 +449,9 @@ func createTimerTasks(
 			task.ScheduleAttempt,
 			task.Version,
 			ts,
-			task.TaskID)
+			task.TaskID,
+			timeStamp,
+		)
 	}
 	return nil
 }
@@ -458,6 +462,7 @@ func createReplicationTasks(
 	domainID string,
 	workflowID string,
 	replicationTasks []*nosqlplugin.ReplicationTask,
+	timeStamp time.Time,
 ) {
 	for _, task := range replicationTasks {
 		batch.Query(templateCreateReplicationTaskQuery,
@@ -482,7 +487,9 @@ func createReplicationTasks(
 			task.CreationTime.UnixNano(),
 			// NOTE: use a constant here instead of task.VisibilityTimestamp so that we can query tasks with the same visibilityTimestamp
 			defaultVisibilityTimestamp,
-			task.TaskID)
+			task.TaskID,
+			timeStamp,
+		)
 	}
 }
 
@@ -492,6 +499,7 @@ func createTransferTasks(
 	domainID string,
 	workflowID string,
 	transferTasks []*nosqlplugin.TransferTask,
+	timeStamp time.Time,
 ) {
 	for _, task := range transferTasks {
 		batch.Query(templateCreateTransferTaskQuery,
@@ -517,7 +525,9 @@ func createTransferTasks(
 			task.Version,
 			// NOTE: use a constant here instead of task.VisibilityTimestamp so that we can query tasks with the same visibilityTimestamp
 			defaultVisibilityTimestamp,
-			task.TaskID)
+			task.TaskID,
+			timeStamp,
+		)
 	}
 }
 
@@ -527,6 +537,7 @@ func createCrossClusterTasks(
 	domainID string,
 	workflowID string,
 	xClusterTasks []*nosqlplugin.CrossClusterTask,
+	timeStamp time.Time,
 ) {
 	for _, task := range xClusterTasks {
 		batch.Query(templateCreateCrossClusterTaskQuery,
@@ -553,6 +564,7 @@ func createCrossClusterTasks(
 			// NOTE: use a constant here instead of task.VisibilityTimestamp so that we can query tasks with the same visibilityTimestamp
 			defaultVisibilityTimestamp,
 			task.TaskID,
+			timeStamp,
 		)
 	}
 }
@@ -564,9 +576,11 @@ func resetSignalsRequested(
 	workflowID string,
 	runID string,
 	signalReqIDs []string,
+	timeStamp time.Time,
 ) error {
 	batch.Query(templateResetSignalRequestedQuery,
 		signalReqIDs,
+		timeStamp,
 		shardID,
 		rowTypeExecution,
 		domainID,
@@ -585,10 +599,12 @@ func updateSignalsRequested(
 	runID string,
 	signalReqIDs []string,
 	deleteSignalReqIDs []string,
+	timeStamp time.Time,
 ) error {
 	if len(signalReqIDs) > 0 {
 		batch.Query(templateUpdateSignalRequestedQuery,
 			signalReqIDs,
+			timeStamp,
 			shardID,
 			rowTypeExecution,
 			domainID,
@@ -601,6 +617,7 @@ func updateSignalsRequested(
 	if len(deleteSignalReqIDs) > 0 {
 		batch.Query(templateDeleteWorkflowExecutionSignalRequestedQuery,
 			deleteSignalReqIDs,
+			timeStamp,
 			shardID,
 			rowTypeExecution,
 			domainID,
@@ -619,9 +636,11 @@ func resetSignalInfos(
 	workflowID string,
 	runID string,
 	signalInfos map[int64]*persistence.SignalInfo,
+	timeStamp time.Time,
 ) error {
 	batch.Query(templateResetSignalInfoQuery,
 		resetSignalInfoMap(signalInfos),
+		timeStamp,
 		shardID,
 		rowTypeExecution,
 		domainID,
@@ -657,6 +676,7 @@ func updateSignalInfos(
 	runID string,
 	signalInfos map[int64]*persistence.SignalInfo,
 	deleteInfos []int64,
+	timeStamp time.Time,
 ) error {
 	for _, c := range signalInfos {
 		batch.Query(templateUpdateSignalInfoQuery,
@@ -668,6 +688,7 @@ func updateSignalInfos(
 			c.SignalName,
 			c.Input,
 			c.Control,
+			timeStamp,
 			shardID,
 			rowTypeExecution,
 			domainID,
@@ -699,9 +720,11 @@ func resetRequestCancelInfos(
 	workflowID string,
 	runID string,
 	requestCancelInfos map[int64]*persistence.RequestCancelInfo,
+	timeStamp time.Time,
 ) error {
 	batch.Query(templateResetRequestCancelInfoQuery,
 		resetRequestCancelInfoMap(requestCancelInfos),
+		timeStamp,
 		shardID,
 		rowTypeExecution,
 		domainID,
@@ -734,6 +757,7 @@ func updateRequestCancelInfos(
 	runID string,
 	requestCancelInfos map[int64]*persistence.RequestCancelInfo,
 	deleteInfos []int64,
+	timeStamp time.Time,
 ) error {
 	for _, c := range requestCancelInfos {
 		batch.Query(templateUpdateRequestCancelInfoQuery,
@@ -742,6 +766,7 @@ func updateRequestCancelInfos(
 			c.InitiatedID,
 			c.InitiatedEventBatchID,
 			c.CancelRequestID,
+			timeStamp,
 			shardID,
 			rowTypeExecution,
 			domainID,
@@ -773,6 +798,7 @@ func resetChildExecutionInfos(
 	workflowID string,
 	runID string,
 	childExecutionInfos map[int64]*persistence.InternalChildExecutionInfo,
+	timeStamp time.Time,
 ) error {
 	infoMap, err := resetChildExecutionInfoMap(childExecutionInfos)
 	if err != nil {
@@ -780,6 +806,7 @@ func resetChildExecutionInfos(
 	}
 	batch.Query(templateResetChildExecutionInfoQuery,
 		infoMap,
+		timeStamp,
 		shardID,
 		rowTypeExecution,
 		domainID,
@@ -827,6 +854,7 @@ func updateChildExecutionInfos(
 	runID string,
 	childExecutionInfos map[int64]*persistence.InternalChildExecutionInfo,
 	deleteInfos []int64,
+	timeStamp time.Time,
 ) error {
 	for _, c := range childExecutionInfos {
 		batch.Query(templateUpdateChildExecutionInfoQuery,
@@ -845,6 +873,7 @@ func updateChildExecutionInfos(
 			c.DomainNameDEPRECATED,
 			c.WorkflowTypeName,
 			int32(c.ParentClosePolicy),
+			timeStamp,
 			shardID,
 			rowTypeExecution,
 			domainID,
@@ -876,9 +905,11 @@ func resetTimerInfos(
 	workflowID string,
 	runID string,
 	timerInfos map[string]*persistence.TimerInfo,
+	timeStamp time.Time,
 ) error {
 	batch.Query(templateResetTimerInfoQuery,
 		resetTimerInfoMap(timerInfos),
+		timeStamp,
 		shardID,
 		rowTypeExecution,
 		domainID,
@@ -916,6 +947,7 @@ func updateTimerInfos(
 	runID string,
 	timerInfos map[string]*persistence.TimerInfo,
 	deleteInfos []string,
+	timeStamp time.Time,
 ) error {
 	for _, timerInfo := range timerInfos {
 		batch.Query(templateUpdateTimerInfoQuery,
@@ -925,6 +957,7 @@ func updateTimerInfos(
 			timerInfo.StartedID,
 			timerInfo.ExpiryTime,
 			timerInfo.TaskStatus,
+			timeStamp,
 			shardID,
 			rowTypeExecution,
 			domainID,
@@ -955,6 +988,7 @@ func resetActivityInfos(
 	workflowID string,
 	runID string,
 	activityInfos map[int64]*persistence.InternalActivityInfo,
+	timeStamp time.Time,
 ) error {
 	infoMap, err := resetActivityInfoMap(activityInfos)
 	if err != nil {
@@ -963,6 +997,7 @@ func resetActivityInfos(
 
 	batch.Query(templateResetActivityInfoQuery,
 		infoMap,
+		timeStamp,
 		shardID,
 		rowTypeExecution,
 		domainID,
@@ -1025,6 +1060,7 @@ func updateActivityInfos(
 	runID string,
 	activityInfos map[int64]*persistence.InternalActivityInfo,
 	deleteInfos []int64,
+	timeStamp time.Time,
 ) error {
 	for _, a := range activityInfos {
 		batch.Query(templateUpdateActivityInfoQuery,
@@ -1062,6 +1098,7 @@ func updateActivityInfos(
 			a.LastWorkerIdentity,
 			a.LastFailureDetails,
 			a.ScheduledEvent.GetEncodingString(),
+			timeStamp,
 			shardID,
 			rowTypeExecution,
 			domainID,
@@ -1105,8 +1142,9 @@ func createWorkflowExecutionWithMergeMaps(
 	domainID string,
 	workflowID string,
 	execution *nosqlplugin.WorkflowExecutionRequest,
+	timeStamp time.Time,
 ) error {
-	err := createWorkflowExecution(batch, shardID, domainID, workflowID, execution)
+	err := createWorkflowExecution(batch, shardID, domainID, workflowID, execution, timeStamp)
 	if err != nil {
 		return err
 	}
@@ -1119,27 +1157,27 @@ func createWorkflowExecutionWithMergeMaps(
 		return fmt.Errorf("should only support WorkflowExecutionMapsWriteModeCreate")
 	}
 
-	err = updateActivityInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.ActivityInfos, nil)
+	err = updateActivityInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.ActivityInfos, nil, timeStamp)
 	if err != nil {
 		return err
 	}
-	err = updateTimerInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.TimerInfos, nil)
+	err = updateTimerInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.TimerInfos, nil, timeStamp)
 	if err != nil {
 		return err
 	}
-	err = updateChildExecutionInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.ChildWorkflowInfos, nil)
+	err = updateChildExecutionInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.ChildWorkflowInfos, nil, timeStamp)
 	if err != nil {
 		return err
 	}
-	err = updateRequestCancelInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.RequestCancelInfos, nil)
+	err = updateRequestCancelInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.RequestCancelInfos, nil, timeStamp)
 	if err != nil {
 		return err
 	}
-	err = updateSignalInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.SignalInfos, nil)
+	err = updateSignalInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.SignalInfos, nil, timeStamp)
 	if err != nil {
 		return err
 	}
-	return updateSignalsRequested(batch, shardID, domainID, workflowID, execution.RunID, execution.SignalRequestedIDs, nil)
+	return updateSignalsRequested(batch, shardID, domainID, workflowID, execution.RunID, execution.SignalRequestedIDs, nil, timeStamp)
 }
 
 func resetWorkflowExecutionAndMapsAndEventBuffer(
@@ -1148,8 +1186,9 @@ func resetWorkflowExecutionAndMapsAndEventBuffer(
 	domainID string,
 	workflowID string,
 	execution *nosqlplugin.WorkflowExecutionRequest,
+	timeStamp time.Time,
 ) error {
-	err := updateWorkflowExecution(batch, shardID, domainID, workflowID, execution)
+	err := updateWorkflowExecution(batch, shardID, domainID, workflowID, execution, timeStamp)
 	if err != nil {
 		return err
 	}
@@ -1157,7 +1196,7 @@ func resetWorkflowExecutionAndMapsAndEventBuffer(
 	if execution.EventBufferWriteMode != nosqlplugin.EventBufferWriteModeClear {
 		return fmt.Errorf("should only support EventBufferWriteModeClear")
 	}
-	err = deleteBufferedEvents(batch, shardID, domainID, workflowID, execution.RunID)
+	err = deleteBufferedEvents(batch, shardID, domainID, workflowID, execution.RunID, timeStamp)
 	if err != nil {
 		return err
 	}
@@ -1168,27 +1207,27 @@ func resetWorkflowExecutionAndMapsAndEventBuffer(
 
 	// This is another category of execution update where only the non-frozen column types in
 	// Cassandra are updated to a previous state in the Execution Update flow.
-	err = resetActivityInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.ActivityInfos)
+	err = resetActivityInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.ActivityInfos, timeStamp)
 	if err != nil {
 		return err
 	}
-	err = resetTimerInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.TimerInfos)
+	err = resetTimerInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.TimerInfos, timeStamp)
 	if err != nil {
 		return err
 	}
-	err = resetChildExecutionInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.ChildWorkflowInfos)
+	err = resetChildExecutionInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.ChildWorkflowInfos, timeStamp)
 	if err != nil {
 		return err
 	}
-	err = resetRequestCancelInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.RequestCancelInfos)
+	err = resetRequestCancelInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.RequestCancelInfos, timeStamp)
 	if err != nil {
 		return err
 	}
-	err = resetSignalInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.SignalInfos)
+	err = resetSignalInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.SignalInfos, timeStamp)
 	if err != nil {
 		return err
 	}
-	return resetSignalsRequested(batch, shardID, domainID, workflowID, execution.RunID, execution.SignalRequestedIDs)
+	return resetSignalsRequested(batch, shardID, domainID, workflowID, execution.RunID, execution.SignalRequestedIDs, timeStamp)
 }
 
 func appendBufferedEvents(
@@ -1198,6 +1237,7 @@ func appendBufferedEvents(
 	domainID string,
 	workflowID string,
 	runID string,
+	timeStamp time.Time,
 ) error {
 	values := make(map[string]interface{})
 	values["encoding_type"] = newBufferedEvents.Encoding
@@ -1206,6 +1246,7 @@ func appendBufferedEvents(
 	newEventValues := []map[string]interface{}{values}
 	batch.Query(templateAppendBufferedEventsQuery,
 		newEventValues,
+		timeStamp,
 		shardID,
 		rowTypeExecution,
 		domainID,
@@ -1222,8 +1263,10 @@ func deleteBufferedEvents(
 	domainID string,
 	workflowID string,
 	runID string,
+	timeStamp time.Time,
 ) error {
 	batch.Query(templateDeleteBufferedEventsQuery,
+		timeStamp,
 		shardID,
 		rowTypeExecution,
 		domainID,
@@ -1240,19 +1283,20 @@ func updateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(
 	domainID string,
 	workflowID string,
 	execution *nosqlplugin.WorkflowExecutionRequest,
+	timeStamp time.Time,
 ) error {
-	err := updateWorkflowExecution(batch, shardID, domainID, workflowID, execution)
+	err := updateWorkflowExecution(batch, shardID, domainID, workflowID, execution, timeStamp)
 	if err != nil {
 		return err
 	}
 
 	if execution.EventBufferWriteMode == nosqlplugin.EventBufferWriteModeClear {
-		err = deleteBufferedEvents(batch, shardID, domainID, workflowID, execution.RunID)
+		err = deleteBufferedEvents(batch, shardID, domainID, workflowID, execution.RunID, timeStamp)
 		if err != nil {
 			return err
 		}
 	} else if execution.EventBufferWriteMode == nosqlplugin.EventBufferWriteModeAppend {
-		err = appendBufferedEvents(batch, execution.NewBufferedEventBatch, shardID, domainID, workflowID, execution.RunID)
+		err = appendBufferedEvents(batch, execution.NewBufferedEventBatch, shardID, domainID, workflowID, execution.RunID, timeStamp)
 		if err != nil {
 			return err
 		}
@@ -1264,27 +1308,27 @@ func updateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(
 
 	// In certain cases, some of the execution update cycles update particular columns asynchronously before reaching the final cycle.
 	// Each of these functions are updating a non-frozen column type in Cassandra table.
-	err = updateActivityInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.ActivityInfos, execution.ActivityInfoKeysToDelete)
+	err = updateActivityInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.ActivityInfos, execution.ActivityInfoKeysToDelete, timeStamp)
 	if err != nil {
 		return err
 	}
-	err = updateTimerInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.TimerInfos, execution.TimerInfoKeysToDelete)
+	err = updateTimerInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.TimerInfos, execution.TimerInfoKeysToDelete, timeStamp)
 	if err != nil {
 		return err
 	}
-	err = updateChildExecutionInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.ChildWorkflowInfos, execution.ChildWorkflowInfoKeysToDelete)
+	err = updateChildExecutionInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.ChildWorkflowInfos, execution.ChildWorkflowInfoKeysToDelete, timeStamp)
 	if err != nil {
 		return err
 	}
-	err = updateRequestCancelInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.RequestCancelInfos, execution.RequestCancelInfoKeysToDelete)
+	err = updateRequestCancelInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.RequestCancelInfos, execution.RequestCancelInfoKeysToDelete, timeStamp)
 	if err != nil {
 		return err
 	}
-	err = updateSignalInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.SignalInfos, execution.SignalInfoKeysToDelete)
+	err = updateSignalInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.SignalInfos, execution.SignalInfoKeysToDelete, timeStamp)
 	if err != nil {
 		return err
 	}
-	return updateSignalsRequested(batch, shardID, domainID, workflowID, execution.RunID, execution.SignalRequestedIDs, execution.SignalRequestedIDsKeysToDelete)
+	return updateSignalsRequested(batch, shardID, domainID, workflowID, execution.RunID, execution.SignalRequestedIDs, execution.SignalRequestedIDsKeysToDelete, timeStamp)
 }
 
 // updateWorkflowExecution is responsible for updating the execution state in different cycles until the
@@ -1295,6 +1339,7 @@ func updateWorkflowExecution(
 	domainID string,
 	workflowID string,
 	execution *nosqlplugin.WorkflowExecutionRequest,
+	timeStamp time.Time,
 ) error {
 	execution.StartTimestamp = convertToCassandraTimestamp(execution.StartTimestamp)
 	execution.LastUpdatedTimestamp = convertToCassandraTimestamp(execution.LastUpdatedTimestamp)
@@ -1368,6 +1413,7 @@ func updateWorkflowExecution(
 		execution.Checksums.Value,
 		execution.LastWriteVersion,
 		execution.State,
+		timeStamp,
 		shardID,
 		rowTypeExecution,
 		domainID,
@@ -1386,6 +1432,7 @@ func createWorkflowExecution(
 	domainID string,
 	workflowID string,
 	execution *nosqlplugin.WorkflowExecutionRequest,
+	timeStamp time.Time,
 ) error {
 	execution.StartTimestamp = convertToCassandraTimestamp(execution.StartTimestamp)
 	execution.LastUpdatedTimestamp = convertToCassandraTimestamp(execution.LastUpdatedTimestamp)
@@ -1466,6 +1513,7 @@ func createWorkflowExecution(
 		execution.Checksums.Value,
 		execution.LastWriteVersion,
 		execution.State,
+		timeStamp,
 	)
 	return nil
 }
@@ -1510,6 +1558,7 @@ func fromRequestRowType(rowType int) (persistence.WorkflowRequestType, error) {
 func insertOrUpsertWorkflowRequestRow(
 	batch gocql.Batch,
 	requests *nosqlplugin.WorkflowRequestsWriteRequest,
+	timeStamp time.Time,
 ) error {
 	if requests == nil {
 		return nil
@@ -1537,6 +1586,7 @@ func insertOrUpsertWorkflowRequestRow(
 			defaultVisibilityTimestamp,
 			emptyWorkflowRequestVersion*-1,
 			row.RunID,
+			timeStamp,
 			workflowRequestTTLInSeconds,
 		)
 		batch.Query(insertQuery,
@@ -1548,6 +1598,7 @@ func insertOrUpsertWorkflowRequestRow(
 			defaultVisibilityTimestamp,
 			row.Version*-1,
 			row.RunID,
+			timeStamp,
 			workflowRequestTTLInSeconds,
 		)
 	}
@@ -1560,6 +1611,7 @@ func createOrUpdateCurrentWorkflow(
 	domainID string,
 	workflowID string,
 	request *nosqlplugin.CurrentWorkflowWriteRequest,
+	timeStamp time.Time,
 ) error {
 	switch request.WriteMode {
 	case nosqlplugin.CurrentWorkflowWriteModeNoop:
@@ -1580,6 +1632,7 @@ func createOrUpdateCurrentWorkflow(
 			request.Row.CloseStatus,
 			request.Row.LastWriteVersion,
 			request.Row.State,
+			timeStamp,
 		)
 	case nosqlplugin.CurrentWorkflowWriteModeUpdate:
 		if request.Condition == nil || request.Condition.GetCurrentRunID() == "" {
@@ -1594,6 +1647,7 @@ func createOrUpdateCurrentWorkflow(
 				request.Row.CloseStatus,
 				request.Row.LastWriteVersion,
 				request.Row.State,
+				timeStamp,
 				shardID,
 				rowTypeExecution,
 				domainID,
@@ -1614,6 +1668,7 @@ func createOrUpdateCurrentWorkflow(
 				request.Row.CloseStatus,
 				request.Row.LastWriteVersion,
 				request.Row.State,
+				timeStamp,
 				shardID,
 				rowTypeExecution,
 				domainID,
