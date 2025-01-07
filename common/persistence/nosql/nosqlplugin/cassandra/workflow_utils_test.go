@@ -42,7 +42,7 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
-var FixedTime time.Time = time.Date(2025, 1, 6, 15, 0, 0, 0, time.UTC)
+var FixedTime = time.Date(2025, 1, 6, 15, 0, 0, 0, time.UTC)
 
 // fakeSession is fake implementation of gocql.Session
 type fakeSession struct {
