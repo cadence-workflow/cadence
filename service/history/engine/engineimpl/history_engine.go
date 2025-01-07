@@ -43,6 +43,7 @@ import (
 	cndc "github.com/uber/cadence/common/ndc"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/quotas"
+	"github.com/uber/cadence/common/quotas/permember"
 	"github.com/uber/cadence/common/reconciliation/invariant"
 	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/common/types"
@@ -188,7 +189,7 @@ func NewEngineWithShardContext(
 			shard.GetConfig().NumArchiveSystemWorkflows,
 			quotas.NewDynamicRateLimiter(config.ArchiveRequestRPS.AsFloat64()),
 			quotas.NewDynamicRateLimiter(func() float64 {
-				return quotas.PerMember(
+				return permember.PerMember(
 					service.History,
 					float64(config.ArchiveInlineHistoryGlobalRPS()),
 					float64(config.ArchiveInlineHistoryRPS()),
@@ -196,7 +197,7 @@ func NewEngineWithShardContext(
 				)
 			}),
 			quotas.NewDynamicRateLimiter(func() float64 {
-				return quotas.PerMember(
+				return permember.PerMember(
 					service.History,
 					float64(config.ArchiveInlineVisibilityGlobalRPS()),
 					float64(config.ArchiveInlineVisibilityRPS()),

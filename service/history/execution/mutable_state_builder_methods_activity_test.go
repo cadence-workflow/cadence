@@ -60,7 +60,7 @@ func testMutableStateBuilder(t *testing.T) *mutableStateBuilder {
 	mockShard.GetConfig().EnableRetryForChecksumFailure = func(domain string) bool { return true }
 	logger := log.NewNoop()
 
-	mockShard.Resource.MatchingClient.EXPECT().AddActivityTask(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	mockShard.Resource.MatchingClient.EXPECT().AddActivityTask(gomock.Any(), gomock.Any()).Return(&types.AddActivityTaskResponse{}, nil).AnyTimes()
 	mockShard.Resource.DomainCache.EXPECT().GetDomainID(constants.TestDomainName).Return(constants.TestDomainID, nil).AnyTimes()
 	mockShard.Resource.DomainCache.EXPECT().GetDomainByID(constants.TestDomainID).Return(&cache.DomainCacheEntry{}, nil).AnyTimes()
 	return newMutableStateBuilder(mockShard, logger, constants.TestLocalDomainEntry)

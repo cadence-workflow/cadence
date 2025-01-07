@@ -4,6 +4,15 @@ frontend.enableClientVersionCheck:
 system.minRetentionDays:
 - value: 0
   constraints: {}
+matching.enableStandbyTaskCompletion:
+- value: true
+  constraints: {}
+history.standbyClusterDelay:
+- value: 30s
+  constraints: {}
+history.standbyTaskMissingEventsResendDelay:
+- value: 30s
+  constraints: {}
 history.EnableConsistentQueryByDomain:
 - value: true
   constraints: {}

@@ -37,4 +37,4 @@ jobs:
           password: ${{ secrets.CADENCE_SERVER_DOCKERHUB_TOKEN }}
           repository: ubercadence/server
           build_args: TARGET=auto-setup
-          tags: ${{ github.event.release.tag_name }}-auto-setup, latestRelease-auto-setup
+          tags: ${{ github.event.release.tag_name }}-auto-setup, latestrelease-auto-setup

@@ -106,7 +106,7 @@ func (s *VersionTestSuite) TestCheckCompatibleVersion() {
 		{"2.0", "1.0", "version mismatch", false},
 		{"1.0", "1.0", "", false},
 		{"1.0", "2.0", "", false},
-		{"1.0", "abc", "reading schema version: table schema_version does not exist", false},
+		{"1.0", "abc", "reading schema version: table schema_version does not exist", true},
 	}
 	for _, flag := range flags {
 		s.runCheckCompatibleVersion(flag.expectedVersion, flag.actualVersion, flag.errStr, flag.expectedFail)
@@ -156,11 +156,15 @@ func (s *VersionTestSuite) runCheckCompatibleVersion(
 	}
 
 	cqlFile := subdir + "/v" + actual + "/tmp.cql"
-	s.NoError(cassandra.RunTool([]string{
-		"./tool", "-k", keyspace, "-q", "setup-schema", "-f", cqlFile, "-version", actual, "-o",
-	}))
 	if expectedFail {
+		s.Error(cassandra.RunTool([]string{
+			"./tool", "-k", keyspace, "setup-schema", "-f", cqlFile, "-version", actual, "-o",
+		}))
 		os.RemoveAll(subdir + "/v" + actual)
+	} else {
+		s.NoError(cassandra.RunTool([]string{
+			"./tool", "-k", keyspace, "setup-schema", "-f", cqlFile, "-version", actual, "-o",
+		}))
 	}
 
 	cfg := config.NoSQL{
@@ -173,7 +177,7 @@ func (s *VersionTestSuite) runCheckCompatibleVersion(
 	}
 	err := cassandra.CheckCompatibleVersion(cfg, expected, gocql.All)
 	if len(errStr) > 0 {
-		s.Error(err)
+		s.Errorf(err, "error=%v", errStr)
 		s.Contains(err.Error(), errStr)
 	} else {
 		s.NoError(err)

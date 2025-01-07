@@ -14,8 +14,8 @@ matchingconfig:
     forwardermaxoutstandingtasks: 0
     forwardermaxratepersecond: 10
     forwardermaxchildrenpernode: 20
-    localpollwaittime: 0ms
-    localtaskwaittime: 0ms
+    localpollwaittime: 10ms
+    localtaskwaittime: 10ms
     tasks:
       - numtaskgenerators: 2
         taskspersecond: 80

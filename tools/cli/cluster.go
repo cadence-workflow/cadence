@@ -20,10 +20,10 @@
 
 package cli
 
-import "github.com/urfave/cli"
+import "github.com/urfave/cli/v2"
 
-func newClusterCommands() []cli.Command {
-	return []cli.Command{
+func newClusterCommands() []*cli.Command {
+	return []*cli.Command{
 		{
 			Name:   "get-search-attr",
 			Usage:  "get list of legal search attributes that can be used in list workflow query.",

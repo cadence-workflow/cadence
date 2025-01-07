@@ -598,7 +598,7 @@ const (
 	//
 	// KeyName: frontend.globalDomainrps
 	// Value type: Int
-	// Default value: 0
+	// Default value: UnlimitedRPS (0 triggers a fallback to per-instance-RPS, generally avoid)
 	// Allowed filters: DomainName
 	FrontendGlobalDomainUserRPS
 	// FrontendGlobalDomainWorkerRPS is used to limit "worker" requests (PollFor...Task, RespondTask..., etc)
@@ -613,7 +613,7 @@ const (
 	//
 	// KeyName: frontend.globalDomainWorkerrps
 	// Value type: Int
-	// Default value: UnlimitedRPS
+	// Default value: UnlimitedRPS (0 triggers a fallback to per-instance-RPS, generally avoid)
 	// Allowed filters: DomainName
 	FrontendGlobalDomainWorkerRPS
 	// FrontendGlobalDomainVisibilityRPS is used to limit "visibility" requests (ListWorkflow* and similar)
@@ -628,7 +628,7 @@ const (
 	//
 	// KeyName: frontend.globalDomainVisibilityrps
 	// Value type: Int
-	// Default value: UnlimitedRPS
+	// Default value: UnlimitedRPS (0 triggers a fallback to per-instance-RPS, generally avoid)
 	// Allowed filters: DomainName
 	FrontendGlobalDomainVisibilityRPS
 	// FrontendGlobalDomainAsyncRPS is used to limit "async" requests (StartWorkflowAsync, etc for many "user" APIs)
@@ -657,6 +657,7 @@ const (
 	// Value type: Int
 	// Default value: 10
 	// Allowed filters: N/A
+	// Deprecated: not used
 	FrontendHistoryMgrNumConns
 	// FrontendThrottledLogRPS is the rate limit on number of log messages emitted per second for throttled logger
 	// KeyName: frontend.throttledLogRPS
@@ -811,6 +812,8 @@ const (
 	// Default value: 20
 	// Allowed filters: DomainName,TasklistName,TasklistType
 	MatchingForwarderMaxChildrenPerNode
+
+	MatchingPartitionUpscaleRPS
 
 	// key for history
 
@@ -1034,72 +1037,6 @@ const (
 	// Default value: 10000
 	// Allowed filters: N/A
 	TransferProcessorMaxRedispatchQueueSize
-	// CrossClusterTaskBatchSize is the batch size for loading cross cluster tasks from persistence in crossClusterQueueProcessor
-	// KeyName: history.crossClusterTaskBatchSize
-	// Value type: Int
-	// Default value: 100
-	// Allowed filters: N/A
-	CrossClusterTaskBatchSize
-	// CrossClusterTaskDeleteBatchSize is the batch size for deleting cross cluster tasks from persistence in crossClusterQueueProcessor
-	// KeyName: history.crossClusterTaskDeleteBatchSize
-	// Value type: Int
-	// Default value: 4000
-	// Allowed filters: N/A
-	CrossClusterTaskDeleteBatchSize
-	// CrossClusterTaskFetchBatchSize is batch size for dispatching cross cluster tasks to target cluster in crossClusterQueueProcessor
-	// KeyName: history.crossClusterTaskFetchBatchSize
-	// Value type: Int
-	// Default value: 100
-	// Allowed filters: ShardID
-	CrossClusterTaskFetchBatchSize
-	// CrossClusterSourceProcessorMaxPollRPS is max poll rate per second for crossClusterQueueProcessor
-	// KeyName: history.crossClusterProcessorMaxPollRPS
-	// Value type: Int
-	// Default value: 20
-	// Allowed filters: N/A
-	CrossClusterSourceProcessorMaxPollRPS
-	// CrossClusterSourceProcessorCompleteTaskFailureRetryCount is times of retry for failure
-	// KeyName: history.crossClusterProcessorCompleteTaskFailureRetryCount
-	// Value type: Int
-	// Default value: 10
-	// Allowed filters: N/A
-	CrossClusterSourceProcessorCompleteTaskFailureRetryCount // TODO
-	// CrossClusterSourceProcessorMaxRedispatchQueueSize is the threshold of the number of tasks in the redispatch queue for crossClusterQueueProcessor
-	// KeyName: history.crossClusterProcessorMaxRedispatchQueueSize
-	// Value type: Int
-	// Default value: 10000
-	// Allowed filters: N/A
-	CrossClusterSourceProcessorMaxRedispatchQueueSize
-	// CrossClusterSourceProcessorMaxPendingTaskSize is the threshold of the number of ready for polling tasks in crossClusterQueueProcessor,
-	// task loading will be stopped when the number is reached
-	// KeyName: history.crossClusterSourceProcessorMaxPendingTaskSize
-	// Value type: Int
-	// Default value: 500
-	// Allowed filters: N/A
-	CrossClusterSourceProcessorMaxPendingTaskSize
-
-	// CrossClusterTargetProcessorMaxPendingTasks is the max number of pending tasks in cross cluster task processor
-	// note there's one cross cluster task processor per shard per source cluster
-	// KeyName: history.crossClusterTargetProcessorMaxPendingTasks
-	// Value type: Int
-	// Default value: 200
-	// Allowed filters: N/A
-	CrossClusterTargetProcessorMaxPendingTasks
-	// CrossClusterTargetProcessorMaxRetryCount is the max number of retries when executing a cross-cluster task in target cluster
-	// KeyName: history.crossClusterTargetProcessorMaxRetryCount
-	// Value type: Int
-	// Default value: 20
-	// Allowed filters: N/A
-	CrossClusterTargetProcessorMaxRetryCount
-
-	// CrossClusterFetcherParallelism is the number of go routines each cross cluster fetcher use
-	// note there's one cross cluster task fetcher per host per source cluster
-	// KeyName: history.crossClusterFetcherParallelism
-	// Value type: Int
-	// Default value: 1
-	// Allowed filters: N/A
-	CrossClusterFetcherParallelism
-
 	// ReplicatorTaskBatchSize is batch size for ReplicatorProcessor
 	// KeyName: history.replicatorTaskBatchSize
 	// Value type: Int
@@ -1130,12 +1067,14 @@ const (
 	// Value type: Int
 	// Default value: 50
 	// Allowed filters: N/A
+	// Deprecated: not used
 	ExecutionMgrNumConns
 	// HistoryMgrNumConns is persistence connections number for HistoryManager
 	// KeyName: history.historyMgrNumConns
 	// Value type: Int
 	// Default value: 50
 	// Allowed filters: N/A
+	// Deprecated: not used
 	HistoryMgrNumConns
 	// MaximumBufferedEventsBatch is max number of buffer event in mutable state
 	// KeyName: history.maximumBufferedEventsBatch
@@ -1197,6 +1136,7 @@ const (
 	// Default value: 10
 	// Allowed filters: DomainName
 	ParentClosePolicyThreshold
+	ParentClosePolicyBatchSize
 	// NumParentClosePolicySystemWorkflows is key for number of parentClosePolicy system workflows running in total
 	// KeyName: history.numParentClosePolicySystemWorkflows
 	// Value type: Int
@@ -1466,6 +1406,29 @@ const (
 	// Value type: Int
 	// Default value: 100
 	ESAnalyzerMinNumWorkflowsForAvg
+
+	// key for shard manager
+
+	// ShardManagerPersistenceMaxQPS is the max qps a shard manager host can query DB
+	// KeyName: shardManager.persistenceMaxQPS
+	// Value type: Int
+	// Default value: 3000
+	// Allowed filters: N/A
+	ShardManagerPersistenceMaxQPS
+	// ShardManagerPersistenceGlobalMaxQPS is the max qps matching cluster can query DB
+	// KeyName: shardManager.persistenceGlobalMaxQPS
+	// Value type: Int
+	// Default value: 0
+	// Allowed filters: N/A
+	ShardManagerPersistenceGlobalMaxQPS
+
+	// ShardManagerThrottledLogRPS is the rate limit on number of log messages emitted per second for throttled logger
+	// KeyName: shardManager.throttledLogRPS
+	// Value type: Int
+	// Default value: 20
+	// Allowed filters: N/A
+	ShardManagerThrottledLogRPS
+
 	// Usage: VisibilityArchivalQueryMaxRangeInDays is the maximum number of days for a visibility archival query
 	// KeyName: N/A
 	// Default value: N/A
@@ -1630,6 +1593,12 @@ const (
 	// Default value: false
 	// Allowed filters: N/A
 	EnableSQLAsyncTransaction
+	// EnableConnectionRetainingDirectChooser is the key for enabling connection retaining direct yarpc chooser
+	// KeyName: system.enableConnectionRetainingDirectChooser
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
+	EnableConnectionRetainingDirectChooser
 
 	// key for frontend
 
@@ -1679,6 +1648,15 @@ const (
 	// Value type: Bool
 	// Default value: false
 	MatchingEnableTasklistGuardAgainstOwnershipShardLoss
+	// MatchingEnableStandbyTaskCompletion is to enable completion of tasks in the domain's passive side
+	// KeyName: matching.enableStandbyTaskCompletion
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: DomainName,TasklistName,TasklistType
+	MatchingEnableStandbyTaskCompletion
+
+	MatchingEnableGetNumberOfPartitionsFromCache
+	MatchingEnableAdaptiveScaler
 
 	// key for history
 
@@ -1778,13 +1756,6 @@ const (
 	// Default value: false
 	// Allowed filters: DomainName
 	EnableContextHeaderInVisibility
-	// EnableCrossClusterEngine is used as an overall switch for the cross-cluster feature, a feature which, if not enabled
-	// can be quite expensive in terms of resources
-	// KeyName: history.enableCrossClusterEngine
-	// Value type: Bool
-	// Default value: false
-	// Allowed filters: DomainName
-	EnableCrossClusterEngine
 	// EnableCrossClusterOperationsForDomain indicates if cross cluster operations can be scheduled for a domain
 	// KeyName: history.enableCrossClusterOperations
 	// Value type: Bool
@@ -2112,6 +2083,13 @@ const (
 	// Allowed filters: DomainName
 	EnableStrongIdempotencySanityCheck
 
+	// MatchingEnableClientAutoConfig enables auto config for domain and tasklist on client (worker) side
+	// KeyName: matching.enableClientAutoConfig
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: DomainName,TasklistName,TasklistType
+	MatchingEnableClientAutoConfig
+
 	// LastBoolKey must be the last one in this const group
 	LastBoolKey
 )
@@ -2218,30 +2196,6 @@ const (
 	// Default value: 0.15
 	// Allowed filters: N/A
 	TransferProcessorUpdateAckIntervalJitterCoefficient
-	// CrossClusterSourceProcessorMaxPollIntervalJitterCoefficient is the max poll interval jitter coefficient
-	// KeyName: history.crossClusterProcessorMaxPollIntervalJitterCoefficient
-	// Value type: Float64
-	// Default value: 0.15
-	// Allowed filters: N/A
-	CrossClusterSourceProcessorMaxPollIntervalJitterCoefficient
-	// CrossClusterSourceProcessorUpdateAckIntervalJitterCoefficient is the update interval jitter coefficient
-	// KeyName: history.crossClusterProcessorUpdateAckIntervalJitterCoefficient
-	// Value type: Float64
-	// Default value: 0.15
-	// Allowed filters: N/A
-	CrossClusterSourceProcessorUpdateAckIntervalJitterCoefficient
-	// CrossClusterTargetProcessorJitterCoefficient is the jitter coefficient used in cross cluster task processor
-	// KeyName: history.crossClusterTargetProcessorJitterCoefficient
-	// Value type: Float64
-	// Default value: 0.15
-	// Allowed filters: N/A
-	CrossClusterTargetProcessorJitterCoefficient
-	// CrossClusterFetcherJitterCoefficient is the jitter coefficient used in cross cluster task fetcher
-	// KeyName: history.crossClusterFetcherJitterCoefficient
-	// Value type: Float64
-	// Default value: 0.15
-	// Allowed filters: N/A
-	CrossClusterFetcherJitterCoefficient
 	// ReplicationTaskProcessorCleanupJitterCoefficient is the jitter for cleanup timer
 	// KeyName: history.ReplicationTaskProcessorCleanupJitterCoefficient
 	// Value type: Float64
@@ -2313,6 +2267,8 @@ const (
 	// Default value: 0.5
 	HistoryGlobalRatelimiterNewDataWeight
 
+	MatchingPartitionDownscaleFactor
+
 	// LastFloatKey must be the last one in this const group
 	LastFloatKey
 )
@@ -2331,6 +2287,12 @@ const (
 	// Default value: "on"
 	// Allowed filters: N/A
 	AdvancedVisibilityWritingMode
+	// AdvancedVisibilityMigrationWritingMode is key for how to write to advanced visibility during migration.
+	// KeyName: system.AdvancedVisibilityMigrationWritingMode
+	// Value type: String enum: "dual"(means writing to both source and destination advanced visibility, "source" (means writing to source visibility only), "destination" (means writing to destination visibility only) or "off" (means writing to db visibility only)
+	// Default value: "dual"
+	// Allowed filters: N/A
+	AdvancedVisibilityMigrationWritingMode
 	// HistoryArchivalStatus is key for the status of history archival to override the value from static config.
 	// KeyName: system.historyArchivalStatus
 	// Value type: string enum: "enabled" or "disabled"
@@ -2397,6 +2359,8 @@ const (
 	// Default value: "disabled"
 	// Allowed filters: RatelimitKey (on global key, e.g. prefixed by collection name)
 	FrontendGlobalRatelimiterMode
+
+	TasklistLoadBalancerStrategy
 
 	// LastStringKey must be the last one in this const group
 	LastStringKey
@@ -2474,6 +2438,10 @@ const (
 	// Default value: 100ms
 	// Allowed filters: DomainName
 	MatchingActivityTaskSyncMatchWaitTime
+
+	MatchingPartitionUpscaleSustainedDuration
+	MatchingPartitionDownscaleSustainedDuration
+	MatchingAdaptiveScalerUpdateInterval
 
 	// HistoryLongPollExpirationInterval is the long poll expiration interval in the history service
 	// KeyName: history.longPollExpirationInterval
@@ -2650,51 +2618,6 @@ const (
 	// Default value: 400ms (400*time.Millisecond)
 	// Allowed filters: N/A
 	TransferProcessorVisibilityArchivalTimeLimit
-	// CrossClusterSourceProcessorMaxPollInterval is max poll interval for crossClusterQueueProcessor
-	// KeyName: history.crossClusterProcessorMaxPollInterval
-	// Value type: Duration
-	// Default value: 1m (1*time.Minute)
-	// Allowed filters: N/A
-	CrossClusterSourceProcessorMaxPollInterval
-	// CrossClusterSourceProcessorUpdateAckInterval is update interval for crossClusterQueueProcessor
-	// KeyName: history.crossClusterProcessorUpdateAckInterval
-	// Value type: Duration
-	// Default value: 30s (30*time.Second)
-	// Allowed filters: N/A
-	CrossClusterSourceProcessorUpdateAckInterval
-	// CrossClusterTargetProcessorTaskWaitInterval is the duration for waiting a cross-cluster task response before responding to source
-	// KeyName: history.crossClusterTargetProcessorTaskWaitInterval
-	// Value type: Duration
-	// Default value: 3s (3*time.Second)
-	// Allowed filters: N/A
-	CrossClusterTargetProcessorTaskWaitInterval
-	// CrossClusterTargetProcessorServiceBusyBackoffInterval is the backoff duration for cross cluster task processor when getting
-	// a service busy error when calling source cluster
-	// KeyName: history.crossClusterTargetProcessorServiceBusyBackoffInterval
-	// Value type: Duration
-	// Default value: 5s (5*time.Second)
-	// Allowed filters: N/A
-	CrossClusterTargetProcessorServiceBusyBackoffInterval
-	// CrossClusterFetcherAggregationInterval determines how frequently the fetch requests are sent
-	// KeyName: history.crossClusterFetcherAggregationInterval
-	// Value type: Duration
-	// Default value: 2s (2*time.Second)
-	// Allowed filters: N/A
-	CrossClusterFetcherAggregationInterval
-	// CrossClusterFetcherServiceBusyBackoffInterval is the backoff duration for cross cluster task fetcher when getting
-	// a service busy error when calling source cluster
-	// KeyName: history.crossClusterFetcherServiceBusyBackoffInterval
-	// Value type: Duration
-	// Default value: 5s (5*time.Second)
-	// Allowed filters: N/A
-	CrossClusterFetcherServiceBusyBackoffInterval
-	// CrossClusterFetcherServiceBusyBackoffInterval is the backoff duration for cross cluster task fetcher when getting
-	// a non-service busy error when calling source cluster
-	// KeyName: history.crossClusterFetcherErrorBackoffInterval
-	// Value type: Duration
-	// Default value: 1s (time.Second)
-	// Allowed filters: N/A
-	CrossClusterFetcherErrorBackoffInterval
 	// ReplicatorUpperLatency indicates the max allowed replication latency between clusters
 	// KeyName: history.replicatorUpperLatency
 	// Value type: Duration
@@ -2936,6 +2859,13 @@ const (
 	UnknownListKey ListKey = iota
 	TestGetListPropertyKey
 
+	// AllIsolationGroups is the list of all possible isolation groups in a service
+	// KeyName: system.allIsolationGroups
+	// Value type: []string
+	// Default value: N/A
+	// Allowed filters: N/A
+	AllIsolationGroups
+
 	// HeaderForwardingRules defines which headers are forwarded from inbound calls to outbound.
 	// This value is only loaded at startup.
 	//
@@ -2945,12 +2875,6 @@ const (
 	// Value type: []rpc.HeaderRule or an []interface{} containing `map[string]interface{}{"Add":bool,"Match":string}` values.
 	// Default value: forward all headers.  (this is a problematic value, and it will be changing as we reduce to a list of known values)
 	HeaderForwardingRules
-	// AllIsolationGroups is the list of all possible isolation groups in a service
-	// KeyName: system.allIsolationGroups
-	// Value type: []string
-	// Default value: N/A
-	// Allowed filters: N/A
-	AllIsolationGroups
 
 	LastListKey
 )
@@ -3211,7 +3135,7 @@ var IntKeys = map[IntKey]DynamicInt{
 		KeyName:      "frontend.globalDomainrps",
 		Filters:      []Filter{DomainName},
 		Description:  "FrontendGlobalDomainUserRPS is workflow domain rate limit per second for the whole Cadence cluster",
-		DefaultValue: 0,
+		DefaultValue: UnlimitedRPS,
 	},
 	FrontendGlobalDomainWorkerRPS: {
 		KeyName:      "frontend.globalDomainWorkerrps",
@@ -3239,7 +3163,7 @@ var IntKeys = map[IntKey]DynamicInt{
 	},
 	FrontendHistoryMgrNumConns: {
 		KeyName:      "frontend.historyMgrNumConns",
-		Description:  "FrontendHistoryMgrNumConns is for persistence cluster.NumConns",
+		Description:  "Deprecated: not used. FrontendHistoryMgrNumConns is for persistence cluster.NumConns",
 		DefaultValue: 10,
 	},
 	FrontendThrottledLogRPS: {
@@ -3382,6 +3306,12 @@ var IntKeys = map[IntKey]DynamicInt{
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
 		Description:  "MatchingForwarderMaxChildrenPerNode is the max number of children per node in the task list partition tree",
 		DefaultValue: 20,
+	},
+	MatchingPartitionUpscaleRPS: {
+		KeyName:      "matching.partitionUpscaleRPS",
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
+		Description:  "MatchingPartitionUpscaleRPS is the threshold of adding tasks RPS per partition to trigger upscale",
+		DefaultValue: 200,
 	},
 	HistoryRPS: {
 		KeyName:      "history.rps",
@@ -3566,57 +3496,6 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "TransferProcessorMaxRedispatchQueueSize is the threshold of the number of tasks in the redispatch queue for transferQueueProcessor",
 		DefaultValue: 10000,
 	},
-	CrossClusterTaskBatchSize: {
-		KeyName:      "history.crossClusterTaskBatchSize",
-		Description:  "CrossClusterTaskBatchSize is the batch size for loading cross cluster tasks from persistence in crossClusterQueueProcessor",
-		DefaultValue: 100,
-	},
-	CrossClusterTaskDeleteBatchSize: {
-		KeyName:      "history.crossClusterTaskDeleteBatchSize",
-		Description:  "CrossClusterTaskDeleteBatchSize is the batch size for deleting cross cluster tasks from persistence in crossClusterQueueProcessor",
-		DefaultValue: 4000,
-	},
-	CrossClusterTaskFetchBatchSize: {
-		KeyName:      "history.crossClusterTaskFetchBatchSize",
-		Filters:      []Filter{ShardID},
-		Description:  "CrossClusterTaskFetchBatchSize is batch size for dispatching cross cluster tasks to target cluster in crossClusterQueueProcessor",
-		DefaultValue: 100,
-	},
-	CrossClusterSourceProcessorMaxPollRPS: {
-		KeyName:      "history.crossClusterSourceProcessorMaxPollRPS",
-		Description:  "CrossClusterSourceProcessorMaxPollRPS is max poll rate per second for crossClusterQueueProcessor",
-		DefaultValue: 20,
-	},
-	CrossClusterSourceProcessorCompleteTaskFailureRetryCount: {
-		KeyName:      "history.crossClusterSourceProcessorCompleteTaskFailureRetryCount",
-		Description:  "CrossClusterSourceProcessorCompleteTaskFailureRetryCount is times of retry for failure",
-		DefaultValue: 10,
-	},
-	CrossClusterSourceProcessorMaxRedispatchQueueSize: {
-		KeyName:      "history.crossClusterSourceProcessorMaxRedispatchQueueSize",
-		Description:  "CrossClusterSourceProcessorMaxRedispatchQueueSize is the threshold of the number of tasks in the redispatch queue for crossClusterQueueProcessor",
-		DefaultValue: 10000,
-	},
-	CrossClusterSourceProcessorMaxPendingTaskSize: {
-		KeyName:      "history.crossClusterSourceProcessorMaxPendingTaskSize",
-		Description:  "CrossClusterSourceProcessorMaxPendingTaskSize is the threshold of the number of ready for polling tasks in crossClusterQueueProcessor, task loading will be stopped when the number is reached",
-		DefaultValue: 500,
-	},
-	CrossClusterTargetProcessorMaxPendingTasks: {
-		KeyName:      "history.crossClusterTargetProcessorMaxPendingTasks",
-		Description:  "CrossClusterTargetProcessorMaxPendingTasks is the max number of pending tasks in cross cluster task processor",
-		DefaultValue: 200,
-	},
-	CrossClusterTargetProcessorMaxRetryCount: {
-		KeyName:      "history.crossClusterTargetProcessorMaxRetryCount",
-		Description:  "CrossClusterTargetProcessorMaxRetryCount is the max number of retries when executing a cross-cluster task in target cluster",
-		DefaultValue: 20,
-	},
-	CrossClusterFetcherParallelism: {
-		KeyName:      "history.crossClusterFetcherParallelism",
-		Description:  "CrossClusterFetcherParallelism is the number of go routines each cross cluster fetcher use, note there's one cross cluster task fetcher per host per source cluster",
-		DefaultValue: 1,
-	},
 	ReplicatorTaskBatchSize: {
 		KeyName:      "history.replicatorTaskBatchSize",
 		Description:  "ReplicatorTaskBatchSize is batch size for ReplicatorProcessor",
@@ -3639,12 +3518,12 @@ var IntKeys = map[IntKey]DynamicInt{
 	},
 	ExecutionMgrNumConns: {
 		KeyName:      "history.executionMgrNumConns",
-		Description:  "ExecutionMgrNumConns is persistence connections number for ExecutionManager",
+		Description:  "Deprecated: not used. ExecutionMgrNumConns is persistence connections number for ExecutionManager",
 		DefaultValue: 50,
 	},
 	HistoryMgrNumConns: {
 		KeyName:      "history.historyMgrNumConns",
-		Description:  "HistoryMgrNumConns is persistence connections number for HistoryManager",
+		Description:  "Deprecated: not used. HistoryMgrNumConns is persistence connections number for HistoryManager",
 		DefaultValue: 50,
 	},
 	MaximumBufferedEventsBatch: {
@@ -3699,6 +3578,12 @@ var IntKeys = map[IntKey]DynamicInt{
 		Filters:      []Filter{DomainName},
 		Description:  "ParentClosePolicyThreshold is decides that parent close policy will be processed by sys workers(if enabled) ifthe number of children greater than or equal to this threshold",
 		DefaultValue: 10,
+	},
+	ParentClosePolicyBatchSize: {
+		KeyName:      "history.parentClosePolicyBatchSize",
+		Filters:      []Filter{DomainName},
+		Description:  "ParentClosePolicyBatchSize is the batch size of parent close policy processed by sys workers",
+		DefaultValue: 200,
 	},
 	NumParentClosePolicySystemWorkflows: {
 		KeyName:      "history.numParentClosePolicySystemWorkflows",
@@ -3927,6 +3812,21 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "ESAnalyzerMinNumWorkflowsForAvg controls how many workflows to have at least to rely on workflow run time avg per type",
 		DefaultValue: 100,
 	},
+	ShardManagerPersistenceMaxQPS: {
+		KeyName:      "shardManager.persistenceMaxQPS",
+		Description:  "ShardManagerPersistenceMaxQPS is the max qps shard manager host can query DB",
+		DefaultValue: 3000,
+	},
+	ShardManagerPersistenceGlobalMaxQPS: {
+		KeyName:      "shardManager.persistenceGlobalMaxQPS",
+		Description:  "ShardManagerPersistenceGlobalMaxQPS is the max qps shard manager cluster can query DB",
+		DefaultValue: 0,
+	},
+	ShardManagerThrottledLogRPS: {
+		KeyName:      "shardManager.throttledLogRPS",
+		Description:  "ShardManagerThrottledLogRPS is the rate limit on number of log messages emitted per second for throttled logger",
+		DefaultValue: 20,
+	},
 	VisibilityArchivalQueryMaxRangeInDays: {
 		KeyName:      "frontend.visibilityArchivalQueryMaxRangeInDays",
 		Description:  "VisibilityArchivalQueryMaxRangeInDays is the maximum number of days for a visibility archival query",
@@ -4095,6 +3995,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "EnableSQLAsyncTransaction is the key for enabling async transaction",
 		DefaultValue: false,
 	},
+	EnableConnectionRetainingDirectChooser: {
+		KeyName:      "system.enableConnectionRetainingDirectChooser",
+		Description:  "EnableConnectionRetainingDirectChooser is the key for enabling connection retaining direct chooser",
+		DefaultValue: false,
+	},
 	EnableClientVersionCheck: {
 		KeyName:      "frontend.enableClientVersionCheck",
 		Description:  "EnableClientVersionCheck is enables client version check for frontend",
@@ -4132,6 +4037,24 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	MatchingEnableTasklistGuardAgainstOwnershipShardLoss: {
 		KeyName:      "matching.enableTasklistGuardAgainstOwnershipLoss",
 		Description:  "allows guards to ensure that tasklists don't continue processing if there's signal that they've lost ownership",
+		DefaultValue: false,
+	},
+	MatchingEnableGetNumberOfPartitionsFromCache: {
+		KeyName:      "matching.enableGetNumberOfPartitionsFromCache",
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
+		Description:  "MatchingEnableGetNumberOfPartitionsFromCache is to enable getting number of partitions from cache instead of dynamic config",
+		DefaultValue: false,
+	},
+	MatchingEnableStandbyTaskCompletion: {
+		KeyName:      "matching.enableStandbyTaskCompletion",
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
+		Description:  "MatchingEnableStandbyTaskCompletion is to enable completion of tasks in the domain's passive side",
+		DefaultValue: false,
+	},
+	MatchingEnableAdaptiveScaler: {
+		KeyName:      "matching.enableAdaptiveScaler",
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
+		Description:  "MatchingEnableAdaptiveScaler is to enable adaptive task list scaling",
 		DefaultValue: false,
 	},
 	EventsCacheGlobalEnable: {
@@ -4219,11 +4142,6 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "history.enableContextHeaderInVisibility",
 		Filters:      []Filter{DomainName},
 		Description:  "EnableContextHeaderInVisibility is key for enable context header in visibility",
-		DefaultValue: false,
-	},
-	EnableCrossClusterEngine: {
-		KeyName:      "history.enableCrossClusterEngine",
-		Description:  "an overall toggle for the cross-cluster domain feature",
 		DefaultValue: false,
 	},
 	EnableCrossClusterOperationsForDomain: {
@@ -4513,6 +4431,12 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "EnableStrongIdempotencySanityCheck enables sanity check for strong idempotency",
 		DefaultValue: false,
 	},
+	MatchingEnableClientAutoConfig: {
+		KeyName:      "matching.enableClientAutoConfig",
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
+		Description:  "MatchingEnableClientAutoConfig is to enable auto config on worker side",
+		DefaultValue: false,
+	},
 }
 
 var FloatKeys = map[FloatKey]DynamicFloat{
@@ -4597,26 +4521,6 @@ var FloatKeys = map[FloatKey]DynamicFloat{
 		Description:  "TransferProcessorUpdateAckIntervalJitterCoefficient is the update interval jitter coefficient",
 		DefaultValue: 0.15,
 	},
-	CrossClusterSourceProcessorMaxPollIntervalJitterCoefficient: {
-		KeyName:      "history.crossClusterSourceProcessorMaxPollIntervalJitterCoefficient",
-		Description:  "CrossClusterSourceProcessorMaxPollIntervalJitterCoefficient is the max poll interval jitter coefficient",
-		DefaultValue: 0.15,
-	},
-	CrossClusterSourceProcessorUpdateAckIntervalJitterCoefficient: {
-		KeyName:      "history.crossClusterSourceProcessorUpdateAckIntervalJitterCoefficient",
-		Description:  "CrossClusterSourceProcessorUpdateAckIntervalJitterCoefficient is the update interval jitter coefficient",
-		DefaultValue: 0.15,
-	},
-	CrossClusterTargetProcessorJitterCoefficient: {
-		KeyName:      "history.crossClusterTargetProcessorJitterCoefficient",
-		Description:  "CrossClusterTargetProcessorJitterCoefficient is the jitter coefficient used in cross cluster task processor",
-		DefaultValue: 0.15,
-	},
-	CrossClusterFetcherJitterCoefficient: {
-		KeyName:      "history.crossClusterFetcherJitterCoefficient",
-		Description:  "CrossClusterFetcherJitterCoefficient is the jitter coefficient used in cross cluster task fetcher",
-		DefaultValue: 0.15,
-	},
 	ReplicationTaskProcessorCleanupJitterCoefficient: {
 		KeyName:      "history.ReplicationTaskProcessorCleanupJitterCoefficient",
 		Filters:      []Filter{ShardID},
@@ -4679,6 +4583,12 @@ var FloatKeys = map[FloatKey]DynamicFloat{
 		Description:  "HistoryGlobalRatelimiterNewDataWeight defines how much weight to give each host's newest data, per update.  Must be between 0 and 1, higher values match new values more closely after a single update",
 		DefaultValue: 0.5,
 	},
+	MatchingPartitionDownscaleFactor: {
+		KeyName:      "matching.partitionDownscaleFactor",
+		Description:  "MatchingPartitionDownscaleFactor introduces hysteresis to prevent oscillation by setting a lower QPS threshold for downscaling, ensuring partitions are only removed when the load decreases significantly below the capacity of fewer partitions.",
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
+		DefaultValue: 0.75,
+	},
 }
 
 var StringKeys = map[StringKey]DynamicString{
@@ -4691,6 +4601,11 @@ var StringKeys = map[StringKey]DynamicString{
 		KeyName:      "system.advancedVisibilityWritingMode",
 		Description:  "AdvancedVisibilityWritingMode is key for how to write to advanced visibility. The most useful option is dual, which can be used for seamless migration from db visibility to advanced visibility, usually using with EnableReadVisibilityFromES",
 		DefaultValue: "on",
+	},
+	AdvancedVisibilityMigrationWritingMode: {
+		KeyName:      "system.advancedVisibilityMigrationWritingMode",
+		Description:  "AdvancedVisibilityMigrationWritingMode is key for how to write to advanced visibility. The most useful option is dual, which can be used for seamless migration from advanced visibility to another",
+		DefaultValue: "dual",
 	},
 	HistoryArchivalStatus: {
 		KeyName:      "system.historyArchivalStatus",
@@ -4743,6 +4658,12 @@ var StringKeys = map[StringKey]DynamicString{
 		Description:  "FrontendGlobalRatelimiterMode defines which mode a global key should be in, per key, to make gradual changes to ratelimiter algorithms",
 		DefaultValue: "disabled",
 		Filters:      []Filter{RatelimitKey},
+	},
+	TasklistLoadBalancerStrategy: {
+		KeyName:      "system.tasklistLoadBalancerStrategy",
+		Description:  "TasklistLoadBalancerStrategy is the key for tasklist load balancer strategy",
+		DefaultValue: "random", // other options: "round-robin"
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
 	},
 }
 
@@ -4835,6 +4756,24 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		Filters:      []Filter{DomainName},
 		Description:  "MatchingActivityTaskSyncMatchWaitTime is the amount of time activity task will wait to be sync matched",
 		DefaultValue: time.Millisecond * 50,
+	},
+	MatchingPartitionUpscaleSustainedDuration: {
+		KeyName:      "matching.partitionUpscaleSustainedDuration",
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
+		Description:  "MatchingPartitionUpscaleSustainedDuration is the sustained period to wait before upscaling the number of partitions",
+		DefaultValue: time.Minute,
+	},
+	MatchingPartitionDownscaleSustainedDuration: {
+		KeyName:      "matching.partitionDownscaleSustainedDuration",
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
+		Description:  "MatchingPartitionDownscaleSustainedDuration is the sustained period to wait before downscaling the number of partitions",
+		DefaultValue: 2 * time.Minute,
+	},
+	MatchingAdaptiveScalerUpdateInterval: {
+		KeyName:      "matching.adaptiveScalerUpdateInterval",
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
+		Description:  "MatchingAdaptiveScalerUpdateInterval is the internal for adaptive scaler to update",
+		DefaultValue: time.Second * 15,
 	},
 	HistoryLongPollExpirationInterval: {
 		KeyName:      "history.longPollExpirationInterval",
@@ -4979,41 +4918,6 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		KeyName:      "history.transferProcessorVisibilityArchivalTimeLimit",
 		Description:  "TransferProcessorVisibilityArchivalTimeLimit is the upper time limit for archiving visibility records",
 		DefaultValue: time.Millisecond * 400,
-	},
-	CrossClusterSourceProcessorMaxPollInterval: {
-		KeyName:      "history.crossClusterSourceProcessorMaxPollInterval",
-		Description:  "CrossClusterSourceProcessorMaxPollInterval is max poll interval for crossClusterQueueProcessor",
-		DefaultValue: time.Minute,
-	},
-	CrossClusterSourceProcessorUpdateAckInterval: {
-		KeyName:      "history.crossClusterSourceProcessorUpdateAckInterval",
-		Description:  "CrossClusterSourceProcessorUpdateAckInterval is update interval for crossClusterQueueProcessor",
-		DefaultValue: time.Second * 30,
-	},
-	CrossClusterTargetProcessorTaskWaitInterval: {
-		KeyName:      "history.crossClusterTargetProcessorTaskWaitInterval",
-		Description:  "CrossClusterTargetProcessorTaskWaitInterval is the duration for waiting a cross-cluster task response before responding to source",
-		DefaultValue: time.Second * 3,
-	},
-	CrossClusterTargetProcessorServiceBusyBackoffInterval: {
-		KeyName:      "history.crossClusterTargetProcessorServiceBusyBackoffInterval",
-		Description:  "CrossClusterTargetProcessorServiceBusyBackoffInterval is the backoff duration for cross cluster task processor when getting a service busy error when calling source cluster",
-		DefaultValue: time.Second * 5,
-	},
-	CrossClusterFetcherAggregationInterval: {
-		KeyName:      "history.crossClusterFetcherAggregationInterval",
-		Description:  "CrossClusterFetcherAggregationInterval determines how frequently the fetch requests are sent",
-		DefaultValue: time.Second * 2,
-	},
-	CrossClusterFetcherServiceBusyBackoffInterval: {
-		KeyName:      "history.crossClusterFetcherServiceBusyBackoffInterval",
-		Description:  "CrossClusterFetcherServiceBusyBackoffInterval is the backoff duration for cross cluster task fetcher when getting",
-		DefaultValue: time.Second * 5,
-	},
-	CrossClusterFetcherErrorBackoffInterval: {
-		KeyName:      "history.crossClusterFetcherErrorBackoffInterval",
-		Description:  "",
-		DefaultValue: time.Second,
 	},
 	ReplicatorUpperLatency: {
 		KeyName:      "history.replicatorUpperLatency",

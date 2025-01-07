@@ -21,12 +21,14 @@
 package cli
 
 import (
+	"io"
 	"os"
 	"time"
 
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/tools/common/commoncli"
 )
 
 type (
@@ -43,15 +45,26 @@ type (
 )
 
 // DescribeTaskList show pollers info of a given tasklist
-func DescribeTaskList(c *cli.Context) {
-	wfClient := getWorkflowClient(c)
-	domain := getRequiredGlobalOption(c, FlagDomain)
-	taskList := getRequiredOption(c, FlagTaskList)
+func DescribeTaskList(c *cli.Context) error {
+	wfClient, err := getWorkflowClient(c)
+	if err != nil {
+		return err
+	}
+	domain, err := getRequiredOption(c, FlagDomain)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
+	taskList, err := getRequiredOption(c, FlagTaskList)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
 	taskListType := strToTaskListType(c.String(FlagTaskListType)) // default type is decision
 
-	ctx, cancel := newContext(c)
+	ctx, cancel, err := newContext(c)
 	defer cancel()
-
+	if err != nil {
+		return commoncli.Problem("Error in creating context:", err)
+	}
 	request := &types.DescribeTaskListRequest{
 		Domain: domain,
 		TaskList: &types.TaskList{
@@ -61,25 +74,36 @@ func DescribeTaskList(c *cli.Context) {
 	}
 	response, err := wfClient.DescribeTaskList(ctx, request)
 	if err != nil {
-		ErrorAndExit("Operation DescribeTaskList failed.", err)
+		return commoncli.Problem("Operation DescribeTaskList failed.", err)
 	}
 
 	pollers := response.Pollers
 	if len(pollers) == 0 {
-		ErrorAndExit(colorMagenta("No poller for tasklist: "+taskList), nil)
+		return commoncli.Problem(colorMagenta("No poller for tasklist: "+taskList), nil)
 	}
 
-	printTaskListPollers(pollers, taskListType)
+	return printTaskListPollers(getDeps(c).Output(), pollers, taskListType)
 }
 
 // ListTaskListPartitions gets all the tasklist partition and host information.
-func ListTaskListPartitions(c *cli.Context) {
-	frontendClient := cFactory.ServerFrontendClient(c)
-	domain := getRequiredGlobalOption(c, FlagDomain)
-	taskList := getRequiredOption(c, FlagTaskList)
-
-	ctx, cancel := newContext(c)
+func ListTaskListPartitions(c *cli.Context) error {
+	frontendClient, err := getDeps(c).ServerFrontendClient(c)
+	if err != nil {
+		return err
+	}
+	domain, err := getRequiredOption(c, FlagDomain)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
+	taskList, err := getRequiredOption(c, FlagTaskList)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
+	ctx, cancel, err := newContext(c)
 	defer cancel()
+	if err != nil {
+		return commoncli.Problem("Error in creating context:", err)
+	}
 	request := &types.ListTaskListPartitionsRequest{
 		Domain:   domain,
 		TaskList: &types.TaskList{Name: taskList},
@@ -87,17 +111,18 @@ func ListTaskListPartitions(c *cli.Context) {
 
 	response, err := frontendClient.ListTaskListPartitions(ctx, request)
 	if err != nil {
-		ErrorAndExit("Operation ListTaskListPartitions failed.", err)
+		return commoncli.Problem("Operation ListTaskListPartitions failed.", err)
 	}
 	if len(response.DecisionTaskListPartitions) > 0 {
-		printTaskListPartitions("Decision", response.DecisionTaskListPartitions)
+		return printTaskListPartitions("Decision", response.DecisionTaskListPartitions)
 	}
 	if len(response.ActivityTaskListPartitions) > 0 {
-		printTaskListPartitions("Activity", response.ActivityTaskListPartitions)
+		return printTaskListPartitions("Activity", response.ActivityTaskListPartitions)
 	}
+	return nil
 }
 
-func printTaskListPollers(pollers []*types.PollerInfo, taskListType types.TaskListType) {
+func printTaskListPollers(w io.Writer, pollers []*types.PollerInfo, taskListType types.TaskListType) error {
 	table := []TaskListPollerRow{}
 	for _, poller := range pollers {
 		table = append(table, TaskListPollerRow{
@@ -105,13 +130,13 @@ func printTaskListPollers(pollers []*types.PollerInfo, taskListType types.TaskLi
 			DecisionIdentity: poller.GetIdentity(),
 			LastAccessTime:   time.Unix(0, poller.GetLastAccessTime())})
 	}
-	RenderTable(os.Stdout, table, RenderOptions{Color: true, PrintDateTime: true, OptionalColumns: map[string]bool{
+	return RenderTable(w, table, RenderOptions{Color: true, PrintDateTime: true, OptionalColumns: map[string]bool{
 		"Activity Poller Identity": taskListType == types.TaskListTypeActivity,
 		"Decision Poller Identity": taskListType == types.TaskListTypeDecision,
 	}})
 }
 
-func printTaskListPartitions(taskListType string, partitions []*types.TaskListPartitionMetadata) {
+func printTaskListPartitions(taskListType string, partitions []*types.TaskListPartitionMetadata) error {
 	table := []TaskListPartitionRow{}
 	for _, partition := range partitions {
 		table = append(table, TaskListPartitionRow{
@@ -120,7 +145,7 @@ func printTaskListPartitions(taskListType string, partitions []*types.TaskListPa
 			Host:              partition.GetOwnerHostName(),
 		})
 	}
-	RenderTable(os.Stdout, table, RenderOptions{Color: true, OptionalColumns: map[string]bool{
+	return RenderTable(os.Stdout, table, RenderOptions{Color: true, OptionalColumns: map[string]bool{
 		"Activity Task List Partition": taskListType == "Activity",
 		"Decision Task List Partition": taskListType == "Decision",
 	}})

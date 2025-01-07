@@ -104,3 +104,9 @@ func newPredefinedDynamicTag(key string, value interface{}) Tag {
 		field: zap.Any(key, value),
 	}
 }
+
+func newFloat64Tag(key string, value float64) Tag {
+	return Tag{
+		field: zap.Float64(key, value),
+	}
+}

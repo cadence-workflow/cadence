@@ -59,18 +59,18 @@ func (m *MockState) EXPECT() *MockStateMockRecorder {
 }
 
 // AvailableIsolationGroupsByDomainID mocks base method.
-func (m *MockState) AvailableIsolationGroupsByDomainID(ctx context.Context, domainID string, availableIsolationGroups []string) (types.IsolationGroupConfiguration, error) {
+func (m *MockState) AvailableIsolationGroupsByDomainID(ctx context.Context, domainID, tasklistName string, availableIsolationGroups []string) (types.IsolationGroupConfiguration, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AvailableIsolationGroupsByDomainID", ctx, domainID, availableIsolationGroups)
+	ret := m.ctrl.Call(m, "AvailableIsolationGroupsByDomainID", ctx, domainID, tasklistName, availableIsolationGroups)
 	ret0, _ := ret[0].(types.IsolationGroupConfiguration)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // AvailableIsolationGroupsByDomainID indicates an expected call of AvailableIsolationGroupsByDomainID.
-func (mr *MockStateMockRecorder) AvailableIsolationGroupsByDomainID(ctx, domainID, availableIsolationGroups interface{}) *gomock.Call {
+func (mr *MockStateMockRecorder) AvailableIsolationGroupsByDomainID(ctx, domainID, tasklistName, availableIsolationGroups interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AvailableIsolationGroupsByDomainID", reflect.TypeOf((*MockState)(nil).AvailableIsolationGroupsByDomainID), ctx, domainID, availableIsolationGroups)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AvailableIsolationGroupsByDomainID", reflect.TypeOf((*MockState)(nil).AvailableIsolationGroupsByDomainID), ctx, domainID, tasklistName, availableIsolationGroups)
 }
 
 // IsDrained mocks base method.

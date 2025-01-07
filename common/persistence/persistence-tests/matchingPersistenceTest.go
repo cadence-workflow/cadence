@@ -348,6 +348,8 @@ func (s *MatchingPersistenceSuite) TestLeaseAndUpdateTaskList() {
 	s.EqualValues(1, tli.RangeID)
 	s.EqualValues(0, tli.AckLevel)
 	s.True(tli.LastUpdated.After(leaseTime) || tli.LastUpdated.Equal(leaseTime))
+	s.EqualValues(p.TaskListKindNormal, tli.Kind)
+	s.Nil(tli.AdaptivePartitionConfig)
 
 	leaseTime = time.Now()
 	response, err = s.TaskMgr.LeaseTaskList(ctx, &p.LeaseTaskListRequest{
@@ -360,6 +362,8 @@ func (s *MatchingPersistenceSuite) TestLeaseAndUpdateTaskList() {
 	s.EqualValues(2, tli.RangeID)
 	s.EqualValues(0, tli.AckLevel)
 	s.True(tli.LastUpdated.After(leaseTime) || tli.LastUpdated.Equal(leaseTime))
+	s.EqualValues(p.TaskListKindNormal, tli.Kind)
+	s.Nil(tli.AdaptivePartitionConfig)
 
 	_, err = s.TaskMgr.LeaseTaskList(ctx, &p.LeaseTaskListRequest{
 		DomainID: domainID,
@@ -378,17 +382,41 @@ func (s *MatchingPersistenceSuite) TestLeaseAndUpdateTaskList() {
 		RangeID:  2,
 		AckLevel: 0,
 		Kind:     p.TaskListKindNormal,
+		AdaptivePartitionConfig: &p.TaskListPartitionConfig{
+			Version:            1,
+			NumReadPartitions:  2,
+			NumWritePartitions: 2,
+		},
 	}
 	_, err = s.TaskMgr.UpdateTaskList(ctx, &p.UpdateTaskListRequest{
 		TaskListInfo: taskListInfo,
 	})
 	s.NoError(err)
 
+	var resp *p.GetTaskListResponse
+	resp, err = s.TaskMgr.GetTaskList(ctx, &p.GetTaskListRequest{
+		DomainID: domainID,
+		TaskList: taskList,
+		TaskType: p.TaskListTypeActivity,
+	})
+	s.NoError(err)
+	tli = resp.TaskListInfo
+	s.EqualValues(2, tli.RangeID)
+	s.EqualValues(0, tli.AckLevel)
+	s.True(tli.LastUpdated.After(leaseTime) || tli.LastUpdated.Equal(leaseTime))
+	s.EqualValues(p.TaskListKindNormal, tli.Kind)
+	s.NotNil(tli.AdaptivePartitionConfig)
+	s.EqualValues(1, tli.AdaptivePartitionConfig.Version)
+	s.EqualValues(2, tli.AdaptivePartitionConfig.NumReadPartitions)
+	s.EqualValues(2, tli.AdaptivePartitionConfig.NumWritePartitions)
+
 	taskListInfo.RangeID = 3
 	_, err = s.TaskMgr.UpdateTaskList(ctx, &p.UpdateTaskListRequest{
 		TaskListInfo: taskListInfo,
 	})
 	s.Error(err)
+	_, ok = err.(*p.ConditionFailedError)
+	s.True(ok)
 }
 
 // TestLeaseAndUpdateTaskListSticky test
@@ -410,6 +438,7 @@ func (s *MatchingPersistenceSuite) TestLeaseAndUpdateTaskListSticky() {
 	s.EqualValues(1, tli.RangeID)
 	s.EqualValues(0, tli.AckLevel)
 	s.EqualValues(p.TaskListKindSticky, tli.Kind)
+	s.Nil(tli.AdaptivePartitionConfig)
 
 	taskListInfo := &p.TaskListInfo{
 		DomainID: domainID,
@@ -616,14 +645,14 @@ func (s *MatchingPersistenceSuite) TestGetOrphanTasks() {
 		Tasks: []*p.CreateTaskInfo{
 			{
 				Data: &p.TaskInfo{
-					DomainID:               domainID,
-					WorkflowID:             wid,
-					RunID:                  rid,
-					TaskID:                 0,
-					ScheduleID:             0,
-					ScheduleToStartTimeout: 0,
-					Expiry:                 time.Now(),
-					CreatedTime:            time.Now(),
+					DomainID:                      domainID,
+					WorkflowID:                    wid,
+					RunID:                         rid,
+					TaskID:                        0,
+					ScheduleID:                    0,
+					ScheduleToStartTimeoutSeconds: 0,
+					Expiry:                        time.Now(),
+					CreatedTime:                   time.Now(),
 				},
 				TaskID: 0,
 			},

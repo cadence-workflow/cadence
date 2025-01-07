@@ -80,6 +80,8 @@ func (v *bulkProcessor) Add(request *bulk.GenericBulkableAddRequest) {
 			return
 		}
 		req.Action = "index"
+		req.Version = &request.Version
+		req.VersionType = &request.VersionType
 		req.Body = bytes.NewReader(body)
 		callBackRequest = bulk.NewBulkIndexRequest().
 			ID(request.ID).

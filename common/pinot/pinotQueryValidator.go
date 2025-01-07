@@ -271,7 +271,7 @@ func (qv *VisibilityQueryValidator) processSystemKey(expr sqlparser.Expr) (strin
 			return "", fmt.Errorf("right comparison is invalid: %v", comparisonExpr.Right)
 		}
 		colValStr := string(colVal.Val)
-		return fmt.Sprintf("TEXT_MATCH(%s, '%s')", colNameStr, colValStr), nil
+		return fmt.Sprintf("TEXT_MATCH(%s, '/.*%s.*/')", colNameStr, colValStr), nil
 	}
 
 	if comparisonExpr.Operator != sqlparser.EqualStr && comparisonExpr.Operator != sqlparser.NotEqualStr {
@@ -410,7 +410,7 @@ func (qv *VisibilityQueryValidator) processCustomKey(expr sqlparser.Expr) (strin
 
 	switch indexValType {
 	case types.IndexedValueTypeString:
-		return processCustomString(comparisonExpr, colNameStr, colValStr), nil
+		return processCustomString(operator, colNameStr, colValStr), nil
 	case types.IndexedValueTypeKeyword:
 		return processCustomKeyword(operator, colNameStr, colValStr), nil
 	case types.IndexedValueTypeDatetime:
@@ -445,29 +445,38 @@ func processEqual(colNameStr string, colValStr string) string {
 func processCustomKeyword(operator string, colNameStr string, colValStr string) string {
 	// edge case
 	if operator == "!=" {
-		return fmt.Sprintf("JSON_MATCH(Attr, '\"$.%s\"%s''%s''') and JSON_MATCH(Attr, '\"$.%s[*]\"%s''%s''')",
-			colNameStr, operator, colValStr, colNameStr, operator, colValStr)
+		return createKeywordQuery(operator, colNameStr, colValStr, "and", "NOT ")
 	}
 
-	return fmt.Sprintf("(JSON_MATCH(Attr, '\"$.%s\"%s''%s''') or JSON_MATCH(Attr, '\"$.%s[*]\"%s''%s'''))",
-		colNameStr, operator, colValStr, colNameStr, operator, colValStr)
+	return createKeywordQuery(operator, colNameStr, colValStr, "or", "")
 }
 
-func processCustomString(comparisonExpr *sqlparser.ComparisonExpr, colNameStr string, colValStr string) string {
-	// change to like statement for partial match
-	comparisonExpr.Operator = sqlparser.LikeStr
-	comparisonExpr.Right = &sqlparser.SQLVal{
-		Type: sqlparser.StrVal,
-		Val:  []byte("%" + colValStr + "%"),
-	}
-
+func createKeywordQuery(operator string, colNameStr string, colValStr string, connector string, notEqual string) string {
 	if colValStr == "" {
-		return fmt.Sprintf("(JSON_MATCH(Attr, '\"$.%s\" is not null') "+
-			"AND REGEXP_LIKE(JSON_EXTRACT_SCALAR(Attr, '$.%s', 'string'), '^$'))", colNameStr, colNameStr)
+		// partial match for an empty string (still it will only match empty string)
+		// so it equals to exact match for an empty string
+		return createCustomStringQuery(colNameStr, colValStr, notEqual)
+	}
+	return fmt.Sprintf("(JSON_MATCH(Attr, '\"$.%s\"%s''%s''') %s JSON_MATCH(Attr, '\"$.%s[*]\"%s''%s'''))",
+		colNameStr, operator, colValStr, connector, colNameStr, operator, colValStr)
+}
+
+func processCustomString(operator string, colNameStr string, colValStr string) string {
+	if operator == "!=" {
+		return createCustomStringQuery(colNameStr, colValStr, "NOT ")
 	}
 
-	return fmt.Sprintf("(JSON_MATCH(Attr, '\"$.%s\" is not null') "+
-		"AND REGEXP_LIKE(JSON_EXTRACT_SCALAR(Attr, '$.%s', 'string'), '%s*'))", colNameStr, colNameStr, colValStr)
+	return createCustomStringQuery(colNameStr, colValStr, "")
+}
+
+func createCustomStringQuery(colNameStr string, colValStr string, notEqual string) string {
+	// handle edge case
+	if colValStr == "" {
+		return fmt.Sprintf("JSON_MATCH(Attr, '\"$.%s\" is not null') "+
+			"AND %sJSON_MATCH(Attr, 'REGEXP_LIKE(\"$.%s\", ''^$'')')", colNameStr, notEqual, colNameStr)
+	}
+	return fmt.Sprintf("JSON_MATCH(Attr, '\"$.%s\" is not null') "+
+		"AND %sJSON_MATCH(Attr, 'REGEXP_LIKE(\"$.%s\", ''.*%s.*'')')", colNameStr, notEqual, colNameStr, colValStr)
 }
 
 func trimTimeFieldValueFromNanoToMilliSeconds(original *sqlparser.SQLVal) (*sqlparser.SQLVal, error) {

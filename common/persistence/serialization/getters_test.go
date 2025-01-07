@@ -38,6 +38,7 @@ import (
 func TestGettersForAllNilInfos(t *testing.T) {
 	for _, info := range []any{
 		&WorkflowExecutionInfo{},
+		&TransferTaskInfo{},
 		&TimerTaskInfo{},
 		&ReplicationTaskInfo{},
 		&TaskListInfo{},
@@ -64,6 +65,7 @@ func TestGettersForAllNilInfos(t *testing.T) {
 func TestGettersForEmptyInfos(t *testing.T) {
 	for _, info := range []any{
 		&WorkflowExecutionInfo{},
+		&TransferTaskInfo{},
 		&TimerTaskInfo{},
 		&ReplicationTaskInfo{},
 		&TaskListInfo{},
@@ -147,6 +149,21 @@ func TestGettersForInfos(t *testing.T) {
 			LastFirstEventID:        7,
 			AutoResetPoints:         []byte("resetpoints"),
 			SearchAttributes:        map[string][]byte{"key": []byte("value")},
+		},
+		&TransferTaskInfo{
+			DomainID:                taskDomainID,
+			WorkflowID:              "workflowID",
+			RunID:                   taskRunID,
+			TaskType:                1,
+			TargetDomainID:          parentDomainID,
+			TargetDomainIDs:         []UUID{parentDomainID, taskDomainID},
+			TargetWorkflowID:        "targetID",
+			TargetRunID:             parentRunID,
+			TaskList:                "tasklist",
+			TargetChildWorkflowOnly: true,
+			ScheduleID:              2,
+			Version:                 3,
+			VisibilityTimestamp:     taskInfoCreateTime,
 		},
 		&TimerTaskInfo{
 			DomainID:        taskDomainID,

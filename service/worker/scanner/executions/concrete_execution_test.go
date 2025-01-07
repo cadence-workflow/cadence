@@ -23,16 +23,26 @@
 package executions
 
 import (
+	"context"
+	"strconv"
 	"testing"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/cadence/testsuite"
 	"go.uber.org/cadence/workflow"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/blobstore"
+	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/reconciliation/invariant"
 	"github.com/uber/cadence/common/reconciliation/store"
+	"github.com/uber/cadence/common/types/testdata"
+	"github.com/uber/cadence/service/history/constants"
 	"github.com/uber/cadence/service/worker/scanner/shardscanner"
 )
 
@@ -232,4 +242,259 @@ func (s *concreteExectionsWorkflowsSuite) TestScannerWorkflow_Success() {
 		}
 	}
 	s.Equal(shardscanner.ShardCorruptKeysResult(expectedCorrupted), shardCorruptKeysResult.Result)
+}
+
+func (s *concreteExectionsWorkflowsSuite) TestConcreteScannerWorkflow_NewScannerWorkflow_Error() {
+	env := s.NewTestWorkflowEnvironment()
+
+	params := shardscanner.ScannerWorkflowParams{
+		Shards: shardscanner.Shards{
+			Range: &shardscanner.ShardRange{
+				Min: 0,
+			},
+		},
+	}
+
+	env.ExecuteWorkflow(ConcreteScannerWorkflow, params)
+
+	s.True(env.IsWorkflowCompleted())
+	s.ErrorContains(env.GetWorkflowError(), "empty Range provided")
+}
+
+func (s *concreteExectionsWorkflowsSuite) TestConcreteScannerWorkflow_Start_Error() {
+	env := s.NewTestWorkflowEnvironment()
+
+	params := shardscanner.ScannerWorkflowParams{
+		Shards: shardscanner.Shards{
+			Range: &shardscanner.ShardRange{
+				Min: 0,
+				Max: 30,
+			},
+		},
+		ScannerWorkflowConfigOverwrites: shardscanner.ScannerWorkflowConfigOverwrites{},
+	}
+
+	cfg := shardscanner.ScannerConfigActivityParams{
+		Overwrites: params.ScannerWorkflowConfigOverwrites,
+	}
+
+	env.OnActivity(shardscanner.ActivityScannerConfig, mock.Anything, cfg).Return(shardscanner.ResolvedScannerWorkflowConfig{}, assert.AnError)
+
+	env.ExecuteWorkflow(ConcreteScannerWorkflow, params)
+
+	s.True(env.IsWorkflowCompleted())
+	s.ErrorContains(env.GetWorkflowError(), assert.AnError.Error())
+}
+
+func (s *concreteExectionsWorkflowsSuite) TestConcreteFixerWorkflow_NewScannerWorkflow_Error() {
+	env := s.NewTestWorkflowEnvironment()
+
+	params := shardscanner.FixerWorkflowParams{
+		ScannerWorkflowWorkflowID: constants.TestWorkflowID,
+		ScannerWorkflowRunID:      constants.TestRunID,
+	}
+
+	fixerCorruptedKeysActivityParams := shardscanner.FixerCorruptedKeysActivityParams{
+		ScannerWorkflowWorkflowID: params.ScannerWorkflowWorkflowID,
+		ScannerWorkflowRunID:      params.ScannerWorkflowRunID,
+		StartingShardID:           nil,
+	}
+
+	env.OnActivity(shardscanner.ActivityFixerCorruptedKeys, mock.Anything, fixerCorruptedKeysActivityParams).Return(&shardscanner.FixerCorruptedKeysActivityResult{}, assert.AnError)
+
+	env.ExecuteWorkflow(ConcreteFixerWorkflow, params)
+
+	s.True(env.IsWorkflowCompleted())
+	s.ErrorContains(env.GetWorkflowError(), assert.AnError.Error())
+}
+
+func (s *concreteExectionsWorkflowsSuite) TestConcreteFixerWorkflow_Start_Error() {
+	env := s.NewTestWorkflowEnvironment()
+
+	params := shardscanner.FixerWorkflowParams{
+		ScannerWorkflowWorkflowID: constants.TestWorkflowID,
+		ScannerWorkflowRunID:      constants.TestRunID,
+	}
+
+	fixerCorruptedKeysActivityParams := shardscanner.FixerCorruptedKeysActivityParams{
+		ScannerWorkflowWorkflowID: params.ScannerWorkflowWorkflowID,
+		ScannerWorkflowRunID:      params.ScannerWorkflowRunID,
+		StartingShardID:           nil,
+	}
+
+	env.OnActivity(shardscanner.ActivityFixerCorruptedKeys, mock.Anything, fixerCorruptedKeysActivityParams).Return(&shardscanner.FixerCorruptedKeysActivityResult{
+		CorruptedKeys: []shardscanner.CorruptedKeysEntry{
+			{
+				ShardID: 2,
+				CorruptedKeys: store.Keys{
+					UUID:    "test_uuid",
+					MinPage: 0,
+					MaxPage: 10,
+				},
+			},
+		},
+		MinShard: common.IntPtr(0),
+		MaxShard: common.IntPtr(30),
+	}, nil)
+
+	env.OnActivity(shardscanner.ActivityFixerConfig, mock.Anything, shardscanner.FixShardConfigParams{}).Return(&shardscanner.FixShardConfigResults{}, assert.AnError)
+
+	env.ExecuteWorkflow(ConcreteFixerWorkflow, params)
+
+	s.True(env.IsWorkflowCompleted())
+	s.ErrorContains(env.GetWorkflowError(), assert.AnError.Error())
+}
+
+func Test_concreteExecutionScannerHooks(t *testing.T) {
+	h := concreteExecutionScannerHooks()
+
+	assert.NotNil(t, h)
+}
+
+func Test_concreteExecutionFixerHooks(t *testing.T) {
+	h := concreteExecutionFixerHooks()
+
+	assert.NotNil(t, h)
+}
+
+func Test_concreteExecutionScannerManager(t *testing.T) {
+	params := shardscanner.ScanShardActivityParams{
+		Shards: []int{1, 2, 3},
+		ScannerConfig: shardscanner.CustomScannerConfig{
+			"CollectionHistory": strconv.FormatBool(true),
+		},
+	}
+
+	m := concreteExecutionScannerManager(context.Background(), nil, params, nil)
+
+	assert.NotNil(t, m)
+}
+
+func Test_concreteExecutionScannerIterator(t *testing.T) {
+	params := shardscanner.ScanShardActivityParams{
+		Shards: []int{1, 2, 3},
+		ScannerConfig: shardscanner.CustomScannerConfig{
+			"CollectionHistory": strconv.FormatBool(true),
+		},
+		PageSize: 1,
+	}
+
+	ctrl := gomock.NewController(t)
+	mockRetryer := persistence.NewMockRetryer(ctrl)
+
+	mockRetryer.EXPECT().ListConcreteExecutions(gomock.Any(), gomock.Any()).Return(&persistence.ListConcreteExecutionsResponse{
+		Executions: []*persistence.ListConcreteExecutionsEntity{
+			{
+				ExecutionInfo: &persistence.WorkflowExecutionInfo{
+					DomainID:    constants.TestDomainID,
+					WorkflowID:  constants.TestWorkflowID,
+					RunID:       constants.TestRunID,
+					BranchToken: testdata.BranchToken,
+				},
+			},
+		},
+	}, nil).Times(1)
+
+	i := concreteExecutionScannerIterator(context.Background(), mockRetryer, params)
+
+	assert.NotNil(t, i)
+}
+
+func Test_concreteExecutionFixerIterator(t *testing.T) {
+	ctx := context.Background()
+	mockClient := &blobstore.MockClient{}
+	req := &blobstore.GetRequest{
+		Key: concreteExecutionsFixerTaskListName + "_0.",
+	}
+
+	mockClient.On("Get", ctx, req).Return(&blobstore.GetResponse{}, nil).Once()
+
+	it := concreteExecutionFixerIterator(
+		ctx,
+		mockClient,
+		store.Keys{UUID: concreteExecutionsFixerTaskListName},
+		shardscanner.FixShardActivityParams{})
+
+	assert.NotNil(t, it)
+}
+
+func Test_concreteExecutionFixerManager(t *testing.T) {
+	mockRetryer := persistence.NewMockRetryer(gomock.NewController(t))
+
+	params := shardscanner.FixShardActivityParams{
+		EnabledInvariants: shardscanner.CustomScannerConfig{
+			"CollectionHistory": strconv.FormatBool(true),
+		},
+	}
+
+	m := concreteExecutionFixerManager(context.Background(), mockRetryer, params, nil)
+
+	assert.NotNil(t, m)
+}
+
+func Test_concreteExecutionFixerManager_Panic(t *testing.T) {
+	mockRetryer := persistence.NewMockRetryer(gomock.NewController(t))
+
+	params := shardscanner.FixShardActivityParams{
+		EnabledInvariants: shardscanner.CustomScannerConfig{
+			"NotAnInvariantKey": strconv.FormatBool(true),
+		},
+	}
+	assert.Panics(t, func() {
+		concreteExecutionFixerManager(context.Background(), mockRetryer, params, nil)
+	})
+}
+
+func Test_concreteExecutionCustomScannerConfig(t *testing.T) {
+	mockClient := dynamicconfig.NewMockClient(gomock.NewController(t))
+
+	collection := dynamicconfig.NewCollection(mockClient, log.NewNoop())
+
+	mockClient.EXPECT().GetBoolValue(gomock.Any(), gomock.Any()).Return(true, nil).Times(3)
+
+	ctx := shardscanner.ScannerContext{
+		Config: &shardscanner.ScannerConfig{
+			DynamicCollection: collection,
+		},
+	}
+
+	cfg := concreteExecutionCustomScannerConfig(ctx)
+
+	assert.NotNil(t, cfg)
+	assert.Len(t, cfg, 3)
+	assert.Equal(t, "true", cfg[invariant.CollectionHistory.String()])
+	assert.Equal(t, "true", cfg[invariant.CollectionMutableState.String()])
+	assert.Equal(t, "true", cfg[invariant.CollectionStale.String()])
+}
+
+func Test_concreteExecutionCustomFixerConfig(t *testing.T) {
+	mockClient := dynamicconfig.NewMockClient(gomock.NewController(t))
+
+	collection := dynamicconfig.NewCollection(mockClient, log.NewNoop())
+
+	mockClient.EXPECT().GetBoolValue(gomock.Any(), gomock.Any()).Return(true, nil).Times(3)
+
+	ctx := shardscanner.FixerContext{
+		Config: &shardscanner.ScannerConfig{
+			DynamicCollection: collection,
+		},
+	}
+
+	cfg := concreteExecutionCustomFixerConfig(ctx)
+
+	assert.NotNil(t, cfg)
+	assert.Len(t, cfg, 3)
+	assert.Equal(t, "true", cfg[invariant.CollectionHistory.String()])
+	assert.Equal(t, "true", cfg[invariant.CollectionMutableState.String()])
+	assert.Equal(t, "true", cfg[invariant.CollectionStale.String()])
+}
+
+func TestConcreteExecutionConfig(t *testing.T) {
+	mockClient := dynamicconfig.NewMockClient(gomock.NewController(t))
+
+	collection := dynamicconfig.NewCollection(mockClient, log.NewNoop())
+
+	cfg := ConcreteExecutionConfig(collection)
+
+	assert.NotNil(t, cfg)
 }

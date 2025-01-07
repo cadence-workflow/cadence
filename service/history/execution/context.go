@@ -598,11 +598,6 @@ func (c *contextImpl) ConflictResolveWorkflowExecution(
 		return err
 	}
 
-	currentBranchToken, err := resetMutableState.GetCurrentBranchToken()
-	if err != nil {
-		return err
-	}
-
 	workflowState, workflowCloseState := resetMutableState.GetWorkflowStateCloseStatus()
 	// Current branch changed and notify the watchers
 	c.shard.GetEngine().NotifyNewHistoryEvent(events.NewNotification(
@@ -611,9 +606,9 @@ func (c *contextImpl) ConflictResolveWorkflowExecution(
 		resetMutableState.GetLastFirstEventID(),
 		resetMutableState.GetNextEventID(),
 		resetMutableState.GetPreviousStartedEventID(),
-		currentBranchToken,
 		workflowState,
 		workflowCloseState,
+		resetMutableState.GetVersionHistories().Duplicate(),
 	))
 
 	c.notifyTasksFromWorkflowSnapshotFn(resetWorkflow, persistedBlobs, false)
@@ -847,10 +842,6 @@ func (c *contextImpl) UpdateWorkflowExecutionWithNew(
 	}
 
 	// for any change in the workflow, send a event
-	currentBranchToken, err := c.mutableState.GetCurrentBranchToken()
-	if err != nil {
-		return err
-	}
 	workflowState, workflowCloseState := c.mutableState.GetWorkflowStateCloseStatus()
 	c.shard.GetEngine().NotifyNewHistoryEvent(events.NewNotification(
 		c.domainID,
@@ -858,9 +849,9 @@ func (c *contextImpl) UpdateWorkflowExecutionWithNew(
 		c.mutableState.GetLastFirstEventID(),
 		c.mutableState.GetNextEventID(),
 		c.mutableState.GetPreviousStartedEventID(),
-		currentBranchToken,
 		workflowState,
 		workflowCloseState,
+		c.mutableState.GetVersionHistories().Duplicate(),
 	))
 
 	// notify current workflow tasks

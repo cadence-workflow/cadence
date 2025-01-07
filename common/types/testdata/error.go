@@ -22,6 +22,7 @@ package testdata
 
 import (
 	"github.com/uber/cadence/common"
+	cadence_errors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -112,6 +113,11 @@ var (
 	StickyWorkerUnavailableError = types.StickyWorkerUnavailableError{
 		Message: ErrorMessage,
 	}
+	TaskListNotOwnedByHostError = cadence_errors.TaskListNotOwnedByHostError{
+		OwnedByIdentity: HostName,
+		MyIdentity:      HostName2,
+		TasklistName:    TaskListName,
+	}
 )
 
 var Errors = []error{
@@ -136,4 +142,5 @@ var Errors = []error{
 	&ShardOwnershipLostError,
 	&WorkflowExecutionAlreadyStartedError,
 	&StickyWorkerUnavailableError,
+	&TaskListNotOwnedByHostError,
 }

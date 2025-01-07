@@ -4,7 +4,7 @@ Author: Yichao Yang (@yycptt)
 
 Last updated: July 2019
 
-Discussion at <https://github.com/uber-go/cadence-client/issues/697>
+Discussion at <https://github.com/cadence-workflow/cadence-go-client/issues/697>
 
 ## Abstract
 
@@ -51,7 +51,7 @@ The SessionOptions struct contains two fields: `ExecutionTimeout`, which specifi
 CreateSession() will return an error if the context passed in already contains an open session. If all the workers are currently busy and unable to handle new sessions, the framework will keep retrying until the CreationTimeout you specified in the SessionOptions has passed before returning an error.
 
 When executing an activity within a session, a user might get three types of errors:
-1. Those returned from user activities. The session will not be marked as failed in this case, so the user can return whatever error they want and apply their business logic as necessary. If a user wants to end a session due to the error returned from the activity, use the CompleteSession() API below. 
+1. Those returned from user activities. The session will not be marked as failed in this case, so the user can return whatever error they want and apply their business logic as necessary. If a user wants to end a session due to the error returned from the activity, use the CompleteSession() API below.
 2. A special `ErrSessionFailed` error: this error means the session has failed due to worker failure and the session is marked as failed in the background. In this case, no activities can be executed using this context. The user can choose how to handle the failure. They can create a new session to retry or end the workflow with an error.
 3. Cancelled error: If a session activity has been scheduled before worker failure is detected, it will be cancelled afterwards and a cancelled error will be returned.
 
@@ -65,7 +65,7 @@ This API is used to complete a session. It releases the resources reserved on th
 sessionInfoPtr := workflow.GetSessionInfo(sessionCtx Context)
 ```
 
-This API returns session metadata stored in the context. If the context passed in doesn’t contain any session metadata, this API will return a nil pointer. For now, the only exported fields in sessionInfo are: sessionID, which is a unique identifier for a session, and hostname. 
+This API returns session metadata stored in the context. If the context passed in doesn’t contain any session metadata, this API will return a nil pointer. For now, the only exported fields in sessionInfo are: sessionID, which is a unique identifier for a session, and hostname.
 
 ```go
 sessionCtx, err := workflow.RecreateSession(ctx Context, recreateToken []byte, so *SessionOptions)
@@ -155,7 +155,7 @@ When a user calls the CreateSession() or RecreateSession() API, a structure that
 2. **Hostname**: the hostname of the worker that is responsible for executing the session. (Exported)
 
 3. **ResourceID**: the resource consumed by the session. (Will Be Exported)
- 
+
 4. **tasklist**: the resource specific tasklist used by this session. (Not Exported)
 
 5. **sessionState**: the state of the session (Not Exported).  It can take one of the three values below:
@@ -178,7 +178,7 @@ When scheduling an activity, the workflow worker needs to check the context to s
 
 CreateSession() and CompleteSession() really do are **schedule special activities** and get some information from the worker which executes these activities.
 
-* For CreateSession(), a special **session creation activity** will be scheduled on a global tasklist which is only used for this type of activity. During the execution of that activity, a signal containing the resource specific tasklist name will be sent back to the workflow (with other information like hostname). Once the signal is received by the worker, the creation is considered successful and the tasklist name will be stored in the session context. The creation activity also performs periodic heartbeat throughout the whole lifetime of the session. As a result, if the activity worker is down, the workflow can be notified and set the session state to “Failed”. 
+* For CreateSession(), a special **session creation activity** will be scheduled on a global tasklist which is only used for this type of activity. During the execution of that activity, a signal containing the resource specific tasklist name will be sent back to the workflow (with other information like hostname). Once the signal is received by the worker, the creation is considered successful and the tasklist name will be stored in the session context. The creation activity also performs periodic heartbeat throughout the whole lifetime of the session. As a result, if the activity worker is down, the workflow can be notified and set the session state to “Failed”.
 
 * For RecreateSession(), the same thing happens. The only difference is that the session creation activity will be **scheduled on the resource specific task list instead of a global one**.
 

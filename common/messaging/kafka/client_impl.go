@@ -141,7 +141,8 @@ func (c *clientImpl) newProducerByTopic(topic string) (messaging.Producer, error
 
 	if c.metricsClient != nil {
 		c.logger.Info("Create producer with metricsClient")
-		return messaging.NewMetricProducer(NewKafkaProducer(topic, producer, c.logger), c.metricsClient), nil
+		withMetricsOpt := messaging.WithMetricTags(metrics.TopicTag(topic))
+		return messaging.NewMetricProducer(NewKafkaProducer(topic, producer, c.logger), c.metricsClient, withMetricsOpt), nil
 	}
 	return NewKafkaProducer(topic, producer, c.logger), nil
 }

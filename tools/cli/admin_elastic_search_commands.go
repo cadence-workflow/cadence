@@ -22,7 +22,6 @@ package cli
 
 import (
 	"bufio"
-	"context"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -33,7 +32,7 @@ import (
 
 	"github.com/olekukonko/tablewriter"
 	"github.com/olivere/elastic"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 
 	"github.com/uber/cadence/.gen/go/indexer"
 	"github.com/uber/cadence/common/clock"
@@ -41,6 +40,7 @@ import (
 	es "github.com/uber/cadence/common/elasticsearch"
 	"github.com/uber/cadence/common/elasticsearch/esql"
 	"github.com/uber/cadence/common/tokenbucket"
+	"github.com/uber/cadence/tools/common/commoncli"
 )
 
 const (
@@ -83,13 +83,16 @@ type ESIndexRow struct {
 }
 
 // AdminCatIndices cat indices for ES cluster
-func AdminCatIndices(c *cli.Context) {
-	esClient := cFactory.ElasticSearchClient(c)
+func AdminCatIndices(c *cli.Context) error {
+	esClient, err := getDeps(c).ElasticSearchClient(c)
+	if err != nil {
+		return err
+	}
 
-	ctx := context.Background()
+	ctx := c.Context
 	resp, err := esClient.CatIndices().Do(ctx)
 	if err != nil {
-		ErrorAndExit("Unable to cat indices", err)
+		return commoncli.Problem("Unable to cat indices", err)
 	}
 
 	table := []ESIndexRow{}
@@ -106,37 +109,50 @@ func AdminCatIndices(c *cli.Context) {
 			PrimaryStorageSize: row.PriStoreSize,
 		})
 	}
-	Render(c, table, RenderOptions{DefaultTemplate: templateTable, Color: true, Border: true})
+	return Render(c, table, RenderOptions{DefaultTemplate: templateTable, Color: true, Border: true})
 }
 
 // AdminIndex used to bulk insert message from kafka parse
-func AdminIndex(c *cli.Context) {
-	esClient := cFactory.ElasticSearchClient(c)
-	indexName := getRequiredOption(c, FlagIndex)
-	inputFileName := getRequiredOption(c, FlagInputFile)
+func AdminIndex(c *cli.Context) error {
+	esClient, err := getDeps(c).ElasticSearchClient(c)
+	if err != nil {
+		return err
+	}
+	indexName, err := getRequiredOption(c, FlagIndex)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
+	inputFileName, err := getRequiredOption(c, FlagInputFile)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
 	batchSize := c.Int(FlagBatchSize)
 
 	messages, err := parseIndexerMessage(inputFileName)
 	if err != nil {
-		ErrorAndExit("Unable to parse indexer message", err)
+		return commoncli.Problem("Unable to parse indexer message", err)
 	}
 
 	bulkRequest := esClient.Bulk()
-	bulkConductFn := func() {
-		_, err := bulkRequest.Do(context.Background())
+	bulkConductFn := func() error {
+		_, err := bulkRequest.Do(c.Context)
 		if err != nil {
-			ErrorAndExit("Bulk failed", err)
+			return commoncli.Problem("Bulk failed", err)
 		}
 		if bulkRequest.NumberOfActions() != 0 {
-			ErrorAndExit(fmt.Sprintf("Bulk request not done, %d", bulkRequest.NumberOfActions()), err)
+			return commoncli.Problem(fmt.Sprintf("Bulk request not done, %d", bulkRequest.NumberOfActions()), err)
 		}
+		return nil
 	}
 	for i, message := range messages {
 		docID := message.GetWorkflowID() + elasticsearch.GetESDocDelimiter() + message.GetRunID()
 		var req elastic.BulkableRequest
 		switch message.GetMessageType() {
 		case indexer.MessageTypeIndex:
-			doc := generateESDoc(message)
+			doc, err := generateESDoc(message)
+			if err != nil {
+				return commoncli.Problem("Error in Admin Index: ", err)
+			}
 			req = elastic.NewBulkIndexRequest().
 				Index(indexName).
 				Type(elasticsearch.GetESDocType()).
@@ -159,24 +175,38 @@ func AdminIndex(c *cli.Context) {
 				Id(docID).
 				VersionType("internal")
 		default:
-			ErrorAndExit("Unknown message type", nil)
+			return commoncli.Problem("Unknown message type", nil)
 		}
 		bulkRequest.Add(req)
 
 		if i%batchSize == batchSize-1 {
-			bulkConductFn()
+			if err := bulkConductFn(); err != nil {
+				return err
+			}
 		}
 	}
 	if bulkRequest.NumberOfActions() != 0 {
-		bulkConductFn()
+		if err := bulkConductFn(); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 // AdminDelete used to delete documents from ElasticSearch with input of list result
-func AdminDelete(c *cli.Context) {
-	esClient := cFactory.ElasticSearchClient(c)
-	indexName := getRequiredOption(c, FlagIndex)
-	inputFileName := getRequiredOption(c, FlagInputFile)
+func AdminDelete(c *cli.Context) error {
+	esClient, err := getDeps(c).ElasticSearchClient(c)
+	if err != nil {
+		return err
+	}
+	indexName, err := getRequiredOption(c, FlagIndex)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
+	inputFileName, err := getRequiredOption(c, FlagInputFile)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
 	batchSize := c.Int(FlagBatchSize)
 	rps := c.Int(FlagRPS)
 	ratelimiter := tokenbucket.New(rps, clock.NewRealTimeSource())
@@ -185,7 +215,7 @@ func AdminDelete(c *cli.Context) {
 	// #nosec
 	file, err := os.Open(inputFileName)
 	if err != nil {
-		ErrorAndExit("Cannot open input file", nil)
+		return commoncli.Problem("Cannot open input file", nil)
 	}
 	defer file.Close()
 	scanner := bufio.NewScanner(file)
@@ -194,18 +224,19 @@ func AdminDelete(c *cli.Context) {
 	i := 0
 
 	bulkRequest := esClient.Bulk()
-	bulkConductFn := func() {
+	bulkConductFn := func() error {
 		ok, waitTime := ratelimiter.TryConsume(1)
 		if !ok {
 			time.Sleep(waitTime)
 		}
-		_, err := bulkRequest.Do(context.Background())
+		_, err := bulkRequest.Do(c.Context)
 		if err != nil {
-			ErrorAndExit(fmt.Sprintf("Bulk failed, current processed row %d", i), err)
+			return commoncli.Problem(fmt.Sprintf("Bulk failed, current processed row %d", i), err)
 		}
 		if bulkRequest.NumberOfActions() != 0 {
-			ErrorAndExit(fmt.Sprintf("Bulk request not done, current processed row %d", i), err)
+			return commoncli.Problem(fmt.Sprintf("Bulk request not done, current processed row %d", i), err)
 		}
+		return nil
 	}
 
 	for scanner.Scan() {
@@ -219,13 +250,16 @@ func AdminDelete(c *cli.Context) {
 			Version(math.MaxInt64)
 		bulkRequest.Add(req)
 		if i%batchSize == batchSize-1 {
-			bulkConductFn()
+			if err := bulkConductFn(); err != nil {
+				return err
+			}
 		}
 		i++
 	}
 	if bulkRequest.NumberOfActions() != 0 {
-		bulkConductFn()
+		return bulkConductFn()
 	}
+	return nil
 }
 
 func parseIndexerMessage(fileName string) (messages []*indexer.Message, err error) {
@@ -262,7 +296,7 @@ func parseIndexerMessage(fileName string) (messages []*indexer.Message, err erro
 	return messages, nil
 }
 
-func generateESDoc(msg *indexer.Message) map[string]interface{} {
+func generateESDoc(msg *indexer.Message) (map[string]interface{}, error) {
 	doc := make(map[string]interface{})
 	doc[es.DomainID] = msg.GetDomainID()
 	doc[es.WorkflowID] = msg.GetWorkflowID()
@@ -279,10 +313,10 @@ func generateESDoc(msg *indexer.Message) map[string]interface{} {
 		case indexer.FieldTypeBinary:
 			doc[k] = v.GetBinaryData()
 		default:
-			ErrorAndExit("Unknown field type", nil)
+			return nil, fmt.Errorf("Unknown field type %v", nil)
 		}
 	}
-	return doc
+	return doc, nil
 }
 
 // This function is used to trim unnecessary tag in returned json for table header
@@ -305,10 +339,18 @@ func toTimeStr(s interface{}) string {
 }
 
 // GenerateReport generate report for an aggregation query to ES
-func GenerateReport(c *cli.Context) {
+func GenerateReport(c *cli.Context) error {
+	output := getDeps(c).Output()
+
 	// use url command argument to create client
-	index := getRequiredOption(c, FlagIndex)
-	sql := getRequiredOption(c, FlagListQuery)
+	index, err := getRequiredOption(c, FlagIndex)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
+	sql, err := getRequiredOption(c, FlagListQuery)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
 	var reportFormat, reportFilePath string
 	if c.IsSet(FlagOutputFormat) {
 		reportFormat = c.String(FlagOutputFormat)
@@ -318,8 +360,11 @@ func GenerateReport(c *cli.Context) {
 	} else {
 		reportFilePath = "./report." + reportFormat
 	}
-	esClient := cFactory.ElasticSearchClient(c)
-	ctx := context.Background()
+	esClient, err := getDeps(c).ElasticSearchClient(c)
+	if err != nil {
+		return err
+	}
+	ctx := c.Context
 
 	// convert sql to dsl
 	e := esql.NewESql()
@@ -327,28 +372,28 @@ func GenerateReport(c *cli.Context) {
 	e.ProcessQueryValue(timeKeyFilter, timeValProcess)
 	dsl, sortFields, err := e.ConvertPrettyCadence(sql, "")
 	if err != nil {
-		ErrorAndExit("Fail to convert sql to dsl", err)
+		return commoncli.Problem("Fail to convert sql to dsl", err)
 	}
 
 	// query client
 	resp, err := esClient.Search(index).Source(dsl).Do(ctx)
 	if err != nil {
-		ErrorAndExit("Fail to talk with ES", err)
+		return commoncli.Problem("Fail to talk with ES", err)
 	}
 
 	// Show result to terminal
-	table := tablewriter.NewWriter(os.Stdout)
+	table := tablewriter.NewWriter(output)
 	var headers []string
 	var groupby, bucket map[string]interface{}
 	var buckets []interface{}
 	err = json.Unmarshal(*resp.Aggregations["groupby"], &groupby)
 	if err != nil {
-		ErrorAndExit("Fail to parse groupby", err)
+		return commoncli.Problem("Fail to parse groupby", err)
 	}
 	buckets = groupby["buckets"].([]interface{})
 	if len(buckets) == 0 {
-		fmt.Println("no matching bucket")
-		return
+		output.Write([]byte("no matching bucket\n"))
+		return nil
 	}
 
 	// get the FIRST bucket in bucket list to extract all tags. These extracted tags are to be used as table heads
@@ -434,19 +479,19 @@ func GenerateReport(c *cli.Context) {
 	switch reportFormat {
 	case "html", "HTML":
 		sorted := len(sortFields) > 0 || strings.Contains(sql, "ORDER BY") || strings.Contains(sql, "order by")
-		generateHTMLReport(reportFilePath, buckKeys, sorted, headers, tableData)
+		return generateHTMLReport(reportFilePath, buckKeys, sorted, headers, tableData)
 	case "csv", "CSV":
-		generateCSVReport(reportFilePath, headers, tableData)
+		return generateCSVReport(reportFilePath, headers, tableData)
 	default:
-		ErrorAndExit(fmt.Sprintf(`Report format %v not supported.`, reportFormat), nil)
+		return commoncli.Problem(fmt.Sprintf(`Report format %v not supported.`, reportFormat), nil)
 	}
 }
 
-func generateCSVReport(reportFileName string, headers []string, tableData [][]string) {
+func generateCSVReport(reportFileName string, headers []string, tableData [][]string) error {
 	// write csv report
 	f, err := os.Create(reportFileName)
 	if err != nil {
-		ErrorAndExit("Fail to create csv report file", err)
+		return commoncli.Problem("Fail to create csv report file", err)
 	}
 	csvContent := strings.Join(headers, ",") + "\n"
 	for _, data := range tableData {
@@ -456,14 +501,14 @@ func generateCSVReport(reportFileName string, headers []string, tableData [][]st
 	if err != nil {
 		fmt.Printf("Error write to file, err: %v", err)
 	}
-	f.Close()
+	return f.Close()
 }
 
-func generateHTMLReport(reportFileName string, numBuckKeys int, sorted bool, headers []string, tableData [][]string) {
+func generateHTMLReport(reportFileName string, numBuckKeys int, sorted bool, headers []string, tableData [][]string) error {
 	// write html report
 	f, err := os.Create(reportFileName)
 	if err != nil {
-		ErrorAndExit("Fail to create html report file", err)
+		return commoncli.Problem("Fail to create html report file", err)
 	}
 	var htmlContent string
 	m, n := len(headers), len(tableData)
@@ -522,8 +567,7 @@ func generateHTMLReport(reportFileName string, numBuckKeys int, sorted bool, hea
 	</style>
 	</head>` + "\n")
 	f.WriteString(htmlContent)
-	f.Close()
-
+	return f.Close()
 }
 
 // return a string that use tag to wrap content

@@ -131,6 +131,7 @@ func (s *markerNotifierSuite) TestNotifyPendingFailoverMarker() {
 		replicationConfig,
 		1,
 		endTime,
+		0, 0, 0,
 	)
 	s.mockDomainCache.EXPECT().GetDomainByID(domainID).Return(domainEntry, nil).AnyTimes()
 	task := &types.FailoverMarkerAttributes{

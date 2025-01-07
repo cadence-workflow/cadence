@@ -38,7 +38,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 	"go.uber.org/yarpc/yarpcerrors"
+	"golang.org/x/exp/maps"
 
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/log"
@@ -1637,4 +1639,92 @@ func TestSecondsToDuration(t *testing.T) {
 func TestNewPerTaskListScope(t *testing.T) {
 	assert.NotNil(t, NewPerTaskListScope("test-domain", "test-tasklist", types.TaskListKindNormal, metrics.NewNoopMetricsClient(), 0))
 	assert.NotNil(t, NewPerTaskListScope("test-domain", "test-tasklist", types.TaskListKindSticky, metrics.NewNoopMetricsClient(), 0))
+}
+
+func TestCheckEventBlobSizeLimit(t *testing.T) {
+	for name, c := range map[string]struct {
+		blobSize      int
+		warnSize      int
+		errSize       int
+		wantErr       error
+		prepareLogger func(*log.MockLogger)
+		assertMetrics func(tally.Snapshot)
+	}{
+		"blob size is less than limit": {
+			blobSize: 10,
+			warnSize: 20,
+			errSize:  30,
+			wantErr:  nil,
+		},
+		"blob size is greater than warn limit": {
+			blobSize: 21,
+			warnSize: 20,
+			errSize:  30,
+			wantErr:  nil,
+			prepareLogger: func(logger *log.MockLogger) {
+				logger.On("Warn", "Blob size close to the limit.", mock.Anything).Once()
+			},
+		},
+		"blob size is greater than error limit": {
+			blobSize: 31,
+			warnSize: 20,
+			errSize:  30,
+			wantErr:  ErrBlobSizeExceedsLimit,
+			prepareLogger: func(logger *log.MockLogger) {
+				logger.On("Error", "Blob size exceeds limit.", mock.Anything).Once()
+			},
+			assertMetrics: func(snapshot tally.Snapshot) {
+				counters := snapshot.Counters()
+				assert.Len(t, counters, 1)
+				values := maps.Values(counters)
+				assert.Equal(t, "test.blob_size_exceed_limit", values[0].Name())
+				assert.Equal(t, int64(1), values[0].Value())
+			},
+		},
+		"error limit is less then warn limit": {
+			blobSize: 21,
+			warnSize: 30,
+			errSize:  20,
+			wantErr:  ErrBlobSizeExceedsLimit,
+			prepareLogger: func(logger *log.MockLogger) {
+				logger.On("Warn", "Error limit is less than warn limit.", mock.Anything).Once()
+				logger.On("Error", "Blob size exceeds limit.", mock.Anything).Once()
+			},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			testScope := tally.NewTestScope("test", nil)
+			metricsClient := metrics.NewClient(testScope, metrics.History)
+			logger := &log.MockLogger{}
+			defer logger.AssertExpectations(t)
+
+			if c.prepareLogger != nil {
+				c.prepareLogger(logger)
+			}
+
+			const (
+				domainID   = "testDomainID"
+				domainName = "testDomainName"
+				workflowID = "testWorkflowID"
+				runID      = "testRunID"
+			)
+
+			got := CheckEventBlobSizeLimit(
+				c.blobSize,
+				c.warnSize,
+				c.errSize,
+				domainID,
+				domainName,
+				workflowID,
+				runID,
+				metricsClient.Scope(1),
+				logger,
+				tag.OperationName("testOperation"),
+			)
+			require.Equal(t, c.wantErr, got)
+			if c.assertMetrics != nil {
+				c.assertMetrics(testScope.Snapshot())
+			}
+		})
+	}
 }

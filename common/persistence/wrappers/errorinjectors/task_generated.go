@@ -137,6 +137,21 @@ func (c *injectorTaskManager) GetOrphanTasks(ctx context.Context, request *persi
 	return
 }
 
+func (c *injectorTaskManager) GetTaskList(ctx context.Context, request *persistence.GetTaskListRequest) (gp1 *persistence.GetTaskListResponse, err error) {
+	fakeErr := generateFakeError(c.errorRate)
+	var forwardCall bool
+	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
+		gp1, err = c.wrapped.GetTaskList(ctx, request)
+	}
+
+	if fakeErr != nil {
+		logErr(c.logger, "TaskManager.GetTaskList", fakeErr, forwardCall, err)
+		err = fakeErr
+		return
+	}
+	return
+}
+
 func (c *injectorTaskManager) GetTaskListSize(ctx context.Context, request *persistence.GetTaskListSizeRequest) (gp1 *persistence.GetTaskListSizeResponse, err error) {
 	fakeErr := generateFakeError(c.errorRate)
 	var forwardCall bool

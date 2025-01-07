@@ -38,6 +38,6 @@ type isolationGroups struct {
 type defaultConfig struct {
 	// IsolationGroupEnabled is a domain-based configuration value for whether this feature is enabled at all
 	IsolationGroupEnabled dynamicconfig.BoolPropertyFnWithDomainFilter
-	// AllIsolationGroups is a static list of all the possible isolation group names
-	AllIsolationGroups []string
+	// AllIsolationGroups is all the possible isolation-groups available for a region
+	AllIsolationGroups func() []string
 }

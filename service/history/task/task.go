@@ -30,6 +30,7 @@ import (
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/dynamicconfig"
+	cadence_errors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -268,6 +269,14 @@ func (t *taskImpl) HandleErr(err error) (retErr error) {
 	// If the shard were recently closed we just return an error, so we retry in a bit.
 	var errShardClosed *shard.ErrShardClosed
 	if errors.As(err, &errShardClosed) && time.Since(errShardClosed.ClosedAt) < shard.TimeBeforeShardClosedIsError {
+		return err
+	}
+
+	// If the task list is not owned by the host we connected to we just return an error, so we retry in a bit
+	// with the new membership information.
+	var taskListNotOwnedByHostError *cadence_errors.TaskListNotOwnedByHostError
+	if errors.As(err, &taskListNotOwnedByHostError) {
+		t.scope.IncCounter(metrics.TaskListNotOwnedByHostCounterPerDomain)
 		return err
 	}
 

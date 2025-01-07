@@ -431,6 +431,15 @@ func (tc *TestCluster) GetMatchingClient() MatchingClient {
 	return tc.host.GetMatchingClient()
 }
 
+func (tc *TestCluster) GetMatchingClients() []MatchingClient {
+	clients := tc.host.GetMatchingClients()
+	result := make([]MatchingClient, 0, len(clients))
+	for _, client := range clients {
+		result = append(result, client)
+	}
+	return result
+}
+
 // GetExecutionManagerFactory returns an execution manager factory from the test cluster
 func (tc *TestCluster) GetExecutionManagerFactory() persistence.ExecutionManagerFactory {
 	return tc.host.GetExecutionManagerFactory()

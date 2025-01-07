@@ -7,12 +7,13 @@ set -eo pipefail
 
 testCase="${1:-default}"
 testCfg="testdata/matching_simulation_$testCase.yaml"
-testName="test-$testCase-$(date '+%Y-%m-%d-%H-%M-%S')"
+now="$(date '+%Y-%m-%d-%H-%M-%S')"
+timestamp="${2:-$now}"
+testName="test-$testCase-$timestamp"
 resultFolder="matching-simulator-output"
 mkdir -p "$resultFolder"
-eventLogsFile="$resultFolder/events.json"
+eventLogsFile="$resultFolder/$testName-events.json"
 testSummaryFile="$resultFolder/$testName-summary.txt"
-
 
 echo "Building test image"
 docker-compose -f docker/buildkite/docker-compose-local-matching-simulation.yml \
@@ -21,7 +22,7 @@ docker-compose -f docker/buildkite/docker-compose-local-matching-simulation.yml 
 echo "Running the test $testCase"
 docker-compose \
   -f docker/buildkite/docker-compose-local-matching-simulation.yml \
-  run -e MATCHING_SIMULATION_CONFIG=$testCfg --rm matching-simulator \
+  run -e MATCHING_SIMULATION_CONFIG=$testCfg --rm --remove-orphans matching-simulator \
   | grep -a --line-buffered "Matching New Event" \
   | sed "s/Matching New Event: //" \
   | jq . > "$eventLogsFile"
@@ -41,6 +42,11 @@ tmp=$(cat "$eventLogsFile" \
   | jq -c 'select(.EventName == "PollForDecisionTask returning task")' \
   | jq .Payload.Latency | awk '{s+=$0}END{print s/NR}')
 echo "Avg Task latency (ms): $tmp" | tee -a $testSummaryFile
+
+tmp=$(cat "$eventLogsFile" \
+  | jq -c 'select(.EventName == "PollForDecisionTask returning task")' \
+  | jq .Payload.Latency | sort -n | awk '{a[NR]=$0}END{print a[int(NR*0.50)]}')
+echo "P50 Task latency (ms): $tmp" | tee -a $testSummaryFile
 
 tmp=$(cat "$eventLogsFile" \
   | jq -c 'select(.EventName == "PollForDecisionTask returning task")' \
@@ -149,6 +155,11 @@ tmp=$(cat "$eventLogsFile" \
   | jq -c '.' | wc -l)
 echo "Async matches: $tmp" | tee -a $testSummaryFile
 
+echo "Matched tasks per tasklist:" | tee -a $testSummaryFile
+cat "$eventLogsFile" \
+  | jq -c 'select(.EventName | contains("Matched Task"))' \
+  | jq '.TaskListName' \
+  | jq -c '.' | sort -n | uniq -c | sed -e 's/^/     /' | tee -a $testSummaryFile
 
 echo "AddDecisionTask request per tasklist (excluding forwarded):" | tee -a $testSummaryFile
 cat "$eventLogsFile" \
@@ -176,6 +187,60 @@ cat "$eventLogsFile" \
   | jq '.TaskListName' \
   | jq -c '.' | sort -n | uniq -c | sed -e 's/^/     /' | tee -a $testSummaryFile
 
+echo "AddDecisionTask request per isolation group (excluding forwarded):" | tee -a $testSummaryFile
+cat "$eventLogsFile" \
+  | jq -c 'select(.EventName == "Received AddDecisionTask" and .Payload.RequestForwardedFrom == "")' \
+  | jq '.PartitionConfig."isolation-group"' \
+  | jq -c '.' | sort -n | uniq -c | sed -e 's/^/     /' | tee -a $testSummaryFile
+
+echo "AddDecisionTask request per isolation group (forwarded):" | tee -a $testSummaryFile
+cat "$eventLogsFile" \
+  | jq -c 'select(.EventName == "Received AddDecisionTask" and .Payload.RequestForwardedFrom != "")' \
+  | jq '.PartitionConfig."isolation-group"' \
+  | jq -c '.' | sort -n | uniq -c | sed -e 's/^/     /' | tee -a $testSummaryFile
+
+echo "PollForDecisionTask request per isolation group  (excluding forwarded):" | tee -a $testSummaryFile
+cat "$eventLogsFile" \
+  | jq -c 'select(.EventName == "Received PollForDecisionTask" and .Payload.RequestForwardedFrom == "")' \
+  | jq '.Payload.IsolationGroup' \
+  | jq -c '.' | sort -n | uniq -c | sed -e 's/^/     /' | tee -a $testSummaryFile
+
+echo "PollForDecisionTask request per isolation group  (forwarded):" | tee -a $testSummaryFile
+cat "$eventLogsFile" \
+  | jq -c 'select(.EventName == "Received PollForDecisionTask" and .Payload.RequestForwardedFrom != "")' \
+  | jq '.Payload.IsolationGroup' \
+  | jq -c '.' | sort -n | uniq -c | sed -e 's/^/     /' | tee -a $testSummaryFile
+
+echo "Latency per isolation group:" | tee -a $testSummaryFile
+cat "$eventLogsFile" \
+  | jq -c 'select(.EventName == "PollForDecisionTask returning task")' \
+  | jq -s 'group_by(.Payload.IsolationGroup)[] | {"IsolationGroup": .[0].Payload.IsolationGroup,
+   "Avg": (map(.Payload.Latency | tonumber) | add / length), "Median": (map(.Payload.Latency | tonumber) | sort | .[length/2]), "Max":(map(.Payload.Latency | tonumber) | max) }'\
+  | jq -s 'sort_by(.IsolationGroup)[]'\
+  | jq -r '[.IsolationGroup, .Median, .Avg, .Max] | @tsv' \
+  | sort -n | column -t  | sed -e 's/^/     /' | tee -a $testSummaryFile
+
+
+echo "Latency per isolation group and task list:" | tee -a $testSummaryFile
+cat "$eventLogsFile" \
+  | jq -c 'select(.EventName == "PollForDecisionTask returning task")' \
+  | jq -s 'group_by(.Payload.IsolationGroup, .TaskListName)[] | {"IsolationGroup": .[0].Payload.IsolationGroup, "TaskListName": .[0].TaskListName,
+   "Avg": (map(.Payload.Latency | tonumber) | add / length), "Median": (map(.Payload.Latency | tonumber) | sort | .[length/2]), "Max":(map(.Payload.Latency | tonumber) | max) }'\
+  | jq -s 'sort_by(.TaskListName, .IsolationGroup)[]'\
+  | jq -r '[.TaskListName, .IsolationGroup, .Median, .Avg, .Max] | @tsv' \
+  | sort -n | column -t  | sed -e 's/^/     /' | tee -a $testSummaryFile
+
+echo "Task Containment per isolation group and task list:" | tee -a $testSummaryFile
+cat "$eventLogsFile"\
+  | jq -c 'select(.EventName == "PollForDecisionTask returning task")' \
+  | jq -s 'group_by(.PartitionConfig."isolation-group", .TaskListName)[] | {"IsolationGroup": .[0].PartitionConfig."isolation-group", "TaskListName": .[0].TaskListName,
+   "Containment": (map(if .Payload.IsolationGroup == .PartitionConfig."isolation-group" then 1 else 0 end) | add / length) }'\
+  | jq -s 'sort_by(.TaskListName, .IsolationGroup)[]'\
+  | jq -r '[.TaskListName, .IsolationGroup, .Containment] | @tsv' \
+  | sort -n | column -t  | sed -e 's/^/     /' | tee -a $testSummaryFile
+
+
+echo "End of summary" | tee -a $testSummaryFile
 
 printf "\nResults are saved in $testSummaryFile\n"
 printf "For further analysis, please check $eventLogsFile via jq queries\n"

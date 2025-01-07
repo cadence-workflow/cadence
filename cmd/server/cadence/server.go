@@ -39,6 +39,7 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/configstore"
 	"github.com/uber/cadence/common/elasticsearch"
+	"github.com/uber/cadence/common/isolationgroup/isolationgroupapi"
 	"github.com/uber/cadence/common/log/loggerimpl"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/membership"
@@ -53,6 +54,7 @@ import (
 	"github.com/uber/cadence/service/frontend"
 	"github.com/uber/cadence/service/history"
 	"github.com/uber/cadence/service/matching"
+	"github.com/uber/cadence/service/sharddistributor"
 	"github.com/uber/cadence/service/worker"
 )
 
@@ -153,8 +155,9 @@ func (s *server) startService() common.Daemon {
 	)
 
 	params.MetricScope = svcCfg.Metrics.NewScope(params.Logger, params.Name)
+	params.MetricsClient = metrics.NewClient(params.MetricScope, service.GetMetricsServiceIdx(params.Name, params.Logger))
 
-	rpcParams, err := rpc.NewParams(params.Name, s.cfg, dc)
+	rpcParams, err := rpc.NewParams(params.Name, s.cfg, dc, params.Logger, params.MetricsClient)
 	if err != nil {
 		log.Fatalf("error creating rpc factory params: %v", err)
 	}
@@ -168,7 +171,7 @@ func (s *server) startService() common.Daemon {
 	peerProvider, err := ringpopprovider.New(
 		params.Name,
 		&s.cfg.Ringpop,
-		rpcFactory.GetChannel(),
+		rpcFactory.GetTChannel(),
 		membership.PortMap{
 			membership.PortGRPC:     svcCfg.RPC.GRPCPort,
 			membership.PortTchannel: svcCfg.RPC.Port,
@@ -179,8 +182,6 @@ func (s *server) startService() common.Daemon {
 	if err != nil {
 		log.Fatalf("ringpop provider failed: %v", err)
 	}
-
-	params.MetricsClient = metrics.NewClient(params.MetricScope, service.GetMetricsServiceIdx(params.Name, params.Logger))
 
 	params.MembershipResolver, err = membership.NewResolver(
 		peerProvider,
@@ -193,6 +194,8 @@ func (s *server) startService() common.Daemon {
 	params.PProfInitializer = svcCfg.PProf.NewInitializer(params.Logger)
 
 	params.ClusterRedirectionPolicy = s.cfg.ClusterGroupMetadata.ClusterRedirectionPolicy
+
+	params.GetIsolationGroups = getFromDynamicConfig(params, dc)
 
 	params.ClusterMetadata = cluster.NewMetadata(
 		clusterGroupMetadata.FailoverVersionIncrement,
@@ -215,62 +218,7 @@ func (s *server) startService() common.Daemon {
 	}
 
 	if isAdvancedVisEnabled {
-		// verify config of advanced visibility store
-		advancedVisStoreKey := s.cfg.Persistence.AdvancedVisibilityStore
-		advancedVisStore, ok := s.cfg.Persistence.DataStores[advancedVisStoreKey]
-		if !ok {
-			log.Fatalf("not able to find advanced visibility store in config: %v", advancedVisStoreKey)
-		}
-
-		// there are 3 circumstances:
-		// 1. advanced visibility store == elasticsearch, use ESClient and visibilityDualManager
-		// 2. advanced visibility store == pinot and in process of migration, use ESClient, PinotClient and and visibilityTripleManager
-		// 3. advanced visibility store == pinot and not migrating, use PinotClient and visibilityDualManager
-		if params.PersistenceConfig.AdvancedVisibilityStore == common.PinotVisibilityStoreName {
-			if advancedVisStore.Pinot.Migration.Enabled {
-				esVisibilityStore, ok := s.cfg.Persistence.DataStores[common.ESVisibilityStoreName]
-				if !ok {
-					log.Fatalf("not able to find elasticsearch visibility store in config")
-				}
-				params.ESConfig = esVisibilityStore.ElasticSearch
-				params.ESConfig.SetUsernamePassword()
-				esClient, err := elasticsearch.NewGenericClient(params.ESConfig, params.Logger)
-				if err != nil {
-					log.Fatalf("error creating elastic search client: %v", err)
-				}
-				params.ESClient = esClient
-
-				// verify index name
-				indexName, ok := params.ESConfig.Indices[common.VisibilityAppName]
-				if !ok || len(indexName) == 0 {
-					log.Fatalf("elastic search config missing visibility index")
-				}
-			} else {
-				params.ESClient = nil
-			}
-			params.PinotConfig = advancedVisStore.Pinot
-			pinotBroker := params.PinotConfig.Broker
-			pinotRawClient, err := pinot.NewFromBrokerList([]string{pinotBroker})
-			if err != nil || pinotRawClient == nil {
-				log.Fatalf("Creating Pinot visibility client failed: %v", err)
-			}
-			pinotClient := pnt.NewPinotClient(pinotRawClient, params.Logger, params.PinotConfig)
-			params.PinotClient = pinotClient
-		} else {
-			params.ESConfig = advancedVisStore.ElasticSearch
-			params.ESConfig.SetUsernamePassword()
-			esClient, err := elasticsearch.NewGenericClient(params.ESConfig, params.Logger)
-			if err != nil {
-				log.Fatalf("error creating elastic search client: %v", err)
-			}
-			params.ESClient = esClient
-
-			// verify index name
-			indexName, ok := params.ESConfig.Indices[common.VisibilityAppName]
-			if !ok || len(indexName) == 0 {
-				log.Fatalf("elastic search config missing visibility index")
-			}
-		}
+		s.setupVisibilityClients(&params)
 	}
 
 	publicClientConfig := params.RPCFactory.GetDispatcher().ClientConfig(rpc.OutboundPublicClient)
@@ -313,6 +261,8 @@ func (s *server) startService() common.Daemon {
 		log.Fatalf("error creating async queue provider: %v", err)
 	}
 
+	params.KafkaConfig = s.cfg.Kafka
+
 	params.Logger.Info("Starting service " + s.name)
 
 	var daemon common.Daemon
@@ -326,6 +276,8 @@ func (s *server) startService() common.Daemon {
 		daemon, err = matching.NewService(&params)
 	case service.Worker:
 		daemon, err = worker.NewService(&params)
+	case service.ShardDistributor:
+		daemon, err = sharddistributor.NewService(&params, resource.NewResourceFactory())
 	}
 	if err != nil {
 		params.Logger.Fatal("Fail to start "+s.name+" service ", tag.Error(err))
@@ -340,4 +292,101 @@ func (s *server) startService() common.Daemon {
 func execute(d common.Daemon, doneC chan struct{}) {
 	d.Start()
 	close(doneC)
+}
+
+// there are multiple circumstances:
+// 1. advanced visibility store == elasticsearch, use ESClient and visibilityDualManager
+// 2. advanced visibility store == pinot and in process of migration, use ESClient, PinotClient and and visibilityTripleManager
+// 3. advanced visibility store == pinot and not migrating, use PinotClient and visibilityDualManager
+// 4. advanced visibility store == opensearch and not migrating, this performs the same as 1, just use different version ES client and visibilityDualManager
+// 5. advanced visibility store == opensearch and in process of migration, use ESClient and visibilityTripleManager
+func (s *server) setupVisibilityClients(params *resource.Params) {
+	advancedVisStoreKey := s.cfg.Persistence.AdvancedVisibilityStore
+	advancedVisStore, ok := s.cfg.Persistence.DataStores[advancedVisStoreKey]
+	if !ok {
+		log.Fatalf("Cannot find advanced visibility store in config: %v", advancedVisStoreKey)
+	}
+
+	// Handle advanced visibility store based on type and migration state
+	switch advancedVisStoreKey {
+	case common.PinotVisibilityStoreName:
+		s.setupPinotClient(params, advancedVisStore)
+	case common.OSVisibilityStoreName:
+		s.setupOSClient(params, advancedVisStore)
+	default: // Assume Elasticsearch by default
+		s.setupESClient(params)
+	}
+}
+
+func (s *server) setupPinotClient(params *resource.Params, advancedVisStore config.DataStore) {
+	params.PinotConfig = advancedVisStore.Pinot
+	pinotBroker := params.PinotConfig.Broker
+	pinotRawClient, err := pinot.NewFromBrokerList([]string{pinotBroker})
+	if err != nil || pinotRawClient == nil {
+		log.Fatalf("Creating Pinot visibility client failed: %v", err)
+	}
+	params.PinotClient = pnt.NewPinotClient(pinotRawClient, params.Logger, params.PinotConfig)
+	if advancedVisStore.Pinot.Migration.Enabled {
+		s.setupESClient(params)
+	}
+}
+
+func (s *server) setupESClient(params *resource.Params) {
+	esVisibilityStore, ok := s.cfg.Persistence.DataStores[common.ESVisibilityStoreName]
+	if !ok {
+		log.Fatalf("Cannot find Elasticsearch visibility store in config")
+	}
+
+	params.ESConfig = esVisibilityStore.ElasticSearch
+	params.ESConfig.SetUsernamePassword()
+
+	esClient, err := elasticsearch.NewGenericClient(params.ESConfig, params.Logger)
+	if err != nil {
+		log.Fatalf("Error creating Elasticsearch client: %v", err)
+	}
+	params.ESClient = esClient
+
+	validateIndex(params.ESConfig)
+}
+
+func (s *server) setupOSClient(params *resource.Params, advancedVisStore config.DataStore) {
+	// OpenSearch client setup (same structure as Elasticsearch, just version difference)
+	// This is only for migration purposes
+	params.OSConfig = advancedVisStore.ElasticSearch
+	params.OSConfig.SetUsernamePassword()
+
+	osClient, err := elasticsearch.NewGenericClient(params.OSConfig, params.Logger)
+	if err != nil {
+		log.Fatalf("Error creating OpenSearch client: %v", err)
+	}
+	params.OSClient = osClient
+
+	validateIndex(params.OSConfig)
+
+	if advancedVisStore.ElasticSearch.Migration.Enabled {
+		s.setupESClient(params)
+	} else {
+		// to avoid code duplication, we will use es-visibility and set the version to os2 instead of using os-visibility directly
+		params.ESConfig = advancedVisStore.ElasticSearch
+		params.ESConfig.SetUsernamePassword()
+		params.ESClient = osClient
+	}
+}
+
+func validateIndex(config *config.ElasticSearchConfig) {
+	indexName, ok := config.Indices[common.VisibilityAppName]
+	if !ok || len(indexName) == 0 {
+		log.Fatalf("Visibility index is missing in config")
+	}
+}
+
+func getFromDynamicConfig(params resource.Params, dc *dynamicconfig.Collection) func() []string {
+	return func() []string {
+		res, err := isolationgroupapi.MapAllIsolationGroupsResponse(dc.GetListProperty(dynamicconfig.AllIsolationGroups)())
+		if err != nil {
+			params.Logger.Error("failed to get isolation groups from config", tag.Error(err))
+			return nil
+		}
+		return res
+	}
 }

@@ -1,0 +1,49 @@
+persistence:
+  advancedVisibilityStore: os-visibility
+  datastores:
+    es-visibility:
+      elasticsearch:
+        disableSniff: true
+        version: "v7"
+        url:
+          scheme: "http"
+          host: "127.0.0.1:9201"
+        indices:
+          visibility: cadence-visibility-dev
+    os-visibility:
+      elasticsearch:
+        disableSniff: true
+        version: "os2"
+        username: "admin"
+        password: "DevTestInitial123!"
+        tls:
+          enabled: true
+        url:
+          scheme: "https"
+          host: "127.0.0.1:9200"
+        indices:
+          visibility: cadence-visibility-dev
+        migration:
+          enabled: true
+
+kafka:
+  tls:
+    enabled: false
+  clusters:
+    test:
+      brokers:
+        - 127.0.0.1:9092
+  topics:
+    cadence-visibility-dev:
+      cluster: test
+    cadence-visibility-dev-dlq:
+      cluster: test
+  applications:
+    visibility:
+      topic: cadence-visibility-dev
+      dlq-topic: cadence-visibility-dev-dlq
+
+dynamicconfig:
+  client: filebased
+  filebased:
+    filepath: "config/dynamicconfig/development_es.yaml"

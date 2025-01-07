@@ -160,7 +160,7 @@ func newFixedRpsMultiStageRateLimiter(globalRps float64, domainRps int) Policy {
 	)
 }
 func getDomains(n int) []string {
-	domains := make([]string, n)
+	domains := make([]string, 0, n)
 	for i := 0; i < n; i++ {
 		domains = append(domains, fmt.Sprintf("domains%v", i))
 	}

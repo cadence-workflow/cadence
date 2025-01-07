@@ -198,6 +198,8 @@ func NewRatelimiter(lim rate.Limit, burst int) Ratelimiter {
 	return &ratelimiter{
 		timesource: NewRealTimeSource(),
 		limiter:    rate.NewLimiter(lim, burst),
+		// intentionally zero, matches rate.Limiter and helps fill the bucket if it is changed before any use.
+		latestNow: time.Time{},
 	}
 }
 
@@ -205,6 +207,8 @@ func NewMockRatelimiter(ts TimeSource, lim rate.Limit, burst int) Ratelimiter {
 	return &ratelimiter{
 		timesource: ts,
 		limiter:    rate.NewLimiter(lim, burst),
+		// intentionally zero, matches rate.Limiter and helps fill the bucket if it is changed before any use.
+		latestNow: time.Time{},
 	}
 }
 
@@ -303,15 +307,33 @@ func (r *ratelimiter) Limit() rate.Limit {
 }
 
 func (r *ratelimiter) SetBurst(newBurst int) {
-	now, unlock := r.lockNow()
-	defer unlock()
-	r.limiter.SetBurstAt(now, newBurst)
+	r.mut.Lock()
+	defer r.mut.Unlock()
+	// setting burst/limit does not advance time, unlike the underlying limiter.
+	//
+	// this allows calling them in any order, and the next request
+	// will fill the token bucket to match elapsed time.
+	//
+	// this prefers new burst/limit values over past values,
+	// as they are assumed to be "better", and in particular ensures the first
+	// time-advancing call fills with the full values (starting from 0 time, like
+	// the underlying limiter does).
+	r.limiter.SetBurstAt(r.latestNow, newBurst)
 }
 
 func (r *ratelimiter) SetLimit(newLimit rate.Limit) {
-	now, unlock := r.lockNow()
-	defer unlock()
-	r.limiter.SetLimitAt(now, newLimit)
+	r.mut.Lock()
+	defer r.mut.Unlock()
+	// setting burst/limit does not advance time, unlike the underlying limiter.
+	//
+	// this allows calling them in any order, and the next request
+	// will fill the token bucket to match elapsed time.
+	//
+	// this prefers new burst/limit values over past values,
+	// as they are assumed to be "better", and in particular ensures the first
+	// time-advancing call fills with the full values (starting from 0 time, like
+	// the underlying limiter does).
+	r.limiter.SetLimitAt(r.latestNow, newLimit)
 }
 
 func (r *ratelimiter) Tokens() float64 {

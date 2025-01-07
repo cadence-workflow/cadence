@@ -26,9 +26,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
-
-	"github.com/dgryski/go-farm"
 
 	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/log"
@@ -75,7 +72,7 @@ func NewDefaultPartitioner(
 	}
 }
 
-func (r *defaultPartitioner) GetIsolationGroupByDomainID(ctx context.Context, domainID string, wfPartitionData PartitionConfig, availablePollerIsolationGroups []string) (string, error) {
+func (r *defaultPartitioner) GetIsolationGroupByDomainID(ctx context.Context, pollerInfo PollerInfo, wfPartitionData PartitionConfig) (string, error) {
 	if wfPartitionData == nil {
 		return "", ErrInvalidPartitionConfig
 	}
@@ -84,7 +81,7 @@ func (r *defaultPartitioner) GetIsolationGroupByDomainID(ctx context.Context, do
 		return "", ErrInvalidPartitionConfig
 	}
 
-	available, err := r.isolationGroupState.AvailableIsolationGroupsByDomainID(ctx, domainID, availablePollerIsolationGroups)
+	available, err := r.isolationGroupState.AvailableIsolationGroupsByDomainID(ctx, pollerInfo.DomainID, pollerInfo.TasklistName, pollerInfo.AvailableIsolationGroups)
 	if err != nil {
 		return "", fmt.Errorf("failed to get available isolation groups: %w", err)
 	}
@@ -93,7 +90,7 @@ func (r *defaultPartitioner) GetIsolationGroupByDomainID(ctx context.Context, do
 		return "", ErrNoIsolationGroupsAvailable
 	}
 
-	ig := r.pickIsolationGroup(wfPartition, available)
+	ig := r.pickIsolationGroup(wfPartition, available, pollerInfo)
 	return ig, nil
 }
 
@@ -108,37 +105,16 @@ func mapPartitionConfigToDefaultPartitionConfig(config PartitionConfig) defaultW
 
 // picks an isolation group to run in. if the workflow was started there, it'll attempt to pin it, unless there is an explicit
 // drain.
-func (r *defaultPartitioner) pickIsolationGroup(wfPartition defaultWorkflowPartitionConfig, available types.IsolationGroupConfiguration) string {
+func (r *defaultPartitioner) pickIsolationGroup(wfPartition defaultWorkflowPartitionConfig, available types.IsolationGroupConfiguration, pollerInfo PollerInfo) string {
 	_, isAvailable := available[wfPartition.WorkflowStartIsolationGroup]
 	if isAvailable {
 		return wfPartition.WorkflowStartIsolationGroup
 	}
-
-	// it's drained, fall back to picking a deterministic but random group
-	var availableList []string
-	for k := range available {
-		availableList = append(availableList, k)
-	}
-	// sort the slice to ensure it's deterministic
-	sort.Slice(availableList, func(i int, j int) bool {
-		return availableList[i] > availableList[j]
-	})
-	fallback := pickIsolationGroupFallback(availableList, wfPartition)
-	r.log.Debug("isolation group falling back to an available zone",
-		tag.FallbackIsolationGroup(fallback),
+	r.log.Debug("isolation group falling back to any zone",
 		tag.IsolationGroup(wfPartition.WorkflowStartIsolationGroup),
 		tag.PollerGroupsConfiguration(available),
+		tag.WorkflowTaskListName(pollerInfo.TasklistName),
 		tag.WorkflowID(wfPartition.WFID),
 	)
-	return fallback
-}
-
-// Simple deterministic isolationGroup picker
-// which will pick a random healthy isolationGroup and place the workflow there
-func pickIsolationGroupFallback(available []string, wfConfig defaultWorkflowPartitionConfig) string {
-	if len(available) == 0 {
-		return ""
-	}
-	hashv := farm.Hash32([]byte(wfConfig.WFID))
-	return available[int(hashv)%len(available)]
+	return ""
 }

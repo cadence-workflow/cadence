@@ -97,6 +97,7 @@ persistence:
 
 ringpop:
     name: cadence
+    broadcastAddress: {{ default .Env.BROADCAST_ADDRESS "" }}
     bootstrapMode: {{ default .Env.RINGPOP_BOOTSTRAP_MODE "hosts" }}
     {{- if .Env.RINGPOP_SEEDS }}
     bootstrapHosts:

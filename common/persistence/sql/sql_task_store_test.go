@@ -137,10 +137,14 @@ func TestLeaseTaskList(t *testing.T) {
 					Name:     common.StringPtr("tl"),
 					TaskType: common.Int64Ptr(0),
 				}).Return(nil, sql.ErrNoRows)
-				mockParser.EXPECT().TaskListInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
-					Data:     []byte(`tl`),
-					Encoding: common.EncodingType("tl"),
-				}, nil)
+				mockParser.EXPECT().TaskListInfoToBlob(gomock.Any()).DoAndReturn(func(info *serialization.TaskListInfo) (persistence.DataBlob, error) {
+					assert.Equal(t, int16(persistence.TaskListKindSticky), info.Kind)
+					assert.Equal(t, int64(0), info.AckLevel)
+					return persistence.DataBlob{
+						Data:     []byte(`tl`),
+						Encoding: common.EncodingType("tl"),
+					}, nil
+				})
 				mockDB.EXPECT().SupportsTTL().Return(true)
 				mockDB.EXPECT().InsertIntoTaskListsWithTTL(gomock.Any(), &sqlplugin.TaskListsRowWithTTL{
 					TaskListsRow: sqlplugin.TaskListsRow{
@@ -193,6 +197,96 @@ func TestLeaseTaskList(t *testing.T) {
 					RangeID:  1,
 					AckLevel: 0,
 					Kind:     persistence.TaskListKindSticky,
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "Success case - first lease - normal tasklist",
+			req: &persistence.LeaseTaskListRequest{
+				DomainID:     "c9488dc7-20b2-44c3-b2e4-bfea5af62ac0",
+				TaskList:     "tl",
+				TaskType:     0,
+				TaskListKind: persistence.TaskListKindNormal,
+				RangeID:      0,
+			},
+			mockSetup: func(mockDB *sqlplugin.MockDB, mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
+				mockDB.EXPECT().GetTotalNumDBShards().Return(1)
+				mockDB.EXPECT().SelectFromTaskLists(gomock.Any(), &sqlplugin.TaskListsFilter{
+					ShardID:  0,
+					DomainID: serialization.UUIDPtr(serialization.MustParseUUID("c9488dc7-20b2-44c3-b2e4-bfea5af62ac0")),
+					Name:     common.StringPtr("tl"),
+					TaskType: common.Int64Ptr(0),
+				}).Return(nil, sql.ErrNoRows)
+				mockParser.EXPECT().TaskListInfoToBlob(gomock.Any()).DoAndReturn(func(info *serialization.TaskListInfo) (persistence.DataBlob, error) {
+					assert.Equal(t, int16(persistence.TaskListKindNormal), info.Kind)
+					assert.Equal(t, int64(0), info.AckLevel)
+					return persistence.DataBlob{
+						Data:     []byte(`tl`),
+						Encoding: common.EncodingType("tl"),
+					}, nil
+				})
+				mockDB.EXPECT().SupportsTTL().Return(true)
+				mockDB.EXPECT().InsertIntoTaskLists(gomock.Any(),
+					&sqlplugin.TaskListsRow{
+						ShardID:      0,
+						DomainID:     serialization.MustParseUUID("c9488dc7-20b2-44c3-b2e4-bfea5af62ac0"),
+						Name:         "tl",
+						TaskType:     0,
+						Data:         []byte(`tl`),
+						DataEncoding: "tl",
+					},
+				).Return(nil, nil)
+				mockParser.EXPECT().TaskListInfoFromBlob([]byte(`tl`), "tl").Return(&serialization.TaskListInfo{
+					AckLevel:        0,
+					Kind:            int16(persistence.TaskListKindSticky),
+					ExpiryTimestamp: time.Unix(0, 0),
+					LastUpdated:     time.Unix(0, 1),
+					AdaptivePartitionConfig: &serialization.TaskListPartitionConfig{
+						Version:            0,
+						NumReadPartitions:  1,
+						NumWritePartitions: 1,
+					},
+				}, nil)
+				mockDB.EXPECT().BeginTx(gomock.Any(), 0).Return(mockTx, nil)
+				mockTx.EXPECT().LockTaskLists(gomock.Any(), &sqlplugin.TaskListsFilter{
+					ShardID:  0,
+					DomainID: serialization.UUIDPtr(serialization.MustParseUUID("c9488dc7-20b2-44c3-b2e4-bfea5af62ac0")),
+					Name:     common.StringPtr("tl"),
+					TaskType: common.Int64Ptr(0),
+				}).Return(int64(0), nil)
+				mockParser.EXPECT().TaskListInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
+					Data:     []byte(`tl`),
+					Encoding: common.EncodingType("tl"),
+				}, nil)
+				mockDB.EXPECT().SupportsTTL().Return(true)
+				mockTx.EXPECT().UpdateTaskListsWithTTL(gomock.Any(), &sqlplugin.TaskListsRowWithTTL{
+					TaskListsRow: sqlplugin.TaskListsRow{
+						ShardID:      0,
+						DomainID:     serialization.MustParseUUID("c9488dc7-20b2-44c3-b2e4-bfea5af62ac0"),
+						Name:         "tl",
+						TaskType:     0,
+						RangeID:      1,
+						Data:         []byte(`tl`),
+						DataEncoding: "tl",
+					},
+					TTL: stickyTasksListsTTL,
+				}).Return(&sqlResult{rowsAffected: 1}, nil)
+				mockTx.EXPECT().Commit().Return(nil)
+			},
+			want: &persistence.LeaseTaskListResponse{
+				TaskListInfo: &persistence.TaskListInfo{
+					DomainID: "c9488dc7-20b2-44c3-b2e4-bfea5af62ac0",
+					Name:     "tl",
+					TaskType: 0,
+					RangeID:  1,
+					AckLevel: 0,
+					Kind:     persistence.TaskListKindNormal,
+					AdaptivePartitionConfig: &persistence.TaskListPartitionConfig{
+						Version:            0,
+						NumReadPartitions:  1,
+						NumWritePartitions: 1,
+					},
 				},
 			},
 			wantErr: false,
@@ -434,6 +528,111 @@ func TestLeaseTaskList(t *testing.T) {
 	}
 }
 
+func TestGetTaskList(t *testing.T) {
+	testCases := []struct {
+		name      string
+		req       *persistence.GetTaskListRequest
+		mockSetup func(*sqlplugin.MockDB, *serialization.MockParser)
+		want      *persistence.GetTaskListResponse
+		wantErr   bool
+	}{
+		{
+			name: "Success case",
+			req: &persistence.GetTaskListRequest{
+				DomainID: "c9488dc7-20b2-44c3-b2e4-bfea5af62ac0",
+				TaskList: "tl",
+				TaskType: 1,
+			},
+			mockSetup: func(mockDB *sqlplugin.MockDB, mockParser *serialization.MockParser) {
+				mockDB.EXPECT().GetTotalNumDBShards().Return(1)
+				mockDB.EXPECT().SelectFromTaskLists(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, filter *sqlplugin.TaskListsFilter) ([]sqlplugin.TaskListsRow, error) {
+					assert.Equal(t, serialization.MustParseUUID("c9488dc7-20b2-44c3-b2e4-bfea5af62ac0"), *filter.DomainID)
+					assert.Equal(t, "tl", *filter.Name)
+					assert.Equal(t, int64(1), *filter.TaskType)
+					return []sqlplugin.TaskListsRow{
+						{
+							ShardID:      11,
+							DomainID:     serialization.MustParseUUID("c9488dc7-20b2-44c3-b2e4-bfea5af62ac0"),
+							Name:         "tl",
+							TaskType:     1,
+							RangeID:      123,
+							Data:         []byte(`tl`),
+							DataEncoding: "tl",
+						},
+					}, nil
+				})
+				mockParser.EXPECT().TaskListInfoFromBlob([]byte(`tl`), "tl").Return(&serialization.TaskListInfo{
+					Kind:            1,
+					AckLevel:        2,
+					ExpiryTimestamp: time.Unix(1, 4),
+					LastUpdated:     time.Unix(10, 0),
+					AdaptivePartitionConfig: &serialization.TaskListPartitionConfig{
+						Version:            0,
+						NumReadPartitions:  1,
+						NumWritePartitions: 1,
+					},
+				}, nil)
+			},
+			want: &persistence.GetTaskListResponse{
+				TaskListInfo: &persistence.TaskListInfo{
+					DomainID:    "c9488dc7-20b2-44c3-b2e4-bfea5af62ac0",
+					Name:        "tl",
+					TaskType:    1,
+					RangeID:     123,
+					Kind:        1,
+					AckLevel:    2,
+					Expiry:      time.Unix(1, 4),
+					LastUpdated: time.Unix(10, 0),
+					AdaptivePartitionConfig: &persistence.TaskListPartitionConfig{
+						Version:            0,
+						NumReadPartitions:  1,
+						NumWritePartitions: 1,
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "Error case",
+			req: &persistence.GetTaskListRequest{
+				DomainID: "c9488dc7-20b2-44c3-b2e4-bfea5af62ac0",
+				TaskList: "tl",
+				TaskType: 0,
+			},
+			mockSetup: func(mockDB *sqlplugin.MockDB, mockParser *serialization.MockParser) {
+				err := errors.New("some error")
+				mockDB.EXPECT().GetTotalNumDBShards().Return(1)
+				mockDB.EXPECT().SelectFromTaskLists(gomock.Any(), gomock.Any()).Return(nil, err)
+				mockDB.EXPECT().IsNotFoundError(err).Return(true)
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+
+			mockDB := sqlplugin.NewMockDB(ctrl)
+			mockParser := serialization.NewMockParser(ctrl)
+			store := &sqlTaskStore{
+				sqlStore: sqlStore{db: mockDB, parser: mockParser},
+				nShards:  1000,
+			}
+
+			tc.mockSetup(mockDB, mockParser)
+
+			got, err := store.GetTaskList(context.Background(), tc.req)
+			if tc.wantErr {
+				assert.Error(t, err, "Expected an error for test case")
+			} else {
+				assert.NoError(t, err, "Did not expect an error for test case")
+				assert.Equal(t, tc.want, got, "Unexpected result for test case")
+			}
+		})
+	}
+}
+
 func TestUpdateTaskList(t *testing.T) {
 	testCases := []struct {
 		name      string
@@ -480,6 +679,60 @@ func TestUpdateTaskList(t *testing.T) {
 					},
 					TTL: stickyTasksListsTTL,
 				}).Return(&sqlResult{rowsAffected: 1}, nil)
+				mockTx.EXPECT().Commit().Return(nil)
+			},
+			want:    &persistence.UpdateTaskListResponse{},
+			wantErr: false,
+		},
+		{
+			name: "Success case - normal tasklist",
+			req: &persistence.UpdateTaskListRequest{
+				TaskListInfo: &persistence.TaskListInfo{
+					DomainID: "c9488dc7-20b2-44c3-b2e4-bfea5af62ac0",
+					Name:     "tl",
+					TaskType: 0,
+					RangeID:  1,
+					AckLevel: 0,
+					Kind:     persistence.TaskListKindNormal,
+					AdaptivePartitionConfig: &persistence.TaskListPartitionConfig{
+						Version:            0,
+						NumReadPartitions:  1,
+						NumWritePartitions: 1,
+					},
+				},
+			},
+			mockSetup: func(mockDB *sqlplugin.MockDB, mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
+				mockDB.EXPECT().GetTotalNumDBShards().Return(1)
+				mockParser.EXPECT().TaskListInfoToBlob(gomock.Any()).DoAndReturn(func(info *serialization.TaskListInfo) (persistence.DataBlob, error) {
+					assert.Equal(t, int16(persistence.TaskListKindNormal), info.Kind)
+					assert.Equal(t, int64(0), info.AckLevel)
+					assert.Equal(t, int64(0), info.AdaptivePartitionConfig.Version)
+					assert.Equal(t, int32(1), info.AdaptivePartitionConfig.NumReadPartitions)
+					assert.Equal(t, int32(1), info.AdaptivePartitionConfig.NumWritePartitions)
+					return persistence.DataBlob{
+						Data:     []byte(`tl`),
+						Encoding: common.EncodingType("tl"),
+					}, nil
+				})
+				mockDB.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(mockTx, nil)
+				mockTx.EXPECT().LockTaskLists(gomock.Any(), &sqlplugin.TaskListsFilter{
+					ShardID:  0,
+					DomainID: serialization.UUIDPtr(serialization.MustParseUUID("c9488dc7-20b2-44c3-b2e4-bfea5af62ac0")),
+					Name:     common.StringPtr("tl"),
+					TaskType: common.Int64Ptr(0),
+				}).Return(int64(1), nil)
+				mockDB.EXPECT().SupportsTTL().Return(true)
+				mockTx.EXPECT().UpdateTaskLists(gomock.Any(),
+					&sqlplugin.TaskListsRow{
+						ShardID:      0,
+						DomainID:     serialization.MustParseUUID("c9488dc7-20b2-44c3-b2e4-bfea5af62ac0"),
+						Name:         "tl",
+						TaskType:     0,
+						RangeID:      1,
+						Data:         []byte(`tl`),
+						DataEncoding: "tl",
+					},
+				).Return(&sqlResult{rowsAffected: 1}, nil)
 				mockTx.EXPECT().Commit().Return(nil)
 			},
 			want:    &persistence.UpdateTaskListResponse{},
@@ -782,26 +1035,26 @@ func TestDeleteTaskList(t *testing.T) {
 func TestCreateTasks(t *testing.T) {
 	testCases := []struct {
 		name      string
-		req       *persistence.InternalCreateTasksRequest
+		req       *persistence.CreateTasksRequest
 		mockSetup func(*sqlplugin.MockDB, *sqlplugin.MockTx, *serialization.MockParser)
 		want      *persistence.CreateTasksResponse
 		wantErr   bool
 	}{
 		{
 			name: "Success case",
-			req: &persistence.InternalCreateTasksRequest{
+			req: &persistence.CreateTasksRequest{
 				TaskListInfo: &persistence.TaskListInfo{
 					Name:     "tl",
 					TaskType: 1,
 					RangeID:  9,
 					DomainID: "c9488dc7-20b2-44c3-b2e4-bfea5af62ac0",
 				},
-				Tasks: []*persistence.InternalCreateTasksInfo{
+				Tasks: []*persistence.CreateTaskInfo{
 					{
-						Data: &persistence.InternalTaskInfo{
-							ScheduleToStartTimeout: time.Second,
-							DomainID:               "c9488dc7-20b2-44c3-b2e4-bfea5af62ac0",
-							TaskID:                 999,
+						Data: &persistence.TaskInfo{
+							ScheduleToStartTimeoutSeconds: 1,
+							DomainID:                      "c9488dc7-20b2-44c3-b2e4-bfea5af62ac0",
+							TaskID:                        999,
 						},
 						TaskID: 999,
 					},
@@ -843,19 +1096,19 @@ func TestCreateTasks(t *testing.T) {
 		},
 		{
 			name: "Error case - failed to insert tasks",
-			req: &persistence.InternalCreateTasksRequest{
+			req: &persistence.CreateTasksRequest{
 				TaskListInfo: &persistence.TaskListInfo{
 					Name:     "tl",
 					TaskType: 1,
 					RangeID:  9,
 					DomainID: "c9488dc7-20b2-44c3-b2e4-bfea5af62ac0",
 				},
-				Tasks: []*persistence.InternalCreateTasksInfo{
+				Tasks: []*persistence.CreateTaskInfo{
 					{
-						Data: &persistence.InternalTaskInfo{
-							ScheduleToStartTimeout: time.Second,
-							DomainID:               "c9488dc7-20b2-44c3-b2e4-bfea5af62ac0",
-							TaskID:                 999,
+						Data: &persistence.TaskInfo{
+							ScheduleToStartTimeoutSeconds: 1,
+							DomainID:                      "c9488dc7-20b2-44c3-b2e4-bfea5af62ac0",
+							TaskID:                        999,
 						},
 						TaskID: 999,
 					},
@@ -892,19 +1145,19 @@ func TestCreateTasks(t *testing.T) {
 		},
 		{
 			name: "Error case - failed to lock tasklist",
-			req: &persistence.InternalCreateTasksRequest{
+			req: &persistence.CreateTasksRequest{
 				TaskListInfo: &persistence.TaskListInfo{
 					Name:     "tl",
 					TaskType: 1,
 					RangeID:  9,
 					DomainID: "c9488dc7-20b2-44c3-b2e4-bfea5af62ac0",
 				},
-				Tasks: []*persistence.InternalCreateTasksInfo{
+				Tasks: []*persistence.CreateTaskInfo{
 					{
-						Data: &persistence.InternalTaskInfo{
-							ScheduleToStartTimeout: time.Second,
-							DomainID:               "c9488dc7-20b2-44c3-b2e4-bfea5af62ac0",
-							TaskID:                 999,
+						Data: &persistence.TaskInfo{
+							ScheduleToStartTimeoutSeconds: 1,
+							DomainID:                      "c9488dc7-20b2-44c3-b2e4-bfea5af62ac0",
+							TaskID:                        999,
 						},
 						TaskID: 999,
 					},
@@ -977,7 +1230,7 @@ func TestGetTasks(t *testing.T) {
 		name      string
 		req       *persistence.GetTasksRequest
 		mockSetup func(*sqlplugin.MockDB, *serialization.MockParser)
-		want      *persistence.InternalGetTasksResponse
+		want      *persistence.GetTasksResponse
 		wantErr   bool
 	}{
 		{
@@ -1016,8 +1269,8 @@ func TestGetTasks(t *testing.T) {
 					PartitionConfig:  map[string]string{"a": "b"},
 				}, nil)
 			},
-			want: &persistence.InternalGetTasksResponse{
-				Tasks: []*persistence.InternalTaskInfo{
+			want: &persistence.GetTasksResponse{
+				Tasks: []*persistence.TaskInfo{
 					{
 						DomainID:        "c9488dc7-20b2-44c3-b2e4-bfea5af62ac0",
 						WorkflowID:      "test",

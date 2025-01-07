@@ -131,6 +131,14 @@ func toDescribeWorkflowExecutionRequestTags(req *types.DescribeWorkflowExecution
 	}
 }
 
+func toDiagnoseWorkflowExecutionRequestTags(req *types.DiagnoseWorkflowExecutionRequest) []tag.Tag {
+	return []tag.Tag{
+		tag.WorkflowDomainName(req.GetDomain()),
+		tag.WorkflowID(req.GetWorkflowExecution().GetWorkflowID()),
+		tag.WorkflowRunID(req.GetWorkflowExecution().GetRunID()),
+	}
+}
+
 func toGetTaskListsByDomainRequestTags(req *types.GetTaskListsByDomainRequest) []tag.Tag {
 	return []tag.Tag{
 		tag.WorkflowDomainName(req.GetDomain()),

@@ -99,6 +99,7 @@ func NewLocalTimerGate(timeSource clock.TimeSource) LocalTimerGate {
 	// the timer should be stopped when initialized
 	if !timer.timer.Stop() {
 		// drain the existing signal if exist
+		// TODO: the drain can be removed after go 1.23
 		<-timer.timer.C
 	}
 
@@ -141,12 +142,18 @@ func (timerGate *LocalTimerGateImpl) Update(nextTime time.Time) bool {
 	// NOTE: negative duration will make the timer fire immediately
 	now := timerGate.timeSource.Now()
 
-	if timerGate.timer.Stop() && timerGate.nextWakeupTime.Before(nextTime) {
-		// this means the timer, before stopped, is active && next wake up time do not have to be updated
-		timerGate.timer.Reset(timerGate.nextWakeupTime.Sub(now))
-		return false
+	if timerGate.timer.Stop() {
+		if timerGate.nextWakeupTime.Before(nextTime) {
+			// this means the timer, before stopped, is active && next wake up time do not have to be updated
+			timerGate.timer.Reset(timerGate.nextWakeupTime.Sub(now))
+			return false
+		}
 	}
-
+	// TODO: the drain can be removed after go 1.23
+	select {
+	case <-timerGate.timer.C:
+	default:
+	}
 	// this means the timer, before stopped, is active && next wake up time has to be updated
 	// or this means the timer, before stopped, is already fired / never active
 	timerGate.nextWakeupTime = nextTime

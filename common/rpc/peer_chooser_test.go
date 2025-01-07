@@ -27,38 +27,16 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"go.uber.org/yarpc/api/peer"
 	"go.uber.org/yarpc/api/transport"
+	"go.uber.org/yarpc/transport/grpc"
 
+	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/testlogger"
+	"github.com/uber/cadence/common/metrics"
 )
-
-func TestDNSPeerChooserFactory(t *testing.T) {
-	logger := log.NewNoop()
-	ctx := context.Background()
-	interval := 100 * time.Millisecond
-
-	factory := NewDNSPeerChooserFactory(interval, logger)
-	peerTransport := &fakePeerTransport{}
-
-	// Ensure invalid address returns error
-	_, err := factory.CreatePeerChooser(peerTransport, "invalid address")
-	assert.EqualError(t, err, "incorrect DNS:Port format")
-
-	chooser, err := factory.CreatePeerChooser(peerTransport, "localhost:1234")
-	require.NoError(t, err)
-
-	require.NoError(t, chooser.Start())
-	require.True(t, chooser.IsRunning())
-
-	// Wait for refresh
-	time.Sleep(interval)
-
-	peer, _, err := chooser.Choose(ctx, &transport.Request{})
-	require.NoError(t, err)
-	require.NotNil(t, peer)
-	assert.Equal(t, "fakePeer", peer.Identifier())
-}
 
 type (
 	fakePeerTransport struct{}
@@ -76,3 +54,57 @@ func (p *fakePeer) Identifier() string  { return "fakePeer" }
 func (p *fakePeer) Status() peer.Status { return peer.Status{ConnectionStatus: peer.Available} }
 func (p *fakePeer) StartRequest()       {}
 func (p *fakePeer) EndRequest()         {}
+
+func TestDNSPeerChooserFactory(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	logger := log.NewNoop()
+	ctx := context.Background()
+	interval := 10 * time.Millisecond
+
+	factory := NewDNSPeerChooserFactory(interval, logger)
+	peerTransport := &fakePeerTransport{}
+
+	// Ensure invalid address returns error
+	_, err := factory.CreatePeerChooser(peerTransport, PeerChooserOptions{Address: "invalid address"})
+	assert.EqualError(t, err, "incorrect DNS:Port format")
+
+	chooser, err := factory.CreatePeerChooser(peerTransport, PeerChooserOptions{Address: "localhost:1234"})
+	require.NoError(t, err)
+
+	require.NoError(t, chooser.Start())
+	defer chooser.Stop()
+
+	require.True(t, chooser.IsRunning())
+
+	// Wait for refresh
+	time.Sleep(interval + 50*time.Millisecond)
+
+	peer, _, err := chooser.Choose(ctx, &transport.Request{})
+	require.NoError(t, err)
+	require.NotNil(t, peer)
+	assert.Equal(t, "fakePeer", peer.Identifier())
+}
+
+func TestDirectPeerChooserFactory(t *testing.T) {
+	logger := testlogger.New(t)
+	metricCl := metrics.NewNoopMetricsClient()
+	serviceName := "service"
+	pcf := NewDirectPeerChooserFactory(serviceName, logger, metricCl)
+	directConnRetainFn := func(opts ...dynamicconfig.FilterOption) bool { return false }
+	grpcTransport := grpc.NewTransport()
+	chooser, err := pcf.CreatePeerChooser(grpcTransport, PeerChooserOptions{
+		ServiceName:                            serviceName,
+		EnableConnectionRetainingDirectChooser: directConnRetainFn,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create direct peer chooser: %v", err)
+	}
+	if chooser == nil {
+		t.Fatal("Failed to create direct peer chooser: nil")
+	}
+
+	if _, dc := chooser.(*directPeerChooser); !dc {
+		t.Fatalf("Want chooser be of type (*directPeerChooser), got %d", chooser)
+	}
+}

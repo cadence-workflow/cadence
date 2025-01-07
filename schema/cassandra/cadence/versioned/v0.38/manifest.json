@@ -1,0 +1,8 @@
+{
+  "CurrVersion": "0.38",
+  "MinCompatibleVersion": "0.38",
+  "Description": "Adding the task list partition config to task list type",
+  "SchemaUpdateCqlFiles": [
+    "task_list_partition_config.cql"
+  ]
+}

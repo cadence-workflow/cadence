@@ -23,6 +23,7 @@ package fetcher
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/golang/mock/gomock"
@@ -33,21 +34,108 @@ import (
 	"github.com/uber/cadence/common/reconciliation/entity"
 )
 
-func TestGetCurrentExecution(t *testing.T) {
+func TestCurrentExecutionIterator(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	mockRetryer := persistence.NewMockRetryer(ctrl)
+	retryer := persistence.NewMockRetryer(ctrl)
+	retryer.EXPECT().ListCurrentExecutions(gomock.Any(), gomock.Any()).
+		Return(&persistence.ListCurrentExecutionsResponse{}, nil).
+		Times(1)
+
+	iterator := CurrentExecutionIterator(
+		context.Background(),
+		retryer,
+		10,
+	)
+	require.NotNil(t, iterator)
+}
+
+func TestCurrentExecution(t *testing.T) {
+	ctx := context.Background()
+
+	testCases := []struct {
+		name       string
+		setupMock  func(*persistence.MockRetryer)
+		request    ExecutionRequest
+		wantEntity entity.Entity
+		wantErr    bool
+	}{
+		{
+			name: "success",
+			request: ExecutionRequest{
+				DomainID:   "testDomainID",
+				WorkflowID: "testWorkflowID",
+				DomainName: "testDomainName",
+			},
+			setupMock: func(mockRetryer *persistence.MockRetryer) {
+				mockRetryer.EXPECT().GetCurrentExecution(ctx, &persistence.GetCurrentExecutionRequest{
+					DomainID:   "testDomainID",
+					WorkflowID: "testWorkflowID",
+					DomainName: "testDomainName",
+				}).Return(&persistence.GetCurrentExecutionResponse{
+					RunID: "testRunID",
+					State: persistence.WorkflowStateRunning,
+				}, nil).Times(1)
+
+				mockRetryer.EXPECT().GetShardID().Return(123).Times(1)
+			},
+			wantEntity: &entity.CurrentExecution{
+				CurrentRunID: "testRunID",
+				Execution: entity.Execution{
+					ShardID:    123,
+					DomainID:   "testDomainID",
+					WorkflowID: "testWorkflowID",
+					RunID:      "testRunID",
+					State:      persistence.WorkflowStateRunning,
+				},
+			},
+		},
+		{
+			name: "GetCurrentExecution failed",
+			request: ExecutionRequest{
+				DomainID:   "testDomainID",
+				WorkflowID: "testWorkflowID",
+				DomainName: "testDomainName",
+			},
+			setupMock: func(mockRetryer *persistence.MockRetryer) {
+				mockRetryer.EXPECT().GetCurrentExecution(ctx, &persistence.GetCurrentExecutionRequest{
+					DomainID:   "testDomainID",
+					WorkflowID: "testWorkflowID",
+					DomainName: "testDomainName",
+				}).Return(nil, fmt.Errorf("failed")).Times(1)
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockRetryer := persistence.NewMockRetryer(ctrl)
+
+			tc.setupMock(mockRetryer)
+			gotEntity, err := CurrentExecution(ctx, mockRetryer, tc.request)
+			if (err != nil) != tc.wantErr {
+				t.Errorf("CurrentExecution() error = %v, wantErr %v", err, tc.wantErr)
+			}
+
+			require.Equal(t, tc.wantEntity, gotEntity)
+		})
+	}
+}
+
+func TestGetCurrentExecution(t *testing.T) {
 	ctx := context.Background()
 	pageSize := 10
 
 	testCases := []struct {
-		name          string
-		setupMock     func()
-		expectedPage  pagination.Page
-		expectedError bool
+		name      string
+		setupMock func(*persistence.MockRetryer)
+		wantPage  pagination.Page
+		wantErr   bool
 	}{
 		{
-			name: "Success",
-			setupMock: func() {
+			name: "success",
+			setupMock: func(mockRetryer *persistence.MockRetryer) {
 				executions := []*persistence.CurrentWorkflowExecution{
 					{
 						DomainID:     "testDomainID",
@@ -65,11 +153,11 @@ func TestGetCurrentExecution(t *testing.T) {
 					Return(&persistence.ListCurrentExecutionsResponse{
 						Executions: executions,
 						PageToken:  nil,
-					}, nil)
+					}, nil).Times(1)
 
-				mockRetryer.EXPECT().GetShardID().Return(123)
+				mockRetryer.EXPECT().GetShardID().Return(123).Times(1)
 			},
-			expectedPage: pagination.Page{
+			wantPage: pagination.Page{
 				Entities: []pagination.Entity{
 					&entity.CurrentExecution{
 						CurrentRunID: "testCurrentRunID", // This should match with the mocked data
@@ -83,22 +171,35 @@ func TestGetCurrentExecution(t *testing.T) {
 					},
 				},
 			},
-			expectedError: false,
+			wantErr: false,
+		},
+		{
+			name: "ListCurrentExecutions failed",
+			setupMock: func(mockRetryer *persistence.MockRetryer) {
+				mockRetryer.EXPECT().
+					ListCurrentExecutions(ctx, &persistence.ListCurrentExecutionsRequest{
+						PageSize: pageSize,
+					}).
+					Return(nil, fmt.Errorf("failed")).
+					Times(1)
+			},
+			wantErr: true,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			tc.setupMock()
+			ctrl := gomock.NewController(t)
+			mockRetryer := persistence.NewMockRetryer(ctrl)
+
+			tc.setupMock(mockRetryer)
 			fetchFn := getCurrentExecution(mockRetryer, pageSize)
 			page, err := fetchFn(ctx, nil)
-
-			if tc.expectedError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-				require.Equal(t, tc.expectedPage, page)
+			if (err != nil) != tc.wantErr {
+				t.Errorf("getCurrentExecution() error = %v, wantErr %v", err, tc.wantErr)
 			}
+
+			require.Equal(t, tc.wantPage, page)
 		})
 	}
 }

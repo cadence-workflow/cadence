@@ -36,6 +36,8 @@ type (
 		EnableReadVisibilityFromES dynamicconfig.BoolPropertyFnWithDomainFilter
 		// AdvancedVisibilityWritingMode is the write mode of visibility
 		AdvancedVisibilityWritingMode dynamicconfig.StringPropertyFn
+		// AdvancedVisibilityWritingMode is the write mode of visibility during migration
+		AdvancedVisibilityMigrationWritingMode dynamicconfig.StringPropertyFn
 		// EnableReadVisibilityFromPinot is the read mode of visibility
 		EnableReadVisibilityFromPinot dynamicconfig.BoolPropertyFnWithDomainFilter
 		// EnableVisibilityDoubleRead is to enable double read for a latency comparison

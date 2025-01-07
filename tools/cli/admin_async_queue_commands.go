@@ -26,18 +26,27 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/tools/common/commoncli"
 )
 
-func AdminGetAsyncWFConfig(c *cli.Context) {
-	adminClient := cFactory.ServerAdminClient(c)
+func AdminGetAsyncWFConfig(c *cli.Context) error {
+	adminClient, err := getDeps(c).ServerAdminClient(c)
+	if err != nil {
+		return err
+	}
 
-	domainName := getRequiredOption(c, FlagDomain)
-
-	ctx, cancel := newContext(c)
+	domainName, err := getRequiredOption(c, FlagDomain)
+	if err != nil {
+		return commoncli.Problem("Required flag not present:", err)
+	}
+	ctx, cancel, err := newContext(c)
 	defer cancel()
+	if err != nil {
+		return commoncli.Problem("Error in creating context: ", err)
+	}
 
 	req := &types.GetDomainAsyncWorkflowConfiguratonRequest{
 		Domain: domainName,
@@ -45,32 +54,45 @@ func AdminGetAsyncWFConfig(c *cli.Context) {
 
 	resp, err := adminClient.GetDomainAsyncWorkflowConfiguraton(ctx, req)
 	if err != nil {
-		ErrorAndExit("Failed to get async wf queue config", err)
+		return commoncli.Problem("Failed to get async wf queue config", err)
 	}
 
 	if resp == nil || resp.Configuration == nil {
 		fmt.Printf("Async workflow queue config not found for domain %s\n", domainName)
-		return
+		return nil
 	}
 
 	fmt.Printf("Async workflow queue config for domain %s:\n", domainName)
-	prettyPrintJSONObject(resp.Configuration)
+	prettyPrintJSONObject(getDeps(c).Output(), resp.Configuration)
+	return nil
 }
 
-func AdminUpdateAsyncWFConfig(c *cli.Context) {
-	adminClient := cFactory.ServerAdminClient(c)
-
-	domainName := getRequiredOption(c, FlagDomain)
-	asyncWFCfgJSON := getRequiredOption(c, FlagJSON)
-
-	var cfg types.AsyncWorkflowConfiguration
-	err := json.Unmarshal([]byte(asyncWFCfgJSON), &cfg)
+func AdminUpdateAsyncWFConfig(c *cli.Context) error {
+	adminClient, err := getDeps(c).ServerAdminClient(c)
 	if err != nil {
-		ErrorAndExit("Failed to parse async workflow config", err)
+		return err
 	}
 
-	ctx, cancel := newContext(c)
+	domainName, err := getRequiredOption(c, FlagDomain)
+	if err != nil {
+		return commoncli.Problem("Required flag not present:", err)
+	}
+	asyncWFCfgJSON, err := getRequiredOption(c, FlagJSON)
+	if err != nil {
+		return commoncli.Problem("Required flag not present:", err)
+	}
+
+	var cfg types.AsyncWorkflowConfiguration
+	err = json.Unmarshal([]byte(asyncWFCfgJSON), &cfg)
+	if err != nil {
+		return commoncli.Problem("Failed to parse async workflow config", err)
+	}
+
+	ctx, cancel, err := newContext(c)
 	defer cancel()
+	if err != nil {
+		return commoncli.Problem("Error in creating context: ", err)
+	}
 
 	req := &types.UpdateDomainAsyncWorkflowConfiguratonRequest{
 		Domain:        domainName,
@@ -79,8 +101,9 @@ func AdminUpdateAsyncWFConfig(c *cli.Context) {
 
 	_, err = adminClient.UpdateDomainAsyncWorkflowConfiguraton(ctx, req)
 	if err != nil {
-		ErrorAndExit("Failed to update async workflow queue config", err)
+		return commoncli.Problem("Failed to update async workflow queue config", err)
 	}
 
 	fmt.Printf("Successfully updated async workflow queue config for domain %s\n", domainName)
+	return nil
 }

@@ -2,7 +2,7 @@
 
 This doc is intended for contributors to `cadence` server (hopefully that's you!)
 
-Join our Slack channel(invite link in the [home page](https://github.com/uber/cadence#cadence)) #development if you need help. 
+Join our Slack channel(invite link in the [home page](https://github.com/cadence-workflow/cadence#cadence)) #development if you need help.
 >Note: All contributors need to fill out the [Uber Contributor License Agreement](http://t.uber.com/cla) before we can merge in any of your changes
 
 ## Development Environment
@@ -13,7 +13,7 @@ Below are the instructions of how to set up a development Environment.
 * Golang. Install on OS X with.
 ```
 brew install go
-``` 
+```
 * Make sure set PATH to include bin path of GO so that other executables like thriftrw can be found.
 ```bash
 # check it first
@@ -22,9 +22,9 @@ echo $GOPATH
 PATH=$PATH:$GOPATH/bin
 # to confirm, run
 echo $PATH
-``` 
+```
 
-* Download golang dependencies. 
+* Download golang dependencies.
 ```bash
 go mod download
 ```
@@ -35,7 +35,7 @@ After check out and go to the Cadence repo, compile the `cadence` service and he
 git submodule update --init --recursive
 
 make bins
-``` 
+```
 
 You should be able to get all the binaries of this repo:
 * cadence-server: the server binary
@@ -46,18 +46,18 @@ You should be able to get all the binaries of this repo:
 * cadence-bench: the benchmark test binary
 
 
-:warning: Note: 
+:warning: Note:
 
 If running into any compiling issue
->1. For proto/thrift errors, run `git submodule update --init --recursive` to fix  
+>1. For proto/thrift errors, run `git submodule update --init --recursive` to fix
 >2. Make sure you upgrade to the latest stable version of Golang.
->3. Check if this document is outdated by comparing with the building steps in [Dockerfile](https://github.com/uber/cadence/blob/master/Dockerfile)
+>3. Check if this document is outdated by comparing with the building steps in [Dockerfile](https://github.com/cadence-workflow/cadence/blob/master/Dockerfile)
 
 ### 2. Setup Dependency
 NOTE: you may skip this section if you have installed the dependencies in any other ways, for example, using homebrew.
 
 Cadence's core data model can be running with different persistence storages, including Cassandra,MySQL and Postgres.
-Please refer to [persistence documentation](https://github.com/uber/cadence/blob/master/docs/persistence.md) if you want to learn more.
+Please refer to [persistence documentation](https://github.com/cadence-workflow/cadence/blob/master/docs/persistence.md) if you want to learn more.
 Cadence's visibility data model can be running with either Cassandra/MySQL/Postgres database, or ElasticSearch+Kafka. The latter provides [advanced visibility feature](./docs/visibility-on-elasticsearch.md)
 
 We recommend to use [docker-compose](https://docs.docker.com/compose/) to start those dependencies:
@@ -66,52 +66,52 @@ We recommend to use [docker-compose](https://docs.docker.com/compose/) to start 
 ```
 docker-compose -f ./docker/dev/cassandra.yml up
 ```
-You will use `CTRL+C` to stop it. Then `docker-compose -f ./docker/dev/cassandra.yml down` to clean up the resources. 
+You will use `CTRL+C` to stop it. Then `docker-compose -f ./docker/dev/cassandra.yml down` to clean up the resources.
 
 Or to run in the background
 ```
-docker-compose -f ./docker/dev/cassandra.yml up -d 
+docker-compose -f ./docker/dev/cassandra.yml up -d
 ```
 Also use `docker-compose -f ./docker/dev/cassandra.yml down` to stop and clean up the resources.
 
 * Alternatively, use `./docker/dev/mysql.yml` for MySQL dependency. (MySQL has been updated from 5.7 to 8.0)
-* Alternatively, use `./docker/dev/postgres.yml` for PostgreSQL dependency 
+* Alternatively, use `./docker/dev/postgres.yml` for PostgreSQL dependency
 * Alternatively, use `./docker/dev/cassandra-esv7-kafka.yml` for Cassandra, ElasticSearch(v7) and Kafka/ZooKeeper dependencies
 * Alternatively, use `./docker/dev/mysql-esv7-kafka.yml` for MySQL, ElasticSearch(v7) and Kafka/ZooKeeper dependencies
 * Alternatively, use `./docker/dev/cassandra-opensearch-kafka.yml` for Cassandra, OpenSearch(compatible with ElasticSearch v7) and Kafka/ZooKeeper dependencies
 * Alternatively, use `./docker/dev/mongo-esv7-kafka.yml` for MongoDB, ElasticSearch(v7) and Kafka/ZooKeeper dependencies
 
-### 3. Schema installation 
-Based on the above dependency setup, you also need to install the schemas. 
+### 3. Schema installation
+Based on the above dependency setup, you also need to install the schemas.
 
 * If you use `cassandra.yml` then run `make install-schema` to install Cassandra schemas
 * If you use `cassandra-esv7-kafka.yml` then run `make install-schema && make install-schema-es-v7` to install Cassandra & ElasticSearch schemas
-* If you use `cassandra-opensearch-kafka.yml` then run `make install-schema && make install-schema-es-opensearch` to install Cassandra & OpenSearch schemas 
+* If you use `cassandra-opensearch-kafka.yml` then run `make install-schema && make install-schema-es-opensearch` to install Cassandra & OpenSearch schemas
 * If you use `mysql.yml` then run `install-schema-mysql` to install MySQL schemas
 * If you use `postgres.yml` then run `install-schema-postgres` to install Postgres schemas
 * `mysql-esv7-kafka.yml` can be used for single MySQL + ElasticSearch or multiple MySQL + ElasticSearch mode
   * for single MySQL: run `install-schema-mysql && make install-schema-es-v7`
-  * for multiple MySQL: run `make install-schema-multiple-mysql` which will install schemas for 4 mysql databases and ElasticSearch 
+  * for multiple MySQL: run `make install-schema-multiple-mysql` which will install schemas for 4 mysql databases and ElasticSearch
 
-:warning: Note: 
->If you use `cassandra-esv7-kafka.yml` and start server before `make install-schema-es-v7`, ElasticSearch may create a wrong index on demand. 
+:warning: Note:
+>If you use `cassandra-esv7-kafka.yml` and start server before `make install-schema-es-v7`, ElasticSearch may create a wrong index on demand.
 You will have to delete the wrong index and then run the `make install-schema-es-v7` again. To delete the wrong index:
 ```
 curl -X DELETE "http://127.0.0.1:9200/cadence-visibility-dev"
 ```
 
-### 4. Run  
+### 4. Run
 Once you have done all above, try running the local binaries:
 
 
-Then you will be able to run a basic local Cadence server for development. 
+Then you will be able to run a basic local Cadence server for development.
 
-  * If you use `cassandra.yml`, then run `./cadence-server start`, which will load `config/development.yaml` as config  
+  * If you use `cassandra.yml`, then run `./cadence-server start`, which will load `config/development.yaml` as config
   * If you use `mysql.yml` then run `./cadence-server --zone mysql start`, which will load `config/development.yaml` + `config/development_mysql.yaml` as config
-  * If you use `postgres.yml` then run `./cadence-server --zone postgres start` , which will load `config/development.yaml` + `config/development_postgres.yaml` as config  
+  * If you use `postgres.yml` then run `./cadence-server --zone postgres start` , which will load `config/development.yaml` + `config/development_postgres.yaml` as config
   * If you use `cassandra-esv7-kafka.yml` then run `./cadence-server --zone es_v7 start`, which will load `config/development.yaml` + `config/development_es_v7.yaml` as config
   * If you use `cassandra-opensearch-kafka.yml` then run `./cadence-server --zone es_opensearch start` , which will load `config/development.yaml` + `config/development_es_opensearch.yaml` as config
-  * If you use `mysql-esv7-kafka.yaml` 
+  * If you use `mysql-esv7-kafka.yaml`
     * To run with multiple MySQL : `./cadence-server --zone multiple_mysql start`, which will load `config/development.yaml` + `config/development_multiple_mysql.yaml` as config
 
 Then register a domain:
@@ -120,19 +120,19 @@ Then register a domain:
 ```
 
 ### Sample Repo
-The sample code is available in the [Sample repo]https://github.com/uber-common/cadence-samples
+The sample code is available in the [Sample repo]https://github.com/cadence-workflow/cadence-samples
 
-Then run a helloworld from [Go Client Sample](https://github.com/uber-common/cadence-samples/) or [Java Client Sample](https://github.com/uber/cadence-java-samples)
+Then run a helloworld from [Go Client Sample](https://github.com/cadence-workflow/cadence-samples) or [Java Client Sample](https://github.com/cadence-workflow/cadence-java-samples)
 
 ```
 make bins
 ```
-will build all the samples. 
+will build all the samples.
 
-Then 
+Then
 ```
-./bin/helloworld -m worker & 
-``` 
+./bin/helloworld -m worker &
+```
 will start a worker for helloworld workflow.
 You will see like:
 ```
@@ -143,8 +143,8 @@ $./bin/helloworld -m worker &
 2021-09-24T21:07:03.250-0700	INFO	common/sample_helper.go:161	Domain successfully registered.	{"Domain": "samples-domain"}
 2021-09-24T21:07:03.291-0700	INFO	internal/internal_worker.go:833	Started Workflow Worker	{"Domain": "samples-domain", "TaskList": "helloWorldGroup", "WorkerID": "16520@IT-USA-25920@helloWorldGroup"}
 2021-09-24T21:07:03.300-0700	INFO	internal/internal_worker.go:858	Started Activity Worker	{"Domain": "samples-domain", "TaskList": "helloWorldGroup", "WorkerID": "16520@IT-USA-25920@helloWorldGroup"}
-``` 
-Then 
+```
+Then
 ```
 ./bin/helloworld
 ```
@@ -162,16 +162,16 @@ $./bin/helloworld
 2021-09-24T21:07:06.513-0700	INFO	helloworld/helloworld_workflow.go:55	Workflow completed.	{"Domain": "samples-domain", "TaskList": "helloWorldGroup", "WorkerID": "16520@IT-USA-25920@helloWorldGroup", "WorkflowType": "helloWorldWorkflow", "WorkflowID": "helloworld_75cf142b-c0de-407e-9115-1d33e9b7551a", "RunID": "98a229b8-8fdd-4d1f-bf41-df00fb06f441", "Result": "Hello Cadence!"}
 ```
 
-See [instructions](service/worker/README.md) for setting up replication(XDC). 
+See [instructions](service/worker/README.md) for setting up replication(XDC).
 
 ## Issues to start with
 
 Take a look at the list of issues labeled with
-[good first issue](https://github.com/uber/cadence/labels/good%20first%20issue).
+[good first issue](https://github.com/cadence-workflow/cadence/labels/good%20first%20issue).
 These issues are a great way to start contributing to Cadence.
 
-Later when you are more familiar with Cadence, look at issues with 
-[up-for-grabs](https://github.com/uber/cadence/labels/up-for-grabs). 
+Later when you are more familiar with Cadence, look at issues with
+[up-for-grabs](https://github.com/cadence-workflow/cadence/labels/up-for-grabs).
 
 
 
@@ -204,9 +204,9 @@ This will run all the tests excluding end-to-end integration test in host/ packa
 make test
 ```
 :warning: Note:
-> You will see some test failures because of errors connecting to MySQL/Postgres if only Cassandra is up. This is okay if you don't write any code related to persistence layer. 
- 
-To run all end-to-end integration tests in **host/** package: 
+> You will see some test failures because of errors connecting to MySQL/Postgres if only Cassandra is up. This is okay if you don't write any code related to persistence layer.
+
+To run all end-to-end integration tests in **host/** package:
 ```bash
 make test_e2e
 ```
@@ -232,7 +232,7 @@ You have a few options for choosing when to submit:
 
 * You can open a PR with an initial prototype with "Draft" option or with "WIP"(work in progress) in the title. This is useful when want to get some early feedback.
 
-* PR is supposed to be or near production ready. You should have fixed all styling, adding new tests if possible, and verified the change doesn't break any existing tests. 
+* PR is supposed to be or near production ready. You should have fixed all styling, adding new tests if possible, and verified the change doesn't break any existing tests.
 
 * For small changes where the approach seems obvious, you can open a PR with what you believe to be production-ready or near-production-ready code. As you get more experience with how we develop code, you'll find that more PRs will begin falling into this category.
 
@@ -242,19 +242,19 @@ Overcommit adds some requirements to your commit messages. At Uber, we follow th
 [Chris Beams](http://chris.beams.io/posts/git-commit/) guide to writing git
 commit messages. Read it, follow it, learn it, love it.
 
-All commit messages are from the titles of your pull requests. So make sure follow the rules when titling them. 
-Please don't use very generic titles like "bug fixes". 
+All commit messages are from the titles of your pull requests. So make sure follow the rules when titling them.
+Please don't use very generic titles like "bug fixes".
 
 All PR titles should start with UPPER case.
 
 Examples:
 
-- [Make sync activity retry multiple times before fetch history from remote](https://github.com/uber/cadence/pull/1379)
-- [Enable archival config per domain](https://github.com/uber/cadence/pull/1351)
+- [Make sync activity retry multiple times before fetch history from remote](https://github.com/cadence-workflow/cadence/pull/1379)
+- [Enable archival config per domain](https://github.com/cadence-workflow/cadence/pull/1351)
 
 #### Code Format and Licence headers checking
 
-The project has strict rule about Golang format. You have to run 
+The project has strict rule about Golang format. You have to run
 ```bash
 make fmt
 ```
@@ -277,12 +277,11 @@ No one is expected to write perfect code on the first try. That's why we have co
 Also, don't be embarrassed when your review points out syntax errors, stray whitespace, typos, and missing docstrings! That's why we have reviews. These properties are meant to guide you in your final scan.
 
 ### Addressing feedback
-If someone leaves line comments on your PR without leaving a top-level "looks good to me" (LGTM), it means they feel you should address their line comments before merging. 
+If someone leaves line comments on your PR without leaving a top-level "looks good to me" (LGTM), it means they feel you should address their line comments before merging.
 
 You should respond to all unresolved comments whenever you push a new revision or before you merge.
 
-Also, as you gain confidence in Go, you'll find that some of the nitpicky style feedback you get does not make for obviously better code. Don't be afraid to stick to your guns and push back. Much of coding style is subjective. 
+Also, as you gain confidence in Go, you'll find that some of the nitpicky style feedback you get does not make for obviously better code. Don't be afraid to stick to your guns and push back. Much of coding style is subjective.
 
 ### Merging
 External contributors: you don't need to worry about this section. We'll merge your PR as soon as you've addressed all review feedback(you will get at least one approval) and pipeline runs are all successful(meaning all tests are passing).
-

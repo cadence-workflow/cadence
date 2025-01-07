@@ -4,21 +4,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-You can find a list of previous releases on the [github releases](https://github.com/uber/cadence/releases) page.
+You can find a list of previous releases on the [github releases](https://github.com/cadence-workflow/cadence/releases) page.
 
 ## [Unreleased]
+Global ratelimiter, see [detailed doc](https://github.com/cadence-workflow/cadence/blob/master/common/quotas/global/doc.go)
+
+## [1.2.13] - 2024-09-25
+See [Release Note](https://github.com/cadence-workflow/cadence/releases/tag/v1.2.13) for details
+
+## [1.2.12] - 2024-08-19
+See [Release Note](https://github.com/cadence-workflow/cadence/releases/tag/v1.2.12) for details
+
+## [1.2.11] - 2024-07-10
+See [Release Note](https://github.com/cadence-workflow/cadence/releases/tag/v1.2.11) for details
+
+## [1.2.10] - 2024-06-04
+See [Release Note](https://github.com/cadence-workflow/cadence/releases/tag/v1.2.10) for details
 
 ## [1.2.9] - 2024-05-01
-See [Release Note](https://github.com/uber/cadence/releases/tag/v1.2.9) for details
+See [Release Note](https://github.com/cadence-workflow/cadence/releases/tag/v1.2.9) for details
 
 ## [1.2.8] - 2024-03-26
-See [Release Note](https://github.com/uber/cadence/releases/tag/v1.2.8) for details
+See [Release Note](https://github.com/cadence-workflow/cadence/releases/tag/v1.2.8) for details
 
 ## [1.2.7] - 2024-02-09
-See [Release Note](https://github.com/uber/cadence/releases/tag/v1.2.7) for details
+See [Release Note](https://github.com/cadence-workflow/cadence/releases/tag/v1.2.7) for details
 ### Upgrade notes
 Cadence repo now has multiple submodules,
-the split and explanation in [PR](https://github.com/uber/cadence/pull/5609).
+the split and explanation in [PR](https://github.com/cadence-workflow/cadence/pull/5609).
 
 In principle, "plugins" are "optional" and we should not be forcing all optional dependencies on all users of any of Cadence.
 Splitting dependencies into choose-your-own-adventure submodules is simply good library design for the ecosystem, and it's something we should be doing more of.
@@ -262,10 +275,10 @@ Disable isolation for sticky tasklist (#5319)
 Change default value of AsyncTaskDispatchTimeout (#5320)
 
 ## [1.0.0] - 2023-04-26
-See [Release Note](https://github.com/uber/cadence/releases/tag/v1.0.0)
+See [Release Note](https://github.com/cadence-workflow/cadence/releases/tag/v1.0.0)
 
 ## [0.23.1] - 2021-11-18
-See [Release Note](https://github.com/uber/cadence/releases/tag/v0.23.1)
+See [Release Note](https://github.com/cadence-workflow/cadence/releases/tag/v0.23.1)
 
 ## [0.21.3] - 2021-07-17
 ### Added

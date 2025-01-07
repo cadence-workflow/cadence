@@ -34,7 +34,7 @@ make install-schema-xdc
 ```
 cadence --do sample domain register --ac cluster0 --cl cluster0 cluster1 cluster2
 ```
-Then run a helloworld from [Go Client Sample](https://github.com/uber-common/cadence-samples/) or [Java Client Sample](https://github.com/uber/cadence-java-samples)
+Then run a helloworld from [Go Client Sample](https://github.com/cadence-workflow/cadence-samples/) or [Java Client Sample](https://github.com/cadence-workflow/cadence-java-samples)
 
 4. Failover a domain between clusters:
 
@@ -51,15 +51,15 @@ Failback to cluster0:
 cadence --do sample samples-domain update --ac cluster0
 ```
 
-## Multiple region setup 
-In a multiple region setup, use another set of config instead. 
+## Multiple region setup
+In a multiple region setup, use another set of config instead.
 
 ```
 ./cadence-server --zone cross_region_cluster0 start
 ./cadence-server --zone cross_region_cluster1 start
 ./cadence-server --zone cross_region_cluster2 start
 ```
-Right now the only difference is at clusterGroupMetadata.clusterRedirectionPolicy. 
+Right now the only difference is at clusterGroupMetadata.clusterRedirectionPolicy.
 In multiple region setup, network communication overhead between clusters is high so should use "selected-apis-forwarding". workflow/activity workers need to be connected to each cluster to keep high availability.
 
 
@@ -68,4 +68,4 @@ Archiver
 
 Archiver is used to handle archival of workflow execution histories. It does this by hosting a cadence client worker
 and running an archival system workflow. The archival client gets used to initiate archival through signal sending. The archiver
-shards work across several workflows. 
+shards work across several workflows.

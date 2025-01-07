@@ -23,7 +23,6 @@ package locks
 import (
 	"context"
 	"sync"
-	"sync/atomic"
 )
 
 type (
@@ -34,50 +33,43 @@ type (
 		Lock(context.Context) error
 		Unlock()
 	}
-
-	mutexImpl struct {
-		sync.Mutex
-	}
 )
 
-const (
-	acquiring = iota
-	acquired
-	bailed
-)
+type impl struct {
+	ch chan struct{}
+}
 
-// NewMutex creates a new RWMutex
 func NewMutex() Mutex {
-	return &mutexImpl{}
+	ch := make(chan struct{}, 1)
+	ch <- struct{}{}
+	return &impl{
+		ch: ch,
+	}
 }
 
-func (m *mutexImpl) Lock(ctx context.Context) error {
-	return m.lockInternal(ctx)
-}
-
-func (m *mutexImpl) lockInternal(ctx context.Context) error {
-	var state int32 = acquiring
-
-	acquiredCh := make(chan struct{})
-	go func() {
-		m.Mutex.Lock()
-		if !atomic.CompareAndSwapInt32(&state, acquiring, acquired) {
-			// already bailed due to context closing
-			m.Unlock()
-		}
-
-		close(acquiredCh)
-	}()
-
+func (m *impl) Lock(ctx context.Context) error {
 	select {
-	case <-acquiredCh:
+	case <-m.ch:
 		return nil
 	case <-ctx.Done():
-		{
-			if !atomic.CompareAndSwapInt32(&state, acquiring, bailed) {
-				return nil
-			}
-			return ctx.Err()
-		}
+		return ctx.Err()
+	}
+}
+
+func (m *impl) Unlock() {
+	select {
+	case m.ch <- struct{}{}:
+	default:
+		// reaching this branch means the mutex was not locked.
+		// this will intentionally crash the process, and print stack traces.
+		//
+		// it's not really possible to do this by hand (`fatal` is private),
+		// and other common options like `log.Fatal` don't print stacks / don't
+		// print all stacks / have loads of minor inconsistencies.
+		//
+		// regardless, what we want is to mimic mutexes when wrongly unlocked,
+		// so just use the mutex implementation to guarantee it's the same.
+		var m sync.Mutex
+		m.Unlock()
 	}
 }

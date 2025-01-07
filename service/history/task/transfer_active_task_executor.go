@@ -1845,8 +1845,11 @@ func (t *transferActiveTaskExecutor) processParentClosePolicy(
 	if t.shard.GetConfig().EnableParentClosePolicyWorker() &&
 		len(childInfos) >= t.shard.GetConfig().ParentClosePolicyThreshold(domainName) {
 
-		executions := make([]parentclosepolicy.RequestDetail, 0, len(childInfos))
+		batchSize := t.shard.GetConfig().ParentClosePolicyBatchSize(domainName)
+		executions := make([]parentclosepolicy.RequestDetail, 0, common.MinInt(len(childInfos), batchSize))
+		count := 0
 		for _, childInfo := range childInfos {
+			count++
 			if childInfo.ParentClosePolicy == types.ParentClosePolicyAbandon {
 				continue
 			}
@@ -1858,17 +1861,27 @@ func (t *transferActiveTaskExecutor) processParentClosePolicy(
 				RunID:      childInfo.StartedRunID,
 				Policy:     childInfo.ParentClosePolicy,
 			})
+
+			if len(executions) == batchSize {
+				err := t.parentClosePolicyClient.SendParentClosePolicyRequest(ctx, parentclosepolicy.Request{
+					DomainName: domainName,
+					Executions: executions,
+				})
+				if err != nil {
+					return err
+				}
+				executions = make([]parentclosepolicy.RequestDetail, 0, common.MinInt(len(childInfos)-count, batchSize))
+			}
 		}
 
 		if len(executions) == 0 {
 			return nil
 		}
 
-		request := parentclosepolicy.Request{
+		return t.parentClosePolicyClient.SendParentClosePolicyRequest(ctx, parentclosepolicy.Request{
 			DomainName: domainName,
 			Executions: executions,
-		}
-		return t.parentClosePolicyClient.SendParentClosePolicyRequest(ctx, request)
+		})
 	}
 
 	for _, childInfo := range childInfos {

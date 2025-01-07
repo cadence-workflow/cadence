@@ -23,16 +23,26 @@
 package executions
 
 import (
+	"context"
+	"strconv"
 	"testing"
 
+	"github.com/golang/mock/gomock"
+	"github.com/pborman/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/cadence/testsuite"
 	"go.uber.org/cadence/workflow"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/blobstore"
+	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/reconciliation/invariant"
 	"github.com/uber/cadence/common/reconciliation/store"
+	"github.com/uber/cadence/service/history/constants"
 	"github.com/uber/cadence/service/worker/scanner/shardscanner"
 )
 
@@ -232,4 +242,172 @@ func (s *currentExectionsWorkflowsSuite) TestScannerWorkflow_Success() {
 		}
 	}
 	s.Equal(shardscanner.ShardCorruptKeysResult(expectedCorrupted), shardCorruptKeysResult.Result)
+}
+
+func (s *currentExectionsWorkflowsSuite) TestScannerWorkflow_NewScannerWorkflow_Error() {
+	env := s.NewTestWorkflowEnvironment()
+
+	env.ExecuteWorkflow(CurrentScannerWorkflow, shardscanner.ScannerWorkflowParams{})
+
+	s.True(env.IsWorkflowCompleted())
+	s.ErrorContains(env.GetWorkflowError(), "must provide either List or Range")
+}
+
+func (s *currentExectionsWorkflowsSuite) TestScannerWorkflow_Start_Error() {
+	env := s.NewTestWorkflowEnvironment()
+	env.OnActivity(shardscanner.ActivityScannerConfig, mock.Anything, mock.Anything).Return(shardscanner.ResolvedScannerWorkflowConfig{}, assert.AnError)
+	env.ExecuteWorkflow(CurrentScannerWorkflow, shardscanner.ScannerWorkflowParams{
+		Shards: shardscanner.Shards{
+			List: []int{1},
+		},
+	})
+	s.True(env.IsWorkflowCompleted())
+	s.ErrorContains(env.GetWorkflowError(), assert.AnError.Error())
+}
+
+func Test_currentExecutionScannerHooks(t *testing.T) {
+	hooks := currentExecutionScannerHooks()
+	assert.NotNil(t, hooks)
+}
+
+func Test_currentExecutionScannerManager(t *testing.T) {
+	mockRetryer := persistence.NewMockRetryer(gomock.NewController(t))
+	params := shardscanner.ScanShardActivityParams{
+		ScannerConfig: shardscanner.CustomScannerConfig{
+			"CollectionMutableState": "true",
+		},
+	}
+
+	manager := currentExecutionScannerManager(context.Background(), mockRetryer, params, nil)
+	assert.NotNil(t, manager)
+}
+
+func (s *currentExectionsWorkflowsSuite) TestCurrentFixerWorkflow_NewFixerWorkflow_Error() {
+	env := s.NewTestWorkflowEnvironment()
+
+	env.OnActivity(shardscanner.ActivityFixerCorruptedKeys, mock.Anything, mock.Anything).Return(&shardscanner.FixerCorruptedKeysActivityResult{}, assert.AnError)
+
+	env.ExecuteWorkflow(CurrentFixerWorkflow, shardscanner.FixerWorkflowParams{})
+	s.True(env.IsWorkflowCompleted())
+	s.ErrorContains(env.GetWorkflowError(), assert.AnError.Error())
+}
+
+func (s *currentExectionsWorkflowsSuite) TestCurrentFixerWorkflow_Start_Error() {
+	env := s.NewTestWorkflowEnvironment()
+
+	env.OnActivity(shardscanner.ActivityFixerCorruptedKeys, mock.Anything, mock.Anything).
+		Return(&shardscanner.FixerCorruptedKeysActivityResult{
+			CorruptedKeys: []shardscanner.CorruptedKeysEntry{{ShardID: 1, CorruptedKeys: store.Keys{UUID: uuid.New()}}},
+			MinShard:      common.IntPtr(1),
+			MaxShard:      common.IntPtr(3),
+		}, nil)
+
+	env.OnActivity(shardscanner.ActivityFixerConfig, mock.Anything, mock.Anything).Return(&shardscanner.FixShardConfigResults{}, assert.AnError)
+
+	env.ExecuteWorkflow(CurrentFixerWorkflow, shardscanner.FixerWorkflowParams{})
+	s.True(env.IsWorkflowCompleted())
+	s.ErrorContains(env.GetWorkflowError(), assert.AnError.Error())
+}
+
+func (s *currentExectionsWorkflowsSuite) TestCurrentFixerWorkflow_Success() {
+	env := s.NewTestWorkflowEnvironment()
+
+	env.OnActivity(shardscanner.ActivityFixerCorruptedKeys, mock.Anything, mock.Anything).
+		Return(&shardscanner.FixerCorruptedKeysActivityResult{
+			CorruptedKeys: []shardscanner.CorruptedKeysEntry{{ShardID: 1, CorruptedKeys: store.Keys{UUID: uuid.New()}}},
+			MinShard:      common.IntPtr(1),
+			MaxShard:      common.IntPtr(3),
+		}, nil)
+
+	env.OnActivity(shardscanner.ActivityFixerConfig, mock.Anything, mock.Anything).Return(&shardscanner.FixShardConfigResults{}, nil)
+
+	env.OnActivity(shardscanner.ActivityFixShard, mock.Anything, mock.Anything).Return([]shardscanner.FixReport{{ShardID: 1}}, nil)
+
+	env.ExecuteWorkflow(CurrentFixerWorkflow, shardscanner.FixerWorkflowParams{})
+	s.True(env.IsWorkflowCompleted())
+	s.NoError(env.GetWorkflowError())
+}
+
+func Test_currentExecutionCustomScannerConfig(t *testing.T) {
+	mockClient := dynamicconfig.NewMockClient(gomock.NewController(t))
+
+	collection := dynamicconfig.NewCollection(mockClient, log.NewNoop())
+
+	mockClient.EXPECT().GetBoolValue(gomock.Any(), gomock.Any()).Return(true, nil).Times(2)
+
+	ctx := shardscanner.ScannerContext{
+		Config: &shardscanner.ScannerConfig{
+			DynamicCollection: collection,
+		},
+	}
+
+	cfg := currentExecutionCustomScannerConfig(ctx)
+
+	assert.NotNil(t, cfg)
+	assert.Len(t, cfg, 2)
+	assert.Equal(t, "true", cfg[invariant.CollectionHistory.String()])
+	assert.Equal(t, "true", cfg[invariant.CollectionMutableState.String()])
+}
+
+func Test_currentExecutionFixerHooks(t *testing.T) {
+	h := currentExecutionFixerHooks()
+
+	assert.NotNil(t, h)
+}
+
+func TestCurrentExecutionConfig(t *testing.T) {
+	mockClient := dynamicconfig.NewMockClient(gomock.NewController(t))
+
+	collection := dynamicconfig.NewCollection(mockClient, log.NewNoop())
+
+	cfg := CurrentExecutionConfig(collection)
+
+	assert.NotNil(t, cfg)
+}
+
+func Test_currentExecutionScannerIterator(t *testing.T) {
+	params := shardscanner.ScanShardActivityParams{
+		Shards: []int{1, 2, 3},
+		ScannerConfig: shardscanner.CustomScannerConfig{
+			"CollectionHistory": strconv.FormatBool(true),
+		},
+		PageSize: 1,
+	}
+
+	ctrl := gomock.NewController(t)
+	mockRetryer := persistence.NewMockRetryer(ctrl)
+
+	mockRetryer.EXPECT().ListCurrentExecutions(gomock.Any(), gomock.Any()).Return(&persistence.ListCurrentExecutionsResponse{
+		Executions: []*persistence.CurrentWorkflowExecution{
+			{
+				DomainID:   constants.TestDomainID,
+				WorkflowID: constants.TestWorkflowID,
+				RunID:      constants.TestRunID,
+			},
+		},
+	}, nil).Times(1)
+
+	mockRetryer.EXPECT().GetShardID().Return(2)
+
+	i := currentExecutionScannerIterator(context.Background(), mockRetryer, params)
+
+	assert.NotNil(t, i)
+}
+
+func Test_currentExecutionFixerIterator(t *testing.T) {
+	ctx := context.Background()
+	mockClient := &blobstore.MockClient{}
+	req := &blobstore.GetRequest{
+		Key: CurrentExecutionsFixerTaskListName + "_0.",
+	}
+
+	mockClient.On("Get", ctx, req).Return(&blobstore.GetResponse{}, nil).Once()
+
+	it := currentExecutionFixerIterator(
+		ctx,
+		mockClient,
+		store.Keys{UUID: CurrentExecutionsFixerTaskListName},
+		shardscanner.FixShardActivityParams{})
+
+	assert.NotNil(t, it)
 }

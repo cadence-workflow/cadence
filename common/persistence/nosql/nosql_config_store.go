@@ -50,10 +50,10 @@ func NewNoSQLConfigStore(
 
 func (m *nosqlConfigStore) FetchConfig(ctx context.Context, configType persistence.ConfigType) (*persistence.InternalConfigStoreEntry, error) {
 	entry, err := m.db.SelectLatestConfig(ctx, int(configType))
-	if m.db.IsNotFoundError(err) {
-		return nil, nil
-	}
 	if err != nil {
+		if m.db.IsNotFoundError(err) {
+			return nil, nil
+		}
 		return nil, convertCommonErrors(m.db, "FetchConfig", err)
 	}
 	return entry, nil

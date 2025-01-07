@@ -8,6 +8,8 @@ import (
 	"github.com/uber/cadence/common/types/mapper/thrift"
 )
 
+{{$unsupportedMethods := list "CountDLQMessages" "UpdateTaskListPartitionConfig" "RefreshTaskListPartitionConfig"}}
+
 {{$interfaceName := .Interface.Name}}
 {{$clientName := (index .Vars "client")}}
 {{ $decorator := (printf "%s%s" (down $clientName) .Interface.Name) }}
@@ -16,8 +18,14 @@ import (
 {{$Request := printf "%sRequest" $method.Name}}
 {{$Response := printf "%sResponse" $method.Name}}
 func (g {{$decorator}}) {{$method.Declaration}} {
-	{{- if eq $method.Name "CountDLQMessages"}}
+	{{- if has $method.Name $unsupportedMethods}}
 		return nil, thrift.ToError(&types.BadRequestError{Message: "Feature not supported on TChannel"})
+	{{- else if or (eq $method.Name "AddDecisionTask") (eq $method.Name "AddActivityTask")}}
+		{{(index $method.Results 1).Name}} = g.c.{{$method.Name}}({{(index $method.Params 0).Name}}, thrift.From{{$prefix}}{{$Request}}({{(index $method.Params 1).Name}}), {{(index $method.Params 2).Pass}})
+		if {{(index $method.Results 1).Name}} != nil {
+			return nil, {{(index $method.Results 1).Name}}
+		}
+		return &types.{{$method.Name}}Response{}, nil
 	{{- else}}
 	{{- if eq (len $method.Params) 2}}
 	{{- if eq (len $method.Results) 1}}

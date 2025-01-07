@@ -556,15 +556,38 @@ func taskInfoFromThrift(info *sqlblobs.TaskInfo) *TaskInfo {
 	}
 }
 
+func taskListPartitionConfigToThrift(info *TaskListPartitionConfig) *sqlblobs.TaskListPartitionConfig {
+	if info == nil {
+		return nil
+	}
+	return &sqlblobs.TaskListPartitionConfig{
+		Version:            &info.Version,
+		NumReadPartitions:  &info.NumReadPartitions,
+		NumWritePartitions: &info.NumWritePartitions,
+	}
+}
+
+func taskListParititionConfigFromThrift(info *sqlblobs.TaskListPartitionConfig) *TaskListPartitionConfig {
+	if info == nil {
+		return nil
+	}
+	return &TaskListPartitionConfig{
+		Version:            info.GetVersion(),
+		NumReadPartitions:  info.GetNumReadPartitions(),
+		NumWritePartitions: info.GetNumWritePartitions(),
+	}
+}
+
 func taskListInfoToThrift(info *TaskListInfo) *sqlblobs.TaskListInfo {
 	if info == nil {
 		return nil
 	}
 	return &sqlblobs.TaskListInfo{
-		Kind:             &info.Kind,
-		AckLevel:         &info.AckLevel,
-		ExpiryTimeNanos:  timeToUnixNanoPtr(info.ExpiryTimestamp),
-		LastUpdatedNanos: timeToUnixNanoPtr(info.LastUpdated),
+		Kind:                    &info.Kind,
+		AckLevel:                &info.AckLevel,
+		ExpiryTimeNanos:         timeToUnixNanoPtr(info.ExpiryTimestamp),
+		LastUpdatedNanos:        timeToUnixNanoPtr(info.LastUpdated),
+		AdaptivePartitionConfig: taskListPartitionConfigToThrift(info.AdaptivePartitionConfig),
 	}
 }
 
@@ -573,10 +596,11 @@ func taskListInfoFromThrift(info *sqlblobs.TaskListInfo) *TaskListInfo {
 		return nil
 	}
 	return &TaskListInfo{
-		Kind:            info.GetKind(),
-		AckLevel:        info.GetAckLevel(),
-		ExpiryTimestamp: timeFromUnixNano(info.GetExpiryTimeNanos()),
-		LastUpdated:     timeFromUnixNano(info.GetLastUpdatedNanos()),
+		Kind:                    info.GetKind(),
+		AckLevel:                info.GetAckLevel(),
+		ExpiryTimestamp:         timeFromUnixNano(info.GetExpiryTimeNanos()),
+		LastUpdated:             timeFromUnixNano(info.GetLastUpdatedNanos()),
+		AdaptivePartitionConfig: taskListParititionConfigFromThrift(info.AdaptivePartitionConfig),
 	}
 }
 

@@ -94,6 +94,8 @@ const (
 	ESVisibilityStoreName = "es-visibility"
 	// PinotVisibilityStoreName is used to find pinot advanced visibility store
 	PinotVisibilityStoreName = "pinot-visibility"
+	// OSVisibilityStoreName is used to find opensearch advanced visibility store
+	OSVisibilityStoreName = "os-visibility"
 )
 
 // This was flagged by salus as potentially hardcoded credentials. This is a false positive by the scanner and should be
@@ -157,8 +159,20 @@ const (
 	AdvancedVisibilityWritingModeOn = "on"
 	// AdvancedVisibilityWritingModeDual means write to both normal visibility and advanced visibility store
 	AdvancedVisibilityWritingModeDual = "dual"
-	// AdvancedVisibilityWritingModeTriple means write to both normal visibility and advanced visibility store, includes ES and Pinot
-	AdvancedVisibilityWritingModeTriple = "triple"
+)
+
+// enum for dynamic config AdvancedVisibilityMigrationWritingMode
+const (
+	// AdvancedVisibilityMigrationWritingModeOff means do not write to advanced visibility store
+	AdvancedVisibilityMigrationWritingModeOff = "off"
+	// AdvancedVisibilityMigrationWritingModeTriple means write to normal visibility and advanced visibility store
+	AdvancedVisibilityMigrationWritingModeTriple = "triple"
+	// AdvancedVisibilityMigrationWritingModeDual means write to both advanced visibility stores
+	AdvancedVisibilityMigrationWritingModeDual = "dual"
+	// AdvancedVisibilityMigrationWritingModeTriple means write to source visibility store during migration
+	AdvancedVisibilityMigrationWritingModeSource = "source"
+	// AdvancedVisibilityMigrationWritingModeDestination means write to destination visibility store during migration
+	AdvancedVisibilityMigrationWritingModeDestination = "destination"
 )
 
 const (

@@ -64,13 +64,9 @@ func (m *nosqlDomainStore) CreateDomain(
 	ctx context.Context,
 	request *persistence.InternalCreateDomainRequest,
 ) (*persistence.CreateDomainResponse, error) {
-	config, err := m.toNoSQLInternalDomainConfig(request.Config)
-	if err != nil {
-		return nil, err
-	}
 	row := &nosqlplugin.DomainRow{
 		Info:                        request.Info,
-		Config:                      config,
+		Config:                      request.Config,
 		ReplicationConfig:           request.ReplicationConfig,
 		ConfigVersion:               request.ConfigVersion,
 		FailoverVersion:             request.FailoverVersion,
@@ -81,7 +77,7 @@ func (m *nosqlDomainStore) CreateDomain(
 		LastUpdatedTime:             request.LastUpdatedTime,
 	}
 
-	err = m.db.InsertDomain(ctx, row)
+	err := m.db.InsertDomain(ctx, row)
 
 	if err != nil {
 		if _, ok := err.(*types.DomainAlreadyExistsError); ok {
@@ -97,14 +93,9 @@ func (m *nosqlDomainStore) UpdateDomain(
 	ctx context.Context,
 	request *persistence.InternalUpdateDomainRequest,
 ) error {
-	config, err := m.toNoSQLInternalDomainConfig(request.Config)
-	if err != nil {
-		return err
-	}
-
 	row := &nosqlplugin.DomainRow{
 		Info:                        request.Info,
-		Config:                      config,
+		Config:                      request.Config,
 		ReplicationConfig:           request.ReplicationConfig,
 		ConfigVersion:               request.ConfigVersion,
 		FailoverVersion:             request.FailoverVersion,
@@ -115,7 +106,7 @@ func (m *nosqlDomainStore) UpdateDomain(
 		LastUpdatedTime:             request.LastUpdatedTime,
 	}
 
-	err = m.db.UpdateDomain(ctx, row)
+	err := m.db.UpdateDomain(ctx, row)
 	if err != nil {
 		return convertCommonErrors(m.db, "UpdateDomain", err)
 	}
@@ -169,16 +160,9 @@ func (m *nosqlDomainStore) GetDomain(
 	row.ReplicationConfig.ActiveClusterName = cluster.GetOrUseDefaultActiveCluster(m.currentClusterName, row.ReplicationConfig.ActiveClusterName)
 	row.ReplicationConfig.Clusters = cluster.GetOrUseDefaultClusters(m.currentClusterName, row.ReplicationConfig.Clusters)
 
-	domainConfig, err := m.fromNoSQLInternalDomainConfig(row.Config)
-	if err != nil {
-		return nil, &types.InternalServiceError{
-			Message: fmt.Sprintf("cannot convert fromNoSQLInternalDomainConfig, %v ", err),
-		}
-	}
-
 	return &persistence.InternalGetDomainResponse{
 		Info:                        row.Info,
-		Config:                      domainConfig,
+		Config:                      row.Config,
 		ReplicationConfig:           row.ReplicationConfig,
 		IsGlobalDomain:              row.IsGlobalDomain,
 		ConfigVersion:               row.ConfigVersion,
@@ -207,16 +191,9 @@ func (m *nosqlDomainStore) ListDomains(
 		row.ReplicationConfig.ActiveClusterName = cluster.GetOrUseDefaultActiveCluster(m.currentClusterName, row.ReplicationConfig.ActiveClusterName)
 		row.ReplicationConfig.Clusters = cluster.GetOrUseDefaultClusters(m.currentClusterName, row.ReplicationConfig.Clusters)
 
-		domainConfig, err := m.fromNoSQLInternalDomainConfig(row.Config)
-		if err != nil {
-			return nil, &types.InternalServiceError{
-				Message: fmt.Sprintf("cannot convert fromNoSQLInternalDomainConfig, %v ", err),
-			}
-		}
-
 		domains = append(domains, &persistence.InternalGetDomainResponse{
 			Info:                        row.Info,
-			Config:                      domainConfig,
+			Config:                      row.Config,
 			ReplicationConfig:           row.ReplicationConfig,
 			IsGlobalDomain:              row.IsGlobalDomain,
 			ConfigVersion:               row.ConfigVersion,
@@ -265,40 +242,4 @@ func (m *nosqlDomainStore) GetMetadata(
 		return nil, convertCommonErrors(m.db, "GetMetadata", err)
 	}
 	return &persistence.GetMetadataResponse{NotificationVersion: notificationVersion}, nil
-}
-
-func (m *nosqlDomainStore) toNoSQLInternalDomainConfig(
-	domainConfig *persistence.InternalDomainConfig,
-) (*nosqlplugin.NoSQLInternalDomainConfig, error) {
-	return &nosqlplugin.NoSQLInternalDomainConfig{
-		Retention:                domainConfig.Retention,
-		EmitMetric:               domainConfig.EmitMetric,
-		ArchivalBucket:           domainConfig.ArchivalBucket,
-		ArchivalStatus:           domainConfig.ArchivalStatus,
-		HistoryArchivalStatus:    domainConfig.HistoryArchivalStatus,
-		HistoryArchivalURI:       domainConfig.HistoryArchivalURI,
-		VisibilityArchivalStatus: domainConfig.VisibilityArchivalStatus,
-		VisibilityArchivalURI:    domainConfig.VisibilityArchivalURI,
-		BadBinaries:              domainConfig.BadBinaries,
-		IsolationGroups:          domainConfig.IsolationGroups,
-		AsyncWorkflowsConfig:     domainConfig.AsyncWorkflowsConfig,
-	}, nil
-}
-
-func (m *nosqlDomainStore) fromNoSQLInternalDomainConfig(
-	domainConfig *nosqlplugin.NoSQLInternalDomainConfig,
-) (*persistence.InternalDomainConfig, error) {
-	return &persistence.InternalDomainConfig{
-		Retention:                domainConfig.Retention,
-		EmitMetric:               domainConfig.EmitMetric,
-		ArchivalBucket:           domainConfig.ArchivalBucket,
-		ArchivalStatus:           domainConfig.ArchivalStatus,
-		HistoryArchivalStatus:    domainConfig.HistoryArchivalStatus,
-		HistoryArchivalURI:       domainConfig.HistoryArchivalURI,
-		VisibilityArchivalStatus: domainConfig.VisibilityArchivalStatus,
-		VisibilityArchivalURI:    domainConfig.VisibilityArchivalURI,
-		BadBinaries:              domainConfig.BadBinaries,
-		IsolationGroups:          domainConfig.IsolationGroups,
-		AsyncWorkflowsConfig:     domainConfig.AsyncWorkflowsConfig,
-	}, nil
 }

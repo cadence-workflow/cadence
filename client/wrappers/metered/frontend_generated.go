@@ -115,6 +115,19 @@ func (c *frontendClient) DescribeWorkflowExecution(ctx context.Context, dp1 *typ
 	return dp2, err
 }
 
+func (c *frontendClient) DiagnoseWorkflowExecution(ctx context.Context, dp1 *types.DiagnoseWorkflowExecutionRequest, p1 ...yarpc.CallOption) (dp2 *types.DiagnoseWorkflowExecutionResponse, err error) {
+	c.metricsClient.IncCounter(metrics.FrontendClientDiagnoseWorkflowExecutionScope, metrics.CadenceClientRequests)
+
+	sw := c.metricsClient.StartTimer(metrics.FrontendClientDiagnoseWorkflowExecutionScope, metrics.CadenceClientLatency)
+	dp2, err = c.client.DiagnoseWorkflowExecution(ctx, dp1, p1...)
+	sw.Stop()
+
+	if err != nil {
+		c.metricsClient.IncCounter(metrics.FrontendClientDiagnoseWorkflowExecutionScope, metrics.CadenceClientFailures)
+	}
+	return dp2, err
+}
+
 func (c *frontendClient) GetClusterInfo(ctx context.Context, p1 ...yarpc.CallOption) (cp1 *types.ClusterInfo, err error) {
 	c.metricsClient.IncCounter(metrics.FrontendClientGetClusterInfoScope, metrics.CadenceClientRequests)
 

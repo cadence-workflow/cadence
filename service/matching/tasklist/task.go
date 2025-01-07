@@ -41,7 +41,7 @@ type (
 	// another matching host. This type of task is already marked as started
 	startedTaskInfo struct {
 		decisionTaskInfo *types.MatchingPollForDecisionTaskResponse
-		activityTaskInfo *types.PollForActivityTaskResponse
+		activityTaskInfo *types.MatchingPollForActivityTaskResponse
 	}
 	// InternalTask represents an activity, decision, query or started (received from another host).
 	// this struct is more like a union and only one of [ query, event, forwarded ] is
@@ -57,6 +57,7 @@ type (
 		ResponseC                chan error // non-nil only where there is a caller waiting for response (sync-match)
 		BacklogCountHint         int64
 		ActivityTaskDispatchInfo *types.ActivityTaskDispatchInfo
+		AutoConfigHint           *types.AutoConfigHint // worker auto-scaler hint, which includes enable auto config flag and poller wait time on the matching engine
 	}
 )
 
@@ -156,7 +157,7 @@ func (task *InternalTask) PollForDecisionResponse() *types.MatchingPollForDecisi
 
 // pollForActivityResponse returns the poll response for an activity task that is
 // already marked as started. This method should only be called when isStarted() is true
-func (task *InternalTask) PollForActivityResponse() *types.PollForActivityTaskResponse {
+func (task *InternalTask) PollForActivityResponse() *types.MatchingPollForActivityTaskResponse {
 	if task.IsStarted() {
 		return task.started.activityTaskInfo
 	}

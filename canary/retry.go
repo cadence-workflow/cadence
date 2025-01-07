@@ -74,7 +74,7 @@ func retryWorkflow(ctx workflow.Context, scheduledTimeNanos int64) error {
 	var progress int
 	err = f1.Get(ctx, &progress)
 	if err != nil {
-		workflow.GetLogger(ctx).Error("retryWorkflow failed", zap.Error(err))
+		workflow.GetLogger(ctx).Error("retryWorkflow failed on RetryOnTimeout", zap.Error(err))
 		return profile.end(err)
 	}
 
@@ -86,7 +86,7 @@ func retryWorkflow(ctx workflow.Context, scheduledTimeNanos int64) error {
 	var result int32
 	err = f2.Get(ctx, &result)
 	if err != nil {
-		workflow.GetLogger(ctx).Error("retryWorkflow failed", zap.Error(err))
+		workflow.GetLogger(ctx).Error("retryWorkflow failed on RetryOnFailure", zap.Error(err))
 		return profile.end(err)
 	}
 
@@ -115,9 +115,6 @@ func retryOnTimeoutActivity(ctx context.Context, scheduledTimeNanos int64) (int,
 	if info.Attempt < 3 {
 		activity.RecordHeartbeat(ctx, info.Attempt*100)
 		time.Sleep(2 * info.HeartbeatTimeout)
-		// Currently we have a server bug which accepts completion from different attempt
-		// For now fail the activity
-		return 0, errRetryableActivityError
 	}
 
 	return progress, nil

@@ -27,7 +27,11 @@ func (g {{$Decorator}}) {{$method.Declaration}} {
 	{{- end}}
 	{{- else}}
 	{{- if eq (len $method.Results) 1}}
+	{{- if or (eq $method.Name "AddDecisionTask") (eq $method.Name "AddActivityTask")}}
+	_, {{(index $method.Results 0).Name}} = g.h.{{$method.Name}}({{(index $method.Params 0).Name}}, thrift.To{{$prefix}}{{$Request}}({{(index $method.Params 1).Name}}))
+	{{- else}}
 	{{(index $method.Results 0).Name}} = g.h.{{$method.Name}}({{(index $method.Params 0).Name}}, thrift.To{{$prefix}}{{$Request}}({{(index $method.Params 1).Name}}))
+	{{- end}}
 	{{- else}}
 	response, {{(index $method.Results 1).Name}} := g.h.{{$method.Name}}({{(index $method.Params 0).Name}}, thrift.To{{$prefix}}{{$Request}}({{(index $method.Params 1).Name}}))
 	{{- end}}

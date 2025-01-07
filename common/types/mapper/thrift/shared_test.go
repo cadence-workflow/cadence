@@ -30,6 +30,7 @@ import (
 
 	"github.com/uber/cadence/.gen/go/shared"
 	"github.com/uber/cadence/common"
+	cadence_errors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/types/mapper/testutils"
 	"github.com/uber/cadence/common/types/testdata"
@@ -1101,7 +1102,10 @@ func TestDescribeTaskListResponseConversion(t *testing.T) {
 	for _, original := range testCases {
 		thriftObj := FromDescribeTaskListResponse(original)
 		roundTripObj := ToDescribeTaskListResponse(thriftObj)
-		assert.Equal(t, original, roundTripObj)
+		opt := cmpopts.IgnoreFields(types.DescribeTaskListResponse{}, "PartitionConfig")
+		if diff := cmp.Diff(original, roundTripObj, opt); diff != "" {
+			t.Fatalf("Mismatch (-want +got):\n%s", diff)
+		}
 	}
 }
 
@@ -1129,6 +1133,34 @@ func TestDescribeWorkflowExecutionResponseConversion(t *testing.T) {
 	for _, original := range testCases {
 		thriftObj := FromDescribeWorkflowExecutionResponse(original)
 		roundTripObj := ToDescribeWorkflowExecutionResponse(thriftObj)
+		assert.Equal(t, original, roundTripObj)
+	}
+}
+
+func TestDiagnoseWorkflowExecutionRequestConversion(t *testing.T) {
+	testCases := []*types.DiagnoseWorkflowExecutionRequest{
+		nil,
+		{},
+		&testdata.DiagnoseWorkflowExecutionRequest,
+	}
+
+	for _, original := range testCases {
+		thriftObj := FromDiagnoseWorkflowExecutionRequest(original)
+		roundTripObj := ToDiagnoseWorkflowExecutionRequest(thriftObj)
+		assert.Equal(t, original, roundTripObj)
+	}
+}
+
+func TestDiagnoseWorkflowExecutionResponseConversion(t *testing.T) {
+	testCases := []*types.DiagnoseWorkflowExecutionResponse{
+		nil,
+		{},
+		&testdata.DiagnoseWorkflowExecutionResponse,
+	}
+
+	for _, original := range testCases {
+		thriftObj := FromDiagnoseWorkflowExecutionResponse(original)
+		roundTripObj := ToDiagnoseWorkflowExecutionResponse(thriftObj)
 		assert.Equal(t, original, roundTripObj)
 	}
 }
@@ -1746,7 +1778,10 @@ func TestDescribeTaskListResponseMapConversion(t *testing.T) {
 	for _, original := range testCases {
 		thriftObj := FromDescribeTaskListResponseMap(original)
 		roundTripObj := ToDescribeTaskListResponseMap(thriftObj)
-		assert.Equal(t, original, roundTripObj)
+		opt := cmpopts.IgnoreFields(types.DescribeTaskListResponse{}, "PartitionConfig")
+		if diff := cmp.Diff(original, roundTripObj, opt); diff != "" {
+			t.Fatalf("Mismatch (-want +got):\n%s", diff)
+		}
 	}
 }
 
@@ -3311,6 +3346,19 @@ func TestStickyWorkerUnavailableErrorConversion(t *testing.T) {
 	for _, original := range testCases {
 		thriftObj := FromStickyWorkerUnavailableError(original)
 		roundTripObj := ToStickyWorkerUnavailableError(thriftObj)
+		assert.Equal(t, original, roundTripObj)
+	}
+}
+
+func TestFromTaskListNotOwnedByHostError(t *testing.T) {
+	testCases := []*cadence_errors.TaskListNotOwnedByHostError{
+		nil,
+		&testdata.TaskListNotOwnedByHostError,
+	}
+
+	for _, original := range testCases {
+		thriftObj := FromTaskListNotOwnedByHostError(original)
+		roundTripObj := ToTaskListNotOwnedByHostError(thriftObj)
 		assert.Equal(t, original, roundTripObj)
 	}
 }

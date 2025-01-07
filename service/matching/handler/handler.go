@@ -23,7 +23,6 @@ package handler
 import (
 	"context"
 	"sync"
-	"time"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
@@ -125,10 +124,9 @@ func (h *handlerImpl) newHandlerContext(
 func (h *handlerImpl) AddActivityTask(
 	ctx context.Context,
 	request *types.AddActivityTaskRequest,
-) (retError error) {
+) (resp *types.AddActivityTaskResponse, retError error) {
 	defer func() { log.CapturePanic(recover(), h.logger, &retError) }()
 
-	startT := time.Now()
 	domainName := h.domainName(request.GetDomainUUID())
 	hCtx := h.newHandlerContext(
 		ctx,
@@ -145,25 +143,20 @@ func (h *handlerImpl) AddActivityTask(
 	}
 
 	if ok := h.workerRateLimiter.Allow(quotas.Info{Domain: domainName}); !ok {
-		return hCtx.handleErr(errMatchingHostThrottle)
+		return nil, hCtx.handleErr(errMatchingHostThrottle)
 	}
 
-	syncMatch, err := h.engine.AddActivityTask(hCtx, request)
-	if syncMatch {
-		hCtx.scope.RecordTimer(metrics.SyncMatchLatencyPerTaskList, time.Since(startT))
-	}
-
-	return hCtx.handleErr(err)
+	resp, err := h.engine.AddActivityTask(hCtx, request)
+	return resp, hCtx.handleErr(err)
 }
 
 // AddDecisionTask - adds a decision task.
 func (h *handlerImpl) AddDecisionTask(
 	ctx context.Context,
 	request *types.AddDecisionTaskRequest,
-) (retError error) {
+) (resp *types.AddDecisionTaskResponse, retError error) {
 	defer func() { log.CapturePanic(recover(), h.logger, &retError) }()
 
-	startT := time.Now()
 	domainName := h.domainName(request.GetDomainUUID())
 	hCtx := h.newHandlerContext(
 		ctx,
@@ -180,21 +173,18 @@ func (h *handlerImpl) AddDecisionTask(
 	}
 
 	if ok := h.workerRateLimiter.Allow(quotas.Info{Domain: domainName}); !ok {
-		return hCtx.handleErr(errMatchingHostThrottle)
+		return nil, hCtx.handleErr(errMatchingHostThrottle)
 	}
 
-	syncMatch, err := h.engine.AddDecisionTask(hCtx, request)
-	if syncMatch {
-		hCtx.scope.RecordTimer(metrics.SyncMatchLatencyPerTaskList, time.Since(startT))
-	}
-	return hCtx.handleErr(err)
+	resp, err := h.engine.AddDecisionTask(hCtx, request)
+	return resp, hCtx.handleErr(err)
 }
 
 // PollForActivityTask - long poll for an activity task.
 func (h *handlerImpl) PollForActivityTask(
 	ctx context.Context,
 	request *types.MatchingPollForActivityTaskRequest,
-) (resp *types.PollForActivityTaskResponse, retError error) {
+) (resp *types.MatchingPollForActivityTaskResponse, retError error) {
 	defer func() { log.CapturePanic(recover(), h.logger, &retError) }()
 
 	domainName := h.domainName(request.GetDomainUUID())
@@ -422,6 +412,55 @@ func (h *handlerImpl) GetTaskListsByDomain(
 	}
 
 	response, err := h.engine.GetTaskListsByDomain(hCtx, request)
+	return response, hCtx.handleErr(err)
+}
+
+func (h *handlerImpl) UpdateTaskListPartitionConfig(
+	ctx context.Context,
+	request *types.MatchingUpdateTaskListPartitionConfigRequest,
+) (resp *types.MatchingUpdateTaskListPartitionConfigResponse, retError error) {
+	defer func() { log.CapturePanic(recover(), h.logger, &retError) }()
+
+	domainName := h.domainName(request.DomainUUID)
+	hCtx := h.newHandlerContext(
+		ctx,
+		domainName,
+		request.TaskList,
+		metrics.MatchingUpdateTaskListPartitionConfigScope,
+	)
+
+	sw := hCtx.startProfiling(&h.startWG)
+	defer sw.Stop()
+
+	if ok := h.userRateLimiter.Allow(quotas.Info{Domain: domainName}); !ok {
+		return nil, hCtx.handleErr(errMatchingHostThrottle)
+	}
+
+	response, err := h.engine.UpdateTaskListPartitionConfig(hCtx, request)
+	return response, hCtx.handleErr(err)
+}
+
+func (h *handlerImpl) RefreshTaskListPartitionConfig(
+	ctx context.Context,
+	request *types.MatchingRefreshTaskListPartitionConfigRequest,
+) (resp *types.MatchingRefreshTaskListPartitionConfigResponse, retError error) {
+	defer func() { log.CapturePanic(recover(), h.logger, &retError) }()
+
+	domainName := h.domainName(request.DomainUUID)
+	hCtx := h.newHandlerContext(
+		ctx,
+		domainName,
+		request.TaskList,
+		metrics.MatchingRefreshTaskListPartitionConfigScope,
+	)
+
+	sw := hCtx.startProfiling(&h.startWG)
+	defer sw.Stop()
+
+	// Count the request in the RPS, but we still accept it even if RPS is exceeded
+	h.userRateLimiter.Allow(quotas.Info{Domain: domainName})
+
+	response, err := h.engine.RefreshTaskListPartitionConfig(hCtx, request)
 	return response, hCtx.handleErr(err)
 }
 

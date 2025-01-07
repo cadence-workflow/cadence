@@ -25,14 +25,17 @@ package os2
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"testing"
 
 	"github.com/opensearch-project/opensearch-go/v2/opensearchutil"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 
 	"github.com/uber/cadence/common/elasticsearch/bulk"
+	"github.com/uber/cadence/common/log/testlogger"
 )
 
 func TestStart(t *testing.T) {
@@ -275,4 +278,74 @@ func TestDecode(t *testing.T) {
 // Function to create a sample reader from a string
 func createReaderFromString(s string) io.Reader {
 	return bytes.NewBufferString(s)
+}
+
+// MockProcessor is a mock of the processor that will capture the requests.
+type MockProcessor struct {
+	mock.Mock
+}
+
+func (m *MockProcessor) Add(ctx context.Context, req opensearchutil.BulkIndexerItem) error {
+	args := m.Called(ctx, req)
+	return args.Error(0)
+}
+
+func (m *MockProcessor) Close(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
+}
+
+func (m *MockProcessor) Stats() opensearchutil.BulkIndexerStats {
+	args := m.Called()
+	return args.Get(0).(opensearchutil.BulkIndexerStats)
+}
+
+func TestBulkProcessorPayload(t *testing.T) {
+	mockProcessor := new(MockProcessor)
+	logger := testlogger.New(t)
+	v := &bulkProcessor{
+		processor: mockProcessor,
+		logger:    logger,
+	}
+
+	request := &bulk.GenericBulkableAddRequest{
+		Index:       "test-index",
+		ID:          "123",
+		Version:     1,
+		VersionType: "external",
+		RequestType: bulk.BulkableIndexRequest,
+		Doc: map[string]interface{}{
+			"field1": "value1",
+		},
+	}
+
+	expectedBody, err := json.Marshal(request.Doc)
+	assert.NoError(t, err)
+	expectedReq := opensearchutil.BulkIndexerItem{
+		Index:       "test-index",
+		DocumentID:  "123",
+		Action:      "index",
+		Version:     &request.Version,
+		VersionType: &request.VersionType,
+		Body:        bytes.NewReader(expectedBody),
+	}
+
+	mockProcessor.On("Add", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		actualReq := args.Get(1).(opensearchutil.BulkIndexerItem)
+
+		assert.Equal(t, expectedReq.Index, actualReq.Index)
+		assert.Equal(t, expectedReq.DocumentID, actualReq.DocumentID)
+		assert.Equal(t, expectedReq.Action, actualReq.Action)
+		assert.Equal(t, expectedReq.Version, actualReq.Version)
+		assert.Equal(t, expectedReq.VersionType, actualReq.VersionType)
+
+		var expectedDoc, actualDoc map[string]interface{}
+		assert.NoError(t, json.NewDecoder(expectedReq.Body).Decode(&expectedDoc))
+		assert.NoError(t, json.NewDecoder(actualReq.Body).Decode(&actualDoc))
+		assert.Equal(t, expectedDoc, actualDoc)
+
+	}).Return(nil)
+
+	v.Add(request)
+	mockProcessor.AssertExpectations(t)
 }

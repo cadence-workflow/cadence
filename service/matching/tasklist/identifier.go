@@ -78,6 +78,10 @@ func (tn *qualifiedTaskListName) IsRoot() bool {
 	return tn.partition == 0
 }
 
+func (tn *qualifiedTaskListName) Partition() int {
+	return tn.partition
+}
+
 // GetRoot returns the root name for a task list
 func (tn *qualifiedTaskListName) GetRoot() string {
 	return tn.baseName
@@ -99,10 +103,10 @@ func (tn *qualifiedTaskListName) Parent(degree int) string {
 		return ""
 	}
 	pid := (tn.partition+degree-1)/degree - 1
-	return tn.mkName(pid)
+	return tn.GetPartition(pid)
 }
 
-func (tn *qualifiedTaskListName) mkName(partition int) string {
+func (tn *qualifiedTaskListName) GetPartition(partition int) string {
 	if partition == 0 {
 		return tn.baseName
 	}

@@ -110,16 +110,16 @@ func (tbl *mockTaskListTable) get(name string) *p.TaskListInfo {
 func (tbl *mockTaskTable) generate(count int, expired bool) {
 	for i := 0; i < count; i++ {
 		ti := &p.TaskInfo{
-			DomainID:               tbl.domainID,
-			WorkflowID:             tbl.workflowID,
-			RunID:                  tbl.runID,
-			TaskID:                 tbl.nextTaskID,
-			ScheduleID:             3,
-			ScheduleToStartTimeout: 30,
-			Expiry:                 time.Now().Add(time.Hour),
+			DomainID:                      tbl.domainID,
+			WorkflowID:                    tbl.workflowID,
+			RunID:                         tbl.runID,
+			TaskID:                        tbl.nextTaskID,
+			ScheduleID:                    3,
+			ScheduleToStartTimeoutSeconds: 30,
+			Expiry:                        time.Now().Add(time.Hour),
 		}
 		if expired {
-			ti.ScheduleToStartTimeout = -33
+			ti.ScheduleToStartTimeoutSeconds = -33
 			ti.Expiry = time.Unix(0, time.Now().UnixNano()-int64(time.Second*33))
 		}
 		tbl.tasks = append(tbl.tasks, ti)

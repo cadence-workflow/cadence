@@ -26,48 +26,59 @@ import (
 	"fmt"
 	"text/tabwriter"
 
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/tools/common/commoncli"
 )
 
-func AdminGetGlobalIsolationGroups(c *cli.Context) {
-	adminClient := cFactory.ServerAdminClient(c)
+func AdminGetGlobalIsolationGroups(c *cli.Context) error {
+	adminClient, err := getDeps(c).ServerAdminClient(c)
+	if err != nil {
+		return err
+	}
 
-	ctx, cancel := newContext(c)
+	ctx, cancel, err := newContext(c)
 	defer cancel()
-
+	if err != nil {
+		return commoncli.Problem("Error creating context:", err)
+	}
 	req := &types.GetGlobalIsolationGroupsRequest{}
 	igs, err := adminClient.GetGlobalIsolationGroups(ctx, req)
 	if err != nil {
-		ErrorAndExit("failed to get isolation-groups:", err)
+		return commoncli.Problem("failed to get isolation-groups:", err)
 	}
 
 	format := c.String(FlagFormat)
 	switch format {
 	case "json":
-		prettyPrintJSONObject(igs.IsolationGroups.ToPartitionList())
+		prettyPrintJSONObject(getDeps(c).Output(), igs.IsolationGroups.ToPartitionList())
 	default:
-		fmt.Print(renderIsolationGroups(igs.IsolationGroups))
+		getDeps(c).Output().Write(renderIsolationGroups(igs.IsolationGroups))
 	}
+	return nil
 }
 
-func AdminUpdateGlobalIsolationGroups(c *cli.Context) {
-	adminClient := cFactory.ServerAdminClient(c)
+func AdminUpdateGlobalIsolationGroups(c *cli.Context) error {
+	adminClient, err := getDeps(c).ServerAdminClient(c)
+	if err != nil {
+		return err
+	}
 
-	ctx, cancel := newContext(c)
+	ctx, cancel, err := newContext(c)
 	defer cancel()
-
-	err := validateIsolationGroupUpdateArgs(
+	if err != nil {
+		return commoncli.Problem("Error creating context:", err)
+	}
+	err = validateIsolationGroupUpdateArgs(
 		c.String(FlagDomain),
-		c.GlobalString(FlagDomain),
 		c.StringSlice(FlagIsolationGroupSetDrains),
 		c.String(FlagJSON),
 		c.Bool(FlagIsolationGroupsRemoveAllDrains),
 		false,
 	)
 	if err != nil {
-		ErrorAndExit("invalid args:", err)
+		return commoncli.Problem("invalid args:", err)
 	}
 
 	cfg, err := parseIsolationGroupCliInputCfg(
@@ -76,59 +87,72 @@ func AdminUpdateGlobalIsolationGroups(c *cli.Context) {
 		c.Bool(FlagIsolationGroupsRemoveAllDrains),
 	)
 	if err != nil {
-		ErrorAndExit("failed to parse input:", err)
+		return commoncli.Problem("failed to parse input:", err)
 	}
 
 	_, err = adminClient.UpdateGlobalIsolationGroups(ctx, &types.UpdateGlobalIsolationGroupsRequest{
 		IsolationGroups: *cfg,
 	})
 	if err != nil {
-		ErrorAndExit("failed to update isolation-groups", fmt.Errorf("used %#v, got %v", cfg, err))
+		return commoncli.Problem("failed to update isolation-groups", fmt.Errorf("used %#v, got %v", cfg, err))
 	}
+	return nil
 }
 
-func AdminGetDomainIsolationGroups(c *cli.Context) {
-	adminClient := cFactory.ServerAdminClient(c)
+func AdminGetDomainIsolationGroups(c *cli.Context) error {
+	adminClient, err := getDeps(c).ServerAdminClient(c)
+	if err != nil {
+		return err
+	}
 	domain := c.String(FlagDomain)
 
-	ctx, cancel := newContext(c)
+	ctx, cancel, err := newContext(c)
 	defer cancel()
+	if err != nil {
+		return commoncli.Problem("Error creating context:", err)
+	}
 
 	req := &types.GetDomainIsolationGroupsRequest{
 		Domain: domain,
 	}
 	igs, err := adminClient.GetDomainIsolationGroups(ctx, req)
 	if err != nil {
-		ErrorAndExit("failed to get isolation-groups:", err)
+		return commoncli.Problem("failed to get isolation-groups:", err)
 	}
 
 	format := c.String(FlagFormat)
 	switch format {
 	case "json":
-		prettyPrintJSONObject(igs.IsolationGroups.ToPartitionList())
+		prettyPrintJSONObject(getDeps(c).Output(), igs.IsolationGroups.ToPartitionList())
 	default:
-		fmt.Print(renderIsolationGroups(igs.IsolationGroups))
+		getDeps(c).Output().Write([]byte(renderIsolationGroups(igs.IsolationGroups)))
 	}
+	return nil
 }
 
-func AdminUpdateDomainIsolationGroups(c *cli.Context) {
-	adminClient := cFactory.ServerAdminClient(c)
+func AdminUpdateDomainIsolationGroups(c *cli.Context) error {
+	adminClient, err := getDeps(c).ServerAdminClient(c)
+	if err != nil {
+		return err
+	}
 	domain := c.String(FlagDomain)
 
-	err := validateIsolationGroupUpdateArgs(
+	err = validateIsolationGroupUpdateArgs(
 		c.String(FlagDomain),
-		c.GlobalString(FlagDomain),
 		c.StringSlice(FlagIsolationGroupSetDrains),
 		c.String(FlagJSON),
 		c.Bool(FlagIsolationGroupsRemoveAllDrains),
 		true,
 	)
 	if err != nil {
-		ErrorAndExit("invalid args:", err)
+		return commoncli.Problem("invalid args:", err)
 	}
 
-	ctx, cancel := newContext(c)
+	ctx, cancel, err := newContext(c)
 	defer cancel()
+	if err != nil {
+		return commoncli.Problem("Error creating context:", err)
+	}
 
 	cfg, err := parseIsolationGroupCliInputCfg(
 		c.StringSlice(FlagIsolationGroupSetDrains),
@@ -136,7 +160,7 @@ func AdminUpdateDomainIsolationGroups(c *cli.Context) {
 		c.Bool(FlagIsolationGroupsRemoveAllDrains),
 	)
 	if err != nil {
-		ErrorAndExit("failed to parse input:", err)
+		return commoncli.Problem("failed to parse input:", err)
 	}
 
 	req := &types.UpdateDomainIsolationGroupsRequest{
@@ -146,22 +170,19 @@ func AdminUpdateDomainIsolationGroups(c *cli.Context) {
 	_, err = adminClient.UpdateDomainIsolationGroups(ctx, req)
 
 	if err != nil {
-		ErrorAndExit("failed to update isolation-groups", fmt.Errorf("used %#v, got %v", req, err))
+		return commoncli.Problem("failed to update isolation-groups", fmt.Errorf("used %#v, got %v", req, err))
 	}
+	return nil
 }
 
 func validateIsolationGroupUpdateArgs(
 	domainArgs string,
-	globalDomainArg string,
 	setDrainsArgs []string,
 	jsonCfgArgs string,
 	removeAllDrainsArgs bool,
 	requiresDomain bool,
 ) error {
 	if requiresDomain {
-		if globalDomainArg != "" {
-			return fmt.Errorf("the flag '--domain' has to go at the end")
-		}
 		if domainArgs == "" {
 			return fmt.Errorf("the --domain flag is required")
 		}
@@ -221,18 +242,18 @@ examples:
 	return &req, nil
 }
 
-func renderIsolationGroups(igs types.IsolationGroupConfiguration) string {
+func renderIsolationGroups(igs types.IsolationGroupConfiguration) []byte {
 	output := &bytes.Buffer{}
 	w := tabwriter.NewWriter(output, 0, 0, 1, ' ', 0)
 	fmt.Fprintln(w, "Isolation Groups\tState")
 	if len(igs) == 0 {
-		return "-- No groups found --\n"
+		return []byte("-- No groups found --\n")
 	}
 	for _, v := range igs.ToPartitionList() {
 		fmt.Fprintf(w, "%s\t%s\n", v.Name, convertIsolationGroupStateToString(v.State))
 	}
 	w.Flush()
-	return output.String()
+	return output.Bytes()
 }
 
 func convertIsolationGroupStateToString(state types.IsolationGroupState) string {

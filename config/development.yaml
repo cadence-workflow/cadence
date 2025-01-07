@@ -27,8 +27,8 @@ ringpop:
 services:
   frontend:
     rpc:
-      port: 7933
-      grpcPort: 7833
+      port: ${FRONTEND_PORT:7933}
+      grpcPort: ${FRONTEND_PORT_GRPC:7833}
       bindOnLocalHost: true
       grpcMaxMsgSize: 33554432
     metrics:
@@ -36,12 +36,12 @@ services:
         hostPort: "127.0.0.1:8125"
         prefix: "cadence"
     pprof:
-      port: 7936
+      port: ${FRONTEND_PORT_PPROF:7936}
 
   matching:
     rpc:
-      port: 7935
-      grpcPort: 7835
+      port: ${MATCHING_PORT:7935}
+      grpcPort: ${MATCHING_PORT_GRPC:7835}
       bindOnLocalHost: true
       grpcMaxMsgSize: 33554432
     metrics:
@@ -49,12 +49,12 @@ services:
         hostPort: "127.0.0.1:8125"
         prefix: "cadence"
     pprof:
-      port: 7938
+      port: ${MATCHING_PORT_PPROF:7938}
 
   history:
     rpc:
-      port: 7934
-      grpcPort: 7834
+      port: ${HISTORY_PORT:7934}
+      grpcPort: ${HISTORY_PORT_GRPC:7834}
       bindOnLocalHost: true
       grpcMaxMsgSize: 33554432
     metrics:
@@ -62,18 +62,30 @@ services:
         hostPort: "127.0.0.1:8125"
         prefix: "cadence"
     pprof:
-      port: 7937
+      port: ${HISTORY_PORT_PPROF:7937}
 
   worker:
     rpc:
-      port: 7939
+      port: ${WORKER_PORT:7939}
       bindOnLocalHost: true
     metrics:
       statsd:
         hostPort: "127.0.0.1:8125"
         prefix: "cadence"
     pprof:
-      port: 7940
+      port: ${WORKER_PORT_PPROF:7940}
+
+  shard-distributor:
+    rpc:
+      port: 7941
+      grpcPort: 7943
+      bindOnLocalHost: true
+    metrics:
+      statsd:
+        hostPort: "127.0.0.1:8125"
+        prefix: "cadence"
+    pprof:
+      port: 7942
 
 clusterGroupMetadata:
   failoverVersionIncrement: 10

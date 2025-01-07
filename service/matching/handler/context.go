@@ -22,9 +22,11 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	"github.com/uber/cadence/common"
+	cadence_errors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -65,40 +67,43 @@ func (reqCtx *handlerContext) handleErr(err error) error {
 		return nil
 	}
 
-	switch err.(type) {
-	case *types.InternalServiceError:
+	switch {
+	case errors.As(err, new(*types.InternalServiceError)):
 		reqCtx.scope.IncCounter(metrics.CadenceFailuresPerTaskList)
 		reqCtx.logger.Error("Internal service error", tag.Error(err))
 		return err
-	case *types.BadRequestError:
+	case errors.As(err, new(*types.BadRequestError)):
 		reqCtx.scope.IncCounter(metrics.CadenceErrBadRequestPerTaskListCounter)
 		return err
-	case *types.EntityNotExistsError:
+	case errors.As(err, new(*types.EntityNotExistsError)):
 		reqCtx.scope.IncCounter(metrics.CadenceErrEntityNotExistsPerTaskListCounter)
 		return err
-	case *types.WorkflowExecutionAlreadyStartedError:
+	case errors.As(err, new(*types.WorkflowExecutionAlreadyStartedError)):
 		reqCtx.scope.IncCounter(metrics.CadenceErrExecutionAlreadyStartedPerTaskListCounter)
 		return err
-	case *types.DomainAlreadyExistsError:
+	case errors.As(err, new(*types.DomainAlreadyExistsError)):
 		reqCtx.scope.IncCounter(metrics.CadenceErrDomainAlreadyExistsPerTaskListCounter)
 		return err
-	case *types.QueryFailedError:
+	case errors.As(err, new(*types.QueryFailedError)):
 		reqCtx.scope.IncCounter(metrics.CadenceErrQueryFailedPerTaskListCounter)
 		return err
-	case *types.LimitExceededError:
+	case errors.As(err, new(*types.LimitExceededError)):
 		reqCtx.scope.IncCounter(metrics.CadenceErrLimitExceededPerTaskListCounter)
 		return err
-	case *types.ServiceBusyError:
+	case errors.As(err, new(*types.ServiceBusyError)):
 		reqCtx.scope.IncCounter(metrics.CadenceErrServiceBusyPerTaskListCounter)
 		return err
-	case *types.DomainNotActiveError:
+	case errors.As(err, new(*types.DomainNotActiveError)):
 		reqCtx.scope.IncCounter(metrics.CadenceErrDomainNotActivePerTaskListCounter)
 		return err
-	case *types.RemoteSyncMatchedError:
+	case errors.As(err, new(*types.RemoteSyncMatchedError)):
 		reqCtx.scope.IncCounter(metrics.CadenceErrRemoteSyncMatchFailedPerTaskListCounter)
 		return err
-	case *types.StickyWorkerUnavailableError:
+	case errors.As(err, new(*types.StickyWorkerUnavailableError)):
 		reqCtx.scope.IncCounter(metrics.CadenceErrStickyWorkerUnavailablePerTaskListCounter)
+		return err
+	case errors.As(err, new(*cadence_errors.TaskListNotOwnedByHostError)):
+		reqCtx.scope.IncCounter(metrics.CadenceErrTaskListNotOwnedByHostPerTaskListCounter)
 		return err
 	default:
 		reqCtx.scope.IncCounter(metrics.CadenceFailuresPerTaskList)

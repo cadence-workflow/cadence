@@ -70,11 +70,41 @@ func (db *cdb) SelectTaskList(ctx context.Context, filter *nosqlplugin.TaskListF
 		TaskListName: filter.TaskListName,
 		TaskListType: filter.TaskListType,
 
-		TaskListKind:    taskListKind,
-		LastUpdatedTime: lastUpdatedTime,
-		AckLevel:        ackLevel,
-		RangeID:         rangeID,
+		TaskListKind:            taskListKind,
+		LastUpdatedTime:         lastUpdatedTime,
+		AckLevel:                ackLevel,
+		RangeID:                 rangeID,
+		AdaptivePartitionConfig: toTaskListPartitionConfig(tlDB["adaptive_partition_config"]),
 	}, nil
+}
+
+func toTaskListPartitionConfig(v interface{}) *persistence.TaskListPartitionConfig {
+	if v == nil {
+		return nil
+	}
+	partition := v.(map[string]interface{})
+	if len(partition) == 0 {
+		return nil
+	}
+	version := partition["version"].(int64)
+	numRead := partition["num_read_partitions"].(int)
+	numWrite := partition["num_write_partitions"].(int)
+	return &persistence.TaskListPartitionConfig{
+		Version:            version,
+		NumReadPartitions:  numRead,
+		NumWritePartitions: numWrite,
+	}
+}
+
+func fromTaskListPartitionConfig(config *persistence.TaskListPartitionConfig) map[string]interface{} {
+	if config == nil {
+		return nil
+	}
+	return map[string]interface{}{
+		"version":              config.Version,
+		"num_read_partitions":  config.NumReadPartitions,
+		"num_write_partitions": config.NumWritePartitions,
+	}
 }
 
 // InsertTaskList insert a single tasklist row
@@ -93,6 +123,7 @@ func (db *cdb) InsertTaskList(ctx context.Context, row *nosqlplugin.TaskListRow)
 		0,
 		row.TaskListKind,
 		row.LastUpdatedTime,
+		fromTaskListPartitionConfig(row.AdaptivePartitionConfig),
 	).WithContext(ctx)
 
 	previous := make(map[string]interface{})
@@ -119,6 +150,7 @@ func (db *cdb) UpdateTaskList(
 		row.AckLevel,
 		row.TaskListKind,
 		row.LastUpdatedTime,
+		fromTaskListPartitionConfig(row.AdaptivePartitionConfig),
 		row.DomainID,
 		row.TaskListName,
 		row.TaskListType,
@@ -182,6 +214,7 @@ func (db *cdb) UpdateTaskListWithTTL(
 		row.AckLevel,
 		row.TaskListKind,
 		db.timeSrc.Now(),
+		fromTaskListPartitionConfig(row.AdaptivePartitionConfig),
 		row.DomainID,
 		row.TaskListName,
 		row.TaskListType,

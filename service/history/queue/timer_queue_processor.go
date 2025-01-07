@@ -401,6 +401,13 @@ func (t *timerQueueProcessor) completeTimerLoop() {
 	completeTimer := time.NewTimer(t.config.TimerProcessorCompleteTimerInterval())
 	defer completeTimer.Stop()
 
+	// Create a retryTimer once, and reset it as needed
+	retryTimer := time.NewTimer(0)
+	defer retryTimer.Stop()
+	// Stop it immediately because we don't want it to fire initially
+	if !retryTimer.Stop() {
+		<-retryTimer.C
+	}
 	for {
 		select {
 		case <-t.shutdownChan:
@@ -425,11 +432,15 @@ func (t *timerQueueProcessor) completeTimerLoop() {
 					return
 				}
 
+				// Reset the retryTimer for the delay between attempts
+				// TODO: the first retry has 0 backoff, revisit it to see if it's expected
+				retryDuration := time.Duration(attempt*100) * time.Millisecond
+				retryTimer.Reset(retryDuration)
 				select {
 				case <-t.shutdownChan:
 					t.drain()
 					return
-				case <-time.After(time.Duration(attempt*100) * time.Millisecond):
+				case <-retryTimer.C:
 					// do nothing. retry loop will continue
 				}
 			}

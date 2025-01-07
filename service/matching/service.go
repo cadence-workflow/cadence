@@ -56,6 +56,7 @@ func NewService(
 			dynamicconfig.ClusterNameFilter(params.ClusterMetadata.GetCurrentClusterName()),
 		),
 		params.HostName,
+		params.GetIsolationGroups,
 	)
 
 	serviceResource, err := resource.New(

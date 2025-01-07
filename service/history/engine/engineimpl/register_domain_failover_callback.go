@@ -53,107 +53,121 @@ func (e *historyEngineImpl) registerDomainFailoverCallback() {
 	//		failover min / max task levels calculated & updated to shard (using shard lock) -> failover start
 	// above 2 guarantees that failover start is after persistence of the task.
 
-	failoverPredicate := func(shardNotificationVersion int64, nextDomain *cache.DomainCacheEntry, action func()) {
-		domainFailoverNotificationVersion := nextDomain.GetFailoverNotificationVersion()
-		domainActiveCluster := nextDomain.GetReplicationConfig().ActiveClusterName
-
-		if nextDomain.IsGlobalDomain() &&
-			domainFailoverNotificationVersion >= shardNotificationVersion &&
-			domainActiveCluster == e.currentClusterName {
-			action()
-		}
-	}
-
 	// first set the failover callback
 	e.shard.GetDomainCache().RegisterDomainChangeCallback(
 		e.shard.GetShardID(),
 		e.shard.GetDomainNotificationVersion(),
-		func() {
-			e.txProcessor.LockTaskProcessing()
-			e.timerProcessor.LockTaskProcessing()
-			// there no lock/unlock for crossClusterProcessor
-		},
-		func(nextDomains []*cache.DomainCacheEntry) {
-			defer func() {
-				e.txProcessor.UnlockTaskProcessing()
-				e.timerProcessor.UnlockTaskProcessing()
-				// there no lock/unlock for crossClusterProcessor
-			}()
-
-			if len(nextDomains) == 0 {
-				return
-			}
-
-			shardNotificationVersion := e.shard.GetDomainNotificationVersion()
-			failoverDomainIDs := map[string]struct{}{}
-
-			for _, nextDomain := range nextDomains {
-				failoverPredicate(shardNotificationVersion, nextDomain, func() {
-					failoverDomainIDs[nextDomain.GetInfo().ID] = struct{}{}
-				})
-			}
-
-			if len(failoverDomainIDs) > 0 {
-				e.logger.Info("Domain Failover Start.", tag.WorkflowDomainIDs(failoverDomainIDs))
-
-				e.txProcessor.FailoverDomain(failoverDomainIDs)
-				e.timerProcessor.FailoverDomain(failoverDomainIDs)
-
-				now := e.shard.GetTimeSource().Now()
-				// the fake tasks will not be actually used, we just need to make sure
-				// its length > 0 and has correct timestamp, to trigger a db scan
-				fakeDecisionTask := []persistence.Task{&persistence.DecisionTask{}}
-				fakeDecisionTimeoutTask := []persistence.Task{&persistence.DecisionTimeoutTask{TaskData: persistence.TaskData{VisibilityTimestamp: now}}}
-				e.txProcessor.NotifyNewTask(e.currentClusterName, &hcommon.NotifyTaskInfo{Tasks: fakeDecisionTask})
-				e.timerProcessor.NotifyNewTask(e.currentClusterName, &hcommon.NotifyTaskInfo{Tasks: fakeDecisionTimeoutTask})
-			}
-
-			// handle graceful failover on active to passive
-			// make sure task processor failover the domain before inserting the failover marker
-			failoverMarkerTasks := []*persistence.FailoverMarkerTask{}
-			for _, nextDomain := range nextDomains {
-				domainFailoverNotificationVersion := nextDomain.GetFailoverNotificationVersion()
-				domainActiveCluster := nextDomain.GetReplicationConfig().ActiveClusterName
-				previousFailoverVersion := nextDomain.GetPreviousFailoverVersion()
-				previousClusterName, err := e.clusterMetadata.ClusterNameForFailoverVersion(previousFailoverVersion)
-				if err != nil {
-					e.logger.Error("Failed to handle graceful failover", tag.WorkflowDomainID(nextDomain.GetInfo().ID), tag.Error(err))
-					continue
-				}
-
-				if nextDomain.IsGlobalDomain() &&
-					domainFailoverNotificationVersion >= shardNotificationVersion &&
-					domainActiveCluster != e.currentClusterName &&
-					previousFailoverVersion != common.InitialPreviousFailoverVersion &&
-					previousClusterName == e.currentClusterName {
-					// the visibility timestamp will be set in shard context
-					failoverMarkerTasks = append(failoverMarkerTasks, &persistence.FailoverMarkerTask{
-						TaskData: persistence.TaskData{
-							Version: nextDomain.GetFailoverVersion(),
-						},
-						DomainID: nextDomain.GetInfo().ID,
-					})
-					// This is a debug metric
-					e.metricsClient.IncCounter(metrics.FailoverMarkerScope, metrics.FailoverMarkerCallbackCount)
-				}
-			}
-
-			// This is a debug metric
-			e.metricsClient.IncCounter(metrics.FailoverMarkerScope, metrics.HistoryFailoverCallbackCount)
-			if len(failoverMarkerTasks) > 0 {
-				if err := e.shard.ReplicateFailoverMarkers(
-					context.Background(),
-					failoverMarkerTasks,
-				); err != nil {
-					e.logger.Error("Failed to insert failover marker to replication queue.", tag.Error(err))
-					e.metricsClient.IncCounter(metrics.FailoverMarkerScope, metrics.FailoverMarkerInsertFailure)
-					// fail this failover callback and it retries on next domain cache refresh
-					return
-				}
-			}
-
-			//nolint:errcheck
-			e.shard.UpdateDomainNotificationVersion(nextDomains[len(nextDomains)-1].GetNotificationVersion() + 1)
-		},
+		e.lockProcessingForFailover,
+		e.domainChangeCB,
 	)
+}
+
+func (e *historyEngineImpl) domainChangeCB(nextDomains []*cache.DomainCacheEntry) {
+	defer func() {
+		e.unlockProcessingForFailover()
+	}()
+
+	if len(nextDomains) == 0 {
+		return
+	}
+
+	shardNotificationVersion := e.shard.GetDomainNotificationVersion()
+	failoverDomainIDs := map[string]struct{}{}
+
+	for _, nextDomain := range nextDomains {
+		e.failoverPredicate(shardNotificationVersion, nextDomain, func() {
+			failoverDomainIDs[nextDomain.GetInfo().ID] = struct{}{}
+		})
+	}
+
+	if len(failoverDomainIDs) > 0 {
+		e.logger.Info("Domain Failover Start.", tag.WorkflowDomainIDs(failoverDomainIDs))
+
+		e.txProcessor.FailoverDomain(failoverDomainIDs)
+		e.timerProcessor.FailoverDomain(failoverDomainIDs)
+
+		now := e.shard.GetTimeSource().Now()
+		// the fake tasks will not be actually used, we just need to make sure
+		// its length > 0 and has correct timestamp, to trigger a db scan
+		fakeDecisionTask := []persistence.Task{&persistence.DecisionTask{}}
+		fakeDecisionTimeoutTask := []persistence.Task{&persistence.DecisionTimeoutTask{TaskData: persistence.TaskData{VisibilityTimestamp: now}}}
+		e.txProcessor.NotifyNewTask(e.currentClusterName, &hcommon.NotifyTaskInfo{Tasks: fakeDecisionTask})
+		e.timerProcessor.NotifyNewTask(e.currentClusterName, &hcommon.NotifyTaskInfo{Tasks: fakeDecisionTimeoutTask})
+	}
+
+	failoverMarkerTasks := e.generateGracefulFailoverTasksForDomainUpdateCallback(shardNotificationVersion, nextDomains)
+
+	// This is a debug metric
+	e.metricsClient.IncCounter(metrics.FailoverMarkerScope, metrics.HistoryFailoverCallbackCount)
+	if len(failoverMarkerTasks) > 0 {
+		if err := e.shard.ReplicateFailoverMarkers(
+			context.Background(),
+			failoverMarkerTasks,
+		); err != nil {
+			e.logger.Error("Failed to insert failover marker to replication queue.", tag.Error(err))
+			e.metricsClient.IncCounter(metrics.FailoverMarkerScope, metrics.FailoverMarkerInsertFailure)
+			// fail this failover callback and it retries on next domain cache refresh
+			return
+		}
+	}
+
+	//nolint:errcheck
+	e.shard.UpdateDomainNotificationVersion(nextDomains[len(nextDomains)-1].GetNotificationVersion() + 1)
+}
+
+func (e *historyEngineImpl) generateGracefulFailoverTasksForDomainUpdateCallback(shardNotificationVersion int64, nextDomains []*cache.DomainCacheEntry) []*persistence.FailoverMarkerTask {
+
+	// handle graceful failover on active to passive
+	// make sure task processor failover the domain before inserting the failover marker
+	failoverMarkerTasks := []*persistence.FailoverMarkerTask{}
+	for _, nextDomain := range nextDomains {
+		domainFailoverNotificationVersion := nextDomain.GetFailoverNotificationVersion()
+		domainActiveCluster := nextDomain.GetReplicationConfig().ActiveClusterName
+		previousFailoverVersion := nextDomain.GetPreviousFailoverVersion()
+		previousClusterName, err := e.clusterMetadata.ClusterNameForFailoverVersion(previousFailoverVersion)
+		if err != nil && previousFailoverVersion != common.InitialPreviousFailoverVersion {
+			e.logger.Error("Failed to handle graceful failover", tag.WorkflowDomainID(nextDomain.GetInfo().ID), tag.Error(err))
+			continue
+		}
+
+		if nextDomain.IsGlobalDomain() &&
+			domainFailoverNotificationVersion >= shardNotificationVersion &&
+			domainActiveCluster != e.currentClusterName &&
+			previousFailoverVersion != common.InitialPreviousFailoverVersion &&
+			previousClusterName == e.currentClusterName {
+			// the visibility timestamp will be set in shard context
+			failoverMarkerTasks = append(failoverMarkerTasks, &persistence.FailoverMarkerTask{
+				TaskData: persistence.TaskData{
+					Version: nextDomain.GetFailoverVersion(),
+				},
+				DomainID: nextDomain.GetInfo().ID,
+			})
+			// This is a debug metric
+			e.metricsClient.IncCounter(metrics.FailoverMarkerScope, metrics.FailoverMarkerCallbackCount)
+		}
+	}
+	return failoverMarkerTasks
+}
+
+func (e *historyEngineImpl) lockProcessingForFailover() {
+	e.logger.Debug("locking processing for failover")
+	e.txProcessor.LockTaskProcessing()
+	e.timerProcessor.LockTaskProcessing()
+}
+
+func (e *historyEngineImpl) unlockProcessingForFailover() {
+	e.logger.Debug("unlocking processing for failover")
+	e.txProcessor.UnlockTaskProcessing()
+	e.timerProcessor.UnlockTaskProcessing()
+}
+
+func (e historyEngineImpl) failoverPredicate(shardNotificationVersion int64, nextDomain *cache.DomainCacheEntry, action func()) {
+	domainFailoverNotificationVersion := nextDomain.GetFailoverNotificationVersion()
+	domainActiveCluster := nextDomain.GetReplicationConfig().ActiveClusterName
+
+	if nextDomain.IsGlobalDomain() &&
+		domainFailoverNotificationVersion >= shardNotificationVersion &&
+		domainActiveCluster == e.currentClusterName {
+		action()
+	}
 }

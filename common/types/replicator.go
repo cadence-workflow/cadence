@@ -229,13 +229,6 @@ type GetDLQReplicationMessagesRequest struct {
 	TaskInfos []*ReplicationTaskInfo `json:"taskInfos,omitempty"`
 }
 
-func (v *GetDLQReplicationMessagesRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
-}
-
 // GetTaskInfos is an internal getter (TBD...)
 func (v *GetDLQReplicationMessagesRequest) GetTaskInfos() (o []*ReplicationTaskInfo) {
 	if v != nil && v.TaskInfos != nil {
@@ -254,13 +247,6 @@ type GetDomainReplicationMessagesRequest struct {
 	LastRetrievedMessageID *int64 `json:"lastRetrievedMessageId,omitempty"`
 	LastProcessedMessageID *int64 `json:"lastProcessedMessageId,omitempty"`
 	ClusterName            string `json:"clusterName,omitempty"`
-}
-
-func (v *GetDomainReplicationMessagesRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
 }
 
 // GetLastRetrievedMessageID is an internal getter (TBD...)
@@ -296,13 +282,6 @@ type GetDomainReplicationMessagesResponse struct {
 type GetReplicationMessagesRequest struct {
 	Tokens      []*ReplicationToken `json:"tokens,omitempty"`
 	ClusterName string              `json:"clusterName,omitempty"`
-}
-
-func (v *GetReplicationMessagesRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
 }
 
 // GetClusterName is an internal getter (TBD...)
@@ -390,13 +369,6 @@ type CountDLQMessagesRequest struct {
 	ForceFetch bool
 }
 
-func (v *CountDLQMessagesRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
-}
-
 type CountDLQMessagesResponse struct {
 	History map[HistoryDLQCountKey]int64
 	Domain  int64
@@ -419,13 +391,6 @@ type MergeDLQMessagesRequest struct {
 	InclusiveEndMessageID *int64   `json:"inclusiveEndMessageID,omitempty"`
 	MaximumPageSize       int32    `json:"maximumPageSize,omitempty"`
 	NextPageToken         []byte   `json:"nextPageToken,omitempty"`
-}
-
-func (v *MergeDLQMessagesRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
 }
 
 // GetType is an internal getter (TBD...)
@@ -489,13 +454,6 @@ type PurgeDLQMessagesRequest struct {
 	InclusiveEndMessageID *int64   `json:"inclusiveEndMessageID,omitempty"`
 }
 
-func (v *PurgeDLQMessagesRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
-}
-
 // GetType is an internal getter (TBD...)
 func (v *PurgeDLQMessagesRequest) GetType() (o DLQType) {
 	if v != nil && v.Type != nil {
@@ -536,13 +494,6 @@ type ReadDLQMessagesRequest struct {
 	InclusiveEndMessageID *int64   `json:"inclusiveEndMessageID,omitempty"`
 	MaximumPageSize       int32    `json:"maximumPageSize,omitempty"`
 	NextPageToken         []byte   `json:"nextPageToken,omitempty"`
-}
-
-func (v *ReadDLQMessagesRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
 }
 
 // GetType is an internal getter (TBD...)

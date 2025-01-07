@@ -6,7 +6,7 @@ The design process for changes to Cadence is modeled on the [proposal process us
 
 ## Process
 
-- [Create an issue](https://github.com/uber/cadence/issues/new) describing the proposal.
+- [Create an issue](https://github.com/cadence-workflow/cadence/issues/new) describing the proposal.
 
 - Like any GitHub issue, a proposal issue is followed by an initial discussion about the suggestion. For Proposal issues:
 
@@ -22,7 +22,7 @@ The design process for changes to Cadence is modeled on the [proposal process us
   - The design doc should only allow edit access to authors of the document.
   - Do not create the document from a corporate G Suite account. If you want to edit from a corporate G Suite account then first create the document from a personal Google account and grant edit access to your corporate G Suite account.
   - Comment access should also be accessible by the public. Make sure this is the case by clicking "Share" and "Get shareable link" ensuring you select "Anyone with the link can comment".
-  
+
 - Once comments and revisions on the design doc wind down, there is a final discussion about the proposal.
 
   - The goal of the final discussion is to reach agreement on the next step: (1) accept or (2) decline.

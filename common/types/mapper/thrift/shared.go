@@ -22,6 +22,7 @@ package thrift
 
 import (
 	"github.com/uber/cadence/.gen/go/shared"
+	cadence_errors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -1824,6 +1825,50 @@ func ToDescribeWorkflowExecutionResponse(t *shared.DescribeWorkflowExecutionResp
 	}
 }
 
+// FromDiagnoseWorkflowExecutionRequest converts internal DiagnoseWorkflowExecutionRequest type to thrift
+func FromDiagnoseWorkflowExecutionRequest(t *types.DiagnoseWorkflowExecutionRequest) *shared.DiagnoseWorkflowExecutionRequest {
+	if t == nil {
+		return nil
+	}
+	return &shared.DiagnoseWorkflowExecutionRequest{
+		Domain:            &t.Domain,
+		WorkflowExecution: FromWorkflowExecution(t.GetWorkflowExecution()),
+	}
+}
+
+// ToDiagnoseWorkflowExecutionRequest converts thrift DiagnoseWorkflowExecutionRequest type to internal
+func ToDiagnoseWorkflowExecutionRequest(t *shared.DiagnoseWorkflowExecutionRequest) *types.DiagnoseWorkflowExecutionRequest {
+	if t == nil {
+		return nil
+	}
+	return &types.DiagnoseWorkflowExecutionRequest{
+		Domain:            t.GetDomain(),
+		WorkflowExecution: ToWorkflowExecution(t.GetWorkflowExecution()),
+	}
+}
+
+// FromDiagnoseWorkflowExecutionResponse converts internal DiagnoseWorkflowExecutionResponse type to thrift
+func FromDiagnoseWorkflowExecutionResponse(t *types.DiagnoseWorkflowExecutionResponse) *shared.DiagnoseWorkflowExecutionResponse {
+	if t == nil {
+		return nil
+	}
+	return &shared.DiagnoseWorkflowExecutionResponse{
+		Domain:                      &t.Domain,
+		DiagnosticWorkflowExecution: FromWorkflowExecution(t.GetDiagnosticWorkflowExecution()),
+	}
+}
+
+// ToDiagnoseWorkflowExecutionResponse converts thrift DiagnoseeWorkflowExecutionResponse type to internal
+func ToDiagnoseWorkflowExecutionResponse(t *shared.DiagnoseWorkflowExecutionResponse) *types.DiagnoseWorkflowExecutionResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.DiagnoseWorkflowExecutionResponse{
+		Domain:                      t.GetDomain(),
+		DiagnosticWorkflowExecution: ToWorkflowExecution(t.GetDiagnosticWorkflowExecution()),
+	}
+}
+
 // FromDomainAlreadyExistsError converts internal DomainAlreadyExistsError type to thrift
 func FromDomainAlreadyExistsError(t *types.DomainAlreadyExistsError) *shared.DomainAlreadyExistsError {
 	if t == nil {
@@ -3338,6 +3383,7 @@ func FromPendingActivityInfo(t *types.PendingActivityInfo) *shared.PendingActivi
 		LastWorkerIdentity:     &t.LastWorkerIdentity,
 		LastFailureDetails:     t.LastFailureDetails,
 		StartedWorkerIdentity:  &t.StartedWorkerIdentity,
+		ScheduleID:             &t.ScheduleID,
 	}
 }
 
@@ -3361,6 +3407,7 @@ func ToPendingActivityInfo(t *shared.PendingActivityInfo) *types.PendingActivity
 		LastWorkerIdentity:     t.GetLastWorkerIdentity(),
 		LastFailureDetails:     t.LastFailureDetails,
 		StartedWorkerIdentity:  t.GetStartedWorkerIdentity(),
+		ScheduleID:             t.GetScheduleID(),
 	}
 }
 
@@ -3443,6 +3490,7 @@ func FromPendingDecisionInfo(t *types.PendingDecisionInfo) *shared.PendingDecisi
 		StartedTimestamp:           t.StartedTimestamp,
 		Attempt:                    &t.Attempt,
 		OriginalScheduledTimestamp: t.OriginalScheduledTimestamp,
+		ScheduleID:                 &t.ScheduleID,
 	}
 }
 
@@ -3457,6 +3505,7 @@ func ToPendingDecisionInfo(t *shared.PendingDecisionInfo) *types.PendingDecision
 		StartedTimestamp:           t.StartedTimestamp,
 		Attempt:                    t.GetAttempt(),
 		OriginalScheduledTimestamp: t.OriginalScheduledTimestamp,
+		ScheduleID:                 t.GetScheduleID(),
 	}
 }
 
@@ -8060,6 +8109,30 @@ func ToStickyWorkerUnavailableError(t *shared.StickyWorkerUnavailableError) *typ
 	}
 }
 
+// FromTaskListNotOwnedByHostError converts internal TaskListNotOwnedByHostError type to thrift
+func FromTaskListNotOwnedByHostError(t *cadence_errors.TaskListNotOwnedByHostError) *shared.TaskListNotOwnedByHostError {
+	if t == nil {
+		return nil
+	}
+	return &shared.TaskListNotOwnedByHostError{
+		OwnedByIdentity: t.OwnedByIdentity,
+		MyIdentity:      t.MyIdentity,
+		TasklistName:    t.TasklistName,
+	}
+}
+
+// ToTaskListNotOwnedByHostError converts thrift TaskListNotOwnedByHostError type to internal
+func ToTaskListNotOwnedByHostError(t *shared.TaskListNotOwnedByHostError) *cadence_errors.TaskListNotOwnedByHostError {
+	if t == nil {
+		return nil
+	}
+	return &cadence_errors.TaskListNotOwnedByHostError{
+		OwnedByIdentity: t.OwnedByIdentity,
+		MyIdentity:      t.MyIdentity,
+		TasklistName:    t.TasklistName,
+	}
+}
+
 // ToAny converts thrift Any type to internal
 func ToAny(t *shared.Any) *types.Any {
 	if t == nil {
@@ -8080,5 +8153,27 @@ func FromAny(t *types.Any) *shared.Any {
 	return &shared.Any{
 		ValueType: &dup,
 		Value:     t.Value,
+	}
+}
+
+// FromWorkflowQuery converts internal WorkflowQuery type to thrift
+func FromAutoConfigHint(t *types.AutoConfigHint) *shared.AutoConfigHint {
+	if t == nil {
+		return nil
+	}
+	return &shared.AutoConfigHint{
+		PollerWaitTimeInMs: &t.PollerWaitTimeInMs,
+		EnableAutoConfig:   &t.EnableAutoConfig,
+	}
+}
+
+// ToWorkflowQuery converts thrift WorkflowQuery type to internal
+func ToAutoConfigHint(t *shared.AutoConfigHint) *types.AutoConfigHint {
+	if t == nil {
+		return nil
+	}
+	return &types.AutoConfigHint{
+		PollerWaitTimeInMs: *t.PollerWaitTimeInMs,
+		EnableAutoConfig:   *t.EnableAutoConfig,
 	}
 }

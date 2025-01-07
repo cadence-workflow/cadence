@@ -25,7 +25,7 @@ import (
 	"log"
 	"net"
 
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 
 	"github.com/uber/cadence/common/config"
 	mysql_db "github.com/uber/cadence/common/persistence/sql/sqlplugin/mysql"
@@ -186,24 +186,24 @@ func doCreateDatabase(cfg *config.SQL, name string) error {
 func parseConnectConfig(cli *cli.Context) (*config.SQL, error) {
 	cfg := new(config.SQL)
 
-	host := cli.GlobalString(schema.CLIOptEndpoint)
-	port := cli.GlobalInt(schema.CLIOptPort)
+	host := cli.String(schema.CLIOptEndpoint)
+	port := cli.Int(schema.CLIOptPort)
 	cfg.ConnectAddr = fmt.Sprintf("%s:%v", host, port)
-	cfg.User = cli.GlobalString(schema.CLIOptUser)
-	cfg.Password = cli.GlobalString(schema.CLIOptPassword)
-	cfg.DatabaseName = cli.GlobalString(schema.CLIOptDatabase)
-	cfg.PluginName = cli.GlobalString(schema.CLIOptPluginName)
+	cfg.User = cli.String(schema.CLIOptUser)
+	cfg.Password = cli.String(schema.CLIOptPassword)
+	cfg.DatabaseName = cli.String(schema.CLIOptDatabase)
+	cfg.PluginName = cli.String(schema.CLIOptPluginName)
 
-	connectAttributes := cli.GlobalGeneric(schema.CLIOptConnectAttributes).(*cliflag.StringMap)
+	connectAttributes := cli.Generic(schema.CLIOptConnectAttributes).(*cliflag.StringMap)
 	cfg.ConnectAttributes = connectAttributes.Value()
 
-	if cli.GlobalBool(schema.CLIFlagEnableTLS) {
+	if cli.Bool(schema.CLIFlagEnableTLS) {
 		cfg.TLS = &config.TLS{
 			Enabled:                true,
-			CertFile:               cli.GlobalString(schema.CLIFlagTLSCertFile),
-			KeyFile:                cli.GlobalString(schema.CLIFlagTLSKeyFile),
-			CaFile:                 cli.GlobalString(schema.CLIFlagTLSCaFile),
-			EnableHostVerification: cli.GlobalBool(schema.CLIFlagTLSEnableHostVerification),
+			CertFile:               cli.String(schema.CLIFlagTLSCertFile),
+			KeyFile:                cli.String(schema.CLIFlagTLSKeyFile),
+			CaFile:                 cli.String(schema.CLIFlagTLSCaFile),
+			EnableHostVerification: cli.Bool(schema.CLIFlagTLSEnableHostVerification),
 		}
 	}
 

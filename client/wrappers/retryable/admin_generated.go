@@ -364,3 +364,14 @@ func (c *adminClient) UpdateGlobalIsolationGroups(ctx context.Context, request *
 	err = c.throttleRetry.Do(ctx, op)
 	return resp, err
 }
+
+func (c *adminClient) UpdateTaskListPartitionConfig(ctx context.Context, request *types.UpdateTaskListPartitionConfigRequest, opts ...yarpc.CallOption) (up1 *types.UpdateTaskListPartitionConfigResponse, err error) {
+	var resp *types.UpdateTaskListPartitionConfigResponse
+	op := func() error {
+		var err error
+		resp, err = c.client.UpdateTaskListPartitionConfig(ctx, request, opts...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
+}

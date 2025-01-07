@@ -185,10 +185,11 @@ type (
 		TaskListName string
 		TaskListType int
 
-		RangeID         int64
-		TaskListKind    int
-		AckLevel        int64
-		LastUpdatedTime time.Time
+		RangeID                 int64
+		TaskListKind            int
+		AckLevel                int64
+		LastUpdatedTime         time.Time
+		AdaptivePartitionConfig *persistence.TaskListPartitionConfig
 	}
 
 	// ListTaskListResult is the result of list tasklists
@@ -213,7 +214,7 @@ type (
 	// DomainRow defines the row struct for queue message
 	DomainRow struct {
 		Info                        *persistence.DomainInfo
-		Config                      *NoSQLInternalDomainConfig
+		Config                      *persistence.InternalDomainConfig
 		ReplicationConfig           *persistence.DomainReplicationConfig
 		ConfigVersion               int64
 		FailoverVersion             int64
@@ -223,21 +224,6 @@ type (
 		NotificationVersion         int64
 		LastUpdatedTime             time.Time
 		IsGlobalDomain              bool
-	}
-
-	// NoSQLInternalDomainConfig defines the struct for the domainConfig
-	NoSQLInternalDomainConfig struct {
-		Retention                time.Duration
-		EmitMetric               bool                 // deprecated
-		ArchivalBucket           string               // deprecated
-		ArchivalStatus           types.ArchivalStatus // deprecated
-		HistoryArchivalStatus    types.ArchivalStatus
-		HistoryArchivalURI       string
-		VisibilityArchivalStatus types.ArchivalStatus
-		VisibilityArchivalURI    string
-		BadBinaries              *persistence.DataBlob
-		IsolationGroups          *persistence.DataBlob
-		AsyncWorkflowsConfig     *persistence.DataBlob
 	}
 
 	// SelectMessagesBetweenRequest is a request struct for SelectMessagesBetween

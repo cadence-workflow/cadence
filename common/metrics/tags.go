@@ -43,6 +43,7 @@ const (
 	activeCluster             = "active_cluster"
 	taskList                  = "tasklist"
 	taskListType              = "tasklistType"
+	taskListRootPartition     = "tasklist_root_partition"
 	workflowType              = "workflowType"
 	activityType              = "activityType"
 	decisionType              = "decisionType"
@@ -53,6 +54,7 @@ const (
 	transport                 = "transport"
 	caller                    = "caller"
 	service                   = "service"
+	destService               = "dest_service"
 	signalName                = "signalName"
 	workflowVersion           = "workflow_version"
 	shardID                   = "shard_id"
@@ -62,6 +64,9 @@ const (
 	asyncWFRequestType        = "async_wf_request_type"
 	workflowTerminationReason = "workflow_termination_reason"
 	workflowCloseStatus       = "workflow_close_status"
+	isolationEnabled          = "isolation_enabled"
+	topic                     = "topic"
+	mode                      = "mode"
 
 	// limiter-side tags
 	globalRatelimitKey            = "global_ratelimit_key"
@@ -171,6 +176,14 @@ func TaskListTypeTag(value string) Tag {
 	return metricWithUnknown(taskListType, value)
 }
 
+// TaskListRootPartition returns a new task list root partition tag.
+func TaskListRootPartitionTag(value string) Tag {
+	if len(value) == 0 {
+		value = unknownValue
+	}
+	return simpleMetric{key: taskListRootPartition, value: sanitizer.Value(value)}
+}
+
 // WorkflowTypeTag returns a new workflow type tag.
 func WorkflowTypeTag(value string) Tag {
 	return metricWithUnknown(workflowType, value)
@@ -216,9 +229,14 @@ func CallerTag(value string) Tag {
 	return simpleMetric{key: caller, value: value}
 }
 
-// CallerTag returns a new RPC Caller type tag.
+// ServiceTag returns a new service tag.
 func ServiceTag(value string) Tag {
 	return simpleMetric{key: service, value: value}
+}
+
+// DestServiceTag returns a new destination service tag.
+func DestServiceTag(value string) Tag {
+	return simpleMetric{key: destService, value: value}
 }
 
 // Hosttag emits the host identifier
@@ -255,10 +273,12 @@ func AsyncWFRequestTypeTag(value string) Tag {
 	return metricWithUnknown(asyncWFRequestType, value)
 }
 
-// GlobalRatelimiterKeyTag reports the full (global) ratelimit key being used, e.g. "user:domain-x",
-// though the value will be sanitized and may appear as "user_domain_x" or similar.
+// GlobalRatelimiterKeyTag reports the local ratelimit key being used, e.g. "domain-x".
+// This will likely be ambiguous if it is not combined with the collection name,
+// but keeping this untouched helps keep the values template-friendly and correlate-able
+// in metrics dashboards and queries.
 func GlobalRatelimiterKeyTag(value string) Tag {
-	return simpleMetric{key: globalRatelimitKey, value: sanitizer.Value(value)}
+	return simpleMetric{key: globalRatelimitKey, value: value}
 }
 
 // GlobalRatelimiterTypeTag reports the "limit usage type" being reported, e.g. global vs local
@@ -305,4 +325,21 @@ func PartitionConfigTags(partitionConfig map[string]string) []Tag {
 		tags = append(tags, simpleMetric{key: sanitizer.Value(fmt.Sprintf("pk_%s", k)), value: sanitizer.Value(v)})
 	}
 	return tags
+}
+
+// IsolationEnabledTag returns whether isolation is enabled
+func IsolationEnabledTag(enabled bool) Tag {
+	v := "false"
+	if enabled {
+		v = "true"
+	}
+	return simpleMetric{key: isolationEnabled, value: v}
+}
+
+func TopicTag(value string) Tag {
+	return metricWithUnknown(topic, value)
+}
+
+func ModeTag(value string) Tag {
+	return metricWithUnknown(mode, value)
 }

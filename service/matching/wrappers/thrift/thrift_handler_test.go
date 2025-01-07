@@ -51,12 +51,12 @@ func TestThriftHandler(t *testing.T) {
 		assert.Equal(t, expectedErr, err)
 	})
 	t.Run("AddActivityTask", func(t *testing.T) {
-		h.EXPECT().AddActivityTask(ctx, &types.AddActivityTaskRequest{}).Return(internalErr).Times(1)
+		h.EXPECT().AddActivityTask(ctx, &types.AddActivityTaskRequest{}).Return(nil, internalErr).Times(1)
 		err := th.AddActivityTask(ctx, &m.AddActivityTaskRequest{})
 		assert.Equal(t, expectedErr, err)
 	})
 	t.Run("AddDecisionTask", func(t *testing.T) {
-		h.EXPECT().AddDecisionTask(ctx, &types.AddDecisionTaskRequest{}).Return(internalErr).Times(1)
+		h.EXPECT().AddDecisionTask(ctx, &types.AddDecisionTaskRequest{}).Return(nil, internalErr).Times(1)
 		err := th.AddDecisionTask(ctx, &m.AddDecisionTaskRequest{})
 		assert.Equal(t, expectedErr, err)
 	})
@@ -78,7 +78,7 @@ func TestThriftHandler(t *testing.T) {
 		assert.Equal(t, expectedErr, err)
 	})
 	t.Run("PollForActivityTask", func(t *testing.T) {
-		h.EXPECT().PollForActivityTask(ctx, &types.MatchingPollForActivityTaskRequest{}).Return(&types.PollForActivityTaskResponse{}, internalErr).Times(1)
+		h.EXPECT().PollForActivityTask(ctx, &types.MatchingPollForActivityTaskRequest{}).Return(&types.MatchingPollForActivityTaskResponse{}, internalErr).Times(1)
 		resp, err := th.PollForActivityTask(ctx, &m.PollForActivityTaskRequest{})
 		assert.Equal(t, s.PollForActivityTaskResponse{WorkflowDomain: common.StringPtr(""), ActivityId: common.StringPtr(""), Attempt: common.Int32Ptr(0)}, *resp)
 		assert.Equal(t, expectedErr, err)

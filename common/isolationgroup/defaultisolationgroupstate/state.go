@@ -54,18 +54,13 @@ func NewDefaultIsolationGroupStateWatcherWithConfigStoreClient(
 	domainCache cache.DomainCache,
 	cfgStoreClient dynamicconfig.Client, // can be nil, which means global drain is unsupported
 	metricsClient metrics.Client,
+	getIsolationGroups func() []string,
 ) (isolationgroup.State, error) {
 	stopChan := make(chan struct{})
 
-	allIGs := dc.GetListProperty(dynamicconfig.AllIsolationGroups)()
-	allIsolationGroups, err := isolationgroupapi.MapAllIsolationGroupsResponse(allIGs)
-	if err != nil {
-		return nil, fmt.Errorf("could not get all isolation groups fron dynamic config: %w", err)
-	}
-
 	config := defaultConfig{
 		IsolationGroupEnabled: dc.GetBoolPropertyFilteredByDomain(dynamicconfig.EnableTasklistIsolation),
-		AllIsolationGroups:    allIsolationGroups,
+		AllIsolationGroups:    getIsolationGroups,
 	}
 
 	return &defaultIsolationGroupStateHandler{
@@ -79,14 +74,14 @@ func NewDefaultIsolationGroupStateWatcherWithConfigStoreClient(
 	}, nil
 }
 
-func (z *defaultIsolationGroupStateHandler) AvailableIsolationGroupsByDomainID(ctx context.Context, domainID string, availablePollerIsolationGroups []string) (types.IsolationGroupConfiguration, error) {
+func (z *defaultIsolationGroupStateHandler) AvailableIsolationGroupsByDomainID(ctx context.Context, domainID string, tasklistName string, availablePollerIsolationGroups []string) (types.IsolationGroupConfiguration, error) {
 	state, err := z.getByDomainID(ctx, domainID)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get isolation group state: %w", err)
 	}
 	availableIsolationGroupsCfg := isolationGroupHealthyListToConfig(availablePollerIsolationGroups)
-	scope := z.createAvailableisolationGroupMetricsScope(domainID)
-	return availableIG(z.config.AllIsolationGroups, availableIsolationGroupsCfg, state.Global, state.Domain, scope), nil
+	scope := z.createAvailableisolationGroupMetricsScope(domainID, tasklistName)
+	return availableIG(z.config.AllIsolationGroups(), availableIsolationGroupsCfg, state.Global, state.Domain, scope), nil
 }
 
 func (z *defaultIsolationGroupStateHandler) IsDrained(ctx context.Context, domain string, isolationGroup string) (bool, error) {
@@ -167,9 +162,11 @@ func (z *defaultIsolationGroupStateHandler) get(ctx context.Context, domain stri
 	return ig, nil
 }
 
-func (z *defaultIsolationGroupStateHandler) createAvailableisolationGroupMetricsScope(domainID string) metrics.Scope {
+func (z *defaultIsolationGroupStateHandler) createAvailableisolationGroupMetricsScope(domainID string, tasklistName string) metrics.Scope {
 	domainName, _ := z.domainCache.GetDomainName(domainID)
-	return z.metricsClient.Scope(metrics.GetAvailableIsolationGroupsScope).Tagged(metrics.DomainTag(domainName))
+	return z.metricsClient.Scope(metrics.GetAvailableIsolationGroupsScope).
+		Tagged(metrics.DomainTag(domainName)).
+		Tagged(metrics.TaskListTag(tasklistName))
 }
 
 // A simple explicit deny-based isolation group implementation

@@ -249,3 +249,9 @@ func (c *adminClient) UpdateGlobalIsolationGroups(ctx context.Context, request *
 	defer cancel()
 	return c.client.UpdateGlobalIsolationGroups(ctx, request, opts...)
 }
+
+func (c *adminClient) UpdateTaskListPartitionConfig(ctx context.Context, request *types.UpdateTaskListPartitionConfigRequest, opts ...yarpc.CallOption) (up1 *types.UpdateTaskListPartitionConfigResponse, err error) {
+	ctx, cancel := createContext(ctx, c.timeout)
+	defer cancel()
+	return c.client.UpdateTaskListPartitionConfig(ctx, request, opts...)
+}

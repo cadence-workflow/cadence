@@ -58,13 +58,13 @@ func NewMatchingClient(
 	}
 }
 
-func (c *matchingClient) AddActivityTask(ctx context.Context, ap1 *types.AddActivityTaskRequest, p1 ...yarpc.CallOption) (err error) {
+func (c *matchingClient) AddActivityTask(ctx context.Context, ap1 *types.AddActivityTaskRequest, p1 ...yarpc.CallOption) (ap2 *types.AddActivityTaskResponse, err error) {
 	ctx, cancel := createContext(ctx, c.timeout)
 	defer cancel()
 	return c.client.AddActivityTask(ctx, ap1, p1...)
 }
 
-func (c *matchingClient) AddDecisionTask(ctx context.Context, ap1 *types.AddDecisionTaskRequest, p1 ...yarpc.CallOption) (err error) {
+func (c *matchingClient) AddDecisionTask(ctx context.Context, ap1 *types.AddDecisionTaskRequest, p1 ...yarpc.CallOption) (ap2 *types.AddDecisionTaskResponse, err error) {
 	ctx, cancel := createContext(ctx, c.timeout)
 	defer cancel()
 	return c.client.AddDecisionTask(ctx, ap1, p1...)
@@ -92,7 +92,7 @@ func (c *matchingClient) ListTaskListPartitions(ctx context.Context, mp1 *types.
 	return c.client.ListTaskListPartitions(ctx, mp1, p1...)
 }
 
-func (c *matchingClient) PollForActivityTask(ctx context.Context, mp1 *types.MatchingPollForActivityTaskRequest, p1 ...yarpc.CallOption) (pp1 *types.PollForActivityTaskResponse, err error) {
+func (c *matchingClient) PollForActivityTask(ctx context.Context, mp1 *types.MatchingPollForActivityTaskRequest, p1 ...yarpc.CallOption) (mp2 *types.MatchingPollForActivityTaskResponse, err error) {
 	ctx, cancel := createContext(ctx, c.longPollTimeout)
 	defer cancel()
 	return c.client.PollForActivityTask(ctx, mp1, p1...)
@@ -110,8 +110,20 @@ func (c *matchingClient) QueryWorkflow(ctx context.Context, mp1 *types.MatchingQ
 	return c.client.QueryWorkflow(ctx, mp1, p1...)
 }
 
+func (c *matchingClient) RefreshTaskListPartitionConfig(ctx context.Context, mp1 *types.MatchingRefreshTaskListPartitionConfigRequest, p1 ...yarpc.CallOption) (mp2 *types.MatchingRefreshTaskListPartitionConfigResponse, err error) {
+	ctx, cancel := createContext(ctx, c.timeout)
+	defer cancel()
+	return c.client.RefreshTaskListPartitionConfig(ctx, mp1, p1...)
+}
+
 func (c *matchingClient) RespondQueryTaskCompleted(ctx context.Context, mp1 *types.MatchingRespondQueryTaskCompletedRequest, p1 ...yarpc.CallOption) (err error) {
 	ctx, cancel := createContext(ctx, c.timeout)
 	defer cancel()
 	return c.client.RespondQueryTaskCompleted(ctx, mp1, p1...)
+}
+
+func (c *matchingClient) UpdateTaskListPartitionConfig(ctx context.Context, mp1 *types.MatchingUpdateTaskListPartitionConfigRequest, p1 ...yarpc.CallOption) (mp2 *types.MatchingUpdateTaskListPartitionConfigResponse, err error) {
+	ctx, cancel := createContext(ctx, c.timeout)
+	defer cancel()
+	return c.client.UpdateTaskListPartitionConfig(ctx, mp1, p1...)
 }

@@ -8,27 +8,35 @@ historyconfig:
 matchingconfig:
   nummatchinghosts: 4
   simulationconfig:
-    tasklistwritepartitions: 2
-    tasklistreadpartitions: 2
+    tasklistwritepartitions: 4
+    tasklistreadpartitions: 4
     forwardermaxoutstandingpolls: 1
     forwardermaxoutstandingtasks: 1
     forwardermaxratepersecond: 10
     forwardermaxchildrenpernode: 20
-    localpollwaittime: 0ms
-    localtaskwaittime: 0ms
+    localpollwaittime: 10ms
+    localtaskwaittime: 10ms
     tasks:
-      - numtaskgenerators: 2
-        taskspersecond: 80
-        maxtasktogenerate:  3000
-        isolationgroups: ['a', 'b']
+      - numtaskgenerators: 30
+        taskspersecond: 500
+        maxtasktogenerate:  5000
+        isolationgroups: ['a', 'b', 'c', 'd']
     pollers:
       - isolationgroup: 'a'
-        taskprocesstime: 1ms
-        numpollers: 4
+        taskprocesstime: 25ms
+        numpollers: 8
         polltimeout: 60s
       - isolationgroup: 'b'
-        taskprocesstime: 1ms
-        numpollers: 4
+        taskprocesstime: 25ms
+        numpollers: 8
+        polltimeout: 60s
+      - isolationgroup: 'c'
+        taskprocesstime: 25ms
+        numpollers: 8
+        polltimeout: 60s
+      - isolationgroup: 'd'
+        taskprocesstime: 25ms
+        numpollers: 8
         polltimeout: 60s
 workerconfig:
   enableasyncwfconsumer: false

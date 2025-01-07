@@ -30,7 +30,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -71,8 +71,7 @@ func (tb *SetupSchemaTestBase) TearDownSuiteBase() {
 // RunSetupTest exercises the SetupSchema task
 func (tb *SetupSchemaTestBase) RunSetupTest(
 	app *cli.App, db DB, dbNameFlag string, sqlFileContent string, expectedTables []string) {
-	// test command fails without required arguments
-	tb.NoError(app.Run([]string{"./tool", dbNameFlag, tb.DBName, "-q", "setup-schema"}))
+	tb.Error(app.Run([]string{"./tool", dbNameFlag, tb.DBName, "setup-schema"}), "test command fails without required arguments")
 	tables, err := db.ListTables()
 	tb.NoError(err)
 	tb.Empty(tables)
@@ -88,8 +87,7 @@ func (tb *SetupSchemaTestBase) RunSetupTest(
 	_, err = sqlFile.WriteString(sqlFileContent)
 	tb.NoError(err)
 
-	// make sure command doesn't succeed without version or disable-version
-	tb.NoError(app.Run([]string{"./tool", dbNameFlag, tb.DBName, "-q", "setup-schema", "-f", sqlFile.Name()}))
+	tb.Error(app.Run([]string{"./tool", dbNameFlag, tb.DBName, "setup-schema", "-f", sqlFile.Name()}), "make sure command doesn't succeed without version or disable-version")
 	tables, err = db.ListTables()
 	tb.NoError(err)
 	tb.Empty(tables)

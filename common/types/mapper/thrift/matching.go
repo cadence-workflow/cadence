@@ -22,6 +22,7 @@ package thrift
 
 import (
 	"github.com/uber/cadence/.gen/go/matching"
+	"github.com/uber/cadence/.gen/go/shared"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/types"
 )
@@ -35,8 +36,6 @@ var (
 	ToMatchingGetTaskListsByDomainResponse     = ToGetTaskListsByDomainResponse
 	FromMatchingListTaskListPartitionsResponse = FromListTaskListPartitionsResponse
 	ToMatchingListTaskListPartitionsResponse   = ToListTaskListPartitionsResponse
-	FromMatchingPollForActivityTaskResponse    = FromPollForActivityTaskResponse
-	ToMatchingPollForActivityTaskResponse      = ToPollForActivityTaskResponse
 	FromMatchingQueryWorkflowResponse          = FromQueryWorkflowResponse
 	ToMatchingQueryWorkflowResponse            = ToQueryWorkflowResponse
 )
@@ -294,6 +293,7 @@ func FromMatchingPollForDecisionTaskResponse(t *types.MatchingPollForDecisionTas
 		StartedTimestamp:          t.StartedTimestamp,
 		Queries:                   FromWorkflowQueryMap(t.Queries),
 		TotalHistoryBytes:         &t.TotalHistoryBytes,
+		AutoConfigHint:            FromAutoConfigHint(t.AutoConfigHint),
 	}
 }
 
@@ -321,6 +321,55 @@ func ToMatchingPollForDecisionTaskResponse(t *matching.PollForDecisionTaskRespon
 		StartedTimestamp:          t.StartedTimestamp,
 		Queries:                   ToWorkflowQueryMap(t.Queries),
 		TotalHistoryBytes:         t.GetTotalHistoryBytes(),
+		AutoConfigHint:            ToAutoConfigHint(t.AutoConfigHint),
+	}
+}
+
+func FromMatchingPollForActivityTaskResponse(t *types.MatchingPollForActivityTaskResponse) *shared.PollForActivityTaskResponse {
+	if t == nil {
+		return nil
+	}
+	return &shared.PollForActivityTaskResponse{
+		TaskToken:                       t.TaskToken,
+		WorkflowExecution:               FromWorkflowExecution(t.WorkflowExecution),
+		ActivityId:                      &t.ActivityID,
+		ActivityType:                    FromActivityType(t.ActivityType),
+		Input:                           t.Input,
+		ScheduledTimestamp:              t.ScheduledTimestamp,
+		ScheduleToCloseTimeoutSeconds:   t.ScheduleToCloseTimeoutSeconds,
+		StartedTimestamp:                t.StartedTimestamp,
+		StartToCloseTimeoutSeconds:      t.StartToCloseTimeoutSeconds,
+		HeartbeatTimeoutSeconds:         t.HeartbeatTimeoutSeconds,
+		Attempt:                         &t.Attempt,
+		ScheduledTimestampOfThisAttempt: t.ScheduledTimestampOfThisAttempt,
+		HeartbeatDetails:                t.HeartbeatDetails,
+		WorkflowType:                    FromWorkflowType(t.WorkflowType),
+		WorkflowDomain:                  &t.WorkflowDomain,
+		Header:                          FromHeader(t.Header),
+	}
+}
+
+func ToMatchingPollForActivityTaskResponse(t *shared.PollForActivityTaskResponse) *types.MatchingPollForActivityTaskResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.MatchingPollForActivityTaskResponse{
+		TaskToken:                       t.TaskToken,
+		WorkflowExecution:               ToWorkflowExecution(t.WorkflowExecution),
+		ActivityID:                      t.GetActivityId(),
+		ActivityType:                    ToActivityType(t.ActivityType),
+		Input:                           t.Input,
+		ScheduledTimestamp:              t.ScheduledTimestamp,
+		ScheduleToCloseTimeoutSeconds:   t.ScheduleToCloseTimeoutSeconds,
+		StartedTimestamp:                t.StartedTimestamp,
+		StartToCloseTimeoutSeconds:      t.StartToCloseTimeoutSeconds,
+		HeartbeatTimeoutSeconds:         t.HeartbeatTimeoutSeconds,
+		Attempt:                         t.GetAttempt(),
+		ScheduledTimestampOfThisAttempt: t.ScheduledTimestampOfThisAttempt,
+		HeartbeatDetails:                t.HeartbeatDetails,
+		WorkflowType:                    ToWorkflowType(t.WorkflowType),
+		WorkflowDomain:                  t.GetWorkflowDomain(),
+		Header:                          ToHeader(t.Header),
 	}
 }
 

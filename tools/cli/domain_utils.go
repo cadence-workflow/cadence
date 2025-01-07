@@ -21,11 +21,12 @@
 package cli
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/stretchr/testify/mock"
 	"github.com/uber-go/tally"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 
 	"github.com/uber/cadence/client/admin"
 	"github.com/uber/cadence/client/frontend"
@@ -51,173 +52,193 @@ const (
 
 var (
 	registerDomainFlags = []cli.Flag{
-		cli.StringFlag{
-			Name:  FlagDescriptionWithAlias,
-			Usage: "Domain description",
+		&cli.StringFlag{
+			Name:    FlagDescription,
+			Aliases: []string{"desc"},
+			Usage:   "Domain description",
 		},
-		cli.StringFlag{
-			Name:  FlagOwnerEmailWithAlias,
-			Usage: "Owner email",
+		&cli.StringFlag{
+			Name:    FlagOwnerEmail,
+			Aliases: []string{"oe"},
+			Usage:   "Owner email",
 		},
-		cli.StringFlag{
-			Name:  FlagRetentionDaysWithAlias,
-			Usage: "Workflow execution retention in days",
+		&cli.StringFlag{
+			Name:    FlagRetentionDays,
+			Aliases: []string{"rd"},
+			Usage:   "Workflow execution retention in days",
 		},
-		cli.StringFlag{
-			Name:  FlagActiveClusterNameWithAlias,
-			Usage: "Active cluster name",
+		&cli.StringFlag{
+			Name:    FlagActiveClusterName,
+			Aliases: []string{"ac"},
+			Usage:   "Active cluster name",
 		},
-		cli.StringFlag{
-			// use StringFlag instead of buggy StringSliceFlag
-			// TODO when https://github.com/urfave/cli/pull/392 & v2 is released
-			//  consider update urfave/cli
-			Name:  FlagClustersWithAlias,
-			Usage: "Clusters",
+		&cli.StringSliceFlag{
+			Name:    FlagClusters,
+			Aliases: []string{"cl"},
+			Usage:   FlagClustersUsage,
 		},
-		cli.StringFlag{
-			Name:  FlagIsGlobalDomainWithAlias,
-			Usage: "Flag to indicate whether domain is a global domain. Default to true. Local domain is now legacy.",
-			Value: "true",
+		&cli.StringFlag{
+			Name:    FlagIsGlobalDomain,
+			Aliases: []string{"gd"},
+			Usage:   "Flag to indicate whether domain is a global domain. Default to true. Local domain is now legacy.",
+			Value:   "true",
 		},
-		cli.GenericFlag{
-			Name:  FlagDomainDataWithAlias,
-			Usage: "Domain data of key value pairs (must be in key1=value1,key2=value2,...,keyN=valueN format, e.g. cluster=dca or cluster=dca,instance=cadence)",
-			Value: &flag.StringMap{},
+		&cli.GenericFlag{
+			Name:    FlagDomainData,
+			Aliases: []string{"dmd"},
+			Usage:   "Domain data of key value pairs (must be in key1=value1,key2=value2,...,keyN=valueN format, e.g. cluster=dca or cluster=dca,instance=cadence)",
+			Value:   &flag.StringMap{},
 		},
-		cli.StringFlag{
-			Name:  FlagSecurityTokenWithAlias,
-			Usage: "Optional token for security check",
+		&cli.StringFlag{
+			Name:    FlagSecurityToken,
+			Aliases: []string{"st"},
+			Usage:   "Optional token for security check",
 		},
-		cli.StringFlag{
-			Name:  FlagHistoryArchivalStatusWithAlias,
-			Usage: "Flag to set history archival status, valid values are \"disabled\" and \"enabled\"",
+		&cli.StringFlag{
+			Name:    FlagHistoryArchivalStatus,
+			Aliases: []string{"has"},
+			Usage:   "Flag to set history archival status, valid values are \"disabled\" and \"enabled\"",
 		},
-		cli.StringFlag{
-			Name:  FlagHistoryArchivalURIWithAlias,
-			Usage: "Optionally specify history archival URI (cannot be changed after first time archival is enabled)",
+		&cli.StringFlag{
+			Name:    FlagHistoryArchivalURI,
+			Aliases: []string{"huri"},
+			Usage:   "Optionally specify history archival URI (cannot be changed after first time archival is enabled)",
 		},
-		cli.StringFlag{
-			Name:  FlagVisibilityArchivalStatusWithAlias,
-			Usage: "Flag to set visibility archival status, valid values are \"disabled\" and \"enabled\"",
+		&cli.StringFlag{
+			Name:    FlagVisibilityArchivalStatus,
+			Aliases: []string{"vas"},
+			Usage:   "Flag to set visibility archival status, valid values are \"disabled\" and \"enabled\"",
 		},
-		cli.StringFlag{
-			Name:  FlagVisibilityArchivalURIWithAlias,
-			Usage: "Optionally specify visibility archival URI (cannot be changed after first time archival is enabled)",
+		&cli.StringFlag{
+			Name:    FlagVisibilityArchivalURI,
+			Aliases: []string{"vuri"},
+			Usage:   "Optionally specify visibility archival URI (cannot be changed after first time archival is enabled)",
 		},
 	}
 
 	updateDomainFlags = []cli.Flag{
-		cli.StringFlag{
-			Name:  FlagDescriptionWithAlias,
-			Usage: "Domain description",
+		&cli.StringFlag{
+			Name:    FlagDescription,
+			Aliases: []string{"desc"},
+			Usage:   "Domain description",
 		},
-		cli.StringFlag{
-			Name:  FlagOwnerEmailWithAlias,
-			Usage: "Owner email",
+		&cli.StringFlag{
+			Name:    FlagOwnerEmail,
+			Aliases: []string{"oe"},
+			Usage:   "Owner email",
 		},
-		cli.StringFlag{
-			Name:  FlagRetentionDaysWithAlias,
-			Usage: "Workflow execution retention in days",
+		&cli.StringFlag{
+			Name:    FlagRetentionDays,
+			Aliases: []string{"rd"},
+			Usage:   "Workflow execution retention in days",
 		},
-		cli.StringFlag{
-			Name:  FlagActiveClusterNameWithAlias,
-			Usage: "Active cluster name",
+		&cli.StringFlag{
+			Name:    FlagActiveClusterName,
+			Aliases: []string{"ac"},
+			Usage:   "Active cluster name",
 		},
-		cli.StringFlag{
-			// use StringFlag instead of buggy StringSliceFlag
-			// TODO when https://github.com/urfave/cli/pull/392 & v2 is released
-			//  consider update urfave/cli
-			Name:  FlagClustersWithAlias,
-			Usage: "Clusters",
+		&cli.StringSliceFlag{
+			Name:    FlagClusters,
+			Aliases: []string{"cl"},
+			Usage:   FlagClustersUsage,
 		},
-		cli.GenericFlag{
-			Name:  FlagDomainDataWithAlias,
+		&cli.GenericFlag{
+			Name:  FlagDomainData,
 			Usage: "Domain data of key value pairs (must be in key1=value1,key2=value2,...,keyN=valueN format, e.g. cluster=dca or cluster=dca,instance=cadence)",
 			Value: &flag.StringMap{},
 		},
-		cli.StringFlag{
-			Name:  FlagSecurityTokenWithAlias,
-			Usage: "Optional token for security check",
+		&cli.StringFlag{
+			Name:    FlagSecurityToken,
+			Aliases: []string{"st"},
+			Usage:   "Optional token for security check",
 		},
-		cli.StringFlag{
-			Name:  FlagHistoryArchivalStatusWithAlias,
-			Usage: "Flag to set history archival status, valid values are \"disabled\" and \"enabled\"",
+		&cli.StringFlag{
+			Name:    FlagHistoryArchivalStatus,
+			Aliases: []string{"has"},
+			Usage:   "Flag to set history archival status, valid values are \"disabled\" and \"enabled\"",
 		},
-		cli.StringFlag{
-			Name:  FlagHistoryArchivalURIWithAlias,
-			Usage: "Optionally specify history archival URI (cannot be changed after first time archival is enabled)",
+		&cli.StringFlag{
+			Name:    FlagHistoryArchivalURI,
+			Aliases: []string{"huri"},
+			Usage:   "Optionally specify history archival URI (cannot be changed after first time archival is enabled)",
 		},
-		cli.StringFlag{
-			Name:  FlagVisibilityArchivalStatusWithAlias,
-			Usage: "Flag to set visibility archival status, valid values are \"disabled\" and \"enabled\"",
+		&cli.StringFlag{
+			Name:    FlagVisibilityArchivalStatus,
+			Aliases: []string{"vas"},
+			Usage:   "Flag to set visibility archival status, valid values are \"disabled\" and \"enabled\"",
 		},
-		cli.StringFlag{
-			Name:  FlagVisibilityArchivalURIWithAlias,
-			Usage: "Optionally specify visibility archival URI (cannot be changed after first time archival is enabled)",
+		&cli.StringFlag{
+			Name:    FlagVisibilityArchivalURI,
+			Aliases: []string{"vuri"},
+			Usage:   "Optionally specify visibility archival URI (cannot be changed after first time archival is enabled)",
 		},
-		cli.StringFlag{
+		&cli.StringFlag{
 			Name:  FlagAddBadBinary,
 			Usage: "Binary checksum to add for resetting workflow",
 		},
-		cli.StringFlag{
+		&cli.StringFlag{
 			Name:  FlagRemoveBadBinary,
 			Usage: "Binary checksum to remove for resetting workflow",
 		},
-		cli.StringFlag{
+		&cli.StringFlag{
 			Name:  FlagReason,
 			Usage: "Reason for the operation",
 		},
-		cli.StringFlag{
-			Name:  FlagFailoverTypeWithAlias,
-			Usage: "Domain failover type. Default value: force. Options: [force,grace]",
+		&cli.StringFlag{
+			Name:    FlagFailoverType,
+			Aliases: []string{"ft"},
+			Usage:   "Domain failover type. Default value: force. Options: [force,grace]",
 		},
-		cli.IntFlag{
-			Name:  FlagFailoverTimeoutWithAlias,
-			Value: defaultGracefulFailoverTimeoutInSeconds,
-			Usage: "[Optional] Domain failover timeout in seconds.",
+		&cli.IntFlag{
+			Name:    FlagFailoverTimeout,
+			Aliases: []string{"fts"},
+			Value:   defaultGracefulFailoverTimeoutInSeconds,
+			Usage:   "[Optional] Domain failover timeout in seconds.",
 		},
 	}
 
 	deprecateDomainFlags = []cli.Flag{
-		cli.StringFlag{
-			Name:  FlagSecurityTokenWithAlias,
-			Usage: "Optional token for security check",
+		&cli.StringFlag{
+			Name:    FlagSecurityToken,
+			Aliases: []string{"st"},
+			Usage:   "Optional token for security check",
 		},
-		cli.BoolFlag{
+		&cli.BoolFlag{
 			Name:  FlagForce,
 			Usage: "Deprecate domain regardless of domain history.",
 		},
 	}
 
 	describeDomainFlags = []cli.Flag{
-		cli.StringFlag{
+		&cli.StringFlag{
 			Name:  FlagDomainID,
 			Usage: "Domain UUID (required if not specify domainName)",
 		},
-		cli.BoolFlag{
-			Name:  FlagPrintJSONWithAlias,
-			Usage: "Print in raw JSON format",
+		&cli.BoolFlag{
+			Name:    FlagPrintJSON,
+			Aliases: []string{"pjson"},
+			Usage:   "Print in raw JSON format",
 		},
 		getFormatFlag(),
 	}
 
 	migrateDomainFlags = []cli.Flag{
 
-		cli.StringFlag{
+		&cli.StringFlag{
 			Name:  FlagDestinationAddress,
 			Usage: "Destination cadence-frontend address in <host>:<port> format",
 		},
-		cli.StringFlag{
+		&cli.StringFlag{
 			Name:  FlagDestinationDomain,
 			Usage: "Destination domain name",
 		},
 
-		cli.StringSliceFlag{
+		&cli.StringSliceFlag{
 			Name:  FlagTaskList,
 			Usage: "All tasklists in the current domain",
 		},
 
-		cli.StringSliceFlag{
+		&cli.StringSliceFlag{
 			Name:  FlagSearchAttribute,
 			Usage: "Specify search attributes in the format key:type, available types are STRING, KEYWORD, INT, DOUBLE, BOOL, DATETIME",
 		},
@@ -248,53 +269,63 @@ var (
 	)
 )
 
-func initializeFrontendClient(
-	context *cli.Context,
-) frontend.Client {
-	return cFactory.ServerFrontendClient(context)
+func initializeFrontendClient(c *cli.Context) (frontend.Client, error) {
+	return getDeps(c).ServerFrontendClient(c)
 }
 
-func initializeFrontendAdminClient(
-	context *cli.Context,
-) admin.Client {
-	return cFactory.ServerAdminClient(context)
+func initializeFrontendAdminClient(c *cli.Context) (admin.Client, error) {
+	return getDeps(c).ServerAdminClient(c)
 }
 
-func initializeAdminDomainHandler(
-	context *cli.Context,
-) domain.Handler {
+func initializeAdminDomainHandler(c *cli.Context) (domain.Handler, error) {
 
-	configuration, err := cFactory.ServerConfig(context)
+	configuration, err := getDeps(c).ServerConfig(c)
 	if err != nil {
-		ErrorAndExit("Unable to load config.", err)
+		return nil, err
 	}
-
 	metricsClient := initializeMetricsClient()
-	logger := initializeLogger(configuration)
+	logger, err := initializeLogger(configuration)
+	if err != nil {
+		return nil, fmt.Errorf("Error in init admin domain handler: %w", err)
+	}
 	clusterMetadata := initializeClusterMetadata(configuration, metricsClient, logger)
-	metadataMgr := initializeDomainManager(context)
-	dynamicConfig := initializeDynamicConfig(configuration, logger)
-	return initializeDomainHandler(
+	metadataMgr, err := getDeps(c).initializeDomainManager(c)
+	if err != nil {
+		return nil, fmt.Errorf("Error in init admin domain handler: %w", err)
+	}
+	dynamicConfig, err := initializeDynamicConfig(configuration, logger)
+	if err != nil {
+		return nil, fmt.Errorf("Error in init admin domain handler: %w", err)
+	}
+	archivalprovider, err := initializeArchivalProvider(configuration, clusterMetadata, metricsClient, logger)
+	if err != nil {
+		return nil, fmt.Errorf("Error in init admin domain handler: %w", err)
+	}
+	domainhandler := initializeDomainHandler(
 		logger,
 		metadataMgr,
 		clusterMetadata,
 		initializeArchivalMetadata(configuration, dynamicConfig),
-		initializeArchivalProvider(configuration, clusterMetadata, metricsClient, logger),
+		archivalprovider,
 	)
+	return domainhandler, nil
 }
 
 func loadConfig(
 	context *cli.Context,
-) *config.Config {
+) (*config.Config, error) {
 	env := getEnvironment(context)
 	zone := getZone(context)
-	configDir := getConfigDir(context)
-	var cfg config.Config
-	err := config.Load(env, configDir, zone, &cfg)
+	configDir, err := getConfigDir(context)
 	if err != nil {
-		ErrorAndExit("Unable to load config.", err)
+		return nil, fmt.Errorf("Unable to load config. %w", err)
 	}
-	return &cfg
+	var cfg config.Config
+	err = config.Load(env, configDir, zone, &cfg)
+	if err != nil {
+		return nil, fmt.Errorf("Unable to load config. %w", err)
+	}
+	return &cfg, nil
 }
 
 func initializeDomainHandler(
@@ -324,12 +355,12 @@ func initializeDomainHandler(
 
 func initializeLogger(
 	serviceConfig *config.Config,
-) log.Logger {
+) (log.Logger, error) {
 	zapLogger, err := serviceConfig.Log.NewZapLogger()
 	if err != nil {
-		ErrorAndExit("failed to create zap logger, err: ", err)
+		return nil, fmt.Errorf("failed to create zap logger, err: %w", err)
 	}
-	return loggerimpl.NewLogger(zapLogger)
+	return loggerimpl.NewLogger(zapLogger), nil
 }
 
 func initializeClusterMetadata(serviceConfig *config.Config, metrics metrics.Client, logger log.Logger) cluster.Metadata {
@@ -366,7 +397,7 @@ func initializeArchivalProvider(
 	clusterMetadata cluster.Metadata,
 	metricsClient metrics.Client,
 	logger log.Logger,
-) provider.ArchiverProvider {
+) (provider.ArchiverProvider, error) {
 
 	archiverProvider := provider.NewArchiverProvider(
 		serviceConfig.Archival.History.Provider,
@@ -393,9 +424,9 @@ func initializeArchivalProvider(
 		visibilityArchiverBootstrapContainer,
 	)
 	if err != nil {
-		ErrorAndExit("Error initializing archival provider.", err)
+		return nil, fmt.Errorf("Error initializing archival provider. %w", err)
 	}
-	return archiverProvider
+	return archiverProvider, nil
 }
 
 func initializeDomainReplicator(
@@ -410,7 +441,7 @@ func initializeDomainReplicator(
 func initializeDynamicConfig(
 	serviceConfig *config.Config,
 	logger log.Logger,
-) *dynamicconfig.Collection {
+) (*dynamicconfig.Collection, error) {
 
 	// the done channel is used by dynamic config to stop refreshing
 	// and CLI does not need that, so just close the done channel
@@ -422,9 +453,9 @@ func initializeDynamicConfig(
 		doneChan,
 	)
 	if err != nil {
-		ErrorAndExit("Error initializing dynamic config.", err)
+		return nil, fmt.Errorf("Error initializing dynamic config. %w", err)
 	}
-	return dynamicconfig.NewCollection(dynamicConfigClient, logger)
+	return dynamicconfig.NewCollection(dynamicConfigClient, logger), nil
 }
 
 func initializeMetricsClient() metrics.Client {
@@ -439,10 +470,10 @@ func getZone(c *cli.Context) string {
 	return strings.TrimSpace(c.String(FlagServiceZone))
 }
 
-func getConfigDir(c *cli.Context) string {
+func getConfigDir(c *cli.Context) (string, error) {
 	dirPath := c.String(FlagServiceConfigDir)
 	if len(dirPath) == 0 {
-		ErrorAndExit("Must provide service configuration dir path.", nil)
+		return "", fmt.Errorf("Must provide service configuration dir path. %v", nil)
 	}
-	return dirPath
+	return dirPath, nil
 }

@@ -23,6 +23,7 @@ package persistence
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/uber/cadence/common"
@@ -702,4 +703,13 @@ func (s *versionHistoriesSuite) TestCurrentVersionHistoryIndexIsInReplay() {
 	isInReplay, err = histories.IsRebuilt()
 	s.NoError(err)
 	s.False(isInReplay)
+}
+
+func TestNilHandling(t *testing.T) {
+	assert.Nil(t, NewVersionHistoriesFromInternalType(nil))
+	assert.Nil(t, NewVersionHistories(nil))
+	assert.Nil(t, NewVersionHistoryItemFromInternalType(nil))
+	assert.Nil(t, NewVersionHistoryFromInternalType(nil))
+	var vh *VersionHistory
+	assert.Nil(t, vh.ToInternalType())
 }

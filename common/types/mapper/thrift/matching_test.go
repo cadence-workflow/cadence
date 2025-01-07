@@ -256,7 +256,38 @@ func TestMatchingPollForDecisionResponse(t *testing.T) {
 		thriftObj := FromMatchingPollForDecisionTaskResponse(tc.input)
 		roundTripObj := ToMatchingPollForDecisionTaskResponse(thriftObj)
 		opt := cmpopts.IgnoreFields(types.WorkflowExecutionStartedEventAttributes{}, "ParentWorkflowDomainID")
-		if diff := cmp.Diff(tc.input, roundTripObj, opt); diff != "" {
+		opt2 := cmpopts.IgnoreFields(types.MatchingPollForDecisionTaskResponse{}, "PartitionConfig")
+		opt3 := cmpopts.IgnoreFields(types.MatchingPollForDecisionTaskResponse{}, "LoadBalancerHints")
+		if diff := cmp.Diff(tc.input, roundTripObj, opt, opt2, opt3); diff != "" {
+			t.Fatalf("Mismatch (-want +got):\n%s", diff)
+		}
+	}
+}
+
+func TestMatchingPollForActivityTaskResponse(t *testing.T) {
+	testCases := []struct {
+		desc  string
+		input *types.MatchingPollForActivityTaskResponse
+	}{
+		{
+			desc:  "non-nil input test",
+			input: &testdata.MatchingPollForActivityTaskResponse,
+		},
+		{
+			desc:  "empty input test",
+			input: &types.MatchingPollForActivityTaskResponse{},
+		},
+		{
+			desc:  "nil input test",
+			input: nil,
+		},
+	}
+	for _, tc := range testCases {
+		thriftObj := FromMatchingPollForActivityTaskResponse(tc.input)
+		roundTripObj := ToMatchingPollForActivityTaskResponse(thriftObj)
+		opt := cmpopts.IgnoreFields(types.MatchingPollForActivityTaskResponse{}, "PartitionConfig")
+		opt2 := cmpopts.IgnoreFields(types.MatchingPollForActivityTaskResponse{}, "LoadBalancerHints")
+		if diff := cmp.Diff(tc.input, roundTripObj, opt, opt2); diff != "" {
 			t.Fatalf("Mismatch (-want +got):\n%s", diff)
 		}
 	}

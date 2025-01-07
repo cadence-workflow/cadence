@@ -35,14 +35,14 @@ import (
 	"github.com/uber/cadence/common/types/mapper/proto"
 )
 
-func (g matchingClient) AddActivityTask(ctx context.Context, ap1 *types.AddActivityTaskRequest, p1 ...yarpc.CallOption) (err error) {
-	_, err = g.c.AddActivityTask(ctx, proto.FromMatchingAddActivityTaskRequest(ap1), p1...)
-	return proto.ToError(err)
+func (g matchingClient) AddActivityTask(ctx context.Context, ap1 *types.AddActivityTaskRequest, p1 ...yarpc.CallOption) (ap2 *types.AddActivityTaskResponse, err error) {
+	response, err := g.c.AddActivityTask(ctx, proto.FromMatchingAddActivityTaskRequest(ap1), p1...)
+	return proto.ToMatchingAddActivityTaskResponse(response), proto.ToError(err)
 }
 
-func (g matchingClient) AddDecisionTask(ctx context.Context, ap1 *types.AddDecisionTaskRequest, p1 ...yarpc.CallOption) (err error) {
-	_, err = g.c.AddDecisionTask(ctx, proto.FromMatchingAddDecisionTaskRequest(ap1), p1...)
-	return proto.ToError(err)
+func (g matchingClient) AddDecisionTask(ctx context.Context, ap1 *types.AddDecisionTaskRequest, p1 ...yarpc.CallOption) (ap2 *types.AddDecisionTaskResponse, err error) {
+	response, err := g.c.AddDecisionTask(ctx, proto.FromMatchingAddDecisionTaskRequest(ap1), p1...)
+	return proto.ToMatchingAddDecisionTaskResponse(response), proto.ToError(err)
 }
 
 func (g matchingClient) CancelOutstandingPoll(ctx context.Context, cp1 *types.CancelOutstandingPollRequest, p1 ...yarpc.CallOption) (err error) {
@@ -65,7 +65,7 @@ func (g matchingClient) ListTaskListPartitions(ctx context.Context, mp1 *types.M
 	return proto.ToMatchingListTaskListPartitionsResponse(response), proto.ToError(err)
 }
 
-func (g matchingClient) PollForActivityTask(ctx context.Context, mp1 *types.MatchingPollForActivityTaskRequest, p1 ...yarpc.CallOption) (pp1 *types.PollForActivityTaskResponse, err error) {
+func (g matchingClient) PollForActivityTask(ctx context.Context, mp1 *types.MatchingPollForActivityTaskRequest, p1 ...yarpc.CallOption) (mp2 *types.MatchingPollForActivityTaskResponse, err error) {
 	response, err := g.c.PollForActivityTask(ctx, proto.FromMatchingPollForActivityTaskRequest(mp1), p1...)
 	return proto.ToMatchingPollForActivityTaskResponse(response), proto.ToError(err)
 }
@@ -80,7 +80,17 @@ func (g matchingClient) QueryWorkflow(ctx context.Context, mp1 *types.MatchingQu
 	return proto.ToMatchingQueryWorkflowResponse(response), proto.ToError(err)
 }
 
+func (g matchingClient) RefreshTaskListPartitionConfig(ctx context.Context, mp1 *types.MatchingRefreshTaskListPartitionConfigRequest, p1 ...yarpc.CallOption) (mp2 *types.MatchingRefreshTaskListPartitionConfigResponse, err error) {
+	response, err := g.c.RefreshTaskListPartitionConfig(ctx, proto.FromMatchingRefreshTaskListPartitionConfigRequest(mp1), p1...)
+	return proto.ToMatchingRefreshTaskListPartitionConfigResponse(response), proto.ToError(err)
+}
+
 func (g matchingClient) RespondQueryTaskCompleted(ctx context.Context, mp1 *types.MatchingRespondQueryTaskCompletedRequest, p1 ...yarpc.CallOption) (err error) {
 	_, err = g.c.RespondQueryTaskCompleted(ctx, proto.FromMatchingRespondQueryTaskCompletedRequest(mp1), p1...)
 	return proto.ToError(err)
+}
+
+func (g matchingClient) UpdateTaskListPartitionConfig(ctx context.Context, mp1 *types.MatchingUpdateTaskListPartitionConfigRequest, p1 ...yarpc.CallOption) (mp2 *types.MatchingUpdateTaskListPartitionConfigResponse, err error) {
+	response, err := g.c.UpdateTaskListPartitionConfig(ctx, proto.FromMatchingUpdateTaskListPartitionConfigRequest(mp1), p1...)
+	return proto.ToMatchingUpdateTaskListPartitionConfigResponse(response), proto.ToError(err)
 }

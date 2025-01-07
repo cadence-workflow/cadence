@@ -229,6 +229,39 @@ func (mr *_MockClientRecorder) DescribeWorkflowExecution(
 	return mr.mock.ctrl.RecordCall(mr.mock, "DescribeWorkflowExecution", args...)
 }
 
+// DiagnoseWorkflowExecution responds to a DiagnoseWorkflowExecution call based on the mock expectations. This
+// call will fail if the mock does not expect this call. Use EXPECT to expect
+// a call to this function.
+//
+//	client.EXPECT().DiagnoseWorkflowExecution(gomock.Any(), ...).Return(...)
+//	... := client.DiagnoseWorkflowExecution(...)
+func (m *MockClient) DiagnoseWorkflowExecution(
+	ctx context.Context,
+	_DiagnoseRequest *shared.DiagnoseWorkflowExecutionRequest,
+	opts ...yarpc.CallOption,
+) (success *shared.DiagnoseWorkflowExecutionResponse, err error) {
+
+	args := []interface{}{ctx, _DiagnoseRequest}
+	for _, o := range opts {
+		args = append(args, o)
+	}
+	i := 0
+	ret := m.ctrl.Call(m, "DiagnoseWorkflowExecution", args...)
+	success, _ = ret[i].(*shared.DiagnoseWorkflowExecutionResponse)
+	i++
+	err, _ = ret[i].(error)
+	return
+}
+
+func (mr *_MockClientRecorder) DiagnoseWorkflowExecution(
+	ctx interface{},
+	_DiagnoseRequest interface{},
+	opts ...interface{},
+) *gomock.Call {
+	args := append([]interface{}{ctx, _DiagnoseRequest}, opts...)
+	return mr.mock.ctrl.RecordCall(mr.mock, "DiagnoseWorkflowExecution", args...)
+}
+
 // GetClusterInfo responds to a GetClusterInfo call based on the mock expectations. This
 // call will fail if the mock does not expect this call. Use EXPECT to expect
 // a call to this function.

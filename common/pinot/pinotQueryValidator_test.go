@@ -48,30 +48,38 @@ func TestValidateQuery(t *testing.T) {
 		},
 		"Case2-2: simple query with partial match": {
 			query:     "WorkflowID like 'wid'",
-			validated: "TEXT_MATCH(WorkflowID, 'wid')",
+			validated: "TEXT_MATCH(WorkflowID, '/.*wid.*/')",
 		},
 		"Case2-3: invalid simple query with partial match": {
 			query: "WorkflowID like wid",
 			err:   "right comparison is invalid: &{<nil> wid { }}"},
 		"Case3-1: query with custom field": {
 			query:     "CustomStringField = 'custom'",
-			validated: "(JSON_MATCH(Attr, '\"$.CustomStringField\" is not null') AND REGEXP_LIKE(JSON_EXTRACT_SCALAR(Attr, '$.CustomStringField', 'string'), 'custom*'))",
+			validated: `JSON_MATCH(Attr, '"$.CustomStringField" is not null') AND JSON_MATCH(Attr, 'REGEXP_LIKE("$.CustomStringField", ''.*custom.*'')')`,
 		},
-		"Case3-2: query with custom field value is empty": {
+		"Case3-2: query with custom field not equal": {
+			query:     "CustomStringField != 'custom'",
+			validated: `JSON_MATCH(Attr, '"$.CustomStringField" is not null') AND NOT JSON_MATCH(Attr, 'REGEXP_LIKE("$.CustomStringField", ''.*custom.*'')')`,
+		},
+		"Case3-3: query with custom field value is empty": {
 			query:     "CustomStringField = ''",
-			validated: "(JSON_MATCH(Attr, '\"$.CustomStringField\" is not null') AND REGEXP_LIKE(JSON_EXTRACT_SCALAR(Attr, '$.CustomStringField', 'string'), '^$'))",
+			validated: `JSON_MATCH(Attr, '"$.CustomStringField" is not null') AND JSON_MATCH(Attr, 'REGEXP_LIKE("$.CustomStringField", ''^$'')')`,
+		},
+		"Case3-4: query with custom field not equal to empty": {
+			query:     "CustomStringField != ''",
+			validated: `JSON_MATCH(Attr, '"$.CustomStringField" is not null') AND NOT JSON_MATCH(Attr, 'REGEXP_LIKE("$.CustomStringField", ''^$'')')`,
 		},
 		"Case4: custom field query with or in string": {
 			query:     "CustomStringField='Or'",
-			validated: "(JSON_MATCH(Attr, '\"$.CustomStringField\" is not null') AND REGEXP_LIKE(JSON_EXTRACT_SCALAR(Attr, '$.CustomStringField', 'string'), 'Or*'))",
+			validated: `JSON_MATCH(Attr, '"$.CustomStringField" is not null') AND JSON_MATCH(Attr, 'REGEXP_LIKE("$.CustomStringField", ''.*Or.*'')')`,
 		},
 		"Case5: custom keyword field query": {
 			query:     "CustomKeywordField = 'custom'",
-			validated: "(JSON_MATCH(Attr, '\"$.CustomKeywordField\"=''custom''') or JSON_MATCH(Attr, '\"$.CustomKeywordField[*]\"=''custom'''))",
+			validated: `(JSON_MATCH(Attr, '"$.CustomKeywordField"=''custom''') or JSON_MATCH(Attr, '"$.CustomKeywordField[*]"=''custom'''))`,
 		},
 		"Case6-1: complex query I: with parenthesis": {
 			query:     "(CustomStringField = 'custom and custom2 or custom3 order by') or CustomIntField between 1 and 10",
-			validated: "((JSON_MATCH(Attr, '\"$.CustomStringField\" is not null') AND REGEXP_LIKE(JSON_EXTRACT_SCALAR(Attr, '$.CustomStringField', 'string'), 'custom and custom2 or custom3 order by*')) or (JSON_MATCH(Attr, '\"$.CustomIntField\" is not null') AND CAST(JSON_EXTRACT_SCALAR(Attr, '$.CustomIntField') AS INT) >= 1 AND CAST(JSON_EXTRACT_SCALAR(Attr, '$.CustomIntField') AS INT) <= 10))",
+			validated: `(JSON_MATCH(Attr, '"$.CustomStringField" is not null') AND JSON_MATCH(Attr, 'REGEXP_LIKE("$.CustomStringField", ''.*custom and custom2 or custom3 order by.*'')') or (JSON_MATCH(Attr, '"$.CustomIntField" is not null') AND CAST(JSON_EXTRACT_SCALAR(Attr, '$.CustomIntField') AS INT) >= 1 AND CAST(JSON_EXTRACT_SCALAR(Attr, '$.CustomIntField') AS INT) <= 10))`,
 		},
 		"Case6-2: complex query II: with only system keys": {
 			query:     "DomainID = 'd-id' and (RunID = 'run-id' or WorkflowID = 'wid')",
@@ -83,11 +91,11 @@ func TestValidateQuery(t *testing.T) {
 		},
 		"Case6-4: complex query IV": {
 			query:     "WorkflowID = 'wid' and (CustomStringField = 'custom and custom2 or custom3 order by' or CustomIntField between 1 and 10)",
-			validated: "WorkflowID = 'wid' and ((JSON_MATCH(Attr, '\"$.CustomStringField\" is not null') AND REGEXP_LIKE(JSON_EXTRACT_SCALAR(Attr, '$.CustomStringField', 'string'), 'custom and custom2 or custom3 order by*')) or (JSON_MATCH(Attr, '\"$.CustomIntField\" is not null') AND CAST(JSON_EXTRACT_SCALAR(Attr, '$.CustomIntField') AS INT) >= 1 AND CAST(JSON_EXTRACT_SCALAR(Attr, '$.CustomIntField') AS INT) <= 10))",
+			validated: `WorkflowID = 'wid' and (JSON_MATCH(Attr, '"$.CustomStringField" is not null') AND JSON_MATCH(Attr, 'REGEXP_LIKE("$.CustomStringField", ''.*custom and custom2 or custom3 order by.*'')') or (JSON_MATCH(Attr, '"$.CustomIntField" is not null') AND CAST(JSON_EXTRACT_SCALAR(Attr, '$.CustomIntField') AS INT) >= 1 AND CAST(JSON_EXTRACT_SCALAR(Attr, '$.CustomIntField') AS INT) <= 10))`,
 		},
 		"Case6-5: complex query with partial match": {
 			query:     "RunID like '123' or WorkflowID like '123'",
-			validated: "(TEXT_MATCH(RunID, '123') or TEXT_MATCH(WorkflowID, '123'))",
+			validated: "(TEXT_MATCH(RunID, '/.*123.*/') or TEXT_MATCH(WorkflowID, '/.*123.*/'))",
 		},
 		"Case7: invalid sql query": {
 			query: "Invalid SQL",
@@ -107,7 +115,7 @@ func TestValidateQuery(t *testing.T) {
 		},
 		"Case8-4: query with custom keyword field not equal": {
 			query:     "CustomKeywordField != 0",
-			validated: "JSON_MATCH(Attr, '\"$.CustomKeywordField\"!=''0''') and JSON_MATCH(Attr, '\"$.CustomKeywordField[*]\"!=''0''')",
+			validated: `(JSON_MATCH(Attr, '"$.CustomKeywordField"!=''0''') and JSON_MATCH(Attr, '"$.CustomKeywordField[*]"!=''0'''))`,
 		},
 		"Case9: invalid where expression": {
 			query: "InvalidWhereExpr",
@@ -115,7 +123,7 @@ func TestValidateQuery(t *testing.T) {
 		},
 		"Case10: invalid search attribute": {
 			query: "Invalid = 'a' and 1 < 2",
-			err:   "invalid search attribute \"Invalid\"",
+			err:   `invalid search attribute "Invalid"`,
 		},
 		"Case11-1: order by clause": {
 			query:     "order by CloseTime desc",
@@ -139,11 +147,11 @@ func TestValidateQuery(t *testing.T) {
 		},
 		"Case13: or clause": {
 			query:     "CustomIntField = 1 or CustomIntField = 2",
-			validated: "(JSON_MATCH(Attr, '\"$.CustomIntField\"=''1''') or JSON_MATCH(Attr, '\"$.CustomIntField\"=''2'''))",
+			validated: `(JSON_MATCH(Attr, '"$.CustomIntField"=''1''') or JSON_MATCH(Attr, '"$.CustomIntField"=''2'''))`,
 		},
 		"Case14-1: range query: custom filed": {
 			query:     "CustomIntField BETWEEN 1 AND 2",
-			validated: "(JSON_MATCH(Attr, '\"$.CustomIntField\" is not null') AND CAST(JSON_EXTRACT_SCALAR(Attr, '$.CustomIntField') AS INT) >= 1 AND CAST(JSON_EXTRACT_SCALAR(Attr, '$.CustomIntField') AS INT) <= 2)",
+			validated: `(JSON_MATCH(Attr, '"$.CustomIntField" is not null') AND CAST(JSON_EXTRACT_SCALAR(Attr, '$.CustomIntField') AS INT) >= 1 AND CAST(JSON_EXTRACT_SCALAR(Attr, '$.CustomIntField') AS INT) <= 2)`,
 		},
 		"Case14-2: range query: system filed": {
 			query:     "NumClusters BETWEEN 1 AND 2",
@@ -151,11 +159,11 @@ func TestValidateQuery(t *testing.T) {
 		},
 		"Case15-1: custom date attribute less than": {
 			query:     "CustomDatetimeField < 1697754674",
-			validated: "(JSON_MATCH(Attr, '\"$.CustomDatetimeField\" is not null') AND CAST(JSON_EXTRACT_SCALAR(Attr, '$.CustomDatetimeField') AS BIGINT) < 1697754674)",
+			validated: `(JSON_MATCH(Attr, '"$.CustomDatetimeField" is not null') AND CAST(JSON_EXTRACT_SCALAR(Attr, '$.CustomDatetimeField') AS BIGINT) < 1697754674)`,
 		},
 		"Case15-2: custom date attribute greater than or equal to": {
 			query:     "CustomDatetimeField >= 1697754674",
-			validated: "(JSON_MATCH(Attr, '\"$.CustomDatetimeField\" is not null') AND CAST(JSON_EXTRACT_SCALAR(Attr, '$.CustomDatetimeField') AS BIGINT) >= 1697754674)",
+			validated: `(JSON_MATCH(Attr, '"$.CustomDatetimeField" is not null') AND CAST(JSON_EXTRACT_SCALAR(Attr, '$.CustomDatetimeField') AS BIGINT) >= 1697754674)`,
 		},
 		"Case15-3: system date attribute greater than or equal to": {
 			query:     "StartTime >= 1697754674",
@@ -219,11 +227,11 @@ func TestValidateQuery(t *testing.T) {
 		},
 		"Case15-17: CustomDatetimeField with big int type case": {
 			query:     "CustomDatetimeField = 1707319950000",
-			validated: "JSON_MATCH(Attr, '\"$.CustomDatetimeField\"=''1707319950000''')",
+			validated: `JSON_MATCH(Attr, '"$.CustomDatetimeField"=''1707319950000''')`,
 		},
 		"Case15-18: CustomDatetimeField with time.Time() type case": {
 			query:     "CustomDatetimeField = '2024-02-07T15:32:30Z'",
-			validated: "JSON_MATCH(Attr, '\"$.CustomDatetimeField\"=''1707319950000''')",
+			validated: `JSON_MATCH(Attr, '"$.CustomDatetimeField"=''1707319950000''')`,
 		},
 		"Case15-19: CustomDatetimeField with error case": {
 			query:     "CustomDatetimeField = 'test'",
@@ -232,19 +240,19 @@ func TestValidateQuery(t *testing.T) {
 		},
 		"Case16-1: custom int attribute greater than or equal to": {
 			query:     "CustomIntField >= 0",
-			validated: "(JSON_MATCH(Attr, '\"$.CustomIntField\" is not null') AND CAST(JSON_EXTRACT_SCALAR(Attr, '$.CustomIntField') AS INT) >= 0)",
+			validated: `(JSON_MATCH(Attr, '"$.CustomIntField" is not null') AND CAST(JSON_EXTRACT_SCALAR(Attr, '$.CustomIntField') AS INT) >= 0)`,
 		},
 		"Case16-2: custom double attribute greater than or equal to": {
 			query:     "CustomDoubleField >= 0",
-			validated: "(JSON_MATCH(Attr, '\"$.CustomDoubleField\" is not null') AND CAST(JSON_EXTRACT_SCALAR(Attr, '$.CustomDoubleField') AS DOUBLE) >= 0)",
+			validated: `(JSON_MATCH(Attr, '"$.CustomDoubleField" is not null') AND CAST(JSON_EXTRACT_SCALAR(Attr, '$.CustomDoubleField') AS DOUBLE) >= 0)`,
 		},
 		"Case17: custom keyword attribute greater than or equal to. Will return error run time": {
 			query:     "CustomKeywordField < 0",
-			validated: "(JSON_MATCH(Attr, '\"$.CustomKeywordField\"<''0''') or JSON_MATCH(Attr, '\"$.CustomKeywordField[*]\"<''0'''))",
+			validated: `(JSON_MATCH(Attr, '"$.CustomKeywordField"<''0''') or JSON_MATCH(Attr, '"$.CustomKeywordField[*]"<''0'''))`,
 		},
 		"Case18: custom int order by. Will have errors at run time. Doesn't support for now": {
 			query:     "CustomIntField = 0 order by CustomIntField desc",
-			validated: "JSON_MATCH(Attr, '\"$.CustomIntField\"=''0''') order by CustomIntField desc",
+			validated: `JSON_MATCH(Attr, '"$.CustomIntField"=''0''') order by CustomIntField desc`,
 		},
 		"case19-1: close status parse string": {
 			query:     "CloseStatus = 'CONTINUED_AS_NEW'",
@@ -260,19 +268,19 @@ func TestValidateQuery(t *testing.T) {
 		},
 		"case20-1: in clause in Attr": {
 			query:     "CustomKeywordField in (123)",
-			validated: "JSON_MATCH(Attr, '\"$.CustomKeywordField\" IN (''123'')') or JSON_MATCH(Attr, '\"$.CustomKeywordField[*]\" IN (''123'')')",
+			validated: `JSON_MATCH(Attr, '"$.CustomKeywordField" IN (''123'')') or JSON_MATCH(Attr, '"$.CustomKeywordField[*]" IN (''123'')')`,
 		},
 		"case20-2: in clause in Attr with multiple values": {
 			query:     "CustomKeywordField in (123, 456)",
-			validated: "JSON_MATCH(Attr, '\"$.CustomKeywordField\" IN (''123'',''456'')') or JSON_MATCH(Attr, '\"$.CustomKeywordField[*]\" IN (''123'',''456'')')",
+			validated: `JSON_MATCH(Attr, '"$.CustomKeywordField" IN (''123'',''456'')') or JSON_MATCH(Attr, '"$.CustomKeywordField[*]" IN (''123'',''456'')')`,
 		},
 		"case20-3-1: in clause in Attr with a string value, double quote": {
-			query:     "CustomKeywordField in (\"abc\")",
-			validated: "JSON_MATCH(Attr, '\"$.CustomKeywordField\" IN (''abc'')') or JSON_MATCH(Attr, '\"$.CustomKeywordField[*]\" IN (''abc'')')",
+			query:     `CustomKeywordField in ("abc")`,
+			validated: `JSON_MATCH(Attr, '"$.CustomKeywordField" IN (''abc'')') or JSON_MATCH(Attr, '"$.CustomKeywordField[*]" IN (''abc'')')`,
 		},
 		"case20-3-2: in clause in Attr with a string value, single quote": {
 			query:     "CustomKeywordField in ('abc')",
-			validated: "JSON_MATCH(Attr, '\"$.CustomKeywordField\" IN (''abc'')') or JSON_MATCH(Attr, '\"$.CustomKeywordField[*]\" IN (''abc'')')",
+			validated: `JSON_MATCH(Attr, '"$.CustomKeywordField" IN (''abc'')') or JSON_MATCH(Attr, '"$.CustomKeywordField[*]" IN (''abc'')')`,
 		},
 		"case20-4: in clause in Attr with invalid IN expression, value": {
 			query:     "CustomKeywordField in (abc)",
@@ -288,7 +296,7 @@ func TestValidateQuery(t *testing.T) {
 			validated: "IsCron = true",
 		},
 		"case21-3: test bool value- system key- double quotes": {
-			query:     "IsCron = \"true\"",
+			query:     `IsCron = "true"`,
 			validated: "IsCron = true",
 		},
 		"case21-4: test bool value- system key- invalid value": {
@@ -300,6 +308,64 @@ func TestValidateQuery(t *testing.T) {
 			query:     "IsCron = abc",
 			validated: "",
 			err:       "failed to process a bool key to SQLVal: &{<nil> abc { }}",
+		},
+		"case22-1: test not equal to a string field": {
+			query:     "CustomStringField != 'abc'",
+			validated: `JSON_MATCH(Attr, '"$.CustomStringField" is not null') AND NOT JSON_MATCH(Attr, 'REGEXP_LIKE("$.CustomStringField", ''.*abc.*'')')`,
+		},
+		"case22-2: test not equal to an empty string": {
+			query:     "CustomStringField != ''",
+			validated: `JSON_MATCH(Attr, '"$.CustomStringField" is not null') AND NOT JSON_MATCH(Attr, 'REGEXP_LIKE("$.CustomStringField", ''^$'')')`,
+		},
+		// ES also doesn't support this kind of query
+		"case22-3: custom string is missing": {
+			query: "CustomStringField is missing",
+			err:   "Invalid query: syntax error at position 55 near 'missing'",
+		},
+		// ES also doesn't support this kind of query
+		"case22-4: custom string is not missing": {
+			query: "CustomStringField is not missing",
+			err:   "Invalid query: syntax error at position 59 near 'missing'",
+		},
+		"case22-5: 2 custom string not equal with and clause": {
+			query:     "CustomStringField != 'abc' AND CustomStringField != 'def'",
+			validated: `JSON_MATCH(Attr, '"$.CustomStringField" is not null') AND NOT JSON_MATCH(Attr, 'REGEXP_LIKE("$.CustomStringField", ''.*abc.*'')') and JSON_MATCH(Attr, '"$.CustomStringField" is not null') AND NOT JSON_MATCH(Attr, 'REGEXP_LIKE("$.CustomStringField", ''.*def.*'')')`,
+		},
+		"case22-6: 2 custom string, equal and not equal with and clause": {
+			query:     "CustomStringField = 'abc' AND CustomStringField != 'def'",
+			validated: `JSON_MATCH(Attr, '"$.CustomStringField" is not null') AND JSON_MATCH(Attr, 'REGEXP_LIKE("$.CustomStringField", ''.*abc.*'')') and JSON_MATCH(Attr, '"$.CustomStringField" is not null') AND NOT JSON_MATCH(Attr, 'REGEXP_LIKE("$.CustomStringField", ''.*def.*'')')`,
+		},
+		"case22-7: 2 custom string, not equal and equal with and clause": {
+			query:     "CustomStringField != 'abc' AND CustomStringField = 'def'",
+			validated: `JSON_MATCH(Attr, '"$.CustomStringField" is not null') AND NOT JSON_MATCH(Attr, 'REGEXP_LIKE("$.CustomStringField", ''.*abc.*'')') and JSON_MATCH(Attr, '"$.CustomStringField" is not null') AND JSON_MATCH(Attr, 'REGEXP_LIKE("$.CustomStringField", ''.*def.*'')')`,
+		},
+		"case22-8: 2 custom string equal with and clause": {
+			query:     "CustomStringField = 'abc' AND CustomStringField = 'def'",
+			validated: `JSON_MATCH(Attr, '"$.CustomStringField" is not null') AND JSON_MATCH(Attr, 'REGEXP_LIKE("$.CustomStringField", ''.*abc.*'')') and JSON_MATCH(Attr, '"$.CustomStringField" is not null') AND JSON_MATCH(Attr, 'REGEXP_LIKE("$.CustomStringField", ''.*def.*'')')`,
+		},
+		"case22-9: 2 custom string not equal with or clause": {
+			query:     "CustomStringField != 'abc' OR CustomStringField != 'def'",
+			validated: `(JSON_MATCH(Attr, '"$.CustomStringField" is not null') AND NOT JSON_MATCH(Attr, 'REGEXP_LIKE("$.CustomStringField", ''.*abc.*'')') or JSON_MATCH(Attr, '"$.CustomStringField" is not null') AND NOT JSON_MATCH(Attr, 'REGEXP_LIKE("$.CustomStringField", ''.*def.*'')'))`,
+		},
+		"case22-10: 2 custom string, equal and not equal with or clause": {
+			query:     "CustomStringField = 'abc' OR CustomStringField != 'def'",
+			validated: `(JSON_MATCH(Attr, '"$.CustomStringField" is not null') AND JSON_MATCH(Attr, 'REGEXP_LIKE("$.CustomStringField", ''.*abc.*'')') or JSON_MATCH(Attr, '"$.CustomStringField" is not null') AND NOT JSON_MATCH(Attr, 'REGEXP_LIKE("$.CustomStringField", ''.*def.*'')'))`,
+		},
+		"case22-11: 2 custom string, not equal and equal with or clause": {
+			query:     "CustomStringField != 'abc' OR CustomStringField = 'def'",
+			validated: `(JSON_MATCH(Attr, '"$.CustomStringField" is not null') AND NOT JSON_MATCH(Attr, 'REGEXP_LIKE("$.CustomStringField", ''.*abc.*'')') or JSON_MATCH(Attr, '"$.CustomStringField" is not null') AND JSON_MATCH(Attr, 'REGEXP_LIKE("$.CustomStringField", ''.*def.*'')'))`,
+		},
+		"case22-12: 2 custom string equal with or clause": {
+			query:     "CustomStringField = 'abc' OR CustomStringField = 'def'",
+			validated: `(JSON_MATCH(Attr, '"$.CustomStringField" is not null') AND JSON_MATCH(Attr, 'REGEXP_LIKE("$.CustomStringField", ''.*abc.*'')') or JSON_MATCH(Attr, '"$.CustomStringField" is not null') AND JSON_MATCH(Attr, 'REGEXP_LIKE("$.CustomStringField", ''.*def.*'')'))`,
+		},
+		"case23-1: custom keyword field is empty case": {
+			query:     "CustomKeywordField = ''",
+			validated: `JSON_MATCH(Attr, '"$.CustomKeywordField" is not null') AND JSON_MATCH(Attr, 'REGEXP_LIKE("$.CustomKeywordField", ''^$'')')`,
+		},
+		"case23-2: custom keyword field is not empty case": {
+			query:     "CustomKeywordField != ''",
+			validated: `JSON_MATCH(Attr, '"$.CustomKeywordField" is not null') AND NOT JSON_MATCH(Attr, 'REGEXP_LIKE("$.CustomKeywordField", ''^$'')')`,
 		},
 	}
 
@@ -323,15 +389,15 @@ func TestProcessInClause_FailedInputExprCases(t *testing.T) {
 		inputExpr     sqlparser.Expr
 		expectedError string
 	}{
-		"case1: in clause in Attr with invalid expr": {
+		"case1: 'In' clause in Attr with invalid expr": {
 			inputExpr:     &sqlparser.SQLVal{Type: sqlparser.StrVal, Val: []byte("invalid")},
 			expectedError: "invalid IN expression",
 		},
-		"case2: in clause in Attr with invalid expr, left": {
+		"case2: 'In' clause in Attr with invalid expr, left": {
 			inputExpr:     &sqlparser.ComparisonExpr{Operator: sqlparser.InStr},
 			expectedError: "invalid IN expression, left",
 		},
-		"case3: in clause in Attr with invalid expr, right": {
+		"case3: 'In' clause in Attr with invalid expr, right": {
 			inputExpr:     &sqlparser.ComparisonExpr{Operator: sqlparser.InStr, Left: &sqlparser.ColName{Name: sqlparser.NewColIdent("CustomKeywordField")}},
 			expectedError: "invalid IN expression, right",
 		},

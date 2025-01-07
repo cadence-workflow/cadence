@@ -32,7 +32,7 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
-//go:generate mockgen -package $GOPACKAGE -destination data_store_interfaces_mock.go -self_package github.com/uber/cadence/common/persistence github.com/uber/cadence/common/persistence ExecutionStore,ShardStore
+//go:generate mockgen -package $GOPACKAGE -destination data_store_interfaces_mock.go -self_package github.com/uber/cadence/common/persistence github.com/uber/cadence/common/persistence ExecutionStore,ShardStore,DomainStore,TaskStore,HistoryStore,ConfigStore
 //go:generate mockgen -package $GOPACKAGE -destination visibility_store_mock.go -self_package github.com/uber/cadence/common/persistence github.com/uber/cadence/common/persistence VisibilityStore
 
 type (
@@ -57,12 +57,13 @@ type (
 		Closeable
 		GetName() string
 		LeaseTaskList(ctx context.Context, request *LeaseTaskListRequest) (*LeaseTaskListResponse, error)
+		GetTaskList(ctx context.Context, request *GetTaskListRequest) (*GetTaskListResponse, error)
 		UpdateTaskList(ctx context.Context, request *UpdateTaskListRequest) (*UpdateTaskListResponse, error)
 		ListTaskList(ctx context.Context, request *ListTaskListRequest) (*ListTaskListResponse, error)
 		DeleteTaskList(ctx context.Context, request *DeleteTaskListRequest) error
 		GetTaskListSize(ctx context.Context, request *GetTaskListSizeRequest) (*GetTaskListSizeResponse, error)
-		CreateTasks(ctx context.Context, request *InternalCreateTasksRequest) (*CreateTasksResponse, error)
-		GetTasks(ctx context.Context, request *GetTasksRequest) (*InternalGetTasksResponse, error)
+		CreateTasks(ctx context.Context, request *CreateTasksRequest) (*CreateTasksResponse, error)
+		GetTasks(ctx context.Context, request *GetTasksRequest) (*GetTasksResponse, error)
 		CompleteTask(ctx context.Context, request *CompleteTaskRequest) error
 		// CompleteTasksLessThan completes tasks less than or equal to the given task id
 		// This API takes a limit parameter which specifies the count of maxRows that
@@ -891,36 +892,6 @@ type (
 	// InternalGetShardResponse is the response to GetShard
 	InternalGetShardResponse struct {
 		ShardInfo *InternalShardInfo
-	}
-
-	// InternalTaskInfo describes a Task
-	InternalTaskInfo struct {
-		DomainID               string
-		WorkflowID             string
-		RunID                  string
-		TaskID                 int64
-		ScheduleID             int64
-		ScheduleToStartTimeout time.Duration
-		Expiry                 time.Time
-		CreatedTime            time.Time
-		PartitionConfig        map[string]string
-	}
-
-	// InternalCreateTasksInfo describes a task to be created in InternalCreateTasksRequest
-	InternalCreateTasksInfo struct {
-		Data   *InternalTaskInfo
-		TaskID int64
-	}
-
-	// InternalCreateTasksRequest is request to CreateTasks
-	InternalCreateTasksRequest struct {
-		TaskListInfo *TaskListInfo
-		Tasks        []*InternalCreateTasksInfo
-	}
-
-	// InternalGetTasksResponse is response from GetTasks
-	InternalGetTasksResponse struct {
-		Tasks []*InternalTaskInfo
 	}
 )
 

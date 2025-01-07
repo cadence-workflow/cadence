@@ -38,6 +38,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
@@ -120,6 +121,7 @@ func (s *contextTestSuite) newContext() *contextImpl {
 		rangeID:                   shardInfo.RangeID,
 		shardInfo:                 shardInfo,
 		executionManager:          s.mockResource.ExecutionMgr,
+		closeCallback:             func(i int, item *historyShardsItem) {},
 		config:                    config,
 		logger:                    s.logger,
 		throttledLogger:           s.logger,
@@ -286,6 +288,9 @@ func (s *contextTestSuite) TestDomainNotificationVersion() {
 }
 
 func (s *contextTestSuite) TestTimerMaxReadLevel() {
+	// this test requires mocked time since we're comparing timestamps
+	s.mockResource.TimeSource = clock.NewMockedTimeSource()
+
 	// get current cluster's level
 	gotLevel := s.context.UpdateTimerMaxReadLevel(cluster.TestCurrentClusterName)
 	wantLevel := s.mockResource.TimeSource.Now().Add(s.context.config.TimerProcessorMaxTimeShift()).Truncate(time.Millisecond)
@@ -380,39 +385,408 @@ func (s *contextTestSuite) TestUpdateClusterReplicationLevel_FailsWhenUpdateShar
 	s.True(shardClosed, "the shard should have been closed on ShardOwnershipLostError")
 }
 
-func (s *contextTestSuite) TestReplicateFailoverMarkersSuccess() {
-	s.mockResource.ExecutionMgr.On("CreateFailoverMarkerTasks", mock.Anything, mock.Anything).Once().Return(nil)
-
-	markers := make([]*persistence.FailoverMarkerTask, 0)
-	err := s.context.ReplicateFailoverMarkers(context.Background(), markers)
-	s.NoError(err)
-}
-
-func (s *contextTestSuite) TestCreateWorkflowExecution_Succeeds() {
-	ctx := context.Background()
-	request := &persistence.CreateWorkflowExecutionRequest{
-		DomainName: testDomain,
-		NewWorkflowSnapshot: persistence.WorkflowSnapshot{
-			ExecutionInfo: &persistence.WorkflowExecutionInfo{
-				DomainID:   testDomainID,
-				WorkflowID: testWorkflowID,
+func (s *contextTestSuite) TestReplicateFailoverMarkers() {
+	cases := []struct {
+		name    string
+		markers []*persistence.FailoverMarkerTask
+		err     error
+		asserts func()
+	}{
+		{
+			name: "Success",
+			markers: []*persistence.FailoverMarkerTask{{
+				TaskData: persistence.TaskData{},
+				DomainID: testDomainID,
+			}},
+			asserts: func() {
+				s.NoError(s.context.closedError())
+			},
+		},
+		{
+			name: "Shard ownership lost error",
+			err:  &persistence.ShardOwnershipLostError{},
+			asserts: func() {
+				s.ErrorContains(s.context.closedError(), "shard closed")
+			},
+		},
+		{
+			name: "Other error",
+			err:  assert.AnError,
+			asserts: func() {
+				s.NoError(s.context.closedError())
 			},
 		},
 	}
 
-	domainCacheEntry := cache.NewLocalDomainCacheEntryForTest(
-		&persistence.DomainInfo{ID: testDomainID},
-		&persistence.DomainConfig{Retention: 7},
-		testCluster,
-	)
-	s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(domainCacheEntry, nil)
+	for _, tc := range cases {
+		s.Run(tc.name, func() {
+			// Need setup the suite manually, since we are in a subtest
+			s.SetupTest()
+			s.mockResource.ExecutionMgr.On("CreateFailoverMarkerTasks", mock.Anything, mock.Anything).Once().Return(tc.err)
 
-	persistenceResponse := &persistence.CreateWorkflowExecutionResponse{}
-	s.mockResource.ExecutionMgr.On("CreateWorkflowExecution", ctx, mock.Anything).Once().Return(persistenceResponse, nil)
+			err := s.context.ReplicateFailoverMarkers(context.Background(), tc.markers)
+			s.Equal(tc.err, err)
+		})
+	}
+}
 
-	resp, err := s.context.CreateWorkflowExecution(ctx, request)
-	s.NoError(err)
-	s.NotNil(resp)
+func (s *contextTestSuite) TestCreateWorkflowExecution() {
+	cases := []struct {
+		name            string
+		err             error
+		domainLookupErr error
+		response        *persistence.CreateWorkflowExecutionResponse
+		setup           func()
+		asserts         func(*persistence.CreateWorkflowExecutionResponse, error)
+	}{
+		{
+			name:     "Success",
+			response: &persistence.CreateWorkflowExecutionResponse{},
+			asserts: func(response *persistence.CreateWorkflowExecutionResponse, err error) {
+				s.NoError(err)
+				s.NotNil(response)
+			},
+		},
+		{
+			name: "No special handling",
+			err:  &types.WorkflowExecutionAlreadyStartedError{},
+			asserts: func(resp *persistence.CreateWorkflowExecutionResponse, err error) {
+				s.Equal(err, &types.WorkflowExecutionAlreadyStartedError{})
+				s.NoError(s.context.closedError())
+			},
+		},
+		{
+			name: "Shard ownership lost error",
+			err:  &persistence.ShardOwnershipLostError{},
+			asserts: func(resp *persistence.CreateWorkflowExecutionResponse, err error) {
+				s.Equal(err, &persistence.ShardOwnershipLostError{})
+				s.ErrorContains(s.context.closedError(), "shard closed")
+			},
+		},
+		{
+			name: "Other error - update shard succeed",
+			err:  assert.AnError,
+			setup: func() {
+				s.mockShardManager.On("UpdateShard", mock.Anything, mock.Anything).Return(nil)
+			},
+			asserts: func(resp *persistence.CreateWorkflowExecutionResponse, err error) {
+				s.Equal(assert.AnError, err)
+				s.NoError(s.context.closedError())
+			},
+		},
+		{
+			name: "Other error - update shard failed",
+			err:  assert.AnError,
+			setup: func() {
+				s.mockShardManager.On("UpdateShard", mock.Anything, mock.Anything).Return(assert.AnError)
+			},
+			asserts: func(resp *persistence.CreateWorkflowExecutionResponse, err error) {
+				s.Equal(assert.AnError, err)
+				s.ErrorContains(s.context.closedError(), "shard closed")
+			},
+		},
+		{
+			name:            "Domain lookup failed",
+			domainLookupErr: assert.AnError,
+			asserts: func(resp *persistence.CreateWorkflowExecutionResponse, err error) {
+				s.ErrorIs(err, assert.AnError)
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		s.Run(tc.name, func() {
+			// Need setup the suite manually, since we are in a subtest
+			s.SetupTest()
+			ctx := context.Background()
+			request := &persistence.CreateWorkflowExecutionRequest{
+				DomainName: testDomain,
+				NewWorkflowSnapshot: persistence.WorkflowSnapshot{
+					ExecutionInfo: &persistence.WorkflowExecutionInfo{
+						DomainID:   testDomainID,
+						WorkflowID: testWorkflowID,
+					},
+				},
+			}
+
+			domainCacheEntry := cache.NewLocalDomainCacheEntryForTest(
+				&persistence.DomainInfo{ID: testDomainID},
+				&persistence.DomainConfig{Retention: 7},
+				testCluster,
+			)
+			s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(domainCacheEntry, tc.domainLookupErr)
+			if tc.setup != nil {
+				tc.setup()
+			}
+
+			s.mockResource.ExecutionMgr.On("CreateWorkflowExecution", ctx, mock.Anything).Once().Return(tc.response, tc.err)
+
+			resp, err := s.context.CreateWorkflowExecution(ctx, request)
+			tc.asserts(resp, err)
+		})
+	}
+}
+
+func (s *contextTestSuite) TestUpdateWorkflowExecution() {
+	cases := []struct {
+		name            string
+		err             error
+		domainLookupErr error
+		response        *persistence.UpdateWorkflowExecutionResponse
+		setup           func()
+		asserts         func(*persistence.UpdateWorkflowExecutionResponse, error)
+	}{
+		{
+			name:     "Success",
+			response: &persistence.UpdateWorkflowExecutionResponse{},
+			asserts: func(response *persistence.UpdateWorkflowExecutionResponse, err error) {
+				s.NoError(err)
+				s.NotNil(response)
+			},
+		},
+		{
+			name: "No special handling",
+			err:  &types.ServiceBusyError{},
+			asserts: func(resp *persistence.UpdateWorkflowExecutionResponse, err error) {
+				s.Equal(err, &types.ServiceBusyError{})
+				s.NoError(s.context.closedError())
+			},
+		},
+		{
+			name: "Shard ownership lost error",
+			err:  &persistence.ShardOwnershipLostError{},
+			asserts: func(resp *persistence.UpdateWorkflowExecutionResponse, err error) {
+				s.Equal(err, &persistence.ShardOwnershipLostError{})
+				s.ErrorContains(s.context.closedError(), "shard closed")
+			},
+		},
+		{
+			name: "Other error - update shard succeed",
+			err:  assert.AnError,
+			setup: func() {
+				s.mockShardManager.On("UpdateShard", mock.Anything, mock.Anything).Return(nil)
+			},
+			asserts: func(resp *persistence.UpdateWorkflowExecutionResponse, err error) {
+				s.Equal(assert.AnError, err)
+				s.NoError(s.context.closedError())
+			},
+		},
+		{
+			name: "Other error - update shard failed",
+			err:  assert.AnError,
+			setup: func() {
+				s.mockShardManager.On("UpdateShard", mock.Anything, mock.Anything).Return(assert.AnError)
+			},
+			asserts: func(resp *persistence.UpdateWorkflowExecutionResponse, err error) {
+				s.Equal(assert.AnError, err)
+				s.ErrorContains(s.context.closedError(), "shard closed")
+			},
+		},
+		{
+			name:            "Domain lookup failed",
+			domainLookupErr: assert.AnError,
+			asserts: func(resp *persistence.UpdateWorkflowExecutionResponse, err error) {
+				s.ErrorIs(err, assert.AnError)
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		s.Run(tc.name, func() {
+			// Need setup the suite manually, since we are in a subtest
+			s.SetupTest()
+			ctx := context.Background()
+			request := &persistence.UpdateWorkflowExecutionRequest{
+				RangeID: 123,
+				Mode:    persistence.UpdateWorkflowModeUpdateCurrent,
+				UpdateWorkflowMutation: persistence.WorkflowMutation{
+					ExecutionInfo: &persistence.WorkflowExecutionInfo{
+						DomainID:   testDomainID,
+						WorkflowID: testWorkflowID,
+					},
+				},
+				NewWorkflowSnapshot: &persistence.WorkflowSnapshot{},
+				DomainName:          testDomain,
+			}
+
+			domainCacheEntry := cache.NewLocalDomainCacheEntryForTest(
+				&persistence.DomainInfo{ID: testDomainID},
+				&persistence.DomainConfig{Retention: 7},
+				testCluster,
+			)
+			s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(domainCacheEntry, tc.domainLookupErr)
+			if tc.setup != nil {
+				tc.setup()
+			}
+
+			s.mockResource.ExecutionMgr.On("UpdateWorkflowExecution", ctx, mock.Anything).Once().Return(tc.response, tc.err)
+
+			resp, err := s.context.UpdateWorkflowExecution(ctx, request)
+			tc.asserts(resp, err)
+		})
+	}
+}
+
+func (s *contextTestSuite) TestConflictResolveWorkflowExecution() {
+	cases := []struct {
+		name            string
+		err             error
+		domainLookupErr error
+		response        *persistence.ConflictResolveWorkflowExecutionResponse
+		setup           func()
+		asserts         func(*persistence.ConflictResolveWorkflowExecutionResponse, error)
+	}{
+		{
+			name:     "Success",
+			response: &persistence.ConflictResolveWorkflowExecutionResponse{},
+			asserts: func(response *persistence.ConflictResolveWorkflowExecutionResponse, err error) {
+				s.NoError(err)
+				s.NotNil(response)
+			},
+		},
+		{
+			name: "No special handling",
+			err:  &types.ServiceBusyError{},
+			asserts: func(resp *persistence.ConflictResolveWorkflowExecutionResponse, err error) {
+				s.Equal(err, &types.ServiceBusyError{})
+				s.NoError(s.context.closedError())
+			},
+		},
+		{
+			name: "Shard ownership lost error",
+			err:  &persistence.ShardOwnershipLostError{},
+			asserts: func(resp *persistence.ConflictResolveWorkflowExecutionResponse, err error) {
+				s.Equal(err, &persistence.ShardOwnershipLostError{})
+				s.ErrorContains(s.context.closedError(), "shard closed")
+			},
+		},
+		{
+			name: "Other error - update shard succeed",
+			err:  assert.AnError,
+			setup: func() {
+				s.mockShardManager.On("UpdateShard", mock.Anything, mock.Anything).Return(nil)
+			},
+			asserts: func(resp *persistence.ConflictResolveWorkflowExecutionResponse, err error) {
+				s.Equal(assert.AnError, err)
+				s.NoError(s.context.closedError())
+			},
+		},
+		{
+			name: "Other error - update shard failed",
+			err:  assert.AnError,
+			setup: func() {
+				s.mockShardManager.On("UpdateShard", mock.Anything, mock.Anything).Return(assert.AnError)
+			},
+			asserts: func(resp *persistence.ConflictResolveWorkflowExecutionResponse, err error) {
+				s.Equal(assert.AnError, err)
+				s.ErrorContains(s.context.closedError(), "shard closed")
+			},
+		},
+		{
+			name:            "Domain lookup failed",
+			domainLookupErr: assert.AnError,
+			asserts: func(resp *persistence.ConflictResolveWorkflowExecutionResponse, err error) {
+				s.ErrorIs(err, assert.AnError)
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		s.Run(tc.name, func() {
+			// Need setup the suite manually, since we are in a subtest
+			s.SetupTest()
+			ctx := context.Background()
+			request := &persistence.ConflictResolveWorkflowExecutionRequest{
+				ResetWorkflowSnapshot: persistence.WorkflowSnapshot{
+					ExecutionInfo: &persistence.WorkflowExecutionInfo{
+						DomainID:   testDomainID,
+						WorkflowID: testWorkflowID,
+					},
+				},
+				NewWorkflowSnapshot:     &persistence.WorkflowSnapshot{},
+				CurrentWorkflowMutation: &persistence.WorkflowMutation{},
+				DomainName:              testDomain,
+			}
+
+			domainCacheEntry := cache.NewLocalDomainCacheEntryForTest(
+				&persistence.DomainInfo{ID: testDomainID},
+				&persistence.DomainConfig{Retention: 7},
+				testCluster,
+			)
+			s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(domainCacheEntry, tc.domainLookupErr)
+			if tc.setup != nil {
+				tc.setup()
+			}
+
+			s.mockResource.ExecutionMgr.On("ConflictResolveWorkflowExecution", ctx, mock.Anything).Once().Return(tc.response, tc.err)
+
+			resp, err := s.context.ConflictResolveWorkflowExecution(ctx, request)
+			tc.asserts(resp, err)
+		})
+	}
+}
+
+func (s *contextTestSuite) TestAppendHistoryV2Events() {
+	cases := []struct {
+		name            string
+		err             error
+		domainLookupErr error
+		response        *persistence.AppendHistoryNodesResponse
+		setup           func()
+		asserts         func(*persistence.AppendHistoryNodesResponse, error)
+	}{
+		{
+			name:     "Success",
+			response: &persistence.AppendHistoryNodesResponse{},
+			asserts: func(response *persistence.AppendHistoryNodesResponse, err error) {
+				s.NoError(err)
+				s.NotNil(response)
+			},
+		},
+		{
+			name:            "Domain lookup failed",
+			domainLookupErr: assert.AnError,
+			asserts: func(resp *persistence.AppendHistoryNodesResponse, err error) {
+				s.ErrorIs(err, assert.AnError)
+			},
+		},
+		{
+			name: "History too big",
+			response: &persistence.AppendHistoryNodesResponse{
+				DataBlob: persistence.DataBlob{
+					Data: make([]byte, historySizeLogThreshold+1),
+				},
+			},
+			asserts: func(resp *persistence.AppendHistoryNodesResponse, err error) {
+				// We do not err on history too big here, we just log it
+				s.NoError(err)
+				s.NotNil(resp)
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		s.Run(tc.name, func() {
+			// Need setup the suite manually, since we are in a subtest
+			s.SetupTest()
+			ctx := context.Background()
+			request := &persistence.AppendHistoryNodesRequest{}
+			workflowExecution := types.WorkflowExecution{
+				WorkflowID: testWorkflowID,
+				RunID:      testWorkflowID,
+			}
+
+			s.mockResource.DomainCache.EXPECT().GetDomainName(testDomainID).Return(testDomain, tc.domainLookupErr)
+			if tc.setup != nil {
+				tc.setup()
+			}
+
+			s.mockResource.HistoryMgr.On("AppendHistoryNodes", ctx, mock.Anything).Once().Return(tc.response, tc.err)
+
+			resp, err := s.context.AppendHistoryV2Events(ctx, request, testDomainID, workflowExecution)
+			tc.asserts(resp, err)
+		})
+	}
 }
 
 func (s *contextTestSuite) TestValidateAndUpdateFailoverMarkers() {

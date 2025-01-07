@@ -22,12 +22,14 @@ package cli
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/tools/common/commoncli"
 )
 
 type (
@@ -44,20 +46,37 @@ type (
 		StartID   int64   `header:"Lease Start TaskID"`
 		EndID     int64   `header:"Lease End TaskID"`
 	}
+	TaskListPartitionConfigRow struct {
+		Version            int64 `header:"Version"`
+		NumReadPartitions  int32 `header:"Number of Read Partitions"`
+		NumWritePartitions int32 `header:"Number of Write Partitions"`
+	}
 )
 
 // AdminDescribeTaskList displays poller and status information of task list.
-func AdminDescribeTaskList(c *cli.Context) {
-	frontendClient := cFactory.ServerFrontendClient(c)
-	domain := getRequiredGlobalOption(c, FlagDomain)
-	taskList := getRequiredOption(c, FlagTaskList)
+func AdminDescribeTaskList(c *cli.Context) error {
+	frontendClient, err := getDeps(c).ServerFrontendClient(c)
+	if err != nil {
+		return err
+	}
+	domain, err := getRequiredOption(c, FlagDomain)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
+	taskList, err := getRequiredOption(c, FlagTaskList)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
 	taskListType := types.TaskListTypeDecision
 	if strings.ToLower(c.String(FlagTaskListType)) == "activity" {
 		taskListType = types.TaskListTypeActivity
 	}
 
-	ctx, cancel := newContext(c)
+	ctx, cancel, err := newContext(c)
 	defer cancel()
+	if err != nil {
+		return commoncli.Problem("Error in creating context:", err)
+	}
 	request := &types.DescribeTaskListRequest{
 		Domain:                domain,
 		TaskList:              &types.TaskList{Name: taskList},
@@ -67,37 +86,52 @@ func AdminDescribeTaskList(c *cli.Context) {
 
 	response, err := frontendClient.DescribeTaskList(ctx, request)
 	if err != nil {
-		ErrorAndExit("Operation DescribeTaskList failed.", err)
+		return commoncli.Problem("Operation DescribeTaskList failed.", err)
 	}
 
 	taskListStatus := response.GetTaskListStatus()
 	if taskListStatus == nil {
-		ErrorAndExit(colorMagenta("No tasklist status information."), nil)
+		return commoncli.Problem(colorMagenta("No tasklist status information."), nil)
 	}
-	printTaskListStatus(taskListStatus)
-	fmt.Printf("\n")
-
+	if err := printTaskListStatus(getDeps(c).Output(), taskListStatus); err != nil {
+		return fmt.Errorf("failed to print task list status: %w", err)
+	}
+	getDeps(c).Output().Write([]byte("\n"))
+	if response.PartitionConfig != nil {
+		if err := printTaskListPartitionConfig(getDeps(c).Output(), response.PartitionConfig); err != nil {
+			return fmt.Errorf("failed to print task list partition config: %w", err)
+		}
+		getDeps(c).Output().Write([]byte("\n"))
+	}
 	pollers := response.Pollers
 	if len(pollers) == 0 {
-		ErrorAndExit(colorMagenta("No poller for tasklist: "+taskList), nil)
+		return commoncli.Problem(colorMagenta("No poller for tasklist: "+taskList), nil)
 	}
-	printTaskListPollers(pollers, taskListType)
+	return printTaskListPollers(getDeps(c).Output(), pollers, taskListType)
 }
 
 // AdminListTaskList displays all task lists under a domain.
-func AdminListTaskList(c *cli.Context) {
-	frontendClient := cFactory.ServerFrontendClient(c)
-	domain := getRequiredGlobalOption(c, FlagDomain)
-
-	ctx, cancel := newContext(c)
+func AdminListTaskList(c *cli.Context) error {
+	frontendClient, err := getDeps(c).ServerFrontendClient(c)
+	if err != nil {
+		return err
+	}
+	domain, err := getRequiredOption(c, FlagDomain)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
+	ctx, cancel, err := newContext(c)
 	defer cancel()
+	if err != nil {
+		return commoncli.Problem("Error in creating context: ", err)
+	}
 	request := &types.GetTaskListsByDomainRequest{
 		Domain: domain,
 	}
 
 	response, err := frontendClient.GetTaskListsByDomain(ctx, request)
 	if err != nil {
-		ErrorAndExit("Operation GetTaskListByDomain failed.", err)
+		return commoncli.Problem("Operation GetTaskListByDomain failed.", err)
 	}
 
 	fmt.Println("Task Lists for domain " + domain + ":")
@@ -108,10 +142,10 @@ func AdminListTaskList(c *cli.Context) {
 	for name, taskList := range response.GetActivityTaskListMap() {
 		table = append(table, TaskListRow{name, "Activity", len(taskList.GetPollers())})
 	}
-	RenderTable(os.Stdout, table, RenderOptions{Color: true, Border: true})
+	return RenderTable(os.Stdout, table, RenderOptions{Color: true, Border: true})
 }
 
-func printTaskListStatus(taskListStatus *types.TaskListStatus) {
+func printTaskListStatus(w io.Writer, taskListStatus *types.TaskListStatus) error {
 	table := []TaskListStatusRow{{
 		ReadLevel: taskListStatus.GetReadLevel(),
 		AckLevel:  taskListStatus.GetAckLevel(),
@@ -120,5 +154,63 @@ func printTaskListStatus(taskListStatus *types.TaskListStatus) {
 		StartID:   taskListStatus.GetTaskIDBlock().GetStartID(),
 		EndID:     taskListStatus.GetTaskIDBlock().GetEndID(),
 	}}
-	RenderTable(os.Stdout, table, RenderOptions{Color: true})
+	return RenderTable(w, table, RenderOptions{Color: true})
+}
+
+func printTaskListPartitionConfig(w io.Writer, config *types.TaskListPartitionConfig) error {
+	table := TaskListPartitionConfigRow{
+		Version:            config.Version,
+		NumReadPartitions:  config.NumReadPartitions,
+		NumWritePartitions: config.NumWritePartitions,
+	}
+	return RenderTable(w, table, RenderOptions{Color: true})
+}
+
+func AdminUpdateTaskListPartitionConfig(c *cli.Context) error {
+	adminClient, err := getDeps(c).ServerAdminClient(c)
+	if err != nil {
+		return err
+	}
+	domain, err := getRequiredOption(c, FlagDomain)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
+	taskList, err := getRequiredOption(c, FlagTaskList)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
+	var taskListType *types.TaskListType
+	if strings.ToLower(c.String(FlagTaskListType)) == "activity" {
+		taskListType = types.TaskListTypeActivity.Ptr()
+	} else if strings.ToLower(c.String(FlagTaskListType)) == "decision" {
+		taskListType = types.TaskListTypeDecision.Ptr()
+	} else {
+		return commoncli.Problem("Invalid task list type: valid types are [activity, decision]", nil)
+	}
+	numReadPartitions, err := getRequiredIntOption(c, FlagNumReadPartitions)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
+	numWritePartitions, err := getRequiredIntOption(c, FlagNumWritePartitions)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
+	ctx, cancel, err := newContext(c)
+	defer cancel()
+	if err != nil {
+		return commoncli.Problem("Error in creating context:", err)
+	}
+	_, err = adminClient.UpdateTaskListPartitionConfig(ctx, &types.UpdateTaskListPartitionConfigRequest{
+		Domain:       domain,
+		TaskList:     &types.TaskList{Name: taskList, Kind: types.TaskListKindNormal.Ptr()},
+		TaskListType: taskListType,
+		PartitionConfig: &types.TaskListPartitionConfig{
+			NumReadPartitions:  int32(numReadPartitions),
+			NumWritePartitions: int32(numWritePartitions),
+		},
+	})
+	if err != nil {
+		return commoncli.Problem("Operation UpdateTaskListPartitionConfig failed.", err)
+	}
+	return nil
 }

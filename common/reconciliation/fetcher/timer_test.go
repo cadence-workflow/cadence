@@ -36,6 +36,23 @@ import (
 	"github.com/uber/cadence/common/reconciliation/entity"
 )
 
+func TestTimerIterator(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	retryer := persistence.NewMockRetryer(ctrl)
+	retryer.EXPECT().GetTimerIndexTasks(gomock.Any(), gomock.Any()).
+		Return(&persistence.GetTimerIndexTasksResponse{}, nil).
+		Times(1)
+
+	iterator := TimerIterator(
+		context.Background(),
+		retryer,
+		time.Now(),
+		time.Now(),
+		10,
+	)
+	require.NotNil(t, iterator)
+}
+
 func TestGetUserTimers(t *testing.T) {
 	fixedTimestamp, err := time.Parse(time.RFC3339, "2023-12-12T22:08:41Z")
 	if err != nil {

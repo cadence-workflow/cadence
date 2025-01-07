@@ -300,6 +300,8 @@ func taskManagerTags(op string) *tag.Tag {
 	switch op {
 	case "TaskManager.LeaseTaskList":
 		return &tag.StoreOperationLeaseTaskList
+	case "TaskManager.GetTaskList":
+		return &tag.StoreOperationGetTaskList
 	case "TaskManager.UpdateTaskList":
 		return &tag.StoreOperationUpdateTaskList
 	case "TaskManager.CreateTasks":

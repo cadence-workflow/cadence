@@ -52,7 +52,7 @@ type (
 		logger      log.Logger
 		portmap     membership.PortMap
 		mu          sync.RWMutex
-		subscribers map[string]chan<- *membership.ChangedEvent
+		subscribers map[string]func(membership.ChangedEvent)
 	}
 )
 
@@ -85,7 +85,17 @@ func New(
 		DiscoverProvider: discoveryProvider,
 	}
 
-	rp, err := ringpop.New(config.Name, ringpop.Channel(channel.(*tcg.Channel)))
+	ch := channel.(*tcg.Channel)
+	opts := []ringpop.Option{ringpop.Channel(ch)}
+	if config.BroadcastAddress != "" {
+		broadcastIP := net.ParseIP(config.BroadcastAddress)
+		if broadcastIP == nil {
+			return nil, fmt.Errorf("failed parsing broadcast address %q, err: %w", config.BroadcastAddress, err)
+		}
+		logger.Info("Initializing ringpop with custom broadcast address", tag.Address(broadcastIP.String()))
+		opts = append(opts, ringpop.AddressResolverFunc(broadcastAddrResolver(ch, broadcastIP)))
+	}
+	rp, err := ringpop.New(config.Name, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("ringpop instance creation: %w", err)
 	}
@@ -108,7 +118,7 @@ func NewRingpopProvider(
 		logger:      logger,
 		portmap:     portMap,
 		ringpop:     rp,
-		subscribers: map[string]chan<- *membership.ChangedEvent{},
+		subscribers: map[string]func(membership.ChangedEvent){},
 	}
 }
 
@@ -148,35 +158,29 @@ func (r *Provider) Start() {
 }
 
 // HandleEvent handles updates from ringpop
-func (r *Provider) HandleEvent(
-	event events.Event,
-) {
+func (r *Provider) HandleEvent(event events.Event) {
 	// We only care about RingChangedEvent
 	e, ok := event.(events.RingChangedEvent)
 	if !ok {
 		return
 	}
 
-	r.logger.Info("Received a ringpop ring changed event")
-	// Marshall the event object into the required type
-	change := &membership.ChangedEvent{
+	change := membership.ChangedEvent{
 		HostsAdded:   e.ServersAdded,
 		HostsUpdated: e.ServersUpdated,
 		HostsRemoved: e.ServersRemoved,
 	}
+	r.logger.Info("Received a ringpop ring changed event", tag.MembershipChangeEvent(change))
+	r.notifySubscribers(change)
+}
 
-	// Notify subscribers
+func (r *Provider) notifySubscribers(event membership.ChangedEvent) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	for name, ch := range r.subscribers {
-		select {
-		case ch <- change:
-		default:
-			r.logger.Error("Failed to send listener notification, channel full", tag.Subscriber(name))
-		}
+	for _, handler := range r.subscribers {
+		handler(event)
 	}
-
 }
 
 func (r *Provider) SelfEvict() error {
@@ -280,7 +284,7 @@ func (r *Provider) Stop() {
 }
 
 // Subscribe allows to be subscribed for ring changes
-func (r *Provider) Subscribe(name string, notifyChannel chan<- *membership.ChangedEvent) error {
+func (r *Provider) Subscribe(name string, handler func(membership.ChangedEvent)) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -289,14 +293,32 @@ func (r *Provider) Subscribe(name string, notifyChannel chan<- *membership.Chang
 		return fmt.Errorf("%q already subscribed to ringpop provider", name)
 	}
 
-	r.subscribers[name] = notifyChannel
+	r.subscribers[name] = handler
 	return nil
 }
 
 func labelToPort(label string) (uint16, error) {
-	port, err := strconv.ParseInt(label, 0, 16)
+	port, err := strconv.ParseUint(label, 10, 16)
 	if err != nil {
 		return 0, err
 	}
 	return uint16(port), nil
+}
+
+func broadcastAddrResolver(ch *tcg.Channel, broadcastIP net.IP) func() (string, error) {
+	return func() (string, error) {
+		peerInfo := ch.PeerInfo()
+		if peerInfo.IsEphemeralHostPort() {
+			// not listening yet
+			return "", ringpop.ErrEphemeralAddress
+		}
+
+		_, port, err := net.SplitHostPort(peerInfo.HostPort)
+		if err != nil {
+			return "", fmt.Errorf("failed splitting tchannel's hostport %q, err: %w", peerInfo.HostPort, err)
+		}
+
+		// return broadcast_ip:listen_port
+		return net.JoinHostPort(broadcastIP.String(), port), nil
+	}
 }

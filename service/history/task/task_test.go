@@ -33,6 +33,7 @@ import (
 
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/dynamicconfig"
+	cadence_errors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
@@ -206,6 +207,22 @@ func (s *taskSuite) TestHandleErr_ErrShardRecentlyClosed() {
 	}
 
 	s.Equal(shardClosedError, taskBase.HandleErr(shardClosedError))
+}
+
+func (s *taskSuite) TestHandleErr_ErrTaskListNotOwnedByHost() {
+	taskBase := s.newTestTask(func(task Info) (bool, error) {
+		return true, nil
+	}, nil)
+
+	taskBase.submitTime = time.Now()
+
+	taskListNotOwnedByHost := &cadence_errors.TaskListNotOwnedByHostError{
+		OwnedByIdentity: "HostNameOwnedBy",
+		MyIdentity:      "HostNameMe",
+		TasklistName:    "TaskListName",
+	}
+
+	s.Equal(taskListNotOwnedByHost, taskBase.HandleErr(taskListNotOwnedByHost))
 }
 
 func (s *taskSuite) TestHandleErr_ErrCurrentWorkflowConditionFailed() {

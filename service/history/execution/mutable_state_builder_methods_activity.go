@@ -290,7 +290,7 @@ func (e *mutableStateBuilder) tryDispatchActivityTask(
 		metrics.WorkflowTypeTag(e.GetWorkflowType().Name),
 		metrics.TaskListTag(ai.TaskList))
 	taggedScope.IncCounter(metrics.DecisionTypeScheduleActivityDispatchCounter)
-	err := e.shard.GetService().GetMatchingClient().AddActivityTask(ctx, &types.AddActivityTaskRequest{
+	_, err := e.shard.GetService().GetMatchingClient().AddActivityTask(ctx, &types.AddActivityTaskRequest{
 		DomainUUID:       e.executionInfo.DomainID,
 		SourceDomainUUID: e.domainEntry.GetInfo().ID,
 		Execution: &types.WorkflowExecution{

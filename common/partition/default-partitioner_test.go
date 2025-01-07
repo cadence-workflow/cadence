@@ -25,11 +25,9 @@ package partition
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 
 	"github.com/golang/mock/gomock"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/uber/cadence/common/isolationgroup"
@@ -72,13 +70,13 @@ func TestPickingAZone(t *testing.T) {
 			},
 			expected: igA,
 		},
-		"default behaviour - wf starting in a zone/isolationGroup must run in an available zone only. If not in available list, pick a random one": {
+		"default behaviour - wf starting in a zone/isolationGroup must run in an available zone only. If not in available list, return no zone": {
 			availablePartitionGroups: isolationGroupsAllHealthy,
 			wfPartitionCfg: defaultWorkflowPartitionConfig{
 				WorkflowStartIsolationGroup: string("something-else"),
 				WFID:                        "BDF3D8D9-5235-4CE8-BBDF-6A37589C9DC7",
 			},
-			expected: igC,
+			expected: "",
 		},
 		"... and it should be deterministic": {
 			availablePartitionGroups: isolationGroupsAllHealthy,
@@ -86,7 +84,7 @@ func TestPickingAZone(t *testing.T) {
 				WorkflowStartIsolationGroup: string("something-else"),
 				WFID:                        "BDF3D8D9-5235-4CE8-BBDF-6A37589C9DC7",
 			},
-			expected: igC,
+			expected: "",
 		},
 	}
 
@@ -96,44 +94,16 @@ func TestPickingAZone(t *testing.T) {
 				log:                 testlogger.New(t),
 				isolationGroupState: nil,
 			}
-			res := partitioner.pickIsolationGroup(td.wfPartitionCfg, td.availablePartitionGroups)
+			res := partitioner.pickIsolationGroup(td.wfPartitionCfg, td.availablePartitionGroups, PollerInfo{})
 			assert.Equal(t, td.expected, res)
 		})
-	}
-}
-
-func TestDefaultPartitionerFallbackPickerDistribution(t *testing.T) {
-
-	count := make(map[string]int)
-	var isolationGroups []string
-
-	for i := 0; i < 100; i++ {
-		ig := string(fmt.Sprintf("isolationGroup-%d", i))
-		isolationGroups = append(isolationGroups, ig)
-		count[ig] = 0
-	}
-
-	for i := 0; i < 100000; i++ {
-		result := pickIsolationGroupFallback(isolationGroups, defaultWorkflowPartitionConfig{
-			WorkflowStartIsolationGroup: "not-a-present-isolationGroup", // always force a fallback to the simple hash
-			WFID:                        uuid.New().String(),
-		})
-
-		c, ok := count[result]
-		if !ok {
-			t.Fatal("the result wasn't found in the healthy list, something is wrong with the logic for selecting healthy isolationGroups")
-		}
-		count[result] = c + 1
-	}
-
-	for k, v := range count {
-		assert.True(t, v > 0, "failed to pick a isolationGroup %s", k)
 	}
 }
 
 func TestDefaultPartitioner_GetIsolationGroupByDomainID(t *testing.T) {
 
 	domainID := "some-domain-id"
+	sampleTasklist := "a-tasklist"
 	validIsolationGroup := types.IsolationGroupConfiguration{
 		"zone-2": {
 			Name:  "zone-2",
@@ -160,7 +130,7 @@ func TestDefaultPartitioner_GetIsolationGroupByDomainID(t *testing.T) {
 			},
 			incomingContext: context.Background(),
 			stateAffordance: func(state *isolationgroup.MockState) {
-				state.EXPECT().AvailableIsolationGroupsByDomainID(gomock.Any(), domainID, isolationGroups).Return(validIsolationGroup, nil)
+				state.EXPECT().AvailableIsolationGroupsByDomainID(gomock.Any(), domainID, sampleTasklist, isolationGroups).Return(validIsolationGroup, nil)
 			},
 			expectedValue: "zone-2",
 		},
@@ -171,9 +141,9 @@ func TestDefaultPartitioner_GetIsolationGroupByDomainID(t *testing.T) {
 			},
 			incomingContext: context.Background(),
 			stateAffordance: func(state *isolationgroup.MockState) {
-				state.EXPECT().AvailableIsolationGroupsByDomainID(gomock.Any(), domainID, isolationGroups).Return(validIsolationGroup, nil)
+				state.EXPECT().AvailableIsolationGroupsByDomainID(gomock.Any(), domainID, sampleTasklist, isolationGroups).Return(validIsolationGroup, nil)
 			},
-			expectedValue: "zone-3",
+			expectedValue: "",
 		},
 		"Error condition - No zones listed though the feature is enabled": {
 			partitionKeyPassedIn: PartitionConfig{
@@ -182,7 +152,7 @@ func TestDefaultPartitioner_GetIsolationGroupByDomainID(t *testing.T) {
 			},
 			incomingContext: context.Background(),
 			stateAffordance: func(state *isolationgroup.MockState) {
-				state.EXPECT().AvailableIsolationGroupsByDomainID(gomock.Any(), domainID, isolationGroups).Return(
+				state.EXPECT().AvailableIsolationGroupsByDomainID(gomock.Any(), domainID, sampleTasklist, isolationGroups).Return(
 					types.IsolationGroupConfiguration{}, nil)
 			},
 			expectedValue: "",
@@ -210,7 +180,11 @@ func TestDefaultPartitioner_GetIsolationGroupByDomainID(t *testing.T) {
 			ig := isolationgroup.NewMockState(ctrl)
 			td.stateAffordance(ig)
 			partitioner := NewDefaultPartitioner(testlogger.New(t), ig)
-			res, err := partitioner.GetIsolationGroupByDomainID(td.incomingContext, domainID, td.partitionKeyPassedIn, isolationGroups)
+			res, err := partitioner.GetIsolationGroupByDomainID(td.incomingContext, PollerInfo{
+				DomainID:                 domainID,
+				TasklistName:             sampleTasklist,
+				AvailableIsolationGroups: isolationGroups,
+			}, td.partitionKeyPassedIn)
 
 			assert.Equal(t, td.expectedValue, res)
 			assert.Equal(t, td.expectedError, err)

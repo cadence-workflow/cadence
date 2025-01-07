@@ -43,6 +43,7 @@ import (
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/resource"
+	"github.com/uber/cadence/common/rpc"
 )
 
 type (
@@ -74,7 +75,7 @@ type (
 		hostInfo              membership.HostInfo
 		dispatcher            *yarpc.Dispatcher
 		membershipResolver    membership.Resolver
-		rpcFactory            common.RPCFactory
+		rpcFactory            rpc.Factory
 		pprofInitializer      common.PProfInitializer
 		clientBean            client.Bean
 		timeSource            clock.TimeSource

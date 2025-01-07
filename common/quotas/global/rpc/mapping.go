@@ -100,12 +100,15 @@ func AnyToAggregatorUpdate(request *types.Any) (algorithm.UpdateParams, error) {
 
 // AggregatorWeightsToAny converts the [algorithm.RequestWeighted.HostWeights] response
 // (for an in-bound Update request) to an Any-type compatible with RPC.
-func AggregatorWeightsToAny(response map[algorithm.Limit]algorithm.HostWeight) (*types.Any, error) {
-	quotas := make(map[string]float64, len(response))
+func AggregatorWeightsToAny(response map[algorithm.Limit]algorithm.HostUsage) (*types.Any, error) {
+	quotas := make(map[string]*history.WeightedRatelimitUsageQuotaEntry, len(response))
 	for k, v := range response {
-		quotas[string(k)] = float64(v)
+		quotas[string(k)] = &history.WeightedRatelimitUsageQuotaEntry{
+			Weight: float64(v.Weight),
+			Used:   float64(v.Used),
+		}
 	}
-	wrapper := &history.WeightedRatelimitQuotas{
+	wrapper := &history.WeightedRatelimitUsageQuotas{
 		Quotas: quotas,
 	}
 	data, err := thrift.EncodeToBytes(wrapper)
@@ -114,23 +117,26 @@ func AggregatorWeightsToAny(response map[algorithm.Limit]algorithm.HostWeight) (
 		return nil, &SerializationError{err}
 	}
 	return &types.Any{
-		ValueType: history.WeightedRatelimitQuotasAnyType,
+		ValueType: history.WeightedRatelimitUsageQuotasAnyType,
 		Value:     data,
 	}, nil
 }
 
-func anyToWeights(response *types.Any) (map[shared.GlobalKey]float64, error) {
-	if response.ValueType != history.WeightedRatelimitQuotasAnyType {
+func anyToWeights(response *types.Any) (map[shared.GlobalKey]UpdateEntry, error) {
+	if response.ValueType != history.WeightedRatelimitUsageQuotasAnyType {
 		return nil, fmt.Errorf("unrecognized Any type: %q", response.ValueType)
 	}
-	var out history.WeightedRatelimitQuotas
+	var out history.WeightedRatelimitUsageQuotas
 	err := thrift.DecodeStructFromBytes(response.Value, &out)
 	if err != nil {
 		return nil, &SerializationError{err}
 	}
-	result := make(map[shared.GlobalKey]float64, len(out.Quotas))
+	result := make(map[shared.GlobalKey]UpdateEntry, len(out.Quotas))
 	for k, v := range out.Quotas {
-		result[shared.GlobalKey(k)] = v
+		result[shared.GlobalKey(k)] = UpdateEntry{
+			Weight:  v.Weight,
+			UsedRPS: v.Used,
+		}
 	}
 	return result, nil
 }
@@ -155,7 +161,7 @@ func TestUpdateToAny(t *testing.T, host string, elapsed time.Duration, load map[
 }
 
 // TestAnyToWeights is exposed for handler tests, use anyToWeights in internal code instead
-func TestAnyToWeights(t *testing.T, response *types.Any) (map[shared.GlobalKey]float64, error) {
+func TestAnyToWeights(t *testing.T, response *types.Any) (map[shared.GlobalKey]UpdateEntry, error) {
 	t.Helper()
 	return anyToWeights(response)
 }

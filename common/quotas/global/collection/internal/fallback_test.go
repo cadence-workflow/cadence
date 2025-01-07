@@ -37,6 +37,71 @@ import (
 	"github.com/uber/cadence/common/quotas"
 )
 
+func TestFallbackRegression(t *testing.T) {
+	t.Run("primary should start with fallback limit", func(t *testing.T) {
+		// checks for an issue in earlier versions, where a newly-enabled primary limit would start with an empty token bucket,
+		// unfairly rejecting requests that other limiters would allow (as they are created with a full bucket at their target rate).
+		//
+		// this can be spotted by doing this sequence:
+		// - create a new limiter, fallback of N per second
+		//   - this starts the "primary" limiter with limit=0, burst=0.
+		// - Allow() a request
+		//   - the limiters here may disagree. this is fine, primary is not used yet.
+		//   - however: this advanced the primary's internal "now" to now.  (this now happens only after update)
+		// - update the limit to match the fallback
+		//   - primary now has limit==N, burst==N, but tokens=0 and now=now.
+		// - Allow() a request
+		//   - fallback allows due to having N-1 tokens
+		//   - primary rejects due to 0 tokens
+		//     ^ this is the problem.
+		//     ^ this could also happen if calling `ratelimiter.Limit()` sets "now" in the future, though this seems unlikely.
+		//
+		// this uses real time because sleeping is not necessary, and it ensures
+		// that any time-advancing calls that occur too early will lead to ~zero tokens.
+
+		limit := rate.Limit(10) // enough to accept all requests
+		rl := NewFallbackLimiter(clock.NewRatelimiter(limit, int(limit)))
+
+		// sanity check: this may be fine to change, but it will mean the test needs to be rewritten because the token bucket may not be empty.
+		orig := rl.primary
+		assert.Zero(t, orig.Burst(), "sanity check: default primary ratelimiter's burst is not zero, this test likely needs a rewrite")
+
+		// simulate: call while still starting up, it should not touch the primary limiter.
+		allowed := rl.Allow()
+		before, starting, failing := rl.Collect()
+		assert.True(t, allowed, "first request should have been allowed, on the fallback limiter")
+		assert.True(t, starting, "should be true == in starting mode")
+		assert.False(t, failing, "should be false == not failing")
+		assert.Equal(t, UsageMetrics{
+			Allowed:  1,
+			Rejected: 0,
+			Idle:     0,
+		}, before)
+
+		// update: this should set limits, and either fill the bucket or cause it to be filled on the next request
+		rl.Update(limit)
+
+		// call again: should be allowed, as this is the first time-touching request since it was created,
+		// and the token bucket should have filled to match the first-update value.
+		allowed = rl.Allow()
+		after, starting, failing := rl.Collect()
+		assert.True(t, allowed, "second request should have been allowed, on the primary limiter")
+		assert.False(t, starting, "should be false == not in starting mode (using global)")
+		assert.False(t, failing, "should be false == not failing")
+		assert.Equal(t, UsageMetrics{
+			Allowed:  1,
+			Rejected: 0,
+			Idle:     0,
+		}, after)
+		assert.InDeltaf(t,
+			// Tokens() advances time, so this will not be precise.
+			rl.primary.Tokens(), int(limit)-1, 0.1,
+			"should have ~%v tokens: %v from the initial fill, minus 1 for the allow call",
+			int(limit)-1, int(limit),
+		)
+	})
+}
+
 func TestLimiter(t *testing.T) {
 	t.Run("uses fallback initially", func(t *testing.T) {
 		m := quotas.NewMockLimiter(gomock.NewController(t))
@@ -93,9 +158,8 @@ func TestLimiter(t *testing.T) {
 			require.False(t, failing, "should not be using fallback")
 			require.False(t, startup, "should not be starting up, has had an update")
 
-			// bucket starts out empty / with whatever contents it had before (zero).
-			// this is possibly surprising, so it's asserted.
-			require.False(t, lim.Allow(), "rate.Limiter should reject requests until filled")
+			// the bucket will fill from time 0 on the first update, ensuring the first request is allowed
+			require.True(t, lim.Allow(), "rate.Limiter should start with a full bucket")
 
 			// fail enough times to trigger a fallback
 			for i := 0; i < maxFailedUpdates; i++ {
@@ -171,6 +235,10 @@ func TestLimiterNotRacy(t *testing.T) {
 		})
 		g.Go(func() error {
 			lim.Limit()
+			return nil
+		})
+		g.Go(func() error {
+			lim.FallbackLimit()
 			return nil
 		})
 		g.Go(func() error {

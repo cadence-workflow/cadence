@@ -87,7 +87,7 @@ func (e *historyEngineImpl) QueryWorkflow(
 	}
 	deadline := time.Now().Add(queryFirstDecisionTaskWaitTime)
 	for mutableStateResp.GetPreviousStartedEventID() <= 0 && time.Now().Before(deadline) {
-		<-time.After(queryFirstDecisionTaskCheckInterval)
+		time.Sleep(queryFirstDecisionTaskCheckInterval)
 		mutableStateResp, err = e.getMutableState(ctx, request.GetDomainUUID(), execution)
 		if err != nil {
 			return nil, err

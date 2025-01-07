@@ -78,11 +78,11 @@ func (e *historyEngineImpl) DescribeWorkflowExecution(
 			StartTime:        common.Int64Ptr(executionInfo.StartTimestamp.UnixNano()),
 			HistoryLength:    mutableState.GetNextEventID() - common.FirstEventID,
 			AutoResetPoints:  executionInfo.AutoResetPoints,
-			Memo:             &types.Memo{Fields: executionInfo.Memo},
+			Memo:             &types.Memo{Fields: executionInfo.CopyMemo()},
 			IsCron:           len(executionInfo.CronSchedule) > 0,
 			UpdateTime:       common.Int64Ptr(executionInfo.LastUpdatedTimestamp.UnixNano()),
-			SearchAttributes: &types.SearchAttributes{IndexedFields: executionInfo.SearchAttributes},
-			PartitionConfig:  executionInfo.PartitionConfig,
+			SearchAttributes: &types.SearchAttributes{IndexedFields: executionInfo.CopySearchAttributes()},
+			PartitionConfig:  executionInfo.CopyPartitionConfig(),
 		},
 	}
 
@@ -123,6 +123,7 @@ func (e *historyEngineImpl) DescribeWorkflowExecution(
 		for _, ai := range mutableState.GetPendingActivityInfos() {
 			p := &types.PendingActivityInfo{
 				ActivityID: ai.ActivityID,
+				ScheduleID: ai.ScheduleID,
 			}
 			state := types.PendingActivityStateScheduled
 			if ai.CancelRequested {
@@ -201,6 +202,7 @@ func (e *historyEngineImpl) DescribeWorkflowExecution(
 			ScheduledTimestamp:         common.Int64Ptr(di.ScheduledTimestamp),
 			Attempt:                    di.Attempt,
 			OriginalScheduledTimestamp: common.Int64Ptr(di.OriginalScheduledTimestamp),
+			ScheduleID:                 di.ScheduleID,
 		}
 		if di.StartedID != common.EmptyEventID {
 			pendingDecision.State = types.PendingDecisionStateStarted.Ptr()

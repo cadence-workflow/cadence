@@ -61,6 +61,11 @@ func (g frontendClient) DescribeWorkflowExecution(ctx context.Context, dp1 *type
 	return proto.ToDescribeWorkflowExecutionResponse(response), proto.ToError(err)
 }
 
+func (g frontendClient) DiagnoseWorkflowExecution(ctx context.Context, dp1 *types.DiagnoseWorkflowExecutionRequest, p1 ...yarpc.CallOption) (dp2 *types.DiagnoseWorkflowExecutionResponse, err error) {
+	response, err := g.c.DiagnoseWorkflowExecution(ctx, proto.FromDiagnoseWorkflowExecutionRequest(dp1), p1...)
+	return proto.ToDiagnoseWorkflowExecutionResponse(response), proto.ToError(err)
+}
+
 func (g frontendClient) GetClusterInfo(ctx context.Context, p1 ...yarpc.CallOption) (cp1 *types.ClusterInfo, err error) {
 	response, err := g.c.GetClusterInfo(ctx, &apiv1.GetClusterInfoRequest{}, p1...)
 	return proto.ToGetClusterInfoResponse(response), proto.ToError(err)

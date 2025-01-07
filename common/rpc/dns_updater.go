@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	"go.uber.org/yarpc/api/peer"
@@ -41,6 +42,9 @@ type (
 		currentPeers map[string]struct{}
 		list         peer.List
 		logger       log.Logger
+		wg           sync.WaitGroup
+		ctx          context.Context
+		cancel       context.CancelFunc
 	}
 	dnsRefreshResult struct {
 		updates  peer.ListUpdates
@@ -57,6 +61,7 @@ func newDNSUpdater(list peer.List, dnsPort string, interval time.Duration, logge
 	if len(ss) != 2 {
 		return nil, fmt.Errorf("incorrect DNS:Port format")
 	}
+	ctx, cancel := context.WithCancel(context.Background())
 	return &dnsUpdater{
 		interval:     interval,
 		logger:       logger,
@@ -64,11 +69,15 @@ func newDNSUpdater(list peer.List, dnsPort string, interval time.Duration, logge
 		dnsAddress:   ss[0],
 		port:         ss[1],
 		currentPeers: make(map[string]struct{}),
+		ctx:          ctx,
+		cancel:       cancel,
 	}, nil
 }
 
 func (d *dnsUpdater) Start() {
+	d.wg.Add(1)
 	go func() {
+		defer d.wg.Done()
 		for {
 			now := time.Now()
 			res, err := d.refresh()
@@ -90,14 +99,29 @@ func (d *dnsUpdater) Start() {
 				d.currentPeers = res.newPeers
 			}
 			sleepDu := now.Add(d.interval).Sub(now)
-			time.Sleep(sleepDu)
+			t := time.NewTimer(sleepDu)
+			select {
+			case <-d.ctx.Done():
+				t.Stop()
+				d.logger.Info("DNS updater is stopping so returning from dns update loop", tag.Address(d.dnsAddress))
+				return
+			case <-t.C:
+				continue
+			}
 		}
 	}()
 }
 
+func (d *dnsUpdater) Stop() {
+	d.logger.Info("DNS updater is stopping", tag.Address(d.dnsAddress))
+	d.cancel()
+	d.wg.Wait()
+	d.logger.Info("DNS updater stopped", tag.Address(d.dnsAddress))
+}
+
 func (d *dnsUpdater) refresh() (*dnsRefreshResult, error) {
 	resolver := net.DefaultResolver
-	ips, err := resolver.LookupHost(context.Background(), d.dnsAddress)
+	ips, err := resolver.LookupHost(d.ctx, d.dnsAddress)
 	if err != nil {
 		return nil, err
 	}

@@ -44,16 +44,6 @@ func MustParseUUID(s string) UUID {
 	return u[:]
 }
 
-// MustParsePtrUUID returns a UUID parsed from the given string representation
-// returns nil if the input is empty string
-// panics if the given input is malformed
-func MustParsePtrUUID(s *string) UUID {
-	if s == nil {
-		return nil
-	}
-	return MustParseUUID(*s)
-}
-
 // UUIDPtr simply returns a pointer for the given value type
 func UUIDPtr(u UUID) *UUID {
 	return &u

@@ -67,24 +67,6 @@ func check[T interface{}](t *testing.T, fn func() (T, error)) {
 }
 
 func TestFactoryMethods(t *testing.T) {
-	mockDatastore := func(t *testing.T, fact Factory, store storeType) *MockDataStoreFactory {
-		ctrl := gomock.NewController(t)
-		impl := fact.(*factoryImpl)
-
-		// I would prefer to mock everything so calls to the wrong store could have better errors,
-		// but there doesn't seem to be a way to "name" these or say "any call fails with X message",
-		// nor can you check what calls occurred after the fact.
-		//
-		// so just mock the only thing expected, so you get a nil panic stack trace when it fails
-		// somewhere in a persistence database connection or something.  it's sometimes easier to debug.
-		mock := NewMockDataStoreFactory(ctrl)
-		ds := impl.datastores[store]
-		ds.factory = mock
-		impl.datastores[store] = ds // write back the value type
-
-		return mock
-	}
-
 	t.Run("NewTaskManager", func(t *testing.T) {
 		fact := makeFactory(t)
 		ds := mockDatastore(t, fact, storeTypeTask)
@@ -183,7 +165,7 @@ func TestFactoryMethods(t *testing.T) {
 		ds.EXPECT().NewConfigStore().Return(nil, nil).MinTimes(1)
 		check(t, fact.NewConfigStoreManager)
 	})
-	t.Run("NewVisibilityManager_TripleVisibilityManager", func(t *testing.T) {
+	t.Run("NewVisibilityManager_TripleVisibilityManager_Pinot", func(t *testing.T) {
 		fact := makeFactory(t)
 		ds := mockDatastore(t, fact, storeTypeVisibility)
 
@@ -208,19 +190,67 @@ func TestFactoryMethods(t *testing.T) {
 							// fields are unused but must be non-nil
 							Cluster: "cluster",
 							Broker:  "broker",
-							Migration: config.PinotMigration{
-								Enabled: false,
-							},
 						}, // fields are unused but must be non-nil
 					},
 				},
 			},
 			MessagingClient: mc,
 			PinotConfig: &config.PinotVisibilityConfig{
-				Migration: config.PinotMigration{
+				Migration: config.VisibilityMigration{
 					Enabled: true,
 				},
 			},
+			ESConfig: &config.ElasticSearchConfig{
+				Indices: map[string]string{
+					"visibility": "test-index",
+				},
+			},
+		}, &service.Config{
+			// must be non-nil to create a "manager", else nil return from NewVisibilityManager is expected
+			EnableReadVisibilityFromES: func(domain string) bool {
+				return false // any value is fine as there are no read calls
+			},
+			// non-nil avoids a warning log
+			EnableReadDBVisibilityFromClosedExecutionV2: func(opts ...dynamicconfig.FilterOption) bool {
+				return readFromClosed // any value is fine as there are no read calls
+			},
+			ValidSearchAttributes: func(opts ...dynamicconfig.FilterOption) map[string]interface{} {
+				return testAttributes
+			},
+		})
+		assert.NoError(t, err)
+	})
+	t.Run("NewVisibilityManager_DualVisibilityManager_ES", func(t *testing.T) {
+		fact := makeFactory(t)
+		ds := mockDatastore(t, fact, storeTypeVisibility)
+
+		logger := testlogger.New(t)
+		mc := messaging.NewMockClient(gomock.NewController(t))
+		mc.EXPECT().NewProducer(gomock.Any()).Return(kafka.NewKafkaProducer("test-topic", mocks.NewSyncProducer(t, nil), logger), nil).MinTimes(1)
+		readFromClosed := true
+		testAttributes := map[string]interface{}{
+			"CustomAttribute": "test", // Define your custom attributes and types
+		}
+
+		ds.EXPECT().NewVisibilityStore(readFromClosed).Return(nil, nil).MinTimes(1)
+		_, err := fact.NewVisibilityManager(&Params{
+			PersistenceConfig: config.Persistence{
+				// a configured VisibilityStore uses the db store, which is mockable,
+				// unlike basically every other store.
+				AdvancedVisibilityStore: "es-visibility",
+				VisibilityStore:         "fake",
+				DataStores: map[string]config.DataStore{
+					"es-visibility": {
+						ElasticSearch: &config.ElasticSearchConfig{
+							// fields are unused but must be non-nil
+							Indices: map[string]string{
+								"visibility": "test-index",
+							},
+						}, // fields are unused but must be non-nil
+					},
+				},
+			},
+			MessagingClient: mc,
 			ESConfig: &config.ElasticSearchConfig{
 				Indices: map[string]string{
 					"visibility": "test-index",
@@ -280,4 +310,174 @@ func makeFactoryWithMetrics(t *testing.T, withMetrics bool) Factory {
 	}
 
 	return NewFactory(cfg, qpsFn, "test cluster", met, logger, pdc)
+}
+
+func mockDatastore(t *testing.T, fact Factory, store storeType) *MockDataStoreFactory {
+	ctrl := gomock.NewController(t)
+	impl := fact.(*factoryImpl)
+
+	// I would prefer to mock everything so calls to the wrong store could have better errors,
+	// but there doesn't seem to be a way to "name" these or say "any call fails with X message",
+	// nor can you check what calls occurred after the fact.
+	//
+	// so just mock the only thing expected, so you get a nil panic stack trace when it fails
+	// somewhere in a persistence database connection or something.  it's sometimes easier to debug.
+	mock := NewMockDataStoreFactory(ctrl)
+	ds := impl.datastores[store]
+	ds.factory = mock
+	impl.datastores[store] = ds // write back the value type
+
+	return mock
+}
+
+func TestVisibilityManagers(t *testing.T) {
+	tests := []struct {
+		name        string
+		advanced    string
+		datastores  map[string]config.DataStore
+		esConfig    *config.ElasticSearchConfig
+		osConfig    *config.ElasticSearchConfig
+		pinotConfig *config.PinotVisibilityConfig
+	}{
+		{
+			name:     "TripleVisibilityManager_OpenSearch",
+			advanced: "os-visibility",
+			datastores: map[string]config.DataStore{
+				"os-visibility": {
+					ElasticSearch: &config.ElasticSearchConfig{
+						// fields are unused but must be non-nil
+						Indices: map[string]string{
+							"visibility": "test-index",
+						},
+					}, // fields are unused but must be non-nil
+				},
+			},
+			osConfig: &config.ElasticSearchConfig{
+				Indices: map[string]string{
+					"visibility": "test-index",
+				},
+				Migration: config.VisibilityMigration{
+					Enabled: true,
+				},
+			},
+			esConfig: &config.ElasticSearchConfig{
+				Indices: map[string]string{
+					"visibility": "test-index",
+				},
+			},
+		},
+		{
+			name:     "NewVisibilityManager_TripleVisibilityManager_Pinot",
+			advanced: "pinot-visibility",
+			datastores: map[string]config.DataStore{
+				"pinot-visibility": {
+					Pinot: &config.PinotVisibilityConfig{
+						Cluster: "cluster",
+						Broker:  "broker",
+					},
+				},
+			},
+			pinotConfig: &config.PinotVisibilityConfig{
+				Migration: config.VisibilityMigration{
+					Enabled: true,
+				},
+			},
+			esConfig: &config.ElasticSearchConfig{
+				Indices: map[string]string{
+					"visibility": "test-index",
+				},
+			},
+		},
+		{
+			name:     "NewVisibilityManager_DualVisibilityManager_Pinot",
+			advanced: "pinot-visibility",
+			datastores: map[string]config.DataStore{
+				"pinot-visibility": {
+					Pinot: &config.PinotVisibilityConfig{
+						Cluster: "cluster",
+						Broker:  "broker",
+					},
+				},
+			},
+			pinotConfig: &config.PinotVisibilityConfig{
+				Migration: config.VisibilityMigration{
+					Enabled: false,
+				},
+			},
+		},
+		{
+			name:     "NewVisibilityManager_DualVisibilityManager_ES",
+			advanced: "es-visibility",
+			datastores: map[string]config.DataStore{
+				"es-visibility": {
+					ElasticSearch: &config.ElasticSearchConfig{
+						Indices: map[string]string{
+							"visibility": "test-index",
+						},
+					},
+				},
+			},
+			esConfig: &config.ElasticSearchConfig{
+				Indices: map[string]string{
+					"visibility": "test-index",
+				},
+			},
+		},
+		{
+			name:     "NewVisibilityManager_DualVisibilityManager_OS",
+			advanced: "os-visibility",
+			datastores: map[string]config.DataStore{
+				"os-visibility": {
+					ElasticSearch: &config.ElasticSearchConfig{
+						Indices: map[string]string{
+							"visibility": "test-index",
+						},
+					},
+				},
+			},
+			osConfig: &config.ElasticSearchConfig{
+				Indices: map[string]string{
+					"visibility": "test-index",
+				},
+				Migration: config.VisibilityMigration{
+					Enabled: false,
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		fact := makeFactory(t)
+		ds := mockDatastore(t, fact, storeTypeVisibility)
+		ds.EXPECT().NewVisibilityStore(true).Return(nil, nil).MinTimes(1)
+		mc := messaging.NewMockClient(gomock.NewController(t))
+		mc.EXPECT().NewProducer(gomock.Any()).Return(kafka.NewKafkaProducer("test-topic", mocks.NewSyncProducer(t, nil), testlogger.New(t)), nil).MinTimes(1)
+
+		_, err := fact.NewVisibilityManager(&Params{
+			PersistenceConfig: config.Persistence{
+				AdvancedVisibilityStore: test.advanced,
+				VisibilityStore:         "fake",
+				DataStores:              test.datastores,
+			},
+			MessagingClient: mc,
+			PinotConfig:     test.pinotConfig,
+			ESConfig:        test.esConfig,
+			OSConfig:        test.osConfig,
+		}, &service.Config{
+			// must be non-nil to create a "manager", else nil return from NewVisibilityManager is expected
+			EnableReadVisibilityFromES: func(domain string) bool {
+				return true // any value is fine as there are no read calls
+			},
+			// non-nil avoids a warning log
+			EnableReadDBVisibilityFromClosedExecutionV2: func(opts ...dynamicconfig.FilterOption) bool {
+				return true // any value is fine as there are no read calls
+			},
+			ValidSearchAttributes: func(opts ...dynamicconfig.FilterOption) map[string]interface{} {
+				return map[string]interface{}{
+					"CustomAttribute": "test",
+				}
+			},
+		})
+		assert.NoError(t, err)
+	}
 }

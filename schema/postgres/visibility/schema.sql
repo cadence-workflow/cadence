@@ -3,7 +3,7 @@ CREATE TABLE executions_visibility (
   run_id               CHAR(64) NOT NULL,
   start_time           TIMESTAMP NOT NULL,
   execution_time       TIMESTAMP NOT NULL,
-  workflow_id          VARCHAR(255) NOT NULL,
+  workflow_id          TEXT NOT NULL,
   workflow_type_name   VARCHAR(255) NOT NULL,
   close_status         INTEGER,  -- enum WorkflowExecutionCloseStatus {COMPLETED, FAILED, CANCELED, TERMINATED, CONTINUED_AS_NEW, TIMED_OUT}
   close_time           TIMESTAMP NULL,

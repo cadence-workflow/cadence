@@ -26,36 +26,49 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/pborman/uuid"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/visibility"
 	"github.com/uber/cadence/service/worker/failovermanager"
+	"github.com/uber/cadence/tools/common/commoncli"
 )
 
 // An indirection for the prompt function so that it can be mocked in the unit tests
 var promptFn = prompt
 
 // AdminAddSearchAttribute to whitelist search attribute
-func AdminAddSearchAttribute(c *cli.Context) {
-	key := getRequiredOption(c, FlagSearchAttributesKey)
+func AdminAddSearchAttribute(c *cli.Context) error {
+	key, err := getRequiredOption(c, FlagSearchAttributesKey)
+	if err != nil {
+		return commoncli.Problem("Required flag not present:", err)
+	}
 	if err := visibility.ValidateSearchAttributeKey(key); err != nil {
-		ErrorAndExit("Invalid search-attribute key.", err)
+		return commoncli.Problem("Invalid search-attribute key.", err)
 	}
 
-	valType := getRequiredIntOption(c, FlagSearchAttributesType)
+	valType, err := getRequiredIntOption(c, FlagSearchAttributesType)
+	if err != nil {
+		return commoncli.Problem("Required flag not present:", err)
+	}
 	if !isValueTypeValid(valType) {
-		ErrorAndExit("Unknown Search Attributes value type.", nil)
+		return commoncli.Problem("Unknown Search Attributes value type.", nil)
 	}
 
 	// ask user for confirmation
-	promptMsg := fmt.Sprintf("Are you trying to add key [%s] with Type [%s]? Y/N",
+	promptMsg := fmt.Sprintf("Are you trying to add key [%s] with Type [%s]? y/N",
 		color.YellowString(key), color.YellowString(intValTypeToString(valType)))
 	promptFn(promptMsg)
 
-	adminClient := cFactory.ServerAdminClient(c)
-	ctx, cancel := newContext(c)
+	adminClient, err := getDeps(c).ServerAdminClient(c)
+	if err != nil {
+		return err
+	}
+	ctx, cancel, err := newContext(c)
+	if err != nil {
+		return commoncli.Problem("Error in creating context: ", err)
+	}
 	defer cancel()
 	request := &types.AddSearchAttributeRequest{
 		SearchAttribute: map[string]types.IndexedValueType{
@@ -64,32 +77,45 @@ func AdminAddSearchAttribute(c *cli.Context) {
 		SecurityToken: c.String(FlagSecurityToken),
 	}
 
-	err := adminClient.AddSearchAttribute(ctx, request)
+	err = adminClient.AddSearchAttribute(ctx, request)
 	if err != nil {
-		ErrorAndExit("Add search attribute failed.", err)
+		return commoncli.Problem("Add search attribute failed.", err)
 	}
 	fmt.Println("Success. Note that for a multil-node Cadence cluster, DynamicConfig MUST be updated separately to whitelist the new attributes.")
+	return nil
 }
 
 // AdminDescribeCluster is used to dump information about the cluster
-func AdminDescribeCluster(c *cli.Context) {
-	adminClient := cFactory.ServerAdminClient(c)
-
-	ctx, cancel := newContext(c)
-	defer cancel()
-	response, err := adminClient.DescribeCluster(ctx)
+func AdminDescribeCluster(c *cli.Context) error {
+	adminClient, err := getDeps(c).ServerAdminClient(c)
 	if err != nil {
-		ErrorAndExit("Operation DescribeCluster failed.", err)
+		return err
 	}
 
-	prettyPrintJSONObject(response)
+	ctx, cancel, err := newContext(c)
+	defer cancel()
+	if err != nil {
+		return commoncli.Problem("Error in creating context: ", err)
+	}
+	response, err := adminClient.DescribeCluster(ctx)
+	if err != nil {
+		return commoncli.Problem("Operation DescribeCluster failed.", err)
+	}
+
+	prettyPrintJSONObject(getDeps(c).Output(), response)
+	return nil
 }
 
-func AdminRebalanceStart(c *cli.Context) {
-	client := getCadenceClient(c)
-	tcCtx, cancel := newContext(c)
+func AdminRebalanceStart(c *cli.Context) error {
+	client, err := getCadenceClient(c)
+	if err != nil {
+		return err
+	}
+	tcCtx, cancel, err := newContext(c)
 	defer cancel()
-
+	if err != nil {
+		return commoncli.Problem("Context not created:", err)
+	}
 	workflowID := failovermanager.RebalanceWorkflowID
 	rbParams := &failovermanager.RebalanceParams{
 		BatchFailoverSize:              100,
@@ -97,13 +123,17 @@ func AdminRebalanceStart(c *cli.Context) {
 	}
 	input, err := json.Marshal(rbParams)
 	if err != nil {
-		ErrorAndExit("Failed to serialize params for failover workflow", err)
+		return commoncli.Problem("Failed to serialize params for failover workflow", err)
+	}
+	op, err := getOperator()
+	if err != nil {
+		return commoncli.Problem("Failed to get operator", err)
 	}
 	memo, err := getWorkflowMemo(map[string]interface{}{
-		common.MemoKeyForOperator: getOperator(),
+		common.MemoKeyForOperator: op,
 	})
 	if err != nil {
-		ErrorAndExit("Failed to serialize memo", err)
+		return commoncli.Problem("Failed to serialize memo", err)
 	}
 	request := &types.StartWorkflowExecutionRequest{
 		Domain:                              common.SystemLocalDomainName,
@@ -125,17 +155,25 @@ func AdminRebalanceStart(c *cli.Context) {
 
 	resp, err := client.StartWorkflowExecution(tcCtx, request)
 	if err != nil {
-		ErrorAndExit("Failed to start failover workflow", err)
+		return commoncli.Problem("Failed to start failover workflow", err)
 	}
-	fmt.Println("Rebalance workflow started")
-	fmt.Println("wid: " + workflowID)
-	fmt.Println("rid: " + resp.GetRunID())
+
+	output := getDeps(c).Output()
+	output.Write([]byte("Rebalance workflow started\n"))
+	output.Write([]byte("wid: " + workflowID + "\n"))
+	output.Write([]byte("rid: " + resp.GetRunID() + "\n"))
+
+	return nil
 }
 
-func AdminRebalanceList(c *cli.Context) {
-	c.Set(FlagWorkflowID, failovermanager.RebalanceWorkflowID)
-	c.GlobalSet(FlagDomain, common.SystemLocalDomainName)
-	ListWorkflow(c)
+func AdminRebalanceList(c *cli.Context) error {
+	if err := c.Set(FlagWorkflowID, failovermanager.RebalanceWorkflowID); err != nil {
+		return err
+	}
+	if err := c.Set(FlagDomain, common.SystemLocalDomainName); err != nil {
+		return err
+	}
+	return ListWorkflow(c)
 }
 
 func intValTypeToString(valType int) string {

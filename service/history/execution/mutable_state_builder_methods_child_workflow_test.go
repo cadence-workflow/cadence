@@ -728,6 +728,9 @@ func loadMutableState(t *testing.T, ctx *shard.TestContext, state *persistence.W
 		&persistence.DomainReplicationConfig{},
 		1,
 		nil,
+		0,
+		0,
+		0,
 	)
 	ctx.Resource.DomainCache.EXPECT().GetDomainID(constants.TestDomainName).AnyTimes()
 	ctx.Resource.DomainCache.EXPECT().GetDomainByID(constants.TestDomainID).Return(domain, nil).AnyTimes()

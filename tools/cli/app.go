@@ -22,20 +22,52 @@ package cli
 
 import (
 	"fmt"
+	"io"
 
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 
 	"github.com/uber/cadence/common/client"
 	"github.com/uber/cadence/common/metrics"
 )
 
-// SetFactory is used to set the ClientFactory global
-func SetFactory(factory ClientFactory) {
-	cFactory = factory
+const depsKey = "deps"
+
+type CLIAppOptions func(*cli.App)
+
+// WithIOHandler sets the IOHandler for the CLI app. By default the app uses urfave's default Reader/Writer/ErrorWriter.
+func WithIOHandler(h IOHandler) CLIAppOptions {
+	return func(app *cli.App) {
+		if app.Metadata == nil {
+			return
+		}
+
+		d, ok := app.Metadata[depsKey].(*deps)
+		if !ok {
+			return
+		}
+
+		d.IOHandler = h
+	}
 }
 
-// NewCliApp instantiates a new instance of the CLI application.
-func NewCliApp() *cli.App {
+// WithManagerFactory sets the ManagerFactory for the CLI app.
+func WithManagerFactory(factory ManagerFactory) CLIAppOptions {
+	return func(app *cli.App) {
+		if app.Metadata == nil {
+			return
+		}
+
+		d, ok := app.Metadata[depsKey].(*deps)
+		if !ok {
+			return
+		}
+
+		d.ManagerFactory = factory
+	}
+}
+
+// NewCliApp instantiates a new instance of the CLI application
+func NewCliApp(cf ClientFactory, opts ...CLIAppOptions) *cli.App {
 	version := fmt.Sprintf("CLI feature version: %v \n"+
 		"   Release version: %v\n"+
 		"   Build commit: %v\n"+
@@ -46,46 +78,55 @@ func NewCliApp() *cli.App {
 	app.Name = "cadence"
 	app.Usage = "A command-line tool for cadence users"
 	app.Version = version
+	app.Metadata = map[string]any{
+		depsKey: &deps{ClientFactory: cf, IOHandler: &defaultIOHandler{app: app}, ManagerFactory: &defaultManagerFactory{}},
+	}
 	app.Flags = []cli.Flag{
-		cli.StringFlag{
-			Name:   FlagAddressWithAlias,
-			Value:  "",
-			Usage:  "host:port for cadence frontend service",
-			EnvVar: "CADENCE_CLI_ADDRESS",
+		&cli.StringFlag{
+			Name:    FlagAddress,
+			Aliases: []string{"ad"},
+			Value:   "",
+			Usage:   "host:port for cadence frontend service",
+			EnvVars: []string{"CADENCE_CLI_ADDRESS"},
 		},
-		cli.StringFlag{
-			Name:   FlagDomainWithAlias,
-			Usage:  "cadence workflow domain",
-			EnvVar: "CADENCE_CLI_DOMAIN",
+		&cli.StringFlag{
+			Name:    FlagDomain,
+			Aliases: []string{"do"},
+			Usage:   "cadence workflow domain",
+			EnvVars: []string{"CADENCE_CLI_DOMAIN"},
 		},
-		cli.IntFlag{
-			Name:   FlagContextTimeoutWithAlias,
-			Value:  defaultContextTimeoutInSeconds,
-			Usage:  "optional timeout for context of RPC call in seconds",
-			EnvVar: "CADENCE_CONTEXT_TIMEOUT",
+		&cli.IntFlag{
+			Name:    FlagContextTimeout,
+			Aliases: []string{"ct"},
+			Value:   defaultContextTimeoutInSeconds,
+			Usage:   "optional timeout for context of RPC call in seconds",
+			EnvVars: []string{"CADENCE_CONTEXT_TIMEOUT"},
 		},
-		cli.StringFlag{
-			Name:   FlagJWT,
-			Usage:  "optional JWT for authorization. Either this or --jwt-private-key is needed for jwt authorization",
-			EnvVar: "CADENCE_CLI_JWT",
+		&cli.StringFlag{
+			Name:    FlagJWT,
+			Usage:   "optional JWT for authorization. Either this or --jwt-private-key is needed for jwt authorization",
+			EnvVars: []string{"CADENCE_CLI_JWT"},
 		},
-		cli.StringFlag{
-			Name:   FlagJWTPrivateKeyWithAlias,
-			Usage:  "optional private key path to create JWT. Either this or --jwt is needed for jwt authorization. --jwt flag has priority over this one if both provided",
-			EnvVar: "CADENCE_CLI_JWT_PRIVATE_KEY",
+		&cli.StringFlag{
+			Name:    FlagJWTPrivateKey,
+			Aliases: []string{"jwt-pk"},
+			Usage:   "optional private key path to create JWT. Either this or --jwt is needed for jwt authorization. --jwt flag has priority over this one if both provided",
+			EnvVars: []string{"CADENCE_CLI_JWT_PRIVATE_KEY"},
 		},
-		cli.StringFlag{
-			Name:   FlagTransportWithAlias,
-			Usage:  "optional argument for transport protocol format, either 'grpc' or 'tchannel'. Defaults to tchannel if not provided",
-			EnvVar: "CADENCE_CLI_TRANSPORT_PROTOCOL",
+		&cli.StringFlag{
+			Name:    FlagTransport,
+			Aliases: []string{"t"},
+			Usage:   "optional argument for transport protocol format, either 'grpc' or 'tchannel'. Defaults to tchannel if not provided",
+			EnvVars: []string{"CADENCE_CLI_TRANSPORT_PROTOCOL"},
 		},
-		cli.StringFlag{
-			Name:   FlagTLSCertPathWithAlias,
-			Usage:  "optional argument for path to TLS certificate. Defaults to an empty string if not provided",
-			EnvVar: "CADENCE_CLI_TLS_CERT_PATH",
+		&cli.StringFlag{
+			Name:    FlagTLSCertPath,
+			Aliases: []string{"tcp"},
+			Usage:   "optional argument for path to TLS certificate. Defaults to an empty string if not provided",
+			EnvVars: []string{"CADENCE_CLI_TLS_CERT_PATH"},
 		},
 	}
-	app.Commands = []cli.Command{
+	app.Commands = []*cli.Command{
 		{
 			Name:        "domain",
 			Aliases:     []string{"d"},
@@ -108,7 +149,7 @@ func NewCliApp() *cli.App {
 			Name:    "admin",
 			Aliases: []string{"adm"},
 			Usage:   "Run admin operation",
-			Subcommands: []cli.Command{
+			Subcommands: []*cli.Command{
 				{
 					Name:        "workflow",
 					Aliases:     []string{"wf"},
@@ -165,12 +206,11 @@ func NewCliApp() *cli.App {
 				},
 				{
 					Name:        "dlq",
-					Aliases:     []string{"dlq"},
 					Usage:       "Run admin operation on DLQ",
 					Subcommands: newAdminDLQCommands(),
 				},
 				{
-					Name:        "db",
+					Name:        "database",
 					Aliases:     []string{"db"},
 					Usage:       "Run admin operations on database",
 					Subcommands: newDBCommands(),
@@ -203,12 +243,85 @@ func NewCliApp() *cli.App {
 		},
 	}
 	app.CommandNotFound = func(context *cli.Context, command string) {
-		printMessage("command not found: " + command)
+		output := getDeps(context).Output()
+		printMessage(output, "command not found: "+command)
 	}
 
-	// set builder if not customized
-	if cFactory == nil {
-		SetFactory(NewClientFactory())
+	for _, opt := range opts {
+		opt(app)
 	}
+
 	return app
+}
+
+func getDeps(ctx *cli.Context) cliDeps {
+	// currently Metadata is completely unused by urfave/cli/v2, and it has fewer ways to fail
+	// than using the ctx.Context (as you must use RunContext to supply dependencies via the Context).
+	//
+	// this is fairly easy to move to ctx.Context if needed, it just leads to slightly more complex code.
+
+	// intentionally panics when an invalid context is not passed in, to help collapse logic branches.
+	// generally speaking this should not be possible to trigger without doing something obviously questionable.
+	return ctx.App.Metadata[depsKey].(cliDeps)
+}
+
+// cliDeps is an interface primarily to allow it to be mocked in tests,
+// so individual client-getter funcs can be asserted as used or unused.
+//
+// exposing a struct may be good enough, it just hasn't been done yet.
+type cliDeps interface {
+	ClientFactory
+	IOHandler
+	ManagerFactory
+}
+
+type IOHandler interface {
+	// cli.Context does not contain readers/writers, they are only in cli.App.
+	// which isn't passed to commands.
+	//
+	// since needing to output something is extremely common, this wrapper adds it to the context.
+
+	// Input is the "primary" input to read from.
+	//
+	// This is currently always os.Stdin, as files are handled separately.
+	Input() io.Reader
+	// Output should be used to write to the primary output target.
+	// This may be os.Stdout or a file (or an in-memory writer),
+	// and it should only be used for the "results" of a command so values
+	// can be redirected / grepped / etc reasonably.
+	//
+	// For progress or info-like output, use Progress() instead.
+	//
+	// For errors, return an error value instead.
+	Output() io.Writer
+	// Progress should be used for any "non-result" output,
+	// e.g. "loading X" or "press enter to continue" or similar.
+	//
+	// This generally writes to os.Stderr so any displayed text will
+	// be visible when the CLI is piped, and will not be sent into "result" files.
+	//
+	// For error reporting, return an error instead, such as a commoncli.Problem
+	Progress() io.Writer
+}
+
+type defaultIOHandler struct {
+	app *cli.App
+}
+
+func (d *defaultIOHandler) Input() io.Reader {
+	return d.app.Reader
+}
+func (d *defaultIOHandler) Output() io.Writer {
+	return d.app.Writer
+}
+func (d *defaultIOHandler) Progress() io.Writer {
+	return d.app.ErrWriter
+}
+
+var _ cliDeps = &deps{}
+
+type deps struct {
+	ClientFactory
+	IOHandler
+	ManagerFactory
 }

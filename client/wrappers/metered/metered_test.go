@@ -88,13 +88,13 @@ func TestMatching(t *testing.T) {
 		metricsClient := metrics.NewClient(testScope, metrics.ServiceIdx(0))
 
 		clientMock.EXPECT().AddActivityTask(gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(nil).Times(1)
+			Return(&types.AddActivityTaskResponse{}, nil).Times(1)
 
 		retryableClient := NewMatchingClient(
 			clientMock,
 			metricsClient)
 
-		err := retryableClient.AddActivityTask(context.Background(), &types.AddActivityTaskRequest{
+		_, err := retryableClient.AddActivityTask(context.Background(), &types.AddActivityTaskRequest{
 			ForwardedFrom: "test",
 			TaskList:      &types.TaskList{Name: "test"},
 		})
@@ -132,13 +132,13 @@ func TestMatching(t *testing.T) {
 		metricsClient := metrics.NewClient(testScope, metrics.ServiceIdx(0))
 
 		clientMock.EXPECT().AddActivityTask(gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(nil).Times(1)
+			Return(&types.AddActivityTaskResponse{}, nil).Times(1)
 
 		retryableClient := NewMatchingClient(
 			clientMock,
 			metricsClient)
 
-		err := retryableClient.AddActivityTask(context.Background(), &types.AddActivityTaskRequest{
+		_, err := retryableClient.AddActivityTask(context.Background(), &types.AddActivityTaskRequest{
 			ForwardedFrom: "",
 			TaskList:      &types.TaskList{Name: "test"},
 		})
@@ -153,13 +153,13 @@ func TestMatching(t *testing.T) {
 		metricsClient := metrics.NewClient(testScope, metrics.ServiceIdx(0))
 
 		clientMock.EXPECT().AddActivityTask(gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(nil).Times(1)
+			Return(&types.AddActivityTaskResponse{}, nil).Times(1)
 
 		retryableClient := NewMatchingClient(
 			clientMock,
 			metricsClient)
 
-		err := retryableClient.AddActivityTask(context.Background(), &types.AddActivityTaskRequest{
+		_, err := retryableClient.AddActivityTask(context.Background(), &types.AddActivityTaskRequest{
 			ForwardedFrom: "",
 			TaskList:      &types.TaskList{Name: common.ReservedTaskListPrefix + "test"},
 		})

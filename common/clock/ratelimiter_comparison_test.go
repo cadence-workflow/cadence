@@ -39,7 +39,7 @@ import (
 const (
 	// amount of time between each conceptual "tick" of the test's clocks, both real and fake.
 	// sadly even 10ms has some excessive latency a few % of the time, particularly during the Wait check.
-	fuzzGranularity = 20 * time.Millisecond
+	fuzzGranularity = 100 * time.Millisecond
 
 	// keep running tests until this amount of time has passed, or a failure has occurred.
 	// this could be a static count of tests to run, but a target duration
@@ -47,7 +47,7 @@ const (
 	//
 	// alternatively, tests have a deadline, this could run until near that deadline.
 	// but right now that's not fine-tuned per package, so it's quite long.
-	fuzzDuration = 4 * time.Second // mostly stays under 5s, feels reasonable
+	fuzzDuration = 8 * time.Second // mostly stays under 10s, feels reasonable
 
 	// debug-level output is very noisy on successful runs, so hide it by default.
 	// using a custom seed will also set this to true.
@@ -167,8 +167,9 @@ func TestAgainstRealRatelimit(t *testing.T) {
 			assert.Equal(t, 1.0, wrappedTokens, "wrapped should still have a token available")
 		})
 		t.Run("cancel while waiting returns tokens", func(t *testing.T) {
-			actual := rate.NewLimiter(rate.Every(time.Second), 1)
-			wrapped := NewRatelimiter(rate.Every(time.Second), 1)
+			// expect to recover 0.1 token after sleep
+			actual := rate.NewLimiter(rate.Every(10*fuzzGranularity), 1)
+			wrapped := NewRatelimiter(rate.Every(10*fuzzGranularity), 1)
 
 			actual.Allow()
 			wrapped.Allow()
@@ -209,8 +210,8 @@ func TestAgainstRealRatelimit(t *testing.T) {
 			// in particular, this would go to -1 if the token was not successfully returned.
 			// that can happen if canceling near the wait time elapsing, but that would take a full second in this test.
 			t.Logf("tokens in real: %0.5f, actual: %0.5f", actual.Tokens(), wrapped.Tokens())
-			assert.InDeltaf(t, 0, actual.Tokens(), 0.1, "rate.Limiter should have near zero tokens after canceling")
-			assert.InDeltaf(t, 0, wrapped.Tokens(), 0.1, "wrapped should have near zero tokens after canceling")
+			assert.InDeltaf(t, 0.1, actual.Tokens(), 0.1, "rate.Limiter should have returned token when canceled, and the 1/10th sleep should remain")
+			assert.InDeltaf(t, 0.1, wrapped.Tokens(), 0.1, "wrapped should have returned token when canceled, and the 1/10th sleep should remain")
 
 			t.Logf("waiting times for real: %v, actual: %v", actualDur, wrappedDur)
 			assert.InDeltaf(t, actualDur, fuzzGranularity, float64(fuzzGranularity/2), "rate.Limiter should have waited until canceled")

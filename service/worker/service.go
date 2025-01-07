@@ -29,6 +29,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/domain"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log/tag"
@@ -68,6 +69,7 @@ type (
 
 	// Config contains all the service config for worker
 	Config struct {
+		KafkaCfg                            config.KafkaConfig
 		ArchiverConfig                      *archiver.Config
 		IndexerCfg                          *indexer.Config
 		ScannerCfg                          *scanner.Config
@@ -148,6 +150,7 @@ func NewConfig(params *resource.Params) *Config {
 			},
 			MaxWorkflowRetentionInDays: dc.GetIntProperty(dynamicconfig.MaxRetentionDays),
 		},
+		KafkaCfg: params.KafkaConfig,
 		BatcherCfg: &batcher.Config{
 			AdminOperationToken: dc.GetStringProperty(dynamicconfig.AdminOperationToken),
 			ClusterMetadata:     params.ClusterMetadata,
@@ -217,7 +220,11 @@ func (s *Service) Start() {
 	s.startScanner()
 	s.startFixerWorkflowWorker()
 	if s.config.IndexerCfg != nil {
-		s.startIndexer()
+		if shouldStartMigrationIndexer(s.params) {
+			s.startMigrationIndexer()
+		} else {
+			s.startIndexer()
+		}
 	}
 
 	s.startReplicator()
@@ -340,6 +347,8 @@ func (s *Service) startDiagnostics() {
 		MetricsClient: s.GetMetricsClient(),
 		TallyScope:    s.params.MetricScope,
 		ClientBean:    s.GetClientBean(),
+		Logger:        s.GetLogger(),
+		KafkaCfg:      s.params.KafkaConfig,
 	}
 	if err := diagnostics.New(params).Start(); err != nil {
 		s.Stop()
@@ -375,6 +384,22 @@ func (s *Service) startIndexer() {
 		s.config.IndexerCfg,
 		s.GetMessagingClient(),
 		s.params.ESClient,
+		s.params.ESConfig.Indices[common.VisibilityAppName],
+		s.GetLogger(),
+		s.GetMetricsClient(),
+	)
+	if err := visibilityIndexer.Start(); err != nil {
+		visibilityIndexer.Stop()
+		s.GetLogger().Fatal("fail to start indexer", tag.Error(err))
+	}
+}
+
+func (s *Service) startMigrationIndexer() {
+	visibilityIndexer := indexer.NewMigrationIndexer(
+		s.config.IndexerCfg,
+		s.GetMessagingClient(),
+		s.params.ESClient,
+		s.params.OSClient,
 		s.params.ESConfig.Indices[common.VisibilityAppName],
 		s.GetLogger(),
 		s.GetMetricsClient(),
@@ -498,4 +523,16 @@ func shouldStartIndexer(params *resource.Params, advancedWritingMode dynamicconf
 	}
 
 	return true
+}
+
+func shouldStartMigrationIndexer(params *resource.Params) bool {
+	// not need to check IsAdvancedVisibilityWritingEnabled here since it was already checked or the s.config.IndexerCfg will be nil
+	// when it is using OS and in migration mode, we should start dual indexer to write to both ES and OS
+	if params.PersistenceConfig.AdvancedVisibilityStore == common.OSVisibilityStoreName &&
+		params.OSConfig != nil &&
+		params.OSConfig.Migration.Enabled {
+		return true
+	}
+
+	return false
 }

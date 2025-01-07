@@ -241,6 +241,7 @@ func (s *failoverWatcherSuite) TestHandleFailoverTimeout() {
 		replicationConfig,
 		1,
 		endtime,
+		0, 0, 0,
 	)
 	s.watcher.handleFailoverTimeout(domainEntry)
 }
@@ -284,7 +285,7 @@ func (s *failoverWatcherSuite) TestRefreshDomainLoop() {
 	domainInfo := &persistence.DomainInfo{ID: domainID, Name: domainName}
 	domainConfig := &persistence.DomainConfig{Retention: 1, EmitMetric: true}
 	replicationConfig := &persistence.DomainReplicationConfig{ActiveClusterName: "active", Clusters: []*persistence.ClusterReplicationConfig{{ClusterName: "active"}}}
-	domainEntry := cache.NewDomainCacheEntryForTest(domainInfo, domainConfig, true, replicationConfig, 1, failoverEndTime)
+	domainEntry := cache.NewDomainCacheEntryForTest(domainInfo, domainConfig, true, replicationConfig, 1, failoverEndTime, 0, 0, 0)
 
 	domainsMap := map[string]*cache.DomainCacheEntry{domainID: domainEntry}
 	s.mockDomainCache.EXPECT().GetAllDomain().Return(domainsMap).AnyTimes()

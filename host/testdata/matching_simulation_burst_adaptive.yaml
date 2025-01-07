@@ -1,0 +1,35 @@
+enablearchival: false
+clusterno: 1
+messagingclientconfig:
+  usemock: true
+historyconfig:
+  numhistoryshards: 4
+  numhistoryhosts: 1
+matchingconfig:
+  nummatchinghosts: 4
+  simulationconfig:
+    tasklistwritepartitions: 0 # this doesn't matter. adaptive scaler will start from 1
+    tasklistreadpartitions: 0  # this doesn't matter. adaptive scaler will start from 1
+    forwardermaxoutstandingpolls: 1
+    forwardermaxoutstandingtasks: 1
+    forwardermaxratepersecond: 10
+    forwardermaxchildrenpernode: 20
+    localpollwaittime: 10ms
+    localtaskwaittime: 10ms
+    tasks:
+      - numtaskgenerators: 10
+        taskspersecond: 500
+        maxtasktogenerate: 10000
+    pollers:
+      - taskprocesstime: 1ms
+        numpollers: 8
+        polltimeout: 60s
+    getpartitionconfigfromdb: true
+    enableadaptivescaler: true
+    partitiondownscalefactor: 0.75
+    partitionupscalerps: 200
+    partitionupscalesustainedduration: 5s
+    partitiondownscalesustainedduration: 5s
+    adaptivescalerupdateinterval: 1s
+workerconfig:
+  enableasyncwfconsumer: false

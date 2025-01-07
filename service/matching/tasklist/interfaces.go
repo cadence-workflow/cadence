@@ -21,6 +21,10 @@
 // SOFTWARE.
 
 //go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination interfaces_mock.go github.com/uber/cadence/service/matching/tasklist Manager
+//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination interfaces_mock.go github.com/uber/cadence/service/matching/tasklist TaskMatcher
+//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination interfaces_mock.go github.com/uber/cadence/service/matching/tasklist Forwarder
+//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination interfaces_mock.go github.com/uber/cadence/service/matching/tasklist TaskCompleter
+
 package tasklist
 
 import (
@@ -56,5 +60,33 @@ type (
 		String() string
 		GetTaskListKind() types.TaskListKind
 		TaskListID() *Identifier
+		TaskListPartitionConfig() *types.TaskListPartitionConfig
+		UpdateTaskListPartitionConfig(context.Context, *types.TaskListPartitionConfig) error
+		RefreshTaskListPartitionConfig(context.Context, *types.TaskListPartitionConfig) error
+		LoadBalancerHints() *types.LoadBalancerHints
+	}
+
+	TaskMatcher interface {
+		DisconnectBlockedPollers()
+		Offer(ctx context.Context, task *InternalTask) (bool, error)
+		OfferOrTimeout(ctx context.Context, startT time.Time, task *InternalTask) (bool, error)
+		OfferQuery(ctx context.Context, task *InternalTask) (*types.QueryWorkflowResponse, error)
+		MustOffer(ctx context.Context, task *InternalTask) error
+		Poll(ctx context.Context, isolationGroup string) (*InternalTask, error)
+		PollForQuery(ctx context.Context) (*InternalTask, error)
+		UpdateRatelimit(rps *float64)
+		Rate() float64
+	}
+
+	Forwarder interface {
+		ForwardTask(ctx context.Context, task *InternalTask) error
+		ForwardQueryTask(ctx context.Context, task *InternalTask) (*types.QueryWorkflowResponse, error)
+		ForwardPoll(ctx context.Context) (*InternalTask, error)
+		AddReqTokenC() <-chan *ForwarderReqToken
+		PollReqTokenC(isolationGroup string) <-chan *ForwarderReqToken
+	}
+
+	TaskCompleter interface {
+		CompleteTaskIfStarted(ctx context.Context, task *InternalTask) error
 	}
 )

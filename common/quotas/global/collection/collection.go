@@ -37,6 +37,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"testing"
 	"time"
 
@@ -350,14 +351,14 @@ func (c *Collection) backgroundUpdateLoop() {
 					if counts.Idle > gcAfterIdle || c.shouldDeleteKey(mode, true) {
 						c.logger.Debug(
 							"deleting local ratelimiter",
-							tag.GlobalRatelimiterKey(string(gkey)),
+							tag.GlobalRatelimiterKey(string(k)),
 							tag.GlobalRatelimiterIdleCount(counts.Idle),
 						)
 						c.local.Delete(k)
 						return true // continue iterating, possibly delete others too
 					}
 
-					c.sendMetrics(gkey, k, true, mode, counts)
+					c.sendMetrics(k, true, mode, counts)
 					return true
 				})
 			}()
@@ -373,7 +374,7 @@ func (c *Collection) backgroundUpdateLoop() {
 				if counts.Idle > gcAfterIdle || c.shouldDeleteKey(mode, false) {
 					c.logger.Debug(
 						"deleting global ratelimiter",
-						tag.GlobalRatelimiterKey(string(gkey)),
+						tag.GlobalRatelimiterKey(string(k)),
 						tag.GlobalRatelimiterIdleCount(counts.Idle),
 					)
 					c.global.Delete(k)
@@ -393,7 +394,7 @@ func (c *Collection) backgroundUpdateLoop() {
 					Allowed:  counts.Allowed,
 					Rejected: counts.Rejected,
 				}
-				c.sendMetrics(gkey, k, false, mode, counts)
+				c.sendMetrics(k, false, mode, counts)
 
 				return true
 			})
@@ -418,13 +419,13 @@ func (c *Collection) backgroundUpdateLoop() {
 	}
 }
 
-func (c *Collection) sendMetrics(gkey shared.GlobalKey, lkey shared.LocalKey, isLocalLimiter bool, mode keyMode, usage internal.UsageMetrics) {
+func (c *Collection) sendMetrics(lkey shared.LocalKey, isLocalLimiter bool, mode keyMode, usage internal.UsageMetrics) {
 	// emit quota information to make monitoring easier.
 	// regrettably this will only be emitted when the key is (recently) in use, but
 	// for active users this is probably sufficient.  other cases will probably need
 	// a continual "emit all quotas" loop somewhere.
 	c.scope.
-		Tagged(metrics.GlobalRatelimiterKeyTag(string(gkey))).
+		Tagged(metrics.GlobalRatelimiterKeyTag(string(lkey))).
 		UpdateGauge(metrics.GlobalRatelimiterQuota, float64(c.targetRPS(lkey)))
 
 	limitType := "global"
@@ -434,7 +435,7 @@ func (c *Collection) sendMetrics(gkey shared.GlobalKey, lkey shared.LocalKey, is
 	limitTypeIsPrimary := isLocalLimiter && mode.isLocalPrimary() || !isLocalLimiter && mode.isGlobalPrimary()
 
 	scope := c.scope.Tagged(
-		metrics.GlobalRatelimiterKeyTag(string(gkey)),
+		metrics.GlobalRatelimiterKeyTag(string(lkey)),
 		metrics.GlobalRatelimiterTypeTag(limitType),
 		// useful for being able to tell when a key is "in use" or not, e.g. for monitoring purposes
 		metrics.GlobalRatelimiterIsPrimary(limitTypeIsPrimary),
@@ -450,10 +451,12 @@ func (c *Collection) doUpdate(since time.Duration, usage map[shared.GlobalKey]rp
 	res := c.aggs.Update(ctx, since, usage)
 	if res.Err != nil {
 		// should not happen outside pretty major errors, but may recover next time.
+		// if sustained, e.g. due to a bug, this should eventually cause the affected
+		// keys to use their fallback behavior, which is easily alerted on.
 		c.logger.Error("aggregator update error", tag.Error(res.Err))
 	}
 	// either way, process all weights we did successfully retrieve.
-	for gkey, weight := range res.Weights {
+	for gkey, info := range res.Weights {
 		delete(usage, gkey) // clean up the list so we know what was missed
 		lkey, err := c.km.GlobalToLocal(gkey)
 		if err != nil {
@@ -463,16 +466,13 @@ func (c *Collection) doUpdate(since time.Duration, usage map[shared.GlobalKey]rp
 			continue
 		}
 
-		if weight < 0 {
-			// negative values cannot be valid, so they're a failure.
-			//
-			// this is largely for future-proofing and to cover all possibilities,
-			// so unrecognized values lead to fallback behavior because they cannot be understood.
-			c.global.Load(lkey).FailedUpdate()
-		} else {
-			target := float64(c.targetRPS(lkey))
-			c.global.Load(lkey).Update(rate.Limit(weight * target))
-		}
+		// < 0, nan, and inf in `info` are prevented by Update and do not need to be handled here,
+		// though the math below could create new irrational values.
+		target := rate.Limit(c.targetRPS(lkey))
+		limiter := c.global.Load(lkey)
+		fallbackTarget := limiter.FallbackLimit()
+		boosted := boostRPS(target, fallbackTarget, info.Weight, info.UsedRPS)
+		limiter.Update(boosted)
 	}
 
 	// mark all non-returned limits as failures.
@@ -492,4 +492,39 @@ func (c *Collection) doUpdate(since time.Duration, usage map[shared.GlobalKey]rp
 		// requested but not returned, bump the fallback fuse
 		c.global.Load(localKey).FailedUpdate()
 	}
+}
+
+func boostRPS(target, fallback rate.Limit, weight float64, usedRPS float64) rate.Limit {
+	baseline := target * rate.Limit(weight)
+
+	// low weights lead to low per-host overage allowed, and this can lead to
+	// restricting low-RPS-slightly-bursty requests quite a lot more than intended,
+	// despite more than enough unused quota remaining at all times.
+	//
+	// as a partial mitigation, "boost" low-weight values, allowing them to use
+	// more of the unused RPS than their weight would normally imply, up to the
+	// fallback's limit.
+	// as overall usage increases, this "allowed overage" will shrink, helping
+	// ensure it keeps converging towards the global target RPS.
+	if baseline < fallback {
+		// unused should not go below zero, e.g. if target was lowered,
+		// so this cannot reduce below the fair baseline.
+		unused := math.Max(0, float64(target)-usedRPS)
+		boosted := math.Min(
+			// with many bursty low-weight hosts, this may allow too much.
+			// currently this isn't really a concern, but this could be adjusted
+			// by num-of-low-hosts or something if needed.
+			float64(baseline)+unused,
+			// can't exceed the local fallback value though.
+			// this is also what would be allowed if this limit was garbage collected,
+			// so it's already established as a "safe enough" value.
+			float64(fallback),
+		)
+		return rate.Limit(boosted)
+	}
+
+	// any host with a weighted target higher than the fallback will already be
+	// allowing a relatively large "growth room" on top of its actual usage, so
+	// they don't need this boost.
+	return baseline
 }

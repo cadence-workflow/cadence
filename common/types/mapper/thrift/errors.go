@@ -76,6 +76,8 @@ func FromError(err error) error {
 		return typedErr
 	} else if ok, typedErr = errorutils.ConvertError(err, FromStickyWorkerUnavailableError); ok {
 		return typedErr
+	} else if ok, typedErr = errorutils.ConvertError(err, FromTaskListNotOwnedByHostError); ok {
+		return typedErr
 	}
 
 	return err
@@ -132,6 +134,8 @@ func ToError(err error) error {
 	} else if ok, typedErr = errorutils.ConvertError(err, ToEventAlreadyStartedError); ok {
 		return typedErr
 	} else if ok, typedErr = errorutils.ConvertError(err, ToStickyWorkerUnavailableError); ok {
+		return typedErr
+	} else if ok, typedErr = errorutils.ConvertError(err, ToTaskListNotOwnedByHostError); ok {
 		return typedErr
 	}
 

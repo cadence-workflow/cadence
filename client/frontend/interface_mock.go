@@ -158,6 +158,26 @@ func (mr *MockClientMockRecorder) DescribeWorkflowExecution(arg0, arg1 interface
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeWorkflowExecution", reflect.TypeOf((*MockClient)(nil).DescribeWorkflowExecution), varargs...)
 }
 
+// DiagnoseWorkflowExecution mocks base method.
+func (m *MockClient) DiagnoseWorkflowExecution(arg0 context.Context, arg1 *types.DiagnoseWorkflowExecutionRequest, arg2 ...yarpc.CallOption) (*types.DiagnoseWorkflowExecutionResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "DiagnoseWorkflowExecution", varargs...)
+	ret0, _ := ret[0].(*types.DiagnoseWorkflowExecutionResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DiagnoseWorkflowExecution indicates an expected call of DiagnoseWorkflowExecution.
+func (mr *MockClientMockRecorder) DiagnoseWorkflowExecution(arg0, arg1 interface{}, arg2 ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DiagnoseWorkflowExecution", reflect.TypeOf((*MockClient)(nil).DiagnoseWorkflowExecution), varargs...)
+}
+
 // GetClusterInfo mocks base method.
 func (m *MockClient) GetClusterInfo(arg0 context.Context, arg1 ...yarpc.CallOption) (*types.ClusterInfo, error) {
 	m.ctrl.T.Helper()

@@ -30,7 +30,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 	"go.uber.org/zap"
 
 	"github.com/uber/cadence/common"
@@ -41,6 +41,7 @@ import (
 	"github.com/uber/cadence/common/reconciliation/invariant"
 	"github.com/uber/cadence/common/reconciliation/store"
 	"github.com/uber/cadence/service/worker/scanner/executions"
+	"github.com/uber/cadence/tools/common/commoncli"
 )
 
 const (
@@ -48,21 +49,24 @@ const (
 )
 
 // AdminDBScan is used to scan over executions in database and detect corruptions.
-func AdminDBScan(c *cli.Context) {
+func AdminDBScan(c *cli.Context) error {
 	scanType, err := executions.ScanTypeString(c.String(FlagScanType))
 
 	if err != nil {
-		ErrorAndExit("unknown scan type", err)
+		return commoncli.Problem("unknown scan type", err)
 	}
 
-	numberOfShards := getRequiredIntOption(c, FlagNumberOfShards)
+	numberOfShards, err := getRequiredIntOption(c, FlagNumberOfShards)
+	if err != nil {
+		return commoncli.Problem("Required flag not found", err)
+	}
 	collectionSlice := c.StringSlice(FlagInvariantCollection)
 
 	var collections []invariant.Collection
 	for _, v := range collectionSlice {
 		collection, err := invariant.CollectionString(v)
 		if err != nil {
-			ErrorAndExit("unknown invariant collection", err)
+			return commoncli.Problem("unknown invariant collection", err)
 		}
 		collections = append(collections, collection)
 	}
@@ -72,13 +76,13 @@ func AdminDBScan(c *cli.Context) {
 		logger, err = zap.NewDevelopment()
 		if err != nil {
 			// probably impossible with default config
-			ErrorAndExit("could not construct logger", err)
+			return commoncli.Problem("could not construct logger", err)
 		}
 	}
 
 	invariants := scanType.ToInvariants(collections, logger)
 	if len(invariants) < 1 {
-		ErrorAndExit(
+		return commoncli.Problem(
 			fmt.Sprintf("no invariants for scan type %q and collections %q",
 				scanType.String(),
 				collectionSlice),
@@ -87,11 +91,13 @@ func AdminDBScan(c *cli.Context) {
 	}
 	ef := scanType.ToExecutionFetcher()
 
-	input := getInputFile(c.String(FlagInputFile))
-
+	input, err := getInputFile(c.String(FlagInputFile))
+	if err != nil {
+		return commoncli.Problem("Input file not found", err)
+	}
 	dec := json.NewDecoder(input)
 	if err != nil {
-		ErrorAndExit("", err)
+		return commoncli.Problem("", err)
 	}
 	var data []fetcher.ExecutionRequest
 
@@ -101,13 +107,20 @@ func AdminDBScan(c *cli.Context) {
 			if err == io.EOF || err == io.ErrUnexpectedEOF {
 				break
 			}
-		} else {
-			data = append(data, exec)
+			return commoncli.Problem("Error decoding input file", err)
 		}
+		data = append(data, exec)
+	}
+
+	if len(data) == 0 {
+		return commoncli.Problem("Input file contained no data to scan", nil)
 	}
 
 	for _, e := range data {
-		execution, result := checkExecution(c, numberOfShards, e, invariants, ef)
+		execution, result, err := checkExecution(c, numberOfShards, e, invariants, ef)
+		if err != nil {
+			return commoncli.Problem("Execution check failed", err)
+		}
 		out := store.ScanOutputEntity{
 			Execution: execution,
 			Result:    result,
@@ -118,8 +131,9 @@ func AdminDBScan(c *cli.Context) {
 			continue
 		}
 
-		fmt.Println(string(data))
+		getDeps(c).Output().Write(data)
 	}
+	return nil
 }
 
 func checkExecution(
@@ -128,11 +142,17 @@ func checkExecution(
 	req fetcher.ExecutionRequest,
 	invariants []executions.InvariantFactory,
 	fetcher executions.ExecutionFetcher,
-) (interface{}, invariant.ManagerCheckResult) {
-	execManager := initializeExecutionStore(c, common.WorkflowIDToHistoryShard(req.WorkflowID, numberOfShards))
+) (interface{}, invariant.ManagerCheckResult, error) {
+	execManager, err := getDeps(c).initializeExecutionManager(c, common.WorkflowIDToHistoryShard(req.WorkflowID, numberOfShards))
+	if err != nil {
+		return nil, invariant.ManagerCheckResult{}, fmt.Errorf("initialize execution manager: %w", err)
+	}
 	defer execManager.Close()
 
-	historyV2Mgr := initializeHistoryManager(c)
+	historyV2Mgr, err := getDeps(c).initializeHistoryManager(c)
+	if err != nil {
+		return nil, invariant.ManagerCheckResult{}, fmt.Errorf("initialize history manager: %w", err)
+	}
 	defer historyV2Mgr.Close()
 
 	pr := persistence.NewPersistenceRetryer(
@@ -141,13 +161,15 @@ func checkExecution(
 		common.CreatePersistenceRetryPolicy(),
 	)
 
-	ctx, cancel := newContext(c)
+	ctx, cancel, err := newContext(c)
+	if err != nil {
+		return nil, invariant.ManagerCheckResult{}, fmt.Errorf("Error in creating context: %w", err)
+	}
 	defer cancel()
-
 	execution, err := fetcher(ctx, pr, req)
 
 	if err != nil {
-		return nil, invariant.ManagerCheckResult{}
+		return nil, invariant.ManagerCheckResult{}, fmt.Errorf("fetching execution: %w", err)
 	}
 
 	var ivs []invariant.Invariant
@@ -156,33 +178,41 @@ func checkExecution(
 		ivs = append(ivs, fn(pr, cache.NewNoOpDomainCache()))
 	}
 
-	return execution, invariant.NewInvariantManager(ivs).RunChecks(ctx, execution)
+	return execution, invariant.NewInvariantManager(ivs).RunChecks(ctx, execution), nil
 }
 
 // AdminDBScanUnsupportedWorkflow is to scan DB for unsupported workflow for a new release
-func AdminDBScanUnsupportedWorkflow(c *cli.Context) {
-	outputFile := getOutputFile(c.String(FlagOutputFilename))
+func AdminDBScanUnsupportedWorkflow(c *cli.Context) error {
+	outputFile, err := getOutputFile(c.String(FlagOutputFilename))
+	if err != nil {
+		return commoncli.Problem("Error in admin db scan unsupported wf: ", err)
+	}
 	startShardID := c.Int(FlagLowerShardBound)
 	endShardID := c.Int(FlagUpperShardBound)
 
 	defer outputFile.Close()
 	for i := startShardID; i <= endShardID; i++ {
-		listExecutionsByShardID(c, i, outputFile)
+		if err := listExecutionsByShardID(c, i, outputFile); err != nil {
+			return err
+		}
 		fmt.Printf("Shard %v scan operation is completed.\n", i)
 	}
+	return nil
 }
 
 func listExecutionsByShardID(
 	c *cli.Context,
 	shardID int,
 	outputFile *os.File,
-) {
+) error {
 
-	client := initializeExecutionStore(c, shardID)
+	client, err := getDeps(c).initializeExecutionManager(c, shardID)
+	if err != nil {
+		commoncli.Problem("initialize execution manager:", err)
+	}
 	defer client.Close()
-
 	paginationFunc := func(paginationToken []byte) ([]interface{}, []byte, error) {
-		ctx, cancel := context.WithTimeout(context.Background(), listContextTimeout)
+		ctx, cancel := context.WithTimeout(c.Context, listContextTimeout)
 		defer cancel()
 
 		resp, err := client.ListConcreteExecutions(
@@ -206,7 +236,7 @@ func listExecutionsByShardID(
 	for executionIterator.HasNext() {
 		result, err := executionIterator.Next()
 		if err != nil {
-			ErrorAndExit(fmt.Sprintf("Failed to scan shard ID: %v for unsupported workflow. Please retry.", shardID), err)
+			return commoncli.Problem(fmt.Sprintf("Failed to scan shard ID: %v for unsupported workflow. Please retry.", shardID), err)
 		}
 		execution := result.(*persistence.ListConcreteExecutionsEntity)
 		executionInfo := execution.ExecutionInfo
@@ -218,11 +248,12 @@ func listExecutionsByShardID(
 				executionInfo.RunID,
 			)
 			if _, err = outputFile.WriteString(outStr); err != nil {
-				ErrorAndExit("Failed to write data to file", err)
+				return commoncli.Problem("Failed to write data to file", err)
 			}
 			if err = outputFile.Sync(); err != nil {
-				ErrorAndExit("Failed to sync data to file", err)
+				return commoncli.Problem("Failed to sync data to file", err)
 			}
 		}
 	}
+	return nil
 }

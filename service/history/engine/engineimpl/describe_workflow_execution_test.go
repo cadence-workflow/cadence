@@ -104,6 +104,7 @@ func TestDescribeWorkflowExecution(t *testing.T) {
 		StartedWorkerIdentity:  "StartedWorkerIdentity",
 		LastWorkerIdentity:     "LastWorkerIdentity",
 		LastFailureDetails:     []byte("failure details"),
+		ScheduleID:             1,
 	}
 	child1 := &types.PendingChildExecutionInfo{
 		Domain:            childDomainID,
@@ -117,7 +118,7 @@ func TestDescribeWorkflowExecution(t *testing.T) {
 		State: &persistence.WorkflowMutableState{
 			ActivityInfos: map[int64]*persistence.ActivityInfo{
 				1: {
-					ScheduleID: 1,
+					ScheduleID: activity1.ScheduleID,
 					ScheduledEvent: &types.HistoryEvent{
 						ID: 1,
 						ActivityTaskScheduledEventAttributes: &types.ActivityTaskScheduledEventAttributes{
@@ -259,6 +260,7 @@ func TestDescribeWorkflowExecution(t *testing.T) {
 			StartedTimestamp:           common.Int64Ptr(pendingDecisionStartedTimestamp),
 			Attempt:                    pendingDecisionAttempt,
 			OriginalScheduledTimestamp: common.Int64Ptr(pendingDecisionOriginalScheduledTime),
+			ScheduleID:                 pendingDecisionScheduleID,
 		},
 	}, result)
 	assert.Nil(t, err)

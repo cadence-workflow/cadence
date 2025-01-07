@@ -28,6 +28,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -59,6 +60,7 @@ type (
 		maxTasksPerJobFn         dynamicconfig.IntPropertyFn
 		cleanOrphans             dynamicconfig.BoolPropertyFn
 		pollInterval             time.Duration
+		timeSource               clock.TimeSource
 
 		// stopC is used to signal the scavenger to stop
 		stopC chan struct{}
@@ -178,6 +180,7 @@ func NewScavenger(
 		pollInterval:             pollInterval,
 		maxTasksPerJobFn:         maxTasksPerJobFn,
 		getOrphanTasksPageSizeFn: getOrphanTasksPageSize,
+		timeSource:               clock.NewRealTimeSource(),
 	}
 }
 
@@ -257,9 +260,11 @@ func (s *Scavenger) process(taskListInfo *p.TaskListInfo) executor.TaskStatus {
 
 func (s *Scavenger) awaitExecutor() {
 	outstanding := s.executor.TaskCount()
+	ticker := s.timeSource.NewTicker(s.pollInterval)
+	defer ticker.Stop()
 	for outstanding > 0 {
 		select {
-		case <-time.After(s.pollInterval):
+		case <-ticker.Chan():
 			outstanding = s.executor.TaskCount()
 			s.scope.UpdateGauge(metrics.TaskListOutstandingCount, float64(outstanding))
 		case <-s.stopC:

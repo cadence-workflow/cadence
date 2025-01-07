@@ -60,6 +60,11 @@ func (g frontendClient) DescribeWorkflowExecution(ctx context.Context, dp1 *type
 	return thrift.ToDescribeWorkflowExecutionResponse(response), thrift.ToError(err)
 }
 
+func (g frontendClient) DiagnoseWorkflowExecution(ctx context.Context, dp1 *types.DiagnoseWorkflowExecutionRequest, p1 ...yarpc.CallOption) (dp2 *types.DiagnoseWorkflowExecutionResponse, err error) {
+	response, err := g.c.DiagnoseWorkflowExecution(ctx, thrift.FromDiagnoseWorkflowExecutionRequest(dp1), p1...)
+	return thrift.ToDiagnoseWorkflowExecutionResponse(response), thrift.ToError(err)
+}
+
 func (g frontendClient) GetClusterInfo(ctx context.Context, p1 ...yarpc.CallOption) (cp1 *types.ClusterInfo, err error) {
 	response, err := g.c.GetClusterInfo(ctx, p1...)
 	return thrift.ToGetClusterInfoResponse(response), thrift.ToError(err)

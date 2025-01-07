@@ -701,3 +701,23 @@ func (c *adminClient) UpdateGlobalIsolationGroups(ctx context.Context, request *
 	}
 	return
 }
+
+func (c *adminClient) UpdateTaskListPartitionConfig(ctx context.Context, request *types.UpdateTaskListPartitionConfigRequest, opts ...yarpc.CallOption) (up1 *types.UpdateTaskListPartitionConfigResponse, err error) {
+	fakeErr := c.fakeErrFn(c.errorRate)
+	var forwardCall bool
+	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
+		up1, err = c.client.UpdateTaskListPartitionConfig(ctx, request, opts...)
+	}
+
+	if fakeErr != nil {
+		c.logger.Error(msgAdminInjectedFakeErr,
+			tag.AdminClientOperationUpdateTaskListPartitionConfig,
+			tag.Error(fakeErr),
+			tag.Bool(forwardCall),
+			tag.ClientError(err),
+		)
+		err = fakeErr
+		return
+	}
+	return
+}

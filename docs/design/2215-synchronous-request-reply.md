@@ -4,7 +4,7 @@ Authors: Maxim Fateev (@mfateev), Andrew Dawson (@andrewjdawson2016)
 
 Last updated: July 16, 2019
 
-Discussion at [https://github.com/uber/cadence/issues/2215](https://github.com/uber/cadence/issues/2215)
+Discussion at [https://github.com/cadence-workflow/cadence/issues/2215](https://github.com/cadence-workflow/cadence/issues/2215)
 
 ## Abstract
 
@@ -72,7 +72,7 @@ The next diagram covers situation when query is received when another decision t
 
 ![image alt text](2215-synchronous-request-reply_2.png)
 
-The current decision state diagram 
+The current decision state diagram
 
 ![image alt text](2215-synchronous-request-reply_3.png)
 
@@ -99,4 +99,3 @@ This section is not fully designed yet.
 1. Design update operation. There is an outstanding design issue for how update works in a multiple DC model.
 
 2. Agree on the client model for synchronous request reply primitives.
-

@@ -21,7 +21,11 @@
 package cassandra
 
 import (
+	"fmt"
 	"time"
+
+	gogocql "github.com/gocql/gocql"
+	"github.com/hailocab/go-hostpool"
 
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log"
@@ -116,8 +120,13 @@ func toGoCqlConfig(cfg *config.NoSQL) (gocql.ClusterConfig, error) {
 	if err != nil {
 		return gocql.ClusterConfig{}, err
 	}
-	serialConsistency, err := gocql.ParseSerialConsistency(cfg.SerialConsistency)
 
+	serialConsistency, err := gocql.ParseSerialConsistency(cfg.SerialConsistency)
+	if err != nil {
+		return gocql.ClusterConfig{}, err
+	}
+
+	hostSelection, err := toHostSelectionPolicy(cfg.HostSelectionPolicy)
 	if err != nil {
 		return gocql.ClusterConfig{}, err
 	}
@@ -138,5 +147,21 @@ func toGoCqlConfig(cfg *config.NoSQL) (gocql.ClusterConfig, error) {
 		SerialConsistency:     serialConsistency,
 		Timeout:               cfg.Timeout,
 		ConnectTimeout:        cfg.ConnectTimeout,
+		HostSelectionPolicy:   hostSelection,
 	}, nil
+}
+
+func toHostSelectionPolicy(policy string) (gogocql.HostSelectionPolicy, error) {
+	switch policy {
+	case "", "tokenaware,roundrobin":
+		return gogocql.TokenAwareHostPolicy(gogocql.RoundRobinHostPolicy()), nil
+	case "hostpool-epsilon-greedy":
+		return gogocql.HostPoolHostPolicy(
+			hostpool.NewEpsilonGreedy(nil, 0, &hostpool.LinearEpsilonValueCalculator{}),
+		), nil
+	case "roundrobin":
+		return gogocql.RoundRobinHostPolicy(), nil
+	default:
+		return nil, fmt.Errorf("unknown gocql host selection policy: %q", policy)
+	}
 }

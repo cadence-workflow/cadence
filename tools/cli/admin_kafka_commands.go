@@ -33,7 +33,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 	"go.uber.org/thriftrw/protocol/binary"
 	"go.uber.org/thriftrw/wire"
 
@@ -45,6 +45,7 @@ import (
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/types/mapper/thrift"
+	"github.com/uber/cadence/tools/common/commoncli"
 )
 
 type (
@@ -107,13 +108,17 @@ func (ch *writerChannel) Close() {
 }
 
 // AdminKafkaParse parses the output of k8read and outputs replication tasks
-func AdminKafkaParse(c *cli.Context) {
-	inputFile := getInputFile(c.String(FlagInputFile))
-	outputFile := getOutputFile(c.String(FlagOutputFilename))
-
+func AdminKafkaParse(c *cli.Context) error {
+	inputFile, err := getInputFile(c.String(FlagInputFile))
 	defer inputFile.Close()
+	if err != nil {
+		return commoncli.Problem("Error in Admin kafka parse: ", err)
+	}
+	outputFile, err := getOutputFile(c.String(FlagOutputFilename))
 	defer outputFile.Close()
-
+	if err != nil {
+		return commoncli.Problem("Error in Admin kafka parse: ", err)
+	}
 	readerCh := make(chan []byte, chanBufferSize)
 	writerCh := newWriterChannel(kafkaMessageType(c.Int(FlagMessageType)))
 	doneCh := make(chan struct{})
@@ -131,6 +136,7 @@ func AdminKafkaParse(c *cli.Context) {
 	if skipErrMode {
 		fmt.Printf("%v messages were skipped due to errors in parsing", atomic.LoadInt32(&skippedCount))
 	}
+	return nil
 }
 
 func buildFilterFn(workflowID, runID string) filterFn {
@@ -162,19 +168,19 @@ func buildFilterFnForVisibility(workflowID, runID string) filterFnForVisibility 
 	}
 }
 
-func getOutputFile(outputFile string) *os.File {
+func getOutputFile(outputFile string) (*os.File, error) {
 	if len(outputFile) == 0 {
-		return os.Stdout
+		return os.Stdout, nil
 	}
 	f, err := os.Create(outputFile)
 	if err != nil {
-		ErrorAndExit("failed to create output file", err)
+		return nil, fmt.Errorf("failed to create output file %w", err)
 	}
 
-	return f
+	return f, nil
 }
 
-func startReader(file *os.File, readerCh chan<- []byte) {
+func startReader(file io.Reader, readerCh chan<- []byte) error {
 	defer close(readerCh)
 	reader := bufio.NewReader(file)
 
@@ -183,34 +189,36 @@ func startReader(file *os.File, readerCh chan<- []byte) {
 		n, err := reader.Read(buf)
 		if err != nil {
 			if err != io.EOF {
-				ErrorAndExit("Failed to read from reader", err)
-			} else {
-				break
+				return fmt.Errorf("failed to read from reader: %w", err)
 			}
-
+			break
 		}
 		buf = buf[:n]
 		readerCh <- buf
 	}
+	return nil
 }
 
-func startParser(readerCh <-chan []byte, writerCh *writerChannel, skipErrors bool, skippedCount *int32) {
+func startParser(readerCh <-chan []byte, writerCh *writerChannel, skipErrors bool, skippedCount *int32) error {
 	defer writerCh.Close()
 
 	var buffer []byte
-Loop:
-	for {
-		data, ok := <-readerCh
-
-		if !ok {
-			break Loop
-		}
+	for data := range readerCh {
 		buffer = append(buffer, data...)
-		data, nextBuffer := splitBuffer(buffer)
+		parsedData, nextBuffer, err := splitBuffer(buffer)
+		if err != nil {
+			if skipErrors {
+				atomic.AddInt32(skippedCount, 1)
+				continue
+			} else {
+				return fmt.Errorf("error in splitBuffer: %w", err)
+			}
+		}
 		buffer = nextBuffer
-		parse(data, skipErrors, skippedCount, writerCh)
+		parse(parsedData, skipErrors, skippedCount, writerCh)
 	}
 	parse(buffer, skipErrors, skippedCount, writerCh)
+	return nil
 }
 
 func startWriter(
@@ -220,8 +228,7 @@ func startWriter(
 	skippedCount *int32,
 	serializer persistence.PayloadSerializer,
 	c *cli.Context,
-) {
-
+) error {
 	defer close(doneCh)
 
 	skipErrMode := c.Bool(FlagSkipErrorMode)
@@ -229,9 +236,11 @@ func startWriter(
 
 	switch writerCh.Type {
 	case kafkaMessageTypeReplicationTask:
-		writeReplicationTask(outputFile, writerCh, skippedCount, skipErrMode, headerMode, serializer, c)
+		return writeReplicationTask(outputFile, writerCh, skippedCount, skipErrMode, headerMode, serializer, c)
 	case kafkaMessageTypeVisibilityMsg:
-		writeVisibilityMessage(outputFile, writerCh, skippedCount, skipErrMode, headerMode, c)
+		return writeVisibilityMessage(outputFile, writerCh, skippedCount, skipErrMode, headerMode, c)
+	default:
+		return fmt.Errorf("unsupported message type: %v", writerCh.Type)
 	}
 }
 
@@ -243,24 +252,17 @@ func writeReplicationTask(
 	headerMode bool,
 	serializer persistence.PayloadSerializer,
 	c *cli.Context,
-) {
+) error {
 	filter := buildFilterFn(c.String(FlagWorkflowID), c.String(FlagRunID))
-Loop:
-	for {
-		task, ok := <-writerCh.ReplicationTaskChannel
-
-		if !ok {
-			break Loop
-		}
+	for task := range writerCh.ReplicationTaskChannel {
 		if filter(task) {
 			jsonStr, err := decodeReplicationTask(task, serializer)
 			if err != nil {
 				if !skipErrMode {
-					ErrorAndExit(malformedMessage, fmt.Errorf("failed to encode into json, err: %v", err))
-				} else {
-					atomic.AddInt32(skippedCount, 1)
-					continue Loop
+					return fmt.Errorf("malformed message, failed to encode into json: %w", err)
 				}
+				atomic.AddInt32(skippedCount, 1)
+				continue
 			}
 
 			var outStr string
@@ -276,10 +278,11 @@ Loop:
 			}
 			_, err = outputFile.WriteString(fmt.Sprintf("%v\n", outStr))
 			if err != nil {
-				ErrorAndExit("Failed to write to file", fmt.Errorf("err: %v", err))
+				return fmt.Errorf("failed to write to file: %w", err)
 			}
 		}
 	}
+	return nil
 }
 
 func writeVisibilityMessage(
@@ -289,24 +292,18 @@ func writeVisibilityMessage(
 	skipErrMode bool,
 	headerMode bool,
 	c *cli.Context,
-) {
+) error {
 	filter := buildFilterFnForVisibility(c.String(FlagWorkflowID), c.String(FlagRunID))
-Loop:
-	for {
-		msg, ok := <-writerCh.VisibilityMsgChannel
 
-		if !ok {
-			break Loop
-		}
+	for msg := range writerCh.VisibilityMsgChannel {
 		if filter(msg) {
 			jsonStr, err := json.Marshal(msg)
 			if err != nil {
 				if !skipErrMode {
-					ErrorAndExit(malformedMessage, fmt.Errorf("failed to encode into json, err: %v", err))
-				} else {
-					atomic.AddInt32(skippedCount, 1)
-					continue Loop
+					return fmt.Errorf("malformed message: failed to encode into json, err: %w", err)
 				}
+				atomic.AddInt32(skippedCount, 1)
+				continue
 			}
 
 			var outStr string
@@ -324,68 +321,78 @@ Loop:
 			}
 			_, err = outputFile.WriteString(fmt.Sprintf("%v\n", outStr))
 			if err != nil {
-				ErrorAndExit("Failed to write to file", fmt.Errorf("err: %v", err))
+				return fmt.Errorf("failed to write to file: %w", err)
 			}
 		}
 	}
+	return nil
 }
 
-func splitBuffer(buffer []byte) ([]byte, []byte) {
+func splitBuffer(buffer []byte) ([]byte, []byte, error) {
 	matches := r.FindAllIndex(buffer, -1)
 	if len(matches) == 0 {
-		ErrorAndExit(malformedMessage, errors.New("header not found, did you generate dump with -v"))
+		return nil, nil, fmt.Errorf("header not found, did you generate dump with -v")
 	}
 	splitIndex := matches[len(matches)-1][0]
-	return buffer[:splitIndex], buffer[splitIndex:]
+	return buffer[:splitIndex], buffer[splitIndex:], nil
 }
 
-func parse(bytes []byte, skipErrors bool, skippedCount *int32, writerCh *writerChannel) {
-	messages, skippedGetMsgCount := getMessages(bytes, skipErrors)
+func parse(bytes []byte, skipErrors bool, skippedCount *int32, writerCh *writerChannel) error {
+	messages, skippedGetMsgCount, err := getMessages(bytes, skipErrors)
+	if err != nil {
+		return fmt.Errorf("parsing failed: %w", err)
+	}
 	switch writerCh.Type {
 	case kafkaMessageTypeReplicationTask:
-		msgs, skippedDeserializeCount := deserializeMessages(messages, skipErrors)
+		msgs, skippedDeserializeCount, err := deserializeMessages(messages, skipErrors)
+		if err != nil {
+			return fmt.Errorf("parsing failed: %w", err)
+		}
 		atomic.AddInt32(skippedCount, skippedGetMsgCount+skippedDeserializeCount)
 		for _, msg := range msgs {
 			writerCh.ReplicationTaskChannel <- msg
 		}
 	case kafkaMessageTypeVisibilityMsg:
-		msgs, skippedDeserializeCount := deserializeVisibilityMessages(messages, skipErrors)
+		msgs, skippedDeserializeCount, err := deserializeVisibilityMessages(messages, skipErrors)
+		if err != nil {
+			return fmt.Errorf("parsing failed: %w", err)
+		}
 		atomic.AddInt32(skippedCount, skippedGetMsgCount+skippedDeserializeCount)
 		for _, msg := range msgs {
 			writerCh.VisibilityMsgChannel <- msg
 		}
 	}
+	return nil
 }
 
-func getMessages(data []byte, skipErrors bool) ([][]byte, int32) {
+func getMessages(data []byte, skipErrors bool) ([][]byte, int32, error) {
 	str := string(data)
 	messagesWithHeaders := r.Split(str, -1)
 	if len(messagesWithHeaders[0]) != 0 {
-		ErrorAndExit(malformedMessage, errors.New("got data chunk to handle that does not start with valid header"))
+		return nil, 0, fmt.Errorf(malformedMessage+"Error: %v", errors.New("got data chunk to handle that does not start with valid header"))
 	}
 	messagesWithHeaders = messagesWithHeaders[1:]
 	var rawMessages [][]byte
 	var skipped int32
 	for _, m := range messagesWithHeaders {
 		if len(m) == 0 {
-			ErrorAndExit(malformedMessage, errors.New("got empty message between valid headers"))
+			return nil, 0, fmt.Errorf(malformedMessage+"Error: %v", errors.New("got empty message between valid headers"))
 		}
 		curr := []byte(m)
 		messageStart := bytes.Index(curr, []byte{preambleVersion0})
 		if messageStart == -1 {
 			if !skipErrors {
-				ErrorAndExit(malformedMessage, errors.New("failed to find message preamble"))
-			} else {
-				skipped++
-				continue
+				return nil, 0, fmt.Errorf(malformedMessage+"Error: %v", errors.New("failed to find message preamble"))
 			}
+			skipped++
+			continue
 		}
 		rawMessages = append(rawMessages, curr[messageStart:])
 	}
-	return rawMessages, skipped
+	return rawMessages, skipped, nil
 }
 
-func deserializeMessages(messages [][]byte, skipErrors bool) ([]*types.ReplicationTask, int32) {
+func deserializeMessages(messages [][]byte, skipErrors bool) ([]*types.ReplicationTask, int32, error) {
 	var replicationTasks []*types.ReplicationTask
 	var skipped int32
 	for _, m := range messages {
@@ -393,15 +400,14 @@ func deserializeMessages(messages [][]byte, skipErrors bool) ([]*types.Replicati
 		err := decode(m, &task)
 		if err != nil {
 			if !skipErrors {
-				ErrorAndExit(malformedMessage, err)
-			} else {
-				skipped++
-				continue
+				return nil, 0, fmt.Errorf(malformedMessage+"Error: %v", err)
 			}
+			skipped++
+			continue
 		}
 		replicationTasks = append(replicationTasks, thrift.ToReplicationTask(&task))
 	}
-	return replicationTasks, skipped
+	return replicationTasks, skipped, nil
 }
 
 func decode(message []byte, val *replicator.ReplicationTask) error {
@@ -413,7 +419,7 @@ func decode(message []byte, val *replicator.ReplicationTask) error {
 	return val.FromWire(wireVal)
 }
 
-func deserializeVisibilityMessages(messages [][]byte, skipErrors bool) ([]*indexer.Message, int32) {
+func deserializeVisibilityMessages(messages [][]byte, skipErrors bool) ([]*indexer.Message, int32, error) {
 	var visibilityMessages []*indexer.Message
 	var skipped int32
 	for _, m := range messages {
@@ -421,15 +427,14 @@ func deserializeVisibilityMessages(messages [][]byte, skipErrors bool) ([]*index
 		err := decodeVisibility(m, &msg)
 		if err != nil {
 			if !skipErrors {
-				ErrorAndExit(malformedMessage, err)
-			} else {
-				skipped++
-				continue
+				return nil, 0, fmt.Errorf(malformedMessage+"Error: %v", err)
 			}
+			skipped++
+			continue
 		}
 		visibilityMessages = append(visibilityMessages, &msg)
 	}
-	return visibilityMessages, skipped
+	return visibilityMessages, skipped, nil
 }
 
 func decodeVisibility(message []byte, val *indexer.Message) error {
@@ -456,7 +461,7 @@ func doRereplicate(
 	endEventVersion *int64,
 	sourceCluster string,
 	adminClient admin.Client,
-) {
+) error {
 	fmt.Printf("Start rereplication for wid: %v, rid:%v \n", wid, rid)
 	if err := adminClient.ResendReplicationTasks(
 		ctx,
@@ -469,16 +474,22 @@ func doRereplicate(
 			EndVersion:    endEventVersion,
 		},
 	); err != nil {
-		ErrorAndExit("Failed to resend ndc workflow", err)
+		return commoncli.Problem("Failed to resend ndc workflow", err)
 	}
 	fmt.Printf("Done rereplication for wid: %v, rid:%v \n", wid, rid)
+	return nil
 }
 
 // AdminRereplicate parses will re-publish replication tasks to topic
-func AdminRereplicate(c *cli.Context) {
-	sourceCluster := getRequiredOption(c, FlagSourceCluster)
-
-	adminClient := cFactory.ServerAdminClient(c)
+func AdminRereplicate(c *cli.Context) error {
+	sourceCluster, err := getRequiredOption(c, FlagSourceCluster)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
+	adminClient, err := getDeps(c).ServerAdminClient(c)
+	if err != nil {
+		return err
+	}
 	var endEventID, endVersion *int64
 	if c.IsSet(FlagMaxEventID) {
 		endEventID = common.Int64Ptr(c.Int64(FlagMaxEventID) + 1)
@@ -486,18 +497,27 @@ func AdminRereplicate(c *cli.Context) {
 	if c.IsSet(FlagEndEventVersion) {
 		endVersion = common.Int64Ptr(c.Int64(FlagEndEventVersion))
 	}
-	domainID := getRequiredOption(c, FlagDomainID)
-	wid := getRequiredOption(c, FlagWorkflowID)
-	rid := getRequiredOption(c, FlagRunID)
+	domainID, err := getRequiredOption(c, FlagDomainID)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
+	wid, err := getRequiredOption(c, FlagWorkflowID)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
+	rid, err := getRequiredOption(c, FlagRunID)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
 	contextTimeout := defaultResendContextTimeout
 
-	if c.GlobalIsSet(FlagContextTimeout) {
-		contextTimeout = time.Duration(c.GlobalInt(FlagContextTimeout)) * time.Second
+	if c.IsSet(FlagContextTimeout) {
+		contextTimeout = time.Duration(c.Int(FlagContextTimeout)) * time.Second
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), contextTimeout)
+	ctx, cancel := context.WithTimeout(c.Context, contextTimeout)
 	defer cancel()
 
-	doRereplicate(
+	return doRereplicate(
 		ctx,
 		domainID,
 		wid,
@@ -513,7 +533,6 @@ func decodeReplicationTask(
 	task *types.ReplicationTask,
 	serializer persistence.PayloadSerializer,
 ) ([]byte, error) {
-
 	switch task.GetTaskType() {
 	case types.ReplicationTaskTypeHistoryV2:
 		historyV2 := task.GetHistoryTaskV2Attributes()

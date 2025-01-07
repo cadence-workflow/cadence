@@ -274,7 +274,7 @@ type (
 		AllowDomain             dynamicconfig.BoolPropertyFnWithDomainFilter
 	}
 
-	// ScannerConfig is the  config for ShardScanner workflow
+	// ScannerConfig is the config for ShardScanner workflow
 	ScannerConfig struct {
 		ScannerWFTypeName    string
 		FixerWFTypeName      string

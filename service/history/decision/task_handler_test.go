@@ -1641,6 +1641,7 @@ func newTaskHandlerForTest(t *testing.T) *taskHandlerImpl {
 	mockMutableState := execution.NewMockMutableState(ctrl)
 	mockDomainCache := cache.NewMockDomainCache(ctrl)
 	workflowSizeChecker := newWorkflowSizeChecker(
+		"testDomain",
 		testConfig.BlobSizeLimitWarn(constants.TestDomainName),
 		testConfig.BlobSizeLimitError(constants.TestDomainName),
 		testConfig.HistorySizeLimitWarn(constants.TestDomainName),

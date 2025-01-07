@@ -83,6 +83,29 @@ service MatchingAPI {
 
   // GetTaskListsByDomain returns all tasklist for a given domain
   rpc GetTaskListsByDomain(GetTaskListsByDomainRequest) returns (GetTaskListsByDomainResponse);
+
+  // UpdateTaskListPartitionConfig is called to update the partition config of a task list in the database
+  // and notify all partitions of the task list to update the cache of partition config of the task list
+  // his API is used by frontend service to forward update request initiated mostly from CLI tool to update
+  // the partition config of a task list and notify all partitions of the task list to update their cache of task list partition config.
+  rpc UpdateTaskListPartitionConfig(UpdateTaskListPartitionConfigRequest) returns (UpdateTaskListPartitionConfigResponse);
+
+  // RefreshTaskListPartitionConfig is called to update the cache of partition config of a task list
+  // This API is mainly used by matching service to notify a task list partition to update its cache
+  // of task list partition config. It can also be used by frontend service to forward request initiated
+  // from admin CLI tool to sync the cache of task list partition config if something goes wrong.
+  rpc RefreshTaskListPartitionConfig(RefreshTaskListPartitionConfigRequest) returns (RefreshTaskListPartitionConfigResponse);
+}
+
+message TaskListPartitionConfig {
+  int64 version = 1;
+  int32 num_read_partitions = 2;
+  int32 num_write_partitions = 3;
+}
+
+message LoadBalancerHints {
+  int64 backlog_count = 1;
+  double rate_per_second = 2;
 }
 
 message PollForDecisionTaskRequest {
@@ -112,6 +135,9 @@ message PollForDecisionTaskResponse {
   google.protobuf.Timestamp started_time = 16;
   map<string, api.v1.WorkflowQuery> queries = 17;
   int64 total_history_bytes = 18;
+  TaskListPartitionConfig partition_config = 19;
+  LoadBalancerHints load_balancer_hints = 20;
+  api.v1.AutoConfigHint auto_config_hint = 21;
 }
 
 message PollForActivityTaskRequest {
@@ -139,6 +165,9 @@ message PollForActivityTaskResponse {
   api.v1.WorkflowType workflow_type = 14;
   string workflow_domain = 15;
   api.v1.Header header = 16;
+  LoadBalancerHints load_balancer_hints = 17;
+  TaskListPartitionConfig partition_config = 19;
+  api.v1.AutoConfigHint auto_config_hint = 20;
 }
 
 message AddDecisionTaskRequest {
@@ -153,6 +182,7 @@ message AddDecisionTaskRequest {
 }
 
 message AddDecisionTaskResponse {
+  TaskListPartitionConfig partition_config = 1;
 }
 
 message AddActivityTaskRequest {
@@ -168,7 +198,6 @@ message AddActivityTaskRequest {
   map<string, string> partition_config = 10;
 }
 
-
 message ActivityTaskDispatchInfo {
   api.v1.HistoryEvent scheduled_event = 1;
   google.protobuf.Timestamp started_time = 2;
@@ -180,6 +209,7 @@ message ActivityTaskDispatchInfo {
 }
 
 message AddActivityTaskResponse {
+  TaskListPartitionConfig partition_config = 1;
 }
 
 message QueryWorkflowRequest {
@@ -222,6 +252,7 @@ message DescribeTaskListRequest {
 message DescribeTaskListResponse {
   repeated api.v1.PollerInfo pollers = 1;
   api.v1.TaskListStatus task_list_status = 2;
+  api.v1.TaskListPartitionConfig partition_config = 3;
 }
 
 message ListTaskListPartitionsRequest {
@@ -243,3 +274,22 @@ message GetTaskListsByDomainResponse {
   map <string,DescribeTaskListResponse> activity_task_list_map = 2;
 }
 
+message UpdateTaskListPartitionConfigRequest {
+  string domain_id = 1;
+  api.v1.TaskList task_list = 2;
+  api.v1.TaskListType task_list_type = 3;
+  api.v1.TaskListPartitionConfig partition_config = 4;
+}
+
+message UpdateTaskListPartitionConfigResponse {}
+
+message RefreshTaskListPartitionConfigRequest {
+  string domain_id = 1;
+  api.v1.TaskList task_list = 2;
+  api.v1.TaskListType task_list_type = 3;
+  api.v1.TaskListPartitionConfig partition_config = 4;
+}
+
+message RefreshTaskListPartitionConfigResponse {
+
+}

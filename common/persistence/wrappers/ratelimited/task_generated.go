@@ -99,6 +99,14 @@ func (c *ratelimitedTaskManager) GetOrphanTasks(ctx context.Context, request *pe
 	return c.wrapped.GetOrphanTasks(ctx, request)
 }
 
+func (c *ratelimitedTaskManager) GetTaskList(ctx context.Context, request *persistence.GetTaskListRequest) (gp1 *persistence.GetTaskListResponse, err error) {
+	if ok := c.rateLimiter.Allow(); !ok {
+		err = ErrPersistenceLimitExceeded
+		return
+	}
+	return c.wrapped.GetTaskList(ctx, request)
+}
+
 func (c *ratelimitedTaskManager) GetTaskListSize(ctx context.Context, request *persistence.GetTaskListSizeRequest) (gp1 *persistence.GetTaskListSizeResponse, err error) {
 	if ok := c.rateLimiter.Allow(); !ok {
 		err = ErrPersistenceLimitExceeded

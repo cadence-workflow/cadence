@@ -20,7 +20,7 @@
 // THE SOFTWARE.
 
 // Geneate rate limiter wrappers.
-//go:generate mockgen -package $GOPACKAGE -destination dataManagerInterfaces_mock.go -self_package github.com/uber/cadence/common/persistence github.com/uber/cadence/common/persistence Task,ShardManager,ExecutionManager,ExecutionManagerFactory,TaskManager,HistoryManager,DomainManager,QueueManager,ConfigStoreManager
+//go:generate mockgen -package $GOPACKAGE -destination data_manager_interfaces_mock.go -self_package github.com/uber/cadence/common/persistence github.com/uber/cadence/common/persistence Task,ShardManager,ExecutionManager,ExecutionManagerFactory,TaskManager,HistoryManager,DomainManager,QueueManager,ConfigStoreManager
 //go:generate gowrap gen -g -p . -i ConfigStoreManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/configstore_generated.go
 //go:generate gowrap gen -g -p . -i DomainManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/domain_generated.go
 //go:generate gowrap gen -g -p . -i HistoryManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/history_generated.go
@@ -458,27 +458,35 @@ type (
 
 	// TaskListInfo describes a state of a task list implementation.
 	TaskListInfo struct {
-		DomainID    string
-		Name        string
-		TaskType    int
-		RangeID     int64
-		AckLevel    int64
-		Kind        int
-		Expiry      time.Time
-		LastUpdated time.Time
+		DomainID                string
+		Name                    string
+		TaskType                int
+		RangeID                 int64
+		AckLevel                int64
+		Kind                    int
+		Expiry                  time.Time
+		LastUpdated             time.Time
+		AdaptivePartitionConfig *TaskListPartitionConfig
+	}
+
+	// TaskListPartitionConfig represents the configuration for task list partitions.
+	TaskListPartitionConfig struct {
+		Version            int64
+		NumReadPartitions  int
+		NumWritePartitions int
 	}
 
 	// TaskInfo describes either activity or decision task
 	TaskInfo struct {
-		DomainID               string
-		WorkflowID             string
-		RunID                  string
-		TaskID                 int64
-		ScheduleID             int64
-		ScheduleToStartTimeout int32
-		Expiry                 time.Time
-		CreatedTime            time.Time
-		PartitionConfig        map[string]string
+		DomainID                      string
+		WorkflowID                    string
+		RunID                         string
+		TaskID                        int64
+		ScheduleID                    int64
+		ScheduleToStartTimeoutSeconds int32
+		Expiry                        time.Time
+		CreatedTime                   time.Time
+		PartitionConfig               map[string]string
 	}
 
 	// TaskKey gives primary key info for a specific task
@@ -1026,6 +1034,17 @@ type (
 
 	// LeaseTaskListResponse is response to LeaseTaskListRequest
 	LeaseTaskListResponse struct {
+		TaskListInfo *TaskListInfo
+	}
+
+	GetTaskListRequest struct {
+		DomainID   string
+		DomainName string
+		TaskList   string
+		TaskType   int
+	}
+
+	GetTaskListResponse struct {
 		TaskListInfo *TaskListInfo
 	}
 
@@ -1590,6 +1609,7 @@ type (
 		GetName() string
 		LeaseTaskList(ctx context.Context, request *LeaseTaskListRequest) (*LeaseTaskListResponse, error)
 		UpdateTaskList(ctx context.Context, request *UpdateTaskListRequest) (*UpdateTaskListResponse, error)
+		GetTaskList(ctx context.Context, request *GetTaskListRequest) (*GetTaskListResponse, error)
 		ListTaskList(ctx context.Context, request *ListTaskListRequest) (*ListTaskListResponse, error)
 		DeleteTaskList(ctx context.Context, request *DeleteTaskListRequest) error
 		GetTaskListSize(ctx context.Context, request *GetTaskListSizeRequest) (*GetTaskListSizeResponse, error)
@@ -2009,4 +2029,52 @@ func HasMoreRowsToDelete(rowsDeleted, batchSize int) bool {
 		return false
 	}
 	return true
+}
+
+func (e *WorkflowExecutionInfo) CopyMemo() map[string][]byte {
+	if e.Memo == nil {
+		return nil
+	}
+	memo := make(map[string][]byte)
+	for k, v := range e.Memo {
+		val := make([]byte, len(v))
+		copy(val, v)
+		memo[k] = val
+	}
+	return memo
+}
+
+func (e *WorkflowExecutionInfo) CopySearchAttributes() map[string][]byte {
+	if e.SearchAttributes == nil {
+		return nil
+	}
+	searchAttr := make(map[string][]byte)
+	for k, v := range e.SearchAttributes {
+		val := make([]byte, len(v))
+		copy(val, v)
+		searchAttr[k] = val
+	}
+	return searchAttr
+}
+
+func (e *WorkflowExecutionInfo) CopyPartitionConfig() map[string]string {
+	if e.PartitionConfig == nil {
+		return nil
+	}
+	partitionConfig := make(map[string]string)
+	for k, v := range e.PartitionConfig {
+		partitionConfig[k] = v
+	}
+	return partitionConfig
+}
+
+func (p *TaskListPartitionConfig) ToInternalType() *types.TaskListPartitionConfig {
+	if p == nil {
+		return nil
+	}
+	return &types.TaskListPartitionConfig{
+		Version:            p.Version,
+		NumReadPartitions:  int32(p.NumReadPartitions),
+		NumWritePartitions: int32(p.NumWritePartitions),
+	}
 }

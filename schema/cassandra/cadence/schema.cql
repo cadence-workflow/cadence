@@ -260,13 +260,21 @@ CREATE TYPE task (
   partition_config map<text, text>
 );
 
+CREATE TYPE task_list_partition_config (
+  version              bigint,
+  num_read_partitions  int,
+  num_write_partitions int
+);
+
+
 CREATE TYPE task_list (
   domain_id        uuid,
   name             text,
   type             int, -- enum TaskRowType {ActivityTask, DecisionTask}
   ack_level        bigint, -- task_id of the last acknowledged message
   kind             int, -- enum TaskListKind {Normal, Sticky}
-  last_updated     timestamp
+  last_updated     timestamp,
+  adaptive_partition_config frozen<task_list_partition_config>
 );
 
 CREATE TYPE domain (

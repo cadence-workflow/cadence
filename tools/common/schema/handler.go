@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 )
 
 // VerifyCompatibleVersion ensures that the installed version is greater than or equal to the expected version.

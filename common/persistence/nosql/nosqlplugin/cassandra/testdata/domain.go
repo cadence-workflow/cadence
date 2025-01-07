@@ -40,7 +40,7 @@ func NewDomainRow(ts time.Time) *nosqlplugin.DomainRow {
 			OwnerEmail:  "test-domain-owner-email",
 			Data:        map[string]string{"k1": "v1"},
 		},
-		Config: &nosqlplugin.NoSQLInternalDomainConfig{
+		Config: &persistence.InternalDomainConfig{
 			Retention:                7 * 24 * time.Hour,
 			EmitMetric:               true,
 			ArchivalBucket:           "test-archival-bucket",

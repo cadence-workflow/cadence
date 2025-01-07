@@ -109,17 +109,17 @@ func (mr *MockPeerProviderMockRecorder) Stop() *gomock.Call {
 }
 
 // Subscribe mocks base method.
-func (m *MockPeerProvider) Subscribe(name string, notifyChannel chan<- *ChangedEvent) error {
+func (m *MockPeerProvider) Subscribe(name string, handler func(ChangedEvent)) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Subscribe", name, notifyChannel)
+	ret := m.ctrl.Call(m, "Subscribe", name, handler)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Subscribe indicates an expected call of Subscribe.
-func (mr *MockPeerProviderMockRecorder) Subscribe(name, notifyChannel interface{}) *gomock.Call {
+func (mr *MockPeerProviderMockRecorder) Subscribe(name, handler interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Subscribe", reflect.TypeOf((*MockPeerProvider)(nil).Subscribe), name, notifyChannel)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Subscribe", reflect.TypeOf((*MockPeerProvider)(nil).Subscribe), name, handler)
 }
 
 // WhoAmI mocks base method.

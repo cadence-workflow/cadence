@@ -29,6 +29,7 @@ import (
 
 const (
 	domainID     = "test-domain-id"
+	domainName   = "test-domain-name"
 	workflowID   = "test-workflow-id"
 	runID        = "test-run-id"
 	shardID      = 0

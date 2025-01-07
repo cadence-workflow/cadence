@@ -50,3 +50,9 @@ message RetryTaskV2Error {
 message ShardOwnershipLostError {
   string owner = 1;
 }
+
+message TaskListNotOwnedByHostError {
+  string owned_by_identity = 1;
+  string my_identity = 2;
+  string task_list_name = 3;
+}

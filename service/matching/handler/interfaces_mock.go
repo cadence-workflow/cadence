@@ -59,10 +59,10 @@ func (m *MockEngine) EXPECT() *MockEngineMockRecorder {
 }
 
 // AddActivityTask mocks base method.
-func (m *MockEngine) AddActivityTask(hCtx *handlerContext, request *types.AddActivityTaskRequest) (bool, error) {
+func (m *MockEngine) AddActivityTask(hCtx *handlerContext, request *types.AddActivityTaskRequest) (*types.AddActivityTaskResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddActivityTask", hCtx, request)
-	ret0, _ := ret[0].(bool)
+	ret0, _ := ret[0].(*types.AddActivityTaskResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -74,10 +74,10 @@ func (mr *MockEngineMockRecorder) AddActivityTask(hCtx, request interface{}) *go
 }
 
 // AddDecisionTask mocks base method.
-func (m *MockEngine) AddDecisionTask(hCtx *handlerContext, request *types.AddDecisionTaskRequest) (bool, error) {
+func (m *MockEngine) AddDecisionTask(hCtx *handlerContext, request *types.AddDecisionTaskRequest) (*types.AddDecisionTaskResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddDecisionTask", hCtx, request)
-	ret0, _ := ret[0].(bool)
+	ret0, _ := ret[0].(*types.AddDecisionTaskResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -148,10 +148,10 @@ func (mr *MockEngineMockRecorder) ListTaskListPartitions(hCtx, request interface
 }
 
 // PollForActivityTask mocks base method.
-func (m *MockEngine) PollForActivityTask(hCtx *handlerContext, request *types.MatchingPollForActivityTaskRequest) (*types.PollForActivityTaskResponse, error) {
+func (m *MockEngine) PollForActivityTask(hCtx *handlerContext, request *types.MatchingPollForActivityTaskRequest) (*types.MatchingPollForActivityTaskResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "PollForActivityTask", hCtx, request)
-	ret0, _ := ret[0].(*types.PollForActivityTaskResponse)
+	ret0, _ := ret[0].(*types.MatchingPollForActivityTaskResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -192,6 +192,21 @@ func (mr *MockEngineMockRecorder) QueryWorkflow(hCtx, request interface{}) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryWorkflow", reflect.TypeOf((*MockEngine)(nil).QueryWorkflow), hCtx, request)
 }
 
+// RefreshTaskListPartitionConfig mocks base method.
+func (m *MockEngine) RefreshTaskListPartitionConfig(hCtx *handlerContext, request *types.MatchingRefreshTaskListPartitionConfigRequest) (*types.MatchingRefreshTaskListPartitionConfigResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RefreshTaskListPartitionConfig", hCtx, request)
+	ret0, _ := ret[0].(*types.MatchingRefreshTaskListPartitionConfigResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RefreshTaskListPartitionConfig indicates an expected call of RefreshTaskListPartitionConfig.
+func (mr *MockEngineMockRecorder) RefreshTaskListPartitionConfig(hCtx, request interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RefreshTaskListPartitionConfig", reflect.TypeOf((*MockEngine)(nil).RefreshTaskListPartitionConfig), hCtx, request)
+}
+
 // RespondQueryTaskCompleted mocks base method.
 func (m *MockEngine) RespondQueryTaskCompleted(hCtx *handlerContext, request *types.MatchingRespondQueryTaskCompletedRequest) error {
 	m.ctrl.T.Helper()
@@ -230,6 +245,21 @@ func (mr *MockEngineMockRecorder) Stop() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockEngine)(nil).Stop))
 }
 
+// UpdateTaskListPartitionConfig mocks base method.
+func (m *MockEngine) UpdateTaskListPartitionConfig(hCtx *handlerContext, request *types.MatchingUpdateTaskListPartitionConfigRequest) (*types.MatchingUpdateTaskListPartitionConfigResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateTaskListPartitionConfig", hCtx, request)
+	ret0, _ := ret[0].(*types.MatchingUpdateTaskListPartitionConfigResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateTaskListPartitionConfig indicates an expected call of UpdateTaskListPartitionConfig.
+func (mr *MockEngineMockRecorder) UpdateTaskListPartitionConfig(hCtx, request interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTaskListPartitionConfig", reflect.TypeOf((*MockEngine)(nil).UpdateTaskListPartitionConfig), hCtx, request)
+}
+
 // MockHandler is a mock of Handler interface.
 type MockHandler struct {
 	ctrl     *gomock.Controller
@@ -254,11 +284,12 @@ func (m *MockHandler) EXPECT() *MockHandlerMockRecorder {
 }
 
 // AddActivityTask mocks base method.
-func (m *MockHandler) AddActivityTask(arg0 context.Context, arg1 *types.AddActivityTaskRequest) error {
+func (m *MockHandler) AddActivityTask(arg0 context.Context, arg1 *types.AddActivityTaskRequest) (*types.AddActivityTaskResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddActivityTask", arg0, arg1)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(*types.AddActivityTaskResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // AddActivityTask indicates an expected call of AddActivityTask.
@@ -268,11 +299,12 @@ func (mr *MockHandlerMockRecorder) AddActivityTask(arg0, arg1 interface{}) *gomo
 }
 
 // AddDecisionTask mocks base method.
-func (m *MockHandler) AddDecisionTask(arg0 context.Context, arg1 *types.AddDecisionTaskRequest) error {
+func (m *MockHandler) AddDecisionTask(arg0 context.Context, arg1 *types.AddDecisionTaskRequest) (*types.AddDecisionTaskResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddDecisionTask", arg0, arg1)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(*types.AddDecisionTaskResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // AddDecisionTask indicates an expected call of AddDecisionTask.
@@ -356,10 +388,10 @@ func (mr *MockHandlerMockRecorder) ListTaskListPartitions(arg0, arg1 interface{}
 }
 
 // PollForActivityTask mocks base method.
-func (m *MockHandler) PollForActivityTask(arg0 context.Context, arg1 *types.MatchingPollForActivityTaskRequest) (*types.PollForActivityTaskResponse, error) {
+func (m *MockHandler) PollForActivityTask(arg0 context.Context, arg1 *types.MatchingPollForActivityTaskRequest) (*types.MatchingPollForActivityTaskResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "PollForActivityTask", arg0, arg1)
-	ret0, _ := ret[0].(*types.PollForActivityTaskResponse)
+	ret0, _ := ret[0].(*types.MatchingPollForActivityTaskResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -400,6 +432,21 @@ func (mr *MockHandlerMockRecorder) QueryWorkflow(arg0, arg1 interface{}) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryWorkflow", reflect.TypeOf((*MockHandler)(nil).QueryWorkflow), arg0, arg1)
 }
 
+// RefreshTaskListPartitionConfig mocks base method.
+func (m *MockHandler) RefreshTaskListPartitionConfig(arg0 context.Context, arg1 *types.MatchingRefreshTaskListPartitionConfigRequest) (*types.MatchingRefreshTaskListPartitionConfigResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RefreshTaskListPartitionConfig", arg0, arg1)
+	ret0, _ := ret[0].(*types.MatchingRefreshTaskListPartitionConfigResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RefreshTaskListPartitionConfig indicates an expected call of RefreshTaskListPartitionConfig.
+func (mr *MockHandlerMockRecorder) RefreshTaskListPartitionConfig(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RefreshTaskListPartitionConfig", reflect.TypeOf((*MockHandler)(nil).RefreshTaskListPartitionConfig), arg0, arg1)
+}
+
 // RespondQueryTaskCompleted mocks base method.
 func (m *MockHandler) RespondQueryTaskCompleted(arg0 context.Context, arg1 *types.MatchingRespondQueryTaskCompletedRequest) error {
 	m.ctrl.T.Helper()
@@ -436,4 +483,19 @@ func (m *MockHandler) Stop() {
 func (mr *MockHandlerMockRecorder) Stop() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockHandler)(nil).Stop))
+}
+
+// UpdateTaskListPartitionConfig mocks base method.
+func (m *MockHandler) UpdateTaskListPartitionConfig(arg0 context.Context, arg1 *types.MatchingUpdateTaskListPartitionConfigRequest) (*types.MatchingUpdateTaskListPartitionConfigResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateTaskListPartitionConfig", arg0, arg1)
+	ret0, _ := ret[0].(*types.MatchingUpdateTaskListPartitionConfigResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateTaskListPartitionConfig indicates an expected call of UpdateTaskListPartitionConfig.
+func (mr *MockHandlerMockRecorder) UpdateTaskListPartitionConfig(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTaskListPartitionConfig", reflect.TypeOf((*MockHandler)(nil).UpdateTaskListPartitionConfig), arg0, arg1)
 }

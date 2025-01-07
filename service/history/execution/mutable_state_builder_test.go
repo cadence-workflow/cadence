@@ -35,13 +35,16 @@ import (
 	"github.com/uber-go/tally"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/checksum"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
+	commonConfig "github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/loggerimpl"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
@@ -50,6 +53,7 @@ import (
 	"github.com/uber/cadence/service/history/config"
 	"github.com/uber/cadence/service/history/constants"
 	"github.com/uber/cadence/service/history/events"
+	"github.com/uber/cadence/service/history/query"
 	"github.com/uber/cadence/service/history/shard"
 	shardCtx "github.com/uber/cadence/service/history/shard"
 )
@@ -887,6 +891,9 @@ func (s *mutableStateSuite) newDomainCacheEntry() *cache.DomainCacheEntry {
 		&persistence.DomainReplicationConfig{},
 		1,
 		nil,
+		0,
+		0,
+		0,
 	)
 }
 
@@ -1040,6 +1047,9 @@ func TestNewMutableStateBuilderWithEventV2(t *testing.T) {
 		&persistence.DomainReplicationConfig{},
 		1,
 		nil,
+		0,
+		0,
+		0,
 	)
 
 	NewMutableStateBuilderWithEventV2(mockShard, log.NewNoop(), "A82146B5-7A5C-4660-9195-E80E5161EC56", domainCache)
@@ -1952,4 +1962,1653 @@ func TestMutableStateBuilder_CopyToPersistence_roundtrip(t *testing.T) {
 		assert.Equal(t, execution, out)
 
 	}
+}
+
+func TestMutableStateBuilder_closeTransactionHandleWorkflowReset(t *testing.T) {
+
+	t1 := time.Unix(123, 0)
+	now := time.Unix(500, 0)
+
+	badBinaryID := "bad-binary-id"
+
+	mockDomainEntryWithBadBinary := cache.NewLocalDomainCacheEntryForTest(&persistence.DomainInfo{Name: "domain"}, &persistence.DomainConfig{
+		BadBinaries: types.BadBinaries{
+			Binaries: map[string]*types.BadBinaryInfo{
+				badBinaryID: &types.BadBinaryInfo{
+					Reason:          "some-reason",
+					Operator:        "",
+					CreatedTimeNano: common.Ptr(t1.UnixNano()),
+				},
+			},
+		},
+	}, "cluster0")
+
+	mockDomainEntryWithoutBadBinary := cache.NewLocalDomainCacheEntryForTest(nil, &persistence.DomainConfig{
+		BadBinaries: types.BadBinaries{
+			Binaries: map[string]*types.BadBinaryInfo{},
+		},
+	}, "cluster0")
+
+	tests := map[string]struct {
+		policyIn                         TransactionPolicy
+		shardContextExpectations         func(mockCache *events.MockCache, shard *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache)
+		mutableStateBuilderStartingState func(m *mutableStateBuilder)
+
+		expectedEndState func(t *testing.T, m *mutableStateBuilder)
+		expectedErr      error
+	}{
+		"a workflow with reset point which is running - the expectation is that this should be able to successfully find the domain to reset and add a transfer task": {
+
+			policyIn: TransactionPolicyActive,
+			mutableStateBuilderStartingState: func(m *mutableStateBuilder) {
+				// the workflow's running
+				m.executionInfo = &persistence.WorkflowExecutionInfo{
+					CloseStatus: persistence.WorkflowCloseStatusNone,
+					DomainID:    "some-domain-id",
+					WorkflowID:  "wf-id",
+					AutoResetPoints: &types.ResetPoints{
+						Points: []*types.ResetPointInfo{
+							{
+								BinaryChecksum:           badBinaryID,
+								RunID:                    "",
+								FirstDecisionCompletedID: 0,
+								CreatedTimeNano:          common.Ptr(t1.UnixNano()),
+								ExpiringTimeNano:         nil,
+								Resettable:               true,
+							},
+						},
+					},
+				}
+			},
+			shardContextExpectations: func(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache) {
+				shardContext.EXPECT().GetDomainCache().Return(mockDomainCache).Times(1)
+				mockDomainCache.EXPECT().GetDomainByID("some-domain-id").Return(mockDomainEntryWithBadBinary, nil)
+			},
+			expectedEndState: func(t *testing.T, m *mutableStateBuilder) {
+				assert.Equal(t, []persistence.Task{
+					&persistence.ResetWorkflowTask{
+						TaskData: persistence.TaskData{
+							Version: common.EmptyVersion,
+						},
+					},
+				}, m.insertTransferTasks)
+			},
+		},
+		"a workflow with reset point which is running for a domain without a bad binary - the expectation is this will not add any transfer tasks": {
+
+			policyIn: TransactionPolicyActive,
+			mutableStateBuilderStartingState: func(m *mutableStateBuilder) {
+				// the workflow's running
+				m.executionInfo = &persistence.WorkflowExecutionInfo{
+					CloseStatus: persistence.WorkflowCloseStatusNone,
+					DomainID:    "some-domain-id",
+					WorkflowID:  "wf-id",
+					AutoResetPoints: &types.ResetPoints{
+						Points: []*types.ResetPointInfo{
+							{
+								BinaryChecksum:           badBinaryID,
+								RunID:                    "",
+								FirstDecisionCompletedID: 0,
+								CreatedTimeNano:          common.Ptr(t1.UnixNano()),
+								ExpiringTimeNano:         nil,
+								Resettable:               true,
+							},
+						},
+					},
+				}
+			},
+			shardContextExpectations: func(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache) {
+				shardContext.EXPECT().GetDomainCache().Return(mockDomainCache).Times(1)
+				mockDomainCache.EXPECT().GetDomainByID("some-domain-id").Return(mockDomainEntryWithoutBadBinary, nil)
+			},
+			expectedEndState: func(t *testing.T, m *mutableStateBuilder) {
+				assert.Equal(t, []persistence.Task(nil), m.insertTransferTasks)
+			},
+		},
+		"a workflow withithout auto-reset point which is running for a domain": {
+
+			policyIn: TransactionPolicyActive,
+			mutableStateBuilderStartingState: func(m *mutableStateBuilder) {
+				// the workflow's running
+				m.executionInfo = &persistence.WorkflowExecutionInfo{
+					CloseStatus: persistence.WorkflowCloseStatusNone,
+					DomainID:    "some-domain-id",
+					WorkflowID:  "wf-id",
+				}
+			},
+			shardContextExpectations: func(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache) {
+				shardContext.EXPECT().GetDomainCache().Return(mockDomainCache).Times(1)
+				mockDomainCache.EXPECT().GetDomainByID("some-domain-id").Return(mockDomainEntryWithoutBadBinary, nil)
+			},
+			expectedEndState: func(t *testing.T, m *mutableStateBuilder) {
+				assert.Equal(t, []persistence.Task(nil), m.insertTransferTasks)
+			},
+		},
+		"a workflow with reset point which is running but which has child workflows": {
+			policyIn: TransactionPolicyActive,
+			shardContextExpectations: func(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache) {
+			},
+			mutableStateBuilderStartingState: func(m *mutableStateBuilder) {
+				// the workflow's running
+				m.executionInfo = &persistence.WorkflowExecutionInfo{
+					CloseStatus: persistence.WorkflowCloseStatusNone,
+				}
+
+				// there's some child workflow that's due to be updated
+				m.pendingChildExecutionInfoIDs = map[int64]*persistence.ChildExecutionInfo{
+					1: &persistence.ChildExecutionInfo{},
+				}
+			},
+			expectedEndState: func(t *testing.T, m *mutableStateBuilder) {
+				assert.Equal(t, []persistence.Task(nil), m.insertTransferTasks)
+			},
+		},
+		"Transaction policy passive - no expected resets": {
+			policyIn: TransactionPolicyPassive,
+			shardContextExpectations: func(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache) {
+			},
+			mutableStateBuilderStartingState: func(m *mutableStateBuilder) {
+				// the workflow's running
+				m.executionInfo = &persistence.WorkflowExecutionInfo{
+					CloseStatus: persistence.WorkflowCloseStatusNone,
+				}
+
+				// there's some child workflow that's due to be updated
+				m.pendingChildExecutionInfoIDs = map[int64]*persistence.ChildExecutionInfo{
+					1: &persistence.ChildExecutionInfo{},
+				}
+			},
+			expectedEndState: func(t *testing.T, m *mutableStateBuilder) {
+				assert.Equal(t, []persistence.Task(nil), m.insertTransferTasks)
+			},
+		},
+	}
+
+	for name, td := range tests {
+		t.Run(name, func(t *testing.T) {
+
+			ctrl := gomock.NewController(t)
+
+			shardContext := shard.NewMockContext(ctrl)
+			mockCache := events.NewMockCache(ctrl)
+			mockDomainCache := cache.NewMockDomainCache(ctrl)
+
+			td.shardContextExpectations(mockCache, shardContext, mockDomainCache)
+
+			nowClock := clock.NewMockedTimeSourceAt(now)
+
+			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache)
+
+			td.mutableStateBuilderStartingState(msb)
+
+			msb.timeSource = nowClock
+			err := msb.closeTransactionHandleWorkflowReset(td.policyIn)
+			assert.Equal(t, td.expectedErr, err)
+			td.expectedEndState(t, msb)
+		})
+	}
+}
+
+func TestMutableStateBuilder_GetVersionHistoriesStart(t *testing.T) {
+
+	tests := map[string]struct {
+		mutableStateBuilderStartingState func(m *mutableStateBuilder)
+
+		expectedVersion int64
+		expectedErr     error
+	}{
+		"A mutable state with version history": {
+			mutableStateBuilderStartingState: func(m *mutableStateBuilder) {
+				m.versionHistories = &persistence.VersionHistories{
+					CurrentVersionHistoryIndex: 0,
+					Histories: []*persistence.VersionHistory{
+						{
+							BranchToken: []byte("branch-token1"),
+							Items: []*persistence.VersionHistoryItem{
+								{
+									EventID: 100,
+									Version: 23,
+								},
+								{
+									EventID: 401,
+									Version: 424,
+								},
+							},
+						},
+						{
+							BranchToken: []byte("branch-token1"),
+							Items: []*persistence.VersionHistoryItem{
+								{
+									EventID: 200,
+									Version: 123,
+								},
+								{
+									EventID: 201,
+									Version: 124,
+								},
+							},
+						},
+					},
+				}
+			},
+			expectedVersion: 23,
+		},
+		"invalid / partial version history ": {
+			mutableStateBuilderStartingState: func(m *mutableStateBuilder) {
+				m.versionHistories = &persistence.VersionHistories{
+					CurrentVersionHistoryIndex: 0,
+					Histories: []*persistence.VersionHistory{
+						{
+							BranchToken: []byte("branch-token1"),
+							Items:       []*persistence.VersionHistoryItem{},
+						},
+						{
+							BranchToken: []byte("branch-token2"),
+							Items:       []*persistence.VersionHistoryItem{},
+						},
+					},
+				}
+			},
+			expectedErr:     &types.BadRequestError{Message: "version history is empty."},
+			expectedVersion: 0,
+		},
+		"invalid / partial version history - branch not available": {
+			mutableStateBuilderStartingState: func(m *mutableStateBuilder) {
+				m.versionHistories = &persistence.VersionHistories{
+					CurrentVersionHistoryIndex: 10,
+					Histories: []*persistence.VersionHistory{
+						{
+							BranchToken: []byte("branch-token1"),
+							Items:       []*persistence.VersionHistoryItem{},
+						},
+						{
+							BranchToken: []byte("branch-token1"),
+							Items:       []*persistence.VersionHistoryItem{},
+						},
+					},
+				}
+			},
+			expectedErr:     &types.BadRequestError{Message: "getting branch index: 10, available branch count: 2"},
+			expectedVersion: 0,
+		},
+		"nil version history": {
+			mutableStateBuilderStartingState: func(m *mutableStateBuilder) {
+			},
+			expectedVersion: common.EmptyVersion,
+		},
+	}
+
+	for name, td := range tests {
+		t.Run(name, func(t *testing.T) {
+
+			ctrl := gomock.NewController(t)
+
+			shardContext := shard.NewMockContext(ctrl)
+			mockCache := events.NewMockCache(ctrl)
+			mockDomainCache := cache.NewMockDomainCache(ctrl)
+
+			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache)
+
+			td.mutableStateBuilderStartingState(msb)
+
+			res, err := msb.GetStartVersion()
+			assert.Equal(t, td.expectedErr, err)
+			assert.Equal(t, td.expectedVersion, res)
+		})
+	}
+}
+
+func TestIsCurrentWorkflowGuaranteed(t *testing.T) {
+	tests := []struct {
+		name           string
+		stateInDB      int
+		expectedResult bool
+	}{
+		{
+			name:           "Workflow is created",
+			stateInDB:      persistence.WorkflowStateCreated,
+			expectedResult: true,
+		},
+		{
+			name:           "Workflow is running",
+			stateInDB:      persistence.WorkflowStateRunning,
+			expectedResult: true,
+		},
+		{
+			name:           "Workflow is completed",
+			stateInDB:      persistence.WorkflowStateCompleted,
+			expectedResult: false,
+		},
+		{
+			name:           "Workflow is zombie",
+			stateInDB:      persistence.WorkflowStateZombie,
+			expectedResult: false,
+		},
+		{
+			name:           "Workflow is void",
+			stateInDB:      persistence.WorkflowStateVoid,
+			expectedResult: false,
+		},
+		{
+			name:           "Workflow is corrupted",
+			stateInDB:      persistence.WorkflowStateCorrupted,
+			expectedResult: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msb := mutableStateBuilder{}
+			msb.stateInDB = tt.stateInDB
+			result := msb.IsCurrentWorkflowGuaranteed()
+			assert.Equal(t, tt.expectedResult, result)
+		})
+	}
+
+	assert.Panics(t, func() {
+		msb := mutableStateBuilder{}
+		msb.stateInDB = 123
+		msb.IsCurrentWorkflowGuaranteed()
+	})
+}
+
+// this is a pretty poor test, the actual logic is better tested in the
+// unit tests for getBackoffInterval()
+func TestGetRetryBackoffDuration(t *testing.T) {
+
+	tests := []struct {
+		name            string
+		retryPolicy     *persistence.WorkflowExecutionInfo
+		errorReason     string
+		expectedBackoff time.Duration
+	}{
+		{
+			name: "NoRetryPolicy",
+			retryPolicy: &persistence.WorkflowExecutionInfo{
+				HasRetryPolicy: false,
+			},
+			errorReason:     "some error reason",
+			expectedBackoff: backoff.NoBackoff,
+		},
+		{
+			name: "WithRetryPolicy",
+			retryPolicy: &persistence.WorkflowExecutionInfo{
+				HasRetryPolicy:     true,
+				ExpirationTime:     time.Now().Add(time.Hour),
+				Attempt:            1,
+				MaximumAttempts:    5,
+				BackoffCoefficient: 2.0,
+				InitialInterval:    12,
+				NonRetriableErrors: []string{"non-retriable-error"},
+			},
+			errorReason:     "some error reason",
+			expectedBackoff: 24 * time.Second,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			t1 := time.Unix(1730247795, 0)
+
+			msb := mutableStateBuilder{}
+
+			msb.executionInfo = tt.retryPolicy
+			msb.timeSource = clock.NewMockedTimeSourceAt(t1)
+
+			duration := msb.GetRetryBackoffDuration(tt.errorReason)
+			assert.Equal(t, tt.expectedBackoff, duration)
+		})
+	}
+}
+
+func TestGetCronRetryBackoffDuration(t *testing.T) {
+
+	t1 := time.Unix(1730247795, 0)
+
+	sampleVersionHistory := &persistence.VersionHistories{
+		CurrentVersionHistoryIndex: 0,
+		Histories: []*persistence.VersionHistory{
+			{
+				BranchToken: []byte("branch-token1"),
+				Items: []*persistence.VersionHistoryItem{
+					{
+						EventID: 100,
+						Version: 23,
+					},
+					{
+						EventID: 401,
+						Version: 424,
+					},
+				},
+			},
+			{
+				BranchToken: []byte("branch-token1"),
+				Items: []*persistence.VersionHistoryItem{
+					{
+						EventID: 200,
+						Version: 123,
+					},
+					{
+						EventID: 201,
+						Version: 124,
+					},
+				},
+			},
+		},
+	}
+
+	startEvent := &types.HistoryEvent{
+		ID:                                      1,
+		WorkflowExecutionStartedEventAttributes: &types.WorkflowExecutionStartedEventAttributes{},
+	}
+
+	tests := map[string]struct {
+		startingExecutionInfo    *persistence.WorkflowExecutionInfo
+		expectedErr              bool
+		shardContextExpectations func(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache)
+		expectedBackoff          time.Duration
+	}{
+		"with simple, valid cron schedule": {
+			startingExecutionInfo: &persistence.WorkflowExecutionInfo{
+				DomainID:       "domain-id",
+				CronSchedule:   "* * * * *",
+				RunID:          "run-id",
+				WorkflowID:     "wid",
+				StartTimestamp: t1,
+			},
+			shardContextExpectations: func(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache) {
+				shardContext.EXPECT().GetShardID().Return(12)
+				mockCache.EXPECT().GetEvent(gomock.Any(), 12, "domain-id", "wid", "run-id", int64(1), int64(1), []byte("branch-token1")).Return(startEvent, nil)
+			},
+			expectedBackoff: 45 * time.Second,
+		},
+		"with no cron schedule": {
+			startingExecutionInfo: &persistence.WorkflowExecutionInfo{
+				DomainID:       "domain-id",
+				RunID:          "run-id",
+				WorkflowID:     "wid",
+				StartTimestamp: t1,
+			},
+			shardContextExpectations: func(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache) {
+			},
+			expectedBackoff: backoff.NoBackoff,
+		},
+		"with invalid start event": {
+			startingExecutionInfo: &persistence.WorkflowExecutionInfo{
+				DomainID:       "domain-id",
+				RunID:          "run-id",
+				WorkflowID:     "wid",
+				CronSchedule:   "* * * * *",
+				StartTimestamp: t1,
+			},
+			shardContextExpectations: func(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache) {
+				shardContext.EXPECT().GetShardID().Return(12)
+				mockCache.EXPECT().GetEvent(gomock.Any(), 12, "domain-id", "wid", "run-id", int64(1), int64(1), []byte("branch-token1")).Return(nil, assert.AnError)
+			},
+			expectedBackoff: backoff.NoBackoff,
+			expectedErr:     true,
+		},
+	}
+
+	for name, td := range tests {
+		t.Run(name, func(t *testing.T) {
+
+			ctrl := gomock.NewController(t)
+
+			shardContext := shard.NewMockContext(ctrl)
+			mockCache := events.NewMockCache(ctrl)
+			mockDomainCache := cache.NewMockDomainCache(ctrl)
+
+			td.shardContextExpectations(mockCache, shardContext, mockDomainCache)
+
+			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache)
+
+			msb.executionInfo = td.startingExecutionInfo
+			msb.versionHistories = sampleVersionHistory
+			msb.timeSource = clock.NewMockedTimeSourceAt(t1)
+
+			duration, err := msb.GetCronBackoffDuration(context.Background())
+			assert.Equal(t, td.expectedBackoff, duration)
+			if td.expectedErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestStartTransactionHandleFailover(t *testing.T) {
+
+	tests := map[string]struct {
+		incomingTaskVersion       int64
+		currentVersion            int64
+		decisionManagerAffordance func(m *MockmutableStateDecisionTaskManager)
+		expectFlushBeforeReady    bool
+		expectedErr               bool
+	}{
+		"Failing over from cluster2 to cluster1 - passive -> passive: There's an inflight decision, but it's from an earlier version": {
+			incomingTaskVersion: 10,
+			currentVersion:      2,
+			decisionManagerAffordance: func(m *MockmutableStateDecisionTaskManager) {
+				m.EXPECT().GetInFlightDecision().Return(&DecisionInfo{
+					Version: 2,
+				}, true)
+			},
+			expectFlushBeforeReady: false,
+		},
+		// todo: David.porter - look a bit more into why this could occur and write a better description
+		// about what the intent is, because this is a unit test without a clear intent or outcome.
+		// At the time of writing this test I believe this is a migration case, but I'm not 100% sure and
+		// need to do some runtime debugging.
+		"empty version": {
+			incomingTaskVersion: common.EmptyVersion,
+			currentVersion:      2,
+			decisionManagerAffordance: func(m *MockmutableStateDecisionTaskManager) {
+				m.EXPECT().GetInFlightDecision().Return(&DecisionInfo{
+					Version: 2,
+				}, true)
+			},
+			expectFlushBeforeReady: false,
+		},
+		"active -> passive - when there's an inflight decision from an earlier version": {
+			incomingTaskVersion: 12,
+			currentVersion:      11,
+			decisionManagerAffordance: func(m *MockmutableStateDecisionTaskManager) {
+				m.EXPECT().GetInFlightDecision().Return(&DecisionInfo{
+					Version:    2,
+					StartedID:  123,
+					ScheduleID: 124,
+					RequestID:  "requestID",
+				}, true)
+				m.EXPECT().AddDecisionTaskFailedEvent(int64(124), int64(123), types.DecisionTaskFailedCauseFailoverCloseDecision, gomock.Any(), "history-service", gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any())
+
+				m.EXPECT().HasInFlightDecision().Return(true)
+				m.EXPECT().HasInFlightDecision().Return(true)
+				m.EXPECT().HasPendingDecision().Return(true)
+			},
+			expectFlushBeforeReady: true,
+		},
+		"There's a decision for for the same level as the failover version": {
+			incomingTaskVersion: 10,
+			currentVersion:      10,
+			decisionManagerAffordance: func(m *MockmutableStateDecisionTaskManager) {
+				m.EXPECT().GetInFlightDecision().Return(&DecisionInfo{
+					Version: 1,
+				}, true)
+			},
+			expectFlushBeforeReady: false,
+			expectedErr:            true,
+		},
+	}
+
+	for name, td := range tests {
+		t.Run(name, func(t *testing.T) {
+
+			ctrl := gomock.NewController(t)
+
+			shardContext := shardCtx.NewMockContext(ctrl)
+
+			decisionManager := NewMockmutableStateDecisionTaskManager(ctrl)
+			td.decisionManagerAffordance(decisionManager)
+
+			shardContext.EXPECT().GetConfig().Return(&config.Config{
+				NumberOfShards:                        3,
+				IsAdvancedVisConfigExist:              false,
+				MaxResponseSize:                       0,
+				MutableStateChecksumInvalidateBefore:  dynamicconfig.GetFloatPropertyFn(10),
+				MutableStateChecksumVerifyProbability: dynamicconfig.GetIntPropertyFilteredByDomain(0.0),
+				EnableReplicationTaskGeneration:       func(_ string, _ string) bool { return true },
+				HostName:                              "test-host",
+			}).Times(1)
+
+			clusterMetadata := cluster.NewMetadata(
+				10,
+				"cluster0",
+				"cluster0",
+				map[string]commonConfig.ClusterInformation{
+					"cluster0": commonConfig.ClusterInformation{
+						Enabled:                true,
+						InitialFailoverVersion: 1,
+					},
+					"cluster1": commonConfig.ClusterInformation{
+						Enabled:                true,
+						InitialFailoverVersion: 0,
+					},
+					"cluster2": commonConfig.ClusterInformation{
+						Enabled:                true,
+						InitialFailoverVersion: 2,
+					},
+				},
+				func(string) bool { return false },
+				metrics.NewNoopMetricsClient(),
+				loggerimpl.NewNopLogger(),
+			)
+
+			domainEntry := cache.NewDomainCacheEntryForTest(&persistence.DomainInfo{
+				ID:   "domain-id",
+				Name: "domain",
+			},
+				&persistence.DomainConfig{},
+				true,
+				&persistence.DomainReplicationConfig{
+					ActiveClusterName: "cluster0",
+					Clusters: []*persistence.ClusterReplicationConfig{
+						{ClusterName: "cluster0"},
+						{ClusterName: "cluster1"},
+						{ClusterName: "cluster2"},
+					},
+				}, 0, nil, 0, 0, 0)
+
+			msb := mutableStateBuilder{
+				decisionTaskManager: decisionManager,
+				shard:               shardContext,
+				domainEntry:         domainEntry,
+				clusterMetadata:     clusterMetadata,
+				currentVersion:      td.currentVersion,
+				versionHistories: &persistence.VersionHistories{
+					CurrentVersionHistoryIndex: 0,
+					Histories: []*persistence.VersionHistory{
+						{
+							BranchToken: []byte("token"),
+							Items: []*persistence.VersionHistoryItem{
+								{
+									EventID: 3,
+									Version: 10,
+								},
+								{
+									EventID: 2,
+									Version: 2,
+								},
+							},
+						},
+					},
+				},
+				executionInfo: &persistence.WorkflowExecutionInfo{
+					DomainID:               "domainID",
+					WorkflowID:             "workflowID",
+					RunID:                  "some-example-run",
+					FirstExecutionRunID:    "",
+					ParentDomainID:         "",
+					ParentWorkflowID:       "",
+					ParentRunID:            "",
+					InitiatedID:            0,
+					CompletionEventBatchID: 0,
+					CompletionEvent:        nil,
+					State:                  0,
+					CloseStatus:            0,
+					LastFirstEventID:       0,
+					LastEventTaskID:        0,
+					NextEventID:            0,
+					LastProcessedEvent:     0,
+				},
+			}
+
+			msb.hBuilder = NewHistoryBuilder(&msb)
+
+			flushBeforeReady, err := msb.startTransactionHandleDecisionFailover(td.incomingTaskVersion)
+			if td.expectedErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.Equal(t, td.expectFlushBeforeReady, flushBeforeReady)
+		})
+	}
+}
+
+func TestSimpleGetters(t *testing.T) {
+
+	msb := createMSB()
+	assert.Equal(t, msb.versionHistories, msb.GetVersionHistories())
+
+	branchToken, err := msb.GetCurrentBranchToken()
+	assert.Equal(t, msb.versionHistories.Histories[0].BranchToken, branchToken)
+	assert.NoError(t, err)
+	assert.Equal(t, msb.currentVersion, msb.GetCurrentVersion())
+	assert.Equal(t, msb.domainEntry, msb.GetDomainEntry())
+	assert.Equal(t, msb.executionInfo, msb.GetExecutionInfo())
+	assert.Equal(t, msb.hBuilder, msb.GetHistoryBuilder())
+	assert.Equal(t, msb.executionStats.HistorySize, msb.GetHistorySize())
+	assert.Equal(t, msb.executionInfo.LastFirstEventID, msb.GetLastFirstEventID())
+	lastWriteVersion, err := msb.GetLastWriteVersion()
+
+	item, err := msb.versionHistories.Histories[0].GetLastItem()
+	assert.NoError(t, err)
+	assert.Equal(t, item.Version, lastWriteVersion)
+
+	assert.Equal(t, msb.executionInfo.NextEventID, msb.GetNextEventID())
+	assert.Equal(t, msb.pendingRequestCancelInfoIDs, msb.GetPendingRequestCancelExternalInfos())
+	assert.Equal(t, msb.executionInfo.LastProcessedEvent, msb.GetPreviousStartedEventID())
+	assert.Equal(t, msb.queryRegistry, msb.GetQueryRegistry())
+
+	startVersion, err := msb.GetStartVersion()
+	assert.NoError(t, err)
+	assert.Equal(t, msb.versionHistories.Histories[0].Items[0].Version, startVersion)
+	assert.Equal(t, msb.insertTimerTasks, msb.GetTimerTasks())
+	assert.Equal(t, msb.insertTransferTasks, msb.GetTransferTasks())
+	assert.Equal(t, msb.nextEventIDInDB, msb.GetUpdateCondition())
+	assert.Equal(t, msb.versionHistories, msb.GetVersionHistories())
+
+	state, closeStatus := msb.GetWorkflowStateCloseStatus()
+	assert.Equal(t, msb.executionInfo.CloseStatus, closeStatus)
+	assert.Equal(t, msb.executionInfo.State, state)
+	assert.Equal(t, &types.WorkflowType{Name: msb.executionInfo.WorkflowTypeName}, msb.GetWorkflowType())
+
+	pendingActivityInfo, activityInfoIsPresent := msb.GetActivityInfo(1232)
+	assert.Equal(t, msb.pendingActivityInfoIDs[1232], pendingActivityInfo)
+	assert.True(t, activityInfoIsPresent)
+
+	assert.Equal(t, msb.pendingActivityInfoIDs, msb.GetPendingActivityInfos())
+
+	pendingRequestCancelledInfo, ok := msb.GetRequestCancelInfo(13)
+	assert.Equal(t, msb.pendingRequestCancelInfoIDs[13], pendingRequestCancelledInfo)
+	assert.True(t, ok)
+
+	pendingChildExecutions, ok := msb.GetChildExecutionInfo(1)
+	assert.Equal(t, msb.pendingChildExecutionInfoIDs[1], pendingChildExecutions)
+	assert.True(t, ok)
+
+}
+
+func TestMutableState_IsCurrentWorkflowGuaranteed(t *testing.T) {
+	tests := map[string]struct {
+		state    int
+		expected bool
+	}{
+		"created": {
+			state:    persistence.WorkflowStateCreated,
+			expected: true,
+		},
+		"running": {
+			state:    persistence.WorkflowStateCreated,
+			expected: true,
+		},
+		"completed": {
+			state:    persistence.WorkflowStateCompleted,
+			expected: false,
+		},
+		"void": {
+			state:    persistence.WorkflowStateVoid,
+			expected: false,
+		},
+		"zombie state": {
+			state:    persistence.WorkflowStateZombie,
+			expected: false,
+		},
+		"corrupted state": {
+			state:    persistence.WorkflowStateCorrupted,
+			expected: false,
+		},
+	}
+
+	for name, td := range tests {
+		t.Run(name, func(t *testing.T) {
+			msb := mutableStateBuilder{
+				stateInDB: td.state,
+			}
+			assert.Equal(t, td.expected, msb.IsCurrentWorkflowGuaranteed())
+		})
+	}
+}
+
+func createMSB() mutableStateBuilder {
+
+	sampleDomain := cache.NewDomainCacheEntryForTest(&persistence.DomainInfo{ID: "domain-id", Name: "domain"}, &persistence.DomainConfig{}, true, nil, 0, nil, 0, 0, 0)
+
+	return mutableStateBuilder{
+		pendingActivityInfoIDs: map[int64]*persistence.ActivityInfo{
+			1232: &persistence.ActivityInfo{ActivityID: "activityID"},
+		},
+		pendingActivityIDToEventID: map[string]int64{
+			"activityID": 6,
+		},
+		updateActivityInfos: map[int64]*persistence.ActivityInfo{
+			7: &persistence.ActivityInfo{DomainID: "domainID"},
+		},
+		deleteActivityInfos: map[int64]struct{}{
+			8: struct{}{},
+		},
+		syncActivityTasks: map[int64]struct{}{},
+		pendingTimerInfoIDs: map[string]*persistence.TimerInfo{
+			"testdata-pendingTimerInfoIDs": &persistence.TimerInfo{
+				Version: 1,
+				TimerID: "1232",
+			},
+		},
+		pendingTimerEventIDToID: map[int64]string{},
+		updateTimerInfos: map[string]*persistence.TimerInfo{
+			"testdata-updatedtimerinfos": &persistence.TimerInfo{
+				Version: 1,
+				TimerID: "1232",
+			},
+		},
+		deleteTimerInfos: map[string]struct{}{},
+		pendingChildExecutionInfoIDs: map[int64]*persistence.ChildExecutionInfo{
+			1: &persistence.ChildExecutionInfo{
+				WorkflowTypeName: "sample-workflow",
+			},
+		},
+		updateChildExecutionInfos: map[int64]*persistence.ChildExecutionInfo{
+			8: &persistence.ChildExecutionInfo{DomainID: "updateChildInfosDomainID"},
+		},
+		deleteChildExecutionInfos: map[int64]struct{}{
+			12: struct{}{},
+		},
+		pendingRequestCancelInfoIDs: map[int64]*persistence.RequestCancelInfo{
+			13: &persistence.RequestCancelInfo{InitiatedID: 16},
+		},
+		updateRequestCancelInfos: map[int64]*persistence.RequestCancelInfo{},
+		deleteRequestCancelInfos: map[int64]struct{}{
+			15: struct{}{},
+		},
+		pendingSignalInfoIDs:      map[int64]*persistence.SignalInfo{},
+		updateSignalInfos:         map[int64]*persistence.SignalInfo{},
+		deleteSignalInfos:         map[int64]struct{}{},
+		pendingSignalRequestedIDs: map[string]struct{}{},
+		updateSignalRequestedIDs:  map[string]struct{}{},
+		deleteSignalRequestedIDs:  map[string]struct{}{},
+		bufferedEvents:            []*types.HistoryEvent{},
+		updateBufferedEvents:      []*types.HistoryEvent{},
+		clearBufferedEvents:       false,
+		executionInfo: &persistence.WorkflowExecutionInfo{
+			DomainID:                           "d9cbf563-3056-4387-b2ac-5fddd868fe4d",
+			WorkflowID:                         "53fc235c-093e-4b15-9d9d-045e61354b91",
+			RunID:                              "a2901718-ac12-443e-873d-b100f45d55d8",
+			FirstExecutionRunID:                "a2901718-ac12-443e-873d-b100f45d55d8",
+			InitiatedID:                        -7,
+			TaskList:                           "tl",
+			WorkflowTypeName:                   "test",
+			WorkflowTimeout:                    600000000,
+			DecisionStartToCloseTimeout:        10,
+			State:                              1,
+			LastFirstEventID:                   1,
+			LastEventTaskID:                    2097153,
+			NextEventID:                        3,
+			LastProcessedEvent:                 -23,
+			StartTimestamp:                     time.Date(2024, 10, 21, 20, 58, 1, 275000000, time.UTC),
+			LastUpdatedTimestamp:               time.Date(2024, 10, 21, 20, 58, 1, 275000000, time.UTC),
+			CreateRequestID:                    "f33ee669-9ff6-4221-a2b0-feb2959667b8",
+			DecisionVersion:                    1,
+			DecisionScheduleID:                 2,
+			DecisionStartedID:                  -23,
+			DecisionRequestID:                  "emptyUuid",
+			DecisionTimeout:                    10,
+			DecisionScheduledTimestamp:         1729544281275414000,
+			DecisionOriginalScheduledTimestamp: 1729544281275414000,
+			AutoResetPoints:                    &types.ResetPoints{},
+		},
+		versionHistories: &persistence.VersionHistories{
+			Histories: []*persistence.VersionHistory{
+				{
+					BranchToken: []byte("a branch token"),
+					Items: []*persistence.VersionHistoryItem{{
+						EventID: 2,
+						Version: 1,
+					}},
+				},
+			},
+		},
+		currentVersion:        int64(-24),
+		hasBufferedEventsInDB: false,
+		stateInDB:             int(1),
+		nextEventIDInDB:       int64(3),
+		domainEntry:           sampleDomain,
+		appliedEvents:         map[string]struct{}{},
+		insertTransferTasks: []persistence.Task{
+			&persistence.DecisionTask{
+				DomainID: "decsion task",
+			},
+		},
+		insertReplicationTasks: []persistence.Task{},
+		insertTimerTasks: []persistence.Task{
+			&persistence.ActivityRetryTimerTask{
+				TaskData: persistence.TaskData{},
+				EventID:  123,
+				Attempt:  4,
+			},
+		},
+		workflowRequests: map[persistence.WorkflowRequest]struct{}{},
+		checksum:         checksum.Checksum{},
+		executionStats:   &persistence.ExecutionStats{HistorySize: 403},
+		queryRegistry:    query.NewRegistry(),
+	}
+}
+
+func TestMutableStateBuilder_GetTransferTasks(t *testing.T) {
+	msb := &mutableStateBuilder{
+		insertTransferTasks: []persistence.Task{
+			&persistence.ActivityTask{},
+			&persistence.DecisionTask{},
+		},
+	}
+	tasks := msb.GetTransferTasks()
+	assert.Equal(t, 2, len(tasks))
+	assert.IsType(t, &persistence.ActivityTask{}, tasks[0])
+	assert.IsType(t, &persistence.DecisionTask{}, tasks[1])
+}
+
+func TestMutableStateBuilder_GetTimerTasks(t *testing.T) {
+	msb := &mutableStateBuilder{
+		insertTimerTasks: []persistence.Task{
+			&persistence.UserTimerTask{},
+		},
+	}
+	tasks := msb.GetTimerTasks()
+	assert.Equal(t, 1, len(tasks))
+	assert.IsType(t, &persistence.UserTimerTask{}, tasks[0])
+}
+
+func TestMutableStateBuilder_DeleteTransferTasks(t *testing.T) {
+	msb := &mutableStateBuilder{
+		insertTransferTasks: []persistence.Task{
+			&persistence.ActivityTask{},
+		},
+	}
+	msb.DeleteTransferTasks()
+	assert.Nil(t, msb.insertTransferTasks)
+}
+
+func TestMutableStateBuilder_DeleteTimerTasks(t *testing.T) {
+	msb := &mutableStateBuilder{
+		insertTimerTasks: []persistence.Task{
+			&persistence.UserTimerTask{},
+		},
+	}
+	msb.DeleteTimerTasks()
+	assert.Nil(t, msb.insertTimerTasks)
+}
+
+func TestMutableStateBuilder_SetUpdateCondition(t *testing.T) {
+	msb := &mutableStateBuilder{}
+	msb.SetUpdateCondition(123)
+	assert.Equal(t, int64(123), msb.nextEventIDInDB)
+}
+
+func TestMutableStateBuilder_GetUpdateCondition(t *testing.T) {
+	msb := &mutableStateBuilder{
+		nextEventIDInDB: 123,
+	}
+	assert.Equal(t, int64(123), msb.GetUpdateCondition())
+}
+
+func TestCheckAndClearTimerFiredEvent(t *testing.T) {
+	tests := []struct {
+		name                         string
+		timerID                      string
+		bufferedEvents               []*types.HistoryEvent
+		updateBufferedEvents         []*types.HistoryEvent
+		history                      []*types.HistoryEvent
+		expectedTimerEvent           *types.HistoryEvent
+		expectedBufferedEvents       []*types.HistoryEvent
+		expectedUpdateBufferedEvents []*types.HistoryEvent
+		expectedHistory              []*types.HistoryEvent
+	}{
+		{
+			name:    "TimerFiredEventInBufferedEvents",
+			timerID: "timer1",
+			bufferedEvents: []*types.HistoryEvent{
+				{
+					EventType: types.EventTypeTimerFired.Ptr(),
+					TimerFiredEventAttributes: &types.TimerFiredEventAttributes{
+						TimerID: "timer1",
+					},
+				},
+				{
+					EventType: types.EventTypeTimerFired.Ptr(),
+					TimerFiredEventAttributes: &types.TimerFiredEventAttributes{
+						TimerID: "timer2",
+					},
+				},
+			},
+			updateBufferedEvents: []*types.HistoryEvent{},
+			history:              []*types.HistoryEvent{},
+			expectedTimerEvent: &types.HistoryEvent{
+				EventType: types.EventTypeTimerFired.Ptr(),
+				TimerFiredEventAttributes: &types.TimerFiredEventAttributes{
+					TimerID: "timer1",
+				},
+			},
+			expectedBufferedEvents: []*types.HistoryEvent{
+				{
+					EventType: types.EventTypeTimerFired.Ptr(),
+					TimerFiredEventAttributes: &types.TimerFiredEventAttributes{
+						TimerID: "timer2",
+					},
+				},
+			},
+			expectedUpdateBufferedEvents: []*types.HistoryEvent{},
+			expectedHistory:              []*types.HistoryEvent{},
+		},
+		{
+			name:           "TimerFiredEventInUpdateBufferedEvents",
+			timerID:        "timer2",
+			bufferedEvents: []*types.HistoryEvent{},
+			updateBufferedEvents: []*types.HistoryEvent{
+				{
+					EventType: types.EventTypeTimerFired.Ptr(),
+					TimerFiredEventAttributes: &types.TimerFiredEventAttributes{
+						TimerID: "timer1",
+					},
+				},
+				{
+					EventType: types.EventTypeTimerFired.Ptr(),
+					TimerFiredEventAttributes: &types.TimerFiredEventAttributes{
+						TimerID: "timer2",
+					},
+				},
+				{
+					EventType: types.EventTypeTimerFired.Ptr(),
+					TimerFiredEventAttributes: &types.TimerFiredEventAttributes{
+						TimerID: "timer3",
+					},
+				},
+			},
+			history: []*types.HistoryEvent{},
+			expectedTimerEvent: &types.HistoryEvent{
+				EventType: types.EventTypeTimerFired.Ptr(),
+				TimerFiredEventAttributes: &types.TimerFiredEventAttributes{
+					TimerID: "timer2",
+				},
+			},
+			expectedBufferedEvents: []*types.HistoryEvent{},
+			expectedUpdateBufferedEvents: []*types.HistoryEvent{
+				{
+					EventType: types.EventTypeTimerFired.Ptr(),
+					TimerFiredEventAttributes: &types.TimerFiredEventAttributes{
+						TimerID: "timer1",
+					},
+				},
+				{
+					EventType: types.EventTypeTimerFired.Ptr(),
+					TimerFiredEventAttributes: &types.TimerFiredEventAttributes{
+						TimerID: "timer3",
+					},
+				},
+			},
+			expectedHistory: []*types.HistoryEvent{},
+		},
+		{
+			name:                 "TimerFiredEventInHistory",
+			timerID:              "timer3",
+			bufferedEvents:       []*types.HistoryEvent{},
+			updateBufferedEvents: []*types.HistoryEvent{},
+			history: []*types.HistoryEvent{
+				{
+					EventType: types.EventTypeTimerFired.Ptr(),
+					TimerFiredEventAttributes: &types.TimerFiredEventAttributes{
+						TimerID: "timer1",
+					},
+				},
+				{
+					EventType: types.EventTypeTimerFired.Ptr(),
+					TimerFiredEventAttributes: &types.TimerFiredEventAttributes{
+						TimerID: "timer3",
+					},
+				},
+			},
+			expectedTimerEvent: &types.HistoryEvent{
+				EventType: types.EventTypeTimerFired.Ptr(),
+				TimerFiredEventAttributes: &types.TimerFiredEventAttributes{
+					TimerID: "timer3",
+				},
+			},
+			expectedBufferedEvents:       []*types.HistoryEvent{},
+			expectedUpdateBufferedEvents: []*types.HistoryEvent{},
+			expectedHistory: []*types.HistoryEvent{
+				{
+					EventType: types.EventTypeTimerFired.Ptr(),
+					TimerFiredEventAttributes: &types.TimerFiredEventAttributes{
+						TimerID: "timer1",
+					},
+				},
+			},
+		},
+		{
+			name:                         "NoTimerFiredEvent",
+			timerID:                      "timer4",
+			bufferedEvents:               []*types.HistoryEvent{},
+			updateBufferedEvents:         []*types.HistoryEvent{},
+			history:                      []*types.HistoryEvent{},
+			expectedTimerEvent:           nil,
+			expectedBufferedEvents:       []*types.HistoryEvent{},
+			expectedUpdateBufferedEvents: []*types.HistoryEvent{},
+			expectedHistory:              []*types.HistoryEvent{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msb := &mutableStateBuilder{
+				bufferedEvents:       tt.bufferedEvents,
+				updateBufferedEvents: tt.updateBufferedEvents,
+				hBuilder:             &HistoryBuilder{history: tt.history},
+			}
+
+			timerEvent := msb.checkAndClearTimerFiredEvent(tt.timerID)
+
+			assert.Equal(t, tt.expectedTimerEvent, timerEvent)
+			assert.Equal(t, tt.expectedBufferedEvents, msb.bufferedEvents)
+			assert.Equal(t, tt.expectedUpdateBufferedEvents, msb.updateBufferedEvents)
+			assert.Equal(t, tt.expectedHistory, msb.hBuilder.history)
+		})
+	}
+}
+
+func TestAssignTaskIDToTransientHistoryEvents(t *testing.T) {
+
+	tests := map[string]struct {
+		transientHistory         []*types.HistoryEvent
+		taskID                   int64
+		shardContextExpectations func(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache)
+		expectedEvents           []*types.HistoryEvent
+		expectedErr              error
+	}{
+		"AssignTaskIDToSingleEvent - transient": {
+			transientHistory: []*types.HistoryEvent{
+				{
+					ID:        1,
+					EventType: types.EventTypeWorkflowExecutionStarted.Ptr(),
+					TaskID:    common.EmptyEventTaskID,
+				},
+			},
+			taskID: 123,
+			shardContextExpectations: func(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache) {
+				shardContext.EXPECT().GenerateTransferTaskIDs(1).Return([]int64{123}, nil).Times(1)
+			},
+			expectedEvents: []*types.HistoryEvent{
+				{
+					ID:        1,
+					EventType: types.EventTypeWorkflowExecutionStarted.Ptr(),
+					TaskID:    123,
+				},
+			},
+		},
+		"AssignTaskIDToMultipleEvents - transient": {
+			transientHistory: []*types.HistoryEvent{
+				{
+					ID:        1,
+					EventType: types.EventTypeWorkflowExecutionStarted.Ptr(),
+					TaskID:    common.EmptyEventTaskID,
+				},
+				{
+					ID:        2,
+					EventType: types.EventTypeDecisionTaskScheduled.Ptr(),
+					TaskID:    common.EmptyEventTaskID,
+				},
+			},
+			taskID: 456,
+			shardContextExpectations: func(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache) {
+				shardContext.EXPECT().GenerateTransferTaskIDs(2).Return([]int64{123, 124}, nil).Times(1)
+			},
+			expectedEvents: []*types.HistoryEvent{
+				{
+					ID:        1,
+					EventType: types.EventTypeWorkflowExecutionStarted.Ptr(),
+					TaskID:    123,
+				},
+				{
+					ID:        2,
+					EventType: types.EventTypeDecisionTaskScheduled.Ptr(),
+					TaskID:    124,
+				},
+			},
+		},
+		"NoEvents - transient events": {
+			transientHistory: []*types.HistoryEvent{},
+			taskID:           789,
+			shardContextExpectations: func(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache) {
+			},
+			expectedEvents: []*types.HistoryEvent{},
+		},
+		"error returned": {
+			transientHistory: []*types.HistoryEvent{
+				{
+					ID:        1,
+					EventType: types.EventTypeWorkflowExecutionStarted.Ptr(),
+					TaskID:    common.EmptyEventTaskID,
+				},
+			},
+			taskID: 456,
+			shardContextExpectations: func(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache) {
+				shardContext.EXPECT().GenerateTransferTaskIDs(1).Return(nil, assert.AnError).Times(1)
+			},
+			expectedEvents: []*types.HistoryEvent{
+				{
+					ID:        1,
+					EventType: types.EventTypeWorkflowExecutionStarted.Ptr(),
+					TaskID:    common.EmptyEventTaskID,
+				},
+			},
+			expectedErr: assert.AnError,
+		},
+	}
+
+	for name, td := range tests {
+		t.Run(name, func(t *testing.T) {
+
+			ctrl := gomock.NewController(t)
+
+			shardContext := shard.NewMockContext(ctrl)
+			mockCache := events.NewMockCache(ctrl)
+			mockDomainCache := cache.NewMockDomainCache(ctrl)
+
+			td.shardContextExpectations(mockCache, shardContext, mockDomainCache)
+
+			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache)
+
+			msb.hBuilder.transientHistory = td.transientHistory
+
+			err := msb.assignTaskIDToEvents()
+
+			assert.Equal(t, td.expectedEvents, msb.hBuilder.transientHistory)
+			assert.Equal(t, td.expectedErr, err)
+		})
+	}
+}
+
+func TestAssignTaskIDToHistoryEvents(t *testing.T) {
+
+	tests := map[string]struct {
+		history                  []*types.HistoryEvent
+		taskID                   int64
+		shardContextExpectations func(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache)
+		expectedEvents           []*types.HistoryEvent
+		expectedErr              error
+	}{
+		"AssignTaskIDToSingleEvent": {
+			history: []*types.HistoryEvent{
+				{
+					ID:        1,
+					EventType: types.EventTypeWorkflowExecutionStarted.Ptr(),
+					TaskID:    common.EmptyEventTaskID,
+				},
+			},
+			taskID: 123,
+			shardContextExpectations: func(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache) {
+				shardContext.EXPECT().GenerateTransferTaskIDs(1).Return([]int64{123}, nil).Times(1)
+			},
+			expectedEvents: []*types.HistoryEvent{
+				{
+					ID:        1,
+					EventType: types.EventTypeWorkflowExecutionStarted.Ptr(),
+					TaskID:    123,
+				},
+			},
+		},
+		"AssignTaskIDToMultipleEvents": {
+			history: []*types.HistoryEvent{
+				{
+					ID:        1,
+					EventType: types.EventTypeWorkflowExecutionStarted.Ptr(),
+					TaskID:    common.EmptyEventTaskID,
+				},
+				{
+					ID:        2,
+					EventType: types.EventTypeDecisionTaskScheduled.Ptr(),
+					TaskID:    common.EmptyEventTaskID,
+				},
+			},
+			taskID: 456,
+			shardContextExpectations: func(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache) {
+				shardContext.EXPECT().GenerateTransferTaskIDs(2).Return([]int64{123, 124}, nil).Times(1)
+			},
+			expectedEvents: []*types.HistoryEvent{
+				{
+					ID:        1,
+					EventType: types.EventTypeWorkflowExecutionStarted.Ptr(),
+					TaskID:    123,
+				},
+				{
+					ID:        2,
+					EventType: types.EventTypeDecisionTaskScheduled.Ptr(),
+					TaskID:    124,
+				},
+			},
+		},
+		"NoEvents - transient events": {
+			history: []*types.HistoryEvent{},
+			taskID:  789,
+			shardContextExpectations: func(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache) {
+			},
+			expectedEvents: []*types.HistoryEvent{},
+		},
+		"error returned": {
+			history: []*types.HistoryEvent{
+				{
+					ID:        1,
+					EventType: types.EventTypeWorkflowExecutionStarted.Ptr(),
+					TaskID:    common.EmptyEventTaskID,
+				},
+			},
+			taskID: 456,
+			shardContextExpectations: func(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache) {
+				shardContext.EXPECT().GenerateTransferTaskIDs(1).Return(nil, assert.AnError).Times(1)
+			},
+			expectedEvents: []*types.HistoryEvent{
+				{
+					ID:        1,
+					EventType: types.EventTypeWorkflowExecutionStarted.Ptr(),
+					TaskID:    common.EmptyEventTaskID,
+				},
+			},
+			expectedErr: assert.AnError,
+		},
+	}
+
+	for name, td := range tests {
+		t.Run(name, func(t *testing.T) {
+
+			ctrl := gomock.NewController(t)
+
+			shardContext := shard.NewMockContext(ctrl)
+			mockCache := events.NewMockCache(ctrl)
+			mockDomainCache := cache.NewMockDomainCache(ctrl)
+
+			td.shardContextExpectations(mockCache, shardContext, mockDomainCache)
+
+			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache)
+
+			msb.hBuilder.history = td.history
+
+			err := msb.assignTaskIDToEvents()
+
+			assert.Equal(t, td.expectedEvents, msb.hBuilder.history)
+			assert.Equal(t, td.expectedErr, err)
+		})
+	}
+}
+
+func TestAddUpsertWorkflowSearchAttributesEvent(t *testing.T) {
+
+	now := time.Unix(1730353941, 0)
+
+	tests := map[string]struct {
+		decisionCompletedEventID int64
+		request                  *types.UpsertWorkflowSearchAttributesDecisionAttributes
+		mutableStateBuilderSetup func(m *mutableStateBuilder)
+		expectedEvent            *types.HistoryEvent
+		expectedErr              error
+	}{
+		"successful upsert": {
+			decisionCompletedEventID: 123,
+			request: &types.UpsertWorkflowSearchAttributesDecisionAttributes{
+				SearchAttributes: &types.SearchAttributes{
+					IndexedFields: map[string][]byte{
+						"CustomKeywordField": []byte("keyword"),
+					},
+				},
+			},
+			mutableStateBuilderSetup: func(m *mutableStateBuilder) {
+			},
+			expectedEvent: &types.HistoryEvent{
+				ID:        1,
+				EventType: types.EventTypeUpsertWorkflowSearchAttributes.Ptr(),
+				UpsertWorkflowSearchAttributesEventAttributes: &types.UpsertWorkflowSearchAttributesEventAttributes{
+					DecisionTaskCompletedEventID: 123,
+					SearchAttributes: &types.SearchAttributes{
+						IndexedFields: map[string][]byte{
+							"CustomKeywordField": []byte("keyword"),
+						},
+					},
+				},
+				TaskID:    common.EmptyEventTaskID,
+				Version:   common.EmptyVersion,
+				Timestamp: common.Ptr(now.UnixNano()),
+			},
+			expectedErr: nil,
+		},
+		"mutability check fails": {
+			decisionCompletedEventID: 123,
+			request: &types.UpsertWorkflowSearchAttributesDecisionAttributes{
+				SearchAttributes: &types.SearchAttributes{
+					IndexedFields: map[string][]byte{
+						"CustomKeywordField": []byte("keyword"),
+					},
+				},
+			},
+			mutableStateBuilderSetup: func(m *mutableStateBuilder) {
+				m.executionInfo.State = persistence.WorkflowStateCompleted
+			},
+			expectedEvent: nil,
+			expectedErr:   &types.InternalServiceError{Message: "invalid mutable state action: mutation after finish"},
+		},
+	}
+
+	for name, td := range tests {
+		t.Run(name, func(t *testing.T) {
+
+			ctrl := gomock.NewController(t)
+
+			shardContext := shard.NewMockContext(ctrl)
+			mockCache := events.NewMockCache(ctrl)
+			mockDomainCache := cache.NewMockDomainCache(ctrl)
+
+			nowClock := clock.NewMockedTimeSourceAt(now)
+
+			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache)
+
+			msb.hBuilder = &HistoryBuilder{
+				history:   []*types.HistoryEvent{},
+				msBuilder: msb,
+			}
+
+			td.mutableStateBuilderSetup(msb)
+
+			msb.timeSource = nowClock
+
+			event, err := msb.AddUpsertWorkflowSearchAttributesEvent(td.decisionCompletedEventID, td.request)
+
+			assert.Equal(t, td.expectedEvent, event)
+			assert.Equal(t, td.expectedErr, err)
+		})
+	}
+}
+
+func TestCloseTransactionAsMutation(t *testing.T) {
+
+	now := time.Unix(500, 0)
+
+	mockDomain := cache.NewLocalDomainCacheEntryForTest(&persistence.DomainInfo{Name: "domain"}, &persistence.DomainConfig{
+		BadBinaries: types.BadBinaries{},
+	}, "cluster0")
+
+	tests := map[string]struct {
+		mutableStateSetup        func(ms *mutableStateBuilder)
+		shardContextExpectations func(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache)
+		transactionPolicy        TransactionPolicy
+		expectedMutation         *persistence.WorkflowMutation
+		expectedEvent            []*persistence.WorkflowEvents
+		expectedErr              error
+	}{
+		"no buffered events": {
+			mutableStateSetup: func(ms *mutableStateBuilder) {
+				ms.executionInfo.DomainID = "some-domain-id"
+				ms.executionInfo.NextEventID = 10
+				ms.executionInfo.LastProcessedEvent = 5
+				ms.executionInfo.State = persistence.WorkflowStateRunning
+				ms.executionInfo.CloseStatus = persistence.WorkflowCloseStatusNone
+			},
+			shardContextExpectations: func(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache) {
+				shardContext.EXPECT().GetConfig().Return(&config.Config{
+					NumberOfShards:                        2,
+					IsAdvancedVisConfigExist:              false,
+					MaxResponseSize:                       0,
+					MutableStateChecksumInvalidateBefore:  dynamicconfig.GetFloatPropertyFn(10),
+					MutableStateChecksumVerifyProbability: dynamicconfig.GetIntPropertyFilteredByDomain(0.0),
+					HostName:                              "test-host",
+					EnableReplicationTaskGeneration:       func(string, string) bool { return true },
+					MaximumBufferedEventsBatch:            func(...dynamicconfig.FilterOption) int { return 100 },
+				}).Times(2)
+
+				shardContext.EXPECT().GetDomainCache().Return(mockDomainCache).Times(1)
+				mockDomainCache.EXPECT().GetDomainByID("some-domain-id").Return(mockDomain, nil)
+
+			},
+			expectedMutation: &persistence.WorkflowMutation{
+				ExecutionInfo: &persistence.WorkflowExecutionInfo{
+					DomainID:             "some-domain-id",
+					NextEventID:          10,
+					LastProcessedEvent:   5,
+					State:                persistence.WorkflowStateRunning,
+					CloseStatus:          persistence.WorkflowCloseStatusNone,
+					LastUpdatedTimestamp: now,
+					DecisionVersion:      common.EmptyVersion,
+					DecisionScheduleID:   common.EmptyEventID,
+					DecisionRequestID:    common.EmptyUUID,
+					DecisionStartedID:    common.EmptyEventID,
+				},
+				TimerTasks:                nil,
+				ReplicationTasks:          nil,
+				UpsertActivityInfos:       []*persistence.ActivityInfo{},
+				DeleteActivityInfos:       []int64{},
+				UpsertTimerInfos:          []*persistence.TimerInfo{},
+				DeleteTimerInfos:          []string{},
+				UpsertChildExecutionInfos: []*persistence.ChildExecutionInfo{},
+				UpsertRequestCancelInfos:  []*persistence.RequestCancelInfo{},
+				DeleteRequestCancelInfos:  []int64{},
+				UpsertSignalInfos:         []*persistence.SignalInfo{},
+				DeleteSignalInfos:         []int64{},
+				UpsertSignalRequestedIDs:  []string{},
+				DeleteSignalRequestedIDs:  []string{},
+				DeleteChildExecutionInfos: []int64{},
+				TransferTasks:             nil,
+				WorkflowRequests:          []*persistence.WorkflowRequest{},
+				Condition:                 0,
+			},
+			expectedEvent: nil,
+			expectedErr:   nil,
+		},
+		"with buffered events": {
+			mutableStateSetup: func(ms *mutableStateBuilder) {
+				ms.executionInfo.DomainID = "some-domain-id"
+				ms.executionInfo.NextEventID = 10
+				ms.executionInfo.LastProcessedEvent = 5
+				ms.executionInfo.State = persistence.WorkflowStateRunning
+				ms.executionInfo.CloseStatus = persistence.WorkflowCloseStatusNone
+				ms.bufferedEvents = []*types.HistoryEvent{
+					{
+						ID:        1,
+						EventType: types.EventTypeWorkflowExecutionStarted.Ptr(),
+					},
+				}
+			},
+			shardContextExpectations: func(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache) {
+				shardContext.EXPECT().GetConfig().Return(&config.Config{
+					NumberOfShards:                        2,
+					IsAdvancedVisConfigExist:              false,
+					MaxResponseSize:                       0,
+					MutableStateChecksumInvalidateBefore:  dynamicconfig.GetFloatPropertyFn(10),
+					MutableStateChecksumVerifyProbability: dynamicconfig.GetIntPropertyFilteredByDomain(0.0),
+					HostName:                              "test-host",
+					EnableReplicationTaskGeneration:       func(string, string) bool { return true },
+					MaximumBufferedEventsBatch:            func(...dynamicconfig.FilterOption) int { return 100 },
+				}).Times(3)
+
+				shardContext.EXPECT().GenerateTransferTaskIDs(1).Return([]int64{123}, nil).Times(1)
+				shardContext.EXPECT().GetDomainCache().Return(mockDomainCache).Times(1)
+				mockDomainCache.EXPECT().GetDomainByID("some-domain-id").Return(mockDomain, nil)
+
+			},
+			expectedMutation: &persistence.WorkflowMutation{
+				ExecutionInfo: &persistence.WorkflowExecutionInfo{
+					DomainID:             "some-domain-id",
+					NextEventID:          10,
+					LastProcessedEvent:   5,
+					State:                persistence.WorkflowStateRunning,
+					CloseStatus:          persistence.WorkflowCloseStatusNone,
+					LastUpdatedTimestamp: now,
+					DecisionVersion:      common.EmptyVersion,
+					DecisionScheduleID:   common.EmptyEventID,
+					DecisionRequestID:    common.EmptyUUID,
+					DecisionStartedID:    common.EmptyEventID,
+					LastFirstEventID:     1,
+				},
+				TimerTasks: nil,
+				ReplicationTasks: []persistence.Task{
+					&persistence.HistoryReplicationTask{
+						FirstEventID: 1,
+						NextEventID:  2,
+						TaskData: persistence.TaskData{
+							Version:             0,
+							TaskID:              0,
+							VisibilityTimestamp: time.Time{},
+						},
+					},
+				},
+				UpsertActivityInfos:       []*persistence.ActivityInfo{},
+				DeleteActivityInfos:       []int64{},
+				UpsertTimerInfos:          []*persistence.TimerInfo{},
+				DeleteTimerInfos:          []string{},
+				UpsertChildExecutionInfos: []*persistence.ChildExecutionInfo{},
+				UpsertRequestCancelInfos:  []*persistence.RequestCancelInfo{},
+				DeleteRequestCancelInfos:  []int64{},
+				UpsertSignalInfos:         []*persistence.SignalInfo{},
+				DeleteSignalInfos:         []int64{},
+				UpsertSignalRequestedIDs:  []string{},
+				DeleteSignalRequestedIDs:  []string{},
+				DeleteChildExecutionInfos: []int64{},
+				TransferTasks:             nil,
+				WorkflowRequests:          []*persistence.WorkflowRequest{},
+				Condition:                 0,
+			},
+			expectedEvent: []*persistence.WorkflowEvents{
+				{
+					DomainID: "some-domain-id",
+					Events: []*types.HistoryEvent{{
+						ID: 1, EventType: types.EventTypeWorkflowExecutionStarted.Ptr()},
+					},
+				},
+			},
+			expectedErr: nil,
+		},
+	}
+
+	for name, td := range tests {
+
+		t.Run(name, func(t *testing.T) {
+
+			ctrl := gomock.NewController(t)
+
+			shardContext := shard.NewMockContext(ctrl)
+			mockCache := events.NewMockCache(ctrl)
+			mockDomainCache := cache.NewMockDomainCache(ctrl)
+
+			ms := createMSBWithMocks(mockCache, shardContext, mockDomainCache)
+			td.mutableStateSetup(ms)
+			td.shardContextExpectations(mockCache, shardContext, mockDomainCache)
+
+			mutation, workflowEvents, err := ms.CloseTransactionAsMutation(now, td.transactionPolicy)
+			assert.Equal(t, td.expectedMutation, mutation)
+			assert.Equal(t, td.expectedEvent, workflowEvents)
+			assert.Equal(t, td.expectedErr, err)
+		})
+	}
+}
+
+func createMSBWithMocks(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache) *mutableStateBuilder {
+	// the MSB constructor calls a bunch of endpoints on the mocks, so
+	// put them in here as a set of fixed expectations so the actual mocking
+	// code can just make expectations on the calls on the returned MSB object
+	// and not get cluttered with constructor calls
+	shardContext.EXPECT().GetClusterMetadata().Return(cluster.TestActiveClusterMetadata).Times(2)
+	shardContext.EXPECT().GetEventsCache().Return(mockCache)
+	shardContext.EXPECT().GetConfig().Return(&config.Config{
+		NumberOfShards:                        2,
+		IsAdvancedVisConfigExist:              false,
+		MaxResponseSize:                       0,
+		MutableStateChecksumInvalidateBefore:  dynamicconfig.GetFloatPropertyFn(10),
+		MutableStateChecksumVerifyProbability: dynamicconfig.GetIntPropertyFilteredByDomain(0.0),
+		MutableStateChecksumGenProbability:    dynamicconfig.GetIntPropertyFilteredByDomain(0.0),
+		HostName:                              "test-host",
+		EnableReplicationTaskGeneration:       func(string, string) bool { return true },
+		MaximumBufferedEventsBatch:            func(...dynamicconfig.FilterOption) int { return 100 },
+	}).Times(1)
+	shardContext.EXPECT().GetTimeSource().Return(clock.NewMockedTimeSource())
+	shardContext.EXPECT().GetMetricsClient().Return(metrics.NewNoopMetricsClient())
+	shardContext.EXPECT().GetDomainCache().Return(mockDomainCache).Times(1)
+
+	msb := newMutableStateBuilder(shardContext, log.NewNoop(), constants.TestGlobalDomainEntry)
+	return msb
 }

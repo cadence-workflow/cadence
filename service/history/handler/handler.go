@@ -1980,7 +1980,7 @@ func (h *handlerImpl) RatelimitUpdate(
 	//
 	// "_" is ignoring "used RPS" data here.  it is likely useful for being friendlier
 	// to brief, bursty-but-within-limits load, but that has not yet been built.
-	weights, _, err := h.ratelimitAggregator.HostWeights(arg.ID, maps.Keys(arg.Load))
+	weights, err := h.ratelimitAggregator.HostUsage(arg.ID, maps.Keys(arg.Load))
 	if err != nil {
 		return nil, h.error(fmt.Errorf("failed to retrieve updated weights: %w", err), scope, "", "", "")
 	}

@@ -601,7 +601,7 @@ func TestSelectAllDomains(t *testing.T) {
 						OwnerEmail:  "domain_owner_email_1",
 						Data:        map[string]string{"k1": "v1"},
 					},
-					Config: &nosqlplugin.NoSQLInternalDomainConfig{
+					Config: &persistence.InternalDomainConfig{
 						Retention:                7 * 24 * time.Hour,
 						EmitMetric:               true,
 						ArchivalBucket:           "test-archival-bucket",

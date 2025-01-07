@@ -58,7 +58,10 @@ func (e *matchingEngineImpl) subscribeToMembershipChanges() {
 	}
 
 	listener := make(chan *membership.ChangedEvent, subscriptionBufferSize)
-	e.membershipResolver.Subscribe(service.Matching, "matching-engine", listener)
+	if err := e.membershipResolver.Subscribe(service.Matching, "matching-engine", listener); err != nil {
+		e.logger.Error("Failed to subscribe to membership updates")
+		return
+	}
 
 	for {
 		select {

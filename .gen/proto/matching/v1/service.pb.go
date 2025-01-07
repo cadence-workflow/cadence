@@ -26,6 +26,7 @@
 package matchingv1
 
 import (
+	encoding_binary "encoding/binary"
 	fmt "fmt"
 	io "io"
 	math "math"
@@ -49,6 +50,124 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
+type TaskListPartitionConfig struct {
+	Version              int64    `protobuf:"varint,1,opt,name=version,proto3" json:"version,omitempty"`
+	NumReadPartitions    int32    `protobuf:"varint,2,opt,name=num_read_partitions,json=numReadPartitions,proto3" json:"num_read_partitions,omitempty"`
+	NumWritePartitions   int32    `protobuf:"varint,3,opt,name=num_write_partitions,json=numWritePartitions,proto3" json:"num_write_partitions,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *TaskListPartitionConfig) Reset()         { *m = TaskListPartitionConfig{} }
+func (m *TaskListPartitionConfig) String() string { return proto.CompactTextString(m) }
+func (*TaskListPartitionConfig) ProtoMessage()    {}
+func (*TaskListPartitionConfig) Descriptor() ([]byte, []int) {
+	return fileDescriptor_826e827d3aabf7fc, []int{0}
+}
+func (m *TaskListPartitionConfig) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *TaskListPartitionConfig) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_TaskListPartitionConfig.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *TaskListPartitionConfig) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_TaskListPartitionConfig.Merge(m, src)
+}
+func (m *TaskListPartitionConfig) XXX_Size() int {
+	return m.Size()
+}
+func (m *TaskListPartitionConfig) XXX_DiscardUnknown() {
+	xxx_messageInfo_TaskListPartitionConfig.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_TaskListPartitionConfig proto.InternalMessageInfo
+
+func (m *TaskListPartitionConfig) GetVersion() int64 {
+	if m != nil {
+		return m.Version
+	}
+	return 0
+}
+
+func (m *TaskListPartitionConfig) GetNumReadPartitions() int32 {
+	if m != nil {
+		return m.NumReadPartitions
+	}
+	return 0
+}
+
+func (m *TaskListPartitionConfig) GetNumWritePartitions() int32 {
+	if m != nil {
+		return m.NumWritePartitions
+	}
+	return 0
+}
+
+type LoadBalancerHints struct {
+	BacklogCount         int64    `protobuf:"varint,1,opt,name=backlog_count,json=backlogCount,proto3" json:"backlog_count,omitempty"`
+	RatePerSecond        float64  `protobuf:"fixed64,2,opt,name=rate_per_second,json=ratePerSecond,proto3" json:"rate_per_second,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *LoadBalancerHints) Reset()         { *m = LoadBalancerHints{} }
+func (m *LoadBalancerHints) String() string { return proto.CompactTextString(m) }
+func (*LoadBalancerHints) ProtoMessage()    {}
+func (*LoadBalancerHints) Descriptor() ([]byte, []int) {
+	return fileDescriptor_826e827d3aabf7fc, []int{1}
+}
+func (m *LoadBalancerHints) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *LoadBalancerHints) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_LoadBalancerHints.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *LoadBalancerHints) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_LoadBalancerHints.Merge(m, src)
+}
+func (m *LoadBalancerHints) XXX_Size() int {
+	return m.Size()
+}
+func (m *LoadBalancerHints) XXX_DiscardUnknown() {
+	xxx_messageInfo_LoadBalancerHints.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_LoadBalancerHints proto.InternalMessageInfo
+
+func (m *LoadBalancerHints) GetBacklogCount() int64 {
+	if m != nil {
+		return m.BacklogCount
+	}
+	return 0
+}
+
+func (m *LoadBalancerHints) GetRatePerSecond() float64 {
+	if m != nil {
+		return m.RatePerSecond
+	}
+	return 0
+}
+
 type PollForDecisionTaskRequest struct {
 	Request              *v1.PollForDecisionTaskRequest `protobuf:"bytes,1,opt,name=request,proto3" json:"request,omitempty"`
 	DomainId             string                         `protobuf:"bytes,2,opt,name=domain_id,json=domainId,proto3" json:"domain_id,omitempty"`
@@ -64,7 +183,7 @@ func (m *PollForDecisionTaskRequest) Reset()         { *m = PollForDecisionTaskR
 func (m *PollForDecisionTaskRequest) String() string { return proto.CompactTextString(m) }
 func (*PollForDecisionTaskRequest) ProtoMessage()    {}
 func (*PollForDecisionTaskRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_826e827d3aabf7fc, []int{0}
+	return fileDescriptor_826e827d3aabf7fc, []int{2}
 }
 func (m *PollForDecisionTaskRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -147,6 +266,9 @@ type PollForDecisionTaskResponse struct {
 	StartedTime               *types.Timestamp             `protobuf:"bytes,16,opt,name=started_time,json=startedTime,proto3" json:"started_time,omitempty"`
 	Queries                   map[string]*v1.WorkflowQuery `protobuf:"bytes,17,rep,name=queries,proto3" json:"queries,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	TotalHistoryBytes         int64                        `protobuf:"varint,18,opt,name=total_history_bytes,json=totalHistoryBytes,proto3" json:"total_history_bytes,omitempty"`
+	PartitionConfig           *TaskListPartitionConfig     `protobuf:"bytes,19,opt,name=partition_config,json=partitionConfig,proto3" json:"partition_config,omitempty"`
+	LoadBalancerHints         *LoadBalancerHints           `protobuf:"bytes,20,opt,name=load_balancer_hints,json=loadBalancerHints,proto3" json:"load_balancer_hints,omitempty"`
+	AutoConfigHint            *v1.AutoConfigHint           `protobuf:"bytes,21,opt,name=auto_config_hint,json=autoConfigHint,proto3" json:"auto_config_hint,omitempty"`
 	XXX_NoUnkeyedLiteral      struct{}                     `json:"-"`
 	XXX_unrecognized          []byte                       `json:"-"`
 	XXX_sizecache             int32                        `json:"-"`
@@ -156,7 +278,7 @@ func (m *PollForDecisionTaskResponse) Reset()         { *m = PollForDecisionTask
 func (m *PollForDecisionTaskResponse) String() string { return proto.CompactTextString(m) }
 func (*PollForDecisionTaskResponse) ProtoMessage()    {}
 func (*PollForDecisionTaskResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_826e827d3aabf7fc, []int{1}
+	return fileDescriptor_826e827d3aabf7fc, []int{3}
 }
 func (m *PollForDecisionTaskResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -311,6 +433,27 @@ func (m *PollForDecisionTaskResponse) GetTotalHistoryBytes() int64 {
 	return 0
 }
 
+func (m *PollForDecisionTaskResponse) GetPartitionConfig() *TaskListPartitionConfig {
+	if m != nil {
+		return m.PartitionConfig
+	}
+	return nil
+}
+
+func (m *PollForDecisionTaskResponse) GetLoadBalancerHints() *LoadBalancerHints {
+	if m != nil {
+		return m.LoadBalancerHints
+	}
+	return nil
+}
+
+func (m *PollForDecisionTaskResponse) GetAutoConfigHint() *v1.AutoConfigHint {
+	if m != nil {
+		return m.AutoConfigHint
+	}
+	return nil
+}
+
 type PollForActivityTaskRequest struct {
 	Request              *v1.PollForActivityTaskRequest `protobuf:"bytes,1,opt,name=request,proto3" json:"request,omitempty"`
 	DomainId             string                         `protobuf:"bytes,2,opt,name=domain_id,json=domainId,proto3" json:"domain_id,omitempty"`
@@ -326,7 +469,7 @@ func (m *PollForActivityTaskRequest) Reset()         { *m = PollForActivityTaskR
 func (m *PollForActivityTaskRequest) String() string { return proto.CompactTextString(m) }
 func (*PollForActivityTaskRequest) ProtoMessage()    {}
 func (*PollForActivityTaskRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_826e827d3aabf7fc, []int{2}
+	return fileDescriptor_826e827d3aabf7fc, []int{4}
 }
 func (m *PollForActivityTaskRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -391,32 +534,35 @@ func (m *PollForActivityTaskRequest) GetIsolationGroup() string {
 }
 
 type PollForActivityTaskResponse struct {
-	TaskToken                  []byte                `protobuf:"bytes,1,opt,name=task_token,json=taskToken,proto3" json:"task_token,omitempty"`
-	WorkflowExecution          *v1.WorkflowExecution `protobuf:"bytes,2,opt,name=workflow_execution,json=workflowExecution,proto3" json:"workflow_execution,omitempty"`
-	ActivityId                 string                `protobuf:"bytes,3,opt,name=activity_id,json=activityId,proto3" json:"activity_id,omitempty"`
-	ActivityType               *v1.ActivityType      `protobuf:"bytes,4,opt,name=activity_type,json=activityType,proto3" json:"activity_type,omitempty"`
-	Input                      *v1.Payload           `protobuf:"bytes,5,opt,name=input,proto3" json:"input,omitempty"`
-	ScheduledTime              *types.Timestamp      `protobuf:"bytes,6,opt,name=scheduled_time,json=scheduledTime,proto3" json:"scheduled_time,omitempty"`
-	StartedTime                *types.Timestamp      `protobuf:"bytes,7,opt,name=started_time,json=startedTime,proto3" json:"started_time,omitempty"`
-	ScheduleToCloseTimeout     *types.Duration       `protobuf:"bytes,8,opt,name=schedule_to_close_timeout,json=scheduleToCloseTimeout,proto3" json:"schedule_to_close_timeout,omitempty"`
-	StartToCloseTimeout        *types.Duration       `protobuf:"bytes,9,opt,name=start_to_close_timeout,json=startToCloseTimeout,proto3" json:"start_to_close_timeout,omitempty"`
-	HeartbeatTimeout           *types.Duration       `protobuf:"bytes,10,opt,name=heartbeat_timeout,json=heartbeatTimeout,proto3" json:"heartbeat_timeout,omitempty"`
-	Attempt                    int32                 `protobuf:"varint,11,opt,name=attempt,proto3" json:"attempt,omitempty"`
-	ScheduledTimeOfThisAttempt *types.Timestamp      `protobuf:"bytes,12,opt,name=scheduled_time_of_this_attempt,json=scheduledTimeOfThisAttempt,proto3" json:"scheduled_time_of_this_attempt,omitempty"`
-	HeartbeatDetails           *v1.Payload           `protobuf:"bytes,13,opt,name=heartbeat_details,json=heartbeatDetails,proto3" json:"heartbeat_details,omitempty"`
-	WorkflowType               *v1.WorkflowType      `protobuf:"bytes,14,opt,name=workflow_type,json=workflowType,proto3" json:"workflow_type,omitempty"`
-	WorkflowDomain             string                `protobuf:"bytes,15,opt,name=workflow_domain,json=workflowDomain,proto3" json:"workflow_domain,omitempty"`
-	Header                     *v1.Header            `protobuf:"bytes,16,opt,name=header,proto3" json:"header,omitempty"`
-	XXX_NoUnkeyedLiteral       struct{}              `json:"-"`
-	XXX_unrecognized           []byte                `json:"-"`
-	XXX_sizecache              int32                 `json:"-"`
+	TaskToken                  []byte                   `protobuf:"bytes,1,opt,name=task_token,json=taskToken,proto3" json:"task_token,omitempty"`
+	WorkflowExecution          *v1.WorkflowExecution    `protobuf:"bytes,2,opt,name=workflow_execution,json=workflowExecution,proto3" json:"workflow_execution,omitempty"`
+	ActivityId                 string                   `protobuf:"bytes,3,opt,name=activity_id,json=activityId,proto3" json:"activity_id,omitempty"`
+	ActivityType               *v1.ActivityType         `protobuf:"bytes,4,opt,name=activity_type,json=activityType,proto3" json:"activity_type,omitempty"`
+	Input                      *v1.Payload              `protobuf:"bytes,5,opt,name=input,proto3" json:"input,omitempty"`
+	ScheduledTime              *types.Timestamp         `protobuf:"bytes,6,opt,name=scheduled_time,json=scheduledTime,proto3" json:"scheduled_time,omitempty"`
+	StartedTime                *types.Timestamp         `protobuf:"bytes,7,opt,name=started_time,json=startedTime,proto3" json:"started_time,omitempty"`
+	ScheduleToCloseTimeout     *types.Duration          `protobuf:"bytes,8,opt,name=schedule_to_close_timeout,json=scheduleToCloseTimeout,proto3" json:"schedule_to_close_timeout,omitempty"`
+	StartToCloseTimeout        *types.Duration          `protobuf:"bytes,9,opt,name=start_to_close_timeout,json=startToCloseTimeout,proto3" json:"start_to_close_timeout,omitempty"`
+	HeartbeatTimeout           *types.Duration          `protobuf:"bytes,10,opt,name=heartbeat_timeout,json=heartbeatTimeout,proto3" json:"heartbeat_timeout,omitempty"`
+	Attempt                    int32                    `protobuf:"varint,11,opt,name=attempt,proto3" json:"attempt,omitempty"`
+	ScheduledTimeOfThisAttempt *types.Timestamp         `protobuf:"bytes,12,opt,name=scheduled_time_of_this_attempt,json=scheduledTimeOfThisAttempt,proto3" json:"scheduled_time_of_this_attempt,omitempty"`
+	HeartbeatDetails           *v1.Payload              `protobuf:"bytes,13,opt,name=heartbeat_details,json=heartbeatDetails,proto3" json:"heartbeat_details,omitempty"`
+	WorkflowType               *v1.WorkflowType         `protobuf:"bytes,14,opt,name=workflow_type,json=workflowType,proto3" json:"workflow_type,omitempty"`
+	WorkflowDomain             string                   `protobuf:"bytes,15,opt,name=workflow_domain,json=workflowDomain,proto3" json:"workflow_domain,omitempty"`
+	Header                     *v1.Header               `protobuf:"bytes,16,opt,name=header,proto3" json:"header,omitempty"`
+	LoadBalancerHints          *LoadBalancerHints       `protobuf:"bytes,17,opt,name=load_balancer_hints,json=loadBalancerHints,proto3" json:"load_balancer_hints,omitempty"`
+	PartitionConfig            *TaskListPartitionConfig `protobuf:"bytes,19,opt,name=partition_config,json=partitionConfig,proto3" json:"partition_config,omitempty"`
+	AutoConfigHint             *v1.AutoConfigHint       `protobuf:"bytes,20,opt,name=auto_config_hint,json=autoConfigHint,proto3" json:"auto_config_hint,omitempty"`
+	XXX_NoUnkeyedLiteral       struct{}                 `json:"-"`
+	XXX_unrecognized           []byte                   `json:"-"`
+	XXX_sizecache              int32                    `json:"-"`
 }
 
 func (m *PollForActivityTaskResponse) Reset()         { *m = PollForActivityTaskResponse{} }
 func (m *PollForActivityTaskResponse) String() string { return proto.CompactTextString(m) }
 func (*PollForActivityTaskResponse) ProtoMessage()    {}
 func (*PollForActivityTaskResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_826e827d3aabf7fc, []int{3}
+	return fileDescriptor_826e827d3aabf7fc, []int{5}
 }
 func (m *PollForActivityTaskResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -557,6 +703,27 @@ func (m *PollForActivityTaskResponse) GetHeader() *v1.Header {
 	return nil
 }
 
+func (m *PollForActivityTaskResponse) GetLoadBalancerHints() *LoadBalancerHints {
+	if m != nil {
+		return m.LoadBalancerHints
+	}
+	return nil
+}
+
+func (m *PollForActivityTaskResponse) GetPartitionConfig() *TaskListPartitionConfig {
+	if m != nil {
+		return m.PartitionConfig
+	}
+	return nil
+}
+
+func (m *PollForActivityTaskResponse) GetAutoConfigHint() *v1.AutoConfigHint {
+	if m != nil {
+		return m.AutoConfigHint
+	}
+	return nil
+}
+
 type AddDecisionTaskRequest struct {
 	DomainId               string                `protobuf:"bytes,1,opt,name=domain_id,json=domainId,proto3" json:"domain_id,omitempty"`
 	WorkflowExecution      *v1.WorkflowExecution `protobuf:"bytes,2,opt,name=workflow_execution,json=workflowExecution,proto3" json:"workflow_execution,omitempty"`
@@ -575,7 +742,7 @@ func (m *AddDecisionTaskRequest) Reset()         { *m = AddDecisionTaskRequest{}
 func (m *AddDecisionTaskRequest) String() string { return proto.CompactTextString(m) }
 func (*AddDecisionTaskRequest) ProtoMessage()    {}
 func (*AddDecisionTaskRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_826e827d3aabf7fc, []int{4}
+	return fileDescriptor_826e827d3aabf7fc, []int{6}
 }
 func (m *AddDecisionTaskRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -661,16 +828,17 @@ func (m *AddDecisionTaskRequest) GetPartitionConfig() map[string]string {
 }
 
 type AddDecisionTaskResponse struct {
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
+	PartitionConfig      *TaskListPartitionConfig `protobuf:"bytes,1,opt,name=partition_config,json=partitionConfig,proto3" json:"partition_config,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                 `json:"-"`
+	XXX_unrecognized     []byte                   `json:"-"`
+	XXX_sizecache        int32                    `json:"-"`
 }
 
 func (m *AddDecisionTaskResponse) Reset()         { *m = AddDecisionTaskResponse{} }
 func (m *AddDecisionTaskResponse) String() string { return proto.CompactTextString(m) }
 func (*AddDecisionTaskResponse) ProtoMessage()    {}
 func (*AddDecisionTaskResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_826e827d3aabf7fc, []int{5}
+	return fileDescriptor_826e827d3aabf7fc, []int{7}
 }
 func (m *AddDecisionTaskResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -699,6 +867,13 @@ func (m *AddDecisionTaskResponse) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_AddDecisionTaskResponse proto.InternalMessageInfo
 
+func (m *AddDecisionTaskResponse) GetPartitionConfig() *TaskListPartitionConfig {
+	if m != nil {
+		return m.PartitionConfig
+	}
+	return nil
+}
+
 type AddActivityTaskRequest struct {
 	DomainId                 string                    `protobuf:"bytes,1,opt,name=domain_id,json=domainId,proto3" json:"domain_id,omitempty"`
 	WorkflowExecution        *v1.WorkflowExecution     `protobuf:"bytes,2,opt,name=workflow_execution,json=workflowExecution,proto3" json:"workflow_execution,omitempty"`
@@ -719,7 +894,7 @@ func (m *AddActivityTaskRequest) Reset()         { *m = AddActivityTaskRequest{}
 func (m *AddActivityTaskRequest) String() string { return proto.CompactTextString(m) }
 func (*AddActivityTaskRequest) ProtoMessage()    {}
 func (*AddActivityTaskRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_826e827d3aabf7fc, []int{6}
+	return fileDescriptor_826e827d3aabf7fc, []int{8}
 }
 func (m *AddActivityTaskRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -835,7 +1010,7 @@ func (m *ActivityTaskDispatchInfo) Reset()         { *m = ActivityTaskDispatchIn
 func (m *ActivityTaskDispatchInfo) String() string { return proto.CompactTextString(m) }
 func (*ActivityTaskDispatchInfo) ProtoMessage()    {}
 func (*ActivityTaskDispatchInfo) Descriptor() ([]byte, []int) {
-	return fileDescriptor_826e827d3aabf7fc, []int{7}
+	return fileDescriptor_826e827d3aabf7fc, []int{9}
 }
 func (m *ActivityTaskDispatchInfo) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -914,16 +1089,17 @@ func (m *ActivityTaskDispatchInfo) GetWorkflowDomain() string {
 }
 
 type AddActivityTaskResponse struct {
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
+	PartitionConfig      *TaskListPartitionConfig `protobuf:"bytes,1,opt,name=partition_config,json=partitionConfig,proto3" json:"partition_config,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                 `json:"-"`
+	XXX_unrecognized     []byte                   `json:"-"`
+	XXX_sizecache        int32                    `json:"-"`
 }
 
 func (m *AddActivityTaskResponse) Reset()         { *m = AddActivityTaskResponse{} }
 func (m *AddActivityTaskResponse) String() string { return proto.CompactTextString(m) }
 func (*AddActivityTaskResponse) ProtoMessage()    {}
 func (*AddActivityTaskResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_826e827d3aabf7fc, []int{8}
+	return fileDescriptor_826e827d3aabf7fc, []int{10}
 }
 func (m *AddActivityTaskResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -952,6 +1128,13 @@ func (m *AddActivityTaskResponse) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_AddActivityTaskResponse proto.InternalMessageInfo
 
+func (m *AddActivityTaskResponse) GetPartitionConfig() *TaskListPartitionConfig {
+	if m != nil {
+		return m.PartitionConfig
+	}
+	return nil
+}
+
 type QueryWorkflowRequest struct {
 	Request              *v1.QueryWorkflowRequest `protobuf:"bytes,1,opt,name=request,proto3" json:"request,omitempty"`
 	DomainId             string                   `protobuf:"bytes,2,opt,name=domain_id,json=domainId,proto3" json:"domain_id,omitempty"`
@@ -966,7 +1149,7 @@ func (m *QueryWorkflowRequest) Reset()         { *m = QueryWorkflowRequest{} }
 func (m *QueryWorkflowRequest) String() string { return proto.CompactTextString(m) }
 func (*QueryWorkflowRequest) ProtoMessage()    {}
 func (*QueryWorkflowRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_826e827d3aabf7fc, []int{9}
+	return fileDescriptor_826e827d3aabf7fc, []int{11}
 }
 func (m *QueryWorkflowRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1035,7 +1218,7 @@ func (m *QueryWorkflowResponse) Reset()         { *m = QueryWorkflowResponse{} }
 func (m *QueryWorkflowResponse) String() string { return proto.CompactTextString(m) }
 func (*QueryWorkflowResponse) ProtoMessage()    {}
 func (*QueryWorkflowResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_826e827d3aabf7fc, []int{10}
+	return fileDescriptor_826e827d3aabf7fc, []int{12}
 }
 func (m *QueryWorkflowResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1092,7 +1275,7 @@ func (m *RespondQueryTaskCompletedRequest) Reset()         { *m = RespondQueryTa
 func (m *RespondQueryTaskCompletedRequest) String() string { return proto.CompactTextString(m) }
 func (*RespondQueryTaskCompletedRequest) ProtoMessage()    {}
 func (*RespondQueryTaskCompletedRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_826e827d3aabf7fc, []int{11}
+	return fileDescriptor_826e827d3aabf7fc, []int{13}
 }
 func (m *RespondQueryTaskCompletedRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1159,7 +1342,7 @@ func (m *RespondQueryTaskCompletedResponse) Reset()         { *m = RespondQueryT
 func (m *RespondQueryTaskCompletedResponse) String() string { return proto.CompactTextString(m) }
 func (*RespondQueryTaskCompletedResponse) ProtoMessage()    {}
 func (*RespondQueryTaskCompletedResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_826e827d3aabf7fc, []int{12}
+	return fileDescriptor_826e827d3aabf7fc, []int{14}
 }
 func (m *RespondQueryTaskCompletedResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1202,7 +1385,7 @@ func (m *CancelOutstandingPollRequest) Reset()         { *m = CancelOutstandingP
 func (m *CancelOutstandingPollRequest) String() string { return proto.CompactTextString(m) }
 func (*CancelOutstandingPollRequest) ProtoMessage()    {}
 func (*CancelOutstandingPollRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_826e827d3aabf7fc, []int{13}
+	return fileDescriptor_826e827d3aabf7fc, []int{15}
 }
 func (m *CancelOutstandingPollRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1269,7 +1452,7 @@ func (m *CancelOutstandingPollResponse) Reset()         { *m = CancelOutstanding
 func (m *CancelOutstandingPollResponse) String() string { return proto.CompactTextString(m) }
 func (*CancelOutstandingPollResponse) ProtoMessage()    {}
 func (*CancelOutstandingPollResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_826e827d3aabf7fc, []int{14}
+	return fileDescriptor_826e827d3aabf7fc, []int{16}
 }
 func (m *CancelOutstandingPollResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1310,7 +1493,7 @@ func (m *DescribeTaskListRequest) Reset()         { *m = DescribeTaskListRequest
 func (m *DescribeTaskListRequest) String() string { return proto.CompactTextString(m) }
 func (*DescribeTaskListRequest) ProtoMessage()    {}
 func (*DescribeTaskListRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_826e827d3aabf7fc, []int{15}
+	return fileDescriptor_826e827d3aabf7fc, []int{17}
 }
 func (m *DescribeTaskListRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1354,18 +1537,19 @@ func (m *DescribeTaskListRequest) GetDomainId() string {
 }
 
 type DescribeTaskListResponse struct {
-	Pollers              []*v1.PollerInfo   `protobuf:"bytes,1,rep,name=pollers,proto3" json:"pollers,omitempty"`
-	TaskListStatus       *v1.TaskListStatus `protobuf:"bytes,2,opt,name=task_list_status,json=taskListStatus,proto3" json:"task_list_status,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}           `json:"-"`
-	XXX_unrecognized     []byte             `json:"-"`
-	XXX_sizecache        int32              `json:"-"`
+	Pollers              []*v1.PollerInfo            `protobuf:"bytes,1,rep,name=pollers,proto3" json:"pollers,omitempty"`
+	TaskListStatus       *v1.TaskListStatus          `protobuf:"bytes,2,opt,name=task_list_status,json=taskListStatus,proto3" json:"task_list_status,omitempty"`
+	PartitionConfig      *v1.TaskListPartitionConfig `protobuf:"bytes,3,opt,name=partition_config,json=partitionConfig,proto3" json:"partition_config,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                    `json:"-"`
+	XXX_unrecognized     []byte                      `json:"-"`
+	XXX_sizecache        int32                       `json:"-"`
 }
 
 func (m *DescribeTaskListResponse) Reset()         { *m = DescribeTaskListResponse{} }
 func (m *DescribeTaskListResponse) String() string { return proto.CompactTextString(m) }
 func (*DescribeTaskListResponse) ProtoMessage()    {}
 func (*DescribeTaskListResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_826e827d3aabf7fc, []int{16}
+	return fileDescriptor_826e827d3aabf7fc, []int{18}
 }
 func (m *DescribeTaskListResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1408,6 +1592,13 @@ func (m *DescribeTaskListResponse) GetTaskListStatus() *v1.TaskListStatus {
 	return nil
 }
 
+func (m *DescribeTaskListResponse) GetPartitionConfig() *v1.TaskListPartitionConfig {
+	if m != nil {
+		return m.PartitionConfig
+	}
+	return nil
+}
+
 type ListTaskListPartitionsRequest struct {
 	Domain               string       `protobuf:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"`
 	TaskList             *v1.TaskList `protobuf:"bytes,2,opt,name=task_list,json=taskList,proto3" json:"task_list,omitempty"`
@@ -1420,7 +1611,7 @@ func (m *ListTaskListPartitionsRequest) Reset()         { *m = ListTaskListParti
 func (m *ListTaskListPartitionsRequest) String() string { return proto.CompactTextString(m) }
 func (*ListTaskListPartitionsRequest) ProtoMessage()    {}
 func (*ListTaskListPartitionsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_826e827d3aabf7fc, []int{17}
+	return fileDescriptor_826e827d3aabf7fc, []int{19}
 }
 func (m *ListTaskListPartitionsRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1475,7 +1666,7 @@ func (m *ListTaskListPartitionsResponse) Reset()         { *m = ListTaskListPart
 func (m *ListTaskListPartitionsResponse) String() string { return proto.CompactTextString(m) }
 func (*ListTaskListPartitionsResponse) ProtoMessage()    {}
 func (*ListTaskListPartitionsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_826e827d3aabf7fc, []int{18}
+	return fileDescriptor_826e827d3aabf7fc, []int{20}
 }
 func (m *ListTaskListPartitionsResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1529,7 +1720,7 @@ func (m *GetTaskListsByDomainRequest) Reset()         { *m = GetTaskListsByDomai
 func (m *GetTaskListsByDomainRequest) String() string { return proto.CompactTextString(m) }
 func (*GetTaskListsByDomainRequest) ProtoMessage()    {}
 func (*GetTaskListsByDomainRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_826e827d3aabf7fc, []int{19}
+	return fileDescriptor_826e827d3aabf7fc, []int{21}
 }
 func (m *GetTaskListsByDomainRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1577,7 +1768,7 @@ func (m *GetTaskListsByDomainResponse) Reset()         { *m = GetTaskListsByDoma
 func (m *GetTaskListsByDomainResponse) String() string { return proto.CompactTextString(m) }
 func (*GetTaskListsByDomainResponse) ProtoMessage()    {}
 func (*GetTaskListsByDomainResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_826e827d3aabf7fc, []int{20}
+	return fileDescriptor_826e827d3aabf7fc, []int{22}
 }
 func (m *GetTaskListsByDomainResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1620,7 +1811,231 @@ func (m *GetTaskListsByDomainResponse) GetActivityTaskListMap() map[string]*Desc
 	return nil
 }
 
+type UpdateTaskListPartitionConfigRequest struct {
+	DomainId             string                      `protobuf:"bytes,1,opt,name=domain_id,json=domainId,proto3" json:"domain_id,omitempty"`
+	TaskList             *v1.TaskList                `protobuf:"bytes,2,opt,name=task_list,json=taskList,proto3" json:"task_list,omitempty"`
+	TaskListType         v1.TaskListType             `protobuf:"varint,3,opt,name=task_list_type,json=taskListType,proto3,enum=uber.cadence.api.v1.TaskListType" json:"task_list_type,omitempty"`
+	PartitionConfig      *v1.TaskListPartitionConfig `protobuf:"bytes,4,opt,name=partition_config,json=partitionConfig,proto3" json:"partition_config,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                    `json:"-"`
+	XXX_unrecognized     []byte                      `json:"-"`
+	XXX_sizecache        int32                       `json:"-"`
+}
+
+func (m *UpdateTaskListPartitionConfigRequest) Reset()         { *m = UpdateTaskListPartitionConfigRequest{} }
+func (m *UpdateTaskListPartitionConfigRequest) String() string { return proto.CompactTextString(m) }
+func (*UpdateTaskListPartitionConfigRequest) ProtoMessage()    {}
+func (*UpdateTaskListPartitionConfigRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_826e827d3aabf7fc, []int{23}
+}
+func (m *UpdateTaskListPartitionConfigRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *UpdateTaskListPartitionConfigRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_UpdateTaskListPartitionConfigRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *UpdateTaskListPartitionConfigRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UpdateTaskListPartitionConfigRequest.Merge(m, src)
+}
+func (m *UpdateTaskListPartitionConfigRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *UpdateTaskListPartitionConfigRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_UpdateTaskListPartitionConfigRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_UpdateTaskListPartitionConfigRequest proto.InternalMessageInfo
+
+func (m *UpdateTaskListPartitionConfigRequest) GetDomainId() string {
+	if m != nil {
+		return m.DomainId
+	}
+	return ""
+}
+
+func (m *UpdateTaskListPartitionConfigRequest) GetTaskList() *v1.TaskList {
+	if m != nil {
+		return m.TaskList
+	}
+	return nil
+}
+
+func (m *UpdateTaskListPartitionConfigRequest) GetTaskListType() v1.TaskListType {
+	if m != nil {
+		return m.TaskListType
+	}
+	return v1.TaskListType_TASK_LIST_TYPE_INVALID
+}
+
+func (m *UpdateTaskListPartitionConfigRequest) GetPartitionConfig() *v1.TaskListPartitionConfig {
+	if m != nil {
+		return m.PartitionConfig
+	}
+	return nil
+}
+
+type UpdateTaskListPartitionConfigResponse struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *UpdateTaskListPartitionConfigResponse) Reset()         { *m = UpdateTaskListPartitionConfigResponse{} }
+func (m *UpdateTaskListPartitionConfigResponse) String() string { return proto.CompactTextString(m) }
+func (*UpdateTaskListPartitionConfigResponse) ProtoMessage()    {}
+func (*UpdateTaskListPartitionConfigResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_826e827d3aabf7fc, []int{24}
+}
+func (m *UpdateTaskListPartitionConfigResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *UpdateTaskListPartitionConfigResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_UpdateTaskListPartitionConfigResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *UpdateTaskListPartitionConfigResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UpdateTaskListPartitionConfigResponse.Merge(m, src)
+}
+func (m *UpdateTaskListPartitionConfigResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *UpdateTaskListPartitionConfigResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_UpdateTaskListPartitionConfigResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_UpdateTaskListPartitionConfigResponse proto.InternalMessageInfo
+
+type RefreshTaskListPartitionConfigRequest struct {
+	DomainId             string                      `protobuf:"bytes,1,opt,name=domain_id,json=domainId,proto3" json:"domain_id,omitempty"`
+	TaskList             *v1.TaskList                `protobuf:"bytes,2,opt,name=task_list,json=taskList,proto3" json:"task_list,omitempty"`
+	TaskListType         v1.TaskListType             `protobuf:"varint,3,opt,name=task_list_type,json=taskListType,proto3,enum=uber.cadence.api.v1.TaskListType" json:"task_list_type,omitempty"`
+	PartitionConfig      *v1.TaskListPartitionConfig `protobuf:"bytes,4,opt,name=partition_config,json=partitionConfig,proto3" json:"partition_config,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                    `json:"-"`
+	XXX_unrecognized     []byte                      `json:"-"`
+	XXX_sizecache        int32                       `json:"-"`
+}
+
+func (m *RefreshTaskListPartitionConfigRequest) Reset()         { *m = RefreshTaskListPartitionConfigRequest{} }
+func (m *RefreshTaskListPartitionConfigRequest) String() string { return proto.CompactTextString(m) }
+func (*RefreshTaskListPartitionConfigRequest) ProtoMessage()    {}
+func (*RefreshTaskListPartitionConfigRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_826e827d3aabf7fc, []int{25}
+}
+func (m *RefreshTaskListPartitionConfigRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *RefreshTaskListPartitionConfigRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_RefreshTaskListPartitionConfigRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *RefreshTaskListPartitionConfigRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RefreshTaskListPartitionConfigRequest.Merge(m, src)
+}
+func (m *RefreshTaskListPartitionConfigRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *RefreshTaskListPartitionConfigRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_RefreshTaskListPartitionConfigRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RefreshTaskListPartitionConfigRequest proto.InternalMessageInfo
+
+func (m *RefreshTaskListPartitionConfigRequest) GetDomainId() string {
+	if m != nil {
+		return m.DomainId
+	}
+	return ""
+}
+
+func (m *RefreshTaskListPartitionConfigRequest) GetTaskList() *v1.TaskList {
+	if m != nil {
+		return m.TaskList
+	}
+	return nil
+}
+
+func (m *RefreshTaskListPartitionConfigRequest) GetTaskListType() v1.TaskListType {
+	if m != nil {
+		return m.TaskListType
+	}
+	return v1.TaskListType_TASK_LIST_TYPE_INVALID
+}
+
+func (m *RefreshTaskListPartitionConfigRequest) GetPartitionConfig() *v1.TaskListPartitionConfig {
+	if m != nil {
+		return m.PartitionConfig
+	}
+	return nil
+}
+
+type RefreshTaskListPartitionConfigResponse struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *RefreshTaskListPartitionConfigResponse) Reset() {
+	*m = RefreshTaskListPartitionConfigResponse{}
+}
+func (m *RefreshTaskListPartitionConfigResponse) String() string { return proto.CompactTextString(m) }
+func (*RefreshTaskListPartitionConfigResponse) ProtoMessage()    {}
+func (*RefreshTaskListPartitionConfigResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_826e827d3aabf7fc, []int{26}
+}
+func (m *RefreshTaskListPartitionConfigResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *RefreshTaskListPartitionConfigResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_RefreshTaskListPartitionConfigResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *RefreshTaskListPartitionConfigResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RefreshTaskListPartitionConfigResponse.Merge(m, src)
+}
+func (m *RefreshTaskListPartitionConfigResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *RefreshTaskListPartitionConfigResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_RefreshTaskListPartitionConfigResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RefreshTaskListPartitionConfigResponse proto.InternalMessageInfo
+
 func init() {
+	proto.RegisterType((*TaskListPartitionConfig)(nil), "uber.cadence.matching.v1.TaskListPartitionConfig")
+	proto.RegisterType((*LoadBalancerHints)(nil), "uber.cadence.matching.v1.LoadBalancerHints")
 	proto.RegisterType((*PollForDecisionTaskRequest)(nil), "uber.cadence.matching.v1.PollForDecisionTaskRequest")
 	proto.RegisterType((*PollForDecisionTaskResponse)(nil), "uber.cadence.matching.v1.PollForDecisionTaskResponse")
 	proto.RegisterMapType((map[string]*v1.WorkflowQuery)(nil), "uber.cadence.matching.v1.PollForDecisionTaskResponse.QueriesEntry")
@@ -1647,6 +2062,10 @@ func init() {
 	proto.RegisterType((*GetTaskListsByDomainResponse)(nil), "uber.cadence.matching.v1.GetTaskListsByDomainResponse")
 	proto.RegisterMapType((map[string]*DescribeTaskListResponse)(nil), "uber.cadence.matching.v1.GetTaskListsByDomainResponse.ActivityTaskListMapEntry")
 	proto.RegisterMapType((map[string]*DescribeTaskListResponse)(nil), "uber.cadence.matching.v1.GetTaskListsByDomainResponse.DecisionTaskListMapEntry")
+	proto.RegisterType((*UpdateTaskListPartitionConfigRequest)(nil), "uber.cadence.matching.v1.UpdateTaskListPartitionConfigRequest")
+	proto.RegisterType((*UpdateTaskListPartitionConfigResponse)(nil), "uber.cadence.matching.v1.UpdateTaskListPartitionConfigResponse")
+	proto.RegisterType((*RefreshTaskListPartitionConfigRequest)(nil), "uber.cadence.matching.v1.RefreshTaskListPartitionConfigRequest")
+	proto.RegisterType((*RefreshTaskListPartitionConfigResponse)(nil), "uber.cadence.matching.v1.RefreshTaskListPartitionConfigResponse")
 }
 
 func init() {
@@ -1654,139 +2073,239 @@ func init() {
 }
 
 var fileDescriptor_826e827d3aabf7fc = []byte{
-	// 2106 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xcc, 0x5a, 0x5b, 0x6f, 0x1b, 0xc7,
-	0x15, 0xc6, 0xea, 0x46, 0xf1, 0x50, 0xa2, 0xa4, 0xb1, 0xa3, 0xac, 0x28, 0xeb, 0x62, 0xa6, 0x49,
-	0xd4, 0x22, 0x5d, 0x45, 0x4a, 0xec, 0x3a, 0x0e, 0x8a, 0x42, 0x57, 0x9b, 0x45, 0x5d, 0x3b, 0x6b,
-	0xd5, 0x05, 0x8a, 0xc2, 0x8b, 0xe1, 0xee, 0x48, 0xdc, 0x8a, 0xdc, 0x5d, 0xef, 0x0c, 0xa9, 0xb0,
-	0x0f, 0x7d, 0x28, 0xda, 0xa2, 0x40, 0x5e, 0xfb, 0x0f, 0x9a, 0xc7, 0x3e, 0xf6, 0x47, 0xf4, 0xb1,
-	0x8f, 0x05, 0x82, 0x02, 0x85, 0x81, 0xfe, 0x80, 0xf6, 0x17, 0x14, 0x33, 0x3b, 0xbb, 0xdc, 0x25,
-	0x67, 0x79, 0x91, 0x9c, 0xa4, 0x6f, 0x9c, 0x99, 0x73, 0xbe, 0x73, 0xe6, 0xdc, 0x67, 0x41, 0x78,
-	0xaf, 0x5d, 0x27, 0xe1, 0xae, 0x8d, 0x1d, 0xe2, 0xd9, 0x64, 0xb7, 0x85, 0x99, 0xdd, 0x70, 0xbd,
-	0x8b, 0xdd, 0xce, 0xde, 0x2e, 0x25, 0x61, 0xc7, 0xb5, 0x89, 0x11, 0x84, 0x3e, 0xf3, 0x91, 0xce,
-	0xe9, 0x0c, 0x49, 0x67, 0xc4, 0x74, 0x46, 0x67, 0xaf, 0xb2, 0x79, 0xe1, 0xfb, 0x17, 0x4d, 0xb2,
-	0x2b, 0xe8, 0xea, 0xed, 0xf3, 0x5d, 0xa7, 0x1d, 0x62, 0xe6, 0xfa, 0x5e, 0xc4, 0x59, 0xd9, 0xea,
-	0x3f, 0x67, 0x6e, 0x8b, 0x50, 0x86, 0x5b, 0x81, 0x24, 0x18, 0x00, 0xb8, 0x0a, 0x71, 0x10, 0x90,
-	0x90, 0xca, 0xf3, 0xed, 0x8c, 0x8a, 0x38, 0x70, 0xb9, 0x76, 0xb6, 0xdf, 0x6a, 0xf5, 0x44, 0xa8,
-	0x28, 0x5e, 0xb5, 0x49, 0xd8, 0x95, 0x04, 0x55, 0x15, 0x01, 0xc3, 0xf4, 0xb2, 0xe9, 0x52, 0x26,
-	0x69, 0x76, 0x54, 0x34, 0xd2, 0x08, 0xd6, 0x95, 0x1f, 0x5e, 0x92, 0x50, 0x52, 0x7e, 0x6f, 0x14,
-	0xe5, 0x79, 0xd3, 0xbf, 0x92, 0xb4, 0x77, 0x55, 0xb4, 0x0d, 0x97, 0x32, 0x3f, 0x51, 0xee, 0x3b,
-	0x19, 0x12, 0xda, 0xc0, 0x21, 0x71, 0x06, 0xa9, 0xde, 0xcd, 0xa1, 0xca, 0xde, 0xa2, 0xfa, 0x1f,
-	0x0d, 0x2a, 0xcf, 0xfc, 0x66, 0xf3, 0xd4, 0x0f, 0x8f, 0x89, 0xed, 0x52, 0xd7, 0xf7, 0xce, 0x30,
-	0xbd, 0x34, 0xc9, 0xab, 0x36, 0xa1, 0x0c, 0xd5, 0xa0, 0x10, 0x46, 0x3f, 0x75, 0x6d, 0x5b, 0xdb,
-	0x29, 0xed, 0xef, 0x1a, 0x19, 0xc7, 0xe2, 0xc0, 0x35, 0x3a, 0x7b, 0x46, 0x3e, 0x82, 0x19, 0xf3,
-	0xa3, 0x75, 0x28, 0x3a, 0x7e, 0x0b, 0xbb, 0x9e, 0xe5, 0x3a, 0xfa, 0xd4, 0xb6, 0xb6, 0x53, 0x34,
-	0xe7, 0xa3, 0x8d, 0x9a, 0xc3, 0x0f, 0x03, 0xbf, 0xd9, 0x24, 0x21, 0x3f, 0x9c, 0x8e, 0x0e, 0xa3,
-	0x8d, 0x9a, 0x83, 0xde, 0x85, 0xf2, 0xb9, 0x1f, 0x5e, 0xe1, 0xd0, 0x21, 0x8e, 0x75, 0x1e, 0xfa,
-	0x2d, 0x7d, 0x46, 0x50, 0x2c, 0x26, 0xbb, 0xa7, 0xa1, 0xdf, 0x42, 0xef, 0xc3, 0x92, 0x4b, 0xfd,
-	0xa6, 0x88, 0x25, 0xeb, 0x22, 0xf4, 0xdb, 0x81, 0x3e, 0x2b, 0xe8, 0xca, 0xc9, 0xf6, 0x23, 0xbe,
-	0x5b, 0xfd, 0x6b, 0x11, 0xd6, 0x95, 0x1a, 0xd3, 0xc0, 0xf7, 0x28, 0x41, 0x1b, 0x00, 0xdc, 0x4a,
-	0x16, 0xf3, 0x2f, 0x89, 0x27, 0xee, 0xbd, 0x60, 0x16, 0xf9, 0xce, 0x19, 0xdf, 0x40, 0x3f, 0x03,
-	0x14, 0x3b, 0xcd, 0x22, 0x9f, 0x13, 0xbb, 0xcd, 0x91, 0xc5, 0x8d, 0x4a, 0xfb, 0xef, 0x29, 0xcd,
-	0xf3, 0x73, 0x49, 0x7e, 0x12, 0x53, 0x9b, 0x2b, 0x57, 0xfd, 0x5b, 0xe8, 0x14, 0x16, 0x13, 0x58,
-	0xd6, 0x0d, 0x88, 0x30, 0x43, 0x69, 0xff, 0xee, 0x50, 0xc4, 0xb3, 0x6e, 0x40, 0xcc, 0x85, 0xab,
-	0xd4, 0x0a, 0xbd, 0x80, 0xb5, 0x20, 0x24, 0x1d, 0xd7, 0x6f, 0x53, 0x8b, 0x32, 0x1c, 0x32, 0xe2,
-	0x58, 0xa4, 0x43, 0x3c, 0xc6, 0x4d, 0x3b, 0x23, 0x30, 0xd7, 0x8d, 0x28, 0x85, 0x8c, 0x38, 0x85,
-	0x8c, 0x9a, 0xc7, 0xee, 0x7f, 0xfc, 0x02, 0x37, 0xdb, 0xc4, 0x5c, 0x8d, 0xb9, 0x9f, 0x47, 0xcc,
-	0x27, 0x9c, 0xb7, 0xe6, 0xa0, 0x1d, 0x58, 0x1e, 0x80, 0xe3, 0xf6, 0x9d, 0x36, 0xcb, 0x34, 0x4b,
-	0xa9, 0x43, 0x01, 0x33, 0x46, 0x5a, 0x01, 0xd3, 0xe7, 0xb6, 0xb5, 0x9d, 0x59, 0x33, 0x5e, 0xa2,
-	0x2a, 0x2c, 0x7a, 0xe4, 0x73, 0xd6, 0x03, 0x28, 0x08, 0x80, 0x12, 0xdf, 0x8c, 0xb9, 0x3f, 0x00,
-	0x54, 0xc7, 0xf6, 0x65, 0xd3, 0xbf, 0xb0, 0x6c, 0xbf, 0xed, 0x31, 0xab, 0xe1, 0x7a, 0x4c, 0x9f,
-	0x17, 0x84, 0xcb, 0xf2, 0xe4, 0x88, 0x1f, 0x3c, 0x76, 0x3d, 0x86, 0x1e, 0x80, 0x4e, 0x99, 0x6b,
-	0x5f, 0x76, 0x7b, 0xae, 0xb0, 0x88, 0x87, 0xeb, 0x4d, 0xe2, 0xe8, 0xc5, 0x6d, 0x6d, 0x67, 0xde,
-	0x5c, 0x8d, 0xce, 0x13, 0x43, 0x9f, 0x44, 0xa7, 0xe8, 0x01, 0xcc, 0x8a, 0x94, 0xd7, 0x41, 0xd8,
-	0xa4, 0x3a, 0xd4, 0xce, 0x9f, 0x71, 0x4a, 0x33, 0x62, 0x40, 0x26, 0x2c, 0x3a, 0x32, 0x6e, 0x2c,
-	0xd7, 0x3b, 0xf7, 0xf5, 0x92, 0x40, 0xf8, 0x7e, 0x16, 0x21, 0x4a, 0x39, 0x0e, 0x72, 0x16, 0x62,
-	0x8f, 0xba, 0xc4, 0x63, 0x71, 0xb4, 0xd5, 0xbc, 0x73, 0xdf, 0x5c, 0x70, 0x52, 0x2b, 0xf4, 0x12,
-	0xee, 0x0c, 0x06, 0x95, 0x25, 0xc2, 0x90, 0x67, 0xab, 0xbe, 0x20, 0x44, 0x6c, 0x28, 0x95, 0xe4,
-	0xc1, 0xfb, 0x13, 0x97, 0x32, 0x73, 0x6d, 0x20, 0xaa, 0xe2, 0x23, 0x64, 0xc0, 0xad, 0xc8, 0xe8,
-	0xbc, 0x46, 0x10, 0xab, 0x43, 0x42, 0x2e, 0x5a, 0x5f, 0x14, 0xfe, 0x59, 0x11, 0x47, 0xcf, 0xf9,
-	0xc9, 0x8b, 0xe8, 0x00, 0xdd, 0x85, 0x85, 0x7a, 0x88, 0x3d, 0xbb, 0x21, 0xb3, 0xa0, 0x2c, 0xb2,
-	0xa0, 0x14, 0xed, 0x45, 0x79, 0x70, 0x00, 0x65, 0x6a, 0x37, 0x88, 0xd3, 0x6e, 0x12, 0xc7, 0xe2,
-	0x45, 0x5a, 0x5f, 0x12, 0x4a, 0x56, 0x06, 0xa2, 0xeb, 0x2c, 0xae, 0xe0, 0xe6, 0x62, 0xc2, 0xc1,
-	0xf7, 0xd0, 0x0f, 0x61, 0x21, 0x8e, 0x29, 0x01, 0xb0, 0x3c, 0x12, 0xa0, 0x24, 0xe9, 0x05, 0xfb,
-	0x2f, 0xa1, 0xc0, 0x3d, 0xe2, 0x12, 0xaa, 0xaf, 0x6c, 0x4f, 0xef, 0x94, 0xf6, 0x0f, 0x8d, 0xbc,
-	0xb6, 0x63, 0x0c, 0x49, 0x78, 0xe3, 0xb3, 0x08, 0xe4, 0xc4, 0x63, 0x61, 0xd7, 0x8c, 0x21, 0xb9,
-	0xc9, 0x98, 0xcf, 0x70, 0xd3, 0x92, 0x85, 0xd5, 0xaa, 0x77, 0x19, 0xa1, 0x3a, 0x12, 0x91, 0xb8,
-	0x22, 0x8e, 0x1e, 0x47, 0x27, 0x87, 0xfc, 0xa0, 0xf2, 0x12, 0x16, 0xd2, 0x40, 0x68, 0x19, 0xa6,
-	0x2f, 0x49, 0x57, 0xd4, 0x8f, 0xa2, 0xc9, 0x7f, 0xf2, 0x90, 0xeb, 0xf0, 0x1c, 0x93, 0xc5, 0x62,
-	0xac, 0x90, 0x13, 0x0c, 0x0f, 0xa7, 0x1e, 0x68, 0xe9, 0x52, 0x7d, 0x60, 0x33, 0xb7, 0xe3, 0xb2,
-	0xee, 0xf5, 0x4b, 0xb5, 0x02, 0xe1, 0xff, 0xb1, 0x54, 0x7f, 0x31, 0x9f, 0x94, 0xea, 0xac, 0xc6,
-	0xdf, 0x6a, 0xa9, 0xde, 0x82, 0x12, 0x96, 0xda, 0xf4, 0x8c, 0x00, 0xf1, 0x56, 0xcd, 0xe1, 0xb5,
-	0x3c, 0x21, 0x10, 0xb5, 0x7c, 0x66, 0x48, 0x2d, 0x4f, 0x2e, 0x26, 0x6a, 0x39, 0x4e, 0xad, 0xd0,
-	0x3e, 0xcc, 0xba, 0x5e, 0xd0, 0x66, 0xc2, 0x3a, 0xa5, 0xfd, 0x3b, 0x6a, 0x8f, 0xe2, 0x6e, 0xd3,
-	0xc7, 0x8e, 0x19, 0x91, 0x2a, 0xd2, 0x72, 0xee, 0xa6, 0x69, 0x59, 0x98, 0x2c, 0x2d, 0xcf, 0x60,
-	0x2d, 0xc6, 0xb3, 0x98, 0x6f, 0xd9, 0x4d, 0x9f, 0x12, 0x01, 0xe4, 0xb7, 0xa3, 0x42, 0x5e, 0xda,
-	0x5f, 0x1b, 0xc0, 0x3a, 0x96, 0x53, 0xa0, 0xb9, 0x1a, 0xf3, 0x9e, 0xf9, 0x47, 0x9c, 0xf3, 0x2c,
-	0x62, 0x44, 0x3f, 0x85, 0x55, 0x21, 0x64, 0x10, 0xb2, 0x38, 0x0a, 0xf2, 0x96, 0x60, 0xec, 0xc3,
-	0x3b, 0x85, 0x95, 0x06, 0xc1, 0x21, 0xab, 0x13, 0xcc, 0x12, 0x28, 0x18, 0x05, 0xb5, 0x9c, 0xf0,
-	0xc4, 0x38, 0xa9, 0x6e, 0x57, 0xca, 0x76, 0xbb, 0x97, 0xb0, 0x99, 0xf5, 0x84, 0xe5, 0x9f, 0x5b,
-	0xac, 0xe1, 0x52, 0x2b, 0x66, 0x58, 0x18, 0x69, 0xd8, 0x4a, 0xc6, 0x33, 0x4f, 0xcf, 0xcf, 0x1a,
-	0x2e, 0x3d, 0x90, 0xf8, 0xb5, 0xf4, 0x0d, 0x1c, 0xc2, 0xb0, 0xdb, 0xa4, 0xa2, 0xa2, 0x8f, 0x8a,
-	0x94, 0xde, 0x25, 0x8e, 0x23, 0xae, 0xc1, 0xe1, 0xa3, 0x7c, 0xbd, 0xe1, 0xe3, 0x7d, 0x58, 0x4a,
-	0x70, 0xa2, 0x8a, 0x21, 0x9a, 0x42, 0xd1, 0x2c, 0xc7, 0xdb, 0xc7, 0x62, 0x17, 0x7d, 0x04, 0x73,
-	0x0d, 0x82, 0x1d, 0x12, 0xca, 0x9a, 0xbf, 0xae, 0x94, 0xf4, 0x58, 0x90, 0x98, 0x92, 0xb4, 0xfa,
-	0x8f, 0x19, 0x58, 0x3d, 0x70, 0x1c, 0xd5, 0xa0, 0x9a, 0x29, 0x59, 0x5a, 0x5f, 0xc9, 0xfa, 0x9a,
-	0xca, 0xc0, 0x43, 0x28, 0xf6, 0x1a, 0xf4, 0xf4, 0x38, 0x0d, 0x7a, 0x9e, 0xc5, 0xfd, 0x78, 0x0b,
-	0x4a, 0x49, 0x8e, 0xc8, 0xb9, 0x6c, 0xda, 0x84, 0x78, 0xab, 0xe6, 0xf4, 0x27, 0x91, 0x0c, 0x7d,
-	0x19, 0xa6, 0xb3, 0x13, 0x24, 0x91, 0x18, 0xe3, 0xe2, 0x60, 0x7d, 0x08, 0x73, 0xd4, 0x6f, 0x87,
-	0x76, 0x54, 0x14, 0xca, 0xfd, 0x2d, 0x28, 0x35, 0xb3, 0x60, 0x7a, 0xf9, 0x5c, 0x50, 0x9a, 0x92,
-	0x43, 0x51, 0xdb, 0x0b, 0xaa, 0xda, 0x1e, 0xc0, 0x72, 0x80, 0x43, 0xe6, 0x8a, 0xda, 0x6e, 0xfb,
-	0xde, 0xb9, 0x7b, 0xa1, 0xcf, 0x8b, 0xee, 0x7c, 0x92, 0xdf, 0x9d, 0xd5, 0x5e, 0x35, 0x9e, 0xc5,
-	0x40, 0x47, 0x02, 0x27, 0x6a, 0xd0, 0x4b, 0x41, 0x76, 0xb7, 0x72, 0x08, 0xb7, 0x55, 0x84, 0x8a,
-	0x06, 0x7c, 0x3b, 0xdd, 0x80, 0x8b, 0xe9, 0xe6, 0xba, 0x06, 0x6f, 0x0f, 0xe8, 0x10, 0xf5, 0x98,
-	0xea, 0x7f, 0x67, 0x45, 0xd4, 0xa9, 0x7a, 0xee, 0xb7, 0x11, 0x75, 0x7c, 0x0e, 0x17, 0x0e, 0xb1,
-	0x7a, 0xa2, 0xa3, 0x0e, 0x54, 0x8e, 0xf6, 0x8f, 0x63, 0x05, 0x32, 0xf1, 0x39, 0x73, 0xa3, 0xf8,
-	0x9c, 0x9d, 0x2c, 0x3e, 0xe7, 0x6e, 0x1e, 0x9f, 0x85, 0x37, 0x10, 0x9f, 0xf3, 0xaa, 0xf8, 0xf4,
-	0x40, 0xc7, 0x29, 0x57, 0x1e, 0xbb, 0x34, 0xe0, 0x81, 0xc8, 0xa7, 0x70, 0xd9, 0x49, 0xf6, 0x87,
-	0xc4, 0x69, 0x0e, 0xa7, 0x99, 0x8b, 0xa9, 0xcc, 0x07, 0x18, 0x23, 0x1f, 0x14, 0xf1, 0xf6, 0x0d,
-	0xe6, 0xc3, 0x57, 0xd3, 0xa0, 0xe7, 0x5d, 0x16, 0xfd, 0x18, 0x96, 0x7a, 0x8d, 0x4d, 0xbc, 0x1d,
-	0xe4, 0xc8, 0xa9, 0xee, 0x17, 0x72, 0x4a, 0x16, 0x0f, 0x3c, 0xb3, 0x37, 0x9c, 0x88, 0xf5, 0xc0,
-	0xac, 0x31, 0x35, 0xd9, 0xac, 0x91, 0xea, 0xbe, 0xd3, 0x93, 0x76, 0xdf, 0x99, 0x37, 0xdf, 0x7d,
-	0x67, 0xdf, 0x4c, 0xf7, 0x9d, 0x7b, 0x63, 0xdd, 0xb7, 0xa0, 0xea, 0xbe, 0xb2, 0xda, 0xa9, 0x26,
-	0xea, 0xea, 0x57, 0x1a, 0xdc, 0x16, 0x4f, 0x8f, 0x58, 0x4e, 0x5c, 0xeb, 0x8e, 0xfa, 0xdf, 0x17,
-	0xdf, 0x55, 0xaa, 0xa7, 0xe2, 0x1d, 0xf3, 0x65, 0x71, 0x93, 0x7e, 0x3a, 0xde, 0xc3, 0xa3, 0xfa,
-	0x67, 0x0d, 0xde, 0xea, 0xd3, 0x50, 0xbe, 0x24, 0x7e, 0x04, 0x0b, 0xe2, 0x75, 0x6f, 0x85, 0x84,
-	0xb6, 0x9b, 0xf1, 0x1d, 0x87, 0x7b, 0xb2, 0x24, 0x38, 0x4c, 0xc1, 0x80, 0x6a, 0x50, 0x8e, 0x01,
-	0x7e, 0x45, 0x6c, 0x46, 0x9c, 0xa1, 0xaf, 0xbc, 0xe8, 0x75, 0x27, 0x29, 0xcd, 0xc5, 0x57, 0xe9,
-	0x65, 0xf5, 0xdf, 0x1a, 0x6c, 0x47, 0x8a, 0x39, 0x82, 0x8e, 0xdf, 0xf7, 0xc8, 0x6f, 0x05, 0x4d,
-	0xc2, 0x89, 0xa5, 0x29, 0x9f, 0xf6, 0xfb, 0xe3, 0x9e, 0x52, 0xd0, 0x28, 0x9c, 0x6f, 0xc0, 0x37,
-	0x6f, 0x43, 0x41, 0xf0, 0xca, 0x39, 0xa7, 0x68, 0xce, 0xf1, 0x65, 0xcd, 0xa9, 0xbe, 0x03, 0x77,
-	0x87, 0xa8, 0x27, 0x03, 0xf2, 0x9f, 0x1a, 0xdc, 0x39, 0xc2, 0x9e, 0x4d, 0x9a, 0x4f, 0xdb, 0x8c,
-	0x32, 0xec, 0x39, 0xae, 0x77, 0xc1, 0xdf, 0x84, 0x63, 0x35, 0xe1, 0xcc, 0x6b, 0x75, 0xaa, 0xef,
-	0xb5, 0xfa, 0x08, 0xca, 0xc9, 0xa5, 0x7a, 0xdf, 0xdc, 0xca, 0x39, 0x89, 0x17, 0xdf, 0x2c, 0x4a,
-	0x3c, 0x96, 0x5a, 0xdd, 0xa4, 0xd3, 0x56, 0xb7, 0x60, 0x23, 0xe7, 0x7a, 0xd2, 0x00, 0xbf, 0x81,
-	0xb7, 0x8f, 0x09, 0xb5, 0x43, 0xb7, 0x4e, 0x12, 0x76, 0x79, 0xf5, 0xd3, 0xfe, 0x18, 0xf8, 0x40,
-	0x29, 0x35, 0x87, 0x7d, 0x3c, 0xd7, 0x57, 0xbf, 0xd4, 0x40, 0x1f, 0x44, 0x90, 0x69, 0xf3, 0x09,
-	0x14, 0x22, 0x73, 0x52, 0x5d, 0x13, 0x4d, 0x6d, 0x2b, 0xf7, 0xab, 0x03, 0x09, 0x45, 0xa7, 0x8c,
-	0xe9, 0xd1, 0x13, 0x58, 0xee, 0x59, 0x9f, 0x32, 0xcc, 0xda, 0x54, 0xa6, 0xcc, 0x3b, 0x43, 0x6d,
-	0xf7, 0x5c, 0x90, 0x9a, 0x65, 0x96, 0x59, 0x57, 0x29, 0x6c, 0x08, 0x7f, 0xc8, 0xdd, 0xa4, 0x03,
-	0xd2, 0xd8, 0x58, 0xab, 0x30, 0x27, 0x8b, 0x62, 0x14, 0x24, 0x72, 0x95, 0x75, 0xde, 0xd4, 0x64,
-	0xce, 0xfb, 0xc3, 0x14, 0x6c, 0xe6, 0x49, 0x95, 0x16, 0x7a, 0x05, 0x1b, 0xbd, 0x6f, 0x01, 0xc9,
-	0x7d, 0x93, 0x9e, 0x1d, 0xdb, 0xcd, 0x18, 0x2a, 0x32, 0xc1, 0x7d, 0x42, 0x18, 0x76, 0x30, 0xc3,
-	0x66, 0x25, 0x3d, 0x70, 0x64, 0x45, 0x73, 0x91, 0xc9, 0x07, 0x4a, 0xa5, 0xc8, 0xa9, 0xeb, 0x89,
-	0x74, 0x52, 0xe3, 0x71, 0x56, 0x64, 0xf5, 0x1e, 0xac, 0x3f, 0x22, 0x89, 0x19, 0xe8, 0x61, 0x37,
-	0xea, 0x34, 0x23, 0x6c, 0x5f, 0xfd, 0x72, 0x06, 0xee, 0xa8, 0xf9, 0xa4, 0xf5, 0x7e, 0xa7, 0xc1,
-	0xaa, 0xe2, 0x2e, 0x2d, 0x1c, 0x48, 0xbb, 0x3d, 0xcd, 0x1f, 0xa2, 0x86, 0x01, 0x1b, 0xc7, 0x7d,
-	0x77, 0x79, 0x82, 0x83, 0x68, 0x9c, 0xba, 0xe5, 0x0c, 0x9e, 0x08, 0x35, 0x14, 0x5e, 0xe4, 0x6a,
-	0x4c, 0xdd, 0x48, 0x8d, 0x83, 0x3e, 0x2f, 0xf6, 0xd4, 0xc0, 0x83, 0x27, 0x95, 0x5f, 0xf3, 0x4c,
-	0x54, 0xeb, 0xad, 0x98, 0xee, 0x1e, 0x67, 0x3f, 0x37, 0x0e, 0x19, 0x6b, 0xf3, 0xd2, 0x3b, 0x35,
-	0x11, 0x72, 0xd9, 0x79, 0xca, 0x7e, 0xdd, 0xb2, 0xf7, 0xff, 0x02, 0x50, 0x7a, 0x22, 0x79, 0x0e,
-	0x9e, 0xd5, 0xd0, 0x6f, 0x35, 0xb8, 0xa5, 0xf8, 0xa0, 0x8b, 0x3e, 0x9e, 0xf0, 0xfb, 0xaf, 0x08,
-	0xce, 0xca, 0xbd, 0x6b, 0x7d, 0x35, 0x4e, 0x2b, 0x91, 0x36, 0xcc, 0x18, 0x4a, 0x28, 0x46, 0xfb,
-	0x31, 0x94, 0x50, 0x7e, 0x00, 0xed, 0xc0, 0x52, 0xdf, 0xbb, 0x15, 0x7d, 0x38, 0xe9, 0x33, 0xbb,
-	0xb2, 0x37, 0x01, 0x47, 0x46, 0x6e, 0xe6, 0xde, 0x1f, 0x4e, 0xfa, 0x9c, 0x19, 0x21, 0x57, 0x79,
-	0xdf, 0x00, 0x16, 0x33, 0xf3, 0x1b, 0x32, 0xf2, 0x31, 0x54, 0xa3, 0x68, 0x65, 0x77, 0x6c, 0x7a,
-	0x29, 0xf1, 0x4f, 0x1a, 0xac, 0xe5, 0x4e, 0x29, 0xe8, 0x61, 0x3e, 0xdc, 0xa8, 0xc9, 0xab, 0xf2,
-	0xe9, 0xb5, 0x78, 0xa5, 0x5a, 0x7f, 0xd4, 0xe0, 0x2d, 0xe5, 0xdc, 0x80, 0xee, 0xe7, 0xc3, 0x0e,
-	0x9b, 0xa3, 0x2a, 0x3f, 0x98, 0x98, 0x4f, 0xaa, 0xd2, 0x85, 0xe5, 0xfe, 0x24, 0x46, 0x7b, 0x93,
-	0x24, 0x7c, 0x24, 0xff, 0x1a, 0x35, 0x02, 0x7d, 0xa1, 0xc1, 0xaa, 0xba, 0xff, 0xa2, 0x21, 0xd7,
-	0x19, 0x3a, 0x27, 0x54, 0x1e, 0x4c, 0xce, 0x28, 0xb5, 0xf9, 0xbd, 0x06, 0xb7, 0x55, 0xd5, 0x1e,
-	0xdd, 0x9b, 0xb4, 0x3b, 0x44, 0x9a, 0xdc, 0xbf, 0x5e, 0x53, 0x39, 0x7c, 0xf4, 0xb7, 0xd7, 0x9b,
-	0xda, 0xdf, 0x5f, 0x6f, 0x6a, 0xff, 0x7a, 0xbd, 0xa9, 0xfd, 0xe2, 0x93, 0x0b, 0x97, 0x35, 0xda,
-	0x75, 0xc3, 0xf6, 0x5b, 0xbb, 0x99, 0x3f, 0x05, 0x18, 0x17, 0xc4, 0x8b, 0xfe, 0x45, 0x91, 0xfe,
-	0x23, 0xc7, 0xa7, 0xf1, 0xef, 0xce, 0x5e, 0x7d, 0x4e, 0x9c, 0x7e, 0xf4, 0xbf, 0x00, 0x00, 0x00,
-	0xff, 0xff, 0xd6, 0x96, 0x18, 0xb5, 0xf6, 0x21, 0x00, 0x00,
+	// 2430 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xec, 0x5a, 0x5b, 0x6f, 0x1c, 0x49,
+	0xf5, 0x57, 0xfb, 0xee, 0x33, 0xf6, 0xd8, 0x2e, 0x7b, 0x9d, 0xce, 0x24, 0x76, 0x9c, 0xc9, 0x26,
+	0xeb, 0xff, 0x9f, 0x65, 0x1c, 0x7b, 0x37, 0x21, 0x9b, 0x15, 0x04, 0x5f, 0x72, 0x19, 0xb4, 0x21,
+	0xd9, 0x8e, 0x37, 0x91, 0x60, 0x95, 0xa6, 0x3c, 0x5d, 0xf6, 0x34, 0x9e, 0xe9, 0xee, 0x74, 0x55,
+	0x8f, 0x77, 0x78, 0xe0, 0x01, 0x01, 0x42, 0xe2, 0x95, 0x7d, 0x07, 0x96, 0xcf, 0xc1, 0x33, 0x8f,
+	0x3c, 0x22, 0xad, 0x90, 0x50, 0x24, 0x3e, 0x00, 0x48, 0x3c, 0x22, 0xa1, 0xba, 0xf4, 0x4c, 0xf7,
+	0x4c, 0xf5, 0x5c, 0x6c, 0x67, 0x97, 0x07, 0xde, 0xdc, 0x55, 0xe7, 0x56, 0xa7, 0xce, 0x39, 0xbf,
+	0x73, 0x6a, 0x0c, 0x37, 0xa2, 0x03, 0x12, 0x6e, 0x54, 0xb0, 0x43, 0xbc, 0x0a, 0xd9, 0xa8, 0x63,
+	0x56, 0xa9, 0xba, 0xde, 0xd1, 0x46, 0x63, 0x73, 0x83, 0x92, 0xb0, 0xe1, 0x56, 0x48, 0x29, 0x08,
+	0x7d, 0xe6, 0x23, 0x93, 0xd3, 0x95, 0x14, 0x5d, 0x29, 0xa6, 0x2b, 0x35, 0x36, 0x0b, 0xab, 0x47,
+	0xbe, 0x7f, 0x54, 0x23, 0x1b, 0x82, 0xee, 0x20, 0x3a, 0xdc, 0x70, 0xa2, 0x10, 0x33, 0xd7, 0xf7,
+	0x24, 0x67, 0xe1, 0x4a, 0xe7, 0x3e, 0x73, 0xeb, 0x84, 0x32, 0x5c, 0x0f, 0x14, 0x41, 0x97, 0x80,
+	0x93, 0x10, 0x07, 0x01, 0x09, 0xa9, 0xda, 0x5f, 0x4b, 0x99, 0x88, 0x03, 0x97, 0x5b, 0x57, 0xf1,
+	0xeb, 0xf5, 0xb6, 0x0a, 0x1d, 0xc5, 0xab, 0x88, 0x84, 0x4d, 0x45, 0x50, 0xd4, 0x11, 0x30, 0x4c,
+	0x8f, 0x6b, 0x2e, 0x65, 0x8a, 0x66, 0x5d, 0x47, 0xa3, 0x9c, 0x60, 0x9f, 0xf8, 0xe1, 0x31, 0x09,
+	0x15, 0xe5, 0xff, 0xf7, 0xa3, 0x3c, 0xac, 0xf9, 0x27, 0x8a, 0xf6, 0xaa, 0x8e, 0xb6, 0xea, 0x52,
+	0xe6, 0xb7, 0x8c, 0x7b, 0x3b, 0x45, 0x42, 0xab, 0x38, 0x24, 0x4e, 0x37, 0xd5, 0xf5, 0x0c, 0xaa,
+	0xf4, 0x29, 0x8a, 0x9f, 0x1b, 0x70, 0x61, 0x1f, 0xd3, 0xe3, 0x8f, 0x5c, 0xca, 0x9e, 0xe2, 0x90,
+	0xb9, 0xfc, 0x26, 0x76, 0x7d, 0xef, 0xd0, 0x3d, 0x42, 0x26, 0x4c, 0x36, 0x48, 0x48, 0x5d, 0xdf,
+	0x33, 0x8d, 0x35, 0x63, 0x7d, 0xd4, 0x8a, 0x3f, 0x51, 0x09, 0x16, 0xbd, 0xa8, 0x6e, 0x87, 0x04,
+	0x3b, 0x76, 0x10, 0x73, 0x51, 0x73, 0x64, 0xcd, 0x58, 0x1f, 0xb7, 0x16, 0xbc, 0xa8, 0x6e, 0x11,
+	0xec, 0xb4, 0xc4, 0x51, 0x74, 0x13, 0x96, 0x38, 0xfd, 0x49, 0xe8, 0x32, 0x92, 0x64, 0x18, 0x15,
+	0x0c, 0xc8, 0x8b, 0xea, 0x2f, 0xf8, 0x56, 0x9b, 0xa3, 0xf8, 0x23, 0x58, 0xf8, 0xc8, 0xc7, 0xce,
+	0x0e, 0xae, 0x61, 0xaf, 0x42, 0xc2, 0x47, 0xae, 0xc7, 0x28, 0xba, 0x06, 0xb3, 0x07, 0xb8, 0x72,
+	0x5c, 0xf3, 0x8f, 0xec, 0x8a, 0x1f, 0x79, 0x4c, 0x99, 0x35, 0xa3, 0x16, 0x77, 0xf9, 0x1a, 0xba,
+	0x01, 0x73, 0x21, 0xe6, 0x6a, 0x48, 0x68, 0x53, 0x52, 0xf1, 0x3d, 0x47, 0xd8, 0x65, 0x58, 0xb3,
+	0x7c, 0xf9, 0x29, 0x09, 0x9f, 0x89, 0xc5, 0xe2, 0x3f, 0x0c, 0x28, 0x3c, 0xf5, 0x6b, 0xb5, 0x07,
+	0x7e, 0xb8, 0x47, 0x2a, 0x2e, 0x3f, 0x17, 0x77, 0x84, 0x45, 0x5e, 0x45, 0x84, 0x32, 0x54, 0x86,
+	0xc9, 0x50, 0xfe, 0x29, 0xb4, 0xe4, 0xb6, 0x36, 0x4a, 0xa9, 0x90, 0xc6, 0x81, 0x5b, 0x6a, 0x6c,
+	0x96, 0xb2, 0x25, 0x58, 0x31, 0x3f, 0xba, 0x04, 0xd3, 0x8e, 0x5f, 0xc7, 0xae, 0x67, 0xbb, 0xd2,
+	0x96, 0x69, 0x6b, 0x4a, 0x2e, 0x94, 0x1d, 0xbe, 0x19, 0xf8, 0xb5, 0x1a, 0x09, 0xf9, 0xe6, 0xa8,
+	0xdc, 0x94, 0x0b, 0x65, 0x07, 0x5d, 0x87, 0xfc, 0xa1, 0x1f, 0x9e, 0xe0, 0xd0, 0x21, 0x8e, 0x7d,
+	0x18, 0xfa, 0x75, 0x73, 0x4c, 0x50, 0xcc, 0xb6, 0x56, 0x1f, 0x84, 0x7e, 0x1d, 0xbd, 0x03, 0x73,
+	0x2e, 0xf5, 0x6b, 0x22, 0x8b, 0xec, 0xa3, 0xd0, 0x8f, 0x02, 0x73, 0x5c, 0xd0, 0xe5, 0x5b, 0xcb,
+	0x0f, 0xf9, 0x6a, 0xf1, 0x8f, 0x39, 0xb8, 0xa4, 0xb5, 0x98, 0x06, 0xbe, 0x47, 0x09, 0x5a, 0x01,
+	0xe0, 0xf1, 0x61, 0x33, 0xff, 0x98, 0xc8, 0x4b, 0x9f, 0xb1, 0xa6, 0xf9, 0xca, 0x3e, 0x5f, 0x40,
+	0x9f, 0x00, 0x8a, 0xc3, 0xd5, 0x26, 0x9f, 0x91, 0x4a, 0xc4, 0x25, 0x8b, 0x13, 0xe5, 0xb6, 0x6e,
+	0x68, 0xdd, 0xf3, 0x42, 0x91, 0xdf, 0x8f, 0xa9, 0xad, 0x85, 0x93, 0xce, 0x25, 0xf4, 0x00, 0x66,
+	0x5b, 0x62, 0x59, 0x33, 0x20, 0xc2, 0x0d, 0xb9, 0xad, 0xab, 0x3d, 0x25, 0xee, 0x37, 0x03, 0x62,
+	0xcd, 0x9c, 0x24, 0xbe, 0xd0, 0x73, 0xb8, 0x18, 0x84, 0xa4, 0xe1, 0xfa, 0x11, 0xb5, 0x29, 0xc3,
+	0x21, 0x23, 0x8e, 0x4d, 0x1a, 0xc4, 0x63, 0xdc, 0xb5, 0x63, 0x42, 0xe6, 0xa5, 0x92, 0x2c, 0x1e,
+	0xa5, 0xb8, 0x78, 0x94, 0xca, 0x1e, 0xbb, 0xfd, 0xfe, 0x73, 0x5c, 0x8b, 0x88, 0xb5, 0x1c, 0x73,
+	0x3f, 0x93, 0xcc, 0xf7, 0x39, 0x6f, 0xd9, 0x41, 0xeb, 0x30, 0xdf, 0x25, 0x6e, 0x5c, 0x44, 0x5e,
+	0x9e, 0xa6, 0x29, 0x4d, 0x98, 0xc4, 0x8c, 0x91, 0x7a, 0xc0, 0xcc, 0x09, 0x11, 0xda, 0xf1, 0x27,
+	0x2a, 0xc2, 0xac, 0x47, 0x3e, 0x63, 0x6d, 0x01, 0x93, 0x42, 0x40, 0x8e, 0x2f, 0xc6, 0xdc, 0xef,
+	0x02, 0x4a, 0x85, 0xb7, 0x5d, 0x75, 0x3d, 0x66, 0x4e, 0x09, 0xc2, 0xf9, 0x64, 0x8c, 0xf3, 0x6c,
+	0x40, 0x77, 0xc0, 0xa4, 0xcc, 0xad, 0x1c, 0x37, 0xdb, 0x57, 0x61, 0x13, 0x0f, 0x1f, 0xd4, 0x88,
+	0x63, 0x4e, 0xaf, 0x19, 0xeb, 0x53, 0xd6, 0xb2, 0xdc, 0x6f, 0x39, 0xfa, 0xbe, 0xdc, 0x45, 0x77,
+	0x60, 0x5c, 0x14, 0x3b, 0x13, 0x84, 0x4f, 0x8a, 0x3d, 0xfd, 0xfc, 0x31, 0xa7, 0xb4, 0x24, 0x03,
+	0xb2, 0x60, 0xd6, 0x51, 0x71, 0x63, 0xbb, 0xde, 0xa1, 0x6f, 0xe6, 0x84, 0x84, 0x6f, 0xa6, 0x25,
+	0xc8, 0x62, 0xc3, 0x85, 0xec, 0x87, 0xd8, 0xa3, 0x2e, 0xf1, 0x58, 0x1c, 0x6d, 0x65, 0xef, 0xd0,
+	0xb7, 0x66, 0x9c, 0xc4, 0x17, 0x7a, 0x09, 0x97, 0xbb, 0x83, 0xca, 0x16, 0x61, 0xc8, 0xeb, 0x94,
+	0x39, 0x23, 0x54, 0xac, 0x68, 0x8d, 0x8c, 0x2b, 0x97, 0x75, 0xb1, 0x2b, 0xaa, 0xe2, 0x2d, 0x5e,
+	0xab, 0xa4, 0xd3, 0x79, 0x75, 0x24, 0x76, 0x5c, 0xd1, 0x66, 0x65, 0xad, 0x12, 0x5b, 0xcf, 0xf8,
+	0xce, 0x73, 0x55, 0xdb, 0xae, 0xc2, 0xcc, 0x41, 0x88, 0xbd, 0x4a, 0x55, 0x65, 0x41, 0x5e, 0x64,
+	0x41, 0x4e, 0xae, 0xc9, 0x3c, 0xd8, 0x86, 0x3c, 0xad, 0x54, 0x89, 0x13, 0xd5, 0x88, 0x63, 0x73,
+	0x78, 0x32, 0xe7, 0x84, 0x91, 0x85, 0xae, 0xe8, 0xda, 0x8f, 0xb1, 0xcb, 0x9a, 0x6d, 0x71, 0xf0,
+	0x35, 0xf4, 0x6d, 0x98, 0x89, 0x63, 0x4a, 0x08, 0x98, 0xef, 0x2b, 0x20, 0xa7, 0xe8, 0x05, 0xfb,
+	0xa7, 0x30, 0xc9, 0x6f, 0xc4, 0x25, 0xd4, 0x5c, 0x58, 0x1b, 0x5d, 0xcf, 0x6d, 0xed, 0x94, 0xb2,
+	0x00, 0xb7, 0xd4, 0x23, 0xe1, 0x4b, 0x1f, 0x4b, 0x21, 0xf7, 0x3d, 0x16, 0x36, 0xad, 0x58, 0x24,
+	0x77, 0x19, 0xf3, 0x19, 0xae, 0xd9, 0x0a, 0x52, 0xec, 0x83, 0x26, 0x23, 0xd4, 0x44, 0x22, 0x12,
+	0x17, 0xc4, 0xd6, 0x23, 0xb9, 0xb3, 0xc3, 0x37, 0xd0, 0xa7, 0x30, 0xdf, 0x2a, 0xea, 0x76, 0x45,
+	0x80, 0x87, 0xb9, 0x28, 0x0e, 0xb4, 0x99, 0x6d, 0x56, 0x06, 0xea, 0x58, 0x73, 0x41, 0x07, 0x0c,
+	0xfd, 0x10, 0x16, 0x6b, 0x3e, 0x76, 0xec, 0x03, 0x85, 0x05, 0x22, 0x2d, 0xa8, 0xb9, 0x24, 0x14,
+	0x7c, 0x23, 0x5b, 0x41, 0x17, 0x7e, 0x58, 0x0b, 0xb5, 0x2e, 0x48, 0x79, 0x0c, 0xf3, 0x38, 0x62,
+	0xbe, 0xb2, 0x5a, 0x66, 0xdc, 0x5b, 0x42, 0xf2, 0x35, 0x6d, 0xc4, 0x6d, 0x47, 0xcc, 0x97, 0x76,
+	0x71, 0x7e, 0x2b, 0x8f, 0x53, 0xdf, 0x85, 0x97, 0x30, 0x93, 0x74, 0x29, 0x9a, 0x87, 0xd1, 0x63,
+	0xd2, 0x14, 0x95, 0x74, 0xda, 0xe2, 0x7f, 0xf2, 0xe4, 0x6b, 0xf0, 0x6a, 0xa3, 0xca, 0xe6, 0x40,
+	0xc9, 0x27, 0x18, 0xee, 0x8e, 0xdc, 0x31, 0x92, 0xa0, 0xb5, 0x5d, 0x61, 0x6e, 0xc3, 0x65, 0xcd,
+	0xd3, 0x83, 0x96, 0x46, 0xc2, 0x7f, 0x23, 0x68, 0x7d, 0x0e, 0x2d, 0xd0, 0x4a, 0x5b, 0xfc, 0xb5,
+	0x82, 0xd6, 0x15, 0xc8, 0x61, 0x65, 0x4d, 0xdb, 0x09, 0x10, 0x2f, 0x95, 0x1d, 0x8e, 0x6a, 0x2d,
+	0x02, 0x81, 0x6a, 0x63, 0x3d, 0x50, 0xad, 0x75, 0x30, 0x81, 0x6a, 0x38, 0xf1, 0x85, 0xb6, 0x60,
+	0xdc, 0xf5, 0x82, 0x88, 0x09, 0xef, 0xe4, 0xb6, 0x2e, 0xeb, 0x6f, 0x14, 0x37, 0x79, 0x6c, 0x5b,
+	0x92, 0x54, 0x53, 0xa0, 0x26, 0xce, 0x5a, 0xa0, 0x26, 0x87, 0x2b, 0x50, 0xfb, 0x70, 0x31, 0x96,
+	0x67, 0xf3, 0xf4, 0xaa, 0xf9, 0x94, 0x08, 0x41, 0x7e, 0x24, 0x21, 0x2d, 0xb7, 0x75, 0xb1, 0x4b,
+	0xd6, 0x9e, 0x9a, 0x04, 0xac, 0xe5, 0x98, 0x77, 0xdf, 0xdf, 0xe5, 0x9c, 0xfb, 0x92, 0x11, 0x7d,
+	0x1f, 0x96, 0x85, 0x92, 0x6e, 0x91, 0xd3, 0xfd, 0x44, 0x2e, 0x0a, 0xc6, 0x0e, 0x79, 0x0f, 0x60,
+	0xa1, 0x4a, 0x70, 0xc8, 0x0e, 0x08, 0x66, 0x2d, 0x51, 0xd0, 0x4f, 0xd4, 0x7c, 0x8b, 0x27, 0x96,
+	0x93, 0xc0, 0xfd, 0x5c, 0x1a, 0xf7, 0x5f, 0xc2, 0x6a, 0xfa, 0x26, 0x6c, 0xff, 0xd0, 0x66, 0x55,
+	0x97, 0xda, 0x31, 0xc3, 0x4c, 0x5f, 0xc7, 0x16, 0x52, 0x37, 0xf3, 0xe4, 0x70, 0xbf, 0xea, 0xd2,
+	0x6d, 0x25, 0xbf, 0x9c, 0x3c, 0x81, 0x43, 0x18, 0x76, 0x6b, 0x54, 0x60, 0x5b, 0xbf, 0x48, 0x69,
+	0x1f, 0x62, 0x4f, 0x72, 0x75, 0xb7, 0x61, 0xf9, 0xd3, 0xb5, 0x61, 0xef, 0xc0, 0x5c, 0x4b, 0x8e,
+	0xac, 0x18, 0x02, 0x1e, 0xa7, 0xad, 0x7c, 0xbc, 0xbc, 0x27, 0x56, 0xd1, 0x7b, 0x30, 0x51, 0x25,
+	0xd8, 0x21, 0xa1, 0x42, 0xbf, 0x4b, 0x5a, 0x4d, 0x8f, 0x04, 0x89, 0xa5, 0x48, 0xb3, 0xd0, 0x60,
+	0xe1, 0x5c, 0xd0, 0xe0, 0xcd, 0x02, 0x99, 0x0e, 0x6b, 0x96, 0x4e, 0x8d, 0x35, 0xc5, 0xbf, 0x8c,
+	0xc1, 0xf2, 0xb6, 0xe3, 0xe8, 0x86, 0x97, 0x54, 0xf1, 0x36, 0x3a, 0x8a, 0xf7, 0x1b, 0x2a, 0x88,
+	0x77, 0x61, 0xba, 0xdd, 0xb4, 0x8d, 0x0e, 0xd2, 0xb4, 0x4d, 0xb1, 0xb8, 0x47, 0xbb, 0x02, 0xb9,
+	0x56, 0xb5, 0x50, 0xbd, 0xfa, 0xa8, 0x05, 0xf1, 0x52, 0xd9, 0xe9, 0x2c, 0x27, 0xaa, 0x08, 0xa8,
+	0x84, 0x1d, 0x1f, 0xa2, 0x9c, 0x88, 0xd6, 0x3e, 0x4e, 0xdb, 0xbb, 0x30, 0x41, 0xfd, 0x28, 0xac,
+	0xc8, 0xf2, 0x98, 0xef, 0x04, 0xe3, 0x44, 0x1f, 0x8b, 0xe9, 0xf1, 0x33, 0x41, 0x69, 0x29, 0x0e,
+	0x0d, 0xca, 0x4d, 0xea, 0x50, 0x2e, 0xd0, 0x44, 0xd4, 0x94, 0xe8, 0xd8, 0xee, 0x67, 0x47, 0x94,
+	0xfe, 0x56, 0x4b, 0x1d, 0x01, 0x26, 0x9b, 0xb6, 0xce, 0x28, 0x2b, 0xec, 0xc0, 0x92, 0x8e, 0x50,
+	0xd3, 0x8a, 0x2c, 0x25, 0x5b, 0x91, 0xe9, 0x64, 0x9b, 0x71, 0x02, 0x17, 0xba, 0x6c, 0x50, 0x68,
+	0xab, 0x4b, 0x11, 0xe3, 0xbc, 0x52, 0xa4, 0xf8, 0xcf, 0x71, 0x11, 0xd3, 0xba, 0xde, 0xe6, 0xeb,
+	0x88, 0x69, 0x3e, 0xf9, 0x89, 0xeb, 0xb6, 0xdb, 0xaa, 0x25, 0xd2, 0xe7, 0xe5, 0xfa, 0x5e, 0x6c,
+	0x40, 0x2a, 0xfa, 0xc7, 0xce, 0x14, 0xfd, 0xe3, 0xc3, 0x45, 0xff, 0xc4, 0xd9, 0xa3, 0x7f, 0xf2,
+	0x1c, 0xa2, 0x7f, 0x4a, 0x17, 0xfd, 0x1e, 0x98, 0x38, 0x71, 0x95, 0x7b, 0x2e, 0x0d, 0x78, 0x54,
+	0xf0, 0xb9, 0x4f, 0x21, 0xf6, 0x56, 0x8f, 0x2c, 0xc8, 0xe0, 0xb4, 0x32, 0x65, 0x6a, 0xb3, 0x0d,
+	0x06, 0xc8, 0x36, 0x4d, 0xbc, 0x7d, 0x85, 0xd9, 0xf6, 0xe5, 0x28, 0x98, 0x59, 0x87, 0x45, 0xdf,
+	0x83, 0xb9, 0x76, 0x03, 0x21, 0xa6, 0x55, 0x95, 0x6e, 0x7a, 0x5c, 0x56, 0x73, 0x99, 0x78, 0x52,
+	0xb0, 0xda, 0x4d, 0xa0, 0xf8, 0xee, 0xea, 0xe9, 0x46, 0x86, 0xeb, 0xe9, 0x12, 0x5d, 0xce, 0xe8,
+	0xb0, 0x5d, 0xce, 0xd8, 0xf9, 0x77, 0x39, 0xe3, 0xe7, 0xd3, 0xe5, 0x4c, 0x9c, 0x5b, 0x97, 0x33,
+	0xa9, 0xeb, 0x72, 0x54, 0x2d, 0xd5, 0x4e, 0x2e, 0x6f, 0xb6, 0x96, 0x7e, 0x69, 0xc0, 0x92, 0x18,
+	0x20, 0xe3, 0x53, 0xc4, 0x95, 0x74, 0xb7, 0x73, 0x4a, 0xfc, 0x3f, 0xed, 0xe1, 0x75, 0xbc, 0x03,
+	0xce, 0x87, 0x67, 0xe9, 0x05, 0x06, 0x1b, 0x1f, 0x8b, 0x5f, 0x18, 0xf0, 0x56, 0x87, 0x85, 0xca,
+	0xab, 0xf7, 0x60, 0x46, 0xbc, 0x56, 0xd9, 0x21, 0xa1, 0x51, 0x2d, 0x3e, 0x63, 0xef, 0x38, 0xc9,
+	0x09, 0x0e, 0x4b, 0x30, 0xa0, 0x32, 0xe4, 0x63, 0x01, 0x3f, 0x26, 0x15, 0x46, 0x9c, 0x9e, 0xb3,
+	0xba, 0x9c, 0xd1, 0x15, 0xa5, 0x35, 0xfb, 0x2a, 0xf9, 0x59, 0xfc, 0xbb, 0x01, 0x6b, 0xd2, 0x30,
+	0x47, 0xd0, 0xf1, 0xf3, 0xee, 0xfa, 0xf5, 0xa0, 0x46, 0x38, 0xb1, 0x72, 0xe5, 0x93, 0xce, 0xfb,
+	0xb8, 0xa5, 0x55, 0xd4, 0x4f, 0xce, 0x57, 0x70, 0x37, 0x17, 0x60, 0x52, 0xf0, 0xaa, 0x1e, 0x6d,
+	0xda, 0x9a, 0xe0, 0x9f, 0x65, 0xa7, 0x78, 0x0d, 0xae, 0xf6, 0x30, 0x4f, 0x5e, 0x4c, 0xf1, 0xaf,
+	0x06, 0x5c, 0xde, 0xe5, 0xdd, 0x76, 0xed, 0x49, 0xc4, 0x28, 0xc3, 0x9e, 0xe3, 0x7a, 0x47, 0x7c,
+	0xb2, 0x1f, 0x08, 0xe2, 0x53, 0x6f, 0x0e, 0x23, 0x1d, 0x6f, 0x0e, 0x0f, 0x21, 0xdf, 0x3a, 0x54,
+	0xfb, 0x0d, 0x39, 0x9f, 0x91, 0xd6, 0xf1, 0xc9, 0x64, 0x5a, 0xb3, 0xc4, 0xd7, 0x59, 0x70, 0xbc,
+	0x78, 0x05, 0x56, 0x32, 0x8e, 0xa7, 0x1c, 0xf0, 0x53, 0xb8, 0xb0, 0x47, 0x68, 0x25, 0x74, 0x0f,
+	0x48, 0x8b, 0x5d, 0x1d, 0xfd, 0x41, 0x67, 0x0c, 0xbc, 0xab, 0xd5, 0x9a, 0xc1, 0x3e, 0xd8, 0xd5,
+	0x17, 0xff, 0x6d, 0x80, 0xd9, 0x2d, 0x41, 0xa5, 0xcd, 0x07, 0x30, 0x29, 0xdd, 0x49, 0x4d, 0x43,
+	0x40, 0xe6, 0x95, 0xcc, 0xb7, 0x23, 0x12, 0x0a, 0x1c, 0x8e, 0xe9, 0xf9, 0x60, 0xd3, 0xf6, 0x3e,
+	0x65, 0x98, 0x45, 0x54, 0xa5, 0xcc, 0xb5, 0x9e, 0xbe, 0x7b, 0x26, 0x48, 0xad, 0x3c, 0x4b, 0x7d,
+	0xa3, 0x17, 0x9a, 0xb2, 0x38, 0xda, 0xc3, 0x29, 0x03, 0x57, 0x44, 0x0a, 0x2b, 0xe2, 0xa2, 0x3b,
+	0xe9, 0x69, 0x7c, 0x0b, 0xcb, 0x30, 0xa1, 0x6a, 0xb9, 0x8c, 0x3e, 0xf5, 0x95, 0x8e, 0x8a, 0x91,
+	0xe1, 0xa2, 0xe2, 0x97, 0x23, 0xb0, 0x9a, 0xa5, 0x55, 0xb9, 0xfe, 0x15, 0xac, 0xb4, 0x9f, 0x8a,
+	0x5a, 0x8e, 0x4c, 0xfc, 0x4e, 0x26, 0x2f, 0xa4, 0x34, 0xd8, 0xe9, 0x1f, 0x13, 0x86, 0x1d, 0xcc,
+	0xb0, 0x55, 0x48, 0xf6, 0x49, 0x69, 0xd5, 0x5c, 0x65, 0xeb, 0x25, 0x5f, 0xab, 0x72, 0xe4, 0x74,
+	0x2a, 0x9d, 0xc4, 0xcc, 0x90, 0x56, 0x59, 0xbc, 0x05, 0x97, 0x1e, 0x92, 0x96, 0x1b, 0xe8, 0x4e,
+	0x53, 0x02, 0x64, 0x1f, 0xdf, 0x17, 0xff, 0x30, 0x06, 0x97, 0xf5, 0x7c, 0xca, 0x7b, 0x3f, 0x37,
+	0x60, 0x59, 0x73, 0x96, 0x3a, 0x0e, 0x94, 0xdf, 0x9e, 0x64, 0x83, 0x69, 0x2f, 0xc1, 0xa5, 0xbd,
+	0x8e, 0xb3, 0x3c, 0xc6, 0x81, 0xec, 0x02, 0x17, 0x9d, 0xee, 0x1d, 0x61, 0x86, 0xe6, 0x16, 0xb9,
+	0x19, 0x23, 0x67, 0x32, 0x63, 0xbb, 0xe3, 0x16, 0xdb, 0x66, 0xe0, 0xee, 0x9d, 0xc2, 0x4f, 0x78,
+	0x8a, 0xeb, 0xed, 0xd6, 0x34, 0xa5, 0x8f, 0xd2, 0xaf, 0xd1, 0x3d, 0xba, 0xf1, 0xac, 0xba, 0x91,
+	0x68, 0x64, 0xb9, 0xee, 0x2c, 0x63, 0xdf, 0xb4, 0xee, 0xe2, 0xef, 0x46, 0xe0, 0xed, 0x4f, 0x02,
+	0x07, 0x33, 0x92, 0x55, 0x0e, 0x06, 0x01, 0x99, 0x33, 0x24, 0xfa, 0xf9, 0x61, 0x90, 0xae, 0xfe,
+	0x8d, 0x9d, 0x47, 0xfd, 0x7b, 0x07, 0xae, 0xf7, 0x71, 0x91, 0x02, 0xaa, 0xdf, 0x8f, 0xc0, 0x75,
+	0x8b, 0x1c, 0x86, 0x84, 0x56, 0xff, 0xe7, 0xcd, 0x2c, 0x6f, 0xae, 0xc3, 0x8d, 0x7e, 0x3e, 0x92,
+	0xee, 0xdc, 0xfa, 0xd7, 0x0c, 0xe4, 0x1e, 0xab, 0x78, 0xde, 0x7e, 0x5a, 0x46, 0x3f, 0x33, 0x60,
+	0x51, 0xf3, 0xab, 0x1c, 0x7a, 0x7f, 0xc8, 0x1f, 0xf1, 0xc4, 0x15, 0x14, 0x6e, 0x9d, 0xea, 0xa7,
+	0xbf, 0xa4, 0x11, 0xc9, 0xa4, 0x1d, 0xc0, 0x08, 0xcd, 0xb4, 0x3c, 0x80, 0x11, 0xda, 0x09, 0xa8,
+	0x01, 0x73, 0x1d, 0x0f, 0x4d, 0xe8, 0xe6, 0xb0, 0xef, 0x62, 0x85, 0xcd, 0x21, 0x38, 0x52, 0x7a,
+	0x53, 0xe7, 0xbe, 0x39, 0xec, 0x0b, 0x41, 0x1f, 0xbd, 0xda, 0xf3, 0x06, 0x30, 0x9b, 0x1a, 0x5a,
+	0x50, 0x29, 0x5b, 0x86, 0x6e, 0xfe, 0x2a, 0x6c, 0x0c, 0x4c, 0xaf, 0x34, 0xfe, 0xc6, 0x80, 0x8b,
+	0x99, 0xad, 0x39, 0xba, 0x9b, 0x2d, 0xae, 0xdf, 0xb8, 0x51, 0xf8, 0xf0, 0x54, 0xbc, 0xca, 0xac,
+	0x5f, 0x19, 0xf0, 0x96, 0xb6, 0x59, 0x46, 0xb7, 0xb3, 0xc5, 0xf6, 0x1a, 0x1e, 0x0a, 0xdf, 0x1a,
+	0x9a, 0x4f, 0x99, 0xd2, 0x84, 0xf9, 0x4e, 0x80, 0x41, 0x9b, 0xc3, 0x80, 0x91, 0xd4, 0x7f, 0x0a,
+	0xfc, 0x42, 0xbf, 0x36, 0x60, 0x59, 0xdf, 0x1b, 0xa2, 0x1e, 0xc7, 0xe9, 0xd9, 0xc3, 0x16, 0xee,
+	0x0c, 0xcf, 0xa8, 0xac, 0xf9, 0x85, 0x01, 0x4b, 0xba, 0x4e, 0x04, 0xdd, 0x1a, 0xb6, 0x73, 0x91,
+	0x96, 0xdc, 0x3e, 0x5d, 0xc3, 0x83, 0x7e, 0x6b, 0xc0, 0x4a, 0x4f, 0x9c, 0x42, 0xdf, 0xc9, 0x96,
+	0x3c, 0x48, 0x0f, 0x50, 0xb8, 0x77, 0x6a, 0x7e, 0x65, 0xe2, 0x17, 0x06, 0xac, 0xf6, 0x2e, 0xfe,
+	0xe8, 0x5e, 0xaf, 0xf4, 0x18, 0x00, 0x5a, 0x0b, 0xdf, 0x3d, 0xbd, 0x00, 0x69, 0xe5, 0xce, 0xc3,
+	0x3f, 0xbd, 0x5e, 0x35, 0xfe, 0xfc, 0x7a, 0xd5, 0xf8, 0xdb, 0xeb, 0x55, 0xe3, 0x07, 0x1f, 0x1c,
+	0xb9, 0xac, 0x1a, 0x1d, 0x94, 0x2a, 0x7e, 0x7d, 0x23, 0xf5, 0xcf, 0x81, 0xa5, 0x23, 0xe2, 0xc9,
+	0xff, 0xa6, 0x4c, 0xfe, 0x43, 0xe7, 0x87, 0xf1, 0xdf, 0x8d, 0xcd, 0x83, 0x09, 0xb1, 0xfb, 0xde,
+	0x7f, 0x02, 0x00, 0x00, 0xff, 0xff, 0x09, 0xed, 0xcf, 0x40, 0xfe, 0x29, 0x00, 0x00,
+}
+
+func (m *TaskListPartitionConfig) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *TaskListPartitionConfig) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *TaskListPartitionConfig) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.NumWritePartitions != 0 {
+		i = encodeVarintService(dAtA, i, uint64(m.NumWritePartitions))
+		i--
+		dAtA[i] = 0x18
+	}
+	if m.NumReadPartitions != 0 {
+		i = encodeVarintService(dAtA, i, uint64(m.NumReadPartitions))
+		i--
+		dAtA[i] = 0x10
+	}
+	if m.Version != 0 {
+		i = encodeVarintService(dAtA, i, uint64(m.Version))
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *LoadBalancerHints) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *LoadBalancerHints) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *LoadBalancerHints) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.RatePerSecond != 0 {
+		i -= 8
+		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.RatePerSecond))))
+		i--
+		dAtA[i] = 0x11
+	}
+	if m.BacklogCount != 0 {
+		i = encodeVarintService(dAtA, i, uint64(m.BacklogCount))
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *PollForDecisionTaskRequest) Marshal() (dAtA []byte, err error) {
@@ -1879,6 +2398,48 @@ func (m *PollForDecisionTaskResponse) MarshalToSizedBuffer(dAtA []byte) (int, er
 	if m.XXX_unrecognized != nil {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.AutoConfigHint != nil {
+		{
+			size, err := m.AutoConfigHint.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintService(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0xaa
+	}
+	if m.LoadBalancerHints != nil {
+		{
+			size, err := m.LoadBalancerHints.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintService(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0xa2
+	}
+	if m.PartitionConfig != nil {
+		{
+			size, err := m.PartitionConfig.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintService(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0x9a
 	}
 	if m.TotalHistoryBytes != 0 {
 		i = encodeVarintService(dAtA, i, uint64(m.TotalHistoryBytes))
@@ -2155,6 +2716,48 @@ func (m *PollForActivityTaskResponse) MarshalToSizedBuffer(dAtA []byte) (int, er
 	if m.XXX_unrecognized != nil {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.AutoConfigHint != nil {
+		{
+			size, err := m.AutoConfigHint.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintService(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0xa2
+	}
+	if m.PartitionConfig != nil {
+		{
+			size, err := m.PartitionConfig.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintService(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0x9a
+	}
+	if m.LoadBalancerHints != nil {
+		{
+			size, err := m.LoadBalancerHints.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintService(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0x8a
 	}
 	if m.Header != nil {
 		{
@@ -2461,6 +3064,18 @@ func (m *AddDecisionTaskResponse) MarshalToSizedBuffer(dAtA []byte) (int, error)
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
+	if m.PartitionConfig != nil {
+		{
+			size, err := m.PartitionConfig.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintService(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
 	return len(dAtA) - i, nil
 }
 
@@ -2711,6 +3326,18 @@ func (m *AddActivityTaskResponse) MarshalToSizedBuffer(dAtA []byte) (int, error)
 	if m.XXX_unrecognized != nil {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.PartitionConfig != nil {
+		{
+			size, err := m.PartitionConfig.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintService(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
 	}
 	return len(dAtA) - i, nil
 }
@@ -3078,6 +3705,18 @@ func (m *DescribeTaskListResponse) MarshalToSizedBuffer(dAtA []byte) (int, error
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
+	if m.PartitionConfig != nil {
+		{
+			size, err := m.PartitionConfig.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintService(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1a
+	}
 	if m.TaskListStatus != nil {
 		{
 			size, err := m.TaskListStatus.MarshalToSizedBuffer(dAtA[:i])
@@ -3321,6 +3960,186 @@ func (m *GetTaskListsByDomainResponse) MarshalToSizedBuffer(dAtA []byte) (int, e
 	return len(dAtA) - i, nil
 }
 
+func (m *UpdateTaskListPartitionConfigRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *UpdateTaskListPartitionConfigRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UpdateTaskListPartitionConfigRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.PartitionConfig != nil {
+		{
+			size, err := m.PartitionConfig.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintService(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x22
+	}
+	if m.TaskListType != 0 {
+		i = encodeVarintService(dAtA, i, uint64(m.TaskListType))
+		i--
+		dAtA[i] = 0x18
+	}
+	if m.TaskList != nil {
+		{
+			size, err := m.TaskList.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintService(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.DomainId) > 0 {
+		i -= len(m.DomainId)
+		copy(dAtA[i:], m.DomainId)
+		i = encodeVarintService(dAtA, i, uint64(len(m.DomainId)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *UpdateTaskListPartitionConfigResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *UpdateTaskListPartitionConfigResponse) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UpdateTaskListPartitionConfigResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *RefreshTaskListPartitionConfigRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *RefreshTaskListPartitionConfigRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RefreshTaskListPartitionConfigRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.PartitionConfig != nil {
+		{
+			size, err := m.PartitionConfig.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintService(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x22
+	}
+	if m.TaskListType != 0 {
+		i = encodeVarintService(dAtA, i, uint64(m.TaskListType))
+		i--
+		dAtA[i] = 0x18
+	}
+	if m.TaskList != nil {
+		{
+			size, err := m.TaskList.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintService(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.DomainId) > 0 {
+		i -= len(m.DomainId)
+		copy(dAtA[i:], m.DomainId)
+		i = encodeVarintService(dAtA, i, uint64(len(m.DomainId)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *RefreshTaskListPartitionConfigResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *RefreshTaskListPartitionConfigResponse) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RefreshTaskListPartitionConfigResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return len(dAtA) - i, nil
+}
+
 func encodeVarintService(dAtA []byte, offset int, v uint64) int {
 	offset -= sovService(v)
 	base := offset
@@ -3332,6 +4151,45 @@ func encodeVarintService(dAtA []byte, offset int, v uint64) int {
 	dAtA[offset] = uint8(v)
 	return base
 }
+func (m *TaskListPartitionConfig) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Version != 0 {
+		n += 1 + sovService(uint64(m.Version))
+	}
+	if m.NumReadPartitions != 0 {
+		n += 1 + sovService(uint64(m.NumReadPartitions))
+	}
+	if m.NumWritePartitions != 0 {
+		n += 1 + sovService(uint64(m.NumWritePartitions))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *LoadBalancerHints) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.BacklogCount != 0 {
+		n += 1 + sovService(uint64(m.BacklogCount))
+	}
+	if m.RatePerSecond != 0 {
+		n += 9
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
 func (m *PollForDecisionTaskRequest) Size() (n int) {
 	if m == nil {
 		return 0
@@ -3444,6 +4302,18 @@ func (m *PollForDecisionTaskResponse) Size() (n int) {
 	if m.TotalHistoryBytes != 0 {
 		n += 2 + sovService(uint64(m.TotalHistoryBytes))
 	}
+	if m.PartitionConfig != nil {
+		l = m.PartitionConfig.Size()
+		n += 2 + l + sovService(uint64(l))
+	}
+	if m.LoadBalancerHints != nil {
+		l = m.LoadBalancerHints.Size()
+		n += 2 + l + sovService(uint64(l))
+	}
+	if m.AutoConfigHint != nil {
+		l = m.AutoConfigHint.Size()
+		n += 2 + l + sovService(uint64(l))
+	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -3551,6 +4421,18 @@ func (m *PollForActivityTaskResponse) Size() (n int) {
 		l = m.Header.Size()
 		n += 2 + l + sovService(uint64(l))
 	}
+	if m.LoadBalancerHints != nil {
+		l = m.LoadBalancerHints.Size()
+		n += 2 + l + sovService(uint64(l))
+	}
+	if m.PartitionConfig != nil {
+		l = m.PartitionConfig.Size()
+		n += 2 + l + sovService(uint64(l))
+	}
+	if m.AutoConfigHint != nil {
+		l = m.AutoConfigHint.Size()
+		n += 2 + l + sovService(uint64(l))
+	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -3609,6 +4491,10 @@ func (m *AddDecisionTaskResponse) Size() (n int) {
 	}
 	var l int
 	_ = l
+	if m.PartitionConfig != nil {
+		l = m.PartitionConfig.Size()
+		n += 1 + l + sovService(uint64(l))
+	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -3714,6 +4600,10 @@ func (m *AddActivityTaskResponse) Size() (n int) {
 	}
 	var l int
 	_ = l
+	if m.PartitionConfig != nil {
+		l = m.PartitionConfig.Size()
+		n += 1 + l + sovService(uint64(l))
+	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -3883,6 +4773,10 @@ func (m *DescribeTaskListResponse) Size() (n int) {
 		l = m.TaskListStatus.Size()
 		n += 1 + l + sovService(uint64(l))
 	}
+	if m.PartitionConfig != nil {
+		l = m.PartitionConfig.Size()
+		n += 1 + l + sovService(uint64(l))
+	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -3987,11 +4881,278 @@ func (m *GetTaskListsByDomainResponse) Size() (n int) {
 	return n
 }
 
+func (m *UpdateTaskListPartitionConfigRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.DomainId)
+	if l > 0 {
+		n += 1 + l + sovService(uint64(l))
+	}
+	if m.TaskList != nil {
+		l = m.TaskList.Size()
+		n += 1 + l + sovService(uint64(l))
+	}
+	if m.TaskListType != 0 {
+		n += 1 + sovService(uint64(m.TaskListType))
+	}
+	if m.PartitionConfig != nil {
+		l = m.PartitionConfig.Size()
+		n += 1 + l + sovService(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *UpdateTaskListPartitionConfigResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *RefreshTaskListPartitionConfigRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.DomainId)
+	if l > 0 {
+		n += 1 + l + sovService(uint64(l))
+	}
+	if m.TaskList != nil {
+		l = m.TaskList.Size()
+		n += 1 + l + sovService(uint64(l))
+	}
+	if m.TaskListType != 0 {
+		n += 1 + sovService(uint64(m.TaskListType))
+	}
+	if m.PartitionConfig != nil {
+		l = m.PartitionConfig.Size()
+		n += 1 + l + sovService(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *RefreshTaskListPartitionConfigResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
 func sovService(x uint64) (n int) {
 	return (math_bits.Len64(x|1) + 6) / 7
 }
 func sozService(x uint64) (n int) {
 	return sovService(uint64((x << 1) ^ uint64((int64(x) >> 63))))
+}
+func (m *TaskListPartitionConfig) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowService
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: TaskListPartitionConfig: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: TaskListPartitionConfig: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Version", wireType)
+			}
+			m.Version = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowService
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Version |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field NumReadPartitions", wireType)
+			}
+			m.NumReadPartitions = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowService
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.NumReadPartitions |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field NumWritePartitions", wireType)
+			}
+			m.NumWritePartitions = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowService
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.NumWritePartitions |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipService(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthService
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *LoadBalancerHints) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowService
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: LoadBalancerHints: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: LoadBalancerHints: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field BacklogCount", wireType)
+			}
+			m.BacklogCount = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowService
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.BacklogCount |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 1 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RatePerSecond", wireType)
+			}
+			var v uint64
+			if (iNdEx + 8) > l {
+				return io.ErrUnexpectedEOF
+			}
+			v = uint64(encoding_binary.LittleEndian.Uint64(dAtA[iNdEx:]))
+			iNdEx += 8
+			m.RatePerSecond = float64(math.Float64frombits(v))
+		default:
+			iNdEx = preIndex
+			skippy, err := skipService(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthService
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
 }
 func (m *PollForDecisionTaskRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
@@ -4856,6 +6017,114 @@ func (m *PollForDecisionTaskResponse) Unmarshal(dAtA []byte) error {
 					break
 				}
 			}
+		case 19:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PartitionConfig", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowService
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthService
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthService
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.PartitionConfig == nil {
+				m.PartitionConfig = &TaskListPartitionConfig{}
+			}
+			if err := m.PartitionConfig.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 20:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field LoadBalancerHints", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowService
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthService
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthService
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.LoadBalancerHints == nil {
+				m.LoadBalancerHints = &LoadBalancerHints{}
+			}
+			if err := m.LoadBalancerHints.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 21:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AutoConfigHint", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowService
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthService
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthService
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.AutoConfigHint == nil {
+				m.AutoConfigHint = &v1.AutoConfigHint{}
+			}
+			if err := m.AutoConfigHint.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipService(dAtA[iNdEx:])
@@ -5671,6 +6940,114 @@ func (m *PollForActivityTaskResponse) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 17:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field LoadBalancerHints", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowService
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthService
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthService
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.LoadBalancerHints == nil {
+				m.LoadBalancerHints = &LoadBalancerHints{}
+			}
+			if err := m.LoadBalancerHints.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 19:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PartitionConfig", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowService
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthService
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthService
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.PartitionConfig == nil {
+				m.PartitionConfig = &TaskListPartitionConfig{}
+			}
+			if err := m.PartitionConfig.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 20:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AutoConfigHint", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowService
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthService
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthService
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.AutoConfigHint == nil {
+				m.AutoConfigHint = &v1.AutoConfigHint{}
+			}
+			if err := m.AutoConfigHint.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipService(dAtA[iNdEx:])
@@ -6110,6 +7487,42 @@ func (m *AddDecisionTaskResponse) Unmarshal(dAtA []byte) error {
 			return fmt.Errorf("proto: AddDecisionTaskResponse: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PartitionConfig", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowService
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthService
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthService
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.PartitionConfig == nil {
+				m.PartitionConfig = &TaskListPartitionConfig{}
+			}
+			if err := m.PartitionConfig.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipService(dAtA[iNdEx:])
@@ -6899,6 +8312,42 @@ func (m *AddActivityTaskResponse) Unmarshal(dAtA []byte) error {
 			return fmt.Errorf("proto: AddActivityTaskResponse: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PartitionConfig", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowService
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthService
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthService
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.PartitionConfig == nil {
+				m.PartitionConfig = &TaskListPartitionConfig{}
+			}
+			if err := m.PartitionConfig.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipService(dAtA[iNdEx:])
@@ -7908,6 +9357,42 @@ func (m *DescribeTaskListResponse) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PartitionConfig", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowService
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthService
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthService
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.PartitionConfig == nil {
+				m.PartitionConfig = &v1.TaskListPartitionConfig{}
+			}
+			if err := m.PartitionConfig.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipService(dAtA[iNdEx:])
@@ -8538,6 +10023,456 @@ func (m *GetTaskListsByDomainResponse) Unmarshal(dAtA []byte) error {
 			}
 			m.ActivityTaskListMap[mapkey] = mapvalue
 			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipService(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthService
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *UpdateTaskListPartitionConfigRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowService
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: UpdateTaskListPartitionConfigRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: UpdateTaskListPartitionConfigRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DomainId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowService
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthService
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthService
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.DomainId = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TaskList", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowService
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthService
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthService
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.TaskList == nil {
+				m.TaskList = &v1.TaskList{}
+			}
+			if err := m.TaskList.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TaskListType", wireType)
+			}
+			m.TaskListType = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowService
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.TaskListType |= v1.TaskListType(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PartitionConfig", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowService
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthService
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthService
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.PartitionConfig == nil {
+				m.PartitionConfig = &v1.TaskListPartitionConfig{}
+			}
+			if err := m.PartitionConfig.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipService(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthService
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *UpdateTaskListPartitionConfigResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowService
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: UpdateTaskListPartitionConfigResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: UpdateTaskListPartitionConfigResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipService(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthService
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *RefreshTaskListPartitionConfigRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowService
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: RefreshTaskListPartitionConfigRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: RefreshTaskListPartitionConfigRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DomainId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowService
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthService
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthService
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.DomainId = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TaskList", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowService
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthService
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthService
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.TaskList == nil {
+				m.TaskList = &v1.TaskList{}
+			}
+			if err := m.TaskList.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TaskListType", wireType)
+			}
+			m.TaskListType = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowService
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.TaskListType |= v1.TaskListType(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PartitionConfig", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowService
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthService
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthService
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.PartitionConfig == nil {
+				m.PartitionConfig = &v1.TaskListPartitionConfig{}
+			}
+			if err := m.PartitionConfig.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipService(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthService
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *RefreshTaskListPartitionConfigResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowService
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: RefreshTaskListPartitionConfigResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: RefreshTaskListPartitionConfigResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
 		default:
 			iNdEx = preIndex
 			skippy, err := skipService(dAtA[iNdEx:])

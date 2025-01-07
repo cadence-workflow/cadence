@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql"
@@ -192,25 +192,25 @@ func doCreateKeyspace(cfg CQLClientConfig, name string, datacenter string) error
 
 func newCQLClientConfig(cli *cli.Context) (*CQLClientConfig, error) {
 	cqlConfig := new(CQLClientConfig)
-	cqlConfig.Hosts = cli.GlobalString(schema.CLIOptEndpoint)
-	cqlConfig.Port = cli.GlobalInt(schema.CLIOptPort)
-	cqlConfig.User = cli.GlobalString(schema.CLIOptUser)
-	cqlConfig.Password = cli.GlobalString(schema.CLIOptPassword)
-	cqlConfig.AllowedAuthenticators = cli.GlobalStringSlice(schema.CLIOptAllowedAuthenticators)
-	cqlConfig.Timeout = cli.GlobalInt(schema.CLIOptTimeout)
-	cqlConfig.ConnectTimeout = cli.GlobalInt(schema.CLIOptConnectTimeout)
-	cqlConfig.Keyspace = cli.GlobalString(schema.CLIOptKeyspace)
+	cqlConfig.Hosts = cli.String(schema.CLIOptEndpoint)
+	cqlConfig.Port = cli.Int(schema.CLIOptPort)
+	cqlConfig.User = cli.String(schema.CLIOptUser)
+	cqlConfig.Password = cli.String(schema.CLIOptPassword)
+	cqlConfig.AllowedAuthenticators = cli.StringSlice(schema.CLIOptAllowedAuthenticators)
+	cqlConfig.Timeout = cli.Int(schema.CLIOptTimeout)
+	cqlConfig.ConnectTimeout = cli.Int(schema.CLIOptConnectTimeout)
+	cqlConfig.Keyspace = cli.String(schema.CLIOptKeyspace)
 	cqlConfig.NumReplicas = cli.Int(schema.CLIOptReplicationFactor)
 	cqlConfig.ProtoVersion = cli.Int(schema.CLIOptProtoVersion)
 
-	if cli.GlobalBool(schema.CLIFlagEnableTLS) {
+	if cli.Bool(schema.CLIFlagEnableTLS) {
 		cqlConfig.TLS = &config.TLS{
 			Enabled:                true,
-			CertFile:               cli.GlobalString(schema.CLIFlagTLSCertFile),
-			KeyFile:                cli.GlobalString(schema.CLIFlagTLSKeyFile),
-			CaFile:                 cli.GlobalString(schema.CLIFlagTLSCaFile),
-			EnableHostVerification: cli.GlobalBool(schema.CLIFlagTLSEnableHostVerification),
-			ServerName:             cli.GlobalString(schema.CLIFlagTLSServerName),
+			CertFile:               cli.String(schema.CLIFlagTLSCertFile),
+			KeyFile:                cli.String(schema.CLIFlagTLSKeyFile),
+			CaFile:                 cli.String(schema.CLIFlagTLSCaFile),
+			EnableHostVerification: cli.Bool(schema.CLIFlagTLSEnableHostVerification),
+			ServerName:             cli.String(schema.CLIFlagTLSServerName),
 		}
 	}
 

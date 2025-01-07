@@ -648,7 +648,7 @@ func TestHandleDecisionTaskCompleted(t *testing.T) {
 				engine := engine.NewMockEngine(ctrl)
 				decisionHandler.shard.(*shard.MockContext).EXPECT().GetEngine().Return(engine).Times(3)
 				engine.EXPECT().NotifyNewHistoryEvent(events.NewNotification(constants.TestDomainID, &types.WorkflowExecution{WorkflowID: constants.TestWorkflowID, RunID: constants.TestRunID},
-					0, 5, 0, nil, 1, 0))
+					0, 5, 0, 1, 0, nil))
 				engine.EXPECT().NotifyNewTransferTasks(gomock.Any())
 				engine.EXPECT().NotifyNewTimerTasks(gomock.Any())
 				engine.EXPECT().NotifyNewReplicationTasks(gomock.Any())
@@ -777,7 +777,7 @@ func TestHandleDecisionTaskCompleted(t *testing.T) {
 				engine := engine.NewMockEngine(ctrl)
 				decisionHandler.shard.(*shard.MockContext).EXPECT().GetEngine().Return(engine).Times(3)
 				engine.EXPECT().NotifyNewHistoryEvent(events.NewNotification(constants.TestDomainID, &types.WorkflowExecution{WorkflowID: constants.TestWorkflowID, RunID: constants.TestRunID},
-					0, 1, 0, nil, 1, 0))
+					0, 1, 0, 1, 0, nil))
 				engine.EXPECT().NotifyNewTransferTasks(gomock.Any())
 				engine.EXPECT().NotifyNewTimerTasks(gomock.Any())
 				engine.EXPECT().NotifyNewReplicationTasks(gomock.Any())
@@ -1153,7 +1153,7 @@ func TestHandleDecisionTaskCompleted(t *testing.T) {
 				engine := engine.NewMockEngine(ctrl)
 				decisionHandler.shard.(*shard.MockContext).EXPECT().GetEngine().Return(engine).Times(3)
 				engine.EXPECT().NotifyNewHistoryEvent(events.NewNotification(constants.TestDomainID, &types.WorkflowExecution{WorkflowID: constants.TestWorkflowID, RunID: constants.TestRunID},
-					0, 3, 0, nil, 1, 0))
+					0, 3, 0, 1, 0, nil))
 				engine.EXPECT().NotifyNewTransferTasks(gomock.Any())
 				engine.EXPECT().NotifyNewTimerTasks(gomock.Any())
 				engine.EXPECT().NotifyNewReplicationTasks(gomock.Any())

@@ -36,15 +36,15 @@ import (
 
 type (
 	visibilityTripleManager struct {
-		logger                    log.Logger
-		dbVisibilityManager       VisibilityManager
-		pinotVisibilityManager    VisibilityManager
-		esVisibilityManager       VisibilityManager
-		readModeIsFromPinot       dynamicconfig.BoolPropertyFnWithDomainFilter
-		readModeIsFromES          dynamicconfig.BoolPropertyFnWithDomainFilter
-		writeMode                 dynamicconfig.StringPropertyFn
-		logCustomerQueryParameter dynamicconfig.BoolPropertyFnWithDomainFilter
-		readModeIsDouble          dynamicconfig.BoolPropertyFnWithDomainFilter
+		logger                       log.Logger
+		dbVisibilityManager          VisibilityManager
+		destinationVisibilityManager VisibilityManager
+		sourceVisibilityManager      VisibilityManager
+		readModeIsFromDestination    dynamicconfig.BoolPropertyFnWithDomainFilter
+		readModeIsFromSource         dynamicconfig.BoolPropertyFnWithDomainFilter
+		writeMode                    dynamicconfig.StringPropertyFn
+		logCustomerQueryParameter    dynamicconfig.BoolPropertyFnWithDomainFilter
+		readModeIsDouble             dynamicconfig.BoolPropertyFnWithDomainFilter
 	}
 )
 
@@ -69,32 +69,34 @@ var Operation = struct {
 
 var _ VisibilityManager = (*visibilityTripleManager)(nil)
 
-// NewPinotVisibilityTripleManager create a visibility manager that operate on DB or Pinot based on dynamic config.
+// NewVisibilityTripleManager create a visibility manager that operate on DB or advanced visibility based on dynamic config.
+// For Pinot migration, Pinot is the destination visibility manager, ES is the source visibility manager, and DB is the fallback.
+// For OpenSearch migration, OS is the destination visibility manager, ES is the source visibility manager, and DB is the fallback.
 func NewVisibilityTripleManager(
 	dbVisibilityManager VisibilityManager, // one of the VisibilityManager can be nil
-	pinotVisibilityManager VisibilityManager,
-	esVisibilityManager VisibilityManager,
-	readModeIsFromPinot dynamicconfig.BoolPropertyFnWithDomainFilter,
-	readModeIsFromES dynamicconfig.BoolPropertyFnWithDomainFilter,
+	destinationVisibilityManager VisibilityManager,
+	sourceVisibilityManager VisibilityManager,
+	readModeIsFromDestination dynamicconfig.BoolPropertyFnWithDomainFilter,
+	readModeIsFromSource dynamicconfig.BoolPropertyFnWithDomainFilter,
 	visWritingMode dynamicconfig.StringPropertyFn,
 	logCustomerQueryParameter dynamicconfig.BoolPropertyFnWithDomainFilter,
 	readModeIsDouble dynamicconfig.BoolPropertyFnWithDomainFilter,
 	logger log.Logger,
 ) VisibilityManager {
-	if dbVisibilityManager == nil && pinotVisibilityManager == nil && esVisibilityManager == nil {
+	if dbVisibilityManager == nil && destinationVisibilityManager == nil && sourceVisibilityManager == nil {
 		logger.Fatal("require one of dbVisibilityManager or pinotVisibilityManager or esVisibilityManager")
 		return nil
 	}
 	return &visibilityTripleManager{
-		dbVisibilityManager:       dbVisibilityManager,
-		pinotVisibilityManager:    pinotVisibilityManager,
-		esVisibilityManager:       esVisibilityManager,
-		readModeIsFromPinot:       readModeIsFromPinot,
-		readModeIsFromES:          readModeIsFromES,
-		writeMode:                 visWritingMode,
-		logger:                    logger,
-		logCustomerQueryParameter: logCustomerQueryParameter,
-		readModeIsDouble:          readModeIsDouble,
+		dbVisibilityManager:          dbVisibilityManager,
+		destinationVisibilityManager: destinationVisibilityManager,
+		sourceVisibilityManager:      sourceVisibilityManager,
+		readModeIsFromDestination:    readModeIsFromDestination,
+		readModeIsFromSource:         readModeIsFromSource,
+		writeMode:                    visWritingMode,
+		logger:                       logger,
+		logCustomerQueryParameter:    logCustomerQueryParameter,
+		readModeIsDouble:             readModeIsDouble,
 	}
 }
 
@@ -102,19 +104,19 @@ func (v *visibilityTripleManager) Close() {
 	if v.dbVisibilityManager != nil {
 		v.dbVisibilityManager.Close()
 	}
-	if v.pinotVisibilityManager != nil {
-		v.pinotVisibilityManager.Close()
+	if v.destinationVisibilityManager != nil {
+		v.destinationVisibilityManager.Close()
 	}
-	if v.esVisibilityManager != nil {
-		v.esVisibilityManager.Close()
+	if v.sourceVisibilityManager != nil {
+		v.sourceVisibilityManager.Close()
 	}
 }
 
 func (v *visibilityTripleManager) GetName() string {
-	if v.pinotVisibilityManager != nil {
-		return v.pinotVisibilityManager.GetName()
-	} else if v.esVisibilityManager != nil {
-		return v.esVisibilityManager.GetName()
+	if v.destinationVisibilityManager != nil {
+		return v.destinationVisibilityManager.GetName()
+	} else if v.sourceVisibilityManager != nil {
+		return v.sourceVisibilityManager.GetName()
 	}
 	return v.dbVisibilityManager.GetName()
 }
@@ -129,10 +131,10 @@ func (v *visibilityTripleManager) RecordWorkflowExecutionStarted(
 			return v.dbVisibilityManager.RecordWorkflowExecutionStarted(ctx, request)
 		},
 		func() error {
-			return v.esVisibilityManager.RecordWorkflowExecutionStarted(ctx, request)
+			return v.sourceVisibilityManager.RecordWorkflowExecutionStarted(ctx, request)
 		},
 		func() error {
-			return v.pinotVisibilityManager.RecordWorkflowExecutionStarted(ctx, request)
+			return v.destinationVisibilityManager.RecordWorkflowExecutionStarted(ctx, request)
 		},
 	)
 }
@@ -147,10 +149,10 @@ func (v *visibilityTripleManager) RecordWorkflowExecutionClosed(
 			return v.dbVisibilityManager.RecordWorkflowExecutionClosed(ctx, request)
 		},
 		func() error {
-			return v.esVisibilityManager.RecordWorkflowExecutionClosed(ctx, request)
+			return v.sourceVisibilityManager.RecordWorkflowExecutionClosed(ctx, request)
 		},
 		func() error {
-			return v.pinotVisibilityManager.RecordWorkflowExecutionClosed(ctx, request)
+			return v.destinationVisibilityManager.RecordWorkflowExecutionClosed(ctx, request)
 		},
 	)
 }
@@ -165,10 +167,10 @@ func (v *visibilityTripleManager) RecordWorkflowExecutionUninitialized(
 			return v.dbVisibilityManager.RecordWorkflowExecutionUninitialized(ctx, request)
 		},
 		func() error {
-			return v.esVisibilityManager.RecordWorkflowExecutionUninitialized(ctx, request)
+			return v.sourceVisibilityManager.RecordWorkflowExecutionUninitialized(ctx, request)
 		},
 		func() error {
-			return v.pinotVisibilityManager.RecordWorkflowExecutionUninitialized(ctx, request)
+			return v.destinationVisibilityManager.RecordWorkflowExecutionUninitialized(ctx, request)
 		},
 	)
 }
@@ -183,10 +185,10 @@ func (v *visibilityTripleManager) DeleteWorkflowExecution(
 			return v.dbVisibilityManager.DeleteWorkflowExecution(ctx, request)
 		},
 		func() error {
-			return v.esVisibilityManager.DeleteWorkflowExecution(ctx, request)
+			return v.sourceVisibilityManager.DeleteWorkflowExecution(ctx, request)
 		},
 		func() error {
-			return v.pinotVisibilityManager.DeleteWorkflowExecution(ctx, request)
+			return v.destinationVisibilityManager.DeleteWorkflowExecution(ctx, request)
 		},
 	)
 }
@@ -201,10 +203,10 @@ func (v *visibilityTripleManager) DeleteUninitializedWorkflowExecution(
 			return v.dbVisibilityManager.DeleteUninitializedWorkflowExecution(ctx, request)
 		},
 		func() error {
-			return v.esVisibilityManager.DeleteUninitializedWorkflowExecution(ctx, request)
+			return v.sourceVisibilityManager.DeleteUninitializedWorkflowExecution(ctx, request)
 		},
 		func() error {
-			return v.pinotVisibilityManager.DeleteUninitializedWorkflowExecution(ctx, request)
+			return v.destinationVisibilityManager.DeleteUninitializedWorkflowExecution(ctx, request)
 		},
 	)
 }
@@ -219,30 +221,30 @@ func (v *visibilityTripleManager) UpsertWorkflowExecution(
 			return v.dbVisibilityManager.UpsertWorkflowExecution(ctx, request)
 		},
 		func() error {
-			return v.esVisibilityManager.UpsertWorkflowExecution(ctx, request)
+			return v.sourceVisibilityManager.UpsertWorkflowExecution(ctx, request)
 		},
 		func() error {
-			return v.pinotVisibilityManager.UpsertWorkflowExecution(ctx, request)
+			return v.destinationVisibilityManager.UpsertWorkflowExecution(ctx, request)
 		},
 	)
 }
 
 func (v *visibilityTripleManager) chooseVisibilityModeForAdmin() string {
 	switch {
-	case v.dbVisibilityManager != nil && v.esVisibilityManager != nil && v.pinotVisibilityManager != nil:
-		return common.AdvancedVisibilityWritingModeTriple
-	case v.dbVisibilityManager != nil && v.pinotVisibilityManager != nil:
-		return common.AdvancedVisibilityWritingModeDual
-	case v.pinotVisibilityManager != nil:
-		return common.AdvancedVisibilityWritingModeOn
+	case v.dbVisibilityManager != nil && v.sourceVisibilityManager != nil && v.destinationVisibilityManager != nil:
+		return common.AdvancedVisibilityMigrationWritingModeTriple
+	case v.sourceVisibilityManager != nil && v.destinationVisibilityManager != nil:
+		return common.AdvancedVisibilityMigrationWritingModeDual
+	case v.destinationVisibilityManager != nil:
+		return common.AdvancedVisibilityMigrationWritingModeDestination
 	case v.dbVisibilityManager != nil:
-		return common.AdvancedVisibilityWritingModeOff
+		return common.AdvancedVisibilityMigrationWritingModeOff
 	default:
 		return "INVALID_ADMIN_MODE"
 	}
 }
 
-func (v *visibilityTripleManager) chooseVisibilityManagerForWrite(ctx context.Context, dbVisFunc, esVisFunc, pinotVisFunc func() error) error {
+func (v *visibilityTripleManager) chooseVisibilityManagerForWrite(ctx context.Context, dbVisFunc, sourceVisFunc, destinationVisFunc func() error) error {
 	var writeMode string
 	if v.writeMode != nil {
 		writeMode = v.writeMode()
@@ -255,65 +257,60 @@ func (v *visibilityTripleManager) chooseVisibilityManagerForWrite(ctx context.Co
 
 	switch writeMode {
 	// only perform as triple manager during migration by setting write mode to triple,
-	// other time perform as a dual visibility manager of pinot and db
-	case common.AdvancedVisibilityWritingModeOff:
+	// other time perform as a dual visibility manager and db
+	case common.AdvancedVisibilityMigrationWritingModeOff:
 		if v.dbVisibilityManager != nil {
 			return dbVisFunc()
 		}
 		v.logger.Warn("basic visibility is not available to write, fall back to advanced visibility")
-		return pinotVisFunc()
-	case common.AdvancedVisibilityWritingModeOn:
-		// this is the way to make it work for migration, will clean up after migration is done
-		// by default the AdvancedVisibilityWritingMode is set to ON for ES
-		// if we change this dynamic config before deployment, ES will stop working and block task processing
-		// we have to change it after deployment. But need to make sure double writes are working, so the only way is changing the behavior of this function
-		if v.pinotVisibilityManager != nil && v.esVisibilityManager != nil {
-			if err := esVisFunc(); err != nil {
+		return destinationVisFunc()
+	case common.AdvancedVisibilityMigrationWritingModeSource:
+		if v.sourceVisibilityManager != nil {
+			return sourceVisFunc()
+		}
+		v.logger.Warn("advanced visibility is not available to write, fall back to basic visibility")
+		return dbVisFunc()
+	case common.AdvancedVisibilityMigrationWritingModeDestination:
+		if v.destinationVisibilityManager != nil {
+			return destinationVisFunc()
+		}
+		v.logger.Warn("advanced visibility is not available to write, fall back to basic visibility")
+		return dbVisFunc()
+	case common.AdvancedVisibilityWritingModeDual:
+		// by default the AdvancedVisibilityMigrationWritingMode is set to Dual
+		// this will enable double writes to both source and destination advanced visibility stores
+		// it is necessary during the migration period to ensure that both stores are in sync
+		if v.destinationVisibilityManager != nil && v.sourceVisibilityManager != nil {
+			if err := sourceVisFunc(); err != nil {
 				return err
 			}
-			return pinotVisFunc()
-		} else if v.pinotVisibilityManager != nil {
-			v.logger.Warn("ES visibility is not available to write, fall back to pinot visibility")
-			return pinotVisFunc()
-		} else if v.esVisibilityManager != nil {
-			v.logger.Warn("Pinot visibility is not available to write, fall back to es visibility")
-			return esVisFunc()
+			return destinationVisFunc()
+		} else if v.destinationVisibilityManager != nil {
+			v.logger.Warn("Source advanced visibility is not available to write, fall back to destination advanced visibility")
+			return destinationVisFunc()
+		} else if v.sourceVisibilityManager != nil {
+			v.logger.Warn("Destination advanced visibility is not available to write, fall back to source advanced visibility")
+			return sourceVisFunc()
 		} else {
 			v.logger.Warn("advanced visibility is not available to write, fall back to basic visibility")
 			return dbVisFunc()
 		}
-	case common.AdvancedVisibilityWritingModeDual:
-		if v.pinotVisibilityManager != nil {
-			if err := pinotVisFunc(); err != nil {
+	case common.AdvancedVisibilityMigrationWritingModeTriple:
+		if v.destinationVisibilityManager != nil && v.sourceVisibilityManager != nil && v.dbVisibilityManager != nil {
+			if err := sourceVisFunc(); err != nil {
 				return err
 			}
-			if v.dbVisibilityManager != nil {
-				return dbVisFunc()
-			}
-			v.logger.Warn("basic visibility is not available to write")
-			return nil
-		}
-		v.logger.Warn("advanced visibility is not available to write")
-		return dbVisFunc()
-	case common.AdvancedVisibilityWritingModeTriple:
-		if v.pinotVisibilityManager != nil && v.esVisibilityManager != nil {
-			if err := pinotVisFunc(); err != nil {
+
+			if err := destinationVisFunc(); err != nil {
 				return err
 			}
-			if err := esVisFunc(); err != nil {
-				return err
-			}
-			if v.dbVisibilityManager != nil {
-				return dbVisFunc()
-			}
-			v.logger.Warn("basic visibility is not available to write")
-			return nil
+			return dbVisFunc()
 		}
 		v.logger.Warn("advanced visibility is not available to write")
 		return dbVisFunc()
 	default:
 		return &types.InternalServiceError{
-			Message: fmt.Sprintf("Unknown visibility writing mode: %s", writeMode),
+			Message: fmt.Sprintf("Unknown visibility migration writing mode: %s", writeMode),
 		}
 	}
 }
@@ -330,7 +327,7 @@ type userParameters struct {
 	latestTime   int64
 }
 
-// For Pinot Migration uses. It will be a temporary usage
+// For Visibility Migration uses. It will be a temporary usage
 // logUserQueryParameters will log user queries' parameters so that a comparator workflow can consume
 func (v *visibilityTripleManager) logUserQueryParameters(userParam userParameters, domain string, override bool) {
 	// Don't log if it is not enabled
@@ -344,7 +341,7 @@ func (v *visibilityTripleManager) logUserQueryParameters(userParam userParameter
 		return
 	}
 
-	v.logger.Info("Logging user query parameters for Pinot/ES response comparator...",
+	v.logger.Info("Logging user query parameters for visibility migration response comparator...",
 		tag.OperationName(userParam.operation),
 		tag.WorkflowDomainName(userParam.domainName),
 		tag.WorkflowType(userParam.workflowType),
@@ -370,22 +367,22 @@ func (v *visibilityTripleManager) getShadowMgrForDoubleRead(domain string) Visib
 		return nil
 	}
 	// case1: when it is double read, and both advanced visibility are not available
-	if v.pinotVisibilityManager == nil && v.esVisibilityManager == nil {
-		return nil
-	}
 	// case2: when it is double read, and only one of advanced visibility is available
-	if v.pinotVisibilityManager == nil || v.esVisibilityManager == nil {
+	if v.destinationVisibilityManager == nil || v.sourceVisibilityManager == nil {
 		return nil
 	}
 
 	// Valid cases:
-	// case3: when it is double read, and both advanced visibility are available, and read mode is from Pinot
-	if v.readModeIsFromPinot(domain) {
-		return v.esVisibilityManager
+	// case3: when it is double read, and both advanced visibility are available, and read mode is from source
+	// we first check readModeIsFromSource since we use this flag to control which is the primary visibility manager
+	if v.readModeIsFromSource(domain) {
+		return v.destinationVisibilityManager
 	}
-	// case4: when it is double read, and both advanced visibility are available, and read mode is from ES
-	if v.readModeIsFromES(domain) {
-		return v.pinotVisibilityManager
+
+	// case4: when it is double read, and both advanced visibility are available, and read mode is from destination
+	// normally readModeIsFromDestination will always be true when it is in the migration mode
+	if v.readModeIsFromDestination(domain) {
+		return v.sourceVisibilityManager
 	}
 	// exclude all other cases
 	return nil
@@ -668,35 +665,35 @@ func (v *visibilityTripleManager) CountWorkflowExecutions(
 
 func (v *visibilityTripleManager) chooseVisibilityManagerForRead(ctx context.Context, domain string) VisibilityManager {
 	if override := ctx.Value(ContextKey); override == VisibilityOverridePrimary {
-		v.logger.Info("Pinot Migration log: Primary visibility manager was chosen for read.")
-		return v.esVisibilityManager
+		v.logger.Info("Visibility Migration log: Primary visibility manager was chosen for read.")
+		return v.sourceVisibilityManager
 	} else if override == VisibilityOverrideSecondary {
-		v.logger.Info("Pinot Migration log: Secondary visibility manager was chosen for read.")
-		return v.pinotVisibilityManager
+		v.logger.Info("Visibility Migration log: Secondary visibility manager was chosen for read.")
+		return v.destinationVisibilityManager
 	}
 
 	var visibilityMgr VisibilityManager
-	if v.readModeIsFromES(domain) {
-		if v.esVisibilityManager != nil {
-			visibilityMgr = v.esVisibilityManager
+	if v.readModeIsFromSource(domain) {
+		if v.sourceVisibilityManager != nil {
+			visibilityMgr = v.sourceVisibilityManager
 		} else {
 			visibilityMgr = v.dbVisibilityManager
-			v.logger.Warn("domain is configured to read from advanced visibility(ElasticSearch based) but it's not available, fall back to basic visibility",
+			v.logger.Warn("domain is configured to read from advanced visibility but it's not available, fall back to basic visibility",
 				tag.WorkflowDomainName(domain))
 		}
-	} else if v.readModeIsFromPinot(domain) {
-		if v.pinotVisibilityManager != nil {
-			visibilityMgr = v.pinotVisibilityManager
+	} else if v.readModeIsFromDestination(domain) {
+		if v.destinationVisibilityManager != nil {
+			visibilityMgr = v.destinationVisibilityManager
 		} else {
 			visibilityMgr = v.dbVisibilityManager
-			v.logger.Warn("domain is configured to read from advanced visibility(Pinot based) but it's not available, fall back to basic visibility",
+			v.logger.Warn("domain is configured to read from advanced visibility but it's not available, fall back to basic visibility",
 				tag.WorkflowDomainName(domain))
 		}
 	} else {
 		if v.dbVisibilityManager != nil {
 			visibilityMgr = v.dbVisibilityManager
 		} else {
-			visibilityMgr = v.pinotVisibilityManager
+			visibilityMgr = v.destinationVisibilityManager
 			v.logger.Warn("domain is configured to read from basic visibility but it's not available, fall back to advanced visibility",
 				tag.WorkflowDomainName(domain))
 		}

@@ -195,3 +195,8 @@ func (g adminClient) UpdateGlobalIsolationGroups(ctx context.Context, request *t
 	response, err := g.c.UpdateGlobalIsolationGroups(ctx, proto.FromAdminUpdateGlobalIsolationGroupsRequest(request), opts...)
 	return proto.ToAdminUpdateGlobalIsolationGroupsResponse(response), proto.ToError(err)
 }
+
+func (g adminClient) UpdateTaskListPartitionConfig(ctx context.Context, request *types.UpdateTaskListPartitionConfigRequest, opts ...yarpc.CallOption) (up1 *types.UpdateTaskListPartitionConfigResponse, err error) {
+	response, err := g.c.UpdateTaskListPartitionConfig(ctx, proto.FromAdminUpdateTaskListPartitionConfigRequest(request), opts...)
+	return proto.ToAdminUpdateTaskListPartitionConfigResponse(response), proto.ToError(err)
+}

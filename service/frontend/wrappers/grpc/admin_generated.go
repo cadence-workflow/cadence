@@ -212,3 +212,8 @@ func (g AdminHandler) UpdateGlobalIsolationGroups(ctx context.Context, request *
 	response, err := g.h.UpdateGlobalIsolationGroups(ctx, proto.ToAdminUpdateGlobalIsolationGroupsRequest(request))
 	return proto.FromAdminUpdateGlobalIsolationGroupsResponse(response), proto.FromError(err)
 }
+
+func (g AdminHandler) UpdateTaskListPartitionConfig(ctx context.Context, request *adminv1.UpdateTaskListPartitionConfigRequest) (*adminv1.UpdateTaskListPartitionConfigResponse, error) {
+	response, err := g.h.UpdateTaskListPartitionConfig(ctx, proto.ToAdminUpdateTaskListPartitionConfigRequest(request))
+	return proto.FromAdminUpdateTaskListPartitionConfigResponse(response), proto.FromError(err)
+}

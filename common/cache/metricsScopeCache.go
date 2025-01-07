@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/metrics"
 )
 
@@ -47,6 +48,7 @@ type (
 		cache         atomic.Value
 		closeCh       chan struct{}
 		flushDuration time.Duration
+		timeSource    clock.TimeSource
 	}
 )
 
@@ -59,6 +61,7 @@ func NewDomainMetricsScopeCache() DomainMetricsScopeCache {
 		},
 		closeCh:       make(chan struct{}),
 		flushDuration: flushBufferedMetricsScopeDuration,
+		timeSource:    clock.NewRealTimeSource(),
 	}
 
 	mc.cache.Store(make(metricsScopeMap))
@@ -66,9 +69,11 @@ func NewDomainMetricsScopeCache() DomainMetricsScopeCache {
 }
 
 func (c *domainMetricsScopeCache) flushBufferedMetricsScope(flushDuration time.Duration) {
+	ticker := c.timeSource.NewTicker(flushDuration)
+	defer ticker.Stop()
 	for {
 		select {
-		case <-time.After(flushDuration):
+		case <-ticker.Chan():
 			c.buffer.Lock()
 			if len(c.buffer.bufferMap) > 0 {
 				scopeMap := make(metricsScopeMap)

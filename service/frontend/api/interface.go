@@ -21,6 +21,7 @@
 //go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination interface_mock.go -self_package github.com/uber/cadence/service/frontend/api
 //go:generate gowrap gen -g -p . -i Handler -t ../templates/accesscontrolled.tmpl -o ../wrappers/accesscontrolled/api_generated.go -v handler=API
 //go:generate gowrap gen -g -p . -i Handler -t ../templates/clusterredirection.tmpl -o ../wrappers/clusterredirection/api_generated.go
+//go:generate gowrap gen -g -p . -i Handler -t ../templates/versioncheck.tmpl -o ../wrappers/versioncheck/api_generated.go
 //go:generate gowrap gen -g -p . -i Handler -t ../templates/metered.tmpl -o ../wrappers/metered/api_generated.go -v handler=API
 //go:generate gowrap gen -g -p . -i Handler -t ../templates/ratelimited.tmpl -o ../wrappers/ratelimited/api_generated.go -v handler=API
 //go:generate gowrap gen -g -p . -i Handler -t ../../templates/grpc.tmpl -o ../wrappers/grpc/api_generated.go -v handler=API -v package=apiv1 -v path=github.com/uber/cadence-idl/go/proto/api/v1 -v prefix=
@@ -43,6 +44,7 @@ type (
 		DescribeDomain(context.Context, *types.DescribeDomainRequest) (*types.DescribeDomainResponse, error)
 		DescribeTaskList(context.Context, *types.DescribeTaskListRequest) (*types.DescribeTaskListResponse, error)
 		DescribeWorkflowExecution(context.Context, *types.DescribeWorkflowExecutionRequest) (*types.DescribeWorkflowExecutionResponse, error)
+		DiagnoseWorkflowExecution(context.Context, *types.DiagnoseWorkflowExecutionRequest) (*types.DiagnoseWorkflowExecutionResponse, error)
 		GetClusterInfo(context.Context) (*types.ClusterInfo, error)
 		GetSearchAttributes(context.Context) (*types.GetSearchAttributesResponse, error)
 		GetWorkflowExecutionHistory(context.Context, *types.GetWorkflowExecutionHistoryRequest) (*types.GetWorkflowExecutionHistoryResponse, error)

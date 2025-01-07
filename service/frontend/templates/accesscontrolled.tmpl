@@ -104,7 +104,7 @@ func (a *{{$decorator}}) {{$method.Declaration}} {
 		Permission: authorization.{{get $permissionMap $method.Name}},
 		{{- end}}
 		{{- if ge (len $method.Params) 2}}
-		RequestBody: {{(index $method.Params 1).Name}},
+		RequestBody: authorization.NewFilteredRequestBody( {{(index $method.Params 1).Name}} ),
 		{{- if not (or (has $method.Name $nonDomainAuthAPIs) (eq $interfaceType "admin.Handler"))}}
 		DomainName: {{(index $method.Params 1).Name}}.GetDomain(),
 		{{- else if eq $method.Name "DescribeDomain"}}

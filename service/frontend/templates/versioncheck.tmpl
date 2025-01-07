@@ -1,0 +1,41 @@
+import (
+    "context"
+
+	"github.com/uber/cadence/common/client"
+	"github.com/uber/cadence/service/frontend/api"
+	"github.com/uber/cadence/service/frontend/config"
+)
+
+{{$excludedAPIs := list "Health" "GetClusterInfo" "ListTaskListPartitions" "GetTaskListsByDomain" "RefreshWorkflowTasks" }}
+
+type (
+    versionCheckHandler struct {
+        frontendHandler           api.Handler
+		config                    *config.Config
+        versionChecker            client.VersionChecker
+    }
+)
+
+func NewAPIHandler(
+	wfHandler api.Handler,
+	config *config.Config,
+	versionChecker client.VersionChecker,
+) api.Handler {
+	return &versionCheckHandler{
+		frontendHandler: wfHandler,
+        config: config,
+        versionChecker: versionChecker,
+	}
+}
+
+{{range $method := .Interface.Methods}}
+func (h *versionCheckHandler) {{$method.Declaration}} {
+    {{- if not (has $method.Name $excludedAPIs)}}
+    err = h.versionChecker.ClientSupported(ctx, h.config.EnableClientVersionCheck())
+    if err != nil {
+        return
+    }
+    {{- end}}
+    {{$method.Pass "h.frontendHandler."}}
+}
+{{end}}

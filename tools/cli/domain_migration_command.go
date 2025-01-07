@@ -32,7 +32,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 
 	"github.com/uber/cadence/client/admin"
 	"github.com/uber/cadence/client/frontend"
@@ -61,7 +61,7 @@ var (
       Name: {{.DomainInfo.Name}}
       UUID: {{.DomainInfo.UUID}}
   {{- end}}
-  {{- if ne (len .MismatchedDomainMetaData) 0 }}   
+  {{- if ne (len .MismatchedDomainMetaData) 0 }}
     Mismatched Domain Meta Data: {{.MismatchedDomainMetaData}}
   {{- end }}
   {{- if .LongRunningWorkFlowNum}}
@@ -110,20 +110,36 @@ var (
 )
 
 type DomainMigrationCommand interface {
-	Validation(c *cli.Context)
-	DomainMetaDataCheck(c *cli.Context) DomainMigrationRow
-	DomainWorkFlowCheck(c *cli.Context) DomainMigrationRow
-	SearchAttributesChecker(c *cli.Context) DomainMigrationRow
-	DynamicConfigCheck(c *cli.Context) DomainMigrationRow
+	Validation(c *cli.Context) error
+	DomainMetaDataCheck(c *cli.Context) (DomainMigrationRow, error)
+	DomainWorkFlowCheck(c *cli.Context) (DomainMigrationRow, error)
+	SearchAttributesChecker(c *cli.Context) (DomainMigrationRow, error)
+	DynamicConfigCheck(c *cli.Context) (DomainMigrationRow, error)
 }
 
-func (d *domainMigrationCLIImpl) NewDomainMigrationCLIImpl(c *cli.Context) *domainMigrationCLIImpl {
-	return &domainMigrationCLIImpl{
-		frontendClient:         cFactory.ServerFrontendClient(c),
-		destinationClient:      cFactory.ServerFrontendClientForMigration(c),
-		frontendAdminClient:    cFactory.ServerAdminClient(c),
-		destinationAdminClient: cFactory.ServerAdminClientForMigration(c),
+func (d *domainMigrationCLIImpl) NewDomainMigrationCLIImpl(c *cli.Context) (*domainMigrationCLIImpl, error) {
+	fc, err := getDeps(c).ServerFrontendClient(c)
+	if err != nil {
+		return nil, err
 	}
+	fcm, err := getDeps(c).ServerFrontendClientForMigration(c)
+	if err != nil {
+		return nil, err
+	}
+	ac, err := getDeps(c).ServerAdminClient(c)
+	if err != nil {
+		return nil, err
+	}
+	acm, err := getDeps(c).ServerAdminClientForMigration(c)
+	if err != nil {
+		return nil, err
+	}
+	return &domainMigrationCLIImpl{
+		frontendClient:         fc,
+		destinationClient:      fcm,
+		frontendAdminClient:    ac,
+		destinationAdminClient: acm,
+	}, nil
 }
 
 // Export a function to create an instance of the domainMigrationCLIImpl.
@@ -136,23 +152,36 @@ type domainMigrationCLIImpl struct {
 	frontendAdminClient, destinationAdminClient admin.Client
 }
 
-func (d *domainMigrationCLIImpl) Validation(c *cli.Context) {
-	checkers := []func(*cli.Context) DomainMigrationRow{
+func (d *domainMigrationCLIImpl) Validation(c *cli.Context) error {
+	checkers := []func(*cli.Context) (DomainMigrationRow, error){
 		d.DomainMetaDataCheck,
 		d.DomainWorkFlowCheck,
 		d.DynamicConfigCheck,
 		d.SearchAttributesChecker,
 	}
 	wg := &sync.WaitGroup{}
+	errCh := make(chan error, len(checkers)) // Channel to capture errors
 	results := make([]DomainMigrationRow, len(checkers))
+	var err error
 	for i := range checkers {
-		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			results[i] = checkers[i](c)
+			results[i], err = checkers[i](c)
+			if err != nil {
+				errCh <- fmt.Errorf("Error in checkers: %w", err)
+				return
+			}
+			errCh <- nil
 		}(i)
 	}
+
 	wg.Wait()
+	close(errCh)
+	for err := range errCh {
+		if err != nil {
+			return err
+		}
+	}
 
 	renderOpts := RenderOptions{
 		DefaultTemplate: domainMigrationTemplate,
@@ -162,26 +191,30 @@ func (d *domainMigrationCLIImpl) Validation(c *cli.Context) {
 	}
 
 	if err := Render(c, results, renderOpts); err != nil {
-		ErrorAndExit("Failed to render", err)
+		return fmt.Errorf("failed to render: %w", err)
 	}
+	return nil
 }
 
-func (d *domainMigrationCLIImpl) DomainMetaDataCheck(c *cli.Context) DomainMigrationRow {
-	domain := c.GlobalString(FlagDomain)
+func (d *domainMigrationCLIImpl) DomainMetaDataCheck(c *cli.Context) (DomainMigrationRow, error) {
+	domain := c.String(FlagDomain)
 	newDomain := c.String(FlagDestinationDomain)
-	ctx, cancel := newContext(c)
+	ctx, cancel, err := newContext(c)
 	defer cancel()
+	if err != nil {
+		return DomainMigrationRow{}, fmt.Errorf("Error in Domain meta data check: %w", err)
+	}
 	currResp, err := d.frontendClient.DescribeDomain(ctx, &types.DescribeDomainRequest{
 		Name: &domain,
 	})
 	if err != nil {
-		ErrorAndExit(fmt.Sprintf("Could not describe old domain, Please check to see if old domain exists before migrating."), err)
+		return DomainMigrationRow{}, fmt.Errorf("Could not describe old domain, Please check to see if old domain exists before migrating. %w", err)
 	}
 	newResp, err := d.destinationClient.DescribeDomain(ctx, &types.DescribeDomainRequest{
 		Name: &newDomain,
 	})
 	if err != nil {
-		ErrorAndExit(fmt.Sprintf("Could not describe new domain, Please check to see if new domain exists before migrating."), err)
+		return DomainMigrationRow{}, fmt.Errorf("Could not describe new domain, Please check to see if new domain exists before migrating. %w", err)
 	}
 	validationResult, mismatchedMetaData := metaDataValidation(currResp, newResp)
 	validationRow := DomainMigrationRow{
@@ -193,7 +226,7 @@ func (d *domainMigrationCLIImpl) DomainMetaDataCheck(c *cli.Context) DomainMigra
 			MismatchedDomainMetaData: mismatchedMetaData,
 		},
 	}
-	return validationRow
+	return validationRow, nil
 }
 
 func metaDataValidation(currResp *types.DescribeDomainResponse, newResp *types.DescribeDomainResponse) (bool, string) {
@@ -207,45 +240,55 @@ func metaDataValidation(currResp *types.DescribeDomainResponse, newResp *types.D
 	return true, ""
 }
 
-func (d *domainMigrationCLIImpl) DomainWorkFlowCheck(c *cli.Context) DomainMigrationRow {
-	countWorkFlows := d.countLongRunningWorkflow(c)
+func (d *domainMigrationCLIImpl) DomainWorkFlowCheck(c *cli.Context) (DomainMigrationRow, error) {
+	countWorkFlows, err := d.countLongRunningWorkflow(c)
+	if err != nil {
+		return DomainMigrationRow{}, fmt.Errorf("Error in Domain flow check: %w", err)
+	}
 	check := countWorkFlows == 0
-	return DomainMigrationRow{
+	dmr := DomainMigrationRow{
 		ValidationCheck:  "Workflow Check",
 		ValidationResult: check,
 		ValidationDetails: ValidationDetails{
 			LongRunningWorkFlowNum: &countWorkFlows,
 		},
 	}
+	return dmr, nil
 }
 
-func (d *domainMigrationCLIImpl) countLongRunningWorkflow(c *cli.Context) int {
-	domain := c.GlobalString(FlagDomain)
+func (d *domainMigrationCLIImpl) countLongRunningWorkflow(c *cli.Context) (int, error) {
+	domain := c.String(FlagDomain)
 	thresholdOfLongRunning := time.Now().Add(-longRunningDuration)
 	request := &types.CountWorkflowExecutionsRequest{
 		Domain: domain,
 		Query:  "CloseTime=missing AND StartTime < " + strconv.FormatInt(thresholdOfLongRunning.UnixNano(), 10),
 	}
-	ctx, cancel := newContextForLongPoll(c)
+	ctx, cancel, err := newContextForLongPoll(c)
 	defer cancel()
+	if err != nil {
+		return 0, fmt.Errorf("Error in creating long context: %w", err)
+	}
 	response, err := d.frontendClient.CountWorkflowExecutions(ctx, request)
 	if err != nil {
-		ErrorAndExit("Failed to count workflow.", err)
+		return 0, fmt.Errorf("Failed to count workflow. %w", err)
 	}
-	return int(response.GetCount())
+	return int(response.GetCount()), nil
 }
 
-func (d *domainMigrationCLIImpl) SearchAttributesChecker(c *cli.Context) DomainMigrationRow {
-	ctx, cancel := newContext(c)
+func (d *domainMigrationCLIImpl) SearchAttributesChecker(c *cli.Context) (DomainMigrationRow, error) {
+	ctx, cancel, err := newContext(c)
 	defer cancel()
-
+	if err != nil {
+		return DomainMigrationRow{}, fmt.Errorf("Error in creating long context: %w", err)
+	}
 	// getting user provided search attributes
 	searchAttributes := c.StringSlice(FlagSearchAttribute)
 	if len(searchAttributes) == 0 {
-		return DomainMigrationRow{
+		dmr := DomainMigrationRow{
 			ValidationCheck:  "Search Attributes Check",
 			ValidationResult: true,
 		}
+		return dmr, nil
 	}
 
 	// Parse the provided search attributes into a map[string]IndexValueType
@@ -253,12 +296,12 @@ func (d *domainMigrationCLIImpl) SearchAttributesChecker(c *cli.Context) DomainM
 	for _, attr := range searchAttributes {
 		parts := strings.SplitN(attr, ":", 2)
 		if len(parts) != 2 {
-			ErrorAndExit(fmt.Sprintf("Invalid search attribute format: %s", attr), nil)
+			return DomainMigrationRow{}, fmt.Errorf("Invalid search attribute format: %s, Error: %v", attr, nil)
 		}
 		key, valueType := parts[0], parts[1]
 		ivt, err := parseIndexedValueType(valueType)
 		if err != nil {
-			ErrorAndExit(fmt.Sprintf("Invalid search attribute type for %s: %s", key, valueType), err)
+			return DomainMigrationRow{}, fmt.Errorf("Invalid search attribute type for %s: %s , Error: %v", key, valueType, err)
 		}
 		requiredAttributes[key] = ivt
 	}
@@ -266,13 +309,13 @@ func (d *domainMigrationCLIImpl) SearchAttributesChecker(c *cli.Context) DomainM
 	// getting search attributes for current domain
 	currentSearchAttributes, err := d.frontendClient.GetSearchAttributes(ctx)
 	if err != nil {
-		ErrorAndExit("Unable to get search attributes for current domain.", err)
+		return DomainMigrationRow{}, fmt.Errorf("Unable to get search attributes for old domain. %w", err)
 	}
 
 	// getting search attributes for new domain
 	destinationSearchAttributes, err := d.destinationClient.GetSearchAttributes(ctx)
 	if err != nil {
-		ErrorAndExit("Unable to get search attributes for new domain.", err)
+		return DomainMigrationRow{}, fmt.Errorf("Unable to get search attributes for new domain. %w", err)
 	}
 
 	currentSearchAttrs := currentSearchAttributes.Keys
@@ -293,7 +336,7 @@ func (d *domainMigrationCLIImpl) SearchAttributesChecker(c *cli.Context) DomainM
 		},
 	}
 
-	return validationRow
+	return validationRow, nil
 }
 
 // helper to parse types.IndexedValueType from string
@@ -320,26 +363,28 @@ func findMissingAttributes(requiredAttributes map[string]types.IndexedValueType,
 	return missingAttributes
 }
 
-func (d *domainMigrationCLIImpl) DynamicConfigCheck(c *cli.Context) DomainMigrationRow {
+func (d *domainMigrationCLIImpl) DynamicConfigCheck(c *cli.Context) (DomainMigrationRow, error) {
 	var mismatchedConfigs []MismatchedDynamicConfig
 	check := true
 
 	resp := dynamicconfig.ListAllProductionKeys()
 
-	currDomain := c.GlobalString(FlagDomain)
+	currDomain := c.String(FlagDomain)
 	newDomain := c.String(FlagDestinationDomain)
 
-	ctx, cancel := newContext(c)
+	ctx, cancel, err := newContext(c)
 	defer cancel()
-
-	currentDomainID := getDomainID(ctx, currDomain, d.frontendClient)
-	destinationDomainID := getDomainID(ctx, newDomain, d.destinationClient)
-	if currentDomainID == "" {
-		ErrorAndExit("Failed to get domainID for the current domain.", nil)
+	if err != nil {
+		return DomainMigrationRow{}, fmt.Errorf("Failed to create context: %w", err)
+	}
+	currentDomainID, err1 := getDomainID(ctx, currDomain, d.frontendClient)
+	destinationDomainID, err2 := getDomainID(ctx, newDomain, d.destinationClient)
+	if currentDomainID == "" || err1 != nil {
+		return DomainMigrationRow{}, fmt.Errorf("Failed to get domainID for the current domain. %v", nil)
 	}
 
-	if destinationDomainID == "" {
-		ErrorAndExit("Failed to get domainID for the destination domain.", nil)
+	if destinationDomainID == "" || err2 != nil {
+		return DomainMigrationRow{}, fmt.Errorf("Failed to get domainID for the destination domain. %v", nil)
 	}
 
 	for _, configKey := range resp {
@@ -478,16 +523,16 @@ func (d *domainMigrationCLIImpl) DynamicConfigCheck(c *cli.Context) DomainMigrat
 		},
 	}
 
-	return validationRow
+	return validationRow, nil
 }
 
-func getDomainID(c context.Context, domain string, client frontend.Client) string {
+func getDomainID(c context.Context, domain string, client frontend.Client) (string, error) {
 	resp, err := client.DescribeDomain(c, &types.DescribeDomainRequest{Name: &domain})
 	if err != nil {
-		ErrorAndExit("Failed to describe domain.", err)
+		return "", fmt.Errorf("Failed to describe domain. %w", err)
 	}
 
-	return resp.DomainInfo.GetUUID()
+	return resp.DomainInfo.GetUUID(), nil
 }
 
 func valueToDataBlob(value interface{}) *types.DataBlob {

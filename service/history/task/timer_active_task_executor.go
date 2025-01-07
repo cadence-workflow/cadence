@@ -681,7 +681,7 @@ func (t *timerActiveTaskExecutor) executeActivityRetryTimerTask(
 
 	release(nil) // release earlier as we don't need the lock anymore
 
-	return t.shard.GetService().GetMatchingClient().AddActivityTask(ctx, &types.AddActivityTaskRequest{
+	_, err = t.shard.GetService().GetMatchingClient().AddActivityTask(ctx, &types.AddActivityTaskRequest{
 		DomainUUID:                    targetDomainID,
 		SourceDomainUUID:              domainID,
 		Execution:                     &execution,
@@ -690,6 +690,7 @@ func (t *timerActiveTaskExecutor) executeActivityRetryTimerTask(
 		ScheduleToStartTimeoutSeconds: common.Int32Ptr(scheduleToStartTimeout),
 		PartitionConfig:               mutableState.GetExecutionInfo().PartitionConfig,
 	})
+	return err
 }
 
 func (t *timerActiveTaskExecutor) executeWorkflowTimeoutTask(

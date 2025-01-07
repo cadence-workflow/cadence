@@ -49,11 +49,13 @@ type (
 	}
 
 	testTaskListManager struct {
-		sync.Mutex
-		rangeID         int64
-		ackLevel        int64
-		createTaskCount int
-		tasks           *treemap.Map
+		sync.RWMutex
+		rangeID                 int64
+		ackLevel                int64
+		kind                    int
+		createTaskCount         int
+		tasks                   *treemap.Map
+		adaptivePartitionConfig *persistence.TaskListPartitionConfig
 	}
 )
 
@@ -85,17 +87,45 @@ func (m *TestTaskManager) LeaseTaskList(
 	tlm := m.getTaskListManager(NewTestTaskListID(m.t, request.DomainID, request.TaskList, request.TaskType))
 	tlm.Lock()
 	defer tlm.Unlock()
+	if request.RangeID > 0 && request.RangeID != tlm.rangeID {
+		return nil, &persistence.ConditionFailedError{
+			Msg: fmt.Sprintf("leaseTaskList:renew failed: taskList:%v, taskListType:%v, haveRangeID:%v, gotRangeID:%v",
+				request.TaskList, request.TaskType, request.RangeID, tlm.rangeID),
+		}
+	}
 	tlm.rangeID++
+	tlm.kind = request.TaskListKind
 	m.logger.Debug(fmt.Sprintf("testTaskManager.LeaseTaskList rangeID=%v", tlm.rangeID))
 
 	return &persistence.LeaseTaskListResponse{
 		TaskListInfo: &persistence.TaskListInfo{
-			AckLevel: tlm.ackLevel,
-			DomainID: request.DomainID,
-			Name:     request.TaskList,
-			TaskType: request.TaskType,
-			RangeID:  tlm.rangeID,
-			Kind:     request.TaskListKind,
+			AckLevel:                tlm.ackLevel,
+			DomainID:                request.DomainID,
+			Name:                    request.TaskList,
+			TaskType:                request.TaskType,
+			RangeID:                 tlm.rangeID,
+			Kind:                    tlm.kind,
+			AdaptivePartitionConfig: tlm.adaptivePartitionConfig,
+		},
+	}, nil
+}
+
+func (m *TestTaskManager) GetTaskList(
+	_ context.Context,
+	request *persistence.GetTaskListRequest,
+) (*persistence.GetTaskListResponse, error) {
+	tlm := m.getTaskListManager(NewTestTaskListID(m.t, request.DomainID, request.TaskList, request.TaskType))
+	tlm.RLock()
+	defer tlm.RUnlock()
+	return &persistence.GetTaskListResponse{
+		TaskListInfo: &persistence.TaskListInfo{
+			AckLevel:                tlm.ackLevel,
+			DomainID:                request.DomainID,
+			Name:                    request.TaskList,
+			TaskType:                request.TaskType,
+			RangeID:                 tlm.rangeID,
+			Kind:                    tlm.kind,
+			AdaptivePartitionConfig: tlm.adaptivePartitionConfig,
 		},
 	}, nil
 }
@@ -229,8 +259,8 @@ func (m *TestTaskManager) CreateTasks(
 			TaskID:          task.TaskID,
 			PartitionConfig: task.Data.PartitionConfig,
 		}
-		if task.Data.ScheduleToStartTimeout != 0 {
-			info.Expiry = m.timeSource.Now().Add(time.Duration(task.Data.ScheduleToStartTimeout) * time.Second)
+		if task.Data.ScheduleToStartTimeoutSeconds != 0 {
+			info.Expiry = m.timeSource.Now().Add(time.Duration(task.Data.ScheduleToStartTimeoutSeconds) * time.Second)
 		}
 		tlm.tasks.Put(task.TaskID, info)
 		tlm.createTaskCount++

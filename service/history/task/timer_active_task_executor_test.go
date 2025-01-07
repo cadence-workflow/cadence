@@ -1069,7 +1069,7 @@ func (s *timerActiveTaskExecutorSuite) TestActivityRetryTimer_Fire() {
 			ScheduleToStartTimeoutSeconds: common.Int32Ptr(activityInfo.ScheduleToStartTimeout),
 			PartitionConfig:               mutableState.GetExecutionInfo().PartitionConfig,
 		},
-	).Return(nil).Times(1)
+	).Return(&types.AddActivityTaskResponse{}, nil).Times(1)
 
 	err = s.timerActiveTaskExecutor.Execute(timerTask, true)
 	s.NoError(err)

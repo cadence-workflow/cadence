@@ -53,18 +53,26 @@ func NewMatchingClient(client matching.Client, policy backoff.RetryPolicy, isRet
 	}
 }
 
-func (c *matchingClient) AddActivityTask(ctx context.Context, ap1 *types.AddActivityTaskRequest, p1 ...yarpc.CallOption) (err error) {
+func (c *matchingClient) AddActivityTask(ctx context.Context, ap1 *types.AddActivityTaskRequest, p1 ...yarpc.CallOption) (ap2 *types.AddActivityTaskResponse, err error) {
+	var resp *types.AddActivityTaskResponse
 	op := func() error {
-		return c.client.AddActivityTask(ctx, ap1, p1...)
+		var err error
+		resp, err = c.client.AddActivityTask(ctx, ap1, p1...)
+		return err
 	}
-	return c.throttleRetry.Do(ctx, op)
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
 }
 
-func (c *matchingClient) AddDecisionTask(ctx context.Context, ap1 *types.AddDecisionTaskRequest, p1 ...yarpc.CallOption) (err error) {
+func (c *matchingClient) AddDecisionTask(ctx context.Context, ap1 *types.AddDecisionTaskRequest, p1 ...yarpc.CallOption) (ap2 *types.AddDecisionTaskResponse, err error) {
+	var resp *types.AddDecisionTaskResponse
 	op := func() error {
-		return c.client.AddDecisionTask(ctx, ap1, p1...)
+		var err error
+		resp, err = c.client.AddDecisionTask(ctx, ap1, p1...)
+		return err
 	}
-	return c.throttleRetry.Do(ctx, op)
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
 }
 
 func (c *matchingClient) CancelOutstandingPoll(ctx context.Context, cp1 *types.CancelOutstandingPollRequest, p1 ...yarpc.CallOption) (err error) {
@@ -107,8 +115,8 @@ func (c *matchingClient) ListTaskListPartitions(ctx context.Context, mp1 *types.
 	return resp, err
 }
 
-func (c *matchingClient) PollForActivityTask(ctx context.Context, mp1 *types.MatchingPollForActivityTaskRequest, p1 ...yarpc.CallOption) (pp1 *types.PollForActivityTaskResponse, err error) {
-	var resp *types.PollForActivityTaskResponse
+func (c *matchingClient) PollForActivityTask(ctx context.Context, mp1 *types.MatchingPollForActivityTaskRequest, p1 ...yarpc.CallOption) (mp2 *types.MatchingPollForActivityTaskResponse, err error) {
+	var resp *types.MatchingPollForActivityTaskResponse
 	op := func() error {
 		var err error
 		resp, err = c.client.PollForActivityTask(ctx, mp1, p1...)
@@ -140,9 +148,31 @@ func (c *matchingClient) QueryWorkflow(ctx context.Context, mp1 *types.MatchingQ
 	return resp, err
 }
 
+func (c *matchingClient) RefreshTaskListPartitionConfig(ctx context.Context, mp1 *types.MatchingRefreshTaskListPartitionConfigRequest, p1 ...yarpc.CallOption) (mp2 *types.MatchingRefreshTaskListPartitionConfigResponse, err error) {
+	var resp *types.MatchingRefreshTaskListPartitionConfigResponse
+	op := func() error {
+		var err error
+		resp, err = c.client.RefreshTaskListPartitionConfig(ctx, mp1, p1...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
+}
+
 func (c *matchingClient) RespondQueryTaskCompleted(ctx context.Context, mp1 *types.MatchingRespondQueryTaskCompletedRequest, p1 ...yarpc.CallOption) (err error) {
 	op := func() error {
 		return c.client.RespondQueryTaskCompleted(ctx, mp1, p1...)
 	}
 	return c.throttleRetry.Do(ctx, op)
+}
+
+func (c *matchingClient) UpdateTaskListPartitionConfig(ctx context.Context, mp1 *types.MatchingUpdateTaskListPartitionConfigRequest, p1 ...yarpc.CallOption) (mp2 *types.MatchingUpdateTaskListPartitionConfigResponse, err error) {
+	var resp *types.MatchingUpdateTaskListPartitionConfigResponse
+	op := func() error {
+		var err error
+		resp, err = c.client.UpdateTaskListPartitionConfig(ctx, mp1, p1...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
 }

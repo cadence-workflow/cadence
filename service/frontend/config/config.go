@@ -80,9 +80,6 @@ type Config struct {
 	RequestIDMaxLength    dynamicconfig.IntPropertyFnWithDomainFilter
 	TaskListNameMaxLength dynamicconfig.IntPropertyFnWithDomainFilter
 
-	// Persistence settings
-	HistoryMgrNumConns dynamicconfig.IntPropertyFn
-
 	// security protection settings
 	EnableAdminProtection         dynamicconfig.BoolPropertyFn
 	AdminOperationToken           dynamicconfig.StringPropertyFn
@@ -163,7 +160,6 @@ func NewConfig(dc *dynamicconfig.Collection, numHistoryShards int, isAdvancedVis
 		WorkflowTypeMaxLength:                       dc.GetIntPropertyFilteredByDomain(dynamicconfig.WorkflowTypeMaxLength),
 		RequestIDMaxLength:                          dc.GetIntPropertyFilteredByDomain(dynamicconfig.RequestIDMaxLength),
 		TaskListNameMaxLength:                       dc.GetIntPropertyFilteredByDomain(dynamicconfig.TaskListNameMaxLength),
-		HistoryMgrNumConns:                          dc.GetIntProperty(dynamicconfig.FrontendHistoryMgrNumConns),
 		EnableAdminProtection:                       dc.GetBoolProperty(dynamicconfig.EnableAdminProtection),
 		AdminOperationToken:                         dc.GetStringProperty(dynamicconfig.AdminOperationToken),
 		DisableListVisibilityByFilter:               dc.GetBoolPropertyFilteredByDomain(dynamicconfig.DisableListVisibilityByFilter),

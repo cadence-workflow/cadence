@@ -465,3 +465,16 @@ func (c *adminClient) UpdateGlobalIsolationGroups(ctx context.Context, request *
 	}
 	return up1, err
 }
+
+func (c *adminClient) UpdateTaskListPartitionConfig(ctx context.Context, request *types.UpdateTaskListPartitionConfigRequest, opts ...yarpc.CallOption) (up1 *types.UpdateTaskListPartitionConfigResponse, err error) {
+	c.metricsClient.IncCounter(metrics.AdminClientUpdateTaskListPartitionConfigScope, metrics.CadenceClientRequests)
+
+	sw := c.metricsClient.StartTimer(metrics.AdminClientUpdateTaskListPartitionConfigScope, metrics.CadenceClientLatency)
+	up1, err = c.client.UpdateTaskListPartitionConfig(ctx, request, opts...)
+	sw.Stop()
+
+	if err != nil {
+		c.metricsClient.IncCounter(metrics.AdminClientUpdateTaskListPartitionConfigScope, metrics.CadenceClientFailures)
+	}
+	return up1, err
+}

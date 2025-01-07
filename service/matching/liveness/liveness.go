@@ -68,7 +68,8 @@ func (l *Liveness) Start() {
 	}
 
 	l.wg.Add(1)
-	go l.eventLoop()
+	checkTimer := l.timeSource.NewTicker(l.ttl / 2)
+	go l.eventLoop(checkTimer)
 }
 
 func (l *Liveness) Stop() {
@@ -81,14 +82,13 @@ func (l *Liveness) Stop() {
 	l.wg.Wait()
 }
 
-func (l *Liveness) eventLoop() {
+func (l *Liveness) eventLoop(ticker clock.Ticker) {
 	defer l.wg.Done()
-	checkTimer := time.NewTicker(l.ttl / 2)
-	defer checkTimer.Stop()
+	defer ticker.Stop()
 
 	for {
 		select {
-		case <-checkTimer.C:
+		case <-ticker.Chan():
 			if !l.IsAlive() {
 				l.Stop()
 			}

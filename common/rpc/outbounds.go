@@ -18,6 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination outbounds_mock.go -self_package github.com/uber/cadence/common/rpc
+
 package rpc
 
 import (
@@ -28,12 +30,13 @@ import (
 	"go.uber.org/yarpc"
 	"go.uber.org/yarpc/api/middleware"
 	"go.uber.org/yarpc/api/transport"
-	"go.uber.org/yarpc/peer/direct"
 	"go.uber.org/yarpc/transport/grpc"
 	"go.uber.org/yarpc/transport/tchannel"
 
 	"github.com/uber/cadence/common/authorization"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/service"
 )
 
@@ -46,21 +49,34 @@ const (
 
 // OutboundsBuilder allows defining outbounds for the dispatcher
 type OutboundsBuilder interface {
-	Build(*grpc.Transport, *tchannel.Transport) (yarpc.Outbounds, error)
+	// Build creates yarpc outbounds given transport instances for either gRPC and TChannel based on the configuration
+	Build(*grpc.Transport, *tchannel.Transport) (*Outbounds, error)
 }
 
-type multiOutbounds struct {
+type Outbounds struct {
+	yarpc.Outbounds
+	onUpdatePeers func(serviceName string, members []membership.HostInfo)
+}
+
+func (o *Outbounds) UpdatePeers(serviceName string, peers []membership.HostInfo) {
+	if o.onUpdatePeers != nil {
+		o.onUpdatePeers(serviceName, peers)
+	}
+}
+
+type multiOutboundsBuilder struct {
 	builders []OutboundsBuilder
 }
 
 // CombineOutbounds takes multiple outbound builders and combines them
 func CombineOutbounds(builders ...OutboundsBuilder) OutboundsBuilder {
-	return multiOutbounds{builders}
+	return multiOutboundsBuilder{builders}
 }
 
-func (b multiOutbounds) Build(grpc *grpc.Transport, tchannel *tchannel.Transport) (yarpc.Outbounds, error) {
+func (b multiOutboundsBuilder) Build(grpc *grpc.Transport, tchannel *tchannel.Transport) (*Outbounds, error) {
 	outbounds := yarpc.Outbounds{}
 	var errs error
+	var callbacks []func(string, []membership.HostInfo)
 	for _, builder := range b.builders {
 		builderOutbounds, err := builder.Build(grpc, tchannel)
 		if err != nil {
@@ -68,7 +84,11 @@ func (b multiOutbounds) Build(grpc *grpc.Transport, tchannel *tchannel.Transport
 			continue
 		}
 
-		for name, outbound := range builderOutbounds {
+		if builderOutbounds.onUpdatePeers != nil {
+			callbacks = append(callbacks, builderOutbounds.onUpdatePeers)
+		}
+
+		for name, outbound := range builderOutbounds.Outbounds {
 			if _, exists := outbounds[name]; exists {
 				errs = multierr.Append(errs, fmt.Errorf("outbound %q already configured", name))
 				break
@@ -76,7 +96,15 @@ func (b multiOutbounds) Build(grpc *grpc.Transport, tchannel *tchannel.Transport
 			outbounds[name] = outbound
 		}
 	}
-	return outbounds, errs
+
+	return &Outbounds{
+		Outbounds: outbounds,
+		onUpdatePeers: func(serviceName string, members []membership.HostInfo) {
+			for _, callback := range callbacks {
+				callback(serviceName, members)
+			}
+		},
+	}, errs
 }
 
 type publicClientOutbound struct {
@@ -106,17 +134,19 @@ func newPublicClientOutbound(config *config.Config) (publicClientOutbound, error
 	return publicClientOutbound{config.PublicClient.HostPort, isGrpc, authMiddleware}, nil
 }
 
-func (b publicClientOutbound) Build(grpc *grpc.Transport, tchannel *tchannel.Transport) (yarpc.Outbounds, error) {
+func (b publicClientOutbound) Build(grpc *grpc.Transport, tchannel *tchannel.Transport) (*Outbounds, error) {
 	var outbound transport.UnaryOutbound
 	if b.isGRPC {
 		outbound = grpc.NewSingleOutbound(b.address)
 	} else {
 		outbound = tchannel.NewSingleOutbound(b.address)
 	}
-	return yarpc.Outbounds{
-		OutboundPublicClient: {
-			ServiceName: service.Frontend,
-			Unary:       middleware.ApplyUnaryOutbound(outbound, b.authMiddleware),
+	return &Outbounds{
+		Outbounds: yarpc.Outbounds{
+			OutboundPublicClient: {
+				ServiceName: service.Frontend,
+				Unary:       middleware.ApplyUnaryOutbound(outbound, b.authMiddleware),
+			},
 		},
 	}, nil
 }
@@ -130,7 +160,7 @@ func NewCrossDCOutbounds(clusterGroup map[string]config.ClusterInformation, pcf 
 	return crossDCOutbounds{clusterGroup, pcf}
 }
 
-func (b crossDCOutbounds) Build(grpcTransport *grpc.Transport, tchannelTransport *tchannel.Transport) (yarpc.Outbounds, error) {
+func (b crossDCOutbounds) Build(grpcTransport *grpc.Transport, tchannelTransport *tchannel.Transport) (*Outbounds, error) {
 	outbounds := yarpc.Outbounds{}
 	for clusterName, clusterInfo := range b.clusterGroup {
 		if !clusterInfo.Enabled {
@@ -140,7 +170,7 @@ func (b crossDCOutbounds) Build(grpcTransport *grpc.Transport, tchannelTransport
 		var outbound transport.UnaryOutbound
 		switch clusterInfo.RPCTransport {
 		case tchannel.TransportName:
-			peerChooser, err := b.pcf.CreatePeerChooser(tchannelTransport, clusterInfo.RPCAddress)
+			peerChooser, err := b.pcf.CreatePeerChooser(tchannelTransport, PeerChooserOptions{Address: clusterInfo.RPCAddress})
 			if err != nil {
 				return nil, err
 			}
@@ -150,7 +180,7 @@ func (b crossDCOutbounds) Build(grpcTransport *grpc.Transport, tchannelTransport
 			if err != nil {
 				return nil, err
 			}
-			peerChooser, err := b.pcf.CreatePeerChooser(createDialer(grpcTransport, tlsConfig), clusterInfo.RPCAddress)
+			peerChooser, err := b.pcf.CreatePeerChooser(createDialer(grpcTransport, tlsConfig), PeerChooserOptions{Address: clusterInfo.RPCAddress})
 			if err != nil {
 				return nil, err
 			}
@@ -176,40 +206,52 @@ func (b crossDCOutbounds) Build(grpcTransport *grpc.Transport, tchannelTransport
 			)),
 		}
 	}
-	return outbounds, nil
+	return &Outbounds{Outbounds: outbounds}, nil
 }
 
 type directOutbound struct {
-	serviceName string
-	grpcEnabled bool
-	tlsConfig   *tls.Config
+	serviceName          string
+	grpcEnabled          bool
+	tlsConfig            *tls.Config
+	pcf                  PeerChooserFactory
+	enableConnRetainMode dynamicconfig.BoolPropertyFn
 }
 
-func NewDirectOutbound(serviceName string, grpcEnabled bool, tlsConfig *tls.Config) OutboundsBuilder {
-	return directOutbound{serviceName, grpcEnabled, tlsConfig}
+func NewDirectOutboundBuilder(serviceName string, grpcEnabled bool, tlsConfig *tls.Config, pcf PeerChooserFactory, enableConnRetainMode dynamicconfig.BoolPropertyFn) OutboundsBuilder {
+	return directOutbound{serviceName, grpcEnabled, tlsConfig, pcf, enableConnRetainMode}
 }
 
-func (o directOutbound) Build(grpc *grpc.Transport, tchannel *tchannel.Transport) (yarpc.Outbounds, error) {
+func (o directOutbound) Build(grpc *grpc.Transport, tchannel *tchannel.Transport) (*Outbounds, error) {
 	var outbound transport.UnaryOutbound
+	opts := PeerChooserOptions{
+		EnableConnectionRetainingDirectChooser: o.enableConnRetainMode,
+		ServiceName:                            o.serviceName,
+	}
+
+	var err error
+	var directChooser PeerChooser
 	if o.grpcEnabled {
-		directChooser, err := direct.New(direct.Configuration{}, createDialer(grpc, o.tlsConfig))
+		directChooser, err = o.pcf.CreatePeerChooser(createDialer(grpc, o.tlsConfig), opts)
 		if err != nil {
 			return nil, err
 		}
 		outbound = grpc.NewOutbound(directChooser)
 	} else {
-		directChooser, err := direct.New(direct.Configuration{}, tchannel)
+		directChooser, err = o.pcf.CreatePeerChooser(tchannel, opts)
 		if err != nil {
 			return nil, err
 		}
 		outbound = tchannel.NewOutbound(directChooser)
 	}
 
-	return yarpc.Outbounds{
-		o.serviceName: {
-			ServiceName: o.serviceName,
-			Unary:       middleware.ApplyUnaryOutbound(outbound, &ResponseInfoMiddleware{}),
+	return &Outbounds{
+		Outbounds: yarpc.Outbounds{
+			o.serviceName: {
+				ServiceName: o.serviceName,
+				Unary:       middleware.ApplyUnaryOutbound(outbound, &ResponseInfoMiddleware{}),
+			},
 		},
+		onUpdatePeers: directChooser.UpdatePeers,
 	}, nil
 }
 

@@ -425,6 +425,7 @@ Update_History_Loop:
 			failMessage = fmt.Sprintf("binary %v is already marked as bad deployment", binChecksum)
 		} else {
 			workflowSizeChecker := newWorkflowSizeChecker(
+				domainName,
 				handler.config.BlobSizeLimitWarn(domainName),
 				handler.config.BlobSizeLimitError(domainName),
 				handler.config.HistorySizeLimitWarn(domainName),
@@ -779,10 +780,11 @@ func (handler *handlerImpl) handleBufferedQueries(
 			sizeLimitWarn,
 			sizeLimitError,
 			domainID,
+			domain,
 			workflowID,
 			runID,
 			scope,
-			handler.throttledLogger,
+			handler.logger,
 			tag.BlobSizeViolationOperation("ConsistentQuery"),
 		); err != nil {
 			handler.logger.Info("failing query because query result size is too large",

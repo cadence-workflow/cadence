@@ -46,7 +46,7 @@ CREATE TABLE cross_cluster_tasks(
 CREATE TABLE executions(
   shard_id INTEGER NOT NULL,
   domain_id BYTEA NOT NULL,
-  workflow_id VARCHAR(255) NOT NULL,
+  workflow_id TEXT NOT NULL,
   run_id BYTEA NOT NULL,
   --
   next_event_id BIGINT NOT NULL,
@@ -59,7 +59,7 @@ CREATE TABLE executions(
 CREATE TABLE current_executions(
   shard_id INTEGER NOT NULL,
   domain_id BYTEA NOT NULL,
-  workflow_id VARCHAR(255) NOT NULL,
+  workflow_id TEXT NOT NULL,
   --
   run_id BYTEA NOT NULL,
   create_request_id VARCHAR(64) NOT NULL,
@@ -74,7 +74,7 @@ CREATE TABLE buffered_events (
   id BIGSERIAL NOT NULL,
   shard_id INTEGER NOT NULL,
   domain_id BYTEA NOT NULL,
-  workflow_id VARCHAR(255) NOT NULL,
+  workflow_id TEXT NOT NULL,
   run_id BYTEA NOT NULL,
   --
   data BYTEA NOT NULL,
@@ -140,7 +140,7 @@ CREATE TABLE activity_info_maps (
 -- each row corresponds to one key of one map<string, ActivityInfo>
   shard_id INTEGER NOT NULL,
   domain_id BYTEA NOT NULL,
-  workflow_id VARCHAR(255) NOT NULL,
+  workflow_id TEXT NOT NULL,
   run_id BYTEA NOT NULL,
   schedule_id BIGINT NOT NULL,
 --
@@ -154,7 +154,7 @@ CREATE TABLE activity_info_maps (
 CREATE TABLE timer_info_maps (
   shard_id INTEGER NOT NULL,
   domain_id BYTEA NOT NULL,
-  workflow_id VARCHAR(255) NOT NULL,
+  workflow_id TEXT NOT NULL,
   run_id BYTEA NOT NULL,
   timer_id VARCHAR(255) NOT NULL,
 --
@@ -166,7 +166,7 @@ CREATE TABLE timer_info_maps (
 CREATE TABLE child_execution_info_maps (
   shard_id INTEGER NOT NULL,
   domain_id BYTEA NOT NULL,
-  workflow_id VARCHAR(255) NOT NULL,
+  workflow_id TEXT NOT NULL,
   run_id BYTEA NOT NULL,
   initiated_id BIGINT NOT NULL,
 --
@@ -178,7 +178,7 @@ CREATE TABLE child_execution_info_maps (
 CREATE TABLE request_cancel_info_maps (
   shard_id INTEGER NOT NULL,
   domain_id BYTEA NOT NULL,
-  workflow_id VARCHAR(255) NOT NULL,
+  workflow_id TEXT NOT NULL,
   run_id BYTEA NOT NULL,
   initiated_id BIGINT NOT NULL,
 --
@@ -190,7 +190,7 @@ CREATE TABLE request_cancel_info_maps (
 CREATE TABLE signal_info_maps (
   shard_id INTEGER NOT NULL,
   domain_id BYTEA NOT NULL,
-  workflow_id VARCHAR(255) NOT NULL,
+  workflow_id TEXT NOT NULL,
   run_id BYTEA NOT NULL,
   initiated_id BIGINT NOT NULL,
 --
@@ -202,7 +202,7 @@ CREATE TABLE signal_info_maps (
 CREATE TABLE buffered_replication_task_maps (
   shard_id INTEGER NOT NULL,
   domain_id BYTEA NOT NULL,
-  workflow_id VARCHAR(255) NOT NULL,
+  workflow_id TEXT NOT NULL,
   run_id BYTEA NOT NULL,
   first_event_id BIGINT NOT NULL,
 --
@@ -220,7 +220,7 @@ CREATE TABLE buffered_replication_task_maps (
 CREATE TABLE signals_requested_sets (
   shard_id INTEGER NOT NULL,
   domain_id BYTEA NOT NULL,
-  workflow_id VARCHAR(255) NOT NULL,
+  workflow_id TEXT NOT NULL,
   run_id BYTEA NOT NULL,
   signal_id VARCHAR(64) NOT NULL,
   --

@@ -34,6 +34,7 @@ import (
 	"go.uber.org/atomic"
 	"go.uber.org/goleak"
 	"go.uber.org/zap/zapcore"
+	"golang.org/x/time/rate"
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/dynamicconfig"
@@ -206,13 +207,16 @@ func TestCollectionSubmitsDataAndUpdates(t *testing.T) {
 	defer cancel()
 	require.NoError(t, c.OnStart(ctx))
 
-	// generate some data
+	// generate some data.
+	// these start with the collections' limits, i.e. 1 token, so only one request is allowed.
 	someLimiter := c.For("something")
 	res := someLimiter.Reserve()
 	assert.True(t, res.Allow(), "first request should have been allowed")
 	res.Used(true)
 	assert.False(t, someLimiter.Allow(), "second request on the same domain should have been rejected")
 	assert.NoError(t, c.For("other").Wait(ctx), "request on a different domain should be allowed")
+
+	// all limiters are now drained, and will take ~1s to recover normally.
 
 	// prep for the calls
 	called := make(chan struct{}, 1)
@@ -228,33 +232,36 @@ func TestCollectionSubmitsDataAndUpdates(t *testing.T) {
 	}).DoAndReturn(func(ctx context.Context, period time.Duration, load map[shared.GlobalKey]rpc.Calls) rpc.UpdateResult {
 		called <- struct{}{}
 		return rpc.UpdateResult{
-			Weights: map[shared.GlobalKey]float64{
-				"test:something": 1, // should recover a token in 100ms
-				// "test:other":   // not returned, should not change weight
+			Weights: map[shared.GlobalKey]rpc.UpdateEntry{
+				"test:something": {Weight: 1, UsedRPS: 2}, // should recover a token in 100ms
+				// "test:other":   // not returned, should not change weight/rps and stay at 1s
 			},
 			Err: nil,
 		}
 	})
 
 	mts.BlockUntil(1)        // need to have created timer in background updater
-	mts.Advance(time.Second) // trigger the update
+	mts.Advance(time.Second) // trigger the update.  also fills all ratelimiters.
 
 	// wait until the calls occur
 	select {
 	case <-called:
-	case <-time.After(time.Second):
-		t.Fatal("did not make an rpc call after 1s")
+	case <-time.After(time.Second / 2):
+		// keep total wait shorter than 1s to avoid refilling the slow token, just in case
+		t.Fatal("did not make an rpc call after 1/2s")
 	}
-	// panic if more calls occur
+	// crash if more calls occur
 	close(called)
 
-	// wait for the updates to be sent to the ratelimiters, and for "something"'s 100ms token to recover
+	// wait for the updates to be sent to the ratelimiters, and for at least one "something"'s 100ms token to recover
 	time.Sleep(150 * time.Millisecond)
 
 	// and make sure updates occurred
-	assert.False(t, c.For("other").Allow(), "should be no recovered tokens yet on the slow limit")
-	assert.True(t, c.For("something").Allow(), "should have allowed one request on the fast limit")            // should use weight, not target rps
-	assert.False(t, c.For("something").Allow(), "should not have allowed as second request on the fast limit") // should use weight, not target rps
+	assert.False(t, c.For("other").Allow(), "should be no recovered tokens yet on the slow limit")  // less than 1 second == no tokens
+	assert.True(t, c.For("something").Allow(), "should have allowed one request on the fast limit") // over 100ms (got updated rate) == at least one token
+	// specifically: because this is the first update to this limiter, it should now allow 10 requests, because the token bucket should be full.
+	// just check once though, no need to be precise here.
+	assert.True(t, c.For("something").Allow(), "after the initial update, the fast limiter should have extra tokens available")
 
 	assert.NoError(t, c.OnStop(ctx))
 
@@ -408,6 +415,63 @@ func TestTogglingMode(t *testing.T) {
 		assertLimiterKeys(t, c.local, "local")
 		assertLimiterKeys(t, c.global, "global")
 	})
+}
+
+func TestBoostRPS(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		targetLimit, fallbackLimit float64
+		weight                     float64
+		usedRPS                    float64
+		resultLimit                float64
+	}{
+		"low weight fully used": {
+			targetLimit:   10,
+			fallbackLimit: 3,
+			weight:        0.11,
+			usedRPS:       10,
+			resultLimit:   1.1, // no unused RPS free for boost, gets fair value
+		},
+		"low weight mostly unused": {
+			targetLimit:   10,
+			fallbackLimit: 3,
+			weight:        0.11,
+			usedRPS:       2,
+			resultLimit:   3, // min(1.1 + 8, 3)
+		},
+		"high weight fully used": {
+			targetLimit:   10,
+			fallbackLimit: 3,
+			weight:        0.89,
+			usedRPS:       10,
+			resultLimit:   8.9, // no unused RPS free for boost, gets fair value
+		},
+		"high weight mostly unused": {
+			targetLimit:   10,
+			fallbackLimit: 3,
+			weight:        0.89,
+			usedRPS:       2,
+			resultLimit:   8.9, // should not be boosted beyond fair, nor limited below it
+		},
+		"usage over target": {
+			targetLimit:   10,
+			fallbackLimit: 3,
+			weight:        0.089,
+			usedRPS:       100,
+			resultLimit:   0.89, // should be weight-based at worst, and not be reduced by excess usage
+		},
+	}
+	for name, tc := range tests {
+		name, tc := name, tc
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			assert.GreaterOrEqual(t, tc.weight, float64(0), "sanity check on weight")
+			assert.LessOrEqual(t, tc.weight, float64(1), "sanity check on weight")
+			result := boostRPS(rate.Limit(tc.targetLimit), rate.Limit(tc.fallbackLimit), tc.weight, tc.usedRPS)
+			assert.InDeltaf(t, tc.resultLimit, float64(result), 0.01, "computed RPS does not match closely enough, should be %0.2f", tc.resultLimit)
+		})
+	}
 }
 
 func assertLimiterKeys[V any](t *testing.T, collection *internal.AtomicMap[shared.LocalKey, V], name string, keys ...shared.LocalKey) {

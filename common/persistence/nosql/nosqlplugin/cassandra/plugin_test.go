@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	gogocql "github.com/gocql/gocql"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/uber/cadence/common/config"
@@ -46,13 +47,14 @@ func Test_toGoCqlConfig(t *testing.T) {
 			"empty config will be filled with defaults",
 			&config.NoSQL{},
 			gocql.ClusterConfig{
-				Hosts:             environment.Localhost,
-				Port:              9042,
-				ProtoVersion:      4,
-				Timeout:           time.Second * 10,
-				Consistency:       gocql.LocalQuorum,
-				SerialConsistency: gocql.LocalSerial,
-				ConnectTimeout:    time.Second * 2,
+				Hosts:               environment.Localhost,
+				Port:                9042,
+				ProtoVersion:        4,
+				Timeout:             time.Second * 10,
+				Consistency:         gocql.LocalQuorum,
+				SerialConsistency:   gocql.LocalSerial,
+				ConnectTimeout:      time.Second * 2,
+				HostSelectionPolicy: gogocql.TokenAwareHostPolicy(gogocql.RoundRobinHostPolicy()),
 			},
 			assert.NoError,
 		},
@@ -64,6 +66,29 @@ func Test_toGoCqlConfig(t *testing.T) {
 				return
 			}
 			assert.Equalf(t, tt.want, got, "toGoCqlConfig(%v)", tt.cfg)
+		})
+	}
+}
+
+func Test_toHostSelectionPolicy(t *testing.T) {
+	tests := []struct {
+		name    string
+		policy  string
+		want    gogocql.HostSelectionPolicy
+		wantErr assert.ErrorAssertionFunc
+	}{
+		{name: "not supported policy", policy: "non-existing", want: nil, wantErr: assert.Error},
+		{name: "Default policy", policy: "", want: gogocql.TokenAwareHostPolicy(gogocql.RoundRobinHostPolicy()), wantErr: assert.NoError},
+		{name: "Round robin policy", policy: "roundrobin", want: gogocql.RoundRobinHostPolicy(), wantErr: assert.NoError},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := toHostSelectionPolicy(tt.policy)
+			if !tt.wantErr(t, err, fmt.Sprintf("toHostSelectionPolicy(%v)", tt.policy)) {
+				return
+			}
+
+			assert.Equal(t, tt.want, got, "toHostSelectionPolicy(%v)", tt.policy)
 		})
 	}
 }

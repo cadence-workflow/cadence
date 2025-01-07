@@ -22,12 +22,13 @@
 package engineimpl
 
 import (
-	"bytes"
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/definition"
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
@@ -43,7 +44,9 @@ func (e *historyEngineImpl) PollMutableState(ctx context.Context, request *types
 		DomainUUID:          request.DomainUUID,
 		Execution:           request.Execution,
 		ExpectedNextEventID: request.ExpectedNextEventID,
-		CurrentBranchToken:  request.CurrentBranchToken})
+		CurrentBranchToken:  request.CurrentBranchToken,
+		VersionHistoryItem:  request.GetVersionHistoryItem(),
+	})
 
 	if err != nil {
 		return nil, e.updateEntityNotExistsErrorOnPassiveCluster(err, request.GetDomainUUID())
@@ -156,10 +159,29 @@ func (e *historyEngineImpl) getMutableStateOrPolling(
 	if err != nil {
 		return nil, err
 	}
-	if request.CurrentBranchToken == nil {
-		request.CurrentBranchToken = response.CurrentBranchToken
+
+	currentVersionHistory, err := persistence.NewVersionHistoriesFromInternalType(
+		response.GetVersionHistories(),
+	).GetCurrentVersionHistory()
+
+	if err != nil {
+		return nil, err
 	}
-	if !bytes.Equal(request.CurrentBranchToken, response.CurrentBranchToken) {
+	if request.VersionHistoryItem == nil {
+		lastVersionHistoryItem, err := currentVersionHistory.GetLastItem()
+		if err != nil {
+			return nil, err
+		}
+		request.VersionHistoryItem = lastVersionHistoryItem.ToInternalType()
+	}
+	// Use the latest event id + event version as the branch identifier. This pair is unique across clusters.
+	// We return the full version histories. Callers need to fetch the last version history item from current branch
+	// and use the last version history item in following calls.
+	if !currentVersionHistory.ContainsItem(persistence.NewVersionHistoryItemFromInternalType(request.VersionHistoryItem)) {
+		e.logger.Warn("current version history and requested one are different - found on first check",
+			tag.Dynamic("current-version-history", currentVersionHistory),
+			tag.Dynamic("requested-version-history", request.VersionHistoryItem),
+		)
 		return nil, &types.CurrentBranchChangedError{
 			Message:            "current branch token and request branch token doesn't match",
 			CurrentBranchToken: response.CurrentBranchToken}
@@ -186,12 +208,21 @@ func (e *historyEngineImpl) getMutableStateOrPolling(
 		if err != nil {
 			return nil, err
 		}
-		// check again if the current branch token changed
-		if !bytes.Equal(request.CurrentBranchToken, response.CurrentBranchToken) {
+		currentVersionHistory, err := persistence.NewVersionHistoriesFromInternalType(response.VersionHistories).GetCurrentVersionHistory()
+		if err != nil {
+			return nil, fmt.Errorf("unable to get version history while looking up response for mutable state: %w", err)
+		}
+		if !currentVersionHistory.ContainsItem(persistence.NewVersionHistoryItemFromInternalType(request.VersionHistoryItem)) {
+			e.logger.Warn("current version history and requested one are different - found on checking response",
+				tag.Dynamic("current-version-history", currentVersionHistory),
+				tag.Dynamic("requested-version-history", request.VersionHistoryItem),
+			)
 			return nil, &types.CurrentBranchChangedError{
 				Message:            "current branch token and request branch token doesn't match",
-				CurrentBranchToken: response.CurrentBranchToken}
+				CurrentBranchToken: response.CurrentBranchToken,
+			}
 		}
+
 		if expectedNextEventID < response.GetNextEventID() || !response.GetIsWorkflowRunning() {
 			return response, nil
 		}
@@ -230,11 +261,22 @@ func (e *historyEngineImpl) getMutableStateOrPolling(
 				response.PreviousStartedEventID = common.Int64Ptr(event.PreviousStartedEventID)
 				response.WorkflowState = common.Int32Ptr(int32(event.WorkflowState))
 				response.WorkflowCloseState = common.Int32Ptr(int32(event.WorkflowCloseState))
-				if !bytes.Equal(request.CurrentBranchToken, event.CurrentBranchToken) {
-					return nil, &types.CurrentBranchChangedError{
-						Message:            "Current branch token and request branch token doesn't match",
-						CurrentBranchToken: event.CurrentBranchToken}
+
+				currentVersionHistoryOnPoll, err := event.VersionHistories.GetCurrentVersionHistory()
+				if err != nil {
+					return nil, fmt.Errorf("unexpected error getting current version history while polling for mutable state: %w", err)
 				}
+				if !currentVersionHistoryOnPoll.ContainsItem(persistence.NewVersionHistoryItemFromInternalType(request.VersionHistoryItem)) {
+					e.logger.Warn("current version history and requested one are different",
+						tag.Dynamic("current-version-history", currentVersionHistoryOnPoll),
+						tag.Dynamic("requested-version-history", request.VersionHistoryItem),
+					)
+					return nil, &types.CurrentBranchChangedError{
+						Message:            "current and requested version histories don't match - changed while polling",
+						CurrentBranchToken: response.CurrentBranchToken,
+					}
+				}
+
 				if expectedNextEventID < response.GetNextEventID() || !response.GetIsWorkflowRunning() {
 					return response, nil
 				}

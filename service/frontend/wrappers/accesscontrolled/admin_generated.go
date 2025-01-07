@@ -64,7 +64,7 @@ func (a *adminHandler) AddSearchAttribute(ctx context.Context, ap1 *types.AddSea
 	attr := &authorization.Attributes{
 		APIName:     "AddSearchAttribute",
 		Permission:  authorization.PermissionAdmin,
-		RequestBody: ap1,
+		RequestBody: authorization.NewFilteredRequestBody(ap1),
 	}
 	isAuthorized, err := a.isAuthorized(ctx, attr)
 	if err != nil {
@@ -80,7 +80,7 @@ func (a *adminHandler) CloseShard(ctx context.Context, cp1 *types.CloseShardRequ
 	attr := &authorization.Attributes{
 		APIName:     "CloseShard",
 		Permission:  authorization.PermissionAdmin,
-		RequestBody: cp1,
+		RequestBody: authorization.NewFilteredRequestBody(cp1),
 	}
 	isAuthorized, err := a.isAuthorized(ctx, attr)
 	if err != nil {
@@ -96,7 +96,7 @@ func (a *adminHandler) CountDLQMessages(ctx context.Context, cp1 *types.CountDLQ
 	attr := &authorization.Attributes{
 		APIName:     "CountDLQMessages",
 		Permission:  authorization.PermissionAdmin,
-		RequestBody: cp1,
+		RequestBody: authorization.NewFilteredRequestBody(cp1),
 	}
 	isAuthorized, err := a.isAuthorized(ctx, attr)
 	if err != nil {
@@ -112,7 +112,7 @@ func (a *adminHandler) DeleteWorkflow(ctx context.Context, ap1 *types.AdminDelet
 	attr := &authorization.Attributes{
 		APIName:     "DeleteWorkflow",
 		Permission:  authorization.PermissionAdmin,
-		RequestBody: ap1,
+		RequestBody: authorization.NewFilteredRequestBody(ap1),
 	}
 	isAuthorized, err := a.isAuthorized(ctx, attr)
 	if err != nil {
@@ -143,7 +143,7 @@ func (a *adminHandler) DescribeHistoryHost(ctx context.Context, dp1 *types.Descr
 	attr := &authorization.Attributes{
 		APIName:     "DescribeHistoryHost",
 		Permission:  authorization.PermissionAdmin,
-		RequestBody: dp1,
+		RequestBody: authorization.NewFilteredRequestBody(dp1),
 	}
 	isAuthorized, err := a.isAuthorized(ctx, attr)
 	if err != nil {
@@ -159,7 +159,7 @@ func (a *adminHandler) DescribeQueue(ctx context.Context, dp1 *types.DescribeQue
 	attr := &authorization.Attributes{
 		APIName:     "DescribeQueue",
 		Permission:  authorization.PermissionAdmin,
-		RequestBody: dp1,
+		RequestBody: authorization.NewFilteredRequestBody(dp1),
 	}
 	isAuthorized, err := a.isAuthorized(ctx, attr)
 	if err != nil {
@@ -175,7 +175,7 @@ func (a *adminHandler) DescribeShardDistribution(ctx context.Context, dp1 *types
 	attr := &authorization.Attributes{
 		APIName:     "DescribeShardDistribution",
 		Permission:  authorization.PermissionAdmin,
-		RequestBody: dp1,
+		RequestBody: authorization.NewFilteredRequestBody(dp1),
 	}
 	isAuthorized, err := a.isAuthorized(ctx, attr)
 	if err != nil {
@@ -191,7 +191,7 @@ func (a *adminHandler) DescribeWorkflowExecution(ctx context.Context, ap1 *types
 	attr := &authorization.Attributes{
 		APIName:     "DescribeWorkflowExecution",
 		Permission:  authorization.PermissionAdmin,
-		RequestBody: ap1,
+		RequestBody: authorization.NewFilteredRequestBody(ap1),
 	}
 	isAuthorized, err := a.isAuthorized(ctx, attr)
 	if err != nil {
@@ -207,7 +207,7 @@ func (a *adminHandler) GetCrossClusterTasks(ctx context.Context, gp1 *types.GetC
 	attr := &authorization.Attributes{
 		APIName:     "GetCrossClusterTasks",
 		Permission:  authorization.PermissionAdmin,
-		RequestBody: gp1,
+		RequestBody: authorization.NewFilteredRequestBody(gp1),
 	}
 	isAuthorized, err := a.isAuthorized(ctx, attr)
 	if err != nil {
@@ -223,7 +223,7 @@ func (a *adminHandler) GetDLQReplicationMessages(ctx context.Context, gp1 *types
 	attr := &authorization.Attributes{
 		APIName:     "GetDLQReplicationMessages",
 		Permission:  authorization.PermissionAdmin,
-		RequestBody: gp1,
+		RequestBody: authorization.NewFilteredRequestBody(gp1),
 	}
 	isAuthorized, err := a.isAuthorized(ctx, attr)
 	if err != nil {
@@ -239,7 +239,7 @@ func (a *adminHandler) GetDomainAsyncWorkflowConfiguraton(ctx context.Context, g
 	attr := &authorization.Attributes{
 		APIName:     "GetDomainAsyncWorkflowConfiguraton",
 		Permission:  authorization.PermissionAdmin,
-		RequestBody: gp1,
+		RequestBody: authorization.NewFilteredRequestBody(gp1),
 	}
 	isAuthorized, err := a.isAuthorized(ctx, attr)
 	if err != nil {
@@ -255,7 +255,7 @@ func (a *adminHandler) GetDomainIsolationGroups(ctx context.Context, request *ty
 	attr := &authorization.Attributes{
 		APIName:     "GetDomainIsolationGroups",
 		Permission:  authorization.PermissionAdmin,
-		RequestBody: request,
+		RequestBody: authorization.NewFilteredRequestBody(request),
 	}
 	isAuthorized, err := a.isAuthorized(ctx, attr)
 	if err != nil {
@@ -271,7 +271,7 @@ func (a *adminHandler) GetDomainReplicationMessages(ctx context.Context, gp1 *ty
 	attr := &authorization.Attributes{
 		APIName:     "GetDomainReplicationMessages",
 		Permission:  authorization.PermissionAdmin,
-		RequestBody: gp1,
+		RequestBody: authorization.NewFilteredRequestBody(gp1),
 	}
 	isAuthorized, err := a.isAuthorized(ctx, attr)
 	if err != nil {
@@ -287,7 +287,7 @@ func (a *adminHandler) GetDynamicConfig(ctx context.Context, gp1 *types.GetDynam
 	attr := &authorization.Attributes{
 		APIName:     "GetDynamicConfig",
 		Permission:  authorization.PermissionAdmin,
-		RequestBody: gp1,
+		RequestBody: authorization.NewFilteredRequestBody(gp1),
 	}
 	isAuthorized, err := a.isAuthorized(ctx, attr)
 	if err != nil {
@@ -303,7 +303,7 @@ func (a *adminHandler) GetGlobalIsolationGroups(ctx context.Context, request *ty
 	attr := &authorization.Attributes{
 		APIName:     "GetGlobalIsolationGroups",
 		Permission:  authorization.PermissionAdmin,
-		RequestBody: request,
+		RequestBody: authorization.NewFilteredRequestBody(request),
 	}
 	isAuthorized, err := a.isAuthorized(ctx, attr)
 	if err != nil {
@@ -319,7 +319,7 @@ func (a *adminHandler) GetReplicationMessages(ctx context.Context, gp1 *types.Ge
 	attr := &authorization.Attributes{
 		APIName:     "GetReplicationMessages",
 		Permission:  authorization.PermissionAdmin,
-		RequestBody: gp1,
+		RequestBody: authorization.NewFilteredRequestBody(gp1),
 	}
 	isAuthorized, err := a.isAuthorized(ctx, attr)
 	if err != nil {
@@ -335,7 +335,7 @@ func (a *adminHandler) GetWorkflowExecutionRawHistoryV2(ctx context.Context, gp1
 	attr := &authorization.Attributes{
 		APIName:     "GetWorkflowExecutionRawHistoryV2",
 		Permission:  authorization.PermissionAdmin,
-		RequestBody: gp1,
+		RequestBody: authorization.NewFilteredRequestBody(gp1),
 	}
 	isAuthorized, err := a.isAuthorized(ctx, attr)
 	if err != nil {
@@ -351,7 +351,7 @@ func (a *adminHandler) ListDynamicConfig(ctx context.Context, lp1 *types.ListDyn
 	attr := &authorization.Attributes{
 		APIName:     "ListDynamicConfig",
 		Permission:  authorization.PermissionAdmin,
-		RequestBody: lp1,
+		RequestBody: authorization.NewFilteredRequestBody(lp1),
 	}
 	isAuthorized, err := a.isAuthorized(ctx, attr)
 	if err != nil {
@@ -367,7 +367,7 @@ func (a *adminHandler) MaintainCorruptWorkflow(ctx context.Context, ap1 *types.A
 	attr := &authorization.Attributes{
 		APIName:     "MaintainCorruptWorkflow",
 		Permission:  authorization.PermissionAdmin,
-		RequestBody: ap1,
+		RequestBody: authorization.NewFilteredRequestBody(ap1),
 	}
 	isAuthorized, err := a.isAuthorized(ctx, attr)
 	if err != nil {
@@ -383,7 +383,7 @@ func (a *adminHandler) MergeDLQMessages(ctx context.Context, mp1 *types.MergeDLQ
 	attr := &authorization.Attributes{
 		APIName:     "MergeDLQMessages",
 		Permission:  authorization.PermissionAdmin,
-		RequestBody: mp1,
+		RequestBody: authorization.NewFilteredRequestBody(mp1),
 	}
 	isAuthorized, err := a.isAuthorized(ctx, attr)
 	if err != nil {
@@ -399,7 +399,7 @@ func (a *adminHandler) PurgeDLQMessages(ctx context.Context, pp1 *types.PurgeDLQ
 	attr := &authorization.Attributes{
 		APIName:     "PurgeDLQMessages",
 		Permission:  authorization.PermissionAdmin,
-		RequestBody: pp1,
+		RequestBody: authorization.NewFilteredRequestBody(pp1),
 	}
 	isAuthorized, err := a.isAuthorized(ctx, attr)
 	if err != nil {
@@ -415,7 +415,7 @@ func (a *adminHandler) ReadDLQMessages(ctx context.Context, rp1 *types.ReadDLQMe
 	attr := &authorization.Attributes{
 		APIName:     "ReadDLQMessages",
 		Permission:  authorization.PermissionAdmin,
-		RequestBody: rp1,
+		RequestBody: authorization.NewFilteredRequestBody(rp1),
 	}
 	isAuthorized, err := a.isAuthorized(ctx, attr)
 	if err != nil {
@@ -431,7 +431,7 @@ func (a *adminHandler) ReapplyEvents(ctx context.Context, rp1 *types.ReapplyEven
 	attr := &authorization.Attributes{
 		APIName:     "ReapplyEvents",
 		Permission:  authorization.PermissionAdmin,
-		RequestBody: rp1,
+		RequestBody: authorization.NewFilteredRequestBody(rp1),
 	}
 	isAuthorized, err := a.isAuthorized(ctx, attr)
 	if err != nil {
@@ -447,7 +447,7 @@ func (a *adminHandler) RefreshWorkflowTasks(ctx context.Context, rp1 *types.Refr
 	attr := &authorization.Attributes{
 		APIName:     "RefreshWorkflowTasks",
 		Permission:  authorization.PermissionAdmin,
-		RequestBody: rp1,
+		RequestBody: authorization.NewFilteredRequestBody(rp1),
 	}
 	isAuthorized, err := a.isAuthorized(ctx, attr)
 	if err != nil {
@@ -463,7 +463,7 @@ func (a *adminHandler) RemoveTask(ctx context.Context, rp1 *types.RemoveTaskRequ
 	attr := &authorization.Attributes{
 		APIName:     "RemoveTask",
 		Permission:  authorization.PermissionAdmin,
-		RequestBody: rp1,
+		RequestBody: authorization.NewFilteredRequestBody(rp1),
 	}
 	isAuthorized, err := a.isAuthorized(ctx, attr)
 	if err != nil {
@@ -479,7 +479,7 @@ func (a *adminHandler) ResendReplicationTasks(ctx context.Context, rp1 *types.Re
 	attr := &authorization.Attributes{
 		APIName:     "ResendReplicationTasks",
 		Permission:  authorization.PermissionAdmin,
-		RequestBody: rp1,
+		RequestBody: authorization.NewFilteredRequestBody(rp1),
 	}
 	isAuthorized, err := a.isAuthorized(ctx, attr)
 	if err != nil {
@@ -495,7 +495,7 @@ func (a *adminHandler) ResetQueue(ctx context.Context, rp1 *types.ResetQueueRequ
 	attr := &authorization.Attributes{
 		APIName:     "ResetQueue",
 		Permission:  authorization.PermissionAdmin,
-		RequestBody: rp1,
+		RequestBody: authorization.NewFilteredRequestBody(rp1),
 	}
 	isAuthorized, err := a.isAuthorized(ctx, attr)
 	if err != nil {
@@ -511,7 +511,7 @@ func (a *adminHandler) RespondCrossClusterTasksCompleted(ctx context.Context, rp
 	attr := &authorization.Attributes{
 		APIName:     "RespondCrossClusterTasksCompleted",
 		Permission:  authorization.PermissionAdmin,
-		RequestBody: rp1,
+		RequestBody: authorization.NewFilteredRequestBody(rp1),
 	}
 	isAuthorized, err := a.isAuthorized(ctx, attr)
 	if err != nil {
@@ -527,7 +527,7 @@ func (a *adminHandler) RestoreDynamicConfig(ctx context.Context, rp1 *types.Rest
 	attr := &authorization.Attributes{
 		APIName:     "RestoreDynamicConfig",
 		Permission:  authorization.PermissionAdmin,
-		RequestBody: rp1,
+		RequestBody: authorization.NewFilteredRequestBody(rp1),
 	}
 	isAuthorized, err := a.isAuthorized(ctx, attr)
 	if err != nil {
@@ -551,7 +551,7 @@ func (a *adminHandler) UpdateDomainAsyncWorkflowConfiguraton(ctx context.Context
 	attr := &authorization.Attributes{
 		APIName:     "UpdateDomainAsyncWorkflowConfiguraton",
 		Permission:  authorization.PermissionAdmin,
-		RequestBody: up1,
+		RequestBody: authorization.NewFilteredRequestBody(up1),
 	}
 	isAuthorized, err := a.isAuthorized(ctx, attr)
 	if err != nil {
@@ -567,7 +567,7 @@ func (a *adminHandler) UpdateDomainIsolationGroups(ctx context.Context, request 
 	attr := &authorization.Attributes{
 		APIName:     "UpdateDomainIsolationGroups",
 		Permission:  authorization.PermissionAdmin,
-		RequestBody: request,
+		RequestBody: authorization.NewFilteredRequestBody(request),
 	}
 	isAuthorized, err := a.isAuthorized(ctx, attr)
 	if err != nil {
@@ -583,7 +583,7 @@ func (a *adminHandler) UpdateDynamicConfig(ctx context.Context, up1 *types.Updat
 	attr := &authorization.Attributes{
 		APIName:     "UpdateDynamicConfig",
 		Permission:  authorization.PermissionAdmin,
-		RequestBody: up1,
+		RequestBody: authorization.NewFilteredRequestBody(up1),
 	}
 	isAuthorized, err := a.isAuthorized(ctx, attr)
 	if err != nil {
@@ -599,7 +599,7 @@ func (a *adminHandler) UpdateGlobalIsolationGroups(ctx context.Context, request 
 	attr := &authorization.Attributes{
 		APIName:     "UpdateGlobalIsolationGroups",
 		Permission:  authorization.PermissionAdmin,
-		RequestBody: request,
+		RequestBody: authorization.NewFilteredRequestBody(request),
 	}
 	isAuthorized, err := a.isAuthorized(ctx, attr)
 	if err != nil {
@@ -609,4 +609,20 @@ func (a *adminHandler) UpdateGlobalIsolationGroups(ctx context.Context, request 
 		return nil, errUnauthorized
 	}
 	return a.handler.UpdateGlobalIsolationGroups(ctx, request)
+}
+
+func (a *adminHandler) UpdateTaskListPartitionConfig(ctx context.Context, up1 *types.UpdateTaskListPartitionConfigRequest) (up2 *types.UpdateTaskListPartitionConfigResponse, err error) {
+	attr := &authorization.Attributes{
+		APIName:     "UpdateTaskListPartitionConfig",
+		Permission:  authorization.PermissionAdmin,
+		RequestBody: authorization.NewFilteredRequestBody(up1),
+	}
+	isAuthorized, err := a.isAuthorized(ctx, attr)
+	if err != nil {
+		return nil, err
+	}
+	if !isAuthorized {
+		return nil, errUnauthorized
+	}
+	return a.handler.UpdateTaskListPartitionConfig(ctx, up1)
 }

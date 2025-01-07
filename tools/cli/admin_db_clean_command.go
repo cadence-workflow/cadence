@@ -28,7 +28,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 	"go.uber.org/zap"
 
 	"github.com/uber/cadence/common"
@@ -38,15 +38,20 @@ import (
 	"github.com/uber/cadence/common/reconciliation/invariant"
 	"github.com/uber/cadence/common/reconciliation/store"
 	"github.com/uber/cadence/service/worker/scanner/executions"
+	"github.com/uber/cadence/tools/common/commoncli"
 )
 
 // AdminDBClean is the command to clean up unhealthy executions.
 // Input is a JSON stream provided via STDIN or a file.
-func AdminDBClean(c *cli.Context) {
-	scanType, err := executions.ScanTypeString(getRequiredOption(c, FlagScanType))
+func AdminDBClean(c *cli.Context) error {
+	flagscantype, err := getRequiredOption(c, FlagScanType)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
+	scanType, err := executions.ScanTypeString(flagscantype)
 
 	if err != nil {
-		ErrorAndExit("unknown scan type", err)
+		return commoncli.Problem("unknown scan type", err)
 	}
 	collectionSlice := c.StringSlice(FlagInvariantCollection)
 	blob := scanType.ToBlobstoreEntity()
@@ -55,7 +60,7 @@ func AdminDBClean(c *cli.Context) {
 	for _, v := range collectionSlice {
 		collection, err := invariant.CollectionString(v)
 		if err != nil {
-			ErrorAndExit("unknown invariant collection", err)
+			return commoncli.Problem("unknown invariant collection", err)
 		}
 		collections = append(collections, collection)
 	}
@@ -65,13 +70,13 @@ func AdminDBClean(c *cli.Context) {
 		logger, err = zap.NewDevelopment()
 		if err != nil {
 			// probably impossible with default config
-			ErrorAndExit("could not construct logger", err)
+			return commoncli.Problem("could not construct logger", err)
 		}
 	}
 
 	invariants := scanType.ToInvariants(collections, logger)
 	if len(invariants) < 1 {
-		ErrorAndExit(
+		return commoncli.Problem(
 			fmt.Sprintf("no invariants for scantype %q and collections %q",
 				scanType.String(),
 				collectionSlice),
@@ -79,12 +84,11 @@ func AdminDBClean(c *cli.Context) {
 		)
 	}
 
-	input := getInputFile(c.String(FlagInputFile))
-
-	dec := json.NewDecoder(input)
+	input, err := getInputFile(c.String(FlagInputFile))
 	if err != nil {
-		ErrorAndExit("", err)
+		return commoncli.Problem("Required flag not found: ", err)
 	}
+	dec := json.NewDecoder(input)
 	var data []*store.ScanOutputEntity
 
 	for {
@@ -102,10 +106,14 @@ func AdminDBClean(c *cli.Context) {
 	}
 
 	for _, e := range data {
+		result, err := fixExecution(c, invariants, e)
+		if err != nil {
+			return commoncli.Problem("Error in fix execution: ", err)
+		}
 		out := store.FixOutputEntity{
 			Execution: e.Execution,
 			Input:     *e,
-			Result:    fixExecution(c, invariants, e),
+			Result:    result,
 		}
 		data, err := json.Marshal(out)
 		if err != nil {
@@ -113,19 +121,27 @@ func AdminDBClean(c *cli.Context) {
 			continue
 		}
 
-		fmt.Println(string(data))
+		output := getDeps(c).Output()
+		output.Write([]byte(string(data) + "\n"))
 	}
+	return nil
 }
 
 func fixExecution(
 	c *cli.Context,
 	invariants []executions.InvariantFactory,
 	execution *store.ScanOutputEntity,
-) invariant.ManagerFixResult {
-	execManager := initializeExecutionStore(c, execution.Execution.(entity.Entity).GetShardID())
+) (invariant.ManagerFixResult, error) {
+	execManager, err := getDeps(c).initializeExecutionManager(c, execution.Execution.(entity.Entity).GetShardID())
+	if err != nil {
+		return invariant.ManagerFixResult{}, err
+	}
 	defer execManager.Close()
 
-	historyV2Mgr := initializeHistoryManager(c)
+	historyV2Mgr, err := getDeps(c).initializeHistoryManager(c)
+	if err != nil {
+		return invariant.ManagerFixResult{}, err
+	}
 	defer historyV2Mgr.Close()
 
 	pr := persistence.NewPersistenceRetryer(
@@ -140,8 +156,15 @@ func fixExecution(
 		ivs = append(ivs, fn(pr, cache.NewNoOpDomainCache()))
 	}
 
-	ctx, cancel := newContext(c)
+	ctx, cancel, err := newContext(c)
 	defer cancel()
+	if err != nil {
+		return invariant.ManagerFixResult{}, err
+	}
+	invariantManager, err := getDeps(c).initializeInvariantManager(ivs)
+	if err != nil {
+		return invariant.ManagerFixResult{}, err
+	}
 
-	return invariant.NewInvariantManager(ivs).RunFixes(ctx, execution.Execution)
+	return invariantManager.RunFixes(ctx, execution.Execution.(entity.Entity)), nil
 }

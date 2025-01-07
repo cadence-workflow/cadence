@@ -933,7 +933,6 @@ func (s *IntegrationSuite) TestQueryWorkflow_Consistent_Timeout() {
 	// wait for query to timeout
 	queryResult := <-queryResultCh
 	s.Error(queryResult.Err) // got a timeout error
-	s.Nil(queryResult.Resp)
 }
 
 func (s *IntegrationSuite) TestQueryWorkflow_Consistent_BlockedByStarted_NonSticky() {
@@ -1408,14 +1407,13 @@ func (s *IntegrationSuite) TestQueryWorkflow_BeforeFirstDecision() {
 	ctx, cancel = createContext()
 	defer cancel()
 	// query workflow without any decision task should produce an error
-	queryResp, err := s.engine.QueryWorkflow(ctx, &types.QueryWorkflowRequest{
+	_, err := s.engine.QueryWorkflow(ctx, &types.QueryWorkflowRequest{
 		Domain:    s.domainName,
 		Execution: workflowExecution,
 		Query: &types.WorkflowQuery{
 			QueryType: queryType,
 		},
 	})
-	s.Nil(queryResp)
 	s.IsType(&types.QueryFailedError{}, err)
 	s.Equal("workflow must handle at least one decision task before it can be queried", err.(*types.QueryFailedError).Message)
 }

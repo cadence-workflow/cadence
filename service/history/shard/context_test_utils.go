@@ -65,6 +65,8 @@ func NewTestContext(
 			StatesByCluster: make(map[string][]*types.ProcessingQueueState),
 		}
 	}
+	shardInfo.ClusterTransferAckLevel = map[string]int64{resource.ClusterMetadata.GetCurrentClusterName(): 3, "standby": 2}
+
 	shard := &contextImpl{
 		Resource:                  resource,
 		shardID:                   shardInfo.ShardID,
@@ -78,6 +80,7 @@ func NewTestContext(
 		transferMaxReadLevel:      0,
 		maxTransferSequenceNumber: 100000,
 		timerMaxReadLevelMap:      make(map[string]time.Time),
+		transferFailoverLevels:    make(map[string]TransferFailoverLevel),
 		remoteClusterCurrentTime:  make(map[string]time.Time),
 		eventsCache:               eventsCache,
 	}

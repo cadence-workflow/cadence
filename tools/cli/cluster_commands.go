@@ -24,7 +24,9 @@ import (
 	"os"
 	"sort"
 
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
+
+	"github.com/uber/cadence/tools/common/commoncli"
 )
 
 type (
@@ -46,14 +48,20 @@ func (s SearchAttributesTable) Less(i, j int) bool {
 }
 
 // GetSearchAttributes get valid search attributes
-func GetSearchAttributes(c *cli.Context) {
-	wfClient := getWorkflowClient(c)
-	ctx, cancel := newContext(c)
+func GetSearchAttributes(c *cli.Context) error {
+	wfClient, err := getWorkflowClient(c)
+	if err != nil {
+		return err
+	}
+	ctx, cancel, err := newContext(c)
 	defer cancel()
+	if err != nil {
+		return commoncli.Problem("Error in creating context:", err)
+	}
 
 	resp, err := wfClient.GetSearchAttributes(ctx)
 	if err != nil {
-		ErrorAndExit("Failed to get search attributes.", err)
+		return commoncli.Problem("Failed to get search attributes.", err)
 	}
 
 	table := SearchAttributesTable{}
@@ -61,5 +69,5 @@ func GetSearchAttributes(c *cli.Context) {
 		table = append(table, SearchAttributesRow{Key: k, ValueType: v.String()})
 	}
 	sort.Sort(table)
-	RenderTable(os.Stdout, table, RenderOptions{Color: true, Border: true})
+	return RenderTable(os.Stdout, table, RenderOptions{Color: true, Border: true})
 }

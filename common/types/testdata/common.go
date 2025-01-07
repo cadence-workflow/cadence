@@ -45,6 +45,7 @@ const (
 	SignalName           = "SignalName"
 	QueryType            = "QueryType"
 	HostName             = "HostName"
+	HostName2            = "HostName2"
 	Identity             = "Identity"
 	CronSchedule         = "CronSchedule"
 	Checksum             = "Checksum"
@@ -59,6 +60,7 @@ const (
 	FeatureFlag          = "FeatureFlag"
 
 	Attempt            = 2
+	ScheduleID         = 5
 	PageSize           = 10
 	HistoryLength      = 20
 	BacklogCountHint   = 30
@@ -415,6 +417,7 @@ var (
 		LastWorkerIdentity:     Identity,
 		LastFailureDetails:     FailureDetails,
 		StartedWorkerIdentity:  Identity,
+		ScheduleID:             ScheduleID,
 	}
 	PendingActivityInfoArray = []*types.PendingActivityInfo{
 		&PendingActivityInfo,
@@ -436,5 +439,10 @@ var (
 		StartedTimestamp:           &Timestamp2,
 		Attempt:                    Attempt,
 		OriginalScheduledTimestamp: &Timestamp3,
+		ScheduleID:                 ScheduleID,
+	}
+	AutoConfigHint = types.AutoConfigHint{
+		EnableAutoConfig:   false,
+		PollerWaitTimeInMs: 10,
 	}
 )

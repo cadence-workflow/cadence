@@ -109,6 +109,17 @@ func (s *configSuite) TestGetStringPropertyFnWithDomainFilter() {
 	s.Equal("efg", value(domain))
 }
 
+func (s *configSuite) TestGetStringPropertyFnByTaskListInfo() {
+	key := TasklistLoadBalancerStrategy
+	domain := "testDomain"
+	taskList := "testTaskList"
+	taskType := 0
+	value := s.cln.GetStringPropertyFilteredByTaskListInfo(key)
+	s.Equal(key.DefaultString(), value(domain, taskList, taskType))
+	s.client.SetValue(key, "round-robin")
+	s.Equal("round-robin", value(domain, taskList, taskType))
+}
+
 func (s *configSuite) TestGetStringPropertyFilteredByRatelimitKey() {
 	key := FrontendGlobalRatelimiterMode
 	ratelimitKey := "user:testDomain"

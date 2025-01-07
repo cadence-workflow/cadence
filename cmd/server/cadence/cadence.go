@@ -29,7 +29,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/client"
@@ -44,7 +44,7 @@ import (
 var validServices = service.ShortNames(service.List)
 
 // startHandler is the handler for the cli start command
-func startHandler(c *cli.Context) {
+func startHandler(c *cli.Context) error {
 	env := getEnvironment(c)
 	zone := getZone(c)
 	configDir := getConfigDir(c)
@@ -55,10 +55,10 @@ func startHandler(c *cli.Context) {
 	var cfg config.Config
 	err := config.Load(env, configDir, zone, &cfg)
 	if err != nil {
-		log.Fatal(fmt.Sprintf("Config file corrupted: %v", err))
+		return fmt.Errorf("Config file corrupted: %w", err)
 	}
 	if cfg.Log.Level == "debug" {
-		log.Printf("config=\n%v\n", cfg.String())
+		log.Printf("config=%v", cfg.String())
 	}
 	if cfg.DynamicConfig.Client == "" {
 		cfg.DynamicConfigClient.Filepath = constructPathIfNeed(rootDir, cfg.DynamicConfigClient.Filepath)
@@ -67,15 +67,15 @@ func startHandler(c *cli.Context) {
 	}
 
 	if err := cfg.ValidateAndFillDefaults(); err != nil {
-		log.Fatalf("config validation failed: %v", err)
+		return fmt.Errorf("config validation failed: %w", err)
 	}
 	// cassandra schema version validation
 	if err := cassandra.VerifyCompatibleVersion(cfg.Persistence, gocql.Quorum); err != nil {
-		log.Fatal("cassandra schema version compatibility check failed: ", err)
+		return fmt.Errorf("cassandra schema version compatibility check failed: %w", err)
 	}
 	// sql schema version validation
 	if err := sql.VerifyCompatibleVersion(cfg.Persistence); err != nil {
-		log.Fatal("sql schema version compatibility check failed: ", err)
+		return fmt.Errorf("sql schema version compatibility check failed: %w", err)
 	}
 
 	var daemons []common.Daemon
@@ -93,15 +93,15 @@ func startHandler(c *cli.Context) {
 	for _, daemon := range daemons {
 		daemon.Stop()
 	}
-	os.Exit(0)
+	return nil
 }
 
 func getEnvironment(c *cli.Context) string {
-	return strings.TrimSpace(c.GlobalString("env"))
+	return strings.TrimSpace(c.String("env"))
 }
 
 func getZone(c *cli.Context) string {
-	return strings.TrimSpace(c.GlobalString("zone"))
+	return strings.TrimSpace(c.String("zone"))
 }
 
 // getServices parses the services arg from cli
@@ -134,11 +134,11 @@ func isValidService(in string) bool {
 }
 
 func getConfigDir(c *cli.Context) string {
-	return constructPathIfNeed(getRootDir(c), c.GlobalString("config"))
+	return constructPathIfNeed(getRootDir(c), c.String("config"))
 }
 
 func getRootDir(c *cli.Context) string {
-	dirpath := c.GlobalString("root")
+	dirpath := c.String("root")
 	if len(dirpath) == 0 {
 		cwd, err := os.Getwd()
 		if err != nil {
@@ -172,48 +172,52 @@ func BuildCLI(releaseVersion string, gitRevision string) *cli.App {
 	app.Name = "cadence"
 	app.Usage = "Cadence server"
 	app.Version = version
-
 	app.Flags = []cli.Flag{
-		cli.StringFlag{
-			Name:   "root, r",
-			Value:  ".",
-			Usage:  "root directory of execution environment",
-			EnvVar: config.EnvKeyRoot,
+		&cli.StringFlag{
+			Name:    "root",
+			Aliases: []string{"r"},
+			Value:   ".",
+			Usage:   "root directory of execution environment",
+			EnvVars: []string{config.EnvKeyRoot},
 		},
-		cli.StringFlag{
-			Name:   "config, c",
-			Value:  "config",
-			Usage:  "config dir is a path relative to root, or an absolute path",
-			EnvVar: config.EnvKeyConfigDir,
+		&cli.StringFlag{
+			Name:    "config",
+			Aliases: []string{"c"},
+			Value:   "config",
+			Usage:   "config dir is a path relative to root, or an absolute path",
+			EnvVars: []string{config.EnvKeyConfigDir},
 		},
-		cli.StringFlag{
-			Name:   "env, e",
-			Value:  "development",
-			Usage:  "runtime environment",
-			EnvVar: config.EnvKeyEnvironment,
+		&cli.StringFlag{
+			Name:    "env",
+			Aliases: []string{"e"},
+			Value:   "development",
+			Usage:   "runtime environment",
+			EnvVars: []string{config.EnvKeyEnvironment},
 		},
-		cli.StringFlag{
-			Name:   "zone, az",
-			Value:  "",
-			Usage:  "availability zone",
-			EnvVar: config.EnvKeyAvailabilityZone,
+		&cli.StringFlag{
+			Name:    "zone",
+			Aliases: []string{"az"},
+			Value:   "",
+			Usage:   "availability zone",
+			EnvVars: []string{config.EnvKeyAvailabilityZone},
 		},
 	}
 
-	app.Commands = []cli.Command{
+	app.Commands = []*cli.Command{
 		{
 			Name:    "start",
 			Aliases: []string{""},
 			Usage:   "start cadence server",
 			Flags: []cli.Flag{
-				cli.StringFlag{
-					Name:  "services, s",
-					Value: strings.Join(validServices, ","),
-					Usage: "list of services to start",
+				&cli.StringFlag{
+					Name:    "services",
+					Aliases: []string{"s"},
+					Value:   strings.Join(validServices, ","),
+					Usage:   "list of services to start",
 				},
 			},
-			Action: func(c *cli.Context) {
-				startHandler(c)
+			Action: func(c *cli.Context) error {
+				return startHandler(c)
 			},
 		},
 	}

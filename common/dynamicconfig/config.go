@@ -98,6 +98,9 @@ type FloatPropertyFn func(opts ...FilterOption) float64
 // FloatPropertyFnWithShardIDFilter is a wrapper to get float property from dynamic config with shardID as filter
 type FloatPropertyFnWithShardIDFilter func(shardID int) float64
 
+// FloatPropertyFnWithTaskListInfoFilters is a wrapper to get duration property from dynamic config  with three filters: domain, taskList, taskType
+type FloatPropertyFnWithTaskListInfoFilters func(domain string, taskList string, taskType int) float64
+
 // DurationPropertyFn is a wrapper to get duration property from dynamic config
 type DurationPropertyFn func(opts ...FilterOption) time.Duration
 
@@ -124,6 +127,9 @@ type MapPropertyFn func(opts ...FilterOption) map[string]interface{}
 
 // StringPropertyFnWithDomainFilter is a wrapper to get string property from dynamic config
 type StringPropertyFnWithDomainFilter func(domain string) string
+
+// StringPropertyFnWithTaskListInfoFilters is a wrapper to get string property from dynamic config with domainID as filter
+type StringPropertyFnWithTaskListInfoFilters func(domain string, taskList string, taskType int) string
 
 // BoolPropertyFnWithDomainFilter is a wrapper to get bool property from dynamic config with domain as filter
 type BoolPropertyFnWithDomainFilter func(domain string) bool
@@ -299,6 +305,26 @@ func (c *Collection) GetFloat64PropertyFilteredByShardID(key FloatKey) FloatProp
 	}
 }
 
+// GetFloatPropertyFilteredByTaskListInfo gets property with taskListInfo as filters and asserts that it's a float64
+func (c *Collection) GetFloat64PropertyFilteredByTaskListInfo(key FloatKey) FloatPropertyFnWithTaskListInfoFilters {
+	return func(domain string, taskList string, taskType int) float64 {
+		filters := c.toFilterMap(
+			DomainFilter(domain),
+			TaskListFilter(taskList),
+			TaskTypeFilter(taskType),
+		)
+		val, err := c.client.GetFloatValue(
+			key,
+			filters,
+		)
+		if err != nil {
+			c.logError(key, filters, err)
+			return key.DefaultFloat()
+		}
+		return val
+	}
+}
+
 // GetDurationProperty gets property and asserts that it's a duration
 func (c *Collection) GetDurationProperty(key DurationKey) DurationPropertyFn {
 	return func(opts ...FilterOption) time.Duration {
@@ -435,6 +461,25 @@ func (c *Collection) GetMapProperty(key MapKey) MapPropertyFn {
 func (c *Collection) GetStringPropertyFilteredByDomain(key StringKey) StringPropertyFnWithDomainFilter {
 	return func(domain string) string {
 		filters := c.toFilterMap(DomainFilter(domain))
+		val, err := c.client.GetStringValue(
+			key,
+			filters,
+		)
+		if err != nil {
+			c.logError(key, filters, err)
+			return key.DefaultString()
+		}
+		return val
+	}
+}
+
+func (c *Collection) GetStringPropertyFilteredByTaskListInfo(key StringKey) StringPropertyFnWithTaskListInfoFilters {
+	return func(domain string, taskList string, taskType int) string {
+		filters := c.toFilterMap(
+			DomainFilter(domain),
+			TaskListFilter(taskList),
+			TaskTypeFilter(taskType),
+		)
 		val, err := c.client.GetStringValue(
 			key,
 			filters,

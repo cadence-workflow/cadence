@@ -131,11 +131,10 @@ func (s *IntegrationSuite) TestStartWorkflowExecution() {
 	}
 	ctx, cancel = createContext()
 	defer cancel()
-	we2, err2 := s.engine.StartWorkflowExecution(ctx, newRequest)
+	_, err2 := s.engine.StartWorkflowExecution(ctx, newRequest)
 	s.NotNil(err2)
 	s.IsType(&types.WorkflowExecutionAlreadyStartedError{}, err2)
 	s.T().Logf("Unable to start workflow execution: %v\n", err2.Error())
-	s.Nil(we2)
 }
 
 func (s *IntegrationSuite) TestStartWorkflowExecution_StartTimestampMatch() {
@@ -270,11 +269,10 @@ func (s *IntegrationSuite) TestStartWorkflowExecution_IDReusePolicy() {
 	for _, policy := range policies {
 		newRequest := createStartRequest(policy)
 		ctx, cancel := createContext()
-		we1, err1 := s.engine.StartWorkflowExecution(ctx, newRequest)
+		_, err1 := s.engine.StartWorkflowExecution(ctx, newRequest)
 		cancel()
 		s.Error(err1)
 		s.IsType(&types.WorkflowExecutionAlreadyStartedError{}, err1)
-		s.Nil(we1)
 	}
 
 	// Test TerminateIfRunning policy when workflow is running
@@ -371,20 +369,18 @@ GetHistoryLoop:
 	newRequest = createStartRequest(policy)
 	ctx, cancel = createContext()
 	defer cancel()
-	we3, err3 = s.engine.StartWorkflowExecution(ctx, newRequest)
+	_, err3 = s.engine.StartWorkflowExecution(ctx, newRequest)
 	s.Error(err3)
 	s.IsType(&types.WorkflowExecutionAlreadyStartedError{}, err3)
-	s.Nil(we3)
 
 	// test policy RejectDuplicate
 	policy = types.WorkflowIDReusePolicyRejectDuplicate
 	newRequest = createStartRequest(policy)
 	ctx, cancel = createContext()
 	defer cancel()
-	we3, err3 = s.engine.StartWorkflowExecution(ctx, newRequest)
+	_, err3 = s.engine.StartWorkflowExecution(ctx, newRequest)
 	s.Error(err3)
 	s.IsType(&types.WorkflowExecutionAlreadyStartedError{}, err3)
-	s.Nil(we3)
 
 	// test policy AllowDuplicate
 	policy = types.WorkflowIDReusePolicyAllowDuplicate

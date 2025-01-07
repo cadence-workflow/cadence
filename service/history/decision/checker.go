@@ -50,6 +50,8 @@ type (
 	}
 
 	workflowSizeChecker struct {
+		domainName string
+
 		blobSizeLimitWarn  int
 		blobSizeLimitError int
 
@@ -90,6 +92,7 @@ func newAttrValidator(
 }
 
 func newWorkflowSizeChecker(
+	domainName string,
 	blobSizeLimitWarn int,
 	blobSizeLimitError int,
 	historySizeLimitWarn int,
@@ -103,6 +106,7 @@ func newWorkflowSizeChecker(
 	logger log.Logger,
 ) *workflowSizeChecker {
 	return &workflowSizeChecker{
+		domainName:             domainName,
 		blobSizeLimitWarn:      blobSizeLimitWarn,
 		blobSizeLimitError:     blobSizeLimitError,
 		historySizeLimitWarn:   historySizeLimitWarn,
@@ -129,6 +133,7 @@ func (c *workflowSizeChecker) failWorkflowIfBlobSizeExceedsLimit(
 		c.blobSizeLimitWarn,
 		c.blobSizeLimitError,
 		executionInfo.DomainID,
+		c.domainName,
 		executionInfo.WorkflowID,
 		executionInfo.RunID,
 		c.metricsScope.Tagged(decisionTypeTag),
@@ -162,6 +167,7 @@ func (c *workflowSizeChecker) failWorkflowSizeExceedsLimit() (bool, error) {
 	if historySize > c.historySizeLimitError || historyCount > c.historyCountLimitError {
 		executionInfo := c.mutableState.GetExecutionInfo()
 		c.logger.Error("history size exceeds error limit.",
+			tag.WorkflowDomainName(c.domainName),
 			tag.WorkflowDomainID(executionInfo.DomainID),
 			tag.WorkflowID(executionInfo.WorkflowID),
 			tag.WorkflowRunID(executionInfo.RunID),
@@ -182,6 +188,7 @@ func (c *workflowSizeChecker) failWorkflowSizeExceedsLimit() (bool, error) {
 	if historySize > c.historySizeLimitWarn || historyCount > c.historyCountLimitWarn {
 		executionInfo := c.mutableState.GetExecutionInfo()
 		c.logger.Warn("history size exceeds warn limit.",
+			tag.WorkflowDomainName(c.domainName),
 			tag.WorkflowDomainID(executionInfo.DomainID),
 			tag.WorkflowID(executionInfo.WorkflowID),
 			tag.WorkflowRunID(executionInfo.RunID),

@@ -26,10 +26,11 @@ import (
 	"sort"
 
 	"github.com/olekukonko/tablewriter"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/tools/common/commoncli"
 )
 
 type cliEntry struct {
@@ -49,15 +50,23 @@ type cliFilter struct {
 }
 
 // AdminGetDynamicConfig gets value of specified dynamic config parameter matching specified filter
-func AdminGetDynamicConfig(c *cli.Context) {
-	adminClient := cFactory.ServerAdminClient(c)
+func AdminGetDynamicConfig(c *cli.Context) error {
+	adminClient, err := getDeps(c).ServerAdminClient(c)
+	if err != nil {
+		return err
+	}
 
-	dcName := getRequiredOption(c, FlagDynamicConfigName)
+	dcName, err := getRequiredOption(c, FlagDynamicConfigName)
+	if err != nil {
+		return commoncli.Problem("Required flag not found", err)
+	}
 	filters := c.StringSlice(FlagDynamicConfigFilter)
 
-	ctx, cancel := newContext(c)
+	ctx, cancel, err := newContext(c)
 	defer cancel()
-
+	if err != nil {
+		return commoncli.Problem("Error in creating context: ", err)
+	}
 	if len(filters) == 0 {
 		req := &types.ListDynamicConfigRequest{
 			ConfigName: dcName,
@@ -65,7 +74,7 @@ func AdminGetDynamicConfig(c *cli.Context) {
 
 		val, err := adminClient.ListDynamicConfig(ctx, req)
 		if err != nil {
-			ErrorAndExit("Failed to get dynamic config value(s)", err)
+			return commoncli.Problem("Failed to get dynamic config value(s)", err)
 		}
 
 		if val == nil || val.Entries == nil || len(val.Entries) == 0 {
@@ -79,12 +88,12 @@ func AdminGetDynamicConfig(c *cli.Context) {
 				}
 				cliEntries = append(cliEntries, cliEntry)
 			}
-			prettyPrintJSONObject(cliEntries)
+			prettyPrintJSONObject(getDeps(c).Output(), cliEntries)
 		}
 	} else {
 		parsedFilters, err := parseInputFilterArray(filters)
 		if err != nil {
-			ErrorAndExit("Failed to parse input filter array", err)
+			return commoncli.Problem("Failed to parse input filter array", err)
 		}
 
 		req := &types.GetDynamicConfigRequest{
@@ -94,33 +103,42 @@ func AdminGetDynamicConfig(c *cli.Context) {
 
 		val, err := adminClient.GetDynamicConfig(ctx, req)
 		if err != nil {
-			ErrorAndExit("Failed to get dynamic config value", err)
+			return commoncli.Problem("Failed to get dynamic config value", err)
 		}
 
 		var umVal interface{}
 		err = json.Unmarshal(val.Value.Data, &umVal)
 		if err != nil {
-			ErrorAndExit("Failed to unmarshal response", err)
+			return commoncli.Problem("Failed to unmarshal response", err)
 		}
 
 		if umVal == nil {
 			fmt.Printf("No values stored for specified dynamic config.\n")
 		} else {
-			prettyPrintJSONObject(umVal)
+			prettyPrintJSONObject(getDeps(c).Output(), umVal)
 		}
 	}
+	return nil
 }
 
 // AdminUpdateDynamicConfig updates specified dynamic config parameter with specified values
-func AdminUpdateDynamicConfig(c *cli.Context) {
-	adminClient := cFactory.ServerAdminClient(c)
+func AdminUpdateDynamicConfig(c *cli.Context) error {
+	adminClient, err := getDeps(c).ServerAdminClient(c)
+	if err != nil {
+		return err
+	}
 
-	dcName := getRequiredOption(c, FlagDynamicConfigName)
+	dcName, err := getRequiredOption(c, FlagDynamicConfigName)
+	if err != nil {
+		return commoncli.Problem("Required flag not found", err)
+	}
 	dcValues := c.StringSlice(FlagDynamicConfigValue)
 
-	ctx, cancel := newContext(c)
+	ctx, cancel, err := newContext(c)
 	defer cancel()
-
+	if err != nil {
+		return commoncli.Problem("Error in creating context: ", err)
+	}
 	var parsedValues []*types.DynamicConfigValue
 
 	if dcValues != nil {
@@ -130,11 +148,11 @@ func AdminUpdateDynamicConfig(c *cli.Context) {
 			var parsedInputValue *cliValue
 			err := json.Unmarshal([]byte(valueString), &parsedInputValue)
 			if err != nil {
-				ErrorAndExit("Unable to unmarshal value to inputValue", err)
+				return commoncli.Problem("Unable to unmarshal value to inputValue", err)
 			}
 			parsedValue, err := convertFromInputValue(parsedInputValue)
 			if err != nil {
-				ErrorAndExit("Unable to convert from inputValue to DynamicConfigValue", err)
+				return commoncli.Problem("Unable to convert from inputValue to DynamicConfigValue", err)
 			}
 			parsedValues = append(parsedValues, parsedValue)
 		}
@@ -147,26 +165,35 @@ func AdminUpdateDynamicConfig(c *cli.Context) {
 		ConfigValues: parsedValues,
 	}
 
-	err := adminClient.UpdateDynamicConfig(ctx, req)
+	err = adminClient.UpdateDynamicConfig(ctx, req)
 	if err != nil {
-		ErrorAndExit("Failed to update dynamic config value", err)
+		return commoncli.Problem("Failed to update dynamic config value", err)
 	}
 	fmt.Printf("Dynamic Config %q updated with %s \n", dcName, dcValues)
+	return nil
 }
 
 // AdminRestoreDynamicConfig removes values of specified dynamic config parameter matching specified filter
-func AdminRestoreDynamicConfig(c *cli.Context) {
-	adminClient := cFactory.ServerAdminClient(c)
+func AdminRestoreDynamicConfig(c *cli.Context) error {
+	adminClient, err := getDeps(c).ServerAdminClient(c)
+	if err != nil {
+		return err
+	}
 
-	dcName := getRequiredOption(c, FlagDynamicConfigName)
+	dcName, err := getRequiredOption(c, FlagDynamicConfigName)
+	if err != nil {
+		return commoncli.Problem("Required flag not found", err)
+	}
 	filters := c.StringSlice(FlagDynamicConfigFilter)
 
-	ctx, cancel := newContext(c)
+	ctx, cancel, err := newContext(c)
 	defer cancel()
-
+	if err != nil {
+		return commoncli.Problem("Error in creating context: ", err)
+	}
 	parsedFilters, err := parseInputFilterArray(filters)
 	if err != nil {
-		ErrorAndExit("Failed to parse input filter array", err)
+		return commoncli.Problem("Failed to parse input filter array", err)
 	}
 
 	req := &types.RestoreDynamicConfigRequest{
@@ -176,25 +203,31 @@ func AdminRestoreDynamicConfig(c *cli.Context) {
 
 	err = adminClient.RestoreDynamicConfig(ctx, req)
 	if err != nil {
-		ErrorAndExit("Failed to restore dynamic config value", err)
+		return commoncli.Problem("Failed to restore dynamic config value", err)
 	}
 	fmt.Printf("Dynamic Config %q restored\n", dcName)
+	return nil
 }
 
 // AdminListDynamicConfig lists all values associated with specified dynamic config parameter or all values for all dc parameter if none is specified.
-func AdminListDynamicConfig(c *cli.Context) {
-	adminClient := cFactory.ServerAdminClient(c)
+func AdminListDynamicConfig(c *cli.Context) error {
+	adminClient, err := getDeps(c).ServerAdminClient(c)
+	if err != nil {
+		return err
+	}
 
-	ctx, cancel := newContext(c)
+	ctx, cancel, err := newContext(c)
 	defer cancel()
-
+	if err != nil {
+		return commoncli.Problem("Error in creating context: ", err)
+	}
 	req := &types.ListDynamicConfigRequest{
 		ConfigName: "", // empty string means all config values
 	}
 
 	val, err := adminClient.ListDynamicConfig(ctx, req)
 	if err != nil {
-		ErrorAndExit("Failed to list dynamic config value(s)", err)
+		return commoncli.Problem("Failed to list dynamic config value(s)", err)
 	}
 
 	if val == nil || val.Entries == nil || len(val.Entries) == 0 {
@@ -208,12 +241,13 @@ func AdminListDynamicConfig(c *cli.Context) {
 			}
 			cliEntries = append(cliEntries, cliEntry)
 		}
-		prettyPrintJSONObject(cliEntries)
+		prettyPrintJSONObject(getDeps(c).Output(), cliEntries)
 	}
+	return nil
 }
 
 // AdminListConfigKeys lists all available dynamic config keys with description and default value
-func AdminListConfigKeys(c *cli.Context) {
+func AdminListConfigKeys(c *cli.Context) error {
 
 	type ConfigRow struct {
 		Name        string      `header:"Name" json:"name"`
@@ -235,7 +269,7 @@ func AdminListConfigKeys(c *cli.Context) {
 		return rows[i].Name < rows[j].Name
 	})
 
-	Render(c, rows, RenderOptions{
+	return Render(c, rows, RenderOptions{
 		DefaultTemplate: templateTable,
 		Color:           true,
 		Border:          true,

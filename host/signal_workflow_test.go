@@ -1570,9 +1570,8 @@ func (s *IntegrationSuite) TestSignalWithStartWorkflow_IDReusePolicy() {
 		WorkflowIDReusePolicy:               &wfIDReusePolicy,
 	}
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
-	resp, err := s.engine.SignalWithStartWorkflowExecution(ctx, sRequest)
+	_, err = s.engine.SignalWithStartWorkflowExecution(ctx, sRequest)
 	cancel()
-	s.Nil(resp)
 	s.Error(err)
 	errMsg := err.(*types.WorkflowExecutionAlreadyStartedError).GetMessage()
 	s.True(strings.Contains(errMsg, "reject duplicate workflow ID"))
@@ -1581,9 +1580,8 @@ func (s *IntegrationSuite) TestSignalWithStartWorkflow_IDReusePolicy() {
 	wfIDReusePolicy = types.WorkflowIDReusePolicyAllowDuplicateFailedOnly
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	sRequest.RequestID = uuid.New()
-	resp, err = s.engine.SignalWithStartWorkflowExecution(ctx, sRequest)
+	_, err = s.engine.SignalWithStartWorkflowExecution(ctx, sRequest)
 	cancel()
-	s.Nil(resp)
 	s.Error(err)
 	errMsg = err.(*types.WorkflowExecutionAlreadyStartedError).GetMessage()
 	s.True(strings.Contains(errMsg, "allow duplicate workflow ID if last run failed"))
@@ -1592,7 +1590,7 @@ func (s *IntegrationSuite) TestSignalWithStartWorkflow_IDReusePolicy() {
 	wfIDReusePolicy = types.WorkflowIDReusePolicyAllowDuplicate
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	sRequest.RequestID = uuid.New()
-	resp, err = s.engine.SignalWithStartWorkflowExecution(ctx, sRequest)
+	resp, err := s.engine.SignalWithStartWorkflowExecution(ctx, sRequest)
 	cancel()
 	s.Nil(err)
 	s.NotEmpty(resp.GetRunID())

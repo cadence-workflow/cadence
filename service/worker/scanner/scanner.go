@@ -27,6 +27,7 @@ import (
 
 	"github.com/uber-go/tally"
 	"go.uber.org/cadence"
+	"go.uber.org/cadence/.gen/go/cadence/workflowserviceclient"
 	"go.uber.org/cadence/activity"
 	"go.uber.org/cadence/client"
 	"go.uber.org/cadence/worker"
@@ -91,9 +92,11 @@ type (
 	// of database tables to cleanup resources, monitor anomalies
 	// and emit stats for analytics
 	Scanner struct {
-		context    scannerContext
-		tallyScope tally.Scope
-		zapLogger  *zap.Logger
+		context                  scannerContext
+		tallyScope               tally.Scope
+		zapLogger                *zap.Logger
+		startWorkflowWithRetryFn func(string, time.Duration, resource.Resource, func(client client.Client) error) error
+		newWorkerFn              func(workflowserviceclient.Interface, string, string, worker.Options) worker.Worker
 	}
 )
 
@@ -117,8 +120,10 @@ func New(
 			resource: resource,
 			cfg:      params.Config,
 		},
-		tallyScope: params.TallyScope,
-		zapLogger:  zapLogger.Named("scanner"),
+		tallyScope:               params.TallyScope,
+		zapLogger:                zapLogger.Named("scanner"),
+		startWorkflowWithRetryFn: workercommon.StartWorkflowWithRetry,
+		newWorkerFn:              worker.New,
 	}
 
 }
@@ -161,7 +166,7 @@ func (s *Scanner) Start() error {
 
 	for _, tl := range workerTaskListNames {
 		s.zapLogger.Info("Starting worker for task list", zap.String("TaskList", tl))
-		if err := worker.New(s.context.resource.GetSDKClient(), common.SystemLocalDomainName, tl, workerOpts).Start(); err != nil {
+		if err := s.newWorkerFn(s.context.resource.GetSDKClient(), common.SystemLocalDomainName, tl, workerOpts).Start(); err != nil {
 			s.zapLogger.Error("Failed to start worker", zap.String("TaskList", tl), zap.Error(err))
 			return err
 		}
@@ -171,7 +176,7 @@ func (s *Scanner) Start() error {
 }
 
 func (s *Scanner) startScanner(ctx context.Context, options client.StartWorkflowOptions, workflowName string) context.Context {
-	go workercommon.StartWorkflowWithRetry(workflowName, scannerStartUpDelay, s.context.resource, func(client client.Client) error {
+	go s.startWorkflowWithRetryFn(workflowName, scannerStartUpDelay, s.context.resource, func(client client.Client) error {
 		return s.startWorkflow(client, options, workflowName, nil)
 	})
 	return NewScannerContext(ctx, workflowName, s.context)
@@ -188,7 +193,7 @@ func (s *Scanner) startShardScanner(
 			config.ScannerWFTypeName,
 			shardscanner.NewShardScannerContext(s.context.resource, config),
 		)
-		go workercommon.StartWorkflowWithRetry(
+		go s.startWorkflowWithRetryFn(
 			config.ScannerWFTypeName,
 			scannerStartUpDelay,
 			s.context.resource,
@@ -212,7 +217,7 @@ func (s *Scanner) startShardScanner(
 			config.FixerWFTypeName,
 			shardscanner.NewShardFixerContext(s.context.resource, config),
 		)
-		go workercommon.StartWorkflowWithRetry(
+		go s.startWorkflowWithRetryFn(
 			config.FixerWFTypeName,
 			scannerStartUpDelay,
 			s.context.resource,

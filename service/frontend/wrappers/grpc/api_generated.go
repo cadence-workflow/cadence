@@ -68,6 +68,11 @@ func (g APIHandler) DescribeWorkflowExecution(ctx context.Context, request *apiv
 	return proto.FromDescribeWorkflowExecutionResponse(response), proto.FromError(err)
 }
 
+func (g APIHandler) DiagnoseWorkflowExecution(ctx context.Context, request *apiv1.DiagnoseWorkflowExecutionRequest) (*apiv1.DiagnoseWorkflowExecutionResponse, error) {
+	response, err := g.h.DiagnoseWorkflowExecution(ctx, proto.ToDiagnoseWorkflowExecutionRequest(request))
+	return proto.FromDiagnoseWorkflowExecutionResponse(response), proto.FromError(err)
+}
+
 func (g APIHandler) GetClusterInfo(ctx context.Context, request *apiv1.GetClusterInfoRequest) (*apiv1.GetClusterInfoResponse, error) {
 	response, err := g.h.GetClusterInfo(ctx)
 	return proto.FromGetClusterInfoResponse(response), proto.FromError(err)

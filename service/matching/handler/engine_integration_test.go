@@ -36,6 +36,7 @@ import (
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/suite"
 	"github.com/uber-go/tally"
+	"go.uber.org/goleak"
 	"go.uber.org/yarpc"
 
 	"github.com/uber/cadence/client/history"
@@ -134,9 +135,13 @@ func (s *matchingEngineSuite) SetupTest() {
 	s.mockIsolationStore = dynamicconfig.NewMockClient(s.controller)
 	dcClient := dynamicconfig.NewInMemoryClient()
 	dcClient.UpdateValue(dynamicconfig.EnableTasklistIsolation, true)
-	dcClient.UpdateValue(dynamicconfig.AllIsolationGroups, []interface{}{"datacenterA", "datacenterB"})
 	dc := dynamicconfig.NewCollection(dcClient, s.logger)
-	isolationGroupState, _ := defaultisolationgroupstate.NewDefaultIsolationGroupStateWatcherWithConfigStoreClient(s.logger, dc, s.mockDomainCache, s.mockIsolationStore, metrics.NewNoopMetricsClient())
+	isolationGroupState, _ := defaultisolationgroupstate.NewDefaultIsolationGroupStateWatcherWithConfigStoreClient(s.logger,
+		dc,
+		s.mockDomainCache,
+		s.mockIsolationStore,
+		metrics.NewNoopMetricsClient(),
+		getIsolationGroupsHelper)
 	s.partitioner = partition.NewDefaultPartitioner(s.logger, isolationGroupState)
 	s.handlerContext = newHandlerContext(
 		context.Background(),
@@ -220,7 +225,8 @@ func (s *matchingEngineSuite) TestOnlyUnloadMatchingInstance() {
 		&tlKind,
 		s.matchingEngine.config,
 		s.matchingEngine.timeSource,
-		s.matchingEngine.timeSource.Now())
+		s.matchingEngine.timeSource.Now(),
+		s.matchingEngine.historyService)
 	s.Require().NoError(err)
 
 	// try to unload a different tlm instance with the same taskListID
@@ -324,6 +330,10 @@ func (s *matchingEngineSuite) PollForDecisionTasksResultTest() {
 			Name: tl,
 			Kind: &tlKind,
 		},
+		AutoConfigHint: &types.AutoConfigHint{
+			EnableAutoConfig:   false,
+			PollerWaitTimeInMs: 0,
+		},
 	}
 
 	s.Nil(err)
@@ -383,6 +393,99 @@ func (s *matchingEngineSuite) PollForTasksEmptyResultTest(callContext context.Co
 		s.Nil(descResp.GetTaskListStatus())
 	}
 	s.EqualValues(1, s.taskManager.GetRangeID(tlID))
+}
+
+func (s *matchingEngineSuite) TestQueryWorkflow() {
+	domainID := "domainId"
+	tl := "makeToast"
+	tlKind := types.TaskListKindNormal
+	stickyTl := "makeStickyToast"
+	stickyTlKind := types.TaskListKindSticky
+	identity := "selfDrivingToaster"
+	taskList := &types.TaskList{
+		Name: tl,
+		Kind: &tlKind,
+	}
+	stickyTaskList := &types.TaskList{}
+	stickyTaskList.Name = stickyTl
+	stickyTaskList.Kind = &stickyTlKind
+
+	s.matchingEngine.config.RangeSize = 2 // to test that range is not updated without tasks
+
+	runID := "run1"
+	workflowID := "workflow1"
+	workflowType := types.WorkflowType{
+		Name: "workflow",
+	}
+	execution := types.WorkflowExecution{RunID: runID, WorkflowID: workflowID}
+
+	// History service is using mock
+	s.mockHistoryClient.EXPECT().GetMutableState(gomock.Any(), &types.GetMutableStateRequest{
+		DomainUUID: domainID,
+		Execution:  &execution,
+	}).Return(&types.GetMutableStateResponse{
+		PreviousStartedEventID: common.Int64Ptr(123),
+		NextEventID:            345,
+		WorkflowType:           &workflowType,
+		TaskList:               taskList,
+		CurrentBranchToken:     []byte(`branch token`),
+		HistorySize:            999,
+		ClientImpl:             "uber-go",
+		ClientFeatureVersion:   "1.0.0",
+		StickyTaskList:         stickyTaskList,
+	}, nil)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		resp, err := s.matchingEngine.PollForDecisionTask(s.handlerContext, &types.MatchingPollForDecisionTaskRequest{
+			DomainUUID: domainID,
+			PollRequest: &types.PollForDecisionTaskRequest{
+				TaskList: taskList,
+				Identity: identity,
+			},
+		})
+		s.NoError(err)
+		s.NotNil(resp.TaskToken)
+		token, err := s.matchingEngine.tokenSerializer.DeserializeQueryTaskToken(resp.TaskToken)
+		s.NoError(err)
+		s.Equal(domainID, token.DomainID)
+		s.Equal(workflowID, token.WorkflowID)
+		s.Equal(runID, token.RunID)
+		s.Equal(tl, token.TaskList)
+		s.True(resp.StickyExecutionEnabled)
+		err = s.matchingEngine.RespondQueryTaskCompleted(s.handlerContext, &types.MatchingRespondQueryTaskCompletedRequest{
+			DomainUUID: domainID,
+			TaskList:   taskList,
+			TaskID:     token.TaskID,
+			CompletedRequest: &types.RespondQueryTaskCompletedRequest{
+				TaskToken:     []byte(``),
+				CompletedType: types.QueryTaskCompletedTypeCompleted.Ptr(),
+				QueryResult:   []byte(`result`),
+				WorkerVersionInfo: &types.WorkerVersionInfo{
+					Impl:           "uber-go",
+					FeatureVersion: "1.5.0",
+				},
+			},
+		})
+		s.NoError(err)
+	}()
+	time.Sleep(10 * time.Millisecond) // wait for poller to start
+	resp, err := s.matchingEngine.QueryWorkflow(s.handlerContext, &types.MatchingQueryWorkflowRequest{
+		DomainUUID: domainID,
+		TaskList:   taskList,
+		QueryRequest: &types.QueryWorkflowRequest{
+			Domain:                "domain",
+			Execution:             &execution,
+			QueryConsistencyLevel: types.QueryConsistencyLevelStrong.Ptr(),
+		},
+	})
+	wg.Wait()
+	s.NoError(err)
+	s.Equal(&types.QueryWorkflowResponse{
+		QueryResult: []byte(`result`),
+	}, resp)
 }
 
 func (s *matchingEngineSuite) TestAddActivityTasks() {
@@ -467,7 +570,7 @@ func (s *matchingEngineSuite) AddAndPollTasks(taskType int, enableIsolation bool
 	s.matchingEngine.config.LongPollExpirationInterval = dynamicconfig.GetDurationPropertyFnFilteredByTaskListInfo(10 * time.Millisecond)
 	s.matchingEngine.config.EnableTasklistIsolation = dynamicconfig.GetBoolPropertyFnFilteredByDomainID(enableIsolation)
 
-	isolationGroups := s.matchingEngine.config.AllIsolationGroups
+	isolationGroups := s.matchingEngine.config.AllIsolationGroups()
 
 	const taskCount = 6
 	const initialRangeID = 102
@@ -580,7 +683,7 @@ func (s *matchingEngineSuite) SyncMatchTasks(taskType int, enableIsolation bool)
 
 	for i := int64(0); i < taskCount; i++ {
 		scheduleID := i * 3
-		group := isolationGroups[int(i)%len(isolationGroups)]
+		group := isolationGroups()[int(i)%len(isolationGroups())]
 		var wg sync.WaitGroup
 		var result *pollTaskResponse
 		var pollErr error
@@ -613,7 +716,7 @@ func (s *matchingEngineSuite) SyncMatchTasks(taskType int, enableIsolation bool)
 	// Revert the dispatch RPS and verify that poller will get the task
 	for i := int64(0); i < throttledTaskCount; i++ {
 		scheduleID := i * 3
-		group := isolationGroups[int(i)%len(isolationGroups)]
+		group := isolationGroups()[int(i)%len(isolationGroups())]
 		var wg sync.WaitGroup
 		var result *pollTaskResponse
 		var pollErr error
@@ -737,7 +840,7 @@ func (s *matchingEngineSuite) ConcurrentAddAndPollTasks(taskType int, workerCoun
 		go func() {
 			defer wg.Done()
 			for i := int64(0); i < taskCount; i++ {
-				group := isolationGroups[int(i)%len(isolationGroups)] // let each worker to generate tasks for all isolation groups
+				group := isolationGroups()[int(i)%len(isolationGroups())] // let each worker to generate tasks for all isolation groups
 				addRequest := &addTaskRequest{
 					TaskType:                      taskType,
 					DomainUUID:                    testParam.DomainID,
@@ -763,7 +866,7 @@ func (s *matchingEngineSuite) ConcurrentAddAndPollTasks(taskType int, workerCoun
 			defer wg.Done()
 			for i := int64(0); i < taskCount; {
 				maxDispatch := dispatchLimitFn(wNum, i)
-				group := isolationGroups[int(wNum)%len(isolationGroups)] // let each worker only polls from one isolation group
+				group := isolationGroups()[int(wNum)%len(isolationGroups())] // let each worker only polls from one isolation group
 				pollReq := &pollTaskRequest{
 					TaskType:         taskType,
 					DomainUUID:       testParam.DomainID,
@@ -861,80 +964,77 @@ func (s *matchingEngineSuite) TestMultipleEnginesDecisionsRangeStealing() {
 }
 
 func (s *matchingEngineSuite) MultipleEnginesTasksRangeStealing(taskType int) {
-	const engineCount = 2
-	const taskCount = 400
-	const iterations = 2
+	s.T().Cleanup(func() { goleak.VerifyNone(s.T()) })
+	// Add N tasks to engine1 and then N tasks to engine2. Then poll all tasks from engine2. Engine1 should be closed
+	const N = 10
 	const initialRangeID = 0
-	const rangeSize = 10
+	const rangeSize = 5
 	var scheduleID int64 = 123
 
 	testParam := newTestParam(s.T(), taskType)
 	s.taskManager.SetRangeID(testParam.TaskListID, initialRangeID)
 	s.matchingEngine.config.RangeSize = rangeSize // override to low number for the test
 
-	var engines []*matchingEngineImpl
+	engine1 := s.newMatchingEngine(defaultTestConfig(), s.taskManager)
+	engine1.config.RangeSize = rangeSize
+	engine1.Start()
+	defer engine1.Stop()
 
-	for p := 0; p < engineCount; p++ {
-		e := s.newMatchingEngine(defaultTestConfig(), s.taskManager)
-		e.config.RangeSize = rangeSize
-		engines = append(engines, e)
-		e.Start()
-	}
-
-	for j := 0; j < iterations; j++ {
-		for p := 0; p < engineCount; p++ {
-			engine := engines[p]
-			for i := int64(0); i < taskCount; i++ {
-				addRequest := &addTaskRequest{
-					TaskType:                      taskType,
-					DomainUUID:                    testParam.DomainID,
-					Execution:                     testParam.WorkflowExecution,
-					ScheduleID:                    scheduleID,
-					TaskList:                      testParam.TaskList,
-					ScheduleToStartTimeoutSeconds: 600,
-				}
-
-				_, err := addTask(engine, s.handlerContext, addRequest)
-				if err != nil {
-					s.Require().IsType(&persistence.ConditionFailedError{}, err)
-					i-- // retry adding
-				}
-			}
+	createAddTaskReq := func() *addTaskRequest {
+		return &addTaskRequest{
+			TaskType:                      taskType,
+			DomainUUID:                    testParam.DomainID,
+			Execution:                     testParam.WorkflowExecution,
+			ScheduleID:                    scheduleID,
+			TaskList:                      testParam.TaskList,
+			ScheduleToStartTimeoutSeconds: 600,
 		}
 	}
-	s.EqualValues(iterations*engineCount*taskCount, s.taskManager.GetCreateTaskCount(testParam.TaskListID))
+
+	// First add tasks to engine1
+	for i := 0; i < N; i++ {
+		_, err := addTask(engine1, s.handlerContext, createAddTaskReq())
+		s.Require().NoError(err)
+	}
+
+	engine2 := s.newMatchingEngine(defaultTestConfig(), s.taskManager)
+	engine2.config.RangeSize = rangeSize
+	engine2.Start()
+	defer engine2.Stop()
+
+	// Then add tasks to engine2. It should be able to steal lease and process tasks
+	for i := 0; i < N; i++ {
+		_, err := addTask(engine2, s.handlerContext, createAddTaskReq())
+		s.Require().NoError(err)
+	}
+
+	_, err := addTask(engine1, s.handlerContext, createAddTaskReq())
+	// Adding another task to engine1 should fail because it will not have the lease
+	s.Require().ErrorContains(err, "task list shutting down")
+
+	s.EqualValues(2*N, s.taskManager.GetCreateTaskCount(testParam.TaskListID))
 
 	s.setupRecordTaskStartedMock(taskType, testParam, true)
 
-	for j := 0; j < iterations; j++ {
-		for p := 0; p < engineCount; p++ {
-			engine := engines[p]
-			for i := int64(0); i < taskCount; /* incremented explicitly to skip empty polls */ {
-				pollReq := &pollTaskRequest{
-					TaskType:   taskType,
-					DomainUUID: testParam.DomainID,
-					TaskList:   testParam.TaskList,
-					Identity:   testParam.Identity,
-				}
-				result, err := pollTask(engine, s.handlerContext, pollReq)
-				s.Require().NoError(err)
-				s.NotNil(result)
-				if isEmptyToken(result.TaskToken) {
-					s.logger.Debug("empty poll returned")
-					continue
-				}
-				s.assertPollTaskResponse(taskType, testParam, scheduleID, result)
-				i++
-			}
+	// Poll all tasks from engine2.
+	for i := 0; i < 2*N; i++ {
+		pollReq := &pollTaskRequest{
+			TaskType:   taskType,
+			DomainUUID: testParam.DomainID,
+			TaskList:   testParam.TaskList,
+			Identity:   testParam.Identity,
 		}
-	}
-
-	for _, e := range engines {
-		e.Stop()
+		result, err := pollTask(engine2, s.handlerContext, pollReq)
+		s.Require().NoError(err)
+		s.NotNil(result)
+		if isEmptyToken(result.TaskToken) {
+			s.Fail("empty poll returned")
+		}
+		s.assertPollTaskResponse(taskType, testParam, scheduleID, result)
 	}
 
 	s.EqualValues(0, s.taskManager.GetTaskCount(testParam.TaskListID))
-	totalTasks := taskCount * engineCount * iterations
+	totalTasks := 2 * N
 	persisted := s.taskManager.GetCreateTaskCount(testParam.TaskListID)
 	// No sync matching as all messages are added first
 	s.EqualValues(totalTasks, persisted)
@@ -970,12 +1070,14 @@ func (s *matchingEngineSuite) TestAddTaskAfterStartFailure() {
 	s.NoError(err)
 	s.EqualValues(1, s.taskManager.GetTaskCount(tlID))
 
-	ctx, err := s.matchingEngine.getTask(context.Background(), tlID, nil, &tlKind)
+	tlMgr, err := s.matchingEngine.getTaskListManager(tlID, &tlKind)
+	s.NoError(err)
+	ctx, err := tlMgr.GetTask(context.Background(), nil)
 	s.NoError(err)
 
 	ctx.Finish(errors.New("test error"))
 	s.EqualValues(1, s.taskManager.GetTaskCount(tlID))
-	ctx2, err := s.matchingEngine.getTask(context.Background(), tlID, nil, &tlKind)
+	ctx2, err := tlMgr.GetTask(context.Background(), nil)
 	s.NoError(err)
 
 	s.NotEqual(ctx.Event.TaskID, ctx2.Event.TaskID)
@@ -1087,7 +1189,7 @@ func (s *matchingEngineSuite) DrainBacklogNoPollersIsolationGroup(taskType int) 
 			ScheduleID:                    scheduleID,
 			TaskList:                      testParam.TaskList,
 			ScheduleToStartTimeoutSeconds: 1,
-			PartitionConfig:               map[string]string{partition.IsolationGroupKey: isolationGroups[int(i)%len(isolationGroups)]},
+			PartitionConfig:               map[string]string{partition.IsolationGroupKey: isolationGroups()[int(i)%len(isolationGroups())]},
 		}
 		_, err := addTask(s.matchingEngine, s.handlerContext, addRequest)
 		s.NoError(err)
@@ -1102,7 +1204,7 @@ func (s *matchingEngineSuite) DrainBacklogNoPollersIsolationGroup(taskType int) 
 			DomainUUID:     testParam.DomainID,
 			TaskList:       testParam.TaskList,
 			Identity:       testParam.Identity,
-			IsolationGroup: isolationGroups[0],
+			IsolationGroup: isolationGroups()[0],
 		}
 		result, err := pollTask(s.matchingEngine, s.handlerContext, pollReq)
 		s.NoError(err)
@@ -1147,7 +1249,7 @@ func (s *matchingEngineSuite) TestAddStickyDecisionNoPollerIsolation() {
 		DomainUUID:     testParam.DomainID,
 		TaskList:       testParam.TaskList,
 		Identity:       testParam.Identity,
-		IsolationGroup: isolationGroups[0],
+		IsolationGroup: isolationGroups()[0],
 	}
 	result, err := pollTask(s.matchingEngine, s.handlerContext, pollReq)
 	s.NoError(err)
@@ -1164,10 +1266,10 @@ func (s *matchingEngineSuite) TestAddStickyDecisionNoPollerIsolation() {
 			ScheduleID:                    scheduleID,
 			TaskList:                      testParam.TaskList,
 			ScheduleToStartTimeoutSeconds: 1,
-			PartitionConfig:               map[string]string{partition.IsolationGroupKey: isolationGroups[int(i)%len(isolationGroups)]},
+			PartitionConfig:               map[string]string{partition.IsolationGroupKey: isolationGroups()[int(i)%len(isolationGroups())]},
 		}
 		_, err := addTask(s.matchingEngine, s.handlerContext, addRequest)
-		if int(i)%len(isolationGroups) == 0 {
+		if int(i)%len(isolationGroups()) == 0 {
 			s.NoError(err)
 			count++
 			scheduleIDs = append(scheduleIDs, scheduleID)
@@ -1187,7 +1289,7 @@ func (s *matchingEngineSuite) TestAddStickyDecisionNoPollerIsolation() {
 			DomainUUID:     testParam.DomainID,
 			TaskList:       testParam.TaskList,
 			Identity:       testParam.Identity,
-			IsolationGroup: isolationGroups[0],
+			IsolationGroup: isolationGroups()[0],
 		}
 		result, err := pollTask(s.matchingEngine, s.handlerContext, pollReq)
 		s.NoError(err)
@@ -1343,10 +1445,9 @@ func validateTimeRange(t time.Time, expectedDuration time.Duration) bool {
 }
 
 func defaultTestConfig() *config.Config {
-	config := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname")
+	config := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", getIsolationGroupsHelper)
 	config.LongPollExpirationInterval = dynamicconfig.GetDurationPropertyFnFilteredByTaskListInfo(100 * time.Millisecond)
 	config.MaxTaskDeleteBatchSize = dynamicconfig.GetIntPropertyFilteredByTaskListInfo(1)
-	config.AllIsolationGroups = []string{"datacenterA", "datacenterB"}
 	config.GetTasksBatchSize = dynamicconfig.GetIntPropertyFilteredByTaskListInfo(10)
 	config.AsyncTaskDispatchTimeout = dynamicconfig.GetDurationPropertyFnFilteredByTaskListInfo(10 * time.Millisecond)
 	config.MaxTimeBetweenTaskDeletes = time.Duration(0)
@@ -1418,9 +1519,13 @@ type addTaskRequest struct {
 	PartitionConfig               map[string]string
 }
 
-func addTask(engine *matchingEngineImpl, hCtx *handlerContext, request *addTaskRequest) (bool, error) {
+type addTaskResponse struct {
+	PartitionConfig *types.TaskListPartitionConfig
+}
+
+func addTask(engine *matchingEngineImpl, hCtx *handlerContext, request *addTaskRequest) (*addTaskResponse, error) {
 	if request.TaskType == persistence.TaskListTypeActivity {
-		return engine.AddActivityTask(hCtx, &types.AddActivityTaskRequest{
+		resp, err := engine.AddActivityTask(hCtx, &types.AddActivityTaskRequest{
 			SourceDomainUUID:              request.DomainUUID,
 			DomainUUID:                    request.DomainUUID,
 			Execution:                     request.Execution,
@@ -1431,8 +1536,14 @@ func addTask(engine *matchingEngineImpl, hCtx *handlerContext, request *addTaskR
 			ForwardedFrom:                 request.ForwardedFrom,
 			PartitionConfig:               request.PartitionConfig,
 		})
+		if err != nil {
+			return nil, err
+		}
+		return &addTaskResponse{
+			PartitionConfig: resp.PartitionConfig,
+		}, nil
 	}
-	return engine.AddDecisionTask(hCtx, &types.AddDecisionTaskRequest{
+	resp, err := engine.AddDecisionTask(hCtx, &types.AddDecisionTaskRequest{
 		DomainUUID:                    request.DomainUUID,
 		Execution:                     request.Execution,
 		TaskList:                      request.TaskList,
@@ -1442,6 +1553,12 @@ func addTask(engine *matchingEngineImpl, hCtx *handlerContext, request *addTaskR
 		ForwardedFrom:                 request.ForwardedFrom,
 		PartitionConfig:               request.PartitionConfig,
 	})
+	if err != nil {
+		return nil, err
+	}
+	return &addTaskResponse{
+		PartitionConfig: resp.PartitionConfig,
+	}, nil
 }
 
 type pollTaskRequest struct {
@@ -1484,6 +1601,7 @@ type pollTaskResponse struct {
 	EventStoreVersion               int32
 	BranchToken                     []byte
 	Queries                         map[string]*types.WorkflowQuery
+	AutoConfigHint                  *types.AutoConfigHint
 }
 
 func pollTask(engine *matchingEngineImpl, hCtx *handlerContext, request *pollTaskRequest) (*pollTaskResponse, error) {
@@ -1567,9 +1685,14 @@ func pollTask(engine *matchingEngineImpl, hCtx *handlerContext, request *pollTas
 		ScheduledTimestamp:        resp.ScheduledTimestamp,
 		StartedTimestamp:          resp.StartedTimestamp,
 		Queries:                   resp.Queries,
+		AutoConfigHint:            resp.AutoConfigHint,
 	}, nil
 }
 
 func isEmptyToken(token *common.TaskToken) bool {
 	return token == nil || *token == common.TaskToken{}
+}
+
+func getIsolationGroupsHelper() []string {
+	return []string{"zone-a", "zone-b"}
 }

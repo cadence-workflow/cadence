@@ -38,6 +38,7 @@ import (
 
 	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/client/history"
+	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/asyncworkflow/queueconfigapi"
 	"github.com/uber/cadence/common/backoff"
@@ -159,7 +160,7 @@ func (s *adminHandlerSuite) TestMaintainCorruptWorkflow_UnableToGetScheduledEven
 func (s *adminHandlerSuite) TestMaintainCorruptWorkflow_CorruptedHistory() {
 	s.mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return(s.domainName, nil).AnyTimes()
 	err := &types.InternalDataInconsistencyError{
-		Message: "corrupted history event batch, eventID is not continouous",
+		Message: "corrupted history event batch, eventID is not continuous",
 	}
 	s.testMaintainCorruptWorkflow(err, nil, true)
 }
@@ -2734,6 +2735,221 @@ func TestListDynamicConfig(t *testing.T) {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestUpdateTaskListPartitionConfig(t *testing.T) {
+	domainName := "domain-name"
+	domainID := "domain-id"
+	taskListName := "task-list"
+	kind := types.TaskListKindNormal
+	taskListType := types.TaskListTypeActivity
+	partitionConfig := &types.TaskListPartitionConfig{
+		NumReadPartitions:  2,
+		NumWritePartitions: 1,
+	}
+
+	testCases := []struct {
+		name          string
+		req           *types.UpdateTaskListPartitionConfigRequest
+		setupMocks    func(mockMatchingClient *matching.MockClient, mockDomainCache *cache.MockDomainCache)
+		expectError   bool
+		expectedError string
+	}{
+		{
+			name: "success",
+			req: &types.UpdateTaskListPartitionConfigRequest{
+				Domain:          domainName,
+				TaskList:        &types.TaskList{Name: taskListName, Kind: &kind},
+				TaskListType:    &taskListType,
+				PartitionConfig: partitionConfig,
+			},
+			setupMocks: func(mockMatchingClient *matching.MockClient, mockDomainCache *cache.MockDomainCache) {
+				mockDomainCache.EXPECT().GetDomainID(domainName).Return(domainID, nil)
+				mockMatchingClient.EXPECT().UpdateTaskListPartitionConfig(gomock.Any(), &types.MatchingUpdateTaskListPartitionConfigRequest{
+					DomainUUID:      domainID,
+					TaskList:        &types.TaskList{Name: taskListName, Kind: &kind},
+					TaskListType:    &taskListType,
+					PartitionConfig: partitionConfig,
+				}).Return(nil, nil)
+			},
+			expectError: false,
+		},
+		{
+			name: "request not set",
+			req:  nil,
+			setupMocks: func(mockMatchingClient *matching.MockClient, mockDomainCache *cache.MockDomainCache) {
+				// no mocks needed as the function should exit early
+			},
+			expectError:   true,
+			expectedError: validate.ErrRequestNotSet.Error(),
+		},
+		{
+			name: "task list not set",
+			req: &types.UpdateTaskListPartitionConfigRequest{
+				Domain: domainName,
+			},
+			setupMocks: func(mockMatchingClient *matching.MockClient, mockDomainCache *cache.MockDomainCache) {
+				mockDomainCache.EXPECT().GetDomainID(domainName).Return(domainID, nil)
+			},
+			expectError:   true,
+			expectedError: validate.ErrTaskListNotSet.Error(),
+		},
+		{
+			name: "task list kind not set",
+			req: &types.UpdateTaskListPartitionConfigRequest{
+				Domain:   domainName,
+				TaskList: &types.TaskList{Name: taskListName},
+			},
+			setupMocks: func(mockMatchingClient *matching.MockClient, mockDomainCache *cache.MockDomainCache) {
+				mockDomainCache.EXPECT().GetDomainID(domainName).Return(domainID, nil)
+			},
+			expectError:   true,
+			expectedError: "Task list kind not set.",
+		},
+		{
+			name: "invalid task list kind",
+			req: &types.UpdateTaskListPartitionConfigRequest{
+				Domain:   domainName,
+				TaskList: &types.TaskList{Name: taskListName, Kind: types.TaskListKindSticky.Ptr()},
+			},
+			setupMocks: func(mockMatchingClient *matching.MockClient, mockDomainCache *cache.MockDomainCache) {
+				mockDomainCache.EXPECT().GetDomainID(domainName).Return(domainID, nil)
+			},
+			expectError:   true,
+			expectedError: "Only normal tasklist's partition config can be updated.",
+		},
+		{
+			name: "task list type not set",
+			req: &types.UpdateTaskListPartitionConfigRequest{
+				Domain:   domainName,
+				TaskList: &types.TaskList{Name: taskListName, Kind: &kind},
+			},
+			setupMocks: func(mockMatchingClient *matching.MockClient, mockDomainCache *cache.MockDomainCache) {
+				mockDomainCache.EXPECT().GetDomainID(domainName).Return(domainID, nil)
+			},
+			expectError:   true,
+			expectedError: "Task list type not set.",
+		},
+		{
+			name: "partition config not set",
+			req: &types.UpdateTaskListPartitionConfigRequest{
+				Domain:       domainName,
+				TaskList:     &types.TaskList{Name: taskListName, Kind: &kind},
+				TaskListType: &taskListType,
+			},
+			setupMocks: func(mockMatchingClient *matching.MockClient, mockDomainCache *cache.MockDomainCache) {
+				mockDomainCache.EXPECT().GetDomainID(domainName).Return(domainID, nil)
+			},
+			expectError:   true,
+			expectedError: "Task list partition config is not set in the request.",
+		},
+		{
+			name: "invalid partition config: write partitions > read partitions",
+			req: &types.UpdateTaskListPartitionConfigRequest{
+				Domain: domainName,
+				TaskList: &types.TaskList{
+					Name: taskListName,
+					Kind: &kind,
+				},
+				TaskListType: &taskListType,
+				PartitionConfig: &types.TaskListPartitionConfig{
+					NumReadPartitions:  1,
+					NumWritePartitions: 2,
+				},
+			},
+			setupMocks: func(mockMatchingClient *matching.MockClient, mockDomainCache *cache.MockDomainCache) {
+				mockDomainCache.EXPECT().GetDomainID(domainName).Return(domainID, nil)
+			},
+			expectError:   true,
+			expectedError: "The number of write partitions cannot be larger than the number of read partitions.",
+		},
+		{
+			name: "invalid partition config: write partitions <= 0",
+			req: &types.UpdateTaskListPartitionConfigRequest{
+				Domain: domainName,
+				TaskList: &types.TaskList{
+					Name: taskListName,
+					Kind: &kind,
+				},
+				TaskListType: &taskListType,
+				PartitionConfig: &types.TaskListPartitionConfig{
+					NumReadPartitions:  2,
+					NumWritePartitions: 0,
+				},
+			},
+			setupMocks: func(mockMatchingClient *matching.MockClient, mockDomainCache *cache.MockDomainCache) {
+				mockDomainCache.EXPECT().GetDomainID(domainName).Return(domainID, nil)
+			},
+			expectError:   true,
+			expectedError: "The number of partitions must be larger than 0.",
+		},
+		{
+			name: "domain cache error",
+			req: &types.UpdateTaskListPartitionConfigRequest{
+				Domain: domainName,
+				TaskList: &types.TaskList{
+					Name: taskListName,
+					Kind: &kind,
+				},
+				TaskListType:    &taskListType,
+				PartitionConfig: partitionConfig,
+			},
+			setupMocks: func(mockMatchingClient *matching.MockClient, mockDomainCache *cache.MockDomainCache) {
+				mockDomainCache.EXPECT().GetDomainID(domainName).Return("", errors.New("domain cache error"))
+			},
+			expectError:   true,
+			expectedError: "domain cache error",
+		},
+		{
+			name: "matching client error",
+			req: &types.UpdateTaskListPartitionConfigRequest{
+				Domain: domainName,
+				TaskList: &types.TaskList{
+					Name: taskListName,
+					Kind: &kind,
+				},
+				TaskListType:    &taskListType,
+				PartitionConfig: partitionConfig,
+			},
+			setupMocks: func(mockMatchingClient *matching.MockClient, mockDomainCache *cache.MockDomainCache) {
+				mockDomainCache.EXPECT().GetDomainID(domainName).Return(domainID, nil)
+				mockMatchingClient.EXPECT().UpdateTaskListPartitionConfig(gomock.Any(), &types.MatchingUpdateTaskListPartitionConfigRequest{
+					DomainUUID:      domainID,
+					TaskList:        &types.TaskList{Name: taskListName, Kind: &kind},
+					TaskListType:    &taskListType,
+					PartitionConfig: partitionConfig,
+				}).Return(nil, errors.New("matching client error"))
+			},
+			expectError:   true,
+			expectedError: "matching client error",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockDomainCache := cache.NewMockDomainCache(ctrl)
+			mockMatchingClient := matching.NewMockClient(ctrl)
+			tc.setupMocks(mockMatchingClient, mockDomainCache)
+			adh := adminHandlerImpl{
+				Resource: &resource.Test{
+					Logger:         testlogger.New(t),
+					MetricsClient:  metrics.NewNoopMetricsClient(),
+					DomainCache:    mockDomainCache,
+					MatchingClient: mockMatchingClient,
+				},
+			}
+
+			resp, err := adh.UpdateTaskListPartitionConfig(context.Background(), tc.req)
+
+			if tc.expectError {
+				assert.ErrorContains(t, err, tc.expectedError)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, resp)
 			}
 		})
 	}

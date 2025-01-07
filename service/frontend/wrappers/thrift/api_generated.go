@@ -58,6 +58,11 @@ func (g APIHandler) DescribeWorkflowExecution(ctx context.Context, DescribeReque
 	return thrift.FromDescribeWorkflowExecutionResponse(response), thrift.FromError(err)
 }
 
+func (g APIHandler) DiagnoseWorkflowExecution(ctx context.Context, DiagnoseRequest *shared.DiagnoseWorkflowExecutionRequest) (dp1 *shared.DiagnoseWorkflowExecutionResponse, err error) {
+	response, err := g.h.DiagnoseWorkflowExecution(ctx, thrift.ToDiagnoseWorkflowExecutionRequest(DiagnoseRequest))
+	return thrift.FromDiagnoseWorkflowExecutionResponse(response), thrift.FromError(err)
+}
+
 func (g APIHandler) GetClusterInfo(ctx context.Context) (cp1 *shared.ClusterInfo, err error) {
 	response, err := g.h.GetClusterInfo(ctx)
 	return thrift.FromGetClusterInfoResponse(response), thrift.FromError(err)

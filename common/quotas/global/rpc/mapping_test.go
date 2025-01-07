@@ -60,14 +60,14 @@ func TestMapping(t *testing.T) {
 		assert.Equal(t, outLoad, params.Load)
 	})
 	t.Run("response", func(t *testing.T) {
-		inResponse := map[algorithm.Limit]algorithm.HostWeight{
-			"domain-x-user":   0.5,
-			"domain-y-worker": 0.3,
+		inResponse := map[algorithm.Limit]algorithm.HostUsage{
+			"domain-x-user":   {Weight: 0.5, Used: 10},
+			"domain-y-worker": {Weight: 0.3, Used: 20},
 		}
 		// same contents but different types
-		outResponse := map[shared.GlobalKey]float64{
-			"domain-x-user":   0.5,
-			"domain-y-worker": 0.3,
+		outResponse := map[shared.GlobalKey]UpdateEntry{
+			"domain-x-user":   {Weight: 0.5, UsedRPS: 10},
+			"domain-y-worker": {Weight: 0.3, UsedRPS: 20},
 		}
 
 		intermediate, err := AggregatorWeightsToAny(inResponse)
@@ -80,7 +80,7 @@ func TestMapping(t *testing.T) {
 	t.Run("bad data", func(t *testing.T) {
 		validUpdate, err := updateToAny(uuid.NewString(), time.Second, map[shared.GlobalKey]Calls{"domain-x-user": {1, 2}})
 		require.NoError(t, err)
-		validResponse, err := AggregatorWeightsToAny(map[algorithm.Limit]algorithm.HostWeight{"domain-x-user": 0.7})
+		validResponse, err := AggregatorWeightsToAny(map[algorithm.Limit]algorithm.HostUsage{"domain-x-user": {Weight: 0.7}})
 		require.NoError(t, err)
 
 		_, err = AnyToAggregatorUpdate(validUpdate)

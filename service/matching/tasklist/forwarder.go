@@ -34,9 +34,9 @@ import (
 )
 
 type (
-	// Forwarder is the type that contains state pertaining to
+	// forwarderImpl is the type that contains state pertaining to
 	// the api call forwarder component
-	Forwarder struct {
+	forwarderImpl struct {
 		scope        metrics.Scope
 		cfg          *config.ForwarderConfig
 		taskListID   *Identifier
@@ -99,9 +99,9 @@ func newForwarder(
 	client matching.Client,
 	isolationGroups []string,
 	scope metrics.Scope,
-) *Forwarder {
+) Forwarder {
 	rpsFunc := func() float64 { return float64(cfg.ForwarderMaxRatePerSecond()) }
-	fwdr := &Forwarder{
+	fwdr := &forwarderImpl{
 		cfg:                   cfg,
 		client:                client,
 		taskListID:            taskListID,
@@ -118,7 +118,7 @@ func newForwarder(
 }
 
 // ForwardTask forwards an activity or decision task to the parent task list partition if it exist
-func (fwdr *Forwarder) ForwardTask(ctx context.Context, task *InternalTask) error {
+func (fwdr *forwarderImpl) ForwardTask(ctx context.Context, task *InternalTask) error {
 	if fwdr.taskListKind == types.TaskListKindSticky {
 		return ErrTaskListKind
 	}
@@ -138,7 +138,7 @@ func (fwdr *Forwarder) ForwardTask(ctx context.Context, task *InternalTask) erro
 	defer sw.Stop()
 	switch fwdr.taskListID.GetType() {
 	case persistence.TaskListTypeDecision:
-		err = fwdr.client.AddDecisionTask(ctx, &types.AddDecisionTaskRequest{
+		_, err = fwdr.client.AddDecisionTask(ctx, &types.AddDecisionTaskRequest{
 			DomainUUID: task.Event.DomainID,
 			Execution:  task.WorkflowExecution(),
 			TaskList: &types.TaskList{
@@ -146,13 +146,13 @@ func (fwdr *Forwarder) ForwardTask(ctx context.Context, task *InternalTask) erro
 				Kind: &fwdr.taskListKind,
 			},
 			ScheduleID:                    task.Event.ScheduleID,
-			ScheduleToStartTimeoutSeconds: &task.Event.ScheduleToStartTimeout,
+			ScheduleToStartTimeoutSeconds: &task.Event.ScheduleToStartTimeoutSeconds,
 			Source:                        &task.source,
 			ForwardedFrom:                 fwdr.taskListID.GetName(),
 			PartitionConfig:               task.Event.PartitionConfig,
 		})
 	case persistence.TaskListTypeActivity:
-		err = fwdr.client.AddActivityTask(ctx, &types.AddActivityTaskRequest{
+		_, err = fwdr.client.AddActivityTask(ctx, &types.AddActivityTaskRequest{
 			DomainUUID:       fwdr.taskListID.GetDomainID(),
 			SourceDomainUUID: task.Event.DomainID,
 			Execution:        task.WorkflowExecution(),
@@ -161,7 +161,7 @@ func (fwdr *Forwarder) ForwardTask(ctx context.Context, task *InternalTask) erro
 				Kind: &fwdr.taskListKind,
 			},
 			ScheduleID:                    task.Event.ScheduleID,
-			ScheduleToStartTimeoutSeconds: &task.Event.ScheduleToStartTimeout,
+			ScheduleToStartTimeoutSeconds: &task.Event.ScheduleToStartTimeoutSeconds,
 			Source:                        &task.source,
 			ForwardedFrom:                 fwdr.taskListID.GetName(),
 			PartitionConfig:               task.Event.PartitionConfig,
@@ -174,7 +174,7 @@ func (fwdr *Forwarder) ForwardTask(ctx context.Context, task *InternalTask) erro
 }
 
 // ForwardQueryTask forwards a query task to parent task list partition, if it exist
-func (fwdr *Forwarder) ForwardQueryTask(
+func (fwdr *forwarderImpl) ForwardQueryTask(
 	ctx context.Context,
 	task *InternalTask,
 ) (*types.QueryWorkflowResponse, error) {
@@ -204,7 +204,7 @@ func (fwdr *Forwarder) ForwardQueryTask(
 }
 
 // ForwardPoll forwards a poll request to parent task list partition if it exist
-func (fwdr *Forwarder) ForwardPoll(ctx context.Context) (*InternalTask, error) {
+func (fwdr *forwarderImpl) ForwardPoll(ctx context.Context) (*InternalTask, error) {
 	if fwdr.taskListKind == types.TaskListKindSticky {
 		return nil, ErrTaskListKind
 	}
@@ -266,7 +266,7 @@ func (fwdr *Forwarder) ForwardPoll(ctx context.Context) (*InternalTask, error) {
 // that's necessary before making a ForwardTask or ForwardQueryTask API call.
 // After the API call is invoked, token.release() must be invoked
 // TODO: consider having separate token pools for different isolation groups
-func (fwdr *Forwarder) AddReqTokenC() <-chan *ForwarderReqToken {
+func (fwdr *forwarderImpl) AddReqTokenC() <-chan *ForwarderReqToken {
 	fwdr.refreshTokenC(&fwdr.addReqToken, &fwdr.outstandingTasksLimit, int32(fwdr.cfg.ForwarderMaxOutstandingTasks()*(len(fwdr.isolationGroups)+1)), nil)
 	return fwdr.addReqToken.Load().(*ForwarderReqToken).ch
 }
@@ -275,7 +275,7 @@ func (fwdr *Forwarder) AddReqTokenC() <-chan *ForwarderReqToken {
 // that's necessary before making a ForwardPoll API call. After the API
 // call is invoked, token.release() must be invoked
 // For tasklists with isolation enabled, we have separate token pools for different isolation groups
-func (fwdr *Forwarder) PollReqTokenC(isolationGroup string) <-chan *ForwarderReqToken {
+func (fwdr *forwarderImpl) PollReqTokenC(isolationGroup string) <-chan *ForwarderReqToken {
 	fwdr.refreshTokenC(&fwdr.pollReqToken, &fwdr.outstandingPollsLimit, int32(fwdr.cfg.ForwarderMaxOutstandingPolls()), fwdr.isolationGroups)
 	if isolationGroup == "" {
 		return fwdr.pollReqToken.Load().(*ForwarderReqToken).ch
@@ -283,7 +283,7 @@ func (fwdr *Forwarder) PollReqTokenC(isolationGroup string) <-chan *ForwarderReq
 	return fwdr.pollReqToken.Load().(*ForwarderReqToken).isolatedCh[isolationGroup]
 }
 
-func (fwdr *Forwarder) refreshTokenC(value *atomic.Value, curr *int32, maxLimit int32, isolationGroups []string) {
+func (fwdr *forwarderImpl) refreshTokenC(value *atomic.Value, curr *int32, maxLimit int32, isolationGroups []string) {
 	currLimit := atomic.LoadInt32(curr)
 	if currLimit != maxLimit {
 		if atomic.CompareAndSwapInt32(curr, currLimit, maxLimit) {
@@ -292,7 +292,7 @@ func (fwdr *Forwarder) refreshTokenC(value *atomic.Value, curr *int32, maxLimit 
 	}
 }
 
-func (fwdr *Forwarder) handleErr(err error) error {
+func (fwdr *forwarderImpl) handleErr(err error) error {
 	if _, ok := err.(*types.ServiceBusyError); ok {
 		return ErrForwarderSlowDown
 	}

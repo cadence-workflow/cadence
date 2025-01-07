@@ -32,6 +32,7 @@ import (
 	"github.com/uber/cadence/common/asyncworkflow/queue/consumer"
 	"github.com/uber/cadence/common/asyncworkflow/queue/provider"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/messaging"
 	"github.com/uber/cadence/common/messaging/kafka"
 	"github.com/uber/cadence/common/metrics"
@@ -85,6 +86,7 @@ func (q *queueImpl) CreateConsumer(p *provider.Params) (provider.Consumer, error
 	if err != nil {
 		return nil, fmt.Errorf("failed to create kafka consumer: %w", err)
 	}
+	p.Logger.Info("Creating async wf consumer", tag.KafkaTopicName(q.config.Topic))
 	return consumer.New(q.ID(), kafkaConsumer, p.Logger, p.MetricsClient, p.FrontendClient), nil
 }
 
@@ -94,6 +96,7 @@ func (q *queueImpl) CreateProducer(p *provider.Params) (messaging.Producer, erro
 		return nil, err
 	}
 	config.Producer.Return.Successes = true
+	p.Logger.Info("Creating async wf producer", tag.KafkaTopicName(q.config.Topic))
 	return newProducer(q.config.Topic, q.config.Connection.Brokers, config, p.MetricsClient, p.Logger)
 }
 
@@ -102,5 +105,7 @@ func newProducer(topic string, brokers []string, saramaConfig *sarama.Config, me
 	if err != nil {
 		return nil, err
 	}
-	return messaging.NewMetricProducer(kafka.NewKafkaProducer(topic, p, logger), metricsClient), nil
+
+	withMetricsOpt := messaging.WithMetricTags(metrics.TopicTag(topic))
+	return messaging.NewMetricProducer(kafka.NewKafkaProducer(topic, p, logger), metricsClient, withMetricsOpt), nil
 }

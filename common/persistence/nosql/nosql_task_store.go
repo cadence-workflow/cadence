@@ -141,13 +141,14 @@ func (t *nosqlTaskStore) LeaseTaskList(
 		currTL.RangeID++
 
 		err = storeShard.db.UpdateTaskList(ctx, &nosqlplugin.TaskListRow{
-			DomainID:        request.DomainID,
-			TaskListName:    request.TaskList,
-			TaskListType:    request.TaskType,
-			RangeID:         currTL.RangeID,
-			TaskListKind:    currTL.TaskListKind,
-			AckLevel:        currTL.AckLevel,
-			LastUpdatedTime: now,
+			DomainID:                request.DomainID,
+			TaskListName:            request.TaskList,
+			TaskListType:            request.TaskType,
+			RangeID:                 currTL.RangeID,
+			TaskListKind:            currTL.TaskListKind,
+			AckLevel:                currTL.AckLevel,
+			LastUpdatedTime:         now,
+			AdaptivePartitionConfig: currTL.AdaptivePartitionConfig,
 		}, currTL.RangeID-1)
 	}
 	if err != nil {
@@ -161,15 +162,45 @@ func (t *nosqlTaskStore) LeaseTaskList(
 		return nil, convertCommonErrors(storeShard.db, "LeaseTaskList", err)
 	}
 	tli := &persistence.TaskListInfo{
-		DomainID:    request.DomainID,
-		Name:        request.TaskList,
-		TaskType:    request.TaskType,
-		RangeID:     currTL.RangeID,
-		AckLevel:    currTL.AckLevel,
-		Kind:        request.TaskListKind,
-		LastUpdated: now,
+		DomainID:                request.DomainID,
+		Name:                    request.TaskList,
+		TaskType:                request.TaskType,
+		RangeID:                 currTL.RangeID,
+		AckLevel:                currTL.AckLevel,
+		Kind:                    request.TaskListKind,
+		LastUpdated:             now,
+		AdaptivePartitionConfig: currTL.AdaptivePartitionConfig,
 	}
 	return &persistence.LeaseTaskListResponse{TaskListInfo: tli}, nil
+}
+
+func (t *nosqlTaskStore) GetTaskList(
+	ctx context.Context,
+	request *persistence.GetTaskListRequest,
+) (*persistence.GetTaskListResponse, error) {
+	storeShard, err := t.GetStoreShardByTaskList(request.DomainID, request.TaskList, request.TaskType)
+	if err != nil {
+		return nil, err
+	}
+	currTL, err := storeShard.db.SelectTaskList(ctx, &nosqlplugin.TaskListFilter{
+		DomainID:     request.DomainID,
+		TaskListName: request.TaskList,
+		TaskListType: request.TaskType,
+	})
+	if err != nil {
+		return nil, convertCommonErrors(storeShard.db, "GetTaskList", err)
+	}
+	tli := &persistence.TaskListInfo{
+		DomainID:                request.DomainID,
+		Name:                    request.TaskList,
+		TaskType:                request.TaskType,
+		RangeID:                 currTL.RangeID,
+		AckLevel:                currTL.AckLevel,
+		Kind:                    currTL.TaskListKind,
+		LastUpdated:             currTL.LastUpdatedTime,
+		AdaptivePartitionConfig: currTL.AdaptivePartitionConfig,
+	}
+	return &persistence.GetTaskListResponse{TaskListInfo: tli}, nil
 }
 
 func (t *nosqlTaskStore) UpdateTaskList(
@@ -179,13 +210,14 @@ func (t *nosqlTaskStore) UpdateTaskList(
 	tli := request.TaskListInfo
 	var err error
 	taskListToUpdate := &nosqlplugin.TaskListRow{
-		DomainID:        tli.DomainID,
-		TaskListName:    tli.Name,
-		TaskListType:    tli.TaskType,
-		RangeID:         tli.RangeID,
-		TaskListKind:    tli.Kind,
-		AckLevel:        tli.AckLevel,
-		LastUpdatedTime: time.Now(),
+		DomainID:                tli.DomainID,
+		TaskListName:            tli.Name,
+		TaskListType:            tli.TaskType,
+		RangeID:                 tli.RangeID,
+		TaskListKind:            tli.Kind,
+		AckLevel:                tli.AckLevel,
+		LastUpdatedTime:         time.Now(),
+		AdaptivePartitionConfig: tli.AdaptivePartitionConfig,
 	}
 	storeShard, err := t.GetStoreShardByTaskList(tli.DomainID, tli.Name, tli.TaskType)
 	if err != nil {
@@ -252,7 +284,7 @@ func (t *nosqlTaskStore) DeleteTaskList(
 
 func (t *nosqlTaskStore) CreateTasks(
 	ctx context.Context,
-	request *persistence.InternalCreateTasksRequest,
+	request *persistence.CreateTasksRequest,
 ) (*persistence.CreateTasksResponse, error) {
 	now := time.Now()
 	var tasks []*nosqlplugin.TaskRowForInsert
@@ -268,7 +300,7 @@ func (t *nosqlTaskStore) CreateTasks(
 			CreatedTime:     now,
 			PartitionConfig: t.Data.PartitionConfig,
 		}
-		ttl := int(t.Data.ScheduleToStartTimeout.Seconds())
+		ttl := int(t.Data.ScheduleToStartTimeoutSeconds)
 		tasks = append(tasks, &nosqlplugin.TaskRowForInsert{
 			TaskRow:    *task,
 			TTLSeconds: ttl,
@@ -307,13 +339,13 @@ func (t *nosqlTaskStore) CreateTasks(
 func (t *nosqlTaskStore) GetTasks(
 	ctx context.Context,
 	request *persistence.GetTasksRequest,
-) (*persistence.InternalGetTasksResponse, error) {
+) (*persistence.GetTasksResponse, error) {
 	if request.MaxReadLevel == nil {
 		request.MaxReadLevel = common.Int64Ptr(math.MaxInt64)
 	}
 
 	if request.ReadLevel > *request.MaxReadLevel {
-		return &persistence.InternalGetTasksResponse{}, nil
+		return &persistence.GetTasksResponse{}, nil
 	}
 
 	storeShard, err := t.GetStoreShardByTaskList(request.DomainID, request.TaskList, request.TaskType)
@@ -337,7 +369,7 @@ func (t *nosqlTaskStore) GetTasks(
 		return nil, convertCommonErrors(storeShard.db, "GetTasks", err)
 	}
 
-	response := &persistence.InternalGetTasksResponse{}
+	response := &persistence.GetTasksResponse{}
 	for _, t := range resp {
 		response.Tasks = append(response.Tasks, toTaskInfo(t))
 	}
@@ -345,8 +377,8 @@ func (t *nosqlTaskStore) GetTasks(
 	return response, nil
 }
 
-func toTaskInfo(t *nosqlplugin.TaskRow) *persistence.InternalTaskInfo {
-	return &persistence.InternalTaskInfo{
+func toTaskInfo(t *nosqlplugin.TaskRow) *persistence.TaskInfo {
+	return &persistence.TaskInfo{
 		DomainID:        t.DomainID,
 		WorkflowID:      t.WorkflowID,
 		RunID:           t.RunID,

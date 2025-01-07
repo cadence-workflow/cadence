@@ -23,112 +23,239 @@
 package ringpopprovider
 
 import (
-	"fmt"
-	"strings"
+	"sync"
 	"testing"
 	"time"
 
-	"github.com/pborman/uuid"
-	"github.com/uber/ringpop-go"
-	"github.com/uber/ringpop-go/discovery/statichosts"
-	"github.com/uber/ringpop-go/swim"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uber/ringpop-go/events"
 	"github.com/uber/tchannel-go"
+	"go.uber.org/goleak"
 
-	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/membership"
 )
 
-type HostInfo struct {
-	addr string
+const testServiceName = "test-service"
+
+type srvAndCh struct {
+	service  string
+	ch       *tchannel.Channel
+	provider *Provider
 }
 
-// TestRingpopCluster is a type that represents a test ringpop cluster
-type TestRingpopCluster struct {
-	hostUUIDs    []string
-	hostAddrs    []string
-	hostInfoList []HostInfo
-
-	channels []*tchannel.Channel
-	seedNode string
-}
-
-// NewTestRingpopCluster creates a new test cluster with the given name and cluster size
-// All the nodes in the test cluster will register themselves in Ringpop
-// with the specified name. This is only intended for unit tests.
-func NewTestRingpopCluster(t *testing.T, ringPopApp string, size int, ipAddr string, seed string, serviceName string) *TestRingpopCluster {
-
+func TestRingpopProvider(t *testing.T) {
+	t.Cleanup(func() {
+		goleak.VerifyNone(t,
+			// ignore the goroutines leaked by ringpop library
+			goleak.IgnoreTopFunction("github.com/rcrowley/go-metrics.(*meterArbiter).tick"),
+			goleak.IgnoreTopFunction("github.com/uber/ringpop-go.(*Ringpop).startTimers.func1"),
+			goleak.IgnoreTopFunction("github.com/uber/ringpop-go.(*Ringpop).startTimers.func2"))
+	})
 	logger := testlogger.New(t)
-	cluster := &TestRingpopCluster{
-		hostUUIDs: make([]string, size),
-		hostAddrs: make([]string, size),
-		channels:  make([]*tchannel.Channel, size),
-		seedNode:  seed,
+	serviceName := "matching"
+
+	matchingChs, cleanupMatchingChs, err := createAndListenChannels(serviceName, 3)
+	t.Cleanup(cleanupMatchingChs)
+	if err != nil {
+		t.Fatalf("Failed to create and listen on channels: %v", err)
 	}
 
-	for i := 0; i < size; i++ {
-		var err error
-		cluster.channels[i], err = tchannel.NewChannel(ringPopApp, nil)
+	irrelevantChs, cleanupIrrelevantChs, err := createAndListenChannels("random-svc", 1)
+	t.Cleanup(cleanupIrrelevantChs)
+	if err != nil {
+		t.Fatalf("Failed to create and listen on channels: %v", err)
+	}
+
+	allServicesAndChs := append(matchingChs, irrelevantChs...)
+	cfg := Config{
+		BootstrapMode:   BootstrapModeHosts,
+		Name:            "ring",
+		BootstrapHosts:  toHosts(t, allServicesAndChs),
+		MaxJoinDuration: 10 * time.Second,
+	}
+
+	t.Logf("Config: %+v", cfg)
+
+	// start ringpop provider for each channel
+	var wg sync.WaitGroup
+	for i, svc := range allServicesAndChs {
+		svc := svc
+		cfg := cfg
+		if i == 0 {
+			// set broadcast address for the first provider to test that path
+			cfg.BroadcastAddress = "127.0.0.1"
+		}
+		p, err := New(svc.service, &cfg, svc.ch, membership.PortMap{}, logger)
 		if err != nil {
-			logger.Error("Failed to create tchannel", tag.Error(err))
-			return nil
+			t.Fatalf("Failed to create ringpop provider: %v", err)
 		}
-		listenAddr := ipAddr + ":0"
-		err = cluster.channels[i].ListenAndServe(listenAddr)
+
+		svc.provider = p
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			p.Start()
+		}()
+		t.Cleanup(p.Stop)
+	}
+
+	t.Logf("Waiting for %d ringpop providers to start", len(matchingChs)+len(irrelevantChs))
+	wg.Wait()
+
+	sleep := 5 * time.Second
+	t.Logf("Sleeping for %d seconds for ring to update", int(sleep.Seconds()))
+	time.Sleep(sleep)
+
+	provider := matchingChs[0].provider
+	hostInfo, err := provider.WhoAmI()
+	if err != nil {
+		t.Fatalf("Failed to get who am I: %v", err)
+	}
+
+	t.Logf("Who am I: %+v", hostInfo.GetAddress())
+
+	members, err := provider.GetMembers(serviceName)
+	if err != nil {
+		t.Fatalf("Failed to get members: %v", err)
+	}
+
+	if len(members) != 3 {
+		t.Fatalf("Expected 3 members, got %v", len(members))
+	}
+
+	// Evict one of the providers and make sure it's removed from the ring
+	matchingChs[1].provider.SelfEvict()
+	t.Logf("A peer is evicted. Sleeping for %d seconds for ring to update", int(sleep.Seconds()))
+	time.Sleep(sleep)
+
+	members, err = provider.GetMembers(serviceName)
+	if err != nil {
+		t.Fatalf("Failed to get members: %v", err)
+	}
+
+	if len(members) != 2 {
+		t.Fatalf("Expected 2 members, got %v", len(members))
+	}
+}
+
+func TestSubscribeAndNotify(t *testing.T) {
+	provider := NewRingpopProvider(testServiceName, nil, nil, nil, testlogger.New(t))
+
+	ringpopEvent := events.RingChangedEvent{
+		ServersAdded:   []string{"aa", "bb", "cc"},
+		ServersUpdated: []string{"dd"},
+		ServersRemoved: []string{"ee", "ff"},
+	}
+	expectedEvent := membership.ChangedEvent{
+		HostsAdded:   ringpopEvent.ServersAdded,
+		HostsUpdated: ringpopEvent.ServersUpdated,
+		HostsRemoved: ringpopEvent.ServersRemoved,
+	}
+
+	var calls1, calls2 int
+	require.NoError(t,
+		provider.Subscribe("subscriber1",
+			func(ev membership.ChangedEvent) {
+				calls1++
+				assert.Equal(t, ev, expectedEvent)
+			},
+		))
+
+	require.NoError(t,
+		provider.Subscribe("subscriber2",
+			func(ev membership.ChangedEvent) {
+				calls2++
+				assert.Equal(t, ev, expectedEvent)
+			},
+		))
+
+	require.Error(t,
+		provider.Subscribe(
+			"subscriber2",
+			func(membership.ChangedEvent) { t.Error("Should never be called") },
+		),
+		"Subscribe doesn't allow duplicate names",
+	)
+
+	provider.HandleEvent(ringpopEvent)
+	assert.Equal(t, 1, calls1, "every subscriber must have been called once")
+	assert.Equal(t, 1, calls2, "every subscriber must have been called once")
+}
+
+func createAndListenChannels(serviceName string, n int) ([]*srvAndCh, func(), error) {
+	var res []*srvAndCh
+	cleanupFn := func(srvs []*srvAndCh) func() {
+		return func() {
+			for _, s := range srvs {
+				s.ch.Close()
+			}
+		}
+	}
+	for i := 0; i < n; i++ {
+		ch, err := tchannel.NewChannel(serviceName, nil)
 		if err != nil {
-			logger.Error("tchannel listen failed", tag.Error(err))
-			return nil
-		}
-		cluster.hostUUIDs[i] = uuid.New()
-		cluster.hostAddrs[i] = cluster.channels[i].PeerInfo().HostPort
-		cluster.hostInfoList[i] = HostInfo{addr: cluster.hostAddrs[i]}
-	}
-
-	// if seed node is already supplied, use it; if not, set it
-	if cluster.seedNode == "" {
-		cluster.seedNode = cluster.hostAddrs[0]
-	}
-	logger.Info(fmt.Sprintf("seedNode: %v", cluster.seedNode))
-	bOptions := new(swim.BootstrapOptions)
-	bOptions.DiscoverProvider = statichosts.New(cluster.seedNode) // just use the first addr as the seed
-	bOptions.MaxJoinDuration = time.Duration(time.Second * 2)
-	bOptions.JoinSize = 1
-
-	for i := 0; i < size; i++ {
-		ringPop, err := ringpop.New(ringPopApp, ringpop.Channel(cluster.channels[i]))
-		if err != nil {
-			logger.Error("failed to create ringpop instance", tag.Error(err))
-			return nil
+			return nil, cleanupFn(res), err
 		}
 
-		NewRingpopProvider(ringPopApp, ringPop, membership.PortMap{}, bOptions, logger)
+		if err := ch.ListenAndServe("localhost:0"); err != nil {
+			return nil, cleanupFn(res), err
+		}
 
+		res = append(res, &srvAndCh{service: serviceName, ch: ch})
 	}
-	return cluster
+	return res, cleanupFn(res), nil
 }
 
-// GetSeedNode returns the seedNode for this cluster
-func (c *TestRingpopCluster) GetSeedNode() string {
-	return c.seedNode
+func toHosts(t *testing.T, allServicesAndChs []*srvAndCh) []string {
+	var hosts []string
+	for _, svc := range allServicesAndChs {
+		if svc.ch.PeerInfo().IsEphemeralHostPort() {
+			t.Fatalf("Channel %v is not listening on a port", svc.ch)
+		}
+		hosts = append(hosts, svc.ch.PeerInfo().HostPort)
+	}
+	return hosts
 }
 
-// GetHostInfoList returns the list of all hosts within the cluster
-func (c *TestRingpopCluster) GetHostInfoList() []HostInfo {
-	return c.hostInfoList
-}
+func TestLabelToPort(t *testing.T) {
+	tests := []struct {
+		label   string
+		want    uint16
+		wantErr bool
+	}{
+		{
+			label: "0",
+			want:  0,
+		},
+		{
+			label: "1234",
+			want:  1234,
+		},
+		{
+			label:   "-1",
+			wantErr: true,
+		},
+		{
+			label: "32768",
+			want:  32768,
+		},
+		{
+			label: "65535",
+			want:  65535,
+		},
+		{
+			label:   "65536", // greater than max uint16 (2^16-1)
+			wantErr: true,
+		},
+	}
 
-// GetHostAddrs returns all host addrs within the cluster
-func (c *TestRingpopCluster) GetHostAddrs() []string {
-	return c.hostAddrs
-}
-
-// FindHostByAddr returns the host info corresponding to
-// the given addr, if it exists
-func (c *TestRingpopCluster) FindHostByAddr(addr string) (HostInfo, bool) {
-	for _, hi := range c.hostInfoList {
-		if strings.Compare(hi.addr, addr) == 0 {
-			return hi, true
+	for _, tc := range tests {
+		got, err := labelToPort(tc.label)
+		if got != tc.want || (err != nil) != tc.wantErr {
+			t.Errorf("labelToPort(%v) = %v, %v; want %v, %v", tc.label, got, err, tc.want, tc.wantErr)
 		}
 	}
-	return HostInfo{}, false
 }

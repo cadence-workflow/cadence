@@ -21,11 +21,17 @@
 package schema
 
 import (
+	"encoding/json"
+	"errors"
+	"fmt"
 	"io/fs"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
@@ -108,7 +114,7 @@ func (s *UpdateTaskTestSuite) TestReadSchemaDirFromEmbeddings() {
 	s.NoError(err)
 	ans, err := readSchemaDir(fsys, "0.30", "")
 	s.NoError(err)
-	s.Equal([]string{"v0.31", "v0.32", "v0.33", "v0.34", "v0.35", "v0.36", "v0.37"}, ans)
+	s.Equal([]string{"v0.31", "v0.32", "v0.33", "v0.34", "v0.35", "v0.36", "v0.37", "v0.38"}, ans)
 
 	fsys, err = fs.Sub(cassandra.SchemaFS, "visibility/versioned")
 	s.NoError(err)
@@ -132,13 +138,13 @@ func (s *UpdateTaskTestSuite) TestReadSchemaDirFromEmbeddings() {
 	s.NoError(err)
 	ans, err = readSchemaDir(fsys, "0.3", "")
 	s.NoError(err)
-	s.Equal([]string{"v0.4", "v0.5"}, ans)
+	s.Equal([]string{"v0.4", "v0.5", "v0.6"}, ans)
 
 	fsys, err = fs.Sub(postgres.SchemaFS, "visibility/versioned")
 	s.NoError(err)
 	ans, err = readSchemaDir(fsys, "0.5", "")
 	s.NoError(err)
-	s.Equal([]string{"v0.6", "v0.7"}, ans)
+	s.Equal([]string{"v0.6", "v0.7", "v0.8"}, ans)
 }
 
 func (s *UpdateTaskTestSuite) TestReadManifest() {
@@ -323,6 +329,462 @@ func (s *UpdateTaskTestSuite) TestSquashDirToVersion() {
 			s.Equal(tt.ver, ver)
 		})
 	}
+}
+
+func (s *UpdateTaskTestSuite) TestNewUpdateSchemaTask() {
+	mockSchemaClient := NewMockSchemaClient(gomock.NewController(s.T()))
+	cfg := &UpdateConfig{}
+
+	updateSchemaTask := NewUpdateSchemaTask(mockSchemaClient, cfg)
+
+	s.NotNil(updateSchemaTask)
+	s.Equal(mockSchemaClient, updateSchemaTask.db)
+	s.Equal(cfg, updateSchemaTask.config)
+}
+
+func (s *UpdateTaskTestSuite) TestRun() {
+	targetVersion := "0.4"
+
+	tests := map[string]struct {
+		setupMock     func(client *MockSchemaClient)
+		dryRun        bool
+		targetVersion string
+		dir           string
+		err           error
+	}{
+		"error - ReadSchemaVersion": {
+			setupMock: func(client *MockSchemaClient) {
+				client.EXPECT().ReadSchemaVersion().Return("", assert.AnError).Times(1)
+			},
+			dir: "v0.4",
+			err: assert.AnError,
+		},
+		"error - BuildChangeSet": {
+			setupMock: func(client *MockSchemaClient) {
+				client.EXPECT().ReadSchemaVersion().Return("1.0", nil).Times(1)
+			},
+			dir:           "v0.4",
+			targetVersion: targetVersion,
+			err:           fmt.Errorf("startVer (1.0) must be less than endVer (%v)", targetVersion),
+		},
+		"error - executeUpdates": {
+			setupMock: func(client *MockSchemaClient) {
+				client.EXPECT().ReadSchemaVersion().Return("0.3", nil).Times(1)
+				client.EXPECT().ExecDDLQuery(gomock.Any()).Return(assert.AnError).Times(1)
+			},
+			dir:           "v0.4",
+			targetVersion: targetVersion,
+			err:           assert.AnError,
+		},
+		"success - dry run": {
+			setupMock: func(client *MockSchemaClient) {
+				client.EXPECT().ReadSchemaVersion().Return("0.3", nil).Times(1)
+			},
+			dir:           "v0.4",
+			dryRun:        true,
+			targetVersion: targetVersion,
+			err:           nil,
+		},
+		"success - dry run no changes squashed version": {
+			setupMock: func(client *MockSchemaClient) {
+				client.EXPECT().ReadSchemaVersion().Return("0.4", nil).Times(1)
+			},
+			dir:    "s1-2",
+			dryRun: true,
+			err:    nil,
+		},
+		"success": {
+			setupMock: func(client *MockSchemaClient) {
+				client.EXPECT().ReadSchemaVersion().Return("0.3", nil).Times(1)
+				client.EXPECT().ExecDDLQuery(gomock.Any()).Return(nil).Times(1)
+				client.EXPECT().UpdateSchemaVersion(targetVersion, targetVersion).Return(nil).Times(1)
+				client.EXPECT().WriteSchemaUpdateLog("0.3", targetVersion, gomock.Any(), "").Return(nil).Times(1)
+			},
+			dir:           "v0.4",
+			targetVersion: targetVersion,
+		},
+	}
+
+	for name, test := range tests {
+		s.Run(name, func() {
+			mockSchemaClient := NewMockSchemaClient(gomock.NewController(s.T()))
+			test.setupMock(mockSchemaClient)
+
+			dir := s.T().TempDir()
+			subDir := test.dir
+			s.NoError(os.Mkdir(filepath.Join(dir, subDir), os.FileMode(0755)))
+
+			manifestFile := filepath.Join(dir, subDir, manifestFileName)
+			m := manifest{
+				CurrVersion:          targetVersion,
+				MinCompatibleVersion: targetVersion,
+				SchemaUpdateCqlFiles: []string{"base.cql"},
+			}
+			j, err := json.Marshal(m)
+			s.NoError(err)
+			s.NoError(os.WriteFile(manifestFile, j, os.FileMode(0644)))
+			cqlFile := filepath.Join(dir, subDir, "base.cql")
+			s.NoError(os.WriteFile(cqlFile, []byte("CREATE TABLE;"), os.FileMode(0644)))
+
+			cfg := &UpdateConfig{
+				SchemaFS:      os.DirFS(dir),
+				TargetVersion: test.targetVersion,
+				IsDryRun:      test.dryRun,
+			}
+			updateSchemaTask := NewUpdateSchemaTask(mockSchemaClient, cfg)
+
+			err = updateSchemaTask.Run()
+
+			if test.err != nil {
+				s.ErrorContains(err, test.err.Error())
+			} else {
+				s.NoError(err)
+			}
+		})
+	}
+}
+
+func (s *UpdateTaskTestSuite) Test_executeUpdates() {
+	tests := map[string]struct {
+		setupMock func(client *MockSchemaClient)
+		updates   []ChangeSet
+		err       error
+	}{
+		"no updates": {
+			setupMock: func(client *MockSchemaClient) {},
+			err:       nil,
+		},
+		"error - updateSchemaVersion": {
+			setupMock: func(client *MockSchemaClient) {
+				client.EXPECT().UpdateSchemaVersion("0.3", "0.3").Return(assert.AnError).Times(1)
+			},
+			updates: []ChangeSet{
+				{
+					Version: "0.3",
+					manifest: &manifest{
+						CurrVersion:          "0.3",
+						MinCompatibleVersion: "0.3",
+						SchemaUpdateCqlFiles: []string{"base.cql"},
+					},
+				},
+			},
+			err: assert.AnError,
+		},
+	}
+
+	for name, test := range tests {
+		s.Run(name, func() {
+			mockSchemaClient := NewMockSchemaClient(gomock.NewController(s.T()))
+			test.setupMock(mockSchemaClient)
+
+			cfg := &UpdateConfig{}
+
+			updateSchemaTask := NewUpdateSchemaTask(mockSchemaClient, cfg)
+
+			err := updateSchemaTask.executeUpdates("0.3", test.updates)
+
+			if test.err != nil {
+				s.ErrorContains(err, test.err.Error())
+			} else {
+				s.NoError(err)
+			}
+		})
+	}
+}
+
+func (s *UpdateTaskTestSuite) Test_updateSchemaVersion() {
+	version := "0.3"
+
+	tests := map[string]struct {
+		setupMock func(client *MockSchemaClient)
+		err       error
+	}{
+		"error - UpdateSchemaVersion": {
+			setupMock: func(client *MockSchemaClient) {
+				client.EXPECT().UpdateSchemaVersion(version, version).Return(assert.AnError).Times(1)
+			},
+			err: assert.AnError,
+		},
+		"error - WriteSchemaVersion": {
+			setupMock: func(client *MockSchemaClient) {
+				client.EXPECT().UpdateSchemaVersion(version, version).Return(nil).Times(1)
+				client.EXPECT().WriteSchemaUpdateLog("0.2", version, "md5", "description").Return(assert.AnError).Times(1)
+			},
+			err: assert.AnError,
+		},
+		"success": {
+			setupMock: func(client *MockSchemaClient) {
+				client.EXPECT().UpdateSchemaVersion(version, version).Return(nil).Times(1)
+				client.EXPECT().WriteSchemaUpdateLog("0.2", version, "md5", "description").Return(nil).Times(1)
+			},
+		},
+	}
+
+	for name, test := range tests {
+		s.Run(name, func() {
+			mockSchemaClient := NewMockSchemaClient(gomock.NewController(s.T()))
+			test.setupMock(mockSchemaClient)
+
+			cfg := &UpdateConfig{}
+
+			updateSchemaTask := NewUpdateSchemaTask(mockSchemaClient, cfg)
+
+			cs := &ChangeSet{
+				Version: version,
+				manifest: &manifest{
+					CurrVersion:          version,
+					MinCompatibleVersion: version,
+					md5:                  "md5",
+					Description:          "description",
+				},
+			}
+
+			err := updateSchemaTask.updateSchemaVersion("0.2", cs)
+
+			if test.err != nil {
+				s.ErrorContains(err, test.err.Error())
+			} else {
+				s.NoError(err)
+			}
+		})
+	}
+}
+
+func (s *UpdateTaskTestSuite) TestBuildChangeSet() {
+	tests := map[string]struct {
+		manifestFile    string
+		updates         []ChangeSet
+		manifestVersion string
+		currentVersion  string
+		cqlFiles        []string
+		dirs            []string
+		cqlFileContent  string
+		err             error
+	}{
+		"error - readManifest": {
+			manifestFile: "wrong_manifest.json",
+			dirs:         []string{"v0.4"},
+			err:          errors.New("no such file or directory"),
+		},
+		"error - squash version - manifest current version different from dir version": {
+			manifestFile:    manifestFileName,
+			dirs:            []string{"s0.3-0.4", "v0.4"},
+			currentVersion:  "0.3",
+			manifestVersion: "0.3",
+			cqlFiles:        []string{"base.cql"},
+			err:             errors.New("manifest version doesn't match with dirname, dir=s0.3-0.4,manifest.version=0.3"),
+		},
+		"error - manifest current version different from dir version": {
+			manifestFile:    manifestFileName,
+			dirs:            []string{"v0.4"},
+			currentVersion:  "0.3",
+			manifestVersion: "0.3",
+			cqlFiles:        []string{"base.cql"},
+			err:             errors.New("manifest version doesn't match with dirname, dir=v0.4,manifest.version=0.3"),
+		},
+		"error - parseSQLStmts": {
+			manifestFile:    manifestFileName,
+			dirs:            []string{"v0.4"},
+			currentVersion:  "0.3",
+			manifestVersion: "0.4",
+			cqlFiles:        []string{"base.cql", "wrong.cql"},
+			err:             errors.New("error opening file v0.4/wrong.cql, err=open v0.4/wrong.cql: no such file or directory"),
+		},
+		"error - validateCQLStmts": {
+			manifestFile:    manifestFileName,
+			dirs:            []string{"v0.4"},
+			currentVersion:  "0.3",
+			manifestVersion: "0.4",
+			cqlFiles:        []string{"base.cql"},
+			cqlFileContent:  "WRONG CQL STATEMENT;",
+			err:             errors.New("error processing version v0.4:CQL prefix not in whitelist, stmt=WRONG CQL STATEMENT;"),
+		},
+		"success": {
+			manifestFile:    manifestFileName,
+			dirs:            []string{"v0.4"},
+			currentVersion:  "0.3",
+			manifestVersion: "0.4",
+			cqlFiles:        []string{"base.cql"},
+			cqlFileContent:  "CREATE TABLE;",
+		},
+	}
+
+	for name, test := range tests {
+		s.Run(name, func() {
+			mockSchemaClient := NewMockSchemaClient(gomock.NewController(s.T()))
+
+			dir := s.T().TempDir()
+			for _, subDir := range test.dirs {
+				s.NoError(os.Mkdir(filepath.Join(dir, subDir), os.FileMode(0755)))
+				manifestFile := filepath.Join(dir, subDir, test.manifestFile)
+				m := manifest{
+					CurrVersion:          test.manifestVersion,
+					MinCompatibleVersion: test.manifestVersion,
+					SchemaUpdateCqlFiles: test.cqlFiles,
+				}
+				j, err := json.Marshal(m)
+				s.NoError(err)
+				s.NoError(os.WriteFile(manifestFile, j, os.FileMode(0644)))
+				cqlFile := filepath.Join(dir, subDir, "base.cql")
+				s.NoError(os.WriteFile(cqlFile, []byte(test.cqlFileContent), os.FileMode(0644)))
+			}
+
+			cfg := &UpdateConfig{
+				SchemaFS:      os.DirFS(dir),
+				TargetVersion: "0.4",
+			}
+
+			updateSchemaTask := NewUpdateSchemaTask(mockSchemaClient, cfg)
+
+			cs, err := updateSchemaTask.BuildChangeSet(test.currentVersion)
+
+			if test.err != nil {
+				s.Nil(cs)
+				s.ErrorContains(err, test.err.Error())
+			} else {
+				s.NoError(err)
+				s.NotNil(cs)
+			}
+		})
+	}
+}
+
+func (s *UpdateTaskTestSuite) Test_parseSQLStmts() {
+	subDir := "v0.4"
+
+	tests := map[string]struct {
+		content  string
+		cqlFiles []string
+		stmts    []string
+		err      error
+	}{
+		"success": {
+			stmts:    []string{"CREATE TABLE;", "CREATE TABLE;"},
+			cqlFiles: []string{"base.cql"},
+			content:  "CREATE TABLE;\n\nCREATE TABLE;\n",
+		},
+		"error - failed to open file": {
+			cqlFiles: []string{"wrong.cql"},
+			err:      errors.New("error opening file"),
+		},
+		"error - no updates": {
+			cqlFiles: []string{"base.cql"},
+			content:  "",
+			err:      fmt.Errorf("found 0 updates in dir %v", subDir),
+		},
+	}
+
+	for name, test := range tests {
+		s.Run(name, func() {
+			mockSchemaClient := NewMockSchemaClient(gomock.NewController(s.T()))
+
+			dir := s.T().TempDir()
+
+			cfg := &UpdateConfig{
+				SchemaFS: os.DirFS(dir),
+			}
+
+			s.NoError(os.Mkdir(filepath.Join(dir, subDir), os.FileMode(0755)))
+
+			cqlFile := filepath.Join(dir, subDir, "base.cql")
+			s.NoError(os.WriteFile(cqlFile, []byte(test.content), os.FileMode(0644)))
+
+			updateSchemaTask := NewUpdateSchemaTask(mockSchemaClient, cfg)
+
+			m := &manifest{
+				SchemaUpdateCqlFiles: test.cqlFiles,
+			}
+
+			stmts, err := updateSchemaTask.parseSQLStmts(subDir, m)
+
+			if test.err != nil {
+				s.Nil(stmts)
+				s.ErrorContains(err, test.err.Error())
+			} else {
+				s.NoError(err)
+				s.Equal(test.stmts, stmts)
+			}
+		})
+	}
+}
+
+func (s *UpdateTaskTestSuite) Test_readManifest() {
+	tests := map[string]struct {
+		subDir        string
+		manifestFile  string
+		invalidSubDir bool
+		cqlFiles      []string
+		err           error
+	}{
+		"error - invalid sub directory name": {
+			subDir:        string([]byte{0xff, 0xfe, 0xfd, 0xfc}),
+			manifestFile:  manifestFileName,
+			invalidSubDir: true,
+			err:           errors.New("invalid name"),
+		},
+		"error - manifest.json file not found": {
+			subDir:       "v0.4",
+			manifestFile: "wrong_manifest.json",
+			err:          errors.New("no such file or directory"),
+		},
+		"error - manifest missing SchemaUpdateCqlFiles": {
+			subDir:       "v0.4",
+			manifestFile: manifestFileName,
+			err:          fmt.Errorf("manifest missing SchemaUpdateCqlFiles"),
+		},
+		"success": {
+			subDir:       "v0.4",
+			manifestFile: manifestFileName,
+			cqlFiles:     []string{"base.cql"},
+		},
+	}
+
+	for name, test := range tests {
+		s.Run(name, func() {
+			dir := s.T().TempDir()
+
+			var m manifest
+
+			if !test.invalidSubDir {
+				subDir := test.subDir
+
+				s.NoError(os.Mkdir(filepath.Join(dir, subDir), os.FileMode(0755)))
+				manifestFile := filepath.Join(dir, subDir, test.manifestFile)
+				m = manifest{
+					CurrVersion:          "0.4",
+					MinCompatibleVersion: "0.4",
+					Description:          "base version of schema",
+					SchemaUpdateCqlFiles: test.cqlFiles,
+				}
+
+				j, err := json.Marshal(m)
+				s.NoError(err)
+				s.NoError(os.WriteFile(manifestFile, j, os.FileMode(0644)))
+			}
+
+			m2, err := readManifest(os.DirFS(dir), test.subDir)
+
+			if test.err != nil {
+				s.Nil(m2)
+				s.ErrorContains(err, test.err.Error())
+			} else {
+				s.NoError(err)
+				s.Equal(m.CurrVersion, m2.CurrVersion)
+				s.Equal(m.MinCompatibleVersion, m2.MinCompatibleVersion)
+				s.Equal(m.Description, m2.Description)
+				s.Equal(m.SchemaUpdateCqlFiles, m2.SchemaUpdateCqlFiles)
+				s.Empty(m.md5)
+				s.NotEmpty(m2.md5)
+			}
+		})
+	}
+}
+
+func (s *UpdateTaskTestSuite) Test_readSchemaDir_ErrorGettingSubDirs() {
+	ret, err := readSchemaDir(os.DirFS("testdata"), "0.4", "10.2")
+	s.Error(err)
+	s.ErrorContains(err, "no such file or directory")
+	s.Nil(ret)
 }
 
 func (s *UpdateTaskTestSuite) runReadManifestTest(dir, input, currVer, minVer, desc string,

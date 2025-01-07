@@ -35,12 +35,12 @@ import (
 )
 
 func (g ThriftHandler) AddActivityTask(ctx context.Context, AddRequest *matching.AddActivityTaskRequest) (err error) {
-	err = g.h.AddActivityTask(ctx, thrift.ToMatchingAddActivityTaskRequest(AddRequest))
+	_, err = g.h.AddActivityTask(ctx, thrift.ToMatchingAddActivityTaskRequest(AddRequest))
 	return thrift.FromError(err)
 }
 
 func (g ThriftHandler) AddDecisionTask(ctx context.Context, AddRequest *matching.AddDecisionTaskRequest) (err error) {
-	err = g.h.AddDecisionTask(ctx, thrift.ToMatchingAddDecisionTaskRequest(AddRequest))
+	_, err = g.h.AddDecisionTask(ctx, thrift.ToMatchingAddDecisionTaskRequest(AddRequest))
 	return thrift.FromError(err)
 }
 

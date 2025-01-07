@@ -149,7 +149,7 @@ func (s *PinotIntegrationSuite) SetupSuite() {
 		Broker:      "localhost:8099",
 		Table:       tableName,
 		ServiceName: "",
-		Migration: config.PinotMigration{
+		Migration: config.VisibilityMigration{
 			Enabled: true,
 		},
 	}

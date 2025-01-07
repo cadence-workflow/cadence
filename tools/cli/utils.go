@@ -29,7 +29,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"reflect"
 	"regexp"
@@ -41,7 +40,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 	"github.com/valyala/fastjson"
 
 	"github.com/uber/cadence/client/frontend"
@@ -480,14 +479,14 @@ func getCurrentUserFromEnv() string {
 	return "unknown"
 }
 
-func prettyPrintJSONObject(o interface{}) {
+func prettyPrintJSONObject(writer io.Writer, o interface{}) {
 	b, err := json.MarshalIndent(o, "", "  ")
 	if err != nil {
-		fmt.Printf("Error when try to print pretty: %v\n", err)
-		fmt.Println(o)
+		writer.Write([]byte(fmt.Sprintf("Error when try to print pretty: %v\n", err)))
+		writer.Write([]byte(fmt.Sprintf("%+v\n", o)))
 	}
-	os.Stdout.Write(b)
-	fmt.Println()
+	writer.Write(b)
+	writer.Write([]byte("\n"))
 }
 
 func mapKeysToArray(m map[string]string) []string {
@@ -506,73 +505,59 @@ func intSliceToSet(s []int) map[int]struct{} {
 	return ret
 }
 
-func printMessage(msg string) {
-	fmt.Printf("%s %s\n", "cadence:", msg)
+func printMessage(output io.Writer, msg string) {
+	output.Write([]byte(fmt.Sprintf("%s %s\n", "cadence:", msg)))
 }
 
-func printError(msg string, err error) {
+func printError(output io.Writer, msg string, err error) {
 	if err != nil {
-		fmt.Printf("%s %s\n%s %+v\n", colorRed("Error:"), msg, colorMagenta("Error Details:"), err)
+		output.Write([]byte(fmt.Sprintf("%s %s\n%s %+v\n", colorRed("Error:"), msg, colorMagenta("Error Details:"), err)))
 		if os.Getenv(showErrorStackEnv) != `` {
 			fmt.Printf("Stack trace:\n")
 			debug.PrintStack()
 		} else {
-			fmt.Printf("('export %s=1' to see stack traces)\n", showErrorStackEnv)
+			output.Write([]byte(fmt.Sprintf("('export %s=1' to see stack traces)\n", showErrorStackEnv)))
 		}
 	} else {
-		fmt.Printf("%s %s\n", colorRed("Error:"), msg)
+		output.Write([]byte(fmt.Sprintf("%s %s\n", colorRed("Error:"), msg)))
 	}
 }
 
-// ErrorAndExit print easy to understand error msg first then error detail in a new line
-func ErrorAndExit(msg string, err error) {
-	printError(msg, err)
-	osExit(1)
+func getWorkflowClient(c *cli.Context) (frontend.Client, error) {
+	return getDeps(c).ServerFrontendClient(c)
 }
 
-func getWorkflowClient(c *cli.Context) frontend.Client {
-	return cFactory.ServerFrontendClient(c)
-}
-
-func getRequiredOption(c *cli.Context, optionName string) string {
+func getRequiredOption(c *cli.Context, optionName string) (string, error) {
 	value := c.String(optionName)
 	if len(value) == 0 {
-		ErrorAndExit(fmt.Sprintf("Option %s is required", optionName), nil)
+		return "", fmt.Errorf("option %s is required", optionName)
 	}
-	return value
+	return value, nil
 }
 
-func getRequiredInt64Option(c *cli.Context, optionName string) int64 {
+func getRequiredInt64Option(c *cli.Context, optionName string) (int64, error) {
 	if !c.IsSet(optionName) {
-		ErrorAndExit(fmt.Sprintf("Option %s is required", optionName), nil)
+		return 0, fmt.Errorf("option %s is required", optionName)
 	}
-	return c.Int64(optionName)
+	return c.Int64(optionName), nil
 }
 
-func getRequiredIntOption(c *cli.Context, optionName string) int {
+func getRequiredIntOption(c *cli.Context, optionName string) (int, error) {
 	if !c.IsSet(optionName) {
-		ErrorAndExit(fmt.Sprintf("Option %s is required", optionName), nil)
+		return 0, fmt.Errorf("option %s is required", optionName)
 	}
-	return c.Int(optionName)
-}
-
-func getRequiredGlobalOption(c *cli.Context, optionName string) string {
-	value := c.GlobalString(optionName)
-	if len(value) == 0 {
-		ErrorAndExit(fmt.Sprintf("Global option %s is required", optionName), nil)
-	}
-	return value
+	return c.Int(optionName), nil
 }
 
 func timestampPtrToStringPtr(unixNanoPtr *int64, onlyTime bool) *string {
 	if unixNanoPtr == nil {
 		return nil
 	}
-	return common.StringPtr(convertTime(*unixNanoPtr, onlyTime))
+	return common.StringPtr(timestampToString(*unixNanoPtr, onlyTime))
 }
 
-func convertTime(unixNano int64, onlyTime bool) string {
-	t := time.Unix(0, unixNano)
+func timestampToString(unixNano int64, onlyTime bool) string {
+	t := time.Unix(0, unixNano).UTC()
 	var result string
 	if onlyTime {
 		result = t.Format(defaultTimeFormat)
@@ -582,30 +567,30 @@ func convertTime(unixNano int64, onlyTime bool) string {
 	return result
 }
 
-func parseTime(timeStr string, defaultValue int64) int64 {
+func parseTime(timeStr string, defaultValue int64) (int64, error) {
 	if len(timeStr) == 0 {
-		return defaultValue
+		return defaultValue, nil
 	}
 
 	// try to parse
 	parsedTime, err := time.Parse(defaultDateTimeFormat, timeStr)
 	if err == nil {
-		return parsedTime.UnixNano()
+		return parsedTime.UnixNano(), nil
 	}
 
 	// treat as raw time
 	resultValue, err := strconv.ParseInt(timeStr, 10, 64)
 	if err == nil {
-		return resultValue
+		return resultValue, nil
 	}
 
 	// treat as time range format
 	parsedTime, err = parseTimeRange(timeStr)
 	if err != nil {
-		ErrorAndExit(fmt.Sprintf("Cannot parse time '%s', use UTC format '2006-01-02T15:04:05Z', "+
-			"time range or raw UnixNano directly. See help for more details.", timeStr), err)
+		return 0, fmt.Errorf("Cannot parse time '%s', use UTC format '2006-01-02T15:04:05Z', "+
+			"time range or raw UnixNano directly. See help for more details: %v", timeStr, err)
 	}
-	return parsedTime.UnixNano()
+	return parsedTime.UnixNano(), nil
 }
 
 // parseTimeRange parses a given time duration string (in format X<time-duration>) and
@@ -727,7 +712,7 @@ func getHostName() string {
 	return hostName
 }
 
-func processJWTFlags(ctx context.Context, cliCtx *cli.Context) context.Context {
+func processJWTFlags(ctx context.Context, cliCtx *cli.Context) (context.Context, error) {
 	path := getJWTPrivateKey(cliCtx)
 	t := getJWT(cliCtx)
 	var token string
@@ -738,49 +723,69 @@ func processJWTFlags(ctx context.Context, cliCtx *cli.Context) context.Context {
 	} else if path != "" {
 		token, err = createJWT(path)
 		if err != nil {
-			ErrorAndExit("Error creating JWT token", err)
+			return nil, fmt.Errorf("error creating JWT token: %w", err)
 		}
 	}
 
-	return context.WithValue(ctx, CtxKeyJWT, token)
+	return context.WithValue(ctx, CtxKeyJWT, token), nil
 }
 
-func populateContextFromCLIContext(ctx context.Context, cliCtx *cli.Context) context.Context {
-	ctx = processJWTFlags(ctx, cliCtx)
-	return ctx
+func populateContextFromCLIContext(ctx context.Context, cliCtx *cli.Context) (context.Context, error) {
+	ctx, err := processJWTFlags(ctx, cliCtx)
+	if err != nil {
+		return nil, fmt.Errorf("error while populating context from CLI: %w", err)
+	}
+	return ctx, nil
 }
 
-func newContext(c *cli.Context) (context.Context, context.CancelFunc) {
+func newContext(c *cli.Context) (context.Context, context.CancelFunc, error) {
 	return newTimedContext(c, defaultContextTimeout)
 }
 
-func newContextForLongPoll(c *cli.Context) (context.Context, context.CancelFunc) {
+func newContextForLongPoll(c *cli.Context) (context.Context, context.CancelFunc, error) {
 	return newTimedContext(c, defaultContextTimeoutForLongPoll)
 }
 
-func newIndefiniteContext(c *cli.Context) (context.Context, context.CancelFunc) {
-	if c.GlobalIsSet(FlagContextTimeout) {
-		return newTimedContext(c, time.Duration(c.GlobalInt(FlagContextTimeout))*time.Second)
+func newIndefiniteContext(c *cli.Context) (context.Context, context.CancelFunc, error) {
+	if c.IsSet(FlagContextTimeout) {
+		ctx, cancel, err := newTimedContext(c, time.Duration(c.Int(FlagContextTimeout))*time.Second)
+		defer cancel()
+		if err != nil {
+			return nil, nil, fmt.Errorf("Error in new indifinite context: %w", err)
+		}
+		return ctx, cancel, nil
 	}
+	ctx, err := populateContextFromCLIContext(c.Context, c)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error in newIndefiniteContext: %w", err)
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
-	return context.WithCancel(populateContextFromCLIContext(context.Background(), c))
+	return ctx, cancel, nil
 }
 
-func newTimedContext(c *cli.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
-	if overrideTimeout := c.GlobalInt(FlagContextTimeout); overrideTimeout > 0 {
+func newTimedContext(c *cli.Context, timeout time.Duration) (context.Context, context.CancelFunc, error) {
+	if overrideTimeout := c.Int(FlagContextTimeout); overrideTimeout > 0 {
 		timeout = time.Duration(overrideTimeout) * time.Second
 	}
-	ctx := populateContextFromCLIContext(context.Background(), c)
-	return context.WithTimeout(ctx, timeout)
+
+	ctx, err := populateContextFromCLIContext(c.Context, c)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error populate context from CLI context: %w", err)
+	}
+	ctx, timeOut := context.WithTimeout(ctx, timeout)
+
+	return ctx, timeOut, nil
 }
 
 // process and validate input provided through cmd or file
-func processJSONInput(c *cli.Context) string {
+func processJSONInput(c *cli.Context) (string, error) {
 	return processJSONInputHelper(c, jsonTypeInput)
 }
 
 // process and validate json
-func processJSONInputHelper(c *cli.Context, jType jsonType) string {
+func processJSONInputHelper(c *cli.Context, jType jsonType) (string, error) {
 	var flagNameOfRawInput string
 	var flagNameOfInputFileName string
 
@@ -798,7 +803,7 @@ func processJSONInputHelper(c *cli.Context, jType jsonType) string {
 		flagNameOfRawInput = FlagSignalInput
 		flagNameOfInputFileName = FlagSignalInputFile
 	default:
-		return ""
+		return "", nil
 	}
 
 	var input string
@@ -808,18 +813,18 @@ func processJSONInputHelper(c *cli.Context, jType jsonType) string {
 		inputFile := c.String(flagNameOfInputFileName)
 		// This method is purely used to parse input from the CLI. The input comes from a trusted user
 		// #nosec
-		data, err := ioutil.ReadFile(inputFile)
+		data, err := os.ReadFile(inputFile)
 		if err != nil {
-			ErrorAndExit("Error reading input file", err)
+			return "", fmt.Errorf("error reading input file: %w", err)
 		}
 		input = string(data)
 	}
 	if input != "" {
 		if err := validateJSONs(input); err != nil {
-			ErrorAndExit("Input is not valid JSON, or JSONs concatenated with spaces/newlines.", err)
+			return "", fmt.Errorf("input is not valid JSON: %w", err)
 		}
 	}
-	return input
+	return input, nil
 }
 
 func processMultipleKeys(rawKey, separator string) []string {
@@ -830,7 +835,7 @@ func processMultipleKeys(rawKey, separator string) []string {
 	return keys
 }
 
-func processMultipleJSONValues(rawValue string) []string {
+func processMultipleJSONValues(rawValue string) ([]string, error) {
 	var values []string
 	var sc fastjson.Scanner
 	sc.Init(rawValue)
@@ -838,9 +843,9 @@ func processMultipleJSONValues(rawValue string) []string {
 		values = append(values, sc.Value().String())
 	}
 	if err := sc.Error(); err != nil {
-		ErrorAndExit("Parse json error.", err)
+		return nil, fmt.Errorf("parse json error: %w", err)
 	}
-	return values
+	return values, nil
 }
 
 func mapFromKeysValues(keys, values []string) map[string][]byte {
@@ -942,16 +947,16 @@ func truncate(str string) string {
 
 // this only works for ANSI terminal, which means remove existing lines won't work if users redirect to file
 // ref: https://en.wikipedia.org/wiki/ANSI_escape_code
-func removePrevious2LinesFromTerminal() {
-	fmt.Printf("\033[1A")
-	fmt.Printf("\033[2K")
-	fmt.Printf("\033[1A")
-	fmt.Printf("\033[2K")
+func removePrevious2LinesFromTerminal(output io.Writer) {
+	output.Write([]byte("\033[1A"))
+	output.Write([]byte("\033[2K"))
+	output.Write([]byte("\033[1A"))
+	output.Write([]byte("\033[2K"))
 }
 
-func showNextPage() bool {
-	fmt.Printf("Press %s to show next page, press %s to quit: ",
-		color.GreenString("Enter"), color.RedString("any other key then Enter"))
+func showNextPage(output io.Writer) bool {
+	output.Write([]byte(fmt.Sprintf("Press %s to show next page, press %s to quit: ",
+		color.GreenString("Enter"), color.RedString("any other key then Enter"))))
 	var input string
 	fmt.Scanln(&input)
 	return strings.Trim(input, " ") == ""
@@ -967,25 +972,25 @@ func prompt(msg string) {
 		os.Exit(0)
 	}
 }
-func getInputFile(inputFile string) *os.File {
+func getInputFile(inputFile string) (*os.File, error) {
 	if len(inputFile) == 0 {
 		info, err := os.Stdin.Stat()
 		if err != nil {
-			ErrorAndExit("Failed to stat stdin file handle", err)
+			return nil, fmt.Errorf("failed to stat stdin file handle: %w", err)
 		}
 		if info.Mode()&os.ModeCharDevice != 0 || info.Size() <= 0 {
 			fmt.Fprintln(os.Stderr, "Provide a filename or pass data to STDIN")
 			os.Exit(1)
 		}
-		return os.Stdin
+		return os.Stdin, nil
 	}
 	// This code is executed from the CLI. All user input is from a CLI user.
 	// #nosec
 	f, err := os.Open(inputFile)
 	if err != nil {
-		ErrorAndExit(fmt.Sprintf("Failed to open input file for reading: %v", inputFile), err)
+		return nil, fmt.Errorf("failed to open input file for reading: %v: %w", inputFile, err)
 	}
-	return f
+	return f, nil
 }
 
 // createJWT defines the logic to create a JWT
@@ -1016,7 +1021,7 @@ func getWorkflowMemo(input map[string]interface{}) (*types.Memo, error) {
 	for k, v := range input {
 		memoBytes, err := json.Marshal(v)
 		if err != nil {
-			return nil, fmt.Errorf("encode workflow memo error: %v", err.Error())
+			return nil, fmt.Errorf("encode workflow memo error: %w", err)
 		}
 		memo[k] = memoBytes
 	}

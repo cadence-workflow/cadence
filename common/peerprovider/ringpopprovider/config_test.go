@@ -118,6 +118,7 @@ func (s *RingpopSuite) TestDNSMode() {
 	s.Nil(err)
 	s.Equal("test", cfg.Name)
 	s.Equal(BootstrapModeDNS, cfg.BootstrapMode)
+	s.Equal("10.66.1.71", cfg.BroadcastAddress)
 	s.Nil(cfg.validate())
 	logger := testlogger.New(s.T())
 
@@ -297,6 +298,7 @@ maxJoinDuration: 30s`
 func getDNSConfig() string {
 	return `name: "test"
 bootstrapMode: "dns"
+broadcastAddress: "10.66.1.71"
 bootstrapHosts:
 - example.net:1111
 - example.net:1112

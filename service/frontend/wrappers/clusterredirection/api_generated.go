@@ -157,6 +157,10 @@ func (handler *clusterRedirectionHandler) DescribeWorkflowExecution(ctx context.
 	return dp2, err
 }
 
+func (handler *clusterRedirectionHandler) DiagnoseWorkflowExecution(ctx context.Context, dp1 *types.DiagnoseWorkflowExecutionRequest) (dp2 *types.DiagnoseWorkflowExecutionResponse, err error) {
+	return handler.frontendHandler.DiagnoseWorkflowExecution(ctx, dp1)
+}
+
 func (handler *clusterRedirectionHandler) GetClusterInfo(ctx context.Context) (cp1 *types.ClusterInfo, err error) {
 	return handler.frontendHandler.GetClusterInfo(ctx)
 }

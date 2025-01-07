@@ -67,11 +67,8 @@ func NewService(
 		),
 		params.PersistenceConfig.NumHistoryShards,
 		params.RPCFactory.GetMaxMessageSize(),
-		params.PersistenceConfig.DefaultStoreType(),
 		params.PersistenceConfig.IsAdvancedVisibilityConfigExist(),
 		params.HostName)
-
-	params.PersistenceConfig.HistoryMaxConns = serviceConfig.HistoryMgrNumConns()
 
 	serviceResource, err := resource.New(
 		params,
@@ -111,6 +108,8 @@ func (s *Service) Start() {
 		DomainCache:                    s.Resource.GetDomainCache(),
 		Logger:                         s.Resource.GetLogger(),
 		MetricsClient:                  s.Resource.GetMetricsClient(),
+		RatelimitExternalPerWorkflowID: s.config.WorkflowIDCacheExternalEnabled,
+		RatelimitInternalPerWorkflowID: s.config.WorkflowIDCacheInternalEnabled,
 	})
 
 	rawHandler := handler.NewHandler(s.Resource, s.config, wfIDCache, s.config.WorkflowIDInternalRateLimitEnabled)

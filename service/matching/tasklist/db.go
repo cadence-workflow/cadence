@@ -32,16 +32,18 @@ import (
 
 type (
 	taskListDB struct {
-		sync.Mutex
-		domainID     string
-		domainName   string
-		taskListName string
-		taskListKind int
-		taskType     int
-		rangeID      int64
-		backlogCount int64
-		store        persistence.TaskManager
-		logger       log.Logger
+		sync.RWMutex
+		domainID        string
+		domainName      string
+		taskListName    string
+		taskListKind    int
+		taskType        int
+		rangeID         int64
+		backlogCount    int64
+		ackLevel        int64
+		partitionConfig *persistence.TaskListPartitionConfig
+		store           persistence.TaskManager
+		logger          log.Logger
 	}
 	taskListState struct {
 		rangeID  int64
@@ -73,14 +75,20 @@ func newTaskListDB(store persistence.TaskManager, domainID string, domainName st
 
 // RangeID returns the current persistence view of rangeID
 func (db *taskListDB) RangeID() int64 {
-	db.Lock()
-	defer db.Unlock()
+	db.RLock()
+	defer db.RUnlock()
 	return db.rangeID
 }
 
 // BacklogCount returns the current backlog size
 func (db *taskListDB) BacklogCount() int64 {
 	return atomic.LoadInt64(&db.backlogCount)
+}
+
+func (db *taskListDB) PartitionConfig() *persistence.TaskListPartitionConfig {
+	db.RLock()
+	defer db.RUnlock()
+	return db.partitionConfig
 }
 
 // RenewLease renews the lease on a tasklist. If there is no previous lease,
@@ -100,6 +108,8 @@ func (db *taskListDB) RenewLease() (taskListState, error) {
 		return taskListState{}, err
 	}
 	db.rangeID = resp.TaskListInfo.RangeID
+	db.ackLevel = resp.TaskListInfo.AckLevel
+	db.partitionConfig = resp.TaskListInfo.AdaptivePartitionConfig
 	return taskListState{rangeID: db.rangeID, ackLevel: resp.TaskListInfo.AckLevel}, nil
 }
 
@@ -109,16 +119,43 @@ func (db *taskListDB) UpdateState(ackLevel int64) error {
 	defer db.Unlock()
 	_, err := db.store.UpdateTaskList(context.Background(), &persistence.UpdateTaskListRequest{
 		TaskListInfo: &persistence.TaskListInfo{
-			DomainID: db.domainID,
-			Name:     db.taskListName,
-			TaskType: db.taskType,
-			AckLevel: ackLevel,
-			RangeID:  db.rangeID,
-			Kind:     db.taskListKind,
+			DomainID:                db.domainID,
+			Name:                    db.taskListName,
+			TaskType:                db.taskType,
+			AckLevel:                ackLevel,
+			RangeID:                 db.rangeID,
+			Kind:                    db.taskListKind,
+			AdaptivePartitionConfig: db.partitionConfig,
 		},
 		DomainName: db.domainName,
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	db.ackLevel = ackLevel
+	return nil
+}
+
+func (db *taskListDB) UpdateTaskListPartitionConfig(partitionConfig *persistence.TaskListPartitionConfig) error {
+	db.Lock()
+	defer db.Unlock()
+	_, err := db.store.UpdateTaskList(context.Background(), &persistence.UpdateTaskListRequest{
+		TaskListInfo: &persistence.TaskListInfo{
+			DomainID:                db.domainID,
+			Name:                    db.taskListName,
+			TaskType:                db.taskType,
+			AckLevel:                db.ackLevel,
+			RangeID:                 db.rangeID,
+			Kind:                    db.taskListKind,
+			AdaptivePartitionConfig: partitionConfig,
+		},
+		DomainName: db.domainName,
+	})
+	if err != nil {
+		return err
+	}
+	db.partitionConfig = partitionConfig
+	return nil
 }
 
 // CreateTasks creates a batch of given tasks for this task list
@@ -148,28 +185,6 @@ func (db *taskListDB) GetTasks(minTaskID int64, maxTaskID int64, batchSize int) 
 		MaxReadLevel: &maxTaskID, // inclusive
 		DomainName:   db.domainName,
 	})
-}
-
-// CompleteTask deletes a single task from this task list
-func (db *taskListDB) CompleteTask(taskID int64) error {
-	err := db.store.CompleteTask(context.Background(), &persistence.CompleteTaskRequest{
-		TaskList: &persistence.TaskListInfo{
-			DomainID: db.domainID,
-			Name:     db.taskListName,
-			TaskType: db.taskType,
-		},
-		TaskID:     taskID,
-		DomainName: db.domainName,
-	})
-	if err != nil {
-		db.logger.Error("Persistent store operation failure",
-			tag.StoreOperationCompleteTask,
-			tag.Error(err),
-			tag.TaskID(taskID),
-			tag.TaskType(db.taskType),
-			tag.WorkflowTaskListName(db.taskListName))
-	}
-	return err
 }
 
 // CompleteTasksLessThan deletes of tasks less than the given taskID. Limit is
@@ -210,4 +225,17 @@ func (db *taskListDB) GetTaskListSize(ackLevel int64) (int64, error) {
 	}
 	atomic.StoreInt64(&db.backlogCount, resp.Size)
 	return resp.Size, nil
+}
+
+func (db *taskListDB) GetTaskListInfo(taskListName string) (*persistence.TaskListInfo, error) {
+	resp, err := db.store.GetTaskList(context.Background(), &persistence.GetTaskListRequest{
+		DomainID:   db.domainID,
+		DomainName: db.domainName,
+		TaskList:   taskListName,
+		TaskType:   db.taskType,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return resp.TaskListInfo, nil
 }

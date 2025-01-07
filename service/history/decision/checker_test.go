@@ -806,7 +806,7 @@ func TestWorkflowSizeChecker_failWorkflowIfBlobSizeExceedsLimit(t *testing.T) {
 			assertLogsAndMetrics: func(t *testing.T, logs *observer.ObservedLogs, scope tally.TestScope) {
 				logEntries := logs.All()
 				require.Len(t, logEntries, 1)
-				assert.Equal(t, "Blob size exceeds limit.", logEntries[0].Message)
+				assert.Equal(t, "Blob size close to the limit.", logEntries[0].Message)
 			},
 		},
 		"fail": {

@@ -235,6 +235,16 @@ func TestDescribeWorkflowExecutionResponse(t *testing.T) {
 		assert.Equal(t, item, ToDescribeWorkflowExecutionResponse(FromDescribeWorkflowExecutionResponse(item)))
 	}
 }
+func TestDiagnoseWorkflowExecutionRequest(t *testing.T) {
+	for _, item := range []*types.DiagnoseWorkflowExecutionRequest{nil, {}, &testdata.DiagnoseWorkflowExecutionRequest} {
+		assert.Equal(t, item, ToDiagnoseWorkflowExecutionRequest(FromDiagnoseWorkflowExecutionRequest(item)))
+	}
+}
+func TestDiagnoseWorkflowExecutionResponse(t *testing.T) {
+	for _, item := range []*types.DiagnoseWorkflowExecutionResponse{nil, {}, &testdata.DiagnoseWorkflowExecutionResponse} {
+		assert.Equal(t, item, ToDiagnoseWorkflowExecutionResponse(FromDiagnoseWorkflowExecutionResponse(item)))
+	}
+}
 func TestExternalWorkflowExecutionCancelRequestedEventAttributes(t *testing.T) {
 	for _, item := range []*types.ExternalWorkflowExecutionCancelRequestedEventAttributes{nil, {}, &testdata.ExternalWorkflowExecutionCancelRequestedEventAttributes} {
 		assert.Equal(t, item, ToExternalWorkflowExecutionCancelRequestedEventAttributes(FromExternalWorkflowExecutionCancelRequestedEventAttributes(item)))
@@ -1071,5 +1081,11 @@ func TestFailoverInfo(t *testing.T) {
 func TestDescribeTaskListResponseMap(t *testing.T) {
 	for _, item := range []map[string]*types.DescribeTaskListResponse{nil, {}, testdata.DescribeTaskListResponseMap} {
 		assert.Equal(t, item, ToDescribeTaskListResponseMap(FromDescribeTaskListResponseMap(item)))
+	}
+}
+
+func TestAPITaskListPartitionConfig(t *testing.T) {
+	for _, item := range []*types.TaskListPartitionConfig{nil, {}, &testdata.TaskListPartitionConfig} {
+		assert.Equal(t, item, ToAPITaskListPartitionConfig(FromAPITaskListPartitionConfig(item)))
 	}
 }

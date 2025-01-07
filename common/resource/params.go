@@ -43,30 +43,35 @@ import (
 	"github.com/uber/cadence/common/messaging"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/partition"
+	persistenceClient "github.com/uber/cadence/common/persistence/client"
 	"github.com/uber/cadence/common/pinot"
+	"github.com/uber/cadence/common/rpc"
+	"github.com/uber/cadence/common/service"
 )
 
 type (
 	// Params holds the set of parameters needed to initialize common service resources
 	Params struct {
-		Name            string
-		InstanceID      string
-		Logger          log.Logger
-		ThrottledLogger log.Logger
-		HostName        string
+		Name               string
+		InstanceID         string
+		Logger             log.Logger
+		ThrottledLogger    log.Logger
+		HostName           string
+		GetIsolationGroups func() []string
 
-		MetricScope                tally.Scope
-		MembershipResolver         membership.Resolver
-		RPCFactory                 common.RPCFactory
-		PProfInitializer           common.PProfInitializer
-		PersistenceConfig          config.Persistence
-		ClusterMetadata            cluster.Metadata
-		ReplicatorConfig           config.Replicator
-		MetricsClient              metrics.Client
-		MessagingClient            messaging.Client
-		BlobstoreClient            blobstore.Client
-		ESClient                   es.GenericClient
-		ESConfig                   *config.ElasticSearchConfig
+		MetricScope        tally.Scope
+		MembershipResolver membership.Resolver
+		RPCFactory         rpc.Factory
+		PProfInitializer   common.PProfInitializer
+		PersistenceConfig  config.Persistence
+		ClusterMetadata    cluster.Metadata
+		ReplicatorConfig   config.Replicator
+		MetricsClient      metrics.Client
+		MessagingClient    messaging.Client
+		BlobstoreClient    blobstore.Client
+		ESClient           es.GenericClient
+		ESConfig           *config.ElasticSearchConfig
+
 		DynamicConfig              dynamicconfig.Client
 		ClusterRedirectionPolicy   *config.ClusterRedirectionPolicy
 		PublicClient               workflowserviceclient.Interface
@@ -78,10 +83,15 @@ type (
 		IsolationGroupState        isolationgroup.State     // This can be nil, the default state store will be chosen if so
 		Partitioner                partition.Partitioner
 		PinotConfig                *config.PinotVisibilityConfig
+		KafkaConfig                config.KafkaConfig
 		PinotClient                pinot.GenericClient
+		OSClient                   es.GenericClient
+		OSConfig                   *config.ElasticSearchConfig
 		AsyncWorkflowQueueProvider queue.Provider
 		TimeSource                 clock.TimeSource
 		// HistoryClientFn is used by integration tests to mock a history client
 		HistoryClientFn func() history.Client
+		// NewPersistenceBeanFn can be used to override the default persistence bean creation in unit tests to avoid DB setup
+		NewPersistenceBeanFn func(persistenceClient.Factory, *persistenceClient.Params, *service.Config) (persistenceClient.Bean, error)
 	}
 )

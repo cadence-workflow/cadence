@@ -66,6 +66,8 @@ const (
 	DefaultAttemptsOnRetryableError = 50
 	// DefaultActivityHeartBeatTimeout is the default value for ActivityHeartBeatTimeout
 	DefaultActivityHeartBeatTimeout = time.Second * 10
+	// DefaultMaxActivityRetries is the default value for MaxActivityRetries
+	DefaultMaxActivityRetries = 4
 )
 
 const (
@@ -82,94 +84,8 @@ const (
 // AllBatchTypes is the batch types we supported
 var AllBatchTypes = []string{BatchTypeTerminate, BatchTypeCancel, BatchTypeSignal, BatchTypeReplicate}
 
-type (
-	// TerminateParams is the parameters for terminating workflow
-	TerminateParams struct {
-		// this indicates whether to terminate children workflow. Default to true.
-		// TODO https://github.com/uber/cadence/issues/2159
-		// Ideally default should be childPolicy of the workflow. But it's currently totally broken.
-		TerminateChildren *bool
-	}
-
-	// CancelParams is the parameters for canceling workflow
-	CancelParams struct {
-		// this indicates whether to cancel children workflow. Default to true.
-		// TODO https://github.com/uber/cadence/issues/2159
-		// Ideally default should be childPolicy of the workflow. But it's currently totally broken.
-		CancelChildren *bool
-	}
-
-	// SignalParams is the parameters for signaling workflow
-	SignalParams struct {
-		SignalName string
-		Input      string
-	}
-
-	// ReplicateParams is the parameters for replicating workflow
-	ReplicateParams struct {
-		SourceCluster string
-		TargetCluster string
-	}
-
-	// BatchParams is the parameters for batch operation workflow
-	BatchParams struct {
-		// Target domain to execute batch operation
-		DomainName string
-		// To get the target workflows for processing
-		Query string
-		// Reason for the operation
-		Reason string
-		// Supporting: reset,terminate
-		BatchType string
-
-		// Below are all optional
-		// TerminateParams is params only for BatchTypeTerminate
-		TerminateParams TerminateParams
-		// CancelParams is params only for BatchTypeCancel
-		CancelParams CancelParams
-		// SignalParams is params only for BatchTypeSignal
-		SignalParams SignalParams
-		// ReplicateParams is params only for BatchTypeReplicate
-		ReplicateParams ReplicateParams
-		// RPS of processing. Default to DefaultRPS
-		// TODO we will implement smarter way than this static rate limiter: https://github.com/uber/cadence/issues/2138
-		RPS int
-		// Number of goroutines running in parallel to process
-		Concurrency int
-		// Number of workflows processed in a batch
-		PageSize int
-		// Number of attempts for each workflow to process in case of retryable error before giving up
-		AttemptsOnRetryableError int
-		// timeout for activity heartbeat
-		ActivityHeartBeatTimeout time.Duration
-		// errors that will not retry which consumes AttemptsOnRetryableError. Default to empty
-		NonRetryableErrors []string
-		// internal conversion for NonRetryableErrors
-		_nonRetryableErrors map[string]struct{}
-	}
-
-	// HeartBeatDetails is the struct for heartbeat details
-	HeartBeatDetails struct {
-		PageToken   []byte
-		CurrentPage int
-		// This is just an estimation for visibility
-		TotalEstimate int64
-		// Number of workflows processed successfully
-		SuccessCount int
-		// Number of workflows that give up due to errors.
-		ErrorCount int
-	}
-
-	taskDetail struct {
-		execution types.WorkflowExecution
-		attempts  int
-		// passing along the current heartbeat details to make heartbeat within a task so that it won't timeout
-		hbd HeartBeatDetails
-	}
-)
-
 var (
-	batchActivityRetryPolicy = cadence.RetryPolicy{
+	BatchActivityRetryPolicy = cadence.RetryPolicy{
 		InitialInterval:          10 * time.Second,
 		BackoffCoefficient:       1.7,
 		MaximumInterval:          5 * time.Minute,
@@ -180,7 +96,7 @@ var (
 	batchActivityOptions = workflow.ActivityOptions{
 		ScheduleToStartTimeout: 5 * time.Minute,
 		StartToCloseTimeout:    InfiniteDuration,
-		RetryPolicy:            &batchActivityRetryPolicy,
+		RetryPolicy:            &BatchActivityRetryPolicy,
 	}
 )
 
@@ -197,6 +113,7 @@ func BatchWorkflow(ctx workflow.Context, batchParams BatchParams) (HeartBeatDeta
 		return HeartBeatDetails{}, err
 	}
 	batchActivityOptions.HeartbeatTimeout = batchParams.ActivityHeartBeatTimeout
+	batchActivityOptions.RetryPolicy.MaximumAttempts = int32(batchParams.MaxActivityRetries)
 	opt := workflow.WithActivityOptions(ctx, batchActivityOptions)
 	var result HeartBeatDetails
 	err = workflow.ExecuteActivity(opt, batchActivityName, batchParams).Get(ctx, &result)
@@ -258,6 +175,9 @@ func setDefaultParams(params BatchParams) BatchParams {
 	if params.TerminateParams.TerminateChildren == nil {
 		params.TerminateParams.TerminateChildren = common.BoolPtr(true)
 	}
+	if params.MaxActivityRetries < 0 {
+		params.MaxActivityRetries = DefaultMaxActivityRetries
+	}
 	return params
 }
 
@@ -281,19 +201,9 @@ func BatchActivity(ctx context.Context, batchParams BatchParams) (HeartBeatDetai
 		return HeartBeatDetails{}, err
 	}
 	domainID := domainResp.GetDomainInfo().GetUUID()
-	hbd := HeartBeatDetails{}
-	startOver := true
-	if activity.HasHeartbeatDetails(ctx) {
-		if err := activity.GetHeartbeatDetails(ctx, &hbd); err == nil {
-			startOver = false
-		} else {
-			batcher := ctx.Value(batcherContextKey).(*Batcher)
-			batcher.metricsClient.IncCounter(metrics.BatcherScope, metrics.BatcherProcessorFailures)
-			getActivityLogger(ctx).Error("Failed to recover from last heartbeat, start over from beginning", tag.Error(err))
-		}
-	}
+	hbd, ok := getHeartBeatDetails(ctx)
 
-	if startOver {
+	if !ok {
 		resp, err := client.CountWorkflowExecutions(ctx, &types.CountWorkflowExecutionsRequest{
 			Domain: batchParams.DomainName,
 			Query:  batchParams.Query,
@@ -369,6 +279,20 @@ func BatchActivity(ctx context.Context, batchParams BatchParams) (HeartBeatDetai
 	}
 
 	return hbd, nil
+}
+
+func getHeartBeatDetails(ctx context.Context) (hbd HeartBeatDetails, ok bool) {
+	if activity.HasHeartbeatDetails(ctx) {
+		if err := activity.GetHeartbeatDetails(ctx, &hbd); err != nil {
+			batcher := ctx.Value(batcherContextKey).(*Batcher)
+			batcher.metricsClient.IncCounter(metrics.BatcherScope, metrics.BatcherProcessorFailures)
+			getActivityLogger(ctx).Error("Failed to recover from last heartbeat, start over from beginning", tag.Error(err))
+			return HeartBeatDetails{}, false
+		}
+		return hbd, true
+	}
+
+	return hbd, false
 }
 
 func startTaskProcessor(

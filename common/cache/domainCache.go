@@ -242,15 +242,21 @@ func NewDomainCacheEntryForTest(
 	repConfig *persistence.DomainReplicationConfig,
 	failoverVersion int64,
 	failoverEndtime *int64,
+	failoverNotificationVersion int64,
+	previousFailoverVersion int64,
+	notificationVersion int64,
 ) *DomainCacheEntry {
 
 	return &DomainCacheEntry{
-		info:              info,
-		config:            config,
-		isGlobalDomain:    isGlobalDomain,
-		replicationConfig: repConfig,
-		failoverVersion:   failoverVersion,
-		failoverEndTime:   failoverEndtime,
+		info:                        info,
+		config:                      config,
+		isGlobalDomain:              isGlobalDomain,
+		replicationConfig:           repConfig,
+		failoverVersion:             failoverVersion,
+		failoverEndTime:             failoverEndtime,
+		failoverNotificationVersion: failoverNotificationVersion,
+		previousFailoverVersion:     previousFailoverVersion,
+		notificationVersion:         notificationVersion,
 	}
 }
 

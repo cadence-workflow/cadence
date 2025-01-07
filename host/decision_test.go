@@ -103,7 +103,6 @@ func (s *IntegrationSuite) TestDecisionHeartbeatingWithEmptyResult() {
 		cancel()
 		if _, ok := err2.(*types.EntityNotExistsError); ok {
 			hbTimeout++
-			s.Nil(resp2)
 
 			ctx, cancel := createContext()
 			resp, err := s.engine.PollForDecisionTask(ctx, &types.PollForDecisionTaskRequest{

@@ -193,3 +193,7 @@ func (g adminClient) UpdateGlobalIsolationGroups(ctx context.Context, request *t
 	response, err := g.c.UpdateGlobalIsolationGroups(ctx, thrift.FromAdminUpdateGlobalIsolationGroupsRequest(request), opts...)
 	return thrift.ToAdminUpdateGlobalIsolationGroupsResponse(response), thrift.ToError(err)
 }
+
+func (g adminClient) UpdateTaskListPartitionConfig(ctx context.Context, request *types.UpdateTaskListPartitionConfigRequest, opts ...yarpc.CallOption) (up1 *types.UpdateTaskListPartitionConfigResponse, err error) {
+	return nil, thrift.ToError(&types.BadRequestError{Message: "Feature not supported on TChannel"})
+}

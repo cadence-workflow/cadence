@@ -24,6 +24,7 @@ package cli
 
 import (
 	"fmt"
+	"io"
 	"sort"
 	"strconv"
 	"strings"
@@ -90,18 +91,18 @@ func (h *Histogram) addMultiplier(multiplier int) {
 }
 
 // Print will output histogram with key and counter information.
-func (h *Histogram) Print(multiplier int) error {
+func (h *Histogram) Print(output io.Writer, multiplier int) error {
 	h.addMultiplier(multiplier)
 	sort.Sort(h)
 
 	keyLength := len(h.maxKey)
 	countLength := len(strconv.FormatInt(int64(h.maxCount), 10))
 
-	fmt.Printf("%-*s %*s\n", keyLength, "Bucket", countLength, "Count")
+	output.Write([]byte(fmt.Sprintf("%-*s %*s\n", keyLength, "Bucket", countLength, "Count")))
 
 	for _, c := range h.counters {
 		w := (defaultWidth - keyLength - countLength) * c.count / h.maxCount
-		fmt.Printf("%-*s %*d %s\n", keyLength, c.key, countLength, c.count, strings.Repeat(bar, w))
+		output.Write([]byte(fmt.Sprintf("%-*s %*d %s\n", keyLength, c.key, countLength, c.count, strings.Repeat(bar, w))))
 	}
 
 	return nil

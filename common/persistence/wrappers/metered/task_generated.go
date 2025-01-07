@@ -122,6 +122,17 @@ func (c *meteredTaskManager) GetOrphanTasks(ctx context.Context, request *persis
 	return
 }
 
+func (c *meteredTaskManager) GetTaskList(ctx context.Context, request *persistence.GetTaskListRequest) (gp1 *persistence.GetTaskListResponse, err error) {
+	op := func() error {
+		gp1, err = c.wrapped.GetTaskList(ctx, request)
+		c.emptyMetric("TaskManager.GetTaskList", request, gp1, err)
+		return err
+	}
+
+	err = c.call(metrics.PersistenceGetTaskListScope, op, getCustomMetricTags(request)...)
+	return
+}
+
 func (c *meteredTaskManager) GetTaskListSize(ctx context.Context, request *persistence.GetTaskListSizeRequest) (gp1 *persistence.GetTaskListSizeResponse, err error) {
 	op := func() error {
 		gp1, err = c.wrapped.GetTaskListSize(ctx, request)

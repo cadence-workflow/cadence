@@ -581,3 +581,18 @@ func (mr *MockHandlerMockRecorder) UpdateGlobalIsolationGroups(ctx, request inte
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateGlobalIsolationGroups", reflect.TypeOf((*MockHandler)(nil).UpdateGlobalIsolationGroups), ctx, request)
 }
+
+// UpdateTaskListPartitionConfig mocks base method.
+func (m *MockHandler) UpdateTaskListPartitionConfig(arg0 context.Context, arg1 *types.UpdateTaskListPartitionConfigRequest) (*types.UpdateTaskListPartitionConfigResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateTaskListPartitionConfig", arg0, arg1)
+	ret0, _ := ret[0].(*types.UpdateTaskListPartitionConfigResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateTaskListPartitionConfig indicates an expected call of UpdateTaskListPartitionConfig.
+func (mr *MockHandlerMockRecorder) UpdateTaskListPartitionConfig(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTaskListPartitionConfig", reflect.TypeOf((*MockHandler)(nil).UpdateTaskListPartitionConfig), arg0, arg1)
+}

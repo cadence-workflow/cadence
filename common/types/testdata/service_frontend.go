@@ -393,6 +393,14 @@ var (
 		PendingChildren:        PendingChildExecutionInfoArray,
 		PendingDecision:        &PendingDecisionInfo,
 	}
+	DiagnoseWorkflowExecutionRequest = types.DiagnoseWorkflowExecutionRequest{
+		Domain:            DomainName,
+		WorkflowExecution: &WorkflowExecution,
+	}
+	DiagnoseWorkflowExecutionResponse = types.DiagnoseWorkflowExecutionResponse{
+		Domain:                      DomainName,
+		DiagnosticWorkflowExecution: &WorkflowExecution,
+	}
 	QueryWorkflowRequest = types.QueryWorkflowRequest{
 		Domain:                DomainName,
 		Execution:             &WorkflowExecution,
@@ -411,8 +419,9 @@ var (
 		IncludeTaskListStatus: true,
 	}
 	DescribeTaskListResponse = types.DescribeTaskListResponse{
-		Pollers:        PollerInfoArray,
-		TaskListStatus: &TaskListStatus,
+		Pollers:         PollerInfoArray,
+		TaskListStatus:  &TaskListStatus,
+		PartitionConfig: &TaskListPartitionConfig,
 	}
 	ListTaskListPartitionsRequest = types.ListTaskListPartitionsRequest{
 		Domain:   DomainName,

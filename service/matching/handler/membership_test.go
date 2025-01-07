@@ -23,6 +23,7 @@
 package handler
 
 import (
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -32,12 +33,14 @@ import (
 	"github.com/uber-go/tally"
 
 	"github.com/uber/cadence/client/history"
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/dynamicconfig"
 	cadence_errors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/log/loggerimpl"
+	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
@@ -272,6 +275,49 @@ func TestSubscriptionAndErrorReturned(t *testing.T) {
 	}()
 
 	e.subscribeToMembershipChanges()
+}
+
+func TestSubscribeToMembershipChangesQuitsIfSubscribeFails(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	m := membership.NewMockResolver(ctrl)
+
+	logger, logs := testlogger.NewObserved(t)
+
+	shutdownWG := sync.WaitGroup{}
+	shutdownWG.Add(1)
+
+	e := matchingEngineImpl{
+		shutdownCompletion: &shutdownWG,
+		membershipResolver: m,
+		config: &config.Config{
+			EnableTasklistOwnershipGuard: func(opts ...dynamicconfig.FilterOption) bool { return true },
+		},
+		shutdown: make(chan struct{}),
+		logger:   logger,
+	}
+
+	// this should trigger the error case on a membership event
+	m.EXPECT().WhoAmI().Return(membership.HostInfo{}, assert.AnError).AnyTimes()
+
+	m.EXPECT().Subscribe(service.Matching, "matching-engine", gomock.Any()).
+		Return(errors.New("matching-engine is already subscribed to updates"))
+
+	go func() {
+		// then call stop so the test can finish
+		time.Sleep(time.Second)
+		e.Stop()
+	}()
+
+	e.subscribeToMembershipChanges()
+	// check we emitted error-message
+	filteredLogs := logs.FilterMessage("Failed to subscribe to membership updates")
+	assert.Equal(t, 1, filteredLogs.Len(), "error-message should be produced")
+
+	assert.True(
+		t,
+		common.AwaitWaitGroup(&shutdownWG, 10*time.Second),
+		"subscribeToMembershipChanges should immediately shut down because of critical error",
+	)
 }
 
 func TestGetTasklistManagerShutdownScenario(t *testing.T) {

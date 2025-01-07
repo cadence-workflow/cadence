@@ -28,7 +28,8 @@ const (
 		`type: ?, ` +
 		`ack_level: ?, ` +
 		`kind: ?, ` +
-		`last_updated: ? ` +
+		`last_updated: ?, ` +
+		`adaptive_partition_config: ? ` +
 		`}`
 
 	templateTaskType = `{` +

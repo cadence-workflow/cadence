@@ -1,5 +1,6 @@
 name: Workflow for Codecov integration
 on: [push, pull_request]
+
 jobs:
   codecov:
     runs-on: ubuntu-latest
@@ -27,4 +28,4 @@ jobs:
           file: .build/coverage/unit_cover.out
           exclude: ./
           token: ${{ secrets.CODECOV_TOKEN }}
-          slug: uber/cadence
+          slug: cadence-workflow/cadence

@@ -29,22 +29,35 @@ import (
 	"time"
 
 	"github.com/pborman/uuid"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/worker/batcher"
+	"github.com/uber/cadence/tools/common/commoncli"
 )
 
 // TerminateBatchJob stops abatch job
-func TerminateBatchJob(c *cli.Context) {
-	jobID := getRequiredOption(c, FlagJobID)
-	reason := getRequiredOption(c, FlagReason)
-	svcClient := cFactory.ServerFrontendClient(c)
-	tcCtx, cancel := newContext(c)
+func TerminateBatchJob(c *cli.Context) error {
+	jobID, err := getRequiredOption(c, FlagJobID)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
+	reason, err := getRequiredOption(c, FlagReason)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
+	svcClient, err := getDeps(c).ServerFrontendClient(c)
+	if err != nil {
+		return err
+	}
+	tcCtx, cancel, err := newContext(c)
 	defer cancel()
+	if err != nil {
+		return commoncli.Problem("Error in creating context:", err)
+	}
 
-	err := svcClient.TerminateWorkflowExecution(
+	err = svcClient.TerminateWorkflowExecution(
 		tcCtx,
 		&types.TerminateWorkflowExecutionRequest{
 			Domain: common.BatcherLocalDomainName,
@@ -57,21 +70,30 @@ func TerminateBatchJob(c *cli.Context) {
 		},
 	)
 	if err != nil {
-		ErrorAndExit("Failed to terminate batch job", err)
+		return commoncli.Problem("Failed to terminate batch job", err)
 	}
 	output := map[string]interface{}{
 		"msg": "batch job is terminated",
 	}
-	prettyPrintJSONObject(output)
+	prettyPrintJSONObject(getDeps(c).Output(), output)
+	return nil
 }
 
 // DescribeBatchJob describe the status of the batch job
-func DescribeBatchJob(c *cli.Context) {
-	jobID := getRequiredOption(c, FlagJobID)
-
-	svcClient := cFactory.ServerFrontendClient(c)
-	tcCtx, cancel := newContext(c)
+func DescribeBatchJob(c *cli.Context) error {
+	jobID, err := getRequiredOption(c, FlagJobID)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
+	svcClient, err := getDeps(c).ServerFrontendClient(c)
+	if err != nil {
+		return err
+	}
+	tcCtx, cancel, err := newContext(c)
 	defer cancel()
+	if err != nil {
+		return commoncli.Problem("Error in creating context:", err)
+	}
 
 	wf, err := svcClient.DescribeWorkflowExecution(
 		tcCtx,
@@ -84,7 +106,7 @@ func DescribeBatchJob(c *cli.Context) {
 		},
 	)
 	if err != nil {
-		ErrorAndExit("Failed to describe batch job", err)
+		return commoncli.Problem("Failed to describe batch job", err)
 	}
 
 	output := map[string]interface{}{}
@@ -101,22 +123,32 @@ func DescribeBatchJob(c *cli.Context) {
 			hbd := batcher.HeartBeatDetails{}
 			err := json.Unmarshal(hbdBinary, &hbd)
 			if err != nil {
-				ErrorAndExit("Failed to describe batch job", err)
+				return commoncli.Problem("Failed to describe batch job", err)
 			}
 			output["progress"] = hbd
 		}
 	}
-	prettyPrintJSONObject(output)
+	prettyPrintJSONObject(getDeps(c).Output(), output)
+	return nil
 }
 
 // ListBatchJobs list the started batch jobs
-func ListBatchJobs(c *cli.Context) {
-	domain := getRequiredGlobalOption(c, FlagDomain)
+func ListBatchJobs(c *cli.Context) error {
+	domain, err := getRequiredOption(c, FlagDomain)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
 	pageSize := c.Int(FlagPageSize)
-	svcClient := cFactory.ServerFrontendClient(c)
+	svcClient, err := getDeps(c).ServerFrontendClient(c)
+	if err != nil {
+		return err
+	}
 
-	tcCtx, cancel := newContext(c)
+	tcCtx, cancel, err := newContext(c)
 	defer cancel()
+	if err != nil {
+		return commoncli.Problem("Error in creating context:", err)
+	}
 
 	resp, err := svcClient.ListWorkflowExecutions(
 		tcCtx,
@@ -127,59 +159,90 @@ func ListBatchJobs(c *cli.Context) {
 		},
 	)
 	if err != nil {
-		ErrorAndExit("Failed to list batch jobs", err)
+		return commoncli.Problem("Failed to list batch jobs", err)
 	}
 	output := make([]interface{}, 0, len(resp.Executions))
 	for _, wf := range resp.Executions {
 		job := map[string]string{
 			"jobID":     wf.Execution.GetWorkflowID(),
-			"startTime": convertTime(wf.GetStartTime(), false),
+			"startTime": timestampToString(wf.GetStartTime(), false),
 			"reason":    string(wf.Memo.Fields["Reason"]),
 			"operator":  string(wf.SearchAttributes.IndexedFields["Operator"]),
 		}
 
 		if wf.CloseStatus != nil {
 			job["status"] = wf.CloseStatus.String()
-			job["closeTime"] = convertTime(wf.GetCloseTime(), false)
+			job["closeTime"] = timestampToString(wf.GetCloseTime(), false)
 		} else {
 			job["status"] = "RUNNING"
 		}
 
 		output = append(output, job)
 	}
-	prettyPrintJSONObject(output)
+	prettyPrintJSONObject(getDeps(c).Output(), output)
+	return nil
 }
 
 // StartBatchJob starts a batch job
-func StartBatchJob(c *cli.Context) {
-	domain := getRequiredGlobalOption(c, FlagDomain)
-	query := getRequiredOption(c, FlagListQuery)
-	reason := getRequiredOption(c, FlagReason)
-	batchType := getRequiredOption(c, FlagBatchType)
-
+func StartBatchJob(c *cli.Context) error {
+	domain, err := getRequiredOption(c, FlagDomain)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
+	query, err := getRequiredOption(c, FlagListQuery)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
+	reason, err := getRequiredOption(c, FlagReason)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
+	batchType, err := getRequiredOption(c, FlagBatchType)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
 	if !validateBatchType(batchType) {
-		ErrorAndExit("batchType is not valid, supported:"+strings.Join(batcher.AllBatchTypes, ","), nil)
+		return commoncli.Problem("batchType is not valid, supported:"+strings.Join(batcher.AllBatchTypes, ","), nil)
 	}
 	operator := getCurrentUserFromEnv()
 	var sigName, sigVal string
 	if batchType == batcher.BatchTypeSignal {
-		sigName = getRequiredOption(c, FlagSignalName)
-		sigVal = getRequiredOption(c, FlagInput)
+		sigName, err = getRequiredOption(c, FlagSignalName)
+		if err != nil {
+			return commoncli.Problem("Required flag not found: ", err)
+		}
+		sigVal, err = getRequiredOption(c, FlagInput)
+		if err != nil {
+			return commoncli.Problem("Required flag not found: ", err)
+		}
 	}
 	var sourceCluster, targetCluster string
 	if batchType == batcher.BatchTypeReplicate {
-		sourceCluster = getRequiredOption(c, FlagSourceCluster)
-		targetCluster = getRequiredOption(c, FlagTargetCluster)
+		sourceCluster, err = getRequiredOption(c, FlagSourceCluster)
+		if err != nil {
+			return commoncli.Problem("Required flag not found: ", err)
+		}
+		targetCluster, err = getRequiredOption(c, FlagTargetCluster)
+		if err != nil {
+			return commoncli.Problem("Required flag not found: ", err)
+		}
 	}
 	rps := c.Int(FlagRPS)
 	pageSize := c.Int(FlagPageSize)
 	concurrency := c.Int(FlagConcurrency)
 	retryAttempt := c.Int(FlagRetryAttempts)
 	heartBeatTimeout := time.Duration(c.Int(FlagActivityHeartBeatTimeout)) * time.Second
+	maxActivityRetries := c.Int(FlagMaxActivityRetries)
 
-	svcClient := cFactory.ServerFrontendClient(c)
-	tcCtx, cancel := newContext(c)
+	svcClient, err := getDeps(c).ServerFrontendClient(c)
+	if err != nil {
+		return err
+	}
+	tcCtx, cancel, err := newContext(c)
 	defer cancel()
+	if err != nil {
+		return commoncli.Problem("Error in creating context:", err)
+	}
 
 	resp, err := svcClient.CountWorkflowExecutions(
 		tcCtx,
@@ -189,7 +252,7 @@ func StartBatchJob(c *cli.Context) {
 		},
 	)
 	if err != nil {
-		ErrorAndExit("Failed to count impacting workflows for starting a batch job", err)
+		return commoncli.Problem("Failed to count impacting workflows for starting a batch job", err)
 	}
 	fmt.Printf("This batch job will be operating on %v workflows.\n", resp.GetCount())
 	if !c.Bool(FlagYes) {
@@ -198,19 +261,22 @@ func StartBatchJob(c *cli.Context) {
 			fmt.Print("Please confirm[Yes/No]:")
 			text, err := reader.ReadString('\n')
 			if err != nil {
-				ErrorAndExit("Failed to  get confirmation for starting a batch job", err)
+				return commoncli.Problem("Failed to  get confirmation for starting a batch job", err)
 			}
 			if strings.EqualFold(strings.TrimSpace(text), "yes") {
 				break
 			} else {
 				fmt.Println("Batch job is not started")
-				return
+				return nil
 			}
 		}
 
 	}
-	tcCtx, cancel = newContext(c)
+	tcCtx, cancel, err = newContext(c)
 	defer cancel()
+	if err != nil {
+		return commoncli.Problem("Error in creating context:", err)
+	}
 
 	params := batcher.BatchParams{
 		DomainName: domain,
@@ -230,23 +296,24 @@ func StartBatchJob(c *cli.Context) {
 		PageSize:                 pageSize,
 		AttemptsOnRetryableError: retryAttempt,
 		ActivityHeartBeatTimeout: heartBeatTimeout,
+		MaxActivityRetries:       maxActivityRetries,
 	}
 	input, err := json.Marshal(params)
 	if err != nil {
-		ErrorAndExit("Failed to encode batch job parameters", err)
+		return commoncli.Problem("Failed to encode batch job parameters", err)
 	}
 	memo, err := getWorkflowMemo(map[string]interface{}{
 		"Reason": reason,
 	})
 	if err != nil {
-		ErrorAndExit("Failed to encode batch job memo", err)
+		return commoncli.Problem("Failed to encode batch job memo", err)
 	}
 	searchAttributes, err := serializeSearchAttributes(map[string]interface{}{
 		"CustomDomain": domain,
 		"Operator":     operator,
 	})
 	if err != nil {
-		ErrorAndExit("Failed to encode batch job search attributes", err)
+		return commoncli.Problem("Failed to encode batch job search attributes", err)
 	}
 	workflowID := uuid.NewRandom().String()
 	request := &types.StartWorkflowExecutionRequest{
@@ -258,18 +325,30 @@ func StartBatchJob(c *cli.Context) {
 		TaskList:                            &types.TaskList{Name: batcher.BatcherTaskListName},
 		Memo:                                memo,
 		SearchAttributes:                    searchAttributes,
+		RetryPolicy:                         copyRetryPolicyFromWorkflow(),
 		WorkflowType:                        &types.WorkflowType{Name: batcher.BatchWFTypeName},
 		Input:                               input,
 	}
 	_, err = svcClient.StartWorkflowExecution(tcCtx, request)
 	if err != nil {
-		ErrorAndExit("Failed to start batch job", err)
+		return commoncli.Problem("Failed to start batch job", err)
 	}
 	output := map[string]interface{}{
 		"msg":   "batch job is started",
 		"jobID": workflowID,
 	}
-	prettyPrintJSONObject(output)
+	prettyPrintJSONObject(getDeps(c).Output(), output)
+	return nil
+}
+
+func copyRetryPolicyFromWorkflow() *types.RetryPolicy {
+	return &types.RetryPolicy{
+		InitialIntervalInSeconds:    int32(batcher.BatchActivityRetryPolicy.InitialInterval.Seconds()),
+		BackoffCoefficient:          batcher.BatchActivityRetryPolicy.BackoffCoefficient,
+		MaximumIntervalInSeconds:    int32(batcher.BatchActivityRetryPolicy.MaximumInterval.Seconds()),
+		NonRetriableErrorReasons:    batcher.BatchActivityRetryPolicy.NonRetriableErrorReasons,
+		ExpirationIntervalInSeconds: int32(batcher.BatchActivityRetryPolicy.ExpirationInterval.Seconds()),
+	}
 }
 
 func validateBatchType(bt string) bool {

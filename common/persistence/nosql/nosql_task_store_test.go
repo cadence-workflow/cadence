@@ -24,6 +24,7 @@ package nosql
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -41,6 +42,7 @@ const (
 	TestDomainID     = "test-domain-id"
 	TestDomainName   = "test-domain"
 	TestTaskListName = "test-tasklist"
+	TestTaskType     = persistence.TaskListTypeDecision
 	TestWorkflowID   = "test-workflow-id"
 	TestRunID        = "test-run-id"
 )
@@ -68,7 +70,7 @@ func setupNoSQLStoreMocks(t *testing.T) (*nosqlTaskStore, *nosqlplugin.MockDB) {
 		GetStoreShardByTaskList(
 			TestDomainID,
 			TestTaskListName,
-			int(types.TaskListTypeDecision)).
+			TestTaskType).
 		Return(&nosqlSt, nil).
 		AnyTimes()
 
@@ -154,7 +156,8 @@ func TestLeaseTaskList_selectErrNotFound(t *testing.T) {
 	// We then expect the tasklist to be inserted
 	db.EXPECT().InsertTaskList(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(ctx context.Context, taskList *nosqlplugin.TaskListRow) error {
-			checkTaskListRowExpected(t, getExpectedTaskListRow(), taskList)
+			tl := getExpectedTaskListRow()
+			checkTaskListRowExpected(t, tl, taskList)
 			return nil
 		})
 
@@ -242,12 +245,34 @@ func TestLeaseTaskList_RenewUpdateFailed_OtherError(t *testing.T) {
 	assert.ErrorContains(t, err, assert.AnError.Error())
 }
 
+func TestGetTaskList_Success(t *testing.T) {
+	store, db := setupNoSQLStoreMocks(t)
+
+	taskListRow := getExpectedTaskListRow()
+	db.EXPECT().SelectTaskList(gomock.Any(), getDecisionTaskListFilter()).Return(taskListRow, nil)
+	resp, err := store.GetTaskList(context.Background(), getValidGetTaskListRequest())
+
+	assert.NoError(t, err)
+	checkTaskListInfoExpected(t, resp.TaskListInfo)
+}
+
+func TestGetTaskList_NotFound(t *testing.T) {
+	store, db := setupNoSQLStoreMocks(t)
+
+	db.EXPECT().SelectTaskList(gomock.Any(), getDecisionTaskListFilter()).Return(nil, errors.New("not found"))
+	db.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
+	resp, err := store.GetTaskList(context.Background(), getValidGetTaskListRequest())
+
+	assert.ErrorAs(t, err, new(*types.EntityNotExistsError))
+	assert.Nil(t, resp)
+}
+
 func TestUpdateTaskList(t *testing.T) {
 	store, db := setupNoSQLStoreMocks(t)
 
 	db.EXPECT().UpdateTaskList(gomock.Any(), gomock.Any(), int64(1)).DoAndReturn(
 		func(ctx context.Context, taskList *nosqlplugin.TaskListRow, previousRangeID int64) error {
-			checkTaskListRowExpected(t, getExpectedTaskListRow(), taskList)
+			checkTaskListRowExpected(t, getExpectedTaskListRowWithPartitionConfig(), taskList)
 			return nil
 		},
 	)
@@ -265,7 +290,7 @@ func TestUpdateTaskList_Sticky(t *testing.T) {
 
 	db.EXPECT().UpdateTaskListWithTTL(gomock.Any(), stickyTaskListTTL, gomock.Any(), int64(1)).DoAndReturn(
 		func(ctx context.Context, ttlSeconds int64, taskList *nosqlplugin.TaskListRow, previousRangeID int64) error {
-			expectedTaskList := getExpectedTaskListRow()
+			expectedTaskList := getExpectedTaskListRowWithPartitionConfig()
 			expectedTaskList.TaskListKind = int(types.TaskListKindSticky)
 			checkTaskListRowExpected(t, expectedTaskList, taskList)
 			return nil
@@ -288,7 +313,7 @@ func TestUpdateTaskList_ConditionFailure(t *testing.T) {
 
 	db.EXPECT().UpdateTaskList(gomock.Any(), gomock.Any(), int64(1)).DoAndReturn(
 		func(ctx context.Context, taskList *nosqlplugin.TaskListRow, previousRangeID int64) error {
-			checkTaskListRowExpected(t, getExpectedTaskListRow(), taskList)
+			checkTaskListRowExpected(t, getExpectedTaskListRowWithPartitionConfig(), taskList)
 			return &nosqlplugin.TaskOperationConditionFailure{Details: "test-details"}
 		},
 	)
@@ -420,6 +445,140 @@ func TestCompleteTasksLessThan(t *testing.T) {
 	assert.Equal(t, 13, resp.TasksCompleted)
 }
 
+func TestCreateTasks(t *testing.T) {
+	testCases := []struct {
+		name          string
+		setupMock     func(*nosqlplugin.MockDB)
+		request       *persistence.CreateTasksRequest
+		expectError   bool
+		expectedError string
+	}{
+		{
+			name: "success",
+			setupMock: func(dbMock *nosqlplugin.MockDB) {
+				dbMock.EXPECT().InsertTasks(gomock.Any(), gomock.Any(), &nosqlplugin.TaskListRow{
+					DomainID:     TestDomainID,
+					TaskListName: TestTaskListName,
+					TaskListType: TestTaskType,
+					RangeID:      1,
+				}).Do(func(_ context.Context, tasks []*nosqlplugin.TaskRowForInsert, _ *nosqlplugin.TaskListRow) {
+					assert.Len(t, tasks, 1)
+					assert.Equal(t, TestDomainID, tasks[0].DomainID)
+					assert.Equal(t, "workflow1", tasks[0].WorkflowID)
+					assert.Equal(t, "run1", tasks[0].RunID)
+					assert.Equal(t, int64(100), tasks[0].TaskID)
+					assert.Equal(t, int64(10), tasks[0].ScheduledID)
+					assert.Equal(t, TestTaskType, tasks[0].TaskListType)
+					assert.Equal(t, TestTaskListName, tasks[0].TaskListName)
+					assert.Equal(t, 30, tasks[0].TTLSeconds)
+				}).Return(nil).Times(1)
+			},
+			request: &persistence.CreateTasksRequest{
+				TaskListInfo: &persistence.TaskListInfo{
+					DomainID: TestDomainID,
+					Name:     TestTaskListName,
+					TaskType: TestTaskType,
+					RangeID:  1,
+				},
+				Tasks: []*persistence.CreateTaskInfo{
+					{
+						TaskID: 100,
+						Data: &persistence.TaskInfo{
+							WorkflowID:                    "workflow1",
+							RunID:                         "run1",
+							ScheduleID:                    10,
+							PartitionConfig:               nil,
+							ScheduleToStartTimeoutSeconds: 30,
+						},
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "condition failure",
+			setupMock: func(dbMock *nosqlplugin.MockDB) {
+				dbMock.EXPECT().InsertTasks(gomock.Any(), gomock.Any(), gomock.Any()).Return(&nosqlplugin.TaskOperationConditionFailure{
+					Details: "rangeID mismatch",
+				}).Times(1)
+			},
+			request: &persistence.CreateTasksRequest{
+				TaskListInfo: &persistence.TaskListInfo{
+					DomainID: TestDomainID,
+					Name:     TestTaskListName,
+					TaskType: TestTaskType,
+					RangeID:  1,
+				},
+				Tasks: []*persistence.CreateTaskInfo{
+					{
+						TaskID: 100,
+						Data: &persistence.TaskInfo{
+							WorkflowID:                    "workflow1",
+							RunID:                         "run1",
+							ScheduleID:                    10,
+							PartitionConfig:               nil,
+							ScheduleToStartTimeoutSeconds: 30,
+						},
+					},
+				},
+			},
+			expectError:   true,
+			expectedError: "Failed to insert tasks. name: test-tasklist, type: 0, rangeID: 1, columns: (rangeID mismatch)",
+		},
+		{
+			name: "generic db error",
+			setupMock: func(dbMock *nosqlplugin.MockDB) {
+				dbMock.EXPECT().InsertTasks(gomock.Any(), gomock.Any(), gomock.Any()).Return(errors.New("db error")).Times(1)
+				dbMock.EXPECT().IsNotFoundError(gomock.Any()).Return(true).Times(1)
+			},
+			request: &persistence.CreateTasksRequest{
+				TaskListInfo: &persistence.TaskListInfo{
+					DomainID: TestDomainID,
+					Name:     TestTaskListName,
+					TaskType: TestTaskType,
+					RangeID:  1,
+				},
+				Tasks: []*persistence.CreateTaskInfo{
+					{
+						TaskID: 100,
+						Data: &persistence.TaskInfo{
+							WorkflowID:                    "workflow1",
+							RunID:                         "run1",
+							ScheduleID:                    10,
+							PartitionConfig:               nil,
+							ScheduleToStartTimeoutSeconds: 30,
+						},
+					},
+				},
+			},
+			expectError:   true,
+			expectedError: "CreateTasks failed. Error: db error",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup mocks for each test case individually
+			store, dbMock := setupNoSQLStoreMocks(t)
+
+			// Setup test-specific mock behavior
+			tc.setupMock(dbMock)
+
+			// Execute the method under test
+			resp, err := store.CreateTasks(context.Background(), tc.request)
+
+			// Validate results
+			if tc.expectError {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedError)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, resp)
+			}
+		})
+	}
+}
+
 func getValidLeaseTaskListRequest() *persistence.LeaseTaskListRequest {
 	return &persistence.LeaseTaskListRequest{
 		DomainID:     TestDomainID,
@@ -428,6 +587,15 @@ func getValidLeaseTaskListRequest() *persistence.LeaseTaskListRequest {
 		TaskType:     int(types.TaskListTypeDecision),
 		TaskListKind: int(types.TaskListKindNormal),
 		RangeID:      0,
+	}
+}
+
+func getValidGetTaskListRequest() *persistence.GetTaskListRequest {
+	return &persistence.GetTaskListRequest{
+		DomainID:   TestDomainID,
+		DomainName: TestDomainName,
+		TaskList:   TestTaskListName,
+		TaskType:   int(types.TaskListTypeDecision),
 	}
 }
 
@@ -441,7 +609,7 @@ func checkTaskListInfoExpected(t *testing.T, taskListInfo *persistence.TaskListI
 	assert.WithinDuration(t, time.Now(), taskListInfo.LastUpdated, time.Second)
 }
 
-func taskRowEqualTaskInfo(t *testing.T, taskrow1 nosqlplugin.TaskRow, taskInfo1 *persistence.InternalTaskInfo) {
+func taskRowEqualTaskInfo(t *testing.T, taskrow1 nosqlplugin.TaskRow, taskInfo1 *persistence.TaskInfo) {
 	assert.Equal(t, taskrow1.DomainID, taskInfo1.DomainID)
 	assert.Equal(t, taskrow1.WorkflowID, taskInfo1.WorkflowID)
 	assert.Equal(t, taskrow1.RunID, taskInfo1.RunID)
@@ -484,6 +652,23 @@ func getExpectedTaskListRow() *nosqlplugin.TaskListRow {
 	}
 }
 
+func getExpectedTaskListRowWithPartitionConfig() *nosqlplugin.TaskListRow {
+	return &nosqlplugin.TaskListRow{
+		DomainID:        TestDomainID,
+		TaskListName:    TestTaskListName,
+		TaskListType:    int(types.TaskListTypeDecision),
+		RangeID:         initialRangeID,
+		TaskListKind:    int(types.TaskListKindNormal),
+		AckLevel:        initialAckLevel,
+		LastUpdatedTime: time.Now(),
+		AdaptivePartitionConfig: &persistence.TaskListPartitionConfig{
+			Version:            1,
+			NumReadPartitions:  2,
+			NumWritePartitions: 2,
+		},
+	}
+}
+
 func checkTaskListRowExpected(t *testing.T, expectedRow *nosqlplugin.TaskListRow, taskList *nosqlplugin.TaskListRow) {
 	// Check the duration
 	assert.WithinDuration(t, expectedRow.LastUpdatedTime, taskList.LastUpdatedTime, time.Second)
@@ -502,6 +687,11 @@ func getExpectedTaskListInfo() *persistence.TaskListInfo {
 		AckLevel:    initialAckLevel,
 		Kind:        int(types.TaskListKindNormal),
 		LastUpdated: time.Now(),
+		AdaptivePartitionConfig: &persistence.TaskListPartitionConfig{
+			Version:            1,
+			NumReadPartitions:  2,
+			NumWritePartitions: 2,
+		},
 	}
 }
 

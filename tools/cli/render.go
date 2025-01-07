@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"reflect"
 	"sort"
 	"strconv"
@@ -33,7 +32,7 @@ import (
 	"time"
 
 	"github.com/olekukonko/tablewriter"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 )
 
 const (
@@ -77,12 +76,12 @@ type RenderOptions struct {
 func Render(c *cli.Context, data interface{}, opts RenderOptions) (err error) {
 	defer func() {
 		if err != nil {
-			ErrorAndExit("failed to render", err)
+			fmt.Errorf("failed to render: %w", err)
 		}
 	}()
 
 	// For now always output to stdout
-	w := os.Stdout
+	w := getDeps(c).Output()
 
 	template := opts.DefaultTemplate
 

@@ -245,7 +245,7 @@ func (db *cdb) SelectDomain(
 	}
 
 	info := &persistence.DomainInfo{}
-	config := &nosqlplugin.NoSQLInternalDomainConfig{}
+	config := &persistence.InternalDomainConfig{}
 	replicationConfig := &persistence.DomainReplicationConfig{}
 
 	// because of encoding/types, we can't directly read from config struct
@@ -347,7 +347,7 @@ func (db *cdb) SelectAllDomains(
 	var name string
 	domain := &nosqlplugin.DomainRow{
 		Info:              &persistence.DomainInfo{},
-		Config:            &nosqlplugin.NoSQLInternalDomainConfig{},
+		Config:            &persistence.InternalDomainConfig{},
 		ReplicationConfig: &persistence.DomainReplicationConfig{},
 	}
 	var replicationClusters []map[string]interface{}
@@ -419,7 +419,7 @@ func (db *cdb) SelectAllDomains(
 		retentionDays = 0
 		domain = &nosqlplugin.DomainRow{
 			Info:              &persistence.DomainInfo{},
-			Config:            &nosqlplugin.NoSQLInternalDomainConfig{},
+			Config:            &persistence.InternalDomainConfig{},
 			ReplicationConfig: &persistence.DomainReplicationConfig{},
 		}
 	}

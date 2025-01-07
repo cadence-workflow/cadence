@@ -1,6 +1,6 @@
-// Modifications Copyright (c) 2020 Uber Technologies Inc.
+// The MIT License (MIT)
 
-// Copyright (c) 2020 Temporal Technologies, Inc.
+// Copyright (c) 2017-2020 Uber Technologies Inc.
 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -154,6 +154,32 @@ func (_m *TaskManager) GetOrphanTasks(ctx context.Context, request *persistence.
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, *persistence.GetOrphanTasksRequest) error); ok {
+		r1 = rf(ctx, request)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetTaskList provides a mock function with given fields: ctx, request
+func (_m *TaskManager) GetTaskList(ctx context.Context, request *persistence.GetTaskListRequest) (*persistence.GetTaskListResponse, error) {
+	ret := _m.Called(ctx, request)
+
+	var r0 *persistence.GetTaskListResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *persistence.GetTaskListRequest) (*persistence.GetTaskListResponse, error)); ok {
+		return rf(ctx, request)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *persistence.GetTaskListRequest) *persistence.GetTaskListResponse); ok {
+		r0 = rf(ctx, request)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*persistence.GetTaskListResponse)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *persistence.GetTaskListRequest) error); ok {
 		r1 = rf(ctx, request)
 	} else {
 		r1 = ret.Error(1)

@@ -66,7 +66,6 @@ type (
 
 	// BeanImpl stores persistence managers
 	BeanImpl struct {
-		params                        *Params
 		domainManager                 persistence.DomainManager
 		taskManager                   persistence.TaskManager
 		visibilityManager             persistence.VisibilityManager
@@ -82,22 +81,24 @@ type (
 
 	// Params contains dependencies for persistence
 	Params struct {
-		PersistenceConfig        config.Persistence
-		MetricsClient            metrics.Client
-		MessagingClient          messaging.Client
-		ESClient                 es.GenericClient
-		ESConfig                 *config.ElasticSearchConfig
-		PinotConfig              *config.PinotVisibilityConfig
-		PinotClient              pinot.GenericClient
-		ExecutionManagerWrappers persistence.ExecutionWrappers
+		PersistenceConfig config.Persistence
+		MetricsClient     metrics.Client
+		MessagingClient   messaging.Client
+		ESClient          es.GenericClient
+		ESConfig          *config.ElasticSearchConfig
+		PinotConfig       *config.PinotVisibilityConfig
+		PinotClient       pinot.GenericClient
+		OSClient          es.GenericClient
+		OSConfig          *config.ElasticSearchConfig
 	}
 )
 
 // NewBeanFromFactory crate a new store bean using factory
 func NewBeanFromFactory(
 	factory Factory,
+	params *Params,
 	serviceConfig *service.Config,
-) (*BeanImpl, error) {
+) (Bean, error) {
 
 	metadataMgr, err := factory.NewDomainManager()
 	if err != nil {
@@ -109,7 +110,7 @@ func NewBeanFromFactory(
 		return nil, err
 	}
 
-	visibilityMgr, err := factory.NewVisibilityManager(factory.GetParams(), serviceConfig)
+	visibilityMgr, err := factory.NewVisibilityManager(params, serviceConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -312,7 +313,7 @@ func (s *BeanImpl) GetExecutionManager(
 		return executionManager, nil
 	}
 
-	executionManager, err := s.executionManagerFactory.NewExecutionManager(shardID, s.params.ExecutionManagerWrappers)
+	executionManager, err := s.executionManagerFactory.NewExecutionManager(shardID)
 	if err != nil {
 		return nil, err
 	}
@@ -369,6 +370,7 @@ func (s *BeanImpl) Close() {
 	s.shardManager.Close()
 	s.historyManager.Close()
 	s.executionManagerFactory.Close()
+	s.configStoreManager.Close()
 	for _, executionMgr := range s.shardIDToExecutionManager {
 		executionMgr.Close()
 	}

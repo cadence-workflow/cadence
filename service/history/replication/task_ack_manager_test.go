@@ -63,7 +63,11 @@ var (
 		&persistence.DomainReplicationConfig{Clusters: []*persistence.ClusterReplicationConfig{
 			{ClusterName: testClusterA},
 		}},
-		0, nil,
+		0,
+		nil,
+		0,
+		0,
+		0,
 	)
 )
 

@@ -203,6 +203,10 @@ writerLoop:
 		select {
 		case request := <-w.appendCh:
 			{
+				if w.isStopped() {
+					break writerLoop
+				}
+
 				// read a batch of requests from the channel
 				reqs := []*writeTaskRequest{request}
 				reqs = w.getWriteBatch(reqs)
@@ -285,6 +289,11 @@ func (w *taskWriter) sendWriteResponse(reqs []*writeTaskRequest,
 			persistenceResponse: persistenceResponse,
 		}
 
-		req.responseCh <- resp
+		// appendTask() listens stopCh and terminates early without reading from responseCh.
+		// Therefore we need to listen stopCh here to avoid getting stuck while pushing response to responseCh.
+		select {
+		case <-w.stopCh:
+		case req.responseCh <- resp:
+		}
 	}
 }

@@ -43,6 +43,7 @@ type Client interface {
 	DescribeDomain(context.Context, *types.DescribeDomainRequest, ...yarpc.CallOption) (*types.DescribeDomainResponse, error)
 	DescribeTaskList(context.Context, *types.DescribeTaskListRequest, ...yarpc.CallOption) (*types.DescribeTaskListResponse, error)
 	DescribeWorkflowExecution(context.Context, *types.DescribeWorkflowExecutionRequest, ...yarpc.CallOption) (*types.DescribeWorkflowExecutionResponse, error)
+	DiagnoseWorkflowExecution(context.Context, *types.DiagnoseWorkflowExecutionRequest, ...yarpc.CallOption) (*types.DiagnoseWorkflowExecutionResponse, error)
 	GetClusterInfo(context.Context, ...yarpc.CallOption) (*types.ClusterInfo, error)
 	GetSearchAttributes(context.Context, ...yarpc.CallOption) (*types.GetSearchAttributesResponse, error)
 	GetWorkflowExecutionHistory(context.Context, *types.GetWorkflowExecutionHistoryRequest, ...yarpc.CallOption) (*types.GetWorkflowExecutionHistoryResponse, error)

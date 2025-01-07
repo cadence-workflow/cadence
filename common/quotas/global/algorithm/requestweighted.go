@@ -130,7 +130,10 @@ import (
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/quotas/global/shared"
 )
 
 type (
@@ -155,8 +158,9 @@ type (
 	impl struct {
 		// intentionally value-typed so caller cannot mutate the fields.
 		// manually copy data if this changes.
-		cfg   Config
-		scope metrics.Scope
+		cfg    Config
+		scope  metrics.Scope
+		logger log.Logger
 
 		// mut protects usage, as it is the only mutable data
 		mut sync.Mutex
@@ -199,9 +203,9 @@ type (
 		// Elapsed time must be non-zero, but is not otherwise constrained.
 		Update(params UpdateParams) error
 
-		// HostWeights returns the per-[Limit] weights for all requested + known keys for this Identity,
+		// HostUsage returns the per-[Limit] weights for all requested + known keys for this Identity,
 		// as well as the Limit's overall used RPS (to decide RPS to allow for new hosts).
-		HostWeights(host Identity, limits []Limit) (weights map[Limit]HostWeight, usedRPS map[Limit]PerSecond, err error)
+		HostUsage(host Identity, limits []Limit) (weights map[Limit]HostUsage, err error)
 
 		// GC can be called periodically to pre-emptively prune old ratelimits.
 		//
@@ -246,6 +250,11 @@ type (
 		Elapsed time.Duration
 	}
 
+	HostUsage struct {
+		Weight HostWeight
+		Used   PerSecond
+	}
+
 	// configSnapshot holds a non-changing snapshot of the dynamic config values,
 	// and also provides a validate() method to make sure they're sane.
 	configSnapshot struct {
@@ -261,6 +270,11 @@ type (
 const (
 	guessNumKeys   = 1024 // guesstimate at num of ratelimit keys in a cluster
 	guessHostCount = 32   // guesstimate at num of frontend hosts in a cluster that receive traffic for each key
+
+	// Some event-RPSes exceed 100k, but none get close to 1m.
+	// So, to add some buffer, 10m per second is considered "impossible".
+	// This is quite vague and can be changed, it essentially just serves as the logging threshold.
+	guessImpossibleRps = 10_000_000
 )
 
 func (p UpdateParams) Validate() error {
@@ -351,11 +365,12 @@ func (c configSnapshot) missedUpdateScalar(dataAge time.Duration) PerSecond {
 //
 // This instance is effectively single-threaded, but a small sharding wrapper should allow better concurrent
 // throughput if needed (bound by CPU cores, as it's moderately CPU-costly).
-func New(met metrics.Client, cfg Config) (RequestWeighted, error) {
+func New(met metrics.Client, logger log.Logger, cfg Config) (RequestWeighted, error) {
 	i := &impl{
-		cfg:   cfg,
-		scope: met.Scope(metrics.GlobalRatelimiterAggregator),
-		usage: make(map[Limit]map[Identity]requests, guessNumKeys), // start out relatively large
+		cfg:    cfg,
+		scope:  met.Scope(metrics.GlobalRatelimiterAggregator),
+		logger: logger.WithTags(tag.ComponentGlobalRatelimiter),
+		usage:  make(map[Limit]map[Identity]requests, guessNumKeys), // start out relatively large
 
 		clock: clock.NewRealTimeSource(),
 	}
@@ -389,8 +404,29 @@ func (a *impl) Update(p UpdateParams) error {
 
 		var next requests
 		prev := ih[p.ID]
-		aps := PerSecond(float64(req.Accepted) / float64(p.Elapsed/time.Second))
-		rps := PerSecond(float64(req.Rejected) / float64(p.Elapsed/time.Second))
+
+		// sanity check: elapsed time should not be less than 1s, so just cap it.
+		// in practice this should always be safe with a >=1s configured rate, as
+		// the caller should not send *more* frequently than every 1s (monotonic time).
+		//
+		// but this is rather easy to trigger in tests / fuzzing,
+		// and extreme values lead to irrational math either way.
+		elapsed := math.Max(float64(p.Elapsed), float64(time.Second))
+		aps := shared.SanityLogFloat(0, PerSecond(float64(req.Accepted)/(elapsed/float64(time.Second))), guessImpossibleRps, "accepted rps", a.logger)
+		rps := shared.SanityLogFloat(0, PerSecond(float64(req.Rejected)/(elapsed/float64(time.Second))), guessImpossibleRps, "rejected rps", a.logger)
+
+		// zeros are not worth recording, and this also simplifies math elsewhere
+		// for two major reasons:
+		// - it prevents some divide-by-zero scenarios by simply not having actual zeros
+		// - it prevents weights from perpetually lowering if zeros are repeatedly sent, where they may eventually reach zero
+		//
+		// these keys will eventually gc, just leave them alone until that happens.
+		// currently this gc relies on the assumption that HostUsage will be called with the same set of keys "soon",
+		// but that is fairly easy to fix if needed.
+		if rps+aps == 0 {
+			continue
+		}
+
 		if prev.lastUpdate.IsZero() {
 			initialized++
 			next = requests{
@@ -420,8 +456,8 @@ func (a *impl) Update(p UpdateParams) error {
 					// TODO: max(1, actual) so this does not lead to <1 rps allowances?  or maybe just 1+actual and then reduce in used-responses?
 					// otherwise currently this may lead to rare callers getting 0.0001 rps,
 					// and never recovering, despite steady and fair usage.
-					accepted: weighted(aps, prev.accepted*reduce, snap.weight),
-					rejected: weighted(rps, prev.rejected*reduce, snap.weight),
+					accepted: shared.SanityLogFloat(0, weighted(aps, prev.accepted*reduce, snap.weight), guessImpossibleRps, "weighted accepted rps", a.logger),
+					rejected: shared.SanityLogFloat(0, weighted(rps, prev.rejected*reduce, snap.weight), guessImpossibleRps, "weighted rejected rps", a.logger),
 				}
 			}
 		}
@@ -459,7 +495,10 @@ func (a *impl) getWeightsLocked(key Limit, snap configSnapshot) (weights map[Ide
 			continue
 		}
 
-		reduce := snap.missedUpdateScalar(age)
+		// should never be zero, `shouldGC` takes care of that.
+		reduce := shared.SanityLogFloat(0, snap.missedUpdateScalar(age), 1, "missed update", a.logger)
+		// similarly: should never be zero, accepted + rejected must be nonzero or they are not inserted.
+		// this may be reduced to very low values, but still far from == 0.
 		actual := HostWeight((reqs.accepted + reqs.rejected) * reduce)
 
 		weights[id] = actual // populate with the reduced values so it doesn't have to be calculated again
@@ -475,28 +514,37 @@ func (a *impl) getWeightsLocked(key Limit, snap configSnapshot) (weights map[Ide
 		return nil, 0, met
 	}
 
+	// zeros anywhere here should not be possible - they are prevented from being inserted,
+	// and anything simply "losing weight" will only become "rather low", not zero,
+	// before enough passes have occurred to garbage collect it.
+	//
+	// specifically, 1rps -> 0rps takes over 1,000 halving cycles, and a single 1rps event
+	// during that will immediately re-set it above 0.5 and will need 1,000+ more cycles.
+	//
+	// if gc period / weight amount is set extreme enough this is "possible",
+	// but we are unlikely to ever cause it.
 	for id := range ir {
-		// scale by the total.
-		// this also ensures all values are between 0 and 1 (inclusive)
-		weights[id] = weights[id] / total
+		// normalize by the total.
+		// this also ensures all values are between 0 and 1 (inclusive),
+		// though zero should be impossible.
+		weights[id] = shared.SanityLogFloat(0, weights[id]/total, 1, "normalized weight", a.logger)
 	}
 	met.Limits = 1
 	return weights, usedRPS, met
 }
 
-func (a *impl) HostWeights(host Identity, limits []Limit) (weights map[Limit]HostWeight, usedRPS map[Limit]PerSecond, err error) {
+func (a *impl) HostUsage(host Identity, limits []Limit) (usage map[Limit]HostUsage, err error) {
 	a.mut.Lock()
 	once := newOnce()
 	defer once.Do(a.mut.Unlock)
 
-	var cumulative Metrics
-
-	weights = make(map[Limit]HostWeight, len(limits))
-	usedRPS = make(map[Limit]PerSecond, len(limits))
 	snap, err := a.snapshot()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
+
+	var cumulative Metrics
+	usage = make(map[Limit]HostUsage, len(limits))
 	for _, lim := range limits {
 		hosts, used, met := a.getWeightsLocked(lim, snap)
 
@@ -506,9 +554,13 @@ func (a *impl) HostWeights(host Identity, limits []Limit) (weights map[Limit]Hos
 		cumulative.RemovedHostLimits += met.RemovedHostLimits
 
 		if len(hosts) > 0 {
-			usedRPS[lim] = used // limit is known, has some usage
-			if weight, ok := hosts[host]; ok {
-				weights[lim] = weight // host has a known weight
+			usage[lim] = HostUsage{
+				// limit is known, has some usage on at least one host.
+				// usage has an "upper limit" because it is only the accepted RPS, not all requests received.
+				Used: shared.SanityLogFloat(0, used, guessImpossibleRps, "used rps", a.logger),
+				// either known weight if there is info for this host, or zero if not.
+				// zeros are interpreted as "unknown", the same as "not present".
+				Weight: shared.SanityLogFloat(0, hosts[host], 1, "computed weight", a.logger),
 			}
 		}
 	}
@@ -520,7 +572,7 @@ func (a *impl) HostWeights(host Identity, limits []Limit) (weights map[Limit]Hos
 	a.scope.RecordHistogramValue(metrics.GlobalRatelimiterRemovedLimits, float64(cumulative.RemovedLimits))
 	a.scope.RecordHistogramValue(metrics.GlobalRatelimiterRemovedHostLimits, float64(cumulative.RemovedHostLimits))
 
-	return weights, usedRPS, nil
+	return usage, nil
 }
 
 func (a *impl) GC() (Metrics, error) {

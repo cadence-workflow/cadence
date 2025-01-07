@@ -4,23 +4,23 @@ The following is a high-level quarterly roadmap of the [Cadence](https://cadence
 
 ## Q3 2019
 
-* [Resource-Specific Tasklist (a.k.a session)](https://github.com/uber/cadence/blob/master/docs/design/1533-host-specific-tasklist.md)
-* [Visibility on Elastic Search](https://github.com/uber/cadence/blob/master/docs/visibility-on-elasticsearch.md)
+* [Resource-Specific Tasklist (a.k.a session)](https://github.com/cadence-workflow/cadence/blob/master/docs/design/1533-host-specific-tasklist.md)
+* [Visibility on Elastic Search](https://github.com/cadence-workflow/cadence/blob/master/docs/visibility-on-elasticsearch.md)
 * Scalable tasklist
 * MySQL support
 
 ## Q4 2019
 
-* [Multi-DC support for Cadence replication](https://github.com/uber/cadence/blob/master/docs/design/2290-cadence-ndc.md)
+* [Multi-DC support for Cadence replication](https://github.com/cadence-workflow/cadence/blob/master/docs/design/2290-cadence-ndc.md)
 * Workflow history archival
 * Workflow visibility archival
-* [Synchronous Request Reply](https://github.com/uber/cadence/blob/master/docs/design/2215-synchronous-request-reply.md)
+* [Synchronous Request Reply](https://github.com/cadence-workflow/cadence/blob/master/docs/design/2215-synchronous-request-reply.md)
 * Postgres SQL support
 
 ## Q1 2020
 
 * Service availability and reliability improvements
-* [Domain level AuthN and AuthZ support](https://github.com/uber/cadence/issues/2833)
+* [Domain level AuthN and AuthZ support](https://github.com/cadence-workflow/cadence/issues/2833)
 * Graceful domain failover design
 * UI bug fixes and performance improvements
 

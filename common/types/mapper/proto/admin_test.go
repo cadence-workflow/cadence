@@ -970,3 +970,15 @@ func TestToAdminUpdateDomainAsyncWorkflowConfiguratonResponse(t *testing.T) {
 		})
 	}
 }
+
+func TestAdminUpdateTaskListPartitionConfigRequest(t *testing.T) {
+	for _, item := range []*types.UpdateTaskListPartitionConfigRequest{nil, {}, &testdata.AdminUpdateTaskListPartitionConfigRequest} {
+		assert.Equal(t, item, ToAdminUpdateTaskListPartitionConfigRequest(FromAdminUpdateTaskListPartitionConfigRequest(item)))
+	}
+}
+
+func TestAdminUpdateTaskListPartitionConfigResponse(t *testing.T) {
+	for _, item := range []*types.UpdateTaskListPartitionConfigResponse{nil, {}} {
+		assert.Equal(t, item, ToAdminUpdateTaskListPartitionConfigResponse(FromAdminUpdateTaskListPartitionConfigResponse(item)))
+	}
+}

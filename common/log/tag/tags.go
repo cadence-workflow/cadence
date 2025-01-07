@@ -408,6 +408,11 @@ func Service(sv string) Tag {
 	return newStringTag("service", sv)
 }
 
+// DestService returns tag for destination service
+func DestService(sv string) Tag {
+	return newStringTag("dest-service", sv)
+}
+
 // Addresses returns tag for Addresses
 func Addresses(ads []string) Tag {
 	return newObjectTag("addresses", ads)
@@ -436,6 +441,11 @@ func Key(k string) Tag {
 // Name returns tag for Name
 func Name(k string) Tag {
 	return newStringTag("name", k)
+}
+
+// Mode returns tag for Mode
+func Mode(mode string) Tag {
+	return newStringTag("mode", mode)
 }
 
 // Value returns tag for Value
@@ -1010,4 +1020,36 @@ func GlobalRatelimiterCollectionName(name string) Tag {
 }
 func GlobalRatelimiterPeer(peer string) Tag {
 	return newStringTag("global-ratelimit-peer", peer)
+}
+
+func CurrentQPS(qps float64) Tag {
+	return newFloat64Tag("current-qps", qps)
+}
+
+func NumReadPartitions(n int32) Tag {
+	return newInt32("num-read-partitions", n)
+}
+
+func NumWritePartitions(n int32) Tag {
+	return newInt32("num-write-partitions", n)
+}
+
+func CurrentNumReadPartitions(n int32) Tag {
+	return newInt32("current-num-read-partitions", n)
+}
+
+func CurrentNumWritePartitions(n int32) Tag {
+	return newInt32("current-num-write-partitions", n)
+}
+
+func PartitionUpscaleThreshold(qps float64) Tag {
+	return newFloat64Tag("partition-upscale-threshold", qps)
+}
+
+func PartitionDownscaleThreshold(qps float64) Tag {
+	return newFloat64Tag("partition-downscale-threshold", qps)
+}
+
+func PartitionDownscaleFactor(qps float64) Tag {
+	return newFloat64Tag("partition-downscale-factor", qps)
 }

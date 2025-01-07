@@ -202,6 +202,20 @@ func (s *engineSuite) TestGetMutableStateSync() {
 		workflowExecution.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
+	msBuilder.SetVersionHistories(&persistence.VersionHistories{
+		CurrentVersionHistoryIndex: 0,
+		Histories: []*persistence.VersionHistory{
+			{
+				BranchToken: []byte("token"),
+				Items: []*persistence.VersionHistoryItem{
+					{
+						EventID: 2,
+						Version: 1,
+					},
+				},
+			},
+		},
+	})
 	test.AddWorkflowExecutionStartedEvent(msBuilder, workflowExecution, "wType", tasklist, []byte("input"), 100, 200, identity)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tasklist, identity)
@@ -266,6 +280,20 @@ func (s *engineSuite) TestGetMutableStateLongPoll() {
 		workflowExecution.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
+	msBuilder.SetVersionHistories(&persistence.VersionHistories{
+		CurrentVersionHistoryIndex: 0,
+		Histories: []*persistence.VersionHistory{
+			{
+				BranchToken: []byte("token"),
+				Items: []*persistence.VersionHistoryItem{
+					{
+						EventID: 2,
+						Version: 1,
+					},
+				},
+			},
+		},
+	})
 	test.AddWorkflowExecutionStartedEvent(msBuilder, workflowExecution, "wType", tasklist, []byte("input"), 100, 200, identity)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tasklist, identity)
@@ -306,6 +334,10 @@ func (s *engineSuite) TestGetMutableStateLongPoll() {
 		DomainUUID:          constants.TestDomainID,
 		Execution:           &workflowExecution,
 		ExpectedNextEventID: 3,
+		VersionHistoryItem: &types.VersionHistoryItem{
+			EventID: 1,
+			Version: 1,
+		},
 	})
 	s.Nil(err)
 	s.Equal(int64(4), response.NextEventID)
@@ -317,6 +349,10 @@ func (s *engineSuite) TestGetMutableStateLongPoll() {
 		DomainUUID:          constants.TestDomainID,
 		Execution:           &workflowExecution,
 		ExpectedNextEventID: 4,
+		VersionHistoryItem: &types.VersionHistoryItem{
+			EventID: 1,
+			Version: 1,
+		},
 	})
 	s.True(time.Now().After(start.Add(time.Second * 1)))
 	s.Nil(err)
@@ -340,6 +376,20 @@ func (s *engineSuite) TestGetMutableStateLongPoll_CurrentBranchChanged() {
 		workflowExecution.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
+	msBuilder.SetVersionHistories(&persistence.VersionHistories{
+		CurrentVersionHistoryIndex: 0,
+		Histories: []*persistence.VersionHistory{
+			{
+				BranchToken: []byte("token"),
+				Items: []*persistence.VersionHistoryItem{
+					{
+						EventID: 2,
+						Version: 1,
+					},
+				},
+			},
+		},
+	})
 	test.AddWorkflowExecutionStartedEvent(msBuilder, workflowExecution, "wType", tasklist, []byte("input"), 100, 200, identity)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tasklist, identity)
@@ -362,9 +412,9 @@ func (s *engineSuite) TestGetMutableStateLongPoll_CurrentBranchChanged() {
 			int64(1),
 			int64(4),
 			int64(1),
-			[]byte{1},
 			persistence.WorkflowStateCreated,
-			persistence.WorkflowCloseStatusNone))
+			persistence.WorkflowCloseStatusNone,
+			nil))
 	}
 
 	// return immediately, since the expected next event ID appears
@@ -405,6 +455,21 @@ func (s *engineSuite) TestGetMutableStateLongPollTimeout() {
 		workflowExecution.GetRunID(),
 		constants.TestLocalDomainEntry,
 	)
+
+	msBuilder.SetVersionHistories(&persistence.VersionHistories{
+		CurrentVersionHistoryIndex: 0,
+		Histories: []*persistence.VersionHistory{
+			{
+				BranchToken: []byte("token"),
+				Items: []*persistence.VersionHistoryItem{
+					{
+						EventID: 2,
+						Version: 1,
+					},
+				},
+			},
+		},
+	})
 	test.AddWorkflowExecutionStartedEvent(msBuilder, workflowExecution, "wType", tasklist, []byte("input"), 100, 200, identity)
 	di := test.AddDecisionTaskScheduledEvent(msBuilder)
 	test.AddDecisionTaskStartedEvent(msBuilder, di.ScheduleID, tasklist, identity)

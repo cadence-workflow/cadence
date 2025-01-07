@@ -36,6 +36,8 @@ func GetMetricsServiceIdx(serviceName string, logger log.Logger) metrics.Service
 		return metrics.Matching
 	case Worker:
 		return metrics.Worker
+	case ShardDistributor:
+		return metrics.ShardDistributor
 	default:
 		logger.Fatal("Unknown service name for metrics!")
 	}

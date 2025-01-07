@@ -100,10 +100,11 @@ func (v *FailoverMarkerToken) GetFailoverMarker() (o *FailoverMarkerAttributes) 
 
 // GetMutableStateRequest is an internal type (TBD...)
 type GetMutableStateRequest struct {
-	DomainUUID          string             `json:"domainUUID,omitempty"`
-	Execution           *WorkflowExecution `json:"execution,omitempty"`
-	ExpectedNextEventID int64              `json:"expectedNextEventId,omitempty"`
-	CurrentBranchToken  []byte             `json:"currentBranchToken,omitempty"`
+	DomainUUID          string              `json:"domainUUID,omitempty"`
+	Execution           *WorkflowExecution  `json:"execution,omitempty"`
+	ExpectedNextEventID int64               `json:"expectedNextEventId,omitempty"`
+	CurrentBranchToken  []byte              `json:"currentBranchToken,omitempty"`
+	VersionHistoryItem  *VersionHistoryItem `json:"versionHistoryItem,omitempty"`
 }
 
 // GetDomainUUID is an internal getter (TBD...)
@@ -275,16 +276,24 @@ func (v *ParentExecutionInfo) GetExecution() (o *WorkflowExecution) {
 
 // PollMutableStateRequest is an internal type (TBD...)
 type PollMutableStateRequest struct {
-	DomainUUID          string             `json:"domainUUID,omitempty"`
-	Execution           *WorkflowExecution `json:"execution,omitempty"`
-	ExpectedNextEventID int64              `json:"expectedNextEventId,omitempty"`
-	CurrentBranchToken  []byte             `json:"currentBranchToken,omitempty"`
+	DomainUUID          string              `json:"domainUUID,omitempty"`
+	Execution           *WorkflowExecution  `json:"execution,omitempty"`
+	ExpectedNextEventID int64               `json:"expectedNextEventId,omitempty"`
+	CurrentBranchToken  []byte              `json:"currentBranchToken,omitempty"`
+	VersionHistoryItem  *VersionHistoryItem `json:"versionHistoryItem,omitempty"`
+}
+
+func (p *PollMutableStateRequest) GetVersionHistoryItem() *VersionHistoryItem {
+	if p.VersionHistoryItem == nil {
+		return nil
+	}
+	return p.VersionHistoryItem
 }
 
 // GetDomainUUID is an internal getter (TBD...)
-func (v *PollMutableStateRequest) GetDomainUUID() (o string) {
-	if v != nil {
-		return v.DomainUUID
+func (p *PollMutableStateRequest) GetDomainUUID() (o string) {
+	if p != nil {
+		return p.DomainUUID
 	}
 	return
 }

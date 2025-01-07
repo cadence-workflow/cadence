@@ -42,7 +42,6 @@ import (
 	"github.com/uber/cadence/client/wrappers/metered"
 	"github.com/uber/cadence/client/wrappers/thrift"
 	timeoutwrapper "github.com/uber/cadence/client/wrappers/timeout"
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/membership"
@@ -68,7 +67,7 @@ type (
 	DomainIDToNameFunc func(string) (string, error)
 
 	rpcClientFactory struct {
-		rpcFactory            common.RPCFactory
+		rpcFactory            rpc.Factory
 		resolver              membership.Resolver
 		metricsClient         metrics.Client
 		dynConfig             *dynamicconfig.Collection
@@ -79,7 +78,7 @@ type (
 
 // NewRPCClientFactory creates an instance of client factory that knows how to dispatch RPC calls.
 func NewRPCClientFactory(
-	rpcFactory common.RPCFactory,
+	rpcFactory rpc.Factory,
 	resolver membership.Resolver,
 	metricsClient metrics.Client,
 	dc *dynamicconfig.Collection,
@@ -152,10 +151,20 @@ func (cf *rpcClientFactory) NewMatchingClientWithTimeout(
 
 	peerResolver := matching.NewPeerResolver(cf.resolver, namedPort)
 
+	partitionConfigProvider := matching.NewPartitionConfigProvider(cf.logger, cf.metricsClient, domainIDToName, cf.dynConfig)
+	defaultLoadBalancer := matching.NewLoadBalancer(partitionConfigProvider)
+	roundRobinLoadBalancer := matching.NewRoundRobinLoadBalancer(partitionConfigProvider)
+	weightedLoadBalancer := matching.NewWeightedLoadBalancer(roundRobinLoadBalancer, partitionConfigProvider, cf.logger)
+	loadBalancers := map[string]matching.LoadBalancer{
+		"random":      defaultLoadBalancer,
+		"round-robin": roundRobinLoadBalancer,
+		"weighted":    weightedLoadBalancer,
+	}
 	client := matching.NewClient(
 		rawClient,
 		peerResolver,
-		matching.NewLoadBalancer(domainIDToName, cf.dynConfig),
+		matching.NewMultiLoadBalancer(defaultLoadBalancer, loadBalancers, domainIDToName, cf.dynConfig, cf.logger),
+		partitionConfigProvider,
 	)
 	client = timeoutwrapper.NewMatchingClient(client, longPollTimeout, timeout)
 	if errorRate := cf.dynConfig.GetFloat64Property(dynamicconfig.MatchingErrorInjectionRate)(); errorRate != 0 {

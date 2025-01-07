@@ -18,6 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination indexer_mock.go github.com/uber/cadence/service/worker/indexer ESProcessor
+
 package indexer
 
 import (
@@ -58,13 +60,13 @@ type (
 	}
 	// Indexer used to consumer data from kafka then send to ElasticSearch
 	Indexer struct {
-		esIndexName string
-		consumer    messaging.Consumer
-		esProcessor ESProcessor
-		config      *Config
-		logger      log.Logger
-		scope       metrics.Scope
-		msgEncoder  codec.BinaryEncoder
+		esIndexName         string
+		consumer            messaging.Consumer
+		visibilityProcessor ESProcessor
+		config              *Config
+		logger              log.Logger
+		scope               metrics.Scope
+		msgEncoder          codec.BinaryEncoder
 
 		isStarted  int32
 		isStopped  int32
@@ -88,14 +90,14 @@ type (
 func NewIndexer(
 	config *Config,
 	client messaging.Client,
-	esClient es.GenericClient,
+	visibilityClient es.GenericClient,
 	visibilityName string,
 	logger log.Logger,
 	metricsClient metrics.Client,
 ) *Indexer {
 	logger = logger.WithTags(tag.ComponentIndexer)
 
-	esProcessor, err := newESProcessor(processorName, config, esClient, logger, metricsClient)
+	visibilityProcessor, err := newESProcessor(processorName, config, visibilityClient, logger, metricsClient)
 	if err != nil {
 		logger.Fatal("Index ES processor state changed", tag.LifeCycleStartFailed, tag.Error(err))
 	}
@@ -106,14 +108,14 @@ func NewIndexer(
 	}
 
 	return &Indexer{
-		config:      config,
-		esIndexName: visibilityName,
-		consumer:    consumer,
-		logger:      logger.WithTags(tag.ComponentIndexerProcessor),
-		scope:       metricsClient.Scope(metrics.IndexProcessorScope),
-		shutdownCh:  make(chan struct{}),
-		esProcessor: esProcessor,
-		msgEncoder:  defaultEncoder,
+		config:              config,
+		esIndexName:         visibilityName,
+		consumer:            consumer,
+		logger:              logger.WithTags(tag.ComponentIndexerProcessor),
+		scope:               metricsClient.Scope(metrics.IndexProcessorScope),
+		shutdownCh:          make(chan struct{}),
+		visibilityProcessor: visibilityProcessor,
+		msgEncoder:          defaultEncoder,
 	}
 }
 
@@ -131,7 +133,7 @@ func (i *Indexer) Start() error {
 		return err
 	}
 
-	i.esProcessor.Start()
+	i.visibilityProcessor.Start()
 
 	i.shutdownWG.Add(1)
 	go i.processorPump()
@@ -169,7 +171,7 @@ func (i *Indexer) processorPump() {
 	<-i.shutdownCh
 	// Processor is shutting down, close the underlying consumer and esProcessor
 	i.consumer.Stop()
-	i.esProcessor.Stop()
+	i.visibilityProcessor.Stop()
 
 	i.logger.Info("Index bulkProcessor pump shutting down.")
 	if success := common.AwaitWaitGroup(&workerWG, 10*time.Second); !success {
@@ -249,7 +251,8 @@ func (i *Indexer) addMessageToES(indexMsg *indexer.Message, kafkaMsg messaging.M
 		return errUnknownMessageType
 	}
 
-	i.esProcessor.Add(req, keyToKafkaMsg, kafkaMsg)
+	i.visibilityProcessor.Add(req, keyToKafkaMsg, kafkaMsg)
+
 	return nil
 }
 

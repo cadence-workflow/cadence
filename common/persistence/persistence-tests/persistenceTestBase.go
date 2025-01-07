@@ -1729,13 +1729,13 @@ func (s *TestBase) CreateActivityTasks(ctx context.Context, domainID string, wor
 			{
 				TaskID: taskID,
 				Data: &persistence.TaskInfo{
-					DomainID:               domainID,
-					WorkflowID:             workflowExecution.WorkflowID,
-					RunID:                  workflowExecution.RunID,
-					TaskID:                 taskID,
-					ScheduleID:             activityScheduleID,
-					ScheduleToStartTimeout: defaultScheduleToStartTimeout,
-					PartitionConfig:        partitionConfig,
+					DomainID:                      domainID,
+					WorkflowID:                    workflowExecution.WorkflowID,
+					RunID:                         workflowExecution.RunID,
+					TaskID:                        taskID,
+					ScheduleID:                    activityScheduleID,
+					ScheduleToStartTimeoutSeconds: defaultScheduleToStartTimeout,
+					PartitionConfig:               partitionConfig,
 				},
 			},
 		}

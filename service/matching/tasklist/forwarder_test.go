@@ -45,7 +45,7 @@ type ForwarderTestSuite struct {
 	suite.Suite
 	controller      *gomock.Controller
 	client          *matching.MockClient
-	fwdr            *Forwarder
+	fwdr            *forwarderImpl
 	cfg             *config.ForwarderConfig
 	taskList        *Identifier
 	isolationGroups []string
@@ -68,7 +68,7 @@ func (t *ForwarderTestSuite) SetupTest() {
 	t.NoError(err)
 	t.taskList = id
 	t.isolationGroups = []string{"abc", "xyz"}
-	t.fwdr = newForwarder(t.cfg, t.taskList, types.TaskListKindNormal, t.client, t.isolationGroups, metrics.NoopScope(metrics.Matching))
+	t.fwdr = newForwarder(t.cfg, t.taskList, types.TaskListKindNormal, t.client, t.isolationGroups, metrics.NoopScope(metrics.Matching)).(*forwarderImpl)
 }
 
 func (t *ForwarderTestSuite) TearDownTest() {
@@ -92,7 +92,7 @@ func (t *ForwarderTestSuite) TestForwardDecisionTask() {
 		func(arg0 context.Context, arg1 *types.AddDecisionTaskRequest, option ...yarpc.CallOption) {
 			request = arg1
 		},
-	).Return(nil).Times(1)
+	).Return(&types.AddDecisionTaskResponse{}, nil).Times(1)
 
 	taskInfo := t.newTaskInfo()
 	task := newInternalTask(taskInfo, nil, types.TaskSourceHistory, "", false, nil, "")
@@ -104,7 +104,7 @@ func (t *ForwarderTestSuite) TestForwardDecisionTask() {
 	t.Equal(taskInfo.WorkflowID, request.GetExecution().GetWorkflowID())
 	t.Equal(taskInfo.RunID, request.GetExecution().GetRunID())
 	t.Equal(taskInfo.ScheduleID, request.GetScheduleID())
-	t.Equal(taskInfo.ScheduleToStartTimeout, request.GetScheduleToStartTimeoutSeconds())
+	t.Equal(taskInfo.ScheduleToStartTimeoutSeconds, request.GetScheduleToStartTimeoutSeconds())
 	t.Equal(t.taskList.name, request.GetForwardedFrom())
 }
 
@@ -116,7 +116,7 @@ func (t *ForwarderTestSuite) TestForwardActivityTask() {
 		func(arg0 context.Context, arg1 *types.AddActivityTaskRequest, option ...yarpc.CallOption) {
 			request = arg1
 		},
-	).Return(nil).Times(1)
+	).Return(&types.AddActivityTaskResponse{}, nil).Times(1)
 
 	taskInfo := t.newTaskInfo()
 	task := newInternalTask(taskInfo, nil, types.TaskSourceHistory, "", false, nil, "")
@@ -129,7 +129,7 @@ func (t *ForwarderTestSuite) TestForwardActivityTask() {
 	t.Equal(taskInfo.WorkflowID, request.GetExecution().GetWorkflowID())
 	t.Equal(taskInfo.RunID, request.GetExecution().GetRunID())
 	t.Equal(taskInfo.ScheduleID, request.GetScheduleID())
-	t.Equal(taskInfo.ScheduleToStartTimeout, request.GetScheduleToStartTimeoutSeconds())
+	t.Equal(taskInfo.ScheduleToStartTimeoutSeconds, request.GetScheduleToStartTimeoutSeconds())
 	t.Equal(t.taskList.name, request.GetForwardedFrom())
 }
 
@@ -137,7 +137,7 @@ func (t *ForwarderTestSuite) TestForwardTaskRateExceeded() {
 	t.usingTasklistPartition(persistence.TaskListTypeActivity)
 
 	rps := 2
-	t.client.EXPECT().AddActivityTask(gomock.Any(), gomock.Any()).Return(nil).Times(rps)
+	t.client.EXPECT().AddActivityTask(gomock.Any(), gomock.Any()).Return(&types.AddActivityTaskResponse{}, nil).Times(rps)
 	taskInfo := t.newTaskInfo()
 	task := newInternalTask(taskInfo, nil, types.TaskSourceHistory, "", false, nil, "")
 	for i := 0; i < rps; i++ {
@@ -235,7 +235,7 @@ func (t *ForwarderTestSuite) TestForwardPollForActivity() {
 	pollerID := uuid.New()
 	ctx := ContextWithPollerID(context.Background(), pollerID)
 	ctx = ContextWithIdentity(ctx, "id1")
-	resp := &types.PollForActivityTaskResponse{}
+	resp := &types.MatchingPollForActivityTaskResponse{}
 
 	var request *types.MatchingPollForActivityTaskRequest
 	t.client.EXPECT().PollForActivityTask(gomock.Any(), gomock.Any()).Do(
@@ -357,11 +357,11 @@ func (t *ForwarderTestSuite) usingTasklistPartition(taskType int) {
 
 func (t *ForwarderTestSuite) newTaskInfo() *persistence.TaskInfo {
 	return &persistence.TaskInfo{
-		DomainID:               uuid.New(),
-		WorkflowID:             uuid.New(),
-		RunID:                  uuid.New(),
-		TaskID:                 rand.Int63(),
-		ScheduleID:             rand.Int63(),
-		ScheduleToStartTimeout: rand.Int31(),
+		DomainID:                      uuid.New(),
+		WorkflowID:                    uuid.New(),
+		RunID:                         uuid.New(),
+		TaskID:                        rand.Int63(),
+		ScheduleID:                    rand.Int63(),
+		ScheduleToStartTimeoutSeconds: rand.Int31(),
 	}
 }

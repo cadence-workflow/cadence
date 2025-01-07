@@ -220,6 +220,17 @@ func (e *StickyWorkerUnavailableError) YARPCErrorCode() *yarpcerrors.Code {
 // Name is the error name for StickyWorkerUnavailableError.
 func (e *StickyWorkerUnavailableError) YARPCErrorName() string { return "StickyWorkerUnavailableError" }
 
+// YARPCErrorCode returns nil for TaskListNotOwnedByHostError.
+//
+// This is derived from the rpc.code annotation on the Thrift exception.
+func (e *TaskListNotOwnedByHostError) YARPCErrorCode() *yarpcerrors.Code {
+
+	return nil
+}
+
+// Name is the error name for TaskListNotOwnedByHostError.
+func (e *TaskListNotOwnedByHostError) YARPCErrorName() string { return "TaskListNotOwnedByHostError" }
+
 // YARPCErrorCode returns nil for WorkflowExecutionAlreadyCompletedError.
 //
 // This is derived from the rpc.code annotation on the Thrift exception.

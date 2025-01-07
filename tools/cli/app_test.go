@@ -21,16 +21,23 @@
 package cli
 
 import (
+	"bytes"
+	"fmt"
+	"io"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/flynn/go-shlex"
 	"github.com/golang/mock/gomock"
 	"github.com/olekukonko/tablewriter"
 	"github.com/olivere/elastic"
 	"github.com/pborman/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 
 	"github.com/uber/cadence/client/admin"
 	"github.com/uber/cadence/client/frontend"
@@ -39,41 +46,57 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
-type cliAppSuite struct {
-	suite.Suite
-	app                  *cli.App
-	mockCtrl             *gomock.Controller
-	serverFrontendClient *frontend.MockClient
-	serverAdminClient    *admin.MockClient
-}
+type (
+	cliAppSuite struct {
+		suite.Suite
+		app                  *cli.App
+		mockCtrl             *gomock.Controller
+		serverFrontendClient *frontend.MockClient
+		serverAdminClient    *admin.MockClient
+		testIOHandler        *testIOHandler
+	}
+
+	testcase struct {
+		name    string
+		command string
+		err     string
+		mock    func()
+	}
+)
+
+var _ ClientFactory = (*clientFactoryMock)(nil)
 
 type clientFactoryMock struct {
 	serverFrontendClient frontend.Client
 	serverAdminClient    admin.Client
+	config               *config.Config
 }
 
-func (m *clientFactoryMock) ServerFrontendClient(c *cli.Context) frontend.Client {
-	return m.serverFrontendClient
+func (m *clientFactoryMock) ServerFrontendClient(c *cli.Context) (frontend.Client, error) {
+	return m.serverFrontendClient, nil
 }
 
-func (m *clientFactoryMock) ServerAdminClient(c *cli.Context) admin.Client {
-	return m.serverAdminClient
+func (m *clientFactoryMock) ServerAdminClient(c *cli.Context) (admin.Client, error) {
+	return m.serverAdminClient, nil
 }
 
-func (m *clientFactoryMock) ServerFrontendClientForMigration(c *cli.Context) frontend.Client {
+func (m *clientFactoryMock) ServerFrontendClientForMigration(c *cli.Context) (frontend.Client, error) {
 	panic("not implemented")
 }
 
-func (m *clientFactoryMock) ServerAdminClientForMigration(c *cli.Context) admin.Client {
+func (m *clientFactoryMock) ServerAdminClientForMigration(c *cli.Context) (admin.Client, error) {
 	panic("not implemented")
 }
 
-func (m *clientFactoryMock) ElasticSearchClient(c *cli.Context) *elastic.Client {
+func (m *clientFactoryMock) ElasticSearchClient(c *cli.Context) (*elastic.Client, error) {
 	panic("not implemented")
 }
 
 func (m *clientFactoryMock) ServerConfig(c *cli.Context) (*config.Config, error) {
-	panic("not implemented")
+	if m.config != nil {
+		return m.config, nil
+	}
+	return nil, fmt.Errorf("config not set")
 }
 
 var commands = []string{
@@ -84,39 +107,67 @@ var commands = []string{
 
 var domainName = "cli-test-domain"
 
+// Implements IOHandler to be used for validation in tests
+type testIOHandler struct {
+	outputBytes bytes.Buffer
+}
+
+func (t *testIOHandler) Input() io.Reader {
+	return os.Stdin
+}
+
+func (t *testIOHandler) Output() io.Writer {
+	return &t.outputBytes
+}
+
+func (t *testIOHandler) Progress() io.Writer {
+	return os.Stdout
+}
+
 func TestCLIAppSuite(t *testing.T) {
 	s := new(cliAppSuite)
 	suite.Run(t, s)
 }
 
-func (s *cliAppSuite) SetupSuite() {
-	s.app = NewCliApp()
-}
-
 func (s *cliAppSuite) SetupTest() {
 	s.mockCtrl = gomock.NewController(s.T())
-
 	s.serverFrontendClient = frontend.NewMockClient(s.mockCtrl)
 	s.serverAdminClient = admin.NewMockClient(s.mockCtrl)
-	SetFactory(&clientFactoryMock{
+	s.testIOHandler = &testIOHandler{}
+	s.app = NewCliApp(&clientFactoryMock{
 		serverFrontendClient: s.serverFrontendClient,
 		serverAdminClient:    s.serverAdminClient,
-	})
+	}, WithIOHandler(s.testIOHandler))
 }
 
 func (s *cliAppSuite) TearDownTest() {
 	s.mockCtrl.Finish() // assert mock’s expectations
 }
 
-func (s *cliAppSuite) RunErrorExitCode(arguments []string) int {
-	oldOsExit := osExit
-	defer func() { osExit = oldOsExit }()
-	var errorCode int
-	osExit = func(code int) {
-		errorCode = code
+func (s *cliAppSuite) SetupSubTest() {
+	// this is required to re-establish mocks on subtest-level
+	// otherwise you will confusingly see expectations from previous test-cases on errors
+	s.SetupTest()
+}
+
+func (s *cliAppSuite) TearDownSubTest() {
+	s.TearDownTest()
+}
+
+func (s *cliAppSuite) runTestCase(tt testcase) {
+	if tt.mock != nil {
+		tt.mock()
 	}
-	s.NoError(s.app.Run(arguments))
-	return errorCode
+
+	args, err := shlex.Split(tt.command)
+	require.NoError(s.T(), err)
+	err = s.app.Run(args)
+
+	if tt.err != "" {
+		assert.ErrorContains(s.T(), err, tt.err)
+	} else {
+		assert.NoError(s.T(), err)
+	}
 }
 
 func (s *cliAppSuite) TestAppCommands() {
@@ -124,30 +175,6 @@ func (s *cliAppSuite) TestAppCommands() {
 		cmd := s.app.Command(test)
 		s.NotNil(cmd)
 	}
-}
-
-func (s *cliAppSuite) TestDomainRegister_LocalDomain() {
-	s.serverFrontendClient.EXPECT().RegisterDomain(gomock.Any(), gomock.Any()).Return(nil)
-	errorCode := s.RunErrorExitCode([]string{"", "--do", domainName, "domain", "register", "--global_domain", "false"})
-	s.Equal(0, errorCode)
-}
-
-func (s *cliAppSuite) TestDomainRegister_GlobalDomain() {
-	s.serverFrontendClient.EXPECT().RegisterDomain(gomock.Any(), gomock.Any()).Return(nil)
-	errorCode := s.RunErrorExitCode([]string{"", "--do", domainName, "domain", "register", "--global_domain", "true"})
-	s.Equal(0, errorCode)
-}
-
-func (s *cliAppSuite) TestDomainRegister_DomainExist() {
-	s.serverFrontendClient.EXPECT().RegisterDomain(gomock.Any(), gomock.Any()).Return(&types.DomainAlreadyExistsError{})
-	errorCode := s.RunErrorExitCode([]string{"", "--do", domainName, "domain", "register", "--global_domain", "true"})
-	s.Equal(1, errorCode)
-}
-
-func (s *cliAppSuite) TestDomainRegister_Failed() {
-	s.serverFrontendClient.EXPECT().RegisterDomain(gomock.Any(), gomock.Any()).Return(&types.BadRequestError{"fake error"})
-	errorCode := s.RunErrorExitCode([]string{"", "--do", domainName, "domain", "register", "--global_domain", "true"})
-	s.Equal(1, errorCode)
 }
 
 var describeDomainResponseServer = &types.DescribeDomainResponse{
@@ -173,38 +200,6 @@ var describeDomainResponseServer = &types.DescribeDomainResponse{
 	},
 }
 
-func (s *cliAppSuite) TestDomainUpdate() {
-	resp := describeDomainResponseServer
-	s.serverFrontendClient.EXPECT().DescribeDomain(gomock.Any(), gomock.Any()).Return(resp, nil).Times(2)
-	s.serverFrontendClient.EXPECT().UpdateDomain(gomock.Any(), gomock.Any()).Return(nil, nil).Times(2)
-	err := s.app.Run([]string{"", "--do", domainName, "domain", "update"})
-	s.Nil(err)
-	err = s.app.Run([]string{"", "--do", domainName, "domain", "update", "--desc", "another desc", "--oe", "another@uber.com", "--rd", "1"})
-	s.Nil(err)
-}
-
-func (s *cliAppSuite) TestDomainUpdate_DomainNotExist() {
-	resp := describeDomainResponseServer
-	s.serverFrontendClient.EXPECT().DescribeDomain(gomock.Any(), gomock.Any()).Return(resp, nil)
-	s.serverFrontendClient.EXPECT().UpdateDomain(gomock.Any(), gomock.Any()).Return(nil, &types.EntityNotExistsError{})
-	errorCode := s.RunErrorExitCode([]string{"", "--do", domainName, "domain", "update"})
-	s.Equal(1, errorCode)
-}
-
-func (s *cliAppSuite) TestDomainUpdate_ActiveClusterFlagNotSet_DomainNotExist() {
-	s.serverFrontendClient.EXPECT().DescribeDomain(gomock.Any(), gomock.Any()).Return(nil, &types.EntityNotExistsError{})
-	errorCode := s.RunErrorExitCode([]string{"", "--do", domainName, "domain", "update"})
-	s.Equal(1, errorCode)
-}
-
-func (s *cliAppSuite) TestDomainUpdate_Failed() {
-	resp := describeDomainResponseServer
-	s.serverFrontendClient.EXPECT().DescribeDomain(gomock.Any(), gomock.Any()).Return(resp, nil)
-	s.serverFrontendClient.EXPECT().UpdateDomain(gomock.Any(), gomock.Any()).Return(nil, &types.BadRequestError{"faked error"})
-	errorCode := s.RunErrorExitCode([]string{"", "--do", domainName, "domain", "update"})
-	s.Equal(1, errorCode)
-}
-
 func (s *cliAppSuite) TestDomainDeprecate() {
 	s.serverFrontendClient.EXPECT().ListClosedWorkflowExecutions(gomock.Any(), gomock.Any()).Return(&types.ListClosedWorkflowExecutionsResponse{}, nil)
 	s.serverFrontendClient.EXPECT().ListOpenWorkflowExecutions(gomock.Any(), gomock.Any()).Return(&types.ListOpenWorkflowExecutionsResponse{}, nil)
@@ -217,29 +212,25 @@ func (s *cliAppSuite) TestDomainDeprecate_DomainNotExist() {
 	s.serverFrontendClient.EXPECT().ListClosedWorkflowExecutions(gomock.Any(), gomock.Any()).Return(&types.ListClosedWorkflowExecutionsResponse{}, nil)
 	s.serverFrontendClient.EXPECT().ListOpenWorkflowExecutions(gomock.Any(), gomock.Any()).Return(&types.ListOpenWorkflowExecutionsResponse{}, nil)
 	s.serverFrontendClient.EXPECT().DeprecateDomain(gomock.Any(), gomock.Any()).Return(&types.EntityNotExistsError{})
-	errorCode := s.RunErrorExitCode([]string{"", "--do", domainName, "domain", "deprecate"})
-	s.Equal(1, errorCode)
+	s.Error(s.app.Run([]string{"", "--do", domainName, "domain", "deprecate"}))
 }
 
 func (s *cliAppSuite) TestDomainDeprecate_Failed() {
 	s.serverFrontendClient.EXPECT().ListClosedWorkflowExecutions(gomock.Any(), gomock.Any()).Return(&types.ListClosedWorkflowExecutionsResponse{}, nil)
 	s.serverFrontendClient.EXPECT().ListOpenWorkflowExecutions(gomock.Any(), gomock.Any()).Return(&types.ListOpenWorkflowExecutionsResponse{}, nil)
 	s.serverFrontendClient.EXPECT().DeprecateDomain(gomock.Any(), gomock.Any()).Return(&types.BadRequestError{"faked error"})
-	errorCode := s.RunErrorExitCode([]string{"", "--do", domainName, "domain", "deprecate"})
-	s.Equal(1, errorCode)
+	s.Error(s.app.Run([]string{"", "--do", domainName, "domain", "deprecate"}))
 }
 
 func (s *cliAppSuite) TestDomainDeprecate_ClosedWorkflowsExist() {
 	s.serverFrontendClient.EXPECT().ListClosedWorkflowExecutions(gomock.Any(), gomock.Any()).Return(listClosedWorkflowExecutionsResponse, nil)
-	errorCode := s.RunErrorExitCode([]string{"", "--do", domainName, "domain", "deprecate"})
-	s.Equal(1, errorCode)
+	s.Error(s.app.Run([]string{"", "--do", domainName, "domain", "deprecate"}))
 }
 
 func (s *cliAppSuite) TestDomainDeprecate_OpenWorkflowsExist() {
 	s.serverFrontendClient.EXPECT().ListClosedWorkflowExecutions(gomock.Any(), gomock.Any()).Return(&types.ListClosedWorkflowExecutionsResponse{}, nil)
 	s.serverFrontendClient.EXPECT().ListOpenWorkflowExecutions(gomock.Any(), gomock.Any()).Return(listOpenWorkflowExecutionsResponse, nil)
-	errorCode := s.RunErrorExitCode([]string{"", "--do", domainName, "domain", "deprecate"})
-	s.Equal(1, errorCode)
+	s.Error(s.app.Run([]string{"", "--do", domainName, "domain", "deprecate"}))
 }
 
 func (s *cliAppSuite) TestDomainDeprecate_Force() {
@@ -250,14 +241,12 @@ func (s *cliAppSuite) TestDomainDeprecate_Force() {
 
 func (s *cliAppSuite) TestDomainDeprecate_DomainNotExist_Force() {
 	s.serverFrontendClient.EXPECT().DeprecateDomain(gomock.Any(), gomock.Any()).Return(&types.EntityNotExistsError{})
-	errorCode := s.RunErrorExitCode([]string{"", "--do", domainName, "domain", "deprecate", "--force"})
-	s.Equal(1, errorCode)
+	s.Error(s.app.Run([]string{"", "--do", domainName, "domain", "deprecate", "--force"}))
 }
 
 func (s *cliAppSuite) TestDomainDeprecate_Failed_Force() {
 	s.serverFrontendClient.EXPECT().DeprecateDomain(gomock.Any(), gomock.Any()).Return(&types.BadRequestError{"faked error"})
-	errorCode := s.RunErrorExitCode([]string{"", "--do", domainName, "domain", "deprecate", "--force"})
-	s.Equal(1, errorCode)
+	s.Error(s.app.Run([]string{"", "--do", domainName, "domain", "deprecate", "--force"}))
 }
 
 func (s *cliAppSuite) TestDomainDescribe() {
@@ -270,15 +259,13 @@ func (s *cliAppSuite) TestDomainDescribe() {
 func (s *cliAppSuite) TestDomainDescribe_DomainNotExist() {
 	resp := describeDomainResponseServer
 	s.serverFrontendClient.EXPECT().DescribeDomain(gomock.Any(), gomock.Any()).Return(resp, &types.EntityNotExistsError{})
-	errorCode := s.RunErrorExitCode([]string{"", "--do", domainName, "domain", "describe"})
-	s.Equal(1, errorCode)
+	s.Error(s.app.Run([]string{"", "--do", domainName, "domain", "describe"}))
 }
 
 func (s *cliAppSuite) TestDomainDescribe_Failed() {
 	resp := describeDomainResponseServer
 	s.serverFrontendClient.EXPECT().DescribeDomain(gomock.Any(), gomock.Any()).Return(resp, &types.BadRequestError{"faked error"})
-	errorCode := s.RunErrorExitCode([]string{"", "--do", domainName, "domain", "describe"})
-	s.Equal(1, errorCode)
+	s.Error(s.app.Run([]string{"", "--do", domainName, "domain", "describe"}))
 }
 
 var (
@@ -357,8 +344,19 @@ func (s *cliAppSuite) TestRestartWorkflow() {
 func (s *cliAppSuite) TestRestartWorkflow_Failed() {
 	resp := &types.RestartWorkflowExecutionResponse{RunID: uuid.New()}
 	s.serverFrontendClient.EXPECT().RestartWorkflowExecution(gomock.Any(), gomock.Any()).Return(resp, &types.BadRequestError{"faked error"})
-	errorCode := s.RunErrorExitCode([]string{"", "--do", domainName, "workflow", "restart", "-w", "wid"})
-	s.Equal(1, errorCode)
+	s.Error(s.app.Run([]string{"", "--do", domainName, "workflow", "restart", "-w", "wid"}))
+}
+
+func (s *cliAppSuite) TestDiagnoseWorkflow() {
+	resp := &types.DiagnoseWorkflowExecutionResponse{Domain: "test", DiagnosticWorkflowExecution: &types.WorkflowExecution{WorkflowID: "123", RunID: uuid.New()}}
+	s.serverFrontendClient.EXPECT().DiagnoseWorkflowExecution(gomock.Any(), gomock.Any()).Return(resp, nil).Times(1)
+	err := s.app.Run([]string{"", "--do", domainName, "workflow", "diagnose", "-w", "wid", "-r", "rid"})
+	s.Nil(err)
+}
+
+func (s *cliAppSuite) TestDiagnoseWorkflow_Failed() {
+	s.serverFrontendClient.EXPECT().DiagnoseWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil, &types.BadRequestError{"faked error"})
+	s.Error(s.app.Run([]string{"", "--do", domainName, "workflow", "diagnose", "-w", "wid", "-r", "rid"}))
 }
 
 func (s *cliAppSuite) TestStartWorkflow() {
@@ -376,8 +374,7 @@ func (s *cliAppSuite) TestStartWorkflow_Failed() {
 	resp := &types.StartWorkflowExecutionResponse{RunID: uuid.New()}
 	s.serverFrontendClient.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).Return(resp, &types.BadRequestError{"faked error"})
 	// start with wid
-	errorCode := s.RunErrorExitCode([]string{"", "--do", domainName, "workflow", "start", "-tl", "testTaskList", "-wt", "testWorkflowType", "-et", "60", "-w", "wid"})
-	s.Equal(1, errorCode)
+	s.Error(s.app.Run([]string{"", "--do", domainName, "workflow", "start", "-tl", "testTaskList", "-wt", "testWorkflowType", "-et", "60", "-w", "wid"}))
 }
 
 func (s *cliAppSuite) TestRunWorkflow() {
@@ -395,12 +392,9 @@ func (s *cliAppSuite) TestRunWorkflow() {
 
 func (s *cliAppSuite) TestRunWorkflow_Failed() {
 	resp := &types.StartWorkflowExecutionResponse{RunID: uuid.New()}
-	history := getWorkflowExecutionHistoryResponse
 	s.serverFrontendClient.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).Return(resp, &types.BadRequestError{"faked error"})
-	s.serverFrontendClient.EXPECT().GetWorkflowExecutionHistory(gomock.Any(), gomock.Any()).Return(history, nil)
 	// start with wid
-	errorCode := s.RunErrorExitCode([]string{"", "--do", domainName, "workflow", "run", "-tl", "testTaskList", "-wt", "testWorkflowType", "-et", "60", "-w", "wid"})
-	s.Equal(1, errorCode)
+	s.Error(s.app.Run([]string{"", "--do", domainName, "workflow", "run", "-tl", "testTaskList", "-wt", "testWorkflowType", "-et", "60", "-w", "wid"}))
 }
 
 func (s *cliAppSuite) TestTerminateWorkflow() {
@@ -411,8 +405,7 @@ func (s *cliAppSuite) TestTerminateWorkflow() {
 
 func (s *cliAppSuite) TestTerminateWorkflow_Failed() {
 	s.serverFrontendClient.EXPECT().TerminateWorkflowExecution(gomock.Any(), gomock.Any()).Return(&types.BadRequestError{"faked error"})
-	errorCode := s.RunErrorExitCode([]string{"", "--do", domainName, "workflow", "terminate", "-w", "wid"})
-	s.Equal(1, errorCode)
+	s.Error(s.app.Run([]string{"", "--do", domainName, "workflow", "terminate", "-w", "wid"}))
 }
 
 func (s *cliAppSuite) TestCancelWorkflow() {
@@ -423,8 +416,7 @@ func (s *cliAppSuite) TestCancelWorkflow() {
 
 func (s *cliAppSuite) TestCancelWorkflow_Failed() {
 	s.serverFrontendClient.EXPECT().RequestCancelWorkflowExecution(gomock.Any(), gomock.Any()).Return(&types.BadRequestError{"faked error"})
-	errorCode := s.RunErrorExitCode([]string{"", "--do", domainName, "workflow", "cancel", "-w", "wid"})
-	s.Equal(1, errorCode)
+	s.Error(s.app.Run([]string{"", "--do", domainName, "workflow", "cancel", "-w", "wid"}))
 }
 
 func (s *cliAppSuite) TestSignalWorkflow() {
@@ -435,17 +427,7 @@ func (s *cliAppSuite) TestSignalWorkflow() {
 
 func (s *cliAppSuite) TestSignalWorkflow_Failed() {
 	s.serverFrontendClient.EXPECT().SignalWorkflowExecution(gomock.Any(), gomock.Any()).Return(&types.BadRequestError{"faked error"})
-	errorCode := s.RunErrorExitCode([]string{"", "--do", domainName, "workflow", "signal", "-w", "wid", "-n", "signal-name"})
-	s.Equal(1, errorCode)
-}
-
-func (s *cliAppSuite) TestQueryWorkflow() {
-	resp := &types.QueryWorkflowResponse{
-		QueryResult: []byte("query-result"),
-	}
-	s.serverFrontendClient.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).Return(resp, nil)
-	err := s.app.Run([]string{"", "--do", domainName, "workflow", "query", "-w", "wid", "-qt", "query-type-test"})
-	s.Nil(err)
+	s.Error(s.app.Run([]string{"", "--do", domainName, "workflow", "signal", "-w", "wid", "-n", "signal-name"}))
 }
 
 func (s *cliAppSuite) TestQueryWorkflowUsingStackTrace() {
@@ -455,15 +437,6 @@ func (s *cliAppSuite) TestQueryWorkflowUsingStackTrace() {
 	s.serverFrontendClient.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).Return(resp, nil)
 	err := s.app.Run([]string{"", "--do", domainName, "workflow", "stack", "-w", "wid"})
 	s.Nil(err)
-}
-
-func (s *cliAppSuite) TestQueryWorkflow_Failed() {
-	resp := &types.QueryWorkflowResponse{
-		QueryResult: []byte("query-result"),
-	}
-	s.serverFrontendClient.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).Return(resp, &types.BadRequestError{"faked error"})
-	errorCode := s.RunErrorExitCode([]string{"", "--do", domainName, "workflow", "query", "-w", "wid", "-qt", "query-type-test"})
-	s.Equal(1, errorCode)
 }
 
 var (
@@ -618,8 +591,7 @@ func (s *cliAppSuite) TestAdminDescribeWorkflow() {
 
 func (s *cliAppSuite) TestAdminDescribeWorkflow_Failed() {
 	s.serverAdminClient.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil, &types.BadRequestError{"faked error"})
-	errorCode := s.RunErrorExitCode([]string{"", "--do", domainName, "admin", "wf", "describe", "-w", "test-wf-id"})
-	s.Equal(1, errorCode)
+	s.Error(s.app.Run(([]string{"", "--do", domainName, "admin", "wf", "describe", "-w", "test-wf-id"})))
 }
 
 func (s *cliAppSuite) TestAdminAddSearchAttribute() {
@@ -635,7 +607,7 @@ func (s *cliAppSuite) TestAdminAddSearchAttribute() {
 	s.serverAdminClient.EXPECT().AddSearchAttribute(gomock.Any(), request).Return(nil)
 
 	err := s.app.Run([]string{"", "--do", domainName, "admin", "cl", "asa", "--search_attr_key", "testKey", "--search_attr_type", "1"})
-	s.Equal("Are you trying to add key [testKey] with Type [Keyword]? Y/N", promptMsg)
+	s.Equal("Are you trying to add key [testKey] with Type [Keyword]? y/N", promptMsg)
 	s.Nil(err)
 }
 
@@ -681,9 +653,13 @@ func (s *cliAppSuite) TestObserveWorkflowWithID() {
 
 // TestParseTime tests the parsing of date argument in UTC and UnixNano formats
 func (s *cliAppSuite) TestParseTime() {
-	s.Equal(int64(100), parseTime("", 100))
-	s.Equal(int64(1528383845000000000), parseTime("2018-06-07T15:04:05+00:00", 0))
-	s.Equal(int64(1528383845000000000), parseTime("1528383845000000000", 0))
+	pt, err := parseTime("", 100)
+	s.NoError(err)
+	s.Equal(int64(100), pt)
+	pt, err = parseTime("2018-06-07T15:04:05+00:00", 0)
+	s.Equal(int64(1528383845000000000), pt)
+	pt, err = parseTime("1528383845000000000", 0)
+	s.Equal(int64(1528383845000000000), pt)
 }
 
 // TestParseTimeDateRange tests the parsing of date argument in time range format, N<duration>
@@ -772,8 +748,11 @@ func (s *cliAppSuite) TestParseTimeDateRange() {
 	}
 	delta := int64(50 * time.Millisecond)
 	for _, te := range tests {
-		s.True(te.expected <= parseTime(te.timeStr, te.defVal))
-		s.True(te.expected+delta >= parseTime(te.timeStr, te.defVal))
+		pt, err := parseTime(te.timeStr, te.defVal)
+		s.NoError(err)
+		s.True(te.expected <= pt)
+		pt, err = parseTime(te.timeStr, te.defVal)
+		s.True(te.expected+delta >= pt)
 	}
 }
 
@@ -829,30 +808,19 @@ func (s *cliAppSuite) TestIsAttributeName() {
 }
 
 func (s *cliAppSuite) TestGetWorkflowIdReusePolicy() {
-	res := getWorkflowIDReusePolicy(2)
+	res, err := getWorkflowIDReusePolicy(2)
+	s.NoError(err)
 	s.Equal(res.String(), types.WorkflowIDReusePolicyRejectDuplicate.String())
 }
 
 func (s *cliAppSuite) TestGetWorkflowIdReusePolicy_Failed_ExceedRange() {
-	oldOsExit := osExit
-	defer func() { osExit = oldOsExit }()
-	var errorCode int
-	osExit = func(code int) {
-		errorCode = code
-	}
-	getWorkflowIDReusePolicy(2147483647)
-	s.Equal(1, errorCode)
+	_, err := getWorkflowIDReusePolicy(2147483647)
+	s.Error(err)
 }
 
 func (s *cliAppSuite) TestGetWorkflowIdReusePolicy_Failed_Negative() {
-	oldOsExit := osExit
-	defer func() { osExit = oldOsExit }()
-	var errorCode int
-	osExit = func(code int) {
-		errorCode = code
-	}
-	getWorkflowIDReusePolicy(-1)
-	s.Equal(1, errorCode)
+	_, err := getWorkflowIDReusePolicy(-1)
+	s.Error(err)
 }
 
 func (s *cliAppSuite) TestGetSearchAttributes() {
@@ -972,5 +940,134 @@ func (s *cliAppSuite) TestConvertArray() {
 		res, err := parseArray(testCase.input)
 		s.NotNil(err)
 		s.Nil(res)
+	}
+}
+
+func TestWithManagerFactory(t *testing.T) {
+	tests := []struct {
+		name           string
+		app            *cli.App
+		expectFactory  bool
+		expectNilMeta  bool
+		expectDepsType bool
+	}{
+		{
+			name: "Valid Metadata with deps key",
+			app: &cli.App{
+				Metadata: map[string]interface{}{
+					depsKey: &deps{},
+				},
+			},
+			expectFactory:  true,
+			expectNilMeta:  false,
+			expectDepsType: true,
+		},
+		{
+			name:           "No Metadata",
+			app:            &cli.App{Metadata: nil},
+			expectFactory:  false,
+			expectNilMeta:  true,
+			expectDepsType: false,
+		},
+		{
+			name: "Incorrect deps key type",
+			app: &cli.App{
+				Metadata: map[string]interface{}{
+					depsKey: "invalid_type",
+				},
+			},
+			expectFactory:  false,
+			expectNilMeta:  false,
+			expectDepsType: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockFactory := NewMockManagerFactory(ctrl)
+
+			option := WithManagerFactory(mockFactory)
+			option(tt.app)
+
+			if tt.expectNilMeta {
+				assert.Nil(t, tt.app.Metadata, "Expected Metadata to be nil")
+			} else {
+				d, ok := tt.app.Metadata[depsKey].(*deps)
+				if tt.expectDepsType {
+					assert.True(t, ok, "Expected depsKey to be of type *deps")
+					if tt.expectFactory {
+						assert.Equal(t, mockFactory, d.ManagerFactory, "Expected ManagerFactory to be set correctly")
+					}
+				} else {
+					assert.False(t, ok, "Expected depsKey not to be of type *deps")
+				}
+			}
+		})
+	}
+}
+
+func TestWithIOHandler(t *testing.T) {
+	tests := []struct {
+		name           string
+		app            *cli.App
+		expectHandler  bool
+		expectNilMeta  bool
+		expectDepsType bool
+	}{
+		{
+			name: "Valid Metadata with deps key",
+			app: &cli.App{
+				Metadata: map[string]interface{}{
+					depsKey: &deps{},
+				},
+			},
+			expectHandler:  true,
+			expectNilMeta:  false,
+			expectDepsType: true,
+		},
+		{
+			name:           "No Metadata",
+			app:            &cli.App{Metadata: nil},
+			expectHandler:  false,
+			expectNilMeta:  true,
+			expectDepsType: false,
+		},
+		{
+			name: "Incorrect deps key type",
+			app: &cli.App{
+				Metadata: map[string]interface{}{
+					depsKey: "invalid_type",
+				},
+			},
+			expectHandler:  false,
+			expectNilMeta:  false,
+			expectDepsType: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testHandler := testIOHandler{}
+
+			option := WithIOHandler(&testHandler)
+			option(tt.app)
+
+			if tt.expectNilMeta {
+				assert.Nil(t, tt.app.Metadata, "Expected Metadata to be nil")
+			} else {
+				d, ok := tt.app.Metadata[depsKey].(*deps)
+				if tt.expectDepsType {
+					assert.True(t, ok, "Expected depsKey to be of type *deps")
+					if tt.expectHandler {
+						assert.Equal(t, &testHandler, d.IOHandler, "Expected IOHandler to be set correctly")
+					}
+				} else {
+					assert.False(t, ok, "Expected depsKey not to be of type *deps")
+				}
+			}
+		})
 	}
 }

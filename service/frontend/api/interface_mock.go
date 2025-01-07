@@ -132,6 +132,21 @@ func (mr *MockHandlerMockRecorder) DescribeWorkflowExecution(arg0, arg1 interfac
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeWorkflowExecution", reflect.TypeOf((*MockHandler)(nil).DescribeWorkflowExecution), arg0, arg1)
 }
 
+// DiagnoseWorkflowExecution mocks base method.
+func (m *MockHandler) DiagnoseWorkflowExecution(arg0 context.Context, arg1 *types.DiagnoseWorkflowExecutionRequest) (*types.DiagnoseWorkflowExecutionResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DiagnoseWorkflowExecution", arg0, arg1)
+	ret0, _ := ret[0].(*types.DiagnoseWorkflowExecutionResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DiagnoseWorkflowExecution indicates an expected call of DiagnoseWorkflowExecution.
+func (mr *MockHandlerMockRecorder) DiagnoseWorkflowExecution(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DiagnoseWorkflowExecution", reflect.TypeOf((*MockHandler)(nil).DiagnoseWorkflowExecution), arg0, arg1)
+}
+
 // GetClusterInfo mocks base method.
 func (m *MockHandler) GetClusterInfo(arg0 context.Context) (*types.ClusterInfo, error) {
 	m.ctrl.T.Helper()

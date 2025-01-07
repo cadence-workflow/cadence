@@ -43,20 +43,27 @@ type (
 		IsolationGroup string
 	}
 
-	History struct {
+	History interface {
+		UpdatePollerInfo(id Identity, info Info)
+		HasPollerAfter(earliestAccessTime time.Time) bool
+		GetPollerInfo(earliestAccessTime time.Time) []*types.PollerInfo
+		GetPollerIsolationGroups(earliestAccessTime time.Time) map[string]int
+	}
+
+	history struct {
 		// poller ID -> pollerInfo
 		// pollers map[pollerID]pollerInfo
-		history cache.Cache
+		historyCache cache.Cache
 
-		// OnHistoryUpdatedFunc is a function called when the poller history was updated
+		// OnHistoryUpdatedFunc is a function called when the poller historyCache was updated
 		onHistoryUpdatedFunc HistoryUpdatedFunc
 	}
 
-	// HistoryUpdatedFunc is a type for notifying applications when the poller history was updated
+	// HistoryUpdatedFunc is a type for notifying applications when the poller historyCache was updated
 	HistoryUpdatedFunc func()
 )
 
-func NewPollerHistory(historyUpdatedFunc HistoryUpdatedFunc, timeSource clock.TimeSource) *History {
+func NewPollerHistory(historyUpdatedFunc HistoryUpdatedFunc, timeSource clock.TimeSource) History {
 	opts := &cache.Options{
 		InitialCapacity: pollerHistoryInitSize,
 		TTL:             pollerHistoryTTL,
@@ -65,30 +72,60 @@ func NewPollerHistory(historyUpdatedFunc HistoryUpdatedFunc, timeSource clock.Ti
 		TimeSource:      timeSource,
 	}
 
-	return &History{
-		history:              cache.New(opts),
+	return &history{
+		historyCache:         cache.New(opts),
 		onHistoryUpdatedFunc: historyUpdatedFunc,
 	}
 }
 
-func (pollers *History) UpdatePollerInfo(id Identity, info Info) {
-	pollers.history.Put(id, &info)
+func (pollers *history) UpdatePollerInfo(id Identity, info Info) {
+	pollers.historyCache.Put(id, &info)
 	if pollers.onHistoryUpdatedFunc != nil {
 		pollers.onHistoryUpdatedFunc()
 	}
 }
 
-func (pollers *History) GetPollerInfo(earliestAccessTime time.Time) []*types.PollerInfo {
-	var result []*types.PollerInfo
-	ite := pollers.history.Iterator()
+func (pollers *history) HasPollerAfter(earliestAccessTime time.Time) bool {
+	if pollers.historyCache.Size() == 0 {
+		return false
+	}
+
+	noTimeFilter := earliestAccessTime.IsZero()
+
+	ite := pollers.historyCache.Iterator()
 	defer ite.Close()
+
+	for ite.HasNext() {
+		entry := ite.Next()
+		lastAccessTime := entry.CreateTime()
+		if noTimeFilter || earliestAccessTime.Before(lastAccessTime) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (pollers *history) GetPollerInfo(earliestAccessTime time.Time) []*types.PollerInfo {
+	var result []*types.PollerInfo
+	// optimistic size get, it can change before Iterator call.
+	size := pollers.historyCache.Size()
+
+	ite := pollers.historyCache.Iterator()
+	defer ite.Close()
+
+	noTimeFilter := earliestAccessTime.IsZero()
+	if noTimeFilter {
+		result = make([]*types.PollerInfo, 0, size)
+	}
+
 	for ite.HasNext() {
 		entry := ite.Next()
 		key := entry.Key().(Identity)
 		value := entry.Value().(*Info)
 		// TODO add IP, T1396795
 		lastAccessTime := entry.CreateTime()
-		if earliestAccessTime.Before(lastAccessTime) {
+		if noTimeFilter || earliestAccessTime.Before(lastAccessTime) {
 			result = append(result, &types.PollerInfo{
 				Identity:       string(key),
 				LastAccessTime: common.Int64Ptr(lastAccessTime.UnixNano()),
@@ -99,17 +136,20 @@ func (pollers *History) GetPollerInfo(earliestAccessTime time.Time) []*types.Pol
 	return result
 }
 
-func (pollers *History) GetPollerIsolationGroups(earliestAccessTime time.Time) map[string]struct{} {
-	groupSet := make(map[string]struct{})
-	ite := pollers.history.Iterator()
+func (pollers *history) GetPollerIsolationGroups(earliestAccessTime time.Time) map[string]int {
+	groupSet := make(map[string]int)
+	ite := pollers.historyCache.Iterator()
 	defer ite.Close()
+
+	noTimeFilter := earliestAccessTime.IsZero()
+
 	for ite.HasNext() {
 		entry := ite.Next()
 		value := entry.Value().(*Info)
 		lastAccessTime := entry.CreateTime()
-		if earliestAccessTime.Before(lastAccessTime) {
+		if noTimeFilter || earliestAccessTime.Before(lastAccessTime) {
 			if value.IsolationGroup != "" {
-				groupSet[value.IsolationGroup] = struct{}{}
+				groupSet[value.IsolationGroup]++
 			}
 		}
 	}

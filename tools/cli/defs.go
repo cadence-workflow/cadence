@@ -108,8 +108,6 @@ const (
 )
 
 var (
-	cFactory ClientFactory
-
 	colorRed     = color.New(color.FgRed).SprintFunc()
 	colorMagenta = color.New(color.FgMagenta).SprintFunc()
 	colorGreen   = color.New(color.FgGreen).SprintFunc()

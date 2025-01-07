@@ -66,6 +66,11 @@ func TestSelectTaskList(t *testing.T) {
 					(*tlDB)["ack_level"] = int64(1000)
 					(*tlDB)["kind"] = 2
 					(*tlDB)["last_updated"] = now
+					(*tlDB)["adaptive_partition_config"] = map[string]interface{}{
+						"version":              int64(0),
+						"num_read_partitions":  int(1),
+						"num_write_partitions": int(1),
+					}
 					return nil
 				}).Times(1)
 			},
@@ -77,6 +82,11 @@ func TestSelectTaskList(t *testing.T) {
 				AckLevel:        1000,
 				RangeID:         25,
 				LastUpdatedTime: now,
+				AdaptivePartitionConfig: &persistence.TaskListPartitionConfig{
+					Version:            0,
+					NumReadPartitions:  1,
+					NumWritePartitions: 1,
+				},
 			},
 			wantQueries: []string{
 				`SELECT range_id, task_list FROM tasks WHERE domain_id = domain1 and task_list_name = tasklist1 and task_list_type = 1 and type = 1 and task_id = -12345`,
@@ -149,7 +159,7 @@ func TestInsertTaskList(t *testing.T) {
 		wantErr     bool
 	}{
 		{
-			name: "successfully applied",
+			name: "successfully applied - nil partition_config",
 			row: &nosqlplugin.TaskListRow{
 				DomainID:        "domain1",
 				TaskListName:    "tasklist1",
@@ -168,7 +178,36 @@ func TestInsertTaskList(t *testing.T) {
 			wantQueries: []string{
 				`INSERT INTO tasks (domain_id, task_list_name, task_list_type, type, task_id, range_id, task_list ) ` +
 					`VALUES (domain1, tasklist1, 1, 1, -12345, 1, ` +
-					`{domain_id: domain1, name: tasklist1, type: 1, ack_level: 0, kind: 2, last_updated: 2024-04-01T22:08:41Z }` +
+					`{domain_id: domain1, name: tasklist1, type: 1, ack_level: 0, kind: 2, last_updated: 2024-04-01T22:08:41Z, adaptive_partition_config: map[] }` +
+					`) IF NOT EXISTS`,
+			},
+		},
+		{
+			name: "successfully applied - non-nil partition_config",
+			row: &nosqlplugin.TaskListRow{
+				DomainID:        "domain1",
+				TaskListName:    "tasklist1",
+				TaskListType:    1,
+				TaskListKind:    2,
+				AckLevel:        1000,
+				RangeID:         25,
+				LastUpdatedTime: ts,
+				AdaptivePartitionConfig: &persistence.TaskListPartitionConfig{
+					Version:            1,
+					NumReadPartitions:  1,
+					NumWritePartitions: 1,
+				},
+			},
+			queryMockFn: func(query *gocql.MockQuery) {
+				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
+				query.EXPECT().MapScanCAS(gomock.Any()).DoAndReturn(func(prev map[string]interface{}) (bool, error) {
+					return true, nil
+				}).Times(1)
+			},
+			wantQueries: []string{
+				`INSERT INTO tasks (domain_id, task_list_name, task_list_type, type, task_id, range_id, task_list ) ` +
+					`VALUES (domain1, tasklist1, 1, 1, -12345, 1, ` +
+					`{domain_id: domain1, name: tasklist1, type: 1, ack_level: 0, kind: 2, last_updated: 2024-04-01T22:08:41Z, adaptive_partition_config: map[num_read_partitions:1 num_write_partitions:1 version:1] }` +
 					`) IF NOT EXISTS`,
 			},
 		},
@@ -278,7 +317,7 @@ func TestUpdateTaskList(t *testing.T) {
 				}).Times(1)
 			},
 			wantQueries: []string{
-				`UPDATE tasks SET range_id = 25, task_list = {domain_id: domain1, name: tasklist1, type: 1, ack_level: 1000, kind: 2, last_updated: 2024-04-01T22:08:41Z } WHERE domain_id = domain1 and task_list_name = tasklist1 and task_list_type = 1 and type = 1 and task_id = -12345 IF range_id = 25`,
+				`UPDATE tasks SET range_id = 25, task_list = {domain_id: domain1, name: tasklist1, type: 1, ack_level: 1000, kind: 2, last_updated: 2024-04-01T22:08:41Z, adaptive_partition_config: map[] } WHERE domain_id = domain1 and task_list_name = tasklist1 and task_list_type = 1 and type = 1 and task_id = -12345 IF range_id = 25`,
 			},
 		},
 		{
@@ -386,7 +425,7 @@ func TestUpdateTaskListWithTTL(t *testing.T) {
 			mapExecuteBatchCASApplied: true,
 			wantQueries: []string{
 				` INSERT INTO tasks (domain_id, task_list_name, task_list_type, type, task_id ) VALUES (domain1, tasklist1, 1, 1, -12345) USING TTL 180`,
-				`UPDATE tasks USING TTL 180 SET range_id = 25, task_list = {domain_id: domain1, name: tasklist1, type: 1, ack_level: 1000, kind: 2, last_updated: 2024-04-01T22:08:41Z } WHERE domain_id = domain1 and task_list_name = tasklist1 and task_list_type = 1 and type = 1 and task_id = -12345 IF range_id = 25`,
+				`UPDATE tasks USING TTL 180 SET range_id = 25, task_list = {domain_id: domain1, name: tasklist1, type: 1, ack_level: 1000, kind: 2, last_updated: 2024-04-01T22:08:41Z, adaptive_partition_config: map[] } WHERE domain_id = domain1 and task_list_name = tasklist1 and task_list_type = 1 and type = 1 and task_id = -12345 IF range_id = 25`,
 			},
 		},
 		{

@@ -339,6 +339,7 @@ message GetMutableStateRequest {
   api.v1.WorkflowExecution workflow_execution = 2;
   int64 expected_next_event_id = 3;
   bytes current_branch_token = 4;
+  admin.v1.VersionHistoryItem version_history_item = 5;
 }
 
 message GetMutableStateResponse {
@@ -360,7 +361,7 @@ message GetMutableStateResponse {
   shared.v1.VersionHistories version_histories = 16;
   bool is_sticky_task_list_enabled = 17;
   int64 history_size = 18;
-  int64 storage_location = 19;
+
 }
 
 message PollMutableStateRequest {

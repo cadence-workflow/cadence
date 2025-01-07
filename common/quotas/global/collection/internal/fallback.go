@@ -119,7 +119,14 @@ const (
 // between the two regardless of which is being used.
 func NewFallbackLimiter(fallback quotas.Limiter) *FallbackLimiter {
 	l := &FallbackLimiter{
-		// 0 allows no requests, will be unused until we receive an update.
+		// start from 0 as a default, the limiter is unused until it is updated.
+		//
+		// caution: it's important to not call any time-advancing methods on this until
+		// after the first update, so the token bucket will fill properly.
+		//
+		// this (partially) mimics how new ratelimiters start with a full token bucket,
+		// but there does not seem to be any way to perfectly mimic it without using locks,
+		// and hopefully precision is not needed.
 		primary:  clock.NewRatelimiter(0, 0),
 		fallback: fallback,
 	}
@@ -216,8 +223,21 @@ func (b *FallbackLimiter) Limit() rate.Limit {
 	return b.primary.Limit()
 }
 
+func (b *FallbackLimiter) FallbackLimit() rate.Limit {
+	return b.fallback.Limit()
+}
+
 func (b *FallbackLimiter) both() quotas.Limiter {
-	if b.useFallback() {
+	starting, failing := b.mode()
+	if starting {
+		// don't touch the primary until an update occurs,
+		// to allow the token bucket to fill properly.
+		return b.fallback
+	}
+	if failing {
+		// keep shadowing calls, so the token buckets are similar.
+		// this prevents allowing a full burst when recovering, which seems
+		// reasonable as things were apparently unhealthy.
 		return NewShadowedLimiter(b.fallback, b.primary)
 	}
 	return NewShadowedLimiter(b.primary, b.fallback)

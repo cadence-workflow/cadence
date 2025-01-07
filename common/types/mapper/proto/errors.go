@@ -28,6 +28,7 @@ import (
 	"go.uber.org/yarpc/yarpcerrors"
 
 	sharedv1 "github.com/uber/cadence/.gen/proto/shared/v1"
+	cadence_errors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/types/mapper/errorutils"
 )
@@ -54,6 +55,8 @@ func FromError(err error) error {
 	} else if ok, typedErr = errorutils.ConvertError(err, fromQueryFailedError); ok {
 		return typedErr
 	} else if ok, typedErr = errorutils.ConvertError(err, fromShardOwnershipLostError); ok {
+		return typedErr
+	} else if ok, typedErr = errorutils.ConvertError(err, fromTaskListNotOwnedByHostError); ok {
 		return typedErr
 	} else if ok, typedErr = errorutils.ConvertError(err, fromCurrentBranchChangedError); ok {
 		return typedErr
@@ -133,6 +136,12 @@ func ToError(err error) error {
 			return &types.ShardOwnershipLostError{
 				Message: status.Message(),
 				Owner:   details.Owner,
+			}
+		case *sharedv1.TaskListNotOwnedByHostError:
+			return &cadence_errors.TaskListNotOwnedByHostError{
+				OwnedByIdentity: details.OwnedByIdentity,
+				MyIdentity:      details.MyIdentity,
+				TasklistName:    details.TaskListName,
 			}
 		case *sharedv1.CurrentBranchChangedError:
 			return &types.CurrentBranchChangedError{
@@ -266,6 +275,14 @@ func fromQueryFailedError(e *types.QueryFailedError) error {
 func fromShardOwnershipLostError(e *types.ShardOwnershipLostError) error {
 	return protobuf.NewError(yarpcerrors.CodeAborted, e.Message, protobuf.WithErrorDetails(&sharedv1.ShardOwnershipLostError{
 		Owner: e.Owner,
+	}))
+}
+
+func fromTaskListNotOwnedByHostError(e *cadence_errors.TaskListNotOwnedByHostError) error {
+	return protobuf.NewError(yarpcerrors.CodeAborted, e.Error(), protobuf.WithErrorDetails(&sharedv1.TaskListNotOwnedByHostError{
+		OwnedByIdentity: e.OwnedByIdentity,
+		MyIdentity:      e.MyIdentity,
+		TaskListName:    e.TasklistName,
 	}))
 }
 

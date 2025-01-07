@@ -688,3 +688,23 @@ func (mr *MockClientMockRecorder) UpdateGlobalIsolationGroups(ctx, request inter
 	varargs := append([]interface{}{ctx, request}, opts...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateGlobalIsolationGroups", reflect.TypeOf((*MockClient)(nil).UpdateGlobalIsolationGroups), varargs...)
 }
+
+// UpdateTaskListPartitionConfig mocks base method.
+func (m *MockClient) UpdateTaskListPartitionConfig(ctx context.Context, request *types.UpdateTaskListPartitionConfigRequest, opts ...yarpc.CallOption) (*types.UpdateTaskListPartitionConfigResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, request}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "UpdateTaskListPartitionConfig", varargs...)
+	ret0, _ := ret[0].(*types.UpdateTaskListPartitionConfigResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateTaskListPartitionConfig indicates an expected call of UpdateTaskListPartitionConfig.
+func (mr *MockClientMockRecorder) UpdateTaskListPartitionConfig(ctx, request interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, request}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTaskListPartitionConfig", reflect.TypeOf((*MockClient)(nil).UpdateTaskListPartitionConfig), varargs...)
+}

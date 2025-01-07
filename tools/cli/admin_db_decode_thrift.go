@@ -31,7 +31,7 @@ import (
 	"strings"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 
 	"github.com/uber/cadence/.gen/go/config"
 	"github.com/uber/cadence/.gen/go/history"
@@ -39,6 +39,7 @@ import (
 	"github.com/uber/cadence/.gen/go/shared"
 	"github.com/uber/cadence/.gen/go/sqlblobs"
 	"github.com/uber/cadence/common/codec"
+	"github.com/uber/cadence/tools/common/commoncli"
 )
 
 var decodingTypes = map[string]func() codec.ThriftObject{
@@ -75,17 +76,21 @@ type decodeError struct {
 }
 
 // AdminDBDataDecodeThrift is the command to decode thrift binary into JSON
-func AdminDBDataDecodeThrift(c *cli.Context) {
-	input := getRequiredOption(c, FlagInput)
+func AdminDBDataDecodeThrift(c *cli.Context) error {
+	input, err := getRequiredOption(c, FlagInput)
+	if err != nil {
+		return commoncli.Problem("Required flag not found", err)
+	}
 	encoding := c.String(FlagInputEncoding)
 	data, err := decodeUserInput(input, encoding)
 	if err != nil {
-		ErrorAndExit("failed to decode input", err)
+		return commoncli.Problem("failed to decode input", err)
 	}
 
 	if _, err := decodeThriftPayload(data); err != nil {
-		ErrorAndExit(err.shortMsg, err.err)
+		return commoncli.Problem("failed to decode thrift payload", err.err)
 	}
+	return nil
 }
 
 func decodeThriftPayload(data []byte) (codec.ThriftObject, *decodeError) {

@@ -100,6 +100,8 @@ func (sn *shardedNosqlStoreImpl) GetDefaultShard() nosqlStore {
 }
 
 func (sn *shardedNosqlStoreImpl) Close() {
+	sn.RLock()
+	defer sn.RUnlock()
 	for name, shard := range sn.connectedShards {
 		sn.logger.Warn("Closing store shard", tag.StoreShard(name))
 		shard.Close()
@@ -135,8 +137,8 @@ func (sn *shardedNosqlStoreImpl) getShard(shardName string) (*nosqlStore, error)
 	}
 
 	sn.Lock()
+	defer sn.Unlock()
 	if shard, ok := sn.connectedShards[shardName]; ok { // read again to double-check
-		sn.Unlock()
 		return &shard, nil
 	}
 
@@ -146,7 +148,6 @@ func (sn *shardedNosqlStoreImpl) getShard(shardName string) (*nosqlStore, error)
 	}
 	sn.connectedShards[shardName] = *s
 	sn.logger.Info("Connected to store shard", tag.StoreShard(shardName))
-	sn.Unlock()
 	return s, nil
 }
 

@@ -94,6 +94,42 @@ func ToMatchingAddDecisionTaskRequest(t *matchingv1.AddDecisionTaskRequest) *typ
 	}
 }
 
+func FromMatchingAddActivityTaskResponse(t *types.AddActivityTaskResponse) *matchingv1.AddActivityTaskResponse {
+	if t == nil {
+		return nil
+	}
+	return &matchingv1.AddActivityTaskResponse{
+		PartitionConfig: FromTaskListPartitionConfig(t.PartitionConfig),
+	}
+}
+
+func ToMatchingAddActivityTaskResponse(t *matchingv1.AddActivityTaskResponse) *types.AddActivityTaskResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.AddActivityTaskResponse{
+		PartitionConfig: ToTaskListPartitionConfig(t.PartitionConfig),
+	}
+}
+
+func FromMatchingAddDecisionTaskResponse(t *types.AddDecisionTaskResponse) *matchingv1.AddDecisionTaskResponse {
+	if t == nil {
+		return nil
+	}
+	return &matchingv1.AddDecisionTaskResponse{
+		PartitionConfig: FromTaskListPartitionConfig(t.PartitionConfig),
+	}
+}
+
+func ToMatchingAddDecisionTaskResponse(t *matchingv1.AddDecisionTaskResponse) *types.AddDecisionTaskResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.AddDecisionTaskResponse{
+		PartitionConfig: ToTaskListPartitionConfig(t.PartitionConfig),
+	}
+}
+
 func FromActivityTaskDispatchInfo(t *types.ActivityTaskDispatchInfo) *matchingv1.ActivityTaskDispatchInfo {
 	if t == nil {
 		return nil
@@ -181,8 +217,9 @@ func FromMatchingDescribeTaskListResponse(t *types.DescribeTaskListResponse) *ma
 		return nil
 	}
 	return &matchingv1.DescribeTaskListResponse{
-		Pollers:        FromPollerInfoArray(t.Pollers),
-		TaskListStatus: FromTaskListStatus(t.TaskListStatus),
+		Pollers:         FromPollerInfoArray(t.Pollers),
+		TaskListStatus:  FromTaskListStatus(t.TaskListStatus),
+		PartitionConfig: FromAPITaskListPartitionConfig(t.PartitionConfig),
 	}
 }
 
@@ -191,8 +228,9 @@ func ToMatchingDescribeTaskListResponse(t *matchingv1.DescribeTaskListResponse) 
 		return nil
 	}
 	return &types.DescribeTaskListResponse{
-		Pollers:        ToPollerInfoArray(t.Pollers),
-		TaskListStatus: ToTaskListStatus(t.TaskListStatus),
+		Pollers:         ToPollerInfoArray(t.Pollers),
+		TaskListStatus:  ToTaskListStatus(t.TaskListStatus),
+		PartitionConfig: ToAPITaskListPartitionConfig(t.PartitionConfig),
 	}
 }
 
@@ -324,7 +362,29 @@ func ToMatchingPollForActivityTaskRequest(t *matchingv1.PollForActivityTaskReque
 	}
 }
 
-func FromMatchingPollForActivityTaskResponse(t *types.PollForActivityTaskResponse) *matchingv1.PollForActivityTaskResponse {
+func FromTaskListPartitionConfig(t *types.TaskListPartitionConfig) *matchingv1.TaskListPartitionConfig {
+	if t == nil {
+		return nil
+	}
+	return &matchingv1.TaskListPartitionConfig{
+		Version:            t.Version,
+		NumReadPartitions:  t.NumReadPartitions,
+		NumWritePartitions: t.NumWritePartitions,
+	}
+}
+
+func ToTaskListPartitionConfig(t *matchingv1.TaskListPartitionConfig) *types.TaskListPartitionConfig {
+	if t == nil {
+		return nil
+	}
+	return &types.TaskListPartitionConfig{
+		Version:            t.Version,
+		NumReadPartitions:  t.NumReadPartitions,
+		NumWritePartitions: t.NumWritePartitions,
+	}
+}
+
+func FromMatchingPollForActivityTaskResponse(t *types.MatchingPollForActivityTaskResponse) *matchingv1.PollForActivityTaskResponse {
 	if t == nil {
 		return nil
 	}
@@ -345,14 +405,17 @@ func FromMatchingPollForActivityTaskResponse(t *types.PollForActivityTaskRespons
 		WorkflowType:               FromWorkflowType(t.WorkflowType),
 		WorkflowDomain:             t.WorkflowDomain,
 		Header:                     FromHeader(t.Header),
+		PartitionConfig:            FromTaskListPartitionConfig(t.PartitionConfig),
+		LoadBalancerHints:          FromLoadBalancerHints(t.LoadBalancerHints),
+		AutoConfigHint:             FromAutoConfigHint(t.AutoConfigHint),
 	}
 }
 
-func ToMatchingPollForActivityTaskResponse(t *matchingv1.PollForActivityTaskResponse) *types.PollForActivityTaskResponse {
+func ToMatchingPollForActivityTaskResponse(t *matchingv1.PollForActivityTaskResponse) *types.MatchingPollForActivityTaskResponse {
 	if t == nil {
 		return nil
 	}
-	return &types.PollForActivityTaskResponse{
+	return &types.MatchingPollForActivityTaskResponse{
 		TaskToken:                       t.TaskToken,
 		WorkflowExecution:               ToWorkflowExecution(t.WorkflowExecution),
 		ActivityID:                      t.ActivityId,
@@ -369,6 +432,9 @@ func ToMatchingPollForActivityTaskResponse(t *matchingv1.PollForActivityTaskResp
 		WorkflowType:                    ToWorkflowType(t.WorkflowType),
 		WorkflowDomain:                  t.WorkflowDomain,
 		Header:                          ToHeader(t.Header),
+		PartitionConfig:                 ToTaskListPartitionConfig(t.PartitionConfig),
+		LoadBalancerHints:               ToLoadBalancerHints(t.LoadBalancerHints),
+		AutoConfigHint:                  ToAutoConfigHint(t.AutoConfigHint),
 	}
 }
 
@@ -421,6 +487,9 @@ func FromMatchingPollForDecisionTaskResponse(t *types.MatchingPollForDecisionTas
 		StartedTime:               unixNanoToTime(t.StartedTimestamp),
 		Queries:                   FromWorkflowQueryMap(t.Queries),
 		TotalHistoryBytes:         t.TotalHistoryBytes,
+		PartitionConfig:           FromTaskListPartitionConfig(t.PartitionConfig),
+		LoadBalancerHints:         FromLoadBalancerHints(t.LoadBalancerHints),
+		AutoConfigHint:            FromAutoConfigHint(t.AutoConfigHint),
 	}
 }
 
@@ -447,6 +516,9 @@ func ToMatchingPollForDecisionTaskResponse(t *matchingv1.PollForDecisionTaskResp
 		StartedTimestamp:          timeToUnixNano(t.StartedTime),
 		Queries:                   ToWorkflowQueryMap(t.Queries),
 		TotalHistoryBytes:         t.TotalHistoryBytes,
+		PartitionConfig:           ToTaskListPartitionConfig(t.PartitionConfig),
+		LoadBalancerHints:         ToLoadBalancerHints(t.LoadBalancerHints),
+		AutoConfigHint:            ToAutoConfigHint(t.AutoConfigHint),
 	}
 }
 
@@ -515,5 +587,101 @@ func ToMatchingRespondQueryTaskCompletedRequest(t *matchingv1.RespondQueryTaskCo
 		DomainUUID:       t.DomainId,
 		TaskList:         ToTaskList(t.TaskList),
 		TaskID:           t.TaskId,
+	}
+}
+
+func FromMatchingUpdateTaskListPartitionConfigRequest(t *types.MatchingUpdateTaskListPartitionConfigRequest) *matchingv1.UpdateTaskListPartitionConfigRequest {
+	if t == nil {
+		return nil
+	}
+	return &matchingv1.UpdateTaskListPartitionConfigRequest{
+		DomainId:        t.DomainUUID,
+		TaskList:        FromTaskList(t.TaskList),
+		TaskListType:    FromTaskListType(t.TaskListType),
+		PartitionConfig: FromAPITaskListPartitionConfig(t.PartitionConfig),
+	}
+}
+
+func ToMatchingUpdateTaskListPartitionConfigRequest(t *matchingv1.UpdateTaskListPartitionConfigRequest) *types.MatchingUpdateTaskListPartitionConfigRequest {
+	if t == nil {
+		return nil
+	}
+	return &types.MatchingUpdateTaskListPartitionConfigRequest{
+		DomainUUID:      t.DomainId,
+		TaskList:        ToTaskList(t.TaskList),
+		TaskListType:    ToTaskListType(t.TaskListType),
+		PartitionConfig: ToAPITaskListPartitionConfig(t.PartitionConfig),
+	}
+}
+
+func FromMatchingRefreshTaskListPartitionConfigRequest(t *types.MatchingRefreshTaskListPartitionConfigRequest) *matchingv1.RefreshTaskListPartitionConfigRequest {
+	if t == nil {
+		return nil
+	}
+	return &matchingv1.RefreshTaskListPartitionConfigRequest{
+		DomainId:        t.DomainUUID,
+		TaskList:        FromTaskList(t.TaskList),
+		TaskListType:    FromTaskListType(t.TaskListType),
+		PartitionConfig: FromAPITaskListPartitionConfig(t.PartitionConfig),
+	}
+}
+
+func ToMatchingRefreshTaskListPartitionConfigRequest(t *matchingv1.RefreshTaskListPartitionConfigRequest) *types.MatchingRefreshTaskListPartitionConfigRequest {
+	if t == nil {
+		return nil
+	}
+	return &types.MatchingRefreshTaskListPartitionConfigRequest{
+		DomainUUID:      t.DomainId,
+		TaskList:        ToTaskList(t.TaskList),
+		TaskListType:    ToTaskListType(t.TaskListType),
+		PartitionConfig: ToAPITaskListPartitionConfig(t.PartitionConfig),
+	}
+}
+
+func FromMatchingUpdateTaskListPartitionConfigResponse(t *types.MatchingUpdateTaskListPartitionConfigResponse) *matchingv1.UpdateTaskListPartitionConfigResponse {
+	if t == nil {
+		return nil
+	}
+	return &matchingv1.UpdateTaskListPartitionConfigResponse{}
+}
+
+func ToMatchingUpdateTaskListPartitionConfigResponse(t *matchingv1.UpdateTaskListPartitionConfigResponse) *types.MatchingUpdateTaskListPartitionConfigResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.MatchingUpdateTaskListPartitionConfigResponse{}
+}
+
+func FromMatchingRefreshTaskListPartitionConfigResponse(t *types.MatchingRefreshTaskListPartitionConfigResponse) *matchingv1.RefreshTaskListPartitionConfigResponse {
+	if t == nil {
+		return nil
+	}
+	return &matchingv1.RefreshTaskListPartitionConfigResponse{}
+}
+
+func ToMatchingRefreshTaskListPartitionConfigResponse(t *matchingv1.RefreshTaskListPartitionConfigResponse) *types.MatchingRefreshTaskListPartitionConfigResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.MatchingRefreshTaskListPartitionConfigResponse{}
+}
+
+func FromLoadBalancerHints(t *types.LoadBalancerHints) *matchingv1.LoadBalancerHints {
+	if t == nil {
+		return nil
+	}
+	return &matchingv1.LoadBalancerHints{
+		BacklogCount:  t.BacklogCount,
+		RatePerSecond: t.RatePerSecond,
+	}
+}
+
+func ToLoadBalancerHints(t *matchingv1.LoadBalancerHints) *types.LoadBalancerHints {
+	if t == nil {
+		return nil
+	}
+	return &types.LoadBalancerHints{
+		BacklogCount:  t.BacklogCount,
+		RatePerSecond: t.RatePerSecond,
 	}
 }

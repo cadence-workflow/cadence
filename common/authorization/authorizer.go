@@ -24,8 +24,10 @@ package authorization
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 
 	clientworker "go.uber.org/cadence/worker"
@@ -113,6 +115,30 @@ func GetAuthProviderClient(privateKey string) (clientworker.AuthorizationProvide
 // FilteredRequestBody request object except for data inputs (PII)
 type FilteredRequestBody interface {
 	SerializeForLogging() (string, error)
+}
+
+type simpleRequestLogWrapper struct {
+	request interface{}
+}
+
+func (f *simpleRequestLogWrapper) SerializeForLogging() (string, error) {
+	// We have to check if the request is a typed nil. In the interface we have to handle typed nils.
+	// The reflection check  is slow but this function is doing json marshalling, so performance
+	// shouldn't be an issue.
+	if f.request == nil || reflect.ValueOf(f.request).IsNil() {
+		return "", nil
+	}
+
+	res, err := json.Marshal(f.request)
+	if err != nil {
+		return "", err
+	}
+
+	return string(res), nil
+}
+
+func NewFilteredRequestBody(request interface{}) FilteredRequestBody {
+	return &simpleRequestLogWrapper{request}
 }
 
 func validatePermission(claims *JWTClaims, attributes *Attributes, data domainData) error {

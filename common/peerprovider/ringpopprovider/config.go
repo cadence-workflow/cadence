@@ -65,6 +65,10 @@ const (
 type Config struct {
 	// Name to be used in ringpop advertisement
 	Name string `yaml:"name" validate:"nonzero"`
+	// BroadcastAddress is communicated with peers to connect to this container/host.
+	// This is useful when running cadence in K8s and the containers need to listen on 0.0.0.0 but advertise their pod IP to peers.
+	// If not set, the listen address will be used as broadcast address.
+	BroadcastAddress string `yaml:"broadcastAddress"`
 	// BootstrapMode is a enum that defines the ringpop bootstrap method, currently supports: hosts, files, custom, dns, and dns-srv
 	BootstrapMode BootstrapMode `yaml:"bootstrapMode"`
 	// BootstrapHosts is a list of seed hosts to be used for ringpop bootstrap

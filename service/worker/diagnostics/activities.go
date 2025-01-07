@@ -25,48 +25,123 @@ package diagnostics
 import (
 	"context"
 
+	"github.com/uber/cadence/common/messaging"
+	"github.com/uber/cadence/common/messaging/kafka"
 	"github.com/uber/cadence/common/types"
-	"github.com/uber/cadence/service/worker/diagnostics/invariants"
+	"github.com/uber/cadence/service/worker/diagnostics/analytics"
+	"github.com/uber/cadence/service/worker/diagnostics/invariant"
+	"github.com/uber/cadence/service/worker/diagnostics/invariant/failure"
+	"github.com/uber/cadence/service/worker/diagnostics/invariant/retry"
+	"github.com/uber/cadence/service/worker/diagnostics/invariant/timeout"
+)
+
+const (
+	linkToTimeoutsRunbook = "https://cadenceworkflow.io/docs/workflow-troubleshooting/timeouts/"
+	linkToFailuresRunbook = "https://cadenceworkflow.io/docs/workflow-troubleshooting/activity-failures/"
+	WfDiagnosticsAppName  = "workflow-diagnostics"
 )
 
 type retrieveExecutionHistoryInputParams struct {
-	domain    string
-	execution *types.WorkflowExecution
+	Domain    string
+	Execution *types.WorkflowExecution
 }
 
 func (w *dw) retrieveExecutionHistory(ctx context.Context, info retrieveExecutionHistoryInputParams) (*types.GetWorkflowExecutionHistoryResponse, error) {
 	frontendClient := w.clientBean.GetFrontendClient()
 	return frontendClient.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
-		Domain:    info.domain,
-		Execution: info.execution,
+		Domain:    info.Domain,
+		Execution: info.Execution,
 	})
 }
 
-type identifyTimeoutsInputParams struct {
-	history *types.GetWorkflowExecutionHistoryResponse
-	domain  string
+type identifyIssuesParams struct {
+	History *types.GetWorkflowExecutionHistoryResponse
+	Domain  string
 }
 
-func (w *dw) identifyTimeouts(ctx context.Context, info identifyTimeoutsInputParams) ([]invariants.InvariantCheckResult, error) {
-	timeoutInvariant := invariants.NewTimeout(invariants.NewTimeoutParams{
-		WorkflowExecutionHistory: info.history,
-		Domain:                   info.domain,
+func (w *dw) identifyIssues(ctx context.Context, info identifyIssuesParams) ([]invariant.InvariantCheckResult, error) {
+	result := make([]invariant.InvariantCheckResult, 0)
+
+	timeoutInvariant := timeout.NewInvariant(timeout.NewTimeoutParams{
+		WorkflowExecutionHistory: info.History,
+		Domain:                   info.Domain,
 		ClientBean:               w.clientBean,
 	})
-	return timeoutInvariant.Check(ctx)
-}
+	timeoutIssues, err := timeoutInvariant.Check(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result = append(result, timeoutIssues...)
 
-type rootCauseTimeoutsParams struct {
-	history *types.GetWorkflowExecutionHistoryResponse
-	domain  string
-	issues  []invariants.InvariantCheckResult
-}
-
-func (w *dw) rootCauseTimeouts(ctx context.Context, info rootCauseTimeoutsParams) ([]invariants.InvariantRootCauseResult, error) {
-	timeoutInvariant := invariants.NewTimeout(invariants.NewTimeoutParams{
-		WorkflowExecutionHistory: info.history,
-		ClientBean:               w.clientBean,
-		Domain:                   info.domain,
+	failureInvariant := failure.NewInvariant(failure.Params{
+		WorkflowExecutionHistory: info.History,
+		Domain:                   info.Domain,
 	})
-	return timeoutInvariant.RootCause(ctx, info.issues)
+	failureIssues, err := failureInvariant.Check(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result = append(result, failureIssues...)
+
+	retryInvariant := retry.NewInvariant(retry.Params{
+		WorkflowExecutionHistory: info.History,
+	})
+	retryIssues, err := retryInvariant.Check(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result = append(result, retryIssues...)
+
+	return result, nil
+}
+
+type rootCauseIssuesParams struct {
+	History *types.GetWorkflowExecutionHistoryResponse
+	Domain  string
+	Issues  []invariant.InvariantCheckResult
+}
+
+func (w *dw) rootCauseIssues(ctx context.Context, info rootCauseIssuesParams) ([]invariant.InvariantRootCauseResult, error) {
+	result := make([]invariant.InvariantRootCauseResult, 0)
+	timeoutInvariant := timeout.NewInvariant(timeout.NewTimeoutParams{
+		WorkflowExecutionHistory: info.History,
+		ClientBean:               w.clientBean,
+		Domain:                   info.Domain,
+	})
+	timeoutRC, err := timeoutInvariant.RootCause(ctx, info.Issues)
+	if err != nil {
+		return nil, err
+	}
+	result = append(result, timeoutRC...)
+	failureInvariant := failure.NewInvariant(failure.Params{
+		WorkflowExecutionHistory: info.History,
+		Domain:                   info.Domain,
+	})
+	failureRC, err := failureInvariant.RootCause(ctx, info.Issues)
+	if err != nil {
+		return nil, err
+	}
+	result = append(result, failureRC...)
+
+	return result, nil
+}
+
+func (w *dw) emitUsageLogs(ctx context.Context, info analytics.WfDiagnosticsUsageData) error {
+	client := w.newMessagingClient()
+	return emit(ctx, info, client)
+}
+
+func (w *dw) newMessagingClient() messaging.Client {
+	return kafka.NewKafkaClient(&w.kafkaCfg, w.metricsClient, w.logger, w.tallyScope, true)
+}
+
+func emit(ctx context.Context, info analytics.WfDiagnosticsUsageData, client messaging.Client) error {
+	producer, err := client.NewProducer(WfDiagnosticsAppName)
+	if err != nil {
+		return err
+	}
+	emitter := analytics.NewEmitter(analytics.EmitterParams{
+		Producer: producer,
+	})
+	return emitter.EmitUsageData(ctx, info)
 }

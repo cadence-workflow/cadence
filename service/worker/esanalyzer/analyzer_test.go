@@ -397,7 +397,7 @@ func TestEmitWorkflowTypeCountMetricsESErrorCases(t *testing.T) {
 		"Case2: error ES searchRaw": {
 			domainCacheAffordance: func(mockDomainCache *cache.MockDomainCache) {
 				mockDomainCache.EXPECT().GetDomain(gomock.Any()).Return(cache.NewDomainCacheEntryForTest(
-					&persistence.DomainInfo{ID: "test-id"}, nil, false, nil, 0, nil), nil)
+					&persistence.DomainInfo{ID: "test-id"}, nil, false, nil, 0, nil, 0, 0, 0), nil)
 			},
 			ESClientAffordance: func(mockESClient *esMocks.GenericClient) {
 				mockESClient.On("SearchRaw", mock.Anything, mock.Anything, mock.Anything).Return(
@@ -408,7 +408,7 @@ func TestEmitWorkflowTypeCountMetricsESErrorCases(t *testing.T) {
 		"Case3: foundAggregation is false": {
 			domainCacheAffordance: func(mockDomainCache *cache.MockDomainCache) {
 				mockDomainCache.EXPECT().GetDomain(gomock.Any()).Return(cache.NewDomainCacheEntryForTest(
-					&persistence.DomainInfo{ID: "test-id"}, nil, false, nil, 0, nil), nil)
+					&persistence.DomainInfo{ID: "test-id"}, nil, false, nil, 0, nil, 0, 0, 0), nil)
 			},
 			ESClientAffordance: func(mockESClient *esMocks.GenericClient) {
 				mockESClient.On("SearchRaw", mock.Anything, mock.Anything, mock.Anything).Return(
@@ -421,7 +421,7 @@ func TestEmitWorkflowTypeCountMetricsESErrorCases(t *testing.T) {
 		"Case4: error unmarshalling aggregation": {
 			domainCacheAffordance: func(mockDomainCache *cache.MockDomainCache) {
 				mockDomainCache.EXPECT().GetDomain(gomock.Any()).Return(cache.NewDomainCacheEntryForTest(
-					&persistence.DomainInfo{ID: "test-id"}, nil, false, nil, 0, nil), nil)
+					&persistence.DomainInfo{ID: "test-id"}, nil, false, nil, 0, nil, 0, 0, 0), nil)
 			},
 			ESClientAffordance: func(mockESClient *esMocks.GenericClient) {
 				mockESClient.On("SearchRaw", mock.Anything, mock.Anything, mock.Anything).Return(
@@ -482,7 +482,7 @@ func TestEmitWorkflowVersionMetricsESErrorCases(t *testing.T) {
 		"Case2: error ES searchRaw": {
 			domainCacheAffordance: func(mockDomainCache *cache.MockDomainCache) {
 				mockDomainCache.EXPECT().GetDomain(gomock.Any()).Return(cache.NewDomainCacheEntryForTest(
-					&persistence.DomainInfo{ID: "test-id"}, nil, false, nil, 0, nil), nil)
+					&persistence.DomainInfo{ID: "test-id"}, nil, false, nil, 0, nil, 0, 0, 0), nil)
 			},
 			ESClientAffordance: func(mockESClient *esMocks.GenericClient) {
 				mockESClient.On("SearchRaw", mock.Anything, mock.Anything, mock.Anything).Return(
@@ -493,7 +493,7 @@ func TestEmitWorkflowVersionMetricsESErrorCases(t *testing.T) {
 		"Case3: foundAggregation is false": {
 			domainCacheAffordance: func(mockDomainCache *cache.MockDomainCache) {
 				mockDomainCache.EXPECT().GetDomain(gomock.Any()).Return(cache.NewDomainCacheEntryForTest(
-					&persistence.DomainInfo{ID: "test-id"}, nil, false, nil, 0, nil), nil)
+					&persistence.DomainInfo{ID: "test-id"}, nil, false, nil, 0, nil, 0, 0, 0), nil)
 			},
 			ESClientAffordance: func(mockESClient *esMocks.GenericClient) {
 				mockESClient.On("SearchRaw", mock.Anything, mock.Anything, mock.Anything).Return(
@@ -506,7 +506,7 @@ func TestEmitWorkflowVersionMetricsESErrorCases(t *testing.T) {
 		"Case4: error unmarshalling aggregation": {
 			domainCacheAffordance: func(mockDomainCache *cache.MockDomainCache) {
 				mockDomainCache.EXPECT().GetDomain(gomock.Any()).Return(cache.NewDomainCacheEntryForTest(
-					&persistence.DomainInfo{ID: "test-id"}, nil, false, nil, 0, nil), nil)
+					&persistence.DomainInfo{ID: "test-id"}, nil, false, nil, 0, nil, 0, 0, 0), nil)
 			},
 			ESClientAffordance: func(mockESClient *esMocks.GenericClient) {
 				mockESClient.On("SearchRaw", mock.Anything, mock.Anything, mock.Anything).Return(
@@ -561,7 +561,7 @@ func TestEmitWorkflowTypeCountMetricsPinot(t *testing.T) {
 		"Case0: success": {
 			domainCacheAffordance: func(mockDomainCache *cache.MockDomainCache) {
 				mockDomainCache.EXPECT().GetDomain(gomock.Any()).Return(cache.NewDomainCacheEntryForTest(
-					&persistence.DomainInfo{ID: "test-id"}, nil, false, nil, 0, nil), nil)
+					&persistence.DomainInfo{ID: "test-id"}, nil, false, nil, 0, nil, 0, 0, 0), nil)
 			},
 			PinotClientAffordance: func(mockPinotClient *pinot.MockGenericClient) {
 				mockPinotClient.EXPECT().SearchAggr(gomock.Any()).Return([][]interface{}{
@@ -581,7 +581,7 @@ func TestEmitWorkflowTypeCountMetricsPinot(t *testing.T) {
 		"Case2: error Pinot query": {
 			domainCacheAffordance: func(mockDomainCache *cache.MockDomainCache) {
 				mockDomainCache.EXPECT().GetDomain(gomock.Any()).Return(cache.NewDomainCacheEntryForTest(
-					&persistence.DomainInfo{ID: "test-id"}, nil, false, nil, 0, nil), nil)
+					&persistence.DomainInfo{ID: "test-id"}, nil, false, nil, 0, nil, 0, 0, 0), nil)
 			},
 			PinotClientAffordance: func(mockPinotClient *pinot.MockGenericClient) {
 				mockPinotClient.EXPECT().SearchAggr(gomock.Any()).Return(nil, fmt.Errorf("pinot error")).Times(1)
@@ -591,7 +591,7 @@ func TestEmitWorkflowTypeCountMetricsPinot(t *testing.T) {
 		"Case3: Aggregation is empty": {
 			domainCacheAffordance: func(mockDomainCache *cache.MockDomainCache) {
 				mockDomainCache.EXPECT().GetDomain(gomock.Any()).Return(cache.NewDomainCacheEntryForTest(
-					&persistence.DomainInfo{ID: "test-id"}, nil, false, nil, 0, nil), nil)
+					&persistence.DomainInfo{ID: "test-id"}, nil, false, nil, 0, nil, 0, 0, 0), nil)
 			},
 			PinotClientAffordance: func(mockPinotClient *pinot.MockGenericClient) {
 				mockPinotClient.EXPECT().SearchAggr(gomock.Any()).Return([][]interface{}{}, nil).Times(1)
@@ -601,7 +601,7 @@ func TestEmitWorkflowTypeCountMetricsPinot(t *testing.T) {
 		"Case4: error parsing workflow count": {
 			domainCacheAffordance: func(mockDomainCache *cache.MockDomainCache) {
 				mockDomainCache.EXPECT().GetDomain(gomock.Any()).Return(cache.NewDomainCacheEntryForTest(
-					&persistence.DomainInfo{ID: "test-id"}, nil, false, nil, 0, nil), nil)
+					&persistence.DomainInfo{ID: "test-id"}, nil, false, nil, 0, nil, 0, 0, 0), nil)
 			},
 			PinotClientAffordance: func(mockPinotClient *pinot.MockGenericClient) {
 				mockPinotClient.EXPECT().SearchAggr(gomock.Any()).Return([][]interface{}{
@@ -653,7 +653,7 @@ func TestEmitWorkflowVersionMetricsPinot(t *testing.T) {
 		"Case0: success": {
 			domainCacheAffordance: func(mockDomainCache *cache.MockDomainCache) {
 				mockDomainCache.EXPECT().GetDomain(gomock.Any()).Return(cache.NewDomainCacheEntryForTest(
-					&persistence.DomainInfo{ID: "test-id"}, nil, false, nil, 0, nil), nil).Times(3)
+					&persistence.DomainInfo{ID: "test-id"}, nil, false, nil, 0, nil, 0, 0, 0), nil).Times(3)
 			},
 			PinotClientAffordance: func(mockPinotClient *pinot.MockGenericClient) {
 				mockPinotClient.EXPECT().SearchAggr(gomock.Any()).Return([][]interface{}{
@@ -681,7 +681,7 @@ func TestEmitWorkflowVersionMetricsPinot(t *testing.T) {
 		"Case2: error Pinot query": {
 			domainCacheAffordance: func(mockDomainCache *cache.MockDomainCache) {
 				mockDomainCache.EXPECT().GetDomain(gomock.Any()).Return(cache.NewDomainCacheEntryForTest(
-					&persistence.DomainInfo{ID: "test-id"}, nil, false, nil, 0, nil), nil)
+					&persistence.DomainInfo{ID: "test-id"}, nil, false, nil, 0, nil, 0, 0, 0), nil)
 			},
 			PinotClientAffordance: func(mockPinotClient *pinot.MockGenericClient) {
 				mockPinotClient.EXPECT().SearchAggr(gomock.Any()).Return(nil, fmt.Errorf("pinot error")).Times(1)
@@ -691,7 +691,7 @@ func TestEmitWorkflowVersionMetricsPinot(t *testing.T) {
 		"Case3: Aggregation is empty": {
 			domainCacheAffordance: func(mockDomainCache *cache.MockDomainCache) {
 				mockDomainCache.EXPECT().GetDomain(gomock.Any()).Return(cache.NewDomainCacheEntryForTest(
-					&persistence.DomainInfo{ID: "test-id"}, nil, false, nil, 0, nil), nil)
+					&persistence.DomainInfo{ID: "test-id"}, nil, false, nil, 0, nil, 0, 0, 0), nil)
 			},
 			PinotClientAffordance: func(mockPinotClient *pinot.MockGenericClient) {
 				mockPinotClient.EXPECT().SearchAggr(gomock.Any()).Return([][]interface{}{}, nil).Times(1)
@@ -701,7 +701,7 @@ func TestEmitWorkflowVersionMetricsPinot(t *testing.T) {
 		"Case4: error parsing workflow count": {
 			domainCacheAffordance: func(mockDomainCache *cache.MockDomainCache) {
 				mockDomainCache.EXPECT().GetDomain(gomock.Any()).Return(cache.NewDomainCacheEntryForTest(
-					&persistence.DomainInfo{ID: "test-id"}, nil, false, nil, 0, nil), nil)
+					&persistence.DomainInfo{ID: "test-id"}, nil, false, nil, 0, nil, 0, 0, 0), nil)
 			},
 			PinotClientAffordance: func(mockPinotClient *pinot.MockGenericClient) {
 				mockPinotClient.EXPECT().SearchAggr(gomock.Any()).Return([][]interface{}{
@@ -713,7 +713,7 @@ func TestEmitWorkflowVersionMetricsPinot(t *testing.T) {
 		"Case5-1: failure case in queryWorkflowVersionsWithType: getWorkflowVersionPinotQuery error": {
 			domainCacheAffordance: func(mockDomainCache *cache.MockDomainCache) {
 				mockDomainCache.EXPECT().GetDomain(gomock.Any()).Return(cache.NewDomainCacheEntryForTest(
-					&persistence.DomainInfo{ID: "test-id"}, nil, false, nil, 0, nil), nil).Times(1)
+					&persistence.DomainInfo{ID: "test-id"}, nil, false, nil, 0, nil, 0, 0, 0), nil).Times(1)
 				mockDomainCache.EXPECT().GetDomain(gomock.Any()).Return(nil, fmt.Errorf("domain error")).Times(1)
 			},
 			PinotClientAffordance: func(mockPinotClient *pinot.MockGenericClient) {
@@ -727,7 +727,7 @@ func TestEmitWorkflowVersionMetricsPinot(t *testing.T) {
 		"Case5-2: failure case in queryWorkflowVersionsWithType: SearchAggr error": {
 			domainCacheAffordance: func(mockDomainCache *cache.MockDomainCache) {
 				mockDomainCache.EXPECT().GetDomain(gomock.Any()).Return(cache.NewDomainCacheEntryForTest(
-					&persistence.DomainInfo{ID: "test-id"}, nil, false, nil, 0, nil), nil).Times(2)
+					&persistence.DomainInfo{ID: "test-id"}, nil, false, nil, 0, nil, 0, 0, 0), nil).Times(2)
 			},
 			PinotClientAffordance: func(mockPinotClient *pinot.MockGenericClient) {
 				mockPinotClient.EXPECT().SearchAggr(gomock.Any()).Return([][]interface{}{
@@ -741,7 +741,7 @@ func TestEmitWorkflowVersionMetricsPinot(t *testing.T) {
 		"Case5-3: failure case in queryWorkflowVersionsWithType: error parsing workflow count": {
 			domainCacheAffordance: func(mockDomainCache *cache.MockDomainCache) {
 				mockDomainCache.EXPECT().GetDomain(gomock.Any()).Return(cache.NewDomainCacheEntryForTest(
-					&persistence.DomainInfo{ID: "test-id"}, nil, false, nil, 0, nil), nil).Times(2)
+					&persistence.DomainInfo{ID: "test-id"}, nil, false, nil, 0, nil, 0, 0, 0), nil).Times(2)
 			},
 			PinotClientAffordance: func(mockPinotClient *pinot.MockGenericClient) {
 				mockPinotClient.EXPECT().SearchAggr(gomock.Any()).Return([][]interface{}{

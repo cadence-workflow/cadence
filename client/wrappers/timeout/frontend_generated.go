@@ -88,6 +88,12 @@ func (c *frontendClient) DescribeWorkflowExecution(ctx context.Context, dp1 *typ
 	return c.client.DescribeWorkflowExecution(ctx, dp1, p1...)
 }
 
+func (c *frontendClient) DiagnoseWorkflowExecution(ctx context.Context, dp1 *types.DiagnoseWorkflowExecutionRequest, p1 ...yarpc.CallOption) (dp2 *types.DiagnoseWorkflowExecutionResponse, err error) {
+	ctx, cancel := createContext(ctx, c.timeout)
+	defer cancel()
+	return c.client.DiagnoseWorkflowExecution(ctx, dp1, p1...)
+}
+
 func (c *frontendClient) GetClusterInfo(ctx context.Context, p1 ...yarpc.CallOption) (cp1 *types.ClusterInfo, err error) {
 	ctx, cancel := createContext(ctx, c.timeout)
 	defer cancel()
