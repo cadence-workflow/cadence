@@ -727,11 +727,12 @@ func (db *cdb) InsertReplicationTask(ctx context.Context, tasks []*nosqlplugin.R
 
 	shardID := shardCondition.ShardID
 	batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
+	timeStamp := db.timeSrc.Now()
 	for _, task := range tasks {
-		createReplicationTasks(batch, shardID, task.DomainID, task.WorkflowID, []*nosqlplugin.ReplicationTask{task}, time.Now())
+		createReplicationTasks(batch, shardID, task.DomainID, task.WorkflowID, []*nosqlplugin.ReplicationTask{task}, timeStamp)
 	}
 
-	assertShardRangeID(batch, shardID, shardCondition.RangeID, time.Now())
+	assertShardRangeID(batch, shardID, shardCondition.RangeID, timeStamp)
 
 	previous := make(map[string]interface{})
 	applied, iter, err := db.session.MapExecuteBatchCAS(batch, previous)
