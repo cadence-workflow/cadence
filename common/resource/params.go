@@ -22,7 +22,6 @@ package resource
 
 import (
 	"github.com/uber-go/tally"
-	"github.com/uber/cadence/service/worker/diagnostics/invariant"
 	"go.uber.org/cadence/.gen/go/cadence/workflowserviceclient"
 
 	"github.com/uber/cadence/client/history"
@@ -48,6 +47,7 @@ import (
 	"github.com/uber/cadence/common/pinot"
 	"github.com/uber/cadence/common/rpc"
 	"github.com/uber/cadence/common/service"
+	"github.com/uber/cadence/service/worker/diagnostics/invariant"
 )
 
 type (

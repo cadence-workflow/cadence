@@ -25,6 +25,7 @@ package invariant
 import (
 	"context"
 	"encoding/json"
+
 	"github.com/uber/cadence/common/types"
 )
 

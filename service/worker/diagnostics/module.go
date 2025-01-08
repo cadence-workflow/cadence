@@ -24,7 +24,6 @@ package diagnostics
 
 import (
 	"context"
-	"github.com/uber/cadence/service/worker/diagnostics/invariant"
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
@@ -38,6 +37,7 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/service/worker/diagnostics/invariant"
 )
 
 type DiagnosticsWorkflow interface {

@@ -25,13 +25,13 @@ package timeout
 import (
 	"context"
 	"encoding/json"
-	publicservicetest "go.uber.org/cadence/.gen/go/cadence/workflowservicetest"
-	"go.uber.org/cadence/.gen/go/shared"
 	"testing"
 	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+	publicservicetest "go.uber.org/cadence/.gen/go/cadence/workflowservicetest"
+	"go.uber.org/cadence/.gen/go/shared"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/types"
