@@ -66,7 +66,7 @@ func (s *diagnosticsWorkflowTestSuite) SetupTest() {
 		svcClient:     publicClient,
 		clientBean:    mockResource.ClientBean,
 		metricsClient: mockResource.GetMetricsClient(),
-		invariants:    []invariant.Invariant{timeout.NewInvariant(timeout.NewTimeoutParams{Client: publicClient}), failure.NewInvariant(), retry.NewInvariant()},
+		invariants:    []invariant.Invariant{timeout.NewInvariant(timeout.Params{Client: publicClient}), failure.NewInvariant(), retry.NewInvariant()},
 	}
 
 	s.T().Cleanup(func() {

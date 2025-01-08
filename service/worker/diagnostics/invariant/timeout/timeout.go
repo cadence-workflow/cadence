@@ -41,11 +41,11 @@ type timeout struct {
 	client workflowserviceclient.Interface
 }
 
-type NewTimeoutParams struct {
+type Params struct {
 	Client workflowserviceclient.Interface
 }
 
-func NewInvariant(p NewTimeoutParams) invariant.Invariant {
+func NewInvariant(p Params) invariant.Invariant {
 	return &timeout{
 		client: p.Client,
 	}

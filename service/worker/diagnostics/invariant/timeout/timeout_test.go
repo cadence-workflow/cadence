@@ -120,7 +120,7 @@ func Test__Check(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockClient := publicservicetest.NewMockClient(ctrl)
 	for _, tc := range testCases {
-		inv := NewInvariant(NewTimeoutParams{
+		inv := NewInvariant(Params{
 			Client: mockClient,
 		})
 		result, err := inv.Check(context.Background(), invariant.InvariantCheckInput{
@@ -589,7 +589,7 @@ func Test__RootCause(t *testing.T) {
 	}
 	ctrl := gomock.NewController(t)
 	mockClient := publicservicetest.NewMockClient(ctrl)
-	inv := NewInvariant(NewTimeoutParams{
+	inv := NewInvariant(Params{
 		Client: mockClient,
 	})
 	for _, tc := range testCases {
