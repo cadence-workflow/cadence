@@ -44,8 +44,9 @@ import (
 )
 
 const (
-	versionTypeExternal = "external"
-	processorName       = "visibility-processor"
+	versionTypeExternal    = "external"
+	processorName          = "visibility-processor"
+	migrationProcessorName = "migration-visibility-processor"
 )
 
 var (

@@ -58,7 +58,8 @@ type (
 		// optional to add custom headers
 		CustomHeaders map[string]string   `yaml:"customHeaders,omitempty"`
 		Migration     VisibilityMigration `yaml:"migration"`
-		// optional to if not using default consumer name
+		// optional, will use default consumer name if not provided
+		// default consumerName is topic + "-consumer"
 		ConsumerName string `yaml:"consumerName"`
 	}
 

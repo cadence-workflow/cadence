@@ -408,13 +408,8 @@ func (s *Service) startMigrationDualIndexer() {
 		s.GetLogger(),
 		s.GetMetricsClient(),
 	)
-	if err := visibilityDualIndexer.SourceIndexer.Start(); err != nil {
-		visibilityDualIndexer.SourceIndexer.Stop()
-		s.GetLogger().Fatal("fail to start indexer", tag.Error(err))
-	}
-
-	if err := visibilityDualIndexer.DestIndexer.Start(); err != nil {
-		visibilityDualIndexer.DestIndexer.Stop()
+	if err := visibilityDualIndexer.Start(); err != nil {
+		// not need to call visibilityDualIndexer.Stop() since it has been called inside Start()
 		s.GetLogger().Fatal("fail to start indexer", tag.Error(err))
 	}
 }

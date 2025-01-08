@@ -68,7 +68,7 @@ func NewMigrationDualIndexer(config *Config,
 		msgEncoder:          defaultEncoder,
 	}
 
-	secondaryVisibilityProcessor, err := newESProcessor(processorName, config, secondaryClient, logger, metricsClient)
+	secondaryVisibilityProcessor, err := newESProcessor(migrationProcessorName, config, secondaryClient, logger, metricsClient)
 	if err != nil {
 		logger.Fatal("Migration Index ES processor state changed", tag.LifeCycleStartFailed, tag.Error(err))
 	}
@@ -96,4 +96,23 @@ func NewMigrationDualIndexer(config *Config,
 		SourceIndexer: sourceIndexer,
 		DestIndexer:   destIndexer,
 	}
+}
+
+func (i *DualIndexer) Start() error {
+	if err := i.SourceIndexer.Start(); err != nil {
+		i.SourceIndexer.Stop()
+		return err
+	}
+
+	if err := i.DestIndexer.Start(); err != nil {
+		i.DestIndexer.Stop()
+		return err
+	}
+
+	return nil
+}
+
+func (i *DualIndexer) Stop() {
+	i.SourceIndexer.Stop()
+	i.DestIndexer.Stop()
 }
