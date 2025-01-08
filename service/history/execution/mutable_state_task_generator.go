@@ -24,6 +24,7 @@ package execution
 
 import (
 	"fmt"
+
 	"math"
 	"math/rand"
 	"time"
@@ -31,6 +32,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
@@ -88,6 +90,7 @@ type (
 		domainCache     cache.DomainCache
 
 		mutableState MutableState
+		logger       log.Logger
 	}
 )
 
@@ -171,6 +174,8 @@ func (r *mutableStateTaskGeneratorImpl) GenerateWorkflowCloseTasks(
 	if workflowDeletionTaskJitterRange > 1 {
 		retentionDuration += time.Duration(rand.Intn(workflowDeletionTaskJitterRange*60)) * time.Second
 	}
+
+	r.logger.Info(fmt.Sprintf("workflowDeletionTaskJitterRange: %v, retentionInDays: %v", workflowDeletionTaskJitterRange, retentionInDays))
 
 	r.mutableState.AddTimerTasks(&persistence.DeleteHistoryEventTask{
 		TaskData: persistence.TaskData{
