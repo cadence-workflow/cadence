@@ -65,6 +65,13 @@ jobs:
     needs: meta
     runs-on: ubuntu-latest
     steps:
+      - name: Double check dockerhub secrets
+        env:
+          user: ${{ secrets.CADENCE_SERVER_DOCKERHUB_USERNAME }}
+          pw: ${{ secrets.CADENCE_SERVER_DOCKERHUB_TOKEN }}
+        run: |
+          echo "Dockerhub username: $user"
+          echo "Dockerhub token first char: ${pw:0:1}, last char: ${pw: -1}"
       - name: Checkout
         uses: actions/checkout@v4
       - name: Login to Docker Hub
