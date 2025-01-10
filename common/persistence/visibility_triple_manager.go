@@ -27,7 +27,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -52,6 +51,7 @@ const (
 	VisibilityOverrideSecondary = "Secondary"
 	ContextKey                  = ResponseComparatorContextKey("visibility-override")
 	dbVisStoreName              = "db"
+	advancedWriteModeOff        = "off"
 )
 
 // ResponseComparatorContextKey is for Pinot/ES response comparator. This struct will be passed into ctx as a key.
@@ -95,6 +95,8 @@ func NewVisibilityTripleManager(
 			destinationVisStoreName: destinationVisibilityManager,
 		},
 		readVisibilityStoreName:   readVisibilityStoreName,
+		sourceVisStoreName:        sourceVisStoreName,
+		destinationVisStoreName:   destinationVisStoreName,
 		writeMode:                 visWritingMode,
 		logger:                    logger,
 		logCustomerQueryParameter: logCustomerQueryParameter,
@@ -302,15 +304,15 @@ func (v *visibilityTripleManager) UpsertWorkflowExecution(
 func (v *visibilityTripleManager) chooseVisibilityModeForAdmin() string {
 	switch {
 	case v.visibilityMgrs[dbVisStoreName] != nil && v.visibilityMgrs[v.sourceVisStoreName] != nil && v.visibilityMgrs[v.destinationVisStoreName] != nil:
-		return common.AdvancedVisibilityMigrationWritingModeTriple
+		return fmt.Sprintf("%s,%s,%s", dbVisStoreName, v.sourceVisStoreName, v.destinationVisStoreName)
 	case v.visibilityMgrs[v.sourceVisStoreName] != nil && v.visibilityMgrs[v.destinationVisStoreName] != nil:
-		return common.AdvancedVisibilityMigrationWritingModeDual
+		return fmt.Sprintf("%s,%s", v.sourceVisStoreName, v.destinationVisStoreName)
 	case v.visibilityMgrs[v.destinationVisStoreName] != nil:
-		return common.AdvancedVisibilityMigrationWritingModeDestination
+		return fmt.Sprintf("%s", v.destinationVisStoreName)
 	case v.visibilityMgrs[v.sourceVisStoreName] != nil:
-		return common.AdvancedVisibilityMigrationWritingModeSource
+		return fmt.Sprintf("%s", v.sourceVisStoreName)
 	case v.visibilityMgrs[dbVisStoreName] != nil:
-		return common.AdvancedVisibilityMigrationWritingModeOff
+		return fmt.Sprintf("%s", dbVisStoreName)
 	default:
 		return "INVALID_ADMIN_MODE"
 	}
@@ -327,70 +329,41 @@ func (v *visibilityTripleManager) chooseVisibilityManagerForWrite(ctx context.Co
 		}
 	}
 
-	switch writeMode {
-	// only perform as triple manager during migration by setting write mode to triple,
-	// other time perform as a dual visibility manager and db
-	case common.AdvancedVisibilityMigrationWritingModeOff:
-		if mgr, ok := v.visibilityMgrs[dbVisStoreName]; ok && mgr != nil {
-			return dbVisFunc()
+	modes := strings.Split(writeMode, ",")
+	var errors []string
+	for _, mode := range modes {
+		if mode == advancedWriteModeOff {
+			mode = dbVisStoreName
 		}
-		v.logger.Warn("basic visibility is not available to write, fall back to advanced visibility")
-		return destinationVisFunc()
-	case common.AdvancedVisibilityMigrationWritingModeSource:
-		if mgr, ok := v.visibilityMgrs[v.sourceVisStoreName]; ok && mgr != nil {
-			return sourceVisFunc()
-		}
-		v.logger.Warn("advanced visibility is not available to write, fall back to basic visibility")
-		return dbVisFunc()
-	case common.AdvancedVisibilityMigrationWritingModeDestination:
-		if mgr, ok := v.visibilityMgrs[v.destinationVisStoreName]; ok && mgr != nil {
-			return destinationVisFunc()
-		}
-		v.logger.Warn("advanced visibility is not available to write, fall back to basic visibility")
-		return dbVisFunc()
-	case common.AdvancedVisibilityWritingModeDual:
-		// by default the AdvancedVisibilityMigrationWritingMode is set to Dual
-		// this will enable double writes to both source and destination advanced visibility stores
-		// it is necessary during the migration period to ensure that both stores are in sync
-		sourceMgr, sourceAvailable := v.visibilityMgrs[v.sourceVisStoreName]
-		sourceAvailable = sourceAvailable && sourceMgr != nil
-
-		destMgr, destinationAvailable := v.visibilityMgrs[v.destinationVisStoreName]
-		destinationAvailable = destinationAvailable && destMgr != nil
-
-		if destinationAvailable && sourceAvailable {
-			if err := sourceVisFunc(); err != nil {
-				return err
+		if mgr, ok := v.visibilityMgrs[mode]; ok && mgr != nil {
+			switch mode {
+			case v.sourceVisStoreName:
+				if err := sourceVisFunc(); err != nil {
+					errors = append(errors, fmt.Sprintf("%s visibility error: %v", mode, err))
+				}
+			case v.destinationVisStoreName:
+				if err := destinationVisFunc(); err != nil {
+					errors = append(errors, fmt.Sprintf("%s visibility error: %v", mode, err))
+				}
+			case dbVisStoreName:
+				if err := dbVisFunc(); err != nil {
+					errors = append(errors, fmt.Sprintf("%s visibility error: %v", mode, err))
+				}
+			default:
+				errors = append(errors, fmt.Sprintf("Unknown visibility migration writing mode: %s", mode))
 			}
-			return destinationVisFunc()
-		} else if destinationAvailable {
-			v.logger.Warn("Source advanced visibility is not available to write, fall back to destination advanced visibility")
-			return destinationVisFunc()
-		} else if sourceAvailable {
-			v.logger.Warn("Destination advanced visibility is not available to write, fall back to source advanced visibility")
-			return sourceVisFunc()
 		} else {
-			v.logger.Warn("advanced visibility is not available to write, fall back to basic visibility")
-			return dbVisFunc()
-		}
-	case common.AdvancedVisibilityMigrationWritingModeTriple:
-		if v.visibilityMgrs[v.destinationVisStoreName] != nil && v.visibilityMgrs[v.sourceVisStoreName] != nil && v.visibilityMgrs[dbVisStoreName] != nil {
-			if err := sourceVisFunc(); err != nil {
-				return err
-			}
-
-			if err := destinationVisFunc(); err != nil {
-				return err
-			}
-			return dbVisFunc()
-		}
-		v.logger.Warn("advanced visibility is not available to write")
-		return dbVisFunc()
-	default:
-		return &types.InternalServiceError{
-			Message: fmt.Sprintf("Unknown visibility migration writing mode: %s", writeMode),
+			errors = append(errors, fmt.Sprintf("Unknown visibility migration writing mode: %s", mode))
 		}
 	}
+
+	if len(errors) > 0 {
+		return &types.InternalServiceError{
+			Message: fmt.Sprintf("Error writing to visibility: %v", strings.Join(errors, "; ")),
+		}
+	}
+
+	return nil
 }
 
 // For Pinot Migration uses. It will be a temporary usage
@@ -768,13 +741,7 @@ func (v *visibilityTripleManager) chooseVisibilityManagerForRead(ctx context.Con
 				tag.WorkflowDomainName(domain))
 		}
 	} else {
-		if v.visibilityMgrs[dbVisStoreName] != nil {
-			visibilityMgr = v.visibilityMgrs[dbVisStoreName]
-		} else {
-			visibilityMgr = v.visibilityMgrs[v.destinationVisStoreName]
-			v.logger.Warn("domain is configured to read from basic visibility but it's not available, fall back to advanced visibility",
-				tag.WorkflowDomainName(domain))
-		}
+		visibilityMgr = v.visibilityMgrs[dbVisStoreName]
 	}
 	return visibilityMgr
 }

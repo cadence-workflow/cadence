@@ -2245,8 +2245,8 @@ const (
 	AdvancedVisibilityWritingMode
 	// AdvancedVisibilityMigrationWritingMode is key for how to write to advanced visibility during migration.
 	// KeyName: system.advancedVisibilityMigrationWritingMode
-	// Value type: String enum: "dual"(means writing to both source and destination advanced visibility, "source" (means writing to source visibility only), "destination" (means writing to destination visibility only) or "off" (means writing to db visibility only)
-	// Default value: "dual"
+	// Value type: string ["es","os","pinot","db"]
+	// Default value: "es"
 	// Allowed filters: N/A
 	AdvancedVisibilityMigrationWritingMode
 	// ReadVisibilityStoreName is key to identify which store to read visibility data from
@@ -4540,8 +4540,8 @@ var StringKeys = map[StringKey]DynamicString{
 	},
 	AdvancedVisibilityMigrationWritingMode: {
 		KeyName:      "system.advancedVisibilityMigrationWritingMode",
-		Description:  "AdvancedVisibilityMigrationWritingMode is key for how to write to advanced visibility. The most useful option is dual, which can be used for seamless migration from advanced visibility to another",
-		DefaultValue: "dual",
+		Description:  "AdvancedVisibilityMigrationWritingMode is key for how to write to advanced visibility. It is used for migration only, which contains a list of writing visibility stores",
+		DefaultValue: "es",
 	},
 	HistoryArchivalStatus: {
 		KeyName:      "system.historyArchivalStatus",

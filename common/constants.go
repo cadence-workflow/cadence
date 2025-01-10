@@ -161,20 +161,6 @@ const (
 	AdvancedVisibilityWritingModeDual = "dual"
 )
 
-// enum for dynamic config AdvancedVisibilityMigrationWritingMode
-const (
-	// AdvancedVisibilityMigrationWritingModeOff means do not write to advanced visibility store
-	AdvancedVisibilityMigrationWritingModeOff = "off"
-	// AdvancedVisibilityMigrationWritingModeTriple means write to normal visibility and advanced visibility store
-	AdvancedVisibilityMigrationWritingModeTriple = "triple"
-	// AdvancedVisibilityMigrationWritingModeDual means write to both advanced visibility stores
-	AdvancedVisibilityMigrationWritingModeDual = "dual"
-	// AdvancedVisibilityMigrationWritingModeTriple means write to source visibility store during migration
-	AdvancedVisibilityMigrationWritingModeSource = "source"
-	// AdvancedVisibilityMigrationWritingModeDestination means write to destination visibility store during migration
-	AdvancedVisibilityMigrationWritingModeDestination = "destination"
-)
-
 const (
 	// DomainDataKeyForManagedFailover is key of DomainData for managed failover
 	DomainDataKeyForManagedFailover = "IsManagedByCadence"
