@@ -97,12 +97,10 @@ func (w *dw) rootCauseIssues(ctx context.Context, info rootCauseIssuesParams) ([
 }
 
 func (w *dw) emitUsageLogs(ctx context.Context, info analytics.WfDiagnosticsUsageData) error {
-	client := w.newMessagingClient()
-	return emit(ctx, info, client)
-}
-
-func (w *dw) newMessagingClient() messaging.Client {
-	return kafka.NewKafkaClient(&w.kafkaCfg, w.metricsClient, w.logger, w.tallyScope, true)
+	if w.messagingClient == nil {
+		w.messagingClient = kafka.NewKafkaClient(&w.kafkaCfg, w.metricsClient, w.logger, w.tallyScope, true)
+	}
+	return emit(ctx, info, w.messagingClient)
 }
 
 func emit(ctx context.Context, info analytics.WfDiagnosticsUsageData, client messaging.Client) error {
