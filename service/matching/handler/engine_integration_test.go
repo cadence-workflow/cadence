@@ -1134,7 +1134,12 @@ func (s *matchingEngineSuite) UnloadTasklistOnIsolationConfigChange(taskType int
 	}
 	result, err := pollTask(s.matchingEngine, s.handlerContext, pollReq)
 	s.NoError(err)
-	s.Equal(&pollTaskResponse{}, result)
+	s.Equal(&pollTaskResponse{
+		AutoConfigHint: &types.AutoConfigHint{
+			EnableAutoConfig:   false,
+			PollerWaitTimeInMs: 0,
+		},
+	}, result) // empty polls returns auto config hint
 
 	result, err = pollTask(s.matchingEngine, s.handlerContext, pollReq)
 	s.NoError(err)
