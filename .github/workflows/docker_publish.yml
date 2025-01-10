@@ -42,31 +42,6 @@ jobs:
             echo "enabled=true" >> $GITHUB_OUTPUT
           fi
 
-  # TODO: Delete below job below once image tags are validated after merging
-  check-meta:
-    needs: meta
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check meta
-        run: |
-          echo "Image tag: ${{ needs.meta.outputs.image_tag }}"
-          echo "Push enabled: ${{ needs.meta.outputs.push_enabled }}"
-      - name: This step should run if push is enabled
-        if: ${{ needs.meta.outputs.push_enabled == 'true' }}
-        run: |
-          echo "Push enabled: ${{ needs.meta.outputs.push_enabled }}"
-      - name: This step should run if push is disabled
-        if: ${{ needs.meta.outputs.push_enabled == 'false' }}
-        run: |
-          echo "Push enabled: ${{ needs.meta.outputs.push_enabled }}"
-      - name: Double check dockerhub secrets
-        env:
-          user: ${{ secrets.CADENCE_SERVER_DOCKERHUB_USERNAME }}
-          pw: ${{ secrets.CADENCE_SERVER_DOCKERHUB_TOKEN }}
-        run: |
-          echo "Dockerhub username first chars: ${user:0:2}, last char: ${user: -1}"
-          echo "Dockerhub token first chars: ${pw:0:2}, last char: ${pw: -1}"
-
   push_server_image:
     name: Push server image to Docker Hub
     needs: meta
