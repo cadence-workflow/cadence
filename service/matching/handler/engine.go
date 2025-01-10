@@ -730,6 +730,10 @@ pollLoop:
 		if err != nil {
 			return nil, fmt.Errorf("couldn't load tasklist namanger: %w", err)
 		}
+		pollerWaitTimeMs := int64(0)
+		if deadline, ok := pollerCtx.Deadline(); ok {
+			pollerWaitTimeMs = int64(time.Until(deadline).Milliseconds())
+		}
 		task, err := tlMgr.GetTask(pollerCtx, maxDispatch)
 		if err != nil {
 			// TODO: Is empty poll the best reply for errPumpClosed?
@@ -737,6 +741,10 @@ pollLoop:
 				return &types.MatchingPollForActivityTaskResponse{
 					PartitionConfig:   tlMgr.TaskListPartitionConfig(),
 					LoadBalancerHints: tlMgr.LoadBalancerHints(),
+					AutoConfigHint: &types.AutoConfigHint{
+						EnableAutoConfig:   tlMgr.EnableClientAutoConfig(),
+						PollerWaitTimeInMs: pollerWaitTimeMs,
+					},
 				}, nil
 			}
 			e.logger.Error("Received unexpected err while getting task",
