@@ -64,8 +64,8 @@ jobs:
           user: ${{ secrets.CADENCE_SERVER_DOCKERHUB_USERNAME }}
           pw: ${{ secrets.CADENCE_SERVER_DOCKERHUB_TOKEN }}
         run: |
-          echo "Dockerhub username: $user"
-          echo "Dockerhub token first char: ${pw:0:1}, last char: ${pw: -1}"
+          echo "Dockerhub username first chars: ${user:0:2}, last char: ${user: -1}"
+          echo "Dockerhub token first chars: ${pw:0:2}, last char: ${pw: -1}"
 
   push_server_image:
     name: Push server image to Docker Hub
