@@ -971,6 +971,11 @@ func (c *taskListManagerImpl) emitMisconfiguredPartitionMetrics() {
 	}
 }
 
+// EnableClientAutoConfig checks if there client auto config is enabled for tasklist
+func (c *taskListManagerImpl) EnableClientAutoConfig() bool {
+	return c.config.EnableClientAutoConfig()
+}
+
 func getTaskListTypeTag(taskListType int) metrics.Tag {
 	switch taskListType {
 	case persistence.TaskListTypeActivity:
