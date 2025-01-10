@@ -39,30 +39,26 @@ const (
 	WfDiagnosticsAppName  = "workflow-diagnostics"
 )
 
-type retrieveExecutionHistoryInputParams struct {
-	Domain    string
-	Execution *types.WorkflowExecution
-}
-
-func (w *dw) retrieveExecutionHistory(ctx context.Context, info retrieveExecutionHistoryInputParams) (*types.GetWorkflowExecutionHistoryResponse, error) {
-	frontendClient := w.clientBean.GetFrontendClient()
-	return frontendClient.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
-		Domain:    info.Domain,
-		Execution: info.Execution,
-	})
-}
-
 type identifyIssuesParams struct {
-	History *types.GetWorkflowExecutionHistoryResponse
-	Domain  string
+	Execution *types.WorkflowExecution
+	Domain    string
 }
 
 func (w *dw) identifyIssues(ctx context.Context, info identifyIssuesParams) ([]invariant.InvariantCheckResult, error) {
 	result := make([]invariant.InvariantCheckResult, 0)
 
+	frontendClient := w.clientBean.GetFrontendClient()
+	history, err := frontendClient.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
+		Domain:    info.Domain,
+		Execution: info.Execution,
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	for _, inv := range w.invariants {
 		issues, err := inv.Check(ctx, invariant.InvariantCheckInput{
-			WorkflowExecutionHistory: info.History,
+			WorkflowExecutionHistory: history,
 			Domain:                   info.Domain,
 		})
 		if err != nil {

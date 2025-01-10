@@ -91,7 +91,6 @@ func (w *dw) Start() error {
 	newWorker := worker.New(w.svcClient, common.SystemLocalDomainName, tasklist, workerOpts)
 	newWorker.RegisterWorkflowWithOptions(w.DiagnosticsWorkflow, workflow.RegisterOptions{Name: diagnosticsWorkflow})
 	newWorker.RegisterWorkflowWithOptions(w.DiagnosticsStarterWorkflow, workflow.RegisterOptions{Name: diagnosticsStarterWorkflow})
-	newWorker.RegisterActivityWithOptions(w.retrieveExecutionHistory, activity.RegisterOptions{Name: retrieveWfExecutionHistoryActivity})
 	newWorker.RegisterActivityWithOptions(w.identifyIssues, activity.RegisterOptions{Name: identifyIssuesActivity})
 	newWorker.RegisterActivityWithOptions(w.rootCauseIssues, activity.RegisterOptions{Name: rootCauseIssuesActivity})
 	newWorker.RegisterActivityWithOptions(w.emitUsageLogs, activity.RegisterOptions{Name: emitUsageLogsActivity})

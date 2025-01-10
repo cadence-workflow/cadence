@@ -125,23 +125,14 @@ func (w *dw) DiagnosticsWorkflow(ctx workflow.Context, params DiagnosticsWorkflo
 		StartToCloseTimeout:    time.Second * 5,
 	}
 	activityCtx := workflow.WithActivityOptions(ctx, activityOptions)
+	timeoutsResult.Runbooks = []string{linkToTimeoutsRunbook}
 
-	var wfExecutionHistory *types.GetWorkflowExecutionHistoryResponse
-	err := workflow.ExecuteActivity(activityCtx, w.retrieveExecutionHistory, retrieveExecutionHistoryInputParams{
-		Domain: params.Domain,
+	err := workflow.ExecuteActivity(activityCtx, w.identifyIssues, identifyIssuesParams{
 		Execution: &types.WorkflowExecution{
 			WorkflowID: params.WorkflowID,
 			RunID:      params.RunID,
-		}}).Get(ctx, &wfExecutionHistory)
-	if err != nil {
-		return nil, fmt.Errorf("RetrieveExecutionHistory: %w", err)
-	}
-
-	timeoutsResult.Runbooks = []string{linkToTimeoutsRunbook}
-
-	err = workflow.ExecuteActivity(activityCtx, w.identifyIssues, identifyIssuesParams{
-		History: wfExecutionHistory,
-		Domain:  params.Domain,
+		},
+		Domain: params.Domain,
 	}).Get(ctx, &checkResult)
 	if err != nil {
 		return nil, fmt.Errorf("IdentifyIssues: %w", err)

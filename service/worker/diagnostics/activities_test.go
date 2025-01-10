@@ -48,19 +48,6 @@ const (
 	timeUnit              = time.Second
 )
 
-func Test__retrieveExecutionHistory(t *testing.T) {
-	dwtest := testDiagnosticWorkflow(t)
-	result, err := dwtest.retrieveExecutionHistory(context.Background(), retrieveExecutionHistoryInputParams{
-		Domain: "test",
-		Execution: &types.WorkflowExecution{
-			WorkflowID: "123",
-			RunID:      "abc",
-		},
-	})
-	require.NoError(t, err)
-	require.Equal(t, testWorkflowExecutionHistoryResponse(), result)
-}
-
 func Test__identifyIssues(t *testing.T) {
 	dwtest := testDiagnosticWorkflow(t)
 	actMetadata := failure.FailureMetadata{
@@ -100,7 +87,10 @@ func Test__identifyIssues(t *testing.T) {
 			Metadata:      retryMetadataInBytes,
 		},
 	}
-	result, err := dwtest.identifyIssues(context.Background(), identifyIssuesParams{History: testWorkflowExecutionHistoryResponse()})
+	result, err := dwtest.identifyIssues(context.Background(), identifyIssuesParams{Execution: &types.WorkflowExecution{
+		WorkflowID: "123",
+		RunID:      "abc",
+	}})
 	require.NoError(t, err)
 	require.Equal(t, expectedResult, result)
 }
