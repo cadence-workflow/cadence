@@ -65,9 +65,7 @@ jobs:
           context: .
           platforms: linux/amd64
           build-args: TARGET=server
-          # TODO: Uncomment below once image tags are validated after merging
-          # push: ${{ needs.meta.outputs.push_enabled == 'true' }}
-          push: false
+          push: ${{ needs.meta.outputs.push_enabled == 'true' }}
           tags: ubercadence/server:${{ needs.meta.outputs.image_tag }}
       - name: Validate tag
         run: |
@@ -96,9 +94,7 @@ jobs:
           context: .
           platforms: linux/amd64
           build-args: TARGET=auto-setup
-          # TODO: Uncomment below once image tags are validated after merging
-          # push: ${{ needs.meta.outputs.push_enabled == 'true' }}
-          push: false
+          push: ${{ needs.meta.outputs.push_enabled == 'true' }}
           tags: ubercadence/server:${{ needs.meta.outputs.image_tag }}-auto-setup
       - name: Validate tag
         run: |
@@ -128,9 +124,7 @@ jobs:
           context: .
           platforms: linux/amd64
           build-args: TARGET=cli
-          # TODO: Uncomment below once image tags are validated after merging
-          # push: ${{ needs.meta.outputs.push_enabled == 'true' }}
-          push: false
+          push: ${{ needs.meta.outputs.push_enabled == 'true' }}
           tags: ubercadence/cli:${{ needs.meta.outputs.image_tag }}
       - name: Validate tag
         run: |
