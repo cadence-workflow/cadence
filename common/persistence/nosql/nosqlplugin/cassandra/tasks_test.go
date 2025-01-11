@@ -241,10 +241,10 @@ func TestInsertTaskList(t *testing.T) {
 				}).Times(1)
 			},
 			wantQueries: []string{
-				`INSERT INTO tasks (domain_id, task_list_name, task_list_type, type, task_id, range_id, task_list ) ` +
+				`INSERT INTO tasks (domain_id, task_list_name, task_list_type, type, task_id, range_id, task_list, created_time ) ` +
 					`VALUES (domain1, tasklist1, 1, 1, -12345, 1, ` +
 					`{domain_id: domain1, name: tasklist1, type: 1, ack_level: 0, kind: 2, last_updated: 2024-04-01T22:08:41Z, adaptive_partition_config: map[] }` +
-					`) IF NOT EXISTS`,
+					`, 2025-01-06T15:00:00Z) IF NOT EXISTS`,
 			},
 		},
 		{
@@ -274,11 +274,11 @@ func TestInsertTaskList(t *testing.T) {
 				}).Times(1)
 			},
 			wantQueries: []string{
-				`INSERT INTO tasks (domain_id, task_list_name, task_list_type, type, task_id, range_id, task_list ) ` +
+				`INSERT INTO tasks (domain_id, task_list_name, task_list_type, type, task_id, range_id, task_list, created_time ) ` +
 					`VALUES (domain1, tasklist1, 1, 1, -12345, 1, ` +
 					`{domain_id: domain1, name: tasklist1, type: 1, ack_level: 0, kind: 2, last_updated: 2024-04-01T22:08:41Z, ` +
 					`adaptive_partition_config: map[num_read_partitions:1 num_write_partitions:1 read_partitions:map[0:map[isolation_groups:[]]] version:1 write_partitions:map[0:map[isolation_groups:[]]]] }` +
-					`) IF NOT EXISTS`,
+					`, 2025-01-06T15:00:00Z) IF NOT EXISTS`,
 			},
 		},
 		{
@@ -336,6 +336,7 @@ func TestInsertTaskList(t *testing.T) {
 			dc := &persistence.DynamicConfiguration{}
 
 			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db.timeSrc = clock.NewMockedTimeSourceAt(FixedTime)
 
 			err := db.InsertTaskList(context.Background(), tc.row)
 
@@ -387,7 +388,7 @@ func TestUpdateTaskList(t *testing.T) {
 				}).Times(1)
 			},
 			wantQueries: []string{
-				`UPDATE tasks SET range_id = 25, task_list = {domain_id: domain1, name: tasklist1, type: 1, ack_level: 1000, kind: 2, last_updated: 2024-04-01T22:08:41Z, adaptive_partition_config: map[] } WHERE domain_id = domain1 and task_list_name = tasklist1 and task_list_type = 1 and type = 1 and task_id = -12345 IF range_id = 25`,
+				`UPDATE tasks SET range_id = 25, task_list = {domain_id: domain1, name: tasklist1, type: 1, ack_level: 1000, kind: 2, last_updated: 2024-04-01T22:08:41Z, adaptive_partition_config: map[] } , last_updated_time = 2025-01-06T15:00:00Z WHERE domain_id = domain1 and task_list_name = tasklist1 and task_list_type = 1 and type = 1 and task_id = -12345 IF range_id = 25`,
 			},
 		},
 		{
@@ -445,6 +446,7 @@ func TestUpdateTaskList(t *testing.T) {
 			dc := &persistence.DynamicConfiguration{}
 
 			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db.timeSrc = clock.NewMockedTimeSourceAt(FixedTime)
 
 			err := db.UpdateTaskList(context.Background(), tc.row, tc.prevRangeID)
 
@@ -494,8 +496,8 @@ func TestUpdateTaskListWithTTL(t *testing.T) {
 			},
 			mapExecuteBatchCASApplied: true,
 			wantQueries: []string{
-				` INSERT INTO tasks (domain_id, task_list_name, task_list_type, type, task_id ) VALUES (domain1, tasklist1, 1, 1, -12345) USING TTL 180`,
-				`UPDATE tasks USING TTL 180 SET range_id = 25, task_list = {domain_id: domain1, name: tasklist1, type: 1, ack_level: 1000, kind: 2, last_updated: 2024-04-01T22:08:41Z, adaptive_partition_config: map[] } WHERE domain_id = domain1 and task_list_name = tasklist1 and task_list_type = 1 and type = 1 and task_id = -12345 IF range_id = 25`,
+				` INSERT INTO tasks (domain_id, task_list_name, task_list_type, type, task_id, created_time ) VALUES (domain1, tasklist1, 1, 1, -12345, 2024-04-01T22:08:41Z) USING TTL 180`,
+				`UPDATE tasks USING TTL 180 SET range_id = 25, task_list = {domain_id: domain1, name: tasklist1, type: 1, ack_level: 1000, kind: 2, last_updated: 2024-04-01T22:08:41Z, adaptive_partition_config: map[] } , last_updated_time = 2024-04-01T22:08:41Z WHERE domain_id = domain1 and task_list_name = tasklist1 and task_list_type = 1 and type = 1 and task_id = -12345 IF range_id = 25`,
 			},
 		},
 		{
@@ -780,9 +782,9 @@ func TestInsertTasks(t *testing.T) {
 			},
 			mapExecuteBatchCASApplied: true,
 			wantQueries: []string{
-				`INSERT INTO tasks (domain_id, task_list_name, task_list_type, type, task_id, task) VALUES(domain1, tasklist1, 1, 0, 3, {domain_id: domain1, workflow_id: wid1, run_id: rid1, schedule_id: 42,created_time: 2024-04-01T22:08:41Z, partition_config: map[] })`,
-				`INSERT INTO tasks (domain_id, task_list_name, task_list_type, type, task_id, task) VALUES(domain1, tasklist1, 1, 0, 4, {domain_id: domain1, workflow_id: wid1, run_id: rid1, schedule_id: 43,created_time: 2024-04-01T22:08:42Z, partition_config: map[] }) USING TTL 157680000`,
-				`UPDATE tasks SET range_id = 25 WHERE domain_id = domain1 and task_list_name = tasklist1 and task_list_type = 1 and type = 1 and task_id = -12345 IF range_id = 25`,
+				`INSERT INTO tasks (domain_id, task_list_name, task_list_type, type, task_id, task, created_time) VALUES(domain1, tasklist1, 1, 0, 3, {domain_id: domain1, workflow_id: wid1, run_id: rid1, schedule_id: 42,created_time: 2024-04-01T22:08:41Z, partition_config: map[] }, 2024-04-01T22:08:41Z)`,
+				`INSERT INTO tasks (domain_id, task_list_name, task_list_type, type, task_id, task, created_time) VALUES(domain1, tasklist1, 1, 0, 4, {domain_id: domain1, workflow_id: wid1, run_id: rid1, schedule_id: 43,created_time: 2024-04-01T22:08:42Z, partition_config: map[] }, 2024-04-01T22:08:42Z) USING TTL 157680000`,
+				`UPDATE tasks SET range_id = 25, last_updated_time = 2024-04-01T22:08:41Z WHERE domain_id = domain1 and task_list_name = tasklist1 and task_list_type = 1 and type = 1 and task_id = -12345 IF range_id = 25`,
 			},
 		},
 		{
