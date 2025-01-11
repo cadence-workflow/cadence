@@ -547,7 +547,6 @@ func TestUpdateTaskListWithTTL(t *testing.T) {
 
 			timeSrc := clock.NewMockedTimeSourceAt(ts)
 			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client), dbWithTimeSource(timeSrc))
-
 			err := db.UpdateTaskListWithTTL(context.Background(), tc.ttlSeconds, tc.row, tc.prevRangeID)
 
 			if (err != nil) != tc.wantErr {
@@ -783,7 +782,7 @@ func TestInsertTasks(t *testing.T) {
 			mapExecuteBatchCASApplied: true,
 			wantQueries: []string{
 				`INSERT INTO tasks (domain_id, task_list_name, task_list_type, type, task_id, task, created_time) VALUES(domain1, tasklist1, 1, 0, 3, {domain_id: domain1, workflow_id: wid1, run_id: rid1, schedule_id: 42,created_time: 2024-04-01T22:08:41Z, partition_config: map[] }, 2024-04-01T22:08:41Z)`,
-				`INSERT INTO tasks (domain_id, task_list_name, task_list_type, type, task_id, task, created_time) VALUES(domain1, tasklist1, 1, 0, 4, {domain_id: domain1, workflow_id: wid1, run_id: rid1, schedule_id: 43,created_time: 2024-04-01T22:08:42Z, partition_config: map[] }, 2024-04-01T22:08:42Z) USING TTL 157680000`,
+				`INSERT INTO tasks (domain_id, task_list_name, task_list_type, type, task_id, task, created_time) VALUES(domain1, tasklist1, 1, 0, 4, {domain_id: domain1, workflow_id: wid1, run_id: rid1, schedule_id: 43,created_time: 2024-04-01T22:08:42Z, partition_config: map[] }, 2024-04-01T22:08:41Z) USING TTL 157680000`,
 				`UPDATE tasks SET range_id = 25, last_updated_time = 2024-04-01T22:08:41Z WHERE domain_id = domain1 and task_list_name = tasklist1 and task_list_type = 1 and type = 1 and task_id = -12345 IF range_id = 25`,
 			},
 		},

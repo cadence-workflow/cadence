@@ -287,7 +287,7 @@ func (db *cdb) UpdateTaskListWithTTL(
 		row.TaskListType,
 		row.AckLevel,
 		row.TaskListKind,
-		db.timeSrc.Now(),
+		timeStamp,
 		fromTaskListPartitionConfig(row.AdaptivePartitionConfig),
 		timeStamp,
 		row.DomainID,
@@ -368,7 +368,7 @@ func (db *cdb) InsertTasks(
 				scheduleID,
 				task.CreatedTime,
 				task.PartitionConfig,
-				task.CreatedTime,
+				timeStamp,
 			)
 		} else {
 			if ttl > maxCassandraTTL {
@@ -386,7 +386,7 @@ func (db *cdb) InsertTasks(
 				scheduleID,
 				task.CreatedTime,
 				task.PartitionConfig,
-				task.CreatedTime,
+				timeStamp,
 				ttl)
 		}
 	}
