@@ -102,13 +102,15 @@ func (w *dw) emitUsageLogs(ctx context.Context, info analytics.WfDiagnosticsUsag
 		w.logger.Error("messaging client is not provided, skipping emitting wf-diagnostics usage logs", tag.WorkflowDomainName(info.Domain))
 		return nil
 	}
-	return emit(ctx, info, w.messagingClient)
+	return w.emit(ctx, info, w.messagingClient)
 }
 
-func emit(ctx context.Context, info analytics.WfDiagnosticsUsageData, client messaging.Client) error {
+func (w *dw) emit(ctx context.Context, info analytics.WfDiagnosticsUsageData, client messaging.Client) error {
 	producer, err := client.NewProducer(WfDiagnosticsAppName)
 	if err != nil {
-		return err
+		// skip emitting logs if producer cannot be created since it is optional
+		w.logger.Error("producer creation failed, skipping emitting wf-diagnostics usage logs", tag.WorkflowDomainName(info.Domain))
+		return nil
 	}
 	emitter := analytics.NewEmitter(analytics.EmitterParams{
 		Producer: producer,
