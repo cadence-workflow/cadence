@@ -311,12 +311,8 @@ func (s *matchingEngineSuite) PollForDecisionTasksResultTest() {
 	}
 	resp, err := pollTask(s.matchingEngine, s.handlerContext, pollReq)
 	s.NoError(err)
-	s.Equal(&pollTaskResponse{
-		AutoConfigHint: &types.AutoConfigHint{
-			EnableAutoConfig:   false,
-			PollerWaitTimeInMs: 0,
-		},
-	}, resp)
+	resp.AutoConfigHint = nil
+	s.Equal(&pollTaskResponse{}, resp)
 	// add task to sticky tasklist again, this time it should pass
 	_, err = addTask(s.matchingEngine, s.handlerContext, addRequest)
 	s.NoError(err)
@@ -368,13 +364,9 @@ func (s *matchingEngineSuite) PollForTasksEmptyResultTest(callContext context.Co
 			Identity:   identity,
 		}
 		pollResp, err := pollTask(s.matchingEngine, s.handlerContext, pollReq)
+		pollResp.AutoConfigHint = nil // poller wait time is not a fixed value, exclude it from comparison
 		s.NoError(err)
-		s.Equal(&pollTaskResponse{
-			AutoConfigHint: &types.AutoConfigHint{
-				EnableAutoConfig:   false,
-				PollerWaitTimeInMs: 0,
-			},
-		}, pollResp)
+		s.Equal(&pollTaskResponse{}, pollResp)
 
 		if taskType == persistence.TaskListTypeActivity {
 			taskListType = types.TaskListTypeActivity
@@ -962,12 +954,7 @@ func (s *matchingEngineSuite) PollWithExpiredContext(taskType int) {
 	s.handlerContext.Context = ctx
 	resp, err := pollTask(s.matchingEngine, s.handlerContext, pollReq)
 	s.Nil(err)
-	s.Equal(&pollTaskResponse{
-		AutoConfigHint: &types.AutoConfigHint{
-			EnableAutoConfig:   false,
-			PollerWaitTimeInMs: 0,
-		},
-	}, resp)
+	s.Equal(&pollTaskResponse{}, resp)
 }
 
 func (s *matchingEngineSuite) TestMultipleEnginesActivitiesRangeStealing() {
@@ -1149,12 +1136,8 @@ func (s *matchingEngineSuite) UnloadTasklistOnIsolationConfigChange(taskType int
 	}
 	result, err := pollTask(s.matchingEngine, s.handlerContext, pollReq)
 	s.NoError(err)
-	s.Equal(&pollTaskResponse{
-		AutoConfigHint: &types.AutoConfigHint{
-			EnableAutoConfig:   false,
-			PollerWaitTimeInMs: 0,
-		},
-	}, result) // empty polls returns auto config hint
+	result.AutoConfigHint = nil
+	s.Equal(&pollTaskResponse{}, result)
 
 	result, err = pollTask(s.matchingEngine, s.handlerContext, pollReq)
 	s.NoError(err)
