@@ -34,7 +34,6 @@ import (
 
 	"github.com/uber/cadence/client"
 	"github.com/uber/cadence/common"
-	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/messaging"
 	"github.com/uber/cadence/common/metrics"
@@ -54,7 +53,6 @@ type dw struct {
 	logger          log.Logger
 	tallyScope      tally.Scope
 	worker          worker.Worker
-	kafkaCfg        config.KafkaConfig
 	invariants      []invariant.Invariant
 }
 
@@ -65,7 +63,6 @@ type Params struct {
 	MessagingClient messaging.Client
 	Logger          log.Logger
 	TallyScope      tally.Scope
-	KafkaCfg        config.KafkaConfig
 	Invariants      []invariant.Invariant
 }
 
@@ -78,7 +75,6 @@ func New(params Params) DiagnosticsWorkflow {
 		tallyScope:      params.TallyScope,
 		clientBean:      params.ClientBean,
 		logger:          params.Logger,
-		kafkaCfg:        params.KafkaCfg,
 		invariants:      params.Invariants,
 	}
 }

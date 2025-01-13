@@ -349,7 +349,6 @@ func (s *Service) startDiagnostics() {
 		TallyScope:      s.params.MetricScope,
 		ClientBean:      s.GetClientBean(),
 		Logger:          s.GetLogger(),
-		KafkaCfg:        s.params.KafkaConfig,
 		Invariants:      s.params.DiagnosticsInvariants,
 	}
 	if err := diagnostics.New(params).Start(); err != nil {
