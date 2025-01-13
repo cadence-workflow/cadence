@@ -23,7 +23,6 @@ package cassandra
 import (
 	"context"
 	"errors"
-	"github.com/uber/cadence/common/clock"
 	"testing"
 	"time"
 
@@ -31,6 +30,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log/testlogger"

@@ -24,12 +24,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/uber/cadence/common/clock"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"

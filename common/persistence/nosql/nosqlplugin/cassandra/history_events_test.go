@@ -24,7 +24,6 @@ package cassandra
 
 import (
 	"context"
-	"github.com/uber/cadence/common/clock"
 	"testing"
 	"time"
 
@@ -32,6 +31,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql"
 	"github.com/uber/cadence/common/types"
