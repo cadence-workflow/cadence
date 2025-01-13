@@ -24,6 +24,7 @@ package diagnostics
 
 import (
 	"context"
+	"github.com/uber/cadence/common/log/tag"
 
 	"github.com/uber/cadence/common/messaging"
 	"github.com/uber/cadence/common/types"
@@ -98,6 +99,7 @@ func (w *dw) rootCauseIssues(ctx context.Context, info rootCauseIssuesParams) ([
 func (w *dw) emitUsageLogs(ctx context.Context, info analytics.WfDiagnosticsUsageData) error {
 	if w.messagingClient == nil {
 		// skip emitting logs if messaging client is not provided since it is optional
+		w.logger.Error("messaging client is not provided, skipping emitting wf-diagnostics usage logs", tag.WorkflowDomainName(info.Domain))
 		return nil
 	}
 	return emit(ctx, info, w.messagingClient)
