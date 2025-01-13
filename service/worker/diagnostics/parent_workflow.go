@@ -84,7 +84,7 @@ func (w *dw) DiagnosticsStarterWorkflow(ctx workflow.Context, params Diagnostics
 		StartToCloseTimeout:    time.Second * 5,
 	}
 	activityCtx := workflow.WithActivityOptions(ctx, activityOptions)
-	err = workflow.ExecuteActivity(activityCtx, w.emitUsageLogs, analytics.WfDiagnosticsUsageData{
+	err = workflow.ExecuteActivity(activityCtx, emitUsageLogsActivity, analytics.WfDiagnosticsUsageData{
 		Domain:                params.Domain,
 		WorkflowID:            params.WorkflowID,
 		RunID:                 params.RunID,
