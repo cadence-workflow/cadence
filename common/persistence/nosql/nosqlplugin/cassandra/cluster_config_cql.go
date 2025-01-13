@@ -27,7 +27,7 @@ const (
 		`WHERE row_type = ? ` +
 		`LIMIT 1;`
 
-	templateInsertConfig = `INSERT INTO cluster_config (row_type, version, timestamp, values, encoding, created_time) ` +
-		`VALUES (?, ?, ?, ?, ?, ?) ` +
+	templateInsertConfig = `INSERT INTO cluster_config (row_type, version, timestamp, values, encoding) ` +
+		`VALUES (?, ?, ?, ?, ?) ` +
 		`IF NOT EXISTS;`
 )

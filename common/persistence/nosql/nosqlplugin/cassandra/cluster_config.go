@@ -30,8 +30,7 @@ import (
 )
 
 func (db *cdb) InsertConfig(ctx context.Context, row *persistence.InternalConfigStoreEntry) error {
-	timeStamp := db.timeSrc.Now()
-	query := db.session.Query(templateInsertConfig, row.RowType, row.Version, row.Timestamp, row.Values.Data, row.Values.Encoding, timeStamp).WithContext(ctx)
+	query := db.session.Query(templateInsertConfig, row.RowType, row.Version, row.Timestamp, row.Values.Data, row.Values.Encoding).WithContext(ctx)
 	applied, err := query.MapScanCAS(make(map[string]interface{}))
 	if err != nil {
 		return err
