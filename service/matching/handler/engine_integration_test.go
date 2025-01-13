@@ -311,7 +311,12 @@ func (s *matchingEngineSuite) PollForDecisionTasksResultTest() {
 	}
 	resp, err := pollTask(s.matchingEngine, s.handlerContext, pollReq)
 	s.NoError(err)
-	s.Equal(&pollTaskResponse{}, resp)
+	s.Equal(&pollTaskResponse{
+		AutoConfigHint: &types.AutoConfigHint{
+			EnableAutoConfig:   false,
+			PollerWaitTimeInMs: 0,
+		},
+	}, resp)
 	// add task to sticky tasklist again, this time it should pass
 	_, err = addTask(s.matchingEngine, s.handlerContext, addRequest)
 	s.NoError(err)
@@ -364,7 +369,12 @@ func (s *matchingEngineSuite) PollForTasksEmptyResultTest(callContext context.Co
 		}
 		pollResp, err := pollTask(s.matchingEngine, s.handlerContext, pollReq)
 		s.NoError(err)
-		s.Equal(&pollTaskResponse{}, pollResp)
+		s.Equal(&pollTaskResponse{
+			AutoConfigHint: &types.AutoConfigHint{
+				EnableAutoConfig:   false,
+				PollerWaitTimeInMs: 0,
+			},
+		}, pollResp)
 
 		if taskType == persistence.TaskListTypeActivity {
 			taskListType = types.TaskListTypeActivity
@@ -952,7 +962,12 @@ func (s *matchingEngineSuite) PollWithExpiredContext(taskType int) {
 	s.handlerContext.Context = ctx
 	resp, err := pollTask(s.matchingEngine, s.handlerContext, pollReq)
 	s.Nil(err)
-	s.Equal(&pollTaskResponse{}, resp)
+	s.Equal(&pollTaskResponse{
+		AutoConfigHint: &types.AutoConfigHint{
+			EnableAutoConfig:   false,
+			PollerWaitTimeInMs: 0,
+		},
+	}, resp)
 }
 
 func (s *matchingEngineSuite) TestMultipleEnginesActivitiesRangeStealing() {
