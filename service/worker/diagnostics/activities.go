@@ -26,7 +26,6 @@ import (
 	"context"
 
 	"github.com/uber/cadence/common/messaging"
-	"github.com/uber/cadence/common/messaging/kafka"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/worker/diagnostics/analytics"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant"
@@ -98,7 +97,8 @@ func (w *dw) rootCauseIssues(ctx context.Context, info rootCauseIssuesParams) ([
 
 func (w *dw) emitUsageLogs(ctx context.Context, info analytics.WfDiagnosticsUsageData) error {
 	if w.messagingClient == nil {
-		w.messagingClient = kafka.NewKafkaClient(&w.kafkaCfg, w.metricsClient, w.logger, w.tallyScope, true)
+		// skip emitting logs if messaging client is not provided since it is optional
+		return nil
 	}
 	return emit(ctx, info, w.messagingClient)
 }
