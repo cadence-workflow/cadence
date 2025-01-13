@@ -24,8 +24,8 @@ package diagnostics
 
 import (
 	"context"
-	"github.com/uber/cadence/common/log/tag"
 
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/messaging"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/worker/diagnostics/analytics"
