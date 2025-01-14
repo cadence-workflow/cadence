@@ -43,7 +43,8 @@ const (
 // return types.DomainAlreadyExistsError error if failed or already exists
 // Must return ConditionFailure error if other condition doesn't match
 func (db *cdb) InsertDomain(ctx context.Context, row *nosqlplugin.DomainRow) error {
-	timeStamp := db.timeSrc.Now()
+	//timeStamp := db.timeSrc.Now()
+	timeStamp := time.Date(2025, 1, 6, 15, 0, 0, 0, time.UTC)
 	query := db.session.Query(templateCreateDomainQuery, row.Info.ID, row.Info.Name, timeStamp).WithContext(ctx)
 	applied, err := query.MapScanCAS(make(map[string]interface{}))
 	if err != nil {
