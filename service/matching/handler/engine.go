@@ -562,11 +562,12 @@ pollLoop:
 						"RequestForwardedFrom": req.GetForwardedFrom(),
 					},
 				})
+				domainName, _ := e.domainCache.GetDomainName(domainID)
 				return &types.MatchingPollForDecisionTaskResponse{
 					PartitionConfig:   tlMgr.TaskListPartitionConfig(),
 					LoadBalancerHints: tlMgr.LoadBalancerHints(),
 					AutoConfigHint: &types.AutoConfigHint{
-						EnableAutoConfig:   tlMgr.EnableClientAutoConfig(),
+						EnableAutoConfig:   e.config.EnableClientAutoConfig(domainName, taskListName, persistence.TaskListTypeDecision),
 						PollerWaitTimeInMs: time.Since(startT).Milliseconds(),
 					},
 				}, nil
@@ -732,11 +733,12 @@ pollLoop:
 		if err != nil {
 			// TODO: Is empty poll the best reply for errPumpClosed?
 			if errors.Is(err, tasklist.ErrNoTasks) || errors.Is(err, errPumpClosed) {
+				domainName, _ := e.domainCache.GetDomainName(domainID)
 				return &types.MatchingPollForActivityTaskResponse{
 					PartitionConfig:   tlMgr.TaskListPartitionConfig(),
 					LoadBalancerHints: tlMgr.LoadBalancerHints(),
 					AutoConfigHint: &types.AutoConfigHint{
-						EnableAutoConfig:   tlMgr.EnableClientAutoConfig(),
+						EnableAutoConfig:   e.config.EnableClientAutoConfig(domainName, taskListName, persistence.TaskListTypeDecision),
 						PollerWaitTimeInMs: time.Since(startT).Milliseconds(),
 					},
 				}, nil

@@ -135,20 +135,6 @@ func (mr *MockManagerMockRecorder) DispatchTask(ctx, task any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DispatchTask", reflect.TypeOf((*MockManager)(nil).DispatchTask), ctx, task)
 }
 
-// EnableClientAutoConfig mocks base method.
-func (m *MockManager) EnableClientAutoConfig() bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "EnableClientAutoConfig")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// EnableClientAutoConfig indicates an expected call of EnableClientAutoConfig.
-func (mr *MockManagerMockRecorder) EnableClientAutoConfig() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnableClientAutoConfig", reflect.TypeOf((*MockManager)(nil).EnableClientAutoConfig))
-}
-
 // GetAllPollerInfo mocks base method.
 func (m *MockManager) GetAllPollerInfo() []*types.PollerInfo {
 	m.ctrl.T.Helper()
