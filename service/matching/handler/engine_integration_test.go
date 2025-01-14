@@ -954,6 +954,7 @@ func (s *matchingEngineSuite) PollWithExpiredContext(taskType int) {
 	s.handlerContext.Context = ctx
 	resp, err := pollTask(s.matchingEngine, s.handlerContext, pollReq)
 	s.Nil(err)
+	resp.AutoConfigHint = nil
 	s.Equal(&pollTaskResponse{}, resp)
 }
 
