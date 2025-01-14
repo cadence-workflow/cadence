@@ -539,6 +539,7 @@ pollLoop:
 		if err != nil {
 			return nil, fmt.Errorf("couldn't load tasklist namanger: %w", err)
 		}
+		startT := time.Now() // Record the start time
 		task, err := tlMgr.GetTask(pollerCtx, nil)
 		if err != nil {
 			// TODO: Is empty poll the best reply for errPumpClosed?
@@ -727,6 +728,7 @@ pollLoop:
 		if err != nil {
 			return nil, fmt.Errorf("couldn't load tasklist namanger: %w", err)
 		}
+		startT := time.Now() // Record the start time
 		task, err := tlMgr.GetTask(pollerCtx, maxDispatch)
 		if err != nil {
 			// TODO: Is empty poll the best reply for errPumpClosed?
