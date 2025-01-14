@@ -43,8 +43,6 @@ import (
 type {{$decorator}} struct {
     wrapped                        {{.Interface.Type}}
     workflowIDCache                workflowcache.WFCache
-    ratelimitExternalPerWorkflowID dynamicconfig.BoolPropertyFnWithDomainFilter
-    domainCache                    cache.DomainCache
     logger                         log.Logger
     allowFunc                      func (domainID string, workflowID string) bool
 }
@@ -53,15 +51,11 @@ type {{$decorator}} struct {
 func New{{$Decorator}}(
     wrapped {{.Interface.Type}},
     workflowIDCache workflowcache.WFCache,
-    ratelimitExternalPerWorkflowID dynamicconfig.BoolPropertyFnWithDomainFilter,
-    domainCache cache.DomainCache,
     logger log.Logger,
 ) {{.Interface.Type}} {
     wrapper := &{{$decorator}}{
         wrapped: wrapped,
         workflowIDCache: workflowIDCache,
-        ratelimitExternalPerWorkflowID: ratelimitExternalPerWorkflowID,
-        domainCache: domainCache,
         logger: logger,
     }
     wrapper.allowFunc = wrapper.allowWfID

@@ -30,7 +30,6 @@ import (
 
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -48,15 +47,13 @@ type WFCache interface {
 }
 
 type wfCache struct {
-	lru                            cache.Cache
-	externalLimiterFactory         quotas.LimiterFactory
-	internalLimiterFactory         quotas.LimiterFactory
-	domainCache                    cache.DomainCache
-	metricsClient                  metrics.Client
-	logger                         log.Logger
-	timeSource                     clock.TimeSource
-	ratelimitExternalPerWorkflowID dynamicconfig.BoolPropertyFnWithDomainFilter
-	ratelimitInternalPerWorkflowID dynamicconfig.BoolPropertyFnWithDomainFilter
+	lru                    cache.Cache
+	externalLimiterFactory quotas.LimiterFactory
+	internalLimiterFactory quotas.LimiterFactory
+	domainCache            cache.DomainCache
+	metricsClient          metrics.Client
+	logger                 log.Logger
+	timeSource             clock.TimeSource
 
 	// we use functions to get cache items, and the current time, so we can mock it in unit tests
 	getCacheItemFn func(domainName string, workflowID string) (*cacheValue, error)
@@ -76,15 +73,13 @@ type cacheValue struct {
 
 // Params is the parameters for a new WFCache
 type Params struct {
-	TTL                            time.Duration
-	MaxCount                       int
-	ExternalLimiterFactory         quotas.LimiterFactory
-	InternalLimiterFactory         quotas.LimiterFactory
-	DomainCache                    cache.DomainCache
-	MetricsClient                  metrics.Client
-	Logger                         log.Logger
-	RatelimitExternalPerWorkflowID dynamicconfig.BoolPropertyFnWithDomainFilter
-	RatelimitInternalPerWorkflowID dynamicconfig.BoolPropertyFnWithDomainFilter
+	TTL                    time.Duration
+	MaxCount               int
+	ExternalLimiterFactory quotas.LimiterFactory
+	InternalLimiterFactory quotas.LimiterFactory
+	DomainCache            cache.DomainCache
+	MetricsClient          metrics.Client
+	Logger                 log.Logger
 }
 
 // New creates a new WFCache
@@ -96,14 +91,12 @@ func New(params Params) WFCache {
 			MaxCount:      params.MaxCount,
 			ActivelyEvict: true,
 		}),
-		externalLimiterFactory:         params.ExternalLimiterFactory,
-		internalLimiterFactory:         params.InternalLimiterFactory,
-		domainCache:                    params.DomainCache,
-		metricsClient:                  params.MetricsClient,
-		timeSource:                     clock.NewRealTimeSource(),
-		logger:                         params.Logger,
-		ratelimitExternalPerWorkflowID: params.RatelimitExternalPerWorkflowID,
-		ratelimitInternalPerWorkflowID: params.RatelimitInternalPerWorkflowID,
+		externalLimiterFactory: params.ExternalLimiterFactory,
+		internalLimiterFactory: params.InternalLimiterFactory,
+		domainCache:            params.DomainCache,
+		metricsClient:          params.MetricsClient,
+		timeSource:             clock.NewRealTimeSource(),
+		logger:                 params.Logger,
 	}
 	// We set getCacheItemFn to cache.getCacheItem so that we can mock it in unit tests
 	cache.getCacheItemFn = cache.getCacheItem
@@ -148,7 +141,6 @@ func (c *wfCache) allow(domainID string, workflowID string, rateLimitType rateLi
 				domainName,
 				"external",
 				metrics.WorkflowIDCacheRequestsExternalRatelimitedCounter,
-				c.ratelimitExternalPerWorkflowID,
 			)
 			return false
 		}
@@ -162,7 +154,6 @@ func (c *wfCache) allow(domainID string, workflowID string, rateLimitType rateLi
 				domainName,
 				"internal",
 				metrics.WorkflowIDCacheRequestsInternalRatelimitedCounter,
-				c.ratelimitInternalPerWorkflowID,
 			)
 			return false
 		}
@@ -180,19 +171,10 @@ func (c *wfCache) emitRateLimitMetrics(
 	domainName string,
 	callType string,
 	metric int,
-	enabled dynamicconfig.BoolPropertyFnWithDomainFilter,
 ) {
-	var mode string
-	if enabled(domainName) {
-		mode = "enabled"
-	} else {
-		mode = "shadow"
-	}
-
 	c.metricsClient.Scope(
 		metrics.HistoryClientWfIDCacheScope,
 		metrics.DomainTag(domainName),
-		metrics.ModeTag(mode),
 	).IncCounter(metric)
 	c.logger.Info(
 		"Rate limiting workflowID",
@@ -200,7 +182,6 @@ func (c *wfCache) emitRateLimitMetrics(
 		tag.WorkflowDomainID(domainID),
 		tag.WorkflowDomainName(domainName),
 		tag.WorkflowID(workflowID),
-		tag.Mode(mode),
 	)
 }
 

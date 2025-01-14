@@ -21,7 +21,6 @@
 package queue
 
 import (
-	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/reconciliation/invariant"
 	"github.com/uber/cadence/service/history/engine"
 	"github.com/uber/cadence/service/history/execution"
@@ -35,17 +34,7 @@ import (
 //go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination factory_mock.go -self_package github.com/uber/cadence/service/history/queue
 
 type ProcessorFactory interface {
-	NewTransferQueueProcessor(
-		shard shard.Context,
-		historyEngine engine.Engine,
-		taskProcessor task.Processor,
-		executionCache execution.Cache,
-		workflowResetter reset.WorkflowResetter,
-		archivalClient archiver.Client,
-		executionCheck invariant.Invariant,
-		wfIDCache workflowcache.WFCache,
-		ratelimitInternalPerWorkflowID dynamicconfig.BoolPropertyFnWithDomainFilter,
-	) Processor
+	NewTransferQueueProcessor(shard shard.Context, historyEngine engine.Engine, taskProcessor task.Processor, executionCache execution.Cache, workflowResetter reset.WorkflowResetter, archivalClient archiver.Client, executionCheck invariant.Invariant, wfIDCache workflowcache.WFCache) Processor
 
 	NewTimerQueueProcessor(
 		shard shard.Context,
@@ -73,7 +62,6 @@ func (f *factoryImpl) NewTransferQueueProcessor(
 	archivalClient archiver.Client,
 	executionCheck invariant.Invariant,
 	wfIDCache workflowcache.WFCache,
-	ratelimitInternalPerWorkflowID dynamicconfig.BoolPropertyFnWithDomainFilter,
 ) Processor {
 	return NewTransferQueueProcessor(
 		shard,
@@ -84,7 +72,6 @@ func (f *factoryImpl) NewTransferQueueProcessor(
 		archivalClient,
 		executionCheck,
 		wfIDCache,
-		ratelimitInternalPerWorkflowID,
 	)
 }
 

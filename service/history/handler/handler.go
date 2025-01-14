@@ -35,7 +35,6 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/definition"
-	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/membership"
@@ -70,20 +69,19 @@ type (
 	handlerImpl struct {
 		resource.Resource
 
-		shuttingDown                   int32
-		controller                     shard.Controller
-		tokenSerializer                common.TaskTokenSerializer
-		startWG                        sync.WaitGroup
-		config                         *config.Config
-		historyEventNotifier           events.Notifier
-		rateLimiter                    quotas.Limiter
-		replicationTaskFetchers        replication.TaskFetchers
-		queueTaskProcessor             task.Processor
-		failoverCoordinator            failover.Coordinator
-		workflowIDCache                workflowcache.WFCache
-		ratelimitInternalPerWorkflowID dynamicconfig.BoolPropertyFnWithDomainFilter
-		queueProcessorFactory          queue.ProcessorFactory
-		ratelimitAggregator            algorithm.RequestWeighted
+		shuttingDown            int32
+		controller              shard.Controller
+		tokenSerializer         common.TaskTokenSerializer
+		startWG                 sync.WaitGroup
+		config                  *config.Config
+		historyEventNotifier    events.Notifier
+		rateLimiter             quotas.Limiter
+		replicationTaskFetchers replication.TaskFetchers
+		queueTaskProcessor      task.Processor
+		failoverCoordinator     failover.Coordinator
+		workflowIDCache         workflowcache.WFCache
+		queueProcessorFactory   queue.ProcessorFactory
+		ratelimitAggregator     algorithm.RequestWeighted
 	}
 )
 
@@ -95,16 +93,14 @@ func NewHandler(
 	resource resource.Resource,
 	config *config.Config,
 	wfCache workflowcache.WFCache,
-	ratelimitInternalPerWorkflowID dynamicconfig.BoolPropertyFnWithDomainFilter,
 ) Handler {
 	handler := &handlerImpl{
-		Resource:                       resource,
-		config:                         config,
-		tokenSerializer:                common.NewJSONTaskTokenSerializer(),
-		rateLimiter:                    quotas.NewDynamicRateLimiter(config.RPS.AsFloat64()),
-		workflowIDCache:                wfCache,
-		ratelimitInternalPerWorkflowID: ratelimitInternalPerWorkflowID,
-		ratelimitAggregator:            resource.GetRatelimiterAlgorithm(),
+		Resource:            resource,
+		config:              config,
+		tokenSerializer:     common.NewJSONTaskTokenSerializer(),
+		rateLimiter:         quotas.NewDynamicRateLimiter(config.RPS.AsFloat64()),
+		workflowIDCache:     wfCache,
+		ratelimitAggregator: resource.GetRatelimiterAlgorithm(),
 	}
 
 	// prevent us from trying to serve requests before shard controller is started and ready
@@ -215,7 +211,6 @@ func (h *handlerImpl) CreateEngine(
 		h.queueTaskProcessor,
 		h.failoverCoordinator,
 		h.workflowIDCache,
-		h.ratelimitInternalPerWorkflowID,
 		queue.NewProcessorFactory(),
 	)
 }

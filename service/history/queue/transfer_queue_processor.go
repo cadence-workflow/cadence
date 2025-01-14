@@ -32,7 +32,6 @@ import (
 	"github.com/pborman/uuid"
 
 	"github.com/uber/cadence/common"
-	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -91,7 +90,6 @@ func NewTransferQueueProcessor(
 	archivalClient archiver.Client,
 	executionCheck invariant.Invariant,
 	wfIDCache workflowcache.WFCache,
-	ratelimitInternalPerWorkflowID dynamicconfig.BoolPropertyFnWithDomainFilter,
 ) Processor {
 	logger := shard.GetLogger().WithTags(tag.ComponentTransferQueue)
 	currentClusterName := shard.GetClusterMetadata().GetCurrentClusterName()
@@ -106,7 +104,6 @@ func NewTransferQueueProcessor(
 		logger,
 		config,
 		wfIDCache,
-		ratelimitInternalPerWorkflowID,
 	)
 
 	activeQueueProcessor := newTransferQueueActiveProcessor(
