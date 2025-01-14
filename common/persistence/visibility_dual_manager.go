@@ -183,7 +183,7 @@ func (v *visibilityDualManager) chooseVisibilityModeForAdmin() string {
 	}
 }
 
-func (v *visibilityDualManager) chooseVisibilityManagerForWrite(ctx context.Context, dbVisFunc, esVisFunc func() error) error {
+func (v *visibilityDualManager) chooseVisibilityManagerForWrite(ctx context.Context, dbVisFunc, advancedVisFunc func() error) error {
 	var writeMode string
 	if v.writeMode != nil {
 		writeMode = v.writeMode()
@@ -200,16 +200,16 @@ func (v *visibilityDualManager) chooseVisibilityManagerForWrite(ctx context.Cont
 			return dbVisFunc()
 		}
 		v.logger.Warn("basic visibility is not available to write, fall back to advanced visibility")
-		return esVisFunc()
+		return advancedVisFunc()
 	case common.AdvancedVisibilityWritingModeOn:
 		if v.advancedVisibilityManager != nil {
-			return esVisFunc()
+			return advancedVisFunc()
 		}
 		v.logger.Warn("advanced visibility is not available to write, fall back to basic visibility")
 		return dbVisFunc()
 	case common.AdvancedVisibilityWritingModeDual:
 		if v.advancedVisibilityManager != nil {
-			if err := esVisFunc(); err != nil {
+			if err := advancedVisFunc(); err != nil {
 				return err
 			}
 			if v.dbVisibilityManager != nil {
@@ -317,7 +317,7 @@ func (v *visibilityDualManager) CountWorkflowExecutions(
 
 func (v *visibilityDualManager) chooseVisibilityManagerForRead(domain string) VisibilityManager {
 	var visibilityMgr VisibilityManager
-	if v.readVisibilityStoreName(domain) != "db" {
+	if v.readVisibilityStoreName(domain) != dbVisStoreName {
 		if v.advancedVisibilityManager != nil {
 			visibilityMgr = v.advancedVisibilityManager
 		} else {

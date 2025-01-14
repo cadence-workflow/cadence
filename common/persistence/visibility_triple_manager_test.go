@@ -31,7 +31,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/types"
@@ -215,7 +214,7 @@ func TestPinotTripleRecordWorkflowExecutionStarted(t *testing.T) {
 			mockESVisibilityManagerAffordance: func(mockESVisibilityManager *MockVisibilityManager) {
 				mockESVisibilityManager.EXPECT().RecordWorkflowExecutionStarted(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 			},
-			advancedVisibilityWritingMode: dynamicconfig.GetStringPropertyFn(dualWriteMode),
+			advancedVisibilityWritingMode: dynamicconfig.GetStringPropertyFn(sourceMode),
 			expectedError:                 nil,
 		},
 		"Case1-3: success case with pinot visibility is not nil": {
@@ -224,7 +223,7 @@ func TestPinotTripleRecordWorkflowExecutionStarted(t *testing.T) {
 			mockPinotVisibilityManagerAffordance: func(mockPinotVisibilityManager *MockVisibilityManager) {
 				mockPinotVisibilityManager.EXPECT().RecordWorkflowExecutionStarted(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 			},
-			advancedVisibilityWritingMode: dynamicconfig.GetStringPropertyFn(dualWriteMode),
+			advancedVisibilityWritingMode: dynamicconfig.GetStringPropertyFn(destinationMode),
 		},
 	}
 	for name, test := range tests {
@@ -298,7 +297,7 @@ func TestPinotTripleRecordWorkflowExecutionClosed(t *testing.T) {
 			mockPinotVisibilityManagerAffordance: func(mockPinotVisibilityManager *MockVisibilityManager) {
 				mockPinotVisibilityManager.EXPECT().RecordWorkflowExecutionClosed(gomock.Any(), gomock.Any()).Return(fmt.Errorf("error")).AnyTimes()
 			},
-			advancedVisibilityWritingMode: dynamicconfig.GetStringPropertyFn(common.AdvancedVisibilityWritingModeDual),
+			advancedVisibilityWritingMode: dynamicconfig.GetStringPropertyFn(tripleWriteMode),
 			expectedError:                 fmt.Errorf("error"),
 		},
 		"Case0-3: error case with ES has errors in On mode with Pinot is not nil": {
@@ -707,7 +706,7 @@ func TestPinotTripleDeleteWorkflowExecution(t *testing.T) {
 			mockPinotVisibilityManagerAffordance: func(mockPinotVisibilityManager *MockVisibilityManager) {
 				mockPinotVisibilityManager.EXPECT().DeleteWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 			},
-			advancedVisibilityWritingMode: dynamicconfig.GetStringPropertyFn(dualWriteMode),
+			advancedVisibilityWritingMode: dynamicconfig.GetStringPropertyFn(destinationMode),
 			expectedError:                 nil,
 		},
 		"Case1-3: success case with ES visibility is not nil": {
@@ -716,7 +715,7 @@ func TestPinotTripleDeleteWorkflowExecution(t *testing.T) {
 			mockESVisibilityManagerAffordance: func(mockESVisibilityManager *MockVisibilityManager) {
 				mockESVisibilityManager.EXPECT().DeleteWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 			},
-			advancedVisibilityWritingMode: dynamicconfig.GetStringPropertyFn(dualWriteMode),
+			advancedVisibilityWritingMode: dynamicconfig.GetStringPropertyFn(sourceMode),
 			expectedError:                 nil,
 		},
 	}
@@ -1373,7 +1372,8 @@ func TestPinotTripleListClosedWorkflowExecutionsByType(t *testing.T) {
 			mockDBVisibilityManagerAffordance: func(mockDBVisibilityManager *MockVisibilityManager) {
 				mockDBVisibilityManager.EXPECT().ListClosedWorkflowExecutionsByType(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain("es"),
+			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain(dbVisStoreName),
+			readModeIsDouble:        dynamicconfig.GetBoolPropertyFnFilteredByDomain(false),
 			wgCount:                 0,
 			expectedError:           nil,
 		},
@@ -1383,7 +1383,7 @@ func TestPinotTripleListClosedWorkflowExecutionsByType(t *testing.T) {
 			mockPinotVisibilityManagerAffordance: func(wg *sync.WaitGroup, mockPinotVisibilityManager *MockVisibilityManager) {
 				mockPinotVisibilityManager.EXPECT().ListClosedWorkflowExecutionsByType(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain("pinot"),
+			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain(destinationMode),
 			readModeIsDouble:        dynamicconfig.GetBoolPropertyFnFilteredByDomain(false),
 			wgCount:                 0,
 			expectedError:           nil,
@@ -1402,7 +1402,7 @@ func TestPinotTripleListClosedWorkflowExecutionsByType(t *testing.T) {
 					return nil, nil
 				}).Times(1)
 			},
-			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain("pinot"),
+			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain(destinationMode),
 			readModeIsDouble:        dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
 			wgCount:                 1,
 			expectedError:           nil,
@@ -1422,7 +1422,7 @@ func TestPinotTripleListClosedWorkflowExecutionsByType(t *testing.T) {
 			mockESVisibilityManagerAffordance: func(wg *sync.WaitGroup, mockESVisibilityManager *MockVisibilityManager) {
 				mockESVisibilityManager.EXPECT().ListClosedWorkflowExecutionsByType(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain("es"),
+			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain(sourceMode),
 			readModeIsDouble:        dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
 			wgCount:                 1,
 			expectedError:           nil,
@@ -1721,7 +1721,8 @@ func TestPinotTripleListClosedWorkflowExecutionsByStatus(t *testing.T) {
 			mockDBVisibilityManagerAffordance: func(mockDBVisibilityManager *MockVisibilityManager) {
 				mockDBVisibilityManager.EXPECT().ListClosedWorkflowExecutionsByStatus(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain("es"),
+			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain(dbVisStoreName),
+			readModeIsDouble:        dynamicconfig.GetBoolPropertyFnFilteredByDomain(false),
 			wgCount:                 0,
 			expectedError:           nil,
 		},
@@ -1731,7 +1732,7 @@ func TestPinotTripleListClosedWorkflowExecutionsByStatus(t *testing.T) {
 			mockPinotVisibilityManagerAffordance: func(wg *sync.WaitGroup, mockPinotVisibilityManager *MockVisibilityManager) {
 				mockPinotVisibilityManager.EXPECT().ListClosedWorkflowExecutionsByStatus(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain("pinot"),
+			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain(destinationMode),
 			readModeIsDouble:        dynamicconfig.GetBoolPropertyFnFilteredByDomain(false),
 			wgCount:                 0,
 			expectedError:           nil,
@@ -1750,7 +1751,7 @@ func TestPinotTripleListClosedWorkflowExecutionsByStatus(t *testing.T) {
 					return nil, nil
 				}).Times(1)
 			},
-			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain("pinot"),
+			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain(destinationMode),
 			readModeIsDouble:        dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
 			wgCount:                 1,
 			expectedError:           nil,
@@ -1770,7 +1771,7 @@ func TestPinotTripleListClosedWorkflowExecutionsByStatus(t *testing.T) {
 			mockESVisibilityManagerAffordance: func(wg *sync.WaitGroup, mockESVisibilityManager *MockVisibilityManager) {
 				mockESVisibilityManager.EXPECT().ListClosedWorkflowExecutionsByStatus(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain("es"),
+			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain(sourceMode),
 			readModeIsDouble:        dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
 			wgCount:                 1,
 			expectedError:           nil,
@@ -1834,7 +1835,8 @@ func TestPinotTripleGetClosedWorkflowExecution(t *testing.T) {
 			mockDBVisibilityManagerAffordance: func(mockDBVisibilityManager *MockVisibilityManager) {
 				mockDBVisibilityManager.EXPECT().GetClosedWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain("es"),
+			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain(dbVisStoreName),
+			readModeIsDouble:        dynamicconfig.GetBoolPropertyFnFilteredByDomain(false),
 			wgCount:                 0,
 			expectedError:           nil,
 		},
@@ -1844,7 +1846,7 @@ func TestPinotTripleGetClosedWorkflowExecution(t *testing.T) {
 			mockPinotVisibilityManagerAffordance: func(wg *sync.WaitGroup, mockPinotVisibilityManager *MockVisibilityManager) {
 				mockPinotVisibilityManager.EXPECT().GetClosedWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain("pinot"),
+			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain(destinationMode),
 			readModeIsDouble:        dynamicconfig.GetBoolPropertyFnFilteredByDomain(false),
 			wgCount:                 0,
 			expectedError:           nil,
@@ -1863,7 +1865,7 @@ func TestPinotTripleGetClosedWorkflowExecution(t *testing.T) {
 					return nil, nil
 				}).Times(1)
 			},
-			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain("pinot"),
+			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain(destinationMode),
 			readModeIsDouble:        dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
 			wgCount:                 1,
 			expectedError:           nil,
@@ -1883,7 +1885,7 @@ func TestPinotTripleGetClosedWorkflowExecution(t *testing.T) {
 			mockESVisibilityManagerAffordance: func(wg *sync.WaitGroup, mockESVisibilityManager *MockVisibilityManager) {
 				mockESVisibilityManager.EXPECT().GetClosedWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain("es"),
+			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain(sourceMode),
 			readModeIsDouble:        dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
 			wgCount:                 1,
 			expectedError:           nil,
@@ -1947,7 +1949,8 @@ func TestPinotTripleListWorkflowExecutions(t *testing.T) {
 			mockDBVisibilityManagerAffordance: func(mockDBVisibilityManager *MockVisibilityManager) {
 				mockDBVisibilityManager.EXPECT().ListWorkflowExecutions(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain("es"),
+			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain(dbVisStoreName),
+			readModeIsDouble:        dynamicconfig.GetBoolPropertyFnFilteredByDomain(false),
 			wgCount:                 0,
 			expectedError:           nil,
 		},
@@ -1957,7 +1960,7 @@ func TestPinotTripleListWorkflowExecutions(t *testing.T) {
 			mockPinotVisibilityManagerAffordance: func(wg *sync.WaitGroup, mockPinotVisibilityManager *MockVisibilityManager) {
 				mockPinotVisibilityManager.EXPECT().ListWorkflowExecutions(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain("pinot"),
+			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain(destinationMode),
 			readModeIsDouble:        dynamicconfig.GetBoolPropertyFnFilteredByDomain(false),
 			wgCount:                 0,
 			expectedError:           nil,
@@ -1976,7 +1979,7 @@ func TestPinotTripleListWorkflowExecutions(t *testing.T) {
 					return nil, fmt.Errorf("test error")
 				}).Times(1)
 			},
-			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain("pinot"),
+			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain(destinationMode),
 			readModeIsDouble:        dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
 			wgCount:                 1,
 			expectedError:           nil,
@@ -1996,7 +1999,7 @@ func TestPinotTripleListWorkflowExecutions(t *testing.T) {
 			mockESVisibilityManagerAffordance: func(wg *sync.WaitGroup, mockESVisibilityManager *MockVisibilityManager) {
 				mockESVisibilityManager.EXPECT().ListWorkflowExecutions(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain("es"),
+			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain(sourceMode),
 			readModeIsDouble:        dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
 			wgCount:                 1,
 			expectedError:           nil,
@@ -2060,7 +2063,8 @@ func TestPinotTripleScanWorkflowExecutions(t *testing.T) {
 			mockDBVisibilityManagerAffordance: func(mockDBVisibilityManager *MockVisibilityManager) {
 				mockDBVisibilityManager.EXPECT().ScanWorkflowExecutions(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain("es"),
+			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain(dbVisStoreName),
+			readModeIsDouble:        dynamicconfig.GetBoolPropertyFnFilteredByDomain(false),
 			wgCount:                 0,
 			expectedError:           nil,
 		},
@@ -2070,7 +2074,7 @@ func TestPinotTripleScanWorkflowExecutions(t *testing.T) {
 			mockPinotVisibilityManagerAffordance: func(wg *sync.WaitGroup, mockPinotVisibilityManager *MockVisibilityManager) {
 				mockPinotVisibilityManager.EXPECT().ScanWorkflowExecutions(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain("pinot"),
+			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain(destinationMode),
 			readModeIsDouble:        dynamicconfig.GetBoolPropertyFnFilteredByDomain(false),
 			wgCount:                 0,
 			expectedError:           nil,
@@ -2089,7 +2093,7 @@ func TestPinotTripleScanWorkflowExecutions(t *testing.T) {
 					return nil, nil
 				}).Times(1)
 			},
-			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain("pinot"),
+			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain(destinationMode),
 			readModeIsDouble:        dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
 			wgCount:                 1,
 			expectedError:           nil,
@@ -2110,7 +2114,7 @@ func TestPinotTripleScanWorkflowExecutions(t *testing.T) {
 				mockESVisibilityManager.EXPECT().ScanWorkflowExecutions(gomock.Any(), gomock.Any()).
 					Return(nil, nil).Times(1)
 			},
-			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain("es"),
+			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain(sourceMode),
 			readModeIsDouble:        dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
 			wgCount:                 1,
 			expectedError:           nil,
@@ -2173,7 +2177,8 @@ func TestPinotTripleCountWorkflowExecutions(t *testing.T) {
 			mockDBVisibilityManagerAffordance: func(mockDBVisibilityManager *MockVisibilityManager) {
 				mockDBVisibilityManager.EXPECT().CountWorkflowExecutions(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain("es"),
+			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain(dbVisStoreName),
+			readModeIsDouble:        dynamicconfig.GetBoolPropertyFnFilteredByDomain(false),
 			wgCount:                 0,
 			expectedError:           nil,
 		},
@@ -2183,7 +2188,7 @@ func TestPinotTripleCountWorkflowExecutions(t *testing.T) {
 			mockPinotVisibilityManagerAffordance: func(wg *sync.WaitGroup, mockPinotVisibilityManager *MockVisibilityManager) {
 				mockPinotVisibilityManager.EXPECT().CountWorkflowExecutions(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain("pinot"),
+			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain(destinationMode),
 			readModeIsDouble:        dynamicconfig.GetBoolPropertyFnFilteredByDomain(false),
 			wgCount:                 0,
 			expectedError:           nil,
@@ -2202,7 +2207,7 @@ func TestPinotTripleCountWorkflowExecutions(t *testing.T) {
 					return nil, nil
 				}).Times(1)
 			},
-			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain("pinot"),
+			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain(destinationMode),
 			readModeIsDouble:        dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
 			wgCount:                 1,
 			expectedError:           nil,
@@ -2222,7 +2227,7 @@ func TestPinotTripleCountWorkflowExecutions(t *testing.T) {
 			mockESVisibilityManagerAffordance: func(wg *sync.WaitGroup, mockESVisibilityManager *MockVisibilityManager) {
 				mockESVisibilityManager.EXPECT().CountWorkflowExecutions(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain("es"),
+			readVisibilityStoreName: dynamicconfig.GetStringPropertyFnFilteredByDomain(sourceMode),
 			readModeIsDouble:        dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
 			wgCount:                 1,
 			expectedError:           nil,
