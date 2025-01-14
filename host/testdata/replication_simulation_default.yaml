@@ -1,0 +1,8 @@
+# this file is parsed into ReplicationSimulationConfig struct
+clusters:
+  cluster0:
+    grpcEndpoint: "cadence-cluster0:7933"
+  cluster1:
+    grpcEndpoint: "cadence-cluster1:7933"
+
+primaryCluster: "cluster0"
