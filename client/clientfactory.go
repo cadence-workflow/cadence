@@ -60,7 +60,7 @@ type (
 		NewMatchingClient(domainIDToName DomainIDToNameFunc, shardDistributorClient sharddistributor.Client) (matching.Client, error)
 
 		NewHistoryClientWithTimeout(timeout time.Duration) (history.Client, history.PeerResolver, error)
-		NewMatchingClientWithTimeout(domainIDToName DomainIDToNameFunc, timeout time.Duration, longPollTimeout time.Duration, shardDistributorClient sharddistributor.Client) (matching.Client, error)
+		NewMatchingClientWithTimeout(domainIDToName DomainIDToNameFunc, shardDistributorClient sharddistributor.Client, timeout time.Duration, longPollTimeout time.Duration) (matching.Client, error)
 
 		NewAdminClientWithTimeoutAndConfig(config transport.ClientConfig, timeout time.Duration, largeTimeout time.Duration) (admin.Client, error)
 		NewFrontendClientWithTimeoutAndConfig(config transport.ClientConfig, timeout time.Duration, longPollTimeout time.Duration) (frontend.Client, error)
@@ -109,7 +109,7 @@ func (cf *rpcClientFactory) NewHistoryClient() (history.Client, history.PeerReso
 }
 
 func (cf *rpcClientFactory) NewMatchingClient(domainIDToName DomainIDToNameFunc, shardDistributorClient sharddistributor.Client) (matching.Client, error) {
-	return cf.NewMatchingClientWithTimeout(domainIDToName, timeoutwrapper.MatchingDefaultTimeout, timeoutwrapper.MatchingDefaultLongPollTimeout, shardDistributorClient)
+	return cf.NewMatchingClientWithTimeout(domainIDToName, shardDistributorClient, timeoutwrapper.MatchingDefaultTimeout, timeoutwrapper.MatchingDefaultLongPollTimeout)
 }
 
 func (cf *rpcClientFactory) NewHistoryClientWithTimeout(timeout time.Duration) (history.Client, history.PeerResolver, error) {
@@ -145,9 +145,9 @@ func (cf *rpcClientFactory) NewHistoryClientWithTimeout(timeout time.Duration) (
 
 func (cf *rpcClientFactory) NewMatchingClientWithTimeout(
 	domainIDToName DomainIDToNameFunc,
+	shardDistributorClient sharddistributor.Client,
 	timeout time.Duration,
 	longPollTimeout time.Duration,
-	shardDistributorClient sharddistributor.Client,
 ) (matching.Client, error) {
 	var rawClient matching.Client
 	var namedPort = membership.PortTchannel
