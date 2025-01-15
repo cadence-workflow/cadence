@@ -596,7 +596,7 @@ func TestDualListOpenWorkflowExecutions(t *testing.T) {
 		mockESVisibilityManager           VisibilityManager
 		mockDBVisibilityManagerAccordance func(mockDBVisibilityManager *MockVisibilityManager)
 		mockESVisibilityManagerAccordance func(mockESVisibilityManager *MockVisibilityManager)
-		readModeIsFromES                  dynamicconfig.BoolPropertyFnWithDomainFilter
+		readModeIsFromES                  dynamicconfig.StringPropertyFnWithDomainFilter
 		expectedError                     error
 	}{
 		"Case1-1: success case with DB visibility is not nil": {
@@ -605,7 +605,7 @@ func TestDualListOpenWorkflowExecutions(t *testing.T) {
 			mockDBVisibilityManagerAccordance: func(mockDBVisibilityManager *MockVisibilityManager) {
 				mockDBVisibilityManager.EXPECT().ListOpenWorkflowExecutions(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readModeIsFromES: dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
+			readModeIsFromES: dynamicconfig.GetStringPropertyFnFilteredByDomain("es"),
 			expectedError:    nil,
 		},
 		"Case1-2: success case with ES visibility is not nil": {
@@ -614,7 +614,7 @@ func TestDualListOpenWorkflowExecutions(t *testing.T) {
 			mockESVisibilityManagerAccordance: func(mockESVisibilityManager *MockVisibilityManager) {
 				mockESVisibilityManager.EXPECT().ListOpenWorkflowExecutions(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readModeIsFromES: dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
+			readModeIsFromES: dynamicconfig.GetStringPropertyFnFilteredByDomain("es"),
 			expectedError:    nil,
 		},
 	}
@@ -652,7 +652,7 @@ func TestDualListClosedWorkflowExecutions(t *testing.T) {
 		mockESVisibilityManager           VisibilityManager
 		mockDBVisibilityManagerAccordance func(mockDBVisibilityManager *MockVisibilityManager)
 		mockESVisibilityManagerAccordance func(mockESVisibilityManager *MockVisibilityManager)
-		readModeIsFromES                  dynamicconfig.BoolPropertyFnWithDomainFilter
+		readModeIsFromES                  dynamicconfig.StringPropertyFnWithDomainFilter
 		expectedError                     error
 	}{
 		"Case1-1: success case with DB visibility is not nil": {
@@ -661,7 +661,7 @@ func TestDualListClosedWorkflowExecutions(t *testing.T) {
 			mockDBVisibilityManagerAccordance: func(mockDBVisibilityManager *MockVisibilityManager) {
 				mockDBVisibilityManager.EXPECT().ListClosedWorkflowExecutions(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readModeIsFromES: dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
+			readModeIsFromES: dynamicconfig.GetStringPropertyFnFilteredByDomain("es"),
 			expectedError:    nil,
 		},
 		"Case1-2: success case with ES visibility is not nil": {
@@ -670,7 +670,7 @@ func TestDualListClosedWorkflowExecutions(t *testing.T) {
 			mockESVisibilityManagerAccordance: func(mockESVisibilityManager *MockVisibilityManager) {
 				mockESVisibilityManager.EXPECT().ListClosedWorkflowExecutions(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readModeIsFromES: dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
+			readModeIsFromES: dynamicconfig.GetStringPropertyFnFilteredByDomain("es"),
 			expectedError:    nil,
 		},
 		"Case2-1: success case with DB visibility is not nil and read mod is false": {
@@ -679,7 +679,7 @@ func TestDualListClosedWorkflowExecutions(t *testing.T) {
 			mockDBVisibilityManagerAccordance: func(mockDBVisibilityManager *MockVisibilityManager) {
 				mockDBVisibilityManager.EXPECT().ListClosedWorkflowExecutions(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readModeIsFromES: dynamicconfig.GetBoolPropertyFnFilteredByDomain(false),
+			readModeIsFromES: dynamicconfig.GetStringPropertyFnFilteredByDomain("db"),
 			expectedError:    nil,
 		},
 		"Case2-2: success case with ES visibility is not nil and read mod is false": {
@@ -688,7 +688,7 @@ func TestDualListClosedWorkflowExecutions(t *testing.T) {
 			mockESVisibilityManagerAccordance: func(mockESVisibilityManager *MockVisibilityManager) {
 				mockESVisibilityManager.EXPECT().ListClosedWorkflowExecutions(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readModeIsFromES: dynamicconfig.GetBoolPropertyFnFilteredByDomain(false),
+			readModeIsFromES: dynamicconfig.GetStringPropertyFnFilteredByDomain("db"),
 			expectedError:    nil,
 		},
 	}
@@ -728,7 +728,7 @@ func TestDualListOpenWorkflowExecutionsByType(t *testing.T) {
 		mockESVisibilityManager           VisibilityManager
 		mockDBVisibilityManagerAccordance func(mockDBVisibilityManager *MockVisibilityManager)
 		mockESVisibilityManagerAccordance func(mockESVisibilityManager *MockVisibilityManager)
-		readModeIsFromES                  dynamicconfig.BoolPropertyFnWithDomainFilter
+		readModeIsFromES                  dynamicconfig.StringPropertyFnWithDomainFilter
 		expectedError                     error
 	}{
 		"Case1-1: success case with DB visibility is not nil": {
@@ -737,7 +737,7 @@ func TestDualListOpenWorkflowExecutionsByType(t *testing.T) {
 			mockDBVisibilityManagerAccordance: func(mockDBVisibilityManager *MockVisibilityManager) {
 				mockDBVisibilityManager.EXPECT().ListOpenWorkflowExecutionsByType(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readModeIsFromES: dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
+			readModeIsFromES: dynamicconfig.GetStringPropertyFnFilteredByDomain("es"),
 			expectedError:    nil,
 		},
 		"Case1-2: success case with ES visibility is not nil": {
@@ -746,7 +746,7 @@ func TestDualListOpenWorkflowExecutionsByType(t *testing.T) {
 			mockESVisibilityManagerAccordance: func(mockESVisibilityManager *MockVisibilityManager) {
 				mockESVisibilityManager.EXPECT().ListOpenWorkflowExecutionsByType(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readModeIsFromES: dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
+			readModeIsFromES: dynamicconfig.GetStringPropertyFnFilteredByDomain("es"),
 			expectedError:    nil,
 		},
 	}
@@ -786,7 +786,7 @@ func TestDualListClosedWorkflowExecutionsByType(t *testing.T) {
 		mockESVisibilityManager           VisibilityManager
 		mockDBVisibilityManagerAccordance func(mockDBVisibilityManager *MockVisibilityManager)
 		mockESVisibilityManagerAccordance func(mockESVisibilityManager *MockVisibilityManager)
-		readModeIsFromES                  dynamicconfig.BoolPropertyFnWithDomainFilter
+		readModeIsFromES                  dynamicconfig.StringPropertyFnWithDomainFilter
 		expectedError                     error
 	}{
 		"Case1-1: success case with DB visibility is not nil": {
@@ -795,7 +795,7 @@ func TestDualListClosedWorkflowExecutionsByType(t *testing.T) {
 			mockDBVisibilityManagerAccordance: func(mockDBVisibilityManager *MockVisibilityManager) {
 				mockDBVisibilityManager.EXPECT().ListClosedWorkflowExecutionsByType(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readModeIsFromES: dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
+			readModeIsFromES: dynamicconfig.GetStringPropertyFnFilteredByDomain("es"),
 			expectedError:    nil,
 		},
 		"Case1-2: success case with ES visibility is not nil": {
@@ -804,7 +804,7 @@ func TestDualListClosedWorkflowExecutionsByType(t *testing.T) {
 			mockESVisibilityManagerAccordance: func(mockESVisibilityManager *MockVisibilityManager) {
 				mockESVisibilityManager.EXPECT().ListClosedWorkflowExecutionsByType(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readModeIsFromES: dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
+			readModeIsFromES: dynamicconfig.GetStringPropertyFnFilteredByDomain("es"),
 			expectedError:    nil,
 		},
 	}
@@ -844,7 +844,7 @@ func TestDualListOpenWorkflowExecutionsByWorkflowID(t *testing.T) {
 		mockESVisibilityManager           VisibilityManager
 		mockDBVisibilityManagerAccordance func(mockDBVisibilityManager *MockVisibilityManager)
 		mockESVisibilityManagerAccordance func(mockESVisibilityManager *MockVisibilityManager)
-		readModeIsFromES                  dynamicconfig.BoolPropertyFnWithDomainFilter
+		readModeIsFromES                  dynamicconfig.StringPropertyFnWithDomainFilter
 		expectedError                     error
 	}{
 		"Case1-1: success case with DB visibility is not nil": {
@@ -853,7 +853,7 @@ func TestDualListOpenWorkflowExecutionsByWorkflowID(t *testing.T) {
 			mockDBVisibilityManagerAccordance: func(mockDBVisibilityManager *MockVisibilityManager) {
 				mockDBVisibilityManager.EXPECT().ListOpenWorkflowExecutionsByWorkflowID(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readModeIsFromES: dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
+			readModeIsFromES: dynamicconfig.GetStringPropertyFnFilteredByDomain("es"),
 			expectedError:    nil,
 		},
 		"Case1-2: success case with ES visibility is not nil": {
@@ -862,7 +862,7 @@ func TestDualListOpenWorkflowExecutionsByWorkflowID(t *testing.T) {
 			mockESVisibilityManagerAccordance: func(mockESVisibilityManager *MockVisibilityManager) {
 				mockESVisibilityManager.EXPECT().ListOpenWorkflowExecutionsByWorkflowID(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readModeIsFromES: dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
+			readModeIsFromES: dynamicconfig.GetStringPropertyFnFilteredByDomain("es"),
 			expectedError:    nil,
 		},
 	}
@@ -902,7 +902,7 @@ func TestDualListClosedWorkflowExecutionsByWorkflowID(t *testing.T) {
 		mockESVisibilityManager           VisibilityManager
 		mockDBVisibilityManagerAccordance func(mockDBVisibilityManager *MockVisibilityManager)
 		mockESVisibilityManagerAccordance func(mockESVisibilityManager *MockVisibilityManager)
-		readModeIsFromES                  dynamicconfig.BoolPropertyFnWithDomainFilter
+		readModeIsFromES                  dynamicconfig.StringPropertyFnWithDomainFilter
 		expectedError                     error
 	}{
 		"Case1-1: success case with DB visibility is not nil": {
@@ -911,7 +911,7 @@ func TestDualListClosedWorkflowExecutionsByWorkflowID(t *testing.T) {
 			mockDBVisibilityManagerAccordance: func(mockDBVisibilityManager *MockVisibilityManager) {
 				mockDBVisibilityManager.EXPECT().ListClosedWorkflowExecutionsByWorkflowID(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readModeIsFromES: dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
+			readModeIsFromES: dynamicconfig.GetStringPropertyFnFilteredByDomain("es"),
 			expectedError:    nil,
 		},
 		"Case1-2: success case with ES visibility is not nil": {
@@ -920,7 +920,7 @@ func TestDualListClosedWorkflowExecutionsByWorkflowID(t *testing.T) {
 			mockESVisibilityManagerAccordance: func(mockESVisibilityManager *MockVisibilityManager) {
 				mockESVisibilityManager.EXPECT().ListClosedWorkflowExecutionsByWorkflowID(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readModeIsFromES: dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
+			readModeIsFromES: dynamicconfig.GetStringPropertyFnFilteredByDomain("es"),
 			expectedError:    nil,
 		},
 	}
@@ -960,7 +960,7 @@ func TestDualListClosedWorkflowExecutionsByStatus(t *testing.T) {
 		mockESVisibilityManager           VisibilityManager
 		mockDBVisibilityManagerAccordance func(mockDBVisibilityManager *MockVisibilityManager)
 		mockESVisibilityManagerAccordance func(mockESVisibilityManager *MockVisibilityManager)
-		readModeIsFromES                  dynamicconfig.BoolPropertyFnWithDomainFilter
+		readModeIsFromES                  dynamicconfig.StringPropertyFnWithDomainFilter
 		expectedError                     error
 	}{
 		"Case1-1: success case with DB visibility is not nil": {
@@ -969,7 +969,7 @@ func TestDualListClosedWorkflowExecutionsByStatus(t *testing.T) {
 			mockDBVisibilityManagerAccordance: func(mockDBVisibilityManager *MockVisibilityManager) {
 				mockDBVisibilityManager.EXPECT().ListClosedWorkflowExecutionsByStatus(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readModeIsFromES: dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
+			readModeIsFromES: dynamicconfig.GetStringPropertyFnFilteredByDomain("es"),
 			expectedError:    nil,
 		},
 		"Case1-2: success case with ES visibility is not nil": {
@@ -978,7 +978,7 @@ func TestDualListClosedWorkflowExecutionsByStatus(t *testing.T) {
 			mockESVisibilityManagerAccordance: func(mockESVisibilityManager *MockVisibilityManager) {
 				mockESVisibilityManager.EXPECT().ListClosedWorkflowExecutionsByStatus(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readModeIsFromES: dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
+			readModeIsFromES: dynamicconfig.GetStringPropertyFnFilteredByDomain("es"),
 			expectedError:    nil,
 		},
 	}
@@ -1016,7 +1016,7 @@ func TestDualGetClosedWorkflowExecution(t *testing.T) {
 		mockESVisibilityManager           VisibilityManager
 		mockDBVisibilityManagerAccordance func(mockDBVisibilityManager *MockVisibilityManager)
 		mockESVisibilityManagerAccordance func(mockESVisibilityManager *MockVisibilityManager)
-		readModeIsFromES                  dynamicconfig.BoolPropertyFnWithDomainFilter
+		readModeIsFromES                  dynamicconfig.StringPropertyFnWithDomainFilter
 		expectedError                     error
 	}{
 		"Case1-1: success case with DB visibility is not nil": {
@@ -1025,7 +1025,7 @@ func TestDualGetClosedWorkflowExecution(t *testing.T) {
 			mockDBVisibilityManagerAccordance: func(mockDBVisibilityManager *MockVisibilityManager) {
 				mockDBVisibilityManager.EXPECT().GetClosedWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readModeIsFromES: dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
+			readModeIsFromES: dynamicconfig.GetStringPropertyFnFilteredByDomain("es"),
 			expectedError:    nil,
 		},
 		"Case1-2: success case with ES visibility is not nil": {
@@ -1034,7 +1034,7 @@ func TestDualGetClosedWorkflowExecution(t *testing.T) {
 			mockESVisibilityManagerAccordance: func(mockESVisibilityManager *MockVisibilityManager) {
 				mockESVisibilityManager.EXPECT().GetClosedWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readModeIsFromES: dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
+			readModeIsFromES: dynamicconfig.GetStringPropertyFnFilteredByDomain("es"),
 			expectedError:    nil,
 		},
 	}
@@ -1072,7 +1072,7 @@ func TestDualListWorkflowExecutions(t *testing.T) {
 		mockESVisibilityManager           VisibilityManager
 		mockDBVisibilityManagerAccordance func(mockDBVisibilityManager *MockVisibilityManager)
 		mockESVisibilityManagerAccordance func(mockESVisibilityManager *MockVisibilityManager)
-		readModeIsFromES                  dynamicconfig.BoolPropertyFnWithDomainFilter
+		readModeIsFromES                  dynamicconfig.StringPropertyFnWithDomainFilter
 		expectedError                     error
 	}{
 		"Case1-1: success case with DB visibility is not nil": {
@@ -1081,7 +1081,7 @@ func TestDualListWorkflowExecutions(t *testing.T) {
 			mockDBVisibilityManagerAccordance: func(mockDBVisibilityManager *MockVisibilityManager) {
 				mockDBVisibilityManager.EXPECT().ListWorkflowExecutions(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readModeIsFromES: dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
+			readModeIsFromES: dynamicconfig.GetStringPropertyFnFilteredByDomain("es"),
 			expectedError:    nil,
 		},
 		"Case1-2: success case with ES visibility is not nil": {
@@ -1090,7 +1090,7 @@ func TestDualListWorkflowExecutions(t *testing.T) {
 			mockESVisibilityManagerAccordance: func(mockESVisibilityManager *MockVisibilityManager) {
 				mockESVisibilityManager.EXPECT().ListWorkflowExecutions(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readModeIsFromES: dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
+			readModeIsFromES: dynamicconfig.GetStringPropertyFnFilteredByDomain("es"),
 			expectedError:    nil,
 		},
 	}
@@ -1128,7 +1128,7 @@ func TestDualScanWorkflowExecutions(t *testing.T) {
 		mockESVisibilityManager           VisibilityManager
 		mockDBVisibilityManagerAccordance func(mockDBVisibilityManager *MockVisibilityManager)
 		mockESVisibilityManagerAccordance func(mockESVisibilityManager *MockVisibilityManager)
-		readModeIsFromES                  dynamicconfig.BoolPropertyFnWithDomainFilter
+		readModeIsFromES                  dynamicconfig.StringPropertyFnWithDomainFilter
 		expectedError                     error
 	}{
 		"Case1-1: success case with DB visibility is not nil": {
@@ -1137,7 +1137,7 @@ func TestDualScanWorkflowExecutions(t *testing.T) {
 			mockDBVisibilityManagerAccordance: func(mockDBVisibilityManager *MockVisibilityManager) {
 				mockDBVisibilityManager.EXPECT().ScanWorkflowExecutions(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readModeIsFromES: dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
+			readModeIsFromES: dynamicconfig.GetStringPropertyFnFilteredByDomain("es"),
 			expectedError:    nil,
 		},
 		"Case1-2: success case with ES visibility is not nil": {
@@ -1146,7 +1146,7 @@ func TestDualScanWorkflowExecutions(t *testing.T) {
 			mockESVisibilityManagerAccordance: func(mockESVisibilityManager *MockVisibilityManager) {
 				mockESVisibilityManager.EXPECT().ScanWorkflowExecutions(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readModeIsFromES: dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
+			readModeIsFromES: dynamicconfig.GetStringPropertyFnFilteredByDomain("es"),
 			expectedError:    nil,
 		},
 	}
@@ -1184,7 +1184,7 @@ func TestDualCountWorkflowExecutions(t *testing.T) {
 		mockESVisibilityManager           VisibilityManager
 		mockDBVisibilityManagerAccordance func(mockDBVisibilityManager *MockVisibilityManager)
 		mockESVisibilityManagerAccordance func(mockESVisibilityManager *MockVisibilityManager)
-		readModeIsFromES                  dynamicconfig.BoolPropertyFnWithDomainFilter
+		readModeIsFromES                  dynamicconfig.StringPropertyFnWithDomainFilter
 		expectedError                     error
 	}{
 		"Case1-1: success case with DB visibility is not nil": {
@@ -1193,7 +1193,7 @@ func TestDualCountWorkflowExecutions(t *testing.T) {
 			mockDBVisibilityManagerAccordance: func(mockDBVisibilityManager *MockVisibilityManager) {
 				mockDBVisibilityManager.EXPECT().CountWorkflowExecutions(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readModeIsFromES: dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
+			readModeIsFromES: dynamicconfig.GetStringPropertyFnFilteredByDomain("es"),
 			expectedError:    nil,
 		},
 		"Case1-2: success case with ES visibility is not nil": {
@@ -1202,7 +1202,7 @@ func TestDualCountWorkflowExecutions(t *testing.T) {
 			mockESVisibilityManagerAccordance: func(mockESVisibilityManager *MockVisibilityManager) {
 				mockESVisibilityManager.EXPECT().CountWorkflowExecutions(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 			},
-			readModeIsFromES: dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
+			readModeIsFromES: dynamicconfig.GetStringPropertyFnFilteredByDomain("es"),
 			expectedError:    nil,
 		},
 	}

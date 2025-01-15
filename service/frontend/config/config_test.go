@@ -53,8 +53,7 @@ func TestNewConfig(t *testing.T) {
 		"EnableReadFromClosedExecutionV2":             {dynamicconfig.EnableReadFromClosedExecutionV2, false},
 		"VisibilityListMaxQPS":                        {dynamicconfig.FrontendVisibilityListMaxQPS, 4},
 		"ESVisibilityListMaxQPS":                      {dynamicconfig.FrontendESVisibilityListMaxQPS, 5},
-		"EnableReadVisibilityFromES":                  {dynamicconfig.EnableReadVisibilityFromES, true},
-		"EnableReadVisibilityFromPinot":               {dynamicconfig.EnableReadVisibilityFromPinot, false},
+		"ReadVisibilityStoreName":                     {dynamicconfig.ReadVisibilityStoreName, "es"},
 		"EnableLogCustomerQueryParameter":             {dynamicconfig.EnableLogCustomerQueryParameter, true},
 		"EnableVisibilityDoubleRead":                  {dynamicconfig.EnableVisibilityDoubleRead, false},
 		"ESIndexMaxResultWindow":                      {dynamicconfig.FrontendESIndexMaxResultWindow, 6},
@@ -175,6 +174,8 @@ func getValue(f *reflect.Value) interface{} {
 			return fn()
 		case dynamicconfig.StringPropertyWithRatelimitKeyFilter:
 			return fn("user:domain")
+		case dynamicconfig.StringPropertyFnWithDomainFilter:
+			return fn("domain")
 		default:
 			panic("Unable to handle type: " + f.Type().Name())
 		}

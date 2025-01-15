@@ -67,7 +67,7 @@ func TestNewConfig(t *testing.T) {
 		"VisibilityOpenMaxQPS":                                 {dynamicconfig.HistoryVisibilityOpenMaxQPS, 16},
 		"VisibilityClosedMaxQPS":                               {dynamicconfig.HistoryVisibilityClosedMaxQPS, 17},
 		"AdvancedVisibilityWritingMode":                        {dynamicconfig.AdvancedVisibilityWritingMode, "dual"},
-		"AdvancedVisibilityMigrationWritingMode":               {dynamicconfig.AdvancedVisibilityMigrationWritingMode, "dual"},
+		"AdvancedVisibilityMigrationWritingMode":               {dynamicconfig.AdvancedVisibilityMigrationWritingMode, "es"},
 		"EmitShardDiffLog":                                     {dynamicconfig.EmitShardDiffLog, true},
 		"MaxAutoResetPoints":                                   {dynamicconfig.HistoryMaxAutoResetPoints, 18},
 		"ThrottledLogRPS":                                      {dynamicconfig.HistoryThrottledLogRPS, 19},

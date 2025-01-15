@@ -47,6 +47,7 @@ var (
 		dynamicconfig.EnableConsistentQueryByDomain:                 true,
 		dynamicconfig.MinRetentionDays:                              0,
 		dynamicconfig.WorkflowDeletionJitterRange:                   1,
+		dynamicconfig.AdvancedVisibilityMigrationWritingMode:        "pinot",
 	}
 )
 
@@ -166,10 +167,10 @@ func (d *dynamicClient) UpdateValue(name dynamicconfig.Key, value interface{}) e
 		defer d.Unlock()
 		d.overrides[dynamicconfig.AdvancedVisibilityWritingMode] = value.(string)
 		return nil
-	} else if name == dynamicconfig.EnableReadVisibilityFromES { // override for pinot integration tests
+	} else if name == dynamicconfig.ReadVisibilityStoreName { // override for pinot integration tests
 		d.Lock()
 		defer d.Unlock()
-		d.overrides[dynamicconfig.EnableReadVisibilityFromES] = value.(bool)
+		d.overrides[dynamicconfig.ReadVisibilityStoreName] = value.(string)
 		return nil
 	}
 	return d.client.UpdateValue(name, value)

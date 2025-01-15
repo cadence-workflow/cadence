@@ -658,7 +658,7 @@ func (c *cadenceImpl) startFrontend(hosts map[string][]membership.HostInfo, star
 	if c.pinotConfig != nil {
 		pinotDataStoreName := "pinot-visibility"
 		params.PersistenceConfig.AdvancedVisibilityStore = pinotDataStoreName
-		params.DynamicConfig.UpdateValue(dynamicconfig.EnableReadVisibilityFromES, false)
+		params.DynamicConfig.UpdateValue(dynamicconfig.ReadVisibilityStoreName, "pinot")
 		params.PersistenceConfig.DataStores[pinotDataStoreName] = config.DataStore{
 			Pinot: c.pinotConfig,
 		}
