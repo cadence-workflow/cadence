@@ -23,7 +23,6 @@ package nosql
 import (
 	"context"
 	"fmt"
-	"github.com/uber/cadence/common/log/tag"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cluster"
@@ -65,8 +64,6 @@ func (m *nosqlDomainStore) CreateDomain(
 	ctx context.Context,
 	request *persistence.InternalCreateDomainRequest,
 ) (*persistence.CreateDomainResponse, error) {
-
-	m.logger.Info("Nosql_domain_store CreateDomain ABCDDDBUG", tag.WorkflowDomainName(request.Info.Name))
 	row := &nosqlplugin.DomainRow{
 		Info:                        request.Info,
 		Config:                      request.Config,

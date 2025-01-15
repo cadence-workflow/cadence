@@ -22,7 +22,6 @@ package persistence
 
 import (
 	"context"
-	"github.com/uber/cadence/common/log/tag"
 	"time"
 
 	"github.com/uber/cadence/common"
@@ -61,7 +60,6 @@ func (m *domainManagerImpl) CreateDomain(
 	if err != nil {
 		return nil, err
 	}
-	m.logger.Info("DomainManager CreateDomain ABCDDDBUG", tag.WorkflowDomainName(request.Info.Name))
 	return m.persistence.CreateDomain(ctx, &InternalCreateDomainRequest{
 		Info:              request.Info,
 		Config:            &dc,
