@@ -44,6 +44,22 @@ type (
 		CloseFailoverVersion int64
 	}
 
+	// ArchiveExecutionRequest is request to Archive workflow execution records
+	ArchiveExecutionRequest struct {
+		ShardID    int
+		DomainID   string
+		DomainName string
+		WorkflowID string
+		RunID      string
+	}
+
+	// GetExecutionRequest is the request to Get archived Execution records
+	GetExecutionRequest struct {
+		DomainID   string
+		WorkflowID string
+		RunID      string
+	}
+
 	// GetHistoryRequest is the request to Get archived history
 	GetHistoryRequest struct {
 		DomainID             string
@@ -60,6 +76,11 @@ type (
 		NextPageToken  []byte
 	}
 
+	// GetExecutionResponse is the response of Get archived execution records
+	GetExecutionResponse struct {
+		MutableState *persistence.WorkflowMutableState
+	}
+
 	// HistoryBootstrapContainer contains components needed by all history Archiver implementations
 	HistoryBootstrapContainer struct {
 		HistoryV2Manager persistence.HistoryManager
@@ -69,9 +90,37 @@ type (
 		DomainCache      cache.DomainCache
 	}
 
+	// ExecutionArchiver is used to get and store execution data
+	ExecutionArchiver interface {
+		ArchiveExecution(context.Context, URI, *ArchiveExecutionRequest, ...ArchiveOption) error
+		//GetWorkflowExecutionForPersistence(context.Context, *GetExecutionRequest) (*GetExecutionResponse, error)
+		//GetWorkflowExecution(context.Context, URI, *GetExecutionRequest) (*GetExecutionResponse, error)
+		ValidateExecutionURI(URI) error
+	}
+
+	// Reader is used to get execution data
+	ExecutionReader interface {
+		GetWorkflowExecutionForPersistence(context.Context, *GetExecutionRequest) (*GetExecutionResponse, error)
+		GetWorkflowExecution(context.Context, URI, *GetExecutionRequest) (*GetExecutionResponse, error)
+		SetDomainCache(domainCache cache.DomainCache)
+	}
+
+	// ExecutionReadContainer is the layer responsible for coordinating between all the various
+	// plugins and proxying read requests to them if they're instantiated and lazily instantiating them
+	// if they're not.
+	ExecutionReadContainer interface {
+		GetWorkflowExecutionForPersistence(ctx context.Context, req *GetExecutionRequest) (*GetExecutionResponse, error)
+		SetDomainCache(domainCache cache.DomainCache)
+		GetDomainCache() cache.DomainCache
+		GetLog() log.Logger
+		GetMetrics() metrics.Client
+	}
+
 	// HistoryArchiver is used to archive history and read archived history
 	HistoryArchiver interface {
 		Archive(context.Context, URI, *ArchiveHistoryRequest, ...ArchiveOption) error
+		// todo (david.porter) maybe delete this
+		//GetWorkflowHistoryForPersistence(context.Context, *GetHistoryRequest) (*GetHistoryResponse, error)
 		Get(context.Context, URI, *GetHistoryRequest) (*GetHistoryResponse, error)
 		ValidateURI(URI) error
 	}
@@ -81,6 +130,14 @@ type (
 		Logger          log.Logger
 		MetricsClient   metrics.Client
 		ClusterMetadata cluster.Metadata
+		DomainCache     cache.DomainCache
+	}
+
+	ExecutionArchiverBootstrapContainer struct {
+		Logger          log.Logger
+		MetricsClient   metrics.Client
+		ClusterMetadata cluster.Metadata
+		ExecutionMgr    func(shard int) (persistence.ExecutionManager, error)
 		DomainCache     cache.DomainCache
 	}
 
@@ -120,5 +177,10 @@ type (
 		Archive(context.Context, URI, *ArchiveVisibilityRequest, ...ArchiveOption) error
 		Query(context.Context, URI, *QueryVisibilityRequest) (*QueryVisibilityResponse, error)
 		ValidateURI(URI) error
+	}
+
+	WarmStorage interface {
+		ExecutionArchiver
+		HistoryArchiver
 	}
 )

@@ -193,6 +193,21 @@ func (h *historyArchiver) Archive(
 	return nil
 }
 
+func (h *historyArchiver) GetWorkflowHistoryForPersistence(
+	ctx context.Context,
+	request *archiver.GetHistoryRequest,
+) (*archiver.GetHistoryResponse, error) {
+	domain, err := h.container.DomainCache.GetDomainByID(request.DomainID)
+	if err != nil {
+		return nil, err
+	}
+	uri, err := archiver.NewURI(domain.GetConfig().HistoryArchivalURI)
+	if err != nil {
+		return nil, err
+	}
+	return h.Get(ctx, uri, request)
+}
+
 func (h *historyArchiver) Get(
 	ctx context.Context,
 	URI archiver.URI,
@@ -313,7 +328,7 @@ func getNextHistoryBlob(ctx context.Context, historyIterator archiver.HistoryIte
 }
 
 func getHighestVersion(dirPath string, request *archiver.GetHistoryRequest) (*int64, error) {
-	filenames, err := util.ListFilesByPrefix(dirPath, constructHistoryFilenamePrefix(request.DomainID, request.WorkflowID, request.RunID))
+	filenames, err := util.ListFilesByPrefix(dirPath, constructFilenamePrefix(request.DomainID, request.WorkflowID, request.RunID))
 	if err != nil {
 		return nil, err
 	}

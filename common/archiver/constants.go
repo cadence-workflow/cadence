@@ -60,3 +60,16 @@ var (
 	// ErrHistoryNotExist is the error for non-exist history
 	ErrHistoryNotExist = errors.New("requested workflow history does not exist")
 )
+
+var _ error = ErrInvalidArchivalRequest{}
+
+// ErrInvalidArchivalRequest A generic nonretriable Bad request error for achival
+type ErrInvalidArchivalRequest struct {
+	Message string
+	URI     URI
+	Request interface{}
+}
+
+func (e ErrInvalidArchivalRequest) Error() string {
+	return e.Message
+}

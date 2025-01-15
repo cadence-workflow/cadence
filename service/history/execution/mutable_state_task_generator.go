@@ -172,6 +172,10 @@ func (r *mutableStateTaskGeneratorImpl) GenerateWorkflowCloseTasks(
 		retentionDuration += time.Duration(rand.Intn(workflowDeletionTaskJitterRange*60)) * time.Second
 	}
 
+	// todo Remove this if doing immediate archival
+	// fixme: add dynamic config switch
+	return nil
+
 	r.mutableState.AddTimerTasks(&persistence.DeleteHistoryEventTask{
 		TaskData: persistence.TaskData{
 			// TaskID is set by shard

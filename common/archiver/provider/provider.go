@@ -30,6 +30,8 @@ import (
 	"github.com/uber/cadence/common/syncmap"
 )
 
+//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination provider_mock.go -self_package github.com/uber/cadence/common/archival
+
 var (
 	// ErrUnknownScheme is the error for unknown archiver scheme
 	ErrUnknownScheme = errors.New("unknown archiver scheme")
@@ -51,9 +53,13 @@ type (
 			serviceName string,
 			historyContainer *archiver.HistoryBootstrapContainer,
 			visibilityContainter *archiver.VisibilityBootstrapContainer,
+			executionArchiverContainer *archiver.ExecutionArchiverBootstrapContainer,
+			executionReaderContainer archiver.ExecutionReadContainer,
 		) error
 		GetHistoryArchiver(scheme, serviceName string) (archiver.HistoryArchiver, error)
 		GetVisibilityArchiver(scheme, serviceName string) (archiver.VisibilityArchiver, error)
+		GetExecutionArchiver(scheme, serviceName string) (archiver.ExecutionArchiver, error)
+		GetExecutionReader()
 	}
 
 	archiverProvider struct {
@@ -61,14 +67,18 @@ type (
 
 		historyArchiverConfigs    config.HistoryArchiverProvider
 		visibilityArchiverConfigs config.VisibilityArchiverProvider
+		executionArchiverConfigs  config.ExecutionArchiverProvider
 
 		// Key for the container is just serviceName
-		historyContainers    map[string]*archiver.HistoryBootstrapContainer
-		visibilityContainers map[string]*archiver.VisibilityBootstrapContainer
+		historyContainers          map[string]*archiver.HistoryBootstrapContainer
+		visibilityContainers       map[string]*archiver.VisibilityBootstrapContainer
+		executionArchiveContainers map[string]*archiver.ExecutionArchiverBootstrapContainer
 
 		// Key for the archiver is scheme + serviceName
 		historyArchivers    map[string]archiver.HistoryArchiver
 		visibilityArchivers map[string]archiver.VisibilityArchiver
+		executionArchivers  map[string]archiver.ExecutionArchiver
+		executionReaders    map[string]archiver.ExecutionReader
 	}
 
 	historyConstructor struct {
@@ -83,15 +93,47 @@ type (
 		// This almost certainly should be the same as the scheme, but that'll need more work.
 		configKey string
 	}
+	executionArchiverConstructor struct {
+		fn        func(cfg *config.YamlNode, container *archiver.ExecutionArchiverBootstrapContainer) (archiver.ExecutionArchiver, error)
+		configKey string
+	}
+	executionReaderConstructor struct {
+		fn        func(cfg *config.YamlNode, container archiver.ExecutionReadContainer) (archiver.ExecutionReader, error)
+		configKey string
+	}
 )
 
 var (
-	historyConstructors    = syncmap.New[string, historyConstructor]()
-	visibilityConstructors = syncmap.New[string, visibilityConstructor]()
+	historyConstructors           = syncmap.New[string, historyConstructor]()
+	visibilityConstructors        = syncmap.New[string, visibilityConstructor]()
+	executionArchiverConstructors = syncmap.New[string, executionArchiverConstructor]()
+	executionReaderConstructors   = syncmap.New[string, executionReaderConstructor]()
 )
 
 func RegisterHistoryArchiver(scheme, configKey string, constructor func(cfg *config.YamlNode, container *archiver.HistoryBootstrapContainer) (archiver.HistoryArchiver, error)) error {
 	inserted := historyConstructors.Put(scheme, historyConstructor{
+		fn:        constructor,
+		configKey: configKey,
+	})
+	if !inserted {
+		return fmt.Errorf("history archiver already registered for scheme %q", scheme)
+	}
+	return nil
+}
+
+func RegisterExecutionArchiver(scheme, configKey string, constructor func(cfg *config.YamlNode, container *archiver.ExecutionArchiverBootstrapContainer) (archiver.ExecutionArchiver, error)) error {
+	inserted := executionArchiverConstructors.Put(scheme, executionArchiverConstructor{
+		fn:        constructor,
+		configKey: configKey,
+	})
+	if !inserted {
+		return fmt.Errorf("history archiver already registered for scheme %q", scheme)
+	}
+	return nil
+}
+
+func RegisterExecutionReader(scheme, configKey string, constructor func(cfg *config.YamlNode, container archiver.ExecutionReadContainer) (archiver.ExecutionReader, error)) error {
+	inserted := executionReaderConstructors.Put(scheme, executionReaderConstructor{
 		fn:        constructor,
 		configKey: configKey,
 	})
@@ -116,14 +158,18 @@ func RegisterVisibilityArchiver(scheme, configKey string, constructor func(cfg *
 func NewArchiverProvider(
 	historyArchiverConfigs config.HistoryArchiverProvider,
 	visibilityArchiverConfigs config.VisibilityArchiverProvider,
+	executionArchiverConfigs config.ExecutionArchiverProvider,
 ) ArchiverProvider {
 	return &archiverProvider{
-		historyArchiverConfigs:    historyArchiverConfigs,
-		visibilityArchiverConfigs: visibilityArchiverConfigs,
-		historyContainers:         make(map[string]*archiver.HistoryBootstrapContainer),
-		visibilityContainers:      make(map[string]*archiver.VisibilityBootstrapContainer),
-		historyArchivers:          make(map[string]archiver.HistoryArchiver),
-		visibilityArchivers:       make(map[string]archiver.VisibilityArchiver),
+		historyArchiverConfigs:     historyArchiverConfigs,
+		visibilityArchiverConfigs:  visibilityArchiverConfigs,
+		executionArchiverConfigs:   executionArchiverConfigs,
+		historyContainers:          make(map[string]*archiver.HistoryBootstrapContainer),
+		visibilityContainers:       make(map[string]*archiver.VisibilityBootstrapContainer),
+		executionArchiveContainers: make(map[string]*archiver.ExecutionArchiverBootstrapContainer),
+		historyArchivers:           make(map[string]archiver.HistoryArchiver),
+		visibilityArchivers:        make(map[string]archiver.VisibilityArchiver),
+		executionArchivers:         make(map[string]archiver.ExecutionArchiver),
 	}
 }
 
@@ -136,6 +182,8 @@ func (p *archiverProvider) RegisterBootstrapContainer(
 	serviceName string,
 	historyContainer *archiver.HistoryBootstrapContainer,
 	visibilityContainter *archiver.VisibilityBootstrapContainer,
+	executionArchiverContainer *archiver.ExecutionArchiverBootstrapContainer,
+	executionReaderContainer archiver.ExecutionReadContainer,
 ) error {
 	p.Lock()
 	defer p.Unlock()
@@ -146,6 +194,12 @@ func (p *archiverProvider) RegisterBootstrapContainer(
 	if _, ok := p.visibilityContainers[serviceName]; ok && visibilityContainter != nil {
 		return ErrBootstrapContainerAlreadyRegistered
 	}
+	if _, ok := p.executionArchiveContainers[serviceName]; ok && executionArchiverContainer != nil {
+		return ErrBootstrapContainerAlreadyRegistered
+	}
+	//if _, ok := p.executionReaderContainers[serviceName]; ok && executionReaderContainer != nil {
+	//	return ErrBootstrapContainerAlreadyRegistered
+	//}
 
 	if historyContainer != nil {
 		p.historyContainers[serviceName] = historyContainer
@@ -153,11 +207,17 @@ func (p *archiverProvider) RegisterBootstrapContainer(
 	if visibilityContainter != nil {
 		p.visibilityContainers[serviceName] = visibilityContainter
 	}
+	if executionArchiverContainer != nil {
+		p.executionArchiveContainers[serviceName] = executionArchiverContainer
+	}
+	//if executionReaderContainer != nil {
+	//	p.executionReaderContainers[serviceName] = executionReaderContainer
+	//}
 	return nil
 }
 
 func (p *archiverProvider) GetHistoryArchiver(scheme, serviceName string) (historyArchiver archiver.HistoryArchiver, err error) {
-	archiverKey := p.getArchiverKey(scheme, serviceName)
+	archiverKey := getArchiverKey(scheme, serviceName)
 	p.RLock()
 	if historyArchiver, ok := p.historyArchivers[archiverKey]; ok {
 		p.RUnlock()
@@ -180,22 +240,23 @@ func (p *archiverProvider) GetHistoryArchiver(scheme, serviceName string) (histo
 		return nil, fmt.Errorf("no history archiver config for scheme %q, config key %q", scheme, constructor.configKey)
 	}
 
-	historyArchiver, err = constructor.fn(cfg, container)
-	if err != nil {
-		return nil, fmt.Errorf("history archiver constructor failed for scheme %q, config key %q: err: %w", scheme, constructor.configKey, err)
-	}
-
 	p.Lock()
 	defer p.Unlock()
 	if existingHistoryArchiver, ok := p.historyArchivers[archiverKey]; ok {
 		return existingHistoryArchiver, nil
 	}
+
+	historyArchiver, err = constructor.fn(cfg, container)
+	if err != nil {
+		return nil, fmt.Errorf("history archiver constructor failed for scheme %q, config key %q: err: %w", scheme, constructor.configKey, err)
+	}
+
 	p.historyArchivers[archiverKey] = historyArchiver
 	return historyArchiver, nil
 }
 
 func (p *archiverProvider) GetVisibilityArchiver(scheme, serviceName string) (archiver.VisibilityArchiver, error) {
-	archiverKey := p.getArchiverKey(scheme, serviceName)
+	archiverKey := getArchiverKey(scheme, serviceName)
 	p.RLock()
 	if visibilityArchiver, ok := p.visibilityArchivers[archiverKey]; ok {
 		p.RUnlock()
@@ -230,9 +291,79 @@ func (p *archiverProvider) GetVisibilityArchiver(scheme, serviceName string) (ar
 	}
 	p.visibilityArchivers[archiverKey] = visibilityArchiver
 	return visibilityArchiver, nil
-
 }
 
-func (p *archiverProvider) getArchiverKey(scheme, serviceName string) string {
+func getArchiverKey(scheme, serviceName string) string {
 	return scheme + ":" + serviceName
 }
+
+func (p *archiverProvider) GetExecutionArchiver(scheme, serviceName string) (archiver.ExecutionArchiver, error) {
+	archiverKey := getArchiverKey(scheme, serviceName)
+	p.RLock()
+	if executionArchiver, ok := p.executionArchivers[archiverKey]; ok {
+		p.RUnlock()
+		return executionArchiver, nil
+	}
+	p.RUnlock()
+
+	container, ok := p.executionArchiveContainers[serviceName]
+	if !ok {
+		return nil, ErrBootstrapContainerNotFound
+	}
+
+	constructor, ok := executionArchiverConstructors.Get(scheme)
+	if !ok {
+		return nil, fmt.Errorf("no visibility archiver constructor for scheme %q", scheme)
+	}
+
+	cfg, ok := p.executionArchiverConfigs[constructor.configKey]
+	if !ok {
+		return nil, fmt.Errorf("no visibility archiver config for scheme %q, config key %q", scheme, constructor.configKey)
+	}
+
+	p.Lock()
+	defer p.Unlock()
+	if existingExecutionArchiver, ok := p.executionArchivers[archiverKey]; ok {
+		return existingExecutionArchiver, nil
+	}
+
+	executionArchiver, err := constructor.fn(cfg, container)
+	if err != nil {
+		return nil, fmt.Errorf("visibility archiver constructor failed for scheme %q, config key %q: err: %w", scheme, constructor.configKey, err)
+	}
+
+	p.executionArchivers[archiverKey] = executionArchiver
+	return executionArchiver, nil
+}
+
+//func (p *archiverProvider) GetExecutionReader(service string) (archiver.ExecutionReader, error) {
+//	container, ok := p.executionReaderContainer[service]
+//	if !ok {
+//		return nil, ErrBootstrapContainerNotFound
+//	}
+//
+//	constructor, ok := executionReaderConstructors.Get(scheme)
+//	if !ok {
+//		return nil, fmt.Errorf("no visibility archiver constructor for scheme %q", scheme)
+//	}
+//
+//	// this shares the same config as archiver, since it's just the read section of the same thing
+//	cfg, ok := p.executionArchiverConfigs[constructor.configKey]
+//	if !ok {
+//		return nil, fmt.Errorf("no visibility archiver config for scheme %q, config key %q", scheme, constructor.configKey)
+//	}
+//
+//	p.Lock()
+//	defer p.Unlock()
+//	if existingExecutionReader, ok := p.executionReaders[archiverKey]; ok {
+//		return existingExecutionReader, nil
+//	}
+//
+//	executionReader, err := constructor.fn(cfg, container)
+//	if err != nil {
+//		return nil, fmt.Errorf("visibility archiver constructor failed for scheme %q, config key %q: err: %w", scheme, constructor.configKey, err)
+//	}
+//
+//	p.executionReaders[archiverKey] = executionReader
+//	return executionReader, nil
+//}

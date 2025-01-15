@@ -169,6 +169,8 @@ type (
 		pendingActivityWarningSent bool
 
 		executionStats *persistence.ExecutionStats
+
+		storageLocation types.StorageLocation
 	}
 )
 
@@ -594,6 +596,10 @@ func (e *mutableStateBuilder) GetCurrentVersion() int64 {
 	}
 
 	return common.EmptyVersion
+}
+
+func (e *mutableStateBuilder) GetShardID() int {
+	return e.shard.GetShardID()
 }
 
 func (e *mutableStateBuilder) GetStartVersion() (int64, error) {

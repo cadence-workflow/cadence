@@ -485,6 +485,7 @@ type (
 		History HistoryArchival `yaml:"history"`
 		// Visibility is the config for visibility archival
 		Visibility VisibilityArchival `yaml:"visibility"`
+		Execution  ExecutionArchival  `yaml:"execution"`
 	}
 
 	// HistoryArchival contains the config for history archival
@@ -495,6 +496,16 @@ type (
 		EnableRead bool `yaml:"enableRead"`
 		// Provider contains the config for all history archivers
 		Provider HistoryArchiverProvider `yaml:"provider"`
+	}
+
+	// ExecutionArchival
+	ExecutionArchival struct {
+		// Status is the status of history archival either: enabled, disabled, or paused
+		Status string `yaml:"status"`
+		// EnableRead whether execution can be read from archival
+		EnableRead bool `yaml:"enableRead"`
+		// Provider contains the config for all history archivers
+		Provider ExecutionArchiverProvider `yaml:"provider"`
 	}
 
 	// HistoryArchiverProvider contains the config for all history archivers.
@@ -535,6 +546,9 @@ type (
 	// For handling hardcoded config, see ToYamlNode.
 	VisibilityArchiverProvider map[string]*YamlNode
 
+	// todo
+	ExecutionArchiverProvider map[string]*YamlNode
+
 	// FilestoreArchiver contain the config for filestore archiver
 	FilestoreArchiver struct {
 		FileMode string `yaml:"fileMode"`
@@ -574,6 +588,7 @@ type (
 		History HistoryArchivalDomainDefaults `yaml:"history"`
 		// Visibility is the domain default visibility archival config for each domain
 		Visibility VisibilityArchivalDomainDefaults `yaml:"visibility"`
+		Execution  ExecutionArchivalDomainDefaults  `yaml:"execution"`
 	}
 
 	// HistoryArchivalDomainDefaults is the default history archival config for each domain
@@ -590,6 +605,12 @@ type (
 		Status string `yaml:"status"`
 		// URI is the domain default URI for visibility archiver
 		URI string `yaml:"URI"`
+	}
+
+	// ExecutionArchivalDefaults todo
+	ExecutionArchivalDomainDefaults struct {
+		Status string `yaml:"status"`
+		URI    string `yaml:"URI"`
 	}
 
 	// YamlNode is a lazy-unmarshaler, because *yaml.Node only exists in gopkg.in/yaml.v3, not v2,

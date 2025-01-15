@@ -115,6 +115,11 @@ const (
 	ArchiveTargetHistory ArchivalTarget = iota
 	// ArchiveTargetVisibility is the archive target for workflow visibility record
 	ArchiveTargetVisibility
+
+	// ArchiveTargetExecution Is the archival target for the workflow execution record / mutable state.
+	// intended to be used only after workflows are complete and therefore no longer subject to
+	// change (hopefully anyway)
+	ArchiveTargetExecution
 )
 
 var (
@@ -147,6 +152,7 @@ func NewClient(
 }
 
 // Archive starts an archival task
+// todo (make this also fallback with timeout on inline)
 func (c *client) Archive(ctx context.Context, request *ClientRequest) (*ClientResponse, error) {
 	scopeWithDomainTag := c.metricsScope.Tagged(metrics.DomainTag(request.ArchiveRequest.DomainName))
 	for _, target := range request.ArchiveRequest.Targets {
@@ -155,6 +161,8 @@ func (c *client) Archive(ctx context.Context, request *ClientRequest) (*ClientRe
 			scopeWithDomainTag.IncCounter(metrics.ArchiverClientHistoryRequestCountPerDomain)
 		case ArchiveTargetVisibility:
 			scopeWithDomainTag.IncCounter(metrics.ArchiverClientVisibilityRequestCountPerDomain)
+		case ArchiveTargetExecution:
+			// todo (david.porter)
 		}
 	}
 	logger := c.logger.WithTags(
@@ -164,6 +172,7 @@ func (c *client) Archive(ctx context.Context, request *ClientRequest) (*ClientRe
 	resp := &ClientResponse{
 		HistoryArchivedInline: false,
 	}
+	// todo add a fallback if it's taking too long
 	if request.AttemptArchiveInline {
 		results := []chan error{}
 		for _, target := range request.ArchiveRequest.Targets {
@@ -174,6 +183,8 @@ func (c *client) Archive(ctx context.Context, request *ClientRequest) (*ClientRe
 				go c.archiveHistoryInline(ctx, request, logger, ch)
 			case ArchiveTargetVisibility:
 				go c.archiveVisibilityInline(ctx, request, logger, ch)
+			case ArchiveTargetExecution:
+				go c.archiveExecutionInline(ctx, request, logger, ch)
 			default:
 				close(ch)
 			}
@@ -319,4 +330,42 @@ func (c *client) sendArchiveSignal(ctx context.Context, request *ArchiveRequest,
 		return err
 	}
 	return nil
+}
+
+func (c *client) archiveExecutionInline(ctx context.Context, request *ClientRequest, logger log.Logger, errCh chan error) {
+	logger = tagLoggerWithVisibilityRequest(logger, request.ArchiveRequest)
+	//scopeWithDomainTag := c.metricsScope.Tagged(metrics.DomainTag(request.ArchiveRequest.DomainName))
+	if !c.inlineVisibilityRateLimiter.Allow() {
+		//scopeWithDomainTag.IncCounter(metrics.ArchiverClientVisibilityInlineArchiveThrottledCountPerDomain)
+		logger.Debug("inline execution archival throttled")
+		errCh <- errInlineArchivalThrottled
+		return
+	}
+
+	var err error
+	defer func() {
+		if err != nil {
+			//scopeWithDomainTag.IncCounter(metrics.ArchiverClientVisibilityInlineArchiveFailureCountPerDomain)
+			logger.Info("failed to perform execution archival inline", tag.Error(err))
+		}
+		errCh <- err
+	}()
+	//scopeWithDomainTag.IncCounter(metrics.ArchiverClientVisibilityInlineArchiveAttemptCountPerDomain)
+	URI, err := carchiver.NewURI(request.ArchiveRequest.URI)
+	if err != nil {
+		return
+	}
+
+	executionArchiver, err := c.archiverProvider.GetExecutionArchiver(URI.Scheme(), request.CallerService)
+	if err != nil {
+		return
+	}
+
+	err = executionArchiver.ArchiveExecution(ctx, URI, &carchiver.ArchiveExecutionRequest{
+		DomainID:   request.ArchiveRequest.DomainID,
+		DomainName: request.ArchiveRequest.DomainName,
+		WorkflowID: request.ArchiveRequest.WorkflowID,
+		RunID:      request.ArchiveRequest.RunID,
+		ShardID:    request.ArchiveRequest.ShardID,
+	})
 }

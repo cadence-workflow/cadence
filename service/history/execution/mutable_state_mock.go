@@ -1449,6 +1449,20 @@ func (mr *MockMutableStateMockRecorder) GetRetryBackoffDuration(errReason any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRetryBackoffDuration", reflect.TypeOf((*MockMutableState)(nil).GetRetryBackoffDuration), errReason)
 }
 
+// GetShardID mocks base method.
+func (m *MockMutableState) GetShardID() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetShardID")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// GetShardID indicates an expected call of GetShardID.
+func (mr *MockMutableStateMockRecorder) GetShardID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetShardID", reflect.TypeOf((*MockMutableState)(nil).GetShardID))
+}
+
 // GetSignalInfo mocks base method.
 func (m *MockMutableState) GetSignalInfo(arg0 int64) (*persistence.SignalInfo, bool) {
 	m.ctrl.T.Helper()
@@ -1492,6 +1506,20 @@ func (m *MockMutableState) GetStartVersion() (int64, error) {
 func (mr *MockMutableStateMockRecorder) GetStartVersion() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStartVersion", reflect.TypeOf((*MockMutableState)(nil).GetStartVersion))
+}
+
+// GetStorageLocation mocks base method.
+func (m *MockMutableState) GetStorageLocation() types.StorageLocation {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetStorageLocation")
+	ret0, _ := ret[0].(types.StorageLocation)
+	return ret0
+}
+
+// GetStorageLocation indicates an expected call of GetStorageLocation.
+func (mr *MockMutableStateMockRecorder) GetStorageLocation() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStorageLocation", reflect.TypeOf((*MockMutableState)(nil).GetStorageLocation))
 }
 
 // GetTimerTasks mocks base method.
@@ -2450,6 +2478,18 @@ func (m *MockMutableState) SetQueryRegistry(arg0 query.Registry) {
 func (mr *MockMutableStateMockRecorder) SetQueryRegistry(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetQueryRegistry", reflect.TypeOf((*MockMutableState)(nil).SetQueryRegistry), arg0)
+}
+
+// SetStorageLocation mocks base method.
+func (m *MockMutableState) SetStorageLocation(loc types.StorageLocation) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetStorageLocation", loc)
+}
+
+// SetStorageLocation indicates an expected call of SetStorageLocation.
+func (mr *MockMutableStateMockRecorder) SetStorageLocation(loc interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetStorageLocation", reflect.TypeOf((*MockMutableState)(nil).SetStorageLocation), loc)
 }
 
 // SetUpdateCondition mocks base method.

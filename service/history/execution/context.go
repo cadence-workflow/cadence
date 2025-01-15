@@ -346,6 +346,7 @@ func (c *contextImpl) LoadWorkflowExecutionWithTaskVersion(
 			}
 			c.mutableState = c.createMutableStateFn(c.shard, c.logger, domainEntry)
 			err = c.mutableState.Load(response.State)
+			c.mutableState.SetStorageLocation(types.StorageLocation(response.StorageLocation))
 			if err == nil {
 				break
 			} else if !isChecksumError(err) {

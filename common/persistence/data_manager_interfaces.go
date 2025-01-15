@@ -54,6 +54,7 @@ package persistence
 import (
 	"context"
 	"fmt"
+	"github.com/uber/cadence/common/config"
 	"strings"
 	"time"
 
@@ -273,6 +274,15 @@ const (
 )
 
 const numItemsInGarbageInfo = 3
+
+type StorageLocation int
+
+const (
+	StorageLocationUnknown     StorageLocation = iota
+	StorageLocationDatabase    StorageLocation = iota
+	StorageLocationWarmStorage StorageLocation = iota
+	StorageLocationArchival    StorageLocation = iota
+)
 
 type ConfigType int
 
@@ -669,6 +679,7 @@ type (
 	GetWorkflowExecutionResponse struct {
 		State             *WorkflowMutableState
 		MutableStateStats *MutableStateStats
+		StorageLocation   StorageLocation
 	}
 
 	// GetCurrentExecutionRequest is used to retrieve the current RunId for an execution
@@ -1587,6 +1598,8 @@ type (
 		ListConcreteExecutions(ctx context.Context, request *ListConcreteExecutionsRequest) (*ListConcreteExecutionsResponse, error)
 		ListCurrentExecutions(ctx context.Context, request *ListCurrentExecutionsRequest) (*ListCurrentExecutionsResponse, error)
 	}
+
+	ExecutionWrappers []func(ExecutionManager, *config.Persistence) ExecutionManager
 
 	// ExecutionManagerFactory creates an instance of ExecutionManager for a given shard
 	ExecutionManagerFactory interface {

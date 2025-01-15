@@ -36,6 +36,7 @@ func (*noOpArchiverProvider) RegisterBootstrapContainer(
 	serviceName string,
 	historyContainer *archiver.HistoryBootstrapContainer,
 	visibilityContainter *archiver.VisibilityBootstrapContainer,
+	executionContainer *archiver.ExecutionBootstrapContainer,
 ) error {
 	return nil
 }
@@ -48,6 +49,10 @@ func (*noOpArchiverProvider) GetVisibilityArchiver(scheme, serviceName string) (
 	return &noOpVisibilityArchiver{}, nil
 }
 
+func (*noOpArchiverProvider) GetExecutionArchiver(scheme, serviceName string) (archiver.ExecutionArchiver, error) {
+	return nil, nil
+}
+
 type noOpHistoryArchiver struct{}
 
 func (*noOpHistoryArchiver) Archive(context.Context, archiver.URI, *archiver.ArchiveHistoryRequest, ...archiver.ArchiveOption) error {
@@ -55,6 +60,10 @@ func (*noOpHistoryArchiver) Archive(context.Context, archiver.URI, *archiver.Arc
 }
 
 func (*noOpHistoryArchiver) Get(context.Context, archiver.URI, *archiver.GetHistoryRequest) (*archiver.GetHistoryResponse, error) {
+	return &archiver.GetHistoryResponse{}, nil
+}
+
+func (*noOpHistoryArchiver) GetWorkflowHistoryForPersistence(context.Context, *archiver.GetHistoryRequest) (*archiver.GetHistoryResponse, error) {
 	return &archiver.GetHistoryResponse{}, nil
 }
 

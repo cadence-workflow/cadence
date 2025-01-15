@@ -46,6 +46,10 @@ func (e *mutableStateBuilder) AddCompletedWorkflowEvent(
 	}
 
 	event := e.hBuilder.AddCompletedWorkflowEvent(decisionCompletedEventID, attributes)
+
+	// completed workflow here
+
+	// todo (David.Porter) refactor the 'replicate workflow' name, it's completely misleading
 	if err := e.ReplicateWorkflowExecutionCompletedEvent(decisionCompletedEventID, event); err != nil {
 		return nil, err
 	}
