@@ -174,6 +174,8 @@ func getValue(f *reflect.Value) interface{} {
 			return fn()
 		case dynamicconfig.StringPropertyWithRatelimitKeyFilter:
 			return fn("user:domain")
+		case dynamicconfig.StringPropertyFnWithDomainFilter:
+			return fn("domain")
 		default:
 			panic("Unable to handle type: " + f.Type().Name())
 		}

@@ -2,10 +2,10 @@ frontend.enableClientVersionCheck:
   - value: true
 system.advancedVisibilityWritingMode:
   - value: "on"
-system.enableReadVisibilityFromES:
-  - value: false
-system.enableReadVisibilityFromPinot:
-  - value: true
+system.advancedVisibilityMigrationWritingMode:
+  - value: "es,pinot"
+system.readVisibilityStoreName:
+  - value: "es"
 system.enableVisibilityDoubleRead:
   - value: false
 system.enableLogCustomerQueryParameter:
