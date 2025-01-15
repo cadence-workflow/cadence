@@ -353,9 +353,9 @@ func PrettyPrintHistory(history *types.History, logger log.Logger) {
 		logger.Error("Error serializing history: %v\n", tag.Error(err))
 	}
 
-	fmt.Println("******************************************")
-	fmt.Println("History", tag.DetailInfo(string(data)))
-	fmt.Println("******************************************")
+	logger.Debug("******************************************")
+	logger.Debug("History", tag.DetailInfo(string(data)))
+	logger.Debug("******************************************")
 }
 
 // IsValidContext checks that the thrift context is not expired on cancelled.
