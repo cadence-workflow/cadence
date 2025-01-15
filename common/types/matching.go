@@ -418,14 +418,10 @@ func (v *MatchingPollForDecisionTaskRequest) GetIsolationGroup() (o string) {
 	return
 }
 
-type TaskListPartition struct {
-	IsolationGroups []string
-}
-
 type TaskListPartitionConfig struct {
-	Version         int64
-	ReadPartitions  map[int]*TaskListPartition
-	WritePartitions map[int]*TaskListPartition
+	Version            int64
+	NumReadPartitions  int32
+	NumWritePartitions int32
 }
 
 // MatchingPollForDecisionTaskResponse is an internal type (TBD...)

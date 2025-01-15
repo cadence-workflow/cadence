@@ -529,36 +529,14 @@ func TestTaskListPartitionConfigToInternalType(t *testing.T) {
 		{
 			name: "normal case",
 			input: &TaskListPartitionConfig{
-				Version: 1,
-				ReadPartitions: map[int]*TaskListPartition{
-					0: {
-						IsolationGroups: []string{"foo"},
-					},
-					1: {},
-				},
-				WritePartitions: map[int]*TaskListPartition{
-					0: {
-						IsolationGroups: []string{"foo"},
-					},
-					1: {},
-					2: {},
-				},
+				Version:            1,
+				NumReadPartitions:  2,
+				NumWritePartitions: 3,
 			},
 			expect: &types.TaskListPartitionConfig{
-				Version: 1,
-				ReadPartitions: map[int]*types.TaskListPartition{
-					0: {
-						IsolationGroups: []string{"foo"},
-					},
-					1: {},
-				},
-				WritePartitions: map[int]*types.TaskListPartition{
-					0: {
-						IsolationGroups: []string{"foo"},
-					},
-					1: {},
-					2: {},
-				},
+				Version:            1,
+				NumReadPartitions:  2,
+				NumWritePartitions: 3,
 			},
 		},
 	}

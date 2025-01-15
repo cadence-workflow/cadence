@@ -42,6 +42,8 @@ const (
 	MatchingDefaultLongPollTimeout = time.Minute * 2
 	// HistoryDefaultTimeout is the default timeout used to make calls
 	HistoryDefaultTimeout = time.Second * 30
+	// ShardDistributorDefaultTimeout is the default timeout used to make calls
+	ShardDistributorDefaultTimeout = time.Second * 10
 )
 
 func createContext(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {

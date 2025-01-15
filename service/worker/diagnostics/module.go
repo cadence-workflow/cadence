@@ -34,8 +34,8 @@ import (
 
 	"github.com/uber/cadence/client"
 	"github.com/uber/cadence/common"
-	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/messaging"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant"
 )
@@ -46,36 +46,36 @@ type DiagnosticsWorkflow interface {
 }
 
 type dw struct {
-	svcClient     workflowserviceclient.Interface
-	clientBean    client.Bean
-	metricsClient metrics.Client
-	logger        log.Logger
-	tallyScope    tally.Scope
-	worker        worker.Worker
-	kafkaCfg      config.KafkaConfig
-	invariants    []invariant.Invariant
+	svcClient       workflowserviceclient.Interface
+	clientBean      client.Bean
+	metricsClient   metrics.Client
+	messagingClient messaging.Client
+	logger          log.Logger
+	tallyScope      tally.Scope
+	worker          worker.Worker
+	invariants      []invariant.Invariant
 }
 
 type Params struct {
-	ServiceClient workflowserviceclient.Interface
-	ClientBean    client.Bean
-	MetricsClient metrics.Client
-	Logger        log.Logger
-	TallyScope    tally.Scope
-	KafkaCfg      config.KafkaConfig
-	Invariants    []invariant.Invariant
+	ServiceClient   workflowserviceclient.Interface
+	ClientBean      client.Bean
+	MetricsClient   metrics.Client
+	MessagingClient messaging.Client
+	Logger          log.Logger
+	TallyScope      tally.Scope
+	Invariants      []invariant.Invariant
 }
 
 // New creates a new diagnostics workflow.
 func New(params Params) DiagnosticsWorkflow {
 	return &dw{
-		svcClient:     params.ServiceClient,
-		metricsClient: params.MetricsClient,
-		tallyScope:    params.TallyScope,
-		clientBean:    params.ClientBean,
-		logger:        params.Logger,
-		kafkaCfg:      params.KafkaCfg,
-		invariants:    params.Invariants,
+		svcClient:       params.ServiceClient,
+		metricsClient:   params.MetricsClient,
+		messagingClient: params.MessagingClient,
+		tallyScope:      params.TallyScope,
+		clientBean:      params.ClientBean,
+		logger:          params.Logger,
+		invariants:      params.Invariants,
 	}
 }
 

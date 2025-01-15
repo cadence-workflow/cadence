@@ -180,6 +180,18 @@ func TestDirectOutbound(t *testing.T) {
 	assert.NotNil(t, outbounds["cadence-history"].Unary)
 }
 
+func TestSingleGRPCOutbound(t *testing.T) {
+	grpc := &grpc.Transport{}
+	tchannel := &tchannel.Transport{}
+
+	builder := NewSingleGRPCOutboundBuilder("grpc-only-out", "grpc-service-name", "http://example.com:1234")
+
+	outBound, err := builder.Build(grpc, tchannel)
+	assert.NoError(t, err)
+	assert.Equal(t, "grpc-service-name", outBound.Outbounds["grpc-only-out"].ServiceName)
+	assert.NotNil(t, outBound.Outbounds["grpc-only-out"].Unary)
+}
+
 func TestIsGRPCOutboud(t *testing.T) {
 	assert.True(t, IsGRPCOutbound(&transport.OutboundConfig{Outbounds: transport.Outbounds{Unary: (&grpc.Transport{}).NewSingleOutbound("localhost:1234")}}))
 	assert.False(t, IsGRPCOutbound(&transport.OutboundConfig{Outbounds: transport.Outbounds{Unary: (&tchannel.Transport{}).NewSingleOutbound("localhost:1234")}}))

@@ -84,6 +84,10 @@ type (
 		// To use Async APIs for a domain first specify the queue using Admin API.
 		// Either refer to one of the predefined queues in this config or alternatively specify the queue details inline in the API call.
 		AsyncWorkflowQueues map[string]AsyncWorkflowQueueProvider `yaml:"asyncWorkflowQueues"`
+		// ShardDistributorClient is the config for shard distributor client
+		// Shard distributor is used to distribute shards across multiple cadence service instances
+		// Note: This is not recommended for use, it's still experimental
+		ShardDistributorClient ShardDistributorClient `yaml:"shardDistributorClient"`
 	}
 
 	// Membership holds peer provider configuration.
@@ -590,6 +594,12 @@ type (
 		Status string `yaml:"status"`
 		// URI is the domain default URI for visibility archiver
 		URI string `yaml:"URI"`
+	}
+
+	// ShardDistributorClient contains the config items for shard distributor
+	ShardDistributorClient struct {
+		// The host and port of the shard distributor server
+		HostPort string `yaml:"hostPort"`
 	}
 
 	// YamlNode is a lazy-unmarshaler, because *yaml.Node only exists in gopkg.in/yaml.v3, not v2,

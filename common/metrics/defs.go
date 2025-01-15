@@ -859,6 +859,9 @@ const (
 	// PartitionConfigProviderScope is the metrics scope for Partition Config Provider
 	PartitionConfigProviderScope
 
+	// ShardDistributorClientGetShardOwnerScope tracks GetShardOwner calls made by service to shard distributor
+	ShardDistributorClientGetShardOwnerScope
+
 	NumCommonScopes
 )
 
@@ -1777,6 +1780,8 @@ var ScopeDefs = map[ServiceIdx]map[int]scopeDefinition{
 
 		P2PRPCPeerChooserScope:       {operation: "P2PRPCPeerChooser"},
 		PartitionConfigProviderScope: {operation: "PartitionConfigProvider"},
+
+		ShardDistributorClientGetShardOwnerScope: {operation: "ShardDistributorClientGetShardOwner"},
 	},
 	// Frontend Scope Names
 	Frontend: {

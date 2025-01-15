@@ -98,8 +98,7 @@ func (s *handlerSuite) SetupTest() {
 	s.mockEngine = engine.NewMockEngine(s.controller)
 	s.mockWFCache = workflowcache.NewMockWFCache(s.controller)
 	s.mockFailoverCoordinator = failover.NewMockCoordinator(s.controller)
-	internalRequestRateLimitingEnabledConfig := func(domainName string) bool { return false }
-	s.handler = NewHandler(s.mockResource, config.NewForTest(), s.mockWFCache, internalRequestRateLimitingEnabledConfig).(*handlerImpl)
+	s.handler = NewHandler(s.mockResource, config.NewForTest(), s.mockWFCache).(*handlerImpl)
 	s.handler.controller = s.mockShardController
 	s.mockTokenSerializer = common.NewMockTaskTokenSerializer(s.controller)
 	s.mockRatelimiter = quotas.NewMockLimiter(s.controller)

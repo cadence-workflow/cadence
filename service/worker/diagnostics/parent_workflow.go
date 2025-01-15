@@ -37,6 +37,8 @@ const (
 	queryDiagnosticsReport     = "query-diagnostics-report"
 
 	issueTypeTimeouts = "Timeout"
+	issueTypeFailures = "Failure"
+	issueTypeRetry    = "Retry"
 )
 
 type DiagnosticsStarterWorkflowInput struct {
@@ -84,7 +86,7 @@ func (w *dw) DiagnosticsStarterWorkflow(ctx workflow.Context, params Diagnostics
 		StartToCloseTimeout:    time.Second * 5,
 	}
 	activityCtx := workflow.WithActivityOptions(ctx, activityOptions)
-	err = workflow.ExecuteActivity(activityCtx, w.emitUsageLogs, analytics.WfDiagnosticsUsageData{
+	err = workflow.ExecuteActivity(activityCtx, emitUsageLogsActivity, analytics.WfDiagnosticsUsageData{
 		Domain:                params.Domain,
 		WorkflowID:            params.WorkflowID,
 		RunID:                 params.RunID,
@@ -105,7 +107,13 @@ func (w *dw) DiagnosticsStarterWorkflow(ctx workflow.Context, params Diagnostics
 func getIssueType(result DiagnosticsWorkflowResult) string {
 	var issueType string
 	if result.Timeouts != nil {
-		issueType = issueTypeTimeouts
+		issueType = fmt.Sprintf("%s-%s", issueType, issueTypeTimeouts)
+	}
+	if result.Failures != nil {
+		issueType = fmt.Sprintf("%s-%s", issueType, issueTypeFailures)
+	}
+	if result.Retries != nil {
+		issueType = fmt.Sprintf("%s-%s", issueType, issueTypeRetry)
 	}
 	return issueType
 }

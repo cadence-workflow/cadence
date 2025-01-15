@@ -34,6 +34,7 @@ import (
 	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
+	"github.com/uber/cadence/client/sharddistributor"
 	"github.com/uber/cadence/client/wrappers/retryable"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/archiver"
@@ -108,14 +109,16 @@ type Impl struct {
 
 	// internal services clients
 
-	sdkClient         workflowserviceclient.Interface
-	frontendRawClient frontend.Client
-	frontendClient    frontend.Client
-	matchingRawClient matching.Client
-	matchingClient    matching.Client
-	historyRawClient  history.Client
-	historyClient     history.Client
-	clientBean        client.Bean
+	sdkClient                 workflowserviceclient.Interface
+	frontendRawClient         frontend.Client
+	frontendClient            frontend.Client
+	matchingRawClient         matching.Client
+	matchingClient            matching.Client
+	historyRawClient          history.Client
+	historyClient             history.Client
+	shardDistributorRawClient sharddistributor.Client
+	shardDistributorClient    sharddistributor.Client
+	clientBean                client.Bean
 
 	// persistence clients
 	persistenceBean persistenceClient.Bean
@@ -253,6 +256,21 @@ func New(
 		serviceConfig.IsErrorRetryableFunction,
 	)
 
+	shardDistributorRawClient := clientBean.GetShardDistributorClient()
+
+	// If the raw client is nil, then the client bean is not configured to provide a shard distributor client, so we
+	// do not wrap and provide a retryable client
+	var shardDistributorClient sharddistributor.Client
+	if shardDistributorRawClient == nil {
+		shardDistributorClient = nil
+	} else {
+		shardDistributorClient = retryable.NewShardDistributorClient(
+			shardDistributorRawClient,
+			common.CreateShardDistributorServiceRetryPolicy(),
+			serviceConfig.IsErrorRetryableFunction,
+		)
+	}
+
 	var historyRawClient history.Client
 	if params.HistoryClientFn != nil {
 		logger.Debug("Using history client from HistoryClientFn")
@@ -336,14 +354,16 @@ func New(
 
 		// internal services clients
 
-		sdkClient:         params.PublicClient,
-		frontendRawClient: frontendRawClient,
-		frontendClient:    frontendClient,
-		matchingRawClient: matchingRawClient,
-		matchingClient:    matchingClient,
-		historyRawClient:  historyRawClient,
-		historyClient:     historyClient,
-		clientBean:        clientBean,
+		sdkClient:                 params.PublicClient,
+		frontendRawClient:         frontendRawClient,
+		frontendClient:            frontendClient,
+		matchingRawClient:         matchingRawClient,
+		matchingClient:            matchingClient,
+		historyRawClient:          historyRawClient,
+		historyClient:             historyClient,
+		shardDistributorRawClient: shardDistributorRawClient,
+		shardDistributorClient:    shardDistributorClient,
+		clientBean:                clientBean,
 
 		// persistence clients
 		persistenceBean: persistenceBean,

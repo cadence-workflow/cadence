@@ -70,16 +70,6 @@ func TestSelectTaskList(t *testing.T) {
 						"version":              int64(0),
 						"num_read_partitions":  int(1),
 						"num_write_partitions": int(1),
-						"read_partitions": map[int]map[string]any{
-							0: {
-								"isolation_groups": []string{"foo"},
-							},
-						},
-						"write_partitions": map[int]map[string]any{
-							0: {
-								"isolation_groups": []string{"bar"},
-							},
-						},
 					}
 					return nil
 				}).Times(1)
@@ -93,64 +83,9 @@ func TestSelectTaskList(t *testing.T) {
 				RangeID:         25,
 				LastUpdatedTime: now,
 				AdaptivePartitionConfig: &persistence.TaskListPartitionConfig{
-					Version: 0,
-					ReadPartitions: map[int]*persistence.TaskListPartition{
-						0: {
-							IsolationGroups: []string{"foo"},
-						},
-					},
-					WritePartitions: map[int]*persistence.TaskListPartition{
-						0: {
-							IsolationGroups: []string{"bar"},
-						},
-					},
-				},
-			},
-			wantQueries: []string{
-				`SELECT range_id, task_list FROM tasks WHERE domain_id = domain1 and task_list_name = tasklist1 and task_list_type = 1 and type = 1 and task_id = -12345`,
-			},
-		},
-		{
-			name: "success - partition numbers only",
-			filter: &nosqlplugin.TaskListFilter{
-				DomainID:     "domain1",
-				TaskListName: "tasklist1",
-				TaskListType: 1,
-			},
-			queryMockFn: func(query *gocql.MockQuery) {
-				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
-				query.EXPECT().Scan(gomock.Any()).DoAndReturn(func(args ...interface{}) error {
-					rangeID := args[0].(*int64)
-					*rangeID = 25
-					tlDB := args[1].(*map[string]interface{})
-					*tlDB = make(map[string]interface{})
-					(*tlDB)["ack_level"] = int64(1000)
-					(*tlDB)["kind"] = 2
-					(*tlDB)["last_updated"] = now
-					(*tlDB)["adaptive_partition_config"] = map[string]interface{}{
-						"version":              int64(0),
-						"num_read_partitions":  int(1),
-						"num_write_partitions": int(1),
-					}
-					return nil
-				}).Times(1)
-			},
-			wantRow: &nosqlplugin.TaskListRow{
-				DomainID:        "domain1",
-				TaskListName:    "tasklist1",
-				TaskListType:    1,
-				TaskListKind:    2,
-				AckLevel:        1000,
-				RangeID:         25,
-				LastUpdatedTime: now,
-				AdaptivePartitionConfig: &persistence.TaskListPartitionConfig{
-					Version: 0,
-					ReadPartitions: map[int]*persistence.TaskListPartition{
-						0: {},
-					},
-					WritePartitions: map[int]*persistence.TaskListPartition{
-						0: {},
-					},
+					Version:            0,
+					NumReadPartitions:  1,
+					NumWritePartitions: 1,
 				},
 			},
 			wantQueries: []string{
@@ -258,13 +193,9 @@ func TestInsertTaskList(t *testing.T) {
 				RangeID:         25,
 				LastUpdatedTime: ts,
 				AdaptivePartitionConfig: &persistence.TaskListPartitionConfig{
-					Version: 1,
-					ReadPartitions: map[int]*persistence.TaskListPartition{
-						0: {},
-					},
-					WritePartitions: map[int]*persistence.TaskListPartition{
-						0: {},
-					},
+					Version:            1,
+					NumReadPartitions:  1,
+					NumWritePartitions: 1,
 				},
 			},
 			queryMockFn: func(query *gocql.MockQuery) {
@@ -993,23 +924,25 @@ func TestSelectTasks(t *testing.T) {
 						"task_id": int64(1),
 						"task": map[string]interface{}{
 							"domain_id":        &fakeUUID{uuid: "domain1"},
-							"wofklow_id":       "wid1",
+							"workflow_id":      "wid1",
 							"schedule_id":      int64(42),
 							"created_time":     ts,
 							"run_id":           &fakeUUID{uuid: "runid1"},
 							"partition_config": map[string]string{},
 						},
+						"ttl": 2,
 					},
 					{
 						"task_id": int64(2),
 						"task": map[string]interface{}{
 							"domain_id":        &fakeUUID{uuid: "domain1"},
-							"worklow_id":       "wid1",
+							"workflow_id":      "wid1",
 							"schedule_id":      int64(45),
 							"created_time":     ts,
 							"run_id":           &fakeUUID{uuid: "runid1"},
 							"partition_config": map[string]string{},
 						},
+						"ttl": nil,
 					},
 					{
 						"missing_task_id": int64(1), // missing task_id so this row will be skipped
@@ -1018,23 +951,25 @@ func TestSelectTasks(t *testing.T) {
 						"task_id": int64(3),
 						"task": map[string]interface{}{
 							"domain_id":        &fakeUUID{uuid: "domain1"},
-							"worklow_id":       "wid1",
+							"workflow_id":      "wid1",
 							"schedule_id":      int64(48),
 							"created_time":     ts,
 							"run_id":           &fakeUUID{uuid: "runid1"},
 							"partition_config": map[string]string{},
 						},
+						"ttl": 4,
 					},
 					{
 						"task_id": int64(4), // this will be skipped because filter.BatchSize is reached
 						"task": map[string]interface{}{
 							"domain_id":        &fakeUUID{uuid: "domain1"},
-							"worklow_id":       "wid1",
+							"workflow_id":      "wid1",
 							"schedule_id":      int64(51),
 							"created_time":     ts,
 							"run_id":           &fakeUUID{uuid: "runid1"},
 							"partition_config": map[string]string{},
 						},
+						"ttl": 5,
 					},
 				},
 			},
@@ -1042,30 +977,36 @@ func TestSelectTasks(t *testing.T) {
 				{
 					DomainID:        "domain1",
 					TaskID:          1,
+					WorkflowID:      "wid1",
 					RunID:           "runid1",
 					ScheduledID:     42,
+					Expiry:          ts.Add(time.Second * 2),
 					CreatedTime:     ts,
 					PartitionConfig: map[string]string{},
 				},
 				{
 					DomainID:        "domain1",
 					TaskID:          2,
+					WorkflowID:      "wid1",
 					RunID:           "runid1",
 					ScheduledID:     45,
+					Expiry:          time.Time{},
 					CreatedTime:     ts,
 					PartitionConfig: map[string]string{},
 				},
 				{
 					DomainID:        "domain1",
 					TaskID:          3,
+					WorkflowID:      "wid1",
 					RunID:           "runid1",
 					ScheduledID:     48,
+					Expiry:          ts.Add(time.Second * 4),
 					CreatedTime:     ts,
 					PartitionConfig: map[string]string{},
 				},
 			},
 			wantQueries: []string{
-				`SELECT task_id, task FROM tasks WHERE domain_id = domain1 and task_list_name = tasklist1 and task_list_type = 1 and type = 0 and task_id > 0 and task_id <= 100`,
+				`SELECT task_id, task, TTL(task) AS ttl FROM tasks WHERE domain_id = domain1 and task_list_name = tasklist1 and task_list_type = 1 and type = 0 and task_id > 0 and task_id <= 100`,
 			},
 		},
 	}
@@ -1088,7 +1029,9 @@ func TestSelectTasks(t *testing.T) {
 			client := gocql.NewMockClient(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			db := newCassandraDBFromSession(cfg, session, logger, nil, dbWithClient(client))
+			timeSrc := clock.NewMockedTimeSourceAt(ts)
+
+			db := newCassandraDBFromSession(cfg, session, logger, nil, dbWithClient(client), dbWithTimeSource(timeSrc))
 
 			gotRows, err := db.SelectTasks(context.Background(), tc.filter)
 

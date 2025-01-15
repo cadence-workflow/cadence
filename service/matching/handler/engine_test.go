@@ -745,13 +745,9 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 				},
 				TaskListType: types.TaskListTypeActivity.Ptr(),
 				PartitionConfig: &types.TaskListPartitionConfig{
-					Version: 1,
-					ReadPartitions: map[int]*types.TaskListPartition{
-						0: {},
-					},
-					WritePartitions: map[int]*types.TaskListPartition{
-						0: {},
-					},
+					Version:            1,
+					NumReadPartitions:  2,
+					NumWritePartitions: 2,
 				},
 			},
 			hCtx: &handlerContext{
@@ -759,13 +755,9 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 			},
 			mockSetup: func(mockManager *tasklist.MockManager) {
 				mockManager.EXPECT().UpdateTaskListPartitionConfig(gomock.Any(), &types.TaskListPartitionConfig{
-					Version: 1,
-					ReadPartitions: map[int]*types.TaskListPartition{
-						0: {},
-					},
-					WritePartitions: map[int]*types.TaskListPartition{
-						0: {},
-					},
+					Version:            1,
+					NumReadPartitions:  2,
+					NumWritePartitions: 2,
 				}).Return(nil)
 			},
 			expectError: false,
@@ -779,13 +771,9 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 				},
 				TaskListType: types.TaskListTypeActivity.Ptr(),
 				PartitionConfig: &types.TaskListPartitionConfig{
-					Version: 1,
-					ReadPartitions: map[int]*types.TaskListPartition{
-						0: {},
-					},
-					WritePartitions: map[int]*types.TaskListPartition{
-						0: {},
-					},
+					Version:            1,
+					NumReadPartitions:  2,
+					NumWritePartitions: 2,
 				},
 			},
 			hCtx: &handlerContext{
@@ -793,13 +781,9 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 			},
 			mockSetup: func(mockManager *tasklist.MockManager) {
 				mockManager.EXPECT().UpdateTaskListPartitionConfig(gomock.Any(), &types.TaskListPartitionConfig{
-					Version: 1,
-					ReadPartitions: map[int]*types.TaskListPartition{
-						0: {},
-					},
-					WritePartitions: map[int]*types.TaskListPartition{
-						0: {},
-					},
+					Version:            1,
+					NumReadPartitions:  2,
+					NumWritePartitions: 2,
 				}).Return(errors.New("tasklist manager error"))
 			},
 			expectError:   true,
@@ -814,13 +798,9 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 				},
 				TaskListType: types.TaskListTypeActivity.Ptr(),
 				PartitionConfig: &types.TaskListPartitionConfig{
-					Version: 1,
-					ReadPartitions: map[int]*types.TaskListPartition{
-						0: {},
-					},
-					WritePartitions: map[int]*types.TaskListPartition{
-						0: {},
-					},
+					Version:            1,
+					NumReadPartitions:  2,
+					NumWritePartitions: 2,
 				},
 			},
 			hCtx: &handlerContext{
@@ -840,13 +820,9 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 				},
 				TaskListType: types.TaskListTypeActivity.Ptr(),
 				PartitionConfig: &types.TaskListPartitionConfig{
-					Version: 1,
-					ReadPartitions: map[int]*types.TaskListPartition{
-						0: {},
-					},
-					WritePartitions: map[int]*types.TaskListPartition{
-						0: {},
-					},
+					Version:            1,
+					NumReadPartitions:  2,
+					NumWritePartitions: 2,
 				},
 			},
 			hCtx: &handlerContext{
@@ -856,6 +832,50 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 			},
 			expectError:   true,
 			expectedError: "invalid partitioned task list name /__cadence_sys/test-tasklist",
+		},
+		{
+			name: "invalid partition config",
+			req: &types.MatchingUpdateTaskListPartitionConfigRequest{
+				DomainUUID: "test-domain-id",
+				TaskList: &types.TaskList{
+					Name: "test-tasklist",
+				},
+				TaskListType: types.TaskListTypeActivity.Ptr(),
+				PartitionConfig: &types.TaskListPartitionConfig{
+					Version:            1,
+					NumReadPartitions:  2,
+					NumWritePartitions: 3,
+				},
+			},
+			hCtx: &handlerContext{
+				Context: context.Background(),
+			},
+			mockSetup: func(mockManager *tasklist.MockManager) {
+			},
+			expectError:   true,
+			expectedError: "The number of write partitions cannot be larger than the number of read partitions.",
+		},
+		{
+			name: "invalid partition config - 2",
+			req: &types.MatchingUpdateTaskListPartitionConfigRequest{
+				DomainUUID: "test-domain-id",
+				TaskList: &types.TaskList{
+					Name: "test-tasklist",
+				},
+				TaskListType: types.TaskListTypeActivity.Ptr(),
+				PartitionConfig: &types.TaskListPartitionConfig{
+					Version:            1,
+					NumReadPartitions:  2,
+					NumWritePartitions: -1,
+				},
+			},
+			hCtx: &handlerContext{
+				Context: context.Background(),
+			},
+			mockSetup: func(mockManager *tasklist.MockManager) {
+			},
+			expectError:   true,
+			expectedError: "The number of partitions must be larger than 0.",
 		},
 		{
 			name: "nil partition config",
@@ -960,13 +980,9 @@ func TestRefreshTaskListPartitionConfig(t *testing.T) {
 				},
 				TaskListType: types.TaskListTypeActivity.Ptr(),
 				PartitionConfig: &types.TaskListPartitionConfig{
-					Version: 1,
-					ReadPartitions: map[int]*types.TaskListPartition{
-						0: {},
-					},
-					WritePartitions: map[int]*types.TaskListPartition{
-						0: {},
-					},
+					Version:            1,
+					NumReadPartitions:  2,
+					NumWritePartitions: 2,
 				},
 			},
 			hCtx: &handlerContext{
@@ -974,13 +990,9 @@ func TestRefreshTaskListPartitionConfig(t *testing.T) {
 			},
 			mockSetup: func(mockManager *tasklist.MockManager) {
 				mockManager.EXPECT().RefreshTaskListPartitionConfig(gomock.Any(), &types.TaskListPartitionConfig{
-					Version: 1,
-					ReadPartitions: map[int]*types.TaskListPartition{
-						0: {},
-					},
-					WritePartitions: map[int]*types.TaskListPartition{
-						0: {},
-					},
+					Version:            1,
+					NumReadPartitions:  2,
+					NumWritePartitions: 2,
 				}).Return(nil)
 			},
 			expectError: false,
@@ -994,13 +1006,9 @@ func TestRefreshTaskListPartitionConfig(t *testing.T) {
 				},
 				TaskListType: types.TaskListTypeActivity.Ptr(),
 				PartitionConfig: &types.TaskListPartitionConfig{
-					Version: 1,
-					ReadPartitions: map[int]*types.TaskListPartition{
-						0: {},
-					},
-					WritePartitions: map[int]*types.TaskListPartition{
-						0: {},
-					},
+					Version:            1,
+					NumReadPartitions:  2,
+					NumWritePartitions: 2,
 				},
 			},
 			hCtx: &handlerContext{
@@ -1008,13 +1016,9 @@ func TestRefreshTaskListPartitionConfig(t *testing.T) {
 			},
 			mockSetup: func(mockManager *tasklist.MockManager) {
 				mockManager.EXPECT().RefreshTaskListPartitionConfig(gomock.Any(), &types.TaskListPartitionConfig{
-					Version: 1,
-					ReadPartitions: map[int]*types.TaskListPartition{
-						0: {},
-					},
-					WritePartitions: map[int]*types.TaskListPartition{
-						0: {},
-					},
+					Version:            1,
+					NumReadPartitions:  2,
+					NumWritePartitions: 2,
 				}).Return(errors.New("tasklist manager error"))
 			},
 			expectError:   true,
@@ -1029,13 +1033,9 @@ func TestRefreshTaskListPartitionConfig(t *testing.T) {
 				},
 				TaskListType: types.TaskListTypeActivity.Ptr(),
 				PartitionConfig: &types.TaskListPartitionConfig{
-					Version: 1,
-					ReadPartitions: map[int]*types.TaskListPartition{
-						0: {},
-					},
-					WritePartitions: map[int]*types.TaskListPartition{
-						0: {},
-					},
+					Version:            1,
+					NumReadPartitions:  2,
+					NumWritePartitions: 2,
 				},
 			},
 			hCtx: &handlerContext{
@@ -1045,6 +1045,50 @@ func TestRefreshTaskListPartitionConfig(t *testing.T) {
 			},
 			expectError:   true,
 			expectedError: "invalid partitioned task list name /__cadence_sys/test-tasklist",
+		},
+		{
+			name: "invalid partition config",
+			req: &types.MatchingRefreshTaskListPartitionConfigRequest{
+				DomainUUID: "test-domain-id",
+				TaskList: &types.TaskList{
+					Name: "test-tasklist",
+				},
+				TaskListType: types.TaskListTypeActivity.Ptr(),
+				PartitionConfig: &types.TaskListPartitionConfig{
+					Version:            1,
+					NumReadPartitions:  2,
+					NumWritePartitions: 3,
+				},
+			},
+			hCtx: &handlerContext{
+				Context: context.Background(),
+			},
+			mockSetup: func(mockManager *tasklist.MockManager) {
+			},
+			expectError:   true,
+			expectedError: "The number of write partitions cannot be larger than the number of read partitions.",
+		},
+		{
+			name: "invalid partition config - 2",
+			req: &types.MatchingRefreshTaskListPartitionConfigRequest{
+				DomainUUID: "test-domain-id",
+				TaskList: &types.TaskList{
+					Name: "test-tasklist",
+				},
+				TaskListType: types.TaskListTypeActivity.Ptr(),
+				PartitionConfig: &types.TaskListPartitionConfig{
+					Version:            1,
+					NumReadPartitions:  2,
+					NumWritePartitions: -1,
+				},
+			},
+			hCtx: &handlerContext{
+				Context: context.Background(),
+			},
+			mockSetup: func(mockManager *tasklist.MockManager) {
+			},
+			expectError:   true,
+			expectedError: "The number of partitions must be larger than 0.",
 		},
 		{
 			name: "invalid tasklist kind",
@@ -1073,13 +1117,9 @@ func TestRefreshTaskListPartitionConfig(t *testing.T) {
 				},
 				TaskListType: types.TaskListTypeActivity.Ptr(),
 				PartitionConfig: &types.TaskListPartitionConfig{
-					Version: 1,
-					ReadPartitions: map[int]*types.TaskListPartition{
-						0: {},
-					},
-					WritePartitions: map[int]*types.TaskListPartition{
-						0: {},
-					},
+					Version:            1,
+					NumReadPartitions:  2,
+					NumWritePartitions: 2,
 				},
 			},
 			hCtx: &handlerContext{

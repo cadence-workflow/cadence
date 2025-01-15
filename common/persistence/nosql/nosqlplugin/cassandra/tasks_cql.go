@@ -49,7 +49,7 @@ const (
 		`domain_id, task_list_name, task_list_type, type, task_id, task, created_time) ` +
 		`VALUES(?, ?, ?, ?, ?, ` + templateTaskType + `, ?) USING TTL ?`
 
-	templateGetTasksQuery = `SELECT task_id, task ` +
+	templateGetTasksQuery = `SELECT task_id, task, TTL(task) AS ttl ` +
 		`FROM tasks ` +
 		`WHERE domain_id = ? ` +
 		`and task_list_name = ? ` +

@@ -25,8 +25,8 @@ package diagnostics
 import (
 	"context"
 
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/messaging"
-	"github.com/uber/cadence/common/messaging/kafka"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/worker/diagnostics/analytics"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant"
@@ -93,18 +93,20 @@ func (w *dw) rootCauseIssues(ctx context.Context, info rootCauseIssuesParams) ([
 }
 
 func (w *dw) emitUsageLogs(ctx context.Context, info analytics.WfDiagnosticsUsageData) error {
-	client := w.newMessagingClient()
-	return emit(ctx, info, client)
+	if w.messagingClient == nil {
+		// skip emitting logs if messaging client is not provided since it is optional
+		w.logger.Error("messaging client is not provided, skipping emitting wf-diagnostics usage logs", tag.WorkflowDomainName(info.Domain))
+		return nil
+	}
+	return w.emit(ctx, info, w.messagingClient)
 }
 
-func (w *dw) newMessagingClient() messaging.Client {
-	return kafka.NewKafkaClient(&w.kafkaCfg, w.metricsClient, w.logger, w.tallyScope, true)
-}
-
-func emit(ctx context.Context, info analytics.WfDiagnosticsUsageData, client messaging.Client) error {
+func (w *dw) emit(ctx context.Context, info analytics.WfDiagnosticsUsageData, client messaging.Client) error {
 	producer, err := client.NewProducer(WfDiagnosticsAppName)
 	if err != nil {
-		return err
+		// skip emitting logs if producer cannot be created since it is optional
+		w.logger.Error("producer creation failed, skipping emitting wf-diagnostics usage logs", tag.WorkflowDomainName(info.Domain))
+		return nil
 	}
 	emitter := analytics.NewEmitter(analytics.EmitterParams{
 		Producer: producer,

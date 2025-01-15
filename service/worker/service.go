@@ -343,13 +343,13 @@ func (s *Service) startFixerWorkflowWorker() {
 
 func (s *Service) startDiagnostics() {
 	params := diagnostics.Params{
-		ServiceClient: s.params.PublicClient,
-		MetricsClient: s.GetMetricsClient(),
-		TallyScope:    s.params.MetricScope,
-		ClientBean:    s.GetClientBean(),
-		Logger:        s.GetLogger(),
-		KafkaCfg:      s.params.KafkaConfig,
-		Invariants:    s.params.DiagnosticsInvariants,
+		ServiceClient:   s.params.PublicClient,
+		MetricsClient:   s.GetMetricsClient(),
+		MessagingClient: s.GetMessagingClient(),
+		TallyScope:      s.params.MetricScope,
+		ClientBean:      s.GetClientBean(),
+		Logger:          s.GetLogger(),
+		Invariants:      s.params.DiagnosticsInvariants,
 	}
 	if err := diagnostics.New(params).Start(); err != nil {
 		s.Stop()

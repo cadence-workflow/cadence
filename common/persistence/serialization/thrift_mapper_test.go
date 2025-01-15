@@ -473,22 +473,9 @@ func TestTaskListInfo(t *testing.T) {
 		ExpiryTimestamp: time.Now(),
 		LastUpdated:     time.Now(),
 		AdaptivePartitionConfig: &TaskListPartitionConfig{
-			Version:           0,
-			NumReadPartitions: 1,
-			ReadPartitions: map[int32]*TaskListPartition{
-				0: {
-					IsolationGroups: []string{"foo"},
-				},
-			},
+			Version:            0,
+			NumReadPartitions:  1,
 			NumWritePartitions: 2,
-			WritePartitions: map[int32]*TaskListPartition{
-				0: {
-					IsolationGroups: []string{"foo"},
-				},
-				1: {
-					IsolationGroups: []string{"bar"},
-				},
-			},
 		},
 	}
 	actual := taskListInfoFromThrift(taskListInfoToThrift(expected))

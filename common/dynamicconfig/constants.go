@@ -1793,18 +1793,6 @@ const (
 	// Default value: true
 	// Allowed filters: DomainName
 	EnableRecordWorkflowExecutionUninitialized
-	// WorkflowIDExternalRateLimitEnabled is the key to enable/disable rate limiting for workflowID specific information for external requests
-	// KeyName: history.workflowIDExternalRateLimitEnabled
-	// Value type: Bool
-	// Default value: false
-	// Allowed filters: DomainName
-	WorkflowIDExternalRateLimitEnabled
-	// WorkflowIDInternalRateLimitEnabled is the key to enable/disable rate limiting for workflowID specific information for internal requests
-	// KeyName: history.workflowIDInternalRateLimitEnabled
-	// Value type: Bool
-	// Default value: false
-	// Allowed filters: DomainName
-	WorkflowIDInternalRateLimitEnabled
 	// AllowArchivingIncompleteHistory will continue on when seeing some error like history mutated(usually caused by database consistency issues)
 	// KeyName: worker.AllowArchivingIncompleteHistory
 	// Value type: Bool
@@ -2244,6 +2232,15 @@ const (
 	HistoryGlobalRatelimiterNewDataWeight
 
 	MatchingPartitionDownscaleFactor
+
+	// Key for shard distributor
+
+	// ShardDistributorErrorInjectionRate is rate for injecting random error in shard distributor client
+	// KeyName: sharddistributor.errorInjectionRate
+	// Value type: Float64
+	// Default value: 0
+	// Allowed filters: N/A
+	ShardDistributorErrorInjectionRate
 
 	// LastFloatKey must be the last one in this const group
 	LastFloatKey
@@ -4370,18 +4367,6 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "Enable TaskValidation",
 		DefaultValue: false,
 	},
-	WorkflowIDExternalRateLimitEnabled: {
-		KeyName:      "history.workflowIDExternalRateLimitEnabled",
-		Filters:      []Filter{DomainName},
-		Description:  "WorkflowIDExternalRateLimitEnabled is the key to enable/disable rate limiting of specific workflowIDs for external requests",
-		DefaultValue: false,
-	},
-	WorkflowIDInternalRateLimitEnabled: {
-		KeyName:      "history.workflowIDInternalRateLimitEnabled",
-		Filters:      []Filter{DomainName},
-		Description:  "WorkflowIDInternalRateLimitEnabled is the key to enable/disable rate limiting of specific workflowIDs for internal requests",
-		DefaultValue: false,
-	},
 	EnableRetryForChecksumFailure: {
 		KeyName:      "history.enableMutableStateChecksumFailureRetry",
 		Filters:      []Filter{DomainName},
@@ -4557,6 +4542,11 @@ var FloatKeys = map[FloatKey]DynamicFloat{
 		Description:  "MatchingPartitionDownscaleFactor introduces hysteresis to prevent oscillation by setting a lower QPS threshold for downscaling, ensuring partitions are only removed when the load decreases significantly below the capacity of fewer partitions.",
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
 		DefaultValue: 0.75,
+	},
+	ShardDistributorErrorInjectionRate: {
+		KeyName:      "sharddistributor.errorInjectionRate",
+		Description:  "ShardDistributorInjectionRate is rate for injecting random error in shard distributor client",
+		DefaultValue: 0,
 	},
 }
 

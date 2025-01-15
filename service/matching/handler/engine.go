@@ -539,6 +539,7 @@ pollLoop:
 		if err != nil {
 			return nil, fmt.Errorf("couldn't load tasklist namanger: %w", err)
 		}
+		startT := time.Now() // Record the start time
 		task, err := tlMgr.GetTask(pollerCtx, nil)
 		if err != nil {
 			// TODO: Is empty poll the best reply for errPumpClosed?
@@ -561,9 +562,14 @@ pollLoop:
 						"RequestForwardedFrom": req.GetForwardedFrom(),
 					},
 				})
+				domainName, _ := e.domainCache.GetDomainName(domainID)
 				return &types.MatchingPollForDecisionTaskResponse{
 					PartitionConfig:   tlMgr.TaskListPartitionConfig(),
 					LoadBalancerHints: tlMgr.LoadBalancerHints(),
+					AutoConfigHint: &types.AutoConfigHint{
+						EnableAutoConfig:   e.config.EnableClientAutoConfig(domainName, taskListName, persistence.TaskListTypeDecision),
+						PollerWaitTimeInMs: time.Since(startT).Milliseconds(),
+					},
 				}, nil
 			}
 			return nil, fmt.Errorf("couldn't get task: %w", err)
@@ -722,13 +728,19 @@ pollLoop:
 		if err != nil {
 			return nil, fmt.Errorf("couldn't load tasklist namanger: %w", err)
 		}
+		startT := time.Now() // Record the start time
 		task, err := tlMgr.GetTask(pollerCtx, maxDispatch)
 		if err != nil {
 			// TODO: Is empty poll the best reply for errPumpClosed?
 			if errors.Is(err, tasklist.ErrNoTasks) || errors.Is(err, errPumpClosed) {
+				domainName, _ := e.domainCache.GetDomainName(domainID)
 				return &types.MatchingPollForActivityTaskResponse{
 					PartitionConfig:   tlMgr.TaskListPartitionConfig(),
 					LoadBalancerHints: tlMgr.LoadBalancerHints(),
+					AutoConfigHint: &types.AutoConfigHint{
+						EnableAutoConfig:   e.config.EnableClientAutoConfig(domainName, taskListName, persistence.TaskListTypeDecision),
+						PollerWaitTimeInMs: time.Since(startT).Milliseconds(),
+					},
 				}, nil
 			}
 			e.logger.Error("Received unexpected err while getting task",
@@ -1050,6 +1062,12 @@ func (e *matchingEngineImpl) UpdateTaskListPartitionConfig(
 	if request.PartitionConfig == nil {
 		return nil, &types.BadRequestError{Message: "Task list partition config is not set in the request."}
 	}
+	if request.PartitionConfig.NumWritePartitions > request.PartitionConfig.NumReadPartitions {
+		return nil, &types.BadRequestError{Message: "The number of write partitions cannot be larger than the number of read partitions."}
+	}
+	if request.PartitionConfig.NumWritePartitions <= 0 {
+		return nil, &types.BadRequestError{Message: "The number of partitions must be larger than 0."}
+	}
 	taskListID, err := tasklist.NewIdentifier(domainID, taskListName, taskListType)
 	if err != nil {
 		return nil, err
@@ -1081,6 +1099,12 @@ func (e *matchingEngineImpl) RefreshTaskListPartitionConfig(
 	}
 	if taskListKind != types.TaskListKindNormal {
 		return nil, &types.BadRequestError{Message: "Only normal tasklist's partition config can be updated."}
+	}
+	if request.PartitionConfig != nil && request.PartitionConfig.NumWritePartitions > request.PartitionConfig.NumReadPartitions {
+		return nil, &types.BadRequestError{Message: "The number of write partitions cannot be larger than the number of read partitions."}
+	}
+	if request.PartitionConfig != nil && request.PartitionConfig.NumWritePartitions <= 0 {
+		return nil, &types.BadRequestError{Message: "The number of partitions must be larger than 0."}
 	}
 	taskListID, err := tasklist.NewIdentifier(domainID, taskListName, taskListType)
 	if err != nil {

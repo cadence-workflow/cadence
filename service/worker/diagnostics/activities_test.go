@@ -130,11 +130,12 @@ func Test__rootCauseIssues(t *testing.T) {
 
 func Test__emit(t *testing.T) {
 	ctrl := gomock.NewController(t)
+	dwtest := testDiagnosticWorkflow(t)
 	mockClient := messaging.NewMockClient(ctrl)
 	mockProducer := messaging.NewMockProducer(ctrl)
 	mockProducer.EXPECT().Publish(gomock.Any(), gomock.Any()).Return(nil)
 	mockClient.EXPECT().NewProducer(WfDiagnosticsAppName).Return(mockProducer, nil)
-	err := emit(context.Background(), analytics.WfDiagnosticsUsageData{}, mockClient)
+	err := dwtest.emit(context.Background(), analytics.WfDiagnosticsUsageData{}, mockClient)
 	require.NoError(t, err)
 }
 

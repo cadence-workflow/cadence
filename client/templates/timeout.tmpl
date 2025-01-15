@@ -11,7 +11,7 @@
  with field name as the key and field type as the value
  */}}
 {{$fieldMap := dict }}
-{{ if eq $ClientName "History" }}
+{{ if has $ClientName (list "History" "ShardDistributor") }}
     {{$fieldMap = merge $fieldMap (dict  "timeout" "time.Duration" "client" .Interface.Type) }}
 {{ else if eq $ClientName "Admin" }}
     {{$fieldMap = merge $fieldMap (dict  "timeout" "time.Duration" "client" .Interface.Type "largeTimeout" "time.Duration") }}

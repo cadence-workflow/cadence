@@ -46,15 +46,8 @@ func TestRatelimitedEndpoints_Table(t *testing.T) {
 	controller := gomock.NewController(t)
 
 	handlerMock := handler.NewMockHandler(controller)
-	var rateLimitingEnabled bool
 
-	wrapper := NewHistoryHandler(
-		handlerMock,
-		nil,
-		func(domainName string) bool { return rateLimitingEnabled },
-		nil,
-		log.NewNoop(),
-	)
+	wrapper := NewHistoryHandler(handlerMock, nil, log.NewNoop())
 
 	// We define the calls that should be ratelimited
 	limitedCalls := []struct {
