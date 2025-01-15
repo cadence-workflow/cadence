@@ -34,6 +34,7 @@ import (
 
 // InsertIntoHistoryTreeAndNode inserts one or two rows: tree row and node row(at least one of them)
 func (db *cdb) InsertIntoHistoryTreeAndNode(ctx context.Context, treeRow *nosqlplugin.HistoryTreeRow, nodeRow *nosqlplugin.HistoryNodeRow) error {
+	timeStamp := db.timeSrc.Now()
 	if treeRow == nil && nodeRow == nil {
 		return fmt.Errorf("require at least a tree row or a node row to insert")
 	}
@@ -53,19 +54,19 @@ func (db *cdb) InsertIntoHistoryTreeAndNode(ctx context.Context, treeRow *nosqlp
 		// Note: for perf, prefer using batch for inserting more than one records
 		batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
 		batch.Query(v2templateInsertTree,
-			treeRow.TreeID, treeRow.BranchID, ancs, persistence.UnixNanoToDBTimestamp(treeRow.CreateTimestamp.UnixNano()), treeRow.Info)
+			treeRow.TreeID, treeRow.BranchID, ancs, persistence.UnixNanoToDBTimestamp(treeRow.CreateTimestamp.UnixNano()), treeRow.Info, timeStamp)
 		batch.Query(v2templateUpsertData,
-			nodeRow.TreeID, nodeRow.BranchID, nodeRow.NodeID, nodeRow.TxnID, nodeRow.Data, nodeRow.DataEncoding)
+			nodeRow.TreeID, nodeRow.BranchID, nodeRow.NodeID, nodeRow.TxnID, nodeRow.Data, nodeRow.DataEncoding, timeStamp)
 		err = db.session.ExecuteBatch(batch)
 	} else {
 		var query gocql.Query
 		if treeRow != nil {
 			query = db.session.Query(v2templateInsertTree,
-				treeRow.TreeID, treeRow.BranchID, ancs, persistence.UnixNanoToDBTimestamp(treeRow.CreateTimestamp.UnixNano()), treeRow.Info).WithContext(ctx)
+				treeRow.TreeID, treeRow.BranchID, ancs, persistence.UnixNanoToDBTimestamp(treeRow.CreateTimestamp.UnixNano()), treeRow.Info, timeStamp).WithContext(ctx)
 		}
 		if nodeRow != nil {
 			query = db.session.Query(v2templateUpsertData,
-				nodeRow.TreeID, nodeRow.BranchID, nodeRow.NodeID, nodeRow.TxnID, nodeRow.Data, nodeRow.DataEncoding).WithContext(ctx)
+				nodeRow.TreeID, nodeRow.BranchID, nodeRow.NodeID, nodeRow.TxnID, nodeRow.Data, nodeRow.DataEncoding, timeStamp).WithContext(ctx)
 		}
 		err = query.Exec()
 	}

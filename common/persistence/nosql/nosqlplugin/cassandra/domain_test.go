@@ -30,6 +30,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log/testlogger"
@@ -191,7 +192,7 @@ func TestInsertDomain(t *testing.T) {
 				}).Times(1)
 			},
 			wantSessionQueries: []string{
-				`INSERT INTO domains (id, domain) VALUES(test-domain-id, {name: test-domain-name}) IF NOT EXISTS`,
+				`INSERT INTO domains (id, domain, created_time) VALUES(test-domain-id, {name: test-domain-name}, 2025-01-06T15:00:00Z) IF NOT EXISTS`,
 				`SELECT notification_version FROM domains_by_name_v2 WHERE domains_partition = 0 and name = cadence-domain-metadata `,
 			},
 			wantBatchQueries: []string{
@@ -208,7 +209,7 @@ func TestInsertDomain(t *testing.T) {
 					`previous_failover_version, ` +
 					`failover_end_time, ` +
 					`last_updated_time, ` +
-					`notification_version) ` +
+					`notification_version, created_time) ` +
 					`VALUES(` +
 					`0, ` +
 					`test-domain-name, ` +
@@ -222,7 +223,7 @@ func TestInsertDomain(t *testing.T) {
 					`-1, ` +
 					`1712167200000000000, ` +
 					`1712167200000000000, ` +
-					`7) ` +
+					`7, 2025-01-06T15:00:00Z) ` +
 					`IF NOT EXISTS`,
 				`UPDATE domains_by_name_v2 SET notification_version = 8 WHERE domains_partition = 0 and name = cadence-domain-metadata IF notification_version = 7 `,
 			},
@@ -249,6 +250,7 @@ func TestInsertDomain(t *testing.T) {
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
 			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db.timeSrc = clock.NewMockedTimeSourceAt(FixedTime)
 
 			err := db.InsertDomain(context.Background(), tc.row)
 

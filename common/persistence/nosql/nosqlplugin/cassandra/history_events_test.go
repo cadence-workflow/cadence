@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql"
 	"github.com/uber/cadence/common/types"
@@ -120,7 +121,7 @@ func TestInsertIntoHistoryTreeAndNode(t *testing.T) {
 				tt.setupMocks(ctrl, session)
 			}
 
-			db := &cdb{session: session}
+			db := &cdb{session: session, timeSrc: clock.NewMockedTimeSourceAt(FixedTime)}
 			err := db.InsertIntoHistoryTreeAndNode(context.Background(), tt.treeRow, tt.nodeRow)
 			if tt.expectError {
 				assert.Error(t, err, "Expected an error but got none")
