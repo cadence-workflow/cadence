@@ -562,33 +562,9 @@ func taskListPartitionConfigToThrift(info *TaskListPartitionConfig) *sqlblobs.Ta
 	}
 	return &sqlblobs.TaskListPartitionConfig{
 		Version:            &info.Version,
-		NumReadPartitions:  common.Int32Ptr(int32(len(info.ReadPartitions))),
-		NumWritePartitions: common.Int32Ptr(int32(len(info.WritePartitions))),
-		ReadPartitions:     taskListPartitionMapToThrift(info.ReadPartitions),
-		WritePartitions:    taskListPartitionMapToThrift(info.WritePartitions),
+		NumReadPartitions:  &info.NumReadPartitions,
+		NumWritePartitions: &info.NumWritePartitions,
 	}
-}
-
-func taskListPartitionMapToThrift(m map[int32]*TaskListPartition) map[int32]*sqlblobs.TaskListPartition {
-	if m == nil {
-		return nil
-	}
-	result := make(map[int32]*sqlblobs.TaskListPartition)
-	for id, p := range m {
-		result[id] = &sqlblobs.TaskListPartition{IsolationGroups: p.IsolationGroups}
-	}
-	return result
-}
-
-func taskListPartitionMapFromThrift(m map[int32]*sqlblobs.TaskListPartition) map[int32]*TaskListPartition {
-	if m == nil {
-		return nil
-	}
-	result := make(map[int32]*TaskListPartition)
-	for id, p := range m {
-		result[id] = &TaskListPartition{IsolationGroups: p.IsolationGroups}
-	}
-	return result
 }
 
 func taskListParititionConfigFromThrift(info *sqlblobs.TaskListPartitionConfig) *TaskListPartitionConfig {
@@ -599,8 +575,6 @@ func taskListParititionConfigFromThrift(info *sqlblobs.TaskListPartitionConfig) 
 		Version:            info.GetVersion(),
 		NumReadPartitions:  info.GetNumReadPartitions(),
 		NumWritePartitions: info.GetNumWritePartitions(),
-		ReadPartitions:     taskListPartitionMapFromThrift(info.ReadPartitions),
-		WritePartitions:    taskListPartitionMapFromThrift(info.WritePartitions),
 	}
 }
 

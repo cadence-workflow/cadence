@@ -2731,13 +2731,8 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 	kind := types.TaskListKindNormal
 	taskListType := types.TaskListTypeActivity
 	partitionConfig := &types.TaskListPartitionConfig{
-		ReadPartitions: map[int]*types.TaskListPartition{
-			0: {},
-			1: {},
-		},
-		WritePartitions: map[int]*types.TaskListPartition{
-			0: {},
-		},
+		NumReadPartitions:  2,
+		NumWritePartitions: 1,
 	}
 
 	testCases := []struct {
@@ -2845,13 +2840,8 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 				},
 				TaskListType: &taskListType,
 				PartitionConfig: &types.TaskListPartitionConfig{
-					ReadPartitions: map[int]*types.TaskListPartition{
-						0: {},
-					},
-					WritePartitions: map[int]*types.TaskListPartition{
-						0: {},
-						1: {},
-					},
+					NumReadPartitions:  1,
+					NumWritePartitions: 2,
 				},
 			},
 			setupMocks: func(mockMatchingClient *matching.MockClient, mockDomainCache *cache.MockDomainCache) {
@@ -2870,11 +2860,8 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 				},
 				TaskListType: &taskListType,
 				PartitionConfig: &types.TaskListPartitionConfig{
-					ReadPartitions: map[int]*types.TaskListPartition{
-						0: {},
-						1: {},
-					},
-					WritePartitions: nil,
+					NumReadPartitions:  2,
+					NumWritePartitions: 0,
 				},
 			},
 			setupMocks: func(mockMatchingClient *matching.MockClient, mockDomainCache *cache.MockDomainCache) {

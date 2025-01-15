@@ -1803,10 +1803,10 @@ func (adh *adminHandlerImpl) UpdateTaskListPartitionConfig(ctx context.Context, 
 	if request.PartitionConfig == nil {
 		return nil, adh.error(&types.BadRequestError{Message: "Task list partition config is not set in the request."}, scope)
 	}
-	if len(request.PartitionConfig.WritePartitions) > len(request.PartitionConfig.ReadPartitions) {
+	if request.PartitionConfig.NumWritePartitions > request.PartitionConfig.NumReadPartitions {
 		return nil, adh.error(&types.BadRequestError{Message: "The number of write partitions cannot be larger than the number of read partitions."}, scope)
 	}
-	if len(request.PartitionConfig.WritePartitions) <= 0 {
+	if request.PartitionConfig.NumWritePartitions <= 0 {
 		return nil, adh.error(&types.BadRequestError{Message: "The number of partitions must be larger than 0."}, scope)
 	}
 	_, err = adh.GetMatchingClient().UpdateTaskListPartitionConfig(ctx, &types.MatchingUpdateTaskListPartitionConfigRequest{
