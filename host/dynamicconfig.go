@@ -47,6 +47,7 @@ var (
 		dynamicconfig.EnableConsistentQueryByDomain:                 true,
 		dynamicconfig.MinRetentionDays:                              0,
 		dynamicconfig.WorkflowDeletionJitterRange:                   1,
+		dynamicconfig.AdvancedVisibilityMigrationWritingMode:        "pinot",
 	}
 )
 
