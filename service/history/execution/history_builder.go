@@ -47,9 +47,10 @@ func NewHistoryBuilder(msBuilder MutableState) *HistoryBuilder {
 }
 
 // NewHistoryBuilderFromEvents creates a new history builder based on the given workflow history events
-func NewHistoryBuilderFromEvents(history []*types.HistoryEvent) *HistoryBuilder {
+func NewHistoryBuilderFromEvents(history []*types.HistoryEvent, msBuilder MutableState) *HistoryBuilder {
 	return &HistoryBuilder{
-		history: history,
+		history:   history,
+		msBuilder: msBuilder,
 	}
 }
 
@@ -345,7 +346,7 @@ func (b *HistoryBuilder) AddWorkflowExecutionTerminatedEvent(
 	details []byte,
 	identity string,
 ) *types.HistoryEvent {
-	event := b.msBuilder.CreateNewHistoryEvent(types.EventTypeWorkflowExecutionTerminated)
+	event := b.msBuilder.CreateNewHistoryEvent(types.EventTypeWorkflowExecutionTerminated) // b or msBuilder is nil here
 	event.WorkflowExecutionTerminatedEventAttributes = &types.WorkflowExecutionTerminatedEventAttributes{
 		Reason:   reason,
 		Details:  details,
