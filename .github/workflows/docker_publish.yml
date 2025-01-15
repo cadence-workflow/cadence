@@ -14,6 +14,7 @@ jobs:
   # This job exposes image_tag and push_enabled variables for other jobs.
   # Other jobs depends on this. see needs: meta in other jobs.
   meta:
+    if: github.repository == 'cadence-workflow/cadence'
     runs-on: ubuntu-latest
     outputs:
       image_tag: ${{ steps.determine-image-tag.outputs.image_tag }}

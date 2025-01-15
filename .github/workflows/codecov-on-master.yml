@@ -1,27 +1,24 @@
 name: Workflow for Codecov integration
-on: [push, pull_request]
+on: push
 
 jobs:
   codecov:
+    if: github.repository == 'cadence-workflow/cadence'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
           go-version: 1.23.4
           cache: false
-
       - name: Download dependencies
         run: go mod download
-
       - name: Test and generate coverage report
         run: make cover_profile
-
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4.5.0 # https://github.com/codecov/codecov-action
         with:
