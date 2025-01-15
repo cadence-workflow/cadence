@@ -30,6 +30,10 @@ import (
 	"go.uber.org/mock/gomock"
 	"go.uber.org/yarpc"
 
+	"github.com/uber/cadence/client/sharddistributor"
+	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
@@ -47,8 +51,11 @@ func TestNewClient(t *testing.T) {
 	peerResolver := NewMockPeerResolver(ctrl)
 	loadbalancer := NewMockLoadBalancer(ctrl)
 	provider := NewMockPartitionConfigProvider(ctrl)
+	shardDistributor := sharddistributor.NewMockClient(ctrl)
+	shardDistributorMode := dynamicconfig.StringPropertyFn(func(opts ...dynamicconfig.FilterOption) string { return common.ShardModeHashRing })
+	logger := log.NewNoop()
 
-	c := NewClient(client, peerResolver, loadbalancer, provider)
+	c := NewClient(client, peerResolver, shardDistributor, shardDistributorMode, loadbalancer, provider, logger)
 	assert.NotNil(t, c)
 }
 
@@ -133,7 +140,11 @@ func TestClient_withoutResponse(t *testing.T) {
 			loadbalancerMock := NewMockLoadBalancer(ctrl)
 			providerMock := NewMockPartitionConfigProvider(ctrl)
 			tt.mock(peerResolverMock, loadbalancerMock, client)
-			c := NewClient(client, peerResolverMock, loadbalancerMock, providerMock)
+			shardDistributor := sharddistributor.NewMockClient(ctrl)
+			shardDistributorMode := dynamicconfig.StringPropertyFn(func(opts ...dynamicconfig.FilterOption) string { return common.ShardModeHashRing })
+			logger := log.NewNoop()
+
+			c := NewClient(client, peerResolverMock, shardDistributor, shardDistributorMode, loadbalancerMock, providerMock, logger)
 
 			err := tt.op(c)
 			if tt.wantError {
@@ -515,7 +526,11 @@ func TestClient_withResponse(t *testing.T) {
 			loadbalancerMock := NewMockLoadBalancer(ctrl)
 			providerMock := NewMockPartitionConfigProvider(ctrl)
 			tt.mock(peerResolverMock, loadbalancerMock, client, providerMock)
-			c := NewClient(client, peerResolverMock, loadbalancerMock, providerMock)
+			shardDistributor := sharddistributor.NewMockClient(ctrl)
+			shardDistributorMode := dynamicconfig.StringPropertyFn(func(opts ...dynamicconfig.FilterOption) string { return common.ShardModeHashRing })
+			logger := log.NewNoop()
+
+			c := NewClient(client, peerResolverMock, shardDistributor, shardDistributorMode, loadbalancerMock, providerMock, logger)
 
 			res, err := tt.op(c)
 			if tt.wantError {

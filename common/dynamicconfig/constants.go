@@ -2335,6 +2335,16 @@ const (
 
 	TasklistLoadBalancerStrategy
 
+	// MatchingShardDistributionMode is the mode of shard distribution for matching, we currently have two modes:
+	//
+	// - "hash-ring" means that the shards are distributed using a consistent hash ring, in particular using the ringpop library
+	// - "shard-distributor" means that the shards are distributed using the _highly experimental_ shard distributor service
+	//
+	// KeyName: matching.shardDistributionMode
+	// Value type: string enum: "hash-ring" or "shard-distributor"
+	// Default value: "hash-ring"
+	MatchingShardDistributionMode
+
 	// LastStringKey must be the last one in this const group
 	LastStringKey
 )
@@ -4623,6 +4633,11 @@ var StringKeys = map[StringKey]DynamicString{
 		Description:  "TasklistLoadBalancerStrategy is the key for tasklist load balancer strategy",
 		DefaultValue: "random", // other options: "round-robin"
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
+	},
+	MatchingShardDistributionMode: {
+		KeyName:      "matching.shardDistributionMode",
+		Description:  "MatchingShardDistributionMode defines which shard distribution mode should be used",
+		DefaultValue: "hash-ring",
 	},
 }
 

@@ -57,10 +57,10 @@ type (
 	// Factory can be used to create RPC clients for cadence services
 	Factory interface {
 		NewHistoryClient() (history.Client, history.PeerResolver, error)
-		NewMatchingClient(domainIDToName DomainIDToNameFunc) (matching.Client, error)
+		NewMatchingClient(domainIDToName DomainIDToNameFunc, shardDistributorClient sharddistributor.Client) (matching.Client, error)
 
 		NewHistoryClientWithTimeout(timeout time.Duration) (history.Client, history.PeerResolver, error)
-		NewMatchingClientWithTimeout(domainIDToName DomainIDToNameFunc, timeout time.Duration, longPollTimeout time.Duration) (matching.Client, error)
+		NewMatchingClientWithTimeout(domainIDToName DomainIDToNameFunc, timeout time.Duration, longPollTimeout time.Duration, shardDistributorClient sharddistributor.Client) (matching.Client, error)
 
 		NewAdminClientWithTimeoutAndConfig(config transport.ClientConfig, timeout time.Duration, largeTimeout time.Duration) (admin.Client, error)
 		NewFrontendClientWithTimeoutAndConfig(config transport.ClientConfig, timeout time.Duration, longPollTimeout time.Duration) (frontend.Client, error)
@@ -108,8 +108,8 @@ func (cf *rpcClientFactory) NewHistoryClient() (history.Client, history.PeerReso
 	return cf.NewHistoryClientWithTimeout(timeoutwrapper.HistoryDefaultTimeout)
 }
 
-func (cf *rpcClientFactory) NewMatchingClient(domainIDToName DomainIDToNameFunc) (matching.Client, error) {
-	return cf.NewMatchingClientWithTimeout(domainIDToName, timeoutwrapper.MatchingDefaultTimeout, timeoutwrapper.MatchingDefaultLongPollTimeout)
+func (cf *rpcClientFactory) NewMatchingClient(domainIDToName DomainIDToNameFunc, shardDistributorClient sharddistributor.Client) (matching.Client, error) {
+	return cf.NewMatchingClientWithTimeout(domainIDToName, timeoutwrapper.MatchingDefaultTimeout, timeoutwrapper.MatchingDefaultLongPollTimeout, shardDistributorClient)
 }
 
 func (cf *rpcClientFactory) NewHistoryClientWithTimeout(timeout time.Duration) (history.Client, history.PeerResolver, error) {
@@ -147,6 +147,7 @@ func (cf *rpcClientFactory) NewMatchingClientWithTimeout(
 	domainIDToName DomainIDToNameFunc,
 	timeout time.Duration,
 	longPollTimeout time.Duration,
+	shardDistributorClient sharddistributor.Client,
 ) (matching.Client, error) {
 	var rawClient matching.Client
 	var namedPort = membership.PortTchannel
@@ -174,8 +175,11 @@ func (cf *rpcClientFactory) NewMatchingClientWithTimeout(
 	client := matching.NewClient(
 		rawClient,
 		peerResolver,
+		shardDistributorClient,
+		cf.dynConfig.GetStringProperty(dynamicconfig.MatchingShardDistributionMode),
 		matching.NewMultiLoadBalancer(defaultLoadBalancer, loadBalancers, domainIDToName, cf.dynConfig, cf.logger),
 		partitionConfigProvider,
+		cf.logger,
 	)
 	client = timeoutwrapper.NewMatchingClient(client, longPollTimeout, timeout)
 	if errorRate := cf.dynConfig.GetFloat64Property(dynamicconfig.MatchingErrorInjectionRate)(); errorRate != 0 {

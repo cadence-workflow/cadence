@@ -110,18 +110,18 @@ func (mr *MockBeanMockRecorder) GetHistoryPeers() *gomock.Call {
 }
 
 // GetMatchingClient mocks base method.
-func (m *MockBean) GetMatchingClient(domainIDToName DomainIDToNameFunc) (matching.Client, error) {
+func (m *MockBean) GetMatchingClient(domainIDToName DomainIDToNameFunc, shardDistributorClient sharddistributor.Client) (matching.Client, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetMatchingClient", domainIDToName)
+	ret := m.ctrl.Call(m, "GetMatchingClient", domainIDToName, shardDistributorClient)
 	ret0, _ := ret[0].(matching.Client)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetMatchingClient indicates an expected call of GetMatchingClient.
-func (mr *MockBeanMockRecorder) GetMatchingClient(domainIDToName any) *gomock.Call {
+func (mr *MockBeanMockRecorder) GetMatchingClient(domainIDToName, shardDistributorClient any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMatchingClient", reflect.TypeOf((*MockBean)(nil).GetMatchingClient), domainIDToName)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMatchingClient", reflect.TypeOf((*MockBean)(nil).GetMatchingClient), domainIDToName, shardDistributorClient)
 }
 
 // GetRemoteAdminClient mocks base method.
