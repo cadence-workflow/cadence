@@ -45,8 +45,6 @@ const (
 func (db *cdb) InsertDomain(ctx context.Context, row *nosqlplugin.DomainRow) error {
 	timeStamp := db.timeSrc.Now()
 	query := db.session.Query(templateCreateDomainQuery, row.Info.ID, row.Info.Name, timeStamp).WithContext(ctx)
-	db.logger.Info("InsertDomain ABCDDDBUG", tag.WorkflowDomainName(row.Info.Name), tag.Timestamp(timeStamp), tag.VisibilityQuery(fmt.Sprintf("%#v", query)))
-
 	applied, err := query.MapScanCAS(make(map[string]interface{}))
 	if err != nil {
 		return err
