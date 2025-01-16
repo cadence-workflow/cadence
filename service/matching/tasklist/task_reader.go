@@ -503,9 +503,9 @@ func (tr *taskReader) dispatchSingleTaskFromBuffer(taskInfo *persistence.TaskInf
 	}
 
 	if errors.Is(err, errTaskNotStarted) {
-		e.EventName = "Dispatch failed on completing task on the passive side because task not started. Will retry dispatch"
+		e.EventName = "Dispatch failed on completing task on the passive side because task not started. Will retry dispatch if task is not expired"
 		event.Log(e)
-		return false, false
+		return false, tr.isTaskExpired(taskInfo)
 	}
 
 	if errors.Is(err, errWaitTimeNotReachedForEntityNotExists) {
