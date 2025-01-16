@@ -669,6 +669,12 @@ func TestCreateXXXRetryPolicyWithSetExpirationInterval(t *testing.T) {
 			wantMaximumInterval:       replicationServiceBusyMaxInterval,
 			wantSetExpirationInterval: replicationServiceBusyExpirationInterval,
 		},
+		"CreateShardDistributorServiceRetryPolicy": {
+			createFn:                  CreateShardDistributorServiceRetryPolicy,
+			wantInitialInterval:       shardDistributorServiceOperationInitialInterval,
+			wantMaximumInterval:       shardDistributorServiceOperationMaxInterval,
+			wantSetExpirationInterval: shardDistributorServiceOperationExpirationInterval,
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			want := backoff.NewExponentialRetryPolicy(c.wantInitialInterval)

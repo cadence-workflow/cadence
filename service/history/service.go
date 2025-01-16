@@ -99,23 +99,19 @@ func (s *Service) Start() {
 	logger.Info("history starting")
 
 	wfIDCache := workflowcache.New(workflowcache.Params{
-		TTL:                            workflowIDCacheTTL,
-		ExternalLimiterFactory:         quotas.NewSimpleDynamicRateLimiterFactory(s.config.WorkflowIDExternalRPS),
-		InternalLimiterFactory:         quotas.NewSimpleDynamicRateLimiterFactory(s.config.WorkflowIDInternalRPS),
-		MaxCount:                       workflowIDCacheMaxCount,
-		DomainCache:                    s.Resource.GetDomainCache(),
-		Logger:                         s.Resource.GetLogger(),
-		MetricsClient:                  s.Resource.GetMetricsClient(),
-		RatelimitExternalPerWorkflowID: s.config.WorkflowIDExternalRateLimitEnabled,
-		RatelimitInternalPerWorkflowID: s.config.WorkflowIDInternalRateLimitEnabled,
+		TTL:                    workflowIDCacheTTL,
+		ExternalLimiterFactory: quotas.NewSimpleDynamicRateLimiterFactory(s.config.WorkflowIDExternalRPS),
+		InternalLimiterFactory: quotas.NewSimpleDynamicRateLimiterFactory(s.config.WorkflowIDInternalRPS),
+		MaxCount:               workflowIDCacheMaxCount,
+		DomainCache:            s.Resource.GetDomainCache(),
+		Logger:                 s.Resource.GetLogger(),
+		MetricsClient:          s.Resource.GetMetricsClient(),
 	})
 
-	rawHandler := handler.NewHandler(s.Resource, s.config, wfIDCache, s.config.WorkflowIDInternalRateLimitEnabled)
+	rawHandler := handler.NewHandler(s.Resource, s.config, wfIDCache)
 	s.handler = ratelimited.NewHistoryHandler(
 		rawHandler,
 		wfIDCache,
-		s.config.WorkflowIDExternalRateLimitEnabled,
-		s.Resource.GetDomainCache(),
 		s.Resource.GetLogger(),
 	)
 

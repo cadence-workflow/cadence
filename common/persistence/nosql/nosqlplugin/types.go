@@ -168,6 +168,7 @@ type (
 		WorkflowID      string
 		RunID           string
 		ScheduledID     int64
+		Expiry          time.Time
 		CreatedTime     time.Time
 		PartitionConfig map[string]string
 	}

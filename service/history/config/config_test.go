@@ -223,8 +223,6 @@ func TestNewConfig(t *testing.T) {
 		"ReplicationTaskGenerationQPS":                         {dynamicconfig.ReplicationTaskGenerationQPS, 14.0},
 		"EnableReplicationTaskGeneration":                      {dynamicconfig.EnableReplicationTaskGeneration, true},
 		"EnableRecordWorkflowExecutionUninitialized":           {dynamicconfig.EnableRecordWorkflowExecutionUninitialized, true},
-		"WorkflowIDExternalRateLimitEnabled":                   {dynamicconfig.WorkflowIDExternalRateLimitEnabled, true},
-		"WorkflowIDInternalRateLimitEnabled":                   {dynamicconfig.WorkflowIDInternalRateLimitEnabled, true},
 		"WorkflowIDExternalRPS":                                {dynamicconfig.WorkflowIDExternalRPS, 87},
 		"WorkflowIDInternalRPS":                                {dynamicconfig.WorkflowIDInternalRPS, 88},
 		"EnableConsistentQuery":                                {dynamicconfig.EnableConsistentQuery, true},

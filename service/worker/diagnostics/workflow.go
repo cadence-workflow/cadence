@@ -41,9 +41,8 @@ const (
 	diagnosticsWorkflow = "diagnostics-workflow"
 	tasklist            = "diagnostics-wf-tasklist"
 
-	retrieveWfExecutionHistoryActivity = "retrieveWfExecutionHistory"
-	identifyIssuesActivity             = "identifyIssues"
-	rootCauseIssuesActivity            = "rootCauseIssues"
+	identifyIssuesActivity  = "identifyIssues"
+	rootCauseIssuesActivity = "rootCauseIssues"
 )
 
 type DiagnosticsWorkflowInput struct {
@@ -113,9 +112,9 @@ func (w *dw) DiagnosticsWorkflow(ctx workflow.Context, params DiagnosticsWorkflo
 	sw := scope.StartTimer(metrics.DiagnosticsWorkflowExecutionLatency)
 	defer sw.Stop()
 
-	var timeoutsResult timeoutDiagnostics
-	var failureResult failureDiagnostics
-	var retryResult retryDiagnostics
+	var timeoutsResult *timeoutDiagnostics
+	var failureResult *failureDiagnostics
+	var retryResult *retryDiagnostics
 	var checkResult []invariant.InvariantCheckResult
 	var rootCauseResult []invariant.InvariantRootCauseResult
 
@@ -125,9 +124,8 @@ func (w *dw) DiagnosticsWorkflow(ctx workflow.Context, params DiagnosticsWorkflo
 		StartToCloseTimeout:    time.Second * 5,
 	}
 	activityCtx := workflow.WithActivityOptions(ctx, activityOptions)
-	timeoutsResult.Runbooks = []string{linkToTimeoutsRunbook}
 
-	err := workflow.ExecuteActivity(activityCtx, w.identifyIssues, identifyIssuesParams{
+	err := workflow.ExecuteActivity(activityCtx, identifyIssuesActivity, identifyIssuesParams{
 		Execution: &types.WorkflowExecution{
 			WorkflowID: params.WorkflowID,
 			RunID:      params.RunID,
@@ -138,7 +136,7 @@ func (w *dw) DiagnosticsWorkflow(ctx workflow.Context, params DiagnosticsWorkflo
 		return nil, fmt.Errorf("IdentifyIssues: %w", err)
 	}
 
-	err = workflow.ExecuteActivity(activityCtx, w.rootCauseIssues, rootCauseIssuesParams{
+	err = workflow.ExecuteActivity(activityCtx, rootCauseIssuesActivity, rootCauseIssuesParams{
 		Domain: params.Domain,
 		Issues: checkResult,
 	}).Get(ctx, &rootCauseResult)
@@ -150,39 +148,53 @@ func (w *dw) DiagnosticsWorkflow(ctx workflow.Context, params DiagnosticsWorkflo
 	if err != nil {
 		return nil, fmt.Errorf("RetrieveTimeoutIssues: %w", err)
 	}
-	timeoutsResult.Issues = timeoutIssues
 
-	timeoutRootCause, err := retrieveTimeoutRootCause(rootCauseResult)
-	if err != nil {
-		return nil, fmt.Errorf("RetrieveTimeoutRootCause: %w", err)
+	if len(timeoutIssues) > 0 {
+		timeoutRootCause, err := retrieveTimeoutRootCause(rootCauseResult)
+		if err != nil {
+			return nil, fmt.Errorf("RetrieveTimeoutRootCause: %w", err)
+		}
+		timeoutsResult = &timeoutDiagnostics{
+			Issues:    timeoutIssues,
+			RootCause: timeoutRootCause,
+			Runbooks:  []string{linkToTimeoutsRunbook},
+		}
 	}
-	timeoutsResult.RootCause = timeoutRootCause
 
 	failureIssues, err := retrieveFailureIssues(checkResult)
 	if err != nil {
 		return nil, fmt.Errorf("RetrieveFailureIssues: %w", err)
 	}
-	failureResult.Issues = failureIssues
 
-	failureRootCause, err := retrieveFailureRootCause(rootCauseResult)
-	if err != nil {
-		return nil, fmt.Errorf("RetrieveFailureRootCause: %w", err)
+	if len(failureIssues) > 0 {
+		failureRootCause, err := retrieveFailureRootCause(rootCauseResult)
+		if err != nil {
+			return nil, fmt.Errorf("RetrieveFailureRootCause: %w", err)
+		}
+		failureResult = &failureDiagnostics{
+			Issues:    failureIssues,
+			RootCause: failureRootCause,
+			Runbooks:  []string{linkToFailuresRunbook},
+		}
 	}
-	failureResult.RootCause = failureRootCause
-	failureResult.Runbooks = []string{linkToFailuresRunbook}
 
 	retryIssues, err := retrieveRetryIssues(checkResult)
 	if err != nil {
 		return nil, fmt.Errorf("RetrieveRetryIssues: %w", err)
 	}
-	retryResult.Issues = retryIssues
-	retryResult.Runbooks = []string{linkToRetriesRunbook}
+
+	if len(retryIssues) > 0 {
+		retryResult = &retryDiagnostics{
+			Issues:   retryIssues,
+			Runbooks: []string{linkToRetriesRunbook},
+		}
+	}
 
 	scope.IncCounter(metrics.DiagnosticsWorkflowSuccess)
 	return &DiagnosticsWorkflowResult{
-		Timeouts: &timeoutsResult,
-		Failures: &failureResult,
-		Retries:  &retryResult,
+		Timeouts: timeoutsResult,
+		Failures: failureResult,
+		Retries:  retryResult,
 	}, nil
 }
 

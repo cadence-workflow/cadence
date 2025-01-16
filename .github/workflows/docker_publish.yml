@@ -63,7 +63,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64
+          platforms: linux/amd64, linux/arm64
           build-args: TARGET=server
           push: ${{ needs.meta.outputs.push_enabled == 'true' }}
           tags: ubercadence/server:${{ needs.meta.outputs.image_tag }}
@@ -92,7 +92,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64
+          platforms: linux/amd64, linux/arm64
           build-args: TARGET=auto-setup
           push: ${{ needs.meta.outputs.push_enabled == 'true' }}
           tags: ubercadence/server:${{ needs.meta.outputs.image_tag }}-auto-setup
@@ -122,7 +122,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64
+          platforms: linux/amd64, linux/arm64
           build-args: TARGET=cli
           push: ${{ needs.meta.outputs.push_enabled == 'true' }}
           tags: ubercadence/cli:${{ needs.meta.outputs.image_tag }}
@@ -152,7 +152,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64
+          platforms: linux/amd64, linux/arm64
           build-args: TARGET=bench
           tags: ubercadence/bench:master
           push: ${{ needs.meta.outputs.push_enabled == 'true' }}
@@ -179,7 +179,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64
+          platforms: linux/amd64, linux/arm64
           build-args: TARGET=canary
           tags: ubercadence/canary:master
           push: ${{ needs.meta.outputs.push_enabled == 'true' }}

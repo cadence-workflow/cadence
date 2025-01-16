@@ -54,19 +54,9 @@ func TestNewTransferQueueProcessor(t *testing.T) {
 	mockArchiver := &archiver.ClientMock{}
 	mockInvariant := invariant.NewMockInvariant(ctrl)
 	mockWorkflowCache := workflowcache.NewMockWFCache(ctrl)
-	ratelimit := func(domain string) bool { return false }
 
 	f := NewProcessorFactory()
-	processor := f.NewTransferQueueProcessor(
-		mockShard,
-		mockShard.GetEngine(),
-		mockProcessor,
-		execution.NewCache(mockShard),
-		mockResetter,
-		mockArchiver,
-		mockInvariant,
-		mockWorkflowCache,
-		ratelimit)
+	processor := f.NewTransferQueueProcessor(mockShard, mockShard.GetEngine(), mockProcessor, execution.NewCache(mockShard), mockResetter, mockArchiver, mockInvariant, mockWorkflowCache)
 
 	if processor == nil {
 		t.Error("NewTransferQueueProcessor returned nil")

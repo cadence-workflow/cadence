@@ -89,56 +89,10 @@ func toTaskListPartitionConfig(v interface{}) *persistence.TaskListPartitionConf
 	version := partition["version"].(int64)
 	numRead := partition["num_read_partitions"].(int)
 	numWrite := partition["num_write_partitions"].(int)
-	readPartitions := toTaskListPartitions(partition["read_partitions"])
-	writePartitions := toTaskListPartitions(partition["write_partitions"])
-	// If they're out of sync, go with the value of num_*_partitions. This is necessary only while support for
-	// read_partitions and write_partitions rolls out
-	if numRead != len(readPartitions) {
-		readPartitions = createDefaultPartitions(numRead)
-	}
-	if numWrite != len(writePartitions) {
-		writePartitions = createDefaultPartitions(numWrite)
-	}
 	return &persistence.TaskListPartitionConfig{
-		Version:         version,
-		ReadPartitions:  readPartitions,
-		WritePartitions: writePartitions,
-	}
-}
-
-func createDefaultPartitions(num int) map[int]*persistence.TaskListPartition {
-	partitions := make(map[int]*persistence.TaskListPartition, num)
-	for i := 0; i < num; i++ {
-		partitions[i] = &persistence.TaskListPartition{}
-	}
-	return partitions
-}
-
-func toTaskListPartitions(values any) map[int]*persistence.TaskListPartition {
-	if values == nil {
-		return nil
-	}
-	partitions, ok := values.(map[int]map[string]any)
-	if !ok || len(partitions) == 0 {
-		return nil
-	}
-	result := make(map[int]*persistence.TaskListPartition, len(partitions))
-	for id, p := range partitions {
-		partition := toTaskListPartition(p)
-		if partition != nil {
-			result[id] = partition
-		}
-	}
-	return result
-}
-
-func toTaskListPartition(partition map[string]any) *persistence.TaskListPartition {
-	if len(partition) == 0 {
-		return nil
-	}
-	isolationGroups := partition["isolation_groups"].([]string)
-	return &persistence.TaskListPartition{
-		IsolationGroups: isolationGroups,
+		Version:            version,
+		NumReadPartitions:  numRead,
+		NumWritePartitions: numWrite,
 	}
 }
 
@@ -148,30 +102,8 @@ func fromTaskListPartitionConfig(config *persistence.TaskListPartitionConfig) ma
 	}
 	return map[string]interface{}{
 		"version":              config.Version,
-		"num_read_partitions":  len(config.ReadPartitions),
-		"num_write_partitions": len(config.WritePartitions),
-		"read_partitions":      fromTaskListPartitions(config.ReadPartitions),
-		"write_partitions":     fromTaskListPartitions(config.WritePartitions),
-	}
-}
-
-func fromTaskListPartitions(partitions map[int]*persistence.TaskListPartition) map[int]any {
-	if len(partitions) == 0 {
-		return nil
-	}
-	result := make(map[int]any, len(partitions))
-	for id, partition := range partitions {
-		result[id] = fromTaskListPartition(partition)
-	}
-	return result
-}
-
-func fromTaskListPartition(partition *persistence.TaskListPartition) any {
-	if partition == nil {
-		return nil
-	}
-	return map[string]any{
-		"isolation_groups": partition.IsolationGroups,
+		"num_read_partitions":  config.NumReadPartitions,
+		"num_write_partitions": config.NumWritePartitions,
 	}
 }
 
@@ -431,7 +363,7 @@ func (db *cdb) GetTasksCount(ctx context.Context, filter *nosqlplugin.TasksFilte
 
 // SelectTasks return tasks that associated to a tasklist
 func (db *cdb) SelectTasks(ctx context.Context, filter *nosqlplugin.TasksFilter) ([]*nosqlplugin.TaskRow, error) {
-	// Reading tasklist tasks need to be quorum level consistent, otherwise we could loose task
+	// Reading tasklist tasks need to be quorum level consistent, otherwise we could lose tasks
 	query := db.session.Query(templateGetTasksQuery,
 		filter.DomainID,
 		filter.TaskListName,
@@ -454,8 +386,25 @@ PopulateTasks:
 		if !ok { // no tasks, but static column record returned
 			continue
 		}
+
+		// Extract the TTL value
+		ttlValue, ttlExists := task["ttl"]
+
+		// Check if TTL is null or an integer
+		var ttl *int
+		if ttlExists && ttlValue != nil {
+			if ttlInt, ok := ttlValue.(int); ok {
+				ttl = &ttlInt // TTL is an integer
+			}
+		}
+
 		t := createTaskInfo(task["task"].(map[string]interface{}))
 		t.TaskID = taskID.(int64)
+
+		if ttl != nil {
+			t.Expiry = db.timeSrc.Now().Add(time.Duration(*ttl) * time.Second)
+		}
+
 		response = append(response, t)
 		if len(response) == filter.BatchSize {
 			break PopulateTasks

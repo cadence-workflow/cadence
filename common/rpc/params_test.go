@@ -38,8 +38,9 @@ func TestNewParams(t *testing.T) {
 	dc := dynamicconfig.NewNopCollection()
 	makeConfig := func(svc config.Service) *config.Config {
 		return &config.Config{
-			PublicClient: config.PublicClient{HostPort: "localhost:9999"},
-			Services:     map[string]config.Service{"frontend": svc}}
+			PublicClient:           config.PublicClient{HostPort: "localhost:9999"},
+			ShardDistributorClient: config.ShardDistributorClient{HostPort: "localhost:9998"},
+			Services:               map[string]config.Service{"frontend": svc}}
 	}
 	logger := testlogger.New(t)
 	metricsCl := metrics.NewNoopMetricsClient()

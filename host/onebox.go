@@ -35,8 +35,6 @@ import (
 	"go.uber.org/cadence/compatibility"
 	"go.uber.org/yarpc"
 	"go.uber.org/yarpc/api/transport"
-	"go.uber.org/yarpc/transport/grpc"
-	"go.uber.org/yarpc/transport/tchannel"
 
 	adminClient "github.com/uber/cadence/client/admin"
 	frontendClient "github.com/uber/cadence/client/frontend"
@@ -1138,8 +1136,8 @@ func (c *cadenceImpl) newRPCFactory(serviceName string, host membership.HostInfo
 
 		// For integration tests to generate client out of the same outbound.
 		OutboundsBuilder: rpc.CombineOutbounds(
-			&singleGRPCOutbound{testOutboundName(serviceName), serviceName, grpcAddress},
-			&singleGRPCOutbound{rpc.OutboundPublicClient, service.Frontend, frontendGrpcAddress},
+			rpc.NewSingleGRPCOutboundBuilder(testOutboundName(serviceName), serviceName, grpcAddress),
+			rpc.NewSingleGRPCOutboundBuilder(rpc.OutboundPublicClient, service.Frontend, frontendGrpcAddress),
 			rpc.NewCrossDCOutbounds(c.clusterMetadata.GetAllClusterInfo(), rpc.NewDNSPeerChooserFactory(0, c.logger)),
 			rpc.NewDirectOutboundBuilder(service.History, true, nil, directOutboundPCF, directConnRetainFn),
 			rpc.NewDirectOutboundBuilder(service.Matching, true, nil, directOutboundPCF, directConnRetainFn),
@@ -1150,23 +1148,6 @@ func (c *cadenceImpl) newRPCFactory(serviceName string, host membership.HostInfo
 // testOutbound prefixes outbound with "test-" to not clash with other real Cadence outbounds.
 func testOutboundName(name string) string {
 	return "test-" + name
-}
-
-type singleGRPCOutbound struct {
-	outboundName string
-	serviceName  string
-	address      string
-}
-
-func (b singleGRPCOutbound) Build(grpc *grpc.Transport, _ *tchannel.Transport) (*rpc.Outbounds, error) {
-	return &rpc.Outbounds{
-		Outbounds: yarpc.Outbounds{
-			b.outboundName: {
-				ServiceName: b.serviceName,
-				Unary:       grpc.NewSingleOutbound(b.address),
-			},
-		},
-	}, nil
 }
 
 type versionMiddleware struct {

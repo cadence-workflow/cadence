@@ -299,7 +299,7 @@ func (tr *taskReader) getTaskBatch(readLevel, maxReadLevel int64) ([]*persistenc
 }
 
 func (tr *taskReader) isTaskExpired(t *persistence.TaskInfo) bool {
-	return t.Expiry.After(epochStartTime) && tr.timeSource.Now().After(t.Expiry)
+	return !t.Expiry.IsZero() && t.Expiry.After(epochStartTime) && tr.timeSource.Now().After(t.Expiry)
 }
 
 func (tr *taskReader) addTasksToBuffer(tasks []*persistence.TaskInfo) bool {

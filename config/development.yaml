@@ -144,3 +144,6 @@ dynamicconfig:
 blobstore:
   filestore:
     outputDirectory: "/tmp/blobstore"
+
+shardDistributorClient:
+  hostPort: "localhost:7943"

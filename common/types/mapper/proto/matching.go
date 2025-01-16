@@ -368,10 +368,8 @@ func FromTaskListPartitionConfig(t *types.TaskListPartitionConfig) *matchingv1.T
 	}
 	return &matchingv1.TaskListPartitionConfig{
 		Version:            t.Version,
-		NumReadPartitions:  int32(len(t.ReadPartitions)),
-		NumWritePartitions: int32(len(t.WritePartitions)),
-		ReadPartitions:     FromMatchingTaskListPartitionsMap(t.ReadPartitions),
-		WritePartitions:    FromMatchingTaskListPartitionsMap(t.WritePartitions),
+		NumReadPartitions:  t.NumReadPartitions,
+		NumWritePartitions: t.NumWritePartitions,
 	}
 }
 
@@ -380,56 +378,10 @@ func ToTaskListPartitionConfig(t *matchingv1.TaskListPartitionConfig) *types.Tas
 		return nil
 	}
 	return &types.TaskListPartitionConfig{
-		Version:         t.Version,
-		ReadPartitions:  ToMatchingTaskListPartitionsMap(t.NumReadPartitions, t.ReadPartitions),
-		WritePartitions: ToMatchingTaskListPartitionsMap(t.NumWritePartitions, t.WritePartitions),
+		Version:            t.Version,
+		NumReadPartitions:  t.NumReadPartitions,
+		NumWritePartitions: t.NumWritePartitions,
 	}
-}
-
-func FromMatchingTaskListPartition(t *types.TaskListPartition) *matchingv1.TaskListPartition {
-	if t == nil {
-		return nil
-	}
-	return &matchingv1.TaskListPartition{
-		IsolationGroups: t.IsolationGroups,
-	}
-}
-
-func ToMatchingTaskListPartition(t *matchingv1.TaskListPartition) *types.TaskListPartition {
-	if t == nil {
-		return nil
-	}
-	return &types.TaskListPartition{
-		IsolationGroups: t.IsolationGroups,
-	}
-}
-
-func FromMatchingTaskListPartitionsMap(m map[int]*types.TaskListPartition) map[int32]*matchingv1.TaskListPartition {
-	if m == nil {
-		return nil
-	}
-	result := make(map[int32]*matchingv1.TaskListPartition, len(m))
-	for id, p := range m {
-		result[int32(id)] = FromMatchingTaskListPartition(p)
-	}
-	return result
-}
-
-func ToMatchingTaskListPartitionsMap(numPartitions int32, m map[int32]*matchingv1.TaskListPartition) map[int]*types.TaskListPartition {
-	if m == nil {
-		return nil
-	}
-	result := make(map[int]*types.TaskListPartition, len(m))
-	if numPartitions != int32(len(m)) {
-		for i := int32(0); i < numPartitions; i++ {
-			result[int(i)] = &types.TaskListPartition{}
-		}
-	} else {
-		for id, p := range m {
-			result[int(id)] = ToMatchingTaskListPartition(p)
-		}
-	}
-	return result
 }
 
 func FromMatchingPollForActivityTaskResponse(t *types.MatchingPollForActivityTaskResponse) *matchingv1.PollForActivityTaskResponse {

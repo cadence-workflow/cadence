@@ -36,7 +36,6 @@ import (
 
 	gomock "go.uber.org/mock/gomock"
 
-	dynamicconfig "github.com/uber/cadence/common/dynamicconfig"
 	invariant "github.com/uber/cadence/common/reconciliation/invariant"
 	engine "github.com/uber/cadence/service/history/engine"
 	execution "github.com/uber/cadence/service/history/execution"
@@ -86,15 +85,15 @@ func (mr *MockProcessorFactoryMockRecorder) NewTimerQueueProcessor(shard, histor
 }
 
 // NewTransferQueueProcessor mocks base method.
-func (m *MockProcessorFactory) NewTransferQueueProcessor(shard shard.Context, historyEngine engine.Engine, taskProcessor task.Processor, executionCache execution.Cache, workflowResetter reset.WorkflowResetter, archivalClient archiver.Client, executionCheck invariant.Invariant, wfIDCache workflowcache.WFCache, ratelimitInternalPerWorkflowID dynamicconfig.BoolPropertyFnWithDomainFilter) Processor {
+func (m *MockProcessorFactory) NewTransferQueueProcessor(shard shard.Context, historyEngine engine.Engine, taskProcessor task.Processor, executionCache execution.Cache, workflowResetter reset.WorkflowResetter, archivalClient archiver.Client, executionCheck invariant.Invariant, wfIDCache workflowcache.WFCache) Processor {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "NewTransferQueueProcessor", shard, historyEngine, taskProcessor, executionCache, workflowResetter, archivalClient, executionCheck, wfIDCache, ratelimitInternalPerWorkflowID)
+	ret := m.ctrl.Call(m, "NewTransferQueueProcessor", shard, historyEngine, taskProcessor, executionCache, workflowResetter, archivalClient, executionCheck, wfIDCache)
 	ret0, _ := ret[0].(Processor)
 	return ret0
 }
 
 // NewTransferQueueProcessor indicates an expected call of NewTransferQueueProcessor.
-func (mr *MockProcessorFactoryMockRecorder) NewTransferQueueProcessor(shard, historyEngine, taskProcessor, executionCache, workflowResetter, archivalClient, executionCheck, wfIDCache, ratelimitInternalPerWorkflowID any) *gomock.Call {
+func (mr *MockProcessorFactoryMockRecorder) NewTransferQueueProcessor(shard, historyEngine, taskProcessor, executionCache, workflowResetter, archivalClient, executionCheck, wfIDCache any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewTransferQueueProcessor", reflect.TypeOf((*MockProcessorFactory)(nil).NewTransferQueueProcessor), shard, historyEngine, taskProcessor, executionCache, workflowResetter, archivalClient, executionCheck, wfIDCache, ratelimitInternalPerWorkflowID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewTransferQueueProcessor", reflect.TypeOf((*MockProcessorFactory)(nil).NewTransferQueueProcessor), shard, historyEngine, taskProcessor, executionCache, workflowResetter, archivalClient, executionCheck, wfIDCache)
 }

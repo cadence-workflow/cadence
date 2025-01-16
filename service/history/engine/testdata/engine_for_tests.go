@@ -31,7 +31,6 @@ import (
 
 	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/quotas"
 	"github.com/uber/cadence/service/history/config"
@@ -65,7 +64,6 @@ type NewEngineFn func(
 	queueTaskProcessor task.Processor,
 	failoverCoordinator failover.Coordinator,
 	wfIDCache workflowcache.WFCache,
-	ratelimitInternalPerWorkflowID dynamicconfig.BoolPropertyFnWithDomainFilter,
 	queueProcessorFactory queue.ProcessorFactory,
 ) engine.Engine
 
@@ -135,7 +133,6 @@ func NewEngineForTest(t *testing.T, newEngineFn NewEngineFn) *EngineForTest {
 
 	failoverCoordinator := failover.NewMockCoordinator(controller)
 	wfIDCache := workflowcache.NewMockWFCache(controller)
-	ratelimitInternalPerWorkflowID := dynamicconfig.GetBoolPropertyFnFilteredByDomain(false)
 
 	queueProcessorFactory := queue.NewMockProcessorFactory(controller)
 	timerQProcessor := queue.NewMockProcessor(controller)
@@ -152,7 +149,7 @@ func NewEngineForTest(t *testing.T, newEngineFn NewEngineFn) *EngineForTest {
 	transferQProcessor.EXPECT().NotifyNewTask(gomock.Any(), gomock.Any()).Return().AnyTimes()
 	transferQProcessor.EXPECT().Stop().Return().Times(1)
 	queueProcessorFactory.EXPECT().
-		NewTransferQueueProcessor(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		NewTransferQueueProcessor(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(transferQProcessor).
 		Times(1)
 
@@ -168,7 +165,6 @@ func NewEngineForTest(t *testing.T, newEngineFn NewEngineFn) *EngineForTest {
 		queueTaskProcessor,
 		failoverCoordinator,
 		wfIDCache,
-		ratelimitInternalPerWorkflowID,
 		queueProcessorFactory,
 	)
 
