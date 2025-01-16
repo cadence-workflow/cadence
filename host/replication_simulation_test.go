@@ -46,14 +46,15 @@ import (
 	"github.com/stretchr/testify/require"
 	adminv1 "github.com/uber/cadence-idl/go/proto/admin/v1"
 	apiv1 "github.com/uber/cadence-idl/go/proto/api/v1"
-	"github.com/uber/cadence/client/admin"
-	"github.com/uber/cadence/client/frontend"
-	grpcClient "github.com/uber/cadence/client/wrappers/grpc"
-	"github.com/uber/cadence/common/types"
 	"go.uber.org/yarpc"
 	"go.uber.org/yarpc/api/transport"
 	"go.uber.org/yarpc/transport/grpc"
 	"gopkg.in/yaml.v2"
+
+	"github.com/uber/cadence/client/admin"
+	"github.com/uber/cadence/client/frontend"
+	grpcClient "github.com/uber/cadence/client/wrappers/grpc"
+	"github.com/uber/cadence/common/types"
 )
 
 const (
