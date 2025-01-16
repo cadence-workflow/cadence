@@ -17,6 +17,7 @@ services:
       interval: 15s
       timeout: 30s
       retries: 10
+
   prometheus:
     image: prom/prometheus:v3.0.1
     volumes:
@@ -29,6 +30,7 @@ services:
       services-network:
         aliases:
           - prometheus
+
   grafana:
     image: grafana/grafana:11.4.0
     volumes:
@@ -52,14 +54,21 @@ services:
     command:
       - /start.sh
     ports:
-      - "7833:7833" # frontend thrift
-      - "7933:7933" # frontend grpc
+      - "7933:7933" # frontend thrift
+      - "7833:7833" # frontend grpc
       - "7934:7934" # history thrift
       - "7834:7834" # history grpc
       - "7935:7935" # matching thrift
       - "7835:7835" # matching grpc
       - "7939:7939" # worker thrift
+      - "7000:7000" # frontend prometheus
+      - "7001:7001" # matching prometheus
+      - "7002:7002" # history prometheus
+      - "7003:7003" # worker prometheus
     environment:
+      - "BIND_ON_IP=0.0.0.0"
+      - "PRIMARY_FRONTEND_SERVICE=cadence-cluster0"
+      - "SECONDARY_FRONTEND_SERVICE=cadence-cluster1"
       - "CASSANDRA_SEEDS=cassandra"
       - "DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/replication_simulation.yaml"
       - "ENABLE_GLOBAL_DOMAIN=true"
@@ -88,16 +97,21 @@ services:
     command:
       - /start.sh
     ports: # cluster1 uses 8xxx host ports to avoid conflicts with cluster0
-      - "8833:7833" # frontend thrift
-      - "8933:7933" # frontend grpc
+      - "8933:7933" # frontend thrift
+      - "8833:7833" # frontend grpc
       - "8934:7934" # history thrift
       - "8834:7834" # history grpc
       - "8935:7935" # matching thrift
       - "8835:7835" # matching grpc
       - "8939:7939" # worker thrift
+      - "8000:8000" # frontend prometheus
+      - "8001:8001" # matching prometheus
+      - "8002:8002" # history prometheus
+      - "8003:8003" # worker prometheus
     environment:
-      - "CASSANDRA_HOST=cassandra"
-      - "CASSANDRA=1"
+      - "BIND_ON_IP=0.0.0.0"
+      - "PRIMARY_FRONTEND_SERVICE=cadence-cluster0"
+      - "SECONDARY_FRONTEND_SERVICE=cadence-cluster1"
       - "CASSANDRA_SEEDS=cassandra"
       - "DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/replication_simulation.yaml"
       - "IS_NOT_PRIMARY=true"
@@ -126,6 +140,10 @@ services:
       - "8088:8088"
     depends_on:
       - cadence-cluster0
+    networks:
+      services-network:
+        aliases:
+          - cadence-web-cluster0
 
   cadence-web-cluster1:
     image: ubercadence/web:latest
@@ -135,6 +153,10 @@ services:
       - "8089:8088"
     depends_on:
       - cadence-cluster1
+    networks:
+      services-network:
+        aliases:
+          - cadence-web-cluster0
 
   replication-simulator:
     build:

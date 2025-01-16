@@ -78,16 +78,21 @@ func TestReplicationSimulation(t *testing.T) {
 	flag.Parse()
 
 	logf(t, "Starting Replication Simulation")
-	startTime := time.Now()
 
+	logf(t, "Sleeping for 30 seconds to allow services to start/warmup")
+	time.Sleep(30 * time.Second)
+
+	// load config
 	simCfg := mustLoadReplSimConf(t)
 
+	// initialize cadence clients
 	for _, c := range simCfg.Clusters {
 		mustInitClients(t, c)
 	}
 
 	mustRegisterDomain(t, simCfg)
 
+	startTime := time.Now()
 	// TODO: implement rest of the simulation
 	// - override dynamicconfigs in config/dynamicconfig/replication_simulation.yaml as needed
 	// - run workflows based on given config
@@ -152,16 +157,18 @@ func mustInitClients(t *testing.T, c *Cluster) {
 	)
 
 	c.AdminClient = grpcClient.NewAdminClient(adminv1.NewAdminAPIYARPCClient(clientConfig))
+	logf(t, "Initialized clients for cluster with grpc endpoint: %s", c.GRPCEndpoint)
 }
 
 func mustRegisterDomain(t *testing.T, simCfg *ReplicationSimulationConfig) {
+	logf(t, "Registering domain: %s", domainName)
 	var clusters []*types.ClusterReplicationConfiguration
 	for name := range simCfg.Clusters {
 		clusters = append(clusters, &types.ClusterReplicationConfiguration{
 			ClusterName: name,
 		})
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	err := simCfg.mustGetPrimaryFrontendClient(t).RegisterDomain(ctx, &types.RegisterDomainRequest{
 		Name:                                   domainName,
@@ -171,6 +178,7 @@ func mustRegisterDomain(t *testing.T, simCfg *ReplicationSimulationConfig) {
 		IsGlobalDomain:                         true,
 	})
 	require.NoError(t, err, "failed to register domain")
+	logf(t, "Registered domain: %s", domainName)
 }
 
 func (s *ReplicationSimulationConfig) mustGetPrimaryFrontendClient(t *testing.T) frontend.Client {
