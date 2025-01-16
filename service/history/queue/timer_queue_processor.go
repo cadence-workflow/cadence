@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -66,7 +67,7 @@ type timerQueueProcessor struct {
 	activeQueueProcessor    *timerQueueProcessorBase
 	standbyQueueProcessors  map[string]*timerQueueProcessorBase
 	standbyTaskExecutors    []task.Executor
-	standbyQueueTimerGates  map[string]RemoteTimerGate
+	standbyQueueTimerGates  map[string]clock.EventTimerGate
 	failoverQueueProcessors []*timerQueueProcessorBase
 }
 
@@ -105,7 +106,7 @@ func NewTimerQueueProcessor(
 
 	standbyTaskExecutors := make([]task.Executor, 0, len(shard.GetClusterMetadata().GetRemoteClusterInfo()))
 	standbyQueueProcessors := make(map[string]*timerQueueProcessorBase)
-	standbyQueueTimerGates := make(map[string]RemoteTimerGate)
+	standbyQueueTimerGates := make(map[string]clock.EventTimerGate)
 	for clusterName := range shard.GetClusterMetadata().GetRemoteClusterInfo() {
 		historyResender := ndc.NewHistoryResender(
 			shard.GetDomainCache(),

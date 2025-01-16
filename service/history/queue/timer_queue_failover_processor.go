@@ -25,6 +25,7 @@ import (
 
 	"github.com/pborman/uuid"
 
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
@@ -102,7 +103,7 @@ func newTimerQueueFailoverProcessor(
 		shardContext,
 		processingQueueStates,
 		taskProcessor,
-		NewLocalTimerGate(shardContext.GetTimeSource()),
+		clock.NewTimerGate(shardContext.GetTimeSource()),
 		options,
 		updateMaxReadLevel,
 		updateClusterAckLevel,

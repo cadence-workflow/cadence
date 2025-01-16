@@ -21,6 +21,7 @@
 package queue
 
 import (
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
@@ -78,7 +79,7 @@ func newTimerQueueActiveProcessor(
 		shard,
 		loadTimerProcessingQueueStates(clusterName, shard, options, logger),
 		taskProcessor,
-		NewLocalTimerGate(shard.GetTimeSource()),
+		clock.NewTimerGate(shard.GetTimeSource()),
 		options,
 		updateMaxReadLevel,
 		updateClusterAckLevel,
