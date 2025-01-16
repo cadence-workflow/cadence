@@ -260,10 +260,10 @@ func TestInsertTaskList(t *testing.T) {
 				AdaptivePartitionConfig: &persistence.TaskListPartitionConfig{
 					Version: 1,
 					ReadPartitions: map[int]*persistence.TaskListPartition{
-						0: {},
+						1: {},
 					},
 					WritePartitions: map[int]*persistence.TaskListPartition{
-						0: {},
+						1: {},
 					},
 				},
 			},
@@ -277,7 +277,7 @@ func TestInsertTaskList(t *testing.T) {
 				`INSERT INTO tasks (domain_id, task_list_name, task_list_type, type, task_id, range_id, task_list, created_time ) ` +
 					`VALUES (domain1, tasklist1, 1, 1, -12345, 1, ` +
 					`{domain_id: domain1, name: tasklist1, type: 1, ack_level: 0, kind: 2, last_updated: 2024-04-01T22:08:41Z, ` +
-					`adaptive_partition_config: map[num_read_partitions:1 num_write_partitions:1 read_partitions:map[0:map[isolation_groups:[]]] version:1 write_partitions:map[0:map[isolation_groups:[]]]] }` +
+					`adaptive_partition_config: map[num_read_partitions:1 num_write_partitions:1 read_partitions:map[1:map[isolation_groups:[]]] version:1 write_partitions:map[1:map[isolation_groups:[]]]] }` +
 					`, 2025-01-06T15:00:00Z) IF NOT EXISTS`,
 			},
 		},
