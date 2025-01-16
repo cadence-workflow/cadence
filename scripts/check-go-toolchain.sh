@@ -31,13 +31,17 @@ while read file; do
   fi
 done < <( find "$root" -name Dockerfile )
 
-# check workflows
-codecov_file="$root/.github/workflows/codecov.yml"
-codecov_line="$(grep 'go-version:' "$codecov_file")"
-codecov_version="${codecov_line#*go-version: }"
-if [[ "$codecov_version" != "$target" ]]; then
-  bad "Wrong Go version in file $codecov_file:\n\t$codecov_line"
-fi
+declare -a codecov_files=( "$root/.github/workflows/codecov-on-pr.yml" "$root/.github/workflows/codecov-on-master.yml" );
+
+for codecov_file in "${codecov_files[@]}"; do
+  # check workflows
+  codecov_file="$root/.github/workflows/codecov-on-pr.yml"
+  codecov_line="$(grep 'go-version:' "$codecov_file")"
+  codecov_version="${codecov_line#*go-version: }"
+  if [[ "$codecov_version" != "$target" ]]; then
+    bad "Wrong Go version in file $codecov_file:\n\t$codecov_line"
+  fi
+done
 
 if [[ $fail == 1 ]]; then
   bad "Makefile pins Go to go${target}, Dockerfiles and GitHub workflows should too."
