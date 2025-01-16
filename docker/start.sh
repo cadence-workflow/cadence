@@ -32,6 +32,8 @@ setup_cassandra_schema() {
     cadence-cassandra-tool --ep $CASSANDRA_SEEDS create -k $VISIBILITY_KEYSPACE --rf $RF
     cadence-cassandra-tool --ep $CASSANDRA_SEEDS -k $VISIBILITY_KEYSPACE setup-schema -v 0.0
     cadence-cassandra-tool --ep $CASSANDRA_SEEDS -k $VISIBILITY_KEYSPACE update-schema -d $VISIBILITY_SCHEMA_DIR
+    echo "Registering domain for Cassandra..."
+    cqlsh $CASSANDRA_SEEDS -k $KEYSPACE -f /etc/cadence/domain/cassandra.cql
 }
 
 setup_mysql_schema() {
@@ -46,6 +48,8 @@ setup_mysql_schema() {
     cadence-sql-tool --ep $MYSQL_SEEDS -u $MYSQL_USER --pw $MYSQL_PWD $CONNECT_ATTR create --db $VISIBILITY_DBNAME
     cadence-sql-tool --ep $MYSQL_SEEDS -u $MYSQL_USER --pw $MYSQL_PWD --db $VISIBILITY_DBNAME $CONNECT_ATTR setup-schema -v 0.0
     cadence-sql-tool --ep $MYSQL_SEEDS -u $MYSQL_USER --pw $MYSQL_PWD --db $VISIBILITY_DBNAME $CONNECT_ATTR update-schema -d $VISIBILITY_SCHEMA_DIR
+    echo "Registering domain for MySQL..."
+    mysql -h $MYSQL_HOST -u $MYSQL_USER -p$MYSQL_PASSWORD $MYSQL_DATABASE < /etc/cadence/domain/mysql.sql
 }
 
 setup_postgres_schema() {
@@ -57,6 +61,8 @@ setup_postgres_schema() {
     cadence-sql-tool --plugin postgres --ep $POSTGRES_SEEDS -u $POSTGRES_USER --pw "$POSTGRES_PWD" -p $DB_PORT create --db $VISIBILITY_DBNAME
     cadence-sql-tool --plugin postgres --ep $POSTGRES_SEEDS -u $POSTGRES_USER --pw "$POSTGRES_PWD" -p $DB_PORT --db $VISIBILITY_DBNAME setup-schema -v 0.0
     cadence-sql-tool --plugin postgres --ep $POSTGRES_SEEDS -u $POSTGRES_USER --pw "$POSTGRES_PWD" -p $DB_PORT --db $VISIBILITY_DBNAME update-schema -d $VISIBILITY_SCHEMA_DIR
+    echo "Registering domain for PostgreSQL..."
+    PGPASSWORD=$POSTGRES_PASSWORD psql -h $POSTGRES_HOST -U $POSTGRES_USER -d $POSTGRES_DATABASE -f /etc/cadence/domain/postgres.sql
 }
 
 

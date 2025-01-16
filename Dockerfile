@@ -75,6 +75,7 @@ COPY config/dynamicconfig /etc/cadence/config/dynamicconfig
 COPY config/credentials /etc/cadence/config/credentials
 COPY docker/config_template.yaml /etc/cadence/config
 COPY docker/start-cadence.sh /start-cadence.sh
+COPY docker/domain /domain
 
 WORKDIR /etc/cadence
 
