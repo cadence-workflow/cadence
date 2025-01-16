@@ -1006,7 +1006,7 @@ func TestSelectTasks(t *testing.T) {
 				},
 			},
 			wantQueries: []string{
-				`SELECT task_id, task FROM tasks WHERE domain_id = domain1 and task_list_name = tasklist1 and task_list_type = 1 and type = 0 and task_id > 0 and task_id <= 100`,
+				`SELECT task_id, task, TTL(task) AS ttl FROM tasks WHERE domain_id = domain1 and task_list_name = tasklist1 and task_list_type = 1 and type = 0 and task_id > 0 and task_id <= 100`,
 			},
 		},
 	}
