@@ -1,7 +1,11 @@
 #!/bin/bash
 
 # This script can be used to run replication simulator and check the critical flow via logs
-#
+# Scenario specs are located at host/testdata/replication_simulation_${scenario}.yaml
+# Dynamic configs are located at config/dynamicconfig/replication_simulation_${scenario}.yml
+# The output of the simulation is saved in replication-simulator-output/ folder
+
+# Usage: ./scripts/run_replication_simulator.sh <scenario>
 
 set -eo pipefail
 
@@ -19,27 +23,33 @@ echo "Removing some of the previous containers (if exists) to start fresh"
 docker-compose -f docker/buildkite/docker-compose-local-replication-simulation.yml \
   down cassandra cadence-cluster0 cadence-cluster1 replication-simulator
 
-echo "Building test image"
+echo "Each simulation run creates multiple new giant container images. Running docker system prune to avoid disk space issues"
+docker system prune -f
+
+echo "Building test images"
 docker-compose -f docker/buildkite/docker-compose-local-replication-simulation.yml \
   build cadence-cluster0 cadence-cluster1 replication-simulator
 
-function check_test_failure()
-{
-  faillog="$(cat test.log | grep  'FAIL: TestReplicationSimulation' -B 10)"
-  if [[ -n $faillog ]]; then
-    echo "Test failed!!!"
-    echo "$faillog"
-    echo "Check test.log file for more details"
-    exit 1
+function check_test_failure {
+  echo "Checking test failure"
+  faillog="$(cat test.log | grep  'FAIL: TestReplicationSimulation111' -B 10)";
+  if [ -n "$faillog" ]; then
+    echo 'Test Failed!!!';
+    echo "$faillog";
+    echo "Check test.log file for more details";
+    exit 1;
   fi
 }
 
 trap check_test_failure EXIT
 
-echo "Running the test $testCase"
+echo "Running the scenario $testCase"
 docker-compose \
   -f docker/buildkite/docker-compose-local-replication-simulation.yml \
-  run -e REPLICATION_SIMULATION_CONFIG=$testCfg --rm --remove-orphans --service-ports --use-aliases \
+  run \
+  -e REPLICATION_SIMULATION_CONFIG=$testCfg \
+  -e SCENARIO=$testCase \
+  --rm --remove-orphans --service-ports --use-aliases \
   replication-simulator \
   | grep -a --line-buffered "Replication New Event" \
   | sed "s/Replication New Event: //" \

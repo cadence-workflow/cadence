@@ -24,7 +24,7 @@
 /*
 To run locally:
 
-1. Pick a scenario from the existing config files host/testdata/replication_simulation_.*.yaml or add a new one
+1. Pick a scenario from the existing config files host/testdata/replication_simulation_${scenario}.yaml or add a new one
 
 2. Run the scenario
 `./scripts/run_replication_simulator.sh default`
