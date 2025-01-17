@@ -34,7 +34,7 @@ type (
 		*require.Assertions
 		suite.Suite
 
-		concurrentQueue *concurrentQueueImpl
+		concurrentQueue *concurrentQueueImpl[int]
 	}
 )
 
@@ -46,17 +46,17 @@ func TestConcurrentQueueSuite(t *testing.T) {
 func (s *concurrentQueueSuite) SetupTest() {
 	s.Assertions = require.New(s.T())
 
-	s.concurrentQueue = NewConcurrentQueue().(*concurrentQueueImpl)
+	s.concurrentQueue = NewConcurrentQueue[int]().(*concurrentQueueImpl[int])
 }
 
-func (s *concurrentQueueImpl) TearDownTest() {
+func (s *concurrentQueueSuite) TearDownTest() {
 }
 
 func (s *concurrentQueueSuite) TestAddAndRemove() {
 	s.Equal(0, s.concurrentQueue.Len())
 	s.True(s.concurrentQueue.IsEmpty())
-	s.Nil(s.concurrentQueue.Peek())
-	s.Nil(s.concurrentQueue.Remove())
+	s.Panics(func() { s.concurrentQueue.Peek() })
+	s.Panics(func() { s.concurrentQueue.Remove() })
 
 	numItems := 100
 	items := make([]int, 0, numItems)
@@ -75,8 +75,8 @@ func (s *concurrentQueueSuite) TestAddAndRemove() {
 		s.Equal(numItems-i-1, s.concurrentQueue.Len())
 	}
 	s.True(s.concurrentQueue.IsEmpty())
-	s.Nil(s.concurrentQueue.Peek())
-	s.Nil(s.concurrentQueue.Remove())
+	s.Panics(func() { s.concurrentQueue.Peek() })
+	s.Panics(func() { s.concurrentQueue.Remove() })
 }
 
 func (s *concurrentQueueSuite) TestMultipleProducer() {
@@ -104,7 +104,7 @@ func (s *concurrentQueueSuite) TestMultipleProducer() {
 }
 
 func BenchmarkConcurrentQueue(b *testing.B) {
-	queue := NewConcurrentQueue()
+	queue := NewConcurrentQueue[testTask]()
 
 	for i := 0; i < 100; i++ {
 		go send(queue)
