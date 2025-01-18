@@ -300,7 +300,20 @@ func (t *nosqlTaskStore) CreateTasks(
 			CreatedTime:     now,
 			PartitionConfig: t.Data.PartitionConfig,
 		}
-		ttl := int(t.Data.ScheduleToStartTimeoutSeconds)
+
+		var ttl int
+		if !t.Data.Expiry.IsZero() {
+			scheduleToStartTimeoutSeconds := int(task.Expiry.Sub(now).Seconds())
+
+			if scheduleToStartTimeoutSeconds > 0 {
+				ttl = scheduleToStartTimeoutSeconds
+			} else {
+				continue
+			}
+		} else {
+			ttl = int(t.Data.ScheduleToStartTimeoutSeconds)
+		}
+
 		tasks = append(tasks, &nosqlplugin.TaskRowForInsert{
 			TaskRow:    *task,
 			TTLSeconds: ttl,

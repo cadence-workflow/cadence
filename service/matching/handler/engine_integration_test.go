@@ -1069,7 +1069,7 @@ func (s *matchingEngineSuite) TestAddTaskAfterStartFailure() {
 		Execution:                     &workflowExecution,
 		ScheduleID:                    scheduleID,
 		TaskList:                      taskList,
-		ScheduleToStartTimeoutSeconds: 1,
+		ScheduleToStartTimeoutSeconds: 100,
 	}
 
 	_, err := addTask(s.matchingEngine, s.handlerContext, addRequest)
