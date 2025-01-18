@@ -88,9 +88,8 @@ func NewService(
 			PersistenceGlobalMaxQPS: serviceConfig.PersistenceGlobalMaxQPS,
 			ThrottledLoggerMaxRPS:   serviceConfig.ThrottledLogRPS,
 
-			AdvancedVisibilityWritingMode:   nil, // frontend service never write
+			WriteVisibilityStoreName:        nil, // frontend service never write
 			EnableLogCustomerQueryParameter: serviceConfig.EnableLogCustomerQueryParameter,
-			EnableVisibilityDoubleRead:      serviceConfig.EnableVisibilityDoubleRead,
 			ReadVisibilityStoreName:         serviceConfig.ReadVisibilityStoreName,
 
 			EnableDBVisibilitySampling:                  serviceConfig.EnableVisibilitySampling,

@@ -1,9 +1,7 @@
 frontend.enableClientVersionCheck:
   - value: true
-system.advancedVisibilityWritingMode:
-  - value: "on"
-system.advancedVisibilityMigrationWritingMode:
-  - value: "es,os"
+system.writeVisibilityStoreName:
+  - value: "es"
 system.readVisibilityStoreName:
   - value: "os"
 frontend.validSearchAttributes:

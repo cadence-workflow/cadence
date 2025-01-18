@@ -151,14 +151,14 @@ const (
 	ArchivalPaused = "paused"
 )
 
-// enum for dynamic config AdvancedVisibilityWritingMode
+// enum for dynamic config AdvancedVisibility write/read mode
 const (
-	// AdvancedVisibilityWritingModeOff means do not write to advanced visibility store
-	AdvancedVisibilityWritingModeOff = "off"
-	// AdvancedVisibilityWritingModeOn means only write to advanced visibility store
-	AdvancedVisibilityWritingModeOn = "on"
-	// AdvancedVisibilityWritingModeDual means write to both normal visibility and advanced visibility store
-	AdvancedVisibilityWritingModeDual = "dual"
+	// AdvancedVisibilityModeOff means do not write to advanced visibility store
+	AdvancedVisibilityModeOff = "off"
+	// AdvancedVisibilityModeES means only write to advanced visibility store (es)
+	AdvancedVisibilityModeES = "es"
+	// AdvancedVisibilityModePinot means only write to advanced visibility store (pinot)
+	AdvancedVisibilityModePinot = "pinot"
 )
 
 const (
