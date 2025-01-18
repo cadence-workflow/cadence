@@ -105,8 +105,8 @@ kafka:
 ```
 
 There are dynamic configs to control ElasticSearch visibility features:
-- `system.advancedVisibilityWritingMode` is an int property to control how to write visibility to data store.
-`"off"` means do not write to advanced data store,
-`"on"` means only write to advanced data store,
-`"dual"` means write to both DB (Cassandra or MySQL) and advanced data store
-- `system.enableReadVisibilityFromES` is a boolean property to control whether Cadence List APIs should use ES as source or not.
+- `system.writeVisibilityStoreName` is an string property to control how to write visibility to data store.
+`"off"` means do not write to advanced data store, same as db
+`"es"` means only write to advanced data store (in this case is es),
+`"db,es"` means write to both DB (Cassandra or MySQL) and advanced data store
+- `system.readVisibilityStoreName` is a string property to control the read source for Cadence List APIs.

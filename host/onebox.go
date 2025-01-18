@@ -658,7 +658,8 @@ func (c *cadenceImpl) startFrontend(hosts map[string][]membership.HostInfo, star
 	if c.pinotConfig != nil {
 		pinotDataStoreName := "pinot-visibility"
 		params.PersistenceConfig.AdvancedVisibilityStore = pinotDataStoreName
-		params.DynamicConfig.UpdateValue(dynamicconfig.ReadVisibilityStoreName, "pinot")
+		params.DynamicConfig.UpdateValue(dynamicconfig.ReadVisibilityStoreName, common.AdvancedVisibilityModePinot)
+		params.DynamicConfig.UpdateValue(dynamicconfig.WriteVisibilityStoreName, common.AdvancedVisibilityModePinot)
 		params.PersistenceConfig.DataStores[pinotDataStoreName] = config.DataStore{
 			Pinot: c.pinotConfig,
 		}
@@ -997,7 +998,7 @@ func (c *cadenceImpl) startWorkerClientWorker(params *resource.Params, svc Servi
 }
 
 func (c *cadenceImpl) startWorkerIndexer(params *resource.Params, service Service) {
-	params.DynamicConfig.UpdateValue(dynamicconfig.AdvancedVisibilityWritingMode, common.AdvancedVisibilityWritingModeDual)
+	params.DynamicConfig.UpdateValue(dynamicconfig.WriteVisibilityStoreName, common.AdvancedVisibilityModeES)
 	workerConfig := worker.NewConfig(params)
 	c.indexer = indexer.NewIndexer(
 		workerConfig.IndexerCfg,
@@ -1049,7 +1050,7 @@ func (c *cadenceImpl) overrideHistoryDynamicConfig(client *dynamicClient) {
 	client.OverrideValue(dynamicconfig.ReplicationTaskProcessorStartWait, time.Nanosecond)
 
 	if c.workerConfig.EnableIndexer {
-		client.OverrideValue(dynamicconfig.AdvancedVisibilityWritingMode, common.AdvancedVisibilityWritingModeDual)
+		client.OverrideValue(dynamicconfig.WriteVisibilityStoreName, common.AdvancedVisibilityModeES)
 	}
 	if c.historyConfig.HistoryCountLimitWarn != 0 {
 		client.OverrideValue(dynamicconfig.HistoryCountLimitWarn, c.historyConfig.HistoryCountLimitWarn)

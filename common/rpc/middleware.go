@@ -124,12 +124,11 @@ const ComparatorYarpcKey = "cadence-visibility-override"
 type PinotComparatorMiddleware struct{}
 
 func (m *PinotComparatorMiddleware) Handle(ctx context.Context, req *transport.Request, resw transport.ResponseWriter, h transport.UnaryHandler) error {
-	yarpcKey, _ := req.Headers.Get(ComparatorYarpcKey)
-	if yarpcKey == persistence.VisibilityOverridePrimary {
-		ctx = contextWithVisibilityOverride(ctx, persistence.VisibilityOverridePrimary)
-	} else if yarpcKey == persistence.VisibilityOverrideSecondary {
-		ctx = contextWithVisibilityOverride(ctx, persistence.VisibilityOverrideSecondary)
+	yarpcKey, ok := req.Headers.Get(ComparatorYarpcKey)
+	if ok {
+		contextWithVisibilityOverride(ctx, yarpcKey) //original key can not be passed, need get new context with key
 	}
+
 	return h.Handle(ctx, req, resw)
 }
 

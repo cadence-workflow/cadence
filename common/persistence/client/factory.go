@@ -271,7 +271,7 @@ func (f *factoryImpl) NewVisibilityManager(
 	params *Params,
 	resourceConfig *service.Config,
 ) (p.VisibilityManager, error) {
-	if resourceConfig.ReadVisibilityStoreName == nil && resourceConfig.AdvancedVisibilityWritingMode == nil {
+	if resourceConfig.ReadVisibilityStoreName == nil && resourceConfig.WriteVisibilityStoreName == nil {
 		// No need to create visibility manager as no read/write needed
 		return nil, nil
 	}
@@ -291,31 +291,25 @@ func (f *factoryImpl) NewVisibilityManager(
 			f.logger.Fatal("Creating Pinot advanced visibility manager failed", tag.Error(err))
 		}
 
+		visibilityMgrs := map[string]p.VisibilityManager{
+			"db":    visibilityFromDB,
+			"pinot": visibilityFromPinot,
+		}
+
 		if params.PinotConfig.Migration.Enabled {
 			visibilityFromES, err = setupESVisibilityManager(params, resourceConfig, f.logger)
 			if err != nil {
 				f.logger.Fatal("Creating ES advanced visibility manager failed", tag.Error(err))
 			}
 
-			return p.NewVisibilityTripleManager(
-				visibilityFromDB,
-				visibilityFromPinot,
-				visibilityFromES,
-				resourceConfig.ReadVisibilityStoreName,
-				"es",    //source vis store
-				"pinot", //dest vis store
-				resourceConfig.AdvancedVisibilityMigrationWritingMode,
-				resourceConfig.EnableLogCustomerQueryParameter,
-				resourceConfig.EnableVisibilityDoubleRead,
-				f.logger,
-			), nil
+			visibilityMgrs["es"] = visibilityFromES
 		}
 
-		return p.NewVisibilityDualManager(
-			visibilityFromDB,
-			visibilityFromPinot,
+		return p.NewVisibilityHybridManager(
+			visibilityMgrs,
 			resourceConfig.ReadVisibilityStoreName,
-			resourceConfig.AdvancedVisibilityWritingMode,
+			resourceConfig.WriteVisibilityStoreName,
+			resourceConfig.EnableLogCustomerQueryParameter,
 			f.logger,
 		), nil
 	case common.OSVisibilityStoreName:
@@ -323,30 +317,25 @@ func (f *factoryImpl) NewVisibilityManager(
 		if err != nil {
 			f.logger.Fatal("Creating OS advanced visibility manager failed", tag.Error(err))
 		}
+
+		visibilityMgrs := map[string]p.VisibilityManager{
+			"db": visibilityFromDB,
+			"os": visibilityFromOS,
+		}
 		if params.OSConfig.Migration.Enabled {
 			// this should be always true when using os-visibility
 			visibilityFromES, err = setupESVisibilityManager(params, resourceConfig, f.logger)
 			if err != nil {
 				f.logger.Fatal("Creating ES advanced visibility manager failed", tag.Error(err))
 			}
-			return p.NewVisibilityTripleManager(
-				visibilityFromDB,
-				visibilityFromOS,
-				visibilityFromES,
-				resourceConfig.ReadVisibilityStoreName, // this controls read from source(ES), will be the primary read source
-				"es",                                   //source vis store
-				"os",                                   //dest vis store
-				resourceConfig.AdvancedVisibilityMigrationWritingMode,
-				resourceConfig.EnableLogCustomerQueryParameter,
-				resourceConfig.EnableVisibilityDoubleRead,
-				f.logger,
-			), nil
+
+			visibilityMgrs["es"] = visibilityFromES
 		}
-		return p.NewVisibilityDualManager(
-			visibilityFromDB,
-			visibilityFromOS,
+		return p.NewVisibilityHybridManager(
+			visibilityMgrs,
 			resourceConfig.ReadVisibilityStoreName, //Didn't add new config for EnableReadVisibilityFromOS since we will use es-visibility and version: "os2" when migration is done
-			resourceConfig.AdvancedVisibilityWritingMode,
+			resourceConfig.WriteVisibilityStoreName,
+			resourceConfig.EnableLogCustomerQueryParameter,
 			f.logger,
 		), nil
 	case common.ESVisibilityStoreName:
@@ -354,19 +343,26 @@ func (f *factoryImpl) NewVisibilityManager(
 		if err != nil {
 			f.logger.Fatal("Creating advanced visibility manager failed", tag.Error(err))
 		}
-		return p.NewVisibilityDualManager(
-			visibilityFromDB,
-			visibilityFromES,
+		visibilityMgrs := map[string]p.VisibilityManager{
+			"db": visibilityFromDB,
+			"es": visibilityFromES,
+		}
+		return p.NewVisibilityHybridManager(
+			visibilityMgrs,
 			resourceConfig.ReadVisibilityStoreName,
-			resourceConfig.AdvancedVisibilityWritingMode,
+			resourceConfig.WriteVisibilityStoreName,
+			resourceConfig.EnableLogCustomerQueryParameter,
 			f.logger,
 		), nil
 	default:
-		return p.NewVisibilityDualManager(
-			visibilityFromDB,
-			visibilityFromES,
+		visibilityMgrs := map[string]p.VisibilityManager{
+			"db": visibilityFromDB,
+		}
+		return p.NewVisibilityHybridManager(
+			visibilityMgrs,
 			resourceConfig.ReadVisibilityStoreName,
-			resourceConfig.AdvancedVisibilityWritingMode,
+			resourceConfig.WriteVisibilityStoreName,
+			resourceConfig.EnableLogCustomerQueryParameter,
 			f.logger,
 		), nil
 	}

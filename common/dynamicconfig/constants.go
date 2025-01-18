@@ -1508,12 +1508,6 @@ const (
 	// Default value: false
 	// Allowed filters: N/A
 	EnableReadFromClosedExecutionV2
-	// EnableVisibilityDoubleRead is the key for enable double read for a latency comparison
-	// KeyName: system.EnableVisibilityDoubleRead
-	// Value type: Bool
-	// Default value: false
-	// Allowed filters: DomainName
-	EnableVisibilityDoubleRead
 	// EnableLogCustomerQueryParameter is key for enable log customer query parameters
 	// KeyName: system.enableLogCustomerQueryParameter
 	// Value type: Bool
@@ -2237,18 +2231,12 @@ const (
 
 	// key for common & admin
 
-	// AdvancedVisibilityWritingMode is key for how to write to advanced visibility. The most useful option is "dual", which can be used for seamless migration from db visibility to advanced visibility, usually using with ReadVisibilityStoreName
-	// KeyName: system.advancedVisibilityWritingMode
-	// Value type: String enum: "on"(means writing to advancedVisibility only, "off" (means writing to db visibility only), or "dual" (means writing to both)
-	// Default value: "on"
-	// Allowed filters: N/A
-	AdvancedVisibilityWritingMode
-	// AdvancedVisibilityMigrationWritingMode is key for how to write to advanced visibility during migration.
-	// KeyName: system.advancedVisibilityMigrationWritingMode
-	// Value type: string ["es","os","pinot","db"]
+	// WriteVisibilityStoreName is key for how to write to advanced visibility. Usually using with ReadVisibilityStoreName
+	// KeyName: system.writeVisibilityStoreName
+	// Value type: String enum: string ["es","os","pinot","db"]
 	// Default value: "es"
 	// Allowed filters: N/A
-	AdvancedVisibilityMigrationWritingMode
+	WriteVisibilityStoreName
 	// ReadVisibilityStoreName is key to identify which store to read visibility data from
 	// KeyName: system.readVisibilityStoreName
 	// Value type: String enum: "db" or "es" or "pinot" or "os"
@@ -3890,12 +3878,6 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "EnableReadFromClosedExecutionV2 is key for enable read from cadence_visibility.closed_executions_v2",
 		DefaultValue: false,
 	},
-	EnableVisibilityDoubleRead: {
-		KeyName:      "system.enableVisibilityDoubleRead",
-		Filters:      []Filter{DomainName},
-		Description:  "EnableVisibilityDoubleRead is key for enable read for both elastic search and Pinot for a latency comparison",
-		DefaultValue: false,
-	},
 	EnableLogCustomerQueryParameter: {
 		KeyName:      "system.enableLogCustomerQueryParameter",
 		Filters:      []Filter{DomainName},
@@ -4533,14 +4515,9 @@ var StringKeys = map[StringKey]DynamicString{
 		Description:  "",
 		DefaultValue: "",
 	},
-	AdvancedVisibilityWritingMode: {
-		KeyName:      "system.advancedVisibilityWritingMode",
-		Description:  "AdvancedVisibilityWritingMode is key for how to write to advanced visibility. The most useful option is dual, which can be used for seamless migration from db visibility to advanced visibility, usually using with ReadVisibilityStoreName",
-		DefaultValue: "on",
-	},
-	AdvancedVisibilityMigrationWritingMode: {
-		KeyName:      "system.advancedVisibilityMigrationWritingMode",
-		Description:  "AdvancedVisibilityMigrationWritingMode is key for how to write to advanced visibility. It is used for migration only, which contains a list of writing visibility stores",
+	WriteVisibilityStoreName: {
+		KeyName:      "system.writeVisibilityStoreName",
+		Description:  "WriteVisibilityStoreName is key for how to write to advanced visibility. The default option is es, which can be used for seamless migration from db visibility to advanced visibility, usually using with ReadVisibilityStoreName",
 		DefaultValue: "es",
 	},
 	HistoryArchivalStatus: {

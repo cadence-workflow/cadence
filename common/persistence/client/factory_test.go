@@ -145,8 +145,8 @@ func TestFactoryMethods(t *testing.T) {
 				// because no "manager" is needed:
 				// ES cannot be dynamically enabled, so no dual-writing / etc is
 				// needed, so the baseline database store is sufficient.
-				ReadVisibilityStoreName:       nil,
-				AdvancedVisibilityWritingMode: nil,
+				ReadVisibilityStoreName:  nil,
+				WriteVisibilityStoreName: nil,
 			})
 		assert.NoError(t, err)
 		assert.Nil(t, vm, "nil response is expected if advanced visibility cannot be enabled dynamically")

@@ -55,7 +55,6 @@ func TestNewConfig(t *testing.T) {
 		"ESVisibilityListMaxQPS":                      {dynamicconfig.FrontendESVisibilityListMaxQPS, 5},
 		"ReadVisibilityStoreName":                     {dynamicconfig.ReadVisibilityStoreName, "es"},
 		"EnableLogCustomerQueryParameter":             {dynamicconfig.EnableLogCustomerQueryParameter, true},
-		"EnableVisibilityDoubleRead":                  {dynamicconfig.EnableVisibilityDoubleRead, false},
 		"ESIndexMaxResultWindow":                      {dynamicconfig.FrontendESIndexMaxResultWindow, 6},
 		"HistoryMaxPageSize":                          {dynamicconfig.FrontendHistoryMaxPageSize, 7},
 		"UserRPS":                                     {dynamicconfig.FrontendUserRPS, 8},

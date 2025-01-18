@@ -212,7 +212,7 @@ func (s *server) startService() common.Daemon {
 	)
 
 	advancedVisMode := dc.GetStringProperty(
-		dynamicconfig.AdvancedVisibilityWritingMode,
+		dynamicconfig.WriteVisibilityStoreName,
 	)()
 	isAdvancedVisEnabled := common.IsAdvancedVisibilityWritingEnabled(advancedVisMode, params.PersistenceConfig.IsAdvancedVisibilityConfigExist())
 	if isAdvancedVisEnabled {

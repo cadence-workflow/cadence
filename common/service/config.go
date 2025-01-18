@@ -32,12 +32,8 @@ type (
 		PersistenceGlobalMaxQPS dynamicconfig.IntPropertyFn
 		ThrottledLoggerMaxRPS   dynamicconfig.IntPropertyFn
 
-		// AdvancedVisibilityWritingMode is the write mode of visibility
-		AdvancedVisibilityWritingMode dynamicconfig.StringPropertyFn
-		// AdvancedVisibilityWritingMode is the write mode of visibility during migration
-		AdvancedVisibilityMigrationWritingMode dynamicconfig.StringPropertyFn
-		// EnableVisibilityDoubleRead is to enable double read for a latency comparison
-		EnableVisibilityDoubleRead dynamicconfig.BoolPropertyFnWithDomainFilter
+		// WriteVisibilityStoreName is the write mode of visibility
+		WriteVisibilityStoreName dynamicconfig.StringPropertyFn
 		// EnableLogCustomerQueryParameter is to enable log customer parameters
 		EnableLogCustomerQueryParameter dynamicconfig.BoolPropertyFnWithDomainFilter
 		// ReadVisibilityStoreName is the read store for visibility
