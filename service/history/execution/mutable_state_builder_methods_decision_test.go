@@ -866,7 +866,7 @@ func TestAddBinaryCheckSumIfNotExistsMutableStateBuilder(t *testing.T) {
 				},
 			},
 			shardConfig: &config.Config{
-				AdvancedVisibilityWritingMode: dynamicconfig.GetStringPropertyFn("AdvancedVisibilityWritingModeOff"),
+				WriteVisibilityStoreName: dynamicconfig.GetStringPropertyFn("off"),
 			},
 			wantWorkFlowExecutionInfo: &persistence.WorkflowExecutionInfo{
 				RunID: runID,
@@ -895,8 +895,8 @@ func TestAddBinaryCheckSumIfNotExistsMutableStateBuilder(t *testing.T) {
 				BinaryChecksum: checkSum,
 			},
 			shardConfig: &config.Config{
-				AdvancedVisibilityWritingMode: dynamicconfig.GetStringPropertyFn("AdvancedVisibilityWritingModeOn"),
-				IsAdvancedVisConfigExist:      true,
+				WriteVisibilityStoreName: dynamicconfig.GetStringPropertyFn("es"),
+				IsAdvancedVisConfigExist: true,
 			},
 			wantWorkFlowExecutionInfo: &persistence.WorkflowExecutionInfo{
 				RunID: runID,
@@ -925,7 +925,7 @@ func TestAddBinaryCheckSumIfNotExistsMutableStateBuilder(t *testing.T) {
 				BinaryChecksum: checkSum,
 			},
 			shardConfig: &config.Config{
-				AdvancedVisibilityWritingMode: dynamicconfig.GetStringPropertyFn("AdvancedVisibilityWritingModeOff"),
+				WriteVisibilityStoreName: dynamicconfig.GetStringPropertyFn("off"),
 			},
 			pendingChildExecutionInfoIDs: map[int64]*persistence.ChildExecutionInfo{
 				1: {},

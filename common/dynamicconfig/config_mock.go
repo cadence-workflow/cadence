@@ -104,6 +104,11 @@ func GetStringPropertyFn(value string) func(opts ...FilterOption) string {
 	return func(...FilterOption) string { return value }
 }
 
+// GetStringPropertyFnFilteredByDomain returns value as StringPropertyFnWithDomainFilters
+func GetStringPropertyFnFilteredByDomain(value string) func(domain string) string {
+	return func(domain string) string { return value }
+}
+
 // GetMapPropertyFn returns value as MapPropertyFn
 func GetMapPropertyFn(value map[string]interface{}) func(opts ...FilterOption) map[string]interface{} {
 	return func(...FilterOption) map[string]interface{} { return value }

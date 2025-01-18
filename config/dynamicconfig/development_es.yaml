@@ -1,11 +1,9 @@
 frontend.enableClientVersionCheck:
   - value: true
-system.advancedVisibilityWritingMode:
-  - value: "on"
-system.advancedVisibilityMigrationWritingMode:
-  - value: "source"
-system.enableReadVisibilityFromES:
-  - value: true
+system.writeVisibilityStoreName:
+  - value: "es"
+system.readVisibilityStoreName:
+  - value: "os"
 frontend.validSearchAttributes:
   - value:
       DomainID: 1

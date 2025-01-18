@@ -32,18 +32,12 @@ type (
 		PersistenceGlobalMaxQPS dynamicconfig.IntPropertyFn
 		ThrottledLoggerMaxRPS   dynamicconfig.IntPropertyFn
 
-		// EnableReadVisibilityFromES is the read mode of visibility
-		EnableReadVisibilityFromES dynamicconfig.BoolPropertyFnWithDomainFilter
-		// AdvancedVisibilityWritingMode is the write mode of visibility
-		AdvancedVisibilityWritingMode dynamicconfig.StringPropertyFn
-		// AdvancedVisibilityWritingMode is the write mode of visibility during migration
-		AdvancedVisibilityMigrationWritingMode dynamicconfig.StringPropertyFn
-		// EnableReadVisibilityFromPinot is the read mode of visibility
-		EnableReadVisibilityFromPinot dynamicconfig.BoolPropertyFnWithDomainFilter
-		// EnableVisibilityDoubleRead is to enable double read for a latency comparison
-		EnableVisibilityDoubleRead dynamicconfig.BoolPropertyFnWithDomainFilter
+		// WriteVisibilityStoreName is the write mode of visibility
+		WriteVisibilityStoreName dynamicconfig.StringPropertyFn
 		// EnableLogCustomerQueryParameter is to enable log customer parameters
 		EnableLogCustomerQueryParameter dynamicconfig.BoolPropertyFnWithDomainFilter
+		// ReadVisibilityStoreName is the read store for visibility
+		ReadVisibilityStoreName dynamicconfig.StringPropertyFnWithDomainFilter
 
 		// configs for db visibility
 		EnableDBVisibilitySampling                  dynamicconfig.BoolPropertyFn                `yaml:"-" json:"-"`

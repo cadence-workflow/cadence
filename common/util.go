@@ -948,7 +948,7 @@ func DeserializeSearchAttributeValue(value []byte, valueType types.IndexedValueT
 
 // IsAdvancedVisibilityWritingEnabled returns true if we should write to advanced visibility
 func IsAdvancedVisibilityWritingEnabled(advancedVisibilityWritingMode string, isAdvancedVisConfigExist bool) bool {
-	return advancedVisibilityWritingMode != AdvancedVisibilityWritingModeOff && isAdvancedVisConfigExist
+	return advancedVisibilityWritingMode != AdvancedVisibilityModeOff && isAdvancedVisConfigExist
 }
 
 // IsAdvancedVisibilityReadingEnabled returns true if we should read from advanced visibility

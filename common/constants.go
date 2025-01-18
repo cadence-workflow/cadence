@@ -151,28 +151,14 @@ const (
 	ArchivalPaused = "paused"
 )
 
-// enum for dynamic config AdvancedVisibilityWritingMode
+// enum for dynamic config AdvancedVisibility write/read mode
 const (
-	// AdvancedVisibilityWritingModeOff means do not write to advanced visibility store
-	AdvancedVisibilityWritingModeOff = "off"
-	// AdvancedVisibilityWritingModeOn means only write to advanced visibility store
-	AdvancedVisibilityWritingModeOn = "on"
-	// AdvancedVisibilityWritingModeDual means write to both normal visibility and advanced visibility store
-	AdvancedVisibilityWritingModeDual = "dual"
-)
-
-// enum for dynamic config AdvancedVisibilityMigrationWritingMode
-const (
-	// AdvancedVisibilityMigrationWritingModeOff means do not write to advanced visibility store
-	AdvancedVisibilityMigrationWritingModeOff = "off"
-	// AdvancedVisibilityMigrationWritingModeTriple means write to normal visibility and advanced visibility store
-	AdvancedVisibilityMigrationWritingModeTriple = "triple"
-	// AdvancedVisibilityMigrationWritingModeDual means write to both advanced visibility stores
-	AdvancedVisibilityMigrationWritingModeDual = "dual"
-	// AdvancedVisibilityMigrationWritingModeTriple means write to source visibility store during migration
-	AdvancedVisibilityMigrationWritingModeSource = "source"
-	// AdvancedVisibilityMigrationWritingModeDestination means write to destination visibility store during migration
-	AdvancedVisibilityMigrationWritingModeDestination = "destination"
+	// AdvancedVisibilityModeOff means do not write to advanced visibility store
+	AdvancedVisibilityModeOff = "off"
+	// AdvancedVisibilityModeES means only write to advanced visibility store (es)
+	AdvancedVisibilityModeES = "es"
+	// AdvancedVisibilityModePinot means only write to advanced visibility store (pinot)
+	AdvancedVisibilityModePinot = "pinot"
 )
 
 const (

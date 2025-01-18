@@ -187,7 +187,7 @@ func NewConfig(params *resource.Params) *Config {
 		HostName:                            params.HostName,
 	}
 	advancedVisWritingMode := dc.GetStringProperty(
-		dynamicconfig.AdvancedVisibilityWritingMode,
+		dynamicconfig.WriteVisibilityStoreName,
 	)
 
 	if shouldStartIndexer(params, advancedVisWritingMode) {
