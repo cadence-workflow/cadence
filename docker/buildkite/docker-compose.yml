@@ -114,6 +114,22 @@ services:
         aliases:
           - unit-test
 
+  real-unit-test:
+    build:
+      context: ../../
+      dockerfile: ./docker/buildkite/Dockerfile
+    environment:
+      - BUILDKITE_AGENT_ACCESS_TOKEN
+      - BUILDKITE_JOB_ID
+      - BUILDKITE_BUILD_ID
+      - BUILDKITE_BUILD_NUMBER
+    volumes:
+      - ../../:/cadence
+    networks:
+      services-network:
+        aliases:
+          - real-unit-test
+
   integration-test-cassandra:
     build:
       context: ../../

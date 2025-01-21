@@ -95,6 +95,52 @@ steps:
           run: unit-test
           config: docker/buildkite/docker-compose.yml
 
+  - label: ":golang: real unit test seq"
+    artifact_paths:
+      - ".build/coverage/*.out"
+      - ".build/coverage/metadata.txt"
+    retry:
+      automatic:
+        limit: 1
+    plugins:
+      - kubernetes:
+          <<: *kubernetes
+          podSpec:
+            <<: *podSpec
+            containers:
+              - <<: *commandContainer
+                command:
+                  - |-
+                    # ensure that we are not rebuilding binaries and not regenerating code
+                    make .just-build
+                    make cover_profile
+      - docker-compose#v3.0.0:
+          run: real-unit-test
+          config: docker/buildkite/docker-compose.yml
+
+  - label: ":golang: real unit test parallel"
+    artifact_paths:
+      - ".build/coverage/*.out"
+      - ".build/coverage/metadata.txt"
+    retry:
+      automatic:
+        limit: 1
+    plugins:
+      - kubernetes:
+          <<: *kubernetes
+          podSpec:
+            <<: *podSpec
+            containers:
+              - <<: *commandContainer
+                command:
+                  - |-
+                    # ensure that we are not rebuilding binaries and not regenerating code
+                    make .just-build
+                    make cover_profile_parallel
+      - docker-compose#v3.0.0:
+          run: real-unit-test
+          config: docker/buildkite/docker-compose.yml
+
   - label: ":lint: validate code is clean"
     artifact_paths: []
     retry:
