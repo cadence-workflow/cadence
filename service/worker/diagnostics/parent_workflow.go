@@ -49,13 +49,17 @@ type DiagnosticsStarterWorkflowInput struct {
 }
 
 type DiagnosticsStarterWorkflowResult struct {
-	DiagnosticsResult *DiagnosticsWorkflowResult
+	DiagnosticsResult    *DiagnosticsWorkflowResult
+	DiagnosticsCompleted bool
 }
 
 func (w *dw) DiagnosticsStarterWorkflow(ctx workflow.Context, params DiagnosticsStarterWorkflowInput) (*DiagnosticsStarterWorkflowResult, error) {
-	var result DiagnosticsWorkflowResult
+	var diagWfResult DiagnosticsWorkflowResult
+	workflowResult := DiagnosticsStarterWorkflowResult{
+		DiagnosticsResult: &diagWfResult,
+	}
 	err := workflow.SetQueryHandler(ctx, queryDiagnosticsReport, func() (DiagnosticsStarterWorkflowResult, error) {
-		return DiagnosticsStarterWorkflowResult{DiagnosticsResult: &result}, nil
+		return workflowResult, nil
 	})
 	if err != nil {
 		return nil, err
@@ -74,10 +78,11 @@ func (w *dw) DiagnosticsStarterWorkflow(ctx workflow.Context, params Diagnostics
 	}
 	childWfStart = workflow.Now(ctx)
 
-	err = future.Get(ctx, &result)
+	err = future.Get(ctx, &diagWfResult)
 	if err != nil {
 		return nil, fmt.Errorf("Workflow Diagnostics failed: %w", err)
 	}
+	workflowResult.DiagnosticsCompleted = true
 	childWfEnd = workflow.Now(ctx)
 
 	activityOptions := workflow.ActivityOptions{
@@ -91,7 +96,7 @@ func (w *dw) DiagnosticsStarterWorkflow(ctx workflow.Context, params Diagnostics
 		WorkflowID:            params.WorkflowID,
 		RunID:                 params.RunID,
 		Identity:              params.Identity,
-		IssueType:             getIssueType(result),
+		IssueType:             getIssueType(diagWfResult),
 		DiagnosticsWorkflowID: childWfExec.ID,
 		DiagnosticsRunID:      childWfExec.RunID,
 		DiagnosticsStartTime:  childWfStart,
@@ -101,7 +106,7 @@ func (w *dw) DiagnosticsStarterWorkflow(ctx workflow.Context, params Diagnostics
 		return nil, fmt.Errorf("EmitUsageLogs: %w", err)
 	}
 
-	return &DiagnosticsStarterWorkflowResult{DiagnosticsResult: &result}, nil
+	return &workflowResult, nil
 }
 
 func getIssueType(result DiagnosticsWorkflowResult) string {
