@@ -31,7 +31,7 @@ matchingconfig:
 workerconfig:
   enablearchiver: false
   enablereplicator: false
-  enableindexer: true
+  enableindexer: false
 esconfig:
   version: "v7"
   url:

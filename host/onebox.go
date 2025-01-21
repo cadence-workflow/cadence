@@ -659,7 +659,6 @@ func (c *cadenceImpl) startFrontend(hosts map[string][]membership.HostInfo, star
 		pinotDataStoreName := "pinot-visibility"
 		params.PersistenceConfig.AdvancedVisibilityStore = pinotDataStoreName
 		params.DynamicConfig.UpdateValue(dynamicconfig.ReadVisibilityStoreName, common.AdvancedVisibilityModePinot)
-		params.DynamicConfig.UpdateValue(dynamicconfig.WriteVisibilityStoreName, common.AdvancedVisibilityModePinot)
 		params.PersistenceConfig.DataStores[pinotDataStoreName] = config.DataStore{
 			Pinot: c.pinotConfig,
 		}
@@ -744,6 +743,7 @@ func (c *cadenceImpl) startHistory(hosts map[string][]membership.HostInfo, start
 				Pinot:         c.pinotConfig,
 				ElasticSearch: c.esConfig,
 			}
+			params.DynamicConfig.UpdateValue(dynamicconfig.WriteVisibilityStoreName, common.AdvancedVisibilityModePinot)
 		} else if c.esConfig != nil {
 			esDataStoreName := "es-visibility"
 			params.PersistenceConfig.AdvancedVisibilityStore = esDataStoreName

@@ -78,6 +78,9 @@ func NewVisibilityHybridManager(
 		logger.Fatal("require one of dbVisibilityManager or advancedVisibilityManager")
 		return nil
 	}
+	if logCustomerQueryParameter == nil {
+		logCustomerQueryParameter = dynamicconfig.GetBoolPropertyFnFilteredByDomain(false)
+	}
 	return &visibilityHybridManager{
 		visibilityMgrs:            visibilityMgrs,
 		readVisibilityStoreName:   readVisibilityStoreName,
@@ -201,6 +204,7 @@ func (v *visibilityHybridManager) chooseVisibilityManagerForWrite(ctx context.Co
 			writeMode = v.chooseVisibilityModeForAdmin()
 		}
 	}
+	v.logger.Info(fmt.Sprintf("write ================= %v", writeMode))
 	modes := strings.Split(writeMode, ",")
 
 	var errors []string
@@ -517,6 +521,8 @@ func (v *visibilityHybridManager) chooseVisibilityManagerForRead(ctx context.Con
 		} // if the override is not valid, fall back to default
 	}
 
+	v.logger.Info(fmt.Sprintf("read ================= %s", v.readVisibilityStoreName(domain)))
+	v.logger.Info(fmt.Sprintf("================= %+v", v.visibilityMgrs))
 	var visibilityMgr, shadowMgr VisibilityManager
 	stores := strings.Split(v.readVisibilityStoreName(domain), ",")
 	readStore := stores[0] // if read stores have more than 1, the others will go shadow read
