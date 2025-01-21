@@ -872,12 +872,19 @@ func (s *DBVisibilityPersistenceSuite) TestUpsertWorkflowExecution() {
 				SearchAttributes:   nil,
 				ShardID:            1234,
 			},
-			expected: p.ErrVisibilityOperationNotSupported,
+			expected: &types.InternalServiceError{
+				Message: "Error writing to visibility: Operation is not supported",
+			},
 		},
 	}
 
 	for _, test := range tests {
-		s.Equal(test.expected, s.VisibilityMgr.UpsertWorkflowExecution(ctx, test.request))
+		err := s.VisibilityMgr.UpsertWorkflowExecution(ctx, test.request)
+		if test.expected == nil {
+			s.Equal(test.expected, err)
+		} else {
+			s.Equal(test.expected.Error(), err.Error())
+		}
 	}
 }
 
