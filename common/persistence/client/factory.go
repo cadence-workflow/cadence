@@ -323,7 +323,6 @@ func (f *factoryImpl) NewVisibilityManager(
 			"os": visibilityFromOS,
 		}
 		if params.OSConfig.Migration.Enabled {
-			// this should be always true when using os-visibility
 			visibilityFromES, err = setupESVisibilityManager(params, resourceConfig, f.logger)
 			if err != nil {
 				f.logger.Fatal("Creating ES advanced visibility manager failed", tag.Error(err))
@@ -333,7 +332,7 @@ func (f *factoryImpl) NewVisibilityManager(
 		}
 		return p.NewVisibilityHybridManager(
 			visibilityMgrs,
-			resourceConfig.ReadVisibilityStoreName, //Didn't add new config for EnableReadVisibilityFromOS since we will use es-visibility and version: "os2" when migration is done
+			resourceConfig.ReadVisibilityStoreName,
 			resourceConfig.WriteVisibilityStoreName,
 			resourceConfig.EnableLogCustomerQueryParameter,
 			f.logger,

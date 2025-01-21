@@ -30,7 +30,6 @@ import (
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/dynamicconfig"
@@ -74,7 +73,7 @@ func (s *DBVisibilityPersistenceSuite) SetupSuite() {
 		},
 		&service.Config{
 			ReadVisibilityStoreName:                     dynamicconfig.GetStringPropertyFnFilteredByDomain("db"),
-			WriteVisibilityStoreName:                    dynamicconfig.GetStringPropertyFn(common.AdvancedVisibilityModeOff),
+			WriteVisibilityStoreName:                    dynamicconfig.GetStringPropertyFn("db"),
 			EnableReadDBVisibilityFromClosedExecutionV2: dynamicconfig.GetBoolPropertyFn(false),
 			EnableDBVisibilitySampling:                  dynamicconfig.GetBoolPropertyFn(false),
 		},
