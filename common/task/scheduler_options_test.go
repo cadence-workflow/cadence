@@ -33,7 +33,6 @@ func TestSchedulerOptionsString(t *testing.T) {
 		queueSize       int
 		workerCount     dynamicconfig.IntPropertyFn
 		dispatcherCount int
-		weights         dynamicconfig.MapPropertyFn
 		wantErr         bool
 		want            string
 	}{
@@ -51,11 +50,7 @@ func TestSchedulerOptionsString(t *testing.T) {
 			queueSize:       3,
 			workerCount:     dynamicconfig.GetIntPropertyFn(4),
 			dispatcherCount: 5,
-			weights: dynamicconfig.GetMapPropertyFn(map[string]interface{}{
-				"1": 500,
-				"9": 20,
-			}),
-			want: "{schedulerType:2, fifoSchedulerOptions:<nil>, wrrSchedulerOptions:{QueueSize: 3, WorkerCount: 4, DispatcherCount: 5, Weights: map[1:500 9:20]}}",
+			want:            "{schedulerType:2, fifoSchedulerOptions:<nil>, wrrSchedulerOptions:{QueueSize: 3, WorkerCount: 4, DispatcherCount: 5}}",
 		},
 		{
 			desc:          "InvalidSchedulerType",
@@ -66,7 +61,7 @@ func TestSchedulerOptionsString(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.desc, func(t *testing.T) {
-			o, err := NewSchedulerOptions(tc.schedulerType, tc.queueSize, tc.workerCount, tc.dispatcherCount, tc.weights)
+			o, err := NewSchedulerOptions[int](tc.schedulerType, tc.queueSize, tc.workerCount, tc.dispatcherCount, nil, nil)
 			if (err != nil) != tc.wantErr {
 				t.Errorf("Got error: %v, wantErr: %v", err, tc.wantErr)
 			}

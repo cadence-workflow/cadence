@@ -27,20 +27,21 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig"
 )
 
-type SchedulerOptions struct {
+type SchedulerOptions[K comparable] struct {
 	SchedulerType        SchedulerType
 	FIFOSchedulerOptions *FIFOTaskSchedulerOptions
-	WRRSchedulerOptions  *WeightedRoundRobinTaskSchedulerOptions
+	WRRSchedulerOptions  *WeightedRoundRobinTaskSchedulerOptions[K]
 }
 
-func NewSchedulerOptions(
+func NewSchedulerOptions[K comparable](
 	schedulerType int,
 	queueSize int,
 	workerCount dynamicconfig.IntPropertyFn,
 	dispatcherCount int,
-	weights dynamicconfig.MapPropertyFn,
-) (*SchedulerOptions, error) {
-	options := &SchedulerOptions{
+	taskToChannelKeyFn func(PriorityTask) K,
+	channelKeyToWeightFn func(K) int,
+) (*SchedulerOptions[K], error) {
+	options := &SchedulerOptions[K]{
 		SchedulerType: SchedulerType(schedulerType),
 	}
 	switch options.SchedulerType {
@@ -52,12 +53,13 @@ func NewSchedulerOptions(
 			RetryPolicy:     common.CreateTaskProcessingRetryPolicy(),
 		}
 	case SchedulerTypeWRR:
-		options.WRRSchedulerOptions = &WeightedRoundRobinTaskSchedulerOptions{
-			Weights:         weights,
-			QueueSize:       queueSize,
-			WorkerCount:     workerCount,
-			DispatcherCount: dispatcherCount,
-			RetryPolicy:     common.CreateTaskProcessingRetryPolicy(),
+		options.WRRSchedulerOptions = &WeightedRoundRobinTaskSchedulerOptions[K]{
+			QueueSize:            queueSize,
+			WorkerCount:          workerCount,
+			DispatcherCount:      dispatcherCount,
+			RetryPolicy:          common.CreateTaskProcessingRetryPolicy(),
+			TaskToChannelKeyFn:   taskToChannelKeyFn,
+			ChannelKeyToWeightFn: channelKeyToWeightFn,
 		}
 	default:
 		return nil, fmt.Errorf("unknown task scheduler type: %v", schedulerType)
@@ -65,7 +67,7 @@ func NewSchedulerOptions(
 	return options, nil
 }
 
-func (o *SchedulerOptions) String() string {
+func (o *SchedulerOptions[K]) String() string {
 	return fmt.Sprintf("{schedulerType:%v, fifoSchedulerOptions:%s, wrrSchedulerOptions:%s}",
 		o.SchedulerType, o.FIFOSchedulerOptions, o.WRRSchedulerOptions)
 }

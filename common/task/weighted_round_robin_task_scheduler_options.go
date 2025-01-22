@@ -28,14 +28,15 @@ import (
 )
 
 // WeightedRoundRobinTaskSchedulerOptions configs WRR task scheduler
-type WeightedRoundRobinTaskSchedulerOptions struct {
-	Weights         dynamicconfig.MapPropertyFn
-	QueueSize       int
-	WorkerCount     dynamicconfig.IntPropertyFn
-	DispatcherCount int
-	RetryPolicy     backoff.RetryPolicy
+type WeightedRoundRobinTaskSchedulerOptions[K comparable] struct {
+	QueueSize            int
+	WorkerCount          dynamicconfig.IntPropertyFn
+	DispatcherCount      int
+	RetryPolicy          backoff.RetryPolicy
+	TaskToChannelKeyFn   func(PriorityTask) K
+	ChannelKeyToWeightFn func(K) int
 }
 
-func (o *WeightedRoundRobinTaskSchedulerOptions) String() string {
-	return fmt.Sprintf("{QueueSize: %v, WorkerCount: %v, DispatcherCount: %v, Weights: %v}", o.QueueSize, o.WorkerCount(), o.DispatcherCount, o.Weights())
+func (o *WeightedRoundRobinTaskSchedulerOptions[K]) String() string {
+	return fmt.Sprintf("{QueueSize: %v, WorkerCount: %v, DispatcherCount: %v}", o.QueueSize, o.WorkerCount(), o.DispatcherCount)
 }

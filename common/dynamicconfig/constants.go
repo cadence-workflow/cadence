@@ -5084,13 +5084,9 @@ var MapKeys = map[MapKey]DynamicMap{
 		DefaultValue: definition.GetDefaultIndexedKeys(),
 	},
 	TaskSchedulerRoundRobinWeights: {
-		KeyName:     "history.taskSchedulerRoundRobinWeight",
-		Description: "TaskSchedulerRoundRobinWeights is the priority weight for weighted round robin task scheduler",
-		DefaultValue: common.ConvertIntMapToDynamicConfigMapProperty(map[int]int{
-			common.GetTaskPriority(common.HighPriorityClass, common.DefaultPrioritySubclass):    500,
-			common.GetTaskPriority(common.DefaultPriorityClass, common.DefaultPrioritySubclass): 20,
-			common.GetTaskPriority(common.LowPriorityClass, common.DefaultPrioritySubclass):     5,
-		}),
+		KeyName:      "history.taskSchedulerRoundRobinWeight",
+		Description:  "TaskSchedulerRoundRobinWeights is the priority weight for weighted round robin task scheduler",
+		DefaultValue: common.ConvertIntMapToDynamicConfigMapProperty(DefaultTaskSchedulerRoundRobinWeights),
 	},
 	QueueProcessorPendingTaskSplitThreshold: {
 		KeyName:      "history.queueProcessorPendingTaskSplitThreshold",
@@ -5171,3 +5167,11 @@ func init() {
 		_keyNames[v.KeyName] = k
 	}
 }
+
+var (
+	DefaultTaskSchedulerRoundRobinWeights = map[int]int{
+		common.GetTaskPriority(common.HighPriorityClass, common.DefaultPrioritySubclass):    500,
+		common.GetTaskPriority(common.DefaultPriorityClass, common.DefaultPrioritySubclass): 20,
+		common.GetTaskPriority(common.LowPriorityClass, common.DefaultPrioritySubclass):     5,
+	}
+)
