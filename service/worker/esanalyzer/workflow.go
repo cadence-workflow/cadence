@@ -208,12 +208,12 @@ func (w *Workflow) emitWorkflowVersionMetrics(ctx context.Context) error {
 				err = w.emitWorkflowVersionMetricsES(ctx, domainName, logger)
 			}
 			if err != nil {
-				logger.Error(fmt.Sprintf("Failed to emit workflow version metrics for domain %s", domainName), zap.Error(err))
+				logger.Error(fmt.Sprintf("failed to emit workflow version metrics for domain %s", domainName), zap.Error(err))
 				failedDomains = append(failedDomains, domainName)
 			}
 		}
 		if len(failedDomains) == len(workflowMetricDomainNames) {
-			return fmt.Errorf("Failed to emit workflow version metrics for all domains.")
+			return fmt.Errorf("failed to emit workflow version metrics for all domains")
 		}
 	}
 	return nil
