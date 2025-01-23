@@ -38,74 +38,74 @@ func newDB(xdbs []*sqlx.DB, tx *sqlx.Tx, dbShardID int, numDBShards int) (*db, e
 }
 
 // GetTotalNumDBShards returns the total number of shards
-func (db *db) GetTotalNumDBShards() int {
-	return db.numDBShards
+func (mdb *db) GetTotalNumDBShards() int {
+	return mdb.numDBShards
 }
 
 // BeginTx starts a new transaction and returns a reference to the Tx object
-func (db *db) BeginTx(ctx context.Context, dbShardID int) (sqlplugin.Tx, error) {
-	xtx, err := db.driver.BeginTxx(ctx, dbShardID, nil)
+func (mdb *db) BeginTx(ctx context.Context, dbShardID int) (sqlplugin.Tx, error) {
+	xtx, err := mdb.driver.BeginTxx(ctx, dbShardID, nil)
 	if err != nil {
 		return nil, err
 	}
-	return newDB(db.originalDBs, xtx, dbShardID, db.numDBShards)
+	return newDB(mdb.originalDBs, xtx, dbShardID, mdb.numDBShards)
 }
 
 // PluginName returns the name of the plugin
-func (db *db) PluginName() string {
+func (mdb *db) PluginName() string {
 	return PluginName
 }
 
 // Close closes the connection to the db
-func (db *db) Close() error {
-	return db.driver.Close()
+func (mdb *db) Close() error {
+	return mdb.driver.Close()
 }
 
 // Commit commits a previously started transaction
-func (db *db) Commit() error {
-	return db.driver.Commit()
+func (mdb *db) Commit() error {
+	return mdb.driver.Commit()
 }
 
 // Rollback triggers rollback of a previously started transaction
-func (db *db) Rollback() error {
-	return db.driver.Rollback()
+func (mdb *db) Rollback() error {
+	return mdb.driver.Rollback()
 }
 
 // SupportsTTL returns weather SQLite supports TTL
-func (db *db) SupportsTTL() bool {
+func (mdb *db) SupportsTTL() bool {
 	return false
 }
 
 // MaxAllowedTTL returns the max allowed ttl SQLite supports
-func (db *db) MaxAllowedTTL() (*time.Duration, error) {
+func (mdb *db) MaxAllowedTTL() (*time.Duration, error) {
 	return nil, sqlplugin.ErrTTLNotSupported
 }
 
 // SupportsAsyncTransaction returns weather SQLite supports Asynchronous transaction
-func (db *db) SupportsAsyncTransaction() bool {
+func (mdb *db) SupportsAsyncTransaction() bool {
 	return false
 }
 
 // IsDupEntryError verify if the error is a duplicate entry error
-func (db *db) IsDupEntryError(err error) bool {
+func (mdb *db) IsDupEntryError(err error) bool {
 	//TODO implement me
 	panic("implement me")
 }
 
 // IsNotFoundError verify if the error is a not found error
-func (db *db) IsNotFoundError(err error) bool {
+func (mdb *db) IsNotFoundError(err error) bool {
 	//TODO implement me
 	panic("implement me")
 }
 
 // IsTimeoutError verify if the error is a timeout error
-func (db *db) IsTimeoutError(err error) bool {
+func (mdb *db) IsTimeoutError(err error) bool {
 	//TODO implement me
 	panic("implement me")
 }
 
 // IsThrottlingError verify if the error is a throttling error
-func (db *db) IsThrottlingError(err error) bool {
+func (mdb *db) IsThrottlingError(err error) bool {
 	//TODO implement me
 	panic("implement me")
 }
