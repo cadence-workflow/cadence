@@ -482,7 +482,7 @@ func (mr *MockDBMockRecorder) InsertQueueMetadata(ctx, queueType, version any) *
 }
 
 // InsertReplicationDLQTask mocks base method.
-func (m *MockDB) InsertReplicationDLQTask(ctx context.Context, shardID int, sourceCluster string, task ReplicationTask) error {
+func (m *MockDB) InsertReplicationDLQTask(ctx context.Context, shardID int, sourceCluster string, task ReplicationTask, timeStamp time.Time) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InsertReplicationDLQTask", ctx, shardID, sourceCluster, task)
 	ret0, _ := ret[0].(error)
@@ -496,7 +496,7 @@ func (mr *MockDBMockRecorder) InsertReplicationDLQTask(ctx, shardID, sourceClust
 }
 
 // InsertReplicationTask mocks base method.
-func (m *MockDB) InsertReplicationTask(ctx context.Context, tasks []*ReplicationTask, condition ShardCondition) error {
+func (m *MockDB) InsertReplicationTask(ctx context.Context, tasks []*ReplicationTask, condition ShardCondition, timeStamp time.Time) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InsertReplicationTask", ctx, tasks, condition)
 	ret0, _ := ret[0].(error)
@@ -510,7 +510,7 @@ func (mr *MockDBMockRecorder) InsertReplicationTask(ctx, tasks, condition any) *
 }
 
 // InsertShard mocks base method.
-func (m *MockDB) InsertShard(ctx context.Context, row *ShardRow) error {
+func (m *MockDB) InsertShard(ctx context.Context, row *ShardRow, timeStamp time.Time) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InsertShard", ctx, row)
 	ret0, _ := ret[0].(error)
@@ -566,7 +566,7 @@ func (mr *MockDBMockRecorder) InsertVisibility(ctx, ttlSeconds, row any) *gomock
 }
 
 // InsertWorkflowExecutionWithTasks mocks base method.
-func (m *MockDB) InsertWorkflowExecutionWithTasks(ctx context.Context, requests *WorkflowRequestsWriteRequest, currentWorkflowRequest *CurrentWorkflowWriteRequest, execution *WorkflowExecutionRequest, transferTasks []*TransferTask, crossClusterTasks []*CrossClusterTask, replicationTasks []*ReplicationTask, timerTasks []*TimerTask, shardCondition *ShardCondition) error {
+func (m *MockDB) InsertWorkflowExecutionWithTasks(ctx context.Context, requests *WorkflowRequestsWriteRequest, currentWorkflowRequest *CurrentWorkflowWriteRequest, execution *WorkflowExecutionRequest, transferTasks []*TransferTask, crossClusterTasks []*CrossClusterTask, replicationTasks []*ReplicationTask, timerTasks []*TimerTask, shardCondition *ShardCondition, timeStamp time.Time) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InsertWorkflowExecutionWithTasks", ctx, requests, currentWorkflowRequest, execution, transferTasks, crossClusterTasks, replicationTasks, timerTasks, shardCondition)
 	ret0, _ := ret[0].(error)
@@ -1208,7 +1208,7 @@ func (mr *MockDBMockRecorder) UpdateRangeID(ctx, shardID, rangeID, previousRange
 }
 
 // UpdateShard mocks base method.
-func (m *MockDB) UpdateShard(ctx context.Context, row *ShardRow, previousRangeID int64) error {
+func (m *MockDB) UpdateShard(ctx context.Context, row *ShardRow, previousRangeID int64, timeStamp time.Time) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateShard", ctx, row, previousRangeID)
 	ret0, _ := ret[0].(error)
@@ -1236,7 +1236,7 @@ func (mr *MockDBMockRecorder) UpdateTaskList(ctx, row, previousRangeID any) *gom
 }
 
 // UpdateTaskListWithTTL mocks base method.
-func (m *MockDB) UpdateTaskListWithTTL(ctx context.Context, ttlSeconds int64, row *TaskListRow, previousRangeID int64) error {
+func (m *MockDB) UpdateTaskListWithTTL(ctx context.Context, ttlSeconds int64, row *TaskListRow, previousRangeID int64, timeStamp time.Time) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateTaskListWithTTL", ctx, ttlSeconds, row, previousRangeID)
 	ret0, _ := ret[0].(error)
@@ -1264,7 +1264,7 @@ func (mr *MockDBMockRecorder) UpdateVisibility(ctx, ttlSeconds, row any) *gomock
 }
 
 // UpdateWorkflowExecutionWithTasks mocks base method.
-func (m *MockDB) UpdateWorkflowExecutionWithTasks(ctx context.Context, requests *WorkflowRequestsWriteRequest, currentWorkflowRequest *CurrentWorkflowWriteRequest, mutatedExecution, insertedExecution, resetExecution *WorkflowExecutionRequest, transferTasks []*TransferTask, crossClusterTasks []*CrossClusterTask, replicationTasks []*ReplicationTask, timerTasks []*TimerTask, shardCondition *ShardCondition) error {
+func (m *MockDB) UpdateWorkflowExecutionWithTasks(ctx context.Context, requests *WorkflowRequestsWriteRequest, currentWorkflowRequest *CurrentWorkflowWriteRequest, mutatedExecution, insertedExecution, resetExecution *WorkflowExecutionRequest, transferTasks []*TransferTask, crossClusterTasks []*CrossClusterTask, replicationTasks []*ReplicationTask, timerTasks []*TimerTask, shardCondition *ShardCondition, timeStamp time.Time) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateWorkflowExecutionWithTasks", ctx, requests, currentWorkflowRequest, mutatedExecution, insertedExecution, resetExecution, transferTasks, crossClusterTasks, replicationTasks, timerTasks, shardCondition)
 	ret0, _ := ret[0].(error)
@@ -1598,7 +1598,7 @@ func (mr *MocktableCRUDMockRecorder) InsertQueueMetadata(ctx, queueType, version
 }
 
 // InsertReplicationDLQTask mocks base method.
-func (m *MocktableCRUD) InsertReplicationDLQTask(ctx context.Context, shardID int, sourceCluster string, task ReplicationTask) error {
+func (m *MocktableCRUD) InsertReplicationDLQTask(ctx context.Context, shardID int, sourceCluster string, task ReplicationTask, timeStamp time.Time) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InsertReplicationDLQTask", ctx, shardID, sourceCluster, task)
 	ret0, _ := ret[0].(error)
@@ -1612,7 +1612,7 @@ func (mr *MocktableCRUDMockRecorder) InsertReplicationDLQTask(ctx, shardID, sour
 }
 
 // InsertReplicationTask mocks base method.
-func (m *MocktableCRUD) InsertReplicationTask(ctx context.Context, tasks []*ReplicationTask, condition ShardCondition) error {
+func (m *MocktableCRUD) InsertReplicationTask(ctx context.Context, tasks []*ReplicationTask, condition ShardCondition, timeStamp time.Time) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InsertReplicationTask", ctx, tasks, condition)
 	ret0, _ := ret[0].(error)
@@ -1626,7 +1626,7 @@ func (mr *MocktableCRUDMockRecorder) InsertReplicationTask(ctx, tasks, condition
 }
 
 // InsertShard mocks base method.
-func (m *MocktableCRUD) InsertShard(ctx context.Context, row *ShardRow) error {
+func (m *MocktableCRUD) InsertShard(ctx context.Context, row *ShardRow, timeStamp time.Time) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InsertShard", ctx, row)
 	ret0, _ := ret[0].(error)
@@ -1682,7 +1682,7 @@ func (mr *MocktableCRUDMockRecorder) InsertVisibility(ctx, ttlSeconds, row any) 
 }
 
 // InsertWorkflowExecutionWithTasks mocks base method.
-func (m *MocktableCRUD) InsertWorkflowExecutionWithTasks(ctx context.Context, requests *WorkflowRequestsWriteRequest, currentWorkflowRequest *CurrentWorkflowWriteRequest, execution *WorkflowExecutionRequest, transferTasks []*TransferTask, crossClusterTasks []*CrossClusterTask, replicationTasks []*ReplicationTask, timerTasks []*TimerTask, shardCondition *ShardCondition) error {
+func (m *MocktableCRUD) InsertWorkflowExecutionWithTasks(ctx context.Context, requests *WorkflowRequestsWriteRequest, currentWorkflowRequest *CurrentWorkflowWriteRequest, execution *WorkflowExecutionRequest, transferTasks []*TransferTask, crossClusterTasks []*CrossClusterTask, replicationTasks []*ReplicationTask, timerTasks []*TimerTask, shardCondition *ShardCondition, timeStamp time.Time) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InsertWorkflowExecutionWithTasks", ctx, requests, currentWorkflowRequest, execution, transferTasks, crossClusterTasks, replicationTasks, timerTasks, shardCondition)
 	ret0, _ := ret[0].(error)
@@ -2254,7 +2254,7 @@ func (mr *MocktableCRUDMockRecorder) UpdateRangeID(ctx, shardID, rangeID, previo
 }
 
 // UpdateShard mocks base method.
-func (m *MocktableCRUD) UpdateShard(ctx context.Context, row *ShardRow, previousRangeID int64) error {
+func (m *MocktableCRUD) UpdateShard(ctx context.Context, row *ShardRow, previousRangeID int64, timeStamp time.Time) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateShard", ctx, row, previousRangeID)
 	ret0, _ := ret[0].(error)
@@ -2282,7 +2282,7 @@ func (mr *MocktableCRUDMockRecorder) UpdateTaskList(ctx, row, previousRangeID an
 }
 
 // UpdateTaskListWithTTL mocks base method.
-func (m *MocktableCRUD) UpdateTaskListWithTTL(ctx context.Context, ttlSeconds int64, row *TaskListRow, previousRangeID int64) error {
+func (m *MocktableCRUD) UpdateTaskListWithTTL(ctx context.Context, ttlSeconds int64, row *TaskListRow, previousRangeID int64, timeStamp time.Time) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateTaskListWithTTL", ctx, ttlSeconds, row, previousRangeID)
 	ret0, _ := ret[0].(error)
@@ -2310,7 +2310,7 @@ func (mr *MocktableCRUDMockRecorder) UpdateVisibility(ctx, ttlSeconds, row any) 
 }
 
 // UpdateWorkflowExecutionWithTasks mocks base method.
-func (m *MocktableCRUD) UpdateWorkflowExecutionWithTasks(ctx context.Context, requests *WorkflowRequestsWriteRequest, currentWorkflowRequest *CurrentWorkflowWriteRequest, mutatedExecution, insertedExecution, resetExecution *WorkflowExecutionRequest, transferTasks []*TransferTask, crossClusterTasks []*CrossClusterTask, replicationTasks []*ReplicationTask, timerTasks []*TimerTask, shardCondition *ShardCondition) error {
+func (m *MocktableCRUD) UpdateWorkflowExecutionWithTasks(ctx context.Context, requests *WorkflowRequestsWriteRequest, currentWorkflowRequest *CurrentWorkflowWriteRequest, mutatedExecution, insertedExecution, resetExecution *WorkflowExecutionRequest, transferTasks []*TransferTask, crossClusterTasks []*CrossClusterTask, replicationTasks []*ReplicationTask, timerTasks []*TimerTask, shardCondition *ShardCondition, timeStamp time.Time) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateWorkflowExecutionWithTasks", ctx, requests, currentWorkflowRequest, mutatedExecution, insertedExecution, resetExecution, transferTasks, crossClusterTasks, replicationTasks, timerTasks, shardCondition)
 	ret0, _ := ret[0].(error)
@@ -2822,7 +2822,7 @@ func (m *MockShardCRUD) EXPECT() *MockShardCRUDMockRecorder {
 }
 
 // InsertShard mocks base method.
-func (m *MockShardCRUD) InsertShard(ctx context.Context, row *ShardRow) error {
+func (m *MockShardCRUD) InsertShard(ctx context.Context, row *ShardRow, timeStamp time.Time) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InsertShard", ctx, row)
 	ret0, _ := ret[0].(error)
@@ -2866,7 +2866,7 @@ func (mr *MockShardCRUDMockRecorder) UpdateRangeID(ctx, shardID, rangeID, previo
 }
 
 // UpdateShard mocks base method.
-func (m *MockShardCRUD) UpdateShard(ctx context.Context, row *ShardRow, previousRangeID int64) error {
+func (m *MockShardCRUD) UpdateShard(ctx context.Context, row *ShardRow, previousRangeID int64, timeStamp time.Time) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateShard", ctx, row, previousRangeID)
 	ret0, _ := ret[0].(error)
@@ -3131,7 +3131,7 @@ func (mr *MockTaskCRUDMockRecorder) UpdateTaskList(ctx, row, previousRangeID any
 }
 
 // UpdateTaskListWithTTL mocks base method.
-func (m *MockTaskCRUD) UpdateTaskListWithTTL(ctx context.Context, ttlSeconds int64, row *TaskListRow, previousRangeID int64) error {
+func (m *MockTaskCRUD) UpdateTaskListWithTTL(ctx context.Context, ttlSeconds int64, row *TaskListRow, previousRangeID int64, timeStamp time.Time) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateTaskListWithTTL", ctx, ttlSeconds, row, previousRangeID)
 	ret0, _ := ret[0].(error)
@@ -3267,7 +3267,7 @@ func (mr *MockWorkflowCRUDMockRecorder) DeleteWorkflowExecution(ctx, shardID, do
 }
 
 // InsertReplicationDLQTask mocks base method.
-func (m *MockWorkflowCRUD) InsertReplicationDLQTask(ctx context.Context, shardID int, sourceCluster string, task ReplicationTask) error {
+func (m *MockWorkflowCRUD) InsertReplicationDLQTask(ctx context.Context, shardID int, sourceCluster string, task ReplicationTask, timeStamp time.Time) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InsertReplicationDLQTask", ctx, shardID, sourceCluster, task)
 	ret0, _ := ret[0].(error)
@@ -3281,7 +3281,7 @@ func (mr *MockWorkflowCRUDMockRecorder) InsertReplicationDLQTask(ctx, shardID, s
 }
 
 // InsertReplicationTask mocks base method.
-func (m *MockWorkflowCRUD) InsertReplicationTask(ctx context.Context, tasks []*ReplicationTask, condition ShardCondition) error {
+func (m *MockWorkflowCRUD) InsertReplicationTask(ctx context.Context, tasks []*ReplicationTask, condition ShardCondition, timeStamp time.Time) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InsertReplicationTask", ctx, tasks, condition)
 	ret0, _ := ret[0].(error)
@@ -3295,7 +3295,7 @@ func (mr *MockWorkflowCRUDMockRecorder) InsertReplicationTask(ctx, tasks, condit
 }
 
 // InsertWorkflowExecutionWithTasks mocks base method.
-func (m *MockWorkflowCRUD) InsertWorkflowExecutionWithTasks(ctx context.Context, requests *WorkflowRequestsWriteRequest, currentWorkflowRequest *CurrentWorkflowWriteRequest, execution *WorkflowExecutionRequest, transferTasks []*TransferTask, crossClusterTasks []*CrossClusterTask, replicationTasks []*ReplicationTask, timerTasks []*TimerTask, shardCondition *ShardCondition) error {
+func (m *MockWorkflowCRUD) InsertWorkflowExecutionWithTasks(ctx context.Context, requests *WorkflowRequestsWriteRequest, currentWorkflowRequest *CurrentWorkflowWriteRequest, execution *WorkflowExecutionRequest, transferTasks []*TransferTask, crossClusterTasks []*CrossClusterTask, replicationTasks []*ReplicationTask, timerTasks []*TimerTask, shardCondition *ShardCondition, timeStamp time.Time) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InsertWorkflowExecutionWithTasks", ctx, requests, currentWorkflowRequest, execution, transferTasks, crossClusterTasks, replicationTasks, timerTasks, shardCondition)
 	ret0, _ := ret[0].(error)
@@ -3551,7 +3551,7 @@ func (mr *MockWorkflowCRUDMockRecorder) SelectWorkflowExecution(ctx, shardID, do
 }
 
 // UpdateWorkflowExecutionWithTasks mocks base method.
-func (m *MockWorkflowCRUD) UpdateWorkflowExecutionWithTasks(ctx context.Context, requests *WorkflowRequestsWriteRequest, currentWorkflowRequest *CurrentWorkflowWriteRequest, mutatedExecution, insertedExecution, resetExecution *WorkflowExecutionRequest, transferTasks []*TransferTask, crossClusterTasks []*CrossClusterTask, replicationTasks []*ReplicationTask, timerTasks []*TimerTask, shardCondition *ShardCondition) error {
+func (m *MockWorkflowCRUD) UpdateWorkflowExecutionWithTasks(ctx context.Context, requests *WorkflowRequestsWriteRequest, currentWorkflowRequest *CurrentWorkflowWriteRequest, mutatedExecution, insertedExecution, resetExecution *WorkflowExecutionRequest, transferTasks []*TransferTask, crossClusterTasks []*CrossClusterTask, replicationTasks []*ReplicationTask, timerTasks []*TimerTask, shardCondition *ShardCondition, timeStamp time.Time) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateWorkflowExecutionWithTasks", ctx, requests, currentWorkflowRequest, mutatedExecution, insertedExecution, resetExecution, transferTasks, crossClusterTasks, replicationTasks, timerTasks, shardCondition)
 	ret0, _ := ret[0].(error)

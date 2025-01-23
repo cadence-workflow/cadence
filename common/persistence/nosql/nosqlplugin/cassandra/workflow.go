@@ -46,11 +46,11 @@ func (db *cdb) InsertWorkflowExecutionWithTasks(
 	replicationTasks []*nosqlplugin.ReplicationTask,
 	timerTasks []*nosqlplugin.TimerTask,
 	shardCondition *nosqlplugin.ShardCondition,
+	timeStamp time.Time,
 ) error {
 	shardID := shardCondition.ShardID
 	domainID := execution.DomainID
 	workflowID := execution.WorkflowID
-	timeStamp := db.timeSrc.Now()
 
 	batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
 
@@ -126,11 +126,11 @@ func (db *cdb) UpdateWorkflowExecutionWithTasks(
 	replicationTasks []*nosqlplugin.ReplicationTask,
 	timerTasks []*nosqlplugin.TimerTask,
 	shardCondition *nosqlplugin.ShardCondition,
+	timeStamp time.Time,
 ) error {
 	shardID := shardCondition.ShardID
 	var domainID, workflowID string
 	var previousNextEventIDCondition int64
-	timeStamp := db.timeSrc.Now()
 	if mutatedExecution != nil {
 		domainID = mutatedExecution.DomainID
 		workflowID = mutatedExecution.WorkflowID
@@ -626,7 +626,7 @@ func (db *cdb) RangeDeleteCrossClusterTasks(ctx context.Context, shardID int, ta
 	return query.Exec()
 }
 
-func (db *cdb) InsertReplicationDLQTask(ctx context.Context, shardID int, sourceCluster string, task nosqlplugin.ReplicationTask) error {
+func (db *cdb) InsertReplicationDLQTask(ctx context.Context, shardID int, sourceCluster string, task nosqlplugin.ReplicationTask, timeStamp time.Time) error {
 	// Use source cluster name as the workflow id for replication dlq
 	query := db.session.Query(templateCreateReplicationTaskQuery,
 		shardID,
@@ -650,7 +650,7 @@ func (db *cdb) InsertReplicationDLQTask(ctx context.Context, shardID int, source
 		defaultVisibilityTimestamp,
 		defaultVisibilityTimestamp,
 		task.TaskID,
-		db.timeSrc.Now(),
+		timeStamp,
 	).WithContext(ctx)
 
 	return query.Exec()
@@ -720,14 +720,19 @@ func (db *cdb) RangeDeleteReplicationDLQTasks(ctx context.Context, shardID int, 
 	return db.executeWithConsistencyAll(query)
 }
 
-func (db *cdb) InsertReplicationTask(ctx context.Context, tasks []*nosqlplugin.ReplicationTask, shardCondition nosqlplugin.ShardCondition) error {
+func (db *cdb) InsertReplicationTask(
+	ctx context.Context,
+	tasks []*nosqlplugin.ReplicationTask,
+	shardCondition nosqlplugin.ShardCondition,
+	timeStamp time.Time,
+) error {
 	if len(tasks) == 0 {
 		return nil
 	}
 
 	shardID := shardCondition.ShardID
 	batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
-	timeStamp := db.timeSrc.Now()
+
 	for _, task := range tasks {
 		createReplicationTasks(batch, shardID, task.DomainID, task.WorkflowID, []*nosqlplugin.ReplicationTask{task}, timeStamp)
 	}

@@ -261,6 +261,7 @@ func (db *cdb) UpdateTaskListWithTTL(
 	ttlSeconds int64,
 	row *nosqlplugin.TaskListRow,
 	previousRangeID int64,
+	timeStamp time.Time,
 ) error {
 	batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
 	// part 1 is used to set TTL on primary key as UPDATE can't set TTL for primary key
@@ -281,7 +282,7 @@ func (db *cdb) UpdateTaskListWithTTL(
 		row.TaskListType,
 		row.AckLevel,
 		row.TaskListKind,
-		db.timeSrc.Now(),
+		timeStamp,
 		fromTaskListPartitionConfig(row.AdaptivePartitionConfig),
 		row.DomainID,
 		row.TaskListName,

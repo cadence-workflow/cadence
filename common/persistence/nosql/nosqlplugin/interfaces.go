@@ -205,7 +205,7 @@ type (
 		// InsertShard creates a new shard.
 		// Return error is there is any thing wrong
 		// Return the ShardOperationConditionFailure when doesn't meet the condition
-		InsertShard(ctx context.Context, row *ShardRow) error
+		InsertShard(ctx context.Context, row *ShardRow, timeStamp time.Time) error
 		// SelectShard gets a shard, rangeID is the current rangeID in shard row
 		SelectShard(ctx context.Context, shardID int, currentClusterName string) (rangeID int64, shard *ShardRow, err error)
 		// UpdateRangeID updates the rangeID
@@ -215,7 +215,7 @@ type (
 		// UpdateShard updates a shard
 		// Return error is there is any thing wrong
 		// Return the ShardOperationConditionFailure when doesn't meet the condition
-		UpdateShard(ctx context.Context, row *ShardRow, previousRangeID int64) error
+		UpdateShard(ctx context.Context, row *ShardRow, previousRangeID int64, timeStamp time.Time) error
 	}
 
 	/**
@@ -329,7 +329,7 @@ type (
 		// Return TaskOperationConditionFailure if the condition doesn't meet
 		// Ignore TTL if it's not supported, which becomes exactly the same as UpdateTaskList, but ListTaskList must be
 		// implemented for TaskListScavenger
-		UpdateTaskListWithTTL(ctx context.Context, ttlSeconds int64, row *TaskListRow, previousRangeID int64) error
+		UpdateTaskListWithTTL(ctx context.Context, ttlSeconds int64, row *TaskListRow, previousRangeID int64, timeStamp time.Time) error
 		// ListTaskList returns all tasklists.
 		// Noop if TTL is already implemented in other methods
 		ListTaskList(ctx context.Context, pageSize int, nextPageToken []byte) (*ListTaskListResult, error)
@@ -421,6 +421,7 @@ type (
 			replicationTasks []*ReplicationTask,
 			timerTasks []*TimerTask,
 			shardCondition *ShardCondition,
+			timeStamp time.Time,
 		) error
 
 		// UpdateWorkflowExecutionWithTasks is for updating a new workflow execution record.
@@ -451,6 +452,7 @@ type (
 			replicationTasks []*ReplicationTask,
 			timerTasks []*TimerTask,
 			shardCondition *ShardCondition,
+			timeStamp time.Time,
 		) error
 
 		// current_workflow table
@@ -495,7 +497,7 @@ type (
 		// delete a range of replication tasks
 		RangeDeleteReplicationTasks(ctx context.Context, shardID int, inclusiveEndTaskID int64) error
 		// insert replication task with shard condition check
-		InsertReplicationTask(ctx context.Context, tasks []*ReplicationTask, condition ShardCondition) error
+		InsertReplicationTask(ctx context.Context, tasks []*ReplicationTask, condition ShardCondition, timeStamp time.Time) error
 
 		// cross_cluster_task table
 		// within a shard, paging through replication tasks order by taskID(ASC), filtered by minTaskID(exclusive) and maxTaskID(inclusive)
@@ -507,7 +509,7 @@ type (
 
 		// replication_dlq_task
 		// insert a new replication task to DLQ
-		InsertReplicationDLQTask(ctx context.Context, shardID int, sourceCluster string, task ReplicationTask) error
+		InsertReplicationDLQTask(ctx context.Context, shardID int, sourceCluster string, task ReplicationTask, timeStamp time.Time) error
 		// within a shard, for a sourceCluster, paging through replication tasks order by taskID(ASC), filtered by minTaskID(exclusive) and maxTaskID(inclusive)
 		SelectReplicationDLQTasksOrderByTaskID(ctx context.Context, shardID int, sourceCluster string, pageSize int, pageToken []byte, exclusiveMinTaskID, inclusiveMaxTaskID int64) ([]*ReplicationTask, []byte, error)
 		// return the DLQ size

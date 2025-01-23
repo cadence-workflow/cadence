@@ -23,6 +23,7 @@ package nosql
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log"
@@ -63,7 +64,7 @@ func (sh *nosqlShardStore) CreateShard(
 	if err != nil {
 		return err
 	}
-	err = storeShard.db.InsertShard(ctx, request.ShardInfo)
+	err = storeShard.db.InsertShard(ctx, request.ShardInfo, time.Now())
 	if err != nil {
 		conditionFailure, ok := err.(*nosqlplugin.ShardOperationConditionFailure)
 		if ok {
@@ -161,7 +162,7 @@ func (sh *nosqlShardStore) UpdateShard(
 	if err != nil {
 		return err
 	}
-	err = storeShard.db.UpdateShard(ctx, request.ShardInfo, request.PreviousRangeID)
+	err = storeShard.db.UpdateShard(ctx, request.ShardInfo, request.PreviousRangeID, time.Now())
 	if err != nil {
 		conditionFailure, ok := err.(*nosqlplugin.ShardOperationConditionFailure)
 		if ok {

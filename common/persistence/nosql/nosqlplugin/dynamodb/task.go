@@ -22,6 +22,7 @@ package dynamodb
 
 import (
 	"context"
+	"time"
 
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 )
@@ -57,6 +58,7 @@ func (db *ddb) UpdateTaskListWithTTL(
 	ttlSeconds int64,
 	row *nosqlplugin.TaskListRow,
 	previousRangeID int64,
+	timeStamp time.Time,
 ) error {
 	panic("TODO")
 }

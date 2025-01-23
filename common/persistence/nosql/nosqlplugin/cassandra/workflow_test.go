@@ -147,6 +147,7 @@ func TestInsertWorkflowExecutionWithTasks(t *testing.T) {
 				tc.replicationTasks,
 				tc.timerTasks,
 				tc.shardCondition,
+				time.Now(),
 			)
 
 			if (err != nil) != tc.wantErr {
@@ -458,6 +459,7 @@ func TestUpdateWorkflowExecutionWithTasks(t *testing.T) {
 				tc.replicationTasks,
 				tc.timerTasks,
 				tc.shardCondition,
+				time.Now(),
 			)
 
 			if (err != nil) != tc.wantErr {
@@ -1942,7 +1944,7 @@ func TestInsertReplicationDLQTask(t *testing.T) {
 			logger := testlogger.New(t)
 			db := newCassandraDBFromSession(nil, session, logger, nil, dbWithClient(gocql.NewMockClient(ctrl)))
 
-			err := db.InsertReplicationDLQTask(context.Background(), tc.shardID, tc.sourceCluster, tc.task)
+			err := db.InsertReplicationDLQTask(context.Background(), tc.shardID, tc.sourceCluster, tc.task, time.Now())
 
 			if (err != nil) != tc.wantErr {
 				t.Errorf("RangeDeleteCrossClusterTasks() error: %v, wantErr: %v", err, tc.wantErr)
@@ -2315,7 +2317,7 @@ func TestInsertReplicationTask(t *testing.T) {
 			logger := testlogger.New(t)
 			db := newCassandraDBFromSession(nil, session, logger, nil, dbWithClient(gocql.NewMockClient(ctrl)))
 
-			err := db.InsertReplicationTask(context.Background(), tc.tasks, tc.shardCondition)
+			err := db.InsertReplicationTask(context.Background(), tc.tasks, tc.shardCondition, time.Now())
 
 			if (err != nil) != tc.wantErr {
 				t.Errorf("InsertReplicationTask() error: %v, wantErr: %v", err, tc.wantErr)

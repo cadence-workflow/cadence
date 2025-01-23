@@ -41,6 +41,7 @@ func (db *mdb) InsertWorkflowExecutionWithTasks(
 	replicationTasks []*nosqlplugin.ReplicationTask,
 	timerTasks []*nosqlplugin.TimerTask,
 	shardCondition *nosqlplugin.ShardCondition,
+	timeStamp time.Time,
 ) error {
 	panic("TODO")
 }
@@ -57,6 +58,7 @@ func (db *mdb) UpdateWorkflowExecutionWithTasks(
 	replicationTasks []*nosqlplugin.ReplicationTask,
 	timerTasks []*nosqlplugin.TimerTask,
 	shardCondition *nosqlplugin.ShardCondition,
+	timeStamp time.Time,
 ) error {
 	panic("TODO")
 }
@@ -125,7 +127,7 @@ func (db *mdb) RangeDeleteReplicationTasks(ctx context.Context, shardID int, inc
 	panic("TODO")
 }
 
-func (db *mdb) InsertReplicationTask(ctx context.Context, tasks []*nosqlplugin.ReplicationTask, condition nosqlplugin.ShardCondition) error {
+func (db *mdb) InsertReplicationTask(ctx context.Context, tasks []*nosqlplugin.ReplicationTask, condition nosqlplugin.ShardCondition, timeStamp time.Time) error {
 	panic("TODO")
 }
 
@@ -141,7 +143,7 @@ func (db *mdb) RangeDeleteCrossClusterTasks(ctx context.Context, shardID int, ta
 	panic("TODO")
 }
 
-func (db *mdb) InsertReplicationDLQTask(ctx context.Context, shardID int, sourceCluster string, task nosqlplugin.ReplicationTask) error {
+func (db *mdb) InsertReplicationDLQTask(ctx context.Context, shardID int, sourceCluster string, task nosqlplugin.ReplicationTask, timeStamp time.Time) error {
 	panic("TODO")
 }
 

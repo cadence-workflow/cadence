@@ -23,6 +23,7 @@ package nosql
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -114,9 +115,14 @@ func (d *nosqlExecutionStore) CreateWorkflowExecution(
 	err = d.db.InsertWorkflowExecutionWithTasks(
 		ctx,
 		workflowRequestsWriteRequest,
-		currentWorkflowWriteReq, workflowExecutionWriteReq,
-		transferTasks, crossClusterTasks, replicationTasks, timerTasks,
+		currentWorkflowWriteReq,
+		workflowExecutionWriteReq,
+		transferTasks,
+		crossClusterTasks,
+		replicationTasks,
+		timerTasks,
 		shardCondition,
+		time.Now(),
 	)
 	if err != nil {
 		conditionFailureErr, isConditionFailedError := err.(*nosqlplugin.WorkflowOperationConditionFailure)
@@ -337,10 +343,19 @@ func (d *nosqlExecutionStore) UpdateWorkflowExecution(
 	}
 
 	err = d.db.UpdateWorkflowExecutionWithTasks(
-		ctx, workflowRequestsWriteRequest, currentWorkflowWriteReq,
-		mutateExecution, insertExecution, nil, // no workflow to reset here
-		nosqlTransferTasks, nosqlCrossClusterTasks, nosqlReplicationTasks, nosqlTimerTasks,
-		shardCondition)
+		ctx,
+		workflowRequestsWriteRequest,
+		currentWorkflowWriteReq,
+		mutateExecution,
+		insertExecution,
+		nil,
+		nosqlTransferTasks,
+		nosqlCrossClusterTasks,
+		nosqlReplicationTasks,
+		nosqlTimerTasks,
+		shardCondition,
+		time.Now(),
+	)
 
 	return d.processUpdateWorkflowResult(err, request.RangeID)
 }
@@ -489,10 +504,19 @@ func (d *nosqlExecutionStore) ConflictResolveWorkflowExecution(
 	}
 
 	err = d.db.UpdateWorkflowExecutionWithTasks(
-		ctx, workflowRequestsWriteRequest, currentWorkflowWriteReq,
-		mutateExecution, insertExecution, resetExecution,
-		nosqlTransferTasks, nosqlCrossClusterTasks, nosqlReplicationTasks, nosqlTimerTasks,
-		shardCondition)
+		ctx,
+		workflowRequestsWriteRequest,
+		currentWorkflowWriteReq,
+		mutateExecution,
+		insertExecution,
+		resetExecution,
+		nosqlTransferTasks,
+		nosqlCrossClusterTasks,
+		nosqlReplicationTasks,
+		nosqlTimerTasks,
+		shardCondition,
+		time.Now(),
+	)
 	return d.processUpdateWorkflowResult(err, request.RangeID)
 }
 
@@ -759,7 +783,7 @@ func (d *nosqlExecutionStore) PutReplicationTaskToDLQ(
 	ctx context.Context,
 	request *persistence.InternalPutReplicationTaskToDLQRequest,
 ) error {
-	err := d.db.InsertReplicationDLQTask(ctx, d.shardID, request.SourceClusterName, *request.TaskInfo)
+	err := d.db.InsertReplicationDLQTask(ctx, d.shardID, request.SourceClusterName, *request.TaskInfo, time.Now())
 	if err != nil {
 		return convertCommonErrors(d.db, "PutReplicationTaskToDLQ", err)
 	}
@@ -843,7 +867,7 @@ func (d *nosqlExecutionStore) CreateFailoverMarkerTasks(
 	err := d.db.InsertReplicationTask(ctx, nosqlTasks, nosqlplugin.ShardCondition{
 		ShardID: d.shardID,
 		RangeID: request.RangeID,
-	})
+	}, time.Now())
 
 	if err != nil {
 		conditionFailureErr, isConditionFailedError := err.(*nosqlplugin.ShardOperationConditionFailure)

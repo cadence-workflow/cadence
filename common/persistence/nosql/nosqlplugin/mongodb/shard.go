@@ -23,13 +23,14 @@ package mongodb
 import (
 	"context"
 	"log"
+	"time"
 
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 )
 
 // InsertShard creates a new shard, return error is there is any.
 // Return ShardOperationConditionFailure if the condition doesn't meet
-func (db *mdb) InsertShard(ctx context.Context, row *nosqlplugin.ShardRow) error {
+func (db *mdb) InsertShard(ctx context.Context, row *nosqlplugin.ShardRow, timeStamp time.Time) error {
 	log.Println("not implemented...ignore the error for testing...")
 	return nil
 }
@@ -47,6 +48,6 @@ func (db *mdb) UpdateRangeID(ctx context.Context, shardID int, rangeID int64, pr
 
 // UpdateShard updates a shard, return error is there is any.
 // Return ShardOperationConditionFailure if the condition doesn't meet
-func (db *mdb) UpdateShard(ctx context.Context, row *nosqlplugin.ShardRow, previousRangeID int64) error {
+func (db *mdb) UpdateShard(ctx context.Context, row *nosqlplugin.ShardRow, previousRangeID int64, timeStamp time.Time) error {
 	panic("TODO")
 }

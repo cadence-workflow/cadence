@@ -225,7 +225,7 @@ func (t *nosqlTaskStore) UpdateTaskList(
 	}
 
 	if tli.Kind == persistence.TaskListKindSticky { // if task_list is sticky, then update with TTL
-		err = storeShard.db.UpdateTaskListWithTTL(ctx, stickyTaskListTTL, taskListToUpdate, tli.RangeID)
+		err = storeShard.db.UpdateTaskListWithTTL(ctx, stickyTaskListTTL, taskListToUpdate, tli.RangeID, time.Now())
 	} else {
 		err = storeShard.db.UpdateTaskList(ctx, taskListToUpdate, tli.RangeID)
 	}

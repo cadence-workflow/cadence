@@ -22,6 +22,7 @@ package mongodb
 
 import (
 	"context"
+	"time"
 
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 )
@@ -57,6 +58,7 @@ func (db *mdb) UpdateTaskListWithTTL(
 	ttlSeconds int64,
 	row *nosqlplugin.TaskListRow,
 	previousRangeID int64,
+	timeStamp time.Time,
 ) error {
 	panic("TODO")
 }

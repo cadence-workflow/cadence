@@ -22,13 +22,14 @@ package dynamodb
 
 import (
 	"context"
+	"time"
 
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 )
 
 // InsertShard creates a new shard, return error is there is any.
 // Return ShardOperationConditionFailure if the condition doesn't meet
-func (db *ddb) InsertShard(ctx context.Context, row *nosqlplugin.ShardRow) error {
+func (db *ddb) InsertShard(ctx context.Context, row *nosqlplugin.ShardRow, timeStamp time.Time) error {
 	panic("TODO")
 }
 
@@ -45,6 +46,6 @@ func (db *ddb) UpdateRangeID(ctx context.Context, shardID int, rangeID int64, pr
 
 // UpdateShard updates a shard, return error is there is any.
 // Return ShardOperationConditionFailure if the condition doesn't meet
-func (db *ddb) UpdateShard(ctx context.Context, row *nosqlplugin.ShardRow, previousRangeID int64) error {
+func (db *ddb) UpdateShard(ctx context.Context, row *nosqlplugin.ShardRow, previousRangeID int64, timeStamp time.Time) error {
 	panic("TODO")
 }
