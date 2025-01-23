@@ -2106,11 +2106,6 @@ const (
 
 	// key for history
 
-	// TaskRedispatchIntervalJitterCoefficient is the task redispatch interval jitter coefficient
-	// KeyName: history.taskRedispatchIntervalJitterCoefficient
-	// Value type: Float64
-	// Default value: 0.15
-	// Allowed filters: N/A
 	TaskRedispatchIntervalJitterCoefficient
 	// QueueProcessorRandomSplitProbability is the probability for a domain to be split to a new processing queue
 	// KeyName: history.queueProcessorRandomSplitProbability
@@ -4432,7 +4427,7 @@ var FloatKeys = map[FloatKey]DynamicFloat{
 	},
 	TaskRedispatchIntervalJitterCoefficient: {
 		KeyName:      "history.taskRedispatchIntervalJitterCoefficient",
-		Description:  "TaskRedispatchIntervalJitterCoefficient is the task redispatch interval jitter coefficient",
+		Description:  "Deprecated",
 		DefaultValue: 0.15,
 	},
 	QueueProcessorRandomSplitProbability: {

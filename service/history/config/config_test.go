@@ -103,7 +103,6 @@ func TestNewConfig(t *testing.T) {
 		"TaskCriticalRetryCount":                               {dynamicconfig.TaskCriticalRetryCount, 37},
 		"ActiveTaskRedispatchInterval":                         {dynamicconfig.ActiveTaskRedispatchInterval, time.Second},
 		"StandbyTaskRedispatchInterval":                        {dynamicconfig.StandbyTaskRedispatchInterval, time.Second},
-		"TaskRedispatchIntervalJitterCoefficient":              {dynamicconfig.TaskRedispatchIntervalJitterCoefficient, 1.0},
 		"StandbyTaskReReplicationContextTimeout":               {dynamicconfig.StandbyTaskReReplicationContextTimeout, time.Second},
 		"EnableDropStuckTaskByDomainID":                        {dynamicconfig.EnableDropStuckTaskByDomainID, true},
 		"ResurrectionCheckMinDelay":                            {dynamicconfig.ResurrectionCheckMinDelay, time.Second},

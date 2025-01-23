@@ -89,21 +89,20 @@ type Config struct {
 	StandbyTaskMissingEventsDiscardDelay dynamicconfig.DurationPropertyFn
 
 	// Task process settings
-	TaskProcessRPS                          dynamicconfig.IntPropertyFnWithDomainFilter
-	TaskSchedulerType                       dynamicconfig.IntPropertyFn
-	TaskSchedulerWorkerCount                dynamicconfig.IntPropertyFn
-	TaskSchedulerShardWorkerCount           dynamicconfig.IntPropertyFn
-	TaskSchedulerQueueSize                  dynamicconfig.IntPropertyFn
-	TaskSchedulerShardQueueSize             dynamicconfig.IntPropertyFn
-	TaskSchedulerDispatcherCount            dynamicconfig.IntPropertyFn
-	TaskSchedulerRoundRobinWeights          dynamicconfig.MapPropertyFn
-	TaskCriticalRetryCount                  dynamicconfig.IntPropertyFn
-	ActiveTaskRedispatchInterval            dynamicconfig.DurationPropertyFn
-	StandbyTaskRedispatchInterval           dynamicconfig.DurationPropertyFn
-	TaskRedispatchIntervalJitterCoefficient dynamicconfig.FloatPropertyFn
-	StandbyTaskReReplicationContextTimeout  dynamicconfig.DurationPropertyFnWithDomainIDFilter
-	EnableDropStuckTaskByDomainID           dynamicconfig.BoolPropertyFnWithDomainIDFilter
-	ResurrectionCheckMinDelay               dynamicconfig.DurationPropertyFnWithDomainFilter
+	TaskProcessRPS                         dynamicconfig.IntPropertyFnWithDomainFilter
+	TaskSchedulerType                      dynamicconfig.IntPropertyFn
+	TaskSchedulerWorkerCount               dynamicconfig.IntPropertyFn
+	TaskSchedulerShardWorkerCount          dynamicconfig.IntPropertyFn
+	TaskSchedulerQueueSize                 dynamicconfig.IntPropertyFn
+	TaskSchedulerShardQueueSize            dynamicconfig.IntPropertyFn
+	TaskSchedulerDispatcherCount           dynamicconfig.IntPropertyFn
+	TaskSchedulerRoundRobinWeights         dynamicconfig.MapPropertyFn
+	TaskCriticalRetryCount                 dynamicconfig.IntPropertyFn
+	ActiveTaskRedispatchInterval           dynamicconfig.DurationPropertyFn
+	StandbyTaskRedispatchInterval          dynamicconfig.DurationPropertyFn
+	StandbyTaskReReplicationContextTimeout dynamicconfig.DurationPropertyFnWithDomainIDFilter
+	EnableDropStuckTaskByDomainID          dynamicconfig.BoolPropertyFnWithDomainIDFilter
+	ResurrectionCheckMinDelay              dynamicconfig.DurationPropertyFnWithDomainFilter
 
 	// QueueProcessor settings
 	QueueProcessorEnableSplit                          dynamicconfig.BoolPropertyFn
@@ -368,21 +367,20 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		DeleteHistoryEventContextTimeout:       dc.GetIntProperty(dynamicconfig.DeleteHistoryEventContextTimeout),
 		MaxResponseSize:                        maxMessageSize,
 
-		TaskProcessRPS:                          dc.GetIntPropertyFilteredByDomain(dynamicconfig.TaskProcessRPS),
-		TaskSchedulerType:                       dc.GetIntProperty(dynamicconfig.TaskSchedulerType),
-		TaskSchedulerWorkerCount:                dc.GetIntProperty(dynamicconfig.TaskSchedulerWorkerCount),
-		TaskSchedulerShardWorkerCount:           dc.GetIntProperty(dynamicconfig.TaskSchedulerShardWorkerCount),
-		TaskSchedulerQueueSize:                  dc.GetIntProperty(dynamicconfig.TaskSchedulerQueueSize),
-		TaskSchedulerShardQueueSize:             dc.GetIntProperty(dynamicconfig.TaskSchedulerShardQueueSize),
-		TaskSchedulerDispatcherCount:            dc.GetIntProperty(dynamicconfig.TaskSchedulerDispatcherCount),
-		TaskSchedulerRoundRobinWeights:          dc.GetMapProperty(dynamicconfig.TaskSchedulerRoundRobinWeights),
-		TaskCriticalRetryCount:                  dc.GetIntProperty(dynamicconfig.TaskCriticalRetryCount),
-		ActiveTaskRedispatchInterval:            dc.GetDurationProperty(dynamicconfig.ActiveTaskRedispatchInterval),
-		StandbyTaskRedispatchInterval:           dc.GetDurationProperty(dynamicconfig.StandbyTaskRedispatchInterval),
-		TaskRedispatchIntervalJitterCoefficient: dc.GetFloat64Property(dynamicconfig.TaskRedispatchIntervalJitterCoefficient),
-		StandbyTaskReReplicationContextTimeout:  dc.GetDurationPropertyFilteredByDomainID(dynamicconfig.StandbyTaskReReplicationContextTimeout),
-		EnableDropStuckTaskByDomainID:           dc.GetBoolPropertyFilteredByDomainID(dynamicconfig.EnableDropStuckTaskByDomainID),
-		ResurrectionCheckMinDelay:               dc.GetDurationPropertyFilteredByDomain(dynamicconfig.ResurrectionCheckMinDelay),
+		TaskProcessRPS:                         dc.GetIntPropertyFilteredByDomain(dynamicconfig.TaskProcessRPS),
+		TaskSchedulerType:                      dc.GetIntProperty(dynamicconfig.TaskSchedulerType),
+		TaskSchedulerWorkerCount:               dc.GetIntProperty(dynamicconfig.TaskSchedulerWorkerCount),
+		TaskSchedulerShardWorkerCount:          dc.GetIntProperty(dynamicconfig.TaskSchedulerShardWorkerCount),
+		TaskSchedulerQueueSize:                 dc.GetIntProperty(dynamicconfig.TaskSchedulerQueueSize),
+		TaskSchedulerShardQueueSize:            dc.GetIntProperty(dynamicconfig.TaskSchedulerShardQueueSize),
+		TaskSchedulerDispatcherCount:           dc.GetIntProperty(dynamicconfig.TaskSchedulerDispatcherCount),
+		TaskSchedulerRoundRobinWeights:         dc.GetMapProperty(dynamicconfig.TaskSchedulerRoundRobinWeights),
+		TaskCriticalRetryCount:                 dc.GetIntProperty(dynamicconfig.TaskCriticalRetryCount),
+		ActiveTaskRedispatchInterval:           dc.GetDurationProperty(dynamicconfig.ActiveTaskRedispatchInterval),
+		StandbyTaskRedispatchInterval:          dc.GetDurationProperty(dynamicconfig.StandbyTaskRedispatchInterval),
+		StandbyTaskReReplicationContextTimeout: dc.GetDurationPropertyFilteredByDomainID(dynamicconfig.StandbyTaskReReplicationContextTimeout),
+		EnableDropStuckTaskByDomainID:          dc.GetBoolPropertyFilteredByDomainID(dynamicconfig.EnableDropStuckTaskByDomainID),
+		ResurrectionCheckMinDelay:              dc.GetDurationPropertyFilteredByDomain(dynamicconfig.ResurrectionCheckMinDelay),
 
 		QueueProcessorEnableSplit:                          dc.GetBoolProperty(dynamicconfig.QueueProcessorEnableSplit),
 		QueueProcessorSplitMaxLevel:                        dc.GetIntProperty(dynamicconfig.QueueProcessorSplitMaxLevel),

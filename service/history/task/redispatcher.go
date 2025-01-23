@@ -38,8 +38,9 @@ import (
 const (
 	defaultBufferSize = 200
 
-	redispatchBackoffCoefficient  = 1.05
-	redispatchMaxBackoffInternval = 2 * time.Minute
+	redispatchBackoffCoefficient     = 1.05
+	redispatchMaxBackoffInternval    = 2 * time.Minute
+	redispatchFailureBackoffInterval = 2 * time.Second
 )
 
 type (
@@ -50,27 +51,24 @@ type (
 
 	// RedispatcherOptions configs redispatch interval
 	RedispatcherOptions struct {
-		TaskRedispatchInterval                  dynamicconfig.DurationPropertyFn
-		TaskRedispatchIntervalJitterCoefficient dynamicconfig.FloatPropertyFn
+		TaskRedispatchInterval dynamicconfig.DurationPropertyFn
 	}
-
 	redispatcherImpl struct {
 		sync.Mutex
 
 		taskProcessor Processor
 		timeSource    clock.TimeSource
-		options       *RedispatcherOptions
 		logger        log.Logger
 		metricsScope  metrics.Scope
 
-		status          int32
-		shutdownCh      chan struct{}
-		shutdownWG      sync.WaitGroup
-		redispatchCh    chan redispatchNotification
-		redispatchTimer *time.Timer
-		backoffPolicy   backoff.RetryPolicy
-		pqMap           map[int]collection.Queue[redispatchTask] // priority -> redispatch queue
-		taskChFull      map[int]bool                             // priority -> if taskCh is full
+		status        int32
+		shutdownCh    chan struct{}
+		shutdownWG    sync.WaitGroup
+		redispatchCh  chan redispatchNotification
+		timerGate     clock.TimerGate
+		backoffPolicy backoff.RetryPolicy
+		pqMap         map[int]collection.Queue[redispatchTask] // priority -> redispatch queue
+		taskChFull    map[int]bool                             // priority -> if taskCh is full
 	}
 
 	redispatchTask struct {
@@ -95,12 +93,12 @@ func NewRedispatcher(
 	return &redispatcherImpl{
 		taskProcessor: taskProcessor,
 		timeSource:    timeSource,
-		options:       options,
 		logger:        logger,
 		metricsScope:  metricsScope,
 		status:        common.DaemonStatusInitialized,
 		shutdownCh:    make(chan struct{}),
 		redispatchCh:  make(chan redispatchNotification, 1),
+		timerGate:     clock.NewTimerGate(timeSource),
 		backoffPolicy: backoffPolicy,
 		pqMap:         make(map[int]collection.Queue[redispatchTask]),
 		taskChFull:    make(map[int]bool),
@@ -124,14 +122,7 @@ func (r *redispatcherImpl) Stop() {
 	}
 
 	close(r.shutdownCh)
-
-	r.Lock()
-	if r.redispatchTimer != nil {
-		r.redispatchTimer.Stop()
-	}
-	r.redispatchTimer = nil
-	r.Unlock()
-
+	r.timerGate.Stop()
 	if success := common.AwaitWaitGroup(&r.shutdownWG, time.Minute); !success {
 		r.logger.Warn("Task redispatcher timedout on shutdown.", tag.LifeCycleStopTimedout)
 	}
@@ -144,16 +135,18 @@ func (r *redispatcherImpl) AddTask(task Task) {
 	attempt := task.GetAttempt()
 
 	r.Lock()
-	defer r.Unlock()
 	pq := r.getOrCreatePQLocked(priority)
+	t := r.getRedispatchTime(attempt)
 	pq.Add(redispatchTask{
 		task:           task,
-		redispatchTime: r.getRedispatchTime(attempt),
+		redispatchTime: t,
 	})
+	r.Unlock()
 
-	r.setupTimerLocked()
+	r.timerGate.Update(t)
 }
 
+// TODO: review this method, it doesn't seem to redispatch the tasks immediately
 func (r *redispatcherImpl) Redispatch(targetSize int) {
 	doneCh := make(chan struct{})
 	ntf := redispatchNotification{
@@ -185,6 +178,8 @@ func (r *redispatcherImpl) redispatchLoop() {
 		select {
 		case <-r.shutdownCh:
 			return
+		case <-r.timerGate.Chan():
+			r.redispatchTasks(redispatchNotification{})
 		case notification := <-r.redispatchCh:
 			r.redispatchTasks(notification)
 		}
@@ -198,10 +193,6 @@ func (r *redispatcherImpl) redispatchTasks(notification redispatchNotification) 
 	defer func() {
 		if notification.doneCh != nil {
 			close(notification.doneCh)
-		}
-		if r.sizeLocked() > 0 {
-			// there are still tasks left in the queue, setup a redispatch timer for those tasks
-			r.setupTimerLocked()
 		}
 	}()
 
@@ -251,6 +242,7 @@ func (r *redispatcherImpl) redispatchTasks(notification redispatchNotification) 
 			newPriority := item.task.Priority()
 			if err != nil || !submitted {
 				// failed to submit, enqueue again
+				item.redispatchTime = r.timeSource.Now().Add(redispatchFailureBackoffInterval)
 				r.getOrCreatePQLocked(newPriority).Add(item)
 			}
 			if err == nil && !submitted {
@@ -261,36 +253,14 @@ func (r *redispatcherImpl) redispatchTasks(notification redispatchNotification) 
 				totalRedispatched++
 			}
 		}
+		if !pq.IsEmpty() {
+			item, _ := pq.Peek()
+			r.timerGate.Update(item.redispatchTime)
+		}
 		if r.isStopped() {
 			return
 		}
 	}
-}
-
-func (r *redispatcherImpl) setupTimerLocked() {
-	if r.redispatchTimer != nil || r.isStopped() {
-		return
-	}
-
-	r.redispatchTimer = time.AfterFunc(
-		backoff.JitDuration(
-			r.options.TaskRedispatchInterval(),
-			r.options.TaskRedispatchIntervalJitterCoefficient(),
-		),
-		func() {
-			r.Lock()
-			defer r.Unlock()
-			r.redispatchTimer = nil
-
-			select {
-			case r.redispatchCh <- redispatchNotification{
-				targetSize: 0,
-				doneCh:     nil,
-			}:
-			default:
-			}
-		},
-	)
 }
 
 func (r *redispatcherImpl) sizeLocked() int {
@@ -298,7 +268,6 @@ func (r *redispatcherImpl) sizeLocked() int {
 	for _, queue := range r.pqMap {
 		size += queue.Len()
 	}
-
 	return size
 }
 
@@ -308,7 +277,7 @@ func (r *redispatcherImpl) isStopped() bool {
 
 func (r *redispatcherImpl) getRedispatchTime(attempt int) time.Time {
 	// note that elapsedTime (the first parameter) is not relevant when
-	// the retry policy has not expiration interval
+	// the retry policy has not expiration intervaly(0, attempt)))
 	return r.timeSource.Now().Add(r.backoffPolicy.ComputeNextDelay(0, attempt))
 }
 
