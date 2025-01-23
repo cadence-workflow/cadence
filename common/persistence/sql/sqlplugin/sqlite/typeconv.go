@@ -28,7 +28,7 @@ var (
 
 type (
 	// DataConverter defines the API for conversions to/from
-	// go types to mysql datatypes
+	// go types to SQLite datatypes
 	DataConverter interface {
 		ToSQLiteDateTime(t time.Time) time.Time
 		FromSQLiteDateTime(t time.Time) time.Time
