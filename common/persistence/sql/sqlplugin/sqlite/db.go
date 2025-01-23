@@ -16,6 +16,7 @@ var (
 )
 
 type db struct {
+	converter   DataConverter
 	driver      sqldriver.Driver
 	originalDBs []*sqlx.DB
 	numDBShards int
@@ -29,8 +30,9 @@ func newDB(xdbs []*sqlx.DB, tx *sqlx.Tx, dbShardID int, numDBShards int) (*db, e
 	}
 
 	db := &db{
-		originalDBs: xdbs, // this is kept because newDB will be called again when starting a transaction
+		converter:   &converter{},
 		driver:      driver,
+		originalDBs: xdbs, // this is kept because newDB will be called again when starting a transaction
 		numDBShards: numDBShards,
 	}
 
