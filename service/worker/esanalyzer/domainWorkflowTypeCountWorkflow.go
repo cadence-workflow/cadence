@@ -158,7 +158,7 @@ func (w *Workflow) emitWorkflowTypeCountMetrics(ctx context.Context) error {
 				err = w.emitWorkflowTypeCountMetricsES(ctx, domainName, logger)
 			}
 			if err != nil {
-				return err
+				logger.Error(fmt.Sprintf("Failed to emit workflow type metrics for domain %s", domainName), zap.Error(err))
 			}
 		}
 	}
