@@ -23,7 +23,7 @@ package sqlite
 import "time"
 
 var (
-	minMySQLDateTime = getMinMySQLDateTime()
+	minSQLiteDateTime = getMinSQLiteDateTime()
 )
 
 type (
@@ -36,23 +36,23 @@ type (
 	converter struct{}
 )
 
-// ToSQLiteDateTime converts to time to MySQL datetime
+// ToSQLiteDateTime converts to time to SQLite datetime
 func (c *converter) ToSQLiteDateTime(t time.Time) time.Time {
 	if t.IsZero() {
-		return minMySQLDateTime
+		return minSQLiteDateTime
 	}
 	return t
 }
 
-// FromSQLiteDateTime converts mysql datetime and returns go time
+// FromSQLiteDateTime converts SQLite datetime and returns go time
 func (c *converter) FromSQLiteDateTime(t time.Time) time.Time {
-	if t.Equal(minMySQLDateTime) {
+	if t.Equal(minSQLiteDateTime) {
 		return time.Time{}
 	}
 	return t
 }
 
-func getMinMySQLDateTime() time.Time {
+func getMinSQLiteDateTime() time.Time {
 	t, err := time.Parse(time.RFC3339, "1000-01-01T00:00:00Z")
 	if err != nil {
 		return time.Unix(0, 0)
