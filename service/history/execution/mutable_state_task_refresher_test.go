@@ -659,7 +659,7 @@ func TestRefreshTasks(t *testing.T) {
 			ms.EXPECT().GetDomainEntry().Return(cache.NewLocalDomainCacheEntryForTest(&persistence.DomainInfo{ID: "domain-id"}, nil, "test")).AnyTimes()
 			refresher := &mutableStateTaskRefresherImpl{
 				config: &config.Config{
-					WriteVisibilityStoreName:    dynamicconfig.GetStringPropertyFn(common.AdvancedVisibilityModeES),
+					WriteVisibilityStoreName:    dynamicconfig.GetStringPropertyFn(common.VisibilityModeES),
 					WorkflowDeletionJitterRange: dynamicconfig.GetIntPropertyFilteredByDomain(1),
 					IsAdvancedVisConfigExist:    true,
 				},

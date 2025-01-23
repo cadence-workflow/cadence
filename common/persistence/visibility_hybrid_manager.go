@@ -75,12 +75,19 @@ func NewVisibilityHybridManager(
 	logger log.Logger,
 ) VisibilityManager {
 	if len(visibilityMgrs) == 0 {
-		logger.Fatal("require one of dbVisibilityManager or advancedVisibilityManager")
+		logger.Fatal("No visibility managers provided. At least one visibility manager is required.")
 		return nil
 	}
+
+	if writeVisibilityStoreName() == "" {
+		logger.Fatal("Write visibility store name is not provided. At least one write visibility store name is required.")
+		return nil
+	}
+
 	if logCustomerQueryParameter == nil {
 		logCustomerQueryParameter = dynamicconfig.GetBoolPropertyFnFilteredByDomain(false)
 	}
+
 	return &visibilityHybridManager{
 		visibilityMgrs:            visibilityMgrs,
 		readVisibilityStoreName:   readVisibilityStoreName,
@@ -100,8 +107,8 @@ func (v *visibilityHybridManager) Close() {
 
 func (v *visibilityHybridManager) GetName() string {
 	storeNames := strings.Split(v.writeVisibilityStoreName(), ",")
-	if v.visibilityMgrs[storeNames[0]] != nil {
-		return v.visibilityMgrs[storeNames[0]].GetName()
+	if mgr, ok := v.visibilityMgrs[storeNames[0]]; ok && mgr != nil {
+		return mgr.GetName()
 	}
 	return storeNames[0] // return the primary store name
 }
@@ -113,7 +120,11 @@ func (v *visibilityHybridManager) RecordWorkflowExecutionStarted(
 	return v.chooseVisibilityManagerForWrite(
 		ctx,
 		func(storeName string) error {
-			return v.visibilityMgrs[storeName].RecordWorkflowExecutionStarted(ctx, request)
+			mgr, ok := v.visibilityMgrs[storeName]
+			if !ok || mgr == nil {
+				return fmt.Errorf("Visibility store manager with name %s not found", storeName)
+			}
+			return mgr.RecordWorkflowExecutionStarted(ctx, request)
 		},
 	)
 }
@@ -125,7 +136,11 @@ func (v *visibilityHybridManager) RecordWorkflowExecutionClosed(
 	return v.chooseVisibilityManagerForWrite(
 		ctx,
 		func(storeName string) error {
-			return v.visibilityMgrs[storeName].RecordWorkflowExecutionClosed(ctx, request)
+			mgr, ok := v.visibilityMgrs[storeName]
+			if !ok || mgr == nil {
+				return fmt.Errorf("Visibility store manager with name %s not found", storeName)
+			}
+			return mgr.RecordWorkflowExecutionClosed(ctx, request)
 		},
 	)
 }
@@ -137,7 +152,11 @@ func (v *visibilityHybridManager) RecordWorkflowExecutionUninitialized(
 	return v.chooseVisibilityManagerForWrite(
 		ctx,
 		func(storeName string) error {
-			return v.visibilityMgrs[storeName].RecordWorkflowExecutionUninitialized(ctx, request)
+			mgr, ok := v.visibilityMgrs[storeName]
+			if !ok || mgr == nil {
+				return fmt.Errorf("Visibility store manager with name %s not found", storeName)
+			}
+			return mgr.RecordWorkflowExecutionUninitialized(ctx, request)
 		},
 	)
 }
@@ -149,7 +168,11 @@ func (v *visibilityHybridManager) DeleteWorkflowExecution(
 	return v.chooseVisibilityManagerForWrite(
 		ctx,
 		func(storeName string) error {
-			return v.visibilityMgrs[storeName].DeleteWorkflowExecution(ctx, request)
+			mgr, ok := v.visibilityMgrs[storeName]
+			if !ok || mgr == nil {
+				return fmt.Errorf("Visibility store manager with name %s not found", storeName)
+			}
+			return mgr.DeleteWorkflowExecution(ctx, request)
 		},
 	)
 }
@@ -161,7 +184,11 @@ func (v *visibilityHybridManager) DeleteUninitializedWorkflowExecution(
 	return v.chooseVisibilityManagerForWrite(
 		ctx,
 		func(storeName string) error {
-			return v.visibilityMgrs[storeName].DeleteUninitializedWorkflowExecution(ctx, request)
+			mgr, ok := v.visibilityMgrs[storeName]
+			if !ok || mgr == nil {
+				return fmt.Errorf("Visibility store manager with name %s not found", storeName)
+			}
+			return mgr.DeleteUninitializedWorkflowExecution(ctx, request)
 		},
 	)
 }
@@ -173,7 +200,11 @@ func (v *visibilityHybridManager) UpsertWorkflowExecution(
 	return v.chooseVisibilityManagerForWrite(
 		ctx,
 		func(storeName string) error {
-			return v.visibilityMgrs[storeName].UpsertWorkflowExecution(ctx, request)
+			mgr, ok := v.visibilityMgrs[storeName]
+			if !ok || mgr == nil {
+				return fmt.Errorf("Visibility store manager with name %s not found", storeName)
+			}
+			return mgr.UpsertWorkflowExecution(ctx, request)
 		},
 	)
 }
@@ -538,7 +569,7 @@ func (v *visibilityHybridManager) chooseVisibilityManagerForRead(ctx context.Con
 }
 
 func shadow[ReqT any, ResT any](f func(ctx context.Context, request ReqT) (ResT, error), request ReqT, logger log.Logger) {
-	ctxNew, cancel := context.WithTimeout(context.Background(), 2*time.Minute) // don't want f to run too long
+	ctxNew, cancel := context.WithTimeout(context.Background(), 30*time.Second) // don't want f to run too long
 
 	defer cancel()
 	defer func() {

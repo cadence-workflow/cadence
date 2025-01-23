@@ -292,8 +292,8 @@ func (f *factoryImpl) NewVisibilityManager(
 		}
 
 		visibilityMgrs := map[string]p.VisibilityManager{
-			"db":    visibilityFromDB,
-			"pinot": visibilityFromPinot,
+			common.VisibilityModeDB:    visibilityFromDB,
+			common.VisibilityModePinot: visibilityFromPinot,
 		}
 
 		if params.PinotConfig.Migration.Enabled {
@@ -302,7 +302,7 @@ func (f *factoryImpl) NewVisibilityManager(
 				f.logger.Fatal("Creating ES advanced visibility manager failed", tag.Error(err))
 			}
 
-			visibilityMgrs["es"] = visibilityFromES
+			visibilityMgrs[common.VisibilityModeES] = visibilityFromES
 		}
 
 		return p.NewVisibilityHybridManager(
@@ -319,8 +319,8 @@ func (f *factoryImpl) NewVisibilityManager(
 		}
 
 		visibilityMgrs := map[string]p.VisibilityManager{
-			"db": visibilityFromDB,
-			"os": visibilityFromOS,
+			common.VisibilityModeDB: visibilityFromDB,
+			common.VisibilityModeOS: visibilityFromOS,
 		}
 		if params.OSConfig.Migration.Enabled {
 			visibilityFromES, err = setupESVisibilityManager(params, resourceConfig, f.logger)
@@ -328,7 +328,7 @@ func (f *factoryImpl) NewVisibilityManager(
 				f.logger.Fatal("Creating ES advanced visibility manager failed", tag.Error(err))
 			}
 
-			visibilityMgrs["es"] = visibilityFromES
+			visibilityMgrs[common.VisibilityModeES] = visibilityFromES
 		}
 		return p.NewVisibilityHybridManager(
 			visibilityMgrs,
@@ -343,8 +343,8 @@ func (f *factoryImpl) NewVisibilityManager(
 			f.logger.Fatal("Creating advanced visibility manager failed", tag.Error(err))
 		}
 		visibilityMgrs := map[string]p.VisibilityManager{
-			"db": visibilityFromDB,
-			"es": visibilityFromES,
+			common.VisibilityModeDB: visibilityFromDB,
+			common.VisibilityModeES: visibilityFromES,
 		}
 		return p.NewVisibilityHybridManager(
 			visibilityMgrs,
@@ -355,7 +355,7 @@ func (f *factoryImpl) NewVisibilityManager(
 		), nil
 	default:
 		visibilityMgrs := map[string]p.VisibilityManager{
-			"db": visibilityFromDB,
+			common.VisibilityModeDB: visibilityFromDB,
 		}
 		return p.NewVisibilityHybridManager(
 			visibilityMgrs,

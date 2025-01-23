@@ -153,12 +153,16 @@ const (
 
 // enum for dynamic config AdvancedVisibility write/read mode
 const (
-	// AdvancedVisibilityModeOff means do not write to advanced visibility store
+	// AdvancedVisibilityModeOff means do not use advanced visibility store
 	AdvancedVisibilityModeOff = "off"
-	// AdvancedVisibilityModeES means only write to advanced visibility store (es)
-	AdvancedVisibilityModeES = "es"
-	// AdvancedVisibilityModePinot means only write to advanced visibility store (pinot)
-	AdvancedVisibilityModePinot = "pinot"
+	// AdvancedVisibilityModeES means ElasticSearch visibility mode
+	VisibilityModeES = "es"
+	// AdvancedVisibilityModePinot means Pinot visibility mode
+	VisibilityModePinot = "pinot"
+	// AdvancedVisibilityModeOS means OpenSearch visibility mode
+	VisibilityModeOS = "os"
+	// AdvancedVisibilityModeDB means db visibility mode
+	VisibilityModeDB = "db"
 )
 
 const (
