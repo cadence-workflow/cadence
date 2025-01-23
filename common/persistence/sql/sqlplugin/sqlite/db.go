@@ -9,16 +9,32 @@ import (
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
 )
 
-//var (
-//	_ sqlplugin.AdminDB = (*db)(nil)
-//	_ sqlplugin.DB      = (*db)(nil)
-//	_ sqlplugin.Tx      = (*db)(nil)
-//)
+var (
+	_ sqlplugin.AdminDB = (*db)(nil)
+	_ sqlplugin.DB      = (*db)(nil)
+	_ sqlplugin.Tx      = (*db)(nil)
+)
 
 type db struct {
 	driver      sqldriver.Driver
 	originalDBs []*sqlx.DB
 	numDBShards int
+}
+
+// newDB returns a new instance of db
+func newDB(xdbs []*sqlx.DB, tx *sqlx.Tx, dbShardID int, numDBShards int) (*db, error) {
+	driver, err := sqldriver.NewDriver(xdbs, tx, dbShardID)
+	if err != nil {
+		return nil, err
+	}
+
+	db := &db{
+		originalDBs: xdbs, // this is kept because newDB will be called again when starting a transaction
+		driver:      driver,
+		numDBShards: numDBShards,
+	}
+
+	return db, nil
 }
 
 // GetTotalNumDBShards returns the total number of shards
@@ -28,7 +44,11 @@ func (db *db) GetTotalNumDBShards() int {
 
 // BeginTx starts a new transaction and returns a reference to the Tx object
 func (db *db) BeginTx(ctx context.Context, dbShardID int) (sqlplugin.Tx, error) {
-	return nil, nil
+	xtx, err := db.driver.BeginTxx(ctx, dbShardID, nil)
+	if err != nil {
+		return nil, err
+	}
+	return newDB(db.originalDBs, xtx, dbShardID, db.numDBShards)
 }
 
 // PluginName returns the name of the plugin
