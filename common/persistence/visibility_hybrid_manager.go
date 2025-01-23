@@ -79,11 +79,6 @@ func NewVisibilityHybridManager(
 		return nil
 	}
 
-	if writeVisibilityStoreName() == "" {
-		logger.Fatal("Write visibility store name is not provided. At least one write visibility store name is required.")
-		return nil
-	}
-
 	if logCustomerQueryParameter == nil {
 		logCustomerQueryParameter = dynamicconfig.GetBoolPropertyFnFilteredByDomain(false)
 	}

@@ -77,7 +77,7 @@ func TestNewVisibilityHybridManager(t *testing.T) {
 					esStoreName:    test.mockESVisibilityManager,
 					pinotStoreName: test.mockPinotVisibilityManager,
 				}
-				NewVisibilityHybridManager(visibilityMgrs, nil, nil, nil, log.NewNoop())
+				NewVisibilityHybridManager(visibilityMgrs, nil, dynamicconfig.GetStringPropertyFn(esStoreName), nil, log.NewNoop())
 			})
 		})
 	}
@@ -139,7 +139,7 @@ func TestVisibilityHybridManagerClose(t *testing.T) {
 				esStoreName:    test.mockESVisibilityManager,
 				pinotStoreName: test.mockPinotVisibilityManager,
 			}
-			visibilityManager := NewVisibilityHybridManager(visibilityMgrs, nil, nil, nil, log.NewNoop())
+			visibilityManager := NewVisibilityHybridManager(visibilityMgrs, nil, dynamicconfig.GetStringPropertyFn(esStoreName), nil, log.NewNoop())
 			assert.NotPanics(t, func() {
 				visibilityManager.Close()
 			})
