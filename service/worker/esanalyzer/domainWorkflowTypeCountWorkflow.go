@@ -148,6 +148,7 @@ func (w *Workflow) emitWorkflowTypeCountMetrics(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+		var failedDomains []string
 		for _, domainName := range workflowMetricDomainNames {
 			switch w.analyzer.readMode {
 			case ES:
@@ -159,7 +160,11 @@ func (w *Workflow) emitWorkflowTypeCountMetrics(ctx context.Context) error {
 			}
 			if err != nil {
 				logger.Error(fmt.Sprintf("Failed to emit workflow type metrics for domain %s", domainName), zap.Error(err))
+				failedDomains = append(failedDomains, domainName)
 			}
+		}
+		if len(failedDomains) == len(workflowMetricDomainNames) {
+			return fmt.Errorf("Failed to emit workflow type metrics for all domains.")
 		}
 	}
 	return nil
