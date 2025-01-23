@@ -79,7 +79,7 @@ var errCloseParams = errors.New("missing one of {closeStatus, closeTime, history
 // InsertIntoVisibility inserts a row into visibility table. If an row already exist,
 // its left as such and no update will be made
 func (mdb *db) InsertIntoVisibility(ctx context.Context, row *sqlplugin.VisibilityRow) (sql.Result, error) {
-	row.StartTime = mdb.converter.ToSQLiteDateTime(row.StartTime)
+	row.StartTime = mdb.converter.ToMySQLDateTime(row.StartTime)
 	dbShardID := sqlplugin.GetDBShardIDFromDomainID(row.DomainID, mdb.GetTotalNumDBShards())
 	return mdb.driver.ExecContext(ctx,
 		dbShardID,
@@ -103,8 +103,8 @@ func (mdb *db) ReplaceIntoVisibility(ctx context.Context, row *sqlplugin.Visibil
 	dbShardID := sqlplugin.GetDBShardIDFromDomainID(row.DomainID, mdb.GetTotalNumDBShards())
 	switch {
 	case row.CloseStatus != nil && row.CloseTime != nil && row.HistoryLength != nil:
-		row.StartTime = mdb.converter.ToSQLiteDateTime(row.StartTime)
-		closeTime := mdb.converter.ToSQLiteDateTime(*row.CloseTime)
+		row.StartTime = mdb.converter.ToMySQLDateTime(row.StartTime)
+		closeTime := mdb.converter.ToMySQLDateTime(*row.CloseTime)
 		return mdb.driver.ExecContext(ctx,
 			dbShardID,
 			templateCreateWorkflowExecutionClosed,
@@ -140,10 +140,10 @@ func (mdb *db) SelectFromVisibility(ctx context.Context, filter *sqlplugin.Visib
 	var err error
 	var rows []sqlplugin.VisibilityRow
 	if filter.MinStartTime != nil {
-		*filter.MinStartTime = mdb.converter.ToSQLiteDateTime(*filter.MinStartTime)
+		*filter.MinStartTime = mdb.converter.ToMySQLDateTime(*filter.MinStartTime)
 	}
 	if filter.MaxStartTime != nil {
-		*filter.MaxStartTime = mdb.converter.ToSQLiteDateTime(*filter.MaxStartTime)
+		*filter.MaxStartTime = mdb.converter.ToMySQLDateTime(*filter.MaxStartTime)
 	}
 	switch {
 	case filter.MinStartTime == nil && filter.RunID != nil && filter.Closed:
@@ -163,8 +163,8 @@ func (mdb *db) SelectFromVisibility(ctx context.Context, filter *sqlplugin.Visib
 			qry,
 			*filter.WorkflowID,
 			filter.DomainID,
-			mdb.converter.ToSQLiteDateTime(*filter.MinStartTime),
-			mdb.converter.ToSQLiteDateTime(*filter.MaxStartTime),
+			mdb.converter.ToMySQLDateTime(*filter.MinStartTime),
+			mdb.converter.ToMySQLDateTime(*filter.MaxStartTime),
 			*filter.RunID,
 			*filter.MinStartTime,
 			*filter.PageSize)
@@ -179,8 +179,8 @@ func (mdb *db) SelectFromVisibility(ctx context.Context, filter *sqlplugin.Visib
 			qry,
 			*filter.WorkflowTypeName,
 			filter.DomainID,
-			mdb.converter.ToSQLiteDateTime(*filter.MinStartTime),
-			mdb.converter.ToSQLiteDateTime(*filter.MaxStartTime),
+			mdb.converter.ToMySQLDateTime(*filter.MinStartTime),
+			mdb.converter.ToMySQLDateTime(*filter.MaxStartTime),
 			*filter.RunID,
 			*filter.MaxStartTime,
 			*filter.PageSize)
@@ -191,10 +191,10 @@ func (mdb *db) SelectFromVisibility(ctx context.Context, filter *sqlplugin.Visib
 			templateGetClosedWorkflowExecutionsByStatus,
 			*filter.CloseStatus,
 			filter.DomainID,
-			mdb.converter.ToSQLiteDateTime(*filter.MinStartTime),
-			mdb.converter.ToSQLiteDateTime(*filter.MaxStartTime),
+			mdb.converter.ToMySQLDateTime(*filter.MinStartTime),
+			mdb.converter.ToMySQLDateTime(*filter.MaxStartTime),
 			*filter.RunID,
-			mdb.converter.ToSQLiteDateTime(*filter.MaxStartTime),
+			mdb.converter.ToMySQLDateTime(*filter.MaxStartTime),
 			*filter.PageSize)
 	case filter.MinStartTime != nil:
 		qry := templateGetOpenWorkflowExecutions
@@ -206,10 +206,10 @@ func (mdb *db) SelectFromVisibility(ctx context.Context, filter *sqlplugin.Visib
 			&rows,
 			qry,
 			filter.DomainID,
-			mdb.converter.ToSQLiteDateTime(*filter.MinStartTime),
-			mdb.converter.ToSQLiteDateTime(*filter.MaxStartTime),
+			mdb.converter.ToMySQLDateTime(*filter.MinStartTime),
+			mdb.converter.ToMySQLDateTime(*filter.MaxStartTime),
 			*filter.RunID,
-			mdb.converter.ToSQLiteDateTime(*filter.MaxStartTime),
+			mdb.converter.ToMySQLDateTime(*filter.MaxStartTime),
 			*filter.PageSize)
 	default:
 		return nil, fmt.Errorf("invalid query filter")
@@ -218,10 +218,10 @@ func (mdb *db) SelectFromVisibility(ctx context.Context, filter *sqlplugin.Visib
 		return nil, err
 	}
 	for i := range rows {
-		rows[i].StartTime = mdb.converter.FromSQLiteDateTime(rows[i].StartTime)
-		rows[i].ExecutionTime = mdb.converter.FromSQLiteDateTime(rows[i].ExecutionTime)
+		rows[i].StartTime = mdb.converter.FromMySQLDateTime(rows[i].StartTime)
+		rows[i].ExecutionTime = mdb.converter.FromMySQLDateTime(rows[i].ExecutionTime)
 		if rows[i].CloseTime != nil {
-			closeTime := mdb.converter.FromSQLiteDateTime(*rows[i].CloseTime)
+			closeTime := mdb.converter.FromMySQLDateTime(*rows[i].CloseTime)
 			rows[i].CloseTime = &closeTime
 		}
 	}

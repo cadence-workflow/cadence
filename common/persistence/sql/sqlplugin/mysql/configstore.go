@@ -31,7 +31,7 @@ import (
 )
 
 func (mdb *db) InsertConfig(ctx context.Context, row *persistence.InternalConfigStoreEntry) error {
-	_, err := mdb.driver.ExecContext(ctx, sqlplugin.DbDefaultShard, _insertConfigQuery, row.RowType, -1*row.Version, mdb.converter.ToSQLiteDateTime(row.Timestamp), row.Values.Data, row.Values.Encoding)
+	_, err := mdb.driver.ExecContext(ctx, sqlplugin.DbDefaultShard, _insertConfigQuery, row.RowType, -1*row.Version, mdb.converter.ToMySQLDateTime(row.Timestamp), row.Values.Data, row.Values.Encoding)
 	return err
 }
 
@@ -45,7 +45,7 @@ func (mdb *db) SelectLatestConfig(ctx context.Context, rowType int) (*persistenc
 	return &persistence.InternalConfigStoreEntry{
 		RowType:   row.RowType,
 		Version:   row.Version,
-		Timestamp: mdb.converter.FromSQLiteDateTime(row.Timestamp),
+		Timestamp: mdb.converter.FromMySQLDateTime(row.Timestamp),
 		Values: &persistence.DataBlob{
 			Data:     row.Data,
 			Encoding: common.EncodingType(row.DataEncoding),
