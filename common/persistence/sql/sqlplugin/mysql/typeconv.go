@@ -36,6 +36,10 @@ type (
 	converter struct{}
 )
 
+func newConverter() *converter {
+	return &converter{}
+}
+
 // ToMySQLDateTime converts to time to MySQL datetime
 func (c *converter) ToMySQLDateTime(t time.Time) time.Time {
 	if t.IsZero() {

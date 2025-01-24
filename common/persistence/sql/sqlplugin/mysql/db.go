@@ -45,14 +45,14 @@ type (
 // NewDB returns an instance of DB, which is a logical
 // connection to the underlying mysql database
 // dbShardID is needed when tx is not nil
-func NewDB(xdbs []*sqlx.DB, tx *sqlx.Tx, dbShardID int, numDBShards int) (*DB, error) {
+func NewDB(xdbs []*sqlx.DB, tx *sqlx.Tx, dbShardID int, numDBShards int, converter DataConverter) (*DB, error) {
 	driver, err := sqldriver.NewDriver(xdbs, tx, dbShardID)
 	if err != nil {
 		return nil, err
 	}
 
 	db := &DB{
-		converter:   &converter{},
+		converter:   converter,
 		originalDBs: xdbs, // this is kept because NewDB will be called again when starting a transaction
 		driver:      driver,
 		numDBShards: numDBShards,
@@ -118,7 +118,7 @@ func (mdb *DB) BeginTx(ctx context.Context, dbShardID int) (sqlplugin.Tx, error)
 	if err != nil {
 		return nil, err
 	}
-	return NewDB(mdb.originalDBs, xtx, dbShardID, mdb.numDBShards)
+	return NewDB(mdb.originalDBs, xtx, dbShardID, mdb.numDBShards, mdb.converter)
 }
 
 // Commit commits a previously started transaction
