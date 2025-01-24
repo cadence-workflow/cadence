@@ -362,8 +362,8 @@ func (mdb *DB) InsertIntoTimerTasks(ctx context.Context, rows []sqlplugin.TimerT
 func (mdb *DB) SelectFromTimerTasks(ctx context.Context, filter *sqlplugin.TimerTasksFilter) ([]sqlplugin.TimerTasksRow, error) {
 	var rows []sqlplugin.TimerTasksRow
 	dbShardID := sqlplugin.GetDBShardIDFromHistoryShardID(filter.ShardID, mdb.GetTotalNumDBShards())
-	filter.MinVisibilityTimestamp = mdb.converter.ToMySQLDateTime(filter.MinVisibilityTimestamp)
-	filter.MaxVisibilityTimestamp = mdb.converter.ToMySQLDateTime(filter.MaxVisibilityTimestamp)
+	filter.MinVisibilityTimestamp = mdb.converter.ToDateTime(filter.MinVisibilityTimestamp)
+	filter.MaxVisibilityTimestamp = mdb.converter.ToDateTime(filter.MaxVisibilityTimestamp)
 	err := mdb.driver.SelectContext(ctx, dbShardID, &rows, getTimerTasksQuery, filter.ShardID, filter.MinVisibilityTimestamp,
 		filter.TaskID, filter.MinVisibilityTimestamp, filter.MaxVisibilityTimestamp, filter.PageSize)
 	if err != nil {
@@ -377,15 +377,15 @@ func (mdb *DB) SelectFromTimerTasks(ctx context.Context, filter *sqlplugin.Timer
 
 // DeleteFromTimerTasks deletes one row from timer_tasks table
 func (mdb *DB) DeleteFromTimerTasks(ctx context.Context, filter *sqlplugin.TimerTasksFilter) (sql.Result, error) {
-	filter.VisibilityTimestamp = mdb.converter.ToMySQLDateTime(filter.VisibilityTimestamp)
+	filter.VisibilityTimestamp = mdb.converter.ToDateTime(filter.VisibilityTimestamp)
 	dbShardID := sqlplugin.GetDBShardIDFromHistoryShardID(filter.ShardID, mdb.GetTotalNumDBShards())
 	return mdb.driver.ExecContext(ctx, dbShardID, deleteTimerTaskQuery, filter.ShardID, filter.VisibilityTimestamp, filter.TaskID)
 }
 
 // RangeDeleteFromTimerTasks deletes multi rows from timer_tasks table
 func (mdb *DB) RangeDeleteFromTimerTasks(ctx context.Context, filter *sqlplugin.TimerTasksFilter) (sql.Result, error) {
-	filter.MinVisibilityTimestamp = mdb.converter.ToMySQLDateTime(filter.MinVisibilityTimestamp)
-	filter.MaxVisibilityTimestamp = mdb.converter.ToMySQLDateTime(filter.MaxVisibilityTimestamp)
+	filter.MinVisibilityTimestamp = mdb.converter.ToDateTime(filter.MinVisibilityTimestamp)
+	filter.MaxVisibilityTimestamp = mdb.converter.ToDateTime(filter.MaxVisibilityTimestamp)
 	dbShardID := sqlplugin.GetDBShardIDFromHistoryShardID(filter.ShardID, mdb.GetTotalNumDBShards())
 	if filter.PageSize > 0 {
 		return mdb.driver.ExecContext(ctx, dbShardID, rangeDeleteTimerTaskByBatchQuery, filter.ShardID, filter.MinVisibilityTimestamp, filter.MaxVisibilityTimestamp, filter.PageSize)

@@ -31,7 +31,7 @@ import (
 )
 
 func (mdb *DB) InsertConfig(ctx context.Context, row *persistence.InternalConfigStoreEntry) error {
-	_, err := mdb.driver.ExecContext(ctx, sqlplugin.DbDefaultShard, _insertConfigQuery, row.RowType, -1*row.Version, mdb.converter.ToMySQLDateTime(row.Timestamp), row.Values.Data, row.Values.Encoding)
+	_, err := mdb.driver.ExecContext(ctx, sqlplugin.DbDefaultShard, _insertConfigQuery, row.RowType, -1*row.Version, mdb.converter.ToDateTime(row.Timestamp), row.Values.Data, row.Values.Encoding)
 	return err
 }
 
