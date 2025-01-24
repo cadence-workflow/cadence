@@ -22,23 +22,20 @@ package mysql
 
 import "time"
 
-var (
-	minMySQLDateTime = getMinMySQLDateTime()
-)
+// DataConverter defines the API for conversions to/from
+// go types to mysql datatypes
+type DataConverter interface {
+	ToDateTime(t time.Time) time.Time
+	FromDateTime(t time.Time) time.Time
+}
 
-type (
-	// DataConverter defines the API for conversions to/from
-	// go types to mysql datatypes
-	DataConverter interface {
-		ToDateTime(t time.Time) time.Time
-		FromDateTime(t time.Time) time.Time
-	}
-	converter struct{}
-)
+type converter struct{}
 
 func newConverter() *converter {
 	return &converter{}
 }
+
+var minMySQLDateTime = getMinMySQLDateTime()
 
 // ToDateTime converts to time to MySQL datetime
 func (c *converter) ToDateTime(t time.Time) time.Time {
