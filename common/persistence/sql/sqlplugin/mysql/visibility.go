@@ -79,7 +79,7 @@ var errCloseParams = errors.New("missing one of {closeStatus, closeTime, history
 // InsertIntoVisibility inserts a row into visibility table. If an row already exist,
 // its left as such and no update will be made
 func (mdb *DB) InsertIntoVisibility(ctx context.Context, row *sqlplugin.VisibilityRow) (sql.Result, error) {
-	row.StartTime = mdb.converter.ToMySQLDateTime(row.StartTime)
+	row.StartTime = mdb.converter.ToDateTime(row.StartTime)
 	dbShardID := sqlplugin.GetDBShardIDFromDomainID(row.DomainID, mdb.GetTotalNumDBShards())
 	return mdb.driver.ExecContext(ctx,
 		dbShardID,
@@ -218,10 +218,10 @@ func (mdb *DB) SelectFromVisibility(ctx context.Context, filter *sqlplugin.Visib
 		return nil, err
 	}
 	for i := range rows {
-		rows[i].StartTime = mdb.converter.FromMySQLDateTime(rows[i].StartTime)
-		rows[i].ExecutionTime = mdb.converter.FromMySQLDateTime(rows[i].ExecutionTime)
+		rows[i].StartTime = mdb.converter.FromDateTime(rows[i].StartTime)
+		rows[i].ExecutionTime = mdb.converter.FromDateTime(rows[i].ExecutionTime)
 		if rows[i].CloseTime != nil {
-			closeTime := mdb.converter.FromMySQLDateTime(*rows[i].CloseTime)
+			closeTime := mdb.converter.FromDateTime(*rows[i].CloseTime)
 			rows[i].CloseTime = &closeTime
 		}
 	}

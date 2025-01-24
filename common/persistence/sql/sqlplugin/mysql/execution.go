@@ -353,7 +353,7 @@ func (mdb *DB) InsertIntoTimerTasks(ctx context.Context, rows []sqlplugin.TimerT
 	}
 	dbShardID := sqlplugin.GetDBShardIDFromHistoryShardID(rows[0].ShardID, mdb.GetTotalNumDBShards())
 	for i := range rows {
-		rows[i].VisibilityTimestamp = mdb.converter.ToMySQLDateTime(rows[i].VisibilityTimestamp)
+		rows[i].VisibilityTimestamp = mdb.converter.ToDateTime(rows[i].VisibilityTimestamp)
 	}
 	return mdb.driver.NamedExecContext(ctx, dbShardID, createTimerTasksQuery, rows)
 }
@@ -370,7 +370,7 @@ func (mdb *DB) SelectFromTimerTasks(ctx context.Context, filter *sqlplugin.Timer
 		return nil, err
 	}
 	for i := range rows {
-		rows[i].VisibilityTimestamp = mdb.converter.FromMySQLDateTime(rows[i].VisibilityTimestamp)
+		rows[i].VisibilityTimestamp = mdb.converter.FromDateTime(rows[i].VisibilityTimestamp)
 	}
 	return rows, err
 }

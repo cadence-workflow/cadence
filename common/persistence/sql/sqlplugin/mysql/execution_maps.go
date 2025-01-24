@@ -129,7 +129,7 @@ func (mdb *DB) ReplaceIntoActivityInfoMaps(ctx context.Context, rows []sqlplugin
 	}
 	dbShardID := sqlplugin.GetDBShardIDFromHistoryShardID(int(rows[0].ShardID), mdb.GetTotalNumDBShards())
 	for i := range rows {
-		rows[i].LastHeartbeatUpdatedTime = mdb.converter.ToMySQLDateTime(rows[i].LastHeartbeatUpdatedTime)
+		rows[i].LastHeartbeatUpdatedTime = mdb.converter.ToDateTime(rows[i].LastHeartbeatUpdatedTime)
 	}
 	return mdb.driver.NamedExecContext(ctx, dbShardID, setKeyInActivityInfoMapQry, rows)
 }
@@ -144,7 +144,7 @@ func (mdb *DB) SelectFromActivityInfoMaps(ctx context.Context, filter *sqlplugin
 		rows[i].DomainID = filter.DomainID
 		rows[i].WorkflowID = filter.WorkflowID
 		rows[i].RunID = filter.RunID
-		rows[i].LastHeartbeatUpdatedTime = mdb.converter.FromMySQLDateTime(rows[i].LastHeartbeatUpdatedTime)
+		rows[i].LastHeartbeatUpdatedTime = mdb.converter.FromDateTime(rows[i].LastHeartbeatUpdatedTime)
 	}
 	return rows, err
 }

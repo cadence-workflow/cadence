@@ -30,8 +30,8 @@ type (
 	// DataConverter defines the API for conversions to/from
 	// go types to mysql datatypes
 	DataConverter interface {
-		ToMySQLDateTime(t time.Time) time.Time
-		FromMySQLDateTime(t time.Time) time.Time
+		ToDateTime(t time.Time) time.Time
+		FromDateTime(t time.Time) time.Time
 	}
 	converter struct{}
 )
@@ -40,16 +40,16 @@ func newConverter() *converter {
 	return &converter{}
 }
 
-// ToMySQLDateTime converts to time to MySQL datetime
-func (c *converter) ToMySQLDateTime(t time.Time) time.Time {
+// ToDateTime converts to time to MySQL datetime
+func (c *converter) ToDateTime(t time.Time) time.Time {
 	if t.IsZero() {
 		return minMySQLDateTime
 	}
 	return t
 }
 
-// FromMySQLDateTime converts mysql datetime and returns go time
-func (c *converter) FromMySQLDateTime(t time.Time) time.Time {
+// FromDateTime converts mysql datetime and returns go time
+func (c *converter) FromDateTime(t time.Time) time.Time {
 	if t.Equal(minMySQLDateTime) {
 		return time.Time{}
 	}

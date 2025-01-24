@@ -45,7 +45,7 @@ func (mdb *DB) SelectLatestConfig(ctx context.Context, rowType int) (*persistenc
 	return &persistence.InternalConfigStoreEntry{
 		RowType:   row.RowType,
 		Version:   row.Version,
-		Timestamp: mdb.converter.FromMySQLDateTime(row.Timestamp),
+		Timestamp: mdb.converter.FromDateTime(row.Timestamp),
 		Values: &persistence.DataBlob{
 			Data:     row.Data,
 			Encoding: common.EncodingType(row.DataEncoding),
