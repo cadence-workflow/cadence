@@ -78,7 +78,7 @@ var errCloseParams = errors.New("missing one of {closeStatus, closeTime, history
 
 // InsertIntoVisibility inserts a row into visibility table. If an row already exist,
 // its left as such and no update will be made
-func (mdb *db) InsertIntoVisibility(ctx context.Context, row *sqlplugin.VisibilityRow) (sql.Result, error) {
+func (mdb *DB) InsertIntoVisibility(ctx context.Context, row *sqlplugin.VisibilityRow) (sql.Result, error) {
 	row.StartTime = mdb.converter.ToMySQLDateTime(row.StartTime)
 	dbShardID := sqlplugin.GetDBShardIDFromDomainID(row.DomainID, mdb.GetTotalNumDBShards())
 	return mdb.driver.ExecContext(ctx,
@@ -99,7 +99,7 @@ func (mdb *db) InsertIntoVisibility(ctx context.Context, row *sqlplugin.Visibili
 }
 
 // ReplaceIntoVisibility replaces an existing row if it exist or creates a new row in visibility table
-func (mdb *db) ReplaceIntoVisibility(ctx context.Context, row *sqlplugin.VisibilityRow) (sql.Result, error) {
+func (mdb *DB) ReplaceIntoVisibility(ctx context.Context, row *sqlplugin.VisibilityRow) (sql.Result, error) {
 	dbShardID := sqlplugin.GetDBShardIDFromDomainID(row.DomainID, mdb.GetTotalNumDBShards())
 	switch {
 	case row.CloseStatus != nil && row.CloseTime != nil && row.HistoryLength != nil:
@@ -129,13 +129,13 @@ func (mdb *db) ReplaceIntoVisibility(ctx context.Context, row *sqlplugin.Visibil
 }
 
 // DeleteFromVisibility deletes a row from visibility table if it exist
-func (mdb *db) DeleteFromVisibility(ctx context.Context, filter *sqlplugin.VisibilityFilter) (sql.Result, error) {
+func (mdb *DB) DeleteFromVisibility(ctx context.Context, filter *sqlplugin.VisibilityFilter) (sql.Result, error) {
 	dbShardID := sqlplugin.GetDBShardIDFromDomainID(filter.DomainID, mdb.GetTotalNumDBShards())
 	return mdb.driver.ExecContext(ctx, dbShardID, templateDeleteWorkflowExecution, filter.DomainID, filter.RunID)
 }
 
 // SelectFromVisibility reads one or more rows from visibility table
-func (mdb *db) SelectFromVisibility(ctx context.Context, filter *sqlplugin.VisibilityFilter) ([]sqlplugin.VisibilityRow, error) {
+func (mdb *DB) SelectFromVisibility(ctx context.Context, filter *sqlplugin.VisibilityFilter) ([]sqlplugin.VisibilityRow, error) {
 	dbShardID := sqlplugin.GetDBShardIDFromDomainID(filter.DomainID, mdb.GetTotalNumDBShards())
 	var err error
 	var rows []sqlplugin.VisibilityRow

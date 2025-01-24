@@ -45,7 +45,7 @@ const (
 )
 
 // InsertIntoQueue inserts a new row into queue table
-func (mdb *db) InsertIntoQueue(
+func (mdb *DB) InsertIntoQueue(
 	ctx context.Context,
 	row *sqlplugin.QueueRow,
 ) (sql.Result, error) {
@@ -54,7 +54,7 @@ func (mdb *db) InsertIntoQueue(
 }
 
 // GetLastEnqueuedMessageIDForUpdate returns the last enqueued message ID
-func (mdb *db) GetLastEnqueuedMessageIDForUpdate(
+func (mdb *DB) GetLastEnqueuedMessageIDForUpdate(
 	ctx context.Context,
 	queueType persistence.QueueType,
 ) (int64, error) {
@@ -65,7 +65,7 @@ func (mdb *db) GetLastEnqueuedMessageIDForUpdate(
 }
 
 // GetMessagesFromQueue retrieves messages from the queue
-func (mdb *db) GetMessagesFromQueue(
+func (mdb *DB) GetMessagesFromQueue(
 	ctx context.Context,
 	queueType persistence.QueueType,
 	lastMessageID int64,
@@ -78,7 +78,7 @@ func (mdb *db) GetMessagesFromQueue(
 }
 
 // GetMessagesBetween retrieves messages from the queue
-func (mdb *db) GetMessagesBetween(
+func (mdb *DB) GetMessagesBetween(
 	ctx context.Context,
 	queueType persistence.QueueType,
 	firstMessageID int64,
@@ -92,7 +92,7 @@ func (mdb *db) GetMessagesBetween(
 }
 
 // DeleteMessagesBefore deletes messages before messageID from the queue
-func (mdb *db) DeleteMessagesBefore(
+func (mdb *DB) DeleteMessagesBefore(
 	ctx context.Context,
 	queueType persistence.QueueType,
 	messageID int64,
@@ -102,7 +102,7 @@ func (mdb *db) DeleteMessagesBefore(
 }
 
 // RangeDeleteMessages deletes messages before messageID from the queue
-func (mdb *db) RangeDeleteMessages(
+func (mdb *DB) RangeDeleteMessages(
 	ctx context.Context,
 	queueType persistence.QueueType,
 	exclusiveBeginMessageID int64,
@@ -113,7 +113,7 @@ func (mdb *db) RangeDeleteMessages(
 }
 
 // DeleteMessage deletes message with a messageID from the queue
-func (mdb *db) DeleteMessage(
+func (mdb *DB) DeleteMessage(
 	ctx context.Context,
 	queueType persistence.QueueType,
 	messageID int64,
@@ -123,7 +123,7 @@ func (mdb *db) DeleteMessage(
 }
 
 // InsertAckLevel inserts ack level
-func (mdb *db) InsertAckLevel(
+func (mdb *DB) InsertAckLevel(
 	ctx context.Context,
 	queueType persistence.QueueType,
 	messageID int64,
@@ -142,7 +142,7 @@ func (mdb *db) InsertAckLevel(
 }
 
 // UpdateAckLevels updates cluster ack levels
-func (mdb *db) UpdateAckLevels(
+func (mdb *DB) UpdateAckLevels(
 	ctx context.Context,
 	queueType persistence.QueueType,
 	clusterAckLevels map[string]int64,
@@ -158,7 +158,7 @@ func (mdb *db) UpdateAckLevels(
 }
 
 // GetAckLevels returns ack levels for pulling clusters
-func (mdb *db) GetAckLevels(
+func (mdb *DB) GetAckLevels(
 	ctx context.Context,
 	queueType persistence.QueueType,
 	forUpdate bool,
@@ -188,7 +188,7 @@ func (mdb *db) GetAckLevels(
 }
 
 // GetQueueSize returns the queue size
-func (mdb *db) GetQueueSize(
+func (mdb *DB) GetQueueSize(
 	ctx context.Context,
 	queueType persistence.QueueType,
 ) (int64, error) {

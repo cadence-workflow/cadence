@@ -30,12 +30,12 @@ import (
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
 )
 
-func (mdb *db) InsertConfig(ctx context.Context, row *persistence.InternalConfigStoreEntry) error {
+func (mdb *DB) InsertConfig(ctx context.Context, row *persistence.InternalConfigStoreEntry) error {
 	_, err := mdb.driver.ExecContext(ctx, sqlplugin.DbDefaultShard, _insertConfigQuery, row.RowType, -1*row.Version, mdb.converter.ToMySQLDateTime(row.Timestamp), row.Values.Data, row.Values.Encoding)
 	return err
 }
 
-func (mdb *db) SelectLatestConfig(ctx context.Context, rowType int) (*persistence.InternalConfigStoreEntry, error) {
+func (mdb *DB) SelectLatestConfig(ctx context.Context, rowType int) (*persistence.InternalConfigStoreEntry, error) {
 	var row sqlplugin.ClusterConfigRow
 	err := mdb.driver.GetContext(ctx, sqlplugin.DbDefaultShard, &row, _selectLatestConfigQuery, rowType)
 	if err != nil {

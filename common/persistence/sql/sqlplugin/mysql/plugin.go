@@ -67,7 +67,7 @@ func init() {
 	sql.RegisterPlugin(PluginName, &plugin{})
 }
 
-// CreateDB initialize the db object
+// CreateDB initialize the DB object
 func (p *plugin) CreateDB(cfg *config.SQL) (sqlplugin.DB, error) {
 	conns, err := sqldriver.CreateDBConnections(cfg, func(cfg *config.SQL) (*sqlx.DB, error) {
 		return p.createSingleDBConn(cfg)
@@ -75,7 +75,7 @@ func (p *plugin) CreateDB(cfg *config.SQL) (sqlplugin.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	return newDB(conns, nil, sqlplugin.DbShardUndefined, cfg.NumShards)
+	return NewDB(conns, nil, sqlplugin.DbShardUndefined, cfg.NumShards)
 }
 
 // CreateAdminDB initialize the adminDb object
@@ -86,7 +86,7 @@ func (p *plugin) CreateAdminDB(cfg *config.SQL) (sqlplugin.AdminDB, error) {
 	if err != nil {
 		return nil, err
 	}
-	return newDB(conns, nil, sqlplugin.DbShardUndefined, cfg.NumShards)
+	return NewDB(conns, nil, sqlplugin.DbShardUndefined, cfg.NumShards)
 }
 
 func (p *plugin) createSingleDBConn(cfg *config.SQL) (*sqlx.DB, error) {
@@ -109,7 +109,7 @@ func (p *plugin) createSingleDBConn(cfg *config.SQL) (*sqlx.DB, error) {
 		db.SetConnMaxLifetime(cfg.MaxConnLifetime)
 	}
 
-	// Maps struct names in CamelCase to snake without need for db struct tags.
+	// Maps struct names in CamelCase to snake without need for DB struct tags.
 	db.MapperFunc(strcase.ToSnake)
 	return db, nil
 }
