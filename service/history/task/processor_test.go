@@ -29,6 +29,7 @@ import (
 	"github.com/uber-go/tally"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
@@ -48,6 +49,7 @@ type (
 		mockShard            *shard.TestContext
 		mockPriorityAssigner *MockPriorityAssigner
 
+		timeSource    clock.TimeSource
 		metricsClient metrics.Client
 		logger        log.Logger
 
@@ -75,6 +77,7 @@ func (s *queueTaskProcessorSuite) SetupTest() {
 	)
 	s.mockPriorityAssigner = NewMockPriorityAssigner(s.controller)
 
+	s.timeSource = clock.NewRealTimeSource()
 	s.metricsClient = metrics.NewClient(tally.NoopScope, metrics.History)
 	s.logger = testlogger.New(s.Suite.T())
 
@@ -223,6 +226,7 @@ func (s *queueTaskProcessorSuite) newTestQueueTaskProcessor() *processorImpl {
 		config,
 		s.logger,
 		s.metricsClient,
+		s.timeSource,
 	)
 	s.NoError(err)
 	return processor.(*processorImpl)

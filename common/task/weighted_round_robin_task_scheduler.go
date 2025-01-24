@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -36,7 +37,7 @@ type weightedRoundRobinTaskSchedulerImpl[K comparable] struct {
 	sync.RWMutex
 
 	status       int32
-	taskChs      map[K]chan PriorityTask
+	pool         *WeightedRoundRobinChannelPool[K, PriorityTask]
 	shutdownCh   chan struct{}
 	notifyCh     chan struct{}
 	dispatcherWG sync.WaitGroup
@@ -61,11 +62,15 @@ var (
 func NewWeightedRoundRobinTaskScheduler[K comparable](
 	logger log.Logger,
 	metricsClient metrics.Client,
+	timeSource clock.TimeSource,
 	options *WeightedRoundRobinTaskSchedulerOptions[K],
 ) (Scheduler, error) {
 	scheduler := &weightedRoundRobinTaskSchedulerImpl[K]{
-		status:       common.DaemonStatusInitialized,
-		taskChs:      make(map[K]chan PriorityTask),
+		status: common.DaemonStatusInitialized,
+		pool: NewWeightedRoundRobinChannelPool[K, PriorityTask](logger, timeSource, WeightedRoundRobinChannelPoolOptions{
+			BufferSize:              options.QueueSize,
+			IdleChannelTTLInSeconds: defaultIdleChannelTTLInSeconds,
+		}),
 		shutdownCh:   make(chan struct{}),
 		notifyCh:     make(chan struct{}, 1),
 		logger:       logger,
@@ -108,11 +113,10 @@ func (w *weightedRoundRobinTaskSchedulerImpl[K]) Stop() {
 
 	w.processor.Stop()
 
-	w.RLock()
-	for _, taskCh := range w.taskChs {
+	taskChs := w.pool.GetAllChannels()
+	for _, taskCh := range taskChs {
 		drainAndNackPriorityTask(taskCh)
 	}
-	w.RUnlock()
 
 	if success := common.AwaitWaitGroup(&w.dispatcherWG, time.Minute); !success {
 		w.logger.Warn("Weighted round robin task scheduler timedout on shutdown.")
@@ -130,7 +134,10 @@ func (w *weightedRoundRobinTaskSchedulerImpl[K]) Submit(task PriorityTask) error
 		return ErrTaskSchedulerClosed
 	}
 
-	taskCh := w.getOrCreateTaskChan(task)
+	key := w.options.TaskToChannelKeyFn(task)
+	weight := w.options.ChannelKeyToWeightFn(key)
+	taskCh, releaseFn := w.pool.GetOrCreateChannel(key, weight)
+	defer releaseFn()
 	select {
 	case taskCh <- task:
 		w.notifyDispatcher()
@@ -150,7 +157,10 @@ func (w *weightedRoundRobinTaskSchedulerImpl[K]) TrySubmit(
 		return false, ErrTaskSchedulerClosed
 	}
 
-	taskCh := w.getOrCreateTaskChan(task)
+	key := w.options.TaskToChannelKeyFn(task)
+	weight := w.options.ChannelKeyToWeightFn(key)
+	taskCh, releaseFn := w.pool.GetOrCreateChannel(key, weight)
+	defer releaseFn()
 
 	select {
 	case taskCh <- task:
@@ -171,75 +181,33 @@ func (w *weightedRoundRobinTaskSchedulerImpl[K]) TrySubmit(
 func (w *weightedRoundRobinTaskSchedulerImpl[K]) dispatcher() {
 	defer w.dispatcherWG.Done()
 
-	outstandingTasks := false
-	taskChs := make(map[K]chan PriorityTask)
-
 	for {
-		if !outstandingTasks {
-			// if no task is dispatched in the last round,
-			// wait for a notification
-			w.logger.Debug("Weighted round robin task scheduler is waiting for new task notification because there was no task dispatched in the last round.")
+		select {
+		case <-w.notifyCh:
+			w.dispatchTasks()
+		case <-w.shutdownCh:
+			return
+		}
+	}
+}
+
+func (w *weightedRoundRobinTaskSchedulerImpl[K]) dispatchTasks() {
+	hasTask := true
+	for hasTask {
+		hasTask = false
+		schedule := w.pool.GetSchedule()
+		for _, taskCh := range schedule {
 			select {
-			case <-w.notifyCh:
-				// block until there's a new task
-				w.logger.Debug("Weighted round robin task scheduler got notification so will check for new tasks.")
+			case task := <-taskCh:
+				hasTask = true
+				if err := w.processor.Submit(task); err != nil {
+					w.logger.Error("fail to submit task to processor", tag.Error(err))
+					task.Nack()
+				}
 			case <-w.shutdownCh:
 				return
+			default:
 			}
-		}
-
-		outstandingTasks = false
-		w.updateTaskChs(taskChs)
-		for key, taskCh := range taskChs {
-			weight := w.options.ChannelKeyToWeightFn(key)
-		Submit_Loop:
-			for i := 0; i < weight; i++ {
-				select {
-				case task := <-taskCh:
-					// dispatched at least one task in this round
-					outstandingTasks = true
-
-					if err := w.processor.Submit(task); err != nil {
-						w.logger.Error("fail to submit task to processor", tag.Error(err))
-						task.Nack()
-					}
-				case <-w.shutdownCh:
-					return
-				default:
-					// if no task, don't block. Skip to next priority
-					break Submit_Loop
-				}
-			}
-		}
-	}
-}
-
-func (w *weightedRoundRobinTaskSchedulerImpl[K]) getOrCreateTaskChan(task PriorityTask) chan PriorityTask {
-	key := w.options.TaskToChannelKeyFn(task)
-	w.RLock()
-	if taskCh, ok := w.taskChs[key]; ok {
-		w.RUnlock()
-		return taskCh
-	}
-	w.RUnlock()
-
-	w.Lock()
-	defer w.Unlock()
-	if taskCh, ok := w.taskChs[key]; ok {
-		return taskCh
-	}
-	taskCh := make(chan PriorityTask, w.options.QueueSize)
-	w.taskChs[key] = taskCh
-	return taskCh
-}
-
-func (w *weightedRoundRobinTaskSchedulerImpl[K]) updateTaskChs(taskChs map[K]chan PriorityTask) {
-	w.RLock()
-	defer w.RUnlock()
-
-	for key, taskCh := range w.taskChs {
-		if _, ok := taskChs[key]; !ok {
-			taskChs[key] = taskCh
 		}
 	}
 }

@@ -27,6 +27,7 @@ import (
 	"sync/atomic"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -48,6 +49,7 @@ type processorImpl struct {
 	shardOptions  *task.SchedulerOptions[int]
 	logger        log.Logger
 	metricsClient metrics.Client
+	timeSource    clock.TimeSource
 }
 
 var (
@@ -60,6 +62,7 @@ func NewProcessor(
 	config *config.Config,
 	logger log.Logger,
 	metricsClient metrics.Client,
+	timeSource clock.TimeSource,
 ) (Processor, error) {
 	taskToChannelKeyFn := func(t task.PriorityTask) int {
 		return t.Priority()
@@ -87,7 +90,7 @@ func NewProcessor(
 	if err != nil {
 		return nil, err
 	}
-	hostScheduler, err := createTaskScheduler(options, logger, metricsClient)
+	hostScheduler, err := createTaskScheduler(options, logger, metricsClient, timeSource)
 	if err != nil {
 		return nil, err
 	}
@@ -118,6 +121,7 @@ func NewProcessor(
 		shardOptions:     shardOptions,
 		logger:           logger,
 		metricsClient:    metricsClient,
+		timeSource:       timeSource,
 	}, nil
 }
 
@@ -241,7 +245,7 @@ func (p *processorImpl) getOrCreateShardTaskScheduler(shard shard.Context) (task
 		return nil, errTaskProcessorNotRunning
 	}
 
-	scheduler, err := createTaskScheduler(p.shardOptions, p.logger.WithTags(tag.ShardID(shard.GetShardID())), p.metricsClient)
+	scheduler, err := createTaskScheduler(p.shardOptions, p.logger.WithTags(tag.ShardID(shard.GetShardID())), p.metricsClient, p.timeSource)
 	if err != nil {
 		p.Unlock()
 		return nil, err
@@ -267,6 +271,7 @@ func createTaskScheduler(
 	options *task.SchedulerOptions[int],
 	logger log.Logger,
 	metricsClient metrics.Client,
+	timeSource clock.TimeSource,
 ) (task.Scheduler, error) {
 	var scheduler task.Scheduler
 	var err error
@@ -281,6 +286,7 @@ func createTaskScheduler(
 		scheduler, err = task.NewWeightedRoundRobinTaskScheduler(
 			logger,
 			metricsClient,
+			timeSource,
 			options.WRRSchedulerOptions,
 		)
 	default:

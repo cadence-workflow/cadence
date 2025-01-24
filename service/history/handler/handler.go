@@ -133,6 +133,7 @@ func (h *handlerImpl) Start() {
 		h.config,
 		h.GetLogger(),
 		h.GetMetricsClient(),
+		h.GetTimeSource(),
 	)
 	if err != nil {
 		h.GetLogger().Fatal("Creating priority task processor failed", tag.Error(err))
