@@ -18,7 +18,7 @@ func TestPlugin_CreateDB(t *testing.T) {
 
 func TestPlugin_CreateAdminDB(t *testing.T) {
 	p := &plugin{}
-	db, err := p.CreateDB(&config.SQL{})
+	db, err := p.CreateAdminDB(&config.SQL{})
 
 	assert.NoError(t, err)
 	assert.NotNil(t, db)
