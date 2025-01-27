@@ -72,7 +72,7 @@ func TestInsertConfig(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockDriver := sqldriver.NewMockDriver(ctrl)
-			mdb := &DB{driver: mockDriver, converter: &Converter{}}
+			mdb := &DB{driver: mockDriver, converter: &converter{}}
 
 			// Setup mock expectations
 			tc.mockSetup(mockDriver)
@@ -141,7 +141,7 @@ func TestSelectLatestConfig(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockDriver := sqldriver.NewMockDriver(ctrl)
-			mdb := &DB{driver: mockDriver, converter: &Converter{}}
+			mdb := &DB{driver: mockDriver, converter: &converter{}}
 
 			tc.setupMock(mockDriver)
 

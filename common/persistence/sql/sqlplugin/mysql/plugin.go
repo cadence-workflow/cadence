@@ -84,7 +84,7 @@ func (p *plugin) createDB(cfg *config.SQL) (*DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewDB(conns, nil, sqlplugin.DbShardUndefined, cfg.NumShards, NewConverter())
+	return NewDB(conns, nil, sqlplugin.DbShardUndefined, cfg.NumShards, newConverter())
 }
 
 func (p *plugin) createSingleDBConn(cfg *config.SQL) (*sqlx.DB, error) {
