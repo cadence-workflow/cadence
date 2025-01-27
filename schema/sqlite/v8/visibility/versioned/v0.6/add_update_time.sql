@@ -1,0 +1,1 @@
+ALTER TABLE executions_visibility ADD update_time DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6);

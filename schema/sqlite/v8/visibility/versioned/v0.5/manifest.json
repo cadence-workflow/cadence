@@ -1,0 +1,8 @@
+{
+  "CurrVersion": "0.5",
+  "MinCompatibleVersion": "0.5",
+  "Description": "add num_clusters field to visibility",
+  "SchemaUpdateCqlFiles": [
+    "add_num_clusters.sql"
+  ]
+}
