@@ -1,0 +1,8 @@
+{
+  "CurrVersion": "0.6",
+  "MinCompatibleVersion": "0.6",
+  "Description": "create cluster config table",
+  "SchemaUpdateCqlFiles": [
+    "cluster_config.sql"
+  ]
+}

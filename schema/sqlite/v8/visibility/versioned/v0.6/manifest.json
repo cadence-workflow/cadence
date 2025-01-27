@@ -1,0 +1,8 @@
+{
+  "CurrVersion": "0.6",
+  "MinCompatibleVersion": "0.6",
+  "Description": "add update_time field to visibility",
+  "SchemaUpdateCqlFiles": [
+    "add_update_time.sql"
+  ]
+}
