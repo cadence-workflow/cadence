@@ -1,0 +1,1 @@
+ALTER TABLE executions_visibility ADD num_clusters INT;

@@ -1,0 +1,8 @@
+{
+  "CurrVersion": "0.4",
+  "MinCompatibleVersion": "0.4",
+  "Description": "add is_cron field to visibility",
+  "SchemaUpdateCqlFiles": [
+    "add_is_cron.sql"
+  ]
+}
