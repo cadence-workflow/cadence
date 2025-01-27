@@ -26,6 +26,7 @@ import (
 	"context"
 
 	"github.com/jmoiron/sqlx"
+
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin/mysql"
 )
