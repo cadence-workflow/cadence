@@ -23,7 +23,10 @@
 package sqlite
 
 import (
+	"github.com/iancoleman/strcase"
+	"github.com/jmoiron/sqlx"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/persistence/sql/sqldriver"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
 )
 
@@ -47,5 +50,35 @@ func (p *plugin) CreateAdminDB(cfg *config.SQL) (sqlplugin.AdminDB, error) {
 
 // createDB create a new instance of DB
 func (p *plugin) createDB(cfg *config.SQL) (*DB, error) {
-	return nil, nil
+	conns, err := sqldriver.CreateDBConnections(cfg, func(cfg *config.SQL) (*sqlx.DB, error) {
+		return p.createSingleDBConn(cfg)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return NewDB(conns, nil, sqlplugin.DbShardUndefined, cfg.NumShards)
+}
+
+func (p *plugin) createSingleDBConn(cfg *config.SQL) (*sqlx.DB, error) {
+	db, err := sqlx.Connect(PluginName, buildDSN(cfg))
+	if err != nil {
+		return nil, err
+	}
+	if cfg.MaxConns > 0 {
+		db.SetMaxOpenConns(cfg.MaxConns)
+	}
+	if cfg.MaxIdleConns > 0 {
+		db.SetMaxIdleConns(cfg.MaxIdleConns)
+	}
+	if cfg.MaxConnLifetime > 0 {
+		db.SetConnMaxLifetime(cfg.MaxConnLifetime)
+	}
+
+	// Maps struct names in CamelCase to snake without need for DB struct tags.
+	db.MapperFunc(strcase.ToSnake)
+	return db, nil
+}
+
+func buildDSN(cfg *config.SQL) string {
+	return ""
 }
