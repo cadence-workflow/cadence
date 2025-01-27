@@ -64,7 +64,7 @@ func (p *plugin) createDB(cfg *config.SQL) (*DB, error) {
 
 // createSingleDBConn creates a single database connection for sqlite
 func (p *plugin) createSingleDBConn(cfg *config.SQL) (*sqlx.DB, error) {
-	db, err := sqlx.Connect(PluginName, buildDSN(cfg))
+	db, err := sqlx.Connect("sqlite3", buildDSN(cfg))
 	if err != nil {
 		return nil, err
 	}
