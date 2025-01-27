@@ -24,6 +24,7 @@ package diagnostics
 
 import (
 	"fmt"
+	"github.com/uber/cadence/common/log/tag"
 	"time"
 
 	"go.uber.org/cadence/workflow"
@@ -85,6 +86,7 @@ func (w *dw) DiagnosticsStarterWorkflow(ctx workflow.Context, params Diagnostics
 	workflowResult.DiagnosticsCompleted = true
 	childWfEnd = workflow.Now(ctx)
 
+	info := workflow.GetInfo(ctx)
 	activityOptions := workflow.ActivityOptions{
 		ScheduleToCloseTimeout: time.Second * 10,
 		ScheduleToStartTimeout: time.Second * 5,
@@ -103,7 +105,10 @@ func (w *dw) DiagnosticsStarterWorkflow(ctx workflow.Context, params Diagnostics
 		DiagnosticsEndTime:    childWfEnd,
 	}).Get(ctx, nil)
 	if err != nil {
-		return nil, fmt.Errorf("EmitUsageLogs: %w", err)
+		w.logger.Error("wf-diagnostics usage logs emission failed",
+			tag.Error(err),
+			tag.WorkflowID(info.WorkflowExecution.ID),
+			tag.WorkflowRunID(info.WorkflowExecution.RunID))
 	}
 
 	return &workflowResult, nil
