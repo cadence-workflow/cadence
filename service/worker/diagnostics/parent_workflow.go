@@ -24,11 +24,11 @@ package diagnostics
 
 import (
 	"fmt"
-	"github.com/uber/cadence/common/log/tag"
 	"time"
 
 	"go.uber.org/cadence/workflow"
 
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/service/worker/diagnostics/analytics"
 )
 
