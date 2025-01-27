@@ -25,6 +25,7 @@ package sqlite
 import (
 	"github.com/iancoleman/strcase"
 	"github.com/jmoiron/sqlx"
+
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/persistence/sql/sqldriver"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
