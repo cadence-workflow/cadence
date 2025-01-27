@@ -1,0 +1,8 @@
+{
+  "CurrVersion": "0.3",
+  "MinCompatibleVersion": "0.2",
+  "Description": "add close time and closed state index",
+  "SchemaUpdateCqlFiles": [
+    "vs_index.sql"
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "CurrVersion": "0.4",
+  "MinCompatibleVersion": "0.3",
+  "Description": "modify blob size",
+  "SchemaUpdateCqlFiles": [
+    "blob_size.sql"
+  ]
+}
