@@ -34,6 +34,9 @@ const (
 	PluginName = "sqlite"
 )
 
+// SQLite plugin provides an sql persistence storage implementation for sqlite database
+// Mostly the implementation reuses the mysql implementation
+// The plugin supports only in-memory sqlite database for now
 type plugin struct{}
 
 var _ sqlplugin.Plugin = (*plugin)(nil)
@@ -59,11 +62,13 @@ func (p *plugin) createDB(cfg *config.SQL) (*DB, error) {
 	return NewDB(conns, nil, sqlplugin.DbShardUndefined, cfg.NumShards)
 }
 
+// createSingleDBConn creates a single database connection for sqlite
 func (p *plugin) createSingleDBConn(cfg *config.SQL) (*sqlx.DB, error) {
 	db, err := sqlx.Connect(PluginName, buildDSN(cfg))
 	if err != nil {
 		return nil, err
 	}
+
 	if cfg.MaxConns > 0 {
 		db.SetMaxOpenConns(cfg.MaxConns)
 	}
@@ -79,6 +84,9 @@ func (p *plugin) createSingleDBConn(cfg *config.SQL) (*sqlx.DB, error) {
 	return db, nil
 }
 
-func buildDSN(cfg *config.SQL) string {
-	return ""
+// buildDSN builds the data source name for sqlite from config.SQL
+func buildDSN(_ *config.SQL) string {
+	// only in-memory sqlite is supported for now
+	// permanent sqlite file will be supported in the future
+	return ":memory:"
 }
