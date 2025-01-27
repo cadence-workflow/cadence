@@ -23,6 +23,9 @@
 package sqlite
 
 import (
+	"context"
+
+	"github.com/jmoiron/sqlx"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin/mysql"
 )
@@ -40,7 +43,26 @@ type DB struct {
 	*mysql.DB
 }
 
+// NewDB returns an instance of DB, which contains a new created mysql.DB with sqlite specific methods
+func NewDB(xdbs []*sqlx.DB, tx *sqlx.Tx, dbShardID int, numDBShards int) (*DB, error) {
+	mysqlDB, err := mysql.NewDB(xdbs, tx, dbShardID, numDBShards, newConverter())
+	if err != nil {
+		return nil, err
+	}
+	return &DB{DB: mysqlDB}, nil
+}
+
 // PluginName returns the name of the plugin
 func (mdb *DB) PluginName() string {
 	return PluginName
+}
+
+// BeginTX starts a new transaction and returns a new Tx
+func (mdb *DB) BeginTX(ctx context.Context, dbShardID int) (sqlplugin.Tx, error) {
+	mysqlDB, err := mdb.BeginTx(ctx, dbShardID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &DB{DB: mysqlDB.(*mysql.DB)}, nil
 }
