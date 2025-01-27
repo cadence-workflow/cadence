@@ -29,18 +29,16 @@ type DataConverter interface {
 	FromDateTime(t time.Time) time.Time
 }
 
-// Converter implements DataConverter
-type Converter struct{}
+type converter struct{}
 
-// NewConverter returns a new instance of DataConverter
-func NewConverter() *Converter {
-	return &Converter{}
+func newConverter() *converter {
+	return &converter{}
 }
 
 var minMySQLDateTime = getMinMySQLDateTime()
 
 // ToDateTime converts to time to MySQL datetime
-func (c *Converter) ToDateTime(t time.Time) time.Time {
+func (c *converter) ToDateTime(t time.Time) time.Time {
 	if t.IsZero() {
 		return minMySQLDateTime
 	}
@@ -48,7 +46,7 @@ func (c *Converter) ToDateTime(t time.Time) time.Time {
 }
 
 // FromDateTime converts mysql datetime and returns go time
-func (c *Converter) FromDateTime(t time.Time) time.Time {
+func (c *converter) FromDateTime(t time.Time) time.Time {
 	if t.Equal(minMySQLDateTime) {
 		return time.Time{}
 	}
