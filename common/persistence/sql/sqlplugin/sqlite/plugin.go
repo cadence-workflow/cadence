@@ -97,6 +97,7 @@ func buildDSN(cfg *config.SQL) string {
 	// if database name is provided, then sqlite will create a file with the name
 	if cfg.DatabaseName != "" {
 		dsn = fmt.Sprintf("file:%s", cfg.DatabaseName)
+
 	}
 
 	if dsnAttrs := buildDSNAttrs(cfg); dsnAttrs != "" {
@@ -106,11 +107,46 @@ func buildDSN(cfg *config.SQL) string {
 	return dsn
 }
 
+const (
+	// if journal mode is not provided, we set it to WAL by default
+	// WAL mode allows readers and writers from different processes
+	// to access the database concurrently by default
+	// https://www.sqlite.org/wal.html
+	journalModeAttrName      = "_journal_mode"
+	journalModeAttrShortName = "_journal"
+	journalModeDefaultValue  = "WAL"
+)
+
+var (
+	journalModeAttrNames = []string{journalModeAttrName, journalModeAttrShortName}
+)
+
 // buildDSNAttrs builds the data source name attributes for sqlite from config.SQL
 // available attributes can be found here
 // https://github.com/mattn/go-sqlite3?tab=readme-ov-file#connection-string
 func buildDSNAttrs(cfg *config.SQL) string {
-	return joinDSNAttrs(sanitizeDSNAttrs(cfg.ConnectAttributes))
+
+	sanitizedAttrs := sanitizeDSNAttrs(cfg.ConnectAttributes)
+
+	if cfg.DatabaseName != "" {
+		if !hasAttr(sanitizedAttrs, journalModeAttrNames...) {
+			sanitizedAttrs[journalModeAttrName] = journalModeDefaultValue
+		}
+	}
+
+	return joinDSNAttrs(sanitizedAttrs)
+}
+
+// hasAttr checks if the attributes map has any of the keys
+func hasAttr(attrs map[string]string, keys ...string) bool {
+	for key := range attrs {
+		for _, k := range keys {
+			if key == k {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // sanitizeDSNAttrs sanitizes the attributes by trimming the keys and values
