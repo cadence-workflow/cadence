@@ -171,8 +171,7 @@ services:
         -run ^TestReplicationSimulation.*$
         -count 1
         -v
-        -tags replicationsim
-        github.com/uber/cadence/host
+        github.com/uber/cadence/simulation/replication
         | tee test.log
     depends_on:
       cadence-cluster0:

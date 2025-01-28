@@ -233,7 +233,7 @@ func mustRunScenario(root, scenario, ts string) {
 
 	fmt.Printf("Running scenario: %s\n", scenario)
 	start := time.Now()
-	cmd := exec.Command("bash", path.Join(root, "scripts/run_matching_simulator.sh"), scenario, ts)
+	cmd := exec.Command("bash", path.Join(root, "simulation/matching/run.sh"), scenario, ts)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -247,7 +247,7 @@ func mustRunScenario(root, scenario, ts string) {
 }
 
 func mustGetSimulationScenarios(root string) []string {
-	path := path.Join(root, "host/testdata")
+	path := path.Join(root, "simulation/matching/testdata")
 	entries, err := os.ReadDir(path)
 	if err != nil {
 		log.Fatal(err)

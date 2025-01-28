@@ -88,31 +88,31 @@ func TestAsyncWFIntegrationSuite(t *testing.T) {
 }
 
 func (s *AsyncWFIntegrationSuite) SetupSuite() {
-	s.setupLogger()
+	s.SetupLogger()
 
 	s.Logger.Info("Running integration test against test cluster")
-	clusterMetadata := NewClusterMetadata(s.T(), s.testClusterConfig)
+	clusterMetadata := NewClusterMetadata(s.T(), s.TestClusterConfig)
 	dc := persistence.DynamicConfiguration{
 		EnableCassandraAllConsistencyLevelDelete: dynamicconfig.GetBoolPropertyFn(true),
 		PersistenceSampleLoggingRate:             dynamicconfig.GetIntPropertyFn(100),
 		EnableShardIDMetrics:                     dynamicconfig.GetBoolPropertyFn(true),
 	}
 	params := pt.TestBaseParams{
-		DefaultTestCluster:    s.defaultTestCluster,
-		VisibilityTestCluster: s.visibilityTestCluster,
+		DefaultTestCluster:    s.DefaultTestCluster,
+		VisibilityTestCluster: s.VisibilityTestCluster,
 		ClusterMetadata:       clusterMetadata,
 		DynamicConfiguration:  dc,
 	}
-	cluster, err := NewCluster(s.T(), s.testClusterConfig, s.Logger, params)
+	cluster, err := NewCluster(s.T(), s.TestClusterConfig, s.Logger, params)
 	s.Require().NoError(err)
-	s.testCluster = cluster
-	s.engine = s.testCluster.GetFrontendClient()
-	s.adminClient = s.testCluster.GetAdminClient()
+	s.TestCluster = cluster
+	s.Engine = s.TestCluster.GetFrontendClient()
+	s.AdminClient = s.TestCluster.GetAdminClient()
 
-	s.domainName = s.randomizeStr("integration-test-domain")
-	s.Require().NoError(s.registerDomain(s.domainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, ""))
-	s.secondaryDomainName = s.randomizeStr("unused-test-domain")
-	s.Require().NoError(s.registerDomain(s.secondaryDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, ""))
+	s.DomainName = s.RandomizeStr("integration-test-domain")
+	s.Require().NoError(s.RegisterDomain(s.DomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, ""))
+	s.SecondaryDomainName = s.RandomizeStr("unused-test-domain")
+	s.Require().NoError(s.RegisterDomain(s.SecondaryDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, ""))
 
 	s.domainCacheRefresh()
 }
@@ -122,7 +122,7 @@ func (s *AsyncWFIntegrationSuite) SetupTest() {
 }
 
 func (s *AsyncWFIntegrationSuite) TearDownSuite() {
-	s.tearDownSuite()
+	s.TearDownBaseSuite()
 }
 
 func (s *AsyncWFIntegrationSuite) TestStartWorkflowExecutionAsync() {
@@ -168,14 +168,14 @@ func (s *AsyncWFIntegrationSuite) TestStartWorkflowExecutionAsync() {
 		tc := tc
 		s.T().Run(tc.name, func(t *testing.T) {
 			// advance the time so each test has a unique start time
-			s.testClusterConfig.TimeSource.Advance(time.Second)
+			s.TestClusterConfig.TimeSource.Advance(time.Second)
 
 			ctx, cancel := createContext()
 			defer cancel()
 
 			if tc.asyncWFCfg != nil {
-				_, err := s.adminClient.UpdateDomainAsyncWorkflowConfiguraton(ctx, &types.UpdateDomainAsyncWorkflowConfiguratonRequest{
-					Domain:        s.domainName,
+				_, err := s.AdminClient.UpdateDomainAsyncWorkflowConfiguraton(ctx, &types.UpdateDomainAsyncWorkflowConfiguratonRequest{
+					Domain:        s.DomainName,
 					Configuration: tc.asyncWFCfg,
 				})
 				if err != nil {
@@ -186,8 +186,8 @@ func (s *AsyncWFIntegrationSuite) TestStartWorkflowExecutionAsync() {
 			}
 
 			if tc.secondaryCfg != nil {
-				_, err := s.adminClient.UpdateDomainAsyncWorkflowConfiguraton(ctx, &types.UpdateDomainAsyncWorkflowConfiguratonRequest{
-					Domain:        s.secondaryDomainName,
+				_, err := s.AdminClient.UpdateDomainAsyncWorkflowConfiguraton(ctx, &types.UpdateDomainAsyncWorkflowConfiguratonRequest{
+					Domain:        s.SecondaryDomainName,
 					Configuration: tc.secondaryCfg,
 				})
 				if err != nil {
@@ -197,7 +197,7 @@ func (s *AsyncWFIntegrationSuite) TestStartWorkflowExecutionAsync() {
 				s.domainCacheRefresh()
 			}
 
-			startTime := s.testClusterConfig.TimeSource.Now().UnixNano()
+			startTime := s.TestClusterConfig.TimeSource.Now().UnixNano()
 			wfID := fmt.Sprintf("async-wf-integration-start-workflow-test-%d", startTime)
 			wfType := "async-wf-integration-start-workflow-test-type"
 			taskList := "async-wf-integration-start-workflow-test-tasklist"
@@ -206,7 +206,7 @@ func (s *AsyncWFIntegrationSuite) TestStartWorkflowExecutionAsync() {
 			asyncReq := &types.StartWorkflowExecutionAsyncRequest{
 				StartWorkflowExecutionRequest: &types.StartWorkflowExecutionRequest{
 					RequestID:  uuid.New(),
-					Domain:     s.domainName,
+					Domain:     s.DomainName,
 					WorkflowID: wfID,
 					WorkflowType: &types.WorkflowType{
 						Name: wfType,
@@ -221,7 +221,7 @@ func (s *AsyncWFIntegrationSuite) TestStartWorkflowExecutionAsync() {
 				},
 			}
 
-			_, err := s.engine.StartWorkflowExecutionAsync(ctx, asyncReq)
+			_, err := s.Engine.StartWorkflowExecutionAsync(ctx, asyncReq)
 			if tc.wantStartFailure != (err != nil) {
 				t.Errorf("StartWorkflowExecutionAsync() failed: %v, wantStartFailure: %v", err, tc.wantStartFailure)
 			}
@@ -233,8 +233,8 @@ func (s *AsyncWFIntegrationSuite) TestStartWorkflowExecutionAsync() {
 			// there's no worker or poller for async workflow, so we just validate whether it started.
 			// this is sufficient to verify the async workflow start path.
 			for i := 0; i < 30; i++ {
-				resp, err := s.engine.DescribeWorkflowExecution(ctx, &types.DescribeWorkflowExecutionRequest{
-					Domain: s.domainName,
+				resp, err := s.Engine.DescribeWorkflowExecution(ctx, &types.DescribeWorkflowExecutionRequest{
+					Domain: s.DomainName,
 					Execution: &types.WorkflowExecution{
 						WorkflowID: wfID,
 					},
@@ -243,7 +243,7 @@ func (s *AsyncWFIntegrationSuite) TestStartWorkflowExecutionAsync() {
 				if err != nil {
 					t.Logf("Workflow execution not found yet. DescribeWorkflowExecution() returned err: %v", err)
 					time.Sleep(time.Second)
-					s.testClusterConfig.TimeSource.Advance(time.Second)
+					s.TestClusterConfig.TimeSource.Advance(time.Second)
 					continue
 				}
 				if resp.GetWorkflowExecutionInfo() != nil {

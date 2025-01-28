@@ -46,7 +46,7 @@ func (s *IntegrationSuite) TestResetWorkflow() {
 	// Start workflow execution
 	request := &types.StartWorkflowExecutionRequest{
 		RequestID:                           uuid.New(),
-		Domain:                              s.domainName,
+		Domain:                              s.DomainName,
 		WorkflowID:                          id,
 		WorkflowType:                        workflowType,
 		TaskList:                            tasklist,
@@ -58,7 +58,7 @@ func (s *IntegrationSuite) TestResetWorkflow() {
 
 	ctx, cancel := createContext()
 	defer cancel()
-	we, err0 := s.engine.StartWorkflowExecution(ctx, request)
+	we, err0 := s.Engine.StartWorkflowExecution(ctx, request)
 	s.NoError(err0)
 
 	s.Logger.Info("StartWorkflowExecution", tag.WorkflowRunID(we.GetRunID()))
@@ -127,8 +127,8 @@ func (s *IntegrationSuite) TestResetWorkflow() {
 	}
 
 	poller := &TaskPoller{
-		Engine:          s.engine,
-		Domain:          s.domainName,
+		Engine:          s.Engine,
+		Domain:          s.DomainName,
 		TaskList:        tasklist,
 		Identity:        identity,
 		DecisionHandler: wtHandler,
@@ -153,7 +153,7 @@ func (s *IntegrationSuite) TestResetWorkflow() {
 	s.NoError(err)
 
 	// Find reset point (last completed decision task)
-	events := s.getHistory(s.domainName, &types.WorkflowExecution{
+	events := s.getHistory(s.DomainName, &types.WorkflowExecution{
 		WorkflowID: id,
 		RunID:      we.GetRunID(),
 	})
@@ -167,8 +167,8 @@ func (s *IntegrationSuite) TestResetWorkflow() {
 	ctx, cancel = createContext()
 	defer cancel()
 	// FIRST reset: Reset workflow execution, current is open
-	resp, err := s.engine.ResetWorkflowExecution(ctx, &types.ResetWorkflowExecutionRequest{
-		Domain: s.domainName,
+	resp, err := s.Engine.ResetWorkflowExecution(ctx, &types.ResetWorkflowExecutionRequest{
+		Domain: s.DomainName,
 		WorkflowExecution: &types.WorkflowExecution{
 			WorkflowID: id,
 			RunID:      we.RunID,
@@ -191,7 +191,7 @@ func (s *IntegrationSuite) TestResetWorkflow() {
 	s.False(workflowComplete)
 
 	// get the history of the first run again
-	events = s.getHistory(s.domainName, &types.WorkflowExecution{
+	events = s.getHistory(s.DomainName, &types.WorkflowExecution{
 		WorkflowID: id,
 		RunID:      we.GetRunID(),
 	})
@@ -213,8 +213,8 @@ func (s *IntegrationSuite) TestResetWorkflow() {
 	// it should be reset time although the start event is reused
 	ctx, cancel = createContext()
 	defer cancel()
-	descResp, err := s.engine.DescribeWorkflowExecution(ctx, &types.DescribeWorkflowExecutionRequest{
-		Domain: s.domainName,
+	descResp, err := s.Engine.DescribeWorkflowExecution(ctx, &types.DescribeWorkflowExecutionRequest{
+		Domain: s.DomainName,
 		Execution: &types.WorkflowExecution{
 			WorkflowID: id,
 			RunID:      resp.GetRunID(),
@@ -226,8 +226,8 @@ func (s *IntegrationSuite) TestResetWorkflow() {
 	ctx, cancel = createContext()
 	defer cancel()
 	// SECOND reset: reset the first run again, to exercise the code path of resetting closed workflow
-	resp, err = s.engine.ResetWorkflowExecution(ctx, &types.ResetWorkflowExecutionRequest{
-		Domain: s.domainName,
+	resp, err = s.Engine.ResetWorkflowExecution(ctx, &types.ResetWorkflowExecutionRequest{
+		Domain: s.DomainName,
 		WorkflowExecution: &types.WorkflowExecution{
 			WorkflowID: id,
 			RunID:      we.GetRunID(),
@@ -245,7 +245,7 @@ func (s *IntegrationSuite) TestResetWorkflow() {
 	s.True(workflowComplete)
 
 	// get the history of the newRunID
-	events = s.getHistory(s.domainName, &types.WorkflowExecution{
+	events = s.getHistory(s.DomainName, &types.WorkflowExecution{
 		WorkflowID: id,
 		RunID:      newRunID,
 	})
@@ -261,8 +261,8 @@ func (s *IntegrationSuite) TestResetWorkflow() {
 	ctx, cancel = createContext()
 	defer cancel()
 	// THIRD reset: reset the workflow run that is after a reset
-	_, err = s.engine.ResetWorkflowExecution(ctx, &types.ResetWorkflowExecutionRequest{
-		Domain: s.domainName,
+	_, err = s.Engine.ResetWorkflowExecution(ctx, &types.ResetWorkflowExecutionRequest{
+		Domain: s.DomainName,
 		WorkflowExecution: &types.WorkflowExecution{
 			WorkflowID: id,
 			RunID:      newRunID,
@@ -287,7 +287,7 @@ func (s *IntegrationSuite) TestResetWorkflow_NoDecisionTaskCompleted() {
 	// Start workflow execution
 	request := &types.StartWorkflowExecutionRequest{
 		RequestID:                           uuid.New(),
-		Domain:                              s.domainName,
+		Domain:                              s.DomainName,
 		WorkflowID:                          id,
 		WorkflowType:                        workflowType,
 		TaskList:                            tasklist,
@@ -299,11 +299,11 @@ func (s *IntegrationSuite) TestResetWorkflow_NoDecisionTaskCompleted() {
 
 	ctx, cancel := createContext()
 	defer cancel()
-	we, err0 := s.engine.StartWorkflowExecution(ctx, request)
+	we, err0 := s.Engine.StartWorkflowExecution(ctx, request)
 	s.NoError(err0)
 
 	// Find reset point (last completed decision task)
-	events := s.getHistory(s.domainName, &types.WorkflowExecution{
+	events := s.getHistory(s.DomainName, &types.WorkflowExecution{
 		WorkflowID: id,
 		RunID:      we.GetRunID(),
 	})
@@ -317,8 +317,8 @@ func (s *IntegrationSuite) TestResetWorkflow_NoDecisionTaskCompleted() {
 	ctx, cancel = createContext()
 	defer cancel()
 	// FIRST reset: Reset workflow execution, current is open
-	_, err := s.engine.ResetWorkflowExecution(ctx, &types.ResetWorkflowExecutionRequest{
-		Domain: s.domainName,
+	_, err := s.Engine.ResetWorkflowExecution(ctx, &types.ResetWorkflowExecutionRequest{
+		Domain: s.DomainName,
 		WorkflowExecution: &types.WorkflowExecution{
 			WorkflowID: id,
 			RunID:      we.RunID,
@@ -330,7 +330,7 @@ func (s *IntegrationSuite) TestResetWorkflow_NoDecisionTaskCompleted() {
 	s.NoError(err)
 
 	// get the history of the first run again
-	events = s.getHistory(s.domainName, &types.WorkflowExecution{
+	events = s.getHistory(s.DomainName, &types.WorkflowExecution{
 		WorkflowID: id,
 		RunID:      we.GetRunID(),
 	})
@@ -344,8 +344,8 @@ func (s *IntegrationSuite) TestResetWorkflow_NoDecisionTaskCompleted() {
 	ctx, cancel = createContext()
 	defer cancel()
 	// SECOND reset: reset the first run again, to exercise the code path of resetting closed workflow
-	resp, err := s.engine.ResetWorkflowExecution(ctx, &types.ResetWorkflowExecutionRequest{
-		Domain: s.domainName,
+	resp, err := s.Engine.ResetWorkflowExecution(ctx, &types.ResetWorkflowExecutionRequest{
+		Domain: s.DomainName,
 		WorkflowExecution: &types.WorkflowExecution{
 			WorkflowID: id,
 			RunID:      we.GetRunID(),
@@ -405,8 +405,8 @@ func (s *IntegrationSuite) TestResetWorkflow_NoDecisionTaskCompleted() {
 	}
 
 	poller := &TaskPoller{
-		Engine:          s.engine,
-		Domain:          s.domainName,
+		Engine:          s.Engine,
+		Domain:          s.DomainName,
 		TaskList:        tasklist,
 		Identity:        identity,
 		DecisionHandler: wtHandler,
@@ -420,7 +420,7 @@ func (s *IntegrationSuite) TestResetWorkflow_NoDecisionTaskCompleted() {
 	s.Logger.Info("PollAndProcessWorkflowTask", tag.Error(err))
 	s.NoError(err)
 
-	s.getHistory(s.domainName, &types.WorkflowExecution{
+	s.getHistory(s.DomainName, &types.WorkflowExecution{
 		WorkflowID: id,
 		RunID:      newRunID,
 	})
@@ -436,7 +436,7 @@ func (s *IntegrationSuite) TestResetWorkflow_NoDecisionTaskCompleted() {
 	s.True(workflowComplete)
 
 	// get the history of the newRunID
-	events = s.getHistory(s.domainName, &types.WorkflowExecution{
+	events = s.getHistory(s.DomainName, &types.WorkflowExecution{
 		WorkflowID: id,
 		RunID:      newRunID,
 	})

@@ -48,7 +48,7 @@ func (s *IntegrationSuite) TestExternalRequestCancelWorkflowExecution() {
 
 	request := &types.StartWorkflowExecutionRequest{
 		RequestID:                           uuid.New(),
-		Domain:                              s.domainName,
+		Domain:                              s.DomainName,
 		WorkflowID:                          id,
 		WorkflowType:                        workflowType,
 		TaskList:                            taskList,
@@ -60,7 +60,7 @@ func (s *IntegrationSuite) TestExternalRequestCancelWorkflowExecution() {
 
 	ctx, cancel := createContext()
 	defer cancel()
-	we, err0 := s.engine.StartWorkflowExecution(ctx, request)
+	we, err0 := s.Engine.StartWorkflowExecution(ctx, request)
 	s.Nil(err0)
 
 	s.Logger.Info("StartWorkflowExecution", tag.WorkflowRunID(we.RunID))
@@ -103,8 +103,8 @@ func (s *IntegrationSuite) TestExternalRequestCancelWorkflowExecution() {
 	}
 
 	poller := &TaskPoller{
-		Engine:          s.engine,
-		Domain:          s.domainName,
+		Engine:          s.Engine,
+		Domain:          s.DomainName,
 		TaskList:        taskList,
 		Identity:        identity,
 		DecisionHandler: dtHandler,
@@ -123,8 +123,8 @@ func (s *IntegrationSuite) TestExternalRequestCancelWorkflowExecution() {
 
 	ctx, cancel = createContext()
 	defer cancel()
-	err = s.engine.RequestCancelWorkflowExecution(ctx, &types.RequestCancelWorkflowExecutionRequest{
-		Domain: s.domainName,
+	err = s.Engine.RequestCancelWorkflowExecution(ctx, &types.RequestCancelWorkflowExecutionRequest{
+		Domain: s.DomainName,
 		WorkflowExecution: &types.WorkflowExecution{
 			WorkflowID: id,
 			RunID:      we.RunID,
@@ -134,8 +134,8 @@ func (s *IntegrationSuite) TestExternalRequestCancelWorkflowExecution() {
 
 	ctx, cancel = createContext()
 	defer cancel()
-	err = s.engine.RequestCancelWorkflowExecution(ctx, &types.RequestCancelWorkflowExecutionRequest{
-		Domain: s.domainName,
+	err = s.Engine.RequestCancelWorkflowExecution(ctx, &types.RequestCancelWorkflowExecutionRequest{
+		Domain: s.DomainName,
 		WorkflowExecution: &types.WorkflowExecution{
 			WorkflowID: id,
 			RunID:      we.RunID,
@@ -152,8 +152,8 @@ func (s *IntegrationSuite) TestExternalRequestCancelWorkflowExecution() {
 GetHistoryLoop:
 	for i := 1; i < 3; i++ {
 		ctx, cancel := createContext()
-		historyResponse, err := s.engine.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
-			Domain: s.domainName,
+		historyResponse, err := s.Engine.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
+			Domain: s.DomainName,
 			Execution: &types.WorkflowExecution{
 				WorkflowID: id,
 				RunID:      we.RunID,
@@ -193,7 +193,7 @@ func (s *IntegrationSuite) TestRequestCancelWorkflowDecisionExecution() {
 
 	request := &types.StartWorkflowExecutionRequest{
 		RequestID:                           uuid.New(),
-		Domain:                              s.domainName,
+		Domain:                              s.DomainName,
 		WorkflowID:                          id,
 		WorkflowType:                        workflowType,
 		TaskList:                            taskList,
@@ -204,13 +204,13 @@ func (s *IntegrationSuite) TestRequestCancelWorkflowDecisionExecution() {
 	}
 	ctx, cancel := createContext()
 	defer cancel()
-	we, err0 := s.engine.StartWorkflowExecution(ctx, request)
+	we, err0 := s.Engine.StartWorkflowExecution(ctx, request)
 	s.Nil(err0)
 	s.Logger.Info("StartWorkflowExecution", tag.WorkflowRunID(we.RunID))
 
 	foreignRequest := &types.StartWorkflowExecutionRequest{
 		RequestID:                           uuid.New(),
-		Domain:                              s.foreignDomainName,
+		Domain:                              s.ForeignDomainName,
 		WorkflowID:                          id,
 		WorkflowType:                        workflowType,
 		TaskList:                            taskList,
@@ -221,9 +221,9 @@ func (s *IntegrationSuite) TestRequestCancelWorkflowDecisionExecution() {
 	}
 	ctx, cancel = createContext()
 	defer cancel()
-	we2, err0 := s.engine.StartWorkflowExecution(ctx, foreignRequest)
+	we2, err0 := s.Engine.StartWorkflowExecution(ctx, foreignRequest)
 	s.Nil(err0)
-	s.Logger.Info("StartWorkflowExecution on foreign Domain: %v,  response: %v \n", tag.WorkflowDomainName(s.foreignDomainName), tag.WorkflowRunID(we2.RunID))
+	s.Logger.Info("StartWorkflowExecution on foreign Domain: %v,  response: %v \n", tag.WorkflowDomainName(s.ForeignDomainName), tag.WorkflowRunID(we2.RunID))
 
 	activityCount := int32(1)
 	activityCounter := int32(0)
@@ -252,7 +252,7 @@ func (s *IntegrationSuite) TestRequestCancelWorkflowDecisionExecution() {
 		return []byte(strconv.Itoa(int(activityCounter))), []*types.Decision{{
 			DecisionType: types.DecisionTypeRequestCancelExternalWorkflowExecution.Ptr(),
 			RequestCancelExternalWorkflowExecutionDecisionAttributes: &types.RequestCancelExternalWorkflowExecutionDecisionAttributes{
-				Domain:     s.foreignDomainName,
+				Domain:     s.ForeignDomainName,
 				WorkflowID: id,
 				RunID:      we2.RunID,
 			},
@@ -265,8 +265,8 @@ func (s *IntegrationSuite) TestRequestCancelWorkflowDecisionExecution() {
 	}
 
 	poller := &TaskPoller{
-		Engine:          s.engine,
-		Domain:          s.domainName,
+		Engine:          s.Engine,
+		Domain:          s.DomainName,
 		TaskList:        taskList,
 		Identity:        identity,
 		DecisionHandler: dtHandler,
@@ -308,8 +308,8 @@ func (s *IntegrationSuite) TestRequestCancelWorkflowDecisionExecution() {
 	}
 
 	foreignPoller := &TaskPoller{
-		Engine:          s.engine,
-		Domain:          s.foreignDomainName,
+		Engine:          s.Engine,
+		Domain:          s.ForeignDomainName,
 		TaskList:        taskList,
 		Identity:        identity,
 		DecisionHandler: foreignDtHandler,
@@ -341,8 +341,8 @@ func (s *IntegrationSuite) TestRequestCancelWorkflowDecisionExecution() {
 CheckHistoryLoopForCancelSent:
 	for i := 1; i < 10; i++ {
 		ctx, cancel := createContext()
-		historyResponse, err := s.engine.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
-			Domain: s.domainName,
+		historyResponse, err := s.Engine.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
+			Domain: s.DomainName,
 			Execution: &types.WorkflowExecution{
 				WorkflowID: id,
 				RunID:      we.RunID,
@@ -379,8 +379,8 @@ CheckHistoryLoopForCancelSent:
 GetHistoryLoop:
 	for i := 1; i < 10; i++ {
 		ctx, cancel := createContext()
-		historyResponse, err := s.engine.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
-			Domain: s.foreignDomainName,
+		historyResponse, err := s.Engine.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
+			Domain: s.ForeignDomainName,
 			Execution: &types.WorkflowExecution{
 				WorkflowID: id,
 				RunID:      we2.RunID,
@@ -435,7 +435,7 @@ func (s *IntegrationSuite) TestRequestCancelWorkflowDecisionExecution_UnKnownTar
 
 	request := &types.StartWorkflowExecutionRequest{
 		RequestID:                           uuid.New(),
-		Domain:                              s.domainName,
+		Domain:                              s.DomainName,
 		WorkflowID:                          id,
 		WorkflowType:                        workflowType,
 		TaskList:                            taskList,
@@ -446,7 +446,7 @@ func (s *IntegrationSuite) TestRequestCancelWorkflowDecisionExecution_UnKnownTar
 	}
 	ctx, cancel := createContext()
 	defer cancel()
-	we, err0 := s.engine.StartWorkflowExecution(ctx, request)
+	we, err0 := s.Engine.StartWorkflowExecution(ctx, request)
 	s.Nil(err0)
 	s.Logger.Info("StartWorkflowExecution", tag.WorkflowRunID(we.RunID))
 
@@ -477,7 +477,7 @@ func (s *IntegrationSuite) TestRequestCancelWorkflowDecisionExecution_UnKnownTar
 		return []byte(strconv.Itoa(int(activityCounter))), []*types.Decision{{
 			DecisionType: types.DecisionTypeRequestCancelExternalWorkflowExecution.Ptr(),
 			RequestCancelExternalWorkflowExecutionDecisionAttributes: &types.RequestCancelExternalWorkflowExecutionDecisionAttributes{
-				Domain:     s.foreignDomainName,
+				Domain:     s.ForeignDomainName,
 				WorkflowID: "workflow_not_exist",
 				RunID:      we.RunID,
 			},
@@ -490,8 +490,8 @@ func (s *IntegrationSuite) TestRequestCancelWorkflowDecisionExecution_UnKnownTar
 	}
 
 	poller := &TaskPoller{
-		Engine:          s.engine,
-		Domain:          s.domainName,
+		Engine:          s.Engine,
+		Domain:          s.DomainName,
 		TaskList:        taskList,
 		Identity:        identity,
 		DecisionHandler: dtHandler,
@@ -515,8 +515,8 @@ func (s *IntegrationSuite) TestRequestCancelWorkflowDecisionExecution_UnKnownTar
 CheckHistoryLoopForCancelSent:
 	for i := 1; i < 10; i++ {
 		ctx, cancel := createContext()
-		historyResponse, err := s.engine.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
-			Domain: s.domainName,
+		historyResponse, err := s.Engine.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
+			Domain: s.DomainName,
 			Execution: &types.WorkflowExecution{
 				WorkflowID: id,
 				RunID:      we.RunID,

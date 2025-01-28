@@ -56,8 +56,7 @@ services:
         -run ^TestMatchingSimulation.*$
         -count 1
         -v
-        -tags matchingsim
-        github.com/uber/cadence/host
+        github.com/uber/cadence/simulation/matching
         | tee test.log
     environment:
       - "MATCHING_LOG_EVENTS=true"

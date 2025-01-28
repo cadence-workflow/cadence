@@ -18,23 +18,20 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-//go:build !race && matchingsim
-// +build !race,matchingsim
-
 /*
 To run locally:
 
-1. Pick a scenario from the existing config files host/testdata/matching_simulation_.*.yaml or add a new one
+1. Pick a scenario from the existing config files simulation/matching/testdata/matching_simulation_.*.yaml or add a new one
 
 2. Run the scenario
-`./scripts/run_matching_simulator.sh default`
+`./simulation/matching/run.sh default`
 
 Full test logs can be found at test.log file. Event json logs can be found at matching-simulator-output folder.
-See the run_matching_simulator.sh script for more details about how to parse events.
+See the run.sh script for more details about how to parse events.
 
-If you want to run multiple scenarios and compare them refer to tools/matchingsimulationcomparison/README.md
+If you want to run multiple scenarios and compare them refer to simulation/matching/comparison/README.md
 */
-package host
+package matching
 
 import (
 	"context"
@@ -67,6 +64,7 @@ import (
 	"github.com/uber/cadence/common/persistence"
 	pt "github.com/uber/cadence/common/persistence/persistence-tests"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/host"
 
 	_ "github.com/uber/cadence/common/asyncworkflow/queue/kafka" // needed to load kafka asyncworkflow queue
 )
@@ -95,6 +93,11 @@ type operationAggStats struct {
 	lastUpdated   time.Time
 }
 
+type MatchingSimulationSuite struct {
+	*require.Assertions
+	*host.IntegrationBase
+}
+
 func TestMatchingSimulation(t *testing.T) {
 	flag.Parse()
 
@@ -102,12 +105,12 @@ func TestMatchingSimulation(t *testing.T) {
 	if confPath == "" {
 		confPath = defaultTestCase
 	}
-	clusterConfig, err := GetTestClusterConfig(confPath)
+	clusterConfig, err := host.GetTestClusterConfig(confPath)
 	if err != nil {
 		t.Fatalf("failed creating cluster config from %s, err: %v", confPath, err)
 	}
 
-	isolationGroups := getIsolationGroups(&clusterConfig.MatchingConfig.SimulationConfig)
+	isolationGroups := getIsolationGroups(clusterConfig.MatchingConfig.SimulationConfig)
 
 	clusterConfig.MatchingDynamicConfigOverrides = map[dynamicconfig.Key]interface{}{
 		dynamicconfig.MatchingNumTasklistWritePartitions:           getPartitions(clusterConfig.MatchingConfig.SimulationConfig.TaskListWritePartitions),
@@ -128,7 +131,7 @@ func TestMatchingSimulation(t *testing.T) {
 		dynamicconfig.MatchingPartitionUpscaleSustainedDuration:    clusterConfig.MatchingConfig.SimulationConfig.PartitionUpscaleSustainedDuration,
 		dynamicconfig.MatchingPartitionDownscaleSustainedDuration:  clusterConfig.MatchingConfig.SimulationConfig.PartitionDownscaleSustainedDuration,
 		dynamicconfig.MatchingAdaptiveScalerUpdateInterval:         clusterConfig.MatchingConfig.SimulationConfig.AdaptiveScalerUpdateInterval,
-		dynamicconfig.MatchingQPSTrackerInterval:                   getQpsTrackerInterval(clusterConfig.MatchingConfig.SimulationConfig.QPSTrackerInterval),
+		dynamicconfig.MatchingQPSTrackerInterval:                   getQPSTrackerInterval(clusterConfig.MatchingConfig.SimulationConfig.QPSTrackerInterval),
 		dynamicconfig.TaskIsolationDuration:                        clusterConfig.MatchingConfig.SimulationConfig.TaskIsolationDuration,
 	}
 
@@ -143,44 +146,44 @@ func TestMatchingSimulation(t *testing.T) {
 		}).AnyTimes()
 	clusterConfig.HistoryConfig.MockClient = mockHistoryCl
 
-	testCluster := NewPersistenceTestCluster(t, clusterConfig)
+	testCluster := host.NewPersistenceTestCluster(t, clusterConfig)
 
 	s := new(MatchingSimulationSuite)
-	params := IntegrationBaseParams{
+	params := host.IntegrationBaseParams{
 		DefaultTestCluster:    testCluster,
 		VisibilityTestCluster: testCluster,
 		TestClusterConfig:     clusterConfig,
 	}
-	s.IntegrationBase = NewIntegrationBase(params)
+	s.IntegrationBase = host.NewIntegrationBase(params)
 	suite.Run(t, s)
 }
 
 func (s *MatchingSimulationSuite) SetupSuite() {
-	s.setupLogger()
+	s.SetupLogger()
 
 	s.Logger.Info("Running integration test against test cluster")
-	clusterMetadata := NewClusterMetadata(s.T(), s.testClusterConfig)
+	clusterMetadata := host.NewClusterMetadata(s.T(), s.TestClusterConfig)
 	dc := persistence.DynamicConfiguration{
 		EnableCassandraAllConsistencyLevelDelete: dynamicconfig.GetBoolPropertyFn(true),
 		PersistenceSampleLoggingRate:             dynamicconfig.GetIntPropertyFn(100),
 		EnableShardIDMetrics:                     dynamicconfig.GetBoolPropertyFn(true),
 	}
 	params := pt.TestBaseParams{
-		DefaultTestCluster:    s.defaultTestCluster,
-		VisibilityTestCluster: s.visibilityTestCluster,
+		DefaultTestCluster:    s.DefaultTestCluster,
+		VisibilityTestCluster: s.VisibilityTestCluster,
 		ClusterMetadata:       clusterMetadata,
 		DynamicConfiguration:  dc,
 	}
-	cluster, err := NewCluster(s.T(), s.testClusterConfig, s.Logger, params)
+	cluster, err := host.NewCluster(s.T(), s.TestClusterConfig, s.Logger, params)
 	s.Require().NoError(err)
-	s.testCluster = cluster
-	s.engine = s.testCluster.GetFrontendClient()
-	s.adminClient = s.testCluster.GetAdminClient()
+	s.TestCluster = cluster
+	s.Engine = s.TestCluster.GetFrontendClient()
+	s.AdminClient = s.TestCluster.GetAdminClient()
 
-	s.domainName = s.randomizeStr("integration-test-domain")
-	s.Require().NoError(s.registerDomain(s.domainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, ""))
-	s.secondaryDomainName = s.randomizeStr("unused-test-domain")
-	s.Require().NoError(s.registerDomain(s.secondaryDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, ""))
+	s.DomainName = s.RandomizeStr("integration-test-domain")
+	s.Require().NoError(s.RegisterDomain(s.DomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, ""))
+	s.SecondaryDomainName = s.RandomizeStr("unused-test-domain")
+	s.Require().NoError(s.RegisterDomain(s.SecondaryDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, ""))
 
 	time.Sleep(2 * time.Second)
 }
@@ -192,26 +195,26 @@ func (s *MatchingSimulationSuite) SetupTest() {
 func (s *MatchingSimulationSuite) TearDownSuite() {
 	// Sleep for a while to ensure all metrics are emitted/scraped by prometheus
 	time.Sleep(5 * time.Second)
-	s.tearDownSuite()
+	s.TearDownBaseSuite()
 }
 
 func (s *MatchingSimulationSuite) TestMatchingSimulation() {
-	matchingClients := s.testCluster.GetMatchingClients()
+	matchingClients := s.TestCluster.GetMatchingClients()
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	domainID := s.domainID(ctx)
 	tasklist := "my-tasklist"
 
-	if s.testClusterConfig.MatchingConfig.SimulationConfig.GetPartitionConfigFromDB &&
-		!s.testClusterConfig.MatchingConfig.SimulationConfig.EnableAdaptiveScaler {
-		_, err := s.testCluster.GetMatchingClient().UpdateTaskListPartitionConfig(ctx, &types.MatchingUpdateTaskListPartitionConfigRequest{
+	if s.TestClusterConfig.MatchingConfig.SimulationConfig.GetPartitionConfigFromDB &&
+		!s.TestClusterConfig.MatchingConfig.SimulationConfig.EnableAdaptiveScaler {
+		_, err := s.TestCluster.GetMatchingClient().UpdateTaskListPartitionConfig(ctx, &types.MatchingUpdateTaskListPartitionConfigRequest{
 			DomainUUID:   domainID,
 			TaskList:     &types.TaskList{Name: tasklist, Kind: types.TaskListKindNormal.Ptr()},
 			TaskListType: types.TaskListTypeDecision.Ptr(),
 			PartitionConfig: &types.TaskListPartitionConfig{
-				NumReadPartitions:  int32(getPartitions(s.testClusterConfig.MatchingConfig.SimulationConfig.TaskListReadPartitions)),
-				NumWritePartitions: int32(getPartitions(s.testClusterConfig.MatchingConfig.SimulationConfig.TaskListWritePartitions)),
+				NumReadPartitions:  int32(getPartitions(s.TestClusterConfig.MatchingConfig.SimulationConfig.TaskListReadPartitions)),
+				NumWritePartitions: int32(getPartitions(s.TestClusterConfig.MatchingConfig.SimulationConfig.TaskListWritePartitions)),
 			},
 		})
 		s.NoError(err)
@@ -224,11 +227,11 @@ func (s *MatchingSimulationSuite) TestMatchingSimulation() {
 	collectorWG.Add(1)
 	go s.collectStats(statsCh, aggStats, &collectorWG)
 
-	totalTaskCount := getTotalTasks(s.testClusterConfig.MatchingConfig.SimulationConfig.Tasks)
+	totalTaskCount := getTotalTasks(s.TestClusterConfig.MatchingConfig.SimulationConfig.Tasks)
 	seed := time.Now().UnixNano()
 	rand.Seed(seed)
 	totalBacklogCount := 0
-	for idx, backlogConfig := range s.testClusterConfig.MatchingConfig.SimulationConfig.Backlogs {
+	for idx, backlogConfig := range s.TestClusterConfig.MatchingConfig.SimulationConfig.Backlogs {
 		totalBacklogCount += backlogConfig.BacklogCount
 		partition := getPartitionTaskListName(tasklist, backlogConfig.Partition)
 		for i := 0; i < backlogConfig.BacklogCount; i++ {
@@ -251,13 +254,13 @@ func (s *MatchingSimulationSuite) TestMatchingSimulation() {
 	var tasksToReceive sync.WaitGroup
 	tasksToReceive.Add(totalTaskCount + totalBacklogCount)
 	var pollerWG sync.WaitGroup
-	for idx, pollerConfig := range s.testClusterConfig.MatchingConfig.SimulationConfig.Pollers {
-		for i := 0; i < pollerConfig.getNumPollers(); i++ {
+	for idx, pollerConfig := range s.TestClusterConfig.MatchingConfig.SimulationConfig.Pollers {
+		for i := 0; i < getNumPollers(pollerConfig); i++ {
 			numPollers++
 			pollerWG.Add(1)
-			pollerID := fmt.Sprintf("[%d]-%s-%d", idx, pollerConfig.getIsolationGroup(), i)
+			pollerID := fmt.Sprintf("[%d]-%s-%d", idx, getIsolationGroup(pollerConfig), i)
 			config := pollerConfig
-			go s.poll(ctx, matchingClients[i%len(matchingClients)], domainID, tasklist, pollerID, &pollerWG, statsCh, &tasksToReceive, &config)
+			go s.poll(ctx, matchingClients[i%len(matchingClients)], domainID, tasklist, pollerID, &pollerWG, statsCh, &tasksToReceive, config)
 		}
 	}
 
@@ -269,10 +272,10 @@ func (s *MatchingSimulationSuite) TestMatchingSimulation() {
 	numGenerators := 0
 	var generatorWG sync.WaitGroup
 	lastTaskScheduleID := int32(0)
-	for _, taskConfig := range s.testClusterConfig.MatchingConfig.SimulationConfig.Tasks {
+	for _, taskConfig := range s.TestClusterConfig.MatchingConfig.SimulationConfig.Tasks {
 		tasksGenerated := int32(0)
 		rateLimiter := newSimulationRateLimiter(taskConfig, startTime, clock.NewRealTimeSource(), s.log)
-		for i := 0; i < taskConfig.getNumTaskGenerators(); i++ {
+		for i := 0; i < getNumTaskGenerators(taskConfig); i++ {
 			numGenerators++
 			generatorWG.Add(1)
 			config := taskConfig
@@ -285,7 +288,7 @@ func (s *MatchingSimulationSuite) TestMatchingSimulation() {
 				&lastTaskScheduleID,
 				&generatorWG,
 				statsCh,
-				&config,
+				config,
 				rateLimiter,
 			)
 		}
@@ -318,17 +321,17 @@ func (s *MatchingSimulationSuite) TestMatchingSimulation() {
 	testSummary = append(testSummary, fmt.Sprintf("Simulation Duration: %v", executionTime))
 	testSummary = append(testSummary, fmt.Sprintf("Num of Pollers: %d", numPollers))
 	testSummary = append(testSummary, fmt.Sprintf("Num of Task Generators: %d", numGenerators))
-	testSummary = append(testSummary, fmt.Sprintf("Record Decision Task Started Time: %v", s.testClusterConfig.MatchingConfig.SimulationConfig.RecordDecisionTaskStartedTime))
-	testSummary = append(testSummary, fmt.Sprintf("Num of Write Partitions: %d", s.testClusterConfig.MatchingDynamicConfigOverrides[dynamicconfig.MatchingNumTasklistWritePartitions]))
-	testSummary = append(testSummary, fmt.Sprintf("Num of Read Partitions: %d", s.testClusterConfig.MatchingDynamicConfigOverrides[dynamicconfig.MatchingNumTasklistReadPartitions]))
-	testSummary = append(testSummary, fmt.Sprintf("Get Num of Partitions from DB: %v", s.testClusterConfig.MatchingDynamicConfigOverrides[dynamicconfig.MatchingEnableGetNumberOfPartitionsFromCache]))
-	testSummary = append(testSummary, fmt.Sprintf("Tasklist load balancer strategy: %v", s.testClusterConfig.MatchingDynamicConfigOverrides[dynamicconfig.TasklistLoadBalancerStrategy]))
-	testSummary = append(testSummary, fmt.Sprintf("Forwarder Max Outstanding Polls: %d", s.testClusterConfig.MatchingDynamicConfigOverrides[dynamicconfig.MatchingForwarderMaxOutstandingPolls]))
-	testSummary = append(testSummary, fmt.Sprintf("Forwarder Max Outstanding Tasks: %d", s.testClusterConfig.MatchingDynamicConfigOverrides[dynamicconfig.MatchingForwarderMaxOutstandingTasks]))
-	testSummary = append(testSummary, fmt.Sprintf("Forwarder Max RPS: %d", s.testClusterConfig.MatchingDynamicConfigOverrides[dynamicconfig.MatchingForwarderMaxRatePerSecond]))
-	testSummary = append(testSummary, fmt.Sprintf("Forwarder Max Children per Node: %d", s.testClusterConfig.MatchingDynamicConfigOverrides[dynamicconfig.MatchingForwarderMaxChildrenPerNode]))
-	testSummary = append(testSummary, fmt.Sprintf("Local Poll Wait Time: %v", s.testClusterConfig.MatchingDynamicConfigOverrides[dynamicconfig.LocalPollWaitTime]))
-	testSummary = append(testSummary, fmt.Sprintf("Local Task Wait Time: %v", s.testClusterConfig.MatchingDynamicConfigOverrides[dynamicconfig.LocalTaskWaitTime]))
+	testSummary = append(testSummary, fmt.Sprintf("Record Decision Task Started Time: %v", s.TestClusterConfig.MatchingConfig.SimulationConfig.RecordDecisionTaskStartedTime))
+	testSummary = append(testSummary, fmt.Sprintf("Num of Write Partitions: %d", s.TestClusterConfig.MatchingDynamicConfigOverrides[dynamicconfig.MatchingNumTasklistWritePartitions]))
+	testSummary = append(testSummary, fmt.Sprintf("Num of Read Partitions: %d", s.TestClusterConfig.MatchingDynamicConfigOverrides[dynamicconfig.MatchingNumTasklistReadPartitions]))
+	testSummary = append(testSummary, fmt.Sprintf("Get Num of Partitions from DB: %v", s.TestClusterConfig.MatchingDynamicConfigOverrides[dynamicconfig.MatchingEnableGetNumberOfPartitionsFromCache]))
+	testSummary = append(testSummary, fmt.Sprintf("Tasklist load balancer strategy: %v", s.TestClusterConfig.MatchingDynamicConfigOverrides[dynamicconfig.TasklistLoadBalancerStrategy]))
+	testSummary = append(testSummary, fmt.Sprintf("Forwarder Max Outstanding Polls: %d", s.TestClusterConfig.MatchingDynamicConfigOverrides[dynamicconfig.MatchingForwarderMaxOutstandingPolls]))
+	testSummary = append(testSummary, fmt.Sprintf("Forwarder Max Outstanding Tasks: %d", s.TestClusterConfig.MatchingDynamicConfigOverrides[dynamicconfig.MatchingForwarderMaxOutstandingTasks]))
+	testSummary = append(testSummary, fmt.Sprintf("Forwarder Max RPS: %d", s.TestClusterConfig.MatchingDynamicConfigOverrides[dynamicconfig.MatchingForwarderMaxRatePerSecond]))
+	testSummary = append(testSummary, fmt.Sprintf("Forwarder Max Children per Node: %d", s.TestClusterConfig.MatchingDynamicConfigOverrides[dynamicconfig.MatchingForwarderMaxChildrenPerNode]))
+	testSummary = append(testSummary, fmt.Sprintf("Local Poll Wait Time: %v", s.TestClusterConfig.MatchingDynamicConfigOverrides[dynamicconfig.LocalPollWaitTime]))
+	testSummary = append(testSummary, fmt.Sprintf("Local Task Wait Time: %v", s.TestClusterConfig.MatchingDynamicConfigOverrides[dynamicconfig.LocalTaskWaitTime]))
 	testSummary = append(testSummary, fmt.Sprintf("Tasks generated: %d", aggStats[operationAddDecisionTask].successCnt))
 	testSummary = append(testSummary, fmt.Sprintf("Tasks polled: %d", aggStats[operationPollReceivedTask].successCnt))
 
@@ -346,13 +349,13 @@ func (s *MatchingSimulationSuite) log(msg string, args ...interface{}) {
 
 func (s *MatchingSimulationSuite) generate(
 	ctx context.Context,
-	matchingClient MatchingClient,
+	matchingClient host.MatchingClient,
 	domainID, tasklist string,
 	tasksGenerated *int32,
 	lastTaskScheduleID *int32,
 	wg *sync.WaitGroup,
 	statsCh chan *operationStats,
-	taskConfig *SimulationTaskConfiguration,
+	taskConfig host.SimulationTaskConfiguration,
 	rateLimiter *simulationRateLimiter,
 ) {
 	defer wg.Done()
@@ -370,13 +373,13 @@ func (s *MatchingSimulationSuite) generate(
 				return
 			}
 			newTasksGenerated := int(atomic.AddInt32(tasksGenerated, 1))
-			if newTasksGenerated > taskConfig.getMaxTasksToGenerate() {
+			if newTasksGenerated > getMaxTasksToGenerate(taskConfig) {
 				s.log("Generated %d tasks so generator will stop", newTasksGenerated)
 				return
 			}
 			isolationGroup := ""
-			if len(taskConfig.getIsolationGroups()) > 0 {
-				isolationGroup = taskConfig.getIsolationGroups()[newTasksGenerated%len(taskConfig.getIsolationGroups())]
+			if igs := getTaskIsolationGroups(taskConfig); len(igs) > 0 {
+				isolationGroup = igs[newTasksGenerated%len(igs)]
 			}
 			scheduleID := int(atomic.AddInt32(lastTaskScheduleID, 1))
 			start := time.Now()
@@ -400,12 +403,12 @@ func (s *MatchingSimulationSuite) generate(
 
 func (s *MatchingSimulationSuite) poll(
 	ctx context.Context,
-	matchingClient MatchingClient,
+	matchingClient host.MatchingClient,
 	domainID, tasklist, pollerID string,
 	wg *sync.WaitGroup,
 	statsCh chan *operationStats,
 	tasksToReceive *sync.WaitGroup,
-	pollerConfig *SimulationPollerConfiguration,
+	pollerConfig host.SimulationPollerConfiguration,
 ) {
 	defer wg.Done()
 
@@ -416,7 +419,7 @@ func (s *MatchingSimulationSuite) poll(
 			return
 		default:
 			s.log("Poller will initiate a poll")
-			reqCtx, cancel := context.WithTimeout(ctx, pollerConfig.getPollTimeout())
+			reqCtx, cancel := context.WithTimeout(ctx, getPollTimeout(pollerConfig))
 			start := time.Now()
 			resp, err := matchingClient.PollForDecisionTask(reqCtx, &types.MatchingPollForDecisionTaskRequest{
 				DomainUUID: domainID,
@@ -428,7 +431,7 @@ func (s *MatchingSimulationSuite) poll(
 					},
 					Identity: pollerID,
 				},
-				IsolationGroup: pollerConfig.getIsolationGroup(),
+				IsolationGroup: getIsolationGroup(pollerConfig),
 			})
 			cancel()
 
@@ -458,7 +461,7 @@ func (s *MatchingSimulationSuite) poll(
 
 			s.log("PollForDecisionTask got a task with startedid: %d. resp: %+v", resp.StartedEventID, resp)
 			tasksToReceive.Done()
-			time.Sleep(pollerConfig.getTaskProcessTime())
+			time.Sleep(getTaskProcessTime(pollerConfig))
 		}
 	}
 }
@@ -492,8 +495,8 @@ func (s *MatchingSimulationSuite) collectStats(statsCh chan *operationStats, agg
 func (s *MatchingSimulationSuite) domainID(ctx context.Context) string {
 	reqCtx, cancel := context.WithTimeout(ctx, 250*time.Millisecond)
 	defer cancel()
-	domainDesc, err := s.testCluster.GetFrontendClient().DescribeDomain(reqCtx, &types.DescribeDomainRequest{
-		Name: &s.domainName,
+	domainDesc, err := s.TestCluster.GetFrontendClient().DescribeDomain(reqCtx, &types.DescribeDomainRequest{
+		Name: &s.DomainName,
 	})
 	s.Require().NoError(err, "Error when describing domain")
 
@@ -538,62 +541,62 @@ func appendMetric(testSummary []string, op operation, aggStats map[operation]*op
 	return testSummary
 }
 
-func getTotalTasks(tasks []SimulationTaskConfiguration) int {
+func getTotalTasks(tasks []host.SimulationTaskConfiguration) int {
 	total := 0
 	for _, taskConfiguration := range tasks {
-		total += taskConfiguration.getMaxTasksToGenerate()
+		total += getMaxTasksToGenerate(taskConfiguration)
 	}
 	return total
 }
 
-func getIsolationGroups(c *MatchingSimulationConfig) []any {
+func getIsolationGroups(c host.MatchingSimulationConfig) []any {
 	groups := make(map[string]struct{})
 	for _, poller := range c.Pollers {
-		if poller.getIsolationGroup() != "" {
-			groups[poller.getIsolationGroup()] = struct{}{}
+		if getIsolationGroup(poller) != "" {
+			groups[getIsolationGroup(poller)] = struct{}{}
 		}
 	}
-	for _, tasks := range c.Tasks {
-		for _, group := range tasks.getIsolationGroups() {
+	for _, task := range c.Tasks {
+		for _, group := range getTaskIsolationGroups(task) {
 			groups[group] = struct{}{}
 		}
 	}
 	var uniqueGroups []any
-	for group, _ := range groups {
+	for group := range groups {
 		uniqueGroups = append(uniqueGroups, group)
 	}
 	return uniqueGroups
 }
 
-func (c *SimulationTaskConfiguration) getNumTaskGenerators() int {
+func getNumTaskGenerators(c host.SimulationTaskConfiguration) int {
 	if c.NumTaskGenerators == 0 {
 		return 1
 	}
 	return c.NumTaskGenerators
 }
 
-func (c *SimulationTaskConfiguration) getMaxTasksToGenerate() int {
+func getMaxTasksToGenerate(c host.SimulationTaskConfiguration) int {
 	if c.MaxTaskToGenerate == 0 {
 		return 2000
 	}
 	return c.MaxTaskToGenerate
 }
 
-func (c *SimulationTaskConfiguration) getTasksPerSecond() int {
+func getTasksPerSecond(c host.SimulationTaskConfiguration) int {
 	if c.TasksPerSecond == 0 {
 		return 40
 	}
 	return c.TasksPerSecond
 }
 
-func (c *SimulationTaskConfiguration) getTasksBurst() int {
+func getTasksBurst(c host.SimulationTaskConfiguration) int {
 	if c.TasksBurst == 0 {
 		return 1
 	}
 	return c.TasksBurst
 }
 
-func (c *SimulationTaskConfiguration) getIsolationGroups() []string {
+func getTaskIsolationGroups(c host.SimulationTaskConfiguration) []string {
 	return c.IsolationGroups
 }
 
@@ -626,28 +629,28 @@ func getForwarderMaxChildPerNode(i int) int {
 	return i
 }
 
-func (c *SimulationPollerConfiguration) getNumPollers() int {
+func getNumPollers(c host.SimulationPollerConfiguration) int {
 	if c.NumPollers == 0 {
 		return 1
 	}
 	return c.NumPollers
 }
 
-func (c *SimulationPollerConfiguration) getTaskProcessTime() time.Duration {
+func getTaskProcessTime(c host.SimulationPollerConfiguration) time.Duration {
 	if c.TaskProcessTime == 0 {
 		return time.Millisecond
 	}
 	return c.TaskProcessTime
 }
 
-func (c *SimulationPollerConfiguration) getPollTimeout() time.Duration {
+func getPollTimeout(c host.SimulationPollerConfiguration) time.Duration {
 	if c.PollTimeout == 0 {
 		return 15 * time.Second
 	}
 	return c.PollTimeout
 }
 
-func (c *SimulationPollerConfiguration) getIsolationGroup() string {
+func getIsolationGroup(c host.SimulationPollerConfiguration) string {
 	return c.IsolationGroup
 }
 
@@ -673,7 +676,7 @@ func getPartitionTaskListName(root string, partition int) string {
 	return fmt.Sprintf("%v%v/%v", common.ReservedTaskListPrefix, root, partition)
 }
 
-func getQpsTrackerInterval(duration time.Duration) time.Duration {
+func getQPSTrackerInterval(duration time.Duration) time.Duration {
 	if duration == 0 {
 		return 10 * time.Second
 	}
@@ -719,14 +722,14 @@ type simulationRateLimiter struct {
 }
 
 func newSimulationRateLimiter(
-	taskConfig SimulationTaskConfiguration,
+	taskConfig host.SimulationTaskConfiguration,
 	startTime time.Time,
 	timeSrc clock.TimeSource,
 	logFn func(msg string, args ...interface{}),
 ) *simulationRateLimiter {
 	var rateLimiters []*rateLimiterForTimeRange
 	if len(taskConfig.OverTime) == 0 {
-		l := rate.NewLimiter(rate.Limit(taskConfig.getTasksPerSecond()), taskConfig.getTasksBurst())
+		l := rate.NewLimiter(rate.Limit(getTasksPerSecond(taskConfig)), getTasksBurst(taskConfig))
 		rateLimiters = append(rateLimiters, &rateLimiterForTimeRange{limiter: l, start: 0, end: -1})
 	} else {
 		start := 0

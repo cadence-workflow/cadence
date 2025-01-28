@@ -30,14 +30,16 @@ echo "Building test images"
 docker-compose -f docker/buildkite/docker-compose-local-replication-simulation.yml \
   build cadence-cluster0 cadence-cluster1 replication-simulator
 
-function check_test_failure {
-  echo "Checking test failure"
-  faillog="$(cat test.log | grep  'FAIL: TestReplicationSimulation111' -B 10)";
-  if [ -n "$faillog" ]; then
-    echo 'Test Failed!!!';
-    echo "$faillog";
-    echo "Check test.log file for more details";
-    exit 1;
+function check_test_failure()
+{
+  faillog=$(grep 'FAIL: TestReplicationSimulation' -B 10 test.log 2>/dev/null || true)
+  if [ -z "$faillog" ]; then
+    echo "Passed"
+  else
+    echo 'Test failed!!!'
+    echo "$faillog"
+    echo "Check test.log file for more details"
+    exit 1
   fi
 }
 
