@@ -46,7 +46,12 @@ jobs:
   push_server_image:
     name: Push server image to Docker Hub
     needs: meta
-    runs-on: ubuntu-latest
+    # runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [linux]
+        arch: [x64, arm64]
+    runs-on: ubuntu-24.04${{ matrix.arch == 'arm64' && '-arm' || '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -64,7 +69,8 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64, linux/arm64
+          # platforms: linux/amd64, linux/arm64
+          platforms: linux/{{ matrix.arch == 'arm64' && 'arm64' || 'amd64' }}
           build-args: TARGET=server
           push: ${{ needs.meta.outputs.push_enabled == 'true' }}
           tags: ubercadence/server:${{ needs.meta.outputs.image_tag }}
