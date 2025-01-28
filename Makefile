@@ -576,7 +576,10 @@ INTEG_TEST_XDC_ROOT=./host/xdc
 INTEG_TEST_XDC_DIR=hostxdc
 INTEG_TEST_NDC_ROOT=./host/ndc
 INTEG_TEST_NDC_DIR=hostndc
-OPT_OUT_TEST=simulation
+
+# Opt out folders that shouldn't be run as part of unit tests such as integration tests, simulations.
+# Syntax: "folder1% folder2%" # space separated list of folders to opt out
+OPT_OUT_TEST_FOLDERS=./simulation%
 
 TEST_TIMEOUT ?= 20m
 TEST_ARG ?= -race $(if $(verbose),-v) -timeout $(TEST_TIMEOUT)
@@ -594,7 +597,7 @@ endif
 TEST_DIRS := $(filter-out $(INTEG_TEST_XDC_ROOT)%, $(sort $(dir $(filter %_test.go,$(ALL_SRC)))))
 # all tests other than end-to-end integration test fall into the pkg_test category.
 # ?= allows passing specific (space-separated) dirs for faster testing
-PKG_TEST_DIRS ?= $(filter-out $(INTEG_TEST_ROOT)% $(OPT_OUT_TEST), $(TEST_DIRS))
+PKG_TEST_DIRS ?= $(filter-out $(INTEG_TEST_ROOT)% $(OPT_OUT_TEST_FOLDERS), $(TEST_DIRS))
 
 # Code coverage output files
 COVER_ROOT                      := $(BUILD)/coverage
@@ -635,6 +638,9 @@ test: ## Build and run all tests locally
 	$Q echo Running special test cases without race detector:
 	$Q go test -v ./cmd/server/cadence/
 	$Q $(call looptest,$(PKG_TEST_DIRS))
+
+test_dirs:
+	echo $(PKG_TEST_DIRS)
 
 test_e2e:
 	$Q rm -f test
