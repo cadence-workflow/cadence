@@ -27,6 +27,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/uber/cadence/common/persistence/sql"
+
 	"github.com/iancoleman/strcase"
 	"github.com/jmoiron/sqlx"
 
@@ -45,6 +47,10 @@ const (
 type plugin struct{}
 
 var _ sqlplugin.Plugin = (*plugin)(nil)
+
+func init() {
+	sql.RegisterPlugin(PluginName, &plugin{})
+}
 
 // CreateDB wraps createDB to return an instance of sqlplugin.DB
 func (p *plugin) CreateDB(cfg *config.SQL) (sqlplugin.DB, error) {
