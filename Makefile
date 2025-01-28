@@ -576,7 +576,7 @@ INTEG_TEST_XDC_ROOT=./host/xdc
 INTEG_TEST_XDC_DIR=hostxdc
 INTEG_TEST_NDC_ROOT=./host/ndc
 INTEG_TEST_NDC_DIR=hostndc
-OPT_OUT_TEST=
+OPT_OUT_TEST=simulation
 
 TEST_TIMEOUT ?= 20m
 TEST_ARG ?= -race $(if $(verbose),-v) -timeout $(TEST_TIMEOUT)
