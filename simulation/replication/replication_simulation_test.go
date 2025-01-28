@@ -79,6 +79,10 @@ func TestReplicationSimulation(t *testing.T) {
 
 	mustRegisterDomain(t, simCfg)
 
+	// wait for domain data to be replicated.
+	// TODO: make domain replication interval configurable and reduce it
+	time.Sleep(10 * time.Second)
+
 	// initialize workers
 	for clusterName := range simCfg.Clusters {
 		simCfg.mustInitWorkerFor(t, clusterName)
@@ -278,13 +282,13 @@ func (s *ReplicationSimulationConfig) mustInitWorkerFor(t *testing.T, clusterNam
 	dispatcher := yarpc.NewDispatcher(yarpc.Config{
 		Name: "worker",
 		Outbounds: yarpc.Outbounds{
-			"cadence": {Unary: grpc.NewTransport().NewSingleOutbound(cluster.GRPCEndpoint)},
+			"cadence-frontend": {Unary: grpc.NewTransport().NewSingleOutbound(cluster.GRPCEndpoint)},
 		},
 	})
 	err = dispatcher.Start()
 	require.NoError(t, err, "failed to create outbound transport channel")
 
-	clientConfig := dispatcher.ClientConfig("cadence")
+	clientConfig := dispatcher.ClientConfig("cadence-frontend")
 
 	cadenceClient := compatibility.NewThrift2ProtoAdapter(
 		apiv1.NewDomainAPIYARPCClient(clientConfig),
@@ -294,6 +298,7 @@ func (s *ReplicationSimulationConfig) mustInitWorkerFor(t *testing.T, clusterNam
 	)
 
 	workerOptions := worker.Options{
+		Identity:     workerIdentityFor(clusterName),
 		Logger:       logger,
 		MetricsScope: tally.NewTestScope(tasklistName, map[string]string{"cluster": clusterName}),
 	}
@@ -311,4 +316,8 @@ func (s *ReplicationSimulationConfig) mustInitWorkerFor(t *testing.T, clusterNam
 	err = w.Start()
 	require.NoError(t, err, "failed to start worker for cluster %s", clusterName)
 	logf(t, "Started worker for cluster: %s", clusterName)
+}
+
+func workerIdentityFor(clusterName string) string {
+	return fmt.Sprintf("worker-%s", clusterName)
 }
