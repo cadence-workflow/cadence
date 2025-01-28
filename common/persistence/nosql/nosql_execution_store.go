@@ -85,7 +85,7 @@ func (d *nosqlExecutionStore) CreateWorkflowExecution(
 		return nil, err
 	}
 
-	workflowExecutionWriteReq, err := d.prepareCreateWorkflowExecutionRequestWithMaps(&newWorkflow)
+	workflowExecutionWriteReq, err := d.prepareCreateWorkflowExecutionRequestWithMaps(&newWorkflow, request.CreatedTime)
 	if err != nil {
 		return nil, err
 	}
@@ -310,7 +310,7 @@ func (d *nosqlExecutionStore) UpdateWorkflowExecution(
 
 	// 2. new
 	if newWorkflow != nil {
-		insertExecution, err = d.prepareCreateWorkflowExecutionRequestWithMaps(newWorkflow)
+		insertExecution, err = d.prepareCreateWorkflowExecutionRequestWithMaps(newWorkflow, request.UpdatedTime)
 		if err != nil {
 			return err
 		}
@@ -462,7 +462,7 @@ func (d *nosqlExecutionStore) ConflictResolveWorkflowExecution(
 
 	// 3. new
 	if newWorkflow != nil {
-		insertExecution, err = d.prepareCreateWorkflowExecutionRequestWithMaps(newWorkflow)
+		insertExecution, err = d.prepareCreateWorkflowExecutionRequestWithMaps(newWorkflow, request.UpdatedTime)
 		if err != nil {
 			return err
 		}
