@@ -1,9 +1,9 @@
 frontend.enableClientVersionCheck:
   - value: true
 system.writeVisibilityStoreName:
-  - value: "es,pinot"
+  - value: "pinot"
 system.readVisibilityStoreName:
-  - value: "es"
+  - value: "pinot"
 system.enableLogCustomerQueryParameter:
   - value: false
 frontend.validSearchAttributes:

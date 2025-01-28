@@ -3,7 +3,7 @@ frontend.enableClientVersionCheck:
 system.writeVisibilityStoreName:
   - value: "es"
 system.readVisibilityStoreName:
-  - value: "os"
+  - value: "es"
 frontend.validSearchAttributes:
   - value:
       DomainID: 1
