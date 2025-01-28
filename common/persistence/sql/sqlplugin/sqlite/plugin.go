@@ -23,6 +23,10 @@
 package sqlite
 
 import (
+	"bytes"
+	"fmt"
+	"strings"
+
 	"github.com/iancoleman/strcase"
 	"github.com/jmoiron/sqlx"
 
@@ -86,8 +90,59 @@ func (p *plugin) createSingleDBConn(cfg *config.SQL) (*sqlx.DB, error) {
 }
 
 // buildDSN builds the data source name for sqlite from config.SQL
-func buildDSN(_ *config.SQL) string {
-	// only in-memory sqlite is supported for now
-	// permanent sqlite file will be supported in the future
-	return ":memory:"
+func buildDSN(cfg *config.SQL) string {
+
+	var dsn = ":memory:"
+
+	// if database name is provided, then sqlite will create a file with the name
+	if cfg.DatabaseName != "" {
+		dsn = fmt.Sprintf("file:%s", cfg.DatabaseName)
+	}
+
+	if dsnAttrs := buildDSNAttrs(cfg); dsnAttrs != "" {
+		dsn += "?" + dsnAttrs
+	}
+
+	return dsn
+}
+
+// buildDSNAttrs builds the data source name attributes for sqlite from config.SQL
+// available attributes can be found here
+// https://github.com/mattn/go-sqlite3?tab=readme-ov-file#connection-string
+func buildDSNAttrs(cfg *config.SQL) string {
+	return joinDSNAttrs(sanitizeDSNAttrs(cfg.ConnectAttributes))
+}
+
+// sanitizeDSNAttrs sanitizes the attributes by trimming the keys and values
+func sanitizeDSNAttrs(attrs map[string]string) map[string]string {
+	sanitized := make(map[string]string, len(attrs))
+
+	for k, v := range attrs {
+		k, v = sanitizeDSNAttrElem(k), sanitizeDSNAttrElem(v)
+		sanitized[k] = v
+	}
+
+	return sanitized
+}
+
+// sanitizeDSNAttrElem trims the value, lowercases it
+func sanitizeDSNAttrElem(v string) string {
+	return strings.TrimSpace(strings.ToLower(v))
+}
+
+// joinDSNAttrs joins the attributes into a single string
+// with key=value pairs separated by & and escaped
+func joinDSNAttrs(attrs map[string]string) string {
+	first := true
+	var buf bytes.Buffer
+	for k, v := range attrs {
+		if !first {
+			buf.WriteString("&")
+		}
+		first = false
+		buf.WriteString(k)
+		buf.WriteString("=")
+		buf.WriteString(v)
+	}
+	return buf.String()
 }

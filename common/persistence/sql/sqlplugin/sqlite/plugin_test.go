@@ -45,3 +45,67 @@ func TestPlugin_CreateAdminDB(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, db)
 }
+
+func Test_buildDSN(t *testing.T) {
+	for name, c := range map[string]struct {
+		cfg  *config.SQL
+		want string
+	}{
+		"empty": {
+			cfg:  &config.SQL{},
+			want: ":memory:",
+		},
+		"database name only": {
+			cfg: &config.SQL{
+				DatabaseName: "cadence.db",
+			},
+			want: "file:cadence.db",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			dsn := buildDSN(c.cfg)
+			assert.Equal(t, c.want, dsn)
+		})
+	}
+}
+
+func Test_buildDSN_attrs(t *testing.T) {
+	for name, c := range map[string]struct {
+		cfg *config.SQL
+
+		// wantOneOf contains all possible DSN strings that can be generated because
+		// the order of the attributes in the DSN string is not guaranteed
+		wantOneOf []string
+	}{
+		"only connection attrs": {
+			cfg: &config.SQL{
+				ConnectAttributes: map[string]string{
+					"_busy_timeout": "10000",
+					"_FK":           "true",
+				},
+			},
+			wantOneOf: []string{
+				":memory:?_busy_timeout=10000&_fk=true",
+				":memory:?_fk=true&_busy_timeout=10000",
+			},
+		},
+		"database name and connection attrs": {
+			cfg: &config.SQL{
+				DatabaseName: "cadence.db",
+				ConnectAttributes: map[string]string{
+					"cache":   "PRIVATE",
+					"cache1 ": "NONe",
+				},
+			},
+			wantOneOf: []string{
+				"file:cadence.db?cache=private&cache1=none",
+				"file:cadence.db?cache1=none&cache=private",
+			},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			dsn := buildDSN(c.cfg)
+			assert.Contains(t, c.wantOneOf, dsn)
+		})
+	}
+}
