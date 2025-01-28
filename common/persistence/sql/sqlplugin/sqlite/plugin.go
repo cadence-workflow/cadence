@@ -92,9 +92,10 @@ func (p *plugin) createSingleDBConn(cfg *config.SQL) (*sqlx.DB, error) {
 // buildDSN builds the data source name for sqlite from config.SQL
 func buildDSN(cfg *config.SQL) string {
 
+	// by default, we use in-memory database if no database name is provided
 	var dsn = ":memory:"
 
-	// if database name is provided, then sqlite will create a file with the name
+	// if database name is provided, then sqlite will use the file as the database
 	if cfg.DatabaseName != "" {
 		dsn = fmt.Sprintf("file:%s", cfg.DatabaseName)
 
