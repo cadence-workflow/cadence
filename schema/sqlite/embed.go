@@ -22,5 +22,5 @@ package sqlite
 
 import "embed"
 
-//go:embed v8/cadence/* v8/visibility/*
+//go:embed cadence/* visibility/*
 var SchemaFS embed.FS
