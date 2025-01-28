@@ -76,7 +76,7 @@ func Test_buildDSN(t *testing.T) {
 			cfg: &config.SQL{
 				DatabaseName: "cadence.db",
 			},
-			want: "file:cadence.db",
+			want: "file:cadence.db?_journal_mode=WAL",
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -110,13 +110,12 @@ func Test_buildDSN_attrs(t *testing.T) {
 			cfg: &config.SQL{
 				DatabaseName: "cadence.db",
 				ConnectAttributes: map[string]string{
-					"cache":   "PRIVATE",
-					"cache1 ": "NONe",
+					"cache1 ": "NONe ",
 				},
 			},
 			wantOneOf: []string{
-				"file:cadence.db?cache=private&cache1=none",
-				"file:cadence.db?cache1=none&cache=private",
+				"file:cadence.db?_journal_mode=WAL&cache1=none",
+				"file:cadence.db?cache1=none&_journal_mode=WAL",
 			},
 		},
 	} {
