@@ -47,7 +47,7 @@ func (db *cdb) InsertWorkflowExecutionWithTasks(
 	shardID := shardCondition.ShardID
 	domainID := execution.DomainID
 	workflowID := execution.WorkflowID
-	timeStamp := db.timeSrc.Now()
+	timeStamp := execution.CreatedTime
 
 	batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
 
@@ -122,7 +122,7 @@ func (db *cdb) UpdateWorkflowExecutionWithTasks(
 	shardID := shardCondition.ShardID
 	var domainID, workflowID string
 	var previousNextEventIDCondition int64
-	timeStamp := db.timeSrc.Now()
+	timeStamp := insertedExecution.UpdatedTime
 	if mutatedExecution != nil {
 		domainID = mutatedExecution.DomainID
 		workflowID = mutatedExecution.WorkflowID

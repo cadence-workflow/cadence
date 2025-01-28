@@ -69,7 +69,7 @@ func TestNosqlExecutionStoreUtils(t *testing.T) {
 						Data:     []byte(`[{"Branches":[{"BranchID":"test-branch-id","BeginNodeID":1,"EndNodeID":2}]}]`),
 					},
 				}
-				return store.prepareCreateWorkflowExecutionRequestWithMaps(workflowSnapshot)
+				return store.prepareCreateWorkflowExecutionRequestWithMaps(workflowSnapshot, time.Now())
 			},
 			input: &persistence.InternalWorkflowSnapshot{},
 			validate: func(t *testing.T, req *nosqlplugin.WorkflowExecutionRequest, err error) {
@@ -94,7 +94,7 @@ func TestNosqlExecutionStoreUtils(t *testing.T) {
 					},
 					Checksum: checksum.Checksum{Value: nil},
 				}
-				return store.prepareCreateWorkflowExecutionRequestWithMaps(workflowSnapshot)
+				return store.prepareCreateWorkflowExecutionRequestWithMaps(workflowSnapshot, time.Now())
 			},
 			validate: func(t *testing.T, req *nosqlplugin.WorkflowExecutionRequest, err error) {
 				assert.NoError(t, err)
@@ -117,7 +117,7 @@ func TestNosqlExecutionStoreUtils(t *testing.T) {
 						Data:     []byte("[]"), // Empty VersionHistories
 					},
 				}
-				return store.prepareCreateWorkflowExecutionRequestWithMaps(workflowSnapshot)
+				return store.prepareCreateWorkflowExecutionRequestWithMaps(workflowSnapshot, time.Now())
 			},
 			validate: func(t *testing.T, req *nosqlplugin.WorkflowExecutionRequest, err error) {
 				assert.NoError(t, err)

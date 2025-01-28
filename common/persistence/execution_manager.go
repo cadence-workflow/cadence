@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/types"
 )
@@ -37,6 +38,7 @@ type (
 		persistence   ExecutionStore
 		statsComputer statsComputer
 		logger        log.Logger
+		timeSrc       clock.TimeSource
 	}
 )
 
@@ -53,6 +55,7 @@ func NewExecutionManagerImpl(
 		persistence:   persistence,
 		statsComputer: statsComputer{},
 		logger:        logger,
+		timeSrc:       clock.NewRealTimeSource(),
 	}
 }
 
@@ -348,6 +351,8 @@ func (m *executionManagerImpl) UpdateWorkflowExecution(
 		NewWorkflowSnapshot:    serializedNewWorkflowSnapshot,
 
 		WorkflowRequestMode: request.WorkflowRequestMode,
+
+		UpdatedTime: m.timeSrc.Now(),
 	}
 	msuss := m.statsComputer.computeMutableStateUpdateStats(newRequest)
 	err = m.persistence.UpdateWorkflowExecution(ctx, newRequest)
@@ -567,6 +572,8 @@ func (m *executionManagerImpl) ConflictResolveWorkflowExecution(
 		CurrentWorkflowMutation: serializedCurrentWorkflowMutation,
 
 		WorkflowRequestMode: request.WorkflowRequestMode,
+
+		UpdatedTime: m.timeSrc.Now(),
 	}
 	msuss := m.statsComputer.computeMutableStateConflictResolveStats(newRequest)
 	err = m.persistence.ConflictResolveWorkflowExecution(ctx, newRequest)
@@ -599,6 +606,8 @@ func (m *executionManagerImpl) CreateWorkflowExecution(
 		NewWorkflowSnapshot: *serializedNewWorkflowSnapshot,
 
 		WorkflowRequestMode: request.WorkflowRequestMode,
+
+		CreatedTime: m.timeSrc.Now(),
 	}
 
 	msuss := m.statsComputer.computeMutableStateCreateStats(newRequest)

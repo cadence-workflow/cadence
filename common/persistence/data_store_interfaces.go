@@ -238,6 +238,8 @@ type (
 		NewWorkflowSnapshot InternalWorkflowSnapshot
 
 		WorkflowRequestMode CreateWorkflowRequestMode
+
+		CreatedTime time.Time
 	}
 
 	// InternalGetReplicationTasksResponse is the response to GetReplicationTask
@@ -424,6 +426,8 @@ type (
 		NewWorkflowSnapshot *InternalWorkflowSnapshot
 
 		WorkflowRequestMode CreateWorkflowRequestMode
+
+		UpdatedTime time.Time
 	}
 
 	// InternalConflictResolveWorkflowExecutionRequest is used to reset workflow execution state for Persistence Interface
@@ -442,6 +446,8 @@ type (
 		CurrentWorkflowMutation *InternalWorkflowMutation
 
 		WorkflowRequestMode CreateWorkflowRequestMode
+
+		UpdatedTime time.Time
 	}
 
 	// InternalWorkflowMutation is used as generic workflow execution state mutation for Persistence Interface
