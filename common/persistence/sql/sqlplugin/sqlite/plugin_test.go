@@ -23,7 +23,11 @@
 package sqlite
 
 import (
+	"os"
+	"path"
 	"testing"
+
+	"github.com/google/uuid"
 
 	"github.com/stretchr/testify/assert"
 
@@ -31,19 +35,33 @@ import (
 )
 
 func TestPlugin_CreateDB(t *testing.T) {
-	p := &plugin{}
-	db, err := p.CreateDB(&config.SQL{})
+	for name, cfg := range map[string]*config.SQL{
+		"in-memory": {},
+		"temp file": {DatabaseName: path.Join(os.TempDir(), uuid.New().String())},
+	} {
+		t.Run(name, func(t *testing.T) {
+			p := &plugin{}
+			db, err := p.CreateDB(cfg)
 
-	assert.NoError(t, err)
-	assert.NotNil(t, db)
+			assert.NoError(t, err)
+			assert.NotNil(t, db)
+		})
+	}
 }
 
 func TestPlugin_CreateAdminDB(t *testing.T) {
-	p := &plugin{}
-	db, err := p.CreateAdminDB(&config.SQL{})
+	for name, cfg := range map[string]*config.SQL{
+		"in-memory": {},
+		"temp file": {DatabaseName: path.Join(os.TempDir(), uuid.New().String())},
+	} {
+		t.Run(name, func(t *testing.T) {
+			p := &plugin{}
+			db, err := p.CreateAdminDB(cfg)
 
-	assert.NoError(t, err)
-	assert.NotNil(t, db)
+			assert.NoError(t, err)
+			assert.NotNil(t, db)
+		})
+	}
 }
 
 func Test_buildDSN(t *testing.T) {
