@@ -21,25 +21,22 @@
 //go:build !race && pinotintegration
 // +build !race,pinotintegration
 
-// to run locally, make sure kafka and pinot is running,
-// then run cmd `go test -v ./host -run TestPinotIntegrationSuite -tags pinotintegration`
-// currently we have to manually add test table and delete the table for cleaning
-// waiting for the support to clean the data programmatically
-
 /*
 To run locally with docker containers:
 
 1. Stop the previous run if any
-
 	docker-compose -f docker/buildkite/docker-compose-local-pinot.yml down
 
 2. Build the integration-test-async-wf image
-
 	docker-compose -f docker/buildkite/docker-compose-local-pinot.yml build integration-test-cassandra-pinot
 
 3. Run the test in the docker container
-
 	docker-compose -f docker/buildkite/docker-compose-local-pinot.yml run --rm integration-test-cassandra-pinot
+
+To run locally natively (without docker),
+1. make sure kafka and pinot is running,
+2. then run cmd `go test -v ./host -run TestPinotIntegrationSuite -tags pinotintegration`
+3. currently we have to manually add test table and delete the table for cleaning. waiting for the support to clean the data programmatically
 */
 
 package host
@@ -127,12 +124,12 @@ func (s *PinotIntegrationSuite) SetupSuite() {
 	s.Engine = s.TestCluster.GetFrontendClient()
 	s.AdminClient = s.TestCluster.GetAdminClient()
 
-	s.testRawHistoryDomainName = "TestRawHistoryDomain"
+	s.TestRawHistoryDomainName = "TestRawHistoryDomain"
 	s.DomainName = s.RandomizeStr("integration-test-domain")
 	s.Require().NoError(
 		s.RegisterDomain(s.DomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, ""))
 	s.Require().NoError(
-		s.RegisterDomain(s.testRawHistoryDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, ""))
+		s.RegisterDomain(s.TestRawHistoryDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, ""))
 	s.ForeignDomainName = s.RandomizeStr("integration-foreign-test-domain")
 	s.Require().NoError(
 		s.RegisterDomain(s.ForeignDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, ""))
