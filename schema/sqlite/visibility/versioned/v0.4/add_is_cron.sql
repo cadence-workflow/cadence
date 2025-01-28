@@ -1,1 +1,0 @@
-ALTER TABLE executions_visibility ADD is_cron BOOLEAN DEFAULT false;
