@@ -792,6 +792,35 @@ func (s *workflowHandlerSuite) TestDiagnoseWorkflowExecution_Success() {
 	s.Equal(resp, result)
 }
 
+func (s *workflowHandlerSuite) TestDiagnoseWorkflowExecution_Failed_InvalidID() {
+	wh := s.getWorkflowHandler(s.newConfig(dc.NewInMemoryClient()))
+
+	req := &types.DiagnoseWorkflowExecutionRequest{
+		Domain: testDomain,
+		WorkflowExecution: &types.WorkflowExecution{
+			WorkflowID: testWorkflowID,
+			RunID:      testRunID,
+		},
+		Identity: "",
+	}
+	diagnosticWfDomain := "cadence-system"
+	diagnosticWfRunID := "123"
+	resp := &types.DiagnoseWorkflowExecutionResponse{
+		Domain: diagnosticWfDomain,
+		DiagnosticWorkflowExecution: &types.WorkflowExecution{
+			RunID: diagnosticWfRunID,
+		},
+	}
+
+	s.mockDomainCache.EXPECT().GetDomainID(diagnosticWfDomain).Return(s.testDomainID, nil).Times(2)
+	wh.config.WorkflowIDMaxLength = dc.GetIntPropertyFilteredByDomain(36)
+	s.mockHistoryClient.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).Return(&types.StartWorkflowExecutionResponse{RunID: diagnosticWfRunID}, nil)
+	result, err := wh.DiagnoseWorkflowExecution(context.Background(), req)
+	s.NoError(err)
+	s.Equal(resp.GetDiagnosticWorkflowExecution().GetRunID(), result.GetDiagnosticWorkflowExecution().GetRunID())
+	s.Equal(resp.GetDomain(), result.GetDomain())
+}
+
 func (s *workflowHandlerSuite) TestDiagnoseWorkflowExecution_Failed_RequestNotSet() {
 	wh := s.getWorkflowHandler(s.newConfig(dc.NewInMemoryClient()))
 

@@ -216,9 +216,22 @@ func (wh *WorkflowHandler) DiagnoseWorkflowExecution(ctx context.Context, reques
 		return nil, validate.ErrExecutionNotSet
 	}
 
+	scope := getMetricsScopeWithDomain(metrics.FrontendPollForActivityTaskScope, request, wh.GetMetricsClient()).Tagged(metrics.GetContextTags(ctx)...)
+
 	wfExecution := request.GetWorkflowExecution()
-	diagnosticWorkflowID := fmt.Sprintf("%s-%s-%s", request.GetDomain(), wfExecution.GetWorkflowID(), wfExecution.GetRunID())
 	diagnosticWorkflowDomain := "cadence-system"
+	diagnosticWorkflowID := fmt.Sprintf("%s-%s-%s", request.GetDomain(), wfExecution.GetWorkflowID(), wfExecution.GetRunID())
+	if !common.IsValidIDLength(
+		diagnosticWorkflowID,
+		scope,
+		wh.config.MaxIDLengthWarnLimit(),
+		wh.config.WorkflowIDMaxLength(request.GetDomain()),
+		metrics.CadenceErrWorkflowIDExceededWarnLimit,
+		request.GetDomain(),
+		wh.GetLogger(),
+		tag.IDTypeWorkflowID) {
+		diagnosticWorkflowID = uuid.New().String()
+	}
 
 	diagnosticWorkflowInput := diagnostics.DiagnosticsStarterWorkflowInput{
 		Domain:     request.GetDomain(),
