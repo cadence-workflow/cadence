@@ -30,8 +30,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/uber/cadence/schema/sqlite"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -40,6 +38,7 @@ import (
 	"github.com/uber/cadence/schema/cassandra"
 	"github.com/uber/cadence/schema/mysql"
 	"github.com/uber/cadence/schema/postgres"
+	"github.com/uber/cadence/schema/sqlite"
 )
 
 type UpdateTaskTestSuite struct {
