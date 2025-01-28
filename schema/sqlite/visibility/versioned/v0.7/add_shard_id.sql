@@ -1,1 +1,0 @@
-ALTER TABLE executions_visibility ADD shard_id INT DEFAULT -1;
