@@ -139,13 +139,13 @@ func (s *UpdateTaskTestSuite) TestReadSchemaDirFromEmbeddings() {
 	s.Equal([]string{"v0.6", "v0.7"}, ans)
 
 	// SQLite
-	fsys, err = fs.Sub(sqlite.SchemaFS, "v8/cadence/versioned")
+	fsys, err = fs.Sub(sqlite.SchemaFS, "cadence/versioned")
 	s.NoError(err)
 	ans, err = readSchemaDir(fsys, "0.3", "")
 	s.NoError(err)
 	s.Equal([]string{"v0.4", "v0.5", "v0.6"}, ans)
 
-	fsys, err = fs.Sub(sqlite.SchemaFS, "v8/visibility/versioned")
+	fsys, err = fs.Sub(sqlite.SchemaFS, "visibility/versioned")
 	s.NoError(err)
 	ans, err = readSchemaDir(fsys, "0.5", "")
 	s.NoError(err)
