@@ -40,6 +40,8 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
+var FixedTime = time.Date(2025, 1, 6, 15, 0, 0, 0, time.UTC)
+
 func newTestNosqlExecutionStoreWithTaskSerializer(db nosqlplugin.DB, logger log.Logger, taskSerializer serialization.TaskSerializer) *nosqlExecutionStore {
 	return &nosqlExecutionStore{
 		shardID:        1,
@@ -69,7 +71,7 @@ func TestNosqlExecutionStoreUtils(t *testing.T) {
 						Data:     []byte(`[{"Branches":[{"BranchID":"test-branch-id","BeginNodeID":1,"EndNodeID":2}]}]`),
 					},
 				}
-				return store.prepareCreateWorkflowExecutionRequestWithMaps(workflowSnapshot, time.Now())
+				return store.prepareCreateWorkflowExecutionRequestWithMaps(workflowSnapshot, FixedTime)
 			},
 			input: &persistence.InternalWorkflowSnapshot{},
 			validate: func(t *testing.T, req *nosqlplugin.WorkflowExecutionRequest, err error) {
@@ -94,7 +96,7 @@ func TestNosqlExecutionStoreUtils(t *testing.T) {
 					},
 					Checksum: checksum.Checksum{Value: nil},
 				}
-				return store.prepareCreateWorkflowExecutionRequestWithMaps(workflowSnapshot, time.Now())
+				return store.prepareCreateWorkflowExecutionRequestWithMaps(workflowSnapshot, FixedTime)
 			},
 			validate: func(t *testing.T, req *nosqlplugin.WorkflowExecutionRequest, err error) {
 				assert.NoError(t, err)
@@ -117,7 +119,7 @@ func TestNosqlExecutionStoreUtils(t *testing.T) {
 						Data:     []byte("[]"), // Empty VersionHistories
 					},
 				}
-				return store.prepareCreateWorkflowExecutionRequestWithMaps(workflowSnapshot, time.Now())
+				return store.prepareCreateWorkflowExecutionRequestWithMaps(workflowSnapshot, FixedTime)
 			},
 			validate: func(t *testing.T, req *nosqlplugin.WorkflowExecutionRequest, err error) {
 				assert.NoError(t, err)

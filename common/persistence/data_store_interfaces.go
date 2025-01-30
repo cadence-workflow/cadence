@@ -534,6 +534,8 @@ type (
 		TransactionID int64
 		// Used in sharded data stores to identify which shard to use
 		ShardID int
+
+		CreatedTime time.Time
 	}
 
 	// InternalGetWorkflowExecutionRequest is used to retrieve the info of a workflow execution
@@ -572,6 +574,8 @@ type (
 		Info string
 		// Used in sharded data stores to identify which shard to use
 		ShardID int
+
+		CreatedTime time.Time
 	}
 
 	// InternalForkHistoryBranchResponse is the response to ForkHistoryBranchRequest

@@ -22,7 +22,6 @@ package nosql
 
 import (
 	"context"
-	"time"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/config"
@@ -76,18 +75,19 @@ func (h *nosqlHistoryStore) AppendHistoryNodes(
 			TreeID:          branchInfo.TreeID,
 			BranchID:        branchInfo.BranchID,
 			Ancestors:       ancestors,
-			CreateTimestamp: time.Now(),
+			CreateTimestamp: request.CreatedTime,
 			Info:            request.Info,
 		}
 	}
 	nodeRow := &nosqlplugin.HistoryNodeRow{
-		TreeID:       branchInfo.TreeID,
-		BranchID:     branchInfo.BranchID,
-		NodeID:       request.NodeID,
-		TxnID:        &request.TransactionID,
-		Data:         request.Events.Data,
-		DataEncoding: string(request.Events.Encoding),
-		ShardID:      request.ShardID,
+		TreeID:          branchInfo.TreeID,
+		BranchID:        branchInfo.BranchID,
+		NodeID:          request.NodeID,
+		TxnID:           &request.TransactionID,
+		Data:            request.Events.Data,
+		DataEncoding:    string(request.Events.Encoding),
+		ShardID:         request.ShardID,
+		CreateTimestamp: request.CreatedTime,
 	}
 
 	storeShard, err := h.GetStoreShardByHistoryShard(request.ShardID)
@@ -283,7 +283,7 @@ func (h *nosqlHistoryStore) ForkHistoryBranch(
 		TreeID:          treeID,
 		BranchID:        request.NewBranchID,
 		Ancestors:       ancestors,
-		CreateTimestamp: time.Now(),
+		CreateTimestamp: request.CreatedTime,
 		Info:            request.Info,
 	}
 
