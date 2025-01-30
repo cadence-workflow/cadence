@@ -68,18 +68,20 @@ func validInternalAppendHistoryNodesRequest() *persistence.InternalAppendHistory
 		},
 		TransactionID: testTransactionID,
 		ShardID:       testShardID,
+		CreatedTime:   FixedTime,
 	}
 }
 
 func validHistoryNodeRow() *nosqlplugin.HistoryNodeRow {
 	expectedNodeRow := &nosqlplugin.HistoryNodeRow{
-		TreeID:       "TestTreeID",
-		BranchID:     "TestBranchID",
-		NodeID:       testNodeID,
-		TxnID:        common.Ptr[int64](123),
-		Data:         []byte("TestEvents"),
-		DataEncoding: string(common.EncodingTypeThriftRW),
-		ShardID:      testShardID,
+		TreeID:          "TestTreeID",
+		BranchID:        "TestBranchID",
+		NodeID:          testNodeID,
+		TxnID:           common.Ptr[int64](123),
+		Data:            []byte("TestEvents"),
+		DataEncoding:    string(common.EncodingTypeThriftRW),
+		ShardID:         testShardID,
+		CreateTimestamp: FixedTime,
 	}
 	return expectedNodeRow
 }
@@ -159,14 +161,14 @@ func TestAppendHistoryNodes_NewBranch(t *testing.T) {
 	// Expect to insert the node into the history tree and node, as this is a new branch expect treeRow to be set
 	dbMock.EXPECT().InsertIntoHistoryTreeAndNode(gomock.Any(), gomock.Any(), validHistoryNodeRow()).
 		DoAndReturn(func(ctx ctx.Context, treeRow *nosqlplugin.HistoryTreeRow, nodeRow *nosqlplugin.HistoryNodeRow) error {
-			// Assert that the treeRow is as expected, we have to check this here because the treeRow has time.Now() in it
+			// Assert that the treeRow is as expected
 			assert.Equal(t, testShardID, treeRow.ShardID)
 			assert.Equal(t, "TestTreeID", treeRow.TreeID)
 			assert.Equal(t, "TestBranchID", treeRow.BranchID)
 			assert.Equal(t, request.BranchInfo.Ancestors, treeRow.Ancestors)
 			assert.Equal(t, request.Info, treeRow.Info)
+			assert.Equal(t, FixedTime, treeRow.CreateTimestamp, time.Second)
 
-			assert.WithinDuration(t, time.Now(), treeRow.CreateTimestamp, time.Second)
 			return nil
 		})
 
@@ -349,6 +351,7 @@ func validInternalForkHistoryBranchRequest(forkNodeID int64) *persistence.Intern
 		NewBranchID: "TestNewBranchID",
 		Info:        "TestInfo",
 		ShardID:     testShardID,
+		CreatedTime: FixedTime,
 	}
 }
 
@@ -388,19 +391,20 @@ func expectedTreeRow() *nosqlplugin.HistoryTreeRow {
 				EndNodeID: 10,
 			},
 		},
-		CreateTimestamp: time.Now(),
+		CreateTimestamp: FixedTime,
 		Info:            "TestInfo",
 	}
 }
 
 func treeRowEqual(t *testing.T, expected, actual *nosqlplugin.HistoryTreeRow) {
+	t.Helper()
+
 	assert.Equal(t, expected.ShardID, actual.ShardID)
 	assert.Equal(t, expected.TreeID, actual.TreeID)
 	assert.Equal(t, expected.BranchID, actual.BranchID)
 	assert.Equal(t, expected.Ancestors, actual.Ancestors)
 	assert.Equal(t, expected.Info, actual.Info)
-
-	assert.WithinDuration(t, time.Now(), actual.CreateTimestamp, time.Second)
+	assert.Equal(t, FixedTime, actual.CreateTimestamp)
 }
 
 func TestForkHistoryBranch_NotAllAncestors(t *testing.T) {
@@ -417,7 +421,7 @@ func TestForkHistoryBranch_NotAllAncestors(t *testing.T) {
 	// Expect to insert the new branch into the history tree
 	dbMock.EXPECT().InsertIntoHistoryTreeAndNode(gomock.Any(), gomock.Any(), nil).
 		DoAndReturn(func(ctx ctx.Context, treeRow *nosqlplugin.HistoryTreeRow, nodeRow *nosqlplugin.HistoryNodeRow) error {
-			// Assert that the treeRow is as expected, we have to check this here because the treeRow has time.Now() in it
+			// Assert that the treeRow is as expected
 			treeRowEqual(t, expTreeRow, treeRow)
 			return nil
 		}).Times(1)
@@ -448,7 +452,7 @@ func TestForkHistoryBranch_AllAncestors(t *testing.T) {
 	// Expect to insert the new branch into the history tree
 	dbMock.EXPECT().InsertIntoHistoryTreeAndNode(gomock.Any(), gomock.Any(), nil).
 		DoAndReturn(func(ctx ctx.Context, treeRow *nosqlplugin.HistoryTreeRow, nodeRow *nosqlplugin.HistoryNodeRow) error {
-			// Assert that the treeRow is as expected, we have to check this here because the treeRow has time.Now() in it
+			// Assert that the treeRow is as expected
 			treeRowEqual(t, expTreeRow, treeRow)
 			return nil
 		}).Times(1)

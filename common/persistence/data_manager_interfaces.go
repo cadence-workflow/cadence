@@ -1357,6 +1357,8 @@ type (
 
 		// DomainName to get metrics created with the domain
 		DomainName string
+
+		CreatedTime time.Time
 	}
 
 	// AppendHistoryNodesResponse is a response to AppendHistoryNodesRequest
@@ -1438,6 +1440,8 @@ type (
 		ShardID *int
 		// DomainName to create metrics for Domain Cost Attribution
 		DomainName string
+
+		CreatedTime time.Time
 	}
 
 	// ForkHistoryBranchResponse is the response to ForkHistoryBranchRequest
