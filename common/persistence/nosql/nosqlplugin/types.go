@@ -272,9 +272,10 @@ type (
 		BranchID string
 		NodeID   int64
 		// Note: use pointer so that it's easier to multiple by -1 if needed
-		TxnID        *int64
-		Data         []byte
-		DataEncoding string
+		TxnID           *int64
+		Data            []byte
+		DataEncoding    string
+		CreateTimestamp time.Time
 	}
 
 	// HistoryNodeFilter contains the column names within history_node table that
