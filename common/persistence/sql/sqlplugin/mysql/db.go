@@ -34,7 +34,7 @@ import (
 )
 
 type (
-	db struct {
+	DB struct {
 		converter   DataConverter
 		driver      sqldriver.Driver
 		originalDBs []*sqlx.DB
@@ -42,26 +42,45 @@ type (
 	}
 )
 
-func (mdb *db) GetTotalNumDBShards() int {
+// NewDB returns an instance of DB, which is a logical
+// connection to the underlying mysql database
+// dbShardID is needed when tx is not nil
+func NewDB(xdbs []*sqlx.DB, tx *sqlx.Tx, dbShardID int, numDBShards int, converter DataConverter) (*DB, error) {
+	driver, err := sqldriver.NewDriver(xdbs, tx, dbShardID)
+	if err != nil {
+		return nil, err
+	}
+
+	db := &DB{
+		converter:   converter,
+		originalDBs: xdbs, // this is kept because NewDB will be called again when starting a transaction
+		driver:      driver,
+		numDBShards: numDBShards,
+	}
+
+	return db, nil
+}
+
+func (mdb *DB) GetTotalNumDBShards() int {
 	return mdb.numDBShards
 }
 
-var _ sqlplugin.AdminDB = (*db)(nil)
-var _ sqlplugin.DB = (*db)(nil)
-var _ sqlplugin.Tx = (*db)(nil)
+var _ sqlplugin.AdminDB = (*DB)(nil)
+var _ sqlplugin.DB = (*DB)(nil)
+var _ sqlplugin.Tx = (*DB)(nil)
 
-func (mdb *db) IsDupEntryError(err error) bool {
+func (mdb *DB) IsDupEntryError(err error) bool {
 	sqlErr, ok := err.(*mysql.MySQLError)
 	// ErrDupEntry MySQL Error 1062 indicates a duplicate primary key i.e. the row already exists,
 	// so we don't do the insert and return a ConditionalUpdate error.
 	return ok && sqlErr.Number == mysqlerr.ER_DUP_ENTRY
 }
 
-func (mdb *db) IsNotFoundError(err error) bool {
+func (mdb *DB) IsNotFoundError(err error) bool {
 	return err == sql.ErrNoRows
 }
 
-func (mdb *db) IsTimeoutError(err error) bool {
+func (mdb *DB) IsTimeoutError(err error) bool {
 	if err == context.DeadlineExceeded {
 		return true
 	}
@@ -80,7 +99,7 @@ func (mdb *db) IsTimeoutError(err error) bool {
 	return false
 }
 
-func (mdb *db) IsThrottlingError(err error) bool {
+func (mdb *DB) IsThrottlingError(err error) bool {
 	sqlErr, ok := err.(*mysql.MySQLError)
 	if ok {
 		if sqlErr.Number == mysqlerr.ER_CON_COUNT_ERROR ||
@@ -93,65 +112,46 @@ func (mdb *db) IsThrottlingError(err error) bool {
 	return false
 }
 
-// newDB returns an instance of DB, which is a logical
-// connection to the underlying mysql database
-// dbShardID is needed when tx is not nil
-func newDB(xdbs []*sqlx.DB, tx *sqlx.Tx, dbShardID int, numDBShards int) (*db, error) {
-	driver, err := sqldriver.NewDriver(xdbs, tx, dbShardID)
-	if err != nil {
-		return nil, err
-	}
-
-	db := &db{
-		converter:   &converter{},
-		originalDBs: xdbs, // this is kept because newDB will be called again when starting a transaction
-		driver:      driver,
-		numDBShards: numDBShards,
-	}
-
-	return db, nil
-}
-
 // BeginTx starts a new transaction and returns a reference to the Tx object
-func (mdb *db) BeginTx(ctx context.Context, dbShardID int) (sqlplugin.Tx, error) {
+func (mdb *DB) BeginTx(ctx context.Context, dbShardID int) (sqlplugin.Tx, error) {
 	xtx, err := mdb.driver.BeginTxx(ctx, dbShardID, nil)
 	if err != nil {
 		return nil, err
 	}
-	return newDB(mdb.originalDBs, xtx, dbShardID, mdb.numDBShards)
+	return NewDB(mdb.originalDBs, xtx, dbShardID, mdb.numDBShards, mdb.converter)
 }
 
 // Commit commits a previously started transaction
-func (mdb *db) Commit() error {
+func (mdb *DB) Commit() error {
 	return mdb.driver.Commit()
 }
 
 // Rollback triggers rollback of a previously started transaction
-func (mdb *db) Rollback() error {
+func (mdb *DB) Rollback() error {
 	return mdb.driver.Rollback()
 }
 
 // Close closes the connection to the mysql db
-func (mdb *db) Close() error {
+func (mdb *DB) Close() error {
 	return mdb.driver.Close()
 }
 
 // PluginName returns the name of the mysql plugin
-func (mdb *db) PluginName() string {
+func (mdb *DB) PluginName() string {
 	return PluginName
 }
 
 // SupportsTTL returns weather MySQL supports TTL
-func (mdb *db) SupportsTTL() bool {
+func (mdb *DB) SupportsTTL() bool {
 	return false
 }
 
 // MaxAllowedTTL returns the max allowed ttl MySQL supports
-func (mdb *db) MaxAllowedTTL() (*time.Duration, error) {
+func (mdb *DB) MaxAllowedTTL() (*time.Duration, error) {
 	return nil, sqlplugin.ErrTTLNotSupported
 }
 
 // SupportsTTL returns weather MySQL supports Asynchronous transaction
-func (mdb *db) SupportsAsyncTransaction() bool {
+func (mdb *DB) SupportsAsyncTransaction() bool {
 	return false
 }
