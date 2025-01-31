@@ -112,8 +112,8 @@ func (p *partitionConfigProviderImpl) GetNumberOfReadPartitions(domainID string,
 	}
 	c.RLock()
 	v := c.Version
-	w := c.NumWritePartitions
-	r := c.NumReadPartitions
+	w := len(c.WritePartitions)
+	r := len(c.ReadPartitions)
 	c.RUnlock()
 	scope := p.metricsClient.Scope(metrics.PartitionConfigProviderScope, metrics.DomainTag(domainName), metrics.TaskListRootPartitionTag(taskList.GetName()), getTaskListTypeTag(taskListType))
 	scope.UpdateGauge(metrics.TaskListPartitionConfigNumReadGauge, float64(r))
@@ -142,8 +142,8 @@ func (p *partitionConfigProviderImpl) GetNumberOfWritePartitions(domainID string
 	}
 	c.RLock()
 	v := c.Version
-	w := c.NumWritePartitions
-	r := c.NumReadPartitions
+	w := len(c.WritePartitions)
+	r := len(c.ReadPartitions)
 	c.RUnlock()
 	scope := p.metricsClient.Scope(metrics.PartitionConfigProviderScope, metrics.DomainTag(domainName), metrics.TaskListRootPartitionTag(taskList.GetName()), getTaskListTypeTag(taskListType))
 	scope.UpdateGauge(metrics.TaskListPartitionConfigNumReadGauge, float64(r))
@@ -180,7 +180,9 @@ func (p *partitionConfigProviderImpl) UpdatePartitionConfig(domainID string, tas
 	}
 	updated := c.updateConfig(*config)
 	if updated {
-		p.logger.Info("tasklist partition config updated", tag.WorkflowDomainID(domainID), tag.WorkflowTaskListName(taskList.Name), tag.WorkflowTaskListType(taskListType), tag.Dynamic("read-partition", config.NumReadPartitions), tag.Dynamic("write-partition", config.NumWritePartitions), tag.Dynamic("config-version", config.Version))
+		w := len(c.WritePartitions)
+		r := len(c.ReadPartitions)
+		p.logger.Info("tasklist partition config updated", tag.WorkflowDomainID(domainID), tag.WorkflowTaskListName(taskList.Name), tag.WorkflowTaskListType(taskListType), tag.Dynamic("read-partition", r), tag.Dynamic("write-partition", w), tag.Dynamic("config-version", config.Version))
 	}
 }
 

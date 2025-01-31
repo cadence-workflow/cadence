@@ -24,7 +24,9 @@ package sql
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"errors"
+	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -245,7 +247,9 @@ func TestLeaseTaskList(t *testing.T) {
 					AdaptivePartitionConfig: &serialization.TaskListPartitionConfig{
 						Version:            0,
 						NumReadPartitions:  1,
+						ReadPartitions:     map[int32]*serialization.TaskListPartition{0: {}},
 						NumWritePartitions: 1,
+						WritePartitions:    map[int32]*serialization.TaskListPartition{0: {}},
 					},
 				}, nil)
 				mockDB.EXPECT().BeginTx(gomock.Any(), 0).Return(mockTx, nil)
@@ -283,9 +287,13 @@ func TestLeaseTaskList(t *testing.T) {
 					AckLevel: 0,
 					Kind:     persistence.TaskListKindNormal,
 					AdaptivePartitionConfig: &persistence.TaskListPartitionConfig{
-						Version:            0,
-						NumReadPartitions:  1,
-						NumWritePartitions: 1,
+						Version: 0,
+						ReadPartitions: map[int]*persistence.TaskListPartition{
+							0: {},
+						},
+						WritePartitions: map[int]*persistence.TaskListPartition{
+							0: {},
+						},
 					},
 				},
 			},
@@ -570,6 +578,16 @@ func TestGetTaskList(t *testing.T) {
 						Version:            0,
 						NumReadPartitions:  1,
 						NumWritePartitions: 1,
+						ReadPartitions: map[int32]*serialization.TaskListPartition{
+							0: {
+								IsolationGroups: []string{"foo"},
+							},
+						},
+						WritePartitions: map[int32]*serialization.TaskListPartition{
+							0: {
+								IsolationGroups: []string{"bar"},
+							},
+						},
 					},
 				}, nil)
 			},
@@ -584,9 +602,79 @@ func TestGetTaskList(t *testing.T) {
 					Expiry:      time.Unix(1, 4),
 					LastUpdated: time.Unix(10, 0),
 					AdaptivePartitionConfig: &persistence.TaskListPartitionConfig{
+						Version: 0,
+						ReadPartitions: map[int]*persistence.TaskListPartition{
+							0: {
+								IsolationGroups: []string{"foo"},
+							},
+						},
+						WritePartitions: map[int]*persistence.TaskListPartition{
+							0: {
+								IsolationGroups: []string{"bar"},
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "Partition counts instead of data",
+			req: &persistence.GetTaskListRequest{
+				DomainID: "c9488dc7-20b2-44c3-b2e4-bfea5af62ac0",
+				TaskList: "tl",
+				TaskType: 1,
+			},
+			mockSetup: func(mockDB *sqlplugin.MockDB, mockParser *serialization.MockParser) {
+				mockDB.EXPECT().GetTotalNumDBShards().Return(1)
+				mockDB.EXPECT().SelectFromTaskLists(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, filter *sqlplugin.TaskListsFilter) ([]sqlplugin.TaskListsRow, error) {
+					assert.Equal(t, serialization.MustParseUUID("c9488dc7-20b2-44c3-b2e4-bfea5af62ac0"), *filter.DomainID)
+					assert.Equal(t, "tl", *filter.Name)
+					assert.Equal(t, int64(1), *filter.TaskType)
+					return []sqlplugin.TaskListsRow{
+						{
+							ShardID:      11,
+							DomainID:     serialization.MustParseUUID("c9488dc7-20b2-44c3-b2e4-bfea5af62ac0"),
+							Name:         "tl",
+							TaskType:     1,
+							RangeID:      123,
+							Data:         []byte(`tl`),
+							DataEncoding: "tl",
+						},
+					}, nil
+				})
+				mockParser.EXPECT().TaskListInfoFromBlob([]byte(`tl`), "tl").Return(&serialization.TaskListInfo{
+					Kind:            1,
+					AckLevel:        2,
+					ExpiryTimestamp: time.Unix(1, 4),
+					LastUpdated:     time.Unix(10, 0),
+					AdaptivePartitionConfig: &serialization.TaskListPartitionConfig{
 						Version:            0,
-						NumReadPartitions:  1,
-						NumWritePartitions: 1,
+						NumReadPartitions:  2,
+						NumWritePartitions: 2,
+					},
+				}, nil)
+			},
+			want: &persistence.GetTaskListResponse{
+				TaskListInfo: &persistence.TaskListInfo{
+					DomainID:    "c9488dc7-20b2-44c3-b2e4-bfea5af62ac0",
+					Name:        "tl",
+					TaskType:    1,
+					RangeID:     123,
+					Kind:        1,
+					AckLevel:    2,
+					Expiry:      time.Unix(1, 4),
+					LastUpdated: time.Unix(10, 0),
+					AdaptivePartitionConfig: &persistence.TaskListPartitionConfig{
+						Version: 0,
+						ReadPartitions: map[int]*persistence.TaskListPartition{
+							0: {},
+							1: {},
+						},
+						WritePartitions: map[int]*persistence.TaskListPartition{
+							0: {},
+							1: {},
+						},
 					},
 				},
 			},
@@ -695,9 +783,17 @@ func TestUpdateTaskList(t *testing.T) {
 					AckLevel: 0,
 					Kind:     persistence.TaskListKindNormal,
 					AdaptivePartitionConfig: &persistence.TaskListPartitionConfig{
-						Version:            0,
-						NumReadPartitions:  1,
-						NumWritePartitions: 1,
+						Version: 0,
+						ReadPartitions: map[int]*persistence.TaskListPartition{
+							0: {
+								IsolationGroups: []string{"foo"},
+							},
+						},
+						WritePartitions: map[int]*persistence.TaskListPartition{
+							0: {
+								IsolationGroups: []string{"bar"},
+							},
+						},
 					},
 				},
 			},
@@ -709,6 +805,8 @@ func TestUpdateTaskList(t *testing.T) {
 					assert.Equal(t, int64(0), info.AdaptivePartitionConfig.Version)
 					assert.Equal(t, int32(1), info.AdaptivePartitionConfig.NumReadPartitions)
 					assert.Equal(t, int32(1), info.AdaptivePartitionConfig.NumWritePartitions)
+					assert.Equal(t, "foo", info.AdaptivePartitionConfig.ReadPartitions[0].IsolationGroups[0])
+					assert.Equal(t, "bar", info.AdaptivePartitionConfig.WritePartitions[0].IsolationGroups[0])
 					return persistence.DataBlob{
 						Data:     []byte(`tl`),
 						Encoding: common.EncodingType("tl"),
@@ -1492,4 +1590,17 @@ func TestCompleteTaskLessThan(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHelp(t *testing.T) {
+	shard := sqlplugin.GetDBShardIDFromDomainIDAndTasklist("c4b5cb22-c213-4812-bb4a-fc1ade5405ef", "pgtasklist", 16384)
+	println("shard: ", shard)
+	// BgAKAAAKAAwAAAAABQ+kWAoADgAAAAAAAAAACgAQGB6uFsU9cvEMABIKAAoAAAAAAAAAAQgADAAAAAAIAA4AAAAAAAA=
+	parser, err := serialization.NewParser(common.EncodingTypeThriftRW, common.EncodingTypeThriftRW)
+	require.NoError(t, err)
+	data, err := base64.StdEncoding.DecodeString("BgAKAAAKAAwAAAAABGGFYAoADgAAAAAAAAAACgAQGB6uGPaVqOUMABIKAAoAAAAAAAAAAQgADAAAAAIIAA4AAAACAAA=")
+	require.NoError(t, err)
+	info, err := parser.TaskListInfoFromBlob(data, "thriftrw")
+	require.NoError(t, err)
+	fmt.Printf("info: %v", info)
 }

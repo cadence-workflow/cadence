@@ -170,17 +170,17 @@ func (s *handlerSuite) TestAddActivityTask() {
 				s.mockLimiter.EXPECT().Allow().Return(true).Times(1)
 				s.mockEngine.EXPECT().AddActivityTask(gomock.Any(), &request).Return(&types.AddActivityTaskResponse{
 					PartitionConfig: &types.TaskListPartitionConfig{
-						Version:            1,
-						NumReadPartitions:  2,
-						NumWritePartitions: 2,
+						Version:         1,
+						ReadPartitions:  partitions(2),
+						WritePartitions: partitions(2),
 					},
 				}, nil).Times(1)
 			},
 			want: &types.AddActivityTaskResponse{
 				PartitionConfig: &types.TaskListPartitionConfig{
-					Version:            1,
-					NumReadPartitions:  2,
-					NumWritePartitions: 2,
+					Version:         1,
+					ReadPartitions:  partitions(2),
+					WritePartitions: partitions(2),
 				},
 			},
 		},
@@ -238,17 +238,17 @@ func (s *handlerSuite) TestAddDecisionTask() {
 				s.mockLimiter.EXPECT().Allow().Return(true).Times(1)
 				s.mockEngine.EXPECT().AddDecisionTask(gomock.Any(), &request).Return(&types.AddDecisionTaskResponse{
 					PartitionConfig: &types.TaskListPartitionConfig{
-						Version:            1,
-						NumReadPartitions:  2,
-						NumWritePartitions: 2,
+						Version:         1,
+						ReadPartitions:  partitions(2),
+						WritePartitions: partitions(2),
 					},
 				}, nil).Times(1)
 			},
 			want: &types.AddDecisionTaskResponse{
 				PartitionConfig: &types.TaskListPartitionConfig{
-					Version:            1,
-					NumReadPartitions:  2,
-					NumWritePartitions: 2,
+					Version:         1,
+					ReadPartitions:  partitions(2),
+					WritePartitions: partitions(2),
 				},
 			},
 		},
@@ -893,4 +893,12 @@ func (s *handlerSuite) TestUpdateTaskListPartitionConfig() {
 			}
 		})
 	}
+}
+
+func partitions(num int) map[int]*types.TaskListPartition {
+	result := make(map[int]*types.TaskListPartition, num)
+	for i := 0; i < num; i++ {
+		result[i] = &types.TaskListPartition{}
+	}
+	return result
 }

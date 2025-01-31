@@ -459,11 +459,15 @@ type (
 		AdaptivePartitionConfig *TaskListPartitionConfig
 	}
 
+	TaskListPartition struct {
+		IsolationGroups []string
+	}
+
 	// TaskListPartitionConfig represents the configuration for task list partitions.
 	TaskListPartitionConfig struct {
-		Version            int64
-		NumReadPartitions  int
-		NumWritePartitions int
+		Version         int64
+		ReadPartitions  map[int]*TaskListPartition
+		WritePartitions map[int]*TaskListPartition
 	}
 
 	// TaskInfo describes either activity or decision task
@@ -2059,9 +2063,31 @@ func (p *TaskListPartitionConfig) ToInternalType() *types.TaskListPartitionConfi
 	if p == nil {
 		return nil
 	}
-	return &types.TaskListPartitionConfig{
-		Version:            p.Version,
-		NumReadPartitions:  int32(p.NumReadPartitions),
-		NumWritePartitions: int32(p.NumWritePartitions),
+	var readPartitions map[int]*types.TaskListPartition
+	if p.ReadPartitions != nil {
+		readPartitions = make(map[int]*types.TaskListPartition, len(p.ReadPartitions))
+		for id, par := range p.ReadPartitions {
+			readPartitions[id] = par.ToInternalType()
+		}
 	}
+	var writePartitions map[int]*types.TaskListPartition
+	if p.WritePartitions != nil {
+		writePartitions = make(map[int]*types.TaskListPartition, len(p.WritePartitions))
+		for id, par := range p.WritePartitions {
+			writePartitions[id] = par.ToInternalType()
+		}
+	}
+
+	return &types.TaskListPartitionConfig{
+		Version:         p.Version,
+		ReadPartitions:  readPartitions,
+		WritePartitions: writePartitions,
+	}
+}
+
+func (p *TaskListPartition) ToInternalType() *types.TaskListPartition {
+	if p == nil {
+		return nil
+	}
+	return &types.TaskListPartition{IsolationGroups: p.IsolationGroups}
 }

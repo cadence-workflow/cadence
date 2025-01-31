@@ -27,7 +27,8 @@ import (
 	"math"
 	"sync"
 	"sync/atomic"
-	"time"
+
+	"golang.org/x/sync/errgroup"
 
 	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common"
@@ -36,7 +37,6 @@ import (
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
-	"github.com/uber/cadence/common/stats"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/matching/config"
 	"github.com/uber/cadence/service/matching/event"
@@ -50,30 +50,38 @@ type (
 	adaptiveScalerImpl struct {
 		taskListID     *Identifier
 		tlMgr          Manager
-		qpsTracker     stats.QPSTracker
 		config         *config.TaskListConfig
 		timeSource     clock.TimeSource
 		logger         log.Logger
 		scope          metrics.Scope
 		matchingClient matching.Client
 
-		taskListType       *types.TaskListType
-		status             int32
-		wg                 sync.WaitGroup
-		ctx                context.Context
-		cancel             func()
-		overLoad           bool
-		overLoadStartTime  time.Time
-		underLoad          bool
-		underLoadStartTime time.Time
-		baseEvent          event.E
+		taskListType *types.TaskListType
+		status       int32
+		wg           sync.WaitGroup
+		ctx          context.Context
+		cancel       func()
+		overLoad     clock.Sustain
+		underLoad    clock.Sustain
+		baseEvent    event.E
+	}
+
+	aggregatePartitionMetrics struct {
+		totalQPS            float64
+		qpsByIsolationGroup map[string]float64
+		byPartition         map[int]*partitionMetrics
+	}
+
+	partitionMetrics struct {
+		qps      float64
+		backlog  int64
+		readOnly bool
 	}
 )
 
 func NewAdaptiveScaler(
 	taskListID *Identifier,
 	tlMgr Manager,
-	qpsTracker stats.QPSTracker,
 	config *config.TaskListConfig,
 	timeSource clock.TimeSource,
 	logger log.Logger,
@@ -85,7 +93,6 @@ func NewAdaptiveScaler(
 	return &adaptiveScalerImpl{
 		taskListID:     taskListID,
 		tlMgr:          tlMgr,
-		qpsTracker:     qpsTracker,
 		config:         config,
 		timeSource:     timeSource,
 		logger:         logger.WithTags(tag.ComponentTaskListAdaptiveScaler),
@@ -94,8 +101,8 @@ func NewAdaptiveScaler(
 		taskListType:   getTaskListType(taskListID.GetType()),
 		ctx:            ctx,
 		cancel:         cancel,
-		overLoad:       false,
-		underLoad:      false,
+		overLoad:       clock.NewSustain(timeSource, config.PartitionUpscaleSustainedDuration),
+		underLoad:      clock.NewSustain(timeSource, config.PartitionDownscaleSustainedDuration),
 		baseEvent:      baseEvent,
 	}
 }
@@ -137,35 +144,45 @@ func (a *adaptiveScalerImpl) run() {
 	if !a.config.EnableAdaptiveScaler() || !a.config.EnableGetNumberOfPartitionsFromCache() {
 		return
 	}
-	qps := a.qpsTracker.QPS()
+
 	partitionConfig := a.getPartitionConfig()
+	m, err := a.collectPartitionMetrics(partitionConfig)
+	// TODO: Handle this better. Maybe we should allow scaling up but not down if our data is incomplete?
+	if err != nil {
+		a.underLoad.Reset()
+		a.overLoad.Reset()
+		a.logger.Error("Failed to collect partition metrics", tag.Error(err))
+		return
+	}
 	// adjust the number of write partitions based on qps
-	numWritePartitions := a.adjustWritePartitions(qps, partitionConfig.NumWritePartitions)
-	// adjust the number of read partitions
-	numReadPartitions := a.adjustReadPartitions(partitionConfig.NumReadPartitions, numWritePartitions)
+	numWritePartitions := a.calculateWritePartitionCount(m.totalQPS, len(partitionConfig.WritePartitions))
+	writePartitions, writeChanged := a.adjustWritePartitions(partitionConfig.WritePartitions, numWritePartitions)
+	// TODO: Rebalance isolation groups between partitions
+	// adjust the read partitions
+	readPartitions, readChanged := a.adjustReadPartitions(m, partitionConfig.ReadPartitions, writePartitions)
 
 	e := a.baseEvent
 	e.EventName = "AdaptiveScalerCalculationResult"
 	e.Payload = map[string]any{
-		"NumReadPartitions":  numReadPartitions,
-		"NumWritePartitions": numWritePartitions,
-		"QPS":                qps,
+		"NumReadPartitions":  len(readPartitions),
+		"NumWritePartitions": len(writePartitions),
+		"QPS":                m.totalQPS,
 	}
 	event.Log(e)
 
-	if numReadPartitions == partitionConfig.NumReadPartitions && numWritePartitions == partitionConfig.NumWritePartitions {
+	if !writeChanged && !readChanged {
 		return
 	}
 	a.logger.Info("adaptive scaler is updating number of partitions",
-		tag.CurrentQPS(qps),
-		tag.NumReadPartitions(numReadPartitions),
-		tag.NumWritePartitions(numWritePartitions),
+		tag.CurrentQPS(m.totalQPS),
+		tag.NumReadPartitions(len(readPartitions)),
+		tag.NumWritePartitions(len(writePartitions)),
 		tag.Dynamic("task-list-partition-config", partitionConfig),
 	)
 	a.scope.IncCounter(metrics.CadenceRequests)
-	err := a.tlMgr.UpdateTaskListPartitionConfig(a.ctx, &types.TaskListPartitionConfig{
-		NumReadPartitions:  numReadPartitions,
-		NumWritePartitions: numWritePartitions,
+	err = a.tlMgr.UpdateTaskListPartitionConfig(a.ctx, &types.TaskListPartitionConfig{
+		ReadPartitions:  readPartitions,
+		WritePartitions: writePartitions,
 	})
 	if err != nil {
 		a.logger.Error("failed to update task list partition config", tag.Error(err))
@@ -177,91 +194,183 @@ func (a *adaptiveScalerImpl) getPartitionConfig() *types.TaskListPartitionConfig
 	partitionConfig := a.tlMgr.TaskListPartitionConfig()
 	if partitionConfig == nil {
 		partitionConfig = &types.TaskListPartitionConfig{
-			NumReadPartitions:  1,
-			NumWritePartitions: 1,
+			ReadPartitions: map[int]*types.TaskListPartition{
+				0: {},
+			},
+			WritePartitions: map[int]*types.TaskListPartition{
+				0: {},
+			},
 		}
 	}
 	return partitionConfig
 }
 
-func (a *adaptiveScalerImpl) adjustWritePartitions(qps float64, numWritePartitions int32) int32 {
-	upscaleThreshold := float64(a.config.PartitionUpscaleRPS())
+func (a *adaptiveScalerImpl) calculateWritePartitionCount(qps float64, numWritePartitions int) int {
+	upscaleRps := float64(a.config.PartitionUpscaleRPS())
+	partitions := float64(numWritePartitions)
 	downscaleFactor := a.config.PartitionDownscaleFactor()
-	downscaleThreshold := float64(numWritePartitions-1) * upscaleThreshold * downscaleFactor / float64(numWritePartitions)
+	upscaleThreshold := partitions * upscaleRps
+	downscaleThreshold := (partitions - 1) * upscaleRps * downscaleFactor
 	a.scope.UpdateGauge(metrics.EstimatedAddTaskQPSGauge, qps)
 	a.scope.UpdateGauge(metrics.TaskListPartitionUpscaleThresholdGauge, upscaleThreshold)
 	a.scope.UpdateGauge(metrics.TaskListPartitionDownscaleThresholdGauge, downscaleThreshold)
 
 	result := numWritePartitions
-	if qps > upscaleThreshold {
-		if !a.overLoad {
-			a.overLoad = true
-			a.overLoadStartTime = a.timeSource.Now()
-		} else if a.timeSource.Now().Sub(a.overLoadStartTime) > a.config.PartitionUpscaleSustainedDuration() {
-			result = getNumberOfPartitions(numWritePartitions, qps, upscaleThreshold)
-			a.logger.Info("adjust write partitions", tag.CurrentQPS(qps), tag.PartitionUpscaleThreshold(upscaleThreshold), tag.PartitionDownscaleThreshold(downscaleThreshold), tag.PartitionDownscaleFactor(downscaleFactor), tag.CurrentNumWritePartitions(numWritePartitions), tag.NumWritePartitions(result))
-			a.overLoad = false
-		}
-	} else {
-		a.overLoad = false
+	if a.overLoad.Check(qps > upscaleThreshold) {
+		result = getNumberOfPartitions(qps, upscaleRps)
+		a.logger.Info("adjust write partitions", tag.CurrentQPS(qps), tag.PartitionUpscaleThreshold(upscaleThreshold), tag.PartitionDownscaleThreshold(downscaleThreshold), tag.PartitionDownscaleFactor(downscaleFactor), tag.CurrentNumWritePartitions(numWritePartitions), tag.NumWritePartitions(result))
 	}
-	if qps < downscaleThreshold {
-		if !a.underLoad {
-			a.underLoad = true
-			a.underLoadStartTime = a.timeSource.Now()
-		} else if a.timeSource.Now().Sub(a.underLoadStartTime) > a.config.PartitionDownscaleSustainedDuration() {
-			result = getNumberOfPartitions(numWritePartitions, qps, upscaleThreshold)
-			a.logger.Info("adjust write partitions", tag.CurrentQPS(qps), tag.PartitionUpscaleThreshold(upscaleThreshold), tag.PartitionDownscaleThreshold(downscaleThreshold), tag.PartitionDownscaleFactor(downscaleFactor), tag.CurrentNumWritePartitions(numWritePartitions), tag.NumWritePartitions(result))
-			a.underLoad = false
-		}
-	} else {
-		a.underLoad = false
+	if a.underLoad.Check(qps < downscaleThreshold) {
+		result = getNumberOfPartitions(qps, upscaleRps)
+		a.logger.Info("adjust write partitions", tag.CurrentQPS(qps), tag.PartitionUpscaleThreshold(upscaleThreshold), tag.PartitionDownscaleThreshold(downscaleThreshold), tag.PartitionDownscaleFactor(downscaleFactor), tag.CurrentNumWritePartitions(numWritePartitions), tag.NumWritePartitions(result))
 	}
 	return result
 }
 
-func (a *adaptiveScalerImpl) adjustReadPartitions(numReadPartitions, numWritePartitions int32) int32 {
-	if numReadPartitions < numWritePartitions {
-		a.logger.Info("adjust read partitions", tag.NumReadPartitions(numWritePartitions), tag.NumWritePartitions(numWritePartitions))
-		return numWritePartitions
+func (a *adaptiveScalerImpl) adjustWritePartitions(writePartitions map[int]*types.TaskListPartition, targetWritePartitions int) (map[int]*types.TaskListPartition, bool) {
+	if len(writePartitions) == targetWritePartitions {
+		return writePartitions, false
 	}
+	result := make(map[int]*types.TaskListPartition, targetWritePartitions)
+
+	for i := 0; i < targetWritePartitions; i++ {
+		if p, ok := writePartitions[i]; ok {
+			result[i] = p
+		} else {
+			result[i] = &types.TaskListPartition{}
+		}
+	}
+	return result, true
+}
+
+func (a *adaptiveScalerImpl) adjustReadPartitions(m *aggregatePartitionMetrics, oldReadPartitions map[int]*types.TaskListPartition, newWritePartitions map[int]*types.TaskListPartition) (map[int]*types.TaskListPartition, bool) {
+	result := make(map[int]*types.TaskListPartition, len(newWritePartitions))
 	changed := false
-	// check the backlog of the drained partitions
-	for i := numReadPartitions - 1; i >= numWritePartitions; i-- {
-		resp, err := a.matchingClient.DescribeTaskList(a.ctx, &types.MatchingDescribeTaskListRequest{
-			DomainUUID: a.taskListID.GetDomainID(),
-			DescRequest: &types.DescribeTaskListRequest{
-				TaskListType: a.taskListType,
-				TaskList: &types.TaskList{
-					Name: a.taskListID.GetPartition(int(i)),
-					Kind: types.TaskListKindNormal.Ptr(),
-				},
-				IncludeTaskListStatus: true,
-			},
-		})
-		if err != nil {
-			a.logger.Error("failed to get task list backlog", tag.Error(err))
-			break
-		}
-		nw := int32(1)
-		if resp.PartitionConfig != nil {
-			nw = resp.PartitionConfig.NumWritePartitions
-		}
-		// in order to drain a partition, 2 conditions need to be met:
-		// 1. the backlog size is 0
-		// 2. no task is being added to the partition, which is guaranteed to be true if the partition knows that the number of write partition is less or equal to its partition ID
-		if resp.TaskListStatus.GetBacklogCountHint() == 0 && nw <= i {
-			// if the partition is drained, we can downscale the number of read partitions
-			numReadPartitions = i
+	for id, p := range oldReadPartitions {
+		result[id] = p
+	}
+	for id, p := range newWritePartitions {
+		if _, ok := result[id]; !ok {
 			changed = true
+		}
+		result[id] = p
+	}
+
+	for i := len(result) - 1; i >= len(newWritePartitions); i-- {
+		p, ok := m.byPartition[i]
+		if !ok {
+			resp, err := a.describePartition(i)
+			if err != nil {
+				a.logger.Warn("failed to get partition metrics", tag.WorkflowTaskListName(a.taskListID.GetPartition(i)), tag.Error(err))
+				break
+			}
+			p = toPartitionMetrics(i, resp)
+		}
+		if p.readOnly && p.backlog == 0 {
+			changed = true
+			delete(result, i)
 		} else {
 			break
 		}
 	}
 	if changed {
-		a.logger.Info("adjust read partitions", tag.NumReadPartitions(numReadPartitions), tag.NumWritePartitions(numWritePartitions))
+		a.logger.Info("adjust read partitions", tag.NumReadPartitions(len(result)), tag.NumWritePartitions(len(newWritePartitions)))
 	}
-	return numReadPartitions
+	return result, changed
+}
+
+func (a *adaptiveScalerImpl) collectPartitionMetrics(config *types.TaskListPartitionConfig) (*aggregatePartitionMetrics, error) {
+	if a.config.EnableTasklistIsolation() {
+		return a.fetchMetricsFromPartitions(config)
+	}
+	return a.assumeEvenQPS(config)
+}
+
+func (a *adaptiveScalerImpl) assumeEvenQPS(config *types.TaskListPartitionConfig) (*aggregatePartitionMetrics, error) {
+	resp := a.tlMgr.DescribeTaskList(true)
+
+	totalQPS := resp.TaskListStatus.NewTasksPerSecond * float64(len(config.WritePartitions))
+
+	return &aggregatePartitionMetrics{
+		totalQPS: totalQPS,
+	}, nil
+}
+
+func (a *adaptiveScalerImpl) fetchMetricsFromPartitions(config *types.TaskListPartitionConfig) (*aggregatePartitionMetrics, error) {
+	var mutex sync.Mutex
+	results := make(map[int]*types.DescribeTaskListResponse, len(config.ReadPartitions))
+	g := &errgroup.Group{}
+	for p := range config.ReadPartitions {
+		partitionID := p
+		g.Go(func() (e error) {
+			defer func() { log.CapturePanic(recover(), a.logger, &e) }()
+
+			result, e := a.describePartition(partitionID)
+			if e != nil {
+				a.logger.Warn("failed to get partition metrics", tag.WorkflowTaskListName(a.taskListID.GetPartition(partitionID)), tag.Error(e))
+			}
+			if result != nil {
+				mutex.Lock()
+				defer mutex.Unlock()
+				results[partitionID] = result
+			}
+			return e
+		})
+	}
+	err := g.Wait()
+	if err != nil {
+		return nil, err
+	}
+
+	return toAggregateMetrics(results), err
+}
+
+func (a *adaptiveScalerImpl) describePartition(partitionID int) (*types.DescribeTaskListResponse, error) {
+	if partitionID == 0 {
+		return a.tlMgr.DescribeTaskList(true), nil
+	}
+	return a.matchingClient.DescribeTaskList(a.ctx, &types.MatchingDescribeTaskListRequest{
+		DomainUUID: a.taskListID.GetDomainID(),
+		DescRequest: &types.DescribeTaskListRequest{
+			TaskListType: a.taskListType,
+			TaskList: &types.TaskList{
+				Name: a.taskListID.GetPartition(partitionID),
+				Kind: types.TaskListKindNormal.Ptr(),
+			},
+			IncludeTaskListStatus: true,
+		},
+	})
+}
+
+func toAggregateMetrics(partitions map[int]*types.DescribeTaskListResponse) *aggregatePartitionMetrics {
+	total := 0.0
+	byIsolationGroup := make(map[string]float64)
+	byPartition := make(map[int]*partitionMetrics, len(partitions))
+	for id, p := range partitions {
+		for ig, groupMetrics := range p.TaskListStatus.IsolationGroupMetrics {
+			byIsolationGroup[ig] += groupMetrics.NewTasksPerSecond
+		}
+		total += p.TaskListStatus.NewTasksPerSecond
+
+		byPartition[id] = toPartitionMetrics(id, p)
+	}
+	return &aggregatePartitionMetrics{
+		totalQPS:            total,
+		qpsByIsolationGroup: byIsolationGroup,
+		byPartition:         byPartition,
+	}
+}
+
+func toPartitionMetrics(id int, p *types.DescribeTaskListResponse) *partitionMetrics {
+	hasWritePartition := true
+	if p.PartitionConfig != nil {
+		_, hasWritePartition = p.PartitionConfig.WritePartitions[id]
+	}
+	return &partitionMetrics{
+		qps:      p.TaskListStatus.NewTasksPerSecond,
+		backlog:  p.TaskListStatus.BacklogCountHint,
+		readOnly: !hasWritePartition,
+	}
 }
 
 func getTaskListType(taskListType int) *types.TaskListType {
@@ -273,8 +382,8 @@ func getTaskListType(taskListType int) *types.TaskListType {
 	return nil
 }
 
-func getNumberOfPartitions(numPartitions int32, qps float64, threshold float64) int32 {
-	p := int32(math.Ceil(qps * float64(numPartitions) / threshold))
+func getNumberOfPartitions(qps float64, upscaleQPS float64) int {
+	p := int(math.Ceil(qps / upscaleQPS))
 	if p <= 0 {
 		p = 1
 	}

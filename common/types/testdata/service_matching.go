@@ -32,9 +32,20 @@ const (
 
 var (
 	TaskListPartitionConfig = types.TaskListPartitionConfig{
-		Version:            1,
-		NumReadPartitions:  3,
-		NumWritePartitions: 2,
+		Version: 1,
+		ReadPartitions: map[int]*types.TaskListPartition{
+			0: {},
+			1: {},
+			2: {
+				IsolationGroups: []string{"foo"},
+			},
+		},
+		WritePartitions: map[int]*types.TaskListPartition{
+			0: {},
+			1: {
+				IsolationGroups: []string{"bar"},
+			},
+		},
 	}
 	LoadBalancerHints = types.LoadBalancerHints{
 		BacklogCount:  1000,

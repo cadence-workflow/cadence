@@ -47,9 +47,9 @@ type (
 		EndID     int64   `header:"Lease End TaskID"`
 	}
 	TaskListPartitionConfigRow struct {
-		Version            int64 `header:"Version"`
-		NumReadPartitions  int32 `header:"Number of Read Partitions"`
-		NumWritePartitions int32 `header:"Number of Write Partitions"`
+		Version         int64                            `header:"Version"`
+		ReadPartitions  map[int]*types.TaskListPartition `header:"Read Partitions"`
+		WritePartitions map[int]*types.TaskListPartition `header:"Write Partitions"`
 	}
 )
 
@@ -159,9 +159,9 @@ func printTaskListStatus(w io.Writer, taskListStatus *types.TaskListStatus) erro
 
 func printTaskListPartitionConfig(w io.Writer, config *types.TaskListPartitionConfig) error {
 	table := TaskListPartitionConfigRow{
-		Version:            config.Version,
-		NumReadPartitions:  config.NumReadPartitions,
-		NumWritePartitions: config.NumWritePartitions,
+		Version:         config.Version,
+		ReadPartitions:  config.ReadPartitions,
+		WritePartitions: config.WritePartitions,
 	}
 	return RenderTable(w, table, RenderOptions{Color: true})
 }
@@ -205,12 +205,20 @@ func AdminUpdateTaskListPartitionConfig(c *cli.Context) error {
 		TaskList:     &types.TaskList{Name: taskList, Kind: types.TaskListKindNormal.Ptr()},
 		TaskListType: taskListType,
 		PartitionConfig: &types.TaskListPartitionConfig{
-			NumReadPartitions:  int32(numReadPartitions),
-			NumWritePartitions: int32(numWritePartitions),
+			ReadPartitions:  createPartitions(numReadPartitions),
+			WritePartitions: createPartitions(numWritePartitions),
 		},
 	})
 	if err != nil {
 		return commoncli.Problem("Operation UpdateTaskListPartitionConfig failed.", err)
 	}
 	return nil
+}
+
+func createPartitions(num int) map[int]*types.TaskListPartition {
+	result := make(map[int]*types.TaskListPartition, num)
+	for i := 0; i < num; i++ {
+		result[i] = &types.TaskListPartition{}
+	}
+	return result
 }

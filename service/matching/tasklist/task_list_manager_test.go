@@ -270,16 +270,16 @@ func TestDescribeTaskList(t *testing.T) {
 			name: "no status, with config",
 			allowance: func(_ *gomock.Controller, impl *taskListManagerImpl) {
 				err := impl.RefreshTaskListPartitionConfig(context.Background(), &types.TaskListPartitionConfig{
-					Version:            1,
-					NumReadPartitions:  3,
-					NumWritePartitions: 2,
+					Version:         1,
+					ReadPartitions:  partitions(3),
+					WritePartitions: partitions(2),
 				})
 				require.NoError(t, err)
 			},
 			expectedConfig: &types.TaskListPartitionConfig{
-				Version:            1,
-				NumReadPartitions:  3,
-				NumWritePartitions: 2,
+				Version:         1,
+				ReadPartitions:  partitions(3),
+				WritePartitions: partitions(2),
 			},
 		},
 		{
@@ -1215,42 +1215,42 @@ func TestRefreshTaskListPartitionConfig(t *testing.T) {
 		{
 			name: "success - refresh from request",
 			req: &types.TaskListPartitionConfig{
-				Version:            2,
-				NumReadPartitions:  3,
-				NumWritePartitions: 3,
+				Version:         2,
+				ReadPartitions:  partitions(3),
+				WritePartitions: partitions(3),
 			},
 			setupMocks: func(m *mockDeps) {},
 			expectedConfig: &types.TaskListPartitionConfig{
-				Version:            2,
-				NumReadPartitions:  3,
-				NumWritePartitions: 3,
+				Version:         2,
+				ReadPartitions:  partitions(3),
+				WritePartitions: partitions(3),
 			},
 		},
 		{
 			name: "success - ignore older version",
 			req: &types.TaskListPartitionConfig{
-				Version:            2,
-				NumReadPartitions:  3,
-				NumWritePartitions: 3,
+				Version:         2,
+				ReadPartitions:  partitions(3),
+				WritePartitions: partitions(3),
 			},
 			originalConfig: &types.TaskListPartitionConfig{
-				Version:            3,
-				NumReadPartitions:  2,
-				NumWritePartitions: 2,
+				Version:         3,
+				ReadPartitions:  partitions(2),
+				WritePartitions: partitions(2),
 			},
 			setupMocks: func(m *mockDeps) {},
 			expectedConfig: &types.TaskListPartitionConfig{
-				Version:            3,
-				NumReadPartitions:  2,
-				NumWritePartitions: 2,
+				Version:         3,
+				ReadPartitions:  partitions(2),
+				WritePartitions: partitions(2),
 			},
 		},
 		{
 			name: "success - refresh from database",
 			originalConfig: &types.TaskListPartitionConfig{
-				Version:            3,
-				NumReadPartitions:  2,
-				NumWritePartitions: 2,
+				Version:         3,
+				ReadPartitions:  partitions(2),
+				WritePartitions: partitions(2),
 			},
 			setupMocks: func(deps *mockDeps) {
 				deps.mockTaskManager.EXPECT().GetTaskList(gomock.Any(), &persistence.GetTaskListRequest{
@@ -1261,25 +1261,25 @@ func TestRefreshTaskListPartitionConfig(t *testing.T) {
 				}).Return(&persistence.GetTaskListResponse{
 					TaskListInfo: &persistence.TaskListInfo{
 						AdaptivePartitionConfig: &persistence.TaskListPartitionConfig{
-							Version:            4,
-							NumReadPartitions:  10,
-							NumWritePartitions: 10,
+							Version:         4,
+							ReadPartitions:  persistencePartitions(10),
+							WritePartitions: persistencePartitions(10),
 						},
 					},
 				}, nil)
 			},
 			expectedConfig: &types.TaskListPartitionConfig{
-				Version:            4,
-				NumReadPartitions:  10,
-				NumWritePartitions: 10,
+				Version:         4,
+				ReadPartitions:  partitions(10),
+				WritePartitions: partitions(10),
 			},
 		},
 		{
 			name: "failed to refresh from database",
 			originalConfig: &types.TaskListPartitionConfig{
-				Version:            3,
-				NumReadPartitions:  2,
-				NumWritePartitions: 2,
+				Version:         3,
+				ReadPartitions:  partitions(2),
+				WritePartitions: partitions(2),
 			},
 			setupMocks: func(deps *mockDeps) {
 				deps.mockTaskManager.EXPECT().GetTaskList(gomock.Any(), &persistence.GetTaskListRequest{
@@ -1290,9 +1290,9 @@ func TestRefreshTaskListPartitionConfig(t *testing.T) {
 				}).Return(nil, errors.New("some error"))
 			},
 			expectedConfig: &types.TaskListPartitionConfig{
-				Version:            3,
-				NumReadPartitions:  2,
-				NumWritePartitions: 2,
+				Version:         3,
+				ReadPartitions:  partitions(2),
+				WritePartitions: partitions(2),
 			},
 			expectError:   true,
 			expectedError: "some error",
@@ -1333,26 +1333,26 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 		{
 			name: "success - no op",
 			req: &types.TaskListPartitionConfig{
-				NumReadPartitions:  3,
-				NumWritePartitions: 3,
+				ReadPartitions:  partitions(3),
+				WritePartitions: partitions(3),
 			},
 			originalConfig: &types.TaskListPartitionConfig{
-				Version:            1,
-				NumReadPartitions:  3,
-				NumWritePartitions: 3,
+				Version:         1,
+				ReadPartitions:  partitions(3),
+				WritePartitions: partitions(3),
 			},
 			setupMocks: func(m *mockDeps) {},
 			expectedConfig: &types.TaskListPartitionConfig{
-				Version:            1,
-				NumReadPartitions:  3,
-				NumWritePartitions: 3,
+				Version:         1,
+				ReadPartitions:  partitions(3),
+				WritePartitions: partitions(3),
 			},
 		},
 		{
 			name: "success - no op, nil pointer",
 			req: &types.TaskListPartitionConfig{
-				NumReadPartitions:  1,
-				NumWritePartitions: 1,
+				ReadPartitions:  partitions(1),
+				WritePartitions: partitions(1),
 			},
 			originalConfig: nil,
 			setupMocks:     func(m *mockDeps) {},
@@ -1361,13 +1361,13 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 		{
 			name: "success - update",
 			req: &types.TaskListPartitionConfig{
-				NumReadPartitions:  3,
-				NumWritePartitions: 1,
+				ReadPartitions:  partitions(3),
+				WritePartitions: partitions(1),
 			},
 			originalConfig: &types.TaskListPartitionConfig{
-				Version:            1,
-				NumReadPartitions:  3,
-				NumWritePartitions: 3,
+				Version:         1,
+				ReadPartitions:  partitions(3),
+				WritePartitions: partitions(3),
 			},
 			setupMocks: func(deps *mockDeps) {
 				deps.mockTaskManager.EXPECT().UpdateTaskList(gomock.Any(), &persistence.UpdateTaskListRequest{
@@ -1379,9 +1379,9 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 						RangeID:  0,
 						Kind:     persistence.TaskListKindNormal,
 						AdaptivePartitionConfig: &persistence.TaskListPartitionConfig{
-							Version:            2,
-							NumReadPartitions:  3,
-							NumWritePartitions: 1,
+							Version:         2,
+							ReadPartitions:  persistencePartitions(3),
+							WritePartitions: persistencePartitions(1),
 						},
 					},
 				}).Return(&persistence.UpdateTaskListResponse{}, nil)
@@ -1390,9 +1390,9 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 					TaskList:     &types.TaskList{Name: "/__cadence_sys/tl/1", Kind: types.TaskListKindNormal.Ptr()},
 					TaskListType: types.TaskListTypeDecision.Ptr(),
 					PartitionConfig: &types.TaskListPartitionConfig{
-						Version:            2,
-						NumReadPartitions:  3,
-						NumWritePartitions: 1,
+						Version:         2,
+						ReadPartitions:  partitions(3),
+						WritePartitions: partitions(1),
 					},
 				}).Return(&types.MatchingRefreshTaskListPartitionConfigResponse{}, nil)
 				deps.mockMatchingClient.EXPECT().RefreshTaskListPartitionConfig(gomock.Any(), &types.MatchingRefreshTaskListPartitionConfigRequest{
@@ -1400,28 +1400,28 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 					TaskList:     &types.TaskList{Name: "/__cadence_sys/tl/2", Kind: types.TaskListKindNormal.Ptr()},
 					TaskListType: types.TaskListTypeDecision.Ptr(),
 					PartitionConfig: &types.TaskListPartitionConfig{
-						Version:            2,
-						NumReadPartitions:  3,
-						NumWritePartitions: 1,
+						Version:         2,
+						ReadPartitions:  partitions(3),
+						WritePartitions: partitions(1),
 					},
 				}).Return(&types.MatchingRefreshTaskListPartitionConfigResponse{}, nil)
 			},
 			expectedConfig: &types.TaskListPartitionConfig{
-				Version:            2,
-				NumReadPartitions:  3,
-				NumWritePartitions: 1,
+				Version:         2,
+				ReadPartitions:  partitions(3),
+				WritePartitions: partitions(1),
 			},
 		},
 		{
 			name: "success - push failures are ignored",
 			req: &types.TaskListPartitionConfig{
-				NumReadPartitions:  3,
-				NumWritePartitions: 1,
+				ReadPartitions:  partitions(3),
+				WritePartitions: partitions(1),
 			},
 			originalConfig: &types.TaskListPartitionConfig{
-				Version:            1,
-				NumReadPartitions:  3,
-				NumWritePartitions: 3,
+				Version:         1,
+				ReadPartitions:  partitions(3),
+				WritePartitions: partitions(3),
 			},
 			setupMocks: func(deps *mockDeps) {
 				deps.mockTaskManager.EXPECT().UpdateTaskList(gomock.Any(), &persistence.UpdateTaskListRequest{
@@ -1433,9 +1433,9 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 						RangeID:  0,
 						Kind:     persistence.TaskListKindNormal,
 						AdaptivePartitionConfig: &persistence.TaskListPartitionConfig{
-							Version:            2,
-							NumReadPartitions:  3,
-							NumWritePartitions: 1,
+							Version:         2,
+							ReadPartitions:  persistencePartitions(3),
+							WritePartitions: persistencePartitions(1),
 						},
 					},
 				}).Return(&persistence.UpdateTaskListResponse{}, nil)
@@ -1444,9 +1444,9 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 					TaskList:     &types.TaskList{Name: "/__cadence_sys/tl/1", Kind: types.TaskListKindNormal.Ptr()},
 					TaskListType: types.TaskListTypeDecision.Ptr(),
 					PartitionConfig: &types.TaskListPartitionConfig{
-						Version:            2,
-						NumReadPartitions:  3,
-						NumWritePartitions: 1,
+						Version:         2,
+						ReadPartitions:  partitions(3),
+						WritePartitions: partitions(1),
 					},
 				}).Return(nil, errors.New("matching client error"))
 				deps.mockMatchingClient.EXPECT().RefreshTaskListPartitionConfig(gomock.Any(), &types.MatchingRefreshTaskListPartitionConfigRequest{
@@ -1454,28 +1454,28 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 					TaskList:     &types.TaskList{Name: "/__cadence_sys/tl/2", Kind: types.TaskListKindNormal.Ptr()},
 					TaskListType: types.TaskListTypeDecision.Ptr(),
 					PartitionConfig: &types.TaskListPartitionConfig{
-						Version:            2,
-						NumReadPartitions:  3,
-						NumWritePartitions: 1,
+						Version:         2,
+						ReadPartitions:  partitions(3),
+						WritePartitions: partitions(1),
 					},
 				}).Return(nil, errors.New("matching client error"))
 			},
 			expectedConfig: &types.TaskListPartitionConfig{
-				Version:            2,
-				NumReadPartitions:  3,
-				NumWritePartitions: 1,
+				Version:         2,
+				ReadPartitions:  partitions(3),
+				WritePartitions: partitions(1),
 			},
 		},
 		{
 			name: "failed to update",
 			req: &types.TaskListPartitionConfig{
-				NumReadPartitions:  3,
-				NumWritePartitions: 1,
+				ReadPartitions:  partitions(3),
+				WritePartitions: partitions(1),
 			},
 			originalConfig: &types.TaskListPartitionConfig{
-				Version:            1,
-				NumReadPartitions:  3,
-				NumWritePartitions: 3,
+				Version:         1,
+				ReadPartitions:  partitions(3),
+				WritePartitions: partitions(3),
 			},
 			setupMocks: func(deps *mockDeps) {
 				deps.mockTaskManager.EXPECT().UpdateTaskList(gomock.Any(), &persistence.UpdateTaskListRequest{
@@ -1487,17 +1487,17 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 						RangeID:  0,
 						Kind:     persistence.TaskListKindNormal,
 						AdaptivePartitionConfig: &persistence.TaskListPartitionConfig{
-							Version:            2,
-							NumReadPartitions:  3,
-							NumWritePartitions: 1,
+							Version:         2,
+							ReadPartitions:  persistencePartitions(3),
+							WritePartitions: persistencePartitions(1),
 						},
 					},
 				}).Return(nil, errors.New("some error"))
 			},
 			expectedConfig: &types.TaskListPartitionConfig{
-				Version:            1,
-				NumReadPartitions:  3,
-				NumWritePartitions: 3,
+				Version:         1,
+				ReadPartitions:  partitions(3),
+				WritePartitions: partitions(3),
 			},
 			expectError:   true,
 			expectedError: "some error",
@@ -1535,7 +1535,7 @@ func TestRefreshTaskListPartitionConfigConcurrency(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		v := i
 		g.Go(func() error {
-			return tlm.RefreshTaskListPartitionConfig(context.Background(), &types.TaskListPartitionConfig{Version: int64(v), NumReadPartitions: int32(v), NumWritePartitions: int32(v)})
+			return tlm.RefreshTaskListPartitionConfig(context.Background(), &types.TaskListPartitionConfig{Version: int64(v), ReadPartitions: partitions(v), WritePartitions: partitions(v)})
 		})
 	}
 	require.NoError(t, g.Wait())
@@ -1554,7 +1554,7 @@ func TestUpdateTaskListPartitionConfigConcurrency(t *testing.T) {
 	for i := 2; i < 102; i++ {
 		v := i
 		g.Go(func() error {
-			return tlm.UpdateTaskListPartitionConfig(context.Background(), &types.TaskListPartitionConfig{NumReadPartitions: int32(v), NumWritePartitions: int32(v)})
+			return tlm.UpdateTaskListPartitionConfig(context.Background(), &types.TaskListPartitionConfig{ReadPartitions: partitions(v), WritePartitions: partitions(v)})
 		})
 	}
 	require.NoError(t, g.Wait())
@@ -1578,9 +1578,9 @@ func TestManagerStart_RootPartition(t *testing.T) {
 			AckLevel: 0,
 			RangeID:  0,
 			AdaptivePartitionConfig: &persistence.TaskListPartitionConfig{
-				Version:            1,
-				NumReadPartitions:  2,
-				NumWritePartitions: 2,
+				Version:         1,
+				ReadPartitions:  persistencePartitions(2),
+				WritePartitions: persistencePartitions(2),
 			},
 		},
 	}, nil)
@@ -1589,13 +1589,13 @@ func TestManagerStart_RootPartition(t *testing.T) {
 		TaskList:     &types.TaskList{Name: "/__cadence_sys/tl/1", Kind: types.TaskListKindNormal.Ptr()},
 		TaskListType: types.TaskListTypeDecision.Ptr(),
 		PartitionConfig: &types.TaskListPartitionConfig{
-			Version:            1,
-			NumReadPartitions:  2,
-			NumWritePartitions: 2,
+			Version:         1,
+			ReadPartitions:  partitions(2),
+			WritePartitions: partitions(2),
 		},
 	}).Return(&types.MatchingRefreshTaskListPartitionConfigResponse{}, nil)
 	assert.NoError(t, tlm.Start())
-	assert.Equal(t, &types.TaskListPartitionConfig{Version: 1, NumReadPartitions: 2, NumWritePartitions: 2}, tlm.TaskListPartitionConfig())
+	assert.Equal(t, &types.TaskListPartitionConfig{Version: 1, ReadPartitions: partitions(2), WritePartitions: partitions(2)}, tlm.TaskListPartitionConfig())
 	tlm.stopWG.Wait()
 }
 
@@ -1616,9 +1616,9 @@ func TestManagerStart_NonRootPartition(t *testing.T) {
 			AckLevel: 0,
 			RangeID:  0,
 			AdaptivePartitionConfig: &persistence.TaskListPartitionConfig{
-				Version:            1,
-				NumReadPartitions:  3,
-				NumWritePartitions: 3,
+				Version:         1,
+				ReadPartitions:  persistencePartitions(3),
+				WritePartitions: persistencePartitions(3),
 			},
 		},
 	}, nil)
@@ -1638,9 +1638,9 @@ func TestManagerStart_NonRootPartition(t *testing.T) {
 	}, nil)
 	assert.NoError(t, tlm.Start())
 	assert.Equal(t, &types.TaskListPartitionConfig{
-		Version:            1,
-		NumReadPartitions:  3,
-		NumWritePartitions: 3,
+		Version:         1,
+		ReadPartitions:  partitions(3),
+		WritePartitions: partitions(3),
 	}, tlm.TaskListPartitionConfig())
 }
 
@@ -1781,4 +1781,20 @@ func TestGetNumPartitions(t *testing.T) {
 	tlm, deps := setupMocksForTaskListManager(t, tlID, types.TaskListKindNormal)
 	require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.MatchingEnableGetNumberOfPartitionsFromCache, true))
 	assert.NotPanics(t, func() { tlm.matcher.UpdateRatelimit(common.Ptr(float64(100))) })
+}
+
+func partitions(num int) map[int]*types.TaskListPartition {
+	result := make(map[int]*types.TaskListPartition, num)
+	for i := 0; i < num; i++ {
+		result[i] = &types.TaskListPartition{}
+	}
+	return result
+}
+
+func persistencePartitions(num int) map[int]*persistence.TaskListPartition {
+	result := make(map[int]*persistence.TaskListPartition, num)
+	for i := 0; i < num; i++ {
+		result[i] = &persistence.TaskListPartition{}
+	}
+	return result
 }

@@ -25,6 +25,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	matchingv1 "github.com/uber/cadence/.gen/proto/matching/v1"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/types/testdata"
 )
@@ -170,5 +171,92 @@ func TestMatchingRefreshTaskListPartitionConfigRequest(t *testing.T) {
 func TestMatchingRefreshTaskListPartitionConfigResponse(t *testing.T) {
 	for _, item := range []*types.MatchingRefreshTaskListPartitionConfigResponse{nil, {}} {
 		assert.Equal(t, item, ToMatchingRefreshTaskListPartitionConfigResponse(FromMatchingRefreshTaskListPartitionConfigResponse(item)))
+	}
+}
+
+func TestToMatchingTaskListPartitionConfig(t *testing.T) {
+	cases := []struct {
+		name     string
+		config   *matchingv1.TaskListPartitionConfig
+		expected *types.TaskListPartitionConfig
+	}{
+		{
+			name: "happy path",
+			config: &matchingv1.TaskListPartitionConfig{
+				Version:            1,
+				NumReadPartitions:  2,
+				NumWritePartitions: 2,
+				ReadPartitions: map[int32]*matchingv1.TaskListPartition{
+					0: {IsolationGroups: []string{"foo"}},
+					1: {IsolationGroups: []string{"bar"}},
+				},
+				WritePartitions: map[int32]*matchingv1.TaskListPartition{
+					0: {IsolationGroups: []string{"baz"}},
+					1: {IsolationGroups: []string{"bar"}},
+				},
+			},
+			expected: &types.TaskListPartitionConfig{
+				Version: 1,
+				ReadPartitions: map[int]*types.TaskListPartition{
+					0: {IsolationGroups: []string{"foo"}},
+					1: {IsolationGroups: []string{"bar"}},
+				},
+				WritePartitions: map[int]*types.TaskListPartition{
+					0: {IsolationGroups: []string{"baz"}},
+					1: {IsolationGroups: []string{"bar"}},
+				},
+			},
+		},
+		{
+			name: "numbers only",
+			config: &matchingv1.TaskListPartitionConfig{
+				Version:            1,
+				NumReadPartitions:  2,
+				NumWritePartitions: 2,
+			},
+			expected: &types.TaskListPartitionConfig{
+				Version: 1,
+				ReadPartitions: map[int]*types.TaskListPartition{
+					0: {},
+					1: {},
+				},
+				WritePartitions: map[int]*types.TaskListPartition{
+					0: {},
+					1: {},
+				},
+			},
+		},
+		{
+			name: "number mismatch",
+			config: &matchingv1.TaskListPartitionConfig{
+				Version:            1,
+				NumReadPartitions:  2,
+				NumWritePartitions: 1,
+				ReadPartitions: map[int32]*matchingv1.TaskListPartition{
+					0: {IsolationGroups: []string{"foo"}},
+					1: {IsolationGroups: []string{"bar"}},
+				},
+				WritePartitions: map[int32]*matchingv1.TaskListPartition{
+					0: {IsolationGroups: []string{"baz"}},
+					1: {IsolationGroups: []string{"bar"}},
+				},
+			},
+			expected: &types.TaskListPartitionConfig{
+				Version: 1,
+				ReadPartitions: map[int]*types.TaskListPartition{
+					0: {IsolationGroups: []string{"foo"}},
+					1: {IsolationGroups: []string{"bar"}},
+				},
+				WritePartitions: map[int]*types.TaskListPartition{
+					0: {},
+				},
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			actual := ToTaskListPartitionConfig(tc.config)
+			assert.Equal(t, tc.expected, actual)
+		})
 	}
 }

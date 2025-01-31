@@ -23,6 +23,7 @@
 package tasklist
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -44,6 +45,7 @@ import (
 )
 
 type mockAdaptiveScalerDeps struct {
+	id                 *Identifier
 	mockManager        *MockManager
 	mockQPSTracker     *stats.MockQPSTracker
 	mockTimeSource     clock.MockedTimeSource
@@ -64,17 +66,19 @@ func setupMocksForAdaptiveScaler(t *testing.T, taskListID *Identifier) (*adaptiv
 	mockTimeSource := clock.NewMockedTimeSourceAt(time.Now())
 	mockMatchingClient := matching.NewMockClient(ctrl)
 	dynamicClient := dynamicconfig.NewInMemoryClient()
+	cfg := newTaskListConfig(taskListID, config.NewConfig(dynamicconfig.NewCollection(dynamicClient, logger), "test-host", func() []string { return nil }), "test-domain")
 
 	deps := &mockAdaptiveScalerDeps{
+		id:                 taskListID,
 		mockManager:        mockManager,
 		mockQPSTracker:     mockQPSTracker,
 		mockTimeSource:     mockTimeSource,
 		mockMatchingClient: mockMatchingClient,
 		dynamicClient:      dynamicClient,
+		config:             cfg,
 	}
 
-	cfg := newTaskListConfig(taskListID, config.NewConfig(dynamicconfig.NewCollection(dynamicClient, logger), "test-host", func() []string { return nil }), "test-domain")
-	scaler := NewAdaptiveScaler(taskListID, mockManager, mockQPSTracker, cfg, mockTimeSource, logger, scope, mockMatchingClient, event.E{}).(*adaptiveScalerImpl)
+	scaler := NewAdaptiveScaler(taskListID, mockManager, cfg, mockTimeSource, logger, scope, mockMatchingClient, event.E{}).(*adaptiveScalerImpl)
 	return scaler, deps
 }
 
@@ -100,7 +104,7 @@ func TestAdaptiveScalerRun(t *testing.T) {
 		{
 			name: "no op",
 			mockSetup: func(deps *mockAdaptiveScalerDeps) {
-				deps.mockQPSTracker.EXPECT().QPS().Return(0.0)
+				mockDescribeTaskList(deps, 0, withPartitionsAndQPS(1, 0))
 				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(nil)
 			},
 			cycles: 1,
@@ -108,7 +112,7 @@ func TestAdaptiveScalerRun(t *testing.T) {
 		{
 			name: "overload start",
 			mockSetup: func(deps *mockAdaptiveScalerDeps) {
-				deps.mockQPSTracker.EXPECT().QPS().Return(300.0)
+				mockDescribeTaskList(deps, 0, withPartitionsAndQPS(1, 300))
 				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(nil)
 			},
 			cycles: 1,
@@ -117,15 +121,15 @@ func TestAdaptiveScalerRun(t *testing.T) {
 			name: "overload sustained",
 			mockSetup: func(deps *mockAdaptiveScalerDeps) {
 				// overload start
-				deps.mockQPSTracker.EXPECT().QPS().Return(300.0)
+				mockDescribeTaskList(deps, 0, withPartitionsAndQPS(1, 300))
 				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(nil)
 
 				// overload passing sustained period
-				deps.mockQPSTracker.EXPECT().QPS().Return(300.0)
+				mockDescribeTaskList(deps, 0, withPartitionsAndQPS(1, 300))
 				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(nil)
 				deps.mockManager.EXPECT().UpdateTaskListPartitionConfig(gomock.Any(), &types.TaskListPartitionConfig{
-					NumReadPartitions:  2,
-					NumWritePartitions: 2,
+					ReadPartitions:  partitions(2),
+					WritePartitions: partitions(2),
 				}).Return(nil)
 			},
 			cycles: 2,
@@ -134,16 +138,17 @@ func TestAdaptiveScalerRun(t *testing.T) {
 			name: "overload fluctuate",
 			mockSetup: func(deps *mockAdaptiveScalerDeps) {
 				// overload start
-				deps.mockQPSTracker.EXPECT().QPS().Return(300.0)
+				mockDescribeTaskList(deps, 0, withPartitionsAndQPS(1, 300))
+
 				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(nil)
 				// load back to normal
-				deps.mockQPSTracker.EXPECT().QPS().Return(100.0)
+				mockDescribeTaskList(deps, 0, withPartitionsAndQPS(1, 100))
 				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(nil)
 				// overload start
-				deps.mockQPSTracker.EXPECT().QPS().Return(300.0)
+				mockDescribeTaskList(deps, 0, withPartitionsAndQPS(1, 300))
 				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(nil)
 				// load back to normal
-				deps.mockQPSTracker.EXPECT().QPS().Return(100.0)
+				mockDescribeTaskList(deps, 0, withPartitionsAndQPS(1, 100))
 				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(nil)
 			},
 			cycles: 4,
@@ -151,10 +156,10 @@ func TestAdaptiveScalerRun(t *testing.T) {
 		{
 			name: "underload start",
 			mockSetup: func(deps *mockAdaptiveScalerDeps) {
-				deps.mockQPSTracker.EXPECT().QPS().Return(0.0)
+				mockDescribeTaskList(deps, 0, withPartitionsAndQPS(10, 0))
 				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(&types.TaskListPartitionConfig{
-					NumWritePartitions: 10,
-					NumReadPartitions:  10,
+					WritePartitions: partitions(10),
+					ReadPartitions:  partitions(10),
 				})
 			},
 			cycles: 1,
@@ -162,82 +167,204 @@ func TestAdaptiveScalerRun(t *testing.T) {
 		{
 			name: "underload sustained",
 			mockSetup: func(deps *mockAdaptiveScalerDeps) {
-				deps.mockQPSTracker.EXPECT().QPS().Return(0.0)
+				mockDescribeTaskList(deps, 0, withPartitionsAndQPS(10, 0))
 				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(&types.TaskListPartitionConfig{
-					NumWritePartitions: 10,
-					NumReadPartitions:  10,
+					WritePartitions: partitions(10),
+					ReadPartitions:  partitions(10),
 				})
 
-				deps.mockQPSTracker.EXPECT().QPS().Return(0.0)
+				mockDescribeTaskList(deps, 0, withPartitionsAndQPS(10, 0))
+				// Partition 9 will be checked if it is drained, but it won't have received the update yet
+				mockDescribeTaskList(deps, 9, withPartitionsAndQPS(10, 0))
 				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(&types.TaskListPartitionConfig{
-					NumWritePartitions: 10,
-					NumReadPartitions:  10,
+					WritePartitions: partitions(10),
+					ReadPartitions:  partitions(10),
 				})
-				deps.mockMatchingClient.EXPECT().DescribeTaskList(gomock.Any(), &types.MatchingDescribeTaskListRequest{
-					DomainUUID: "test-domain-id",
-					DescRequest: &types.DescribeTaskListRequest{
-						TaskList: &types.TaskList{
-							Name: "/__cadence_sys/test-task-list/9",
-							Kind: types.TaskListKindNormal.Ptr(),
-						},
-						TaskListType:          types.TaskListTypeDecision.Ptr(),
-						IncludeTaskListStatus: true,
-					},
-				}).Return(&types.DescribeTaskListResponse{
-					TaskListStatus: &types.TaskListStatus{
-						BacklogCountHint: 0,
-					},
-				}, nil)
-				deps.mockMatchingClient.EXPECT().DescribeTaskList(gomock.Any(), &types.MatchingDescribeTaskListRequest{
-					DomainUUID: "test-domain-id",
-					DescRequest: &types.DescribeTaskListRequest{
-						TaskList: &types.TaskList{
-							Name: "/__cadence_sys/test-task-list/8",
-							Kind: types.TaskListKindNormal.Ptr(),
-						},
-						TaskListType:          types.TaskListTypeDecision.Ptr(),
-						IncludeTaskListStatus: true,
-					},
-				}).Return(&types.DescribeTaskListResponse{
-					TaskListStatus: &types.TaskListStatus{
-						BacklogCountHint: 1,
-					},
-				}, nil)
 				deps.mockManager.EXPECT().UpdateTaskListPartitionConfig(gomock.Any(), &types.TaskListPartitionConfig{
-					NumWritePartitions: 1,
-					NumReadPartitions:  9,
+					WritePartitions: partitions(1),
+					ReadPartitions:  partitions(10),
 				}).Return(nil)
 			},
 			cycles: 2,
 		},
 		{
+			name: "underload sustained then drain",
+			mockSetup: func(deps *mockAdaptiveScalerDeps) {
+				mockDescribeTaskList(deps, 0, withPartitionsAndQPS(10, 0))
+				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(&types.TaskListPartitionConfig{
+					WritePartitions: partitions(10),
+					ReadPartitions:  partitions(10),
+				})
+
+				mockDescribeTaskList(deps, 0, withPartitionsAndQPS(10, 0))
+				// Partition 9 will be checked if it is drained, but it won't have received the update yet
+				mockDescribeTaskList(deps, 9, withPartitionsAndQPS(10, 0))
+				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(&types.TaskListPartitionConfig{
+					WritePartitions: partitions(10),
+					ReadPartitions:  partitions(10),
+				})
+				deps.mockManager.EXPECT().UpdateTaskListPartitionConfig(gomock.Any(), &types.TaskListPartitionConfig{
+					WritePartitions: partitions(1),
+					ReadPartitions:  partitions(10),
+				}).Return(nil)
+
+				mockDescribeTaskList(deps, 0, withPartitionsAndBacklog(10, 1, 0))
+				mockDescribeTaskList(deps, 9, withPartitionsAndBacklog(10, 1, 0))
+				mockDescribeTaskList(deps, 8, withPartitionsAndBacklog(10, 1, 0))
+				mockDescribeTaskList(deps, 7, withPartitionsAndBacklog(10, 1, 0))
+				mockDescribeTaskList(deps, 6, withPartitionsAndBacklog(10, 1, 0))
+				mockDescribeTaskList(deps, 5, withPartitionsAndBacklog(10, 1, 0))
+				mockDescribeTaskList(deps, 4, withPartitionsAndBacklog(10, 1, 1))
+
+				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(&types.TaskListPartitionConfig{
+					WritePartitions: partitions(1),
+					ReadPartitions:  partitions(10),
+				})
+				deps.mockManager.EXPECT().UpdateTaskListPartitionConfig(gomock.Any(), &types.TaskListPartitionConfig{
+					WritePartitions: partitions(1),
+					ReadPartitions:  partitions(5),
+				}).Return(nil)
+			},
+			cycles: 3,
+		},
+		{
 			name: "overload but no fluctuation",
 			mockSetup: func(deps *mockAdaptiveScalerDeps) {
 				// overload start
-				deps.mockQPSTracker.EXPECT().QPS().Return(210.0)
+				mockDescribeTaskList(deps, 0, withPartitionsAndQPS(1, 210))
 				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(nil)
 
 				// overload passing sustained period
-				deps.mockQPSTracker.EXPECT().QPS().Return(210.0)
+				mockDescribeTaskList(deps, 0, withPartitionsAndQPS(1, 210))
 				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(nil)
 				deps.mockManager.EXPECT().UpdateTaskListPartitionConfig(gomock.Any(), &types.TaskListPartitionConfig{
-					NumReadPartitions:  2,
-					NumWritePartitions: 2,
+					ReadPartitions:  partitions(2),
+					WritePartitions: partitions(2),
 				}).Return(nil)
 
 				// not overload with 1 partition, but avoid fluctuation, so don't scale down
-				deps.mockQPSTracker.EXPECT().QPS().Return(190.0)
+				mockDescribeTaskList(deps, 0, withPartitionsAndQPS(2, 190))
 				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(&types.TaskListPartitionConfig{
-					NumReadPartitions:  2,
-					NumWritePartitions: 2,
+					ReadPartitions:  partitions(2),
+					WritePartitions: partitions(2),
 				})
-				deps.mockQPSTracker.EXPECT().QPS().Return(190.0)
+				mockDescribeTaskList(deps, 0, withPartitionsAndQPS(2, 190))
 				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(&types.TaskListPartitionConfig{
-					NumReadPartitions:  2,
-					NumWritePartitions: 2,
+					ReadPartitions:  partitions(2),
+					WritePartitions: partitions(2),
 				})
 			},
 			cycles: 4,
+		},
+		{
+			name: "isolation - aggregate metrics to scale up",
+			mockSetup: func(deps *mockAdaptiveScalerDeps) {
+				deps.config.EnableTasklistIsolation = func() bool {
+					return true
+				}
+				// overload start
+				mockDescribeTaskList(deps, 0, withPartitionsAndQPS(2, 1))
+				mockDescribeTaskList(deps, 1, withPartitionsAndQPS(2, 400))
+				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(&types.TaskListPartitionConfig{
+					WritePartitions: partitions(2),
+					ReadPartitions:  partitions(2),
+				})
+
+				// overload passing sustained period
+				mockDescribeTaskList(deps, 0, withPartitionsAndQPS(2, 1))
+				mockDescribeTaskList(deps, 1, withPartitionsAndQPS(2, 400))
+				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(&types.TaskListPartitionConfig{
+					WritePartitions: partitions(2),
+					ReadPartitions:  partitions(2),
+				})
+				deps.mockManager.EXPECT().UpdateTaskListPartitionConfig(gomock.Any(), &types.TaskListPartitionConfig{
+					ReadPartitions:  partitions(3),
+					WritePartitions: partitions(3),
+				}).Return(nil)
+			},
+			cycles: 2,
+		},
+		{
+			name: "isolation - aggregate metrics to scale down",
+			mockSetup: func(deps *mockAdaptiveScalerDeps) {
+				deps.config.EnableTasklistIsolation = func() bool {
+					return true
+				}
+				// underload start
+				mockDescribeTaskList(deps, 0, withPartitionsAndQPS(3, 200))
+				mockDescribeTaskList(deps, 1, withPartitionsAndQPS(3, 49))
+				mockDescribeTaskList(deps, 2, withPartitionsAndQPS(3, 50))
+
+				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(&types.TaskListPartitionConfig{
+					WritePartitions: partitions(3),
+					ReadPartitions:  partitions(3),
+				})
+
+				// underload passing sustained period
+				mockDescribeTaskList(deps, 0, withPartitionsAndQPS(3, 200))
+				mockDescribeTaskList(deps, 1, withPartitionsAndQPS(3, 49))
+				mockDescribeTaskList(deps, 2, withPartitionsAndQPS(3, 50))
+				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(&types.TaskListPartitionConfig{
+					WritePartitions: partitions(3),
+					ReadPartitions:  partitions(3),
+				})
+				deps.mockManager.EXPECT().UpdateTaskListPartitionConfig(gomock.Any(), &types.TaskListPartitionConfig{
+					ReadPartitions:  partitions(3),
+					WritePartitions: partitions(2),
+				}).Return(nil)
+
+				mockDescribeTaskList(deps, 0, withPartitionsAndQPS(2, 200))
+				mockDescribeTaskList(deps, 1, withPartitionsAndQPS(2, 99))
+				mockDescribeTaskList(deps, 2, withPartitionsAndBacklog(3, 2, 0))
+				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(&types.TaskListPartitionConfig{
+					WritePartitions: partitions(2),
+					ReadPartitions:  partitions(3),
+				})
+				deps.mockManager.EXPECT().UpdateTaskListPartitionConfig(gomock.Any(), &types.TaskListPartitionConfig{
+					ReadPartitions:  partitions(2),
+					WritePartitions: partitions(2),
+				}).Return(nil)
+			},
+			cycles: 3,
+		},
+		{
+			name: "isolation - error calling DescribeTaskList results in no-op",
+			mockSetup: func(deps *mockAdaptiveScalerDeps) {
+				deps.config.EnableTasklistIsolation = func() bool {
+					return true
+				}
+				mockDescribeTaskList(deps, 0, withPartitionsAndQPS(3, 0))
+				mockDescribeTaskList(deps, 1, withPartitionsAndQPS(3, 0))
+				mockDescribeTaskListWithErr(deps, 2, context.DeadlineExceeded)
+
+				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(&types.TaskListPartitionConfig{
+					WritePartitions: partitions(3),
+					ReadPartitions:  partitions(3),
+				})
+
+				// underload would normally pass sustain period, but the error resets it
+				mockDescribeTaskList(deps, 0, withPartitionsAndQPS(3, 0))
+				mockDescribeTaskList(deps, 1, withPartitionsAndQPS(3, 0))
+				mockDescribeTaskList(deps, 2, withPartitionsAndQPS(3, 0))
+				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(&types.TaskListPartitionConfig{
+					WritePartitions: partitions(3),
+					ReadPartitions:  partitions(3),
+				})
+
+				// Now we can scale down
+				mockDescribeTaskList(deps, 0, withPartitionsAndQPS(3, 0))
+				mockDescribeTaskList(deps, 1, withPartitionsAndQPS(3, 0))
+				mockDescribeTaskList(deps, 2, withPartitionsAndQPS(3, 0))
+				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(&types.TaskListPartitionConfig{
+					WritePartitions: partitions(3),
+					ReadPartitions:  partitions(3),
+				})
+				deps.mockManager.EXPECT().UpdateTaskListPartitionConfig(gomock.Any(), &types.TaskListPartitionConfig{
+					ReadPartitions:  partitions(3),
+					WritePartitions: partitions(1),
+				}).Return(nil)
+			},
+			cycles: 3,
 		},
 	}
 
@@ -260,4 +387,58 @@ func TestAdaptiveScalerRun(t *testing.T) {
 			}
 		})
 	}
+}
+
+func withPartitionsAndQPS(numPartitions int, qps float64) *types.DescribeTaskListResponse {
+	return &types.DescribeTaskListResponse{
+		Pollers:        nil,
+		TaskListStatus: &types.TaskListStatus{NewTasksPerSecond: qps},
+		PartitionConfig: &types.TaskListPartitionConfig{
+			ReadPartitions:  partitions(numPartitions),
+			WritePartitions: partitions(numPartitions),
+		},
+	}
+}
+
+func withPartitionsAndBacklog(numRead, numWrite int, backlog int64) *types.DescribeTaskListResponse {
+	return &types.DescribeTaskListResponse{
+		Pollers:        nil,
+		TaskListStatus: &types.TaskListStatus{NewTasksPerSecond: 0, BacklogCountHint: backlog},
+		PartitionConfig: &types.TaskListPartitionConfig{
+			ReadPartitions:  partitions(numRead),
+			WritePartitions: partitions(numWrite),
+		},
+	}
+}
+
+func mockDescribeTaskList(mocks *mockAdaptiveScalerDeps, partitionID int, resp *types.DescribeTaskListResponse) {
+	if partitionID == 0 {
+		mocks.mockManager.EXPECT().DescribeTaskList(true).Return(resp)
+	} else {
+		mocks.mockMatchingClient.EXPECT().DescribeTaskList(gomock.Any(), &types.MatchingDescribeTaskListRequest{
+			DomainUUID: mocks.id.domainID,
+			DescRequest: &types.DescribeTaskListRequest{
+				TaskList: &types.TaskList{
+					Name: mocks.id.GetPartition(partitionID),
+					Kind: types.TaskListKindNormal.Ptr(),
+				},
+				TaskListType:          types.TaskListTypeDecision.Ptr(),
+				IncludeTaskListStatus: true,
+			},
+		}).Return(resp, nil)
+	}
+}
+
+func mockDescribeTaskListWithErr(mocks *mockAdaptiveScalerDeps, partitionID int, err error) {
+	mocks.mockMatchingClient.EXPECT().DescribeTaskList(gomock.Any(), &types.MatchingDescribeTaskListRequest{
+		DomainUUID: mocks.id.domainID,
+		DescRequest: &types.DescribeTaskListRequest{
+			TaskList: &types.TaskList{
+				Name: mocks.id.GetPartition(partitionID),
+				Kind: types.TaskListKindNormal.Ptr(),
+			},
+			TaskListType:          types.TaskListTypeDecision.Ptr(),
+			IncludeTaskListStatus: true,
+		},
+	}).Return(nil, err)
 }

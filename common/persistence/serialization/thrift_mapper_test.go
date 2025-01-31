@@ -467,25 +467,47 @@ func TestTaskInfo(t *testing.T) {
 }
 
 func TestTaskListInfo(t *testing.T) {
-	expected := &TaskListInfo{
-		Kind:            int16(rand.Intn(1000)),
-		AckLevel:        int64(rand.Intn(1000)),
-		ExpiryTimestamp: time.Now(),
-		LastUpdated:     time.Now(),
-		AdaptivePartitionConfig: &TaskListPartitionConfig{
-			Version:            0,
-			NumReadPartitions:  1,
-			NumWritePartitions: 2,
+	cases := []*TaskListInfo{
+		nil,
+		{
+			Kind:            0,
+			AckLevel:        1,
+			ExpiryTimestamp: time.UnixMicro(2),
+			LastUpdated:     time.UnixMicro(3),
+			AdaptivePartitionConfig: &TaskListPartitionConfig{
+				Version:           4,
+				NumReadPartitions: 1,
+				ReadPartitions: map[int32]*TaskListPartition{
+					0: {
+						IsolationGroups: []string{"foo"},
+					},
+				},
+				NumWritePartitions: 2,
+				WritePartitions: map[int32]*TaskListPartition{
+					0: {
+						IsolationGroups: []string{"foo"},
+					},
+					1: {
+						IsolationGroups: []string{"bar"},
+					},
+				},
+			},
+		},
+		{
+			Kind:            0,
+			AckLevel:        1,
+			ExpiryTimestamp: time.UnixMicro(2),
+			LastUpdated:     time.UnixMicro(3),
+			AdaptivePartitionConfig: &TaskListPartitionConfig{
+				Version:            4,
+				NumReadPartitions:  10,
+				NumWritePartitions: 2,
+			},
 		},
 	}
-	actual := taskListInfoFromThrift(taskListInfoToThrift(expected))
-	assert.Equal(t, expected.Kind, actual.Kind)
-	assert.Equal(t, expected.AckLevel, actual.AckLevel)
-	assert.Equal(t, expected.LastUpdated.Sub(actual.LastUpdated), time.Duration(0))
-	assert.Equal(t, expected.ExpiryTimestamp.Sub(actual.ExpiryTimestamp), time.Duration(0))
-	assert.Equal(t, expected.AdaptivePartitionConfig, actual.AdaptivePartitionConfig)
-	assert.Nil(t, taskListInfoFromThrift(nil))
-	assert.Nil(t, taskListInfoToThrift(nil))
+	for i, info := range cases {
+		assert.Equal(t, info, taskListInfoFromThrift(taskListInfoToThrift(info)), "case %d", i)
+	}
 }
 
 func TestTransferTaskInfo(t *testing.T) {

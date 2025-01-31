@@ -741,9 +741,20 @@ func getExpectedTaskListRowWithPartitionConfig() *nosqlplugin.TaskListRow {
 		AckLevel:        initialAckLevel,
 		LastUpdatedTime: time.Now(),
 		AdaptivePartitionConfig: &persistence.TaskListPartitionConfig{
-			Version:            1,
-			NumReadPartitions:  2,
-			NumWritePartitions: 2,
+			Version: 1,
+			ReadPartitions: map[int]*persistence.TaskListPartition{
+				0: {},
+				1: {},
+				2: {
+					IsolationGroups: []string{"foo"},
+				},
+			},
+			WritePartitions: map[int]*persistence.TaskListPartition{
+				0: {},
+				1: {
+					IsolationGroups: []string{"bar"},
+				},
+			},
 		},
 	}
 }
@@ -767,9 +778,20 @@ func getExpectedTaskListInfo() *persistence.TaskListInfo {
 		Kind:        int(types.TaskListKindNormal),
 		LastUpdated: time.Now(),
 		AdaptivePartitionConfig: &persistence.TaskListPartitionConfig{
-			Version:            1,
-			NumReadPartitions:  2,
-			NumWritePartitions: 2,
+			Version: 1,
+			ReadPartitions: map[int]*persistence.TaskListPartition{
+				0: {},
+				1: {},
+				2: {
+					IsolationGroups: []string{"foo"},
+				},
+			},
+			WritePartitions: map[int]*persistence.TaskListPartition{
+				0: {},
+				1: {
+					IsolationGroups: []string{"bar"},
+				},
+			},
 		},
 	}
 }

@@ -375,6 +375,16 @@ func (s *MatchingPersistenceSuite) TestLeaseAndUpdateTaskList() {
 	_, ok := err.(*p.ConditionFailedError)
 	s.True(ok)
 
+	readPartitions := map[int]*p.TaskListPartition{
+		0: {},
+		1: {
+			IsolationGroups: []string{"foo"},
+		},
+	}
+	writePartitions := map[int]*p.TaskListPartition{
+		0: {IsolationGroups: []string{"bar"}},
+	}
+
 	taskListInfo := &p.TaskListInfo{
 		DomainID: domainID,
 		Name:     taskList,
@@ -383,9 +393,9 @@ func (s *MatchingPersistenceSuite) TestLeaseAndUpdateTaskList() {
 		AckLevel: 0,
 		Kind:     p.TaskListKindNormal,
 		AdaptivePartitionConfig: &p.TaskListPartitionConfig{
-			Version:            1,
-			NumReadPartitions:  2,
-			NumWritePartitions: 2,
+			Version:         1,
+			ReadPartitions:  readPartitions,
+			WritePartitions: writePartitions,
 		},
 	}
 	_, err = s.TaskMgr.UpdateTaskList(ctx, &p.UpdateTaskListRequest{
@@ -407,8 +417,8 @@ func (s *MatchingPersistenceSuite) TestLeaseAndUpdateTaskList() {
 	s.EqualValues(p.TaskListKindNormal, tli.Kind)
 	s.NotNil(tli.AdaptivePartitionConfig)
 	s.EqualValues(1, tli.AdaptivePartitionConfig.Version)
-	s.EqualValues(2, tli.AdaptivePartitionConfig.NumReadPartitions)
-	s.EqualValues(2, tli.AdaptivePartitionConfig.NumWritePartitions)
+	s.Equal(readPartitions, tli.AdaptivePartitionConfig.ReadPartitions)
+	s.EqualValues(writePartitions, tli.AdaptivePartitionConfig.WritePartitions)
 
 	taskListInfo.RangeID = 3
 	_, err = s.TaskMgr.UpdateTaskList(ctx, &p.UpdateTaskListRequest{

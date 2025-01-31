@@ -604,9 +604,20 @@ func testMatchingUpdateTaskListPartitionConfigRequest() *types.MatchingUpdateTas
 		DomainUUID: _testDomainUUID,
 		TaskList:   &types.TaskList{Name: _testTaskList},
 		PartitionConfig: &types.TaskListPartitionConfig{
-			Version:            1,
-			NumReadPartitions:  3,
-			NumWritePartitions: 2,
+			Version: 1,
+			ReadPartitions: map[int]*types.TaskListPartition{
+				0: {},
+				1: {},
+				2: {
+					IsolationGroups: []string{"foo"},
+				},
+			},
+			WritePartitions: map[int]*types.TaskListPartition{
+				0: {},
+				1: {
+					IsolationGroups: []string{"bar"},
+				},
+			},
 		},
 	}
 }
@@ -616,9 +627,20 @@ func testMatchingRefreshTaskListPartitionConfigRequest() *types.MatchingRefreshT
 		DomainUUID: _testDomainUUID,
 		TaskList:   &types.TaskList{Name: _testTaskList},
 		PartitionConfig: &types.TaskListPartitionConfig{
-			Version:            1,
-			NumReadPartitions:  3,
-			NumWritePartitions: 2,
+			Version: 1,
+			ReadPartitions: map[int]*types.TaskListPartition{
+				0: {},
+				1: {},
+				2: {
+					IsolationGroups: []string{"foo"},
+				},
+			},
+			WritePartitions: map[int]*types.TaskListPartition{
+				0: {},
+				1: {
+					IsolationGroups: []string{"bar"},
+				},
+			},
 		},
 	}
 }

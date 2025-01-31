@@ -6124,8 +6124,10 @@ func FromAPITaskListPartitionConfig(t *types.TaskListPartitionConfig) *apiv1.Tas
 	}
 	return &apiv1.TaskListPartitionConfig{
 		Version:            t.Version,
-		NumReadPartitions:  t.NumReadPartitions,
-		NumWritePartitions: t.NumWritePartitions,
+		NumReadPartitions:  int32(len(t.ReadPartitions)),
+		NumWritePartitions: int32(len(t.WritePartitions)),
+		ReadPartitions:     FromAPITaskListPartitionsMap(t.ReadPartitions),
+		WritePartitions:    FromAPITaskListPartitionsMap(t.WritePartitions),
 	}
 }
 
@@ -6134,10 +6136,56 @@ func ToAPITaskListPartitionConfig(t *apiv1.TaskListPartitionConfig) *types.TaskL
 		return nil
 	}
 	return &types.TaskListPartitionConfig{
-		Version:            t.Version,
-		NumReadPartitions:  t.NumReadPartitions,
-		NumWritePartitions: t.NumWritePartitions,
+		Version:         t.Version,
+		ReadPartitions:  ToAPITaskListPartitionsMap(t.NumReadPartitions, t.ReadPartitions),
+		WritePartitions: ToAPITaskListPartitionsMap(t.NumWritePartitions, t.WritePartitions),
 	}
+}
+
+func FromAPITaskListPartition(t *types.TaskListPartition) *apiv1.TaskListPartition {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.TaskListPartition{
+		IsolationGroups: t.IsolationGroups,
+	}
+}
+
+func ToAPITaskListPartition(t *apiv1.TaskListPartition) *types.TaskListPartition {
+	if t == nil {
+		return nil
+	}
+	return &types.TaskListPartition{
+		IsolationGroups: t.IsolationGroups,
+	}
+}
+
+func FromAPITaskListPartitionsMap(m map[int]*types.TaskListPartition) map[int32]*apiv1.TaskListPartition {
+	if m == nil {
+		return nil
+	}
+	result := make(map[int32]*apiv1.TaskListPartition, len(m))
+	for id, p := range m {
+		result[int32(id)] = FromAPITaskListPartition(p)
+	}
+	return result
+}
+
+func ToAPITaskListPartitionsMap(numPartitions int32, m map[int32]*apiv1.TaskListPartition) map[int]*types.TaskListPartition {
+	if m == nil && numPartitions == 0 {
+		return nil
+	}
+	result := make(map[int]*types.TaskListPartition, len(m))
+	if numPartitions != int32(len(m)) {
+		for i := int32(0); i < numPartitions; i++ {
+			result[int(i)] = &types.TaskListPartition{}
+		}
+	} else {
+		for id, p := range m {
+			result[int(id)] = ToAPITaskListPartition(p)
+		}
+	}
+	return result
 }
 
 func FromAutoConfigHint(t *types.AutoConfigHint) *apiv1.AutoConfigHint {

@@ -261,10 +261,16 @@ type (
 		PartitionConfig  map[string]string
 	}
 
+	TaskListPartition struct {
+		IsolationGroups []string
+	}
+
 	TaskListPartitionConfig struct {
 		Version            int64
 		NumReadPartitions  int32
 		NumWritePartitions int32
+		ReadPartitions     map[int32]*TaskListPartition
+		WritePartitions    map[int32]*TaskListPartition
 	}
 	// TaskListInfo blob in a serialization agnostic format
 	TaskListInfo struct {

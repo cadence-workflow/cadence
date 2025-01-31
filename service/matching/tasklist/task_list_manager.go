@@ -225,7 +225,7 @@ func NewManager(
 	if taskList.IsRoot() && *taskListKind == types.TaskListKindNormal {
 		adaptiveScalerScope := common.NewPerTaskListScope(domainName, taskList.GetName(), *taskListKind, metricsClient, metrics.MatchingAdaptiveScalerScope).
 			Tagged(getTaskListTypeTag(taskList.GetType()))
-		tlMgr.adaptiveScaler = NewAdaptiveScaler(taskList, tlMgr, tlMgr.qpsTracker, taskListConfig, timeSource, tlMgr.logger, adaptiveScalerScope, matchingClient, baseEvent)
+		tlMgr.adaptiveScaler = NewAdaptiveScaler(taskList, tlMgr, taskListConfig, timeSource, tlMgr.logger, adaptiveScalerScope, matchingClient, baseEvent)
 	}
 	var isolationGroups []string
 	if tlMgr.isIsolationMatcherEnabled() {
@@ -240,7 +240,7 @@ func NewManager(
 			partitionConfig := tlMgr.TaskListPartitionConfig()
 			r := 1
 			if partitionConfig != nil {
-				r = int(partitionConfig.NumReadPartitions)
+				r = len(partitionConfig.ReadPartitions)
 			}
 			return r
 		}
@@ -289,11 +289,12 @@ func (c *taskListManagerImpl) Start() error {
 		c.partitionConfig = c.db.PartitionConfig().ToInternalType()
 		c.logger.Info("get task list partition config from db", tag.Dynamic("root-partition", c.taskListID.GetRoot()), tag.Dynamic("task-list-partition-config", c.partitionConfig))
 		if c.partitionConfig != nil {
+			startConfig := c.partitionConfig
 			// push update notification to all non-root partitions on start
 			c.stopWG.Add(1)
 			go func() {
 				defer c.stopWG.Done()
-				c.notifyPartitionConfig(context.Background(), *c.partitionConfig, int(c.partitionConfig.NumReadPartitions))
+				c.notifyPartitionConfig(context.Background(), nil, startConfig)
 			}()
 		}
 	}
@@ -354,8 +355,8 @@ func (c *taskListManagerImpl) TaskListPartitionConfig() *types.TaskListPartition
 
 	config := *c.partitionConfig
 	c.logger.Debug("current partition config", tag.Dynamic("root-partition", c.taskListID.GetRoot()), tag.Dynamic("config", config))
-	scope.UpdateGauge(metrics.TaskListPartitionConfigNumReadGauge, float64(config.NumReadPartitions))
-	scope.UpdateGauge(metrics.TaskListPartitionConfigNumWriteGauge, float64(config.NumWritePartitions))
+	scope.UpdateGauge(metrics.TaskListPartitionConfigNumReadGauge, float64(len(config.ReadPartitions)))
+	scope.UpdateGauge(metrics.TaskListPartitionConfigNumWriteGauge, float64(len(config.WritePartitions)))
 	scope.UpdateGauge(metrics.TaskListPartitionConfigVersionGauge, float64(config.Version))
 	return &config
 }
@@ -407,59 +408,71 @@ func (c *taskListManagerImpl) RefreshTaskListPartitionConfig(ctx context.Context
 // Root tasklist manager will update the partition config in the database and notify all non-root partitions.
 func (c *taskListManagerImpl) UpdateTaskListPartitionConfig(ctx context.Context, config *types.TaskListPartitionConfig) error {
 	c.startWG.Wait()
-	numberOfPartitionsToRefresh, currentConfig, err := c.updatePartitionConfig(ctx, config)
+	oldConfig, newConfig, err := c.updatePartitionConfig(ctx, config)
 	if err != nil {
 		return err
 	}
-	// push update notification to all non-root partitions
-	c.notifyPartitionConfig(ctx, currentConfig, numberOfPartitionsToRefresh)
+	if newConfig != nil {
+		// push update notification to all non-root partitions
+		c.notifyPartitionConfig(ctx, oldConfig, newConfig)
+	}
 	return nil
 }
 
-func (c *taskListManagerImpl) updatePartitionConfig(ctx context.Context, config *types.TaskListPartitionConfig) (int, types.TaskListPartitionConfig, error) {
+func (c *taskListManagerImpl) updatePartitionConfig(ctx context.Context, newConfig *types.TaskListPartitionConfig) (*types.TaskListPartitionConfig, *types.TaskListPartitionConfig, error) {
+	err := validatePartitionConfig(newConfig)
+	if err != nil {
+		return nil, nil, err
+	}
 	var version int64
-	numberOfPartitionsToRefresh := 1
 	c.partitionConfigLock.Lock()
 	defer c.partitionConfigLock.Unlock()
-	if c.partitionConfig != nil {
-		numberOfPartitionsToRefresh = int(c.partitionConfig.NumReadPartitions)
-		if isTaskListPartitionConfigEqual(*c.partitionConfig, *config) {
-			return 0, types.TaskListPartitionConfig{}, nil
+	oldConfig := c.partitionConfig
+	if oldConfig != nil {
+		if isTaskListPartitionConfigEqual(*oldConfig, *newConfig) {
+			return nil, nil, nil
 		}
-		version = c.partitionConfig.Version
+		version = oldConfig.Version
 	} else {
-		if config.NumReadPartitions == 1 && config.NumWritePartitions == 1 {
-			return 0, types.TaskListPartitionConfig{}, nil
+		if len(newConfig.ReadPartitions) == 1 && len(newConfig.WritePartitions) == 1 {
+			return nil, nil, nil
 		}
 	}
-	err := c.throttleRetry.Do(ctx, func() error {
-		return c.db.UpdateTaskListPartitionConfig(&persistence.TaskListPartitionConfig{
-			Version:            version + 1,
-			NumReadPartitions:  int(config.NumReadPartitions),
-			NumWritePartitions: int(config.NumWritePartitions),
-		})
+	err = c.throttleRetry.Do(ctx, func() error {
+		return c.db.UpdateTaskListPartitionConfig(toPersistenceConfig(version+1, newConfig))
 	})
 	if err != nil {
 		// We're not sure whether the update was persisted or not,
 		// Stop the tasklist manager and let it be reloaded
 		c.scope.IncCounter(metrics.TaskListPartitionUpdateFailedCounter)
 		c.Stop()
-		return 0, types.TaskListPartitionConfig{}, err
+		return nil, nil, err
 	}
 	c.partitionConfig = c.db.PartitionConfig().ToInternalType()
-	currentConfig := *c.partitionConfig
-	numberOfPartitionsToRefresh = common.MaxInt(numberOfPartitionsToRefresh, int(currentConfig.NumReadPartitions))
-	return numberOfPartitionsToRefresh, currentConfig, nil
+	return oldConfig, c.partitionConfig, nil
 }
 
-func (c *taskListManagerImpl) notifyPartitionConfig(ctx context.Context, config types.TaskListPartitionConfig, count int) {
+func (c *taskListManagerImpl) notifyPartitionConfig(ctx context.Context, oldConfig, newConfig *types.TaskListPartitionConfig) {
 	taskListType := types.TaskListTypeDecision.Ptr()
 	if c.taskListID.GetType() == persistence.TaskListTypeActivity {
 		taskListType = types.TaskListTypeActivity.Ptr()
 	}
+	toNotify := make(map[int]any)
+	if oldConfig != nil {
+		for id := range oldConfig.ReadPartitions {
+			if id != 0 {
+				toNotify[id] = true
+			}
+		}
+	}
+	for id := range newConfig.ReadPartitions {
+		if id != 0 {
+			toNotify[id] = true
+		}
+	}
 	g := &errgroup.Group{}
-	for i := 1; i < count; i++ {
-		taskListName := c.taskListID.GetPartition(i)
+	for p := range toNotify {
+		taskListName := c.taskListID.GetPartition(p)
 		g.Go(func() (e error) {
 			defer func() { log.CapturePanic(recover(), c.logger, &e) }()
 
@@ -467,7 +480,7 @@ func (c *taskListManagerImpl) notifyPartitionConfig(ctx context.Context, config 
 				DomainUUID:      c.taskListID.GetDomainID(),
 				TaskList:        &types.TaskList{Name: taskListName, Kind: &c.taskListKind},
 				TaskListType:    taskListType,
-				PartitionConfig: &config,
+				PartitionConfig: newConfig,
 			})
 			if e != nil {
 				c.logger.Error("failed to notify partition", tag.Error(e), tag.Dynamic("task-list-partition-name", taskListName))
@@ -493,12 +506,11 @@ func (c *taskListManagerImpl) AddTask(ctx context.Context, params AddTaskParams)
 	}
 	if c.config.EnableGetNumberOfPartitionsFromCache() {
 		partitionConfig := c.TaskListPartitionConfig()
-		w := 1
 		if partitionConfig != nil {
-			w = int(partitionConfig.NumWritePartitions)
-		}
-		if w <= c.taskListID.Partition() {
-			return false, &types.InternalServiceError{Message: "Current partition is drained."}
+			_, ok := partitionConfig.WritePartitions[c.taskListID.Partition()]
+			if !ok {
+				return false, &types.InternalServiceError{Message: "Current partition is drained."}
+			}
 		}
 	}
 	if params.ForwardedFrom == "" {
@@ -979,6 +991,46 @@ func rangeIDToTaskIDBlock(rangeID, rangeSize int64) taskIDBlock {
 		start: (rangeID-1)*rangeSize + 1,
 		end:   rangeID * rangeSize,
 	}
+}
+
+func toPersistenceConfig(version int64, config *types.TaskListPartitionConfig) *persistence.TaskListPartitionConfig {
+	read := make(map[int]*persistence.TaskListPartition, len(config.ReadPartitions))
+	write := make(map[int]*persistence.TaskListPartition, len(config.WritePartitions))
+	for id, p := range config.ReadPartitions {
+		read[id] = &persistence.TaskListPartition{IsolationGroups: p.IsolationGroups}
+	}
+	for id, p := range config.WritePartitions {
+		write[id] = &persistence.TaskListPartition{IsolationGroups: p.IsolationGroups}
+	}
+	return &persistence.TaskListPartitionConfig{
+		Version:         version,
+		ReadPartitions:  read,
+		WritePartitions: write,
+	}
+}
+
+func validatePartitionConfig(config *types.TaskListPartitionConfig) error {
+	if len(config.ReadPartitions) < 1 {
+		return &types.BadRequestError{Message: "read partitions < 1"}
+	}
+	if len(config.WritePartitions) < 1 {
+		return &types.BadRequestError{Message: "write partitions < 1"}
+	}
+	if len(config.ReadPartitions) < len(config.WritePartitions) {
+		return &types.BadRequestError{Message: fmt.Sprintf("read partitions (%d) < write partitions (%d)", len(config.ReadPartitions), len(config.WritePartitions))}
+	}
+	if _, ok := config.ReadPartitions[0]; !ok {
+		return &types.BadRequestError{Message: "the root partition must always be in read partitions"}
+	}
+	if _, ok := config.WritePartitions[0]; !ok {
+		return &types.BadRequestError{Message: "the root partition must always be in write partitions"}
+	}
+	for id := range config.WritePartitions {
+		if _, ok := config.ReadPartitions[id]; !ok {
+			return &types.BadRequestError{Message: fmt.Sprintf("partition %d included in write but not read", id)}
+		}
+	}
+	return nil
 }
 
 func newTaskListConfig(id *Identifier, cfg *config.Config, domainName string) *config.TaskListConfig {
