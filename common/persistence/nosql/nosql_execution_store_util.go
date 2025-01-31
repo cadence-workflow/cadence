@@ -34,16 +34,15 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
-func (d *nosqlExecutionStore) prepareCreateWorkflowExecutionRequestWithMaps(newWorkflow *persistence.InternalWorkflowSnapshot) (*nosqlplugin.WorkflowExecutionRequest, error) {
+func (d *nosqlExecutionStore) prepareCreateWorkflowExecutionRequestWithMaps(newWorkflow *persistence.InternalWorkflowSnapshot, timeStamp time.Time) (*nosqlplugin.WorkflowExecutionRequest, error) {
 	executionInfo := newWorkflow.ExecutionInfo
 	lastWriteVersion := newWorkflow.LastWriteVersion
 	checkSum := newWorkflow.Checksum
 	versionHistories := newWorkflow.VersionHistories
-	nowTimestamp := time.Now()
 
 	executionRequest, err := d.prepareCreateWorkflowExecutionTxn(
 		executionInfo, versionHistories, checkSum,
-		nowTimestamp, lastWriteVersion,
+		timeStamp, lastWriteVersion,
 	)
 	if err != nil {
 		return nil, err

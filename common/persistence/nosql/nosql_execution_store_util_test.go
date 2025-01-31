@@ -39,6 +39,8 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
+var FixedTime = time.Date(2025, 1, 6, 15, 0, 0, 0, time.UTC)
+
 func TestNosqlExecutionStoreUtils(t *testing.T) {
 	testCases := []struct {
 		name       string
@@ -60,7 +62,7 @@ func TestNosqlExecutionStoreUtils(t *testing.T) {
 						Data:     []byte(`[{"Branches":[{"BranchID":"test-branch-id","BeginNodeID":1,"EndNodeID":2}]}]`),
 					},
 				}
-				return store.prepareCreateWorkflowExecutionRequestWithMaps(workflowSnapshot)
+				return store.prepareCreateWorkflowExecutionRequestWithMaps(workflowSnapshot, FixedTime)
 			},
 			input: &persistence.InternalWorkflowSnapshot{},
 			validate: func(t *testing.T, req *nosqlplugin.WorkflowExecutionRequest, err error) {
@@ -85,7 +87,7 @@ func TestNosqlExecutionStoreUtils(t *testing.T) {
 					},
 					Checksum: checksum.Checksum{Value: nil},
 				}
-				return store.prepareCreateWorkflowExecutionRequestWithMaps(workflowSnapshot)
+				return store.prepareCreateWorkflowExecutionRequestWithMaps(workflowSnapshot, FixedTime)
 			},
 			validate: func(t *testing.T, req *nosqlplugin.WorkflowExecutionRequest, err error) {
 				assert.NoError(t, err)
@@ -108,7 +110,7 @@ func TestNosqlExecutionStoreUtils(t *testing.T) {
 						Data:     []byte("[]"), // Empty VersionHistories
 					},
 				}
-				return store.prepareCreateWorkflowExecutionRequestWithMaps(workflowSnapshot)
+				return store.prepareCreateWorkflowExecutionRequestWithMaps(workflowSnapshot, FixedTime)
 			},
 			validate: func(t *testing.T, req *nosqlplugin.WorkflowExecutionRequest, err error) {
 				assert.NoError(t, err)

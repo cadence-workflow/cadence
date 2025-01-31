@@ -238,6 +238,8 @@ type (
 		NewWorkflowSnapshot InternalWorkflowSnapshot
 
 		WorkflowRequestMode CreateWorkflowRequestMode
+
+		CreatedTime time.Time
 	}
 
 	// InternalGetReplicationTasksResponse is the response to GetReplicationTask
@@ -424,6 +426,8 @@ type (
 		NewWorkflowSnapshot *InternalWorkflowSnapshot
 
 		WorkflowRequestMode CreateWorkflowRequestMode
+
+		UpdatedTime time.Time
 	}
 
 	// InternalConflictResolveWorkflowExecutionRequest is used to reset workflow execution state for Persistence Interface
@@ -442,6 +446,8 @@ type (
 		CurrentWorkflowMutation *InternalWorkflowMutation
 
 		WorkflowRequestMode CreateWorkflowRequestMode
+
+		UpdatedTime time.Time
 	}
 
 	// InternalWorkflowMutation is used as generic workflow execution state mutation for Persistence Interface
@@ -534,6 +540,8 @@ type (
 		TransactionID int64
 		// Used in sharded data stores to identify which shard to use
 		ShardID int
+
+		CreatedTime time.Time
 	}
 
 	// InternalGetWorkflowExecutionRequest is used to retrieve the info of a workflow execution
@@ -572,6 +580,8 @@ type (
 		Info string
 		// Used in sharded data stores to identify which shard to use
 		ShardID int
+
+		CreatedTime time.Time
 	}
 
 	// InternalForkHistoryBranchResponse is the response to ForkHistoryBranchRequest
