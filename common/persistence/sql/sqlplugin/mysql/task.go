@@ -105,7 +105,7 @@ task_type = :task_type
 )
 
 // InsertIntoTasks inserts one or more rows into tasks table
-func (mdb *db) InsertIntoTasks(ctx context.Context, rows []sqlplugin.TasksRow) (sql.Result, error) {
+func (mdb *DB) InsertIntoTasks(ctx context.Context, rows []sqlplugin.TasksRow) (sql.Result, error) {
 	if len(rows) == 0 {
 		return nil, nil
 	}
@@ -113,7 +113,7 @@ func (mdb *db) InsertIntoTasks(ctx context.Context, rows []sqlplugin.TasksRow) (
 }
 
 // SelectFromTasks reads one or more rows from tasks table
-func (mdb *db) SelectFromTasks(ctx context.Context, filter *sqlplugin.TasksFilter) ([]sqlplugin.TasksRow, error) {
+func (mdb *DB) SelectFromTasks(ctx context.Context, filter *sqlplugin.TasksFilter) ([]sqlplugin.TasksRow, error) {
 	var err error
 	var rows []sqlplugin.TasksRow
 	switch {
@@ -131,7 +131,7 @@ func (mdb *db) SelectFromTasks(ctx context.Context, filter *sqlplugin.TasksFilte
 }
 
 // DeleteFromTasks deletes one or more rows from tasks table
-func (mdb *db) DeleteFromTasks(ctx context.Context, filter *sqlplugin.TasksFilter) (sql.Result, error) {
+func (mdb *DB) DeleteFromTasks(ctx context.Context, filter *sqlplugin.TasksFilter) (sql.Result, error) {
 	if filter.TaskIDLessThanEquals != nil {
 		if filter.Limit == nil || *filter.Limit == 0 {
 			return nil, fmt.Errorf("missing limit parameter")
@@ -142,7 +142,7 @@ func (mdb *db) DeleteFromTasks(ctx context.Context, filter *sqlplugin.TasksFilte
 	return mdb.driver.ExecContext(ctx, filter.ShardID, deleteTaskQry, filter.DomainID, filter.TaskListName, filter.TaskType, *filter.TaskID)
 }
 
-func (mdb *db) GetOrphanTasks(ctx context.Context, filter *sqlplugin.OrphanTasksFilter) ([]sqlplugin.TaskKeyRow, error) {
+func (mdb *DB) GetOrphanTasks(ctx context.Context, filter *sqlplugin.OrphanTasksFilter) ([]sqlplugin.TaskKeyRow, error) {
 	if filter.Limit == nil || *filter.Limit == 0 {
 		return nil, fmt.Errorf("missing limit parameter")
 	}
@@ -156,17 +156,17 @@ func (mdb *db) GetOrphanTasks(ctx context.Context, filter *sqlplugin.OrphanTasks
 }
 
 // InsertIntoTaskLists inserts one or more rows into task_lists table
-func (mdb *db) InsertIntoTaskLists(ctx context.Context, row *sqlplugin.TaskListsRow) (sql.Result, error) {
+func (mdb *DB) InsertIntoTaskLists(ctx context.Context, row *sqlplugin.TaskListsRow) (sql.Result, error) {
 	return mdb.driver.NamedExecContext(ctx, row.ShardID, createTaskListQry, row)
 }
 
 // UpdateTaskLists updates a row in task_lists table
-func (mdb *db) UpdateTaskLists(ctx context.Context, row *sqlplugin.TaskListsRow) (sql.Result, error) {
+func (mdb *DB) UpdateTaskLists(ctx context.Context, row *sqlplugin.TaskListsRow) (sql.Result, error) {
 	return mdb.driver.NamedExecContext(ctx, row.ShardID, updateTaskListQry, row)
 }
 
 // SelectFromTaskLists reads one or more rows from task_lists table
-func (mdb *db) SelectFromTaskLists(ctx context.Context, filter *sqlplugin.TaskListsFilter) ([]sqlplugin.TaskListsRow, error) {
+func (mdb *DB) SelectFromTaskLists(ctx context.Context, filter *sqlplugin.TaskListsFilter) ([]sqlplugin.TaskListsRow, error) {
 	switch {
 	case filter.DomainID != nil && filter.Name != nil && filter.TaskType != nil:
 		return mdb.selectFromTaskLists(ctx, filter)
@@ -177,7 +177,7 @@ func (mdb *db) SelectFromTaskLists(ctx context.Context, filter *sqlplugin.TaskLi
 	}
 }
 
-func (mdb *db) selectFromTaskLists(ctx context.Context, filter *sqlplugin.TaskListsFilter) ([]sqlplugin.TaskListsRow, error) {
+func (mdb *DB) selectFromTaskLists(ctx context.Context, filter *sqlplugin.TaskListsFilter) ([]sqlplugin.TaskListsRow, error) {
 	var err error
 	var row sqlplugin.TaskListsRow
 	err = mdb.driver.GetContext(ctx, filter.ShardID, &row, getTaskListQry, filter.ShardID, *filter.DomainID, *filter.Name, *filter.TaskType)
@@ -187,7 +187,7 @@ func (mdb *db) selectFromTaskLists(ctx context.Context, filter *sqlplugin.TaskLi
 	return []sqlplugin.TaskListsRow{row}, err
 }
 
-func (mdb *db) rangeSelectFromTaskLists(ctx context.Context, filter *sqlplugin.TaskListsFilter) ([]sqlplugin.TaskListsRow, error) {
+func (mdb *DB) rangeSelectFromTaskLists(ctx context.Context, filter *sqlplugin.TaskListsFilter) ([]sqlplugin.TaskListsRow, error) {
 	var err error
 	var rows []sqlplugin.TaskListsRow
 	err = mdb.driver.SelectContext(ctx, filter.ShardID, &rows, listTaskListQry,
@@ -202,18 +202,18 @@ func (mdb *db) rangeSelectFromTaskLists(ctx context.Context, filter *sqlplugin.T
 }
 
 // DeleteFromTaskLists deletes a row from task_lists table
-func (mdb *db) DeleteFromTaskLists(ctx context.Context, filter *sqlplugin.TaskListsFilter) (sql.Result, error) {
+func (mdb *DB) DeleteFromTaskLists(ctx context.Context, filter *sqlplugin.TaskListsFilter) (sql.Result, error) {
 	return mdb.driver.ExecContext(ctx, filter.ShardID, deleteTaskListQry, filter.ShardID, *filter.DomainID, *filter.Name, *filter.TaskType, *filter.RangeID)
 }
 
 // LockTaskLists locks a row in task_lists table
-func (mdb *db) LockTaskLists(ctx context.Context, filter *sqlplugin.TaskListsFilter) (int64, error) {
+func (mdb *DB) LockTaskLists(ctx context.Context, filter *sqlplugin.TaskListsFilter) (int64, error) {
 	var rangeID int64
 	err := mdb.driver.GetContext(ctx, filter.ShardID, &rangeID, lockTaskListQry, filter.ShardID, *filter.DomainID, *filter.Name, *filter.TaskType)
 	return rangeID, err
 }
 
-func (mdb *db) GetTasksCount(ctx context.Context, filter *sqlplugin.TasksFilter) (int64, error) {
+func (mdb *DB) GetTasksCount(ctx context.Context, filter *sqlplugin.TasksFilter) (int64, error) {
 	var size []int64
 	if err := mdb.driver.SelectContext(ctx, filter.ShardID, &size, getTasksCountQry, filter.DomainID, filter.TaskListName, filter.TaskType, *filter.MinTaskID); err != nil {
 		return 0, err
@@ -222,16 +222,16 @@ func (mdb *db) GetTasksCount(ctx context.Context, filter *sqlplugin.TasksFilter)
 }
 
 // InsertIntoTasksWithTTL is not supported in MySQL
-func (mdb *db) InsertIntoTasksWithTTL(_ context.Context, _ []sqlplugin.TasksRowWithTTL) (sql.Result, error) {
+func (mdb *DB) InsertIntoTasksWithTTL(_ context.Context, _ []sqlplugin.TasksRowWithTTL) (sql.Result, error) {
 	return nil, sqlplugin.ErrTTLNotSupported
 }
 
 // InsertIntoTaskListsWithTTL is not supported in MySQL
-func (mdb *db) InsertIntoTaskListsWithTTL(_ context.Context, _ *sqlplugin.TaskListsRowWithTTL) (sql.Result, error) {
+func (mdb *DB) InsertIntoTaskListsWithTTL(_ context.Context, _ *sqlplugin.TaskListsRowWithTTL) (sql.Result, error) {
 	return nil, sqlplugin.ErrTTLNotSupported
 }
 
 // UpdateTaskListsWithTTL is not supported in MySQL
-func (mdb *db) UpdateTaskListsWithTTL(_ context.Context, _ *sqlplugin.TaskListsRowWithTTL) (sql.Result, error) {
+func (mdb *DB) UpdateTaskListsWithTTL(_ context.Context, _ *sqlplugin.TaskListsRowWithTTL) (sql.Result, error) {
 	return nil, sqlplugin.ErrTTLNotSupported
 }

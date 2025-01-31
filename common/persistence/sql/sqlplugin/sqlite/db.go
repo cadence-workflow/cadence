@@ -20,35 +20,55 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-package mysql
+package sqlite
 
 import (
 	"context"
 
-	"github.com/uber/cadence/common"
-	"github.com/uber/cadence/common/persistence"
+	"github.com/jmoiron/sqlx"
+
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
+	"github.com/uber/cadence/common/persistence/sql/sqlplugin/mysql"
+
+	// import sqlite driver
+	_ "github.com/ncruces/go-sqlite3/driver"
+	// import embed sqlite db
+	_ "github.com/ncruces/go-sqlite3/embed"
 )
 
-func (mdb *DB) InsertConfig(ctx context.Context, row *persistence.InternalConfigStoreEntry) error {
-	_, err := mdb.driver.ExecContext(ctx, sqlplugin.DbDefaultShard, _insertConfigQuery, row.RowType, -1*row.Version, mdb.converter.ToDateTime(row.Timestamp), row.Values.Data, row.Values.Encoding)
-	return err
+var (
+	_ sqlplugin.AdminDB = (*DB)(nil)
+	_ sqlplugin.DB      = (*DB)(nil)
+	_ sqlplugin.Tx      = (*DB)(nil)
+)
+
+// DB contains methods for managing objects in a sqlite database
+// It inherits methods from the mysql.DB to reuse the implementation of the methods
+// sqlplugin.ErrorChecker is customized for sqlite
+type DB struct {
+	*mysql.DB
 }
 
-func (mdb *DB) SelectLatestConfig(ctx context.Context, rowType int) (*persistence.InternalConfigStoreEntry, error) {
-	var row sqlplugin.ClusterConfigRow
-	err := mdb.driver.GetContext(ctx, sqlplugin.DbDefaultShard, &row, _selectLatestConfigQuery, rowType)
+// NewDB returns an instance of DB, which contains a new created mysql.DB with sqlite specific methods
+func NewDB(xdbs []*sqlx.DB, tx *sqlx.Tx, dbShardID int, numDBShards int) (*DB, error) {
+	mysqlDB, err := mysql.NewDB(xdbs, tx, dbShardID, numDBShards, newConverter())
 	if err != nil {
 		return nil, err
 	}
-	row.Version *= -1
-	return &persistence.InternalConfigStoreEntry{
-		RowType:   row.RowType,
-		Version:   row.Version,
-		Timestamp: mdb.converter.FromDateTime(row.Timestamp),
-		Values: &persistence.DataBlob{
-			Data:     row.Data,
-			Encoding: common.EncodingType(row.DataEncoding),
-		},
-	}, nil
+	return &DB{DB: mysqlDB}, nil
+}
+
+// PluginName returns the name of the plugin
+func (mdb *DB) PluginName() string {
+	return PluginName
+}
+
+// BeginTX starts a new transaction and returns a new Tx
+func (mdb *DB) BeginTX(ctx context.Context, dbShardID int) (sqlplugin.Tx, error) {
+	mysqlDB, err := mdb.BeginTx(ctx, dbShardID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &DB{DB: mysqlDB.(*mysql.DB)}, nil
 }
