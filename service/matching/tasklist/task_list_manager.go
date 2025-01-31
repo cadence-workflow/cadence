@@ -206,7 +206,7 @@ func NewManager(
 
 	tlMgr.pollerHistory = poller.NewPollerHistory(func() {
 		scope.UpdateGauge(metrics.PollerPerTaskListCounter,
-			float64(len(tlMgr.pollerHistory.GetPollerInfo(time.Time{}))))
+			float64(tlMgr.pollerHistory.GetPollerCount()))
 	}, timeSource)
 
 	livenessInterval := taskListConfig.IdleTasklistCheckInterval()
@@ -945,15 +945,7 @@ func (c *taskListManagerImpl) emitMisconfiguredPartitionMetrics() {
 	if c.config.NumReadPartitions() != c.config.NumWritePartitions() {
 		c.scope.UpdateGauge(metrics.TaskListReadWritePartitionMismatchGauge, 1)
 	}
-	pollerCount := len(c.pollerHistory.GetPollerInfo(time.Time{}))
-	if c.enableIsolation { // if isolation enabled, get the minimum poller count among the isolation groups
-		pollerCountsByIsolationGroup := c.pollerHistory.GetPollerIsolationGroups(time.Time{})
-		for _, count := range pollerCountsByIsolationGroup {
-			if count < pollerCount {
-				pollerCount = count
-			}
-		}
-	}
+	pollerCount := c.pollerHistory.GetPollerCount()
 	if pollerCount < c.config.NumReadPartitions() || pollerCount < c.config.NumWritePartitions() {
 		c.scope.Tagged(metrics.IsolationEnabledTag(c.enableIsolation)).UpdateGauge(metrics.TaskListPollerPartitionMismatchGauge, 1)
 	}

@@ -120,6 +120,16 @@ func TestHistory_HasPollerAfter(t *testing.T) {
 	})
 }
 
+func TestGetPollerCount(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	mockCache := cache.NewMockCache(mockCtrl)
+	mockCache.EXPECT().Size().Return(10)
+	p := &history{
+		historyCache: mockCache,
+	}
+	assert.Equal(t, 10, p.GetPollerCount())
+}
+
 func TestGetPollerInfo(t *testing.T) {
 	t.Run("with_time_filter", func(t *testing.T) {
 		mockCtrl := gomock.NewController(t)

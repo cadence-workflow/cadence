@@ -46,6 +46,7 @@ type (
 	History interface {
 		UpdatePollerInfo(id Identity, info Info)
 		HasPollerAfter(earliestAccessTime time.Time) bool
+		GetPollerCount() int
 		GetPollerInfo(earliestAccessTime time.Time) []*types.PollerInfo
 		GetPollerIsolationGroups(earliestAccessTime time.Time) map[string]int
 	}
@@ -104,6 +105,10 @@ func (pollers *history) HasPollerAfter(earliestAccessTime time.Time) bool {
 	}
 
 	return false
+}
+
+func (pollers *history) GetPollerCount() int {
+	return pollers.historyCache.Size()
 }
 
 func (pollers *history) GetPollerInfo(earliestAccessTime time.Time) []*types.PollerInfo {
