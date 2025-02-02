@@ -41,9 +41,8 @@ const (
 	diagnosticsWorkflow = "diagnostics-workflow"
 	tasklist            = "diagnostics-wf-tasklist"
 
-	retrieveWfExecutionHistoryActivity = "retrieveWfExecutionHistory"
-	identifyIssuesActivity             = "identifyIssues"
-	rootCauseIssuesActivity            = "rootCauseIssues"
+	identifyIssuesActivity  = "identifyIssues"
+	rootCauseIssuesActivity = "rootCauseIssues"
 )
 
 type DiagnosticsWorkflowInput struct {
@@ -80,15 +79,20 @@ type timeoutRootCauseResult struct {
 }
 
 type failureDiagnostics struct {
-	Issues    []*failuresIssuesResult
-	RootCause []string
+	Issues    []*failureIssuesResult
+	RootCause []*failureRootCauseResult
 	Runbooks  []string
 }
 
-type failuresIssuesResult struct {
+type failureIssuesResult struct {
 	InvariantType string
 	Reason        string
-	Metadata      failure.FailureMetadata
+	Metadata      *failure.FailureMetadata
+}
+
+type failureRootCauseResult struct {
+	RootCauseType    string
+	BlobSizeMetadata *failure.BlobSizeMetadata
 }
 
 type retryDiagnostics struct {
@@ -108,9 +112,9 @@ func (w *dw) DiagnosticsWorkflow(ctx workflow.Context, params DiagnosticsWorkflo
 	sw := scope.StartTimer(metrics.DiagnosticsWorkflowExecutionLatency)
 	defer sw.Stop()
 
-	var timeoutsResult timeoutDiagnostics
-	var failureResult failureDiagnostics
-	var retryResult retryDiagnostics
+	var timeoutsResult *timeoutDiagnostics
+	var failureResult *failureDiagnostics
+	var retryResult *retryDiagnostics
 	var checkResult []invariant.InvariantCheckResult
 	var rootCauseResult []invariant.InvariantRootCauseResult
 
@@ -121,31 +125,20 @@ func (w *dw) DiagnosticsWorkflow(ctx workflow.Context, params DiagnosticsWorkflo
 	}
 	activityCtx := workflow.WithActivityOptions(ctx, activityOptions)
 
-	var wfExecutionHistory *types.GetWorkflowExecutionHistoryResponse
-	err := workflow.ExecuteActivity(activityCtx, w.retrieveExecutionHistory, retrieveExecutionHistoryInputParams{
-		Domain: params.Domain,
+	err := workflow.ExecuteActivity(activityCtx, identifyIssuesActivity, identifyIssuesParams{
 		Execution: &types.WorkflowExecution{
 			WorkflowID: params.WorkflowID,
 			RunID:      params.RunID,
-		}}).Get(ctx, &wfExecutionHistory)
-	if err != nil {
-		return nil, fmt.Errorf("RetrieveExecutionHistory: %w", err)
-	}
-
-	timeoutsResult.Runbooks = []string{linkToTimeoutsRunbook}
-
-	err = workflow.ExecuteActivity(activityCtx, w.identifyIssues, identifyIssuesParams{
-		History: wfExecutionHistory,
-		Domain:  params.Domain,
+		},
+		Domain: params.Domain,
 	}).Get(ctx, &checkResult)
 	if err != nil {
 		return nil, fmt.Errorf("IdentifyIssues: %w", err)
 	}
 
-	err = workflow.ExecuteActivity(activityCtx, w.rootCauseIssues, rootCauseIssuesParams{
-		History: wfExecutionHistory,
-		Domain:  params.Domain,
-		Issues:  checkResult,
+	err = workflow.ExecuteActivity(activityCtx, rootCauseIssuesActivity, rootCauseIssuesParams{
+		Domain: params.Domain,
+		Issues: checkResult,
 	}).Get(ctx, &rootCauseResult)
 	if err != nil {
 		return nil, fmt.Errorf("RootCauseIssues: %w", err)
@@ -155,35 +148,53 @@ func (w *dw) DiagnosticsWorkflow(ctx workflow.Context, params DiagnosticsWorkflo
 	if err != nil {
 		return nil, fmt.Errorf("RetrieveTimeoutIssues: %w", err)
 	}
-	timeoutsResult.Issues = timeoutIssues
 
-	timeoutRootCause, err := retrieveTimeoutRootCause(rootCauseResult)
-	if err != nil {
-		return nil, fmt.Errorf("RetrieveTimeoutRootCause: %w", err)
+	if len(timeoutIssues) > 0 {
+		timeoutRootCause, err := retrieveTimeoutRootCause(rootCauseResult)
+		if err != nil {
+			return nil, fmt.Errorf("RetrieveTimeoutRootCause: %w", err)
+		}
+		timeoutsResult = &timeoutDiagnostics{
+			Issues:    timeoutIssues,
+			RootCause: timeoutRootCause,
+			Runbooks:  []string{linkToTimeoutsRunbook},
+		}
 	}
-	timeoutsResult.RootCause = timeoutRootCause
 
 	failureIssues, err := retrieveFailureIssues(checkResult)
 	if err != nil {
 		return nil, fmt.Errorf("RetrieveFailureIssues: %w", err)
 	}
-	failureResult.Issues = failureIssues
 
-	failureResult.RootCause = retrieveFailureRootCause(rootCauseResult)
-	failureResult.Runbooks = []string{linkToFailuresRunbook}
+	if len(failureIssues) > 0 {
+		failureRootCause, err := retrieveFailureRootCause(rootCauseResult)
+		if err != nil {
+			return nil, fmt.Errorf("RetrieveFailureRootCause: %w", err)
+		}
+		failureResult = &failureDiagnostics{
+			Issues:    failureIssues,
+			RootCause: failureRootCause,
+			Runbooks:  []string{linkToFailuresRunbook},
+		}
+	}
 
 	retryIssues, err := retrieveRetryIssues(checkResult)
 	if err != nil {
 		return nil, fmt.Errorf("RetrieveRetryIssues: %w", err)
 	}
-	retryResult.Issues = retryIssues
-	retryResult.Runbooks = []string{linkToRetriesRunbook}
+
+	if len(retryIssues) > 0 {
+		retryResult = &retryDiagnostics{
+			Issues:   retryIssues,
+			Runbooks: []string{linkToRetriesRunbook},
+		}
+	}
 
 	scope.IncCounter(metrics.DiagnosticsWorkflowSuccess)
 	return &DiagnosticsWorkflowResult{
-		Timeouts: &timeoutsResult,
-		Failures: &failureResult,
-		Retries:  &retryResult,
+		Timeouts: timeoutsResult,
+		Failures: failureResult,
+		Retries:  retryResult,
 	}, nil
 }
 
@@ -269,33 +280,46 @@ func retrieveTimeoutRootCause(rootCause []invariant.InvariantRootCauseResult) ([
 	return result, nil
 }
 
-func retrieveFailureIssues(issues []invariant.InvariantCheckResult) ([]*failuresIssuesResult, error) {
-	result := make([]*failuresIssuesResult, 0)
+func retrieveFailureIssues(issues []invariant.InvariantCheckResult) ([]*failureIssuesResult, error) {
+	result := make([]*failureIssuesResult, 0)
 	for _, issue := range issues {
-		if issue.InvariantType == failure.ActivityFailed.String() || issue.InvariantType == failure.WorkflowFailed.String() {
+		if issue.InvariantType == failure.ActivityFailed.String() || issue.InvariantType == failure.WorkflowFailed.String() || issue.InvariantType == failure.DecisionCausedFailure.String() {
 			var data failure.FailureMetadata
 			err := json.Unmarshal(issue.Metadata, &data)
 			if err != nil {
 				return nil, err
 			}
-			result = append(result, &failuresIssuesResult{
+			result = append(result, &failureIssuesResult{
 				InvariantType: issue.InvariantType,
 				Reason:        issue.Reason,
-				Metadata:      data,
+				Metadata:      &data,
 			})
 		}
 	}
 	return result, nil
 }
 
-func retrieveFailureRootCause(rootCause []invariant.InvariantRootCauseResult) []string {
-	result := make([]string, 0)
+func retrieveFailureRootCause(rootCause []invariant.InvariantRootCauseResult) ([]*failureRootCauseResult, error) {
+	result := make([]*failureRootCauseResult, 0)
 	for _, rc := range rootCause {
 		if rc.RootCause == invariant.RootCauseTypeServiceSideIssue || rc.RootCause == invariant.RootCauseTypeServiceSidePanic || rc.RootCause == invariant.RootCauseTypeServiceSideCustomError {
-			result = append(result, rc.RootCause.String())
+			result = append(result, &failureRootCauseResult{
+				RootCauseType: rc.RootCause.String(),
+			})
+		}
+		if rc.RootCause == invariant.RootCauseTypeBlobSizeLimit {
+			var metadata failure.BlobSizeMetadata
+			err := json.Unmarshal(rc.Metadata, &metadata)
+			if err != nil {
+				return nil, err
+			}
+			result = append(result, &failureRootCauseResult{
+				RootCauseType:    rc.RootCause.String(),
+				BlobSizeMetadata: &metadata,
+			})
 		}
 	}
-	return result
+	return result, nil
 }
 
 func retrieveRetryIssues(issues []invariant.InvariantCheckResult) ([]*retryIssuesResult, error) {

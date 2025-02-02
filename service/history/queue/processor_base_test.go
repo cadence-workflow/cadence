@@ -30,7 +30,6 @@ import (
 	"github.com/uber-go/tally"
 	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common/collection"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
@@ -51,10 +50,9 @@ type (
 		mockShard         *shard.TestContext
 		mockTaskProcessor *task.MockProcessor
 
-		redispatchQueue collection.Queue
-		logger          log.Logger
-		metricsClient   metrics.Client
-		metricsScope    metrics.Scope
+		logger        log.Logger
+		metricsClient metrics.Client
+		metricsScope  metrics.Scope
 	}
 )
 
@@ -79,7 +77,6 @@ func (s *processorBaseSuite) SetupTest() {
 	)
 	s.mockTaskProcessor = task.NewMockProcessor(s.controller)
 
-	s.redispatchQueue = collection.NewConcurrentQueue()
 	s.logger = testlogger.New(s.Suite.T())
 	s.metricsClient = metrics.NewClient(tally.NoopScope, metrics.History)
 	s.metricsScope = s.metricsClient.Scope(metrics.TransferQueueProcessorScope)

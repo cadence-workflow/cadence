@@ -263,3 +263,23 @@ func IsGRPCOutbound(config transport.ClientConfig) bool {
 	}
 	return namer.TransportName() == grpc.TransportName
 }
+func NewSingleGRPCOutboundBuilder(outboundName string, serviceName string, address string) OutboundsBuilder {
+	return singleGRPCOutbound{outboundName, serviceName, address}
+}
+
+type singleGRPCOutbound struct {
+	outboundName string
+	serviceName  string
+	address      string
+}
+
+func (b singleGRPCOutbound) Build(grpc *grpc.Transport, _ *tchannel.Transport) (*Outbounds, error) {
+	return &Outbounds{
+		Outbounds: yarpc.Outbounds{
+			b.outboundName: {
+				ServiceName: b.serviceName,
+				Unary:       grpc.NewSingleOutbound(b.address),
+			},
+		},
+	}, nil
+}

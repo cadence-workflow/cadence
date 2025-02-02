@@ -34,7 +34,6 @@ import (
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -70,11 +69,10 @@ type (
 	transferActiveTaskExecutor struct {
 		*transferTaskExecutorBase
 
-		historyClient                  history.Client
-		parentClosePolicyClient        parentclosepolicy.Client
-		workflowResetter               reset.WorkflowResetter
-		wfIDCache                      workflowcache.WFCache
-		ratelimitInternalPerWorkflowID dynamicconfig.BoolPropertyFnWithDomainFilter
+		historyClient           history.Client
+		parentClosePolicyClient parentclosepolicy.Client
+		workflowResetter        reset.WorkflowResetter
+		wfIDCache               workflowcache.WFCache
 	}
 
 	generatorF = func(taskGenerator execution.MutableStateTaskGenerator) error
@@ -89,7 +87,6 @@ func NewTransferActiveTaskExecutor(
 	logger log.Logger,
 	config *config.Config,
 	wfIDCache workflowcache.WFCache,
-	ratelimitInternalPerWorkflowID dynamicconfig.BoolPropertyFnWithDomainFilter,
 ) Executor {
 
 	return &transferActiveTaskExecutor{
@@ -107,9 +104,8 @@ func NewTransferActiveTaskExecutor(
 			shard.GetService().GetSDKClient(),
 			config.NumParentClosePolicySystemWorkflows(),
 		),
-		workflowResetter:               workflowResetter,
-		wfIDCache:                      wfIDCache,
-		ratelimitInternalPerWorkflowID: ratelimitInternalPerWorkflowID,
+		workflowResetter: workflowResetter,
+		wfIDCache:        wfIDCache,
 	}
 }
 
@@ -317,20 +313,7 @@ func (t *transferActiveTaskExecutor) processDecisionTask(
 }
 
 func (t *transferActiveTaskExecutor) allowTask(task *persistence.TransferTaskInfo) bool {
-	domainName, err := t.shard.GetDomainCache().GetDomainName(task.DomainID)
-	if err != nil {
-		t.logger.Error("Error when getting domain name",
-			tag.WorkflowDomainID(task.DomainID),
-			tag.WorkflowID(task.WorkflowID),
-			tag.WorkflowRunID(task.RunID),
-			tag.Error(err))
-		// Fail open
-		return true
-	}
-	enabled := t.ratelimitInternalPerWorkflowID(domainName)
-	allow := t.wfIDCache.AllowInternal(task.DomainID, task.WorkflowID)
-
-	return allow || !enabled
+	return t.wfIDCache.AllowInternal(task.DomainID, task.WorkflowID)
 }
 
 func (t *transferActiveTaskExecutor) processCloseExecution(

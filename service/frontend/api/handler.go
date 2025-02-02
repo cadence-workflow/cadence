@@ -2907,7 +2907,9 @@ func (wh *WorkflowHandler) createPollForDecisionTaskResponse(
 
 	if matchingResp.WorkflowExecution == nil {
 		// this will happen if there is no decision task to be send to worker / caller
-		return &types.PollForDecisionTaskResponse{}, nil
+		return &types.PollForDecisionTaskResponse{
+			AutoConfigHint: matchingResp.AutoConfigHint,
+		}, nil
 	}
 
 	var history *types.History
@@ -3202,8 +3204,8 @@ func (wh *WorkflowHandler) convertIndexedKeyToThrift(keys map[string]interface{}
 }
 
 func (wh *WorkflowHandler) isListRequestPageSizeTooLarge(pageSize int32, domain string) bool {
-	return common.IsAdvancedVisibilityReadingEnabled(wh.config.EnableReadVisibilityFromES(domain), wh.config.IsAdvancedVisConfigExist) &&
-		pageSize > int32(wh.config.ESIndexMaxResultWindow())
+	return common.IsAdvancedVisibilityReadingEnabled(wh.config.ReadVisibilityStoreName(domain) != "db",
+		wh.config.IsAdvancedVisConfigExist) && pageSize > int32(wh.config.ESIndexMaxResultWindow())
 }
 
 // GetClusterInfo return information about cadence deployment

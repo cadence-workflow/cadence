@@ -115,6 +115,7 @@ var (
 		Header:                          &Header,
 		PartitionConfig:                 &TaskListPartitionConfig,
 		LoadBalancerHints:               &LoadBalancerHints,
+		AutoConfigHint:                  &AutoConfigHint,
 	}
 	MatchingPollForDecisionTaskRequest = types.MatchingPollForDecisionTaskRequest{
 		DomainUUID:     DomainID,

@@ -109,11 +109,11 @@ func Test__Check(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		inv := NewInvariant(Params{
+		inv := NewInvariant()
+		result, err := inv.Check(context.Background(), invariant.InvariantCheckInput{
 			WorkflowExecutionHistory: tc.testData,
 			Domain:                   testDomain,
 		})
-		result, err := inv.Check(context.Background())
 		require.Equal(t, tc.err, err)
 		require.Equal(t, len(tc.expectedResult), len(result))
 		require.ElementsMatch(t, tc.expectedResult, result)
@@ -283,9 +283,11 @@ func Test__RootCause(t *testing.T) {
 			err: nil,
 		},
 	}
-	inv := NewInvariant(Params{})
+	inv := NewInvariant()
 	for _, tc := range testCases {
-		result, err := inv.RootCause(context.Background(), tc.input)
+		result, err := inv.RootCause(context.Background(), invariant.InvariantRootCauseInput{
+			Issues: tc.input,
+		})
 		require.Equal(t, tc.err, err)
 		require.Equal(t, len(tc.expectedResult), len(result))
 		require.ElementsMatch(t, tc.expectedResult, result)

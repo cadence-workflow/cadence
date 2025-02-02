@@ -34,7 +34,7 @@ type (
 		*require.Assertions
 		suite.Suite
 
-		concurrentQueue *concurrentQueueImpl
+		concurrentQueue *concurrentQueueImpl[int]
 	}
 )
 
@@ -46,17 +46,19 @@ func TestConcurrentQueueSuite(t *testing.T) {
 func (s *concurrentQueueSuite) SetupTest() {
 	s.Assertions = require.New(s.T())
 
-	s.concurrentQueue = NewConcurrentQueue().(*concurrentQueueImpl)
+	s.concurrentQueue = NewConcurrentQueue[int]().(*concurrentQueueImpl[int])
 }
 
-func (s *concurrentQueueImpl) TearDownTest() {
+func (s *concurrentQueueSuite) TearDownTest() {
 }
 
 func (s *concurrentQueueSuite) TestAddAndRemove() {
 	s.Equal(0, s.concurrentQueue.Len())
 	s.True(s.concurrentQueue.IsEmpty())
-	s.Nil(s.concurrentQueue.Peek())
-	s.Nil(s.concurrentQueue.Remove())
+	_, err := s.concurrentQueue.Peek()
+	s.Error(err)
+	_, err = s.concurrentQueue.Remove()
+	s.Error(err)
 
 	numItems := 100
 	items := make([]int, 0, numItems)
@@ -67,16 +69,21 @@ func (s *concurrentQueueSuite) TestAddAndRemove() {
 		s.Equal(i+1, s.concurrentQueue.Len())
 	}
 	s.False(s.concurrentQueue.IsEmpty())
-	s.Equal(items[0], s.concurrentQueue.Peek())
+	num, err := s.concurrentQueue.Peek()
+	s.NoError(err)
+	s.Equal(items[0], num)
 
 	for i := 0; i != 100; i++ {
-		num := s.concurrentQueue.Remove()
+		num, err := s.concurrentQueue.Remove()
+		s.NoError(err)
 		s.Equal(items[i], num)
 		s.Equal(numItems-i-1, s.concurrentQueue.Len())
 	}
 	s.True(s.concurrentQueue.IsEmpty())
-	s.Nil(s.concurrentQueue.Peek())
-	s.Nil(s.concurrentQueue.Remove())
+	_, err = s.concurrentQueue.Peek()
+	s.Error(err)
+	_, err = s.concurrentQueue.Remove()
+	s.Error(err)
 }
 
 func (s *concurrentQueueSuite) TestMultipleProducer() {
@@ -99,12 +106,12 @@ func (s *concurrentQueueSuite) TestMultipleProducer() {
 	s.Equal(expectedLength, s.concurrentQueue.Len())
 	s.False(s.concurrentQueue.IsEmpty())
 	for i := 0; i != expectedLength; i++ {
-		_ = s.concurrentQueue.Remove()
+		_, _ = s.concurrentQueue.Remove()
 	}
 }
 
 func BenchmarkConcurrentQueue(b *testing.B) {
-	queue := NewConcurrentQueue()
+	queue := NewConcurrentQueue[testTask]()
 
 	for i := 0; i < 100; i++ {
 		go send(queue)

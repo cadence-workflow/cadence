@@ -102,7 +102,7 @@ func (s *NDCIntegrationTestSuite) SetupSuite() {
 	}
 	params := pt.TestBaseParams{
 		DefaultTestCluster:    s.defaultTestCluster,
-		VisibilityTestCluster: s.visibilityTestCluster,
+		VisibilityTestCluster: s.VisibilityTestCluster,
 		ClusterMetadata:       clusterMetadata,
 		DynamicConfiguration:  dc,
 	}
@@ -110,7 +110,7 @@ func (s *NDCIntegrationTestSuite) SetupSuite() {
 	s.Require().NoError(err)
 	s.active = cluster
 
-	s.registerDomain()
+	s.RegisterDomain()
 
 	s.version = s.clusterConfigs[1].ClusterGroupMetadata.ClusterGroup[s.clusterConfigs[1].ClusterGroupMetadata.CurrentClusterName].InitialFailoverVersion
 	s.versionIncrement = s.clusterConfigs[0].ClusterGroupMetadata.FailoverVersionIncrement
@@ -2226,7 +2226,7 @@ func (s *NDCIntegrationTestSuite) TestWorkflowStartTime() {
 	)
 }
 
-func (s *NDCIntegrationTestSuite) registerDomain() {
+func (s *NDCIntegrationTestSuite) RegisterDomain() {
 	s.domainName = "test-simple-workflow-ndc-" + common.GenerateRandomString(5)
 	client1 := s.active.GetFrontendClient() // active
 	ctx, cancel := s.createContext()

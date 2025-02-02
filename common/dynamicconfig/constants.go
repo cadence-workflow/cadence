@@ -1508,24 +1508,6 @@ const (
 	// Default value: false
 	// Allowed filters: N/A
 	EnableReadFromClosedExecutionV2
-	// EnableReadVisibilityFromES is key for enable read from elastic search or db visibility, usually using with AdvancedVisibilityWritingMode for seamless migration from db visibility to advanced visibility
-	// KeyName: system.enableReadVisibilityFromES
-	// Value type: Bool
-	// Default value: true
-	// Allowed filters: DomainName
-	EnableReadVisibilityFromES
-	// EnableReadVisibilityFromPinot is key for enable read from pinot or db visibility, usually using with AdvancedVisibilityWritingMode for seamless migration from db visibility to advanced visibility
-	// KeyName: system.enableReadVisibilityFromPinot
-	// Value type: Bool
-	// Default value: true
-	// Allowed filters: DomainName
-	EnableReadVisibilityFromPinot
-	// EnableVisibilityDoubleRead is the key for enable double read for a latency comparison
-	// KeyName: system.EnableVisibilityDoubleRead
-	// Value type: Bool
-	// Default value: false
-	// Allowed filters: DomainName
-	EnableVisibilityDoubleRead
 	// EnableLogCustomerQueryParameter is key for enable log customer query parameters
 	// KeyName: system.enableLogCustomerQueryParameter
 	// Value type: Bool
@@ -1793,30 +1775,6 @@ const (
 	// Default value: true
 	// Allowed filters: DomainName
 	EnableRecordWorkflowExecutionUninitialized
-	// WorkflowIDCacheExternalEnabled is the key to enable/disable caching of workflowID specific information for external requests
-	// KeyName: history.workflowIDCacheExternalEnabled
-	// Value type: Bool
-	// Default value: false
-	// Allowed filters: DomainName
-	WorkflowIDCacheExternalEnabled
-	// WorkflowIDCacheInternalEnabled is the key to enable/disable caching of workflowID specific information for internal requests
-	// KeyName: history.workflowIDCacheInternalEnabled
-	// Value type: Bool
-	// Default value: false
-	// Allowed filters: DomainName
-	WorkflowIDCacheInternalEnabled
-	// WorkflowIDExternalRateLimitEnabled is the key to enable/disable rate limiting for workflowID specific information for external requests
-	// KeyName: history.workflowIDExternalRateLimitEnabled
-	// Value type: Bool
-	// Default value: false
-	// Allowed filters: DomainName
-	WorkflowIDExternalRateLimitEnabled
-	// WorkflowIDInternalRateLimitEnabled is the key to enable/disable rate limiting for workflowID specific information for internal requests
-	// KeyName: history.workflowIDInternalRateLimitEnabled
-	// Value type: Bool
-	// Default value: false
-	// Allowed filters: DomainName
-	WorkflowIDInternalRateLimitEnabled
 	// AllowArchivingIncompleteHistory will continue on when seeing some error like history mutated(usually caused by database consistency issues)
 	// KeyName: worker.AllowArchivingIncompleteHistory
 	// Value type: Bool
@@ -2130,11 +2088,6 @@ const (
 
 	// key for history
 
-	// TaskRedispatchIntervalJitterCoefficient is the task redispatch interval jitter coefficient
-	// KeyName: history.taskRedispatchIntervalJitterCoefficient
-	// Value type: Float64
-	// Default value: 0.15
-	// Allowed filters: N/A
 	TaskRedispatchIntervalJitterCoefficient
 	// QueueProcessorRandomSplitProbability is the probability for a domain to be split to a new processing queue
 	// KeyName: history.queueProcessorRandomSplitProbability
@@ -2257,6 +2210,15 @@ const (
 
 	MatchingPartitionDownscaleFactor
 
+	// Key for shard distributor
+
+	// ShardDistributorErrorInjectionRate is rate for injecting random error in shard distributor client
+	// KeyName: sharddistributor.errorInjectionRate
+	// Value type: Float64
+	// Default value: 0
+	// Allowed filters: N/A
+	ShardDistributorErrorInjectionRate
+
 	// LastFloatKey must be the last one in this const group
 	LastFloatKey
 )
@@ -2269,18 +2231,18 @@ const (
 
 	// key for common & admin
 
-	// AdvancedVisibilityWritingMode is key for how to write to advanced visibility. The most useful option is "dual", which can be used for seamless migration from db visibility to advanced visibility, usually using with EnableReadVisibilityFromES
-	// KeyName: system.advancedVisibilityWritingMode
-	// Value type: String enum: "on"(means writing to advancedVisibility only, "off" (means writing to db visibility only), or "dual" (means writing to both)
-	// Default value: "on"
+	// WriteVisibilityStoreName is key for how to write to advanced visibility. Usually using with ReadVisibilityStoreName
+	// KeyName: system.writeVisibilityStoreName
+	// Value type: String enum: string ["es","os","pinot","db"]
+	// Default value: "es"
 	// Allowed filters: N/A
-	AdvancedVisibilityWritingMode
-	// AdvancedVisibilityMigrationWritingMode is key for how to write to advanced visibility during migration.
-	// KeyName: system.AdvancedVisibilityMigrationWritingMode
-	// Value type: String enum: "dual"(means writing to both source and destination advanced visibility, "source" (means writing to source visibility only), "destination" (means writing to destination visibility only) or "off" (means writing to db visibility only)
-	// Default value: "dual"
-	// Allowed filters: N/A
-	AdvancedVisibilityMigrationWritingMode
+	WriteVisibilityStoreName
+	// ReadVisibilityStoreName is key to identify which store to read visibility data from
+	// KeyName: system.readVisibilityStoreName
+	// Value type: String enum: "db" or "es" or "pinot" or "os"
+	// Default value: "es"
+	// Allowed filters: DomainName
+	ReadVisibilityStoreName
 	// HistoryArchivalStatus is key for the status of history archival to override the value from static config.
 	// KeyName: system.historyArchivalStatus
 	// Value type: string enum: "enabled" or "disabled"
@@ -3916,24 +3878,6 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "EnableReadFromClosedExecutionV2 is key for enable read from cadence_visibility.closed_executions_v2",
 		DefaultValue: false,
 	},
-	EnableReadVisibilityFromES: {
-		KeyName:      "system.enableReadVisibilityFromES",
-		Filters:      []Filter{DomainName},
-		Description:  "EnableReadVisibilityFromES is key for enable read from elastic search or db visibility, usually using with AdvancedVisibilityWritingMode for seamless migration from db visibility to advanced visibility",
-		DefaultValue: true,
-	},
-	EnableReadVisibilityFromPinot: {
-		KeyName:      "system.enableReadVisibilityFromPinot",
-		Filters:      []Filter{DomainName},
-		Description:  "EnableReadVisibilityFromPinot is key for enable read from pinot or db visibility, usually using with AdvancedVisibilityWritingMode for seamless migration from db visibility to advanced visibility",
-		DefaultValue: true,
-	},
-	EnableVisibilityDoubleRead: {
-		KeyName:      "system.enableVisibilityDoubleRead",
-		Filters:      []Filter{DomainName},
-		Description:  "EnableVisibilityDoubleRead is key for enable read for both elastic search and Pinot for a latency comparison",
-		DefaultValue: false,
-	},
 	EnableLogCustomerQueryParameter: {
 		KeyName:      "system.enableLogCustomerQueryParameter",
 		Filters:      []Filter{DomainName},
@@ -4382,30 +4326,6 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "Enable TaskValidation",
 		DefaultValue: false,
 	},
-	WorkflowIDCacheExternalEnabled: {
-		KeyName:      "history.workflowIDCacheExternalEnabled",
-		Filters:      []Filter{DomainName},
-		Description:  "WorkflowIDCacheExternalEnabled is the key to enable/disable caching of workflowID specific information for external requests",
-		DefaultValue: false,
-	},
-	WorkflowIDCacheInternalEnabled: {
-		KeyName:      "history.workflowIDCacheInternalEnabled",
-		Filters:      []Filter{DomainName},
-		Description:  "WorkflowIDCacheInternalEnabled is the key to enable/disable caching of workflowID specific information for internal requests",
-		DefaultValue: false,
-	},
-	WorkflowIDExternalRateLimitEnabled: {
-		KeyName:      "history.workflowIDExternalRateLimitEnabled",
-		Filters:      []Filter{DomainName},
-		Description:  "WorkflowIDExternalRateLimitEnabled is the key to enable/disable rate limiting of specific workflowIDs for external requests",
-		DefaultValue: false,
-	},
-	WorkflowIDInternalRateLimitEnabled: {
-		KeyName:      "history.workflowIDInternalRateLimitEnabled",
-		Filters:      []Filter{DomainName},
-		Description:  "WorkflowIDInternalRateLimitEnabled is the key to enable/disable rate limiting of specific workflowIDs for internal requests",
-		DefaultValue: false,
-	},
 	EnableRetryForChecksumFailure: {
 		KeyName:      "history.enableMutableStateChecksumFailureRetry",
 		Filters:      []Filter{DomainName},
@@ -4471,7 +4391,7 @@ var FloatKeys = map[FloatKey]DynamicFloat{
 	},
 	TaskRedispatchIntervalJitterCoefficient: {
 		KeyName:      "history.taskRedispatchIntervalJitterCoefficient",
-		Description:  "TaskRedispatchIntervalJitterCoefficient is the task redispatch interval jitter coefficient",
+		Description:  "Deprecated",
 		DefaultValue: 0.15,
 	},
 	QueueProcessorRandomSplitProbability: {
@@ -4582,6 +4502,11 @@ var FloatKeys = map[FloatKey]DynamicFloat{
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
 		DefaultValue: 0.75,
 	},
+	ShardDistributorErrorInjectionRate: {
+		KeyName:      "sharddistributor.errorInjectionRate",
+		Description:  "ShardDistributorInjectionRate is rate for injecting random error in shard distributor client",
+		DefaultValue: 0,
+	},
 }
 
 var StringKeys = map[StringKey]DynamicString{
@@ -4590,15 +4515,10 @@ var StringKeys = map[StringKey]DynamicString{
 		Description:  "",
 		DefaultValue: "",
 	},
-	AdvancedVisibilityWritingMode: {
-		KeyName:      "system.advancedVisibilityWritingMode",
-		Description:  "AdvancedVisibilityWritingMode is key for how to write to advanced visibility. The most useful option is dual, which can be used for seamless migration from db visibility to advanced visibility, usually using with EnableReadVisibilityFromES",
-		DefaultValue: "on",
-	},
-	AdvancedVisibilityMigrationWritingMode: {
-		KeyName:      "system.advancedVisibilityMigrationWritingMode",
-		Description:  "AdvancedVisibilityMigrationWritingMode is key for how to write to advanced visibility. The most useful option is dual, which can be used for seamless migration from advanced visibility to another",
-		DefaultValue: "dual",
+	WriteVisibilityStoreName: {
+		KeyName:      "system.writeVisibilityStoreName",
+		Description:  "WriteVisibilityStoreName is key for how to write to advanced visibility. The default option is es, which can be used for seamless migration from db visibility to advanced visibility, usually using with ReadVisibilityStoreName",
+		DefaultValue: "es",
 	},
 	HistoryArchivalStatus: {
 		KeyName:      "system.historyArchivalStatus",
@@ -4657,6 +4577,12 @@ var StringKeys = map[StringKey]DynamicString{
 		Description:  "TasklistLoadBalancerStrategy is the key for tasklist load balancer strategy",
 		DefaultValue: "random", // other options: "round-robin"
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
+	},
+	ReadVisibilityStoreName: {
+		KeyName:      "system.readVisibilityStoreName",
+		Description:  "ReadVisibilityStoreName is key to identify which store to read visibility data from",
+		DefaultValue: "es",
+		Filters:      []Filter{DomainName},
 	},
 }
 
@@ -5118,13 +5044,9 @@ var MapKeys = map[MapKey]DynamicMap{
 		DefaultValue: definition.GetDefaultIndexedKeys(),
 	},
 	TaskSchedulerRoundRobinWeights: {
-		KeyName:     "history.taskSchedulerRoundRobinWeight",
-		Description: "TaskSchedulerRoundRobinWeights is the priority weight for weighted round robin task scheduler",
-		DefaultValue: common.ConvertIntMapToDynamicConfigMapProperty(map[int]int{
-			common.GetTaskPriority(common.HighPriorityClass, common.DefaultPrioritySubclass):    500,
-			common.GetTaskPriority(common.DefaultPriorityClass, common.DefaultPrioritySubclass): 20,
-			common.GetTaskPriority(common.LowPriorityClass, common.DefaultPrioritySubclass):     5,
-		}),
+		KeyName:      "history.taskSchedulerRoundRobinWeight",
+		Description:  "TaskSchedulerRoundRobinWeights is the priority weight for weighted round robin task scheduler",
+		DefaultValue: common.ConvertIntMapToDynamicConfigMapProperty(DefaultTaskSchedulerRoundRobinWeights),
 	},
 	QueueProcessorPendingTaskSplitThreshold: {
 		KeyName:      "history.queueProcessorPendingTaskSplitThreshold",
@@ -5205,3 +5127,11 @@ func init() {
 		_keyNames[v.KeyName] = k
 	}
 }
+
+var (
+	DefaultTaskSchedulerRoundRobinWeights = map[int]int{
+		common.GetTaskPriority(common.HighPriorityClass, common.DefaultPrioritySubclass):    500,
+		common.GetTaskPriority(common.DefaultPriorityClass, common.DefaultPrioritySubclass): 20,
+		common.GetTaskPriority(common.LowPriorityClass, common.DefaultPrioritySubclass):     5,
+	}
+)

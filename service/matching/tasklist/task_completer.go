@@ -154,7 +154,7 @@ func (tc *taskCompleterImpl) CompleteTaskIfStarted(ctx context.Context, task *In
 
 	err := tc.throttleRetry.Do(ctx, op)
 
-	if !errors.Is(err, errDomainIsActive) && !errors.Is(err, errTaskNotStarted) {
+	if err != nil && !errors.Is(err, errDomainIsActive) && !errors.Is(err, errTaskNotStarted) {
 		tc.scope.IncCounter(metrics.StandbyClusterTasksCompletionFailurePerTaskList)
 		tc.logger.Error("Error completing task on domain's standby cluster", tag.Error(err))
 	}
@@ -170,15 +170,15 @@ func (tc *taskCompleterImpl) isTaskStarted(task *InternalTask, workflowExecution
 	// taskType can only be Activity or Decision, leaving the default case for future proofing
 	switch tc.taskListID.taskType {
 	case persistence.TaskListTypeActivity:
-		return isActivityTaskStarted(task, workflowExecutionResponse), nil
+		return tc.isActivityTaskStarted(task, workflowExecutionResponse), nil
 	case persistence.TaskListTypeDecision:
-		return isDecisionTaskStarted(task, workflowExecutionResponse), nil
+		return tc.isDecisionTaskStarted(task, workflowExecutionResponse), nil
 	default:
 		return false, errTaskTypeNotSupported
 	}
 }
 
-func isDecisionTaskStarted(task *InternalTask, workflowExecutionResponse *types.DescribeWorkflowExecutionResponse) bool {
+func (tc *taskCompleterImpl) isDecisionTaskStarted(task *InternalTask, workflowExecutionResponse *types.DescribeWorkflowExecutionResponse) bool {
 	// if there is no pending decision task, that means that this task has been already started
 	if workflowExecutionResponse.PendingDecision == nil {
 		return true
@@ -189,16 +189,35 @@ func isDecisionTaskStarted(task *InternalTask, workflowExecutionResponse *types.
 		return true
 	}
 
+	tc.logger.Debug("Decision task not started.",
+		tag.WorkflowID(task.Event.WorkflowID),
+		tag.WorkflowRunID(task.Event.RunID),
+		tag.MatchingTaskID(task.Event.TaskID),
+		tag.MatchingTaskScheduleID(task.Event.ScheduleID),
+		tag.WorkflowScheduleID(workflowExecutionResponse.PendingDecision.ScheduleID),
+		tag.DecisionTaskState(int32(*workflowExecutionResponse.PendingDecision.State)),
+	)
+
 	return false
 }
 
-func isActivityTaskStarted(task *InternalTask, workflowExecutionResponse *types.DescribeWorkflowExecutionResponse) bool {
+func (tc *taskCompleterImpl) isActivityTaskStarted(task *InternalTask, workflowExecutionResponse *types.DescribeWorkflowExecutionResponse) bool {
 	// if the scheduleID is different from all pending tasks' scheduleID or the pending activity has PendingActivityStateStarted, then the activity task with the task's scheduleID has already been started
 	for _, pendingActivity := range workflowExecutionResponse.PendingActivities {
 		if task.Event.ScheduleID == pendingActivity.ScheduleID {
 			if *pendingActivity.State == types.PendingActivityStateStarted {
 				return true
 			}
+
+			tc.logger.Debug("Activity task not started.",
+				tag.WorkflowID(task.Event.WorkflowID),
+				tag.WorkflowRunID(task.Event.RunID),
+				tag.MatchingTaskID(task.Event.TaskID),
+				tag.MatchingTaskScheduleID(task.Event.ScheduleID),
+				tag.WorkflowScheduleID(pendingActivity.ScheduleID),
+				tag.ActivityTaskState(int32(*pendingActivity.State)),
+			)
+
 			return false
 		}
 	}

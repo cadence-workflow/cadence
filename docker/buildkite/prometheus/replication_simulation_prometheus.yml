@@ -1,0 +1,23 @@
+global:
+  scrape_interval: 5s
+  external_labels:
+    monitor: 'cadence-monitor'
+  query_log_file: /etc/prometheus/query.log
+  scrape_failure_log_file: /etc/prometheus/scrape.log
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: # addresses to scrape from cluster0
+          - 'cadence-cluster0:7000' # frontend
+          - 'cadence-cluster0:7001' # matching
+          - 'cadence-cluster0:7002' # history
+          - 'cadence-cluster0:7003' # worker
+        labels:
+          cluster: 'cluster0'
+      - targets: # addresses to scrape from cluster1
+          - 'cadence-cluster1:8000' # frontend
+          - 'cadence-cluster1:8001' # matching
+          - 'cadence-cluster1:8002' # history
+          - 'cadence-cluster1:8003' # worker
+        labels:
+          cluster: 'cluster1'

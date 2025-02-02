@@ -57,3 +57,9 @@ type FailureMetadata struct {
 	ActivityScheduled *types.ActivityTaskScheduledEventAttributes
 	ActivityStarted   *types.ActivityTaskStartedEventAttributes
 }
+
+// BlobSizeMetadata includes the details of blob size limits
+type BlobSizeMetadata struct {
+	BlobSizeWarnLimit  int32
+	BlobSizeErrorLimit int32
+}

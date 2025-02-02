@@ -307,20 +307,3 @@ steps:
       - docker-compose#v3.0.0:
           run: integration-test-async-wf
           config: docker/buildkite/docker-compose.yml
-
-  - wait
-
-  - label: ":docker: build (no push)"
-    retry:
-      automatic:
-        limit: 1
-    plugins:
-      - kubernetes:
-          <<: *kubernetes
-          podSpec:
-            <<: *podSpec
-            containers:
-              - <<: *commandContainer
-                command:
-                - |-
-                  scripts/buildkite/docker-build.sh

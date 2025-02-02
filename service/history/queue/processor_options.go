@@ -31,7 +31,6 @@ type queueProcessorOptions struct {
 	UpdateAckInterval                    dynamicconfig.DurationPropertyFn
 	UpdateAckIntervalJitterCoefficient   dynamicconfig.FloatPropertyFn
 	RedispatchInterval                   dynamicconfig.DurationPropertyFn
-	RedispatchIntervalJitterCoefficient  dynamicconfig.FloatPropertyFn
 	MaxRedispatchQueueSize               dynamicconfig.IntPropertyFn
 	MaxStartJitterInterval               dynamicconfig.DurationPropertyFn
 	SplitQueueInterval                   dynamicconfig.DurationPropertyFn

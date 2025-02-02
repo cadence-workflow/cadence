@@ -28,10 +28,12 @@ import (
 
 	historyv1 "github.com/uber/cadence/.gen/proto/history/v1"
 	matchingv1 "github.com/uber/cadence/.gen/proto/matching/v1"
+	sharddistributorv1 "github.com/uber/cadence/.gen/proto/sharddistributor/v1"
 	"github.com/uber/cadence/client/admin"
 	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
+	"github.com/uber/cadence/client/sharddistributor"
 )
 
 type (
@@ -54,6 +56,9 @@ type (
 	matchingClient struct {
 		c matchingv1.MatchingAPIYARPCClient
 	}
+	sharddistributorClient struct {
+		c sharddistributorv1.ShardDistributorAPIYARPCClient
+	}
 )
 
 func NewAdminClient(c adminv1.AdminAPIYARPCClient) admin.Client {
@@ -75,4 +80,8 @@ func NewHistoryClient(c historyv1.HistoryAPIYARPCClient) history.Client {
 
 func NewMatchingClient(c matchingv1.MatchingAPIYARPCClient) matching.Client {
 	return matchingClient{c}
+}
+
+func NewShardDistributorClient(c sharddistributorv1.ShardDistributorAPIYARPCClient) sharddistributor.Client {
+	return sharddistributorClient{c}
 }

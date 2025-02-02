@@ -292,29 +292,3 @@ steps:
       - docker-compose#v3.0.0:
           run: integration-test-async-wf
           config: docker/buildkite/docker-compose.yml
-
-  - wait
-
-  - label: ":docker: build and push master"
-    retry:
-      automatic:
-        limit: 1
-    plugins:
-      - kubernetes:
-          <<: *kubernetes
-          podSpec:
-            <<: *podSpec
-            containers:
-              - <<: *commandContainer
-                command:
-                - |-
-                  scripts/buildkite/docker-push.sh
-                env:
-                  - name: DOCKER_LOGIN_PASSWORD
-                    valueFrom:
-                      secretKeyRef:
-                        name: ubercadence-dockerhub
-                        key: password
-      - docker-login#v2.0.1:
-          username: jht305
-          password-env: DOCKER_LOGIN_PASSWORD

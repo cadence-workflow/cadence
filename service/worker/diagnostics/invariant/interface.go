@@ -25,6 +25,8 @@ package invariant
 import (
 	"context"
 	"encoding/json"
+
+	"github.com/uber/cadence/common/types"
 )
 
 // InvariantCheckResult is the result from the invariant check
@@ -40,6 +42,15 @@ type InvariantRootCauseResult struct {
 	Metadata  []byte
 }
 
+type InvariantCheckInput struct {
+	WorkflowExecutionHistory *types.GetWorkflowExecutionHistoryResponse
+	Domain                   string
+}
+
+type InvariantRootCauseInput struct {
+	Domain string
+	Issues []InvariantCheckResult
+}
 type RootCause string
 
 const (
@@ -52,6 +63,7 @@ const (
 	RootCauseTypeServiceSideIssue                      RootCause = "There is an issue in the worker service that is causing a failure. Check identity for service logs"
 	RootCauseTypeServiceSidePanic                      RootCause = "There is a panic in the activity/workflow that is causing a failure"
 	RootCauseTypeServiceSideCustomError                RootCause = "Customised error returned by the activity/workflow"
+	RootCauseTypeBlobSizeLimit                         RootCause = "Workflow has exceeded the blob size limits configured for the domain"
 )
 
 func (r RootCause) String() string {
@@ -60,8 +72,8 @@ func (r RootCause) String() string {
 
 // Invariant represents a condition of a workflow execution.
 type Invariant interface {
-	Check(context.Context) ([]InvariantCheckResult, error)
-	RootCause(context.Context, []InvariantCheckResult) ([]InvariantRootCauseResult, error)
+	Check(context.Context, InvariantCheckInput) ([]InvariantCheckResult, error)
+	RootCause(context.Context, InvariantRootCauseInput) ([]InvariantRootCauseResult, error)
 }
 
 func MarshalData(rc any) []byte {

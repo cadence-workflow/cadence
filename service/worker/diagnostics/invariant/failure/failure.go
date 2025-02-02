@@ -34,26 +34,15 @@ import (
 // Failure is an invariant that will be used to identify the different failures in the workflow execution history
 type Failure invariant.Invariant
 
-type failure struct {
-	workflowExecutionHistory *types.GetWorkflowExecutionHistoryResponse
-	domain                   string
+type failure struct{}
+
+func NewInvariant() Failure {
+	return &failure{}
 }
 
-type Params struct {
-	WorkflowExecutionHistory *types.GetWorkflowExecutionHistoryResponse
-	Domain                   string
-}
-
-func NewInvariant(p Params) Failure {
-	return &failure{
-		workflowExecutionHistory: p.WorkflowExecutionHistory,
-		domain:                   p.Domain,
-	}
-}
-
-func (f *failure) Check(context.Context) ([]invariant.InvariantCheckResult, error) {
+func (f *failure) Check(ctx context.Context, params invariant.InvariantCheckInput) ([]invariant.InvariantCheckResult, error) {
 	result := make([]invariant.InvariantCheckResult, 0)
-	events := f.workflowExecutionHistory.GetHistory().GetEvents()
+	events := params.WorkflowExecutionHistory.GetHistory().GetEvents()
 	for _, event := range events {
 		if event.GetWorkflowExecutionFailedEventAttributes() != nil && event.WorkflowExecutionFailedEventAttributes.Reason != nil {
 			attr := event.WorkflowExecutionFailedEventAttributes
@@ -156,9 +145,9 @@ func fetchStartedEvent(attr *types.ActivityTaskFailedEventAttributes, events []*
 	return nil
 }
 
-func (f *failure) RootCause(ctx context.Context, issues []invariant.InvariantCheckResult) ([]invariant.InvariantRootCauseResult, error) {
+func (f *failure) RootCause(ctx context.Context, params invariant.InvariantRootCauseInput) ([]invariant.InvariantRootCauseResult, error) {
 	result := make([]invariant.InvariantRootCauseResult, 0)
-	for _, issue := range issues {
+	for _, issue := range params.Issues {
 		switch issue.Reason {
 		case GenericError.String():
 			result = append(result, invariant.InvariantRootCauseResult{

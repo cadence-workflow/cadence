@@ -37,10 +37,8 @@ type Config struct {
 	EnableReadFromClosedExecutionV2 dynamicconfig.BoolPropertyFn
 	// deprecated: never used for ratelimiting, only sampling-based failure injection, and only on database-based visibility
 	VisibilityListMaxQPS            dynamicconfig.IntPropertyFnWithDomainFilter
-	EnableReadVisibilityFromES      dynamicconfig.BoolPropertyFnWithDomainFilter
-	EnableReadVisibilityFromPinot   dynamicconfig.BoolPropertyFnWithDomainFilter
-	EnableVisibilityDoubleRead      dynamicconfig.BoolPropertyFnWithDomainFilter
 	EnableLogCustomerQueryParameter dynamicconfig.BoolPropertyFnWithDomainFilter
+	ReadVisibilityStoreName         dynamicconfig.StringPropertyFnWithDomainFilter
 	// deprecated: never read from
 	ESVisibilityListMaxQPS            dynamicconfig.IntPropertyFnWithDomainFilter
 	ESIndexMaxResultWindow            dynamicconfig.IntPropertyFn
@@ -132,10 +130,8 @@ func NewConfig(dc *dynamicconfig.Collection, numHistoryShards int, isAdvancedVis
 		EnableReadFromClosedExecutionV2:             dc.GetBoolProperty(dynamicconfig.EnableReadFromClosedExecutionV2),
 		VisibilityListMaxQPS:                        dc.GetIntPropertyFilteredByDomain(dynamicconfig.FrontendVisibilityListMaxQPS),
 		ESVisibilityListMaxQPS:                      dc.GetIntPropertyFilteredByDomain(dynamicconfig.FrontendESVisibilityListMaxQPS),
-		EnableReadVisibilityFromES:                  dc.GetBoolPropertyFilteredByDomain(dynamicconfig.EnableReadVisibilityFromES),
-		EnableReadVisibilityFromPinot:               dc.GetBoolPropertyFilteredByDomain(dynamicconfig.EnableReadVisibilityFromPinot),
+		ReadVisibilityStoreName:                     dc.GetStringPropertyFilteredByDomain(dynamicconfig.ReadVisibilityStoreName),
 		EnableLogCustomerQueryParameter:             dc.GetBoolPropertyFilteredByDomain(dynamicconfig.EnableLogCustomerQueryParameter),
-		EnableVisibilityDoubleRead:                  dc.GetBoolPropertyFilteredByDomain(dynamicconfig.EnableVisibilityDoubleRead),
 		ESIndexMaxResultWindow:                      dc.GetIntProperty(dynamicconfig.FrontendESIndexMaxResultWindow),
 		HistoryMaxPageSize:                          dc.GetIntPropertyFilteredByDomain(dynamicconfig.FrontendHistoryMaxPageSize),
 		UserRPS:                                     dc.GetIntProperty(dynamicconfig.FrontendUserRPS),

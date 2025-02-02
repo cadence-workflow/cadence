@@ -21,6 +21,7 @@
 package client
 
 import (
+	"fmt"
 	"time"
 
 	adminv1 "github.com/uber/cadence-idl/go/proto/admin/v1"
@@ -33,10 +34,12 @@ import (
 	"github.com/uber/cadence/.gen/go/matching/matchingserviceclient"
 	historyv1 "github.com/uber/cadence/.gen/proto/history/v1"
 	matchingv1 "github.com/uber/cadence/.gen/proto/matching/v1"
+	sharddistributorv1 "github.com/uber/cadence/.gen/proto/sharddistributor/v1"
 	"github.com/uber/cadence/client/admin"
 	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
+	"github.com/uber/cadence/client/sharddistributor"
 	"github.com/uber/cadence/client/wrappers/errorinjectors"
 	"github.com/uber/cadence/client/wrappers/grpc"
 	"github.com/uber/cadence/client/wrappers/metered"
@@ -61,6 +64,9 @@ type (
 
 		NewAdminClientWithTimeoutAndConfig(config transport.ClientConfig, timeout time.Duration, largeTimeout time.Duration) (admin.Client, error)
 		NewFrontendClientWithTimeoutAndConfig(config transport.ClientConfig, timeout time.Duration, longPollTimeout time.Duration) (frontend.Client, error)
+
+		NewShardDistributorClient() (sharddistributor.Client, error)
+		NewShardDistributorClientWithTimeout(timeout time.Duration) (sharddistributor.Client, error)
 	}
 
 	// DomainIDToNameFunc maps a domainID to domain name. Returns error when mapping is not possible.
@@ -227,5 +233,38 @@ func (cf *rpcClientFactory) NewFrontendClientWithTimeoutAndConfig(
 	if cf.metricsClient != nil {
 		client = metered.NewFrontendClient(client, cf.metricsClient)
 	}
+	return client, nil
+}
+
+func (cf *rpcClientFactory) NewShardDistributorClient() (sharddistributor.Client, error) {
+	return cf.NewShardDistributorClientWithTimeout(timeoutwrapper.ShardDistributorDefaultTimeout)
+}
+
+func (cf *rpcClientFactory) NewShardDistributorClientWithTimeout(
+	timeout time.Duration,
+) (sharddistributor.Client, error) {
+	outboundConfig, ok := cf.rpcFactory.GetDispatcher().OutboundConfig(service.ShardDistributor)
+	// If no outbound config is found, it means the service is not enabled, we just return nil as we don't want to
+	// break existing configs.
+	if !ok {
+		return nil, nil
+	}
+
+	if !rpc.IsGRPCOutbound(outboundConfig) {
+		return nil, fmt.Errorf("shard distributor client does not support non-GRPC outbound")
+	}
+
+	client := grpc.NewShardDistributorClient(
+		sharddistributorv1.NewShardDistributorAPIYARPCClient(outboundConfig),
+	)
+
+	client = timeoutwrapper.NewShardDistributorClient(client, timeout)
+	if errorRate := cf.dynConfig.GetFloat64Property(dynamicconfig.ShardDistributorErrorInjectionRate)(); errorRate != 0 {
+		client = errorinjectors.NewShardDistributorClient(client, errorRate, cf.logger)
+	}
+	if cf.metricsClient != nil {
+		client = metered.NewShardDistributorClient(client, cf.metricsClient)
+	}
+
 	return client, nil
 }

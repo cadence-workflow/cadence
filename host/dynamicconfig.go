@@ -39,7 +39,7 @@ var (
 		dynamicconfig.MatchingNumTasklistReadPartitions:             3,
 		dynamicconfig.TimerProcessorHistoryArchivalSizeLimit:        5 * 1024,
 		dynamicconfig.ReplicationTaskProcessorErrorRetryMaxAttempts: 1,
-		dynamicconfig.AdvancedVisibilityWritingMode:                 common.AdvancedVisibilityWritingModeOff,
+		dynamicconfig.WriteVisibilityStoreName:                      common.AdvancedVisibilityModeOff,
 		dynamicconfig.DecisionHeartbeatTimeout:                      5 * time.Second,
 		dynamicconfig.ReplicationTaskFetcherAggregationInterval:     200 * time.Millisecond,
 		dynamicconfig.ReplicationTaskFetcherErrorRetryWait:          50 * time.Millisecond,
@@ -161,15 +161,15 @@ func (d *dynamicClient) GetListValue(name dynamicconfig.ListKey, filters map[dyn
 }
 
 func (d *dynamicClient) UpdateValue(name dynamicconfig.Key, value interface{}) error {
-	if name == dynamicconfig.AdvancedVisibilityWritingMode { // override for es integration tests
+	if name == dynamicconfig.WriteVisibilityStoreName { // override for es integration tests
 		d.Lock()
 		defer d.Unlock()
-		d.overrides[dynamicconfig.AdvancedVisibilityWritingMode] = value.(string)
+		d.overrides[dynamicconfig.WriteVisibilityStoreName] = value.(string)
 		return nil
-	} else if name == dynamicconfig.EnableReadVisibilityFromES { // override for pinot integration tests
+	} else if name == dynamicconfig.ReadVisibilityStoreName { // override for pinot integration tests
 		d.Lock()
 		defer d.Unlock()
-		d.overrides[dynamicconfig.EnableReadVisibilityFromES] = value.(bool)
+		d.overrides[dynamicconfig.ReadVisibilityStoreName] = value.(string)
 		return nil
 	}
 	return d.client.UpdateValue(name, value)

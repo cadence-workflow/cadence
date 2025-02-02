@@ -48,7 +48,7 @@ const (
 type (
 	// ESProcessorImpl implements ESProcessor, it's an agent of GenericBulkProcessor
 	ESProcessorImpl struct {
-		bulkProcessor []bulk.GenericBulkProcessor
+		bulkProcessor bulk.GenericBulkProcessor
 		mapToKafkaMsg collection.ConcurrentTxMap // used to map ES request to kafka message
 		config        *Config
 		logger        log.Logger
@@ -92,67 +92,18 @@ func newESProcessor(
 		return nil, err
 	}
 
-	p.bulkProcessor = []bulk.GenericBulkProcessor{processor}
-	p.mapToKafkaMsg = collection.NewShardedConcurrentTxMap(1024, p.hashFn)
-	return p, nil
-}
-
-// newESDualProcessor creates new ESDualProcessor which handles double writes to dual visibility clients
-func newESDualProcessor(
-	name string,
-	config *Config,
-	esclient es.GenericClient,
-	osclient es.GenericClient,
-	logger log.Logger,
-	metricsClient metrics.Client,
-) (*ESProcessorImpl, error) {
-	p := &ESProcessorImpl{
-		config:     config,
-		logger:     logger.WithTags(tag.ComponentIndexerESProcessor),
-		scope:      metricsClient.Scope(metrics.ESProcessorScope),
-		msgEncoder: defaultEncoder,
-	}
-
-	params := &bulk.BulkProcessorParameters{
-		Name:          name,
-		NumOfWorkers:  config.ESProcessorNumOfWorkers(),
-		BulkActions:   config.ESProcessorBulkActions(),
-		BulkSize:      config.ESProcessorBulkSize(),
-		FlushInterval: config.ESProcessorFlushInterval(),
-		Backoff:       bulk.NewExponentialBackoff(esProcessorInitialRetryInterval, esProcessorMaxRetryInterval),
-		BeforeFunc:    p.bulkBeforeAction,
-		AfterFunc:     p.bulkAfterAction,
-	}
-	esprocessor, err := esclient.RunBulkProcessor(context.Background(), params)
-	if err != nil {
-		return nil, err
-	}
-
-	// for the sceondary processor, we use shadow bulk after func which only logs errors and not ack/nack messages
-	// the primary processor will be the source of truth
-	shadowParams := *params
-	shadowParams.AfterFunc = p.shadowBulkAfterAction
-	osprocessor, err := osclient.RunBulkProcessor(context.Background(), &shadowParams)
-	if err != nil {
-		return nil, err
-	}
-
-	p.bulkProcessor = []bulk.GenericBulkProcessor{esprocessor, osprocessor}
+	p.bulkProcessor = processor
 	p.mapToKafkaMsg = collection.NewShardedConcurrentTxMap(1024, p.hashFn)
 	return p, nil
 }
 
 func (p *ESProcessorImpl) Start() {
 	// current implementation (v6 and v7) allows to invoke Start() multiple times
-	for _, processor := range p.bulkProcessor {
-		processor.Start(context.Background())
-	}
+	p.bulkProcessor.Start(context.Background())
 
 }
 func (p *ESProcessorImpl) Stop() {
-	for _, processor := range p.bulkProcessor {
-		processor.Stop() //nolint:errcheck
-	}
+	p.bulkProcessor.Stop() //nolint:errcheck
 	p.mapToKafkaMsg = nil
 }
 
@@ -167,9 +118,7 @@ func (p *ESProcessorImpl) Add(request *bulk.GenericBulkableAddRequest, key strin
 	if isDup {
 		return
 	}
-	for _, processor := range p.bulkProcessor {
-		processor.Add(request)
-	}
+	p.bulkProcessor.Add(request)
 }
 
 // bulkBeforeAction is triggered before bulk bulkProcessor commit
@@ -186,7 +135,10 @@ func (p *ESProcessorImpl) bulkAfterAction(id int64, requests []bulk.GenericBulka
 
 		isRetryable := isResponseRetriable(err.Status)
 		for _, request := range requests {
-			if !isRetryable {
+			if isRetryable {
+				// retryable errors will be retried by the bulk processor
+				p.logger.Error("ES request failed", tag.ESRequest(request.String()))
+			} else {
 				key := p.retrieveKafkaKey(request)
 				if key == "" {
 					continue
@@ -203,26 +155,31 @@ func (p *ESProcessorImpl) bulkAfterAction(id int64, requests []bulk.GenericBulka
 				// 404 means the document does not exist
 				// 409 means means the document's version does not match (or if the document has been updated or deleted by another process)
 				// this can happen during the data migration, the doc was deleted in the old index but not exists in the new index
-				if err.Status == 409 || err.Status == 404 {
-					status := err.Status
+				if err.Status == 409 {
+					p.logger.Info("Request encountered a version conflict. Acknowledging to prevent retry.",
+						tag.ESResponseStatus(err.Status), tag.ESRequest(request.String()),
+						tag.WorkflowID(wid),
+						tag.WorkflowRunID(rid),
+						tag.WorkflowDomainID(domainID))
+					p.ackKafkaMsg(key)
+				} else if err.Status == 404 {
 					req, err := request.Source()
-					if err == nil {
-						if p.isDeleteRequest(req) {
-							p.logger.Info("Delete request encountered a version conflict. Acknowledging to prevent retry.",
-								tag.ESResponseStatus(status), tag.ESRequest(request.String()),
-								tag.WorkflowID(wid),
-								tag.WorkflowRunID(rid),
-								tag.WorkflowDomainID(domainID))
-							p.ackKafkaMsg(key)
-						}
+					if err == nil && p.isDeleteRequest(req) {
+						p.logger.Info("Document has been deleted. Acknowledging to prevent retry.",
+							tag.ESResponseStatus(404), tag.ESRequest(request.String()),
+							tag.WorkflowID(wid),
+							tag.WorkflowRunID(rid),
+							tag.WorkflowDomainID(domainID))
+						p.ackKafkaMsg(key)
 					} else {
 						p.logger.Error("Get request source err.", tag.Error(err), tag.ESRequest(request.String()))
 						p.scope.IncCounter(metrics.ESProcessorCorruptedData)
+						p.nackKafkaMsg(key)
 					}
+				} else {
+					// For all other non-retryable errors, nack the message
+					p.nackKafkaMsg(key)
 				}
-				p.nackKafkaMsg(key)
-			} else {
-				p.logger.Error("ES request failed", tag.ESRequest(request.String()))
 			}
 			p.scope.IncCounter(metrics.ESProcessorFailures)
 		}
@@ -249,40 +206,6 @@ func (p *ESProcessorImpl) bulkAfterAction(id int64, requests []bulk.GenericBulka
 			default: // bulk bulkProcessor will retry
 				p.logger.Info("ES request retried.", tag.ESResponseStatus(resp.Status))
 				p.scope.IncCounter(metrics.ESProcessorRetries)
-			}
-		}
-	}
-}
-
-// shadowBulkAfterAction is triggered after bulk bulkProcessor commit
-func (p *ESProcessorImpl) shadowBulkAfterAction(id int64, requests []bulk.GenericBulkableRequest, response *bulk.GenericBulkResponse, err *bulk.GenericError) {
-	if err != nil {
-		// This happens after configured retry, which means something bad happens on cluster or index
-		// When cluster back to live, bulkProcessor will re-commit those failure requests
-		p.logger.Error("Error commit bulk request in secondary processor.", tag.Error(err.Details))
-
-		for _, request := range requests {
-			p.logger.Error("ES request failed in secondary processor",
-				tag.ESResponseStatus(err.Status),
-				tag.ESRequest(request.String()))
-		}
-		return
-	}
-	responseItems := response.Items
-	for i := 0; i < len(requests) && i < len(responseItems); i++ {
-		key := p.retrieveKafkaKey(requests[i])
-		if key == "" {
-			continue
-		}
-		responseItem := responseItems[i]
-		// It is possible for err to be nil while the responses in response.Items might still contain errors or unsuccessful statuses for individual requests.
-		// This is because the err variable refers to the overall bulk request operation, but each individual request in the bulk operation has its own status code.
-		for _, resp := range responseItem {
-			if !isResponseSuccess(resp.Status) {
-				wid, rid, domainID := p.getMsgWithInfo(key)
-				p.logger.Error("ES request failed in secondary processor",
-					tag.ESResponseStatus(resp.Status), tag.ESResponseError(getErrorMsgFromESResp(resp)), tag.WorkflowID(wid), tag.WorkflowRunID(rid),
-					tag.WorkflowDomainID(domainID))
 			}
 		}
 	}

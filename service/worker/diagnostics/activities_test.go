@@ -40,7 +40,6 @@ import (
 	"github.com/uber/cadence/service/worker/diagnostics/invariant"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant/failure"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant/retry"
-	"github.com/uber/cadence/service/worker/diagnostics/invariant/timeout"
 )
 
 const (
@@ -49,38 +48,8 @@ const (
 	timeUnit              = time.Second
 )
 
-func Test__retrieveExecutionHistory(t *testing.T) {
-	dwtest := testDiagnosticWorkflow(t)
-	result, err := dwtest.retrieveExecutionHistory(context.Background(), retrieveExecutionHistoryInputParams{
-		Domain: "test",
-		Execution: &types.WorkflowExecution{
-			WorkflowID: "123",
-			RunID:      "abc",
-		},
-	})
-	require.NoError(t, err)
-	require.Equal(t, testWorkflowExecutionHistoryResponse(), result)
-}
-
 func Test__identifyIssues(t *testing.T) {
 	dwtest := testDiagnosticWorkflow(t)
-	workflowTimeoutData := timeout.ExecutionTimeoutMetadata{
-		ExecutionTime:     110 * time.Second,
-		ConfiguredTimeout: 110 * time.Second,
-		LastOngoingEvent: &types.HistoryEvent{
-			ID:        4,
-			Timestamp: common.Int64Ptr(testTimeStamp),
-			ActivityTaskFailedEventAttributes: &types.ActivityTaskFailedEventAttributes{
-				Reason:           common.StringPtr("cadenceInternal:Generic"),
-				Details:          []byte("test-activity-failure"),
-				Identity:         "localhost",
-				ScheduledEventID: 2,
-				StartedEventID:   3,
-			},
-		},
-	}
-	workflowTimeoutDataInBytes, err := json.Marshal(workflowTimeoutData)
-	require.NoError(t, err)
 	actMetadata := failure.FailureMetadata{
 		Identity: "localhost",
 		ActivityScheduled: &types.ActivityTaskScheduledEventAttributes{
@@ -108,11 +77,6 @@ func Test__identifyIssues(t *testing.T) {
 	require.NoError(t, err)
 	expectedResult := []invariant.InvariantCheckResult{
 		{
-			InvariantType: timeout.TimeoutTypeExecution.String(),
-			Reason:        "START_TO_CLOSE",
-			Metadata:      workflowTimeoutDataInBytes,
-		},
-		{
 			InvariantType: failure.ActivityFailed.String(),
 			Reason:        failure.GenericError.String(),
 			Metadata:      actMetadataInBytes,
@@ -123,30 +87,16 @@ func Test__identifyIssues(t *testing.T) {
 			Metadata:      retryMetadataInBytes,
 		},
 	}
-	result, err := dwtest.identifyIssues(context.Background(), identifyIssuesParams{History: testWorkflowExecutionHistoryResponse()})
+	result, err := dwtest.identifyIssues(context.Background(), identifyIssuesParams{Execution: &types.WorkflowExecution{
+		WorkflowID: "123",
+		RunID:      "abc",
+	}})
 	require.NoError(t, err)
 	require.Equal(t, expectedResult, result)
 }
 
 func Test__rootCauseIssues(t *testing.T) {
 	dwtest := testDiagnosticWorkflow(t)
-	workflowTimeoutData := timeout.ExecutionTimeoutMetadata{
-		ExecutionTime:     110 * time.Second,
-		ConfiguredTimeout: 110 * time.Second,
-		LastOngoingEvent: &types.HistoryEvent{
-			ID:        1,
-			Timestamp: common.Int64Ptr(testTimeStamp),
-			WorkflowExecutionStartedEventAttributes: &types.WorkflowExecutionStartedEventAttributes{
-				ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(workflowTimeoutSecond),
-			},
-		},
-		Tasklist: &types.TaskList{
-			Name: "testasklist",
-			Kind: nil,
-		},
-	}
-	workflowTimeoutDataInBytes, err := json.Marshal(workflowTimeoutData)
-	require.NoError(t, err)
 	actMetadata := failure.FailureMetadata{
 		Identity: "localhost",
 		ActivityScheduled: &types.ActivityTaskScheduledEventAttributes{
@@ -162,41 +112,30 @@ func Test__rootCauseIssues(t *testing.T) {
 	require.NoError(t, err)
 	issues := []invariant.InvariantCheckResult{
 		{
-			InvariantType: timeout.TimeoutTypeExecution.String(),
-			Reason:        "START_TO_CLOSE",
-			Metadata:      workflowTimeoutDataInBytes,
-		},
-		{
 			InvariantType: failure.ActivityFailed.String(),
 			Reason:        failure.CustomError.String(),
 			Metadata:      actMetadataInBytes,
 		},
 	}
-	taskListBacklog := int64(10)
-	taskListBacklogInBytes, err := json.Marshal(timeout.PollersMetadata{TaskListBacklog: taskListBacklog})
-	require.NoError(t, err)
 	expectedRootCause := []invariant.InvariantRootCauseResult{
-		{
-			RootCause: invariant.RootCauseTypePollersStatus,
-			Metadata:  taskListBacklogInBytes,
-		},
 		{
 			RootCause: invariant.RootCauseTypeServiceSideCustomError,
 			Metadata:  actMetadataInBytes,
 		},
 	}
-	result, err := dwtest.rootCauseIssues(context.Background(), rootCauseIssuesParams{History: testWorkflowExecutionHistoryResponse(), Domain: "test-domain", Issues: issues})
+	result, err := dwtest.rootCauseIssues(context.Background(), rootCauseIssuesParams{Domain: "test-domain", Issues: issues})
 	require.NoError(t, err)
 	require.Equal(t, expectedRootCause, result)
 }
 
 func Test__emit(t *testing.T) {
 	ctrl := gomock.NewController(t)
+	dwtest := testDiagnosticWorkflow(t)
 	mockClient := messaging.NewMockClient(ctrl)
 	mockProducer := messaging.NewMockProducer(ctrl)
 	mockProducer.EXPECT().Publish(gomock.Any(), gomock.Any()).Return(nil)
 	mockClient.EXPECT().NewProducer(WfDiagnosticsAppName).Return(mockProducer, nil)
-	err := emit(context.Background(), analytics.WfDiagnosticsUsageData{}, mockClient)
+	err := dwtest.emit(context.Background(), analytics.WfDiagnosticsUsageData{}, mockClient)
 	require.NoError(t, err)
 }
 
@@ -206,18 +145,9 @@ func testDiagnosticWorkflow(t *testing.T) *dw {
 	mockFrontendClient := frontend.NewMockClient(ctrl)
 	mockClientBean.EXPECT().GetFrontendClient().Return(mockFrontendClient).AnyTimes()
 	mockFrontendClient.EXPECT().GetWorkflowExecutionHistory(gomock.Any(), gomock.Any()).Return(testWorkflowExecutionHistoryResponse(), nil).AnyTimes()
-	mockFrontendClient.EXPECT().DescribeTaskList(gomock.Any(), gomock.Any()).Return(&types.DescribeTaskListResponse{
-		Pollers: []*types.PollerInfo{
-			{
-				Identity: "dca24-xy",
-			},
-		},
-		TaskListStatus: &types.TaskListStatus{
-			BacklogCountHint: int64(10),
-		},
-	}, nil).AnyTimes()
 	return &dw{
 		clientBean: mockClientBean,
+		invariants: []invariant.Invariant{failure.NewInvariant(), retry.NewInvariant()},
 	}
 }
 

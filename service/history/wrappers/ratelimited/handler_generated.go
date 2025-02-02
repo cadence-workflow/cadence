@@ -33,8 +33,6 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common"
-	"github.com/uber/cadence/common/cache"
-	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/frontend/validate"
@@ -44,28 +42,22 @@ import (
 
 // historyHandler implements handler.Handler interface instrumented with rate limiter.
 type historyHandler struct {
-	wrapped                        handler.Handler
-	workflowIDCache                workflowcache.WFCache
-	ratelimitExternalPerWorkflowID dynamicconfig.BoolPropertyFnWithDomainFilter
-	domainCache                    cache.DomainCache
-	logger                         log.Logger
-	allowFunc                      func(domainID string, workflowID string) bool
+	wrapped         handler.Handler
+	workflowIDCache workflowcache.WFCache
+	logger          log.Logger
+	allowFunc       func(domainID string, workflowID string) bool
 }
 
 // NewHistoryHandler creates a new instance of Handler with ratelimiter.
 func NewHistoryHandler(
 	wrapped handler.Handler,
 	workflowIDCache workflowcache.WFCache,
-	ratelimitExternalPerWorkflowID dynamicconfig.BoolPropertyFnWithDomainFilter,
-	domainCache cache.DomainCache,
 	logger log.Logger,
 ) handler.Handler {
 	wrapper := &historyHandler{
-		wrapped:                        wrapped,
-		workflowIDCache:                workflowIDCache,
-		ratelimitExternalPerWorkflowID: ratelimitExternalPerWorkflowID,
-		domainCache:                    domainCache,
-		logger:                         logger,
+		wrapped:         wrapped,
+		workflowIDCache: workflowIDCache,
+		logger:          logger,
 	}
 	wrapper.allowFunc = wrapper.allowWfID
 

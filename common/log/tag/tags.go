@@ -1062,6 +1062,22 @@ func PartitionDownscaleFactor(qps float64) Tag {
 	return newFloat64Tag("partition-downscale-factor", qps)
 }
 
+func MatchingTaskID(id int64) Tag {
+	return newInt64("matching-task-id", id)
+}
+
+func MatchingTaskScheduleID(id int64) Tag {
+	return newInt64("matching-task-schedule-id", id)
+}
+
+func DecisionTaskState(state int32) Tag {
+	return newInt32("decision-task-state", state)
+}
+
+func ActivityTaskState(state int32) Tag {
+	return newInt32("activity-task-state", state)
+}
+
 func Namespace(name string) Tag {
 	return newStringTag("namespace", name)
 }

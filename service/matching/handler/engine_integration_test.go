@@ -311,6 +311,8 @@ func (s *matchingEngineSuite) PollForDecisionTasksResultTest() {
 	}
 	resp, err := pollTask(s.matchingEngine, s.handlerContext, pollReq)
 	s.NoError(err)
+	s.NotNil(resp.AutoConfigHint)
+	resp.AutoConfigHint = nil
 	s.Equal(&pollTaskResponse{}, resp)
 	// add task to sticky tasklist again, this time it should pass
 	_, err = addTask(s.matchingEngine, s.handlerContext, addRequest)
@@ -363,6 +365,8 @@ func (s *matchingEngineSuite) PollForTasksEmptyResultTest(callContext context.Co
 			Identity:   identity,
 		}
 		pollResp, err := pollTask(s.matchingEngine, s.handlerContext, pollReq)
+		s.NotNil(pollResp.AutoConfigHint)
+		pollResp.AutoConfigHint = nil // poller wait time is not a fixed value, exclude it from comparison
 		s.NoError(err)
 		s.Equal(&pollTaskResponse{}, pollResp)
 
@@ -952,6 +956,8 @@ func (s *matchingEngineSuite) PollWithExpiredContext(taskType int) {
 	s.handlerContext.Context = ctx
 	resp, err := pollTask(s.matchingEngine, s.handlerContext, pollReq)
 	s.Nil(err)
+	s.NotNil(resp.AutoConfigHint)
+	resp.AutoConfigHint = nil
 	s.Equal(&pollTaskResponse{}, resp)
 }
 
@@ -1134,6 +1140,8 @@ func (s *matchingEngineSuite) UnloadTasklistOnIsolationConfigChange(taskType int
 	}
 	result, err := pollTask(s.matchingEngine, s.handlerContext, pollReq)
 	s.NoError(err)
+	s.NotNil(result.AutoConfigHint)
+	result.AutoConfigHint = nil
 	s.Equal(&pollTaskResponse{}, result)
 
 	result, err = pollTask(s.matchingEngine, s.handlerContext, pollReq)
@@ -1644,6 +1652,7 @@ func pollTask(engine *matchingEngineImpl, hCtx *handlerContext, request *pollTas
 			WorkflowType:                    resp.WorkflowType,
 			WorkflowDomain:                  resp.WorkflowDomain,
 			Header:                          resp.Header,
+			AutoConfigHint:                  resp.AutoConfigHint,
 		}, nil
 	}
 	resp, err := engine.PollForDecisionTask(hCtx, &types.MatchingPollForDecisionTaskRequest{

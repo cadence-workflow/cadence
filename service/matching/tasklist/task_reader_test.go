@@ -52,6 +52,7 @@ func TestDispatchSingleTaskFromBuffer(t *testing.T) {
 	testCases := []struct {
 		name          string
 		allowances    func(t *testing.T, reader *taskReader)
+		ttl           int
 		breakDispatch bool
 		breakRetries  bool
 	}{
@@ -174,6 +175,47 @@ func TestDispatchSingleTaskFromBuffer(t *testing.T) {
 			breakDispatch: false,
 			breakRetries:  false,
 		},
+		{
+			name: "Error - task not started and not expired, should retry",
+			allowances: func(t *testing.T, reader *taskReader) {
+				reader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration, error) {
+					return defaultIsolationGroup, -1, nil
+				}
+				reader.dispatchTask = func(ctx context.Context, task *InternalTask) error {
+					return errTaskNotStarted
+				}
+			},
+			ttl:           100,
+			breakDispatch: false,
+			breakRetries:  false,
+		},
+		{
+			name: "Error - task not started and expired, should not retry",
+			allowances: func(t *testing.T, reader *taskReader) {
+				reader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration, error) {
+					return defaultIsolationGroup, -1, nil
+				}
+				reader.dispatchTask = func(ctx context.Context, task *InternalTask) error {
+					return errTaskNotStarted
+				}
+			},
+			ttl:           -2,
+			breakDispatch: false,
+			breakRetries:  true,
+		},
+		{
+			name: "Error - time not reached to complete task without workflow execution, should retry",
+			allowances: func(t *testing.T, reader *taskReader) {
+				reader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration, error) {
+					return defaultIsolationGroup, -1, nil
+				}
+				reader.dispatchTask = func(ctx context.Context, task *InternalTask) error {
+					return errWaitTimeNotReachedForEntityNotExists
+				}
+			},
+			breakDispatch: false,
+			breakRetries:  false,
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -184,6 +226,7 @@ func TestDispatchSingleTaskFromBuffer(t *testing.T) {
 			reader := tlm.taskReader
 			tc.allowances(t, reader)
 			taskInfo := newTask(timeSource)
+			taskInfo.Expiry = timeSource.Now().Add(time.Duration(tc.ttl) * time.Second)
 
 			breakDispatch, breakRetries := reader.dispatchSingleTaskFromBuffer(taskInfo)
 			assert.Equal(t, tc.breakDispatch, breakDispatch)

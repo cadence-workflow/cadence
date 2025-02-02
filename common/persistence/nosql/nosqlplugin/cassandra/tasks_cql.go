@@ -42,14 +42,14 @@ const (
 		`}`
 
 	templateCreateTaskQuery = `INSERT INTO tasks (` +
-		`domain_id, task_list_name, task_list_type, type, task_id, task) ` +
-		`VALUES(?, ?, ?, ?, ?, ` + templateTaskType + `)`
+		`domain_id, task_list_name, task_list_type, type, task_id, task, created_time) ` +
+		`VALUES(?, ?, ?, ?, ?, ` + templateTaskType + `, ?)`
 
 	templateCreateTaskWithTTLQuery = `INSERT INTO tasks (` +
-		`domain_id, task_list_name, task_list_type, type, task_id, task) ` +
-		`VALUES(?, ?, ?, ?, ?, ` + templateTaskType + `) USING TTL ?`
+		`domain_id, task_list_name, task_list_type, type, task_id, task, created_time) ` +
+		`VALUES(?, ?, ?, ?, ?, ` + templateTaskType + `, ?) USING TTL ?`
 
-	templateGetTasksQuery = `SELECT task_id, task ` +
+	templateGetTasksQuery = `SELECT task_id, task, TTL(task) AS ttl ` +
 		`FROM tasks ` +
 		`WHERE domain_id = ? ` +
 		`and task_list_name = ? ` +
@@ -91,12 +91,13 @@ const (
 		`type, ` +
 		`task_id, ` +
 		`range_id, ` +
-		`task_list ` +
-		`) VALUES (?, ?, ?, ?, ?, ?, ` + templateTaskListType + `) IF NOT EXISTS`
+		`task_list, ` +
+		`created_time ` +
+		`) VALUES (?, ?, ?, ?, ?, ?, ` + templateTaskListType + `, ?) IF NOT EXISTS`
 
 	templateUpdateTaskListQuery = `UPDATE tasks SET ` +
 		`range_id = ?, ` +
-		`task_list = ` + templateTaskListType + " " +
+		`task_list = ` + templateTaskListType + " , last_updated_time = ? " +
 		`WHERE domain_id = ? ` +
 		`and task_list_name = ? ` +
 		`and task_list_type = ? ` +
@@ -109,12 +110,13 @@ const (
 		`task_list_name, ` +
 		`task_list_type, ` +
 		`type, ` +
-		`task_id ` +
-		`) VALUES (?, ?, ?, ?, ?) USING TTL ?`
+		`task_id, ` +
+		`created_time ` +
+		`) VALUES (?, ?, ?, ?, ?, ?) USING TTL ?`
 
 	templateUpdateTaskListQueryWithTTLPart2 = `UPDATE tasks USING TTL ? SET ` +
 		`range_id = ?, ` +
-		`task_list = ` + templateTaskListType + " " +
+		`task_list = ` + templateTaskListType + " , last_updated_time = ? " +
 		`WHERE domain_id = ? ` +
 		`and task_list_name = ? ` +
 		`and task_list_type = ? ` +
@@ -123,7 +125,8 @@ const (
 		`IF range_id = ?`
 
 	templateUpdateTaskListRangeIDQuery = `UPDATE tasks SET ` +
-		`range_id = ? ` +
+		`range_id = ?, ` +
+		`last_updated_time = ? ` +
 		`WHERE domain_id = ? ` +
 		`and task_list_name = ? ` +
 		`and task_list_type = ? ` +

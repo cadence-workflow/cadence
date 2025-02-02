@@ -30,7 +30,6 @@ import (
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/dynamicconfig"
@@ -73,8 +72,8 @@ func (s *DBVisibilityPersistenceSuite) SetupSuite() {
 			},
 		},
 		&service.Config{
-			EnableReadVisibilityFromES:                  dynamicconfig.GetBoolPropertyFnFilteredByDomain(false),
-			AdvancedVisibilityWritingMode:               dynamicconfig.GetStringPropertyFn(common.AdvancedVisibilityWritingModeOff),
+			ReadVisibilityStoreName:                     dynamicconfig.GetStringPropertyFnFilteredByDomain("db"),
+			WriteVisibilityStoreName:                    dynamicconfig.GetStringPropertyFn("db"),
 			EnableReadDBVisibilityFromClosedExecutionV2: dynamicconfig.GetBoolPropertyFn(false),
 			EnableDBVisibilitySampling:                  dynamicconfig.GetBoolPropertyFn(false),
 		},
@@ -873,12 +872,19 @@ func (s *DBVisibilityPersistenceSuite) TestUpsertWorkflowExecution() {
 				SearchAttributes:   nil,
 				ShardID:            1234,
 			},
-			expected: p.ErrVisibilityOperationNotSupported,
+			expected: &types.InternalServiceError{
+				Message: "Error writing to visibility: Operation is not supported",
+			},
 		},
 	}
 
 	for _, test := range tests {
-		s.Equal(test.expected, s.VisibilityMgr.UpsertWorkflowExecution(ctx, test.request))
+		err := s.VisibilityMgr.UpsertWorkflowExecution(ctx, test.request)
+		if test.expected == nil {
+			s.Equal(test.expected, err)
+		} else {
+			s.Equal(test.expected.Error(), err.Error())
+		}
 	}
 }
 

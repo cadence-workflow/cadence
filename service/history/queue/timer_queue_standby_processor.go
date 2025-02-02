@@ -21,6 +21,7 @@
 package queue
 
 import (
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
@@ -38,7 +39,7 @@ func newTimerQueueStandbyProcessor(
 	taskAllocator TaskAllocator,
 	taskExecutor task.Executor,
 	logger log.Logger,
-) (*timerQueueProcessorBase, RemoteTimerGate) {
+) (*timerQueueProcessorBase, clock.EventTimerGate) {
 	config := shard.GetConfig()
 	options := newTimerQueueProcessorOptions(config, false, false)
 
@@ -91,8 +92,7 @@ func newTimerQueueStandbyProcessor(
 		return nil
 	}
 
-	remoteTimerGate := NewRemoteTimerGate()
-	remoteTimerGate.SetCurrentTime(shard.GetCurrentTime(clusterName))
+	remoteTimerGate := clock.NewEventTimerGate(shard.GetCurrentTime(clusterName))
 
 	return newTimerQueueProcessorBase(
 		clusterName,

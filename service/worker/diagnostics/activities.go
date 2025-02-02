@@ -25,14 +25,11 @@ package diagnostics
 import (
 	"context"
 
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/messaging"
-	"github.com/uber/cadence/common/messaging/kafka"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/worker/diagnostics/analytics"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant"
-	"github.com/uber/cadence/service/worker/diagnostics/invariant/failure"
-	"github.com/uber/cadence/service/worker/diagnostics/invariant/retry"
-	"github.com/uber/cadence/service/worker/diagnostics/invariant/timeout"
 )
 
 const (
@@ -42,104 +39,74 @@ const (
 	WfDiagnosticsAppName  = "workflow-diagnostics"
 )
 
-type retrieveExecutionHistoryInputParams struct {
-	Domain    string
-	Execution *types.WorkflowExecution
-}
-
-func (w *dw) retrieveExecutionHistory(ctx context.Context, info retrieveExecutionHistoryInputParams) (*types.GetWorkflowExecutionHistoryResponse, error) {
-	frontendClient := w.clientBean.GetFrontendClient()
-	return frontendClient.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
-		Domain:    info.Domain,
-		Execution: info.Execution,
-	})
-}
-
 type identifyIssuesParams struct {
-	History *types.GetWorkflowExecutionHistoryResponse
-	Domain  string
+	Execution *types.WorkflowExecution
+	Domain    string
 }
 
 func (w *dw) identifyIssues(ctx context.Context, info identifyIssuesParams) ([]invariant.InvariantCheckResult, error) {
 	result := make([]invariant.InvariantCheckResult, 0)
 
-	timeoutInvariant := timeout.NewInvariant(timeout.NewTimeoutParams{
-		WorkflowExecutionHistory: info.History,
-		Domain:                   info.Domain,
-		ClientBean:               w.clientBean,
+	frontendClient := w.clientBean.GetFrontendClient()
+	history, err := frontendClient.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
+		Domain:    info.Domain,
+		Execution: info.Execution,
 	})
-	timeoutIssues, err := timeoutInvariant.Check(ctx)
 	if err != nil {
 		return nil, err
 	}
-	result = append(result, timeoutIssues...)
 
-	failureInvariant := failure.NewInvariant(failure.Params{
-		WorkflowExecutionHistory: info.History,
-		Domain:                   info.Domain,
-	})
-	failureIssues, err := failureInvariant.Check(ctx)
-	if err != nil {
-		return nil, err
+	for _, inv := range w.invariants {
+		issues, err := inv.Check(ctx, invariant.InvariantCheckInput{
+			WorkflowExecutionHistory: history,
+			Domain:                   info.Domain,
+		})
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, issues...)
 	}
-	result = append(result, failureIssues...)
-
-	retryInvariant := retry.NewInvariant(retry.Params{
-		WorkflowExecutionHistory: info.History,
-	})
-	retryIssues, err := retryInvariant.Check(ctx)
-	if err != nil {
-		return nil, err
-	}
-	result = append(result, retryIssues...)
 
 	return result, nil
 }
 
 type rootCauseIssuesParams struct {
-	History *types.GetWorkflowExecutionHistoryResponse
-	Domain  string
-	Issues  []invariant.InvariantCheckResult
+	Domain string
+	Issues []invariant.InvariantCheckResult
 }
 
 func (w *dw) rootCauseIssues(ctx context.Context, info rootCauseIssuesParams) ([]invariant.InvariantRootCauseResult, error) {
 	result := make([]invariant.InvariantRootCauseResult, 0)
-	timeoutInvariant := timeout.NewInvariant(timeout.NewTimeoutParams{
-		WorkflowExecutionHistory: info.History,
-		ClientBean:               w.clientBean,
-		Domain:                   info.Domain,
-	})
-	timeoutRC, err := timeoutInvariant.RootCause(ctx, info.Issues)
-	if err != nil {
-		return nil, err
+
+	for _, inv := range w.invariants {
+		rootCause, err := inv.RootCause(ctx, invariant.InvariantRootCauseInput{
+			Domain: info.Domain,
+			Issues: info.Issues,
+		})
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, rootCause...)
 	}
-	result = append(result, timeoutRC...)
-	failureInvariant := failure.NewInvariant(failure.Params{
-		WorkflowExecutionHistory: info.History,
-		Domain:                   info.Domain,
-	})
-	failureRC, err := failureInvariant.RootCause(ctx, info.Issues)
-	if err != nil {
-		return nil, err
-	}
-	result = append(result, failureRC...)
 
 	return result, nil
 }
 
 func (w *dw) emitUsageLogs(ctx context.Context, info analytics.WfDiagnosticsUsageData) error {
-	client := w.newMessagingClient()
-	return emit(ctx, info, client)
+	if w.messagingClient == nil {
+		// skip emitting logs if messaging client is not provided since it is optional
+		w.logger.Error("messaging client is not provided, skipping emitting wf-diagnostics usage logs", tag.WorkflowDomainName(info.Domain))
+		return nil
+	}
+	return w.emit(ctx, info, w.messagingClient)
 }
 
-func (w *dw) newMessagingClient() messaging.Client {
-	return kafka.NewKafkaClient(&w.kafkaCfg, w.metricsClient, w.logger, w.tallyScope, true)
-}
-
-func emit(ctx context.Context, info analytics.WfDiagnosticsUsageData, client messaging.Client) error {
+func (w *dw) emit(ctx context.Context, info analytics.WfDiagnosticsUsageData, client messaging.Client) error {
 	producer, err := client.NewProducer(WfDiagnosticsAppName)
 	if err != nil {
-		return err
+		// skip emitting logs if producer cannot be created since it is optional
+		w.logger.Error("producer creation failed, skipping emitting wf-diagnostics usage logs", tag.WorkflowDomainName(info.Domain))
+		return nil
 	}
 	emitter := analytics.NewEmitter(analytics.EmitterParams{
 		Producer: producer,

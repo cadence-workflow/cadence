@@ -264,6 +264,43 @@ func (s *engineSuite) TestGetMutableState_EmptyRunID() {
 	s.Equal(&types.EntityNotExistsError{}, err)
 }
 
+func (s *engineSuite) TestGetMutableState_NoVersionHistories() {
+	ctx := context.Background()
+
+	workflowExecution := types.WorkflowExecution{
+		WorkflowID: "test-get-workflow-execution-event-id",
+		RunID:      constants.TestRunID,
+	}
+
+	msBuilder := execution.NewMutableStateBuilderWithEventV2(
+		s.mockHistoryEngine.shard,
+		testlogger.New(s.Suite.T()),
+		workflowExecution.GetRunID(),
+		constants.TestLocalDomainEntry,
+	)
+
+	// simulate having no version histories
+	s.Require().NoError(msBuilder.SetVersionHistories(nil))
+
+	ms := execution.CreatePersistenceMutableState(s.T(), msBuilder)
+	gweResponse := &persistence.GetWorkflowExecutionResponse{State: ms}
+	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(gweResponse, nil).Once()
+
+	// return immediately, since the expected next event ID appears
+	mutableState, err := s.mockHistoryEngine.GetMutableState(ctx, &types.GetMutableStateRequest{
+		DomainUUID: constants.TestDomainID,
+		Execution:  &workflowExecution,
+
+		// we request for the specific history version, but there are no history versions for the execution
+		VersionHistoryItem: &types.VersionHistoryItem{
+			EventID: 1,
+			Version: 1,
+		},
+	})
+	s.ErrorContains(err, "version histories do not exist")
+	s.Nil(mutableState)
+}
+
 func (s *engineSuite) TestGetMutableStateLongPoll() {
 	ctx := context.Background()
 

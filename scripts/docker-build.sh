@@ -2,6 +2,8 @@
 
 set -ex
 
+# This script can be used to locally build all the images. Do NOT push these images. Dockerhub registry should only be updated via github workflow.
+
 echo "Building docker images for $BUILDKITE_MESSAGE"
 
 docker build . -f Dockerfile -t ubercadence/server:master --build-arg TARGET=server

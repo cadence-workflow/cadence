@@ -73,6 +73,7 @@ func setupNoSQLStoreMocks(t *testing.T) (*nosqlTaskStore, *nosqlplugin.MockDB) {
 			TestTaskType).
 		Return(&nosqlSt, nil).
 		AnyTimes()
+	shardedNosqlStoreMock.EXPECT().GetLogger().Return(log.NewNoop()).AnyTimes()
 
 	store := &nosqlTaskStore{
 		shardedNosqlStore: shardedNosqlStoreMock,
@@ -446,6 +447,8 @@ func TestCompleteTasksLessThan(t *testing.T) {
 }
 
 func TestCreateTasks(t *testing.T) {
+	now := time.Now()
+
 	testCases := []struct {
 		name          string
 		setupMock     func(*nosqlplugin.MockDB)
@@ -489,6 +492,82 @@ func TestCreateTasks(t *testing.T) {
 							ScheduleID:                    10,
 							PartitionConfig:               nil,
 							ScheduleToStartTimeoutSeconds: 30,
+						},
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "success - adding task with Expiry not expired",
+			setupMock: func(dbMock *nosqlplugin.MockDB) {
+				dbMock.EXPECT().InsertTasks(gomock.Any(), gomock.Any(), &nosqlplugin.TaskListRow{
+					DomainID:     TestDomainID,
+					TaskListName: TestTaskListName,
+					TaskListType: TestTaskType,
+					RangeID:      1,
+				}).Do(func(_ context.Context, tasks []*nosqlplugin.TaskRowForInsert, _ *nosqlplugin.TaskListRow) {
+					assert.Len(t, tasks, 1)
+					assert.Equal(t, TestDomainID, tasks[0].DomainID)
+					assert.Equal(t, "workflow1", tasks[0].WorkflowID)
+					assert.Equal(t, "run1", tasks[0].RunID)
+					assert.Equal(t, int64(100), tasks[0].TaskID)
+					assert.Equal(t, int64(10), tasks[0].ScheduledID)
+					assert.Equal(t, TestTaskType, tasks[0].TaskListType)
+					assert.Equal(t, TestTaskListName, tasks[0].TaskListName)
+					assert.Equal(t, int(now.Add(100*time.Second).Sub(tasks[0].CreatedTime).Seconds()), tasks[0].TTLSeconds)
+				}).Return(nil).Times(1)
+			},
+			request: &persistence.CreateTasksRequest{
+				TaskListInfo: &persistence.TaskListInfo{
+					DomainID: TestDomainID,
+					Name:     TestTaskListName,
+					TaskType: TestTaskType,
+					RangeID:  1,
+				},
+				Tasks: []*persistence.CreateTaskInfo{
+					{
+						TaskID: 100,
+						Data: &persistence.TaskInfo{
+							WorkflowID:      "workflow1",
+							RunID:           "run1",
+							ScheduleID:      10,
+							PartitionConfig: nil,
+							Expiry:          now.Add(100 * time.Second),
+						},
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "success - skipping task with Expiry expired",
+			setupMock: func(dbMock *nosqlplugin.MockDB) {
+				dbMock.EXPECT().InsertTasks(gomock.Any(), gomock.Any(), &nosqlplugin.TaskListRow{
+					DomainID:     TestDomainID,
+					TaskListName: TestTaskListName,
+					TaskListType: TestTaskType,
+					RangeID:      1,
+				}).Do(func(_ context.Context, tasks []*nosqlplugin.TaskRowForInsert, _ *nosqlplugin.TaskListRow) {
+					assert.Len(t, tasks, 0)
+				}).Return(nil).Times(1)
+			},
+			request: &persistence.CreateTasksRequest{
+				TaskListInfo: &persistence.TaskListInfo{
+					DomainID: TestDomainID,
+					Name:     TestTaskListName,
+					TaskType: TestTaskType,
+					RangeID:  1,
+				},
+				Tasks: []*persistence.CreateTaskInfo{
+					{
+						TaskID: 100,
+						Data: &persistence.TaskInfo{
+							WorkflowID:      "workflow1",
+							RunID:           "run1",
+							ScheduleID:      10,
+							PartitionConfig: nil,
+							Expiry:          now,
 						},
 					},
 				},

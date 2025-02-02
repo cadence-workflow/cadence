@@ -20,71 +20,71 @@
 
 package collection
 
-import "sync"
+import (
+	"errors"
+	"sync"
+)
 
 type (
-	concurrentQueueImpl struct {
-		sync.Mutex
-		items []interface{}
+	concurrentQueueImpl[T any] struct {
+		sync.RWMutex
+		items []T
 	}
 )
 
 // NewConcurrentQueue creates a new concurrent queue
-func NewConcurrentQueue() Queue {
-	return &concurrentQueueImpl{
-		items: make([]interface{}, 0, 1000),
+func NewConcurrentQueue[T any]() Queue[T] {
+	return &concurrentQueueImpl[T]{
+		items: make([]T, 0, 1000),
 	}
 }
 
-func (q *concurrentQueueImpl) Peek() interface{} {
-	q.Lock()
-	defer q.Unlock()
+func (q *concurrentQueueImpl[T]) Peek() (T, error) {
+	q.RLock()
+	defer q.RUnlock()
 
+	var item T
 	if q.isEmptyLocked() {
-		return nil
+		return item, errors.New("queue is empty")
 	}
-	return q.items[0]
+	return q.items[0], nil
 }
 
-func (q *concurrentQueueImpl) Add(item interface{}) {
-	if item == nil {
-		panic("cannot add nil item to queue")
-	}
-
+func (q *concurrentQueueImpl[T]) Add(item T) {
 	q.Lock()
 	defer q.Unlock()
 
 	q.items = append(q.items, item)
 }
 
-func (q *concurrentQueueImpl) Remove() interface{} {
+func (q *concurrentQueueImpl[T]) Remove() (T, error) {
 	q.Lock()
 	defer q.Unlock()
+	var item T
 	if q.isEmptyLocked() {
-		return nil
+		return item, errors.New("queue is empty")
 	}
 
-	item := q.items[0]
-	q.items[0] = nil
+	item = q.items[0]
 	q.items = q.items[1:]
 
-	return item
+	return item, nil
 }
 
-func (q *concurrentQueueImpl) IsEmpty() bool {
-	q.Lock()
-	defer q.Unlock()
+func (q *concurrentQueueImpl[T]) IsEmpty() bool {
+	q.RLock()
+	defer q.RUnlock()
 
 	return q.isEmptyLocked()
 }
 
-func (q *concurrentQueueImpl) Len() int {
-	q.Lock()
-	defer q.Unlock()
+func (q *concurrentQueueImpl[T]) Len() int {
+	q.RLock()
+	defer q.RUnlock()
 
 	return len(q.items)
 }
 
-func (q *concurrentQueueImpl) isEmptyLocked() bool {
+func (q *concurrentQueueImpl[T]) isEmptyLocked() bool {
 	return len(q.items) == 0
 }

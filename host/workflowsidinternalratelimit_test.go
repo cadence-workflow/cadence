@@ -53,9 +53,7 @@ func TestWorkflowIDInternalRateLimitIntegrationSuite(t *testing.T) {
 
 	clusterConfig.TimeSource = clock.NewMockedTimeSource()
 	clusterConfig.HistoryDynamicConfigOverrides = map[dynamicconfig.Key]interface{}{
-		dynamicconfig.WorkflowIDCacheInternalEnabled:     true,
-		dynamicconfig.WorkflowIDInternalRPS:              2,
-		dynamicconfig.WorkflowIDInternalRateLimitEnabled: true,
+		dynamicconfig.WorkflowIDInternalRPS: 2,
 	}
 
 	testCluster := NewPersistenceTestCluster(t, clusterConfig)
@@ -71,29 +69,29 @@ func TestWorkflowIDInternalRateLimitIntegrationSuite(t *testing.T) {
 }
 
 func (s *WorkflowIDInternalRateLimitIntegrationSuite) SetupSuite() {
-	s.setupLogger()
+	s.SetupLogger()
 
 	s.Logger.Info("Running integration test against test cluster")
-	clusterMetadata := NewClusterMetadata(s.T(), s.testClusterConfig)
+	clusterMetadata := NewClusterMetadata(s.T(), s.TestClusterConfig)
 	dc := persistence.DynamicConfiguration{
 		EnableCassandraAllConsistencyLevelDelete: dynamicconfig.GetBoolPropertyFn(true),
 		PersistenceSampleLoggingRate:             dynamicconfig.GetIntPropertyFn(100),
 		EnableShardIDMetrics:                     dynamicconfig.GetBoolPropertyFn(true),
 	}
 	params := pt.TestBaseParams{
-		DefaultTestCluster:    s.defaultTestCluster,
-		VisibilityTestCluster: s.visibilityTestCluster,
+		DefaultTestCluster:    s.DefaultTestCluster,
+		VisibilityTestCluster: s.VisibilityTestCluster,
 		ClusterMetadata:       clusterMetadata,
 		DynamicConfiguration:  dc,
 	}
-	cluster, err := NewCluster(s.T(), s.testClusterConfig, s.Logger, params)
+	cluster, err := NewCluster(s.T(), s.TestClusterConfig, s.Logger, params)
 	s.Require().NoError(err)
-	s.testCluster = cluster
-	s.engine = s.testCluster.GetFrontendClient()
-	s.adminClient = s.testCluster.GetAdminClient()
+	s.TestCluster = cluster
+	s.Engine = s.TestCluster.GetFrontendClient()
+	s.AdminClient = s.TestCluster.GetAdminClient()
 
-	s.domainName = s.randomizeStr("integration-test-domain")
-	s.Require().NoError(s.registerDomain(s.domainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, ""))
+	s.DomainName = s.RandomizeStr("integration-test-domain")
+	s.Require().NoError(s.RegisterDomain(s.DomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, ""))
 
 	s.domainCacheRefresh()
 }
@@ -103,7 +101,7 @@ func (s *WorkflowIDInternalRateLimitIntegrationSuite) SetupTest() {
 }
 
 func (s *WorkflowIDInternalRateLimitIntegrationSuite) TearDownSuite() {
-	s.tearDownSuite()
+	s.TearDownBaseSuite()
 }
 
 func (s *WorkflowIDInternalRateLimitIntegrationSuite) TestWorkflowIDSpecificInternalRateLimits() {
@@ -118,7 +116,7 @@ func (s *WorkflowIDInternalRateLimitIntegrationSuite) TestWorkflowIDSpecificInte
 
 	request := &types.StartWorkflowExecutionRequest{
 		RequestID:                           uuid.New(),
-		Domain:                              s.domainName,
+		Domain:                              s.DomainName,
 		WorkflowID:                          testWorkflowID,
 		WorkflowType:                        &types.WorkflowType{Name: testWorkflowType},
 		TaskList:                            &types.TaskList{Name: testTaskListName},
@@ -132,7 +130,7 @@ func (s *WorkflowIDInternalRateLimitIntegrationSuite) TestWorkflowIDSpecificInte
 	ctx, cancel := createContext()
 	defer cancel()
 
-	we, err := s.engine.StartWorkflowExecution(ctx, request)
+	we, err := s.Engine.StartWorkflowExecution(ctx, request)
 	s.NoError(err)
 
 	s.Logger.Info("StartWorkflowExecution", tag.WorkflowRunID(we.RunID))
@@ -185,8 +183,8 @@ func (s *WorkflowIDInternalRateLimitIntegrationSuite) TestWorkflowIDSpecificInte
 	}
 
 	poller := &TaskPoller{
-		Engine:          s.engine,
-		Domain:          s.domainName,
+		Engine:          s.Engine,
+		Domain:          s.DomainName,
 		TaskList:        &types.TaskList{Name: testTaskListName},
 		Identity:        testIdentity,
 		DecisionHandler: dtHandler,
@@ -210,8 +208,8 @@ func (s *WorkflowIDInternalRateLimitIntegrationSuite) TestWorkflowIDSpecificInte
 	s.True(err == nil || err == tasklist.ErrNoTasks)
 	s.True(workflowComplete)
 
-	historyResponse, err := s.engine.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
-		Domain: s.domainName,
+	historyResponse, err := s.Engine.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
+		Domain: s.DomainName,
 		Execution: &types.WorkflowExecution{
 			WorkflowID: testWorkflowID,
 		},

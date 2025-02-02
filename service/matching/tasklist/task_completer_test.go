@@ -208,6 +208,7 @@ func TestCompleteTaskIfStarted(t *testing.T) {
 					WorkflowExecutionInfo: &types.WorkflowExecutionInfo{},
 					PendingDecision: &types.PendingDecisionInfo{
 						ScheduleID: 2,
+						State:      types.PendingDecisionStateScheduled.Ptr(),
 					},
 				}
 				mockHistoryService.EXPECT().DescribeWorkflowExecution(ctx, req).Return(resp, nil).Times(retryPolicyMaxAttempts + 1)

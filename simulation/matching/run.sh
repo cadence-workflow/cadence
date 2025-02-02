@@ -19,6 +19,21 @@ echo "Building test image"
 docker-compose -f docker/buildkite/docker-compose-local-matching-simulation.yml \
   build matching-simulator
 
+function check_test_failure()
+{
+  faillog=$(grep 'FAIL: TestMatchingSimulationSuite' -B 10 test.log 2>/dev/null || true)
+  if [ -z "$faillog" ]; then
+    echo "Passed"
+  else
+    echo 'Test failed!!!'
+    echo "$faillog"
+    echo "Check test.log file for more details"
+    exit 1
+  fi
+}
+
+trap check_test_failure EXIT
+
 echo "Running the test $testCase"
 docker-compose \
   -f docker/buildkite/docker-compose-local-matching-simulation.yml \
@@ -27,11 +42,6 @@ docker-compose \
   | grep -a --line-buffered "Matching New Event" \
   | sed "s/Matching New Event: //" \
   | jq . > "$eventLogsFile"
-
-if cat test.log | grep -a "FAIL: TestMatchingSimulationSuite"; then
-  echo "Test failed"
-  exit 1
-fi
 
 echo "---- Simulation Summary ----"
 cat test.log \

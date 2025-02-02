@@ -261,19 +261,20 @@ $(STABLE_BIN)/$(PROTOC_VERSION_BIN): | $(STABLE_BIN)
 # and last but not least: this avoids using `go` to make this check take only a couple seconds in CI,
 # so the whole docker container doesn't have to be prepared.
 .idl-status:
-	branches="$$(git submodule foreach git branch master --contains HEAD)"; \
-	if ! (echo "$$branches" | grep -q master); then \
-	  >&2 echo "IDL submodule points to a commit ($$(git submodule foreach git rev-parse HEAD | tail -n 1)) that is not on master."; \
-	  >&2 echo "Make sure the IDL PR has been merged, and this PR is updated, before merging here."; \
-	  exit 1; \
-	fi
-	idlsha="$$(git ls-tree HEAD idls | awk '{print substr($$3,0,12)}')"; \
-	gosha="$$(grep github.com/uber/cadence-idl go.mod | tr '-' '\n' | tail -n1)"; \
-	if [[ "$$idlsha" != "$$gosha" ]]; then \
-	  >&2 echo "IDL submodule sha ($$idlsha) does not match go module sha ($$gosha)."; \
-	  >&2 echo "Make sure the IDL PR has been merged, and this PR is updated, before merging here."; \
-	  exit 1; \
-	fi
+	$(Q) cd idls && \
+		SUBMODULE_COMMIT=$$(git rev-parse HEAD) && \
+		BRANCH_INFO=$$(git branch -r --contains "$$SUBMODULE_COMMIT" | head -n1) && \
+		if ! git branch -r --contains "$$SUBMODULE_COMMIT" | grep -q "origin/master"; then \
+			echo "Error: Submodule commit $$SUBMODULE_COMMIT belongs to $$BRANCH_INFO, not to master branch" && \
+			exit 1; \
+		fi
+	$(Q) idlsha=$$(git ls-tree HEAD idls | awk '{print substr($$3,0,12)}') && \
+		gosha=$$(grep github.com/uber/cadence-idl go.mod | tr '-' '\n' | tail -n1) && \
+		if [[ "$$idlsha" != "$$gosha" ]]; then \
+			echo "IDL submodule sha ($$idlsha) does not match go module sha ($$gosha)." >&2 && \
+			echo "Make sure the IDL PR has been merged, and this PR is updated, before merging here." >&2 && \
+			exit 1; \
+		fi
 
 
 # ====================================
@@ -575,7 +576,10 @@ INTEG_TEST_XDC_ROOT=./host/xdc
 INTEG_TEST_XDC_DIR=hostxdc
 INTEG_TEST_NDC_ROOT=./host/ndc
 INTEG_TEST_NDC_DIR=hostndc
-OPT_OUT_TEST=
+
+# Opt out folders that shouldn't be run as part of unit tests such as integration tests, simulations.
+# Syntax: "folder1% folder2%" # space separated list of folders to opt out
+OPT_OUT_TEST_FOLDERS=./simulation%
 
 TEST_TIMEOUT ?= 20m
 TEST_ARG ?= -race $(if $(verbose),-v) -timeout $(TEST_TIMEOUT)
@@ -593,7 +597,7 @@ endif
 TEST_DIRS := $(filter-out $(INTEG_TEST_XDC_ROOT)%, $(sort $(dir $(filter %_test.go,$(ALL_SRC)))))
 # all tests other than end-to-end integration test fall into the pkg_test category.
 # ?= allows passing specific (space-separated) dirs for faster testing
-PKG_TEST_DIRS ?= $(filter-out $(INTEG_TEST_ROOT)% $(OPT_OUT_TEST), $(TEST_DIRS))
+PKG_TEST_DIRS ?= $(filter-out $(INTEG_TEST_ROOT)% $(OPT_OUT_TEST_FOLDERS), $(TEST_DIRS))
 
 # Code coverage output files
 COVER_ROOT                      := $(BUILD)/coverage
@@ -634,6 +638,9 @@ test: ## Build and run all tests locally
 	$Q echo Running special test cases without race detector:
 	$Q go test -v ./cmd/server/cadence/
 	$Q $(call looptest,$(PKG_TEST_DIRS))
+
+test_dirs:
+	echo $(PKG_TEST_DIRS)
 
 test_e2e:
 	$Q rm -f test

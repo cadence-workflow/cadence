@@ -299,7 +299,7 @@ func (tr *taskReader) getTaskBatch(readLevel, maxReadLevel int64) ([]*persistenc
 }
 
 func (tr *taskReader) isTaskExpired(t *persistence.TaskInfo) bool {
-	return t.Expiry.After(epochStartTime) && tr.timeSource.Now().After(t.Expiry)
+	return !t.Expiry.IsZero() && t.Expiry.After(epochStartTime) && tr.timeSource.Now().After(t.Expiry)
 }
 
 func (tr *taskReader) addTasksToBuffer(tasks []*persistence.TaskInfo) bool {
@@ -503,9 +503,9 @@ func (tr *taskReader) dispatchSingleTaskFromBuffer(taskInfo *persistence.TaskInf
 	}
 
 	if errors.Is(err, errTaskNotStarted) {
-		e.EventName = "Dispatch failed on completing task on the passive side because task not started. Will retry dispatch"
+		e.EventName = "Dispatch failed on completing task on the passive side because task not started. Will retry dispatch if task is not expired"
 		event.Log(e)
-		return false, false
+		return false, tr.isTaskExpired(taskInfo)
 	}
 
 	if errors.Is(err, errWaitTimeNotReachedForEntityNotExists) {

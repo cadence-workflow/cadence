@@ -539,6 +539,7 @@ pollLoop:
 		if err != nil {
 			return nil, fmt.Errorf("couldn't load tasklist namanger: %w", err)
 		}
+		startT := time.Now() // Record the start time
 		task, err := tlMgr.GetTask(pollerCtx, nil)
 		if err != nil {
 			// TODO: Is empty poll the best reply for errPumpClosed?
@@ -561,9 +562,14 @@ pollLoop:
 						"RequestForwardedFrom": req.GetForwardedFrom(),
 					},
 				})
+				domainName, _ := e.domainCache.GetDomainName(domainID)
 				return &types.MatchingPollForDecisionTaskResponse{
 					PartitionConfig:   tlMgr.TaskListPartitionConfig(),
 					LoadBalancerHints: tlMgr.LoadBalancerHints(),
+					AutoConfigHint: &types.AutoConfigHint{
+						EnableAutoConfig:   e.config.EnableClientAutoConfig(domainName, taskListName, persistence.TaskListTypeDecision),
+						PollerWaitTimeInMs: time.Since(startT).Milliseconds(),
+					},
 				}, nil
 			}
 			return nil, fmt.Errorf("couldn't get task: %w", err)
@@ -722,13 +728,19 @@ pollLoop:
 		if err != nil {
 			return nil, fmt.Errorf("couldn't load tasklist namanger: %w", err)
 		}
+		startT := time.Now() // Record the start time
 		task, err := tlMgr.GetTask(pollerCtx, maxDispatch)
 		if err != nil {
 			// TODO: Is empty poll the best reply for errPumpClosed?
 			if errors.Is(err, tasklist.ErrNoTasks) || errors.Is(err, errPumpClosed) {
+				domainName, _ := e.domainCache.GetDomainName(domainID)
 				return &types.MatchingPollForActivityTaskResponse{
 					PartitionConfig:   tlMgr.TaskListPartitionConfig(),
 					LoadBalancerHints: tlMgr.LoadBalancerHints(),
+					AutoConfigHint: &types.AutoConfigHint{
+						EnableAutoConfig:   e.config.EnableClientAutoConfig(domainName, taskListName, persistence.TaskListTypeDecision),
+						PollerWaitTimeInMs: time.Since(startT).Milliseconds(),
+					},
 				}, nil
 			}
 			e.logger.Error("Received unexpected err while getting task",
@@ -827,6 +839,7 @@ func (e *matchingEngineImpl) createSyncMatchPollForActivityTaskResponse(
 	response.WorkflowDomain = activityTaskDispatchInfo.WorkflowDomain
 	response.PartitionConfig = partitionConfig
 	response.LoadBalancerHints = loadBalancerHints
+	response.AutoConfigHint = task.AutoConfigHint
 	return response
 }
 

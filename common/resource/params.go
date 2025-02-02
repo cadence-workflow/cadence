@@ -47,6 +47,7 @@ import (
 	"github.com/uber/cadence/common/pinot"
 	"github.com/uber/cadence/common/rpc"
 	"github.com/uber/cadence/common/service"
+	"github.com/uber/cadence/service/worker/diagnostics/invariant"
 )
 
 type (
@@ -92,6 +93,7 @@ type (
 		// HistoryClientFn is used by integration tests to mock a history client
 		HistoryClientFn func() history.Client
 		// NewPersistenceBeanFn can be used to override the default persistence bean creation in unit tests to avoid DB setup
-		NewPersistenceBeanFn func(persistenceClient.Factory, *persistenceClient.Params, *service.Config) (persistenceClient.Bean, error)
+		NewPersistenceBeanFn  func(persistenceClient.Factory, *persistenceClient.Params, *service.Config) (persistenceClient.Bean, error)
+		DiagnosticsInvariants []invariant.Invariant
 	}
 )

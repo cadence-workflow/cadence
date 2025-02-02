@@ -61,11 +61,6 @@ type (
 		*IntegrationBase
 	}
 
-	MatchingSimulationSuite struct {
-		*require.Assertions
-		*IntegrationBase
-	}
-
 	WorkflowIDRateLimitIntegrationSuite struct {
 		*require.Assertions
 		*IntegrationBase

@@ -37,7 +37,7 @@ FROM alpine:3.18 AS dockerize
 
 RUN apk add --no-cache openssl
 
-ENV DOCKERIZE_VERSION v0.6.1
+ENV DOCKERIZE_VERSION=v0.6.1
 RUN wget https://github.com/jwilder/dockerize/releases/download/$DOCKERIZE_VERSION/dockerize-alpine-linux-amd64-$DOCKERIZE_VERSION.tar.gz \
     && tar -C /usr/local/bin -xzvf dockerize-alpine-linux-amd64-$DOCKERIZE_VERSION.tar.gz \
     && rm dockerize-alpine-linux-amd64-$DOCKERIZE_VERSION.tar.gz \
@@ -60,7 +60,7 @@ SHELL ["/bin/bash", "-c"]
 # Cadence server
 FROM alpine AS cadence-server
 
-ENV CADENCE_HOME /etc/cadence
+ENV CADENCE_HOME=/etc/cadence
 RUN mkdir -p /etc/cadence
 
 COPY --from=dockerize /usr/local/bin/dockerize /usr/local/bin

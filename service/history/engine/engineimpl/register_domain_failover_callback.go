@@ -161,7 +161,7 @@ func (e *historyEngineImpl) unlockProcessingForFailover() {
 	e.timerProcessor.UnlockTaskProcessing()
 }
 
-func (e historyEngineImpl) failoverPredicate(shardNotificationVersion int64, nextDomain *cache.DomainCacheEntry, action func()) {
+func (e *historyEngineImpl) failoverPredicate(shardNotificationVersion int64, nextDomain *cache.DomainCacheEntry, action func()) {
 	domainFailoverNotificationVersion := nextDomain.GetFailoverNotificationVersion()
 	domainActiveCluster := nextDomain.GetReplicationConfig().ActiveClusterName
 

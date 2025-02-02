@@ -32,6 +32,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -70,7 +71,7 @@ type (
 		pollTimeLock    sync.Mutex
 		backoffTimer    map[int]*time.Timer
 		nextPollTime    map[int]time.Time
-		timerGate       TimerGate
+		timerGate       clock.TimerGate
 
 		// timer notification
 		newTimerCh  chan struct{}
@@ -95,7 +96,7 @@ func newTimerQueueProcessorBase(
 	shard shard.Context,
 	processingQueueStates []ProcessingQueueState,
 	taskProcessor task.Processor,
-	timerGate TimerGate,
+	timerGate clock.TimerGate,
 	options *queueProcessorOptions,
 	updateMaxReadLevel updateMaxReadLevelFn,
 	updateClusterAckLevel updateClusterAckLevelFn,
@@ -186,7 +187,7 @@ func (t *timerQueueProcessorBase) Stop() {
 	t.logger.Info("Timer queue processor state changed", tag.LifeCycleStopping)
 	defer t.logger.Info("Timer queue processor state changed", tag.LifeCycleStopped)
 
-	t.timerGate.Close()
+	t.timerGate.Stop()
 	close(t.shutdownCh)
 	t.pollTimeLock.Lock()
 	for _, timer := range t.backoffTimer {
@@ -212,7 +213,7 @@ func (t *timerQueueProcessorBase) processorPump() {
 		select {
 		case <-t.shutdownCh:
 			return
-		case <-t.timerGate.FireChan():
+		case <-t.timerGate.Chan():
 			t.updateTimerGates()
 		case <-updateAckTimer.C:
 			if stopPump := t.handleAckLevelUpdate(updateAckTimer); stopPump {
@@ -671,7 +672,6 @@ func newTimerQueueProcessorOptions(
 		MaxPollIntervalJitterCoefficient:     config.TimerProcessorMaxPollIntervalJitterCoefficient,
 		UpdateAckInterval:                    config.TimerProcessorUpdateAckInterval,
 		UpdateAckIntervalJitterCoefficient:   config.TimerProcessorUpdateAckIntervalJitterCoefficient,
-		RedispatchIntervalJitterCoefficient:  config.TaskRedispatchIntervalJitterCoefficient,
 		MaxRedispatchQueueSize:               config.TimerProcessorMaxRedispatchQueueSize,
 		SplitQueueInterval:                   config.TimerProcessorSplitQueueInterval,
 		SplitQueueIntervalJitterCoefficient:  config.TimerProcessorSplitQueueIntervalJitterCoefficient,

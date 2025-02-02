@@ -1,13 +1,9 @@
 frontend.enableClientVersionCheck:
   - value: true
-system.advancedVisibilityWritingMode:
-  - value: "on"
-system.enableReadVisibilityFromES:
-  - value: false
-system.enableReadVisibilityFromPinot:
-  - value: true
-system.enableVisibilityDoubleRead:
-  - value: false
+system.writeVisibilityStoreName:
+  - value: "pinot"
+system.readVisibilityStoreName:
+  - value: "pinot"
 system.enableLogCustomerQueryParameter:
   - value: false
 frontend.validSearchAttributes:

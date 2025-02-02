@@ -86,7 +86,7 @@ func (s *esProcessorSuite) SetupTest() {
 		msgEncoder: defaultEncoder,
 	}
 	p.mapToKafkaMsg = collection.NewShardedConcurrentTxMap(1024, p.hashFn)
-	p.bulkProcessor = []bulk.GenericBulkProcessor{s.mockBulkProcessor}
+	p.bulkProcessor = s.mockBulkProcessor
 
 	s.esProcessor = p
 
@@ -526,18 +526,12 @@ func (s *esProcessorSuite) TestBulkAfterAction_Nack_Shadow_WithError() {
 	mapVal := newKafkaMessageWithMetrics(mockKafkaMsg, &testStopWatch)
 	s.esProcessor.mapToKafkaMsg.Put(testKey, mapVal)
 
-	// Add mocked secondary processor
-	secondaryProcessor := &mocks2.GenericBulkProcessor{}
-	s.esProcessor.bulkProcessor = append(s.esProcessor.bulkProcessor, secondaryProcessor)
-
 	// Mock Kafka message Nack and Value
 	mockKafkaMsg.On("Nack").Return(nil).Once()
 	mockKafkaMsg.On("Value").Return(payload).Once()
 	s.mockScope.On("IncCounter", mock.AnythingOfType("int")).Return()
 	// Execute bulkAfterAction for primary processor with error
 	s.esProcessor.bulkAfterAction(0, requests, response, mockErr)
-	// Mocking secondary processor to test shadowBulkAfterAction with error
-	s.esProcessor.shadowBulkAfterAction(0, requests, response, mockErr)
 }
 
 func (s *esProcessorSuite) TestBulkAfterAction_Shadow_Fail_WithoutError() {
@@ -572,16 +566,10 @@ func (s *esProcessorSuite) TestBulkAfterAction_Shadow_Fail_WithoutError() {
 	mapVal := newKafkaMessageWithMetrics(mockKafkaMsg, &testStopWatch)
 	s.esProcessor.mapToKafkaMsg.Put(testKey, mapVal)
 
-	// Add mocked secondary processor
-	secondaryProcessor := &mocks2.GenericBulkProcessor{}
-	s.esProcessor.bulkProcessor = append(s.esProcessor.bulkProcessor, secondaryProcessor)
-
 	// Mock Kafka message Nack and Value
 	mockKafkaMsg.On("Nack").Return(nil).Once()
 	mockKafkaMsg.On("Value").Return(payload).Once()
 	s.mockScope.On("IncCounter", mock.AnythingOfType("int")).Return()
 	// Execute bulkAfterAction for primary processor with error
 	s.esProcessor.bulkAfterAction(0, requests, response, nil)
-	// Mocking secondary processor to test shadowBulkAfterAction with error
-	s.esProcessor.shadowBulkAfterAction(0, requests, response, nil)
 }

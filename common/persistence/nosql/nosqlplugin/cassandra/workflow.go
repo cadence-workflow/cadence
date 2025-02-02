@@ -50,28 +50,29 @@ func (db *cdb) InsertWorkflowExecutionWithTasks(
 	shardID := shardCondition.ShardID
 	domainID := execution.DomainID
 	workflowID := execution.WorkflowID
+	timeStamp := db.timeSrc.Now()
 
 	batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
 
-	err := insertOrUpsertWorkflowRequestRow(batch, requests)
+	err := insertOrUpsertWorkflowRequestRow(batch, requests, timeStamp)
 	if err != nil {
 		return err
 	}
-	err = createOrUpdateCurrentWorkflow(batch, shardID, domainID, workflowID, currentWorkflowRequest)
-	if err != nil {
-		return err
-	}
-
-	err = createWorkflowExecutionWithMergeMaps(batch, shardID, domainID, workflowID, execution)
+	err = createOrUpdateCurrentWorkflow(batch, shardID, domainID, workflowID, currentWorkflowRequest, timeStamp)
 	if err != nil {
 		return err
 	}
 
-	createTransferTasks(batch, shardID, domainID, workflowID, transferTasks)
-	createReplicationTasks(batch, shardID, domainID, workflowID, replicationTasks)
-	createCrossClusterTasks(batch, shardID, domainID, workflowID, crossClusterTasks)
-	createTimerTasks(batch, shardID, domainID, workflowID, timerTasks)
-	assertShardRangeID(batch, shardID, shardCondition.RangeID)
+	err = createWorkflowExecutionWithMergeMaps(batch, shardID, domainID, workflowID, execution, timeStamp)
+	if err != nil {
+		return err
+	}
+
+	createTransferTasks(batch, shardID, domainID, workflowID, transferTasks, timeStamp)
+	createReplicationTasks(batch, shardID, domainID, workflowID, replicationTasks, timeStamp)
+	createCrossClusterTasks(batch, shardID, domainID, workflowID, crossClusterTasks, timeStamp)
+	createTimerTasks(batch, shardID, domainID, workflowID, timerTasks, timeStamp)
+	assertShardRangeID(batch, shardID, shardCondition.RangeID, timeStamp)
 
 	return executeCreateWorkflowBatchTransaction(ctx, db.session, batch, currentWorkflowRequest, execution, shardCondition)
 }
@@ -129,6 +130,7 @@ func (db *cdb) UpdateWorkflowExecutionWithTasks(
 	shardID := shardCondition.ShardID
 	var domainID, workflowID string
 	var previousNextEventIDCondition int64
+	timeStamp := db.timeSrc.Now()
 	if mutatedExecution != nil {
 		domainID = mutatedExecution.DomainID
 		workflowID = mutatedExecution.WorkflowID
@@ -143,41 +145,41 @@ func (db *cdb) UpdateWorkflowExecutionWithTasks(
 
 	batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
 
-	err := insertOrUpsertWorkflowRequestRow(batch, requests)
+	err := insertOrUpsertWorkflowRequestRow(batch, requests, timeStamp)
 	if err != nil {
 		return err
 	}
-	err = createOrUpdateCurrentWorkflow(batch, shardID, domainID, workflowID, currentWorkflowRequest)
+	err = createOrUpdateCurrentWorkflow(batch, shardID, domainID, workflowID, currentWorkflowRequest, timeStamp)
 	if err != nil {
 		return err
 	}
 
 	if mutatedExecution != nil {
-		err = updateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(batch, shardID, domainID, workflowID, mutatedExecution)
+		err = updateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(batch, shardID, domainID, workflowID, mutatedExecution, timeStamp)
 		if err != nil {
 			return err
 		}
 	}
 
 	if insertedExecution != nil {
-		err = createWorkflowExecutionWithMergeMaps(batch, shardID, domainID, workflowID, insertedExecution)
+		err = createWorkflowExecutionWithMergeMaps(batch, shardID, domainID, workflowID, insertedExecution, timeStamp)
 		if err != nil {
 			return err
 		}
 	}
 
 	if resetExecution != nil {
-		err = resetWorkflowExecutionAndMapsAndEventBuffer(batch, shardID, domainID, workflowID, resetExecution)
+		err = resetWorkflowExecutionAndMapsAndEventBuffer(batch, shardID, domainID, workflowID, resetExecution, timeStamp)
 		if err != nil {
 			return err
 		}
 	}
 
-	createTransferTasks(batch, shardID, domainID, workflowID, transferTasks)
-	createReplicationTasks(batch, shardID, domainID, workflowID, replicationTasks)
-	createCrossClusterTasks(batch, shardID, domainID, workflowID, crossClusterTasks)
-	createTimerTasks(batch, shardID, domainID, workflowID, timerTasks)
-	assertShardRangeID(batch, shardID, shardCondition.RangeID)
+	createTransferTasks(batch, shardID, domainID, workflowID, transferTasks, timeStamp)
+	createReplicationTasks(batch, shardID, domainID, workflowID, replicationTasks, timeStamp)
+	createCrossClusterTasks(batch, shardID, domainID, workflowID, crossClusterTasks, timeStamp)
+	createTimerTasks(batch, shardID, domainID, workflowID, timerTasks, timeStamp)
+	assertShardRangeID(batch, shardID, shardCondition.RangeID, timeStamp)
 
 	return executeUpdateWorkflowBatchTransaction(ctx, db.session, batch, currentWorkflowRequest, previousNextEventIDCondition, shardCondition)
 }
@@ -648,6 +650,7 @@ func (db *cdb) InsertReplicationDLQTask(ctx context.Context, shardID int, source
 		defaultVisibilityTimestamp,
 		defaultVisibilityTimestamp,
 		task.TaskID,
+		db.timeSrc.Now(),
 	).WithContext(ctx)
 
 	return query.Exec()
@@ -724,11 +727,12 @@ func (db *cdb) InsertReplicationTask(ctx context.Context, tasks []*nosqlplugin.R
 
 	shardID := shardCondition.ShardID
 	batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
+	timeStamp := db.timeSrc.Now()
 	for _, task := range tasks {
-		createReplicationTasks(batch, shardID, task.DomainID, task.WorkflowID, []*nosqlplugin.ReplicationTask{task})
+		createReplicationTasks(batch, shardID, task.DomainID, task.WorkflowID, []*nosqlplugin.ReplicationTask{task}, timeStamp)
 	}
 
-	assertShardRangeID(batch, shardID, shardCondition.RangeID)
+	assertShardRangeID(batch, shardID, shardCondition.RangeID, timeStamp)
 
 	previous := make(map[string]interface{})
 	applied, iter, err := db.session.MapExecuteBatchCAS(batch, previous)

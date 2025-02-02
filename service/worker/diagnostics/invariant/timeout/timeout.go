@@ -28,7 +28,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/uber/cadence/client"
+	"go.uber.org/cadence/.gen/go/cadence/workflowserviceclient"
+	"go.uber.org/cadence/.gen/go/shared"
+
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant"
 )
@@ -36,28 +38,22 @@ import (
 type Timeout invariant.Invariant
 
 type timeout struct {
-	workflowExecutionHistory *types.GetWorkflowExecutionHistoryResponse
-	domain                   string
-	clientBean               client.Bean
+	client workflowserviceclient.Interface
 }
 
-type NewTimeoutParams struct {
-	WorkflowExecutionHistory *types.GetWorkflowExecutionHistoryResponse
-	Domain                   string
-	ClientBean               client.Bean
+type Params struct {
+	Client workflowserviceclient.Interface
 }
 
-func NewInvariant(p NewTimeoutParams) invariant.Invariant {
+func NewInvariant(p Params) invariant.Invariant {
 	return &timeout{
-		workflowExecutionHistory: p.WorkflowExecutionHistory,
-		domain:                   p.Domain,
-		clientBean:               p.ClientBean,
+		client: p.Client,
 	}
 }
 
-func (t *timeout) Check(context.Context) ([]invariant.InvariantCheckResult, error) {
+func (t *timeout) Check(ctx context.Context, params invariant.InvariantCheckInput) ([]invariant.InvariantCheckResult, error) {
 	result := make([]invariant.InvariantCheckResult, 0)
-	events := t.workflowExecutionHistory.GetHistory().GetEvents()
+	events := params.WorkflowExecutionHistory.GetHistory().GetEvents()
 	for _, event := range events {
 		if event.WorkflowExecutionTimedOutEventAttributes != nil {
 			timeoutLimit := getWorkflowExecutionConfiguredTimeout(events)
@@ -109,11 +105,11 @@ func (t *timeout) Check(context.Context) ([]invariant.InvariantCheckResult, erro
 	return result, nil
 }
 
-func (t *timeout) RootCause(ctx context.Context, issues []invariant.InvariantCheckResult) ([]invariant.InvariantRootCauseResult, error) {
+func (t *timeout) RootCause(ctx context.Context, params invariant.InvariantRootCauseInput) ([]invariant.InvariantRootCauseResult, error) {
 	result := make([]invariant.InvariantRootCauseResult, 0)
-	for _, issue := range issues {
+	for _, issue := range params.Issues {
 		if issue.InvariantType == TimeoutTypeActivity.String() || issue.InvariantType == TimeoutTypeExecution.String() {
-			pollerStatus, err := t.checkTasklist(ctx, issue)
+			pollerStatus, err := t.checkTasklist(ctx, issue, params.Domain)
 			if err != nil {
 				return nil, err
 			}
@@ -131,9 +127,9 @@ func (t *timeout) RootCause(ctx context.Context, issues []invariant.InvariantChe
 	return result, nil
 }
 
-func (t *timeout) checkTasklist(ctx context.Context, issue invariant.InvariantCheckResult) (invariant.InvariantRootCauseResult, error) {
+func (t *timeout) checkTasklist(ctx context.Context, issue invariant.InvariantCheckResult, domain string) (invariant.InvariantRootCauseResult, error) {
 	var taskList *types.TaskList
-	var tasklistType *types.TaskListType
+	var tasklistType *shared.TaskListType
 	switch issue.InvariantType {
 	case TimeoutTypeExecution.String():
 		var metadata ExecutionTimeoutMetadata
@@ -142,7 +138,7 @@ func (t *timeout) checkTasklist(ctx context.Context, issue invariant.InvariantCh
 			return invariant.InvariantRootCauseResult{}, err
 		}
 		taskList = metadata.Tasklist
-		tasklistType = types.TaskListTypeDecision.Ptr()
+		tasklistType = shared.TaskListTypeDecision.Ptr()
 	case TimeoutTypeActivity.String():
 		var metadata ActivityTimeoutMetadata
 		err := json.Unmarshal(issue.Metadata, &metadata)
@@ -150,16 +146,18 @@ func (t *timeout) checkTasklist(ctx context.Context, issue invariant.InvariantCh
 			return invariant.InvariantRootCauseResult{}, err
 		}
 		taskList = metadata.Tasklist
-		tasklistType = types.TaskListTypeActivity.Ptr()
+		tasklistType = shared.TaskListTypeActivity.Ptr()
 	}
 	if taskList == nil {
 		return invariant.InvariantRootCauseResult{}, fmt.Errorf("tasklist not set")
 	}
 
-	frontendClient := t.clientBean.GetFrontendClient()
-	resp, err := frontendClient.DescribeTaskList(ctx, &types.DescribeTaskListRequest{
-		Domain:       t.domain,
-		TaskList:     taskList,
+	resp, err := t.client.DescribeTaskList(ctx, &shared.DescribeTaskListRequest{
+		Domain: &domain,
+		TaskList: &shared.TaskList{
+			Name: &taskList.Name,
+			Kind: taskListKind(taskList.GetKind()),
+		},
 		TaskListType: tasklistType,
 	})
 	if err != nil {
@@ -179,6 +177,14 @@ func (t *timeout) checkTasklist(ctx context.Context, issue invariant.InvariantCh
 		Metadata:  polllersMetadataInBytes,
 	}, nil
 
+}
+
+func taskListKind(kind types.TaskListKind) *shared.TaskListKind {
+	if kind.String() == shared.TaskListKindNormal.String() {
+		return shared.TaskListKindNormal.Ptr()
+	}
+
+	return shared.TaskListKindSticky.Ptr()
 }
 
 func checkHeartbeatStatus(issue invariant.InvariantCheckResult) ([]invariant.InvariantRootCauseResult, error) {

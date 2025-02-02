@@ -260,10 +260,16 @@ CREATE TYPE task (
   partition_config map<text, text>
 );
 
+CREATE TYPE task_list_partition (
+    isolation_groups set<text>
+);
+
 CREATE TYPE task_list_partition_config (
   version              bigint,
   num_read_partitions  int,
-  num_write_partitions int
+  num_write_partitions int,
+  read_partitions map<int, frozen<task_list_partition>>,
+  write_partitions map<int, frozen<task_list_partition>>
 );
 
 

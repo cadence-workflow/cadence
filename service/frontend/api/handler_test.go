@@ -263,6 +263,72 @@ func (s *workflowHandlerSuite) TestPollForTask_Failed_ContextTimeoutTooShort() {
 	s.Equal(common.ErrContextTimeoutTooShort, err)
 }
 
+func (s *workflowHandlerSuite) TestPollForDecisionTask_AutoConfigHint() {
+
+	for _, tt := range []struct {
+		name     string
+		response *types.MatchingPollForDecisionTaskResponse
+		expected *types.PollForDecisionTaskResponse
+	}{
+		{
+			"success",
+			&types.MatchingPollForDecisionTaskResponse{
+				TaskToken: []byte("some value"),
+				WorkflowExecution: &types.WorkflowExecution{
+					WorkflowID: "wid",
+					RunID:      "rid",
+				},
+				AutoConfigHint: &types.AutoConfigHint{true, 1000},
+			},
+			&types.PollForDecisionTaskResponse{
+				TaskToken: []byte("some value"),
+				History: &types.History{
+					Events: []*types.HistoryEvent{},
+				},
+				WorkflowExecution: &types.WorkflowExecution{
+					WorkflowID: "wid",
+					RunID:      "rid",
+				},
+				AutoConfigHint: &types.AutoConfigHint{true, 1000},
+			},
+		},
+		{
+			"success with empty poll",
+			&types.MatchingPollForDecisionTaskResponse{
+				AutoConfigHint: &types.AutoConfigHint{true, 1000},
+			},
+			&types.PollForDecisionTaskResponse{
+				AutoConfigHint: &types.AutoConfigHint{true, 1000},
+			},
+		},
+	} {
+		s.T().Run(tt.name, func(t *testing.T) {
+			s.mockDomainCache.EXPECT().GetDomain(s.testDomain).Return(cache.NewLocalDomainCacheEntryForTest(
+				&persistence.DomainInfo{Name: s.testDomain, ID: s.testDomainID},
+				&persistence.DomainConfig{},
+				"",
+			), nil).AnyTimes()
+			s.mockDomainCache.EXPECT().GetDomainName(s.testDomainID).Return(s.testDomain, nil).AnyTimes()
+			s.mockHistoryV2Mgr.On("ReadHistoryBranch", mock.Anything, mock.Anything).Return(
+				&persistence.ReadHistoryBranchResponse{}, nil).Maybe()
+			s.mockResource.MatchingClient.EXPECT().PollForDecisionTask(gomock.Any(), gomock.Any()).Return(
+				tt.response, nil).Times(1)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+			defer cancel()
+			config := s.newConfig(dc.NewInMemoryClient())
+			wh := s.getWorkflowHandler(config)
+			resp, err := wh.PollForDecisionTask(ctx, &types.PollForDecisionTaskRequest{
+				Domain: s.testDomain,
+				TaskList: &types.TaskList{
+					Name: "task-list",
+				},
+			})
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expected, resp)
+		})
+	}
+}
+
 func (s *workflowHandlerSuite) TestPollForDecisionTask_IsolationGroupDrained() {
 	config := s.newConfig(dc.NewInMemoryClient())
 	config.EnableTasklistIsolation = dc.GetBoolPropertyFnFilteredByDomain(true)
@@ -311,43 +377,69 @@ func (s *workflowHandlerSuite) TestPollForActivityTask_IsolationGroupDrained() {
 	s.Equal(&types.PollForActivityTaskResponse{}, resp)
 }
 
-func (s *workflowHandlerSuite) TestPollForActivityTask_Success() {
-	config := s.newConfig(dc.NewInMemoryClient())
-	config.EnableTasklistIsolation = dc.GetBoolPropertyFnFilteredByDomain(true)
-	wh := s.getWorkflowHandler(config)
+func (s *workflowHandlerSuite) TestPollForActivityTask() {
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	defer cancel()
-	isolationGroup := "dca1"
-	ctx = partition.ContextWithIsolationGroup(ctx, isolationGroup)
+	for _, tt := range []struct {
+		name     string
+		response *types.MatchingPollForActivityTaskResponse
+		expected *types.PollForActivityTaskResponse
+	}{
+		{
+			"success",
+			&types.MatchingPollForActivityTaskResponse{
+				TaskToken: []byte("token"),
+				WorkflowExecution: &types.WorkflowExecution{
+					WorkflowID: "wid",
+					RunID:      "rid",
+				},
+				ActivityID:     "1",
+				Input:          []byte(`{"key": "value"}`),
+				AutoConfigHint: &types.AutoConfigHint{true, 1000},
+			},
+			&types.PollForActivityTaskResponse{
+				TaskToken: []byte("token"),
+				WorkflowExecution: &types.WorkflowExecution{
+					WorkflowID: "wid",
+					RunID:      "rid",
+				},
+				ActivityID:     "1",
+				Input:          []byte(`{"key": "value"}`),
+				AutoConfigHint: &types.AutoConfigHint{true, 1000},
+			},
+		},
+		{
+			"success with empty polls",
+			&types.MatchingPollForActivityTaskResponse{
+				AutoConfigHint: &types.AutoConfigHint{true, 1000},
+			},
+			&types.PollForActivityTaskResponse{
+				AutoConfigHint: &types.AutoConfigHint{true, 1000},
+			},
+		},
+	} {
+		s.T().Run(tt.name, func(t *testing.T) {
+			config := s.newConfig(dc.NewInMemoryClient())
+			config.EnableTasklistIsolation = dc.GetBoolPropertyFnFilteredByDomain(true)
+			wh := s.getWorkflowHandler(config)
 
-	s.mockDomainCache.EXPECT().GetDomainID(s.testDomain).Return(s.testDomainID, nil)
-	s.mockResource.IsolationGroups.EXPECT().IsDrained(gomock.Any(), s.testDomain, isolationGroup).Return(false, nil).AnyTimes()
-	s.mockMatchingClient.EXPECT().PollForActivityTask(gomock.Any(), gomock.Any()).Return(&types.MatchingPollForActivityTaskResponse{
-		TaskToken: []byte("token"),
-		WorkflowExecution: &types.WorkflowExecution{
-			WorkflowID: "wid",
-			RunID:      "rid",
-		},
-		ActivityID: "1",
-		Input:      []byte(`{"key": "value"}`),
-	}, nil)
-	resp, err := wh.PollForActivityTask(ctx, &types.PollForActivityTaskRequest{
-		Domain: s.testDomain,
-		TaskList: &types.TaskList{
-			Name: "task-list",
-		},
-	})
-	s.NoError(err)
-	s.Equal(&types.PollForActivityTaskResponse{
-		TaskToken: []byte("token"),
-		WorkflowExecution: &types.WorkflowExecution{
-			WorkflowID: "wid",
-			RunID:      "rid",
-		},
-		ActivityID: "1",
-		Input:      []byte(`{"key": "value"}`),
-	}, resp)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+			defer cancel()
+			isolationGroup := "dca1"
+			ctx = partition.ContextWithIsolationGroup(ctx, isolationGroup)
+
+			s.mockDomainCache.EXPECT().GetDomainID(s.testDomain).Return(s.testDomainID, nil)
+			s.mockResource.IsolationGroups.EXPECT().IsDrained(gomock.Any(), s.testDomain, isolationGroup).Return(false, nil).AnyTimes()
+			s.mockMatchingClient.EXPECT().PollForActivityTask(gomock.Any(), gomock.Any()).Return(tt.response, nil)
+			resp, err := wh.PollForActivityTask(ctx, &types.PollForActivityTaskRequest{
+				Domain: s.testDomain,
+				TaskList: &types.TaskList{
+					Name: "task-list",
+				},
+			})
+			s.NoError(err)
+			s.Equal(tt.expected, resp)
+		})
+	}
 }
 
 func (s *workflowHandlerSuite) TestStartWorkflowExecution_Failed_RequestIdNotSet() {

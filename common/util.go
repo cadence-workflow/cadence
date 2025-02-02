@@ -64,6 +64,10 @@ const (
 	frontendServiceOperationMaxInterval        = 5 * time.Second
 	frontendServiceOperationExpirationInterval = 15 * time.Second
 
+	shardDistributorServiceOperationInitialInterval    = 200 * time.Millisecond
+	shardDistributorServiceOperationMaxInterval        = 10 * time.Second
+	shardDistributorServiceOperationExpirationInterval = 15 * time.Second
+
 	adminServiceOperationInitialInterval    = 200 * time.Millisecond
 	adminServiceOperationMaxInterval        = 5 * time.Second
 	adminServiceOperationExpirationInterval = 15 * time.Second
@@ -167,6 +171,14 @@ func CreateFrontendServiceRetryPolicy() backoff.RetryPolicy {
 	policy := backoff.NewExponentialRetryPolicy(frontendServiceOperationInitialInterval)
 	policy.SetMaximumInterval(frontendServiceOperationMaxInterval)
 	policy.SetExpirationInterval(frontendServiceOperationExpirationInterval)
+
+	return policy
+}
+
+func CreateShardDistributorServiceRetryPolicy() backoff.RetryPolicy {
+	policy := backoff.NewExponentialRetryPolicy(shardDistributorServiceOperationInitialInterval)
+	policy.SetMaximumInterval(shardDistributorServiceOperationMaxInterval)
+	policy.SetExpirationInterval(shardDistributorServiceOperationExpirationInterval)
 
 	return policy
 }
@@ -936,7 +948,7 @@ func DeserializeSearchAttributeValue(value []byte, valueType types.IndexedValueT
 
 // IsAdvancedVisibilityWritingEnabled returns true if we should write to advanced visibility
 func IsAdvancedVisibilityWritingEnabled(advancedVisibilityWritingMode string, isAdvancedVisConfigExist bool) bool {
-	return advancedVisibilityWritingMode != AdvancedVisibilityWritingModeOff && isAdvancedVisConfigExist
+	return advancedVisibilityWritingMode != AdvancedVisibilityModeOff && isAdvancedVisConfigExist
 }
 
 // IsAdvancedVisibilityReadingEnabled returns true if we should read from advanced visibility

@@ -33,6 +33,7 @@ import (
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
@@ -94,10 +95,7 @@ func (s *timerQueueProcessorBaseSuite) SetupTest() {
 func (s *timerQueueProcessorBaseSuite) TearDownTest() {
 	s.controller.Finish()
 	s.mockShard.Finish(s.T())
-	defer goleak.VerifyNone(s.T(),
-		// TODO(CDNC-8881):  TimerGate should not start background goroutine in constructor. Make it start/stoppable
-		goleak.IgnoreTopFunction("github.com/uber/cadence/service/history/queue.NewLocalTimerGate.func1"),
-	)
+	defer goleak.VerifyNone(s.T())
 }
 
 func (s *timerQueueProcessorBaseSuite) TestIsProcessNow() {
@@ -573,7 +571,7 @@ func (s *timerQueueProcessorBaseSuite) TestProcessQueueCollections_SkipRead() {
 	time.Sleep(100 * time.Millisecond)
 	s.True(timerQueueProcessBase.nextPollTime[queueLevel].Before(s.mockShard.GetTimeSource().Now()))
 	select {
-	case <-timerQueueProcessBase.timerGate.FireChan():
+	case <-timerQueueProcessBase.timerGate.Chan():
 	default:
 		s.Fail("timer gate should fire")
 	}
@@ -662,7 +660,7 @@ func (s *timerQueueProcessorBaseSuite) TestProcessBatch_HasNextPage() {
 	s.Empty(timerQueueProcessBase.backoffTimer)
 	time.Sleep(100 * time.Millisecond)
 	select {
-	case <-timerQueueProcessBase.timerGate.FireChan():
+	case <-timerQueueProcessBase.timerGate.Chan():
 	default:
 		s.Fail("timer gate should fire")
 	}
@@ -753,7 +751,7 @@ func (s *timerQueueProcessorBaseSuite) TestProcessBatch_NoNextPage_HasLookAhead(
 	s.Equal(lookAheadTaskTimestamp, timerQueueProcessBase.nextPollTime[queueLevel])
 	time.Sleep(100 * time.Millisecond)
 	select {
-	case <-timerQueueProcessBase.timerGate.FireChan():
+	case <-timerQueueProcessBase.timerGate.Chan():
 	default:
 		s.Fail("timer gate should fire")
 	}
@@ -851,7 +849,7 @@ func (s *timerQueueProcessorBaseSuite) TestProcessBatch_NoNextPage_NoLookAhead()
 	s.True(ok) // this is the poll time for max poll interval
 	time.Sleep(100 * time.Millisecond)
 	select {
-	case <-timerQueueProcessBase.timerGate.FireChan():
+	case <-timerQueueProcessBase.timerGate.Chan():
 		s.Fail("timer gate should not fire")
 	default:
 	}
@@ -933,7 +931,7 @@ func (s *timerQueueProcessorBaseSuite) newTestTimerQueueProcessorBase(
 	updateProcessingQueueStates updateProcessingQueueStatesFn,
 	queueShutdown queueShutdownFn,
 ) (*timerQueueProcessorBase, func()) {
-	timerGate := NewLocalTimerGate(s.mockShard.GetTimeSource())
+	timerGate := clock.NewTimerGate(s.mockShard.GetTimeSource())
 
 	return newTimerQueueProcessorBase(
 			s.clusterName,
@@ -951,6 +949,6 @@ func (s *timerQueueProcessorBaseSuite) newTestTimerQueueProcessorBase(
 			s.logger,
 			s.metricsClient,
 		), func() {
-			timerGate.Close()
+			timerGate.Stop()
 		}
 }

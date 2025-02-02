@@ -42,7 +42,7 @@ type (
 
 	testSequentialTaskQueueImpl struct {
 		id        uint32
-		taskQueue collection.Queue
+		taskQueue collection.Queue[Task]
 	}
 
 	testSequentialTaskImpl struct {
@@ -68,7 +68,7 @@ func (s *SequentialTaskProcessorSuite) SetupTest() {
 			return key.(uint32)
 		},
 		func(task Task) SequentialTaskQueue {
-			taskQueue := collection.NewConcurrentPriorityQueue(func(this interface{}, other interface{}) bool {
+			taskQueue := collection.NewConcurrentPriorityQueue(func(this Task, other Task) bool {
 				return this.(*testSequentialTaskImpl).taskID < other.(*testSequentialTaskImpl).taskID
 			})
 
@@ -304,7 +304,8 @@ func (t *testSequentialTaskQueueImpl) Add(task Task) {
 }
 
 func (t *testSequentialTaskQueueImpl) Remove() Task {
-	return t.taskQueue.Remove().(Task)
+	item, _ := t.taskQueue.Remove()
+	return item.(Task)
 }
 
 func (t *testSequentialTaskQueueImpl) IsEmpty() bool {

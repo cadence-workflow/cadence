@@ -43,7 +43,8 @@ const (
 // return types.DomainAlreadyExistsError error if failed or already exists
 // Must return ConditionFailure error if other condition doesn't match
 func (db *cdb) InsertDomain(ctx context.Context, row *nosqlplugin.DomainRow) error {
-	query := db.session.Query(templateCreateDomainQuery, row.Info.ID, row.Info.Name).WithContext(ctx)
+	timeStamp := db.timeSrc.Now()
+	query := db.session.Query(templateCreateDomainQuery, row.Info.ID, row.Info.Name, timeStamp).WithContext(ctx)
 	applied, err := query.MapScanCAS(make(map[string]interface{}))
 	if err != nil {
 		return err
@@ -98,6 +99,7 @@ func (db *cdb) InsertDomain(ctx context.Context, row *nosqlplugin.DomainRow) err
 		failoverEndTime,
 		row.LastUpdatedTime.UnixNano(),
 		metadataNotificationVersion,
+		timeStamp,
 	)
 	db.updateMetadataBatch(batch, metadataNotificationVersion)
 

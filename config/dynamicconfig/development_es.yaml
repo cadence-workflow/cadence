@@ -1,9 +1,9 @@
 frontend.enableClientVersionCheck:
   - value: true
-system.advancedVisibilityWritingMode:
-  - value: "on"
-system.enableReadVisibilityFromES:
-  - value: true
+system.writeVisibilityStoreName:
+  - value: "es"
+system.readVisibilityStoreName:
+  - value: "es"
 frontend.validSearchAttributes:
   - value:
       DomainID: 1
@@ -43,4 +43,3 @@ system.minRetentionDays:
 history.EnableConsistentQueryByDomain:
 - value: true
   constraints: {}
-

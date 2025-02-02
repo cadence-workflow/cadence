@@ -28,11 +28,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
+	publicservicetest "go.uber.org/cadence/.gen/go/cadence/workflowservicetest"
+	"go.uber.org/cadence/.gen/go/shared"
 
-	"github.com/uber/cadence/client"
-	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant"
@@ -118,14 +118,15 @@ func Test__Check(t *testing.T) {
 		},
 	}
 	ctrl := gomock.NewController(t)
-	mockClientBean := client.NewMockBean(ctrl)
+	mockClient := publicservicetest.NewMockClient(ctrl)
 	for _, tc := range testCases {
-		inv := NewInvariant(NewTimeoutParams{
+		inv := NewInvariant(Params{
+			Client: mockClient,
+		})
+		result, err := inv.Check(context.Background(), invariant.InvariantCheckInput{
 			WorkflowExecutionHistory: tc.testData,
 			Domain:                   testDomain,
-			ClientBean:               mockClientBean,
 		})
-		result, err := inv.Check(context.Background())
 		require.Equal(t, tc.err, err)
 		require.Equal(t, len(tc.expectedResult), len(result))
 		for i := range result {
@@ -399,7 +400,7 @@ func Test__RootCause(t *testing.T) {
 	testCases := []struct {
 		name           string
 		input          []invariant.InvariantCheckResult
-		clientExpects  func(*frontend.MockClient)
+		clientExpects  func(client *publicservicetest.MockClient)
 		expectedResult []invariant.InvariantRootCauseResult
 		err            error
 	}{
@@ -412,11 +413,11 @@ func Test__RootCause(t *testing.T) {
 					Metadata:      wfTimeoutDataInBytes(t),
 				},
 			},
-			clientExpects: func(client *frontend.MockClient) {
-				client.EXPECT().DescribeTaskList(gomock.Any(), gomock.Any()).Return(&types.DescribeTaskListResponse{
+			clientExpects: func(client *publicservicetest.MockClient) {
+				client.EXPECT().DescribeTaskList(gomock.Any(), gomock.Any()).Return(&shared.DescribeTaskListResponse{
 					Pollers: nil,
-					TaskListStatus: &types.TaskListStatus{
-						BacklogCountHint: testTaskListBacklog,
+					TaskListStatus: &shared.TaskListStatus{
+						BacklogCountHint: common.Int64Ptr(testTaskListBacklog),
 					},
 				}, nil)
 			},
@@ -437,15 +438,15 @@ func Test__RootCause(t *testing.T) {
 					Metadata:      wfTimeoutDataInBytes(t),
 				},
 			},
-			clientExpects: func(client *frontend.MockClient) {
-				client.EXPECT().DescribeTaskList(gomock.Any(), gomock.Any()).Return(&types.DescribeTaskListResponse{
-					Pollers: []*types.PollerInfo{
+			clientExpects: func(client *publicservicetest.MockClient) {
+				client.EXPECT().DescribeTaskList(gomock.Any(), gomock.Any()).Return(&shared.DescribeTaskListResponse{
+					Pollers: []*shared.PollerInfo{
 						{
-							Identity: "dca24-xy",
+							Identity: common.StringPtr("dca24-xy"),
 						},
 					},
-					TaskListStatus: &types.TaskListStatus{
-						BacklogCountHint: testTaskListBacklog,
+					TaskListStatus: &shared.TaskListStatus{
+						BacklogCountHint: common.Int64Ptr(testTaskListBacklog),
 					},
 				}, nil)
 			},
@@ -466,15 +467,15 @@ func Test__RootCause(t *testing.T) {
 					Metadata:      activityStartToCloseTimeoutDataInBytes(t),
 				},
 			},
-			clientExpects: func(client *frontend.MockClient) {
-				client.EXPECT().DescribeTaskList(gomock.Any(), gomock.Any()).Return(&types.DescribeTaskListResponse{
-					Pollers: []*types.PollerInfo{
+			clientExpects: func(client *publicservicetest.MockClient) {
+				client.EXPECT().DescribeTaskList(gomock.Any(), gomock.Any()).Return(&shared.DescribeTaskListResponse{
+					Pollers: []*shared.PollerInfo{
 						{
-							Identity: "dca24-xy",
+							Identity: common.StringPtr("dca24-xy"),
 						},
 					},
-					TaskListStatus: &types.TaskListStatus{
-						BacklogCountHint: testTaskListBacklog,
+					TaskListStatus: &shared.TaskListStatus{
+						BacklogCountHint: common.Int64Ptr(testTaskListBacklog),
 					},
 				}, nil)
 			},
@@ -499,15 +500,15 @@ func Test__RootCause(t *testing.T) {
 					Metadata:      activityScheduleToStartTimeoutDataInBytes(t),
 				},
 			},
-			clientExpects: func(client *frontend.MockClient) {
-				client.EXPECT().DescribeTaskList(gomock.Any(), gomock.Any()).Return(&types.DescribeTaskListResponse{
-					Pollers: []*types.PollerInfo{
+			clientExpects: func(client *publicservicetest.MockClient) {
+				client.EXPECT().DescribeTaskList(gomock.Any(), gomock.Any()).Return(&shared.DescribeTaskListResponse{
+					Pollers: []*shared.PollerInfo{
 						{
-							Identity: "dca24-xy",
+							Identity: common.StringPtr("dca24-xy"),
 						},
 					},
-					TaskListStatus: &types.TaskListStatus{
-						BacklogCountHint: testTaskListBacklog,
+					TaskListStatus: &shared.TaskListStatus{
+						BacklogCountHint: common.Int64Ptr(testTaskListBacklog),
 					},
 				}, nil)
 			},
@@ -528,15 +529,15 @@ func Test__RootCause(t *testing.T) {
 					Metadata:      activityHeartBeatTimeoutDataWithRetryPolicyInBytes(t),
 				},
 			},
-			clientExpects: func(client *frontend.MockClient) {
-				client.EXPECT().DescribeTaskList(gomock.Any(), gomock.Any()).Return(&types.DescribeTaskListResponse{
-					Pollers: []*types.PollerInfo{
+			clientExpects: func(client *publicservicetest.MockClient) {
+				client.EXPECT().DescribeTaskList(gomock.Any(), gomock.Any()).Return(&shared.DescribeTaskListResponse{
+					Pollers: []*shared.PollerInfo{
 						{
-							Identity: "dca24-xy",
+							Identity: common.StringPtr("dca24-xy"),
 						},
 					},
-					TaskListStatus: &types.TaskListStatus{
-						BacklogCountHint: testTaskListBacklog,
+					TaskListStatus: &shared.TaskListStatus{
+						BacklogCountHint: common.Int64Ptr(testTaskListBacklog),
 					},
 				}, nil)
 			},
@@ -561,15 +562,15 @@ func Test__RootCause(t *testing.T) {
 					Metadata:      activityHeartBeatTimeoutDataInBytes(t),
 				},
 			},
-			clientExpects: func(client *frontend.MockClient) {
-				client.EXPECT().DescribeTaskList(gomock.Any(), gomock.Any()).Return(&types.DescribeTaskListResponse{
-					Pollers: []*types.PollerInfo{
+			clientExpects: func(client *publicservicetest.MockClient) {
+				client.EXPECT().DescribeTaskList(gomock.Any(), gomock.Any()).Return(&shared.DescribeTaskListResponse{
+					Pollers: []*shared.PollerInfo{
 						{
-							Identity: "dca24-xy",
+							Identity: common.StringPtr("dca24-xy"),
 						},
 					},
-					TaskListStatus: &types.TaskListStatus{
-						BacklogCountHint: testTaskListBacklog,
+					TaskListStatus: &shared.TaskListStatus{
+						BacklogCountHint: common.Int64Ptr(testTaskListBacklog),
 					},
 				}, nil)
 			},
@@ -587,16 +588,16 @@ func Test__RootCause(t *testing.T) {
 		},
 	}
 	ctrl := gomock.NewController(t)
-	mockClientBean := client.NewMockBean(ctrl)
-	mockFrontendClient := frontend.NewMockClient(ctrl)
-	mockClientBean.EXPECT().GetFrontendClient().Return(mockFrontendClient).AnyTimes()
-	inv := NewInvariant(NewTimeoutParams{
-		Domain:     testDomain,
-		ClientBean: mockClientBean,
+	mockClient := publicservicetest.NewMockClient(ctrl)
+	inv := NewInvariant(Params{
+		Client: mockClient,
 	})
 	for _, tc := range testCases {
-		tc.clientExpects(mockFrontendClient)
-		result, err := inv.RootCause(context.Background(), tc.input)
+		tc.clientExpects(mockClient)
+		result, err := inv.RootCause(context.Background(), invariant.InvariantRootCauseInput{
+			Domain: testDomain,
+			Issues: tc.input,
+		})
 		require.Equal(t, tc.err, err)
 		require.Equal(t, len(tc.expectedResult), len(result))
 		for i := range result {

@@ -6,8 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 You can find a list of previous releases on the [github releases](https://github.com/cadence-workflow/cadence/releases) page.
 
-## [Unreleased]
-Global ratelimiter, see [detailed doc](https://github.com/cadence-workflow/cadence/blob/master/common/quotas/global/doc.go)
+## [Note]
+A bug introduced in version v1.2.16-prerelease01 and reverted in v1.2.16-prerelease04 had the potential to set the tasklist partition to 0.
+
+## [1.2.15] - 2025-01-22
+See [Release Note](https://github.com/cadence-workflow/cadence/releases/tag/v1.2.15) for details
+
+## [1.2.14] - 2024-11-13
+See [Release Note](https://github.com/cadence-workflow/cadence/releases/tag/v1.2.14) for details
 
 ## [1.2.13] - 2024-09-25
 See [Release Note](https://github.com/cadence-workflow/cadence/releases/tag/v1.2.13) for details

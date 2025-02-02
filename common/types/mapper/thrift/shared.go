@@ -3589,6 +3589,7 @@ func FromPollForActivityTaskResponse(t *types.PollForActivityTaskResponse) *shar
 		WorkflowType:                    FromWorkflowType(t.WorkflowType),
 		WorkflowDomain:                  &t.WorkflowDomain,
 		Header:                          FromHeader(t.Header),
+		AutoConfigHint:                  FromAutoConfigHint(t.AutoConfigHint),
 	}
 }
 
@@ -3614,6 +3615,7 @@ func ToPollForActivityTaskResponse(t *shared.PollForActivityTaskResponse) *types
 		WorkflowType:                    ToWorkflowType(t.WorkflowType),
 		WorkflowDomain:                  t.GetWorkflowDomain(),
 		Header:                          ToHeader(t.Header),
+		AutoConfigHint:                  ToAutoConfigHint(t.AutoConfigHint),
 	}
 }
 
@@ -3665,6 +3667,7 @@ func FromPollForDecisionTaskResponse(t *types.PollForDecisionTaskResponse) *shar
 		Queries:                   FromWorkflowQueryMap(t.Queries),
 		NextEventId:               &t.NextEventID,
 		TotalHistoryBytes:         &t.TotalHistoryBytes,
+		AutoConfigHint:            FromAutoConfigHint(t.AutoConfigHint),
 	}
 }
 
@@ -3690,6 +3693,7 @@ func ToPollForDecisionTaskResponse(t *shared.PollForDecisionTaskResponse) *types
 		Queries:                   ToWorkflowQueryMap(t.Queries),
 		NextEventID:               t.GetNextEventId(),
 		TotalHistoryBytes:         t.GetTotalHistoryBytes(),
+		AutoConfigHint:            ToAutoConfigHint(t.AutoConfigHint),
 	}
 }
 

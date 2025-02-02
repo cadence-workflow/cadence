@@ -124,8 +124,8 @@ func TestFactoryMethods(t *testing.T) {
 			},
 		}, &service.Config{
 			// must be non-nil to create a "manager", else nil return from NewVisibilityManager is expected
-			EnableReadVisibilityFromES: func(domain string) bool {
-				return false // any value is fine as there are no read calls
+			ReadVisibilityStoreName: func(domain string) string {
+				return "es" // any value is fine as there are no read calls
 			},
 			// non-nil avoids a warning log
 			EnableReadDBVisibilityFromClosedExecutionV2: func(opts ...dynamicconfig.FilterOption) bool {
@@ -145,8 +145,8 @@ func TestFactoryMethods(t *testing.T) {
 				// because no "manager" is needed:
 				// ES cannot be dynamically enabled, so no dual-writing / etc is
 				// needed, so the baseline database store is sufficient.
-				EnableReadVisibilityFromES:    nil,
-				AdvancedVisibilityWritingMode: nil,
+				ReadVisibilityStoreName:  nil,
+				WriteVisibilityStoreName: nil,
 			})
 		assert.NoError(t, err)
 		assert.Nil(t, vm, "nil response is expected if advanced visibility cannot be enabled dynamically")
@@ -207,8 +207,8 @@ func TestFactoryMethods(t *testing.T) {
 			},
 		}, &service.Config{
 			// must be non-nil to create a "manager", else nil return from NewVisibilityManager is expected
-			EnableReadVisibilityFromES: func(domain string) bool {
-				return false // any value is fine as there are no read calls
+			ReadVisibilityStoreName: func(domain string) string {
+				return "es" // any value is fine as there are no read calls
 			},
 			// non-nil avoids a warning log
 			EnableReadDBVisibilityFromClosedExecutionV2: func(opts ...dynamicconfig.FilterOption) bool {
@@ -258,8 +258,8 @@ func TestFactoryMethods(t *testing.T) {
 			},
 		}, &service.Config{
 			// must be non-nil to create a "manager", else nil return from NewVisibilityManager is expected
-			EnableReadVisibilityFromES: func(domain string) bool {
-				return false // any value is fine as there are no read calls
+			ReadVisibilityStoreName: func(domain string) string {
+				return "es" // any value is fine as there are no read calls
 			},
 			// non-nil avoids a warning log
 			EnableReadDBVisibilityFromClosedExecutionV2: func(opts ...dynamicconfig.FilterOption) bool {
@@ -465,8 +465,8 @@ func TestVisibilityManagers(t *testing.T) {
 			OSConfig:        test.osConfig,
 		}, &service.Config{
 			// must be non-nil to create a "manager", else nil return from NewVisibilityManager is expected
-			EnableReadVisibilityFromES: func(domain string) bool {
-				return true // any value is fine as there are no read calls
+			ReadVisibilityStoreName: func(domain string) string {
+				return "es" // any value is fine as there are no read calls
 			},
 			// non-nil avoids a warning log
 			EnableReadDBVisibilityFromClosedExecutionV2: func(opts ...dynamicconfig.FilterOption) bool {

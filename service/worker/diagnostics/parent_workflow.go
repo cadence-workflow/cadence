@@ -28,6 +28,7 @@ import (
 
 	"go.uber.org/cadence/workflow"
 
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/service/worker/diagnostics/analytics"
 )
 
@@ -37,6 +38,8 @@ const (
 	queryDiagnosticsReport     = "query-diagnostics-report"
 
 	issueTypeTimeouts = "Timeout"
+	issueTypeFailures = "Failure"
+	issueTypeRetry    = "Retry"
 )
 
 type DiagnosticsStarterWorkflowInput struct {
@@ -47,13 +50,17 @@ type DiagnosticsStarterWorkflowInput struct {
 }
 
 type DiagnosticsStarterWorkflowResult struct {
-	DiagnosticsResult *DiagnosticsWorkflowResult
+	DiagnosticsResult    *DiagnosticsWorkflowResult
+	DiagnosticsCompleted bool
 }
 
 func (w *dw) DiagnosticsStarterWorkflow(ctx workflow.Context, params DiagnosticsStarterWorkflowInput) (*DiagnosticsStarterWorkflowResult, error) {
-	var result DiagnosticsWorkflowResult
+	var diagWfResult DiagnosticsWorkflowResult
+	workflowResult := DiagnosticsStarterWorkflowResult{
+		DiagnosticsResult: &diagWfResult,
+	}
 	err := workflow.SetQueryHandler(ctx, queryDiagnosticsReport, func() (DiagnosticsStarterWorkflowResult, error) {
-		return DiagnosticsStarterWorkflowResult{DiagnosticsResult: &result}, nil
+		return workflowResult, nil
 	})
 	if err != nil {
 		return nil, err
@@ -72,40 +79,51 @@ func (w *dw) DiagnosticsStarterWorkflow(ctx workflow.Context, params Diagnostics
 	}
 	childWfStart = workflow.Now(ctx)
 
-	err = future.Get(ctx, &result)
+	err = future.Get(ctx, &diagWfResult)
 	if err != nil {
 		return nil, fmt.Errorf("Workflow Diagnostics failed: %w", err)
 	}
+	workflowResult.DiagnosticsCompleted = true
 	childWfEnd = workflow.Now(ctx)
 
+	info := workflow.GetInfo(ctx)
 	activityOptions := workflow.ActivityOptions{
 		ScheduleToCloseTimeout: time.Second * 10,
 		ScheduleToStartTimeout: time.Second * 5,
 		StartToCloseTimeout:    time.Second * 5,
 	}
 	activityCtx := workflow.WithActivityOptions(ctx, activityOptions)
-	err = workflow.ExecuteActivity(activityCtx, w.emitUsageLogs, analytics.WfDiagnosticsUsageData{
+	err = workflow.ExecuteActivity(activityCtx, emitUsageLogsActivity, analytics.WfDiagnosticsUsageData{
 		Domain:                params.Domain,
 		WorkflowID:            params.WorkflowID,
 		RunID:                 params.RunID,
 		Identity:              params.Identity,
-		IssueType:             getIssueType(result),
+		IssueType:             getIssueType(diagWfResult),
 		DiagnosticsWorkflowID: childWfExec.ID,
 		DiagnosticsRunID:      childWfExec.RunID,
 		DiagnosticsStartTime:  childWfStart,
 		DiagnosticsEndTime:    childWfEnd,
 	}).Get(ctx, nil)
 	if err != nil {
-		return nil, fmt.Errorf("EmitUsageLogs: %w", err)
+		w.logger.Error("wf-diagnostics usage logs emission failed",
+			tag.Error(err),
+			tag.WorkflowID(info.WorkflowExecution.ID),
+			tag.WorkflowRunID(info.WorkflowExecution.RunID))
 	}
 
-	return &DiagnosticsStarterWorkflowResult{DiagnosticsResult: &result}, nil
+	return &workflowResult, nil
 }
 
 func getIssueType(result DiagnosticsWorkflowResult) string {
 	var issueType string
 	if result.Timeouts != nil {
-		issueType = issueTypeTimeouts
+		issueType = fmt.Sprintf("%s-%s", issueType, issueTypeTimeouts)
+	}
+	if result.Failures != nil {
+		issueType = fmt.Sprintf("%s-%s", issueType, issueTypeFailures)
+	}
+	if result.Retries != nil {
+		issueType = fmt.Sprintf("%s-%s", issueType, issueTypeRetry)
 	}
 	return issueType
 }

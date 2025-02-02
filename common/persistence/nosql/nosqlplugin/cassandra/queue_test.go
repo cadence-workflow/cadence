@@ -29,6 +29,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
@@ -54,7 +55,7 @@ func TestInsertIntoQueue(t *testing.T) {
 				}).Times(1)
 			},
 			wantQueries: []string{
-				`INSERT INTO queue (queue_type, message_id, message_payload) VALUES(1, 101, [116 101 115 116 45 112 97 121 108 111 97 100 45 49 48 49]) IF NOT EXISTS`,
+				`INSERT INTO queue (queue_type, message_id, message_payload, created_time) VALUES(1, 101, [116 101 115 116 45 112 97 121 108 111 97 100 45 49 48 49], 2025-01-06T15:00:00Z) IF NOT EXISTS`,
 			},
 		},
 		{
@@ -95,6 +96,7 @@ func TestInsertIntoQueue(t *testing.T) {
 			dc := &persistence.DynamicConfiguration{}
 
 			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db.timeSrc = clock.NewMockedTimeSourceAt(FixedTime)
 
 			err := db.InsertIntoQueue(context.Background(), tc.row)
 
@@ -799,7 +801,7 @@ func TestInsertQueueMetadata(t *testing.T) {
 				query.EXPECT().ScanCAS(gomock.Any()).Return(false, nil).Times(1)
 			},
 			wantQueries: []string{
-				`INSERT INTO queue_metadata (queue_type, cluster_ack_level, version) VALUES(2, map[], 25) IF NOT EXISTS`,
+				`INSERT INTO queue_metadata (queue_type, cluster_ack_level, version, created_time) VALUES(2, map[], 25, 2025-01-06T15:00:00Z) IF NOT EXISTS`,
 			},
 		},
 		{
@@ -827,6 +829,7 @@ func TestInsertQueueMetadata(t *testing.T) {
 			dc := &persistence.DynamicConfiguration{}
 
 			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db.timeSrc = clock.NewMockedTimeSourceAt(FixedTime)
 
 			err := db.InsertQueueMetadata(context.Background(), tc.queueType, tc.version)
 
@@ -865,7 +868,7 @@ func TestUpdateQueueMetadataCas(t *testing.T) {
 				query.EXPECT().ScanCAS(gomock.Any()).Return(true, nil).Times(1)
 			},
 			wantQueries: []string{
-				`UPDATE queue_metadata SET cluster_ack_level = map[cluster1:1000 cluster2:2000], version = 25 WHERE queue_type = 2 IF version = 24`,
+				`UPDATE queue_metadata SET cluster_ack_level = map[cluster1:1000 cluster2:2000], version = 25, last_updated_time = 2025-01-06T15:00:00Z WHERE queue_type = 2 IF version = 24`,
 			},
 		},
 		{
@@ -910,6 +913,7 @@ func TestUpdateQueueMetadataCas(t *testing.T) {
 			dc := &persistence.DynamicConfiguration{}
 
 			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db.timeSrc = clock.NewMockedTimeSourceAt(FixedTime)
 
 			err := db.UpdateQueueMetadataCas(context.Background(), tc.row)
 

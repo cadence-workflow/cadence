@@ -186,6 +186,7 @@ var (
 		StartedTimestamp:          &Timestamp2,
 		Queries:                   WorkflowQueryMap,
 		NextEventID:               EventID3,
+		AutoConfigHint:            &AutoConfigHint,
 	}
 	RespondDecisionTaskCompletedRequest = types.RespondDecisionTaskCompletedRequest{
 		TaskToken:                  TaskToken,
@@ -232,6 +233,7 @@ var (
 		WorkflowType:                    &WorkflowType,
 		WorkflowDomain:                  DomainName,
 		Header:                          &Header,
+		AutoConfigHint:                  &AutoConfigHint,
 	}
 	RespondActivityTaskCompletedRequest = types.RespondActivityTaskCompletedRequest{
 		TaskToken: TaskToken,

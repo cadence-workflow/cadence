@@ -35,12 +35,12 @@ import (
 
 // GetMutableState retrieves the mutable state of the workflow execution
 func (e *historyEngineImpl) GetMutableState(ctx context.Context, request *types.GetMutableStateRequest) (*types.GetMutableStateResponse, error) {
-	return e.getMutableStateOrPolling(ctx, request)
+	return e.getMutableStateOrLongPoll(ctx, request)
 }
 
 // PollMutableState retrieves the mutable state of the workflow execution with long polling
 func (e *historyEngineImpl) PollMutableState(ctx context.Context, request *types.PollMutableStateRequest) (*types.PollMutableStateResponse, error) {
-	response, err := e.getMutableStateOrPolling(ctx, &types.GetMutableStateRequest{
+	response, err := e.getMutableStateOrLongPoll(ctx, &types.GetMutableStateRequest{
 		DomainUUID:          request.DomainUUID,
 		Execution:           request.Execution,
 		ExpectedNextEventID: request.ExpectedNextEventID,
@@ -142,7 +142,35 @@ func (e *historyEngineImpl) updateEntityNotExistsErrorOnPassiveCluster(err error
 	return err
 }
 
-func (e *historyEngineImpl) getMutableStateOrPolling(
+func (e *historyEngineImpl) getMutableStateWithCurrentVersionHistory(
+	ctx context.Context,
+	domainID string,
+	execution types.WorkflowExecution,
+) (*types.GetMutableStateResponse, *persistence.VersionHistory, error) {
+
+	mutableState, err := e.getMutableState(ctx, domainID, execution)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// must be corrupted workflow
+	if mutableState.GetVersionHistories() == nil {
+		e.logger.Warn("version histories do not exist")
+		return nil, nil, &types.InternalDataInconsistencyError{Message: "version histories do not exist"}
+	}
+
+	currentVersionHistory, err := persistence.NewVersionHistoriesFromInternalType(
+		mutableState.GetVersionHistories(),
+	).GetCurrentVersionHistory()
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to get version history while looking up response for mutable state: %w", err)
+	}
+
+	return mutableState, currentVersionHistory, err
+}
+
+func (e *historyEngineImpl) getMutableStateOrLongPoll(
 	ctx context.Context,
 	request *types.GetMutableStateRequest,
 ) (*types.GetMutableStateResponse, error) {
@@ -155,18 +183,12 @@ func (e *historyEngineImpl) getMutableStateOrPolling(
 		WorkflowID: request.Execution.WorkflowID,
 		RunID:      request.Execution.RunID,
 	}
-	response, err := e.getMutableState(ctx, domainID, execution)
+
+	mutableState, currentVersionHistory, err := e.getMutableStateWithCurrentVersionHistory(ctx, domainID, execution)
 	if err != nil {
 		return nil, err
 	}
 
-	currentVersionHistory, err := persistence.NewVersionHistoriesFromInternalType(
-		response.GetVersionHistories(),
-	).GetCurrentVersionHistory()
-
-	if err != nil {
-		return nil, err
-	}
 	if request.VersionHistoryItem == nil {
 		lastVersionHistoryItem, err := currentVersionHistory.GetLastItem()
 		if err != nil {
@@ -184,10 +206,10 @@ func (e *historyEngineImpl) getMutableStateOrPolling(
 		)
 		return nil, &types.CurrentBranchChangedError{
 			Message:            "current branch token and request branch token doesn't match",
-			CurrentBranchToken: response.CurrentBranchToken}
+			CurrentBranchToken: mutableState.CurrentBranchToken}
 	}
 	// set the run id in case query the current running workflow
-	execution.RunID = response.Execution.RunID
+	execution.RunID = mutableState.Execution.RunID
 
 	// expectedNextEventID is 0 when caller want to get the current next event ID without blocking
 	expectedNextEventID := common.FirstEventID
@@ -195,96 +217,105 @@ func (e *historyEngineImpl) getMutableStateOrPolling(
 		expectedNextEventID = request.GetExpectedNextEventID()
 	}
 
+	if expectedNextEventID < mutableState.GetNextEventID() || !mutableState.GetIsWorkflowRunning() {
+		return mutableState, nil
+	}
 	// if caller decide to long poll on workflow execution
 	// and the event ID we are looking for is smaller than current next event ID
-	if expectedNextEventID >= response.GetNextEventID() && response.GetIsWorkflowRunning() {
-		subscriberID, channel, err := e.historyEventNotifier.WatchHistoryEvent(definition.NewWorkflowIdentifier(domainID, execution.GetWorkflowID(), execution.GetRunID()))
-		if err != nil {
-			return nil, err
-		}
-		defer e.historyEventNotifier.UnwatchHistoryEvent(definition.NewWorkflowIdentifier(domainID, execution.GetWorkflowID(), execution.GetRunID()), subscriberID) //nolint:errcheck
-		// check again in case the next event ID is updated
-		response, err = e.getMutableState(ctx, domainID, execution)
-		if err != nil {
-			return nil, err
-		}
-		currentVersionHistory, err := persistence.NewVersionHistoriesFromInternalType(response.VersionHistories).GetCurrentVersionHistory()
-		if err != nil {
-			return nil, fmt.Errorf("unable to get version history while looking up response for mutable state: %w", err)
-		}
-		if !currentVersionHistory.ContainsItem(persistence.NewVersionHistoryItemFromInternalType(request.VersionHistoryItem)) {
-			e.logger.Warn("current version history and requested one are different - found on checking response",
-				tag.Dynamic("current-version-history", currentVersionHistory),
-				tag.Dynamic("requested-version-history", request.VersionHistoryItem),
-			)
-			return nil, &types.CurrentBranchChangedError{
-				Message:            "current branch token and request branch token doesn't match",
-				CurrentBranchToken: response.CurrentBranchToken,
-			}
-		}
+	return e.longPollForEventID(ctx, expectedNextEventID, domainID, execution, request.VersionHistoryItem)
+}
 
-		if expectedNextEventID < response.GetNextEventID() || !response.GetIsWorkflowRunning() {
-			return response, nil
-		}
+func (e *historyEngineImpl) longPollForEventID(
+	ctx context.Context,
+	expectedNextEventID int64,
+	domainID string,
+	execution types.WorkflowExecution,
+	versionHistoryItem *types.VersionHistoryItem,
+) (*types.GetMutableStateResponse, error) {
 
-		domainName, err := e.shard.GetDomainCache().GetDomainName(domainID)
-		if err != nil {
-			return nil, err
-		}
+	wfIdentifier := definition.NewWorkflowIdentifier(domainID, execution.GetWorkflowID(), execution.GetRunID())
+	subscriberID, channel, err := e.historyEventNotifier.WatchHistoryEvent(wfIdentifier)
+	if err != nil {
+		return nil, err
+	}
+	defer e.historyEventNotifier.UnwatchHistoryEvent(wfIdentifier, subscriberID) //nolint:errcheck
 
-		expirationInterval := e.shard.GetConfig().LongPollExpirationInterval(domainName)
-		if deadline, ok := ctx.Deadline(); ok {
-			remainingTime := deadline.Sub(e.shard.GetTimeSource().Now())
-			// Here we return a safeguard error, to ensure that older clients are not stuck in long poll loop until context fully expires.
-			// Otherwise it results in multiple additional requests being made that returns empty responses.
-			// Newer clients will not make request with too small timeout remaining.
-			if remainingTime < longPollCompletionBuffer {
-				return nil, context.DeadlineExceeded
-			}
-			// longPollCompletionBuffer is here to leave some room to finish current request without its timeout.
-			expirationInterval = common.MinDuration(
-				expirationInterval,
-				remainingTime-longPollCompletionBuffer,
-			)
-		}
-		if expirationInterval <= 0 {
-			return response, nil
-		}
-		timer := time.NewTimer(expirationInterval)
-		defer timer.Stop()
-		for {
-			select {
-			case event := <-channel:
-				response.LastFirstEventID = event.LastFirstEventID
-				response.NextEventID = event.NextEventID
-				response.IsWorkflowRunning = event.WorkflowCloseState == persistence.WorkflowCloseStatusNone
-				response.PreviousStartedEventID = common.Int64Ptr(event.PreviousStartedEventID)
-				response.WorkflowState = common.Int32Ptr(int32(event.WorkflowState))
-				response.WorkflowCloseState = common.Int32Ptr(int32(event.WorkflowCloseState))
+	// check again in case the next event ID is updated before we subscribed
+	mutableState, currentVersionHistory, err := e.getMutableStateWithCurrentVersionHistory(ctx, domainID, execution)
+	if err != nil {
+		return nil, err
+	}
 
-				currentVersionHistoryOnPoll, err := event.VersionHistories.GetCurrentVersionHistory()
-				if err != nil {
-					return nil, fmt.Errorf("unexpected error getting current version history while polling for mutable state: %w", err)
-				}
-				if !currentVersionHistoryOnPoll.ContainsItem(persistence.NewVersionHistoryItemFromInternalType(request.VersionHistoryItem)) {
-					e.logger.Warn("current version history and requested one are different",
-						tag.Dynamic("current-version-history", currentVersionHistoryOnPoll),
-						tag.Dynamic("requested-version-history", request.VersionHistoryItem),
-					)
-					return nil, &types.CurrentBranchChangedError{
-						Message:            "current and requested version histories don't match - changed while polling",
-						CurrentBranchToken: response.CurrentBranchToken,
-					}
-				}
-
-				if expectedNextEventID < response.GetNextEventID() || !response.GetIsWorkflowRunning() {
-					return response, nil
-				}
-			case <-timer.C:
-				return response, nil
-			}
+	if !currentVersionHistory.ContainsItem(persistence.NewVersionHistoryItemFromInternalType(versionHistoryItem)) {
+		e.logger.Warn("current version history and requested one are different - found on checking mutableState",
+			tag.Dynamic("current-version-history", currentVersionHistory),
+			tag.Dynamic("requested-version-history", versionHistoryItem),
+		)
+		return nil, &types.CurrentBranchChangedError{
+			Message:            "current branch token and request branch token doesn't match",
+			CurrentBranchToken: mutableState.CurrentBranchToken,
 		}
 	}
 
-	return response, nil
+	if expectedNextEventID < mutableState.GetNextEventID() || !mutableState.GetIsWorkflowRunning() {
+		return mutableState, nil
+	}
+
+	domainName, err := e.shard.GetDomainCache().GetDomainName(domainID)
+	if err != nil {
+		return nil, err
+	}
+
+	expirationInterval := e.shard.GetConfig().LongPollExpirationInterval(domainName)
+	if deadline, ok := ctx.Deadline(); ok {
+		remainingTime := deadline.Sub(e.shard.GetTimeSource().Now())
+		// Here we return a safeguard error, to ensure that older clients are not stuck in long poll loop until context fully expires.
+		// Otherwise, it results in multiple additional requests being made that returns empty responses.
+		// Newer clients will not make request with too small timeout remaining.
+		if remainingTime < longPollCompletionBuffer {
+			return nil, context.DeadlineExceeded
+		}
+		// longPollCompletionBuffer is here to leave some room to finish current request without its timeout.
+		expirationInterval = common.MinDuration(
+			expirationInterval,
+			remainingTime-longPollCompletionBuffer,
+		)
+	}
+	if expirationInterval <= 0 {
+		return mutableState, nil
+	}
+	timer := time.NewTimer(expirationInterval)
+	defer timer.Stop()
+	for {
+		select {
+		case event := <-channel:
+			mutableState.LastFirstEventID = event.LastFirstEventID
+			mutableState.NextEventID = event.NextEventID
+			mutableState.IsWorkflowRunning = event.WorkflowCloseState == persistence.WorkflowCloseStatusNone
+			mutableState.PreviousStartedEventID = common.Int64Ptr(event.PreviousStartedEventID)
+			mutableState.WorkflowState = common.Int32Ptr(int32(event.WorkflowState))
+			mutableState.WorkflowCloseState = common.Int32Ptr(int32(event.WorkflowCloseState))
+
+			currentVersionHistoryOnPoll, err := event.VersionHistories.GetCurrentVersionHistory()
+			if err != nil {
+				return nil, fmt.Errorf("unexpected error getting current version history while polling for mutable state: %w", err)
+			}
+			if !currentVersionHistoryOnPoll.ContainsItem(persistence.NewVersionHistoryItemFromInternalType(versionHistoryItem)) {
+				e.logger.Warn("current version history and requested one are different",
+					tag.Dynamic("current-version-history", currentVersionHistoryOnPoll),
+					tag.Dynamic("requested-version-history", versionHistoryItem),
+				)
+				return nil, &types.CurrentBranchChangedError{
+					Message:            "current and requested version histories don't match - changed while polling",
+					CurrentBranchToken: mutableState.CurrentBranchToken,
+				}
+			}
+
+			if expectedNextEventID < mutableState.GetNextEventID() || !mutableState.GetIsWorkflowRunning() {
+				return mutableState, nil
+			}
+		case <-timer.C:
+			return mutableState, nil
+		}
+	}
 }

@@ -102,8 +102,7 @@ func newProcessorBase(
 			taskProcessor,
 			shard.GetTimeSource(),
 			&task.RedispatcherOptions{
-				TaskRedispatchInterval:                  options.RedispatchInterval,
-				TaskRedispatchIntervalJitterCoefficient: options.RedispatchIntervalJitterCoefficient,
+				TaskRedispatchInterval: options.RedispatchInterval,
 			},
 			logger,
 			metricsScope,

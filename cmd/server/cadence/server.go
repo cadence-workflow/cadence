@@ -56,6 +56,10 @@ import (
 	"github.com/uber/cadence/service/matching"
 	"github.com/uber/cadence/service/sharddistributor"
 	"github.com/uber/cadence/service/worker"
+	diagnosticsInvariant "github.com/uber/cadence/service/worker/diagnostics/invariant"
+	"github.com/uber/cadence/service/worker/diagnostics/invariant/failure"
+	"github.com/uber/cadence/service/worker/diagnostics/invariant/retry"
+	"github.com/uber/cadence/service/worker/diagnostics/invariant/timeout"
 )
 
 type (
@@ -208,7 +212,7 @@ func (s *server) startService() common.Daemon {
 	)
 
 	advancedVisMode := dc.GetStringProperty(
-		dynamicconfig.AdvancedVisibilityWritingMode,
+		dynamicconfig.WriteVisibilityStoreName,
 	)()
 	isAdvancedVisEnabled := common.IsAdvancedVisibilityWritingEnabled(advancedVisMode, params.PersistenceConfig.IsAdvancedVisibilityConfigExist())
 	if isAdvancedVisEnabled {
@@ -258,6 +262,7 @@ func (s *server) startService() common.Daemon {
 	}
 
 	params.KafkaConfig = s.cfg.Kafka
+	params.DiagnosticsInvariants = []diagnosticsInvariant.Invariant{timeout.NewInvariant(timeout.Params{Client: params.PublicClient}), failure.NewInvariant(), retry.NewInvariant()}
 
 	params.Logger.Info("Starting service " + s.name)
 

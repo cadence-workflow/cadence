@@ -61,11 +61,13 @@ func (s *diagnosticsWorkflowTestSuite) SetupTest() {
 	s.workflowEnv = s.NewTestWorkflowEnvironment()
 	controller := gomock.NewController(s.T())
 	mockResource := resource.NewTest(s.T(), controller, metrics.Worker)
-
+	publicClient := mockResource.GetSDKClient()
 	s.dw = &dw{
-		svcClient:     mockResource.GetSDKClient(),
+		logger:        mockResource.GetLogger(),
+		svcClient:     publicClient,
 		clientBean:    mockResource.ClientBean,
 		metricsClient: mockResource.GetMetricsClient(),
+		invariants:    []invariant.Invariant{timeout.NewInvariant(timeout.Params{Client: publicClient}), failure.NewInvariant(), retry.NewInvariant()},
 	}
 
 	s.T().Cleanup(func() {
@@ -74,7 +76,6 @@ func (s *diagnosticsWorkflowTestSuite) SetupTest() {
 
 	s.workflowEnv.RegisterWorkflowWithOptions(s.dw.DiagnosticsStarterWorkflow, workflow.RegisterOptions{Name: diagnosticsStarterWorkflow})
 	s.workflowEnv.RegisterWorkflowWithOptions(s.dw.DiagnosticsWorkflow, workflow.RegisterOptions{Name: diagnosticsWorkflow})
-	s.workflowEnv.RegisterActivityWithOptions(s.dw.retrieveExecutionHistory, activity.RegisterOptions{Name: retrieveWfExecutionHistoryActivity})
 	s.workflowEnv.RegisterActivityWithOptions(s.dw.identifyIssues, activity.RegisterOptions{Name: identifyIssuesActivity})
 	s.workflowEnv.RegisterActivityWithOptions(s.dw.rootCauseIssues, activity.RegisterOptions{Name: rootCauseIssuesActivity})
 	s.workflowEnv.RegisterActivityWithOptions(s.dw.emitUsageLogs, activity.RegisterOptions{Name: emitUsageLogsActivity})
@@ -132,7 +133,6 @@ func (s *diagnosticsWorkflowTestSuite) TestWorkflow() {
 			PollersMetadata: &timeout.PollersMetadata{TaskListBacklog: taskListBacklog},
 		},
 	}
-	s.workflowEnv.OnActivity(retrieveWfExecutionHistoryActivity, mock.Anything, mock.Anything).Return(nil, nil)
 	s.workflowEnv.OnActivity(identifyIssuesActivity, mock.Anything, mock.Anything).Return(issues, nil)
 	s.workflowEnv.OnActivity(rootCauseIssuesActivity, mock.Anything, mock.Anything).Return(rootCause, nil)
 	s.workflowEnv.OnActivity(emitUsageLogsActivity, mock.Anything, mock.Anything).Return(nil)
@@ -142,10 +142,12 @@ func (s *diagnosticsWorkflowTestSuite) TestWorkflow() {
 	s.NoError(s.workflowEnv.GetWorkflowResult(&result))
 	s.ElementsMatch(timeoutIssues, result.DiagnosticsResult.Timeouts.Issues)
 	s.ElementsMatch(timeoutRootCause, result.DiagnosticsResult.Timeouts.RootCause)
+	s.True(result.DiagnosticsCompleted)
 
 	queriedResult := s.queryDiagnostics()
 	s.ElementsMatch(queriedResult.DiagnosticsResult.Timeouts.Issues, result.DiagnosticsResult.Timeouts.Issues)
 	s.ElementsMatch(queriedResult.DiagnosticsResult.Timeouts.RootCause, result.DiagnosticsResult.Timeouts.RootCause)
+	s.True(queriedResult.DiagnosticsCompleted)
 }
 
 func (s *diagnosticsWorkflowTestSuite) TestWorkflow_Error() {
@@ -156,12 +158,26 @@ func (s *diagnosticsWorkflowTestSuite) TestWorkflow_Error() {
 	}
 	mockErr := errors.New("mockErr")
 	errExpected := fmt.Errorf("IdentifyIssues: %w", mockErr)
-	s.workflowEnv.OnActivity(retrieveWfExecutionHistoryActivity, mock.Anything, mock.Anything).Return(nil, nil)
 	s.workflowEnv.OnActivity(identifyIssuesActivity, mock.Anything, mock.Anything).Return(nil, mockErr)
 	s.workflowEnv.ExecuteWorkflow(diagnosticsWorkflow, params)
 	s.True(s.workflowEnv.IsWorkflowCompleted())
 	s.Error(s.workflowEnv.GetWorkflowError())
 	s.EqualError(s.workflowEnv.GetWorkflowError(), errExpected.Error())
+}
+
+func (s *diagnosticsWorkflowTestSuite) TestWorkflow_NoErrorIfEmitLogsActivityFails() {
+	params := &DiagnosticsWorkflowInput{
+		Domain:     "test",
+		WorkflowID: "123",
+		RunID:      "abc",
+	}
+	mockErr := errors.New("mockErr")
+	s.workflowEnv.OnActivity(identifyIssuesActivity, mock.Anything, mock.Anything).Return(nil, nil)
+	s.workflowEnv.OnActivity(rootCauseIssuesActivity, mock.Anything, mock.Anything).Return(nil, nil)
+	s.workflowEnv.OnActivity(emitUsageLogsActivity, mock.Anything, mock.Anything).Return(mockErr)
+	s.workflowEnv.ExecuteWorkflow(diagnosticsStarterWorkflow, params)
+	s.True(s.workflowEnv.IsWorkflowCompleted())
+	s.NoError(s.workflowEnv.GetWorkflowError())
 }
 
 func (s *diagnosticsWorkflowTestSuite) queryDiagnostics() DiagnosticsStarterWorkflowResult {
@@ -308,16 +324,48 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveFailureIssues() {
 			Metadata:      actMetadataInBytes,
 		},
 	}
-	failureIssues := []*failuresIssuesResult{
+	failureIssues := []*failureIssuesResult{
 		{
 			InvariantType: failure.ActivityFailed.String(),
 			Reason:        failure.CustomError.String(),
-			Metadata:      actMetadata,
+			Metadata:      &actMetadata,
 		},
 	}
 	result, err := retrieveFailureIssues(issues)
 	s.NoError(err)
 	s.Equal(failureIssues, result)
+}
+
+func (s *diagnosticsWorkflowTestSuite) Test__retrieveFailureRootCause() {
+	blobSizeMetadataInBytes, err := json.Marshal(failure.BlobSizeMetadata{
+		BlobSizeWarnLimit:  5,
+		BlobSizeErrorLimit: 10,
+	})
+	s.NoError(err)
+	rootCause := []invariant.InvariantRootCauseResult{
+		{
+			RootCause: invariant.RootCauseTypeServiceSideIssue,
+		},
+		{
+			RootCause: invariant.RootCauseTypeBlobSizeLimit,
+			Metadata:  blobSizeMetadataInBytes,
+		},
+	}
+	failureRootCause := []*failureRootCauseResult{
+		{
+			RootCauseType: invariant.RootCauseTypeServiceSideIssue.String(),
+		},
+		{
+			RootCauseType: invariant.RootCauseTypeBlobSizeLimit.String(),
+			BlobSizeMetadata: &failure.BlobSizeMetadata{
+				BlobSizeWarnLimit:  5,
+				BlobSizeErrorLimit: 10,
+			},
+		},
+	}
+	result, err := retrieveFailureRootCause(rootCause)
+	s.NoError(err)
+	s.Equal(failureRootCause, result)
 }
 
 func (s *diagnosticsWorkflowTestSuite) Test__retrieveRetryIssues() {

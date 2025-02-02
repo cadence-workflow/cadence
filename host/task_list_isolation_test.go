@@ -89,7 +89,7 @@ func (s *TaskListIsolationIntegrationSuite) SetupSuite() {
 }
 
 func (s *TaskListIsolationIntegrationSuite) TearDownSuite() {
-	s.tearDownSuite()
+	s.TearDownBaseSuite()
 }
 
 func (s *TaskListIsolationIntegrationSuite) SetupTest() {
@@ -134,8 +134,8 @@ func (s *TaskListIsolationIntegrationSuite) TestTaskListIsolationLeak() {
 
 func (s *TaskListIsolationIntegrationSuite) createPoller(group string) *TaskPoller {
 	return &TaskPoller{
-		Engine:   s.engine,
-		Domain:   s.domainName,
+		Engine:   s.Engine,
+		Domain:   s.DomainName,
 		TaskList: &types.TaskList{Name: tl, Kind: types.TaskListKindNormal.Ptr()},
 		Identity: group,
 		DecisionHandler: func(execution *types.WorkflowExecution, wt *types.WorkflowType, previousStartedEventID, startedEventID int64, history *types.History) ([]byte, []*types.Decision, error) {
@@ -158,7 +158,7 @@ func (s *TaskListIsolationIntegrationSuite) startWorkflow(group string) *types.S
 
 	request := &types.StartWorkflowExecutionRequest{
 		RequestID:  uuid.New(),
-		Domain:     s.domainName,
+		Domain:     s.DomainName,
 		WorkflowID: s.T().Name(),
 		WorkflowType: &types.WorkflowType{
 			Name: "integration-task-list-isolation-type",
@@ -176,7 +176,7 @@ func (s *TaskListIsolationIntegrationSuite) startWorkflow(group string) *types.S
 
 	ctx, cancel := createContext()
 	defer cancel()
-	result, err := s.engine.StartWorkflowExecution(ctx, request, withIsolationGroup(group))
+	result, err := s.Engine.StartWorkflowExecution(ctx, request, withIsolationGroup(group))
 	s.Nil(err)
 
 	return result
@@ -184,8 +184,8 @@ func (s *TaskListIsolationIntegrationSuite) startWorkflow(group string) *types.S
 
 func (s *TaskListIsolationIntegrationSuite) getWorkflowResult(runID string) (string, error) {
 	ctx, cancel := createContext()
-	historyResponse, err := s.engine.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
-		Domain: s.domainName,
+	historyResponse, err := s.Engine.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
+		Domain: s.DomainName,
 		Execution: &types.WorkflowExecution{
 			WorkflowID: s.T().Name(),
 			RunID:      runID,

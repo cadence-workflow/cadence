@@ -346,6 +346,7 @@ func FromMatchingPollForActivityTaskResponse(t *types.MatchingPollForActivityTas
 		WorkflowType:                    FromWorkflowType(t.WorkflowType),
 		WorkflowDomain:                  &t.WorkflowDomain,
 		Header:                          FromHeader(t.Header),
+		AutoConfigHint:                  FromAutoConfigHint(t.AutoConfigHint),
 	}
 }
 
@@ -370,6 +371,7 @@ func ToMatchingPollForActivityTaskResponse(t *shared.PollForActivityTaskResponse
 		WorkflowType:                    ToWorkflowType(t.WorkflowType),
 		WorkflowDomain:                  t.GetWorkflowDomain(),
 		Header:                          ToHeader(t.Header),
+		AutoConfigHint:                  ToAutoConfigHint(t.AutoConfigHint),
 	}
 }
 
