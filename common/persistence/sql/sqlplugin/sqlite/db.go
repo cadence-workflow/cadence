@@ -60,10 +60,10 @@ func (mdb *DB) PluginName() string {
 
 // BeginTX starts a new transaction and returns a new Tx
 func (mdb *DB) BeginTX(ctx context.Context, dbShardID int) (sqlplugin.Tx, error) {
-	mysqlDB, err := mdb.BeginTx(ctx, dbShardID)
+	mysqlTXDB, err := mdb.DB.BeginTx(ctx, dbShardID)
 	if err != nil {
 		return nil, err
 	}
 
-	return &DB{DB: mysqlDB.(*mysql.DB)}, nil
+	return &DB{DB: mysqlTXDB.(*mysql.DB)}, nil
 }
