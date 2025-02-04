@@ -41,27 +41,26 @@ import (
 )
 
 const (
-	pinotPersistenceName = "pinot"
-	DescendingOrder      = "DESC"
-	AscendingOrder       = "ASC"
-	DomainID             = "DomainID"
-	WorkflowID           = "WorkflowID"
-	RunID                = "RunID"
-	WorkflowType         = "WorkflowType"
-	CloseStatus          = "CloseStatus"
-	HistoryLength        = "HistoryLength"
-	TaskList             = "TaskList"
-	IsCron               = "IsCron"
-	NumClusters          = "NumClusters"
-	ShardID              = "ShardID"
-	Attr                 = "Attr"
-	StartTime            = "StartTime"
-	CloseTime            = "CloseTime"
-	UpdateTime           = "UpdateTime"
-	ExecutionTime        = "ExecutionTime"
-	IsDeleted            = "IsDeleted"   // used for Pinot deletion/rolling upsert only, not visible to user
-	EventTimeMs          = "EventTimeMs" // used for Pinot deletion/rolling upsert only, not visible to user
-	Memo                 = "Memo"
+	DescendingOrder = "DESC"
+	AscendingOrder  = "ASC"
+	DomainID        = "DomainID"
+	WorkflowID      = "WorkflowID"
+	RunID           = "RunID"
+	WorkflowType    = "WorkflowType"
+	CloseStatus     = "CloseStatus"
+	HistoryLength   = "HistoryLength"
+	TaskList        = "TaskList"
+	IsCron          = "IsCron"
+	NumClusters     = "NumClusters"
+	ShardID         = "ShardID"
+	Attr            = "Attr"
+	StartTime       = "StartTime"
+	CloseTime       = "CloseTime"
+	UpdateTime      = "UpdateTime"
+	ExecutionTime   = "ExecutionTime"
+	IsDeleted       = "IsDeleted"   // used for Pinot deletion/rolling upsert only, not visible to user
+	EventTimeMs     = "EventTimeMs" // used for Pinot deletion/rolling upsert only, not visible to user
+	Memo            = "Memo"
 
 	// used to be micro second
 	oneMicroSecondInNano = int64(time.Microsecond / time.Nanosecond)
@@ -103,7 +102,7 @@ func (v *pinotVisibilityStore) Close() {
 }
 
 func (v *pinotVisibilityStore) GetName() string {
-	return pinotPersistenceName
+	return common.PinotPersistenceName
 }
 
 func (v *pinotVisibilityStore) RecordWorkflowExecutionStarted(

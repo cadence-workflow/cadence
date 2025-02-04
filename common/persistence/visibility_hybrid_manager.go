@@ -40,6 +40,7 @@ type (
 		readVisibilityStoreName   dynamicconfig.StringPropertyFnWithDomainFilter
 		writeVisibilityStoreName  dynamicconfig.StringPropertyFn
 		logCustomerQueryParameter dynamicconfig.BoolPropertyFnWithDomainFilter
+		name                      string
 	}
 )
 
@@ -72,6 +73,7 @@ func NewVisibilityHybridManager(
 	readVisibilityStoreName dynamicconfig.StringPropertyFnWithDomainFilter,
 	writeVisibilityStoreName dynamicconfig.StringPropertyFn,
 	logCustomerQueryParameter dynamicconfig.BoolPropertyFnWithDomainFilter,
+	name string,
 	logger log.Logger,
 ) VisibilityManager {
 	if len(visibilityMgrs) == 0 {
@@ -89,6 +91,7 @@ func NewVisibilityHybridManager(
 		writeVisibilityStoreName:  writeVisibilityStoreName,
 		logger:                    logger,
 		logCustomerQueryParameter: logCustomerQueryParameter,
+		name:                      name,
 	}
 }
 
@@ -101,18 +104,7 @@ func (v *visibilityHybridManager) Close() {
 }
 
 func (v *visibilityHybridManager) GetName() string {
-	if v.writeVisibilityStoreName != nil {
-		storeNames := strings.Split(v.writeVisibilityStoreName(), ",")
-		if mgr, ok := v.visibilityMgrs[storeNames[0]]; ok && mgr != nil {
-			return mgr.GetName()
-		}
-	} else if v.readVisibilityStoreName != nil {
-		storeNames := strings.Split(v.readVisibilityStoreName(""), ",") // use empty domain name to get the default value for cluster
-		if mgr, ok := v.visibilityMgrs[storeNames[0]]; ok && mgr != nil {
-			return mgr.GetName()
-		}
-	}
-	return v.visibilityMgrs[dbVisStoreName].GetName() // db will always be available
+	return v.name
 }
 
 func (v *visibilityHybridManager) RecordWorkflowExecutionStarted(

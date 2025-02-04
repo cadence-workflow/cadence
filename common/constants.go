@@ -151,7 +151,7 @@ const (
 	ArchivalPaused = "paused"
 )
 
-// enum for dynamic config AdvancedVisibility write/read mode
+// dynamic config AdvancedVisibility write/read mode
 const (
 	// AdvancedVisibilityModeOff means do not use advanced visibility store
 	AdvancedVisibilityModeOff = "off"
@@ -163,6 +163,11 @@ const (
 	VisibilityModeOS = "os"
 	// AdvancedVisibilityModeDB means db visibility mode
 	VisibilityModeDB = "db"
+)
+
+const (
+	ESPersistenceName    = "elasticsearch"
+	PinotPersistenceName = "pinot"
 )
 
 const (

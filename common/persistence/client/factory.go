@@ -310,6 +310,7 @@ func (f *factoryImpl) NewVisibilityManager(
 			resourceConfig.ReadVisibilityStoreName,
 			resourceConfig.WriteVisibilityStoreName,
 			resourceConfig.EnableLogCustomerQueryParameter,
+			common.PinotPersistenceName,
 			f.logger,
 		), nil
 	case common.OSVisibilityStoreName:
@@ -335,6 +336,7 @@ func (f *factoryImpl) NewVisibilityManager(
 			resourceConfig.ReadVisibilityStoreName,
 			resourceConfig.WriteVisibilityStoreName,
 			resourceConfig.EnableLogCustomerQueryParameter,
+			common.ESPersistenceName,
 			f.logger,
 		), nil
 	case common.ESVisibilityStoreName:
@@ -351,6 +353,7 @@ func (f *factoryImpl) NewVisibilityManager(
 			resourceConfig.ReadVisibilityStoreName,
 			resourceConfig.WriteVisibilityStoreName,
 			resourceConfig.EnableLogCustomerQueryParameter,
+			common.ESPersistenceName,
 			f.logger,
 		), nil
 	default:
@@ -362,6 +365,7 @@ func (f *factoryImpl) NewVisibilityManager(
 			resourceConfig.ReadVisibilityStoreName,
 			resourceConfig.WriteVisibilityStoreName,
 			resourceConfig.EnableLogCustomerQueryParameter,
+			visibilityFromDB.GetName(), // db has multiple different stores
 			f.logger,
 		), nil
 	}

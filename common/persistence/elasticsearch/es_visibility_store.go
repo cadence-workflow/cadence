@@ -49,10 +49,6 @@ import (
 	"github.com/uber/cadence/common/types/mapper/thrift"
 )
 
-const (
-	esPersistenceName = "elasticsearch"
-)
-
 type (
 	esVisibilityStore struct {
 		esClient es.GenericClient
@@ -85,7 +81,7 @@ func NewElasticSearchVisibilityStore(
 func (v *esVisibilityStore) Close() {}
 
 func (v *esVisibilityStore) GetName() string {
-	return esPersistenceName
+	return common.ESPersistenceName
 }
 
 func (v *esVisibilityStore) RecordWorkflowExecutionStarted(
