@@ -168,6 +168,7 @@ const (
 const (
 	ESPersistenceName    = "elasticsearch"
 	PinotPersistenceName = "pinot"
+	DBPersistenceName    = "db"
 )
 
 const (

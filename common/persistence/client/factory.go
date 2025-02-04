@@ -365,7 +365,7 @@ func (f *factoryImpl) NewVisibilityManager(
 			resourceConfig.ReadVisibilityStoreName,
 			resourceConfig.WriteVisibilityStoreName,
 			resourceConfig.EnableLogCustomerQueryParameter,
-			visibilityFromDB.GetName(), // db has multiple different stores
+			common.DBPersistenceName, // db has multiple different stores
 			f.logger,
 		), nil
 	}
