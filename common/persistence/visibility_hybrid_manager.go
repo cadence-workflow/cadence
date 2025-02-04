@@ -106,6 +106,11 @@ func (v *visibilityHybridManager) GetName() string {
 		if mgr, ok := v.visibilityMgrs[storeNames[0]]; ok && mgr != nil {
 			return mgr.GetName()
 		}
+	} else if v.readVisibilityStoreName != nil {
+		storeNames := strings.Split(v.readVisibilityStoreName(""), ",") // use empty domain name to get the default value for cluster
+		if mgr, ok := v.visibilityMgrs[storeNames[0]]; ok && mgr != nil {
+			return mgr.GetName()
+		}
 	}
 	return v.visibilityMgrs[dbVisStoreName].GetName() // db will always be available
 }
