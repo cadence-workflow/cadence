@@ -1057,6 +1057,7 @@ type (
 		TaskType     int
 		TaskListKind int
 		RangeID      int64
+		UpdatedTime  time.Time
 	}
 
 	// LeaseTaskListResponse is response to LeaseTaskListRequest
@@ -1079,6 +1080,7 @@ type (
 	UpdateTaskListRequest struct {
 		TaskListInfo *TaskListInfo
 		DomainName   string
+		UpdatedTime  time.Time
 	}
 
 	// UpdateTaskListResponse is the response to UpdateTaskList
@@ -1123,6 +1125,7 @@ type (
 		TaskListInfo *TaskListInfo
 		Tasks        []*CreateTaskInfo
 		DomainName   string
+		CreatedTime  time.Time
 	}
 
 	// CreateTaskInfo describes a task to be created in CreateTasksRequest

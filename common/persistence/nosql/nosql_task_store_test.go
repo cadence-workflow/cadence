@@ -280,6 +280,7 @@ func TestUpdateTaskList(t *testing.T) {
 
 	resp, err := store.UpdateTaskList(context.Background(), &persistence.UpdateTaskListRequest{
 		TaskListInfo: getExpectedTaskListInfo(),
+		UpdatedTime:  FixedTime,
 	})
 
 	assert.NoError(t, err)
@@ -303,6 +304,7 @@ func TestUpdateTaskList_Sticky(t *testing.T) {
 
 	resp, err := store.UpdateTaskList(context.Background(), &persistence.UpdateTaskListRequest{
 		TaskListInfo: taskListInfo,
+		UpdatedTime:  FixedTime,
 	})
 
 	assert.NoError(t, err)
@@ -321,6 +323,7 @@ func TestUpdateTaskList_ConditionFailure(t *testing.T) {
 
 	_, err := store.UpdateTaskList(context.Background(), &persistence.UpdateTaskListRequest{
 		TaskListInfo: getExpectedTaskListInfo(),
+		UpdatedTime:  FixedTime,
 	})
 
 	var expectedErr *persistence.ConditionFailedError
@@ -447,7 +450,7 @@ func TestCompleteTasksLessThan(t *testing.T) {
 }
 
 func TestCreateTasks(t *testing.T) {
-	now := time.Now()
+	now := FixedTime
 
 	testCases := []struct {
 		name          string
@@ -544,10 +547,11 @@ func TestCreateTasks(t *testing.T) {
 			name: "success - skipping task with Expiry expired",
 			setupMock: func(dbMock *nosqlplugin.MockDB) {
 				dbMock.EXPECT().InsertTasks(gomock.Any(), gomock.Any(), &nosqlplugin.TaskListRow{
-					DomainID:     TestDomainID,
-					TaskListName: TestTaskListName,
-					TaskListType: TestTaskType,
-					RangeID:      1,
+					DomainID:        TestDomainID,
+					TaskListName:    TestTaskListName,
+					TaskListType:    TestTaskType,
+					RangeID:         1,
+					LastUpdatedTime: now,
 				}).Do(func(_ context.Context, tasks []*nosqlplugin.TaskRowForInsert, _ *nosqlplugin.TaskListRow) {
 					assert.Len(t, tasks, 0)
 				}).Return(nil).Times(1)
@@ -559,6 +563,7 @@ func TestCreateTasks(t *testing.T) {
 					TaskType: TestTaskType,
 					RangeID:  1,
 				},
+				CreatedTime: now,
 				Tasks: []*persistence.CreateTaskInfo{
 					{
 						TaskID: 100,
@@ -666,6 +671,7 @@ func getValidLeaseTaskListRequest() *persistence.LeaseTaskListRequest {
 		TaskType:     int(types.TaskListTypeDecision),
 		TaskListKind: int(types.TaskListKindNormal),
 		RangeID:      0,
+		UpdatedTime:  FixedTime,
 	}
 }
 
@@ -685,7 +691,7 @@ func checkTaskListInfoExpected(t *testing.T, taskListInfo *persistence.TaskListI
 	assert.Equal(t, initialRangeID, taskListInfo.RangeID)
 	assert.Equal(t, initialAckLevel, taskListInfo.AckLevel)
 	assert.Equal(t, int(types.TaskListKindNormal), taskListInfo.Kind)
-	assert.WithinDuration(t, time.Now(), taskListInfo.LastUpdated, time.Second)
+	assert.WithinDuration(t, FixedTime, taskListInfo.LastUpdated, time.Second)
 }
 
 func taskRowEqualTaskInfo(t *testing.T, taskrow1 nosqlplugin.TaskRow, taskInfo1 *persistence.TaskInfo) {
@@ -727,7 +733,7 @@ func getExpectedTaskListRow() *nosqlplugin.TaskListRow {
 		RangeID:         initialRangeID,
 		TaskListKind:    int(types.TaskListKindNormal),
 		AckLevel:        initialAckLevel,
-		LastUpdatedTime: time.Now(),
+		LastUpdatedTime: FixedTime,
 	}
 }
 
@@ -739,7 +745,7 @@ func getExpectedTaskListRowWithPartitionConfig() *nosqlplugin.TaskListRow {
 		RangeID:         initialRangeID,
 		TaskListKind:    int(types.TaskListKindNormal),
 		AckLevel:        initialAckLevel,
-		LastUpdatedTime: time.Now(),
+		LastUpdatedTime: FixedTime,
 		AdaptivePartitionConfig: &persistence.TaskListPartitionConfig{
 			Version: 1,
 			ReadPartitions: map[int]*persistence.TaskListPartition{
@@ -760,11 +766,8 @@ func getExpectedTaskListRowWithPartitionConfig() *nosqlplugin.TaskListRow {
 }
 
 func checkTaskListRowExpected(t *testing.T, expectedRow *nosqlplugin.TaskListRow, taskList *nosqlplugin.TaskListRow) {
-	// Check the duration
-	assert.WithinDuration(t, expectedRow.LastUpdatedTime, taskList.LastUpdatedTime, time.Second)
+	t.Helper()
 
-	// Set the expected time to the actual time to make the comparison work
-	expectedRow.LastUpdatedTime = taskList.LastUpdatedTime
 	assert.Equal(t, expectedRow, taskList)
 }
 
@@ -776,7 +779,7 @@ func getExpectedTaskListInfo() *persistence.TaskListInfo {
 		RangeID:     initialRangeID,
 		AckLevel:    initialAckLevel,
 		Kind:        int(types.TaskListKindNormal),
-		LastUpdated: time.Now(),
+		LastUpdated: FixedTime,
 		AdaptivePartitionConfig: &persistence.TaskListPartitionConfig{
 			Version: 1,
 			ReadPartitions: map[int]*persistence.TaskListPartition{
