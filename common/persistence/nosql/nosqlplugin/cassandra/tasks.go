@@ -178,7 +178,7 @@ func fromTaskListPartition(partition *persistence.TaskListPartition) any {
 // InsertTaskList insert a single tasklist row
 // Return TaskOperationConditionFailure if the condition doesn't meet
 func (db *cdb) InsertTaskList(ctx context.Context, row *nosqlplugin.TaskListRow) error {
-	timeStamp := db.timeSrc.Now()
+	timeStamp := row.LastUpdatedTime
 	query := db.session.Query(templateInsertTaskListQuery,
 		row.DomainID,
 		row.TaskListName,
@@ -212,7 +212,7 @@ func (db *cdb) UpdateTaskList(
 	row *nosqlplugin.TaskListRow,
 	previousRangeID int64,
 ) error {
-	timeStamp := db.timeSrc.Now()
+	timeStamp := row.LastUpdatedTime
 	query := db.session.Query(templateUpdateTaskListQuery,
 		row.RangeID,
 		row.DomainID,
@@ -266,7 +266,7 @@ func (db *cdb) UpdateTaskListWithTTL(
 	row *nosqlplugin.TaskListRow,
 	previousRangeID int64,
 ) error {
-	timeStamp := db.timeSrc.Now()
+	timeStamp := row.LastUpdatedTime
 	batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
 	// part 1 is used to set TTL on primary key as UPDATE can't set TTL for primary key
 	batch.Query(templateUpdateTaskListQueryWithTTLPart1,
@@ -350,7 +350,7 @@ func (db *cdb) InsertTasks(
 	domainID := tasklistCondition.DomainID
 	taskListName := tasklistCondition.TaskListName
 	taskListType := tasklistCondition.TaskListType
-	timeStamp := db.timeSrc.Now()
+	timeStamp := tasklistCondition.LastUpdatedTime
 
 	for _, task := range tasksToInsert {
 		scheduleID := task.ScheduledID
@@ -455,23 +455,25 @@ PopulateTasks:
 			continue
 		}
 
-		// Extract the TTL value
-		ttlValue, ttlExists := task["ttl"]
-
-		// Check if TTL is null or an integer
-		var ttl *int
-		if ttlExists && ttlValue != nil {
-			if ttlInt, ok := ttlValue.(int); ok {
-				ttl = &ttlInt // TTL is an integer
-			}
-		}
+		// TODO: no usage of ttl
+		//// Extract the TTL value
+		//ttlValue, ttlExists := task["ttl"]
+		//
+		//// Check if TTL is null or an integer
+		//var ttl *int
+		//if ttlExists && ttlValue != nil {
+		//	if ttlInt, ok := ttlValue.(int); ok {
+		//		ttl = &ttlInt // TTL is an integer
+		//	}
+		//}
 
 		t := createTaskInfo(task["task"].(map[string]interface{}))
 		t.TaskID = taskID.(int64)
 
-		if ttl != nil {
-			t.Expiry = db.timeSrc.Now().Add(time.Duration(*ttl) * time.Second)
-		}
+		// TODO: removing this, because there is no usage of it
+		//if ttl != nil {
+		//	t.Expiry = db.timeSrc.Now().Add(time.Duration(*ttl) * time.Second)
+		//}
 
 		response = append(response, t)
 		if len(response) == filter.BatchSize {

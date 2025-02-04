@@ -995,14 +995,27 @@ func TestCreateWorkflowExecution(t *testing.T) {
 			name: "success",
 			prepareMocks: func(mockedStore *MockExecutionStore, mockedSerializer *MockPayloadSerializer) {
 				// Prepare CreateWorkflow call
-				mockedStore.EXPECT().CreateWorkflowExecution(gomock.Any(), &InternalCreateWorkflowExecutionRequest{
+				expectedRequest := &InternalCreateWorkflowExecutionRequest{
 					RangeID:                  1,
 					Mode:                     CreateWorkflowModeWorkflowIDReuse,
 					PreviousRunID:            testRunID,
 					PreviousLastWriteVersion: 1,
 					NewWorkflowSnapshot:      *sampleInternalWorkflowSnapshot(),
 					WorkflowRequestMode:      CreateWorkflowRequestModeReplicated,
-				}).Return(nil, nil)
+					CreatedTime:              time.Now(),
+				}
+				mockedStore.EXPECT().CreateWorkflowExecution(gomock.Any(), gomock.Any()).DoAndReturn(
+					func(_ context.Context, actualRequest *InternalCreateWorkflowExecutionRequest) (*CreateWorkflowExecutionResponse, error) {
+						assert.Equal(t, expectedRequest.RangeID, actualRequest.RangeID)
+						assert.Equal(t, expectedRequest.Mode, actualRequest.Mode)
+						assert.Equal(t, expectedRequest.PreviousRunID, actualRequest.PreviousRunID)
+						assert.Equal(t, expectedRequest.PreviousLastWriteVersion, actualRequest.PreviousLastWriteVersion)
+						assert.Equal(t, expectedRequest.WorkflowRequestMode, actualRequest.WorkflowRequestMode)
+						assert.Equal(t, expectedRequest.NewWorkflowSnapshot, actualRequest.NewWorkflowSnapshot)
+
+						assert.WithinDuration(t, expectedRequest.CreatedTime, actualRequest.CreatedTime, time.Second)
+						return nil, nil
+					})
 
 				// Prepare DeserializeWorkflow call
 				mockedSerializer.EXPECT().SerializeEvent(completionEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
@@ -1101,11 +1114,21 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 				Encoding:              common.EncodingTypeThriftRW,
 			},
 			prepareMocks: func(mockedStore *MockExecutionStore, mockedSerializer *MockPayloadSerializer) {
-				mockedStore.EXPECT().ConflictResolveWorkflowExecution(gomock.Any(), &InternalConflictResolveWorkflowExecutionRequest{
+				expectedRequest := &InternalConflictResolveWorkflowExecutionRequest{
 					RangeID:               1,
 					Mode:                  ConflictResolveWorkflowModeBypassCurrent,
 					ResetWorkflowSnapshot: *sampleInternalWorkflowSnapshot(),
-				}).Return(nil)
+					UpdatedTime:           time.Now(),
+				}
+				mockedStore.EXPECT().ConflictResolveWorkflowExecution(gomock.Any(), gomock.Any()).DoAndReturn(
+					func(_ context.Context, actualRequest *InternalConflictResolveWorkflowExecutionRequest) error {
+						assert.Equal(t, expectedRequest.RangeID, actualRequest.RangeID)
+						assert.Equal(t, expectedRequest.Mode, actualRequest.Mode)
+						assert.Equal(t, expectedRequest.ResetWorkflowSnapshot, actualRequest.ResetWorkflowSnapshot)
+
+						assert.WithinDuration(t, expectedRequest.UpdatedTime, actualRequest.UpdatedTime, time.Second)
+						return nil
+					})
 
 				mockedSerializer.EXPECT().SerializeEvent(completionEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeResetPoints(gomock.Any(), gomock.Any()).Return(sampleResetPointsData(), nil).Times(1)
@@ -1158,13 +1181,20 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 				CurrentWorkflowMutation: sampleWorkflowMutation(),
 			},
 			prepareMocks: func(mockedStore *MockExecutionStore, mockedSerializer *MockPayloadSerializer) {
-				mockedStore.EXPECT().ConflictResolveWorkflowExecution(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, request *InternalConflictResolveWorkflowExecutionRequest) error {
-					assert.Equal(t, &InternalConflictResolveWorkflowExecutionRequest{
-						RangeID:                 1,
-						Mode:                    ConflictResolveWorkflowModeBypassCurrent,
-						ResetWorkflowSnapshot:   *sampleInternalWorkflowSnapshot(),
-						CurrentWorkflowMutation: sampleInternalWorkflowMutation(),
-					}, request)
+				expectedRequest := &InternalConflictResolveWorkflowExecutionRequest{
+					RangeID:                 1,
+					Mode:                    ConflictResolveWorkflowModeBypassCurrent,
+					ResetWorkflowSnapshot:   *sampleInternalWorkflowSnapshot(),
+					CurrentWorkflowMutation: sampleInternalWorkflowMutation(),
+					UpdatedTime:             time.Now(),
+				}
+
+				mockedStore.EXPECT().ConflictResolveWorkflowExecution(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, actualRequest *InternalConflictResolveWorkflowExecutionRequest) error {
+					assert.Equal(t, expectedRequest.RangeID, actualRequest.RangeID)
+					assert.Equal(t, expectedRequest.Mode, actualRequest.Mode)
+					assert.Equal(t, expectedRequest.ResetWorkflowSnapshot, actualRequest.ResetWorkflowSnapshot)
+
+					assert.WithinDuration(t, expectedRequest.UpdatedTime, actualRequest.UpdatedTime, time.Second)
 					return nil
 				})
 
