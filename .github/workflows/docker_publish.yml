@@ -79,7 +79,11 @@ jobs:
   push_server_auto_setup_image:
     name: Push auto-setup image to Docker Hub
     needs: meta
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [linux]
+        arch: [x64, arm64]
+    runs-on: ubuntu-24.04${{ matrix.arch == 'arm64' && '-arm' || '' }} # ubuntu-24.04 or ubuntu-24.04-arm
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -97,7 +101,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64, linux/arm64
+          platforms: linux/${{ matrix.arch == 'arm64' && 'arm64' || 'amd64' }} # linux/amd64 or linux/arm64
           build-args: TARGET=auto-setup
           push: ${{ needs.meta.outputs.push_enabled == 'true' }}
           tags: ubercadence/server:${{ needs.meta.outputs.image_tag }}-auto-setup
@@ -109,7 +113,11 @@ jobs:
   push_cli_image:
     name: Push CLI image to Docker Hub
     needs: meta
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [linux]
+        arch: [x64, arm64]
+    runs-on: ubuntu-24.04${{ matrix.arch == 'arm64' && '-arm' || '' }} # ubuntu-24.04 or ubuntu-24.04-arm
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -127,7 +135,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64, linux/arm64
+          platforms: linux/${{ matrix.arch == 'arm64' && 'arm64' || 'amd64' }} # linux/amd64 or linux/arm64
           build-args: TARGET=cli
           push: ${{ needs.meta.outputs.push_enabled == 'true' }}
           tags: ubercadence/cli:${{ needs.meta.outputs.image_tag }}
@@ -157,7 +165,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64, linux/arm64
+          platforms: linux/amd64
           build-args: TARGET=bench
           tags: ubercadence/bench:master
           push: ${{ needs.meta.outputs.push_enabled == 'true' }}
@@ -184,7 +192,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64, linux/arm64
+          platforms: linux/amd64
           build-args: TARGET=canary
           tags: ubercadence/canary:master
           push: ${{ needs.meta.outputs.push_enabled == 'true' }}
