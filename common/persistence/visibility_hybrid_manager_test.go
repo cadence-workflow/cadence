@@ -149,62 +149,11 @@ func TestVisibilityHybridManagerClose(t *testing.T) {
 }
 
 func TestVisibilityHybridManagerGetName(t *testing.T) {
-	// put this outside because need to use it as an input of the table tests
-	ctrl := gomock.NewController(t)
-
-	tests := map[string]struct {
-		mockDBVisibilityManager              VisibilityManager
-		mockESVisibilityManager              VisibilityManager
-		mockPinotVisibilityManager           VisibilityManager
-		mockDBVisibilityManagerAffordance    func(mockDBVisibilityManager *MockVisibilityManager)
-		mockPinotVisibilityManagerAffordance func(mockPinotVisibilityManager *MockVisibilityManager)
-		mockESVisibilityManagerAffordance    func(mockESVisibilityManager *MockVisibilityManager)
-		writeVisibilityStoreName             dynamicconfig.StringPropertyFn
-	}{
-		"Case1-1: success case with DB visibility is not nil": {
-			mockDBVisibilityManager: NewMockVisibilityManager(ctrl),
-			mockDBVisibilityManagerAffordance: func(mockDBVisibilityManager *MockVisibilityManager) {
-				mockDBVisibilityManager.EXPECT().GetName().Return(testTableName).Times(1)
-			},
-			writeVisibilityStoreName: dynamicconfig.GetStringPropertyFn(dbVisStoreName),
-		},
-		"Case1-2: success case with ES visibility is not nil": {
-			mockESVisibilityManager: NewMockVisibilityManager(ctrl),
-			mockESVisibilityManagerAffordance: func(mockESVisibilityManager *MockVisibilityManager) {
-				mockESVisibilityManager.EXPECT().GetName().Return(testTableName).Times(1)
-			},
-			writeVisibilityStoreName: dynamicconfig.GetStringPropertyFn(esStoreName),
-		},
-		"Case1-3: success case with pinot visibility is not nil": {
-			mockPinotVisibilityManager: NewMockVisibilityManager(ctrl),
-			mockPinotVisibilityManagerAffordance: func(mockPinotVisibilityManager *MockVisibilityManager) {
-				mockPinotVisibilityManager.EXPECT().GetName().Return(testTableName).Times(1)
-			},
-			writeVisibilityStoreName: dynamicconfig.GetStringPropertyFn(pinotStoreName),
-		},
+	visibilityMgrs := map[string]VisibilityManager{
+		dbVisStoreName: NewMockVisibilityManager(gomock.NewController(t)),
 	}
-	for name, test := range tests {
-		t.Run(name, func(t *testing.T) {
-			if test.mockDBVisibilityManager != nil {
-				test.mockDBVisibilityManagerAffordance(test.mockDBVisibilityManager.(*MockVisibilityManager))
-			}
-			if test.mockPinotVisibilityManager != nil {
-				test.mockPinotVisibilityManagerAffordance(test.mockPinotVisibilityManager.(*MockVisibilityManager))
-			}
-			if test.mockESVisibilityManager != nil {
-				test.mockESVisibilityManagerAffordance(test.mockESVisibilityManager.(*MockVisibilityManager))
-			}
-			visibilityMgrs := map[string]VisibilityManager{
-				dbVisStoreName: test.mockDBVisibilityManager,
-				esStoreName:    test.mockESVisibilityManager,
-				pinotStoreName: test.mockPinotVisibilityManager,
-			}
-			visibilityManager := NewVisibilityHybridManager(visibilityMgrs, nil, test.writeVisibilityStoreName, nil, testStoreName, log.NewNoop())
-			assert.NotPanics(t, func() {
-				visibilityManager.GetName()
-			})
-		})
-	}
+	visibilityManager := NewVisibilityHybridManager(visibilityMgrs, nil, dynamicconfig.GetStringPropertyFn(dbVisStoreName), nil, testStoreName, log.NewNoop())
+	assert.Equal(t, testStoreName, visibilityManager.GetName())
 }
 
 func TestVisibilityHybridRecordWorkflowExecutionStarted(t *testing.T) {
