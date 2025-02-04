@@ -167,7 +167,7 @@ func TestAppendHistoryNodes_NewBranch(t *testing.T) {
 			assert.Equal(t, "TestBranchID", treeRow.BranchID)
 			assert.Equal(t, request.BranchInfo.Ancestors, treeRow.Ancestors)
 			assert.Equal(t, request.Info, treeRow.Info)
-			assert.Equal(t, FixedTime, treeRow.CreateTimestamp, time.Second)
+			assert.Equal(t, FixedTime, treeRow.CreateTimestamp)
 
 			return nil
 		})
