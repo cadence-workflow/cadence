@@ -101,11 +101,13 @@ func (v *visibilityHybridManager) Close() {
 }
 
 func (v *visibilityHybridManager) GetName() string {
-	storeNames := strings.Split(v.writeVisibilityStoreName(), ",")
-	if mgr, ok := v.visibilityMgrs[storeNames[0]]; ok && mgr != nil {
-		return mgr.GetName()
+	if v.writeVisibilityStoreName != nil {
+		storeNames := strings.Split(v.writeVisibilityStoreName(), ",")
+		if mgr, ok := v.visibilityMgrs[storeNames[0]]; ok && mgr != nil {
+			return mgr.GetName()
+		}
 	}
-	return storeNames[0] // return the primary store name
+	return v.visibilityMgrs[dbVisStoreName].GetName() // db will always be available
 }
 
 func (v *visibilityHybridManager) RecordWorkflowExecutionStarted(

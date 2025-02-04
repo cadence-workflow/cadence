@@ -61,3 +61,7 @@ frontend.validSearchAttributes:
     user: 1
     IsDeleted: 4
   constraints: {}
+system.writeVisibilityStoreName:
+  - value: "db"
+system.readVisibilityStoreName:
+  - value: "db"
