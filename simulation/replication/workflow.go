@@ -44,16 +44,17 @@ func testWorkflow(ctx workflow.Context, input WorkflowInput) (WorkflowOutput, er
 	endTime := workflow.Now(ctx).Add(input.Duration)
 	count := 0
 	for workflow.Now(ctx).Before(endTime) {
+		logger.Sugar().Infof("testWorkflow iteration %d", count)
 		selector := workflow.NewSelector(ctx)
 		activityFuture := workflow.ExecuteActivity(ctx, activityName, "World")
 		selector.AddFuture(activityFuture, func(f workflow.Future) {
-			logger.Info("activity completed")
+			logger.Info("testWorkflow completed activity")
 		})
 
 		// use timer future to send notification email if processing takes too long
 		timerFuture := workflow.NewTimer(ctx, timerInterval)
 		selector.AddFuture(timerFuture, func(f workflow.Future) {
-			logger.Info("timer fired")
+			logger.Info("testWorkflow timer fired")
 		})
 
 		// wait for both activity and timer to complete

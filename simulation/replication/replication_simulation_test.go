@@ -33,13 +33,16 @@ package replication
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 	adminv1 "github.com/uber/cadence-idl/go/proto/admin/v1"
@@ -53,11 +56,11 @@ import (
 	"go.uber.org/yarpc/transport/grpc"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"golang.org/x/sync/errgroup"
 	"gopkg.in/yaml.v2"
 
 	"github.com/uber/cadence/client/frontend"
 	grpcClient "github.com/uber/cadence/client/wrappers/grpc"
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -80,7 +83,6 @@ func TestReplicationSimulation(t *testing.T) {
 	mustRegisterDomain(t, simCfg)
 
 	// wait for domain data to be replicated.
-	// TODO: make domain replication interval configurable and reduce it
 	time.Sleep(10 * time.Second)
 
 	// initialize workers
@@ -88,35 +90,31 @@ func TestReplicationSimulation(t *testing.T) {
 		simCfg.mustInitWorkerFor(t, clusterName)
 	}
 
+	sort.Slice(simCfg.Operations, func(i, j int) bool {
+		return simCfg.Operations[i].At < simCfg.Operations[j].At
+	})
+
 	startTime := time.Now().UTC()
 	logf(t, "Simulation start time: %v", startTime)
-	g := &errgroup.Group{}
-	var maxAt time.Duration
-	for _, op := range simCfg.Operations {
+	for i, op := range simCfg.Operations {
 		op := op
-		if op.At > maxAt {
-			maxAt = op.At
-		}
+		waitForOpTime(t, op, startTime)
+		var err error
 		switch op.Type {
 		case ReplicationSimulationOperationStartWorkflow:
-			g.Go(func() error {
-				return startWorkflow(t, op, simCfg, startTime)
-			})
+			err = startWorkflow(t, op, simCfg)
 		case ReplicationSimulationOperationFailover:
-			g.Go(func() error {
-				return failover(t, op, simCfg, startTime)
-			})
+			err = failover(t, op, simCfg)
 		case ReplicationSimulationOperationValidate:
-			g.Go(func() error {
-				return validate(t, op, simCfg, startTime)
-			})
+			err = validate(t, op, simCfg)
 		default:
 			require.Failf(t, "unknown operation type", "operation type: %s", op.Type)
 		}
-	}
 
-	logf(t, "Waiting for all operations to complete.. Latest operation time is %v", startTime.Add(maxAt))
-	g.Wait()
+		if err != nil {
+			t.Fatalf("Operation %d failed: %v", i, err)
+		}
+	}
 
 	// Print the test summary.
 	// Don't change the start/end line format as it is used by scripts to parse the summary info
@@ -132,15 +130,30 @@ func startWorkflow(
 	t *testing.T,
 	op *Operation,
 	simCfg *ReplicationSimulationConfig,
-	startTime time.Time,
 ) error {
 	t.Helper()
 
-	waitForOpTime(t, op, startTime)
+	logf(t, "Starting workflow: %s on cluster: %s", op.WorkflowID, op.Cluster)
 
-	logf(t, "Starting workflow: %s", op.WorkflowID)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	resp, err := simCfg.mustGetFrontendClient(t, op.Cluster).StartWorkflowExecution(ctx,
+		&types.StartWorkflowExecutionRequest{
+			RequestID:                           uuid.New(),
+			Domain:                              domainName,
+			WorkflowID:                          op.WorkflowID,
+			WorkflowType:                        &types.WorkflowType{Name: workflowName},
+			TaskList:                            &types.TaskList{Name: tasklistName},
+			ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(int32((op.WorkflowDuration + 10*time.Second).Seconds())),
+			TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(10),
+			Input:                               mustJSON(t, &WorkflowInput{Duration: op.WorkflowDuration}),
+		})
 
-	// TODO: start workflow in specified cluster
+	if err != nil {
+		return err
+	}
+
+	logf(t, "Started workflow: %s on cluster: %s. RunID: %s", op.WorkflowID, op.Cluster, resp.GetRunID())
 
 	return nil
 }
@@ -149,40 +162,131 @@ func failover(
 	t *testing.T,
 	op *Operation,
 	simCfg *ReplicationSimulationConfig,
-	startTime time.Time,
 ) error {
 	t.Helper()
 
-	waitForOpTime(t, op, startTime)
-
 	logf(t, "Failing over to cluster: %s", op.NewActiveCluster)
 
-	// TODO: perform failover
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	descResp, err := simCfg.mustGetFrontendClient(t, simCfg.PrimaryCluster).DescribeDomain(ctx, &types.DescribeDomainRequest{Name: common.StringPtr(domainName)})
+	if err != nil {
+		return fmt.Errorf("failed to describe domain %s: %w", domainName, err)
+	}
 
+	fromCluster := descResp.ReplicationConfiguration.ActiveClusterName
+	toCluster := op.NewActiveCluster
+
+	if fromCluster == toCluster {
+		return fmt.Errorf("domain %s is already active in cluster %s so cannot perform failover", domainName, toCluster)
+	}
+
+	ctx, cancel = context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	_, err = simCfg.mustGetFrontendClient(t, simCfg.PrimaryCluster).UpdateDomain(ctx,
+		&types.UpdateDomainRequest{
+			Name:              domainName,
+			ActiveClusterName: &toCluster,
+		})
+	if err != nil {
+		return fmt.Errorf("failed to update ActiveClusterName, err: %w", err)
+	}
+
+	logf(t, "Failed over from %s to %s", fromCluster, toCluster)
 	return nil
 }
 
+// validate performs validation based on given operation config.
+// validate function does not fail the test via t.Fail (or require.X).
+// It runs in separate goroutine. It should return an error.
 func validate(
 	t *testing.T,
 	op *Operation,
 	simCfg *ReplicationSimulationConfig,
-	startTime time.Time,
 ) error {
 	t.Helper()
 
-	waitForOpTime(t, op, startTime)
+	logf(t, "Validating workflow: %s on cluster: %s", op.WorkflowID, op.Cluster)
 
-	logf(t, "Performing valiaton")
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	resp, err := simCfg.mustGetFrontendClient(t, op.Cluster).DescribeWorkflowExecution(ctx,
+		&types.DescribeWorkflowExecutionRequest{
+			Domain: domainName,
+			Execution: &types.WorkflowExecution{
+				WorkflowID: op.WorkflowID,
+			},
+		})
+	if err != nil {
+		return err
+	}
 
-	// TODO: perform validation
+	// Validate workflow completed
+	if resp.GetWorkflowExecutionInfo().GetCloseStatus() != types.WorkflowExecutionCloseStatusCompleted {
+		return fmt.Errorf("workflow %s not completed. status: %s", op.WorkflowID, resp.GetWorkflowExecutionInfo().GetCloseStatus())
+	}
+
+	logf(t, "Validated workflow: %s on cluster: %s. Status: %s, CloseTime: %v", op.WorkflowID, op.Cluster, resp.GetWorkflowExecutionInfo().GetCloseStatus(), time.Unix(0, resp.GetWorkflowExecutionInfo().GetCloseTime()))
+
+	// Get history to validate the worker identity that started and completed the workflow
+	// Some workflows start in cluster0 and complete in cluster1. This is to validate that
+	history, err := getAllHistory(t, simCfg, op.Cluster, op.WorkflowID)
+	if err != nil {
+		return err
+	}
+
+	if len(history) == 0 {
+		return fmt.Errorf("no history events found for workflow %s", op.WorkflowID)
+	}
+
+	startedWorker, err := firstDecisionTaskWorker(history)
+	if err != nil {
+		return err
+	}
+	if op.Want.StartedByWorkersInCluster != "" && startedWorker != workerIdentityFor(op.Want.StartedByWorkersInCluster) {
+		return fmt.Errorf("workflow %s started by worker %s, expected %s", op.WorkflowID, startedWorker, workerIdentityFor(op.Want.StartedByWorkersInCluster))
+	}
+
+	completedWorker, err := lastDecisionTaskWorker(history)
+	if err != nil {
+		return err
+	}
+
+	if op.Want.CompletedByWorkersInCluster != "" && completedWorker != workerIdentityFor(op.Want.CompletedByWorkersInCluster) {
+		return fmt.Errorf("workflow %s completed by worker %s, expected %s", op.WorkflowID, completedWorker, workerIdentityFor(op.Want.CompletedByWorkersInCluster))
+	}
 
 	return nil
 }
 
+func firstDecisionTaskWorker(history []types.HistoryEvent) (string, error) {
+	for _, event := range history {
+		if event.GetEventType() == types.EventTypeDecisionTaskCompleted {
+			return event.GetDecisionTaskCompletedEventAttributes().Identity, nil
+		}
+	}
+	return "", fmt.Errorf("failed to find first decision task worker because there's no DecisionTaskCompleted event found in history")
+}
+
+func lastDecisionTaskWorker(history []types.HistoryEvent) (string, error) {
+	for i := len(history) - 1; i >= 0; i-- {
+		event := history[i]
+		if event.GetEventType() == types.EventTypeDecisionTaskCompleted {
+			return event.GetDecisionTaskCompletedEventAttributes().Identity, nil
+		}
+	}
+	return "", fmt.Errorf("failed to find lastDecisionTaskWorker because there's no DecisionTaskCompleted event found in history")
+}
+
 func waitForOpTime(t *testing.T, op *Operation, startTime time.Time) {
 	t.Helper()
-	<-time.After(startTime.Add(op.At).Sub(time.Now().UTC()))
-	logf(t, "Operation time (t + %ds) reached: %v", op.At, startTime.Add(op.At))
+	d := startTime.Add(op.At).Sub(time.Now().UTC())
+	if d > 0 {
+		logf(t, "Waiting for next operation time (t + %ds). Will sleep for %ds", int(op.At.Seconds()), int(d.Seconds()))
+		<-time.After(d)
+	}
+
+	logf(t, "Operation time (t + %ds) reached: %v", int(op.At.Seconds()), startTime.Add(op.At))
 }
 
 func mustLoadReplSimConf(t *testing.T) *ReplicationSimulationConfig {
@@ -201,6 +305,49 @@ func mustLoadReplSimConf(t *testing.T) *ReplicationSimulationConfig {
 
 	logf(t, "Loaded config from path: %s", path)
 	return &cfg
+}
+
+func getAllHistory(t *testing.T, simCfg *ReplicationSimulationConfig, clusterName, wfID string) ([]types.HistoryEvent, error) {
+	frontendCl := simCfg.mustGetFrontendClient(t, clusterName)
+	var nextPageToken []byte
+	var history []types.HistoryEvent
+	for {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		response, err := frontendCl.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
+			Domain: domainName,
+			Execution: &types.WorkflowExecution{
+				WorkflowID: wfID,
+			},
+			MaximumPageSize:        1000,
+			NextPageToken:          nextPageToken,
+			WaitForNewEvent:        false,
+			HistoryEventFilterType: types.HistoryEventFilterTypeAllEvent.Ptr(),
+			SkipArchival:           true,
+		})
+		cancel()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get history: %w", err)
+		}
+
+		for _, event := range response.GetHistory().GetEvents() {
+			if event != nil {
+				history = append(history, *event)
+			}
+		}
+
+		if response.NextPageToken == nil {
+			return history, nil
+		}
+
+		nextPageToken = response.NextPageToken
+		time.Sleep(10 * time.Millisecond) // sleep to avoid throttling
+	}
+}
+
+func mustJSON(t *testing.T, v interface{}) []byte {
+	data, err := json.Marshal(v)
+	require.NoError(t, err, "failed to marshal to json")
+	return data
 }
 
 func logf(t *testing.T, msg string, args ...interface{}) {

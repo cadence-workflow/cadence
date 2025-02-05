@@ -504,6 +504,7 @@ func (d *handlerImpl) UpdateDomain(
 		now := d.timeSource.Now()
 		// Check the failover cool down time
 		if lastUpdatedTime.Add(d.config.FailoverCoolDown(info.Name)).After(now) {
+			d.logger.Debugf("Domain was last updated at %v, failoverCoolDown: %v, current time: %v.", lastUpdatedTime, d.config.FailoverCoolDown(info.Name), now)
 			return nil, errDomainUpdateTooFrequent
 		}
 

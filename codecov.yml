@@ -67,6 +67,7 @@ ignore:
   - "service/matching/service.go"
   - "service/matching/tasklist/testing.go"
   - "service/worker/service.go"
+  - "simulation/**"
   - "testflags/**"
   - "tools/common/schema/test/**"
   - "tools/linter/**"
