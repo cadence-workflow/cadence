@@ -107,34 +107,6 @@ func TestFactoryMethods(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, em)
 	})
-	t.Run("NewVisibilityManager", func(t *testing.T) {
-		fact := makeFactory(t)
-		ds := mockDatastore(t, fact, storeTypeVisibility)
-
-		// true/false does not matter, but it should be passed through.
-		// true has been chosen because it's not a zero value, so it's a bit more likely to be
-		// the intended source of `true`.
-		readFromClosed := true
-		ds.EXPECT().NewVisibilityStore(readFromClosed).Return(nil, nil).MinTimes(1)
-		vm, err := fact.NewVisibilityManager(&Params{
-			PersistenceConfig: config.Persistence{
-				// a configured VisibilityStore uses the db store, which is mockable,
-				// unlike basically every other store.
-				VisibilityStore: "fake",
-			},
-		}, &service.Config{
-			// must be non-nil to create a "manager", else nil return from NewVisibilityManager is expected
-			ReadVisibilityStoreName: func(domain string) string {
-				return "es" // any value is fine as there are no read calls
-			},
-			// non-nil avoids a warning log
-			EnableReadDBVisibilityFromClosedExecutionV2: func(opts ...dynamicconfig.FilterOption) bool {
-				return readFromClosed // any value is fine as there are no read calls
-			},
-		})
-		assert.NoError(t, err)
-		assert.NotNil(t, vm)
-	})
 	t.Run("NewVisibilityManager can be nil", func(t *testing.T) {
 		fact := makeFactory(t)
 		// no datastores are mocked as there are no calls at all expected

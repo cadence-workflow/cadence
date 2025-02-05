@@ -360,14 +360,17 @@ func (f *factoryImpl) NewVisibilityManager(
 		visibilityMgrs := map[string]p.VisibilityManager{
 			common.VisibilityModeDB: visibilityFromDB,
 		}
-		return p.NewVisibilityHybridManager(
-			visibilityMgrs,
-			resourceConfig.ReadVisibilityStoreName,
-			resourceConfig.WriteVisibilityStoreName,
-			resourceConfig.EnableLogCustomerQueryParameter,
-			common.DBPersistenceName, // db has multiple different stores
-			f.logger,
-		), nil
+		if visibilityFromDB != nil {
+			return p.NewVisibilityHybridManager(
+				visibilityMgrs,
+				resourceConfig.ReadVisibilityStoreName,
+				resourceConfig.WriteVisibilityStoreName,
+				resourceConfig.EnableLogCustomerQueryParameter,
+				visibilityFromDB.GetName(), // db has multiple different stores
+				f.logger,
+			), nil
+		}
+		return nil, nil // no visibility manager available for write
 	}
 }
 
