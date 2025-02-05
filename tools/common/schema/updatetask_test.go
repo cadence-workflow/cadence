@@ -142,13 +142,13 @@ func (s *UpdateTaskTestSuite) TestReadSchemaDirFromEmbeddings() {
 	s.NoError(err)
 	ans, err = readSchemaDir(fsys, "0.1", "")
 	s.NoError(err)
-	s.Equal([]string{}, ans)
+	s.Nil(ans, "no version dirs found after 0.1")
 
 	fsys, err = fs.Sub(sqlite.SchemaFS, "visibility/versioned")
 	s.NoError(err)
 	ans, err = readSchemaDir(fsys, "0.1", "")
 	s.NoError(err)
-	s.Equal([]string{}, ans)
+	s.Nil(ans, "no version dirs found after 0.1")
 
 	// Postgres
 	fsys, err = fs.Sub(postgres.SchemaFS, "cadence/versioned")
