@@ -6095,6 +6095,14 @@ func (v *DiagnoseWorkflowExecutionRequest) GetWorkflowExecution() (o *WorkflowEx
 	return
 }
 
+// GetIdentity returns the identity
+func (v *DiagnoseWorkflowExecutionRequest) GetIdentity() (o string) {
+	if v != nil {
+		return v.Identity
+	}
+	return
+}
+
 type DiagnoseWorkflowExecutionResponse struct {
 	Domain                      string             `json:"domain,omitempty"`
 	DiagnosticWorkflowExecution *WorkflowExecution `json:"workflowExecution,omitempty"`

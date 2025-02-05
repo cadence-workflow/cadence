@@ -216,28 +216,15 @@ func (wh *WorkflowHandler) DiagnoseWorkflowExecution(ctx context.Context, reques
 		return nil, validate.ErrExecutionNotSet
 	}
 
-	scope := getMetricsScopeWithDomain(metrics.FrontendPollForActivityTaskScope, request, wh.GetMetricsClient()).Tagged(metrics.GetContextTags(ctx)...)
-
 	wfExecution := request.GetWorkflowExecution()
 	diagnosticWorkflowDomain := "cadence-system"
-	diagnosticWorkflowID := fmt.Sprintf("%s-%s-%s", request.GetDomain(), wfExecution.GetWorkflowID(), wfExecution.GetRunID())
-	if !common.IsValidIDLength(
-		diagnosticWorkflowID,
-		scope,
-		wh.config.MaxIDLengthWarnLimit(),
-		wh.config.WorkflowIDMaxLength(request.GetDomain()),
-		metrics.CadenceErrWorkflowIDExceededWarnLimit,
-		request.GetDomain(),
-		wh.GetLogger(),
-		tag.IDTypeWorkflowID) {
-		diagnosticWorkflowID = uuid.New().String()
-	}
+	diagnosticWorkflowID := fmt.Sprintf("%s-%s", request.GetDomain(), wfExecution.GetRunID())
 
 	diagnosticWorkflowInput := diagnostics.DiagnosticsStarterWorkflowInput{
 		Domain:     request.GetDomain(),
 		WorkflowID: request.GetWorkflowExecution().GetWorkflowID(),
 		RunID:      request.GetWorkflowExecution().GetRunID(),
-		Identity:   request.Identity,
+		Identity:   request.GetIdentity(),
 	}
 	inputInBytes, err := json.Marshal(diagnosticWorkflowInput)
 	if err != nil {
@@ -256,7 +243,7 @@ func (wh *WorkflowHandler) DiagnoseWorkflowExecution(ctx context.Context, reques
 		Input:                               inputInBytes,
 		ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(86400), // 24 hours
 		TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(300),   // 5 minutes
-		Identity:                            request.Identity,
+		Identity:                            request.GetIdentity(),
 		RequestID:                           uuid.New().String(),
 		WorkflowIDReusePolicy:               types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
 	})
