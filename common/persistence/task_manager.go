@@ -56,7 +56,7 @@ func (t *taskManager) Close() {
 }
 
 func (t *taskManager) LeaseTaskList(ctx context.Context, request *LeaseTaskListRequest) (*LeaseTaskListResponse, error) {
-	request.UpdatedTime = t.timeSrc.Now()
+	request.TimeStamp = t.timeSrc.Now()
 	return t.persistence.LeaseTaskList(ctx, request)
 }
 

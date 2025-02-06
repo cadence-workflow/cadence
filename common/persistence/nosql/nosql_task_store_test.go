@@ -551,7 +551,8 @@ func TestCreateTasks(t *testing.T) {
 					TaskListName:    TestTaskListName,
 					TaskListType:    TestTaskType,
 					RangeID:         1,
-					LastUpdatedTime: now,
+					LastUpdatedTime: FixedTime,
+					TimeStamp:       FixedTime,
 				}).Do(func(_ context.Context, tasks []*nosqlplugin.TaskRowForInsert, _ *nosqlplugin.TaskListRow) {
 					assert.Len(t, tasks, 0)
 				}).Return(nil).Times(1)
@@ -671,7 +672,7 @@ func getValidLeaseTaskListRequest() *persistence.LeaseTaskListRequest {
 		TaskType:     int(types.TaskListTypeDecision),
 		TaskListKind: int(types.TaskListKindNormal),
 		RangeID:      0,
-		UpdatedTime:  FixedTime,
+		TimeStamp:    FixedTime,
 	}
 }
 
@@ -734,6 +735,7 @@ func getExpectedTaskListRow() *nosqlplugin.TaskListRow {
 		TaskListKind:    int(types.TaskListKindNormal),
 		AckLevel:        initialAckLevel,
 		LastUpdatedTime: FixedTime,
+		TimeStamp:       FixedTime,
 	}
 }
 
@@ -746,6 +748,7 @@ func getExpectedTaskListRowWithPartitionConfig() *nosqlplugin.TaskListRow {
 		TaskListKind:    int(types.TaskListKindNormal),
 		AckLevel:        initialAckLevel,
 		LastUpdatedTime: FixedTime,
+		TimeStamp:       FixedTime,
 		AdaptivePartitionConfig: &persistence.TaskListPartitionConfig{
 			Version: 1,
 			ReadPartitions: map[int]*persistence.TaskListPartition{
