@@ -56,7 +56,7 @@ func AdminGetDynamicConfig(c *cli.Context) error {
 		return err
 	}
 
-	dcName, err := getRequiredOption(c, FlagDynamicConfigName)
+	configName, err := getRequiredOption(c, FlagDynamicConfigName)
 	if err != nil {
 		return commoncli.Problem("Required flag not found", err)
 	}
@@ -67,57 +67,33 @@ func AdminGetDynamicConfig(c *cli.Context) error {
 	if err != nil {
 		return commoncli.Problem("Error in creating context: ", err)
 	}
-	if len(filters) == 0 {
-		req := &types.ListDynamicConfigRequest{
-			ConfigName: dcName,
-		}
 
-		val, err := adminClient.ListDynamicConfig(ctx, req)
-		if err != nil {
-			return commoncli.Problem("Failed to get dynamic config value(s)", err)
-		}
-
-		if val == nil || val.Entries == nil || len(val.Entries) == 0 {
-			fmt.Printf("No dynamic config values stored to list.\n")
-		} else {
-			cliEntries := make([]*cliEntry, 0, len(val.Entries))
-			for _, dcEntry := range val.Entries {
-				cliEntry, err := convertToInputEntry(dcEntry)
-				if err != nil {
-					fmt.Printf("Cannot parse list response.\n")
-				}
-				cliEntries = append(cliEntries, cliEntry)
-			}
-			prettyPrintJSONObject(getDeps(c).Output(), cliEntries)
-		}
-	} else {
-		parsedFilters, err := parseInputFilterArray(filters)
-		if err != nil {
-			return commoncli.Problem("Failed to parse input filter array", err)
-		}
-
-		req := &types.GetDynamicConfigRequest{
-			ConfigName: dcName,
-			Filters:    parsedFilters,
-		}
-
-		val, err := adminClient.GetDynamicConfig(ctx, req)
-		if err != nil {
-			return commoncli.Problem("Failed to get dynamic config value", err)
-		}
-
-		var umVal interface{}
-		err = json.Unmarshal(val.Value.Data, &umVal)
-		if err != nil {
-			return commoncli.Problem("Failed to unmarshal response", err)
-		}
-
-		if umVal == nil {
-			fmt.Printf("No values stored for specified dynamic config.\n")
-		} else {
-			prettyPrintJSONObject(getDeps(c).Output(), umVal)
-		}
+	req := &types.GetDynamicConfigRequest{
+		ConfigName: configName,
 	}
+
+	req.Filters, err = parseInputFilterArray(filters)
+	if err != nil {
+		return commoncli.Problem("Failed to parse input filter array", err)
+	}
+
+	val, err := adminClient.GetDynamicConfig(ctx, req)
+	if err != nil {
+		return commoncli.Problem("Failed to get dynamic config value", err)
+	}
+
+	var umVal interface{}
+	err = json.Unmarshal(val.Value.Data, &umVal)
+	if err != nil {
+		return commoncli.Problem("Failed to unmarshal response", err)
+	}
+
+	if umVal == nil {
+		fmt.Printf("No values stored for specified dynamic config.\n")
+	} else {
+		prettyPrintJSONObject(getDeps(c).Output(), umVal)
+	}
+
 	return nil
 }
 
