@@ -106,7 +106,7 @@ func (db *taskListDB) RenewLease() (taskListState, error) {
 		TaskListKind: db.taskListKind,
 		RangeID:      atomic.LoadInt64(&db.rangeID),
 		DomainName:   db.domainName,
-		UpdatedTime:  db.timeSrc.Now(),
+		TimeStamp:    db.timeSrc.Now(),
 	})
 	if err != nil {
 		return taskListState{}, err
