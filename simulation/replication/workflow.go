@@ -39,14 +39,18 @@ type WorkflowOutput struct {
 
 func testWorkflow(ctx workflow.Context, input WorkflowInput) (WorkflowOutput, error) {
 	logger := workflow.GetLogger(ctx)
-	logger.Info("testWorkflow started")
+	logger.Sugar().Infof("testWorkflow started with input: %+v", input)
 
 	endTime := workflow.Now(ctx).Add(input.Duration)
 	count := 0
-	for workflow.Now(ctx).Before(endTime) {
+	for {
 		logger.Sugar().Infof("testWorkflow iteration %d", count)
 		selector := workflow.NewSelector(ctx)
-		activityFuture := workflow.ExecuteActivity(ctx, activityName, "World")
+		activityFuture := workflow.ExecuteActivity(workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
+			TaskList:               tasklistName,
+			ScheduleToStartTimeout: 10 * time.Second,
+			StartToCloseTimeout:    10 * time.Second,
+		}), activityName, "World")
 		selector.AddFuture(activityFuture, func(f workflow.Future) {
 			logger.Info("testWorkflow completed activity")
 		})
@@ -61,6 +65,14 @@ func testWorkflow(ctx workflow.Context, input WorkflowInput) (WorkflowOutput, er
 		selector.Select(ctx)
 		selector.Select(ctx)
 		count++
+
+		now := workflow.Now(ctx)
+		if now.Before(endTime) {
+			logger.Sugar().Infof("testWorkflow will continue iteration because [now %v] < [endTime %v]", now, endTime)
+		} else {
+			logger.Sugar().Infof("testWorkflow will exit because [now %v] >= [endTime %v]", now, endTime)
+			break
+		}
 	}
 
 	logger.Info("testWorkflow completed")

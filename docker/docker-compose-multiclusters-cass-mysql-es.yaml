@@ -82,7 +82,7 @@ services:
       - "ES_SEEDS=elasticsearch"
       - "KAFKA_SEEDS=kafka"
       - "VISIBILITY_NAME=cadence-visibility-primary"
-      - "FRONTEND_SERVICE=cadence"
+      - "PRIMARY_FRONTEND_SERVICE=cadence"
     depends_on:
       cassandra:
         condition: service_healthy
@@ -125,7 +125,7 @@ services:
       - "ES_SEEDS=elasticsearch"
       - "KAFKA_SEEDS=kafka"
       - "VISIBILITY_NAME=cadence-visibility-secondary"
-      - "FRONTEND_SERVICE=cadence-secondary"
+      - "SECONDARY_FRONTEND_SERVICE=cadence-secondary"
     depends_on:
       - mysql
       - prometheus

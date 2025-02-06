@@ -222,8 +222,8 @@ func validate(
 	}
 
 	// Validate workflow completed
-	if resp.GetWorkflowExecutionInfo().GetCloseStatus() != types.WorkflowExecutionCloseStatusCompleted {
-		return fmt.Errorf("workflow %s not completed. status: %s", op.WorkflowID, resp.GetWorkflowExecutionInfo().GetCloseStatus())
+	if resp.GetWorkflowExecutionInfo().GetCloseStatus() != types.WorkflowExecutionCloseStatusCompleted || resp.GetWorkflowExecutionInfo().GetCloseTime() == 0 {
+		return fmt.Errorf("workflow %s not completed. status: %s, close time: %v", op.WorkflowID, resp.GetWorkflowExecutionInfo().GetCloseStatus(), time.Unix(0, resp.GetWorkflowExecutionInfo().GetCloseTime()))
 	}
 
 	logf(t, "Validated workflow: %s on cluster: %s. Status: %s, CloseTime: %v", op.WorkflowID, op.Cluster, resp.GetWorkflowExecutionInfo().GetCloseStatus(), time.Unix(0, resp.GetWorkflowExecutionInfo().GetCloseTime()))
@@ -427,7 +427,7 @@ func (s *ReplicationSimulationConfig) mustInitWorkerFor(t *testing.T, clusterNam
 	require.NoError(t, err, "failed to create logger")
 
 	dispatcher := yarpc.NewDispatcher(yarpc.Config{
-		Name: "worker",
+		Name: workerIdentityFor(clusterName),
 		Outbounds: yarpc.Outbounds{
 			"cadence-frontend": {Unary: grpc.NewTransport().NewSingleOutbound(cluster.GRPCEndpoint)},
 		},
@@ -462,7 +462,7 @@ func (s *ReplicationSimulationConfig) mustInitWorkerFor(t *testing.T, clusterNam
 
 	err = w.Start()
 	require.NoError(t, err, "failed to start worker for cluster %s", clusterName)
-	logf(t, "Started worker for cluster: %s", clusterName)
+	logf(t, "Started worker for cluster: %s, endpoint: %s", clusterName, cluster.GRPCEndpoint)
 }
 
 func workerIdentityFor(clusterName string) string {

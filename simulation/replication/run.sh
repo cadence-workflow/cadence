@@ -46,11 +46,10 @@ function check_test_failure()
 trap check_test_failure EXIT
 
 echo "Running the scenario $testCase"
-docker-compose \
+SCENARIO=$testCase docker-compose \
   -f docker/buildkite/docker-compose-local-replication-simulation.yml \
   run \
   -e REPLICATION_SIMULATION_CONFIG=$testCfg \
-  -e SCENARIO=$testCase \
   --rm --remove-orphans --service-ports --use-aliases \
   replication-simulator \
   | grep -a --line-buffered "Replication New Event" \

@@ -66,14 +66,17 @@ services:
       - "7002:7002" # history prometheus
       - "7003:7003" # worker prometheus
     environment:
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/replication_simulation_${SCENARIO}.yml
+      - "CLUSTER_REDIRECT_POLICY=selected-apis-forwarding"
       - "BIND_ON_IP=0.0.0.0"
       - "PRIMARY_FRONTEND_SERVICE=cadence-cluster0"
       - "SECONDARY_FRONTEND_SERVICE=cadence-cluster1"
       - "CASSANDRA_SEEDS=cassandra"
-      - "DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/replication_simulation_${SCENARIO}.yml"
       - "ENABLE_GLOBAL_DOMAIN=true"
       - "KEYSPACE=cadence_primary"
       - "VISIBILITY_KEYSPACE=cadence_visibility_primary"
+      - "LOG_LEVEL=debug"
+      - "MATCHING_LOG_EVENTS=true"
       - "PROMETHEUS_ENDPOINT_0=0.0.0.0:7000" # frontend scrape endpoint
       - "PROMETHEUS_ENDPOINT_1=0.0.0.0:7001" # matching scrape endpoint
       - "PROMETHEUS_ENDPOINT_2=0.0.0.0:7002" # history scrape endpoint
@@ -109,15 +112,18 @@ services:
       - "8002:8002" # history prometheus
       - "8003:8003" # worker prometheus
     environment:
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/replication_simulation_${SCENARIO}.yml
+      - "CLUSTER_REDIRECT_POLICY=selected-apis-forwarding"
       - "BIND_ON_IP=0.0.0.0"
       - "PRIMARY_FRONTEND_SERVICE=cadence-cluster0"
       - "SECONDARY_FRONTEND_SERVICE=cadence-cluster1"
       - "CASSANDRA_SEEDS=cassandra"
-      - "DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/replication_simulation_${SCENARIO}.yml"
       - "IS_NOT_PRIMARY=true"
       - "ENABLE_GLOBAL_DOMAIN=true"
       - "KEYSPACE=cadence_secondary"
       - "VISIBILITY_KEYSPACE=cadence_visibility_secondary"
+      - "LOG_LEVEL=debug"
+      - "MATCHING_LOG_EVENTS=true"
       - "PROMETHEUS_ENDPOINT_0=0.0.0.0:8000" # frontend scrape endpoint
       - "PROMETHEUS_ENDPOINT_1=0.0.0.0:8001" # matching scrape endpoint
       - "PROMETHEUS_ENDPOINT_2=0.0.0.0:8002" # history scrape endpoint
