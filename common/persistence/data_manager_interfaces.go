@@ -1057,7 +1057,7 @@ type (
 		TaskType     int
 		TaskListKind int
 		RangeID      int64
-		UpdatedTime  time.Time
+		TimeStamp    time.Time
 	}
 
 	// LeaseTaskListResponse is response to LeaseTaskListRequest
