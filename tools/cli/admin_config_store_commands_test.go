@@ -84,7 +84,7 @@ func TestAdminGetDynamicConfig(t *testing.T) {
 						return &types.GetDynamicConfigResponse{
 							Value: &types.DataBlob{
 								EncodingType: types.EncodingTypeThriftRW.Ptr(),
-								Data:         []byte("config-value"),
+								Data:         []byte(`"config-value"`),
 							},
 						}, nil
 					})
