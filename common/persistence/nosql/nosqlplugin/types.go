@@ -255,9 +255,10 @@ type (
 
 	// QueueMessageRow defines the row struct for queue message
 	QueueMessageRow struct {
-		QueueType persistence.QueueType
-		ID        int64
-		Payload   []byte
+		QueueType        persistence.QueueType
+		ID               int64
+		Payload          []byte
+		CurrentTimeStamp time.Time
 	}
 
 	// QueueMetadataRow defines the row struct for metadata
@@ -265,6 +266,7 @@ type (
 		QueueType        persistence.QueueType
 		ClusterAckLevels map[string]int64
 		Version          int64
+		CurrentTimeStamp time.Time
 	}
 
 	// HistoryNodeRow represents a row in history_node table

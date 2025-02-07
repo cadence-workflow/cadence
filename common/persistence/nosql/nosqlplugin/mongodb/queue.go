@@ -92,11 +92,7 @@ func (db *mdb) DeleteMessage(
 }
 
 // Insert an empty metadata row, starting from a version
-func (db *mdb) InsertQueueMetadata(
-	ctx context.Context,
-	queueType persistence.QueueType,
-	version int64,
-) error {
+func (db *mdb) InsertQueueMetadata(ctx context.Context, row nosqlplugin.QueueMetadataRow) error {
 	fmt.Println("not implemented, ignore the eror for testing")
 	return nil
 }

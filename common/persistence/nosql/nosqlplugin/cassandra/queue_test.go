@@ -831,7 +831,12 @@ func TestInsertQueueMetadata(t *testing.T) {
 			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
 			db.timeSrc = clock.NewMockedTimeSourceAt(FixedTime)
 
-			err := db.InsertQueueMetadata(context.Background(), tc.queueType, tc.version)
+			row := nosqlplugin.QueueMetadataRow{
+				QueueType:        tc.queueType,
+				Version:          tc.version,
+				CurrentTimeStamp: FixedTime,
+			}
+			err := db.InsertQueueMetadata(context.Background(), row)
 
 			if (err != nil) != tc.wantErr {
 				t.Errorf("Got error = %v, wantErr %v", err, tc.wantErr)
@@ -862,6 +867,7 @@ func TestUpdateQueueMetadataCas(t *testing.T) {
 				QueueType:        persistence.QueueType(2),
 				ClusterAckLevels: map[string]int64{"cluster1": 1000, "cluster2": 2000},
 				Version:          25,
+				CurrentTimeStamp: FixedTime,
 			},
 			queryMockFn: func(query *gocql.MockQuery) {
 				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
@@ -933,8 +939,9 @@ func TestUpdateQueueMetadataCas(t *testing.T) {
 }
 func queueMessageRow(id int64) *nosqlplugin.QueueMessageRow {
 	return &nosqlplugin.QueueMessageRow{
-		QueueType: persistence.DomainReplicationQueueType,
-		ID:        id,
-		Payload:   []byte(fmt.Sprintf("test-payload-%d", id)),
+		QueueType:        persistence.DomainReplicationQueueType,
+		ID:               id,
+		Payload:          []byte(fmt.Sprintf("test-payload-%d", id)),
+		CurrentTimeStamp: FixedTime,
 	}
 }
