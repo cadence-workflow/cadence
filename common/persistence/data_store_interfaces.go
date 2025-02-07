@@ -820,6 +820,7 @@ type (
 		ConfigVersion     int64
 		FailoverVersion   int64
 		LastUpdatedTime   time.Time
+		CurrentTimeStamp  time.Time
 	}
 
 	// InternalGetDomainResponse is the response for GetDomain
