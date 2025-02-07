@@ -22,11 +22,16 @@
 
 package persistence
 
-import "context"
+import (
+	"context"
+
+	"github.com/uber/cadence/common/clock"
+)
 
 type (
 	queueManager struct {
 		persistence Queue
+		timeSrc     clock.TimeSource
 	}
 )
 
@@ -38,6 +43,7 @@ func NewQueueManager(
 ) QueueManager {
 	return &queueManager{
 		persistence: persistence,
+		timeSrc:     clock.NewRealTimeSource(),
 	}
 }
 
@@ -66,7 +72,7 @@ func (q *queueManager) DeleteMessagesBefore(ctx context.Context, messageID int64
 }
 
 func (q *queueManager) UpdateAckLevel(ctx context.Context, messageID int64, clusterName string) error {
-	return q.persistence.UpdateAckLevel(ctx, messageID, clusterName)
+	return q.persistence.UpdateAckLevel(ctx, messageID, clusterName, q.timeSrc.Now())
 }
 
 func (q *queueManager) GetAckLevels(ctx context.Context) (map[string]int64, error) {
@@ -98,7 +104,7 @@ func (q *queueManager) RangeDeleteMessagesFromDLQ(ctx context.Context, firstMess
 }
 
 func (q *queueManager) UpdateDLQAckLevel(ctx context.Context, messageID int64, clusterName string) error {
-	return q.persistence.UpdateDLQAckLevel(ctx, messageID, clusterName)
+	return q.persistence.UpdateDLQAckLevel(ctx, messageID, clusterName, q.timeSrc.Now())
 }
 
 func (q *queueManager) GetDLQAckLevels(ctx context.Context) (map[string]int64, error) {

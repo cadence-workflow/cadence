@@ -136,7 +136,7 @@ type (
 		DeleteMessage(ctx context.Context, queueType persistence.QueueType, messageID int64) error
 
 		// Insert an empty metadata row, starting from a version
-		InsertQueueMetadata(ctx context.Context, queueType persistence.QueueType, version int64) error
+		InsertQueueMetadata(ctx context.Context, row QueueMetadataRow) error
 		// **Conditionally** update a queue metadata row, if current version is matched(meaning current == row.Version - 1),
 		// then the current version will increase by one when updating the metadata row
 		// Must return conditionFailed error if the condition is not met

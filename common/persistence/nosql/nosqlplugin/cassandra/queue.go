@@ -34,7 +34,7 @@ func (db *cdb) InsertIntoQueue(
 	ctx context.Context,
 	row *nosqlplugin.QueueMessageRow,
 ) error {
-	timeStamp := db.timeSrc.Now()
+	timeStamp := row.CurrentTimeStamp
 	query := db.session.Query(templateEnqueueMessageQuery, row.QueueType, row.ID, row.Payload, timeStamp).WithContext(ctx)
 	previous := make(map[string]interface{})
 	applied, err := query.MapScanCAS(previous)
@@ -168,14 +168,10 @@ func (db *cdb) DeleteMessage(
 }
 
 // Insert an empty metadata row, starting from a version
-func (db *cdb) InsertQueueMetadata(
-	ctx context.Context,
-	queueType persistence.QueueType,
-	version int64,
-) error {
-	timeStamp := db.timeSrc.Now()
+func (db *cdb) InsertQueueMetadata(ctx context.Context, row nosqlplugin.QueueMetadataRow) error {
+	timeStamp := row.CurrentTimeStamp
 	clusterAckLevels := map[string]int64{}
-	query := db.session.Query(templateInsertQueueMetadataQuery, queueType, clusterAckLevels, version, timeStamp).WithContext(ctx)
+	query := db.session.Query(templateInsertQueueMetadataQuery, row.QueueType, clusterAckLevels, row.Version, timeStamp).WithContext(ctx)
 
 	// NOTE: Must pass nils to be compatible with ScyllaDB's LWT behavior
 	// "Scylla always returns the old version of the row, regardless of whether the condition is true or not."
@@ -195,7 +191,7 @@ func (db *cdb) UpdateQueueMetadataCas(
 	ctx context.Context,
 	row nosqlplugin.QueueMetadataRow,
 ) error {
-	timeStamp := db.timeSrc.Now()
+	timeStamp := row.CurrentTimeStamp
 	query := db.session.Query(templateUpdateQueueMetadataQuery,
 		row.ClusterAckLevels,
 		row.Version,

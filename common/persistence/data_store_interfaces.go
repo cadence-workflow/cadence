@@ -200,13 +200,13 @@ type (
 		EnqueueMessage(ctx context.Context, messagePayload []byte) error
 		ReadMessages(ctx context.Context, lastMessageID int64, maxCount int) ([]*InternalQueueMessage, error)
 		DeleteMessagesBefore(ctx context.Context, messageID int64) error
-		UpdateAckLevel(ctx context.Context, messageID int64, clusterName string) error
+		UpdateAckLevel(ctx context.Context, messageID int64, clusterName string, now time.Time) error
 		GetAckLevels(ctx context.Context) (map[string]int64, error)
 		EnqueueMessageToDLQ(ctx context.Context, messagePayload []byte) error
 		ReadMessagesFromDLQ(ctx context.Context, firstMessageID int64, lastMessageID int64, pageSize int, pageToken []byte) ([]*InternalQueueMessage, []byte, error)
 		DeleteMessageFromDLQ(ctx context.Context, messageID int64) error
 		RangeDeleteMessagesFromDLQ(ctx context.Context, firstMessageID int64, lastMessageID int64) error
-		UpdateDLQAckLevel(ctx context.Context, messageID int64, clusterName string) error
+		UpdateDLQAckLevel(ctx context.Context, messageID int64, clusterName string, now time.Time) error
 		GetDLQAckLevels(ctx context.Context) (map[string]int64, error)
 		GetDLQSize(ctx context.Context) (int64, error)
 	}

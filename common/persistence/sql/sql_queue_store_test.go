@@ -27,6 +27,7 @@ import (
 	"database/sql"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -352,7 +353,7 @@ func TestUpdateAckLevel(t *testing.T) {
 			require.NoError(t, err, "Failed to create sql queue store")
 
 			tc.mockSetup(mockDB, mockTx)
-			err = store.UpdateAckLevel(context.Background(), 0, tc.clusterName)
+			err = store.UpdateAckLevel(context.Background(), 0, tc.clusterName, time.Now())
 			if tc.wantErr {
 				assert.Error(t, err, "Expected an error for test case")
 			} else {
@@ -719,7 +720,7 @@ func TestUpdateDLQAckLevel(t *testing.T) {
 			require.NoError(t, err, "Failed to create sql queue store")
 
 			tc.mockSetup(mockDB, mockTx)
-			err = store.UpdateDLQAckLevel(context.Background(), 0, tc.clusterName)
+			err = store.UpdateDLQAckLevel(context.Background(), 0, tc.clusterName, time.Now())
 			if tc.wantErr {
 				assert.Error(t, err, "Expected an error for test case")
 			} else {

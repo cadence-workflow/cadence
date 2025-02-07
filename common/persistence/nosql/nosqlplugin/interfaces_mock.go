@@ -468,17 +468,17 @@ func (mr *MockDBMockRecorder) InsertIntoQueue(ctx, row any) *gomock.Call {
 }
 
 // InsertQueueMetadata mocks base method.
-func (m *MockDB) InsertQueueMetadata(ctx context.Context, queueType persistence.QueueType, version int64) error {
+func (m *MockDB) InsertQueueMetadata(ctx context.Context, row QueueMetadataRow) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertQueueMetadata", ctx, queueType, version)
+	ret := m.ctrl.Call(m, "InsertQueueMetadata", ctx, row)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // InsertQueueMetadata indicates an expected call of InsertQueueMetadata.
-func (mr *MockDBMockRecorder) InsertQueueMetadata(ctx, queueType, version any) *gomock.Call {
+func (mr *MockDBMockRecorder) InsertQueueMetadata(ctx, row any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertQueueMetadata", reflect.TypeOf((*MockDB)(nil).InsertQueueMetadata), ctx, queueType, version)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertQueueMetadata", reflect.TypeOf((*MockDB)(nil).InsertQueueMetadata), ctx, row)
 }
 
 // InsertReplicationDLQTask mocks base method.
@@ -1584,17 +1584,17 @@ func (mr *MocktableCRUDMockRecorder) InsertIntoQueue(ctx, row any) *gomock.Call 
 }
 
 // InsertQueueMetadata mocks base method.
-func (m *MocktableCRUD) InsertQueueMetadata(ctx context.Context, queueType persistence.QueueType, version int64) error {
+func (m *MocktableCRUD) InsertQueueMetadata(ctx context.Context, row QueueMetadataRow) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertQueueMetadata", ctx, queueType, version)
+	ret := m.ctrl.Call(m, "InsertQueueMetadata", ctx, row)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // InsertQueueMetadata indicates an expected call of InsertQueueMetadata.
-func (mr *MocktableCRUDMockRecorder) InsertQueueMetadata(ctx, queueType, version any) *gomock.Call {
+func (mr *MocktableCRUDMockRecorder) InsertQueueMetadata(ctx, row any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertQueueMetadata", reflect.TypeOf((*MocktableCRUD)(nil).InsertQueueMetadata), ctx, queueType, version)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertQueueMetadata", reflect.TypeOf((*MocktableCRUD)(nil).InsertQueueMetadata), ctx, row)
 }
 
 // InsertReplicationDLQTask mocks base method.
@@ -2598,17 +2598,17 @@ func (mr *MockMessageQueueCRUDMockRecorder) InsertIntoQueue(ctx, row any) *gomoc
 }
 
 // InsertQueueMetadata mocks base method.
-func (m *MockMessageQueueCRUD) InsertQueueMetadata(ctx context.Context, queueType persistence.QueueType, version int64) error {
+func (m *MockMessageQueueCRUD) InsertQueueMetadata(ctx context.Context, row QueueMetadataRow) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertQueueMetadata", ctx, queueType, version)
+	ret := m.ctrl.Call(m, "InsertQueueMetadata", ctx, row)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // InsertQueueMetadata indicates an expected call of InsertQueueMetadata.
-func (mr *MockMessageQueueCRUDMockRecorder) InsertQueueMetadata(ctx, queueType, version any) *gomock.Call {
+func (mr *MockMessageQueueCRUDMockRecorder) InsertQueueMetadata(ctx, row any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertQueueMetadata", reflect.TypeOf((*MockMessageQueueCRUD)(nil).InsertQueueMetadata), ctx, queueType, version)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertQueueMetadata", reflect.TypeOf((*MockMessageQueueCRUD)(nil).InsertQueueMetadata), ctx, row)
 }
 
 // SelectLastEnqueuedMessageID mocks base method.
