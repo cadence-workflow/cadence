@@ -24,6 +24,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
@@ -117,11 +118,7 @@ func (q *sqlQueueStore) DeleteMessagesBefore(
 	return nil
 }
 
-func (q *sqlQueueStore) UpdateAckLevel(
-	ctx context.Context,
-	messageID int64,
-	clusterName string,
-) error {
+func (q *sqlQueueStore) UpdateAckLevel(ctx context.Context, messageID int64, clusterName string, now time.Time) error {
 	return q.txExecute(ctx, sqlplugin.DbDefaultShard, "UpdateAckLevel", func(tx sqlplugin.Tx) error {
 		clusterAckLevels, err := tx.GetAckLevels(ctx, q.queueType, true)
 		if err != nil {
@@ -229,11 +226,7 @@ func (q *sqlQueueStore) RangeDeleteMessagesFromDLQ(
 	return nil
 }
 
-func (q *sqlQueueStore) UpdateDLQAckLevel(
-	ctx context.Context,
-	messageID int64,
-	clusterName string,
-) error {
+func (q *sqlQueueStore) UpdateDLQAckLevel(ctx context.Context, messageID int64, clusterName string, now time.Time) error {
 	return q.txExecute(ctx, sqlplugin.DbDefaultShard, "UpdateDLQAckLevel", func(tx sqlplugin.Tx) error {
 		clusterAckLevels, err := tx.GetAckLevels(ctx, q.getDLQTypeFromQueueType(), true)
 		if err != nil {
