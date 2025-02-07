@@ -228,6 +228,7 @@ type (
 		NotificationVersion         int64
 		LastUpdatedTime             time.Time
 		IsGlobalDomain              bool
+		CurrentTimeStamp            time.Time
 	}
 
 	// SelectMessagesBetweenRequest is a request struct for SelectMessagesBetween

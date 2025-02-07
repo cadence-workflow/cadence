@@ -1212,6 +1212,7 @@ type (
 		ConfigVersion     int64
 		FailoverVersion   int64
 		LastUpdatedTime   int64
+		CurrentTimeStamp  time.Time
 	}
 
 	// CreateDomainResponse is the response for CreateDomain
