@@ -49,7 +49,7 @@ func ClusterName(clusterName string) Tag {
 
 // ActiveClusterName returns tag for ActiveClusterName.
 func ActiveClusterName(activeClusterName string) Tag {
-	return newStringTag("cluster-name", activeClusterName)
+	return newStringTag("active-cluster-name", activeClusterName)
 }
 
 // Timestamp returns tag for Timestamp
