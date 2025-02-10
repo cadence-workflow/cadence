@@ -85,11 +85,13 @@ func NewTimerQueueProcessor(
 	config := shard.GetConfig()
 	taskAllocator := NewTaskAllocator(shard)
 
+	activeLogger := logger.WithTags(tag.QueueTypeActive)
+
 	activeTaskExecutor := task.NewTimerActiveTaskExecutor(
 		shard,
 		archivalClient,
 		executionCache,
-		logger,
+		activeLogger,
 		shard.GetMetricsClient(),
 		config,
 	)
@@ -101,7 +103,7 @@ func NewTimerQueueProcessor(
 		taskProcessor,
 		taskAllocator,
 		activeTaskExecutor,
-		logger,
+		activeLogger,
 	)
 
 	standbyTaskExecutors := make([]task.Executor, 0, len(shard.GetClusterMetadata().GetRemoteClusterInfo()))
@@ -118,12 +120,13 @@ func NewTimerQueueProcessor(
 			executionCheck,
 			shard.GetLogger(),
 		)
+		standByLogger := logger.WithTags(tag.QueueTypeStandby, tag.ActiveClusterName(clusterName))
 		standbyTaskExecutor := task.NewTimerStandbyTaskExecutor(
 			shard,
 			archivalClient,
 			executionCache,
 			historyResender,
-			logger,
+			standByLogger,
 			shard.GetMetricsClient(),
 			clusterName,
 			config,
@@ -136,7 +139,7 @@ func NewTimerQueueProcessor(
 			taskProcessor,
 			taskAllocator,
 			standbyTaskExecutor,
-			logger,
+			standByLogger,
 		)
 	}
 

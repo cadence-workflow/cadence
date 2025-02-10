@@ -96,12 +96,14 @@ func NewTransferQueueProcessor(
 	config := shard.GetConfig()
 	taskAllocator := NewTaskAllocator(shard)
 
+	activeLogger := logger.WithTags(tag.QueueTypeActive)
+
 	activeTaskExecutor := task.NewTransferActiveTaskExecutor(
 		shard,
 		archivalClient,
 		executionCache,
 		workflowResetter,
-		logger,
+		activeLogger,
 		config,
 		wfIDCache,
 	)
@@ -111,7 +113,7 @@ func NewTransferQueueProcessor(
 		taskProcessor,
 		taskAllocator,
 		activeTaskExecutor,
-		logger,
+		activeLogger,
 	)
 
 	standbyQueueProcessors := make(map[string]*transferQueueProcessorBase)
@@ -126,12 +128,13 @@ func NewTransferQueueProcessor(
 			executionCheck,
 			shard.GetLogger(),
 		)
+		standByLogger := logger.WithTags(tag.QueueTypeStandby, tag.ActiveClusterName(clusterName))
 		standbyTaskExecutor := task.NewTransferStandbyTaskExecutor(
 			shard,
 			archivalClient,
 			executionCache,
 			historyResender,
-			logger,
+			standByLogger,
 			clusterName,
 			config,
 		)
@@ -141,7 +144,7 @@ func NewTransferQueueProcessor(
 			taskProcessor,
 			taskAllocator,
 			standbyTaskExecutor,
-			logger,
+			standByLogger,
 		)
 	}
 

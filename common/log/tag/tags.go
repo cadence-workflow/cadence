@@ -47,6 +47,11 @@ func ClusterName(clusterName string) Tag {
 	return newStringTag("cluster-name", clusterName)
 }
 
+// ActiveClusterName returns tag for ActiveClusterName.
+func ActiveClusterName(activeClusterName string) Tag {
+	return newStringTag("cluster-name", activeClusterName)
+}
+
 // Timestamp returns tag for Timestamp
 func Timestamp(timestamp time.Time) Tag {
 	return newTimeTag("timestamp", timestamp)
@@ -399,6 +404,11 @@ func shardupdate(shardupdate string) Tag {
 // idType returns tag for idType
 func idType(idType string) Tag {
 	return newPredefinedStringTag("id-type", idType)
+}
+
+// queueType returns tag for queueType
+func queueType(queueType string) Tag {
+	return newPredefinedStringTag("queue-type", queueType)
 }
 
 // general

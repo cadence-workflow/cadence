@@ -142,6 +142,12 @@ var (
 	ComponentTaskListAdaptiveScaler     = component("task-list-adaptive-scaler")
 )
 
+// Predefined values for QueueTypes
+var (
+	QueueTypeActive  = queueType("active")
+	QueueTypeStandby = queueType("standby")
+)
+
 // Pre-defined values for TagSysLifecycle
 var (
 	LifeCycleStarting         = lifecycle("Starting")
