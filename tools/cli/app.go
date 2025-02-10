@@ -247,6 +247,9 @@ func NewCliApp(cf ClientFactory, opts ...CLIAppOptions) *cli.App {
 		printMessage(output, "command not found: "+command)
 	}
 
+	// DisableSliceFlagSeparator is set to true to allow having comma in JSON values for slice flags
+	app.DisableSliceFlagSeparator = true
+
 	for _, opt := range opts {
 		opt(app)
 	}
