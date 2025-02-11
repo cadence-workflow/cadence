@@ -1313,9 +1313,9 @@ func newAdminConfigStoreCommands() []*cli.Command {
 					Usage:    "Name of Dynamic Config parameter to get value of",
 					Required: true,
 				},
-				&cli.StringSliceFlag{
+				&cli.StringFlag{
 					Name:  FlagDynamicConfigFilter,
-					Usage: fmt.Sprintf(`Optional. Can be specified multiple times for multiple filters. ex: --%s '{"Name":"domainName","Value":"global-samples-domain"}'`, FlagDynamicConfigFilter),
+					Usage: fmt.Sprintf(`Optional. ex: --%s '{"domainName":"global-samples-domain", "shardID":1, "isEnabled": true}'`, FlagDynamicConfigFilter),
 				},
 			},
 			Action: AdminGetDynamicConfig,
@@ -1348,9 +1348,9 @@ func newAdminConfigStoreCommands() []*cli.Command {
 					Usage:    "Name of Dynamic Config parameter to restore",
 					Required: true,
 				},
-				&cli.StringSliceFlag{
+				&cli.StringFlag{
 					Name:  FlagDynamicConfigFilter,
-					Usage: fmt.Sprintf(`Optional. Can be specified multiple times for multiple filters. ex: --%s '{"Name":"domainName","Value":"global-samples-domain"}'`, FlagDynamicConfigFilter),
+					Usage: fmt.Sprintf(`Optional. ex: --%s '{"domainName":"global-samples-domain", "shardID":1, "isEnabled": true}'`, FlagDynamicConfigFilter),
 				},
 			},
 			Action: AdminRestoreDynamicConfig,
