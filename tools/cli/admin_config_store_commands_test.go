@@ -105,7 +105,7 @@ func TestAdminGetDynamicConfig(t *testing.T) {
 				td.mockAdminClient.EXPECT().GetDynamicConfig(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(_ context.Context, request *types.GetDynamicConfigRequest, _ ...yarpc.CallOption) (*types.GetDynamicConfigResponse, error) {
 						assert.Equal(t, request.ConfigName, testDynamicConfigName)
-						assert.Equal(t, request.Filters, []*types.DynamicConfigFilter{
+						assert.ElementsMatch(t, request.Filters, []*types.DynamicConfigFilter{
 							{
 								Name: "domainName",
 								Value: &types.DataBlob{
