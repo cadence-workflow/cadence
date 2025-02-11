@@ -25,9 +25,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/uber/cadence/simulation/replication/types"
 	"go.uber.org/cadence/activity"
 	"go.uber.org/cadence/workflow"
+
+	"github.com/uber/cadence/simulation/replication/types"
 )
 
 func TestWorkflow(ctx workflow.Context, input types.WorkflowInput) (types.WorkflowOutput, error) {

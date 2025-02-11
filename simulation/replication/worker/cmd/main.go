@@ -31,6 +31,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/uber-go/tally"
+	apiv1 "github.com/uber/cadence-idl/go/proto/api/v1"
+	"go.uber.org/cadence/.gen/go/cadence/workflowserviceclient"
+	"go.uber.org/cadence/.gen/go/shared"
 	"go.uber.org/cadence/activity"
 	"go.uber.org/cadence/compatibility"
 	"go.uber.org/cadence/worker"
@@ -40,18 +44,14 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	"github.com/uber-go/tally"
-	apiv1 "github.com/uber/cadence-idl/go/proto/api/v1"
 	"github.com/uber/cadence/common"
 	simTypes "github.com/uber/cadence/simulation/replication/types"
-	"go.uber.org/cadence/.gen/go/cadence/workflowserviceclient"
-	"go.uber.org/cadence/.gen/go/shared"
 )
 
 var (
 	clusterName = flag.String("cluster", "", "cluster name")
 
-	ready int32 = 0
+	ready int32
 )
 
 func main() {
