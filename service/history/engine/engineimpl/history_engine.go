@@ -303,7 +303,7 @@ func NewEngineWithShardContext(
 			resendFunc,
 			nil,
 			openExecutionCheck,
-			shard.GetLogger(),
+			shard.GetLogger().WithTags(tag.ComponentReplicatorQueue, tag.ActiveClusterName(sourceCluster)),
 		)
 		replicationTaskExecutor := replication.NewTaskExecutor(
 			shard,
@@ -311,7 +311,7 @@ func NewEngineWithShardContext(
 			historyResender,
 			historyEngImpl,
 			shard.GetMetricsClient(),
-			shard.GetLogger(),
+			shard.GetLogger().WithTags(tag.ComponentReplicatorQueue, tag.ActiveClusterName(sourceCluster)),
 		)
 		replicationTaskExecutors[sourceCluster] = replicationTaskExecutor
 
