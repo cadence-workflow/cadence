@@ -9,4 +9,4 @@ history.replicatorTaskBatchSize:
 frontend.failoverCoolDown:
   - value: 5s
 history.ReplicationTaskProcessorStartWait: # default is 5s. repl task processor sleeps this much before processing received messages.
-  - value: 0s
+  - value: 10ms
