@@ -34,6 +34,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
@@ -67,7 +68,7 @@ func TestReplicationQueueImpl_Start(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockQueue := persistence.NewMockQueueManager(ctrl)
-			rq := NewReplicationQueue(mockQueue, "testCluster", nil, nil).(*replicationQueueImpl)
+			rq := NewReplicationQueue(mockQueue, "testCluster", nil, testlogger.New(t)).(*replicationQueueImpl)
 			atomic.StoreInt32(&rq.status, tt.initialStatus)
 
 			rq.Start()
@@ -111,7 +112,7 @@ func TestReplicationQueueImpl_Stop(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockQueue := persistence.NewMockQueueManager(ctrl)
-			rq := NewReplicationQueue(mockQueue, "testCluster", nil, nil).(*replicationQueueImpl)
+			rq := NewReplicationQueue(mockQueue, "testCluster", nil, testlogger.New(t)).(*replicationQueueImpl)
 			atomic.StoreInt32(&rq.status, tt.initialStatus)
 
 			rq.Stop()
@@ -158,7 +159,7 @@ func TestReplicationQueueImpl_Publish(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockQueue := persistence.NewMockQueueManager(ctrl)
-			rq := NewReplicationQueue(mockQueue, "testCluster", nil, nil)
+			rq := NewReplicationQueue(mockQueue, "testCluster", nil, testlogger.New(t))
 			tt.setupMock(mockQueue)
 			err := rq.Publish(context.Background(), tt.task)
 			if tt.wantErr {
@@ -199,7 +200,7 @@ func TestReplicationQueueImpl_PublishToDLQ(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockQueue := persistence.NewMockQueueManager(ctrl)
-			rq := NewReplicationQueue(mockQueue, "testCluster", nil, nil)
+			rq := NewReplicationQueue(mockQueue, "testCluster", nil, testlogger.New(t))
 			tt.setupMock(mockQueue)
 			err := rq.PublishToDLQ(context.Background(), tt.task)
 			if tt.wantErr {
@@ -275,7 +276,7 @@ func TestGetReplicationMessages(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockQueueManager := persistence.NewMockQueueManager(ctrl)
 			tc.setupMocks(mockQueueManager)
-			replicationQueue := NewReplicationQueue(mockQueueManager, "testCluster", nil, nil)
+			replicationQueue := NewReplicationQueue(mockQueueManager, "testCluster", nil, testlogger.New(t))
 			tasks, lastID, err := replicationQueue.GetReplicationMessages(context.Background(), 0, 10)
 
 			if tc.expectError {
@@ -322,7 +323,7 @@ func TestUpdateAckLevel(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockQueue := persistence.NewMockQueueManager(ctrl)
 
-			rq := NewReplicationQueue(mockQueue, "testCluster", nil, nil)
+			rq := NewReplicationQueue(mockQueue, "testCluster", nil, testlogger.New(t))
 			tt.setupMock(mockQueue)
 			err := rq.UpdateAckLevel(context.Background(), tt.lastID, tt.cluster)
 			if tt.wantErr {
@@ -362,7 +363,7 @@ func TestReplicationQueueImpl_GetAckLevels(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockQueue := persistence.NewMockQueueManager(ctrl)
-			rq := NewReplicationQueue(mockQueue, "testCluster", nil, nil)
+			rq := NewReplicationQueue(mockQueue, "testCluster", nil, testlogger.New(t))
 			tt.setupMock(mockQueue)
 			got, err := rq.GetAckLevels(context.Background())
 			if tt.wantErr {
@@ -415,7 +416,7 @@ func TestGetMessagesFromDLQ(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockQueue := persistence.NewMockQueueManager(ctrl)
-			rq := NewReplicationQueue(mockQueue, "testCluster", nil, nil)
+			rq := NewReplicationQueue(mockQueue, "testCluster", nil, testlogger.New(t))
 
 			if !tt.wantErr {
 				encodedData, _ := mockEncodeReplicationTask(tt.taskID)
@@ -468,7 +469,7 @@ func TestUpdateDLQAckLevel(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockQueue := persistence.NewMockQueueManager(ctrl)
-			rq := NewReplicationQueue(mockQueue, "testCluster", nil, nil)
+			rq := NewReplicationQueue(mockQueue, "testCluster", nil, testlogger.New(t))
 			tt.setupMock(mockQueue)
 			err := rq.UpdateDLQAckLevel(context.Background(), tt.lastID)
 			if tt.wantErr {
@@ -508,7 +509,7 @@ func TestGetDLQAckLevel(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockQueue := persistence.NewMockQueueManager(ctrl)
-			rq := NewReplicationQueue(mockQueue, "testCluster", nil, nil)
+			rq := NewReplicationQueue(mockQueue, "testCluster", nil, testlogger.New(t))
 			tt.setupMock(mockQueue)
 			got, err := rq.GetDLQAckLevel(context.Background())
 			if tt.wantErr {
@@ -553,7 +554,7 @@ func TestRangeDeleteMessagesFromDLQ(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockQueue := persistence.NewMockQueueManager(ctrl)
-			rq := NewReplicationQueue(mockQueue, "testCluster", nil, nil)
+			rq := NewReplicationQueue(mockQueue, "testCluster", nil, testlogger.New(t))
 			tt.setupMock(mockQueue)
 			err := rq.RangeDeleteMessagesFromDLQ(context.Background(), tt.firstID, tt.lastID)
 			if tt.wantErr {
@@ -594,7 +595,7 @@ func TestDeleteMessageFromDLQ(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockQueue := persistence.NewMockQueueManager(ctrl)
-			rq := NewReplicationQueue(mockQueue, "testCluster", nil, nil)
+			rq := NewReplicationQueue(mockQueue, "testCluster", nil, testlogger.New(t))
 			tt.setupMock(mockQueue)
 			err := rq.DeleteMessageFromDLQ(context.Background(), tt.messageID)
 			if tt.wantErr {
@@ -643,7 +644,7 @@ func TestGetDLQSize(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockQueueManager := persistence.NewMockQueueManager(ctrl)
 			tt.setupMock(mockQueueManager)
-			q := &replicationQueueImpl{queue: mockQueueManager}
+			q := &replicationQueueImpl{queue: mockQueueManager, logger: testlogger.New(t)}
 			size, err := q.GetDLQSize(context.Background())
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -698,7 +699,7 @@ func TestPurgeAckedMessages(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockQueueManager := persistence.NewMockQueueManager(ctrl)
 			tt.setupMock(mockQueueManager)
-			q := &replicationQueueImpl{queue: mockQueueManager}
+			q := &replicationQueueImpl{queue: mockQueueManager, logger: testlogger.New(t)}
 			err := q.purgeAckedMessages()
 
 			if tt.wantErr {
