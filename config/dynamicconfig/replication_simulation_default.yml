@@ -4,7 +4,9 @@ system.writeVisibilityStoreName:
 system.readVisibilityStoreName:
   - value: "db"
 history.replicatorTaskBatchSize:
-- value: 25
-  constraints: {}
+  - value: 25
+    constraints: {}
 frontend.failoverCoolDown:
-- value: 5s
+  - value: 5s
+history.ReplicationTaskProcessorStartWait: # default is 5s. repl task processor sleeps this much before processing received messages.
+  - value: 0s

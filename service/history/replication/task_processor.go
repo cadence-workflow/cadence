@@ -312,6 +312,10 @@ func (p *taskProcessorImpl) processResponse(response *types.ReplicationMessages)
 		err := p.processSingleTask(replicationTask)
 		if err != nil {
 			// Encounter error and skip updating ack levels
+			// TODO: Does this behavior make sense? If ack levels are not updated the whole batch will have to be re-fetched via processor loop.
+			// Potential improvements:
+			// 1. Update ack levels for the tasks that were processed successfully.
+			// 2. Emit logs/metrics for these cases that we give up on updating ack levels.
 			return
 		}
 	}

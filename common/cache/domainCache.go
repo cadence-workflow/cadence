@@ -675,16 +675,17 @@ func (c *DefaultDomainCache) triggerDomainChangePrepareCallbackLocked() {
 	}
 }
 
-func (c *DefaultDomainCache) triggerDomainChangeCallbackLocked(
-	nextDomains []*DomainCacheEntry,
-) {
-
+func (c *DefaultDomainCache) triggerDomainChangeCallbackLocked(nextDomains []*DomainCacheEntry) {
 	sw := c.scope.StartTimer(metrics.DomainCacheCallbacksLatency)
 	defer sw.Stop()
 
-	for _, callback := range c.callbacks {
+	c.logger.Info("Domain change callbacks are going to triggered", tag.Number(int64(len(nextDomains))))
+	for i, callback := range c.callbacks {
+		c.logger.Info("Domain cache change callback started", tag.Number(int64(i)))
 		callback(nextDomains)
+		c.logger.Info("Domain cache change callback completed", tag.Number(int64(i)))
 	}
+	c.logger.Info("Domain change callbacks are completed", tag.Number(int64(len(nextDomains))))
 }
 
 func (c *DefaultDomainCache) buildEntryFromRecord(

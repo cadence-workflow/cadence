@@ -165,6 +165,7 @@ func (q *replicationQueueImpl) GetReplicationMessages(
 		replicationTasks = append(replicationTasks, thrift.ToReplicationTask(&replicationTask))
 	}
 
+	q.logger.Debugf("Returning %d domain replication tasks. lastMessageID: %d", len(replicationTasks), lastMessageID)
 	return replicationTasks, lastMessageID, nil
 }
 

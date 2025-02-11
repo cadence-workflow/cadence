@@ -18,26 +18,19 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package replication
+package main
 
 import (
 	"context"
 	"fmt"
 	"time"
 
+	"github.com/uber/cadence/simulation/replication/types"
 	"go.uber.org/cadence/activity"
 	"go.uber.org/cadence/workflow"
 )
 
-type WorkflowInput struct {
-	Duration time.Duration
-}
-
-type WorkflowOutput struct {
-	Count int
-}
-
-func testWorkflow(ctx workflow.Context, input WorkflowInput) (WorkflowOutput, error) {
+func TestWorkflow(ctx workflow.Context, input types.WorkflowInput) (types.WorkflowOutput, error) {
 	logger := workflow.GetLogger(ctx)
 	logger.Sugar().Infof("testWorkflow started with input: %+v", input)
 
@@ -47,16 +40,16 @@ func testWorkflow(ctx workflow.Context, input WorkflowInput) (WorkflowOutput, er
 		logger.Sugar().Infof("testWorkflow iteration %d", count)
 		selector := workflow.NewSelector(ctx)
 		activityFuture := workflow.ExecuteActivity(workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
-			TaskList:               tasklistName,
+			TaskList:               types.TasklistName,
 			ScheduleToStartTimeout: 10 * time.Second,
 			StartToCloseTimeout:    10 * time.Second,
-		}), activityName, "World")
+		}), types.ActivityName, "World")
 		selector.AddFuture(activityFuture, func(f workflow.Future) {
 			logger.Info("testWorkflow completed activity")
 		})
 
 		// use timer future to send notification email if processing takes too long
-		timerFuture := workflow.NewTimer(ctx, timerInterval)
+		timerFuture := workflow.NewTimer(ctx, types.TimerInterval)
 		selector.AddFuture(timerFuture, func(f workflow.Future) {
 			logger.Info("testWorkflow timer fired")
 		})
@@ -76,10 +69,10 @@ func testWorkflow(ctx workflow.Context, input WorkflowInput) (WorkflowOutput, er
 	}
 
 	logger.Info("testWorkflow completed")
-	return WorkflowOutput{Count: count}, nil
+	return types.WorkflowOutput{Count: count}, nil
 }
 
-func testActivity(ctx context.Context, input string) (string, error) {
+func TestActivity(ctx context.Context, input string) (string, error) {
 	logger := activity.GetLogger(ctx)
 	logger.Info("testActivity started")
 	return fmt.Sprintf("Hello, %s!", input), nil

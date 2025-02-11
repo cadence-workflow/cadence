@@ -28,7 +28,7 @@ docker system prune -f
 
 echo "Building test images"
 docker-compose -f docker/buildkite/docker-compose-local-replication-simulation.yml \
-  build cadence-cluster0 cadence-cluster1 replication-simulator
+  build cadence-cluster0 cadence-cluster1 replication-simulator cadence-worker0 cadence-worker1
 
 function check_test_failure()
 {

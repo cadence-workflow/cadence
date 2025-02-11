@@ -138,7 +138,7 @@ services:
         aliases:
           - cadence-cluster1
 
-  cadence-web-cluster0:
+  cadence-web0:
     image: ubercadence/web:latest
     environment:
       - "CADENCE_TCHANNEL_PEERS=cadence-cluster0:7933"
@@ -149,9 +149,9 @@ services:
     networks:
       services-network:
         aliases:
-          - cadence-web-cluster0
+          - cadence-web0
 
-  cadence-web-cluster1:
+  cadence-web1:
     image: ubercadence/web:latest
     environment:
       - "CADENCE_TCHANNEL_PEERS=cadence-cluster1:7933"
@@ -162,7 +162,69 @@ services:
     networks:
       services-network:
         aliases:
-          - cadence-web-cluster0
+          - cadence-web1
+
+  cadence-worker0:
+    build:
+      context: ../../
+      dockerfile: ./docker/buildkite/Dockerfile
+    working_dir: /cadence/simulation/replication/worker/cmd
+    command:
+      - /bin/sh
+      - -e
+      - -c
+      - >
+        go run *.go --cluster cluster0 | tee worker0.log
+    depends_on:
+      cadence-cluster0:
+        condition: service_started
+      cadence-cluster1:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6060/health"]
+      interval: 10s
+      timeout: 2s
+      retries: 20
+    volumes:
+      - ../../:/cadence
+      - /cadence/.build/ # ensure we don't mount the build directory
+      - /cadence/.bin/ # ensure we don't mount the bin directory
+      - ../../simulation/replication/testdata/:/cadence/simulation/replication/worker/cmd/testdata/
+    networks:
+      services-network:
+        aliases:
+          - cadence-worker0
+
+  cadence-worker1:
+    build:
+      context: ../../
+      dockerfile: ./docker/buildkite/Dockerfile
+    working_dir: /cadence/simulation/replication/worker/cmd
+    command:
+      - /bin/sh
+      - -e
+      - -c
+      - >
+        go run *.go --cluster cluster1 | tee worker1.log
+    depends_on:
+      cadence-cluster0:
+        condition: service_started
+      cadence-cluster1:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6060/health"]
+      interval: 10s
+      timeout: 2s
+      retries: 20
+    volumes:
+      - ../../:/cadence
+      - /cadence/.build/ # ensure we don't mount the build directory
+      - /cadence/.bin/ # ensure we don't mount the bin directory
+      - ../../simulation/replication/testdata/:/cadence/simulation/replication/worker/cmd/testdata/
+    networks:
+      services-network:
+        aliases:
+          - cadence-worker1
 
   replication-simulator:
     build:
@@ -182,11 +244,15 @@ services:
     depends_on:
       cadence-cluster0:
         condition: service_started
+      cadence-worker0:
+        condition: service_started
+      cadence-web0:
+        condition: service_started
       cadence-cluster1:
         condition: service_started
-      cadence-web-cluster0:
+      cadence-worker1:
         condition: service_started
-      cadence-web-cluster1:
+      cadence-web1:
         condition: service_started
       grafana:
         condition: service_started
