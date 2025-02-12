@@ -352,7 +352,7 @@ func (m *executionManagerImpl) UpdateWorkflowExecution(
 
 		WorkflowRequestMode: request.WorkflowRequestMode,
 
-		UpdatedTime: m.timeSrc.Now(),
+		CurrentTimeStamp: m.timeSrc.Now(),
 	}
 	msuss := m.statsComputer.computeMutableStateUpdateStats(newRequest)
 	err = m.persistence.UpdateWorkflowExecution(ctx, newRequest)
@@ -573,7 +573,7 @@ func (m *executionManagerImpl) ConflictResolveWorkflowExecution(
 
 		WorkflowRequestMode: request.WorkflowRequestMode,
 
-		UpdatedTime: m.timeSrc.Now(),
+		CurrentTimeStamp: m.timeSrc.Now(),
 	}
 	msuss := m.statsComputer.computeMutableStateConflictResolveStats(newRequest)
 	err = m.persistence.ConflictResolveWorkflowExecution(ctx, newRequest)
@@ -607,7 +607,7 @@ func (m *executionManagerImpl) CreateWorkflowExecution(
 
 		WorkflowRequestMode: request.WorkflowRequestMode,
 
-		CreatedTime: m.timeSrc.Now(),
+		CurrentTimeStamp: m.timeSrc.Now(),
 	}
 
 	msuss := m.statsComputer.computeMutableStateCreateStats(newRequest)

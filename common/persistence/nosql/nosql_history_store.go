@@ -75,7 +75,7 @@ func (h *nosqlHistoryStore) AppendHistoryNodes(
 			TreeID:          branchInfo.TreeID,
 			BranchID:        branchInfo.BranchID,
 			Ancestors:       ancestors,
-			CreateTimestamp: request.CreatedTime,
+			CreateTimestamp: request.CurrentTimeStamp,
 			Info:            request.Info,
 		}
 	}
@@ -87,7 +87,7 @@ func (h *nosqlHistoryStore) AppendHistoryNodes(
 		Data:            request.Events.Data,
 		DataEncoding:    string(request.Events.Encoding),
 		ShardID:         request.ShardID,
-		CreateTimestamp: request.CreatedTime,
+		CreateTimestamp: request.CurrentTimeStamp,
 	}
 
 	storeShard, err := h.GetStoreShardByHistoryShard(request.ShardID)
@@ -283,7 +283,7 @@ func (h *nosqlHistoryStore) ForkHistoryBranch(
 		TreeID:          treeID,
 		BranchID:        request.NewBranchID,
 		Ancestors:       ancestors,
-		CreateTimestamp: request.CreatedTime,
+		CreateTimestamp: request.CurrentTimeStamp,
 		Info:            request.Info,
 	}
 

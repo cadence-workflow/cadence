@@ -279,8 +279,8 @@ func TestUpdateTaskList(t *testing.T) {
 	)
 
 	resp, err := store.UpdateTaskList(context.Background(), &persistence.UpdateTaskListRequest{
-		TaskListInfo: getExpectedTaskListInfo(),
-		UpdatedTime:  FixedTime,
+		TaskListInfo:     getExpectedTaskListInfo(),
+		CurrentTimeStamp: FixedTime,
 	})
 
 	assert.NoError(t, err)
@@ -303,8 +303,8 @@ func TestUpdateTaskList_Sticky(t *testing.T) {
 	taskListInfo.Kind = int(types.TaskListKindSticky)
 
 	resp, err := store.UpdateTaskList(context.Background(), &persistence.UpdateTaskListRequest{
-		TaskListInfo: taskListInfo,
-		UpdatedTime:  FixedTime,
+		TaskListInfo:     taskListInfo,
+		CurrentTimeStamp: FixedTime,
 	})
 
 	assert.NoError(t, err)
@@ -322,8 +322,8 @@ func TestUpdateTaskList_ConditionFailure(t *testing.T) {
 	)
 
 	_, err := store.UpdateTaskList(context.Background(), &persistence.UpdateTaskListRequest{
-		TaskListInfo: getExpectedTaskListInfo(),
-		UpdatedTime:  FixedTime,
+		TaskListInfo:     getExpectedTaskListInfo(),
+		CurrentTimeStamp: FixedTime,
 	})
 
 	var expectedErr *persistence.ConditionFailedError
@@ -564,7 +564,7 @@ func TestCreateTasks(t *testing.T) {
 					TaskType: TestTaskType,
 					RangeID:  1,
 				},
-				CreatedTime: now,
+				CurrentTimeStamp: now,
 				Tasks: []*persistence.CreateTaskInfo{
 					{
 						TaskID: 100,
@@ -666,13 +666,13 @@ func TestCreateTasks(t *testing.T) {
 
 func getValidLeaseTaskListRequest() *persistence.LeaseTaskListRequest {
 	return &persistence.LeaseTaskListRequest{
-		DomainID:     TestDomainID,
-		DomainName:   TestDomainName,
-		TaskList:     TestTaskListName,
-		TaskType:     int(types.TaskListTypeDecision),
-		TaskListKind: int(types.TaskListKindNormal),
-		RangeID:      0,
-		TimeStamp:    FixedTime,
+		DomainID:         TestDomainID,
+		DomainName:       TestDomainName,
+		TaskList:         TestTaskListName,
+		TaskType:         int(types.TaskListTypeDecision),
+		TaskListKind:     int(types.TaskListKindNormal),
+		RangeID:          0,
+		CurrentTimeStamp: FixedTime,
 	}
 }
 
@@ -692,7 +692,7 @@ func checkTaskListInfoExpected(t *testing.T, taskListInfo *persistence.TaskListI
 	assert.Equal(t, initialRangeID, taskListInfo.RangeID)
 	assert.Equal(t, initialAckLevel, taskListInfo.AckLevel)
 	assert.Equal(t, int(types.TaskListKindNormal), taskListInfo.Kind)
-	assert.WithinDuration(t, FixedTime, taskListInfo.LastUpdated, time.Second)
+	assert.Equal(t, FixedTime, taskListInfo.LastUpdated)
 }
 
 func taskRowEqualTaskInfo(t *testing.T, taskrow1 nosqlplugin.TaskRow, taskInfo1 *persistence.TaskInfo) {

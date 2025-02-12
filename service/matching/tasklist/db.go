@@ -100,13 +100,13 @@ func (db *taskListDB) RenewLease() (taskListState, error) {
 	db.Lock()
 	defer db.Unlock()
 	resp, err := db.store.LeaseTaskList(context.Background(), &persistence.LeaseTaskListRequest{
-		DomainID:     db.domainID,
-		TaskList:     db.taskListName,
-		TaskType:     db.taskType,
-		TaskListKind: db.taskListKind,
-		RangeID:      atomic.LoadInt64(&db.rangeID),
-		DomainName:   db.domainName,
-		TimeStamp:    db.timeSrc.Now(),
+		DomainID:         db.domainID,
+		TaskList:         db.taskListName,
+		TaskType:         db.taskType,
+		TaskListKind:     db.taskListKind,
+		RangeID:          atomic.LoadInt64(&db.rangeID),
+		DomainName:       db.domainName,
+		CurrentTimeStamp: db.timeSrc.Now(),
 	})
 	if err != nil {
 		return taskListState{}, err
@@ -131,8 +131,8 @@ func (db *taskListDB) UpdateState(ackLevel int64) error {
 			Kind:                    db.taskListKind,
 			AdaptivePartitionConfig: db.partitionConfig,
 		},
-		DomainName:  db.domainName,
-		UpdatedTime: db.timeSrc.Now(),
+		DomainName:       db.domainName,
+		CurrentTimeStamp: db.timeSrc.Now(),
 	})
 	if err != nil {
 		return err
@@ -154,8 +154,8 @@ func (db *taskListDB) UpdateTaskListPartitionConfig(partitionConfig *persistence
 			Kind:                    db.taskListKind,
 			AdaptivePartitionConfig: partitionConfig,
 		},
-		DomainName:  db.domainName,
-		UpdatedTime: db.timeSrc.Now(),
+		DomainName:       db.domainName,
+		CurrentTimeStamp: db.timeSrc.Now(),
 	})
 	if err != nil {
 		return err
@@ -175,9 +175,9 @@ func (db *taskListDB) CreateTasks(tasks []*persistence.CreateTaskInfo) (*persist
 			TaskType: db.taskType,
 			RangeID:  db.rangeID,
 		},
-		Tasks:       tasks,
-		DomainName:  db.domainName,
-		CreatedTime: db.timeSrc.Now(),
+		Tasks:            tasks,
+		DomainName:       db.domainName,
+		CurrentTimeStamp: db.timeSrc.Now(),
 	})
 }
 

@@ -66,9 +66,9 @@ func validInternalAppendHistoryNodesRequest() *persistence.InternalAppendHistory
 			Encoding: common.EncodingTypeThriftRW,
 			Data:     []byte("TestEvents"),
 		},
-		TransactionID: testTransactionID,
-		ShardID:       testShardID,
-		CreatedTime:   FixedTime,
+		TransactionID:    testTransactionID,
+		ShardID:          testShardID,
+		CurrentTimeStamp: FixedTime,
 	}
 }
 
@@ -347,11 +347,11 @@ func validInternalForkHistoryBranchRequest(forkNodeID int64) *persistence.Intern
 				},
 			},
 		},
-		ForkNodeID:  forkNodeID,
-		NewBranchID: "TestNewBranchID",
-		Info:        "TestInfo",
-		ShardID:     testShardID,
-		CreatedTime: FixedTime,
+		ForkNodeID:       forkNodeID,
+		NewBranchID:      "TestNewBranchID",
+		Info:             "TestInfo",
+		ShardID:          testShardID,
+		CurrentTimeStamp: FixedTime,
 	}
 }
 

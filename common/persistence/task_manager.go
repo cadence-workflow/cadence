@@ -56,7 +56,7 @@ func (t *taskManager) Close() {
 }
 
 func (t *taskManager) LeaseTaskList(ctx context.Context, request *LeaseTaskListRequest) (*LeaseTaskListResponse, error) {
-	request.TimeStamp = t.timeSrc.Now()
+	request.CurrentTimeStamp = t.timeSrc.Now()
 	return t.persistence.LeaseTaskList(ctx, request)
 }
 
@@ -65,7 +65,7 @@ func (t *taskManager) GetTaskList(ctx context.Context, request *GetTaskListReque
 }
 
 func (t *taskManager) UpdateTaskList(ctx context.Context, request *UpdateTaskListRequest) (*UpdateTaskListResponse, error) {
-	request.UpdatedTime = t.timeSrc.Now()
+	request.CurrentTimeStamp = t.timeSrc.Now()
 	return t.persistence.UpdateTaskList(ctx, request)
 }
 
@@ -82,7 +82,7 @@ func (t *taskManager) GetTaskListSize(ctx context.Context, request *GetTaskListS
 }
 
 func (t *taskManager) CreateTasks(ctx context.Context, request *CreateTasksRequest) (*CreateTasksResponse, error) {
-	request.CreatedTime = t.timeSrc.Now()
+	request.CurrentTimeStamp = t.timeSrc.Now()
 	return t.persistence.CreateTasks(ctx, request)
 }
 

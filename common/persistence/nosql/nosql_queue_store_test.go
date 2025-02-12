@@ -26,6 +26,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -66,15 +67,34 @@ func (td *queueStoreTestData) newQueueStore() (persistence.Queue, error) {
 func (td *queueStoreTestData) createValidQueueStore(t *testing.T) persistence.Queue {
 	const initialQueueVersion = int64(0)
 
+	row := nosqlplugin.QueueMetadataRow{
+		QueueType:        testQueueType,
+		Version:          initialQueueVersion,
+		CurrentTimeStamp: time.Now(),
+	}
 	// return no queue metadata which should force to create a new one
 	mainQueueCheckExists := td.mockDB.EXPECT().SelectQueueMetadata(gomock.Any(), testQueueType).Return(nil, nil)
-	mainMetadataInsert := td.mockDB.EXPECT().InsertQueueMetadata(gomock.Any(), testQueueType, initialQueueVersion).
-		Return(nil)
+	mainMetadataInsert := td.mockDB.EXPECT().InsertQueueMetadata(gomock.Any(), gomock.Any()).
+		DoAndReturn(
+			func(_ context.Context, actualRequest nosqlplugin.QueueMetadataRow) error {
+				assert.Equal(t, row.QueueType, actualRequest.QueueType)
+				assert.Equal(t, row.Version, actualRequest.Version)
+
+				assert.WithinDuration(t, row.CurrentTimeStamp, actualRequest.CurrentTimeStamp, time.Second)
+				return nil
+			})
 
 	// now the corresponding DLQ metadata should be created
 	dlqCheckExists := td.mockDB.EXPECT().SelectQueueMetadata(gomock.Any(), testDLQueueType).Return(nil, nil)
-	dlqMetadataInsert := td.mockDB.EXPECT().InsertQueueMetadata(gomock.Any(), testDLQueueType, initialQueueVersion).
-		Return(nil)
+	dlqMetadataInsert := td.mockDB.EXPECT().InsertQueueMetadata(gomock.Any(), gomock.Any()).
+		DoAndReturn(
+			func(_ context.Context, actualRequest nosqlplugin.QueueMetadataRow) error {
+				assert.Equal(t, testDLQueueType, actualRequest.QueueType)
+				assert.Equal(t, row.Version, actualRequest.Version)
+
+				assert.WithinDuration(t, row.CurrentTimeStamp, actualRequest.CurrentTimeStamp, time.Second)
+				return nil
+			})
 
 	gomock.InOrder(
 		mainQueueCheckExists,
@@ -125,7 +145,7 @@ func TestNewNoSQLQueueStore_FailsIfCantInsertMetadata(t *testing.T) {
 	td := newQueueStoreTestData(t)
 
 	td.mockDB.EXPECT().SelectQueueMetadata(gomock.Any(), testQueueType).Return(nil, nil)
-	td.mockDB.EXPECT().InsertQueueMetadata(gomock.Any(), testQueueType, gomock.Any()).Return(insertErr)
+	td.mockDB.EXPECT().InsertQueueMetadata(gomock.Any(), gomock.Any()).Return(insertErr)
 	td.mockErrConversion(insertErr)
 
 	store, err := td.newQueueStore()
@@ -138,7 +158,7 @@ func TestNewNoSQLQueueStore_FailsIfCantReadDLQMetadata(t *testing.T) {
 
 	td := newQueueStoreTestData(t)
 	mainQueueCheckExists := td.mockDB.EXPECT().SelectQueueMetadata(gomock.Any(), testQueueType).Return(nil, nil)
-	mainMetadataInsert := td.mockDB.EXPECT().InsertQueueMetadata(gomock.Any(), testQueueType, gomock.Any()).
+	mainMetadataInsert := td.mockDB.EXPECT().InsertQueueMetadata(gomock.Any(), gomock.Any()).
 		Return(nil)
 
 	dlqCheckExists := td.mockDB.EXPECT().SelectQueueMetadata(gomock.Any(), testDLQueueType).Return(nil, errSelect)
@@ -162,11 +182,11 @@ func TestNewNoSQLQueueStore_FailsIfCantInsertDLQMetadata(t *testing.T) {
 
 	td := newQueueStoreTestData(t)
 	mainQueueCheckExists := td.mockDB.EXPECT().SelectQueueMetadata(gomock.Any(), testQueueType).Return(nil, nil)
-	mainMetadataInsert := td.mockDB.EXPECT().InsertQueueMetadata(gomock.Any(), testQueueType, gomock.Any()).
+	mainMetadataInsert := td.mockDB.EXPECT().InsertQueueMetadata(gomock.Any(), gomock.Any()).
 		Return(nil)
 
 	dlqCheckExists := td.mockDB.EXPECT().SelectQueueMetadata(gomock.Any(), testDLQueueType).Return(nil, nil)
-	dlqMetadataInsert := td.mockDB.EXPECT().InsertQueueMetadata(gomock.Any(), testDLQueueType, gomock.Any()).Return(errInsert)
+	dlqMetadataInsert := td.mockDB.EXPECT().InsertQueueMetadata(gomock.Any(), gomock.Any()).Return(errInsert)
 
 	gomock.InOrder(
 		mainQueueCheckExists,
@@ -207,7 +227,7 @@ func TestEnqueueMessage_Succeeds(t *testing.T) {
 			)
 		}).Return(nil)
 
-	require.NoError(t, store.EnqueueMessage(ctx, testPayload))
+	require.NoError(t, store.EnqueueMessage(ctx, testPayload, FixedTime))
 }
 
 func TestEnqueueMessage_FailsIfCantSelectLastMessageID(t *testing.T) {
@@ -221,7 +241,7 @@ func TestEnqueueMessage_FailsIfCantSelectLastMessageID(t *testing.T) {
 	td.mockIsNotFoundErrCheck(errSelect, false)
 	td.mockErrConversion(errSelect)
 
-	assert.ErrorContains(t, store.EnqueueMessage(ctx, testPayload), errSelect.Error())
+	assert.ErrorContains(t, store.EnqueueMessage(ctx, testPayload, FixedTime), errSelect.Error())
 }
 
 func TestEnqueueMessage_FailsIfCantSelectQueueMetadata(t *testing.T) {
@@ -235,7 +255,7 @@ func TestEnqueueMessage_FailsIfCantSelectQueueMetadata(t *testing.T) {
 	td.mockIsNotFoundErrCheck(errSelect, false)
 	td.mockErrConversion(errSelect)
 
-	assert.ErrorContains(t, store.EnqueueMessage(ctx, testPayload), errSelect.Error())
+	assert.ErrorContains(t, store.EnqueueMessage(ctx, testPayload, FixedTime), errSelect.Error())
 }
 
 func TestEnqueueMessage_FailsIfCantInsertMessageToQueue(t *testing.T) {
@@ -250,7 +270,7 @@ func TestEnqueueMessage_FailsIfCantInsertMessageToQueue(t *testing.T) {
 	td.mockDB.EXPECT().InsertIntoQueue(ctx, gomock.Any()).Return(errInsert)
 	td.mockErrConversion(errInsert)
 
-	assert.ErrorContains(t, store.EnqueueMessage(ctx, testPayload), errInsert.Error())
+	assert.ErrorContains(t, store.EnqueueMessage(ctx, testPayload, FixedTime), errInsert.Error())
 }
 
 func TestEnqueueMessageToDLQ_Succeeds(t *testing.T) {
@@ -274,7 +294,7 @@ func TestEnqueueMessageToDLQ_Succeeds(t *testing.T) {
 			)
 		}).Return(nil)
 
-	require.NoError(t, store.EnqueueMessageToDLQ(ctx, testPayload))
+	require.NoError(t, store.EnqueueMessageToDLQ(ctx, testPayload, FixedTime))
 }
 
 func TestEnqueueMessageToDLQ_FailsIfCantSelectLastMessageID(t *testing.T) {
@@ -288,7 +308,7 @@ func TestEnqueueMessageToDLQ_FailsIfCantSelectLastMessageID(t *testing.T) {
 	td.mockIsNotFoundErrCheck(errSelect, false)
 	td.mockErrConversion(errSelect)
 
-	assert.ErrorContains(t, store.EnqueueMessageToDLQ(ctx, testPayload), errSelect.Error())
+	assert.ErrorContains(t, store.EnqueueMessageToDLQ(ctx, testPayload, FixedTime), errSelect.Error())
 }
 
 func TestEnqueueMessageToDLQ_FailsIfCantInsertMessageToQueue(t *testing.T) {
@@ -301,7 +321,7 @@ func TestEnqueueMessageToDLQ_FailsIfCantInsertMessageToQueue(t *testing.T) {
 	td.mockDB.EXPECT().InsertIntoQueue(ctx, gomock.Any()).Return(errInsert)
 	td.mockErrConversion(errInsert)
 
-	assert.ErrorContains(t, store.EnqueueMessageToDLQ(ctx, testPayload), errInsert.Error())
+	assert.ErrorContains(t, store.EnqueueMessageToDLQ(ctx, testPayload, FixedTime), errInsert.Error())
 }
 
 func TestReadMessages_Succeeds(t *testing.T) {
@@ -525,7 +545,7 @@ func TestUpdateAckLevel_Succeeds(t *testing.T) {
 			assert.Equal(t, expectedClusterAckLevels, newMeta.ClusterAckLevels)
 		}).Return(nil)
 
-	assert.NoError(t, store.UpdateAckLevel(ctx, messageID, clusterName))
+	assert.NoError(t, store.UpdateDLQAckLevel(ctx, messageID, clusterName, FixedTime))
 }
 
 func TestUpdateAckLevel_FailsIfSelectMetadataFails(t *testing.T) {
@@ -539,7 +559,7 @@ func TestUpdateAckLevel_FailsIfSelectMetadataFails(t *testing.T) {
 	td.mockDB.EXPECT().SelectQueueMetadata(ctx, testQueueType).Return(nil, errSelect)
 	td.mockIsNotFoundErrCheck(errSelect, false)
 	td.mockErrConversion(errSelect)
-	assert.ErrorContains(t, store.UpdateAckLevel(ctx, messageID, clusterName), errSelect.Error())
+	assert.ErrorContains(t, store.UpdateAckLevel(ctx, messageID, clusterName, FixedTime), errSelect.Error())
 }
 
 func TestUpdateAckLevel_FailsIfUpdateMetadataFails(t *testing.T) {
@@ -556,7 +576,7 @@ func TestUpdateAckLevel_FailsIfUpdateMetadataFails(t *testing.T) {
 	td.mockDB.EXPECT().UpdateQueueMetadataCas(ctx, gomock.Any()).Return(errUpdate)
 	td.mockErrConversion(errUpdate)
 
-	assert.ErrorContains(t, store.UpdateAckLevel(ctx, messageID, clusterName), errUpdate.Error())
+	assert.ErrorContains(t, store.UpdateAckLevel(ctx, messageID, clusterName, FixedTime), errUpdate.Error())
 }
 
 func TestUpdateDLQAckLevel_Succeeds(t *testing.T) {
@@ -589,7 +609,7 @@ func TestUpdateDLQAckLevel_Succeeds(t *testing.T) {
 			assert.Equal(t, expectedClusterAckLevels, newMeta.ClusterAckLevels)
 		}).Return(nil)
 
-	assert.NoError(t, store.UpdateDLQAckLevel(ctx, messageID, clusterName))
+	assert.NoError(t, store.UpdateDLQAckLevel(ctx, messageID, clusterName, FixedTime))
 }
 
 func TestGetDLQAckLevels_Succeeds(t *testing.T) {
