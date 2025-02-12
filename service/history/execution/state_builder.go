@@ -513,7 +513,7 @@ func (b *stateBuilderImpl) ApplyEvents(
 	b.mutableState.GetExecutionInfo().SetLastFirstEventID(firstEvent.ID)
 	b.mutableState.GetExecutionInfo().SetNextEventID(lastEvent.ID + 1)
 
-	b.mutableState.SetHistoryBuilder(NewHistoryBuilderFromEvents(history))
+	b.mutableState.SetHistoryBuilder(NewHistoryBuilderFromEvents(history, b.mutableState)) // creates a builder without msBuilder, panics later.  TODO: unsure about what msb to use, but this is the closest
 
 	return newRunMutableStateBuilder, nil
 }

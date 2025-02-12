@@ -114,7 +114,7 @@ func (s *stateBuilderSuite) mockUpdateVersion(events ...*types.HistoryEvent) {
 	for _, event := range events {
 		s.mockMutableState.EXPECT().UpdateCurrentVersion(event.Version, true).Times(1)
 	}
-	s.mockMutableState.EXPECT().SetHistoryBuilder(NewHistoryBuilderFromEvents(events)).Times(1)
+	s.mockMutableState.EXPECT().SetHistoryBuilder(NewHistoryBuilderFromEvents(events, s.mockMutableState)).Times(1)
 }
 
 func (s *stateBuilderSuite) toHistory(events ...*types.HistoryEvent) []*types.HistoryEvent {

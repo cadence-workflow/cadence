@@ -1177,7 +1177,7 @@ func (e *mutableStateBuilder) AddWorkflowExecutionTerminatedEvent(
 		return nil, err
 	}
 
-	event := e.hBuilder.AddWorkflowExecutionTerminatedEvent(reason, details, identity)
+	event := e.hBuilder.AddWorkflowExecutionTerminatedEvent(reason, details, identity) // hBuilder or hBuilder.msBuilder is nil here
 	if err := e.ReplicateWorkflowExecutionTerminatedEvent(firstEventID, event); err != nil {
 		return nil, err
 	}
