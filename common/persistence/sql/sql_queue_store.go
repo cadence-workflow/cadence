@@ -55,10 +55,7 @@ func newQueueStore(
 	}, nil
 }
 
-func (q *sqlQueueStore) EnqueueMessage(
-	ctx context.Context,
-	messagePayload []byte,
-) error {
+func (q *sqlQueueStore) EnqueueMessage(ctx context.Context, messagePayload []byte, currentTimeStamp time.Time) error {
 	return q.txExecute(ctx, sqlplugin.DbDefaultShard, "EnqueueMessage", func(tx sqlplugin.Tx) error {
 		lastMessageID, err := tx.GetLastEnqueuedMessageIDForUpdate(ctx, q.queueType)
 		if err != nil {
@@ -149,10 +146,7 @@ func (q *sqlQueueStore) GetAckLevels(
 	return result, nil
 }
 
-func (q *sqlQueueStore) EnqueueMessageToDLQ(
-	ctx context.Context,
-	messagePayload []byte,
-) error {
+func (q *sqlQueueStore) EnqueueMessageToDLQ(ctx context.Context, messagePayload []byte, currentTimeStamp time.Time) error {
 	return q.txExecute(ctx, sqlplugin.DbDefaultShard, "EnqueueMessageToDLQ", func(tx sqlplugin.Tx) error {
 		var err error
 		lastMessageID, err := tx.GetLastEnqueuedMessageIDForUpdate(ctx, q.getDLQTypeFromQueueType())

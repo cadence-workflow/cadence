@@ -1051,13 +1051,13 @@ type (
 
 	// LeaseTaskListRequest is used to request lease of a task list
 	LeaseTaskListRequest struct {
-		DomainID     string
-		DomainName   string
-		TaskList     string
-		TaskType     int
-		TaskListKind int
-		RangeID      int64
-		TimeStamp    time.Time
+		DomainID         string
+		DomainName       string
+		TaskList         string
+		TaskType         int
+		TaskListKind     int
+		RangeID          int64
+		CurrentTimeStamp time.Time
 	}
 
 	// LeaseTaskListResponse is response to LeaseTaskListRequest
@@ -1078,9 +1078,9 @@ type (
 
 	// UpdateTaskListRequest is used to update task list implementation information
 	UpdateTaskListRequest struct {
-		TaskListInfo *TaskListInfo
-		DomainName   string
-		UpdatedTime  time.Time
+		TaskListInfo     *TaskListInfo
+		DomainName       string
+		CurrentTimeStamp time.Time
 	}
 
 	// UpdateTaskListResponse is the response to UpdateTaskList
@@ -1122,10 +1122,10 @@ type (
 
 	// CreateTasksRequest is used to create a new task for a workflow exectution
 	CreateTasksRequest struct {
-		TaskListInfo *TaskListInfo
-		Tasks        []*CreateTaskInfo
-		DomainName   string
-		CreatedTime  time.Time
+		TaskListInfo     *TaskListInfo
+		Tasks            []*CreateTaskInfo
+		DomainName       string
+		CurrentTimeStamp time.Time
 	}
 
 	// CreateTaskInfo describes a task to be created in CreateTasksRequest
@@ -1396,8 +1396,6 @@ type (
 
 		// DomainName to get metrics created with the domain
 		DomainName string
-
-		CreatedTime time.Time
 	}
 
 	// AppendHistoryNodesResponse is a response to AppendHistoryNodesRequest
@@ -1479,8 +1477,6 @@ type (
 		ShardID *int
 		// DomainName to create metrics for Domain Cost Attribution
 		DomainName string
-
-		CreatedTime time.Time
 	}
 
 	// ForkHistoryBranchResponse is the response to ForkHistoryBranchRequest

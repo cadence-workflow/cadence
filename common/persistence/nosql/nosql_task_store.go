@@ -98,7 +98,7 @@ func (t *nosqlTaskStore) LeaseTaskList(
 			Message: "LeaseTaskList requires non empty task list",
 		}
 	}
-	now := request.TimeStamp
+	now := request.CurrentTimeStamp
 	var err, selectErr error
 	var currTL *nosqlplugin.TaskListRow
 	storeShard, err := t.GetStoreShardByTaskList(request.DomainID, request.TaskList, request.TaskType)
@@ -219,8 +219,8 @@ func (t *nosqlTaskStore) UpdateTaskList(
 		RangeID:                 tli.RangeID,
 		TaskListKind:            tli.Kind,
 		AckLevel:                tli.AckLevel,
-		LastUpdatedTime:         request.UpdatedTime,
-		TimeStamp:               request.UpdatedTime,
+		LastUpdatedTime:         request.CurrentTimeStamp,
+		TimeStamp:               request.CurrentTimeStamp,
 		AdaptivePartitionConfig: tli.AdaptivePartitionConfig,
 	}
 	storeShard, err := t.GetStoreShardByTaskList(tli.DomainID, tli.Name, tli.TaskType)
@@ -290,7 +290,7 @@ func (t *nosqlTaskStore) CreateTasks(
 	ctx context.Context,
 	request *persistence.CreateTasksRequest,
 ) (*persistence.CreateTasksResponse, error) {
-	now := request.CreatedTime
+	now := request.CurrentTimeStamp
 	var tasks []*nosqlplugin.TaskRowForInsert
 	for _, taskRequest := range request.Tasks {
 		task := &nosqlplugin.TaskRow{
