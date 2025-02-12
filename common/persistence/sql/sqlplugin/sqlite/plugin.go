@@ -31,6 +31,7 @@ import (
 	"github.com/jmoiron/sqlx"
 
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/persistence/sql"
 	"github.com/uber/cadence/common/persistence/sql/sqldriver"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
 )
@@ -45,6 +46,10 @@ const (
 type plugin struct{}
 
 var _ sqlplugin.Plugin = (*plugin)(nil)
+
+func init() {
+	sql.RegisterPlugin(PluginName, &plugin{})
+}
 
 // CreateDB wraps createDB to return an instance of sqlplugin.DB
 func (p *plugin) CreateDB(cfg *config.SQL) (sqlplugin.DB, error) {
