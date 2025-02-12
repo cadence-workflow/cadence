@@ -119,7 +119,7 @@ func (s *diagnosticsWorkflowTestSuite) TestWorkflow() {
 		},
 	}
 	taskListBacklog := int64(10)
-	pollersMetadataInBytes, err := json.Marshal(timeout.PollersMetadata{TaskListBacklog: taskListBacklog})
+	pollersMetadataInBytes, err := json.Marshal(timeout.PollersMetadata{TaskListName: "test", TaskListBacklog: taskListBacklog})
 	s.NoError(err)
 	rootCause := []invariant.InvariantRootCauseResult{
 		{
@@ -130,7 +130,7 @@ func (s *diagnosticsWorkflowTestSuite) TestWorkflow() {
 	timeoutRootCause := []*timeoutRootCauseResult{
 		{
 			RootCauseType:   invariant.RootCauseTypePollersStatus.String(),
-			PollersMetadata: &timeout.PollersMetadata{TaskListBacklog: taskListBacklog},
+			PollersMetadata: &timeout.PollersMetadata{TaskListName: "test", TaskListBacklog: taskListBacklog},
 		},
 	}
 	s.workflowEnv.OnActivity(identifyIssuesActivity, mock.Anything, mock.Anything).Return(issues, nil)
@@ -305,15 +305,9 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveTimeoutRootCause() {
 
 func (s *diagnosticsWorkflowTestSuite) Test__retrieveFailureIssues() {
 	actMetadata := failure.FailureMetadata{
-		Identity: "localhost",
-		ActivityScheduled: &types.ActivityTaskScheduledEventAttributes{
-			ActivityID:   "101",
-			ActivityType: &types.ActivityType{Name: "test-activity"},
-		},
-		ActivityStarted: &types.ActivityTaskStartedEventAttributes{
-			Identity: "localhost",
-			Attempt:  0,
-		},
+		Identity:            "localhost",
+		ActivityScheduledID: 1,
+		ActivityStartedID:   2,
 	}
 	actMetadataInBytes, err := json.Marshal(actMetadata)
 	s.NoError(err)
