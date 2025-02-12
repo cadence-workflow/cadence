@@ -52,7 +52,8 @@ func (q *queueManager) Close() {
 }
 
 func (q *queueManager) EnqueueMessage(ctx context.Context, messagePayload []byte) error {
-	return q.persistence.EnqueueMessage(ctx, messagePayload)
+	currentTimestamp := q.timeSrc.Now()
+	return q.persistence.EnqueueMessage(ctx, messagePayload, currentTimestamp)
 }
 
 func (q *queueManager) ReadMessages(ctx context.Context, lastMessageID int64, maxCount int) (QueueMessageList, error) {
@@ -72,7 +73,8 @@ func (q *queueManager) DeleteMessagesBefore(ctx context.Context, messageID int64
 }
 
 func (q *queueManager) UpdateAckLevel(ctx context.Context, messageID int64, clusterName string) error {
-	return q.persistence.UpdateAckLevel(ctx, messageID, clusterName, q.timeSrc.Now())
+	currentTimestamp := q.timeSrc.Now()
+	return q.persistence.UpdateAckLevel(ctx, messageID, clusterName, currentTimestamp)
 }
 
 func (q *queueManager) GetAckLevels(ctx context.Context) (map[string]int64, error) {
@@ -80,7 +82,8 @@ func (q *queueManager) GetAckLevels(ctx context.Context) (map[string]int64, erro
 }
 
 func (q *queueManager) EnqueueMessageToDLQ(ctx context.Context, messagePayload []byte) error {
-	return q.persistence.EnqueueMessageToDLQ(ctx, messagePayload)
+	currentTimestamp := q.timeSrc.Now()
+	return q.persistence.EnqueueMessageToDLQ(ctx, messagePayload, currentTimestamp)
 }
 
 func (q *queueManager) ReadMessagesFromDLQ(ctx context.Context, firstMessageID int64, lastMessageID int64, pageSize int, pageToken []byte) ([]*QueueMessage, []byte, error) {
@@ -104,7 +107,8 @@ func (q *queueManager) RangeDeleteMessagesFromDLQ(ctx context.Context, firstMess
 }
 
 func (q *queueManager) UpdateDLQAckLevel(ctx context.Context, messageID int64, clusterName string) error {
-	return q.persistence.UpdateDLQAckLevel(ctx, messageID, clusterName, q.timeSrc.Now())
+	currentTimestamp := q.timeSrc.Now()
+	return q.persistence.UpdateDLQAckLevel(ctx, messageID, clusterName, currentTimestamp)
 }
 
 func (q *queueManager) GetDLQAckLevels(ctx context.Context) (map[string]int64, error) {

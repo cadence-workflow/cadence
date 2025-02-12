@@ -132,12 +132,12 @@ func (m *historyV2ManagerImpl) ForkHistoryBranch(
 		return nil, err
 	}
 	req := &InternalForkHistoryBranchRequest{
-		ForkBranchInfo: *thrift.ToHistoryBranch(&forkBranch),
-		ForkNodeID:     request.ForkNodeID,
-		NewBranchID:    uuid.New(),
-		Info:           request.Info,
-		ShardID:        shardID,
-		CreatedTime:    m.timeSrc.Now(),
+		ForkBranchInfo:   *thrift.ToHistoryBranch(&forkBranch),
+		ForkNodeID:       request.ForkNodeID,
+		NewBranchID:      uuid.New(),
+		Info:             request.Info,
+		ShardID:          shardID,
+		CurrentTimeStamp: m.timeSrc.Now(),
 	}
 
 	resp, err := m.persistence.ForkHistoryBranch(ctx, req)
@@ -269,14 +269,14 @@ func (m *historyV2ManagerImpl) AppendHistoryNodes(
 		}
 	}
 	req := &InternalAppendHistoryNodesRequest{
-		IsNewBranch:   request.IsNewBranch,
-		Info:          request.Info,
-		BranchInfo:    *thrift.ToHistoryBranch(&branch),
-		NodeID:        nodeID,
-		Events:        blob,
-		TransactionID: request.TransactionID,
-		ShardID:       shardID,
-		CreatedTime:   m.timeSrc.Now(),
+		IsNewBranch:      request.IsNewBranch,
+		Info:             request.Info,
+		BranchInfo:       *thrift.ToHistoryBranch(&branch),
+		NodeID:           nodeID,
+		Events:           blob,
+		TransactionID:    request.TransactionID,
+		ShardID:          shardID,
+		CurrentTimeStamp: m.timeSrc.Now(),
 	}
 
 	err = m.persistence.AppendHistoryNodes(ctx, req)

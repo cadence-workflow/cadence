@@ -1001,7 +1001,7 @@ func TestCreateWorkflowExecution(t *testing.T) {
 					PreviousLastWriteVersion: 1,
 					NewWorkflowSnapshot:      *sampleInternalWorkflowSnapshot(),
 					WorkflowRequestMode:      CreateWorkflowRequestModeReplicated,
-					CreatedTime:              time.Now(),
+					CurrentTimeStamp:         time.Now(),
 				}
 				mockedStore.EXPECT().CreateWorkflowExecution(gomock.Any(), gomock.Any()).DoAndReturn(
 					func(_ context.Context, actualRequest *InternalCreateWorkflowExecutionRequest) (*CreateWorkflowExecutionResponse, error) {
@@ -1012,7 +1012,7 @@ func TestCreateWorkflowExecution(t *testing.T) {
 						assert.Equal(t, expectedRequest.WorkflowRequestMode, actualRequest.WorkflowRequestMode)
 						assert.Equal(t, expectedRequest.NewWorkflowSnapshot, actualRequest.NewWorkflowSnapshot)
 
-						assert.WithinDuration(t, expectedRequest.CreatedTime, actualRequest.CreatedTime, time.Second)
+						assert.WithinDuration(t, expectedRequest.CurrentTimeStamp, actualRequest.CurrentTimeStamp, time.Second)
 						return nil, nil
 					})
 
@@ -1116,7 +1116,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 					RangeID:               1,
 					Mode:                  ConflictResolveWorkflowModeBypassCurrent,
 					ResetWorkflowSnapshot: *sampleInternalWorkflowSnapshot(),
-					UpdatedTime:           time.Now(),
+					CurrentTimeStamp:      time.Now(),
 				}
 				mockedStore.EXPECT().ConflictResolveWorkflowExecution(gomock.Any(), gomock.Any()).DoAndReturn(
 					func(_ context.Context, actualRequest *InternalConflictResolveWorkflowExecutionRequest) error {
@@ -1124,7 +1124,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 						assert.Equal(t, expectedRequest.Mode, actualRequest.Mode)
 						assert.Equal(t, expectedRequest.ResetWorkflowSnapshot, actualRequest.ResetWorkflowSnapshot)
 
-						assert.WithinDuration(t, expectedRequest.UpdatedTime, actualRequest.UpdatedTime, time.Second)
+						assert.WithinDuration(t, expectedRequest.CurrentTimeStamp, actualRequest.CurrentTimeStamp, time.Second)
 						return nil
 					})
 
@@ -1183,7 +1183,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 					Mode:                    ConflictResolveWorkflowModeBypassCurrent,
 					ResetWorkflowSnapshot:   *sampleInternalWorkflowSnapshot(),
 					CurrentWorkflowMutation: sampleInternalWorkflowMutation(),
-					UpdatedTime:             time.Now(),
+					CurrentTimeStamp:        time.Now(),
 				}
 
 				mockedStore.EXPECT().ConflictResolveWorkflowExecution(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, actualRequest *InternalConflictResolveWorkflowExecutionRequest) error {
@@ -1191,7 +1191,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 					assert.Equal(t, expectedRequest.Mode, actualRequest.Mode)
 					assert.Equal(t, expectedRequest.ResetWorkflowSnapshot, actualRequest.ResetWorkflowSnapshot)
 
-					assert.WithinDuration(t, expectedRequest.UpdatedTime, actualRequest.UpdatedTime, time.Second)
+					assert.WithinDuration(t, expectedRequest.CurrentTimeStamp, actualRequest.CurrentTimeStamp, time.Second)
 					return nil
 				})
 
