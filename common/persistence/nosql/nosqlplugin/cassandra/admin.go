@@ -68,7 +68,7 @@ func (db *cdb) SetupTestDatabase(schemaBaseDir string, replicas int) error {
 // loadSchema from PersistenceTestCluster interface
 func (db *cdb) loadSchema(fileNames []string, schemaBaseDir string) error {
 	workflowSchemaDir := schemaBaseDir + "/cadence"
-	err := loadCassandraSchema(workflowSchemaDir, fileNames, db.cfg.Hosts, db.cfg.Port, db.cfg.Keyspace, true, nil, db.cfg.ProtoVersion)
+	err := db.loadCassandraSchema(workflowSchemaDir, fileNames, db.cfg.Hosts, db.cfg.Port, db.cfg.Keyspace, true, nil, db.cfg.ProtoVersion)
 	if err != nil && !strings.Contains(err.Error(), "AlreadyExists") {
 		// TODO: should we remove the second condition?
 		return err
@@ -79,7 +79,7 @@ func (db *cdb) loadSchema(fileNames []string, schemaBaseDir string) error {
 // loadVisibilitySchema from PersistenceTestCluster interface
 func (db *cdb) loadVisibilitySchema(fileNames []string, schemaBaseDir string) error {
 	workflowSchemaDir := schemaBaseDir + "/visibility"
-	err := loadCassandraSchema(workflowSchemaDir, fileNames, db.cfg.Hosts, db.cfg.Port, db.cfg.Keyspace, false, nil, db.cfg.ProtoVersion)
+	err := db.loadCassandraSchema(workflowSchemaDir, fileNames, db.cfg.Hosts, db.cfg.Port, db.cfg.Keyspace, false, nil, db.cfg.ProtoVersion)
 	if err != nil && !strings.Contains(err.Error(), "AlreadyExists") {
 		// TODO: should we remove the second condition?
 		return err
@@ -129,7 +129,7 @@ func (db *cdb) dropCassandraKeyspace(s gocql.Session, keyspace string) (err erro
 }
 
 // loadCassandraSchema loads the schema from the given .cql files on this keyspace
-func loadCassandraSchema(
+func (db *cdb) loadCassandraSchema(
 	dir string,
 	fileNames []string,
 	hosts string,
@@ -177,7 +177,7 @@ func loadCassandraSchema(
 		},
 	}
 
-	err = cassandra.SetupSchema(config)
+	err = cassandra.SetupSchema(config, db.logger)
 	if err != nil {
 		err = fmt.Errorf("error loading schema:%v", err.Error())
 	}
