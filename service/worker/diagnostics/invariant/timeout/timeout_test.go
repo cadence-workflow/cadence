@@ -391,7 +391,7 @@ func childWfTimeoutDataInBytes(t *testing.T) []byte {
 
 func Test__RootCause(t *testing.T) {
 	actStartToCloseTimeoutData := activityStartToCloseTimeoutData()
-	pollersMetadataInBytes, err := json.Marshal(PollersMetadata{TaskListBacklog: testTaskListBacklog})
+	pollersMetadataInBytes, err := json.Marshal(PollersMetadata{TaskListName: testTasklist, TaskListBacklog: testTaskListBacklog})
 	require.NoError(t, err)
 	heartBeatingMetadataInBytes, err := json.Marshal(HeartbeatingMetadata{TimeElapsed: actStartToCloseTimeoutData.TimeElapsed})
 	require.NoError(t, err)

@@ -68,6 +68,7 @@ type DecisionTimeoutMetadata struct {
 }
 
 type PollersMetadata struct {
+	TaskListName    string
 	TaskListBacklog int64
 }
 

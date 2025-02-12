@@ -36,6 +36,7 @@ import (
 
 func Test__Check(t *testing.T) {
 	retriedWfMetadata := RetryMetadata{
+		EventID: 1,
 		RetryPolicy: &types.RetryPolicy{
 			InitialIntervalInSeconds: 1,
 			MaximumAttempts:          2,
@@ -44,6 +45,7 @@ func Test__Check(t *testing.T) {
 	retriedWfMetadataInBytes, err := json.Marshal(retriedWfMetadata)
 	require.NoError(t, err)
 	invalidAttemptsMetadata := RetryMetadata{
+		EventID: 5,
 		RetryPolicy: &types.RetryPolicy{
 			InitialIntervalInSeconds: 1,
 			MaximumAttempts:          1,
@@ -52,6 +54,7 @@ func Test__Check(t *testing.T) {
 	invalidAttemptsMetadataInBytes, err := json.Marshal(invalidAttemptsMetadata)
 	require.NoError(t, err)
 	invalidExpIntervalMetadata := RetryMetadata{
+		EventID: 1,
 		RetryPolicy: &types.RetryPolicy{
 			InitialIntervalInSeconds:    10,
 			ExpirationIntervalInSeconds: 5,

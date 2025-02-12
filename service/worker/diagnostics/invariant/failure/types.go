@@ -22,8 +22,6 @@
 
 package failure
 
-import "github.com/uber/cadence/common/types"
-
 type ErrorType string
 
 const (
@@ -53,9 +51,9 @@ func (f FailureType) String() string {
 }
 
 type FailureMetadata struct {
-	Identity          string
-	ActivityScheduled *types.ActivityTaskScheduledEventAttributes
-	ActivityStarted   *types.ActivityTaskStartedEventAttributes
+	Identity            string
+	ActivityScheduledID int64
+	ActivityStartedID   int64
 }
 
 // BlobSizeMetadata includes the details of blob size limits

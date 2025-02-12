@@ -51,6 +51,7 @@ func (r *retry) Check(ctx context.Context, params invariant.InvariantCheckInput)
 			InvariantType: WorkflowRetryInfo.String(),
 			Reason:        failure.ErrorTypeFromReason(*lastEvent.FailureReason).String(),
 			Metadata: invariant.MarshalData(RetryMetadata{
+				EventID:     1,
 				RetryPolicy: startedEvent.RetryPolicy,
 			}),
 		})
@@ -61,6 +62,7 @@ func (r *retry) Check(ctx context.Context, params invariant.InvariantCheckInput)
 			InvariantType: WorkflowRetryIssue.String(),
 			Reason:        issue.String(),
 			Metadata: invariant.MarshalData(RetryMetadata{
+				EventID:     1,
 				RetryPolicy: startedEvent.RetryPolicy,
 			}),
 		})
@@ -74,6 +76,7 @@ func (r *retry) Check(ctx context.Context, params invariant.InvariantCheckInput)
 					InvariantType: ActivityRetryIssue.String(),
 					Reason:        issue.String(),
 					Metadata: invariant.MarshalData(RetryMetadata{
+						EventID:     event.ID,
 						RetryPolicy: attr.RetryPolicy,
 					}),
 				})

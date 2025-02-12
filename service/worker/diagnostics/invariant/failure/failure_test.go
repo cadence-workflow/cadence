@@ -45,15 +45,9 @@ func Test__Check(t *testing.T) {
 	metadataInBytes, err := json.Marshal(metadata)
 	require.NoError(t, err)
 	actMetadata := FailureMetadata{
-		Identity: "localhost",
-		ActivityScheduled: &types.ActivityTaskScheduledEventAttributes{
-			ActivityID:   "101",
-			ActivityType: &types.ActivityType{Name: "test-activity"},
-		},
-		ActivityStarted: &types.ActivityTaskStartedEventAttributes{
-			Identity: "localhost",
-			Attempt:  0,
-		},
+		Identity:            "localhost",
+		ActivityScheduledID: 1,
+		ActivityStartedID:   2,
 	}
 	actMetadataInBytes, err := json.Marshal(actMetadata)
 	require.NoError(t, err)

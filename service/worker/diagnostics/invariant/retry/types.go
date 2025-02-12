@@ -48,5 +48,6 @@ func (i IssueType) String() string {
 }
 
 type RetryMetadata struct {
+	EventID     int64
 	RetryPolicy *types.RetryPolicy
 }

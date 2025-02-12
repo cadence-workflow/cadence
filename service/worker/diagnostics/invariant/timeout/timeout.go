@@ -165,7 +165,10 @@ func (t *timeout) checkTasklist(ctx context.Context, issue invariant.InvariantCh
 	}
 
 	tasklistBacklog := resp.GetTaskListStatus().GetBacklogCountHint()
-	polllersMetadataInBytes := invariant.MarshalData(PollersMetadata{TaskListBacklog: tasklistBacklog})
+	polllersMetadataInBytes := invariant.MarshalData(PollersMetadata{
+		TaskListName:    taskList.Name,
+		TaskListBacklog: tasklistBacklog,
+	})
 	if len(resp.GetPollers()) == 0 {
 		return invariant.InvariantRootCauseResult{
 			RootCause: invariant.RootCauseTypeMissingPollers,
