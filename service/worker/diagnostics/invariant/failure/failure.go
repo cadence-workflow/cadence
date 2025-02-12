@@ -66,12 +66,14 @@ func (f *failure) Check(ctx context.Context, params invariant.InvariantCheckInpu
 		if event.GetActivityTaskFailedEventAttributes() != nil && event.ActivityTaskFailedEventAttributes.Reason != nil {
 			attr := event.ActivityTaskFailedEventAttributes
 			reason := attr.Reason
+			scheduled := fetchScheduledEvent(attr, events)
 			if *reason == common.FailureReasonHeartbeatExceedsLimit {
 				result = append(result, invariant.InvariantCheckResult{
 					InvariantType: ActivityFailed.String(),
 					Reason:        HeartBeatBlobSizeLimit.String(),
 					Metadata: invariant.MarshalData(FailureMetadata{
 						Identity:            attr.Identity,
+						ActivityType:        scheduled.ActivityType.GetName(),
 						ActivityScheduledID: attr.ScheduledEventID,
 						ActivityStartedID:   attr.StartedEventID,
 					}),
@@ -82,6 +84,7 @@ func (f *failure) Check(ctx context.Context, params invariant.InvariantCheckInpu
 					Reason:        ActivityOutputBlobSizeLimit.String(),
 					Metadata: invariant.MarshalData(FailureMetadata{
 						Identity:            attr.Identity,
+						ActivityType:        scheduled.ActivityType.GetName(),
 						ActivityScheduledID: attr.ScheduledEventID,
 						ActivityStartedID:   attr.StartedEventID,
 					}),
@@ -92,6 +95,7 @@ func (f *failure) Check(ctx context.Context, params invariant.InvariantCheckInpu
 					Reason:        ErrorTypeFromReason(*reason).String(),
 					Metadata: invariant.MarshalData(FailureMetadata{
 						Identity:            attr.Identity,
+						ActivityType:        scheduled.ActivityType.GetName(),
 						ActivityScheduledID: attr.ScheduledEventID,
 						ActivityStartedID:   attr.StartedEventID,
 					}),
@@ -114,6 +118,15 @@ func ErrorTypeFromReason(reason string) ErrorType {
 		return TimeoutError
 	}
 	return CustomError
+}
+
+func fetchScheduledEvent(attr *types.ActivityTaskFailedEventAttributes, events []*types.HistoryEvent) *types.ActivityTaskScheduledEventAttributes {
+	for _, event := range events {
+		if event.ID == attr.GetScheduledEventID() {
+			return event.GetActivityTaskScheduledEventAttributes()
+		}
+	}
+	return nil
 }
 
 func fetchIdentity(attr *types.WorkflowExecutionFailedEventAttributes, events []*types.HistoryEvent) string {

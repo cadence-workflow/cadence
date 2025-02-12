@@ -52,6 +52,7 @@ func (f FailureType) String() string {
 
 type FailureMetadata struct {
 	Identity            string
+	ActivityType        string
 	ActivityScheduledID int64
 	ActivityStartedID   int64
 }

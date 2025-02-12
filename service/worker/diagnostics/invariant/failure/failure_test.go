@@ -46,6 +46,7 @@ func Test__Check(t *testing.T) {
 	require.NoError(t, err)
 	actMetadata := FailureMetadata{
 		Identity:            "localhost",
+		ActivityType:        "test-activity",
 		ActivityScheduledID: 1,
 		ActivityStartedID:   2,
 	}

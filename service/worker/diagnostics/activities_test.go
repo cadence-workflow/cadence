@@ -52,6 +52,7 @@ func Test__identifyIssues(t *testing.T) {
 	dwtest := testDiagnosticWorkflow(t)
 	actMetadata := failure.FailureMetadata{
 		Identity:            "localhost",
+		ActivityType:        "test-activity",
 		ActivityScheduledID: 2,
 		ActivityStartedID:   3,
 	}
