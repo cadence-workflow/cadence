@@ -36,10 +36,7 @@ func (db *ddb) InsertWorkflowExecutionWithTasks(
 	requests *nosqlplugin.WorkflowRequestsWriteRequest,
 	currentWorkflowRequest *nosqlplugin.CurrentWorkflowWriteRequest,
 	execution *nosqlplugin.WorkflowExecutionRequest,
-	transferTasks []*nosqlplugin.TransferTask,
-	crossClusterTasks []*nosqlplugin.CrossClusterTask,
-	replicationTasks []*nosqlplugin.ReplicationTask,
-	timerTasks []*nosqlplugin.TimerTask,
+	tasksByCategory map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask,
 	shardCondition *nosqlplugin.ShardCondition,
 ) error {
 	panic("TODO")
@@ -52,10 +49,7 @@ func (db *ddb) UpdateWorkflowExecutionWithTasks(
 	mutatedExecution *nosqlplugin.WorkflowExecutionRequest,
 	insertedExecution *nosqlplugin.WorkflowExecutionRequest,
 	resetExecution *nosqlplugin.WorkflowExecutionRequest,
-	transferTasks []*nosqlplugin.TransferTask,
-	crossClusterTasks []*nosqlplugin.CrossClusterTask,
-	replicationTasks []*nosqlplugin.ReplicationTask,
-	timerTasks []*nosqlplugin.TimerTask,
+	tasksByCategory map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask,
 	shardCondition *nosqlplugin.ShardCondition,
 ) error {
 	panic("TODO")
@@ -125,7 +119,7 @@ func (db *ddb) RangeDeleteReplicationTasks(ctx context.Context, shardID int, inc
 	panic("TODO")
 }
 
-func (db *ddb) InsertReplicationTask(ctx context.Context, tasks []*nosqlplugin.ReplicationTask, condition nosqlplugin.ShardCondition) error {
+func (db *ddb) InsertReplicationTask(ctx context.Context, tasks []*nosqlplugin.HistoryMigrationTask, condition nosqlplugin.ShardCondition) error {
 	panic("TODO")
 }
 
@@ -141,7 +135,7 @@ func (db *ddb) RangeDeleteCrossClusterTasks(ctx context.Context, shardID int, ta
 	panic("TODO")
 }
 
-func (db *ddb) InsertReplicationDLQTask(ctx context.Context, shardID int, sourceCluster string, task nosqlplugin.ReplicationTask) error {
+func (db *ddb) InsertReplicationDLQTask(ctx context.Context, shardID int, sourceCluster string, task *nosqlplugin.HistoryMigrationTask) error {
 	panic("TODO")
 }
 

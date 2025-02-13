@@ -420,15 +420,39 @@ func assertShardRangeID(batch gocql.Batch, shardID int, rangeID int64, timeStamp
 	)
 }
 
+func createTasksByCategory(
+	batch gocql.Batch,
+	shardID int,
+	domainID string,
+	workflowID string,
+	timeStamp time.Time,
+	tasksByCategory map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask,
+) {
+	for c, tasks := range tasksByCategory {
+		switch c.ID() {
+		case persistence.HistoryTaskCategoryIDTransfer:
+			createTransferTasks(batch, shardID, domainID, workflowID, tasks, timeStamp)
+		case persistence.HistoryTaskCategoryIDTimer:
+			createTimerTasks(batch, shardID, domainID, workflowID, tasks, timeStamp)
+		case persistence.HistoryTaskCategoryIDReplication:
+			createReplicationTasks(batch, shardID, domainID, workflowID, tasks, timeStamp)
+		}
+	}
+
+	// TODO: implementing writing tasks for other categories
+}
+
 func createTimerTasks(
 	batch gocql.Batch,
 	shardID int,
 	domainID string,
 	workflowID string,
-	timerTasks []*nosqlplugin.TimerTask,
+	timerTasks []*nosqlplugin.HistoryMigrationTask,
 	timeStamp time.Time,
 ) error {
-	for _, task := range timerTasks {
+	for _, timer := range timerTasks {
+		task := timer.Timer
+		taskBlob, taskEncoding := persistence.FromDataBlob(timer.Task)
 		// Ignoring possible type cast errors.
 		ts := persistence.UnixNanoToDBTimestamp(task.VisibilityTimestamp.UnixNano())
 
@@ -448,6 +472,8 @@ func createTimerTasks(
 			task.EventID,
 			task.ScheduleAttempt,
 			task.Version,
+			taskBlob,
+			taskEncoding,
 			ts,
 			task.TaskID,
 			timeStamp,
@@ -461,10 +487,12 @@ func createReplicationTasks(
 	shardID int,
 	domainID string,
 	workflowID string,
-	replicationTasks []*nosqlplugin.ReplicationTask,
+	replicationTasks []*nosqlplugin.HistoryMigrationTask,
 	timeStamp time.Time,
 ) {
-	for _, task := range replicationTasks {
+	for _, replication := range replicationTasks {
+		task := replication.Replication
+		taskBlob, taskEncoding := persistence.FromDataBlob(replication.Task)
 		batch.Query(templateCreateReplicationTaskQuery,
 			shardID,
 			rowTypeReplicationTask,
@@ -485,6 +513,8 @@ func createReplicationTasks(
 			persistence.EventStoreVersion,
 			task.NewRunBranchToken,
 			task.CreationTime.UnixNano(),
+			taskBlob,
+			taskEncoding,
 			// NOTE: use a constant here instead of task.VisibilityTimestamp so that we can query tasks with the same visibilityTimestamp
 			defaultVisibilityTimestamp,
 			task.TaskID,
@@ -498,10 +528,12 @@ func createTransferTasks(
 	shardID int,
 	domainID string,
 	workflowID string,
-	transferTasks []*nosqlplugin.TransferTask,
+	transferTasks []*nosqlplugin.HistoryMigrationTask,
 	timeStamp time.Time,
 ) {
-	for _, task := range transferTasks {
+	for _, transfer := range transferTasks {
+		task := transfer.Transfer
+		taskBlob, taskEncoding := persistence.FromDataBlob(transfer.Task)
 		batch.Query(templateCreateTransferTaskQuery,
 			shardID,
 			rowTypeTransferTask,
@@ -523,44 +555,8 @@ func createTransferTasks(
 			task.ScheduleID,
 			task.RecordVisibility,
 			task.Version,
-			// NOTE: use a constant here instead of task.VisibilityTimestamp so that we can query tasks with the same visibilityTimestamp
-			defaultVisibilityTimestamp,
-			task.TaskID,
-			timeStamp,
-		)
-	}
-}
-
-func createCrossClusterTasks(
-	batch gocql.Batch,
-	shardID int,
-	domainID string,
-	workflowID string,
-	xClusterTasks []*nosqlplugin.CrossClusterTask,
-	timeStamp time.Time,
-) {
-	for _, task := range xClusterTasks {
-		batch.Query(templateCreateCrossClusterTaskQuery,
-			shardID,
-			rowTypeCrossClusterTask,
-			rowTypeCrossClusterDomainID,
-			task.TargetCluster,
-			rowTypeCrossClusterRunID,
-			domainID,
-			workflowID,
-			task.RunID,
-			task.VisibilityTimestamp,
-			task.TaskID,
-			task.TargetDomainID,
-			task.TargetDomainIDs,
-			task.TargetWorkflowID,
-			task.TargetRunID,
-			task.TargetChildWorkflowOnly,
-			task.TaskList,
-			task.TaskType,
-			task.ScheduleID,
-			task.RecordVisibility,
-			task.Version,
+			taskBlob,
+			taskEncoding,
 			// NOTE: use a constant here instead of task.VisibilityTimestamp so that we can query tasks with the same visibilityTimestamp
 			defaultVisibilityTimestamp,
 			task.TaskID,

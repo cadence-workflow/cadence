@@ -45,10 +45,7 @@ func TestInsertWorkflowExecutionWithTasks(t *testing.T) {
 		workflowRequest       *nosqlplugin.WorkflowRequestsWriteRequest
 		request               *nosqlplugin.CurrentWorkflowWriteRequest
 		execution             *nosqlplugin.WorkflowExecutionRequest
-		transferTasks         []*nosqlplugin.TransferTask
-		crossClusterTasks     []*nosqlplugin.CrossClusterTask
-		replicationTasks      []*nosqlplugin.ReplicationTask
-		timerTasks            []*nosqlplugin.TimerTask
+		tasksByCategory       map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask
 		shardCondition        *nosqlplugin.ShardCondition
 		mapExecuteBatchCASErr error
 		wantErr               bool
@@ -142,10 +139,7 @@ func TestInsertWorkflowExecutionWithTasks(t *testing.T) {
 				tc.workflowRequest,
 				tc.request,
 				tc.execution,
-				tc.transferTasks,
-				tc.crossClusterTasks,
-				tc.replicationTasks,
-				tc.timerTasks,
+				tc.tasksByCategory,
 				tc.shardCondition,
 			)
 
@@ -289,10 +283,7 @@ func TestUpdateWorkflowExecutionWithTasks(t *testing.T) {
 		mutatedExecution      *nosqlplugin.WorkflowExecutionRequest
 		insertedExecution     *nosqlplugin.WorkflowExecutionRequest
 		resetExecution        *nosqlplugin.WorkflowExecutionRequest
-		transferTasks         []*nosqlplugin.TransferTask
-		crossClusterTasks     []*nosqlplugin.CrossClusterTask
-		replicationTasks      []*nosqlplugin.ReplicationTask
-		timerTasks            []*nosqlplugin.TimerTask
+		tasksByCategory       map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask
 		shardCondition        *nosqlplugin.ShardCondition
 		mapExecuteBatchCASErr error
 		wantErr               bool
@@ -453,10 +444,7 @@ func TestUpdateWorkflowExecutionWithTasks(t *testing.T) {
 				tc.mutatedExecution,
 				tc.insertedExecution,
 				tc.resetExecution,
-				tc.transferTasks,
-				tc.crossClusterTasks,
-				tc.replicationTasks,
-				tc.timerTasks,
+				tc.tasksByCategory,
 				tc.shardCondition,
 			)
 
@@ -1896,7 +1884,7 @@ func TestInsertReplicationDLQTask(t *testing.T) {
 		shardID       int
 		sourceCluster string
 		taskID        int64
-		task          nosqlplugin.ReplicationTask
+		task          *nosqlplugin.HistoryMigrationTask
 		queryMockFn   func(query *gocql.MockQuery)
 		wantErr       bool
 	}{
@@ -1905,8 +1893,14 @@ func TestInsertReplicationDLQTask(t *testing.T) {
 			shardID:       1,
 			sourceCluster: "test-source-cluster",
 			taskID:        123,
-			task: nosqlplugin.ReplicationTask{
-				TaskID: 123,
+			task: &nosqlplugin.HistoryMigrationTask{
+				Replication: &nosqlplugin.ReplicationTask{
+					TaskID: 123,
+				},
+				Task: &persistence.DataBlob{
+					Data:     []byte("dlq"),
+					Encoding: common.EncodingTypeThriftRW,
+				},
 			},
 			queryMockFn: func(query *gocql.MockQuery) {
 				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
@@ -1919,8 +1913,14 @@ func TestInsertReplicationDLQTask(t *testing.T) {
 			shardID:       1,
 			sourceCluster: "test-source-cluster",
 			taskID:        123,
-			task: nosqlplugin.ReplicationTask{
-				TaskID: 123,
+			task: &nosqlplugin.HistoryMigrationTask{
+				Replication: &nosqlplugin.ReplicationTask{
+					TaskID: 123,
+				},
+				Task: &persistence.DataBlob{
+					Data:     []byte("dlq"),
+					Encoding: common.EncodingTypeThriftRW,
+				},
 			},
 			queryMockFn: func(query *gocql.MockQuery) {
 				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
@@ -2227,7 +2227,7 @@ func TestRangeDeleteReplicationDLQTasks(t *testing.T) {
 func TestInsertReplicationTask(t *testing.T) {
 	tests := []struct {
 		name                      string
-		tasks                     []*nosqlplugin.ReplicationTask
+		tasks                     []*nosqlplugin.HistoryMigrationTask
 		shardCondition            nosqlplugin.ShardCondition
 		mapExecuteBatchCASApplied bool
 		mapExecuteBatchCASPrev    map[string]any
@@ -2241,27 +2241,87 @@ func TestInsertReplicationTask(t *testing.T) {
 		},
 		{
 			name: "mapExecuteBatchCASErr failure",
-			tasks: []*nosqlplugin.ReplicationTask{
-				{DomainID: "domain1", WorkflowID: "wfid1", TaskID: 1},
-				{DomainID: "domain1", WorkflowID: "wfid1", TaskID: 2},
+			tasks: []*nosqlplugin.HistoryMigrationTask{
+				{
+					Replication: &nosqlplugin.ReplicationTask{
+						DomainID:   "domain1",
+						WorkflowID: "wfid1",
+						TaskID:     1,
+					},
+					Task: &persistence.DataBlob{
+						Data:     []byte("r1"),
+						Encoding: common.EncodingTypeThriftRW,
+					},
+				},
+				{
+					Replication: &nosqlplugin.ReplicationTask{
+						DomainID:   "domain1",
+						WorkflowID: "wfid1",
+						TaskID:     2,
+					},
+					Task: &persistence.DataBlob{
+						Data:     []byte("r2"),
+						Encoding: common.EncodingTypeThriftRW,
+					},
+				},
 			},
 			mapExecuteBatchCASErr: errors.New("failed to execute batch"),
 			wantErr:               true,
 		},
 		{
 			name: "not applied and row type not found causes panic",
-			tasks: []*nosqlplugin.ReplicationTask{
-				{DomainID: "domain1", WorkflowID: "wfid1", TaskID: 1},
-				{DomainID: "domain1", WorkflowID: "wfid1", TaskID: 2},
+			tasks: []*nosqlplugin.HistoryMigrationTask{
+				{
+					Replication: &nosqlplugin.ReplicationTask{
+						DomainID:   "domain1",
+						WorkflowID: "wfid1",
+						TaskID:     1,
+					},
+					Task: &persistence.DataBlob{
+						Data:     []byte("r1"),
+						Encoding: common.EncodingTypeThriftRW,
+					},
+				},
+				{
+					Replication: &nosqlplugin.ReplicationTask{
+						DomainID:   "domain1",
+						WorkflowID: "wfid1",
+						TaskID:     2,
+					},
+					Task: &persistence.DataBlob{
+						Data:     []byte("r2"),
+						Encoding: common.EncodingTypeThriftRW,
+					},
+				},
 			},
 			mapExecuteBatchCASApplied: false,
 			wantPanic:                 true,
 		},
 		{
 			name: "not applied, row type shard condition failure",
-			tasks: []*nosqlplugin.ReplicationTask{
-				{DomainID: "domain1", WorkflowID: "wfid1", TaskID: 1},
-				{DomainID: "domain1", WorkflowID: "wfid1", TaskID: 2},
+			tasks: []*nosqlplugin.HistoryMigrationTask{
+				{
+					Replication: &nosqlplugin.ReplicationTask{
+						DomainID:   "domain1",
+						WorkflowID: "wfid1",
+						TaskID:     1,
+					},
+					Task: &persistence.DataBlob{
+						Data:     []byte("r1"),
+						Encoding: common.EncodingTypeThriftRW,
+					},
+				},
+				{
+					Replication: &nosqlplugin.ReplicationTask{
+						DomainID:   "domain1",
+						WorkflowID: "wfid1",
+						TaskID:     2,
+					},
+					Task: &persistence.DataBlob{
+						Data:     []byte("r2"),
+						Encoding: common.EncodingTypeThriftRW,
+					},
+				},
 			},
 			mapExecuteBatchCASApplied: false,
 			mapExecuteBatchCASPrev: map[string]any{
@@ -2276,9 +2336,29 @@ func TestInsertReplicationTask(t *testing.T) {
 		},
 		{
 			name: "not applied, unknown shard condition failure",
-			tasks: []*nosqlplugin.ReplicationTask{
-				{DomainID: "domain1", WorkflowID: "wfid1", TaskID: 1},
-				{DomainID: "domain1", WorkflowID: "wfid1", TaskID: 2},
+			tasks: []*nosqlplugin.HistoryMigrationTask{
+				{
+					Replication: &nosqlplugin.ReplicationTask{
+						DomainID:   "domain1",
+						WorkflowID: "wfid1",
+						TaskID:     1,
+					},
+					Task: &persistence.DataBlob{
+						Data:     []byte("r1"),
+						Encoding: common.EncodingTypeThriftRW,
+					},
+				},
+				{
+					Replication: &nosqlplugin.ReplicationTask{
+						DomainID:   "domain1",
+						WorkflowID: "wfid1",
+						TaskID:     2,
+					},
+					Task: &persistence.DataBlob{
+						Data:     []byte("r2"),
+						Encoding: common.EncodingTypeThriftRW,
+					},
+				},
 			},
 			mapExecuteBatchCASApplied: false,
 			mapExecuteBatchCASPrev: map[string]any{
@@ -2288,9 +2368,29 @@ func TestInsertReplicationTask(t *testing.T) {
 		},
 		{
 			name: "successfully applied",
-			tasks: []*nosqlplugin.ReplicationTask{
-				{DomainID: "domain1", WorkflowID: "wfid1", TaskID: 1},
-				{DomainID: "domain1", WorkflowID: "wfid1", TaskID: 2},
+			tasks: []*nosqlplugin.HistoryMigrationTask{
+				{
+					Replication: &nosqlplugin.ReplicationTask{
+						DomainID:   "domain1",
+						WorkflowID: "wfid1",
+						TaskID:     1,
+					},
+					Task: &persistence.DataBlob{
+						Data:     []byte("r1"),
+						Encoding: common.EncodingTypeThriftRW,
+					},
+				},
+				{
+					Replication: &nosqlplugin.ReplicationTask{
+						DomainID:   "domain1",
+						WorkflowID: "wfid1",
+						TaskID:     2,
+					},
+					Task: &persistence.DataBlob{
+						Data:     []byte("r2"),
+						Encoding: common.EncodingTypeThriftRW,
+					},
+				},
 			},
 			mapExecuteBatchCASApplied: true,
 		},

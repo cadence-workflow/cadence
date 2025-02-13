@@ -499,7 +499,7 @@ func (s *timerStandbyTaskExecutorSuite) TestProcessActivityTimeout_Multiple_CanU
 	s.NoError(err)
 	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(&persistence.GetWorkflowExecutionResponse{State: persistenceMutableState}, nil).Once()
 	s.mockExecutionMgr.On("UpdateWorkflowExecution", mock.Anything, mock.MatchedBy(func(input *persistence.UpdateWorkflowExecutionRequest) bool {
-		s.Equal(1, len(input.UpdateWorkflowMutation.TimerTasks))
+		s.Equal(1, len(input.UpdateWorkflowMutation.TasksByCategory[persistence.HistoryTaskCategoryTimer]))
 		s.Equal(1, len(input.UpdateWorkflowMutation.UpsertActivityInfos))
 		mutableState.GetExecutionInfo().LastUpdatedTimestamp = input.UpdateWorkflowMutation.ExecutionInfo.LastUpdatedTimestamp
 		input.RangeID = 0
@@ -510,9 +510,7 @@ func (s *timerStandbyTaskExecutorSuite) TestProcessActivityTimeout_Multiple_CanU
 			UpdateWorkflowMutation: persistence.WorkflowMutation{
 				ExecutionInfo:             mutableState.GetExecutionInfo(),
 				ExecutionStats:            &persistence.ExecutionStats{},
-				TransferTasks:             nil,
-				ReplicationTasks:          nil,
-				TimerTasks:                input.UpdateWorkflowMutation.TimerTasks,
+				TasksByCategory:           input.UpdateWorkflowMutation.TasksByCategory,
 				Condition:                 mutableState.GetNextEventID(),
 				UpsertActivityInfos:       input.UpdateWorkflowMutation.UpsertActivityInfos,
 				DeleteActivityInfos:       []int64{},

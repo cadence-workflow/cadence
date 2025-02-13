@@ -1,0 +1,8 @@
+{
+  "CurrVersion": "0.41",
+  "MinCompatibleVersion": "0.41",
+  "Description": "Adding task blob and task blob encoding column to executions table to represent all history tasks",
+  "SchemaUpdateCqlFiles": [
+    "executions.cql"
+  ]
+}

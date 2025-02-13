@@ -84,10 +84,7 @@ func applyWorkflowMutationTx(
 		domainID,
 		workflowID,
 		runID,
-		workflowMutation.TransferTasks,
-		workflowMutation.CrossClusterTasks,
-		workflowMutation.ReplicationTasks,
-		workflowMutation.TimerTasks,
+		workflowMutation.TasksByCategory,
 		parser,
 	); err != nil {
 		return err
@@ -249,10 +246,7 @@ func applyWorkflowSnapshotTxAsReset(
 		domainID,
 		workflowID,
 		runID,
-		workflowSnapshot.TransferTasks,
-		workflowSnapshot.CrossClusterTasks,
-		workflowSnapshot.ReplicationTasks,
-		workflowSnapshot.TimerTasks,
+		workflowSnapshot.TasksByCategory,
 		parser,
 	); err != nil {
 		return err
@@ -441,10 +435,7 @@ func applyWorkflowSnapshotTxAsNew(
 		domainID,
 		workflowID,
 		runID,
-		workflowSnapshot.TransferTasks,
-		workflowSnapshot.CrossClusterTasks,
-		workflowSnapshot.ReplicationTasks,
-		workflowSnapshot.TimerTasks,
+		workflowSnapshot.TasksByCategory,
 		parser,
 	); err != nil {
 		return err
@@ -533,60 +524,22 @@ func applyTasks(
 	domainID serialization.UUID,
 	workflowID string,
 	runID serialization.UUID,
-	transferTasks []p.Task,
-	crossClusterTasks []p.Task,
-	replicationTasks []p.Task,
-	timerTasks []p.Task,
+	tasksByCategory map[p.HistoryTaskCategory][]p.Task,
 	parser serialization.Parser,
 ) error {
-
-	if err := createTransferTasks(
-		ctx,
-		tx,
-		transferTasks,
-		shardID,
-		domainID,
-		workflowID,
-		runID,
-		parser); err != nil {
-		return err
+	var err error
+	for c, tasks := range tasksByCategory {
+		switch c.Type() {
+		case p.HistoryTaskCategoryTypeImmediate:
+			err = createImmediateTasks(ctx, tx, shardID, domainID, workflowID, runID, c.ID(), tasks, parser)
+		case p.HistoryTaskCategoryTypeScheduled:
+			err = createScheduledTasks(ctx, tx, shardID, domainID, workflowID, runID, c.ID(), tasks, parser)
+		}
+		if err != nil {
+			return err
+		}
 	}
-
-	if err := createCrossClusterTasks(
-		ctx,
-		tx,
-		crossClusterTasks,
-		shardID,
-		domainID,
-		workflowID,
-		runID,
-		parser); err != nil {
-		return err
-	}
-
-	if err := createReplicationTasks(
-		ctx,
-		tx,
-		replicationTasks,
-		shardID,
-		domainID,
-		workflowID,
-		runID,
-		parser,
-	); err != nil {
-		return err
-	}
-
-	return createTimerTasks(
-		ctx,
-		tx,
-		timerTasks,
-		shardID,
-		domainID,
-		workflowID,
-		runID,
-		parser,
-	)
+	return nil
 }
 
 // lockCurrentExecutionIfExists returns current execution or nil if none is found for the workflowID
@@ -741,111 +694,43 @@ func lockNextEventID(
 	return &result, nil
 }
 
-func createCrossClusterTasks(
+func createImmediateTasks(
 	ctx context.Context,
 	tx sqlplugin.Tx,
-	crossClusterTasks []p.Task,
 	shardID int,
 	domainID serialization.UUID,
 	workflowID string,
 	runID serialization.UUID,
+	categoryID int,
+	tasks []p.Task,
 	parser serialization.Parser,
 ) error {
-	if len(crossClusterTasks) == 0 {
-		return nil
+	switch categoryID {
+	case p.HistoryTaskCategoryIDTransfer:
+		return createTransferTasks(ctx, tx, tasks, shardID, domainID, workflowID, runID, parser)
+	case p.HistoryTaskCategoryIDReplication:
+		return createReplicationTasks(ctx, tx, tasks, shardID, domainID, workflowID, runID, parser)
 	}
+	// TODO: implement creating tasks for other categories
+	return nil
+}
 
-	crossClusterTasksRows := make([]sqlplugin.CrossClusterTasksRow, len(crossClusterTasks))
-	for i, task := range crossClusterTasks {
-		info := &serialization.CrossClusterTaskInfo{
-			DomainID:            domainID,
-			WorkflowID:          workflowID,
-			RunID:               runID,
-			TaskType:            int16(task.GetType()),
-			TargetDomainID:      domainID,
-			TargetWorkflowID:    p.TransferTaskTransferTargetWorkflowID,
-			TargetRunID:         serialization.UUID(p.CrossClusterTaskDefaultTargetRunID),
-			ScheduleID:          0,
-			Version:             task.GetVersion(),
-			VisibilityTimestamp: task.GetVisibilityTimestamp(),
-		}
-
-		crossClusterTasksRows[i].ShardID = shardID
-		crossClusterTasksRows[i].TaskID = task.GetTaskID()
-
-		switch task.GetType() {
-		case p.CrossClusterTaskTypeStartChildExecution:
-			crossClusterTasksRows[i].TargetCluster = task.(*p.CrossClusterStartChildExecutionTask).TargetCluster
-			info.TargetDomainID = serialization.MustParseUUID(task.(*p.CrossClusterStartChildExecutionTask).TargetDomainID)
-			info.TargetWorkflowID = task.(*p.CrossClusterStartChildExecutionTask).TargetWorkflowID
-			info.ScheduleID = task.(*p.CrossClusterStartChildExecutionTask).InitiatedID
-
-		case p.CrossClusterTaskTypeCancelExecution:
-			crossClusterTasksRows[i].TargetCluster = task.(*p.CrossClusterCancelExecutionTask).TargetCluster
-			info.TargetDomainID = serialization.MustParseUUID(task.(*p.CrossClusterCancelExecutionTask).TargetDomainID)
-			info.TargetWorkflowID = task.(*p.CrossClusterCancelExecutionTask).TargetWorkflowID
-			if targetRunID := task.(*p.CrossClusterCancelExecutionTask).TargetRunID; targetRunID != "" {
-				info.TargetRunID = serialization.MustParseUUID(targetRunID)
-			}
-			info.TargetChildWorkflowOnly = task.(*p.CrossClusterCancelExecutionTask).TargetChildWorkflowOnly
-			info.ScheduleID = task.(*p.CrossClusterCancelExecutionTask).InitiatedID
-
-		case p.CrossClusterTaskTypeSignalExecution:
-			crossClusterTasksRows[i].TargetCluster = task.(*p.CrossClusterSignalExecutionTask).TargetCluster
-			info.TargetDomainID = serialization.MustParseUUID(task.(*p.CrossClusterSignalExecutionTask).TargetDomainID)
-			info.TargetWorkflowID = task.(*p.CrossClusterSignalExecutionTask).TargetWorkflowID
-			if targetRunID := task.(*p.CrossClusterSignalExecutionTask).TargetRunID; targetRunID != "" {
-				info.TargetRunID = serialization.MustParseUUID(targetRunID)
-			}
-			info.TargetChildWorkflowOnly = task.(*p.CrossClusterSignalExecutionTask).TargetChildWorkflowOnly
-			info.ScheduleID = task.(*p.CrossClusterSignalExecutionTask).InitiatedID
-
-		case p.CrossClusterTaskTypeRecordChildExeuctionCompleted:
-			crossClusterTasksRows[i].TargetCluster = task.(*p.CrossClusterRecordChildExecutionCompletedTask).TargetCluster
-			info.TargetDomainID = serialization.MustParseUUID(task.(*p.CrossClusterRecordChildExecutionCompletedTask).TargetDomainID)
-			info.TargetWorkflowID = task.(*p.CrossClusterRecordChildExecutionCompletedTask).TargetWorkflowID
-			if targetRunID := task.(*p.CrossClusterRecordChildExecutionCompletedTask).TargetRunID; targetRunID != "" {
-				info.TargetRunID = serialization.MustParseUUID(targetRunID)
-			}
-
-		case p.CrossClusterTaskTypeApplyParentClosePolicy:
-			crossClusterTasksRows[i].TargetCluster = task.(*p.CrossClusterApplyParentClosePolicyTask).TargetCluster
-			for domainID := range task.(*p.CrossClusterApplyParentClosePolicyTask).TargetDomainIDs {
-				info.TargetDomainIDs = append(info.TargetDomainIDs, serialization.MustParseUUID(domainID))
-			}
-
-		default:
-			return &types.InternalServiceError{
-				Message: fmt.Sprintf("Unknown cross-cluster task type: %v", task.GetType()),
-			}
-		}
-
-		blob, err := parser.CrossClusterTaskInfoToBlob(info)
-		if err != nil {
-			return err
-		}
-		crossClusterTasksRows[i].Data = blob.Data
-		crossClusterTasksRows[i].DataEncoding = string(blob.Encoding)
+func createScheduledTasks(
+	ctx context.Context,
+	tx sqlplugin.Tx,
+	shardID int,
+	domainID serialization.UUID,
+	workflowID string,
+	runID serialization.UUID,
+	categoryID int,
+	tasks []p.Task,
+	parser serialization.Parser,
+) error {
+	switch categoryID {
+	case p.HistoryTaskCategoryIDTimer:
+		return createTimerTasks(ctx, tx, tasks, shardID, domainID, workflowID, runID, parser)
 	}
-
-	result, err := tx.InsertIntoCrossClusterTasks(ctx, crossClusterTasksRows)
-	if err != nil {
-		return convertCommonErrors(tx, "createCrossClusterTasks", "", err)
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return &types.InternalServiceError{
-			Message: fmt.Sprintf("createTransferTasks failed. Could not verify number of rows inserted. Error: %v", err),
-		}
-	}
-
-	if int(rowsAffected) != len(crossClusterTasks) {
-		return &types.InternalServiceError{
-			Message: fmt.Sprintf("createCrossClusterTasks failed. Inserted %v instead of %v rows into transfer_tasks. Error: %v", rowsAffected, len(crossClusterTasks), err),
-		}
-	}
-
+	// TODO: implement creating tasks for other categories
 	return nil
 }
 
