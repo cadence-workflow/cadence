@@ -889,9 +889,7 @@ func notifyTasksFromWorkflowSnapshot(
 		workflowSnapShot.ExecutionInfo,
 		workflowSnapShot.VersionHistories,
 		workflowSnapShot.ActivityInfos,
-		workflowSnapShot.TransferTasks,
-		workflowSnapShot.TimerTasks,
-		workflowSnapShot.ReplicationTasks,
+		workflowSnapShot.TasksByCategory,
 		history,
 		persistenceError,
 	)
@@ -912,9 +910,7 @@ func notifyTasksFromWorkflowMutation(
 		workflowMutation.ExecutionInfo,
 		workflowMutation.VersionHistories,
 		workflowMutation.UpsertActivityInfos,
-		workflowMutation.TransferTasks,
-		workflowMutation.TimerTasks,
-		workflowMutation.ReplicationTasks,
+		workflowMutation.TasksByCategory,
 		history,
 		persistenceError,
 	)
@@ -933,31 +929,30 @@ func notifyTasks(
 	executionInfo *persistence.WorkflowExecutionInfo,
 	versionHistories *persistence.VersionHistories,
 	activities []*persistence.ActivityInfo,
-	transferTasks []persistence.Task,
-	timerTasks []persistence.Task,
-	replicationTasks []persistence.Task,
+	tasksByCategory map[persistence.HistoryTaskCategory][]persistence.Task,
 	history events.PersistedBlobs,
 	persistenceError bool,
 ) {
 	transferTaskInfo := &hcommon.NotifyTaskInfo{
 		ExecutionInfo:    executionInfo,
-		Tasks:            transferTasks,
+		Tasks:            tasksByCategory[persistence.HistoryTaskCategoryTransfer],
 		PersistenceError: persistenceError,
 	}
 	timerTaskInfo := &hcommon.NotifyTaskInfo{
 		ExecutionInfo:    executionInfo,
-		Tasks:            timerTasks,
+		Tasks:            tasksByCategory[persistence.HistoryTaskCategoryTimer],
 		PersistenceError: persistenceError,
 	}
 	replicationTaskInfo := &hcommon.NotifyTaskInfo{
 		ExecutionInfo:    executionInfo,
-		Tasks:            replicationTasks,
+		Tasks:            tasksByCategory[persistence.HistoryTaskCategoryReplication],
 		VersionHistories: versionHistories,
 		Activities:       activityInfosToMap(activities),
 		History:          history,
 		PersistenceError: persistenceError,
 	}
 
+	// TODO: unify these methods
 	engine.NotifyNewTransferTasks(transferTaskInfo)
 	engine.NotifyNewTimerTasks(timerTaskInfo)
 	engine.NotifyNewReplicationTasks(replicationTaskInfo)
@@ -980,11 +975,11 @@ func mergeContinueAsNewReplicationTasks(
 	// current workflow is doing continue as new
 
 	// it is possible that continue as new is done as part of passive logic
-	if len(currentWorkflowMutation.ReplicationTasks) == 0 {
+	if len(currentWorkflowMutation.TasksByCategory[persistence.HistoryTaskCategoryReplication]) == 0 {
 		return nil
 	}
 
-	if newWorkflowSnapshot == nil || len(newWorkflowSnapshot.ReplicationTasks) != 1 {
+	if newWorkflowSnapshot == nil || len(newWorkflowSnapshot.TasksByCategory[persistence.HistoryTaskCategoryReplication]) != 1 {
 		return &types.InternalServiceError{
 			Message: "unable to find replication task from new workflow for continue as new replication",
 		}
@@ -992,12 +987,12 @@ func mergeContinueAsNewReplicationTasks(
 
 	// merge the new run first event batch replication task
 	// to current event batch replication task
-	newRunTask := newWorkflowSnapshot.ReplicationTasks[0].(*persistence.HistoryReplicationTask)
-	newWorkflowSnapshot.ReplicationTasks = nil
+	newRunTask := newWorkflowSnapshot.TasksByCategory[persistence.HistoryTaskCategoryReplication][0].(*persistence.HistoryReplicationTask)
+	newWorkflowSnapshot.TasksByCategory[persistence.HistoryTaskCategoryReplication] = nil
 
 	newRunBranchToken := newRunTask.BranchToken
 	taskUpdated := false
-	for _, replicationTask := range currentWorkflowMutation.ReplicationTasks {
+	for _, replicationTask := range currentWorkflowMutation.TasksByCategory[persistence.HistoryTaskCategoryReplication] {
 		if task, ok := replicationTask.(*persistence.HistoryReplicationTask); ok {
 			taskUpdated = true
 			task.NewRunBranchToken = newRunBranchToken

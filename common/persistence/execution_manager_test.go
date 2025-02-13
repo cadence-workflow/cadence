@@ -426,14 +426,15 @@ func TestExecutionManager_UpdateWorkflowExecution(t *testing.T) {
 	res, err := manager.UpdateWorkflowExecution(context.Background(), request)
 	assert.NoError(t, err)
 	stats := &MutableStateUpdateSessionStats{
-		MutableStateSize:  90,
-		ExecutionInfoSize: 40,
-		ActivityInfoSize:  20,
-		TimerInfoSize:     10,
-		ChildInfoSize:     20,
-		ActivityInfoCount: 1,
-		TimerInfoCount:    2,
-		ChildInfoCount:    1,
+		MutableStateSize:    90,
+		ExecutionInfoSize:   40,
+		ActivityInfoSize:    20,
+		TimerInfoSize:       10,
+		ChildInfoSize:       20,
+		ActivityInfoCount:   1,
+		TimerInfoCount:      1,
+		ChildInfoCount:      1,
+		TaskCountByCategory: map[HistoryTaskCategory]int{},
 	}
 	assert.Equal(t, stats, res.MutableStateUpdateSessionStats)
 }
@@ -1016,14 +1017,15 @@ func TestCreateWorkflowExecution(t *testing.T) {
 			checkRes: func(t *testing.T, response *CreateWorkflowExecutionResponse, err error) {
 				assert.Equal(t, &CreateWorkflowExecutionResponse{
 					MutableStateUpdateSessionStats: &MutableStateUpdateSessionStats{
-						MutableStateSize:  91,
-						ExecutionInfoSize: 20,
-						ActivityInfoSize:  29,
-						TimerInfoSize:     22,
-						ChildInfoSize:     20,
-						ActivityInfoCount: 1,
-						TimerInfoCount:    2,
-						ChildInfoCount:    1,
+						MutableStateSize:    91,
+						ExecutionInfoSize:   20,
+						ActivityInfoSize:    29,
+						TimerInfoSize:       22,
+						ChildInfoSize:       20,
+						ActivityInfoCount:   1,
+						TimerInfoCount:      2,
+						ChildInfoCount:      1,
+						TaskCountByCategory: map[HistoryTaskCategory]int{},
 					},
 				}, response)
 			},
@@ -1118,14 +1120,15 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 				assert.NoError(t, err)
 				assert.Equal(t, &ConflictResolveWorkflowExecutionResponse{
 					MutableStateUpdateSessionStats: &MutableStateUpdateSessionStats{
-						MutableStateSize:  91,
-						ExecutionInfoSize: 20,
-						ActivityInfoSize:  29,
-						TimerInfoSize:     22,
-						ChildInfoSize:     20,
-						ActivityInfoCount: 1,
-						TimerInfoCount:    2,
-						ChildInfoCount:    1,
+						MutableStateSize:    91,
+						ExecutionInfoSize:   20,
+						ActivityInfoSize:    29,
+						TimerInfoSize:       22,
+						ChildInfoSize:       20,
+						ActivityInfoCount:   1,
+						TimerInfoCount:      2,
+						ChildInfoCount:      1,
+						TaskCountByCategory: map[HistoryTaskCategory]int{},
 					},
 				}, response)
 			},
@@ -1184,14 +1187,15 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 				assert.NoError(t, err)
 				assert.Equal(t, &ConflictResolveWorkflowExecutionResponse{
 					MutableStateUpdateSessionStats: &MutableStateUpdateSessionStats{
-						MutableStateSize:  161,
-						ExecutionInfoSize: 40,
-						ActivityInfoSize:  49,
-						TimerInfoSize:     32,
-						ChildInfoSize:     40,
-						ActivityInfoCount: 2,
-						TimerInfoCount:    6,
-						ChildInfoCount:    2,
+						MutableStateSize:    161,
+						ExecutionInfoSize:   40,
+						ActivityInfoSize:    49,
+						TimerInfoSize:       32,
+						ChildInfoSize:       40,
+						ActivityInfoCount:   2,
+						TimerInfoCount:      3,
+						ChildInfoCount:      2,
+						TaskCountByCategory: map[HistoryTaskCategory]int{},
 					},
 				}, response)
 			},

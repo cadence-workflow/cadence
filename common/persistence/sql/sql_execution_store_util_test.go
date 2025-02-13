@@ -101,20 +101,6 @@ func mockCreateTransferTasks(
 	mockTx.EXPECT().InsertIntoTransferTasks(gomock.Any(), gomock.Any()).Return(&sqlResult{rowsAffected: int64(tasks)}, err)
 }
 
-func mockCreateCrossClusterTasks(
-	mockTx *sqlplugin.MockTx,
-	mockParser *serialization.MockParser,
-	tasks int,
-	wantErr bool,
-) {
-	var err error
-	if wantErr {
-		err = errors.New("some error")
-	}
-	mockParser.EXPECT().CrossClusterTaskInfoToBlob(gomock.Any()).Return(persistence.DataBlob{}, nil).Times(tasks)
-	mockTx.EXPECT().InsertIntoCrossClusterTasks(gomock.Any(), gomock.Any()).Return(&sqlResult{rowsAffected: int64(tasks)}, err)
-}
-
 func mockCreateReplicationTasks(
 	mockTx *sqlplugin.MockTx,
 	mockParser *serialization.MockParser,
@@ -147,7 +133,6 @@ func mockApplyTasks(
 	mockTx *sqlplugin.MockTx,
 	mockParser *serialization.MockParser,
 	transfer int,
-	crossCluster int,
 	timer int,
 	replication int,
 	wantErr bool,
@@ -156,7 +141,6 @@ func mockApplyTasks(
 	if wantErr {
 		return
 	}
-	mockCreateCrossClusterTasks(mockTx, mockParser, crossCluster, wantErr)
 	mockCreateTimerTasks(mockTx, mockParser, timer, wantErr)
 	mockCreateReplicationTasks(mockTx, mockParser, replication, wantErr)
 }
@@ -459,23 +443,21 @@ func TestApplyWorkflowMutationTx(t *testing.T) {
 					RunID:      "8be8a310-7d20-483e-a5d2-48659dc47603",
 				},
 				Condition: 9,
-				TransferTasks: []persistence.Task{
-					&persistence.ActivityTask{},
-				},
-				CrossClusterTasks: []persistence.Task{
-					&persistence.CrossClusterStartChildExecutionTask{},
-					&persistence.CrossClusterStartChildExecutionTask{},
-				},
-				TimerTasks: []persistence.Task{
-					&persistence.DecisionTimeoutTask{},
-					&persistence.DecisionTimeoutTask{},
-					&persistence.DecisionTimeoutTask{},
-				},
-				ReplicationTasks: []persistence.Task{
-					&persistence.HistoryReplicationTask{},
-					&persistence.HistoryReplicationTask{},
-					&persistence.HistoryReplicationTask{},
-					&persistence.HistoryReplicationTask{},
+				TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+					persistence.HistoryTaskCategoryTransfer: []persistence.Task{
+						&persistence.ActivityTask{},
+					},
+					persistence.HistoryTaskCategoryTimer: []persistence.Task{
+						&persistence.DecisionTimeoutTask{},
+						&persistence.DecisionTimeoutTask{},
+						&persistence.DecisionTimeoutTask{},
+					},
+					persistence.HistoryTaskCategoryReplication: []persistence.Task{
+						&persistence.HistoryReplicationTask{},
+						&persistence.HistoryReplicationTask{},
+						&persistence.HistoryReplicationTask{},
+						&persistence.HistoryReplicationTask{},
+					},
 				},
 				UpsertActivityInfos: []*persistence.InternalActivityInfo{
 					{},
@@ -504,7 +486,7 @@ func TestApplyWorkflowMutationTx(t *testing.T) {
 			mockSetup: func(mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
 				mockSetupLockAndCheckNextEventID(mockTx, shardID, serialization.MustParseUUID("8be8a310-7d20-483e-a5d2-48659dc47602"), "abc", serialization.MustParseUUID("8be8a310-7d20-483e-a5d2-48659dc47603"), 9, false)
 				mockUpdateExecution(mockTx, mockParser, false)
-				mockApplyTasks(mockTx, mockParser, 1, 2, 3, 4, false)
+				mockApplyTasks(mockTx, mockParser, 1, 3, 4, false)
 				mockUpdateActivityInfos(mockTx, mockParser, 1, 2, false)
 				mockUpdateTimerInfos(mockTx, mockParser, 1, 2, false)
 				mockUpdateChildExecutionInfos(mockTx, mockParser, 1, 2, false)
@@ -555,23 +537,21 @@ func TestApplyWorkflowSnapshotTxAsReset(t *testing.T) {
 					RunID:      "8be8a310-7d20-483e-a5d2-48659dc47603",
 				},
 				Condition: 9,
-				TransferTasks: []persistence.Task{
-					&persistence.ActivityTask{},
-				},
-				CrossClusterTasks: []persistence.Task{
-					&persistence.CrossClusterStartChildExecutionTask{},
-					&persistence.CrossClusterStartChildExecutionTask{},
-				},
-				TimerTasks: []persistence.Task{
-					&persistence.DecisionTimeoutTask{},
-					&persistence.DecisionTimeoutTask{},
-					&persistence.DecisionTimeoutTask{},
-				},
-				ReplicationTasks: []persistence.Task{
-					&persistence.HistoryReplicationTask{},
-					&persistence.HistoryReplicationTask{},
-					&persistence.HistoryReplicationTask{},
-					&persistence.HistoryReplicationTask{},
+				TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+					persistence.HistoryTaskCategoryTransfer: []persistence.Task{
+						&persistence.ActivityTask{},
+					},
+					persistence.HistoryTaskCategoryTimer: []persistence.Task{
+						&persistence.DecisionTimeoutTask{},
+						&persistence.DecisionTimeoutTask{},
+						&persistence.DecisionTimeoutTask{},
+					},
+					persistence.HistoryTaskCategoryReplication: []persistence.Task{
+						&persistence.HistoryReplicationTask{},
+						&persistence.HistoryReplicationTask{},
+						&persistence.HistoryReplicationTask{},
+						&persistence.HistoryReplicationTask{},
+					},
 				},
 				ActivityInfos: []*persistence.InternalActivityInfo{
 					{},
@@ -596,7 +576,7 @@ func TestApplyWorkflowSnapshotTxAsReset(t *testing.T) {
 				runID := serialization.MustParseUUID("8be8a310-7d20-483e-a5d2-48659dc47603")
 				mockSetupLockAndCheckNextEventID(mockTx, shardID, domainID, workflowID, runID, 9, false)
 				mockUpdateExecution(mockTx, mockParser, false)
-				mockApplyTasks(mockTx, mockParser, 1, 2, 3, 4, false)
+				mockApplyTasks(mockTx, mockParser, 1, 3, 4, false)
 				mockDeleteActivityInfoMap(mockTx, shardID, domainID, workflowID, runID, false)
 				mockUpdateActivityInfos(mockTx, mockParser, 1, 0, false)
 				mockDeleteTimerInfoMap(mockTx, shardID, domainID, workflowID, runID, false)
@@ -653,23 +633,21 @@ func TestApplyWorkflowSnapshotTxAsNew(t *testing.T) {
 					RunID:      "8be8a310-7d20-483e-a5d2-48659dc47603",
 				},
 				Condition: 9,
-				TransferTasks: []persistence.Task{
-					&persistence.ActivityTask{},
-				},
-				CrossClusterTasks: []persistence.Task{
-					&persistence.CrossClusterStartChildExecutionTask{},
-					&persistence.CrossClusterStartChildExecutionTask{},
-				},
-				TimerTasks: []persistence.Task{
-					&persistence.DecisionTimeoutTask{},
-					&persistence.DecisionTimeoutTask{},
-					&persistence.DecisionTimeoutTask{},
-				},
-				ReplicationTasks: []persistence.Task{
-					&persistence.HistoryReplicationTask{},
-					&persistence.HistoryReplicationTask{},
-					&persistence.HistoryReplicationTask{},
-					&persistence.HistoryReplicationTask{},
+				TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+					persistence.HistoryTaskCategoryTransfer: []persistence.Task{
+						&persistence.ActivityTask{},
+					},
+					persistence.HistoryTaskCategoryTimer: []persistence.Task{
+						&persistence.DecisionTimeoutTask{},
+						&persistence.DecisionTimeoutTask{},
+						&persistence.DecisionTimeoutTask{},
+					},
+					persistence.HistoryTaskCategoryReplication: []persistence.Task{
+						&persistence.HistoryReplicationTask{},
+						&persistence.HistoryReplicationTask{},
+						&persistence.HistoryReplicationTask{},
+						&persistence.HistoryReplicationTask{},
+					},
 				},
 				ActivityInfos: []*persistence.InternalActivityInfo{
 					{},
@@ -690,7 +668,7 @@ func TestApplyWorkflowSnapshotTxAsNew(t *testing.T) {
 			},
 			mockSetup: func(mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
 				mockCreateExecution(mockTx, mockParser, false)
-				mockApplyTasks(mockTx, mockParser, 1, 2, 3, 4, false)
+				mockApplyTasks(mockTx, mockParser, 1, 3, 4, false)
 				mockUpdateActivityInfos(mockTx, mockParser, 1, 0, false)
 				mockUpdateTimerInfos(mockTx, mockParser, 1, 0, false)
 				mockUpdateChildExecutionInfos(mockTx, mockParser, 1, 0, false)
@@ -1591,270 +1569,6 @@ func TestCreateTimerTasks(t *testing.T) {
 			tc.mockSetup(mockTx, mockParser)
 
 			err := createTimerTasks(context.Background(), mockTx, tc.tasks, shardID, domainID, workflowID, runID, mockParser)
-			if tc.wantErr {
-				assert.Error(t, err, "Expected an error for test case")
-				if tc.assertErr != nil {
-					tc.assertErr(t, err)
-				}
-			} else {
-				assert.NoError(t, err, "Did not expect an error for test case")
-			}
-		})
-	}
-}
-
-func TestCreateCrossClusterTasks(t *testing.T) {
-	shardID := 1
-	domainID := serialization.MustParseUUID("8be8a310-7d20-483e-a5d2-48659dc47602")
-	workflowID := "abc"
-	runID := serialization.MustParseUUID("8be8a310-7d20-483e-a5d2-48659dc47603")
-	testCases := []struct {
-		name      string
-		tasks     []persistence.Task
-		mockSetup func(*sqlplugin.MockTx, *serialization.MockParser)
-		wantErr   bool
-		assertErr func(*testing.T, error)
-	}{
-		{
-			name: "Success case",
-			tasks: []persistence.Task{
-				&persistence.CrossClusterStartChildExecutionTask{
-					TargetCluster: "1",
-					StartChildExecutionTask: persistence.StartChildExecutionTask{
-						TaskData: persistence.TaskData{
-							Version:             1,
-							VisibilityTimestamp: time.Unix(1, 1),
-							TaskID:              1,
-						},
-						TargetDomainID:   "2be8a310-7d20-483e-a5d2-48659dc47609",
-						TargetWorkflowID: "xcd",
-						InitiatedID:      111,
-					},
-				},
-				&persistence.CrossClusterCancelExecutionTask{
-					TargetCluster: "2",
-					CancelExecutionTask: persistence.CancelExecutionTask{
-						TaskData: persistence.TaskData{
-							Version:             2,
-							VisibilityTimestamp: time.Unix(2, 2),
-							TaskID:              2,
-						},
-						TargetDomainID:          "6be8a310-7d20-483e-a5d2-48659dc47609",
-						TargetWorkflowID:        "acd",
-						TargetRunID:             "3be8a310-7d20-483e-a5d2-48659dc47609",
-						TargetChildWorkflowOnly: true,
-						InitiatedID:             222,
-					},
-				},
-				&persistence.CrossClusterSignalExecutionTask{
-					TargetCluster: "3",
-					SignalExecutionTask: persistence.SignalExecutionTask{
-						TaskData: persistence.TaskData{
-							Version:             3,
-							VisibilityTimestamp: time.Unix(3, 3),
-							TaskID:              3,
-						},
-						TargetDomainID:          "5be8a310-7d20-483e-a5d2-48659dc47609",
-						TargetWorkflowID:        "zcd",
-						TargetRunID:             "4be8a310-7d20-483e-a5d2-48659dc47609",
-						TargetChildWorkflowOnly: true,
-						InitiatedID:             333,
-					},
-				},
-				&persistence.CrossClusterRecordChildExecutionCompletedTask{
-					TargetCluster: "4",
-					RecordChildExecutionCompletedTask: persistence.RecordChildExecutionCompletedTask{
-						TaskData: persistence.TaskData{
-							Version:             4,
-							VisibilityTimestamp: time.Unix(4, 4),
-							TaskID:              4,
-						},
-						TargetDomainID:   "1be8a310-7d20-483e-a5d2-48659dc47609",
-						TargetWorkflowID: "ddd",
-						TargetRunID:      "0be8a310-7d20-483e-a5d2-48659dc47609",
-					},
-				},
-				&persistence.CrossClusterApplyParentClosePolicyTask{
-					TargetCluster: "5",
-					ApplyParentClosePolicyTask: persistence.ApplyParentClosePolicyTask{
-						TaskData: persistence.TaskData{
-							Version:             5,
-							VisibilityTimestamp: time.Unix(5, 5),
-							TaskID:              5,
-						},
-						TargetDomainIDs: map[string]struct{}{"abe8a310-7d20-483e-a5d2-48659dc47609": struct{}{}},
-					},
-				},
-			},
-			mockSetup: func(mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
-				mockParser.EXPECT().CrossClusterTaskInfoToBlob(&serialization.CrossClusterTaskInfo{
-					DomainID:            domainID,
-					WorkflowID:          workflowID,
-					RunID:               runID,
-					TaskType:            int16(persistence.CrossClusterTaskTypeStartChildExecution),
-					TargetDomainID:      serialization.MustParseUUID("2be8a310-7d20-483e-a5d2-48659dc47609"),
-					TargetWorkflowID:    "xcd",
-					TargetRunID:         serialization.UUID(persistence.CrossClusterTaskDefaultTargetRunID),
-					ScheduleID:          111,
-					Version:             1,
-					VisibilityTimestamp: time.Unix(1, 1),
-				}).Return(persistence.DataBlob{
-					Data:     []byte(`1`),
-					Encoding: common.EncodingType("1"),
-				}, nil)
-				mockParser.EXPECT().CrossClusterTaskInfoToBlob(&serialization.CrossClusterTaskInfo{
-					DomainID:                domainID,
-					WorkflowID:              workflowID,
-					RunID:                   runID,
-					TaskType:                int16(persistence.CrossClusterTaskTypeCancelExecution),
-					TargetDomainID:          serialization.MustParseUUID("6be8a310-7d20-483e-a5d2-48659dc47609"),
-					TargetWorkflowID:        "acd",
-					TargetRunID:             serialization.MustParseUUID("3be8a310-7d20-483e-a5d2-48659dc47609"),
-					ScheduleID:              222,
-					Version:                 2,
-					VisibilityTimestamp:     time.Unix(2, 2),
-					TargetChildWorkflowOnly: true,
-				}).Return(persistence.DataBlob{
-					Data:     []byte(`2`),
-					Encoding: common.EncodingType("2"),
-				}, nil)
-				mockParser.EXPECT().CrossClusterTaskInfoToBlob(&serialization.CrossClusterTaskInfo{
-					DomainID:                domainID,
-					WorkflowID:              workflowID,
-					RunID:                   runID,
-					TaskType:                int16(persistence.CrossClusterTaskTypeSignalExecution),
-					TargetDomainID:          serialization.MustParseUUID("5be8a310-7d20-483e-a5d2-48659dc47609"),
-					TargetWorkflowID:        "zcd",
-					TargetRunID:             serialization.MustParseUUID("4be8a310-7d20-483e-a5d2-48659dc47609"),
-					ScheduleID:              333,
-					Version:                 3,
-					VisibilityTimestamp:     time.Unix(3, 3),
-					TargetChildWorkflowOnly: true,
-				}).Return(persistence.DataBlob{
-					Data:     []byte(`3`),
-					Encoding: common.EncodingType("3"),
-				}, nil)
-				mockParser.EXPECT().CrossClusterTaskInfoToBlob(&serialization.CrossClusterTaskInfo{
-					DomainID:            domainID,
-					WorkflowID:          workflowID,
-					RunID:               runID,
-					TaskType:            int16(persistence.CrossClusterTaskTypeRecordChildExeuctionCompleted),
-					TargetDomainID:      serialization.MustParseUUID("1be8a310-7d20-483e-a5d2-48659dc47609"),
-					TargetWorkflowID:    "ddd",
-					TargetRunID:         serialization.MustParseUUID("0be8a310-7d20-483e-a5d2-48659dc47609"),
-					Version:             4,
-					VisibilityTimestamp: time.Unix(4, 4),
-				}).Return(persistence.DataBlob{
-					Data:     []byte(`4`),
-					Encoding: common.EncodingType("4"),
-				}, nil)
-				mockParser.EXPECT().CrossClusterTaskInfoToBlob(&serialization.CrossClusterTaskInfo{
-					DomainID:            domainID,
-					WorkflowID:          workflowID,
-					RunID:               runID,
-					TaskType:            int16(persistence.CrossClusterTaskTypeApplyParentClosePolicy),
-					TargetDomainID:      domainID,
-					TargetDomainIDs:     []serialization.UUID{serialization.MustParseUUID("abe8a310-7d20-483e-a5d2-48659dc47609")},
-					TargetWorkflowID:    persistence.TransferTaskTransferTargetWorkflowID,
-					TargetRunID:         serialization.UUID(persistence.CrossClusterTaskDefaultTargetRunID),
-					Version:             5,
-					VisibilityTimestamp: time.Unix(5, 5),
-				}).Return(persistence.DataBlob{
-					Data:     []byte(`5`),
-					Encoding: common.EncodingType("5"),
-				}, nil)
-				mockTx.EXPECT().InsertIntoCrossClusterTasks(gomock.Any(), []sqlplugin.CrossClusterTasksRow{
-					{
-						ShardID:       shardID,
-						TaskID:        1,
-						TargetCluster: "1",
-						Data:          []byte(`1`),
-						DataEncoding:  "1",
-					},
-					{
-						ShardID:       shardID,
-						TaskID:        2,
-						TargetCluster: "2",
-						Data:          []byte(`2`),
-						DataEncoding:  "2",
-					},
-					{
-						ShardID:       shardID,
-						TaskID:        3,
-						TargetCluster: "3",
-						Data:          []byte(`3`),
-						DataEncoding:  "3",
-					},
-					{
-						ShardID:       shardID,
-						TaskID:        4,
-						TargetCluster: "4",
-						Data:          []byte(`4`),
-						DataEncoding:  "4",
-					},
-					{
-						ShardID:       shardID,
-						TaskID:        5,
-						TargetCluster: "5",
-						Data:          []byte(`5`),
-						DataEncoding:  "5",
-					},
-				}).Return(&sqlResult{rowsAffected: 5}, nil)
-			},
-			wantErr: false,
-		},
-		{
-			name: "Error case",
-			tasks: []persistence.Task{
-				&persistence.CrossClusterStartChildExecutionTask{
-					TargetCluster: "1",
-					StartChildExecutionTask: persistence.StartChildExecutionTask{
-						TaskData: persistence.TaskData{
-							Version:             1,
-							VisibilityTimestamp: time.Unix(1, 1),
-							TaskID:              1,
-						},
-						TargetDomainID:   "2be8a310-7d20-483e-a5d2-48659dc47609",
-						TargetWorkflowID: "xcd",
-						InitiatedID:      111,
-					},
-				},
-			},
-			mockSetup: func(mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
-				mockParser.EXPECT().CrossClusterTaskInfoToBlob(&serialization.CrossClusterTaskInfo{
-					DomainID:            domainID,
-					WorkflowID:          workflowID,
-					RunID:               runID,
-					TaskType:            int16(persistence.CrossClusterTaskTypeStartChildExecution),
-					TargetDomainID:      serialization.MustParseUUID("2be8a310-7d20-483e-a5d2-48659dc47609"),
-					TargetWorkflowID:    "xcd",
-					TargetRunID:         serialization.UUID(persistence.CrossClusterTaskDefaultTargetRunID),
-					ScheduleID:          111,
-					Version:             1,
-					VisibilityTimestamp: time.Unix(1, 1),
-				}).Return(persistence.DataBlob{
-					Data:     []byte(`1`),
-					Encoding: common.EncodingType("1"),
-				}, nil)
-				err := errors.New("some error")
-				mockTx.EXPECT().InsertIntoCrossClusterTasks(gomock.Any(), gomock.Any()).Return(nil, err)
-				mockTx.EXPECT().IsNotFoundError(err).Return(true)
-			},
-			wantErr: true,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-
-			mockTx := sqlplugin.NewMockTx(ctrl)
-			mockParser := serialization.NewMockParser(ctrl)
-
-			tc.mockSetup(mockTx, mockParser)
-
-			err := createCrossClusterTasks(context.Background(), mockTx, tc.tasks, shardID, domainID, workflowID, runID, mockParser)
 			if tc.wantErr {
 				assert.Error(t, err, "Expected an error for test case")
 				if tc.assertErr != nil {

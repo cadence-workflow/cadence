@@ -466,10 +466,7 @@ type (
 		NewBufferedEvents         *DataBlob
 		ClearBufferedEvents       bool
 
-		TransferTasks     []Task
-		CrossClusterTasks []Task
-		TimerTasks        []Task
-		ReplicationTasks  []Task
+		TasksByCategory map[HistoryTaskCategory][]Task
 
 		WorkflowRequests []*WorkflowRequest
 
@@ -493,10 +490,7 @@ type (
 		SignalInfos         []*SignalInfo
 		SignalRequestedIDs  []string
 
-		TransferTasks     []Task
-		CrossClusterTasks []Task
-		TimerTasks        []Task
-		ReplicationTasks  []Task
+		TasksByCategory map[HistoryTaskCategory][]Task
 
 		WorkflowRequests []*WorkflowRequest
 

@@ -591,10 +591,7 @@ func (s *contextImpl) CreateWorkflowExecution(
 	if err := s.allocateTaskIDsLocked(
 		domainEntry,
 		workflowID,
-		request.NewWorkflowSnapshot.TransferTasks,
-		request.NewWorkflowSnapshot.CrossClusterTasks,
-		request.NewWorkflowSnapshot.ReplicationTasks,
-		request.NewWorkflowSnapshot.TimerTasks,
+		request.NewWorkflowSnapshot.TasksByCategory,
 		&transferMaxReadLevel,
 	); err != nil {
 		return nil, err
@@ -688,10 +685,7 @@ func (s *contextImpl) UpdateWorkflowExecution(
 	if err := s.allocateTaskIDsLocked(
 		domainEntry,
 		workflowID,
-		request.UpdateWorkflowMutation.TransferTasks,
-		request.UpdateWorkflowMutation.CrossClusterTasks,
-		request.UpdateWorkflowMutation.ReplicationTasks,
-		request.UpdateWorkflowMutation.TimerTasks,
+		request.UpdateWorkflowMutation.TasksByCategory,
 		&transferMaxReadLevel,
 	); err != nil {
 		return nil, err
@@ -700,10 +694,7 @@ func (s *contextImpl) UpdateWorkflowExecution(
 		if err := s.allocateTaskIDsLocked(
 			domainEntry,
 			workflowID,
-			request.NewWorkflowSnapshot.TransferTasks,
-			request.NewWorkflowSnapshot.CrossClusterTasks,
-			request.NewWorkflowSnapshot.ReplicationTasks,
-			request.NewWorkflowSnapshot.TimerTasks,
+			request.NewWorkflowSnapshot.TasksByCategory,
 			&transferMaxReadLevel,
 		); err != nil {
 			return nil, err
@@ -794,10 +785,7 @@ func (s *contextImpl) ConflictResolveWorkflowExecution(
 		if err := s.allocateTaskIDsLocked(
 			domainEntry,
 			workflowID,
-			request.CurrentWorkflowMutation.TransferTasks,
-			request.CurrentWorkflowMutation.CrossClusterTasks,
-			request.CurrentWorkflowMutation.ReplicationTasks,
-			request.CurrentWorkflowMutation.TimerTasks,
+			request.CurrentWorkflowMutation.TasksByCategory,
 			&transferMaxReadLevel,
 		); err != nil {
 			return nil, err
@@ -806,10 +794,7 @@ func (s *contextImpl) ConflictResolveWorkflowExecution(
 	if err := s.allocateTaskIDsLocked(
 		domainEntry,
 		workflowID,
-		request.ResetWorkflowSnapshot.TransferTasks,
-		request.ResetWorkflowSnapshot.CrossClusterTasks,
-		request.ResetWorkflowSnapshot.ReplicationTasks,
-		request.ResetWorkflowSnapshot.TimerTasks,
+		request.ResetWorkflowSnapshot.TasksByCategory,
 		&transferMaxReadLevel,
 	); err != nil {
 		return nil, err
@@ -818,10 +803,7 @@ func (s *contextImpl) ConflictResolveWorkflowExecution(
 		if err := s.allocateTaskIDsLocked(
 			domainEntry,
 			workflowID,
-			request.NewWorkflowSnapshot.TransferTasks,
-			request.NewWorkflowSnapshot.CrossClusterTasks,
-			request.NewWorkflowSnapshot.ReplicationTasks,
-			request.NewWorkflowSnapshot.TimerTasks,
+			request.NewWorkflowSnapshot.TasksByCategory,
 			&transferMaxReadLevel,
 		); err != nil {
 			return nil, err
@@ -1191,31 +1173,25 @@ func (s *contextImpl) emitShardInfoMetricsLogsLocked() {
 func (s *contextImpl) allocateTaskIDsLocked(
 	domainEntry *cache.DomainCacheEntry,
 	workflowID string,
-	transferTasks []persistence.Task,
-	crossClusterTasks []persistence.Task,
-	replicationTasks []persistence.Task,
-	timerTasks []persistence.Task,
+	tasksByCategory map[persistence.HistoryTaskCategory][]persistence.Task,
 	transferMaxReadLevel *int64,
 ) error {
-
-	if err := s.allocateTransferIDsLocked(
-		transferTasks,
-		transferMaxReadLevel,
-	); err != nil {
-		return err
-	}
-	if err := s.allocateTransferIDsLocked(
-		crossClusterTasks,
-		transferMaxReadLevel,
-	); err != nil {
-		return err
-	}
-	if err := s.allocateTimerIDsLocked(
-		domainEntry,
-		workflowID,
-		timerTasks,
-	); err != nil {
-		return err
+	var err error
+	var replicationTasks []persistence.Task
+	for c, tasks := range tasksByCategory {
+		switch c.Type() {
+		case persistence.HistoryTaskCategoryTypeImmediate:
+			if c.ID() == persistence.HistoryTaskCategoryIDReplication {
+				replicationTasks = tasks
+				continue
+			}
+			err = s.allocateTransferIDsLocked(tasks, transferMaxReadLevel)
+		case persistence.HistoryTaskCategoryTypeScheduled:
+			err = s.allocateTimerIDsLocked(domainEntry, workflowID, tasks)
+		}
+		if err != nil {
+			return err
+		}
 	}
 
 	// Ensure that task IDs for replication tasks are generated last.

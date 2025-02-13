@@ -41,10 +41,7 @@ func (db *cdb) InsertWorkflowExecutionWithTasks(
 	requests *nosqlplugin.WorkflowRequestsWriteRequest,
 	currentWorkflowRequest *nosqlplugin.CurrentWorkflowWriteRequest,
 	execution *nosqlplugin.WorkflowExecutionRequest,
-	transferTasks []*nosqlplugin.TransferTask,
-	crossClusterTasks []*nosqlplugin.CrossClusterTask,
-	replicationTasks []*nosqlplugin.ReplicationTask,
-	timerTasks []*nosqlplugin.TimerTask,
+	tasksByCategory map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask,
 	shardCondition *nosqlplugin.ShardCondition,
 ) error {
 	shardID := shardCondition.ShardID
@@ -68,10 +65,8 @@ func (db *cdb) InsertWorkflowExecutionWithTasks(
 		return err
 	}
 
-	createTransferTasks(batch, shardID, domainID, workflowID, transferTasks, timeStamp)
-	createReplicationTasks(batch, shardID, domainID, workflowID, replicationTasks, timeStamp)
-	createCrossClusterTasks(batch, shardID, domainID, workflowID, crossClusterTasks, timeStamp)
-	createTimerTasks(batch, shardID, domainID, workflowID, timerTasks, timeStamp)
+	createTasksByCategory(batch, shardID, domainID, workflowID, timeStamp, tasksByCategory)
+
 	assertShardRangeID(batch, shardID, shardCondition.RangeID, timeStamp)
 
 	return executeCreateWorkflowBatchTransaction(ctx, db.session, batch, currentWorkflowRequest, execution, shardCondition)
@@ -121,10 +116,7 @@ func (db *cdb) UpdateWorkflowExecutionWithTasks(
 	mutatedExecution *nosqlplugin.WorkflowExecutionRequest,
 	insertedExecution *nosqlplugin.WorkflowExecutionRequest,
 	resetExecution *nosqlplugin.WorkflowExecutionRequest,
-	transferTasks []*nosqlplugin.TransferTask,
-	crossClusterTasks []*nosqlplugin.CrossClusterTask,
-	replicationTasks []*nosqlplugin.ReplicationTask,
-	timerTasks []*nosqlplugin.TimerTask,
+	tasksByCategory map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask,
 	shardCondition *nosqlplugin.ShardCondition,
 ) error {
 	shardID := shardCondition.ShardID
@@ -175,10 +167,8 @@ func (db *cdb) UpdateWorkflowExecutionWithTasks(
 		}
 	}
 
-	createTransferTasks(batch, shardID, domainID, workflowID, transferTasks, timeStamp)
-	createReplicationTasks(batch, shardID, domainID, workflowID, replicationTasks, timeStamp)
-	createCrossClusterTasks(batch, shardID, domainID, workflowID, crossClusterTasks, timeStamp)
-	createTimerTasks(batch, shardID, domainID, workflowID, timerTasks, timeStamp)
+	createTasksByCategory(batch, shardID, domainID, workflowID, timeStamp, tasksByCategory)
+
 	assertShardRangeID(batch, shardID, shardCondition.RangeID, timeStamp)
 
 	return executeUpdateWorkflowBatchTransaction(ctx, db.session, batch, currentWorkflowRequest, previousNextEventIDCondition, shardCondition)
@@ -626,8 +616,10 @@ func (db *cdb) RangeDeleteCrossClusterTasks(ctx context.Context, shardID int, ta
 	return query.Exec()
 }
 
-func (db *cdb) InsertReplicationDLQTask(ctx context.Context, shardID int, sourceCluster string, task nosqlplugin.ReplicationTask) error {
+func (db *cdb) InsertReplicationDLQTask(ctx context.Context, shardID int, sourceCluster string, replicationTask *nosqlplugin.HistoryMigrationTask) error {
 	// Use source cluster name as the workflow id for replication dlq
+	task := replicationTask.Replication
+	taskBlob, taskEncoding := persistence.FromDataBlob(replicationTask.Task)
 	query := db.session.Query(templateCreateReplicationTaskQuery,
 		shardID,
 		rowTypeDLQ,
@@ -648,6 +640,8 @@ func (db *cdb) InsertReplicationDLQTask(ctx context.Context, shardID int, source
 		persistence.EventStoreVersion,
 		task.NewRunBranchToken,
 		defaultVisibilityTimestamp,
+		taskBlob,
+		taskEncoding,
 		defaultVisibilityTimestamp,
 		task.TaskID,
 		db.timeSrc.Now(),
@@ -720,7 +714,7 @@ func (db *cdb) RangeDeleteReplicationDLQTasks(ctx context.Context, shardID int, 
 	return db.executeWithConsistencyAll(query)
 }
 
-func (db *cdb) InsertReplicationTask(ctx context.Context, tasks []*nosqlplugin.ReplicationTask, shardCondition nosqlplugin.ShardCondition) error {
+func (db *cdb) InsertReplicationTask(ctx context.Context, tasks []*nosqlplugin.HistoryMigrationTask, shardCondition nosqlplugin.ShardCondition) error {
 	if len(tasks) == 0 {
 		return nil
 	}
@@ -729,7 +723,7 @@ func (db *cdb) InsertReplicationTask(ctx context.Context, tasks []*nosqlplugin.R
 	batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
 	timeStamp := db.timeSrc.Now()
 	for _, task := range tasks {
-		createReplicationTasks(batch, shardID, task.DomainID, task.WorkflowID, []*nosqlplugin.ReplicationTask{task}, timeStamp)
+		createReplicationTasks(batch, shardID, task.Replication.DomainID, task.Replication.WorkflowID, []*nosqlplugin.HistoryMigrationTask{task}, timeStamp)
 	}
 
 	assertShardRangeID(batch, shardID, shardCondition.RangeID, timeStamp)

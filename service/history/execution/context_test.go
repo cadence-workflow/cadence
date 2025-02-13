@@ -110,8 +110,10 @@ func TestMergeContinueAsNewReplicationTasks(t *testing.T) {
 				ExecutionInfo: &persistence.WorkflowExecutionInfo{
 					CloseStatus: persistence.WorkflowCloseStatusContinuedAsNew,
 				},
-				ReplicationTasks: []persistence.Task{
-					&persistence.HistoryReplicationTask{},
+				TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+					persistence.HistoryTaskCategoryReplication: []persistence.Task{
+						&persistence.HistoryReplicationTask{},
+					},
 				},
 			},
 			updateMode: persistence.UpdateWorkflowModeUpdateCurrent,
@@ -127,8 +129,10 @@ func TestMergeContinueAsNewReplicationTasks(t *testing.T) {
 				ExecutionInfo: &persistence.WorkflowExecutionInfo{
 					CloseStatus: persistence.WorkflowCloseStatusContinuedAsNew,
 				},
-				ReplicationTasks: []persistence.Task{
-					&persistence.HistoryReplicationTask{},
+				TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+					persistence.HistoryTaskCategoryReplication: []persistence.Task{
+						&persistence.HistoryReplicationTask{},
+					},
 				},
 			},
 			newWorkflowSnapshot: &persistence.WorkflowSnapshot{},
@@ -145,13 +149,17 @@ func TestMergeContinueAsNewReplicationTasks(t *testing.T) {
 				ExecutionInfo: &persistence.WorkflowExecutionInfo{
 					CloseStatus: persistence.WorkflowCloseStatusContinuedAsNew,
 				},
-				ReplicationTasks: []persistence.Task{
-					&persistence.SyncActivityTask{},
+				TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+					persistence.HistoryTaskCategoryReplication: []persistence.Task{
+						&persistence.SyncActivityTask{},
+					},
 				},
 			},
 			newWorkflowSnapshot: &persistence.WorkflowSnapshot{
-				ReplicationTasks: []persistence.Task{
-					&persistence.HistoryReplicationTask{},
+				TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+					persistence.HistoryTaskCategoryReplication: []persistence.Task{
+						&persistence.HistoryReplicationTask{},
+					},
 				},
 			},
 			updateMode: persistence.UpdateWorkflowModeUpdateCurrent,
@@ -167,13 +175,17 @@ func TestMergeContinueAsNewReplicationTasks(t *testing.T) {
 				ExecutionInfo: &persistence.WorkflowExecutionInfo{
 					CloseStatus: persistence.WorkflowCloseStatusContinuedAsNew,
 				},
-				ReplicationTasks: []persistence.Task{
-					&persistence.HistoryReplicationTask{},
+				TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+					persistence.HistoryTaskCategoryReplication: []persistence.Task{
+						&persistence.HistoryReplicationTask{},
+					},
 				},
 			},
 			newWorkflowSnapshot: &persistence.WorkflowSnapshot{
-				ReplicationTasks: []persistence.Task{
-					&persistence.HistoryReplicationTask{},
+				TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+					persistence.HistoryTaskCategoryReplication: []persistence.Task{
+						&persistence.HistoryReplicationTask{},
+					},
 				},
 			},
 			updateMode: persistence.UpdateWorkflowModeUpdateCurrent,
@@ -226,20 +238,22 @@ func TestNotifyTasksFromWorkflowSnapshot(t *testing.T) {
 						ScheduleID: 11,
 					},
 				},
-				TransferTasks: []persistence.Task{
-					&persistence.ActivityTask{
-						TaskList: "test-tl",
+				TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+					persistence.HistoryTaskCategoryTransfer: []persistence.Task{
+						&persistence.ActivityTask{
+							TaskList: "test-tl",
+						},
 					},
-				},
-				TimerTasks: []persistence.Task{
-					&persistence.ActivityTimeoutTask{
-						Attempt: 10,
+					persistence.HistoryTaskCategoryTimer: []persistence.Task{
+						&persistence.ActivityTimeoutTask{
+							Attempt: 10,
+						},
 					},
-				},
-				ReplicationTasks: []persistence.Task{
-					&persistence.HistoryReplicationTask{
-						FirstEventID: 1,
-						NextEventID:  10,
+					persistence.HistoryTaskCategoryReplication: []persistence.Task{
+						&persistence.HistoryReplicationTask{
+							FirstEventID: 1,
+							NextEventID:  10,
+						},
 					},
 				},
 			},
@@ -354,20 +368,22 @@ func TestNotifyTasksFromWorkflowMutation(t *testing.T) {
 						ScheduleID: 11,
 					},
 				},
-				TransferTasks: []persistence.Task{
-					&persistence.ActivityTask{
-						TaskList: "test-tl",
+				TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+					persistence.HistoryTaskCategoryTransfer: []persistence.Task{
+						&persistence.ActivityTask{
+							TaskList: "test-tl",
+						},
 					},
-				},
-				TimerTasks: []persistence.Task{
-					&persistence.ActivityTimeoutTask{
-						Attempt: 10,
+					persistence.HistoryTaskCategoryTimer: []persistence.Task{
+						&persistence.ActivityTimeoutTask{
+							Attempt: 10,
+						},
 					},
-				},
-				ReplicationTasks: []persistence.Task{
-					&persistence.HistoryReplicationTask{
-						FirstEventID: 1,
-						NextEventID:  10,
+					persistence.HistoryTaskCategoryReplication: []persistence.Task{
+						&persistence.HistoryReplicationTask{
+							FirstEventID: 1,
+							NextEventID:  10,
+						},
 					},
 				},
 			},

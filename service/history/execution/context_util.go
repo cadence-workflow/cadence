@@ -138,10 +138,9 @@ func emitSessionUpdateStats(
 	countScope.RecordTimer(metrics.DeleteChildInfoCount, time.Duration(stats.DeleteChildInfoCount))
 	countScope.RecordTimer(metrics.DeleteSignalInfoCount, time.Duration(stats.DeleteSignalInfoCount))
 	countScope.RecordTimer(metrics.DeleteRequestCancelInfoCount, time.Duration(stats.DeleteRequestCancelInfoCount))
-	countScope.RecordTimer(metrics.TransferTasksCount, time.Duration(stats.TransferTasksCount))
-	countScope.RecordTimer(metrics.TimerTasksCount, time.Duration(stats.TimerTasksCount))
-	countScope.RecordTimer(metrics.CrossClusterTasksCount, time.Duration(stats.CrossClusterTaskCount))
-	countScope.RecordTimer(metrics.ReplicationTasksCount, time.Duration(stats.ReplicationTasksCount))
+	countScope.RecordTimer(metrics.TransferTasksCount, time.Duration(stats.TaskCountByCategory[persistence.HistoryTaskCategoryTransfer]))
+	countScope.RecordTimer(metrics.TimerTasksCount, time.Duration(stats.TaskCountByCategory[persistence.HistoryTaskCategoryTimer]))
+	countScope.RecordTimer(metrics.ReplicationTasksCount, time.Duration(stats.TaskCountByCategory[persistence.HistoryTaskCategoryReplication]))
 	countScope.IncCounter(metrics.UpdateWorkflowExecutionCount)
 }
 
