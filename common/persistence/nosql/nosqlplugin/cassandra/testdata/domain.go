@@ -67,6 +67,6 @@ func NewDomainRow(ts time.Time) *nosqlplugin.DomainRow {
 		FailoverEndTime:     &ts,
 		LastUpdatedTime:     ts,
 		NotificationVersion: 5,
-		CurrentTimeStamp:    time.Now(),
+		CurrentTimeStamp:    time.Date(2025, 1, 6, 15, 0, 0, 0, time.UTC),
 	}
 }
