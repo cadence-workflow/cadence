@@ -23,6 +23,8 @@
 package testdata
 
 import (
+	"time"
+
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/checksum"
 	"github.com/uber/cadence/common/persistence"
@@ -44,6 +46,7 @@ func WFExecRequestWithEventBufferWriteMode(mode nosqlplugin.EventBufferWriteMode
 }
 
 func WFExecRequest(opts ...WFExecRequestOption) *nosqlplugin.WorkflowExecutionRequest {
+	ts := time.Now()
 	req := &nosqlplugin.WorkflowExecutionRequest{
 		InternalWorkflowExecutionInfo: persistence.InternalWorkflowExecutionInfo{
 			DomainID:   "test-domain-id",
@@ -67,6 +70,8 @@ func WFExecRequest(opts ...WFExecRequestOption) *nosqlplugin.WorkflowExecutionRe
 			Value:   []byte("test-checksum"),
 		},
 		PreviousNextEventIDCondition: common.Int64Ptr(123),
+		CreatedTime:                  ts,
+		UpdatedTime:                  ts,
 	}
 
 	for _, opt := range opts {

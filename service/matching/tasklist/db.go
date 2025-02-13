@@ -25,6 +25,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
@@ -44,6 +45,7 @@ type (
 		partitionConfig *persistence.TaskListPartitionConfig
 		store           persistence.TaskManager
 		logger          log.Logger
+		timeSrc         clock.TimeSource
 	}
 	taskListState struct {
 		rangeID  int64
@@ -70,6 +72,7 @@ func newTaskListDB(store persistence.TaskManager, domainID string, domainName st
 		taskType:     taskType,
 		store:        store,
 		logger:       logger,
+		timeSrc:      clock.NewRealTimeSource(),
 	}
 }
 
@@ -97,12 +100,13 @@ func (db *taskListDB) RenewLease() (taskListState, error) {
 	db.Lock()
 	defer db.Unlock()
 	resp, err := db.store.LeaseTaskList(context.Background(), &persistence.LeaseTaskListRequest{
-		DomainID:     db.domainID,
-		TaskList:     db.taskListName,
-		TaskType:     db.taskType,
-		TaskListKind: db.taskListKind,
-		RangeID:      atomic.LoadInt64(&db.rangeID),
-		DomainName:   db.domainName,
+		DomainID:         db.domainID,
+		TaskList:         db.taskListName,
+		TaskType:         db.taskType,
+		TaskListKind:     db.taskListKind,
+		RangeID:          atomic.LoadInt64(&db.rangeID),
+		DomainName:       db.domainName,
+		CurrentTimeStamp: db.timeSrc.Now(),
 	})
 	if err != nil {
 		return taskListState{}, err
@@ -127,7 +131,8 @@ func (db *taskListDB) UpdateState(ackLevel int64) error {
 			Kind:                    db.taskListKind,
 			AdaptivePartitionConfig: db.partitionConfig,
 		},
-		DomainName: db.domainName,
+		DomainName:       db.domainName,
+		CurrentTimeStamp: db.timeSrc.Now(),
 	})
 	if err != nil {
 		return err
@@ -149,7 +154,8 @@ func (db *taskListDB) UpdateTaskListPartitionConfig(partitionConfig *persistence
 			Kind:                    db.taskListKind,
 			AdaptivePartitionConfig: partitionConfig,
 		},
-		DomainName: db.domainName,
+		DomainName:       db.domainName,
+		CurrentTimeStamp: db.timeSrc.Now(),
 	})
 	if err != nil {
 		return err
@@ -169,8 +175,9 @@ func (db *taskListDB) CreateTasks(tasks []*persistence.CreateTaskInfo) (*persist
 			TaskType: db.taskType,
 			RangeID:  db.rangeID,
 		},
-		Tasks:      tasks,
-		DomainName: db.domainName,
+		Tasks:            tasks,
+		DomainName:       db.domainName,
+		CurrentTimeStamp: db.timeSrc.Now(),
 	})
 }
 
