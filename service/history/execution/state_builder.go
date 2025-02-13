@@ -513,7 +513,7 @@ func (b *stateBuilderImpl) ApplyEvents(
 	b.mutableState.GetExecutionInfo().SetLastFirstEventID(firstEvent.ID)
 	b.mutableState.GetExecutionInfo().SetNextEventID(lastEvent.ID + 1)
 
-	b.mutableState.SetHistoryBuilder(NewHistoryBuilderFromEvents(history))
+	b.mutableState.SetHistoryBuilder(NewHistoryBuilderFromEvents(history, b.mutableState))
 
 	return newRunMutableStateBuilder, nil
 }
