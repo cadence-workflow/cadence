@@ -271,6 +271,7 @@ type (
 		BranchToken       []byte
 		NewRunBranchToken []byte
 		CreationTime      time.Time
+		CurrentTimeStamp  time.Time
 	}
 
 	// InternalWorkflowExecutionInfo describes a workflow execution for Persistence Interface

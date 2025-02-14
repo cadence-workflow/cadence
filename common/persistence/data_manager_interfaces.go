@@ -1549,8 +1549,9 @@ type (
 
 	// CreateFailoverMarkersRequest is request to create failover markers
 	CreateFailoverMarkersRequest struct {
-		RangeID int64
-		Markers []*FailoverMarkerTask
+		RangeID          int64
+		Markers          []*FailoverMarkerTask
+		CurrentTimeStamp time.Time
 	}
 
 	// FetchDynamicConfigResponse is a response to FetchDynamicConfigResponse

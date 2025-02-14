@@ -829,6 +829,8 @@ func (d *nosqlExecutionStore) CreateFailoverMarkerTasks(
 
 	var nosqlTasks []*nosqlplugin.HistoryMigrationTask
 	for _, task := range request.Markers {
+	//var nosqlTasks []*nosqlplugin.ReplicationTask
+	//for i, task := range request.Markers {
 		ts := []persistence.Task{task}
 
 		tasks, err := d.prepareReplicationTasksForWorkflowTxn(task.DomainID, rowTypeReplicationWorkflowID, rowTypeReplicationRunID, ts)
@@ -841,6 +843,8 @@ func (d *nosqlExecutionStore) CreateFailoverMarkerTasks(
 				Task:        nil, // TODO: encode replication task into datablob
 			})
 		}
+		//tasks[i].CurrentTimeStamp = request.CurrentTimeStamp
+		//nosqlTasks = append(nosqlTasks, tasks...)
 	}
 
 	err := d.db.InsertReplicationTask(ctx, nosqlTasks, nosqlplugin.ShardCondition{
