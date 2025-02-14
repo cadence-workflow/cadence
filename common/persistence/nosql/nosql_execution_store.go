@@ -85,7 +85,7 @@ func (d *nosqlExecutionStore) CreateWorkflowExecution(
 		return nil, err
 	}
 
-	workflowExecutionWriteReq, err := d.prepareCreateWorkflowExecutionRequestWithMaps(&newWorkflow)
+	workflowExecutionWriteReq, err := d.prepareCreateWorkflowExecutionRequestWithMaps(&newWorkflow, request.CurrentTimeStamp)
 	if err != nil {
 		return nil, err
 	}
@@ -310,7 +310,7 @@ func (d *nosqlExecutionStore) UpdateWorkflowExecution(
 
 	// 2. new
 	if newWorkflow != nil {
-		insertExecution, err = d.prepareCreateWorkflowExecutionRequestWithMaps(newWorkflow)
+		insertExecution, err = d.prepareCreateWorkflowExecutionRequestWithMaps(newWorkflow, request.CurrentTimeStamp)
 		if err != nil {
 			return err
 		}
@@ -462,7 +462,7 @@ func (d *nosqlExecutionStore) ConflictResolveWorkflowExecution(
 
 	// 3. new
 	if newWorkflow != nil {
-		insertExecution, err = d.prepareCreateWorkflowExecutionRequestWithMaps(newWorkflow)
+		insertExecution, err = d.prepareCreateWorkflowExecutionRequestWithMaps(newWorkflow, request.CurrentTimeStamp)
 		if err != nil {
 			return err
 		}
@@ -830,13 +830,14 @@ func (d *nosqlExecutionStore) CreateFailoverMarkerTasks(
 ) error {
 
 	var nosqlTasks []*nosqlplugin.ReplicationTask
-	for _, task := range request.Markers {
+	for i, task := range request.Markers {
 		ts := []persistence.Task{task}
 
 		tasks, err := d.prepareReplicationTasksForWorkflowTxn(task.DomainID, rowTypeReplicationWorkflowID, rowTypeReplicationRunID, ts)
 		if err != nil {
 			return err
 		}
+		tasks[i].CurrentTimeStamp = request.CurrentTimeStamp
 		nosqlTasks = append(nosqlTasks, tasks...)
 	}
 

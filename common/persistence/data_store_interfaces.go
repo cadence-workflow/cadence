@@ -197,16 +197,16 @@ type (
 	// Queue is a store to enqueue and get messages
 	Queue interface {
 		Closeable
-		EnqueueMessage(ctx context.Context, messagePayload []byte) error
+		EnqueueMessage(ctx context.Context, messagePayload []byte, currentTimeStamp time.Time) error
 		ReadMessages(ctx context.Context, lastMessageID int64, maxCount int) ([]*InternalQueueMessage, error)
 		DeleteMessagesBefore(ctx context.Context, messageID int64) error
-		UpdateAckLevel(ctx context.Context, messageID int64, clusterName string) error
+		UpdateAckLevel(ctx context.Context, messageID int64, clusterName string, currentTimestamp time.Time) error
 		GetAckLevels(ctx context.Context) (map[string]int64, error)
-		EnqueueMessageToDLQ(ctx context.Context, messagePayload []byte) error
+		EnqueueMessageToDLQ(ctx context.Context, messagePayload []byte, currentTimeStamp time.Time) error
 		ReadMessagesFromDLQ(ctx context.Context, firstMessageID int64, lastMessageID int64, pageSize int, pageToken []byte) ([]*InternalQueueMessage, []byte, error)
 		DeleteMessageFromDLQ(ctx context.Context, messageID int64) error
 		RangeDeleteMessagesFromDLQ(ctx context.Context, firstMessageID int64, lastMessageID int64) error
-		UpdateDLQAckLevel(ctx context.Context, messageID int64, clusterName string) error
+		UpdateDLQAckLevel(ctx context.Context, messageID int64, clusterName string, currentTimestamp time.Time) error
 		GetDLQAckLevels(ctx context.Context) (map[string]int64, error)
 		GetDLQSize(ctx context.Context) (int64, error)
 	}
@@ -238,6 +238,8 @@ type (
 		NewWorkflowSnapshot InternalWorkflowSnapshot
 
 		WorkflowRequestMode CreateWorkflowRequestMode
+
+		CurrentTimeStamp time.Time
 	}
 
 	// InternalGetReplicationTasksResponse is the response to GetReplicationTask
@@ -269,6 +271,7 @@ type (
 		BranchToken       []byte
 		NewRunBranchToken []byte
 		CreationTime      time.Time
+		CurrentTimeStamp  time.Time
 	}
 
 	// InternalWorkflowExecutionInfo describes a workflow execution for Persistence Interface
@@ -424,6 +427,8 @@ type (
 		NewWorkflowSnapshot *InternalWorkflowSnapshot
 
 		WorkflowRequestMode CreateWorkflowRequestMode
+
+		CurrentTimeStamp time.Time
 	}
 
 	// InternalConflictResolveWorkflowExecutionRequest is used to reset workflow execution state for Persistence Interface
@@ -442,6 +447,8 @@ type (
 		CurrentWorkflowMutation *InternalWorkflowMutation
 
 		WorkflowRequestMode CreateWorkflowRequestMode
+
+		CurrentTimeStamp time.Time
 	}
 
 	// InternalWorkflowMutation is used as generic workflow execution state mutation for Persistence Interface
@@ -534,6 +541,8 @@ type (
 		TransactionID int64
 		// Used in sharded data stores to identify which shard to use
 		ShardID int
+
+		CurrentTimeStamp time.Time
 	}
 
 	// InternalGetWorkflowExecutionRequest is used to retrieve the info of a workflow execution
@@ -572,6 +581,8 @@ type (
 		Info string
 		// Used in sharded data stores to identify which shard to use
 		ShardID int
+
+		CurrentTimeStamp time.Time
 	}
 
 	// InternalForkHistoryBranchResponse is the response to ForkHistoryBranchRequest
@@ -816,6 +827,7 @@ type (
 		ConfigVersion     int64
 		FailoverVersion   int64
 		LastUpdatedTime   time.Time
+		CurrentTimeStamp  time.Time
 	}
 
 	// InternalGetDomainResponse is the response for GetDomain
@@ -871,11 +883,13 @@ type (
 		ClusterReplicationLevel       map[string]int64     `json:"cluster_replication_level"`
 		DomainNotificationVersion     int64                `json:"domain_notification_version"`
 		PendingFailoverMarkers        *DataBlob            `json:"pending_failover_markers"`
+		CurrentTimestamp              time.Time
 	}
 
 	// InternalCreateShardRequest is request to CreateShard
 	InternalCreateShardRequest struct {
-		ShardInfo *InternalShardInfo
+		ShardInfo        *InternalShardInfo
+		CurrentTimeStamp time.Time
 	}
 
 	// InternalGetShardRequest is used to get shard information
@@ -885,8 +899,9 @@ type (
 
 	// InternalUpdateShardRequest  is used to update shard information
 	InternalUpdateShardRequest struct {
-		ShardInfo       *InternalShardInfo
-		PreviousRangeID int64
+		ShardInfo        *InternalShardInfo
+		PreviousRangeID  int64
+		CurrentTimeStamp time.Time
 	}
 
 	// InternalGetShardResponse is the response to GetShard

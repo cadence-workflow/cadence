@@ -50,7 +50,7 @@ func (db *cdb) InsertWorkflowExecutionWithTasks(
 	shardID := shardCondition.ShardID
 	domainID := execution.DomainID
 	workflowID := execution.WorkflowID
-	timeStamp := db.timeSrc.Now()
+	timeStamp := execution.CreatedTime
 
 	batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
 
@@ -130,7 +130,7 @@ func (db *cdb) UpdateWorkflowExecutionWithTasks(
 	shardID := shardCondition.ShardID
 	var domainID, workflowID string
 	var previousNextEventIDCondition int64
-	timeStamp := db.timeSrc.Now()
+	timeStamp := insertedExecution.UpdatedTime
 	if mutatedExecution != nil {
 		domainID = mutatedExecution.DomainID
 		workflowID = mutatedExecution.WorkflowID
@@ -650,7 +650,7 @@ func (db *cdb) InsertReplicationDLQTask(ctx context.Context, shardID int, source
 		defaultVisibilityTimestamp,
 		defaultVisibilityTimestamp,
 		task.TaskID,
-		db.timeSrc.Now(),
+		task.CurrentTimeStamp,
 	).WithContext(ctx)
 
 	return query.Exec()
@@ -727,7 +727,7 @@ func (db *cdb) InsertReplicationTask(ctx context.Context, tasks []*nosqlplugin.R
 
 	shardID := shardCondition.ShardID
 	batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
-	timeStamp := db.timeSrc.Now()
+	timeStamp := tasks[0].CurrentTimeStamp
 	for _, task := range tasks {
 		createReplicationTasks(batch, shardID, task.DomainID, task.WorkflowID, []*nosqlplugin.ReplicationTask{task}, timeStamp)
 	}
