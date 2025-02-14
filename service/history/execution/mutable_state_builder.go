@@ -1472,9 +1472,11 @@ func (e *mutableStateBuilder) CloseTransactionAsMutation(
 		NewBufferedEvents:         e.updateBufferedEvents,
 		ClearBufferedEvents:       e.clearBufferedEvents,
 
-		TransferTasks:    e.insertTransferTasks,
-		ReplicationTasks: e.insertReplicationTasks,
-		TimerTasks:       e.insertTimerTasks,
+		TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+			persistence.HistoryTaskCategoryTransfer:    e.insertTransferTasks,
+			persistence.HistoryTaskCategoryReplication: e.insertReplicationTasks,
+			persistence.HistoryTaskCategoryTimer:       e.insertTimerTasks,
+		},
 
 		WorkflowRequests: convertWorkflowRequests(e.workflowRequests),
 
@@ -1551,9 +1553,11 @@ func (e *mutableStateBuilder) CloseTransactionAsSnapshot(
 		SignalInfos:         maps.Values(e.pendingSignalInfoIDs),
 		SignalRequestedIDs:  maps.Keys(e.pendingSignalRequestedIDs),
 
-		TransferTasks:    e.insertTransferTasks,
-		ReplicationTasks: e.insertReplicationTasks,
-		TimerTasks:       e.insertTimerTasks,
+		TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+			persistence.HistoryTaskCategoryTransfer:    e.insertTransferTasks,
+			persistence.HistoryTaskCategoryReplication: e.insertReplicationTasks,
+			persistence.HistoryTaskCategoryTimer:       e.insertTimerTasks,
+		},
 
 		WorkflowRequests: convertWorkflowRequests(e.workflowRequests),
 

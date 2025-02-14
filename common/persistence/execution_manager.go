@@ -676,10 +676,7 @@ func (m *executionManagerImpl) SerializeWorkflowMutation(
 		NewBufferedEvents:         serializedNewBufferedEvents,
 		ClearBufferedEvents:       input.ClearBufferedEvents,
 
-		TransferTasks:     input.TransferTasks,
-		CrossClusterTasks: input.CrossClusterTasks,
-		ReplicationTasks:  input.ReplicationTasks,
-		TimerTasks:        input.TimerTasks,
+		TasksByCategory: input.TasksByCategory,
 
 		WorkflowRequests: input.WorkflowRequests,
 
@@ -742,10 +739,7 @@ func (m *executionManagerImpl) SerializeWorkflowSnapshot(
 		SignalInfos:         input.SignalInfos,
 		SignalRequestedIDs:  input.SignalRequestedIDs,
 
-		TransferTasks:     input.TransferTasks,
-		CrossClusterTasks: input.CrossClusterTasks,
-		ReplicationTasks:  input.ReplicationTasks,
-		TimerTasks:        input.TimerTasks,
+		TasksByCategory: input.TasksByCategory,
 
 		WorkflowRequests: input.WorkflowRequests,
 

@@ -105,10 +105,14 @@ func (s *statsComputerSuite) TestComputeWorkflowMutationStats() {
 		DeleteChildExecutionInfos: []int64{0},
 		DeleteSignalInfos:         nil,
 		DeleteRequestCancelInfos:  []int64{},
-		TransferTasks:             []Task{&ActivityTask{}, &DecisionTask{}},
-		CrossClusterTasks:         []Task{&CrossClusterCancelExecutionTask{}},
-		TimerTasks:                []Task{&UserTimerTask{}},
-		ReplicationTasks:          []Task{},
+		TasksByCategory: map[HistoryTaskCategory][]Task{
+			HistoryTaskCategoryTransfer: []Task{
+				&ActivityTask{}, &DecisionTask{},
+			},
+			HistoryTaskCategoryTimer: []Task{
+				&UserTimerTask{},
+			},
+		},
 	}
 	stats := s.sc.computeWorkflowMutationStats(ms)
 	s.Equal(computeExecutionInfoSize(ms.ExecutionInfo), stats.ExecutionInfoSize)
@@ -127,10 +131,10 @@ func (s *statsComputerSuite) TestComputeWorkflowMutationStats() {
 	s.Equal(len(ms.DeleteChildExecutionInfos), stats.DeleteChildInfoCount)
 	s.Equal(len(ms.DeleteSignalInfos), stats.DeleteSignalInfoCount)
 	s.Equal(len(ms.DeleteRequestCancelInfos), stats.DeleteRequestCancelInfoCount)
-	s.Equal(len(ms.TransferTasks), stats.TransferTasksCount)
-	s.Equal(len(ms.TimerTasks), stats.TimerTasksCount)
-	s.Equal(len(ms.ReplicationTasks), stats.ReplicationTasksCount)
 	s.Equal(stats.ExecutionInfoSize+stats.ActivityInfoSize+stats.TimerInfoSize+stats.ChildInfoSize+stats.SignalInfoSize+stats.BufferedEventsSize, stats.MutableStateSize)
+	for c, tasks := range ms.TasksByCategory {
+		s.Equal(len(tasks), stats.TaskCountByCategory[c])
+	}
 }
 
 func (s *statsComputerSuite) TestComputeWorkflowSnapshotStats() {
@@ -146,10 +150,14 @@ func (s *statsComputerSuite) TestComputeWorkflowSnapshotStats() {
 		ChildExecutionInfos: []*InternalChildExecutionInfo{c1, c1, c1, c1},
 		SignalInfos:         []*SignalInfo{s1},
 		RequestCancelInfos:  []*RequestCancelInfo{r1},
-		TransferTasks:       []Task{&ActivityTask{}, &DecisionTask{}},
-		CrossClusterTasks:   []Task{&CrossClusterCancelExecutionTask{}},
-		TimerTasks:          []Task{&UserTimerTask{}},
-		ReplicationTasks:    []Task{},
+		TasksByCategory: map[HistoryTaskCategory][]Task{
+			HistoryTaskCategoryTransfer: []Task{
+				&ActivityTask{}, &DecisionTask{},
+			},
+			HistoryTaskCategoryTimer: []Task{
+				&UserTimerTask{},
+			},
+		},
 	}
 	stats := s.sc.computeWorkflowSnapshotStats(ms)
 	s.Equal(computeExecutionInfoSize(ms.ExecutionInfo), stats.ExecutionInfoSize)
@@ -162,8 +170,8 @@ func (s *statsComputerSuite) TestComputeWorkflowSnapshotStats() {
 	s.Equal(computeSignalInfoSize(s1)*len(ms.SignalInfos), stats.SignalInfoSize)
 	s.Equal(len(ms.SignalInfos), stats.SignalInfoCount)
 	s.Equal(len(ms.RequestCancelInfos), stats.RequestCancelInfoCount)
-	s.Equal(len(ms.TransferTasks), stats.TransferTasksCount)
-	s.Equal(len(ms.TimerTasks), stats.TimerTasksCount)
-	s.Equal(len(ms.ReplicationTasks), stats.ReplicationTasksCount)
 	s.Equal(stats.ExecutionInfoSize+stats.ActivityInfoSize+stats.TimerInfoSize+stats.ChildInfoSize+stats.SignalInfoSize+stats.BufferedEventsSize, stats.MutableStateSize)
+	for c, tasks := range ms.TasksByCategory {
+		s.Equal(len(tasks), stats.TaskCountByCategory[c])
+	}
 }

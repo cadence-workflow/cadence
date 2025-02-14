@@ -362,6 +362,8 @@ CREATE TABLE executions (
   cross_cluster                  frozen<transfer_task>, -- reuse the transfer_task type
   replication                    frozen<replication_task>,
   timer                          frozen<timer_task>,
+  task                           blob,
+  task_encoding                  text,
   next_event_id                  bigint,  -- This is needed to make conditional updates on session history
   range_id                       bigint, -- Increasing sequence identifier for transfer queue, checkpointed into shard info
   activity_map                   map<bigint, frozen<activity_info>>,

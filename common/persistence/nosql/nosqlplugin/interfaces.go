@@ -405,21 +405,16 @@ type (
 		//		and also check if the condition is met.
 		// 2. Create the workflow_execution record, including basic info and 6 maps(activityInfoMap, timerInfoMap,
 		//		childWorkflowInfoMap, signalInfoMap and signalRequestedIDs)
-		// 3. Create transfer tasks
-		// 4. Create timer tasks
-		// 5. Create replication tasks
-		// 6. Create crossCluster tasks
-		// 7. Check if the condition of shard rangeID is met
+		// 3. Create history tasks
+		// 4. Create workflow requests for requests deduplication
+		// 5. Check if the condition of shard rangeID is met
 		// The API returns error if there is any. If any of the condition is not met, returns WorkflowOperationConditionFailure
 		InsertWorkflowExecutionWithTasks(
 			ctx context.Context,
 			requests *WorkflowRequestsWriteRequest,
 			currentWorkflowRequest *CurrentWorkflowWriteRequest,
 			execution *WorkflowExecutionRequest,
-			transferTasks []*TransferTask,
-			crossClusterTasks []*CrossClusterTask,
-			replicationTasks []*ReplicationTask,
-			timerTasks []*TimerTask,
+			tasksByCategory map[persistence.HistoryTaskCategory][]*HistoryMigrationTask,
 			shardCondition *ShardCondition,
 		) error
 
@@ -433,11 +428,9 @@ type (
 		//		childWorkflowInfoMap, signalInfoMap and signalRequestedIDs
 		// 4. if resetExecution is not nil, then also update the workflow_execution record including basic info and reset/override 6 maps(activityInfoMap, timerInfoMap,
 		//		childWorkflowInfoMap, signalInfoMap and signalRequestedIDs
-		// 5. Create transfer tasks
-		// 6. Create timer tasks
-		// 7. Create replication tasks
-		// 8. Create crossCluster tasks
-		// 9. Check if the condition of shard rangeID is met
+		// 5. Create history tasks
+		// 6. Create workflow requests for requests deduplication
+		// 7. Check if the condition of shard rangeID is met
 		// The API returns error if there is any. If any of the condition is not met, returns WorkflowOperationConditionFailure
 		UpdateWorkflowExecutionWithTasks(
 			ctx context.Context,
@@ -446,10 +439,7 @@ type (
 			mutatedExecution *WorkflowExecutionRequest,
 			insertedExecution *WorkflowExecutionRequest,
 			resetExecution *WorkflowExecutionRequest,
-			transferTasks []*TransferTask,
-			crossClusterTasks []*CrossClusterTask,
-			replicationTasks []*ReplicationTask,
-			timerTasks []*TimerTask,
+			tasksByCategory map[persistence.HistoryTaskCategory][]*HistoryMigrationTask,
 			shardCondition *ShardCondition,
 		) error
 
@@ -495,7 +485,7 @@ type (
 		// delete a range of replication tasks
 		RangeDeleteReplicationTasks(ctx context.Context, shardID int, inclusiveEndTaskID int64) error
 		// insert replication task with shard condition check
-		InsertReplicationTask(ctx context.Context, tasks []*ReplicationTask, condition ShardCondition) error
+		InsertReplicationTask(ctx context.Context, tasks []*HistoryMigrationTask, condition ShardCondition) error
 
 		// cross_cluster_task table
 		// within a shard, paging through replication tasks order by taskID(ASC), filtered by minTaskID(exclusive) and maxTaskID(inclusive)
@@ -507,7 +497,7 @@ type (
 
 		// replication_dlq_task
 		// insert a new replication task to DLQ
-		InsertReplicationDLQTask(ctx context.Context, shardID int, sourceCluster string, task ReplicationTask) error
+		InsertReplicationDLQTask(ctx context.Context, shardID int, sourceCluster string, task *HistoryMigrationTask) error
 		// within a shard, for a sourceCluster, paging through replication tasks order by taskID(ASC), filtered by minTaskID(exclusive) and maxTaskID(inclusive)
 		SelectReplicationDLQTasksOrderByTaskID(ctx context.Context, shardID int, sourceCluster string, pageSize int, pageToken []byte, exclusiveMinTaskID, inclusiveMaxTaskID int64) ([]*ReplicationTask, []byte, error)
 		// return the DLQ size
