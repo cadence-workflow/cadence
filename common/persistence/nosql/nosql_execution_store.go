@@ -830,13 +830,14 @@ func (d *nosqlExecutionStore) CreateFailoverMarkerTasks(
 ) error {
 
 	var nosqlTasks []*nosqlplugin.ReplicationTask
-	for _, task := range request.Markers {
+	for i, task := range request.Markers {
 		ts := []persistence.Task{task}
 
 		tasks, err := d.prepareReplicationTasksForWorkflowTxn(task.DomainID, rowTypeReplicationWorkflowID, rowTypeReplicationRunID, ts)
 		if err != nil {
 			return err
 		}
+		tasks[i].CurrentTimeStamp = request.CurrentTimeStamp
 		nosqlTasks = append(nosqlTasks, tasks...)
 	}
 
