@@ -178,7 +178,7 @@ func fromTaskListPartition(partition *persistence.TaskListPartition) any {
 // InsertTaskList insert a single tasklist row
 // Return TaskOperationConditionFailure if the condition doesn't meet
 func (db *cdb) InsertTaskList(ctx context.Context, row *nosqlplugin.TaskListRow) error {
-	timeStamp := row.TimeStamp
+	timeStamp := row.CurrentTimeStamp
 	query := db.session.Query(templateInsertTaskListQuery,
 		row.DomainID,
 		row.TaskListName,
@@ -212,7 +212,7 @@ func (db *cdb) UpdateTaskList(
 	row *nosqlplugin.TaskListRow,
 	previousRangeID int64,
 ) error {
-	timeStamp := row.TimeStamp
+	timeStamp := row.CurrentTimeStamp
 	query := db.session.Query(templateUpdateTaskListQuery,
 		row.RangeID,
 		row.DomainID,
@@ -266,7 +266,7 @@ func (db *cdb) UpdateTaskListWithTTL(
 	row *nosqlplugin.TaskListRow,
 	previousRangeID int64,
 ) error {
-	timeStamp := row.TimeStamp
+	timeStamp := row.CurrentTimeStamp
 	batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
 	// part 1 is used to set TTL on primary key as UPDATE can't set TTL for primary key
 	batch.Query(templateUpdateTaskListQueryWithTTLPart1,
@@ -350,7 +350,7 @@ func (db *cdb) InsertTasks(
 	domainID := tasklistCondition.DomainID
 	taskListName := tasklistCondition.TaskListName
 	taskListType := tasklistCondition.TaskListType
-	timeStamp := tasklistCondition.TimeStamp
+	timeStamp := tasklistCondition.CurrentTimeStamp
 
 	for _, task := range tasksToInsert {
 		scheduleID := task.ScheduledID

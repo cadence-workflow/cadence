@@ -198,7 +198,7 @@ type (
 		RangeID                 int64
 		TaskListKind            int
 		AckLevel                int64
-		TimeStamp               time.Time
+		CurrentTimeStamp        time.Time
 		LastUpdatedTime         time.Time
 		AdaptivePartitionConfig *persistence.TaskListPartitionConfig
 	}
