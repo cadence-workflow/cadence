@@ -30,7 +30,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
@@ -340,7 +339,6 @@ func TestInsertTaskList(t *testing.T) {
 			dc := &persistence.DynamicConfiguration{}
 
 			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
-			db.timeSrc = clock.NewMockedTimeSourceAt(FixedTime)
 
 			err := db.InsertTaskList(context.Background(), tc.row)
 
@@ -453,7 +451,6 @@ func TestUpdateTaskList(t *testing.T) {
 			dc := &persistence.DynamicConfiguration{}
 
 			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
-			db.timeSrc = clock.NewMockedTimeSourceAt(FixedTime)
 
 			err := db.UpdateTaskList(context.Background(), tc.row, tc.prevRangeID)
 
@@ -554,8 +551,7 @@ func TestUpdateTaskListWithTTL(t *testing.T) {
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
 
-			timeSrc := clock.NewMockedTimeSourceAt(ts)
-			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client), dbWithTimeSource(timeSrc))
+			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
 			err := db.UpdateTaskListWithTTL(context.Background(), tc.ttlSeconds, tc.row, tc.prevRangeID)
 
 			if (err != nil) != tc.wantErr {
@@ -834,8 +830,7 @@ func TestInsertTasks(t *testing.T) {
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
 
-			timeSrc := clock.NewMockedTimeSourceAt(ts)
-			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client), dbWithTimeSource(timeSrc))
+			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
 
 			err := db.InsertTasks(context.Background(), tc.tasksToInsert, tc.tasklistCond)
 

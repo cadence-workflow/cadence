@@ -29,7 +29,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
@@ -96,7 +95,6 @@ func TestInsertIntoQueue(t *testing.T) {
 			dc := &persistence.DynamicConfiguration{}
 
 			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
-			db.timeSrc = clock.NewMockedTimeSourceAt(FixedTime)
 
 			err := db.InsertIntoQueue(context.Background(), tc.row)
 
@@ -829,7 +827,6 @@ func TestInsertQueueMetadata(t *testing.T) {
 			dc := &persistence.DynamicConfiguration{}
 
 			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
-			db.timeSrc = clock.NewMockedTimeSourceAt(FixedTime)
 
 			row := nosqlplugin.QueueMetadataRow{
 				QueueType:        tc.queueType,
@@ -919,7 +916,6 @@ func TestUpdateQueueMetadataCas(t *testing.T) {
 			dc := &persistence.DynamicConfiguration{}
 
 			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
-			db.timeSrc = clock.NewMockedTimeSourceAt(FixedTime)
 
 			err := db.UpdateQueueMetadataCas(context.Background(), tc.row)
 

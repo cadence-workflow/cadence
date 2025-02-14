@@ -32,6 +32,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/types"
 )
@@ -46,6 +47,7 @@ func setUpMocksForConfigStoreManager(t *testing.T) (*configStoreManagerImpl, *Mo
 		serializer:  mockSerializer,
 		persistence: mockStore,
 		logger:      logger,
+		timeSrc:     clock.NewRealTimeSource(),
 	}, mockStore, mockSerializer
 }
 
