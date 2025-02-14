@@ -949,6 +949,7 @@ func (m *executionManagerImpl) CreateFailoverMarkerTasks(
 	ctx context.Context,
 	request *CreateFailoverMarkersRequest,
 ) error {
+	request.CurrentTimeStamp = m.timeSrc.Now()
 	return m.persistence.CreateFailoverMarkerTasks(ctx, request)
 }
 
@@ -1026,6 +1027,7 @@ func (m *executionManagerImpl) toInternalReplicationTaskInfo(info *ReplicationTa
 		BranchToken:       info.BranchToken,
 		NewRunBranchToken: info.NewRunBranchToken,
 		CreationTime:      time.Unix(0, info.CreationTime).UTC(),
+		CurrentTimeStamp:  m.timeSrc.Now(),
 	}
 }
 

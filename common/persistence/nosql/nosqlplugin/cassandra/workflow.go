@@ -644,7 +644,7 @@ func (db *cdb) InsertReplicationDLQTask(ctx context.Context, shardID int, source
 		taskEncoding,
 		defaultVisibilityTimestamp,
 		task.TaskID,
-		db.timeSrc.Now(),
+		task.CurrentTimeStamp,
 	).WithContext(ctx)
 
 	return query.Exec()
@@ -721,7 +721,7 @@ func (db *cdb) InsertReplicationTask(ctx context.Context, tasks []*nosqlplugin.H
 
 	shardID := shardCondition.ShardID
 	batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
-	timeStamp := db.timeSrc.Now()
+	timeStamp := tasks[0].CurrentTimeStamp
 	for _, task := range tasks {
 		createReplicationTasks(batch, shardID, task.Replication.DomainID, task.Replication.WorkflowID, []*nosqlplugin.HistoryMigrationTask{task}, timeStamp)
 	}
