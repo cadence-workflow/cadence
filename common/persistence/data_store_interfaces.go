@@ -876,11 +876,13 @@ type (
 		ClusterReplicationLevel       map[string]int64     `json:"cluster_replication_level"`
 		DomainNotificationVersion     int64                `json:"domain_notification_version"`
 		PendingFailoverMarkers        *DataBlob            `json:"pending_failover_markers"`
+		CurrentTimestamp              time.Time
 	}
 
 	// InternalCreateShardRequest is request to CreateShard
 	InternalCreateShardRequest struct {
-		ShardInfo *InternalShardInfo
+		ShardInfo        *InternalShardInfo
+		CurrentTimeStamp time.Time
 	}
 
 	// InternalGetShardRequest is used to get shard information
@@ -890,8 +892,9 @@ type (
 
 	// InternalUpdateShardRequest  is used to update shard information
 	InternalUpdateShardRequest struct {
-		ShardInfo       *InternalShardInfo
-		PreviousRangeID int64
+		ShardInfo        *InternalShardInfo
+		PreviousRangeID  int64
+		CurrentTimeStamp time.Time
 	}
 
 	// InternalGetShardResponse is the response to GetShard

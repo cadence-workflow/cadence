@@ -226,14 +226,14 @@ func TestInsertTaskList(t *testing.T) {
 		{
 			name: "successfully applied - nil partition_config",
 			row: &nosqlplugin.TaskListRow{
-				DomainID:        "domain1",
-				TaskListName:    "tasklist1",
-				TaskListType:    1,
-				TaskListKind:    2,
-				AckLevel:        1000,
-				RangeID:         25,
-				LastUpdatedTime: ts,
-				TimeStamp:       ts,
+				DomainID:         "domain1",
+				TaskListName:     "tasklist1",
+				TaskListType:     1,
+				TaskListKind:     2,
+				AckLevel:         1000,
+				RangeID:          25,
+				LastUpdatedTime:  ts,
+				CurrentTimeStamp: ts,
 			},
 			queryMockFn: func(query *gocql.MockQuery) {
 				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
@@ -251,14 +251,14 @@ func TestInsertTaskList(t *testing.T) {
 		{
 			name: "successfully applied - non-nil partition_config",
 			row: &nosqlplugin.TaskListRow{
-				DomainID:        "domain1",
-				TaskListName:    "tasklist1",
-				TaskListType:    1,
-				TaskListKind:    2,
-				AckLevel:        1000,
-				RangeID:         25,
-				LastUpdatedTime: ts,
-				TimeStamp:       ts,
+				DomainID:         "domain1",
+				TaskListName:     "tasklist1",
+				TaskListType:     1,
+				TaskListKind:     2,
+				AckLevel:         1000,
+				RangeID:          25,
+				LastUpdatedTime:  ts,
+				CurrentTimeStamp: ts,
 				AdaptivePartitionConfig: &persistence.TaskListPartitionConfig{
 					Version: 1,
 					ReadPartitions: map[int]*persistence.TaskListPartition{
@@ -286,14 +286,14 @@ func TestInsertTaskList(t *testing.T) {
 		{
 			name: "not applied",
 			row: &nosqlplugin.TaskListRow{
-				DomainID:        "domain1",
-				TaskListName:    "tasklist1",
-				TaskListType:    1,
-				TaskListKind:    2,
-				AckLevel:        1000,
-				RangeID:         25,
-				LastUpdatedTime: ts,
-				TimeStamp:       ts,
+				DomainID:         "domain1",
+				TaskListName:     "tasklist1",
+				TaskListType:     1,
+				TaskListKind:     2,
+				AckLevel:         1000,
+				RangeID:          25,
+				LastUpdatedTime:  ts,
+				CurrentTimeStamp: ts,
 			},
 			queryMockFn: func(query *gocql.MockQuery) {
 				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
@@ -307,14 +307,14 @@ func TestInsertTaskList(t *testing.T) {
 		{
 			name: "mapscan failed",
 			row: &nosqlplugin.TaskListRow{
-				DomainID:        "domain1",
-				TaskListName:    "tasklist1",
-				TaskListType:    1,
-				TaskListKind:    2,
-				AckLevel:        1000,
-				RangeID:         25,
-				LastUpdatedTime: ts,
-				TimeStamp:       ts,
+				DomainID:         "domain1",
+				TaskListName:     "tasklist1",
+				TaskListType:     1,
+				TaskListKind:     2,
+				AckLevel:         1000,
+				RangeID:          25,
+				LastUpdatedTime:  ts,
+				CurrentTimeStamp: ts,
 			},
 			queryMockFn: func(query *gocql.MockQuery) {
 				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
@@ -377,14 +377,14 @@ func TestUpdateTaskList(t *testing.T) {
 			name:        "successfully applied",
 			prevRangeID: 25,
 			row: &nosqlplugin.TaskListRow{
-				DomainID:        "domain1",
-				TaskListName:    "tasklist1",
-				TaskListType:    1,
-				TaskListKind:    2,
-				AckLevel:        1000,
-				RangeID:         25,
-				LastUpdatedTime: ts,
-				TimeStamp:       ts,
+				DomainID:         "domain1",
+				TaskListName:     "tasklist1",
+				TaskListType:     1,
+				TaskListKind:     2,
+				AckLevel:         1000,
+				RangeID:          25,
+				LastUpdatedTime:  ts,
+				CurrentTimeStamp: ts,
 			},
 			queryMockFn: func(query *gocql.MockQuery) {
 				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
@@ -399,14 +399,14 @@ func TestUpdateTaskList(t *testing.T) {
 		{
 			name: "not applied",
 			row: &nosqlplugin.TaskListRow{
-				DomainID:        "domain1",
-				TaskListName:    "tasklist1",
-				TaskListType:    1,
-				TaskListKind:    2,
-				AckLevel:        1000,
-				RangeID:         25,
-				LastUpdatedTime: ts,
-				TimeStamp:       ts,
+				DomainID:         "domain1",
+				TaskListName:     "tasklist1",
+				TaskListType:     1,
+				TaskListKind:     2,
+				AckLevel:         1000,
+				RangeID:          25,
+				LastUpdatedTime:  ts,
+				CurrentTimeStamp: ts,
 			},
 			queryMockFn: func(query *gocql.MockQuery) {
 				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
@@ -420,14 +420,14 @@ func TestUpdateTaskList(t *testing.T) {
 		{
 			name: "mapscan failed",
 			row: &nosqlplugin.TaskListRow{
-				DomainID:        "domain1",
-				TaskListName:    "tasklist1",
-				TaskListType:    1,
-				TaskListKind:    2,
-				AckLevel:        1000,
-				RangeID:         25,
-				LastUpdatedTime: ts,
-				TimeStamp:       ts,
+				DomainID:         "domain1",
+				TaskListName:     "tasklist1",
+				TaskListType:     1,
+				TaskListKind:     2,
+				AckLevel:         1000,
+				RangeID:          25,
+				LastUpdatedTime:  ts,
+				CurrentTimeStamp: ts,
 			},
 			queryMockFn: func(query *gocql.MockQuery) {
 				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
@@ -494,14 +494,14 @@ func TestUpdateTaskListWithTTL(t *testing.T) {
 			ttlSeconds:  180,
 			prevRangeID: 25,
 			row: &nosqlplugin.TaskListRow{
-				DomainID:        "domain1",
-				TaskListName:    "tasklist1",
-				TaskListType:    1,
-				TaskListKind:    2,
-				AckLevel:        1000,
-				RangeID:         25,
-				LastUpdatedTime: ts,
-				TimeStamp:       ts,
+				DomainID:         "domain1",
+				TaskListName:     "tasklist1",
+				TaskListType:     1,
+				TaskListKind:     2,
+				AckLevel:         1000,
+				RangeID:          25,
+				LastUpdatedTime:  ts,
+				CurrentTimeStamp: ts,
 			},
 			mapExecuteBatchCASApplied: true,
 			wantQueries: []string{
@@ -783,11 +783,11 @@ func TestInsertTasks(t *testing.T) {
 				},
 			},
 			tasklistCond: &nosqlplugin.TaskListRow{
-				DomainID:     "domain1",
-				TaskListName: "tasklist1",
-				TaskListType: 1,
-				RangeID:      25,
-				TimeStamp:    ts,
+				DomainID:         "domain1",
+				TaskListName:     "tasklist1",
+				TaskListType:     1,
+				RangeID:          25,
+				CurrentTimeStamp: ts,
 			},
 			mapExecuteBatchCASApplied: true,
 			wantQueries: []string{

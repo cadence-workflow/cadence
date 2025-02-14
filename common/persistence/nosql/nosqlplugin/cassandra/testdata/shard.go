@@ -45,6 +45,7 @@ func NewShardRow(ts time.Time) *nosqlplugin.ShardRow {
 		PendingFailoverMarkers:        &persistence.DataBlob{Encoding: "thriftrw", Data: []byte("failovermarkers")},
 		TransferProcessingQueueStates: &persistence.DataBlob{Encoding: "thriftrw", Data: []byte("transferqueue")},
 		TimerProcessingQueueStates:    &persistence.DataBlob{Encoding: "thriftrw", Data: []byte("timerqueue")},
+		CurrentTimestamp:              ts,
 	}
 }
 

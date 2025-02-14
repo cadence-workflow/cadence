@@ -547,12 +547,12 @@ func TestCreateTasks(t *testing.T) {
 			name: "success - skipping task with Expiry expired",
 			setupMock: func(dbMock *nosqlplugin.MockDB) {
 				dbMock.EXPECT().InsertTasks(gomock.Any(), gomock.Any(), &nosqlplugin.TaskListRow{
-					DomainID:        TestDomainID,
-					TaskListName:    TestTaskListName,
-					TaskListType:    TestTaskType,
-					RangeID:         1,
-					LastUpdatedTime: FixedTime,
-					TimeStamp:       FixedTime,
+					DomainID:         TestDomainID,
+					TaskListName:     TestTaskListName,
+					TaskListType:     TestTaskType,
+					RangeID:          1,
+					LastUpdatedTime:  FixedTime,
+					CurrentTimeStamp: FixedTime,
 				}).Do(func(_ context.Context, tasks []*nosqlplugin.TaskRowForInsert, _ *nosqlplugin.TaskListRow) {
 					assert.Len(t, tasks, 0)
 				}).Return(nil).Times(1)
@@ -728,27 +728,27 @@ func getDecisionTaskListFilter() *nosqlplugin.TaskListFilter {
 
 func getExpectedTaskListRow() *nosqlplugin.TaskListRow {
 	return &nosqlplugin.TaskListRow{
-		DomainID:        TestDomainID,
-		TaskListName:    TestTaskListName,
-		TaskListType:    int(types.TaskListTypeDecision),
-		RangeID:         initialRangeID,
-		TaskListKind:    int(types.TaskListKindNormal),
-		AckLevel:        initialAckLevel,
-		LastUpdatedTime: FixedTime,
-		TimeStamp:       FixedTime,
+		DomainID:         TestDomainID,
+		TaskListName:     TestTaskListName,
+		TaskListType:     int(types.TaskListTypeDecision),
+		RangeID:          initialRangeID,
+		TaskListKind:     int(types.TaskListKindNormal),
+		AckLevel:         initialAckLevel,
+		LastUpdatedTime:  FixedTime,
+		CurrentTimeStamp: FixedTime,
 	}
 }
 
 func getExpectedTaskListRowWithPartitionConfig() *nosqlplugin.TaskListRow {
 	return &nosqlplugin.TaskListRow{
-		DomainID:        TestDomainID,
-		TaskListName:    TestTaskListName,
-		TaskListType:    int(types.TaskListTypeDecision),
-		RangeID:         initialRangeID,
-		TaskListKind:    int(types.TaskListKindNormal),
-		AckLevel:        initialAckLevel,
-		LastUpdatedTime: FixedTime,
-		TimeStamp:       FixedTime,
+		DomainID:         TestDomainID,
+		TaskListName:     TestTaskListName,
+		TaskListType:     int(types.TaskListTypeDecision),
+		RangeID:          initialRangeID,
+		TaskListKind:     int(types.TaskListKindNormal),
+		AckLevel:         initialAckLevel,
+		LastUpdatedTime:  FixedTime,
+		CurrentTimeStamp: FixedTime,
 		AdaptivePartitionConfig: &persistence.TaskListPartitionConfig{
 			Version: 1,
 			ReadPartitions: map[int]*persistence.TaskListPartition{
