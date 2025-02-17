@@ -134,7 +134,7 @@ func (t *TaskAckManager) GetTasks(ctx context.Context, pollingCluster string, la
 	taskGeneratedTimer.Stop()
 
 	t.scope.RecordTimer(metrics.ReplicationTasksLagRaw, time.Duration(t.ackLevels.GetTransferMaxReadLevel()-oldestUnprocessedTaskID))
-	t.scope.RecordTimer(metrics.ReplicationTasksLag, time.Duration(oldestUnprocessedTaskTimestamp-t.timeSource.Now().UnixNano()))
+	t.scope.RecordTimer(metrics.ReplicationTasksDelay, time.Duration(oldestUnprocessedTaskTimestamp-t.timeSource.Now().UnixNano()))
 
 	t.scope.RecordTimer(metrics.ReplicationTasksLag, time.Duration(t.ackLevels.GetTransferMaxReadLevel()-readLevel))
 	t.scope.RecordTimer(metrics.ReplicationTasksFetched, time.Duration(len(tasks)))
