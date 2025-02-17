@@ -223,6 +223,7 @@ func NewEngineWithShardContext(
 			shard.GetLogger(),
 			replicationReader,
 			replicationTaskStore,
+			shard.GetTimeSource(),
 		),
 		replicationTaskStore: replicationTaskStore,
 		replicationMetricsEmitter: replication.NewMetricsEmitter(

@@ -2526,6 +2526,8 @@ const (
 	ReplicationTasksApplied
 	ReplicationTasksFailed
 	ReplicationTasksLag
+	ReplicationTasksLagRaw
+	ReplicationTasksDelay
 	ReplicationTasksFetched
 	ReplicationTasksReturned
 	ReplicationTasksReturnedDiff
@@ -3228,6 +3230,8 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		ReplicationTasksApplied:                                      {metricName: "replication_tasks_applied", metricType: Counter},
 		ReplicationTasksFailed:                                       {metricName: "replication_tasks_failed", metricType: Counter},
 		ReplicationTasksLag:                                          {metricName: "replication_tasks_lag", metricType: Timer},
+		ReplicationTasksLagRaw:                                       {metricName: "replication_tasks_lag_raw", metricType: Timer},
+		ReplicationTasksDelay:                                        {metricName: "replication_tasks_delay", metricType: Timer},
 		ReplicationTasksFetched:                                      {metricName: "replication_tasks_fetched", metricType: Timer},
 		ReplicationTasksReturned:                                     {metricName: "replication_tasks_returned", metricType: Timer},
 		ReplicationTasksReturnedDiff:                                 {metricName: "replication_tasks_returned_diff", metricType: Timer},

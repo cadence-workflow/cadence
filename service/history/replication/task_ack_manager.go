@@ -24,10 +24,12 @@ package replication
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"time"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -45,6 +47,8 @@ type (
 
 		reader taskReader
 		store  *TaskStore
+
+		timeSource clock.TimeSource
 	}
 
 	ackLevelStore interface {
@@ -66,6 +70,7 @@ func NewTaskAckManager(
 	logger log.Logger,
 	reader taskReader,
 	store *TaskStore,
+	timeSource clock.TimeSource,
 ) TaskAckManager {
 
 	return TaskAckManager{
@@ -74,9 +79,10 @@ func NewTaskAckManager(
 			metrics.ReplicatorQueueProcessorScope,
 			metrics.InstanceTag(strconv.Itoa(shardID)),
 		),
-		logger: logger.WithTags(tag.ComponentReplicationAckManager),
-		reader: reader,
-		store:  store,
+		logger:     logger.WithTags(tag.ComponentReplicationAckManager),
+		reader:     reader,
+		store:      store,
+		timeSource: timeSource,
 	}
 }
 
@@ -92,28 +98,43 @@ func (t *TaskAckManager) GetTasks(ctx context.Context, pollingCluster string, la
 		return nil, err
 	}
 
-	var replicationTasks []*types.ReplicationTask
-	readLevel := lastReadTaskID
-TaskInfoLoop:
-	for _, task := range tasks {
-		replicationTask, err := t.store.Get(ctx, pollingCluster, *task)
+	// Happy path assumption - we will push all tasks to replication tasks.
+	replicationTasks := make([]*types.ReplicationTask, 0, len(tasks))
 
-		switch err.(type) {
-		case nil:
-			// No action
-		case *types.BadRequestError, *types.InternalDataInconsistencyError, *types.EntityNotExistsError:
-			t.logger.Warn("Failed to get replication task.", tag.Error(err))
-		default:
-			t.logger.Error("Failed to get replication task. Return what we have so far.", tag.Error(err))
-			hasMore = true
-			break TaskInfoLoop
+	var (
+		readLevel                      = lastReadTaskID
+		oldestUnprocessedTaskTimestamp = int64(0)
+		oldestUnprocessedTaskID        = int64(0)
+	)
+
+	for _, task := range tasks {
+		// it does not matter if we can process task or not, but we need to know what was the latest taskID we have read.
+		oldestUnprocessedTaskID = task.TaskID
+		oldestUnprocessedTaskTimestamp = task.CreationTime
+
+		replicationTask, err := t.store.Get(ctx, pollingCluster, *task)
+		if err != nil {
+			if errors.As(err, new(*types.BadRequestError)) ||
+				errors.As(err, new(*types.InternalDataInconsistencyError)) ||
+				errors.As(err, new(*types.EntityNotExistsError)) {
+				t.logger.Warn("Failed to get replication task.", tag.Error(err))
+			} else {
+				t.logger.Error("Failed to get replication task. Return what we have so far.", tag.Error(err))
+				hasMore = true
+				break
+			}
 		}
+
+		// We update readLevel only if we have found matching replication tasks on the passive side.
 		readLevel = task.TaskID
 		if replicationTask != nil {
 			replicationTasks = append(replicationTasks, replicationTask)
 		}
 	}
 	taskGeneratedTimer.Stop()
+
+	t.scope.RecordTimer(metrics.ReplicationTasksLagRaw, time.Duration(t.ackLevels.GetTransferMaxReadLevel()-oldestUnprocessedTaskID))
+	t.scope.RecordTimer(metrics.ReplicationTasksLag, time.Duration(oldestUnprocessedTaskTimestamp-t.timeSource.Now().UnixNano()))
 
 	t.scope.RecordTimer(metrics.ReplicationTasksLag, time.Duration(t.ackLevels.GetTransferMaxReadLevel()-readLevel))
 	t.scope.RecordTimer(metrics.ReplicationTasksFetched, time.Duration(len(tasks)))
