@@ -81,7 +81,7 @@ func workflowMetricScope(ctx workflow.Context, wfType string) tally.Scope {
 func recordWorkflowStart(ctx workflow.Context, wfType string, scheduledTimeNanos int64) *workflowMetricsProfile {
 	now := workflow.Now(ctx).UnixNano()
 	scope := workflowMetricScope(ctx, wfType)
-	elapsed := maxInt64(0, now-scheduledTimeNanos)
+	elapsed := max(0, now-scheduledTimeNanos)
 	scope.Timer(startLatency).Record(time.Duration(elapsed))
 	scope.Counter(startedCount).Inc(1)
 	return &workflowMetricsProfile{
@@ -117,7 +117,7 @@ func (profile *workflowMetricsProfile) end(err error) error {
 func recordActivityStart(
 	scope tally.Scope, activityType string, scheduledTimeNanos int64) (tally.Scope, tally.Stopwatch) {
 	scope = scope.Tagged(map[string]string{"operation": activityType})
-	elapsed := maxInt64(0, time.Now().UnixNano()-scheduledTimeNanos)
+	elapsed := max(0, time.Now().UnixNano()-scheduledTimeNanos)
 	scope.Timer(startLatency).Record(time.Duration(elapsed))
 	scope.Counter(startedCount).Inc(1)
 	sw := scope.Timer(latency).Start()

@@ -196,7 +196,7 @@ func (t *transferActiveTaskExecutor) processActivityTask(
 		return err
 	}
 
-	timeout := common.MinInt32(ai.ScheduleToStartTimeout, common.MaxTaskTimeout)
+	timeout := min(ai.ScheduleToStartTimeout, common.MaxTaskTimeout)
 	// release the context lock since we no longer need mutable state builder and
 	// the rest of logic is making RPC call, which takes time.
 	release(nil)
@@ -253,7 +253,7 @@ func (t *transferActiveTaskExecutor) processDecisionTask(
 	domainName := mutableState.GetDomainEntry().GetInfo().Name
 	executionInfo := mutableState.GetExecutionInfo()
 	workflowTimeout := executionInfo.WorkflowTimeout
-	decisionTimeout := common.MinInt32(workflowTimeout, common.MaxTaskTimeout)
+	decisionTimeout := min(workflowTimeout, common.MaxTaskTimeout)
 
 	// NOTE: previously this section check whether mutable state has enabled
 	// sticky decision, if so convert the decision to a sticky decision.
@@ -1761,7 +1761,7 @@ func (t *transferActiveTaskExecutor) processParentClosePolicy(
 		len(childInfos) >= t.shard.GetConfig().ParentClosePolicyThreshold(domainName) {
 
 		batchSize := t.shard.GetConfig().ParentClosePolicyBatchSize(domainName)
-		executions := make([]parentclosepolicy.RequestDetail, 0, common.MinInt(len(childInfos), batchSize))
+		executions := make([]parentclosepolicy.RequestDetail, 0, min(len(childInfos), batchSize))
 		count := 0
 		for _, childInfo := range childInfos {
 			count++
@@ -1785,7 +1785,7 @@ func (t *transferActiveTaskExecutor) processParentClosePolicy(
 				if err != nil {
 					return err
 				}
-				executions = make([]parentclosepolicy.RequestDetail, 0, common.MinInt(len(childInfos)-count, batchSize))
+				executions = make([]parentclosepolicy.RequestDetail, 0, min(len(childInfos)-count, batchSize))
 			}
 		}
 

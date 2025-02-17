@@ -501,7 +501,7 @@ func (t *transferQueueProcessorBase) splitQueue() {
 		func(key task.Key, domainID string) task.Key {
 			totalLookAhead := t.estimatedTasksPerMinute * int64(t.options.SplitLookAheadDurationByDomainID(domainID).Minutes())
 			// ensure the above calculation doesn't overflow and cap the maximun look ahead interval
-			totalLookAhead = common.MaxInt64(common.MinInt64(totalLookAhead, 2<<t.shard.GetConfig().RangeSizeBits), 0)
+			totalLookAhead = max(min(totalLookAhead, 2<<t.shard.GetConfig().RangeSizeBits), 0)
 			return newTransferTaskKey(key.(transferTaskKey).taskID + totalLookAhead)
 		},
 	)

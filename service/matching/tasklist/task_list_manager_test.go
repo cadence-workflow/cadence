@@ -875,7 +875,7 @@ func TestTaskListManagerGetTaskBatch(t *testing.T) {
 
 	// wait until all tasks are read by the task pump and enqeued into the in-memory buffer
 	// at the end of this step, ackManager readLevel will also be equal to the buffer size
-	expectedBufSize := common.MinInt(cap(tlm.taskReader.taskBuffers[defaultTaskBufferIsolationGroup]), taskCount)
+	expectedBufSize := min(cap(tlm.taskReader.taskBuffers[defaultTaskBufferIsolationGroup]), taskCount)
 	assert.True(t, awaitCondition(func() bool {
 		return len(tlm.taskReader.taskBuffers[defaultTaskBufferIsolationGroup]) == expectedBufSize
 	}, 10*time.Second))

@@ -259,7 +259,7 @@ func failoverDomainsByBatch(
 		pauseSignalHandler()
 
 		failoverActivityParams := &FailoverActivityParams{
-			Domains:                          domains[i*batchSize : common.MinInt((i+1)*batchSize, totalNumOfDomains)],
+			Domains:                          domains[i*batchSize : min((i+1)*batchSize, totalNumOfDomains)],
 			TargetCluster:                    targetCluster,
 			GracefulFailoverTimeoutInSeconds: params.GracefulFailoverTimeoutInSeconds,
 		}

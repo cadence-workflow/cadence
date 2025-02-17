@@ -276,7 +276,7 @@ func (e *historyEngineImpl) longPollForEventID(
 			return nil, context.DeadlineExceeded
 		}
 		// longPollCompletionBuffer is here to leave some room to finish current request without its timeout.
-		expirationInterval = common.MinDuration(
+		expirationInterval = min(
 			expirationInterval,
 			remainingTime-longPollCompletionBuffer,
 		)

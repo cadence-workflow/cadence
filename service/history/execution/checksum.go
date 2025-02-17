@@ -22,6 +22,7 @@ package execution
 
 import (
 	"fmt"
+	"slices"
 
 	checksumgen "github.com/uber/cadence/.gen/go/checksum"
 	"github.com/uber/cadence/common"
@@ -80,35 +81,35 @@ func newMutableStateChecksumPayload(ms MutableState) *checksumgen.MutableStateCh
 	for _, ti := range ms.GetPendingTimerInfos() {
 		pendingTimerIDs = append(pendingTimerIDs, ti.StartedID)
 	}
-	common.SortInt64Slice(pendingTimerIDs)
+	slices.Sort(pendingTimerIDs)
 	payload.PendingTimerStartedIDs = pendingTimerIDs
 
 	pendingActivityIDs := make([]int64, 0, len(ms.GetPendingActivityInfos()))
 	for id := range ms.GetPendingActivityInfos() {
 		pendingActivityIDs = append(pendingActivityIDs, id)
 	}
-	common.SortInt64Slice(pendingActivityIDs)
+	slices.Sort(pendingActivityIDs)
 	payload.PendingActivityScheduledIDs = pendingActivityIDs
 
 	pendingChildIDs := make([]int64, 0, len(ms.GetPendingChildExecutionInfos()))
 	for id := range ms.GetPendingChildExecutionInfos() {
 		pendingChildIDs = append(pendingChildIDs, id)
 	}
-	common.SortInt64Slice(pendingChildIDs)
+	slices.Sort(pendingChildIDs)
 	payload.PendingChildInitiatedIDs = pendingChildIDs
 
 	signalIDs := make([]int64, 0, len(ms.GetPendingSignalExternalInfos()))
 	for id := range ms.GetPendingSignalExternalInfos() {
 		signalIDs = append(signalIDs, id)
 	}
-	common.SortInt64Slice(signalIDs)
+	slices.Sort(signalIDs)
 	payload.PendingSignalInitiatedIDs = signalIDs
 
 	requestCancelIDs := make([]int64, 0, len(ms.GetPendingRequestCancelExternalInfos()))
 	for id := range ms.GetPendingRequestCancelExternalInfos() {
 		requestCancelIDs = append(requestCancelIDs, id)
 	}
-	common.SortInt64Slice(requestCancelIDs)
+	slices.Sort(requestCancelIDs)
 	payload.PendingReqCancelInitiatedIDs = requestCancelIDs
 	return payload
 }

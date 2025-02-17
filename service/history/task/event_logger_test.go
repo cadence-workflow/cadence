@@ -27,7 +27,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 )
@@ -84,7 +83,7 @@ func (s *eventLoggerSuite) TestFlushEvents() {
 			s.eventLogger.AddEvent("some random event")
 		}
 
-		expectedEventsFlushed := common.MinInt(numEvents, defaultTaskEventLoggerSize)
+		expectedEventsFlushed := min(numEvents, defaultTaskEventLoggerSize)
 		s.mockLogger.On("Info", mock.Anything, mock.Anything, mock.Anything).Times(1)
 
 		s.Equal(expectedEventsFlushed, s.eventLogger.FlushEvents("some random message"))
