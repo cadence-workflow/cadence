@@ -1589,6 +1589,7 @@ func (h *handlerImpl) GetReplicationMessages(
 
 	responseSize := 0
 	maxResponseSize := h.config.MaxResponseSize
+	numberOfTasksInBatch := 0
 
 	messagesByShard := make(map[int32]*types.ReplicationMessages)
 	result.Range(func(key, value interface{}) bool {
@@ -1605,11 +1606,14 @@ func (h *handlerImpl) GetReplicationMessages(
 				tag.ResponseSize(size),
 				tag.ResponseTotalSize(responseSize),
 				tag.ResponseMaxSize(maxResponseSize),
+				tag.ResponseNumberOfTasks(numberOfTasksInBatch),
 			)
-		} else {
-			responseSize += size
-			messagesByShard[shardID] = tasks
+			return true
 		}
+
+		responseSize += size
+		messagesByShard[shardID] = tasks
+		numberOfTasksInBatch += len(tasks.ReplicationTasks)
 
 		return true
 	})

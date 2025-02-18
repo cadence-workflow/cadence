@@ -860,6 +860,11 @@ func ResponseMaxSize(size int) Tag {
 	return newInt("response-max-size", size)
 }
 
+// ResponseNumberOfTasks returns tag for ResponseNumberOfTasks
+func ResponseNumberOfTasks(num int) Tag {
+	return newInt("response-number-of-tasks", num)
+}
+
 // /////////////////  Archival tags defined here: archival- ///////////////////
 // archival request tags
 

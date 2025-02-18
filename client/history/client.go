@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"math/rand"
 	"sync"
-	"time"
 
 	"go.uber.org/yarpc"
 	"golang.org/x/sync/errgroup"
@@ -792,15 +791,14 @@ func (c *clientImpl) GetReplicationMessages(
 	// Skipped peers grow their responses even more and next they will be even slower and end up in the end again.
 	// This can lead to starving peers.
 	// Shuffle the slice of responses to prevent such scenario. All peer will have equal chance to be pick up first.
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	for i := range peerResponses {
-		j := r.Intn(i + 1)
+	rand.Shuffle(len(peerResponses), func(i, j int) {
 		peerResponses[i], peerResponses[j] = peerResponses[j], peerResponses[i]
-	}
+	})
 
 	response := &types.GetReplicationMessagesResponse{MessagesByShard: make(map[int32]*types.ReplicationMessages)}
 	responseTotalSize := 0
 	rpcMaxResponseSize := c.rpcMaxSizeInBytes
+	numberOfTasksInBatch := 0
 	for _, resp := range peerResponses {
 		if (responseTotalSize + resp.size) >= rpcMaxResponseSize {
 			// Log shards that did not fit for debugging purposes
@@ -811,6 +809,7 @@ func (c *clientImpl) GetReplicationMessages(
 					tag.ResponseSize(resp.size),
 					tag.ResponseTotalSize(responseTotalSize),
 					tag.ResponseMaxSize(rpcMaxResponseSize),
+					tag.ResponseNumberOfTasks(numberOfTasksInBatch),
 				)
 			}
 
@@ -823,6 +822,7 @@ func (c *clientImpl) GetReplicationMessages(
 
 		for shardID, tasks := range resp.response.GetMessagesByShard() {
 			response.MessagesByShard[shardID] = tasks
+			numberOfTasksInBatch += len(tasks.ReplicationTasks)
 		}
 	}
 	return response, nil
