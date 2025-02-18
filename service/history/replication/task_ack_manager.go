@@ -103,15 +103,18 @@ func (t *TaskAckManager) GetTasks(ctx context.Context, pollingCluster string, la
 
 	var (
 		readLevel                      = lastReadTaskID
-		oldestUnprocessedTaskTimestamp = int64(0)
-		oldestUnprocessedTaskID        = int64(0)
+		oldestUnprocessedTaskTimestamp = t.timeSource.Now().UnixNano()
+		oldestUnprocessedTaskID        = t.ackLevels.GetTransferMaxReadLevel()
 	)
 
-	for _, task := range tasks {
-		// it does not matter if we can process task or not, but we need to know what was the latest taskID we have read.
-		oldestUnprocessedTaskID = task.TaskID
-		oldestUnprocessedTaskTimestamp = task.CreationTime
+	if len(tasks) > 0 {
+		// it does not matter if we can process task or not, but we need to know what was the oldest task information we have read.
+		// tasks must be ordered by taskID/time.
+		oldestUnprocessedTaskID = tasks[0].TaskID
+		oldestUnprocessedTaskTimestamp = tasks[0].CreationTime
+	}
 
+	for _, task := range tasks {
 		replicationTask, err := t.store.Get(ctx, pollingCluster, *task)
 		if err != nil {
 			if errors.As(err, new(*types.BadRequestError)) ||
