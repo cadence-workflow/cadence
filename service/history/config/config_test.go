@@ -253,6 +253,9 @@ func TestNewConfig(t *testing.T) {
 		"GlobalRatelimiterUpdateInterval":                      {dynamicconfig.GlobalRatelimiterUpdateInterval, time.Second},
 		"GlobalRatelimiterDecayAfter":                          {dynamicconfig.HistoryGlobalRatelimiterDecayAfter, time.Second},
 		"GlobalRatelimiterGCAfter":                             {dynamicconfig.HistoryGlobalRatelimiterGCAfter, time.Second},
+		"TaskSchedulerGlobalDomainRPS":                         {dynamicconfig.TaskSchedulerGlobalDomainRPS, 97},
+		"TaskSchedulerEnableRateLimiterShadowMode":             {dynamicconfig.TaskSchedulerEnableRateLimiterShadowMode, false},
+		"TaskSchedulerEnableRateLimiter":                       {dynamicconfig.TaskSchedulerEnableRateLimiter, true},
 		"HostName":                                             {nil, hostname},
 	}
 	client := dynamicconfig.NewInMemoryClient()

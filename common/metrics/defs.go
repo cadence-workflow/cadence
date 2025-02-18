@@ -815,6 +815,8 @@ const (
 	ParallelTaskProcessingScope
 	// TaskSchedulerScope is used by task scheduler logic
 	TaskSchedulerScope
+	// TaskSchedulerRateLimiterScope is used by task scheduler rate limiter logic
+	TaskSchedulerRateLimiterScope
 
 	// HistoryArchiverScope is used by history archivers
 	HistoryArchiverScope
@@ -1755,6 +1757,7 @@ var ScopeDefs = map[ServiceIdx]map[int]scopeDefinition{
 		SequentialTaskProcessingScope:                              {operation: "SequentialTaskProcessing"},
 		ParallelTaskProcessingScope:                                {operation: "ParallelTaskProcessing"},
 		TaskSchedulerScope:                                         {operation: "TaskScheduler"},
+		TaskSchedulerRateLimiterScope:                              {operation: "TaskSchedulerRateLimiter"},
 
 		HistoryArchiverScope:    {operation: "HistoryArchiver"},
 		VisibilityArchiverScope: {operation: "VisibilityArchiver"},
@@ -2335,6 +2338,8 @@ const (
 	TransferTaskMissingEventCounterPerDomain
 	ReplicationTasksAppliedPerDomain
 	WorkflowTerminateCounterPerDomain
+	TaskSchedulerAllowedCounterPerDomain
+	TaskSchedulerThrottledCounterPerDomain
 
 	TaskRedispatchQueuePendingTasksTimer
 
@@ -3049,6 +3054,8 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		TransferTaskMissingEventCounterPerDomain: {metricName: "transfer_task_missing_event_counter_per_domain", metricRollupName: "transfer_task_missing_event_counter", metricType: Counter},
 		ReplicationTasksAppliedPerDomain:         {metricName: "replication_tasks_applied_per_domain", metricRollupName: "replication_tasks_applied", metricType: Counter},
 		WorkflowTerminateCounterPerDomain:        {metricName: "workflow_terminate_counter_per_domain", metricRollupName: "workflow_terminate_counter", metricType: Counter},
+		TaskSchedulerAllowedCounterPerDomain:     {metricName: "task_scheduler_allowed_counter_per_domain", metricRollupName: "task_scheduler_allowed_counter", metricType: Counter},
+		TaskSchedulerThrottledCounterPerDomain:   {metricName: "task_scheduler_throttled_counter_per_domain", metricRollupName: "task_scheduler_throttled_counter", metricType: Counter},
 
 		TaskBatchCompleteCounter:                                     {metricName: "task_batch_complete_counter", metricType: Counter},
 		TaskBatchCompleteFailure:                                     {metricName: "task_batch_complete_error", metricType: Counter},
