@@ -99,6 +99,7 @@ func (w *dw) DiagnosticsStarterWorkflow(ctx workflow.Context, params Diagnostics
 		RunID:                 params.RunID,
 		Identity:              params.Identity,
 		IssueType:             getIssueType(diagWfResult),
+		Environment:           w.clusterMetadata.GetCurrentClusterName(),
 		DiagnosticsWorkflowID: childWfExec.ID,
 		DiagnosticsRunID:      childWfExec.RunID,
 		DiagnosticsStartTime:  childWfStart,

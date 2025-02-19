@@ -24,6 +24,7 @@ package diagnostics
 
 import (
 	"context"
+	"github.com/uber/cadence/common/cluster"
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
@@ -54,6 +55,7 @@ type dw struct {
 	tallyScope      tally.Scope
 	worker          worker.Worker
 	invariants      []invariant.Invariant
+	clusterMetadata cluster.Metadata
 }
 
 type Params struct {
@@ -64,6 +66,7 @@ type Params struct {
 	Logger          log.Logger
 	TallyScope      tally.Scope
 	Invariants      []invariant.Invariant
+	ClusterMetadata cluster.Metadata
 }
 
 // New creates a new diagnostics workflow.
@@ -76,6 +79,7 @@ func New(params Params) DiagnosticsWorkflow {
 		clientBean:      params.ClientBean,
 		logger:          params.Logger,
 		invariants:      params.Invariants,
+		clusterMetadata: params.ClusterMetadata,
 	}
 }
 
