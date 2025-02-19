@@ -24,7 +24,6 @@ package diagnostics
 
 import (
 	"context"
-	"github.com/uber/cadence/common/cluster"
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
@@ -35,6 +34,7 @@ import (
 
 	"github.com/uber/cadence/client"
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/messaging"
 	"github.com/uber/cadence/common/metrics"
