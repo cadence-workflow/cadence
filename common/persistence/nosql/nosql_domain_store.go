@@ -75,6 +75,7 @@ func (m *nosqlDomainStore) CreateDomain(
 		FailoverEndTime:             nil,
 		IsGlobalDomain:              request.IsGlobalDomain,
 		LastUpdatedTime:             request.LastUpdatedTime,
+		CurrentTimeStamp:            request.CurrentTimeStamp,
 	}
 
 	err := m.db.InsertDomain(ctx, row)

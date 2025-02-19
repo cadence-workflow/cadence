@@ -23,6 +23,7 @@ package nosql
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log"
@@ -54,21 +55,23 @@ func newNoSQLQueueStore(
 		nosqlStore: shardedStore.GetDefaultShard(),
 		queueType:  queueType,
 	}
-	if err := queue.createQueueMetadataEntryIfNotExist(); err != nil {
+
+	currentTimestamp := time.Now()
+	if err := queue.createQueueMetadataEntryIfNotExist(currentTimestamp); err != nil {
 		return nil, fmt.Errorf("failed to check and create queue metadata entry: %v", err)
 	}
 
 	return queue, nil
 }
 
-func (q *nosqlQueueStore) createQueueMetadataEntryIfNotExist() error {
+func (q *nosqlQueueStore) createQueueMetadataEntryIfNotExist(currentTimestamp time.Time) error {
 	queueMetadata, err := q.getQueueMetadata(context.Background(), q.queueType)
 	if err != nil {
 		return err
 	}
 
 	if queueMetadata == nil {
-		if err := q.insertInitialQueueMetadataRecord(context.Background(), q.queueType); err != nil {
+		if err := q.insertInitialQueueMetadataRecord(context.Background(), q.queueType, currentTimestamp); err != nil {
 			return err
 		}
 	}
@@ -79,7 +82,7 @@ func (q *nosqlQueueStore) createQueueMetadataEntryIfNotExist() error {
 	}
 
 	if dlqMetadata == nil {
-		return q.insertInitialQueueMetadataRecord(context.Background(), q.getDLQTypeFromQueueType())
+		return q.insertInitialQueueMetadataRecord(context.Background(), q.getDLQTypeFromQueueType(), currentTimestamp)
 	}
 
 	return nil
@@ -88,10 +91,7 @@ func (q *nosqlQueueStore) createQueueMetadataEntryIfNotExist() error {
 // Warning: This is not a safe concurrent operation in its current state.
 // It's only used for domain replication at the moment, but needs a conditional write guard
 // for concurrent use
-func (q *nosqlQueueStore) EnqueueMessage(
-	ctx context.Context,
-	messagePayload []byte,
-) error {
+func (q *nosqlQueueStore) EnqueueMessage(ctx context.Context, messagePayload []byte, currentTimeStamp time.Time) error {
 	lastMessageID, err := q.getLastMessageID(ctx, q.queueType)
 	if err != nil {
 		return err
@@ -100,34 +100,27 @@ func (q *nosqlQueueStore) EnqueueMessage(
 	if err != nil {
 		return err
 	}
-	_, err = q.tryEnqueue(ctx, q.queueType, getNextID(ackLevels, lastMessageID), messagePayload)
+	_, err = q.tryEnqueue(ctx, q.queueType, getNextID(ackLevels, lastMessageID), messagePayload, currentTimeStamp)
 	return err
 }
 
-func (q *nosqlQueueStore) EnqueueMessageToDLQ(
-	ctx context.Context,
-	messagePayload []byte,
-) error {
+func (q *nosqlQueueStore) EnqueueMessageToDLQ(ctx context.Context, messagePayload []byte, currentTimeStamp time.Time) error {
 	// Use negative queue type as the dlq type
 	lastMessageID, err := q.getLastMessageID(ctx, q.getDLQTypeFromQueueType())
 	if err != nil {
 		return err
 	}
 
-	_, err = q.tryEnqueue(ctx, q.getDLQTypeFromQueueType(), lastMessageID+1, messagePayload)
+	_, err = q.tryEnqueue(ctx, q.getDLQTypeFromQueueType(), lastMessageID+1, messagePayload, currentTimeStamp)
 	return err
 }
 
-func (q *nosqlQueueStore) tryEnqueue(
-	ctx context.Context,
-	queueType persistence.QueueType,
-	messageID int64,
-	messagePayload []byte,
-) (int64, error) {
+func (q *nosqlQueueStore) tryEnqueue(ctx context.Context, queueType persistence.QueueType, messageID int64, messagePayload []byte, currentTimeStamp time.Time) (int64, error) {
 	err := q.db.InsertIntoQueue(ctx, &nosqlplugin.QueueMessageRow{
-		QueueType: queueType,
-		ID:        messageID,
-		Payload:   messagePayload,
+		QueueType:        queueType,
+		ID:               messageID,
+		Payload:          messagePayload,
+		CurrentTimeStamp: currentTimeStamp,
 	})
 	if err != nil {
 		if _, ok := err.(*nosqlplugin.ConditionFailure); ok {
@@ -243,25 +236,23 @@ func (q *nosqlQueueStore) RangeDeleteMessagesFromDLQ(
 	return nil
 }
 
-func (q *nosqlQueueStore) insertInitialQueueMetadataRecord(
-	ctx context.Context,
-	queueType persistence.QueueType,
-) error {
+func (q *nosqlQueueStore) insertInitialQueueMetadataRecord(ctx context.Context, queueType persistence.QueueType, currentTimeStamp time.Time) error {
 	version := int64(0)
-	if err := q.db.InsertQueueMetadata(ctx, queueType, version); err != nil {
+
+	row := nosqlplugin.QueueMetadataRow{
+		Version:          version,
+		QueueType:        queueType,
+		CurrentTimeStamp: currentTimeStamp,
+	}
+	if err := q.db.InsertQueueMetadata(ctx, row); err != nil {
 		return convertCommonErrors(q.db, fmt.Sprintf("InsertInitialQueueMetadataRecord, Type: %v", queueType), err)
 	}
 
 	return nil
 }
 
-func (q *nosqlQueueStore) UpdateAckLevel(
-	ctx context.Context,
-	messageID int64,
-	clusterName string,
-) error {
-
-	return q.updateAckLevel(ctx, messageID, clusterName, q.queueType)
+func (q *nosqlQueueStore) UpdateAckLevel(ctx context.Context, messageID int64, clusterName string, currentTimestamp time.Time) error {
+	return q.updateAckLevel(ctx, messageID, clusterName, q.queueType, currentTimestamp)
 }
 
 func (q *nosqlQueueStore) GetAckLevels(
@@ -275,13 +266,8 @@ func (q *nosqlQueueStore) GetAckLevels(
 	return queueMetadata.ClusterAckLevels, nil
 }
 
-func (q *nosqlQueueStore) UpdateDLQAckLevel(
-	ctx context.Context,
-	messageID int64,
-	clusterName string,
-) error {
-
-	return q.updateAckLevel(ctx, messageID, clusterName, q.getDLQTypeFromQueueType())
+func (q *nosqlQueueStore) UpdateDLQAckLevel(ctx context.Context, messageID int64, clusterName string, currentTimestamp time.Time) error {
+	return q.updateAckLevel(ctx, messageID, clusterName, q.getDLQTypeFromQueueType(), currentTimestamp)
 }
 
 func (q *nosqlQueueStore) GetDLQAckLevels(
@@ -352,6 +338,7 @@ func (q *nosqlQueueStore) updateAckLevel(
 	messageID int64,
 	clusterName string,
 	queueType persistence.QueueType,
+	currentTimestamp time.Time,
 ) error {
 
 	queueMetadata, err := q.getQueueMetadata(ctx, queueType)
@@ -366,6 +353,7 @@ func (q *nosqlQueueStore) updateAckLevel(
 
 	queueMetadata.ClusterAckLevels[clusterName] = messageID
 	queueMetadata.Version++
+	queueMetadata.CurrentTimeStamp = currentTimestamp
 
 	// Use negative queue type as the dlq type
 	err = q.updateQueueMetadata(ctx, queueMetadata)

@@ -22,9 +22,9 @@ package persistence
 
 import (
 	"context"
-	"time"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 )
 
@@ -35,6 +35,7 @@ type (
 		serializer  PayloadSerializer
 		persistence ConfigStore
 		logger      log.Logger
+		timeSrc     clock.TimeSource
 	}
 )
 
@@ -46,6 +47,7 @@ func NewConfigStoreManagerImpl(persistence ConfigStore, logger log.Logger) Confi
 		serializer:  NewPayloadSerializer(),
 		persistence: persistence,
 		logger:      logger,
+		timeSrc:     clock.NewRealTimeSource(),
 	}
 }
 
@@ -79,7 +81,7 @@ func (m *configStoreManagerImpl) UpdateDynamicConfig(ctx context.Context, reques
 	entry := &InternalConfigStoreEntry{
 		RowType:   int(cfgType),
 		Version:   request.Snapshot.Version,
-		Timestamp: time.Now(),
+		Timestamp: m.timeSrc.Now(),
 		Values:    blob,
 	}
 
