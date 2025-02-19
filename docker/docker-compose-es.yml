@@ -79,7 +79,7 @@ services:
   cadence-web:
     image: ubercadence/web:latest
     environment:
-      - "CADENCE_TCHANNEL_PEERS=cadence:7933"
+      - "CADENCE_GRPC_PEERS=cadence:7833"
     ports:
       - "8088:8088"
     depends_on:

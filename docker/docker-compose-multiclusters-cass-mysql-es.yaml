@@ -134,18 +134,13 @@ services:
   cadence-web:
     image: ubercadence/web:latest
     environment:
-      - "CADENCE_TCHANNEL_PEERS=cadence:7933"
+      - "CADENCE_GRPC_PEERS=cadence:7833,cadence-secondary:7833"
+      - "CADENCE_GRPC_SERVICES_NAMES=cadence-frontend,cadence-frontend"
+      - "CADENCE_CLUSTERS_NAMES=cluster0,cluster1"
     ports:
       - "8088:8088"
     depends_on:
       - cadence
-  cadence-web-secondary:
-    image: ubercadence/web:latest
-    environment:
-      - "CADENCE_TCHANNEL_PEERS=cadence-secondary:7933"
-    ports:
-      - "8089:8088"
-    depends_on:
       - cadence-secondary
   grafana:
     image: grafana/grafana

@@ -138,31 +138,21 @@ services:
         aliases:
           - cadence-cluster1
 
-  cadence-web0:
+  cadence-web:
     image: ubercadence/web:latest
     environment:
-      - "CADENCE_TCHANNEL_PEERS=cadence-cluster0:7933"
+      - "CADENCE_GRPC_PEERS=cadence-cluster0:7833,cadence-cluster1:7833"
+      - "CADENCE_GRPC_SERVICES_NAMES=cadence-frontend,cadence-frontend"
+      - "CADENCE_CLUSTERS_NAMES=cluster0,cluster1"
     ports:
       - "8088:8088"
     depends_on:
       - cadence-cluster0
-    networks:
-      services-network:
-        aliases:
-          - cadence-web0
-
-  cadence-web1:
-    image: ubercadence/web:latest
-    environment:
-      - "CADENCE_TCHANNEL_PEERS=cadence-cluster1:7933"
-    ports:
-      - "8089:8088"
-    depends_on:
       - cadence-cluster1
     networks:
       services-network:
         aliases:
-          - cadence-web1
+          - cadence-web
 
   cadence-worker0:
     build:
@@ -246,13 +236,11 @@ services:
         condition: service_started
       cadence-worker0:
         condition: service_started
-      cadence-web0:
-        condition: service_started
       cadence-cluster1:
         condition: service_started
       cadence-worker1:
         condition: service_started
-      cadence-web1:
+      cadence-web:
         condition: service_started
       grafana:
         condition: service_started
