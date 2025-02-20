@@ -49,6 +49,7 @@ func setupMocksForRequestValidator(t *testing.T) (*requestValidatorImpl, *mockDe
 		numHistoryShards,
 		true,
 		"hostname",
+		logger,
 	)
 	deps := &mockDeps{
 		dynamicClient: dynamicClient,

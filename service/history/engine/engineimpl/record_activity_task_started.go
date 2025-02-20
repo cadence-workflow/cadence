@@ -57,7 +57,7 @@ func (e *historyEngineImpl) RecordActivityTaskStarted(
 
 	var resurrectError error
 	response := &types.RecordActivityTaskStartedResponse{}
-	err = workflow.UpdateWithAction(ctx, e.executionCache, domainID, workflowExecution, false, e.timeSource.Now(),
+	err = workflow.UpdateWithAction(ctx, e.logger, e.executionCache, domainID, workflowExecution, false, e.timeSource.Now(),
 		func(wfContext execution.Context, mutableState execution.MutableState) error {
 			if !mutableState.IsWorkflowExecutionRunning() {
 				return workflow.ErrNotExists

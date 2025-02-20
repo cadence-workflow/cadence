@@ -12,23 +12,27 @@ set -eo pipefail
 testCase="${1:-default}"
 testCfg="testdata/replication_simulation_$testCase.yaml"
 now="$(date '+%Y-%m-%d-%H-%M-%S')"
-timestamp="${2:-$now}"
+rerun="${2:-}"
+timestamp="${3:-$now}"
 testName="test-$testCase-$timestamp"
 resultFolder="replication-simulator-output"
 mkdir -p "$resultFolder"
 eventLogsFile="$resultFolder/$testName-events.json"
 testSummaryFile="$resultFolder/$testName-summary.txt"
 
-echo "Removing some of the previous containers (if exists) to start fresh"
-docker-compose -f docker/buildkite/docker-compose-local-replication-simulation.yml \
-  down cassandra cadence-cluster0 cadence-cluster1 replication-simulator
+# Prune everything and rebuild images if rerun=false
+if [ "$rerun" != "rerun" ]; then
+  echo "Removing some of the previous containers (if exists) to start fresh"
+  docker-compose -f docker/buildkite/docker-compose-local-replication-simulation.yml \
+    down cassandra cadence-cluster0 cadence-cluster1 replication-simulator
 
-echo "Each simulation run creates multiple new giant container images. Running docker system prune to avoid disk space issues"
-docker system prune -f
+  echo "Each simulation run creates multiple new giant container images. Running docker system prune to avoid disk space issues"
+  docker system prune -f
 
-echo "Building test images"
-docker-compose -f docker/buildkite/docker-compose-local-replication-simulation.yml \
-  build cadence-cluster0 cadence-cluster1 replication-simulator cadence-worker0 cadence-worker1
+  echo "Building test images"
+  docker-compose -f docker/buildkite/docker-compose-local-replication-simulation.yml \
+    build cadence-cluster0 cadence-cluster1 replication-simulator cadence-worker0 cadence-worker1
+fi
 
 function check_test_failure()
 {

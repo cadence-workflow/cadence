@@ -31,6 +31,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	commonconstants "github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/service/history/config"
 	"github.com/uber/cadence/service/history/constants"
@@ -99,7 +100,7 @@ func TestUpdateHelper(t *testing.T) {
 			workflowContext := NewContext(mockContext, nil, mockMutableState)
 
 			tc.mockSetupFn(mockContext, mockMutableState)
-			err := updateHelper(context.Background(), workflowContext, time.Now(), tc.actionFn)
+			err := updateHelper(context.Background(), testlogger.New(t), workflowContext, time.Now(), tc.actionFn)
 			require.NoError(t, err)
 		})
 	}

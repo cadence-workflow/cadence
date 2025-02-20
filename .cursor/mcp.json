@@ -1,0 +1,9 @@
+{
+    "mcpServers": {
+      "cadence-mcp-server": {
+          "command": "/Users/taylan/code/forks/cadence/.bin/cadence_mcp",
+          "args": [],
+          "env": {}
+        }
+    }
+}

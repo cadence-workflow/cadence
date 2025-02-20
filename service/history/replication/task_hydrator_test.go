@@ -614,7 +614,7 @@ func TestMutableStateLoader_GetMutableState(t *testing.T) {
 
 	// Happy path
 	domainCache.EXPECT().GetDomainByID(testDomainID).Return(&cache.DomainCacheEntry{}, nil)
-	expectedMS.EXPECT().StartTransaction(gomock.Any(), gomock.Any()).Return(false, nil)
+	expectedMS.EXPECT().StartTransaction(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil)
 	exec.SetWorkflowExecution(expectedMS)
 	ms, release, err := msLoader.GetMutableState(ctx, testDomainID, testWorkflowID, testRunID)
 	assert.NoError(t, err)

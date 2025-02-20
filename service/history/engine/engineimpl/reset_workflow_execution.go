@@ -167,9 +167,11 @@ func (e *historyEngineImpl) ResetWorkflowExecution(
 		execution.NewWorkflow(
 			ctx,
 			e.shard.GetClusterMetadata(),
+			e.shard.GetActiveClusterManager(),
 			currentContext,
 			currentMutableState,
 			currentReleaseFn,
+			e.logger,
 		),
 		request.GetReason(),
 		nil,
@@ -200,13 +202,14 @@ func (e *historyEngineImpl) isWorkflowResettable(baseMutableState execution.Muta
 		return fmt.Errorf("fail to get failover version of workflow start event: %w", err)
 	}
 
-	startClusterName, err := e.clusterMetadata.ClusterNameForFailoverVersion(startVersion)
+	lookupResult, err := e.shard.GetActiveClusterManager().LookupFailoverVersion(startVersion, domainID)
 	if err != nil {
 		return fmt.Errorf("fail to get cluster name for failover version: %w", err)
 	}
+	startCluster := lookupResult.ClusterName
 
-	if currentCluster := e.clusterMetadata.GetCurrentClusterName(); currentCluster != startClusterName {
-		return fmt.Errorf("workflow was not started in the current cluster: failover to workflow start cluster %s before reset", startClusterName)
+	if currentCluster := e.clusterMetadata.GetCurrentClusterName(); currentCluster != startCluster {
+		return fmt.Errorf("workflow was not started in the current cluster: failover to workflow start cluster %s before reset", lookupResult.ClusterName)
 	}
 
 	return nil

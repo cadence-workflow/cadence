@@ -44,9 +44,9 @@ func (e *historyEngineImpl) NotifyNewTransferTasks(info *hcommon.NotifyTaskInfo)
 	}
 
 	task := info.Tasks[0]
-	clusterName, err := e.clusterMetadata.ClusterNameForFailoverVersion(task.GetVersion())
+	lookupResult, err := e.shard.GetActiveClusterManager().LookupFailoverVersion(task.GetVersion(), info.ExecutionInfo.DomainID)
 	if err == nil {
-		e.txProcessor.NotifyNewTask(clusterName, info)
+		e.txProcessor.NotifyNewTask(lookupResult.ClusterName, info)
 	}
 }
 
@@ -56,9 +56,9 @@ func (e *historyEngineImpl) NotifyNewTimerTasks(info *hcommon.NotifyTaskInfo) {
 	}
 
 	task := info.Tasks[0]
-	clusterName, err := e.clusterMetadata.ClusterNameForFailoverVersion(task.GetVersion())
+	lookupResult, err := e.shard.GetActiveClusterManager().LookupFailoverVersion(task.GetVersion(), info.ExecutionInfo.DomainID)
 	if err == nil {
-		e.timerProcessor.NotifyNewTask(clusterName, info)
+		e.timerProcessor.NotifyNewTask(lookupResult.ClusterName, info)
 	}
 }
 

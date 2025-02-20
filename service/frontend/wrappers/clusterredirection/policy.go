@@ -27,6 +27,7 @@ import (
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/types"
 	frontendcfg "github.com/uber/cadence/service/frontend/config"
 )
@@ -245,18 +246,28 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) isDomainNotActiveErr
 // return two values: the target cluster name, and whether or not forwarding to the active cluster
 func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) getTargetClusterAndIsDomainNotActiveAutoForwarding(ctx context.Context, domainEntry *cache.DomainCacheEntry, apiName string) (string, bool) {
 	if !domainEntry.IsGlobalDomain() {
-		// do not do dc redirection if domain is local domain,
+		// Do not do dc redirection if domain is local domain,
 		// for global domains with 1 dc, it's still useful to do auto-forwarding during cluster migration
 		return policy.currentClusterName, false
 	}
 
 	if !policy.config.EnableDomainNotActiveAutoForwarding(domainEntry.GetInfo().Name) {
-		// do not do dc redirection if auto-forwarding dynamicconfig is not enabled
+		// Do not do dc redirection if auto-forwarding dynamicconfig is not enabled
 		return policy.currentClusterName, false
 	}
 
+	isActiveActive := domainEntry.GetReplicationConfig().IsActiveActive()
+	policy.config.Logger.Debugf("Domain %v is active-active: %v", domainEntry.GetInfo().Name, isActiveActive)
+	if isActiveActive {
+		// TODO:
+		// - Update generated API code to pass workflow id/run id to this callback and lookup active cluster
+		policy.config.Logger.Debug("Handling active-active domain call in the receiving cluster for now", tag.WorkflowDomainName(domainEntry.GetInfo().Name))
+		return policy.currentClusterName, true
+	}
+
 	currentActiveCluster := domainEntry.GetReplicationConfig().ActiveClusterName
-	if policy.allDomainAPIs {
+
+	if policy.allDomainAPIs { // TODO(taylan): policy.allDomainAPIs is always set to false. get rid of this if branch
 		if policy.targetCluster == "" {
 			return currentActiveCluster, true
 		}

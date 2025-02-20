@@ -28,15 +28,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	commonConfig "github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -51,7 +54,7 @@ var (
 	testStopwatch = metrics.NoopScope(metrics.ReplicateHistoryEventsScope).StartTimer(metrics.CacheLatency)
 )
 
-func createTestHistoryReplicator(t *testing.T) historyReplicatorImpl {
+func createTestHistoryReplicator(t *testing.T, domainID string) historyReplicatorImpl {
 	ctrl := gomock.NewController(t)
 
 	mockShard := shard.NewMockContext(ctrl)
@@ -75,7 +78,8 @@ func createTestHistoryReplicator(t *testing.T) historyReplicatorImpl {
 	mockEventsReapplier := NewMockEventsReapplier(ctrl)
 
 	// going into NewHistoryReplicator -> newTransactionManager()
-	mockShard.EXPECT().GetClusterMetadata().Return(cluster.Metadata{}).Times(2)
+	clusterMetadata := cluster.Metadata{}
+	mockShard.EXPECT().GetClusterMetadata().Return(clusterMetadata).Times(2)
 	mockHistoryManager := persistence.NewMockHistoryManager(ctrl)
 	mockShard.EXPECT().GetHistoryManager().Return(mockHistoryManager).Times(3)
 
@@ -89,15 +93,39 @@ func createTestHistoryReplicator(t *testing.T) historyReplicatorImpl {
 	mockShard.EXPECT().GetDomainCache().Return(mockDomainCache).Times(2)
 
 	// going back to NewHistoryReplicator
-	mockHistoryResource.EXPECT().GetClusterMetadata().Return(cluster.Metadata{}).Times(1)
+	mockHistoryResource.EXPECT().GetClusterMetadata().Return(clusterMetadata).Times(1)
+
+	activeClusterManager := newActiveClusterManager(clusterMetadata, domainID, log.NewNoop())
+	mockShard.EXPECT().GetActiveClusterManager().Return(activeClusterManager).AnyTimes()
 
 	replicator := NewHistoryReplicator(mockShard, testExecutionCache, mockEventsReapplier, log.NewNoop())
 	replicatorImpl := replicator.(*historyReplicatorImpl)
 	return *replicatorImpl
 }
 
+func newActiveClusterManager(clusterMetadata cluster.Metadata, domainID string, logger log.Logger) activecluster.Manager {
+	domainIDToDomainFn := func(id string) (*cache.DomainCacheEntry, error) {
+		return cache.NewGlobalDomainCacheEntryForTest(
+			&persistence.DomainInfo{
+				ID:   domainID,
+				Name: "test",
+			},
+			&persistence.DomainConfig{},
+			&persistence.DomainReplicationConfig{
+				ActiveClusterName: cluster.TestCurrentClusterName,
+				Clusters: []*persistence.ClusterReplicationConfig{
+					{ClusterName: cluster.TestCurrentClusterName},
+					{ClusterName: cluster.TestAlternativeClusterName},
+				},
+			},
+			clusterMetadata.GetAllClusterInfo()[cluster.TestCurrentClusterName].InitialFailoverVersion,
+		), nil
+	}
+	return activecluster.NewManager(domainIDToDomainFn, clusterMetadata, nil, logger)
+}
+
 func TestNewHistoryReplicator(t *testing.T) {
-	assert.NotNil(t, createTestHistoryReplicator(t))
+	assert.NotNil(t, createTestHistoryReplicator(t, uuid.New()))
 }
 
 func TestNewHistoryReplicator_newBranchManager(t *testing.T) {
@@ -370,9 +398,9 @@ func TestNewHistoryReplicator_newMutableState(t *testing.T) {
 }
 
 func TestApplyEvents(t *testing.T) {
-	replicator := createTestHistoryReplicator(t)
+	replicator := createTestHistoryReplicator(t, uuid.New())
 	replicator.newReplicationTaskFn = func(
-		clusterMetadata cluster.Metadata,
+		activeClusterManager activecluster.Manager,
 		historySerializer persistence.PayloadSerializer,
 		taskStartTime time.Time,
 		logger log.Logger,
@@ -430,7 +458,7 @@ func Test_applyEvents_EventTypeWorkflowExecutionStarted(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			// mock objects
-			replicator := createTestHistoryReplicator(t)
+			replicator := createTestHistoryReplicator(t, uuid.New())
 			mockReplicationTask := NewMockreplicationTask(ctrl)
 			mockExecutionCache := execution.NewMockCache(ctrl)
 			replicator.executionCache = mockExecutionCache
@@ -813,7 +841,7 @@ func Test_applyEvents_defaultCase_noErrorBranch(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			// mock objects
-			replicator := createTestHistoryReplicator(t)
+			replicator := createTestHistoryReplicator(t, uuid.New())
 			mockReplicationTask := NewMockreplicationTask(ctrl)
 			mockExecutionCache := execution.NewMockCache(ctrl)
 			mockExecutionContext := execution.NewMockContext(ctrl)
@@ -852,6 +880,7 @@ func Test_applyEvents_defaultCase_noErrorBranch(t *testing.T) {
 				releaseFn execution.ReleaseFunc,
 				task replicationTask,
 				r *historyReplicatorImpl,
+				logger log.Logger,
 			) error {
 				return nil
 			}
@@ -977,7 +1006,7 @@ func Test_applyEvents_defaultCase_errorAndDefault(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			// mock objects
-			replicator := createTestHistoryReplicator(t)
+			replicator := createTestHistoryReplicator(t, uuid.New())
 			mockReplicationTask := NewMockreplicationTask(ctrl)
 			mockExecutionCache := execution.NewMockCache(ctrl)
 			mockExecutionContext := execution.NewMockContext(ctrl)
@@ -1613,6 +1642,8 @@ func Test_applyNonStartEventsToNoneCurrentBranch(t *testing.T) {
 					task replicationTask,
 					transactionManager transactionManager,
 					clusterMetadata cluster.Metadata,
+					shard shard.Context,
+					logger log.Logger,
 				) error {
 					return nil
 				}
@@ -1652,6 +1683,8 @@ func Test_applyNonStartEventsToNoneCurrentBranch(t *testing.T) {
 					task replicationTask,
 					transactionManager transactionManager,
 					clusterMetadata cluster.Metadata,
+					shard shard.Context,
+					logger log.Logger,
 				) error {
 					return fmt.Errorf("test error")
 				}
@@ -1672,7 +1705,7 @@ func Test_applyNonStartEventsToNoneCurrentBranch(t *testing.T) {
 			mockReleaseFn := func(error) {}
 
 			// Create the replicator using createTestHistoryReplicator
-			replicator := createTestHistoryReplicator(t)
+			replicator := createTestHistoryReplicator(t, uuid.New())
 
 			// Mock affordances
 			test.mockTaskAffordance(mockTask)
@@ -1680,7 +1713,7 @@ func Test_applyNonStartEventsToNoneCurrentBranch(t *testing.T) {
 			test.mockApplyNonStartEventsWithoutContinueAsNewAffordance(&replicator)
 
 			// Call the function under test
-			err := applyNonStartEventsToNoneCurrentBranch(ctx.Background(), mockExecutionContext, mockMutableState, 1, mockReleaseFn, mockTask, &replicator)
+			err := applyNonStartEventsToNoneCurrentBranch(ctx.Background(), mockExecutionContext, mockMutableState, 1, mockReleaseFn, mockTask, &replicator, replicator.logger)
 
 			// Assertions
 			assert.Equal(t, test.expectError, err)
@@ -1845,6 +1878,9 @@ func Test_applyNonStartEventsToNoneCurrentBranchWithoutContinueAsNew(t *testing.
 			test.mockTaskAffordance(mockTask)
 			test.mockTransactionManagerAffordance(mockTransactionManager)
 
+			mockShard := shard.NewMockContext(ctrl)
+			activeClusterManager := activecluster.NewMockManager(ctrl)
+			mockShard.EXPECT().GetActiveClusterManager().Return(activeClusterManager).AnyTimes()
 			// Call the function under test
 			err := applyNonStartEventsToNoneCurrentBranchWithoutContinueAsNew(
 				ctx.Background(),
@@ -1855,6 +1891,8 @@ func Test_applyNonStartEventsToNoneCurrentBranchWithoutContinueAsNew(t *testing.
 				mockTask,
 				mockTransactionManager,
 				cluster.Metadata{},
+				mockShard,
+				testlogger.New(t),
 			)
 
 			// Assertions
@@ -2206,10 +2244,12 @@ func Test_notify(t *testing.T) {
 
 			// Create Metadata instance
 			clusterMetadata := cluster.NewMetadata(
-				1,
-				test.primaryClusterName,
-				test.currentClusterName,
-				clusterGroup,
+				commonConfig.ClusterGroupMetadata{
+					FailoverVersionIncrement: 1,
+					PrimaryClusterName:       test.primaryClusterName,
+					CurrentClusterName:       test.currentClusterName,
+					ClusterGroup:             clusterGroup,
+				},
 				dynamicconfig.GetBoolPropertyFnFilteredByDomain(false),
 				metrics.NewNoopMetricsClient(),
 				log.NewNoop(),
