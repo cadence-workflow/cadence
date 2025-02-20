@@ -377,18 +377,20 @@ func (s *TestBase) CreateWorkflowExecutionWithBranchToken(
 				PartitionConfig:             partitionConfig,
 			},
 			ExecutionStats: &persistence.ExecutionStats{},
-			TransferTasks: []persistence.Task{
-				&persistence.DecisionTask{
-					TaskData: persistence.TaskData{
-						TaskID:              s.GetNextSequenceNumber(),
-						VisibilityTimestamp: time.Now(),
+			TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+				persistence.HistoryTaskCategoryTransfer: []persistence.Task{
+					&persistence.DecisionTask{
+						TaskData: persistence.TaskData{
+							TaskID:              s.GetNextSequenceNumber(),
+							VisibilityTimestamp: time.Now(),
+						},
+						DomainID:   domainID,
+						TaskList:   taskList,
+						ScheduleID: decisionScheduleID,
 					},
-					DomainID:   domainID,
-					TaskList:   taskList,
-					ScheduleID: decisionScheduleID,
 				},
+				persistence.HistoryTaskCategoryTimer: timerTasks,
 			},
-			TimerTasks:       timerTasks,
 			Checksum:         testWorkflowChecksum,
 			VersionHistories: versionHistories,
 		},
@@ -462,17 +464,19 @@ func (s *TestBase) CreateChildWorkflowExecution(ctx context.Context, domainID st
 				PartitionConfig:             partitionConfig,
 			},
 			ExecutionStats: &persistence.ExecutionStats{},
-			TransferTasks: []persistence.Task{
-				&persistence.DecisionTask{
-					TaskData: persistence.TaskData{
-						TaskID: s.GetNextSequenceNumber(),
+			TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+				persistence.HistoryTaskCategoryTransfer: []persistence.Task{
+					&persistence.DecisionTask{
+						TaskData: persistence.TaskData{
+							TaskID: s.GetNextSequenceNumber(),
+						},
+						DomainID:   domainID,
+						TaskList:   taskList,
+						ScheduleID: decisionScheduleID,
 					},
-					DomainID:   domainID,
-					TaskList:   taskList,
-					ScheduleID: decisionScheduleID,
 				},
+				persistence.HistoryTaskCategoryTimer: timerTasks,
 			},
-			TimerTasks:       timerTasks,
 			VersionHistories: versionHistories,
 		},
 		RangeID:    s.ShardInfo.RangeID,
@@ -555,10 +559,13 @@ func (s *TestBase) ContinueAsNewExecution(
 
 	req := &persistence.UpdateWorkflowExecutionRequest{
 		UpdateWorkflowMutation: persistence.WorkflowMutation{
-			ExecutionInfo:       updatedInfo,
-			ExecutionStats:      updatedStats,
-			TransferTasks:       []persistence.Task{newdecisionTask},
-			TimerTasks:          nil,
+			ExecutionInfo:  updatedInfo,
+			ExecutionStats: updatedStats,
+			TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+				persistence.HistoryTaskCategoryTransfer: []persistence.Task{
+					newdecisionTask,
+				},
+			},
 			Condition:           condition,
 			UpsertActivityInfos: nil,
 			DeleteActivityInfos: nil,
@@ -592,8 +599,6 @@ func (s *TestBase) ContinueAsNewExecution(
 				PartitionConfig:             updatedInfo.PartitionConfig,
 			},
 			ExecutionStats:   updatedStats,
-			TransferTasks:    nil,
-			TimerTasks:       nil,
 			VersionHistories: versionHistories,
 		},
 		RangeID:  s.ShardInfo.RangeID,
@@ -660,10 +665,11 @@ func (s *TestBase) UpdateWorkflowExecutionAndFinish(
 	_, err := s.ExecutionManager.UpdateWorkflowExecution(ctx, &persistence.UpdateWorkflowExecutionRequest{
 		RangeID: s.ShardInfo.RangeID,
 		UpdateWorkflowMutation: persistence.WorkflowMutation{
-			ExecutionInfo:       updatedInfo,
-			ExecutionStats:      updatedStats,
-			TransferTasks:       transferTasks,
-			TimerTasks:          nil,
+			ExecutionInfo:  updatedInfo,
+			ExecutionStats: updatedStats,
+			TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+				persistence.HistoryTaskCategoryTransfer: transferTasks,
+			},
 			Condition:           condition,
 			UpsertActivityInfos: nil,
 			DeleteActivityInfos: nil,
@@ -1067,7 +1073,6 @@ func (s *TestBase) UpdateWorkflowExecutionWithReplication(
 
 	// TODO: use separate fields for those three task types
 	var transferTasks []persistence.Task
-	var crossClusterTasks []persistence.Task
 	var replicationTasks []persistence.Task
 	for _, task := range txTasks {
 		switch t := task.(type) {
@@ -1084,12 +1089,6 @@ func (s *TestBase) UpdateWorkflowExecutionWithReplication(
 			*persistence.ResetWorkflowTask,
 			*persistence.UpsertWorkflowSearchAttributesTask:
 			transferTasks = append(transferTasks, t)
-		case *persistence.CrossClusterStartChildExecutionTask,
-			*persistence.CrossClusterCancelExecutionTask,
-			*persistence.CrossClusterSignalExecutionTask,
-			*persistence.CrossClusterRecordChildExecutionCompletedTask,
-			*persistence.CrossClusterApplyParentClosePolicyTask:
-			crossClusterTasks = append(crossClusterTasks, t)
 		case *persistence.HistoryReplicationTask, *persistence.SyncActivityTask:
 			replicationTasks = append(replicationTasks, t)
 		default:
@@ -1135,10 +1134,11 @@ func (s *TestBase) UpdateWorkflowExecutionWithReplication(
 			UpsertSignalRequestedIDs:  upsertSignalRequestedIDs,
 			DeleteSignalRequestedIDs:  deleteSignalRequestedIDs,
 
-			TransferTasks:     transferTasks,
-			CrossClusterTasks: crossClusterTasks,
-			ReplicationTasks:  replicationTasks,
-			TimerTasks:        timerTasks,
+			TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+				persistence.HistoryTaskCategoryTransfer:    transferTasks,
+				persistence.HistoryTaskCategoryTimer:       timerTasks,
+				persistence.HistoryTaskCategoryReplication: replicationTasks,
+			},
 
 			Condition: condition,
 			Checksum:  testWorkflowChecksum,
@@ -1157,17 +1157,17 @@ func (s *TestBase) UpdateWorkflowExecutionTasks(
 	condition int64,
 	transferTasks []persistence.Task,
 	timerTasks []persistence.Task,
-	crossClusterTasks []persistence.Task,
 ) error {
 	_, err := s.ExecutionManager.UpdateWorkflowExecution(ctx, &persistence.UpdateWorkflowExecutionRequest{
 		Mode: persistence.UpdateWorkflowModeIgnoreCurrent,
 		UpdateWorkflowMutation: persistence.WorkflowMutation{
-			ExecutionInfo:     updatedInfo,
-			ExecutionStats:    updatedStats,
-			TransferTasks:     transferTasks,
-			TimerTasks:        timerTasks,
-			CrossClusterTasks: crossClusterTasks,
-			Condition:         condition,
+			ExecutionInfo:  updatedInfo,
+			ExecutionStats: updatedStats,
+			TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+				persistence.HistoryTaskCategoryTransfer: transferTasks,
+				persistence.HistoryTaskCategoryTimer:    timerTasks,
+			},
+			Condition: condition,
 		},
 		RangeID:  s.ShardInfo.RangeID,
 		Encoding: pickRandomEncoding(),
@@ -1188,9 +1188,11 @@ func (s *TestBase) UpdateWorkflowExecutionWithTransferTasks(
 
 	_, err := s.ExecutionManager.UpdateWorkflowExecution(ctx, &persistence.UpdateWorkflowExecutionRequest{
 		UpdateWorkflowMutation: persistence.WorkflowMutation{
-			ExecutionInfo:       updatedInfo,
-			ExecutionStats:      updatedStats,
-			TransferTasks:       transferTasks,
+			ExecutionInfo:  updatedInfo,
+			ExecutionStats: updatedStats,
+			TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+				persistence.HistoryTaskCategoryTransfer: transferTasks,
+			},
 			Condition:           condition,
 			UpsertActivityInfos: upsertActivityInfo,
 			VersionHistories:    versionHistories,
@@ -1207,9 +1209,11 @@ func (s *TestBase) UpdateWorkflowExecutionForChildExecutionsInitiated(
 	updatedInfo *persistence.WorkflowExecutionInfo, updatedStats *persistence.ExecutionStats, condition int64, transferTasks []persistence.Task, childInfos []*persistence.ChildExecutionInfo) error {
 	_, err := s.ExecutionManager.UpdateWorkflowExecution(ctx, &persistence.UpdateWorkflowExecutionRequest{
 		UpdateWorkflowMutation: persistence.WorkflowMutation{
-			ExecutionInfo:             updatedInfo,
-			ExecutionStats:            updatedStats,
-			TransferTasks:             transferTasks,
+			ExecutionInfo:  updatedInfo,
+			ExecutionStats: updatedStats,
+			TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+				persistence.HistoryTaskCategoryTransfer: transferTasks,
+			},
 			Condition:                 condition,
 			UpsertChildExecutionInfos: childInfos,
 		},
@@ -1226,9 +1230,11 @@ func (s *TestBase) UpdateWorkflowExecutionForRequestCancel(
 	upsertRequestCancelInfo []*persistence.RequestCancelInfo) error {
 	_, err := s.ExecutionManager.UpdateWorkflowExecution(ctx, &persistence.UpdateWorkflowExecutionRequest{
 		UpdateWorkflowMutation: persistence.WorkflowMutation{
-			ExecutionInfo:            updatedInfo,
-			ExecutionStats:           updatedStats,
-			TransferTasks:            transferTasks,
+			ExecutionInfo:  updatedInfo,
+			ExecutionStats: updatedStats,
+			TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+				persistence.HistoryTaskCategoryTransfer: transferTasks,
+			},
 			Condition:                condition,
 			UpsertRequestCancelInfos: upsertRequestCancelInfo,
 		},
@@ -1245,9 +1251,11 @@ func (s *TestBase) UpdateWorkflowExecutionForSignal(
 	upsertSignalInfos []*persistence.SignalInfo) error {
 	_, err := s.ExecutionManager.UpdateWorkflowExecution(ctx, &persistence.UpdateWorkflowExecutionRequest{
 		UpdateWorkflowMutation: persistence.WorkflowMutation{
-			ExecutionInfo:     updatedInfo,
-			ExecutionStats:    updatedStats,
-			TransferTasks:     transferTasks,
+			ExecutionInfo:  updatedInfo,
+			ExecutionStats: updatedStats,
+			TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+				persistence.HistoryTaskCategoryTransfer: transferTasks,
+			},
 			Condition:         condition,
 			UpsertSignalInfos: upsertSignalInfos,
 		},

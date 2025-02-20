@@ -174,6 +174,46 @@ const (
 	TaskListKindSticky
 )
 
+// HistoryTaskCategory represents various categories of history tasks
+type HistoryTaskCategory struct {
+	categoryType int
+	categoryID   int
+}
+
+func (c *HistoryTaskCategory) Type() int {
+	return c.categoryType
+}
+
+func (c *HistoryTaskCategory) ID() int {
+	return c.categoryID
+}
+
+const (
+	HistoryTaskCategoryTypeImmediate = iota + 1
+	HistoryTaskCategoryTypeScheduled
+)
+
+const (
+	HistoryTaskCategoryIDTransfer    = 1
+	HistoryTaskCategoryIDTimer       = 2
+	HistoryTaskCategoryIDReplication = 3
+)
+
+var (
+	HistoryTaskCategoryTransfer = HistoryTaskCategory{
+		categoryType: HistoryTaskCategoryTypeImmediate,
+		categoryID:   HistoryTaskCategoryIDTransfer,
+	}
+	HistoryTaskCategoryTimer = HistoryTaskCategory{
+		categoryType: HistoryTaskCategoryTypeScheduled,
+		categoryID:   HistoryTaskCategoryIDTimer,
+	}
+	HistoryTaskCategoryReplication = HistoryTaskCategory{
+		categoryType: HistoryTaskCategoryTypeImmediate,
+		categoryID:   HistoryTaskCategoryIDReplication,
+	}
+)
+
 // Transfer task types
 const (
 	TransferTaskTypeDecisionTask = iota
@@ -806,10 +846,7 @@ type (
 		NewBufferedEvents         []*types.HistoryEvent
 		ClearBufferedEvents       bool
 
-		TransferTasks     []Task
-		CrossClusterTasks []Task
-		ReplicationTasks  []Task
-		TimerTasks        []Task
+		TasksByCategory map[HistoryTaskCategory][]Task
 
 		WorkflowRequests []*WorkflowRequest
 
@@ -830,10 +867,7 @@ type (
 		SignalInfos         []*SignalInfo
 		SignalRequestedIDs  []string
 
-		TransferTasks     []Task
-		CrossClusterTasks []Task
-		ReplicationTasks  []Task
-		TimerTasks        []Task
+		TasksByCategory map[HistoryTaskCategory][]Task
 
 		WorkflowRequests []*WorkflowRequest
 
@@ -1326,10 +1360,7 @@ type (
 		DeleteSignalInfoCount        int
 		DeleteRequestCancelInfoCount int
 
-		TransferTasksCount    int
-		CrossClusterTaskCount int
-		TimerTasksCount       int
-		ReplicationTasksCount int
+		TaskCountByCategory map[HistoryTaskCategory]int
 	}
 
 	// UpdateWorkflowExecutionResponse is response for UpdateWorkflowExecutionRequest

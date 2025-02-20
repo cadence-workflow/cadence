@@ -897,13 +897,11 @@ func (s *domainCacheSuite) Test_refreshLoop_domainCacheRefreshedError() {
 
 	s.domainCache.timeSource = mockedTimeSource
 
-	s.metadataMgr.On("GetMetadata", mock.Anything).Return(nil, assert.AnError).Twice()
+	s.metadataMgr.On("GetMetadata", mock.Anything).Return(nil, assert.AnError).Once()
 
 	go func() {
 		mockedTimeSource.BlockUntil(1)
 		mockedTimeSource.Advance(DomainCacheRefreshInterval)
-		mockedTimeSource.BlockUntil(2)
-		mockedTimeSource.Advance(DomainCacheRefreshFailureRetryInterval)
 		s.domainCache.shutdownChan <- struct{}{}
 	}()
 
@@ -921,12 +919,32 @@ func (s *domainCacheSuite) Test_refreshDomainsLocked_IntervalTooShort() {
 	s.NoError(err)
 }
 
-func (s *domainCacheSuite) Test_refreshDomainsLocked_ListDomainsError() {
+func (s *domainCacheSuite) Test_refreshDomains_ListDomainsNonRetryableError() {
 	s.metadataMgr.On("GetMetadata", mock.Anything).Return(&persistence.GetMetadataResponse{NotificationVersion: 0}, nil).Once()
 	s.metadataMgr.On("ListDomains", mock.Anything, mock.Anything).Return(nil, assert.AnError).Once()
 
-	err := s.domainCache.refreshDomainsLocked()
+	err := s.domainCache.refreshDomains()
 	s.ErrorIs(err, assert.AnError)
+}
+
+func (s *domainCacheSuite) Test_refreshDomains_ListDomainsRetryableError() {
+	retryableError := &types.ServiceBusyError{
+		Message: "Service is busy",
+	}
+
+	// We expect the metadataMgr to be called twice, once for the initial attempt and once for the retry
+	s.metadataMgr.On("GetMetadata", mock.Anything).Return(&persistence.GetMetadataResponse{NotificationVersion: 0}, nil).Times(2)
+
+	// First time return retryable error
+	s.metadataMgr.On("ListDomains", mock.Anything, mock.Anything).Return(nil, retryableError).Once()
+
+	// Second time return non-retryable error
+	s.metadataMgr.On("ListDomains", mock.Anything, mock.Anything).Return(nil, assert.AnError).Once()
+
+	err := s.domainCache.refreshDomains()
+
+	// We expect the error to be the first error
+	s.ErrorIs(err, retryableError)
 }
 
 func (s *domainCacheSuite) TestDomainCacheEntry_Getters() {

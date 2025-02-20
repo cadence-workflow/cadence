@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/errors"
@@ -60,10 +61,7 @@ const (
 	domainCacheMinRefreshInterval = 1 * time.Second
 	// DomainCacheRefreshInterval domain cache refresh interval
 	DomainCacheRefreshInterval = 10 * time.Second
-	// DomainCacheRefreshFailureRetryInterval is the wait time
-	// if refreshment encounters error
-	DomainCacheRefreshFailureRetryInterval = 1 * time.Second
-	domainCacheRefreshPageSize             = 200
+	domainCacheRefreshPageSize = 200
 
 	domainCachePersistenceTimeout = 3 * time.Second
 
@@ -119,6 +117,8 @@ type (
 		callbackLock     sync.Mutex
 		prepareCallbacks map[int]PrepareCallbackFn
 		callbacks        map[int]CallbackFn
+
+		throttleRetry *backoff.ThrottleRetry
 	}
 
 	// DomainCacheEntries is DomainCacheEntry slice
@@ -160,6 +160,11 @@ func NewDomainCache(
 	opts ...DomainCacheOption,
 ) *DefaultDomainCache {
 
+	throttleRetry := backoff.NewThrottleRetry(
+		backoff.WithRetryPolicy(common.CreateDomainCacheRetryPolicy()),
+		backoff.WithRetryableError(common.IsServiceTransientError),
+	)
+
 	cache := &DefaultDomainCache{
 		status:           domainCacheInitialized,
 		shutdownChan:     make(chan struct{}),
@@ -172,6 +177,7 @@ func NewDomainCache(
 		logger:           logger,
 		prepareCallbacks: make(map[int]PrepareCallbackFn),
 		callbacks:        make(map[int]CallbackFn),
+		throttleRetry:    throttleRetry,
 	}
 	cache.cacheNameToID.Store(newDomainCache())
 	cache.cacheByID.Store(newDomainCache())
@@ -411,15 +417,12 @@ func (c *DefaultDomainCache) refreshLoop() {
 		case <-c.shutdownChan:
 			return
 		case <-timer.Chan():
-			for err := c.refreshDomains(); err != nil; err = c.refreshDomains() {
-				select {
-				case <-c.shutdownChan:
-					return
-				default:
-					c.logger.Error("Error refreshing domain cache", tag.Error(err))
-					c.timeSource.Sleep(DomainCacheRefreshFailureRetryInterval)
-				}
+			err := c.refreshDomains()
+			if err != nil {
+				c.logger.Error("Error refreshing domain cache", tag.Error(err))
+				continue
 			}
+
 			c.logger.Debug("Domain cache refreshed")
 		}
 	}
@@ -428,7 +431,7 @@ func (c *DefaultDomainCache) refreshLoop() {
 func (c *DefaultDomainCache) refreshDomains() error {
 	c.refreshLock.Lock()
 	defer c.refreshLock.Unlock()
-	return c.refreshDomainsLocked()
+	return c.throttleRetry.Do(context.Background(), c.refreshDomainsLocked)
 }
 
 // this function only refresh the domains in the v2 table

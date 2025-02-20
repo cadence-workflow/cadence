@@ -956,7 +956,6 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionTasks() {
 	updatedStats1 := copyExecutionStats(state1.ExecutionStats)
 
 	now := time.Now()
-	remoteClusterName := "remote-cluster"
 	transferTasks := []p.Task{
 		&p.ActivityTask{
 			TaskData: p.TaskData{
@@ -979,19 +978,6 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionTasks() {
 			EventID: 124,
 		},
 	}
-	crossClusterTasks := []p.Task{
-		&p.CrossClusterApplyParentClosePolicyTask{
-			ApplyParentClosePolicyTask: p.ApplyParentClosePolicyTask{
-				TaskData: p.TaskData{
-					VisibilityTimestamp: now,
-					TaskID:              s.GetNextSequenceNumber(),
-					Version:             common.EmptyVersion,
-				},
-			},
-			TargetCluster: remoteClusterName,
-		},
-	}
-
 	err = s.UpdateWorkflowExecutionTasks(
 		ctx,
 		updatedInfo1,
@@ -999,7 +985,6 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionTasks() {
 		int64(3),
 		transferTasks,
 		timerTasks,
-		crossClusterTasks,
 	)
 	s.NoError(err)
 
@@ -1387,17 +1372,18 @@ func (s *ExecutionManagerSuite) TestPersistenceStartWorkflow() {
 				DecisionTimeout:             1,
 			},
 			ExecutionStats: &p.ExecutionStats{},
-			TransferTasks: []p.Task{
-				&p.DecisionTask{
-					TaskData: p.TaskData{
-						TaskID: s.GetNextSequenceNumber(),
+			TasksByCategory: map[p.HistoryTaskCategory][]p.Task{
+				p.HistoryTaskCategoryTransfer: []p.Task{
+					&p.DecisionTask{
+						TaskData: p.TaskData{
+							TaskID: s.GetNextSequenceNumber(),
+						},
+						DomainID:   domainID,
+						TaskList:   "queue1",
+						ScheduleID: int64(2),
 					},
-					DomainID:   domainID,
-					TaskList:   "queue1",
-					ScheduleID: int64(2),
 				},
 			},
-			TimerTasks:       nil,
 			VersionHistories: versionHistories,
 		},
 		RangeID: s.ShardInfo.RangeID - 1,

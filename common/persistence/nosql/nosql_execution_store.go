@@ -90,10 +90,11 @@ func (d *nosqlExecutionStore) CreateWorkflowExecution(
 		return nil, err
 	}
 
-	transferTasks, crossClusterTasks, replicationTasks, timerTasks, err := d.prepareNoSQLTasksForWorkflowTxn(
+	tasksByCategory := map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask{}
+	err = d.prepareNoSQLTasksForWorkflowTxn(
 		domainID, workflowID, runID,
-		newWorkflow.TransferTasks, newWorkflow.CrossClusterTasks, newWorkflow.ReplicationTasks, newWorkflow.TimerTasks,
-		nil, nil, nil, nil,
+		newWorkflow.TasksByCategory,
+		tasksByCategory,
 	)
 	if err != nil {
 		return nil, err
@@ -115,7 +116,7 @@ func (d *nosqlExecutionStore) CreateWorkflowExecution(
 		ctx,
 		workflowRequestsWriteRequest,
 		currentWorkflowWriteReq, workflowExecutionWriteReq,
-		transferTasks, crossClusterTasks, replicationTasks, timerTasks,
+		tasksByCategory,
 		shardCondition,
 	)
 	if err != nil {
@@ -287,21 +288,18 @@ func (d *nosqlExecutionStore) UpdateWorkflowExecution(
 	}
 
 	var mutateExecution, insertExecution *nosqlplugin.WorkflowExecutionRequest
-	var nosqlTransferTasks []*nosqlplugin.TransferTask
-	var nosqlCrossClusterTasks []*nosqlplugin.CrossClusterTask
-	var nosqlReplicationTasks []*nosqlplugin.ReplicationTask
-	var nosqlTimerTasks []*nosqlplugin.TimerTask
 	var workflowRequests []*nosqlplugin.WorkflowRequestRow
+	tasksByCategory := map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask{}
 
 	// 1. current
 	mutateExecution, err = d.prepareUpdateWorkflowExecutionRequestWithMapsAndEventBuffer(&updateWorkflow)
 	if err != nil {
 		return err
 	}
-	nosqlTransferTasks, nosqlCrossClusterTasks, nosqlReplicationTasks, nosqlTimerTasks, err = d.prepareNoSQLTasksForWorkflowTxn(
+	err = d.prepareNoSQLTasksForWorkflowTxn(
 		domainID, workflowID, updateWorkflow.ExecutionInfo.RunID,
-		updateWorkflow.TransferTasks, updateWorkflow.CrossClusterTasks, updateWorkflow.ReplicationTasks, updateWorkflow.TimerTasks,
-		nosqlTransferTasks, nosqlCrossClusterTasks, nosqlReplicationTasks, nosqlTimerTasks,
+		updateWorkflow.TasksByCategory,
+		tasksByCategory,
 	)
 	if err != nil {
 		return err
@@ -315,10 +313,10 @@ func (d *nosqlExecutionStore) UpdateWorkflowExecution(
 			return err
 		}
 
-		nosqlTransferTasks, nosqlCrossClusterTasks, nosqlReplicationTasks, nosqlTimerTasks, err = d.prepareNoSQLTasksForWorkflowTxn(
+		err = d.prepareNoSQLTasksForWorkflowTxn(
 			domainID, workflowID, newWorkflow.ExecutionInfo.RunID,
-			newWorkflow.TransferTasks, newWorkflow.CrossClusterTasks, newWorkflow.ReplicationTasks, newWorkflow.TimerTasks,
-			nosqlTransferTasks, nosqlCrossClusterTasks, nosqlReplicationTasks, nosqlTimerTasks,
+			newWorkflow.TasksByCategory,
+			tasksByCategory,
 		)
 		if err != nil {
 			return err
@@ -339,7 +337,7 @@ func (d *nosqlExecutionStore) UpdateWorkflowExecution(
 	err = d.db.UpdateWorkflowExecutionWithTasks(
 		ctx, workflowRequestsWriteRequest, currentWorkflowWriteReq,
 		mutateExecution, insertExecution, nil, // no workflow to reset here
-		nosqlTransferTasks, nosqlCrossClusterTasks, nosqlReplicationTasks, nosqlTimerTasks,
+		tasksByCategory,
 		shardCondition)
 
 	return d.processUpdateWorkflowResult(err, request.RangeID)
@@ -422,11 +420,8 @@ func (d *nosqlExecutionStore) ConflictResolveWorkflowExecution(
 	}
 
 	var mutateExecution, insertExecution, resetExecution *nosqlplugin.WorkflowExecutionRequest
-	var nosqlTransferTasks []*nosqlplugin.TransferTask
-	var nosqlCrossClusterTasks []*nosqlplugin.CrossClusterTask
-	var nosqlReplicationTasks []*nosqlplugin.ReplicationTask
-	var nosqlTimerTasks []*nosqlplugin.TimerTask
 	var workflowRequests []*nosqlplugin.WorkflowRequestRow
+	tasksByCategory := map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask{}
 
 	// 1. current
 	if currentWorkflow != nil {
@@ -434,10 +429,10 @@ func (d *nosqlExecutionStore) ConflictResolveWorkflowExecution(
 		if err != nil {
 			return err
 		}
-		nosqlTransferTasks, nosqlCrossClusterTasks, nosqlReplicationTasks, nosqlTimerTasks, err = d.prepareNoSQLTasksForWorkflowTxn(
+		err = d.prepareNoSQLTasksForWorkflowTxn(
 			domainID, workflowID, currentWorkflow.ExecutionInfo.RunID,
-			currentWorkflow.TransferTasks, currentWorkflow.CrossClusterTasks, currentWorkflow.ReplicationTasks, currentWorkflow.TimerTasks,
-			nosqlTransferTasks, nosqlCrossClusterTasks, nosqlReplicationTasks, nosqlTimerTasks,
+			currentWorkflow.TasksByCategory,
+			tasksByCategory,
 		)
 		if err != nil {
 			return err
@@ -450,10 +445,10 @@ func (d *nosqlExecutionStore) ConflictResolveWorkflowExecution(
 	if err != nil {
 		return err
 	}
-	nosqlTransferTasks, nosqlCrossClusterTasks, nosqlReplicationTasks, nosqlTimerTasks, err = d.prepareNoSQLTasksForWorkflowTxn(
+	err = d.prepareNoSQLTasksForWorkflowTxn(
 		domainID, workflowID, resetWorkflow.ExecutionInfo.RunID,
-		resetWorkflow.TransferTasks, resetWorkflow.CrossClusterTasks, resetWorkflow.ReplicationTasks, resetWorkflow.TimerTasks,
-		nosqlTransferTasks, nosqlCrossClusterTasks, nosqlReplicationTasks, nosqlTimerTasks,
+		resetWorkflow.TasksByCategory,
+		tasksByCategory,
 	)
 	if err != nil {
 		return err
@@ -467,10 +462,10 @@ func (d *nosqlExecutionStore) ConflictResolveWorkflowExecution(
 			return err
 		}
 
-		nosqlTransferTasks, nosqlCrossClusterTasks, nosqlReplicationTasks, nosqlTimerTasks, err = d.prepareNoSQLTasksForWorkflowTxn(
+		err = d.prepareNoSQLTasksForWorkflowTxn(
 			domainID, workflowID, newWorkflow.ExecutionInfo.RunID,
-			newWorkflow.TransferTasks, newWorkflow.CrossClusterTasks, newWorkflow.ReplicationTasks, newWorkflow.TimerTasks,
-			nosqlTransferTasks, nosqlCrossClusterTasks, nosqlReplicationTasks, nosqlTimerTasks,
+			newWorkflow.TasksByCategory,
+			tasksByCategory,
 		)
 		if err != nil {
 			return err
@@ -491,7 +486,7 @@ func (d *nosqlExecutionStore) ConflictResolveWorkflowExecution(
 	err = d.db.UpdateWorkflowExecutionWithTasks(
 		ctx, workflowRequestsWriteRequest, currentWorkflowWriteReq,
 		mutateExecution, insertExecution, resetExecution,
-		nosqlTransferTasks, nosqlCrossClusterTasks, nosqlReplicationTasks, nosqlTimerTasks,
+		tasksByCategory,
 		shardCondition)
 	return d.processUpdateWorkflowResult(err, request.RangeID)
 }
@@ -759,7 +754,10 @@ func (d *nosqlExecutionStore) PutReplicationTaskToDLQ(
 	ctx context.Context,
 	request *persistence.InternalPutReplicationTaskToDLQRequest,
 ) error {
-	err := d.db.InsertReplicationDLQTask(ctx, d.shardID, request.SourceClusterName, *request.TaskInfo)
+	err := d.db.InsertReplicationDLQTask(ctx, d.shardID, request.SourceClusterName, &nosqlplugin.HistoryMigrationTask{
+		Replication: request.TaskInfo,
+		Task:        nil, // TODO: encode task infor into datablob
+	})
 	if err != nil {
 		return convertCommonErrors(d.db, "PutReplicationTaskToDLQ", err)
 	}
@@ -829,7 +827,7 @@ func (d *nosqlExecutionStore) CreateFailoverMarkerTasks(
 	request *persistence.CreateFailoverMarkersRequest,
 ) error {
 
-	var nosqlTasks []*nosqlplugin.ReplicationTask
+	var nosqlTasks []*nosqlplugin.HistoryMigrationTask
 	for _, task := range request.Markers {
 		ts := []persistence.Task{task}
 
@@ -837,7 +835,12 @@ func (d *nosqlExecutionStore) CreateFailoverMarkerTasks(
 		if err != nil {
 			return err
 		}
-		nosqlTasks = append(nosqlTasks, tasks...)
+		for _, task := range tasks {
+			nosqlTasks = append(nosqlTasks, &nosqlplugin.HistoryMigrationTask{
+				Replication: task,
+				Task:        nil, // TODO: encode replication task into datablob
+			})
+		}
 	}
 
 	err := d.db.InsertReplicationTask(ctx, nosqlTasks, nosqlplugin.ShardCondition{

@@ -3459,8 +3459,11 @@ func TestCloseTransactionAsMutation(t *testing.T) {
 					DecisionRequestID:    common.EmptyUUID,
 					DecisionStartedID:    common.EmptyEventID,
 				},
-				TimerTasks:                nil,
-				ReplicationTasks:          nil,
+				TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+					persistence.HistoryTaskCategoryTransfer:    nil,
+					persistence.HistoryTaskCategoryTimer:       nil,
+					persistence.HistoryTaskCategoryReplication: nil,
+				},
 				UpsertActivityInfos:       []*persistence.ActivityInfo{},
 				DeleteActivityInfos:       []int64{},
 				UpsertTimerInfos:          []*persistence.TimerInfo{},
@@ -3473,7 +3476,6 @@ func TestCloseTransactionAsMutation(t *testing.T) {
 				UpsertSignalRequestedIDs:  []string{},
 				DeleteSignalRequestedIDs:  []string{},
 				DeleteChildExecutionInfos: []int64{},
-				TransferTasks:             nil,
 				WorkflowRequests:          []*persistence.WorkflowRequest{},
 				Condition:                 0,
 			},
@@ -3525,15 +3527,18 @@ func TestCloseTransactionAsMutation(t *testing.T) {
 					DecisionStartedID:    common.EmptyEventID,
 					LastFirstEventID:     1,
 				},
-				TimerTasks: nil,
-				ReplicationTasks: []persistence.Task{
-					&persistence.HistoryReplicationTask{
-						FirstEventID: 1,
-						NextEventID:  2,
-						TaskData: persistence.TaskData{
-							Version:             0,
-							TaskID:              0,
-							VisibilityTimestamp: time.Time{},
+				TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+					persistence.HistoryTaskCategoryTransfer: nil,
+					persistence.HistoryTaskCategoryTimer:    nil,
+					persistence.HistoryTaskCategoryReplication: []persistence.Task{
+						&persistence.HistoryReplicationTask{
+							FirstEventID: 1,
+							NextEventID:  2,
+							TaskData: persistence.TaskData{
+								Version:             0,
+								TaskID:              0,
+								VisibilityTimestamp: time.Time{},
+							},
 						},
 					},
 				},
@@ -3549,7 +3554,6 @@ func TestCloseTransactionAsMutation(t *testing.T) {
 				UpsertSignalRequestedIDs:  []string{},
 				DeleteSignalRequestedIDs:  []string{},
 				DeleteChildExecutionInfos: []int64{},
-				TransferTasks:             nil,
 				WorkflowRequests:          []*persistence.WorkflowRequest{},
 				Condition:                 0,
 			},

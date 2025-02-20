@@ -88,6 +88,13 @@ type (
 	// TransferTask is for regular transfer task
 	TransferTask = persistence.TransferTaskInfo
 
+	HistoryMigrationTask struct {
+		Transfer    *TransferTask
+		Timer       *TimerTask
+		Replication *ReplicationTask
+		Task        *persistence.DataBlob
+	}
+
 	// ShardCondition is the condition for making changes within a shard
 	ShardCondition struct {
 		ShardID int

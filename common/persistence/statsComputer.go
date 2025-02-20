@@ -161,9 +161,7 @@ func (sc *statsComputer) computeWorkflowMutationStats(req *InternalWorkflowMutat
 
 	deleteRequestCancelInfoCount := len(req.DeleteRequestCancelInfos)
 
-	transferTasksCount := len(req.TransferTasks)
-	timerTasksCount := len(req.TimerTasks)
-	replicationTasksCount := len(req.ReplicationTasks)
+	taskCountByCategory := computeTaskCountByCategory(req.TasksByCategory)
 
 	totalSize := executionInfoSize
 	totalSize += activityInfoSize
@@ -190,9 +188,7 @@ func (sc *statsComputer) computeWorkflowMutationStats(req *InternalWorkflowMutat
 		DeleteChildInfoCount:         deleteChildInfoCount,
 		DeleteSignalInfoCount:        deleteSignalInfoCount,
 		DeleteRequestCancelInfoCount: deleteRequestCancelInfoCount,
-		TransferTasksCount:           transferTasksCount,
-		TimerTasksCount:              timerTasksCount,
-		ReplicationTasksCount:        replicationTasksCount,
+		TaskCountByCategory:          taskCountByCategory,
 	}
 }
 
@@ -229,9 +225,7 @@ func (sc *statsComputer) computeWorkflowSnapshotStats(req *InternalWorkflowSnaps
 
 	requestCancelInfoCount := len(req.RequestCancelInfos)
 
-	transferTasksCount := len(req.TransferTasks)
-	timerTasksCount := len(req.TimerTasks)
-	replicationTasksCount := len(req.ReplicationTasks)
+	taskCountByCategory := computeTaskCountByCategory(req.TasksByCategory)
 
 	totalSize := executionInfoSize
 	totalSize += activityInfoSize
@@ -251,14 +245,14 @@ func (sc *statsComputer) computeWorkflowSnapshotStats(req *InternalWorkflowSnaps
 		ChildInfoCount:         childExecutionInfoCount,
 		SignalInfoCount:        signalInfoCount,
 		RequestCancelInfoCount: requestCancelInfoCount,
-		TransferTasksCount:     transferTasksCount,
-		TimerTasksCount:        timerTasksCount,
-		ReplicationTasksCount:  replicationTasksCount,
+		TaskCountByCategory:    taskCountByCategory,
 	}
 }
 
 func mergeMutableStateUpdateSessionStats(stats ...*MutableStateUpdateSessionStats) *MutableStateUpdateSessionStats {
-	result := &MutableStateUpdateSessionStats{}
+	result := &MutableStateUpdateSessionStats{
+		TaskCountByCategory: make(map[HistoryTaskCategory]int),
+	}
 	for _, s := range stats {
 		result.MutableStateSize += s.MutableStateSize
 
@@ -281,9 +275,9 @@ func mergeMutableStateUpdateSessionStats(stats ...*MutableStateUpdateSessionStat
 		result.DeleteSignalInfoCount += s.DeleteSignalInfoCount
 		result.DeleteRequestCancelInfoCount += s.DeleteRequestCancelInfoCount
 
-		result.TransferTasksCount += s.TransferTasksCount
-		result.TimerInfoCount += s.TimerInfoCount
-		result.ReplicationTasksCount += s.ReplicationTasksCount
+		for k, v := range s.TaskCountByCategory {
+			result.TaskCountByCategory[k] += v
+		}
 	}
 	return result
 }
@@ -333,4 +327,12 @@ func computeSignalInfoSize(si *SignalInfo) int {
 	size += len(si.Control)
 
 	return size
+}
+
+func computeTaskCountByCategory(tasks map[HistoryTaskCategory][]Task) map[HistoryTaskCategory]int {
+	taskCountByCategory := make(map[HistoryTaskCategory]int, len(tasks))
+	for k, v := range tasks {
+		taskCountByCategory[k] = len(v)
+	}
+	return taskCountByCategory
 }

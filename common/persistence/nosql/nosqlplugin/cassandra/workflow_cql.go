@@ -265,20 +265,16 @@ const (
 		`VALUES(?, ?, ?, ?, ?, ` + templateWorkflowExecutionType + `, ?, ?, ?, ?, ?, ` + templateChecksumType + `, ?, ?, ?) IF NOT EXISTS `
 
 	templateCreateTransferTaskQuery = `INSERT INTO executions (` +
-		`shard_id, type, domain_id, workflow_id, run_id, transfer, visibility_ts, task_id, created_time) ` +
-		`VALUES(?, ?, ?, ?, ?, ` + templateTransferTaskType + `, ?, ?, ?)`
-
-	templateCreateCrossClusterTaskQuery = `INSERT INTO executions (` +
-		`shard_id, type, domain_id, workflow_id, run_id, cross_cluster, visibility_ts, task_id, created_time) ` +
-		`VALUES(?, ?, ?, ?, ?, ` + templateCrossClusterTaskType + `, ?, ?, ?)`
+		`shard_id, type, domain_id, workflow_id, run_id, transfer, data, data_encoding, visibility_ts, task_id, created_time) ` +
+		`VALUES(?, ?, ?, ?, ?, ` + templateTransferTaskType + `, ?, ?, ?, ?, ?)`
 
 	templateCreateReplicationTaskQuery = `INSERT INTO executions (` +
-		`shard_id, type, domain_id, workflow_id, run_id, replication, visibility_ts, task_id, created_time) ` +
-		`VALUES(?, ?, ?, ?, ?, ` + templateReplicationTaskType + `, ?, ?, ?)`
+		`shard_id, type, domain_id, workflow_id, run_id, replication, data, data_encoding, visibility_ts, task_id, created_time) ` +
+		`VALUES(?, ?, ?, ?, ?, ` + templateReplicationTaskType + `, ?, ?, ?, ?, ?)`
 
 	templateCreateTimerTaskQuery = `INSERT INTO executions (` +
-		`shard_id, type, domain_id, workflow_id, run_id, timer, visibility_ts, task_id, created_time) ` +
-		`VALUES(?, ?, ?, ?, ?, ` + templateTimerTaskType + `, ?, ?, ?)`
+		`shard_id, type, domain_id, workflow_id, run_id, timer, data, data_encoding, visibility_ts, task_id, created_time) ` +
+		`VALUES(?, ?, ?, ?, ?, ` + templateTimerTaskType + `, ?, ?, ?, ?, ?)`
 
 	templateUpdateLeaseQuery = `UPDATE executions ` +
 		`SET range_id = ? ` +

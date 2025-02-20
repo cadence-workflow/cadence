@@ -356,6 +356,8 @@ CREATE TABLE executions (
   current_run_id                 uuid,
   visibility_ts                  timestamp, -- unique identifier for timer tasks for an execution
   task_id                        bigint, -- unique identifier for transfer and timer tasks for an execution
+  data                           blob, -- this column will be used by Shard, Execution, TransferTask, TimerTask, ReplicationTask row types
+  data_encoding                  text,
   shard                          frozen<shard>,
   execution                      frozen<workflow_execution>,
   transfer                       frozen<transfer_task>,

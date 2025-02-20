@@ -88,6 +88,10 @@ const (
 	taskCompleterMaxInterval        = 10 * time.Second
 	taskCompleterExpirationInterval = 5 * time.Minute
 
+	domainCacheInitialInterval    = 1 * time.Second
+	domainCacheMaxInterval        = 5 * time.Second
+	domainCacheExpirationInterval = 2 * time.Minute
+
 	contextExpireThreshold = 10 * time.Millisecond
 
 	// FailureReasonCompleteResultExceedsLimit is failureReason for complete result exceeds limit
@@ -224,6 +228,15 @@ func CreateTaskCompleterRetryPolicy() backoff.RetryPolicy {
 	policy := backoff.NewExponentialRetryPolicy(taskCompleterInitialInterval)
 	policy.SetMaximumInterval(taskCompleterMaxInterval)
 	policy.SetExpirationInterval(taskCompleterExpirationInterval)
+
+	return policy
+}
+
+// CreateDomainCacheRetryPolicy creates a retry policy to handle domain cache refresh failures
+func CreateDomainCacheRetryPolicy() backoff.RetryPolicy {
+	policy := backoff.NewExponentialRetryPolicy(domainCacheInitialInterval)
+	policy.SetMaximumInterval(domainCacheMaxInterval)
+	policy.SetExpirationInterval(domainCacheExpirationInterval)
 
 	return policy
 }

@@ -1021,7 +1021,7 @@ func TestCreateTimerTasks(t *testing.T) {
 		shardID    int
 		domainID   string
 		workflowID string
-		timerTasks []*nosqlplugin.TimerTask
+		timerTasks []*nosqlplugin.HistoryMigrationTask
 		// expectations
 		wantQueries []string
 	}{
@@ -1030,37 +1030,49 @@ func TestCreateTimerTasks(t *testing.T) {
 			shardID:    1000,
 			domainID:   "domain_xyz",
 			workflowID: "workflow_xyz",
-			timerTasks: []*nosqlplugin.TimerTask{
+			timerTasks: []*nosqlplugin.HistoryMigrationTask{
 				{
-					RunID:               "rundid_1",
-					TaskID:              1,
-					TaskType:            1,
-					TimeoutType:         1,
-					EventID:             10,
-					ScheduleAttempt:     0,
-					Version:             0,
-					VisibilityTimestamp: ts,
+					Timer: &nosqlplugin.TimerTask{
+						RunID:               "rundid_1",
+						TaskID:              1,
+						TaskType:            1,
+						TimeoutType:         1,
+						EventID:             10,
+						ScheduleAttempt:     0,
+						Version:             0,
+						VisibilityTimestamp: ts,
+					},
+					Task: &persistence.DataBlob{
+						Data:     []byte("timer1"),
+						Encoding: common.EncodingTypeThriftRW,
+					},
 				},
 				{
-					RunID:               "rundid_1",
-					TaskID:              2,
-					TaskType:            1,
-					TimeoutType:         1,
-					EventID:             11,
-					ScheduleAttempt:     0,
-					Version:             0,
-					VisibilityTimestamp: ts.Add(time.Minute),
+					Timer: &nosqlplugin.TimerTask{
+						RunID:               "rundid_1",
+						TaskID:              2,
+						TaskType:            1,
+						TimeoutType:         1,
+						EventID:             11,
+						ScheduleAttempt:     0,
+						Version:             0,
+						VisibilityTimestamp: ts.Add(time.Minute),
+					},
+					Task: &persistence.DataBlob{
+						Data:     []byte("timer2"),
+						Encoding: common.EncodingTypeThriftRW,
+					},
 				},
 			},
 			wantQueries: []string{
-				`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, timer, visibility_ts, task_id, created_time) ` +
+				`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, timer, data, data_encoding, visibility_ts, task_id, created_time) ` +
 					`VALUES(1000, 3, 10000000-4000-f000-f000-000000000000, 20000000-4000-f000-f000-000000000000, 30000000-4000-f000-f000-000000000000, ` +
 					`{domain_id: domain_xyz, workflow_id: workflow_xyz, run_id: rundid_1, visibility_ts: 1702418921000, task_id: 1, type: 1, timeout_type: 1, event_id: 10, schedule_attempt: 0, version: 0}, ` +
-					`1702418921000, 1, 2025-01-06T15:00:00Z)`,
-				`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, timer, visibility_ts, task_id, created_time) ` +
+					`[116 105 109 101 114 49], thriftrw, 1702418921000, 1, 2025-01-06T15:00:00Z)`,
+				`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, timer, data, data_encoding, visibility_ts, task_id, created_time) ` +
 					`VALUES(1000, 3, 10000000-4000-f000-f000-000000000000, 20000000-4000-f000-f000-000000000000, 30000000-4000-f000-f000-000000000000, ` +
 					`{domain_id: domain_xyz, workflow_id: workflow_xyz, run_id: rundid_1, visibility_ts: 1702418981000, task_id: 2, type: 1, timeout_type: 1, event_id: 11, schedule_attempt: 0, version: 0}, ` +
-					`1702418981000, 2, 2025-01-06T15:00:00Z)`,
+					`[116 105 109 101 114 50], thriftrw, 1702418981000, 2, 2025-01-06T15:00:00Z)`,
 			},
 		},
 	}
@@ -1091,7 +1103,7 @@ func TestReplicationTasks(t *testing.T) {
 		shardID    int
 		domainID   string
 		workflowID string
-		replTasks  []*nosqlplugin.ReplicationTask
+		replTasks  []*nosqlplugin.HistoryMigrationTask
 		// expectations
 		wantQueries []string
 	}{
@@ -1100,41 +1112,53 @@ func TestReplicationTasks(t *testing.T) {
 			shardID:    1000,
 			domainID:   "domain_xyz",
 			workflowID: "workflow_xyz",
-			replTasks: []*nosqlplugin.ReplicationTask{
+			replTasks: []*nosqlplugin.HistoryMigrationTask{
 				{
-					RunID:             "rundid_1",
-					TaskID:            644,
-					TaskType:          0,
-					FirstEventID:      5,
-					NextEventID:       8,
-					Version:           0,
-					ScheduledID:       common.EmptyEventID,
-					NewRunBranchToken: []byte{'a', 'b', 'c'},
-					CreationTime:      ts,
+					Replication: &nosqlplugin.ReplicationTask{
+						RunID:             "rundid_1",
+						TaskID:            644,
+						TaskType:          0,
+						FirstEventID:      5,
+						NextEventID:       8,
+						Version:           0,
+						ScheduledID:       common.EmptyEventID,
+						NewRunBranchToken: []byte{'a', 'b', 'c'},
+						CreationTime:      ts,
+					},
+					Task: &persistence.DataBlob{
+						Data:     []byte("rep1"),
+						Encoding: common.EncodingTypeThriftRW,
+					},
 				},
 				{
-					RunID:             "rundid_1",
-					TaskID:            645,
-					TaskType:          0,
-					FirstEventID:      25,
-					NextEventID:       28,
-					Version:           0,
-					ScheduledID:       common.EmptyEventID,
-					NewRunBranchToken: []byte{'a', 'b', 'c'},
-					CreationTime:      ts.Add(time.Hour),
+					Replication: &nosqlplugin.ReplicationTask{
+						RunID:             "rundid_1",
+						TaskID:            645,
+						TaskType:          0,
+						FirstEventID:      25,
+						NextEventID:       28,
+						Version:           0,
+						ScheduledID:       common.EmptyEventID,
+						NewRunBranchToken: []byte{'a', 'b', 'c'},
+						CreationTime:      ts.Add(time.Hour),
+					},
+					Task: &persistence.DataBlob{
+						Data:     []byte("rep2"),
+						Encoding: common.EncodingTypeThriftRW,
+					},
 				},
 			},
 			wantQueries: []string{
-				`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, replication, visibility_ts, task_id, created_time) ` +
+				`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, replication, data, data_encoding, visibility_ts, task_id, created_time) ` +
 					`VALUES(1000, 4, 10000000-5000-f000-f000-000000000000, 20000000-5000-f000-f000-000000000000, 30000000-5000-f000-f000-000000000000, ` +
 					`{domain_id: domain_xyz, workflow_id: workflow_xyz, run_id: rundid_1, task_id: 644, type: 0, ` +
 					`first_event_id: 5,next_event_id: 8,version: 0,scheduled_id: -23, event_store_version: 2, branch_token: [], ` +
-					`new_run_event_store_version: 2, new_run_branch_token: [97 98 99], created_time: 1702418921000000000 }, 946684800000, 644, 2025-01-06T15:00:00Z)`,
-				`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, replication, visibility_ts, task_id, created_time) ` +
+					`new_run_event_store_version: 2, new_run_branch_token: [97 98 99], created_time: 1702418921000000000 }, [114 101 112 49], thriftrw, 946684800000, 644, 2025-01-06T15:00:00Z)`,
+				`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, replication, data, data_encoding, visibility_ts, task_id, created_time) ` +
 					`VALUES(1000, 4, 10000000-5000-f000-f000-000000000000, 20000000-5000-f000-f000-000000000000, 30000000-5000-f000-f000-000000000000, ` +
 					`{domain_id: domain_xyz, workflow_id: workflow_xyz, run_id: rundid_1, task_id: 645, type: 0, ` +
 					`first_event_id: 25,next_event_id: 28,version: 0,scheduled_id: -23, event_store_version: 2, branch_token: [], ` +
-					`new_run_event_store_version: 2, new_run_branch_token: [97 98 99], created_time: 1702422521000000000 }, 946684800000, 645, 2025-01-06T15:00:00Z)`,
+					`new_run_event_store_version: 2, new_run_branch_token: [97 98 99], created_time: 1702422521000000000 }, [114 101 112 50], thriftrw, 946684800000, 645, 2025-01-06T15:00:00Z)`,
 			},
 		},
 	}
@@ -1161,7 +1185,7 @@ func TestTransferTasks(t *testing.T) {
 		shardID       int
 		domainID      string
 		workflowID    string
-		transferTasks []*nosqlplugin.TransferTask
+		transferTasks []*nosqlplugin.HistoryMigrationTask
 		// expectations
 		wantQueries []string
 	}{
@@ -1170,87 +1194,9 @@ func TestTransferTasks(t *testing.T) {
 			shardID:    1000,
 			domainID:   "domain_xyz",
 			workflowID: "workflow_xyz",
-			transferTasks: []*nosqlplugin.TransferTask{
+			transferTasks: []*nosqlplugin.HistoryMigrationTask{
 				{
-					RunID:                   "rundid_1",
-					TaskID:                  355,
-					TaskType:                0,
-					Version:                 1,
-					VisibilityTimestamp:     ts,
-					TargetDomainID:          "e2bf2c8f-0ddf-4451-8840-27cfe8addd62",
-					TargetWorkflowID:        persistence.TransferTaskTransferTargetWorkflowID,
-					TargetRunID:             persistence.TransferTaskTransferTargetRunID,
-					TargetChildWorkflowOnly: true,
-					TaskList:                "tasklist_1",
-					ScheduleID:              14,
-				},
-				{
-					RunID:                   "rundid_2",
-					TaskID:                  220,
-					TaskType:                0,
-					Version:                 1,
-					VisibilityTimestamp:     ts.Add(time.Minute),
-					TargetDomainID:          "e2bf2c8f-0ddf-4451-8840-27cfe8addd62",
-					TargetWorkflowID:        persistence.TransferTaskTransferTargetWorkflowID,
-					TargetRunID:             persistence.TransferTaskTransferTargetRunID,
-					TargetChildWorkflowOnly: true,
-					TaskList:                "tasklist_2",
-					ScheduleID:              3,
-				},
-			},
-			wantQueries: []string{
-				`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, transfer, visibility_ts, task_id, created_time) ` +
-					`VALUES(1000, 2, 10000000-3000-f000-f000-000000000000, 20000000-3000-f000-f000-000000000000, 30000000-3000-f000-f000-000000000000, ` +
-					`{domain_id: domain_xyz, workflow_id: workflow_xyz, run_id: rundid_1, visibility_ts: 2023-12-12T22:08:41Z, ` +
-					`task_id: 355, target_domain_id: e2bf2c8f-0ddf-4451-8840-27cfe8addd62, target_domain_ids: map[],` +
-					`target_workflow_id: 20000000-0000-f000-f000-000000000001, target_run_id: 30000000-0000-f000-f000-000000000002, ` +
-					`target_child_workflow_only: true, task_list: tasklist_1, type: 0, schedule_id: 14, record_visibility: false, version: 1}, ` +
-					`946684800000, 355, 2025-01-06T15:00:00Z)`,
-				`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, transfer, visibility_ts, task_id, created_time) ` +
-					`VALUES(1000, 2, 10000000-3000-f000-f000-000000000000, 20000000-3000-f000-f000-000000000000, 30000000-3000-f000-f000-000000000000, ` +
-					`{domain_id: domain_xyz, workflow_id: workflow_xyz, run_id: rundid_2, visibility_ts: 2023-12-12T22:09:41Z, ` +
-					`task_id: 220, target_domain_id: e2bf2c8f-0ddf-4451-8840-27cfe8addd62, target_domain_ids: map[],` +
-					`target_workflow_id: 20000000-0000-f000-f000-000000000001, target_run_id: 30000000-0000-f000-f000-000000000002, ` +
-					`target_child_workflow_only: true, task_list: tasklist_2, type: 0, schedule_id: 3, record_visibility: false, version: 1}, ` +
-					`946684800000, 220, 2025-01-06T15:00:00Z)`,
-			},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.desc, func(t *testing.T) {
-			batch := &fakeBatch{}
-			createTransferTasks(batch, tc.shardID, tc.domainID, tc.workflowID, tc.transferTasks, FixedTime)
-			if diff := cmp.Diff(tc.wantQueries, batch.queries); diff != "" {
-				t.Fatalf("Query mismatch (-want +got):\n%s", diff)
-			}
-		})
-	}
-}
-
-func TestCrossClusterTasks(t *testing.T) {
-	ts, err := time.Parse(time.RFC3339, "2023-12-12T22:08:41Z")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	tests := []struct {
-		desc          string
-		shardID       int
-		domainID      string
-		workflowID    string
-		xClusterTasks []*nosqlplugin.CrossClusterTask
-		// expectations
-		wantQueries []string
-	}{
-		{
-			desc:       "ok",
-			shardID:    1000,
-			domainID:   "domain_xyz",
-			workflowID: "workflow_xyz",
-			xClusterTasks: []*nosqlplugin.CrossClusterTask{
-				{
-					TransferTask: nosqlplugin.TransferTask{
+					Transfer: &nosqlplugin.TransferTask{
 						RunID:                   "rundid_1",
 						TaskID:                  355,
 						TaskType:                0,
@@ -1263,16 +1209,46 @@ func TestCrossClusterTasks(t *testing.T) {
 						TaskList:                "tasklist_1",
 						ScheduleID:              14,
 					},
+					Task: &persistence.DataBlob{
+						Data:     []byte("tr1"),
+						Encoding: common.EncodingTypeThriftRW,
+					},
+				},
+				{
+					Transfer: &nosqlplugin.TransferTask{
+						RunID:                   "rundid_2",
+						TaskID:                  220,
+						TaskType:                0,
+						Version:                 1,
+						VisibilityTimestamp:     ts.Add(time.Minute),
+						TargetDomainID:          "e2bf2c8f-0ddf-4451-8840-27cfe8addd62",
+						TargetWorkflowID:        persistence.TransferTaskTransferTargetWorkflowID,
+						TargetRunID:             persistence.TransferTaskTransferTargetRunID,
+						TargetChildWorkflowOnly: true,
+						TaskList:                "tasklist_2",
+						ScheduleID:              3,
+					},
+					Task: &persistence.DataBlob{
+						Data:     []byte("tr2"),
+						Encoding: common.EncodingTypeThriftRW,
+					},
 				},
 			},
 			wantQueries: []string{
-				`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, cross_cluster, visibility_ts, task_id, created_time) ` +
-					`VALUES(1000, 6, 10000000-7000-f000-f000-000000000000, , 30000000-7000-f000-f000-000000000000, ` +
+				`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, transfer, data, data_encoding, visibility_ts, task_id, created_time) ` +
+					`VALUES(1000, 2, 10000000-3000-f000-f000-000000000000, 20000000-3000-f000-f000-000000000000, 30000000-3000-f000-f000-000000000000, ` +
 					`{domain_id: domain_xyz, workflow_id: workflow_xyz, run_id: rundid_1, visibility_ts: 2023-12-12T22:08:41Z, ` +
 					`task_id: 355, target_domain_id: e2bf2c8f-0ddf-4451-8840-27cfe8addd62, target_domain_ids: map[],` +
 					`target_workflow_id: 20000000-0000-f000-f000-000000000001, target_run_id: 30000000-0000-f000-f000-000000000002, ` +
 					`target_child_workflow_only: true, task_list: tasklist_1, type: 0, schedule_id: 14, record_visibility: false, version: 1}, ` +
-					`946684800000, 355, 2025-01-06T15:00:00Z)`,
+					`[116 114 49], thriftrw, 946684800000, 355, 2025-01-06T15:00:00Z)`,
+				`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, transfer, data, data_encoding, visibility_ts, task_id, created_time) ` +
+					`VALUES(1000, 2, 10000000-3000-f000-f000-000000000000, 20000000-3000-f000-f000-000000000000, 30000000-3000-f000-f000-000000000000, ` +
+					`{domain_id: domain_xyz, workflow_id: workflow_xyz, run_id: rundid_2, visibility_ts: 2023-12-12T22:09:41Z, ` +
+					`task_id: 220, target_domain_id: e2bf2c8f-0ddf-4451-8840-27cfe8addd62, target_domain_ids: map[],` +
+					`target_workflow_id: 20000000-0000-f000-f000-000000000001, target_run_id: 30000000-0000-f000-f000-000000000002, ` +
+					`target_child_workflow_only: true, task_list: tasklist_2, type: 0, schedule_id: 3, record_visibility: false, version: 1}, ` +
+					`[116 114 50], thriftrw, 946684800000, 220, 2025-01-06T15:00:00Z)`,
 			},
 		},
 	}
@@ -1280,7 +1256,7 @@ func TestCrossClusterTasks(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
-			createCrossClusterTasks(batch, tc.shardID, tc.domainID, tc.workflowID, tc.xClusterTasks, FixedTime)
+			createTransferTasks(batch, tc.shardID, tc.domainID, tc.workflowID, tc.transferTasks, FixedTime)
 			if diff := cmp.Diff(tc.wantQueries, batch.queries); diff != "" {
 				t.Fatalf("Query mismatch (-want +got):\n%s", diff)
 			}

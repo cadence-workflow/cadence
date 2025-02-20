@@ -801,7 +801,7 @@ func (s *timerActiveTaskExecutorSuite) TestDecisionScheduleToStartTimeout_Normal
 		return req.UpdateWorkflowMutation.ExecutionInfo.DecisionAttempt == 1 &&
 			req.UpdateWorkflowMutation.ExecutionInfo.DecisionScheduleID == 4 &&
 			req.UpdateWorkflowMutation.ExecutionInfo.NextEventID == 4 && // transient decision
-			len(req.UpdateWorkflowMutation.TimerTasks) == 1 // another schedule to start timer
+			len(req.UpdateWorkflowMutation.TasksByCategory[persistence.HistoryTaskCategoryTimer]) == 1 // another schedule to start timer
 	})).Return(&persistence.UpdateWorkflowExecutionResponse{MutableStateUpdateSessionStats: &persistence.MutableStateUpdateSessionStats{}}, nil).Once()
 
 	err = s.timerActiveTaskExecutor.Execute(timerTask, true)
@@ -838,7 +838,7 @@ func (s *timerActiveTaskExecutorSuite) TestDecisionScheduleToStartTimeout_Transi
 		return req.UpdateWorkflowMutation.ExecutionInfo.DecisionAttempt == 2 &&
 			req.UpdateWorkflowMutation.ExecutionInfo.DecisionScheduleID == 2 &&
 			req.UpdateWorkflowMutation.ExecutionInfo.NextEventID == 2 && // transient decision
-			len(req.UpdateWorkflowMutation.TimerTasks) == 0 // since the max attempt is 1 at the beginning of the test
+			len(req.UpdateWorkflowMutation.TasksByCategory[persistence.HistoryTaskCategoryTimer]) == 0 // since the max attempt is 1 at the beginning of the test
 	})).Return(&persistence.UpdateWorkflowExecutionResponse{MutableStateUpdateSessionStats: &persistence.MutableStateUpdateSessionStats{}}, nil).Once()
 
 	err = s.timerActiveTaskExecutor.Execute(timerTask, true)
@@ -881,7 +881,7 @@ func (s *timerActiveTaskExecutorSuite) TestDecisionScheduleToStartTimeout_Sticky
 			executionInfo.NextEventID == 8 && // normal decision
 			executionInfo.StickyTaskList == "" && // stickyness should be cleared
 			executionInfo.StickyScheduleToStartTimeout == 0 && // stickyness should be cleared
-			len(req.UpdateWorkflowMutation.TimerTasks) == 1 // schedule to start timer
+			len(req.UpdateWorkflowMutation.TasksByCategory[persistence.HistoryTaskCategoryTimer]) == 1 // schedule to start timer
 	})).Return(&persistence.UpdateWorkflowExecutionResponse{MutableStateUpdateSessionStats: &persistence.MutableStateUpdateSessionStats{}}, nil).Once()
 
 	err = s.timerActiveTaskExecutor.Execute(timerTask, true)

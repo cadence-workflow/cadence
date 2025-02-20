@@ -137,18 +137,19 @@ func (s *ExecutionManagerSuiteForEventsV2) TestWorkflowCreation() {
 				BranchToken:                 []byte("branchToken1"),
 			},
 			ExecutionStats: &p.ExecutionStats{},
-			TransferTasks: []p.Task{
-				&p.DecisionTask{
-					TaskData: p.TaskData{
-						TaskID:              s.GetNextSequenceNumber(),
-						VisibilityTimestamp: time.Now(),
+			TasksByCategory: map[p.HistoryTaskCategory][]p.Task{
+				p.HistoryTaskCategoryTransfer: []p.Task{
+					&p.DecisionTask{
+						TaskData: p.TaskData{
+							TaskID:              s.GetNextSequenceNumber(),
+							VisibilityTimestamp: time.Now(),
+						},
+						DomainID:   domainID,
+						TaskList:   "taskList",
+						ScheduleID: 2,
 					},
-					DomainID:   domainID,
-					TaskList:   "taskList",
-					ScheduleID: 2,
 				},
 			},
-			TimerTasks:       nil,
 			Checksum:         csum,
 			VersionHistories: versionHistories,
 		},
@@ -251,19 +252,20 @@ func (s *ExecutionManagerSuiteForEventsV2) TestWorkflowCreationWithVersionHistor
 			},
 			ExecutionStats:   &p.ExecutionStats{},
 			VersionHistories: versionHistories,
-			TransferTasks: []p.Task{
-				&p.DecisionTask{
-					TaskData: p.TaskData{
-						TaskID:              s.GetNextSequenceNumber(),
-						VisibilityTimestamp: time.Now(),
+			TasksByCategory: map[p.HistoryTaskCategory][]p.Task{
+				p.HistoryTaskCategoryTransfer: []p.Task{
+					&p.DecisionTask{
+						TaskData: p.TaskData{
+							TaskID:              s.GetNextSequenceNumber(),
+							VisibilityTimestamp: time.Now(),
+						},
+						DomainID:   domainID,
+						TaskList:   "taskList",
+						ScheduleID: 2,
 					},
-					DomainID:   domainID,
-					TaskList:   "taskList",
-					ScheduleID: 2,
 				},
 			},
-			TimerTasks: nil,
-			Checksum:   csum,
+			Checksum: csum,
 		},
 		DomainName: domainName,
 	})
@@ -357,10 +359,11 @@ func (s *ExecutionManagerSuiteForEventsV2) TestContinueAsNew() {
 
 	_, err2 := s.ExecutionManager.UpdateWorkflowExecution(ctx, &p.UpdateWorkflowExecutionRequest{
 		UpdateWorkflowMutation: p.WorkflowMutation{
-			ExecutionInfo:       updatedInfo,
-			ExecutionStats:      updatedStats,
-			TransferTasks:       []p.Task{newdecisionTask},
-			TimerTasks:          nil,
+			ExecutionInfo:  updatedInfo,
+			ExecutionStats: updatedStats,
+			TasksByCategory: map[p.HistoryTaskCategory][]p.Task{
+				p.HistoryTaskCategoryTransfer: []p.Task{newdecisionTask},
+			},
 			Condition:           info0.NextEventID,
 			UpsertActivityInfos: nil,
 			DeleteActivityInfos: nil,
@@ -391,8 +394,6 @@ func (s *ExecutionManagerSuiteForEventsV2) TestContinueAsNew() {
 				PartitionConfig:             partitionConfig,
 			},
 			ExecutionStats:   &p.ExecutionStats{},
-			TransferTasks:    nil,
-			TimerTasks:       nil,
 			VersionHistories: versionHistories,
 		},
 		RangeID:  s.ShardInfo.RangeID,

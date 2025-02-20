@@ -350,6 +350,7 @@ func (s *Service) startDiagnostics() {
 		ClientBean:      s.GetClientBean(),
 		Logger:          s.GetLogger(),
 		Invariants:      s.params.DiagnosticsInvariants,
+		ClusterMetadata: s.GetClusterMetadata(),
 	}
 	if err := diagnostics.New(params).Start(); err != nil {
 		s.Stop()

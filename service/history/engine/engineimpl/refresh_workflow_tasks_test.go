@@ -188,15 +188,15 @@ func TestRefreshWorkflowTasks(t *testing.T) {
 				t.Errorf("got Mode %v, want %v", gotUpdateExecReq.Mode, persistence.UpdateWorkflowModeIgnoreCurrent)
 			}
 
-			if len(gotUpdateExecReq.UpdateWorkflowMutation.TimerTasks) != 2 {
-				t.Errorf("got %v TimerTasks, want 2", len(gotUpdateExecReq.UpdateWorkflowMutation.TimerTasks))
+			if len(gotUpdateExecReq.UpdateWorkflowMutation.TasksByCategory[persistence.HistoryTaskCategoryTimer]) != 2 {
+				t.Errorf("got %v TimerTasks, want 2", len(gotUpdateExecReq.UpdateWorkflowMutation.TasksByCategory[persistence.HistoryTaskCategoryTimer]))
 			} else {
-				timer0, ok := gotUpdateExecReq.UpdateWorkflowMutation.TimerTasks[0].(*persistence.WorkflowTimeoutTask)
+				timer0, ok := gotUpdateExecReq.UpdateWorkflowMutation.TasksByCategory[persistence.HistoryTaskCategoryTimer][0].(*persistence.WorkflowTimeoutTask)
 				if !ok {
 					t.Fatalf("failed to cast TimerTask[0] to *persistence.WorkflowTimeoutTask, type is %T", timer0)
 				}
 
-				timer1, ok := gotUpdateExecReq.UpdateWorkflowMutation.TimerTasks[1].(*persistence.DecisionTimeoutTask)
+				timer1, ok := gotUpdateExecReq.UpdateWorkflowMutation.TasksByCategory[persistence.HistoryTaskCategoryTimer][1].(*persistence.DecisionTimeoutTask)
 				if !ok {
 					t.Fatalf("failed to cast TimerTask[0] to *persistence.WorkflowTimeoutTask, type is %T", timer1)
 				}

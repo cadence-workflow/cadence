@@ -316,126 +316,50 @@ func (d *nosqlExecutionStore) prepareReplicationTasksForWorkflowTxn(domainID, wo
 	return tasks, nil
 }
 
-func (d *nosqlExecutionStore) prepareCrossClusterTasksForWorkflowTxn(domainID, workflowID, runID string, crossClusterTasks []persistence.Task) ([]*nosqlplugin.CrossClusterTask, error) {
-	var tasks []*nosqlplugin.CrossClusterTask
-
-	for _, task := range crossClusterTasks {
-		var taskList string
-		var scheduleID int64
-		var targetCluster string
-		targetDomainID := domainID // default to source domain, can't be empty, since empty string is not valid UUID
-		targetDomainIDs := map[string]struct{}{}
-		var targetWorkflowID string
-		targetRunID := persistence.CrossClusterTaskDefaultTargetRunID
-		targetChildWorkflowOnly := false
-		recordVisibility := false
-
-		switch task.GetType() {
-		case persistence.CrossClusterTaskTypeStartChildExecution:
-			targetCluster = task.(*persistence.CrossClusterStartChildExecutionTask).TargetCluster
-			targetDomainID = task.(*persistence.CrossClusterStartChildExecutionTask).TargetDomainID
-			targetWorkflowID = task.(*persistence.CrossClusterStartChildExecutionTask).TargetWorkflowID
-			scheduleID = task.(*persistence.CrossClusterStartChildExecutionTask).InitiatedID
-
-		case persistence.CrossClusterTaskTypeCancelExecution:
-			targetCluster = task.(*persistence.CrossClusterCancelExecutionTask).TargetCluster
-			targetDomainID = task.(*persistence.CrossClusterCancelExecutionTask).TargetDomainID
-			targetWorkflowID = task.(*persistence.CrossClusterCancelExecutionTask).TargetWorkflowID
-			targetRunID = task.(*persistence.CrossClusterCancelExecutionTask).TargetRunID
-			if targetRunID == "" {
-				targetRunID = persistence.CrossClusterTaskDefaultTargetRunID
-			}
-			targetChildWorkflowOnly = task.(*persistence.CrossClusterCancelExecutionTask).TargetChildWorkflowOnly
-			scheduleID = task.(*persistence.CrossClusterCancelExecutionTask).InitiatedID
-
-		case persistence.CrossClusterTaskTypeSignalExecution:
-			targetCluster = task.(*persistence.CrossClusterSignalExecutionTask).TargetCluster
-			targetDomainID = task.(*persistence.CrossClusterSignalExecutionTask).TargetDomainID
-			targetWorkflowID = task.(*persistence.CrossClusterSignalExecutionTask).TargetWorkflowID
-			targetRunID = task.(*persistence.CrossClusterSignalExecutionTask).TargetRunID
-			if targetRunID == "" {
-				targetRunID = persistence.CrossClusterTaskDefaultTargetRunID
-			}
-			targetChildWorkflowOnly = task.(*persistence.CrossClusterSignalExecutionTask).TargetChildWorkflowOnly
-			scheduleID = task.(*persistence.CrossClusterSignalExecutionTask).InitiatedID
-
-		case persistence.CrossClusterTaskTypeRecordChildExeuctionCompleted:
-			targetCluster = task.(*persistence.CrossClusterRecordChildExecutionCompletedTask).TargetCluster
-			targetDomainID = task.(*persistence.CrossClusterRecordChildExecutionCompletedTask).TargetDomainID
-			targetWorkflowID = task.(*persistence.CrossClusterRecordChildExecutionCompletedTask).TargetWorkflowID
-			targetRunID = task.(*persistence.CrossClusterRecordChildExecutionCompletedTask).TargetRunID
-			if targetRunID == "" {
-				targetRunID = persistence.CrossClusterTaskDefaultTargetRunID
-			}
-
-		case persistence.CrossClusterTaskTypeApplyParentClosePolicy:
-			targetCluster = task.(*persistence.CrossClusterApplyParentClosePolicyTask).TargetCluster
-			targetDomainIDs = task.(*persistence.CrossClusterApplyParentClosePolicyTask).TargetDomainIDs
-
-		default:
-			return nil, &types.InternalServiceError{
-				Message: fmt.Sprintf("Unknown cross-cluster task type: %v", task.GetType()),
-			}
-		}
-
-		nt := &nosqlplugin.CrossClusterTask{
-			TransferTask: nosqlplugin.TransferTask{
-				TaskType:                task.GetType(),
-				DomainID:                domainID,
-				WorkflowID:              workflowID,
-				RunID:                   runID,
-				VisibilityTimestamp:     task.GetVisibilityTimestamp(),
-				TaskID:                  task.GetTaskID(),
-				TargetDomainID:          targetDomainID,
-				TargetDomainIDs:         targetDomainIDs,
-				TargetWorkflowID:        targetWorkflowID,
-				TargetRunID:             targetRunID,
-				TargetChildWorkflowOnly: targetChildWorkflowOnly,
-				TaskList:                taskList,
-				ScheduleID:              scheduleID,
-				RecordVisibility:        recordVisibility,
-				Version:                 task.GetVersion(),
-			},
-			TargetCluster: targetCluster,
-		}
-		tasks = append(tasks, nt)
-	}
-
-	return tasks, nil
-}
-
 func (d *nosqlExecutionStore) prepareNoSQLTasksForWorkflowTxn(
 	domainID, workflowID, runID string,
-	persistenceTransferTasks, persistenceCrossClusterTasks, persistenceReplicationTasks, persistenceTimerTasks []persistence.Task,
-	transferTasksToAppend []*nosqlplugin.TransferTask,
-	crossClusterTasksToAppend []*nosqlplugin.CrossClusterTask,
-	replicationTasksToAppend []*nosqlplugin.ReplicationTask,
-	timerTasksToAppend []*nosqlplugin.TimerTask,
-) ([]*nosqlplugin.TransferTask, []*nosqlplugin.CrossClusterTask, []*nosqlplugin.ReplicationTask, []*nosqlplugin.TimerTask, error) {
-	transferTasks, err := d.prepareTransferTasksForWorkflowTxn(domainID, workflowID, runID, persistenceTransferTasks)
-	if err != nil {
-		return nil, nil, nil, nil, err
+	tasksByCategory map[persistence.HistoryTaskCategory][]persistence.Task,
+	outputTasks map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask,
+) error {
+	for c, tasks := range tasksByCategory {
+		switch c.ID() {
+		case persistence.HistoryTaskCategoryIDTransfer:
+			transferTasks, err := d.prepareTransferTasksForWorkflowTxn(domainID, workflowID, runID, tasks)
+			if err != nil {
+				return err
+			}
+			for _, transfer := range transferTasks {
+				outputTasks[c] = append(outputTasks[c], &nosqlplugin.HistoryMigrationTask{
+					Transfer: transfer,
+					Task:     nil, // TODO: encode data into task field
+				})
+			}
+		case persistence.HistoryTaskCategoryIDTimer:
+			timerTasks, err := d.prepareTimerTasksForWorkflowTxn(domainID, workflowID, runID, tasks)
+			if err != nil {
+				return err
+			}
+			for _, timer := range timerTasks {
+				outputTasks[c] = append(outputTasks[c], &nosqlplugin.HistoryMigrationTask{
+					Timer: timer,
+					Task:  nil, // TODO: encode data into task field
+				})
+			}
+		case persistence.HistoryTaskCategoryIDReplication:
+			replicationTasks, err := d.prepareReplicationTasksForWorkflowTxn(domainID, workflowID, runID, tasks)
+			if err != nil {
+				return err
+			}
+			for _, replication := range replicationTasks {
+				outputTasks[c] = append(outputTasks[c], &nosqlplugin.HistoryMigrationTask{
+					Replication: replication,
+					Task:        nil, // TODO: encode data into task field
+				})
+			}
+		}
 	}
-	transferTasksToAppend = append(transferTasksToAppend, transferTasks...)
-
-	crossClusterTasks, err := d.prepareCrossClusterTasksForWorkflowTxn(domainID, workflowID, runID, persistenceCrossClusterTasks)
-	if err != nil {
-		return nil, nil, nil, nil, err
-	}
-	crossClusterTasksToAppend = append(crossClusterTasksToAppend, crossClusterTasks...)
-
-	replicationTasks, err := d.prepareReplicationTasksForWorkflowTxn(domainID, workflowID, runID, persistenceReplicationTasks)
-	if err != nil {
-		return nil, nil, nil, nil, err
-	}
-	replicationTasksToAppend = append(replicationTasksToAppend, replicationTasks...)
-
-	timerTasks, err := d.prepareTimerTasksForWorkflowTxn(domainID, workflowID, runID, persistenceTimerTasks)
-	if err != nil {
-		return nil, nil, nil, nil, err
-	}
-	timerTasksToAppend = append(timerTasksToAppend, timerTasks...)
-	return transferTasksToAppend, crossClusterTasksToAppend, replicationTasksToAppend, timerTasksToAppend, nil
+	// TODO: implementing logic for other categories
+	return nil
 }
 
 func (d *nosqlExecutionStore) prepareTransferTasksForWorkflowTxn(domainID, workflowID, runID string, transferTasks []persistence.Task) ([]*nosqlplugin.TransferTask, error) {
