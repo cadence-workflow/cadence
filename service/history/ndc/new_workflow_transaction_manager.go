@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/events"
@@ -44,6 +45,7 @@ type (
 
 	transactionManagerForNewWorkflowImpl struct {
 		transactionManager transactionManager
+		logger             log.Logger
 	}
 )
 
@@ -51,10 +53,12 @@ var _ transactionManagerForNewWorkflow = (*transactionManagerForNewWorkflowImpl)
 
 func newTransactionManagerForNewWorkflow(
 	transactionManager transactionManager,
+	logger log.Logger,
 ) transactionManagerForNewWorkflow {
 
 	return &transactionManagerForNewWorkflowImpl{
 		transactionManager: transactionManager,
+		logger:             logger,
 	}
 }
 
@@ -308,6 +312,11 @@ func (r *transactionManagerForNewWorkflowImpl) suppressCurrentAndCreateAsCurrent
 		return err
 	}
 
+	r.logger.Debugf("suppressCurrentAndCreateAsCurrent calling UpdateWorkflowExecutionWithNew for wfID %s, current policy %v, new policy %v",
+		currentWorkflow.GetMutableState().GetExecutionInfo().WorkflowID,
+		currentWorkflowPolicy,
+		execution.TransactionPolicyPassive,
+	)
 	return currentWorkflow.GetContext().UpdateWorkflowExecutionWithNew(
 		ctx,
 		now,

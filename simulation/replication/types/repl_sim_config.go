@@ -35,6 +35,7 @@ import (
 	"go.uber.org/yarpc/transport/grpc"
 	"gopkg.in/yaml.v2"
 
+	"github.com/uber/cadence/.gen/go/shared"
 	"github.com/uber/cadence/client/admin"
 	"github.com/uber/cadence/client/frontend"
 	grpcClient "github.com/uber/cadence/client/wrappers/grpc"
@@ -50,9 +51,15 @@ const (
 )
 
 type ReplicationSimulationConfig struct {
+	// Clusters is the map of all clusters
 	Clusters map[string]*Cluster `yaml:"clusters"`
 
+	// PrimaryCluster is used for domain registration
 	PrimaryCluster string `yaml:"primaryCluster"`
+
+	// domainActiveClusters is the list of clusters that the test domain is active in
+	// If unset, the test domain will be active in primary cluster only.
+	domainActiveClusters []string `yaml:"domainActiveClusters"`
 
 	Operations []*Operation `yaml:"operations"`
 }
@@ -154,9 +161,20 @@ func (s *ReplicationSimulationConfig) MustRegisterDomain(t *testing.T) {
 		Name:                                   DomainName,
 		Clusters:                               clusters,
 		WorkflowExecutionRetentionPeriodInDays: 1,
-		ActiveClusterName:                      s.PrimaryCluster,
 		IsGlobalDomain:                         true,
+		ActiveClusterName:                      s.PrimaryCluster,
+		// TODO: Once API is updated to support ActiveClusterNames, update this
+		// ActiveClusterNames:                      s.DomainActiveClusters,
 	})
-	require.NoError(t, err, "failed to register domain")
+
+	if err != nil {
+		if _, ok := err.(*shared.DomainAlreadyExistsError); !ok {
+			require.NoError(t, err, "failed to register domain")
+		} else {
+			Logf(t, "Domain already exists: %s", DomainName)
+		}
+		return
+	}
+
 	Logf(t, "Registered domain: %s", DomainName)
 }

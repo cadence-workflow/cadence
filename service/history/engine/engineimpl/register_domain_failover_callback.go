@@ -121,6 +121,12 @@ func (e *historyEngineImpl) generateGracefulFailoverTasksForDomainUpdateCallback
 	// make sure task processor failover the domain before inserting the failover marker
 	failoverMarkerTasks := []*persistence.FailoverMarkerTask{}
 	for _, nextDomain := range nextDomains {
+		if nextDomain.GetReplicationConfig().IsActiveActive() {
+			// Currently it's unclear whether graceful failover is working for active-passive domains. We don't use it in practice.
+			// Don't try to make it work for active-active domains until we determine we need it.
+			// We may potentially retire existing graceful failover implementation and provide "sync replication" instead.
+			continue
+		}
 		domainFailoverNotificationVersion := nextDomain.GetFailoverNotificationVersion()
 		domainActiveCluster := nextDomain.GetReplicationConfig().ActiveClusterName
 		previousFailoverVersion := nextDomain.GetPreviousFailoverVersion()
@@ -166,6 +172,7 @@ func (e *historyEngineImpl) failoverPredicate(shardNotificationVersion int64, ne
 	domainActiveCluster := nextDomain.GetReplicationConfig().ActiveClusterName
 
 	if nextDomain.IsGlobalDomain() &&
+		!nextDomain.GetReplicationConfig().IsActiveActive() &&
 		domainFailoverNotificationVersion >= shardNotificationVersion &&
 		domainActiveCluster == e.currentClusterName {
 		action()

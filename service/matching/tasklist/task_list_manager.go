@@ -39,6 +39,7 @@ import (
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
@@ -136,6 +137,7 @@ type (
 		partitionConfig     *types.TaskListPartitionConfig
 		historyService      history.Client
 		taskCompleter       TaskCompleter
+		activeClusterMgr    activecluster.Manager
 	}
 )
 
@@ -161,6 +163,7 @@ func NewManager(
 	timeSource clock.TimeSource,
 	createTime time.Time,
 	historyService history.Client,
+	activeClusterMgr activecluster.Manager,
 ) (Manager, error) {
 	domainName, err := domainCache.GetDomainName(taskList.GetDomainID())
 	if err != nil {
@@ -201,7 +204,8 @@ func NewManager(
 			backoff.WithRetryPolicy(persistenceOperationRetryPolicy),
 			backoff.WithRetryableError(persistence.IsTransientError),
 		),
-		historyService: historyService,
+		historyService:   historyService,
+		activeClusterMgr: activeClusterMgr,
 	}
 
 	tlMgr.pollerHistory = poller.NewPollerHistory(func() {
@@ -599,23 +603,33 @@ func (c *taskListManagerImpl) DispatchTask(ctx context.Context, task *InternalTa
 		return fmt.Errorf("unable to fetch domain from cache: %w", err)
 	}
 
-	if isActive, _ := domainEntry.IsActiveIn(c.clusterMetadata.GetCurrentClusterName()); isActive {
-		return c.matcher.MustOffer(ctx, task)
-	}
-
-	// optional configuration to enable cleanup of tasks, in the standby cluster, that have already been started
-	if c.config.EnableStandbyTaskCompletion() {
-		if err := c.taskCompleter.CompleteTaskIfStarted(ctx, task); err != nil {
-			if errors.Is(err, errDomainIsActive) {
-				return c.matcher.MustOffer(ctx, task)
-			}
-			return err
-		}
+	if domainEntry.GetReplicationConfig().IsActiveActive() {
+		// TODO: Deal with active-active dispatch here.
+		// Potential solution: Do not send tasks to matching for passive workflows of active-active domains.
+		// This way matching only deals with active tasks for active-active domains.
+		// There will still be race conditions where the task made it to here but the workflow turned passive in this cluster.
+		// Handle those by utilizing taskCompleter without blocking the head of line. OR discard such tasks.
 
 		return nil
-	}
+	} else {
+		if isActive, _ := domainEntry.IsActiveIn(c.clusterMetadata.GetCurrentClusterName()); isActive {
+			return c.matcher.MustOffer(ctx, task)
+		}
 
-	return c.matcher.MustOffer(ctx, task)
+		// optional configuration to enable cleanup of tasks, in the standby cluster, that have already been started
+		if c.config.EnableStandbyTaskCompletion() {
+			if err := c.taskCompleter.CompleteTaskIfStarted(ctx, task); err != nil {
+				if errors.Is(err, errDomainIsActive) {
+					return c.matcher.MustOffer(ctx, task)
+				}
+				return err
+			}
+
+			return nil
+		}
+
+		return c.matcher.MustOffer(ctx, task)
+	}
 }
 
 // DispatchQueryTask will dispatch query to local or remote poller. If forwarded then result or error is returned,

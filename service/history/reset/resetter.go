@@ -368,9 +368,11 @@ func (r *workflowResetterImpl) replayResetWorkflow(
 	return execution.NewWorkflow(
 		ctx,
 		r.clusterMetadata,
+		r.shard.GetActiveClusterManager(),
 		resetContext,
 		resetMutableState,
 		execution.NoopReleaseFn,
+		r.logger,
 	), nil
 }
 

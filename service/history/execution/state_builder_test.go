@@ -51,8 +51,7 @@ type (
 		mockEventsCache  *events.MockCache
 		mockDomainCache  *cache.MockDomainCache
 		mockMutableState *MockMutableState
-
-		logger log.Logger
+		logger           log.Logger
 
 		sourceCluster string
 		stateBuilder  *stateBuilderImpl
@@ -96,6 +95,10 @@ func (s *stateBuilderSuite) SetupTest() {
 	s.logger = s.mockShard.GetLogger()
 
 	s.mockMutableState.EXPECT().GetVersionHistories().Return(persistence.NewVersionHistories(&persistence.VersionHistory{})).AnyTimes()
+
+	// TODO: add mock expectations
+	// s.mockShard.Resource.ActiveClusterMgr.EXPECT()....
+
 	s.stateBuilder = NewStateBuilder(
 		s.mockShard,
 		s.logger,

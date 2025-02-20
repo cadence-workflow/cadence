@@ -3115,8 +3115,8 @@ func TestLoadWorkflowExecutionWithTaskVersion(t *testing.T) {
 				mockDomainCache.EXPECT().GetDomainByID(gomock.Any()).Return(cache.NewDomainCacheEntryForTest(&persistence.DomainInfo{
 					Name: "test-domain",
 				}, nil, true, nil, 0, nil, 0, 0, 0), nil)
-				mockMutableState.EXPECT().Load(gomock.Any()).Return(errors.New("some error"))
-				mockMutableState.EXPECT().StartTransaction(gomock.Any(), gomock.Any()).Return(false, errors.New("some error"))
+				mockMutableState.EXPECT().Load(gomock.Any(), gomock.Any()).Return(errors.New("some error"))
+				mockMutableState.EXPECT().StartTransaction(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, errors.New("some error"))
 			},
 			mockGetWorkflowExecutionFn: func(context.Context, *persistence.GetWorkflowExecutionRequest) (*persistence.GetWorkflowExecutionResponse, error) {
 				return &persistence.GetWorkflowExecutionResponse{
@@ -3154,8 +3154,8 @@ func TestLoadWorkflowExecutionWithTaskVersion(t *testing.T) {
 					0,
 					0,
 					0), nil)
-				mockMutableState.EXPECT().Load(gomock.Any()).Return(errors.New("some error"))
-				mockMutableState.EXPECT().StartTransaction(gomock.Any(), gomock.Any()).Return(false, nil)
+				mockMutableState.EXPECT().Load(gomock.Any(), gomock.Any()).Return(errors.New("some error"))
+				mockMutableState.EXPECT().StartTransaction(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil)
 			},
 			mockGetWorkflowExecutionFn: func(context.Context, *persistence.GetWorkflowExecutionRequest) (*persistence.GetWorkflowExecutionResponse, error) {
 				return &persistence.GetWorkflowExecutionResponse{
@@ -3184,9 +3184,9 @@ func TestLoadWorkflowExecutionWithTaskVersion(t *testing.T) {
 				mockDomainCache.EXPECT().GetDomainByID(gomock.Any()).Return(cache.NewDomainCacheEntryForTest(&persistence.DomainInfo{
 					Name: "test-domain",
 				}, nil, true, nil, 0, nil, 0, 0, 0), nil)
-				mockMutableState.EXPECT().Load(gomock.Any()).Return(errors.New("some error"))
-				mockMutableState.EXPECT().StartTransaction(gomock.Any(), gomock.Any()).Return(true, nil)
-				mockMutableState.EXPECT().StartTransaction(gomock.Any(), gomock.Any()).Return(false, nil)
+				mockMutableState.EXPECT().Load(gomock.Any(), gomock.Any()).Return(errors.New("some error"))
+				mockMutableState.EXPECT().StartTransaction(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
+				mockMutableState.EXPECT().StartTransaction(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil)
 				mockShard.EXPECT().GetTimeSource().Return(clock.NewMockedTimeSource())
 			},
 			mockGetWorkflowExecutionFn: func(context.Context, *persistence.GetWorkflowExecutionRequest) (*persistence.GetWorkflowExecutionResponse, error) {
@@ -3277,6 +3277,11 @@ func TestUpdateWorkflowExecutionAsActive(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := &contextImpl{
 				updateWorkflowExecutionWithNewFn: tc.mockUpdateWorkflowExecutionWithNewFn,
+				logger:                           testlogger.New(t),
+				workflowExecution: types.WorkflowExecution{
+					WorkflowID: "test-workflow-id",
+					RunID:      "test-run-id",
+				},
 			}
 			err := ctx.UpdateWorkflowExecutionAsActive(context.Background(), time.Now())
 			if tc.wantErr {
@@ -3320,6 +3325,11 @@ func TestUpdateWorkflowExecutionWithNewAsActive(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := &contextImpl{
 				updateWorkflowExecutionWithNewFn: tc.mockUpdateWorkflowExecutionWithNewFn,
+				logger:                           testlogger.New(t),
+				workflowExecution: types.WorkflowExecution{
+					WorkflowID: "test-workflow-id",
+					RunID:      "test-run-id",
+				},
 			}
 			err := ctx.UpdateWorkflowExecutionWithNewAsActive(context.Background(), time.Now(), &contextImpl{}, &mutableStateBuilder{})
 			if tc.wantErr {
@@ -3363,6 +3373,11 @@ func TestUpdateWorkflowExecutionAsPassive(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := &contextImpl{
 				updateWorkflowExecutionWithNewFn: tc.mockUpdateWorkflowExecutionWithNewFn,
+				logger:                           testlogger.New(t),
+				workflowExecution: types.WorkflowExecution{
+					WorkflowID: "test-workflow-id",
+					RunID:      "test-run-id",
+				},
 			}
 			err := ctx.UpdateWorkflowExecutionAsPassive(context.Background(), time.Now())
 			if tc.wantErr {
@@ -3406,6 +3421,11 @@ func TestUpdateWorkflowExecutionWithNewAsPassive(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := &contextImpl{
 				updateWorkflowExecutionWithNewFn: tc.mockUpdateWorkflowExecutionWithNewFn,
+				logger:                           testlogger.New(t),
+				workflowExecution: types.WorkflowExecution{
+					WorkflowID: "test-workflow-id",
+					RunID:      "test-run-id",
+				},
 			}
 			err := ctx.UpdateWorkflowExecutionWithNewAsPassive(context.Background(), time.Now(), &contextImpl{}, &mutableStateBuilder{})
 			if tc.wantErr {

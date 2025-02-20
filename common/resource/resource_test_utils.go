@@ -36,6 +36,7 @@ import (
 	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/archiver"
 	"github.com/uber/cadence/common/archiver/provider"
 	"github.com/uber/cadence/common/asyncworkflow/queue"
@@ -69,6 +70,7 @@ type (
 
 		DomainCache             *cache.MockDomainCache
 		DomainMetricsScopeCache cache.DomainMetricsScopeCache
+		ActiveClusterMgr        *activecluster.MockManager
 		DomainReplicationQueue  *domain.MockReplicationQueue
 		TimeSource              clock.TimeSource
 		PayloadSerializer       persistence.PayloadSerializer
@@ -183,6 +185,7 @@ func NewTest(
 		DomainCache:             cache.NewMockDomainCache(controller),
 		DomainMetricsScopeCache: cache.NewDomainMetricsScopeCache(),
 		DomainReplicationQueue:  domainReplicationQueue,
+		ActiveClusterMgr:        activecluster.NewMockManager(controller),
 		TimeSource:              clock.NewRealTimeSource(),
 		PayloadSerializer:       persistence.NewPayloadSerializer(),
 		MetricsClient:           metrics.NewClient(scope, serviceMetricsIndex),
@@ -269,6 +272,10 @@ func (s *Test) GetDomainMetricsScopeCache() cache.DomainMetricsScopeCache {
 func (s *Test) GetDomainReplicationQueue() domain.ReplicationQueue {
 	// user should implement this method for test
 	return s.DomainReplicationQueue
+}
+
+func (s *Test) GetActiveClusterManager() activecluster.Manager {
+	return s.ActiveClusterMgr
 }
 
 // GetTimeSource for testing
