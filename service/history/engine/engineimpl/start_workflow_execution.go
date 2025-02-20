@@ -580,8 +580,8 @@ func (e *historyEngineImpl) overrideStartWorkflowExecutionRequest(
 	maxDecisionStartToCloseTimeoutSeconds := int32(e.config.MaxDecisionStartToCloseSeconds(domainName))
 
 	taskStartToCloseTimeoutSecs := request.GetTaskStartToCloseTimeoutSeconds()
-	taskStartToCloseTimeoutSecs = common.MinInt32(taskStartToCloseTimeoutSecs, maxDecisionStartToCloseTimeoutSeconds)
-	taskStartToCloseTimeoutSecs = common.MinInt32(taskStartToCloseTimeoutSecs, request.GetExecutionStartToCloseTimeoutSeconds())
+	taskStartToCloseTimeoutSecs = min(taskStartToCloseTimeoutSecs, maxDecisionStartToCloseTimeoutSeconds)
+	taskStartToCloseTimeoutSecs = min(taskStartToCloseTimeoutSecs, request.GetExecutionStartToCloseTimeoutSeconds())
 
 	if taskStartToCloseTimeoutSecs != request.GetTaskStartToCloseTimeoutSeconds() {
 		request.TaskStartToCloseTimeoutSeconds = &taskStartToCloseTimeoutSecs

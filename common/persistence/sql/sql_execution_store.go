@@ -33,7 +33,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/uber/cadence/common"
-	"github.com/uber/cadence/common/collection"
 	"github.com/uber/cadence/common/log"
 	p "github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/serialization"
@@ -1053,7 +1052,7 @@ func getReadLevels(request *p.GetReplicationTasksRequest) (readLevel int64, maxR
 		}
 	}
 
-	maxReadLevelInclusive = collection.MaxInt64(readLevel+int64(request.BatchSize), request.MaxReadLevel)
+	maxReadLevelInclusive = max(readLevel+int64(request.BatchSize), request.MaxReadLevel)
 	return readLevel, maxReadLevelInclusive, nil
 }
 
