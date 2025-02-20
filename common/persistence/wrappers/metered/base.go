@@ -193,11 +193,17 @@ func (p *base) emptyMetric(methodName string, req any, res any, err error) {
 		return
 	}
 
-	if err != nil || resLen.Len() > 0 {
+	if err != nil {
 		return
 	}
+
 	metricScope := p.metricClient.Scope(scope.scope, getCustomMetricTags(req)...)
-	metricScope.IncCounter(metrics.PersistenceEmptyResponseCounter)
+
+	if resLen.Len() == 0 {
+		metricScope.IncCounter(metrics.PersistenceEmptyResponseCounter)
+	} else {
+		metricScope.RecordHistogramValue(metrics.PersistenceResponseRowSize, float64(resLen.Len()))
+	}
 }
 
 var emptyCountedMethods = map[string]struct {
