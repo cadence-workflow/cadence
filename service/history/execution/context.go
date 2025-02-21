@@ -1394,6 +1394,7 @@ func (c *contextImpl) Size() uint64 {
 	size += len(c.domainID)
 
 	size += len(c.workflowExecution.GetWorkflowID()) + len(c.workflowExecution.GetRunID())
+	size += 3 * common.StringSizeOverheadBytes
 	size += int(c.shard.Size())
 
 	size += 3 * 8 // logger
