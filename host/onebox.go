@@ -837,7 +837,7 @@ func (c *cadenceImpl) startMatching(hosts map[string][]membership.HostInfo, star
 
 		// When there are multiple matching hosts the last client will overwrite previous ones.
 		// It should be fine because the underlying client bean logic should still pick the right destination.
-		matchingClient, err := clientBean.GetMatchingClient(matchingService.GetDomainCache().GetDomainName)
+		matchingClient, err := clientBean.GetMatchingClient(matchingService.GetDomainCache().GetDomainName, nil)
 		if err != nil {
 			params.Logger.Fatal("unable to get matching client", tag.Error(err))
 		}
