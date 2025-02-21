@@ -736,6 +736,11 @@ func newAdminTaskListCommands() []*cli.Command {
 					Aliases: []string{"nwp"},
 					Usage:   "Number of write partitions",
 				},
+				&cli.BoolFlag{
+					Name:    FlagForce,
+					Aliases: []string{"f"},
+					Usage:   "Force an update operation that may be unsafe",
+				},
 			},
 			Action: AdminUpdateTaskListPartitionConfig,
 		},

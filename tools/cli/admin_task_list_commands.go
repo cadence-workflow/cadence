@@ -21,6 +21,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -28,6 +29,8 @@ import (
 
 	"github.com/urfave/cli/v2"
 
+	"github.com/uber/cadence/client/frontend"
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/tools/common/commoncli"
 )
@@ -171,6 +174,10 @@ func AdminUpdateTaskListPartitionConfig(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
+	frontendClient, err := getDeps(c).ServerFrontendClient(c)
+	if err != nil {
+		return err
+	}
 	domain, err := getRequiredOption(c, FlagDomain)
 	if err != nil {
 		return commoncli.Problem("Required flag not found: ", err)
@@ -179,6 +186,7 @@ func AdminUpdateTaskListPartitionConfig(c *cli.Context) error {
 	if err != nil {
 		return commoncli.Problem("Required flag not found: ", err)
 	}
+	force := c.Bool(FlagForce)
 	var taskListType *types.TaskListType
 	if strings.ToLower(c.String(FlagTaskListType)) == "activity" {
 		taskListType = types.TaskListTypeActivity.Ptr()
@@ -200,17 +208,64 @@ func AdminUpdateTaskListPartitionConfig(c *cli.Context) error {
 	if err != nil {
 		return commoncli.Problem("Error in creating context:", err)
 	}
+	cfg := &types.TaskListPartitionConfig{
+		ReadPartitions:  createPartitions(numReadPartitions),
+		WritePartitions: createPartitions(numWritePartitions),
+	}
+	tl := &types.TaskList{Name: taskList, Kind: types.TaskListKindNormal.Ptr()}
+	if !force {
+		err = validateChange(ctx, frontendClient, domain, tl, taskListType, cfg)
+		if err != nil {
+			return commoncli.Problem("Potentially unsafe operation. Specify '--force' to proceed anyway: ", err)
+		}
+	}
 	_, err = adminClient.UpdateTaskListPartitionConfig(ctx, &types.UpdateTaskListPartitionConfigRequest{
-		Domain:       domain,
-		TaskList:     &types.TaskList{Name: taskList, Kind: types.TaskListKindNormal.Ptr()},
-		TaskListType: taskListType,
-		PartitionConfig: &types.TaskListPartitionConfig{
-			ReadPartitions:  createPartitions(numReadPartitions),
-			WritePartitions: createPartitions(numWritePartitions),
-		},
+		Domain:          domain,
+		TaskList:        tl,
+		TaskListType:    taskListType,
+		PartitionConfig: cfg,
 	})
 	if err != nil {
 		return commoncli.Problem("Operation UpdateTaskListPartitionConfig failed.", err)
+	}
+	return nil
+}
+
+func validateChange(ctx context.Context, client frontend.Client, domain string, tl *types.TaskList, tlt *types.TaskListType, newCfg *types.TaskListPartitionConfig) error {
+	description, err := client.DescribeTaskList(ctx, &types.DescribeTaskListRequest{
+		Domain:       domain,
+		TaskList:     tl,
+		TaskListType: tlt,
+	})
+	if err != nil {
+		return fmt.Errorf("DescribeTaskList failed: %w", err)
+	}
+	// Illegal operations are rejected by the server (read < write), but unsafe ones are still allowed
+	if description.PartitionConfig != nil {
+		oldCfg := description.PartitionConfig
+		// Ensure they're not removing active write partitions
+		if len(newCfg.ReadPartitions) < len(oldCfg.WritePartitions) {
+			return fmt.Errorf("remove write partitions, then read partitions. Removing an active write partition risks losing tasks. Proposed read count is less than current write count (%d < %d)", len(newCfg.ReadPartitions), len(oldCfg.WritePartitions))
+		}
+		// Ensure removed read partitions are drained
+		for i := len(newCfg.ReadPartitions); i < len(oldCfg.ReadPartitions); i++ {
+			partition, err := client.DescribeTaskList(ctx, &types.DescribeTaskListRequest{
+				Domain:                domain,
+				TaskList:              &types.TaskList{Name: getPartitionTaskListName(tl.Name, i), Kind: tl.Kind},
+				TaskListType:          tlt,
+				IncludeTaskListStatus: true,
+			})
+			if err != nil {
+				return fmt.Errorf("DescribeTaskList failed for partition %d: %w", i, err)
+			}
+			if partition.TaskListStatus.BacklogCountHint != 0 {
+				return fmt.Errorf("partition %d still has %d tasks remaining", i, partition.TaskListStatus.BacklogCountHint)
+			}
+		}
+	}
+	// If it's otherwise valid but there are no pollers, they might have mistyped the name
+	if len(description.Pollers) == 0 {
+		return fmt.Errorf("'%s' has no pollers of type '%s'", tl.Name, tlt.String())
 	}
 	return nil
 }
@@ -221,4 +276,11 @@ func createPartitions(num int) map[int]*types.TaskListPartition {
 		result[i] = &types.TaskListPartition{}
 	}
 	return result
+}
+
+func getPartitionTaskListName(root string, partition int) string {
+	if partition <= 0 {
+		return root
+	}
+	return fmt.Sprintf("%v%v/%v", common.ReservedTaskListPrefix, root, partition)
 }

@@ -266,17 +266,30 @@ func TestAdminUpdateTaskListPartitionConfig(t *testing.T) {
 	// Define table of test cases
 	tests := []struct {
 		name               string
-		setupMocks         func(*admin.MockClient)
+		setupMocks         func(*admin.MockClient, *frontend.MockClient)
 		expectedError      string
 		domainFlag         string
 		taskListFlag       string
 		taskListType       string
 		numReadPartitions  int
 		numWritePartitions int
+		force              bool
 	}{
 		{
 			name: "Success",
-			setupMocks: func(client *admin.MockClient) {
+			setupMocks: func(client *admin.MockClient, f *frontend.MockClient) {
+				f.EXPECT().DescribeTaskList(gomock.Any(), &types.DescribeTaskListRequest{
+					Domain:       "test-domain",
+					TaskList:     &types.TaskList{Name: "test-tasklist", Kind: types.TaskListKindNormal.Ptr()},
+					TaskListType: types.TaskListTypeDecision.Ptr(),
+				}).Return(&types.DescribeTaskListResponse{
+					Pollers: []*types.PollerInfo{
+						{
+							Identity: "poller",
+						},
+					},
+					PartitionConfig: nil,
+				}, nil).Times(1)
 				client.EXPECT().
 					UpdateTaskListPartitionConfig(gomock.Any(), &types.UpdateTaskListPartitionConfigRequest{
 						Domain:       "test-domain",
@@ -298,8 +311,44 @@ func TestAdminUpdateTaskListPartitionConfig(t *testing.T) {
 			numWritePartitions: 2,
 		},
 		{
+			name: "Success - force",
+			setupMocks: func(client *admin.MockClient, f *frontend.MockClient) {
+				client.EXPECT().
+					UpdateTaskListPartitionConfig(gomock.Any(), &types.UpdateTaskListPartitionConfigRequest{
+						Domain:       "test-domain",
+						TaskList:     &types.TaskList{Name: "test-tasklist", Kind: types.TaskListKindNormal.Ptr()},
+						TaskListType: types.TaskListTypeDecision.Ptr(),
+						PartitionConfig: &types.TaskListPartitionConfig{
+							ReadPartitions:  createPartitions(2),
+							WritePartitions: createPartitions(2),
+						},
+					}).
+					Return(&types.UpdateTaskListPartitionConfigResponse{}, nil).
+					Times(1)
+			},
+			expectedError:      "",
+			domainFlag:         "test-domain",
+			taskListFlag:       "test-tasklist",
+			taskListType:       "decision",
+			numReadPartitions:  2,
+			numWritePartitions: 2,
+			force:              true,
+		},
+		{
 			name: "UpdateTaskListPartitionConfigFails",
-			setupMocks: func(client *admin.MockClient) {
+			setupMocks: func(client *admin.MockClient, f *frontend.MockClient) {
+				f.EXPECT().DescribeTaskList(gomock.Any(), &types.DescribeTaskListRequest{
+					Domain:       "test-domain",
+					TaskList:     &types.TaskList{Name: "test-tasklist", Kind: types.TaskListKindNormal.Ptr()},
+					TaskListType: types.TaskListTypeDecision.Ptr(),
+				}).Return(&types.DescribeTaskListResponse{
+					Pollers: []*types.PollerInfo{
+						{
+							Identity: "poller",
+						},
+					},
+					PartitionConfig: nil,
+				}, nil).Times(1)
 				client.EXPECT().
 					UpdateTaskListPartitionConfig(gomock.Any(), gomock.Any()).
 					Return(nil, fmt.Errorf("API failed")).
@@ -314,7 +363,6 @@ func TestAdminUpdateTaskListPartitionConfig(t *testing.T) {
 		},
 		{
 			name:               "NoDomainFlag",
-			setupMocks:         func(client *admin.MockClient) {},
 			expectedError:      "Required flag not found",
 			domainFlag:         "", // Omit Domain flag
 			taskListFlag:       "test-tasklist",
@@ -324,7 +372,6 @@ func TestAdminUpdateTaskListPartitionConfig(t *testing.T) {
 		},
 		{
 			name:               "NoTaskListFlag",
-			setupMocks:         func(client *admin.MockClient) {},
 			expectedError:      "Required flag not found",
 			domainFlag:         "test-domain",
 			taskListType:       "decision",
@@ -333,7 +380,6 @@ func TestAdminUpdateTaskListPartitionConfig(t *testing.T) {
 		},
 		{
 			name:               "Invalid task list type",
-			setupMocks:         func(client *admin.MockClient) {},
 			expectedError:      "Invalid task list type: valid types are [activity, decision]",
 			domainFlag:         "test-domain",
 			taskListFlag:       "test-tasklist",
@@ -342,7 +388,6 @@ func TestAdminUpdateTaskListPartitionConfig(t *testing.T) {
 		},
 		{
 			name:               "NoReadPartitionFlag",
-			setupMocks:         func(client *admin.MockClient) {},
 			expectedError:      "Required flag not found",
 			domainFlag:         "test-domain",
 			taskListFlag:       "test-tasklist",
@@ -351,12 +396,162 @@ func TestAdminUpdateTaskListPartitionConfig(t *testing.T) {
 		},
 		{
 			name:              "NoWritePartitionFlag",
-			setupMocks:        func(client *admin.MockClient) {},
 			expectedError:     "Required flag not found",
 			domainFlag:        "test-domain",
 			taskListFlag:      "test-tasklist",
 			taskListType:      "decision",
 			numReadPartitions: 2,
+		},
+		{
+			name: "safe - removing drained partition",
+			setupMocks: func(client *admin.MockClient, f *frontend.MockClient) {
+				// Check the root for pollers and config safety
+				f.EXPECT().DescribeTaskList(gomock.Any(), &types.DescribeTaskListRequest{
+					Domain:       "test-domain",
+					TaskList:     &types.TaskList{Name: "test-tasklist", Kind: types.TaskListKindNormal.Ptr()},
+					TaskListType: types.TaskListTypeDecision.Ptr(),
+				}).Return(&types.DescribeTaskListResponse{
+					Pollers: []*types.PollerInfo{
+						{
+							Identity: "poller",
+						},
+					},
+					PartitionConfig: &types.TaskListPartitionConfig{
+						Version:         1,
+						ReadPartitions:  createPartitions(3),
+						WritePartitions: createPartitions(1),
+					},
+				}, nil).Times(1)
+				// Check the partitions being drained
+				f.EXPECT().DescribeTaskList(gomock.Any(), &types.DescribeTaskListRequest{
+					Domain:                "test-domain",
+					TaskList:              &types.TaskList{Name: getPartitionTaskListName("test-tasklist", 2), Kind: types.TaskListKindNormal.Ptr()},
+					TaskListType:          types.TaskListTypeDecision.Ptr(),
+					IncludeTaskListStatus: true,
+				}).Return(&types.DescribeTaskListResponse{
+					Pollers: nil,
+					TaskListStatus: &types.TaskListStatus{
+						BacklogCountHint: 0,
+					},
+					PartitionConfig: nil,
+				}, nil).Times(1)
+				f.EXPECT().DescribeTaskList(gomock.Any(), &types.DescribeTaskListRequest{
+					Domain:                "test-domain",
+					TaskList:              &types.TaskList{Name: getPartitionTaskListName("test-tasklist", 1), Kind: types.TaskListKindNormal.Ptr()},
+					TaskListType:          types.TaskListTypeDecision.Ptr(),
+					IncludeTaskListStatus: true,
+				}).Return(&types.DescribeTaskListResponse{
+					Pollers: nil,
+					TaskListStatus: &types.TaskListStatus{
+						BacklogCountHint: 0,
+					},
+					PartitionConfig: nil,
+				}, nil).Times(1)
+				// do the update
+				client.EXPECT().
+					UpdateTaskListPartitionConfig(gomock.Any(), &types.UpdateTaskListPartitionConfigRequest{
+						Domain:       "test-domain",
+						TaskList:     &types.TaskList{Name: "test-tasklist", Kind: types.TaskListKindNormal.Ptr()},
+						TaskListType: types.TaskListTypeDecision.Ptr(),
+						PartitionConfig: &types.TaskListPartitionConfig{
+							ReadPartitions:  createPartitions(1),
+							WritePartitions: createPartitions(1),
+						},
+					}).
+					Return(&types.UpdateTaskListPartitionConfigResponse{}, nil).
+					Times(1)
+			},
+			expectedError:      "",
+			domainFlag:         "test-domain",
+			taskListFlag:       "test-tasklist",
+			taskListType:       "decision",
+			numReadPartitions:  1,
+			numWritePartitions: 1,
+		},
+		{
+			name: "Unsafe - no pollers",
+			setupMocks: func(client *admin.MockClient, f *frontend.MockClient) {
+				f.EXPECT().DescribeTaskList(gomock.Any(), &types.DescribeTaskListRequest{
+					Domain:       "test-domain",
+					TaskList:     &types.TaskList{Name: "test-tasklist", Kind: types.TaskListKindNormal.Ptr()},
+					TaskListType: types.TaskListTypeDecision.Ptr(),
+				}).Return(&types.DescribeTaskListResponse{
+					Pollers:         nil,
+					PartitionConfig: nil,
+				}, nil).Times(1)
+			},
+			expectedError:      "'test-tasklist' has no pollers of type 'Decision'",
+			domainFlag:         "test-domain",
+			taskListFlag:       "test-tasklist",
+			taskListType:       "decision",
+			numReadPartitions:  2,
+			numWritePartitions: 2,
+		},
+		{
+			name: "Unsafe - removing active write partition",
+			setupMocks: func(client *admin.MockClient, f *frontend.MockClient) {
+				f.EXPECT().DescribeTaskList(gomock.Any(), &types.DescribeTaskListRequest{
+					Domain:       "test-domain",
+					TaskList:     &types.TaskList{Name: "test-tasklist", Kind: types.TaskListKindNormal.Ptr()},
+					TaskListType: types.TaskListTypeDecision.Ptr(),
+				}).Return(&types.DescribeTaskListResponse{
+					Pollers: []*types.PollerInfo{
+						{
+							Identity: "poller",
+						},
+					},
+					PartitionConfig: &types.TaskListPartitionConfig{
+						Version:         1,
+						ReadPartitions:  createPartitions(3),
+						WritePartitions: createPartitions(3),
+					},
+				}, nil).Times(1)
+			},
+			expectedError:      "remove write partitions, then read partitions",
+			domainFlag:         "test-domain",
+			taskListFlag:       "test-tasklist",
+			taskListType:       "decision",
+			numReadPartitions:  2,
+			numWritePartitions: 2,
+		},
+		{
+			name: "Unsafe - removing non-drained partition",
+			setupMocks: func(client *admin.MockClient, f *frontend.MockClient) {
+				f.EXPECT().DescribeTaskList(gomock.Any(), &types.DescribeTaskListRequest{
+					Domain:       "test-domain",
+					TaskList:     &types.TaskList{Name: "test-tasklist", Kind: types.TaskListKindNormal.Ptr()},
+					TaskListType: types.TaskListTypeDecision.Ptr(),
+				}).Return(&types.DescribeTaskListResponse{
+					Pollers: []*types.PollerInfo{
+						{
+							Identity: "poller",
+						},
+					},
+					PartitionConfig: &types.TaskListPartitionConfig{
+						Version:         1,
+						ReadPartitions:  createPartitions(3),
+						WritePartitions: createPartitions(2),
+					},
+				}, nil).Times(1)
+				f.EXPECT().DescribeTaskList(gomock.Any(), &types.DescribeTaskListRequest{
+					Domain:                "test-domain",
+					TaskList:              &types.TaskList{Name: getPartitionTaskListName("test-tasklist", 2), Kind: types.TaskListKindNormal.Ptr()},
+					TaskListType:          types.TaskListTypeDecision.Ptr(),
+					IncludeTaskListStatus: true,
+				}).Return(&types.DescribeTaskListResponse{
+					Pollers: nil,
+					TaskListStatus: &types.TaskListStatus{
+						BacklogCountHint: 1,
+					},
+					PartitionConfig: nil,
+				}, nil)
+			},
+			expectedError:      "partition 2 still has 1 tasks remaining",
+			domainFlag:         "test-domain",
+			taskListFlag:       "test-tasklist",
+			taskListType:       "decision",
+			numReadPartitions:  2,
+			numWritePartitions: 2,
 		},
 	}
 
@@ -365,8 +560,9 @@ func TestAdminUpdateTaskListPartitionConfig(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			td := newCLITestData(t)
 
-			// Set up mocks for the current test case
-			tt.setupMocks(td.mockAdminClient)
+			if tt.setupMocks != nil {
+				tt.setupMocks(td.mockAdminClient, td.mockFrontendClient)
+			}
 
 			var cliArgs []clitest.CliArgument
 			if tt.domainFlag != "" {
@@ -383,6 +579,9 @@ func TestAdminUpdateTaskListPartitionConfig(t *testing.T) {
 			}
 			if tt.numWritePartitions != 0 {
 				cliArgs = append(cliArgs, clitest.IntArgument(FlagNumWritePartitions, tt.numWritePartitions))
+			}
+			if tt.force {
+				cliArgs = append(cliArgs, clitest.BoolArgument(FlagForce, true))
 			}
 			cliCtx := clitest.NewCLIContext(
 				t,
