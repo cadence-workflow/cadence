@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
@@ -39,6 +40,7 @@ const (
 type nosqlQueueStore struct {
 	queueType persistence.QueueType
 	nosqlStore
+	timeSrc clock.TimeSource
 }
 
 func newNoSQLQueueStore(
@@ -54,10 +56,11 @@ func newNoSQLQueueStore(
 	queue := &nosqlQueueStore{
 		nosqlStore: shardedStore.GetDefaultShard(),
 		queueType:  queueType,
+		// TODO: move the time generation to the persistence manager layer
+		timeSrc: clock.NewRealTimeSource(),
 	}
 
-	currentTimestamp := time.Now()
-	if err := queue.createQueueMetadataEntryIfNotExist(currentTimestamp); err != nil {
+	if err := queue.createQueueMetadataEntryIfNotExist(queue.timeSrc.Now()); err != nil {
 		return nil, fmt.Errorf("failed to check and create queue metadata entry: %v", err)
 	}
 

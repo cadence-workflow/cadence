@@ -109,12 +109,6 @@ func TestExecutionManager_ProxyStoreMethods(t *testing.T) {
 			},
 		},
 		{
-			method: "CreateFailoverMarkerTasks",
-			prepareMocks: func(mockedStore *MockExecutionStore) {
-				mockedStore.EXPECT().CreateFailoverMarkerTasks(gomock.Any(), gomock.Any()).Return(nil)
-			},
-		},
-		{
 			method: "GetTimerIndexTasks",
 			prepareMocks: func(mockedStore *MockExecutionStore) {
 				mockedStore.EXPECT().GetTimerIndexTasks(gomock.Any(), gomock.Any()).Return(nil, nil)
@@ -642,7 +636,7 @@ func TestPutReplicationTaskToDLQ(t *testing.T) {
 	mockedStore := NewMockExecutionStore(ctrl)
 	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), nil)
 
-	now := time.Now().UTC().Round(time.Second)
+	now := time.Now().UTC()
 
 	task := &PutReplicationTaskToDLQRequest{
 		SourceClusterName: "test-cluster",
@@ -655,14 +649,12 @@ func TestPutReplicationTaskToDLQ(t *testing.T) {
 	}
 
 	mockedStore.EXPECT().PutReplicationTaskToDLQ(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, req *InternalPutReplicationTaskToDLQRequest) error {
-		assert.Equal(t, &InternalPutReplicationTaskToDLQRequest{
-			SourceClusterName: "test-cluster",
-			TaskInfo: &InternalReplicationTaskInfo{
-				DomainID:     testDomainID,
-				WorkflowID:   testWorkflowID,
-				CreationTime: now,
-			},
-		}, req)
+		assert.Equal(t, "test-cluster", req.SourceClusterName)
+		assert.Equal(t, testDomainID, req.TaskInfo.DomainID)
+		assert.Equal(t, testWorkflowID, req.TaskInfo.WorkflowID)
+		assert.Equal(t, now, req.TaskInfo.CreationTime)
+
+		assert.WithinDuration(t, now, req.TaskInfo.CurrentTimeStamp, time.Second)
 		return nil
 	})
 
@@ -1260,6 +1252,37 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 			tc.checkRes(t, res, err)
 		})
 	}
+}
+
+func TestCreateFailoverMarkerTasks(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockedStore := NewMockExecutionStore(ctrl)
+	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), nil)
+
+	req := &CreateFailoverMarkersRequest{
+		Markers: []*FailoverMarkerTask{{
+			TaskData: TaskData{
+				Version:             0,
+				TaskID:              0,
+				VisibilityTimestamp: time.Time{},
+			},
+			DomainID: "1",
+		}},
+		RangeID:          1,
+		CurrentTimeStamp: time.Now(),
+	}
+
+	mockedStore.EXPECT().CreateFailoverMarkerTasks(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, req *CreateFailoverMarkersRequest) error {
+			assert.Equal(t, req.RangeID, req.RangeID)
+			assert.Equal(t, req.Markers, req.Markers)
+
+			assert.WithinDuration(t, req.CurrentTimeStamp, req.CurrentTimeStamp, time.Second)
+			return nil
+		})
+
+	err := manager.CreateFailoverMarkerTasks(context.Background(), req)
+	assert.NoError(t, err)
 }
 
 func sampleInternalActivityInfo(name string) *InternalActivityInfo {
