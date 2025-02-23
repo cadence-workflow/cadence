@@ -70,8 +70,7 @@ func WFExecRequest(opts ...WFExecRequestOption) *nosqlplugin.WorkflowExecutionRe
 			Value:   []byte("test-checksum"),
 		},
 		PreviousNextEventIDCondition: common.Int64Ptr(123),
-		CreatedTime:                  ts,
-		UpdatedTime:                  ts,
+		CurrentTimeStamp:             ts,
 	}
 
 	for _, opt := range opts {

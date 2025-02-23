@@ -219,9 +219,10 @@ func TestEnqueueMessage_Succeeds(t *testing.T) {
 			assert.Equal(
 				t,
 				&nosqlplugin.QueueMessageRow{
-					QueueType: testQueueType,
-					ID:        lastMessageID + 20 + 1, // should be the max of cluster AckLevels + 1
-					Payload:   testPayload,
+					QueueType:        testQueueType,
+					ID:               lastMessageID + 20 + 1, // should be the max of cluster AckLevels + 1
+					Payload:          testPayload,
+					CurrentTimeStamp: FixedTime,
 				},
 				row,
 			)
@@ -286,9 +287,10 @@ func TestEnqueueMessageToDLQ_Succeeds(t *testing.T) {
 			assert.Equal(
 				t,
 				&nosqlplugin.QueueMessageRow{
-					QueueType: dlqMessageType,
-					ID:        lastMessageID + 1,
-					Payload:   testPayload,
+					QueueType:        dlqMessageType,
+					ID:               lastMessageID + 1,
+					Payload:          testPayload,
+					CurrentTimeStamp: FixedTime,
 				},
 				row,
 			)
@@ -545,7 +547,7 @@ func TestUpdateAckLevel_Succeeds(t *testing.T) {
 			assert.Equal(t, expectedClusterAckLevels, newMeta.ClusterAckLevels)
 		}).Return(nil)
 
-	assert.NoError(t, store.UpdateDLQAckLevel(ctx, messageID, clusterName, FixedTime))
+	assert.NoError(t, store.UpdateAckLevel(ctx, messageID, clusterName, FixedTime))
 }
 
 func TestUpdateAckLevel_FailsIfSelectMetadataFails(t *testing.T) {
