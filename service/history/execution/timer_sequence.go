@@ -150,7 +150,13 @@ func (t *timerSequenceImpl) CreateNextUserTimer() (bool, error) {
 	if err := t.mutableState.UpdateUserTimer(timerInfo); err != nil {
 		return false, err
 	}
+	executionInfo := t.mutableState.GetExecutionInfo()
 	t.mutableState.AddTimerTasks(&persistence.UserTimerTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   executionInfo.DomainID,
+			WorkflowID: executionInfo.WorkflowID,
+			RunID:      executionInfo.RunID,
+		},
 		TaskData: persistence.TaskData{
 			// TaskID is set by shard
 			VisibilityTimestamp: firstTimerTask.Timestamp,
@@ -189,7 +195,13 @@ func (t *timerSequenceImpl) CreateNextActivityTimer() (bool, error) {
 	if err := t.mutableState.UpdateActivity(activityInfo); err != nil {
 		return false, err
 	}
+	executionInfo := t.mutableState.GetExecutionInfo()
 	t.mutableState.AddTimerTasks(&persistence.ActivityTimeoutTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   executionInfo.DomainID,
+			WorkflowID: executionInfo.WorkflowID,
+			RunID:      executionInfo.RunID,
+		},
 		TaskData: persistence.TaskData{
 			// TaskID is set by shard
 			VisibilityTimestamp: firstTimerTask.Timestamp,

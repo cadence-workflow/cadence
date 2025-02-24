@@ -227,7 +227,7 @@ const (
 	TransferTaskTypeUpsertWorkflowSearchAttributes
 	TransferTaskTypeRecordWorkflowClosed
 	TransferTaskTypeRecordChildExecutionCompleted
-	TransferTaskTypeApplyParentClosePolicy
+	TransferTaskTypeApplyParentClosePolicy // Deprecated: this is related to cross-cluster tasks
 )
 
 // Deprecated: Types of cross-cluster tasks. These are deprecated as of
