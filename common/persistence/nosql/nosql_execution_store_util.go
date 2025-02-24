@@ -200,8 +200,8 @@ func (d *nosqlExecutionStore) prepareUpdateWorkflowExecutionRequestWithMapsAndEv
 	return executionRequest, nil
 }
 
-func (d *nosqlExecutionStore) prepareTimerTasksForWorkflowTxn(domainID, workflowID, runID string, timerTasks []persistence.Task) ([]*nosqlplugin.TimerTask, error) {
-	var tasks []*nosqlplugin.TimerTask
+func (d *nosqlExecutionStore) prepareTimerTasksForWorkflowTxn(domainID, workflowID, runID string, timerTasks []persistence.Task) ([]*nosqlplugin.HistoryMigrationTask, error) {
+	var tasks []*nosqlplugin.HistoryMigrationTask
 
 	for _, task := range timerTasks {
 		var eventID int64
@@ -228,7 +228,6 @@ func (d *nosqlExecutionStore) prepareTimerTasksForWorkflowTxn(domainID, workflow
 			attempt = int64(t.Attempt)
 
 		case *persistence.WorkflowBackoffTimerTask:
-			eventID = t.EventID
 			timeoutType = t.TimeoutType
 
 		case *persistence.WorkflowTimeoutTask:
@@ -257,14 +256,21 @@ func (d *nosqlExecutionStore) prepareTimerTasksForWorkflowTxn(domainID, workflow
 			ScheduleAttempt: attempt,
 			Version:         task.GetVersion(),
 		}
-		tasks = append(tasks, nt)
+		data, err := d.taskSerializer.SerializeTask(persistence.HistoryTaskCategoryTimer, task)
+		if err != nil {
+			return nil, err
+		}
+		tasks = append(tasks, &nosqlplugin.HistoryMigrationTask{
+			Timer: nt,
+			Task:  &data,
+		})
 	}
 
 	return tasks, nil
 }
 
-func (d *nosqlExecutionStore) prepareReplicationTasksForWorkflowTxn(domainID, workflowID, runID string, replicationTasks []persistence.Task) ([]*nosqlplugin.ReplicationTask, error) {
-	var tasks []*nosqlplugin.ReplicationTask
+func (d *nosqlExecutionStore) prepareReplicationTasksForWorkflowTxn(domainID, workflowID, runID string, replicationTasks []persistence.Task) ([]*nosqlplugin.HistoryMigrationTask, error) {
+	var tasks []*nosqlplugin.HistoryMigrationTask
 
 	for _, task := range replicationTasks {
 		// Replication task specific information
@@ -310,7 +316,14 @@ func (d *nosqlExecutionStore) prepareReplicationTasksForWorkflowTxn(domainID, wo
 			BranchToken:       branchToken,
 			NewRunBranchToken: newRunBranchToken,
 		}
-		tasks = append(tasks, nt)
+		data, err := d.taskSerializer.SerializeTask(persistence.HistoryTaskCategoryReplication, task)
+		if err != nil {
+			return nil, err
+		}
+		tasks = append(tasks, &nosqlplugin.HistoryMigrationTask{
+			Replication: nt,
+			Task:        &data,
+		})
 	}
 
 	return tasks, nil
@@ -328,42 +341,27 @@ func (d *nosqlExecutionStore) prepareNoSQLTasksForWorkflowTxn(
 			if err != nil {
 				return err
 			}
-			for _, transfer := range transferTasks {
-				outputTasks[c] = append(outputTasks[c], &nosqlplugin.HistoryMigrationTask{
-					Transfer: transfer,
-					Task:     nil, // TODO: encode data into task field
-				})
-			}
+			outputTasks[c] = transferTasks
 		case persistence.HistoryTaskCategoryIDTimer:
 			timerTasks, err := d.prepareTimerTasksForWorkflowTxn(domainID, workflowID, runID, tasks)
 			if err != nil {
 				return err
 			}
-			for _, timer := range timerTasks {
-				outputTasks[c] = append(outputTasks[c], &nosqlplugin.HistoryMigrationTask{
-					Timer: timer,
-					Task:  nil, // TODO: encode data into task field
-				})
-			}
+			outputTasks[c] = timerTasks
 		case persistence.HistoryTaskCategoryIDReplication:
 			replicationTasks, err := d.prepareReplicationTasksForWorkflowTxn(domainID, workflowID, runID, tasks)
 			if err != nil {
 				return err
 			}
-			for _, replication := range replicationTasks {
-				outputTasks[c] = append(outputTasks[c], &nosqlplugin.HistoryMigrationTask{
-					Replication: replication,
-					Task:        nil, // TODO: encode data into task field
-				})
-			}
+			outputTasks[c] = replicationTasks
 		}
 	}
 	// TODO: implementing logic for other categories
 	return nil
 }
 
-func (d *nosqlExecutionStore) prepareTransferTasksForWorkflowTxn(domainID, workflowID, runID string, transferTasks []persistence.Task) ([]*nosqlplugin.TransferTask, error) {
-	var tasks []*nosqlplugin.TransferTask
+func (d *nosqlExecutionStore) prepareTransferTasksForWorkflowTxn(domainID, workflowID, runID string, transferTasks []persistence.Task) ([]*nosqlplugin.HistoryMigrationTask, error) {
+	var tasks []*nosqlplugin.HistoryMigrationTask
 
 	for _, task := range transferTasks {
 		var taskList string
@@ -373,19 +371,17 @@ func (d *nosqlExecutionStore) prepareTransferTasksForWorkflowTxn(domainID, workf
 		targetWorkflowID := persistence.TransferTaskTransferTargetWorkflowID
 		targetRunID := persistence.TransferTaskTransferTargetRunID
 		targetChildWorkflowOnly := false
-		recordVisibility := false
 
 		switch task.GetType() {
 		case persistence.TransferTaskTypeActivityTask:
-			targetDomainID = task.(*persistence.ActivityTask).DomainID
+			targetDomainID = task.(*persistence.ActivityTask).TargetDomainID
 			taskList = task.(*persistence.ActivityTask).TaskList
 			scheduleID = task.(*persistence.ActivityTask).ScheduleID
 
 		case persistence.TransferTaskTypeDecisionTask:
-			targetDomainID = task.(*persistence.DecisionTask).DomainID
+			targetDomainID = task.(*persistence.DecisionTask).TargetDomainID
 			taskList = task.(*persistence.DecisionTask).TaskList
 			scheduleID = task.(*persistence.DecisionTask).ScheduleID
-			recordVisibility = task.(*persistence.DecisionTask).RecordVisibility
 
 		case persistence.TransferTaskTypeCancelExecution:
 			targetDomainID = task.(*persistence.CancelExecutionTask).TargetDomainID
@@ -420,9 +416,6 @@ func (d *nosqlExecutionStore) prepareTransferTasksForWorkflowTxn(domainID, workf
 				targetRunID = persistence.TransferTaskTransferTargetRunID
 			}
 
-		case persistence.TransferTaskTypeApplyParentClosePolicy:
-			targetDomainIDs = task.(*persistence.ApplyParentClosePolicyTask).TargetDomainIDs
-
 		case persistence.TransferTaskTypeCloseExecution,
 			persistence.TransferTaskTypeRecordWorkflowStarted,
 			persistence.TransferTaskTypeResetWorkflow,
@@ -449,10 +442,16 @@ func (d *nosqlExecutionStore) prepareTransferTasksForWorkflowTxn(domainID, workf
 			TargetChildWorkflowOnly: targetChildWorkflowOnly,
 			TaskList:                taskList,
 			ScheduleID:              scheduleID,
-			RecordVisibility:        recordVisibility,
 			Version:                 task.GetVersion(),
 		}
-		tasks = append(tasks, t)
+		data, err := d.taskSerializer.SerializeTask(persistence.HistoryTaskCategoryTransfer, task)
+		if err != nil {
+			return nil, err
+		}
+		tasks = append(tasks, &nosqlplugin.HistoryMigrationTask{
+			Transfer: t,
+			Task:     &data,
+		})
 	}
 	return tasks, nil
 }

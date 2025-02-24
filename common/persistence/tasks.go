@@ -36,6 +36,11 @@ type Task interface {
 }
 
 type (
+	WorkflowIdentifier struct {
+		DomainID   string
+		WorkflowID string
+		RunID      string
+	}
 	// TaskData is common attributes for all tasks.
 	TaskData struct {
 		Version             int64
@@ -45,43 +50,49 @@ type (
 
 	// ActivityTask identifies a transfer task for activity
 	ActivityTask struct {
+		WorkflowIdentifier
 		TaskData
-		DomainID   string
-		TaskList   string
-		ScheduleID int64
+		TargetDomainID string
+		TaskList       string
+		ScheduleID     int64
 	}
 
 	// DecisionTask identifies a transfer task for decision
 	DecisionTask struct {
+		WorkflowIdentifier
 		TaskData
-		DomainID         string
-		TaskList         string
-		ScheduleID       int64
-		RecordVisibility bool
+		TargetDomainID string
+		TaskList       string
+		ScheduleID     int64
 	}
 
 	// RecordWorkflowStartedTask identifites a transfer task for writing visibility open execution record
 	RecordWorkflowStartedTask struct {
+		WorkflowIdentifier
 		TaskData
 	}
 
 	// ResetWorkflowTask identifites a transfer task to reset workflow
 	ResetWorkflowTask struct {
+		WorkflowIdentifier
 		TaskData
 	}
 
 	// CloseExecutionTask identifies a transfer task for deletion of execution
 	CloseExecutionTask struct {
+		WorkflowIdentifier
 		TaskData
 	}
 
 	// DeleteHistoryEventTask identifies a timer task for deletion of history events of completed execution.
 	DeleteHistoryEventTask struct {
+		WorkflowIdentifier
 		TaskData
 	}
 
 	// DecisionTimeoutTask identifies a timeout task.
 	DecisionTimeoutTask struct {
+		WorkflowIdentifier
 		TaskData
 		EventID         int64
 		ScheduleAttempt int64
@@ -90,11 +101,13 @@ type (
 
 	// WorkflowTimeoutTask identifies a timeout task.
 	WorkflowTimeoutTask struct {
+		WorkflowIdentifier
 		TaskData
 	}
 
 	// CancelExecutionTask identifies a transfer task for cancel of execution
 	CancelExecutionTask struct {
+		WorkflowIdentifier
 		TaskData
 		TargetDomainID          string
 		TargetWorkflowID        string
@@ -105,6 +118,7 @@ type (
 
 	// SignalExecutionTask identifies a transfer task for signal execution
 	SignalExecutionTask struct {
+		WorkflowIdentifier
 		TaskData
 		TargetDomainID          string
 		TargetWorkflowID        string
@@ -115,11 +129,13 @@ type (
 
 	// UpsertWorkflowSearchAttributesTask identifies a transfer task for upsert search attributes
 	UpsertWorkflowSearchAttributesTask struct {
+		WorkflowIdentifier
 		TaskData
 	}
 
 	// StartChildExecutionTask identifies a transfer task for starting child execution
 	StartChildExecutionTask struct {
+		WorkflowIdentifier
 		TaskData
 		TargetDomainID   string
 		TargetWorkflowID string
@@ -128,21 +144,17 @@ type (
 
 	// RecordWorkflowClosedTask identifies a transfer task for writing visibility close execution record
 	RecordWorkflowClosedTask struct {
+		WorkflowIdentifier
 		TaskData
 	}
 
 	// RecordChildExecutionCompletedTask identifies a task for recording the competion of a child workflow
 	RecordChildExecutionCompletedTask struct {
+		WorkflowIdentifier
 		TaskData
 		TargetDomainID   string
 		TargetWorkflowID string
 		TargetRunID      string
-	}
-
-	// ApplyParentClosePolicyTask identifies a task for applying parent close policy
-	ApplyParentClosePolicyTask struct {
-		TaskData
-		TargetDomainIDs map[string]struct{}
 	}
 
 	// CrossClusterStartChildExecutionTask is the cross-cluster version of StartChildExecutionTask
@@ -173,15 +185,9 @@ type (
 		TargetCluster string
 	}
 
-	// CrossClusterApplyParentClosePolicyTask is the cross-cluster version of ApplyParentClosePolicyTask
-	CrossClusterApplyParentClosePolicyTask struct {
-		ApplyParentClosePolicyTask
-
-		TargetCluster string
-	}
-
 	// ActivityTimeoutTask identifies a timeout task.
 	ActivityTimeoutTask struct {
+		WorkflowIdentifier
 		TaskData
 		TimeoutType int
 		EventID     int64
@@ -190,26 +196,29 @@ type (
 
 	// UserTimerTask identifies a timeout task.
 	UserTimerTask struct {
+		WorkflowIdentifier
 		TaskData
 		EventID int64
 	}
 
 	// ActivityRetryTimerTask to schedule a retry task for activity
 	ActivityRetryTimerTask struct {
+		WorkflowIdentifier
 		TaskData
 		EventID int64
-		Attempt int32
+		Attempt int64
 	}
 
 	// WorkflowBackoffTimerTask to schedule first decision task for retried workflow
 	WorkflowBackoffTimerTask struct {
+		WorkflowIdentifier
 		TaskData
-		EventID     int64 // TODO this attribute is not used?
-		TimeoutType int   // 0 for retry, 1 for cron.
+		TimeoutType int // 0 for retry, 1 for cron.
 	}
 
 	// HistoryReplicationTask is the replication task created for shipping history replication events to other clusters
 	HistoryReplicationTask struct {
+		WorkflowIdentifier
 		TaskData
 		FirstEventID      int64
 		NextEventID       int64
@@ -219,6 +228,7 @@ type (
 
 	// SyncActivityTask is the replication task created for shipping activity info to other clusters
 	SyncActivityTask struct {
+		WorkflowIdentifier
 		TaskData
 		ScheduledID int64
 	}
@@ -243,7 +253,6 @@ var (
 	_ Task = (*CancelExecutionTask)(nil)
 	_ Task = (*SignalExecutionTask)(nil)
 	_ Task = (*RecordChildExecutionCompletedTask)(nil)
-	_ Task = (*ApplyParentClosePolicyTask)(nil)
 	_ Task = (*UpsertWorkflowSearchAttributesTask)(nil)
 	_ Task = (*StartChildExecutionTask)(nil)
 	_ Task = (*RecordWorkflowClosedTask)(nil)
@@ -251,7 +260,6 @@ var (
 	_ Task = (*CrossClusterCancelExecutionTask)(nil)
 	_ Task = (*CrossClusterSignalExecutionTask)(nil)
 	_ Task = (*CrossClusterRecordChildExecutionCompletedTask)(nil)
-	_ Task = (*CrossClusterApplyParentClosePolicyTask)(nil)
 	_ Task = (*ActivityTimeoutTask)(nil)
 	_ Task = (*UserTimerTask)(nil)
 	_ Task = (*ActivityRetryTimerTask)(nil)
@@ -371,11 +379,6 @@ func (u *RecordChildExecutionCompletedTask) GetType() int {
 	return TransferTaskTypeRecordChildExecutionCompleted
 }
 
-// GetType returns the type of the apply parent close policy task
-func (u *ApplyParentClosePolicyTask) GetType() int {
-	return TransferTaskTypeApplyParentClosePolicy
-}
-
 // GetType returns the type of the upsert search attributes transfer task
 func (u *UpsertWorkflowSearchAttributesTask) GetType() int {
 	return TransferTaskTypeUpsertWorkflowSearchAttributes
@@ -409,11 +412,6 @@ func (c *CrossClusterSignalExecutionTask) GetType() int {
 // GetType returns of type of the cross-cluster record child workflow completion task
 func (c *CrossClusterRecordChildExecutionCompletedTask) GetType() int {
 	return CrossClusterTaskTypeRecordChildExeuctionCompleted
-}
-
-// GetType returns of type of the cross-cluster cancel task
-func (c *CrossClusterApplyParentClosePolicyTask) GetType() int {
-	return CrossClusterTaskTypeApplyParentClosePolicy
 }
 
 // GetType returns the type of the history replication task
