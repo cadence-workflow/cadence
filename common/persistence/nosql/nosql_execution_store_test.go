@@ -36,7 +36,6 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
-	"github.com/uber/cadence/common/persistence/serialization"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/constants"
 )
@@ -285,8 +284,7 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			controller := gomock.NewController(t)
 			mockDB := nosqlplugin.NewMockDB(controller)
-			mockTaskSerializer := serialization.NewMockTaskSerializer(controller)
-			store, _ := NewExecutionStore(1, mockDB, log.NewNoop(), mockTaskSerializer)
+			store, _ := NewExecutionStore(1, mockDB, log.NewNoop())
 
 			tc.setupMock(mockDB, 1)
 
@@ -1348,7 +1346,7 @@ func TestCreateFailoverMarkerTasks(t *testing.T) {
 		name          string
 		rangeID       int64
 		markers       []*persistence.FailoverMarkerTask
-		setupMock     func(*nosqlplugin.MockDB, *serialization.MockTaskSerializer)
+		setupMock     func(*nosqlplugin.MockDB)
 		expectedError error
 	}{
 		{
@@ -1360,30 +1358,12 @@ func TestCreateFailoverMarkerTasks(t *testing.T) {
 					DomainID: "testDomainID",
 				},
 			},
-			setupMock: func(mockDB *nosqlplugin.MockDB, mockTaskSerializer *serialization.MockTaskSerializer) {
-				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryReplication, gomock.Any()).Return(persistence.DataBlob{
-					Data:     []byte("1"),
-					Encoding: common.EncodingTypeThriftRW,
-				}, nil)
+			setupMock: func(mockDB *nosqlplugin.MockDB) {
 				mockDB.EXPECT().
 					InsertReplicationTask(ctx, gomock.Any(), nosqlplugin.ShardCondition{ShardID: shardID, RangeID: 123}).
 					Return(nil)
 			},
 			expectedError: nil,
-		},
-		{
-			name:    "serialization error",
-			rangeID: 123,
-			markers: []*persistence.FailoverMarkerTask{
-				{
-					TaskData: persistence.TaskData{},
-					DomainID: "testDomainID",
-				},
-			},
-			setupMock: func(mockDB *nosqlplugin.MockDB, mockTaskSerializer *serialization.MockTaskSerializer) {
-				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryReplication, gomock.Any()).Return(persistence.DataBlob{}, errors.New("some error"))
-			},
-			expectedError: errors.New("some error"),
 		},
 		{
 			name:    "CreateFailoverMarkerTasks failure - ShardOperationConditionFailure",
@@ -1394,11 +1374,7 @@ func TestCreateFailoverMarkerTasks(t *testing.T) {
 					DomainID: "testDomainID",
 				},
 			},
-			setupMock: func(mockDB *nosqlplugin.MockDB, mockTaskSerializer *serialization.MockTaskSerializer) {
-				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryReplication, gomock.Any()).Return(persistence.DataBlob{
-					Data:     []byte("1"),
-					Encoding: common.EncodingTypeThriftRW,
-				}, nil)
+			setupMock: func(mockDB *nosqlplugin.MockDB) {
 				conditionFailureErr := &nosqlplugin.ShardOperationConditionFailure{
 					RangeID: 123,                      // Use direct int64 value
 					Details: "Shard condition failed", // Use direct string value
@@ -1418,10 +1394,9 @@ func TestCreateFailoverMarkerTasks(t *testing.T) {
 			controller := gomock.NewController(t)
 
 			mockDB := nosqlplugin.NewMockDB(controller)
-			mockTaskSerializer := serialization.NewMockTaskSerializer(controller)
-			store := newTestNosqlExecutionStoreWithTaskSerializer(mockDB, log.NewNoop(), mockTaskSerializer)
+			store := newTestNosqlExecutionStore(mockDB, log.NewNoop())
 
-			tc.setupMock(mockDB, mockTaskSerializer)
+			tc.setupMock(mockDB)
 
 			err := store.CreateFailoverMarkerTasks(ctx, &persistence.CreateFailoverMarkersRequest{
 				RangeID: tc.rangeID,
@@ -1508,8 +1483,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 	gomockController := gomock.NewController(t)
 
 	mockDB := nosqlplugin.NewMockDB(gomockController)
-	mockTaskSerializer := serialization.NewMockTaskSerializer(gomockController)
-	store, err := NewExecutionStore(1, mockDB, log.NewNoop(), mockTaskSerializer)
+	store, err := NewExecutionStore(1, mockDB, log.NewNoop())
 	require.NoError(t, err)
 
 	tests := []struct {

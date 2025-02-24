@@ -839,7 +839,12 @@ func (d *nosqlExecutionStore) CreateFailoverMarkerTasks(
 		if err != nil {
 			return err
 		}
-		nosqlTasks = append(nosqlTasks, tasks...)
+		for _, task := range tasks {
+			nosqlTasks = append(nosqlTasks, &nosqlplugin.HistoryMigrationTask{
+				Replication: task,
+				Task:        nil, // TODO: encode replication task into datablob
+			})
+		}
 	}
 
 	err := d.db.InsertReplicationTask(ctx, nosqlTasks, nosqlplugin.ShardCondition{
