@@ -140,13 +140,18 @@ func (s *ExecutionManagerSuiteForEventsV2) TestWorkflowCreation() {
 			TasksByCategory: map[p.HistoryTaskCategory][]p.Task{
 				p.HistoryTaskCategoryTransfer: []p.Task{
 					&p.DecisionTask{
+						WorkflowIdentifier: p.WorkflowIdentifier{
+							DomainID:   domainID,
+							WorkflowID: workflowExecution.WorkflowID,
+							RunID:      workflowExecution.RunID,
+						},
 						TaskData: p.TaskData{
 							TaskID:              s.GetNextSequenceNumber(),
 							VisibilityTimestamp: time.Now(),
 						},
-						DomainID:   domainID,
-						TaskList:   "taskList",
-						ScheduleID: 2,
+						TargetDomainID: domainID,
+						TaskList:       "taskList",
+						ScheduleID:     2,
 					},
 				},
 			},
@@ -255,13 +260,18 @@ func (s *ExecutionManagerSuiteForEventsV2) TestWorkflowCreationWithVersionHistor
 			TasksByCategory: map[p.HistoryTaskCategory][]p.Task{
 				p.HistoryTaskCategoryTransfer: []p.Task{
 					&p.DecisionTask{
+						WorkflowIdentifier: p.WorkflowIdentifier{
+							DomainID:   domainID,
+							WorkflowID: workflowExecution.WorkflowID,
+							RunID:      workflowExecution.RunID,
+						},
 						TaskData: p.TaskData{
 							TaskID:              s.GetNextSequenceNumber(),
 							VisibilityTimestamp: time.Now(),
 						},
-						DomainID:   domainID,
-						TaskList:   "taskList",
-						ScheduleID: 2,
+						TargetDomainID: domainID,
+						TaskList:       "taskList",
+						ScheduleID:     2,
 					},
 				},
 			},
@@ -349,12 +359,17 @@ func (s *ExecutionManagerSuiteForEventsV2) TestContinueAsNew() {
 	}
 
 	newdecisionTask := &p.DecisionTask{
+		WorkflowIdentifier: p.WorkflowIdentifier{
+			DomainID:   domainID,
+			WorkflowID: workflowExecution.WorkflowID,
+			RunID:      workflowExecution.RunID,
+		},
 		TaskData: p.TaskData{
 			TaskID: s.GetNextSequenceNumber(),
 		},
-		DomainID:   updatedInfo.DomainID,
-		TaskList:   updatedInfo.TaskList,
-		ScheduleID: int64(2),
+		TargetDomainID: updatedInfo.DomainID,
+		TaskList:       updatedInfo.TaskList,
+		ScheduleID:     int64(2),
 	}
 
 	_, err2 := s.ExecutionManager.UpdateWorkflowExecution(ctx, &p.UpdateWorkflowExecutionRequest{

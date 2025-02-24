@@ -48,14 +48,15 @@ const (
 type sqlExecutionStore struct {
 	sqlStore
 	shardID                                int
+	taskSerializer                         serialization.TaskSerializer
 	txExecuteShardLockedFn                 func(context.Context, int, string, int64, func(sqlplugin.Tx) error) error
 	lockCurrentExecutionIfExistsFn         func(context.Context, sqlplugin.Tx, int, serialization.UUID, string) (*sqlplugin.CurrentExecutionsRow, error)
 	createOrUpdateCurrentExecutionFn       func(context.Context, sqlplugin.Tx, p.CreateWorkflowMode, int, serialization.UUID, string, serialization.UUID, int, int, string, int64, int64) error
 	assertNotCurrentExecutionFn            func(context.Context, sqlplugin.Tx, int, serialization.UUID, string, serialization.UUID) error
 	assertRunIDAndUpdateCurrentExecutionFn func(context.Context, sqlplugin.Tx, int, serialization.UUID, string, serialization.UUID, serialization.UUID, string, int, int, int64, int64) error
-	applyWorkflowSnapshotTxAsNewFn         func(context.Context, sqlplugin.Tx, int, *p.InternalWorkflowSnapshot, serialization.Parser) error
-	applyWorkflowMutationTxFn              func(context.Context, sqlplugin.Tx, int, *p.InternalWorkflowMutation, serialization.Parser) error
-	applyWorkflowSnapshotTxAsResetFn       func(context.Context, sqlplugin.Tx, int, *p.InternalWorkflowSnapshot, serialization.Parser) error
+	applyWorkflowSnapshotTxAsNewFn         func(context.Context, sqlplugin.Tx, int, *p.InternalWorkflowSnapshot, serialization.Parser, serialization.TaskSerializer) error
+	applyWorkflowMutationTxFn              func(context.Context, sqlplugin.Tx, int, *p.InternalWorkflowMutation, serialization.Parser, serialization.TaskSerializer) error
+	applyWorkflowSnapshotTxAsResetFn       func(context.Context, sqlplugin.Tx, int, *p.InternalWorkflowSnapshot, serialization.Parser, serialization.TaskSerializer) error
 }
 
 var _ p.ExecutionStore = (*sqlExecutionStore)(nil)
@@ -66,6 +67,7 @@ func NewSQLExecutionStore(
 	logger log.Logger,
 	shardID int,
 	parser serialization.Parser,
+	taskSerializer serialization.TaskSerializer,
 	dc *p.DynamicConfiguration,
 ) (p.ExecutionStore, error) {
 
@@ -84,6 +86,7 @@ func NewSQLExecutionStore(
 			parser: parser,
 			dc:     dc,
 		},
+		taskSerializer: taskSerializer,
 	}
 	store.txExecuteShardLockedFn = store.txExecuteShardLocked
 	return store, nil
@@ -235,7 +238,7 @@ func (m *sqlExecutionStore) createWorkflowExecutionTx(
 		return nil, err
 	}
 
-	if err := m.applyWorkflowSnapshotTxAsNewFn(ctx, tx, shardID, &request.NewWorkflowSnapshot, m.parser); err != nil {
+	if err := m.applyWorkflowSnapshotTxAsNewFn(ctx, tx, shardID, &request.NewWorkflowSnapshot, m.parser, m.taskSerializer); err != nil {
 		return nil, err
 	}
 
@@ -509,11 +512,11 @@ func (m *sqlExecutionStore) updateWorkflowExecutionTx(
 		}
 	}
 
-	if err := m.applyWorkflowMutationTxFn(ctx, tx, shardID, &updateWorkflow, m.parser); err != nil {
+	if err := m.applyWorkflowMutationTxFn(ctx, tx, shardID, &updateWorkflow, m.parser, m.taskSerializer); err != nil {
 		return err
 	}
 	if newWorkflow != nil {
-		if err := m.applyWorkflowSnapshotTxAsNewFn(ctx, tx, shardID, newWorkflow, m.parser); err != nil {
+		if err := m.applyWorkflowSnapshotTxAsNewFn(ctx, tx, shardID, newWorkflow, m.parser, m.taskSerializer); err != nil {
 			return err
 		}
 	}
@@ -625,16 +628,16 @@ func (m *sqlExecutionStore) conflictResolveWorkflowExecutionTx(
 		}
 	}
 
-	if err := m.applyWorkflowSnapshotTxAsResetFn(ctx, tx, shardID, &resetWorkflow, m.parser); err != nil {
+	if err := m.applyWorkflowSnapshotTxAsResetFn(ctx, tx, shardID, &resetWorkflow, m.parser, m.taskSerializer); err != nil {
 		return err
 	}
 	if currentWorkflow != nil {
-		if err := m.applyWorkflowMutationTxFn(ctx, tx, shardID, currentWorkflow, m.parser); err != nil {
+		if err := m.applyWorkflowMutationTxFn(ctx, tx, shardID, currentWorkflow, m.parser, m.taskSerializer); err != nil {
 			return err
 		}
 	}
 	if newWorkflow != nil {
-		if err := m.applyWorkflowSnapshotTxAsNewFn(ctx, tx, shardID, newWorkflow, m.parser); err != nil {
+		if err := m.applyWorkflowSnapshotTxAsNewFn(ctx, tx, shardID, newWorkflow, m.parser, m.taskSerializer); err != nil {
 			return err
 		}
 	}

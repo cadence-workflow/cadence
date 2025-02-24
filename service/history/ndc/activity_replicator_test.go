@@ -1125,6 +1125,11 @@ func (s *activityReplicatorSuite) TestSyncActivity_ActivityRunning() {
 		ScheduleID: scheduleID,
 		Attempt:    attempt + 1,
 	}
+	s.mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{
+		DomainID:   domainID,
+		WorkflowID: workflowID,
+		RunID:      runID,
+	})
 	s.mockMutableState.EXPECT().GetActivityInfo(scheduleID).Return(activityInfo, true).AnyTimes()
 	activityInfos := map[int64]*persistence.ActivityInfo{activityInfo.ScheduleID: activityInfo}
 	s.mockMutableState.EXPECT().GetPendingActivityInfos().Return(activityInfos).AnyTimes()
@@ -1208,6 +1213,11 @@ func (s *activityReplicatorSuite) TestSyncActivity_ActivityRunning_ZombieWorkflo
 			version,
 		), nil,
 	).AnyTimes()
+	s.mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{
+		DomainID:   domainID,
+		WorkflowID: workflowID,
+		RunID:      runID,
+	})
 	activityInfo := &persistence.ActivityInfo{
 		Version:    version - 1,
 		ScheduleID: scheduleID,

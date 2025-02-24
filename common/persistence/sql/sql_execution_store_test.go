@@ -91,7 +91,7 @@ func TestDeleteCurrentWorkflowExecution(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockDB := sqlplugin.NewMockDB(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil)
+			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil, nil)
 			require.NoError(t, err, "failed to create execution store")
 
 			tc.mockSetup(mockDB)
@@ -171,7 +171,7 @@ func TestGetCurrentExecution(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockDB := sqlplugin.NewMockDB(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil)
+			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil, nil)
 			require.NoError(t, err, "failed to create execution store")
 
 			tc.mockSetup(mockDB)
@@ -312,7 +312,7 @@ func TestGetTransferTasks(t *testing.T) {
 
 			mockDB := sqlplugin.NewMockDB(ctrl)
 			mockParser := serialization.NewMockParser(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), mockParser, nil)
+			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), mockParser, nil, nil)
 			require.NoError(t, err, "failed to create execution store")
 
 			tc.mockSetup(mockDB, mockParser)
@@ -372,7 +372,7 @@ func TestCompleteTransferTask(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockDB := sqlplugin.NewMockDB(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil)
+			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil, nil)
 			require.NoError(t, err, "failed to create execution store")
 
 			tc.mockSetup(mockDB)
@@ -443,7 +443,7 @@ func TestRangeCompleteTransferTask(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockDB := sqlplugin.NewMockDB(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil)
+			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil, nil)
 			require.NoError(t, err, "failed to create execution store")
 
 			tc.mockSetup(mockDB)
@@ -577,7 +577,7 @@ func TestGetReplicationTasks(t *testing.T) {
 
 			mockDB := sqlplugin.NewMockDB(ctrl)
 			mockParser := serialization.NewMockParser(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), mockParser, nil)
+			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), mockParser, nil, nil)
 			require.NoError(t, err, "failed to create execution store")
 
 			tc.mockSetup(mockDB, mockParser)
@@ -637,7 +637,7 @@ func TestCompleteReplicationTask(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockDB := sqlplugin.NewMockDB(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil)
+			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil, nil)
 			require.NoError(t, err, "failed to create execution store")
 
 			tc.mockSetup(mockDB)
@@ -704,7 +704,7 @@ func TestRangeCompleteReplicationTask(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockDB := sqlplugin.NewMockDB(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil)
+			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil, nil)
 			require.NoError(t, err, "failed to create execution store")
 
 			tc.mockSetup(mockDB)
@@ -856,7 +856,7 @@ func TestGetReplicationTasksFromDLQ(t *testing.T) {
 
 			mockDB := sqlplugin.NewMockDB(ctrl)
 			mockParser := serialization.NewMockParser(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), mockParser, nil)
+			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), mockParser, nil, nil)
 			require.NoError(t, err, "failed to create execution store")
 
 			tc.mockSetup(mockDB, mockParser)
@@ -936,7 +936,7 @@ func TestGetReplicationDLQSize(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockDB := sqlplugin.NewMockDB(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil)
+			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil, nil)
 			require.NoError(t, err, "failed to create execution store")
 
 			tc.mockSetup(mockDB)
@@ -1004,7 +1004,7 @@ func TestDeleteReplicationTaskFromDLQ(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockDB := sqlplugin.NewMockDB(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil)
+			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil, nil)
 			require.NoError(t, err, "failed to create execution store")
 
 			tc.mockSetup(mockDB)
@@ -1083,7 +1083,7 @@ func TestRangeDeleteReplicationTaskFromDLQ(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockDB := sqlplugin.NewMockDB(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil)
+			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil, nil)
 			require.NoError(t, err, "failed to create execution store")
 
 			tc.mockSetup(mockDB)
@@ -1244,7 +1244,7 @@ func TestGetTimerIndexTasks(t *testing.T) {
 
 			mockDB := sqlplugin.NewMockDB(ctrl)
 			mockParser := serialization.NewMockParser(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), mockParser, nil)
+			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), mockParser, nil, nil)
 			require.NoError(t, err, "failed to create execution store")
 
 			tc.mockSetup(mockDB, mockParser)
@@ -1308,7 +1308,7 @@ func TestCompleteTimerTask(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockDB := sqlplugin.NewMockDB(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil)
+			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil, nil)
 			require.NoError(t, err, "failed to create execution store")
 
 			tc.mockSetup(mockDB)
@@ -1379,7 +1379,7 @@ func TestRangeCompleteTimerTask(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockDB := sqlplugin.NewMockDB(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil)
+			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil, nil)
 			require.NoError(t, err, "failed to create execution store")
 
 			tc.mockSetup(mockDB)
@@ -1509,7 +1509,7 @@ func TestPutReplicationTaskToDLQ(t *testing.T) {
 
 			mockDB := sqlplugin.NewMockDB(ctrl)
 			mockParser := serialization.NewMockParser(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), mockParser, nil)
+			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), mockParser, nil, nil)
 			require.NoError(t, err, "failed to create execution store")
 
 			tc.mockSetup(mockDB, mockParser)
@@ -1624,7 +1624,7 @@ func TestDeleteWorkflowExecution(t *testing.T) {
 
 			mockDB := sqlplugin.NewMockDB(ctrl)
 			mockTx := sqlplugin.NewMockTx(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil)
+			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil, nil)
 			require.NoError(t, err, "failed to create execution store")
 
 			tc.mockSetup(mockDB, mockTx)
@@ -1715,7 +1715,7 @@ func TestCreateWorkflowExecution(t *testing.T) {
 		req                              *persistence.InternalCreateWorkflowExecutionRequest
 		lockCurrentExecutionIfExistsFn   func(context.Context, sqlplugin.Tx, int, serialization.UUID, string) (*sqlplugin.CurrentExecutionsRow, error)
 		createOrUpdateCurrentExecutionFn func(context.Context, sqlplugin.Tx, persistence.CreateWorkflowMode, int, serialization.UUID, string, serialization.UUID, int, int, string, int64, int64) error
-		applyWorkflowSnapshotTxAsNewFn   func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser) error
+		applyWorkflowSnapshotTxAsNewFn   func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser, serialization.TaskSerializer) error
 		wantErr                          bool
 		want                             *persistence.CreateWorkflowExecutionResponse
 		assertErr                        func(t *testing.T, err error)
@@ -1735,7 +1735,7 @@ func TestCreateWorkflowExecution(t *testing.T) {
 			createOrUpdateCurrentExecutionFn: func(context.Context, sqlplugin.Tx, persistence.CreateWorkflowMode, int, serialization.UUID, string, serialization.UUID, int, int, string, int64, int64) error {
 				return nil
 			},
-			applyWorkflowSnapshotTxAsNewFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser) error {
+			applyWorkflowSnapshotTxAsNewFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser, serialization.TaskSerializer) error {
 				return nil
 			},
 			want: &persistence.CreateWorkflowExecutionResponse{},
@@ -1757,7 +1757,7 @@ func TestCreateWorkflowExecution(t *testing.T) {
 			createOrUpdateCurrentExecutionFn: func(context.Context, sqlplugin.Tx, persistence.CreateWorkflowMode, int, serialization.UUID, string, serialization.UUID, int, int, string, int64, int64) error {
 				return nil
 			},
-			applyWorkflowSnapshotTxAsNewFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser) error {
+			applyWorkflowSnapshotTxAsNewFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser, serialization.TaskSerializer) error {
 				return nil
 			},
 			want: &persistence.CreateWorkflowExecutionResponse{},
@@ -1781,7 +1781,7 @@ func TestCreateWorkflowExecution(t *testing.T) {
 			createOrUpdateCurrentExecutionFn: func(context.Context, sqlplugin.Tx, persistence.CreateWorkflowMode, int, serialization.UUID, string, serialization.UUID, int, int, string, int64, int64) error {
 				return nil
 			},
-			applyWorkflowSnapshotTxAsNewFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser) error {
+			applyWorkflowSnapshotTxAsNewFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser, serialization.TaskSerializer) error {
 				return nil
 			},
 			want: &persistence.CreateWorkflowExecutionResponse{},
@@ -1968,7 +1968,7 @@ func TestCreateWorkflowExecution(t *testing.T) {
 			createOrUpdateCurrentExecutionFn: func(context.Context, sqlplugin.Tx, persistence.CreateWorkflowMode, int, serialization.UUID, string, serialization.UUID, int, int, string, int64, int64) error {
 				return nil
 			},
-			applyWorkflowSnapshotTxAsNewFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser) error {
+			applyWorkflowSnapshotTxAsNewFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser, serialization.TaskSerializer) error {
 				return errors.New("some random error")
 			},
 			wantErr: true,
@@ -2014,8 +2014,8 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 		req                                    *persistence.InternalUpdateWorkflowExecutionRequest
 		assertNotCurrentExecutionFn            func(context.Context, sqlplugin.Tx, int, serialization.UUID, string, serialization.UUID) error
 		assertRunIDAndUpdateCurrentExecutionFn func(context.Context, sqlplugin.Tx, int, serialization.UUID, string, serialization.UUID, serialization.UUID, string, int, int, int64, int64) error
-		applyWorkflowSnapshotTxAsNewFn         func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser) error
-		applyWorkflowMutationTxFn              func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser) error
+		applyWorkflowSnapshotTxAsNewFn         func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser, serialization.TaskSerializer) error
+		applyWorkflowMutationTxFn              func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser, serialization.TaskSerializer) error
 		wantErr                                bool
 		assertErr                              func(t *testing.T, err error)
 	}{
@@ -2028,7 +2028,7 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 					ExecutionInfo: &persistence.InternalWorkflowExecutionInfo{},
 				},
 			},
-			applyWorkflowMutationTxFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser) error {
+			applyWorkflowMutationTxFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser, serialization.TaskSerializer) error {
 				return nil
 			},
 			wantErr: false,
@@ -2047,7 +2047,7 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 			assertNotCurrentExecutionFn: func(context.Context, sqlplugin.Tx, int, serialization.UUID, string, serialization.UUID) error {
 				return nil
 			},
-			applyWorkflowMutationTxFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser) error {
+			applyWorkflowMutationTxFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser, serialization.TaskSerializer) error {
 				return nil
 			},
 			wantErr: false,
@@ -2071,10 +2071,10 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 			assertRunIDAndUpdateCurrentExecutionFn: func(context.Context, sqlplugin.Tx, int, serialization.UUID, string, serialization.UUID, serialization.UUID, string, int, int, int64, int64) error {
 				return nil
 			},
-			applyWorkflowMutationTxFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser) error {
+			applyWorkflowMutationTxFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser, serialization.TaskSerializer) error {
 				return nil
 			},
-			applyWorkflowSnapshotTxAsNewFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser) error {
+			applyWorkflowSnapshotTxAsNewFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser, serialization.TaskSerializer) error {
 				return nil
 			},
 			wantErr: false,
@@ -2093,7 +2093,7 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 			assertRunIDAndUpdateCurrentExecutionFn: func(context.Context, sqlplugin.Tx, int, serialization.UUID, string, serialization.UUID, serialization.UUID, string, int, int, int64, int64) error {
 				return nil
 			},
-			applyWorkflowMutationTxFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser) error {
+			applyWorkflowMutationTxFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser, serialization.TaskSerializer) error {
 				return nil
 			},
 			wantErr: false,
@@ -2181,7 +2181,7 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 			assertRunIDAndUpdateCurrentExecutionFn: func(context.Context, sqlplugin.Tx, int, serialization.UUID, string, serialization.UUID, serialization.UUID, string, int, int, int64, int64) error {
 				return nil
 			},
-			applyWorkflowMutationTxFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser) error {
+			applyWorkflowMutationTxFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser, serialization.TaskSerializer) error {
 				return errors.New("some random error")
 			},
 			wantErr: true,
@@ -2205,10 +2205,10 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 			assertRunIDAndUpdateCurrentExecutionFn: func(context.Context, sqlplugin.Tx, int, serialization.UUID, string, serialization.UUID, serialization.UUID, string, int, int, int64, int64) error {
 				return nil
 			},
-			applyWorkflowMutationTxFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser) error {
+			applyWorkflowMutationTxFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser, serialization.TaskSerializer) error {
 				return nil
 			},
-			applyWorkflowSnapshotTxAsNewFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser) error {
+			applyWorkflowSnapshotTxAsNewFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser, serialization.TaskSerializer) error {
 				return errors.New("some random error")
 			},
 			wantErr: true,
@@ -2253,9 +2253,9 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 		req                                    *persistence.InternalConflictResolveWorkflowExecutionRequest
 		assertRunIDAndUpdateCurrentExecutionFn func(context.Context, sqlplugin.Tx, int, serialization.UUID, string, serialization.UUID, serialization.UUID, string, int, int, int64, int64) error
 		assertNotCurrentExecutionFn            func(context.Context, sqlplugin.Tx, int, serialization.UUID, string, serialization.UUID) error
-		applyWorkflowMutationTxFn              func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser) error
-		applyWorkflowSnapshotTxAsResetFn       func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser) error
-		applyWorkflowSnapshotTxAsNewFn         func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser) error
+		applyWorkflowMutationTxFn              func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser, serialization.TaskSerializer) error
+		applyWorkflowSnapshotTxAsResetFn       func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser, serialization.TaskSerializer) error
+		applyWorkflowSnapshotTxAsNewFn         func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser, serialization.TaskSerializer) error
 		wantErr                                bool
 		assertErr                              func(t *testing.T, err error)
 	}{
@@ -2273,7 +2273,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 			assertNotCurrentExecutionFn: func(context.Context, sqlplugin.Tx, int, serialization.UUID, string, serialization.UUID) error {
 				return nil
 			},
-			applyWorkflowSnapshotTxAsResetFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser) error {
+			applyWorkflowSnapshotTxAsResetFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser, serialization.TaskSerializer) error {
 				return nil
 			},
 			wantErr: false,
@@ -2302,13 +2302,13 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 			assertRunIDAndUpdateCurrentExecutionFn: func(context.Context, sqlplugin.Tx, int, serialization.UUID, string, serialization.UUID, serialization.UUID, string, int, int, int64, int64) error {
 				return nil
 			},
-			applyWorkflowSnapshotTxAsResetFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser) error {
+			applyWorkflowSnapshotTxAsResetFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser, serialization.TaskSerializer) error {
 				return nil
 			},
-			applyWorkflowMutationTxFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser) error {
+			applyWorkflowMutationTxFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser, serialization.TaskSerializer) error {
 				return nil
 			},
-			applyWorkflowSnapshotTxAsNewFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser) error {
+			applyWorkflowSnapshotTxAsNewFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser, serialization.TaskSerializer) error {
 				return nil
 			},
 			wantErr: false,
@@ -2332,10 +2332,10 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 			assertRunIDAndUpdateCurrentExecutionFn: func(context.Context, sqlplugin.Tx, int, serialization.UUID, string, serialization.UUID, serialization.UUID, string, int, int, int64, int64) error {
 				return nil
 			},
-			applyWorkflowSnapshotTxAsResetFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser) error {
+			applyWorkflowSnapshotTxAsResetFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser, serialization.TaskSerializer) error {
 				return nil
 			},
-			applyWorkflowSnapshotTxAsNewFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser) error {
+			applyWorkflowSnapshotTxAsNewFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser, serialization.TaskSerializer) error {
 				return nil
 			},
 			wantErr: false,
@@ -2409,7 +2409,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 			assertNotCurrentExecutionFn: func(context.Context, sqlplugin.Tx, int, serialization.UUID, string, serialization.UUID) error {
 				return nil
 			},
-			applyWorkflowSnapshotTxAsResetFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser) error {
+			applyWorkflowSnapshotTxAsResetFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser, serialization.TaskSerializer) error {
 				return errors.New("some random error")
 			},
 			wantErr: true,
@@ -2438,10 +2438,10 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 			assertRunIDAndUpdateCurrentExecutionFn: func(context.Context, sqlplugin.Tx, int, serialization.UUID, string, serialization.UUID, serialization.UUID, string, int, int, int64, int64) error {
 				return nil
 			},
-			applyWorkflowSnapshotTxAsResetFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser) error {
+			applyWorkflowSnapshotTxAsResetFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser, serialization.TaskSerializer) error {
 				return nil
 			},
-			applyWorkflowMutationTxFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser) error {
+			applyWorkflowMutationTxFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser, serialization.TaskSerializer) error {
 				return errors.New("some random error")
 			},
 			wantErr: true,
@@ -2470,13 +2470,13 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 			assertRunIDAndUpdateCurrentExecutionFn: func(context.Context, sqlplugin.Tx, int, serialization.UUID, string, serialization.UUID, serialization.UUID, string, int, int, int64, int64) error {
 				return nil
 			},
-			applyWorkflowSnapshotTxAsResetFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser) error {
+			applyWorkflowSnapshotTxAsResetFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser, serialization.TaskSerializer) error {
 				return nil
 			},
-			applyWorkflowMutationTxFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser) error {
+			applyWorkflowMutationTxFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser, serialization.TaskSerializer) error {
 				return nil
 			},
-			applyWorkflowSnapshotTxAsNewFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser) error {
+			applyWorkflowSnapshotTxAsNewFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser, serialization.TaskSerializer) error {
 				return errors.New("some random error")
 			},
 			wantErr: true,

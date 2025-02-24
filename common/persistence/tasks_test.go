@@ -47,7 +47,6 @@ func TestTaskCommonMethods(t *testing.T) {
 		&CancelExecutionTask{TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
 		&SignalExecutionTask{TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
 		&RecordChildExecutionCompletedTask{TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
-		&ApplyParentClosePolicyTask{TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
 		&UpsertWorkflowSearchAttributesTask{TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
 		&StartChildExecutionTask{TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
 		&RecordWorkflowClosedTask{TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
@@ -88,8 +87,6 @@ func TestTaskCommonMethods(t *testing.T) {
 			assert.Equal(t, TransferTaskTypeSignalExecution, ty.GetType())
 		case *RecordChildExecutionCompletedTask:
 			assert.Equal(t, TransferTaskTypeRecordChildExecutionCompleted, ty.GetType())
-		case *ApplyParentClosePolicyTask:
-			assert.Equal(t, TransferTaskTypeApplyParentClosePolicy, ty.GetType())
 		case *UpsertWorkflowSearchAttributesTask:
 			assert.Equal(t, TransferTaskTypeUpsertWorkflowSearchAttributes, ty.GetType())
 		case *StartChildExecutionTask:
