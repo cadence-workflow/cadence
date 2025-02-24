@@ -140,7 +140,7 @@ func TestNosqlExecutionStoreUtils(t *testing.T) {
 					SignalRequestedIDs: []string{"signalRequestedID"},
 					Condition:          999,
 				}
-				return store.prepareResetWorkflowExecutionRequestWithMapsAndEventBuffer(resetWorkflow)
+				return store.prepareResetWorkflowExecutionRequestWithMapsAndEventBuffer(resetWorkflow, FixedTime)
 			},
 			validate: func(t *testing.T, req *nosqlplugin.WorkflowExecutionRequest, err error) {
 				assert.NoError(t, err)
@@ -163,7 +163,7 @@ func TestNosqlExecutionStoreUtils(t *testing.T) {
 					Checksum:         checksum.Checksum{Version: 1},
 					VersionHistories: &persistence.DataBlob{Encoding: common.EncodingTypeJSON, Data: []byte("{malformed}")},
 				}
-				return store.prepareResetWorkflowExecutionRequestWithMapsAndEventBuffer(resetWorkflow)
+				return store.prepareResetWorkflowExecutionRequestWithMapsAndEventBuffer(resetWorkflow, FixedTime)
 			},
 			validate: func(t *testing.T, req *nosqlplugin.WorkflowExecutionRequest, err error) {
 				assert.NoError(t, err)
@@ -180,7 +180,7 @@ func TestNosqlExecutionStoreUtils(t *testing.T) {
 						RunID:      "runID-success",
 					},
 				}
-				return store.prepareUpdateWorkflowExecutionRequestWithMapsAndEventBuffer(workflowMutation)
+				return store.prepareUpdateWorkflowExecutionRequestWithMapsAndEventBuffer(workflowMutation, FixedTime)
 			},
 			validate: func(t *testing.T, req *nosqlplugin.WorkflowExecutionRequest, err error) {
 				assert.NoError(t, err)
@@ -195,7 +195,7 @@ func TestNosqlExecutionStoreUtils(t *testing.T) {
 						DomainID: "domainID-incomplete",
 					},
 				}
-				return store.prepareUpdateWorkflowExecutionRequestWithMapsAndEventBuffer(workflowMutation)
+				return store.prepareUpdateWorkflowExecutionRequestWithMapsAndEventBuffer(workflowMutation, FixedTime)
 			},
 			validate: func(t *testing.T, req *nosqlplugin.WorkflowExecutionRequest, err error) {
 				assert.NoError(t, err)
