@@ -329,7 +329,7 @@ func (s *contextImpl) UpdateTransferProcessingQueueStates(cluster string, states
 	// for backward compatibility
 	ackLevel := states[0].GetAckLevel()
 	for _, state := range states {
-		ackLevel = common.MinInt64(ackLevel, state.GetAckLevel())
+		ackLevel = min(ackLevel, state.GetAckLevel())
 	}
 	s.shardInfo.ClusterTransferAckLevel[cluster] = ackLevel
 
@@ -445,7 +445,7 @@ func (s *contextImpl) UpdateTimerProcessingQueueStates(cluster string, states []
 	// for backward compatibility
 	ackLevel := states[0].GetAckLevel()
 	for _, state := range states {
-		ackLevel = common.MinInt64(ackLevel, state.GetAckLevel())
+		ackLevel = min(ackLevel, state.GetAckLevel())
 	}
 	s.shardInfo.ClusterTimerAckLevel[cluster] = time.Unix(0, ackLevel)
 

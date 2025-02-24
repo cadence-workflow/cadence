@@ -188,10 +188,3 @@ func TestDataBlob(t *testing.T) {
 		})
 	})
 }
-
-func max[T ~int32](a, b T) T {
-	if a > b {
-		return a
-	}
-	return b
-}
