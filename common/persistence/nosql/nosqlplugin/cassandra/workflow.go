@@ -122,15 +122,17 @@ func (db *cdb) UpdateWorkflowExecutionWithTasks(
 	shardID := shardCondition.ShardID
 	var domainID, workflowID string
 	var previousNextEventIDCondition int64
-	timeStamp := insertedExecution.CurrentTimeStamp
+	var timeStamp time.Time
 	if mutatedExecution != nil {
 		domainID = mutatedExecution.DomainID
 		workflowID = mutatedExecution.WorkflowID
 		previousNextEventIDCondition = *mutatedExecution.PreviousNextEventIDCondition
+		timeStamp = mutatedExecution.CurrentTimeStamp
 	} else if resetExecution != nil {
 		domainID = resetExecution.DomainID
 		workflowID = resetExecution.WorkflowID
 		previousNextEventIDCondition = *resetExecution.PreviousNextEventIDCondition
+		timeStamp = resetExecution.CurrentTimeStamp
 	} else {
 		return fmt.Errorf("at least one of mutatedExecution and resetExecution should be provided")
 	}
