@@ -23,10 +23,6 @@
 package sqlite
 
 import (
-	"bytes"
-	"fmt"
-	"strings"
-
 	"github.com/iancoleman/strcase"
 	"github.com/jmoiron/sqlx"
 
@@ -68,6 +64,8 @@ func (p *plugin) createDB(cfg *config.SQL) (*DB, error) {
 }
 
 // createSingleDBConn creates a single database connection for sqlite
+// Plugin respects the following arguments MaxConns, MaxIdleConns, MaxConnLifetime
+// Other arguments are used and described in buildDSN function
 func (p *plugin) createSingleDBConn(cfg *config.SQL) (*sqlx.DB, error) {
 	db, err := sqlx.Connect("sqlite3", buildDSN(cfg))
 	if err != nil {
@@ -87,99 +85,4 @@ func (p *plugin) createSingleDBConn(cfg *config.SQL) (*sqlx.DB, error) {
 	// Maps struct names in CamelCase to snake without need for DB struct tags.
 	db.MapperFunc(strcase.ToSnake)
 	return db, nil
-}
-
-// buildDSN builds the data source name for sqlite from config.SQL
-func buildDSN(cfg *config.SQL) string {
-
-	// by default, we use in-memory database if no database name is provided
-	var dsn = ":memory:"
-
-	// if database name is provided, then sqlite will use the file as the database
-	if cfg.DatabaseName != "" {
-		dsn = fmt.Sprintf("file:%s", cfg.DatabaseName)
-
-	}
-
-	if dsnAttrs := buildDSNAttrs(cfg); dsnAttrs != "" {
-		dsn += "?" + dsnAttrs
-	}
-
-	return dsn
-}
-
-const (
-	// if journal mode is not provided, we set it to WAL by default
-	// WAL mode allows readers and writers from different processes
-	// to access the database concurrently by default
-	// https://www.sqlite.org/wal.html
-	journalModeAttrName      = "_journal_mode"
-	journalModeAttrShortName = "_journal"
-	journalModeDefaultValue  = "WAL"
-)
-
-var (
-	journalModeAttrNames = []string{journalModeAttrName, journalModeAttrShortName}
-)
-
-// buildDSNAttrs builds the data source name attributes for sqlite from config.SQL
-// available attributes can be found here
-// https://github.com/mattn/go-sqlite3?tab=readme-ov-file#connection-string
-func buildDSNAttrs(cfg *config.SQL) string {
-
-	sanitizedAttrs := sanitizeDSNAttrs(cfg.ConnectAttributes)
-
-	if cfg.DatabaseName != "" {
-		if !hasAttr(sanitizedAttrs, journalModeAttrNames...) {
-			sanitizedAttrs[journalModeAttrName] = journalModeDefaultValue
-		}
-	}
-
-	return joinDSNAttrs(sanitizedAttrs)
-}
-
-// hasAttr checks if the attributes map has any of the keys
-func hasAttr(attrs map[string]string, keys ...string) bool {
-	for key := range attrs {
-		for _, k := range keys {
-			if key == k {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// sanitizeDSNAttrs sanitizes the attributes by trimming the keys and values
-func sanitizeDSNAttrs(attrs map[string]string) map[string]string {
-	sanitized := make(map[string]string, len(attrs))
-
-	for k, v := range attrs {
-		k, v = sanitizeDSNAttrElem(k), sanitizeDSNAttrElem(v)
-		sanitized[k] = v
-	}
-
-	return sanitized
-}
-
-// sanitizeDSNAttrElem trims the value, lowercases it
-func sanitizeDSNAttrElem(v string) string {
-	return strings.TrimSpace(strings.ToLower(v))
-}
-
-// joinDSNAttrs joins the attributes into a single string
-// with key=value pairs separated by & and escaped
-func joinDSNAttrs(attrs map[string]string) string {
-	first := true
-	var buf bytes.Buffer
-	for k, v := range attrs {
-		if !first {
-			buf.WriteString("&")
-		}
-		first = false
-		buf.WriteString(k)
-		buf.WriteString("=")
-		buf.WriteString(v)
-	}
-	return buf.String()
 }
