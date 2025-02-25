@@ -230,16 +230,12 @@ func (v *visibilityHybridManager) chooseVisibilityManagerForWrite(ctx context.Co
 		}
 	}
 	modes := strings.Split(writeMode, ",")
-	var filteredModes []string
-	for _, mode := range modes {
-		mode = strings.TrimSpace(strings.ToLower(mode))
-		if mode != "" {
-			filteredModes = append(filteredModes, mode)
-		}
+	for i := range modes {
+		modes[i] = strings.ToLower(strings.TrimSpace(modes[i]))
 	}
 
 	var errors []string
-	for _, mode := range filteredModes {
+	for _, mode := range modes {
 		if mode == advancedWriteModeOff {
 			mode = dbVisStoreName
 		}
