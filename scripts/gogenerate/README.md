@@ -8,7 +8,6 @@ In many cases, regenerating files during `go generate` is unnecessary if the sou
 not been updated.
 These scripts introduce a simple optimization: they check file modification times and skip regeneration if the output
 file is already up-to-date.
-This saves time and computational resources, especially in large projects.
 
 ## How It Works
 
