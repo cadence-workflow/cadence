@@ -34,16 +34,15 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
-func (d *nosqlExecutionStore) prepareCreateWorkflowExecutionRequestWithMaps(newWorkflow *persistence.InternalWorkflowSnapshot) (*nosqlplugin.WorkflowExecutionRequest, error) {
+func (d *nosqlExecutionStore) prepareCreateWorkflowExecutionRequestWithMaps(newWorkflow *persistence.InternalWorkflowSnapshot, currentTimeStamp time.Time) (*nosqlplugin.WorkflowExecutionRequest, error) {
 	executionInfo := newWorkflow.ExecutionInfo
 	lastWriteVersion := newWorkflow.LastWriteVersion
 	checkSum := newWorkflow.Checksum
 	versionHistories := newWorkflow.VersionHistories
-	nowTimestamp := time.Now()
 
 	executionRequest, err := d.prepareCreateWorkflowExecutionTxn(
 		executionInfo, versionHistories, checkSum,
-		nowTimestamp, lastWriteVersion,
+		currentTimeStamp, lastWriteVersion,
 	)
 	if err != nil {
 		return nil, err
@@ -71,6 +70,7 @@ func (d *nosqlExecutionStore) prepareCreateWorkflowExecutionRequestWithMaps(newW
 	}
 	executionRequest.SignalRequestedIDs = newWorkflow.SignalRequestedIDs
 	executionRequest.MapsWriteMode = nosqlplugin.WorkflowExecutionMapsWriteModeCreate
+	executionRequest.CurrentTimeStamp = currentTimeStamp
 	return executionRequest, nil
 }
 
@@ -93,12 +93,12 @@ func (d *nosqlExecutionStore) prepareWorkflowRequestRows(
 	return requestRowsToAppend
 }
 
-func (d *nosqlExecutionStore) prepareResetWorkflowExecutionRequestWithMapsAndEventBuffer(resetWorkflow *persistence.InternalWorkflowSnapshot) (*nosqlplugin.WorkflowExecutionRequest, error) {
+func (d *nosqlExecutionStore) prepareResetWorkflowExecutionRequestWithMapsAndEventBuffer(resetWorkflow *persistence.InternalWorkflowSnapshot, currentTimeStamp time.Time) (*nosqlplugin.WorkflowExecutionRequest, error) {
 	executionInfo := resetWorkflow.ExecutionInfo
 	lastWriteVersion := resetWorkflow.LastWriteVersion
 	checkSum := resetWorkflow.Checksum
 	versionHistories := resetWorkflow.VersionHistories
-	nowTimestamp := time.Now()
+	nowTimestamp := currentTimeStamp
 
 	executionRequest, err := d.prepareUpdateWorkflowExecutionTxn(
 		executionInfo, versionHistories, checkSum,
@@ -137,12 +137,12 @@ func (d *nosqlExecutionStore) prepareResetWorkflowExecutionRequestWithMapsAndEve
 	return executionRequest, nil
 }
 
-func (d *nosqlExecutionStore) prepareUpdateWorkflowExecutionRequestWithMapsAndEventBuffer(workflowMutation *persistence.InternalWorkflowMutation) (*nosqlplugin.WorkflowExecutionRequest, error) {
+func (d *nosqlExecutionStore) prepareUpdateWorkflowExecutionRequestWithMapsAndEventBuffer(workflowMutation *persistence.InternalWorkflowMutation, currentTimeStamp time.Time) (*nosqlplugin.WorkflowExecutionRequest, error) {
 	executionInfo := workflowMutation.ExecutionInfo
 	lastWriteVersion := workflowMutation.LastWriteVersion
 	checkSum := workflowMutation.Checksum
 	versionHistories := workflowMutation.VersionHistories
-	nowTimestamp := time.Now()
+	nowTimestamp := currentTimeStamp
 
 	executionRequest, err := d.prepareUpdateWorkflowExecutionTxn(
 		executionInfo, versionHistories, checkSum,
@@ -520,6 +520,7 @@ func (d *nosqlExecutionStore) prepareUpdateWorkflowExecutionTxn(
 	executionInfo *persistence.InternalWorkflowExecutionInfo,
 	versionHistories *persistence.DataBlob,
 	checksum checksum.Checksum,
+	// TODO: nowTimestamp is not used. Remove it?
 	nowTimestamp time.Time,
 	lastWriteVersion int64,
 ) (*nosqlplugin.WorkflowExecutionRequest, error) {

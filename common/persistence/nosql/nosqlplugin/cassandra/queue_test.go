@@ -29,7 +29,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
@@ -96,7 +95,6 @@ func TestInsertIntoQueue(t *testing.T) {
 			dc := &persistence.DynamicConfiguration{}
 
 			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
-			db.timeSrc = clock.NewMockedTimeSourceAt(FixedTime)
 
 			err := db.InsertIntoQueue(context.Background(), tc.row)
 
@@ -829,9 +827,13 @@ func TestInsertQueueMetadata(t *testing.T) {
 			dc := &persistence.DynamicConfiguration{}
 
 			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
-			db.timeSrc = clock.NewMockedTimeSourceAt(FixedTime)
 
-			err := db.InsertQueueMetadata(context.Background(), tc.queueType, tc.version)
+			row := nosqlplugin.QueueMetadataRow{
+				QueueType:        tc.queueType,
+				Version:          tc.version,
+				CurrentTimeStamp: FixedTime,
+			}
+			err := db.InsertQueueMetadata(context.Background(), row)
 
 			if (err != nil) != tc.wantErr {
 				t.Errorf("Got error = %v, wantErr %v", err, tc.wantErr)
@@ -862,6 +864,7 @@ func TestUpdateQueueMetadataCas(t *testing.T) {
 				QueueType:        persistence.QueueType(2),
 				ClusterAckLevels: map[string]int64{"cluster1": 1000, "cluster2": 2000},
 				Version:          25,
+				CurrentTimeStamp: FixedTime,
 			},
 			queryMockFn: func(query *gocql.MockQuery) {
 				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
@@ -913,7 +916,6 @@ func TestUpdateQueueMetadataCas(t *testing.T) {
 			dc := &persistence.DynamicConfiguration{}
 
 			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
-			db.timeSrc = clock.NewMockedTimeSourceAt(FixedTime)
 
 			err := db.UpdateQueueMetadataCas(context.Background(), tc.row)
 
@@ -933,8 +935,9 @@ func TestUpdateQueueMetadataCas(t *testing.T) {
 }
 func queueMessageRow(id int64) *nosqlplugin.QueueMessageRow {
 	return &nosqlplugin.QueueMessageRow{
-		QueueType: persistence.DomainReplicationQueueType,
-		ID:        id,
-		Payload:   []byte(fmt.Sprintf("test-payload-%d", id)),
+		QueueType:        persistence.DomainReplicationQueueType,
+		ID:               id,
+		Payload:          []byte(fmt.Sprintf("test-payload-%d", id)),
+		CurrentTimeStamp: FixedTime,
 	}
 }

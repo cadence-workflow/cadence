@@ -24,6 +24,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
@@ -54,10 +55,7 @@ func newQueueStore(
 	}, nil
 }
 
-func (q *sqlQueueStore) EnqueueMessage(
-	ctx context.Context,
-	messagePayload []byte,
-) error {
+func (q *sqlQueueStore) EnqueueMessage(ctx context.Context, messagePayload []byte, currentTimeStamp time.Time) error {
 	return q.txExecute(ctx, sqlplugin.DbDefaultShard, "EnqueueMessage", func(tx sqlplugin.Tx) error {
 		lastMessageID, err := tx.GetLastEnqueuedMessageIDForUpdate(ctx, q.queueType)
 		if err != nil {
@@ -117,11 +115,7 @@ func (q *sqlQueueStore) DeleteMessagesBefore(
 	return nil
 }
 
-func (q *sqlQueueStore) UpdateAckLevel(
-	ctx context.Context,
-	messageID int64,
-	clusterName string,
-) error {
+func (q *sqlQueueStore) UpdateAckLevel(ctx context.Context, messageID int64, clusterName string, now time.Time) error {
 	return q.txExecute(ctx, sqlplugin.DbDefaultShard, "UpdateAckLevel", func(tx sqlplugin.Tx) error {
 		clusterAckLevels, err := tx.GetAckLevels(ctx, q.queueType, true)
 		if err != nil {
@@ -152,10 +146,7 @@ func (q *sqlQueueStore) GetAckLevels(
 	return result, nil
 }
 
-func (q *sqlQueueStore) EnqueueMessageToDLQ(
-	ctx context.Context,
-	messagePayload []byte,
-) error {
+func (q *sqlQueueStore) EnqueueMessageToDLQ(ctx context.Context, messagePayload []byte, currentTimeStamp time.Time) error {
 	return q.txExecute(ctx, sqlplugin.DbDefaultShard, "EnqueueMessageToDLQ", func(tx sqlplugin.Tx) error {
 		var err error
 		lastMessageID, err := tx.GetLastEnqueuedMessageIDForUpdate(ctx, q.getDLQTypeFromQueueType())
@@ -229,11 +220,7 @@ func (q *sqlQueueStore) RangeDeleteMessagesFromDLQ(
 	return nil
 }
 
-func (q *sqlQueueStore) UpdateDLQAckLevel(
-	ctx context.Context,
-	messageID int64,
-	clusterName string,
-) error {
+func (q *sqlQueueStore) UpdateDLQAckLevel(ctx context.Context, messageID int64, clusterName string, now time.Time) error {
 	return q.txExecute(ctx, sqlplugin.DbDefaultShard, "UpdateDLQAckLevel", func(tx sqlplugin.Tx) error {
 		clusterAckLevels, err := tx.GetAckLevels(ctx, q.getDLQTypeFromQueueType(), true)
 		if err != nil {

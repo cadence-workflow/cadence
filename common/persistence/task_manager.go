@@ -24,11 +24,14 @@ package persistence
 
 import (
 	"context"
+
+	"github.com/uber/cadence/common/clock"
 )
 
 type (
 	taskManager struct {
 		persistence TaskStore
+		timeSrc     clock.TimeSource
 	}
 )
 
@@ -40,6 +43,7 @@ func NewTaskManager(
 ) TaskManager {
 	return &taskManager{
 		persistence: persistence,
+		timeSrc:     clock.NewRealTimeSource(),
 	}
 }
 
@@ -52,6 +56,7 @@ func (t *taskManager) Close() {
 }
 
 func (t *taskManager) LeaseTaskList(ctx context.Context, request *LeaseTaskListRequest) (*LeaseTaskListResponse, error) {
+	request.CurrentTimeStamp = t.timeSrc.Now()
 	return t.persistence.LeaseTaskList(ctx, request)
 }
 
@@ -60,6 +65,7 @@ func (t *taskManager) GetTaskList(ctx context.Context, request *GetTaskListReque
 }
 
 func (t *taskManager) UpdateTaskList(ctx context.Context, request *UpdateTaskListRequest) (*UpdateTaskListResponse, error) {
+	request.CurrentTimeStamp = t.timeSrc.Now()
 	return t.persistence.UpdateTaskList(ctx, request)
 }
 
@@ -76,6 +82,7 @@ func (t *taskManager) GetTaskListSize(ctx context.Context, request *GetTaskListS
 }
 
 func (t *taskManager) CreateTasks(ctx context.Context, request *CreateTasksRequest) (*CreateTasksResponse, error) {
+	request.CurrentTimeStamp = t.timeSrc.Now()
 	return t.persistence.CreateTasks(ctx, request)
 }
 
