@@ -10,11 +10,13 @@ This saves time and computational resources, especially in large projects.
 
 ## How It Works
 
-1. Each script intercepts the call to its respective binary (e.g., `mockgen`, `gowrap`) during `go generate`.
-2. Before running the original command, the script checks:
+1. Each script should be called by `make go-generate` or `make pr`
+   1. Directly by `go generate` command will not work, because it will call the original binary that is not replaced by the script
+2. Each script intercepts the call to its respective binary (e.g., `mockgen`, `gowrap`) during `go generate`.
+3. Before running the original command, the script checks:
     - If the destination file is newer than its dependencies (e.g., source files, templates).
     - If so, it skips regeneration and exits early.
-3. If regeneration is necessary (i.e., dependencies are newer), the script executes the original binary with all provided arguments.
+4. If regeneration is necessary (i.e., dependencies are newer), the script executes the original binary with all provided arguments.
 
 ## How to Debug
 1. To enable debug logs run `GO_GENERATE_SCRIPTS_DEBUG=true make go generate ./...`.
