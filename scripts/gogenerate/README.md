@@ -31,11 +31,10 @@ This saves time and computational resources, especially in large projects.
 
 1. Save a new script in this folder with a name matching its corresponding binary (e.g., `mockgen.sh`, `gowrap.sh`).
 2. Make them executable: `chmod +x script.sh`.
-3. Run `make clean` to remove the old binaries.
-
-A new script will automatically replace the original binary in `./build/bin` when running `make go-generate`
-or `make pr`.
-`Makefile` will rename original binary to `<binary>.local` and copy the new script to `./build/bin`.
+3. Add `replace_go_generate_script` to the `$(BIN)/<script>` section in Makefile
+    1. An original binary will be renamed to `<binary>.bin` and the new script will be copied to `./build/bin`.
+4. Run `make clean` to remove the old binaries.
+5. Run `make go-generate` to generate the new binaries
 
 ## Example Scripts
 

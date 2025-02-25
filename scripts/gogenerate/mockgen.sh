@@ -38,4 +38,4 @@ fi
 
 # Execute the original mockgen command with all arguments
 # -write_command_comment=false to remove adding command comment
-mockgen.local "$@" -write_command_comment=false
+mockgen.bin "$@" -write_command_comment=false

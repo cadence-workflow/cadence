@@ -158,12 +158,12 @@ $Q echo "building $(or $(2), $(notdir $(1))) from internal/tools/go.mod..."
 $Q cd internal/tools; go build -mod=readonly -o ../../$(BIN)/$(or $(2), $(notdir $(1))) $(1)
 endef
 
-# renames original binary $(BIN)/<binary> to $(BIN)/<binary>.local
+# renames original binary $(BIN)/<binary> to $(BIN)/<binary>.bin
 # and copy an associated script from ./scripts/gogenerate/<binary>.sh to $(BIN)/<binary>
 #
 # it is used when we want to replace an original binary with a gogenerate script
 define replace_go_generate_script
-$Q mv $(BIN)/$(1) $(BIN)/$(1).local
+$Q mv $(BIN)/$(1) $(BIN)/$(1).bin
 $Q cp ./scripts/gogenerate/$(1).sh $(BIN)/$(1)
 endef
 

@@ -41,4 +41,4 @@ fi
     fi
 
 # Execute the original gowrap command with all arguments
-gowrap.local "$@"
+gowrap.bin "$@"
