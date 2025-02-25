@@ -29,6 +29,11 @@ import (
 
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin/mysql"
+
+	// import sqlite driver
+	_ "github.com/ncruces/go-sqlite3/driver"
+	// import embed sqlite db
+	_ "github.com/ncruces/go-sqlite3/embed"
 )
 
 var (
