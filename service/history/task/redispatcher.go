@@ -36,23 +36,17 @@ import (
 )
 
 const (
-	defaultBufferSize = 200
-
 	redispatchBackoffCoefficient     = 1.05
 	redispatchMaxBackoffInternval    = 2 * time.Minute
 	redispatchFailureBackoffInterval = 2 * time.Second
 )
 
 type (
-	redispatchNotification struct {
-		targetSize int
-		doneCh     chan struct{}
-	}
-
 	// RedispatcherOptions configs redispatch interval
 	RedispatcherOptions struct {
 		TaskRedispatchInterval dynamicconfig.DurationPropertyFn
 	}
+
 	redispatcherImpl struct {
 		sync.Mutex
 
@@ -64,11 +58,9 @@ type (
 		status        int32
 		shutdownCh    chan struct{}
 		shutdownWG    sync.WaitGroup
-		redispatchCh  chan redispatchNotification
 		timerGate     clock.TimerGate
 		backoffPolicy backoff.RetryPolicy
-		pqMap         map[int]collection.Queue[redispatchTask] // priority -> redispatch queue
-		taskChFull    map[int]bool                             // priority -> if taskCh is full
+		pq            collection.Queue[redispatchTask]
 	}
 
 	redispatchTask struct {
@@ -97,11 +89,9 @@ func NewRedispatcher(
 		metricsScope:  metricsScope,
 		status:        common.DaemonStatusInitialized,
 		shutdownCh:    make(chan struct{}),
-		redispatchCh:  make(chan redispatchNotification, 1),
 		timerGate:     clock.NewTimerGate(timeSource),
 		backoffPolicy: backoffPolicy,
-		pqMap:         make(map[int]collection.Queue[redispatchTask]),
-		taskChFull:    make(map[int]bool),
+		pq:            collection.NewPriorityQueue(redispatchTaskCompareLess),
 	}
 }
 
@@ -131,13 +121,11 @@ func (r *redispatcherImpl) Stop() {
 }
 
 func (r *redispatcherImpl) AddTask(task Task) {
-	priority := task.Priority()
 	attempt := task.GetAttempt()
 
 	r.Lock()
-	pq := r.getOrCreatePQLocked(priority)
 	t := r.getRedispatchTime(attempt)
-	pq.Add(redispatchTask{
+	r.pq.Add(redispatchTask{
 		task:           task,
 		redispatchTime: t,
 	})
@@ -146,21 +134,43 @@ func (r *redispatcherImpl) AddTask(task Task) {
 	r.timerGate.Update(t)
 }
 
-// TODO: review this method, it doesn't seem to redispatch the tasks immediately
+// TODO: this method is removed from Temporal's codebase in this PR: https://github.com/temporalio/temporal/pull/3038
+// Let's review if this method is needed in our codebase later.
 func (r *redispatcherImpl) Redispatch(targetSize int) {
-	doneCh := make(chan struct{})
-	ntf := redispatchNotification{
-		targetSize: targetSize,
-		doneCh:     doneCh,
+	r.Lock()
+	defer r.Unlock()
+
+	queueSize := r.sizeLocked()
+	r.metricsScope.RecordTimer(metrics.TaskRedispatchQueuePendingTasksTimer, time.Duration(queueSize))
+
+	now := r.timeSource.Now()
+	totalRedispatched := 0
+	var failToSubmit []redispatchTask
+	for !r.pq.IsEmpty() && totalRedispatched < targetSize {
+		item, _ := r.pq.Peek() // error is impossible because we've checked that the queue is not empty
+		if item.redispatchTime.After(now) {
+			break
+		}
+		submitted, err := r.taskProcessor.TrySubmit(item.task)
+		if err != nil {
+			if r.isStopped() {
+				// if error is due to shard shutdown
+				break
+			}
+			// otherwise it might be error from domain cache etc, add
+			// the task to redispatch queue so that it can be retried
+			r.logger.Error("Failed to redispatch task", tag.Error(err))
+		}
+		r.pq.Remove()
+		if err != nil || !submitted {
+			failToSubmit = append(failToSubmit, item)
+		} else {
+			totalRedispatched++
+		}
 	}
 
-	select {
-	case r.redispatchCh <- ntf:
-		// block until the redispatch is done
-		<-doneCh
-	case <-r.shutdownCh:
-		close(doneCh)
-		return
+	for _, item := range failToSubmit {
+		r.pq.Add(item)
 	}
 }
 
@@ -179,22 +189,14 @@ func (r *redispatcherImpl) redispatchLoop() {
 		case <-r.shutdownCh:
 			return
 		case <-r.timerGate.Chan():
-			r.redispatchTasks(redispatchNotification{})
-		case notification := <-r.redispatchCh:
-			r.redispatchTasks(notification)
+			r.redispatchTasks()
 		}
 	}
 }
 
-func (r *redispatcherImpl) redispatchTasks(notification redispatchNotification) {
+func (r *redispatcherImpl) redispatchTasks() {
 	r.Lock()
 	defer r.Unlock()
-
-	defer func() {
-		if notification.doneCh != nil {
-			close(notification.doneCh)
-		}
-	}()
 
 	if r.isStopped() {
 		return
@@ -203,72 +205,37 @@ func (r *redispatcherImpl) redispatchTasks(notification redispatchNotification) 
 	queueSize := r.sizeLocked()
 	r.metricsScope.RecordTimer(metrics.TaskRedispatchQueuePendingTasksTimer, time.Duration(queueSize))
 
-	// add some buffer here as new tasks may be added
-	targetRedispatched := queueSize + defaultBufferSize - notification.targetSize
-	if targetRedispatched <= 0 {
-		// target size has already been met, no need to redispatch
-		return
-	}
-
-	totalRedispatched := 0
 	now := r.timeSource.Now()
-	for priority := range r.pqMap {
-		r.taskChFull[priority] = false
-	}
-
-	for priority, pq := range r.pqMap {
-		// Note the third condition regarding taskChFull is not 100% accurate
-		// since task may get a new, lower priority upon redispatch, and
-		// the taskCh for the new priority may not be full.
-		// But the current estimation should be good enough as task with
-		// lower priority should be executed after high priority ones,
-		// so it's ok to leave them in the queue
-		for !pq.IsEmpty() && totalRedispatched < targetRedispatched && !r.taskChFull[priority] {
-			item, _ := pq.Peek() // error is impossible because we've checked that the queue is not empty
-			if item.redispatchTime.After(now) {
+	for !r.pq.IsEmpty() {
+		item, _ := r.pq.Peek() // error is impossible because we've checked that the queue is not empty
+		if item.redispatchTime.After(now) {
+			break
+		}
+		submitted, err := r.taskProcessor.TrySubmit(item.task)
+		if err != nil {
+			if r.isStopped() {
+				// if error is due to shard shutdown
 				break
 			}
-			submitted, err := r.taskProcessor.TrySubmit(item.task)
-			if err != nil {
-				if r.isStopped() {
-					// if error is due to shard shutdown
-					break
-				}
-				// otherwise it might be error from domain cache etc, add
-				// the task to redispatch queue so that it can be retried
-				r.logger.Error("Failed to redispatch task", tag.Error(err))
-			}
-			pq.Remove()
-			newPriority := item.task.Priority()
-			if err != nil || !submitted {
-				// failed to submit, enqueue again
-				item.redispatchTime = r.timeSource.Now().Add(redispatchFailureBackoffInterval)
-				r.getOrCreatePQLocked(newPriority).Add(item)
-			}
-			if err == nil && !submitted {
-				// task chan is full for the new priority
-				r.taskChFull[newPriority] = true
-			}
-			if submitted {
-				totalRedispatched++
-			}
+			// otherwise it might be error from domain cache etc, add
+			// the task to redispatch queue so that it can be retried
+			r.logger.Error("Failed to redispatch task", tag.Error(err))
 		}
-		if !pq.IsEmpty() {
-			item, _ := pq.Peek()
-			r.timerGate.Update(item.redispatchTime)
+		r.pq.Remove()
+		if err != nil || !submitted {
+			// failed to submit, enqueue again
+			item.redispatchTime = r.timeSource.Now().Add(redispatchFailureBackoffInterval)
+			r.pq.Add(item)
 		}
-		if r.isStopped() {
-			return
-		}
+	}
+	if !r.pq.IsEmpty() {
+		item, _ := r.pq.Peek()
+		r.timerGate.Update(item.redispatchTime)
 	}
 }
 
 func (r *redispatcherImpl) sizeLocked() int {
-	size := 0
-	for _, queue := range r.pqMap {
-		size += queue.Len()
-	}
-	return size
+	return r.pq.Len()
 }
 
 func (r *redispatcherImpl) isStopped() bool {
@@ -279,16 +246,6 @@ func (r *redispatcherImpl) getRedispatchTime(attempt int) time.Time {
 	// note that elapsedTime (the first parameter) is not relevant when
 	// the retry policy has not expiration intervaly(0, attempt)))
 	return r.timeSource.Now().Add(r.backoffPolicy.ComputeNextDelay(0, attempt))
-}
-
-func (r *redispatcherImpl) getOrCreatePQLocked(priority int) collection.Queue[redispatchTask] {
-	if pq, ok := r.pqMap[priority]; ok {
-		return pq
-	}
-
-	pq := collection.NewPriorityQueue(redispatchTaskCompareLess)
-	r.pqMap[priority] = pq
-	return pq
 }
 
 func redispatchTaskCompareLess(
