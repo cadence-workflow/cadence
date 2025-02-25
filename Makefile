@@ -159,6 +159,16 @@ $Q echo "building $(or $(2), $(notdir $(1))) from internal/tools/go.mod..."
 $Q cd internal/tools; go build -mod=readonly -o ../../$(BIN)/$(or $(2), $(notdir $(1))) $(1)
 endef
 
+# does what go_build_tool does however uses another name of binary - <binary>.bin
+# instead of original binary, it install fastgogenerate tool with the same name as the tool
+# that is being built. Instead of use of original binaries, go generate will use fastgogenerate tool
+# that cashes the results of go-generate executions and reuses them to speed up go-generate command
+define go_build_fastgogenerate_tool
+$Q echo "building fastgogenerated $(or $(2), $(notdir $(1))) from internal/tools/go.mod..."
+$Q go build -mod=readonly -ldflags="-X main.PluginName=$(or $(2), $(notdir $(1)))" -o $(BIN)/$(or $(2), $(notdir $(1))) ./cmd/tools/fastgogenerate
+$Q cd internal/tools; go build -mod=readonly -o ../../$(BIN)/$(or $(2), $(notdir $(1))).bin $(1)
+endef
+
 # same as go_build_tool, but uses our main module file, not the tools one.
 # this is necessary / useful for tools that we are already importing in the repo, e.g. yarpc.
 # versions here are checked to make sure the tools version matches the service version.
@@ -183,7 +193,7 @@ $(BIN)/thriftrw-plugin-yarpc: go.mod go.work
 	$(call go_mod_build_tool,go.uber.org/yarpc/encoding/thrift/thriftrw-plugin-yarpc)
 
 $(BIN)/mockgen: internal/tools/go.mod go.work
-	$(call go_build_tool,go.uber.org/mock/mockgen)
+	$(call go_mod_build_tool,go.uber.org/mock/mockgen)
 
 $(BIN)/mockery: internal/tools/go.mod go.work
 	$(call go_build_tool,github.com/vektra/mockery/v2,mockery)

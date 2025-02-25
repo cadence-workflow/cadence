@@ -1,0 +1,80 @@
+// The MIT License (MIT)
+
+// Copyright (c) 2017-2020 Uber Technologies Inc.
+
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+package file
+
+import (
+	"fmt"
+	"os"
+	"path"
+
+	"github.com/uber/cadence/tools/fastgogenerate/cache"
+)
+
+// Storage interface for file-based cache storage
+type Storage struct {
+	rootDir string
+}
+
+// NewStorage creates a new Storage instance
+func NewStorage(rootDir string) *Storage {
+	return &Storage{
+		rootDir: rootDir,
+	}
+}
+
+// IsExist return true if the compute info already present in the cache
+func (c *Storage) IsExist(id cache.ID) (isExists bool, err error) {
+	// create a directory if it does not exist
+	if err := os.MkdirAll(c.rootDir, os.ModePerm); err != nil {
+		return false, fmt.Errorf("failed to create directory %s: %w", c.rootDir, err)
+	}
+
+	_, err = os.Stat(c.fileName(id))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	return true, nil
+}
+
+// Save saves that compute info in the cache
+func (c *Storage) Save(id cache.ID) error {
+	// create a directory if it does not exist
+	if err := os.MkdirAll(c.rootDir, os.ModePerm); err != nil {
+		return err
+	}
+
+	file, err := os.OpenFile(c.fileName(id), os.O_RDONLY|os.O_CREATE, 0644)
+	if err != nil {
+		return err
+	}
+	return file.Close()
+}
+
+// fileName generates a file name based on the ComputeInfo
+func (c *Storage) fileName(id cache.ID) string {
+	return path.Join(c.rootDir, string(id))
+}
