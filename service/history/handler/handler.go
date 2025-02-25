@@ -128,7 +128,14 @@ func (h *handlerImpl) Start() {
 		h.config,
 	)
 
-	h.queueTaskProcessor, err = task.NewProcessor(
+	h.controller = shard.NewShardController(
+		h.Resource,
+		h,
+		h.config,
+	)
+
+	var taskProcessor task.Processor
+	taskProcessor, err = task.NewProcessor(
 		taskPriorityAssigner,
 		h.config,
 		h.GetLogger(),
@@ -138,13 +145,16 @@ func (h *handlerImpl) Start() {
 	if err != nil {
 		h.GetLogger().Fatal("Creating priority task processor failed", tag.Error(err))
 	}
+	taskRateLimiter := task.NewRateLimiter(
+		h.GetLogger(),
+		h.GetMetricsClient(),
+		h.GetDomainCache(),
+		h.config,
+		h.controller,
+	)
+	h.queueTaskProcessor = task.NewRateLimitedProcessor(taskProcessor, taskRateLimiter)
 	h.queueTaskProcessor.Start()
 
-	h.controller = shard.NewShardController(
-		h.Resource,
-		h,
-		h.config,
-	)
 	h.historyEventNotifier = events.NewNotifier(h.GetTimeSource(), h.GetMetricsClient(), h.config.GetShardID)
 	// events notifier must starts before controller
 	h.historyEventNotifier.Start()
