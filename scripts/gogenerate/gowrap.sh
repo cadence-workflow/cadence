@@ -30,8 +30,15 @@ fi
 
 # Check if destinationFile is newer than $GOFILE and templateFile
 if [[ "$destinationFile" -nt "$GOFILE" && "$destinationFile" -nt "$templateFile" ]]; then
+    if [[ "$GO_GENERATE_SCRIPTS_DEBUG" == "true" ]]; then
+        echo "Skipped gowrap for $GOFILE"
+    fi
     exit 0
 fi
+
+ if [[ "$GO_GENERATE_SCRIPTS_DEBUG" == "true" ]]; then
+        echo "Run gowrap for $GOFILE"
+    fi
 
 # Execute the original gowrap command with all arguments
 gowrap.local "$@"

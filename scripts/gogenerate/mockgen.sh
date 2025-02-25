@@ -26,8 +26,16 @@ fi
 
 # Check if destinationFile is newer than $GOFILE
 if [[ "$destinationFile" -nt "$GOFILE" ]]; then
+    if [[ "$GO_GENERATE_SCRIPTS_DEBUG" == "true" ]]; then
+      echo "Skipped mockgen for $GOFILE"
+    fi
     exit 0
 fi
 
+if [[ "$GO_GENERATE_SCRIPTS_DEBUG" == "true" ]]; then
+    echo "Run mockgen for $GOFILE"
+fi
+
 # Execute the original mockgen command with all arguments
+# -write_command_comment=false to remove adding command comment
 mockgen.local "$@" -write_command_comment=false
