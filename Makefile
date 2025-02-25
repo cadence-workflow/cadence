@@ -182,7 +182,10 @@ $(BIN)/thriftrw-plugin-yarpc: go.mod go.work
 	$(call go_mod_build_tool,go.uber.org/yarpc/encoding/thrift/thriftrw-plugin-yarpc)
 
 $(BIN)/mockgen: internal/tools/go.mod go.work
+	$Q rm -f $(BIN)/mockgen
 	$(call go_build_tool,go.uber.org/mock/mockgen)
+	$Q mv $(BIN)/mockgen $(BIN)/mockgen.local
+	$Q cp scripts/mockgen.sh $(BIN)/mockgen
 
 $(BIN)/mockery: internal/tools/go.mod go.work
 	$(call go_build_tool,github.com/vektra/mockery/v2,mockery)
@@ -199,7 +202,10 @@ $(BIN)/goimports: internal/tools/go.mod go.work
 	$(call go_build_tool,golang.org/x/tools/cmd/goimports)
 
 $(BIN)/gowrap: go.mod go.work
+	$Q rm -f $(BIN)/gowrap
 	$(call go_build_tool,github.com/hexdigest/gowrap/cmd/gowrap)
+	$Q mv $(BIN)/gowrap $(BIN)/gowrap.local
+	$Q cp scripts/gowrap.sh $(BIN)/gowrap
 
 $(BIN)/revive: internal/tools/go.mod go.work
 	$(call go_build_tool,github.com/mgechev/revive)

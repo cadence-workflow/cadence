@@ -26,8 +26,10 @@ fi
 
 # Check if destinationFile is newer than $GOFILE
 if [[ "$destinationFile" -nt "$GOFILE" ]]; then
+    echo "Skipped! $GOFILE"
     exit 0
 fi
 
+echo "Regenerating. $GOFILE"
 # Execute the original mockgen command with all arguments
-mockgen "$@"
+mockgen.local "$@" -write_command_comment=false
