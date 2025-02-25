@@ -158,6 +158,15 @@ $Q echo "building $(or $(2), $(notdir $(1))) from internal/tools/go.mod..."
 $Q cd internal/tools; go build -mod=readonly -o ../../$(BIN)/$(or $(2), $(notdir $(1))) $(1)
 endef
 
+# renames original binary $(BIN)/<binary> to $(BIN)/<binary>.local
+# and copy an associated script from ./scripts/gogenerate/<binary>.sh to $(BIN)/<binary>
+#
+# it is used when we want to replace an original binary with a gogenerate script
+define replace_go_generate_script
+$Q mv $(BIN)/$(1) $(BIN)/$(1).local
+$Q cp ./scripts/gogenerate/$(1).sh $(BIN)/$(1)
+endef
+
 # same as go_build_tool, but uses our main module file, not the tools one.
 # this is necessary / useful for tools that we are already importing in the repo, e.g. yarpc.
 # versions here are checked to make sure the tools version matches the service version.
@@ -182,10 +191,8 @@ $(BIN)/thriftrw-plugin-yarpc: go.mod go.work
 	$(call go_mod_build_tool,go.uber.org/yarpc/encoding/thrift/thriftrw-plugin-yarpc)
 
 $(BIN)/mockgen: internal/tools/go.mod go.work
-	$Q rm -f $(BIN)/mockgen
 	$(call go_build_tool,go.uber.org/mock/mockgen)
-	$Q mv $(BIN)/mockgen $(BIN)/mockgen.local
-	$Q cp scripts/mockgen.sh $(BIN)/mockgen
+	$(call replace_go_generate_script,mockgen)
 
 $(BIN)/mockery: internal/tools/go.mod go.work
 	$(call go_build_tool,github.com/vektra/mockery/v2,mockery)
@@ -202,10 +209,8 @@ $(BIN)/goimports: internal/tools/go.mod go.work
 	$(call go_build_tool,golang.org/x/tools/cmd/goimports)
 
 $(BIN)/gowrap: go.mod go.work
-	$Q rm -f $(BIN)/gowrap
 	$(call go_build_tool,github.com/hexdigest/gowrap/cmd/gowrap)
-	$Q mv $(BIN)/gowrap $(BIN)/gowrap.local
-	$Q cp scripts/gowrap.sh $(BIN)/gowrap
+	$(call replace_go_generate_script,gowrap)
 
 $(BIN)/revive: internal/tools/go.mod go.work
 	$(call go_build_tool,github.com/mgechev/revive)
