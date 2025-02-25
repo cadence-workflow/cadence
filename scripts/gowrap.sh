@@ -30,10 +30,8 @@ fi
 
 # Check if destinationFile is newer than $GOFILE and templateFile
 if [[ "$destinationFile" -nt "$GOFILE" && "$destinationFile" -nt "$templateFile" ]]; then
-    echo "Skipped! $GOFILE"
     exit 0
 fi
 
-echo "Regenerating. $GOFILE"
 # Execute the original gowrap command with all arguments
 gowrap.local "$@"
