@@ -31,6 +31,29 @@ import (
 	"github.com/uber/cadence/common/config"
 )
 
+const (
+	// if journal mode is not provided, we set it to WAL by default
+	// WAL mode allows readers and writers from different processes
+	// to access the database concurrently by default
+	// https://sqlite.org/pragma.html#pragma_journal_mode
+	// https://www.sqlite.org/wal.html
+	pragmaJournalModeAttrName     = "_pragma.journal_mode"
+	pragmaJournalModeDefaultValue = "WAL"
+
+	// if busy_timeout is not provided, we set it to 60 seconds by default
+	// https://sqlite.org/pragma.html#pragma_busy_timeout
+	pragmaBusyTimeoutAttrName = "_pragma.busy_timeout"
+	pragmaBusyTimeoutDefault  = "60000"
+)
+
+const (
+	// pragmaKey is the key is used to set pragma arguments in the DSN
+	pragmaKey = "_pragma"
+
+	// pragmaPrefix is the prefix used to identify pragma arguments in the config
+	pragmaPrefix = "_pragma."
+)
+
 // buildDSN builds the data source name for sqlite from config.SQL
 // If DatabaseName is not provided, then sqlite will use in-memory database, otherwise it will use the file as the database
 // All dsn attributes can be set up in the ConnectAttributes field of the config.SQL
@@ -58,21 +81,6 @@ func buildDSN(cfg *config.SQL) string {
 
 	return dsn
 }
-
-const (
-	// if journal mode is not provided, we set it to WAL by default
-	// WAL mode allows readers and writers from different processes
-	// to access the database concurrently by default
-	// https://sqlite.org/pragma.html#pragma_journal_mode
-	// https://www.sqlite.org/wal.html
-	pragmaJournalModeAttrName     = "_pragma.journal_mode"
-	pragmaJournalModeDefaultValue = "WAL"
-
-	// if busy_timeout is not provided, we set it to 60 seconds by default
-	// https://sqlite.org/pragma.html#pragma_busy_timeout
-	pragmaBusyTimeoutAttrName = "_pragma.busy_timeout"
-	pragmaBusyTimeoutDefault  = "60000"
-)
 
 // buildDSNAttrs builds the data source name attributes for sqlite from config.SQL
 func buildDSNAttrs(cfg *config.SQL) string {
@@ -118,14 +126,6 @@ func sanitizeDSNAttrs(attrs map[string]string) map[string]string {
 
 	return sanitized
 }
-
-const (
-	// pragmaKey is the key is used to set pragma arguments in the DSN
-	pragmaKey = "_pragma"
-
-	// pragmaPrefix is the prefix used to identify pragma arguments in the config
-	pragmaPrefix = "_pragma."
-)
 
 // isPragmaKey checks if the key is a pragma key
 func isPragmaKey(key string) bool {

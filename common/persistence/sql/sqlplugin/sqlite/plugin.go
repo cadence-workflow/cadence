@@ -54,9 +54,7 @@ func (p *plugin) CreateAdminDB(cfg *config.SQL) (sqlplugin.AdminDB, error) {
 
 // createDB create a new instance of DB
 func (p *plugin) createDB(cfg *config.SQL) (*DB, error) {
-	conns, err := sqldriver.CreateDBConnections(cfg, func(cfg *config.SQL) (*sqlx.DB, error) {
-		return p.createSingleDBConn(cfg)
-	})
+	conns, err := sqldriver.CreateDBConnections(cfg, p.createSingleDBConn)
 	if err != nil {
 		return nil, err
 	}
