@@ -1833,6 +1833,7 @@ func FromDiagnoseWorkflowExecutionRequest(t *types.DiagnoseWorkflowExecutionRequ
 	return &shared.DiagnoseWorkflowExecutionRequest{
 		Domain:            &t.Domain,
 		WorkflowExecution: FromWorkflowExecution(t.GetWorkflowExecution()),
+		Identity:          &t.Identity,
 	}
 }
 
@@ -1844,6 +1845,7 @@ func ToDiagnoseWorkflowExecutionRequest(t *shared.DiagnoseWorkflowExecutionReque
 	return &types.DiagnoseWorkflowExecutionRequest{
 		Domain:            t.GetDomain(),
 		WorkflowExecution: ToWorkflowExecution(t.GetWorkflowExecution()),
+		Identity:          t.GetIdentity(),
 	}
 }
 
