@@ -398,6 +398,7 @@ var (
 	DiagnoseWorkflowExecutionRequest = types.DiagnoseWorkflowExecutionRequest{
 		Domain:            DomainName,
 		WorkflowExecution: &WorkflowExecution,
+		Identity:          Identity,
 	}
 	DiagnoseWorkflowExecutionResponse = types.DiagnoseWorkflowExecutionResponse{
 		Domain:                      DomainName,
