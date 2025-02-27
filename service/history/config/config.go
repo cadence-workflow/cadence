@@ -91,9 +91,7 @@ type Config struct {
 	TaskProcessRPS                           dynamicconfig.IntPropertyFnWithDomainFilter
 	TaskSchedulerType                        dynamicconfig.IntPropertyFn
 	TaskSchedulerWorkerCount                 dynamicconfig.IntPropertyFn
-	TaskSchedulerShardWorkerCount            dynamicconfig.IntPropertyFn
 	TaskSchedulerQueueSize                   dynamicconfig.IntPropertyFn
-	TaskSchedulerShardQueueSize              dynamicconfig.IntPropertyFn
 	TaskSchedulerDispatcherCount             dynamicconfig.IntPropertyFn
 	TaskSchedulerRoundRobinWeights           dynamicconfig.MapPropertyFn
 	TaskSchedulerGlobalDomainRPS             dynamicconfig.IntPropertyFnWithDomainFilter
@@ -371,9 +369,7 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		TaskProcessRPS:                           dc.GetIntPropertyFilteredByDomain(dynamicconfig.TaskProcessRPS),
 		TaskSchedulerType:                        dc.GetIntProperty(dynamicconfig.TaskSchedulerType),
 		TaskSchedulerWorkerCount:                 dc.GetIntProperty(dynamicconfig.TaskSchedulerWorkerCount),
-		TaskSchedulerShardWorkerCount:            dc.GetIntProperty(dynamicconfig.TaskSchedulerShardWorkerCount),
 		TaskSchedulerQueueSize:                   dc.GetIntProperty(dynamicconfig.TaskSchedulerQueueSize),
-		TaskSchedulerShardQueueSize:              dc.GetIntProperty(dynamicconfig.TaskSchedulerShardQueueSize),
 		TaskSchedulerDispatcherCount:             dc.GetIntProperty(dynamicconfig.TaskSchedulerDispatcherCount),
 		TaskSchedulerRoundRobinWeights:           dc.GetMapProperty(dynamicconfig.TaskSchedulerRoundRobinWeights),
 		TaskSchedulerGlobalDomainRPS:             dc.GetIntPropertyFilteredByDomain(dynamicconfig.TaskSchedulerGlobalDomainRPS),

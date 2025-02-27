@@ -376,10 +376,6 @@ func (e *historyEngineImpl) Stop() {
 		replicationTaskProcessor.Stop()
 	}
 
-	if e.queueTaskProcessor != nil {
-		e.queueTaskProcessor.StopShardProcessor(e.shard)
-	}
-
 	e.failoverMarkerNotifier.Stop()
 
 	// unset the failover callback

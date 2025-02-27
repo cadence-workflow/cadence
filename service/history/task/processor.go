@@ -34,7 +34,6 @@ import (
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/task"
 	"github.com/uber/cadence/service/history/config"
-	"github.com/uber/cadence/service/history/shard"
 )
 
 type processorImpl struct {
@@ -42,11 +41,9 @@ type processorImpl struct {
 
 	priorityAssigner PriorityAssigner
 	hostScheduler    task.Scheduler
-	shardSchedulers  map[shard.Context]task.Scheduler
 
 	status        int32
 	options       *task.SchedulerOptions[int]
-	shardOptions  *task.SchedulerOptions[int]
 	logger        log.Logger
 	metricsClient metrics.Client
 	timeSource    clock.TimeSource
@@ -96,29 +93,11 @@ func NewProcessor(
 	}
 	logger.Debug("Host level task scheduler is created", tag.Dynamic("scheduler_options", options.String()))
 
-	var shardOptions *task.SchedulerOptions[int]
-	if config.TaskSchedulerShardWorkerCount() > 0 {
-		shardOptions, err = task.NewSchedulerOptions[int](
-			config.TaskSchedulerType(),
-			config.TaskSchedulerShardQueueSize(),
-			config.TaskSchedulerShardWorkerCount,
-			1,
-			taskToChannelKeyFn,
-			channelKeyToWeightFn,
-		)
-		if err != nil {
-			return nil, err
-		}
-		logger.Debug("Shard level task scheduler is enabled", tag.Dynamic("scheduler_options", shardOptions.String()))
-	}
-
 	return &processorImpl{
 		priorityAssigner: priorityAssigner,
 		hostScheduler:    hostScheduler,
-		shardSchedulers:  make(map[shard.Context]task.Scheduler),
 		status:           common.DaemonStatusInitialized,
 		options:          options,
-		shardOptions:     shardOptions,
 		logger:           logger,
 		metricsClient:    metricsClient,
 		timeSource:       timeSource,
@@ -142,56 +121,13 @@ func (p *processorImpl) Stop() {
 
 	p.hostScheduler.Stop()
 
-	p.Lock()
-	defer p.Unlock()
-
-	for shard, scheduler := range p.shardSchedulers {
-		delete(p.shardSchedulers, shard)
-		scheduler.Stop()
-	}
-
 	p.logger.Info("Queue task processor stopped.")
-}
-
-func (p *processorImpl) StopShardProcessor(shard shard.Context) {
-	p.Lock()
-	scheduler, ok := p.shardSchedulers[shard]
-	if !ok {
-		p.Unlock()
-		return
-	}
-
-	delete(p.shardSchedulers, shard)
-	p.Unlock()
-
-	// don't hold the lock while stopping the scheduler
-	scheduler.Stop()
 }
 
 func (p *processorImpl) Submit(task Task) error {
 	if err := p.priorityAssigner.Assign(task); err != nil {
 		return err
 	}
-
-	submitted, err := p.hostScheduler.TrySubmit(task)
-	if err != nil {
-		return err
-	}
-
-	if submitted {
-		return nil
-	}
-
-	shardScheduler, err := p.getOrCreateShardTaskScheduler(task.GetShard())
-	if err != nil {
-		return err
-	}
-
-	if shardScheduler != nil {
-		return shardScheduler.Submit(task)
-	}
-
-	// if shard level scheduler is disabled
 	return p.hostScheduler.Submit(task)
 }
 
@@ -200,67 +136,7 @@ func (p *processorImpl) TrySubmit(task Task) (bool, error) {
 		return false, err
 	}
 
-	submitted, err := p.hostScheduler.TrySubmit(task)
-	if err != nil {
-		return false, err
-	}
-
-	if submitted {
-		return true, nil
-	}
-
-	shardScheduler, err := p.getOrCreateShardTaskScheduler(task.GetShard())
-	if err != nil {
-		return false, err
-	}
-
-	if shardScheduler != nil {
-		return shardScheduler.TrySubmit(task)
-	}
-
-	// if shard level scheduler is disabled
-	return false, nil
-}
-
-func (p *processorImpl) getOrCreateShardTaskScheduler(shard shard.Context) (task.Scheduler, error) {
-	if p.shardOptions == nil {
-		return nil, nil
-	}
-
-	p.RLock()
-	if scheduler, ok := p.shardSchedulers[shard]; ok {
-		p.RUnlock()
-		return scheduler, nil
-	}
-	p.RUnlock()
-
-	p.Lock()
-	if scheduler, ok := p.shardSchedulers[shard]; ok {
-		p.Unlock()
-		return scheduler, nil
-	}
-
-	if !p.isRunning() {
-		p.Unlock()
-		return nil, errTaskProcessorNotRunning
-	}
-
-	scheduler, err := createTaskScheduler(p.shardOptions, p.logger.WithTags(tag.ShardID(shard.GetShardID())), p.metricsClient, p.timeSource)
-	if err != nil {
-		p.Unlock()
-		return nil, err
-	}
-
-	p.shardSchedulers[shard] = scheduler
-	p.Unlock()
-
-	// don't hold the lock while starting the scheduler
-	scheduler.Start()
-	p.logger.Debug("Shard level task scheduler is started",
-		tag.ShardID(shard.GetShardID()),
-		tag.Dynamic("scheduler_options", p.shardOptions.String()),
-	)
-	return scheduler, nil
+	return p.hostScheduler.TrySubmit(task)
 }
 
 func (p *processorImpl) isRunning() bool {

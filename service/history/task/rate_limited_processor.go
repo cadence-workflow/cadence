@@ -27,7 +27,6 @@ import (
 	"sync/atomic"
 
 	"github.com/uber/cadence/common"
-	"github.com/uber/cadence/service/history/shard"
 )
 
 type rateLimitedProcessor struct {
@@ -67,10 +66,6 @@ func (p *rateLimitedProcessor) Stop() {
 
 	p.cancelFn()
 	p.baseProcessor.Stop()
-}
-
-func (p *rateLimitedProcessor) StopShardProcessor(s shard.Context) {
-	p.baseProcessor.StopShardProcessor(s)
 }
 
 func (p *rateLimitedProcessor) Submit(t Task) error {

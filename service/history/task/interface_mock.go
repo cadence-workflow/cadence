@@ -964,18 +964,6 @@ func (mr *MockProcessorMockRecorder) Stop() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockProcessor)(nil).Stop))
 }
 
-// StopShardProcessor mocks base method.
-func (m *MockProcessor) StopShardProcessor(arg0 shard.Context) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "StopShardProcessor", arg0)
-}
-
-// StopShardProcessor indicates an expected call of StopShardProcessor.
-func (mr *MockProcessorMockRecorder) StopShardProcessor(arg0 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StopShardProcessor", reflect.TypeOf((*MockProcessor)(nil).StopShardProcessor), arg0)
-}
-
 // Submit mocks base method.
 func (m *MockProcessor) Submit(arg0 Task) error {
 	m.ctrl.T.Helper()

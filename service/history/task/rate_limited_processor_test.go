@@ -29,8 +29,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	gomock "go.uber.org/mock/gomock"
-
-	"github.com/uber/cadence/service/history/shard"
 )
 
 type rateLimitedProcessorMockDeps struct {
@@ -57,10 +55,6 @@ func TestRateLimitedProcessorLifecycle(t *testing.T) {
 
 	deps.mockProcessor.EXPECT().Start().Times(1)
 	rp.Start()
-
-	var shard shard.Context
-	deps.mockProcessor.EXPECT().StopShardProcessor(shard).Times(1)
-	rp.StopShardProcessor(shard)
 
 	deps.mockProcessor.EXPECT().Stop().Times(1)
 	rp.Stop()

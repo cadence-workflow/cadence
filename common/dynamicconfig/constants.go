@@ -919,11 +919,7 @@ const (
 	// Default value: 200
 	// Allowed filters: N/A
 	TaskSchedulerWorkerCount
-	// TaskSchedulerShardWorkerCount is the number of worker per shard in task scheduler
-	// KeyName: history.taskSchedulerShardWorkerCount
-	// Value type: Int
-	// Default value: 0
-	// Allowed filters: N/A
+	// TaskSchedulerShardWorkerCount is deprecated
 	TaskSchedulerShardWorkerCount
 	// TaskSchedulerQueueSize is the size of task channel for host level task scheduler
 	// KeyName: history.taskSchedulerQueueSize
@@ -931,11 +927,7 @@ const (
 	// Default value: 10000
 	// Allowed filters: N/A
 	TaskSchedulerQueueSize
-	// TaskSchedulerShardQueueSize is the size of task channel for shard level task scheduler
-	// KeyName: history.taskSchedulerShardQueueSize
-	// Value type: Int
-	// Default value: 200
-	// Allowed filters: N/A
+	// TaskSchedulerShardQueueSize is deprecated
 	TaskSchedulerShardQueueSize
 	// TaskSchedulerDispatcherCount is the number of task dispatcher in task scheduler (only applies to host level task scheduler)
 	// KeyName: history.taskSchedulerDispatcherCount
@@ -3377,7 +3369,7 @@ var IntKeys = map[IntKey]DynamicInt{
 	},
 	TaskSchedulerShardWorkerCount: {
 		KeyName:      "history.taskSchedulerShardWorkerCount",
-		Description:  "TaskSchedulerShardWorkerCount is the number of worker per shard in task scheduler",
+		Description:  "Deprecated",
 		DefaultValue: 0,
 	},
 	TaskSchedulerQueueSize: {
@@ -3387,7 +3379,7 @@ var IntKeys = map[IntKey]DynamicInt{
 	},
 	TaskSchedulerShardQueueSize: {
 		KeyName:      "history.taskSchedulerShardQueueSize",
-		Description:  "TaskSchedulerShardQueueSize is the size of task channel for shard level task scheduler",
+		Description:  "Deprecated",
 		DefaultValue: 200,
 	},
 	TaskSchedulerDispatcherCount: {
