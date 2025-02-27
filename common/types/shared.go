@@ -63,6 +63,11 @@ func (v *ActivityTaskCancelRequestedEventAttributes) GetActivityID() (o string) 
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *ActivityTaskCancelRequestedEventAttributes) Size() uint64 {
+	return 0
+}
+
 // ActivityTaskCanceledEventAttributes is an internal type (TBD...)
 type ActivityTaskCanceledEventAttributes struct {
 	Details                      []byte `json:"details,omitempty"`
@@ -78,6 +83,11 @@ func (v *ActivityTaskCanceledEventAttributes) GetScheduledEventID() (o int64) {
 		return v.ScheduledEventID
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *ActivityTaskCanceledEventAttributes) Size() uint64 {
+	return 0
 }
 
 // ActivityTaskCompletedEventAttributes is an internal type (TBD...)
@@ -104,6 +114,11 @@ func (v *ActivityTaskCompletedEventAttributes) GetStartedEventID() (o int64) {
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *ActivityTaskCompletedEventAttributes) Size() uint64 {
+	return 0
+}
+
 // ActivityTaskFailedEventAttributes is an internal type (TBD...)
 type ActivityTaskFailedEventAttributes struct {
 	Reason           *string `json:"reason,omitempty"`
@@ -127,6 +142,11 @@ func (v *ActivityTaskFailedEventAttributes) GetStartedEventID() (o int64) {
 		return v.StartedEventID
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *ActivityTaskFailedEventAttributes) Size() uint64 {
+	return 0
 }
 
 // ActivityTaskScheduledEventAttributes is an internal type (TBD...)
@@ -209,6 +229,11 @@ func (v *ActivityTaskScheduledEventAttributes) GetHeartbeatTimeoutSeconds() (o i
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *ActivityTaskScheduledEventAttributes) Size() uint64 {
+	return 0
+}
+
 // ActivityTaskStartedEventAttributes is an internal type (TBD...)
 type ActivityTaskStartedEventAttributes struct {
 	ScheduledEventID   int64   `json:"scheduledEventId,omitempty"`
@@ -235,6 +260,11 @@ func (v *ActivityTaskStartedEventAttributes) GetRequestID() (o string) {
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *ActivityTaskStartedEventAttributes) Size() uint64 {
+	return 0
+}
+
 // ActivityTaskTimedOutEventAttributes is an internal type (TBD...)
 type ActivityTaskTimedOutEventAttributes struct {
 	Details            []byte       `json:"details,omitempty"`
@@ -259,6 +289,11 @@ func (v *ActivityTaskTimedOutEventAttributes) GetTimeoutType() (o TimeoutType) {
 		return *v.TimeoutType
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *ActivityTaskTimedOutEventAttributes) Size() uint64 {
+	return 0
 }
 
 // ActivityType is an internal type (TBD...)
@@ -437,6 +472,11 @@ type CancelTimerFailedEventAttributes struct {
 	Identity                     string `json:"identity,omitempty"`
 }
 
+// Size returns the approximate memory used in bytes
+func (v *CancelTimerFailedEventAttributes) Size() uint64 {
+	return 0
+}
+
 // CancelWorkflowExecutionDecisionAttributes is an internal type (TBD...)
 type CancelWorkflowExecutionDecisionAttributes struct {
 	Details []byte `json:"details,omitempty"`
@@ -465,6 +505,11 @@ func (v *ChildWorkflowExecutionCanceledEventAttributes) GetInitiatedEventID() (o
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *ChildWorkflowExecutionCanceledEventAttributes) Size() uint64 {
+	return 0
+}
+
 // ChildWorkflowExecutionCompletedEventAttributes is an internal type (TBD...)
 type ChildWorkflowExecutionCompletedEventAttributes struct {
 	Result            []byte             `json:"result,omitempty"`
@@ -481,6 +526,11 @@ func (v *ChildWorkflowExecutionCompletedEventAttributes) GetInitiatedEventID() (
 		return v.InitiatedEventID
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *ChildWorkflowExecutionCompletedEventAttributes) Size() uint64 {
+	return 0
 }
 
 // ChildWorkflowExecutionFailedCause is an internal type (TBD...)
@@ -546,6 +596,11 @@ func (v *ChildWorkflowExecutionFailedEventAttributes) GetInitiatedEventID() (o i
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *ChildWorkflowExecutionFailedEventAttributes) Size() uint64 {
+	return 0
+}
+
 // ChildWorkflowExecutionStartedEventAttributes is an internal type (TBD...)
 type ChildWorkflowExecutionStartedEventAttributes struct {
 	Domain            string             `json:"domain,omitempty"`
@@ -579,6 +634,11 @@ func (v *ChildWorkflowExecutionStartedEventAttributes) GetWorkflowExecution() (o
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *ChildWorkflowExecutionStartedEventAttributes) Size() uint64 {
+	return 0
+}
+
 // ChildWorkflowExecutionTerminatedEventAttributes is an internal type (TBD...)
 type ChildWorkflowExecutionTerminatedEventAttributes struct {
 	Domain            string             `json:"domain,omitempty"`
@@ -594,6 +654,11 @@ func (v *ChildWorkflowExecutionTerminatedEventAttributes) GetInitiatedEventID() 
 		return v.InitiatedEventID
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *ChildWorkflowExecutionTerminatedEventAttributes) Size() uint64 {
+	return 0
 }
 
 // ChildWorkflowExecutionTimedOutEventAttributes is an internal type (TBD...)
@@ -612,6 +677,11 @@ func (v *ChildWorkflowExecutionTimedOutEventAttributes) GetInitiatedEventID() (o
 		return v.InitiatedEventID
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *ChildWorkflowExecutionTimedOutEventAttributes) Size() uint64 {
+	return 0
 }
 
 // ClientVersionNotSupportedError is an internal type (TBD...)
@@ -927,6 +997,11 @@ func (v *DecisionTaskCompletedEventAttributes) GetBinaryChecksum() (o string) {
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *DecisionTaskCompletedEventAttributes) Size() uint64 {
+	return 0
+}
+
 // DecisionTaskFailedCause is an internal type (TBD...)
 type DecisionTaskFailedCause int32
 
@@ -1188,6 +1263,11 @@ func (v *DecisionTaskFailedEventAttributes) GetRequestID() (o string) {
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *DecisionTaskFailedEventAttributes) Size() uint64 {
+	return 0
+}
+
 // DecisionTaskScheduledEventAttributes is an internal type (TBD...)
 type DecisionTaskScheduledEventAttributes struct {
 	TaskList                   *TaskList `json:"taskList,omitempty"`
@@ -1219,6 +1299,11 @@ func (v *DecisionTaskScheduledEventAttributes) GetAttempt() (o int64) {
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *DecisionTaskScheduledEventAttributes) Size() uint64 {
+	return 0
+}
+
 // DecisionTaskStartedEventAttributes is an internal type (TBD...)
 type DecisionTaskStartedEventAttributes struct {
 	ScheduledEventID int64  `json:"scheduledEventId,omitempty"`
@@ -1240,6 +1325,11 @@ func (v *DecisionTaskStartedEventAttributes) GetRequestID() (o string) {
 		return v.RequestID
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *DecisionTaskStartedEventAttributes) Size() uint64 {
+	return 0
 }
 
 // DecisionTaskTimedOutCause is an internal type (TBD...)
@@ -1360,6 +1450,11 @@ func (v *DecisionTaskTimedOutEventAttributes) GetRequestID() (o string) {
 		return v.RequestID
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *DecisionTaskTimedOutEventAttributes) Size() uint64 {
+	return 0
 }
 
 // DecisionType is an internal type (TBD...)
@@ -2434,6 +2529,11 @@ func (v *ExternalWorkflowExecutionCancelRequestedEventAttributes) GetDomain() (o
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *ExternalWorkflowExecutionCancelRequestedEventAttributes) Size() uint64 {
+	return 0
+}
+
 // ExternalWorkflowExecutionSignaledEventAttributes is an internal type (TBD...)
 type ExternalWorkflowExecutionSignaledEventAttributes struct {
 	InitiatedEventID  int64              `json:"initiatedEventId,omitempty"`
@@ -2456,6 +2556,11 @@ func (v *ExternalWorkflowExecutionSignaledEventAttributes) GetDomain() (o string
 		return v.Domain
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *ExternalWorkflowExecutionSignaledEventAttributes) Size() uint64 {
+	return 0
 }
 
 // FailWorkflowExecutionDecisionAttributes is an internal type (TBD...)
@@ -3060,6 +3165,185 @@ func (v *HistoryEvent) GetUpsertWorkflowSearchAttributesEventAttributes() (o *Up
 	return
 }
 
+// Size is an internal method to get the estimated size of the event
+func (v *HistoryEvent) Size() uint64 {
+	if v == nil {
+		return 0
+	}
+
+	size := uint64(8 + 8 + 4 + 8 + 8) // size of ID, Timestamp, EventType, Version, TaskID
+
+	if v.WorkflowExecutionStartedEventAttributes != nil {
+		size += v.WorkflowExecutionStartedEventAttributes.Size()
+	}
+
+	if v.WorkflowExecutionCompletedEventAttributes != nil {
+		size += v.WorkflowExecutionCompletedEventAttributes.Size()
+	}
+
+	if v.WorkflowExecutionFailedEventAttributes != nil {
+		size += v.WorkflowExecutionFailedEventAttributes.Size()
+	}
+
+	if v.WorkflowExecutionTimedOutEventAttributes != nil {
+		size += v.WorkflowExecutionTimedOutEventAttributes.Size()
+	}
+
+	if v.WorkflowExecutionCancelRequestedEventAttributes != nil {
+		size += v.WorkflowExecutionCancelRequestedEventAttributes.Size()
+	}
+
+	if v.WorkflowExecutionCanceledEventAttributes != nil {
+		size += v.WorkflowExecutionCanceledEventAttributes.Size()
+	}
+
+	if v.WorkflowExecutionTerminatedEventAttributes != nil {
+		size += v.WorkflowExecutionTerminatedEventAttributes.Size()
+	}
+
+	if v.WorkflowExecutionContinuedAsNewEventAttributes != nil {
+		size += v.WorkflowExecutionContinuedAsNewEventAttributes.Size()
+	}
+
+	if v.WorkflowExecutionSignaledEventAttributes != nil {
+		size += v.WorkflowExecutionSignaledEventAttributes.Size()
+	}
+
+	if v.DecisionTaskScheduledEventAttributes != nil {
+		size += v.DecisionTaskScheduledEventAttributes.Size()
+	}
+
+	if v.DecisionTaskStartedEventAttributes != nil {
+		size += v.DecisionTaskStartedEventAttributes.Size()
+	}
+
+	if v.DecisionTaskCompletedEventAttributes != nil {
+		size += v.DecisionTaskCompletedEventAttributes.Size()
+	}
+
+	if v.DecisionTaskTimedOutEventAttributes != nil {
+		size += v.DecisionTaskTimedOutEventAttributes.Size()
+	}
+
+	if v.DecisionTaskFailedEventAttributes != nil {
+		size += v.DecisionTaskFailedEventAttributes.Size()
+	}
+
+	if v.ActivityTaskScheduledEventAttributes != nil {
+		size += v.ActivityTaskScheduledEventAttributes.Size()
+	}
+
+	if v.ActivityTaskStartedEventAttributes != nil {
+		size += v.ActivityTaskStartedEventAttributes.Size()
+	}
+
+	if v.ActivityTaskCompletedEventAttributes != nil {
+		size += v.ActivityTaskCompletedEventAttributes.Size()
+	}
+
+	if v.ActivityTaskFailedEventAttributes != nil {
+		size += v.ActivityTaskFailedEventAttributes.Size()
+	}
+
+	if v.ActivityTaskTimedOutEventAttributes != nil {
+		size += v.ActivityTaskTimedOutEventAttributes.Size()
+	}
+
+	if v.ActivityTaskCancelRequestedEventAttributes != nil {
+		size += v.ActivityTaskCancelRequestedEventAttributes.Size()
+	}
+
+	if v.ActivityTaskCanceledEventAttributes != nil {
+		size += v.ActivityTaskCanceledEventAttributes.Size()
+	}
+
+	if v.RequestCancelActivityTaskFailedEventAttributes != nil {
+		size += v.RequestCancelActivityTaskFailedEventAttributes.Size()
+	}
+
+	if v.TimerStartedEventAttributes != nil {
+		size += v.TimerStartedEventAttributes.Size()
+	}
+
+	if v.TimerFiredEventAttributes != nil {
+		size += v.TimerFiredEventAttributes.Size()
+	}
+
+	if v.TimerCanceledEventAttributes != nil {
+		size += v.TimerCanceledEventAttributes.Size()
+	}
+
+	if v.CancelTimerFailedEventAttributes != nil {
+		size += v.CancelTimerFailedEventAttributes.Size()
+	}
+
+	if v.MarkerRecordedEventAttributes != nil {
+		size += v.MarkerRecordedEventAttributes.Size()
+	}
+
+	if v.RequestCancelExternalWorkflowExecutionInitiatedEventAttributes != nil {
+		size += v.RequestCancelExternalWorkflowExecutionInitiatedEventAttributes.Size()
+	}
+
+	if v.RequestCancelExternalWorkflowExecutionFailedEventAttributes != nil {
+		size += v.RequestCancelExternalWorkflowExecutionFailedEventAttributes.Size()
+	}
+
+	if v.ExternalWorkflowExecutionCancelRequestedEventAttributes != nil {
+		size += v.ExternalWorkflowExecutionCancelRequestedEventAttributes.Size()
+	}
+
+	if v.SignalExternalWorkflowExecutionInitiatedEventAttributes != nil {
+		size += v.SignalExternalWorkflowExecutionInitiatedEventAttributes.Size()
+	}
+
+	if v.SignalExternalWorkflowExecutionFailedEventAttributes != nil {
+		size += v.SignalExternalWorkflowExecutionFailedEventAttributes.Size()
+	}
+
+	if v.ExternalWorkflowExecutionSignaledEventAttributes != nil {
+		size += v.ExternalWorkflowExecutionSignaledEventAttributes.Size()
+	}
+
+	if v.StartChildWorkflowExecutionInitiatedEventAttributes != nil {
+		size += v.StartChildWorkflowExecutionInitiatedEventAttributes.Size()
+	}
+
+	if v.StartChildWorkflowExecutionFailedEventAttributes != nil {
+		size += v.StartChildWorkflowExecutionFailedEventAttributes.Size()
+	}
+
+	if v.ChildWorkflowExecutionStartedEventAttributes != nil {
+		size += v.ChildWorkflowExecutionStartedEventAttributes.Size()
+	}
+
+	if v.ChildWorkflowExecutionCompletedEventAttributes != nil {
+		size += v.ChildWorkflowExecutionCompletedEventAttributes.Size()
+	}
+
+	if v.ChildWorkflowExecutionFailedEventAttributes != nil {
+		size += v.ChildWorkflowExecutionFailedEventAttributes.Size()
+	}
+
+	if v.ChildWorkflowExecutionCanceledEventAttributes != nil {
+		size += v.ChildWorkflowExecutionCanceledEventAttributes.Size()
+	}
+
+	if v.ChildWorkflowExecutionTimedOutEventAttributes != nil {
+		size += v.ChildWorkflowExecutionTimedOutEventAttributes.Size()
+	}
+
+	if v.ChildWorkflowExecutionTerminatedEventAttributes != nil {
+		size += v.ChildWorkflowExecutionTerminatedEventAttributes.Size()
+	}
+
+	if v.UpsertWorkflowSearchAttributesEventAttributes != nil {
+		size += v.UpsertWorkflowSearchAttributesEventAttributes.Size()
+	}
+
+	return size
+}
+
 // HistoryEventFilterType is an internal type (TBD...)
 type HistoryEventFilterType int32
 
@@ -3515,6 +3799,11 @@ func (v *MarkerRecordedEventAttributes) GetMarkerName() (o string) {
 		return v.MarkerName
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *MarkerRecordedEventAttributes) Size() uint64 {
+	return 0
 }
 
 // Memo is an internal type (TBD...)
@@ -4570,9 +4859,19 @@ func (v *RegisterDomainRequest) GetVisibilityArchivalURI() (o string) {
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *RegisterDomainRequest) Size() uint64 {
+	return 0
+}
+
 // RemoteSyncMatchedError is an internal type (TBD...)
 type RemoteSyncMatchedError struct {
 	Message string `json:"message,required"`
+}
+
+// Size returns the approximate memory used in bytes
+func (v *RemoteSyncMatchedError) Size() uint64 {
+	return 0
 }
 
 // RemoveTaskRequest is an internal type (TBD...)
@@ -4624,6 +4923,11 @@ func (v *RemoveTaskRequest) GetClusterName() (o string) {
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *RemoveTaskRequest) Size() uint64 {
+	return 0
+}
+
 // RequestCancelActivityTaskDecisionAttributes is an internal type (TBD...)
 type RequestCancelActivityTaskDecisionAttributes struct {
 	ActivityID string `json:"activityId,omitempty"`
@@ -4637,11 +4941,21 @@ func (v *RequestCancelActivityTaskDecisionAttributes) GetActivityID() (o string)
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *RequestCancelActivityTaskDecisionAttributes) Size() uint64 {
+	return 0
+}
+
 // RequestCancelActivityTaskFailedEventAttributes is an internal type (TBD...)
 type RequestCancelActivityTaskFailedEventAttributes struct {
 	ActivityID                   string `json:"activityId,omitempty"`
 	Cause                        string `json:"cause,omitempty"`
 	DecisionTaskCompletedEventID int64  `json:"decisionTaskCompletedEventId,omitempty"`
+}
+
+// Size returns the approximate memory used in bytes
+func (v *RequestCancelActivityTaskFailedEventAttributes) Size() uint64 {
+	return 0
 }
 
 // RequestCancelExternalWorkflowExecutionDecisionAttributes is an internal type (TBD...)
@@ -4675,6 +4989,11 @@ func (v *RequestCancelExternalWorkflowExecutionDecisionAttributes) GetRunID() (o
 		return v.RunID
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *RequestCancelExternalWorkflowExecutionDecisionAttributes) Size() uint64 {
+	return 0
 }
 
 // RequestCancelExternalWorkflowExecutionFailedEventAttributes is an internal type (TBD...)
@@ -4711,6 +5030,11 @@ func (v *RequestCancelExternalWorkflowExecutionFailedEventAttributes) GetInitiat
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *RequestCancelExternalWorkflowExecutionFailedEventAttributes) Size() uint64 {
+	return 0
+}
+
 // RequestCancelExternalWorkflowExecutionInitiatedEventAttributes is an internal type (TBD...)
 type RequestCancelExternalWorkflowExecutionInitiatedEventAttributes struct {
 	DecisionTaskCompletedEventID int64              `json:"decisionTaskCompletedEventId,omitempty"`
@@ -4742,6 +5066,11 @@ func (v *RequestCancelExternalWorkflowExecutionInitiatedEventAttributes) GetChil
 		return v.ChildWorkflowOnly
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *RequestCancelExternalWorkflowExecutionInitiatedEventAttributes) Size() uint64 {
+	return 0
 }
 
 // RequestCancelWorkflowExecutionRequest is an internal type (TBD...)
@@ -4784,6 +5113,11 @@ func (v *RequestCancelWorkflowExecutionRequest) GetFirstExecutionRunID() (o stri
 		return v.FirstExecutionRunID
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *RequestCancelWorkflowExecutionRequest) Size() uint64 {
+	return 0
 }
 
 // ResetPointInfo is an internal type (TBD...)
@@ -4844,9 +5178,19 @@ func (v *ResetPointInfo) GetResettable() (o bool) {
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *ResetPointInfo) Size() uint64 {
+	return 0
+}
+
 // ResetPoints is an internal type (TBD...)
 type ResetPoints struct {
 	Points []*ResetPointInfo `json:"points,omitempty"`
+}
+
+// Size returns the approximate memory used in bytes
+func (v *ResetPoints) Size() uint64 {
+	return 0
 }
 
 // ResetQueueRequest is an internal type (TBD...)
@@ -4880,6 +5224,11 @@ func (v *ResetQueueRequest) GetType() (o int32) {
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *ResetQueueRequest) Size() uint64 {
+	return 0
+}
+
 // ResetStickyTaskListRequest is an internal type (TBD...)
 type ResetStickyTaskListRequest struct {
 	Domain    string             `json:"domain,omitempty"`
@@ -4902,8 +5251,18 @@ func (v *ResetStickyTaskListRequest) GetExecution() (o *WorkflowExecution) {
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *ResetStickyTaskListRequest) Size() uint64 {
+	return 0
+}
+
 // ResetStickyTaskListResponse is an internal type (TBD...)
 type ResetStickyTaskListResponse struct {
+}
+
+// Size returns the approximate memory used in bytes
+func (v *ResetStickyTaskListResponse) Size() uint64 {
+	return 0
 }
 
 // ResetWorkflowExecutionRequest is an internal type (TBD...)
@@ -4964,6 +5323,11 @@ func (v *ResetWorkflowExecutionRequest) GetSkipSignalReapply() (o bool) {
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *ResetWorkflowExecutionRequest) Size() uint64 {
+	return 0
+}
+
 // ResetWorkflowExecutionResponse is an internal type (TBD...)
 type ResetWorkflowExecutionResponse struct {
 	RunID string `json:"runId,omitempty"`
@@ -4975,6 +5339,11 @@ func (v *ResetWorkflowExecutionResponse) GetRunID() (o string) {
 		return v.RunID
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *ResetWorkflowExecutionResponse) Size() uint64 {
+	return 0
 }
 
 // RespondActivityTaskCanceledByIDRequest is an internal type (TBD...)
@@ -5027,6 +5396,11 @@ func (v *RespondActivityTaskCanceledByIDRequest) GetIdentity() (o string) {
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *RespondActivityTaskCanceledByIDRequest) Size() uint64 {
+	return 0
+}
+
 // RespondActivityTaskCanceledRequest is an internal type (TBD...)
 type RespondActivityTaskCanceledRequest struct {
 	TaskToken []byte `json:"taskToken,omitempty"`
@@ -5040,6 +5414,11 @@ func (v *RespondActivityTaskCanceledRequest) GetIdentity() (o string) {
 		return v.Identity
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *RespondActivityTaskCanceledRequest) Size() uint64 {
+	return 0
 }
 
 // RespondActivityTaskCompletedByIDRequest is an internal type (TBD...)
@@ -5092,6 +5471,11 @@ func (v *RespondActivityTaskCompletedByIDRequest) GetIdentity() (o string) {
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *RespondActivityTaskCompletedByIDRequest) Size() uint64 {
+	return 0
+}
+
 // RespondActivityTaskCompletedRequest is an internal type (TBD...)
 type RespondActivityTaskCompletedRequest struct {
 	TaskToken []byte `json:"taskToken,omitempty"`
@@ -5105,6 +5489,11 @@ func (v *RespondActivityTaskCompletedRequest) GetIdentity() (o string) {
 		return v.Identity
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *RespondActivityTaskCompletedRequest) Size() uint64 {
+	return 0
 }
 
 // RespondActivityTaskFailedByIDRequest is an internal type (TBD...)
@@ -5158,6 +5547,11 @@ func (v *RespondActivityTaskFailedByIDRequest) GetIdentity() (o string) {
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *RespondActivityTaskFailedByIDRequest) Size() uint64 {
+	return 0
+}
+
 // RespondActivityTaskFailedRequest is an internal type (TBD...)
 type RespondActivityTaskFailedRequest struct {
 	TaskToken []byte  `json:"taskToken,omitempty"`
@@ -5188,6 +5582,11 @@ func (v *RespondActivityTaskFailedRequest) GetIdentity() (o string) {
 		return v.Identity
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *RespondActivityTaskFailedRequest) Size() uint64 {
+	return 0
 }
 
 // RespondDecisionTaskCompletedRequest is an internal type (TBD...)
@@ -5243,6 +5642,11 @@ func (v *RespondDecisionTaskCompletedRequest) GetQueryResults() (o map[string]*W
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *RespondDecisionTaskCompletedRequest) Size() uint64 {
+	return 0
+}
+
 // RespondDecisionTaskCompletedResponse is an internal type (TBD...)
 type RespondDecisionTaskCompletedResponse struct {
 	DecisionTask                *PollForDecisionTaskResponse          `json:"decisionTask,omitempty"`
@@ -5255,6 +5659,11 @@ func (v *RespondDecisionTaskCompletedResponse) GetDecisionTask() (o *PollForDeci
 		return v.DecisionTask
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *RespondDecisionTaskCompletedResponse) Size() uint64 {
+	return 0
 }
 
 // RespondDecisionTaskFailedRequest is an internal type (TBD...)
@@ -5618,6 +6027,11 @@ func (v *SignalExternalWorkflowExecutionFailedEventAttributes) GetInitiatedEvent
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *SignalExternalWorkflowExecutionFailedEventAttributes) Size() uint64 {
+	return 0
+}
+
 // SignalExternalWorkflowExecutionInitiatedEventAttributes is an internal type (TBD...)
 type SignalExternalWorkflowExecutionInitiatedEventAttributes struct {
 	DecisionTaskCompletedEventID int64              `json:"decisionTaskCompletedEventId,omitempty"`
@@ -5659,6 +6073,11 @@ func (v *SignalExternalWorkflowExecutionInitiatedEventAttributes) GetChildWorkfl
 		return v.ChildWorkflowOnly
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *SignalExternalWorkflowExecutionInitiatedEventAttributes) Size() uint64 {
+	return 0
 }
 
 // SignalWithStartWorkflowExecutionRequest is an internal type (TBD...)
@@ -5944,6 +6363,11 @@ func (v *StartChildWorkflowExecutionFailedEventAttributes) GetInitiatedEventID()
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *StartChildWorkflowExecutionFailedEventAttributes) Size() uint64 {
+	return 0
+}
+
 // StartChildWorkflowExecutionInitiatedEventAttributes is an internal type (TBD...)
 type StartChildWorkflowExecutionInitiatedEventAttributes struct {
 	Domain                              string                 `json:"domain,omitempty"`
@@ -6005,6 +6429,11 @@ func (v *StartChildWorkflowExecutionInitiatedEventAttributes) GetExecutionStartT
 		return *v.ExecutionStartToCloseTimeoutSeconds
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *StartChildWorkflowExecutionInitiatedEventAttributes) Size() uint64 {
+	return 0
 }
 
 // StartTimeFilter is an internal type (TBD...)
@@ -6647,6 +7076,11 @@ func (v *TimerCanceledEventAttributes) GetTimerID() (o string) {
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *TimerCanceledEventAttributes) Size() uint64 {
+	return 0
+}
+
 // TimerFiredEventAttributes is an internal type (TBD...)
 type TimerFiredEventAttributes struct {
 	TimerID        string `json:"timerId,omitempty"`
@@ -6667,6 +7101,11 @@ func (v *TimerFiredEventAttributes) GetStartedEventID() (o int64) {
 		return v.StartedEventID
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *TimerFiredEventAttributes) Size() uint64 {
+	return 0
 }
 
 // TimerStartedEventAttributes is an internal type (TBD...)
@@ -6690,6 +7129,11 @@ func (v *TimerStartedEventAttributes) GetStartToFireTimeoutSeconds() (o int64) {
 		return *v.StartToFireTimeoutSeconds
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *TimerStartedEventAttributes) Size() uint64 {
+	return 0
 }
 
 // TransientDecisionInfo is an internal type (TBD...)
@@ -6810,6 +7254,11 @@ func (v *UpsertWorkflowSearchAttributesEventAttributes) GetSearchAttributes() (o
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *UpsertWorkflowSearchAttributesEventAttributes) Size() uint64 {
+	return 0
+}
+
 // VersionHistories is an internal type (TBD...)
 type VersionHistories struct {
 	CurrentVersionHistoryIndex int32             `json:"currentVersionHistoryIndex,omitempty"`
@@ -6920,10 +7369,20 @@ type WorkflowExecutionCancelRequestedEventAttributes struct {
 	RequestID                 string             `json:"requestId,omitempty"`
 }
 
+// Size returns the approximate memory used in bytes
+func (v *WorkflowExecutionCancelRequestedEventAttributes) Size() uint64 {
+	return 0
+}
+
 // WorkflowExecutionCanceledEventAttributes is an internal type (TBD...)
 type WorkflowExecutionCanceledEventAttributes struct {
 	DecisionTaskCompletedEventID int64  `json:"decisionTaskCompletedEventId,omitempty"`
 	Details                      []byte `json:"details,omitempty"`
+}
+
+// Size returns the approximate memory used in bytes
+func (v *WorkflowExecutionCanceledEventAttributes) Size() uint64 {
+	return 0
 }
 
 // WorkflowExecutionCloseStatus is an internal type (TBD...)
@@ -7011,6 +7470,11 @@ type WorkflowExecutionCompletedEventAttributes struct {
 	DecisionTaskCompletedEventID int64  `json:"decisionTaskCompletedEventId,omitempty"`
 }
 
+// Size returns the approximate memory used in bytes
+func (v *WorkflowExecutionCompletedEventAttributes) Size() uint64 {
+	return 0
+}
+
 // WorkflowExecutionConfiguration is an internal type (TBD...)
 type WorkflowExecutionConfiguration struct {
 	TaskList                            *TaskList `json:"taskList,omitempty"`
@@ -7070,6 +7534,11 @@ func (v *WorkflowExecutionContinuedAsNewEventAttributes) GetLastCompletionResult
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *WorkflowExecutionContinuedAsNewEventAttributes) Size() uint64 {
+	return 0
+}
+
 // WorkflowExecutionFailedEventAttributes is an internal type (TBD...)
 type WorkflowExecutionFailedEventAttributes struct {
 	Reason                       *string `json:"reason,omitempty"`
@@ -7083,6 +7552,11 @@ func (v *WorkflowExecutionFailedEventAttributes) GetReason() (o string) {
 		return *v.Reason
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *WorkflowExecutionFailedEventAttributes) Size() uint64 {
+	return 0
 }
 
 // WorkflowExecutionFilter is an internal type (TBD...)
@@ -7231,6 +7705,11 @@ func (v *WorkflowExecutionSignaledEventAttributes) GetRequestID() (o string) {
 		return v.RequestID
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *WorkflowExecutionSignaledEventAttributes) Size() uint64 {
+	return 0
 }
 
 // WorkflowExecutionStartedEventAttributes is an internal type (TBD...)
@@ -7410,6 +7889,11 @@ func (v *WorkflowExecutionStartedEventAttributes) GetRequestID() (o string) {
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *WorkflowExecutionStartedEventAttributes) Size() uint64 {
+	return 0
+}
+
 // WorkflowExecutionTerminatedEventAttributes is an internal type (TBD...)
 type WorkflowExecutionTerminatedEventAttributes struct {
 	Reason   string `json:"reason,omitempty"`
@@ -7433,6 +7917,11 @@ func (v *WorkflowExecutionTerminatedEventAttributes) GetIdentity() (o string) {
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *WorkflowExecutionTerminatedEventAttributes) Size() uint64 {
+	return 0
+}
+
 // WorkflowExecutionTimedOutEventAttributes is an internal type (TBD...)
 type WorkflowExecutionTimedOutEventAttributes struct {
 	TimeoutType *TimeoutType `json:"timeoutType,omitempty"`
@@ -7444,6 +7933,11 @@ func (v *WorkflowExecutionTimedOutEventAttributes) GetTimeoutType() (o TimeoutTy
 		return *v.TimeoutType
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *WorkflowExecutionTimedOutEventAttributes) Size() uint64 {
+	return 0
 }
 
 // WorkflowIDReusePolicy is an internal type (TBD...)
