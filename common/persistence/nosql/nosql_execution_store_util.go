@@ -531,7 +531,6 @@ func (d *nosqlExecutionStore) prepareUpdateWorkflowExecutionTxn(
 	executionInfo *persistence.InternalWorkflowExecutionInfo,
 	versionHistories *persistence.DataBlob,
 	checksum checksum.Checksum,
-	// TODO: nowTimestamp is not used. Remove it?
 	nowTimestamp time.Time,
 	lastWriteVersion int64,
 ) (*nosqlplugin.WorkflowExecutionRequest, error) {
@@ -563,6 +562,7 @@ func (d *nosqlExecutionStore) prepareUpdateWorkflowExecutionTxn(
 		VersionHistories:              versionHistories,
 		Checksums:                     &checksum,
 		LastWriteVersion:              lastWriteVersion,
+		CurrentTimeStamp:              nowTimestamp,
 	}, nil
 }
 
