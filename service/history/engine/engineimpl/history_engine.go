@@ -223,6 +223,7 @@ func NewEngineWithShardContext(
 			shard.GetLogger(),
 			replicationReader,
 			replicationTaskStore,
+			shard.GetTimeSource(),
 		),
 		replicationTaskStore: replicationTaskStore,
 		replicationMetricsEmitter: replication.NewMetricsEmitter(
@@ -373,10 +374,6 @@ func (e *historyEngineImpl) Stop() {
 
 	for _, replicationTaskProcessor := range e.replicationTaskProcessors {
 		replicationTaskProcessor.Stop()
-	}
-
-	if e.queueTaskProcessor != nil {
-		e.queueTaskProcessor.StopShardProcessor(e.shard)
 	}
 
 	e.failoverMarkerNotifier.Stop()

@@ -159,7 +159,7 @@ func TestResetWorkflowExecution(t *testing.T) {
 			// Can't assert on the result because the runID is random
 		},
 		{
-			name: "Success using version histories",
+			name: "Success using version histories started in current cluster",
 			// This corresponds to VersionHistories.Histories.Items.EventID
 			request: resetExecutionRequest(latestExecution, 50),
 			init: []InitFn{
@@ -183,15 +183,15 @@ func TestResetWorkflowExecution(t *testing.T) {
 								Items: []*persistence.VersionHistoryItem{
 									{
 										EventID: 1,
-										Version: 1001,
+										Version: 1000, // current cluster
 									},
 									{
 										EventID: 50,
-										Version: 1002,
+										Version: 1001,
 									},
 									{
 										EventID: 51,
-										Version: 1003,
+										Version: 1002,
 									},
 								},
 							},
@@ -211,7 +211,7 @@ func TestResetWorkflowExecution(t *testing.T) {
 						gomock.Eq(latestExecution.RunID),
 						gomock.Eq([]byte("yes")), //VersionHistories.Histories.BranchToken
 						gomock.Eq(int64(49)),     // Request.DecisionFinishEventID - 1
-						gomock.Eq(int64(1002)),   // VersionHistories.Histories.Items.Version
+						gomock.Eq(int64(1001)),   // VersionHistories.Histories.Items.Version
 						gomock.Eq(int64(100)),    // NextEventID
 						gomock.Any(),             // random uuid
 						gomock.Eq(testRequestID),
@@ -223,6 +223,130 @@ func TestResetWorkflowExecution(t *testing.T) {
 				},
 			},
 			// Can't assert on the result because the runID is random
+		},
+		{
+			name: "Failure using version histories not started in current cluster",
+			// This corresponds to VersionHistories.Histories.Items.EventID
+			request: resetExecutionRequest(latestExecution, 50),
+			init: []InitFn{
+				withCurrentExecution(latestExecution),
+				withState(latestExecution, &persistence.WorkflowMutableState{
+					ExecutionInfo: &persistence.WorkflowExecutionInfo{
+						DomainID:    constants.TestDomainID,
+						WorkflowID:  constants.TestWorkflowID,
+						RunID:       latestRunID,
+						NextEventID: 100,
+						BranchToken: []byte("branch token"),
+					},
+					VersionHistories: &persistence.VersionHistories{
+						CurrentVersionHistoryIndex: 0,
+						Histories: []*persistence.VersionHistory{
+							{
+								BranchToken: []byte("yes"),
+								Items: []*persistence.VersionHistoryItem{
+									{
+										EventID: 1,
+										Version: 1001, // not current cluster
+									},
+									{
+										EventID: 50,
+										Version: 1002,
+									},
+									{
+										EventID: 51,
+										Version: 1003,
+									},
+								},
+							},
+						},
+					},
+					ExecutionStats: &persistence.ExecutionStats{HistorySize: 1},
+				}),
+				func(t *testing.T, engine *testdata.EngineForTest) {
+					ctrl := gomock.NewController(t)
+					mockResetter := reset.NewMockWorkflowResetter(ctrl)
+					engine.Engine.(*historyEngineImpl).workflowResetter = mockResetter
+				},
+			},
+			expectedErr: &types.BadRequestError{
+				Message: "workflow is not resettable. Error: workflow was not started in the current cluster: failover to workflow start cluster standby before reset",
+			},
+		},
+		{
+			name: "Failure using empty version histories",
+			// This corresponds to VersionHistories.Histories.Items.EventID
+			request: resetExecutionRequest(latestExecution, 50),
+			init: []InitFn{
+				withCurrentExecution(latestExecution),
+				withState(latestExecution, &persistence.WorkflowMutableState{
+					ExecutionInfo: &persistence.WorkflowExecutionInfo{
+						DomainID:    constants.TestDomainID,
+						WorkflowID:  constants.TestWorkflowID,
+						RunID:       latestRunID,
+						NextEventID: 100,
+						BranchToken: []byte("branch token"),
+					},
+					VersionHistories: &persistence.VersionHistories{
+						CurrentVersionHistoryIndex: 0,
+						Histories: []*persistence.VersionHistory{
+							{},
+						},
+					},
+					ExecutionStats: &persistence.ExecutionStats{HistorySize: 1},
+				}),
+				func(t *testing.T, engine *testdata.EngineForTest) {
+					ctrl := gomock.NewController(t)
+					mockResetter := reset.NewMockWorkflowResetter(ctrl)
+					engine.Engine.(*historyEngineImpl).workflowResetter = mockResetter
+				},
+			},
+			expectedErr: &types.BadRequestError{
+				Message: "workflow is not resettable. Error: fail to get failover version of workflow start event: version history is empty.",
+			},
+		},
+		{
+			name: "Failure using errorneous version histories",
+			// This corresponds to VersionHistories.Histories.Items.EventID
+			request: resetExecutionRequest(latestExecution, 50),
+			init: []InitFn{
+				withCurrentExecution(latestExecution),
+				withState(latestExecution, &persistence.WorkflowMutableState{
+					ExecutionInfo: &persistence.WorkflowExecutionInfo{
+						DomainID:    constants.TestDomainID,
+						WorkflowID:  constants.TestWorkflowID,
+						RunID:       latestRunID,
+						NextEventID: 100,
+						BranchToken: []byte("branch token"),
+					},
+					VersionHistories: &persistence.VersionHistories{
+						CurrentVersionHistoryIndex: 0,
+						Histories: []*persistence.VersionHistory{
+							{
+								BranchToken: []byte("yes"),
+								Items: []*persistence.VersionHistoryItem{
+									{
+										EventID: 1,
+										Version: 1004, // unknown version
+									},
+									{
+										EventID: 50,
+										Version: 1005, // unknown version
+									},
+								},
+							},
+						},
+					},
+					ExecutionStats: &persistence.ExecutionStats{HistorySize: 1},
+				}),
+				func(t *testing.T, engine *testdata.EngineForTest) {
+					ctrl := gomock.NewController(t)
+					mockResetter := reset.NewMockWorkflowResetter(ctrl)
+					engine.Engine.(*historyEngineImpl).workflowResetter = mockResetter
+				},
+			},
+			expectedErr: &types.BadRequestError{
+				Message: "workflow is not resettable. Error: fail to get cluster name for failover version: failed to resolve failover version: could not resolve failover version: 1004",
+			},
 		},
 		{
 			name:    "Success using previous version",

@@ -230,6 +230,9 @@ func (v *visibilityHybridManager) chooseVisibilityManagerForWrite(ctx context.Co
 		}
 	}
 	modes := strings.Split(writeMode, ",")
+	for i := range modes {
+		modes[i] = strings.ToLower(strings.TrimSpace(modes[i]))
+	}
 
 	var errors []string
 	for _, mode := range modes {
@@ -546,6 +549,9 @@ func (v *visibilityHybridManager) chooseVisibilityManagerForRead(ctx context.Con
 	}
 	var visibilityMgr, shadowMgr VisibilityManager
 	stores := strings.Split(v.readVisibilityStoreName(domain), ",")
+	for i := range stores {
+		stores[i] = strings.ToLower(strings.TrimSpace(stores[i]))
+	}
 	readStore := stores[0] // if read stores have more than 1, the others will go shadow read
 	if v.visibilityMgrs[readStore] != nil {
 		visibilityMgr = v.visibilityMgrs[readStore]

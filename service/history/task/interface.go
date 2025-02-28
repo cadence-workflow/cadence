@@ -89,7 +89,6 @@ type (
 	// Processor is the worker pool for processing Tasks
 	Processor interface {
 		common.Daemon
-		StopShardProcessor(shard.Context)
 		Submit(Task) error
 		TrySubmit(Task) (bool, error)
 	}

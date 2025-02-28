@@ -815,6 +815,8 @@ const (
 	ParallelTaskProcessingScope
 	// TaskSchedulerScope is used by task scheduler logic
 	TaskSchedulerScope
+	// TaskSchedulerRateLimiterScope is used by task scheduler rate limiter logic
+	TaskSchedulerRateLimiterScope
 
 	// HistoryArchiverScope is used by history archivers
 	HistoryArchiverScope
@@ -1755,6 +1757,7 @@ var ScopeDefs = map[ServiceIdx]map[int]scopeDefinition{
 		SequentialTaskProcessingScope:                              {operation: "SequentialTaskProcessing"},
 		ParallelTaskProcessingScope:                                {operation: "ParallelTaskProcessing"},
 		TaskSchedulerScope:                                         {operation: "TaskScheduler"},
+		TaskSchedulerRateLimiterScope:                              {operation: "TaskSchedulerRateLimiter"},
 
 		HistoryArchiverScope:    {operation: "HistoryArchiver"},
 		VisibilityArchiverScope: {operation: "VisibilityArchiver"},
@@ -2108,6 +2111,7 @@ const (
 	PersistenceErrDBUnavailableCounter
 	PersistenceSampledCounter
 	PersistenceEmptyResponseCounter
+	PersistenceResponseRowSize
 
 	PersistenceRequestsPerDomain
 	PersistenceRequestsPerShard
@@ -2334,6 +2338,8 @@ const (
 	TransferTaskMissingEventCounterPerDomain
 	ReplicationTasksAppliedPerDomain
 	WorkflowTerminateCounterPerDomain
+	TaskSchedulerAllowedCounterPerDomain
+	TaskSchedulerThrottledCounterPerDomain
 
 	TaskRedispatchQueuePendingTasksTimer
 
@@ -2526,6 +2532,8 @@ const (
 	ReplicationTasksApplied
 	ReplicationTasksFailed
 	ReplicationTasksLag
+	ReplicationTasksLagRaw
+	ReplicationTasksDelay
 	ReplicationTasksFetched
 	ReplicationTasksReturned
 	ReplicationTasksReturnedDiff
@@ -2808,6 +2816,7 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		PersistenceErrDBUnavailableCounter:                           {metricName: "persistence_errors_db_unavailable", metricType: Counter},
 		PersistenceSampledCounter:                                    {metricName: "persistence_sampled", metricType: Counter},
 		PersistenceEmptyResponseCounter:                              {metricName: "persistence_empty_response", metricType: Counter},
+		PersistenceResponseRowSize:                                   {metricName: "persistence_response_row_size", metricType: Histogram, buckets: ResponseRowSizeBuckets},
 		PersistenceRequestsPerDomain:                                 {metricName: "persistence_requests_per_domain", metricRollupName: "persistence_requests", metricType: Counter},
 		PersistenceRequestsPerShard:                                  {metricName: "persistence_requests_per_shard", metricType: Counter},
 		PersistenceFailuresPerDomain:                                 {metricName: "persistence_errors_per_domain", metricRollupName: "persistence_errors", metricType: Counter},
@@ -3045,6 +3054,8 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		TransferTaskMissingEventCounterPerDomain: {metricName: "transfer_task_missing_event_counter_per_domain", metricRollupName: "transfer_task_missing_event_counter", metricType: Counter},
 		ReplicationTasksAppliedPerDomain:         {metricName: "replication_tasks_applied_per_domain", metricRollupName: "replication_tasks_applied", metricType: Counter},
 		WorkflowTerminateCounterPerDomain:        {metricName: "workflow_terminate_counter_per_domain", metricRollupName: "workflow_terminate_counter", metricType: Counter},
+		TaskSchedulerAllowedCounterPerDomain:     {metricName: "task_scheduler_allowed_counter_per_domain", metricRollupName: "task_scheduler_allowed_counter", metricType: Counter},
+		TaskSchedulerThrottledCounterPerDomain:   {metricName: "task_scheduler_throttled_counter_per_domain", metricRollupName: "task_scheduler_throttled_counter", metricType: Counter},
 
 		TaskBatchCompleteCounter:                                     {metricName: "task_batch_complete_counter", metricType: Counter},
 		TaskBatchCompleteFailure:                                     {metricName: "task_batch_complete_error", metricType: Counter},
@@ -3228,6 +3239,8 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		ReplicationTasksApplied:                                      {metricName: "replication_tasks_applied", metricType: Counter},
 		ReplicationTasksFailed:                                       {metricName: "replication_tasks_failed", metricType: Counter},
 		ReplicationTasksLag:                                          {metricName: "replication_tasks_lag", metricType: Timer},
+		ReplicationTasksLagRaw:                                       {metricName: "replication_tasks_lag_raw", metricType: Timer},
+		ReplicationTasksDelay:                                        {metricName: "replication_tasks_delay", metricType: Timer},
 		ReplicationTasksFetched:                                      {metricName: "replication_tasks_fetched", metricType: Timer},
 		ReplicationTasksReturned:                                     {metricName: "replication_tasks_returned", metricType: Timer},
 		ReplicationTasksReturnedDiff:                                 {metricName: "replication_tasks_returned_diff", metricType: Timer},
@@ -3516,6 +3529,12 @@ var PersistenceLatencyBuckets = tally.DurationBuckets([]time.Duration{
 // this is intended for coarse scale checking, not alerting, so the buckets
 // should be considered unstable and can be changed whenever desired.
 var GlobalRatelimiterUsageHistogram = append(
+	tally.ValueBuckets{0},                              // need an explicit 0 or zero is reported as 1
+	tally.MustMakeExponentialValueBuckets(1, 2, 17)..., // 1..65536
+)
+
+// ResponseRowSizeBuckets contains buckets for tracking how many rows are returned per persistence operation
+var ResponseRowSizeBuckets = append(
 	tally.ValueBuckets{0},                              // need an explicit 0 or zero is reported as 1
 	tally.MustMakeExponentialValueBuckets(1, 2, 17)..., // 1..65536
 )

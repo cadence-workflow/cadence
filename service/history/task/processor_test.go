@@ -99,88 +99,24 @@ func (s *queueTaskProcessorSuite) TestIsRunning() {
 	s.False(s.processor.isRunning())
 }
 
-func (s *queueTaskProcessorSuite) TestGetOrCreateShardTaskScheduler_ProcessorNotRunning() {
-	scheduler, err := s.processor.getOrCreateShardTaskScheduler(s.mockShard)
-	s.Equal(errTaskProcessorNotRunning, err)
-	s.Nil(scheduler)
-}
-
-func (s *queueTaskProcessorSuite) TestGetOrCreateShardTaskScheduler_ShardProcessorAlreadyExists() {
-	mockScheduler := task.NewMockScheduler(s.controller)
-	mockScheduler.EXPECT().Stop().Times(1)
-	s.processor.shardSchedulers[s.mockShard] = mockScheduler
-
-	s.processor.Start()
-	defer s.processor.Stop()
-	scheduler, err := s.processor.getOrCreateShardTaskScheduler(s.mockShard)
-	s.NoError(err)
-	s.Equal(mockScheduler, scheduler)
-}
-
-func (s *queueTaskProcessorSuite) TestGetOrCreateShardTaskScheduler_ShardProcessorNotExist() {
-	s.Empty(s.processor.shardSchedulers)
-
-	s.processor.Start()
-	defer s.processor.Stop()
-	scheduler, err := s.processor.getOrCreateShardTaskScheduler(s.mockShard)
-	s.NoError(err)
-
-	s.Len(s.processor.shardSchedulers, 1)
-	scheduler.Stop()
-}
-
-func (s *queueTaskProcessorSuite) TestStopShardProcessor() {
-	s.Empty(s.processor.shardSchedulers)
-	s.processor.StopShardProcessor(s.mockShard)
-
-	mockScheduler := task.NewMockScheduler(s.controller)
-	mockScheduler.EXPECT().Stop().Times(1)
-	s.processor.shardSchedulers[s.mockShard] = mockScheduler
-
-	s.processor.StopShardProcessor(s.mockShard)
-	s.Empty(s.processor.shardSchedulers)
-}
-
 func (s *queueTaskProcessorSuite) TestStartStop() {
 	mockScheduler := task.NewMockScheduler(s.controller)
 	mockScheduler.EXPECT().Start().Times(1)
 	mockScheduler.EXPECT().Stop().Times(1)
 	s.processor.hostScheduler = mockScheduler
 
-	for i := 0; i != 10; i++ {
-		mockShard := shard.NewTestContext(
-			s.T(),
-			s.controller,
-			&persistence.ShardInfo{
-				ShardID: 10,
-				RangeID: 1,
-			},
-			config.NewForTest(),
-		)
-		mockShardScheduler := task.NewMockScheduler(s.controller)
-		mockShardScheduler.EXPECT().Stop().Times(1)
-		s.processor.shardSchedulers[mockShard] = mockShardScheduler
-	}
-
 	s.processor.Start()
 	s.processor.Stop()
-
-	s.Empty(s.processor.shardSchedulers)
 }
 
 func (s *queueTaskProcessorSuite) TestSubmit() {
 	mockTask := NewMockTask(s.controller)
-	mockTask.EXPECT().GetShard().Return(s.mockShard).Times(1)
 	s.mockPriorityAssigner.EXPECT().Assign(NewMockTaskMatcher(mockTask)).Return(nil).Times(1)
 
 	mockScheduler := task.NewMockScheduler(s.controller)
-	mockScheduler.EXPECT().TrySubmit(NewMockTaskMatcher(mockTask)).Return(false, nil).Times(1)
-
-	mockShardScheduler := task.NewMockScheduler(s.controller)
-	mockShardScheduler.EXPECT().Submit(NewMockTaskMatcher(mockTask)).Return(nil).Times(1)
+	mockScheduler.EXPECT().Submit(NewMockTaskMatcher(mockTask)).Return(nil).Times(1)
 
 	s.processor.hostScheduler = mockScheduler
-	s.processor.shardSchedulers[s.mockShard] = mockShardScheduler
 
 	err := s.processor.Submit(mockTask)
 	s.NoError(err)
@@ -220,7 +156,6 @@ func (s *queueTaskProcessorSuite) TestNewSchedulerOptions_UnknownSchedulerType()
 
 func (s *queueTaskProcessorSuite) newTestQueueTaskProcessor() *processorImpl {
 	config := config.NewForTest()
-	config.TaskSchedulerShardWorkerCount = dynamicconfig.GetIntPropertyFn(1)
 	processor, err := NewProcessor(
 		s.mockPriorityAssigner,
 		config,

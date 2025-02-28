@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
@@ -142,7 +143,7 @@ func TestTaskAckManager_GetTasks(t *testing.T) {
 			pollingCluster: testClusterB,
 			lastReadLevel:  5,
 			expectResult: &types.ReplicationMessages{
-				ReplicationTasks:       nil,
+				ReplicationTasks:       []*types.ReplicationTask{},
 				LastRetrievedMessageID: 11,
 				HasMore:                false,
 			},
@@ -189,6 +190,7 @@ func TestTaskAckManager_GetTasks(t *testing.T) {
 			pollingCluster: testClusterA,
 			lastReadLevel:  5,
 			expectResult: &types.ReplicationMessages{
+				ReplicationTasks:       []*types.ReplicationTask{},
 				LastRetrievedMessageID: 5,
 				HasMore:                true,
 			},
@@ -216,7 +218,7 @@ func TestTaskAckManager_GetTasks(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			taskStore := createTestTaskStore(t, tt.domains, tt.hydrator)
-			ackManager := NewTaskAckManager(testShardID, tt.ackLevels, metrics.NewNoopMetricsClient(), log.NewNoop(), tt.reader, taskStore)
+			ackManager := NewTaskAckManager(testShardID, tt.ackLevels, metrics.NewNoopMetricsClient(), log.NewNoop(), tt.reader, taskStore, clock.NewMockedTimeSource())
 			result, err := ackManager.GetTasks(context.Background(), tt.pollingCluster, tt.lastReadLevel)
 
 			if tt.expectErr != "" {

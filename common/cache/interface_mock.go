@@ -363,3 +363,41 @@ func (mr *MockDomainMetricsScopeCacheMockRecorder) Stop() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockDomainMetricsScopeCache)(nil).Stop))
 }
+
+// MockSizeable is a mock of Sizeable interface.
+type MockSizeable struct {
+	ctrl     *gomock.Controller
+	recorder *MockSizeableMockRecorder
+	isgomock struct{}
+}
+
+// MockSizeableMockRecorder is the mock recorder for MockSizeable.
+type MockSizeableMockRecorder struct {
+	mock *MockSizeable
+}
+
+// NewMockSizeable creates a new mock instance.
+func NewMockSizeable(ctrl *gomock.Controller) *MockSizeable {
+	mock := &MockSizeable{ctrl: ctrl}
+	mock.recorder = &MockSizeableMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockSizeable) EXPECT() *MockSizeableMockRecorder {
+	return m.recorder
+}
+
+// Size mocks base method.
+func (m *MockSizeable) Size() uint64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Size")
+	ret0, _ := ret[0].(uint64)
+	return ret0
+}
+
+// Size indicates an expected call of Size.
+func (mr *MockSizeableMockRecorder) Size() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockSizeable)(nil).Size))
+}

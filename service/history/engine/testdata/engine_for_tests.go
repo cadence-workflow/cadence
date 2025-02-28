@@ -129,7 +129,6 @@ func NewEngineForTest(t *testing.T, newEngineFn NewEngineFn) *EngineForTest {
 	replicatonTaskFetchers.EXPECT().GetFetchers().Return([]replication.TaskFetcher{replicationTaskFetcher}).AnyTimes()
 
 	queueTaskProcessor := task.NewMockProcessor(controller)
-	queueTaskProcessor.EXPECT().StopShardProcessor(gomock.Any()).Return().Times(1)
 
 	failoverCoordinator := failover.NewMockCoordinator(controller)
 	wfIDCache := workflowcache.NewMockWFCache(controller)
