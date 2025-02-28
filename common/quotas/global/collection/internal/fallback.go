@@ -242,11 +242,3 @@ func (b *FallbackLimiter) both() quotas.Limiter {
 	}
 	return NewShadowedLimiter(b.primary, b.fallback)
 }
-
-// intentionally shadows builtin max, so it can simply be deleted when 1.21 is adopted
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}

@@ -1310,7 +1310,7 @@ func updateFailoverHistory(
 	failoverHistory = append([]FailoverEvent{newFailoverEvent}, failoverHistory...)
 
 	// Truncate the history to the max size
-	failoverHistoryJSON, err := json.Marshal(failoverHistory[:common.MinInt(config.FailoverHistoryMaxSize(info.Name), len(failoverHistory))])
+	failoverHistoryJSON, err := json.Marshal(failoverHistory[:min(config.FailoverHistoryMaxSize(info.Name), len(failoverHistory))])
 	if err != nil {
 		return err
 	}
