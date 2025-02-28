@@ -21,7 +21,6 @@
 package cassandra
 
 import (
-	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -37,7 +36,6 @@ type cdb struct {
 	session gocql.Session
 	cfg     *config.NoSQL
 	dc      *persistence.DynamicConfiguration
-	timeSrc clock.TimeSource
 }
 
 var _ nosqlplugin.DB = (*cdb)(nil)
@@ -50,12 +48,6 @@ type cassandraDBOption func(*cdb)
 func dbWithClient(client gocql.Client) cassandraDBOption {
 	return func(db *cdb) {
 		db.client = client
-	}
-}
-
-func dbWithTimeSource(timeSrc clock.TimeSource) cassandraDBOption {
-	return func(db *cdb) {
-		db.timeSrc = timeSrc
 	}
 }
 
@@ -72,7 +64,6 @@ func newCassandraDBFromSession(
 		logger:  logger,
 		cfg:     cfg,
 		dc:      dc,
-		timeSrc: clock.NewRealTimeSource(),
 	}
 
 	for _, opt := range opts {
