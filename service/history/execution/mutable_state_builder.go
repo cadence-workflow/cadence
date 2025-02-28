@@ -1595,6 +1595,11 @@ func (e *mutableStateBuilder) SetHistorySize(size int64) {
 	e.executionStats.HistorySize = size
 }
 
+func (e *mutableStateBuilder) GetEstimatedMutableStateSize() int {
+	// TODO: To be implemented
+	return 0
+}
+
 func (e *mutableStateBuilder) prepareCloseTransaction(
 	transactionPolicy TransactionPolicy,
 ) error {

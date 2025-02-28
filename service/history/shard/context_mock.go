@@ -637,6 +637,20 @@ func (mr *MockContextMockRecorder) SetEngine(arg0 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEngine", reflect.TypeOf((*MockContext)(nil).SetEngine), arg0)
 }
 
+// Size mocks base method.
+func (m *MockContext) Size() uint64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Size")
+	ret0, _ := ret[0].(uint64)
+	return ret0
+}
+
+// Size indicates an expected call of Size.
+func (mr *MockContextMockRecorder) Size() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockContext)(nil).Size))
+}
+
 // UpdateClusterReplicationLevel mocks base method.
 func (m *MockContext) UpdateClusterReplicationLevel(cluster string, lastTaskID int64) error {
 	m.ctrl.T.Helper()
