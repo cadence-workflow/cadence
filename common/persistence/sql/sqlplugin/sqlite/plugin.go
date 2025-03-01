@@ -22,6 +22,70 @@
 
 package sqlite
 
+import (
+	"github.com/iancoleman/strcase"
+	"github.com/jmoiron/sqlx"
+
+	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/persistence/sql"
+	"github.com/uber/cadence/common/persistence/sql/sqldriver"
+	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
+)
+
 const (
 	PluginName = "sqlite"
 )
+
+// SQLite plugin provides an sql persistence storage implementation for sqlite database
+// Mostly the implementation reuses the mysql implementation
+// The plugin supports only in-memory sqlite database for now
+type plugin struct{}
+
+var _ sqlplugin.Plugin = (*plugin)(nil)
+
+func init() {
+	sql.RegisterPlugin(PluginName, &plugin{})
+}
+
+// CreateDB wraps createDB to return an instance of sqlplugin.DB
+func (p *plugin) CreateDB(cfg *config.SQL) (sqlplugin.DB, error) {
+	return p.createDB(cfg)
+}
+
+// CreateAdminDB wraps createDB to return an instance of sqlplugin.AdminDB
+func (p *plugin) CreateAdminDB(cfg *config.SQL) (sqlplugin.AdminDB, error) {
+	return p.createDB(cfg)
+}
+
+// createDB create a new instance of DB
+func (p *plugin) createDB(cfg *config.SQL) (*DB, error) {
+	conns, err := sqldriver.CreateDBConnections(cfg, p.createSingleDBConn)
+	if err != nil {
+		return nil, err
+	}
+	return NewDB(conns, nil, sqlplugin.DbShardUndefined, cfg.NumShards)
+}
+
+// createSingleDBConn creates a single database connection for sqlite
+// Plugin respects the following arguments MaxConns, MaxIdleConns, MaxConnLifetime
+// Other arguments are used and described in buildDSN function
+func (p *plugin) createSingleDBConn(cfg *config.SQL) (*sqlx.DB, error) {
+	db, err := sqlx.Connect("sqlite3", buildDSN(cfg))
+	if err != nil {
+		return nil, err
+	}
+
+	if cfg.MaxConns > 0 {
+		db.SetMaxOpenConns(cfg.MaxConns)
+	}
+	if cfg.MaxIdleConns > 0 {
+		db.SetMaxIdleConns(cfg.MaxIdleConns)
+	}
+	if cfg.MaxConnLifetime > 0 {
+		db.SetConnMaxLifetime(cfg.MaxConnLifetime)
+	}
+
+	// Maps struct names in CamelCase to snake without need for DB struct tags.
+	db.MapperFunc(strcase.ToSnake)
+	return db, nil
+}
