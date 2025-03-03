@@ -27,10 +27,9 @@ import (
 	"fmt"
 	"testing"
 
-	"go.uber.org/thriftrw/ptr"
-
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
+	"go.uber.org/thriftrw/ptr"
 	"go.uber.org/yarpc"
 
 	"github.com/uber/cadence/common"
