@@ -829,9 +829,9 @@ func cmpGetReplicationMessagesWithSize(a, b *getReplicationMessagesWithSize) int
 func (c *clientImpl) buildGetReplicationMessagesResponse(peerResponses []*getReplicationMessagesWithSize) *types.GetReplicationMessagesResponse {
 
 	// Peers with large response can cause the response to exceed the max size.
-	// In this case, we need to skip some response to make sure the response size is within the limit.
-	// To prevent a replication lag in the future, we need to return the response with the oldest replication task.
-	// So we sort the response by the earliest creation time of the replication task.
+	// In this case, we need to skip peer responses to make sure the result response size is within the limit.
+	// To prevent a replication lag in the future, we should return the response with the oldest replication task.
+	// So we sort the peer responses by the earliest creation time of the replication task.
 	// This will sure that shards with the oldest replication tasks will be processed first.
 	slices.SortStableFunc(peerResponses, cmpGetReplicationMessagesWithSize)
 
