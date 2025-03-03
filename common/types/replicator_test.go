@@ -25,6 +25,8 @@ package types
 import (
 	"testing"
 
+	"go.uber.org/thriftrw/ptr"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -383,6 +385,40 @@ func TestGetReplicationMessagesResponse_GetMessagesByShard(t *testing.T) {
 	assert.Nil(t, res)
 }
 
+func TestGetReplicationMessagesResponse_GetEarliestCreationTime(t *testing.T) {
+	for name, c := range map[string]struct {
+		response *GetReplicationMessagesResponse
+		want     *int64
+	}{
+		"nil":           {response: nil, want: nil},
+		"zero messages": {response: &GetReplicationMessagesResponse{}, want: nil},
+		"no messages with creation time": {
+			response: &GetReplicationMessagesResponse{
+				MessagesByShard: map[int32]*ReplicationMessages{
+					1: {ReplicationTasks: []*ReplicationTask{{}, {}, {}}},
+					2: {ReplicationTasks: []*ReplicationTask{{}, {}, {}}},
+				},
+			},
+		},
+		"a few messages with creation time": {
+			response: &GetReplicationMessagesResponse{
+				MessagesByShard: map[int32]*ReplicationMessages{
+					1: {ReplicationTasks: []*ReplicationTask{
+						{}, {CreationTime: ptr.Int64(20)}, {CreationTime: ptr.Int64(1000)}},
+					},
+					2: {ReplicationTasks: []*ReplicationTask{
+						{CreationTime: ptr.Int64(10)}, {}, {CreationTime: ptr.Int64(12000)}}},
+				},
+			},
+			want: ptrInt64(10),
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, c.want, c.response.GetEarliestCreationTime())
+		})
+	}
+}
+
 func TestCountDLQMessagesResponse(t *testing.T) {
 	history := map[HistoryDLQCountKey]int64{
 		{ShardID: 1, SourceCluster: "cluster-1"}: 100,
@@ -632,6 +668,39 @@ func TestReplicationMessages_GetSyncShardStatus(t *testing.T) {
 	var nilStruct *ReplicationMessages
 	res = nilStruct.GetSyncShardStatus()
 	assert.Nil(t, res)
+}
+
+func TestReplicationMessages_GetEarliestCreationTime(t *testing.T) {
+	for name, c := range map[string]struct {
+		msgs *ReplicationMessages
+		want *int64
+	}{
+		"nil":        {msgs: nil, want: nil},
+		"zero tasks": {msgs: &ReplicationMessages{}, want: nil},
+		"no tasks with creation time": {
+			msgs: &ReplicationMessages{
+				ReplicationTasks: []*ReplicationTask{
+					{}, {}, {},
+				},
+			},
+			want: nil,
+		},
+		"a few tasks with creation time": {
+			msgs: &ReplicationMessages{
+				ReplicationTasks: []*ReplicationTask{
+					{CreationTime: ptr.Int64(50)},
+					{CreationTime: ptr.Int64(20)},
+					{}, {}, {},
+					{CreationTime: ptr.Int64(100)},
+				},
+			},
+			want: ptr.Int64(20),
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, c.want, c.msgs.GetEarliestCreationTime())
+		})
+	}
 }
 
 func TestReplicationTask_GetTaskType(t *testing.T) {
