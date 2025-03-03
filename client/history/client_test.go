@@ -1305,7 +1305,7 @@ func Test_cmpGetReplicationMessagesWithSize(t *testing.T) {
 		want int
 	}{
 		"both nil": {
-			a: nil, b: nil, want: 0,
+			a: nil, b: nil, want: 1,
 		},
 		"a time is nil, b is nil": {
 			a: &getReplicationMessagesWithSize{earliestCreationTime: nil}, b: nil, want: 1,
