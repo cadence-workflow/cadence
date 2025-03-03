@@ -823,7 +823,7 @@ func cmpGetReplicationMessagesWithSize(a, b *getReplicationMessagesWithSize) int
 	return 1
 }
 
-// buildGetReplicationMessagesResponse builds a new GetReplicationMessagesResponse from peerResponses - a slice of responses from peers.
+// buildGetReplicationMessagesResponse builds a new GetReplicationMessagesResponse from peer responses
 // The response can be partial if the total size of the response exceeds the max size.
 // In this case, responses with oldest replication tasks will be returned
 func (c *clientImpl) buildGetReplicationMessagesResponse(peerResponses []*getReplicationMessagesWithSize) *types.GetReplicationMessagesResponse {
