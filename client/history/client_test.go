@@ -27,6 +27,8 @@ import (
 	"fmt"
 	"testing"
 
+	"go.uber.org/thriftrw/ptr"
+
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/yarpc"
@@ -1294,6 +1296,101 @@ func TestClient_withNoResponse(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
+		})
+	}
+}
+
+func Test_cmpGetReplicationMessagesWithSize(t *testing.T) {
+	for name, c := range map[string]struct {
+		a, b *getReplicationMessagesWithSize
+		want int
+	}{
+		"both nil": {
+			a: nil, b: nil, want: 0,
+		},
+		"a time is nil, b is nil": {
+			a: &getReplicationMessagesWithSize{earliestCreationTime: nil}, b: nil, want: 1,
+		},
+		"a time is not nil, b is nil": {
+			a: &getReplicationMessagesWithSize{earliestCreationTime: ptr.Int64(10)}, b: nil, want: -1,
+		},
+		"a time is not nil, b time is nil": {
+			a:    &getReplicationMessagesWithSize{earliestCreationTime: ptr.Int64(10)},
+			b:    &getReplicationMessagesWithSize{earliestCreationTime: nil},
+			want: -1,
+		},
+		"a time less b time": {
+			a:    &getReplicationMessagesWithSize{earliestCreationTime: ptr.Int64(10)},
+			b:    &getReplicationMessagesWithSize{earliestCreationTime: ptr.Int64(20)},
+			want: -1,
+		},
+		"a time greater b time": {
+			a:    &getReplicationMessagesWithSize{earliestCreationTime: ptr.Int64(20)},
+			b:    &getReplicationMessagesWithSize{earliestCreationTime: ptr.Int64(10)},
+			want: 1,
+		},
+		"a size less b size": {
+			a:    &getReplicationMessagesWithSize{earliestCreationTime: ptr.Int64(10), size: 10},
+			b:    &getReplicationMessagesWithSize{earliestCreationTime: ptr.Int64(10), size: 20},
+			want: -1,
+		},
+		"a size greater b size": {
+			a:    &getReplicationMessagesWithSize{earliestCreationTime: ptr.Int64(10), size: 20},
+			b:    &getReplicationMessagesWithSize{earliestCreationTime: ptr.Int64(10), size: 10},
+			want: 1,
+		},
+		"a equal b": {
+			a:    &getReplicationMessagesWithSize{earliestCreationTime: ptr.Int64(10)},
+			b:    &getReplicationMessagesWithSize{earliestCreationTime: ptr.Int64(10)},
+			want: 0,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, c.want, cmpGetReplicationMessagesWithSize(c.a, c.b))
+		})
+	}
+}
+
+func Test_sortGetReplicationMessageWithSize(t *testing.T) {
+	for name, c := range map[string]struct {
+		responses []*getReplicationMessagesWithSize
+		want      []*getReplicationMessagesWithSize
+	}{
+		"empty": {},
+		"nil, nil, 20, 10": {
+			responses: []*getReplicationMessagesWithSize{
+				{earliestCreationTime: nil},
+				{earliestCreationTime: nil},
+				{earliestCreationTime: ptr.Int64(20)},
+				{earliestCreationTime: ptr.Int64(10)},
+			},
+			want: []*getReplicationMessagesWithSize{
+				{earliestCreationTime: ptr.Int64(10)},
+				{earliestCreationTime: ptr.Int64(20)},
+				{earliestCreationTime: nil},
+				{earliestCreationTime: nil},
+			},
+		},
+		"nil, nil, 100 - 50, 100 - 30, 20": {
+			responses: []*getReplicationMessagesWithSize{
+				{earliestCreationTime: nil},
+				{earliestCreationTime: nil},
+				{earliestCreationTime: ptr.Int64(100), size: 50},
+				{earliestCreationTime: ptr.Int64(100), size: 30},
+				{earliestCreationTime: ptr.Int64(20)},
+			},
+			want: []*getReplicationMessagesWithSize{
+				{earliestCreationTime: ptr.Int64(20)},
+				{earliestCreationTime: ptr.Int64(100), size: 30},
+				{earliestCreationTime: ptr.Int64(100), size: 50},
+				{earliestCreationTime: nil},
+				{earliestCreationTime: nil},
+			},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			sortGetReplicationMessageWithSize(c.responses)
+			assert.Equal(t, c.want, c.responses)
 		})
 	}
 }
