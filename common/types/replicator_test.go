@@ -25,6 +25,8 @@ package types
 import (
 	"testing"
 
+	"go.uber.org/thriftrw/ptr"
+
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/thriftrw/ptr"
 )
