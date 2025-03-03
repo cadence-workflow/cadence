@@ -305,6 +305,33 @@ func (v *GetReplicationMessagesResponse) GetMessagesByShard() (o map[int32]*Repl
 	return
 }
 
+// GetEarliestCreationTime returns the earliest creation time of replication tasks if it exists, otherwise return nil
+func (v *GetReplicationMessagesResponse) GetEarliestCreationTime() *int64 {
+	if v == nil {
+		return nil
+	}
+
+	var earliestTime *int64
+	for _, messages := range v.MessagesByShard {
+
+		creationTime := messages.GetEarliestCreationTime()
+		if creationTime == nil {
+			continue
+		}
+
+		if earliestTime == nil || *creationTime < *earliestTime {
+			earliestTime = creationTime
+		}
+	}
+
+	if earliestTime == nil {
+		return nil
+	}
+
+	result := *earliestTime
+	return &result
+}
+
 // HistoryTaskV2Attributes is an internal type (TBD...)
 type HistoryTaskV2Attributes struct {
 	DomainID            string                `json:"domainId,omitempty"`
@@ -590,6 +617,32 @@ func (v *ReplicationMessages) GetSyncShardStatus() (o *SyncShardStatus) {
 		return v.SyncShardStatus
 	}
 	return
+}
+
+// GetEarliestCreationTime returns the earliest message time in the replication tasks if it exists
+// otherwise return nil
+func (v *ReplicationMessages) GetEarliestCreationTime() *int64 {
+	if v == nil {
+		return nil
+	}
+
+	var earliestTime *int64
+	for _, task := range v.GetReplicationTasks() {
+		if task.CreationTime == nil {
+			continue
+		}
+
+		if earliestTime == nil || *task.CreationTime < *earliestTime {
+			earliestTime = task.CreationTime
+		}
+	}
+
+	if earliestTime == nil {
+		return nil
+	}
+
+	result := *earliestTime
+	return &result
 }
 
 // ReplicationTask is an internal type (TBD...)
