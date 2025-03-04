@@ -1355,7 +1355,7 @@ func Test_sortGetReplicationMessageWithSize(t *testing.T) {
 		want      []*getReplicationMessagesWithSize
 	}{
 		"empty": {},
-		"nil, nil, 20, 10": {
+		"multiple nil, non nil earliestCreationTime": {
 			responses: []*getReplicationMessagesWithSize{
 				{earliestCreationTime: nil},
 				{earliestCreationTime: nil},
@@ -1369,7 +1369,7 @@ func Test_sortGetReplicationMessageWithSize(t *testing.T) {
 				{earliestCreationTime: nil},
 			},
 		},
-		"nil, nil, 100 - 50, 100 - 30, 20": {
+		"multiple nil, non nil same earliestCreationTime, different size": {
 			responses: []*getReplicationMessagesWithSize{
 				{earliestCreationTime: nil},
 				{earliestCreationTime: nil},
