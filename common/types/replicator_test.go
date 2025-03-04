@@ -25,9 +25,8 @@ package types
 import (
 	"testing"
 
-	"github.com/uber/cadence/common"
-
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/thriftrw/ptr"
 )
 
 func TestDLQType_Ptr(t *testing.T) {
@@ -404,10 +403,10 @@ func TestGetReplicationMessagesResponse_GetEarliestCreationTime(t *testing.T) {
 			response: &GetReplicationMessagesResponse{
 				MessagesByShard: map[int32]*ReplicationMessages{
 					1: {ReplicationTasks: []*ReplicationTask{
-						{}, {CreationTime: common.Int64Ptr(20)}, {CreationTime: common.Int64Ptr(1000)}},
+						{}, {CreationTime: ptr.Int64(20)}, {CreationTime: ptr.Int64(1000)}},
 					},
 					2: {ReplicationTasks: []*ReplicationTask{
-						{CreationTime: common.Int64Ptr(10)}, {}, {CreationTime: common.Int64Ptr(12000)}}},
+						{CreationTime: ptr.Int64(10)}, {}, {CreationTime: ptr.Int64(12000)}}},
 				},
 			},
 			want: ptrInt64(10),
@@ -688,13 +687,13 @@ func TestReplicationMessages_GetEarliestCreationTime(t *testing.T) {
 		"a few tasks with creation time": {
 			msgs: &ReplicationMessages{
 				ReplicationTasks: []*ReplicationTask{
-					{CreationTime: common.Int64Ptr(50)},
-					{CreationTime: common.Int64Ptr(20)},
+					{CreationTime: ptr.Int64(50)},
+					{CreationTime: ptr.Int64(20)},
 					{}, {}, {},
-					{CreationTime: common.Int64Ptr(100)},
+					{CreationTime: ptr.Int64(100)},
 				},
 			},
-			want: common.Int64Ptr(20),
+			want: ptr.Int64(20),
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
