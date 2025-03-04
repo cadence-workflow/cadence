@@ -3655,3 +3655,95 @@ func TestRatelimitUpdate(t *testing.T) {
 		"unexpected weights returned from aggregator or serialization.  if values differ in a reasonable way, possibly aggregator behavior changed?",
 	)
 }
+
+func Test_cmpReplicationShardMessages(t *testing.T) {
+	for name, c := range map[string]struct {
+		a, b replicationShardMessages
+		want int
+	}{
+		"a time is nil, b is empty": {
+			a: replicationShardMessages{earliestCreationTime: nil}, want: 1,
+		},
+		"a time is not nil, b is empty": {
+			a: replicationShardMessages{earliestCreationTime: common.Int64Ptr(10)}, want: -1,
+		},
+		"a time is not nil, b time is nil": {
+			a:    replicationShardMessages{earliestCreationTime: common.Int64Ptr(10)},
+			b:    replicationShardMessages{earliestCreationTime: nil},
+			want: -1,
+		},
+		"a time less b time": {
+			a:    replicationShardMessages{earliestCreationTime: common.Int64Ptr(10)},
+			b:    replicationShardMessages{earliestCreationTime: common.Int64Ptr(20)},
+			want: -1,
+		},
+		"a time greater b time": {
+			a:    replicationShardMessages{earliestCreationTime: common.Int64Ptr(20)},
+			b:    replicationShardMessages{earliestCreationTime: common.Int64Ptr(10)},
+			want: 1,
+		},
+		"a size less b size": {
+			a:    replicationShardMessages{earliestCreationTime: common.Int64Ptr(10), size: 10},
+			b:    replicationShardMessages{earliestCreationTime: common.Int64Ptr(10), size: 20},
+			want: -1,
+		},
+		"a size greater b size": {
+			a:    replicationShardMessages{earliestCreationTime: common.Int64Ptr(10), size: 20},
+			b:    replicationShardMessages{earliestCreationTime: common.Int64Ptr(10), size: 10},
+			want: 1,
+		},
+		"a equal b": {
+			a:    replicationShardMessages{earliestCreationTime: common.Int64Ptr(10)},
+			b:    replicationShardMessages{earliestCreationTime: common.Int64Ptr(10)},
+			want: 0,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, c.want, cmpReplicationShardMessages(c.a, c.b))
+		})
+	}
+}
+
+func Test_sortReplicationShardMessages(t *testing.T) {
+	for name, c := range map[string]struct {
+		msgs []replicationShardMessages
+		want []replicationShardMessages
+	}{
+		"empty": {},
+		"multiple nil, non nil earliestCreationTime": {
+			msgs: []replicationShardMessages{
+				{earliestCreationTime: nil},
+				{earliestCreationTime: nil},
+				{earliestCreationTime: common.Int64Ptr(20)},
+				{earliestCreationTime: common.Int64Ptr(10)},
+			},
+			want: []replicationShardMessages{
+				{earliestCreationTime: common.Int64Ptr(10)},
+				{earliestCreationTime: common.Int64Ptr(20)},
+				{earliestCreationTime: nil},
+				{earliestCreationTime: nil},
+			},
+		},
+		"multiple nil, non nil same earliestCreationTime, different size": {
+			msgs: []replicationShardMessages{
+				{earliestCreationTime: nil},
+				{earliestCreationTime: nil},
+				{earliestCreationTime: common.Int64Ptr(100), size: 50},
+				{earliestCreationTime: common.Int64Ptr(100), size: 30},
+				{earliestCreationTime: common.Int64Ptr(20)},
+			},
+			want: []replicationShardMessages{
+				{earliestCreationTime: common.Int64Ptr(20)},
+				{earliestCreationTime: common.Int64Ptr(100), size: 30},
+				{earliestCreationTime: common.Int64Ptr(100), size: 50},
+				{earliestCreationTime: nil},
+				{earliestCreationTime: nil},
+			},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			sortReplicationShardMessages(c.msgs)
+			assert.Equal(t, c.want, c.msgs)
+		})
+	}
+}

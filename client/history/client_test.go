@@ -1297,3 +1297,98 @@ func TestClient_withNoResponse(t *testing.T) {
 		})
 	}
 }
+
+func Test_cmpGetReplicationMessagesWithSize(t *testing.T) {
+	for name, c := range map[string]struct {
+		a, b *getReplicationMessagesWithSize
+		want int
+	}{
+		"both nil": {
+			a: nil, b: nil, want: 1,
+		},
+		"a time is nil, b is nil": {
+			a: &getReplicationMessagesWithSize{earliestCreationTime: nil}, b: nil, want: 1,
+		},
+		"a time is not nil, b is nil": {
+			a: &getReplicationMessagesWithSize{earliestCreationTime: common.Int64Ptr(10)}, b: nil, want: -1,
+		},
+		"a time is not nil, b time is nil": {
+			a:    &getReplicationMessagesWithSize{earliestCreationTime: common.Int64Ptr(10)},
+			b:    &getReplicationMessagesWithSize{earliestCreationTime: nil},
+			want: -1,
+		},
+		"a time less b time": {
+			a:    &getReplicationMessagesWithSize{earliestCreationTime: common.Int64Ptr(10)},
+			b:    &getReplicationMessagesWithSize{earliestCreationTime: common.Int64Ptr(20)},
+			want: -1,
+		},
+		"a time greater b time": {
+			a:    &getReplicationMessagesWithSize{earliestCreationTime: common.Int64Ptr(20)},
+			b:    &getReplicationMessagesWithSize{earliestCreationTime: common.Int64Ptr(10)},
+			want: 1,
+		},
+		"a size less b size": {
+			a:    &getReplicationMessagesWithSize{earliestCreationTime: common.Int64Ptr(10), size: 10},
+			b:    &getReplicationMessagesWithSize{earliestCreationTime: common.Int64Ptr(10), size: 20},
+			want: -1,
+		},
+		"a size greater b size": {
+			a:    &getReplicationMessagesWithSize{earliestCreationTime: common.Int64Ptr(10), size: 20},
+			b:    &getReplicationMessagesWithSize{earliestCreationTime: common.Int64Ptr(10), size: 10},
+			want: 1,
+		},
+		"a equal b": {
+			a:    &getReplicationMessagesWithSize{earliestCreationTime: common.Int64Ptr(10)},
+			b:    &getReplicationMessagesWithSize{earliestCreationTime: common.Int64Ptr(10)},
+			want: 0,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, c.want, cmpGetReplicationMessagesWithSize(c.a, c.b))
+		})
+	}
+}
+
+func Test_sortGetReplicationMessageWithSize(t *testing.T) {
+	for name, c := range map[string]struct {
+		responses []*getReplicationMessagesWithSize
+		want      []*getReplicationMessagesWithSize
+	}{
+		"empty": {},
+		"multiple nil, non nil earliestCreationTime": {
+			responses: []*getReplicationMessagesWithSize{
+				{earliestCreationTime: nil},
+				{earliestCreationTime: nil},
+				{earliestCreationTime: common.Int64Ptr(20)},
+				{earliestCreationTime: common.Int64Ptr(10)},
+			},
+			want: []*getReplicationMessagesWithSize{
+				{earliestCreationTime: common.Int64Ptr(10)},
+				{earliestCreationTime: common.Int64Ptr(20)},
+				{earliestCreationTime: nil},
+				{earliestCreationTime: nil},
+			},
+		},
+		"multiple nil, non nil same earliestCreationTime, different size": {
+			responses: []*getReplicationMessagesWithSize{
+				{earliestCreationTime: nil},
+				{earliestCreationTime: nil},
+				{earliestCreationTime: common.Int64Ptr(100), size: 50},
+				{earliestCreationTime: common.Int64Ptr(100), size: 30},
+				{earliestCreationTime: common.Int64Ptr(20)},
+			},
+			want: []*getReplicationMessagesWithSize{
+				{earliestCreationTime: common.Int64Ptr(20)},
+				{earliestCreationTime: common.Int64Ptr(100), size: 30},
+				{earliestCreationTime: common.Int64Ptr(100), size: 50},
+				{earliestCreationTime: nil},
+				{earliestCreationTime: nil},
+			},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			sortGetReplicationMessageWithSize(c.responses)
+			assert.Equal(t, c.want, c.responses)
+		})
+	}
+}
