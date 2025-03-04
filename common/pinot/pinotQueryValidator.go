@@ -236,9 +236,13 @@ func (qv *VisibilityQueryValidator) IsValidSearchAttributes(key string) bool {
 
 // IsOptimizedQueryColumn return true if colNameStr is in the optimized query columns
 func (qv *VisibilityQueryValidator) IsOptimizedQueryColumn(colNameStr string) bool {
-	optimizedQueryColumns := qv.pinotOptimizedQueryColumns()
-	_, isOptimizedQueryColumn := optimizedQueryColumns[colNameStr]
-	return isOptimizedQueryColumn
+	if qv.pinotOptimizedQueryColumns() == nil {
+		return false
+	} else {
+		optimizedQueryColumns := qv.pinotOptimizedQueryColumns()
+		_, isOptimizedQueryColumn := optimizedQueryColumns[colNameStr]
+		return isOptimizedQueryColumn
+	}
 }
 
 func (qv *VisibilityQueryValidator) processSystemBoolKey(colNameStr string, comparisonExpr sqlparser.ComparisonExpr) (string, error) {
