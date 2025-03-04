@@ -93,7 +93,7 @@ func NewPinotVisibilityStore(
 		producer:            producer,
 		logger:              logger.WithTags(tag.ComponentPinotVisibilityManager),
 		config:              config,
-		pinotQueryValidator: pnt.NewPinotQueryValidator(config.ValidSearchAttributes),
+		pinotQueryValidator: pnt.NewPinotQueryValidator(config.ValidSearchAttributes, config.PinotOptimizedQueryColumns),
 	}
 }
 

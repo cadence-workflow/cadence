@@ -104,6 +104,7 @@ func TestNewConfig(t *testing.T) {
 		"EnableTasklistIsolation":                     {dynamicconfig.EnableTasklistIsolation, true},
 		"GlobalRatelimiterKeyMode":                    {dynamicconfig.FrontendGlobalRatelimiterMode, "disabled"},
 		"GlobalRatelimiterUpdateInterval":             {dynamicconfig.GlobalRatelimiterUpdateInterval, 3 * time.Second},
+		"PinotOptimizedQueryColumns":                  {dynamicconfig.PinotOptimizedQueryColumns, map[string]interface{}{"foo": "bar"}},
 	}
 	domainFields := map[string]configTestCase{
 		"MaxBadBinaryCount":      {dynamicconfig.FrontendMaxBadBinaries, 40},
