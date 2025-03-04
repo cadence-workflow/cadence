@@ -2313,6 +2313,8 @@ const (
 
 	TasklistLoadBalancerStrategy
 
+	TaskSchedulerShadowMode
+
 	// LastStringKey must be the last one in this const group
 	LastStringKey
 )
@@ -2804,6 +2806,7 @@ const (
 	// Default value: please see common.ConvertIntMapToDynamicConfigMapProperty(DefaultTaskPriorityWeight) in code base
 	// Allowed filters: N/A
 	TaskSchedulerRoundRobinWeights
+	TaskSchedulerDomainRoundRobinWeights
 	// QueueProcessorPendingTaskSplitThreshold is the threshold for the number of pending tasks per domain
 	// KeyName: history.queueProcessorPendingTaskSplitThreshold
 	// Value type: Map
@@ -4599,6 +4602,11 @@ var StringKeys = map[StringKey]DynamicString{
 		DefaultValue: "random", // other options: "round-robin"
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
 	},
+	TaskSchedulerShadowMode: {
+		KeyName:      "history.taskSchedulerShadowMode",
+		Description:  "TaskSchedulerShadowMode defines which mode the shadow task scheduler should be in. The available values are (disabled, shadow, reverse-shadow, reverse).",
+		DefaultValue: "disabled",
+	},
 	ReadVisibilityStoreName: {
 		KeyName:      "system.readVisibilityStoreName",
 		Description:  "ReadVisibilityStoreName is key to identify which store to read visibility data from",
@@ -5067,6 +5075,12 @@ var MapKeys = map[MapKey]DynamicMap{
 	TaskSchedulerRoundRobinWeights: {
 		KeyName:      "history.taskSchedulerRoundRobinWeight",
 		Description:  "TaskSchedulerRoundRobinWeights is the priority weight for weighted round robin task scheduler",
+		DefaultValue: common.ConvertIntMapToDynamicConfigMapProperty(DefaultTaskSchedulerRoundRobinWeights),
+	},
+	TaskSchedulerDomainRoundRobinWeights: {
+		KeyName:      "history.taskSchedulerDomainRoundRobinWeight",
+		Description:  "TaskSchedulerDomainRoundRobinWeights is the priority round robin weights for domains",
+		Filters:      []Filter{DomainName},
 		DefaultValue: common.ConvertIntMapToDynamicConfigMapProperty(DefaultTaskSchedulerRoundRobinWeights),
 	},
 	QueueProcessorPendingTaskSplitThreshold: {

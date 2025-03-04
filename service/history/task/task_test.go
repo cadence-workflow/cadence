@@ -337,6 +337,22 @@ func (s *taskSuite) TestRetryErr() {
 	s.Equal(true, taskBase.RetryErr(errWorkflowRateLimited))
 }
 
+func (s *taskSuite) TestShadowCopy() {
+	taskBase := s.newTestTask(func(task Info) (bool, error) {
+		return true, nil
+	}, nil)
+	taskBase.SetPriority(highTaskPriority)
+	shadowTask := taskBase.ShadowCopy()
+
+	s.Equal(taskBase.GetInfo(), shadowTask.GetInfo())
+	s.Equal(taskBase.Priority(), shadowTask.Priority())
+	s.Equal(taskBase.GetQueueType(), shadowTask.GetQueueType())
+	s.Equal(taskBase.GetShard(), shadowTask.GetShard())
+	s.Equal(0, shadowTask.GetAttempt())
+	s.Equal(t.TaskStatePending, shadowTask.State())
+	s.NoError(shadowTask.Execute())
+}
+
 func (s *taskSuite) newTestTask(
 	taskFilter Filter,
 	redispatchFn func(task Task),

@@ -29,15 +29,14 @@ import (
 	"github.com/uber-go/tally"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
-	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/task"
 	"github.com/uber/cadence/service/history/config"
-	"github.com/uber/cadence/service/history/shard"
 )
 
 type (
@@ -46,7 +45,7 @@ type (
 		*require.Assertions
 
 		controller           *gomock.Controller
-		mockShard            *shard.TestContext
+		mockDomainCache      *cache.MockDomainCache
 		mockPriorityAssigner *MockPriorityAssigner
 
 		timeSource    clock.TimeSource
@@ -66,15 +65,7 @@ func (s *queueTaskProcessorSuite) SetupTest() {
 	s.Assertions = require.New(s.T())
 
 	s.controller = gomock.NewController(s.T())
-	s.mockShard = shard.NewTestContext(
-		s.T(),
-		s.controller,
-		&persistence.ShardInfo{
-			ShardID: 10,
-			RangeID: 1,
-		},
-		config.NewForTest(),
-	)
+	s.mockDomainCache = cache.NewMockDomainCache(s.controller)
 	s.mockPriorityAssigner = NewMockPriorityAssigner(s.controller)
 
 	s.timeSource = clock.NewRealTimeSource()
@@ -84,20 +75,7 @@ func (s *queueTaskProcessorSuite) SetupTest() {
 	s.processor = s.newTestQueueTaskProcessor()
 }
 
-func (s *queueTaskProcessorSuite) TearDownTest() {
-	s.controller.Finish()
-	s.mockShard.Finish(s.T())
-}
-
-func (s *queueTaskProcessorSuite) TestIsRunning() {
-	s.False(s.processor.isRunning())
-
-	s.processor.Start()
-	s.True(s.processor.isRunning())
-
-	s.processor.Stop()
-	s.False(s.processor.isRunning())
-}
+func (s *queueTaskProcessorSuite) TearDownTest() {}
 
 func (s *queueTaskProcessorSuite) TestStartStop() {
 	mockScheduler := task.NewMockScheduler(s.controller)
@@ -116,6 +94,13 @@ func (s *queueTaskProcessorSuite) TestSubmit() {
 	mockScheduler := task.NewMockScheduler(s.controller)
 	mockScheduler.EXPECT().Submit(NewMockTaskMatcher(mockTask)).Return(nil).Times(1)
 
+	mockShadowScheduler := task.NewMockScheduler(s.controller)
+	mockShadowTask := NewMockTask(s.controller)
+	mockTask.EXPECT().ShadowCopy().Return(mockShadowTask)
+	mockShadowScheduler.EXPECT().TrySubmit(mockShadowTask).Return(true, nil).Times(1)
+
+	s.processor.shadowMode = schedulerShadowModeShadow
+	s.processor.shadowScheduler = mockShadowScheduler
 	s.processor.hostScheduler = mockScheduler
 
 	err := s.processor.Submit(mockTask)
@@ -141,6 +126,13 @@ func (s *queueTaskProcessorSuite) TestTrySubmit_Fail() {
 	mockScheduler := task.NewMockScheduler(s.controller)
 	mockScheduler.EXPECT().TrySubmit(NewMockTaskMatcher(mockTask)).Return(false, errTrySubmit).Times(1)
 
+	mockShadowScheduler := task.NewMockScheduler(s.controller)
+	mockShadowTask := NewMockTask(s.controller)
+	mockTask.EXPECT().ShadowCopy().Return(mockShadowTask)
+	mockShadowScheduler.EXPECT().TrySubmit(mockShadowTask).Return(true, nil).Times(1)
+
+	s.processor.shadowMode = schedulerShadowModeShadow
+	s.processor.shadowScheduler = mockShadowScheduler
 	s.processor.hostScheduler = mockScheduler
 
 	submitted, err := s.processor.TrySubmit(mockTask)
@@ -154,6 +146,32 @@ func (s *queueTaskProcessorSuite) TestNewSchedulerOptions_UnknownSchedulerType()
 	s.Nil(options)
 }
 
+func (s *queueTaskProcessorSuite) TestGetSchedulerAndShadowScheduler() {
+	mockScheduler := task.NewMockScheduler(s.controller)
+	mockShadowScheduler := task.NewMockScheduler(s.controller)
+	s.processor.shadowScheduler = mockShadowScheduler
+	s.processor.hostScheduler = mockScheduler
+
+	scheduler, shadowScheduler := s.processor.getSchedulerAndShadowScheduler()
+	s.Equal(mockScheduler, scheduler)
+	s.Nil(shadowScheduler)
+
+	s.processor.shadowMode = schedulerShadowModeShadow
+	scheduler, shadowScheduler = s.processor.getSchedulerAndShadowScheduler()
+	s.Equal(mockScheduler, scheduler)
+	s.Equal(mockShadowScheduler, shadowScheduler)
+
+	s.processor.shadowMode = schedulerShadowModeReverseShadow
+	scheduler, shadowScheduler = s.processor.getSchedulerAndShadowScheduler()
+	s.Equal(mockScheduler, shadowScheduler)
+	s.Equal(mockShadowScheduler, scheduler)
+
+	s.processor.shadowMode = schedulerShadowModeReverse
+	scheduler, shadowScheduler = s.processor.getSchedulerAndShadowScheduler()
+	s.Nil(shadowScheduler)
+	s.Equal(mockShadowScheduler, scheduler)
+}
+
 func (s *queueTaskProcessorSuite) newTestQueueTaskProcessor() *processorImpl {
 	config := config.NewForTest()
 	processor, err := NewProcessor(
@@ -162,6 +180,7 @@ func (s *queueTaskProcessorSuite) newTestQueueTaskProcessor() *processorImpl {
 		s.logger,
 		s.metricsClient,
 		s.timeSource,
+		s.mockDomainCache,
 	)
 	s.NoError(err)
 	return processor.(*processorImpl)

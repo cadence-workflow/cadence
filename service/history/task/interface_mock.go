@@ -435,6 +435,20 @@ func (mr *MockTaskMockRecorder) SetPriority(arg0 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetPriority", reflect.TypeOf((*MockTask)(nil).SetPriority), arg0)
 }
 
+// ShadowCopy mocks base method.
+func (m *MockTask) ShadowCopy() Task {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ShadowCopy")
+	ret0, _ := ret[0].(Task)
+	return ret0
+}
+
+// ShadowCopy indicates an expected call of ShadowCopy.
+func (mr *MockTaskMockRecorder) ShadowCopy() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ShadowCopy", reflect.TypeOf((*MockTask)(nil).ShadowCopy))
+}
+
 // State mocks base method.
 func (m *MockTask) State() task.State {
 	m.ctrl.T.Helper()
@@ -774,6 +788,20 @@ func (m *MockCrossClusterTask) SetPriority(arg0 int) {
 func (mr *MockCrossClusterTaskMockRecorder) SetPriority(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetPriority", reflect.TypeOf((*MockCrossClusterTask)(nil).SetPriority), arg0)
+}
+
+// ShadowCopy mocks base method.
+func (m *MockCrossClusterTask) ShadowCopy() Task {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ShadowCopy")
+	ret0, _ := ret[0].(Task)
+	return ret0
+}
+
+// ShadowCopy indicates an expected call of ShadowCopy.
+func (mr *MockCrossClusterTaskMockRecorder) ShadowCopy() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ShadowCopy", reflect.TypeOf((*MockCrossClusterTask)(nil).ShadowCopy))
 }
 
 // State mocks base method.

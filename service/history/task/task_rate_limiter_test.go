@@ -121,6 +121,25 @@ func (s *noopTask) GetInfo() Info {
 	return s.noopTaskInfo
 }
 
+func (s *noopTask) ShadowCopy() Task {
+	return &noopTask{
+		noopTaskInfo: &noopTaskInfo{
+			version:             s.version,
+			taskID:              s.taskID,
+			taskType:            s.taskType,
+			visibilityTimestamp: s.visibilityTimestamp,
+			workflowID:          s.workflowID,
+			runID:               s.runID,
+			domainID:            s.domainID,
+		},
+		queueType: s.queueType,
+		shard:     s.shard,
+		attempt:   s.attempt,
+		priority:  s.priority,
+		state:     ctask.TaskStatePending,
+	}
+}
+
 func (s *noopTaskInfo) GetVersion() int64 {
 	return s.version
 }

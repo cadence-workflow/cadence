@@ -2321,6 +2321,8 @@ const (
 	ScheduleToStartHistoryQueueLatencyPerTaskList
 
 	TaskRequestsPerDomain
+	TaskShadowRequestsPerDomain
+	TaskShadowLatencyPerDomain
 	TaskLatencyPerDomain
 	TaskFailuresPerDomain
 	TaskWorkflowBusyPerDomain
@@ -3037,6 +3039,8 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		// per domain task metrics
 
 		TaskRequestsPerDomain:                    {metricName: "task_requests_per_domain", metricRollupName: "task_requests", metricType: Counter},
+		TaskShadowRequestsPerDomain:              {metricName: "task_shadow_requests_per_domain", metricRollupName: "task_shadow_requests", metricType: Counter},
+		TaskShadowLatencyPerDomain:               {metricName: "task_shadow_latency_per_domain", metricRollupName: "task_shadow_latency", metricType: Timer},
 		TaskLatencyPerDomain:                     {metricName: "task_latency_per_domain", metricRollupName: "task_latency", metricType: Timer},
 		TaskAttemptTimerPerDomain:                {metricName: "task_attempt_per_domain", metricRollupName: "task_attempt", metricType: Timer},
 		TaskFailuresPerDomain:                    {metricName: "task_errors_per_domain", metricRollupName: "task_errors", metricType: Counter},

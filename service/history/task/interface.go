@@ -52,6 +52,7 @@ type (
 		GetShard() shard.Context
 		GetAttempt() int
 		GetInfo() Info
+		ShadowCopy() Task
 	}
 
 	// CrossClusterTask is the interface for processing cross cluster task in the source cluster

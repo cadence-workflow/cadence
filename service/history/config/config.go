@@ -94,6 +94,8 @@ type Config struct {
 	TaskSchedulerQueueSize                   dynamicconfig.IntPropertyFn
 	TaskSchedulerDispatcherCount             dynamicconfig.IntPropertyFn
 	TaskSchedulerRoundRobinWeights           dynamicconfig.MapPropertyFn
+	TaskSchedulerShadowMode                  dynamicconfig.StringPropertyFn
+	TaskSchedulerDomainRoundRobinWeights     dynamicconfig.MapPropertyFnWithDomainFilter
 	TaskSchedulerGlobalDomainRPS             dynamicconfig.IntPropertyFnWithDomainFilter
 	TaskSchedulerEnableRateLimiter           dynamicconfig.BoolPropertyFn
 	TaskSchedulerEnableRateLimiterShadowMode dynamicconfig.BoolPropertyFnWithDomainFilter
@@ -372,6 +374,8 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		TaskSchedulerQueueSize:                   dc.GetIntProperty(dynamicconfig.TaskSchedulerQueueSize),
 		TaskSchedulerDispatcherCount:             dc.GetIntProperty(dynamicconfig.TaskSchedulerDispatcherCount),
 		TaskSchedulerRoundRobinWeights:           dc.GetMapProperty(dynamicconfig.TaskSchedulerRoundRobinWeights),
+		TaskSchedulerShadowMode:                  dc.GetStringProperty(dynamicconfig.TaskSchedulerShadowMode),
+		TaskSchedulerDomainRoundRobinWeights:     dc.GetMapPropertyFilteredByDomain(dynamicconfig.TaskSchedulerDomainRoundRobinWeights),
 		TaskSchedulerGlobalDomainRPS:             dc.GetIntPropertyFilteredByDomain(dynamicconfig.TaskSchedulerGlobalDomainRPS),
 		TaskSchedulerEnableRateLimiter:           dc.GetBoolProperty(dynamicconfig.TaskSchedulerEnableRateLimiter),
 		TaskSchedulerEnableRateLimiterShadowMode: dc.GetBoolPropertyFilteredByDomain(dynamicconfig.TaskSchedulerEnableRateLimiterShadowMode),

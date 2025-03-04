@@ -87,6 +87,9 @@ type (
 		taskFilter        Filter
 		queueType         QueueType
 		shouldProcessTask bool
+
+		// if true, the skip the execution of the task and only emit a metric
+		shadowTask bool
 	}
 )
 
@@ -199,6 +202,13 @@ func (t *taskImpl) Execute() error {
 		logEvent(t.eventLogger, "TaskFilter execution failed", err)
 		time.Sleep(loadDomainEntryForTaskRetryDelay)
 		return err
+	}
+
+	if t.shadowTask {
+		if t.shouldProcessTask {
+			t.scope.IncCounter(metrics.TaskShadowRequestsPerDomain)
+		}
+		return nil
 	}
 
 	executionStartTime := t.timeSource.Now()
@@ -351,6 +361,14 @@ func (t *taskImpl) Ack() {
 	defer t.Unlock()
 
 	t.state = ctask.TaskStateAcked
+
+	if t.shadowTask {
+		if t.shouldProcessTask {
+			t.scope.RecordTimer(metrics.TaskShadowLatencyPerDomain, time.Since(t.submitTime))
+		}
+		return
+	}
+
 	if t.shouldProcessTask {
 		t.scope.RecordTimer(metrics.TaskAttemptTimerPerDomain, time.Duration(t.attempt))
 		t.scope.RecordTimer(metrics.TaskLatencyPerDomain, time.Since(t.submitTime))
@@ -370,6 +388,10 @@ func (t *taskImpl) Nack() {
 	t.Lock()
 	t.state = ctask.TaskStateNacked
 	t.Unlock()
+
+	if t.shadowTask {
+		return
+	}
 
 	if t.shouldResubmitOnNack() {
 		if submitted, _ := t.taskProcessor.TrySubmit(t); submitted {
@@ -426,6 +448,29 @@ func (t *taskImpl) shouldResubmitOnNack() bool {
 	// this may require change the Nack() interface to Nack(error)
 	return t.GetAttempt() < activeTaskResubmitMaxAttempts &&
 		(t.queueType == QueueTypeActiveTransfer || t.queueType == QueueTypeActiveTimer)
+}
+
+func (t *taskImpl) ShadowCopy() Task {
+	return &taskImpl{
+		Info:               t.Info,
+		shard:              t.shard,
+		state:              ctask.TaskStatePending,
+		priority:           t.priority,
+		queueType:          t.queueType,
+		scopeIdx:           t.scopeIdx,
+		scope:              nil,
+		logger:             t.logger,
+		eventLogger:        t.eventLogger,
+		attempt:            0,
+		submitTime:         t.timeSource.Now(),
+		timeSource:         t.timeSource,
+		criticalRetryCount: t.criticalRetryCount,
+		redispatchFn:       nil,
+		taskFilter:         t.taskFilter,
+		taskExecutor:       nil,
+		taskProcessor:      nil,
+		shadowTask:         true,
+	}
 }
 
 func logEvent(

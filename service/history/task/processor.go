@@ -27,6 +27,7 @@ import (
 	"sync/atomic"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
@@ -36,18 +37,30 @@ import (
 	"github.com/uber/cadence/service/history/config"
 )
 
+type DomainPriorityKey struct {
+	DomainID string
+	Priority int
+}
+
 type processorImpl struct {
 	sync.RWMutex
 
 	priorityAssigner PriorityAssigner
 	hostScheduler    task.Scheduler
+	shadowScheduler  task.Scheduler
 
+	shadowMode    string
 	status        int32
-	options       *task.SchedulerOptions[int]
 	logger        log.Logger
 	metricsClient metrics.Client
 	timeSource    clock.TimeSource
 }
+
+const (
+	schedulerShadowModeShadow        = "shadow"
+	schedulerShadowModeReverseShadow = "reverse-shadow"
+	schedulerShadowModeReverse       = "reverse"
+)
 
 var (
 	errTaskProcessorNotRunning = errors.New("queue task processor is not running")
@@ -60,6 +73,7 @@ func NewProcessor(
 	logger log.Logger,
 	metricsClient metrics.Client,
 	timeSource clock.TimeSource,
+	domainCache cache.DomainCache,
 ) (Processor, error) {
 	taskToChannelKeyFn := func(t task.PriorityTask) int {
 		return t.Priority()
@@ -91,13 +105,62 @@ func NewProcessor(
 	if err != nil {
 		return nil, err
 	}
-	logger.Debug("Host level task scheduler is created", tag.Dynamic("scheduler_options", options.String()))
+
+	var shadowScheduler task.Scheduler
+	shadowMode := config.TaskSchedulerShadowMode()
+	if shadowMode == "shadow" || shadowMode == "reverse-shadow" || shadowMode == "reverse" {
+		// create shadow scheduler
+		taskToChannelKeyFn := func(t task.PriorityTask) DomainPriorityKey {
+			var domainID string
+			tt, ok := t.(Task)
+			if ok {
+				domainID = tt.GetDomainID()
+			}
+			return DomainPriorityKey{
+				DomainID: domainID,
+				Priority: t.Priority(),
+			}
+		}
+		channelKeyToWeightFn := func(k DomainPriorityKey) int {
+			var weights map[int]int
+			domainName, err := domainCache.GetDomainName(k.DomainID)
+			if err != nil {
+				logger.Error("failed to get domain name from cache, use default round robin weights", tag.Error(err))
+				weights = dynamicconfig.DefaultTaskSchedulerRoundRobinWeights
+			} else {
+				weights, err = common.ConvertDynamicConfigMapPropertyToIntMap(config.TaskSchedulerDomainRoundRobinWeights(domainName))
+				if err != nil {
+					logger.Error("failed to convert dynamic config map to int map, use default round robin weights", tag.Error(err))
+					weights = dynamicconfig.DefaultTaskSchedulerRoundRobinWeights
+				}
+			}
+			weight, ok := weights[k.Priority]
+			if !ok {
+				logger.Error("weights not found for task priority", tag.Dynamic("priority", k.Priority), tag.Dynamic("weights", weights))
+			}
+			return weight
+		}
+		shadowScheduler, err = task.NewWeightedRoundRobinTaskScheduler(
+			logger,
+			metricsClient,
+			timeSource,
+			&task.WeightedRoundRobinTaskSchedulerOptions[DomainPriorityKey]{
+				QueueSize:            config.TaskSchedulerQueueSize(),
+				WorkerCount:          config.TaskSchedulerWorkerCount,
+				DispatcherCount:      config.TaskSchedulerDispatcherCount(),
+				RetryPolicy:          common.CreateTaskProcessingRetryPolicy(),
+				TaskToChannelKeyFn:   taskToChannelKeyFn,
+				ChannelKeyToWeightFn: channelKeyToWeightFn,
+			},
+		)
+	}
 
 	return &processorImpl{
 		priorityAssigner: priorityAssigner,
 		hostScheduler:    hostScheduler,
+		shadowScheduler:  shadowScheduler,
+		shadowMode:       shadowMode,
 		status:           common.DaemonStatusInitialized,
-		options:          options,
 		logger:           logger,
 		metricsClient:    metricsClient,
 		timeSource:       timeSource,
@@ -110,6 +173,9 @@ func (p *processorImpl) Start() {
 	}
 
 	p.hostScheduler.Start()
+	if p.shadowScheduler != nil {
+		p.shadowScheduler.Start()
+	}
 
 	p.logger.Info("Queue task processor started.")
 }
@@ -120,6 +186,9 @@ func (p *processorImpl) Stop() {
 	}
 
 	p.hostScheduler.Stop()
+	if p.shadowScheduler != nil {
+		p.shadowScheduler.Stop()
+	}
 
 	p.logger.Info("Queue task processor stopped.")
 }
@@ -128,7 +197,14 @@ func (p *processorImpl) Submit(task Task) error {
 	if err := p.priorityAssigner.Assign(task); err != nil {
 		return err
 	}
-	return p.hostScheduler.Submit(task)
+	scheduler, shadowScheduler := p.getSchedulerAndShadowScheduler()
+	if shadowScheduler != nil {
+		submitted, err := p.shadowScheduler.TrySubmit(task.ShadowCopy())
+		if !submitted {
+			p.logger.Warn("Failed to submit task to shadow scheduler", tag.Error(err))
+		}
+	}
+	return scheduler.Submit(task)
 }
 
 func (p *processorImpl) TrySubmit(task Task) (bool, error) {
@@ -136,11 +212,25 @@ func (p *processorImpl) TrySubmit(task Task) (bool, error) {
 		return false, err
 	}
 
-	return p.hostScheduler.TrySubmit(task)
+	scheduler, shadowScheduler := p.getSchedulerAndShadowScheduler()
+	if shadowScheduler != nil {
+		submitted, err := p.shadowScheduler.TrySubmit(task.ShadowCopy())
+		if !submitted {
+			p.logger.Warn("Failed to submit task to shadow scheduler", tag.Error(err))
+		}
+	}
+	return scheduler.TrySubmit(task)
 }
 
-func (p *processorImpl) isRunning() bool {
-	return atomic.LoadInt32(&p.status) == common.DaemonStatusStarted
+func (p *processorImpl) getSchedulerAndShadowScheduler() (task.Scheduler, task.Scheduler) {
+	if p.shadowMode == "reverse-shadow" {
+		return p.shadowScheduler, p.hostScheduler
+	} else if p.shadowMode == "reverse" {
+		return p.shadowScheduler, nil
+	} else if p.shadowMode == "shadow" {
+		return p.hostScheduler, p.shadowScheduler
+	}
+	return p.hostScheduler, nil
 }
 
 func createTaskScheduler(

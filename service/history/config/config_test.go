@@ -96,7 +96,9 @@ func TestNewConfig(t *testing.T) {
 		"TaskSchedulerWorkerCount":                             {dynamicconfig.TaskSchedulerWorkerCount, 32},
 		"TaskSchedulerQueueSize":                               {dynamicconfig.TaskSchedulerQueueSize, 34},
 		"TaskSchedulerDispatcherCount":                         {dynamicconfig.TaskSchedulerDispatcherCount, 35},
+		"TaskSchedulerShadowMode":                              {dynamicconfig.TaskSchedulerShadowMode, "36"},
 		"TaskSchedulerRoundRobinWeights":                       {dynamicconfig.TaskSchedulerRoundRobinWeights, map[string]interface{}{"key": 1}},
+		"TaskSchedulerDomainRoundRobinWeights":                 {dynamicconfig.TaskSchedulerDomainRoundRobinWeights, map[string]interface{}{"key": 2}},
 		"TaskCriticalRetryCount":                               {dynamicconfig.TaskCriticalRetryCount, 37},
 		"ActiveTaskRedispatchInterval":                         {dynamicconfig.ActiveTaskRedispatchInterval, time.Second},
 		"StandbyTaskRedispatchInterval":                        {dynamicconfig.StandbyTaskRedispatchInterval, time.Second},
@@ -326,6 +328,8 @@ func getValue(f *reflect.Value) interface{} {
 			return fn()
 		case dynamicconfig.MapPropertyFn:
 			return fn()
+		case dynamicconfig.MapPropertyFnWithDomainFilter:
+			return fn("domain")
 		case dynamicconfig.StringPropertyFn:
 			return fn()
 		case dynamicconfig.DurationPropertyFnWithDomainIDFilter:
