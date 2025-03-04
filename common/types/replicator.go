@@ -328,6 +328,8 @@ func (v *GetReplicationMessagesResponse) GetEarliestCreationTime() *int64 {
 		return nil
 	}
 
+	// avoid returning a pointer to the internal value
+	// for immutability
 	result := *earliestTime
 	return &result
 }
@@ -641,6 +643,8 @@ func (v *ReplicationMessages) GetEarliestCreationTime() *int64 {
 		return nil
 	}
 
+	// avoid returning a pointer to the internal value
+	// for immutability
 	result := *earliestTime
 	return &result
 }
