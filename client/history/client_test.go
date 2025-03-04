@@ -29,7 +29,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"go.uber.org/thriftrw/ptr"
 	"go.uber.org/yarpc"
 
 	"github.com/uber/cadence/common"
@@ -1311,36 +1310,36 @@ func Test_cmpGetReplicationMessagesWithSize(t *testing.T) {
 			a: &getReplicationMessagesWithSize{earliestCreationTime: nil}, b: nil, want: 1,
 		},
 		"a time is not nil, b is nil": {
-			a: &getReplicationMessagesWithSize{earliestCreationTime: ptr.Int64(10)}, b: nil, want: -1,
+			a: &getReplicationMessagesWithSize{earliestCreationTime: common.Int64Ptr(10)}, b: nil, want: -1,
 		},
 		"a time is not nil, b time is nil": {
-			a:    &getReplicationMessagesWithSize{earliestCreationTime: ptr.Int64(10)},
+			a:    &getReplicationMessagesWithSize{earliestCreationTime: common.Int64Ptr(10)},
 			b:    &getReplicationMessagesWithSize{earliestCreationTime: nil},
 			want: -1,
 		},
 		"a time less b time": {
-			a:    &getReplicationMessagesWithSize{earliestCreationTime: ptr.Int64(10)},
-			b:    &getReplicationMessagesWithSize{earliestCreationTime: ptr.Int64(20)},
+			a:    &getReplicationMessagesWithSize{earliestCreationTime: common.Int64Ptr(10)},
+			b:    &getReplicationMessagesWithSize{earliestCreationTime: common.Int64Ptr(20)},
 			want: -1,
 		},
 		"a time greater b time": {
-			a:    &getReplicationMessagesWithSize{earliestCreationTime: ptr.Int64(20)},
-			b:    &getReplicationMessagesWithSize{earliestCreationTime: ptr.Int64(10)},
+			a:    &getReplicationMessagesWithSize{earliestCreationTime: common.Int64Ptr(20)},
+			b:    &getReplicationMessagesWithSize{earliestCreationTime: common.Int64Ptr(10)},
 			want: 1,
 		},
 		"a size less b size": {
-			a:    &getReplicationMessagesWithSize{earliestCreationTime: ptr.Int64(10), size: 10},
-			b:    &getReplicationMessagesWithSize{earliestCreationTime: ptr.Int64(10), size: 20},
+			a:    &getReplicationMessagesWithSize{earliestCreationTime: common.Int64Ptr(10), size: 10},
+			b:    &getReplicationMessagesWithSize{earliestCreationTime: common.Int64Ptr(10), size: 20},
 			want: -1,
 		},
 		"a size greater b size": {
-			a:    &getReplicationMessagesWithSize{earliestCreationTime: ptr.Int64(10), size: 20},
-			b:    &getReplicationMessagesWithSize{earliestCreationTime: ptr.Int64(10), size: 10},
+			a:    &getReplicationMessagesWithSize{earliestCreationTime: common.Int64Ptr(10), size: 20},
+			b:    &getReplicationMessagesWithSize{earliestCreationTime: common.Int64Ptr(10), size: 10},
 			want: 1,
 		},
 		"a equal b": {
-			a:    &getReplicationMessagesWithSize{earliestCreationTime: ptr.Int64(10)},
-			b:    &getReplicationMessagesWithSize{earliestCreationTime: ptr.Int64(10)},
+			a:    &getReplicationMessagesWithSize{earliestCreationTime: common.Int64Ptr(10)},
+			b:    &getReplicationMessagesWithSize{earliestCreationTime: common.Int64Ptr(10)},
 			want: 0,
 		},
 	} {
@@ -1360,12 +1359,12 @@ func Test_sortGetReplicationMessageWithSize(t *testing.T) {
 			responses: []*getReplicationMessagesWithSize{
 				{earliestCreationTime: nil},
 				{earliestCreationTime: nil},
-				{earliestCreationTime: ptr.Int64(20)},
-				{earliestCreationTime: ptr.Int64(10)},
+				{earliestCreationTime: common.Int64Ptr(20)},
+				{earliestCreationTime: common.Int64Ptr(10)},
 			},
 			want: []*getReplicationMessagesWithSize{
-				{earliestCreationTime: ptr.Int64(10)},
-				{earliestCreationTime: ptr.Int64(20)},
+				{earliestCreationTime: common.Int64Ptr(10)},
+				{earliestCreationTime: common.Int64Ptr(20)},
 				{earliestCreationTime: nil},
 				{earliestCreationTime: nil},
 			},
@@ -1374,14 +1373,14 @@ func Test_sortGetReplicationMessageWithSize(t *testing.T) {
 			responses: []*getReplicationMessagesWithSize{
 				{earliestCreationTime: nil},
 				{earliestCreationTime: nil},
-				{earliestCreationTime: ptr.Int64(100), size: 50},
-				{earliestCreationTime: ptr.Int64(100), size: 30},
-				{earliestCreationTime: ptr.Int64(20)},
+				{earliestCreationTime: common.Int64Ptr(100), size: 50},
+				{earliestCreationTime: common.Int64Ptr(100), size: 30},
+				{earliestCreationTime: common.Int64Ptr(20)},
 			},
 			want: []*getReplicationMessagesWithSize{
-				{earliestCreationTime: ptr.Int64(20)},
-				{earliestCreationTime: ptr.Int64(100), size: 30},
-				{earliestCreationTime: ptr.Int64(100), size: 50},
+				{earliestCreationTime: common.Int64Ptr(20)},
+				{earliestCreationTime: common.Int64Ptr(100), size: 30},
+				{earliestCreationTime: common.Int64Ptr(100), size: 50},
 				{earliestCreationTime: nil},
 				{earliestCreationTime: nil},
 			},
