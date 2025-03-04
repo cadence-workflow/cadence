@@ -1037,8 +1037,9 @@ func TestCountWorkflowExecutions(t *testing.T) {
 			mockPinotClient := pnt.NewMockGenericClient(ctrl)
 			mockProducer := &mocks.KafkaProducer{}
 			mgr := NewPinotVisibilityStore(mockPinotClient, &service.Config{
-				ValidSearchAttributes:  dynamicconfig.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
-				ESIndexMaxResultWindow: dynamicconfig.GetIntPropertyFn(3),
+				ValidSearchAttributes:      dynamicconfig.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
+				ESIndexMaxResultWindow:     dynamicconfig.GetIntPropertyFn(3),
+				PinotOptimizedQueryColumns: dynamicconfig.GetMapPropertyFn(map[string]interface{}{}),
 			}, mockProducer, log.NewNoop())
 			visibilityStore := mgr.(*pinotVisibilityStore)
 
