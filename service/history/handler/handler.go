@@ -24,6 +24,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -1568,12 +1569,26 @@ func (h *handlerImpl) GetReplicationMessages(
 		return nil, constants.ErrShuttingDown
 	}
 
-	var wg sync.WaitGroup
-	wg.Add(len(request.Tokens))
-	result := new(sync.Map)
+	msgs := h.getReplicationShardMessages(ctx, request)
+	response := h.buildGetReplicationMessagesResponse(metricsScope, msgs)
 
-	for _, token := range request.Tokens {
-		go func(token *types.ReplicationToken) {
+	h.GetLogger().Debug("GetReplicationMessages succeeded.")
+	return response, nil
+}
+
+// getReplicationShardMessages gets replication messages from all the shards of the request
+// it queries the replication tasks from each shard in parallel
+// and returns the replication tasks in the order of the request tokens
+func (h *handlerImpl) getReplicationShardMessages(
+	ctx context.Context,
+	request *types.GetReplicationMessagesRequest,
+) []replicationShardMessages {
+	var wg sync.WaitGroup
+	var results = make([]replicationShardMessages, len(request.Tokens))
+
+	wg.Add(len(request.Tokens))
+	for i, token := range request.Tokens {
+		go func(i int, token *types.ReplicationToken) {
 			defer wg.Done()
 
 			engine, err := h.controller.GetEngineForShard(int(token.GetShardID()))
@@ -1581,7 +1596,7 @@ func (h *handlerImpl) GetReplicationMessages(
 				h.GetLogger().Warn("History engine not found for shard", tag.Error(err))
 				return
 			}
-			tasks, err := engine.GetReplicationMessages(
+			msgs, err := engine.GetReplicationMessages(
 				ctx,
 				request.GetClusterName(),
 				token.GetLastRetrievedMessageID(),
@@ -1591,42 +1606,109 @@ func (h *handlerImpl) GetReplicationMessages(
 				return
 			}
 
-			result.Store(token.GetShardID(), tasks)
-		}(token)
+			results[i] = replicationShardMessages{
+				ReplicationMessages:  msgs,
+				shardID:              token.GetShardID(),
+				size:                 proto.FromReplicationMessages(msgs).Size(),
+				earliestCreationTime: msgs.GetEarliestCreationTime(),
+			}
+		}(i, token)
 	}
 
 	wg.Wait()
+	return results
+}
 
-	responseSize := 0
-	maxResponseSize := h.config.MaxResponseSize
+// buildGetReplicationMessagesResponse builds a new GetReplicationMessagesResponse from shard results
+// The response can be partial if the total size of the response exceeds the max size.
+// In this case, responses with oldest replication tasks will be returned
+func (h *handlerImpl) buildGetReplicationMessagesResponse(metricsScope metrics.Scope, msgs []replicationShardMessages) *types.GetReplicationMessagesResponse {
+	// Shards with large maessages can cause the response to exceed the max size.
+	// In this case, we need to skip some shard messages to make sure the result response size is within the limit.
+	// To prevent a replication lag in the future, we should return the messages with the oldest replication task.
+	// So we sort the shard messages by the earliest creation time of the replication task.
+	// If the earliest creation time is the same, we compare the size of the message.
+	// This will sure that shards with the oldest replication tasks will be processed first.
+	sortReplicationShardMessages(msgs)
 
-	messagesByShard := make(map[int32]*types.ReplicationMessages)
-	result.Range(func(key, value interface{}) bool {
-		shardID := key.(int32)
-		tasks := value.(*types.ReplicationMessages)
+	var (
+		responseSize    = 0
+		maxResponseSize = h.config.MaxResponseSize
+		messagesByShard = make(map[int32]*types.ReplicationMessages, len(msgs))
+	)
 
-		size := proto.FromReplicationMessages(tasks).Size()
-		if (responseSize + size) >= maxResponseSize {
-			metricsScope.Tagged(metrics.ShardIDTag(int(shardID))).IncCounter(metrics.ReplicationMessageTooLargePerShard)
+	for _, m := range msgs {
+		if (responseSize + m.size) >= maxResponseSize {
+			metricsScope.Tagged(metrics.ShardIDTag(int(m.shardID))).IncCounter(metrics.ReplicationMessageTooLargePerShard)
 
 			// Log shards that did not fit for debugging purposes
 			h.GetLogger().Warn("Replication messages did not fit in the response (history host)",
-				tag.ShardID(int(shardID)),
-				tag.ResponseSize(size),
+				tag.ShardID(int(m.shardID)),
+				tag.ResponseSize(m.size),
 				tag.ResponseTotalSize(responseSize),
 				tag.ResponseMaxSize(maxResponseSize),
 			)
-		} else {
-			responseSize += size
-			messagesByShard[shardID] = tasks
+
+			continue
 		}
+		responseSize += m.size
+		messagesByShard[m.shardID] = m.ReplicationMessages
+	}
+	return &types.GetReplicationMessagesResponse{MessagesByShard: messagesByShard}
+}
 
-		return true
-	})
+// replicationShardMessages wraps types.ReplicationMessages
+// and contains some metadata of the ReplicationMessages
+type replicationShardMessages struct {
+	*types.ReplicationMessages
+	// shardID of the ReplicationMessages
+	shardID int32
+	// size of proto payload of ReplicationMessages
+	size int
+	// earliestCreationTime of ReplicationMessages
+	earliestCreationTime *int64
+}
 
-	h.GetLogger().Debug("GetReplicationMessages succeeded.")
+// sortReplicationShardMessages sorts the peer responses by the earliest creation time of the replication tasks
+func sortReplicationShardMessages(msgs []replicationShardMessages) {
+	slices.SortStableFunc(msgs, cmpReplicationShardMessages)
+}
 
-	return &types.GetReplicationMessagesResponse{MessagesByShard: messagesByShard}, nil
+// cmpReplicationShardMessages compares
+// two replicationShardMessages objects by earliest creation time
+// it can be used as a comparison func for slices.SortStableFunc
+// if a's or b's earliestCreationTime is nil, slices.SortStableFunc will put them to the end of a slice
+// otherwise it will compare the earliestCreationTime of the replication tasks
+// if earliestCreationTime is equal, it will compare the size of the response
+func cmpReplicationShardMessages(a, b replicationShardMessages) int {
+	// a > b
+	if a.earliestCreationTime == nil {
+		return 1
+	}
+	// a < b
+	if b.earliestCreationTime == nil {
+		return -1
+	}
+
+	// if both are not nil, compare the creation time
+	if *a.earliestCreationTime < *b.earliestCreationTime {
+		return -1
+	}
+
+	if *a.earliestCreationTime > *b.earliestCreationTime {
+		return 1
+	}
+
+	// if both equal, compare the size
+	if a.size < b.size {
+		return -1
+	}
+
+	if a.size > b.size {
+		return 1
+	}
+
+	return 0
 }
 
 // GetDLQReplicationMessages is called by remote peers to get replicated messages for DLQ merging
