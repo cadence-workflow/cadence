@@ -2822,6 +2822,13 @@ const (
 	// Allowed filters: N/A
 	QueueProcessorStuckTaskSplitThreshold
 
+	// PinotOptimizedQueryColumns is the list of search attributes that can be used in pinot optimized query
+	// KeyName: frontend.pinotOptimizedQueryColumns
+	// Value type: Map
+	// Default value: empty map
+	// Allowed filters: N/A
+	PinotOptimizedQueryColumns
+
 	// LastMapKey must be the last one in this const group
 	LastMapKey
 )
@@ -5068,6 +5075,11 @@ var MapKeys = map[MapKey]DynamicMap{
 		KeyName:      "history.queueProcessorStuckTaskSplitThreshold",
 		Description:  "QueueProcessorStuckTaskSplitThreshold is the threshold for the number of attempts of a task",
 		DefaultValue: common.ConvertIntMapToDynamicConfigMapProperty(map[int]int{0: 100, 1: 10000}),
+	},
+	PinotOptimizedQueryColumns: {
+		KeyName:      "frontend.pinotOptimizedQueryColumns",
+		Description:  "PinotOptimizedQueryColumns is the list of search attributes that can be used in pinot optimized query",
+		DefaultValue: map[string]interface{}{},
 	},
 }
 

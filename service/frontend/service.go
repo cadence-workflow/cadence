@@ -98,10 +98,11 @@ func NewService(
 			WriteDBVisibilityOpenMaxQPS:                 nil, // frontend service never write
 			WriteDBVisibilityClosedMaxQPS:               nil, // frontend service never write
 
-			ESVisibilityListMaxQPS:   serviceConfig.ESVisibilityListMaxQPS,
-			ESIndexMaxResultWindow:   serviceConfig.ESIndexMaxResultWindow,
-			ValidSearchAttributes:    serviceConfig.ValidSearchAttributes,
-			IsErrorRetryableFunction: common.FrontendRetry,
+			ESVisibilityListMaxQPS:     serviceConfig.ESVisibilityListMaxQPS,
+			ESIndexMaxResultWindow:     serviceConfig.ESIndexMaxResultWindow,
+			ValidSearchAttributes:      serviceConfig.ValidSearchAttributes,
+			IsErrorRetryableFunction:   common.FrontendRetry,
+			PinotOptimizedQueryColumns: serviceConfig.PinotOptimizedQueryColumns,
 		},
 	)
 	if err != nil {
