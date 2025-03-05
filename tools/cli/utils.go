@@ -693,6 +693,8 @@ func parseTimeDuration(duration string) (dur time.Duration, err error) {
 	return
 }
 
+// strToTaskListType converts str to types.TaskListType
+// if it's not matched, it returns types.TaskListTypeDecision
 func strToTaskListType(str string) types.TaskListType {
 	if strings.ToLower(str) == "activity" {
 		return types.TaskListTypeActivity

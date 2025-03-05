@@ -99,6 +99,8 @@ func ListTaskListPartitions(c *cli.Context) error {
 	if err != nil {
 		return commoncli.Problem("Required flag not found: ", err)
 	}
+	taskListType := strToTaskListType(c.String(FlagTaskListType)) // default type is decision
+
 	ctx, cancel, err := newContext(c)
 	defer cancel()
 	if err != nil {
@@ -113,13 +115,16 @@ func ListTaskListPartitions(c *cli.Context) error {
 	if err != nil {
 		return commoncli.Problem("Operation ListTaskListPartitions failed.", err)
 	}
-	if len(response.DecisionTaskListPartitions) > 0 {
-		return printTaskListPartitions("Decision", response.DecisionTaskListPartitions)
+
+	switch taskListType {
+	case types.TaskListTypeActivity:
+		return printTaskListPartitions(types.TaskListTypeActivity, response.ActivityTaskListPartitions)
+	case types.TaskListTypeDecision:
+		return printTaskListPartitions(types.TaskListTypeDecision, response.DecisionTaskListPartitions)
+	default:
+		// should never happen
+		return nil
 	}
-	if len(response.ActivityTaskListPartitions) > 0 {
-		return printTaskListPartitions("Activity", response.ActivityTaskListPartitions)
-	}
-	return nil
 }
 
 func printTaskListPollers(w io.Writer, pollers []*types.PollerInfo, taskListType types.TaskListType) error {
@@ -136,7 +141,7 @@ func printTaskListPollers(w io.Writer, pollers []*types.PollerInfo, taskListType
 	}})
 }
 
-func printTaskListPartitions(taskListType string, partitions []*types.TaskListPartitionMetadata) error {
+func printTaskListPartitions(taskListType types.TaskListType, partitions []*types.TaskListPartitionMetadata) error {
 	table := []TaskListPartitionRow{}
 	for _, partition := range partitions {
 		table = append(table, TaskListPartitionRow{
@@ -146,7 +151,7 @@ func printTaskListPartitions(taskListType string, partitions []*types.TaskListPa
 		})
 	}
 	return RenderTable(os.Stdout, table, RenderOptions{Color: true, OptionalColumns: map[string]bool{
-		"Activity Task List Partition": taskListType == "Activity",
-		"Decision Task List Partition": taskListType == "Decision",
+		"Activity Task List Partition": taskListType == types.TaskListTypeActivity,
+		"Decision Task List Partition": taskListType == types.TaskListTypeDecision,
 	}})
 }
