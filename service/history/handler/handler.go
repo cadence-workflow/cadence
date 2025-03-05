@@ -1583,12 +1583,15 @@ func (h *handlerImpl) getReplicationShardMessages(
 	ctx context.Context,
 	request *types.GetReplicationMessagesRequest,
 ) []replicationShardMessages {
-	var wg sync.WaitGroup
-	var results = make([]replicationShardMessages, len(request.Tokens))
+	var (
+		wg      sync.WaitGroup
+		mx      sync.Mutex
+		results = make([]replicationShardMessages, 0, len(request.Tokens))
+	)
 
 	wg.Add(len(request.Tokens))
-	for i, token := range request.Tokens {
-		go func(i int, token *types.ReplicationToken) {
+	for _, token := range request.Tokens {
+		go func(token *types.ReplicationToken) {
 			defer wg.Done()
 
 			engine, err := h.controller.GetEngineForShard(int(token.GetShardID()))
@@ -1606,13 +1609,16 @@ func (h *handlerImpl) getReplicationShardMessages(
 				return
 			}
 
-			results[i] = replicationShardMessages{
+			mx.Lock()
+			defer mx.Unlock()
+
+			results = append(results, replicationShardMessages{
 				ReplicationMessages:  msgs,
 				shardID:              token.GetShardID(),
 				size:                 proto.FromReplicationMessages(msgs).Size(),
 				earliestCreationTime: msgs.GetEarliestCreationTime(),
-			}
-		}(i, token)
+			})
+		}(token)
 	}
 
 	wg.Wait()
