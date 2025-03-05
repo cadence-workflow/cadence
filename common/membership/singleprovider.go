@@ -31,6 +31,7 @@ type SingleProvider interface {
 	Lookup(key string) (HostInfo, error)
 	LookupRaw(key string) (string, error)
 	Subscribe(name string, channel chan<- *ChangedEvent) error
+	AddressToHost(owner string) (HostInfo, error)
 	Unsubscribe(name string) error
 	Members() []HostInfo
 	MemberCount() int

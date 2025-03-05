@@ -178,10 +178,10 @@ func (r *Ring) Lookup(key string) (HostInfo, error) {
 		return HostInfo{}, err
 	}
 
-	return r.addressToHost(addr)
+	return r.AddressToHost(addr)
 }
 
-func (r *Ring) addressToHost(addr string) (HostInfo, error) {
+func (r *Ring) AddressToHost(addr string) (HostInfo, error) {
 	r.members.RLock()
 	defer r.members.RUnlock()
 	host, ok := r.members.keys[addr]

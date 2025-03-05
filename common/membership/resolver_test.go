@@ -26,11 +26,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/client/sharddistributor"
 	"github.com/uber/cadence/common"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 )
@@ -136,17 +136,19 @@ func newTestResolver(t *testing.T) (*MultiringResolver, *MockPeerProvider) {
 
 	ctrl := gomock.NewController(t)
 	pp := NewMockPeerProvider(ctrl)
-	shardDistributorMock := sharddistributor.NewMockClient(ctrl)
-	shardDistributorModeMock := func(filter ...dynamicconfig.FilterOption) string {
-		return string(modeKeyHashRing)
+
+	rings := make(map[string]SingleProvider, len(testServices))
+	for _, testService := range testServices {
+		ring := NewHashring(testService, pp, clock.NewMockedTimeSource(), log.NewNoop(), metrics.NewNoopMetricsClient().Scope(metrics.HashringScope))
+		rings[testService] = ring
 	}
 
-	return NewMultiringResolver(
-		testServices,
+	resolver, err := NewResolver(
 		pp,
-		log.NewNoop(),
 		metrics.NewNoopMetricsClient(),
-		shardDistributorMock,
-		shardDistributorModeMock,
-	), pp
+		rings,
+	)
+	require.NoError(t, err)
+
+	return resolver.(*MultiringResolver), pp
 }
