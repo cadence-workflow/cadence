@@ -26,8 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/uber/cadence/common/types/mapper/proto"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -49,6 +47,7 @@ import (
 	"github.com/uber/cadence/common/quotas/global/shared"
 	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/common/types/mapper/proto"
 	"github.com/uber/cadence/service/history/config"
 	"github.com/uber/cadence/service/history/constants"
 	"github.com/uber/cadence/service/history/engine"
