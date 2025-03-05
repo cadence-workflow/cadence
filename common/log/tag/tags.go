@@ -1122,3 +1122,11 @@ func Namespace(name string) Tag {
 func WorkflowContextLockLatency(duration time.Duration) Tag {
 	return newDurationTag("workflow-context-lock-latency", duration)
 }
+
+func HashRingResult(addr string) Tag {
+	return newStringTag("hashring-result", addr)
+}
+
+func ShardDistributorResult(addr string) Tag {
+	return newStringTag("shard-distributor-result", addr)
+}
