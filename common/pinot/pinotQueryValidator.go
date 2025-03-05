@@ -457,6 +457,7 @@ func processEqual(colNameStr string, colValStr string) string {
 
 func processCustomKeyword(operator string, colNameStr string, colValStr string, useOptimizedQuery bool) string {
 	if useOptimizedQuery {
+		// replace "-" with "" for optimized query so Pinot can tokenize the whole UUID
 		filteredColValStr := strings.ReplaceAll(colValStr, "-", "")
 		return fmt.Sprintf("%s %s '%s'", colNameStr, operator, filteredColValStr)
 	}
@@ -477,6 +478,7 @@ func processCustomKeyword(operator string, colNameStr string, colValStr string, 
 
 func processCustomString(operator string, colNameStr string, colValStr string, useOptimizedQuery bool) string {
 	if useOptimizedQuery {
+		// replace "-" with "" for optimized query so Pinot can tokenize the whole UUID
 		filteredColValStr := strings.ReplaceAll(colValStr, "-", "")
 		return fmt.Sprintf("%s %s '%s'", colNameStr, operator, filteredColValStr)
 	}
