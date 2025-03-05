@@ -23,8 +23,6 @@ package sharddistributor
 import (
 	"sync/atomic"
 
-	"github.com/uber/cadence/client/history"
-	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/membership"
@@ -45,6 +43,10 @@ type Service struct {
 	stopC            chan struct{}
 	config           *config.Config
 	numHistoryShards int
+	peerProvider     membership.PeerProvider
+
+	matchingRing *membership.Ring
+	historyRing  *membership.Ring
 }
 
 // NewService builds a new task manager service
@@ -77,12 +79,19 @@ func NewService(
 		return nil, err
 	}
 
+	matchingRing := params.HashRings[service.Matching]
+	historyRing := params.HashRings[service.History]
+
 	return &Service{
 		Resource:         serviceResource,
 		status:           common.DaemonStatusInitialized,
 		config:           serviceConfig,
 		stopC:            make(chan struct{}),
 		numHistoryShards: params.PersistenceConfig.NumHistoryShards,
+		peerProvider:     params.PeerProvider,
+
+		matchingRing: matchingRing,
+		historyRing:  historyRing,
 	}, nil
 }
 
@@ -95,10 +104,7 @@ func (s *Service) Start() {
 	logger := s.GetLogger()
 	logger.Info("shard distributor starting")
 
-	matchingPeerResolver := matching.NewPeerResolver(s.GetMembershipResolver(), membership.PortGRPC)
-	historyPeerResolver := history.NewPeerResolver(s.numHistoryShards, s.GetMembershipResolver(), membership.PortGRPC)
-
-	rawHandler := handler.NewHandler(s.GetLogger(), s.GetMetricsClient(), matchingPeerResolver, historyPeerResolver)
+	rawHandler := handler.NewHandler(s.GetLogger(), s.GetMetricsClient(), s.matchingRing, s.historyRing)
 	meteredHandler := metered.NewMetricsHandler(rawHandler, s.GetLogger(), s.GetMetricsClient())
 
 	s.handler = meteredHandler
