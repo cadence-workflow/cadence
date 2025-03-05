@@ -28,7 +28,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/client/sharddistributor"
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 )
@@ -68,7 +70,7 @@ func TestMethodsAreRoutedToARing(t *testing.T) {
 	pp.EXPECT().WhoAmI().AnyTimes()
 
 	r, err := a.getRing("test-worker")
-	r.refresh()
+	r.Refresh()
 
 	assert.NoError(t, err)
 
@@ -134,10 +136,17 @@ func newTestResolver(t *testing.T) (*MultiringResolver, *MockPeerProvider) {
 
 	ctrl := gomock.NewController(t)
 	pp := NewMockPeerProvider(ctrl)
+	shardDistributorMock := sharddistributor.NewMockClient(ctrl)
+	shardDistributorModeMock := func(filter ...dynamicconfig.FilterOption) string {
+		return string(modeKeyHashRing)
+	}
+
 	return NewMultiringResolver(
 		testServices,
 		pp,
 		log.NewNoop(),
 		metrics.NewNoopMetricsClient(),
+		shardDistributorMock,
+		shardDistributorModeMock,
 	), pp
 }
