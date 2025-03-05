@@ -45,15 +45,19 @@ type shardDistributorResolver struct {
 	namespace             string
 	shardDistributionMode dynamicconfig.StringPropertyFn
 	client                sharddistributor.Client
-	ring                  *Ring
+	ring                  SingleProvider
 	logger                log.Logger
+}
+
+func (s shardDistributorResolver) AddressToHost(owner string) (HostInfo, error) {
+	return s.ring.AddressToHost(owner)
 }
 
 func NewShardDistributorResolver(
 	namespace string,
 	client sharddistributor.Client,
 	shardDistributionMode dynamicconfig.StringPropertyFn,
-	ring *Ring,
+	ring SingleProvider,
 	logger log.Logger,
 ) SingleProvider {
 	return &shardDistributorResolver{
@@ -89,9 +93,7 @@ func (s shardDistributorResolver) LookupRaw(key string) (string, error) {
 		shardDistributorResult, err := s.lookUpInShardDistributor(key)
 		if err != nil {
 			s.logger.Warn("Failed to lookup in shard distributor shadow", tag.Error(err))
-		}
-
-		if hashRingResult != shardDistributorResult {
+		} else if hashRingResult != shardDistributorResult {
 			s.logger.Warn("Shadow lookup mismatch", tag.HashRingResult(hashRingResult), tag.ShardDistributorResult(shardDistributorResult))
 		}
 
@@ -104,9 +106,7 @@ func (s shardDistributorResolver) LookupRaw(key string) (string, error) {
 		hashRingResult, err := s.ring.LookupRaw(key)
 		if err != nil {
 			s.logger.Warn("Failed to lookup in hash ring shadow", tag.Error(err))
-		}
-
-		if hashRingResult != shardDistributorResult {
+		} else if hashRingResult != shardDistributorResult {
 			s.logger.Warn("Shadow lookup mismatch", tag.HashRingResult(hashRingResult), tag.ShardDistributorResult(shardDistributorResult))
 		}
 
@@ -125,7 +125,7 @@ func (s shardDistributorResolver) Lookup(key string) (HostInfo, error) {
 		return HostInfo{}, err
 	}
 
-	return s.ring.addressToHost(owner)
+	return s.ring.AddressToHost(owner)
 }
 
 func (s shardDistributorResolver) Subscribe(name string, channel chan<- *ChangedEvent) error {

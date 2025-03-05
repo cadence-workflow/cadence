@@ -88,7 +88,6 @@ func NewService(
 		config:           serviceConfig,
 		stopC:            make(chan struct{}),
 		numHistoryShards: params.PersistenceConfig.NumHistoryShards,
-		peerProvider:     params.PeerProvider,
 
 		matchingRing: matchingRing,
 		historyRing:  historyRing,

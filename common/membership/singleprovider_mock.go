@@ -61,6 +61,21 @@ func (m *MockSingleProvider) EXPECT() *MockSingleProviderMockRecorder {
 	return m.recorder
 }
 
+// AddressToHost mocks base method.
+func (m *MockSingleProvider) AddressToHost(owner string) (HostInfo, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddressToHost", owner)
+	ret0, _ := ret[0].(HostInfo)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AddressToHost indicates an expected call of AddressToHost.
+func (mr *MockSingleProviderMockRecorder) AddressToHost(owner any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddressToHost", reflect.TypeOf((*MockSingleProvider)(nil).AddressToHost), owner)
+}
+
 // Lookup mocks base method.
 func (m *MockSingleProvider) Lookup(key string) (HostInfo, error) {
 	m.ctrl.T.Helper()
