@@ -135,7 +135,7 @@ func (p *ESProcessorImpl) bulkAfterAction(id int64, requests []bulk.GenericBulka
 				// This happens after configured retry, which means something bad happens on cluster or index
 				// When cluster back to live, bulkProcessor will re-commit those failure requests
 				// retryable errors will be retried by the bulk processor
-				p.logger.Error("Error commit bulk request. ES request failed and not retryable", tag.Error(err.Details), tag.ESRequest(request.String()))
+				p.logger.Error("Error commit bulk request. ES request failed and is retryable", tag.Error(err.Details), tag.ESRequest(request.String()))
 			} else {
 				key := p.retrieveKafkaKey(request)
 				if key == "" {
