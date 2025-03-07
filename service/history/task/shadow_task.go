@@ -26,6 +26,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	ctask "github.com/uber/cadence/common/task"
@@ -63,6 +64,10 @@ func (t *shadowTask) Execute() error {
 	if t.shouldProcessTask {
 		t.scope.IncCounter(metrics.TaskShadowRequestsPerDomain)
 	}
+	time.Sleep(backoff.JitDuration(
+		time.Millisecond*50,
+		0.95,
+	))
 	return nil
 }
 
