@@ -26,8 +26,6 @@ import (
 	"errors"
 	"time"
 
-	"go.uber.org/cadence/.gen/go/cadence/workflowserviceclient"
-
 	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/client/wrappers/retryable"
 	"github.com/uber/cadence/common"
@@ -46,6 +44,7 @@ import (
 	"github.com/uber/cadence/common/reconciliation/invariant"
 	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/common/types/mapper/proto"
 	hcommon "github.com/uber/cadence/service/history/common"
 	"github.com/uber/cadence/service/history/config"
 	"github.com/uber/cadence/service/history/decision"
@@ -62,6 +61,7 @@ import (
 	"github.com/uber/cadence/service/history/workflow"
 	"github.com/uber/cadence/service/history/workflowcache"
 	warchiver "github.com/uber/cadence/service/worker/archiver"
+	"go.uber.org/cadence/.gen/go/cadence/workflowserviceclient"
 )
 
 const (
@@ -224,6 +224,8 @@ func NewEngineWithShardContext(
 			replicationReader,
 			replicationTaskStore,
 			shard.GetTimeSource(),
+			config,
+			proto.ReplicationMessagesSize,
 		),
 		replicationTaskStore: replicationTaskStore,
 		replicationMetricsEmitter: replication.NewMetricsEmitter(

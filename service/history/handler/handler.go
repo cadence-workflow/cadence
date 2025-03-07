@@ -1578,7 +1578,6 @@ func (h *handlerImpl) GetReplicationMessages(
 
 // getReplicationShardMessages gets replication messages from all the shards of the request
 // it queries the replication tasks from each shard in parallel
-// and returns the replication tasks in the order of the request tokens
 func (h *handlerImpl) getReplicationShardMessages(
 	ctx context.Context,
 	request *types.GetReplicationMessagesRequest,
@@ -1629,7 +1628,7 @@ func (h *handlerImpl) getReplicationShardMessages(
 // The response can be partial if the total size of the response exceeds the max size.
 // In this case, responses with oldest replication tasks will be returned
 func (h *handlerImpl) buildGetReplicationMessagesResponse(metricsScope metrics.Scope, msgs []replicationShardMessages) *types.GetReplicationMessagesResponse {
-	// Shards with large maessages can cause the response to exceed the max size.
+	// Shards with large messages can cause the response to exceed the max size.
 	// In this case, we need to skip some shard messages to make sure the result response size is within the limit.
 	// To prevent a replication lag in the future, we should return the messages with the oldest replication task.
 	// So we sort the shard messages by the earliest creation time of the replication task.
