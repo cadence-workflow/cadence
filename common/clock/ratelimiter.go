@@ -357,19 +357,34 @@ func (r *ratelimiter) Wait(ctx context.Context) (err error) {
 	defer unlockOnce() // unlock if panic or returned early with no err
 
 	res := r.limiter.ReserveN(now, 1)
+	if !res.OK() {
+		// !OK can only mean "impossible to wait" with `ReserveN`.
+		// Since there is no deadline passed to the limiter (the reservation
+		// contains the delay), and we only ever request 1 token, this can only
+		// mean a burst of 0 (and non-infinite rate.Limit).
+		res.CancelAt(now) // unused token, return it while locked
+		return errWaitZeroBurst
+	}
+	delay := res.DelayFrom(now)
+	if delay == 0 {
+		return nil // available token, allow it
+	}
+	if deadline, ok := ctx.Deadline(); ok && now.Add(delay).After(deadline) {
+		res.CancelAt(now)                // unused token, return it while locked
+		return errWaitLongerThanDeadline // don't wait for a known failure
+	}
+
+	unlockOnce() // unlock before waiting
+
 	defer func() {
 		if err != nil {
 			// err return means "not allowed", so cancel the reservation.
 			//
 			// note that this makes a separate call to get the current time:
-			// this is intentional, as time may have passed while waiting.
+			// this is intentional, as time has likely passed while waiting.
 			//
 			// if the cancellation happened before the time-to-act (the delay),
 			// the reservation will still be successfully rolled back.
-
-			// ensure we are unlocked, which will not have happened if an err
-			// was returned immediately.
-			unlockOnce()
 
 			// (re)-acquire the latest now value.
 			//
@@ -382,23 +397,6 @@ func (r *ratelimiter) Wait(ctx context.Context) (err error) {
 			res.CancelAt(now)
 		}
 	}()
-
-	if !res.OK() {
-		// !OK can only mean "impossible to wait" with `ReserveN`.
-		// Since there is no deadline passed to the limiter (the reservation
-		// contains the delay), and we only ever request 1 token, this can only
-		// mean a burst of 0 (and non-infinite rate.Limit).
-		return errWaitZeroBurst
-	}
-	delay := res.DelayFrom(now)
-	if delay == 0 {
-		return nil // available token, allow it
-	}
-	if deadline, ok := ctx.Deadline(); ok && now.Add(delay).After(deadline) {
-		return errWaitLongerThanDeadline // don't wait for a known failure
-	}
-
-	unlockOnce() // unlock before waiting
 
 	// wait for cancellation or the waiter's turn.
 	// re-acquiring Now() here is valid and may shorten the delay, but may add

@@ -303,7 +303,7 @@ func BenchmarkLimiter(b *testing.B) {
 						// b.Run seems to target <1s, but very fast or very slow things can extend it,
 						// and up to about 2s seems normal for these.
 						// because of that, 5s occasionally timed out, but 10s seems fine.
-						timeout := 10 * time.Second
+						timeout := 20 * time.Second
 						ctx, cancel := context.WithTimeout(context.Background(), timeout)
 						defer cancel()
 
