@@ -29,8 +29,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/uber/cadence/service/history/config"
-
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
@@ -38,6 +36,7 @@ import (
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/history/config"
 )
 
 type (

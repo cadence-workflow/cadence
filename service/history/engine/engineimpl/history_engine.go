@@ -26,6 +26,8 @@ import (
 	"errors"
 	"time"
 
+	"go.uber.org/cadence/.gen/go/cadence/workflowserviceclient"
+
 	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/client/wrappers/retryable"
 	"github.com/uber/cadence/common"
@@ -61,7 +63,6 @@ import (
 	"github.com/uber/cadence/service/history/workflow"
 	"github.com/uber/cadence/service/history/workflowcache"
 	warchiver "github.com/uber/cadence/service/worker/archiver"
-	"go.uber.org/cadence/.gen/go/cadence/workflowserviceclient"
 )
 
 const (
