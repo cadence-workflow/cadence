@@ -94,9 +94,12 @@ type Config struct {
 	TaskSchedulerQueueSize                   dynamicconfig.IntPropertyFn
 	TaskSchedulerDispatcherCount             dynamicconfig.IntPropertyFn
 	TaskSchedulerRoundRobinWeights           dynamicconfig.MapPropertyFn
+	TaskSchedulerDomainRoundRobinWeights     dynamicconfig.MapPropertyFnWithDomainFilter
 	TaskSchedulerGlobalDomainRPS             dynamicconfig.IntPropertyFnWithDomainFilter
 	TaskSchedulerEnableRateLimiter           dynamicconfig.BoolPropertyFn
 	TaskSchedulerEnableRateLimiterShadowMode dynamicconfig.BoolPropertyFnWithDomainFilter
+	TaskSchedulerEnableMigration             dynamicconfig.BoolPropertyFn
+	TaskSchedulerMigrationRatio              dynamicconfig.IntPropertyFn
 	TaskCriticalRetryCount                   dynamicconfig.IntPropertyFn
 	ActiveTaskRedispatchInterval             dynamicconfig.DurationPropertyFn
 	StandbyTaskRedispatchInterval            dynamicconfig.DurationPropertyFn
@@ -372,9 +375,12 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		TaskSchedulerQueueSize:                   dc.GetIntProperty(dynamicconfig.TaskSchedulerQueueSize),
 		TaskSchedulerDispatcherCount:             dc.GetIntProperty(dynamicconfig.TaskSchedulerDispatcherCount),
 		TaskSchedulerRoundRobinWeights:           dc.GetMapProperty(dynamicconfig.TaskSchedulerRoundRobinWeights),
+		TaskSchedulerDomainRoundRobinWeights:     dc.GetMapPropertyFilteredByDomain(dynamicconfig.TaskSchedulerDomainRoundRobinWeights),
 		TaskSchedulerGlobalDomainRPS:             dc.GetIntPropertyFilteredByDomain(dynamicconfig.TaskSchedulerGlobalDomainRPS),
 		TaskSchedulerEnableRateLimiter:           dc.GetBoolProperty(dynamicconfig.TaskSchedulerEnableRateLimiter),
 		TaskSchedulerEnableRateLimiterShadowMode: dc.GetBoolPropertyFilteredByDomain(dynamicconfig.TaskSchedulerEnableRateLimiterShadowMode),
+		TaskSchedulerEnableMigration:             dc.GetBoolProperty(dynamicconfig.TaskSchedulerEnableMigration),
+		TaskSchedulerMigrationRatio:              dc.GetIntProperty(dynamicconfig.TaskSchedulerMigrationRatio),
 		TaskCriticalRetryCount:                   dc.GetIntProperty(dynamicconfig.TaskCriticalRetryCount),
 		ActiveTaskRedispatchInterval:             dc.GetDurationProperty(dynamicconfig.ActiveTaskRedispatchInterval),
 		StandbyTaskRedispatchInterval:            dc.GetDurationProperty(dynamicconfig.StandbyTaskRedispatchInterval),
