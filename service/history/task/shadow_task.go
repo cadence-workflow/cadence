@@ -65,7 +65,7 @@ func (t *shadowTask) Execute() error {
 		t.scope.IncCounter(metrics.TaskShadowRequestsPerDomain)
 	}
 	time.Sleep(backoff.JitDuration(
-		time.Millisecond*500,
+		time.Millisecond*200,
 		0.95,
 	))
 	return nil
