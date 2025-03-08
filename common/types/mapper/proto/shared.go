@@ -639,6 +639,14 @@ func ToReplicationMessages(t *adminv1.ReplicationMessages) *types.ReplicationMes
 	}
 }
 
+// ReplicationMessagesSize returns the size (in bytes) of the types.ReplicationMessages
+func ReplicationMessagesSize(t *types.ReplicationMessages) int {
+	if t == nil {
+		return 0
+	}
+	return FromReplicationMessages(t).Size()
+}
+
 func FromReplicationTaskInfo(t *types.ReplicationTaskInfo) *adminv1.ReplicationTaskInfo {
 	if t == nil {
 		return nil

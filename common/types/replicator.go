@@ -649,6 +649,9 @@ func (v *ReplicationMessages) GetEarliestCreationTime() *int64 {
 	return &result
 }
 
+// ReplicationMessagesSizeFn is a function type to calculate size of ReplicationMessages
+type ReplicationMessagesSizeFn func(v *ReplicationMessages) int
+
 // ReplicationTask is an internal type (TBD...)
 type ReplicationTask struct {
 	TaskType                      *ReplicationTaskType           `json:"taskType,omitempty"`

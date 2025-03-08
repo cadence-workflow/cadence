@@ -36,6 +36,8 @@ import (
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/common/types/mapper/proto"
+	"github.com/uber/cadence/service/history/config"
 )
 
 var (
@@ -46,6 +48,7 @@ var (
 
 	testHydratedTask11 = types.ReplicationTask{SourceTaskID: 11, HistoryTaskV2Attributes: &types.HistoryTaskV2Attributes{DomainID: testDomainID}}
 	testHydratedTask12 = types.ReplicationTask{SourceTaskID: 12, SyncActivityTaskAttributes: &types.SyncActivityTaskAttributes{DomainID: testDomainID}}
+	testHydratedTask13 = types.ReplicationTask{SourceTaskID: 13, HistoryTaskV2Attributes: &types.HistoryTaskV2Attributes{DomainID: testDomainID}}
 	testHydratedTask14 = types.ReplicationTask{SourceTaskID: 14, FailoverMarkerAttributes: &types.FailoverMarkerAttributes{DomainID: testDomainID}}
 
 	testHydratedTaskErrorRecoverable    = types.ReplicationTask{SourceTaskID: -100}
@@ -72,6 +75,10 @@ var (
 	)
 )
 
+const (
+	testMaxResponseSize = 4 * 1024 * 1024 // 4MB
+)
+
 func TestTaskAckManager_GetTasks(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -84,7 +91,27 @@ func TestTaskAckManager_GetTasks(t *testing.T) {
 		expectResult   *types.ReplicationMessages
 		expectErr      string
 		expectAckLevel int64
+		config         *config.Config
 	}{
+		{
+			name: "main flow - no replication tasks",
+			ackLevels: &fakeAckLevelStore{
+				readLevel: 200,
+				remote:    map[string]int64{testClusterA: 2},
+			},
+			domains:        fakeDomainCache{testDomainID: testDomain},
+			reader:         fakeTaskReader{},
+			hydrator:       fakeTaskHydrator{},
+			pollingCluster: testClusterA,
+			lastReadLevel:  5,
+			expectResult: &types.ReplicationMessages{
+				ReplicationTasks:       []*types.ReplicationTask{},
+				LastRetrievedMessageID: 5,
+				HasMore:                false,
+			},
+			expectAckLevel: 5,
+			config:         &config.Config{MaxResponseSize: testMaxResponseSize},
+		},
 		{
 			name: "main flow - continues on recoverable error",
 			ackLevels: &fakeAckLevelStore{
@@ -107,6 +134,7 @@ func TestTaskAckManager_GetTasks(t *testing.T) {
 				HasMore:                false,
 			},
 			expectAckLevel: 5,
+			config:         &config.Config{MaxResponseSize: testMaxResponseSize},
 		},
 		{
 			name: "main flow - stops at non recoverable error",
@@ -130,6 +158,60 @@ func TestTaskAckManager_GetTasks(t *testing.T) {
 				HasMore:                true,
 			},
 			expectAckLevel: 5,
+			config:         &config.Config{MaxResponseSize: testMaxResponseSize},
+		},
+		{
+			name: "main flow - stops at a message exceeded max response size",
+			ackLevels: &fakeAckLevelStore{
+				readLevel: 200,
+				remote:    map[string]int64{testClusterA: 2},
+			},
+			domains: fakeDomainCache{testDomainID: testDomain},
+			reader:  fakeTaskReader{&testTask11, &testTask12, &testTask13, &testTask14},
+			hydrator: fakeTaskHydrator{
+				testTask11.TaskID: testHydratedTask11,
+				testTask12.TaskID: testHydratedTask12,
+				testTask13.TaskID: testHydratedTask13,
+				testTask14.TaskID: testHydratedTask14, // Will stop adding tasks beyond this point
+			},
+			pollingCluster: testClusterA,
+			lastReadLevel:  5,
+			expectResult: &types.ReplicationMessages{
+				ReplicationTasks:       []*types.ReplicationTask{&testHydratedTask11, &testHydratedTask12, &testHydratedTask13},
+				LastRetrievedMessageID: 13,
+				HasMore:                true,
+			},
+			expectAckLevel: 5,
+			config: &config.Config{
+				MaxResponseSize: proto.FromReplicationMessages(&types.ReplicationMessages{
+					ReplicationTasks:       []*types.ReplicationTask{&testHydratedTask11, &testHydratedTask12, &testHydratedTask13},
+					LastRetrievedMessageID: 13,
+					HasMore:                true,
+				}).Size() + 1,
+			},
+		},
+		{
+			name: "main flow - fail at a message exceeded max response size",
+			ackLevels: &fakeAckLevelStore{
+				readLevel: 200,
+				remote:    map[string]int64{testClusterA: 2},
+			},
+			domains: fakeDomainCache{testDomainID: testDomain},
+			reader:  fakeTaskReader{&testTask11, &testTask12, &testTask13, &testTask14},
+			hydrator: fakeTaskHydrator{
+				testTask11.TaskID: testHydratedTask11,
+				testTask12.TaskID: testHydratedTask12,
+				testTask13.TaskID: testHydratedTask13,
+				testTask14.TaskID: testHydratedTask14, // Will stop adding tasks beyond this point
+			},
+			pollingCluster: testClusterA,
+			lastReadLevel:  5,
+			expectResult:   nil,
+			expectErr:      "replication messages size is too large and cannot be shrunk anymore, shard will be stuck until the message size is reduced or max size is increased",
+			expectAckLevel: 2,
+			config: &config.Config{
+				MaxResponseSize: 0,
+			},
 		},
 		{
 			name: "skips tasks for domains non belonging to polling cluster",
@@ -148,6 +230,7 @@ func TestTaskAckManager_GetTasks(t *testing.T) {
 				HasMore:                false,
 			},
 			expectAckLevel: 5,
+			config:         &config.Config{MaxResponseSize: testMaxResponseSize},
 		},
 		{
 			name: "uses remote ack level for first fetch (empty task ID)",
@@ -166,6 +249,7 @@ func TestTaskAckManager_GetTasks(t *testing.T) {
 				HasMore:                false,
 			},
 			expectAckLevel: 12,
+			config:         &config.Config{MaxResponseSize: testMaxResponseSize},
 		},
 		{
 			name: "failed to read replication tasks - return error",
@@ -177,6 +261,7 @@ func TestTaskAckManager_GetTasks(t *testing.T) {
 			pollingCluster: testClusterA,
 			lastReadLevel:  5,
 			expectErr:      "error reading replication tasks",
+			config:         &config.Config{MaxResponseSize: testMaxResponseSize},
 		},
 		{
 			name: "failed to get domain - stops",
@@ -194,6 +279,7 @@ func TestTaskAckManager_GetTasks(t *testing.T) {
 				LastRetrievedMessageID: 5,
 				HasMore:                true,
 			},
+			config: &config.Config{MaxResponseSize: testMaxResponseSize},
 		},
 		{
 			name: "failed to update ack level - no error, return response anyway",
@@ -212,13 +298,24 @@ func TestTaskAckManager_GetTasks(t *testing.T) {
 				LastRetrievedMessageID: 11,
 				HasMore:                false,
 			},
+			config: &config.Config{MaxResponseSize: testMaxResponseSize},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			taskStore := createTestTaskStore(t, tt.domains, tt.hydrator)
-			ackManager := NewTaskAckManager(testShardID, tt.ackLevels, metrics.NewNoopMetricsClient(), log.NewNoop(), tt.reader, taskStore, clock.NewMockedTimeSource())
+			ackManager := NewTaskAckManager(
+				testShardID,
+				tt.ackLevels,
+				metrics.NewNoopMetricsClient(),
+				log.NewNoop(),
+				tt.reader,
+				taskStore,
+				clock.NewMockedTimeSource(),
+				tt.config,
+				proto.ReplicationMessagesSize,
+			)
 			result, err := ackManager.GetTasks(context.Background(), tt.pollingCluster, tt.lastReadLevel)
 
 			if tt.expectErr != "" {
