@@ -142,6 +142,7 @@ func (h *handlerImpl) Start() {
 		h.GetLogger(),
 		h.GetMetricsClient(),
 		h.GetTimeSource(),
+		h.GetDomainCache(),
 	)
 	if err != nil {
 		h.GetLogger().Fatal("Creating priority task processor failed", tag.Error(err))

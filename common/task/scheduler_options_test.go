@@ -50,7 +50,7 @@ func TestSchedulerOptionsString(t *testing.T) {
 			queueSize:       3,
 			workerCount:     dynamicconfig.GetIntPropertyFn(4),
 			dispatcherCount: 5,
-			want:            "{schedulerType:2, fifoSchedulerOptions:<nil>, wrrSchedulerOptions:{QueueSize: 3, WorkerCount: 4, DispatcherCount: 5}}",
+			want:            "{schedulerType:2, fifoSchedulerOptions:<nil>, wrrSchedulerOptions:{QueueSize: 3, DispatcherCount: 5}}",
 		},
 		{
 			desc:          "InvalidSchedulerType",
