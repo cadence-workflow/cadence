@@ -48,6 +48,7 @@ type processorImpl struct {
 	sync.RWMutex
 
 	priorityAssigner PriorityAssigner
+	taskProcessor    task.Processor
 	scheduler        task.Scheduler
 	newScheduler     task.Scheduler
 
@@ -71,6 +72,15 @@ func NewProcessor(
 	timeSource clock.TimeSource,
 	domainCache cache.DomainCache,
 ) (Processor, error) {
+	taskProcessor := task.NewParallelTaskProcessor(
+		logger,
+		metricsClient,
+		&task.ParallelTaskProcessorOptions{
+			QueueSize:   1,
+			WorkerCount: config.TaskSchedulerWorkerCount,
+			RetryPolicy: common.CreateTaskProcessingRetryPolicy(),
+		},
+	)
 	taskToChannelKeyFn := func(t task.PriorityTask) int {
 		return t.Priority()
 	}
@@ -97,7 +107,7 @@ func NewProcessor(
 	if err != nil {
 		return nil, err
 	}
-	scheduler, err := createTaskScheduler(options, logger, metricsClient, timeSource)
+	scheduler, err := createTaskScheduler(options, logger, metricsClient, timeSource, taskProcessor)
 	if err != nil {
 		return nil, err
 	}
@@ -124,11 +134,10 @@ func NewProcessor(
 			logger,
 			metricsClient,
 			timeSource,
+			taskProcessor,
 			&task.WeightedRoundRobinTaskSchedulerOptions[DomainPriorityKey]{
 				QueueSize:            config.TaskSchedulerQueueSize(),
-				WorkerCount:          config.TaskSchedulerWorkerCount,
 				DispatcherCount:      config.TaskSchedulerDispatcherCount(),
-				RetryPolicy:          common.CreateTaskProcessingRetryPolicy(),
 				TaskToChannelKeyFn:   taskToChannelKeyFn,
 				ChannelKeyToWeightFn: channelKeyToWeightFn,
 			},
@@ -140,6 +149,7 @@ func NewProcessor(
 	}
 	return &processorImpl{
 		priorityAssigner:          priorityAssigner,
+		taskProcessor:             taskProcessor,
 		scheduler:                 scheduler,
 		newScheduler:              newScheduler,
 		status:                    common.DaemonStatusInitialized,
@@ -155,6 +165,7 @@ func (p *processorImpl) Start() {
 		return
 	}
 
+	p.taskProcessor.Start()
 	p.scheduler.Start()
 	if p.newScheduler != nil {
 		p.newScheduler.Start()
@@ -172,6 +183,7 @@ func (p *processorImpl) Stop() {
 		p.newScheduler.Stop()
 	}
 	p.scheduler.Stop()
+	p.taskProcessor.Stop()
 
 	p.logger.Info("Queue task processor stopped.")
 }
@@ -208,6 +220,7 @@ func createTaskScheduler(
 	logger log.Logger,
 	metricsClient metrics.Client,
 	timeSource clock.TimeSource,
+	taskProcessor task.Processor,
 ) (task.Scheduler, error) {
 	var scheduler task.Scheduler
 	var err error
@@ -223,6 +236,7 @@ func createTaskScheduler(
 			logger,
 			metricsClient,
 			timeSource,
+			taskProcessor,
 			options.WRRSchedulerOptions,
 		)
 	default:
@@ -253,7 +267,8 @@ func getDomainPriorityWeight(
 	}
 	weight, ok := weights[k.Priority]
 	if !ok {
-		logger.Error("weights not found for task priority", tag.Dynamic("priority", k.Priority), tag.Dynamic("weights", weights))
+		logger.Error("weights not found for task priority, default to 1", tag.Dynamic("priority", k.Priority), tag.Dynamic("weights", weights))
+		weight = 1
 	}
 	return weight
 }

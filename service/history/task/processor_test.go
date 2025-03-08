@@ -222,7 +222,7 @@ func TestGetDomainPriorityWeight(t *testing.T) {
 				mockDomainCache.EXPECT().GetDomainName("test-domain-id").Return("test-domain-name", nil).Times(1)
 				client.UpdateValue(dynamicconfig.TaskSchedulerDomainRoundRobinWeights, map[string]interface{}{"2": 10})
 			},
-			expected: 0,
+			expected: 1,
 		},
 	}
 

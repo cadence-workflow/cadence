@@ -63,6 +63,7 @@ func NewWeightedRoundRobinTaskScheduler[K comparable](
 	logger log.Logger,
 	metricsClient metrics.Client,
 	timeSource clock.TimeSource,
+	processor Processor,
 	options *WeightedRoundRobinTaskSchedulerOptions[K],
 ) (Scheduler, error) {
 	scheduler := &weightedRoundRobinTaskSchedulerImpl[K]{
@@ -76,15 +77,7 @@ func NewWeightedRoundRobinTaskScheduler[K comparable](
 		logger:       logger,
 		metricsScope: metricsClient.Scope(metrics.TaskSchedulerScope),
 		options:      options,
-		processor: NewParallelTaskProcessor(
-			logger,
-			metricsClient,
-			&ParallelTaskProcessorOptions{
-				QueueSize:   wRRTaskProcessorQueueSize,
-				WorkerCount: options.WorkerCount,
-				RetryPolicy: options.RetryPolicy,
-			},
-		),
+		processor:    processor,
 	}
 
 	return scheduler, nil
@@ -94,8 +87,6 @@ func (w *weightedRoundRobinTaskSchedulerImpl[K]) Start() {
 	if !atomic.CompareAndSwapInt32(&w.status, common.DaemonStatusInitialized, common.DaemonStatusStarted) {
 		return
 	}
-
-	w.processor.Start()
 
 	w.dispatcherWG.Add(w.options.DispatcherCount)
 	for i := 0; i != w.options.DispatcherCount; i++ {
@@ -110,8 +101,6 @@ func (w *weightedRoundRobinTaskSchedulerImpl[K]) Stop() {
 	}
 
 	close(w.shutdownCh)
-
-	w.processor.Stop()
 
 	taskChs := w.pool.GetAllChannels()
 	for _, taskCh := range taskChs {
