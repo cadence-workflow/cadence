@@ -30,7 +30,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
@@ -226,13 +225,14 @@ func TestInsertTaskList(t *testing.T) {
 		{
 			name: "successfully applied - nil partition_config",
 			row: &nosqlplugin.TaskListRow{
-				DomainID:        "domain1",
-				TaskListName:    "tasklist1",
-				TaskListType:    1,
-				TaskListKind:    2,
-				AckLevel:        1000,
-				RangeID:         25,
-				LastUpdatedTime: ts,
+				DomainID:         "domain1",
+				TaskListName:     "tasklist1",
+				TaskListType:     1,
+				TaskListKind:     2,
+				AckLevel:         1000,
+				RangeID:          25,
+				LastUpdatedTime:  ts,
+				CurrentTimeStamp: ts,
 			},
 			queryMockFn: func(query *gocql.MockQuery) {
 				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
@@ -244,19 +244,20 @@ func TestInsertTaskList(t *testing.T) {
 				`INSERT INTO tasks (domain_id, task_list_name, task_list_type, type, task_id, range_id, task_list, created_time ) ` +
 					`VALUES (domain1, tasklist1, 1, 1, -12345, 1, ` +
 					`{domain_id: domain1, name: tasklist1, type: 1, ack_level: 0, kind: 2, last_updated: 2024-04-01T22:08:41Z, adaptive_partition_config: map[] }` +
-					`, 2025-01-06T15:00:00Z) IF NOT EXISTS`,
+					`, 2024-04-01T22:08:41Z) IF NOT EXISTS`,
 			},
 		},
 		{
 			name: "successfully applied - non-nil partition_config",
 			row: &nosqlplugin.TaskListRow{
-				DomainID:        "domain1",
-				TaskListName:    "tasklist1",
-				TaskListType:    1,
-				TaskListKind:    2,
-				AckLevel:        1000,
-				RangeID:         25,
-				LastUpdatedTime: ts,
+				DomainID:         "domain1",
+				TaskListName:     "tasklist1",
+				TaskListType:     1,
+				TaskListKind:     2,
+				AckLevel:         1000,
+				RangeID:          25,
+				LastUpdatedTime:  ts,
+				CurrentTimeStamp: ts,
 				AdaptivePartitionConfig: &persistence.TaskListPartitionConfig{
 					Version: 1,
 					ReadPartitions: map[int]*persistence.TaskListPartition{
@@ -278,19 +279,20 @@ func TestInsertTaskList(t *testing.T) {
 					`VALUES (domain1, tasklist1, 1, 1, -12345, 1, ` +
 					`{domain_id: domain1, name: tasklist1, type: 1, ack_level: 0, kind: 2, last_updated: 2024-04-01T22:08:41Z, ` +
 					`adaptive_partition_config: map[num_read_partitions:1 num_write_partitions:1 read_partitions:map[0:map[isolation_groups:[]]] version:1 write_partitions:map[0:map[isolation_groups:[]]]] }` +
-					`, 2025-01-06T15:00:00Z) IF NOT EXISTS`,
+					`, 2024-04-01T22:08:41Z) IF NOT EXISTS`,
 			},
 		},
 		{
 			name: "not applied",
 			row: &nosqlplugin.TaskListRow{
-				DomainID:        "domain1",
-				TaskListName:    "tasklist1",
-				TaskListType:    1,
-				TaskListKind:    2,
-				AckLevel:        1000,
-				RangeID:         25,
-				LastUpdatedTime: ts,
+				DomainID:         "domain1",
+				TaskListName:     "tasklist1",
+				TaskListType:     1,
+				TaskListKind:     2,
+				AckLevel:         1000,
+				RangeID:          25,
+				LastUpdatedTime:  ts,
+				CurrentTimeStamp: ts,
 			},
 			queryMockFn: func(query *gocql.MockQuery) {
 				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
@@ -304,13 +306,14 @@ func TestInsertTaskList(t *testing.T) {
 		{
 			name: "mapscan failed",
 			row: &nosqlplugin.TaskListRow{
-				DomainID:        "domain1",
-				TaskListName:    "tasklist1",
-				TaskListType:    1,
-				TaskListKind:    2,
-				AckLevel:        1000,
-				RangeID:         25,
-				LastUpdatedTime: ts,
+				DomainID:         "domain1",
+				TaskListName:     "tasklist1",
+				TaskListType:     1,
+				TaskListKind:     2,
+				AckLevel:         1000,
+				RangeID:          25,
+				LastUpdatedTime:  ts,
+				CurrentTimeStamp: ts,
 			},
 			queryMockFn: func(query *gocql.MockQuery) {
 				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
@@ -336,7 +339,6 @@ func TestInsertTaskList(t *testing.T) {
 			dc := &persistence.DynamicConfiguration{}
 
 			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
-			db.timeSrc = clock.NewMockedTimeSourceAt(FixedTime)
 
 			err := db.InsertTaskList(context.Background(), tc.row)
 
@@ -373,13 +375,14 @@ func TestUpdateTaskList(t *testing.T) {
 			name:        "successfully applied",
 			prevRangeID: 25,
 			row: &nosqlplugin.TaskListRow{
-				DomainID:        "domain1",
-				TaskListName:    "tasklist1",
-				TaskListType:    1,
-				TaskListKind:    2,
-				AckLevel:        1000,
-				RangeID:         25,
-				LastUpdatedTime: ts,
+				DomainID:         "domain1",
+				TaskListName:     "tasklist1",
+				TaskListType:     1,
+				TaskListKind:     2,
+				AckLevel:         1000,
+				RangeID:          25,
+				LastUpdatedTime:  ts,
+				CurrentTimeStamp: ts,
 			},
 			queryMockFn: func(query *gocql.MockQuery) {
 				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
@@ -388,19 +391,20 @@ func TestUpdateTaskList(t *testing.T) {
 				}).Times(1)
 			},
 			wantQueries: []string{
-				`UPDATE tasks SET range_id = 25, task_list = {domain_id: domain1, name: tasklist1, type: 1, ack_level: 1000, kind: 2, last_updated: 2024-04-01T22:08:41Z, adaptive_partition_config: map[] } , last_updated_time = 2025-01-06T15:00:00Z WHERE domain_id = domain1 and task_list_name = tasklist1 and task_list_type = 1 and type = 1 and task_id = -12345 IF range_id = 25`,
+				`UPDATE tasks SET range_id = 25, task_list = {domain_id: domain1, name: tasklist1, type: 1, ack_level: 1000, kind: 2, last_updated: 2024-04-01T22:08:41Z, adaptive_partition_config: map[] } , last_updated_time = 2024-04-01T22:08:41Z WHERE domain_id = domain1 and task_list_name = tasklist1 and task_list_type = 1 and type = 1 and task_id = -12345 IF range_id = 25`,
 			},
 		},
 		{
 			name: "not applied",
 			row: &nosqlplugin.TaskListRow{
-				DomainID:        "domain1",
-				TaskListName:    "tasklist1",
-				TaskListType:    1,
-				TaskListKind:    2,
-				AckLevel:        1000,
-				RangeID:         25,
-				LastUpdatedTime: ts,
+				DomainID:         "domain1",
+				TaskListName:     "tasklist1",
+				TaskListType:     1,
+				TaskListKind:     2,
+				AckLevel:         1000,
+				RangeID:          25,
+				LastUpdatedTime:  ts,
+				CurrentTimeStamp: ts,
 			},
 			queryMockFn: func(query *gocql.MockQuery) {
 				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
@@ -414,13 +418,14 @@ func TestUpdateTaskList(t *testing.T) {
 		{
 			name: "mapscan failed",
 			row: &nosqlplugin.TaskListRow{
-				DomainID:        "domain1",
-				TaskListName:    "tasklist1",
-				TaskListType:    1,
-				TaskListKind:    2,
-				AckLevel:        1000,
-				RangeID:         25,
-				LastUpdatedTime: ts,
+				DomainID:         "domain1",
+				TaskListName:     "tasklist1",
+				TaskListType:     1,
+				TaskListKind:     2,
+				AckLevel:         1000,
+				RangeID:          25,
+				LastUpdatedTime:  ts,
+				CurrentTimeStamp: ts,
 			},
 			queryMockFn: func(query *gocql.MockQuery) {
 				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
@@ -446,7 +451,6 @@ func TestUpdateTaskList(t *testing.T) {
 			dc := &persistence.DynamicConfiguration{}
 
 			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
-			db.timeSrc = clock.NewMockedTimeSourceAt(FixedTime)
 
 			err := db.UpdateTaskList(context.Background(), tc.row, tc.prevRangeID)
 
@@ -487,12 +491,14 @@ func TestUpdateTaskListWithTTL(t *testing.T) {
 			ttlSeconds:  180,
 			prevRangeID: 25,
 			row: &nosqlplugin.TaskListRow{
-				DomainID:     "domain1",
-				TaskListName: "tasklist1",
-				TaskListType: 1,
-				TaskListKind: 2,
-				AckLevel:     1000,
-				RangeID:      25,
+				DomainID:         "domain1",
+				TaskListName:     "tasklist1",
+				TaskListType:     1,
+				TaskListKind:     2,
+				AckLevel:         1000,
+				RangeID:          25,
+				LastUpdatedTime:  ts,
+				CurrentTimeStamp: ts,
 			},
 			mapExecuteBatchCASApplied: true,
 			wantQueries: []string{
@@ -545,8 +551,7 @@ func TestUpdateTaskListWithTTL(t *testing.T) {
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
 
-			timeSrc := clock.NewMockedTimeSourceAt(ts)
-			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client), dbWithTimeSource(timeSrc))
+			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
 			err := db.UpdateTaskListWithTTL(context.Background(), tc.ttlSeconds, tc.row, tc.prevRangeID)
 
 			if (err != nil) != tc.wantErr {
@@ -774,10 +779,11 @@ func TestInsertTasks(t *testing.T) {
 				},
 			},
 			tasklistCond: &nosqlplugin.TaskListRow{
-				DomainID:     "domain1",
-				TaskListName: "tasklist1",
-				TaskListType: 1,
-				RangeID:      25,
+				DomainID:         "domain1",
+				TaskListName:     "tasklist1",
+				TaskListType:     1,
+				RangeID:          25,
+				CurrentTimeStamp: ts,
 			},
 			mapExecuteBatchCASApplied: true,
 			wantQueries: []string{
@@ -824,8 +830,7 @@ func TestInsertTasks(t *testing.T) {
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
 
-			timeSrc := clock.NewMockedTimeSourceAt(ts)
-			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client), dbWithTimeSource(timeSrc))
+			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
 
 			err := db.InsertTasks(context.Background(), tc.tasksToInsert, tc.tasklistCond)
 

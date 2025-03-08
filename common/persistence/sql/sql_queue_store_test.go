@@ -27,6 +27,7 @@ import (
 	"database/sql"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,6 +36,8 @@ import (
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
 )
+
+var fixedTime = time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)
 
 func TestGetNextID(t *testing.T) {
 	tests := map[string]struct {
@@ -137,7 +140,7 @@ func TestEnqueueMessage(t *testing.T) {
 			require.NoError(t, err, "Failed to create sql queue store")
 
 			tc.mockSetup(mockDB, mockTx)
-			err = store.EnqueueMessage(context.Background(), nil)
+			err = store.EnqueueMessage(context.Background(), nil, fixedTime)
 			if tc.wantErr {
 				assert.Error(t, err, "Expected an error for test case")
 			} else {
@@ -352,7 +355,7 @@ func TestUpdateAckLevel(t *testing.T) {
 			require.NoError(t, err, "Failed to create sql queue store")
 
 			tc.mockSetup(mockDB, mockTx)
-			err = store.UpdateAckLevel(context.Background(), 0, tc.clusterName)
+			err = store.UpdateAckLevel(context.Background(), 0, tc.clusterName, fixedTime)
 			if tc.wantErr {
 				assert.Error(t, err, "Expected an error for test case")
 			} else {
@@ -468,7 +471,7 @@ func TestEnqueueMessageToDLQ(t *testing.T) {
 			require.NoError(t, err, "Failed to create sql queue store")
 
 			tc.mockSetup(mockDB, mockTx)
-			err = store.EnqueueMessageToDLQ(context.Background(), nil)
+			err = store.EnqueueMessageToDLQ(context.Background(), nil, fixedTime)
 			if tc.wantErr {
 				assert.Error(t, err, "Expected an error for test case")
 			} else {
@@ -719,7 +722,7 @@ func TestUpdateDLQAckLevel(t *testing.T) {
 			require.NoError(t, err, "Failed to create sql queue store")
 
 			tc.mockSetup(mockDB, mockTx)
-			err = store.UpdateDLQAckLevel(context.Background(), 0, tc.clusterName)
+			err = store.UpdateDLQAckLevel(context.Background(), 0, tc.clusterName, fixedTime)
 			if tc.wantErr {
 				assert.Error(t, err, "Expected an error for test case")
 			} else {

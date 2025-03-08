@@ -317,7 +317,8 @@ func TestUpdateWorkflowExecutionWithTasks(t *testing.T) {
 			mutatedExecution: testdata.WFExecRequest(
 				testdata.WFExecRequestWithMapsWriteMode(nosqlplugin.WorkflowExecutionMapsWriteModeUpdate),
 			),
-			wantErr: true,
+			insertedExecution: testdata.WFExecRequest(),
+			wantErr:           true,
 		},
 		{
 			name: "mutatedExecution provided - success",
@@ -330,6 +331,7 @@ func TestUpdateWorkflowExecutionWithTasks(t *testing.T) {
 			mutatedExecution: testdata.WFExecRequest(
 				testdata.WFExecRequestWithMapsWriteMode(nosqlplugin.WorkflowExecutionMapsWriteModeUpdate),
 			),
+			insertedExecution: testdata.WFExecRequest(),
 		},
 		{
 			name:    "mutatedExecution provided - update fails",
@@ -343,6 +345,7 @@ func TestUpdateWorkflowExecutionWithTasks(t *testing.T) {
 			mutatedExecution: testdata.WFExecRequest(
 				testdata.WFExecRequestWithMapsWriteMode(nosqlplugin.WorkflowExecutionMapsWriteModeCreate), // this will cause failure
 			),
+			insertedExecution: testdata.WFExecRequest(),
 		},
 		{
 			name: "resetExecution provided - success",
@@ -356,6 +359,7 @@ func TestUpdateWorkflowExecutionWithTasks(t *testing.T) {
 				testdata.WFExecRequestWithEventBufferWriteMode(nosqlplugin.EventBufferWriteModeClear),
 				testdata.WFExecRequestWithMapsWriteMode(nosqlplugin.WorkflowExecutionMapsWriteModeReset),
 			),
+			insertedExecution: testdata.WFExecRequest(),
 		},
 		{
 			name:    "resetExecution provided - reset fails",
@@ -370,6 +374,7 @@ func TestUpdateWorkflowExecutionWithTasks(t *testing.T) {
 				testdata.WFExecRequestWithEventBufferWriteMode(nosqlplugin.EventBufferWriteModeNone), // this will cause failure
 				testdata.WFExecRequestWithMapsWriteMode(nosqlplugin.WorkflowExecutionMapsWriteModeReset),
 			),
+			insertedExecution: testdata.WFExecRequest(),
 		},
 		{
 			name: "resetExecution and insertedExecution provided - success",
@@ -420,6 +425,7 @@ func TestUpdateWorkflowExecutionWithTasks(t *testing.T) {
 				testdata.WFExecRequestWithEventBufferWriteMode(nosqlplugin.EventBufferWriteModeClear),
 				testdata.WFExecRequestWithMapsWriteMode(nosqlplugin.WorkflowExecutionMapsWriteModeReset),
 			),
+			insertedExecution: testdata.WFExecRequest(),
 		},
 	}
 
