@@ -38,6 +38,7 @@ import (
 	"github.com/uber/cadence/common/client"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/codec"
+	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/domain"
 	dc "github.com/uber/cadence/common/dynamicconfig"
@@ -899,6 +900,24 @@ func (adh *adminHandlerImpl) DescribeCluster(
 		membershipInfo.Rings = rings
 	}
 
+	__ := &config.Persistence{
+		DefaultStore: "nosql",
+		DataStores: map[string]config.DataStore{
+			"nosql": {
+				NoSQL: &config.NoSQL{},
+			},
+		},
+		// All configs  
+	}
+	
+	/* db = db.connection and read schema version from there 
+	db, err := sql.NewSQLAdminDB(cfg)
+	if err != nil {
+		return nil, err
+	}
+	*/
+
+
 	return &types.DescribeClusterResponse{
 		SupportedClientVersions: &types.SupportedClientVersions{
 			GoSdk:   client.SupportedGoSDKVersion,
@@ -909,6 +928,8 @@ func (adh *adminHandlerImpl) DescribeCluster(
 			"visibilityStore": &visibilityStoreInfo,
 			"historyStore":    &historyStoreInfo,
 		},
+		SchemaVersion: "1",
+		StaticConfig:  types.Any{},
 	}, nil
 }
 
@@ -1843,4 +1864,12 @@ func convertFilterListToMap(filters []*types.DynamicConfigFilter) (map[dc.Filter
 		newFilters[dc.ParseFilter(filter.Name)] = val
 	}
 	return newFilters, nil
+}
+
+func (adh *adminHandlerImpl) getPersistenceInfo() *PersistenceInfo {
+	// Fetch schema version from the persistence layer
+	schemaVer, _ := adh.persistenceManager.GetSchemaVersion()
+	return &PersistenceInfo{
+	  Version: schemaVer,
+	}
 }
