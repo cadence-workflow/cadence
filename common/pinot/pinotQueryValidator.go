@@ -40,7 +40,8 @@ import (
 
 // VisibilityQueryValidator for sql query validation
 type VisibilityQueryValidator struct {
-	validSearchAttributes dynamicconfig.MapPropertyFn
+	validSearchAttributes      dynamicconfig.MapPropertyFn
+	pinotOptimizedQueryColumns dynamicconfig.MapPropertyFn
 }
 
 var timeSystemKeys = map[string]bool{
@@ -51,9 +52,10 @@ var timeSystemKeys = map[string]bool{
 }
 
 // NewPinotQueryValidator create VisibilityQueryValidator
-func NewPinotQueryValidator(validSearchAttributes dynamicconfig.MapPropertyFn) *VisibilityQueryValidator {
+func NewPinotQueryValidator(validSearchAttributes dynamicconfig.MapPropertyFn, pinotOptimizedQueryColumns dynamicconfig.MapPropertyFn) *VisibilityQueryValidator {
 	return &VisibilityQueryValidator{
-		validSearchAttributes: validSearchAttributes,
+		validSearchAttributes:      validSearchAttributes,
+		pinotOptimizedQueryColumns: pinotOptimizedQueryColumns,
 	}
 }
 
@@ -232,6 +234,16 @@ func (qv *VisibilityQueryValidator) IsValidSearchAttributes(key string) bool {
 	return isValidKey
 }
 
+// IsOptimizedQueryColumn return true if colNameStr is in the optimized query columns
+func (qv *VisibilityQueryValidator) IsOptimizedQueryColumn(colNameStr string) bool {
+	if qv.pinotOptimizedQueryColumns() != nil {
+		optimizedQueryColumns := qv.pinotOptimizedQueryColumns()
+		_, isOptimizedQueryColumn := optimizedQueryColumns[colNameStr]
+		return isOptimizedQueryColumn
+	}
+	return false
+}
+
 func (qv *VisibilityQueryValidator) processSystemBoolKey(colNameStr string, comparisonExpr sqlparser.ComparisonExpr) (string, error) {
 	// case1: isCron = false
 	colVal, ok := comparisonExpr.Right.(sqlparser.BoolVal)
@@ -391,6 +403,7 @@ func (qv *VisibilityQueryValidator) processCustomKey(expr sqlparser.Expr) (strin
 	if !ok {
 		return "", fmt.Errorf("invalid search attribute")
 	}
+	useOptimizedQuery := qv.IsOptimizedQueryColumn(colNameStr)
 
 	// process IN clause in json indexed col: Attr
 	operator := strings.ToLower(comparisonExpr.Operator)
@@ -410,9 +423,9 @@ func (qv *VisibilityQueryValidator) processCustomKey(expr sqlparser.Expr) (strin
 
 	switch indexValType {
 	case types.IndexedValueTypeString:
-		return processCustomString(operator, colNameStr, colValStr), nil
+		return processCustomString(operator, colNameStr, colValStr, useOptimizedQuery), nil
 	case types.IndexedValueTypeKeyword:
-		return processCustomKeyword(operator, colNameStr, colValStr), nil
+		return processCustomKeyword(operator, colNameStr, colValStr, useOptimizedQuery), nil
 	case types.IndexedValueTypeDatetime:
 		var err error
 		colVal, err = trimTimeFieldValueFromNanoToMilliSeconds(colVal)
@@ -442,34 +455,38 @@ func processEqual(colNameStr string, colValStr string) string {
 	return fmt.Sprintf("JSON_MATCH(Attr, '\"$.%s\"=''%s''')", colNameStr, colValStr)
 }
 
-func processCustomKeyword(operator string, colNameStr string, colValStr string) string {
-	// edge case
-	if operator == "!=" {
-		return createKeywordQuery(operator, colNameStr, colValStr, "and", "NOT ")
+func processCustomKeyword(operator string, colNameStr string, colValStr string, useOptimizedQuery bool) string {
+	if useOptimizedQuery {
+		// replace "-" with "" for optimized query so Pinot can tokenize the whole UUID
+		filteredColValStr := strings.ReplaceAll(colValStr, "-", "")
+		return fmt.Sprintf("%s %s '%s'", colNameStr, operator, filteredColValStr)
 	}
 
-	return createKeywordQuery(operator, colNameStr, colValStr, "or", "")
-}
-
-func createKeywordQuery(operator string, colNameStr string, colValStr string, connector string, notEqual string) string {
 	if colValStr == "" {
 		// partial match for an empty string (still it will only match empty string)
 		// so it equals to exact match for an empty string
-		return createCustomStringQuery(colNameStr, colValStr, notEqual)
+		return processCustomString(operator, colNameStr, colValStr, useOptimizedQuery)
+	}
+
+	connector := "or"
+	if operator == "!=" {
+		connector = "and"
 	}
 	return fmt.Sprintf("(JSON_MATCH(Attr, '\"$.%s\"%s''%s''') %s JSON_MATCH(Attr, '\"$.%s[*]\"%s''%s'''))",
 		colNameStr, operator, colValStr, connector, colNameStr, operator, colValStr)
 }
 
-func processCustomString(operator string, colNameStr string, colValStr string) string {
-	if operator == "!=" {
-		return createCustomStringQuery(colNameStr, colValStr, "NOT ")
+func processCustomString(operator string, colNameStr string, colValStr string, useOptimizedQuery bool) string {
+	if useOptimizedQuery {
+		// replace "-" with "" for optimized query so Pinot can tokenize the whole UUID
+		filteredColValStr := strings.ReplaceAll(colValStr, "-", "")
+		return fmt.Sprintf("%s %s '%s'", colNameStr, operator, filteredColValStr)
 	}
 
-	return createCustomStringQuery(colNameStr, colValStr, "")
-}
-
-func createCustomStringQuery(colNameStr string, colValStr string, notEqual string) string {
+	notEqual := ""
+	if operator == "!=" {
+		notEqual = "NOT "
+	}
 	// handle edge case
 	if colValStr == "" {
 		return fmt.Sprintf("JSON_MATCH(Attr, '\"$.%s\" is not null') "+
