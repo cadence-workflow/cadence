@@ -25,12 +25,10 @@ package handler
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"sync"
 
-	"github.com/uber/cadence/client/history"
-	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/constants"
@@ -39,14 +37,14 @@ import (
 func NewHandler(
 	logger log.Logger,
 	metricsClient metrics.Client,
-	matchingPeerResolver matching.PeerResolver,
-	historyPeerResolver history.PeerResolver,
+	matchingRing membership.SingleProvider,
+	historyRing membership.SingleProvider,
 ) Handler {
 	handler := &handlerImpl{
-		logger:               logger,
-		metricsClient:        metricsClient,
-		matchingPeerResolver: matchingPeerResolver,
-		historyPeerResolver:  historyPeerResolver,
+		logger:        logger,
+		metricsClient: metricsClient,
+		matchingRing:  matchingRing,
+		historyRing:   historyRing,
 	}
 
 	// prevent us from trying to serve requests before shard distributor is started and ready
@@ -55,11 +53,13 @@ func NewHandler(
 }
 
 type handlerImpl struct {
-	logger               log.Logger
-	metricsClient        metrics.Client
-	matchingPeerResolver matching.PeerResolver
-	historyPeerResolver  history.PeerResolver
-	startWG              sync.WaitGroup
+	logger        log.Logger
+	metricsClient metrics.Client
+	peerProvider  membership.PeerProvider
+	startWG       sync.WaitGroup
+
+	matchingRing membership.SingleProvider
+	historyRing  membership.SingleProvider
 }
 
 func (h *handlerImpl) Start() {
@@ -80,24 +80,18 @@ func (h *handlerImpl) GetShardOwner(ctx context.Context, request *types.GetShard
 	defer func() { log.CapturePanic(recover(), h.logger, &retError) }()
 
 	var owner string
+	var err error
 	switch request.GetNamespace() {
 	case constants.HistoryNamespace:
-		shardID, err := strconv.Atoi(request.GetShardKey())
-		if err != nil {
-			return nil, fmt.Errorf("history shardkey to shardid %w", err)
-		}
-		owner, err = h.historyPeerResolver.FromShardID(shardID)
-		if err != nil {
-			return nil, fmt.Errorf("lookup history owner %w", err)
-		}
+		owner, err = h.historyRing.LookupRaw(request.GetShardKey())
 	case constants.MatchingNamespace:
-		var err error
-		owner, err = h.matchingPeerResolver.FromTaskList(request.GetShardKey())
-		if err != nil {
-			return nil, fmt.Errorf("lookup matching owner %w", err)
-		}
+		owner, err = h.matchingRing.LookupRaw(request.GetShardKey())
 	default:
 		return nil, &types.NamespaceNotFoundError{Namespace: request.GetNamespace()}
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("lookup owner in namespace %s %w", request.GetNamespace(), err)
 	}
 
 	resp = &types.GetShardOwnerResponse{
