@@ -21,7 +21,6 @@
 package host
 
 import (
-	"math/rand"
 	"sync/atomic"
 	"time"
 
@@ -176,8 +175,6 @@ func (h *serviceImpl) Start() {
 
 	// The service is now started up
 	h.logger.Info("service started")
-	// seed the random generator once for this service
-	rand.Seed(time.Now().UTC().UnixNano())
 }
 
 // Stop closes the associated transport
