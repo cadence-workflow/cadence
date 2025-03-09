@@ -26,6 +26,7 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
+	"github.com/uber/cadence/common/persistence/serialization"
 )
 
 type (
@@ -37,22 +38,25 @@ type (
 		logger           log.Logger
 		execStoreFactory *executionStoreFactory
 		dc               *persistence.DynamicConfiguration
+		taskSerializer   serialization.TaskSerializer
 	}
 
 	executionStoreFactory struct {
 		logger            log.Logger
 		shardedNosqlStore shardedNosqlStore
+		taskSerializer    serialization.TaskSerializer
 	}
 )
 
 // NewFactory returns an instance of a factory object which can be used to create
 // datastores that are backed by cassandra
-func NewFactory(cfg config.ShardedNoSQL, clusterName string, logger log.Logger, dc *persistence.DynamicConfiguration) *Factory {
+func NewFactory(cfg config.ShardedNoSQL, clusterName string, logger log.Logger, taskSerializer serialization.TaskSerializer, dc *persistence.DynamicConfiguration) *Factory {
 	return &Factory{
-		cfg:         cfg,
-		clusterName: clusterName,
-		logger:      logger,
-		dc:          dc,
+		cfg:            cfg,
+		clusterName:    clusterName,
+		logger:         logger,
+		taskSerializer: taskSerializer,
+		dc:             dc,
 	}
 }
 
@@ -122,7 +126,7 @@ func (f *Factory) executionStoreFactory() (*executionStoreFactory, error) {
 		return f.execStoreFactory, nil
 	}
 
-	factory, err := newExecutionStoreFactory(f.cfg, f.logger, f.dc)
+	factory, err := newExecutionStoreFactory(f.cfg, f.logger, f.taskSerializer, f.dc)
 	if err != nil {
 		return nil, err
 	}
@@ -134,6 +138,7 @@ func (f *Factory) executionStoreFactory() (*executionStoreFactory, error) {
 func newExecutionStoreFactory(
 	cfg config.ShardedNoSQL,
 	logger log.Logger,
+	taskSerializer serialization.TaskSerializer,
 	dc *persistence.DynamicConfiguration,
 ) (*executionStoreFactory, error) {
 	s, err := newShardedNosqlStore(cfg, logger, dc)
@@ -141,6 +146,7 @@ func newExecutionStoreFactory(
 		return nil, err
 	}
 	return &executionStoreFactory{
+		taskSerializer:    taskSerializer,
 		logger:            logger,
 		shardedNosqlStore: s,
 	}, nil
@@ -156,7 +162,7 @@ func (f *executionStoreFactory) new(shardID int) (persistence.ExecutionStore, er
 	if err != nil {
 		return nil, err
 	}
-	pmgr, err := NewExecutionStore(shardID, storeShard.db, f.logger)
+	pmgr, err := NewExecutionStore(shardID, storeShard.db, f.logger, f.taskSerializer)
 	if err != nil {
 		return nil, err
 	}

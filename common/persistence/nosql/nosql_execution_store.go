@@ -28,6 +28,7 @@ import (
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
+	"github.com/uber/cadence/common/persistence/serialization"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -35,6 +36,7 @@ import (
 type nosqlExecutionStore struct {
 	shardID int
 	nosqlStore
+	taskSerializer serialization.TaskSerializer
 }
 
 // NewExecutionStore is used to create an instance of ExecutionStore implementation
@@ -42,13 +44,15 @@ func NewExecutionStore(
 	shardID int,
 	db nosqlplugin.DB,
 	logger log.Logger,
+	taskSerializer serialization.TaskSerializer,
 ) (persistence.ExecutionStore, error) {
 	return &nosqlExecutionStore{
 		nosqlStore: nosqlStore{
 			logger: logger,
 			db:     db,
 		},
-		shardID: shardID,
+		shardID:        shardID,
+		taskSerializer: taskSerializer,
 	}, nil
 }
 
@@ -835,12 +839,7 @@ func (d *nosqlExecutionStore) CreateFailoverMarkerTasks(
 		if err != nil {
 			return err
 		}
-		for _, task := range tasks {
-			nosqlTasks = append(nosqlTasks, &nosqlplugin.HistoryMigrationTask{
-				Replication: task,
-				Task:        nil, // TODO: encode replication task into datablob
-			})
-		}
+		nosqlTasks = append(nosqlTasks, tasks...)
 	}
 
 	err := d.db.InsertReplicationTask(ctx, nosqlTasks, nosqlplugin.ShardCondition{

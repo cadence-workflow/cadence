@@ -34,12 +34,13 @@ import (
 type (
 	// Factory vends store objects backed by MySQL
 	Factory struct {
-		cfg         config.SQL
-		dbConn      dbConn
-		clusterName string
-		logger      log.Logger
-		parser      serialization.Parser
-		dc          *p.DynamicConfiguration
+		cfg            config.SQL
+		dbConn         dbConn
+		clusterName    string
+		logger         log.Logger
+		parser         serialization.Parser
+		taskSerializer serialization.TaskSerializer
+		dc             *p.DynamicConfiguration
 	}
 
 	// dbConn represents a logical mysql connection - its a
@@ -63,12 +64,13 @@ func NewFactory(
 	dc *p.DynamicConfiguration,
 ) *Factory {
 	return &Factory{
-		cfg:         cfg,
-		clusterName: clusterName,
-		logger:      logger,
-		dbConn:      newRefCountedDBConn(&cfg),
-		parser:      parser,
-		dc:          dc,
+		cfg:            cfg,
+		clusterName:    clusterName,
+		logger:         logger,
+		dbConn:         newRefCountedDBConn(&cfg),
+		parser:         parser,
+		taskSerializer: serialization.NewTaskSerializer(parser),
+		dc:             dc,
 	}
 }
 
@@ -114,7 +116,7 @@ func (f *Factory) NewExecutionStore(shardID int) (p.ExecutionStore, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewSQLExecutionStore(conn, f.logger, shardID, f.parser, f.dc)
+	return NewSQLExecutionStore(conn, f.logger, shardID, f.parser, f.taskSerializer, f.dc)
 }
 
 // NewVisibilityStore returns a visibility store
