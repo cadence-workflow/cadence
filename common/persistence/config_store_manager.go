@@ -24,7 +24,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 )
 
@@ -71,7 +71,7 @@ func (m *configStoreManagerImpl) FetchDynamicConfig(ctx context.Context, cfgType
 }
 
 func (m *configStoreManagerImpl) UpdateDynamicConfig(ctx context.Context, request *UpdateDynamicConfigRequest, cfgType ConfigType) error {
-	blob, err := m.serializer.SerializeDynamicConfigBlob(request.Snapshot.Values, common.EncodingTypeThriftRW)
+	blob, err := m.serializer.SerializeDynamicConfigBlob(request.Snapshot.Values, constants.EncodingTypeThriftRW)
 	if err != nil {
 		return err
 	}

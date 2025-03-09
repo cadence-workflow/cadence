@@ -31,8 +31,8 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/reconciliation/entity"
 	"github.com/uber/cadence/common/types"
@@ -449,8 +449,8 @@ func (c *staleWorkflowCheck) firstEvent(workflow *persistence.GetWorkflowExecuti
 	shard := c.pr.GetShardID()
 	history, err := c.pr.ReadHistoryBranch(ctx, &persistence.ReadHistoryBranchRequest{
 		BranchToken: branchToken,
-		MinEventID:  common.FirstEventID,
-		MaxEventID:  common.FirstEventID + 1, // exclusive bound
+		MinEventID:  constants.FirstEventID,
+		MaxEventID:  constants.FirstEventID + 1, // exclusive bound
 		ShardID:     &shard,
 		PageSize:    1, // just 1 necessary
 		DomainName:  domainName,
@@ -582,8 +582,8 @@ func (c *staleWorkflowCheck) getLastEvent(branchToken []byte, domainName string)
 		history, err := c.pr.ReadHistoryBranch(ctx, &persistence.ReadHistoryBranchRequest{
 			BranchToken: branchToken,
 			// only interested in the last event, but we have to read in order to get there.
-			MinEventID:    common.FirstEventID,
-			MaxEventID:    common.EndEventID,
+			MinEventID:    constants.FirstEventID,
+			MaxEventID:    constants.EndEventID,
 			ShardID:       &shard,
 			PageSize:      pageSize,
 			DomainName:    domainName,

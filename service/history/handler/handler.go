@@ -35,6 +35,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/uber/cadence/common"
+	constants2 "github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -735,17 +736,17 @@ func (h *handlerImpl) RemoveTask(
 		return err
 	}
 
-	switch taskType := common.TaskType(request.GetType()); taskType {
-	case common.TaskTypeTransfer:
+	switch taskType := constants2.TaskType(request.GetType()); taskType {
+	case constants2.TaskTypeTransfer:
 		return executionMgr.CompleteTransferTask(ctx, &persistence.CompleteTransferTaskRequest{
 			TaskID: request.GetTaskID(),
 		})
-	case common.TaskTypeTimer:
+	case constants2.TaskTypeTimer:
 		return executionMgr.CompleteTimerTask(ctx, &persistence.CompleteTimerTaskRequest{
 			VisibilityTimestamp: time.Unix(0, request.GetVisibilityTimestamp()),
 			TaskID:              request.GetTaskID(),
 		})
-	case common.TaskTypeReplication:
+	case constants2.TaskTypeReplication:
 		return executionMgr.CompleteReplicationTask(ctx, &persistence.CompleteReplicationTaskRequest{
 			TaskID: request.GetTaskID(),
 		})
@@ -780,10 +781,10 @@ func (h *handlerImpl) ResetQueue(
 		return h.error(err, scope, "", "", "")
 	}
 
-	switch taskType := common.TaskType(request.GetType()); taskType {
-	case common.TaskTypeTransfer:
+	switch taskType := constants2.TaskType(request.GetType()); taskType {
+	case constants2.TaskTypeTransfer:
 		err = engine.ResetTransferQueue(ctx, request.GetClusterName())
-	case common.TaskTypeTimer:
+	case constants2.TaskTypeTimer:
 		err = engine.ResetTimerQueue(ctx, request.GetClusterName())
 	default:
 		err = constants.ErrInvalidTaskType
@@ -812,10 +813,10 @@ func (h *handlerImpl) DescribeQueue(
 		return nil, h.error(err, scope, "", "", "")
 	}
 
-	switch taskType := common.TaskType(request.GetType()); taskType {
-	case common.TaskTypeTransfer:
+	switch taskType := constants2.TaskType(request.GetType()); taskType {
+	case constants2.TaskTypeTransfer:
 		resp, err = engine.DescribeTransferQueue(ctx, request.GetClusterName())
-	case common.TaskTypeTimer:
+	case constants2.TaskTypeTimer:
 		resp, err = engine.DescribeTimerQueue(ctx, request.GetClusterName())
 	default:
 		err = constants.ErrInvalidTaskType
@@ -1817,7 +1818,7 @@ func (h *handlerImpl) ReapplyEvents(
 	}
 	// deserialize history event object
 	historyEvents, err := h.GetPayloadSerializer().DeserializeBatchEvents(&persistence.DataBlob{
-		Encoding: common.EncodingTypeThriftRW,
+		Encoding: constants2.EncodingTypeThriftRW,
 		Data:     request.GetRequest().GetEvents().GetData(),
 	})
 	if err != nil {

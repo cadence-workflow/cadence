@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
 )
 
@@ -4555,7 +4556,7 @@ var StringKeys = map[StringKey]DynamicString{
 		KeyName:      "history.defaultEventEncoding",
 		Filters:      []Filter{DomainName},
 		Description:  "DefaultEventEncoding is the encoding type for history events",
-		DefaultValue: string(common.EncodingTypeThriftRW),
+		DefaultValue: string(constants.EncodingTypeThriftRW),
 	},
 	AdminOperationToken: {
 		KeyName:      "history.adminOperationToken",
@@ -5151,8 +5152,8 @@ func init() {
 
 var (
 	DefaultTaskSchedulerRoundRobinWeights = map[int]int{
-		common.GetTaskPriority(common.HighPriorityClass, common.DefaultPrioritySubclass):    500,
-		common.GetTaskPriority(common.DefaultPriorityClass, common.DefaultPrioritySubclass): 20,
-		common.GetTaskPriority(common.LowPriorityClass, common.DefaultPrioritySubclass):     5,
+		common.GetTaskPriority(constants.HighPriorityClass, constants.DefaultPrioritySubclass):    500,
+		common.GetTaskPriority(constants.DefaultPriorityClass, constants.DefaultPrioritySubclass): 20,
+		common.GetTaskPriority(constants.LowPriorityClass, constants.DefaultPrioritySubclass):     5,
 	}
 )

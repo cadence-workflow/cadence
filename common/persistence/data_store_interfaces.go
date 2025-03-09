@@ -27,8 +27,8 @@ import (
 	"time"
 
 	workflow "github.com/uber/cadence/.gen/go/shared"
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/checksum"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -222,7 +222,7 @@ type (
 	// It contains raw data, and metadata(right now only encoding) in other field
 	// Note that it should be only used for Persistence layer, below dataInterface and application(historyEngine/etc)
 	DataBlob struct {
-		Encoding common.EncodingType
+		Encoding constants.EncodingType
 		Data     []byte
 	}
 
@@ -890,11 +890,11 @@ type (
 )
 
 // NewDataBlob returns a new DataBlob
-func NewDataBlob(data []byte, encodingType common.EncodingType) *DataBlob {
+func NewDataBlob(data []byte, encodingType constants.EncodingType) *DataBlob {
 	if len(data) == 0 {
 		return nil
 	}
-	if encodingType != common.EncodingTypeThriftRW && data[0] == 'Y' {
+	if encodingType != constants.EncodingTypeThriftRW && data[0] == 'Y' {
 		// original reason for this is not written down, but maybe for handling data prior to an encoding type?
 		panic(fmt.Sprintf("Invalid data blob encoding: \"%v\"", encodingType))
 	}
@@ -936,32 +936,32 @@ func (d *DataBlob) GetData() []byte {
 }
 
 // GetEncoding returns encoding type
-func (d *DataBlob) GetEncoding() common.EncodingType {
+func (d *DataBlob) GetEncoding() constants.EncodingType {
 	encodingStr := d.GetEncodingString()
 
-	switch common.EncodingType(encodingStr) {
-	case common.EncodingTypeGob:
-		return common.EncodingTypeGob
-	case common.EncodingTypeJSON:
-		return common.EncodingTypeJSON
-	case common.EncodingTypeThriftRW:
-		return common.EncodingTypeThriftRW
-	case common.EncodingTypeEmpty:
-		return common.EncodingTypeEmpty
+	switch constants.EncodingType(encodingStr) {
+	case constants.EncodingTypeGob:
+		return constants.EncodingTypeGob
+	case constants.EncodingTypeJSON:
+		return constants.EncodingTypeJSON
+	case constants.EncodingTypeThriftRW:
+		return constants.EncodingTypeThriftRW
+	case constants.EncodingTypeEmpty:
+		return constants.EncodingTypeEmpty
 	default:
-		return common.EncodingTypeUnknown
+		return constants.EncodingTypeUnknown
 	}
 }
 
 // ToInternal convert data blob to internal representation
 func (d *DataBlob) ToInternal() *types.DataBlob {
 	switch d.Encoding {
-	case common.EncodingTypeJSON:
+	case constants.EncodingTypeJSON:
 		return &types.DataBlob{
 			EncodingType: types.EncodingTypeJSON.Ptr(),
 			Data:         d.Data,
 		}
-	case common.EncodingTypeThriftRW:
+	case constants.EncodingTypeThriftRW:
 		return &types.DataBlob{
 			EncodingType: types.EncodingTypeThriftRW.Ptr(),
 			Data:         d.Data,
@@ -976,12 +976,12 @@ func NewDataBlobFromInternal(blob *types.DataBlob) *DataBlob {
 	switch blob.GetEncodingType() {
 	case types.EncodingTypeJSON:
 		return &DataBlob{
-			Encoding: common.EncodingTypeJSON,
+			Encoding: constants.EncodingTypeJSON,
 			Data:     blob.Data,
 		}
 	case types.EncodingTypeThriftRW:
 		return &DataBlob{
-			Encoding: common.EncodingTypeThriftRW,
+			Encoding: constants.EncodingTypeThriftRW,
 			Data:     blob.Data,
 		}
 	default:

@@ -33,6 +33,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/checksum"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
@@ -56,7 +57,7 @@ func TestNosqlExecutionStoreUtils(t *testing.T) {
 						RunID:      "test-run-id",
 					},
 					VersionHistories: &persistence.DataBlob{
-						Encoding: common.EncodingTypeJSON,
+						Encoding: constants.EncodingTypeJSON,
 						Data:     []byte(`[{"Branches":[{"BranchID":"test-branch-id","BeginNodeID":1,"EndNodeID":2}]}]`),
 					},
 				}
@@ -80,7 +81,7 @@ func TestNosqlExecutionStoreUtils(t *testing.T) {
 						RunID:      "test-run-id",
 					},
 					VersionHistories: &persistence.DataBlob{
-						Encoding: common.EncodingTypeJSON,
+						Encoding: constants.EncodingTypeJSON,
 						Data:     []byte(`[{"Branches":[{"BranchID":"test-branch-id","BeginNodeID":1,"EndNodeID":2}]}]`),
 					},
 					Checksum: checksum.Checksum{Value: nil},
@@ -104,7 +105,7 @@ func TestNosqlExecutionStoreUtils(t *testing.T) {
 						RunID:      "test-run-id-2",
 					},
 					VersionHistories: &persistence.DataBlob{
-						Encoding: common.EncodingTypeJSON,
+						Encoding: constants.EncodingTypeJSON,
 						Data:     []byte("[]"), // Empty VersionHistories
 					},
 				}
@@ -127,7 +128,7 @@ func TestNosqlExecutionStoreUtils(t *testing.T) {
 					},
 					LastWriteVersion: 123,
 					Checksum:         checksum.Checksum{Version: 1},
-					VersionHistories: &persistence.DataBlob{Encoding: common.EncodingTypeJSON, Data: []byte(`[{"Branches":[{"BranchID":"reset-branch-id","BeginNodeID":1,"EndNodeID":2}]}]`)},
+					VersionHistories: &persistence.DataBlob{Encoding: constants.EncodingTypeJSON, Data: []byte(`[{"Branches":[{"BranchID":"reset-branch-id","BeginNodeID":1,"EndNodeID":2}]}]`)},
 					ActivityInfos:    []*persistence.InternalActivityInfo{{ScheduleID: 1}},
 					TimerInfos:       []*persistence.TimerInfo{{TimerID: "timerID"}},
 					ChildExecutionInfos: []*persistence.InternalChildExecutionInfo{
@@ -159,7 +160,7 @@ func TestNosqlExecutionStoreUtils(t *testing.T) {
 					},
 					LastWriteVersion: 456,
 					Checksum:         checksum.Checksum{Version: 1},
-					VersionHistories: &persistence.DataBlob{Encoding: common.EncodingTypeJSON, Data: []byte("{malformed}")},
+					VersionHistories: &persistence.DataBlob{Encoding: constants.EncodingTypeJSON, Data: []byte("{malformed}")},
 				}
 				return store.prepareResetWorkflowExecutionRequestWithMapsAndEventBuffer(resetWorkflow)
 			},
@@ -792,8 +793,8 @@ func TestNosqlExecutionStoreUtilsExtended(t *testing.T) {
 				activityInfos := []*persistence.InternalActivityInfo{
 					{
 						ScheduleID:     1,
-						ScheduledEvent: persistence.NewDataBlob([]byte("scheduled event data"), common.EncodingTypeThriftRW),
-						StartedEvent:   persistence.NewDataBlob([]byte("started event data"), common.EncodingTypeThriftRW),
+						ScheduledEvent: persistence.NewDataBlob([]byte("scheduled event data"), constants.EncodingTypeThriftRW),
+						StartedEvent:   persistence.NewDataBlob([]byte("started event data"), constants.EncodingTypeThriftRW),
 					},
 				}
 				return store.prepareActivityInfosForWorkflowTxn(activityInfos)
@@ -833,8 +834,8 @@ func TestNosqlExecutionStoreUtilsExtended(t *testing.T) {
 				childWFInfos := []*persistence.InternalChildExecutionInfo{
 					{
 						InitiatedID:    1,
-						InitiatedEvent: persistence.NewDataBlob([]byte("initiated event data"), common.EncodingTypeThriftRW),
-						StartedEvent:   persistence.NewDataBlob([]byte("started event data"), common.EncodingTypeThriftRW),
+						InitiatedEvent: persistence.NewDataBlob([]byte("initiated event data"), constants.EncodingTypeThriftRW),
+						StartedEvent:   persistence.NewDataBlob([]byte("started event data"), constants.EncodingTypeThriftRW),
 					},
 				}
 				return store.prepareChildWFInfosForWorkflowTxn(childWFInfos)
@@ -876,8 +877,8 @@ func TestNosqlExecutionStoreUtilsExtended(t *testing.T) {
 				childWFInfos := []*persistence.InternalChildExecutionInfo{
 					{
 						InitiatedID:    1,
-						InitiatedEvent: persistence.NewDataBlob([]byte("initiated"), common.EncodingTypeThriftRW),
-						StartedEvent:   persistence.NewDataBlob([]byte("started"), common.EncodingTypeJSON), // Encoding mismatch
+						InitiatedEvent: persistence.NewDataBlob([]byte("initiated"), constants.EncodingTypeThriftRW),
+						StartedEvent:   persistence.NewDataBlob([]byte("started"), constants.EncodingTypeJSON), // Encoding mismatch
 					},
 				}
 				return store.prepareChildWFInfosForWorkflowTxn(childWFInfos)
@@ -962,7 +963,7 @@ func TestNosqlExecutionStoreUtilsExtended(t *testing.T) {
 					CloseStatus: persistence.WorkflowCloseStatusNone,
 				}
 				versionHistories := &persistence.DataBlob{
-					Encoding: common.EncodingTypeJSON,
+					Encoding: constants.EncodingTypeJSON,
 					Data:     []byte(`[{"Branches":[{"BranchID":"test-branch-id","BeginNodeID":1,"EndNodeID":2}]}]`),
 				}
 				checksum := checksum.Checksum{Version: 1,
@@ -985,7 +986,7 @@ func TestNosqlExecutionStoreUtilsExtended(t *testing.T) {
 					State:      persistence.WorkflowStateCompleted,
 				}
 				versionHistories := &persistence.DataBlob{
-					Encoding: common.EncodingTypeJSON,
+					Encoding: constants.EncodingTypeJSON,
 					Data:     []byte(`[{"Branches":[{"BranchID":"branch-id","BeginNodeID":1,"EndNodeID":2}]}]`),
 				}
 				checksum := checksum.Checksum{Version: 1, Value: []byte("checksum")}
@@ -1008,7 +1009,7 @@ func TestNosqlExecutionStoreUtilsExtended(t *testing.T) {
 					CloseStatus: persistence.WorkflowCloseStatusNone,
 				}
 				versionHistories := &persistence.DataBlob{
-					Encoding: common.EncodingTypeJSON,
+					Encoding: constants.EncodingTypeJSON,
 					Data:     []byte(`[{"Branches":[{"BranchID":"branch-id","BeginNodeID":1,"EndNodeID":2}]}]`),
 				}
 				checksum := checksum.Checksum{Version: 1, Value: []byte("checksum")}
@@ -1030,7 +1031,7 @@ func TestNosqlExecutionStoreUtilsExtended(t *testing.T) {
 					CloseStatus: persistence.WorkflowCloseStatusNone,
 				}
 				versionHistories := &persistence.DataBlob{
-					Encoding: common.EncodingTypeJSON,
+					Encoding: constants.EncodingTypeJSON,
 					Data:     []byte(`[{"Branches":[{"BranchID":"create-branch-id","BeginNodeID":1,"EndNodeID":2}]}]`),
 				}
 				checksum := checksum.Checksum{Version: 1, Value: []byte("create-checksum")}
@@ -1054,7 +1055,7 @@ func TestNosqlExecutionStoreUtilsExtended(t *testing.T) {
 					CloseStatus: persistence.WorkflowCloseStatusNone,
 				}
 				versionHistories := &persistence.DataBlob{
-					Encoding: common.EncodingTypeJSON,
+					Encoding: constants.EncodingTypeJSON,
 					Data:     []byte(`[{"Branches":[{"BranchID":"create-branch-id","BeginNodeID":1,"EndNodeID":2}]}]`),
 				}
 				checksum := checksum.Checksum{Version: 1, Value: []byte("create-checksum")}

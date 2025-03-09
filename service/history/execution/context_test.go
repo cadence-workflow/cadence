@@ -37,6 +37,7 @@ import (
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -1522,7 +1523,7 @@ func TestUpdateWorkflowExecutionWithNew(t *testing.T) {
 					{
 						Events: []*types.HistoryEvent{
 							{
-								ID: common.FirstEventID,
+								ID: constants.FirstEventID,
 							},
 						},
 						BranchToken: []byte{4},
@@ -1564,7 +1565,7 @@ func TestUpdateWorkflowExecutionWithNew(t *testing.T) {
 					{
 						Events: []*types.HistoryEvent{
 							{
-								ID: common.FirstEventID,
+								ID: constants.FirstEventID,
 							},
 						},
 						BranchToken: []byte{4},
@@ -1612,7 +1613,7 @@ func TestUpdateWorkflowExecutionWithNew(t *testing.T) {
 					{
 						Events: []*types.HistoryEvent{
 							{
-								ID: common.FirstEventID,
+								ID: constants.FirstEventID,
 							},
 						},
 						BranchToken: []byte{4},
@@ -1661,7 +1662,7 @@ func TestUpdateWorkflowExecutionWithNew(t *testing.T) {
 					{
 						Events: []*types.HistoryEvent{
 							{
-								ID: common.FirstEventID,
+								ID: constants.FirstEventID,
 							},
 						},
 						BranchToken: []byte{4},
@@ -1751,7 +1752,7 @@ func TestUpdateWorkflowExecutionWithNew(t *testing.T) {
 					{
 						Events: []*types.HistoryEvent{
 							{
-								ID: common.FirstEventID,
+								ID: constants.FirstEventID,
 							},
 						},
 						BranchToken: []byte{4},
@@ -1789,7 +1790,7 @@ func TestUpdateWorkflowExecutionWithNew(t *testing.T) {
 				assert.Equal(t, &persistence.WorkflowEvents{
 					Events: []*types.HistoryEvent{
 						{
-							ID: common.FirstEventID,
+							ID: constants.FirstEventID,
 						},
 					},
 					BranchToken: []byte{4},
@@ -1841,7 +1842,7 @@ func TestUpdateWorkflowExecutionWithNew(t *testing.T) {
 					{
 						Events: []*types.HistoryEvent{
 							{
-								ID: common.FirstEventID,
+								ID: constants.FirstEventID,
 							},
 						},
 						BranchToken: []byte{4},
@@ -2125,7 +2126,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 					{
 						Events: []*types.HistoryEvent{
 							{
-								ID: common.FirstEventID,
+								ID: constants.FirstEventID,
 							},
 						},
 						BranchToken: []byte{4},
@@ -2163,7 +2164,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 					{
 						Events: []*types.HistoryEvent{
 							{
-								ID: common.FirstEventID,
+								ID: constants.FirstEventID,
 							},
 						},
 						BranchToken: []byte{4},
@@ -2209,7 +2210,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 					{
 						Events: []*types.HistoryEvent{
 							{
-								ID: common.FirstEventID,
+								ID: constants.FirstEventID,
 							},
 						},
 						BranchToken: []byte{4},
@@ -2259,7 +2260,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 					{
 						Events: []*types.HistoryEvent{
 							{
-								ID: common.FirstEventID,
+								ID: constants.FirstEventID,
 							},
 						},
 						BranchToken: []byte{4},
@@ -2326,7 +2327,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 					{
 						Events: []*types.HistoryEvent{
 							{
-								ID: common.FirstEventID,
+								ID: constants.FirstEventID,
 							},
 						},
 						BranchToken: []byte{4},
@@ -2385,7 +2386,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 					{
 						Events: []*types.HistoryEvent{
 							{
-								ID: common.FirstEventID,
+								ID: constants.FirstEventID,
 							},
 						},
 						BranchToken: []byte{4},
@@ -2442,7 +2443,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 					{
 						Events: []*types.HistoryEvent{
 							{
-								ID: common.FirstEventID,
+								ID: constants.FirstEventID,
 							},
 						},
 						BranchToken: []byte{4},
@@ -2522,7 +2523,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 					{
 						Events: []*types.HistoryEvent{
 							{
-								ID: common.FirstEventID,
+								ID: constants.FirstEventID,
 							},
 						},
 						BranchToken: []byte{4},
@@ -2611,7 +2612,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 				assert.Equal(t, &persistence.WorkflowEvents{
 					Events: []*types.HistoryEvent{
 						{
-							ID: common.FirstEventID,
+							ID: constants.FirstEventID,
 						},
 					},
 					BranchToken: []byte{4},
@@ -2638,7 +2639,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 					{
 						Events: []*types.HistoryEvent{
 							{
-								ID: common.FirstEventID,
+								ID: constants.FirstEventID,
 							},
 						},
 						BranchToken: []byte{4},

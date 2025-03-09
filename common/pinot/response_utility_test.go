@@ -30,7 +30,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	p "github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
@@ -45,7 +45,7 @@ func TestConvertSearchResultToVisibilityRecord(t *testing.T) {
 		},
 	}
 	serializer := p.NewPayloadSerializer()
-	sampleEncodedMemo, err := serializer.SerializeVisibilityMemo(sampleRawMemo, common.EncodingTypeThriftRW)
+	sampleEncodedMemo, err := serializer.SerializeVisibilityMemo(sampleRawMemo, constants.EncodingTypeThriftRW)
 	assert.NoError(t, err)
 
 	errorMapRaw1 := map[string]interface{}{"Memo": 123}
@@ -243,7 +243,7 @@ func TestDeserializeMemoMockingE2E(t *testing.T) {
 		},
 	}
 	serializer := p.NewPayloadSerializer()
-	sampleEncodedMemo, err := serializer.SerializeVisibilityMemo(sampleRawMemo, common.EncodingTypeThriftRW)
+	sampleEncodedMemo, err := serializer.SerializeVisibilityMemo(sampleRawMemo, constants.EncodingTypeThriftRW)
 	assert.NoError(t, err)
 	// not a human-readable string
 	assert.Equal(t, "Y\r\x00\n\v\v\x00\x00\x00\x01\x00\x00\x00\aService\x00\x00\x00\vserverName1\x00", string(sampleEncodedMemo.GetData()))

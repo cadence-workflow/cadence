@@ -30,6 +30,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/elasticsearch/validator"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -827,9 +828,9 @@ func (v *attrValidator) validatedTaskList(
 		}
 	}
 
-	if strings.HasPrefix(name, common.ReservedTaskListPrefix) {
+	if strings.HasPrefix(name, constants.ReservedTaskListPrefix) {
 		return taskList, &types.BadRequestError{
-			Message: fmt.Sprintf("task list name cannot start with reserved prefix %v", common.ReservedTaskListPrefix),
+			Message: fmt.Sprintf("task list name cannot start with reserved prefix %v", constants.ReservedTaskListPrefix),
 		}
 	}
 

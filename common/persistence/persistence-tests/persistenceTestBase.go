@@ -38,6 +38,7 @@ import (
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -346,7 +347,7 @@ func (s *TestBase) CreateWorkflowExecutionWithBranchToken(
 	versionHistory := persistence.NewVersionHistory(branchToken, []*persistence.VersionHistoryItem{
 		{
 			EventID: decisionScheduleID,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := persistence.NewVersionHistories(versionHistory)
@@ -365,13 +366,13 @@ func (s *TestBase) CreateWorkflowExecutionWithBranchToken(
 				ExecutionContext:            executionContext,
 				State:                       persistence.WorkflowStateRunning,
 				CloseStatus:                 persistence.WorkflowCloseStatusNone,
-				LastFirstEventID:            common.FirstEventID,
+				LastFirstEventID:            constants.FirstEventID,
 				NextEventID:                 nextEventID,
 				LastProcessedEvent:          lastProcessedEventID,
 				LastUpdatedTimestamp:        now,
 				StartTimestamp:              now,
 				DecisionScheduleID:          decisionScheduleID,
-				DecisionStartedID:           common.EmptyEventID,
+				DecisionStartedID:           constants.EmptyEventID,
 				DecisionTimeout:             1,
 				BranchToken:                 branchToken,
 				PartitionConfig:             partitionConfig,
@@ -430,7 +431,7 @@ func (s *TestBase) CreateChildWorkflowExecution(ctx context.Context, domainID st
 	versionHistory := persistence.NewVersionHistory([]byte{}, []*persistence.VersionHistoryItem{
 		{
 			EventID: decisionScheduleID,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := persistence.NewVersionHistories(versionHistory)
@@ -453,13 +454,13 @@ func (s *TestBase) CreateChildWorkflowExecution(ctx context.Context, domainID st
 				ExecutionContext:            executionContext,
 				State:                       persistence.WorkflowStateCreated,
 				CloseStatus:                 persistence.WorkflowCloseStatusNone,
-				LastFirstEventID:            common.FirstEventID,
+				LastFirstEventID:            constants.FirstEventID,
 				NextEventID:                 nextEventID,
 				LastProcessedEvent:          lastProcessedEventID,
 				LastUpdatedTimestamp:        now,
 				StartTimestamp:              now,
 				DecisionScheduleID:          decisionScheduleID,
-				DecisionStartedID:           common.EmptyEventID,
+				DecisionStartedID:           constants.EmptyEventID,
 				DecisionTimeout:             1,
 				PartitionConfig:             partitionConfig,
 			},
@@ -552,7 +553,7 @@ func (s *TestBase) ContinueAsNewExecution(
 	versionHistory := persistence.NewVersionHistory([]byte{}, []*persistence.VersionHistoryItem{
 		{
 			EventID: decisionScheduleID,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := persistence.NewVersionHistories(versionHistory)
@@ -587,13 +588,13 @@ func (s *TestBase) ContinueAsNewExecution(
 				ExecutionContext:            nil,
 				State:                       updatedInfo.State,
 				CloseStatus:                 updatedInfo.CloseStatus,
-				LastFirstEventID:            common.FirstEventID,
+				LastFirstEventID:            constants.FirstEventID,
 				NextEventID:                 nextEventID,
-				LastProcessedEvent:          common.EmptyEventID,
+				LastProcessedEvent:          constants.EmptyEventID,
 				LastUpdatedTimestamp:        now,
 				StartTimestamp:              now,
 				DecisionScheduleID:          decisionScheduleID,
-				DecisionStartedID:           common.EmptyEventID,
+				DecisionStartedID:           constants.EmptyEventID,
 				DecisionTimeout:             1,
 				AutoResetPoints:             prevResetPoints,
 				PartitionConfig:             updatedInfo.PartitionConfig,
@@ -2034,17 +2035,17 @@ func GenerateRandomDBName(n int) string {
 	return fmt.Sprintf("%v_%v", ts, string(b))
 }
 
-func pickRandomEncoding() common.EncodingType {
+func pickRandomEncoding() constants.EncodingType {
 	// randomly pick json/thriftrw/empty as encoding type
-	var encoding common.EncodingType
+	var encoding constants.EncodingType
 	i := rand.Intn(3)
 	switch i {
 	case 0:
-		encoding = common.EncodingTypeJSON
+		encoding = constants.EncodingTypeJSON
 	case 1:
-		encoding = common.EncodingTypeThriftRW
+		encoding = constants.EncodingTypeThriftRW
 	case 2:
-		encoding = common.EncodingType("")
+		encoding = constants.EncodingType("")
 	}
 	return encoding
 }

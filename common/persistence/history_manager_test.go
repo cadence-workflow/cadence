@@ -33,6 +33,7 @@ import (
 	workflow "github.com/uber/cadence/.gen/go/shared"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/codec"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/types"
@@ -433,7 +434,7 @@ func TestAppendHistoryNodes(t *testing.T) {
 				}).Times(1)
 				mockSerializer.EXPECT().
 					SerializeBatchEvents(gomock.Any(), gomock.Any()).
-					Return(&DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("events")}, nil).Times(1)
+					Return(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("events")}, nil).Times(1)
 				mockStore.EXPECT().
 					AppendHistoryNodes(gomock.Any(), gomock.Any()).
 					Return(nil).Times(1)
@@ -556,7 +557,7 @@ func TestAppendHistoryNodes(t *testing.T) {
 				}).Times(1)
 				mockSerializer.EXPECT().
 					SerializeBatchEvents(gomock.Any(), gomock.Any()).
-					Return(&DataBlob{Encoding: common.EncodingTypeThriftRW, Data: make([]byte, 1024*10+1)}, nil).Times(1)
+					Return(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: make([]byte, 1024*10+1)}, nil).Times(1)
 			},
 			request: &AppendHistoryNodesRequest{
 				BranchToken:   []byte("branch-token"),
@@ -578,7 +579,7 @@ func TestAppendHistoryNodes(t *testing.T) {
 				}).Times(1)
 				mockSerializer.EXPECT().
 					SerializeBatchEvents(gomock.Any(), gomock.Any()).
-					Return(&DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("events")}, nil).Times(1)
+					Return(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("events")}, nil).Times(1)
 				mockStore.EXPECT().
 					AppendHistoryNodes(gomock.Any(), gomock.Any()).
 					Return(errors.New("persistence error")).Times(1)
@@ -1429,7 +1430,7 @@ func TestDeserializeToken(t *testing.T) {
 			defaultLastEventID: 100,
 			expectedToken: &historyV2PagingToken{
 				LastEventID:       100,
-				LastEventVersion:  common.EmptyVersion,
+				LastEventVersion:  constants.EmptyVersion,
 				CurrentRangeIndex: notStartedIndex,
 				LastNodeID:        defaultLastNodeID,
 				LastTransactionID: defaultLastTransactionID,

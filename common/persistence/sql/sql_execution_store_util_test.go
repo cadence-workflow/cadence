@@ -31,6 +31,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/serialization"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
@@ -808,7 +809,7 @@ func TestCreateExecution(t *testing.T) {
 			mockSetup: func(mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
 				mockParser.EXPECT().WorkflowExecutionInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte(`workflow`),
-					Encoding: common.EncodingType("workflow"),
+					Encoding: constants.EncodingType("workflow"),
 				}, nil)
 				mockTx.EXPECT().InsertIntoExecutions(gomock.Any(), &sqlplugin.ExecutionsRow{
 					ShardID:          shardID,
@@ -839,7 +840,7 @@ func TestCreateExecution(t *testing.T) {
 			mockSetup: func(mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
 				mockParser.EXPECT().WorkflowExecutionInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte(`workflow`),
-					Encoding: common.EncodingType("workflow"),
+					Encoding: constants.EncodingType("workflow"),
 				}, nil)
 				err := errors.New("some error")
 				mockTx.EXPECT().InsertIntoExecutions(gomock.Any(), &sqlplugin.ExecutionsRow{
@@ -907,7 +908,7 @@ func TestUpdateExecution(t *testing.T) {
 			mockSetup: func(mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
 				mockParser.EXPECT().WorkflowExecutionInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte(`workflow`),
-					Encoding: common.EncodingType("workflow"),
+					Encoding: constants.EncodingType("workflow"),
 				}, nil)
 				mockTx.EXPECT().UpdateExecutions(gomock.Any(), &sqlplugin.ExecutionsRow{
 					ShardID:          shardID,
@@ -938,7 +939,7 @@ func TestUpdateExecution(t *testing.T) {
 			mockSetup: func(mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
 				mockParser.EXPECT().WorkflowExecutionInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte(`workflow`),
-					Encoding: common.EncodingType("workflow"),
+					Encoding: constants.EncodingType("workflow"),
 				}, nil)
 				err := errors.New("some error")
 				mockTx.EXPECT().UpdateExecutions(gomock.Any(), &sqlplugin.ExecutionsRow{
@@ -1086,7 +1087,7 @@ func TestCreateTransferTasks(t *testing.T) {
 					TaskList:            "tl",
 				}).Return(persistence.DataBlob{
 					Data:     []byte(`1`),
-					Encoding: common.EncodingType("1"),
+					Encoding: constants.EncodingType("1"),
 				}, nil)
 				mockParser.EXPECT().TransferTaskInfoToBlob(&serialization.TransferTaskInfo{
 					DomainID:            domainID,
@@ -1101,7 +1102,7 @@ func TestCreateTransferTasks(t *testing.T) {
 					TaskList:            "tl2",
 				}).Return(persistence.DataBlob{
 					Data:     []byte(`2`),
-					Encoding: common.EncodingType("2"),
+					Encoding: constants.EncodingType("2"),
 				}, nil)
 				mockParser.EXPECT().TransferTaskInfoToBlob(&serialization.TransferTaskInfo{
 					DomainID:                domainID,
@@ -1117,7 +1118,7 @@ func TestCreateTransferTasks(t *testing.T) {
 					TargetChildWorkflowOnly: true,
 				}).Return(persistence.DataBlob{
 					Data:     []byte(`3`),
-					Encoding: common.EncodingType("3"),
+					Encoding: constants.EncodingType("3"),
 				}, nil)
 				mockParser.EXPECT().TransferTaskInfoToBlob(&serialization.TransferTaskInfo{
 					DomainID:                domainID,
@@ -1133,7 +1134,7 @@ func TestCreateTransferTasks(t *testing.T) {
 					TargetChildWorkflowOnly: true,
 				}).Return(persistence.DataBlob{
 					Data:     []byte(`5`),
-					Encoding: common.EncodingType("5"),
+					Encoding: constants.EncodingType("5"),
 				}, nil)
 				mockParser.EXPECT().TransferTaskInfoToBlob(&serialization.TransferTaskInfo{
 					DomainID:            domainID,
@@ -1147,7 +1148,7 @@ func TestCreateTransferTasks(t *testing.T) {
 					VisibilityTimestamp: time.Unix(7, 7),
 				}).Return(persistence.DataBlob{
 					Data:     []byte(`7`),
-					Encoding: common.EncodingType("7"),
+					Encoding: constants.EncodingType("7"),
 				}, nil)
 				mockParser.EXPECT().TransferTaskInfoToBlob(&serialization.TransferTaskInfo{
 					DomainID:            domainID,
@@ -1161,7 +1162,7 @@ func TestCreateTransferTasks(t *testing.T) {
 					VisibilityTimestamp: time.Unix(8, 8),
 				}).Return(persistence.DataBlob{
 					Data:     []byte(`8`),
-					Encoding: common.EncodingType("8"),
+					Encoding: constants.EncodingType("8"),
 				}, nil)
 				mockParser.EXPECT().TransferTaskInfoToBlob(&serialization.TransferTaskInfo{
 					DomainID:            domainID,
@@ -1175,7 +1176,7 @@ func TestCreateTransferTasks(t *testing.T) {
 					VisibilityTimestamp: time.Unix(9, 9),
 				}).Return(persistence.DataBlob{
 					Data:     []byte(`9`),
-					Encoding: common.EncodingType("9"),
+					Encoding: constants.EncodingType("9"),
 				}, nil)
 				mockParser.EXPECT().TransferTaskInfoToBlob(&serialization.TransferTaskInfo{
 					DomainID:            domainID,
@@ -1188,7 +1189,7 @@ func TestCreateTransferTasks(t *testing.T) {
 					VisibilityTimestamp: time.Unix(10, 10),
 				}).Return(persistence.DataBlob{
 					Data:     []byte(`10`),
-					Encoding: common.EncodingType("10"),
+					Encoding: constants.EncodingType("10"),
 				}, nil)
 				mockTx.EXPECT().InsertIntoTransferTasks(gomock.Any(), []sqlplugin.TransferTasksRow{
 					{
@@ -1271,7 +1272,7 @@ func TestCreateTransferTasks(t *testing.T) {
 					TaskList:            "tl",
 				}).Return(persistence.DataBlob{
 					Data:     []byte(`1`),
-					Encoding: common.EncodingType("1"),
+					Encoding: constants.EncodingType("1"),
 				}, nil)
 				err := errors.New("some error")
 				mockTx.EXPECT().InsertIntoTransferTasks(gomock.Any(), gomock.Any()).Return(nil, err)
@@ -1392,7 +1393,7 @@ func TestCreateTimerTasks(t *testing.T) {
 					TimeoutType:     common.Int16Ptr(1),
 				}).Return(persistence.DataBlob{
 					Data:     []byte(`1`),
-					Encoding: common.EncodingType("1"),
+					Encoding: constants.EncodingType("1"),
 				}, nil)
 				mockParser.EXPECT().TimerTaskInfoToBlob(&serialization.TimerTaskInfo{
 					DomainID:        domainID,
@@ -1405,7 +1406,7 @@ func TestCreateTimerTasks(t *testing.T) {
 					TimeoutType:     common.Int16Ptr(2),
 				}).Return(persistence.DataBlob{
 					Data:     []byte(`2`),
-					Encoding: common.EncodingType("2"),
+					Encoding: constants.EncodingType("2"),
 				}, nil)
 				mockParser.EXPECT().TimerTaskInfoToBlob(&serialization.TimerTaskInfo{
 					DomainID:        domainID,
@@ -1417,7 +1418,7 @@ func TestCreateTimerTasks(t *testing.T) {
 					ScheduleAttempt: 0,
 				}).Return(persistence.DataBlob{
 					Data:     []byte(`3`),
-					Encoding: common.EncodingType("3"),
+					Encoding: constants.EncodingType("3"),
 				}, nil)
 				mockParser.EXPECT().TimerTaskInfoToBlob(&serialization.TimerTaskInfo{
 					DomainID:        domainID,
@@ -1429,7 +1430,7 @@ func TestCreateTimerTasks(t *testing.T) {
 					ScheduleAttempt: 4,
 				}).Return(persistence.DataBlob{
 					Data:     []byte(`4`),
-					Encoding: common.EncodingType("4"),
+					Encoding: constants.EncodingType("4"),
 				}, nil)
 				mockParser.EXPECT().TimerTaskInfoToBlob(&serialization.TimerTaskInfo{
 					DomainID:        domainID,
@@ -1442,7 +1443,7 @@ func TestCreateTimerTasks(t *testing.T) {
 					TimeoutType:     common.Int16Ptr(5),
 				}).Return(persistence.DataBlob{
 					Data:     []byte(`5`),
-					Encoding: common.EncodingType("5"),
+					Encoding: constants.EncodingType("5"),
 				}, nil)
 				mockParser.EXPECT().TimerTaskInfoToBlob(&serialization.TimerTaskInfo{
 					DomainID:        domainID,
@@ -1450,11 +1451,11 @@ func TestCreateTimerTasks(t *testing.T) {
 					RunID:           runID,
 					TaskType:        int16(persistence.TaskTypeWorkflowTimeout),
 					Version:         6,
-					EventID:         common.EmptyEventID,
+					EventID:         constants.EmptyEventID,
 					ScheduleAttempt: 0,
 				}).Return(persistence.DataBlob{
 					Data:     []byte(`6`),
-					Encoding: common.EncodingType("6"),
+					Encoding: constants.EncodingType("6"),
 				}, nil)
 				mockParser.EXPECT().TimerTaskInfoToBlob(&serialization.TimerTaskInfo{
 					DomainID:        domainID,
@@ -1462,11 +1463,11 @@ func TestCreateTimerTasks(t *testing.T) {
 					RunID:           runID,
 					TaskType:        int16(persistence.TaskTypeDeleteHistoryEvent),
 					Version:         7,
-					EventID:         common.EmptyEventID,
+					EventID:         constants.EmptyEventID,
 					ScheduleAttempt: 0,
 				}).Return(persistence.DataBlob{
 					Data:     []byte(`7`),
-					Encoding: common.EncodingType("7"),
+					Encoding: constants.EncodingType("7"),
 				}, nil)
 				mockTx.EXPECT().InsertIntoTimerTasks(gomock.Any(), []sqlplugin.TimerTasksRow{
 					{
@@ -1548,7 +1549,7 @@ func TestCreateTimerTasks(t *testing.T) {
 					TimeoutType:     common.Int16Ptr(1),
 				}).Return(persistence.DataBlob{
 					Data:     []byte(`1`),
-					Encoding: common.EncodingType("1"),
+					Encoding: constants.EncodingType("1"),
 				}, nil)
 				err := errors.New("some error")
 				mockTx.EXPECT().InsertIntoTimerTasks(gomock.Any(), gomock.Any()).Return(nil, err)
@@ -1633,7 +1634,7 @@ func TestCreateReplicationTasks(t *testing.T) {
 					FirstEventID:            1,
 					NextEventID:             2,
 					Version:                 1,
-					ScheduledID:             common.EmptyEventID,
+					ScheduledID:             constants.EmptyEventID,
 					EventStoreVersion:       persistence.EventStoreVersion,
 					NewRunEventStoreVersion: persistence.EventStoreVersion,
 					CreationTimestamp:       time.Unix(1, 1),
@@ -1641,15 +1642,15 @@ func TestCreateReplicationTasks(t *testing.T) {
 					NewRunBranchToken:       []byte{2},
 				}).Return(persistence.DataBlob{
 					Data:     []byte(`1`),
-					Encoding: common.EncodingType("1"),
+					Encoding: constants.EncodingType("1"),
 				}, nil)
 				mockParser.EXPECT().ReplicationTaskInfoToBlob(&serialization.ReplicationTaskInfo{
 					DomainID:                domainID,
 					WorkflowID:              workflowID,
 					RunID:                   runID,
 					TaskType:                int16(persistence.ReplicationTaskTypeSyncActivity),
-					FirstEventID:            common.EmptyEventID,
-					NextEventID:             common.EmptyEventID,
+					FirstEventID:            constants.EmptyEventID,
+					NextEventID:             constants.EmptyEventID,
 					Version:                 2,
 					ScheduledID:             2,
 					EventStoreVersion:       persistence.EventStoreVersion,
@@ -1657,23 +1658,23 @@ func TestCreateReplicationTasks(t *testing.T) {
 					CreationTimestamp:       time.Unix(2, 2),
 				}).Return(persistence.DataBlob{
 					Data:     []byte(`2`),
-					Encoding: common.EncodingType("2"),
+					Encoding: constants.EncodingType("2"),
 				}, nil)
 				mockParser.EXPECT().ReplicationTaskInfoToBlob(&serialization.ReplicationTaskInfo{
 					DomainID:                domainID,
 					WorkflowID:              workflowID,
 					RunID:                   runID,
 					TaskType:                int16(persistence.ReplicationTaskTypeFailoverMarker),
-					FirstEventID:            common.EmptyEventID,
-					NextEventID:             common.EmptyEventID,
+					FirstEventID:            constants.EmptyEventID,
+					NextEventID:             constants.EmptyEventID,
 					Version:                 3,
-					ScheduledID:             common.EmptyEventID,
+					ScheduledID:             constants.EmptyEventID,
 					EventStoreVersion:       persistence.EventStoreVersion,
 					NewRunEventStoreVersion: persistence.EventStoreVersion,
 					CreationTimestamp:       time.Unix(3, 3),
 				}).Return(persistence.DataBlob{
 					Data:     []byte(`3`),
-					Encoding: common.EncodingType("3"),
+					Encoding: constants.EncodingType("3"),
 				}, nil)
 				mockTx.EXPECT().InsertIntoReplicationTasks(gomock.Any(), []sqlplugin.ReplicationTasksRow{
 					{

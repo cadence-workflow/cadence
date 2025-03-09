@@ -36,8 +36,8 @@ import (
 
 	gomock "go.uber.org/mock/gomock"
 
-	common "github.com/uber/cadence/common"
 	checksum "github.com/uber/cadence/common/checksum"
+	constants "github.com/uber/cadence/common/constants"
 	types "github.com/uber/cadence/common/types"
 )
 
@@ -246,7 +246,7 @@ func (mr *MockPayloadSerializerMockRecorder) DeserializeVisibilityMemo(data any)
 }
 
 // SerializeAsyncWorkflowsConfig mocks base method.
-func (m *MockPayloadSerializer) SerializeAsyncWorkflowsConfig(config *types.AsyncWorkflowConfiguration, encodingType common.EncodingType) (*DataBlob, error) {
+func (m *MockPayloadSerializer) SerializeAsyncWorkflowsConfig(config *types.AsyncWorkflowConfiguration, encodingType constants.EncodingType) (*DataBlob, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SerializeAsyncWorkflowsConfig", config, encodingType)
 	ret0, _ := ret[0].(*DataBlob)
@@ -261,7 +261,7 @@ func (mr *MockPayloadSerializerMockRecorder) SerializeAsyncWorkflowsConfig(confi
 }
 
 // SerializeBadBinaries mocks base method.
-func (m *MockPayloadSerializer) SerializeBadBinaries(event *types.BadBinaries, encodingType common.EncodingType) (*DataBlob, error) {
+func (m *MockPayloadSerializer) SerializeBadBinaries(event *types.BadBinaries, encodingType constants.EncodingType) (*DataBlob, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SerializeBadBinaries", event, encodingType)
 	ret0, _ := ret[0].(*DataBlob)
@@ -276,7 +276,7 @@ func (mr *MockPayloadSerializerMockRecorder) SerializeBadBinaries(event, encodin
 }
 
 // SerializeBatchEvents mocks base method.
-func (m *MockPayloadSerializer) SerializeBatchEvents(batch []*types.HistoryEvent, encodingType common.EncodingType) (*DataBlob, error) {
+func (m *MockPayloadSerializer) SerializeBatchEvents(batch []*types.HistoryEvent, encodingType constants.EncodingType) (*DataBlob, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SerializeBatchEvents", batch, encodingType)
 	ret0, _ := ret[0].(*DataBlob)
@@ -291,7 +291,7 @@ func (mr *MockPayloadSerializerMockRecorder) SerializeBatchEvents(batch, encodin
 }
 
 // SerializeChecksum mocks base method.
-func (m *MockPayloadSerializer) SerializeChecksum(sum checksum.Checksum, encodingType common.EncodingType) (*DataBlob, error) {
+func (m *MockPayloadSerializer) SerializeChecksum(sum checksum.Checksum, encodingType constants.EncodingType) (*DataBlob, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SerializeChecksum", sum, encodingType)
 	ret0, _ := ret[0].(*DataBlob)
@@ -306,7 +306,7 @@ func (mr *MockPayloadSerializerMockRecorder) SerializeChecksum(sum, encodingType
 }
 
 // SerializeDynamicConfigBlob mocks base method.
-func (m *MockPayloadSerializer) SerializeDynamicConfigBlob(blob *types.DynamicConfigBlob, encodingType common.EncodingType) (*DataBlob, error) {
+func (m *MockPayloadSerializer) SerializeDynamicConfigBlob(blob *types.DynamicConfigBlob, encodingType constants.EncodingType) (*DataBlob, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SerializeDynamicConfigBlob", blob, encodingType)
 	ret0, _ := ret[0].(*DataBlob)
@@ -321,7 +321,7 @@ func (mr *MockPayloadSerializerMockRecorder) SerializeDynamicConfigBlob(blob, en
 }
 
 // SerializeEvent mocks base method.
-func (m *MockPayloadSerializer) SerializeEvent(event *types.HistoryEvent, encodingType common.EncodingType) (*DataBlob, error) {
+func (m *MockPayloadSerializer) SerializeEvent(event *types.HistoryEvent, encodingType constants.EncodingType) (*DataBlob, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SerializeEvent", event, encodingType)
 	ret0, _ := ret[0].(*DataBlob)
@@ -336,7 +336,7 @@ func (mr *MockPayloadSerializerMockRecorder) SerializeEvent(event, encodingType 
 }
 
 // SerializeIsolationGroups mocks base method.
-func (m *MockPayloadSerializer) SerializeIsolationGroups(event *types.IsolationGroupConfiguration, encodingType common.EncodingType) (*DataBlob, error) {
+func (m *MockPayloadSerializer) SerializeIsolationGroups(event *types.IsolationGroupConfiguration, encodingType constants.EncodingType) (*DataBlob, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SerializeIsolationGroups", event, encodingType)
 	ret0, _ := ret[0].(*DataBlob)
@@ -351,7 +351,7 @@ func (mr *MockPayloadSerializerMockRecorder) SerializeIsolationGroups(event, enc
 }
 
 // SerializePendingFailoverMarkers mocks base method.
-func (m *MockPayloadSerializer) SerializePendingFailoverMarkers(markers []*types.FailoverMarkerAttributes, encodingType common.EncodingType) (*DataBlob, error) {
+func (m *MockPayloadSerializer) SerializePendingFailoverMarkers(markers []*types.FailoverMarkerAttributes, encodingType constants.EncodingType) (*DataBlob, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SerializePendingFailoverMarkers", markers, encodingType)
 	ret0, _ := ret[0].(*DataBlob)
@@ -366,7 +366,7 @@ func (mr *MockPayloadSerializerMockRecorder) SerializePendingFailoverMarkers(mar
 }
 
 // SerializeProcessingQueueStates mocks base method.
-func (m *MockPayloadSerializer) SerializeProcessingQueueStates(states *types.ProcessingQueueStates, encodingType common.EncodingType) (*DataBlob, error) {
+func (m *MockPayloadSerializer) SerializeProcessingQueueStates(states *types.ProcessingQueueStates, encodingType constants.EncodingType) (*DataBlob, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SerializeProcessingQueueStates", states, encodingType)
 	ret0, _ := ret[0].(*DataBlob)
@@ -381,7 +381,7 @@ func (mr *MockPayloadSerializerMockRecorder) SerializeProcessingQueueStates(stat
 }
 
 // SerializeResetPoints mocks base method.
-func (m *MockPayloadSerializer) SerializeResetPoints(event *types.ResetPoints, encodingType common.EncodingType) (*DataBlob, error) {
+func (m *MockPayloadSerializer) SerializeResetPoints(event *types.ResetPoints, encodingType constants.EncodingType) (*DataBlob, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SerializeResetPoints", event, encodingType)
 	ret0, _ := ret[0].(*DataBlob)
@@ -396,7 +396,7 @@ func (mr *MockPayloadSerializerMockRecorder) SerializeResetPoints(event, encodin
 }
 
 // SerializeVersionHistories mocks base method.
-func (m *MockPayloadSerializer) SerializeVersionHistories(histories *types.VersionHistories, encodingType common.EncodingType) (*DataBlob, error) {
+func (m *MockPayloadSerializer) SerializeVersionHistories(histories *types.VersionHistories, encodingType constants.EncodingType) (*DataBlob, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SerializeVersionHistories", histories, encodingType)
 	ret0, _ := ret[0].(*DataBlob)
@@ -411,7 +411,7 @@ func (mr *MockPayloadSerializerMockRecorder) SerializeVersionHistories(histories
 }
 
 // SerializeVisibilityMemo mocks base method.
-func (m *MockPayloadSerializer) SerializeVisibilityMemo(memo *types.Memo, encodingType common.EncodingType) (*DataBlob, error) {
+func (m *MockPayloadSerializer) SerializeVisibilityMemo(memo *types.Memo, encodingType constants.EncodingType) (*DataBlob, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SerializeVisibilityMemo", memo, encodingType)
 	ret0, _ := ret[0].(*DataBlob)

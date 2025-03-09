@@ -28,6 +28,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/checksum"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql"
@@ -39,9 +40,9 @@ var _emptyUUID = cql.UUID{}
 func parseWorkflowExecutionInfo(result map[string]interface{}) *persistence.InternalWorkflowExecutionInfo {
 	info := &persistence.InternalWorkflowExecutionInfo{}
 	var completionEventData []byte
-	var completionEventEncoding common.EncodingType
+	var completionEventEncoding constants.EncodingType
 	var autoResetPoints []byte
-	var autoResetPointsEncoding common.EncodingType
+	var autoResetPointsEncoding constants.EncodingType
 
 	for k, v := range result {
 		switch k {
@@ -78,11 +79,11 @@ func parseWorkflowExecutionInfo(result map[string]interface{}) *persistence.Inte
 		case "completion_event":
 			completionEventData = v.([]byte)
 		case "completion_event_data_encoding":
-			completionEventEncoding = common.EncodingType(v.(string))
+			completionEventEncoding = constants.EncodingType(v.(string))
 		case "auto_reset_points":
 			autoResetPoints = v.([]byte)
 		case "auto_reset_points_encoding":
-			autoResetPointsEncoding = common.EncodingType(v.(string))
+			autoResetPointsEncoding = constants.EncodingType(v.(string))
 		case "task_list":
 			info.TaskList = v.(string)
 		case "workflow_type_name":
@@ -237,7 +238,7 @@ func parseActivityInfo(
 ) *persistence.InternalActivityInfo {
 
 	info := &persistence.InternalActivityInfo{}
-	var sharedEncoding common.EncodingType
+	var sharedEncoding constants.EncodingType
 	var scheduledEventData, startedEventData []byte
 	for k, v := range result {
 		switch k {
@@ -306,7 +307,7 @@ func parseActivityInfo(
 		case "last_failure_details":
 			info.LastFailureDetails = v.([]byte)
 		case "event_data_encoding":
-			sharedEncoding = common.EncodingType(v.(string))
+			sharedEncoding = constants.EncodingType(v.(string))
 		}
 	}
 	info.DomainID = domainID
@@ -346,7 +347,7 @@ func parseChildExecutionInfo(
 ) *persistence.InternalChildExecutionInfo {
 
 	info := &persistence.InternalChildExecutionInfo{}
-	var encoding common.EncodingType
+	var encoding constants.EncodingType
 	var initiatedData []byte
 	var startedData []byte
 	for k, v := range result {
@@ -370,7 +371,7 @@ func parseChildExecutionInfo(
 		case "create_request_id":
 			info.CreateRequestID = v.(gocql.UUID).String()
 		case "event_data_encoding":
-			encoding = common.EncodingType(v.(string))
+			encoding = constants.EncodingType(v.(string))
 		case "domain_id":
 			info.DomainID = v.(gocql.UUID).String()
 			if info.DomainID == _emptyUUID.String() {
@@ -442,11 +443,11 @@ func parseHistoryEventBatchBlob(
 	result map[string]interface{},
 ) *persistence.DataBlob {
 
-	eventBatch := &persistence.DataBlob{Encoding: common.EncodingTypeJSON}
+	eventBatch := &persistence.DataBlob{Encoding: constants.EncodingTypeJSON}
 	for k, v := range result {
 		switch k {
 		case "encoding_type":
-			eventBatch.Encoding = common.EncodingType(v.(string))
+			eventBatch.Encoding = constants.EncodingType(v.(string))
 		case "data":
 			eventBatch.Data = v.([]byte)
 		}

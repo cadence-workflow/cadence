@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	p "github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/serialization"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
@@ -872,10 +873,10 @@ func createReplicationTasks(
 
 	for i, task := range replicationTasks {
 
-		firstEventID := common.EmptyEventID
-		nextEventID := common.EmptyEventID
-		version := common.EmptyVersion
-		activityScheduleID := common.EmptyEventID
+		firstEventID := constants.EmptyEventID
+		nextEventID := constants.EmptyEventID
+		version := constants.EmptyVersion
+		activityScheduleID := constants.EmptyEventID
 		var branchToken, newRunBranchToken []byte
 
 		switch task.GetType() {
@@ -974,7 +975,7 @@ func createTimerTasks(
 			RunID:           runID,
 			TaskType:        int16(task.GetType()),
 			Version:         task.GetVersion(),
-			EventID:         common.EmptyEventID,
+			EventID:         constants.EmptyEventID,
 			ScheduleAttempt: 0,
 		}
 

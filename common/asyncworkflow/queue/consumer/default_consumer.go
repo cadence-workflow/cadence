@@ -38,6 +38,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/codec"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/messaging"
@@ -284,7 +285,7 @@ func getYARPCOptions(header *shared.Header) []yarpc.CallOption {
 }
 
 func (c *DefaultConsumer) decodeStartWorkflowRequest(payload []byte, encoding string) (*types.StartWorkflowExecutionRequest, error) {
-	if encoding != string(common.EncodingTypeThriftRW) {
+	if encoding != string(constants.EncodingTypeThriftRW) {
 		return nil, &UnsupportedEncoding{EncodingType: encoding}
 	}
 
@@ -298,7 +299,7 @@ func (c *DefaultConsumer) decodeStartWorkflowRequest(payload []byte, encoding st
 }
 
 func (c *DefaultConsumer) decodeSignalWithStartWorkflowRequest(payload []byte, encoding string) (*types.SignalWithStartWorkflowExecutionRequest, error) {
-	if encoding != string(common.EncodingTypeThriftRW) {
+	if encoding != string(constants.EncodingTypeThriftRW) {
 		return nil, &UnsupportedEncoding{EncodingType: encoding}
 	}
 

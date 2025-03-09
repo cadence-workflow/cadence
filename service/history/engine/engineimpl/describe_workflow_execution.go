@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/execution"
@@ -76,7 +77,7 @@ func (e *historyEngineImpl) DescribeWorkflowExecution(
 			},
 			Type:             &types.WorkflowType{Name: executionInfo.WorkflowTypeName},
 			StartTime:        common.Int64Ptr(executionInfo.StartTimestamp.UnixNano()),
-			HistoryLength:    mutableState.GetNextEventID() - common.FirstEventID,
+			HistoryLength:    mutableState.GetNextEventID() - constants.FirstEventID,
 			AutoResetPoints:  executionInfo.AutoResetPoints,
 			Memo:             &types.Memo{Fields: executionInfo.CopyMemo()},
 			IsCron:           len(executionInfo.CronSchedule) > 0,
@@ -128,7 +129,7 @@ func (e *historyEngineImpl) DescribeWorkflowExecution(
 			state := types.PendingActivityStateScheduled
 			if ai.CancelRequested {
 				state = types.PendingActivityStateCancelRequested
-			} else if ai.StartedID != common.EmptyEventID {
+			} else if ai.StartedID != constants.EmptyEventID {
 				state = types.PendingActivityStateStarted
 			}
 			p.State = &state
@@ -204,7 +205,7 @@ func (e *historyEngineImpl) DescribeWorkflowExecution(
 			OriginalScheduledTimestamp: common.Int64Ptr(di.OriginalScheduledTimestamp),
 			ScheduleID:                 di.ScheduleID,
 		}
-		if di.StartedID != common.EmptyEventID {
+		if di.StartedID != constants.EmptyEventID {
 			pendingDecision.State = types.PendingDecisionStateStarted.Ptr()
 			pendingDecision.StartedTimestamp = common.Int64Ptr(di.StartedTimestamp)
 		}

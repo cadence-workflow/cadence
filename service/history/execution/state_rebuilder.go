@@ -31,6 +31,7 @@ import (
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/collection"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -112,7 +113,7 @@ func (r *stateRebuilderImpl) Rebuild(
 
 	iter := collection.NewPagingIterator(r.getPaginationFn(
 		ctx,
-		common.FirstEventID,
+		constants.FirstEventID,
 		baseLastEventID+1,
 		baseBranchToken,
 		targetWorkflowIdentifier.DomainID,

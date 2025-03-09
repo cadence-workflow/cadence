@@ -24,8 +24,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
@@ -141,7 +141,7 @@ func (h *nosqlHistoryStore) ReadHistoryBranch(
 		nodeID = row.NodeID
 		txnID = *row.TxnID
 		eventBlob.Data = row.Data
-		eventBlob.Encoding = common.EncodingType(row.DataEncoding)
+		eventBlob.Encoding = constants.EncodingType(row.DataEncoding)
 		if txnID < lastTxnID {
 			// assuming that business logic layer is correct and transaction ID only increase
 			// thus, valid event batch will come with increasing transaction ID

@@ -32,6 +32,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/serialization"
@@ -2541,7 +2542,7 @@ func TestCreateFailoverMarkerTasks(t *testing.T) {
 			},
 			mockSetup: func(tx *sqlplugin.MockTx, parser *serialization.MockParser) {
 				parser.EXPECT().ReplicationTaskInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
-					Encoding: common.EncodingTypeThriftRW,
+					Encoding: constants.EncodingTypeThriftRW,
 					Data:     []byte("test data"),
 				}, nil)
 				tx.EXPECT().InsertIntoReplicationTasks(gomock.Any(), []sqlplugin.ReplicationTasksRow{
@@ -2594,7 +2595,7 @@ func TestCreateFailoverMarkerTasks(t *testing.T) {
 			},
 			mockSetup: func(tx *sqlplugin.MockTx, parser *serialization.MockParser) {
 				parser.EXPECT().ReplicationTaskInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
-					Encoding: common.EncodingTypeThriftRW,
+					Encoding: constants.EncodingTypeThriftRW,
 					Data:     []byte("test data"),
 				}, nil)
 				tx.EXPECT().InsertIntoReplicationTasks(gomock.Any(), []sqlplugin.ReplicationTasksRow{
@@ -2626,7 +2627,7 @@ func TestCreateFailoverMarkerTasks(t *testing.T) {
 			},
 			mockSetup: func(tx *sqlplugin.MockTx, parser *serialization.MockParser) {
 				parser.EXPECT().ReplicationTaskInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
-					Encoding: common.EncodingTypeThriftRW,
+					Encoding: constants.EncodingTypeThriftRW,
 					Data:     []byte("test data"),
 				}, nil)
 				tx.EXPECT().InsertIntoReplicationTasks(gomock.Any(), []sqlplugin.ReplicationTasksRow{
@@ -2659,7 +2660,7 @@ func TestCreateFailoverMarkerTasks(t *testing.T) {
 			},
 			mockSetup: func(tx *sqlplugin.MockTx, parser *serialization.MockParser) {
 				parser.EXPECT().ReplicationTaskInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
-					Encoding: common.EncodingTypeThriftRW,
+					Encoding: constants.EncodingTypeThriftRW,
 					Data:     []byte("test data"),
 				}, nil)
 				tx.EXPECT().InsertIntoReplicationTasks(gomock.Any(), []sqlplugin.ReplicationTasksRow{
@@ -2960,7 +2961,7 @@ func TestGetWorkflowExecution(t *testing.T) {
 						ParentRunID:                        "ee8d7b6e-876c-4b1e-9b6e-5e3e3c6b6b3f",
 						InitiatedID:                        101,
 						CompletionEventBatchID:             11,
-						CompletionEvent:                    persistence.NewDataBlob([]byte("test completion event"), common.EncodingTypeJSON),
+						CompletionEvent:                    persistence.NewDataBlob([]byte("test completion event"), constants.EncodingTypeJSON),
 						TaskList:                           "test-task-list",
 						IsCron:                             true,
 						WorkflowTypeName:                   "test-workflow-type",
@@ -2998,7 +2999,7 @@ func TestGetWorkflowExecution(t *testing.T) {
 						ClientImpl:                         "test-client-impl",
 						FirstExecutionRunID:                "ee8d7b6e-876c-4b1e-9b6e-5e3e3c6b6b3f",
 						PartitionConfig:                    map[string]string{"test-key": "test-value"},
-						AutoResetPoints:                    persistence.NewDataBlob([]byte("test-auto-reset-points"), common.EncodingTypeJSON),
+						AutoResetPoints:                    persistence.NewDataBlob([]byte("test-auto-reset-points"), constants.EncodingTypeJSON),
 						Attempt:                            107,
 						InitialInterval:                    time.Duration(108),
 						BackoffCoefficient:                 111,
@@ -3011,7 +3012,7 @@ func TestGetWorkflowExecution(t *testing.T) {
 						Memo:                               map[string][]byte{"test-key": []byte("test-value")},
 						ExpirationInterval:                 time.Duration(111),
 					},
-					VersionHistories: persistence.NewDataBlob([]byte("test-version-histories"), common.EncodingTypeJSON),
+					VersionHistories: persistence.NewDataBlob([]byte("test-version-histories"), constants.EncodingTypeJSON),
 					ReplicationState: &persistence.ReplicationState{
 						StartVersion:     111,
 						LastWriteVersion: 11,
@@ -3022,11 +3023,11 @@ func TestGetWorkflowExecution(t *testing.T) {
 							Version:                101,
 							ScheduleID:             101,
 							ScheduledEventBatchID:  102,
-							ScheduledEvent:         persistence.NewDataBlob([]byte("test scheduled event"), common.EncodingTypeJSON),
+							ScheduledEvent:         persistence.NewDataBlob([]byte("test scheduled event"), constants.EncodingTypeJSON),
 							ScheduledTime:          time.Unix(11, 12),
 							StartedID:              103,
 							StartedTime:            time.Unix(13, 14),
-							StartedEvent:           persistence.NewDataBlob([]byte("test started event"), common.EncodingTypeJSON),
+							StartedEvent:           persistence.NewDataBlob([]byte("test started event"), constants.EncodingTypeJSON),
 							ActivityID:             "test-activity-id",
 							RequestID:              "test-request-id",
 							ScheduleToStartTimeout: time.Duration(101),
@@ -3065,10 +3066,10 @@ func TestGetWorkflowExecution(t *testing.T) {
 						101: {
 							Version:               101,
 							InitiatedID:           101,
-							InitiatedEvent:        persistence.NewDataBlob([]byte("test initiated event"), common.EncodingTypeJSON),
+							InitiatedEvent:        persistence.NewDataBlob([]byte("test initiated event"), constants.EncodingTypeJSON),
 							InitiatedEventBatchID: 102,
 							StartedID:             103,
-							StartedEvent:          persistence.NewDataBlob([]byte("test started event"), common.EncodingTypeJSON),
+							StartedEvent:          persistence.NewDataBlob([]byte("test started event"), constants.EncodingTypeJSON),
 							StartedWorkflowID:     "test-started-workflow-id",
 							StartedRunID:          "ee8d7b6e-876c-4b1e-9b6e-5e3e3c6b6b3f",
 							CreateRequestID:       "test-create-request-id",
@@ -3101,7 +3102,7 @@ func TestGetWorkflowExecution(t *testing.T) {
 					},
 					BufferedEvents: []*persistence.DataBlob{
 						{
-							Encoding: common.EncodingTypeThriftRW,
+							Encoding: constants.EncodingTypeThriftRW,
 							Data:     []byte("test data"),
 						},
 					},

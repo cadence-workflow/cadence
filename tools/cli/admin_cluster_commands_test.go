@@ -30,7 +30,7 @@ import (
 	"github.com/urfave/cli/v2"
 	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/visibility"
 	"github.com/uber/cadence/service/worker/failovermanager"
@@ -79,7 +79,7 @@ func TestAdminFailover(t *testing.T) {
 					Description: "a test domain",
 					OwnerEmail:  "test@uber.com",
 					Data: map[string]string{
-						common.DomainDataKeyForManagedFailover: "true",
+						constants.DomainDataKeyForManagedFailover: "true",
 					},
 				},
 				ReplicationConfiguration: &types.DomainReplicationConfiguration{
@@ -323,7 +323,7 @@ func TestAdminRebalanceList(t *testing.T) {
 				return clitest.NewCLIContext(t,
 					td.app,
 					clitest.StringArgument(FlagWorkflowID, failovermanager.RebalanceWorkflowID),
-					clitest.StringArgument(FlagDomain, common.SystemLocalDomainName),
+					clitest.StringArgument(FlagDomain, constants.SystemLocalDomainName),
 				)
 			},
 			expectedOutput: "\n", // Example output for success case
@@ -336,7 +336,7 @@ func TestAdminRebalanceList(t *testing.T) {
 				// Create CLI app and set up flag set without FlagWorkflowID
 				return clitest.NewCLIContext(t,
 					td.app,
-					clitest.StringArgument(FlagDomain, common.SystemLocalDomainName),
+					clitest.StringArgument(FlagDomain, constants.SystemLocalDomainName),
 				)
 			},
 			expectedOutput: "",

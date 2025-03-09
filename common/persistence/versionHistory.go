@@ -24,7 +24,7 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -34,7 +34,7 @@ func NewVersionHistoryItem(
 	inputVersion int64,
 ) *VersionHistoryItem {
 
-	if inputEventID < 0 || (inputVersion < 0 && inputVersion != common.EmptyVersion) {
+	if inputEventID < 0 || (inputVersion < 0 && inputVersion != constants.EmptyVersion) {
 		panic(fmt.Sprintf(
 			"invalid version history item event ID: %v, version: %v",
 			inputEventID,
@@ -232,7 +232,7 @@ func (v *VersionHistory) AddOrUpdateItem(
 func (v *VersionHistory) ContainsItem(
 	item *VersionHistoryItem,
 ) bool {
-	prevEventID := common.FirstEventID - 1
+	prevEventID := constants.FirstEventID - 1
 	for _, currentItem := range v.Items {
 		if item.Version == currentItem.Version {
 			if prevEventID < item.EventID && item.EventID <= currentItem.EventID {
@@ -318,7 +318,7 @@ func (v *VersionHistory) GetEventVersion(
 	if err != nil {
 		return 0, err
 	}
-	if eventID < common.FirstEventID || eventID > lastItem.EventID {
+	if eventID < constants.FirstEventID || eventID > lastItem.EventID {
 		return 0, &types.BadRequestError{Message: "input event ID is not in range."}
 	}
 

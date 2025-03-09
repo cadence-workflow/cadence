@@ -35,6 +35,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
@@ -384,7 +385,7 @@ func (s *historyResenderSuite) TestCurrentExecutionCheck() {
 }
 
 func (s *historyResenderSuite) serializeEvents(events []*types.HistoryEvent) *types.DataBlob {
-	blob, err := s.serializer.SerializeBatchEvents(events, common.EncodingTypeThriftRW)
+	blob, err := s.serializer.SerializeBatchEvents(events, constants.EncodingTypeThriftRW)
 	s.Nil(err)
 	return &types.DataBlob{
 		EncodingType: types.EncodingTypeThriftRW.Ptr(),

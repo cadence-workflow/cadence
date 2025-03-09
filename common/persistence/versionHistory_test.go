@@ -26,7 +26,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -257,7 +257,7 @@ func (s *versionHistoriesSuite) TestContainsItem_True() {
 	}
 	history := NewVersionHistory(BranchToken, Items)
 
-	prevEventID := common.FirstEventID - 1
+	prevEventID := constants.FirstEventID - 1
 	for _, item := range Items {
 		for EventID := prevEventID + 1; EventID <= item.EventID; EventID++ {
 			s.True(history.ContainsItem(NewVersionHistoryItem(EventID, item.Version)))

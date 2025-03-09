@@ -33,6 +33,7 @@ import (
 	"github.com/uber/cadence/.gen/go/replicator"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/codec"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -233,12 +234,12 @@ func (q *replicationQueueImpl) GetDLQAckLevel(
 ) (int64, error) {
 	dlqMetadata, err := q.queue.GetDLQAckLevels(ctx)
 	if err != nil {
-		return common.EmptyMessageID, err
+		return constants.EmptyMessageID, err
 	}
 
 	ackLevel, ok := dlqMetadata[localDomainReplicationCluster]
 	if !ok {
-		return common.EmptyMessageID, nil
+		return constants.EmptyMessageID, nil
 	}
 	return ackLevel, nil
 }

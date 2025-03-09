@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 )
 
 type constantSuite struct {
@@ -237,7 +238,7 @@ func (s *constantSuite) TestStringKey() {
 			KeyName:      "history.defaultEventEncoding",
 			Filters:      []Filter{DomainName},
 			Description:  "DefaultEventEncoding is the encoding type for history events",
-			DefaultValue: string(common.EncodingTypeThriftRW),
+			DefaultValue: string(constants.EncodingTypeThriftRW),
 		},
 		"ReadVisibilityStoreName": {
 			Key:          ReadVisibilityStoreName,
@@ -315,9 +316,9 @@ func (s *constantSuite) TestMapKey() {
 			KeyName:     "history.taskSchedulerRoundRobinWeight",
 			Description: "TaskSchedulerRoundRobinWeights is the priority weight for weighted round robin task scheduler",
 			DefaultValue: common.ConvertIntMapToDynamicConfigMapProperty(map[int]int{
-				common.GetTaskPriority(common.HighPriorityClass, common.DefaultPrioritySubclass):    500,
-				common.GetTaskPriority(common.DefaultPriorityClass, common.DefaultPrioritySubclass): 20,
-				common.GetTaskPriority(common.LowPriorityClass, common.DefaultPrioritySubclass):     5,
+				common.GetTaskPriority(constants.HighPriorityClass, constants.DefaultPrioritySubclass):    500,
+				common.GetTaskPriority(constants.DefaultPriorityClass, constants.DefaultPrioritySubclass): 20,
+				common.GetTaskPriority(constants.LowPriorityClass, constants.DefaultPrioritySubclass):     5,
 			}),
 		},
 		"QueueProcessorStuckTaskSplitThreshold": {

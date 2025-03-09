@@ -27,8 +27,8 @@ import (
 
 	"github.com/pborman/uuid"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
@@ -217,14 +217,14 @@ func (t *replicationTaskImpl) getVersionHistory() *persistence.VersionHistory {
 func (t *replicationTaskImpl) isWorkflowReset() bool {
 
 	baseRunID, newRunID, baseEventVersion, isReset := t.getWorkflowResetMetadata()
-	return len(baseRunID) > 0 && baseEventVersion != common.EmptyVersion && len(newRunID) > 0 && isReset
+	return len(baseRunID) > 0 && baseEventVersion != constants.EmptyVersion && len(newRunID) > 0 && isReset
 }
 
 func (t *replicationTaskImpl) getWorkflowResetMetadata() (string, string, int64, bool) {
 
 	var baseRunID string
 	var newRunID string
-	var baseEventVersion = common.EmptyVersion
+	var baseEventVersion = constants.EmptyVersion
 	var isReset bool
 	switch t.getFirstEvent().GetEventType() {
 	case types.EventTypeDecisionTaskFailed:
@@ -396,7 +396,7 @@ func deserializeBlob(
 	}
 
 	internalEvents, err := historySerializer.DeserializeBatchEvents(&persistence.DataBlob{
-		Encoding: common.EncodingTypeThriftRW,
+		Encoding: constants.EncodingTypeThriftRW,
 		Data:     blob.Data,
 	})
 	return internalEvents, err

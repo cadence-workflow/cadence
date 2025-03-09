@@ -50,6 +50,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/domain"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/elasticsearch"
@@ -658,7 +659,7 @@ func (c *cadenceImpl) startFrontend(hosts map[string][]membership.HostInfo, star
 	if c.pinotConfig != nil {
 		pinotDataStoreName := "pinot-visibility"
 		params.PersistenceConfig.AdvancedVisibilityStore = pinotDataStoreName
-		params.DynamicConfig.UpdateValue(dynamicconfig.ReadVisibilityStoreName, common.VisibilityModePinot)
+		params.DynamicConfig.UpdateValue(dynamicconfig.ReadVisibilityStoreName, constants.VisibilityModePinot)
 		params.PersistenceConfig.DataStores[pinotDataStoreName] = config.DataStore{
 			Pinot: c.pinotConfig,
 		}
@@ -743,7 +744,7 @@ func (c *cadenceImpl) startHistory(hosts map[string][]membership.HostInfo, start
 				Pinot:         c.pinotConfig,
 				ElasticSearch: c.esConfig,
 			}
-			params.DynamicConfig.UpdateValue(dynamicconfig.WriteVisibilityStoreName, common.VisibilityModePinot)
+			params.DynamicConfig.UpdateValue(dynamicconfig.WriteVisibilityStoreName, constants.VisibilityModePinot)
 		} else if c.esConfig != nil {
 			esDataStoreName := "es-visibility"
 			params.PersistenceConfig.AdvancedVisibilityStore = esDataStoreName
@@ -998,13 +999,13 @@ func (c *cadenceImpl) startWorkerClientWorker(params *resource.Params, svc Servi
 }
 
 func (c *cadenceImpl) startWorkerIndexer(params *resource.Params, service Service) {
-	params.DynamicConfig.UpdateValue(dynamicconfig.WriteVisibilityStoreName, common.VisibilityModeES)
+	params.DynamicConfig.UpdateValue(dynamicconfig.WriteVisibilityStoreName, constants.VisibilityModeES)
 	workerConfig := worker.NewConfig(params)
 	c.indexer = indexer.NewIndexer(
 		workerConfig.IndexerCfg,
 		c.messagingClient,
 		c.esClient,
-		c.esConfig.Indices[common.VisibilityAppName],
+		c.esConfig.Indices[constants.VisibilityAppName],
 		c.esConfig.ConsumerName,
 		c.logger,
 		service.GetMetricsClient())
@@ -1031,7 +1032,7 @@ func (c *cadenceImpl) createSystemDomain() error {
 			VisibilityArchivalStatus: types.ArchivalStatusDisabled,
 		},
 		ReplicationConfig: &persistence.DomainReplicationConfig{},
-		FailoverVersion:   common.EmptyVersion,
+		FailoverVersion:   constants.EmptyVersion,
 	})
 	if err != nil {
 		if _, ok := err.(*types.DomainAlreadyExistsError); ok {
@@ -1050,7 +1051,7 @@ func (c *cadenceImpl) overrideHistoryDynamicConfig(client *dynamicClient) {
 	client.OverrideValue(dynamicconfig.ReplicationTaskProcessorStartWait, time.Nanosecond)
 
 	if c.workerConfig.EnableIndexer {
-		client.OverrideValue(dynamicconfig.WriteVisibilityStoreName, common.VisibilityModeES)
+		client.OverrideValue(dynamicconfig.WriteVisibilityStoreName, constants.VisibilityModeES)
 	}
 	if c.historyConfig.HistoryCountLimitWarn != 0 {
 		client.OverrideValue(dynamicconfig.HistoryCountLimitWarn, c.historyConfig.HistoryCountLimitWarn)

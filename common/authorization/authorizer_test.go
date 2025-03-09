@@ -28,7 +28,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -38,12 +38,12 @@ func Test_validatePermission(t *testing.T) {
 	writeRequestAttr := &Attributes{Permission: PermissionWrite}
 
 	readWriteDomainData := domainData{
-		common.DomainDataKeyForReadGroups:  "read1",
-		common.DomainDataKeyForWriteGroups: "write1",
+		constants.DomainDataKeyForReadGroups:  "read1",
+		constants.DomainDataKeyForWriteGroups: "write1",
 	}
 
 	readDomainData := domainData{
-		common.DomainDataKeyForReadGroups: "read1",
+		constants.DomainDataKeyForReadGroups: "read1",
 	}
 
 	emptyDomainData := domainData{}

@@ -81,8 +81,8 @@ import (
 	"github.com/pborman/uuid"
 	"go.uber.org/multierr"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/checksum"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql/public"
 	persistencetests "github.com/uber/cadence/common/persistence/persistence-tests"
@@ -274,7 +274,7 @@ func createWorkflow(s *persistencetests.TestBase, wfID string) (*persistence.Wor
 	versionHistory := persistence.NewVersionHistory([]byte{}, []*persistence.VersionHistoryItem{
 		{
 			EventID: nextEventID,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := persistence.NewVersionHistories(versionHistory)
@@ -291,7 +291,7 @@ func createWorkflow(s *persistencetests.TestBase, wfID string) (*persistence.Wor
 				WorkflowTypeName:            workflowType,
 				WorkflowTimeout:             workflowTimeout,
 				DecisionStartToCloseTimeout: decisionTimeout,
-				LastFirstEventID:            common.FirstEventID,
+				LastFirstEventID:            constants.FirstEventID,
 				NextEventID:                 nextEventID,
 				LastProcessedEvent:          lastProcessedEventID,
 				State:                       persistence.WorkflowStateCreated,
@@ -337,7 +337,7 @@ func infoToUpdateReq(s *persistencetests.TestBase, info *persistence.WorkflowMut
 	versionHistory := persistence.NewVersionHistory([]byte{}, []*persistence.VersionHistoryItem{
 		{
 			EventID: nextEventID,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := persistence.NewVersionHistories(versionHistory)

@@ -26,7 +26,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 )
 
@@ -110,16 +110,16 @@ func (tn *qualifiedTaskListName) GetPartition(partition int) string {
 	if partition == 0 {
 		return tn.baseName
 	}
-	return fmt.Sprintf("%v%v/%v", common.ReservedTaskListPrefix, tn.baseName, partition)
+	return fmt.Sprintf("%v%v/%v", constants.ReservedTaskListPrefix, tn.baseName, partition)
 }
 
 func (tn *qualifiedTaskListName) init() error {
-	if !strings.HasPrefix(tn.name, common.ReservedTaskListPrefix) {
+	if !strings.HasPrefix(tn.name, constants.ReservedTaskListPrefix) {
 		return nil
 	}
 
 	suffixOff := strings.LastIndex(tn.name, "/")
-	if suffixOff <= len(common.ReservedTaskListPrefix) {
+	if suffixOff <= len(constants.ReservedTaskListPrefix) {
 		return fmt.Errorf("invalid partitioned task list name %v", tn.name)
 	}
 
@@ -129,7 +129,7 @@ func (tn *qualifiedTaskListName) init() error {
 	}
 
 	tn.partition = p
-	tn.baseName = tn.name[len(common.ReservedTaskListPrefix):suffixOff]
+	tn.baseName = tn.name[len(constants.ReservedTaskListPrefix):suffixOff]
 	return nil
 }
 

@@ -32,6 +32,7 @@ import (
 
 	c "github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
@@ -244,7 +245,7 @@ func (s *Scanner) StartDataCorruptionWorkflowWorker() error {
 
 	err := worker.New(
 		s.context.resource.GetSDKClient(),
-		c.SystemLocalDomainName,
+		constants.SystemLocalDomainName,
 		reconciliation.CheckDataCorruptionWorkflowTaskList,
 		workerOpts,
 	).Start()

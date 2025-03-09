@@ -24,7 +24,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/types"
 )
@@ -39,7 +39,7 @@ var (
 		dynamicconfig.MatchingNumTasklistReadPartitions:             3,
 		dynamicconfig.TimerProcessorHistoryArchivalSizeLimit:        5 * 1024,
 		dynamicconfig.ReplicationTaskProcessorErrorRetryMaxAttempts: 1,
-		dynamicconfig.WriteVisibilityStoreName:                      common.AdvancedVisibilityModeOff,
+		dynamicconfig.WriteVisibilityStoreName:                      constants.AdvancedVisibilityModeOff,
 		dynamicconfig.DecisionHeartbeatTimeout:                      5 * time.Second,
 		dynamicconfig.ReplicationTaskFetcherAggregationInterval:     200 * time.Millisecond,
 		dynamicconfig.ReplicationTaskFetcherErrorRetryWait:          50 * time.Millisecond,

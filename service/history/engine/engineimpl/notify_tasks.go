@@ -25,7 +25,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -109,7 +109,7 @@ func hydrateReplicationTask(
 		versionHistories,
 		activities,
 		history.Find(info.BranchToken, info.FirstEventID),
-		history.Find(info.NewRunBranchToken, common.FirstEventID),
+		history.Find(info.NewRunBranchToken, constants.FirstEventID),
 	)
 
 	return hydrator.Hydrate(context.Background(), info)

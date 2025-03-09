@@ -24,7 +24,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 )
@@ -45,7 +45,7 @@ func (db *cdb) SelectLatestConfig(ctx context.Context, rowType int) (*persistenc
 	var version int64
 	var timestamp time.Time
 	var data []byte
-	var encoding common.EncodingType
+	var encoding constants.EncodingType
 
 	query := db.session.Query(templateSelectLatestConfig, rowType).WithContext(ctx)
 	err := query.Scan(&rowType, &version, &timestamp, &data, &encoding)

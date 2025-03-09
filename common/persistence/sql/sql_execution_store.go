@@ -32,8 +32,8 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/collection"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	p "github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/serialization"
@@ -1242,10 +1242,10 @@ func (m *sqlExecutionStore) CreateFailoverMarkerTasks(
 				WorkflowID:              emptyWorkflowID,
 				RunID:                   serialization.MustParseUUID(emptyReplicationRunID),
 				TaskType:                int16(task.GetType()),
-				FirstEventID:            common.EmptyEventID,
-				NextEventID:             common.EmptyEventID,
+				FirstEventID:            constants.EmptyEventID,
+				NextEventID:             constants.EmptyEventID,
 				Version:                 task.GetVersion(),
-				ScheduledID:             common.EmptyEventID,
+				ScheduledID:             constants.EmptyEventID,
 				EventStoreVersion:       p.EventStoreVersion,
 				NewRunEventStoreVersion: p.EventStoreVersion,
 				BranchToken:             nil,
@@ -1456,14 +1456,14 @@ func (m *sqlExecutionStore) populateWorkflowMutableState(
 	if info.GetVersionHistories() != nil {
 		state.VersionHistories = p.NewDataBlob(
 			info.GetVersionHistories(),
-			common.EncodingType(info.GetVersionHistoriesEncoding()),
+			constants.EncodingType(info.GetVersionHistoriesEncoding()),
 		)
 	}
 
 	if info.GetChecksum() != nil {
 		state.ChecksumData = p.NewDataBlob(
 			info.GetChecksum(),
-			common.EncodingType(info.GetChecksumEncoding()),
+			constants.EncodingType(info.GetChecksumEncoding()),
 		)
 	}
 

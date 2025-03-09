@@ -28,7 +28,7 @@ import (
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
@@ -126,7 +126,7 @@ func (s *timerSequenceSuite) TestCreateNextActivityTimer_AlreadyCreated() {
 		Version:                  123,
 		ScheduleID:               234,
 		ScheduledTime:            now,
-		StartedID:                common.EmptyEventID,
+		StartedID:                constants.EmptyEventID,
 		StartedTime:              time.Time{},
 		ActivityID:               "some random activity ID",
 		ScheduleToStartTimeout:   10,
@@ -152,7 +152,7 @@ func (s *timerSequenceSuite) TestCreateNextActivityTimer_NotCreated() {
 		Version:                  123,
 		ScheduleID:               234,
 		ScheduledTime:            now,
-		StartedID:                common.EmptyEventID,
+		StartedID:                constants.EmptyEventID,
 		StartedTime:              time.Time{},
 		ActivityID:               "some random activity ID",
 		ScheduleToStartTimeout:   10,
@@ -318,9 +318,9 @@ func (s *timerSequenceSuite) TestLoadAndSortActivityTimers_None() {
 func (s *timerSequenceSuite) TestLoadAndSortActivityTimers_One_NotScheduled() {
 	activityInfo := &persistence.ActivityInfo{
 		Version:                  123,
-		ScheduleID:               common.EmptyEventID,
+		ScheduleID:               constants.EmptyEventID,
 		ScheduledTime:            time.Time{},
-		StartedID:                common.EmptyEventID,
+		StartedID:                constants.EmptyEventID,
 		StartedTime:              time.Time{},
 		ActivityID:               "some random activity ID",
 		ScheduleToStartTimeout:   10,
@@ -343,7 +343,7 @@ func (s *timerSequenceSuite) TestLoadAndSortActivityTimers_One_Scheduled_NotStar
 		Version:                  123,
 		ScheduleID:               234,
 		ScheduledTime:            now,
-		StartedID:                common.EmptyEventID,
+		StartedID:                constants.EmptyEventID,
 		StartedTime:              time.Time{},
 		ActivityID:               "some random activity ID",
 		ScheduleToStartTimeout:   10,
@@ -591,7 +591,7 @@ func (s *timerSequenceSuite) TestLoadAndSortActivityTimers_Multiple() {
 		Version:                  123,
 		ScheduleID:               2345,
 		ScheduledTime:            now,
-		StartedID:                common.EmptyEventID,
+		StartedID:                constants.EmptyEventID,
 		StartedTime:              time.Time{},
 		ActivityID:               "other random activity ID",
 		ScheduleToStartTimeout:   11,
@@ -680,9 +680,9 @@ func (s *timerSequenceSuite) TestGetActivityScheduleToStartTimeout_NotScheduled(
 	now := time.Now()
 	activityInfo := &persistence.ActivityInfo{
 		Version:                  123,
-		ScheduleID:               common.EmptyEventID,
+		ScheduleID:               constants.EmptyEventID,
 		ScheduledTime:            time.Time{},
-		StartedID:                common.EmptyEventID,
+		StartedID:                constants.EmptyEventID,
 		StartedTime:              time.Time{},
 		ActivityID:               "some random activity ID",
 		ScheduleToStartTimeout:   10,
@@ -704,7 +704,7 @@ func (s *timerSequenceSuite) TestGetActivityScheduleToStartTimeout_Scheduled_Not
 		Version:                  123,
 		ScheduleID:               234,
 		ScheduledTime:            now,
-		StartedID:                common.EmptyEventID,
+		StartedID:                constants.EmptyEventID,
 		StartedTime:              time.Time{},
 		ActivityID:               "some random activity ID",
 		ScheduleToStartTimeout:   10,
@@ -765,9 +765,9 @@ func (s *timerSequenceSuite) TestGetActivityScheduleToCloseTimeout_NotScheduled(
 	now := time.Now()
 	activityInfo := &persistence.ActivityInfo{
 		Version:                  123,
-		ScheduleID:               common.EmptyEventID,
+		ScheduleID:               constants.EmptyEventID,
 		ScheduledTime:            time.Time{},
-		StartedID:                common.EmptyEventID,
+		StartedID:                constants.EmptyEventID,
 		StartedTime:              time.Time{},
 		ActivityID:               "some random activity ID",
 		ScheduleToStartTimeout:   10,
@@ -789,7 +789,7 @@ func (s *timerSequenceSuite) TestGetActivityScheduleToCloseTimeout_Scheduled() {
 		Version:                  123,
 		ScheduleID:               234,
 		ScheduledTime:            now,
-		StartedID:                common.EmptyEventID,
+		StartedID:                constants.EmptyEventID,
 		StartedTime:              time.Time{},
 		ActivityID:               "some random activity ID",
 		ScheduleToStartTimeout:   10,
@@ -826,7 +826,7 @@ func (s *timerSequenceSuite) TestGetActivityStartToCloseTimeout_NotStarted() {
 		Version:                  123,
 		ScheduleID:               234,
 		ScheduledTime:            now,
-		StartedID:                common.EmptyEventID,
+		StartedID:                constants.EmptyEventID,
 		StartedTime:              time.Time{},
 		ActivityID:               "some random activity ID",
 		ScheduleToStartTimeout:   10,
@@ -885,7 +885,7 @@ func (s *timerSequenceSuite) TestGetActivityHeartbeatTimeout_WithHeartbeat_NotSt
 		Version:                  123,
 		ScheduleID:               234,
 		ScheduledTime:            now,
-		StartedID:                common.EmptyEventID,
+		StartedID:                constants.EmptyEventID,
 		StartedTime:              time.Time{},
 		ActivityID:               "some random activity ID",
 		ScheduleToStartTimeout:   10,
@@ -981,7 +981,7 @@ func (s *timerSequenceSuite) TestGetActivityHeartbeatTimeout_WithoutHeartbeat_No
 		Version:                  123,
 		ScheduleID:               234,
 		ScheduledTime:            now,
-		StartedID:                common.EmptyEventID,
+		StartedID:                constants.EmptyEventID,
 		StartedTime:              time.Time{},
 		ActivityID:               "some random activity ID",
 		ScheduleToStartTimeout:   10,

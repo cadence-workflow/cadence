@@ -36,6 +36,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
+	constants2 "github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
@@ -474,7 +475,7 @@ func (s *timerActiveTaskExecutorSuite) TestProcessActivityTimeout_RetryPolicy_Re
 	activityInfo, ok := s.getMutableStateFromCache(s.domainID, workflowExecution.GetWorkflowID(), workflowExecution.GetRunID()).GetActivityInfo(scheduledEvent.ID)
 	s.True(ok)
 	s.Equal(scheduledEvent.ID, activityInfo.ScheduleID)
-	s.Equal(common.EmptyEventID, activityInfo.StartedID)
+	s.Equal(constants2.EmptyEventID, activityInfo.StartedID)
 	// only a schedule to start timer will be created, apart from the retry timer
 	s.Equal(int32(execution.TimerTaskStatusCreatedScheduleToStart), activityInfo.TimerTaskStatus)
 }
@@ -536,7 +537,7 @@ func (s *timerActiveTaskExecutorSuite) TestProcessActivityTimeout_RetryPolicy_Re
 	activityInfo, ok := s.getMutableStateFromCache(s.domainID, workflowExecution.GetWorkflowID(), workflowExecution.GetRunID()).GetActivityInfo(scheduledEvent.ID)
 	s.True(ok)
 	s.Equal(scheduledEvent.ID, activityInfo.ScheduleID)
-	s.Equal(common.EmptyEventID, activityInfo.StartedID)
+	s.Equal(constants2.EmptyEventID, activityInfo.StartedID)
 	// only a schedule to start timer will be created, apart from the retry timer
 	s.Equal(int32(execution.TimerTaskStatusCreatedScheduleToStart), activityInfo.TimerTaskStatus)
 }
@@ -589,7 +590,7 @@ func (s *timerActiveTaskExecutorSuite) TestProcessActivityTimeout_RetryPolicy_No
 		EventID:             scheduledEvent.ID,
 	})
 
-	completeEvent := test.AddActivityTaskCompletedEvent(mutableState, scheduledEvent.ID, common.TransientEventID, []byte(nil), identity)
+	completeEvent := test.AddActivityTaskCompletedEvent(mutableState, scheduledEvent.ID, constants2.TransientEventID, []byte(nil), identity)
 	mutableState.FlushBufferedEvents()
 
 	persistenceMutableState, err := test.CreatePersistenceMutableState(s.T(), mutableState, completeEvent.ID, completeEvent.Version)
@@ -725,7 +726,7 @@ func (s *timerActiveTaskExecutorSuite) TestProcessActivityTimeout_Resurrected() 
 		ScheduleID:               scheduledEvent1.ID,
 		ScheduledEventBatchID:    scheduledEvent1.ID,
 		ScheduledTime:            time.Unix(0, scheduledEvent1.GetTimestamp()),
-		StartedID:                common.EmptyEventID,
+		StartedID:                constants2.EmptyEventID,
 		StartedTime:              time.Time{},
 		ActivityID:               "activity1",
 		DomainID:                 s.domainID,
@@ -734,7 +735,7 @@ func (s *timerActiveTaskExecutorSuite) TestProcessActivityTimeout_Resurrected() 
 		StartToCloseTimeout:      int32(timerTimeout1.Seconds()),
 		HeartbeatTimeout:         int32(timerTimeout1.Seconds()),
 		CancelRequested:          false,
-		CancelRequestID:          common.EmptyEventID,
+		CancelRequestID:          constants2.EmptyEventID,
 		LastHeartBeatUpdatedTime: time.Time{},
 		TimerTaskStatus:          execution.TimerTaskStatusNone,
 		TaskList:                 mutableState.GetExecutionInfo().TaskList,
@@ -919,8 +920,8 @@ func (s *timerActiveTaskExecutorSuite) TestDecisionStartToCloseTimeout_Fire() {
 
 	decisionInfo, ok := s.getMutableStateFromCache(s.domainID, workflowExecution.GetWorkflowID(), workflowExecution.GetRunID()).GetPendingDecision()
 	s.True(ok)
-	s.True(decisionInfo.ScheduleID != common.EmptyEventID)
-	s.Equal(common.EmptyEventID, decisionInfo.StartedID)
+	s.True(decisionInfo.ScheduleID != constants2.EmptyEventID)
+	s.Equal(constants2.EmptyEventID, decisionInfo.StartedID)
 	s.Equal(int64(1), decisionInfo.Attempt)
 }
 
@@ -982,8 +983,8 @@ func (s *timerActiveTaskExecutorSuite) TestWorkflowBackoffTimer_Fire() {
 
 	decisionInfo, ok := s.getMutableStateFromCache(s.domainID, workflowExecution.GetWorkflowID(), workflowExecution.GetRunID()).GetPendingDecision()
 	s.True(ok)
-	s.True(decisionInfo.ScheduleID != common.EmptyEventID)
-	s.Equal(common.EmptyEventID, decisionInfo.StartedID)
+	s.True(decisionInfo.ScheduleID != constants2.EmptyEventID)
+	s.Equal(constants2.EmptyEventID, decisionInfo.StartedID)
 	s.Equal(int64(0), decisionInfo.Attempt)
 }
 

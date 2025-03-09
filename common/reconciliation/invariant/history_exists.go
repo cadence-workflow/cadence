@@ -27,6 +27,7 @@ import (
 
 	c "github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/reconciliation/entity"
 	"github.com/uber/cadence/common/types"
@@ -80,8 +81,8 @@ func (h *historyExists) Check(
 	}
 	readHistoryBranchReq := &persistence.ReadHistoryBranchRequest{
 		BranchToken:   concreteExecution.BranchToken,
-		MinEventID:    c.FirstEventID,
-		MaxEventID:    c.FirstEventID + 1,
+		MinEventID:    constants.FirstEventID,
+		MaxEventID:    constants.FirstEventID + 1,
 		PageSize:      historyPageSize,
 		NextPageToken: nil,
 		ShardID:       c.IntPtr(concreteExecution.ShardID),

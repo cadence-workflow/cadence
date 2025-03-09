@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql"
@@ -73,7 +74,7 @@ func executeCreateWorkflowBatchTransaction(
 	runIDMismatch := false
 	actualCurrRunID := ""
 	lastWriteVersionMismatch := false
-	actualLastWriteVersion := int64(common.EmptyVersion)
+	actualLastWriteVersion := int64(constants.EmptyVersion)
 	stateMismatch := false
 	actualState := int(0)
 	concreteExecutionAlreadyExists := false

@@ -36,6 +36,7 @@ import (
 	"github.com/uber/cadence/common/blobstore/filestore"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/configstore"
 	"github.com/uber/cadence/common/elasticsearch"
@@ -310,9 +311,9 @@ func (s *server) setupVisibilityClients(params *resource.Params) {
 
 	// Handle advanced visibility store based on type and migration state
 	switch advancedVisStoreKey {
-	case common.PinotVisibilityStoreName:
+	case constants.PinotVisibilityStoreName:
 		s.setupPinotClient(params, advancedVisStore)
-	case common.OSVisibilityStoreName:
+	case constants.OSVisibilityStoreName:
 		s.setupOSClient(params, advancedVisStore)
 	default: // Assume Elasticsearch by default
 		s.setupESClient(params)
@@ -333,7 +334,7 @@ func (s *server) setupPinotClient(params *resource.Params, advancedVisStore conf
 }
 
 func (s *server) setupESClient(params *resource.Params) {
-	esVisibilityStore, ok := s.cfg.Persistence.DataStores[common.ESVisibilityStoreName]
+	esVisibilityStore, ok := s.cfg.Persistence.DataStores[constants.ESVisibilityStoreName]
 	if !ok {
 		log.Fatalf("Cannot find Elasticsearch visibility store in config")
 	}
@@ -375,7 +376,7 @@ func (s *server) setupOSClient(params *resource.Params, advancedVisStore config.
 }
 
 func validateIndex(config *config.ElasticSearchConfig) {
-	indexName, ok := config.Indices[common.VisibilityAppName]
+	indexName, ok := config.Indices[constants.VisibilityAppName]
 	if !ok || len(indexName) == 0 {
 		log.Fatalf("Visibility index is missing in config")
 	}

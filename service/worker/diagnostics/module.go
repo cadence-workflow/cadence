@@ -33,8 +33,8 @@ import (
 	"go.uber.org/cadence/workflow"
 
 	"github.com/uber/cadence/client"
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/messaging"
 	"github.com/uber/cadence/common/metrics"
@@ -92,7 +92,7 @@ func (w *dw) Start() error {
 		MaxConcurrentActivityTaskPollers: 10,
 		MaxConcurrentDecisionTaskPollers: 10,
 	}
-	newWorker := worker.New(w.svcClient, common.SystemLocalDomainName, tasklist, workerOpts)
+	newWorker := worker.New(w.svcClient, constants.SystemLocalDomainName, tasklist, workerOpts)
 	newWorker.RegisterWorkflowWithOptions(w.DiagnosticsWorkflow, workflow.RegisterOptions{Name: diagnosticsWorkflow})
 	newWorker.RegisterWorkflowWithOptions(w.DiagnosticsStarterWorkflow, workflow.RegisterOptions{Name: diagnosticsStarterWorkflow})
 	newWorker.RegisterActivityWithOptions(w.identifyIssues, activity.RegisterOptions{Name: identifyIssuesActivity})

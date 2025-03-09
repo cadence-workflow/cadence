@@ -34,7 +34,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/.gen/go/indexer"
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
@@ -67,7 +67,7 @@ func TestRecordWorkflowExecutionStarted(t *testing.T) {
 	// test non-empty request fields match
 	errorRequest := &p.InternalRecordWorkflowExecutionStartedRequest{
 		WorkflowID: "wid",
-		Memo:       p.NewDataBlob([]byte(`test bytes`), common.EncodingTypeThriftRW),
+		Memo:       p.NewDataBlob([]byte(`test bytes`), constants.EncodingTypeThriftRW),
 		SearchAttributes: map[string][]byte{
 			"CustomStringField": []byte("test string"),
 			"CustomTimeField":   []byte("2020-01-01T00:00:00Z"),
@@ -76,14 +76,14 @@ func TestRecordWorkflowExecutionStarted(t *testing.T) {
 
 	request := &p.InternalRecordWorkflowExecutionStartedRequest{
 		WorkflowID: "wid",
-		Memo:       p.NewDataBlob([]byte(`test bytes`), common.EncodingTypeThriftRW),
+		Memo:       p.NewDataBlob([]byte(`test bytes`), constants.EncodingTypeThriftRW),
 	}
 
 	customStringField, err := json.Marshal("test string")
 	assert.NoError(t, err)
 	requestWithSearchAttributes := &p.InternalRecordWorkflowExecutionStartedRequest{
 		WorkflowID: "wid",
-		Memo:       p.NewDataBlob([]byte(`test bytes`), common.EncodingTypeThriftRW),
+		Memo:       p.NewDataBlob([]byte(`test bytes`), constants.EncodingTypeThriftRW),
 		SearchAttributes: map[string][]byte{
 			"CustomStringField": customStringField,
 		},
@@ -152,7 +152,7 @@ func TestRecordWorkflowExecutionClosed(t *testing.T) {
 	// test non-empty request fields match
 	errorRequest := &p.InternalRecordWorkflowExecutionClosedRequest{
 		WorkflowID: "error-wid",
-		Memo:       p.NewDataBlob([]byte(`test bytes`), common.EncodingTypeThriftRW),
+		Memo:       p.NewDataBlob([]byte(`test bytes`), constants.EncodingTypeThriftRW),
 		SearchAttributes: map[string][]byte{
 			"CustomStringField": []byte("test string"),
 			"CustomTimeField":   []byte("2020-01-01T00:00:00Z"),
@@ -160,7 +160,7 @@ func TestRecordWorkflowExecutionClosed(t *testing.T) {
 	}
 	request := &p.InternalRecordWorkflowExecutionClosedRequest{
 		WorkflowID: "wid",
-		Memo:       p.NewDataBlob([]byte(`test bytes`), common.EncodingTypeThriftRW),
+		Memo:       p.NewDataBlob([]byte(`test bytes`), constants.EncodingTypeThriftRW),
 	}
 
 	tests := map[string]struct {
@@ -257,7 +257,7 @@ func TestUpsertWorkflowExecution(t *testing.T) {
 	// test non-empty request fields match
 	errorRequest := &p.InternalUpsertWorkflowExecutionRequest{
 		WorkflowID: "error-wid",
-		Memo:       p.NewDataBlob([]byte(`test bytes`), common.EncodingTypeThriftRW),
+		Memo:       p.NewDataBlob([]byte(`test bytes`), constants.EncodingTypeThriftRW),
 		SearchAttributes: map[string][]byte{
 			"CustomStringField": []byte("test string"),
 			"CustomTimeField":   []byte("2020-01-01T00:00:00Z"),
@@ -266,7 +266,7 @@ func TestUpsertWorkflowExecution(t *testing.T) {
 	request := &p.InternalUpsertWorkflowExecutionRequest{}
 	request.WorkflowID = "wid"
 	memoBytes := []byte(`test bytes`)
-	request.Memo = p.NewDataBlob(memoBytes, common.EncodingTypeThriftRW)
+	request.Memo = p.NewDataBlob(memoBytes, constants.EncodingTypeThriftRW)
 
 	tests := map[string]struct {
 		request                *p.InternalUpsertWorkflowExecutionRequest

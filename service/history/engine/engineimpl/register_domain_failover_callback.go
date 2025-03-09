@@ -24,8 +24,8 @@ package engineimpl
 import (
 	"context"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
@@ -125,7 +125,7 @@ func (e *historyEngineImpl) generateGracefulFailoverTasksForDomainUpdateCallback
 		domainActiveCluster := nextDomain.GetReplicationConfig().ActiveClusterName
 		previousFailoverVersion := nextDomain.GetPreviousFailoverVersion()
 		previousClusterName, err := e.clusterMetadata.ClusterNameForFailoverVersion(previousFailoverVersion)
-		if err != nil && previousFailoverVersion != common.InitialPreviousFailoverVersion {
+		if err != nil && previousFailoverVersion != constants.InitialPreviousFailoverVersion {
 			e.logger.Error("Failed to handle graceful failover", tag.WorkflowDomainID(nextDomain.GetInfo().ID), tag.Error(err))
 			continue
 		}
@@ -133,7 +133,7 @@ func (e *historyEngineImpl) generateGracefulFailoverTasksForDomainUpdateCallback
 		if nextDomain.IsGlobalDomain() &&
 			domainFailoverNotificationVersion >= shardNotificationVersion &&
 			domainActiveCluster != e.currentClusterName &&
-			previousFailoverVersion != common.InitialPreviousFailoverVersion &&
+			previousFailoverVersion != constants.InitialPreviousFailoverVersion &&
 			previousClusterName == e.currentClusterName {
 			// the visibility timestamp will be set in shard context
 			failoverMarkerTasks = append(failoverMarkerTasks, &persistence.FailoverMarkerTask{

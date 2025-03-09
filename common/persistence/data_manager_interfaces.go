@@ -60,9 +60,9 @@ import (
 	"github.com/pborman/uuid"
 
 	workflow "github.com/uber/cadence/.gen/go/shared"
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/checksum"
 	"github.com/uber/cadence/common/codec"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -782,7 +782,7 @@ type (
 
 		WorkflowRequestMode CreateWorkflowRequestMode
 
-		Encoding common.EncodingType // optional binary encoding type
+		Encoding constants.EncodingType // optional binary encoding type
 
 		DomainName string
 	}
@@ -804,7 +804,7 @@ type (
 
 		WorkflowRequestMode CreateWorkflowRequestMode
 
-		Encoding common.EncodingType // optional binary encoding type
+		Encoding constants.EncodingType // optional binary encoding type
 
 		DomainName string
 	}
@@ -1386,7 +1386,7 @@ type (
 		// requested TransactionID for this write operation. For the same eventID, the node with larger TransactionID always wins
 		TransactionID int64
 		// optional binary encoding type
-		Encoding common.EncodingType
+		Encoding constants.EncodingType
 		// The shard to get history node data
 		ShardID *int
 

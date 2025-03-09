@@ -40,10 +40,10 @@ import (
 
 	"github.com/uber/cadence/client"
 	"github.com/uber/cadence/client/admin"
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/elasticsearch"
 	esMocks "github.com/uber/cadence/common/elasticsearch/mocks"
@@ -349,7 +349,7 @@ func (s *esanalyzerWorkflowTestSuite) TestEmitWorkflowTypeCountMetricsActivity()
 func TestNewAnalyzer(t *testing.T) {
 	mockESConfig := &config.ElasticSearchConfig{
 		Indices: map[string]string{
-			common.VisibilityAppName: "test",
+			constants.VisibilityAppName: "test",
 		},
 	}
 	mockPinotConfig := &config.PinotVisibilityConfig{
@@ -369,7 +369,7 @@ func TestNewAnalyzer(t *testing.T) {
 func TestEmitWorkflowTypeCountMetricsESErrorCases(t *testing.T) {
 	mockESConfig := &config.ElasticSearchConfig{
 		Indices: map[string]string{
-			common.VisibilityAppName: "test",
+			constants.VisibilityAppName: "test",
 		},
 	}
 	mockPinotConfig := &config.PinotVisibilityConfig{
@@ -454,7 +454,7 @@ func TestEmitWorkflowTypeCountMetricsESErrorCases(t *testing.T) {
 func TestEmitWorkflowVersionMetricsESErrorCases(t *testing.T) {
 	mockESConfig := &config.ElasticSearchConfig{
 		Indices: map[string]string{
-			common.VisibilityAppName: "test",
+			constants.VisibilityAppName: "test",
 		},
 	}
 	mockPinotConfig := &config.PinotVisibilityConfig{
@@ -542,7 +542,7 @@ func TestEmitWorkflowTypeCountMetricsPinot(t *testing.T) {
 	}
 	mockESConfig := &config.ElasticSearchConfig{
 		Indices: map[string]string{
-			common.VisibilityAppName: "test",
+			constants.VisibilityAppName: "test",
 		},
 	}
 
@@ -634,7 +634,7 @@ func TestEmitWorkflowVersionMetricsPinot(t *testing.T) {
 	}
 	mockESConfig := &config.ElasticSearchConfig{
 		Indices: map[string]string{
-			common.VisibilityAppName: "test",
+			constants.VisibilityAppName: "test",
 		},
 	}
 
