@@ -345,7 +345,7 @@ func (v *attrValidator) validateActivityScheduleAttributes(
 
 			domainName, _ := v.domainCache.GetDomainName(domainID) // if this call returns an error, we will just used the default value for max timeout
 			maximumScheduleToStartTimeoutForRetryInSeconds := int32(v.config.ActivityMaxScheduleToStartTimeoutForRetry(domainName).Seconds())
-			scheduleToStartExpiration := common.MinInt32(expiration, maximumScheduleToStartTimeoutForRetryInSeconds)
+			scheduleToStartExpiration := min(expiration, maximumScheduleToStartTimeoutForRetryInSeconds)
 			if attributes.GetScheduleToStartTimeoutSeconds() < scheduleToStartExpiration {
 				attributes.ScheduleToStartTimeoutSeconds = common.Int32Ptr(scheduleToStartExpiration)
 			}
