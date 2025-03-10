@@ -29,6 +29,7 @@ type (
 		EnableCassandraAllConsistencyLevelDelete dynamicconfig.BoolPropertyFn
 		PersistenceSampleLoggingRate             dynamicconfig.IntPropertyFn
 		EnableShardIDMetrics                     dynamicconfig.BoolPropertyFn
+		EnableHistoryTaskDualWriteMode           dynamicconfig.BoolPropertyFn
 	}
 )
 
@@ -39,5 +40,6 @@ func NewDynamicConfiguration(dc *dynamicconfig.Collection) *DynamicConfiguration
 		EnableCassandraAllConsistencyLevelDelete: dc.GetBoolProperty(dynamicconfig.EnableCassandraAllConsistencyLevelDelete),
 		PersistenceSampleLoggingRate:             dc.GetIntProperty(dynamicconfig.SampleLoggingRate),
 		EnableShardIDMetrics:                     dc.GetBoolProperty(dynamicconfig.EnableShardIDMetrics),
+		EnableHistoryTaskDualWriteMode:           dc.GetBoolProperty(dynamicconfig.EnableNoSQLHistoryTaskDualWriteMode),
 	}
 }

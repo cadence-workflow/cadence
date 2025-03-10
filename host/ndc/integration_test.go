@@ -99,6 +99,7 @@ func (s *NDCIntegrationTestSuite) SetupSuite() {
 	dc := persistence.DynamicConfiguration{
 		EnableSQLAsyncTransaction:                dynamicconfig.GetBoolPropertyFn(false),
 		EnableCassandraAllConsistencyLevelDelete: dynamicconfig.GetBoolPropertyFn(true),
+		EnableHistoryTaskDualWriteMode:           dynamicconfig.GetBoolPropertyFn(true),
 	}
 	params := pt.TestBaseParams{
 		DefaultTestCluster:    s.defaultTestCluster,

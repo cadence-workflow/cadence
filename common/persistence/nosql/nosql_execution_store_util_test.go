@@ -32,6 +32,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/checksum"
+	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
@@ -42,7 +43,7 @@ import (
 func newTestNosqlExecutionStoreWithTaskSerializer(db nosqlplugin.DB, logger log.Logger, taskSerializer serialization.TaskSerializer) *nosqlExecutionStore {
 	return &nosqlExecutionStore{
 		shardID:        1,
-		nosqlStore:     nosqlStore{logger: logger, db: db},
+		nosqlStore:     nosqlStore{logger: logger, db: db, dc: &persistence.DynamicConfiguration{EnableHistoryTaskDualWriteMode: func(...dynamicconfig.FilterOption) bool { return true }}},
 		taskSerializer: taskSerializer,
 	}
 }

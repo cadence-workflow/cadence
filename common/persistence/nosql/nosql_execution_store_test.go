@@ -33,6 +33,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
@@ -286,7 +287,9 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 			controller := gomock.NewController(t)
 			mockDB := nosqlplugin.NewMockDB(controller)
 			mockTaskSerializer := serialization.NewMockTaskSerializer(controller)
-			store, _ := NewExecutionStore(1, mockDB, log.NewNoop(), mockTaskSerializer)
+			store, _ := NewExecutionStore(1, mockDB, log.NewNoop(), mockTaskSerializer, &persistence.DynamicConfiguration{
+				EnableHistoryTaskDualWriteMode: func(...dynamicconfig.FilterOption) bool { return false },
+			})
 
 			tc.setupMock(mockDB, 1)
 
@@ -1509,7 +1512,9 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 
 	mockDB := nosqlplugin.NewMockDB(gomockController)
 	mockTaskSerializer := serialization.NewMockTaskSerializer(gomockController)
-	store, err := NewExecutionStore(1, mockDB, log.NewNoop(), mockTaskSerializer)
+	store, err := NewExecutionStore(1, mockDB, log.NewNoop(), mockTaskSerializer, &persistence.DynamicConfiguration{
+		EnableHistoryTaskDualWriteMode: func(...dynamicconfig.FilterOption) bool { return false },
+	})
 	require.NoError(t, err)
 
 	tests := []struct {

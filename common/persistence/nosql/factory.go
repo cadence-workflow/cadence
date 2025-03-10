@@ -162,7 +162,7 @@ func (f *executionStoreFactory) new(shardID int) (persistence.ExecutionStore, er
 	if err != nil {
 		return nil, err
 	}
-	pmgr, err := NewExecutionStore(shardID, storeShard.db, f.logger, f.taskSerializer)
+	pmgr, err := NewExecutionStore(shardID, storeShard.db, f.logger, f.taskSerializer, storeShard.dc)
 	if err != nil {
 		return nil, err
 	}

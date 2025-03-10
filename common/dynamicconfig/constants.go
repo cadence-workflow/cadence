@@ -2037,6 +2037,8 @@ const (
 	// Allowed filters: DomainName,TasklistName,TasklistType
 	MatchingEnableClientAutoConfig
 
+	EnableNoSQLHistoryTaskDualWriteMode
+
 	// LastBoolKey must be the last one in this const group
 	LastBoolKey
 )
@@ -4369,6 +4371,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "matching.enableClientAutoConfig",
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
 		Description:  "MatchingEnableClientAutoConfig is to enable auto config on worker side",
+		DefaultValue: false,
+	},
+	EnableNoSQLHistoryTaskDualWriteMode: {
+		KeyName:      "history.enableNoSQLHistoryTaskDualWrite",
+		Description:  "EnableHistoryTaskDualWrite is to enable dual write of history events",
 		DefaultValue: false,
 	},
 }

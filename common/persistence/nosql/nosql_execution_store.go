@@ -45,11 +45,13 @@ func NewExecutionStore(
 	db nosqlplugin.DB,
 	logger log.Logger,
 	taskSerializer serialization.TaskSerializer,
+	dc *persistence.DynamicConfiguration,
 ) (persistence.ExecutionStore, error) {
 	return &nosqlExecutionStore{
 		nosqlStore: nosqlStore{
 			logger: logger,
 			db:     db,
+			dc:     dc,
 		},
 		shardID:        shardID,
 		taskSerializer: taskSerializer,

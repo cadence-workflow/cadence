@@ -96,6 +96,7 @@ func (s *AsyncWFIntegrationSuite) SetupSuite() {
 		EnableCassandraAllConsistencyLevelDelete: dynamicconfig.GetBoolPropertyFn(true),
 		PersistenceSampleLoggingRate:             dynamicconfig.GetIntPropertyFn(100),
 		EnableShardIDMetrics:                     dynamicconfig.GetBoolPropertyFn(true),
+		EnableHistoryTaskDualWriteMode:           dynamicconfig.GetBoolPropertyFn(true),
 	}
 	params := pt.TestBaseParams{
 		DefaultTestCluster:    s.DefaultTestCluster,

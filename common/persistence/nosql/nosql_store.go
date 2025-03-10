@@ -22,6 +22,7 @@ package nosql
 
 import (
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 )
 
@@ -29,6 +30,7 @@ import (
 type nosqlStore struct {
 	logger log.Logger
 	db     nosqlplugin.DB
+	dc     *persistence.DynamicConfiguration
 }
 
 func (nm *nosqlStore) GetName() string {

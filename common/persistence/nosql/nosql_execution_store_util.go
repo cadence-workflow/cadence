@@ -256,13 +256,17 @@ func (d *nosqlExecutionStore) prepareTimerTasksForWorkflowTxn(domainID, workflow
 			ScheduleAttempt: attempt,
 			Version:         task.GetVersion(),
 		}
-		data, err := d.taskSerializer.SerializeTask(persistence.HistoryTaskCategoryTimer, task)
-		if err != nil {
-			return nil, err
+		var blob *persistence.DataBlob
+		if d.dc.EnableHistoryTaskDualWriteMode() {
+			data, err := d.taskSerializer.SerializeTask(persistence.HistoryTaskCategoryTimer, task)
+			if err != nil {
+				return nil, err
+			}
+			blob = &data
 		}
 		tasks = append(tasks, &nosqlplugin.HistoryMigrationTask{
 			Timer: nt,
-			Task:  &data,
+			Task:  blob,
 		})
 	}
 
@@ -316,13 +320,17 @@ func (d *nosqlExecutionStore) prepareReplicationTasksForWorkflowTxn(domainID, wo
 			BranchToken:       branchToken,
 			NewRunBranchToken: newRunBranchToken,
 		}
-		data, err := d.taskSerializer.SerializeTask(persistence.HistoryTaskCategoryReplication, task)
-		if err != nil {
-			return nil, err
+		var blob *persistence.DataBlob
+		if d.dc.EnableHistoryTaskDualWriteMode() {
+			data, err := d.taskSerializer.SerializeTask(persistence.HistoryTaskCategoryReplication, task)
+			if err != nil {
+				return nil, err
+			}
+			blob = &data
 		}
 		tasks = append(tasks, &nosqlplugin.HistoryMigrationTask{
 			Replication: nt,
-			Task:        &data,
+			Task:        blob,
 		})
 	}
 
@@ -444,13 +452,17 @@ func (d *nosqlExecutionStore) prepareTransferTasksForWorkflowTxn(domainID, workf
 			ScheduleID:              scheduleID,
 			Version:                 task.GetVersion(),
 		}
-		data, err := d.taskSerializer.SerializeTask(persistence.HistoryTaskCategoryTransfer, task)
-		if err != nil {
-			return nil, err
+		var blob *persistence.DataBlob
+		if d.dc.EnableHistoryTaskDualWriteMode() {
+			data, err := d.taskSerializer.SerializeTask(persistence.HistoryTaskCategoryTransfer, task)
+			if err != nil {
+				return nil, err
+			}
+			blob = &data
 		}
 		tasks = append(tasks, &nosqlplugin.HistoryMigrationTask{
 			Transfer: t,
-			Task:     &data,
+			Task:     blob,
 		})
 	}
 	return tasks, nil

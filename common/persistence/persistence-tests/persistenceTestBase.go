@@ -153,6 +153,7 @@ func NewTestBaseWithNoSQL(t *testing.T, options *TestBaseOptions) *TestBase {
 		EnableCassandraAllConsistencyLevelDelete: dynamicconfig.GetBoolPropertyFn(true),
 		PersistenceSampleLoggingRate:             dynamicconfig.GetIntPropertyFn(100),
 		EnableShardIDMetrics:                     dynamicconfig.GetBoolPropertyFn(true),
+		EnableHistoryTaskDualWriteMode:           dynamicconfig.GetBoolPropertyFn(true),
 	}
 	params := TestBaseParams{
 		DefaultTestCluster:    testCluster,
@@ -181,6 +182,7 @@ func NewTestBaseWithSQL(t *testing.T, options *TestBaseOptions) *TestBase {
 		EnableCassandraAllConsistencyLevelDelete: dynamicconfig.GetBoolPropertyFn(true),
 		PersistenceSampleLoggingRate:             dynamicconfig.GetIntPropertyFn(100),
 		EnableShardIDMetrics:                     dynamicconfig.GetBoolPropertyFn(true),
+		EnableHistoryTaskDualWriteMode:           dynamicconfig.GetBoolPropertyFn(true),
 	}
 	params := TestBaseParams{
 		DefaultTestCluster:    testCluster,
