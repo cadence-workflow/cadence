@@ -4596,7 +4596,7 @@ var StringKeys = map[StringKey]DynamicString{
 	TasklistLoadBalancerStrategy: {
 		KeyName:      "system.tasklistLoadBalancerStrategy",
 		Description:  "TasklistLoadBalancerStrategy is the key for tasklist load balancer strategy",
-		DefaultValue: "random", // other options: "round-robin"
+		DefaultValue: "weighted", // available options: "random, round-robin, weighted"
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
 	},
 	ReadVisibilityStoreName: {
