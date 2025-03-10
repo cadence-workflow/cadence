@@ -273,6 +273,20 @@ func (s *configSuite) TestGetMapProperty() {
 	s.Equal("321", value()["testKey"])
 }
 
+func (s *configSuite) TestGetMapPropertyFilteredByDomain() {
+	key := TestGetMapPropertyKey
+	domain := "testDomain"
+	val := map[string]interface{}{
+		"testKey": 123,
+	}
+	value := s.cln.GetMapPropertyFilteredByDomain(key)
+	s.Equal(key.DefaultMap(), value(domain))
+	val["testKey"] = "321"
+	s.client.SetValue(key, val)
+	s.Equal(val, value(domain))
+	s.Equal("321", value(domain)["testKey"])
+}
+
 func (s *configSuite) TestGetListProperty() {
 	key := TestGetListPropertyKey
 	arr := []interface{}{}

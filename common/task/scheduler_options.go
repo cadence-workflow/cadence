@@ -55,9 +55,7 @@ func NewSchedulerOptions[K comparable](
 	case SchedulerTypeWRR:
 		options.WRRSchedulerOptions = &WeightedRoundRobinTaskSchedulerOptions[K]{
 			QueueSize:            queueSize,
-			WorkerCount:          workerCount,
 			DispatcherCount:      dispatcherCount,
-			RetryPolicy:          common.CreateTaskProcessingRetryPolicy(),
 			TaskToChannelKeyFn:   taskToChannelKeyFn,
 			ChannelKeyToWeightFn: channelKeyToWeightFn,
 		}

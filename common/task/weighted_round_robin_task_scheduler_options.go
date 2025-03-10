@@ -22,21 +22,16 @@ package task
 
 import (
 	"fmt"
-
-	"github.com/uber/cadence/common/backoff"
-	"github.com/uber/cadence/common/dynamicconfig"
 )
 
 // WeightedRoundRobinTaskSchedulerOptions configs WRR task scheduler
 type WeightedRoundRobinTaskSchedulerOptions[K comparable] struct {
 	QueueSize            int
-	WorkerCount          dynamicconfig.IntPropertyFn
 	DispatcherCount      int
-	RetryPolicy          backoff.RetryPolicy
 	TaskToChannelKeyFn   func(PriorityTask) K
 	ChannelKeyToWeightFn func(K) int
 }
 
 func (o *WeightedRoundRobinTaskSchedulerOptions[K]) String() string {
-	return fmt.Sprintf("{QueueSize: %v, WorkerCount: %v, DispatcherCount: %v}", o.QueueSize, o.WorkerCount(), o.DispatcherCount)
+	return fmt.Sprintf("{QueueSize: %v, DispatcherCount: %v}", o.QueueSize, o.DispatcherCount)
 }

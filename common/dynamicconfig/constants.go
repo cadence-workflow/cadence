@@ -1185,6 +1185,7 @@ const (
 	// Default value: 0
 	// Allowed filters: DomainName
 	MutableStateChecksumVerifyProbability
+	TaskSchedulerMigrationRatio
 	// MaxActivityCountDispatchByDomain max # of activity tasks to dispatch to matching before creating transfer tasks. This is an performance optimization to skip activity scheduling efforts.
 	// KeyName: history.activityDispatchForSyncMatchCountByDomain
 	// Value type: Int
@@ -1697,6 +1698,7 @@ const (
 	TransferProcessorEnableValidator
 	TaskSchedulerEnableRateLimiter
 	TaskSchedulerEnableRateLimiterShadowMode
+	TaskSchedulerEnableMigration
 	// EnableAdminProtection is whether to enable admin checking
 	// KeyName: history.enableAdminProtection
 	// Value type: Bool
@@ -2804,6 +2806,7 @@ const (
 	// Default value: please see common.ConvertIntMapToDynamicConfigMapProperty(DefaultTaskPriorityWeight) in code base
 	// Allowed filters: N/A
 	TaskSchedulerRoundRobinWeights
+	TaskSchedulerDomainRoundRobinWeights
 	// QueueProcessorPendingTaskSplitThreshold is the threshold for the number of pending tasks per domain
 	// KeyName: history.queueProcessorPendingTaskSplitThreshold
 	// Value type: Map
@@ -3605,6 +3608,11 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "MutableStateChecksumVerifyProbability is the probability [0-100] that checksum will be verified for mutable state",
 		DefaultValue: 0,
 	},
+	TaskSchedulerMigrationRatio: {
+		KeyName:      "history.taskSchedulerMigrationRatio",
+		Description:  "TaskSchedulerMigrationRatio is the ratio of task that is migrated to new scheduler",
+		DefaultValue: 0,
+	},
 	MaxActivityCountDispatchByDomain: {
 		KeyName:      "history.maxActivityCountDispatchByDomain",
 		Description:  "MaxActivityCountDispatchByDomain max # of activity tasks to dispatch to matching before creating transfer tasks. This is an performance optimization to skip activity scheduling efforts.",
@@ -4072,6 +4080,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "history.taskSchedulerEnableRateLimiterShadowMode",
 		Description:  "TaskSchedulerEnableRateLimiterShadowMode indicates whether the task scheduler rate limiter is in shadow mode",
 		DefaultValue: true,
+	},
+	TaskSchedulerEnableMigration: {
+		KeyName:      "history.taskSchedulerEnableMigration",
+		Description:  "TaskSchedulerEnableMigration indicates whether the task scheduler migration is enabled",
+		DefaultValue: false,
 	},
 	EnableAdminProtection: {
 		KeyName:      "history.enableAdminProtection",
@@ -5067,6 +5080,12 @@ var MapKeys = map[MapKey]DynamicMap{
 	TaskSchedulerRoundRobinWeights: {
 		KeyName:      "history.taskSchedulerRoundRobinWeight",
 		Description:  "TaskSchedulerRoundRobinWeights is the priority weight for weighted round robin task scheduler",
+		DefaultValue: common.ConvertIntMapToDynamicConfigMapProperty(DefaultTaskSchedulerRoundRobinWeights),
+	},
+	TaskSchedulerDomainRoundRobinWeights: {
+		KeyName:      "history.taskSchedulerDomainRoundRobinWeight",
+		Description:  "TaskSchedulerDomainRoundRobinWeights is the priority round robin weights for domains",
+		Filters:      []Filter{DomainName},
 		DefaultValue: common.ConvertIntMapToDynamicConfigMapProperty(DefaultTaskSchedulerRoundRobinWeights),
 	},
 	QueueProcessorPendingTaskSplitThreshold: {
