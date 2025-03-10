@@ -281,28 +281,49 @@ func (c *lru) evictExpiredItems() {
 // Put puts a new value associated with a given key, returning the existing value (if present)
 // allowUpdate flag is used to control overwrite behavior if the value exists
 func (c *lru) putInternal(key interface{}, value interface{}, allowUpdate bool) (interface{}, error) {
-	valueSize := c.sizeFunc(value)
+	valueSize := uint64(0)
+	if c.isSizeBased {
+		sizeableValue, ok := value.(Sizeable)
+		if !ok {
+			return nil, errors.New("value does not implement Sizeable interface")
+		}
+		valueSize = sizeableValue.Size()
+	}
 	c.mut.Lock()
 	defer c.mut.Unlock()
 
 	c.evictExpiredItems()
 
-	elt := c.byKey[key]
-	if elt != nil {
-		entry := elt.Value.(*entryImpl)
+	element := c.byKey[key]
+	if element != nil {
+		entry := element.Value.(*entryImpl)
 		if c.isEntryExpired(entry, c.timeSource.Now()) {
 			// Entry has expired
-			c.deleteInternal(elt)
+			c.deleteInternal(element)
 		} else {
 			existing := entry.value
 			if allowUpdate {
+				if c.isSizeBased {
+					for c.isCacheFull() {
+						oldest := c.byAccess.Back().Value.(*entryImpl)
+						if oldest.refCount > 0 {
+							// Cache is full with pinned elements
+							// revert the update and return
+							entry.value = existing
+							return existing, ErrCacheFull
+						}
+						c.deleteInternal(c.byAccess.Back())
+					}
+					c.updateSizeOnDelete(key)
+					c.updateSizeOnAdd(key, valueSize)
+				}
 				entry.value = value
 				if c.ttl != 0 {
 					entry.createTime = c.timeSource.Now()
 				}
 			}
 
-			c.byAccess.MoveToFront(elt)
+			c.byAccess.MoveToFront(element)
 			if c.pin {
 				entry.refCount++
 			}
