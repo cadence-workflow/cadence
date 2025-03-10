@@ -2313,6 +2313,19 @@ const (
 
 	TasklistLoadBalancerStrategy
 
+	// MatchingShardDistributionMode is the mode of shard distribution for matching, we currently have four modes, we _highly_
+	// recommend using hash_ring while the shard distributor is still in development.
+	//
+	// - "hash_ring" means that the shards are distributed using a consistent hash ring, in particular using the ringpop library
+	// - "shard_distributor" means that the shards are distributed using the _highly experimental_ shard distributor service
+	// - "hash_ring-shadow-shard_distributor" means that the shards are distrubuted using the hash ring, but shadowed by the shard distributor
+	// - "shard_distributor-shadow-hash_ring" means that the shards are distrubuted using the shard distributor, but shadowed by the hash ring
+	//
+	// KeyName: matching.shardDistributionMode
+	// Value type: string enum: "hash-ring" or "shard-distributor"
+	// Default value: "hash-ring"
+	MatchingShardDistributionMode
+
 	// LastStringKey must be the last one in this const group
 	LastStringKey
 )
@@ -4604,6 +4617,11 @@ var StringKeys = map[StringKey]DynamicString{
 		Description:  "ReadVisibilityStoreName is key to identify which store to read visibility data from",
 		DefaultValue: "es",
 		Filters:      []Filter{DomainName},
+	},
+	MatchingShardDistributionMode: {
+		KeyName:      "matching.shardDistributionMode",
+		Description:  "MatchingShardDistributionMode defines which shard distribution mode should be used",
+		DefaultValue: "hash-ring",
 	},
 }
 

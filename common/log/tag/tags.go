@@ -1118,3 +1118,11 @@ func ActivityTaskState(state int32) Tag {
 func Namespace(name string) Tag {
 	return newStringTag("namespace", name)
 }
+
+func HashRingResult(addr string) Tag {
+	return newStringTag("hashring-result", addr)
+}
+
+func ShardDistributorResult(addr string) Tag {
+	return newStringTag("shard-distributor-result", addr)
+}

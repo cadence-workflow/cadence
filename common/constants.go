@@ -304,8 +304,3 @@ func (v FailoverType) String() string {
 		return "Unknown"
 	}
 }
-
-const (
-	ShardModeHashRing         = "hash-ring"
-	ShardModeShardDistributor = "shard-distributor"
-)

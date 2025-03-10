@@ -29,11 +29,7 @@ import (
 	"sync/atomic"
 
 	"github.com/uber/cadence/common"
-	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/log"
-	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
-	"github.com/uber/cadence/common/service"
 )
 
 type (
@@ -88,7 +84,7 @@ type MultiringResolver struct {
 
 	provider PeerProvider
 	mu       sync.Mutex
-	rings    map[string]*ring
+	rings    map[string]SingleProvider
 }
 
 var _ Resolver = (*MultiringResolver)(nil)
@@ -96,31 +92,18 @@ var _ Resolver = (*MultiringResolver)(nil)
 // NewResolver builds hashrings for all services
 func NewResolver(
 	provider PeerProvider,
-	logger log.Logger,
-	metrics metrics.Client,
-) (*MultiringResolver, error) {
-	return NewMultiringResolver(service.ListWithRing, provider, logger.WithTags(tag.ComponentServiceResolver), metrics), nil
-}
-
-// NewMultiringResolver creates hashrings for all services
-func NewMultiringResolver(
-	services []string,
-	provider PeerProvider,
-	logger log.Logger,
 	metricsClient metrics.Client,
-) *MultiringResolver {
+	rings map[string]SingleProvider,
+) (Resolver, error) {
 	rpo := &MultiringResolver{
 		status:   common.DaemonStatusInitialized,
 		provider: provider,
-		rings:    make(map[string]*ring),
+		rings:    rings,
 		metrics:  metricsClient,
 		mu:       sync.Mutex{},
 	}
 
-	for _, s := range services {
-		rpo.rings[s] = newHashring(s, provider, clock.NewRealTimeSource(), logger, metricsClient.Scope(metrics.HashringScope))
-	}
-	return rpo
+	return rpo, nil
 }
 
 // Start starts provider and all rings
@@ -171,7 +154,7 @@ func (rpo *MultiringResolver) EvictSelf() error {
 	return rpo.provider.SelfEvict()
 }
 
-func (rpo *MultiringResolver) getRing(service string) (*ring, error) {
+func (rpo *MultiringResolver) getRing(service string) (SingleProvider, error) {
 	rpo.mu.Lock()
 	defer rpo.mu.Unlock()
 	ring, found := rpo.rings[service]

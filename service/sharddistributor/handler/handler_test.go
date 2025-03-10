@@ -30,9 +30,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/client/history"
-	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common/log/testlogger"
+	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/constants"
 )
@@ -41,14 +40,14 @@ func TestGetShardOwner(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockHistoryPeerResolver := history.NewMockPeerResolver(ctrl)
-	mockMatchingPeerResolver := matching.NewMockPeerResolver(ctrl)
+	mockHistoryRing := membership.NewMockSingleProvider(ctrl)
+	mockMatchingRing := membership.NewMockSingleProvider(ctrl)
 	logger := testlogger.New(t)
 
 	handler := &handlerImpl{
-		logger:               logger,
-		historyPeerResolver:  mockHistoryPeerResolver,
-		matchingPeerResolver: mockMatchingPeerResolver,
+		logger:       logger,
+		historyRing:  mockHistoryRing,
+		matchingRing: mockMatchingRing,
 	}
 
 	tests := []struct {
@@ -66,7 +65,7 @@ func TestGetShardOwner(t *testing.T) {
 				ShardKey:  "123",
 			},
 			setupMocks: func() {
-				mockHistoryPeerResolver.EXPECT().FromShardID(123).Return("owner1", nil)
+				mockHistoryRing.EXPECT().LookupRaw("123").Return("owner1", nil)
 			},
 			expectedOwner: "owner1",
 			expectedError: false,
@@ -78,7 +77,7 @@ func TestGetShardOwner(t *testing.T) {
 				ShardKey:  "taskList1",
 			},
 			setupMocks: func() {
-				mockMatchingPeerResolver.EXPECT().FromTaskList("taskList1").Return("owner2", nil)
+				mockHistoryRing.EXPECT().LookupRaw("taskList1").Return("owner2", nil)
 			},
 			expectedOwner: "owner2",
 			expectedError: false,
@@ -110,7 +109,7 @@ func TestGetShardOwner(t *testing.T) {
 				ShardKey:  "1",
 			},
 			setupMocks: func() {
-				mockHistoryPeerResolver.EXPECT().FromShardID(1).Return("", errors.New("lookup error"))
+				mockHistoryRing.EXPECT().LookupRaw("1").Return("", errors.New("lookup error"))
 			},
 			expectedError:  true,
 			expectedErrMsg: "lookup error",
@@ -122,7 +121,7 @@ func TestGetShardOwner(t *testing.T) {
 				ShardKey:  "taskList1",
 			},
 			setupMocks: func() {
-				mockMatchingPeerResolver.EXPECT().FromTaskList("taskList1").Return("", errors.New("lookup error"))
+				mockMatchingRing.EXPECT().LookupRaw("taskList1").Return("", errors.New("lookup error"))
 			},
 			expectedError:  true,
 			expectedErrMsg: "lookup error",
