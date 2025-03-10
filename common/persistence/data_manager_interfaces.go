@@ -1051,12 +1051,13 @@ type (
 
 	// LeaseTaskListRequest is used to request lease of a task list
 	LeaseTaskListRequest struct {
-		DomainID     string
-		DomainName   string
-		TaskList     string
-		TaskType     int
-		TaskListKind int
-		RangeID      int64
+		DomainID         string
+		DomainName       string
+		TaskList         string
+		TaskType         int
+		TaskListKind     int
+		RangeID          int64
+		CurrentTimeStamp time.Time
 	}
 
 	// LeaseTaskListResponse is response to LeaseTaskListRequest
@@ -1077,8 +1078,9 @@ type (
 
 	// UpdateTaskListRequest is used to update task list implementation information
 	UpdateTaskListRequest struct {
-		TaskListInfo *TaskListInfo
-		DomainName   string
+		TaskListInfo     *TaskListInfo
+		DomainName       string
+		CurrentTimeStamp time.Time
 	}
 
 	// UpdateTaskListResponse is the response to UpdateTaskList
@@ -1120,9 +1122,10 @@ type (
 
 	// CreateTasksRequest is used to create a new task for a workflow exectution
 	CreateTasksRequest struct {
-		TaskListInfo *TaskListInfo
-		Tasks        []*CreateTaskInfo
-		DomainName   string
+		TaskListInfo     *TaskListInfo
+		Tasks            []*CreateTaskInfo
+		DomainName       string
+		CurrentTimeStamp time.Time
 	}
 
 	// CreateTaskInfo describes a task to be created in CreateTasksRequest
@@ -1243,6 +1246,7 @@ type (
 		ConfigVersion     int64
 		FailoverVersion   int64
 		LastUpdatedTime   int64
+		CurrentTimeStamp  time.Time
 	}
 
 	// CreateDomainResponse is the response for CreateDomain
@@ -1545,8 +1549,9 @@ type (
 
 	// CreateFailoverMarkersRequest is request to create failover markers
 	CreateFailoverMarkersRequest struct {
-		RangeID int64
-		Markers []*FailoverMarkerTask
+		RangeID          int64
+		Markers          []*FailoverMarkerTask
+		CurrentTimeStamp time.Time
 	}
 
 	// FetchDynamicConfigResponse is a response to FetchDynamicConfigResponse

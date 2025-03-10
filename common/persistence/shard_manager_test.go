@@ -97,7 +97,12 @@ func TestShardManagerCreateShard(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			store := NewMockShardStore(ctrl)
 			if test.internalRequest != nil {
-				store.EXPECT().CreateShard(gomock.Any(), gomock.Eq(test.internalRequest)).Return(test.internalResponse)
+				store.EXPECT().CreateShard(gomock.Any(), gomock.Any()).
+					Do(func(ctx context.Context, req *InternalCreateShardRequest) {
+						assert.Equal(t, test.internalRequest.ShardInfo, req.ShardInfo)
+
+						assert.WithinDuration(t, time.Now(), req.CurrentTimeStamp, time.Second)
+					}).Return(test.internalResponse)
 			}
 
 			manager := NewShardManager(store, WithSerializer(test.serializer))
@@ -237,7 +242,13 @@ func TestShardManagerUpdateShard(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			store := NewMockShardStore(ctrl)
 			if test.internalRequest != nil {
-				store.EXPECT().UpdateShard(gomock.Any(), gomock.Eq(test.internalRequest)).Return(test.internalResponse)
+				store.EXPECT().UpdateShard(gomock.Any(), gomock.Any()).
+					Do(func(ctx context.Context, req *InternalUpdateShardRequest) {
+						assert.Equal(t, test.internalRequest.PreviousRangeID, req.PreviousRangeID)
+						assert.Equal(t, test.internalRequest.ShardInfo, req.ShardInfo)
+
+						assert.WithinDuration(t, time.Now(), req.CurrentTimeStamp, time.Second)
+					}).Return(test.internalResponse)
 			}
 
 			manager := NewShardManager(store, WithSerializer(test.serializer))

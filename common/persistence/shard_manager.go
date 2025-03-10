@@ -26,12 +26,14 @@ import (
 	"context"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/clock"
 )
 
 type (
 	shardManager struct {
 		persistence ShardStore
 		serializer  PayloadSerializer
+		timeSrc     clock.TimeSource
 	}
 )
 
@@ -55,6 +57,7 @@ func NewShardManager(
 	manager := &shardManager{
 		persistence: persistence,
 		serializer:  NewPayloadSerializer(),
+		timeSrc:     clock.NewRealTimeSource(),
 	}
 	for _, option := range options {
 		option(manager)
@@ -76,7 +79,8 @@ func (m *shardManager) CreateShard(ctx context.Context, request *CreateShardRequ
 		return err
 	}
 	internalRequest := &InternalCreateShardRequest{
-		ShardInfo: shardInfo,
+		ShardInfo:        shardInfo,
+		CurrentTimeStamp: m.timeSrc.Now(),
 	}
 	return m.persistence.CreateShard(ctx, internalRequest)
 }
@@ -105,8 +109,9 @@ func (m *shardManager) UpdateShard(ctx context.Context, request *UpdateShardRequ
 		return err
 	}
 	internalRequest := &InternalUpdateShardRequest{
-		ShardInfo:       shardInfo,
-		PreviousRangeID: request.PreviousRangeID,
+		ShardInfo:        shardInfo,
+		PreviousRangeID:  request.PreviousRangeID,
+		CurrentTimeStamp: m.timeSrc.Now(),
 	}
 	return m.persistence.UpdateShard(ctx, internalRequest)
 }
