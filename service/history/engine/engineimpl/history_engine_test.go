@@ -47,6 +47,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/mocks"
@@ -5552,7 +5553,7 @@ func TestRecordChildExecutionCompleted(t *testing.T) {
 				timeSource:      mockShard.GetTimeSource(),
 				metricsClient:   metrics.NewClient(tally.NoopScope, metrics.History),
 				logger:          mockShard.GetLogger(),
-				updateWithActionFn: func(_ context.Context, _ execution.Cache, _ string, _ types.WorkflowExecution, _ bool, _ time.Time, actionFn func(wfContext execution.Context, mutableState execution.MutableState) error) error {
+				updateWithActionFn: func(_ context.Context, _ log.Logger, _ execution.Cache, _ string, _ types.WorkflowExecution, _ bool, _ time.Time, actionFn func(wfContext execution.Context, mutableState execution.MutableState) error) error {
 					return actionFn(nil, ms)
 				},
 			}

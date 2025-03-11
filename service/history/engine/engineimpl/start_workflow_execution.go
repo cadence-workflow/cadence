@@ -180,8 +180,9 @@ func (e *historyEngineImpl) startWorkflowHelper(
 
 		return nil, err
 	}
-	wfContext := execution.NewContext(domainID, workflowExecution, e.shard, e.executionManager, e.logger)
+	wfContext := execution.NewContext(domainID, workflowExecution, e.shard, e.executionManager, e.logger, e.activeClusterManager)
 
+	// TODO: mutable state should handle recording RowType=ActiveCluster for active-active domains.
 	newWorkflow, newWorkflowEventsSeq, err := curMutableState.CloseTransactionAsSnapshot(
 		e.timeSource.Now(),
 		execution.TransactionPolicyActive,
@@ -426,6 +427,9 @@ func (e *historyEngineImpl) SignalWithStartWorkflowExecution(
 
 			// We apply the update to execution using optimistic concurrency.  If it fails due to a conflict then reload
 			// the history and try the operation again.
+			e.logger.Debugf("SignalWithStartWorkflowExecution calling UpdateWorkflowExecutionAsActive for wfID %s",
+				workflowExecution.GetWorkflowID(),
+			)
 			if err := wfContext.UpdateWorkflowExecutionAsActive(ctx, e.shard.GetTimeSource().Now()); err != nil {
 				if t, ok := persistence.AsDuplicateRequestError(err); ok {
 					if t.RequestType == persistence.WorkflowRequestTypeSignal {
@@ -663,6 +667,7 @@ UpdateWorkflowLoop:
 				e.shard,
 				e.shard.GetExecutionManager(),
 				e.logger,
+				e.activeClusterManager,
 			),
 			newMutableState,
 		)

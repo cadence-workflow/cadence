@@ -30,6 +30,7 @@ import (
 	"github.com/pborman/uuid"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/definition"
@@ -89,12 +90,13 @@ type (
 	// Cache caches workflow execution context
 	cacheImpl struct {
 		cache.Cache
-		shard            shard.Context
-		executionManager persistence.ExecutionManager
-		disabled         bool
-		logger           log.Logger
-		metricsClient    metrics.Client
-		config           *config.Config
+		shard                shard.Context
+		executionManager     persistence.ExecutionManager
+		disabled             bool
+		logger               log.Logger
+		metricsClient        metrics.Client
+		config               *config.Config
+		activeClusterManager activecluster.Manager
 	}
 )
 
@@ -118,12 +120,13 @@ func NewCache(shard shard.Context) Cache {
 	opts.MaxCount = config.HistoryCacheMaxSize()
 
 	return &cacheImpl{
-		Cache:            cache.New(opts),
-		shard:            shard,
-		executionManager: shard.GetExecutionManager(),
-		logger:           shard.GetLogger().WithTags(tag.ComponentHistoryCache),
-		metricsClient:    shard.GetMetricsClient(),
-		config:           config,
+		Cache:                cache.New(opts),
+		shard:                shard,
+		executionManager:     shard.GetExecutionManager(),
+		logger:               shard.GetLogger().WithTags(tag.ComponentHistoryCache),
+		metricsClient:        shard.GetMetricsClient(),
+		config:               config,
+		activeClusterManager: shard.GetActiveClusterManager(),
 	}
 }
 
@@ -193,7 +196,7 @@ func (c *cacheImpl) GetAndCreateWorkflowExecution(
 	}
 
 	// Note, the one loaded from DB is not put into cache and don't affect any behavior
-	contextFromDB := NewContext(domainID, execution, c.shard, c.executionManager, c.logger)
+	contextFromDB := NewContext(domainID, execution, c.shard, c.executionManager, c.logger, c.activeClusterManager)
 	return contextFromCache, contextFromDB, releaseFunc, cacheHit, nil
 }
 
@@ -256,7 +259,7 @@ func (c *cacheImpl) getOrCreateWorkflowExecutionInternal(
 
 	// Test hook for disabling the cache
 	if c.disabled {
-		return NewContext(domainID, execution, c.shard, c.executionManager, c.logger), NoopReleaseFn, nil
+		return NewContext(domainID, execution, c.shard, c.executionManager, c.logger, c.activeClusterManager), NoopReleaseFn, nil
 	}
 
 	key := definition.NewWorkflowIdentifier(domainID, execution.GetWorkflowID(), execution.GetRunID())
@@ -264,7 +267,7 @@ func (c *cacheImpl) getOrCreateWorkflowExecutionInternal(
 	if !cacheHit {
 		c.metricsClient.IncCounter(scope, metrics.CacheMissCounter)
 		// Let's create the workflow execution workflowCtx
-		workflowCtx = NewContext(domainID, execution, c.shard, c.executionManager, c.logger)
+		workflowCtx = NewContext(domainID, execution, c.shard, c.executionManager, c.logger, c.activeClusterManager)
 		elem, err := c.PutIfNotExist(key, workflowCtx)
 		if err != nil {
 			c.metricsClient.IncCounter(scope, metrics.CacheFailures)

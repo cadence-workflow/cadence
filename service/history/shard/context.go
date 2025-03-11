@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
@@ -55,6 +56,7 @@ type (
 		GetExecutionManager() persistence.ExecutionManager
 		GetHistoryManager() persistence.HistoryManager
 		GetDomainCache() cache.DomainCache
+		GetActiveClusterManager() activecluster.Manager
 		GetClusterMetadata() cluster.Metadata
 		GetConfig() *config.Config
 		GetEventsCache() events.Cache
@@ -1234,16 +1236,24 @@ func (s *contextImpl) allocateTimerIDsLocked(
 ) error {
 
 	// assign IDs for the timer tasks. They need to be assigned under shard lock.
-	currentCluster := s.GetClusterMetadata().GetCurrentClusterName()
+	cluster := s.GetClusterMetadata().GetCurrentClusterName()
 	for _, task := range timerTasks {
 		ts := task.GetVisibilityTimestamp()
 		if task.GetVersion() != common.EmptyVersion {
 			// cannot use version to determine the corresponding cluster for timer task
 			// this is because during failover, timer task should be created as active
 			// or otherwise, failover + active processing logic may not pick up the task.
-			currentCluster = domainEntry.GetReplicationConfig().ActiveClusterName
+			cluster = domainEntry.GetReplicationConfig().ActiveClusterName
+
+			// if domain is active-active and the current cluster is one of those active clusters, then use the current cluster
+			if domainEntry.GetReplicationConfig().IsActiveActive() {
+				ok, _ := domainEntry.IsActiveIn(s.GetClusterMetadata().GetCurrentClusterName())
+				if !ok {
+					cluster = domainEntry.GetReplicationConfig().ActiveClusterName
+				}
+			}
 		}
-		readCursorTS := s.timerMaxReadLevelMap[currentCluster]
+		readCursorTS := s.timerMaxReadLevelMap[cluster]
 		if ts.Before(readCursorTS) {
 			// This can happen if shard move and new host have a time SKU, or there is db write delay.
 			// We generate a new timer ID using timerMaxReadLevel.
@@ -1252,8 +1262,9 @@ func (s *contextImpl) allocateTimerIDsLocked(
 				tag.WorkflowID(workflowID),
 				tag.Timestamp(ts),
 				tag.CursorTimestamp(readCursorTS),
+				tag.ClusterName(cluster),
 				tag.ValueShardAllocateTimerBeforeRead)
-			task.SetVisibilityTimestamp(s.timerMaxReadLevelMap[currentCluster].Add(time.Millisecond))
+			task.SetVisibilityTimestamp(s.timerMaxReadLevelMap[cluster].Add(time.Millisecond))
 		}
 
 		seqNum, err := s.generateTransferTaskIDLocked()

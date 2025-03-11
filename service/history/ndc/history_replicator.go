@@ -174,6 +174,7 @@ type (
 		releaseFn execution.ReleaseFunc,
 		task replicationTask,
 		r *historyReplicatorImpl,
+		logger log.Logger,
 	) error
 
 	applyNonStartEventsToNoneCurrentBranchWithContinueAsNewFn func(
@@ -193,6 +194,7 @@ type (
 		task replicationTask,
 		transactionManager transactionManager,
 		clusterMetadata cluster.Metadata,
+		logger log.Logger,
 	) error
 
 	applyNonStartEventsMissingMutableStateFn func(
@@ -283,6 +285,7 @@ func NewHistoryReplicator(
 				shard,
 				logger,
 				domainEntry,
+				shard.GetActiveClusterManager(),
 			)
 		},
 		newReplicationTaskFn:                                         newReplicationTask,
@@ -344,6 +347,9 @@ func (r *historyReplicatorImpl) applyEvents(
 		}
 	}()
 
+	// TODO(taylan): Events are applied here without checking whether domain (or workflow) is passive in current cluster at the moment.
+	// It may be handled by mutable state builder. Double check.
+
 	switch task.getFirstEvent().GetEventType() {
 	case types.EventTypeWorkflowExecutionStarted:
 		return r.applyStartEventsFn(ctx, context, releaseFn, task, r.domainCache,
@@ -378,7 +384,7 @@ func (r *historyReplicatorImpl) applyEvents(
 					r.newStateBuilderFn, r.clusterMetadata, r.shard, r.logger, r.transactionManager)
 			}
 			// passed in r because there's a recursive call within applyNonStartEventsToNoneCurrentBranchWithContinueAsNew
-			return r.applyNonStartEventsToNoneCurrentBranchFn(ctx, context, mutableState, branchIndex, releaseFn, task, r)
+			return r.applyNonStartEventsToNoneCurrentBranchFn(ctx, context, mutableState, branchIndex, releaseFn, task, r, r.logger)
 
 		case *types.EntityNotExistsError:
 			// mutable state not created, check if is workflow reset
@@ -444,6 +450,7 @@ func applyStartEvents(
 			context,
 			mutableState,
 			releaseFn,
+			logger,
 		),
 	)
 	if err != nil {
@@ -551,6 +558,7 @@ func applyNonStartEventsToCurrentBranch(
 		context,
 		mutableState,
 		releaseFn,
+		logger,
 	)
 
 	var newWorkflow execution.Workflow
@@ -565,6 +573,7 @@ func applyNonStartEventsToCurrentBranch(
 			shard,
 			shard.GetExecutionManager(),
 			logger,
+			shard.GetActiveClusterManager(),
 		)
 
 		newWorkflow = execution.NewWorkflow(
@@ -573,6 +582,7 @@ func applyNonStartEventsToCurrentBranch(
 			newContext,
 			newMutableState,
 			execution.NoopReleaseFn,
+			logger,
 		)
 	}
 
@@ -602,6 +612,7 @@ func applyNonStartEventsToNoneCurrentBranch(
 	releaseFn execution.ReleaseFunc,
 	task replicationTask,
 	r *historyReplicatorImpl,
+	logger log.Logger,
 ) error {
 
 	if len(task.getNewEvents()) != 0 {
@@ -623,6 +634,7 @@ func applyNonStartEventsToNoneCurrentBranch(
 		task,
 		r.transactionManager,
 		r.clusterMetadata,
+		logger,
 	)
 }
 
@@ -635,6 +647,7 @@ func applyNonStartEventsToNoneCurrentBranchWithoutContinueAsNew(
 	task replicationTask,
 	transactionManager transactionManager,
 	clusterMetadata cluster.Metadata,
+	logger log.Logger,
 ) error {
 
 	versionHistoryItem := persistence.NewVersionHistoryItem(
@@ -662,6 +675,7 @@ func applyNonStartEventsToNoneCurrentBranchWithoutContinueAsNew(
 			context,
 			mutableState,
 			releaseFn,
+			logger,
 		),
 		&persistence.WorkflowEvents{
 			DomainID:    task.getDomainID(),
@@ -815,6 +829,7 @@ func applyNonStartEventsResetWorkflow(
 		context,
 		mutableState,
 		execution.NoopReleaseFn,
+		logger,
 	)
 
 	err = transactionManager.createWorkflow(

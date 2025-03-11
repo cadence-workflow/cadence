@@ -800,6 +800,7 @@ func (t *timerActiveTaskExecutor) executeWorkflowTimeoutTask(
 			t.shard,
 			t.shard.GetExecutionManager(),
 			t.logger,
+			t.shard.GetActiveClusterManager(),
 		),
 		newMutableState,
 	)
@@ -822,6 +823,9 @@ func (t *timerActiveTaskExecutor) updateWorkflowExecution(
 	}
 
 	now := t.shard.GetTimeSource().Now()
+	t.logger.Debugf("timerActiveTaskExecutor.updateWorkflowExecution calling UpdateWorkflowExecutionAsActive for wfID %s",
+		mutableState.GetExecutionInfo().WorkflowID,
+	)
 	err = wfContext.UpdateWorkflowExecutionAsActive(ctx, now)
 	if err != nil {
 		// if is shard ownership error, the shard context will stop the entire history engine

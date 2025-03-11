@@ -46,6 +46,7 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/loggerimpl"
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/testing/testdatagen"
@@ -2647,6 +2648,7 @@ func TestStartTransactionHandleFailover(t *testing.T) {
 					NextEventID:            0,
 					LastProcessedEvent:     0,
 				},
+				logger: testlogger.New(t),
 			}
 
 			msb.hBuilder = NewHistoryBuilder(&msb)
@@ -2664,7 +2666,7 @@ func TestStartTransactionHandleFailover(t *testing.T) {
 
 func TestSimpleGetters(t *testing.T) {
 
-	msb := createMSB()
+	msb := createMSB(t)
 	assert.Equal(t, msb.versionHistories, msb.GetVersionHistories())
 
 	branchToken, err := msb.GetCurrentBranchToken()
@@ -2751,13 +2753,14 @@ func TestMutableState_IsCurrentWorkflowGuaranteed(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			msb := mutableStateBuilder{
 				stateInDB: td.state,
+				logger:    testlogger.New(t),
 			}
 			assert.Equal(t, td.expected, msb.IsCurrentWorkflowGuaranteed())
 		})
 	}
 }
 
-func createMSB() mutableStateBuilder {
+func createMSB(t *testing.T) mutableStateBuilder {
 
 	sampleDomain := cache.NewDomainCacheEntryForTest(&persistence.DomainInfo{ID: "domain-id", Name: "domain"}, &persistence.DomainConfig{}, true, nil, 0, nil, 0, 0, 0)
 
@@ -2877,6 +2880,7 @@ func createMSB() mutableStateBuilder {
 		checksum:         checksum.Checksum{},
 		executionStats:   &persistence.ExecutionStats{HistorySize: 403},
 		queryRegistry:    query.NewRegistry(),
+		logger:           testlogger.New(t),
 	}
 }
 

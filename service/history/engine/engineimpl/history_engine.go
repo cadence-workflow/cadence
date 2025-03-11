@@ -31,6 +31,7 @@ import (
 	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/client/wrappers/retryable"
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/client"
 	"github.com/uber/cadence/common/clock"
@@ -100,6 +101,7 @@ type historyEngineImpl struct {
 	metricsClient             metrics.Client
 	logger                    log.Logger
 	throttledLogger           log.Logger
+	activeClusterManager      activecluster.Manager
 	config                    *config.Config
 	archivalClient            warchiver.Client
 	workflowResetter          reset.WorkflowResetter
@@ -118,7 +120,16 @@ type historyEngineImpl struct {
 	failoverMarkerNotifier    failover.MarkerNotifier
 	wfIDCache                 workflowcache.WFCache
 
-	updateWithActionFn func(context.Context, execution.Cache, string, types.WorkflowExecution, bool, time.Time, func(wfContext execution.Context, mutableState execution.MutableState) error) error
+	updateWithActionFn func(
+		context.Context,
+		log.Logger,
+		execution.Cache,
+		string,
+		types.WorkflowExecution,
+		bool,
+		time.Time,
+		func(wfContext execution.Context, mutableState execution.MutableState) error,
+	) error
 }
 
 var (
@@ -177,6 +188,7 @@ func NewEngineWithShardContext(
 		executionCache:       executionCache,
 		logger:               logger.WithTags(tag.ComponentHistoryEngine),
 		throttledLogger:      shard.GetThrottledLogger().WithTags(tag.ComponentHistoryEngine),
+		activeClusterManager: shard.GetActiveClusterManager(),
 		metricsClient:        shard.GetMetricsClient(),
 		historyEventNotifier: historyEventNotifier,
 		config:               config,

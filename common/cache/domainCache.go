@@ -97,15 +97,16 @@ type (
 	}
 
 	DefaultDomainCache struct {
-		status        int32
-		shutdownChan  chan struct{}
-		clusterGroup  string
-		cacheNameToID *atomic.Value
-		cacheByID     *atomic.Value
-		domainManager persistence.DomainManager
-		timeSource    clock.TimeSource
-		scope         metrics.Scope
-		logger        log.Logger
+		status          int32
+		shutdownChan    chan struct{}
+		clusterGroup    string
+		clusterMetadata cluster.Metadata
+		cacheNameToID   *atomic.Value
+		cacheByID       *atomic.Value
+		domainManager   persistence.DomainManager
+		timeSource      clock.TimeSource
+		scope           metrics.Scope
+		logger          log.Logger
 
 		// refresh lock is used to guarantee at most one
 		// coroutine is doing domain refreshment
@@ -126,11 +127,12 @@ type (
 
 	// DomainCacheEntry contains the info and config for a domain
 	DomainCacheEntry struct {
-		mu                          sync.RWMutex
-		info                        *persistence.DomainInfo
-		config                      *persistence.DomainConfig
-		replicationConfig           *persistence.DomainReplicationConfig
-		configVersion               int64
+		mu                sync.RWMutex
+		info              *persistence.DomainInfo
+		config            *persistence.DomainConfig
+		replicationConfig *persistence.DomainReplicationConfig
+		configVersion     int64
+		// failoverVersion is the failover version of domain's active cluster
 		failoverVersion             int64
 		isGlobalDomain              bool
 		failoverNotificationVersion int64
@@ -169,6 +171,7 @@ func NewDomainCache(
 		status:           domainCacheInitialized,
 		shutdownChan:     make(chan struct{}),
 		clusterGroup:     getClusterGroupIdentifier(metadata),
+		clusterMetadata:  metadata,
 		cacheNameToID:    &atomic.Value{},
 		cacheByID:        &atomic.Value{},
 		domainManager:    domainManager,
@@ -459,6 +462,8 @@ func (c *DefaultDomainCache) refreshDomainsLocked() error {
 	for continuePage {
 		ctx, cancel := context.WithTimeout(context.Background(), domainCachePersistenceTimeout)
 		request.NextPageToken = token
+		// TODO: update DB layer to support ActiveClusterNames
+		// Also think about how to support failover overrides and rebalance.
 		response, err := c.domainManager.ListDomains(ctx, request)
 		cancel()
 		if err != nil {
@@ -476,6 +481,7 @@ func (c *DefaultDomainCache) refreshDomainsLocked() error {
 	// with domain change version.
 	sort.Sort(domains)
 	var updatedEntries []*DomainCacheEntry
+	var activeActiveDomains []*DomainCacheEntry
 
 	// make a copy of the existing domain cache, so we can calculate diff and do compare and swap
 	newCacheNameToID := newDomainCache()
@@ -496,6 +502,9 @@ UpdateLoop:
 			c.logger.Info("Domain notification is not less than than metadata notification version", tag.WorkflowDomainName(domain.GetInfo().Name))
 			break UpdateLoop
 		}
+
+		c.setDomainFailoverVersion(domain)
+
 		triggerCallback, nextEntry, err := c.updateIDToDomainCache(newCacheByID, domain.info.ID, domain)
 		if err != nil {
 			return err
@@ -506,12 +515,16 @@ UpdateLoop:
 			metrics.DomainTypeTag(nextEntry.isGlobalDomain),
 			metrics.ClusterGroupTag(c.clusterGroup),
 			metrics.ActiveClusterTag(nextEntry.replicationConfig.ActiveClusterName),
+			metrics.IsActiveActiveDomainTag(nextEntry.replicationConfig.IsActiveActive()),
 		).UpdateGauge(metrics.ActiveClusterGauge, 1)
 
 		c.updateNameToIDCache(newCacheNameToID, nextEntry.info.Name, nextEntry.info.ID)
 
 		if triggerCallback {
 			updatedEntries = append(updatedEntries, nextEntry)
+		}
+		if nextEntry.replicationConfig.IsActiveActive() {
+			activeActiveDomains = append(activeActiveDomains, nextEntry)
 		}
 	}
 
@@ -532,6 +545,37 @@ UpdateLoop:
 	}
 
 	return nil
+}
+
+// TODO(taylan): Test this failoverVersion update logic.
+// setDomainFailoverVersion update failover versions of active-active domains.
+// This is in-memory operation and will not be persisted in domain record.
+//  1. If an active-active domain is NOT active in current cluster, keep its failover version which will be it's ActiveClusterName's failover version.
+//  2. If an active-active domain is active in current cluster (besides some other clusters),
+//     2.1. If domain's ActiveClusterName is current cluster, keep it's failover version.
+//     2.2. If domain's ActiveClusterName is NOT current cluster, update it's failover version to current cluster's failover version.
+func (c *DefaultDomainCache) setDomainFailoverVersion(domain *DomainCacheEntry) {
+	if !domain.GetReplicationConfig().IsActiveActive() {
+		return
+	}
+
+	currentCluster := c.clusterMetadata.GetCurrentClusterName()
+	active, _ := domain.IsActiveIn(currentCluster)
+	if !active {
+		// case 1.
+		return
+	}
+
+	if domain.GetReplicationConfig().ActiveClusterName == currentCluster {
+		// case 2.1.
+		return
+	}
+
+	// case 2.2.
+	v := c.clusterMetadata.GetNextFailoverVersion(currentCluster, domain.failoverVersion, domain.info.Name)
+	domain.failoverVersion = v
+
+	c.logger.Debugf("Update failover version of active-active domain %s to %d", domain.info.Name, v)
 }
 
 func (c *DefaultDomainCache) checkDomainExists(
@@ -625,6 +669,11 @@ func (c *DefaultDomainCache) getDomainByID(
 ) (*DomainCacheEntry, error) {
 
 	var result *DomainCacheEntry
+	defer func() {
+		if result != nil {
+			c.logger.Debugf("GetDomainByID returning domain %s, failoverVersion: %d", result.info.Name, result.failoverVersion)
+		}
+	}()
 	entry, cacheHit := c.cacheByID.Load().(Cache).Get(id).(*DomainCacheEntry)
 	if cacheHit {
 		entry.mu.RLock()
@@ -695,7 +744,7 @@ func (c *DefaultDomainCache) buildEntryFromRecord(
 
 	// this is a shallow copy, but since the record is generated by persistence
 	// and only accessible here, it would be fine
-	return &DomainCacheEntry{
+	entry := &DomainCacheEntry{
 		info:                        record.Info,
 		config:                      record.Config,
 		replicationConfig:           record.ReplicationConfig,
@@ -708,6 +757,8 @@ func (c *DefaultDomainCache) buildEntryFromRecord(
 		notificationVersion:         record.NotificationVersion,
 		initialized:                 true,
 	}
+
+	return entry
 }
 
 func copyResetBinary(bins types.BadBinaries) types.BadBinaries {
@@ -749,7 +800,12 @@ func (entry *DomainCacheEntry) duplicate() *DomainCacheEntry {
 		ActiveClusterName: entry.replicationConfig.ActiveClusterName,
 	}
 	for _, clusterCfg := range entry.replicationConfig.Clusters {
-		result.replicationConfig.Clusters = append(result.replicationConfig.Clusters, &*clusterCfg)
+		c := *clusterCfg
+		result.replicationConfig.Clusters = append(result.replicationConfig.Clusters, &c)
+	}
+	for _, clusterCfg := range entry.replicationConfig.ActiveClusters {
+		c := *clusterCfg
+		result.replicationConfig.ActiveClusters = append(result.replicationConfig.ActiveClusters, &c)
 	}
 	result.configVersion = entry.configVersion
 	result.failoverVersion = entry.failoverVersion
@@ -821,12 +877,24 @@ func (entry *DomainCacheEntry) IsActiveIn(currentCluster string) (bool, error) {
 	}
 
 	domainName := entry.GetInfo().Name
-	activeCluster := entry.GetReplicationConfig().ActiveClusterName
-
 	if entry.IsDomainPendingActive() {
 		return false, errors.NewDomainPendingActiveError(domainName, currentCluster)
 	}
 
+	if len(entry.GetReplicationConfig().ActiveClusters) > 0 {
+		// TODO: optimize this loop by using a map
+		var activeClusters []string
+		for _, cl := range entry.GetReplicationConfig().ActiveClusters {
+			if cl.ClusterName == currentCluster {
+				return true, nil
+			}
+			activeClusters = append(activeClusters, cl.ClusterName)
+		}
+
+		return false, errors.NewDomainNotActiveError(domainName, currentCluster, activeClusters...)
+	}
+
+	activeCluster := entry.GetReplicationConfig().ActiveClusterName
 	if currentCluster != activeCluster {
 		return false, errors.NewDomainNotActiveError(domainName, currentCluster, activeCluster)
 	}

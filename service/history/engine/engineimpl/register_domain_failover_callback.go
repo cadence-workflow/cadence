@@ -122,6 +122,7 @@ func (e *historyEngineImpl) generateGracefulFailoverTasksForDomainUpdateCallback
 	failoverMarkerTasks := []*persistence.FailoverMarkerTask{}
 	for _, nextDomain := range nextDomains {
 		domainFailoverNotificationVersion := nextDomain.GetFailoverNotificationVersion()
+		// TODO: what to do here for active-active domains??
 		domainActiveCluster := nextDomain.GetReplicationConfig().ActiveClusterName
 		previousFailoverVersion := nextDomain.GetPreviousFailoverVersion()
 		previousClusterName, err := e.clusterMetadata.ClusterNameForFailoverVersion(previousFailoverVersion)
@@ -166,6 +167,7 @@ func (e *historyEngineImpl) failoverPredicate(shardNotificationVersion int64, ne
 	domainActiveCluster := nextDomain.GetReplicationConfig().ActiveClusterName
 
 	if nextDomain.IsGlobalDomain() &&
+		!nextDomain.GetReplicationConfig().IsActiveActive() &&
 		domainFailoverNotificationVersion >= shardNotificationVersion &&
 		domainActiveCluster == e.currentClusterName {
 		action()

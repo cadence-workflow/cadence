@@ -27,6 +27,7 @@ import (
 	"fmt"
 
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
@@ -54,6 +55,7 @@ type (
 	}
 
 	workflowImpl struct {
+		logger          log.Logger
 		clusterMetadata cluster.Metadata
 
 		ctx          context.Context
@@ -70,15 +72,16 @@ func NewWorkflow(
 	context Context,
 	mutableState MutableState,
 	releaseFn ReleaseFunc,
+	logger log.Logger,
 ) Workflow {
 
 	return &workflowImpl{
 		ctx:             ctx,
 		clusterMetadata: clusterMetadata,
-
-		context:      context,
-		mutableState: mutableState,
-		releaseFn:    releaseFn,
+		logger:          logger,
+		context:         context,
+		mutableState:    mutableState,
+		releaseFn:       releaseFn,
 	}
 }
 
@@ -230,6 +233,8 @@ func (r *workflowImpl) failDecision(
 ) error {
 
 	// do not persist the change right now, NDC requires transaction
+	r.logger.Debugf("failDecision calling UpdateCurrentVersion for domain %s, wfID %v, lastWriteVersion %v",
+		r.mutableState.GetExecutionInfo().DomainID, r.mutableState.GetExecutionInfo().WorkflowID, lastWriteVersion)
 	if err := r.mutableState.UpdateCurrentVersion(lastWriteVersion, true); err != nil {
 		return err
 	}
@@ -260,6 +265,8 @@ func (r *workflowImpl) terminateWorkflow(
 	}
 
 	// do not persist the change right now, NDC requires transaction
+	r.logger.Debugf("terminateWorkflow calling UpdateCurrentVersion for domain %s, wfID %v, lastWriteVersion %v",
+		r.mutableState.GetExecutionInfo().DomainID, r.mutableState.GetExecutionInfo().WorkflowID, lastWriteVersion)
 	if err := r.mutableState.UpdateCurrentVersion(lastWriteVersion, true); err != nil {
 		return err
 	}

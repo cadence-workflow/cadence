@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/locks"
@@ -167,12 +168,13 @@ type (
 
 type (
 	contextImpl struct {
-		domainID          string
-		workflowExecution types.WorkflowExecution
-		shard             shard.Context
-		executionManager  persistence.ExecutionManager
-		logger            log.Logger
-		metricsClient     metrics.Client
+		domainID             string
+		workflowExecution    types.WorkflowExecution
+		shard                shard.Context
+		executionManager     persistence.ExecutionManager
+		logger               log.Logger
+		metricsClient        metrics.Client
+		activeClusterManager activecluster.Manager
 
 		mutex        locks.Mutex
 		mutableState MutableState
@@ -195,7 +197,7 @@ type (
 		conflictResolveEventReapplyFn         func(persistence.ConflictResolveWorkflowMode, []*persistence.WorkflowEvents, []*persistence.WorkflowEvents) error
 		emitLargeWorkflowShardIDStatsFn       func(int64, int64, int64, int64)
 		emitWorkflowExecutionStatsFn          func(string, *persistence.MutableStateStats, int64)
-		createMutableStateFn                  func(shard.Context, log.Logger, *cache.DomainCacheEntry) MutableState
+		createMutableStateFn                  func(shard.Context, log.Logger, *cache.DomainCacheEntry, activecluster.Manager) MutableState
 	}
 )
 
@@ -208,16 +210,18 @@ func NewContext(
 	shard shard.Context,
 	executionManager persistence.ExecutionManager,
 	logger log.Logger,
+	activeClusterManager activecluster.Manager,
 ) Context {
 	logger = logger.WithTags(tag.WorkflowDomainID(domainID), tag.WorkflowID(execution.GetWorkflowID()), tag.WorkflowRunID(execution.GetRunID()))
 	ctx := &contextImpl{
-		domainID:          domainID,
-		workflowExecution: execution,
-		shard:             shard,
-		executionManager:  executionManager,
-		logger:            logger,
-		metricsClient:     shard.GetMetricsClient(),
-		mutex:             locks.NewMutex(),
+		domainID:             domainID,
+		workflowExecution:    execution,
+		shard:                shard,
+		executionManager:     executionManager,
+		logger:               logger,
+		metricsClient:        shard.GetMetricsClient(),
+		activeClusterManager: activeClusterManager,
+		mutex:                locks.NewMutex(),
 		stats: &persistence.ExecutionStats{
 			HistorySize: 0,
 		},
@@ -344,7 +348,7 @@ func (c *contextImpl) LoadWorkflowExecutionWithTaskVersion(
 			if err != nil {
 				return nil, err
 			}
-			c.mutableState = c.createMutableStateFn(c.shard, c.logger, domainEntry)
+			c.mutableState = c.createMutableStateFn(c.shard, c.logger, domainEntry, c.activeClusterManager)
 			err = c.mutableState.Load(response.State)
 			if err == nil {
 				break
@@ -365,17 +369,20 @@ func (c *contextImpl) LoadWorkflowExecutionWithTaskVersion(
 		// finally emit execution and session stats
 		c.emitWorkflowExecutionStatsFn(domainEntry.GetInfo().Name, response.MutableStateStats, c.stats.HistorySize)
 	}
-	flushBeforeReady, err := c.mutableState.StartTransaction(domainEntry, incomingVersion)
+	flushBeforeReady, err := c.mutableState.StartTransaction(ctx, domainEntry, incomingVersion)
 	if err != nil {
 		return nil, err
 	}
 	if !flushBeforeReady {
 		return c.mutableState, nil
 	}
+	c.logger.Debugf("LoadWorkflowExecutionWithTaskVersion calling UpdateWorkflowExecutionAsActive for wfID %s",
+		c.workflowExecution.GetWorkflowID(),
+	)
 	if err = c.UpdateWorkflowExecutionAsActive(ctx, c.shard.GetTimeSource().Now()); err != nil {
 		return nil, err
 	}
-	flushBeforeReady, err = c.mutableState.StartTransaction(domainEntry, incomingVersion)
+	flushBeforeReady, err = c.mutableState.StartTransaction(ctx, domainEntry, incomingVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -545,6 +552,11 @@ func (c *contextImpl) ConflictResolveWorkflowExecution(
 				currentContext.Clear()
 			}
 		}()
+		c.logger.Debugf("ConflictResolveWorkflowExecution calling CloseTransactionAsMutation for domain %s, wfID %s, policy %v",
+			c.domainID,
+			c.workflowExecution.GetWorkflowID(),
+			*currentTransactionPolicy,
+		)
 		currentWorkflow, currentWorkflowEventsSeq, err = currentMutableState.CloseTransactionAsMutation(now, *currentTransactionPolicy)
 		if err != nil {
 			return err
@@ -632,6 +644,11 @@ func (c *contextImpl) UpdateWorkflowExecutionAsActive(
 	ctx context.Context,
 	now time.Time,
 ) error {
+	c.logger.Debugf("UpdateWorkflowExecutionAsActive calling UpdateWorkflowExecutionWithNew for wfID %s, current policy %v, new policy %v",
+		c.workflowExecution.GetWorkflowID(),
+		TransactionPolicyPassive,
+		nil,
+	)
 	return c.updateWorkflowExecutionWithNewFn(ctx, now, persistence.UpdateWorkflowModeUpdateCurrent, nil, nil, TransactionPolicyActive, nil, persistence.CreateWorkflowRequestModeNew)
 }
 
@@ -641,6 +658,11 @@ func (c *contextImpl) UpdateWorkflowExecutionWithNewAsActive(
 	newContext Context,
 	newMutableState MutableState,
 ) error {
+	c.logger.Debugf("UpdateWorkflowExecutionWithNewAsActive calling UpdateWorkflowExecutionWithNew for wfID %s, current policy %v, new policy %v",
+		c.workflowExecution.GetWorkflowID(),
+		TransactionPolicyPassive,
+		TransactionPolicyActive,
+	)
 	return c.updateWorkflowExecutionWithNewFn(ctx, now, persistence.UpdateWorkflowModeUpdateCurrent, newContext, newMutableState, TransactionPolicyActive, TransactionPolicyActive.Ptr(), persistence.CreateWorkflowRequestModeNew)
 }
 
@@ -648,6 +670,11 @@ func (c *contextImpl) UpdateWorkflowExecutionAsPassive(
 	ctx context.Context,
 	now time.Time,
 ) error {
+	c.logger.Debugf("UpdateWorkflowExecutionAsPassive calling UpdateWorkflowExecutionWithNew for wfID %s, current policy %v, new policy %v",
+		c.workflowExecution.GetWorkflowID(),
+		TransactionPolicyPassive,
+		nil,
+	)
 	return c.updateWorkflowExecutionWithNewFn(ctx, now, persistence.UpdateWorkflowModeUpdateCurrent, nil, nil, TransactionPolicyPassive, nil, persistence.CreateWorkflowRequestModeReplicated)
 }
 
@@ -657,6 +684,11 @@ func (c *contextImpl) UpdateWorkflowExecutionWithNewAsPassive(
 	newContext Context,
 	newMutableState MutableState,
 ) error {
+	c.logger.Debugf("UpdateWorkflowExecutionWithNewAsPassive calling UpdateWorkflowExecutionWithNew for wfID %s, current policy %v, new policy %v",
+		c.workflowExecution.GetWorkflowID(),
+		TransactionPolicyPassive,
+		TransactionPolicyPassive,
+	)
 	return c.updateWorkflowExecutionWithNewFn(ctx, now, persistence.UpdateWorkflowModeUpdateCurrent, newContext, newMutableState, TransactionPolicyPassive, TransactionPolicyPassive.Ptr(), persistence.CreateWorkflowRequestModeReplicated)
 }
 
@@ -670,6 +702,10 @@ func (c *contextImpl) UpdateWorkflowExecutionTasks(
 		}
 	}()
 
+	c.logger.Debugf("UpdateWorkflowExecutionTask calling CloseTransactionAsMutation for domain %s, wfID %s",
+		c.domainID,
+		c.workflowExecution.GetWorkflowID(),
+	)
 	currentWorkflow, currentWorkflowEventsSeq, err := c.mutableState.CloseTransactionAsMutation(now, TransactionPolicyPassive)
 	if err != nil {
 		return err
@@ -728,6 +764,11 @@ func (c *contextImpl) UpdateWorkflowExecutionWithNew(
 		}
 	}()
 
+	c.logger.Debugf("UpdateWorkflowExecutionWithNew calling CloseTransactionAsMutation for domain %s, wfID %s, policy %v",
+		c.domainID,
+		c.workflowExecution.GetWorkflowID(),
+		currentWorkflowTransactionPolicy,
+	)
 	currentWorkflow, currentWorkflowEventsSeq, err := c.mutableState.CloseTransactionAsMutation(now, currentWorkflowTransactionPolicy)
 	if err != nil {
 		return err
@@ -1339,6 +1380,11 @@ func (c *contextImpl) ReapplyEvents(
 	defer cancel()
 
 	activeCluster := domainEntry.GetReplicationConfig().ActiveClusterName
+	if domainEntry.GetReplicationConfig().IsActiveActive() {
+		// TODO: lookup active cluster of the workflow
+
+	}
+
 	if activeCluster == c.shard.GetClusterMetadata().GetCurrentClusterName() {
 		return c.shard.GetEngine().ReapplyEvents(
 			ctx,

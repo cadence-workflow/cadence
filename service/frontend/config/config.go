@@ -23,10 +23,13 @@ package config
 import (
 	"github.com/uber/cadence/common/domain"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/log"
 )
 
 // Config represents configuration for cadence-frontend service
 type Config struct {
+	Logger log.Logger
+
 	NumHistoryShards                int
 	IsAdvancedVisConfigExist        bool
 	DomainConfig                    domain.Config
@@ -119,8 +122,9 @@ type Config struct {
 }
 
 // NewConfig returns new service config with default values
-func NewConfig(dc *dynamicconfig.Collection, numHistoryShards int, isAdvancedVisConfigExist bool, hostName string) *Config {
+func NewConfig(dc *dynamicconfig.Collection, numHistoryShards int, isAdvancedVisConfigExist bool, hostName string, logger log.Logger) *Config {
 	return &Config{
+		Logger:                                      logger,
 		NumHistoryShards:                            numHistoryShards,
 		IsAdvancedVisConfigExist:                    isAdvancedVisConfigExist,
 		PersistenceMaxQPS:                           dc.GetIntProperty(dynamicconfig.FrontendPersistenceMaxQPS),

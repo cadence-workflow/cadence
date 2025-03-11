@@ -534,7 +534,7 @@ func (s *historyCacheSuite) TestGetOrCreateWorkflowExecutionWithTimeout() {
 		RunID:      constants.TestRunID,
 	}
 
-	newCtx := NewContext(constants.TestDomainID, workflowExecution, s.mockShard, s.mockShard.GetExecutionManager(), s.mockShard.GetLogger())
+	newCtx := NewContext(constants.TestDomainID, workflowExecution, s.mockShard, s.mockShard.GetExecutionManager(), s.mockShard.GetLogger(), s.mockShard.GetActiveClusterManager())
 
 	s.mockShard.GetDomainCache().(*cache.MockDomainCache).EXPECT().GetDomainName(constants.TestDomainID).Return(constants.TestDomainName, nil).Times(1)
 	key := definition.NewWorkflowIdentifier(constants.TestDomainID, constants.TestWorkflowID, constants.TestRunID)

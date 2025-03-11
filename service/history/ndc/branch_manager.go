@@ -173,11 +173,15 @@ func (r *branchManagerImpl) flushBufferedEvents(
 		r.context,
 		r.mutableState,
 		execution.NoopReleaseFn,
+		r.logger,
 	)
 	if err := targetWorkflow.FlushBufferedEvents(); err != nil {
 		return 0, nil, err
 	}
 	// the workflow must be updated as active, to send out replication tasks
+	r.logger.Debugf("flushBufferedEvents calling UpdateWorkflowExecutionAsActive for wfID %s",
+		r.mutableState.GetExecutionInfo().WorkflowID,
+	)
 	if err := targetWorkflow.GetContext().UpdateWorkflowExecutionAsActive(
 		ctx,
 		r.shard.GetTimeSource().Now(),

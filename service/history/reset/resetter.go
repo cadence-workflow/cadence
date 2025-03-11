@@ -340,6 +340,7 @@ func (r *workflowResetterImpl) replayResetWorkflow(
 		r.shard,
 		r.shard.GetExecutionManager(),
 		r.logger,
+		r.shard.GetActiveClusterManager(),
 	)
 	resetMutableState, resetHistorySize, err := r.newStateRebuilder().Rebuild(
 		ctx,
@@ -371,6 +372,7 @@ func (r *workflowResetterImpl) replayResetWorkflow(
 		resetContext,
 		resetMutableState,
 		execution.NoopReleaseFn,
+		r.logger,
 	), nil
 }
 

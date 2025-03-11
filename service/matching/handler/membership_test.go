@@ -34,6 +34,7 @@ import (
 
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
@@ -130,6 +131,7 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 				resolverMock,
 				nil,
 				mockTimeSource,
+				activecluster.NewMockManager(ctrl),
 			).(*matchingEngineImpl)
 
 			resolverMock.EXPECT().Lookup(gomock.Any(), gomock.Any()).Return(

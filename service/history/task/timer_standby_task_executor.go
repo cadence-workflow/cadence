@@ -254,6 +254,8 @@ func (t *timerStandbyTaskExecutor) executeActivityTimeoutTask(
 		// we need to handcraft some of the variables
 		// since the job being done here is update the activity and possibly write a timer task to DB
 		// also need to reset the current version.
+		t.logger.Debugf("executeActivityTimeoutTask calling UpdateCurrentVersion for domain %s, wfID %v, lastWriteVersion %v",
+			timerTask.DomainID, timerTask.WorkflowID, lastWriteVersion)
 		if err := mutableState.UpdateCurrentVersion(lastWriteVersion, true); err != nil {
 			return nil, err
 		}
@@ -444,6 +446,7 @@ func (t *timerStandbyTaskExecutor) processTimer(
 	}
 
 	if !mutableState.IsWorkflowExecutionRunning() {
+		// TODO: Check if workflow timeout timer comes to this point and then discarded.
 		// workflow already finished, no need to process the timer
 		return nil
 	}
