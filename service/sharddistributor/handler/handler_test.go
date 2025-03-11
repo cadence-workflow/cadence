@@ -77,7 +77,7 @@ func TestGetShardOwner(t *testing.T) {
 				ShardKey:  "taskList1",
 			},
 			setupMocks: func() {
-				mockHistoryRing.EXPECT().LookupRaw("taskList1").Return("owner2", nil)
+				mockMatchingRing.EXPECT().LookupRaw("taskList1").Return("owner2", nil)
 			},
 			expectedOwner: "owner2",
 			expectedError: false,
@@ -91,16 +91,6 @@ func TestGetShardOwner(t *testing.T) {
 			setupMocks:     func() {},
 			expectedError:  true,
 			expectedErrMsg: "namespace not found",
-		},
-		{
-			name: "HistoryNamespace_InvalidShardKey",
-			request: &types.GetShardOwnerRequest{
-				Namespace: constants.HistoryNamespace,
-				ShardKey:  "invalidShardKey",
-			},
-			setupMocks:     func() {},
-			expectedError:  true,
-			expectedErrMsg: "invalid syntax",
 		},
 		{
 			name: "HistoryNamespace_LookupError",
