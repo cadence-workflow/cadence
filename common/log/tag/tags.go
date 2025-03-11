@@ -1118,3 +1118,7 @@ func ActivityTaskState(state int32) Tag {
 func Namespace(name string) Tag {
 	return newStringTag("namespace", name)
 }
+
+func WorkflowContextLockLatency(duration time.Duration) Tag {
+	return newDurationTag("workflow-context-lock-latency", duration)
+}

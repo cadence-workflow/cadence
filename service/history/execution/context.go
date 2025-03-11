@@ -174,9 +174,11 @@ type (
 		logger            log.Logger
 		metricsClient     metrics.Client
 
-		mutex        locks.Mutex
-		mutableState MutableState
-		stats        *persistence.ExecutionStats
+		mutex           locks.Mutex
+		lockTime        time.Time
+		maxLockDuration time.Duration
+		mutableState    MutableState
+		stats           *persistence.ExecutionStats
 
 		appendHistoryNodesFn                  func(context.Context, string, types.WorkflowExecution, *persistence.AppendHistoryNodesRequest) (*persistence.AppendHistoryNodesResponse, error)
 		persistStartWorkflowBatchEventsFn     func(context.Context, *persistence.WorkflowEvents) (events.PersistedBlob, error)
@@ -265,11 +267,18 @@ func NewContext(
 }
 
 func (c *contextImpl) Lock(ctx context.Context) error {
+	c.lockTime = time.Now()
 	return c.mutex.Lock(ctx)
 }
 
 func (c *contextImpl) Unlock() {
+	elapsed := time.Since(c.lockTime)
 	c.mutex.Unlock()
+	c.metricsClient.RecordTimer(metrics.WorkflowContextScope, metrics.WorkflowContextLockLatency, elapsed)
+	if elapsed > c.maxLockDuration {
+		c.maxLockDuration = elapsed
+		c.logger.Info("workflow context lock is released. this is logged only when it's longer than maxLockDuration", tag.WorkflowContextLockLatency(elapsed))
+	}
 }
 
 func (c *contextImpl) Clear() {

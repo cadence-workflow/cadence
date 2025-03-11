@@ -2471,6 +2471,7 @@ const (
 	CacheFullCounter
 	AcquireLockFailedCounter
 	WorkflowContextCleared
+	WorkflowContextLockLatency
 	MutableStateSize
 	ExecutionInfoSize
 	ActivityInfoSize
@@ -3182,6 +3183,7 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		CacheFullCounter:                                             {metricName: "cache_full", metricType: Counter},
 		AcquireLockFailedCounter:                                     {metricName: "acquire_lock_failed", metricType: Counter},
 		WorkflowContextCleared:                                       {metricName: "workflow_context_cleared", metricType: Counter},
+		WorkflowContextLockLatency:                                   {metricName: "workflow_context_lock_latency", metricType: Timer},
 		MutableStateSize:                                             {metricName: "mutable_state_size", metricType: Timer},
 		ExecutionInfoSize:                                            {metricName: "execution_info_size", metricType: Timer},
 		ActivityInfoSize:                                             {metricName: "activity_info_size", metricType: Timer},
