@@ -49,6 +49,7 @@ import (
 const (
 	defaultRemoteCallTimeout = 30 * time.Second
 	checksumErrorRetryCount  = 3
+	maxLockDuration          = 1 * time.Second
 )
 
 type conflictError struct {
@@ -220,6 +221,7 @@ func NewContext(
 		logger:            logger,
 		metricsClient:     shard.GetMetricsClient(),
 		mutex:             locks.NewMutex(),
+		maxLockDuration:   maxLockDuration,
 		stats: &persistence.ExecutionStats{
 			HistorySize: 0,
 		},
@@ -267,13 +269,23 @@ func NewContext(
 }
 
 func (c *contextImpl) Lock(ctx context.Context) error {
+	err := c.mutex.Lock(ctx)
+	if err != nil {
+		return err
+	}
 	c.lockTime = time.Now()
-	return c.mutex.Lock(ctx)
+	return nil
 }
 
 func (c *contextImpl) Unlock() {
 	elapsed := time.Since(c.lockTime)
 	c.mutex.Unlock()
+
+	if c.lockTime.IsZero() { // skip logging if the lock is never acquired
+		return
+	}
+
+	c.lockTime = time.Time{}
 	c.metricsClient.RecordTimer(metrics.WorkflowContextScope, metrics.WorkflowContextLockLatency, elapsed)
 	if elapsed > c.maxLockDuration {
 		c.maxLockDuration = elapsed
