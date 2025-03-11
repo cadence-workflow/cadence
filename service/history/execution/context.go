@@ -28,7 +28,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -177,7 +176,7 @@ type (
 		metricsClient     metrics.Client
 
 		mutex           locks.Mutex
-		lockTime        atomic.Int64
+		lockTime        time.Time
 		maxLockDuration time.Duration
 		mutableState    MutableState
 		stats           *persistence.ExecutionStats
@@ -274,18 +273,17 @@ func (c *contextImpl) Lock(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	c.lockTime.Store(time.Now().UnixNano())
+	c.lockTime = time.Now()
 	return nil
 }
 
 func (c *contextImpl) Unlock() {
-	lockTime := c.lockTime.Swap(0)
-	c.mutex.Unlock()
+	defer c.mutex.Unlock()
 
-	if lockTime == 0 { // skip logging if the lock is never acquired
+	if c.lockTime.IsZero() { // skip logging if the lock is never acquired
 		return
 	}
-	elapsed := time.Since(time.Unix(0, lockTime))
+	elapsed := time.Since(c.lockTime)
 	c.metricsClient.RecordTimer(metrics.WorkflowContextScope, metrics.WorkflowContextLockLatency, elapsed)
 	if elapsed > c.maxLockDuration {
 		c.maxLockDuration = elapsed
