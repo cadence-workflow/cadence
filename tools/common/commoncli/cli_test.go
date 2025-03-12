@@ -25,6 +25,7 @@ package commoncli
 import (
 	"errors"
 	"fmt"
+	"github.com/uber/cadence/common/types"
 	"strings"
 	"testing"
 
@@ -59,6 +60,19 @@ Error: a problem
 Error details:
   wrapper
   cause
+`, str)
+	})
+	t.Run("printable top with access denied", func(t *testing.T) {
+		str := run(t,
+			Problem("a problem",
+				fmt.Errorf("wrapper: %w",
+					&types.AccessDeniedError{Message: "Request unauthorized."})))
+		// causes are nested flat, chains are cleaned up
+		assert.Equal(t, `
+Error: a problem. Ensure the domain and cluster are correct.
+Error details:
+  wrapper
+  Request unauthorized.
 `, str)
 	})
 	t.Run("printable top fancy middle", func(t *testing.T) {
