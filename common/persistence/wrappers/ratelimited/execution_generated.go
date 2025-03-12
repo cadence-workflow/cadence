@@ -223,28 +223,12 @@ func (c *ratelimitedExecutionManager) PutReplicationTaskToDLQ(ctx context.Contex
 	return c.wrapped.PutReplicationTaskToDLQ(ctx, request)
 }
 
-func (c *ratelimitedExecutionManager) RangeCompleteReplicationTask(ctx context.Context, request *persistence.RangeCompleteReplicationTaskRequest) (rp1 *persistence.RangeCompleteReplicationTaskResponse, err error) {
+func (c *ratelimitedExecutionManager) RangeCompleteHistoryTask(ctx context.Context, request *persistence.RangeCompleteHistoryTaskRequest) (rp1 *persistence.RangeCompleteHistoryTaskResponse, err error) {
 	if ok := c.rateLimiter.Allow(); !ok {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
-	return c.wrapped.RangeCompleteReplicationTask(ctx, request)
-}
-
-func (c *ratelimitedExecutionManager) RangeCompleteTimerTask(ctx context.Context, request *persistence.RangeCompleteTimerTaskRequest) (rp1 *persistence.RangeCompleteTimerTaskResponse, err error) {
-	if ok := c.rateLimiter.Allow(); !ok {
-		err = ErrPersistenceLimitExceeded
-		return
-	}
-	return c.wrapped.RangeCompleteTimerTask(ctx, request)
-}
-
-func (c *ratelimitedExecutionManager) RangeCompleteTransferTask(ctx context.Context, request *persistence.RangeCompleteTransferTaskRequest) (rp1 *persistence.RangeCompleteTransferTaskResponse, err error) {
-	if ok := c.rateLimiter.Allow(); !ok {
-		err = ErrPersistenceLimitExceeded
-		return
-	}
-	return c.wrapped.RangeCompleteTransferTask(ctx, request)
+	return c.wrapped.RangeCompleteHistoryTask(ctx, request)
 }
 
 func (c *ratelimitedExecutionManager) RangeDeleteReplicationTaskFromDLQ(ctx context.Context, request *persistence.RangeDeleteReplicationTaskFromDLQRequest) (rp1 *persistence.RangeDeleteReplicationTaskFromDLQResponse, err error) {

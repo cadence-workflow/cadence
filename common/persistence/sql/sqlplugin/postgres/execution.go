@@ -92,7 +92,7 @@ workflow_id = :workflow_id
 	deleteTransferTaskQuery             = `DELETE FROM transfer_tasks WHERE shard_id = $1 AND task_id = $2`
 	rangeDeleteTransferTaskQuery        = `DELETE FROM transfer_tasks WHERE shard_id = $1 AND task_id > $2 AND task_id <= $3`
 	rangeDeleteTransferTaskByBatchQuery = `DELETE FROM transfer_tasks WHERE shard_id = $1 AND task_id IN (SELECT task_id FROM
-		transfer_tasks WHERE shard_id = $1 AND task_id > $2 AND task_id <= $3 ORDER BY task_id LIMIT $4)`
+		transfer_tasks WHERE shard_id = $1 AND task_id >= $2 AND task_id < $3 ORDER BY task_id LIMIT $4)`
 
 	getCrossClusterTasksQuery = `SELECT task_id, data, data_encoding
  FROM cross_cluster_tasks WHERE target_cluster = $1 AND shard_id = $2 AND task_id > $3 AND task_id <= $4 ORDER BY task_id LIMIT $5`
@@ -101,9 +101,9 @@ workflow_id = :workflow_id
  VALUES(:target_cluster, :shard_id, :task_id, :data, :data_encoding)`
 
 	deleteCrossClusterTaskQuery             = `DELETE FROM cross_cluster_tasks WHERE target_cluster = $1 AND shard_id = $2 AND task_id = $3`
-	rangeDeleteCrossClusterTaskQuery        = `DELETE FROM cross_cluster_tasks WHERE target_cluster = $1 AND shard_id = $2 AND task_id > $3 AND task_id <= $4`
+	rangeDeleteCrossClusterTaskQuery        = `DELETE FROM cross_cluster_tasks WHERE target_cluster = $1 AND shard_id = $2 AND task_id >= $3 AND task_id < $4`
 	rangeDeleteCrossClusterTaskByBatchQuery = `DELETE FROM cross_cluster_tasks WHERE target_cluster = $1 AND shard_id = $2 AND task_id IN (SELECT task_id FROM
-		cross_cluster_tasks WHERE target_cluster = $1 AND shard_id = $2 AND task_id > $3 AND task_id <= $4 ORDER BY task_id LIMIT $5)`
+		cross_cluster_tasks WHERE target_cluster = $1 AND shard_id = $2 AND task_id >= $3 AND task_id < $4 ORDER BY task_id LIMIT $5)`
 
 	createTimerTasksQuery = `INSERT INTO timer_tasks (shard_id, visibility_timestamp, task_id, data, data_encoding)
   VALUES (:shard_id, :visibility_timestamp, :task_id, :data, :data_encoding)`
@@ -131,7 +131,7 @@ ORDER BY task_id LIMIT $4`
 	deleteReplicationTaskQuery             = `DELETE FROM replication_tasks WHERE shard_id = $1 AND task_id = $2`
 	rangeDeleteReplicationTaskQuery        = `DELETE FROM replication_tasks WHERE shard_id = $1 AND task_id <= $2`
 	rangeDeleteReplicationTaskByBatchQuery = `DELETE FROM replication_tasks WHERE shard_id = $1 AND task_id IN (SELECT task_id FROM
-		replication_tasks WHERE task_id <= $2 ORDER BY task_id LIMIT $3)`
+		replication_tasks WHERE task_id < $2 ORDER BY task_id LIMIT $3)`
 
 	getReplicationTasksDLQQuery = `SELECT task_id, data, data_encoding FROM replication_tasks_dlq WHERE
 source_cluster_name = $1 AND
@@ -173,10 +173,10 @@ VALUES     (:source_cluster_name,
 	DELETE FROM replication_tasks_dlq
 		WHERE source_cluster_name = $1
 		AND shard_id = $2
-		AND task_id > $3
-		AND task_id <= $4`
+		AND task_id >= $3
+		AND task_id < $4`
 	rangeDeleteReplicationTaskFromDLQByBatchQuery = `DELETE FROM replication_tasks_dlq WHERE source_cluster_name = $1 AND shard_id = $2 AND task_id IN (SELECT task_id FROM
-		replication_tasks_dlq WHERE source_cluster_name = $1 AND shard_id = $2 AND task_id > $3 AND task_id <= $4 ORDER BY task_id LIMIT $5)`
+		replication_tasks_dlq WHERE source_cluster_name = $1 AND shard_id = $2 AND task_id >= $3 AND task_id < $4 ORDER BY task_id LIMIT $5)`
 )
 
 // InsertIntoExecutions inserts a row into executions table
@@ -452,9 +452,9 @@ func (pdb *db) DeleteFromReplicationTasks(ctx context.Context, filter *sqlplugin
 func (pdb *db) RangeDeleteFromReplicationTasks(ctx context.Context, filter *sqlplugin.ReplicationTasksFilter) (sql.Result, error) {
 	dbShardID := sqlplugin.GetDBShardIDFromHistoryShardID(int(filter.ShardID), pdb.GetTotalNumDBShards())
 	if filter.PageSize > 0 {
-		return pdb.driver.ExecContext(ctx, dbShardID, rangeDeleteReplicationTaskByBatchQuery, filter.ShardID, filter.InclusiveEndTaskID, filter.PageSize)
+		return pdb.driver.ExecContext(ctx, dbShardID, rangeDeleteReplicationTaskByBatchQuery, filter.ShardID, filter.ExclusiveEndTaskID, filter.PageSize)
 	}
-	return pdb.driver.ExecContext(ctx, dbShardID, rangeDeleteReplicationTaskQuery, filter.ShardID, filter.InclusiveEndTaskID)
+	return pdb.driver.ExecContext(ctx, dbShardID, rangeDeleteReplicationTaskQuery, filter.ShardID, filter.ExclusiveEndTaskID)
 }
 
 // InsertIntoReplicationTasksDLQ inserts one or more rows into replication_tasks_dlq table
@@ -525,7 +525,7 @@ func (pdb *db) RangeDeleteMessageFromReplicationTasksDLQ(
 			filter.SourceClusterName,
 			filter.ShardID,
 			filter.TaskID,
-			filter.InclusiveEndTaskID,
+			filter.ExclusiveEndTaskID,
 			filter.PageSize,
 		)
 	}
@@ -537,6 +537,6 @@ func (pdb *db) RangeDeleteMessageFromReplicationTasksDLQ(
 		filter.SourceClusterName,
 		filter.ShardID,
 		filter.TaskID,
-		filter.InclusiveEndTaskID,
+		filter.ExclusiveEndTaskID,
 	)
 }

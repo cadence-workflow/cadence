@@ -3005,7 +3005,7 @@ func (s *ExecutionManagerSuite) TestTransferTasksRangeComplete() {
 	s.Equal(currentTransferID+10005, txTasks[4].TaskID)
 	s.Equal(currentTransferID+10006, txTasks[5].TaskID)
 
-	err2 = s.RangeCompleteTransferTask(ctx, txTasks[0].TaskID-1, txTasks[5].TaskID)
+	err2 = s.RangeCompleteTransferTask(ctx, txTasks[0].TaskID, txTasks[5].TaskID+1)
 	s.NoError(err2)
 
 	txTasks, err2 = s.GetTransferTasks(ctx, 100, false)
@@ -3999,7 +3999,7 @@ func (s *ExecutionManagerSuite) TestReplicationTransferTaskRangeComplete() {
 	s.Equal(int64(4), task2.FirstEventID)
 	s.Equal(int64(5), task2.NextEventID)
 	s.Equal(int64(9), task2.Version)
-	err = s.RangeCompleteReplicationTask(ctx, task2.TaskID)
+	err = s.RangeCompleteReplicationTask(ctx, task2.TaskID+1)
 	s.NoError(err)
 	tasks2, err := s.GetReplicationTasks(ctx, 1, false)
 	s.NoError(err)
@@ -5788,7 +5788,7 @@ func (s *ExecutionManagerSuite) TestReplicationDLQ() {
 	sizeResp, err := s.GetReplicationDLQSize(ctx, sourceCluster)
 	s.NoError(err)
 	s.Equal(int64(2), sizeResp.Size)
-	err = s.RangeDeleteReplicationTaskFromDLQ(ctx, sourceCluster, 0, 2)
+	err = s.RangeDeleteReplicationTaskFromDLQ(ctx, sourceCluster, 1, 3)
 	s.NoError(err)
 	resp, err = s.GetReplicationTasksFromDLQ(ctx, sourceCluster, 0, 2, 2, nil)
 	s.NoError(err)

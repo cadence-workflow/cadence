@@ -90,7 +90,7 @@ FROM transfer_tasks WHERE shard_id = ? AND task_id > ? AND task_id <= ? ORDER BY
  VALUES(:shard_id, :task_id, :data, :data_encoding)`
 
 	deleteTransferTaskQuery             = `DELETE FROM transfer_tasks WHERE shard_id = ? AND task_id = ?`
-	rangeDeleteTransferTaskQuery        = `DELETE FROM transfer_tasks WHERE shard_id = ? AND task_id > ? AND task_id <= ?`
+	rangeDeleteTransferTaskQuery        = `DELETE FROM transfer_tasks WHERE shard_id = ? AND task_id >= ? AND task_id < ?`
 	rangeDeleteTransferTaskByBatchQuery = rangeDeleteTransferTaskQuery + ` ORDER BY task_id LIMIT ?`
 
 	getCrossClusterTasksQuery = `SELECT task_id, data, data_encoding
@@ -100,7 +100,7 @@ FROM cross_cluster_tasks WHERE target_cluster = ? AND shard_id = ? AND task_id >
 VALUES(:target_cluster, :shard_id, :task_id, :data, :data_encoding)`
 
 	deleteCrossClusterTaskQuery             = `DELETE FROM cross_cluster_tasks WHERE target_cluster = ? AND shard_id = ? AND task_id = ?`
-	rangeDeleteCrossClusterTaskQuery        = `DELETE FROM cross_cluster_tasks WHERE target_cluster = ? AND shard_id = ? AND task_id > ? AND task_id <= ?`
+	rangeDeleteCrossClusterTaskQuery        = `DELETE FROM cross_cluster_tasks WHERE target_cluster = ? AND shard_id = ? AND task_id >= ? AND task_id < ?`
 	rangeDeleteCrossClusterTaskByBatchQuery = rangeDeleteCrossClusterTaskQuery + ` ORDER BY task_id LIMIT ?`
 
 	createTimerTasksQuery = `INSERT INTO timer_tasks (shard_id, visibility_timestamp, task_id, data, data_encoding)
@@ -126,7 +126,7 @@ task_id <= ?
 ORDER BY task_id LIMIT ?`
 
 	deleteReplicationTaskQuery             = `DELETE FROM replication_tasks WHERE shard_id = ? AND task_id = ?`
-	rangeDeleteReplicationTaskQuery        = `DELETE FROM replication_tasks WHERE shard_id = ? AND task_id <= ?`
+	rangeDeleteReplicationTaskQuery        = `DELETE FROM replication_tasks WHERE shard_id = ? AND task_id < ?`
 	rangeDeleteReplicationTaskByBatchQuery = rangeDeleteReplicationTaskQuery + ` ORDER BY task_id LIMIT ?`
 
 	getReplicationTasksDLQQuery = `SELECT task_id, data, data_encoding FROM replication_tasks_dlq WHERE
@@ -171,8 +171,8 @@ VALUES     (:source_cluster_name,
 	DELETE FROM replication_tasks_dlq
 		WHERE source_cluster_name = ?
 		AND shard_id = ?
-		AND task_id > ?
-		AND task_id <= ?`
+		AND task_id >= ?
+		AND task_id < ?`
 	rangeDeleteReplicationTaskFromDLQByBatchQuery = rangeDeleteReplicationTaskFromDLQQuery + ` ORDER BY task_id LIMIT ?`
 )
 
@@ -449,9 +449,9 @@ func (mdb *DB) DeleteFromReplicationTasks(ctx context.Context, filter *sqlplugin
 func (mdb *DB) RangeDeleteFromReplicationTasks(ctx context.Context, filter *sqlplugin.ReplicationTasksFilter) (sql.Result, error) {
 	dbShardID := sqlplugin.GetDBShardIDFromHistoryShardID(filter.ShardID, mdb.GetTotalNumDBShards())
 	if filter.PageSize > 0 {
-		return mdb.driver.ExecContext(ctx, dbShardID, rangeDeleteReplicationTaskByBatchQuery, filter.ShardID, filter.InclusiveEndTaskID, filter.PageSize)
+		return mdb.driver.ExecContext(ctx, dbShardID, rangeDeleteReplicationTaskByBatchQuery, filter.ShardID, filter.ExclusiveEndTaskID, filter.PageSize)
 	}
-	return mdb.driver.ExecContext(ctx, dbShardID, rangeDeleteReplicationTaskQuery, filter.ShardID, filter.InclusiveEndTaskID)
+	return mdb.driver.ExecContext(ctx, dbShardID, rangeDeleteReplicationTaskQuery, filter.ShardID, filter.ExclusiveEndTaskID)
 }
 
 // InsertIntoReplicationTasksDLQ inserts one or more rows into replication_tasks_dlq table
@@ -525,7 +525,7 @@ func (mdb *DB) RangeDeleteMessageFromReplicationTasksDLQ(
 			filter.SourceClusterName,
 			filter.ShardID,
 			filter.TaskID,
-			filter.InclusiveEndTaskID,
+			filter.ExclusiveEndTaskID,
 			filter.PageSize,
 		)
 	}
@@ -537,6 +537,6 @@ func (mdb *DB) RangeDeleteMessageFromReplicationTasksDLQ(
 		filter.SourceClusterName,
 		filter.ShardID,
 		filter.TaskID,
-		filter.InclusiveEndTaskID,
+		filter.ExclusiveEndTaskID,
 	)
 }

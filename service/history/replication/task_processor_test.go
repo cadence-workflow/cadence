@@ -534,16 +534,19 @@ func (s *taskProcessorSuite) TestTriggerDataInconsistencyScan_Success() {
 }
 
 func (s *taskProcessorSuite) TestCleanupReplicationTaskLoop() {
-	req := &persistence.RangeCompleteReplicationTaskRequest{
+	req := &persistence.RangeCompleteHistoryTaskRequest{
 		// this is min ack level of remote clusters. there's only one remote cluster in this test "standby".
-		// its replication ack level is set to 350 in SetupTest()
-		InclusiveEndTaskID: 350,
-		PageSize:           50, // this comes from test config
+		// its replication ack level is set to 350 in SetupTest(), and since the max key is exclusive, set the task id to 351
+		TaskCategory: persistence.HistoryTaskCategoryReplication,
+		ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
+			TaskID: 351,
+		},
+		PageSize: 50, // this comes from test config
 	}
-	s.executionManager.On("RangeCompleteReplicationTask", mock.Anything, req).Return(&persistence.RangeCompleteReplicationTaskResponse{
+	s.executionManager.On("RangeCompleteHistoryTask", mock.Anything, req).Return(&persistence.RangeCompleteHistoryTaskResponse{
 		TasksCompleted: 50, // if this number equals to page size the loop continues
 	}, nil).Times(1)
-	s.executionManager.On("RangeCompleteReplicationTask", mock.Anything, req).Return(&persistence.RangeCompleteReplicationTaskResponse{
+	s.executionManager.On("RangeCompleteHistoryTask", mock.Anything, req).Return(&persistence.RangeCompleteHistoryTaskResponse{
 		TasksCompleted: 15, // if this number is different than page size the loop breaks
 	}, nil)
 

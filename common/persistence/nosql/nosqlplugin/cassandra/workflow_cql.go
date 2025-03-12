@@ -632,8 +632,8 @@ const (
 		`and workflow_id = ? ` +
 		`and run_id = ? ` +
 		`and visibility_ts = ? ` +
-		`and task_id > ? ` +
-		`and task_id <= ?`
+		`and task_id >= ? ` +
+		`and task_id < ?`
 
 	templateCompleteCrossClusterTaskQuery = templateCompleteTransferTaskQuery
 
@@ -646,7 +646,7 @@ const (
 		`and workflow_id = ? ` +
 		`and run_id = ? ` +
 		`and visibility_ts = ? ` +
-		`and task_id <= ?`
+		`and task_id < ?`
 
 	templateCompleteReplicationTaskQuery = templateCompleteTransferTaskQuery
 

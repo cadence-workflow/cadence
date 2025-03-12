@@ -36,6 +36,11 @@ type Task interface {
 }
 
 type (
+	HistoryTaskKey struct {
+		ScheduledTime time.Time
+		TaskID        int64
+	}
+
 	WorkflowIdentifier struct {
 		DomainID   string
 		WorkflowID string

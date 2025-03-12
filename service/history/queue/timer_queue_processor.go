@@ -497,10 +497,15 @@ func (t *timerQueueProcessor) completeTimer(ctx context.Context) error {
 	totalDeleted := 0
 	for {
 		pageSize := t.config.TimerTaskDeleteBatchSize()
-		resp, err := t.shard.GetExecutionManager().RangeCompleteTimerTask(ctx, &persistence.RangeCompleteTimerTaskRequest{
-			InclusiveBeginTimestamp: t.ackLevel,
-			ExclusiveEndTimestamp:   newAckLevelTimestamp,
-			PageSize:                pageSize, // pageSize may or may not be honored
+		resp, err := t.shard.GetExecutionManager().RangeCompleteHistoryTask(ctx, &persistence.RangeCompleteHistoryTaskRequest{
+			TaskCategory: persistence.HistoryTaskCategoryTimer,
+			InclusiveMinTaskKey: persistence.HistoryTaskKey{
+				ScheduledTime: t.ackLevel,
+			},
+			ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
+				ScheduledTime: newAckLevelTimestamp,
+			},
+			PageSize: pageSize,
 		})
 		if err != nil {
 			return err

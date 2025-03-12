@@ -699,7 +699,7 @@ func (db *cdb) DeleteReplicationDLQTask(ctx context.Context, shardID int, source
 	return db.executeWithConsistencyAll(query)
 }
 
-func (db *cdb) RangeDeleteReplicationDLQTasks(ctx context.Context, shardID int, sourceCluster string, exclusiveBeginTaskID, inclusiveEndTaskID int64) error {
+func (db *cdb) RangeDeleteReplicationDLQTasks(ctx context.Context, shardID int, sourceCluster string, inclusiveBeginTaskID, exclusiveEndTaskID int64) error {
 	query := db.session.Query(templateRangeCompleteReplicationTaskQuery,
 		shardID,
 		rowTypeDLQ,
@@ -707,8 +707,8 @@ func (db *cdb) RangeDeleteReplicationDLQTasks(ctx context.Context, shardID int, 
 		sourceCluster,
 		rowTypeDLQRunID,
 		defaultVisibilityTimestamp,
-		exclusiveBeginTaskID,
-		inclusiveEndTaskID,
+		inclusiveBeginTaskID,
+		exclusiveEndTaskID,
 	).WithContext(ctx)
 
 	return db.executeWithConsistencyAll(query)

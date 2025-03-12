@@ -680,45 +680,45 @@ func (mr *MockDBMockRecorder) PluginName() *gomock.Call {
 }
 
 // RangeDeleteCrossClusterTasks mocks base method.
-func (m *MockDB) RangeDeleteCrossClusterTasks(ctx context.Context, shardID int, targetCluster string, exclusiveBeginTaskID, inclusiveEndTaskID int64) error {
+func (m *MockDB) RangeDeleteCrossClusterTasks(ctx context.Context, shardID int, targetCluster string, inclusiveBeginTaskID, exclusiveEndTaskID int64) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RangeDeleteCrossClusterTasks", ctx, shardID, targetCluster, exclusiveBeginTaskID, inclusiveEndTaskID)
+	ret := m.ctrl.Call(m, "RangeDeleteCrossClusterTasks", ctx, shardID, targetCluster, inclusiveBeginTaskID, exclusiveEndTaskID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // RangeDeleteCrossClusterTasks indicates an expected call of RangeDeleteCrossClusterTasks.
-func (mr *MockDBMockRecorder) RangeDeleteCrossClusterTasks(ctx, shardID, targetCluster, exclusiveBeginTaskID, inclusiveEndTaskID any) *gomock.Call {
+func (mr *MockDBMockRecorder) RangeDeleteCrossClusterTasks(ctx, shardID, targetCluster, inclusiveBeginTaskID, exclusiveEndTaskID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteCrossClusterTasks", reflect.TypeOf((*MockDB)(nil).RangeDeleteCrossClusterTasks), ctx, shardID, targetCluster, exclusiveBeginTaskID, inclusiveEndTaskID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteCrossClusterTasks", reflect.TypeOf((*MockDB)(nil).RangeDeleteCrossClusterTasks), ctx, shardID, targetCluster, inclusiveBeginTaskID, exclusiveEndTaskID)
 }
 
 // RangeDeleteReplicationDLQTasks mocks base method.
-func (m *MockDB) RangeDeleteReplicationDLQTasks(ctx context.Context, shardID int, sourceCluster string, exclusiveBeginTaskID, inclusiveEndTaskID int64) error {
+func (m *MockDB) RangeDeleteReplicationDLQTasks(ctx context.Context, shardID int, sourceCluster string, inclusiveBeginTaskID, exclusiveEndTaskID int64) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RangeDeleteReplicationDLQTasks", ctx, shardID, sourceCluster, exclusiveBeginTaskID, inclusiveEndTaskID)
+	ret := m.ctrl.Call(m, "RangeDeleteReplicationDLQTasks", ctx, shardID, sourceCluster, inclusiveBeginTaskID, exclusiveEndTaskID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // RangeDeleteReplicationDLQTasks indicates an expected call of RangeDeleteReplicationDLQTasks.
-func (mr *MockDBMockRecorder) RangeDeleteReplicationDLQTasks(ctx, shardID, sourceCluster, exclusiveBeginTaskID, inclusiveEndTaskID any) *gomock.Call {
+func (mr *MockDBMockRecorder) RangeDeleteReplicationDLQTasks(ctx, shardID, sourceCluster, inclusiveBeginTaskID, exclusiveEndTaskID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteReplicationDLQTasks", reflect.TypeOf((*MockDB)(nil).RangeDeleteReplicationDLQTasks), ctx, shardID, sourceCluster, exclusiveBeginTaskID, inclusiveEndTaskID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteReplicationDLQTasks", reflect.TypeOf((*MockDB)(nil).RangeDeleteReplicationDLQTasks), ctx, shardID, sourceCluster, inclusiveBeginTaskID, exclusiveEndTaskID)
 }
 
 // RangeDeleteReplicationTasks mocks base method.
-func (m *MockDB) RangeDeleteReplicationTasks(ctx context.Context, shardID int, inclusiveEndTaskID int64) error {
+func (m *MockDB) RangeDeleteReplicationTasks(ctx context.Context, shardID int, exclusiveEndTaskID int64) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RangeDeleteReplicationTasks", ctx, shardID, inclusiveEndTaskID)
+	ret := m.ctrl.Call(m, "RangeDeleteReplicationTasks", ctx, shardID, exclusiveEndTaskID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // RangeDeleteReplicationTasks indicates an expected call of RangeDeleteReplicationTasks.
-func (mr *MockDBMockRecorder) RangeDeleteReplicationTasks(ctx, shardID, inclusiveEndTaskID any) *gomock.Call {
+func (mr *MockDBMockRecorder) RangeDeleteReplicationTasks(ctx, shardID, exclusiveEndTaskID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteReplicationTasks", reflect.TypeOf((*MockDB)(nil).RangeDeleteReplicationTasks), ctx, shardID, inclusiveEndTaskID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteReplicationTasks", reflect.TypeOf((*MockDB)(nil).RangeDeleteReplicationTasks), ctx, shardID, exclusiveEndTaskID)
 }
 
 // RangeDeleteTasks mocks base method.
@@ -751,17 +751,17 @@ func (mr *MockDBMockRecorder) RangeDeleteTimerTasks(ctx, shardID, inclusiveMinTi
 }
 
 // RangeDeleteTransferTasks mocks base method.
-func (m *MockDB) RangeDeleteTransferTasks(ctx context.Context, shardID int, exclusiveBeginTaskID, inclusiveEndTaskID int64) error {
+func (m *MockDB) RangeDeleteTransferTasks(ctx context.Context, shardID int, inclusiveBeginTaskID, exclusiveEndTaskID int64) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RangeDeleteTransferTasks", ctx, shardID, exclusiveBeginTaskID, inclusiveEndTaskID)
+	ret := m.ctrl.Call(m, "RangeDeleteTransferTasks", ctx, shardID, inclusiveBeginTaskID, exclusiveEndTaskID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // RangeDeleteTransferTasks indicates an expected call of RangeDeleteTransferTasks.
-func (mr *MockDBMockRecorder) RangeDeleteTransferTasks(ctx, shardID, exclusiveBeginTaskID, inclusiveEndTaskID any) *gomock.Call {
+func (mr *MockDBMockRecorder) RangeDeleteTransferTasks(ctx, shardID, inclusiveBeginTaskID, exclusiveEndTaskID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteTransferTasks", reflect.TypeOf((*MockDB)(nil).RangeDeleteTransferTasks), ctx, shardID, exclusiveBeginTaskID, inclusiveEndTaskID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteTransferTasks", reflect.TypeOf((*MockDB)(nil).RangeDeleteTransferTasks), ctx, shardID, inclusiveBeginTaskID, exclusiveEndTaskID)
 }
 
 // SelectAllCurrentWorkflows mocks base method.
@@ -1726,45 +1726,45 @@ func (mr *MocktableCRUDMockRecorder) ListTaskList(ctx, pageSize, nextPageToken a
 }
 
 // RangeDeleteCrossClusterTasks mocks base method.
-func (m *MocktableCRUD) RangeDeleteCrossClusterTasks(ctx context.Context, shardID int, targetCluster string, exclusiveBeginTaskID, inclusiveEndTaskID int64) error {
+func (m *MocktableCRUD) RangeDeleteCrossClusterTasks(ctx context.Context, shardID int, targetCluster string, inclusiveBeginTaskID, exclusiveEndTaskID int64) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RangeDeleteCrossClusterTasks", ctx, shardID, targetCluster, exclusiveBeginTaskID, inclusiveEndTaskID)
+	ret := m.ctrl.Call(m, "RangeDeleteCrossClusterTasks", ctx, shardID, targetCluster, inclusiveBeginTaskID, exclusiveEndTaskID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // RangeDeleteCrossClusterTasks indicates an expected call of RangeDeleteCrossClusterTasks.
-func (mr *MocktableCRUDMockRecorder) RangeDeleteCrossClusterTasks(ctx, shardID, targetCluster, exclusiveBeginTaskID, inclusiveEndTaskID any) *gomock.Call {
+func (mr *MocktableCRUDMockRecorder) RangeDeleteCrossClusterTasks(ctx, shardID, targetCluster, inclusiveBeginTaskID, exclusiveEndTaskID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteCrossClusterTasks", reflect.TypeOf((*MocktableCRUD)(nil).RangeDeleteCrossClusterTasks), ctx, shardID, targetCluster, exclusiveBeginTaskID, inclusiveEndTaskID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteCrossClusterTasks", reflect.TypeOf((*MocktableCRUD)(nil).RangeDeleteCrossClusterTasks), ctx, shardID, targetCluster, inclusiveBeginTaskID, exclusiveEndTaskID)
 }
 
 // RangeDeleteReplicationDLQTasks mocks base method.
-func (m *MocktableCRUD) RangeDeleteReplicationDLQTasks(ctx context.Context, shardID int, sourceCluster string, exclusiveBeginTaskID, inclusiveEndTaskID int64) error {
+func (m *MocktableCRUD) RangeDeleteReplicationDLQTasks(ctx context.Context, shardID int, sourceCluster string, inclusiveBeginTaskID, exclusiveEndTaskID int64) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RangeDeleteReplicationDLQTasks", ctx, shardID, sourceCluster, exclusiveBeginTaskID, inclusiveEndTaskID)
+	ret := m.ctrl.Call(m, "RangeDeleteReplicationDLQTasks", ctx, shardID, sourceCluster, inclusiveBeginTaskID, exclusiveEndTaskID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // RangeDeleteReplicationDLQTasks indicates an expected call of RangeDeleteReplicationDLQTasks.
-func (mr *MocktableCRUDMockRecorder) RangeDeleteReplicationDLQTasks(ctx, shardID, sourceCluster, exclusiveBeginTaskID, inclusiveEndTaskID any) *gomock.Call {
+func (mr *MocktableCRUDMockRecorder) RangeDeleteReplicationDLQTasks(ctx, shardID, sourceCluster, inclusiveBeginTaskID, exclusiveEndTaskID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteReplicationDLQTasks", reflect.TypeOf((*MocktableCRUD)(nil).RangeDeleteReplicationDLQTasks), ctx, shardID, sourceCluster, exclusiveBeginTaskID, inclusiveEndTaskID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteReplicationDLQTasks", reflect.TypeOf((*MocktableCRUD)(nil).RangeDeleteReplicationDLQTasks), ctx, shardID, sourceCluster, inclusiveBeginTaskID, exclusiveEndTaskID)
 }
 
 // RangeDeleteReplicationTasks mocks base method.
-func (m *MocktableCRUD) RangeDeleteReplicationTasks(ctx context.Context, shardID int, inclusiveEndTaskID int64) error {
+func (m *MocktableCRUD) RangeDeleteReplicationTasks(ctx context.Context, shardID int, exclusiveEndTaskID int64) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RangeDeleteReplicationTasks", ctx, shardID, inclusiveEndTaskID)
+	ret := m.ctrl.Call(m, "RangeDeleteReplicationTasks", ctx, shardID, exclusiveEndTaskID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // RangeDeleteReplicationTasks indicates an expected call of RangeDeleteReplicationTasks.
-func (mr *MocktableCRUDMockRecorder) RangeDeleteReplicationTasks(ctx, shardID, inclusiveEndTaskID any) *gomock.Call {
+func (mr *MocktableCRUDMockRecorder) RangeDeleteReplicationTasks(ctx, shardID, exclusiveEndTaskID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteReplicationTasks", reflect.TypeOf((*MocktableCRUD)(nil).RangeDeleteReplicationTasks), ctx, shardID, inclusiveEndTaskID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteReplicationTasks", reflect.TypeOf((*MocktableCRUD)(nil).RangeDeleteReplicationTasks), ctx, shardID, exclusiveEndTaskID)
 }
 
 // RangeDeleteTasks mocks base method.
@@ -1797,17 +1797,17 @@ func (mr *MocktableCRUDMockRecorder) RangeDeleteTimerTasks(ctx, shardID, inclusi
 }
 
 // RangeDeleteTransferTasks mocks base method.
-func (m *MocktableCRUD) RangeDeleteTransferTasks(ctx context.Context, shardID int, exclusiveBeginTaskID, inclusiveEndTaskID int64) error {
+func (m *MocktableCRUD) RangeDeleteTransferTasks(ctx context.Context, shardID int, inclusiveBeginTaskID, exclusiveEndTaskID int64) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RangeDeleteTransferTasks", ctx, shardID, exclusiveBeginTaskID, inclusiveEndTaskID)
+	ret := m.ctrl.Call(m, "RangeDeleteTransferTasks", ctx, shardID, inclusiveBeginTaskID, exclusiveEndTaskID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // RangeDeleteTransferTasks indicates an expected call of RangeDeleteTransferTasks.
-func (mr *MocktableCRUDMockRecorder) RangeDeleteTransferTasks(ctx, shardID, exclusiveBeginTaskID, inclusiveEndTaskID any) *gomock.Call {
+func (mr *MocktableCRUDMockRecorder) RangeDeleteTransferTasks(ctx, shardID, inclusiveBeginTaskID, exclusiveEndTaskID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteTransferTasks", reflect.TypeOf((*MocktableCRUD)(nil).RangeDeleteTransferTasks), ctx, shardID, exclusiveBeginTaskID, inclusiveEndTaskID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteTransferTasks", reflect.TypeOf((*MocktableCRUD)(nil).RangeDeleteTransferTasks), ctx, shardID, inclusiveBeginTaskID, exclusiveEndTaskID)
 }
 
 // SelectAllCurrentWorkflows mocks base method.
@@ -3324,45 +3324,45 @@ func (mr *MockWorkflowCRUDMockRecorder) IsWorkflowExecutionExists(ctx, shardID, 
 }
 
 // RangeDeleteCrossClusterTasks mocks base method.
-func (m *MockWorkflowCRUD) RangeDeleteCrossClusterTasks(ctx context.Context, shardID int, targetCluster string, exclusiveBeginTaskID, inclusiveEndTaskID int64) error {
+func (m *MockWorkflowCRUD) RangeDeleteCrossClusterTasks(ctx context.Context, shardID int, targetCluster string, inclusiveBeginTaskID, exclusiveEndTaskID int64) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RangeDeleteCrossClusterTasks", ctx, shardID, targetCluster, exclusiveBeginTaskID, inclusiveEndTaskID)
+	ret := m.ctrl.Call(m, "RangeDeleteCrossClusterTasks", ctx, shardID, targetCluster, inclusiveBeginTaskID, exclusiveEndTaskID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // RangeDeleteCrossClusterTasks indicates an expected call of RangeDeleteCrossClusterTasks.
-func (mr *MockWorkflowCRUDMockRecorder) RangeDeleteCrossClusterTasks(ctx, shardID, targetCluster, exclusiveBeginTaskID, inclusiveEndTaskID any) *gomock.Call {
+func (mr *MockWorkflowCRUDMockRecorder) RangeDeleteCrossClusterTasks(ctx, shardID, targetCluster, inclusiveBeginTaskID, exclusiveEndTaskID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteCrossClusterTasks", reflect.TypeOf((*MockWorkflowCRUD)(nil).RangeDeleteCrossClusterTasks), ctx, shardID, targetCluster, exclusiveBeginTaskID, inclusiveEndTaskID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteCrossClusterTasks", reflect.TypeOf((*MockWorkflowCRUD)(nil).RangeDeleteCrossClusterTasks), ctx, shardID, targetCluster, inclusiveBeginTaskID, exclusiveEndTaskID)
 }
 
 // RangeDeleteReplicationDLQTasks mocks base method.
-func (m *MockWorkflowCRUD) RangeDeleteReplicationDLQTasks(ctx context.Context, shardID int, sourceCluster string, exclusiveBeginTaskID, inclusiveEndTaskID int64) error {
+func (m *MockWorkflowCRUD) RangeDeleteReplicationDLQTasks(ctx context.Context, shardID int, sourceCluster string, inclusiveBeginTaskID, exclusiveEndTaskID int64) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RangeDeleteReplicationDLQTasks", ctx, shardID, sourceCluster, exclusiveBeginTaskID, inclusiveEndTaskID)
+	ret := m.ctrl.Call(m, "RangeDeleteReplicationDLQTasks", ctx, shardID, sourceCluster, inclusiveBeginTaskID, exclusiveEndTaskID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // RangeDeleteReplicationDLQTasks indicates an expected call of RangeDeleteReplicationDLQTasks.
-func (mr *MockWorkflowCRUDMockRecorder) RangeDeleteReplicationDLQTasks(ctx, shardID, sourceCluster, exclusiveBeginTaskID, inclusiveEndTaskID any) *gomock.Call {
+func (mr *MockWorkflowCRUDMockRecorder) RangeDeleteReplicationDLQTasks(ctx, shardID, sourceCluster, inclusiveBeginTaskID, exclusiveEndTaskID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteReplicationDLQTasks", reflect.TypeOf((*MockWorkflowCRUD)(nil).RangeDeleteReplicationDLQTasks), ctx, shardID, sourceCluster, exclusiveBeginTaskID, inclusiveEndTaskID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteReplicationDLQTasks", reflect.TypeOf((*MockWorkflowCRUD)(nil).RangeDeleteReplicationDLQTasks), ctx, shardID, sourceCluster, inclusiveBeginTaskID, exclusiveEndTaskID)
 }
 
 // RangeDeleteReplicationTasks mocks base method.
-func (m *MockWorkflowCRUD) RangeDeleteReplicationTasks(ctx context.Context, shardID int, inclusiveEndTaskID int64) error {
+func (m *MockWorkflowCRUD) RangeDeleteReplicationTasks(ctx context.Context, shardID int, exclusiveEndTaskID int64) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RangeDeleteReplicationTasks", ctx, shardID, inclusiveEndTaskID)
+	ret := m.ctrl.Call(m, "RangeDeleteReplicationTasks", ctx, shardID, exclusiveEndTaskID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // RangeDeleteReplicationTasks indicates an expected call of RangeDeleteReplicationTasks.
-func (mr *MockWorkflowCRUDMockRecorder) RangeDeleteReplicationTasks(ctx, shardID, inclusiveEndTaskID any) *gomock.Call {
+func (mr *MockWorkflowCRUDMockRecorder) RangeDeleteReplicationTasks(ctx, shardID, exclusiveEndTaskID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteReplicationTasks", reflect.TypeOf((*MockWorkflowCRUD)(nil).RangeDeleteReplicationTasks), ctx, shardID, inclusiveEndTaskID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteReplicationTasks", reflect.TypeOf((*MockWorkflowCRUD)(nil).RangeDeleteReplicationTasks), ctx, shardID, exclusiveEndTaskID)
 }
 
 // RangeDeleteTimerTasks mocks base method.
@@ -3380,17 +3380,17 @@ func (mr *MockWorkflowCRUDMockRecorder) RangeDeleteTimerTasks(ctx, shardID, incl
 }
 
 // RangeDeleteTransferTasks mocks base method.
-func (m *MockWorkflowCRUD) RangeDeleteTransferTasks(ctx context.Context, shardID int, exclusiveBeginTaskID, inclusiveEndTaskID int64) error {
+func (m *MockWorkflowCRUD) RangeDeleteTransferTasks(ctx context.Context, shardID int, inclusiveBeginTaskID, exclusiveEndTaskID int64) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RangeDeleteTransferTasks", ctx, shardID, exclusiveBeginTaskID, inclusiveEndTaskID)
+	ret := m.ctrl.Call(m, "RangeDeleteTransferTasks", ctx, shardID, inclusiveBeginTaskID, exclusiveEndTaskID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // RangeDeleteTransferTasks indicates an expected call of RangeDeleteTransferTasks.
-func (mr *MockWorkflowCRUDMockRecorder) RangeDeleteTransferTasks(ctx, shardID, exclusiveBeginTaskID, inclusiveEndTaskID any) *gomock.Call {
+func (mr *MockWorkflowCRUDMockRecorder) RangeDeleteTransferTasks(ctx, shardID, inclusiveBeginTaskID, exclusiveEndTaskID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteTransferTasks", reflect.TypeOf((*MockWorkflowCRUD)(nil).RangeDeleteTransferTasks), ctx, shardID, exclusiveBeginTaskID, inclusiveEndTaskID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteTransferTasks", reflect.TypeOf((*MockWorkflowCRUD)(nil).RangeDeleteTransferTasks), ctx, shardID, inclusiveBeginTaskID, exclusiveEndTaskID)
 }
 
 // SelectAllCurrentWorkflows mocks base method.

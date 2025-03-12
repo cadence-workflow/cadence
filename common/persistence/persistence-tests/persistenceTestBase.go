@@ -1490,11 +1490,14 @@ Loop:
 }
 
 // RangeCompleteReplicationTask is a utility method to complete a range of replication tasks
-func (s *TestBase) RangeCompleteReplicationTask(ctx context.Context, inclusiveEndTaskID int64) error {
+func (s *TestBase) RangeCompleteReplicationTask(ctx context.Context, exclusiveEndTaskID int64) error {
 	for {
-		resp, err := s.ExecutionManager.RangeCompleteReplicationTask(ctx, &persistence.RangeCompleteReplicationTaskRequest{
-			InclusiveEndTaskID: inclusiveEndTaskID,
-			PageSize:           1,
+		resp, err := s.ExecutionManager.RangeCompleteHistoryTask(ctx, &persistence.RangeCompleteHistoryTaskRequest{
+			TaskCategory: persistence.HistoryTaskCategoryReplication,
+			ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
+				TaskID: exclusiveEndTaskID,
+			},
+			PageSize: 1,
 		})
 		if err != nil {
 			return err
@@ -1574,8 +1577,8 @@ func (s *TestBase) RangeDeleteReplicationTaskFromDLQ(
 
 	_, err := s.ExecutionManager.RangeDeleteReplicationTaskFromDLQ(ctx, &persistence.RangeDeleteReplicationTaskFromDLQRequest{
 		SourceClusterName:    sourceCluster,
-		ExclusiveBeginTaskID: beginTaskID,
-		InclusiveEndTaskID:   endTaskID,
+		InclusiveBeginTaskID: beginTaskID,
+		ExclusiveEndTaskID:   endTaskID,
 	})
 	return err
 }
@@ -1601,12 +1604,17 @@ func (s *TestBase) CompleteTransferTask(ctx context.Context, taskID int64) error
 }
 
 // RangeCompleteTransferTask is a utility method to complete a range of transfer tasks
-func (s *TestBase) RangeCompleteTransferTask(ctx context.Context, exclusiveBeginTaskID int64, inclusiveEndTaskID int64) error {
+func (s *TestBase) RangeCompleteTransferTask(ctx context.Context, inclusiveBeginTaskID int64, exclusiveEndTaskID int64) error {
 	for {
-		resp, err := s.ExecutionManager.RangeCompleteTransferTask(ctx, &persistence.RangeCompleteTransferTaskRequest{
-			ExclusiveBeginTaskID: exclusiveBeginTaskID,
-			InclusiveEndTaskID:   inclusiveEndTaskID,
-			PageSize:             1,
+		resp, err := s.ExecutionManager.RangeCompleteHistoryTask(ctx, &persistence.RangeCompleteHistoryTaskRequest{
+			TaskCategory: persistence.HistoryTaskCategoryTransfer,
+			InclusiveMinTaskKey: persistence.HistoryTaskKey{
+				TaskID: inclusiveBeginTaskID,
+			},
+			ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
+				TaskID: exclusiveEndTaskID,
+			},
+			PageSize: 1,
 		})
 		if err != nil {
 			return err
@@ -1674,11 +1682,17 @@ func (s *TestBase) CompleteTimerTask(ctx context.Context, ts time.Time, taskID i
 // RangeCompleteTimerTask is a utility method to complete a range of timer tasks
 func (s *TestBase) RangeCompleteTimerTask(ctx context.Context, inclusiveBeginTimestamp time.Time, exclusiveEndTimestamp time.Time) error {
 	for {
-		resp, err := s.ExecutionManager.RangeCompleteTimerTask(ctx, &persistence.RangeCompleteTimerTaskRequest{
-			InclusiveBeginTimestamp: inclusiveBeginTimestamp,
-			ExclusiveEndTimestamp:   exclusiveEndTimestamp,
-			PageSize:                1,
+		resp, err := s.ExecutionManager.RangeCompleteHistoryTask(ctx, &persistence.RangeCompleteHistoryTaskRequest{
+			TaskCategory: persistence.HistoryTaskCategoryTimer,
+			InclusiveMinTaskKey: persistence.HistoryTaskKey{
+				ScheduledTime: inclusiveBeginTimestamp,
+			},
+			ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
+				ScheduledTime: exclusiveEndTimestamp,
+			},
+			PageSize: 1,
 		})
+
 		if err != nil {
 			return err
 		}

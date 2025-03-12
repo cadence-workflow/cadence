@@ -20,7 +20,7 @@
 // THE SOFTWARE.
 
 // Geneate rate limiter wrappers.
-//go:generate mockgen -package $GOPACKAGE -destination data_manager_interfaces_mock.go -self_package github.com/uber/cadence/common/persistence github.com/uber/cadence/common/persistence Task,ShardManager,ExecutionManager,ExecutionManagerFactory,TaskManager,HistoryManager,DomainManager,QueueManager,ConfigStoreManager
+//go:generate mockgen -package $GOPACKAGE -destination data_manager_interfaces_mock.go github.com/uber/cadence/common/persistence Task,ShardManager,ExecutionManager,ExecutionManagerFactory,TaskManager,HistoryManager,DomainManager,QueueManager,ConfigStoreManager
 //go:generate gowrap gen -g -p . -i ConfigStoreManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/configstore_generated.go
 //go:generate gowrap gen -g -p . -i DomainManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/domain_generated.go
 //go:generate gowrap gen -g -p . -i HistoryManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/history_generated.go
@@ -939,51 +939,15 @@ type (
 		TaskID int64
 	}
 
-	// RangeCompleteTransferTaskRequest is used to complete a range of tasks in the transfer task queue
-	RangeCompleteTransferTaskRequest struct {
-		ExclusiveBeginTaskID int64
-		InclusiveEndTaskID   int64
-		PageSize             int
-	}
-
-	// RangeCompleteTransferTaskResponse is the response of RangeCompleteTransferTask
-	RangeCompleteTransferTaskResponse struct {
-		TasksCompleted int
-	}
-
 	// CompleteCrossClusterTaskRequest is used to complete a task in the cross-cluster task queue
 	CompleteCrossClusterTaskRequest struct {
 		TargetCluster string
 		TaskID        int64
 	}
 
-	// RangeCompleteCrossClusterTaskRequest is used to complete a range of tasks in the cross-cluster task queue
-	RangeCompleteCrossClusterTaskRequest struct {
-		TargetCluster        string
-		ExclusiveBeginTaskID int64
-		InclusiveEndTaskID   int64
-		PageSize             int
-	}
-
-	// RangeCompleteCrossClusterTaskResponse is the response of RangeCompleteCrossClusterTask
-	RangeCompleteCrossClusterTaskResponse struct {
-		TasksCompleted int
-	}
-
 	// CompleteReplicationTaskRequest is used to complete a task in the replication task queue
 	CompleteReplicationTaskRequest struct {
 		TaskID int64
-	}
-
-	// RangeCompleteReplicationTaskRequest is used to complete a range of task in the replication task queue
-	RangeCompleteReplicationTaskRequest struct {
-		InclusiveEndTaskID int64
-		PageSize           int
-	}
-
-	// RangeCompleteReplicationTaskResponse is the response of RangeCompleteReplicationTask
-	RangeCompleteReplicationTaskResponse struct {
-		TasksCompleted int
 	}
 
 	// PutReplicationTaskToDLQRequest is used to put a replication task to dlq
@@ -1013,8 +977,8 @@ type (
 	// RangeDeleteReplicationTaskFromDLQRequest is used to delete replication tasks from DLQ
 	RangeDeleteReplicationTaskFromDLQRequest struct {
 		SourceClusterName    string
-		ExclusiveBeginTaskID int64
-		InclusiveEndTaskID   int64
+		InclusiveBeginTaskID int64
+		ExclusiveEndTaskID   int64
 		PageSize             int
 	}
 
@@ -1031,22 +995,21 @@ type (
 		Size int64
 	}
 
-	// RangeCompleteTimerTaskRequest is used to complete a range of tasks in the timer task queue
-	RangeCompleteTimerTaskRequest struct {
-		InclusiveBeginTimestamp time.Time
-		ExclusiveEndTimestamp   time.Time
-		PageSize                int
-	}
-
-	// RangeCompleteTimerTaskResponse is the response of RangeCompleteTimerTask
-	RangeCompleteTimerTaskResponse struct {
-		TasksCompleted int
-	}
-
 	// CompleteTimerTaskRequest is used to complete a task in the timer task queue
 	CompleteTimerTaskRequest struct {
 		VisibilityTimestamp time.Time
 		TaskID              int64
+	}
+
+	RangeCompleteHistoryTaskRequest struct {
+		TaskCategory        HistoryTaskCategory
+		InclusiveMinTaskKey HistoryTaskKey
+		ExclusiveMaxTaskKey HistoryTaskKey
+		PageSize            int
+	}
+
+	RangeCompleteHistoryTaskResponse struct {
+		TasksCompleted int
 	}
 
 	// LeaseTaskListRequest is used to request lease of a task list
@@ -1596,12 +1559,10 @@ type (
 		// Transfer task related methods
 		GetTransferTasks(ctx context.Context, request *GetTransferTasksRequest) (*GetTransferTasksResponse, error)
 		CompleteTransferTask(ctx context.Context, request *CompleteTransferTaskRequest) error
-		RangeCompleteTransferTask(ctx context.Context, request *RangeCompleteTransferTaskRequest) (*RangeCompleteTransferTaskResponse, error)
 
 		// Replication task related methods
 		GetReplicationTasks(ctx context.Context, request *GetReplicationTasksRequest) (*GetReplicationTasksResponse, error)
 		CompleteReplicationTask(ctx context.Context, request *CompleteReplicationTaskRequest) error
-		RangeCompleteReplicationTask(ctx context.Context, request *RangeCompleteReplicationTaskRequest) (*RangeCompleteReplicationTaskResponse, error)
 		PutReplicationTaskToDLQ(ctx context.Context, request *PutReplicationTaskToDLQRequest) error
 		GetReplicationTasksFromDLQ(ctx context.Context, request *GetReplicationTasksFromDLQRequest) (*GetReplicationTasksFromDLQResponse, error)
 		GetReplicationDLQSize(ctx context.Context, request *GetReplicationDLQSizeRequest) (*GetReplicationDLQSizeResponse, error)
@@ -1612,7 +1573,8 @@ type (
 		// Timer related methods.
 		GetTimerIndexTasks(ctx context.Context, request *GetTimerIndexTasksRequest) (*GetTimerIndexTasksResponse, error)
 		CompleteTimerTask(ctx context.Context, request *CompleteTimerTaskRequest) error
-		RangeCompleteTimerTask(ctx context.Context, request *RangeCompleteTimerTaskRequest) (*RangeCompleteTimerTaskResponse, error)
+
+		RangeCompleteHistoryTask(ctx context.Context, request *RangeCompleteHistoryTaskRequest) (*RangeCompleteHistoryTaskResponse, error)
 
 		// Scan operations
 		ListConcreteExecutions(ctx context.Context, request *ListConcreteExecutionsRequest) (*ListConcreteExecutionsResponse, error)

@@ -455,8 +455,8 @@ func (s *dlqHandlerSuite) TestPurgeMessages() {
 			s.executionManager.On("RangeDeleteReplicationTaskFromDLQ", mock.Anything,
 				&persistence.RangeDeleteReplicationTaskFromDLQRequest{
 					SourceClusterName:    s.sourceCluster,
-					ExclusiveBeginTaskID: -1,
-					InclusiveEndTaskID:   lastMessageID,
+					InclusiveBeginTaskID: 0,
+					ExclusiveEndTaskID:   lastMessageID + 1,
 				}).Return(&persistence.RangeDeleteReplicationTaskFromDLQResponse{TasksCompleted: persistence.UnknownNumRowsAffected}, tc.err).Times(1)
 
 			err := s.messageHandler.PurgeMessages(context.Background(), s.sourceCluster, lastMessageID)
@@ -517,8 +517,8 @@ func (s *dlqHandlerSuite) TestMergeMessages_OK() {
 	s.executionManager.On("RangeDeleteReplicationTaskFromDLQ", mock.Anything,
 		&persistence.RangeDeleteReplicationTaskFromDLQRequest{
 			SourceClusterName:    s.sourceCluster,
-			ExclusiveBeginTaskID: -1,
-			InclusiveEndTaskID:   lastMessageID,
+			InclusiveBeginTaskID: 0,
+			ExclusiveEndTaskID:   lastMessageID + 1,
 		}).Return(&persistence.RangeDeleteReplicationTaskFromDLQResponse{TasksCompleted: persistence.UnknownNumRowsAffected}, nil).Times(1)
 
 	token, err := s.messageHandler.MergeMessages(ctx, s.sourceCluster, lastMessageID, pageSize, pageToken)

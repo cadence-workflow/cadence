@@ -467,7 +467,7 @@ type (
 		// delete a single transfer task
 		DeleteTransferTask(ctx context.Context, shardID int, taskID int64) error
 		// delete a range of transfer tasks
-		RangeDeleteTransferTasks(ctx context.Context, shardID int, exclusiveBeginTaskID, inclusiveEndTaskID int64) error
+		RangeDeleteTransferTasks(ctx context.Context, shardID int, inclusiveBeginTaskID, exclusiveEndTaskID int64) error
 
 		// timer_task table
 		// within a shard, paging through timer tasks order by taskID(ASC), filtered by visibilityTimestamp
@@ -483,7 +483,7 @@ type (
 		// delete a single replication task
 		DeleteReplicationTask(ctx context.Context, shardID int, taskID int64) error
 		// delete a range of replication tasks
-		RangeDeleteReplicationTasks(ctx context.Context, shardID int, inclusiveEndTaskID int64) error
+		RangeDeleteReplicationTasks(ctx context.Context, shardID int, exclusiveEndTaskID int64) error
 		// insert replication task with shard condition check
 		InsertReplicationTask(ctx context.Context, tasks []*HistoryMigrationTask, condition ShardCondition) error
 
@@ -493,7 +493,7 @@ type (
 		// delete a single transfer task
 		DeleteCrossClusterTask(ctx context.Context, shardID int, targetCluster string, taskID int64) error
 		// delete a range of transfer tasks
-		RangeDeleteCrossClusterTasks(ctx context.Context, shardID int, targetCluster string, exclusiveBeginTaskID, inclusiveEndTaskID int64) error
+		RangeDeleteCrossClusterTasks(ctx context.Context, shardID int, targetCluster string, inclusiveBeginTaskID, exclusiveEndTaskID int64) error
 
 		// replication_dlq_task
 		// insert a new replication task to DLQ
@@ -505,7 +505,7 @@ type (
 		// delete a single replication DLQ task
 		DeleteReplicationDLQTask(ctx context.Context, shardID int, sourceCluster string, taskID int64) error
 		// delete a range of replication DLQ tasks
-		RangeDeleteReplicationDLQTasks(ctx context.Context, shardID int, sourceCluster string, exclusiveBeginTaskID, inclusiveEndTaskID int64) error
+		RangeDeleteReplicationDLQTasks(ctx context.Context, shardID int, sourceCluster string, inclusiveBeginTaskID, exclusiveEndTaskID int64) error
 	}
 
 	/***

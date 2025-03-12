@@ -279,11 +279,14 @@ func (p *taskProcessorImpl) cleanupAckedReplicationTasks() error {
 	)
 	for {
 		pageSize := p.config.ReplicatorTaskDeleteBatchSize()
-		resp, err := p.shard.GetExecutionManager().RangeCompleteReplicationTask(
+		resp, err := p.shard.GetExecutionManager().RangeCompleteHistoryTask(
 			context.Background(),
-			&persistence.RangeCompleteReplicationTaskRequest{
-				InclusiveEndTaskID: minAckLevel,
-				PageSize:           pageSize, // pageSize may or may not be honored
+			&persistence.RangeCompleteHistoryTaskRequest{
+				TaskCategory: persistence.HistoryTaskCategoryReplication,
+				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
+					TaskID: minAckLevel + 1,
+				},
+				PageSize: pageSize,
 			},
 		)
 		if err != nil {

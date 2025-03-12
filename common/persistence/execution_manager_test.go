@@ -91,9 +91,9 @@ func TestExecutionManager_ProxyStoreMethods(t *testing.T) {
 			},
 		},
 		{
-			method: "RangeCompleteTransferTask",
+			method: "RangeCompleteHistoryTask",
 			prepareMocks: func(mockedStore *MockExecutionStore) {
-				mockedStore.EXPECT().RangeCompleteTransferTask(gomock.Any(), gomock.Any()).Return(nil, nil)
+				mockedStore.EXPECT().RangeCompleteHistoryTask(gomock.Any(), gomock.Any()).Return(nil, nil)
 			},
 		},
 		{
@@ -127,21 +127,9 @@ func TestExecutionManager_ProxyStoreMethods(t *testing.T) {
 			},
 		},
 		{
-			method: "RangeCompleteTimerTask",
-			prepareMocks: func(mockedStore *MockExecutionStore) {
-				mockedStore.EXPECT().RangeCompleteTimerTask(gomock.Any(), gomock.Any()).Return(nil, nil)
-			},
-		},
-		{
 			method: "CompleteReplicationTask",
 			prepareMocks: func(mockedStore *MockExecutionStore) {
 				mockedStore.EXPECT().CompleteReplicationTask(gomock.Any(), gomock.Any()).Return(nil)
-			},
-		},
-		{
-			method: "RangeCompleteReplicationTask",
-			prepareMocks: func(mockedStore *MockExecutionStore) {
-				mockedStore.EXPECT().RangeCompleteReplicationTask(gomock.Any(), gomock.Any()).Return(nil, nil)
 			},
 		},
 		{

@@ -224,16 +224,12 @@ func executionManagerTags(op string) *tag.Tag {
 		return &tag.StoreOperationGetReplicationTasks
 	case "ExecutionManager.CompleteTransferTask":
 		return &tag.StoreOperationCompleteTransferTask
-	case "ExecutionManager.RangeCompleteTransferTask":
-		return &tag.StoreOperationRangeCompleteTransferTask
+	case "ExecutionManager.RangeCompleteHistoryTask":
+		return &tag.StoreOperationRangeCompleteHistoryTask
 	case "ExecutionManager.CompleteCrossClusterTask":
 		return &tag.StoreOperationCompleteCrossClusterTask
-	case "ExecutionManager.RangeCompleteCrossClusterTask":
-		return &tag.StoreOperationRangeCompleteCrossClusterTask
 	case "ExecutionManager.CompleteReplicationTask":
 		return &tag.StoreOperationCompleteReplicationTask
-	case "ExecutionManager.RangeCompleteReplicationTask":
-		return &tag.StoreOperationRangeCompleteReplicationTask
 	case "ExecutionManager.PutReplicationTaskToDLQ":
 		return &tag.StoreOperationPutReplicationTaskToDLQ
 	case "ExecutionManager.GetReplicationTasksFromDLQ":
@@ -248,8 +244,6 @@ func executionManagerTags(op string) *tag.Tag {
 		return &tag.StoreOperationGetTimerIndexTasks
 	case "ExecutionManager.CompleteTimerTask":
 		return &tag.StoreOperationCompleteTimerTask
-	case "ExecutionManager.RangeCompleteTimerTask":
-		return &tag.StoreOperationRangeCompleteTimerTask
 	case "ExecutionManager.CreateFailoverMarkerTasks":
 		return &tag.StoreOperationCreateFailoverMarkerTasks
 	}

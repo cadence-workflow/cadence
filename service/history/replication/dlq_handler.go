@@ -279,8 +279,8 @@ func (r *dlqHandlerImpl) PurgeMessages(
 		ctx,
 		&persistence.RangeDeleteReplicationTaskFromDLQRequest{
 			SourceClusterName:    sourceCluster,
-			ExclusiveBeginTaskID: defaultBeginningMessageID,
-			InclusiveEndTaskID:   lastMessageID,
+			InclusiveBeginTaskID: defaultBeginningMessageID + 1,
+			ExclusiveEndTaskID:   lastMessageID + 1,
 		},
 	)
 	if err != nil {
@@ -336,8 +336,8 @@ func (r *dlqHandlerImpl) MergeMessages(
 		ctx,
 		&persistence.RangeDeleteReplicationTaskFromDLQRequest{
 			SourceClusterName:    sourceCluster,
-			ExclusiveBeginTaskID: defaultBeginningMessageID,
-			InclusiveEndTaskID:   lastMessageID,
+			InclusiveBeginTaskID: defaultBeginningMessageID + 1,
+			ExclusiveEndTaskID:   lastMessageID + 1,
 		},
 	)
 	if err != nil {

@@ -393,49 +393,19 @@ func (mr *MockExecutionStoreMockRecorder) PutReplicationTaskToDLQ(ctx, request a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PutReplicationTaskToDLQ", reflect.TypeOf((*MockExecutionStore)(nil).PutReplicationTaskToDLQ), ctx, request)
 }
 
-// RangeCompleteReplicationTask mocks base method.
-func (m *MockExecutionStore) RangeCompleteReplicationTask(ctx context.Context, request *RangeCompleteReplicationTaskRequest) (*RangeCompleteReplicationTaskResponse, error) {
+// RangeCompleteHistoryTask mocks base method.
+func (m *MockExecutionStore) RangeCompleteHistoryTask(ctx context.Context, request *RangeCompleteHistoryTaskRequest) (*RangeCompleteHistoryTaskResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RangeCompleteReplicationTask", ctx, request)
-	ret0, _ := ret[0].(*RangeCompleteReplicationTaskResponse)
+	ret := m.ctrl.Call(m, "RangeCompleteHistoryTask", ctx, request)
+	ret0, _ := ret[0].(*RangeCompleteHistoryTaskResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// RangeCompleteReplicationTask indicates an expected call of RangeCompleteReplicationTask.
-func (mr *MockExecutionStoreMockRecorder) RangeCompleteReplicationTask(ctx, request any) *gomock.Call {
+// RangeCompleteHistoryTask indicates an expected call of RangeCompleteHistoryTask.
+func (mr *MockExecutionStoreMockRecorder) RangeCompleteHistoryTask(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeCompleteReplicationTask", reflect.TypeOf((*MockExecutionStore)(nil).RangeCompleteReplicationTask), ctx, request)
-}
-
-// RangeCompleteTimerTask mocks base method.
-func (m *MockExecutionStore) RangeCompleteTimerTask(ctx context.Context, request *RangeCompleteTimerTaskRequest) (*RangeCompleteTimerTaskResponse, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RangeCompleteTimerTask", ctx, request)
-	ret0, _ := ret[0].(*RangeCompleteTimerTaskResponse)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// RangeCompleteTimerTask indicates an expected call of RangeCompleteTimerTask.
-func (mr *MockExecutionStoreMockRecorder) RangeCompleteTimerTask(ctx, request any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeCompleteTimerTask", reflect.TypeOf((*MockExecutionStore)(nil).RangeCompleteTimerTask), ctx, request)
-}
-
-// RangeCompleteTransferTask mocks base method.
-func (m *MockExecutionStore) RangeCompleteTransferTask(ctx context.Context, request *RangeCompleteTransferTaskRequest) (*RangeCompleteTransferTaskResponse, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RangeCompleteTransferTask", ctx, request)
-	ret0, _ := ret[0].(*RangeCompleteTransferTaskResponse)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// RangeCompleteTransferTask indicates an expected call of RangeCompleteTransferTask.
-func (mr *MockExecutionStoreMockRecorder) RangeCompleteTransferTask(ctx, request any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeCompleteTransferTask", reflect.TypeOf((*MockExecutionStore)(nil).RangeCompleteTransferTask), ctx, request)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeCompleteHistoryTask", reflect.TypeOf((*MockExecutionStore)(nil).RangeCompleteHistoryTask), ctx, request)
 }
 
 // RangeDeleteReplicationTaskFromDLQ mocks base method.

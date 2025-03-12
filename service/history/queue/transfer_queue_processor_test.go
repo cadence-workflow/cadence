@@ -322,16 +322,16 @@ func TestTransferQueueProcessor_completeTransfer(t *testing.T) {
 		"error - ackLevel < newAckLevelTaskID - RangeCompleteTransferTask error": {
 			ackLevel: 1,
 			mockSetup: func(mockShard *shard.TestContext) {
-				mockShard.Resource.ExecutionMgr.On("RangeCompleteTransferTask", mock.Anything, mock.Anything).
-					Return(&persistence.RangeCompleteTransferTaskResponse{}, assert.AnError).Once()
+				mockShard.Resource.ExecutionMgr.On("RangeCompleteHistoryTask", mock.Anything, mock.Anything).
+					Return(&persistence.RangeCompleteHistoryTaskResponse{}, assert.AnError).Once()
 			},
 			err: assert.AnError,
 		},
 		"success - ackLevel < newAckLevelTaskID": {
 			ackLevel: 1,
 			mockSetup: func(mockShard *shard.TestContext) {
-				mockShard.Resource.ExecutionMgr.On("RangeCompleteTransferTask", mock.Anything, mock.Anything).
-					Return(&persistence.RangeCompleteTransferTaskResponse{}, nil).Once()
+				mockShard.Resource.ExecutionMgr.On("RangeCompleteHistoryTask", mock.Anything, mock.Anything).
+					Return(&persistence.RangeCompleteHistoryTaskResponse{}, nil).Once()
 				mockShard.GetShardManager().(*mocks.ShardManager).On("UpdateShard", mock.Anything, mock.Anything).Return(nil).Once()
 			},
 		},
@@ -372,8 +372,8 @@ func TestTransferQueueProcessor_completeTransferLoop(t *testing.T) {
 		standbyQueueProcessor.Start()
 	}
 
-	processor.shard.(*shard.TestContext).Resource.ExecutionMgr.On("RangeCompleteTransferTask", mock.Anything, mock.Anything).
-		Return(&persistence.RangeCompleteTransferTaskResponse{}, nil)
+	processor.shard.(*shard.TestContext).Resource.ExecutionMgr.On("RangeCompleteHistoryTask", mock.Anything, mock.Anything).
+		Return(&persistence.RangeCompleteHistoryTaskResponse{}, nil)
 
 	processor.shard.(*shard.TestContext).GetShardManager().(*mocks.ShardManager).On("UpdateShard", mock.Anything, mock.Anything).Return(nil)
 
@@ -404,8 +404,8 @@ func TestTransferQueueProcessor_completeTransferLoop_ErrShardClosed(t *testing.T
 		standbyQueueProcessor.Start()
 	}
 
-	processor.shard.(*shard.TestContext).Resource.ExecutionMgr.On("RangeCompleteTransferTask", mock.Anything, mock.Anything).
-		Return(&persistence.RangeCompleteTransferTaskResponse{}, &shard.ErrShardClosed{}).Once()
+	processor.shard.(*shard.TestContext).Resource.ExecutionMgr.On("RangeCompleteHistoryTask", mock.Anything, mock.Anything).
+		Return(&persistence.RangeCompleteHistoryTaskResponse{}, &shard.ErrShardClosed{}).Once()
 
 	processor.shutdownWG.Add(1)
 
@@ -437,8 +437,8 @@ func TestTransferQueueProcessor_completeTransferLoop_ErrShardClosedNotGraceful(t
 		standbyQueueProcessor.Start()
 	}
 
-	processor.shard.(*shard.TestContext).Resource.ExecutionMgr.On("RangeCompleteTransferTask", mock.Anything, mock.Anything).
-		Return(&persistence.RangeCompleteTransferTaskResponse{}, &shard.ErrShardClosed{}).Once()
+	processor.shard.(*shard.TestContext).Resource.ExecutionMgr.On("RangeCompleteHistoryTask", mock.Anything, mock.Anything).
+		Return(&persistence.RangeCompleteHistoryTaskResponse{}, &shard.ErrShardClosed{}).Once()
 
 	processor.shutdownWG.Add(1)
 
@@ -467,8 +467,8 @@ func TestTransferQueueProcessor_completeTransferLoop_OtherError(t *testing.T) {
 		standbyQueueProcessor.Start()
 	}
 
-	processor.shard.(*shard.TestContext).Resource.ExecutionMgr.On("RangeCompleteTransferTask", mock.Anything, mock.Anything).
-		Return(&persistence.RangeCompleteTransferTaskResponse{}, assert.AnError)
+	processor.shard.(*shard.TestContext).Resource.ExecutionMgr.On("RangeCompleteHistoryTask", mock.Anything, mock.Anything).
+		Return(&persistence.RangeCompleteHistoryTaskResponse{}, assert.AnError)
 
 	processor.shutdownWG.Add(1)
 

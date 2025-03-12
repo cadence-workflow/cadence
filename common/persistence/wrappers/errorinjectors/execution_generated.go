@@ -366,45 +366,15 @@ func (c *injectorExecutionManager) PutReplicationTaskToDLQ(ctx context.Context, 
 	return
 }
 
-func (c *injectorExecutionManager) RangeCompleteReplicationTask(ctx context.Context, request *persistence.RangeCompleteReplicationTaskRequest) (rp1 *persistence.RangeCompleteReplicationTaskResponse, err error) {
+func (c *injectorExecutionManager) RangeCompleteHistoryTask(ctx context.Context, request *persistence.RangeCompleteHistoryTaskRequest) (rp1 *persistence.RangeCompleteHistoryTaskResponse, err error) {
 	fakeErr := generateFakeError(c.errorRate)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
-		rp1, err = c.wrapped.RangeCompleteReplicationTask(ctx, request)
+		rp1, err = c.wrapped.RangeCompleteHistoryTask(ctx, request)
 	}
 
 	if fakeErr != nil {
-		logErr(c.logger, "ExecutionManager.RangeCompleteReplicationTask", fakeErr, forwardCall, err)
-		err = fakeErr
-		return
-	}
-	return
-}
-
-func (c *injectorExecutionManager) RangeCompleteTimerTask(ctx context.Context, request *persistence.RangeCompleteTimerTaskRequest) (rp1 *persistence.RangeCompleteTimerTaskResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
-	var forwardCall bool
-	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
-		rp1, err = c.wrapped.RangeCompleteTimerTask(ctx, request)
-	}
-
-	if fakeErr != nil {
-		logErr(c.logger, "ExecutionManager.RangeCompleteTimerTask", fakeErr, forwardCall, err)
-		err = fakeErr
-		return
-	}
-	return
-}
-
-func (c *injectorExecutionManager) RangeCompleteTransferTask(ctx context.Context, request *persistence.RangeCompleteTransferTaskRequest) (rp1 *persistence.RangeCompleteTransferTaskResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
-	var forwardCall bool
-	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
-		rp1, err = c.wrapped.RangeCompleteTransferTask(ctx, request)
-	}
-
-	if fakeErr != nil {
-		logErr(c.logger, "ExecutionManager.RangeCompleteTransferTask", fakeErr, forwardCall, err)
+		logErr(c.logger, "ExecutionManager.RangeCompleteHistoryTask", fakeErr, forwardCall, err)
 		err = fakeErr
 		return
 	}

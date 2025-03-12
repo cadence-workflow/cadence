@@ -92,8 +92,8 @@ func NewEngineForTest(t *testing.T, newEngineFn NewEngineFn) *EngineForTest {
 	executionMgr := shardCtx.Resource.ExecutionMgr
 	// RangeCompleteReplicationTask is called by taskProcessorImpl's background loop
 	executionMgr.
-		On("RangeCompleteReplicationTask", mock.Anything, mock.Anything).
-		Return(&persistence.RangeCompleteReplicationTaskResponse{}, nil)
+		On("RangeCompleteHistoryTask", mock.Anything, mock.Anything).
+		Return(&persistence.RangeCompleteHistoryTaskResponse{}, nil)
 
 	membershipResolver := shardCtx.Resource.MembershipResolver
 	membershipResolver.EXPECT().MemberCount(gomock.Any()).Return(1, nil).AnyTimes()

@@ -387,78 +387,6 @@ func TestCompleteTransferTask(t *testing.T) {
 	}
 }
 
-func TestRangeCompleteTransferTask(t *testing.T) {
-	shardID := 100
-	testCases := []struct {
-		name      string
-		req       *persistence.RangeCompleteTransferTaskRequest
-		mockSetup func(*sqlplugin.MockDB)
-		want      *persistence.RangeCompleteTransferTaskResponse
-		wantErr   bool
-	}{
-		{
-			name: "Success case",
-			req: &persistence.RangeCompleteTransferTaskRequest{
-				ExclusiveBeginTaskID: 123,
-				InclusiveEndTaskID:   345,
-				PageSize:             1000,
-			},
-			mockSetup: func(mockDB *sqlplugin.MockDB) {
-				mockDB.EXPECT().RangeDeleteFromTransferTasks(gomock.Any(), &sqlplugin.TransferTasksFilter{
-					ShardID:   shardID,
-					MinTaskID: 123,
-					MaxTaskID: 345,
-					PageSize:  1000,
-				}).Return(&sqlResult{rowsAffected: 1000}, nil)
-			},
-			want: &persistence.RangeCompleteTransferTaskResponse{
-				TasksCompleted: 1000,
-			},
-			wantErr: false,
-		},
-		{
-			name: "Error case",
-			req: &persistence.RangeCompleteTransferTaskRequest{
-				ExclusiveBeginTaskID: 123,
-				InclusiveEndTaskID:   345,
-				PageSize:             1000,
-			},
-			mockSetup: func(mockDB *sqlplugin.MockDB) {
-				err := errors.New("some error")
-				mockDB.EXPECT().RangeDeleteFromTransferTasks(gomock.Any(), &sqlplugin.TransferTasksFilter{
-					ShardID:   shardID,
-					MinTaskID: 123,
-					MaxTaskID: 345,
-					PageSize:  1000,
-				}).Return(nil, err)
-				mockDB.EXPECT().IsNotFoundError(err).Return(true)
-			},
-			wantErr: true,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-
-			mockDB := sqlplugin.NewMockDB(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil, nil)
-			require.NoError(t, err, "failed to create execution store")
-
-			tc.mockSetup(mockDB)
-
-			got, err := store.RangeCompleteTransferTask(context.Background(), tc.req)
-			if tc.wantErr {
-				assert.Error(t, err, "Expected an error for test case")
-			} else {
-				assert.NoError(t, err, "Did not expect an error for test case")
-				assert.Equal(t, tc.want, got, "Unexpected result for test case")
-			}
-		})
-	}
-}
-
 func TestGetReplicationTasks(t *testing.T) {
 	shardID := 0
 	testCases := []struct {
@@ -647,74 +575,6 @@ func TestCompleteReplicationTask(t *testing.T) {
 				assert.Error(t, err, "Expected an error for test case")
 			} else {
 				assert.NoError(t, err, "Did not expect an error for test case")
-			}
-		})
-	}
-}
-
-func TestRangeCompleteReplicationTask(t *testing.T) {
-	shardID := 100
-	testCases := []struct {
-		name      string
-		req       *persistence.RangeCompleteReplicationTaskRequest
-		mockSetup func(*sqlplugin.MockDB)
-		want      *persistence.RangeCompleteReplicationTaskResponse
-		wantErr   bool
-	}{
-		{
-			name: "Success case",
-			req: &persistence.RangeCompleteReplicationTaskRequest{
-				InclusiveEndTaskID: 345,
-				PageSize:           10,
-			},
-			mockSetup: func(mockDB *sqlplugin.MockDB) {
-				mockDB.EXPECT().RangeDeleteFromReplicationTasks(gomock.Any(), &sqlplugin.ReplicationTasksFilter{
-					ShardID:            shardID,
-					InclusiveEndTaskID: 345,
-					PageSize:           10,
-				}).Return(&sqlResult{rowsAffected: 10}, nil)
-			},
-			want: &persistence.RangeCompleteReplicationTaskResponse{
-				TasksCompleted: 10,
-			},
-			wantErr: false,
-		},
-		{
-			name: "Error case",
-			req: &persistence.RangeCompleteReplicationTaskRequest{
-				InclusiveEndTaskID: 345,
-				PageSize:           10,
-			},
-			mockSetup: func(mockDB *sqlplugin.MockDB) {
-				err := errors.New("some error")
-				mockDB.EXPECT().RangeDeleteFromReplicationTasks(gomock.Any(), &sqlplugin.ReplicationTasksFilter{
-					ShardID:            shardID,
-					InclusiveEndTaskID: 345,
-					PageSize:           10,
-				}).Return(nil, err)
-				mockDB.EXPECT().IsNotFoundError(err).Return(true)
-			},
-			wantErr: true,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-
-			mockDB := sqlplugin.NewMockDB(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil, nil)
-			require.NoError(t, err, "failed to create execution store")
-
-			tc.mockSetup(mockDB)
-
-			got, err := store.RangeCompleteReplicationTask(context.Background(), tc.req)
-			if tc.wantErr {
-				assert.Error(t, err, "Expected an error for test case")
-			} else {
-				assert.NoError(t, err, "Did not expect an error for test case")
-				assert.Equal(t, tc.want, got, "Unexpected result for test case")
 			}
 		})
 	}
@@ -1031,8 +891,8 @@ func TestRangeDeleteReplicationTaskFromDLQ(t *testing.T) {
 		{
 			name: "Success case",
 			req: &persistence.RangeDeleteReplicationTaskFromDLQRequest{
-				ExclusiveBeginTaskID: 123,
-				InclusiveEndTaskID:   345,
+				InclusiveBeginTaskID: 123,
+				ExclusiveEndTaskID:   345,
 				PageSize:             10,
 				SourceClusterName:    "source",
 			},
@@ -1041,7 +901,7 @@ func TestRangeDeleteReplicationTaskFromDLQ(t *testing.T) {
 					ReplicationTasksFilter: sqlplugin.ReplicationTasksFilter{
 						ShardID:            shardID,
 						TaskID:             123,
-						InclusiveEndTaskID: 345,
+						ExclusiveEndTaskID: 345,
 						PageSize:           10,
 					},
 					SourceClusterName: "source",
@@ -1055,8 +915,8 @@ func TestRangeDeleteReplicationTaskFromDLQ(t *testing.T) {
 		{
 			name: "Error case",
 			req: &persistence.RangeDeleteReplicationTaskFromDLQRequest{
-				ExclusiveBeginTaskID: 123,
-				InclusiveEndTaskID:   345,
+				InclusiveBeginTaskID: 123,
+				ExclusiveEndTaskID:   345,
 				PageSize:             10,
 				SourceClusterName:    "source",
 			},
@@ -1067,7 +927,7 @@ func TestRangeDeleteReplicationTaskFromDLQ(t *testing.T) {
 						ShardID:            shardID,
 						TaskID:             123,
 						PageSize:           10,
-						InclusiveEndTaskID: 345,
+						ExclusiveEndTaskID: 345,
 					},
 					SourceClusterName: "source",
 				}).Return(nil, err)
@@ -1318,78 +1178,6 @@ func TestCompleteTimerTask(t *testing.T) {
 				assert.Error(t, err, "Expected an error for test case")
 			} else {
 				assert.NoError(t, err, "Did not expect an error for test case")
-			}
-		})
-	}
-}
-
-func TestRangeCompleteTimerTask(t *testing.T) {
-	shardID := 100
-	testCases := []struct {
-		name      string
-		req       *persistence.RangeCompleteTimerTaskRequest
-		mockSetup func(*sqlplugin.MockDB)
-		want      *persistence.RangeCompleteTimerTaskResponse
-		wantErr   bool
-	}{
-		{
-			name: "Success case",
-			req: &persistence.RangeCompleteTimerTaskRequest{
-				InclusiveBeginTimestamp: time.Unix(9, 1),
-				ExclusiveEndTimestamp:   time.Unix(99, 1),
-				PageSize:                12,
-			},
-			mockSetup: func(mockDB *sqlplugin.MockDB) {
-				mockDB.EXPECT().RangeDeleteFromTimerTasks(gomock.Any(), &sqlplugin.TimerTasksFilter{
-					ShardID:                shardID,
-					MinVisibilityTimestamp: time.Unix(9, 1),
-					MaxVisibilityTimestamp: time.Unix(99, 1),
-					PageSize:               12,
-				}).Return(&sqlResult{rowsAffected: 11}, nil)
-			},
-			want: &persistence.RangeCompleteTimerTaskResponse{
-				TasksCompleted: 11,
-			},
-			wantErr: false,
-		},
-		{
-			name: "Error case",
-			req: &persistence.RangeCompleteTimerTaskRequest{
-				InclusiveBeginTimestamp: time.Unix(9, 1),
-				ExclusiveEndTimestamp:   time.Unix(99, 1),
-				PageSize:                12,
-			},
-			mockSetup: func(mockDB *sqlplugin.MockDB) {
-				err := errors.New("some error")
-				mockDB.EXPECT().RangeDeleteFromTimerTasks(gomock.Any(), &sqlplugin.TimerTasksFilter{
-					ShardID:                shardID,
-					MinVisibilityTimestamp: time.Unix(9, 1),
-					MaxVisibilityTimestamp: time.Unix(99, 1),
-					PageSize:               12,
-				}).Return(nil, err)
-				mockDB.EXPECT().IsNotFoundError(err).Return(true)
-			},
-			wantErr: true,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-
-			mockDB := sqlplugin.NewMockDB(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil, nil)
-			require.NoError(t, err, "failed to create execution store")
-
-			tc.mockSetup(mockDB)
-
-			got, err := store.RangeCompleteTimerTask(context.Background(), tc.req)
-			if tc.wantErr {
-				assert.Error(t, err, "Expected an error for test case")
-			} else {
-				assert.NoError(t, err, "Did not expect an error for test case")
-				assert.Equal(t, tc.want, got, "Unexpected result for test case")
 			}
 		})
 	}
@@ -3424,6 +3212,212 @@ func TestGetWorkflowExecution(t *testing.T) {
 			} else {
 				assert.NoError(t, err, "Did not expect an error for test case")
 				assert.Equal(t, tc.want, resp, "Response mismatch")
+			}
+		})
+	}
+}
+
+func TestRangeCompleteHistoryTask(t *testing.T) {
+	ctx := context.Background()
+	shardID := 1
+
+	tests := []struct {
+		name          string
+		request       *persistence.RangeCompleteHistoryTaskRequest
+		setupMock     func(*sqlplugin.MockDB)
+		expectedError error
+	}{
+		{
+			name: "success - scheduled timer task",
+			request: &persistence.RangeCompleteHistoryTaskRequest{
+				TaskCategory:        persistence.HistoryTaskCategoryTimer,
+				InclusiveMinTaskKey: persistence.HistoryTaskKey{ScheduledTime: time.Unix(0, 0)},
+				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{ScheduledTime: time.Unix(0, 0).Add(time.Minute)},
+				PageSize:            1000,
+			},
+			setupMock: func(mockDB *sqlplugin.MockDB) {
+				mockDB.EXPECT().RangeDeleteFromTimerTasks(ctx, &sqlplugin.TimerTasksFilter{
+					ShardID:                shardID,
+					MinVisibilityTimestamp: time.Unix(0, 0),
+					MaxVisibilityTimestamp: time.Unix(0, 0).Add(time.Minute),
+					PageSize:               1000,
+				}).Return(&sqlResult{rowsAffected: 1}, nil)
+			},
+			expectedError: nil,
+		},
+		{
+			name: "success - immediate transfer task",
+			request: &persistence.RangeCompleteHistoryTaskRequest{
+				TaskCategory:        persistence.HistoryTaskCategoryTransfer,
+				InclusiveMinTaskKey: persistence.HistoryTaskKey{TaskID: 100},
+				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{TaskID: 200},
+				PageSize:            1000,
+			},
+			setupMock: func(mockDB *sqlplugin.MockDB) {
+				mockDB.EXPECT().RangeDeleteFromTransferTasks(ctx, &sqlplugin.TransferTasksFilter{
+					ShardID:   shardID,
+					MinTaskID: 100,
+					MaxTaskID: 200,
+					PageSize:  1000,
+				}).Return(&sqlResult{rowsAffected: 1}, nil)
+			},
+			expectedError: nil,
+		},
+		{
+			name: "success - immediate replication task",
+			request: &persistence.RangeCompleteHistoryTaskRequest{
+				TaskCategory:        persistence.HistoryTaskCategoryReplication,
+				InclusiveMinTaskKey: persistence.HistoryTaskKey{TaskID: 100}, // this is ignored by replication task
+				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{TaskID: 200},
+				PageSize:            1000,
+			},
+			setupMock: func(mockDB *sqlplugin.MockDB) {
+				mockDB.EXPECT().RangeDeleteFromReplicationTasks(ctx, &sqlplugin.ReplicationTasksFilter{
+					ShardID:            shardID,
+					ExclusiveEndTaskID: 200,
+					PageSize:           1000,
+				}).Return(&sqlResult{rowsAffected: 1}, nil)
+			},
+			expectedError: nil,
+		},
+		{
+			name: "unknown task category error",
+			request: &persistence.RangeCompleteHistoryTaskRequest{
+				TaskCategory: persistence.HistoryTaskCategory{},
+			},
+			setupMock:     func(mockDB *sqlplugin.MockDB) {},
+			expectedError: &types.BadRequestError{},
+		},
+		{
+			name: "database error on timer task",
+			request: &persistence.RangeCompleteHistoryTaskRequest{
+				TaskCategory:        persistence.HistoryTaskCategoryTimer,
+				InclusiveMinTaskKey: persistence.HistoryTaskKey{ScheduledTime: time.Unix(0, 0)},
+				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{ScheduledTime: time.Unix(0, 0).Add(time.Minute)},
+				PageSize:            1000,
+			},
+			setupMock: func(mockDB *sqlplugin.MockDB) {
+				mockDB.EXPECT().RangeDeleteFromTimerTasks(ctx, &sqlplugin.TimerTasksFilter{
+					ShardID:                shardID,
+					MinVisibilityTimestamp: time.Unix(0, 0),
+					MaxVisibilityTimestamp: time.Unix(0, 0).Add(time.Minute),
+					PageSize:               1000,
+				}).Return(nil, errors.New("db error"))
+				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
+			},
+			expectedError: errors.New("db error"),
+		},
+		{
+			name: "database error on transfer task",
+			request: &persistence.RangeCompleteHistoryTaskRequest{
+				TaskCategory:        persistence.HistoryTaskCategoryTransfer,
+				InclusiveMinTaskKey: persistence.HistoryTaskKey{TaskID: 100},
+				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{TaskID: 200},
+				PageSize:            1000,
+			},
+			setupMock: func(mockDB *sqlplugin.MockDB) {
+				mockDB.EXPECT().RangeDeleteFromTransferTasks(ctx, &sqlplugin.TransferTasksFilter{
+					ShardID:   shardID,
+					MinTaskID: 100,
+					MaxTaskID: 200,
+					PageSize:  1000,
+				}).Return(nil, errors.New("db error"))
+				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
+			},
+			expectedError: errors.New("db error"),
+		},
+		{
+			name: "database error on replication task",
+			request: &persistence.RangeCompleteHistoryTaskRequest{
+				TaskCategory:        persistence.HistoryTaskCategoryReplication,
+				InclusiveMinTaskKey: persistence.HistoryTaskKey{TaskID: 100},
+				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{TaskID: 200},
+				PageSize:            1000,
+			},
+			setupMock: func(mockDB *sqlplugin.MockDB) {
+				mockDB.EXPECT().RangeDeleteFromReplicationTasks(ctx, &sqlplugin.ReplicationTasksFilter{
+					ShardID:            shardID,
+					ExclusiveEndTaskID: 200,
+					PageSize:           1000,
+				}).Return(nil, errors.New("db error"))
+				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
+			},
+			expectedError: errors.New("db error"),
+		},
+		{
+			name: "sql result error on timer task",
+			request: &persistence.RangeCompleteHistoryTaskRequest{
+				TaskCategory:        persistence.HistoryTaskCategoryTimer,
+				InclusiveMinTaskKey: persistence.HistoryTaskKey{ScheduledTime: time.Unix(0, 0)},
+				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{ScheduledTime: time.Unix(0, 0).Add(time.Minute)},
+				PageSize:            1000,
+			},
+			setupMock: func(mockDB *sqlplugin.MockDB) {
+				mockDB.EXPECT().RangeDeleteFromTimerTasks(ctx, &sqlplugin.TimerTasksFilter{
+					ShardID:                shardID,
+					MinVisibilityTimestamp: time.Unix(0, 0),
+					MaxVisibilityTimestamp: time.Unix(0, 0).Add(time.Minute),
+					PageSize:               1000,
+				}).Return(&sqlResult{err: errors.New("sql result error")}, nil)
+				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
+			},
+			expectedError: errors.New("sql result error"),
+		},
+		{
+			name: "sql result error on transfer task",
+			request: &persistence.RangeCompleteHistoryTaskRequest{
+				TaskCategory:        persistence.HistoryTaskCategoryTransfer,
+				InclusiveMinTaskKey: persistence.HistoryTaskKey{TaskID: 100},
+				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{TaskID: 200},
+				PageSize:            1000,
+			},
+			setupMock: func(mockDB *sqlplugin.MockDB) {
+				mockDB.EXPECT().RangeDeleteFromTransferTasks(ctx, &sqlplugin.TransferTasksFilter{
+					ShardID:   shardID,
+					MinTaskID: 100,
+					MaxTaskID: 200,
+					PageSize:  1000,
+				}).Return(&sqlResult{err: errors.New("sql result error")}, nil)
+				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
+			},
+			expectedError: errors.New("sql result error"),
+		},
+		{
+			name: "sql result error on replication task",
+			request: &persistence.RangeCompleteHistoryTaskRequest{
+				TaskCategory:        persistence.HistoryTaskCategoryReplication,
+				InclusiveMinTaskKey: persistence.HistoryTaskKey{TaskID: 100},
+				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{TaskID: 200},
+				PageSize:            1000,
+			},
+			setupMock: func(mockDB *sqlplugin.MockDB) {
+				mockDB.EXPECT().RangeDeleteFromReplicationTasks(ctx, &sqlplugin.ReplicationTasksFilter{
+					ShardID:            shardID,
+					ExclusiveEndTaskID: 200,
+					PageSize:           1000,
+				}).Return(&sqlResult{err: errors.New("sql result error")}, nil)
+				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
+			},
+			expectedError: errors.New("sql result error"),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			controller := gomock.NewController(t)
+			defer controller.Finish()
+
+			mockDB := sqlplugin.NewMockDB(controller)
+			store := &sqlExecutionStore{sqlStore: sqlStore{db: mockDB}, shardID: shardID}
+
+			tc.setupMock(mockDB)
+
+			resp, err := store.RangeCompleteHistoryTask(ctx, tc.request)
+			if tc.expectedError != nil {
+				require.ErrorAs(t, err, &tc.expectedError)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, 1, resp.TasksCompleted)
 			}
 		})
 	}

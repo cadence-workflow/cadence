@@ -292,7 +292,7 @@ type (
 	ReplicationTasksFilter struct {
 		ShardID            int
 		TaskID             int64
-		InclusiveEndTaskID int64
+		ExclusiveEndTaskID int64
 		MinTaskID          int64
 		MaxTaskID          int64
 		PageSize           int

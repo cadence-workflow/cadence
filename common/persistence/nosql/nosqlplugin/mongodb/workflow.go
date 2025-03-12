@@ -91,7 +91,7 @@ func (db *mdb) DeleteTransferTask(ctx context.Context, shardID int, taskID int64
 	panic("TODO")
 }
 
-func (db *mdb) RangeDeleteTransferTasks(ctx context.Context, shardID int, exclusiveBeginTaskID, inclusiveEndTaskID int64) error {
+func (db *mdb) RangeDeleteTransferTasks(ctx context.Context, shardID int, inclusiveBeginTaskID, exclusiveEndTaskID int64) error {
 	panic("TODO")
 }
 
@@ -115,7 +115,7 @@ func (db *mdb) DeleteReplicationTask(ctx context.Context, shardID int, taskID in
 	panic("TODO")
 }
 
-func (db *mdb) RangeDeleteReplicationTasks(ctx context.Context, shardID int, inclusiveEndTaskID int64) error {
+func (db *mdb) RangeDeleteReplicationTasks(ctx context.Context, shardID int, exclusiveEndTaskID int64) error {
 	panic("TODO")
 }
 
@@ -131,7 +131,7 @@ func (db *mdb) DeleteCrossClusterTask(ctx context.Context, shardID int, targetCl
 	panic("TODO")
 }
 
-func (db *mdb) RangeDeleteCrossClusterTasks(ctx context.Context, shardID int, targetCluster string, exclusiveBeginTaskID, inclusiveEndTaskID int64) error {
+func (db *mdb) RangeDeleteCrossClusterTasks(ctx context.Context, shardID int, targetCluster string, inclusiveBeginTaskID, exclusiveEndTaskID int64) error {
 	panic("TODO")
 }
 
@@ -151,6 +151,6 @@ func (db *mdb) DeleteReplicationDLQTask(ctx context.Context, shardID int, source
 	panic("TODO")
 }
 
-func (db *mdb) RangeDeleteReplicationDLQTasks(ctx context.Context, shardID int, sourceCluster string, exclusiveBeginTaskID, inclusiveEndTaskID int64) error {
+func (db *mdb) RangeDeleteReplicationDLQTasks(ctx context.Context, shardID int, sourceCluster string, inclusiveBeginTaskID, exclusiveEndTaskID int64) error {
 	panic("TODO")
 }

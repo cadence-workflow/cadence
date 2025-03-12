@@ -853,13 +853,6 @@ func (m *executionManagerImpl) CompleteTransferTask(
 	return m.persistence.CompleteTransferTask(ctx, request)
 }
 
-func (m *executionManagerImpl) RangeCompleteTransferTask(
-	ctx context.Context,
-	request *RangeCompleteTransferTaskRequest,
-) (*RangeCompleteTransferTaskResponse, error) {
-	return m.persistence.RangeCompleteTransferTask(ctx, request)
-}
-
 // Replication task related methods
 func (m *executionManagerImpl) GetReplicationTasks(
 	ctx context.Context,
@@ -881,13 +874,6 @@ func (m *executionManagerImpl) CompleteReplicationTask(
 	request *CompleteReplicationTaskRequest,
 ) error {
 	return m.persistence.CompleteReplicationTask(ctx, request)
-}
-
-func (m *executionManagerImpl) RangeCompleteReplicationTask(
-	ctx context.Context,
-	request *RangeCompleteReplicationTaskRequest,
-) (*RangeCompleteReplicationTaskResponse, error) {
-	return m.persistence.RangeCompleteReplicationTask(ctx, request)
 }
 
 func (m *executionManagerImpl) PutReplicationTaskToDLQ(
@@ -958,13 +944,6 @@ func (m *executionManagerImpl) CompleteTimerTask(
 	return m.persistence.CompleteTimerTask(ctx, request)
 }
 
-func (m *executionManagerImpl) RangeCompleteTimerTask(
-	ctx context.Context,
-	request *RangeCompleteTimerTaskRequest,
-) (*RangeCompleteTimerTaskResponse, error) {
-	return m.persistence.RangeCompleteTimerTask(ctx, request)
-}
-
 func (m *executionManagerImpl) Close() {
 	m.persistence.Close()
 }
@@ -1018,6 +997,13 @@ func (m *executionManagerImpl) toInternalReplicationTaskInfo(info *ReplicationTa
 		NewRunBranchToken: info.NewRunBranchToken,
 		CreationTime:      time.Unix(0, info.CreationTime).UTC(),
 	}
+}
+
+func (m *executionManagerImpl) RangeCompleteHistoryTask(
+	ctx context.Context,
+	request *RangeCompleteHistoryTaskRequest,
+) (*RangeCompleteHistoryTaskResponse, error) {
+	return m.persistence.RangeCompleteHistoryTask(ctx, request)
 }
 
 func getStartVersion(
