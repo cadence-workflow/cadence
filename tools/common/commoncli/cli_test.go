@@ -25,11 +25,12 @@ package commoncli
 import (
 	"errors"
 	"fmt"
-	"github.com/uber/cadence/common/types"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/uber/cadence/common/types"
 )
 
 func TestPrintErr(t *testing.T) {
