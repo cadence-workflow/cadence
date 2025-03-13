@@ -236,5 +236,7 @@ type (
 
 		GetHistorySize() int64
 		SetHistorySize(size int64)
+
+		cache.Sizeable
 	}
 )
