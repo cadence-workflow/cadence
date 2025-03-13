@@ -218,6 +218,32 @@ func (_m *ExecutionManager) GetCurrentExecution(ctx context.Context, request *pe
 	return r0, r1
 }
 
+// GetHistoryTasks provides a mock function with given fields: ctx, request
+func (_m *ExecutionManager) GetHistoryTasks(ctx context.Context, request *persistence.GetHistoryTasksRequest) (*persistence.GetHistoryTasksResponse, error) {
+	ret := _m.Called(ctx, request)
+
+	var r0 *persistence.GetHistoryTasksResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *persistence.GetHistoryTasksRequest) (*persistence.GetHistoryTasksResponse, error)); ok {
+		return rf(ctx, request)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *persistence.GetHistoryTasksRequest) *persistence.GetHistoryTasksResponse); ok {
+		r0 = rf(ctx, request)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*persistence.GetHistoryTasksResponse)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *persistence.GetHistoryTasksRequest) error); ok {
+		r1 = rf(ctx, request)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // GetName provides a mock function with given fields:
 func (_m *ExecutionManager) GetName() string {
 	ret := _m.Called()
@@ -322,58 +348,6 @@ func (_m *ExecutionManager) GetShardID() int {
 	}
 
 	return r0
-}
-
-// GetTimerIndexTasks provides a mock function with given fields: ctx, request
-func (_m *ExecutionManager) GetTimerIndexTasks(ctx context.Context, request *persistence.GetTimerIndexTasksRequest) (*persistence.GetTimerIndexTasksResponse, error) {
-	ret := _m.Called(ctx, request)
-
-	var r0 *persistence.GetTimerIndexTasksResponse
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *persistence.GetTimerIndexTasksRequest) (*persistence.GetTimerIndexTasksResponse, error)); ok {
-		return rf(ctx, request)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, *persistence.GetTimerIndexTasksRequest) *persistence.GetTimerIndexTasksResponse); ok {
-		r0 = rf(ctx, request)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*persistence.GetTimerIndexTasksResponse)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, *persistence.GetTimerIndexTasksRequest) error); ok {
-		r1 = rf(ctx, request)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// GetTransferTasks provides a mock function with given fields: ctx, request
-func (_m *ExecutionManager) GetTransferTasks(ctx context.Context, request *persistence.GetTransferTasksRequest) (*persistence.GetTransferTasksResponse, error) {
-	ret := _m.Called(ctx, request)
-
-	var r0 *persistence.GetTransferTasksResponse
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *persistence.GetTransferTasksRequest) (*persistence.GetTransferTasksResponse, error)); ok {
-		return rf(ctx, request)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, *persistence.GetTransferTasksRequest) *persistence.GetTransferTasksResponse); ok {
-		r0 = rf(ctx, request)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*persistence.GetTransferTasksResponse)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, *persistence.GetTransferTasksRequest) error); ok {
-		r1 = rf(ctx, request)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
 }
 
 // GetWorkflowExecution provides a mock function with given fields: ctx, request

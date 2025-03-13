@@ -56,15 +56,15 @@ func newTimerQueueFailoverProcessor(
 	)
 
 	taskFilter := func(taskInfo task.Info) (bool, error) {
-		timer, ok := taskInfo.(*persistence.TimerTaskInfo)
+		timer, ok := taskInfo.(persistence.Task)
 		if !ok {
 			return false, errUnexpectedQueueTask
 		}
-		if notRegistered, err := isDomainNotRegistered(shardContext, timer.DomainID); notRegistered && err == nil {
-			logger.Info("Domain is not in registered status, skip task in failover timer queue.", tag.WorkflowDomainID(timer.DomainID), tag.Value(taskInfo))
+		if notRegistered, err := isDomainNotRegistered(shardContext, timer.GetDomainID()); notRegistered && err == nil {
+			logger.Info("Domain is not in registered status, skip task in failover timer queue.", tag.WorkflowDomainID(timer.GetDomainID()), tag.Value(taskInfo))
 			return false, nil
 		}
-		return taskAllocator.VerifyFailoverActiveTask(domainIDs, timer.DomainID, timer)
+		return taskAllocator.VerifyFailoverActiveTask(domainIDs, timer.GetDomainID(), timer)
 	}
 
 	maxReadLevelTaskKey := newTimerTaskKey(maxLevel, 0)

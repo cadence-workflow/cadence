@@ -135,6 +135,14 @@ func (c *ratelimitedExecutionManager) GetCurrentExecution(ctx context.Context, r
 	return c.wrapped.GetCurrentExecution(ctx, request)
 }
 
+func (c *ratelimitedExecutionManager) GetHistoryTasks(ctx context.Context, request *persistence.GetHistoryTasksRequest) (gp1 *persistence.GetHistoryTasksResponse, err error) {
+	if ok := c.rateLimiter.Allow(); !ok {
+		err = ErrPersistenceLimitExceeded
+		return
+	}
+	return c.wrapped.GetHistoryTasks(ctx, request)
+}
+
 func (c *ratelimitedExecutionManager) GetName() (s1 string) {
 	return c.wrapped.GetName()
 }
@@ -165,22 +173,6 @@ func (c *ratelimitedExecutionManager) GetReplicationTasksFromDLQ(ctx context.Con
 
 func (c *ratelimitedExecutionManager) GetShardID() (i1 int) {
 	return c.wrapped.GetShardID()
-}
-
-func (c *ratelimitedExecutionManager) GetTimerIndexTasks(ctx context.Context, request *persistence.GetTimerIndexTasksRequest) (gp1 *persistence.GetTimerIndexTasksResponse, err error) {
-	if ok := c.rateLimiter.Allow(); !ok {
-		err = ErrPersistenceLimitExceeded
-		return
-	}
-	return c.wrapped.GetTimerIndexTasks(ctx, request)
-}
-
-func (c *ratelimitedExecutionManager) GetTransferTasks(ctx context.Context, request *persistence.GetTransferTasksRequest) (gp1 *persistence.GetTransferTasksResponse, err error) {
-	if ok := c.rateLimiter.Allow(); !ok {
-		err = ErrPersistenceLimitExceeded
-		return
-	}
-	return c.wrapped.GetTransferTasks(ctx, request)
 }
 
 func (c *ratelimitedExecutionManager) GetWorkflowExecution(ctx context.Context, request *persistence.GetWorkflowExecutionRequest) (gp1 *persistence.GetWorkflowExecutionResponse, err error) {

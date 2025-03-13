@@ -679,20 +679,6 @@ func (mr *MockDBMockRecorder) PluginName() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PluginName", reflect.TypeOf((*MockDB)(nil).PluginName))
 }
 
-// RangeDeleteCrossClusterTasks mocks base method.
-func (m *MockDB) RangeDeleteCrossClusterTasks(ctx context.Context, shardID int, targetCluster string, inclusiveBeginTaskID, exclusiveEndTaskID int64) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RangeDeleteCrossClusterTasks", ctx, shardID, targetCluster, inclusiveBeginTaskID, exclusiveEndTaskID)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// RangeDeleteCrossClusterTasks indicates an expected call of RangeDeleteCrossClusterTasks.
-func (mr *MockDBMockRecorder) RangeDeleteCrossClusterTasks(ctx, shardID, targetCluster, inclusiveBeginTaskID, exclusiveEndTaskID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteCrossClusterTasks", reflect.TypeOf((*MockDB)(nil).RangeDeleteCrossClusterTasks), ctx, shardID, targetCluster, inclusiveBeginTaskID, exclusiveEndTaskID)
-}
-
 // RangeDeleteReplicationDLQTasks mocks base method.
 func (m *MockDB) RangeDeleteReplicationDLQTasks(ctx context.Context, shardID int, sourceCluster string, inclusiveBeginTaskID, exclusiveEndTaskID int64) error {
 	m.ctrl.T.Helper()
@@ -826,22 +812,6 @@ func (m *MockDB) SelectAllWorkflowExecutions(ctx context.Context, shardID int, p
 func (mr *MockDBMockRecorder) SelectAllWorkflowExecutions(ctx, shardID, pageToken, pageSize any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectAllWorkflowExecutions", reflect.TypeOf((*MockDB)(nil).SelectAllWorkflowExecutions), ctx, shardID, pageToken, pageSize)
-}
-
-// SelectCrossClusterTasksOrderByTaskID mocks base method.
-func (m *MockDB) SelectCrossClusterTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, targetCluster string, exclusiveMinTaskID, inclusiveMaxTaskID int64) ([]*CrossClusterTask, []byte, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SelectCrossClusterTasksOrderByTaskID", ctx, shardID, pageSize, pageToken, targetCluster, exclusiveMinTaskID, inclusiveMaxTaskID)
-	ret0, _ := ret[0].([]*CrossClusterTask)
-	ret1, _ := ret[1].([]byte)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
-}
-
-// SelectCrossClusterTasksOrderByTaskID indicates an expected call of SelectCrossClusterTasksOrderByTaskID.
-func (mr *MockDBMockRecorder) SelectCrossClusterTasksOrderByTaskID(ctx, shardID, pageSize, pageToken, targetCluster, exclusiveMinTaskID, inclusiveMaxTaskID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectCrossClusterTasksOrderByTaskID", reflect.TypeOf((*MockDB)(nil).SelectCrossClusterTasksOrderByTaskID), ctx, shardID, pageSize, pageToken, targetCluster, exclusiveMinTaskID, inclusiveMaxTaskID)
 }
 
 // SelectCurrentWorkflow mocks base method.
@@ -1026,35 +996,35 @@ func (mr *MockDBMockRecorder) SelectReplicationDLQTasksCount(ctx, shardID, sourc
 }
 
 // SelectReplicationDLQTasksOrderByTaskID mocks base method.
-func (m *MockDB) SelectReplicationDLQTasksOrderByTaskID(ctx context.Context, shardID int, sourceCluster string, pageSize int, pageToken []byte, exclusiveMinTaskID, inclusiveMaxTaskID int64) ([]*ReplicationTask, []byte, error) {
+func (m *MockDB) SelectReplicationDLQTasksOrderByTaskID(ctx context.Context, shardID int, sourceCluster string, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*HistoryMigrationTask, []byte, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SelectReplicationDLQTasksOrderByTaskID", ctx, shardID, sourceCluster, pageSize, pageToken, exclusiveMinTaskID, inclusiveMaxTaskID)
-	ret0, _ := ret[0].([]*ReplicationTask)
+	ret := m.ctrl.Call(m, "SelectReplicationDLQTasksOrderByTaskID", ctx, shardID, sourceCluster, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID)
+	ret0, _ := ret[0].([]*HistoryMigrationTask)
 	ret1, _ := ret[1].([]byte)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
 }
 
 // SelectReplicationDLQTasksOrderByTaskID indicates an expected call of SelectReplicationDLQTasksOrderByTaskID.
-func (mr *MockDBMockRecorder) SelectReplicationDLQTasksOrderByTaskID(ctx, shardID, sourceCluster, pageSize, pageToken, exclusiveMinTaskID, inclusiveMaxTaskID any) *gomock.Call {
+func (mr *MockDBMockRecorder) SelectReplicationDLQTasksOrderByTaskID(ctx, shardID, sourceCluster, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectReplicationDLQTasksOrderByTaskID", reflect.TypeOf((*MockDB)(nil).SelectReplicationDLQTasksOrderByTaskID), ctx, shardID, sourceCluster, pageSize, pageToken, exclusiveMinTaskID, inclusiveMaxTaskID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectReplicationDLQTasksOrderByTaskID", reflect.TypeOf((*MockDB)(nil).SelectReplicationDLQTasksOrderByTaskID), ctx, shardID, sourceCluster, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID)
 }
 
 // SelectReplicationTasksOrderByTaskID mocks base method.
-func (m *MockDB) SelectReplicationTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, exclusiveMinTaskID, inclusiveMaxTaskID int64) ([]*ReplicationTask, []byte, error) {
+func (m *MockDB) SelectReplicationTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*HistoryMigrationTask, []byte, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SelectReplicationTasksOrderByTaskID", ctx, shardID, pageSize, pageToken, exclusiveMinTaskID, inclusiveMaxTaskID)
-	ret0, _ := ret[0].([]*ReplicationTask)
+	ret := m.ctrl.Call(m, "SelectReplicationTasksOrderByTaskID", ctx, shardID, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID)
+	ret0, _ := ret[0].([]*HistoryMigrationTask)
 	ret1, _ := ret[1].([]byte)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
 }
 
 // SelectReplicationTasksOrderByTaskID indicates an expected call of SelectReplicationTasksOrderByTaskID.
-func (mr *MockDBMockRecorder) SelectReplicationTasksOrderByTaskID(ctx, shardID, pageSize, pageToken, exclusiveMinTaskID, inclusiveMaxTaskID any) *gomock.Call {
+func (mr *MockDBMockRecorder) SelectReplicationTasksOrderByTaskID(ctx, shardID, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectReplicationTasksOrderByTaskID", reflect.TypeOf((*MockDB)(nil).SelectReplicationTasksOrderByTaskID), ctx, shardID, pageSize, pageToken, exclusiveMinTaskID, inclusiveMaxTaskID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectReplicationTasksOrderByTaskID", reflect.TypeOf((*MockDB)(nil).SelectReplicationTasksOrderByTaskID), ctx, shardID, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID)
 }
 
 // SelectShard mocks base method.
@@ -1104,10 +1074,10 @@ func (mr *MockDBMockRecorder) SelectTasks(ctx, filter any) *gomock.Call {
 }
 
 // SelectTimerTasksOrderByVisibilityTime mocks base method.
-func (m *MockDB) SelectTimerTasksOrderByVisibilityTime(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTime, exclusiveMaxTime time.Time) ([]*TimerTask, []byte, error) {
+func (m *MockDB) SelectTimerTasksOrderByVisibilityTime(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTime, exclusiveMaxTime time.Time) ([]*HistoryMigrationTask, []byte, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SelectTimerTasksOrderByVisibilityTime", ctx, shardID, pageSize, pageToken, inclusiveMinTime, exclusiveMaxTime)
-	ret0, _ := ret[0].([]*TimerTask)
+	ret0, _ := ret[0].([]*HistoryMigrationTask)
 	ret1, _ := ret[1].([]byte)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -1120,19 +1090,19 @@ func (mr *MockDBMockRecorder) SelectTimerTasksOrderByVisibilityTime(ctx, shardID
 }
 
 // SelectTransferTasksOrderByTaskID mocks base method.
-func (m *MockDB) SelectTransferTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, exclusiveMinTaskID, inclusiveMaxTaskID int64) ([]*TransferTask, []byte, error) {
+func (m *MockDB) SelectTransferTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*HistoryMigrationTask, []byte, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SelectTransferTasksOrderByTaskID", ctx, shardID, pageSize, pageToken, exclusiveMinTaskID, inclusiveMaxTaskID)
-	ret0, _ := ret[0].([]*TransferTask)
+	ret := m.ctrl.Call(m, "SelectTransferTasksOrderByTaskID", ctx, shardID, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID)
+	ret0, _ := ret[0].([]*HistoryMigrationTask)
 	ret1, _ := ret[1].([]byte)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
 }
 
 // SelectTransferTasksOrderByTaskID indicates an expected call of SelectTransferTasksOrderByTaskID.
-func (mr *MockDBMockRecorder) SelectTransferTasksOrderByTaskID(ctx, shardID, pageSize, pageToken, exclusiveMinTaskID, inclusiveMaxTaskID any) *gomock.Call {
+func (mr *MockDBMockRecorder) SelectTransferTasksOrderByTaskID(ctx, shardID, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectTransferTasksOrderByTaskID", reflect.TypeOf((*MockDB)(nil).SelectTransferTasksOrderByTaskID), ctx, shardID, pageSize, pageToken, exclusiveMinTaskID, inclusiveMaxTaskID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectTransferTasksOrderByTaskID", reflect.TypeOf((*MockDB)(nil).SelectTransferTasksOrderByTaskID), ctx, shardID, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID)
 }
 
 // SelectVisibility mocks base method.
@@ -1725,20 +1695,6 @@ func (mr *MocktableCRUDMockRecorder) ListTaskList(ctx, pageSize, nextPageToken a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListTaskList", reflect.TypeOf((*MocktableCRUD)(nil).ListTaskList), ctx, pageSize, nextPageToken)
 }
 
-// RangeDeleteCrossClusterTasks mocks base method.
-func (m *MocktableCRUD) RangeDeleteCrossClusterTasks(ctx context.Context, shardID int, targetCluster string, inclusiveBeginTaskID, exclusiveEndTaskID int64) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RangeDeleteCrossClusterTasks", ctx, shardID, targetCluster, inclusiveBeginTaskID, exclusiveEndTaskID)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// RangeDeleteCrossClusterTasks indicates an expected call of RangeDeleteCrossClusterTasks.
-func (mr *MocktableCRUDMockRecorder) RangeDeleteCrossClusterTasks(ctx, shardID, targetCluster, inclusiveBeginTaskID, exclusiveEndTaskID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteCrossClusterTasks", reflect.TypeOf((*MocktableCRUD)(nil).RangeDeleteCrossClusterTasks), ctx, shardID, targetCluster, inclusiveBeginTaskID, exclusiveEndTaskID)
-}
-
 // RangeDeleteReplicationDLQTasks mocks base method.
 func (m *MocktableCRUD) RangeDeleteReplicationDLQTasks(ctx context.Context, shardID int, sourceCluster string, inclusiveBeginTaskID, exclusiveEndTaskID int64) error {
 	m.ctrl.T.Helper()
@@ -1872,22 +1828,6 @@ func (m *MocktableCRUD) SelectAllWorkflowExecutions(ctx context.Context, shardID
 func (mr *MocktableCRUDMockRecorder) SelectAllWorkflowExecutions(ctx, shardID, pageToken, pageSize any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectAllWorkflowExecutions", reflect.TypeOf((*MocktableCRUD)(nil).SelectAllWorkflowExecutions), ctx, shardID, pageToken, pageSize)
-}
-
-// SelectCrossClusterTasksOrderByTaskID mocks base method.
-func (m *MocktableCRUD) SelectCrossClusterTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, targetCluster string, exclusiveMinTaskID, inclusiveMaxTaskID int64) ([]*CrossClusterTask, []byte, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SelectCrossClusterTasksOrderByTaskID", ctx, shardID, pageSize, pageToken, targetCluster, exclusiveMinTaskID, inclusiveMaxTaskID)
-	ret0, _ := ret[0].([]*CrossClusterTask)
-	ret1, _ := ret[1].([]byte)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
-}
-
-// SelectCrossClusterTasksOrderByTaskID indicates an expected call of SelectCrossClusterTasksOrderByTaskID.
-func (mr *MocktableCRUDMockRecorder) SelectCrossClusterTasksOrderByTaskID(ctx, shardID, pageSize, pageToken, targetCluster, exclusiveMinTaskID, inclusiveMaxTaskID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectCrossClusterTasksOrderByTaskID", reflect.TypeOf((*MocktableCRUD)(nil).SelectCrossClusterTasksOrderByTaskID), ctx, shardID, pageSize, pageToken, targetCluster, exclusiveMinTaskID, inclusiveMaxTaskID)
 }
 
 // SelectCurrentWorkflow mocks base method.
@@ -2072,35 +2012,35 @@ func (mr *MocktableCRUDMockRecorder) SelectReplicationDLQTasksCount(ctx, shardID
 }
 
 // SelectReplicationDLQTasksOrderByTaskID mocks base method.
-func (m *MocktableCRUD) SelectReplicationDLQTasksOrderByTaskID(ctx context.Context, shardID int, sourceCluster string, pageSize int, pageToken []byte, exclusiveMinTaskID, inclusiveMaxTaskID int64) ([]*ReplicationTask, []byte, error) {
+func (m *MocktableCRUD) SelectReplicationDLQTasksOrderByTaskID(ctx context.Context, shardID int, sourceCluster string, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*HistoryMigrationTask, []byte, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SelectReplicationDLQTasksOrderByTaskID", ctx, shardID, sourceCluster, pageSize, pageToken, exclusiveMinTaskID, inclusiveMaxTaskID)
-	ret0, _ := ret[0].([]*ReplicationTask)
+	ret := m.ctrl.Call(m, "SelectReplicationDLQTasksOrderByTaskID", ctx, shardID, sourceCluster, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID)
+	ret0, _ := ret[0].([]*HistoryMigrationTask)
 	ret1, _ := ret[1].([]byte)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
 }
 
 // SelectReplicationDLQTasksOrderByTaskID indicates an expected call of SelectReplicationDLQTasksOrderByTaskID.
-func (mr *MocktableCRUDMockRecorder) SelectReplicationDLQTasksOrderByTaskID(ctx, shardID, sourceCluster, pageSize, pageToken, exclusiveMinTaskID, inclusiveMaxTaskID any) *gomock.Call {
+func (mr *MocktableCRUDMockRecorder) SelectReplicationDLQTasksOrderByTaskID(ctx, shardID, sourceCluster, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectReplicationDLQTasksOrderByTaskID", reflect.TypeOf((*MocktableCRUD)(nil).SelectReplicationDLQTasksOrderByTaskID), ctx, shardID, sourceCluster, pageSize, pageToken, exclusiveMinTaskID, inclusiveMaxTaskID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectReplicationDLQTasksOrderByTaskID", reflect.TypeOf((*MocktableCRUD)(nil).SelectReplicationDLQTasksOrderByTaskID), ctx, shardID, sourceCluster, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID)
 }
 
 // SelectReplicationTasksOrderByTaskID mocks base method.
-func (m *MocktableCRUD) SelectReplicationTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, exclusiveMinTaskID, inclusiveMaxTaskID int64) ([]*ReplicationTask, []byte, error) {
+func (m *MocktableCRUD) SelectReplicationTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*HistoryMigrationTask, []byte, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SelectReplicationTasksOrderByTaskID", ctx, shardID, pageSize, pageToken, exclusiveMinTaskID, inclusiveMaxTaskID)
-	ret0, _ := ret[0].([]*ReplicationTask)
+	ret := m.ctrl.Call(m, "SelectReplicationTasksOrderByTaskID", ctx, shardID, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID)
+	ret0, _ := ret[0].([]*HistoryMigrationTask)
 	ret1, _ := ret[1].([]byte)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
 }
 
 // SelectReplicationTasksOrderByTaskID indicates an expected call of SelectReplicationTasksOrderByTaskID.
-func (mr *MocktableCRUDMockRecorder) SelectReplicationTasksOrderByTaskID(ctx, shardID, pageSize, pageToken, exclusiveMinTaskID, inclusiveMaxTaskID any) *gomock.Call {
+func (mr *MocktableCRUDMockRecorder) SelectReplicationTasksOrderByTaskID(ctx, shardID, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectReplicationTasksOrderByTaskID", reflect.TypeOf((*MocktableCRUD)(nil).SelectReplicationTasksOrderByTaskID), ctx, shardID, pageSize, pageToken, exclusiveMinTaskID, inclusiveMaxTaskID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectReplicationTasksOrderByTaskID", reflect.TypeOf((*MocktableCRUD)(nil).SelectReplicationTasksOrderByTaskID), ctx, shardID, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID)
 }
 
 // SelectShard mocks base method.
@@ -2150,10 +2090,10 @@ func (mr *MocktableCRUDMockRecorder) SelectTasks(ctx, filter any) *gomock.Call {
 }
 
 // SelectTimerTasksOrderByVisibilityTime mocks base method.
-func (m *MocktableCRUD) SelectTimerTasksOrderByVisibilityTime(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTime, exclusiveMaxTime time.Time) ([]*TimerTask, []byte, error) {
+func (m *MocktableCRUD) SelectTimerTasksOrderByVisibilityTime(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTime, exclusiveMaxTime time.Time) ([]*HistoryMigrationTask, []byte, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SelectTimerTasksOrderByVisibilityTime", ctx, shardID, pageSize, pageToken, inclusiveMinTime, exclusiveMaxTime)
-	ret0, _ := ret[0].([]*TimerTask)
+	ret0, _ := ret[0].([]*HistoryMigrationTask)
 	ret1, _ := ret[1].([]byte)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -2166,19 +2106,19 @@ func (mr *MocktableCRUDMockRecorder) SelectTimerTasksOrderByVisibilityTime(ctx, 
 }
 
 // SelectTransferTasksOrderByTaskID mocks base method.
-func (m *MocktableCRUD) SelectTransferTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, exclusiveMinTaskID, inclusiveMaxTaskID int64) ([]*TransferTask, []byte, error) {
+func (m *MocktableCRUD) SelectTransferTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*HistoryMigrationTask, []byte, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SelectTransferTasksOrderByTaskID", ctx, shardID, pageSize, pageToken, exclusiveMinTaskID, inclusiveMaxTaskID)
-	ret0, _ := ret[0].([]*TransferTask)
+	ret := m.ctrl.Call(m, "SelectTransferTasksOrderByTaskID", ctx, shardID, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID)
+	ret0, _ := ret[0].([]*HistoryMigrationTask)
 	ret1, _ := ret[1].([]byte)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
 }
 
 // SelectTransferTasksOrderByTaskID indicates an expected call of SelectTransferTasksOrderByTaskID.
-func (mr *MocktableCRUDMockRecorder) SelectTransferTasksOrderByTaskID(ctx, shardID, pageSize, pageToken, exclusiveMinTaskID, inclusiveMaxTaskID any) *gomock.Call {
+func (mr *MocktableCRUDMockRecorder) SelectTransferTasksOrderByTaskID(ctx, shardID, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectTransferTasksOrderByTaskID", reflect.TypeOf((*MocktableCRUD)(nil).SelectTransferTasksOrderByTaskID), ctx, shardID, pageSize, pageToken, exclusiveMinTaskID, inclusiveMaxTaskID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectTransferTasksOrderByTaskID", reflect.TypeOf((*MocktableCRUD)(nil).SelectTransferTasksOrderByTaskID), ctx, shardID, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID)
 }
 
 // SelectVisibility mocks base method.
@@ -3323,20 +3263,6 @@ func (mr *MockWorkflowCRUDMockRecorder) IsWorkflowExecutionExists(ctx, shardID, 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsWorkflowExecutionExists", reflect.TypeOf((*MockWorkflowCRUD)(nil).IsWorkflowExecutionExists), ctx, shardID, domainID, workflowID, runID)
 }
 
-// RangeDeleteCrossClusterTasks mocks base method.
-func (m *MockWorkflowCRUD) RangeDeleteCrossClusterTasks(ctx context.Context, shardID int, targetCluster string, inclusiveBeginTaskID, exclusiveEndTaskID int64) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RangeDeleteCrossClusterTasks", ctx, shardID, targetCluster, inclusiveBeginTaskID, exclusiveEndTaskID)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// RangeDeleteCrossClusterTasks indicates an expected call of RangeDeleteCrossClusterTasks.
-func (mr *MockWorkflowCRUDMockRecorder) RangeDeleteCrossClusterTasks(ctx, shardID, targetCluster, inclusiveBeginTaskID, exclusiveEndTaskID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteCrossClusterTasks", reflect.TypeOf((*MockWorkflowCRUD)(nil).RangeDeleteCrossClusterTasks), ctx, shardID, targetCluster, inclusiveBeginTaskID, exclusiveEndTaskID)
-}
-
 // RangeDeleteReplicationDLQTasks mocks base method.
 func (m *MockWorkflowCRUD) RangeDeleteReplicationDLQTasks(ctx context.Context, shardID int, sourceCluster string, inclusiveBeginTaskID, exclusiveEndTaskID int64) error {
 	m.ctrl.T.Helper()
@@ -3425,22 +3351,6 @@ func (mr *MockWorkflowCRUDMockRecorder) SelectAllWorkflowExecutions(ctx, shardID
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectAllWorkflowExecutions", reflect.TypeOf((*MockWorkflowCRUD)(nil).SelectAllWorkflowExecutions), ctx, shardID, pageToken, pageSize)
 }
 
-// SelectCrossClusterTasksOrderByTaskID mocks base method.
-func (m *MockWorkflowCRUD) SelectCrossClusterTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, targetCluster string, exclusiveMinTaskID, inclusiveMaxTaskID int64) ([]*CrossClusterTask, []byte, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SelectCrossClusterTasksOrderByTaskID", ctx, shardID, pageSize, pageToken, targetCluster, exclusiveMinTaskID, inclusiveMaxTaskID)
-	ret0, _ := ret[0].([]*CrossClusterTask)
-	ret1, _ := ret[1].([]byte)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
-}
-
-// SelectCrossClusterTasksOrderByTaskID indicates an expected call of SelectCrossClusterTasksOrderByTaskID.
-func (mr *MockWorkflowCRUDMockRecorder) SelectCrossClusterTasksOrderByTaskID(ctx, shardID, pageSize, pageToken, targetCluster, exclusiveMinTaskID, inclusiveMaxTaskID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectCrossClusterTasksOrderByTaskID", reflect.TypeOf((*MockWorkflowCRUD)(nil).SelectCrossClusterTasksOrderByTaskID), ctx, shardID, pageSize, pageToken, targetCluster, exclusiveMinTaskID, inclusiveMaxTaskID)
-}
-
 // SelectCurrentWorkflow mocks base method.
 func (m *MockWorkflowCRUD) SelectCurrentWorkflow(ctx context.Context, shardID int, domainID, workflowID string) (*CurrentWorkflowRow, error) {
 	m.ctrl.T.Helper()
@@ -3472,42 +3382,42 @@ func (mr *MockWorkflowCRUDMockRecorder) SelectReplicationDLQTasksCount(ctx, shar
 }
 
 // SelectReplicationDLQTasksOrderByTaskID mocks base method.
-func (m *MockWorkflowCRUD) SelectReplicationDLQTasksOrderByTaskID(ctx context.Context, shardID int, sourceCluster string, pageSize int, pageToken []byte, exclusiveMinTaskID, inclusiveMaxTaskID int64) ([]*ReplicationTask, []byte, error) {
+func (m *MockWorkflowCRUD) SelectReplicationDLQTasksOrderByTaskID(ctx context.Context, shardID int, sourceCluster string, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*HistoryMigrationTask, []byte, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SelectReplicationDLQTasksOrderByTaskID", ctx, shardID, sourceCluster, pageSize, pageToken, exclusiveMinTaskID, inclusiveMaxTaskID)
-	ret0, _ := ret[0].([]*ReplicationTask)
+	ret := m.ctrl.Call(m, "SelectReplicationDLQTasksOrderByTaskID", ctx, shardID, sourceCluster, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID)
+	ret0, _ := ret[0].([]*HistoryMigrationTask)
 	ret1, _ := ret[1].([]byte)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
 }
 
 // SelectReplicationDLQTasksOrderByTaskID indicates an expected call of SelectReplicationDLQTasksOrderByTaskID.
-func (mr *MockWorkflowCRUDMockRecorder) SelectReplicationDLQTasksOrderByTaskID(ctx, shardID, sourceCluster, pageSize, pageToken, exclusiveMinTaskID, inclusiveMaxTaskID any) *gomock.Call {
+func (mr *MockWorkflowCRUDMockRecorder) SelectReplicationDLQTasksOrderByTaskID(ctx, shardID, sourceCluster, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectReplicationDLQTasksOrderByTaskID", reflect.TypeOf((*MockWorkflowCRUD)(nil).SelectReplicationDLQTasksOrderByTaskID), ctx, shardID, sourceCluster, pageSize, pageToken, exclusiveMinTaskID, inclusiveMaxTaskID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectReplicationDLQTasksOrderByTaskID", reflect.TypeOf((*MockWorkflowCRUD)(nil).SelectReplicationDLQTasksOrderByTaskID), ctx, shardID, sourceCluster, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID)
 }
 
 // SelectReplicationTasksOrderByTaskID mocks base method.
-func (m *MockWorkflowCRUD) SelectReplicationTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, exclusiveMinTaskID, inclusiveMaxTaskID int64) ([]*ReplicationTask, []byte, error) {
+func (m *MockWorkflowCRUD) SelectReplicationTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*HistoryMigrationTask, []byte, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SelectReplicationTasksOrderByTaskID", ctx, shardID, pageSize, pageToken, exclusiveMinTaskID, inclusiveMaxTaskID)
-	ret0, _ := ret[0].([]*ReplicationTask)
+	ret := m.ctrl.Call(m, "SelectReplicationTasksOrderByTaskID", ctx, shardID, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID)
+	ret0, _ := ret[0].([]*HistoryMigrationTask)
 	ret1, _ := ret[1].([]byte)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
 }
 
 // SelectReplicationTasksOrderByTaskID indicates an expected call of SelectReplicationTasksOrderByTaskID.
-func (mr *MockWorkflowCRUDMockRecorder) SelectReplicationTasksOrderByTaskID(ctx, shardID, pageSize, pageToken, exclusiveMinTaskID, inclusiveMaxTaskID any) *gomock.Call {
+func (mr *MockWorkflowCRUDMockRecorder) SelectReplicationTasksOrderByTaskID(ctx, shardID, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectReplicationTasksOrderByTaskID", reflect.TypeOf((*MockWorkflowCRUD)(nil).SelectReplicationTasksOrderByTaskID), ctx, shardID, pageSize, pageToken, exclusiveMinTaskID, inclusiveMaxTaskID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectReplicationTasksOrderByTaskID", reflect.TypeOf((*MockWorkflowCRUD)(nil).SelectReplicationTasksOrderByTaskID), ctx, shardID, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID)
 }
 
 // SelectTimerTasksOrderByVisibilityTime mocks base method.
-func (m *MockWorkflowCRUD) SelectTimerTasksOrderByVisibilityTime(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTime, exclusiveMaxTime time.Time) ([]*TimerTask, []byte, error) {
+func (m *MockWorkflowCRUD) SelectTimerTasksOrderByVisibilityTime(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTime, exclusiveMaxTime time.Time) ([]*HistoryMigrationTask, []byte, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SelectTimerTasksOrderByVisibilityTime", ctx, shardID, pageSize, pageToken, inclusiveMinTime, exclusiveMaxTime)
-	ret0, _ := ret[0].([]*TimerTask)
+	ret0, _ := ret[0].([]*HistoryMigrationTask)
 	ret1, _ := ret[1].([]byte)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -3520,19 +3430,19 @@ func (mr *MockWorkflowCRUDMockRecorder) SelectTimerTasksOrderByVisibilityTime(ct
 }
 
 // SelectTransferTasksOrderByTaskID mocks base method.
-func (m *MockWorkflowCRUD) SelectTransferTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, exclusiveMinTaskID, inclusiveMaxTaskID int64) ([]*TransferTask, []byte, error) {
+func (m *MockWorkflowCRUD) SelectTransferTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*HistoryMigrationTask, []byte, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SelectTransferTasksOrderByTaskID", ctx, shardID, pageSize, pageToken, exclusiveMinTaskID, inclusiveMaxTaskID)
-	ret0, _ := ret[0].([]*TransferTask)
+	ret := m.ctrl.Call(m, "SelectTransferTasksOrderByTaskID", ctx, shardID, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID)
+	ret0, _ := ret[0].([]*HistoryMigrationTask)
 	ret1, _ := ret[1].([]byte)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
 }
 
 // SelectTransferTasksOrderByTaskID indicates an expected call of SelectTransferTasksOrderByTaskID.
-func (mr *MockWorkflowCRUDMockRecorder) SelectTransferTasksOrderByTaskID(ctx, shardID, pageSize, pageToken, exclusiveMinTaskID, inclusiveMaxTaskID any) *gomock.Call {
+func (mr *MockWorkflowCRUDMockRecorder) SelectTransferTasksOrderByTaskID(ctx, shardID, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectTransferTasksOrderByTaskID", reflect.TypeOf((*MockWorkflowCRUD)(nil).SelectTransferTasksOrderByTaskID), ctx, shardID, pageSize, pageToken, exclusiveMinTaskID, inclusiveMaxTaskID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectTransferTasksOrderByTaskID", reflect.TypeOf((*MockWorkflowCRUD)(nil).SelectTransferTasksOrderByTaskID), ctx, shardID, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID)
 }
 
 // SelectWorkflowExecution mocks base method.
