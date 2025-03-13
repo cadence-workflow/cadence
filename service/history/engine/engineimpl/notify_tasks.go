@@ -84,7 +84,7 @@ func hydrateReplicationTask(
 		DomainID:     exec.DomainID,
 		WorkflowID:   exec.WorkflowID,
 		RunID:        exec.RunID,
-		TaskType:     task.GetType(),
+		TaskType:     task.GetTaskType(),
 		CreationTime: task.GetVisibilityTimestamp().UnixNano(),
 		TaskID:       task.GetTaskID(),
 		Version:      task.GetVersion(),

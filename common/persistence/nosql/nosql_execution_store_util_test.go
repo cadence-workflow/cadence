@@ -1333,7 +1333,7 @@ type dummyTaskType struct {
 	TaskID              int64
 }
 
-func (d *dummyTaskType) GetType() int {
+func (d *dummyTaskType) GetTaskType() int {
 	return 999 // Using a type that is not expected by the switch statement
 }
 

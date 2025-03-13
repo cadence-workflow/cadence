@@ -498,15 +498,15 @@ func newTransferQueueActiveProcessor(
 	logger = logger.WithTags(tag.ClusterName(currentClusterName))
 
 	taskFilter := func(taskInfo task.Info) (bool, error) {
-		task, ok := taskInfo.(*persistence.TransferTaskInfo)
+		task, ok := taskInfo.(persistence.Task)
 		if !ok {
 			return false, errUnexpectedQueueTask
 		}
-		if notRegistered, err := isDomainNotRegistered(shard, task.DomainID); notRegistered && err == nil {
-			logger.Info("Domain is not in registered status, skip task in active transfer queue.", tag.WorkflowDomainID(task.DomainID), tag.Value(taskInfo))
+		if notRegistered, err := isDomainNotRegistered(shard, task.GetDomainID()); notRegistered && err == nil {
+			logger.Info("Domain is not in registered status, skip task in active transfer queue.", tag.WorkflowDomainID(task.GetDomainID()), tag.Value(taskInfo))
 			return false, nil
 		}
-		return taskAllocator.VerifyActiveTask(task.DomainID, task)
+		return taskAllocator.VerifyActiveTask(task.GetDomainID(), task)
 	}
 
 	updateMaxReadLevel := func() task.Key {
@@ -557,17 +557,17 @@ func newTransferQueueStandbyProcessor(
 	logger = logger.WithTags(tag.ClusterName(clusterName))
 
 	taskFilter := func(taskInfo task.Info) (bool, error) {
-		task, ok := taskInfo.(*persistence.TransferTaskInfo)
+		task, ok := taskInfo.(persistence.Task)
 		if !ok {
 			return false, errUnexpectedQueueTask
 		}
-		if notRegistered, err := isDomainNotRegistered(shard, task.DomainID); notRegistered && err == nil {
-			logger.Info("Domain is not in registered status, skip task in standby transfer queue.", tag.WorkflowDomainID(task.DomainID), tag.Value(taskInfo))
+		if notRegistered, err := isDomainNotRegistered(shard, task.GetDomainID()); notRegistered && err == nil {
+			logger.Info("Domain is not in registered status, skip task in standby transfer queue.", tag.WorkflowDomainID(task.GetDomainID()), tag.Value(taskInfo))
 			return false, nil
 		}
-		if task.TaskType == persistence.TransferTaskTypeCloseExecution ||
-			task.TaskType == persistence.TransferTaskTypeRecordWorkflowClosed {
-			domainEntry, err := shard.GetDomainCache().GetDomainByID(task.DomainID)
+		if task.GetTaskType() == persistence.TransferTaskTypeCloseExecution ||
+			task.GetTaskType() == persistence.TransferTaskTypeRecordWorkflowClosed {
+			domainEntry, err := shard.GetDomainCache().GetDomainByID(task.GetDomainID())
 			if err == nil {
 				if domainEntry.HasReplicationCluster(clusterName) {
 					// guarantee the processing of workflow execution close
@@ -576,14 +576,14 @@ func newTransferQueueStandbyProcessor(
 			} else {
 				if _, ok := err.(*types.EntityNotExistsError); !ok {
 					// retry the task if failed to find the domain
-					logger.Warn("Cannot find domain", tag.WorkflowDomainID(task.DomainID))
+					logger.Warn("Cannot find domain", tag.WorkflowDomainID(task.GetDomainID()))
 					return false, err
 				}
-				logger.Warn("Cannot find domain, default to not process task.", tag.WorkflowDomainID(task.DomainID), tag.Value(task))
+				logger.Warn("Cannot find domain, default to not process task.", tag.WorkflowDomainID(task.GetDomainID()), tag.Value(task))
 				return false, nil
 			}
 		}
-		return taskAllocator.VerifyStandbyTask(clusterName, task.DomainID, task)
+		return taskAllocator.VerifyStandbyTask(clusterName, task.GetDomainID(), task)
 	}
 
 	updateMaxReadLevel := func() task.Key {
@@ -642,15 +642,15 @@ func newTransferQueueFailoverProcessor(
 	)
 
 	taskFilter := func(taskInfo task.Info) (bool, error) {
-		task, ok := taskInfo.(*persistence.TransferTaskInfo)
+		task, ok := taskInfo.(persistence.Task)
 		if !ok {
 			return false, errUnexpectedQueueTask
 		}
-		if notRegistered, err := isDomainNotRegistered(shardContext, task.DomainID); notRegistered && err == nil {
-			logger.Info("Domain is not in registered status, skip task in failover transfer queue.", tag.WorkflowDomainID(task.DomainID), tag.Value(taskInfo))
+		if notRegistered, err := isDomainNotRegistered(shardContext, task.GetDomainID()); notRegistered && err == nil {
+			logger.Info("Domain is not in registered status, skip task in failover transfer queue.", tag.WorkflowDomainID(task.GetDomainID()), tag.Value(taskInfo))
 			return false, nil
 		}
-		return taskAllocator.VerifyFailoverActiveTask(domainIDs, task.DomainID, task)
+		return taskAllocator.VerifyFailoverActiveTask(domainIDs, task.GetDomainID(), task)
 	}
 
 	maxReadLevelTaskKey := newTransferTaskKey(maxLevel)

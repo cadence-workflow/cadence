@@ -105,11 +105,11 @@ type (
 	// TransferTasksFilter contains the column names within transfer_tasks table that
 	// can be used to filter results through a WHERE clause
 	TransferTasksFilter struct {
-		ShardID   int
-		TaskID    int64
-		MinTaskID int64
-		MaxTaskID int64
-		PageSize  int
+		ShardID            int
+		TaskID             int64
+		InclusiveMinTaskID int64
+		ExclusiveMaxTaskID int64
+		PageSize           int
 	}
 
 	// CrossClusterTasksFilter contains the column names within cross_cluster_tasks table that
@@ -292,9 +292,8 @@ type (
 	ReplicationTasksFilter struct {
 		ShardID            int
 		TaskID             int64
-		ExclusiveEndTaskID int64
-		MinTaskID          int64
-		MaxTaskID          int64
+		InclusiveMinTaskID int64
+		ExclusiveMaxTaskID int64
 		PageSize           int
 	}
 

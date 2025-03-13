@@ -216,14 +216,14 @@ func executionManagerTags(op string) *tag.Tag {
 		return &tag.StoreOperationIsWorkflowExecutionExists
 	case "ExecutionManager.ListConcreteExecutions":
 		return &tag.StoreOperationListConcreteExecution
-	case "ExecutionManager.GetTransferTasks":
-		return &tag.StoreOperationGetTransferTasks
 	case "ExecutionManager.GetCrossClusterTasks":
 		return &tag.StoreOperationGetCrossClusterTasks
 	case "ExecutionManager.GetReplicationTasks":
 		return &tag.StoreOperationGetReplicationTasks
 	case "ExecutionManager.CompleteTransferTask":
 		return &tag.StoreOperationCompleteTransferTask
+	case "ExecutionManager.GetHistoryTasks":
+		return &tag.StoreOperationGetHistoryTasks
 	case "ExecutionManager.RangeCompleteHistoryTask":
 		return &tag.StoreOperationRangeCompleteHistoryTask
 	case "ExecutionManager.CompleteCrossClusterTask":
@@ -240,8 +240,6 @@ func executionManagerTags(op string) *tag.Tag {
 		return &tag.StoreOperationDeleteReplicationTaskFromDLQ
 	case "ExecutionManager.RangeDeleteReplicationTaskFromDLQ":
 		return &tag.StoreOperationRangeDeleteReplicationTaskFromDLQ
-	case "ExecutionManager.GetTimerIndexTasks":
-		return &tag.StoreOperationGetTimerIndexTasks
 	case "ExecutionManager.CompleteTimerTask":
 		return &tag.StoreOperationCompleteTimerTask
 	case "ExecutionManager.CreateFailoverMarkerTasks":

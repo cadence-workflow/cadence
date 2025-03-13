@@ -49,15 +49,20 @@ func getUserTimers(
 	pageSize int,
 ) pagination.FetchFn {
 	return func(ctx context.Context, token pagination.PageToken) (pagination.Page, error) {
-		req := &persistence.GetTimerIndexTasksRequest{
-			MinTimestamp: minTimestamp,
-			MaxTimestamp: maxTimestamp,
-			BatchSize:    pageSize,
+		req := &persistence.GetHistoryTasksRequest{
+			TaskCategory: persistence.HistoryTaskCategoryTimer,
+			InclusiveMinTaskKey: persistence.HistoryTaskKey{
+				ScheduledTime: minTimestamp,
+			},
+			ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
+				ScheduledTime: maxTimestamp,
+			},
+			PageSize: pageSize,
 		}
 		if token != nil {
 			req.NextPageToken = token.([]byte)
 		}
-		resp, err := pr.GetTimerIndexTasks(ctx, req)
+		resp, err := pr.GetHistoryTasks(ctx, req)
 
 		if err != nil {
 			return pagination.Page{}, err
@@ -65,18 +70,18 @@ func getUserTimers(
 
 		var timers []pagination.Entity
 
-		for _, t := range resp.Timers {
+		for _, t := range resp.Tasks {
 			if t.GetTaskType() != persistence.TaskTypeUserTimer {
 				continue
 			}
 
 			timer := &entity.Timer{
 				ShardID:             pr.GetShardID(),
-				DomainID:            t.DomainID,
-				WorkflowID:          t.WorkflowID,
-				RunID:               t.RunID,
-				TaskType:            t.TaskType,
-				VisibilityTimestamp: t.VisibilityTimestamp,
+				DomainID:            t.GetDomainID(),
+				WorkflowID:          t.GetWorkflowID(),
+				RunID:               t.GetRunID(),
+				TaskType:            t.GetTaskType(),
+				VisibilityTimestamp: t.GetVisibilityTimestamp(),
 			}
 
 			if err := timer.Validate(); err != nil {

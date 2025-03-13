@@ -223,8 +223,8 @@ func (r *dlqHandlerImpl) readMessagesWithAckLevel(
 		&persistence.GetReplicationTasksFromDLQRequest{
 			SourceClusterName: sourceCluster,
 			GetReplicationTasksRequest: persistence.GetReplicationTasksRequest{
-				ReadLevel:     defaultBeginningMessageID,
-				MaxReadLevel:  lastMessageID,
+				ReadLevel:     defaultBeginningMessageID + 1,
+				MaxReadLevel:  lastMessageID + 1,
 				BatchSize:     pageSize,
 				NextPageToken: pageToken,
 			},

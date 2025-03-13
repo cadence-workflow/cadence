@@ -154,6 +154,7 @@ func NewTestBaseWithNoSQL(t *testing.T, options *TestBaseOptions) *TestBase {
 		PersistenceSampleLoggingRate:             dynamicconfig.GetIntPropertyFn(100),
 		EnableShardIDMetrics:                     dynamicconfig.GetBoolPropertyFn(true),
 		EnableHistoryTaskDualWriteMode:           dynamicconfig.GetBoolPropertyFn(true),
+		ReadNoSQLHistoryTaskFromDataBlob:         dynamicconfig.GetBoolPropertyFn(false),
 	}
 	params := TestBaseParams{
 		DefaultTestCluster:    testCluster,
@@ -1431,16 +1432,21 @@ func (s *TestBase) DeleteCurrentWorkflowExecution(ctx context.Context, info *per
 }
 
 // GetTransferTasks is a utility method to get tasks from transfer task queue
-func (s *TestBase) GetTransferTasks(ctx context.Context, batchSize int, getAll bool) ([]*persistence.TransferTaskInfo, error) {
-	result := []*persistence.TransferTaskInfo{}
+func (s *TestBase) GetTransferTasks(ctx context.Context, batchSize int, getAll bool) ([]persistence.Task, error) {
+	result := []persistence.Task{}
 	var token []byte
 
 Loop:
 	for {
-		response, err := s.ExecutionManager.GetTransferTasks(ctx, &persistence.GetTransferTasksRequest{
-			ReadLevel:     0,
-			MaxReadLevel:  math.MaxInt64,
-			BatchSize:     batchSize,
+		response, err := s.ExecutionManager.GetHistoryTasks(ctx, &persistence.GetHistoryTasksRequest{
+			TaskCategory: persistence.HistoryTaskCategoryTransfer,
+			InclusiveMinTaskKey: persistence.HistoryTaskKey{
+				TaskID: 0,
+			},
+			ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
+				TaskID: math.MaxInt64,
+			},
+			PageSize:      batchSize,
 			NextPageToken: token,
 		})
 		if err != nil {
@@ -1645,16 +1651,21 @@ func (s *TestBase) CompleteReplicationTask(ctx context.Context, taskID int64) er
 }
 
 // GetTimerIndexTasks is a utility method to get tasks from transfer task queue
-func (s *TestBase) GetTimerIndexTasks(ctx context.Context, batchSize int, getAll bool) ([]*persistence.TimerTaskInfo, error) {
-	result := []*persistence.TimerTaskInfo{}
+func (s *TestBase) GetTimerIndexTasks(ctx context.Context, batchSize int, getAll bool) ([]persistence.Task, error) {
+	result := []persistence.Task{}
 	var token []byte
 
 Loop:
 	for {
-		response, err := s.ExecutionManager.GetTimerIndexTasks(ctx, &persistence.GetTimerIndexTasksRequest{
-			MinTimestamp:  time.Time{},
-			MaxTimestamp:  time.Unix(0, math.MaxInt64),
-			BatchSize:     batchSize,
+		response, err := s.ExecutionManager.GetHistoryTasks(ctx, &persistence.GetHistoryTasksRequest{
+			TaskCategory: persistence.HistoryTaskCategoryTimer,
+			InclusiveMinTaskKey: persistence.HistoryTaskKey{
+				ScheduledTime: time.Time{},
+			},
+			ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
+				ScheduledTime: time.Unix(0, math.MaxInt64),
+			},
+			PageSize:      batchSize,
 			NextPageToken: token,
 		})
 		if err != nil {
@@ -1662,7 +1673,7 @@ Loop:
 		}
 
 		token = response.NextPageToken
-		result = append(result, response.Timers...)
+		result = append(result, response.Tasks...)
 		if len(token) == 0 || !getAll {
 			break Loop
 		}
@@ -1867,8 +1878,8 @@ func (s *TestBase) ClearTransferQueue() {
 
 	counter := 0
 	for _, t := range tasks {
-		s.Logger.Info("Deleting transfer task with ID", tag.TaskID(t.TaskID))
-		s.NoError(s.CompleteTransferTask(context.Background(), t.TaskID))
+		s.Logger.Info("Deleting transfer task with ID", tag.TaskID(t.GetTaskID()))
+		s.NoError(s.CompleteTransferTask(context.Background(), t.GetTaskID()))
 		counter++
 	}
 

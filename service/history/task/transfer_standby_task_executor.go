@@ -74,8 +74,8 @@ func (t *transferStandbyTaskExecutor) Execute(
 	task Task,
 	shouldProcessTask bool,
 ) error {
-	transferTask, ok := task.GetInfo().(*persistence.TransferTaskInfo)
-	if !ok {
+	transferTask, err := persistence.ToTransferTaskInfo(task.GetInfo().(persistence.Task))
+	if err != nil {
 		return errUnexpectedTask
 	}
 

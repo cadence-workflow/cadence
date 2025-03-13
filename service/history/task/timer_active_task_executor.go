@@ -79,8 +79,8 @@ func (t *timerActiveTaskExecutor) Execute(
 	task Task,
 	shouldProcessTask bool,
 ) error {
-	timerTask, ok := task.GetInfo().(*persistence.TimerTaskInfo)
-	if !ok {
+	timerTask, err := persistence.ToTimerTaskInfo(task.GetInfo().(persistence.Task))
+	if err != nil {
 		return errUnexpectedTask
 	}
 

@@ -891,20 +891,6 @@ type (
 		DomainName string
 	}
 
-	// GetTransferTasksRequest is used to read tasks from the transfer task queue
-	GetTransferTasksRequest struct {
-		ReadLevel     int64
-		MaxReadLevel  int64
-		BatchSize     int
-		NextPageToken []byte
-	}
-
-	// GetTransferTasksResponse is the response to GetTransferTasksRequest
-	GetTransferTasksResponse struct {
-		Tasks         []*TransferTaskInfo
-		NextPageToken []byte
-	}
-
 	// GetCrossClusterTasksRequest is used to read tasks from the cross-cluster task queue
 	GetCrossClusterTasksRequest struct {
 		TargetCluster string
@@ -999,6 +985,21 @@ type (
 	CompleteTimerTaskRequest struct {
 		VisibilityTimestamp time.Time
 		TaskID              int64
+	}
+
+	// GetHistoryTasksRequest is used to get history tasks
+	GetHistoryTasksRequest struct {
+		TaskCategory        HistoryTaskCategory
+		InclusiveMinTaskKey HistoryTaskKey
+		ExclusiveMaxTaskKey HistoryTaskKey
+		PageSize            int
+		NextPageToken       []byte
+	}
+
+	// GetHistoryTasksResponse is the response for GetHistoryTasks
+	GetHistoryTasksResponse struct {
+		Tasks         []Task
+		NextPageToken []byte
 	}
 
 	RangeCompleteHistoryTaskRequest struct {
@@ -1147,21 +1148,6 @@ type (
 	// GetOrphanTasksResponse is the response to GetOrphanTasksRequests
 	GetOrphanTasksResponse struct {
 		Tasks []*TaskKey
-	}
-
-	// GetTimerIndexTasksRequest is the request for GetTimerIndexTasks
-	// TODO: replace this with an iterator that can configure min and max index.
-	GetTimerIndexTasksRequest struct {
-		MinTimestamp  time.Time
-		MaxTimestamp  time.Time
-		BatchSize     int
-		NextPageToken []byte
-	}
-
-	// GetTimerIndexTasksResponse is the response for GetTimerIndexTasks
-	GetTimerIndexTasksResponse struct {
-		Timers        []*TimerTaskInfo
-		NextPageToken []byte
 	}
 
 	// DomainInfo describes the domain entity
@@ -1562,7 +1548,6 @@ type (
 		IsWorkflowExecutionExists(ctx context.Context, request *IsWorkflowExecutionExistsRequest) (*IsWorkflowExecutionExistsResponse, error)
 
 		// Transfer task related methods
-		GetTransferTasks(ctx context.Context, request *GetTransferTasksRequest) (*GetTransferTasksResponse, error)
 		CompleteTransferTask(ctx context.Context, request *CompleteTransferTaskRequest) error
 
 		// Replication task related methods
@@ -1576,9 +1561,9 @@ type (
 		CreateFailoverMarkerTasks(ctx context.Context, request *CreateFailoverMarkersRequest) error
 
 		// Timer related methods.
-		GetTimerIndexTasks(ctx context.Context, request *GetTimerIndexTasksRequest) (*GetTimerIndexTasksResponse, error)
 		CompleteTimerTask(ctx context.Context, request *CompleteTimerTaskRequest) error
 
+		GetHistoryTasks(ctx context.Context, request *GetHistoryTasksRequest) (*GetHistoryTasksResponse, error)
 		RangeCompleteHistoryTask(ctx context.Context, request *RangeCompleteHistoryTaskRequest) (*RangeCompleteHistoryTaskResponse, error)
 
 		// Scan operations

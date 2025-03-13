@@ -195,17 +195,21 @@ func TestTransferQueueProcessor_FailoverDomain(t *testing.T) {
 		"processor started": {
 			domainIDs: map[string]struct{}{"domainID": {}},
 			setupMocks: func(mockShard *shard.TestContext) {
-				response := &persistence.GetTransferTasksResponse{
-					Tasks: []*persistence.TransferTaskInfo{
-						{
-							DomainID:   constants.TestDomainID,
-							WorkflowID: constants.TestWorkflowID,
-							RunID:      constants.TestRunID,
-							TaskID:     1,
+				response := &persistence.GetHistoryTasksResponse{
+					Tasks: []persistence.Task{
+						&persistence.DecisionTask{
+							WorkflowIdentifier: persistence.WorkflowIdentifier{
+								DomainID:   constants.TestDomainID,
+								WorkflowID: constants.TestWorkflowID,
+								RunID:      constants.TestRunID,
+							},
+							TaskData: persistence.TaskData{
+								TaskID: 1,
+							},
 						},
 					},
 				}
-				mockShard.GetExecutionManager().(*mocks.ExecutionManager).On("GetTransferTasks", context.Background(), mock.Anything).Return(response, nil).Once()
+				mockShard.GetExecutionManager().(*mocks.ExecutionManager).On("GetHistoryTasks", context.Background(), mock.Anything).Return(response, nil).Once()
 			},
 			processorStarted: true,
 		},
