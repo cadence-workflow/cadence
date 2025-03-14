@@ -26,6 +26,7 @@ import (
 
 	"github.com/startreedata/pinot-client-go/pinot"
 	apiv1 "github.com/uber/cadence-idl/go/proto/api/v1"
+	cadencelog "github.com/uber/cadence/common/log"
 	"go.uber.org/cadence/.gen/go/cadence/workflowserviceclient"
 	"go.uber.org/cadence/compatibility"
 
@@ -195,45 +196,14 @@ func (s *server) startService() common.Daemon {
 		log.Fatalf("ringpop provider failed: %v", err)
 	}
 
-	shardDistributorClientConfig, ok := params.RPCFactory.GetDispatcher().OutboundConfig(service.ShardDistributor)
-	var shardDistributorClient sharddistributorClient.Client
-	if ok {
-		if !rpc.IsGRPCOutbound(shardDistributorClientConfig) {
-			params.Logger.Error("shard distributor client does not support non-GRPC outbound will fail back to hashring")
-		}
-
-		shardDistributorClient = grpc.NewShardDistributorClient(
-			sharddistributorv1.NewShardDistributorAPIYARPCClient(shardDistributorClientConfig),
-		)
-
-		shardDistributorClient = timeoutwrapper.NewShardDistributorClient(shardDistributorClient, timeoutwrapper.ShardDistributorDefaultTimeout)
-		if errorRate := dc.GetFloat64Property(dynamicconfig.ShardDistributorErrorInjectionRate)(); errorRate != 0 {
-			shardDistributorClient = errorinjectors.NewShardDistributorClient(shardDistributorClient, errorRate, params.Logger)
-		}
-		if params.MetricsClient != nil {
-			shardDistributorClient = metered.NewShardDistributorClient(shardDistributorClient, params.MetricsClient)
-		}
-	}
+	shardDistributorClient := s.createShardDistributorClient(params, dc)
 
 	params.HashRings = make(map[string]*membership.Ring)
 	for _, s := range service.ListWithRing {
 		params.HashRings[s] = membership.NewHashring(s, peerProvider, clock.NewRealTimeSource(), params.Logger, params.MetricsClient.Scope(metrics.HashringScope))
 	}
 
-	wrappedRings := make(map[string]membership.SingleProvider, len(params.HashRings))
-	for k, v := range params.HashRings {
-		if k == service.Matching {
-			wrappedRings[k] = membership.NewShardDistributorResolver(
-				constants.MatchingNamespace,
-				shardDistributorClient,
-				dc.GetStringProperty(dynamicconfig.MatchingShardDistributionMode),
-				v,
-				params.Logger,
-			)
-		} else {
-			wrappedRings[k] = v
-		}
-	}
+	wrappedRings := s.newMethod(params.HashRings, shardDistributorClient, dc, params.Logger)
 
 	params.MembershipResolver, err = membership.NewResolver(
 		peerProvider,
@@ -336,6 +306,52 @@ func (s *server) startService() common.Daemon {
 	go execute(daemon, s.doneC)
 
 	return daemon
+}
+
+func (*server) newMethod(
+	hashRings map[string]*membership.Ring,
+	shardDistributorClient sharddistributorClient.Client,
+	dc *dynamicconfig.Collection,
+	logger cadencelog.Logger,
+) map[string]membership.SingleProvider {
+	wrappedRings := make(map[string]membership.SingleProvider, len(hashRings))
+	for k, v := range hashRings {
+		if k == service.Matching {
+			wrappedRings[k] = membership.NewShardDistributorResolver(
+				constants.MatchingNamespace,
+				shardDistributorClient,
+				dc.GetStringProperty(dynamicconfig.MatchingShardDistributionMode),
+				v,
+				logger,
+			)
+		} else {
+			wrappedRings[k] = v
+		}
+	}
+	return wrappedRings
+}
+
+func (*server) createShardDistributorClient(params resource.Params, dc *dynamicconfig.Collection) sharddistributorClient.Client {
+	shardDistributorClientConfig, ok := params.RPCFactory.GetDispatcher().OutboundConfig(service.ShardDistributor)
+	var shardDistributorClient sharddistributorClient.Client
+	if ok {
+		if !rpc.IsGRPCOutbound(shardDistributorClientConfig) {
+			params.Logger.Error("shard distributor client does not support non-GRPC outbound will fail back to hashring")
+		}
+
+		shardDistributorClient = grpc.NewShardDistributorClient(
+			sharddistributorv1.NewShardDistributorAPIYARPCClient(shardDistributorClientConfig),
+		)
+
+		shardDistributorClient = timeoutwrapper.NewShardDistributorClient(shardDistributorClient, timeoutwrapper.ShardDistributorDefaultTimeout)
+		if errorRate := dc.GetFloat64Property(dynamicconfig.ShardDistributorErrorInjectionRate)(); errorRate != 0 {
+			shardDistributorClient = errorinjectors.NewShardDistributorClient(shardDistributorClient, errorRate, params.Logger)
+		}
+		if params.MetricsClient != nil {
+			shardDistributorClient = metered.NewShardDistributorClient(shardDistributorClient, params.MetricsClient)
+		}
+	}
+	return shardDistributorClient
 }
 
 // execute runs the daemon in a separate go routine
