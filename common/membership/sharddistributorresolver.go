@@ -80,6 +80,13 @@ func (s shardDistributorResolver) Stop() {
 }
 
 func (s shardDistributorResolver) LookupRaw(key string) (string, error) {
+	if s.shardDistributionMode() != "hash_ring" && s.client == nil {
+		// This will avoid panics when the shard distributor is not configured
+		s.logger.Warn("No shard distributor client, defaulting to hash ring", tag.Value(s.shardDistributionMode()))
+
+		return s.ring.LookupRaw(key)
+	}
+
 	switch modeKey(s.shardDistributionMode()) {
 	case modeKeyHashRing:
 		return s.ring.LookupRaw(key)
