@@ -77,11 +77,6 @@ type Options struct {
 	// It is required option if MaxSize is not provided
 	MaxCount int
 
-	// GetCacheItemSizeFunc is a function called upon adding the item to update the cache size.
-	// It returns 0 by default, assuming the cache is just count based
-	// It is required option if MaxCount is not provided
-	GetCacheItemSizeFunc GetCacheItemSizeFunc
-
 	// MaxSize is an optional and must be set along with GetCacheItemSizeFunc
 	// to control the max size in bytes of the cache
 	// It is required option if MaxCount is not provided
@@ -98,6 +93,16 @@ type Options struct {
 	// TimeSource is used to get the current time
 	// It is optional and defaults to clock.NewRealTimeSource()
 	TimeSource clock.TimeSource
+
+	// IsSizeBased is an optional flag to indicate if the cache is size based
+	// If set to true, the cache will evict items based on item size instead of count
+	// But the item HAS to be able to cast as a Sizeable interface otherwise the cache will fail
+	IsSizeBased bool
+
+	// Deprecated: GetCacheItemSizeFunc is a function called upon adding the item to update the cache size.
+	// It returns 0 by default, assuming the cache is just count based
+	// It is required option if MaxCount is not provided
+	GetCacheItemSizeFunc GetCacheItemSizeFunc
 }
 
 // SimpleOptions provides options that can be used to configure SimpleCache

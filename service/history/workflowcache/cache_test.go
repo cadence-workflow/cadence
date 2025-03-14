@@ -150,6 +150,16 @@ func TestWfCache_AllowError(t *testing.T) {
 			tag.WorkflowIDCacheSize(0),
 		},
 	).Times(2)
+	logger.On("Info",
+		"LRU cache initialized",
+		[]tag.Tag{
+			tag.Value(map[string]interface{}{
+				"isSizeBased":     false,
+				"initialCapacity": 0,
+				"maxCount":        1000,
+				"maxSize":         0,
+			}),
+		}).Times(1)
 
 	// Setup the cache, we do not need the factories, as we will mock the getCacheItemFn
 	wfCache := New(Params{

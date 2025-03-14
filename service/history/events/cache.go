@@ -154,7 +154,7 @@ func newCacheWithOption(
 		}
 	}
 	return &cacheImpl{
-		Cache:          cache.New(opts),
+		Cache:          cache.New(opts, logger.WithTags(tag.ComponentEventsCache)),
 		domainCache:    domainCache,
 		historyManager: historyManager,
 		disabled:       disabled,
