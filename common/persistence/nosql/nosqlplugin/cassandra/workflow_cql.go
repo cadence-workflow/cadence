@@ -575,7 +575,7 @@ const (
 		`and visibility_ts = ? ` +
 		`and task_id = ? `
 
-	templateGetTransferTasksQuery = `SELECT transfer ` +
+	templateGetTransferTasksQuery = `SELECT task_id, transfer, data, data_encoding ` +
 		`FROM executions ` +
 		`WHERE shard_id = ? ` +
 		`and type = ? ` +
@@ -586,7 +586,7 @@ const (
 		`and task_id >= ? ` +
 		`and task_id < ?`
 
-	templateGetReplicationTasksQuery = `SELECT replication ` +
+	templateGetReplicationTasksQuery = `SELECT task_id, replication, data, data_encoding ` +
 		`FROM executions ` +
 		`WHERE shard_id = ? ` +
 		`and type = ? ` +
@@ -639,7 +639,7 @@ const (
 
 	templateRangeCompleteReplicationTaskQuery = templateRangeCompleteTransferTaskQuery
 
-	templateGetTimerTasksQuery = `SELECT timer ` +
+	templateGetTimerTasksQuery = `SELECT visibility_ts, task_id, timer, data, data_encoding ` +
 		`FROM executions ` +
 		`WHERE shard_id = ? ` +
 		`and type = ?` +

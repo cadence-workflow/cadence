@@ -1183,7 +1183,7 @@ func (m *sqlExecutionStore) CreateFailoverMarkerTasks(
 				DomainID:                serialization.MustParseUUID(task.DomainID),
 				WorkflowID:              emptyWorkflowID,
 				RunID:                   serialization.MustParseUUID(emptyReplicationRunID),
-				TaskType:                int16(task.GetType()),
+				TaskType:                int16(task.GetTaskType()),
 				FirstEventID:            common.EmptyEventID,
 				NextEventID:             common.EmptyEventID,
 				Version:                 task.GetVersion(),
@@ -1410,6 +1410,164 @@ func (m *sqlExecutionStore) populateInternalListConcreteExecutions(
 		concreteExecutions = append(concreteExecutions, concreteExecution)
 	}
 	return concreteExecutions, nil
+}
+
+func (m *sqlExecutionStore) GetHistoryTasks(
+	ctx context.Context,
+	request *p.GetHistoryTasksRequest,
+) (*p.GetHistoryTasksResponse, error) {
+	switch request.TaskCategory.Type() {
+	case p.HistoryTaskCategoryTypeImmediate:
+		return m.getImmediateHistoryTasks(ctx, request)
+	case p.HistoryTaskCategoryTypeScheduled:
+		return m.getScheduledHistoryTasks(ctx, request)
+	default:
+		return nil, &types.BadRequestError{Message: fmt.Sprintf("Unknown task category type: %v", request.TaskCategory.Type())}
+	}
+}
+
+func (m *sqlExecutionStore) getImmediateHistoryTasks(
+	ctx context.Context,
+	request *p.GetHistoryTasksRequest,
+) (*p.GetHistoryTasksResponse, error) {
+	switch request.TaskCategory.ID() {
+	case p.HistoryTaskCategoryIDTransfer:
+		inclusiveMinTaskID := request.InclusiveMinTaskKey.TaskID
+		if len(request.NextPageToken) > 0 {
+			var err error
+			inclusiveMinTaskID, err = deserializePageToken(request.NextPageToken)
+			if err != nil {
+				return nil, &types.InternalServiceError{Message: fmt.Sprintf("GetImmediateHistoryTasks: error deserializing page token: %v", err)}
+			}
+		}
+		rows, err := m.db.SelectFromTransferTasks(ctx, &sqlplugin.TransferTasksFilter{
+			ShardID:            m.shardID,
+			InclusiveMinTaskID: inclusiveMinTaskID,
+			ExclusiveMaxTaskID: request.ExclusiveMaxTaskKey.TaskID,
+			PageSize:           request.PageSize,
+		})
+		if err != nil {
+			if err != sql.ErrNoRows {
+				return nil, convertCommonErrors(m.db, "GetImmediateHistoryTasks", "", err)
+			}
+		}
+		var tasks []p.Task
+		for _, row := range rows {
+			task, err := m.taskSerializer.DeserializeTask(request.TaskCategory, p.NewDataBlob(row.Data, common.EncodingType(row.DataEncoding)))
+			if err != nil {
+				return nil, convertCommonErrors(m.db, "GetImmediateHistoryTasks", "", err)
+			}
+			task.SetTaskID(row.TaskID)
+			tasks = append(tasks, task)
+		}
+		resp := &p.GetHistoryTasksResponse{Tasks: tasks}
+		if len(rows) > 0 {
+			nextTaskID := rows[len(rows)-1].TaskID + 1
+			if nextTaskID < request.ExclusiveMaxTaskKey.TaskID {
+				resp.NextPageToken = serializePageToken(nextTaskID)
+			}
+		}
+		return resp, nil
+	case p.HistoryTaskCategoryIDReplication:
+		inclusiveMinTaskID := request.InclusiveMinTaskKey.TaskID
+		exclusiveMaxTaskID := request.ExclusiveMaxTaskKey.TaskID
+		if len(request.NextPageToken) > 0 {
+			var err error
+			inclusiveMinTaskID, err = deserializePageToken(request.NextPageToken)
+			if err != nil {
+				return nil, &types.InternalServiceError{Message: fmt.Sprintf("GetImmediateHistoryTasks: error deserializing page token: %v", err)}
+			}
+			// TODO: this doesn't seem right, we should be using the exclusiveMaxTaskID from the request, but keeping the same logic for now and review it later
+			exclusiveMaxTaskID = max(inclusiveMinTaskID+int64(request.PageSize), exclusiveMaxTaskID)
+		}
+		rows, err := m.db.SelectFromReplicationTasks(ctx, &sqlplugin.ReplicationTasksFilter{
+			ShardID:            m.shardID,
+			InclusiveMinTaskID: inclusiveMinTaskID,
+			ExclusiveMaxTaskID: exclusiveMaxTaskID,
+			PageSize:           request.PageSize,
+		})
+		if err != nil {
+			if err != sql.ErrNoRows {
+				return nil, convertCommonErrors(m.db, "GetImmediateHistoryTasks", "", err)
+			}
+		}
+		var tasks []p.Task
+		for _, row := range rows {
+			task, err := m.taskSerializer.DeserializeTask(request.TaskCategory, p.NewDataBlob(row.Data, common.EncodingType(row.DataEncoding)))
+			if err != nil {
+				return nil, convertCommonErrors(m.db, "GetImmediateHistoryTasks", "", err)
+			}
+			task.SetTaskID(row.TaskID)
+			tasks = append(tasks, task)
+		}
+		resp := &p.GetHistoryTasksResponse{Tasks: tasks}
+		if len(rows) > 0 {
+			nextTaskID := rows[len(rows)-1].TaskID + 1
+			if nextTaskID < request.ExclusiveMaxTaskKey.TaskID {
+				resp.NextPageToken = serializePageToken(nextTaskID)
+			}
+		}
+		return resp, nil
+	default:
+		return nil, &types.BadRequestError{Message: fmt.Sprintf("Unknown task category ID: %v", request.TaskCategory.ID())}
+	}
+}
+
+func (m *sqlExecutionStore) getScheduledHistoryTasks(
+	ctx context.Context,
+	request *p.GetHistoryTasksRequest,
+) (*p.GetHistoryTasksResponse, error) {
+	switch request.TaskCategory.ID() {
+	case p.HistoryTaskCategoryIDTimer:
+		pageToken := &timerTaskPageToken{TaskID: math.MinInt64, Timestamp: request.InclusiveMinTaskKey.ScheduledTime}
+		if len(request.NextPageToken) > 0 {
+			if err := pageToken.deserialize(request.NextPageToken); err != nil {
+				return nil, &types.InternalServiceError{
+					Message: fmt.Sprintf("error deserializing timerTaskPageToken: %v", err),
+				}
+			}
+		}
+		rows, err := m.db.SelectFromTimerTasks(ctx, &sqlplugin.TimerTasksFilter{
+			ShardID:                m.shardID,
+			MinVisibilityTimestamp: pageToken.Timestamp,
+			TaskID:                 pageToken.TaskID,
+			MaxVisibilityTimestamp: request.ExclusiveMaxTaskKey.ScheduledTime,
+			PageSize:               request.PageSize + 1,
+		})
+		if err != nil {
+			if err != sql.ErrNoRows {
+				return nil, convertCommonErrors(m.db, "GetScheduledHistoryTasks", "", err)
+			}
+		}
+		var tasks []p.Task
+		for _, row := range rows {
+			task, err := m.taskSerializer.DeserializeTask(request.TaskCategory, p.NewDataBlob(row.Data, common.EncodingType(row.DataEncoding)))
+			if err != nil {
+				return nil, convertCommonErrors(m.db, "GetScheduledHistoryTasks", "", err)
+			}
+			task.SetTaskID(row.TaskID)
+			task.SetVisibilityTimestamp(row.VisibilityTimestamp)
+			tasks = append(tasks, task)
+		}
+		resp := &p.GetHistoryTasksResponse{Tasks: tasks}
+		if len(tasks) > request.PageSize {
+			pageToken = &timerTaskPageToken{
+				TaskID:    tasks[request.PageSize].GetTaskID(),
+				Timestamp: tasks[request.PageSize].GetVisibilityTimestamp(),
+			}
+			resp.Tasks = resp.Tasks[:request.PageSize]
+			nextToken, err := pageToken.serialize()
+			if err != nil {
+				return nil, &types.InternalServiceError{
+					Message: fmt.Sprintf("GetScheduledHistoryTasks: error serializing page token: %v", err),
+				}
+			}
+			resp.NextPageToken = nextToken
+		}
+		return resp, nil
+	default:
+		return nil, &types.BadRequestError{Message: fmt.Sprintf("Unknown task category ID: %v", request.TaskCategory.ID())}
+	}
 }
 
 func (m *sqlExecutionStore) RangeCompleteHistoryTask(

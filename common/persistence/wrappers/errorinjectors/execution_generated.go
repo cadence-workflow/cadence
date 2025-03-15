@@ -208,6 +208,21 @@ func (c *injectorExecutionManager) GetCurrentExecution(ctx context.Context, requ
 	return
 }
 
+func (c *injectorExecutionManager) GetHistoryTasks(ctx context.Context, request *persistence.GetHistoryTasksRequest) (gp1 *persistence.GetHistoryTasksResponse, err error) {
+	fakeErr := generateFakeError(c.errorRate)
+	var forwardCall bool
+	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
+		gp1, err = c.wrapped.GetHistoryTasks(ctx, request)
+	}
+
+	if fakeErr != nil {
+		logErr(c.logger, "ExecutionManager.GetHistoryTasks", fakeErr, forwardCall, err)
+		err = fakeErr
+		return
+	}
+	return
+}
+
 func (c *injectorExecutionManager) GetName() (s1 string) {
 	return c.wrapped.GetName()
 }

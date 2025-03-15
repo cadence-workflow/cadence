@@ -1010,6 +1010,13 @@ func (m *executionManagerImpl) toInternalReplicationTaskInfo(info *ReplicationTa
 	}
 }
 
+func (m *executionManagerImpl) GetHistoryTasks(
+	ctx context.Context,
+	request *GetHistoryTasksRequest,
+) (*GetHistoryTasksResponse, error) {
+	return m.persistence.GetHistoryTasks(ctx, request)
+}
+
 func (m *executionManagerImpl) RangeCompleteHistoryTask(
 	ctx context.Context,
 	request *RangeCompleteHistoryTaskRequest,

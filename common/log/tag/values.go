@@ -222,6 +222,7 @@ var (
 	StoreOperationCreateFailoverMarkerTasks         = storeOperation("createFailoverMarkerTasks")
 	StoreOperationGetTimerIndexTasks                = storeOperation("get-timer-index-tasks")
 	StoreOperationCompleteTimerTask                 = storeOperation("complete-timer-task")
+	StoreOperationGetHistoryTasks                   = storeOperation("get-history-tasks")
 	StoreOperationRangeCompleteHistoryTask          = storeOperation("range-complete-history-task")
 
 	StoreOperationCreateTasks           = storeOperation("create-tasks")

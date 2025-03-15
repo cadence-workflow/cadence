@@ -598,8 +598,13 @@ func (d *nosqlExecutionStore) GetTransferTasks(
 		return nil, convertCommonErrors(d.db, "GetTransferTasks", err)
 	}
 
+	var tTasks []*persistence.TransferTaskInfo
+	for _, t := range tasks {
+		tTasks = append(tTasks, t.Transfer)
+	}
+
 	return &persistence.GetTransferTasksResponse{
-		Tasks:         tasks,
+		Tasks:         tTasks,
 		NextPageToken: nextPageToken,
 	}, nil
 }
@@ -613,8 +618,12 @@ func (d *nosqlExecutionStore) GetReplicationTasks(
 	if err != nil {
 		return nil, convertCommonErrors(d.db, "GetReplicationTasks", err)
 	}
+	var tTasks []*persistence.InternalReplicationTaskInfo
+	for _, t := range tasks {
+		tTasks = append(tTasks, t.Replication)
+	}
 	return &persistence.InternalGetReplicationTasksResponse{
-		Tasks:         tasks,
+		Tasks:         tTasks,
 		NextPageToken: nextPageToken,
 	}, nil
 }
@@ -678,8 +687,12 @@ func (d *nosqlExecutionStore) GetTimerIndexTasks(
 		return nil, convertCommonErrors(d.db, "GetTimerTasks", err)
 	}
 
+	var tTasks []*persistence.TimerTaskInfo
+	for _, t := range timers {
+		tTasks = append(tTasks, t.Timer)
+	}
 	return &persistence.GetTimerIndexTasksResponse{
-		Timers:        timers,
+		Timers:        tTasks,
 		NextPageToken: nextPageToken,
 	}, nil
 }
@@ -710,8 +723,12 @@ func (d *nosqlExecutionStore) GetReplicationTasksFromDLQ(
 	if err != nil {
 		return nil, convertCommonErrors(d.db, "GetReplicationTasksFromDLQ", err)
 	}
+	var tTasks []*persistence.InternalReplicationTaskInfo
+	for _, t := range tasks {
+		tTasks = append(tTasks, t.Replication)
+	}
 	return &persistence.InternalGetReplicationTasksResponse{
-		Tasks:         tasks,
+		Tasks:         tTasks,
 		NextPageToken: nextPageToken,
 	}, nil
 }
@@ -789,6 +806,119 @@ func (d *nosqlExecutionStore) CreateFailoverMarkerTasks(
 		}
 	}
 	return nil
+}
+
+func (d *nosqlExecutionStore) GetHistoryTasks(
+	ctx context.Context,
+	request *persistence.GetHistoryTasksRequest,
+) (*persistence.GetHistoryTasksResponse, error) {
+	switch request.TaskCategory.Type() {
+	case persistence.HistoryTaskCategoryTypeImmediate:
+		return d.getImmediateHistoryTasks(ctx, request)
+	case persistence.HistoryTaskCategoryTypeScheduled:
+		return d.getScheduledHistoryTasks(ctx, request)
+	default:
+		return nil, &types.BadRequestError{Message: fmt.Sprintf("Unknown task category type: %v", request.TaskCategory.Type())}
+	}
+}
+
+func (d *nosqlExecutionStore) getImmediateHistoryTasks(
+	ctx context.Context,
+	request *persistence.GetHistoryTasksRequest,
+) (*persistence.GetHistoryTasksResponse, error) {
+	switch request.TaskCategory.ID() {
+	case persistence.HistoryTaskCategoryIDTransfer:
+		tasks, nextPageToken, err := d.db.SelectTransferTasksOrderByTaskID(ctx, d.shardID, request.PageSize, request.NextPageToken, request.InclusiveMinTaskKey.TaskID, request.ExclusiveMaxTaskKey.TaskID)
+		if err != nil {
+			return nil, convertCommonErrors(d.db, "GetImmediateHistoryTasks", err)
+		}
+		var tTasks []persistence.Task
+		for _, t := range tasks {
+			if d.dc.ReadNoSQLHistoryTaskFromDataBlob() && t.Task != nil {
+				task, err := d.taskSerializer.DeserializeTask(request.TaskCategory, t.Task)
+				if err != nil {
+					return nil, convertCommonErrors(d.db, "GetImmediateHistoryTasks", err)
+				}
+				task.SetTaskID(t.TaskID)
+				tTasks = append(tTasks, task)
+			} else {
+				task, err := persistence.FromTransferTaskInfo(t.Transfer)
+				if err != nil {
+					return nil, convertCommonErrors(d.db, "GetImmediateHistoryTasks", err)
+				}
+				tTasks = append(tTasks, task)
+			}
+		}
+		return &persistence.GetHistoryTasksResponse{
+			Tasks:         tTasks,
+			NextPageToken: nextPageToken,
+		}, nil
+	case persistence.HistoryTaskCategoryIDReplication:
+		tasks, nextPageToken, err := d.db.SelectReplicationTasksOrderByTaskID(ctx, d.shardID, request.PageSize, request.NextPageToken, request.InclusiveMinTaskKey.TaskID, request.ExclusiveMaxTaskKey.TaskID)
+		if err != nil {
+			return nil, convertCommonErrors(d.db, "GetImmediateHistoryTasks", err)
+		}
+		var tTasks []persistence.Task
+		for _, t := range tasks {
+			if d.dc.ReadNoSQLHistoryTaskFromDataBlob() && t.Task != nil {
+				task, err := d.taskSerializer.DeserializeTask(request.TaskCategory, t.Task)
+				if err != nil {
+					return nil, convertCommonErrors(d.db, "GetImmediateHistoryTasks", err)
+				}
+				task.SetTaskID(t.TaskID)
+				tTasks = append(tTasks, task)
+			} else {
+				task, err := persistence.FromInternalReplicationTaskInfo(t.Replication)
+				if err != nil {
+					return nil, convertCommonErrors(d.db, "GetImmediateHistoryTasks", err)
+				}
+				tTasks = append(tTasks, task)
+			}
+		}
+		return &persistence.GetHistoryTasksResponse{
+			Tasks:         tTasks,
+			NextPageToken: nextPageToken,
+		}, nil
+	default:
+		return nil, &types.BadRequestError{Message: fmt.Sprintf("Unknown task category: %v", request.TaskCategory.ID())}
+	}
+}
+
+func (d *nosqlExecutionStore) getScheduledHistoryTasks(
+	ctx context.Context,
+	request *persistence.GetHistoryTasksRequest,
+) (*persistence.GetHistoryTasksResponse, error) {
+	switch request.TaskCategory.ID() {
+	case persistence.HistoryTaskCategoryIDTimer:
+		timers, nextPageToken, err := d.db.SelectTimerTasksOrderByVisibilityTime(ctx, d.shardID, request.PageSize, request.NextPageToken, request.InclusiveMinTaskKey.ScheduledTime, request.ExclusiveMaxTaskKey.ScheduledTime)
+		if err != nil {
+			return nil, convertCommonErrors(d.db, "GetScheduledHistoryTasks", err)
+		}
+		var tTasks []persistence.Task
+		for _, t := range timers {
+			if d.dc.ReadNoSQLHistoryTaskFromDataBlob() && t.Task != nil {
+				task, err := d.taskSerializer.DeserializeTask(request.TaskCategory, t.Task)
+				if err != nil {
+					return nil, convertCommonErrors(d.db, "GetScheduledHistoryTasks", err)
+				}
+				task.SetTaskID(t.TaskID)
+				task.SetVisibilityTimestamp(t.ScheduledTime)
+				tTasks = append(tTasks, task)
+			} else {
+				task, err := persistence.FromTimerTaskInfo(t.Timer)
+				if err != nil {
+					return nil, convertCommonErrors(d.db, "GetScheduledHistoryTasks", err)
+				}
+				tTasks = append(tTasks, task)
+			}
+		}
+		return &persistence.GetHistoryTasksResponse{
+			Tasks:         tTasks,
+			NextPageToken: nextPageToken,
+		}, nil
+	default:
+		return nil, &types.BadRequestError{Message: fmt.Sprintf("Unknown task category: %v", request.TaskCategory.ID())}
+	}
 }
 
 func (d *nosqlExecutionStore) RangeCompleteHistoryTask(

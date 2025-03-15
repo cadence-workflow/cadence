@@ -83,7 +83,7 @@ func (db *ddb) IsWorkflowExecutionExists(ctx context.Context, shardID int, domai
 	panic("TODO")
 }
 
-func (db *ddb) SelectTransferTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*nosqlplugin.TransferTask, []byte, error) {
+func (db *ddb) SelectTransferTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*nosqlplugin.HistoryMigrationTask, []byte, error) {
 	panic("TODO")
 }
 
@@ -95,7 +95,7 @@ func (db *ddb) RangeDeleteTransferTasks(ctx context.Context, shardID int, inclus
 	panic("TODO")
 }
 
-func (db *ddb) SelectTimerTasksOrderByVisibilityTime(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTime, exclusiveMaxTime time.Time) ([]*nosqlplugin.TimerTask, []byte, error) {
+func (db *ddb) SelectTimerTasksOrderByVisibilityTime(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTime, exclusiveMaxTime time.Time) ([]*nosqlplugin.HistoryMigrationTask, []byte, error) {
 	panic("TODO")
 }
 
@@ -107,7 +107,7 @@ func (db *ddb) RangeDeleteTimerTasks(ctx context.Context, shardID int, inclusive
 	panic("TODO")
 }
 
-func (db *ddb) SelectReplicationTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*nosqlplugin.ReplicationTask, []byte, error) {
+func (db *ddb) SelectReplicationTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*nosqlplugin.HistoryMigrationTask, []byte, error) {
 	panic("TODO")
 }
 
@@ -131,7 +131,7 @@ func (db *ddb) InsertReplicationDLQTask(ctx context.Context, shardID int, source
 	panic("TODO")
 }
 
-func (db *ddb) SelectReplicationDLQTasksOrderByTaskID(ctx context.Context, shardID int, sourceCluster string, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*nosqlplugin.ReplicationTask, []byte, error) {
+func (db *ddb) SelectReplicationDLQTasksOrderByTaskID(ctx context.Context, shardID int, sourceCluster string, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*nosqlplugin.HistoryMigrationTask, []byte, error) {
 	panic("TODO")
 }
 

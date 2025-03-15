@@ -224,6 +224,8 @@ func executionManagerTags(op string) *tag.Tag {
 		return &tag.StoreOperationGetReplicationTasks
 	case "ExecutionManager.CompleteTransferTask":
 		return &tag.StoreOperationCompleteTransferTask
+	case "ExecutionManager.GetHistoryTasks":
+		return &tag.StoreOperationGetHistoryTasks
 	case "ExecutionManager.RangeCompleteHistoryTask":
 		return &tag.StoreOperationRangeCompleteHistoryTask
 	case "ExecutionManager.CompleteCrossClusterTask":

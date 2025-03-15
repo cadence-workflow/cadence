@@ -77,7 +77,7 @@ func (s *taskSerializerImpl) DeserializeTask(category persistence.HistoryTaskCat
 
 func (s *taskSerializerImpl) serializeTransferTask(task persistence.Task) (persistence.DataBlob, error) {
 	info := &TransferTaskInfo{
-		TaskType:            int16(task.GetType()),
+		TaskType:            int16(task.GetTaskType()),
 		TargetWorkflowID:    persistence.TransferTaskTransferTargetWorkflowID,
 		Version:             task.GetVersion(),
 		VisibilityTimestamp: task.GetVisibilityTimestamp(),
@@ -157,7 +157,7 @@ func (s *taskSerializerImpl) serializeTransferTask(task persistence.Task) (persi
 		info.RunID = MustParseUUID(t.RunID)
 	default:
 		return persistence.DataBlob{}, &types.InternalServiceError{
-			Message: fmt.Sprintf("Unknown transfer type: %v", task.GetType()),
+			Message: fmt.Sprintf("Unknown transfer type: %v", task.GetTaskType()),
 		}
 	}
 	return s.parser.TransferTaskInfoToBlob(info)
@@ -264,7 +264,7 @@ func (s *taskSerializerImpl) deserializeTransferTask(blob *persistence.DataBlob)
 
 func (s *taskSerializerImpl) serializeTimerTask(task persistence.Task) (persistence.DataBlob, error) {
 	info := &TimerTaskInfo{
-		TaskType: int16(task.GetType()),
+		TaskType: int16(task.GetTaskType()),
 		Version:  task.GetVersion(),
 		EventID:  common.EmptyEventID,
 	}
@@ -309,7 +309,7 @@ func (s *taskSerializerImpl) serializeTimerTask(task persistence.Task) (persiste
 		info.RunID = MustParseUUID(t.RunID)
 	default:
 		return persistence.DataBlob{}, &types.InternalServiceError{
-			Message: fmt.Sprintf("Unknown timer task: %v", task.GetType()),
+			Message: fmt.Sprintf("Unknown timer task: %v", task.GetTaskType()),
 		}
 	}
 	return s.parser.TimerTaskInfoToBlob(info)
@@ -383,7 +383,7 @@ func (s *taskSerializerImpl) deserializeTimerTask(blob *persistence.DataBlob) (p
 
 func (s *taskSerializerImpl) serializeReplicationTask(task persistence.Task) (persistence.DataBlob, error) {
 	info := &ReplicationTaskInfo{
-		TaskType:                int16(task.GetType()),
+		TaskType:                int16(task.GetTaskType()),
 		FirstEventID:            common.EmptyEventID,
 		NextEventID:             common.EmptyEventID,
 		Version:                 task.GetVersion(),
@@ -410,7 +410,7 @@ func (s *taskSerializerImpl) serializeReplicationTask(task persistence.Task) (pe
 		info.DomainID = MustParseUUID(t.DomainID)
 	default:
 		return persistence.DataBlob{}, &types.InternalServiceError{
-			Message: fmt.Sprintf("Unknown replication task: %v", task.GetType()),
+			Message: fmt.Sprintf("Unknown replication task: %v", task.GetTaskType()),
 		}
 	}
 	return s.parser.ReplicationTaskInfoToBlob(info)

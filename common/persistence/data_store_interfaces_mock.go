@@ -216,6 +216,21 @@ func (mr *MockExecutionStoreMockRecorder) GetCurrentExecution(ctx, request any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCurrentExecution", reflect.TypeOf((*MockExecutionStore)(nil).GetCurrentExecution), ctx, request)
 }
 
+// GetHistoryTasks mocks base method.
+func (m *MockExecutionStore) GetHistoryTasks(ctx context.Context, request *GetHistoryTasksRequest) (*GetHistoryTasksResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetHistoryTasks", ctx, request)
+	ret0, _ := ret[0].(*GetHistoryTasksResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetHistoryTasks indicates an expected call of GetHistoryTasks.
+func (mr *MockExecutionStoreMockRecorder) GetHistoryTasks(ctx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHistoryTasks", reflect.TypeOf((*MockExecutionStore)(nil).GetHistoryTasks), ctx, request)
+}
+
 // GetName mocks base method.
 func (m *MockExecutionStore) GetName() string {
 	m.ctrl.T.Helper()

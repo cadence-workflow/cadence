@@ -90,10 +90,12 @@ type (
 	TransferTask = persistence.TransferTaskInfo
 
 	HistoryMigrationTask struct {
-		Transfer    *TransferTask
-		Timer       *TimerTask
-		Replication *ReplicationTask
-		Task        *persistence.DataBlob
+		Transfer      *TransferTask
+		Timer         *TimerTask
+		Replication   *ReplicationTask
+		Task          *persistence.DataBlob
+		TaskID        int64
+		ScheduledTime time.Time
 	}
 
 	// ShardCondition is the condition for making changes within a shard

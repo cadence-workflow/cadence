@@ -39,6 +39,10 @@ func (r *GetTimerIndexTasksResponse) Len() int {
 	return len(r.Timers)
 }
 
+func (r *GetHistoryTasksResponse) Len() int {
+	return len(r.Tasks)
+}
+
 func (r *GetTasksResponse) Len() int {
 	return len(r.Tasks)
 }

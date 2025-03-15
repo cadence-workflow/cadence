@@ -129,6 +129,7 @@ type (
 		CompleteTimerTask(ctx context.Context, request *CompleteTimerTaskRequest) error
 
 		// History task related methods
+		GetHistoryTasks(ctx context.Context, request *GetHistoryTasksRequest) (*GetHistoryTasksResponse, error)
 		RangeCompleteHistoryTask(ctx context.Context, request *RangeCompleteHistoryTaskRequest) (*RangeCompleteHistoryTaskResponse, error)
 
 		// Scan related methods

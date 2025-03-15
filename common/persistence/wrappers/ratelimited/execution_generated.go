@@ -135,6 +135,14 @@ func (c *ratelimitedExecutionManager) GetCurrentExecution(ctx context.Context, r
 	return c.wrapped.GetCurrentExecution(ctx, request)
 }
 
+func (c *ratelimitedExecutionManager) GetHistoryTasks(ctx context.Context, request *persistence.GetHistoryTasksRequest) (gp1 *persistence.GetHistoryTasksResponse, err error) {
+	if ok := c.rateLimiter.Allow(); !ok {
+		err = ErrPersistenceLimitExceeded
+		return
+	}
+	return c.wrapped.GetHistoryTasks(ctx, request)
+}
+
 func (c *ratelimitedExecutionManager) GetName() (s1 string) {
 	return c.wrapped.GetName()
 }

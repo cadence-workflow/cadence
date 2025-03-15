@@ -302,6 +302,30 @@ func (c *meteredExecutionManager) GetCurrentExecution(ctx context.Context, reque
 	return
 }
 
+func (c *meteredExecutionManager) GetHistoryTasks(ctx context.Context, request *persistence.GetHistoryTasksRequest) (gp1 *persistence.GetHistoryTasksResponse, err error) {
+	op := func() error {
+		gp1, err = c.wrapped.GetHistoryTasks(ctx, request)
+		c.emptyMetric("ExecutionManager.GetHistoryTasks", request, gp1, err)
+		return err
+	}
+
+	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
+		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
+		c.logger.SampleInfo("Persistence GetHistoryTasks called", c.sampleLoggingRate(), logTags...)
+		if c.enableShardIDMetrics() {
+			err = c.callWithDomainAndShardScope(metrics.PersistenceGetHistoryTasksScope, op, metrics.DomainTag(domainName),
+				metrics.ShardIDTag(c.GetShardID()))
+		} else {
+			err = c.call(metrics.PersistenceGetHistoryTasksScope, op, metrics.DomainTag(domainName))
+		}
+		return
+	}
+
+	err = c.call(metrics.PersistenceGetHistoryTasksScope, op, getCustomMetricTags(request)...)
+
+	return
+}
+
 func (c *meteredExecutionManager) GetName() (s1 string) {
 	return c.wrapped.GetName()
 }

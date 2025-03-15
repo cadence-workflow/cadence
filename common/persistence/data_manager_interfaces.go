@@ -1001,6 +1001,21 @@ type (
 		TaskID              int64
 	}
 
+	// GetHistoryTasksRequest is used to get history tasks
+	GetHistoryTasksRequest struct {
+		TaskCategory        HistoryTaskCategory
+		InclusiveMinTaskKey HistoryTaskKey
+		ExclusiveMaxTaskKey HistoryTaskKey
+		PageSize            int
+		NextPageToken       []byte
+	}
+
+	// GetHistoryTasksResponse is the response for GetHistoryTasks
+	GetHistoryTasksResponse struct {
+		Tasks         []Task
+		NextPageToken []byte
+	}
+
 	RangeCompleteHistoryTaskRequest struct {
 		TaskCategory        HistoryTaskCategory
 		InclusiveMinTaskKey HistoryTaskKey
@@ -1579,6 +1594,7 @@ type (
 		GetTimerIndexTasks(ctx context.Context, request *GetTimerIndexTasksRequest) (*GetTimerIndexTasksResponse, error)
 		CompleteTimerTask(ctx context.Context, request *CompleteTimerTaskRequest) error
 
+		GetHistoryTasks(ctx context.Context, request *GetHistoryTasksRequest) (*GetHistoryTasksResponse, error)
 		RangeCompleteHistoryTask(ctx context.Context, request *RangeCompleteHistoryTaskRequest) (*RangeCompleteHistoryTaskResponse, error)
 
 		// Scan operations

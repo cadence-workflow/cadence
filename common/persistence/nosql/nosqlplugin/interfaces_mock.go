@@ -996,10 +996,10 @@ func (mr *MockDBMockRecorder) SelectReplicationDLQTasksCount(ctx, shardID, sourc
 }
 
 // SelectReplicationDLQTasksOrderByTaskID mocks base method.
-func (m *MockDB) SelectReplicationDLQTasksOrderByTaskID(ctx context.Context, shardID int, sourceCluster string, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*ReplicationTask, []byte, error) {
+func (m *MockDB) SelectReplicationDLQTasksOrderByTaskID(ctx context.Context, shardID int, sourceCluster string, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*HistoryMigrationTask, []byte, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SelectReplicationDLQTasksOrderByTaskID", ctx, shardID, sourceCluster, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID)
-	ret0, _ := ret[0].([]*ReplicationTask)
+	ret0, _ := ret[0].([]*HistoryMigrationTask)
 	ret1, _ := ret[1].([]byte)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -1012,10 +1012,10 @@ func (mr *MockDBMockRecorder) SelectReplicationDLQTasksOrderByTaskID(ctx, shardI
 }
 
 // SelectReplicationTasksOrderByTaskID mocks base method.
-func (m *MockDB) SelectReplicationTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*ReplicationTask, []byte, error) {
+func (m *MockDB) SelectReplicationTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*HistoryMigrationTask, []byte, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SelectReplicationTasksOrderByTaskID", ctx, shardID, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID)
-	ret0, _ := ret[0].([]*ReplicationTask)
+	ret0, _ := ret[0].([]*HistoryMigrationTask)
 	ret1, _ := ret[1].([]byte)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -1074,10 +1074,10 @@ func (mr *MockDBMockRecorder) SelectTasks(ctx, filter any) *gomock.Call {
 }
 
 // SelectTimerTasksOrderByVisibilityTime mocks base method.
-func (m *MockDB) SelectTimerTasksOrderByVisibilityTime(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTime, exclusiveMaxTime time.Time) ([]*TimerTask, []byte, error) {
+func (m *MockDB) SelectTimerTasksOrderByVisibilityTime(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTime, exclusiveMaxTime time.Time) ([]*HistoryMigrationTask, []byte, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SelectTimerTasksOrderByVisibilityTime", ctx, shardID, pageSize, pageToken, inclusiveMinTime, exclusiveMaxTime)
-	ret0, _ := ret[0].([]*TimerTask)
+	ret0, _ := ret[0].([]*HistoryMigrationTask)
 	ret1, _ := ret[1].([]byte)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -1090,10 +1090,10 @@ func (mr *MockDBMockRecorder) SelectTimerTasksOrderByVisibilityTime(ctx, shardID
 }
 
 // SelectTransferTasksOrderByTaskID mocks base method.
-func (m *MockDB) SelectTransferTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*TransferTask, []byte, error) {
+func (m *MockDB) SelectTransferTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*HistoryMigrationTask, []byte, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SelectTransferTasksOrderByTaskID", ctx, shardID, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID)
-	ret0, _ := ret[0].([]*TransferTask)
+	ret0, _ := ret[0].([]*HistoryMigrationTask)
 	ret1, _ := ret[1].([]byte)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -2012,10 +2012,10 @@ func (mr *MocktableCRUDMockRecorder) SelectReplicationDLQTasksCount(ctx, shardID
 }
 
 // SelectReplicationDLQTasksOrderByTaskID mocks base method.
-func (m *MocktableCRUD) SelectReplicationDLQTasksOrderByTaskID(ctx context.Context, shardID int, sourceCluster string, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*ReplicationTask, []byte, error) {
+func (m *MocktableCRUD) SelectReplicationDLQTasksOrderByTaskID(ctx context.Context, shardID int, sourceCluster string, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*HistoryMigrationTask, []byte, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SelectReplicationDLQTasksOrderByTaskID", ctx, shardID, sourceCluster, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID)
-	ret0, _ := ret[0].([]*ReplicationTask)
+	ret0, _ := ret[0].([]*HistoryMigrationTask)
 	ret1, _ := ret[1].([]byte)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -2028,10 +2028,10 @@ func (mr *MocktableCRUDMockRecorder) SelectReplicationDLQTasksOrderByTaskID(ctx,
 }
 
 // SelectReplicationTasksOrderByTaskID mocks base method.
-func (m *MocktableCRUD) SelectReplicationTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*ReplicationTask, []byte, error) {
+func (m *MocktableCRUD) SelectReplicationTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*HistoryMigrationTask, []byte, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SelectReplicationTasksOrderByTaskID", ctx, shardID, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID)
-	ret0, _ := ret[0].([]*ReplicationTask)
+	ret0, _ := ret[0].([]*HistoryMigrationTask)
 	ret1, _ := ret[1].([]byte)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -2090,10 +2090,10 @@ func (mr *MocktableCRUDMockRecorder) SelectTasks(ctx, filter any) *gomock.Call {
 }
 
 // SelectTimerTasksOrderByVisibilityTime mocks base method.
-func (m *MocktableCRUD) SelectTimerTasksOrderByVisibilityTime(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTime, exclusiveMaxTime time.Time) ([]*TimerTask, []byte, error) {
+func (m *MocktableCRUD) SelectTimerTasksOrderByVisibilityTime(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTime, exclusiveMaxTime time.Time) ([]*HistoryMigrationTask, []byte, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SelectTimerTasksOrderByVisibilityTime", ctx, shardID, pageSize, pageToken, inclusiveMinTime, exclusiveMaxTime)
-	ret0, _ := ret[0].([]*TimerTask)
+	ret0, _ := ret[0].([]*HistoryMigrationTask)
 	ret1, _ := ret[1].([]byte)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -2106,10 +2106,10 @@ func (mr *MocktableCRUDMockRecorder) SelectTimerTasksOrderByVisibilityTime(ctx, 
 }
 
 // SelectTransferTasksOrderByTaskID mocks base method.
-func (m *MocktableCRUD) SelectTransferTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*TransferTask, []byte, error) {
+func (m *MocktableCRUD) SelectTransferTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*HistoryMigrationTask, []byte, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SelectTransferTasksOrderByTaskID", ctx, shardID, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID)
-	ret0, _ := ret[0].([]*TransferTask)
+	ret0, _ := ret[0].([]*HistoryMigrationTask)
 	ret1, _ := ret[1].([]byte)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -3382,10 +3382,10 @@ func (mr *MockWorkflowCRUDMockRecorder) SelectReplicationDLQTasksCount(ctx, shar
 }
 
 // SelectReplicationDLQTasksOrderByTaskID mocks base method.
-func (m *MockWorkflowCRUD) SelectReplicationDLQTasksOrderByTaskID(ctx context.Context, shardID int, sourceCluster string, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*ReplicationTask, []byte, error) {
+func (m *MockWorkflowCRUD) SelectReplicationDLQTasksOrderByTaskID(ctx context.Context, shardID int, sourceCluster string, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*HistoryMigrationTask, []byte, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SelectReplicationDLQTasksOrderByTaskID", ctx, shardID, sourceCluster, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID)
-	ret0, _ := ret[0].([]*ReplicationTask)
+	ret0, _ := ret[0].([]*HistoryMigrationTask)
 	ret1, _ := ret[1].([]byte)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -3398,10 +3398,10 @@ func (mr *MockWorkflowCRUDMockRecorder) SelectReplicationDLQTasksOrderByTaskID(c
 }
 
 // SelectReplicationTasksOrderByTaskID mocks base method.
-func (m *MockWorkflowCRUD) SelectReplicationTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*ReplicationTask, []byte, error) {
+func (m *MockWorkflowCRUD) SelectReplicationTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*HistoryMigrationTask, []byte, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SelectReplicationTasksOrderByTaskID", ctx, shardID, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID)
-	ret0, _ := ret[0].([]*ReplicationTask)
+	ret0, _ := ret[0].([]*HistoryMigrationTask)
 	ret1, _ := ret[1].([]byte)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -3414,10 +3414,10 @@ func (mr *MockWorkflowCRUDMockRecorder) SelectReplicationTasksOrderByTaskID(ctx,
 }
 
 // SelectTimerTasksOrderByVisibilityTime mocks base method.
-func (m *MockWorkflowCRUD) SelectTimerTasksOrderByVisibilityTime(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTime, exclusiveMaxTime time.Time) ([]*TimerTask, []byte, error) {
+func (m *MockWorkflowCRUD) SelectTimerTasksOrderByVisibilityTime(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTime, exclusiveMaxTime time.Time) ([]*HistoryMigrationTask, []byte, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SelectTimerTasksOrderByVisibilityTime", ctx, shardID, pageSize, pageToken, inclusiveMinTime, exclusiveMaxTime)
-	ret0, _ := ret[0].([]*TimerTask)
+	ret0, _ := ret[0].([]*HistoryMigrationTask)
 	ret1, _ := ret[1].([]byte)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -3430,10 +3430,10 @@ func (mr *MockWorkflowCRUDMockRecorder) SelectTimerTasksOrderByVisibilityTime(ct
 }
 
 // SelectTransferTasksOrderByTaskID mocks base method.
-func (m *MockWorkflowCRUD) SelectTransferTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*TransferTask, []byte, error) {
+func (m *MockWorkflowCRUD) SelectTransferTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*HistoryMigrationTask, []byte, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SelectTransferTasksOrderByTaskID", ctx, shardID, pageSize, pageToken, inclusiveMinTaskID, exclusiveMaxTaskID)
-	ret0, _ := ret[0].([]*TransferTask)
+	ret0, _ := ret[0].([]*HistoryMigrationTask)
 	ret1, _ := ret[1].([]byte)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2

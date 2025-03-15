@@ -463,7 +463,7 @@ type (
 
 		// transfer_task table
 		// within a shard, paging through transfer tasks order by taskID(ASC), filtered by minTaskID(inclusive) and maxTaskID(exclusive)
-		SelectTransferTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*TransferTask, []byte, error)
+		SelectTransferTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*HistoryMigrationTask, []byte, error)
 		// delete a single transfer task
 		DeleteTransferTask(ctx context.Context, shardID int, taskID int64) error
 		// delete a range of transfer tasks
@@ -471,7 +471,7 @@ type (
 
 		// timer_task table
 		// within a shard, paging through timer tasks order by taskID(ASC), filtered by visibilityTimestamp
-		SelectTimerTasksOrderByVisibilityTime(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTime, exclusiveMaxTime time.Time) ([]*TimerTask, []byte, error)
+		SelectTimerTasksOrderByVisibilityTime(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTime, exclusiveMaxTime time.Time) ([]*HistoryMigrationTask, []byte, error)
 		// delete a single timer task
 		DeleteTimerTask(ctx context.Context, shardID int, taskID int64, visibilityTimestamp time.Time) error
 		// delete a range of timer tasks
@@ -479,7 +479,7 @@ type (
 
 		// replication_task table
 		// within a shard, paging through replication tasks order by taskID(ASC), filtered by minTaskID(inclusive) and maxTaskID(exclusive)
-		SelectReplicationTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*ReplicationTask, []byte, error)
+		SelectReplicationTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*HistoryMigrationTask, []byte, error)
 		// delete a single replication task
 		DeleteReplicationTask(ctx context.Context, shardID int, taskID int64) error
 		// delete a range of replication tasks
@@ -495,7 +495,7 @@ type (
 		// insert a new replication task to DLQ
 		InsertReplicationDLQTask(ctx context.Context, shardID int, sourceCluster string, task *HistoryMigrationTask) error
 		// within a shard, for a sourceCluster, paging through replication tasks order by taskID(ASC), filtered by minTaskID(inclusive) and maxTaskID(exclusive)
-		SelectReplicationDLQTasksOrderByTaskID(ctx context.Context, shardID int, sourceCluster string, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*ReplicationTask, []byte, error)
+		SelectReplicationDLQTasksOrderByTaskID(ctx context.Context, shardID int, sourceCluster string, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*HistoryMigrationTask, []byte, error)
 		// return the DLQ size
 		SelectReplicationDLQTasksCount(ctx context.Context, shardID int, sourceCluster string) (int64, error)
 		// delete a single replication DLQ task

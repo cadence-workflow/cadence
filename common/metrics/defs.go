@@ -193,6 +193,8 @@ const (
 	PersistenceGetTimerIndexTasksScope
 	// PersistenceCompleteTimerTaskScope tracks CompleteTimerTasks calls made by service to persistence layer
 	PersistenceCompleteTimerTaskScope
+	// PersistenceGetHistoryTasksScope tracks GetHistoryTasks calls made by service to persistence layer
+	PersistenceGetHistoryTasksScope
 	// PersistenceRangeCompleteHistoryTaskScope tracks RangeCompleteHistoryTask calls made by service to persistence layer
 	PersistenceRangeCompleteHistoryTaskScope
 	// PersistenceCreateTasksScope tracks CreateTask calls made by service to persistence layer
@@ -1438,6 +1440,7 @@ var ScopeDefs = map[ServiceIdx]map[int]scopeDefinition{
 		PersistenceCreateFailoverMarkerTasksScope:                {operation: "CreateFailoverMarkerTasks"},
 		PersistenceGetTimerIndexTasksScope:                       {operation: "GetTimerIndexTasks"},
 		PersistenceCompleteTimerTaskScope:                        {operation: "CompleteTimerTask"},
+		PersistenceGetHistoryTasksScope:                          {operation: "GetHistoryTasks"},
 		PersistenceRangeCompleteHistoryTaskScope:                 {operation: "RangeCompleteHistoryTask"},
 		PersistenceCreateTasksScope:                              {operation: "CreateTask"},
 		PersistenceGetTasksScope:                                 {operation: "GetTasks"},

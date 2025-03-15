@@ -1039,10 +1039,10 @@ func TestSelectTransferTasksOrderByTaskID(t *testing.T) {
 		shardID            int
 		pageToken          []byte
 		pageSize           int
-		exclusiveMinTaskID int64
-		inclusiveMaxTaskID int64
+		inclusiveMinTaskID int64
+		exclusiveMaxTaskID int64
 		iter               *fakeIter
-		wantTasks          []*nosqlplugin.TransferTask
+		wantTasks          []*nosqlplugin.HistoryMigrationTask
 		wantNextPageToken  []byte
 		wantErr            bool
 	}{
@@ -1061,32 +1061,52 @@ func TestSelectTransferTasksOrderByTaskID(t *testing.T) {
 			iter: &fakeIter{
 				mapScanInputs: []map[string]interface{}{
 					{
+						"task_id": int64(1),
 						"transfer": map[string]interface{}{
 							"domain_id":   &fakeUUID{uuid: "domain1"},
 							"workflow_id": "wfid1",
 							"task_id":     int64(1),
 						},
+						"data":          []byte("test-data-1"),
+						"data_encoding": "thriftrw",
 					},
 					{
+						"task_id": int64(5),
 						"transfer": map[string]interface{}{
 							"domain_id":   &fakeUUID{uuid: "domain2"},
 							"workflow_id": "wfid2",
 							"task_id":     int64(5),
 						},
+						"data":          []byte("test-data-2"),
+						"data_encoding": "thriftrw",
 					},
 				},
 				pageState: []byte("test-page-token-2"),
 			},
-			wantTasks: []*persistence.TransferTaskInfo{
+			wantTasks: []*nosqlplugin.HistoryMigrationTask{
 				{
-					DomainID:   "domain1",
-					WorkflowID: "wfid1",
-					TaskID:     1,
+					Transfer: &nosqlplugin.TransferTask{
+						DomainID:   "domain1",
+						WorkflowID: "wfid1",
+						TaskID:     1,
+					},
+					Task: persistence.NewDataBlob(
+						[]byte("test-data-1"),
+						"thriftrw",
+					),
+					TaskID: 1,
 				},
 				{
-					DomainID:   "domain2",
-					WorkflowID: "wfid2",
-					TaskID:     5,
+					Transfer: &nosqlplugin.TransferTask{
+						DomainID:   "domain2",
+						WorkflowID: "wfid2",
+						TaskID:     5,
+					},
+					Task: persistence.NewDataBlob(
+						[]byte("test-data-2"),
+						"thriftrw",
+					),
+					TaskID: 5,
 				},
 			},
 		},
@@ -1117,7 +1137,7 @@ func TestSelectTransferTasksOrderByTaskID(t *testing.T) {
 			dc := &persistence.DynamicConfiguration{}
 			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
 
-			gotTasks, gotPageToken, err := db.SelectTransferTasksOrderByTaskID(context.Background(), tc.shardID, tc.pageSize, tc.pageToken, tc.exclusiveMinTaskID, tc.inclusiveMaxTaskID)
+			gotTasks, gotPageToken, err := db.SelectTransferTasksOrderByTaskID(context.Background(), tc.shardID, tc.pageSize, tc.pageToken, tc.inclusiveMinTaskID, tc.exclusiveMaxTaskID)
 			if (err != nil) != tc.wantErr {
 				t.Errorf("SelectAllWorkflowExecutions() error: %v, wantErr %v", err, tc.wantErr)
 			}
@@ -1256,10 +1276,10 @@ func TestSelectTimerTasksOrderByVisibilityTime(t *testing.T) {
 		shardID           int
 		pageToken         []byte
 		pageSize          int
-		exclusiveMinTime  time.Time
-		inclusiveMaxTime  time.Time
+		inclusiveMinTime  time.Time
+		exclusiveMaxTime  time.Time
 		iter              *fakeIter
-		wantTasks         []*nosqlplugin.TimerTask
+		wantTasks         []*nosqlplugin.HistoryMigrationTask
 		wantNextPageToken []byte
 		wantErr           bool
 	}{
@@ -1278,32 +1298,56 @@ func TestSelectTimerTasksOrderByVisibilityTime(t *testing.T) {
 			iter: &fakeIter{
 				mapScanInputs: []map[string]interface{}{
 					{
+						"visibility_ts": now,
+						"task_id":       int64(1),
 						"timer": map[string]interface{}{
 							"domain_id":     &fakeUUID{uuid: "domain1"},
 							"workflow_id":   "wfid1",
 							"visibility_ts": now,
 						},
+						"data":          []byte("test-data-1"),
+						"data_encoding": "thriftrw",
 					},
 					{
+						"visibility_ts": now.Add(time.Hour),
+						"task_id":       int64(5),
 						"timer": map[string]interface{}{
 							"domain_id":     &fakeUUID{uuid: "domain2"},
 							"workflow_id":   "wfid2",
 							"visibility_ts": now.Add(time.Hour),
 						},
+						"data":          []byte("test-data-2"),
+						"data_encoding": "thriftrw",
 					},
 				},
 				pageState: []byte("test-page-token-2"),
 			},
-			wantTasks: []*nosqlplugin.TimerTask{
+			wantTasks: []*nosqlplugin.HistoryMigrationTask{
 				{
-					DomainID:            "domain1",
-					WorkflowID:          "wfid1",
-					VisibilityTimestamp: now,
+					Timer: &nosqlplugin.TimerTask{
+						DomainID:            "domain1",
+						WorkflowID:          "wfid1",
+						VisibilityTimestamp: now,
+					},
+					Task: persistence.NewDataBlob(
+						[]byte("test-data-1"),
+						"thriftrw",
+					),
+					TaskID:        1,
+					ScheduledTime: now,
 				},
 				{
-					DomainID:            "domain2",
-					WorkflowID:          "wfid2",
-					VisibilityTimestamp: now.Add(time.Hour),
+					Timer: &nosqlplugin.TimerTask{
+						DomainID:            "domain2",
+						WorkflowID:          "wfid2",
+						VisibilityTimestamp: now.Add(time.Hour),
+					},
+					Task: persistence.NewDataBlob(
+						[]byte("test-data-2"),
+						"thriftrw",
+					),
+					TaskID:        5,
+					ScheduledTime: now.Add(time.Hour),
 				},
 			},
 		},
@@ -1335,7 +1379,7 @@ func TestSelectTimerTasksOrderByVisibilityTime(t *testing.T) {
 			dc := &persistence.DynamicConfiguration{}
 			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
 
-			gotTasks, gotPageToken, err := db.SelectTimerTasksOrderByVisibilityTime(context.Background(), tc.shardID, tc.pageSize, tc.pageToken, tc.exclusiveMinTime, tc.inclusiveMaxTime)
+			gotTasks, gotPageToken, err := db.SelectTimerTasksOrderByVisibilityTime(context.Background(), tc.shardID, tc.pageSize, tc.pageToken, tc.inclusiveMinTime, tc.exclusiveMaxTime)
 			if (err != nil) != tc.wantErr {
 				t.Errorf("SelectTimerTasksOrderByVisibilityTime() error: %v, wantErr %v", err, tc.wantErr)
 			}
@@ -1481,7 +1525,7 @@ func TestSelectReplicationTasksOrderByTaskID(t *testing.T) {
 		pageSize           int
 		pageToken          []byte
 		queryMockFn        func(query *gocql.MockQuery)
-		wantTasks          []*nosqlplugin.ReplicationTask
+		wantTasks          []*nosqlplugin.HistoryMigrationTask
 		wantErr            bool
 	}{
 		{
@@ -1498,25 +1542,53 @@ func TestSelectReplicationTasksOrderByTaskID(t *testing.T) {
 				query.EXPECT().Iter().Return(&fakeIter{
 					mapScanInputs: []map[string]interface{}{
 						{
+							"task_id": int64(1),
 							"replication": map[string]interface{}{
 								"domain_id":   &fakeUUID{uuid: "domain1"},
 								"workflow_id": "wfid1",
 								"task_id":     int64(1),
 							},
+							"data":          []byte("test-data-1"),
+							"data_encoding": "thriftrw",
 						},
 						{
+							"task_id": int64(2),
 							"replication": map[string]interface{}{
 								"domain_id":   &fakeUUID{uuid: "domain1"},
 								"workflow_id": "wfid1",
 								"task_id":     int64(2),
 							},
+							"data":          []byte("test-data-2"),
+							"data_encoding": "thriftrw",
 						},
 					},
 				}).Times(1)
 			},
-			wantTasks: []*nosqlplugin.ReplicationTask{
-				{DomainID: "domain1", WorkflowID: "wfid1", TaskID: 1},
-				{DomainID: "domain1", WorkflowID: "wfid1", TaskID: 2},
+			wantTasks: []*nosqlplugin.HistoryMigrationTask{
+				{
+					Replication: &nosqlplugin.ReplicationTask{
+						DomainID:   "domain1",
+						WorkflowID: "wfid1",
+						TaskID:     1,
+					},
+					Task: persistence.NewDataBlob(
+						[]byte("test-data-1"),
+						"thriftrw",
+					),
+					TaskID: 1,
+				},
+				{
+					Replication: &nosqlplugin.ReplicationTask{
+						DomainID:   "domain1",
+						WorkflowID: "wfid1",
+						TaskID:     2,
+					},
+					Task: persistence.NewDataBlob(
+						[]byte("test-data-2"),
+						"thriftrw",
+					),
+					TaskID: 2,
+				},
 			},
 		},
 		{
@@ -1807,7 +1879,7 @@ func TestSelectReplicationDLQTasksOrderByTaskID(t *testing.T) {
 		pageSize           int
 		pageToken          []byte
 		queryMockFn        func(query *gocql.MockQuery)
-		wantTasks          []*nosqlplugin.ReplicationTask
+		wantTasks          []*nosqlplugin.HistoryMigrationTask
 		wantErr            bool
 	}{
 		{
@@ -1824,32 +1896,52 @@ func TestSelectReplicationDLQTasksOrderByTaskID(t *testing.T) {
 				query.EXPECT().Iter().Return(&fakeIter{
 					mapScanInputs: []map[string]interface{}{
 						{
+							"task_id": int64(1),
 							"replication": map[string]interface{}{
 								"domain_id":   &fakeUUID{uuid: "domain1"},
 								"workflow_id": "wfid1",
 								"task_id":     int64(1),
 							},
+							"data":          []byte("test-data-1"),
+							"data_encoding": "thriftrw",
 						},
 						{
+							"task_id": int64(2),
 							"replication": map[string]interface{}{
 								"domain_id":   &fakeUUID{uuid: "domain1"},
 								"workflow_id": "wfid1",
 								"task_id":     int64(2),
 							},
+							"data":          []byte("test-data-2"),
+							"data_encoding": "thriftrw",
 						},
 					},
 				}).Times(1)
 			},
-			wantTasks: []*nosqlplugin.ReplicationTask{
+			wantTasks: []*nosqlplugin.HistoryMigrationTask{
 				{
-					DomainID:   "domain1",
-					WorkflowID: "wfid1",
-					TaskID:     1,
+					Replication: &nosqlplugin.ReplicationTask{
+						DomainID:   "domain1",
+						WorkflowID: "wfid1",
+						TaskID:     1,
+					},
+					Task: persistence.NewDataBlob(
+						[]byte("test-data-1"),
+						"thriftrw",
+					),
+					TaskID: 1,
 				},
 				{
-					DomainID:   "domain1",
-					WorkflowID: "wfid1",
-					TaskID:     2,
+					Replication: &nosqlplugin.ReplicationTask{
+						DomainID:   "domain1",
+						WorkflowID: "wfid1",
+						TaskID:     2,
+					},
+					Task: persistence.NewDataBlob(
+						[]byte("test-data-2"),
+						"thriftrw",
+					),
+					TaskID: 2,
 				},
 			},
 		},

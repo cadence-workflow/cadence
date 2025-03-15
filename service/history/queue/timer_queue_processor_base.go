@@ -556,7 +556,7 @@ func (t *timerQueueProcessorBase) notifyNewTimers(timerTasks []persistence.Task)
 		}
 
 		taskScopeIdx := task.GetTimerTaskMetricScope(
-			timerTask.GetType(),
+			timerTask.GetTaskType(),
 			isActive,
 		)
 		t.metricsClient.Scope(taskScopeIdx).Tagged(shardIDTag).IncCounter(metrics.NewTimerNotifyCounter)
