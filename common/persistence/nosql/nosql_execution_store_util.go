@@ -238,12 +238,12 @@ func (d *nosqlExecutionStore) prepareTimerTasksForWorkflowTxn(domainID, workflow
 
 		default:
 			return nil, &types.InternalServiceError{
-				Message: fmt.Sprintf("Unknow timer type: %v", task.GetType()),
+				Message: fmt.Sprintf("Unknow timer type: %v", task.GetTaskType()),
 			}
 		}
 
 		nt := &nosqlplugin.TimerTask{
-			TaskType:   task.GetType(),
+			TaskType:   task.GetTaskType(),
 			DomainID:   domainID,
 			WorkflowID: workflowID,
 			RunID:      runID,
@@ -284,7 +284,7 @@ func (d *nosqlExecutionStore) prepareReplicationTasksForWorkflowTxn(domainID, wo
 		activityScheduleID := common.EmptyEventID
 		var branchToken, newRunBranchToken []byte
 
-		switch task.GetType() {
+		switch task.GetTaskType() {
 		case persistence.ReplicationTaskTypeHistory:
 			histTask := task.(*persistence.HistoryReplicationTask)
 			branchToken = histTask.BranchToken
@@ -302,12 +302,12 @@ func (d *nosqlExecutionStore) prepareReplicationTasksForWorkflowTxn(domainID, wo
 
 		default:
 			return nil, &types.InternalServiceError{
-				Message: fmt.Sprintf("Unknown replication type: %v", task.GetType()),
+				Message: fmt.Sprintf("Unknown replication type: %v", task.GetTaskType()),
 			}
 		}
 
 		nt := &nosqlplugin.ReplicationTask{
-			TaskType:          task.GetType(),
+			TaskType:          task.GetTaskType(),
 			DomainID:          domainID,
 			WorkflowID:        workflowID,
 			RunID:             runID,
@@ -380,7 +380,7 @@ func (d *nosqlExecutionStore) prepareTransferTasksForWorkflowTxn(domainID, workf
 		targetRunID := persistence.TransferTaskTransferTargetRunID
 		targetChildWorkflowOnly := false
 
-		switch task.GetType() {
+		switch task.GetTaskType() {
 		case persistence.TransferTaskTypeActivityTask:
 			targetDomainID = task.(*persistence.ActivityTask).TargetDomainID
 			taskList = task.(*persistence.ActivityTask).TaskList
@@ -433,11 +433,11 @@ func (d *nosqlExecutionStore) prepareTransferTasksForWorkflowTxn(domainID, workf
 
 		default:
 			return nil, &types.InternalServiceError{
-				Message: fmt.Sprintf("Unknown transfer type: %v", task.GetType()),
+				Message: fmt.Sprintf("Unknown transfer type: %v", task.GetTaskType()),
 			}
 		}
 		t := &nosqlplugin.TransferTask{
-			TaskType:                task.GetType(),
+			TaskType:                task.GetTaskType(),
 			DomainID:                domainID,
 			WorkflowID:              workflowID,
 			RunID:                   runID,

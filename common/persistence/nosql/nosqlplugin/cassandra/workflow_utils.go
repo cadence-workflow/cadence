@@ -1695,7 +1695,7 @@ func mustConvertToSlice(value interface{}) []interface{} {
 	}
 }
 
-func populateGetReplicationTasks(query gocql.Query) ([]*nosqlplugin.ReplicationTask, []byte, error) {
+func populateGetReplicationTasks(query gocql.Query) ([]*nosqlplugin.HistoryMigrationTask, []byte, error) {
 	iter := query.Iter()
 	if iter == nil {
 		return nil, nil, &types.InternalServiceError{
@@ -1703,14 +1703,20 @@ func populateGetReplicationTasks(query gocql.Query) ([]*nosqlplugin.ReplicationT
 		}
 	}
 
-	var tasks []*nosqlplugin.ReplicationTask
+	var tasks []*nosqlplugin.HistoryMigrationTask
 	task := make(map[string]interface{})
 	for iter.MapScan(task) {
 		t := parseReplicationTaskInfo(task["replication"].(map[string]interface{}))
+		data := task["data"].([]byte)
+		encoding := task["data_encoding"].(string)
+		taskBlob := persistence.NewDataBlob(data, common.EncodingType(encoding))
 		// Reset task map to get it ready for next scan
 		task = make(map[string]interface{})
 
-		tasks = append(tasks, t)
+		tasks = append(tasks, &nosqlplugin.HistoryMigrationTask{
+			Replication: t,
+			Task:        taskBlob,
+		})
 	}
 	nextPageToken := getNextPageToken(iter)
 	err := iter.Close()

@@ -2038,6 +2038,7 @@ const (
 	MatchingEnableClientAutoConfig
 
 	EnableNoSQLHistoryTaskDualWriteMode
+	ReadNoSQLHistoryTaskFromDataBlob
 
 	// LastBoolKey must be the last one in this const group
 	LastBoolKey
@@ -4383,6 +4384,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	EnableNoSQLHistoryTaskDualWriteMode: {
 		KeyName:      "history.enableNoSQLHistoryTaskDualWrite",
 		Description:  "EnableHistoryTaskDualWrite is to enable dual write of history events",
+		DefaultValue: false,
+	},
+	ReadNoSQLHistoryTaskFromDataBlob: {
+		KeyName:      "history.readNoSQLHistoryTaskFromDataBlob",
+		Description:  "ReadNoSQLHistoryTaskFromDataBlob is to read history tasks from data blob",
 		DefaultValue: false,
 	},
 }

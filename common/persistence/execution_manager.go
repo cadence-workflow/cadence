@@ -847,14 +847,6 @@ func (m *executionManagerImpl) ListConcreteExecutions(
 	return newResponse, nil
 }
 
-// Transfer task related methods
-func (m *executionManagerImpl) GetTransferTasks(
-	ctx context.Context,
-	request *GetTransferTasksRequest,
-) (*GetTransferTasksResponse, error) {
-	return m.persistence.GetTransferTasks(ctx, request)
-}
-
 func (m *executionManagerImpl) CompleteTransferTask(
 	ctx context.Context,
 	request *CompleteTransferTaskRequest,
@@ -939,14 +931,6 @@ func (m *executionManagerImpl) CreateFailoverMarkerTasks(
 	return m.persistence.CreateFailoverMarkerTasks(ctx, request)
 }
 
-// Timer related methods.
-func (m *executionManagerImpl) GetTimerIndexTasks(
-	ctx context.Context,
-	request *GetTimerIndexTasksRequest,
-) (*GetTimerIndexTasksResponse, error) {
-	return m.persistence.GetTimerIndexTasks(ctx, request)
-}
-
 func (m *executionManagerImpl) CompleteTimerTask(
 	ctx context.Context,
 	request *CompleteTimerTaskRequest,
@@ -1008,6 +992,13 @@ func (m *executionManagerImpl) toInternalReplicationTaskInfo(info *ReplicationTa
 		CreationTime:      time.Unix(0, info.CreationTime).UTC(),
 		CurrentTimeStamp:  m.timeSrc.Now(),
 	}
+}
+
+func (m *executionManagerImpl) GetHistoryTasks(
+	ctx context.Context,
+	request *GetHistoryTasksRequest,
+) (*GetHistoryTasksResponse, error) {
+	return m.persistence.GetHistoryTasks(ctx, request)
 }
 
 func (m *executionManagerImpl) RangeCompleteHistoryTask(

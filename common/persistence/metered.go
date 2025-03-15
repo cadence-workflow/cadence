@@ -35,8 +35,8 @@ func (r *GetReplicationTasksResponse) Len() int {
 	return len(r.Tasks)
 }
 
-func (r *GetTimerIndexTasksResponse) Len() int {
-	return len(r.Timers)
+func (r *GetHistoryTasksResponse) Len() int {
+	return len(r.Tasks)
 }
 
 func (r *GetTasksResponse) Len() int {
@@ -53,10 +53,6 @@ func (r *ReadHistoryBranchResponse) Len() int {
 
 func (r *ListCurrentExecutionsResponse) Len() int {
 	return len(r.Executions)
-}
-
-func (r *GetTransferTasksResponse) Len() int {
-	return len(r.Tasks)
 }
 
 func (r QueueMessageList) Len() int {

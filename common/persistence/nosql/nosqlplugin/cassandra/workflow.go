@@ -378,7 +378,7 @@ func (db *cdb) IsWorkflowExecutionExists(ctx context.Context, shardID int, domai
 	return true, nil
 }
 
-func (db *cdb) SelectTransferTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, exclusiveMinTaskID, inclusiveMaxTaskID int64) ([]*nosqlplugin.TransferTask, []byte, error) {
+func (db *cdb) SelectTransferTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*nosqlplugin.HistoryMigrationTask, []byte, error) {
 	// Reading transfer tasks need to be quorum level consistent, otherwise we could loose task
 	query := db.session.Query(templateGetTransferTasksQuery,
 		shardID,
@@ -387,8 +387,8 @@ func (db *cdb) SelectTransferTasksOrderByTaskID(ctx context.Context, shardID, pa
 		rowTypeTransferWorkflowID,
 		rowTypeTransferRunID,
 		defaultVisibilityTimestamp,
-		exclusiveMinTaskID,
-		inclusiveMaxTaskID,
+		inclusiveMinTaskID,
+		exclusiveMaxTaskID,
 	).PageSize(pageSize).PageState(pageToken).WithContext(ctx)
 
 	iter := query.Iter()
@@ -398,14 +398,21 @@ func (db *cdb) SelectTransferTasksOrderByTaskID(ctx context.Context, shardID, pa
 		}
 	}
 
-	var tasks []*nosqlplugin.TransferTask
+	var tasks []*nosqlplugin.HistoryMigrationTask
 	task := make(map[string]interface{})
 	for iter.MapScan(task) {
 		t := parseTransferTaskInfo(task["transfer"].(map[string]interface{}))
+		data := task["data"].([]byte)
+		encoding := task["data_encoding"].(string)
+		taskBlob := persistence.NewDataBlob(data, common.EncodingType(encoding))
+
 		// Reset task map to get it ready for next scan
 		task = make(map[string]interface{})
 
-		tasks = append(tasks, t)
+		tasks = append(tasks, &nosqlplugin.HistoryMigrationTask{
+			Transfer: t,
+			Task:     taskBlob,
+		})
 	}
 	nextPageToken := getNextPageToken(iter)
 
@@ -442,7 +449,7 @@ func (db *cdb) RangeDeleteTransferTasks(ctx context.Context, shardID int, exclus
 	return db.executeWithConsistencyAll(query)
 }
 
-func (db *cdb) SelectTimerTasksOrderByVisibilityTime(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTime, exclusiveMaxTime time.Time) ([]*nosqlplugin.TimerTask, []byte, error) {
+func (db *cdb) SelectTimerTasksOrderByVisibilityTime(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTime, exclusiveMaxTime time.Time) ([]*nosqlplugin.HistoryMigrationTask, []byte, error) {
 	// Reading timer tasks need to be quorum level consistent, otherwise we could loose task
 	minTimestamp := persistence.UnixNanoToDBTimestamp(inclusiveMinTime.UnixNano())
 	maxTimestamp := persistence.UnixNanoToDBTimestamp(exclusiveMaxTime.UnixNano())
@@ -463,14 +470,21 @@ func (db *cdb) SelectTimerTasksOrderByVisibilityTime(ctx context.Context, shardI
 		}
 	}
 
-	var timers []*nosqlplugin.TimerTask
+	var timers []*nosqlplugin.HistoryMigrationTask
 	task := make(map[string]interface{})
 	for iter.MapScan(task) {
 		t := parseTimerTaskInfo(task["timer"].(map[string]interface{}))
+		data := task["data"].([]byte)
+		encoding := task["data_encoding"].(string)
+		taskBlob := persistence.NewDataBlob(data, common.EncodingType(encoding))
+
 		// Reset task map to get it ready for next scan
 		task = make(map[string]interface{})
 
-		timers = append(timers, t)
+		timers = append(timers, &nosqlplugin.HistoryMigrationTask{
+			Timer: t,
+			Task:  taskBlob,
+		})
 	}
 	nextPageToken := getNextPageToken(iter)
 
@@ -509,7 +523,7 @@ func (db *cdb) RangeDeleteTimerTasks(ctx context.Context, shardID int, inclusive
 	return db.executeWithConsistencyAll(query)
 }
 
-func (db *cdb) SelectReplicationTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, exclusiveMinTaskID, inclusiveMaxTaskID int64) ([]*nosqlplugin.ReplicationTask, []byte, error) {
+func (db *cdb) SelectReplicationTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*nosqlplugin.HistoryMigrationTask, []byte, error) {
 	// Reading replication tasks need to be quorum level consistent, otherwise we could loose task
 	query := db.session.Query(templateGetReplicationTasksQuery,
 		shardID,
@@ -518,8 +532,8 @@ func (db *cdb) SelectReplicationTasksOrderByTaskID(ctx context.Context, shardID,
 		rowTypeReplicationWorkflowID,
 		rowTypeReplicationRunID,
 		defaultVisibilityTimestamp,
-		exclusiveMinTaskID,
-		inclusiveMaxTaskID,
+		inclusiveMinTaskID,
+		exclusiveMaxTaskID,
 	).PageSize(pageSize).PageState(pageToken).WithContext(ctx)
 	return populateGetReplicationTasks(query)
 }
@@ -552,43 +566,6 @@ func (db *cdb) RangeDeleteReplicationTasks(ctx context.Context, shardID int, inc
 	return db.executeWithConsistencyAll(query)
 }
 
-func (db *cdb) SelectCrossClusterTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, targetCluster string, exclusiveMinTaskID, inclusiveMaxTaskID int64) ([]*nosqlplugin.CrossClusterTask, []byte, error) {
-	// Reading cross-cluster tasks need to be quorum level consistent, otherwise we could loose task
-	query := db.session.Query(templateGetCrossClusterTasksQuery,
-		shardID,
-		rowTypeCrossClusterTask,
-		rowTypeCrossClusterDomainID,
-		targetCluster, // workflowID field is used to store target cluster
-		rowTypeCrossClusterRunID,
-		defaultVisibilityTimestamp,
-		exclusiveMinTaskID,
-		inclusiveMaxTaskID,
-	).PageSize(pageSize).PageState(pageToken).WithContext(ctx)
-
-	iter := query.Iter()
-	if iter == nil {
-		return nil, nil, &types.InternalServiceError{
-			Message: "SelectCrossClusterTasksOrderByTaskID operation failed.  Not able to create query iterator.",
-		}
-	}
-
-	var tasks []*nosqlplugin.CrossClusterTask
-	task := make(map[string]interface{})
-	for iter.MapScan(task) {
-		t := parseCrossClusterTaskInfo(task["cross_cluster"].(map[string]interface{}))
-		// Reset task map to get it ready for next scan
-		task = make(map[string]interface{})
-
-		tasks = append(tasks, &nosqlplugin.CrossClusterTask{
-			TransferTask:  *t,
-			TargetCluster: targetCluster,
-		})
-	}
-	nextPageToken := getNextPageToken(iter)
-	err := iter.Close()
-	return tasks, nextPageToken, err
-}
-
 func (db *cdb) DeleteCrossClusterTask(ctx context.Context, shardID int, targetCluster string, taskID int64) error {
 	query := db.session.Query(templateCompleteCrossClusterTaskQuery,
 		shardID,
@@ -601,21 +578,6 @@ func (db *cdb) DeleteCrossClusterTask(ctx context.Context, shardID int, targetCl
 	).WithContext(ctx)
 
 	return db.executeWithConsistencyAll(query)
-}
-
-func (db *cdb) RangeDeleteCrossClusterTasks(ctx context.Context, shardID int, targetCluster string, exclusiveBeginTaskID, inclusiveEndTaskID int64) error {
-	query := db.session.Query(templateRangeCompleteCrossClusterTaskQuery,
-		shardID,
-		rowTypeCrossClusterTask,
-		rowTypeCrossClusterDomainID,
-		targetCluster,
-		rowTypeCrossClusterRunID,
-		defaultVisibilityTimestamp,
-		exclusiveBeginTaskID,
-		inclusiveEndTaskID,
-	).WithContext(ctx)
-
-	return query.Exec()
 }
 
 func (db *cdb) InsertReplicationDLQTask(ctx context.Context, shardID int, sourceCluster string, replicationTask *nosqlplugin.HistoryMigrationTask) error {
@@ -652,7 +614,7 @@ func (db *cdb) InsertReplicationDLQTask(ctx context.Context, shardID int, source
 	return query.Exec()
 }
 
-func (db *cdb) SelectReplicationDLQTasksOrderByTaskID(ctx context.Context, shardID int, sourceCluster string, pageSize int, pageToken []byte, exclusiveMinTaskID, inclusiveMaxTaskID int64) ([]*nosqlplugin.ReplicationTask, []byte, error) {
+func (db *cdb) SelectReplicationDLQTasksOrderByTaskID(ctx context.Context, shardID int, sourceCluster string, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*nosqlplugin.HistoryMigrationTask, []byte, error) {
 	// Reading replication tasks need to be quorum level consistent, otherwise we could loose task
 	query := db.session.Query(templateGetReplicationTasksQuery,
 		shardID,
@@ -661,8 +623,8 @@ func (db *cdb) SelectReplicationDLQTasksOrderByTaskID(ctx context.Context, shard
 		sourceCluster,
 		rowTypeDLQRunID,
 		defaultVisibilityTimestamp,
-		exclusiveMinTaskID,
-		inclusiveMaxTaskID,
+		inclusiveMinTaskID,
+		exclusiveMaxTaskID,
 	).PageSize(pageSize).PageState(pageToken).WithContext(ctx)
 
 	return populateGetReplicationTasks(query)
