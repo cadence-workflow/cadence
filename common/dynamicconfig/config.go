@@ -125,6 +125,9 @@ type StringPropertyFn func(opts ...FilterOption) string
 // MapPropertyFn is a wrapper to get map property from dynamic config
 type MapPropertyFn func(opts ...FilterOption) map[string]interface{}
 
+// MapPropertyFnWithDomainFilter is a wrapper to get map property from dynamic config with domainName as filter
+type MapPropertyFnWithDomainFilter func(domain string) map[string]interface{}
+
 // StringPropertyFnWithDomainFilter is a wrapper to get string property from dynamic config
 type StringPropertyFnWithDomainFilter func(domain string) string
 
@@ -445,6 +448,22 @@ func (c *Collection) GetStringProperty(key StringKey) StringPropertyFn {
 func (c *Collection) GetMapProperty(key MapKey) MapPropertyFn {
 	return func(opts ...FilterOption) map[string]interface{} {
 		filters := c.toFilterMap(opts...)
+		val, err := c.client.GetMapValue(
+			key,
+			filters,
+		)
+		if err != nil {
+			c.logError(key, filters, err)
+			return key.DefaultMap()
+		}
+		return val
+	}
+}
+
+// GetMapPropertyFilteredByDomain gets property with domain filter and asserts that it's a map
+func (c *Collection) GetMapPropertyFilteredByDomain(key MapKey) MapPropertyFnWithDomainFilter {
+	return func(domain string) map[string]interface{} {
+		filters := c.toFilterMap(DomainFilter(domain))
 		val, err := c.client.GetMapValue(
 			key,
 			filters,
