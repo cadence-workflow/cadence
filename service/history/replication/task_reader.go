@@ -71,8 +71,8 @@ func (r *DynamicTaskReader) Read(ctx context.Context, readLevel int64, maxReadLe
 	}
 
 	request := persistence.GetReplicationTasksRequest{
-		ReadLevel:    readLevel,
-		MaxReadLevel: maxReadLevel,
+		ReadLevel:    readLevel + 1,
+		MaxReadLevel: maxReadLevel + 1,
 		BatchSize:    r.getBatchSize(),
 	}
 	response, err := r.executionManager.GetReplicationTasks(ctx, &request)

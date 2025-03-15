@@ -5755,12 +5755,12 @@ func (s *ExecutionManagerSuite) TestReplicationDLQ() {
 	}
 	err := s.PutReplicationTaskToDLQ(ctx, sourceCluster, taskInfo)
 	s.NoError(err)
-	resp, err := s.GetReplicationTasksFromDLQ(ctx, sourceCluster, -1, 0, 1, nil)
+	resp, err := s.GetReplicationTasksFromDLQ(ctx, sourceCluster, 0, 1, 1, nil)
 	s.NoError(err)
 	s.Len(resp.Tasks, 1)
 	err = s.DeleteReplicationTaskFromDLQ(ctx, sourceCluster, 0)
 	s.NoError(err)
-	resp, err = s.GetReplicationTasksFromDLQ(ctx, sourceCluster, -1, 0, 1, nil)
+	resp, err = s.GetReplicationTasksFromDLQ(ctx, sourceCluster, 0, 1, 1, nil)
 	s.NoError(err)
 	s.Len(resp.Tasks, 0)
 
@@ -5782,7 +5782,7 @@ func (s *ExecutionManagerSuite) TestReplicationDLQ() {
 	s.NoError(err)
 	err = s.PutReplicationTaskToDLQ(ctx, sourceCluster, taskInfo2)
 	s.NoError(err)
-	resp, err = s.GetReplicationTasksFromDLQ(ctx, sourceCluster, 0, 2, 2, nil)
+	resp, err = s.GetReplicationTasksFromDLQ(ctx, sourceCluster, 1, 3, 2, nil)
 	s.NoError(err)
 	s.Len(resp.Tasks, 2)
 	sizeResp, err := s.GetReplicationDLQSize(ctx, sourceCluster)
@@ -5790,7 +5790,7 @@ func (s *ExecutionManagerSuite) TestReplicationDLQ() {
 	s.Equal(int64(2), sizeResp.Size)
 	err = s.RangeDeleteReplicationTaskFromDLQ(ctx, sourceCluster, 1, 3)
 	s.NoError(err)
-	resp, err = s.GetReplicationTasksFromDLQ(ctx, sourceCluster, 0, 2, 2, nil)
+	resp, err = s.GetReplicationTasksFromDLQ(ctx, sourceCluster, 1, 3, 2, nil)
 	s.NoError(err)
 	s.Len(resp.Tasks, 0)
 }

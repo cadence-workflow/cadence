@@ -529,8 +529,8 @@ func (t *transferQueueProcessorBase) readTasks(
 	op := func() error {
 		var err error
 		response, err = t.shard.GetExecutionManager().GetTransferTasks(context.Background(), &persistence.GetTransferTasksRequest{
-			ReadLevel:    readLevel.(transferTaskKey).taskID,
-			MaxReadLevel: maxReadLevel.(transferTaskKey).taskID,
+			ReadLevel:    readLevel.(transferTaskKey).taskID + 1,
+			MaxReadLevel: maxReadLevel.(transferTaskKey).taskID + 1,
 			BatchSize:    t.options.BatchSize(),
 		})
 		return err

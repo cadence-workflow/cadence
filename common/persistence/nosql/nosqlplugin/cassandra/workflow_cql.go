@@ -583,19 +583,8 @@ const (
 		`and workflow_id = ? ` +
 		`and run_id = ? ` +
 		`and visibility_ts = ? ` +
-		`and task_id > ? ` +
-		`and task_id <= ?`
-
-	templateGetCrossClusterTasksQuery = `SELECT cross_cluster ` +
-		`FROM executions ` +
-		`WHERE shard_id = ? ` +
-		`and type = ? ` +
-		`and domain_id = ? ` +
-		`and workflow_id = ? ` +
-		`and run_id = ? ` +
-		`and visibility_ts = ? ` +
-		`and task_id > ? ` +
-		`and task_id <= ?`
+		`and task_id >= ? ` +
+		`and task_id < ?`
 
 	templateGetReplicationTasksQuery = `SELECT replication ` +
 		`FROM executions ` +
@@ -605,8 +594,8 @@ const (
 		`and workflow_id = ? ` +
 		`and run_id = ? ` +
 		`and visibility_ts = ? ` +
-		`and task_id > ? ` +
-		`and task_id <= ?`
+		`and task_id >= ? ` +
+		`and task_id < ?`
 
 	templateGetDLQSizeQuery = `SELECT count(1) as count ` +
 		`FROM executions ` +
@@ -636,8 +625,6 @@ const (
 		`and task_id < ?`
 
 	templateCompleteCrossClusterTaskQuery = templateCompleteTransferTaskQuery
-
-	templateRangeCompleteCrossClusterTaskQuery = templateRangeCompleteTransferTaskQuery
 
 	templateCompleteReplicationTaskBeforeQuery = `DELETE FROM executions ` +
 		`WHERE shard_id = ? ` +

@@ -604,28 +604,6 @@ func (d *nosqlExecutionStore) GetTransferTasks(
 	}, nil
 }
 
-func (d *nosqlExecutionStore) GetCrossClusterTasks(
-	ctx context.Context,
-	request *persistence.GetCrossClusterTasksRequest,
-) (*persistence.GetCrossClusterTasksResponse, error) {
-
-	cTasks, nextPageToken, err := d.db.SelectCrossClusterTasksOrderByTaskID(ctx, d.shardID, request.BatchSize, request.NextPageToken, request.TargetCluster, request.ReadLevel, request.MaxReadLevel)
-
-	if err != nil {
-		return nil, convertCommonErrors(d.db, "GetCrossClusterTasks", err)
-	}
-
-	var tTasks []*persistence.CrossClusterTaskInfo
-	for _, t := range cTasks {
-		// revive:disable-next-line:range-val-address Appending address of TransferTask, not of t.
-		tTasks = append(tTasks, &t.TransferTask)
-	}
-	return &persistence.GetCrossClusterTasksResponse{
-		Tasks:         tTasks,
-		NextPageToken: nextPageToken,
-	}, nil
-}
-
 func (d *nosqlExecutionStore) GetReplicationTasks(
 	ctx context.Context,
 	request *persistence.GetReplicationTasksRequest,

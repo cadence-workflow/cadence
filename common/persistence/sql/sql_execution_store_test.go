@@ -206,14 +206,14 @@ func TestGetTransferTasks(t *testing.T) {
 			},
 			mockSetup: func(mockDB *sqlplugin.MockDB, mockParser *serialization.MockParser) {
 				mockDB.EXPECT().SelectFromTransferTasks(gomock.Any(), &sqlplugin.TransferTasksFilter{
-					ShardID:   shardID,
-					MinTaskID: 11,
-					MaxTaskID: 99,
-					PageSize:  1,
+					ShardID:            shardID,
+					InclusiveMinTaskID: 11,
+					ExclusiveMaxTaskID: 99,
+					PageSize:           1,
 				}).Return([]sqlplugin.TransferTasksRow{
 					{
 						ShardID:      shardID,
-						TaskID:       12,
+						TaskID:       11,
 						Data:         []byte(`transfer`),
 						DataEncoding: "transfer",
 					},
@@ -237,7 +237,7 @@ func TestGetTransferTasks(t *testing.T) {
 			want: &persistence.GetTransferTasksResponse{
 				Tasks: []*persistence.TransferTaskInfo{
 					{
-						TaskID:                  12,
+						TaskID:                  11,
 						DomainID:                "abdcea69-61d5-44c3-9d55-afe23505a542",
 						WorkflowID:              "test",
 						RunID:                   "abdcea69-61d5-44c3-9d55-afe23505a54a",
@@ -268,10 +268,10 @@ func TestGetTransferTasks(t *testing.T) {
 			mockSetup: func(mockDB *sqlplugin.MockDB, mockParser *serialization.MockParser) {
 				err := errors.New("some error")
 				mockDB.EXPECT().SelectFromTransferTasks(gomock.Any(), &sqlplugin.TransferTasksFilter{
-					ShardID:   shardID,
-					MinTaskID: 11,
-					MaxTaskID: 99,
-					PageSize:  1,
+					ShardID:            shardID,
+					InclusiveMinTaskID: 11,
+					ExclusiveMaxTaskID: 99,
+					PageSize:           1,
 				}).Return(nil, err)
 				mockDB.EXPECT().IsNotFoundError(err).Return(true)
 			},
@@ -287,10 +287,10 @@ func TestGetTransferTasks(t *testing.T) {
 			},
 			mockSetup: func(mockDB *sqlplugin.MockDB, mockParser *serialization.MockParser) {
 				mockDB.EXPECT().SelectFromTransferTasks(gomock.Any(), &sqlplugin.TransferTasksFilter{
-					ShardID:   shardID,
-					MinTaskID: 11,
-					MaxTaskID: 99,
-					PageSize:  1,
+					ShardID:            shardID,
+					InclusiveMinTaskID: 11,
+					ExclusiveMaxTaskID: 99,
+					PageSize:           1,
 				}).Return([]sqlplugin.TransferTasksRow{
 					{
 						ShardID:      shardID,
@@ -405,14 +405,14 @@ func TestGetReplicationTasks(t *testing.T) {
 			},
 			mockSetup: func(mockDB *sqlplugin.MockDB, mockParser *serialization.MockParser) {
 				mockDB.EXPECT().SelectFromReplicationTasks(gomock.Any(), &sqlplugin.ReplicationTasksFilter{
-					ShardID:   shardID,
-					MinTaskID: 100,
-					MaxTaskID: 1100,
-					PageSize:  1000,
+					ShardID:            shardID,
+					InclusiveMinTaskID: 100,
+					ExclusiveMaxTaskID: 1100,
+					PageSize:           1000,
 				}).Return([]sqlplugin.ReplicationTasksRow{
 					{
 						ShardID:      shardID,
-						TaskID:       101,
+						TaskID:       100,
 						Data:         []byte(`replication`),
 						DataEncoding: "replication",
 					},
@@ -434,7 +434,7 @@ func TestGetReplicationTasks(t *testing.T) {
 			want: &persistence.InternalGetReplicationTasksResponse{
 				Tasks: []*persistence.InternalReplicationTaskInfo{
 					{
-						TaskID:            101,
+						TaskID:            100,
 						DomainID:          "abdcea69-61d5-44c3-9d55-afe23505a542",
 						WorkflowID:        "test",
 						RunID:             "abdcea69-61d5-44c3-9d55-afe23505a54a",
@@ -462,10 +462,10 @@ func TestGetReplicationTasks(t *testing.T) {
 			mockSetup: func(mockDB *sqlplugin.MockDB, mockParser *serialization.MockParser) {
 				err := errors.New("some error")
 				mockDB.EXPECT().SelectFromReplicationTasks(gomock.Any(), &sqlplugin.ReplicationTasksFilter{
-					ShardID:   shardID,
-					MinTaskID: 100,
-					MaxTaskID: 1100,
-					PageSize:  1000,
+					ShardID:            shardID,
+					InclusiveMinTaskID: 100,
+					ExclusiveMaxTaskID: 1100,
+					PageSize:           1000,
 				}).Return(nil, err)
 				mockDB.EXPECT().IsNotFoundError(err).Return(true)
 			},
@@ -480,10 +480,10 @@ func TestGetReplicationTasks(t *testing.T) {
 			},
 			mockSetup: func(mockDB *sqlplugin.MockDB, mockParser *serialization.MockParser) {
 				mockDB.EXPECT().SelectFromReplicationTasks(gomock.Any(), &sqlplugin.ReplicationTasksFilter{
-					ShardID:   shardID,
-					MinTaskID: 100,
-					MaxTaskID: 1100,
-					PageSize:  1000,
+					ShardID:            shardID,
+					InclusiveMinTaskID: 100,
+					ExclusiveMaxTaskID: 1100,
+					PageSize:           1000,
 				}).Return([]sqlplugin.ReplicationTasksRow{
 					{
 						ShardID:      shardID,
@@ -602,16 +602,16 @@ func TestGetReplicationTasksFromDLQ(t *testing.T) {
 			mockSetup: func(mockDB *sqlplugin.MockDB, mockParser *serialization.MockParser) {
 				mockDB.EXPECT().SelectFromReplicationTasksDLQ(gomock.Any(), &sqlplugin.ReplicationTasksDLQFilter{
 					ReplicationTasksFilter: sqlplugin.ReplicationTasksFilter{
-						ShardID:   shardID,
-						MinTaskID: 100,
-						MaxTaskID: 1100,
-						PageSize:  1000,
+						ShardID:            shardID,
+						InclusiveMinTaskID: 100,
+						ExclusiveMaxTaskID: 1100,
+						PageSize:           1000,
 					},
 					SourceClusterName: "source",
 				}).Return([]sqlplugin.ReplicationTasksRow{
 					{
 						ShardID:      shardID,
-						TaskID:       101,
+						TaskID:       100,
 						Data:         []byte(`replication`),
 						DataEncoding: "replication",
 					},
@@ -633,7 +633,7 @@ func TestGetReplicationTasksFromDLQ(t *testing.T) {
 			want: &persistence.InternalGetReplicationTasksFromDLQResponse{
 				Tasks: []*persistence.InternalReplicationTaskInfo{
 					{
-						TaskID:            101,
+						TaskID:            100,
 						DomainID:          "abdcea69-61d5-44c3-9d55-afe23505a542",
 						WorkflowID:        "test",
 						RunID:             "abdcea69-61d5-44c3-9d55-afe23505a54a",
@@ -665,10 +665,10 @@ func TestGetReplicationTasksFromDLQ(t *testing.T) {
 				err := errors.New("some error")
 				mockDB.EXPECT().SelectFromReplicationTasksDLQ(gomock.Any(), &sqlplugin.ReplicationTasksDLQFilter{
 					ReplicationTasksFilter: sqlplugin.ReplicationTasksFilter{
-						ShardID:   shardID,
-						MinTaskID: 100,
-						MaxTaskID: 1100,
-						PageSize:  1000,
+						ShardID:            shardID,
+						InclusiveMinTaskID: 100,
+						ExclusiveMaxTaskID: 1100,
+						PageSize:           1000,
 					},
 					SourceClusterName: "source",
 				}).Return(nil, err)
@@ -689,10 +689,10 @@ func TestGetReplicationTasksFromDLQ(t *testing.T) {
 			mockSetup: func(mockDB *sqlplugin.MockDB, mockParser *serialization.MockParser) {
 				mockDB.EXPECT().SelectFromReplicationTasksDLQ(gomock.Any(), &sqlplugin.ReplicationTasksDLQFilter{
 					ReplicationTasksFilter: sqlplugin.ReplicationTasksFilter{
-						ShardID:   shardID,
-						MinTaskID: 100,
-						MaxTaskID: 1100,
-						PageSize:  1000,
+						ShardID:            shardID,
+						InclusiveMinTaskID: 100,
+						ExclusiveMaxTaskID: 1100,
+						PageSize:           1000,
 					},
 					SourceClusterName: "source",
 				}).Return([]sqlplugin.ReplicationTasksRow{
@@ -900,8 +900,8 @@ func TestRangeDeleteReplicationTaskFromDLQ(t *testing.T) {
 				mockDB.EXPECT().RangeDeleteMessageFromReplicationTasksDLQ(gomock.Any(), &sqlplugin.ReplicationTasksDLQFilter{
 					ReplicationTasksFilter: sqlplugin.ReplicationTasksFilter{
 						ShardID:            shardID,
-						TaskID:             123,
-						ExclusiveEndTaskID: 345,
+						InclusiveMinTaskID: 123,
+						ExclusiveMaxTaskID: 345,
 						PageSize:           10,
 					},
 					SourceClusterName: "source",
@@ -925,9 +925,9 @@ func TestRangeDeleteReplicationTaskFromDLQ(t *testing.T) {
 				mockDB.EXPECT().RangeDeleteMessageFromReplicationTasksDLQ(gomock.Any(), &sqlplugin.ReplicationTasksDLQFilter{
 					ReplicationTasksFilter: sqlplugin.ReplicationTasksFilter{
 						ShardID:            shardID,
-						TaskID:             123,
+						InclusiveMinTaskID: 123,
+						ExclusiveMaxTaskID: 345,
 						PageSize:           10,
-						ExclusiveEndTaskID: 345,
 					},
 					SourceClusterName: "source",
 				}).Return(nil, err)
@@ -3255,10 +3255,10 @@ func TestRangeCompleteHistoryTask(t *testing.T) {
 			},
 			setupMock: func(mockDB *sqlplugin.MockDB) {
 				mockDB.EXPECT().RangeDeleteFromTransferTasks(ctx, &sqlplugin.TransferTasksFilter{
-					ShardID:   shardID,
-					MinTaskID: 100,
-					MaxTaskID: 200,
-					PageSize:  1000,
+					ShardID:            shardID,
+					InclusiveMinTaskID: 100,
+					ExclusiveMaxTaskID: 200,
+					PageSize:           1000,
 				}).Return(&sqlResult{rowsAffected: 1}, nil)
 			},
 			expectedError: nil,
@@ -3274,7 +3274,7 @@ func TestRangeCompleteHistoryTask(t *testing.T) {
 			setupMock: func(mockDB *sqlplugin.MockDB) {
 				mockDB.EXPECT().RangeDeleteFromReplicationTasks(ctx, &sqlplugin.ReplicationTasksFilter{
 					ShardID:            shardID,
-					ExclusiveEndTaskID: 200,
+					ExclusiveMaxTaskID: 200,
 					PageSize:           1000,
 				}).Return(&sqlResult{rowsAffected: 1}, nil)
 			},
@@ -3317,10 +3317,10 @@ func TestRangeCompleteHistoryTask(t *testing.T) {
 			},
 			setupMock: func(mockDB *sqlplugin.MockDB) {
 				mockDB.EXPECT().RangeDeleteFromTransferTasks(ctx, &sqlplugin.TransferTasksFilter{
-					ShardID:   shardID,
-					MinTaskID: 100,
-					MaxTaskID: 200,
-					PageSize:  1000,
+					ShardID:            shardID,
+					InclusiveMinTaskID: 100,
+					ExclusiveMaxTaskID: 200,
+					PageSize:           1000,
 				}).Return(nil, errors.New("db error"))
 				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
 			},
@@ -3337,7 +3337,7 @@ func TestRangeCompleteHistoryTask(t *testing.T) {
 			setupMock: func(mockDB *sqlplugin.MockDB) {
 				mockDB.EXPECT().RangeDeleteFromReplicationTasks(ctx, &sqlplugin.ReplicationTasksFilter{
 					ShardID:            shardID,
-					ExclusiveEndTaskID: 200,
+					ExclusiveMaxTaskID: 200,
 					PageSize:           1000,
 				}).Return(nil, errors.New("db error"))
 				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
@@ -3373,10 +3373,10 @@ func TestRangeCompleteHistoryTask(t *testing.T) {
 			},
 			setupMock: func(mockDB *sqlplugin.MockDB) {
 				mockDB.EXPECT().RangeDeleteFromTransferTasks(ctx, &sqlplugin.TransferTasksFilter{
-					ShardID:   shardID,
-					MinTaskID: 100,
-					MaxTaskID: 200,
-					PageSize:  1000,
+					ShardID:            shardID,
+					InclusiveMinTaskID: 100,
+					ExclusiveMaxTaskID: 200,
+					PageSize:           1000,
 				}).Return(&sqlResult{err: errors.New("sql result error")}, nil)
 				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
 			},
@@ -3393,7 +3393,7 @@ func TestRangeCompleteHistoryTask(t *testing.T) {
 			setupMock: func(mockDB *sqlplugin.MockDB) {
 				mockDB.EXPECT().RangeDeleteFromReplicationTasks(ctx, &sqlplugin.ReplicationTasksFilter{
 					ShardID:            shardID,
-					ExclusiveEndTaskID: 200,
+					ExclusiveMaxTaskID: 200,
 					PageSize:           1000,
 				}).Return(&sqlResult{err: errors.New("sql result error")}, nil)
 				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
