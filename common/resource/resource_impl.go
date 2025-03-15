@@ -246,16 +246,6 @@ func New(
 		serviceConfig.IsErrorRetryableFunction,
 	)
 
-	matchingRawClient, err := clientBean.GetMatchingClient(domainCache.GetDomainName)
-	if err != nil {
-		return nil, err
-	}
-	matchingClient := retryable.NewMatchingClient(
-		matchingRawClient,
-		common.CreateMatchingServiceRetryPolicy(),
-		serviceConfig.IsErrorRetryableFunction,
-	)
-
 	shardDistributorRawClient := clientBean.GetShardDistributorClient()
 
 	// If the raw client is nil, then the client bean is not configured to provide a shard distributor client, so we
@@ -270,6 +260,16 @@ func New(
 			serviceConfig.IsErrorRetryableFunction,
 		)
 	}
+
+	matchingRawClient, err := clientBean.GetMatchingClient(domainCache.GetDomainName, shardDistributorClient)
+	if err != nil {
+		return nil, err
+	}
+	matchingClient := retryable.NewMatchingClient(
+		matchingRawClient,
+		common.CreateMatchingServiceRetryPolicy(),
+		serviceConfig.IsErrorRetryableFunction,
+	)
 
 	var historyRawClient history.Client
 	if params.HistoryClientFn != nil {
