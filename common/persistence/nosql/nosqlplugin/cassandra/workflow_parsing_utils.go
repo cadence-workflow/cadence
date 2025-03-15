@@ -539,12 +539,6 @@ func parseTransferTaskInfo(
 	return info
 }
 
-func parseCrossClusterTaskInfo(
-	result map[string]interface{},
-) *persistence.CrossClusterTaskInfo {
-	return parseTransferTaskInfo(result)
-}
-
 func parseReplicationTaskInfo(
 	result map[string]interface{},
 ) *nosqlplugin.ReplicationTask {

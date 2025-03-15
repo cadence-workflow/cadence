@@ -30,6 +30,7 @@ type (
 		PersistenceSampleLoggingRate             dynamicconfig.IntPropertyFn
 		EnableShardIDMetrics                     dynamicconfig.BoolPropertyFn
 		EnableHistoryTaskDualWriteMode           dynamicconfig.BoolPropertyFn
+		ReadNoSQLHistoryTaskFromDataBlob         dynamicconfig.BoolPropertyFn
 	}
 )
 
@@ -41,5 +42,6 @@ func NewDynamicConfiguration(dc *dynamicconfig.Collection) *DynamicConfiguration
 		PersistenceSampleLoggingRate:             dc.GetIntProperty(dynamicconfig.SampleLoggingRate),
 		EnableShardIDMetrics:                     dc.GetBoolProperty(dynamicconfig.EnableShardIDMetrics),
 		EnableHistoryTaskDualWriteMode:           dc.GetBoolProperty(dynamicconfig.EnableNoSQLHistoryTaskDualWriteMode),
+		ReadNoSQLHistoryTaskFromDataBlob:         dc.GetBoolProperty(dynamicconfig.ReadNoSQLHistoryTaskFromDataBlob),
 	}
 }

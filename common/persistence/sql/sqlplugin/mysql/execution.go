@@ -84,7 +84,7 @@ workflow_id = :workflow_id
 `
 
 	getTransferTasksQuery = `SELECT task_id, data, data_encoding
-FROM transfer_tasks WHERE shard_id = ? AND task_id > ? AND task_id <= ? ORDER BY shard_id, task_id LIMIT ?`
+FROM transfer_tasks WHERE shard_id = ? AND task_id >= ? AND task_id < ? ORDER BY shard_id, task_id LIMIT ?`
 
 	createTransferTasksQuery = `INSERT INTO transfer_tasks(shard_id, task_id, data, data_encoding)
  VALUES(:shard_id, :task_id, :data, :data_encoding)`
@@ -121,8 +121,8 @@ VALUES(:target_cluster, :shard_id, :task_id, :data, :data_encoding)`
 
 	getReplicationTasksQuery = `SELECT task_id, data, data_encoding FROM replication_tasks WHERE
 shard_id = ? AND
-task_id > ? AND
-task_id <= ?
+task_id >= ? AND
+task_id < ?
 ORDER BY task_id LIMIT ?`
 
 	deleteReplicationTaskQuery             = `DELETE FROM replication_tasks WHERE shard_id = ? AND task_id = ?`
@@ -132,8 +132,8 @@ ORDER BY task_id LIMIT ?`
 	getReplicationTasksDLQQuery = `SELECT task_id, data, data_encoding FROM replication_tasks_dlq WHERE
 source_cluster_name = ? AND
 shard_id = ? AND
-task_id > ? AND
-task_id <= ?
+task_id >= ? AND
+task_id < ?
 ORDER BY task_id LIMIT ?`
 
 	getReplicationTaskDLQQuery = `SELECT count(1) as count FROM replication_tasks_dlq WHERE
@@ -289,7 +289,7 @@ func (mdb *DB) InsertIntoTransferTasks(ctx context.Context, rows []sqlplugin.Tra
 func (mdb *DB) SelectFromTransferTasks(ctx context.Context, filter *sqlplugin.TransferTasksFilter) ([]sqlplugin.TransferTasksRow, error) {
 	var rows []sqlplugin.TransferTasksRow
 	dbShardID := sqlplugin.GetDBShardIDFromHistoryShardID(filter.ShardID, mdb.GetTotalNumDBShards())
-	err := mdb.driver.SelectContext(ctx, dbShardID, &rows, getTransferTasksQuery, filter.ShardID, filter.MinTaskID, filter.MaxTaskID, filter.PageSize)
+	err := mdb.driver.SelectContext(ctx, dbShardID, &rows, getTransferTasksQuery, filter.ShardID, filter.InclusiveMinTaskID, filter.ExclusiveMaxTaskID, filter.PageSize)
 	if err != nil {
 		return nil, err
 	}
@@ -306,9 +306,9 @@ func (mdb *DB) DeleteFromTransferTasks(ctx context.Context, filter *sqlplugin.Tr
 func (mdb *DB) RangeDeleteFromTransferTasks(ctx context.Context, filter *sqlplugin.TransferTasksFilter) (sql.Result, error) {
 	dbShardID := sqlplugin.GetDBShardIDFromHistoryShardID(filter.ShardID, mdb.GetTotalNumDBShards())
 	if filter.PageSize > 0 {
-		return mdb.driver.ExecContext(ctx, dbShardID, rangeDeleteTransferTaskByBatchQuery, filter.ShardID, filter.MinTaskID, filter.MaxTaskID, filter.PageSize)
+		return mdb.driver.ExecContext(ctx, dbShardID, rangeDeleteTransferTaskByBatchQuery, filter.ShardID, filter.InclusiveMinTaskID, filter.ExclusiveMaxTaskID, filter.PageSize)
 	}
-	return mdb.driver.ExecContext(ctx, dbShardID, rangeDeleteTransferTaskQuery, filter.ShardID, filter.MinTaskID, filter.MaxTaskID)
+	return mdb.driver.ExecContext(ctx, dbShardID, rangeDeleteTransferTaskQuery, filter.ShardID, filter.InclusiveMinTaskID, filter.ExclusiveMaxTaskID)
 }
 
 // InsertIntoCrossClusterTasks inserts one or more rows into cross_cluster_tasks table
@@ -435,7 +435,7 @@ func (mdb *DB) InsertIntoReplicationTasks(ctx context.Context, rows []sqlplugin.
 func (mdb *DB) SelectFromReplicationTasks(ctx context.Context, filter *sqlplugin.ReplicationTasksFilter) ([]sqlplugin.ReplicationTasksRow, error) {
 	var rows []sqlplugin.ReplicationTasksRow
 	dbShardID := sqlplugin.GetDBShardIDFromHistoryShardID(filter.ShardID, mdb.GetTotalNumDBShards())
-	err := mdb.driver.SelectContext(ctx, dbShardID, &rows, getReplicationTasksQuery, filter.ShardID, filter.MinTaskID, filter.MaxTaskID, filter.PageSize)
+	err := mdb.driver.SelectContext(ctx, dbShardID, &rows, getReplicationTasksQuery, filter.ShardID, filter.InclusiveMinTaskID, filter.ExclusiveMaxTaskID, filter.PageSize)
 	return rows, err
 }
 
@@ -449,9 +449,9 @@ func (mdb *DB) DeleteFromReplicationTasks(ctx context.Context, filter *sqlplugin
 func (mdb *DB) RangeDeleteFromReplicationTasks(ctx context.Context, filter *sqlplugin.ReplicationTasksFilter) (sql.Result, error) {
 	dbShardID := sqlplugin.GetDBShardIDFromHistoryShardID(filter.ShardID, mdb.GetTotalNumDBShards())
 	if filter.PageSize > 0 {
-		return mdb.driver.ExecContext(ctx, dbShardID, rangeDeleteReplicationTaskByBatchQuery, filter.ShardID, filter.ExclusiveEndTaskID, filter.PageSize)
+		return mdb.driver.ExecContext(ctx, dbShardID, rangeDeleteReplicationTaskByBatchQuery, filter.ShardID, filter.ExclusiveMaxTaskID, filter.PageSize)
 	}
-	return mdb.driver.ExecContext(ctx, dbShardID, rangeDeleteReplicationTaskQuery, filter.ShardID, filter.ExclusiveEndTaskID)
+	return mdb.driver.ExecContext(ctx, dbShardID, rangeDeleteReplicationTaskQuery, filter.ShardID, filter.ExclusiveMaxTaskID)
 }
 
 // InsertIntoReplicationTasksDLQ inserts one or more rows into replication_tasks_dlq table
@@ -471,8 +471,8 @@ func (mdb *DB) SelectFromReplicationTasksDLQ(ctx context.Context, filter *sqlplu
 		getReplicationTasksDLQQuery,
 		filter.SourceClusterName,
 		filter.ShardID,
-		filter.MinTaskID,
-		filter.MaxTaskID,
+		filter.InclusiveMinTaskID,
+		filter.ExclusiveMaxTaskID,
 		filter.PageSize)
 	return rows, err
 }
@@ -524,8 +524,8 @@ func (mdb *DB) RangeDeleteMessageFromReplicationTasksDLQ(
 			rangeDeleteReplicationTaskFromDLQByBatchQuery,
 			filter.SourceClusterName,
 			filter.ShardID,
-			filter.TaskID,
-			filter.ExclusiveEndTaskID,
+			filter.InclusiveMinTaskID,
+			filter.ExclusiveMaxTaskID,
 			filter.PageSize,
 		)
 	}
@@ -536,7 +536,7 @@ func (mdb *DB) RangeDeleteMessageFromReplicationTasksDLQ(
 		rangeDeleteReplicationTaskFromDLQQuery,
 		filter.SourceClusterName,
 		filter.ShardID,
-		filter.TaskID,
-		filter.ExclusiveEndTaskID,
+		filter.InclusiveMinTaskID,
+		filter.ExclusiveMaxTaskID,
 	)
 }
