@@ -255,6 +255,7 @@ func TestNewConfig(t *testing.T) {
 		"TaskSchedulerEnableRateLimiterShadowMode":             {dynamicconfig.TaskSchedulerEnableRateLimiterShadowMode, false},
 		"TaskSchedulerEnableRateLimiter":                       {dynamicconfig.TaskSchedulerEnableRateLimiter, true},
 		"HostName":                                             {nil, hostname},
+		"SearchAttributesHiddenValueKeys":                      {dynamicconfig.SearchAttributesHiddenValueKeys, map[string]interface{}{"CustomStringField": true}},
 	}
 	client := dynamicconfig.NewInMemoryClient()
 	for fieldName, expected := range fields {
