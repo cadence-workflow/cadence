@@ -187,7 +187,7 @@ func (t *transferTaskExecutorBase) recordWorkflowStarted(
 	searchAttributes := copySearchAttributes(immutableSearchAttributes)
 	if t.config.EnableContextHeaderInVisibility(domainEntry.GetInfo().Name) {
 		// fail open, if error occurs, just log it; successfully appended headers will be stored
-		if searchAttributes, err = appendContextHeaderToSearchAttributes(searchAttributes, headers, t.config.ValidSearchAttributes()); err != nil {
+		if searchAttributes, err = appendContextHeaderToSearchAttributes(searchAttributes, headers, t.config.ValidSearchAttributes(), t.config.SearchAttributesHiddenValueKeys()); err != nil {
 			t.logger.Error("failed to add headers to search attributes", tag.Error(err))
 		}
 	}
@@ -264,7 +264,7 @@ func (t *transferTaskExecutorBase) upsertWorkflowExecution(
 	searchAttributes := copySearchAttributes(immutableSearchAttributes)
 	if t.config.EnableContextHeaderInVisibility(domain) {
 		// fail open, if error occurs, just log it; successfully appended headers will be stored
-		if searchAttributes, err = appendContextHeaderToSearchAttributes(searchAttributes, headers, t.config.ValidSearchAttributes()); err != nil {
+		if searchAttributes, err = appendContextHeaderToSearchAttributes(searchAttributes, headers, t.config.ValidSearchAttributes(), t.config.SearchAttributesHiddenValueKeys()); err != nil {
 			t.logger.Error("failed to add headers to search attributes", tag.Error(err))
 		}
 	}
@@ -344,7 +344,7 @@ func (t *transferTaskExecutorBase) recordWorkflowClosed(
 	searchAttributes := copySearchAttributes(immutableSearchAttributes)
 	if t.config.EnableContextHeaderInVisibility(domainEntry.GetInfo().Name) {
 		// fail open, if error occurs, just log it; successfully appended headers will be stored
-		if searchAttributes, err = appendContextHeaderToSearchAttributes(searchAttributes, headers, t.config.ValidSearchAttributes()); err != nil {
+		if searchAttributes, err = appendContextHeaderToSearchAttributes(searchAttributes, headers, t.config.ValidSearchAttributes(), t.config.SearchAttributesHiddenValueKeys()); err != nil {
 			t.logger.Error("failed to add headers to search attributes", tag.Error(err))
 		}
 	}
@@ -437,7 +437,7 @@ func getWorkflowMemo(
 }
 
 // context headers are appended to search attributes if in allow list; return errors when all context key is processed
-func appendContextHeaderToSearchAttributes(attr, context map[string][]byte, allowedKeys map[string]interface{}) (map[string][]byte, error) {
+func appendContextHeaderToSearchAttributes(attr, context map[string][]byte, allowedKeys map[string]interface{}, hiddenValueKeys map[string]interface{}) (map[string][]byte, error) {
 	// sanity check
 	if attr == nil {
 		attr = make(map[string][]byte)
@@ -458,7 +458,14 @@ func appendContextHeaderToSearchAttributes(attr, context map[string][]byte, allo
 		}
 		// context header are raw string bytes, need to be json encoded to be stored in search attributes
 		// ignore error as it can't happen to err on json encoding string
-		data, _ := json.Marshal(string(v))
+		// context header can contain sensitive information, so we need to hide the value if it is in the hiddenValueKeys
+		var val string
+		if _, ok := hiddenValueKeys[key]; ok {
+			val = "Redacted" // Hide the actualvalue
+		} else {
+			val = string(v) // Convert []byte to string safely
+		}
+		data, _ := json.Marshal(val)
 		attr[key] = data
 	}
 	return attr, errGroup
