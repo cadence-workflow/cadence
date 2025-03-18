@@ -287,16 +287,23 @@ func (s *Service) startParentClosePolicyProcessor() {
 }
 
 func (s *Service) startESAnalyzer() {
+	esClient := s.params.ESClient
+	esConfig := s.params.ESConfig
+	// when es client is not configured, use os client, this can happen during os migration, we will use os client to read from os
+	// there is another case is pinot migration and migration mode is off, in this case nil es config/client is expected
+	if esClient == nil && s.params.OSClient != nil {
+		esClient = s.params.OSClient
+		esConfig = s.params.OSConfig
+	}
+
 	analyzer := esanalyzer.New(
 		s.params.PublicClient,
 		s.GetFrontendClient(),
 		s.GetClientBean(),
-		s.params.ESClient,
+		esClient,
 		s.params.PinotClient,
-		s.params.OSClient,
-		s.params.ESConfig,
+		esConfig,
 		s.params.PinotConfig,
-		s.params.OSConfig,
 		s.GetLogger(),
 		s.params.MetricScope,
 		s.Resource,

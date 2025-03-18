@@ -200,7 +200,7 @@ func (w *Workflow) emitWorkflowVersionMetrics(ctx context.Context) error {
 		var failedDomains []string
 		for _, domainName := range workflowMetricDomainNames {
 			switch w.analyzer.readMode {
-			case ES, OS:
+			case ES:
 				err = w.emitWorkflowVersionMetricsES(ctx, domainName, logger)
 			case Pinot:
 				err = w.emitWorkflowVersionMetricsPinot(domainName, logger)
@@ -351,12 +351,7 @@ func (w *Workflow) emitWorkflowVersionMetricsES(ctx context.Context, domainName 
 		)
 		return err
 	}
-	// by default use es client
-	client := w.analyzer.esClient
-	if w.analyzer.readMode == OS {
-		client = w.analyzer.osClient
-	}
-	response, err := client.SearchRaw(ctx, w.analyzer.visibilityIndexName, wfVersionEsQuery)
+	response, err := w.analyzer.esClient.SearchRaw(ctx, w.analyzer.visibilityIndexName, wfVersionEsQuery)
 	if err != nil {
 		logger.Error("Failed to query ElasticSearch to find workflow version Info",
 			zap.Error(err),
