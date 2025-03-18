@@ -24,6 +24,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"go.uber.org/multierr"
@@ -460,8 +461,8 @@ func appendContextHeaderToSearchAttributes(attr, context map[string][]byte, allo
 		// ignore error as it can't happen to err on json encoding string
 		// context header can contain sensitive information, so we need to hide the value if it is in the hiddenValueKeys
 		var val string
-		if _, ok := hiddenValueKeys[key]; ok {
-			val = "Redacted" // Hide the actualvalue
+		if shouldRedactContextHeader(key, hiddenValueKeys) {
+			val = "***redacted***" // Hide the actualvalue
 		} else {
 			val = string(v) // Convert []byte to string safely
 		}
@@ -505,4 +506,21 @@ func copySearchAttributes(
 func isWorkflowNotExistError(err error) bool {
 	_, ok := err.(*types.EntityNotExistsError)
 	return ok
+}
+
+func shouldRedactContextHeader(key string, hiddenValueKeys map[string]interface{}) bool {
+	if hiddenValueKeys == nil {
+		return false
+	}
+	if val, exists := hiddenValueKeys[key]; exists {
+		switch v := val.(type) {
+		case bool:
+			return v
+		case string:
+			return strings.ToLower(v) == "true"
+		case int:
+			return v > 0 // 1 means true, 0 means false
+		}
+	}
+	return false
 }
