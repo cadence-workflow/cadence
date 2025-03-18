@@ -3826,7 +3826,7 @@ var IntKeys = map[IntKey]DynamicInt{
 	WorkflowDeletionJitterRange: {
 		KeyName:      "system.workflowDeletionJitterRange",
 		Description:  "WorkflowDeletionJitterRange defines the duration in minutes for workflow close tasks jittering",
-		DefaultValue: 60,
+		DefaultValue: 1,
 	},
 	SampleLoggingRate: {
 		KeyName:      "system.sampleLoggingRate",

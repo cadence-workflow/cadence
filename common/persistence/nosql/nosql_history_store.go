@@ -318,6 +318,7 @@ func (h *nosqlHistoryStore) DeleteHistoryBranch(
 		TreeID:  treeID,
 		ShardID: &request.ShardID,
 	})
+
 	if err != nil {
 		return err
 	}
@@ -332,11 +333,48 @@ func (h *nosqlHistoryStore) DeleteHistoryBranch(
 	// validBRsMaxEndNode is to know each branch range that is being used, we want to know what is the max nodeID referred by other valid branch
 	validBRsMaxEndNode := persistenceutils.GetBranchesMaxReferredNodeIDs(rsp.Branches)
 
+	//existingBranchesByID := rsp.ByBranchID()
+
 	// for each branch range to delete, we iterate from bottom to up, and delete up to the point according to validBRsEndNode
+	// brsToDelete here includes both the current branch being operated on and its ancestors
 	for i := len(brsToDelete) - 1; i >= 0; i-- {
+
 		br := brsToDelete[i]
+
+		//there's a couple of alternative possibilities here when it comes
+		//to handling the ancestors here: Either the branch exists in the tree table,
+		//or it does not (because it's been deleted already), and we can clean it all up
+
+		//_, branchExists := existingBranchesByID[br.BranchID]
+		//
+		//if branchExists && request.BranchInfo.BranchID != br.BranchID {
+		//	// this is an existing ancestor branch, if it's still got a valid tree entry
+		//	// then we should let it clean itself up, skip cleaning it up here
+		//	//
+		//	// (while we may generally make the assumption that any ancestor branch ought
+		//	// to have closed first, deletion jitters or perhaps failover conditions might cause
+		//	// them to delete out of order).
+		//	continue
+		//}
+		//
+		//if !branchExists && len(existingBranchesByID) == 1 {
+		//	// this is the last reference to the nodes.
+		//	// clean them up entirely
+		//	nodeFilter := &nosqlplugin.HistoryNodeFilter{
+		//		ShardID:   request.ShardID,
+		//		TreeID:    treeID,
+		//		BranchID:  br.BranchID,
+		//		MinNodeID: 0,
+		//	}
+		//	nodeFilters = append(nodeFilters, nodeFilter)
+		//	continue
+		//}
+
+		// hereafter we know that
 		maxReferredEndNodeID, ok := validBRsMaxEndNode[br.BranchID]
+
 		if ok {
+			//if ok && branchExists {
 			// we can only delete from the maxEndNode and stop here
 			nodeFilter := &nosqlplugin.HistoryNodeFilter{
 				ShardID:   request.ShardID,

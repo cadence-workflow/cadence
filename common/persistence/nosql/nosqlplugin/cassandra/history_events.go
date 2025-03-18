@@ -100,9 +100,14 @@ func (db *cdb) SelectFromHistoryNode(ctx context.Context, filter *nosqlplugin.Hi
 // DeleteFromHistoryTreeAndNode delete a branch record, and a list of ranges of nodes.
 func (db *cdb) DeleteFromHistoryTreeAndNode(ctx context.Context, treeFilter *nosqlplugin.HistoryTreeFilter, nodeFilters []*nosqlplugin.HistoryNodeFilter) error {
 	batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
+	fmt.Println(">>>", v2templateDeleteBranch, treeFilter.TreeID, *treeFilter.BranchID)
 	batch.Query(v2templateDeleteBranch, treeFilter.TreeID, treeFilter.BranchID)
 	for _, nodeFilter := range nodeFilters {
 		batch.Query(v2templateRangeDeleteData,
+			nodeFilter.TreeID,
+			nodeFilter.BranchID,
+			nodeFilter.MinNodeID)
+		fmt.Println(">>>", v2templateRangeDeleteData,
 			nodeFilter.TreeID,
 			nodeFilter.BranchID,
 			nodeFilter.MinNodeID)

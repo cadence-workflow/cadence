@@ -449,7 +449,8 @@ func (s *Test) GetPartitioner() partition.Partitioner {
 // GetIsolationGroupStore returns the config store for their
 // isolation-group stores
 func (s *Test) GetIsolationGroupStore() configstore.Client {
-	return s.IsolationGroupStore
+	return nil // fixme
+	//return s.IsolationGroupStore
 }
 
 func (s *Test) GetAsyncWorkflowQueueProvider() queue.Provider {
