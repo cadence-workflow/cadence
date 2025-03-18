@@ -50,7 +50,6 @@ type readMode string
 const (
 	Pinot readMode = "pinot"
 	ES    readMode = "es"
-	OS    readMode = "os"
 )
 
 type (
@@ -60,7 +59,6 @@ type (
 		frontendClient      frontend.Client
 		clientBean          client.Bean
 		esClient            es.GenericClient
-		osClient            es.GenericClient
 		pinotClient         pinot.GenericClient
 		readMode            readMode
 		logger              log.Logger
