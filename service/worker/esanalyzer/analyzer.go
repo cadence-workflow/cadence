@@ -50,6 +50,7 @@ type readMode string
 const (
 	Pinot readMode = "pinot"
 	ES    readMode = "es"
+	OS    readMode = "os"
 )
 
 type (
@@ -59,6 +60,7 @@ type (
 		frontendClient      frontend.Client
 		clientBean          client.Bean
 		esClient            es.GenericClient
+		osClient            es.GenericClient
 		pinotClient         pinot.GenericClient
 		readMode            readMode
 		logger              log.Logger
@@ -110,8 +112,10 @@ func New(
 	clientBean client.Bean,
 	esClient es.GenericClient,
 	pinotClient pinot.GenericClient,
+	osClient es.GenericClient,
 	esConfig *config.ElasticSearchConfig,
 	pinotConfig *config.PinotVisibilityConfig,
+	osConfig *config.ElasticSearchConfig,
 	logger log.Logger,
 	tallyScope tally.Scope,
 	resource resource.Resource,
@@ -130,6 +134,10 @@ func New(
 		mode = Pinot
 		indexName = ""
 		pinotTableName = pinotConfig.Table
+	} else if osClient != nil {
+		mode = OS
+		indexName = osConfig.Indices[common.VisibilityAppName]
+		pinotTableName = ""
 	}
 
 	return &Analyzer{
@@ -138,6 +146,7 @@ func New(
 		clientBean:          clientBean,
 		esClient:            esClient,
 		pinotClient:         pinotClient,
+		osClient:            osClient,
 		readMode:            mode,
 		logger:              logger,
 		tallyScope:          tallyScope,

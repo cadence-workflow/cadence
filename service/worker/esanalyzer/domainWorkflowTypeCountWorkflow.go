@@ -126,7 +126,7 @@ func (w *Workflow) getDomainWorkflowTypeCountQuery(domainName string) (string, e
                 },
 				{
 					"exists": {
-						"field": "StartTime" 
+						"field": "StartTime"
 					}
 				}
             ]
@@ -151,7 +151,7 @@ func (w *Workflow) emitWorkflowTypeCountMetrics(ctx context.Context) error {
 		var failedDomains []string
 		for _, domainName := range workflowMetricDomainNames {
 			switch w.analyzer.readMode {
-			case ES:
+			case ES, OS:
 				err = w.emitWorkflowTypeCountMetricsES(ctx, domainName, logger)
 			case Pinot:
 				err = w.emitWorkflowTypeCountMetricsPinot(domainName, logger)
@@ -257,7 +257,12 @@ func (w *Workflow) emitWorkflowTypeCountMetricsES(ctx context.Context, domainNam
 		)
 		return err
 	}
-	response, err := w.analyzer.esClient.SearchRaw(ctx, w.analyzer.visibilityIndexName, wfTypeCountEsQuery)
+	// by default use es client
+	client := w.analyzer.esClient
+	if w.analyzer.readMode == OS {
+		client = w.analyzer.osClient
+	}
+	response, err := client.SearchRaw(ctx, w.analyzer.visibilityIndexName, wfTypeCountEsQuery)
 	if err != nil {
 		logger.Error("Failed to query ElasticSearch to find workflow type count Info",
 			zap.Error(err),
