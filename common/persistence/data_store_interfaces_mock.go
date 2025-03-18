@@ -304,21 +304,6 @@ func (mr *MockExecutionStoreMockRecorder) GetShardID() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetShardID", reflect.TypeOf((*MockExecutionStore)(nil).GetShardID))
 }
 
-// GetTimerIndexTasks mocks base method.
-func (m *MockExecutionStore) GetTimerIndexTasks(ctx context.Context, request *GetTimerIndexTasksRequest) (*GetTimerIndexTasksResponse, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTimerIndexTasks", ctx, request)
-	ret0, _ := ret[0].(*GetTimerIndexTasksResponse)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetTimerIndexTasks indicates an expected call of GetTimerIndexTasks.
-func (mr *MockExecutionStoreMockRecorder) GetTimerIndexTasks(ctx, request any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTimerIndexTasks", reflect.TypeOf((*MockExecutionStore)(nil).GetTimerIndexTasks), ctx, request)
-}
-
 // GetTransferTasks mocks base method.
 func (m *MockExecutionStore) GetTransferTasks(ctx context.Context, request *GetTransferTasksRequest) (*GetTransferTasksResponse, error) {
 	m.ctrl.T.Helper()

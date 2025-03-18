@@ -85,9 +85,9 @@ type (
 	}
 
 	filteredTimerTasksResponse struct {
-		timerTasks    []*persistence.TimerTaskInfo
-		lookAheadTask *persistence.TimerTaskInfo
-		nextPageToken []byte
+		timerTasks         []persistence.Task
+		lookAheadTimestamp time.Time
+		nextPageToken      []byte
 	}
 )
 
@@ -322,12 +322,12 @@ func (t *timerQueueProcessorBase) processQueueCollections(levels map[int]struct{
 		var newReadLevel task.Key
 		if len(resp.nextPageToken) == 0 {
 			newReadLevel = maxReadLevel
-			if resp.lookAheadTask != nil {
+			if !resp.lookAheadTimestamp.IsZero() {
 				// lookAheadTask may exist only when nextPageToken is empty
 				// notice that lookAheadTask.VisibilityTimestamp may be larger than shard max read level,
 				// which means new tasks can be generated before that timestamp. This issue is solved by
 				// upsertPollTime whenever there are new tasks
-				lookAheadTimestamp := resp.lookAheadTask.GetVisibilityTimestamp()
+				lookAheadTimestamp := resp.lookAheadTimestamp
 				t.upsertPollTime(level, lookAheadTimestamp)
 				newReadLevel = minTaskKey(newReadLevel, newTimerTaskKey(lookAheadTimestamp, 0))
 				t.logger.Debugf("nextPageToken is empty for timer queue at level %d so setting newReadLevel to max(lookAheadTask.timestamp: %v, maxReadLevel: %v)", level, lookAheadTimestamp, maxReadLevel)
@@ -464,65 +464,69 @@ func (t *timerQueueProcessorBase) readAndFilterTasks(readLevel, maxReadLevel tas
 		return nil, err
 	}
 
-	var lookAheadTask *persistence.TimerTaskInfo
-	filteredTasks := []*persistence.TimerTaskInfo{}
-	for _, timerTask := range resp.Timers {
+	var lookAheadTimestamp time.Time
+	filteredTasks := []persistence.Task{}
+	for _, timerTask := range resp.Tasks {
 		if !t.isProcessNow(timerTask.GetVisibilityTimestamp()) {
 			// found the first task that is not ready to be processed yet.
 			// reset NextPageToken so we can load more tasks starting from this lookAheadTask next time.
-			lookAheadTask = timerTask
+			lookAheadTimestamp = timerTask.GetVisibilityTimestamp()
 			resp.NextPageToken = nil
 			break
 		}
 		filteredTasks = append(filteredTasks, timerTask)
 	}
 
-	if len(resp.NextPageToken) == 0 && lookAheadTask == nil {
+	if len(resp.NextPageToken) == 0 && lookAheadTimestamp.IsZero() {
 		// only look ahead within the processing queue boundary
-		lookAheadTask, err = t.readLookAheadTask(maxReadLevel, maximumTimerTaskKey)
+		lookAheadTask, err := t.readLookAheadTask(maxReadLevel, maximumTimerTaskKey)
 		if err != nil {
 			// we don't know if look ahead task exists or not, but we know if it exists,
 			// it's visibility timestamp is larger than or equal to maxReadLevel.
 			// so, create a fake look ahead task so another load can be triggered at that time.
-			lookAheadTask = &persistence.TimerTaskInfo{
-				VisibilityTimestamp: maxReadLevel.(timerTaskKey).visibilityTimestamp,
-			}
+			lookAheadTimestamp = maxReadLevel.(timerTaskKey).visibilityTimestamp
+		} else if lookAheadTask != nil {
+			lookAheadTimestamp = lookAheadTask.GetVisibilityTimestamp()
 		}
 	}
 
-	t.logger.Debugf("readAndFilterTasks returning %d tasks and lookAheadTask: %#v for readLevel: %#v, maxReadLevel: %#v", len(filteredTasks), lookAheadTask, readLevel, maxReadLevel)
+	t.logger.Debugf("readAndFilterTasks returning %d tasks and lookAheadTimestamp: %#v for readLevel: %#v, maxReadLevel: %#v", len(filteredTasks), lookAheadTimestamp, readLevel, maxReadLevel)
 	return &filteredTimerTasksResponse{
-		timerTasks:    filteredTasks,
-		lookAheadTask: lookAheadTask,
-		nextPageToken: resp.NextPageToken,
+		timerTasks:         filteredTasks,
+		lookAheadTimestamp: lookAheadTimestamp,
+		nextPageToken:      resp.NextPageToken,
 	}, nil
 }
 
-func (t *timerQueueProcessorBase) readLookAheadTask(lookAheadStartLevel task.Key, lookAheadMaxLevel task.Key) (*persistence.TimerTaskInfo, error) {
+func (t *timerQueueProcessorBase) readLookAheadTask(lookAheadStartLevel task.Key, lookAheadMaxLevel task.Key) (persistence.Task, error) {
 	resp, err := t.getTimerTasks(lookAheadStartLevel, lookAheadMaxLevel, nil, 1)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(resp.Timers) == 1 {
-		return resp.Timers[0], nil
+	if len(resp.Tasks) == 1 {
+		return resp.Tasks[0], nil
 	}
 	return nil, nil
 }
 
-func (t *timerQueueProcessorBase) getTimerTasks(readLevel, maxReadLevel task.Key, nextPageToken []byte, batchSize int) (*persistence.GetTimerIndexTasksResponse, error) {
-	request := &persistence.GetTimerIndexTasksRequest{
-		MinTimestamp:  readLevel.(timerTaskKey).visibilityTimestamp,
-		MaxTimestamp:  maxReadLevel.(timerTaskKey).visibilityTimestamp,
-		BatchSize:     batchSize,
+func (t *timerQueueProcessorBase) getTimerTasks(readLevel, maxReadLevel task.Key, nextPageToken []byte, batchSize int) (*persistence.GetHistoryTasksResponse, error) {
+	request := &persistence.GetHistoryTasksRequest{
+		TaskCategory: persistence.HistoryTaskCategoryTimer,
+		InclusiveMinTaskKey: persistence.HistoryTaskKey{
+			ScheduledTime: readLevel.(timerTaskKey).visibilityTimestamp,
+		},
+		ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
+			ScheduledTime: maxReadLevel.(timerTaskKey).visibilityTimestamp,
+		},
+		PageSize:      batchSize,
 		NextPageToken: nextPageToken,
 	}
-
 	var err error
-	var response *persistence.GetTimerIndexTasksResponse
+	var response *persistence.GetHistoryTasksResponse
 	retryCount := t.shard.GetConfig().TimerProcessorGetFailureRetryCount()
 	for attempt := 0; attempt < retryCount; attempt++ {
-		response, err = t.shard.GetExecutionManager().GetTimerIndexTasks(context.Background(), request)
+		response, err = t.shard.GetExecutionManager().GetHistoryTasks(context.Background(), request)
 		if err == nil {
 			return response, nil
 		}

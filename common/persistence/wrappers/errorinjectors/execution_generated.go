@@ -276,21 +276,6 @@ func (c *injectorExecutionManager) GetShardID() (i1 int) {
 	return c.wrapped.GetShardID()
 }
 
-func (c *injectorExecutionManager) GetTimerIndexTasks(ctx context.Context, request *persistence.GetTimerIndexTasksRequest) (gp1 *persistence.GetTimerIndexTasksResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
-	var forwardCall bool
-	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
-		gp1, err = c.wrapped.GetTimerIndexTasks(ctx, request)
-	}
-
-	if fakeErr != nil {
-		logErr(c.logger, "ExecutionManager.GetTimerIndexTasks", fakeErr, forwardCall, err)
-		err = fakeErr
-		return
-	}
-	return
-}
-
 func (c *injectorExecutionManager) GetTransferTasks(ctx context.Context, request *persistence.GetTransferTasksRequest) (gp1 *persistence.GetTransferTasksResponse, err error) {
 	fakeErr := generateFakeError(c.errorRate)
 	var forwardCall bool

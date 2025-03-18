@@ -939,14 +939,6 @@ func (m *executionManagerImpl) CreateFailoverMarkerTasks(
 	return m.persistence.CreateFailoverMarkerTasks(ctx, request)
 }
 
-// Timer related methods.
-func (m *executionManagerImpl) GetTimerIndexTasks(
-	ctx context.Context,
-	request *GetTimerIndexTasksRequest,
-) (*GetTimerIndexTasksResponse, error) {
-	return m.persistence.GetTimerIndexTasks(ctx, request)
-}
-
 func (m *executionManagerImpl) CompleteTimerTask(
 	ctx context.Context,
 	request *CompleteTimerTaskRequest,

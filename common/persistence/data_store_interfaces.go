@@ -125,7 +125,6 @@ type (
 		CreateFailoverMarkerTasks(ctx context.Context, request *CreateFailoverMarkersRequest) error
 
 		// Timer related methods.
-		GetTimerIndexTasks(ctx context.Context, request *GetTimerIndexTasksRequest) (*GetTimerIndexTasksResponse, error)
 		CompleteTimerTask(ctx context.Context, request *CompleteTimerTaskRequest) error
 
 		// History task related methods

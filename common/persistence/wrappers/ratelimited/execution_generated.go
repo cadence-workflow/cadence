@@ -175,14 +175,6 @@ func (c *ratelimitedExecutionManager) GetShardID() (i1 int) {
 	return c.wrapped.GetShardID()
 }
 
-func (c *ratelimitedExecutionManager) GetTimerIndexTasks(ctx context.Context, request *persistence.GetTimerIndexTasksRequest) (gp1 *persistence.GetTimerIndexTasksResponse, err error) {
-	if ok := c.rateLimiter.Allow(); !ok {
-		err = ErrPersistenceLimitExceeded
-		return
-	}
-	return c.wrapped.GetTimerIndexTasks(ctx, request)
-}
-
 func (c *ratelimitedExecutionManager) GetTransferTasks(ctx context.Context, request *persistence.GetTransferTasksRequest) (gp1 *persistence.GetTransferTasksResponse, err error) {
 	if ok := c.rateLimiter.Allow(); !ok {
 		err = ErrPersistenceLimitExceeded
