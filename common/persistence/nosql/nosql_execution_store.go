@@ -832,7 +832,7 @@ func (d *nosqlExecutionStore) getImmediateHistoryTasks(
 		if err != nil {
 			return nil, convertCommonErrors(d.db, "GetImmediateHistoryTasks", err)
 		}
-		var tTasks []persistence.Task
+		tTasks := make([]persistence.Task, 0, len(tasks))
 		for _, t := range tasks {
 			if d.dc.ReadNoSQLHistoryTaskFromDataBlob() && t.Task != nil {
 				task, err := d.taskSerializer.DeserializeTask(request.TaskCategory, t.Task)
@@ -842,7 +842,7 @@ func (d *nosqlExecutionStore) getImmediateHistoryTasks(
 				task.SetTaskID(t.TaskID)
 				tTasks = append(tTasks, task)
 			} else {
-				task, err := persistence.FromTransferTaskInfo(t.Transfer)
+				task, err := t.Transfer.ToTask()
 				if err != nil {
 					return nil, convertCommonErrors(d.db, "GetImmediateHistoryTasks", err)
 				}
@@ -858,7 +858,7 @@ func (d *nosqlExecutionStore) getImmediateHistoryTasks(
 		if err != nil {
 			return nil, convertCommonErrors(d.db, "GetImmediateHistoryTasks", err)
 		}
-		var tTasks []persistence.Task
+		tTasks := make([]persistence.Task, 0, len(tasks))
 		for _, t := range tasks {
 			if d.dc.ReadNoSQLHistoryTaskFromDataBlob() && t.Task != nil {
 				task, err := d.taskSerializer.DeserializeTask(request.TaskCategory, t.Task)
@@ -868,7 +868,7 @@ func (d *nosqlExecutionStore) getImmediateHistoryTasks(
 				task.SetTaskID(t.TaskID)
 				tTasks = append(tTasks, task)
 			} else {
-				task, err := persistence.FromInternalReplicationTaskInfo(t.Replication)
+				task, err := t.Replication.ToTask()
 				if err != nil {
 					return nil, convertCommonErrors(d.db, "GetImmediateHistoryTasks", err)
 				}
@@ -894,7 +894,7 @@ func (d *nosqlExecutionStore) getScheduledHistoryTasks(
 		if err != nil {
 			return nil, convertCommonErrors(d.db, "GetScheduledHistoryTasks", err)
 		}
-		var tTasks []persistence.Task
+		tTasks := make([]persistence.Task, 0, len(timers))
 		for _, t := range timers {
 			if d.dc.ReadNoSQLHistoryTaskFromDataBlob() && t.Task != nil {
 				task, err := d.taskSerializer.DeserializeTask(request.TaskCategory, t.Task)
@@ -905,7 +905,7 @@ func (d *nosqlExecutionStore) getScheduledHistoryTasks(
 				task.SetVisibilityTimestamp(t.ScheduledTime)
 				tTasks = append(tTasks, task)
 			} else {
-				task, err := persistence.FromTimerTaskInfo(t.Timer)
+				task, err := t.Timer.ToTask()
 				if err != nil {
 					return nil, convertCommonErrors(d.db, "GetScheduledHistoryTasks", err)
 				}

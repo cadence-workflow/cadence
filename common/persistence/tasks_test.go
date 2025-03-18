@@ -140,10 +140,10 @@ func TestTransferTaskMapping(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		for _, task := range tasks {
 			f.Fuzz(task)
-			transfer, err := ToTransferTaskInfo(task)
+			transfer, err := task.ToTransferTaskInfo()
 			assert.NoError(t, err)
 			t.Log(transfer)
-			task2, err := FromTransferTaskInfo(transfer)
+			task2, err := transfer.ToTask()
 			assert.NoError(t, err)
 			assert.Equal(t, task, task2)
 		}
@@ -164,9 +164,9 @@ func TestTimerTaskMapping(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		for _, task := range tasks {
 			f.Fuzz(task)
-			timer, err := ToTimerTaskInfo(task)
+			timer, err := task.ToTimerTaskInfo()
 			assert.NoError(t, err)
-			task2, err := FromTimerTaskInfo(timer)
+			task2, err := timer.ToTask()
 			assert.NoError(t, err)
 			assert.Equal(t, task, task2)
 		}

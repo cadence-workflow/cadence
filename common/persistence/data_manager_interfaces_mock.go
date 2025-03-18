@@ -197,6 +197,36 @@ func (mr *MockTaskMockRecorder) SetVisibilityTimestamp(timestamp any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetVisibilityTimestamp", reflect.TypeOf((*MockTask)(nil).SetVisibilityTimestamp), timestamp)
 }
 
+// ToTimerTaskInfo mocks base method.
+func (m *MockTask) ToTimerTaskInfo() (*TimerTaskInfo, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ToTimerTaskInfo")
+	ret0, _ := ret[0].(*TimerTaskInfo)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ToTimerTaskInfo indicates an expected call of ToTimerTaskInfo.
+func (mr *MockTaskMockRecorder) ToTimerTaskInfo() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ToTimerTaskInfo", reflect.TypeOf((*MockTask)(nil).ToTimerTaskInfo))
+}
+
+// ToTransferTaskInfo mocks base method.
+func (m *MockTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ToTransferTaskInfo")
+	ret0, _ := ret[0].(*TransferTaskInfo)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ToTransferTaskInfo indicates an expected call of ToTransferTaskInfo.
+func (mr *MockTaskMockRecorder) ToTransferTaskInfo() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ToTransferTaskInfo", reflect.TypeOf((*MockTask)(nil).ToTransferTaskInfo))
+}
+
 // MockShardManager is a mock of ShardManager interface.
 type MockShardManager struct {
 	ctrl     *gomock.Controller
