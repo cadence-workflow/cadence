@@ -296,7 +296,7 @@ func (cl *dbLoadCloser) Load() ([]*persistence.TimerTaskInfo, error) {
 
 		token = resp.NextPageToken
 		for _, task := range resp.Tasks {
-			timer, err := persistence.ToTimerTaskInfo(task)
+			timer, err := task.ToTimerTaskInfo()
 			if err != nil {
 				return nil, fmt.Errorf("error converting task to timer task info: %w", err)
 			}

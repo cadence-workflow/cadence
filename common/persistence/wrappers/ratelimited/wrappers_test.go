@@ -271,7 +271,6 @@ func builderForPassThrough(t *testing.T, injector any, limiter quotas.Limiter, e
 			mocked.EXPECT().GetReplicationDLQSize(gomock.Any(), gomock.Any()).Return(&persistence.GetReplicationDLQSizeResponse{}, expectedErr)
 			mocked.EXPECT().GetReplicationTasks(gomock.Any(), gomock.Any()).Return(&persistence.GetReplicationTasksResponse{}, expectedErr)
 			mocked.EXPECT().GetReplicationTasksFromDLQ(gomock.Any(), gomock.Any()).Return(&persistence.GetReplicationTasksFromDLQResponse{}, expectedErr)
-			mocked.EXPECT().GetTimerIndexTasks(gomock.Any(), gomock.Any()).Return(&persistence.GetTimerIndexTasksResponse{}, expectedErr)
 			mocked.EXPECT().GetTransferTasks(gomock.Any(), gomock.Any()).Return(&persistence.GetTransferTasksResponse{}, expectedErr)
 			mocked.EXPECT().IsWorkflowExecutionExists(gomock.Any(), gomock.Any()).Return(&persistence.IsWorkflowExecutionExistsResponse{}, expectedErr)
 			mocked.EXPECT().ListConcreteExecutions(gomock.Any(), gomock.Any()).Return(&persistence.ListConcreteExecutionsResponse{}, expectedErr)

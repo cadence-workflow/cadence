@@ -677,26 +677,6 @@ func (d *nosqlExecutionStore) CompleteTimerTask(
 	return nil
 }
 
-func (d *nosqlExecutionStore) GetTimerIndexTasks(
-	ctx context.Context,
-	request *persistence.GetTimerIndexTasksRequest,
-) (*persistence.GetTimerIndexTasksResponse, error) {
-
-	timers, nextPageToken, err := d.db.SelectTimerTasksOrderByVisibilityTime(ctx, d.shardID, request.BatchSize, request.NextPageToken, request.MinTimestamp, request.MaxTimestamp)
-	if err != nil {
-		return nil, convertCommonErrors(d.db, "GetTimerTasks", err)
-	}
-
-	var tTasks []*persistence.TimerTaskInfo
-	for _, t := range timers {
-		tTasks = append(tTasks, t.Timer)
-	}
-	return &persistence.GetTimerIndexTasksResponse{
-		Timers:        tTasks,
-		NextPageToken: nextPageToken,
-	}, nil
-}
-
 func (d *nosqlExecutionStore) PutReplicationTaskToDLQ(
 	ctx context.Context,
 	request *persistence.InternalPutReplicationTaskToDLQRequest,

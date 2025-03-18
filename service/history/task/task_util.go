@@ -69,6 +69,12 @@ func InitializeLoggerForTask(
 		// noop
 	case *persistence.ReplicationTaskInfo:
 		// noop
+	case persistence.Task:
+		if timerTask, err := task.ToTimerTaskInfo(); err == nil {
+			taskLogger = taskLogger.WithTags(
+				tag.WorkflowTimeoutType(int64(timerTask.TimeoutType)),
+			)
+		}
 	default:
 		taskLogger.Error(fmt.Sprintf("Unknown queue task type: %v", task))
 	}
