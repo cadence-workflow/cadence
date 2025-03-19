@@ -173,6 +173,10 @@ type lengther interface {
 	Len() int
 }
 
+type payloadSizeEstimator interface {
+	EstimatePayloadSizeInBytes() int
+}
+
 type taggedRequest interface {
 	MetricTags() []metrics.Tag
 }
@@ -181,7 +185,7 @@ type extraLogRequest interface {
 	GetExtraLogTags() []tag.Tag
 }
 
-func (p *base) emptyMetric(methodName string, req any, res any, err error) {
+func (p *base) emitRowCountMetrics(methodName string, req any, res any) {
 	scope, ok := emptyCountedMethods[methodName]
 	if !ok {
 		// Method is not counted as empty.
@@ -193,10 +197,6 @@ func (p *base) emptyMetric(methodName string, req any, res any, err error) {
 		return
 	}
 
-	if err != nil {
-		return
-	}
-
 	metricScope := p.metricClient.Scope(scope.scope, getCustomMetricTags(req)...)
 
 	if resLen.Len() == 0 {
@@ -204,6 +204,30 @@ func (p *base) emptyMetric(methodName string, req any, res any, err error) {
 	} else {
 		metricScope.RecordHistogramValue(metrics.PersistenceResponseRowSize, float64(resLen.Len()))
 	}
+}
+
+func (p *base) emitPayloadSizeMetrics(methodName string, req any, res any) {
+	scope, ok := payloadSizeEmittingMethods[methodName]
+	if !ok {
+		return
+	}
+
+	resSize, ok := res.(payloadSizeEstimator)
+	if !ok {
+		return
+	}
+
+	metricScope := p.metricClient.Scope(scope.scope, getCustomMetricTags(req)...)
+	metricScope.RecordHistogramValue(metrics.PersistenceResponsePayloadSize, float64(resSize.EstimatePayloadSizeInBytes()))
+}
+
+func (p *base) emptyMetric(methodName string, req any, res any, err error) {
+	if err != nil {
+		return
+	}
+
+	p.emitRowCountMetrics(methodName, req, res)
+	p.emitPayloadSizeMetrics(methodName, req, res)
 }
 
 var emptyCountedMethods = map[string]struct {
@@ -235,6 +259,44 @@ var emptyCountedMethods = map[string]struct {
 	},
 	"HistoryManager.ReadHistoryBranch": {
 		scope: metrics.PersistenceReadHistoryBranchScope,
+	},
+	"HistoryManager.GetAllHistoryTreeBranches": {
+		scope: metrics.PersistenceGetAllHistoryTreeBranchesScope,
+	},
+	"QueueManager.ReadMessages": {
+		scope: metrics.PersistenceReadMessagesScope,
+	},
+}
+
+var payloadSizeEmittingMethods = map[string]struct {
+	scope int
+}{
+	"ExecutionManager.ListCurrentExecutions": {
+		scope: metrics.PersistenceListCurrentExecutionsScope,
+	},
+	"ExecutionManager.GetTransferTasks": {
+		scope: metrics.PersistenceGetTransferTasksScope,
+	},
+	"ExecutionManager.GetCrossClusterTasks": {
+		scope: metrics.PersistenceGetCrossClusterTasksScope,
+	},
+	"ExecutionManager.GetReplicationTasks": {
+		scope: metrics.PersistenceGetReplicationTasksScope,
+	},
+	"ExecutionManager.GetReplicationTasksFromDLQ": {
+		scope: metrics.PersistenceGetReplicationTasksFromDLQScope,
+	},
+	"ExecutionManager.GetTimerIndexTasks": {
+		scope: metrics.PersistenceGetTimerIndexTasksScope,
+	},
+	"TaskManager.GetTasks": {
+		scope: metrics.PersistenceGetTasksScope,
+	},
+	"DomainManager.ListDomains": {
+		scope: metrics.PersistenceListDomainsScope,
+	},
+	"HistoryManager.ReadRawHistoryBranch": {
+		scope: metrics.PersistenceReadRawHistoryBranchScope,
 	},
 	"HistoryManager.GetAllHistoryTreeBranches": {
 		scope: metrics.PersistenceGetAllHistoryTreeBranchesScope,

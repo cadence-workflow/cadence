@@ -2103,6 +2103,7 @@ const (
 	PersistenceSampledCounter
 	PersistenceEmptyResponseCounter
 	PersistenceResponseRowSize
+	PersistenceResponsePayloadSize
 
 	PersistenceRequestsPerDomain
 	PersistenceRequestsPerShard
@@ -2809,6 +2810,7 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		PersistenceSampledCounter:                                    {metricName: "persistence_sampled", metricType: Counter},
 		PersistenceEmptyResponseCounter:                              {metricName: "persistence_empty_response", metricType: Counter},
 		PersistenceResponseRowSize:                                   {metricName: "persistence_response_row_size", metricType: Histogram, buckets: ResponseRowSizeBuckets},
+		PersistenceResponsePayloadSize:                               {metricName: "persistence_response_payload_size", metricType: Histogram, buckets: ResponsePayloadSizeBuckets},
 		PersistenceRequestsPerDomain:                                 {metricName: "persistence_requests_per_domain", metricRollupName: "persistence_requests", metricType: Counter},
 		PersistenceRequestsPerShard:                                  {metricName: "persistence_requests_per_shard", metricType: Counter},
 		PersistenceFailuresPerDomain:                                 {metricName: "persistence_errors_per_domain", metricRollupName: "persistence_errors", metricType: Counter},
@@ -3530,6 +3532,12 @@ var GlobalRatelimiterUsageHistogram = append(
 var ResponseRowSizeBuckets = append(
 	tally.ValueBuckets{0},                              // need an explicit 0 or zero is reported as 1
 	tally.MustMakeExponentialValueBuckets(1, 2, 17)..., // 1..65536
+)
+
+// ResponsePayloadSizeBuckets contains buckets for tracking the size of the payload returned per persistence operation
+var ResponsePayloadSizeBuckets = append(
+	tally.ValueBuckets{0},                                 // need an explicit 0 or zero is reported as 1
+	tally.MustMakeExponentialValueBuckets(1024, 2, 20)..., // 1kB..1GB
 )
 
 // ErrorClass is an enum to help with classifying SLA vs. non-SLA errors (SLA = "service level agreement")
