@@ -555,14 +555,14 @@ func TestDeleteHistoryBranch_unusedBranch(t *testing.T) {
 // |            │                        │                       │
 // |  ┌─────────▼─────────┐    ┌─────────▼─────────┐   ┌─────────▼─────────┐
 // |  │     Tree: 123     │    │     Tree: 123     │   │     Tree: 123     │
-// |  │     Branch: B     │    │     Branch: A     │   │     Branch: B     │
+// |  │     Branch: C     │    │     Branch: A     │   │     Branch: B     │
 // |  │     Node: 3       │    │     Node: 3       │   │     Node: 3       │
 // |  └─────────┬─────────┘    └─────────┬─────────┘   └─────────┬─────────┘
 // |            │                        │                       │
 // |            │                        │                       │
 // |  ┌─────────▼─────────┐    ┌─────────▼─────────┐   ┌─────────▼─────────┐
 // |  │     Tree: 123     │    │     Tree: 123     │   │     Tree: 123     │
-// |  │     Branch: B     │    │     Branch: A     │   │     Branch: B     │
+// |  │     Branch: C     │    │     Branch: A     │   │     Branch: B     │
 // |  │     Node: 4       │    │     Node: 4       │   │     Node: 4       │
 // |  └───────────────────┘    └───────────────────┘   └───────────────────┘
 //
@@ -597,14 +597,14 @@ func TestDeleteHistoryBranch_unusedBranch(t *testing.T) {
 // |                     │                        │                       │
 // |           ┌─────────▼─────────┐    ┌─ ─ ─ ─ ─▼ ─ ─ ─ ─ ┐   ┌─────────▼─────────┐
 // |           │     Tree: 123     │                            │     Tree: 123     │
-// |           │     Branch: B     │    │ <deleted>         │   │     Branch: B     │
+// |           │     Branch: C     │    │ <deleted>         │   │     Branch: B     │
 // |           │     Node: 3       │                            │     Node: 3       │
 // |           └─────────┬─────────┘    └─ ─ ─ ─ ─┐ ─ ─ ─ ─ ┘   └─────────┬─────────┘
 // |                     │                        │                       │
 // |                     │                        │                       │
 // |           ┌─────────▼─────────┐    ┌─ ─ ─ ─ ─▼ ─ ─ ─ ─ ┐   ┌─────────▼─────────┐
 // |           │     Tree: 123     │                            │     Tree: 123     │
-// |           │     Branch: B     │    │ <deleted>         │   │     Branch: B     │
+// |           │     Branch: C     │    │ <deleted>         │   │     Branch: B     │
 // |           │     Node: 4       │                            │     Node: 4       │
 // |           └───────────────────┘    └─ ─ ─ ─ ── ─ ─ ─ ─ ┘   └───────────────────┘
 
@@ -1032,14 +1032,14 @@ func TestDeleteHistoryBranch_usedBranch(t *testing.T) {
 // |	          │                        │                       │
 // |	┌─────────▼─────────┐    ┌─────────▼─────────┐   ┌─────────▼─────────┐
 // |	│     Tree: 123     │    │     Tree: 123     │   │     Tree: 123     │
-// |	│     Branch: B     │    │     Branch: A     │   │     Branch: B     │
+// |	│     Branch: C     │    │     Branch: A     │   │     Branch: B     │
 // |	│     Node: 3       │    │     Node: 3       │   │     Node: 3       │
 // |	└─────────┬─────────┘    └─────────┬─────────┘   └─────────┬─────────┘
 // |	          │                        │                       │
 // |	          │                        │                       │
 // |	┌─────────▼─────────┐    ┌─────────▼─────────┐   ┌─────────▼─────────┐
 // |	│     Tree: 123     │    │     Tree: 123     │   │     Tree: 123     │
-// |	│     Branch: B     │    │     Branch: A     │   │     Branch: B     │
+// |	│     Branch: C     │    │     Branch: A     │   │     Branch: B     │
 // |	│     Node: 4       │    │     Node: 4       │   │     Node: 4       │
 // |	└───────────────────┘    └───────────────────┘   └───────────────────┘
 // |
@@ -1075,14 +1075,14 @@ func TestDeleteHistoryBranch_usedBranch(t *testing.T) {
 // |	          │                         │
 // |	┌─────────▼─────────┐     ┌─────────▼─────────┐
 // |	│     Tree: 123     │     │     Tree: 123     │
-// |	│     Branch: B     │     │     Branch: A     │
+// |	│     Branch: C     │     │     Branch: A     │
 // |	│     Node: 3       │     │     Node: 3       │
 // |	└─────────┬─────────┘     └─────────┬─────────┘
 // |	          │                         │
 // |	          │                         │
 // |	┌─────────▼─────────┐     ┌─────────▼─────────┐
 // |	│     Tree: 123     │     │     Tree: 123     │
-// |	│     Branch: B     │     │     Branch: A     │
+// |	│     Branch: C     │     │     Branch: A     │
 // |	│     Node: 4       │     │     Node: 4       │
 // |	└───────────────────┘     └───────────────────┘
 func TestDeleteHistoryBranch_withAnAncestorBranchWhichIsStillInUse(t *testing.T) {
