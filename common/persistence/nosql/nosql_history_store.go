@@ -301,9 +301,9 @@ func (h *nosqlHistoryStore) ForkHistoryBranch(
 
 // DeleteHistoryBranch removes a branch. This is responsible for:
 //
-// - Deleting entries from the history_node table
-// - Deleting the tree entry in the history_tree table
-// - Handling the problem of garbage-collecting branches which may mutually rely on history
+//   - Deleting entries from the history_node table
+//   - Deleting the tree entry in the history_tree table
+//   - Handling the problem of garbage-collecting branches which may mutually rely on history
 //
 // For normal workflows, with only a single branch, this is straightfoward, it'll just do a
 // delete on the history_node and history_tree tables. However, in cases where history is
