@@ -299,7 +299,65 @@ func (h *nosqlHistoryStore) ForkHistoryBranch(
 	return resp, nil
 }
 
-// DeleteHistoryBranch removes a branch
+// DeleteHistoryBranch removes a branch. This is responsible for:
+//
+// - Deleting entries from the history_node table
+// - Deleting the tree entry in the history_tree table
+// - Handling the problem of garbage-collecting branches which may mutually rely on history
+//
+// For normal workflows, with only a single branch, this is straightfoward, it'll just do a
+// delete on the history_tree and history_tree table. However, in cases where history is
+// branched, things are slightly more complex. History branches in at least two ways:
+//   - During the conflict resolution handling of events during failover (where each
+//     region is represented as a history branch at the point where they were operating concurrently.
+//   - At the point of a workflow reset, where history is 'forked' and the previous
+//     workflow events are discarded, but the original workflow run's history is referenced.
+//
+// For workflows with forked history, they'll reference any nodes they rely on ancestors in the history_tree
+// table. These references are exclusive, ie, the following is true:
+//
+// | --------------+--------------------------------------
+// |  tree_id      | X
+// |  branch_id    | B
+// |  ancestors    | [{branch_id: A, end_node_id: 4}]
+// | --------------+--------------------------------------
+// |  tree_id      | X
+// |  branch_id    | A
+// |  ancestors    | null
+// |
+// | Will have nodes arranged like this
+// |
+// |     ┌────────────┐
+// |     │ Branch: A  │
+// |     │ Node:   1  │
+// |     └─────┬──────┘
+// |           │
+// |     ┌─────▼──────┐
+// |     │ Branch: A  │
+// |     │ Node:   2  │
+// |     └─────┬──────┘
+// |           │
+// |     ┌─────▼──────┐
+// |     │ Branch: A  │
+// |     │ Node:   3  ┼────────────┐
+// |     └─────┬──────┘            │
+// |           │                   │
+// |     ┌─────▼──────┐     ┌──────▼─────┐
+// |     │ Branch: A  │     │ Branch: B  │
+// |     │ Node:   4  │     │ Node:   4  │
+// |     └────────────┘     └────────────┘
+// |
+//
+// The method of cleanup for each branch therefore, is to just remove the nodes that are not in use,
+// nearly-always starting from the oldest branch (the original run) and, later in subsequent invocations,
+// the branches relying on this. These cleanups are done by a call to the lower persistence layer
+// with HistoryNodeFilter references specifying the minimum nodes to be cleaned up (inclusive).
+//
+// While workflowIDs being enforced to be held by a single run to execute at any one time
+// generally ensures that any ancestor is cleaned up first, there's a couple of exceptions
+// to keep in mind. Firstly, deletion jitter makes it near-certain that there'll be some overlap and therefore
+// no guarantee that the oldest branch gets cleaned up first, as well as timer tasks are likely to retry and therefore
+// end up being out of order anyway. So any cleanup needs to be able to handle these cases.
 func (h *nosqlHistoryStore) DeleteHistoryBranch(
 	ctx context.Context,
 	request *persistence.InternalDeleteHistoryBranchRequest,
@@ -330,7 +388,8 @@ func (h *nosqlHistoryStore) DeleteHistoryBranch(
 	}
 	var nodeFilters []*nosqlplugin.HistoryNodeFilter
 
-	// validBRsMaxEndNode is to know each branch range that is being used, we want to know what is the max nodeID referred by other valid branch
+	// validBRsMaxEndNode is to know each branch range that is being used,
+	// we want to know what is the max nodeID referred by other valid branch
 	validBRsMaxEndNode := persistenceutils.GetBranchesMaxReferredNodeIDs(rsp.Branches)
 
 	//existingBranchesByID := rsp.ByBranchID()
@@ -340,35 +399,6 @@ func (h *nosqlHistoryStore) DeleteHistoryBranch(
 	for i := len(brsToDelete) - 1; i >= 0; i-- {
 
 		br := brsToDelete[i]
-
-		//there's a couple of alternative possibilities here when it comes
-		//to handling the ancestors here: Either the branch exists in the tree table,
-		//or it does not (because it's been deleted already), and we can clean it all up
-
-		//_, branchExists := existingBranchesByID[br.BranchID]
-		//
-		//if branchExists && request.BranchInfo.BranchID != br.BranchID {
-		//	// this is an existing ancestor branch, if it's still got a valid tree entry
-		//	// then we should let it clean itself up, skip cleaning it up here
-		//	//
-		//	// (while we may generally make the assumption that any ancestor branch ought
-		//	// to have closed first, deletion jitters or perhaps failover conditions might cause
-		//	// them to delete out of order).
-		//	continue
-		//}
-		//
-		//if !branchExists && len(existingBranchesByID) == 1 {
-		//	// this is the last reference to the nodes.
-		//	// clean them up entirely
-		//	nodeFilter := &nosqlplugin.HistoryNodeFilter{
-		//		ShardID:   request.ShardID,
-		//		TreeID:    treeID,
-		//		BranchID:  br.BranchID,
-		//		MinNodeID: 0,
-		//	}
-		//	nodeFilters = append(nodeFilters, nodeFilter)
-		//	continue
-		//}
 
 		// hereafter we know that
 		maxReferredEndNodeID, ok := validBRsMaxEndNode[br.BranchID]
