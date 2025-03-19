@@ -372,6 +372,8 @@ func (h *nosqlHistoryStore) DeleteHistoryBranch(
 		BeginNodeID: beginNodeID,
 	})
 
+	// todo (david.porter): handle the case where the timer task is being retried
+	// and the history_tree entry for the the branch being removed is missing
 	rsp, err := h.GetHistoryTree(ctx, &persistence.InternalGetHistoryTreeRequest{
 		TreeID:  treeID,
 		ShardID: &request.ShardID,
@@ -386,25 +388,35 @@ func (h *nosqlHistoryStore) DeleteHistoryBranch(
 		TreeID:   treeID,
 		BranchID: &branch.BranchID,
 	}
+	// This is the selection of history_nodes that will be removed
+	// at this point it's not safe to delete any nodes, because we don't know
+	// if this branch has other branches that've taken a dependency on it's nodes
+	// so we start with an empty filter
 	var nodeFilters []*nosqlplugin.HistoryNodeFilter
 
-	// validBRsMaxEndNode is to know each branch range that is being used,
-	// we want to know what is the max nodeID referred by other valid branch
+	// ... and then look at all the active / good history branches and see
+	// what they're referencing. The idea being, to trim any nodes that
+	// might not in use by going and finding the topmost nodes that are currently
+	// referenced, and trimming those.
+	//
+	// validBRsMaxEndNode represents each branch range that is being used,
+	// we want to know what is the max nodeID referred by other valid branches
 	validBRsMaxEndNode := persistenceutils.GetBranchesMaxReferredNodeIDs(rsp.Branches)
 
-	//existingBranchesByID := rsp.ByBranchID()
+	// Todo (david.porter) handle the case of the history nodes being left over
+	// in the last branch (see unit test being skipped).
+	//
+	// Todo (david.porter) handle the case of out of order deletions where the
+	// ancestor branch is still 'valid' or being deleted after, and this
+	// deletion shouldn't necessarily render it invalid. (see test skipped)
 
 	// for each branch range to delete, we iterate from bottom to up, and delete up to the point according to validBRsEndNode
 	// brsToDelete here includes both the current branch being operated on and its ancestors
 	for i := len(brsToDelete) - 1; i >= 0; i-- {
 
 		br := brsToDelete[i]
-
-		// hereafter we know that
 		maxReferredEndNodeID, ok := validBRsMaxEndNode[br.BranchID]
-
 		if ok {
-			//if ok && branchExists {
 			// we can only delete from the maxEndNode and stop here
 			nodeFilter := &nosqlplugin.HistoryNodeFilter{
 				ShardID:   request.ShardID,
