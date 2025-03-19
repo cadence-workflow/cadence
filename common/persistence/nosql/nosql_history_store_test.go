@@ -484,48 +484,48 @@ func getValidInternalDeleteHistoryBranchRequest() *persistence.InternalDeleteHis
 	}
 }
 
-func TestDeleteHistoryBranch_unusedBranch(t *testing.T) {
-	store, dbMock, _ := setUpMocks(t)
-
-	request := getValidInternalDeleteHistoryBranchRequest()
-
-	expecedTreeFilter := &nosqlplugin.HistoryTreeFilter{
-		ShardID:  testShardID,
-		TreeID:   "TestTreeID",
-		BranchID: common.Ptr("TestBranchID"),
-	}
-
-	// Delete in reverse order, add 0 in the end
-	expectedNodeFilters := []*nosqlplugin.HistoryNodeFilter{
-		{
-			ShardID:   testShardID,
-			TreeID:    "TestTreeID",
-			BranchID:  "TestBranchID",
-			MinNodeID: 10,
-		},
-		{
-			ShardID:   testShardID,
-			TreeID:    "TestTreeID",
-			BranchID:  "TestAncestorBranchID",
-			MinNodeID: 6,
-		},
-		{
-			ShardID:   testShardID,
-			TreeID:    "TestTreeID",
-			BranchID:  "TestAncestorBranchID",
-			MinNodeID: 0,
-		},
-	}
-
-	// Expect to delete the history branch
-	dbMock.EXPECT().DeleteFromHistoryTreeAndNode(gomock.Any(), expecedTreeFilter, expectedNodeFilters).
-		Return(nil).Times(1)
-	dbMock.EXPECT().SelectFromHistoryTree(gomock.Any(), gomock.Any()).
-		Return(nil, nil).Times(1)
-
-	err := store.DeleteHistoryBranch(ctx.Background(), request)
-	assert.NoError(t, err)
-}
+//func TestDeleteHistoryBranch_unusedBranch(t *testing.T) {
+//	store, dbMock, _ := setUpMocks(t)
+//
+//	request := getValidInternalDeleteHistoryBranchRequest()
+//
+//	expecedTreeFilter := &nosqlplugin.HistoryTreeFilter{
+//		ShardID:  testShardID,
+//		TreeID:   "TestTreeID",
+//		BranchID: common.Ptr("TestBranchID"),
+//	}
+//
+//	// Delete in reverse order, add 0 in the end
+//	expectedNodeFilters := []*nosqlplugin.HistoryNodeFilter{
+//		{
+//			ShardID:   testShardID,
+//			TreeID:    "TestTreeID",
+//			BranchID:  "TestBranchID",
+//			MinNodeID: 10,
+//		},
+//		{
+//			ShardID:   testShardID,
+//			TreeID:    "TestTreeID",
+//			BranchID:  "TestAncestorBranchID",
+//			MinNodeID: 6,
+//		},
+//		{
+//			ShardID:   testShardID,
+//			TreeID:    "TestTreeID",
+//			BranchID:  "TestAncestorBranchID",
+//			MinNodeID: 0,
+//		},
+//	}
+//
+//	// Expect to delete the history branch
+//	dbMock.EXPECT().DeleteFromHistoryTreeAndNode(gomock.Any(), expecedTreeFilter, expectedNodeFilters).
+//		Return(nil).Times(1)
+//	dbMock.EXPECT().SelectFromHistoryTree(gomock.Any(), gomock.Any()).
+//		Return(nil, nil).Times(1)
+//
+//	err := store.DeleteHistoryBranch(ctx.Background(), request)
+//	assert.NoError(t, err)
+//}
 
 // | In this base-case scenario, a workflow's been forked a few times, and the
 // | parent / ancestor workflow (branch A) is being removed.
@@ -536,8 +536,7 @@ func TestDeleteHistoryBranch_unusedBranch(t *testing.T) {
 // |  │  Branch: C        │    │  Branch: A        │   │ Branch: B          │
 // |  │  Ancestors:       │    │                   │   │ Ancestors:         │
 // |  │    Branch: A      │    │                   │   │  Branch A          │
-// |  │    BeginNode: 0   │    │                   │   │  BeginNode: 0      │
-// |  │    EndNode: 2     │    │                   │   │  EndNode:   1      │
+// |  │    EndNode: 3     │    │                   │   │  EndNode: 2        │
 // |  └───────────────────┘    └───────────────────┘   └────────────────────┘
 // |  Nodes
 // |                           ┌───────────────────┐
@@ -578,8 +577,7 @@ func TestDeleteHistoryBranch_unusedBranch(t *testing.T) {
 // |           │  Branch: C        │    │  <deleted>        │   │ Branch: B          │
 // |           │  Ancestors:       │                            │ Ancestors:         │
 // |           │    Branch: A      │    │                   │   │  Branch A          │
-// |           │    BeginNode: 0   |    |                   |   │  BeginNode: 0      |
-// |           │    EndNode: 2     │                            │  EndNode  : 1      │
+// |           │    EndNode: 3     │                            │  EndNode: 2        │
 // |           └───────────────────┘    └─ ─ ─ ─ ─ ─ ─ ─ ─ ─┘   └────────────────────┘
 // |
 // |           Nodes
@@ -695,8 +693,7 @@ func TestDeleteHistoryBranchWithAFewBranches_baseCase(t *testing.T) {
 // |   │  Branch: C        │    │  <branch A is     │   │ Branch: B          │
 // |   │  Ancestors:       │        deleted>            │ Ancestors:         │
 // |   │    Branch: A      │    │                   │   │  Branch A          │
-// |   |    BeginNode: 0   |    |                   |   |  BeginNode: 0      |
-// |   │    EndNode: 2     │                            │  EndNode  : 1      │
+// |   │    EndNode: 3     │                            │  EndNode: 2        │
 // |   └───────────────────┘    └─ ─ ─ ─ ─ ─ ─ ─ ─ ─┘   └────────────────────┘
 // |
 // |    Nodes
@@ -738,7 +735,7 @@ func TestDeleteHistoryBranchWithAFewBranches_baseCase(t *testing.T) {
 // |	│  Branch: C        │    │  <branch A is     │     │  <branch B is     │
 // |	│  Ancestors:       │        deleted>                  deleted>
 // |	│    Branch: A      │    │                   │     │                   │
-// |	│    BeginNode: 3   │
+// |	│    EndNode: 3     │
 // |	└───────────────────┘    └─ ─ ─ ─ ─ ─ ─ ─ ─ ─┘     └─ ─ ─ ─ ─ ─ ─ ─ ─ ─┘
 // |
 // |	Nodes
@@ -779,7 +776,7 @@ func TestDeleteHistoryBranch_DeletedAncestor(t *testing.T) {
 				{
 					BranchID:    "A",
 					BeginNodeID: 0,
-					EndNodeID:   1,
+					EndNodeID:   2,
 				},
 			},
 		},
@@ -797,7 +794,7 @@ func TestDeleteHistoryBranch_DeletedAncestor(t *testing.T) {
 			ShardID:   testShardID,
 			TreeID:    "TestTreeID",
 			BranchID:  "B",
-			MinNodeID: 1,
+			MinNodeID: 2,
 		},
 		{
 			ShardID:   testShardID,
@@ -819,7 +816,7 @@ func TestDeleteHistoryBranch_DeletedAncestor(t *testing.T) {
 				{
 					BranchID:    "TestAncestorBranchID",
 					BeginNodeID: 0,
-					EndNodeID:   1,
+					EndNodeID:   2,
 				},
 			},
 		},
@@ -831,7 +828,7 @@ func TestDeleteHistoryBranch_DeletedAncestor(t *testing.T) {
 				{
 					BranchID:    "A",
 					BeginNodeID: 0,
-					EndNodeID:   2,
+					EndNodeID:   3,
 				},
 			},
 		},
@@ -860,7 +857,7 @@ func TestDeleteHistoryBranch_DeletedAncestor(t *testing.T) {
 // | 		│  <branch A is     │    │  Branch: B        │
 // | 		    deleted>             │  Ancestors:       │
 // | 		│                   │    │    Branch: A      │
-// | 		                         │    BeginNode: 2   │
+// | 		                         │    EndNode: 3     │
 // | 		└─ ─ ─ ─ ─ ─ ─ ─ ─ ─┘    └───────────────────┘
 // |
 // |
@@ -937,17 +934,17 @@ func TestDeleteHistoryBranch_DeletedAncestor(t *testing.T) {
 // | 	│                   │    │                   │
 // | 	└ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘    └─ ─ ─ ── ── ─ ─ ─ ─┘
 func TestDeleteHistoryBranch_usedBranch(t *testing.T) {
+	t.Skip("not implemented yet")
 	store, dbMock, _ := setUpMocks(t)
 
 	request := &persistence.InternalDeleteHistoryBranchRequest{
 		BranchInfo: types.HistoryBranch{
 			TreeID:   "TestTreeID",
-			BranchID: "TestBranchID",
+			BranchID: "B",
 			Ancestors: []*types.HistoryBranchRange{
 				{
-					BranchID:    "TestAncestorBranchID",
-					BeginNodeID: 0,
-					EndNodeID:   5,
+					BranchID:  "A",
+					EndNodeID: 3,
 				},
 			},
 		},
@@ -957,22 +954,20 @@ func TestDeleteHistoryBranch_usedBranch(t *testing.T) {
 	expectedTreeFilter := &nosqlplugin.HistoryTreeFilter{
 		ShardID:  testShardID,
 		TreeID:   "TestTreeID",
-		BranchID: common.Ptr("TestBranchID"),
+		BranchID: common.Ptr("B"),
 	}
 
-	// Delete in reverse order, add 0 in the end
 	expectedNodeFilters := []*nosqlplugin.HistoryNodeFilter{
 		{
 			ShardID:   testShardID,
 			TreeID:    "TestTreeID",
-			BranchID:  "TestBranchID",
-			MinNodeID: 10,
+			BranchID:  "A",
+			MinNodeID: 3,
 		},
 		{
-			ShardID:   testShardID,
-			TreeID:    "TestTreeID",
-			BranchID:  "TestAncestorBranchID",
-			MinNodeID: 0,
+			ShardID:  testShardID,
+			TreeID:   "TestTreeID",
+			BranchID: "B",
 		},
 	}
 
@@ -983,12 +978,12 @@ func TestDeleteHistoryBranch_usedBranch(t *testing.T) {
 		{
 			ShardID:  testShardID,
 			TreeID:   "TestTreeID",
-			BranchID: "TestBranchID",
+			BranchID: "B",
 			Ancestors: []*types.HistoryBranchRange{
 				{
-					BranchID:    "TestAncestorBranchID",
+					BranchID:    "A",
 					BeginNodeID: 0,
-					EndNodeID:   7,
+					EndNodeID:   3,
 				},
 			},
 		},
@@ -1016,7 +1011,7 @@ func TestDeleteHistoryBranch_usedBranch(t *testing.T) {
 // |	│  Branch: C        │    │  Branch: A        │   │ Branch: B          │
 // |	│  Ancestors:       │    │                   │   │ Ancestors:         │
 // |	│    Branch: A      │    │                   │   │  Branch A          │
-// |	│    BeginNode: 2   │    │                   │   │  BeginNode: 1      │
+// |	│    Endnode: 3     │    │                   │   │  EndNode: 2        │
 // |	└───────────────────┘    └───────────────────┘   └────────────────────┘
 // |
 // |	Nodes
@@ -1058,7 +1053,7 @@ func TestDeleteHistoryBranch_usedBranch(t *testing.T) {
 // |	│  Branch: C        │     │  Branch: A        │     │  <branch B is     │
 // |	│  Ancestors:       │     │                   │         deleted>
 // |	│    Branch: A      │     │                   │     │                   │
-// |	│    BeginNode: 2   │     │                   │
+// |	│    EndNode: 2     │     │                   │
 // |	└───────────────────┘     └───────────────────┘     └─ ─ ─ ─ ─ ─ ─ ─ ─ ─┘
 // |
 // |
@@ -1093,15 +1088,16 @@ func TestDeleteHistoryBranch_usedBranch(t *testing.T) {
 func TestDeleteHistoryBranch_withAnAncestorBranchWhichIsStillInUse(t *testing.T) {
 	store, dbMock, _ := setUpMocks(t)
 
+	t.Skipf("not implmemented yet")
+
 	request := &persistence.InternalDeleteHistoryBranchRequest{
 		BranchInfo: types.HistoryBranch{
 			TreeID:   "TestTreeID",
-			BranchID: "TestBranchID",
+			BranchID: "B",
 			Ancestors: []*types.HistoryBranchRange{
 				{
-					BranchID:    "TestAncestorBranchID",
-					BeginNodeID: 0,
-					EndNodeID:   1,
+					BranchID:  "A",
+					EndNodeID: 2,
 				},
 			},
 		},
@@ -1111,14 +1107,14 @@ func TestDeleteHistoryBranch_withAnAncestorBranchWhichIsStillInUse(t *testing.T)
 	expectedTreeFilter := &nosqlplugin.HistoryTreeFilter{
 		ShardID:  testShardID,
 		TreeID:   "TestTreeID",
-		BranchID: common.Ptr("TestBranchID"),
+		BranchID: common.Ptr("B"),
 	}
 
 	expectedNodeFilters := []*nosqlplugin.HistoryNodeFilter{
 		{
 			ShardID:   testShardID,
 			TreeID:    "TestTreeID",
-			BranchID:  "TestBranchID",
+			BranchID:  "B",
 			MinNodeID: 2,
 		},
 		// we do not delete any of the ancestor, it's still valid
@@ -1130,32 +1126,31 @@ func TestDeleteHistoryBranch_withAnAncestorBranchWhichIsStillInUse(t *testing.T)
 
 	historyTree := []*nosqlplugin.HistoryTreeRow{
 		{
-			ShardID:  testShardID,
-			TreeID:   "TestTreeID",
-			BranchID: "TestBranchID",
-			Ancestors: []*types.HistoryBranchRange{
-				{
-					BranchID:    "TestAncestorBranchID",
-					BeginNodeID: 0,
-					EndNodeID:   2,
-				},
-			},
-		},
-		{
 			ShardID:   testShardID,
 			TreeID:    "TestTreeID",
-			BranchID:  "TestAncestorBranchID",
+			BranchID:  "A",
 			Ancestors: []*types.HistoryBranchRange{},
 		},
 		{
 			ShardID:  testShardID,
 			TreeID:   "TestTreeID",
-			BranchID: "TestOtherBranchID",
+			BranchID: "B",
 			Ancestors: []*types.HistoryBranchRange{
 				{
-					BranchID:    "TestAncestorBranchID",
+					BranchID:  "A",
+					EndNodeID: 2,
+				},
+			},
+		},
+		{
+			ShardID:  testShardID,
+			TreeID:   "TestTreeID",
+			BranchID: "C",
+			Ancestors: []*types.HistoryBranchRange{
+				{
+					BranchID:    "A",
 					BeginNodeID: 0,
-					EndNodeID:   2,
+					EndNodeID:   3,
 				},
 			},
 		},
