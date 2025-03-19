@@ -306,7 +306,7 @@ func (h *nosqlHistoryStore) ForkHistoryBranch(
 // - Handling the problem of garbage-collecting branches which may mutually rely on history
 //
 // For normal workflows, with only a single branch, this is straightfoward, it'll just do a
-// delete on the history_tree and history_tree table. However, in cases where history is
+// delete on the history_node and history_tree tables. However, in cases where history is
 // branched, things are slightly more complex. History branches in at least two ways:
 //   - During the conflict resolution handling of events during failover (where each
 //     region is represented as a history branch at the point where they were operating concurrently.
