@@ -1772,6 +1772,11 @@ func (e *mutableStateBuilder) eventsToReplicationTask(
 
 	// the visibility timestamp will be set in shard context
 	replicationTask := &persistence.HistoryReplicationTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   e.executionInfo.DomainID,
+			WorkflowID: e.executionInfo.WorkflowID,
+			RunID:      e.executionInfo.RunID,
+		},
 		TaskData: persistence.TaskData{
 			Version: firstEvent.Version,
 		},
@@ -1794,6 +1799,7 @@ func (e *mutableStateBuilder) syncActivityToReplicationTask(
 	}
 
 	return convertSyncActivityInfos(
+		e.executionInfo,
 		e.pendingActivityInfoIDs,
 		e.syncActivityTasks,
 	)

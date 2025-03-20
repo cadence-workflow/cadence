@@ -46,6 +46,7 @@ func (policy TransactionPolicy) Ptr() *TransactionPolicy {
 }
 
 func convertSyncActivityInfos(
+	executionInfo *persistence.WorkflowExecutionInfo,
 	activityInfos map[int64]*persistence.ActivityInfo,
 	inputs map[int64]struct{},
 ) []persistence.Task {
@@ -55,6 +56,11 @@ func convertSyncActivityInfos(
 		if ok {
 			// the visibility timestamp will be set in shard context
 			outputs = append(outputs, &persistence.SyncActivityTask{
+				WorkflowIdentifier: persistence.WorkflowIdentifier{
+					DomainID:   executionInfo.DomainID,
+					WorkflowID: executionInfo.WorkflowID,
+					RunID:      executionInfo.RunID,
+				},
 				TaskData: persistence.TaskData{
 					Version: activityInfo.Version,
 				},
