@@ -847,14 +847,6 @@ func (m *executionManagerImpl) ListConcreteExecutions(
 	return newResponse, nil
 }
 
-// Transfer task related methods
-func (m *executionManagerImpl) GetTransferTasks(
-	ctx context.Context,
-	request *GetTransferTasksRequest,
-) (*GetTransferTasksResponse, error) {
-	return m.persistence.GetTransferTasks(ctx, request)
-}
-
 func (m *executionManagerImpl) CompleteTransferTask(
 	ctx context.Context,
 	request *CompleteTransferTaskRequest,

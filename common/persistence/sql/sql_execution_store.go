@@ -836,61 +836,6 @@ func (m *sqlExecutionStore) ListConcreteExecutions(
 	}, nil
 }
 
-func (m *sqlExecutionStore) GetTransferTasks(
-	ctx context.Context,
-	request *p.GetTransferTasksRequest,
-) (*p.GetTransferTasksResponse, error) {
-	minReadLevel := request.ReadLevel
-	if len(request.NextPageToken) > 0 {
-		readLevel, err := deserializePageToken(request.NextPageToken)
-		if err != nil {
-			return nil, convertCommonErrors(m.db, "GetTransferTasks", "failed to deserialize page token", err)
-		}
-		minReadLevel = readLevel
-	}
-	rows, err := m.db.SelectFromTransferTasks(ctx, &sqlplugin.TransferTasksFilter{
-		ShardID:            m.shardID,
-		InclusiveMinTaskID: minReadLevel,
-		ExclusiveMaxTaskID: request.MaxReadLevel,
-		PageSize:           request.BatchSize,
-	})
-	if err != nil {
-		if err != sql.ErrNoRows {
-			return nil, convertCommonErrors(m.db, "GetTransferTasks", "", err)
-		}
-	}
-	resp := &p.GetTransferTasksResponse{Tasks: make([]*p.TransferTaskInfo, len(rows))}
-	for i, row := range rows {
-		info, err := m.parser.TransferTaskInfoFromBlob(row.Data, row.DataEncoding)
-		if err != nil {
-			return nil, err
-		}
-		resp.Tasks[i] = &p.TransferTaskInfo{
-			TaskID:                  row.TaskID,
-			DomainID:                info.DomainID.String(),
-			WorkflowID:              info.GetWorkflowID(),
-			RunID:                   info.RunID.String(),
-			VisibilityTimestamp:     info.GetVisibilityTimestamp(),
-			TargetDomainID:          info.TargetDomainID.String(),
-			TargetDomainIDs:         info.GetTargetDomainIDs(),
-			TargetWorkflowID:        info.GetTargetWorkflowID(),
-			TargetRunID:             info.TargetRunID.String(),
-			TargetChildWorkflowOnly: info.GetTargetChildWorkflowOnly(),
-			TaskList:                info.GetTaskList(),
-			TaskType:                int(info.GetTaskType()),
-			ScheduleID:              info.GetScheduleID(),
-			Version:                 info.GetVersion(),
-		}
-	}
-	if len(rows) > 0 {
-		nextTaskID := rows[len(rows)-1].TaskID + 1
-		if nextTaskID < request.MaxReadLevel {
-			resp.NextPageToken = serializePageToken(nextTaskID)
-		}
-	}
-	return resp, nil
-}
-
 func (m *sqlExecutionStore) CompleteTransferTask(
 	ctx context.Context,
 	request *p.CompleteTransferTaskRequest,

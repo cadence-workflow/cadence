@@ -588,27 +588,6 @@ func (d *nosqlExecutionStore) ListConcreteExecutions(
 	}, nil
 }
 
-func (d *nosqlExecutionStore) GetTransferTasks(
-	ctx context.Context,
-	request *persistence.GetTransferTasksRequest,
-) (*persistence.GetTransferTasksResponse, error) {
-
-	tasks, nextPageToken, err := d.db.SelectTransferTasksOrderByTaskID(ctx, d.shardID, request.BatchSize, request.NextPageToken, request.ReadLevel, request.MaxReadLevel)
-	if err != nil {
-		return nil, convertCommonErrors(d.db, "GetTransferTasks", err)
-	}
-
-	var tTasks []*persistence.TransferTaskInfo
-	for _, t := range tasks {
-		tTasks = append(tTasks, t.Transfer)
-	}
-
-	return &persistence.GetTransferTasksResponse{
-		Tasks:         tTasks,
-		NextPageToken: nextPageToken,
-	}, nil
-}
-
 func (d *nosqlExecutionStore) GetReplicationTasks(
 	ctx context.Context,
 	request *persistence.GetReplicationTasksRequest,

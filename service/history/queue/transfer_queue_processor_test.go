@@ -195,17 +195,21 @@ func TestTransferQueueProcessor_FailoverDomain(t *testing.T) {
 		"processor started": {
 			domainIDs: map[string]struct{}{"domainID": {}},
 			setupMocks: func(mockShard *shard.TestContext) {
-				response := &persistence.GetTransferTasksResponse{
-					Tasks: []*persistence.TransferTaskInfo{
-						{
-							DomainID:   constants.TestDomainID,
-							WorkflowID: constants.TestWorkflowID,
-							RunID:      constants.TestRunID,
-							TaskID:     1,
+				response := &persistence.GetHistoryTasksResponse{
+					Tasks: []persistence.Task{
+						&persistence.DecisionTask{
+							WorkflowIdentifier: persistence.WorkflowIdentifier{
+								DomainID:   constants.TestDomainID,
+								WorkflowID: constants.TestWorkflowID,
+								RunID:      constants.TestRunID,
+							},
+							TaskData: persistence.TaskData{
+								TaskID: 1,
+							},
 						},
 					},
 				}
-				mockShard.GetExecutionManager().(*mocks.ExecutionManager).On("GetTransferTasks", context.Background(), mock.Anything).Return(response, nil).Once()
+				mockShard.GetExecutionManager().(*mocks.ExecutionManager).On("GetHistoryTasks", context.Background(), mock.Anything).Return(response, nil).Once()
 			},
 			processorStarted: true,
 		},
@@ -512,8 +516,10 @@ func Test_transferQueueActiveProcessor_taskFilter(t *testing.T) {
 				testContext.GetDomainCache().(*cache.MockDomainCache).EXPECT().GetDomainByID(constants.TestDomainID).
 					Return(cacheEntry, nil).Times(1)
 			},
-			task: &persistence.TransferTaskInfo{
-				DomainID: constants.TestDomainID,
+			task: &persistence.DecisionTask{
+				WorkflowIdentifier: persistence.WorkflowIdentifier{
+					DomainID: constants.TestDomainID,
+				},
 			},
 			err: nil,
 		},
@@ -538,8 +544,10 @@ func Test_transferQueueActiveProcessor_taskFilter(t *testing.T) {
 				testContext.GetDomainCache().(*cache.MockDomainCache).EXPECT().GetDomainByID(constants.TestDomainID).
 					Return(cacheEntry, nil).Times(2)
 			},
-			task: &persistence.TransferTaskInfo{
-				DomainID: constants.TestDomainID,
+			task: &persistence.DecisionTask{
+				WorkflowIdentifier: persistence.WorkflowIdentifier{
+					DomainID: constants.TestDomainID,
+				},
 			},
 			// Error to Execute only. Since taskImpl is not exported, and the filter is a private field, had to use the Execute method to execute the filter function.
 			// The filter returned no error
@@ -643,8 +651,10 @@ func Test_transferQueueStandbyProcessor_taskFilter(t *testing.T) {
 				testContext.GetDomainCache().(*cache.MockDomainCache).EXPECT().GetDomainByID(constants.TestDomainID).
 					Return(cacheEntry, nil).Times(1)
 			},
-			task: &persistence.TransferTaskInfo{
-				DomainID: constants.TestDomainID,
+			task: &persistence.DecisionTask{
+				WorkflowIdentifier: persistence.WorkflowIdentifier{
+					DomainID: constants.TestDomainID,
+				},
 			},
 			err: nil,
 		},
@@ -673,9 +683,10 @@ func Test_transferQueueStandbyProcessor_taskFilter(t *testing.T) {
 				testContext.GetDomainCache().(*cache.MockDomainCache).EXPECT().GetDomainByID(constants.TestDomainID).
 					Return(cacheEntry, nil).Times(2)
 			},
-			task: &persistence.TransferTaskInfo{
-				DomainID: constants.TestDomainID,
-				TaskType: persistence.TransferTaskTypeCloseExecution,
+			task: &persistence.CloseExecutionTask{
+				WorkflowIdentifier: persistence.WorkflowIdentifier{
+					DomainID: constants.TestDomainID,
+				},
 			},
 			// Error to Execute only. Since taskImpl is not exported, and the filter is a private field, had to use the Execute method to execute the filter function.
 			// The filter returned no error
@@ -689,9 +700,10 @@ func Test_transferQueueStandbyProcessor_taskFilter(t *testing.T) {
 				testContext.GetDomainCache().(*cache.MockDomainCache).EXPECT().GetDomainByID(constants.TestDomainID).
 					Return(nil, assert.AnError).Times(2)
 			},
-			task: &persistence.TransferTaskInfo{
-				DomainID: constants.TestDomainID,
-				TaskType: persistence.TransferTaskTypeCloseExecution,
+			task: &persistence.CloseExecutionTask{
+				WorkflowIdentifier: persistence.WorkflowIdentifier{
+					DomainID: constants.TestDomainID,
+				},
 			},
 			err: assert.AnError,
 		},
@@ -703,9 +715,10 @@ func Test_transferQueueStandbyProcessor_taskFilter(t *testing.T) {
 				testContext.GetDomainCache().(*cache.MockDomainCache).EXPECT().GetDomainByID(constants.TestDomainID).
 					Return(nil, &types.EntityNotExistsError{Message: "domain doesn't exist"}).Times(2)
 			},
-			task: &persistence.TransferTaskInfo{
-				DomainID: constants.TestDomainID,
-				TaskType: persistence.TransferTaskTypeCloseExecution,
+			task: &persistence.CloseExecutionTask{
+				WorkflowIdentifier: persistence.WorkflowIdentifier{
+					DomainID: constants.TestDomainID,
+				},
 			},
 			err: nil,
 		},
@@ -730,8 +743,10 @@ func Test_transferQueueStandbyProcessor_taskFilter(t *testing.T) {
 				testContext.GetDomainCache().(*cache.MockDomainCache).EXPECT().GetDomainByID(constants.TestDomainID).
 					Return(cacheEntry, nil).Times(2)
 			},
-			task: &persistence.TransferTaskInfo{
-				DomainID: constants.TestDomainID,
+			task: &persistence.DecisionTask{
+				WorkflowIdentifier: persistence.WorkflowIdentifier{
+					DomainID: constants.TestDomainID,
+				},
 			},
 			err: nil,
 		},
@@ -833,8 +848,10 @@ func Test_transferQueueFailoverProcessor_taskFilter(t *testing.T) {
 				testContext.GetDomainCache().(*cache.MockDomainCache).EXPECT().GetDomainByID(constants.TestDomainID).
 					Return(cacheEntry, nil).Times(1)
 			},
-			task: &persistence.TransferTaskInfo{
-				DomainID: constants.TestDomainID,
+			task: &persistence.DecisionTask{
+				WorkflowIdentifier: persistence.WorkflowIdentifier{
+					DomainID: constants.TestDomainID,
+				},
 			},
 			err: nil,
 		},
@@ -859,8 +876,10 @@ func Test_transferQueueFailoverProcessor_taskFilter(t *testing.T) {
 				testContext.GetDomainCache().(*cache.MockDomainCache).EXPECT().GetDomainByID(constants.TestDomainID).
 					Return(cacheEntry, nil).Times(1)
 			},
-			task: &persistence.TransferTaskInfo{
-				DomainID: constants.TestDomainID,
+			task: &persistence.DecisionTask{
+				WorkflowIdentifier: persistence.WorkflowIdentifier{
+					DomainID: constants.TestDomainID,
+				},
 			},
 			err: nil,
 		},

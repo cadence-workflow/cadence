@@ -247,8 +247,7 @@ func (t *taskImpl) HandleErr(err error) (retErr error) {
 		return nil
 	}
 
-	if transferTask, ok := t.Info.(*persistence.TransferTaskInfo); ok &&
-		transferTask.TaskType == persistence.TransferTaskTypeCloseExecution &&
+	if _, ok := t.Info.(*persistence.CloseExecutionTask); ok &&
 		err == execution.ErrMissingWorkflowStartEvent &&
 		t.shard.GetConfig().EnableDropStuckTaskByDomainID(t.Info.GetDomainID()) { // use domainID here to avoid accessing domainCache
 		t.scope.IncCounter(metrics.TransferTaskMissingEventCounterPerDomain)

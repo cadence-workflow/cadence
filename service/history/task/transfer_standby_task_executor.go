@@ -74,9 +74,14 @@ func (t *transferStandbyTaskExecutor) Execute(
 	task Task,
 	shouldProcessTask bool,
 ) error {
-	transferTask, ok := task.GetInfo().(*persistence.TransferTaskInfo)
+	transfer, ok := task.GetInfo().(persistence.Task)
 	if !ok {
 		return errUnexpectedTask
+	}
+
+	transferTask, err := transfer.ToTransferTaskInfo()
+	if err != nil {
+		return err
 	}
 
 	if !shouldProcessTask {
@@ -542,12 +547,10 @@ func (t *transferStandbyTaskExecutor) processRecordWorkflowStartedOrUpsertHelper
 func (t *transferStandbyTaskExecutor) processTransfer(
 	ctx context.Context,
 	processTaskIfClosed bool,
-	taskInfo Info,
+	transferTask *persistence.TransferTaskInfo,
 	actionFn standbyActionFn,
 	postActionFn standbyPostActionFn,
 ) (retError error) {
-
-	transferTask := taskInfo.(*persistence.TransferTaskInfo)
 	wfContext, release, err := t.executionCache.GetOrCreateWorkflowExecutionWithTimeout(
 		transferTask.DomainID,
 		getWorkflowExecution(transferTask),
@@ -583,7 +586,7 @@ func (t *transferStandbyTaskExecutor) processTransfer(
 	}
 
 	release(nil)
-	return postActionFn(ctx, taskInfo, historyResendInfo, t.logger)
+	return postActionFn(ctx, transferTask, historyResendInfo, t.logger)
 }
 
 func (t *transferStandbyTaskExecutor) pushActivity(
