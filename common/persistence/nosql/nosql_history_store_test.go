@@ -527,15 +527,103 @@ func TestDeleteHistoryBranch_unusedBranch(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestDeleteHistoryBranch_usedBranch(t *testing.T) {
+//	 In this base-case scenario, a workflow's been forked a few times, and the
+//	 parent / ancestor workflow (branch A) is being removed.
+//
+//	  Trees
+//	  ┌───────────────────┐    ┌───────────────────┐   ┌────────────────────┐
+//	  │  Tree: 123        │    │  Tree: 123        │   │ Tree: 123          │
+//	  │  Branch: C        │    │  Branch: A        │   │ Branch: B          │
+//	  │  Ancestors:       │    │                   │   │ Ancestors:         │
+//	  │    Branch: A      │    │                   │   │  Branch A          │
+//	  │    EndNode: 3     │    │                   │   │  EndNode: 2        │
+//	  └───────────────────┘    └───────────────────┘   └────────────────────┘
+//	  Nodes
+//	                           ┌───────────────────┐
+//	                           │     Tree: 123     │
+//	                           │     Branch: A     │
+//	                           │     Node: 1       │
+//	                           └─────────┬─────────┘
+//	                                     │
+//	                                     ┼───────────────────────┐
+//	                           ┌─────────▼─────────┐   ┌─────────▼─────────┐
+//	                           │     Tree: 123     │   │     Tree: 123     │
+//	                           │     Branch: A     │   │     Branch: B     │
+//	                           │     Node: 2       │   │     Node: 2       │
+//	                           └─────────┬─────────┘   └─────────┬─────────┘
+//	            ┌────────────────────────┤                       │
+//	            │                        │                       │
+//	  ┌─────────▼─────────┐    ┌─────────▼─────────┐   ┌─────────▼─────────┐
+//	  │     Tree: 123     │    │     Tree: 123     │   │     Tree: 123     │
+//	  │     Branch: C     │    │     Branch: A     │   │     Branch: B     │
+//	  │     Node: 3       │    │     Node: 3       │   │     Node: 3       │
+//	  └─────────┬─────────┘    └─────────┬─────────┘   └─────────┬─────────┘
+//	            │                        │                       │
+//	            │                        │                       │
+//	  ┌─────────▼─────────┐    ┌─────────▼─────────┐   ┌─────────▼─────────┐
+//	  │     Tree: 123     │    │     Tree: 123     │   │     Tree: 123     │
+//	  │     Branch: C     │    │     Branch: A     │   │     Branch: B     │
+//	  │     Node: 4       │    │     Node: 4       │   │     Node: 4       │
+//	  └───────────────────┘    └───────────────────┘   └───────────────────┘
+//
+//	 The Expected behaviour is that the tree and unused nodes are trimmed off
+//	 but the referenced nodes from other branches are kept so those workflows
+//	 aren't broken.
+//
+//	           Trees
+//
+//	           ┌───────────────────┐    ┌─ ─ ─ ─ ─ ─ ─ ─ ─ ─┐   ┌────────────────────┐
+//	           │  Tree: 123        │                            │ Tree: 123          │
+//	           │  Branch: C        │    │  <deleted>        │   │ Branch: B          │
+//	           │  Ancestors:       │                            │ Ancestors:         │
+//	           │    Branch: A      │    │                   │   │  Branch A          │
+//	           │    EndNode: 3     │                            │  EndNode: 2        │
+//	           └───────────────────┘    └─ ─ ─ ─ ─ ─ ─ ─ ─ ─┘   └────────────────────┘
+//
+//	           Nodes
+//	                                    ┌───────────────────┐
+//	                                    │     Tree: 123     │
+//	                                    │     Branch: A     │
+//	                                    │     Node: 1       │
+//	                                    └─────────┬─────────┘
+//	                                              │
+//	                                              ┼───────────────────────┐
+//	                                    ┌─────────▼─────────┐   ┌─────────▼─────────┐
+//	                                    │     Tree: 123     │   │     Tree: 123     │
+//	                                    │     Branch: A     │   │     Branch: B     │
+//	                                    │     Node: 2       │   │     Node: 2       │
+//	                                    └─────────┬─────────┘   └─────────┬─────────┘
+//	                     ┌────────────────────────┤                       │
+//	                     │                        │                       │
+//	           ┌─────────▼─────────┐    ┌─ ─ ─ ─ ─▼ ─ ─ ─ ─ ┐   ┌─────────▼─────────┐
+//	           │     Tree: 123     │                            │     Tree: 123     │
+//	           │     Branch: C     │    │ <deleted>         │   │     Branch: B     │
+//	           │     Node: 3       │                            │     Node: 3       │
+//	           └─────────┬─────────┘    └─ ─ ─ ─ ─┐ ─ ─ ─ ─ ┘   └─────────┬─────────┘
+//	                     │                        │                       │
+//	                     │                        │                       │
+//	           ┌─────────▼─────────┐    ┌─ ─ ─ ─ ─▼ ─ ─ ─ ─ ┐   ┌─────────▼─────────┐
+//	           │     Tree: 123     │                            │     Tree: 123     │
+//	           │     Branch: C     │    │ <deleted>         │   │     Branch: B     │
+//	           │     Node: 4       │                            │     Node: 4       │
+//	           └───────────────────┘    └─ ─ ─ ─ ── ─ ─ ─ ─ ┘   └───────────────────┘
+
+func TestDeleteHistoryBranchWithAFewBranches_baseCase(t *testing.T) {
+
 	store, dbMock, _ := setUpMocks(t)
 
-	request := getValidInternalDeleteHistoryBranchRequest()
+	request := &persistence.InternalDeleteHistoryBranchRequest{
+		BranchInfo: types.HistoryBranch{
+			TreeID:   "TestTreeID",
+			BranchID: "A",
+		},
+		ShardID: testShardID,
+	}
 
-	expecedTreeFilter := &nosqlplugin.HistoryTreeFilter{
+	expectedTreeFilter := &nosqlplugin.HistoryTreeFilter{
 		ShardID:  testShardID,
 		TreeID:   "TestTreeID",
-		BranchID: common.Ptr("TestBranchID"),
+		BranchID: common.Ptr("A"),
 	}
 
 	// Delete in reverse order, add 0 in the end
@@ -543,31 +631,526 @@ func TestDeleteHistoryBranch_usedBranch(t *testing.T) {
 		{
 			ShardID:   testShardID,
 			TreeID:    "TestTreeID",
-			BranchID:  "TestBranchID",
-			MinNodeID: 10,
-		},
-		{
-			ShardID:   testShardID,
-			TreeID:    "TestTreeID",
-			BranchID:  "TestAncestorBranchID",
-			MinNodeID: 7,
+			BranchID:  "A",
+			MinNodeID: 3,
 		},
 	}
 
-	// Expect to delete the history branch
-	dbMock.EXPECT().DeleteFromHistoryTreeAndNode(gomock.Any(), expecedTreeFilter, expectedNodeFilters).
+	dbMock.EXPECT().DeleteFromHistoryTreeAndNode(gomock.Any(), expectedTreeFilter, expectedNodeFilters).
 		Return(nil).Times(1)
 
 	historyTree := []*nosqlplugin.HistoryTreeRow{
 		{
 			ShardID:  testShardID,
 			TreeID:   "TestTreeID",
-			BranchID: "TestBranchID",
+			BranchID: "A",
+		},
+		{
+			ShardID:  testShardID,
+			TreeID:   "TestTreeID",
+			BranchID: "B",
 			Ancestors: []*types.HistoryBranchRange{
 				{
-					BranchID:    "TestAncestorBranchID",
+					BranchID:    "A",
 					BeginNodeID: 0,
-					EndNodeID:   7,
+					EndNodeID:   2,
+				},
+			},
+		},
+		{
+			ShardID:  testShardID,
+			TreeID:   "TestTreeID",
+			BranchID: "C",
+			Ancestors: []*types.HistoryBranchRange{
+				{
+					BranchID:    "A",
+					BeginNodeID: 0,
+					EndNodeID:   3,
+				},
+			},
+		},
+	}
+
+	dbMock.EXPECT().SelectFromHistoryTree(gomock.Any(), gomock.Any()).
+		Return(historyTree, nil).Times(1)
+
+	err := store.DeleteHistoryBranch(ctx.Background(), request)
+	assert.NoError(t, err)
+
+}
+
+// In this scenario, Branch A has already been deleted, but is referenced by
+// a couple of other branches.
+//
+// In this scenario Branch B is being deleted.
+//
+// Given the following starting state:
+//
+//	Trees
+//
+//	 ┌───────────────────┐    ┌─ ─ ─ ─ ─ ─ ─ ─ ─ ─┐   ┌────────────────────┐
+//	 │  Tree: 123        │                            │ Tree: 123          │
+//	 │  Branch: C        │    │  <branch A is     │   │ Branch: B          │
+//	 │  Ancestors:       │        deleted>            │ Ancestors:         │
+//	 │    Branch: A      │    │                   │   │  Branch A          │
+//	 │    EndNode: 3     │                            │  EndNode: 2        │
+//	 └───────────────────┘    └─ ─ ─ ─ ─ ─ ─ ─ ─ ─┘   └────────────────────┘
+//
+//	  Nodes
+//
+//	                        ┌───────────────────┐
+//	                        │     Tree: 123     │
+//	                        │     Branch: A     │
+//	                        │     Node: 1       │
+//	                        └─────────┬─────────┘
+//	                                  │
+//	                                  ┼─────────────────────────┐
+//	                        ┌─────────▼─────────┐     ┌─────────▼─────────┐
+//	                        │     Tree: 123     │     │     Tree: 123     │
+//	                        │     Branch: A     │     │     Branch: B     │
+//	                        │     Node: 2       │     │     Node: 2       │
+//	                        └─────────┬─────────┘     └─────────┬─────────┘
+//	         ┌────────────────────────┘                         │
+//	         │                                                  │
+//	 ┌─────────▼─────────┐                            ┌─────────▼─────────┐
+//	 │     Tree: 123     │                            │     Tree: 123     │
+//	 │     Branch: C     │                            │     Branch: B     │
+//	 │     Node: 3       │                            │     Node: 3       │
+//	 └─────────┬─────────┘                            └─────────┬─────────┘
+//	           │                                                │
+//	           │                                                │
+//	 ┌─────────▼─────────┐                            ┌─────────▼─────────┐
+//	 │     Tree: 123     │                            │     Tree: 123     │
+//	 │     Branch: C     │                            │     Branch: B     │
+//	 │     Node: 4       │                            │     Node: 4       │
+//	 └───────────────────┘                            └───────────────────┘
+//
+// The following is expected: It preserves the remaining nodes for any dependent
+// branches.
+//
+//	Trees
+//
+//	┌───────────────────┐    ┌─ ─ ─ ─ ─ ─ ─ ─ ─ ─┐     ┌─ ─ ─ ─ ─ ─ ─ ─ ─ ─┐
+//	│  Tree: 123        │
+//	│  Branch: C        │    │  <branch A is     │     │  <branch B is     │
+//	│  Ancestors:       │        deleted>                  deleted>
+//	│    Branch: A      │    │                   │     │                   │
+//	│    EndNode: 3     │
+//	└───────────────────┘    └─ ─ ─ ─ ─ ─ ─ ─ ─ ─┘     └─ ─ ─ ─ ─ ─ ─ ─ ─ ─┘
+//
+//	Nodes
+//	                         ┌───────────────────┐
+//	                         │     Tree: 123     │
+//	                         │     Branch: A     │
+//	                         │     Node: 1       │
+//	                         └─────────┬─────────┘
+//	                                   │
+//	                                   ┼
+//	                         ┌─────────▼─────────┐
+//	                         │     Tree: 123     │
+//	                         │     Branch: A     │
+//	                         │     Node: 2       │
+//	                         └─────────┬─────────┘
+//	          ┌────────────────────────┘
+//	          │
+//	┌─────────▼─────────┐
+//	│     Tree: 123     │
+//	│     Branch: C     │
+//	│     Node: 3       │
+//	└─────────┬─────────┘
+//	          │
+//	          │
+//	┌─────────▼─────────┐
+//	│     Tree: 123     │
+//	│     Branch: C     │
+//	│     Node: 4       │
+//	└───────────────────┘
+func TestDeleteHistoryBranch_DeletedAncestor(t *testing.T) {
+	store, dbMock, _ := setUpMocks(t)
+
+	request := &persistence.InternalDeleteHistoryBranchRequest{
+		BranchInfo: types.HistoryBranch{
+			TreeID:   "TestTreeID",
+			BranchID: "B",
+			Ancestors: []*types.HistoryBranchRange{
+				{
+					BranchID:    "A",
+					BeginNodeID: 0,
+					EndNodeID:   2,
+				},
+			},
+		},
+		ShardID: testShardID,
+	}
+
+	expectedTreeFilter := &nosqlplugin.HistoryTreeFilter{
+		ShardID:  testShardID,
+		TreeID:   "TestTreeID",
+		BranchID: common.Ptr("B"),
+	}
+
+	expectedNodeFilters := []*nosqlplugin.HistoryNodeFilter{
+		{
+			ShardID:   testShardID,
+			TreeID:    "TestTreeID",
+			BranchID:  "B",
+			MinNodeID: 2,
+		},
+		{
+			ShardID:   testShardID,
+			TreeID:    "TestTreeID",
+			BranchID:  "A",
+			MinNodeID: 3,
+		},
+	}
+
+	dbMock.EXPECT().DeleteFromHistoryTreeAndNode(gomock.Any(), expectedTreeFilter, expectedNodeFilters).
+		Return(nil).Times(1)
+
+	historyTree := []*nosqlplugin.HistoryTreeRow{
+		{
+			ShardID:  testShardID,
+			TreeID:   "TestTreeID",
+			BranchID: "B",
+			Ancestors: []*types.HistoryBranchRange{
+				{
+					BranchID:    "A",
+					BeginNodeID: 0,
+					EndNodeID:   2,
+				},
+			},
+		},
+		{
+			ShardID:  testShardID,
+			TreeID:   "TestTreeID",
+			BranchID: "C",
+			Ancestors: []*types.HistoryBranchRange{
+				{
+					BranchID:    "A",
+					BeginNodeID: 0,
+					EndNodeID:   3,
+				},
+			},
+		},
+		// notably A does not exist
+	}
+
+	dbMock.EXPECT().SelectFromHistoryTree(gomock.Any(), gomock.Any()).
+		Return(historyTree, nil).Times(1)
+
+	err := store.DeleteHistoryBranch(ctx.Background(), request)
+	assert.NoError(t, err)
+}
+
+// In this scenario, something like the following has happened:
+// There was a normal, original workflow, which was then branched (perhaps by a reset).
+// By the time the workflow is being cleaned up, the ancestor branch has been deleted already,
+// and does not exist in the history_tree table as a valid branch.
+//
+// In this scenario, branch B is being deleted. Notably, Branch B is the *last*
+// valid branch for this tree, whereas the ancestor branches were removed earlier.
+//
+//	 Trees
+//
+//	 ┌─ ─ ─ ─ ─ ─ ─ ─ ─ ─┐    ┌───────────────────┐
+//	                          │  Tree: 123        │
+//	 │  <branch A is     │    │  Branch: B        │
+//	     deleted>             │  Ancestors:       │
+//	 │                   │    │    Branch: A      │
+//	                          │    EndNode: 3     │
+//	 └─ ─ ─ ─ ─ ─ ─ ─ ─ ─┘    └───────────────────┘
+//
+//
+//	 Nodes
+//
+//	 ┌───────────────────┐
+//	 │     Tree: 123     │
+//	 │     Branch: A     │
+//	 │     Node: 1       │
+//	 └─────────┬─────────┘
+//	           │
+//	 ┌─────────┼─────────┐
+//	 │     Tree: 123     │
+//	 │     Branch: A     │
+//	 │     Node: 2       │
+//	 └─────────┬─────────┘
+//	           ┼────────────────────────┐
+//	                                    │
+//	                                    │
+//	                          ┌─────────▼─────────┐
+//	                          │     Tree: 123     │
+//	                          │     Branch: B     │
+//	                          │     Node: 3       │
+//	                          └─────────┬─────────┘
+//	                                    │
+//	                                    │
+//	                          ┌─────────▼─────────┐
+//	                          │     Tree: 123     │
+//	                          │     Branch: B     │
+//	                          │     Node: 4       │
+//	                          └───────────────────┘
+//
+//	The expected behaviour, is that the child/branched workflow needs to clean up both its own history nodes
+//	but *all* of the parent's remaining and now unreferenced history nodes. They're otherwise unreachable
+//	and will be just history_node table garbage which forever grows.
+//
+//	 Trees
+//
+//	 ┌─ ─ ─ ─ ─ ─ ─ ─ ─ ─┐    ┌─ ─ ─ ─ ─ ─ ─ ─ ─ ─┐
+//	                          │                   │
+//	 │  <branch A is     │
+//	     deleted>             │   deleted>        │
+//	 │                   │
+//	                          │                   │
+//	 └─ ─ ─ ─ ─ ─ ─ ─ ─ ─┘    └─ ─ ─ ─ ─ ─ ─ ─ ─ ─┘
+//
+//
+//	 Nodes
+//
+//	 ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
+//	 │                   │
+//	 │  <deleted>        │
+//	 │                   │
+//	 └ ─ ─ ─ ─ ┌ ─ ─ ─ ─ ┘
+//	           │
+//	 ┌ ─ ─ ─ ─ ▼ ─ ─ ─ ─ ┐
+//	 │                   │
+//	 │  <deleted>        │
+//	 │                   │
+//	 └ ─ ─ ─ ─ ┌ ─ ─ ─ ─ ┘
+//	           │
+//	           ┼ ─ ─ ─ ─ ── ─ ── ─ ─ ── ┐
+//	           │                        │
+//	 ┌ ─ ─ ─ ─ ▼ ─ ─ ─ ─ ┐    ┌─ ─ ─ ── ▼─ ─ ─ ─ ─┐
+//	 │                   │    │                   │
+//	 │  <deleted>        │    │ <deleted>         │
+//	 │                   │    │                   │
+//	 └ ─ ─ ─ ─ ┌ ─ ─ ─ ─ ┘    └─ ─ ─ ── ┌─ ─ ─ ─ ─┘
+//	           │                        │
+//	           │                        │
+//	 ┌ ─ ─ ─ ─ ▼ ─ ─ ─ ─ ┐    ┌─ ─ ─ ── ▼─ ─ ─ ─ ─┐
+//	 │                   │    │                   │
+//	 │  <deleted>        │    │ <deleted>         │
+//	 │                   │    │                   │
+//	 └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘    └─ ─ ─ ── ── ─ ─ ─ ─┘
+func TestDeleteHistoryBranch_usedBranchWithGarbageFullyCleanedUp(t *testing.T) {
+	store, dbMock, _ := setUpMocks(t)
+
+	t.Skipf("not fixed")
+
+	request := &persistence.InternalDeleteHistoryBranchRequest{
+		BranchInfo: types.HistoryBranch{
+			TreeID:   "TestTreeID",
+			BranchID: "B",
+			Ancestors: []*types.HistoryBranchRange{
+				{
+					BranchID:  "A",
+					EndNodeID: 3,
+				},
+			},
+		},
+		ShardID: testShardID,
+	}
+
+	expectedTreeFilter := &nosqlplugin.HistoryTreeFilter{
+		ShardID:  testShardID,
+		TreeID:   "TestTreeID",
+		BranchID: common.Ptr("B"),
+	}
+
+	expectedNodeFilters := []*nosqlplugin.HistoryNodeFilter{
+		{
+			ShardID:  testShardID,
+			TreeID:   "TestTreeID",
+			BranchID: "A",
+		},
+		{
+			ShardID:  testShardID,
+			TreeID:   "TestTreeID",
+			BranchID: "B",
+		},
+	}
+
+	dbMock.EXPECT().DeleteFromHistoryTreeAndNode(gomock.Any(), expectedTreeFilter, expectedNodeFilters).
+		Return(nil).Times(1)
+
+	historyTree := []*nosqlplugin.HistoryTreeRow{
+		{
+			ShardID:  testShardID,
+			TreeID:   "TestTreeID",
+			BranchID: "B",
+			Ancestors: []*types.HistoryBranchRange{
+				{
+					BranchID:    "A",
+					BeginNodeID: 0,
+					EndNodeID:   3,
+				},
+			},
+		},
+		// notably A does not exist
+	}
+
+	dbMock.EXPECT().SelectFromHistoryTree(gomock.Any(), gomock.Any()).
+		Return(historyTree, nil).Times(1)
+
+	err := store.DeleteHistoryBranch(ctx.Background(), request)
+	assert.NoError(t, err)
+}
+
+// In this scenario, there's a few branches of a normal workflow. In this example, both history_trees exist
+// and the original branch has not yet been deleted, and (for whatever reason, the second branch is being removed
+// before the original/parent (it's not super obvious this might happen, but it's forseeable with deletion jitter
+// or maybe failover scenarios where this might happen).
+//
+// In this scenario, branch B is being deleted.
+//
+//	Trees
+//
+//	┌───────────────────┐    ┌───────────────────┐   ┌────────────────────┐
+//	│  Tree: 123        │    │  Tree: 123        │   │ Tree: 123          │
+//	│  Branch: C        │    │  Branch: A        │   │ Branch: B          │
+//	│  Ancestors:       │    │                   │   │ Ancestors:         │
+//	│    Branch: A      │    │                   │   │  Branch A          │
+//	│    Endnode: 3     │    │                   │   │  EndNode: 2        │
+//	└───────────────────┘    └───────────────────┘   └────────────────────┘
+//
+//	Nodes
+//
+//	                         ┌───────────────────┐
+//	                         │     Tree: 123     │
+//	                         │     Branch: A     │
+//	                         │     Node: 1       │
+//	                         └─────────┬─────────┘
+//	                                   │
+//	                                   ┼───────────────────────┐
+//	                         ┌─────────▼─────────┐   ┌─────────▼─────────┐
+//	                         │     Tree: 123     │   │     Tree: 123     │
+//	                         │     Branch: A     │   │     Branch: B     │
+//	                         │     Node: 2       │   │     Node: 2       │
+//	                         └─────────┬─────────┘   └─────────┬─────────┘
+//	          ┌────────────────────────┤                       │
+//	          │                        │                       │
+//	┌─────────▼─────────┐    ┌─────────▼─────────┐   ┌─────────▼─────────┐
+//	│     Tree: 123     │    │     Tree: 123     │   │     Tree: 123     │
+//	│     Branch: C     │    │     Branch: A     │   │     Branch: B     │
+//	│     Node: 3       │    │     Node: 3       │   │     Node: 3       │
+//	└─────────┬─────────┘    └─────────┬─────────┘   └─────────┬─────────┘
+//	          │                        │                       │
+//	          │                        │                       │
+//	┌─────────▼─────────┐    ┌─────────▼─────────┐   ┌─────────▼─────────┐
+//	│     Tree: 123     │    │     Tree: 123     │   │     Tree: 123     │
+//	│     Branch: C     │    │     Branch: A     │   │     Branch: B     │
+//	│     Node: 4       │    │     Node: 4       │   │     Node: 4       │
+//	└───────────────────┘    └───────────────────┘   └───────────────────┘
+//
+// The expected behaviour is that the child/second branch should only clean up it's history nodes, but
+// leave the parents alone, so as to not break the parent.
+//
+//	Trees
+//
+//	┌───────────────────┐     ┌───────────────────┐     ┌─ ─ ─ ─ ─ ─ ─ ─ ─ ─┐
+//	│  Tree: 123        │     │  Tree: 123        │
+//	│  Branch: C        │     │  Branch: A        │     │  <branch B is     │
+//	│  Ancestors:       │     │                   │         deleted>
+//	│    Branch: A      │     │                   │     │                   │
+//	│    EndNode: 2     │     │                   │
+//	└───────────────────┘     └───────────────────┘     └─ ─ ─ ─ ─ ─ ─ ─ ─ ─┘
+//
+//
+//	Nodes
+//
+//	                          ┌───────────────────┐
+//	                          │     Tree: 123     │
+//	                          │     Branch: A     │
+//	                          │     Node: 1       │
+//	                          └─────────┬─────────┘
+//	                                    │
+//	                                    ┼
+//	                          ┌─────────▼─────────┐
+//	                          │     Tree: 123     │
+//	                          │     Branch: A     │
+//	                          │     Node: 2       │
+//	                          └─────────┬─────────┘
+//	          ┌─────────────────────────┤
+//	          │                         │
+//	┌─────────▼─────────┐     ┌─────────▼─────────┐
+//	│     Tree: 123     │     │     Tree: 123     │
+//	│     Branch: C     │     │     Branch: A     │
+//	│     Node: 3       │     │     Node: 3       │
+//	└─────────┬─────────┘     └─────────┬─────────┘
+//	          │                         │
+//	          │                         │
+//	┌─────────▼─────────┐     ┌─────────▼─────────┐
+//	│     Tree: 123     │     │     Tree: 123     │
+//	│     Branch: C     │     │     Branch: A     │
+//	│     Node: 4       │     │     Node: 4       │
+//	└───────────────────┘     └───────────────────┘
+func TestDeleteHistoryBranch_withAnAncestorBranchWhichIsStillInUse(t *testing.T) {
+	store, dbMock, _ := setUpMocks(t)
+
+	t.Skipf("not fixed")
+
+	request := &persistence.InternalDeleteHistoryBranchRequest{
+		BranchInfo: types.HistoryBranch{
+			TreeID:   "TestTreeID",
+			BranchID: "B",
+			Ancestors: []*types.HistoryBranchRange{
+				{
+					BranchID:  "A",
+					EndNodeID: 2,
+				},
+			},
+		},
+		ShardID: testShardID,
+	}
+
+	expectedTreeFilter := &nosqlplugin.HistoryTreeFilter{
+		ShardID:  testShardID,
+		TreeID:   "TestTreeID",
+		BranchID: common.Ptr("B"),
+	}
+
+	expectedNodeFilters := []*nosqlplugin.HistoryNodeFilter{
+		{
+			ShardID:   testShardID,
+			TreeID:    "TestTreeID",
+			BranchID:  "B",
+			MinNodeID: 2,
+		},
+		// we do not delete any of the ancestor, it's still valid
+	}
+
+	// Expect to delete the history branch
+	dbMock.EXPECT().DeleteFromHistoryTreeAndNode(gomock.Any(), expectedTreeFilter, expectedNodeFilters).
+		Return(nil).Times(1)
+
+	historyTree := []*nosqlplugin.HistoryTreeRow{
+		{
+			ShardID:   testShardID,
+			TreeID:    "TestTreeID",
+			BranchID:  "A",
+			Ancestors: []*types.HistoryBranchRange{},
+		},
+		{
+			ShardID:  testShardID,
+			TreeID:   "TestTreeID",
+			BranchID: "B",
+			Ancestors: []*types.HistoryBranchRange{
+				{
+					BranchID:  "A",
+					EndNodeID: 2,
+				},
+			},
+		},
+		{
+			ShardID:  testShardID,
+			TreeID:   "TestTreeID",
+			BranchID: "C",
+			Ancestors: []*types.HistoryBranchRange{
+				{
+					BranchID:    "A",
+					BeginNodeID: 0,
+					EndNodeID:   3,
 				},
 			},
 		},

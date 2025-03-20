@@ -299,7 +299,64 @@ func (h *nosqlHistoryStore) ForkHistoryBranch(
 	return resp, nil
 }
 
-// DeleteHistoryBranch removes a branch
+// DeleteHistoryBranch removes a branch. This is responsible for:
+//
+//   - Deleting entries from the history_node table
+//   - Deleting the tree entry in the history_tree table
+//   - Handling the problem of garbage-collecting branches which may mutually rely on history
+//
+// For normal workflows, with only a single branch, this is straightfoward, it'll just do a
+// delete on the history_node and history_tree tables. However, in cases where history is
+// branched, things are slightly more complex. History branches in at least two ways:
+//   - During the conflict resolution handling of events during failover (where each
+//     region is represented as a history branch at the point where they were operating concurrently.
+//   - At the point of a workflow reset, where history is 'forked' and the previous
+//     workflow events are discarded, but the original workflow run's history is referenced.
+//
+// For workflows with forked history, they'll reference any nodes they rely on ancestors in the history_tree
+// table. These references are exclusive, ie, the following is true:
+//
+//	--------------+--------------------------------------
+//	 tree_id      | X
+//	 branch_id    | B
+//	 ancestors    | [{branch_id: A, end_node_id: 4}]
+//	--------------+--------------------------------------
+//	 tree_id      | X
+//	 branch_id    | A
+//	 ancestors    | null
+//
+//	Will have nodes arranged like this
+//
+//	    ┌────────────┐
+//	    │ Branch: A  │
+//	    │ Node:   1  │
+//	    └─────┬──────┘
+//	          │
+//	    ┌─────▼──────┐
+//	    │ Branch: A  │
+//	    │ Node:   2  │
+//	    └─────┬──────┘
+//	          │
+//	    ┌─────▼──────┐
+//	    │ Branch: A  │
+//	    │ Node:   3  ┼────────────┐
+//	    └─────┬──────┘            │
+//	          │                   │
+//	    ┌─────▼──────┐     ┌──────▼─────┐
+//	    │ Branch: A  │     │ Branch: B  │
+//	    │ Node:   4  │     │ Node:   4  │
+//	    └────────────┘     └────────────┘
+//
+// The method of cleanup for each branch therefore, is to just remove the nodes that are not in use,
+// nearly-always starting from the oldest branch (the original run) and, later in subsequent invocations,
+// the branches relying on this. These cleanups are done by a call to the lower persistence layer
+// with HistoryNodeFilter references specifying the minimum nodes to be cleaned up (inclusive).
+//
+// While workflowIDs being enforced to be held by a single run to execute at any one time
+// generally ensures that any ancestor is cleaned up first, there's a couple of exceptions
+// to keep in mind. Firstly, deletion jitter makes it near-certain that there'll be some overlap and therefore
+// no guarantee that the oldest branch gets cleaned up first, as well as timer tasks are likely to retry and therefore
+// end up being out of order anyway. So any cleanup needs to be able to handle these cases.
 func (h *nosqlHistoryStore) DeleteHistoryBranch(
 	ctx context.Context,
 	request *persistence.InternalDeleteHistoryBranchRequest,
@@ -318,6 +375,7 @@ func (h *nosqlHistoryStore) DeleteHistoryBranch(
 		TreeID:  treeID,
 		ShardID: &request.ShardID,
 	})
+
 	if err != nil {
 		return err
 	}
@@ -327,13 +385,33 @@ func (h *nosqlHistoryStore) DeleteHistoryBranch(
 		TreeID:   treeID,
 		BranchID: &branch.BranchID,
 	}
+
+	// This is the selection of history_nodes that will be removed
+	// at this point it's not safe to delete any nodes, because we don't know
+	// if this branch has other branches that've taken a dependency on it's nodes
+	// so we start with an empty filter
 	var nodeFilters []*nosqlplugin.HistoryNodeFilter
 
-	// validBRsMaxEndNode is to know each branch range that is being used, we want to know what is the max nodeID referred by other valid branch
+	// ... and then look at all the active / good history branches and see
+	// what they're referencing. The idea being, to trim any nodes that
+	// might not in use by going and finding the topmost nodes that are currently
+	// referenced, and trimming those.
+	//
+	// validBRsMaxEndNode represents each branch range that is being used,
+	// we want to know what is the max nodeID referred by other valid branches
 	validBRsMaxEndNode := persistenceutils.GetBranchesMaxReferredNodeIDs(rsp.Branches)
 
+	// Todo (david.porter) handle the case of the history nodes being left over
+	// in the last branch (see unit test TestDeleteHistoryBranch_usedBranchWithGarbageFullyCleanedUp).
+	//
+	// Todo (david.porter) handle the case of out of order deletions where the
+	// ancestor branch is still 'valid' or being deleted after, and this
+	// deletion shouldn't necessarily render it invalid. (see test skipped)
+
 	// for each branch range to delete, we iterate from bottom to up, and delete up to the point according to validBRsEndNode
+	// brsToDelete here includes both the current branch being operated on and its ancestors
 	for i := len(brsToDelete) - 1; i >= 0; i-- {
+
 		br := brsToDelete[i]
 		maxReferredEndNodeID, ok := validBRsMaxEndNode[br.BranchID]
 		if ok {

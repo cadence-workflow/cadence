@@ -3536,6 +3536,11 @@ func TestCloseTransactionAsMutation(t *testing.T) {
 					persistence.HistoryTaskCategoryTimer:    nil,
 					persistence.HistoryTaskCategoryReplication: []persistence.Task{
 						&persistence.HistoryReplicationTask{
+							WorkflowIdentifier: persistence.WorkflowIdentifier{
+								DomainID:   "some-domain-id",
+								WorkflowID: "",
+								RunID:      "",
+							},
 							FirstEventID: 1,
 							NextEventID:  2,
 							TaskData: persistence.TaskData{

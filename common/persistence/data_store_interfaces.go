@@ -905,6 +905,14 @@ type (
 	}
 )
 
+func (tr *InternalGetHistoryTreeResponse) ByBranchID() map[string]*types.HistoryBranch {
+	out := make(map[string]*types.HistoryBranch, len(tr.Branches))
+	for _, branch := range tr.Branches {
+		out[branch.BranchID] = branch
+	}
+	return out
+}
+
 // NewDataBlob returns a new DataBlob
 func NewDataBlob(data []byte, encodingType common.EncodingType) *DataBlob {
 	if len(data) == 0 {
