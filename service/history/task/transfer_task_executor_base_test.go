@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Uber Technologies, Inc.
+// Copyright (c) 2017-2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -21,17 +21,52 @@
 package task
 
 import (
-	"fmt"
+	"testing"
 )
 
-// WeightedRoundRobinTaskSchedulerOptions configs WRR task scheduler
-type WeightedRoundRobinTaskSchedulerOptions[K comparable] struct {
-	QueueSize            int
-	DispatcherCount      int
-	TaskToChannelKeyFn   func(PriorityTask) K
-	ChannelKeyToWeightFn func(K) int
-}
+func TestShouldRedactContextHeader(t *testing.T) {
+	cases := []struct {
+		key             string
+		hiddenValueKeys map[string]interface{}
+		expected        bool
+	}{
+		{
+			key: "key1",
+			hiddenValueKeys: map[string]interface{}{
+				"key1": true,
+			},
+			expected: true,
+		},
+		{
+			key: "key2",
+			hiddenValueKeys: map[string]interface{}{
+				"key1": true,
+			},
+			expected: false,
+		},
+		{
+			key:             "key3",
+			hiddenValueKeys: map[string]interface{}{},
+			expected:        false,
+		},
+		{
+			key:             "key4",
+			hiddenValueKeys: nil,
+			expected:        false,
+		},
+		{
+			key: "key5",
+			hiddenValueKeys: map[string]interface{}{
+				"key5": "true",
+			},
+			expected: true,
+		},
+	}
 
-func (o *WeightedRoundRobinTaskSchedulerOptions[K]) String() string {
-	return fmt.Sprintf("{QueueSize: %v, DispatcherCount: %v}", o.QueueSize, o.DispatcherCount)
+	for _, c := range cases {
+		result := shouldRedactContextHeader(c.key, c.hiddenValueKeys)
+		if result != c.expected {
+			t.Errorf("shouldRedactContextHeader(%s, %v) = %t; expected %t", c.key, c.hiddenValueKeys, result, c.expected)
+		}
+	}
 }

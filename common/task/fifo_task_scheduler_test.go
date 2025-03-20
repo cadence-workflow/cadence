@@ -124,5 +124,5 @@ func (s *fifoTaskSchedulerSuite) TestTrySubmit() {
 }
 
 func (s *fifoTaskSchedulerSuite) TestSchedulerContract() {
-	testSchedulerContract(s.Assertions, s.controller, s.scheduler)
+	testSchedulerContract(s.Assertions, s.controller, s.scheduler, nil)
 }
