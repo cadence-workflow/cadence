@@ -960,9 +960,9 @@ func TestDeleteHistoryBranch_usedBranchWithGarbageFullyCleanedUp(t *testing.T) {
 
 	expectedNodeFilters := []*nosqlplugin.HistoryNodeFilter{
 		{
-			ShardID:   testShardID,
-			TreeID:    "TestTreeID",
-			BranchID:  "A",
+			ShardID:  testShardID,
+			TreeID:   "TestTreeID",
+			BranchID: "A",
 		},
 		{
 			ShardID:  testShardID,
