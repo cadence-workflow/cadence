@@ -988,7 +988,7 @@ func TestDeleteHistoryBranch_usedBranchWithGarbageFullyCleanedUp(t *testing.T) {
 				},
 			},
 		},
-		// notably TestAncestorBranchID does not exist
+		// notably A does not exist
 	}
 
 	dbMock.EXPECT().SelectFromHistoryTree(gomock.Any(), gomock.Any()).
