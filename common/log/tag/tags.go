@@ -887,6 +887,12 @@ func ReplicationTaskCreationTime(creationTime *int64) Tag {
 	return newInt64("replication-task-creation-time", *creationTime)
 }
 
+// ReplicationTaskBatchSize returns tag for task batch size
+// Should be used to indicate used batch size for replication task processing
+func ReplicationTaskBatchSize(batchSize int) Tag {
+	return newInt("replication-task-batch-size", batchSize)
+}
+
 // /////////////////  Archival tags defined here: archival- ///////////////////
 // archival request tags
 
@@ -1121,4 +1127,9 @@ func Namespace(name string) Tag {
 
 func WorkflowContextLockLatency(duration time.Duration) Tag {
 	return newDurationTag("workflow-context-lock-latency", duration)
+}
+
+// DynamicConfigLinearIteratorSpec is a predefined tag to log dynamic config linear iterator spec
+func DynamicConfigLinearIteratorSpec(spec interface{}) Tag {
+	return newObjectTag("dynamic-config-linear-iterator-spec", spec)
 }

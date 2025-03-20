@@ -2537,6 +2537,7 @@ const (
 	ReplicationTasksReturned
 	ReplicationTasksReturnedDiff
 	ReplicationTasksAppliedLatency
+	ReplicationTasksBatchSize
 	ReplicationDLQFailed
 	ReplicationDLQMaxLevelGauge
 	ReplicationDLQAckLevelGauge
@@ -3246,6 +3247,7 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		ReplicationTasksReturned:                                     {metricName: "replication_tasks_returned", metricType: Timer},
 		ReplicationTasksReturnedDiff:                                 {metricName: "replication_tasks_returned_diff", metricType: Timer},
 		ReplicationTasksAppliedLatency:                               {metricName: "replication_tasks_applied_latency", metricType: Timer},
+		ReplicationTasksBatchSize:                                    {metricName: "replication_tasks_batch_size", metricType: Gauge},
 		ReplicationDLQFailed:                                         {metricName: "replication_dlq_enqueue_failed", metricType: Counter},
 		ReplicationDLQMaxLevelGauge:                                  {metricName: "replication_dlq_max_level", metricType: Gauge},
 		ReplicationDLQAckLevelGauge:                                  {metricName: "replication_dlq_ack_level", metricType: Gauge},
