@@ -115,6 +115,7 @@ func setUpMocks(t *testing.T) (*nosqlHistoryStore, *nosqlplugin.MockDB, *Mocksha
 
 	shardedNosqlStoreMock := NewMockshardedNosqlStore(ctrl)
 	shardedNosqlStoreMock.EXPECT().GetStoreShardByHistoryShard(testShardID).Return(&nosqlSt, nil).AnyTimes()
+	shardedNosqlStoreMock.EXPECT().GetLogger().Return(log.NewNoop()).AnyTimes()
 
 	store := &nosqlHistoryStore{
 		shardedNosqlStore: shardedNosqlStoreMock,
@@ -936,8 +937,6 @@ func TestDeleteHistoryBranch_DeletedAncestor(t *testing.T) {
 func TestDeleteHistoryBranch_usedBranchWithGarbageFullyCleanedUp(t *testing.T) {
 	store, dbMock, _ := setUpMocks(t)
 
-	t.Skipf("not fixed")
-
 	request := &persistence.InternalDeleteHistoryBranchRequest{
 		BranchInfo: types.HistoryBranch{
 			TreeID:   "TestTreeID",
@@ -960,14 +959,15 @@ func TestDeleteHistoryBranch_usedBranchWithGarbageFullyCleanedUp(t *testing.T) {
 
 	expectedNodeFilters := []*nosqlplugin.HistoryNodeFilter{
 		{
-			ShardID:  testShardID,
-			TreeID:   "TestTreeID",
-			BranchID: "A",
+			ShardID:   testShardID,
+			TreeID:    "TestTreeID",
+			BranchID:  "B",
+			MinNodeID: 3,
 		},
 		{
 			ShardID:  testShardID,
 			TreeID:   "TestTreeID",
-			BranchID: "B",
+			BranchID: "A",
 		},
 	}
 
@@ -1087,8 +1087,6 @@ func TestDeleteHistoryBranch_usedBranchWithGarbageFullyCleanedUp(t *testing.T) {
 //	└───────────────────┘     └───────────────────┘
 func TestDeleteHistoryBranch_withAnAncestorBranchWhichIsStillInUse(t *testing.T) {
 	store, dbMock, _ := setUpMocks(t)
-
-	t.Skipf("not fixed")
 
 	request := &persistence.InternalDeleteHistoryBranchRequest{
 		BranchInfo: types.HistoryBranch{
