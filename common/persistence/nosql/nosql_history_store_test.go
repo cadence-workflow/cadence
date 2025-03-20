@@ -527,86 +527,86 @@ func TestDeleteHistoryBranch_unusedBranch(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// | In this base-case scenario, a workflow's been forked a few times, and the
-// | parent / ancestor workflow (branch A) is being removed.
-// |
-// |  Trees
-// |  ┌───────────────────┐    ┌───────────────────┐   ┌────────────────────┐
-// |  │  Tree: 123        │    │  Tree: 123        │   │ Tree: 123          │
-// |  │  Branch: C        │    │  Branch: A        │   │ Branch: B          │
-// |  │  Ancestors:       │    │                   │   │ Ancestors:         │
-// |  │    Branch: A      │    │                   │   │  Branch A          │
-// |  │    EndNode: 3     │    │                   │   │  EndNode: 2        │
-// |  └───────────────────┘    └───────────────────┘   └────────────────────┘
-// |  Nodes
-// |                           ┌───────────────────┐
-// |                           │     Tree: 123     │
-// |                           │     Branch: A     │
-// |                           │     Node: 1       │
-// |                           └─────────┬─────────┘
-// |                                     │
-// |                                     ┼───────────────────────┐
-// |                           ┌─────────▼─────────┐   ┌─────────▼─────────┐
-// |                           │     Tree: 123     │   │     Tree: 123     │
-// |                           │     Branch: A     │   │     Branch: B     │
-// |                           │     Node: 2       │   │     Node: 2       │
-// |                           └─────────┬─────────┘   └─────────┬─────────┘
-// |            ┌────────────────────────┤                       │
-// |            │                        │                       │
-// |  ┌─────────▼─────────┐    ┌─────────▼─────────┐   ┌─────────▼─────────┐
-// |  │     Tree: 123     │    │     Tree: 123     │   │     Tree: 123     │
-// |  │     Branch: C     │    │     Branch: A     │   │     Branch: B     │
-// |  │     Node: 3       │    │     Node: 3       │   │     Node: 3       │
-// |  └─────────┬─────────┘    └─────────┬─────────┘   └─────────┬─────────┘
-// |            │                        │                       │
-// |            │                        │                       │
-// |  ┌─────────▼─────────┐    ┌─────────▼─────────┐   ┌─────────▼─────────┐
-// |  │     Tree: 123     │    │     Tree: 123     │   │     Tree: 123     │
-// |  │     Branch: C     │    │     Branch: A     │   │     Branch: B     │
-// |  │     Node: 4       │    │     Node: 4       │   │     Node: 4       │
-// |  └───────────────────┘    └───────────────────┘   └───────────────────┘
+//	 In this base-case scenario, a workflow's been forked a few times, and the
+//	 parent / ancestor workflow (branch A) is being removed.
 //
-// | The Expected behaviour is that the tree and unused nodes are trimmed off
-// | but the referenced nodes from other branches are kept so those workflows
-// | aren't broken.
-// |
-// |           Trees
-// |
-// |           ┌───────────────────┐    ┌─ ─ ─ ─ ─ ─ ─ ─ ─ ─┐   ┌────────────────────┐
-// |           │  Tree: 123        │                            │ Tree: 123          │
-// |           │  Branch: C        │    │  <deleted>        │   │ Branch: B          │
-// |           │  Ancestors:       │                            │ Ancestors:         │
-// |           │    Branch: A      │    │                   │   │  Branch A          │
-// |           │    EndNode: 3     │                            │  EndNode: 2        │
-// |           └───────────────────┘    └─ ─ ─ ─ ─ ─ ─ ─ ─ ─┘   └────────────────────┘
-// |
-// |           Nodes
-// |                                    ┌───────────────────┐
-// |                                    │     Tree: 123     │
-// |                                    │     Branch: A     │
-// |                                    │     Node: 1       │
-// |                                    └─────────┬─────────┘
-// |                                              │
-// |                                              ┼───────────────────────┐
-// |                                    ┌─────────▼─────────┐   ┌─────────▼─────────┐
-// |                                    │     Tree: 123     │   │     Tree: 123     │
-// |                                    │     Branch: A     │   │     Branch: B     │
-// |                                    │     Node: 2       │   │     Node: 2       │
-// |                                    └─────────┬─────────┘   └─────────┬─────────┘
-// |                     ┌────────────────────────┤                       │
-// |                     │                        │                       │
-// |           ┌─────────▼─────────┐    ┌─ ─ ─ ─ ─▼ ─ ─ ─ ─ ┐   ┌─────────▼─────────┐
-// |           │     Tree: 123     │                            │     Tree: 123     │
-// |           │     Branch: C     │    │ <deleted>         │   │     Branch: B     │
-// |           │     Node: 3       │                            │     Node: 3       │
-// |           └─────────┬─────────┘    └─ ─ ─ ─ ─┐ ─ ─ ─ ─ ┘   └─────────┬─────────┘
-// |                     │                        │                       │
-// |                     │                        │                       │
-// |           ┌─────────▼─────────┐    ┌─ ─ ─ ─ ─▼ ─ ─ ─ ─ ┐   ┌─────────▼─────────┐
-// |           │     Tree: 123     │                            │     Tree: 123     │
-// |           │     Branch: C     │    │ <deleted>         │   │     Branch: B     │
-// |           │     Node: 4       │                            │     Node: 4       │
-// |           └───────────────────┘    └─ ─ ─ ─ ── ─ ─ ─ ─ ┘   └───────────────────┘
+//	  Trees
+//	  ┌───────────────────┐    ┌───────────────────┐   ┌────────────────────┐
+//	  │  Tree: 123        │    │  Tree: 123        │   │ Tree: 123          │
+//	  │  Branch: C        │    │  Branch: A        │   │ Branch: B          │
+//	  │  Ancestors:       │    │                   │   │ Ancestors:         │
+//	  │    Branch: A      │    │                   │   │  Branch A          │
+//	  │    EndNode: 3     │    │                   │   │  EndNode: 2        │
+//	  └───────────────────┘    └───────────────────┘   └────────────────────┘
+//	  Nodes
+//	                           ┌───────────────────┐
+//	                           │     Tree: 123     │
+//	                           │     Branch: A     │
+//	                           │     Node: 1       │
+//	                           └─────────┬─────────┘
+//	                                     │
+//	                                     ┼───────────────────────┐
+//	                           ┌─────────▼─────────┐   ┌─────────▼─────────┐
+//	                           │     Tree: 123     │   │     Tree: 123     │
+//	                           │     Branch: A     │   │     Branch: B     │
+//	                           │     Node: 2       │   │     Node: 2       │
+//	                           └─────────┬─────────┘   └─────────┬─────────┘
+//	            ┌────────────────────────┤                       │
+//	            │                        │                       │
+//	  ┌─────────▼─────────┐    ┌─────────▼─────────┐   ┌─────────▼─────────┐
+//	  │     Tree: 123     │    │     Tree: 123     │   │     Tree: 123     │
+//	  │     Branch: C     │    │     Branch: A     │   │     Branch: B     │
+//	  │     Node: 3       │    │     Node: 3       │   │     Node: 3       │
+//	  └─────────┬─────────┘    └─────────┬─────────┘   └─────────┬─────────┘
+//	            │                        │                       │
+//	            │                        │                       │
+//	  ┌─────────▼─────────┐    ┌─────────▼─────────┐   ┌─────────▼─────────┐
+//	  │     Tree: 123     │    │     Tree: 123     │   │     Tree: 123     │
+//	  │     Branch: C     │    │     Branch: A     │   │     Branch: B     │
+//	  │     Node: 4       │    │     Node: 4       │   │     Node: 4       │
+//	  └───────────────────┘    └───────────────────┘   └───────────────────┘
+//
+//	 The Expected behaviour is that the tree and unused nodes are trimmed off
+//	 but the referenced nodes from other branches are kept so those workflows
+//	 aren't broken.
+//
+//	           Trees
+//
+//	           ┌───────────────────┐    ┌─ ─ ─ ─ ─ ─ ─ ─ ─ ─┐   ┌────────────────────┐
+//	           │  Tree: 123        │                            │ Tree: 123          │
+//	           │  Branch: C        │    │  <deleted>        │   │ Branch: B          │
+//	           │  Ancestors:       │                            │ Ancestors:         │
+//	           │    Branch: A      │    │                   │   │  Branch A          │
+//	           │    EndNode: 3     │                            │  EndNode: 2        │
+//	           └───────────────────┘    └─ ─ ─ ─ ─ ─ ─ ─ ─ ─┘   └────────────────────┘
+//
+//	           Nodes
+//	                                    ┌───────────────────┐
+//	                                    │     Tree: 123     │
+//	                                    │     Branch: A     │
+//	                                    │     Node: 1       │
+//	                                    └─────────┬─────────┘
+//	                                              │
+//	                                              ┼───────────────────────┐
+//	                                    ┌─────────▼─────────┐   ┌─────────▼─────────┐
+//	                                    │     Tree: 123     │   │     Tree: 123     │
+//	                                    │     Branch: A     │   │     Branch: B     │
+//	                                    │     Node: 2       │   │     Node: 2       │
+//	                                    └─────────┬─────────┘   └─────────┬─────────┘
+//	                     ┌────────────────────────┤                       │
+//	                     │                        │                       │
+//	           ┌─────────▼─────────┐    ┌─ ─ ─ ─ ─▼ ─ ─ ─ ─ ┐   ┌─────────▼─────────┐
+//	           │     Tree: 123     │                            │     Tree: 123     │
+//	           │     Branch: C     │    │ <deleted>         │   │     Branch: B     │
+//	           │     Node: 3       │                            │     Node: 3       │
+//	           └─────────┬─────────┘    └─ ─ ─ ─ ─┐ ─ ─ ─ ─ ┘   └─────────┬─────────┘
+//	                     │                        │                       │
+//	                     │                        │                       │
+//	           ┌─────────▼─────────┐    ┌─ ─ ─ ─ ─▼ ─ ─ ─ ─ ┐   ┌─────────▼─────────┐
+//	           │     Tree: 123     │                            │     Tree: 123     │
+//	           │     Branch: C     │    │ <deleted>         │   │     Branch: B     │
+//	           │     Node: 4       │                            │     Node: 4       │
+//	           └───────────────────┘    └─ ─ ─ ─ ── ─ ─ ─ ─ ┘   └───────────────────┘
 
 func TestDeleteHistoryBranchWithAFewBranches_baseCase(t *testing.T) {
 
@@ -679,92 +679,92 @@ func TestDeleteHistoryBranchWithAFewBranches_baseCase(t *testing.T) {
 
 }
 
-// | In this scenario, Branch A has already been deleted, but is referenced by
-// | a couple of other branches.
-// |
-// | In this scenario Branch B is being deleted.
-// |
-// | Given the following starting state:
-// |
-// |	Trees
-// |
-// |   ┌───────────────────┐    ┌─ ─ ─ ─ ─ ─ ─ ─ ─ ─┐   ┌────────────────────┐
-// |   │  Tree: 123        │                            │ Tree: 123          │
-// |   │  Branch: C        │    │  <branch A is     │   │ Branch: B          │
-// |   │  Ancestors:       │        deleted>            │ Ancestors:         │
-// |   │    Branch: A      │    │                   │   │  Branch A          │
-// |   │    EndNode: 3     │                            │  EndNode: 2        │
-// |   └───────────────────┘    └─ ─ ─ ─ ─ ─ ─ ─ ─ ─┘   └────────────────────┘
-// |
-// |    Nodes
-// |
-// |	                        ┌───────────────────┐
-// |	                        │     Tree: 123     │
-// |	                        │     Branch: A     │
-// |	                        │     Node: 1       │
-// |	                        └─────────┬─────────┘
-// |	                                  │
-// |	                                  ┼───────────────────────┐
-// |	                        ┌─────────▼─────────┐   ┌─────────▼─────────┐
-// |	                        │     Tree: 123     │   │     Tree: 123     │
-// |	                        │     Branch: A     │   │     Branch: B     │
-// |	                        │     Node: 2       │   │     Node: 2       │
-// |	                        └─────────┬─────────┘   └─────────┬─────────┘
-// |	         ┌────────────────────────┘                       │
-// |	         │                                                │
-// |   ┌─────────▼─────────┐                            ┌─────────▼─────────┐
-// |   │     Tree: 123     │                            │     Tree: 123     │
-// |   │     Branch: C     │                            │     Branch: B     │
-// |   │     Node: 3       │                            │     Node: 3       │
-// |   └─────────┬─────────┘                            └─────────┬─────────┘
-// |	         │                                                │
-// |			 │                                                │
-// |   ┌─────────▼─────────┐                            ┌─────────▼─────────┐
-// |   │     Tree: 123     │                            │     Tree: 123     │
-// |   │     Branch: C     │                            │     Branch: B     │
-// |   │     Node: 4       │                            │     Node: 4       │
-// |   └───────────────────┘                            └───────────────────┘
-// |
-// | The following is expected: It preserves the remaining nodes for any dependent
-// | branches.
-// |
-// |	Trees
-// |
-// |	┌───────────────────┐    ┌─ ─ ─ ─ ─ ─ ─ ─ ─ ─┐     ┌─ ─ ─ ─ ─ ─ ─ ─ ─ ─┐
-// |	│  Tree: 123        │
-// |	│  Branch: C        │    │  <branch A is     │     │  <branch B is     │
-// |	│  Ancestors:       │        deleted>                  deleted>
-// |	│    Branch: A      │    │                   │     │                   │
-// |	│    EndNode: 3     │
-// |	└───────────────────┘    └─ ─ ─ ─ ─ ─ ─ ─ ─ ─┘     └─ ─ ─ ─ ─ ─ ─ ─ ─ ─┘
-// |
-// |	Nodes
-// |	                         ┌───────────────────┐
-// |	                         │     Tree: 123     │
-// |	                         │     Branch: A     │
-// |	                         │     Node: 1       │
-// |	                         └─────────┬─────────┘
-// |	                                   │
-// |	                                   ┼
-// |	                         ┌─────────▼─────────┐
-// |	                         │     Tree: 123     │
-// |	                         │     Branch: A     │
-// |	                         │     Node: 2       │
-// |	                         └─────────┬─────────┘
-// |	          ┌────────────────────────┘
-// |	          │
-// |	┌─────────▼─────────┐
-// |	│     Tree: 123     │
-// |	│     Branch: C     │
-// |	│     Node: 3       │
-// |	└─────────┬─────────┘
-// |	          │
-// |	          │
-// |	┌─────────▼─────────┐
-// |	│     Tree: 123     │
-// |	│     Branch: C     │
-// |	│     Node: 4       │
-// |	└───────────────────┘
+// In this scenario, Branch A has already been deleted, but is referenced by
+// a couple of other branches.
+//
+// In this scenario Branch B is being deleted.
+//
+// Given the following starting state:
+//
+//	Trees
+//
+//	 ┌───────────────────┐    ┌─ ─ ─ ─ ─ ─ ─ ─ ─ ─┐   ┌────────────────────┐
+//	 │  Tree: 123        │                            │ Tree: 123          │
+//	 │  Branch: C        │    │  <branch A is     │   │ Branch: B          │
+//	 │  Ancestors:       │        deleted>            │ Ancestors:         │
+//	 │    Branch: A      │    │                   │   │  Branch A          │
+//	 │    EndNode: 3     │                            │  EndNode: 2        │
+//	 └───────────────────┘    └─ ─ ─ ─ ─ ─ ─ ─ ─ ─┘   └────────────────────┘
+//
+//	  Nodes
+//
+//	                        ┌───────────────────┐
+//	                        │     Tree: 123     │
+//	                        │     Branch: A     │
+//	                        │     Node: 1       │
+//	                        └─────────┬─────────┘
+//	                                  │
+//	                                  ┼─────────────────────────┐
+//	                        ┌─────────▼─────────┐     ┌─────────▼─────────┐
+//	                        │     Tree: 123     │     │     Tree: 123     │
+//	                        │     Branch: A     │     │     Branch: B     │
+//	                        │     Node: 2       │     │     Node: 2       │
+//	                        └─────────┬─────────┘     └─────────┬─────────┘
+//	         ┌────────────────────────┘                         │
+//	         │                                                  │
+//	 ┌─────────▼─────────┐                            ┌─────────▼─────────┐
+//	 │     Tree: 123     │                            │     Tree: 123     │
+//	 │     Branch: C     │                            │     Branch: B     │
+//	 │     Node: 3       │                            │     Node: 3       │
+//	 └─────────┬─────────┘                            └─────────┬─────────┘
+//	           │                                                │
+//	           │                                                │
+//	 ┌─────────▼─────────┐                            ┌─────────▼─────────┐
+//	 │     Tree: 123     │                            │     Tree: 123     │
+//	 │     Branch: C     │                            │     Branch: B     │
+//	 │     Node: 4       │                            │     Node: 4       │
+//	 └───────────────────┘                            └───────────────────┘
+//
+// The following is expected: It preserves the remaining nodes for any dependent
+// branches.
+//
+//	Trees
+//
+//	┌───────────────────┐    ┌─ ─ ─ ─ ─ ─ ─ ─ ─ ─┐     ┌─ ─ ─ ─ ─ ─ ─ ─ ─ ─┐
+//	│  Tree: 123        │
+//	│  Branch: C        │    │  <branch A is     │     │  <branch B is     │
+//	│  Ancestors:       │        deleted>                  deleted>
+//	│    Branch: A      │    │                   │     │                   │
+//	│    EndNode: 3     │
+//	└───────────────────┘    └─ ─ ─ ─ ─ ─ ─ ─ ─ ─┘     └─ ─ ─ ─ ─ ─ ─ ─ ─ ─┘
+//
+//	Nodes
+//	                         ┌───────────────────┐
+//	                         │     Tree: 123     │
+//	                         │     Branch: A     │
+//	                         │     Node: 1       │
+//	                         └─────────┬─────────┘
+//	                                   │
+//	                                   ┼
+//	                         ┌─────────▼─────────┐
+//	                         │     Tree: 123     │
+//	                         │     Branch: A     │
+//	                         │     Node: 2       │
+//	                         └─────────┬─────────┘
+//	          ┌────────────────────────┘
+//	          │
+//	┌─────────▼─────────┐
+//	│     Tree: 123     │
+//	│     Branch: C     │
+//	│     Node: 3       │
+//	└─────────┬─────────┘
+//	          │
+//	          │
+//	┌─────────▼─────────┐
+//	│     Tree: 123     │
+//	│     Branch: C     │
+//	│     Node: 4       │
+//	└───────────────────┘
 func TestDeleteHistoryBranch_DeletedAncestor(t *testing.T) {
 	store, dbMock, _ := setUpMocks(t)
 
@@ -814,7 +814,7 @@ func TestDeleteHistoryBranch_DeletedAncestor(t *testing.T) {
 			BranchID: "B",
 			Ancestors: []*types.HistoryBranchRange{
 				{
-					BranchID:    "TestAncestorBranchID",
+					BranchID:    "A",
 					BeginNodeID: 0,
 					EndNodeID:   2,
 				},
@@ -842,100 +842,101 @@ func TestDeleteHistoryBranch_DeletedAncestor(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// |  In this scenario, something like the following has happened:
-// |  There was a normal, original workflow, which was then branched (perhaps by a reset).
-// |  By the time the child workflow is being cleaned up, the parent workflow has been deleted already,
-// |  and does not exist in the history_tree table as a valid branch.
-// |
-// |  In this scenario, branch B is being deleted. Notably, Branch B is the *last*
-// |  valid branch for this tree, whereas the ancestor branches were removed earlier.
-// |
-// | 		Trees
-// |
-// | 		┌─ ─ ─ ─ ─ ─ ─ ─ ─ ─┐    ┌───────────────────┐
-// | 		                         │  Tree: 123        │
-// | 		│  <branch A is     │    │  Branch: B        │
-// | 		    deleted>             │  Ancestors:       │
-// | 		│                   │    │    Branch: A      │
-// | 		                         │    EndNode: 3     │
-// | 		└─ ─ ─ ─ ─ ─ ─ ─ ─ ─┘    └───────────────────┘
-// |
-// |
-// | 		Nodes
-// |
-// | 		┌───────────────────┐
-// | 		│     Tree: 123     │
-// | 		│     Branch: A     │
-// | 		│     Node: 1       │
-// | 		└─────────┬─────────┘
-// | 		          │
-// | 		┌─────────┼─────────┐
-// | 		│     Tree: 123     │
-// | 		│     Branch: A     │
-// | 		│     Node: 2       │
-// | 		└─────────┬─────────┘
-// | 	              ┼────────────────────────┐
-// | 								           │
-// | 								           │
-// | 								 ┌─────────▼─────────┐
-// | 								 │     Tree: 123     │
-// | 								 │     Branch: B     │
-// | 								 │     Node: 3       │
-// | 								 └─────────┬─────────┘
-// | 								           │
-// | 								           │
-// | 								 ┌─────────▼─────────┐
-// | 								 │     Tree: 123     │
-// | 								 │     Branch: B     │
-// | 								 │     Node: 4       │
-// | 								 └───────────────────┘
-// |
-// |  The expected behaviour, is that the child/branched workflow needs to clean up both its own history nodes
-// |  but *all* of the parent's remaining and now unreferenced history nodes. They're otherwise unreachable
-// |  and will be just history_node table garbage which forever grows.
-// |
-// | 	Trees
-// |
-// | 	┌─ ─ ─ ─ ─ ─ ─ ─ ─ ─┐    ┌─ ─ ─ ─ ─ ─ ─ ─ ─ ─┐
-// | 	                         │                   │
-// | 	│  <branch A is     │
-// | 	    deleted>             │   deleted>        │
-// | 	│                   │
-// | 	                         │                   │
-// | 	└─ ─ ─ ─ ─ ─ ─ ─ ─ ─┘    └─ ─ ─ ─ ─ ─ ─ ─ ─ ─┘
-// |
-// |
-// | 	Nodes
-// |
-// | 	┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
-// | 	│                   │
-// | 	│  <deleted>        │
-// | 	│                   │
-// | 	└ ─ ─ ─ ─ ┌ ─ ─ ─ ─ ┘
-// | 	          │
-// | 	          ┼ ─ ─ ─ ─ ── ─ ── ─ ─ ── ┐
-// | 	┌ ─ ─ ─ ─ ▼ ─ ─ ─ ─ ┐    ┌─ ─ ─ ── ┼─ ─ ─ ─ ─┐
-// | 	│                   │    │                   │
-// | 	│  <deleted>        │    │  <deleted>        │
-// | 	│                   │    │                   │
-// | 	└ ─ ─ ─ ─ ┌ ─ ─ ─ ─ ┘    └─ ─ ─ ── ┌─ ─ ─ ─ ─┘
-// | 	          │                        │
-// | 	          │                        │
-// | 	┌ ─ ─ ─ ─ ▼ ─ ─ ─ ─ ┐    ┌─ ─ ─ ── ▼─ ─ ─ ─ ─┐
-// | 	│                   │    │                   │
-// | 	│  <deleted>        │    │ <deleted>         │
-// | 	│                   │    │                   │
-// | 	└ ─ ─ ─ ─ ┌ ─ ─ ─ ─ ┘    └─ ─ ─ ── ┌─ ─ ─ ─ ─┘
-// | 	          │                        │
-// | 	          │                        │
-// | 	┌ ─ ─ ─ ─ ▼ ─ ─ ─ ─ ┐    ┌─ ─ ─ ── ▼─ ─ ─ ─ ─┐
-// | 	│                   │    │                   │
-// | 	│  <deleted>        │    │ <deleted>         │
-// | 	│                   │    │                   │
-// | 	└ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘    └─ ─ ─ ── ── ─ ─ ─ ─┘
+// In this scenario, something like the following has happened:
+// There was a normal, original workflow, which was then branched (perhaps by a reset).
+// By the time the workflow is being cleaned up, the ancestor branch has been deleted already,
+// and does not exist in the history_tree table as a valid branch.
+//
+// In this scenario, branch B is being deleted. Notably, Branch B is the *last*
+// valid branch for this tree, whereas the ancestor branches were removed earlier.
+//
+//	 Trees
+//
+//	 ┌─ ─ ─ ─ ─ ─ ─ ─ ─ ─┐    ┌───────────────────┐
+//	                          │  Tree: 123        │
+//	 │  <branch A is     │    │  Branch: B        │
+//	     deleted>             │  Ancestors:       │
+//	 │                   │    │    Branch: A      │
+//	                          │    EndNode: 3     │
+//	 └─ ─ ─ ─ ─ ─ ─ ─ ─ ─┘    └───────────────────┘
+//
+//
+//	 Nodes
+//
+//	 ┌───────────────────┐
+//	 │     Tree: 123     │
+//	 │     Branch: A     │
+//	 │     Node: 1       │
+//	 └─────────┬─────────┘
+//	           │
+//	 ┌─────────┼─────────┐
+//	 │     Tree: 123     │
+//	 │     Branch: A     │
+//	 │     Node: 2       │
+//	 └─────────┬─────────┘
+//	           ┼────────────────────────┐
+//	                                    │
+//	                                    │
+//	                          ┌─────────▼─────────┐
+//	                          │     Tree: 123     │
+//	                          │     Branch: B     │
+//	                          │     Node: 3       │
+//	                          └─────────┬─────────┘
+//	                                    │
+//	                                    │
+//	                          ┌─────────▼─────────┐
+//	                          │     Tree: 123     │
+//	                          │     Branch: B     │
+//	                          │     Node: 4       │
+//	                          └───────────────────┘
+//
+//	The expected behaviour, is that the child/branched workflow needs to clean up both its own history nodes
+//	but *all* of the parent's remaining and now unreferenced history nodes. They're otherwise unreachable
+//	and will be just history_node table garbage which forever grows.
+//
+//	 Trees
+//
+//	 ┌─ ─ ─ ─ ─ ─ ─ ─ ─ ─┐    ┌─ ─ ─ ─ ─ ─ ─ ─ ─ ─┐
+//	                          │                   │
+//	 │  <branch A is     │
+//	     deleted>             │   deleted>        │
+//	 │                   │
+//	                          │                   │
+//	 └─ ─ ─ ─ ─ ─ ─ ─ ─ ─┘    └─ ─ ─ ─ ─ ─ ─ ─ ─ ─┘
+//
+//
+//	 Nodes
+//
+//	 ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
+//	 │                   │
+//	 │  <deleted>        │
+//	 │                   │
+//	 └ ─ ─ ─ ─ ┌ ─ ─ ─ ─ ┘
+//	           │
+//	 ┌ ─ ─ ─ ─ ▼ ─ ─ ─ ─ ┐
+//	 │                   │
+//	 │  <deleted>        │
+//	 │                   │
+//	 └ ─ ─ ─ ─ ┌ ─ ─ ─ ─ ┘
+//	           │
+//	           ┼ ─ ─ ─ ─ ── ─ ── ─ ─ ── ┐
+//	           │                        │
+//	 ┌ ─ ─ ─ ─ ▼ ─ ─ ─ ─ ┐    ┌─ ─ ─ ── ▼─ ─ ─ ─ ─┐
+//	 │                   │    │                   │
+//	 │  <deleted>        │    │ <deleted>         │
+//	 │                   │    │                   │
+//	 └ ─ ─ ─ ─ ┌ ─ ─ ─ ─ ┘    └─ ─ ─ ── ┌─ ─ ─ ─ ─┘
+//	           │                        │
+//	           │                        │
+//	 ┌ ─ ─ ─ ─ ▼ ─ ─ ─ ─ ┐    ┌─ ─ ─ ── ▼─ ─ ─ ─ ─┐
+//	 │                   │    │                   │
+//	 │  <deleted>        │    │ <deleted>         │
+//	 │                   │    │                   │
+//	 └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘    └─ ─ ─ ── ── ─ ─ ─ ─┘
 func TestDeleteHistoryBranch_usedBranch(t *testing.T) {
-	t.Skip("not implemented yet")
 	store, dbMock, _ := setUpMocks(t)
+
+	t.Skipf("not fixed")
 
 	request := &persistence.InternalDeleteHistoryBranchRequest{
 		BranchInfo: types.HistoryBranch{
@@ -997,98 +998,98 @@ func TestDeleteHistoryBranch_usedBranch(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// | In this scenario, there's a few branches of a normal workflow. In this example, both history_trees exist
-// | and the original branch has not yet been deleted, and (for whatever reason, the second branch is being removed
-// | before the original/parent (it's not super obvious this might happen, but it's forseeable with deletion jitter
-// | or maybe failover scenarios where this might happen).
-// |
-// | In this scenario, branch B is being deleted.
-// |
-// |	Trees
-// |
-// |	┌───────────────────┐    ┌───────────────────┐   ┌────────────────────┐
-// |	│  Tree: 123        │    │  Tree: 123        │   │ Tree: 123          │
-// |	│  Branch: C        │    │  Branch: A        │   │ Branch: B          │
-// |	│  Ancestors:       │    │                   │   │ Ancestors:         │
-// |	│    Branch: A      │    │                   │   │  Branch A          │
-// |	│    Endnode: 3     │    │                   │   │  EndNode: 2        │
-// |	└───────────────────┘    └───────────────────┘   └────────────────────┘
-// |
-// |	Nodes
-// |
-// |	                         ┌───────────────────┐
-// |	                         │     Tree: 123     │
-// |	                         │     Branch: A     │
-// |	                         │     Node: 1       │
-// |	                         └─────────┬─────────┘
-// |	                                   │
-// |	                                   ┼───────────────────────┐
-// |	                         ┌─────────▼─────────┐   ┌─────────▼─────────┐
-// |	                         │     Tree: 123     │   │     Tree: 123     │
-// |	                         │     Branch: A     │   │     Branch: B     │
-// |	                         │     Node: 2       │   │     Node: 2       │
-// |	                         └─────────┬─────────┘   └─────────┬─────────┘
-// |	          ┌────────────────────────┤                       │
-// |	          │                        │                       │
-// |	┌─────────▼─────────┐    ┌─────────▼─────────┐   ┌─────────▼─────────┐
-// |	│     Tree: 123     │    │     Tree: 123     │   │     Tree: 123     │
-// |	│     Branch: C     │    │     Branch: A     │   │     Branch: B     │
-// |	│     Node: 3       │    │     Node: 3       │   │     Node: 3       │
-// |	└─────────┬─────────┘    └─────────┬─────────┘   └─────────┬─────────┘
-// |	          │                        │                       │
-// |	          │                        │                       │
-// |	┌─────────▼─────────┐    ┌─────────▼─────────┐   ┌─────────▼─────────┐
-// |	│     Tree: 123     │    │     Tree: 123     │   │     Tree: 123     │
-// |	│     Branch: C     │    │     Branch: A     │   │     Branch: B     │
-// |	│     Node: 4       │    │     Node: 4       │   │     Node: 4       │
-// |	└───────────────────┘    └───────────────────┘   └───────────────────┘
-// |
-// | The expected behaviour is that the child/second branch should only clean up it's history nodes, but
-// | leave the parents alone, so as to not break the parent.
-// |
-// |	Trees
-// |
-// |	┌───────────────────┐     ┌───────────────────┐     ┌─ ─ ─ ─ ─ ─ ─ ─ ─ ─┐
-// |	│  Tree: 123        │     │  Tree: 123        │
-// |	│  Branch: C        │     │  Branch: A        │     │  <branch B is     │
-// |	│  Ancestors:       │     │                   │         deleted>
-// |	│    Branch: A      │     │                   │     │                   │
-// |	│    EndNode: 2     │     │                   │
-// |	└───────────────────┘     └───────────────────┘     └─ ─ ─ ─ ─ ─ ─ ─ ─ ─┘
-// |
-// |
-// |	Nodes
-// |
-// |	                          ┌───────────────────┐
-// |	                          │     Tree: 123     │
-// |	                          │     Branch: A     │
-// |	                          │     Node: 1       │
-// |	                          └─────────┬─────────┘
-// |	                                    │
-// |	                                    ┼
-// |	                          ┌─────────▼─────────┐
-// |	                          │     Tree: 123     │
-// |	                          │     Branch: A     │
-// |	                          │     Node: 2       │
-// |	                          └─────────┬─────────┘
-// |	          ┌─────────────────────────┤
-// |	          │                         │
-// |	┌─────────▼─────────┐     ┌─────────▼─────────┐
-// |	│     Tree: 123     │     │     Tree: 123     │
-// |	│     Branch: C     │     │     Branch: A     │
-// |	│     Node: 3       │     │     Node: 3       │
-// |	└─────────┬─────────┘     └─────────┬─────────┘
-// |	          │                         │
-// |	          │                         │
-// |	┌─────────▼─────────┐     ┌─────────▼─────────┐
-// |	│     Tree: 123     │     │     Tree: 123     │
-// |	│     Branch: C     │     │     Branch: A     │
-// |	│     Node: 4       │     │     Node: 4       │
-// |	└───────────────────┘     └───────────────────┘
+// In this scenario, there's a few branches of a normal workflow. In this example, both history_trees exist
+// and the original branch has not yet been deleted, and (for whatever reason, the second branch is being removed
+// before the original/parent (it's not super obvious this might happen, but it's forseeable with deletion jitter
+// or maybe failover scenarios where this might happen).
+//
+// In this scenario, branch B is being deleted.
+//
+//	Trees
+//
+//	┌───────────────────┐    ┌───────────────────┐   ┌────────────────────┐
+//	│  Tree: 123        │    │  Tree: 123        │   │ Tree: 123          │
+//	│  Branch: C        │    │  Branch: A        │   │ Branch: B          │
+//	│  Ancestors:       │    │                   │   │ Ancestors:         │
+//	│    Branch: A      │    │                   │   │  Branch A          │
+//	│    Endnode: 3     │    │                   │   │  EndNode: 2        │
+//	└───────────────────┘    └───────────────────┘   └────────────────────┘
+//
+//	Nodes
+//
+//	                         ┌───────────────────┐
+//	                         │     Tree: 123     │
+//	                         │     Branch: A     │
+//	                         │     Node: 1       │
+//	                         └─────────┬─────────┘
+//	                                   │
+//	                                   ┼───────────────────────┐
+//	                         ┌─────────▼─────────┐   ┌─────────▼─────────┐
+//	                         │     Tree: 123     │   │     Tree: 123     │
+//	                         │     Branch: A     │   │     Branch: B     │
+//	                         │     Node: 2       │   │     Node: 2       │
+//	                         └─────────┬─────────┘   └─────────┬─────────┘
+//	          ┌────────────────────────┤                       │
+//	          │                        │                       │
+//	┌─────────▼─────────┐    ┌─────────▼─────────┐   ┌─────────▼─────────┐
+//	│     Tree: 123     │    │     Tree: 123     │   │     Tree: 123     │
+//	│     Branch: C     │    │     Branch: A     │   │     Branch: B     │
+//	│     Node: 3       │    │     Node: 3       │   │     Node: 3       │
+//	└─────────┬─────────┘    └─────────┬─────────┘   └─────────┬─────────┘
+//	          │                        │                       │
+//	          │                        │                       │
+//	┌─────────▼─────────┐    ┌─────────▼─────────┐   ┌─────────▼─────────┐
+//	│     Tree: 123     │    │     Tree: 123     │   │     Tree: 123     │
+//	│     Branch: C     │    │     Branch: A     │   │     Branch: B     │
+//	│     Node: 4       │    │     Node: 4       │   │     Node: 4       │
+//	└───────────────────┘    └───────────────────┘   └───────────────────┘
+//
+// The expected behaviour is that the child/second branch should only clean up it's history nodes, but
+// leave the parents alone, so as to not break the parent.
+//
+//	Trees
+//
+//	┌───────────────────┐     ┌───────────────────┐     ┌─ ─ ─ ─ ─ ─ ─ ─ ─ ─┐
+//	│  Tree: 123        │     │  Tree: 123        │
+//	│  Branch: C        │     │  Branch: A        │     │  <branch B is     │
+//	│  Ancestors:       │     │                   │         deleted>
+//	│    Branch: A      │     │                   │     │                   │
+//	│    EndNode: 2     │     │                   │
+//	└───────────────────┘     └───────────────────┘     └─ ─ ─ ─ ─ ─ ─ ─ ─ ─┘
+//
+//
+//	Nodes
+//
+//	                          ┌───────────────────┐
+//	                          │     Tree: 123     │
+//	                          │     Branch: A     │
+//	                          │     Node: 1       │
+//	                          └─────────┬─────────┘
+//	                                    │
+//	                                    ┼
+//	                          ┌─────────▼─────────┐
+//	                          │     Tree: 123     │
+//	                          │     Branch: A     │
+//	                          │     Node: 2       │
+//	                          └─────────┬─────────┘
+//	          ┌─────────────────────────┤
+//	          │                         │
+//	┌─────────▼─────────┐     ┌─────────▼─────────┐
+//	│     Tree: 123     │     │     Tree: 123     │
+//	│     Branch: C     │     │     Branch: A     │
+//	│     Node: 3       │     │     Node: 3       │
+//	└─────────┬─────────┘     └─────────┬─────────┘
+//	          │                         │
+//	          │                         │
+//	┌─────────▼─────────┐     ┌─────────▼─────────┐
+//	│     Tree: 123     │     │     Tree: 123     │
+//	│     Branch: C     │     │     Branch: A     │
+//	│     Node: 4       │     │     Node: 4       │
+//	└───────────────────┘     └───────────────────┘
 func TestDeleteHistoryBranch_withAnAncestorBranchWhichIsStillInUse(t *testing.T) {
 	store, dbMock, _ := setUpMocks(t)
 
-	t.Skipf("not implmemented yet")
+	t.Skipf("not fixed")
 
 	request := &persistence.InternalDeleteHistoryBranchRequest{
 		BranchInfo: types.HistoryBranch{
