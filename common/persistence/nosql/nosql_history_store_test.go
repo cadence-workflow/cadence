@@ -963,7 +963,6 @@ func TestDeleteHistoryBranch_usedBranchWithGarbageFullyCleanedUp(t *testing.T) {
 			ShardID:   testShardID,
 			TreeID:    "TestTreeID",
 			BranchID:  "A",
-			MinNodeID: 3,
 		},
 		{
 			ShardID:  testShardID,
