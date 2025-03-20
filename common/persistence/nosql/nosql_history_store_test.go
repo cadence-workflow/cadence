@@ -933,7 +933,7 @@ func TestDeleteHistoryBranch_DeletedAncestor(t *testing.T) {
 //	 │  <deleted>        │    │ <deleted>         │
 //	 │                   │    │                   │
 //	 └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘    └─ ─ ─ ── ── ─ ─ ─ ─┘
-func TestDeleteHistoryBranch_usedBranch(t *testing.T) {
+func TestDeleteHistoryBranch_usedBranchWithGarbageFullyCleanedUp(t *testing.T) {
 	store, dbMock, _ := setUpMocks(t)
 
 	t.Skipf("not fixed")

@@ -403,7 +403,7 @@ func (h *nosqlHistoryStore) DeleteHistoryBranch(
 	validBRsMaxEndNode := persistenceutils.GetBranchesMaxReferredNodeIDs(rsp.Branches)
 
 	// Todo (david.porter) handle the case of the history nodes being left over
-	// in the last branch (see unit test being skipped).
+	// in the last branch (see unit test TestDeleteHistoryBranch_usedBranchWithGarbageFullyCleanedUp).
 	//
 	// Todo (david.porter) handle the case of out of order deletions where the
 	// ancestor branch is still 'valid' or being deleted after, and this
