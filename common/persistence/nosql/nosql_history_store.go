@@ -316,37 +316,36 @@ func (h *nosqlHistoryStore) ForkHistoryBranch(
 // For workflows with forked history, they'll reference any nodes they rely on ancestors in the history_tree
 // table. These references are exclusive, ie, the following is true:
 //
-// | --------------+--------------------------------------
-// |  tree_id      | X
-// |  branch_id    | B
-// |  ancestors    | [{branch_id: A, end_node_id: 4}]
-// | --------------+--------------------------------------
-// |  tree_id      | X
-// |  branch_id    | A
-// |  ancestors    | null
-// |
-// | Will have nodes arranged like this
-// |
-// |     ┌────────────┐
-// |     │ Branch: A  │
-// |     │ Node:   1  │
-// |     └─────┬──────┘
-// |           │
-// |     ┌─────▼──────┐
-// |     │ Branch: A  │
-// |     │ Node:   2  │
-// |     └─────┬──────┘
-// |           │
-// |     ┌─────▼──────┐
-// |     │ Branch: A  │
-// |     │ Node:   3  ┼────────────┐
-// |     └─────┬──────┘            │
-// |           │                   │
-// |     ┌─────▼──────┐     ┌──────▼─────┐
-// |     │ Branch: A  │     │ Branch: B  │
-// |     │ Node:   4  │     │ Node:   4  │
-// |     └────────────┘     └────────────┘
-// |
+//	--------------+--------------------------------------
+//	 tree_id      | X
+//	 branch_id    | B
+//	 ancestors    | [{branch_id: A, end_node_id: 4}]
+//	--------------+--------------------------------------
+//	 tree_id      | X
+//	 branch_id    | A
+//	 ancestors    | null
+//
+//	Will have nodes arranged like this
+//
+//	    ┌────────────┐
+//	    │ Branch: A  │
+//	    │ Node:   1  │
+//	    └─────┬──────┘
+//	          │
+//	    ┌─────▼──────┐
+//	    │ Branch: A  │
+//	    │ Node:   2  │
+//	    └─────┬──────┘
+//	          │
+//	    ┌─────▼──────┐
+//	    │ Branch: A  │
+//	    │ Node:   3  ┼────────────┐
+//	    └─────┬──────┘            │
+//	          │                   │
+//	    ┌─────▼──────┐     ┌──────▼─────┐
+//	    │ Branch: A  │     │ Branch: B  │
+//	    │ Node:   4  │     │ Node:   4  │
+//	    └────────────┘     └────────────┘
 //
 // The method of cleanup for each branch therefore, is to just remove the nodes that are not in use,
 // nearly-always starting from the oldest branch (the original run) and, later in subsequent invocations,
