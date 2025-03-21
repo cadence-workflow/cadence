@@ -78,6 +78,7 @@ func NewService(
 		params.PersistenceConfig.NumHistoryShards,
 		isAdvancedVisExistInConfig,
 		params.HostName,
+		params.Logger,
 	)
 
 	serviceResource, err := resource.New(

@@ -61,6 +61,7 @@ func (e *historyEngineImpl) ReapplyEvents(
 
 	return workflow.UpdateWithActionFunc(
 		ctx,
+		e.logger,
 		e.executionCache,
 		domainID,
 		currentExecution,
@@ -140,6 +141,7 @@ func (e *historyEngineImpl) ReapplyEvents(
 						wfContext,
 						mutableState,
 						execution.NoopReleaseFn,
+						e.logger,
 					),
 					ndc.EventsReapplicationResetWorkflowReason,
 					toReapplyEvents,

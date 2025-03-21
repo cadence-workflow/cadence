@@ -3115,8 +3115,8 @@ func TestLoadWorkflowExecutionWithTaskVersion(t *testing.T) {
 				mockDomainCache.EXPECT().GetDomainByID(gomock.Any()).Return(cache.NewDomainCacheEntryForTest(&persistence.DomainInfo{
 					Name: "test-domain",
 				}, nil, true, nil, 0, nil, 0, 0, 0), nil)
-				mockMutableState.EXPECT().Load(gomock.Any()).Return(errors.New("some error"))
-				mockMutableState.EXPECT().StartTransaction(gomock.Any(), gomock.Any()).Return(false, errors.New("some error"))
+				mockMutableState.EXPECT().Load(gomock.Any(), gomock.Any()).Return(errors.New("some error"))
+				mockMutableState.EXPECT().StartTransaction(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, errors.New("some error"))
 			},
 			mockGetWorkflowExecutionFn: func(context.Context, *persistence.GetWorkflowExecutionRequest) (*persistence.GetWorkflowExecutionResponse, error) {
 				return &persistence.GetWorkflowExecutionResponse{
@@ -3154,8 +3154,8 @@ func TestLoadWorkflowExecutionWithTaskVersion(t *testing.T) {
 					0,
 					0,
 					0), nil)
-				mockMutableState.EXPECT().Load(gomock.Any()).Return(errors.New("some error"))
-				mockMutableState.EXPECT().StartTransaction(gomock.Any(), gomock.Any()).Return(false, nil)
+				mockMutableState.EXPECT().Load(gomock.Any(), gomock.Any()).Return(errors.New("some error"))
+				mockMutableState.EXPECT().StartTransaction(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil)
 			},
 			mockGetWorkflowExecutionFn: func(context.Context, *persistence.GetWorkflowExecutionRequest) (*persistence.GetWorkflowExecutionResponse, error) {
 				return &persistence.GetWorkflowExecutionResponse{
@@ -3184,9 +3184,9 @@ func TestLoadWorkflowExecutionWithTaskVersion(t *testing.T) {
 				mockDomainCache.EXPECT().GetDomainByID(gomock.Any()).Return(cache.NewDomainCacheEntryForTest(&persistence.DomainInfo{
 					Name: "test-domain",
 				}, nil, true, nil, 0, nil, 0, 0, 0), nil)
-				mockMutableState.EXPECT().Load(gomock.Any()).Return(errors.New("some error"))
-				mockMutableState.EXPECT().StartTransaction(gomock.Any(), gomock.Any()).Return(true, nil)
-				mockMutableState.EXPECT().StartTransaction(gomock.Any(), gomock.Any()).Return(false, nil)
+				mockMutableState.EXPECT().Load(gomock.Any(), gomock.Any()).Return(errors.New("some error"))
+				mockMutableState.EXPECT().StartTransaction(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
+				mockMutableState.EXPECT().StartTransaction(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil)
 				mockShard.EXPECT().GetTimeSource().Return(clock.NewMockedTimeSource())
 			},
 			mockGetWorkflowExecutionFn: func(context.Context, *persistence.GetWorkflowExecutionRequest) (*persistence.GetWorkflowExecutionResponse, error) {

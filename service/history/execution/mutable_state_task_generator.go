@@ -647,6 +647,7 @@ func (r *mutableStateTaskGeneratorImpl) getTargetDomainID(
 	return r.mutableState.GetExecutionInfo().DomainID, nil
 }
 
+// TODO: getTargetCluster was needed for cross-cluster feature. It's deprecated and not used anymore. Delete this function and its callers.
 func getTargetCluster(
 	domainID string,
 	domainCache cache.DomainCache,

@@ -72,7 +72,7 @@ func newTimerQueueStandbyProcessor(
 				return false, nil
 			}
 		}
-		return taskAllocator.VerifyStandbyTask(clusterName, timer.DomainID, timer)
+		return taskAllocator.VerifyStandbyTask(clusterName, timer.DomainID, timer.WorkflowID, timer.RunID, timer)
 	}
 
 	updateMaxReadLevel := func() task.Key {

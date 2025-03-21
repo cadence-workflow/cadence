@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/execution"
@@ -134,6 +135,7 @@ func Load(
 // If the update should always be applied to the current run, use UpdateCurrentWithActionFunc instead.
 func UpdateWithActionFunc(
 	ctx context.Context,
+	logger log.Logger,
 	cache execution.Cache,
 	domainID string,
 	execution types.WorkflowExecution,
@@ -147,7 +149,7 @@ func UpdateWithActionFunc(
 	}
 	defer func() { workflowContext.GetReleaseFn()(retError) }()
 
-	return updateHelper(ctx, workflowContext, now, action)
+	return updateHelper(ctx, logger, workflowContext, now, action)
 }
 
 // UpdateCurrentWithActionFunc updates the given workflow execution or current execution if runID is empty.
@@ -155,6 +157,7 @@ func UpdateWithActionFunc(
 // This function is suitable for the case when the change should always be applied to the current execution.
 func UpdateCurrentWithActionFunc(
 	ctx context.Context,
+	logger log.Logger,
 	cache execution.Cache,
 	executionManager persistence.ExecutionManager,
 	domainID string,
@@ -174,12 +177,13 @@ func UpdateCurrentWithActionFunc(
 	}
 	defer func() { workflowContext.GetReleaseFn()(retError) }()
 
-	return updateHelper(ctx, workflowContext, now, action)
+	return updateHelper(ctx, logger, workflowContext, now, action)
 }
 
 // TODO: deprecate and use UpdateWithActionFunc
 func UpdateWithAction(
 	ctx context.Context,
+	logger log.Logger,
 	cache execution.Cache,
 	domainID string,
 	execution types.WorkflowExecution,
@@ -190,6 +194,7 @@ func UpdateWithAction(
 
 	return UpdateWithActionFunc(
 		ctx,
+		logger,
 		cache,
 		domainID,
 		execution,
@@ -217,6 +222,7 @@ func getUpdateActionFunc(
 
 func updateHelper(
 	ctx context.Context,
+	logger log.Logger,
 	workflowContext Context,
 	now time.Time,
 	action UpdateActionFunc,
@@ -260,6 +266,9 @@ UpdateHistoryLoop:
 			}
 		}
 
+		logger.Debugf("updateHelper calling UpdateWorkflowExecutionAsActive for wfID %s",
+			mutableState.GetExecutionInfo().WorkflowID,
+		)
 		err = workflowContext.GetContext().UpdateWorkflowExecutionAsActive(ctx, now)
 		if _, ok := err.(*persistence.DuplicateRequestError); ok {
 			return nil

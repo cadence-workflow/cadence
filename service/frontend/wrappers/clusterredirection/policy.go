@@ -27,6 +27,7 @@ import (
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/types"
 	frontendcfg "github.com/uber/cadence/service/frontend/config"
 )
@@ -245,18 +246,30 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) isDomainNotActiveErr
 // return two values: the target cluster name, and whether or not forwarding to the active cluster
 func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) getTargetClusterAndIsDomainNotActiveAutoForwarding(ctx context.Context, domainEntry *cache.DomainCacheEntry, apiName string) (string, bool) {
 	if !domainEntry.IsGlobalDomain() {
-		// do not do dc redirection if domain is local domain,
+		// Do not do dc redirection if domain is local domain,
 		// for global domains with 1 dc, it's still useful to do auto-forwarding during cluster migration
 		return policy.currentClusterName, false
 	}
 
 	if !policy.config.EnableDomainNotActiveAutoForwarding(domainEntry.GetInfo().Name) {
-		// do not do dc redirection if auto-forwarding dynamicconfig is not enabled
+		// Do not do dc redirection if auto-forwarding dynamicconfig is not enabled
+		return policy.currentClusterName, false
+	}
+
+	isActiveActive := domainEntry.GetReplicationConfig().IsActiveActive()
+	policy.config.Logger.Debugf("Domain %v is active-active: %v", domainEntry.GetInfo().Name, isActiveActive)
+	if isActiveActive {
+		// Do not do dc redirection at frontend for active-active domains. This is because the activeness of a request requires loading workflow attributes
+		// and looking up ActiveRegionManager, which is not available at frontend.
+		// Let the request reach to history service, which has the necessary information to determine the activeness of the domain. It can do forwarding.
+		// Only a few APIs go from frontend to matching (PollForActivity/Decision, RespondQueryTaskCompleted, CancelOutstandingPoll) and they are not subject to forwarding anyway.
+		policy.config.Logger.Debug("Skipping DC redirection for active-active domain", tag.WorkflowDomainName(domainEntry.GetInfo().Name))
 		return policy.currentClusterName, false
 	}
 
 	currentActiveCluster := domainEntry.GetReplicationConfig().ActiveClusterName
-	if policy.allDomainAPIs {
+
+	if policy.allDomainAPIs { // TODO(taylan): policy.allDomainAPIs is always set to false. get rid of this if branch
 		if policy.targetCluster == "" {
 			return currentActiveCluster, true
 		}

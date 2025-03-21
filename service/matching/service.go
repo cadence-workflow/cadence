@@ -103,6 +103,7 @@ func (s *Service) Start() {
 		s.GetMembershipResolver(),
 		s.GetPartitioner(),
 		s.GetTimeSource(),
+		s.GetActiveClusterManager(),
 	)
 
 	s.handler = handler.NewHandler(engine, s.config, s.GetDomainCache(), s.GetMetricsClient(), s.GetLogger(), s.GetThrottledLogger())

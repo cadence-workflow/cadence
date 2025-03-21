@@ -186,8 +186,8 @@ func newTransactionManager(
 		createManager: nil,
 		updateManager: nil,
 	}
-	transactionManager.createManager = newTransactionManagerForNewWorkflow(transactionManager)
-	transactionManager.updateManager = newTransactionManagerForExistingWorkflow(transactionManager)
+	transactionManager.createManager = newTransactionManagerForNewWorkflow(transactionManager, logger)
+	transactionManager.updateManager = newTransactionManagerForExistingWorkflow(transactionManager, logger)
 	return transactionManager
 }
 
@@ -252,6 +252,13 @@ func (r *transactionManagerImpl) backfillWorkflow(
 	if err != nil {
 		return err
 	}
+
+	r.logger.Debugf("backfillWorkflowEventsReapply calling UpdateWorkflowExecutionWithNew for wfID %s, updateMode %v, current policy %v, new policy %v",
+		targetWorkflow.GetMutableState().GetExecutionInfo().WorkflowID,
+		updateMode,
+		transactionPolicy,
+		nil,
+	)
 
 	return targetWorkflow.GetContext().UpdateWorkflowExecutionWithNew(
 		ctx,
@@ -467,7 +474,7 @@ func (r *transactionManagerImpl) loadNDCWorkflow(
 		release(err)
 		return nil, err
 	}
-	return execution.NewWorkflow(ctx, r.clusterMetadata, context, msBuilder, release), nil
+	return execution.NewWorkflow(ctx, r.clusterMetadata, context, msBuilder, release, r.logger), nil
 }
 
 func (r *transactionManagerImpl) isWorkflowCurrent(

@@ -37,6 +37,7 @@ import (
 	commonConfig "github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -852,6 +853,7 @@ func Test_applyEvents_defaultCase_noErrorBranch(t *testing.T) {
 				releaseFn execution.ReleaseFunc,
 				task replicationTask,
 				r *historyReplicatorImpl,
+				logger log.Logger,
 			) error {
 				return nil
 			}
@@ -1613,6 +1615,7 @@ func Test_applyNonStartEventsToNoneCurrentBranch(t *testing.T) {
 					task replicationTask,
 					transactionManager transactionManager,
 					clusterMetadata cluster.Metadata,
+					logger log.Logger,
 				) error {
 					return nil
 				}
@@ -1652,6 +1655,7 @@ func Test_applyNonStartEventsToNoneCurrentBranch(t *testing.T) {
 					task replicationTask,
 					transactionManager transactionManager,
 					clusterMetadata cluster.Metadata,
+					logger log.Logger,
 				) error {
 					return fmt.Errorf("test error")
 				}
@@ -1680,7 +1684,7 @@ func Test_applyNonStartEventsToNoneCurrentBranch(t *testing.T) {
 			test.mockApplyNonStartEventsWithoutContinueAsNewAffordance(&replicator)
 
 			// Call the function under test
-			err := applyNonStartEventsToNoneCurrentBranch(ctx.Background(), mockExecutionContext, mockMutableState, 1, mockReleaseFn, mockTask, &replicator)
+			err := applyNonStartEventsToNoneCurrentBranch(ctx.Background(), mockExecutionContext, mockMutableState, 1, mockReleaseFn, mockTask, &replicator, replicator.logger)
 
 			// Assertions
 			assert.Equal(t, test.expectError, err)
@@ -1855,6 +1859,7 @@ func Test_applyNonStartEventsToNoneCurrentBranchWithoutContinueAsNew(t *testing.
 				mockTask,
 				mockTransactionManager,
 				cluster.Metadata{},
+				testlogger.New(t),
 			)
 
 			// Assertions

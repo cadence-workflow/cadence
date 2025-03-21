@@ -1048,6 +1048,7 @@ func TestRespondActivityTaskFailed(t *testing.T) {
 				numHistoryShards,
 				false,
 				"hostname",
+				mockResource.GetLogger(),
 			)
 
 			wh := NewWorkflowHandler(mockResource, config, mockVersionChecker, nil)
@@ -1901,6 +1902,7 @@ func (s *workflowHandlerSuite) TestRestartWorkflowExecution__Success() {
 			numHistoryShards,
 			false,
 			"hostname",
+			s.mockResource.GetLogger(),
 		),
 	)
 	ctx := context.Background()
@@ -1967,6 +1969,7 @@ func (s *workflowHandlerSuite) getWorkflowExecutionHistory(nextEventID int64, tr
 			numHistoryShards,
 			false,
 			"hostname",
+			s.mockResource.GetLogger(),
 		),
 	)
 	ctx := context.Background()
@@ -2221,6 +2224,7 @@ func (s *workflowHandlerSuite) newConfig(dynamicClient dc.Client) *frontendcfg.C
 		numHistoryShards,
 		false,
 		"hostname",
+		s.mockResource.GetLogger(),
 	)
 	config.EmitSignalNameMetricsTag = dc.GetBoolPropertyFnFilteredByDomain(true)
 	return config
@@ -3500,6 +3504,7 @@ func TestStartWorkflowExecutionAsync(t *testing.T) {
 				numHistoryShards,
 				false,
 				"hostname",
+				mockResource.GetLogger(),
 			)
 			wh := NewWorkflowHandler(mockResource, cfg, mockVersionChecker, nil)
 			wh.producerManager = mockProducerManager
@@ -3620,6 +3625,7 @@ func TestSignalWithStartWorkflowExecutionAsync(t *testing.T) {
 				numHistoryShards,
 				false,
 				"hostname",
+				mockResource.GetLogger(),
 			)
 			wh := NewWorkflowHandler(mockResource, cfg, mockVersionChecker, nil)
 			wh.producerManager = mockProducerManager
@@ -3732,6 +3738,7 @@ func TestRequestCancelWorkflowExecution(t *testing.T) {
 				numHistoryShards,
 				false,
 				"hostname",
+				mockResource.GetLogger(),
 			)
 			wh := NewWorkflowHandler(mockResource, cfg, mockVersionChecker, nil)
 			wh.shuttingDown = tc.shuttingDown
@@ -3932,6 +3939,7 @@ func TestQueryWorkflow(t *testing.T) {
 				numHistoryShards,
 				false,
 				"hostname",
+				mockResource.GetLogger(),
 			)
 			cfg.BlobSizeLimitError = func(domain string) int { return 10 }
 			cfg.BlobSizeLimitWarn = func(domain string) int { return 9 }
@@ -4057,6 +4065,7 @@ func TestDescribeWorkflowExecution(t *testing.T) {
 				numHistoryShards,
 				false,
 				"hostname",
+				mockResource.GetLogger(),
 			)
 
 			wh := NewWorkflowHandler(mockResource, cfg, mockVersionChecker, nil)

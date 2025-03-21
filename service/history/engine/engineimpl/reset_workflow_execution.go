@@ -170,6 +170,7 @@ func (e *historyEngineImpl) ResetWorkflowExecution(
 			currentContext,
 			currentMutableState,
 			currentReleaseFn,
+			e.logger,
 		),
 		request.GetReason(),
 		nil,

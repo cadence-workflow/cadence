@@ -371,6 +371,7 @@ func (r *workflowResetterImpl) replayResetWorkflow(
 		resetContext,
 		resetMutableState,
 		execution.NoopReleaseFn,
+		r.logger,
 	), nil
 }
 
