@@ -1443,7 +1443,7 @@ const (
 	// WorkflowDeletionJitterRange defines the duration in minutes for workflow close tasks jittering
 	// KeyName: system.workflowDeletionJitterRange
 	// Value type: Int
-	// Default value: 60 (no jittering)
+	// Default value: 60
 	WorkflowDeletionJitterRange
 
 	// SampleLoggingRate defines the rate we want sampled logs to be logged at
