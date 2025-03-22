@@ -118,7 +118,7 @@ func NewCache(shard shard.Context) Cache {
 	opts.MaxCount = config.HistoryCacheMaxSize()
 
 	return &cacheImpl{
-		Cache:            cache.New(opts),
+		Cache:            cache.New(opts, shard.GetLogger().WithTags(tag.ComponentHistoryCache)),
 		shard:            shard,
 		executionManager: shard.GetExecutionManager(),
 		logger:           shard.GetLogger().WithTags(tag.ComponentHistoryCache),

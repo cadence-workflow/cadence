@@ -74,7 +74,7 @@ func NewPollerHistory(historyUpdatedFunc HistoryUpdatedFunc, timeSource clock.Ti
 	}
 
 	return &history{
-		historyCache:         cache.New(opts),
+		historyCache:         cache.New(opts, nil),
 		onHistoryUpdatedFunc: historyUpdatedFunc,
 	}
 }

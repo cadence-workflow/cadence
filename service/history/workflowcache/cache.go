@@ -90,7 +90,7 @@ func New(params Params) WFCache {
 			Pin:           false,
 			MaxCount:      params.MaxCount,
 			ActivelyEvict: true,
-		}),
+		}, params.Logger),
 		externalLimiterFactory: params.ExternalLimiterFactory,
 		internalLimiterFactory: params.InternalLimiterFactory,
 		domainCache:            params.DomainCache,

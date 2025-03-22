@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/dynamicconfig"
 )
 
 type keyType struct {
@@ -37,7 +38,7 @@ type keyType struct {
 }
 
 func TestLRU(t *testing.T) {
-	cache := New(&Options{MaxCount: 5})
+	cache := New(&Options{MaxCount: 5}, nil)
 
 	cache.Put("A", "Foo")
 	assert.Equal(t, "Foo", cache.Get("A"))
@@ -78,7 +79,7 @@ func TestGenerics(t *testing.T) {
 	}
 	value := "some random value"
 
-	cache := New(&Options{MaxCount: 5})
+	cache := New(&Options{MaxCount: 5}, nil)
 	cache.Put(key, value)
 
 	assert.Equal(t, value, cache.Get(key))
@@ -98,7 +99,7 @@ func TestLRUWithTTL(t *testing.T) {
 		MaxCount:   5,
 		TTL:        time.Millisecond * 100,
 		TimeSource: mockTimeSource,
-	}).(*lru)
+	}, nil).(*lru)
 
 	cache.Put("A", "foo")
 	assert.Equal(t, "foo", cache.Get("A"))
@@ -110,7 +111,7 @@ func TestLRUWithTTL(t *testing.T) {
 }
 
 func TestLRUCacheConcurrentAccess(t *testing.T) {
-	cache := New(&Options{MaxCount: 5})
+	cache := New(&Options{MaxCount: 5}, nil)
 	values := map[string]string{
 		"A": "foo",
 		"B": "bar",
@@ -171,7 +172,7 @@ func TestRemoveFunc(t *testing.T) {
 			assert.True(t, ok)
 			ch <- true
 		},
-	})
+	}, nil)
 
 	cache.Put("testing", t)
 	cache.Delete("testing")
@@ -198,7 +199,7 @@ func TestRemovedFuncWithTTL(t *testing.T) {
 			ch <- true
 		},
 		TimeSource: mockTimeSource,
-	}).(*lru)
+	}, nil).(*lru)
 
 	cache.Put("A", t)
 	assert.Equal(t, t, cache.Get("A"))
@@ -228,7 +229,7 @@ func TestRemovedFuncWithTTL_Pin(t *testing.T) {
 			ch <- true
 		},
 		TimeSource: mockTimeSource,
-	}).(*lru)
+	}, nil).(*lru)
 
 	_, err := cache.PutIfNotExist("A", t)
 	assert.NoError(t, err)
@@ -257,7 +258,7 @@ func TestIterator(t *testing.T) {
 		"D": "Delta",
 	}
 
-	cache := New(&Options{MaxCount: 5})
+	cache := New(&Options{MaxCount: 5}, nil)
 
 	for k, v := range expected {
 		cache.Put(k, v)
@@ -282,81 +283,101 @@ func TestIterator(t *testing.T) {
 	assert.Equal(t, expected, actual)
 }
 
+// Move the struct definition and method outside the test function
+type sizeableValue struct {
+	val  string
+	size uint64
+}
+
+func (s sizeableValue) Size() uint64 {
+	return s.size
+}
+
 func TestLRU_SizeBased_SizeExceeded(t *testing.T) {
-	valueSize := 5
 	cache := New(&Options{
-		MaxCount: 5,
-		GetCacheItemSizeFunc: func(interface{}) uint64 {
-			return uint64(valueSize)
-		},
-		MaxSize: 15,
-	})
+		MaxCount:    5,
+		IsSizeBased: true,
+		MaxSize:     dynamicconfig.GetIntPropertyFn(15),
+	}, nil)
 
-	cache.Put("A", "Foo")
-	assert.Equal(t, "Foo", cache.Get("A"))
+	fooValue := sizeableValue{val: "Foo", size: 5}
+	cache.Put("A", fooValue)
+	assert.Equal(t, fooValue, cache.Get("A"))
 	assert.Nil(t, cache.Get("B"))
 	assert.Equal(t, 1, cache.Size())
 
-	cache.Put("B", "Bar")
-	cache.Put("C", "Cid")
-	cache.Put("D", "Delt")
+	barValue := sizeableValue{val: "Bar", size: 5}
+	cidValue := sizeableValue{val: "Cid", size: 5}
+	deltValue := sizeableValue{val: "Delt", size: 5}
+
+	cache.Put("B", barValue)
+	cache.Put("C", cidValue)
+	cache.Put("D", deltValue)
 	assert.Nil(t, cache.Get("A"))
 	assert.Equal(t, 3, cache.Size())
 
-	assert.Equal(t, "Bar", cache.Get("B"))
-	assert.Equal(t, "Cid", cache.Get("C"))
-	assert.Equal(t, "Delt", cache.Get("D"))
+	assert.Equal(t, barValue, cache.Get("B"))
+	assert.Equal(t, cidValue, cache.Get("C"))
+	assert.Equal(t, deltValue, cache.Get("D"))
 
-	cache.Put("A", "Foo2")
-	assert.Equal(t, "Foo2", cache.Get("A"))
+	foo2Value := sizeableValue{val: "Foo2", size: 5}
+	cache.Put("A", foo2Value)
+	assert.Equal(t, foo2Value, cache.Get("A"))
 	assert.Nil(t, cache.Get("B"))
 	assert.Equal(t, 3, cache.Size())
 
-	valueSize = 15 // put large value to evict the rest in a loop
-	cache.Put("E", "Epsi")
+	// Put large value to evict the rest in a loop
+	epsiValue := sizeableValue{val: "Epsi", size: 15}
+	cache.Put("E", epsiValue)
 	assert.Nil(t, cache.Get("C"))
-	assert.Equal(t, "Epsi", cache.Get("E"))
+	assert.Equal(t, epsiValue, cache.Get("E"))
 	assert.Nil(t, cache.Get("A"))
 	assert.Equal(t, 1, cache.Size())
 
-	valueSize = 25 // put large value greater than maxSize to evict everything
-	cache.Put("M", "Mepsi")
+	// Put large value greater than maxSize to evict everything
+	mepsiValue := sizeableValue{val: "Mepsi", size: 25}
+	cache.Put("M", mepsiValue)
 	assert.Nil(t, cache.Get("M"))
 	assert.Equal(t, 0, cache.Size())
 }
 
 func TestLRU_SizeBased_CountExceeded(t *testing.T) {
 	cache := New(&Options{
-		MaxCount: 5,
-		GetCacheItemSizeFunc: func(interface{}) uint64 {
-			return 5
-		},
-		MaxSize: 0,
-	})
+		MaxCount:    5,
+		IsSizeBased: true,
+		MaxSize:     dynamicconfig.GetIntPropertyFn(10000),
+	}, nil)
 
-	cache.Put("A", "Foo")
-	assert.Equal(t, "Foo", cache.Get("A"))
+	fooValue := sizeableValue{val: "Foo", size: 5}
+	cache.Put("A", fooValue)
+	assert.Equal(t, fooValue, cache.Get("A"))
 	assert.Nil(t, cache.Get("B"))
 	assert.Equal(t, 1, cache.Size())
 
-	cache.Put("B", "Bar")
-	cache.Put("C", "Cid")
-	cache.Put("D", "Delt")
+	barValue := sizeableValue{val: "Bar", size: 5}
+	cidValue := sizeableValue{val: "Cid", size: 5}
+	deltValue := sizeableValue{val: "Delt", size: 5}
+
+	cache.Put("B", barValue)
+	cache.Put("C", cidValue)
+	cache.Put("D", deltValue)
 	assert.Equal(t, 4, cache.Size())
 
-	assert.Equal(t, "Bar", cache.Get("B"))
-	assert.Equal(t, "Cid", cache.Get("C"))
-	assert.Equal(t, "Delt", cache.Get("D"))
+	assert.Equal(t, barValue, cache.Get("B"))
+	assert.Equal(t, cidValue, cache.Get("C"))
+	assert.Equal(t, deltValue, cache.Get("D"))
 
-	cache.Put("A", "Foo2")
-	assert.Equal(t, "Foo2", cache.Get("A"))
+	foo2Value := sizeableValue{val: "Foo2", size: 5}
+	cache.Put("A", foo2Value)
+	assert.Equal(t, foo2Value, cache.Get("A"))
 	assert.Equal(t, 4, cache.Size())
 
-	cache.Put("E", "Epsi")
-	assert.Nil(t, cache.Get("B"))
-	assert.Equal(t, "Epsi", cache.Get("E"))
-	assert.Equal(t, "Foo2", cache.Get("A"))
-	assert.Equal(t, 4, cache.Size())
+	epsiValue := sizeableValue{val: "Epsi", size: 5}
+	cache.Put("E", epsiValue)
+	assert.Equal(t, barValue, cache.Get("B"))
+	assert.Equal(t, epsiValue, cache.Get("E"))
+	assert.Equal(t, foo2Value, cache.Get("A"))
+	assert.Equal(t, 5, cache.Size())
 }
 
 func TestPanicMaxCountAndSizeNotProvided(t *testing.T) {
@@ -371,7 +392,7 @@ func TestPanicMaxCountAndSizeNotProvided(t *testing.T) {
 		GetCacheItemSizeFunc: func(interface{}) uint64 {
 			return 5
 		},
-	})
+	}, nil)
 }
 
 func TestPanicMaxCountAndSizeFuncNotProvided(t *testing.T) {
@@ -383,8 +404,8 @@ func TestPanicMaxCountAndSizeFuncNotProvided(t *testing.T) {
 
 	New(&Options{
 		TTL:     time.Millisecond * 100,
-		MaxSize: 25,
-	})
+		MaxSize: dynamicconfig.GetIntPropertyFn(25),
+	}, nil)
 }
 
 func TestPanicOptionsIsNil(t *testing.T) {
@@ -394,7 +415,7 @@ func TestPanicOptionsIsNil(t *testing.T) {
 		}
 	}()
 
-	New(nil)
+	New(nil, nil)
 }
 
 func TestEvictItemsPastTimeToLive_ActivelyEvict(t *testing.T) {
@@ -405,7 +426,7 @@ func TestEvictItemsPastTimeToLive_ActivelyEvict(t *testing.T) {
 		TTL:           time.Second * 75,
 		ActivelyEvict: true,
 		TimeSource:    mockTimeSource,
-	}).(*lru)
+	}, nil).(*lru)
 	require.True(t, ok)
 
 	_, err := cache.PutIfNotExist("A", 1)

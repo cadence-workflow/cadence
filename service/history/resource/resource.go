@@ -129,7 +129,7 @@ func New(
 		serviceResource.GetHistoryManager(),
 		params.Logger,
 		params.MetricsClient,
-		uint64(config.EventsCacheMaxSize()),
+		config.EventsCacheMaxSize,
 		serviceResource.GetDomainCache(),
 	)
 	ratelimitAlgorithm, err := algorithm.New(
