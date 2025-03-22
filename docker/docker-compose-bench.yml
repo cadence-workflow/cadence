@@ -1,4 +1,3 @@
-version: '3'
 services:
   cadence-bench:
     image: ubercadence/cadence-bench:master

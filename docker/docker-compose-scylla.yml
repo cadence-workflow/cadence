@@ -1,4 +1,3 @@
-version: '3'
 services:
   scylla:
     image: scylladb/scylla:4.3.1
