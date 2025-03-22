@@ -2388,14 +2388,13 @@ func createRecordWorkflowExecutionUninitializedRequest(
 	updateTime time.Time,
 	shardID int64,
 ) *persistence.RecordWorkflowExecutionUninitializedRequest {
-	taskInfo := transferTask.GetInfo().(*persistence.TransferTaskInfo)
 	workflowExecution := types.WorkflowExecution{
-		WorkflowID: taskInfo.WorkflowID,
-		RunID:      taskInfo.RunID,
+		WorkflowID: transferTask.GetWorkflowID(),
+		RunID:      transferTask.GetRunID(),
 	}
 	executionInfo := mutableState.GetExecutionInfo()
 	return &persistence.RecordWorkflowExecutionUninitializedRequest{
-		DomainUUID:       taskInfo.DomainID,
+		DomainUUID:       transferTask.GetDomainID(),
 		Execution:        workflowExecution,
 		WorkflowTypeName: executionInfo.WorkflowTypeName,
 		UpdateTimestamp:  updateTime.UnixNano(),

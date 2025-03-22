@@ -55,13 +55,12 @@ func newTimerQueueFailoverProcessor(
 		tag.FailoverMsg("from: "+standbyClusterName),
 	)
 
-	taskFilter := func(taskInfo task.Info) (bool, error) {
-		timer, ok := taskInfo.(persistence.Task)
-		if !ok {
+	taskFilter := func(timer persistence.Task) (bool, error) {
+		if timer.GetTaskCategory() != persistence.HistoryTaskCategoryTimer {
 			return false, errUnexpectedQueueTask
 		}
 		if notRegistered, err := isDomainNotRegistered(shardContext, timer.GetDomainID()); notRegistered && err == nil {
-			logger.Info("Domain is not in registered status, skip task in failover timer queue.", tag.WorkflowDomainID(timer.GetDomainID()), tag.Value(taskInfo))
+			logger.Info("Domain is not in registered status, skip task in failover timer queue.", tag.WorkflowDomainID(timer.GetDomainID()), tag.Value(timer))
 			return false, nil
 		}
 		return taskAllocator.VerifyFailoverActiveTask(domainIDs, timer.GetDomainID(), timer)

@@ -497,13 +497,12 @@ func newTransferQueueActiveProcessor(
 	currentClusterName := shard.GetClusterMetadata().GetCurrentClusterName()
 	logger = logger.WithTags(tag.ClusterName(currentClusterName))
 
-	taskFilter := func(taskInfo task.Info) (bool, error) {
-		task, ok := taskInfo.(persistence.Task)
-		if !ok {
+	taskFilter := func(task persistence.Task) (bool, error) {
+		if task.GetTaskCategory() != persistence.HistoryTaskCategoryTransfer {
 			return false, errUnexpectedQueueTask
 		}
 		if notRegistered, err := isDomainNotRegistered(shard, task.GetDomainID()); notRegistered && err == nil {
-			logger.Info("Domain is not in registered status, skip task in active transfer queue.", tag.WorkflowDomainID(task.GetDomainID()), tag.Value(taskInfo))
+			logger.Info("Domain is not in registered status, skip task in active transfer queue.", tag.WorkflowDomainID(task.GetDomainID()), tag.Value(task))
 			return false, nil
 		}
 		return taskAllocator.VerifyActiveTask(task.GetDomainID(), task)
@@ -556,13 +555,12 @@ func newTransferQueueStandbyProcessor(
 
 	logger = logger.WithTags(tag.ClusterName(clusterName))
 
-	taskFilter := func(taskInfo task.Info) (bool, error) {
-		task, ok := taskInfo.(persistence.Task)
-		if !ok {
+	taskFilter := func(task persistence.Task) (bool, error) {
+		if task.GetTaskCategory() != persistence.HistoryTaskCategoryTransfer {
 			return false, errUnexpectedQueueTask
 		}
 		if notRegistered, err := isDomainNotRegistered(shard, task.GetDomainID()); notRegistered && err == nil {
-			logger.Info("Domain is not in registered status, skip task in standby transfer queue.", tag.WorkflowDomainID(task.GetDomainID()), tag.Value(taskInfo))
+			logger.Info("Domain is not in registered status, skip task in standby transfer queue.", tag.WorkflowDomainID(task.GetDomainID()), tag.Value(task))
 			return false, nil
 		}
 		if task.GetTaskType() == persistence.TransferTaskTypeCloseExecution ||
@@ -641,13 +639,12 @@ func newTransferQueueFailoverProcessor(
 		tag.FailoverMsg("from: "+standbyClusterName),
 	)
 
-	taskFilter := func(taskInfo task.Info) (bool, error) {
-		task, ok := taskInfo.(persistence.Task)
-		if !ok {
+	taskFilter := func(task persistence.Task) (bool, error) {
+		if task.GetTaskCategory() != persistence.HistoryTaskCategoryTransfer {
 			return false, errUnexpectedQueueTask
 		}
 		if notRegistered, err := isDomainNotRegistered(shardContext, task.GetDomainID()); notRegistered && err == nil {
-			logger.Info("Domain is not in registered status, skip task in failover transfer queue.", tag.WorkflowDomainID(task.GetDomainID()), tag.Value(taskInfo))
+			logger.Info("Domain is not in registered status, skip task in failover transfer queue.", tag.WorkflowDomainID(task.GetDomainID()), tag.Value(task))
 			return false, nil
 		}
 		return taskAllocator.VerifyFailoverActiveTask(domainIDs, task.GetDomainID(), task)

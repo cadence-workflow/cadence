@@ -493,19 +493,9 @@ func TestTransferQueueProcessor_completeTransferLoop_OtherError(t *testing.T) {
 func Test_transferQueueActiveProcessor_taskFilter(t *testing.T) {
 	tests := map[string]struct {
 		mockSetup func(*shard.TestContext)
-		task      task.Info
+		task      persistence.Task
 		err       error
 	}{
-		"error - errUnexpectedQueueTask": {
-			mockSetup: func(testContext *shard.TestContext) {
-				testContext.GetDomainCache().(*cache.MockDomainCache).EXPECT().GetDomainName(constants.TestDomainID).
-					Return(constants.TestDomainName, nil).Times(1)
-			},
-			task: &persistence.TimerTaskInfo{
-				DomainID: constants.TestDomainID,
-			},
-			err: errUnexpectedQueueTask,
-		},
 		"noop - domain not registered": {
 			mockSetup: func(testContext *shard.TestContext) {
 				testContext.GetDomainCache().(*cache.MockDomainCache).EXPECT().GetDomainName(constants.TestDomainID).
@@ -628,19 +618,9 @@ func Test_transferQueueActiveProcessor_queueShutdown(t *testing.T) {
 func Test_transferQueueStandbyProcessor_taskFilter(t *testing.T) {
 	tests := map[string]struct {
 		mockSetup func(*shard.TestContext)
-		task      task.Info
+		task      persistence.Task
 		err       error
 	}{
-		"error - errUnexpectedQueueTask": {
-			mockSetup: func(testContext *shard.TestContext) {
-				testContext.GetDomainCache().(*cache.MockDomainCache).EXPECT().GetDomainName(constants.TestDomainID).
-					Return(constants.TestDomainName, nil).Times(1)
-			},
-			task: &persistence.TimerTaskInfo{
-				DomainID: constants.TestDomainID,
-			},
-			err: errUnexpectedQueueTask,
-		},
 		"noop - domain not registered": {
 			mockSetup: func(testContext *shard.TestContext) {
 				testContext.GetDomainCache().(*cache.MockDomainCache).EXPECT().GetDomainName(constants.TestDomainID).
@@ -825,19 +805,9 @@ func Test_transferQueueStandbyProcessor_queueShutdown(t *testing.T) {
 func Test_transferQueueFailoverProcessor_taskFilter(t *testing.T) {
 	tests := map[string]struct {
 		mockSetup func(*shard.TestContext)
-		task      task.Info
+		task      persistence.Task
 		err       error
 	}{
-		"error - errUnexpectedQueueTask": {
-			mockSetup: func(testContext *shard.TestContext) {
-				testContext.GetDomainCache().(*cache.MockDomainCache).EXPECT().GetDomainName(constants.TestDomainID).
-					Return(constants.TestDomainName, nil).Times(1)
-			},
-			task: &persistence.TimerTaskInfo{
-				DomainID: constants.TestDomainID,
-			},
-			err: errUnexpectedQueueTask,
-		},
 		"noop - domain not registered": {
 			mockSetup: func(testContext *shard.TestContext) {
 				testContext.GetDomainCache().(*cache.MockDomainCache).EXPECT().GetDomainName(constants.TestDomainID).

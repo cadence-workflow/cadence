@@ -91,6 +91,20 @@ func (mr *MockTaskMockRecorder) GetRunID() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRunID", reflect.TypeOf((*MockTask)(nil).GetRunID))
 }
 
+// GetTaskCategory mocks base method.
+func (m *MockTask) GetTaskCategory() HistoryTaskCategory {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTaskCategory")
+	ret0, _ := ret[0].(HistoryTaskCategory)
+	return ret0
+}
+
+// GetTaskCategory indicates an expected call of GetTaskCategory.
+func (mr *MockTaskMockRecorder) GetTaskCategory() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskCategory", reflect.TypeOf((*MockTask)(nil).GetTaskCategory))
+}
+
 // GetTaskID mocks base method.
 func (m *MockTask) GetTaskID() int64 {
 	m.ctrl.T.Helper()

@@ -66,7 +66,7 @@ var (
 type (
 	taskImpl struct {
 		sync.Mutex
-		Info
+		persistence.Task
 
 		shard              shard.Context
 		state              ctask.State
@@ -93,7 +93,7 @@ type (
 // NewTimerTask creates a new timer task
 func NewTimerTask(
 	shard shard.Context,
-	taskInfo Info,
+	taskInfo persistence.Task,
 	queueType QueueType,
 	logger log.Logger,
 	taskFilter Filter,
@@ -119,7 +119,7 @@ func NewTimerTask(
 // NewTransferTask creates a new transfer task
 func NewTransferTask(
 	shard shard.Context,
-	taskInfo Info,
+	taskInfo persistence.Task,
 	queueType QueueType,
 	logger log.Logger,
 	taskFilter Filter,
@@ -144,7 +144,7 @@ func NewTransferTask(
 
 func newTask(
 	shard shard.Context,
-	taskInfo Info,
+	taskInfo persistence.Task,
 	queueType QueueType,
 	scopeIdx int,
 	logger log.Logger,
@@ -164,7 +164,7 @@ func newTask(
 	}
 
 	return &taskImpl{
-		Info:               taskInfo,
+		Task:               taskInfo,
 		shard:              shard,
 		state:              ctask.TaskStatePending,
 		priority:           noPriority,
@@ -194,7 +194,7 @@ func (t *taskImpl) Execute() error {
 	}
 
 	var err error
-	t.shouldProcessTask, err = t.taskFilter(t.Info)
+	t.shouldProcessTask, err = t.taskFilter(t.Task)
 	if err != nil {
 		logEvent(t.eventLogger, "TaskFilter execution failed", err)
 		time.Sleep(loadDomainEntryForTaskRetryDelay)
@@ -247,9 +247,9 @@ func (t *taskImpl) HandleErr(err error) (retErr error) {
 		return nil
 	}
 
-	if _, ok := t.Info.(*persistence.CloseExecutionTask); ok &&
+	if _, ok := t.Task.(*persistence.CloseExecutionTask); ok &&
 		err == execution.ErrMissingWorkflowStartEvent &&
-		t.shard.GetConfig().EnableDropStuckTaskByDomainID(t.Info.GetDomainID()) { // use domainID here to avoid accessing domainCache
+		t.shard.GetConfig().EnableDropStuckTaskByDomainID(t.GetDomainID()) { // use domainID here to avoid accessing domainCache
 		t.scope.IncCounter(metrics.TransferTaskMissingEventCounterPerDomain)
 		t.logger.Error("Drop close execution transfer task due to corrupted workflow history", tag.Error(err), tag.LifeCycleProcessingFailed)
 		return nil
@@ -411,8 +411,8 @@ func (t *taskImpl) GetAttempt() int {
 	return t.attempt
 }
 
-func (t *taskImpl) GetInfo() Info {
-	return t.Info
+func (t *taskImpl) GetInfo() persistence.Task {
+	return t.Task
 }
 
 func (t *taskImpl) GetQueueType() QueueType {
