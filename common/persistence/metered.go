@@ -68,99 +68,114 @@ func (r GetAllHistoryTreeBranchesResponse) Len() int {
 	return len(r.Branches)
 }
 
-// For responses that require metrics for payload size EstimatePayloadSizeInBytes() int should be defined.
+// For responses that require metrics for payload size ByteSize() uint64 should be defined.
 
-func (r *GetReplicationTasksResponse) EstimatePayloadSizeInBytes() int {
+func (r *GetReplicationTasksResponse) ByteSize() uint64 {
 	if r == nil {
 		return 0
 	}
 
-	size := int(unsafe.Sizeof(*r)) + len(r.NextPageToken)
+	size := uint64(int(unsafe.Sizeof(*r)) + len(r.NextPageToken))
 	for _, v := range r.Tasks {
-		if v == nil {
-			continue
-		}
-
-		size += int(unsafe.Sizeof(*v)) + len(v.DomainID) + len(v.WorkflowID) + len(v.RunID) + len(v.BranchToken) + len(v.NewRunBranchToken)
+		size += v.ByteSize()
 	}
 
 	return size
 }
 
-func (r *GetTimerIndexTasksResponse) EstimatePayloadSizeInBytes() int {
+func (r *ReplicationTaskInfo) ByteSize() uint64 {
 	if r == nil {
 		return 0
 	}
 
-	size := int(unsafe.Sizeof(*r)) + len(r.NextPageToken)
+	return uint64(int(unsafe.Sizeof(*r)) + len(r.DomainID) + len(r.WorkflowID) + len(r.RunID) + len(r.BranchToken) + len(r.NewRunBranchToken))
+}
+
+func (r *GetTimerIndexTasksResponse) ByteSize() uint64 {
+	if r == nil {
+		return 0
+	}
+
+	size := uint64(int(unsafe.Sizeof(*r)) + len(r.NextPageToken))
 	for _, v := range r.Timers {
-		if v == nil {
-			continue
-		}
-
-		size += int(unsafe.Sizeof(*v)) + len(v.DomainID) + len(v.WorkflowID) + len(v.RunID)
+		size += v.ByteSize()
 	}
 
 	return size
 }
 
-func (r *GetTasksResponse) EstimatePayloadSizeInBytes() int {
+func (r *TimerTaskInfo) ByteSize() uint64 {
 	if r == nil {
 		return 0
 	}
 
-	size := int(unsafe.Sizeof(*r))
+	return uint64(int(unsafe.Sizeof(*r)) + len(r.DomainID) + len(r.WorkflowID) + len(r.RunID))
+}
+
+func (r *GetTasksResponse) ByteSize() uint64 {
+	if r == nil {
+		return 0
+	}
+
+	size := uint64(unsafe.Sizeof(*r))
 	for _, v := range r.Tasks {
-		if v == nil {
-			continue
-		}
-
-		size += int(unsafe.Sizeof(*v)) + len(v.DomainID) + len(v.WorkflowID) + len(v.RunID) + estimateStringMapSize(v.PartitionConfig)
+		size += v.ByteSize()
 	}
 
 	return size
 }
 
-func (r *ListDomainsResponse) EstimatePayloadSizeInBytes() int {
+func (r *TaskInfo) ByteSize() uint64 {
 	if r == nil {
 		return 0
 	}
 
-	size := int(unsafe.Sizeof(*r)) + len(r.NextPageToken)
+	return uint64(int(unsafe.Sizeof(*r)) + len(r.DomainID) + len(r.WorkflowID) + len(r.RunID) + estimateStringMapSize(r.PartitionConfig))
+}
 
+func (r *ListDomainsResponse) ByteSize() uint64 {
+	if r == nil {
+		return 0
+	}
+
+	size := uint64(int(unsafe.Sizeof(*r)) + len(r.NextPageToken))
 	for _, v := range r.Domains {
-		if v == nil {
-			continue
-		}
-
-		size += int(unsafe.Sizeof(*v)) + estimateDomainInfoSize(v.Info) + estimateDomainConfigSize(v.Config) + estimateDomainReplicationConfigSize(v.ReplicationConfig)
+		size += v.ByteSize()
 	}
 
 	return size
 }
 
-func estimateDomainInfoSize(info *DomainInfo) int {
-	if info == nil {
+func (r *GetDomainResponse) ByteSize() uint64 {
+	if r == nil {
 		return 0
 	}
 
-	return int(unsafe.Sizeof(*info)) + len(info.ID) + len(info.Name) + len(info.Description) + len(info.OwnerEmail) + estimateStringMapSize(info.Data)
+	return uint64(unsafe.Sizeof(*r)) + r.Info.ByteSize() + r.Config.ByteSize() + r.ReplicationConfig.ByteSize()
 }
 
-func estimateDomainConfigSize(info *DomainConfig) int {
-	if info == nil {
+func (i *DomainInfo) ByteSize() uint64 {
+	if i == nil {
 		return 0
 	}
 
-	size := int(unsafe.Sizeof(*info)) + len(info.HistoryArchivalURI) + len(info.VisibilityArchivalURI)
+	return uint64(int(unsafe.Sizeof(*i)) + len(i.ID) + len(i.Name) + len(i.Description) + len(i.OwnerEmail) + estimateStringMapSize(i.Data))
+}
 
-	asyncWorkflowConfigSize := int(unsafe.Sizeof(info.AsyncWorkflowConfig)) + len(info.AsyncWorkflowConfig.PredefinedQueueName) + len(info.AsyncWorkflowConfig.QueueType)
-	if info.AsyncWorkflowConfig.QueueConfig != nil {
-		size += len(info.AsyncWorkflowConfig.QueueConfig.Data)
+func (c *DomainConfig) ByteSize() uint64 {
+	if c == nil {
+		return 0
+	}
+
+	size := int(unsafe.Sizeof(*c)) + len(c.HistoryArchivalURI) + len(c.VisibilityArchivalURI)
+
+	asyncWorkflowConfigSize := int(unsafe.Sizeof(c.AsyncWorkflowConfig)) + len(c.AsyncWorkflowConfig.PredefinedQueueName) + len(c.AsyncWorkflowConfig.QueueType)
+	if c.AsyncWorkflowConfig.QueueConfig != nil {
+		size += len(c.AsyncWorkflowConfig.QueueConfig.Data)
 	}
 
 	binariesSize := 0
-	for key, value := range info.BadBinaries.Binaries {
+	for key, value := range c.BadBinaries.Binaries {
 		binariesSize += len(key)
 		if value != nil {
 			binariesSize += len(value.Reason) + len(value.Operator)
@@ -168,26 +183,26 @@ func estimateDomainConfigSize(info *DomainConfig) int {
 	}
 
 	isolationGroupsSize := 0
-	for key, value := range info.IsolationGroups {
+	for key, value := range c.IsolationGroups {
 		binariesSize += len(key) + len(value.Name)
 	}
 
-	return size + asyncWorkflowConfigSize + binariesSize + isolationGroupsSize
+	return uint64(size + asyncWorkflowConfigSize + binariesSize + isolationGroupsSize)
 }
 
-func estimateDomainReplicationConfigSize(info *DomainReplicationConfig) int {
-	if info == nil {
+func (c *DomainReplicationConfig) ByteSize() uint64 {
+	if c == nil {
 		return 0
 	}
 
-	total := len(info.ActiveClusterName)
-	for _, v := range info.Clusters {
+	total := len(c.ActiveClusterName)
+	for _, v := range c.Clusters {
 		if v == nil {
 			continue
 		}
 		total += len(v.ClusterName)
 	}
-	return total
+	return uint64(total)
 }
 
 func estimateStringMapSize(m map[string]string) int {
@@ -198,77 +213,101 @@ func estimateStringMapSize(m map[string]string) int {
 	return size
 }
 
-func (r *ReadRawHistoryBranchResponse) EstimatePayloadSizeInBytes() int {
+func (r *ReadRawHistoryBranchResponse) Size2() uint64 {
 	if r == nil {
 		return 0
 	}
 
-	total := int(unsafe.Sizeof(*r)) + len(r.NextPageToken)
+	total := uint64(int(unsafe.Sizeof(*r)) + len(r.NextPageToken))
 	for _, v := range r.HistoryEventBlobs {
-		if v == nil {
-			continue
-		}
-		total += len(v.Data)
+		total += v.ByteSize()
 	}
 	return total
 }
 
-func (r *ListCurrentExecutionsResponse) EstimatePayloadSizeInBytes() int {
+func (d *DataBlob) ByteSize() uint64 {
+	if d == nil {
+		return 0
+	}
+
+	return uint64(int(unsafe.Sizeof(*d)) + len(d.Data))
+}
+
+func (r *ListCurrentExecutionsResponse) ByteSize() uint64 {
 	if r == nil {
 		return 0
 	}
 
-	total := int(unsafe.Sizeof(*r)) + len(r.PageToken)
+	total := uint64(int(unsafe.Sizeof(*r)) + len(r.PageToken))
 	for _, v := range r.Executions {
-		if v == nil {
-			continue
-		}
-		total += int(unsafe.Sizeof(*v)) + len(v.DomainID) + len(v.WorkflowID) + len(v.RunID) + len(v.CurrentRunID)
+		total += v.ByteSize()
 	}
 
 	return total
 }
 
-func (r *GetTransferTasksResponse) EstimatePayloadSizeInBytes() int {
+func (r *CurrentWorkflowExecution) ByteSize() uint64 {
 	if r == nil {
 		return 0
 	}
 
-	total := int(unsafe.Sizeof(*r)) + len(r.NextPageToken)
+	return uint64(int(unsafe.Sizeof(*r)) + len(r.DomainID) + len(r.WorkflowID) + len(r.RunID) + len(r.CurrentRunID))
+}
+
+func (r *GetTransferTasksResponse) ByteSize() uint64 {
+	if r == nil {
+		return 0
+	}
+
+	total := uint64(int(unsafe.Sizeof(*r)) + len(r.NextPageToken))
 	for _, v := range r.Tasks {
-		if v == nil {
-			continue
-		}
-		total += int(unsafe.Sizeof(*v)) + len(v.DomainID) + len(v.WorkflowID) + len(v.RunID) +
-			len(v.TargetDomainID) + len(v.TargetWorkflowID) + len(v.TargetRunID) + len(v.TaskList)
+		total += v.ByteSize()
 	}
 
 	return total
 }
 
-func (r QueueMessageList) EstimatePayloadSizeInBytes() int {
+func (r *TransferTaskInfo) ByteSize() uint64 {
 	if r == nil {
 		return 0
 	}
 
-	total := 0
+	return uint64(int(unsafe.Sizeof(*r)) + len(r.DomainID) + len(r.WorkflowID) + len(r.RunID) +
+		len(r.TargetDomainID) + len(r.TargetWorkflowID) + len(r.TargetRunID) + len(r.TaskList))
+}
+
+func (r QueueMessageList) ByteSize() uint64 {
+	if r == nil {
+		return 0
+	}
+
+	total := uint64(0)
 	for _, v := range r {
-		if v == nil {
-			continue
-		}
-		total += int(unsafe.Sizeof(*v)) + len(v.Payload)
+		total += v.ByteSize()
 	}
 
 	return total
 }
 
-func (r GetAllHistoryTreeBranchesResponse) EstimatePayloadSizeInBytes() int {
-	total := int(unsafe.Sizeof(r)) + len(r.NextPageToken)
+func (r *QueueMessage) ByteSize() uint64 {
+	if r == nil {
+		return 0
+	}
+
+	return uint64(int(unsafe.Sizeof(*r)) + len(r.Payload))
+}
+
+func (r GetAllHistoryTreeBranchesResponse) ByteSize() uint64 {
+	total := uint64(int(unsafe.Sizeof(r)) + len(r.NextPageToken))
 	for _, v := range r.Branches {
-		total += int(unsafe.Sizeof(v)) + len(v.TreeID) + len(v.BranchID) + len(v.Info)
+		total += v.ByteSize()
 	}
 
 	return total
+}
+
+func (r HistoryBranchDetail) ByteSize() uint64 {
+	return uint64(int(unsafe.Sizeof(r)) + len(r.TreeID) + len(r.BranchID) + len(r.Info))
 }
 
 // If MetricTags() []metrics.Tag is defined, then metrics will be emitted for the request.

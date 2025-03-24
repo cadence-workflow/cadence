@@ -173,8 +173,8 @@ type lengther interface {
 	Len() int
 }
 
-type payloadSizeEstimator interface {
-	EstimatePayloadSizeInBytes() int
+type sizer interface {
+	ByteSize() uint64
 }
 
 type taggedRequest interface {
@@ -212,13 +212,13 @@ func (p *base) emitPayloadSizeMetrics(methodName string, req any, res any) {
 		return
 	}
 
-	resSize, ok := res.(payloadSizeEstimator)
+	resSize, ok := res.(sizer)
 	if !ok {
 		return
 	}
 
 	metricScope := p.metricClient.Scope(scope.scope, getCustomMetricTags(req)...)
-	metricScope.RecordHistogramValue(metrics.PersistenceResponsePayloadSize, float64(resSize.EstimatePayloadSizeInBytes()))
+	metricScope.RecordHistogramValue(metrics.PersistenceResponsePayloadSize, float64(resSize.ByteSize()))
 }
 
 func (p *base) emptyMetric(methodName string, req any, res any, err error) {
