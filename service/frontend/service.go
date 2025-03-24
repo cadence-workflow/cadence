@@ -304,6 +304,17 @@ func (s *Service) Stop() {
 	s.handler.Stop()
 	s.adminHandler.Stop()
 
+	s.stopRatelimiters()
+
+	s.GetLogger().Info("ShutdownHandler: Draining traffic")
+	time.Sleep(requestDrainTime)
+
+	close(s.stopC)
+	s.Resource.Stop()
+	s.params.Logger.Info("frontend stopped")
+}
+
+func (s *Service) stopRatelimiters() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second) // should take nearly no time at all
 	defer cancel()
 	if err := s.ratelimiterCollections.user.OnStop(ctx); err != nil {
@@ -318,12 +329,4 @@ func (s *Service) Stop() {
 	if err := s.ratelimiterCollections.async.OnStop(ctx); err != nil {
 		s.GetLogger().Error("failed to stop async global ratelimiter collection", tag.Error(err))
 	}
-	cancel()
-
-	s.GetLogger().Info("ShutdownHandler: Draining traffic")
-	time.Sleep(requestDrainTime)
-
-	close(s.stopC)
-	s.Resource.Stop()
-	s.params.Logger.Info("frontend stopped")
 }
