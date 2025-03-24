@@ -41,6 +41,8 @@ type DescribeClusterResponse struct {
 	SupportedClientVersions *SupportedClientVersions    `json:"supportedClientVersions,omitempty"`
 	MembershipInfo          *MembershipInfo             `json:"membershipInfo,omitempty"`
 	PersistenceInfo         map[string]*PersistenceInfo `json:"persistenceInfo,omitempty"`
+	SchemaVersion           string                      `json:"schemaVersion,omitempty"`
+	StaticConfig            Any                          `json:"staticConfig,omitempty"` // Dont know what type to return here , should I make a new type for this?
 }
 
 // AdminDescribeWorkflowExecutionRequest is an internal type (TBD...)
