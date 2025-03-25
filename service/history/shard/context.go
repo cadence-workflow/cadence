@@ -36,6 +36,7 @@ import (
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -331,7 +332,7 @@ func (s *contextImpl) UpdateTransferProcessingQueueStates(cluster string, states
 	// for backward compatibility
 	ackLevel := states[0].GetAckLevel()
 	for _, state := range states {
-		ackLevel = common.MinInt64(ackLevel, state.GetAckLevel())
+		ackLevel = min(ackLevel, state.GetAckLevel())
 	}
 	s.shardInfo.ClusterTransferAckLevel[cluster] = ackLevel
 
@@ -447,7 +448,7 @@ func (s *contextImpl) UpdateTimerProcessingQueueStates(cluster string, states []
 	// for backward compatibility
 	ackLevel := states[0].GetAckLevel()
 	for _, state := range states {
-		ackLevel = common.MinInt64(ackLevel, state.GetAckLevel())
+		ackLevel = min(ackLevel, state.GetAckLevel())
 	}
 	s.shardInfo.ClusterTimerAckLevel[cluster] = time.Unix(0, ackLevel)
 
@@ -651,8 +652,8 @@ func (s *contextImpl) CreateWorkflowExecution(
 	}
 }
 
-func (s *contextImpl) getDefaultEncoding(domainName string) common.EncodingType {
-	return common.EncodingType(s.config.EventEncodingType(domainName))
+func (s *contextImpl) getDefaultEncoding(domainName string) constants.EncodingType {
+	return constants.EncodingType(s.config.EventEncodingType(domainName))
 }
 
 func (s *contextImpl) UpdateWorkflowExecution(
@@ -1239,7 +1240,7 @@ func (s *contextImpl) allocateTimerIDsLocked(
 	currentCluster := s.GetClusterMetadata().GetCurrentClusterName()
 	for _, task := range timerTasks {
 		ts := task.GetVisibilityTimestamp()
-		if task.GetVersion() != common.EmptyVersion {
+		if task.GetVersion() != constants.EmptyVersion {
 			// cannot use version to determine the corresponding cluster for timer task
 			// this is because during failover, timer task should be created as active
 			// or otherwise, failover + active processing logic may not pick up the task.

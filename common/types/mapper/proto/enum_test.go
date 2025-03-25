@@ -29,6 +29,7 @@ import (
 
 	sharedv1 "github.com/uber/cadence/.gen/proto/shared/v1"
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
@@ -416,10 +417,10 @@ func TestWorkflowState(t *testing.T) {
 func TestTaskType(t *testing.T) {
 	for _, item := range []*int32{
 		nil,
-		common.Int32Ptr(int32(common.TaskTypeTransfer)),
-		common.Int32Ptr(int32(common.TaskTypeTimer)),
-		common.Int32Ptr(int32(common.TaskTypeReplication)),
-		common.Int32Ptr(int32(common.TaskTypeCrossCluster)),
+		common.Int32Ptr(int32(constants.TaskTypeTransfer)),
+		common.Int32Ptr(int32(constants.TaskTypeTimer)),
+		common.Int32Ptr(int32(constants.TaskTypeReplication)),
+		common.Int32Ptr(int32(constants.TaskTypeCrossCluster)),
 	} {
 		assert.Equal(t, item, ToTaskType(FromTaskType(item)))
 	}

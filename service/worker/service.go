@@ -30,6 +30,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/domain"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log/tag"
@@ -216,7 +217,7 @@ func (s *Service) Start() {
 	s.Resource.Start()
 	s.Resource.GetDomainReplicationQueue().Start()
 
-	s.ensureDomainExists(common.SystemLocalDomainName)
+	s.ensureDomainExists(constants.SystemLocalDomainName)
 	s.startScanner()
 	s.startFixerWorkflowWorker()
 	if s.config.IndexerCfg != nil {
@@ -234,7 +235,7 @@ func (s *Service) Start() {
 		s.startArchiver()
 	}
 	if s.config.EnableBatcher() {
-		s.ensureDomainExists(common.BatcherLocalDomainName)
+		s.ensureDomainExists(constants.BatcherLocalDomainName)
 		s.startBatcher()
 	}
 	if s.config.EnableParentClosePolicyWorker() {
@@ -287,13 +288,22 @@ func (s *Service) startParentClosePolicyProcessor() {
 }
 
 func (s *Service) startESAnalyzer() {
+	esClient := s.params.ESClient
+	esConfig := s.params.ESConfig
+	// when es client is not configured, use os client, this can happen during os migration, we will use os client to read from os
+	// there is another case is pinot migration and migration mode is off, in this case nil es config/client is expected
+	if esClient == nil && s.params.OSClient != nil {
+		esClient = s.params.OSClient
+		esConfig = s.params.OSConfig
+	}
+
 	analyzer := esanalyzer.New(
 		s.params.PublicClient,
 		s.GetFrontendClient(),
 		s.GetClientBean(),
-		s.params.ESClient,
+		esClient,
 		s.params.PinotClient,
-		s.params.ESConfig,
+		esConfig,
 		s.params.PinotConfig,
 		s.GetLogger(),
 		s.params.MetricScope,
@@ -386,7 +396,7 @@ func (s *Service) startIndexer() {
 		s.config.IndexerCfg,
 		s.GetMessagingClient(),
 		s.params.ESClient,
-		s.params.ESConfig.Indices[common.VisibilityAppName],
+		s.params.ESConfig.Indices[constants.VisibilityAppName],
 		s.params.ESConfig.ConsumerName,
 		s.GetLogger(),
 		s.GetMetricsClient(),
@@ -403,8 +413,8 @@ func (s *Service) startMigrationDualIndexer() {
 		s.GetMessagingClient(),
 		s.params.ESClient,
 		s.params.OSClient,
-		s.params.ESConfig.Indices[common.VisibilityAppName],
-		s.params.OSConfig.Indices[common.VisibilityAppName],
+		s.params.ESConfig.Indices[constants.VisibilityAppName],
+		s.params.OSConfig.Indices[constants.VisibilityAppName],
 		s.params.ESConfig.ConsumerName,
 		s.params.OSConfig.ConsumerName,
 		s.GetLogger(),
@@ -484,7 +494,7 @@ func (s *Service) registerSystemDomain(domain string) {
 			Description: "Cadence internal system domain",
 		},
 		Config: &persistence.DomainConfig{
-			Retention:  common.SystemDomainRetentionDays,
+			Retention:  constants.SystemDomainRetentionDays,
 			EmitMetric: true,
 		},
 		ReplicationConfig: &persistence.DomainReplicationConfig{
@@ -492,7 +502,7 @@ func (s *Service) registerSystemDomain(domain string) {
 			Clusters:          cluster.GetOrUseDefaultClusters(currentClusterName, nil),
 		},
 		IsGlobalDomain:  false,
-		FailoverVersion: common.EmptyVersion,
+		FailoverVersion: constants.EmptyVersion,
 	})
 	if err != nil {
 		if _, ok := err.(*types.DomainAlreadyExistsError); ok {
@@ -505,12 +515,12 @@ func (s *Service) registerSystemDomain(domain string) {
 func getDomainID(domain string) string {
 	var domainID string
 	switch domain {
-	case common.SystemLocalDomainName:
-		domainID = common.SystemDomainID
-	case common.BatcherLocalDomainName:
-		domainID = common.BatcherDomainID
-	case common.ShadowerLocalDomainName:
-		domainID = common.ShadowerDomainID
+	case constants.SystemLocalDomainName:
+		domainID = constants.SystemDomainID
+	case constants.BatcherLocalDomainName:
+		domainID = constants.BatcherDomainID
+	case constants.ShadowerLocalDomainName:
+		domainID = constants.ShadowerDomainID
 	}
 	return domainID
 }
@@ -522,7 +532,7 @@ func shouldStartIndexer(params *resource.Params, advancedWritingMode dynamicconf
 	}
 
 	// when it is using pinot and not in migration mode, indexer should not be started since Pinot will direclty ingest from kafka
-	if params.PersistenceConfig.AdvancedVisibilityStore == common.PinotVisibilityStoreName &&
+	if params.PersistenceConfig.AdvancedVisibilityStore == constants.PinotVisibilityStoreName &&
 		params.PinotConfig != nil &&
 		!params.PinotConfig.Migration.Enabled {
 		return false
@@ -534,7 +544,7 @@ func shouldStartIndexer(params *resource.Params, advancedWritingMode dynamicconf
 func shouldStartMigrationIndexer(params *resource.Params) bool {
 	// not need to check IsAdvancedVisibilityWritingEnabled here since it was already checked or the s.config.IndexerCfg will be nil
 	// when it is using OS and in migration mode, we should start dual indexer to write to both ES and OS
-	if params.PersistenceConfig.AdvancedVisibilityStore == common.OSVisibilityStoreName &&
+	if params.PersistenceConfig.AdvancedVisibilityStore == constants.OSVisibilityStoreName &&
 		params.OSConfig != nil &&
 		params.OSConfig.Migration.Enabled {
 		return true

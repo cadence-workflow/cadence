@@ -43,6 +43,7 @@ import (
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/messaging"
@@ -335,7 +336,7 @@ func (c *taskListManagerImpl) handleErr(err error) error {
 		c.Stop()
 		if c.taskListKind == types.TaskListKindSticky {
 			// TODO: we don't see this error in our logs, we might be able to remove this error
-			err = &types.InternalServiceError{Message: common.StickyTaskConditionFailedErrorMsg}
+			err = &types.InternalServiceError{Message: constants.StickyTaskConditionFailedErrorMsg}
 		}
 	}
 	return err
@@ -873,7 +874,7 @@ func (c *taskListManagerImpl) newChildContext(
 	}
 	remaining := time.Until(deadline) - tailroom
 	if remaining < timeout {
-		timeout = time.Duration(common.MaxInt64(0, int64(remaining)))
+		timeout = time.Duration(max(0, int64(remaining)))
 	}
 	return context.WithTimeout(parent, timeout)
 }
@@ -1067,10 +1068,10 @@ func newTaskListConfig(id *Identifier, cfg *config.Config, domainName string) *c
 			return cfg.MaxTaskBatchSize(domainName, taskListName, taskType)
 		},
 		NumWritePartitions: func() int {
-			return common.MaxInt(1, cfg.NumTasklistWritePartitions(domainName, taskListName, taskType))
+			return max(1, cfg.NumTasklistWritePartitions(domainName, taskListName, taskType))
 		},
 		NumReadPartitions: func() int {
-			return common.MaxInt(1, cfg.NumTasklistReadPartitions(domainName, taskListName, taskType))
+			return max(1, cfg.NumTasklistReadPartitions(domainName, taskListName, taskType))
 		},
 		EnableGetNumberOfPartitionsFromCache: func() bool {
 			return cfg.EnableGetNumberOfPartitionsFromCache(domainName, id.GetRoot(), taskType)
@@ -1122,7 +1123,7 @@ func newTaskListConfig(id *Identifier, cfg *config.Config, domainName string) *c
 				return cfg.ForwarderMaxRatePerSecond(domainName, taskListName, taskType)
 			},
 			ForwarderMaxChildrenPerNode: func() int {
-				return common.MaxInt(1, cfg.ForwarderMaxChildrenPerNode(domainName, taskListName, taskType))
+				return max(1, cfg.ForwarderMaxChildrenPerNode(domainName, taskListName, taskType))
 			},
 		},
 		HostName:                  cfg.HostName,

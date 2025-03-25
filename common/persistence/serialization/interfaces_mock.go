@@ -38,7 +38,7 @@ import (
 	stream "go.uber.org/thriftrw/protocol/stream"
 	wire "go.uber.org/thriftrw/wire"
 
-	common "github.com/uber/cadence/common"
+	constants "github.com/uber/cadence/common/constants"
 	persistence "github.com/uber/cadence/common/persistence"
 )
 
@@ -601,10 +601,10 @@ func (mr *MockencoderMockRecorder) domainInfoToBlob(arg0 any) *gomock.Call {
 }
 
 // encodingType mocks base method.
-func (m *Mockencoder) encodingType() common.EncodingType {
+func (m *Mockencoder) encodingType() constants.EncodingType {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "encodingType")
-	ret0, _ := ret[0].(common.EncodingType)
+	ret0, _ := ret[0].(constants.EncodingType)
 	return ret0
 }
 

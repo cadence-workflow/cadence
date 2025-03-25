@@ -20,7 +20,7 @@
 // THE SOFTWARE.
 
 // Geneate rate limiter wrappers.
-//go:generate mockgen -package $GOPACKAGE -destination data_manager_interfaces_mock.go -self_package github.com/uber/cadence/common/persistence github.com/uber/cadence/common/persistence Task,ShardManager,ExecutionManager,ExecutionManagerFactory,TaskManager,HistoryManager,DomainManager,QueueManager,ConfigStoreManager
+//go:generate mockgen -package $GOPACKAGE -destination data_manager_interfaces_mock.go github.com/uber/cadence/common/persistence Task,ShardManager,ExecutionManager,ExecutionManagerFactory,TaskManager,HistoryManager,DomainManager,QueueManager,ConfigStoreManager
 //go:generate gowrap gen -g -p . -i ConfigStoreManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/configstore_generated.go
 //go:generate gowrap gen -g -p . -i DomainManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/domain_generated.go
 //go:generate gowrap gen -g -p . -i HistoryManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/history_generated.go
@@ -60,9 +60,9 @@ import (
 	"github.com/pborman/uuid"
 
 	workflow "github.com/uber/cadence/.gen/go/shared"
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/checksum"
 	"github.com/uber/cadence/common/codec"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -227,7 +227,7 @@ const (
 	TransferTaskTypeUpsertWorkflowSearchAttributes
 	TransferTaskTypeRecordWorkflowClosed
 	TransferTaskTypeRecordChildExecutionCompleted
-	TransferTaskTypeApplyParentClosePolicy
+	TransferTaskTypeApplyParentClosePolicy // Deprecated: this is related to cross-cluster tasks
 )
 
 // Deprecated: Types of cross-cluster tasks. These are deprecated as of
@@ -782,7 +782,7 @@ type (
 
 		WorkflowRequestMode CreateWorkflowRequestMode
 
-		Encoding common.EncodingType // optional binary encoding type
+		Encoding constants.EncodingType // optional binary encoding type
 
 		DomainName string
 	}
@@ -804,7 +804,7 @@ type (
 
 		WorkflowRequestMode CreateWorkflowRequestMode
 
-		Encoding common.EncodingType // optional binary encoding type
+		Encoding constants.EncodingType // optional binary encoding type
 
 		DomainName string
 	}
@@ -939,51 +939,15 @@ type (
 		TaskID int64
 	}
 
-	// RangeCompleteTransferTaskRequest is used to complete a range of tasks in the transfer task queue
-	RangeCompleteTransferTaskRequest struct {
-		ExclusiveBeginTaskID int64
-		InclusiveEndTaskID   int64
-		PageSize             int
-	}
-
-	// RangeCompleteTransferTaskResponse is the response of RangeCompleteTransferTask
-	RangeCompleteTransferTaskResponse struct {
-		TasksCompleted int
-	}
-
 	// CompleteCrossClusterTaskRequest is used to complete a task in the cross-cluster task queue
 	CompleteCrossClusterTaskRequest struct {
 		TargetCluster string
 		TaskID        int64
 	}
 
-	// RangeCompleteCrossClusterTaskRequest is used to complete a range of tasks in the cross-cluster task queue
-	RangeCompleteCrossClusterTaskRequest struct {
-		TargetCluster        string
-		ExclusiveBeginTaskID int64
-		InclusiveEndTaskID   int64
-		PageSize             int
-	}
-
-	// RangeCompleteCrossClusterTaskResponse is the response of RangeCompleteCrossClusterTask
-	RangeCompleteCrossClusterTaskResponse struct {
-		TasksCompleted int
-	}
-
 	// CompleteReplicationTaskRequest is used to complete a task in the replication task queue
 	CompleteReplicationTaskRequest struct {
 		TaskID int64
-	}
-
-	// RangeCompleteReplicationTaskRequest is used to complete a range of task in the replication task queue
-	RangeCompleteReplicationTaskRequest struct {
-		InclusiveEndTaskID int64
-		PageSize           int
-	}
-
-	// RangeCompleteReplicationTaskResponse is the response of RangeCompleteReplicationTask
-	RangeCompleteReplicationTaskResponse struct {
-		TasksCompleted int
 	}
 
 	// PutReplicationTaskToDLQRequest is used to put a replication task to dlq
@@ -1013,8 +977,8 @@ type (
 	// RangeDeleteReplicationTaskFromDLQRequest is used to delete replication tasks from DLQ
 	RangeDeleteReplicationTaskFromDLQRequest struct {
 		SourceClusterName    string
-		ExclusiveBeginTaskID int64
-		InclusiveEndTaskID   int64
+		InclusiveBeginTaskID int64
+		ExclusiveEndTaskID   int64
 		PageSize             int
 	}
 
@@ -1031,32 +995,47 @@ type (
 		Size int64
 	}
 
-	// RangeCompleteTimerTaskRequest is used to complete a range of tasks in the timer task queue
-	RangeCompleteTimerTaskRequest struct {
-		InclusiveBeginTimestamp time.Time
-		ExclusiveEndTimestamp   time.Time
-		PageSize                int
-	}
-
-	// RangeCompleteTimerTaskResponse is the response of RangeCompleteTimerTask
-	RangeCompleteTimerTaskResponse struct {
-		TasksCompleted int
-	}
-
 	// CompleteTimerTaskRequest is used to complete a task in the timer task queue
 	CompleteTimerTaskRequest struct {
 		VisibilityTimestamp time.Time
 		TaskID              int64
 	}
 
+	// GetHistoryTasksRequest is used to get history tasks
+	GetHistoryTasksRequest struct {
+		TaskCategory        HistoryTaskCategory
+		InclusiveMinTaskKey HistoryTaskKey
+		ExclusiveMaxTaskKey HistoryTaskKey
+		PageSize            int
+		NextPageToken       []byte
+	}
+
+	// GetHistoryTasksResponse is the response for GetHistoryTasks
+	GetHistoryTasksResponse struct {
+		Tasks         []Task
+		NextPageToken []byte
+	}
+
+	RangeCompleteHistoryTaskRequest struct {
+		TaskCategory        HistoryTaskCategory
+		InclusiveMinTaskKey HistoryTaskKey
+		ExclusiveMaxTaskKey HistoryTaskKey
+		PageSize            int
+	}
+
+	RangeCompleteHistoryTaskResponse struct {
+		TasksCompleted int
+	}
+
 	// LeaseTaskListRequest is used to request lease of a task list
 	LeaseTaskListRequest struct {
-		DomainID     string
-		DomainName   string
-		TaskList     string
-		TaskType     int
-		TaskListKind int
-		RangeID      int64
+		DomainID         string
+		DomainName       string
+		TaskList         string
+		TaskType         int
+		TaskListKind     int
+		RangeID          int64
+		CurrentTimeStamp time.Time
 	}
 
 	// LeaseTaskListResponse is response to LeaseTaskListRequest
@@ -1077,8 +1056,9 @@ type (
 
 	// UpdateTaskListRequest is used to update task list implementation information
 	UpdateTaskListRequest struct {
-		TaskListInfo *TaskListInfo
-		DomainName   string
+		TaskListInfo     *TaskListInfo
+		DomainName       string
+		CurrentTimeStamp time.Time
 	}
 
 	// UpdateTaskListResponse is the response to UpdateTaskList
@@ -1120,9 +1100,10 @@ type (
 
 	// CreateTasksRequest is used to create a new task for a workflow exectution
 	CreateTasksRequest struct {
-		TaskListInfo *TaskListInfo
-		Tasks        []*CreateTaskInfo
-		DomainName   string
+		TaskListInfo     *TaskListInfo
+		Tasks            []*CreateTaskInfo
+		DomainName       string
+		CurrentTimeStamp time.Time
 	}
 
 	// CreateTaskInfo describes a task to be created in CreateTasksRequest
@@ -1243,6 +1224,7 @@ type (
 		ConfigVersion     int64
 		FailoverVersion   int64
 		LastUpdatedTime   int64
+		CurrentTimeStamp  time.Time
 	}
 
 	// CreateDomainResponse is the response for CreateDomain
@@ -1386,7 +1368,7 @@ type (
 		// requested TransactionID for this write operation. For the same eventID, the node with larger TransactionID always wins
 		TransactionID int64
 		// optional binary encoding type
-		Encoding common.EncodingType
+		Encoding constants.EncodingType
 		// The shard to get history node data
 		ShardID *int
 
@@ -1545,8 +1527,9 @@ type (
 
 	// CreateFailoverMarkersRequest is request to create failover markers
 	CreateFailoverMarkersRequest struct {
-		RangeID int64
-		Markers []*FailoverMarkerTask
+		RangeID          int64
+		Markers          []*FailoverMarkerTask
+		CurrentTimeStamp time.Time
 	}
 
 	// FetchDynamicConfigResponse is a response to FetchDynamicConfigResponse
@@ -1596,12 +1579,10 @@ type (
 		// Transfer task related methods
 		GetTransferTasks(ctx context.Context, request *GetTransferTasksRequest) (*GetTransferTasksResponse, error)
 		CompleteTransferTask(ctx context.Context, request *CompleteTransferTaskRequest) error
-		RangeCompleteTransferTask(ctx context.Context, request *RangeCompleteTransferTaskRequest) (*RangeCompleteTransferTaskResponse, error)
 
 		// Replication task related methods
 		GetReplicationTasks(ctx context.Context, request *GetReplicationTasksRequest) (*GetReplicationTasksResponse, error)
 		CompleteReplicationTask(ctx context.Context, request *CompleteReplicationTaskRequest) error
-		RangeCompleteReplicationTask(ctx context.Context, request *RangeCompleteReplicationTaskRequest) (*RangeCompleteReplicationTaskResponse, error)
 		PutReplicationTaskToDLQ(ctx context.Context, request *PutReplicationTaskToDLQRequest) error
 		GetReplicationTasksFromDLQ(ctx context.Context, request *GetReplicationTasksFromDLQRequest) (*GetReplicationTasksFromDLQResponse, error)
 		GetReplicationDLQSize(ctx context.Context, request *GetReplicationDLQSizeRequest) (*GetReplicationDLQSizeResponse, error)
@@ -1610,9 +1591,10 @@ type (
 		CreateFailoverMarkerTasks(ctx context.Context, request *CreateFailoverMarkersRequest) error
 
 		// Timer related methods.
-		GetTimerIndexTasks(ctx context.Context, request *GetTimerIndexTasksRequest) (*GetTimerIndexTasksResponse, error)
 		CompleteTimerTask(ctx context.Context, request *CompleteTimerTaskRequest) error
-		RangeCompleteTimerTask(ctx context.Context, request *RangeCompleteTimerTaskRequest) (*RangeCompleteTimerTaskResponse, error)
+
+		GetHistoryTasks(ctx context.Context, request *GetHistoryTasksRequest) (*GetHistoryTasksResponse, error)
+		RangeCompleteHistoryTask(ctx context.Context, request *RangeCompleteHistoryTaskRequest) (*RangeCompleteHistoryTaskResponse, error)
 
 		// Scan operations
 		ListConcreteExecutions(ctx context.Context, request *ListConcreteExecutionsRequest) (*ListConcreteExecutionsResponse, error)
@@ -1769,6 +1751,100 @@ func (t *TransferTaskInfo) String() string {
 	return fmt.Sprintf("%#v", t)
 }
 
+func (t *TransferTaskInfo) ToTask() (Task, error) {
+	workflowIdentifier := WorkflowIdentifier{
+		DomainID:   t.DomainID,
+		WorkflowID: t.WorkflowID,
+		RunID:      t.RunID,
+	}
+	taskData := TaskData{
+		Version:             t.Version,
+		TaskID:              t.TaskID,
+		VisibilityTimestamp: t.VisibilityTimestamp,
+	}
+	switch t.TaskType {
+	case TransferTaskTypeActivityTask:
+		return &ActivityTask{
+			WorkflowIdentifier: workflowIdentifier,
+			TaskData:           taskData,
+			TargetDomainID:     t.TargetDomainID,
+			TaskList:           t.TaskList,
+			ScheduleID:         t.ScheduleID,
+		}, nil
+	case TransferTaskTypeDecisionTask:
+		return &DecisionTask{
+			WorkflowIdentifier: workflowIdentifier,
+			TaskData:           taskData,
+			TargetDomainID:     t.TargetDomainID,
+			TaskList:           t.TaskList,
+			ScheduleID:         t.ScheduleID,
+		}, nil
+	case TransferTaskTypeCloseExecution:
+		return &CloseExecutionTask{
+			WorkflowIdentifier: workflowIdentifier,
+			TaskData:           taskData,
+		}, nil
+	case TransferTaskTypeRecordWorkflowStarted:
+		return &RecordWorkflowStartedTask{
+			WorkflowIdentifier: workflowIdentifier,
+			TaskData:           taskData,
+		}, nil
+	case TransferTaskTypeResetWorkflow:
+		return &ResetWorkflowTask{
+			WorkflowIdentifier: workflowIdentifier,
+			TaskData:           taskData,
+		}, nil
+	case TransferTaskTypeRecordWorkflowClosed:
+		return &RecordWorkflowClosedTask{
+			WorkflowIdentifier: workflowIdentifier,
+			TaskData:           taskData,
+		}, nil
+	case TransferTaskTypeRecordChildExecutionCompleted:
+		return &RecordChildExecutionCompletedTask{
+			WorkflowIdentifier: workflowIdentifier,
+			TaskData:           taskData,
+			TargetDomainID:     t.TargetDomainID,
+			TargetWorkflowID:   t.TargetWorkflowID,
+			TargetRunID:        t.TargetRunID,
+		}, nil
+	case TransferTaskTypeUpsertWorkflowSearchAttributes:
+		return &UpsertWorkflowSearchAttributesTask{
+			WorkflowIdentifier: workflowIdentifier,
+			TaskData:           taskData,
+		}, nil
+	case TransferTaskTypeStartChildExecution:
+		return &StartChildExecutionTask{
+			WorkflowIdentifier: workflowIdentifier,
+			TaskData:           taskData,
+			TargetDomainID:     t.TargetDomainID,
+			TargetWorkflowID:   t.TargetWorkflowID,
+			InitiatedID:        t.ScheduleID,
+		}, nil
+	case TransferTaskTypeCancelExecution:
+		return &CancelExecutionTask{
+			WorkflowIdentifier:      workflowIdentifier,
+			TaskData:                taskData,
+			TargetDomainID:          t.TargetDomainID,
+			TargetWorkflowID:        t.TargetWorkflowID,
+			TargetRunID:             t.TargetRunID,
+			InitiatedID:             t.ScheduleID,
+			TargetChildWorkflowOnly: t.TargetChildWorkflowOnly,
+		}, nil
+	case TransferTaskTypeSignalExecution:
+		return &SignalExecutionTask{
+			WorkflowIdentifier:      workflowIdentifier,
+			TaskData:                taskData,
+			TargetDomainID:          t.TargetDomainID,
+			TargetWorkflowID:        t.TargetWorkflowID,
+			TargetRunID:             t.TargetRunID,
+			InitiatedID:             t.ScheduleID,
+			TargetChildWorkflowOnly: t.TargetChildWorkflowOnly,
+		}, nil
+	default:
+		return nil, fmt.Errorf("unknown task type: %d", t.TaskType)
+	}
+}
+
 // GetTaskID returns the task ID for replication task
 func (t *ReplicationTaskInfo) GetTaskID() int64 {
 	return t.TaskID
@@ -1845,6 +1921,68 @@ func (t *TimerTaskInfo) String() string {
 		"{DomainID: %v, WorkflowID: %v, RunID: %v, VisibilityTimestamp: %v, TaskID: %v, TaskType: %v, TimeoutType: %v, EventID: %v, ScheduleAttempt: %v, Version: %v.}",
 		t.DomainID, t.WorkflowID, t.RunID, t.VisibilityTimestamp, t.TaskID, t.TaskType, t.TimeoutType, t.EventID, t.ScheduleAttempt, t.Version,
 	)
+}
+
+func (t *TimerTaskInfo) ToTask() (Task, error) {
+	workflowIdentifier := WorkflowIdentifier{
+		DomainID:   t.DomainID,
+		WorkflowID: t.WorkflowID,
+		RunID:      t.RunID,
+	}
+	taskData := TaskData{
+		Version:             t.Version,
+		TaskID:              t.TaskID,
+		VisibilityTimestamp: t.VisibilityTimestamp,
+	}
+	switch t.TaskType {
+	case TaskTypeDecisionTimeout:
+		return &DecisionTimeoutTask{
+			WorkflowIdentifier: workflowIdentifier,
+			TaskData:           taskData,
+			EventID:            t.EventID,
+			ScheduleAttempt:    t.ScheduleAttempt,
+			TimeoutType:        t.TimeoutType,
+		}, nil
+	case TaskTypeActivityTimeout:
+		return &ActivityTimeoutTask{
+			WorkflowIdentifier: workflowIdentifier,
+			TaskData:           taskData,
+			TimeoutType:        t.TimeoutType,
+			EventID:            t.EventID,
+			Attempt:            t.ScheduleAttempt,
+		}, nil
+	case TaskTypeDeleteHistoryEvent:
+		return &DeleteHistoryEventTask{
+			WorkflowIdentifier: workflowIdentifier,
+			TaskData:           taskData,
+		}, nil
+	case TaskTypeWorkflowTimeout:
+		return &WorkflowTimeoutTask{
+			WorkflowIdentifier: workflowIdentifier,
+			TaskData:           taskData,
+		}, nil
+	case TaskTypeUserTimer:
+		return &UserTimerTask{
+			WorkflowIdentifier: workflowIdentifier,
+			TaskData:           taskData,
+			EventID:            t.EventID,
+		}, nil
+	case TaskTypeActivityRetryTimer:
+		return &ActivityRetryTimerTask{
+			WorkflowIdentifier: workflowIdentifier,
+			TaskData:           taskData,
+			EventID:            t.EventID,
+			Attempt:            t.ScheduleAttempt,
+		}, nil
+	case TaskTypeWorkflowBackoffTimer:
+		return &WorkflowBackoffTimerTask{
+			WorkflowIdentifier: workflowIdentifier,
+			TaskData:           taskData,
+			TimeoutType:        t.TimeoutType,
+		}, nil
+	default:
+		return nil, fmt.Errorf("unknown task type: %d", t.TaskType)
+	}
 }
 
 // Copy returns a shallow copy of shardInfo

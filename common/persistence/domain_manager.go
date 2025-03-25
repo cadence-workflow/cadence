@@ -25,6 +25,8 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/types"
 )
@@ -36,6 +38,7 @@ type (
 		serializer  PayloadSerializer
 		persistence DomainStore
 		logger      log.Logger
+		timeSrc     clock.TimeSource
 	}
 )
 
@@ -45,6 +48,7 @@ func NewDomainManagerImpl(persistence DomainStore, logger log.Logger, serializer
 		serializer:  serializer,
 		persistence: persistence,
 		logger:      logger,
+		timeSrc:     clock.NewRealTimeSource(),
 	}
 }
 
@@ -68,6 +72,7 @@ func (m *domainManagerImpl) CreateDomain(
 		ConfigVersion:     request.ConfigVersion,
 		FailoverVersion:   request.FailoverVersion,
 		LastUpdatedTime:   time.Unix(0, request.LastUpdatedTime),
+		CurrentTimeStamp:  m.timeSrc.Now(),
 	})
 }
 
@@ -186,15 +191,15 @@ func (m *domainManagerImpl) toInternalDomainConfig(c *DomainConfig) (InternalDom
 	if c.BadBinaries.Binaries == nil {
 		c.BadBinaries.Binaries = map[string]*types.BadBinaryInfo{}
 	}
-	badBinaries, err := m.serializer.SerializeBadBinaries(&c.BadBinaries, common.EncodingTypeThriftRW)
+	badBinaries, err := m.serializer.SerializeBadBinaries(&c.BadBinaries, constants.EncodingTypeThriftRW)
 	if err != nil {
 		return InternalDomainConfig{}, err
 	}
-	isolationGroups, err := m.serializer.SerializeIsolationGroups(&c.IsolationGroups, common.EncodingTypeThriftRW)
+	isolationGroups, err := m.serializer.SerializeIsolationGroups(&c.IsolationGroups, constants.EncodingTypeThriftRW)
 	if err != nil {
 		return InternalDomainConfig{}, err
 	}
-	asyncWFCfg, err := m.serializer.SerializeAsyncWorkflowsConfig(&c.AsyncWorkflowConfig, common.EncodingTypeThriftRW)
+	asyncWFCfg, err := m.serializer.SerializeAsyncWorkflowsConfig(&c.AsyncWorkflowConfig, constants.EncodingTypeThriftRW)
 	if err != nil {
 		return InternalDomainConfig{}, err
 	}

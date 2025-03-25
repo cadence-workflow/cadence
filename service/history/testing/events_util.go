@@ -22,6 +22,7 @@ package testing
 
 import (
 	"github.com/uber/cadence/common"
+	commonconstants "github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/constants"
@@ -123,7 +124,7 @@ func AddDecisionTaskCompletedEvent(
 	event, _ := builder.AddDecisionTaskCompletedEvent(scheduleID, startedID, &types.RespondDecisionTaskCompletedRequest{
 		ExecutionContext: context,
 		Identity:         identity,
-	}, common.DefaultHistoryMaxAutoResetPoints)
+	}, commonconstants.DefaultHistoryMaxAutoResetPoints)
 
 	builder.FlushBufferedEvents() //nolint:errcheck
 

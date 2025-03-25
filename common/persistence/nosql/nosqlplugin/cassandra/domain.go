@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
@@ -43,7 +44,7 @@ const (
 // return types.DomainAlreadyExistsError error if failed or already exists
 // Must return ConditionFailure error if other condition doesn't match
 func (db *cdb) InsertDomain(ctx context.Context, row *nosqlplugin.DomainRow) error {
-	timeStamp := db.timeSrc.Now()
+	timeStamp := row.CurrentTimeStamp
 	query := db.session.Query(templateCreateDomainQuery, row.Info.ID, row.Info.Name, timeStamp).WithContext(ctx)
 	applied, err := query.MapScanCAS(make(map[string]interface{}))
 	if err != nil {
@@ -95,7 +96,7 @@ func (db *cdb) InsertDomain(ctx context.Context, row *nosqlplugin.DomainRow) err
 		row.ConfigVersion,
 		row.FailoverVersion,
 		persistence.InitialFailoverNotificationVersion,
-		common.InitialPreviousFailoverVersion,
+		constants.InitialPreviousFailoverVersion,
 		failoverEndTime,
 		row.LastUpdatedTime.UnixNano(),
 		metadataNotificationVersion,
@@ -307,9 +308,9 @@ func (db *cdb) SelectDomain(
 		return nil, err
 	}
 
-	config.IsolationGroups = persistence.NewDataBlob(isolationGroupData, common.EncodingType(isolationGroupEncoding))
-	config.AsyncWorkflowsConfig = persistence.NewDataBlob(asyncWFConfigData, common.EncodingType(asyncWFConfigEncoding))
-	config.BadBinaries = persistence.NewDataBlob(badBinariesData, common.EncodingType(badBinariesDataEncoding))
+	config.IsolationGroups = persistence.NewDataBlob(isolationGroupData, constants.EncodingType(isolationGroupEncoding))
+	config.AsyncWorkflowsConfig = persistence.NewDataBlob(asyncWFConfigData, constants.EncodingType(asyncWFConfigEncoding))
+	config.BadBinaries = persistence.NewDataBlob(badBinariesData, constants.EncodingType(badBinariesDataEncoding))
 	config.Retention = common.DaysToDuration(retentionDays)
 	replicationConfig.Clusters = persistence.DeserializeClusterConfigs(replicationClusters)
 
@@ -398,11 +399,11 @@ func (db *cdb) SelectAllDomains(
 	) {
 		if name != domainMetadataRecordName {
 			// do not include the metadata record
-			domain.Config.BadBinaries = persistence.NewDataBlob(badBinariesData, common.EncodingType(badBinariesDataEncoding))
+			domain.Config.BadBinaries = persistence.NewDataBlob(badBinariesData, constants.EncodingType(badBinariesDataEncoding))
 			domain.ReplicationConfig.Clusters = persistence.DeserializeClusterConfigs(replicationClusters)
 			domain.Config.Retention = common.DaysToDuration(retentionDays)
-			domain.Config.IsolationGroups = persistence.NewDataBlob(isolationGroups, common.EncodingType(isolationGroupsEncoding))
-			domain.Config.AsyncWorkflowsConfig = persistence.NewDataBlob(asyncWFConfigData, common.EncodingType(asyncWFConfigEncoding))
+			domain.Config.IsolationGroups = persistence.NewDataBlob(isolationGroups, constants.EncodingType(isolationGroupsEncoding))
+			domain.Config.AsyncWorkflowsConfig = persistence.NewDataBlob(asyncWFConfigData, constants.EncodingType(asyncWFConfigEncoding))
 			domain.LastUpdatedTime = time.Unix(0, lastUpdateTime)
 			if failoverEndTime > emptyFailoverEndTime {
 				domain.FailoverEndTime = common.TimePtr(time.Unix(0, failoverEndTime))

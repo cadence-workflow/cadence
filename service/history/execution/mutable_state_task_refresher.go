@@ -29,6 +29,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/config"
@@ -285,7 +286,7 @@ func refreshTasksForDecision(
 	}
 
 	// decision already started
-	if decision.StartedID != common.EmptyEventID {
+	if decision.StartedID != constants.EmptyEventID {
 		return taskGenerator.GenerateDecisionStartTasks(
 			decision.ScheduleID,
 		)
@@ -320,7 +321,7 @@ func refreshTasksForActivity(
 		); err != nil {
 			return err
 		}
-		if activityInfo.StartedID != common.EmptyEventID {
+		if activityInfo.StartedID != constants.EmptyEventID {
 			continue
 		}
 		scheduleEvent, err := eventsCache.GetEvent(
@@ -393,7 +394,7 @@ func refreshTasksForChildWorkflow(
 	executionInfo := mutableState.GetExecutionInfo()
 	pendingChildWorkflowInfos := mutableState.GetPendingChildExecutionInfos()
 	for _, childWorkflowInfo := range pendingChildWorkflowInfos {
-		if childWorkflowInfo.StartedID != common.EmptyEventID {
+		if childWorkflowInfo.StartedID != constants.EmptyEventID {
 			continue
 		}
 		scheduleEvent, err := eventsCache.GetEvent(

@@ -38,6 +38,7 @@ import (
 	"github.com/uber/cadence/client/admin"
 	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/tools/cli/clitest"
@@ -624,14 +625,14 @@ func TestAdminRemoveTask(t *testing.T) {
 					td.app,
 					clitest.IntArgument(FlagShardID, testShardID),
 					clitest.Int64Argument(FlagTaskID, 123),
-					clitest.IntArgument(FlagTaskType, int(common.TaskTypeTimer)),
+					clitest.IntArgument(FlagTaskType, int(constants.TaskTypeTimer)),
 					clitest.Int64Argument(FlagTaskVisibilityTimestamp, 1616161616), // visibility timestamp
 				)
 
 				td.mockAdminClient.EXPECT().RemoveTask(gomock.Any(),
 					&types.RemoveTaskRequest{
 						ShardID:             int32(testShardID),
-						Type:                common.Int32Ptr(int32(common.TaskTypeTimer)),
+						Type:                common.Int32Ptr(int32(constants.TaskTypeTimer)),
 						TaskID:              123,
 						VisibilityTimestamp: common.Int64Ptr(1616161616),
 						ClusterName:         "",
@@ -649,7 +650,7 @@ func TestAdminRemoveTask(t *testing.T) {
 					td.app,
 					clitest.IntArgument(FlagShardID, testShardID),
 					clitest.Int64Argument(FlagTaskID, 123),
-					clitest.IntArgument(FlagTaskType, int(common.TaskTypeTimer)),
+					clitest.IntArgument(FlagTaskType, int(constants.TaskTypeTimer)),
 					// visibility timestamp is missing though FlagTaskType is common.TaskTypeTimer
 				)
 

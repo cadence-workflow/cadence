@@ -43,6 +43,7 @@ import (
 	"golang.org/x/exp/maps"
 
 	"github.com/uber/cadence/common/backoff"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -134,7 +135,7 @@ func TestFrontendRetry(t *testing.T) {
 	}{
 		{
 			name: "ServiceBusyError due to workflow id rate limiting",
-			err:  &types.ServiceBusyError{Reason: WorkflowIDRateLimitReason},
+			err:  &types.ServiceBusyError{Reason: constants.WorkflowIDRateLimitReason},
 			want: false,
 		},
 		{

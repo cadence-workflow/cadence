@@ -40,7 +40,7 @@ type (
 	}
 )
 
-func TesteventTimerGeteSuite(t *testing.T) {
+func TestEventTimerGeteSuite(t *testing.T) {
 	s := new(eventTimerGateSuite)
 	suite.Run(t, s)
 }

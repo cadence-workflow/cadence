@@ -81,10 +81,13 @@ func (t *timerStandbyTaskExecutor) Execute(
 	task Task,
 	shouldProcessTask bool,
 ) error {
-
-	timerTask, ok := task.GetInfo().(*persistence.TimerTaskInfo)
+	timer, ok := task.GetInfo().(persistence.Task)
 	if !ok {
 		return errUnexpectedTask
+	}
+	timerTask, err := timer.ToTimerTaskInfo()
+	if err != nil {
+		return err
 	}
 
 	if !shouldProcessTask {

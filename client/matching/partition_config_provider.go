@@ -45,6 +45,8 @@ type (
 		GetNumberOfReadPartitions(domainID string, taskList types.TaskList, taskListType int) int
 		// GetNumberOfWritePartitions returns the number of write partitions
 		GetNumberOfWritePartitions(domainID string, taskList types.TaskList, taskListType int) int
+		// GetPartitionConfig returns the cached partition configuration
+		GetPartitionConfig(domainID string, taskList types.TaskList, taskListType int) *types.TaskListPartitionConfig
 		// UpdatePartitionConfig updates the partition configuration for a task list
 		UpdatePartitionConfig(domainID string, taskList types.TaskList, taskListType int, config *types.TaskListPartitionConfig)
 	}
@@ -64,6 +66,8 @@ type (
 		nWritePartitions    dynamicconfig.IntPropertyFnWithTaskListInfoFilters
 	}
 )
+
+var singlePartitionConfig = createDefaultConfig(1, 1)
 
 func (c *syncedTaskListPartitionConfig) updateConfig(newConfig types.TaskListPartitionConfig) bool {
 	c.Lock()
@@ -99,61 +103,53 @@ func NewPartitionConfigProvider(
 }
 
 func (p *partitionConfigProviderImpl) GetNumberOfReadPartitions(domainID string, taskList types.TaskList, taskListType int) int {
-	domainName, err := p.domainIDToName(domainID)
-	if err != nil {
-		return 1
-	}
-	if !p.enableReadFromCache(domainName, taskList.GetName(), taskListType) {
-		return p.nReadPartitions(domainName, taskList.GetName(), taskListType)
-	}
-	c := p.getPartitionConfig(domainID, taskList, taskListType)
-	if c == nil {
-		return 1
-	}
-	c.RLock()
-	v := c.Version
-	w := len(c.WritePartitions)
-	r := len(c.ReadPartitions)
-	c.RUnlock()
-	scope := p.metricsClient.Scope(metrics.PartitionConfigProviderScope, metrics.DomainTag(domainName), metrics.TaskListRootPartitionTag(taskList.GetName()), getTaskListTypeTag(taskListType))
-	scope.UpdateGauge(metrics.TaskListPartitionConfigNumReadGauge, float64(r))
-	scope.UpdateGauge(metrics.TaskListPartitionConfigNumWriteGauge, float64(w))
-	scope.UpdateGauge(metrics.TaskListPartitionConfigVersionGauge, float64(v))
-	return int(r)
+	config := p.GetPartitionConfig(domainID, taskList, taskListType)
+	return len(config.ReadPartitions)
 }
 
 func (p *partitionConfigProviderImpl) GetNumberOfWritePartitions(domainID string, taskList types.TaskList, taskListType int) int {
+	config := p.GetPartitionConfig(domainID, taskList, taskListType)
+	v := config.Version
+	w := len(config.WritePartitions)
+	r := len(config.ReadPartitions)
+	if w > r {
+		p.logger.Warn("Number of write partitions exceeds number of read partitions, using number of read partitions", tag.WorkflowDomainID(domainID), tag.WorkflowTaskListName(taskList.GetName()), tag.WorkflowTaskListType(taskListType), tag.Dynamic("read-partition", r), tag.Dynamic("write-partition", w), tag.Dynamic("config-version", v))
+		return r
+	}
+	return w
+}
+
+func (p *partitionConfigProviderImpl) GetPartitionConfig(domainID string, taskList types.TaskList, taskListType int) *types.TaskListPartitionConfig {
 	domainName, err := p.domainIDToName(domainID)
 	if err != nil {
-		return 1
+		return createDefaultConfig(1, 1)
 	}
 	if !p.enableReadFromCache(domainName, taskList.GetName(), taskListType) {
-		nPartitions := p.nWritePartitions(domainName, taskList.GetName(), taskListType)
+		nWrite := p.nWritePartitions(domainName, taskList.GetName(), taskListType)
+		nRead := p.nReadPartitions(domainName, taskList.GetName(), taskListType)
 		// checks to make sure number of writes never exceeds number of reads
-		if nRead := p.nReadPartitions(domainName, taskList.GetName(), taskListType); nPartitions > nRead {
-			p.logger.Warn("Number of write partitions exceeds number of read partitions, using number of read partitions", tag.WorkflowDomainID(domainID), tag.WorkflowTaskListName(taskList.GetName()), tag.WorkflowTaskListType(taskListType), tag.Dynamic("read-partition", nRead), tag.Dynamic("write-partition", nPartitions))
-			nPartitions = nRead
+		if nWrite > nRead {
+			p.logger.Warn("Number of write partitions exceeds number of read partitions, using number of read partitions", tag.WorkflowDomainID(domainID), tag.WorkflowTaskListName(taskList.GetName()), tag.WorkflowTaskListType(taskListType), tag.Dynamic("read-partition", nRead), tag.Dynamic("write-partition", nWrite))
+			nWrite = nRead
 		}
-		return nPartitions
+		return createDefaultConfig(nRead, nWrite)
 	}
-	c := p.getPartitionConfig(domainID, taskList, taskListType)
+	c := p.getCachedPartitionConfig(domainID, taskList, taskListType)
 	if c == nil {
-		return 1
+		return singlePartitionConfig
 	}
 	c.RLock()
-	v := c.Version
-	w := len(c.WritePartitions)
-	r := len(c.ReadPartitions)
+	config := c.TaskListPartitionConfig
 	c.RUnlock()
+	v := config.Version
+	w := len(config.WritePartitions)
+	r := len(config.ReadPartitions)
 	scope := p.metricsClient.Scope(metrics.PartitionConfigProviderScope, metrics.DomainTag(domainName), metrics.TaskListRootPartitionTag(taskList.GetName()), getTaskListTypeTag(taskListType))
 	scope.UpdateGauge(metrics.TaskListPartitionConfigNumReadGauge, float64(r))
 	scope.UpdateGauge(metrics.TaskListPartitionConfigNumWriteGauge, float64(w))
 	scope.UpdateGauge(metrics.TaskListPartitionConfigVersionGauge, float64(v))
-	if w > r {
-		p.logger.Warn("Number of write partitions exceeds number of read partitions, using number of read partitions", tag.WorkflowDomainID(domainID), tag.WorkflowTaskListName(taskList.GetName()), tag.WorkflowTaskListType(taskListType), tag.Dynamic("read-partition", r), tag.Dynamic("write-partition", w), tag.Dynamic("config-version", v))
-		return int(r)
-	}
-	return int(w)
+
+	return &config
 }
 
 func (p *partitionConfigProviderImpl) UpdatePartitionConfig(domainID string, taskList types.TaskList, taskListType int, config *types.TaskListPartitionConfig) {
@@ -186,7 +182,7 @@ func (p *partitionConfigProviderImpl) UpdatePartitionConfig(domainID string, tas
 	}
 }
 
-func (p *partitionConfigProviderImpl) getPartitionConfig(domainID string, taskList types.TaskList, taskListType int) *syncedTaskListPartitionConfig {
+func (p *partitionConfigProviderImpl) getCachedPartitionConfig(domainID string, taskList types.TaskList, taskListType int) *syncedTaskListPartitionConfig {
 	if taskList.GetKind() != types.TaskListKindNormal {
 		return nil
 	}
@@ -215,5 +211,21 @@ func getTaskListTypeTag(taskListType int) metrics.Tag {
 		return metrics.TaskListTypeTag("decision")
 	default:
 		return metrics.TaskListTypeTag("")
+	}
+}
+
+func createDefaultConfig(nRead, nWrite int) *types.TaskListPartitionConfig {
+	read := make(map[int]*types.TaskListPartition, nRead)
+	for i := 0; i < nRead; i++ {
+		read[i] = &types.TaskListPartition{}
+	}
+	write := make(map[int]*types.TaskListPartition, nWrite)
+	for i := 0; i < nWrite; i++ {
+		write[i] = &types.TaskListPartition{}
+	}
+	return &types.TaskListPartitionConfig{
+		Version:         0,
+		ReadPartitions:  read,
+		WritePartitions: write,
 	}
 }

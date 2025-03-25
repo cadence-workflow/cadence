@@ -24,124 +24,107 @@ package matching
 
 import (
 	"math/rand"
-	"slices"
 
-	"golang.org/x/exp/maps"
-
+	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/partition"
 	"github.com/uber/cadence/common/types"
 )
 
 type isolationLoadBalancer struct {
-	provider           PartitionConfigProvider
-	fallback           LoadBalancer
-	allIsolationGroups func() []string
+	provider         PartitionConfigProvider
+	fallback         LoadBalancer
+	domainIDToName   func(string) (string, error)
+	isolationEnabled func(string) bool
 }
 
-func NewIsolationLoadBalancer(fallback LoadBalancer, provider PartitionConfigProvider, allIsolationGroups func() []string) LoadBalancer {
+func NewIsolationLoadBalancer(fallback LoadBalancer, provider PartitionConfigProvider, domainIDToName func(string) (string, error), config *dynamicconfig.Collection) LoadBalancer {
+	isolationEnabled := config.GetBoolPropertyFilteredByDomain(dynamicconfig.EnableTasklistIsolation)
 	return &isolationLoadBalancer{
-		provider:           provider,
-		fallback:           fallback,
-		allIsolationGroups: allIsolationGroups,
+		provider:         provider,
+		fallback:         fallback,
+		domainIDToName:   domainIDToName,
+		isolationEnabled: isolationEnabled,
 	}
 }
 
 func (i *isolationLoadBalancer) PickWritePartition(taskListType int, req WriteRequest) string {
 	taskList := *req.GetTaskList()
-	nPartitions := i.provider.GetNumberOfWritePartitions(req.GetDomainUUID(), taskList, taskListType)
-	taskListName := req.GetTaskList().Name
 
-	if nPartitions <= 1 {
-		return taskListName
+	domainName, err := i.domainIDToName(req.GetDomainUUID())
+	if err != nil || !i.isolationEnabled(domainName) {
+		return i.fallback.PickWritePartition(taskListType, req)
 	}
 
 	taskGroup, ok := req.GetPartitionConfig()[partition.IsolationGroupKey]
-	if !ok {
+	if !ok || taskGroup == "" {
 		return i.fallback.PickWritePartition(taskListType, req)
 	}
 
-	partitions, ok := i.getPartitionsForGroup(taskGroup, nPartitions)
-	if !ok {
+	config := i.provider.GetPartitionConfig(req.GetDomainUUID(), taskList, taskListType)
+
+	partitions := getPartitionsForGroup(taskGroup, config.WritePartitions)
+	if len(partitions) == 0 {
 		return i.fallback.PickWritePartition(taskListType, req)
 	}
 
-	p := i.pickBetween(partitions)
+	p := pickBetween(partitions)
 
 	return getPartitionTaskListName(taskList.GetName(), p)
 }
 
 func (i *isolationLoadBalancer) PickReadPartition(taskListType int, req ReadRequest, isolationGroup string) string {
 	taskList := *req.GetTaskList()
-	nRead := i.provider.GetNumberOfReadPartitions(req.GetDomainUUID(), taskList, taskListType)
-	taskListName := taskList.Name
 
-	if nRead <= 1 {
-		return taskListName
-	}
-
-	partitions, ok := i.getPartitionsForGroup(isolationGroup, nRead)
-	if !ok {
+	domainName, err := i.domainIDToName(req.GetDomainUUID())
+	if err != nil || !i.isolationEnabled(domainName) || isolationGroup == "" {
 		return i.fallback.PickReadPartition(taskListType, req, isolationGroup)
 	}
 
-	// Scaling down, we need to consider both sets of partitions
-	if numWrite := i.provider.GetNumberOfWritePartitions(req.GetDomainUUID(), taskList, taskListType); numWrite != nRead {
-		writePartitions, ok := i.getPartitionsForGroup(isolationGroup, numWrite)
-		if ok {
-			for p := range writePartitions {
-				partitions[p] = struct{}{}
-			}
-		}
+	config := i.provider.GetPartitionConfig(req.GetDomainUUID(), taskList, taskListType)
+
+	partitions := getPartitionsForGroup(isolationGroup, config.ReadPartitions)
+	if len(partitions) == 0 {
+		return i.fallback.PickReadPartition(taskListType, req, isolationGroup)
 	}
 
-	p := i.pickBetween(partitions)
+	p := pickBetween(partitions)
 
 	return getPartitionTaskListName(taskList.GetName(), p)
 }
 
 func (i *isolationLoadBalancer) UpdateWeight(taskListType int, req ReadRequest, partition string, info *types.LoadBalancerHints) {
+	i.fallback.UpdateWeight(taskListType, req, partition, info)
 }
 
-func (i *isolationLoadBalancer) getPartitionsForGroup(taskGroup string, partitionCount int) (map[int]any, bool) {
+func getPartitionsForGroup(taskGroup string, partitions map[int]*types.TaskListPartition) []int {
 	if taskGroup == "" {
-		return nil, false
+		return nil
 	}
-	isolationGroups := slices.Clone(i.allIsolationGroups())
-	slices.Sort(isolationGroups)
-	index := slices.Index(isolationGroups, taskGroup)
-	if index == -1 {
-		return nil, false
-	}
-	partitions := make(map[int]any, 1)
-	// 3 groups [a, b, c] and 4 partitions gives us a mapping like this:
-	// 0, 3: a
-	// 1: b
-	// 2: c
-	// 4 groups [a, b, c, d] and 10 partitions gives us a mapping like this:
-	// 0, 4, 8: a
-	// 1, 5, 9: b
-	// 2, 6: c
-	// 3, 7: d
-	if len(isolationGroups) <= partitionCount {
-		for j := index; j < partitionCount; j += len(isolationGroups) {
-			partitions[j] = struct{}{}
+
+	var res []int
+	for id, p := range partitions {
+		if partitionAcceptsGroup(p, taskGroup) {
+			res = append(res, id)
 		}
-		// 4 groups [a,b,c,d] and 3 partitions gives us a mapping like this:
-		// 0: a, d
-		// 1: b
-		// 2: c
-	} else {
-		partitions[index%partitionCount] = struct{}{}
 	}
-	if len(partitions) == 0 {
-		return nil, false
-	}
-	return partitions, true
+	return res
 }
 
-func (i *isolationLoadBalancer) pickBetween(partitions map[int]any) int {
+func pickBetween(partitions []int) int {
 	// Could alternatively use backlog weights to make a smarter choice
-	total := len(partitions)
-	picked := rand.Intn(total)
-	return maps.Keys(partitions)[picked]
+	picked := rand.Intn(len(partitions))
+	return partitions[picked]
+}
+
+func partitionAcceptsGroup(partition *types.TaskListPartition, taskGroup string) bool {
+	// Accepts all groups
+	if len(partition.IsolationGroups) == 0 {
+		return true
+	}
+	for _, ig := range partition.IsolationGroups {
+		if ig == taskGroup {
+			return true
+		}
+	}
+	return false
 }

@@ -2492,6 +2492,20 @@ func (mr *MockMutableStateMockRecorder) SetVersionHistories(arg0 any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetVersionHistories", reflect.TypeOf((*MockMutableState)(nil).SetVersionHistories), arg0)
 }
 
+// Size mocks base method.
+func (m *MockMutableState) Size() uint64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Size")
+	ret0, _ := ret[0].(uint64)
+	return ret0
+}
+
+// Size indicates an expected call of Size.
+func (mr *MockMutableStateMockRecorder) Size() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockMutableState)(nil).Size))
+}
+
 // StartTransaction mocks base method.
 func (m *MockMutableState) StartTransaction(entry *cache.DomainCacheEntry, incomingTaskVersion int64) (bool, error) {
 	m.ctrl.T.Helper()

@@ -31,6 +31,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/serialization"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
@@ -132,10 +133,10 @@ func TestListDomains(t *testing.T) {
 						ID:           serialization.MustParseUUID("9a3dc7e2-1e67-41aa-8eaf-6d6e27f7e47c"),
 						Name:         "test",
 						Data:         []byte(`aaaa`),
-						DataEncoding: string(common.EncodingTypeThriftRW),
+						DataEncoding: string(constants.EncodingTypeThriftRW),
 					},
 				}, nil)
-				mockParser.EXPECT().DomainInfoFromBlob([]byte(`aaaa`), string(common.EncodingTypeThriftRW)).Return(&serialization.DomainInfo{}, nil)
+				mockParser.EXPECT().DomainInfoFromBlob([]byte(`aaaa`), string(constants.EncodingTypeThriftRW)).Return(&serialization.DomainInfo{}, nil)
 			},
 			want: &persistence.InternalListDomainsResponse{
 				Domains: []*persistence.InternalGetDomainResponse{
@@ -211,10 +212,10 @@ func TestListDomains(t *testing.T) {
 						ID:           serialization.MustParseUUID("9a3dc7e2-1e67-41aa-8eaf-6d6e27f7e47c"),
 						Name:         "test",
 						Data:         []byte(`aaaa`),
-						DataEncoding: string(common.EncodingTypeThriftRW),
+						DataEncoding: string(constants.EncodingTypeThriftRW),
 					},
 				}, nil)
-				mockParser.EXPECT().DomainInfoFromBlob([]byte(`aaaa`), string(common.EncodingTypeThriftRW)).Return(nil, errors.New("corrupted blob"))
+				mockParser.EXPECT().DomainInfoFromBlob([]byte(`aaaa`), string(constants.EncodingTypeThriftRW)).Return(nil, errors.New("corrupted blob"))
 			},
 			wantErr: true,
 		},
@@ -269,10 +270,10 @@ func TestGetDomain(t *testing.T) {
 						ID:           serialization.MustParseUUID("9a3dc7e2-1e67-41aa-8eaf-6d6e27f7e47c"),
 						Name:         "test",
 						Data:         []byte(`aaaa`),
-						DataEncoding: string(common.EncodingTypeThriftRW),
+						DataEncoding: string(constants.EncodingTypeThriftRW),
 					},
 				}, nil)
-				mockParser.EXPECT().DomainInfoFromBlob([]byte(`aaaa`), string(common.EncodingTypeThriftRW)).Return(&serialization.DomainInfo{}, nil)
+				mockParser.EXPECT().DomainInfoFromBlob([]byte(`aaaa`), string(constants.EncodingTypeThriftRW)).Return(&serialization.DomainInfo{}, nil)
 			},
 			want: &persistence.InternalGetDomainResponse{
 				Info: &persistence.DomainInfo{
@@ -306,10 +307,10 @@ func TestGetDomain(t *testing.T) {
 						ID:           serialization.MustParseUUID("9a3dc7e2-1e67-41aa-8eaf-6d6e27f7e47c"),
 						Name:         "test",
 						Data:         []byte(`aaaa`),
-						DataEncoding: string(common.EncodingTypeThriftRW),
+						DataEncoding: string(constants.EncodingTypeThriftRW),
 					},
 				}, nil)
-				mockParser.EXPECT().DomainInfoFromBlob([]byte(`aaaa`), string(common.EncodingTypeThriftRW)).Return(&serialization.DomainInfo{}, nil)
+				mockParser.EXPECT().DomainInfoFromBlob([]byte(`aaaa`), string(constants.EncodingTypeThriftRW)).Return(&serialization.DomainInfo{}, nil)
 			},
 			want: &persistence.InternalGetDomainResponse{
 				Info: &persistence.DomainInfo{
@@ -401,10 +402,10 @@ func TestGetDomain(t *testing.T) {
 						ID:           serialization.MustParseUUID("9a3dc7e2-1e67-41aa-8eaf-6d6e27f7e47c"),
 						Name:         "test",
 						Data:         []byte(`aaaa`),
-						DataEncoding: string(common.EncodingTypeThriftRW),
+						DataEncoding: string(constants.EncodingTypeThriftRW),
 					},
 				}, nil)
-				mockParser.EXPECT().DomainInfoFromBlob([]byte(`aaaa`), string(common.EncodingTypeThriftRW)).Return(nil, errors.New("corrupted blob"))
+				mockParser.EXPECT().DomainInfoFromBlob([]byte(`aaaa`), string(constants.EncodingTypeThriftRW)).Return(nil, errors.New("corrupted blob"))
 			},
 			wantErr: true,
 		},
@@ -501,14 +502,14 @@ func TestCreateDomain(t *testing.T) {
 					FailoverVersion:             3,
 					NotificationVersion:         2,
 					FailoverNotificationVersion: persistence.InitialFailoverNotificationVersion,
-					PreviousFailoverVersion:     common.InitialPreviousFailoverVersion,
-				}).Return(persistence.DataBlob{Data: []byte(`aaaa`), Encoding: common.EncodingTypeThriftRW}, nil)
+					PreviousFailoverVersion:     constants.InitialPreviousFailoverVersion,
+				}).Return(persistence.DataBlob{Data: []byte(`aaaa`), Encoding: constants.EncodingTypeThriftRW}, nil)
 				mockDB.EXPECT().BeginTx(gomock.Any(), sqlplugin.DbDefaultShard).Return(mockTx, nil)
 				mockTx.EXPECT().InsertIntoDomain(gomock.Any(), &sqlplugin.DomainRow{
 					Name:         "test",
 					ID:           serialization.MustParseUUID("9a3dc7e2-1e67-41aa-8eaf-6d6e27f7e47c"),
 					Data:         []byte(`aaaa`),
-					DataEncoding: string(common.EncodingTypeThriftRW),
+					DataEncoding: string(constants.EncodingTypeThriftRW),
 					IsGlobal:     true,
 				}).Return(nil, nil)
 				mockTx.EXPECT().LockDomainMetadata(gomock.Any()).Return(nil)
@@ -559,7 +560,7 @@ func TestCreateDomain(t *testing.T) {
 			},
 			mockSetup: func(mockDB *sqlplugin.MockDB, mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
 				mockDB.EXPECT().SelectFromDomainMetadata(gomock.Any()).Return(&sqlplugin.DomainMetadataRow{NotificationVersion: 2}, nil)
-				mockParser.EXPECT().DomainInfoToBlob(gomock.Any()).Return(persistence.DataBlob{Data: []byte(`aaaa`), Encoding: common.EncodingTypeThriftRW}, nil)
+				mockParser.EXPECT().DomainInfoToBlob(gomock.Any()).Return(persistence.DataBlob{Data: []byte(`aaaa`), Encoding: constants.EncodingTypeThriftRW}, nil)
 				mockDB.EXPECT().BeginTx(gomock.Any(), sqlplugin.DbDefaultShard).Return(mockTx, nil)
 				err := errors.New("some error")
 				mockTx.EXPECT().InsertIntoDomain(gomock.Any(), gomock.Any()).Return(nil, err)
@@ -585,7 +586,7 @@ func TestCreateDomain(t *testing.T) {
 			},
 			mockSetup: func(mockDB *sqlplugin.MockDB, mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
 				mockDB.EXPECT().SelectFromDomainMetadata(gomock.Any()).Return(&sqlplugin.DomainMetadataRow{NotificationVersion: 2}, nil)
-				mockParser.EXPECT().DomainInfoToBlob(gomock.Any()).Return(persistence.DataBlob{Data: []byte(`aaaa`), Encoding: common.EncodingTypeThriftRW}, nil)
+				mockParser.EXPECT().DomainInfoToBlob(gomock.Any()).Return(persistence.DataBlob{Data: []byte(`aaaa`), Encoding: constants.EncodingTypeThriftRW}, nil)
 				mockDB.EXPECT().BeginTx(gomock.Any(), sqlplugin.DbDefaultShard).Return(mockTx, nil)
 				err := errors.New("some error")
 				mockTx.EXPECT().InsertIntoDomain(gomock.Any(), gomock.Any()).Return(nil, err)
@@ -611,7 +612,7 @@ func TestCreateDomain(t *testing.T) {
 			},
 			mockSetup: func(mockDB *sqlplugin.MockDB, mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
 				mockDB.EXPECT().SelectFromDomainMetadata(gomock.Any()).Return(&sqlplugin.DomainMetadataRow{NotificationVersion: 2}, nil)
-				mockParser.EXPECT().DomainInfoToBlob(gomock.Any()).Return(persistence.DataBlob{Data: []byte(`aaaa`), Encoding: common.EncodingTypeThriftRW}, nil)
+				mockParser.EXPECT().DomainInfoToBlob(gomock.Any()).Return(persistence.DataBlob{Data: []byte(`aaaa`), Encoding: constants.EncodingTypeThriftRW}, nil)
 				mockDB.EXPECT().BeginTx(gomock.Any(), sqlplugin.DbDefaultShard).Return(mockTx, nil)
 				mockTx.EXPECT().InsertIntoDomain(gomock.Any(), gomock.Any()).Return(nil, nil)
 				err := errors.New("some error")
@@ -634,7 +635,7 @@ func TestCreateDomain(t *testing.T) {
 			},
 			mockSetup: func(mockDB *sqlplugin.MockDB, mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
 				mockDB.EXPECT().SelectFromDomainMetadata(gomock.Any()).Return(&sqlplugin.DomainMetadataRow{NotificationVersion: 2}, nil)
-				mockParser.EXPECT().DomainInfoToBlob(gomock.Any()).Return(persistence.DataBlob{Data: []byte(`aaaa`), Encoding: common.EncodingTypeThriftRW}, nil)
+				mockParser.EXPECT().DomainInfoToBlob(gomock.Any()).Return(persistence.DataBlob{Data: []byte(`aaaa`), Encoding: constants.EncodingTypeThriftRW}, nil)
 				mockDB.EXPECT().BeginTx(gomock.Any(), sqlplugin.DbDefaultShard).Return(mockTx, nil)
 				mockTx.EXPECT().InsertIntoDomain(gomock.Any(), gomock.Any()).Return(nil, nil)
 				mockTx.EXPECT().LockDomainMetadata(gomock.Any()).Return(nil)
@@ -738,13 +739,13 @@ func TestUpdateDomain(t *testing.T) {
 					NotificationVersion:         2,
 					FailoverNotificationVersion: 4,
 					PreviousFailoverVersion:     5,
-				}).Return(persistence.DataBlob{Data: []byte(`aaaa`), Encoding: common.EncodingTypeThriftRW}, nil)
+				}).Return(persistence.DataBlob{Data: []byte(`aaaa`), Encoding: constants.EncodingTypeThriftRW}, nil)
 				mockDB.EXPECT().BeginTx(gomock.Any(), sqlplugin.DbDefaultShard).Return(mockTx, nil)
 				mockTx.EXPECT().UpdateDomain(gomock.Any(), &sqlplugin.DomainRow{
 					Name:         "test",
 					ID:           serialization.MustParseUUID("9a3dc7e2-1e67-41aa-8eaf-6d6e27f7e47c"),
 					Data:         []byte(`aaaa`),
-					DataEncoding: string(common.EncodingTypeThriftRW),
+					DataEncoding: string(constants.EncodingTypeThriftRW),
 				}).Return(&sqlResult{rowsAffected: 1}, nil)
 				mockTx.EXPECT().LockDomainMetadata(gomock.Any()).Return(nil)
 				mockTx.EXPECT().UpdateDomainMetadata(gomock.Any(), &sqlplugin.DomainMetadataRow{NotificationVersion: 2}).Return(&sqlResult{rowsAffected: 1}, nil)
@@ -780,14 +781,14 @@ func TestUpdateDomain(t *testing.T) {
 				ReplicationConfig: &persistence.DomainReplicationConfig{},
 			},
 			mockSetup: func(mockDB *sqlplugin.MockDB, mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
-				mockParser.EXPECT().DomainInfoToBlob(gomock.Any()).Return(persistence.DataBlob{Data: []byte(`aaaa`), Encoding: common.EncodingTypeThriftRW}, nil)
+				mockParser.EXPECT().DomainInfoToBlob(gomock.Any()).Return(persistence.DataBlob{Data: []byte(`aaaa`), Encoding: constants.EncodingTypeThriftRW}, nil)
 				mockDB.EXPECT().BeginTx(gomock.Any(), sqlplugin.DbDefaultShard).Return(mockTx, nil)
 				err := errors.New("some error")
 				mockTx.EXPECT().UpdateDomain(gomock.Any(), &sqlplugin.DomainRow{
 					Name:         "test",
 					ID:           serialization.MustParseUUID("9a3dc7e2-1e67-41aa-8eaf-6d6e27f7e47c"),
 					Data:         []byte(`aaaa`),
-					DataEncoding: string(common.EncodingTypeThriftRW),
+					DataEncoding: string(constants.EncodingTypeThriftRW),
 				}).Return(nil, err)
 				mockTx.EXPECT().Rollback().Return(nil)
 				mockDB.EXPECT().IsNotFoundError(err).Return(true)
@@ -806,13 +807,13 @@ func TestUpdateDomain(t *testing.T) {
 				ReplicationConfig: &persistence.DomainReplicationConfig{},
 			},
 			mockSetup: func(mockDB *sqlplugin.MockDB, mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
-				mockParser.EXPECT().DomainInfoToBlob(gomock.Any()).Return(persistence.DataBlob{Data: []byte(`aaaa`), Encoding: common.EncodingTypeThriftRW}, nil)
+				mockParser.EXPECT().DomainInfoToBlob(gomock.Any()).Return(persistence.DataBlob{Data: []byte(`aaaa`), Encoding: constants.EncodingTypeThriftRW}, nil)
 				mockDB.EXPECT().BeginTx(gomock.Any(), sqlplugin.DbDefaultShard).Return(mockTx, nil)
 				mockTx.EXPECT().UpdateDomain(gomock.Any(), &sqlplugin.DomainRow{
 					Name:         "test",
 					ID:           serialization.MustParseUUID("9a3dc7e2-1e67-41aa-8eaf-6d6e27f7e47c"),
 					Data:         []byte(`aaaa`),
-					DataEncoding: string(common.EncodingTypeThriftRW),
+					DataEncoding: string(constants.EncodingTypeThriftRW),
 				}).Return(&sqlResult{rowsAffected: 1}, nil)
 				err := errors.New("some error")
 				mockTx.EXPECT().LockDomainMetadata(gomock.Any()).Return(err)
@@ -834,13 +835,13 @@ func TestUpdateDomain(t *testing.T) {
 				NotificationVersion: 2,
 			},
 			mockSetup: func(mockDB *sqlplugin.MockDB, mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
-				mockParser.EXPECT().DomainInfoToBlob(gomock.Any()).Return(persistence.DataBlob{Data: []byte(`aaaa`), Encoding: common.EncodingTypeThriftRW}, nil)
+				mockParser.EXPECT().DomainInfoToBlob(gomock.Any()).Return(persistence.DataBlob{Data: []byte(`aaaa`), Encoding: constants.EncodingTypeThriftRW}, nil)
 				mockDB.EXPECT().BeginTx(gomock.Any(), sqlplugin.DbDefaultShard).Return(mockTx, nil)
 				mockTx.EXPECT().UpdateDomain(gomock.Any(), &sqlplugin.DomainRow{
 					Name:         "test",
 					ID:           serialization.MustParseUUID("9a3dc7e2-1e67-41aa-8eaf-6d6e27f7e47c"),
 					Data:         []byte(`aaaa`),
-					DataEncoding: string(common.EncodingTypeThriftRW),
+					DataEncoding: string(constants.EncodingTypeThriftRW),
 				}).Return(&sqlResult{rowsAffected: 1}, nil)
 				mockTx.EXPECT().LockDomainMetadata(gomock.Any()).Return(nil)
 				err := errors.New("some error")

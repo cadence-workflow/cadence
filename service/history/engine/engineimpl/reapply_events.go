@@ -26,7 +26,7 @@ import (
 
 	"github.com/pborman/uuid"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -99,7 +99,7 @@ func (e *historyEngineImpl) ReapplyEvents(
 
 				// TODO when https://github.com/uber/cadence/issues/2420 is finished, remove this block,
 				//  since cannot reapply event to a finished workflow which had no decisions started
-				if baseRebuildLastEventID == common.EmptyEventID {
+				if baseRebuildLastEventID == constants.EmptyEventID {
 					e.logger.Warn("cannot reapply event to a finished workflow",
 						tag.WorkflowDomainID(domainID),
 						tag.WorkflowID(currentExecution.GetWorkflowID()),

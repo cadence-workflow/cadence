@@ -26,7 +26,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 )
@@ -34,7 +34,7 @@ import (
 // InsertShard creates a new shard, return error is there is any.
 // Return ShardOperationConditionFailure if the condition doesn't meet
 func (db *cdb) InsertShard(ctx context.Context, row *nosqlplugin.ShardRow) error {
-	cqlNowTimestamp := persistence.UnixNanoToDBTimestamp(db.timeSrc.Now().UnixNano())
+	cqlNowTimestamp := persistence.UnixNanoToDBTimestamp(row.CurrentTimestamp.UnixNano())
 	markerData, markerEncoding := persistence.FromDataBlob(row.PendingFailoverMarkers)
 	transferPQS, transferPQSEncoding := persistence.FromDataBlob(row.TransferProcessingQueueStates)
 	timerPQS, timerPQSEncoding := persistence.FromDataBlob(row.TimerProcessingQueueStates)
@@ -189,15 +189,15 @@ func convertToShardInfo(
 	}
 	info.PendingFailoverMarkers = persistence.NewDataBlob(
 		pendingFailoverMarkersRawData,
-		common.EncodingType(pendingFailoverMarkersEncoding),
+		constants.EncodingType(pendingFailoverMarkersEncoding),
 	)
 	info.TransferProcessingQueueStates = persistence.NewDataBlob(
 		transferProcessingQueueStatesRawData,
-		common.EncodingType(transferProcessingQueueStatesEncoding),
+		constants.EncodingType(transferProcessingQueueStatesEncoding),
 	)
 	info.TimerProcessingQueueStates = persistence.NewDataBlob(
 		timerProcessingQueueStatesRawData,
-		common.EncodingType(timerProcessingQueueStatesEncoding),
+		constants.EncodingType(timerProcessingQueueStatesEncoding),
 	)
 
 	return info
@@ -234,7 +234,7 @@ func (db *cdb) UpdateRangeID(ctx context.Context, shardID int, rangeID int64, pr
 // UpdateShard updates a shard, return error is there is any.
 // Return ShardOperationConditionFailure if the condition doesn't meet
 func (db *cdb) UpdateShard(ctx context.Context, row *nosqlplugin.ShardRow, previousRangeID int64) error {
-	cqlNowTimestamp := persistence.UnixNanoToDBTimestamp(db.timeSrc.Now().UnixNano())
+	cqlNowTimestamp := persistence.UnixNanoToDBTimestamp(row.CurrentTimestamp.UnixNano())
 	markerData, markerEncoding := persistence.FromDataBlob(row.PendingFailoverMarkers)
 	transferPQS, transferPQSEncoding := persistence.FromDataBlob(row.TransferProcessingQueueStates)
 	timerPQS, timerPQSEncoding := persistence.FromDataBlob(row.TimerProcessingQueueStates)

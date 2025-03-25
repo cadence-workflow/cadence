@@ -35,53 +35,93 @@ import (
 func TestIsolationPickWritePartition(t *testing.T) {
 	tl := "tl"
 	cases := []struct {
-		name            string
-		group           string
-		isolationGroups []string
-		numWrite        int
-		shouldFallback  bool
-		allowed         []string
+		name             string
+		group            string
+		config           *types.TaskListPartitionConfig
+		disableIsolation bool
+		shouldFallback   bool
+		allowed          []string
 	}{
 		{
-			name:            "single partition",
-			group:           "a",
-			numWrite:        1,
-			isolationGroups: []string{"a"},
-			allowed:         []string{tl},
+			name:  "single partition",
+			group: "a",
+			config: &types.TaskListPartitionConfig{
+				WritePartitions: map[int]*types.TaskListPartition{
+					0: {},
+				},
+			},
+			allowed: []string{tl},
 		},
 		{
-			name:            "multiple partitions - single option",
-			group:           "b",
-			numWrite:        2,
-			isolationGroups: []string{"a", "b"},
-			allowed:         []string{getPartitionTaskListName(tl, 1)},
+			name:  "single partition - allowed",
+			group: "a",
+			config: &types.TaskListPartitionConfig{
+				WritePartitions: map[int]*types.TaskListPartition{
+					0: {[]string{"a"}},
+				},
+			},
+			allowed: []string{tl},
 		},
 		{
-			name:            "multiple partitions - multiple options",
-			group:           "a",
-			numWrite:        2,
-			isolationGroups: []string{"a"},
-			allowed:         []string{tl, getPartitionTaskListName(tl, 1)},
+			name:  "single partition - not allowed",
+			group: "a",
+			config: &types.TaskListPartitionConfig{
+				WritePartitions: map[int]*types.TaskListPartition{
+					0: {[]string{"b"}},
+				},
+			},
+			shouldFallback: true,
+			allowed:        []string{"fallback"},
 		},
 		{
-			name:            "fallback - no group",
-			numWrite:        2,
-			isolationGroups: []string{"a"},
-			shouldFallback:  true,
-			allowed:         []string{"fallback"},
+			name:  "single partition - isolation disabled",
+			group: "a",
+			config: &types.TaskListPartitionConfig{
+				WritePartitions: map[int]*types.TaskListPartition{
+					0: {},
+				},
+			},
+			disableIsolation: true,
+			shouldFallback:   true,
+			allowed:          []string{"fallback"},
 		},
 		{
-			name:            "fallback - no groups",
-			group:           "a",
-			numWrite:        2,
-			isolationGroups: []string{""},
-			shouldFallback:  true,
-			allowed:         []string{"fallback"},
+			name:  "multiple partitions - single option",
+			group: "b",
+			config: &types.TaskListPartitionConfig{
+				WritePartitions: map[int]*types.TaskListPartition{
+					0: {[]string{"a"}},
+					1: {[]string{"b"}},
+				},
+			},
+			allowed: []string{getPartitionTaskListName(tl, 1)},
+		},
+		{
+			name:  "multiple partitions - multiple options",
+			group: "a",
+			config: &types.TaskListPartitionConfig{
+				WritePartitions: map[int]*types.TaskListPartition{
+					0: {[]string{"a"}},
+					1: {[]string{"a"}},
+				},
+			},
+			allowed: []string{tl, getPartitionTaskListName(tl, 1)},
+		},
+		{
+			name: "fallback - no group",
+			config: &types.TaskListPartitionConfig{
+				WritePartitions: map[int]*types.TaskListPartition{
+					0: {[]string{"a"}},
+					1: {[]string{"b"}},
+				},
+			},
+			shouldFallback: true,
+			allowed:        []string{"fallback"},
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			lb, fallback := createWithMocks(t, tc.isolationGroups, tc.numWrite, tc.numWrite)
+			lb, fallback := createWithMocks(t, !tc.disableIsolation, tc.config)
 			req := &types.AddDecisionTaskRequest{
 				DomainUUID: "domainId",
 				TaskList: &types.TaskList{
@@ -106,69 +146,93 @@ func TestIsolationPickWritePartition(t *testing.T) {
 func TestIsolationPickReadPartition(t *testing.T) {
 	tl := "tl"
 	cases := []struct {
-		name            string
-		group           string
-		isolationGroups []string
-		numRead         int
-		numWrite        int
-		shouldFallback  bool
-		allowed         []string
+		name             string
+		group            string
+		config           *types.TaskListPartitionConfig
+		disableIsolation bool
+		shouldFallback   bool
+		allowed          []string
 	}{
 		{
-			name:            "single partition",
-			group:           "a",
-			numRead:         1,
-			numWrite:        1,
-			isolationGroups: []string{"a"},
-			allowed:         []string{tl},
+			name:  "single partition",
+			group: "a",
+			config: &types.TaskListPartitionConfig{
+				ReadPartitions: map[int]*types.TaskListPartition{
+					0: {},
+				},
+			},
+			allowed: []string{tl},
 		},
 		{
-			name:            "multiple partitions - single option",
-			group:           "b",
-			numRead:         2,
-			numWrite:        2,
-			isolationGroups: []string{"a", "b"},
-			allowed:         []string{getPartitionTaskListName(tl, 1)},
+			name:  "single partition - allowed",
+			group: "a",
+			config: &types.TaskListPartitionConfig{
+				ReadPartitions: map[int]*types.TaskListPartition{
+					0: {[]string{"a"}},
+				},
+			},
+			allowed: []string{tl},
 		},
 		{
-			name:            "multiple partitions - multiple options",
-			group:           "a",
-			numRead:         2,
-			numWrite:        2,
-			isolationGroups: []string{"a"},
-			allowed:         []string{tl, getPartitionTaskListName(tl, 1)},
+			name:  "single partition - not allowed",
+			group: "a",
+			config: &types.TaskListPartitionConfig{
+				ReadPartitions: map[int]*types.TaskListPartition{
+					0: {[]string{"b"}},
+				},
+			},
+			shouldFallback: true,
+			allowed:        []string{"fallback"},
 		},
 		{
-			name:            "scaling - multiple options",
-			group:           "d",
-			numRead:         4,
-			numWrite:        3,
-			isolationGroups: []string{"a", "b", "c", "d"},
-			// numRead = 4 means tasks for d could be in the last partition (idx=3)
-			// numWrite = 3 means new tasks  for d are being written to the root (idx=0)
-			allowed: []string{tl, getPartitionTaskListName(tl, 3)},
+			name:  "single partition - isolation disabled",
+			group: "a",
+			config: &types.TaskListPartitionConfig{
+				ReadPartitions: map[int]*types.TaskListPartition{
+					0: {},
+				},
+			},
+			disableIsolation: true,
+			shouldFallback:   true,
+			allowed:          []string{"fallback"},
 		},
 		{
-			name:            "fallback - no group",
-			numRead:         2,
-			numWrite:        2,
-			isolationGroups: []string{"a"},
-			shouldFallback:  true,
-			allowed:         []string{"fallback"},
+			name:  "multiple partitions - single option",
+			group: "b",
+			config: &types.TaskListPartitionConfig{
+				ReadPartitions: map[int]*types.TaskListPartition{
+					0: {[]string{"a"}},
+					1: {[]string{"b"}},
+				},
+			},
+			allowed: []string{getPartitionTaskListName(tl, 1)},
 		},
 		{
-			name:            "fallback - no groups",
-			group:           "a",
-			numRead:         2,
-			numWrite:        2,
-			isolationGroups: []string{""},
-			shouldFallback:  true,
-			allowed:         []string{"fallback"},
+			name:  "multiple partitions - multiple options",
+			group: "a",
+			config: &types.TaskListPartitionConfig{
+				ReadPartitions: map[int]*types.TaskListPartition{
+					0: {[]string{"a"}},
+					1: {[]string{"a"}},
+				},
+			},
+			allowed: []string{tl, getPartitionTaskListName(tl, 1)},
+		},
+		{
+			name: "fallback - no group",
+			config: &types.TaskListPartitionConfig{
+				ReadPartitions: map[int]*types.TaskListPartition{
+					0: {[]string{"a"}},
+					1: {[]string{"b"}},
+				},
+			},
+			shouldFallback: true,
+			allowed:        []string{"fallback"},
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			lb, fallback := createWithMocks(t, tc.isolationGroups, tc.numWrite, tc.numRead)
+			lb, fallback := createWithMocks(t, !tc.disableIsolation, tc.config)
 			req := &types.MatchingQueryWorkflowRequest{
 				DomainUUID: "domainId",
 				TaskList: &types.TaskList{
@@ -187,97 +251,108 @@ func TestIsolationPickReadPartition(t *testing.T) {
 
 func TestIsolationGetPartitionsForGroup(t *testing.T) {
 	cases := []struct {
-		name            string
-		group           string
-		isolationGroups []string
-		partitions      int
-		expected        []int
+		name       string
+		group      string
+		partitions map[int]*types.TaskListPartition
+		expected   []int
 	}{
 		{
-			name:            "single partition",
-			group:           "a",
-			isolationGroups: []string{"a", "b", "c"},
-			partitions:      1,
-			expected:        []int{0},
+			name:  "single partition",
+			group: "a",
+			partitions: map[int]*types.TaskListPartition{
+				0: {[]string{"a", "b", "c"}},
+			},
+			expected: []int{0},
 		},
 		{
-			name:            "partitions less than groups",
-			group:           "b",
-			isolationGroups: []string{"a", "b", "c"},
-			partitions:      2,
-			expected:        []int{1},
+			name:  "single partition - wildcard",
+			group: "a",
+			partitions: map[int]*types.TaskListPartition{
+				0: {},
+			},
+			expected: []int{0},
 		},
 		{
-			name:            "partitions equals groups",
-			group:           "c",
-			isolationGroups: []string{"a", "b", "c"},
-			partitions:      3,
-			expected:        []int{2},
+			name:  "single partition - no options",
+			group: "a",
+			partitions: map[int]*types.TaskListPartition{
+				0: {[]string{"b"}},
+			},
+			expected: nil,
 		},
 		{
-			name:            "partitions greater than groups",
-			group:           "c",
-			isolationGroups: []string{"a", "b", "c"},
-			partitions:      4,
-			expected:        []int{2},
+			name:  "multiple partitions - single option",
+			group: "b",
+			partitions: map[int]*types.TaskListPartition{
+				0: {[]string{"a", "c"}},
+				1: {[]string{"b"}},
+			},
+			expected: []int{1},
 		},
 		{
-			name:            "partitions greater than groups - multiple assigned",
-			group:           "a",
-			isolationGroups: []string{"a", "b", "c"},
-			partitions:      4,
-			expected:        []int{0, 3},
+			name:  "multiple partitions - multiple options",
+			group: "b",
+			partitions: map[int]*types.TaskListPartition{
+				0: {[]string{"a", "b", "c"}},
+				1: {[]string{"b"}},
+				2: {[]string{"d"}},
+			},
+			expected: []int{0, 1},
 		},
 		{
-			name:            "not ok - no isolation group",
-			group:           "",
-			isolationGroups: []string{"a"},
-			partitions:      4,
+			name:  "multiple partitions - multiple options with wildcard",
+			group: "b",
+			partitions: map[int]*types.TaskListPartition{
+				0: {[]string{"a", "c"}},
+				1: {[]string{"b"}},
+				2: {},
+			},
+			expected: []int{1, 2},
 		},
 		{
-			name:            "not ok - no isolation groups",
-			group:           "a",
-			isolationGroups: []string{},
-			partitions:      4,
+			name:  "multiple partitions - no options",
+			group: "d",
+			partitions: map[int]*types.TaskListPartition{
+				0: {[]string{"a", "c"}},
+				1: {[]string{"b"}},
+				2: {[]string{"c"}},
+			},
+			expected: nil,
 		},
 		{
-			name:            "not ok - unknown isolation group",
-			group:           "d",
-			isolationGroups: []string{"a", "b", "c"},
-			partitions:      4,
+			name: "no group",
+			partitions: map[int]*types.TaskListPartition{
+				0: {[]string{"a", "b", "c"}},
+			},
+			expected: nil,
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			lb, _ := createWithMocks(t, tc.isolationGroups, tc.partitions, tc.partitions)
-			actual, ok := lb.getPartitionsForGroup(tc.group, tc.partitions)
+			actual := getPartitionsForGroup(tc.group, tc.partitions)
 			if tc.expected == nil {
 				assert.Nil(t, actual)
-				assert.False(t, ok)
 			} else {
-				expectedSet := make(map[int]any, len(tc.expected))
-				for _, expectedPartition := range tc.expected {
-					expectedSet[expectedPartition] = struct{}{}
-				}
-				assert.Equal(t, expectedSet, actual)
-				assert.True(t, ok)
+				assert.ElementsMatch(t, tc.expected, actual)
 			}
 		})
 	}
 }
 
-func createWithMocks(t *testing.T, isolationGroups []string, writePartitions, readPartitions int) (*isolationLoadBalancer, *MockLoadBalancer) {
+func createWithMocks(t *testing.T, isolationEnabled bool, config *types.TaskListPartitionConfig) (*isolationLoadBalancer, *MockLoadBalancer) {
 	ctrl := gomock.NewController(t)
 	fallback := NewMockLoadBalancer(ctrl)
 	cfg := NewMockPartitionConfigProvider(ctrl)
-	cfg.EXPECT().GetNumberOfWritePartitions(gomock.Any(), gomock.Any(), gomock.Any()).Return(writePartitions).AnyTimes()
-	cfg.EXPECT().GetNumberOfReadPartitions(gomock.Any(), gomock.Any(), gomock.Any()).Return(readPartitions).AnyTimes()
-	allIsolationGroups := func() []string {
-		return isolationGroups
-	}
+	cfg.EXPECT().GetPartitionConfig(gomock.Any(), gomock.Any(), gomock.Any()).Return(config).AnyTimes()
+
 	return &isolationLoadBalancer{
-		provider:           cfg,
-		fallback:           fallback,
-		allIsolationGroups: allIsolationGroups,
+		provider: cfg,
+		fallback: fallback,
+		domainIDToName: func(s string) (string, error) {
+			return s, nil
+		},
+		isolationEnabled: func(s string) bool {
+			return isolationEnabled
+		},
 	}, fallback
 }

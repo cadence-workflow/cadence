@@ -431,10 +431,6 @@ func newAdminDomainCommands() []*cli.Command {
 			Usage:   "Get domainID or domainName",
 			Flags: append(getDBFlags(),
 				&cli.StringFlag{
-					Name:  FlagDomain,
-					Usage: "DomainName",
-				},
-				&cli.StringFlag{
 					Name:  FlagDomainID,
 					Usage: "Domain ID(uuid)",
 				}),
@@ -702,14 +698,7 @@ func newAdminTaskListCommands() []*cli.Command {
 			Name:    "list",
 			Aliases: []string{"l"},
 			Usage:   "List active tasklist under a domain",
-			Flags: []cli.Flag{
-				&cli.StringFlag{
-					Name:    FlagDomain,
-					Aliases: []string{"do"},
-					Usage:   "Required Domain name",
-				},
-			},
-			Action: AdminListTaskList,
+			Action:  AdminListTaskList,
 		},
 		{
 			Name:    "update-partition",
@@ -906,26 +895,14 @@ func newAdminQueueCommands() []*cli.Command {
 func newAdminAsyncQueueCommands() []*cli.Command {
 	return []*cli.Command{
 		{
-			Name:  "get",
-			Usage: "get async workflow queue configuration of a domain",
-			Flags: []cli.Flag{
-				&cli.StringFlag{
-					Name:     FlagDomain,
-					Usage:    `domain name`,
-					Required: true,
-				},
-			},
+			Name:   "get",
+			Usage:  "get async workflow queue configuration of a domain",
 			Action: AdminGetAsyncWFConfig,
 		},
 		{
 			Name:  "update",
 			Usage: "upsert async workflow queue configuration of a domain",
 			Flags: []cli.Flag{
-				&cli.StringFlag{
-					Name:     FlagDomain,
-					Usage:    `domain name`,
-					Required: true,
-				},
 				&cli.StringFlag{
 					Name:     FlagJSON,
 					Usage:    `AsyncWorkflowConfiguration in json format. Schema can be found in https://github.com/uber/cadence/blob/master/common/types/admin.go`,
@@ -1416,11 +1393,7 @@ func newAdminIsolationGroupCommands() []*cli.Command {
 			Name:  "get-domain",
 			Usage: "gets the domain isolation groups",
 			Flags: []cli.Flag{
-				&cli.StringFlag{
-					Name:     FlagDomain,
-					Usage:    `The domain to operate on`,
-					Required: true,
-				},
+
 				&cli.StringFlag{
 					Name:  FlagFormat,
 					Usage: `output format`,
@@ -1432,11 +1405,6 @@ func newAdminIsolationGroupCommands() []*cli.Command {
 			Name:  "update-domain",
 			Usage: "sets the domain isolation groups",
 			Flags: []cli.Flag{
-				&cli.StringFlag{
-					Name:     FlagDomain,
-					Usage:    `The domain to operate on`,
-					Required: true,
-				},
 				&cli.StringFlag{
 					Name:     FlagJSON,
 					Usage:    `the configurations to upsert: eg: [{"Name": "zone-1": "State": 2}]. To remove groups, specify an empty configuration`,

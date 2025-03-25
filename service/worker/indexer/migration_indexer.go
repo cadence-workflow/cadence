@@ -21,7 +21,7 @@
 package indexer
 
 import (
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	es "github.com/uber/cadence/common/elasticsearch"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -52,7 +52,7 @@ func NewMigrationDualIndexer(config *Config,
 	if primaryConsumerName == "" {
 		primaryConsumerName = getConsumerName(primaryVisibilityName)
 	}
-	consumer, err := client.NewConsumer(common.VisibilityAppName, primaryConsumerName)
+	consumer, err := client.NewConsumer(constants.VisibilityAppName, primaryConsumerName)
 	if err != nil {
 		logger.Fatal("Index consumer state changed", tag.LifeCycleStartFailed, tag.Error(err))
 	}
@@ -76,7 +76,7 @@ func NewMigrationDualIndexer(config *Config,
 	if secondaryConsumerName == "" {
 		secondaryConsumerName = getConsumerName(primaryVisibilityName)
 	}
-	secondaryConsumer, err := client.NewConsumer(common.VisibilityAppName, secondaryConsumerName)
+	secondaryConsumer, err := client.NewConsumer(constants.VisibilityAppName, secondaryConsumerName)
 	if err != nil {
 		logger.Fatal("Migration Index consumer state changed", tag.LifeCycleStartFailed, tag.Error(err))
 	}

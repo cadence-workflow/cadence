@@ -33,6 +33,7 @@ import (
 	"github.com/uber/cadence/.gen/go/shared"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/codec"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/types/mapper/thrift"
@@ -452,7 +453,7 @@ func AdminRemoveTask(c *cli.Context) error {
 		return commoncli.Problem("Required flag not found", err)
 	}
 	var visibilityTimestamp int64
-	if common.TaskType(typeID) == common.TaskTypeTimer {
+	if constants.TaskType(typeID) == constants.TaskTypeTimer {
 		visibilityTimestamp, err = getRequiredInt64Option(c, FlagTaskVisibilityTimestamp)
 		if err != nil {
 			return commoncli.Problem("Required flag not found", err)

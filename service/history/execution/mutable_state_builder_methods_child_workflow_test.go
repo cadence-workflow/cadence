@@ -33,6 +33,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
+	commonconstants "github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
@@ -287,8 +288,8 @@ func TestAddChildEvents(t *testing.T) {
 				ID:        nextEventID,
 				Timestamp: &currentTimestamp,
 				EventType: types.EventTypeStartChildWorkflowExecutionInitiated.Ptr(),
-				Version:   common.EmptyVersion,
-				TaskID:    common.EmptyEventTaskID,
+				Version:   commonconstants.EmptyVersion,
+				TaskID:    commonconstants.EmptyEventTaskID,
 				StartChildWorkflowExecutionInitiatedEventAttributes: initiatedAttributes,
 			},
 		},
@@ -305,7 +306,7 @@ func TestAddChildEvents(t *testing.T) {
 			name: "ChildWorkflowExecutionStarted",
 			childInfo: map[int64]*persistence.ChildExecutionInfo{
 				childInitiatedID: {
-					StartedID: common.EmptyEventID,
+					StartedID: commonconstants.EmptyEventID,
 				},
 			},
 			eventFn: func(builder *mutableStateBuilder) (*types.HistoryEvent, error) {
@@ -315,11 +316,11 @@ func TestAddChildEvents(t *testing.T) {
 				}, &types.WorkflowType{Name: "type"}, childInitiatedID, nil)
 			},
 			expectedEvent: &types.HistoryEvent{
-				ID:        common.BufferedEventID,
+				ID:        commonconstants.BufferedEventID,
 				Timestamp: &currentTimestamp,
 				EventType: types.EventTypeChildWorkflowExecutionStarted.Ptr(),
-				Version:   common.EmptyVersion,
-				TaskID:    common.EmptyEventTaskID,
+				Version:   commonconstants.EmptyVersion,
+				TaskID:    commonconstants.EmptyEventTaskID,
 				ChildWorkflowExecutionStartedEventAttributes: &types.ChildWorkflowExecutionStartedEventAttributes{
 					Domain:            constants.TestDomainID,
 					InitiatedEventID:  childInitiatedID,
@@ -351,18 +352,18 @@ func TestAddChildEvents(t *testing.T) {
 			name: "StartChildWorkflowExecutionFailed",
 			childInfo: map[int64]*persistence.ChildExecutionInfo{
 				childInitiatedID: {
-					StartedID: common.EmptyEventID,
+					StartedID: commonconstants.EmptyEventID,
 				},
 			},
 			eventFn: func(builder *mutableStateBuilder) (*types.HistoryEvent, error) {
 				return builder.AddStartChildWorkflowExecutionFailedEvent(childInitiatedID, types.ChildWorkflowExecutionFailedCauseWorkflowAlreadyRunning, initiatedAttributes)
 			},
 			expectedEvent: &types.HistoryEvent{
-				ID:        common.BufferedEventID,
+				ID:        commonconstants.BufferedEventID,
 				Timestamp: &currentTimestamp,
 				EventType: types.EventTypeStartChildWorkflowExecutionFailed.Ptr(),
-				Version:   common.EmptyVersion,
-				TaskID:    common.EmptyEventTaskID,
+				Version:   commonconstants.EmptyVersion,
+				TaskID:    commonconstants.EmptyEventTaskID,
 				StartChildWorkflowExecutionFailedEventAttributes: &types.StartChildWorkflowExecutionFailedEventAttributes{
 					Domain:                       constants.TestDomainName,
 					WorkflowID:                   constants.TestWorkflowID,
@@ -406,11 +407,11 @@ func TestAddChildEvents(t *testing.T) {
 				})
 			},
 			expectedEvent: &types.HistoryEvent{
-				ID:        common.BufferedEventID,
+				ID:        commonconstants.BufferedEventID,
 				Timestamp: &currentTimestamp,
 				EventType: types.EventTypeChildWorkflowExecutionCompleted.Ptr(),
-				Version:   common.EmptyVersion,
-				TaskID:    common.EmptyEventTaskID,
+				Version:   commonconstants.EmptyVersion,
+				TaskID:    commonconstants.EmptyEventTaskID,
 				ChildWorkflowExecutionCompletedEventAttributes: &types.ChildWorkflowExecutionCompletedEventAttributes{
 					Result:            []byte("result"),
 					Domain:            constants.TestDomainName,
@@ -461,11 +462,11 @@ func TestAddChildEvents(t *testing.T) {
 				})
 			},
 			expectedEvent: &types.HistoryEvent{
-				ID:        common.BufferedEventID,
+				ID:        commonconstants.BufferedEventID,
 				Timestamp: &currentTimestamp,
 				EventType: types.EventTypeChildWorkflowExecutionFailed.Ptr(),
-				Version:   common.EmptyVersion,
-				TaskID:    common.EmptyEventTaskID,
+				Version:   commonconstants.EmptyVersion,
+				TaskID:    commonconstants.EmptyEventTaskID,
 				ChildWorkflowExecutionFailedEventAttributes: &types.ChildWorkflowExecutionFailedEventAttributes{
 					Reason:            common.StringPtr("failed"),
 					Details:           []byte("details"),
@@ -517,11 +518,11 @@ func TestAddChildEvents(t *testing.T) {
 				})
 			},
 			expectedEvent: &types.HistoryEvent{
-				ID:        common.BufferedEventID,
+				ID:        commonconstants.BufferedEventID,
 				Timestamp: &currentTimestamp,
 				EventType: types.EventTypeChildWorkflowExecutionCanceled.Ptr(),
-				Version:   common.EmptyVersion,
-				TaskID:    common.EmptyEventTaskID,
+				Version:   commonconstants.EmptyVersion,
+				TaskID:    commonconstants.EmptyEventTaskID,
 				ChildWorkflowExecutionCanceledEventAttributes: &types.ChildWorkflowExecutionCanceledEventAttributes{
 					Details:           []byte("details"),
 					Domain:            constants.TestDomainName,
@@ -572,11 +573,11 @@ func TestAddChildEvents(t *testing.T) {
 				})
 			},
 			expectedEvent: &types.HistoryEvent{
-				ID:        common.BufferedEventID,
+				ID:        commonconstants.BufferedEventID,
 				Timestamp: &currentTimestamp,
 				EventType: types.EventTypeChildWorkflowExecutionTerminated.Ptr(),
-				Version:   common.EmptyVersion,
-				TaskID:    common.EmptyEventTaskID,
+				Version:   commonconstants.EmptyVersion,
+				TaskID:    commonconstants.EmptyEventTaskID,
 				ChildWorkflowExecutionTerminatedEventAttributes: &types.ChildWorkflowExecutionTerminatedEventAttributes{
 					Domain:            constants.TestDomainName,
 					WorkflowExecution: childExecution,
@@ -627,11 +628,11 @@ func TestAddChildEvents(t *testing.T) {
 				})
 			},
 			expectedEvent: &types.HistoryEvent{
-				ID:        common.BufferedEventID,
+				ID:        commonconstants.BufferedEventID,
 				Timestamp: &currentTimestamp,
 				EventType: types.EventTypeChildWorkflowExecutionTimedOut.Ptr(),
-				Version:   common.EmptyVersion,
-				TaskID:    common.EmptyEventTaskID,
+				Version:   commonconstants.EmptyVersion,
+				TaskID:    commonconstants.EmptyEventTaskID,
 				ChildWorkflowExecutionTimedOutEventAttributes: &types.ChildWorkflowExecutionTimedOutEventAttributes{
 					Domain:            constants.TestDomainName,
 					WorkflowExecution: childExecution,

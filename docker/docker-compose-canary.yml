@@ -1,4 +1,3 @@
-version: '3'
 services:
   cadence-canary:
     image: ubercadence/cadence-canary:master

@@ -176,7 +176,7 @@ func (v *transferQueueValidator) validatePendingTasks() {
 				tag.TaskID(taskID),
 				tag.TaskVisibilityTimestamp(taskInfo.task.GetVisibilityTimestamp().UnixNano()),
 				tag.FailoverVersion(taskInfo.task.GetVersion()),
-				tag.TaskType(taskInfo.task.GetType()),
+				tag.TaskType(taskInfo.task.GetTaskType()),
 				tag.WorkflowDomainID(taskInfo.executionInfo.DomainID),
 				tag.WorkflowID(taskInfo.executionInfo.WorkflowID),
 				tag.WorkflowRunID(taskInfo.executionInfo.RunID),

@@ -83,7 +83,7 @@ func (db *ddb) IsWorkflowExecutionExists(ctx context.Context, shardID int, domai
 	panic("TODO")
 }
 
-func (db *ddb) SelectTransferTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, exclusiveMinTaskID, inclusiveMaxTaskID int64) ([]*nosqlplugin.TransferTask, []byte, error) {
+func (db *ddb) SelectTransferTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*nosqlplugin.HistoryMigrationTask, []byte, error) {
 	panic("TODO")
 }
 
@@ -91,11 +91,11 @@ func (db *ddb) DeleteTransferTask(ctx context.Context, shardID int, taskID int64
 	panic("TODO")
 }
 
-func (db *ddb) RangeDeleteTransferTasks(ctx context.Context, shardID int, exclusiveBeginTaskID, inclusiveEndTaskID int64) error {
+func (db *ddb) RangeDeleteTransferTasks(ctx context.Context, shardID int, inclusiveBeginTaskID, exclusiveEndTaskID int64) error {
 	panic("TODO")
 }
 
-func (db *ddb) SelectTimerTasksOrderByVisibilityTime(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTime, exclusiveMaxTime time.Time) ([]*nosqlplugin.TimerTask, []byte, error) {
+func (db *ddb) SelectTimerTasksOrderByVisibilityTime(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTime, exclusiveMaxTime time.Time) ([]*nosqlplugin.HistoryMigrationTask, []byte, error) {
 	panic("TODO")
 }
 
@@ -107,7 +107,7 @@ func (db *ddb) RangeDeleteTimerTasks(ctx context.Context, shardID int, inclusive
 	panic("TODO")
 }
 
-func (db *ddb) SelectReplicationTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, exclusiveMinTaskID, inclusiveMaxTaskID int64) ([]*nosqlplugin.ReplicationTask, []byte, error) {
+func (db *ddb) SelectReplicationTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*nosqlplugin.HistoryMigrationTask, []byte, error) {
 	panic("TODO")
 }
 
@@ -115,7 +115,7 @@ func (db *ddb) DeleteReplicationTask(ctx context.Context, shardID int, taskID in
 	panic("TODO")
 }
 
-func (db *ddb) RangeDeleteReplicationTasks(ctx context.Context, shardID int, inclusiveEndTaskID int64) error {
+func (db *ddb) RangeDeleteReplicationTasks(ctx context.Context, shardID int, exclusiveEndTaskID int64) error {
 	panic("TODO")
 }
 
@@ -123,15 +123,7 @@ func (db *ddb) InsertReplicationTask(ctx context.Context, tasks []*nosqlplugin.H
 	panic("TODO")
 }
 
-func (db *ddb) SelectCrossClusterTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, targetCluster string, exclusiveMinTaskID, inclusiveMaxTaskID int64) ([]*nosqlplugin.CrossClusterTask, []byte, error) {
-	panic("TODO")
-}
-
 func (db *ddb) DeleteCrossClusterTask(ctx context.Context, shardID int, targetCluster string, taskID int64) error {
-	panic("TODO")
-}
-
-func (db *ddb) RangeDeleteCrossClusterTasks(ctx context.Context, shardID int, targetCluster string, exclusiveBeginTaskID, inclusiveEndTaskID int64) error {
 	panic("TODO")
 }
 
@@ -139,7 +131,7 @@ func (db *ddb) InsertReplicationDLQTask(ctx context.Context, shardID int, source
 	panic("TODO")
 }
 
-func (db *ddb) SelectReplicationDLQTasksOrderByTaskID(ctx context.Context, shardID int, sourceCluster string, pageSize int, pageToken []byte, exclusiveMinTaskID, inclusiveMaxTaskID int64) ([]*nosqlplugin.ReplicationTask, []byte, error) {
+func (db *ddb) SelectReplicationDLQTasksOrderByTaskID(ctx context.Context, shardID int, sourceCluster string, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*nosqlplugin.HistoryMigrationTask, []byte, error) {
 	panic("TODO")
 }
 
@@ -151,6 +143,6 @@ func (db *ddb) DeleteReplicationDLQTask(ctx context.Context, shardID int, source
 	panic("TODO")
 }
 
-func (db *ddb) RangeDeleteReplicationDLQTasks(ctx context.Context, shardID int, sourceCluster string, exclusiveBeginTaskID, inclusiveEndTaskID int64) error {
+func (db *ddb) RangeDeleteReplicationDLQTasks(ctx context.Context, shardID int, sourceCluster string, inclusiveBeginTaskID, exclusiveEndTaskID int64) error {
 	panic("TODO")
 }

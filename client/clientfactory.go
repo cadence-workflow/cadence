@@ -164,7 +164,7 @@ func (cf *rpcClientFactory) NewMatchingClientWithTimeout(
 	defaultLoadBalancer := matching.NewLoadBalancer(partitionConfigProvider)
 	roundRobinLoadBalancer := matching.NewRoundRobinLoadBalancer(partitionConfigProvider)
 	weightedLoadBalancer := matching.NewWeightedLoadBalancer(roundRobinLoadBalancer, partitionConfigProvider, cf.logger)
-	igLoadBalancer := matching.NewIsolationLoadBalancer(weightedLoadBalancer, partitionConfigProvider, cf.allIsolationGroups)
+	igLoadBalancer := matching.NewIsolationLoadBalancer(weightedLoadBalancer, partitionConfigProvider, domainIDToName, cf.dynConfig)
 	loadBalancers := map[string]matching.LoadBalancer{
 		"random":      defaultLoadBalancer,
 		"round-robin": roundRobinLoadBalancer,

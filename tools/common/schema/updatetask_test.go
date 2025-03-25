@@ -38,6 +38,7 @@ import (
 	"github.com/uber/cadence/schema/cassandra"
 	"github.com/uber/cadence/schema/mysql"
 	"github.com/uber/cadence/schema/postgres"
+	"github.com/uber/cadence/schema/sqlite"
 )
 
 type UpdateTaskTestSuite struct {
@@ -110,6 +111,7 @@ func (s *UpdateTaskTestSuite) TestReadSchemaDir() {
 }
 
 func (s *UpdateTaskTestSuite) TestReadSchemaDirFromEmbeddings() {
+	// Cassandra
 	fsys, err := fs.Sub(cassandra.SchemaFS, "cadence/versioned")
 	s.NoError(err)
 	ans, err := readSchemaDir(fsys, "0.30", "")
@@ -122,6 +124,7 @@ func (s *UpdateTaskTestSuite) TestReadSchemaDirFromEmbeddings() {
 	s.NoError(err)
 	s.Equal([]string{"v0.7", "v0.8", "v0.9"}, ans)
 
+	// MySQL
 	fsys, err = fs.Sub(mysql.SchemaFS, "v8/cadence/versioned")
 	s.NoError(err)
 	ans, err = readSchemaDir(fsys, "0.3", "")
@@ -134,6 +137,20 @@ func (s *UpdateTaskTestSuite) TestReadSchemaDirFromEmbeddings() {
 	s.NoError(err)
 	s.Equal([]string{"v0.6", "v0.7"}, ans)
 
+	// SQLite
+	fsys, err = fs.Sub(sqlite.SchemaFS, "cadence/versioned")
+	s.NoError(err)
+	ans, err = readSchemaDir(fsys, "0.1", "")
+	s.NoError(err)
+	s.Nil(ans, "no version dirs found after 0.1")
+
+	fsys, err = fs.Sub(sqlite.SchemaFS, "visibility/versioned")
+	s.NoError(err)
+	ans, err = readSchemaDir(fsys, "0.1", "")
+	s.NoError(err)
+	s.Nil(ans, "no version dirs found after 0.1")
+
+	// Postgres
 	fsys, err = fs.Sub(postgres.SchemaFS, "cadence/versioned")
 	s.NoError(err)
 	ans, err = readSchemaDir(fsys, "0.3", "")

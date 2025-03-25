@@ -169,20 +169,14 @@ const (
 	PersistenceGetTransferTasksScope
 	// PersistenceCompleteTransferTaskScope tracks CompleteTransferTasks calls made by service to persistence layer
 	PersistenceCompleteTransferTaskScope
-	// PersistenceRangeCompleteTransferTaskScope tracks CompleteTransferTasks calls made by service to persistence layer
-	PersistenceRangeCompleteTransferTaskScope
 	// PersistenceGetCrossClusterTasksScope tracks GetCrossClusterTasks calls made by service to persistence layer
 	PersistenceGetCrossClusterTasksScope
 	// PersistenceCompleteCrossClusterTaskScope tracks CompleteCrossClusterTasks calls made by service to persistence layer
 	PersistenceCompleteCrossClusterTaskScope
-	// PersistenceRangeCompleteCrossClusterTaskScope tracks CompleteCrossClusterTasks calls made by service to persistence layer
-	PersistenceRangeCompleteCrossClusterTaskScope
 	// PersistenceGetReplicationTasksScope tracks GetReplicationTasks calls made by service to persistence layer
 	PersistenceGetReplicationTasksScope
 	// PersistenceCompleteReplicationTaskScope tracks CompleteReplicationTasks calls made by service to persistence layer
 	PersistenceCompleteReplicationTaskScope
-	// PersistenceRangeCompleteReplicationTaskScope tracks RangeCompleteReplicationTasks calls made by service to persistence layer
-	PersistenceRangeCompleteReplicationTaskScope
 	// PersistencePutReplicationTaskToDLQScope tracks PersistencePutReplicationTaskToDLQScope calls made by service to persistence layer
 	PersistencePutReplicationTaskToDLQScope
 	// PersistenceGetReplicationTasksFromDLQScope tracks PersistenceGetReplicationTasksFromDLQScope calls made by service to persistence layer
@@ -199,8 +193,10 @@ const (
 	PersistenceGetTimerIndexTasksScope
 	// PersistenceCompleteTimerTaskScope tracks CompleteTimerTasks calls made by service to persistence layer
 	PersistenceCompleteTimerTaskScope
-	// PersistenceRangeCompleteTimerTaskScope tracks CompleteTimerTasks calls made by service to persistence layer
-	PersistenceRangeCompleteTimerTaskScope
+	// PersistenceGetHistoryTasksScope tracks GetHistoryTasks calls made by service to persistence layer
+	PersistenceGetHistoryTasksScope
+	// PersistenceRangeCompleteHistoryTaskScope tracks RangeCompleteHistoryTask calls made by service to persistence layer
+	PersistenceRangeCompleteHistoryTaskScope
 	// PersistenceCreateTasksScope tracks CreateTask calls made by service to persistence layer
 	PersistenceCreateTasksScope
 	// PersistenceGetTasksScope tracks GetTasks calls made by service to persistence layer
@@ -1432,13 +1428,10 @@ var ScopeDefs = map[ServiceIdx]map[int]scopeDefinition{
 		PersistenceListConcreteExecutionsScope:                   {operation: "ListConcreteExecutions"},
 		PersistenceGetTransferTasksScope:                         {operation: "GetTransferTasks"},
 		PersistenceCompleteTransferTaskScope:                     {operation: "CompleteTransferTask"},
-		PersistenceRangeCompleteTransferTaskScope:                {operation: "RangeCompleteTransferTask"},
 		PersistenceGetCrossClusterTasksScope:                     {operation: "GetCrossClusterTasks"},
 		PersistenceCompleteCrossClusterTaskScope:                 {operation: "GetCrossClusterTasks"},
-		PersistenceRangeCompleteCrossClusterTaskScope:            {operation: "GetCrossClusterTasks"},
 		PersistenceGetReplicationTasksScope:                      {operation: "GetReplicationTasks"},
 		PersistenceCompleteReplicationTaskScope:                  {operation: "CompleteReplicationTask"},
-		PersistenceRangeCompleteReplicationTaskScope:             {operation: "RangeCompleteReplicationTask"},
 		PersistencePutReplicationTaskToDLQScope:                  {operation: "PutReplicationTaskToDLQ"},
 		PersistenceGetReplicationTasksFromDLQScope:               {operation: "GetReplicationTasksFromDLQ"},
 		PersistenceGetReplicationDLQSizeScope:                    {operation: "GetReplicationDLQSize"},
@@ -1447,7 +1440,8 @@ var ScopeDefs = map[ServiceIdx]map[int]scopeDefinition{
 		PersistenceCreateFailoverMarkerTasksScope:                {operation: "CreateFailoverMarkerTasks"},
 		PersistenceGetTimerIndexTasksScope:                       {operation: "GetTimerIndexTasks"},
 		PersistenceCompleteTimerTaskScope:                        {operation: "CompleteTimerTask"},
-		PersistenceRangeCompleteTimerTaskScope:                   {operation: "RangeCompleteTimerTask"},
+		PersistenceGetHistoryTasksScope:                          {operation: "GetHistoryTasks"},
+		PersistenceRangeCompleteHistoryTaskScope:                 {operation: "RangeCompleteHistoryTask"},
 		PersistenceCreateTasksScope:                              {operation: "CreateTask"},
 		PersistenceGetTasksScope:                                 {operation: "GetTasks"},
 		PersistenceCompleteTaskScope:                             {operation: "CompleteTask"},
@@ -2112,6 +2106,7 @@ const (
 	PersistenceSampledCounter
 	PersistenceEmptyResponseCounter
 	PersistenceResponseRowSize
+	PersistenceResponsePayloadSize
 
 	PersistenceRequestsPerDomain
 	PersistenceRequestsPerShard
@@ -2471,6 +2466,7 @@ const (
 	CacheFullCounter
 	AcquireLockFailedCounter
 	WorkflowContextCleared
+	WorkflowContextLockLatency
 	MutableStateSize
 	ExecutionInfoSize
 	ActivityInfoSize
@@ -2817,6 +2813,7 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		PersistenceSampledCounter:                                    {metricName: "persistence_sampled", metricType: Counter},
 		PersistenceEmptyResponseCounter:                              {metricName: "persistence_empty_response", metricType: Counter},
 		PersistenceResponseRowSize:                                   {metricName: "persistence_response_row_size", metricType: Histogram, buckets: ResponseRowSizeBuckets},
+		PersistenceResponsePayloadSize:                               {metricName: "persistence_response_payload_size", metricType: Histogram, buckets: ResponsePayloadSizeBuckets},
 		PersistenceRequestsPerDomain:                                 {metricName: "persistence_requests_per_domain", metricRollupName: "persistence_requests", metricType: Counter},
 		PersistenceRequestsPerShard:                                  {metricName: "persistence_requests_per_shard", metricType: Counter},
 		PersistenceFailuresPerDomain:                                 {metricName: "persistence_errors_per_domain", metricRollupName: "persistence_errors", metricType: Counter},
@@ -3182,6 +3179,7 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		CacheFullCounter:                                             {metricName: "cache_full", metricType: Counter},
 		AcquireLockFailedCounter:                                     {metricName: "acquire_lock_failed", metricType: Counter},
 		WorkflowContextCleared:                                       {metricName: "workflow_context_cleared", metricType: Counter},
+		WorkflowContextLockLatency:                                   {metricName: "workflow_context_lock_latency", metricType: Timer},
 		MutableStateSize:                                             {metricName: "mutable_state_size", metricType: Timer},
 		ExecutionInfoSize:                                            {metricName: "execution_info_size", metricType: Timer},
 		ActivityInfoSize:                                             {metricName: "activity_info_size", metricType: Timer},
@@ -3537,6 +3535,12 @@ var GlobalRatelimiterUsageHistogram = append(
 var ResponseRowSizeBuckets = append(
 	tally.ValueBuckets{0},                              // need an explicit 0 or zero is reported as 1
 	tally.MustMakeExponentialValueBuckets(1, 2, 17)..., // 1..65536
+)
+
+// ResponsePayloadSizeBuckets contains buckets for tracking the size of the payload returned per persistence operation
+var ResponsePayloadSizeBuckets = append(
+	tally.ValueBuckets{0},                                 // need an explicit 0 or zero is reported as 1
+	tally.MustMakeExponentialValueBuckets(1024, 2, 20)..., // 1kB..1GB
 )
 
 // ErrorClass is an enum to help with classifying SLA vs. non-SLA errors (SLA = "service level agreement")

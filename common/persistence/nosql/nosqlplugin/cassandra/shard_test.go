@@ -29,7 +29,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
@@ -112,8 +111,7 @@ func TestInsertShard(t *testing.T) {
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
-			timeSrc := clock.NewMockedTimeSourceAt(ts)
-			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client), dbWithTimeSource(timeSrc))
+			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
 
 			err := db.InsertShard(context.Background(), tc.row)
 
@@ -258,8 +256,7 @@ func TestSelectShard(t *testing.T) {
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
-			timeSrc := clock.NewMockedTimeSourceAt(ts)
-			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client), dbWithTimeSource(timeSrc))
+			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
 
 			gotRangeID, gotShardInfo, err := db.SelectShard(context.Background(), tc.shardID, tc.cluster)
 
@@ -287,11 +284,6 @@ func TestSelectShard(t *testing.T) {
 }
 
 func TestUpdateRangeID(t *testing.T) {
-	ts, err := time.Parse(time.RFC3339, "2024-04-02T18:00:00Z")
-	if err != nil {
-		t.Fatalf("Failed to parse time: %v", err)
-	}
-
 	tests := []struct {
 		name        string
 		shardID     int
@@ -365,8 +357,7 @@ func TestUpdateRangeID(t *testing.T) {
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
-			timeSrc := clock.NewMockedTimeSourceAt(ts)
-			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client), dbWithTimeSource(timeSrc))
+			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
 
 			err := db.UpdateRangeID(context.Background(), tc.shardID, tc.rangeID, tc.prevRangeID)
 
@@ -480,8 +471,7 @@ func TestUpdateShard(t *testing.T) {
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
-			timeSrc := clock.NewMockedTimeSourceAt(ts)
-			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client), dbWithTimeSource(timeSrc))
+			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
 
 			err := db.UpdateShard(context.Background(), tc.row, tc.prevRangeID)
 

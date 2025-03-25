@@ -392,7 +392,7 @@ func (c *controller) acquireShards() {
 	}
 	close(shardActionCh)
 
-	concurrency := common.MaxInt(c.config.AcquireShardConcurrency(), 1)
+	concurrency := max(c.config.AcquireShardConcurrency(), 1)
 	var wg sync.WaitGroup
 	wg.Add(concurrency)
 	// Spawn workers that would do lookup and add/remove shards concurrently.

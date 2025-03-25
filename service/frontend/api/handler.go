@@ -39,6 +39,7 @@ import (
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/client"
 	"github.com/uber/cadence/common/codec"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/domain"
 	"github.com/uber/cadence/common/elasticsearch/validator"
 	"github.com/uber/cadence/common/log"
@@ -722,7 +723,7 @@ func (wh *WorkflowHandler) RecordActivityTaskHeartbeatByID(
 		DomainID:   domainID,
 		RunID:      runID,
 		WorkflowID: workflowID,
-		ScheduleID: common.EmptyEventID,
+		ScheduleID: constants.EmptyEventID,
 		ActivityID: activityID,
 	}
 	token, err := wh.tokenSerializer.Serialize(taskToken)
@@ -919,7 +920,7 @@ func (wh *WorkflowHandler) RespondActivityTaskCompletedByID(
 		DomainID:   domainID,
 		RunID:      runID,
 		WorkflowID: workflowID,
-		ScheduleID: common.EmptyEventID,
+		ScheduleID: constants.EmptyEventID,
 		ActivityID: activityID,
 	}
 	token, err := wh.tokenSerializer.Serialize(taskToken)
@@ -1103,7 +1104,7 @@ func (wh *WorkflowHandler) RespondActivityTaskFailedByID(
 		DomainID:   domainID,
 		RunID:      runID,
 		WorkflowID: workflowID,
-		ScheduleID: common.EmptyEventID,
+		ScheduleID: constants.EmptyEventID,
 		ActivityID: activityID,
 	}
 	token, err := wh.tokenSerializer.Serialize(taskToken)
@@ -1289,7 +1290,7 @@ func (wh *WorkflowHandler) RespondActivityTaskCanceledByID(
 		DomainID:   domainID,
 		RunID:      runID,
 		WorkflowID: workflowID,
-		ScheduleID: common.EmptyEventID,
+		ScheduleID: constants.EmptyEventID,
 		ActivityID: activityID,
 	}
 	token, err := wh.tokenSerializer.Serialize(taskToken)
@@ -1621,7 +1622,7 @@ func (wh *WorkflowHandler) StartWorkflowExecutionAsync(
 		PartitionKey: common.StringPtr(startRequest.GetWorkflowID()),
 		Type:         &messageType,
 		Header:       header,
-		Encoding:     common.StringPtr(string(common.EncodingTypeThriftRW)),
+		Encoding:     common.StringPtr(string(constants.EncodingTypeThriftRW)),
 		Payload:      payload,
 	}
 	err = producer.Publish(ctx, message)
@@ -1848,13 +1849,13 @@ func (wh *WorkflowHandler) GetWorkflowExecutionHistory(
 		getRequest.MaximumPageSize = int32(wh.config.HistoryMaxPageSize(getRequest.GetDomain()))
 	}
 	// force limit page size if exceed
-	if getRequest.GetMaximumPageSize() > common.GetHistoryMaxPageSize {
+	if getRequest.GetMaximumPageSize() > constants.GetHistoryMaxPageSize {
 		wh.GetThrottledLogger().Warn("GetHistory page size is larger than threshold",
 			tag.WorkflowID(getRequest.Execution.GetWorkflowID()),
 			tag.WorkflowRunID(getRequest.Execution.GetRunID()),
 			tag.WorkflowDomainID(domainID),
 			tag.WorkflowSize(int64(getRequest.GetMaximumPageSize())))
-		getRequest.MaximumPageSize = common.GetHistoryMaxPageSize
+		getRequest.MaximumPageSize = constants.GetHistoryMaxPageSize
 	}
 
 	scope := getMetricsScopeWithDomain(metrics.FrontendGetWorkflowExecutionHistoryScope, getRequest, wh.GetMetricsClient()).Tagged(metrics.GetContextTags(ctx)...)
@@ -1921,12 +1922,12 @@ func (wh *WorkflowHandler) GetWorkflowExecutionHistory(
 	token := &getHistoryContinuationToken{}
 
 	var runID string
-	lastFirstEventID := common.FirstEventID
+	lastFirstEventID := constants.FirstEventID
 	var nextEventID int64
 	var isWorkflowRunning bool
 
 	// process the token for paging
-	queryNextEventID := common.EndEventID
+	queryNextEventID := constants.EndEventID
 	if getRequest.NextPageToken != nil {
 		token, err = deserializeHistoryToken(getRequest.NextPageToken)
 		if err != nil {
@@ -1966,7 +1967,7 @@ func (wh *WorkflowHandler) GetWorkflowExecutionHistory(
 		}
 	} else {
 		if !isCloseEventOnly {
-			queryNextEventID = common.FirstEventID
+			queryNextEventID = constants.FirstEventID
 		}
 		token.BranchToken, runID, lastFirstEventID, nextEventID, isWorkflowRunning, token.VersionHistoryItem, err =
 			queryHistory(domainID, execution, queryNextEventID, nil, nil)
@@ -1977,7 +1978,7 @@ func (wh *WorkflowHandler) GetWorkflowExecutionHistory(
 		execution.RunID = runID
 
 		token.RunID = runID
-		token.FirstEventID = common.FirstEventID
+		token.FirstEventID = constants.FirstEventID
 		token.NextEventID = nextEventID
 		token.IsWorkflowRunning = isWorkflowRunning
 		token.PersistenceToken = nil
@@ -2224,7 +2225,7 @@ func (wh *WorkflowHandler) SignalWithStartWorkflowExecutionAsync(
 		PartitionKey: common.StringPtr(signalWithStartRequest.GetWorkflowID()),
 		Type:         &messageType,
 		Header:       header,
-		Encoding:     common.StringPtr(string(common.EncodingTypeThriftRW)),
+		Encoding:     common.StringPtr(string(constants.EncodingTypeThriftRW)),
 		Payload:      payload,
 	}
 	err = producer.Publish(ctx, message)
@@ -2754,9 +2755,9 @@ func (wh *WorkflowHandler) getRawHistory(
 	var encoding *types.EncodingType
 	for _, data := range resp.HistoryEventBlobs {
 		switch data.Encoding {
-		case common.EncodingTypeJSON:
+		case constants.EncodingTypeJSON:
 			encoding = types.EncodingTypeJSON.Ptr()
-		case common.EncodingTypeThriftRW:
+		case constants.EncodingTypeThriftRW:
 			encoding = types.EncodingTypeThriftRW.Ptr()
 		default:
 			panic(fmt.Sprintf("Invalid encoding type for raw history, encoding type: %s", data.Encoding))
@@ -2777,7 +2778,7 @@ func (wh *WorkflowHandler) getRawHistory(
 				tag.Error(err))
 		}
 		blob, err := wh.GetPayloadSerializer().SerializeBatchEvents(
-			[]*types.HistoryEvent{transientDecision.ScheduledEvent, transientDecision.StartedEvent}, common.EncodingTypeThriftRW)
+			[]*types.HistoryEvent{transientDecision.ScheduledEvent, transientDecision.StartedEvent}, constants.EncodingTypeThriftRW)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -2932,7 +2933,7 @@ func (wh *WorkflowHandler) createPollForDecisionTaskResponse(
 
 		var persistenceToken []byte
 
-		firstEventID := common.FirstEventID
+		firstEventID := constants.FirstEventID
 		nextEventID := matchingResp.GetNextEventID()
 		if matchingResp.GetStickyExecutionEnabled() {
 			firstEventID = matchingResp.GetPreviousStartedEventID() + 1

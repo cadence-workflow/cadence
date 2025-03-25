@@ -344,24 +344,30 @@ func TestAdminTimers(t *testing.T) {
 					Return(mockExecManager, nil).Times(1)
 
 				mockExecManager.EXPECT().
-					GetTimerIndexTasks(gomock.Any(), gomock.Any()).
-					Return(&persistence.GetTimerIndexTasksResponse{
-						Timers: []*persistence.TimerTaskInfo{
-							{
-								DomainID:            "testDomain",
-								WorkflowID:          "testWorkflow1",
-								RunID:               "testRun1",
-								VisibilityTimestamp: time.Now(),
-								TaskID:              1,
-								TaskType:            persistence.TaskTypeUserTimer,
+					GetHistoryTasks(gomock.Any(), gomock.Any()).
+					Return(&persistence.GetHistoryTasksResponse{
+						Tasks: []persistence.Task{
+							&persistence.UserTimerTask{
+								WorkflowIdentifier: persistence.WorkflowIdentifier{
+									DomainID:   "testDomain",
+									WorkflowID: "testWorkflow1",
+									RunID:      "testRun1",
+								},
+								TaskData: persistence.TaskData{
+									TaskID:              1,
+									VisibilityTimestamp: time.Now(),
+								},
 							},
-							{
-								DomainID:            "testDomain",
-								WorkflowID:          "testWorkflow2",
-								RunID:               "testRun2",
-								VisibilityTimestamp: time.Now().Add(time.Hour),
-								TaskID:              2,
-								TaskType:            persistence.TaskTypeUserTimer,
+							&persistence.UserTimerTask{
+								WorkflowIdentifier: persistence.WorkflowIdentifier{
+									DomainID:   "testDomain",
+									WorkflowID: "testWorkflow2",
+									RunID:      "testRun2",
+								},
+								TaskData: persistence.TaskData{
+									TaskID:              2,
+									VisibilityTimestamp: time.Now().Add(time.Hour),
+								},
 							},
 						},
 						NextPageToken: nil,

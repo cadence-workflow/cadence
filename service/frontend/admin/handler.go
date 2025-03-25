@@ -38,6 +38,7 @@ import (
 	"github.com/uber/cadence/common/client"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/codec"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/domain"
 	dc "github.com/uber/cadence/common/dynamicconfig"
@@ -1078,11 +1079,11 @@ func (adh *adminHandlerImpl) ReadDLQMessages(
 	}
 
 	if request.GetMaximumPageSize() <= 0 {
-		request.MaximumPageSize = common.ReadDLQMessagesPageSize
+		request.MaximumPageSize = constants.ReadDLQMessagesPageSize
 	}
 
 	if request.InclusiveEndMessageID == nil {
-		request.InclusiveEndMessageID = common.Int64Ptr(common.EndMessageID)
+		request.InclusiveEndMessageID = common.Int64Ptr(constants.EndMessageID)
 	}
 
 	var tasks []*types.ReplicationTask
@@ -1420,7 +1421,7 @@ func (adh *adminHandlerImpl) setRequestDefaultValueAndGetTargetVersionHistory(
 	if request.StartEventID == nil || request.StartEventVersion == nil {
 		// If start event is not set, get the events from the first event
 		// As the API is exclusive-exclusive, use first event id - 1 here
-		request.StartEventID = common.Int64Ptr(common.FirstEventID - 1)
+		request.StartEventID = common.Int64Ptr(constants.FirstEventID - 1)
 		request.StartEventVersion = common.Int64Ptr(firstItem.Version)
 	}
 	if request.EndEventID == nil || request.EndEventVersion == nil {
@@ -1449,7 +1450,7 @@ func (adh *adminHandlerImpl) setRequestDefaultValueAndGetTargetVersionHistory(
 	startItem := persistence.NewVersionHistoryItem(request.GetStartEventID(), request.GetStartEventVersion())
 	// If the request start event is defined. The start event may be on a different branch as current branch.
 	// We need to find the LCA of the start event and the current branch.
-	if request.GetStartEventID() == common.FirstEventID-1 &&
+	if request.GetStartEventID() == constants.FirstEventID-1 &&
 		request.GetStartEventVersion() == firstItem.Version {
 		// this is a special case, start event is on the same branch as target branch
 	} else {

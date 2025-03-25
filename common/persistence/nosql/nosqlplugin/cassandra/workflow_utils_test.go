@@ -36,6 +36,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/checksum"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql"
@@ -1044,7 +1045,7 @@ func TestCreateTimerTasks(t *testing.T) {
 					},
 					Task: &persistence.DataBlob{
 						Data:     []byte("timer1"),
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 					},
 				},
 				{
@@ -1060,7 +1061,7 @@ func TestCreateTimerTasks(t *testing.T) {
 					},
 					Task: &persistence.DataBlob{
 						Data:     []byte("timer2"),
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 					},
 				},
 			},
@@ -1121,13 +1122,13 @@ func TestReplicationTasks(t *testing.T) {
 						FirstEventID:      5,
 						NextEventID:       8,
 						Version:           0,
-						ScheduledID:       common.EmptyEventID,
+						ScheduledID:       constants.EmptyEventID,
 						NewRunBranchToken: []byte{'a', 'b', 'c'},
 						CreationTime:      ts,
 					},
 					Task: &persistence.DataBlob{
 						Data:     []byte("rep1"),
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 					},
 				},
 				{
@@ -1138,13 +1139,13 @@ func TestReplicationTasks(t *testing.T) {
 						FirstEventID:      25,
 						NextEventID:       28,
 						Version:           0,
-						ScheduledID:       common.EmptyEventID,
+						ScheduledID:       constants.EmptyEventID,
 						NewRunBranchToken: []byte{'a', 'b', 'c'},
 						CreationTime:      ts.Add(time.Hour),
 					},
 					Task: &persistence.DataBlob{
 						Data:     []byte("rep2"),
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 					},
 				},
 			},
@@ -1211,7 +1212,7 @@ func TestTransferTasks(t *testing.T) {
 					},
 					Task: &persistence.DataBlob{
 						Data:     []byte("tr1"),
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 					},
 				},
 				{
@@ -1230,7 +1231,7 @@ func TestTransferTasks(t *testing.T) {
 					},
 					Task: &persistence.DataBlob{
 						Data:     []byte("tr2"),
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 					},
 				},
 			},
@@ -1644,13 +1645,13 @@ func TestResetChildExecutionInfos(t *testing.T) {
 					InitiatedEventBatchID: 2,
 					StartedID:             3,
 					StartedEvent: &persistence.DataBlob{
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 					},
 					StartedWorkflowID: "startedWorkflowID1",
 					StartedRunID:      "startedRunID1",
 					CreateRequestID:   "createRequestID1",
 					InitiatedEvent: &persistence.DataBlob{
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 					},
 					DomainID:          "domain1",
 					WorkflowTypeName:  "workflowType1",
@@ -1682,13 +1683,13 @@ func TestResetChildExecutionInfos(t *testing.T) {
 					InitiatedEventBatchID: 2,
 					StartedID:             3,
 					StartedEvent: &persistence.DataBlob{
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 					},
 					StartedWorkflowID: "startedWorkflowID1",
 					StartedRunID:      "", // leave empty and validate it's querying empty runid
 					CreateRequestID:   "createRequestID1",
 					InitiatedEvent: &persistence.DataBlob{
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 					},
 					DomainID:          "domain1",
 					WorkflowTypeName:  "workflowType1",
@@ -1753,13 +1754,13 @@ func TestUpdateChildExecutionInfos(t *testing.T) {
 					InitiatedEventBatchID: 2,
 					StartedID:             3,
 					StartedEvent: &persistence.DataBlob{
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 					},
 					StartedWorkflowID: "startedWorkflowID1",
 					StartedRunID:      "startedRunID1",
 					CreateRequestID:   "createRequestID1",
 					InitiatedEvent: &persistence.DataBlob{
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 					},
 					DomainID:          "domain1",
 					WorkflowTypeName:  "workflowType1",
@@ -1943,14 +1944,14 @@ func TestResetActivityInfos(t *testing.T) {
 				1: {
 					Version: 1,
 					ScheduledEvent: &persistence.DataBlob{
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 						Data:     []byte("thrift-encoded-scheduled-event-data"),
 					},
 					ScheduledTime: ts.UTC(),
 					ScheduleID:    1,
 					StartedID:     2,
 					StartedEvent: &persistence.DataBlob{
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 						Data:     []byte("thrift-encoded-started-event-data"),
 					},
 					ActivityID:             "activity1",
@@ -1967,14 +1968,14 @@ func TestResetActivityInfos(t *testing.T) {
 				2: {
 					Version: 1,
 					ScheduledEvent: &persistence.DataBlob{
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 						Data:     []byte("thrift-encoded-scheduled-event-data"),
 					},
 					ScheduledTime: ts.UTC(),
 					ScheduleID:    2,
 					StartedID:     3,
 					StartedEvent: &persistence.DataBlob{
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 						Data:     []byte("thrift-encoded-started-event-data"),
 					},
 					ActivityID:             "activity2",
@@ -2063,14 +2064,14 @@ func TestUpdateActivityInfos(t *testing.T) {
 				1: {
 					Version: 1,
 					ScheduledEvent: &persistence.DataBlob{
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 						Data:     []byte("thrift-encoded-scheduled-event-data"),
 					},
 					ScheduledTime: ts.UTC(),
 					ScheduleID:    1,
 					StartedID:     2,
 					StartedEvent: &persistence.DataBlob{
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 						Data:     []byte("thrift-encoded-started-event-data"),
 					},
 					ActivityID:             "activity1",
@@ -2192,14 +2193,14 @@ func TestCreateWorkflowExecutionWithMergeMaps(t *testing.T) {
 					1: {
 						Version: 1,
 						ScheduledEvent: &persistence.DataBlob{
-							Encoding: common.EncodingTypeThriftRW,
+							Encoding: constants.EncodingTypeThriftRW,
 							Data:     []byte("thrift-encoded-scheduled-event-data"),
 						},
 						ScheduledTime: ts.UTC(),
 						ScheduleID:    1,
 						StartedID:     2,
 						StartedEvent: &persistence.DataBlob{
-							Encoding: common.EncodingTypeThriftRW,
+							Encoding: constants.EncodingTypeThriftRW,
 							Data:     []byte("thrift-encoded-started-event-data"),
 						},
 						ActivityID:             "activity1",
@@ -2230,13 +2231,13 @@ func TestCreateWorkflowExecutionWithMergeMaps(t *testing.T) {
 						InitiatedEventBatchID: 2,
 						StartedID:             3,
 						StartedEvent: &persistence.DataBlob{
-							Encoding: common.EncodingTypeThriftRW,
+							Encoding: constants.EncodingTypeThriftRW,
 						},
 						StartedWorkflowID: "startedWorkflowID1",
 						StartedRunID:      "startedRunID1",
 						CreateRequestID:   "createRequestID1",
 						InitiatedEvent: &persistence.DataBlob{
-							Encoding: common.EncodingTypeThriftRW,
+							Encoding: constants.EncodingTypeThriftRW,
 						},
 						DomainID:          "domain1",
 						WorkflowTypeName:  "workflowType1",
@@ -2440,14 +2441,14 @@ func TestUpdateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(t *testing.
 					1: {
 						Version: 1,
 						ScheduledEvent: &persistence.DataBlob{
-							Encoding: common.EncodingTypeThriftRW,
+							Encoding: constants.EncodingTypeThriftRW,
 							Data:     []byte("thrift-encoded-scheduled-event-data"),
 						},
 						ScheduledTime: ts.UTC(),
 						ScheduleID:    1,
 						StartedID:     2,
 						StartedEvent: &persistence.DataBlob{
-							Encoding: common.EncodingTypeThriftRW,
+							Encoding: constants.EncodingTypeThriftRW,
 							Data:     []byte("thrift-encoded-started-event-data"),
 						},
 						ActivityID:             "activity1",
@@ -2478,13 +2479,13 @@ func TestUpdateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(t *testing.
 						InitiatedEventBatchID: 2,
 						StartedID:             3,
 						StartedEvent: &persistence.DataBlob{
-							Encoding: common.EncodingTypeThriftRW,
+							Encoding: constants.EncodingTypeThriftRW,
 						},
 						StartedWorkflowID: "startedWorkflowID1",
 						StartedRunID:      "startedRunID1",
 						CreateRequestID:   "createRequestID1",
 						InitiatedEvent: &persistence.DataBlob{
-							Encoding: common.EncodingTypeThriftRW,
+							Encoding: constants.EncodingTypeThriftRW,
 						},
 						DomainID:          "domain1",
 						WorkflowTypeName:  "workflowType1",

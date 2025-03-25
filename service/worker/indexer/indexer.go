@@ -32,6 +32,7 @@ import (
 	"github.com/uber/cadence/.gen/go/indexer"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/codec"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/dynamicconfig"
 	es "github.com/uber/cadence/common/elasticsearch"
@@ -113,7 +114,7 @@ func NewIndexer(
 		consumerName = getConsumerName(visibilityName)
 	}
 
-	consumer, err := client.NewConsumer(common.VisibilityAppName, consumerName)
+	consumer, err := client.NewConsumer(constants.VisibilityAppName, consumerName)
 	if err != nil {
 		logger.Fatal("Index consumer state changed", tag.LifeCycleStartFailed, tag.Error(err))
 	}

@@ -29,6 +29,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -328,7 +329,7 @@ func (handler *taskHandlerImpl) handleDecisionRequestCancelActivity(
 	)
 	switch err.(type) {
 	case nil:
-		if ai.StartedID == common.EmptyEventID {
+		if ai.StartedID == constants.EmptyEventID {
 			// We haven't started the activity yet, we can cancel the activity right away and
 			// schedule a decision task to ensure the workflow makes progress.
 			_, err = handler.mutableState.AddActivityTaskCanceledEvent(

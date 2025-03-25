@@ -36,6 +36,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
+	commonconstants "github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
@@ -199,7 +200,7 @@ func (s *engine3Suite) TestRecordDecisionTaskStartedSuccessStickyEnabled() {
 	expectedResponse := types.RecordDecisionTaskStartedResponse{}
 	expectedResponse.WorkflowType = msBuilder.GetWorkflowType()
 	executionInfo = msBuilder.GetExecutionInfo()
-	if executionInfo.LastProcessedEvent != common.EmptyEventID {
+	if executionInfo.LastProcessedEvent != commonconstants.EmptyEventID {
 		expectedResponse.PreviousStartedEventID = common.Int64Ptr(executionInfo.LastProcessedEvent)
 	}
 	expectedResponse.ScheduledEventID = di.ScheduleID

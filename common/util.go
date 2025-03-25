@@ -27,7 +27,6 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -38,6 +37,7 @@ import (
 	"go.uber.org/yarpc/yarpcerrors"
 
 	"github.com/uber/cadence/common/backoff"
+	"github.com/uber/cadence/common/constants"
 	cadence_errors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -289,7 +289,7 @@ func FrontendRetry(err error) bool {
 	var sbErr *types.ServiceBusyError
 	if errors.As(err, &sbErr) {
 		// If the service busy error is due to workflow id rate limiting, proxy it to the caller
-		return sbErr.Reason != WorkflowIDRateLimitReason
+		return sbErr.Reason != constants.WorkflowIDRateLimitReason
 	}
 	return IsServiceTransientError(err)
 }
@@ -475,74 +475,10 @@ func CreateMatchingPollForDecisionTaskResponse(historyResponse *types.RecordDeci
 		Queries:                   historyResponse.Queries,
 		TotalHistoryBytes:         historyResponse.HistorySize,
 	}
-	if historyResponse.GetPreviousStartedEventID() != EmptyEventID {
+	if historyResponse.GetPreviousStartedEventID() != constants.EmptyEventID {
 		matchingResp.PreviousStartedEventID = historyResponse.PreviousStartedEventID
 	}
 	return matchingResp
-}
-
-// MinInt64 returns the smaller of two given int64
-func MinInt64(a, b int64) int64 {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-// MaxInt64 returns the greater of two given int64
-func MaxInt64(a, b int64) int64 {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-// MinInt32 return smaller one of two inputs int32
-func MinInt32(a, b int32) int32 {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-// MinInt returns the smaller of two given integers
-func MinInt(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-// MaxInt returns the greater one of two given integers
-func MaxInt(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-// MinDuration returns the smaller of two given time duration
-func MinDuration(a, b time.Duration) time.Duration {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-// MaxDuration returns the greater of two given time durations
-func MaxDuration(a, b time.Duration) time.Duration {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-// SortInt64Slice sorts the given int64 slice.
-// Sort is not guaranteed to be stable.
-func SortInt64Slice(slice []int64) {
-	sort.Slice(slice, func(i int, j int) bool {
-		return slice[i] < slice[j]
-	})
 }
 
 // ValidateRetryPolicy validates a retry policy
@@ -695,13 +631,13 @@ func ValidateLongPollContextTimeout(
 		return err
 	}
 	timeout := time.Until(deadline)
-	if timeout < MinLongPollTimeout {
+	if timeout < constants.MinLongPollTimeout {
 		err := ErrContextTimeoutTooShort
 		logger.Error("Context timeout is too short for long poll API.",
 			tag.WorkflowHandlerName(handlerName), tag.Error(err), tag.WorkflowPollContextTimeout(timeout))
 		return err
 	}
-	if timeout < CriticalLongPollTimeout {
+	if timeout < constants.CriticalLongPollTimeout {
 		logger.Debug("Context timeout is lower than critical value for long poll API.",
 			tag.WorkflowHandlerName(handlerName), tag.WorkflowPollContextTimeout(timeout))
 	}
@@ -961,7 +897,7 @@ func DeserializeSearchAttributeValue(value []byte, valueType types.IndexedValueT
 
 // IsAdvancedVisibilityWritingEnabled returns true if we should write to advanced visibility
 func IsAdvancedVisibilityWritingEnabled(advancedVisibilityWritingMode string, isAdvancedVisConfigExist bool) bool {
-	return advancedVisibilityWritingMode != AdvancedVisibilityModeOff && isAdvancedVisConfigExist
+	return advancedVisibilityWritingMode != constants.AdvancedVisibilityModeOff && isAdvancedVisConfigExist
 }
 
 // IsAdvancedVisibilityReadingEnabled returns true if we should read from advanced visibility
@@ -1012,7 +948,7 @@ func ConvertDynamicConfigMapPropertyToIntMap(dcValue map[string]interface{}) (ma
 // IsStickyTaskConditionError is error from matching engine
 func IsStickyTaskConditionError(err error) bool {
 	if e, ok := err.(*types.InternalServiceError); ok {
-		return e.GetMessage() == StickyTaskConditionFailedErrorMsg
+		return e.GetMessage() == constants.StickyTaskConditionFailedErrorMsg
 	}
 	return false
 }
@@ -1040,7 +976,7 @@ func SecondsToDuration(d int64) time.Duration {
 // SleepWithMinDuration sleeps for the minimum of desired and available duration
 // returns the remaining available time duration
 func SleepWithMinDuration(desired time.Duration, available time.Duration) time.Duration {
-	d := MinDuration(desired, available)
+	d := min(desired, available)
 	if d > 0 {
 		time.Sleep(d)
 	}

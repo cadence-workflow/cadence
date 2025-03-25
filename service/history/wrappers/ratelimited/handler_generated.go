@@ -32,7 +32,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/frontend/validate"
@@ -104,7 +104,7 @@ func (h *historyHandler) DescribeWorkflowExecution(ctx context.Context, hp1 *typ
 	if !h.allowFunc(hp1.GetDomainUUID(), hp1.Request.GetExecution().GetWorkflowID()) {
 		err = &types.ServiceBusyError{
 			Message: "Too many requests for the workflow ID",
-			Reason:  common.WorkflowIDRateLimitReason,
+			Reason:  constants.WorkflowIDRateLimitReason,
 		}
 		return
 	}
@@ -267,7 +267,7 @@ func (h *historyHandler) SignalWithStartWorkflowExecution(ctx context.Context, h
 	if !h.allowFunc(hp1.GetDomainUUID(), hp1.SignalWithStartRequest.GetWorkflowID()) {
 		err = &types.ServiceBusyError{
 			Message: "Too many requests for the workflow ID",
-			Reason:  common.WorkflowIDRateLimitReason,
+			Reason:  constants.WorkflowIDRateLimitReason,
 		}
 		return
 	}
@@ -294,7 +294,7 @@ func (h *historyHandler) SignalWorkflowExecution(ctx context.Context, hp1 *types
 	if !h.allowFunc(hp1.GetDomainUUID(), hp1.SignalRequest.GetWorkflowExecution().GetWorkflowID()) {
 		err = &types.ServiceBusyError{
 			Message: "Too many requests for the workflow ID",
-			Reason:  common.WorkflowIDRateLimitReason,
+			Reason:  constants.WorkflowIDRateLimitReason,
 		}
 		return
 	}
@@ -326,7 +326,7 @@ func (h *historyHandler) StartWorkflowExecution(ctx context.Context, hp1 *types.
 	if !h.allowFunc(hp1.GetDomainUUID(), hp1.StartRequest.GetWorkflowID()) {
 		err = &types.ServiceBusyError{
 			Message: "Too many requests for the workflow ID",
-			Reason:  common.WorkflowIDRateLimitReason,
+			Reason:  constants.WorkflowIDRateLimitReason,
 		}
 		return
 	}

@@ -29,6 +29,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
@@ -89,7 +90,7 @@ func (e *mutableStateBuilder) ReplicateActivityInfo(
 	ai.ScheduledTime = time.Unix(0, request.GetScheduledTime())
 	ai.StartedID = request.GetStartedID()
 	ai.LastHeartBeatUpdatedTime = time.Unix(0, request.GetLastHeartbeatTime())
-	if ai.StartedID == common.EmptyEventID {
+	if ai.StartedID == constants.EmptyEventID {
 		ai.StartedTime = time.Time{}
 	} else {
 		ai.StartedTime = time.Unix(0, request.GetStartedTime())
@@ -340,7 +341,7 @@ func (e *mutableStateBuilder) ReplicateActivityTaskScheduledEvent(
 		ScheduleID:               scheduleEventID,
 		ScheduledEventBatchID:    firstEventID,
 		ScheduledTime:            time.Unix(0, event.GetTimestamp()),
-		StartedID:                common.EmptyEventID,
+		StartedID:                constants.EmptyEventID,
 		StartedTime:              time.Time{},
 		ActivityID:               attributes.ActivityID,
 		DomainID:                 targetDomainID,
@@ -349,7 +350,7 @@ func (e *mutableStateBuilder) ReplicateActivityTaskScheduledEvent(
 		StartToCloseTimeout:      attributes.GetStartToCloseTimeoutSeconds(),
 		HeartbeatTimeout:         attributes.GetHeartbeatTimeoutSeconds(),
 		CancelRequested:          false,
-		CancelRequestID:          common.EmptyEventID,
+		CancelRequestID:          constants.EmptyEventID,
 		LastHeartBeatUpdatedTime: time.Time{},
 		TimerTaskStatus:          TimerTaskStatusNone,
 		TaskList:                 attributes.TaskList.GetName(),
@@ -383,7 +384,7 @@ func (e *mutableStateBuilder) addTransientActivityStartedEvent(
 ) error {
 
 	ai, ok := e.GetActivityInfo(scheduleEventID)
-	if !ok || ai.StartedID != common.TransientEventID {
+	if !ok || ai.StartedID != constants.TransientEventID {
 		return nil
 	}
 
@@ -421,7 +422,7 @@ func (e *mutableStateBuilder) AddActivityTaskStartedEvent(
 	// we might need to retry, so do not append started event just yet,
 	// instead update mutable state and will record started event when activity task is closed
 	ai.Version = e.GetCurrentVersion()
-	ai.StartedID = common.TransientEventID
+	ai.StartedID = constants.TransientEventID
 	ai.RequestID = requestID
 	ai.StartedTime = e.timeSource.Now()
 	ai.LastHeartBeatUpdatedTime = ai.StartedTime
@@ -557,7 +558,7 @@ func (e *mutableStateBuilder) AddActivityTaskTimedOutEvent(
 
 	ai, ok := e.GetActivityInfo(scheduleEventID)
 	if !ok || ai.StartedID != startedEventID || ((timeoutType == types.TimeoutTypeStartToClose ||
-		timeoutType == types.TimeoutTypeHeartbeat) && ai.StartedID == common.EmptyEventID) {
+		timeoutType == types.TimeoutTypeHeartbeat) && ai.StartedID == constants.EmptyEventID) {
 		e.logger.Warn(mutableStateInvalidHistoryActionMsg, opTag,
 			tag.WorkflowEventID(e.GetNextEventID()),
 			tag.ErrorTypeInvalidHistoryAction,
@@ -753,7 +754,7 @@ func (e *mutableStateBuilder) RetryActivity(
 	ai.Version = e.GetCurrentVersion()
 	ai.Attempt++
 	ai.ScheduledTime = now.Add(backoffInterval) // update to next schedule time
-	ai.StartedID = common.EmptyEventID
+	ai.StartedID = constants.EmptyEventID
 	ai.RequestID = ""
 	ai.StartedTime = time.Time{}
 	ai.TimerTaskStatus = TimerTaskStatusNone

@@ -24,7 +24,6 @@ package nosql
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -33,11 +32,24 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/checksum"
+	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
+	"github.com/uber/cadence/common/persistence/serialization"
 	"github.com/uber/cadence/common/types"
 )
+
+var FixedTime = time.Date(2025, 1, 6, 15, 0, 0, 0, time.UTC)
+
+func newTestNosqlExecutionStoreWithTaskSerializer(db nosqlplugin.DB, logger log.Logger, taskSerializer serialization.TaskSerializer) *nosqlExecutionStore {
+	return &nosqlExecutionStore{
+		shardID:        1,
+		nosqlStore:     nosqlStore{logger: logger, db: db, dc: &persistence.DynamicConfiguration{EnableHistoryTaskDualWriteMode: func(...dynamicconfig.FilterOption) bool { return true }}},
+		taskSerializer: taskSerializer,
+	}
+}
 
 func TestNosqlExecutionStoreUtils(t *testing.T) {
 	testCases := []struct {
@@ -56,11 +68,11 @@ func TestNosqlExecutionStoreUtils(t *testing.T) {
 						RunID:      "test-run-id",
 					},
 					VersionHistories: &persistence.DataBlob{
-						Encoding: common.EncodingTypeJSON,
+						Encoding: constants.EncodingTypeJSON,
 						Data:     []byte(`[{"Branches":[{"BranchID":"test-branch-id","BeginNodeID":1,"EndNodeID":2}]}]`),
 					},
 				}
-				return store.prepareCreateWorkflowExecutionRequestWithMaps(workflowSnapshot)
+				return store.prepareCreateWorkflowExecutionRequestWithMaps(workflowSnapshot, FixedTime)
 			},
 			input: &persistence.InternalWorkflowSnapshot{},
 			validate: func(t *testing.T, req *nosqlplugin.WorkflowExecutionRequest, err error) {
@@ -80,12 +92,12 @@ func TestNosqlExecutionStoreUtils(t *testing.T) {
 						RunID:      "test-run-id",
 					},
 					VersionHistories: &persistence.DataBlob{
-						Encoding: common.EncodingTypeJSON,
+						Encoding: constants.EncodingTypeJSON,
 						Data:     []byte(`[{"Branches":[{"BranchID":"test-branch-id","BeginNodeID":1,"EndNodeID":2}]}]`),
 					},
 					Checksum: checksum.Checksum{Value: nil},
 				}
-				return store.prepareCreateWorkflowExecutionRequestWithMaps(workflowSnapshot)
+				return store.prepareCreateWorkflowExecutionRequestWithMaps(workflowSnapshot, FixedTime)
 			},
 			validate: func(t *testing.T, req *nosqlplugin.WorkflowExecutionRequest, err error) {
 				assert.NoError(t, err)
@@ -104,11 +116,11 @@ func TestNosqlExecutionStoreUtils(t *testing.T) {
 						RunID:      "test-run-id-2",
 					},
 					VersionHistories: &persistence.DataBlob{
-						Encoding: common.EncodingTypeJSON,
+						Encoding: constants.EncodingTypeJSON,
 						Data:     []byte("[]"), // Empty VersionHistories
 					},
 				}
-				return store.prepareCreateWorkflowExecutionRequestWithMaps(workflowSnapshot)
+				return store.prepareCreateWorkflowExecutionRequestWithMaps(workflowSnapshot, FixedTime)
 			},
 			validate: func(t *testing.T, req *nosqlplugin.WorkflowExecutionRequest, err error) {
 				assert.NoError(t, err)
@@ -127,7 +139,7 @@ func TestNosqlExecutionStoreUtils(t *testing.T) {
 					},
 					LastWriteVersion: 123,
 					Checksum:         checksum.Checksum{Version: 1},
-					VersionHistories: &persistence.DataBlob{Encoding: common.EncodingTypeJSON, Data: []byte(`[{"Branches":[{"BranchID":"reset-branch-id","BeginNodeID":1,"EndNodeID":2}]}]`)},
+					VersionHistories: &persistence.DataBlob{Encoding: constants.EncodingTypeJSON, Data: []byte(`[{"Branches":[{"BranchID":"reset-branch-id","BeginNodeID":1,"EndNodeID":2}]}]`)},
 					ActivityInfos:    []*persistence.InternalActivityInfo{{ScheduleID: 1}},
 					TimerInfos:       []*persistence.TimerInfo{{TimerID: "timerID"}},
 					ChildExecutionInfos: []*persistence.InternalChildExecutionInfo{
@@ -138,7 +150,7 @@ func TestNosqlExecutionStoreUtils(t *testing.T) {
 					SignalRequestedIDs: []string{"signalRequestedID"},
 					Condition:          999,
 				}
-				return store.prepareResetWorkflowExecutionRequestWithMapsAndEventBuffer(resetWorkflow)
+				return store.prepareResetWorkflowExecutionRequestWithMapsAndEventBuffer(resetWorkflow, FixedTime)
 			},
 			validate: func(t *testing.T, req *nosqlplugin.WorkflowExecutionRequest, err error) {
 				assert.NoError(t, err)
@@ -159,9 +171,9 @@ func TestNosqlExecutionStoreUtils(t *testing.T) {
 					},
 					LastWriteVersion: 456,
 					Checksum:         checksum.Checksum{Version: 1},
-					VersionHistories: &persistence.DataBlob{Encoding: common.EncodingTypeJSON, Data: []byte("{malformed}")},
+					VersionHistories: &persistence.DataBlob{Encoding: constants.EncodingTypeJSON, Data: []byte("{malformed}")},
 				}
-				return store.prepareResetWorkflowExecutionRequestWithMapsAndEventBuffer(resetWorkflow)
+				return store.prepareResetWorkflowExecutionRequestWithMapsAndEventBuffer(resetWorkflow, FixedTime)
 			},
 			validate: func(t *testing.T, req *nosqlplugin.WorkflowExecutionRequest, err error) {
 				assert.NoError(t, err)
@@ -178,7 +190,7 @@ func TestNosqlExecutionStoreUtils(t *testing.T) {
 						RunID:      "runID-success",
 					},
 				}
-				return store.prepareUpdateWorkflowExecutionRequestWithMapsAndEventBuffer(workflowMutation)
+				return store.prepareUpdateWorkflowExecutionRequestWithMapsAndEventBuffer(workflowMutation, FixedTime)
 			},
 			validate: func(t *testing.T, req *nosqlplugin.WorkflowExecutionRequest, err error) {
 				assert.NoError(t, err)
@@ -193,7 +205,7 @@ func TestNosqlExecutionStoreUtils(t *testing.T) {
 						DomainID: "domainID-incomplete",
 					},
 				}
-				return store.prepareUpdateWorkflowExecutionRequestWithMapsAndEventBuffer(workflowMutation)
+				return store.prepareUpdateWorkflowExecutionRequestWithMapsAndEventBuffer(workflowMutation, FixedTime)
 			},
 			validate: func(t *testing.T, req *nosqlplugin.WorkflowExecutionRequest, err error) {
 				assert.NoError(t, err)
@@ -219,11 +231,19 @@ func TestNosqlExecutionStoreUtils(t *testing.T) {
 func TestPrepareTasksForWorkflowTxn(t *testing.T) {
 	testCases := []struct {
 		name       string
-		setupStore func(*nosqlExecutionStore) ([]*nosqlplugin.TimerTask, error)
-		validate   func(*testing.T, []*nosqlplugin.TimerTask, error)
+		setupMocks func(*serialization.MockTaskSerializer)
+		setupStore func(*nosqlExecutionStore) ([]*nosqlplugin.HistoryMigrationTask, error)
+		validate   func(*testing.T, []*nosqlplugin.HistoryMigrationTask, error)
 	}{{
 		name: "PrepareTimerTasksForWorkflowTxn - Successful Timer Tasks Preparation",
-		setupStore: func(store *nosqlExecutionStore) ([]*nosqlplugin.TimerTask, error) {
+		setupMocks: func(mockTaskSerializer *serialization.MockTaskSerializer) {
+			mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryTimer, gomock.Any()).
+				Return(persistence.DataBlob{
+					Data:     []byte("timer"),
+					Encoding: constants.EncodingTypeThriftRW,
+				}, nil)
+		},
+		setupStore: func(store *nosqlExecutionStore) ([]*nosqlplugin.HistoryMigrationTask, error) {
 			timerTasks := []persistence.Task{
 				&persistence.DecisionTimeoutTask{
 					TaskData: persistence.TaskData{
@@ -236,11 +256,12 @@ func TestPrepareTasksForWorkflowTxn(t *testing.T) {
 			assert.NotEmpty(t, tasks)
 			return nil, err
 		},
-		validate: func(t *testing.T, tasks []*nosqlplugin.TimerTask, err error) {},
+		validate: func(t *testing.T, tasks []*nosqlplugin.HistoryMigrationTask, err error) {},
 	},
 		{
-			name: "PrepareTimerTasksForWorkflowTxn - Unsupported Timer Task Type",
-			setupStore: func(store *nosqlExecutionStore) ([]*nosqlplugin.TimerTask, error) {
+			name:       "PrepareTimerTasksForWorkflowTxn - Unsupported Timer Task Type",
+			setupMocks: func(mockTaskSerializer *serialization.MockTaskSerializer) {},
+			setupStore: func(store *nosqlExecutionStore) ([]*nosqlplugin.HistoryMigrationTask, error) {
 				timerTasks := []persistence.Task{
 					&dummyTaskType{
 						VisibilityTimestamp: time.Now(),
@@ -249,24 +270,32 @@ func TestPrepareTasksForWorkflowTxn(t *testing.T) {
 				}
 				return store.prepareTimerTasksForWorkflowTxn("domainID-unsupported", "workflowID-unsupported", "runID-unsupported", timerTasks)
 			},
-			validate: func(t *testing.T, tasks []*nosqlplugin.TimerTask, err error) {
+			validate: func(t *testing.T, tasks []*nosqlplugin.HistoryMigrationTask, err error) {
 				assert.Error(t, err)
 				assert.Nil(t, tasks)
 			},
 		},
 		{
-			name: "PrepareTimerTasksForWorkflowTxn - Zero Tasks",
-			setupStore: func(store *nosqlExecutionStore) ([]*nosqlplugin.TimerTask, error) {
+			name:       "PrepareTimerTasksForWorkflowTxn - Zero Tasks",
+			setupMocks: func(mockTaskSerializer *serialization.MockTaskSerializer) {},
+			setupStore: func(store *nosqlExecutionStore) ([]*nosqlplugin.HistoryMigrationTask, error) {
 				return store.prepareTimerTasksForWorkflowTxn("domainID", "workflowID", "runID", []persistence.Task{})
 			},
-			validate: func(t *testing.T, tasks []*nosqlplugin.TimerTask, err error) {
+			validate: func(t *testing.T, tasks []*nosqlplugin.HistoryMigrationTask, err error) {
 				assert.NoError(t, err)
 				assert.Empty(t, tasks)
 			},
 		},
 		{
 			name: "PrepareTimerTasksForWorkflowTxn - ActivityTimeoutTask",
-			setupStore: func(store *nosqlExecutionStore) ([]*nosqlplugin.TimerTask, error) {
+			setupMocks: func(mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryTimer, gomock.Any()).
+					Return(persistence.DataBlob{
+						Data:     []byte("timer"),
+						Encoding: constants.EncodingTypeThriftRW,
+					}, nil)
+			},
+			setupStore: func(store *nosqlExecutionStore) ([]*nosqlplugin.HistoryMigrationTask, error) {
 				timerTasks := []persistence.Task{
 					&persistence.ActivityTimeoutTask{
 						TaskData: persistence.TaskData{
@@ -280,16 +309,25 @@ func TestPrepareTasksForWorkflowTxn(t *testing.T) {
 				}
 				return store.prepareTimerTasksForWorkflowTxn("domainID", "workflowID", "runID", timerTasks)
 			},
-			validate: func(t *testing.T, tasks []*nosqlplugin.TimerTask, err error) {
+			validate: func(t *testing.T, tasks []*nosqlplugin.HistoryMigrationTask, err error) {
 				assert.NoError(t, err)
 				assert.Len(t, tasks, 1)
-				assert.Equal(t, int64(3), tasks[0].EventID)
-				assert.Equal(t, int64(2), tasks[0].ScheduleAttempt)
+				assert.Equal(t, int64(3), tasks[0].Timer.EventID)
+				assert.Equal(t, int64(2), tasks[0].Timer.ScheduleAttempt)
+				assert.Equal(t, []byte("timer"), tasks[0].Task.Data)
+				assert.Equal(t, constants.EncodingTypeThriftRW, tasks[0].Task.Encoding)
 			},
 		},
 		{
 			name: "PrepareTimerTasksForWorkflowTxn - UserTimerTask",
-			setupStore: func(store *nosqlExecutionStore) ([]*nosqlplugin.TimerTask, error) {
+			setupMocks: func(mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryTimer, gomock.Any()).
+					Return(persistence.DataBlob{
+						Data:     []byte("timer"),
+						Encoding: constants.EncodingTypeThriftRW,
+					}, nil)
+			},
+			setupStore: func(store *nosqlExecutionStore) ([]*nosqlplugin.HistoryMigrationTask, error) {
 				timerTasks := []persistence.Task{
 					&persistence.UserTimerTask{
 						TaskData: persistence.TaskData{
@@ -302,15 +340,24 @@ func TestPrepareTasksForWorkflowTxn(t *testing.T) {
 				}
 				return store.prepareTimerTasksForWorkflowTxn("domainID", "workflowID", "runID", timerTasks)
 			},
-			validate: func(t *testing.T, tasks []*nosqlplugin.TimerTask, err error) {
+			validate: func(t *testing.T, tasks []*nosqlplugin.HistoryMigrationTask, err error) {
 				assert.NoError(t, err)
 				assert.Len(t, tasks, 1)
-				assert.Equal(t, int64(4), tasks[0].EventID)
+				assert.Equal(t, int64(4), tasks[0].Timer.EventID)
+				assert.Equal(t, []byte("timer"), tasks[0].Task.Data)
+				assert.Equal(t, constants.EncodingTypeThriftRW, tasks[0].Task.Encoding)
 			},
 		},
 		{
 			name: "PrepareTimerTasksForWorkflowTxn - ActivityRetryTimerTask",
-			setupStore: func(store *nosqlExecutionStore) ([]*nosqlplugin.TimerTask, error) {
+			setupMocks: func(mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryTimer, gomock.Any()).
+					Return(persistence.DataBlob{
+						Data:     []byte("timer"),
+						Encoding: constants.EncodingTypeThriftRW,
+					}, nil)
+			},
+			setupStore: func(store *nosqlExecutionStore) ([]*nosqlplugin.HistoryMigrationTask, error) {
 				timerTasks := []persistence.Task{
 					&persistence.ActivityRetryTimerTask{
 						TaskData: persistence.TaskData{
@@ -324,16 +371,25 @@ func TestPrepareTasksForWorkflowTxn(t *testing.T) {
 				}
 				return store.prepareTimerTasksForWorkflowTxn("domainID", "workflowID", "runID", timerTasks)
 			},
-			validate: func(t *testing.T, tasks []*nosqlplugin.TimerTask, err error) {
+			validate: func(t *testing.T, tasks []*nosqlplugin.HistoryMigrationTask, err error) {
 				assert.NoError(t, err)
 				assert.Len(t, tasks, 1)
-				assert.Equal(t, int64(5), tasks[0].EventID)
-				assert.Equal(t, int64(3), tasks[0].ScheduleAttempt)
+				assert.Equal(t, int64(5), tasks[0].Timer.EventID)
+				assert.Equal(t, int64(3), tasks[0].Timer.ScheduleAttempt)
+				assert.Equal(t, []byte("timer"), tasks[0].Task.Data)
+				assert.Equal(t, constants.EncodingTypeThriftRW, tasks[0].Task.Encoding)
 			},
 		},
 		{
 			name: "PrepareTimerTasksForWorkflowTxn - WorkflowBackoffTimerTask",
-			setupStore: func(store *nosqlExecutionStore) ([]*nosqlplugin.TimerTask, error) {
+			setupMocks: func(mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryTimer, gomock.Any()).
+					Return(persistence.DataBlob{
+						Data:     []byte("timer"),
+						Encoding: constants.EncodingTypeThriftRW,
+					}, nil)
+			},
+			setupStore: func(store *nosqlExecutionStore) ([]*nosqlplugin.HistoryMigrationTask, error) {
 				timerTasks := []persistence.Task{
 					&persistence.WorkflowBackoffTimerTask{
 						TaskData: persistence.TaskData{
@@ -341,15 +397,15 @@ func TestPrepareTasksForWorkflowTxn(t *testing.T) {
 							TaskID:              5,
 							VisibilityTimestamp: time.Now(),
 						},
-						EventID: 6,
 					},
 				}
 				return store.prepareTimerTasksForWorkflowTxn("domainID", "workflowID", "runID", timerTasks)
 			},
-			validate: func(t *testing.T, tasks []*nosqlplugin.TimerTask, err error) {
+			validate: func(t *testing.T, tasks []*nosqlplugin.HistoryMigrationTask, err error) {
 				assert.NoError(t, err)
 				assert.Len(t, tasks, 1)
-				assert.Equal(t, int64(6), tasks[0].EventID)
+				assert.Equal(t, []byte("timer"), tasks[0].Task.Data)
+				assert.Equal(t, constants.EncodingTypeThriftRW, tasks[0].Task.Encoding)
 			},
 		},
 	}
@@ -359,7 +415,9 @@ func TestPrepareTasksForWorkflowTxn(t *testing.T) {
 			mockCtrl := gomock.NewController(t)
 
 			mockDB := nosqlplugin.NewMockDB(mockCtrl)
-			store := newTestNosqlExecutionStore(mockDB, log.NewNoop())
+			mockTaskSerializer := serialization.NewMockTaskSerializer(mockCtrl)
+			store := newTestNosqlExecutionStoreWithTaskSerializer(mockDB, log.NewNoop(), mockTaskSerializer)
+			tc.setupMocks(mockTaskSerializer)
 
 			tasks, err := tc.setupStore(store)
 			tc.validate(t, tasks, err)
@@ -368,19 +426,22 @@ func TestPrepareTasksForWorkflowTxn(t *testing.T) {
 }
 
 func TestPrepareReplicationTasksForWorkflowTxn(t *testing.T) {
-	mockCtrl := gomock.NewController(t)
-
-	mockDB := nosqlplugin.NewMockDB(mockCtrl)
-	store := newTestNosqlExecutionStore(mockDB, log.NewNoop())
-
 	testCases := []struct {
 		name       string
-		setupStore func(*nosqlExecutionStore) ([]*nosqlplugin.ReplicationTask, error)
-		validate   func(*testing.T, []*nosqlplugin.ReplicationTask, error)
+		setupMocks func(*serialization.MockTaskSerializer)
+		setupStore func(*nosqlExecutionStore) ([]*nosqlplugin.HistoryMigrationTask, error)
+		validate   func(*testing.T, []*nosqlplugin.HistoryMigrationTask, error)
 	}{
 		{
 			name: "Successful Replication Tasks Preparation",
-			setupStore: func(store *nosqlExecutionStore) ([]*nosqlplugin.ReplicationTask, error) {
+			setupMocks: func(mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryReplication, gomock.Any()).
+					Return(persistence.DataBlob{
+						Data:     []byte("replication"),
+						Encoding: constants.EncodingTypeThriftRW,
+					}, nil)
+			},
+			setupStore: func(store *nosqlExecutionStore) ([]*nosqlplugin.HistoryMigrationTask, error) {
 				replicationTasks := []persistence.Task{
 					&persistence.HistoryReplicationTask{
 						TaskData: persistence.TaskData{
@@ -390,14 +451,15 @@ func TestPrepareReplicationTasksForWorkflowTxn(t *testing.T) {
 				}
 				return store.prepareReplicationTasksForWorkflowTxn("domainID", "workflowID", "runID", replicationTasks)
 			},
-			validate: func(t *testing.T, tasks []*nosqlplugin.ReplicationTask, err error) {
+			validate: func(t *testing.T, tasks []*nosqlplugin.HistoryMigrationTask, err error) {
 				assert.NoError(t, err)
 				assert.NotEmpty(t, tasks)
 			},
 		},
 		{
-			name: "Handling Unknown Replication Task Type",
-			setupStore: func(store *nosqlExecutionStore) ([]*nosqlplugin.ReplicationTask, error) {
+			name:       "Handling Unknown Replication Task Type",
+			setupMocks: func(mockTaskSerializer *serialization.MockTaskSerializer) {},
+			setupStore: func(store *nosqlExecutionStore) ([]*nosqlplugin.HistoryMigrationTask, error) {
 				replicationTasks := []persistence.Task{
 					&dummyTaskType{
 						VisibilityTimestamp: time.Now(),
@@ -406,14 +468,21 @@ func TestPrepareReplicationTasksForWorkflowTxn(t *testing.T) {
 				}
 				return store.prepareReplicationTasksForWorkflowTxn("domainID", "workflowID", "runID", replicationTasks)
 			},
-			validate: func(t *testing.T, tasks []*nosqlplugin.ReplicationTask, err error) {
+			validate: func(t *testing.T, tasks []*nosqlplugin.HistoryMigrationTask, err error) {
 				assert.Error(t, err)
 				assert.Nil(t, tasks)
 			},
 		},
 		{
 			name: "PrepareReplicationTasksForWorkflowTxn - SyncActivityTask",
-			setupStore: func(store *nosqlExecutionStore) ([]*nosqlplugin.ReplicationTask, error) {
+			setupMocks: func(mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryReplication, gomock.Any()).
+					Return(persistence.DataBlob{
+						Data:     []byte("replication"),
+						Encoding: constants.EncodingTypeThriftRW,
+					}, nil)
+			},
+			setupStore: func(store *nosqlExecutionStore) ([]*nosqlplugin.HistoryMigrationTask, error) {
 				replicationTasks := []persistence.Task{
 					&persistence.SyncActivityTask{
 						TaskData: persistence.TaskData{
@@ -426,17 +495,26 @@ func TestPrepareReplicationTasksForWorkflowTxn(t *testing.T) {
 				}
 				return store.prepareReplicationTasksForWorkflowTxn("domainID", "workflowID", "runID", replicationTasks)
 			},
-			validate: func(t *testing.T, tasks []*nosqlplugin.ReplicationTask, err error) {
+			validate: func(t *testing.T, tasks []*nosqlplugin.HistoryMigrationTask, err error) {
 				assert.NoError(t, err)
 				assert.Len(t, tasks, 1)
 				task := tasks[0]
-				assert.Equal(t, persistence.ReplicationTaskTypeSyncActivity, task.TaskType)
-				assert.Equal(t, int64(123), task.ScheduledID)
+				assert.Equal(t, persistence.ReplicationTaskTypeSyncActivity, task.Replication.TaskType)
+				assert.Equal(t, int64(123), task.Replication.ScheduledID)
+				assert.Equal(t, []byte("replication"), task.Task.Data)
+				assert.Equal(t, constants.EncodingTypeThriftRW, task.Task.Encoding)
 			},
 		},
 		{
 			name: "PrepareReplicationTasksForWorkflowTxn - FailoverMarkerTask",
-			setupStore: func(store *nosqlExecutionStore) ([]*nosqlplugin.ReplicationTask, error) {
+			setupMocks: func(mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryReplication, gomock.Any()).
+					Return(persistence.DataBlob{
+						Data:     []byte("replication"),
+						Encoding: constants.EncodingTypeThriftRW,
+					}, nil)
+			},
+			setupStore: func(store *nosqlExecutionStore) ([]*nosqlplugin.HistoryMigrationTask, error) {
 				replicationTasks := []persistence.Task{
 					&persistence.FailoverMarkerTask{
 						TaskData: persistence.TaskData{
@@ -449,63 +527,28 @@ func TestPrepareReplicationTasksForWorkflowTxn(t *testing.T) {
 				}
 				return store.prepareReplicationTasksForWorkflowTxn("domainID", "workflowID", "runID", replicationTasks)
 			},
-			validate: func(t *testing.T, tasks []*nosqlplugin.ReplicationTask, err error) {
+			validate: func(t *testing.T, tasks []*nosqlplugin.HistoryMigrationTask, err error) {
 				assert.NoError(t, err)
 				assert.Len(t, tasks, 1)
 				task := tasks[0]
-				assert.Equal(t, persistence.ReplicationTaskTypeFailoverMarker, task.TaskType)
-				assert.Equal(t, "domainID", task.DomainID)
+				assert.Equal(t, persistence.ReplicationTaskTypeFailoverMarker, task.Replication.TaskType)
+				assert.Equal(t, "domainID", task.Replication.DomainID)
+				assert.Equal(t, []byte("replication"), task.Task.Data)
+				assert.Equal(t, constants.EncodingTypeThriftRW, task.Task.Encoding)
 			},
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			mockCtrl := gomock.NewController(t)
+
+			mockDB := nosqlplugin.NewMockDB(mockCtrl)
+			mockTaskSerializer := serialization.NewMockTaskSerializer(mockCtrl)
+			store := newTestNosqlExecutionStoreWithTaskSerializer(mockDB, log.NewNoop(), mockTaskSerializer)
+			tc.setupMocks(mockTaskSerializer)
 			tasks, err := tc.setupStore(store)
 			tc.validate(t, tasks, err)
-		})
-	}
-}
-
-func TestPrepareNoSQLTasksForWorkflowTxn(t *testing.T) {
-	mockCtrl := gomock.NewController(t)
-
-	mockDB := nosqlplugin.NewMockDB(mockCtrl)
-	store := newTestNosqlExecutionStore(mockDB, log.NewNoop())
-
-	testCases := []struct {
-		name       string
-		setupStore func(*nosqlExecutionStore) ([]*nosqlplugin.TransferTask, []*nosqlplugin.CrossClusterTask, []*nosqlplugin.ReplicationTask, []*nosqlplugin.TimerTask, error)
-		validate   func(*testing.T, []*nosqlplugin.TransferTask, []*nosqlplugin.CrossClusterTask, []*nosqlplugin.ReplicationTask, []*nosqlplugin.TimerTask, error)
-	}{
-		{
-			name: "prepareNoSQLTasksForWorkflowTxn - Success",
-			setupStore: func(store *nosqlExecutionStore) ([]*nosqlplugin.TransferTask, []*nosqlplugin.CrossClusterTask, []*nosqlplugin.ReplicationTask, []*nosqlplugin.TimerTask, error) {
-				return nil, nil, nil, nil, nil
-			},
-			validate: func(t *testing.T, transferTasks []*nosqlplugin.TransferTask, crossClusterTasks []*nosqlplugin.CrossClusterTask, replicationTasks []*nosqlplugin.ReplicationTask, timerTasks []*nosqlplugin.TimerTask, err error) {
-				assert.NoError(t, err)
-			},
-		},
-		{
-			name: "prepareNoSQLTasksForWorkflowTxn - Task Preparation Failure",
-			setupStore: func(store *nosqlExecutionStore) ([]*nosqlplugin.TransferTask, []*nosqlplugin.CrossClusterTask, []*nosqlplugin.ReplicationTask, []*nosqlplugin.TimerTask, error) {
-				return nil, nil, nil, nil, errors.New("task preparation failed")
-			},
-			validate: func(t *testing.T, transferTasks []*nosqlplugin.TransferTask, crossClusterTasks []*nosqlplugin.CrossClusterTask, replicationTasks []*nosqlplugin.ReplicationTask, timerTasks []*nosqlplugin.TimerTask, err error) {
-				assert.Error(t, err)
-				assert.Nil(t, transferTasks)
-				assert.Nil(t, crossClusterTasks)
-				assert.Nil(t, replicationTasks)
-				assert.Nil(t, timerTasks)
-			},
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			transferTasks, crossClusterTasks, replicationTasks, timerTasks, err := tc.setupStore(store)
-			tc.validate(t, transferTasks, crossClusterTasks, replicationTasks, timerTasks, err)
 		})
 	}
 }
@@ -517,7 +560,8 @@ func TestPrepareTransferTasksForWorkflowTxn(t *testing.T) {
 		domainID   string
 		workflowID string
 		runID      string
-		validate   func(*testing.T, []*nosqlplugin.TransferTask, error)
+		setupMocks func(*serialization.MockTaskSerializer)
+		validate   func(*testing.T, []*nosqlplugin.HistoryMigrationTask, error)
 	}{
 		{
 			name:       "CancelExecutionTask - Success",
@@ -538,14 +582,23 @@ func TestPrepareTransferTasksForWorkflowTxn(t *testing.T) {
 					InitiatedID:             1002,
 				},
 			},
-			validate: func(t *testing.T, tasks []*nosqlplugin.TransferTask, err error) {
+			setupMocks: func(mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryTransfer, gomock.Any()).
+					Return(persistence.DataBlob{
+						Data:     []byte("transfer"),
+						Encoding: constants.EncodingTypeThriftRW,
+					}, nil)
+			},
+			validate: func(t *testing.T, tasks []*nosqlplugin.HistoryMigrationTask, err error) {
 				assert.NoError(t, err)
 				assert.Len(t, tasks, 1)
 				task := tasks[0]
-				assert.Equal(t, "targetDomainID-cancel", task.TargetDomainID)
-				assert.Equal(t, true, task.TargetChildWorkflowOnly)
-				assert.Equal(t, int64(1002), task.TaskID)
-				assert.Equal(t, int64(1), task.Version)
+				assert.Equal(t, "targetDomainID-cancel", task.Transfer.TargetDomainID)
+				assert.Equal(t, true, task.Transfer.TargetChildWorkflowOnly)
+				assert.Equal(t, int64(1002), task.Transfer.TaskID)
+				assert.Equal(t, int64(1), task.Transfer.Version)
+				assert.Equal(t, []byte("transfer"), task.Task.Data)
+				assert.Equal(t, constants.EncodingTypeThriftRW, task.Task.Encoding)
 			},
 		},
 		{
@@ -560,20 +613,29 @@ func TestPrepareTransferTasksForWorkflowTxn(t *testing.T) {
 						TaskID:              1001,
 						Version:             1,
 					},
-					DomainID:   "targetDomainID-activity",
-					TaskList:   "taskList-activity",
-					ScheduleID: 1001,
+					TargetDomainID: "targetDomainID-activity",
+					TaskList:       "taskList-activity",
+					ScheduleID:     1001,
 				},
 			},
-			validate: func(t *testing.T, tasks []*nosqlplugin.TransferTask, err error) {
+			setupMocks: func(mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryTransfer, gomock.Any()).
+					Return(persistence.DataBlob{
+						Data:     []byte("transfer"),
+						Encoding: constants.EncodingTypeThriftRW,
+					}, nil)
+			},
+			validate: func(t *testing.T, tasks []*nosqlplugin.HistoryMigrationTask, err error) {
 				assert.NoError(t, err)
 				assert.Len(t, tasks, 1)
 				task := tasks[0]
-				assert.Equal(t, persistence.TransferTaskTypeActivityTask, task.TaskType)
-				assert.Equal(t, "targetDomainID-activity", task.TargetDomainID)
-				assert.Equal(t, "taskList-activity", task.TaskList)
-				assert.Equal(t, int64(1001), task.ScheduleID)
-				assert.Equal(t, int64(1), task.Version)
+				assert.Equal(t, persistence.TransferTaskTypeActivityTask, task.Transfer.TaskType)
+				assert.Equal(t, "targetDomainID-activity", task.Transfer.TargetDomainID)
+				assert.Equal(t, "taskList-activity", task.Transfer.TaskList)
+				assert.Equal(t, int64(1001), task.Transfer.ScheduleID)
+				assert.Equal(t, int64(1), task.Transfer.Version)
+				assert.Equal(t, []byte("transfer"), task.Task.Data)
+				assert.Equal(t, constants.EncodingTypeThriftRW, task.Task.Encoding)
 			},
 		},
 		{
@@ -607,11 +669,19 @@ func TestPrepareTransferTasksForWorkflowTxn(t *testing.T) {
 					InitiatedID:             2002,
 				},
 			},
-			validate: func(t *testing.T, tasks []*nosqlplugin.TransferTask, err error) {
+			setupMocks: func(mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryTransfer, gomock.Any()).
+					Return(persistence.DataBlob{
+						Data:     []byte("transfer"),
+						Encoding: constants.EncodingTypeThriftRW,
+					}, nil).Times(2)
+			},
+			validate: func(t *testing.T, tasks []*nosqlplugin.HistoryMigrationTask, err error) {
 				assert.NoError(t, err)
 				for _, task := range tasks {
-					assert.Equal(t, persistence.TransferTaskTransferTargetRunID, task.TargetRunID, "TargetRunID should default to TransferTaskTransferTargetRunID")
-
+					assert.Equal(t, persistence.TransferTaskTransferTargetRunID, task.Transfer.TargetRunID, "TargetRunID should default to TransferTaskTransferTargetRunID")
+					assert.Equal(t, []byte("transfer"), task.Task.Data)
+					assert.Equal(t, constants.EncodingTypeThriftRW, task.Task.Encoding)
 				}
 			},
 		},
@@ -634,14 +704,23 @@ func TestPrepareTransferTasksForWorkflowTxn(t *testing.T) {
 					InitiatedID:             1003,
 				},
 			},
-			validate: func(t *testing.T, tasks []*nosqlplugin.TransferTask, err error) {
+			setupMocks: func(mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryTransfer, gomock.Any()).
+					Return(persistence.DataBlob{
+						Data:     []byte("transfer"),
+						Encoding: constants.EncodingTypeThriftRW,
+					}, nil)
+			},
+			validate: func(t *testing.T, tasks []*nosqlplugin.HistoryMigrationTask, err error) {
 				assert.NoError(t, err)
 				assert.Len(t, tasks, 1)
 				task := tasks[0]
-				assert.Equal(t, "targetDomainID-signal", task.TargetDomainID)
-				assert.Equal(t, true, task.TargetChildWorkflowOnly)
-				assert.Equal(t, int64(1003), task.TaskID)
-				assert.Equal(t, int64(1), task.Version)
+				assert.Equal(t, "targetDomainID-signal", task.Transfer.TargetDomainID)
+				assert.Equal(t, true, task.Transfer.TargetChildWorkflowOnly)
+				assert.Equal(t, int64(1003), task.Transfer.TaskID)
+				assert.Equal(t, int64(1), task.Transfer.Version)
+				assert.Equal(t, []byte("transfer"), task.Task.Data)
+				assert.Equal(t, constants.EncodingTypeThriftRW, task.Task.Encoding)
 			},
 		},
 		{
@@ -661,14 +740,23 @@ func TestPrepareTransferTasksForWorkflowTxn(t *testing.T) {
 					InitiatedID:      1004,
 				},
 			},
-			validate: func(t *testing.T, tasks []*nosqlplugin.TransferTask, err error) {
+			setupMocks: func(mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryTransfer, gomock.Any()).
+					Return(persistence.DataBlob{
+						Data:     []byte("transfer"),
+						Encoding: constants.EncodingTypeThriftRW,
+					}, nil)
+			},
+			validate: func(t *testing.T, tasks []*nosqlplugin.HistoryMigrationTask, err error) {
 				assert.NoError(t, err)
 				assert.Len(t, tasks, 1)
 				task := tasks[0]
-				assert.Equal(t, "child-execution-domain-id", task.TargetDomainID)
-				assert.Equal(t, "child-workflow-id", task.TargetWorkflowID)
-				assert.Equal(t, int64(1004), task.TaskID)
-				assert.Equal(t, int64(1), task.Version)
+				assert.Equal(t, "child-execution-domain-id", task.Transfer.TargetDomainID)
+				assert.Equal(t, "child-workflow-id", task.Transfer.TargetWorkflowID)
+				assert.Equal(t, int64(1004), task.Transfer.TaskID)
+				assert.Equal(t, int64(1), task.Transfer.Version)
+				assert.Equal(t, []byte("transfer"), task.Task.Data)
+				assert.Equal(t, constants.EncodingTypeThriftRW, task.Task.Encoding)
 			},
 		},
 		{
@@ -688,39 +776,24 @@ func TestPrepareTransferTasksForWorkflowTxn(t *testing.T) {
 					TargetRunID:      "completed-child-run-id",
 				},
 			},
-			validate: func(t *testing.T, tasks []*nosqlplugin.TransferTask, err error) {
+			setupMocks: func(mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryTransfer, gomock.Any()).
+					Return(persistence.DataBlob{
+						Data:     []byte("transfer"),
+						Encoding: constants.EncodingTypeThriftRW,
+					}, nil)
+			},
+			validate: func(t *testing.T, tasks []*nosqlplugin.HistoryMigrationTask, err error) {
 				assert.NoError(t, err)
 				assert.Len(t, tasks, 1)
 				task := tasks[0]
-				assert.Equal(t, "completed-child-domain-id", task.TargetDomainID)
-				assert.Equal(t, "completed-child-workflow-id", task.TargetWorkflowID)
-				assert.Equal(t, "completed-child-run-id", task.TargetRunID)
-				assert.Equal(t, int64(1005), task.TaskID)
-				assert.Equal(t, int64(1), task.Version)
-			},
-		},
-		{
-			name:       "ApplyParentClosePolicyTask - Success",
-			domainID:   "domainID-apply-parent",
-			workflowID: "workflowID-apply-parent",
-			runID:      "runID-apply-parent",
-			tasks: []persistence.Task{
-				&persistence.ApplyParentClosePolicyTask{
-					TaskData: persistence.TaskData{
-						VisibilityTimestamp: time.Now(),
-						TaskID:              1006,
-						Version:             1,
-					},
-					TargetDomainIDs: map[string]struct{}{"target-domain-id-1": {}, "target-domain-id-2": {}},
-				},
-			},
-			validate: func(t *testing.T, tasks []*nosqlplugin.TransferTask, err error) {
-				assert.NoError(t, err)
-				assert.Len(t, tasks, 1)
-				task := tasks[0]
-				assert.Equal(t, map[string]struct{}{"target-domain-id-1": {}, "target-domain-id-2": {}}, task.TargetDomainIDs)
-				assert.Equal(t, int64(1006), task.TaskID)
-				assert.Equal(t, int64(1), task.Version)
+				assert.Equal(t, "completed-child-domain-id", task.Transfer.TargetDomainID)
+				assert.Equal(t, "completed-child-workflow-id", task.Transfer.TargetWorkflowID)
+				assert.Equal(t, "completed-child-run-id", task.Transfer.TargetRunID)
+				assert.Equal(t, int64(1005), task.Transfer.TaskID)
+				assert.Equal(t, int64(1), task.Transfer.Version)
+				assert.Equal(t, []byte("transfer"), task.Task.Data)
+				assert.Equal(t, constants.EncodingTypeThriftRW, task.Task.Encoding)
 			},
 		},
 		{
@@ -735,19 +808,27 @@ func TestPrepareTransferTasksForWorkflowTxn(t *testing.T) {
 						TaskID:              1001,
 						Version:             1,
 					},
-					DomainID:         "targetDomainID-decision",
-					TaskList:         "taskList-decision",
-					ScheduleID:       1001,
-					RecordVisibility: true,
+					TargetDomainID: "targetDomainID-decision",
+					TaskList:       "taskList-decision",
+					ScheduleID:     1001,
 				},
 			},
-			validate: func(t *testing.T, tasks []*nosqlplugin.TransferTask, err error) {
+			setupMocks: func(mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryTransfer, gomock.Any()).
+					Return(persistence.DataBlob{
+						Data:     []byte("transfer"),
+						Encoding: constants.EncodingTypeThriftRW,
+					}, nil)
+			},
+			validate: func(t *testing.T, tasks []*nosqlplugin.HistoryMigrationTask, err error) {
 				assert.NoError(t, err)
 				assert.Len(t, tasks, 1)
 				task := tasks[0]
-				assert.Equal(t, int64(1001), task.TaskID)
-				assert.Equal(t, "targetDomainID-decision", task.TargetDomainID)
-				assert.Equal(t, true, task.RecordVisibility)
+				assert.Equal(t, int64(1001), task.Transfer.TaskID)
+				assert.Equal(t, "targetDomainID-decision", task.Transfer.TargetDomainID)
+				assert.Equal(t, false, task.Transfer.RecordVisibility)
+				assert.Equal(t, []byte("transfer"), task.Task.Data)
+				assert.Equal(t, constants.EncodingTypeThriftRW, task.Task.Encoding)
 			},
 		},
 		{
@@ -761,7 +842,8 @@ func TestPrepareTransferTasksForWorkflowTxn(t *testing.T) {
 					TaskID:              9999,
 				},
 			},
-			validate: func(t *testing.T, tasks []*nosqlplugin.TransferTask, err error) {
+			setupMocks: func(mockTaskSerializer *serialization.MockTaskSerializer) {},
+			validate: func(t *testing.T, tasks []*nosqlplugin.HistoryMigrationTask, err error) {
 				assert.Error(t, err)
 				assert.Nil(t, tasks)
 			},
@@ -772,7 +854,9 @@ func TestPrepareTransferTasksForWorkflowTxn(t *testing.T) {
 			mockCtrl := gomock.NewController(t)
 
 			mockDB := nosqlplugin.NewMockDB(mockCtrl)
-			store := newTestNosqlExecutionStore(mockDB, log.NewNoop())
+			mockTaskSerializer := serialization.NewMockTaskSerializer(mockCtrl)
+			store := newTestNosqlExecutionStoreWithTaskSerializer(mockDB, log.NewNoop(), mockTaskSerializer)
+			tc.setupMocks(mockTaskSerializer)
 
 			tasks, err := store.prepareTransferTasksForWorkflowTxn(tc.domainID, tc.workflowID, tc.runID, tc.tasks)
 			tc.validate(t, tasks, err)
@@ -792,8 +876,8 @@ func TestNosqlExecutionStoreUtilsExtended(t *testing.T) {
 				activityInfos := []*persistence.InternalActivityInfo{
 					{
 						ScheduleID:     1,
-						ScheduledEvent: persistence.NewDataBlob([]byte("scheduled event data"), common.EncodingTypeThriftRW),
-						StartedEvent:   persistence.NewDataBlob([]byte("started event data"), common.EncodingTypeThriftRW),
+						ScheduledEvent: persistence.NewDataBlob([]byte("scheduled event data"), constants.EncodingTypeThriftRW),
+						StartedEvent:   persistence.NewDataBlob([]byte("started event data"), constants.EncodingTypeThriftRW),
 					},
 				}
 				return store.prepareActivityInfosForWorkflowTxn(activityInfos)
@@ -833,8 +917,8 @@ func TestNosqlExecutionStoreUtilsExtended(t *testing.T) {
 				childWFInfos := []*persistence.InternalChildExecutionInfo{
 					{
 						InitiatedID:    1,
-						InitiatedEvent: persistence.NewDataBlob([]byte("initiated event data"), common.EncodingTypeThriftRW),
-						StartedEvent:   persistence.NewDataBlob([]byte("started event data"), common.EncodingTypeThriftRW),
+						InitiatedEvent: persistence.NewDataBlob([]byte("initiated event data"), constants.EncodingTypeThriftRW),
+						StartedEvent:   persistence.NewDataBlob([]byte("started event data"), constants.EncodingTypeThriftRW),
 					},
 				}
 				return store.prepareChildWFInfosForWorkflowTxn(childWFInfos)
@@ -876,8 +960,8 @@ func TestNosqlExecutionStoreUtilsExtended(t *testing.T) {
 				childWFInfos := []*persistence.InternalChildExecutionInfo{
 					{
 						InitiatedID:    1,
-						InitiatedEvent: persistence.NewDataBlob([]byte("initiated"), common.EncodingTypeThriftRW),
-						StartedEvent:   persistence.NewDataBlob([]byte("started"), common.EncodingTypeJSON), // Encoding mismatch
+						InitiatedEvent: persistence.NewDataBlob([]byte("initiated"), constants.EncodingTypeThriftRW),
+						StartedEvent:   persistence.NewDataBlob([]byte("started"), constants.EncodingTypeJSON), // Encoding mismatch
 					},
 				}
 				return store.prepareChildWFInfosForWorkflowTxn(childWFInfos)
@@ -962,7 +1046,7 @@ func TestNosqlExecutionStoreUtilsExtended(t *testing.T) {
 					CloseStatus: persistence.WorkflowCloseStatusNone,
 				}
 				versionHistories := &persistence.DataBlob{
-					Encoding: common.EncodingTypeJSON,
+					Encoding: constants.EncodingTypeJSON,
 					Data:     []byte(`[{"Branches":[{"BranchID":"test-branch-id","BeginNodeID":1,"EndNodeID":2}]}]`),
 				}
 				checksum := checksum.Checksum{Version: 1,
@@ -985,7 +1069,7 @@ func TestNosqlExecutionStoreUtilsExtended(t *testing.T) {
 					State:      persistence.WorkflowStateCompleted,
 				}
 				versionHistories := &persistence.DataBlob{
-					Encoding: common.EncodingTypeJSON,
+					Encoding: constants.EncodingTypeJSON,
 					Data:     []byte(`[{"Branches":[{"BranchID":"branch-id","BeginNodeID":1,"EndNodeID":2}]}]`),
 				}
 				checksum := checksum.Checksum{Version: 1, Value: []byte("checksum")}
@@ -1008,7 +1092,7 @@ func TestNosqlExecutionStoreUtilsExtended(t *testing.T) {
 					CloseStatus: persistence.WorkflowCloseStatusNone,
 				}
 				versionHistories := &persistence.DataBlob{
-					Encoding: common.EncodingTypeJSON,
+					Encoding: constants.EncodingTypeJSON,
 					Data:     []byte(`[{"Branches":[{"BranchID":"branch-id","BeginNodeID":1,"EndNodeID":2}]}]`),
 				}
 				checksum := checksum.Checksum{Version: 1, Value: []byte("checksum")}
@@ -1030,7 +1114,7 @@ func TestNosqlExecutionStoreUtilsExtended(t *testing.T) {
 					CloseStatus: persistence.WorkflowCloseStatusNone,
 				}
 				versionHistories := &persistence.DataBlob{
-					Encoding: common.EncodingTypeJSON,
+					Encoding: constants.EncodingTypeJSON,
 					Data:     []byte(`[{"Branches":[{"BranchID":"create-branch-id","BeginNodeID":1,"EndNodeID":2}]}]`),
 				}
 				checksum := checksum.Checksum{Version: 1, Value: []byte("create-checksum")}
@@ -1054,7 +1138,7 @@ func TestNosqlExecutionStoreUtilsExtended(t *testing.T) {
 					CloseStatus: persistence.WorkflowCloseStatusNone,
 				}
 				versionHistories := &persistence.DataBlob{
-					Encoding: common.EncodingTypeJSON,
+					Encoding: constants.EncodingTypeJSON,
 					Data:     []byte(`[{"Branches":[{"BranchID":"create-branch-id","BeginNodeID":1,"EndNodeID":2}]}]`),
 				}
 				checksum := checksum.Checksum{Version: 1, Value: []byte("create-checksum")}
@@ -1250,7 +1334,7 @@ type dummyTaskType struct {
 	TaskID              int64
 }
 
-func (d *dummyTaskType) GetType() int {
+func (d *dummyTaskType) GetTaskType() int {
 	return 999 // Using a type that is not expected by the switch statement
 }
 

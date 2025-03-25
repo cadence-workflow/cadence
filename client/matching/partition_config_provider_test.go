@@ -212,6 +212,66 @@ func TestGetNumberOfWritePartitions(t *testing.T) {
 	}
 }
 
+func TestGetPartitionConfig(t *testing.T) {
+	testCases := []struct {
+		name                string
+		taskListKind        types.TaskListKind
+		enableReadFromCache bool
+		cachedConfigExists  bool
+		expected            *types.TaskListPartitionConfig
+	}{
+		{
+			name:                "get from dynamic config",
+			taskListKind:        types.TaskListKindNormal,
+			enableReadFromCache: false,
+			expected:            createDefaultConfig(3, 3),
+		},
+		{
+			name:                "get from cache",
+			taskListKind:        types.TaskListKindNormal,
+			enableReadFromCache: true,
+			cachedConfigExists:  true,
+			// It's wrong but it's the value we've got
+			expected: createDefaultConfig(2, 5),
+		},
+		{
+			name:                "get from cache for sticky tasklist",
+			taskListKind:        types.TaskListKindSticky,
+			enableReadFromCache: true,
+			expected:            createDefaultConfig(1, 1),
+		},
+		{
+			name:                "cache config missing, fallback to default",
+			taskListKind:        types.TaskListKindNormal,
+			enableReadFromCache: true,
+			cachedConfigExists:  false,
+			expected:            createDefaultConfig(1, 1),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			partitionProvider, mockCache := setUpMocksForPartitionConfigProvider(t, tc.enableReadFromCache)
+
+			if tc.enableReadFromCache && tc.taskListKind == types.TaskListKindNormal {
+				if tc.cachedConfigExists {
+					mockCache.EXPECT().Get(gomock.Any()).Return(&syncedTaskListPartitionConfig{
+						TaskListPartitionConfig: types.TaskListPartitionConfig{ReadPartitions: partitions(2), WritePartitions: partitions(5)},
+					}).Times(1)
+				} else {
+					mockCache.EXPECT().Get(gomock.Any()).Return(nil).Times(1)
+				}
+			}
+			kind := tc.taskListKind
+			taskList := types.TaskList{Name: "test-task-list", Kind: &kind}
+			config := partitionProvider.GetPartitionConfig("test-domain-id", taskList, 0)
+
+			// Validate result
+			assert.Equal(t, tc.expected, config)
+		})
+	}
+}
+
 func TestUpdatePartitionConfig(t *testing.T) {
 	testCases := []struct {
 		name              string

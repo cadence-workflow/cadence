@@ -33,9 +33,12 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
+	commonconstants "github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
+	"github.com/uber/cadence/common/persistence/serialization"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/constants"
 )
@@ -284,7 +287,10 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			controller := gomock.NewController(t)
 			mockDB := nosqlplugin.NewMockDB(controller)
-			store, _ := NewExecutionStore(1, mockDB, log.NewNoop())
+			mockTaskSerializer := serialization.NewMockTaskSerializer(controller)
+			store, _ := NewExecutionStore(1, mockDB, log.NewNoop(), mockTaskSerializer, &persistence.DynamicConfiguration{
+				EnableHistoryTaskDualWriteMode: func(...dynamicconfig.FilterOption) bool { return false },
+			})
 
 			tc.setupMock(mockDB, 1)
 
@@ -667,32 +673,10 @@ func TestNosqlExecutionStore(t *testing.T) {
 			expectedError: &types.InternalServiceError{Message: "database error"},
 		},
 		{
-			name: "GetTransferTasks success - has tasks",
-			setupMock: func(ctrl *gomock.Controller) *nosqlExecutionStore {
-				mockDB := nosqlplugin.NewMockDB(ctrl)
-				tasks := []*nosqlplugin.TransferTask{{TaskID: 1}}
-				mockDB.EXPECT().
-					SelectTransferTasksOrderByTaskID(ctx, shardID, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(tasks, nil, nil)
-				return newTestNosqlExecutionStore(mockDB, log.NewNoop())
-			},
-			testFunc: func(store *nosqlExecutionStore) error {
-				resp, err := store.GetTransferTasks(ctx, &persistence.GetTransferTasksRequest{})
-				if err != nil {
-					return err
-				}
-				if len(resp.Tasks) == 0 {
-					return errors.New("expected to find transfer tasks")
-				}
-				return nil
-			},
-			expectedError: nil,
-		},
-		{
 			name: "GetReplicationTasks success",
 			setupMock: func(ctrl *gomock.Controller) *nosqlExecutionStore {
 				mockDB := nosqlplugin.NewMockDB(ctrl)
-				tasks := []*nosqlplugin.ReplicationTask{{TaskID: 1}}
+				tasks := []*nosqlplugin.HistoryMigrationTask{{Replication: &persistence.InternalReplicationTaskInfo{TaskID: 1}}}
 				mockDB.EXPECT().
 					SelectReplicationTasksOrderByTaskID(ctx, shardID, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(tasks, nil, nil)
@@ -716,7 +700,7 @@ func TestNosqlExecutionStore(t *testing.T) {
 				mockDB := nosqlplugin.NewMockDB(ctrl)
 				mockDB.EXPECT().
 					SelectReplicationTasksOrderByTaskID(ctx, shardID, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return([]*nosqlplugin.ReplicationTask{}, nil, nil)
+					Return([]*nosqlplugin.HistoryMigrationTask{}, nil, nil)
 				return newTestNosqlExecutionStore(mockDB, log.NewNoop())
 			},
 			testFunc: func(store *nosqlExecutionStore) error {
@@ -757,42 +741,6 @@ func TestNosqlExecutionStore(t *testing.T) {
 			},
 			testFunc: func(store *nosqlExecutionStore) error {
 				return store.CompleteTransferTask(ctx, &persistence.CompleteTransferTaskRequest{TaskID: 0})
-			},
-			expectedError: nil,
-		},
-		{
-			name: "RangeCompleteTransferTask success",
-			setupMock: func(ctrl *gomock.Controller) *nosqlExecutionStore {
-				mockDB := nosqlplugin.NewMockDB(ctrl)
-				mockDB.EXPECT().
-					RangeDeleteTransferTasks(ctx, shardID, gomock.Any(), gomock.Any()).
-					Return(nil)
-				return newTestNosqlExecutionStore(mockDB, log.NewNoop())
-			},
-			testFunc: func(store *nosqlExecutionStore) error {
-				_, err := store.RangeCompleteTransferTask(ctx, &persistence.RangeCompleteTransferTaskRequest{
-					ExclusiveBeginTaskID: 1,
-					InclusiveEndTaskID:   10,
-				})
-				return err
-			},
-			expectedError: nil,
-		},
-		{
-			name: "RangeCompleteTransferTask with inverted TaskID range proceeds",
-			setupMock: func(ctrl *gomock.Controller) *nosqlExecutionStore {
-				mockDB := nosqlplugin.NewMockDB(ctrl)
-				mockDB.EXPECT().
-					RangeDeleteTransferTasks(ctx, shardID, int64(10), int64(1)).
-					Return(nil)
-				return newTestNosqlExecutionStore(mockDB, log.NewNoop())
-			},
-			testFunc: func(store *nosqlExecutionStore) error {
-				_, err := store.RangeCompleteTransferTask(ctx, &persistence.RangeCompleteTransferTaskRequest{
-					ExclusiveBeginTaskID: 10,
-					InclusiveEndTaskID:   1,
-				})
-				return err
 			},
 			expectedError: nil,
 		},
@@ -840,60 +788,6 @@ func TestNosqlExecutionStore(t *testing.T) {
 			},
 			expectedError: &types.EntityNotExistsError{Message: "replication task does not exist"},
 		},
-		{
-			name: "RangeCompleteReplicationTask success",
-			setupMock: func(ctrl *gomock.Controller) *nosqlExecutionStore {
-				mockDB := nosqlplugin.NewMockDB(ctrl)
-				mockDB.EXPECT().
-					RangeDeleteReplicationTasks(ctx, shardID, int64(10)).
-					Return(nil)
-				return newTestNosqlExecutionStore(mockDB, log.NewNoop())
-			},
-			testFunc: func(store *nosqlExecutionStore) error {
-				_, err := store.RangeCompleteReplicationTask(ctx, &persistence.RangeCompleteReplicationTaskRequest{
-					InclusiveEndTaskID: 10,
-				})
-				return err
-			},
-			expectedError: nil,
-		},
-		{
-			name: "RangeCompleteReplicationTask failure - database error",
-			setupMock: func(ctrl *gomock.Controller) *nosqlExecutionStore {
-				mockDB := nosqlplugin.NewMockDB(ctrl)
-				mockDB.EXPECT().
-					RangeDeleteReplicationTasks(ctx, shardID, int64(10)).
-					Return(errors.New("database error"))
-				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true).AnyTimes()
-				return newTestNosqlExecutionStore(mockDB, log.NewNoop())
-			},
-			testFunc: func(store *nosqlExecutionStore) error {
-				_, err := store.RangeCompleteReplicationTask(ctx, &persistence.RangeCompleteReplicationTaskRequest{
-					InclusiveEndTaskID: 10,
-				})
-				return err
-			},
-			expectedError: &types.InternalServiceError{Message: "database error"},
-		},
-		{
-			name: "RangeCompleteReplicationTask with zero InclusiveEndTaskID",
-			setupMock: func(ctrl *gomock.Controller) *nosqlExecutionStore {
-				mockDB := nosqlplugin.NewMockDB(ctrl)
-				// Expect the call with InclusiveEndTaskID of 0
-				mockDB.EXPECT().
-					RangeDeleteReplicationTasks(ctx, shardID, int64(0)).
-					Return(nil)
-				return newTestNosqlExecutionStore(mockDB, log.NewNoop())
-			},
-			testFunc: func(store *nosqlExecutionStore) error {
-				_, err := store.RangeCompleteReplicationTask(ctx, &persistence.RangeCompleteReplicationTaskRequest{
-					InclusiveEndTaskID: 0,
-				})
-				return err
-			},
-			expectedError: nil,
-		},
-
 		{
 			name: "CompleteTimerTask success",
 			setupMock: func(ctrl *gomock.Controller) *nosqlExecutionStore {
@@ -947,121 +841,6 @@ func TestNosqlExecutionStore(t *testing.T) {
 			expectedError: nil, // Adjust based on actual behavior
 		},
 		{
-			name: "RangeCompleteTimerTask success",
-			setupMock: func(ctrl *gomock.Controller) *nosqlExecutionStore {
-				mockDB := nosqlplugin.NewMockDB(ctrl)
-				mockDB.EXPECT().
-					RangeDeleteTimerTasks(ctx, shardID, gomock.Any(), gomock.Any()).
-					Return(nil)
-				return newTestNosqlExecutionStore(mockDB, log.NewNoop())
-			},
-			testFunc: func(store *nosqlExecutionStore) error {
-				now := time.Now()
-				// Assuming you're testing with a time range starting from 'now' and ending 1 hour later.
-				beginTime := now
-				endTime := now.Add(time.Hour)
-
-				_, err := store.RangeCompleteTimerTask(ctx, &persistence.RangeCompleteTimerTaskRequest{
-					InclusiveBeginTimestamp: beginTime,
-					ExclusiveEndTimestamp:   endTime,
-				})
-				return err
-			},
-			expectedError: nil,
-		},
-		{
-			name: "RangeCompleteTimerTask failure - database error",
-			setupMock: func(ctrl *gomock.Controller) *nosqlExecutionStore {
-				mockDB := nosqlplugin.NewMockDB(ctrl)
-				mockDB.EXPECT().
-					RangeDeleteTimerTasks(ctx, shardID, gomock.Any(), gomock.Any()).
-					Return(errors.New("database error"))
-				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true).AnyTimes()
-				return newTestNosqlExecutionStore(mockDB, log.NewNoop())
-			},
-			testFunc: func(store *nosqlExecutionStore) error {
-				now := time.Now()
-				// Assuming you're testing with a time range starting from 'now' and ending 1 hour later.
-				beginTime := now
-				endTime := now.Add(time.Hour)
-				_, err := store.RangeCompleteTimerTask(ctx, &persistence.RangeCompleteTimerTaskRequest{
-					InclusiveBeginTimestamp: beginTime,
-					ExclusiveEndTimestamp:   endTime,
-				})
-				return err
-			},
-			expectedError: &types.InternalServiceError{Message: "database error"},
-		},
-		{
-			name: "RangeCompleteTimerTask with inverted time range proceeds",
-			setupMock: func(ctrl *gomock.Controller) *nosqlExecutionStore {
-				mockDB := nosqlplugin.NewMockDB(ctrl)
-				// Set up an expectation for the call, even with inverted time range
-				mockDB.EXPECT().
-					RangeDeleteTimerTasks(ctx, shardID, gomock.Any(), gomock.Any()).
-					Return(nil) // Assuming the operation proceeds regardless of time range order
-				return newTestNosqlExecutionStore(mockDB, log.NewNoop())
-			},
-			testFunc: func(store *nosqlExecutionStore) error {
-				_, err := store.RangeCompleteTimerTask(ctx, &persistence.RangeCompleteTimerTaskRequest{
-					InclusiveBeginTimestamp: time.Now().Add(time.Hour), // Future time
-					ExclusiveEndTimestamp:   time.Now(),                // Present time
-				})
-				return err
-			},
-			expectedError: nil,
-		},
-		{
-			name: "GetTimerIndexTasks success",
-			setupMock: func(ctrl *gomock.Controller) *nosqlExecutionStore {
-				mockDB := nosqlplugin.NewMockDB(ctrl)
-				mockDB.EXPECT().
-					SelectTimerTasksOrderByVisibilityTime(
-						ctx,
-						shardID,
-						10,
-						gomock.Nil(),
-						gomock.Any(),
-						gomock.Any(),
-					).Return([]*persistence.TimerTaskInfo{}, nil, nil)
-				return newTestNosqlExecutionStore(mockDB, log.NewNoop())
-			},
-			testFunc: func(store *nosqlExecutionStore) error {
-				_, err := store.GetTimerIndexTasks(ctx, &persistence.GetTimerIndexTasksRequest{
-					BatchSize:    10,
-					MinTimestamp: time.Now().Add(-time.Hour),
-					MaxTimestamp: time.Now(),
-				})
-				return err
-			},
-			expectedError: nil,
-		},
-		{
-			name: "GetTimerIndexTasks success - empty result",
-			setupMock: func(ctrl *gomock.Controller) *nosqlExecutionStore {
-				mockDB := nosqlplugin.NewMockDB(ctrl)
-				mockDB.EXPECT().
-					SelectTimerTasksOrderByVisibilityTime(ctx, shardID, 10, gomock.Nil(), gomock.Any(), gomock.Any()).
-					Return([]*persistence.TimerTaskInfo{}, []byte{}, nil) // Return an empty list
-				return newTestNosqlExecutionStore(mockDB, log.NewNoop())
-			},
-			testFunc: func(store *nosqlExecutionStore) error {
-				resp, err := store.GetTimerIndexTasks(ctx, &persistence.GetTimerIndexTasksRequest{
-					BatchSize:    10,
-					MinTimestamp: time.Now().Add(-time.Hour),
-					MaxTimestamp: time.Now(),
-				})
-				if err != nil {
-					return err
-				}
-				if len(resp.Timers) != 0 {
-					return errors.New("expected empty result set for timers")
-				}
-				return nil
-			},
-			expectedError: nil,
-		},
-		{
 			name: "PutReplicationTaskToDLQ success",
 			setupMock: func(ctrl *gomock.Controller) *nosqlExecutionStore {
 				mockDB := nosqlplugin.NewMockDB(ctrl)
@@ -1085,32 +864,12 @@ func TestNosqlExecutionStore(t *testing.T) {
 			expectedError: nil,
 		},
 		{
-			name: "GetTimerIndexTasks failure - database error",
-			setupMock: func(ctrl *gomock.Controller) *nosqlExecutionStore {
-				mockDB := nosqlplugin.NewMockDB(ctrl)
-				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true).AnyTimes()
-				mockDB.EXPECT().
-					SelectTimerTasksOrderByVisibilityTime(ctx, shardID, 10, gomock.Nil(), gomock.Any(), gomock.Any()).
-					Return(nil, nil, errors.New("database error"))
-				return newTestNosqlExecutionStore(mockDB, log.NewNoop())
-			},
-			testFunc: func(store *nosqlExecutionStore) error {
-				_, err := store.GetTimerIndexTasks(ctx, &persistence.GetTimerIndexTasksRequest{
-					BatchSize:    10,
-					MinTimestamp: time.Now().Add(-time.Hour),
-					MaxTimestamp: time.Now(),
-				})
-				return err
-			},
-			expectedError: &types.InternalServiceError{Message: "database error"},
-		},
-		{
 			name: "GetReplicationTasksFromDLQ success",
 			setupMock: func(ctrl *gomock.Controller) *nosqlExecutionStore {
 				mockDB := nosqlplugin.NewMockDB(ctrl)
 
 				nextPageToken := []byte("next-page-token")
-				replicationTasks := []*persistence.InternalReplicationTaskInfo{}
+				replicationTasks := []*nosqlplugin.HistoryMigrationTask{}
 				mockDB.EXPECT().
 					SelectReplicationDLQTasksOrderByTaskID(
 						ctx,
@@ -1282,16 +1041,16 @@ func TestRangeDeleteReplicationTaskFromDLQ(t *testing.T) {
 	tests := []struct {
 		name             string
 		sourceCluster    string
-		exclusiveBeginID int64
-		inclusiveEndID   int64
+		inclusiveBeginID int64
+		exclusiveEndID   int64
 		setupMock        func(*nosqlplugin.MockDB)
 		expectedError    error
 	}{
 		{
 			name:             "success",
 			sourceCluster:    "sourceCluster",
-			exclusiveBeginID: 1,
-			inclusiveEndID:   100,
+			inclusiveBeginID: 1,
+			exclusiveEndID:   100,
 			setupMock: func(mockDB *nosqlplugin.MockDB) {
 				mockDB.EXPECT().
 					RangeDeleteReplicationDLQTasks(ctx, shardID, "sourceCluster", int64(1), int64(100)).
@@ -1302,8 +1061,8 @@ func TestRangeDeleteReplicationTaskFromDLQ(t *testing.T) {
 		{
 			name:             "database error",
 			sourceCluster:    "sourceCluster",
-			exclusiveBeginID: 1,
-			inclusiveEndID:   100,
+			inclusiveBeginID: 1,
+			exclusiveEndID:   100,
 			setupMock: func(mockDB *nosqlplugin.MockDB) {
 				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true).AnyTimes()
 				mockDB.EXPECT().
@@ -1325,8 +1084,8 @@ func TestRangeDeleteReplicationTaskFromDLQ(t *testing.T) {
 
 			_, err := store.RangeDeleteReplicationTaskFromDLQ(ctx, &persistence.RangeDeleteReplicationTaskFromDLQRequest{
 				SourceClusterName:    tc.sourceCluster,
-				ExclusiveBeginTaskID: tc.exclusiveBeginID,
-				InclusiveEndTaskID:   tc.inclusiveEndID,
+				InclusiveBeginTaskID: tc.inclusiveBeginID,
+				ExclusiveEndTaskID:   tc.exclusiveEndID,
 			})
 
 			if tc.expectedError != nil {
@@ -1346,7 +1105,7 @@ func TestCreateFailoverMarkerTasks(t *testing.T) {
 		name          string
 		rangeID       int64
 		markers       []*persistence.FailoverMarkerTask
-		setupMock     func(*nosqlplugin.MockDB)
+		setupMock     func(*nosqlplugin.MockDB, *serialization.MockTaskSerializer)
 		expectedError error
 	}{
 		{
@@ -1358,12 +1117,30 @@ func TestCreateFailoverMarkerTasks(t *testing.T) {
 					DomainID: "testDomainID",
 				},
 			},
-			setupMock: func(mockDB *nosqlplugin.MockDB) {
+			setupMock: func(mockDB *nosqlplugin.MockDB, mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryReplication, gomock.Any()).Return(persistence.DataBlob{
+					Data:     []byte("1"),
+					Encoding: commonconstants.EncodingTypeThriftRW,
+				}, nil)
 				mockDB.EXPECT().
 					InsertReplicationTask(ctx, gomock.Any(), nosqlplugin.ShardCondition{ShardID: shardID, RangeID: 123}).
 					Return(nil)
 			},
 			expectedError: nil,
+		},
+		{
+			name:    "serialization error",
+			rangeID: 123,
+			markers: []*persistence.FailoverMarkerTask{
+				{
+					TaskData: persistence.TaskData{},
+					DomainID: "testDomainID",
+				},
+			},
+			setupMock: func(mockDB *nosqlplugin.MockDB, mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryReplication, gomock.Any()).Return(persistence.DataBlob{}, errors.New("some error"))
+			},
+			expectedError: errors.New("some error"),
 		},
 		{
 			name:    "CreateFailoverMarkerTasks failure - ShardOperationConditionFailure",
@@ -1374,7 +1151,11 @@ func TestCreateFailoverMarkerTasks(t *testing.T) {
 					DomainID: "testDomainID",
 				},
 			},
-			setupMock: func(mockDB *nosqlplugin.MockDB) {
+			setupMock: func(mockDB *nosqlplugin.MockDB, mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryReplication, gomock.Any()).Return(persistence.DataBlob{
+					Data:     []byte("1"),
+					Encoding: commonconstants.EncodingTypeThriftRW,
+				}, nil)
 				conditionFailureErr := &nosqlplugin.ShardOperationConditionFailure{
 					RangeID: 123,                      // Use direct int64 value
 					Details: "Shard condition failed", // Use direct string value
@@ -1394,9 +1175,10 @@ func TestCreateFailoverMarkerTasks(t *testing.T) {
 			controller := gomock.NewController(t)
 
 			mockDB := nosqlplugin.NewMockDB(controller)
-			store := newTestNosqlExecutionStore(mockDB, log.NewNoop())
+			mockTaskSerializer := serialization.NewMockTaskSerializer(controller)
+			store := newTestNosqlExecutionStoreWithTaskSerializer(mockDB, log.NewNoop(), mockTaskSerializer)
 
-			tc.setupMock(mockDB)
+			tc.setupMock(mockDB, mockTaskSerializer)
 
 			err := store.CreateFailoverMarkerTasks(ctx, &persistence.CreateFailoverMarkersRequest{
 				RangeID: tc.rangeID,
@@ -1483,7 +1265,10 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 	gomockController := gomock.NewController(t)
 
 	mockDB := nosqlplugin.NewMockDB(gomockController)
-	store, err := NewExecutionStore(1, mockDB, log.NewNoop())
+	mockTaskSerializer := serialization.NewMockTaskSerializer(gomockController)
+	store, err := NewExecutionStore(1, mockDB, log.NewNoop(), mockTaskSerializer, &persistence.DynamicConfiguration{
+		EnableHistoryTaskDualWriteMode: func(...dynamicconfig.FilterOption) bool { return false },
+	})
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -1664,5 +1449,490 @@ func newConflictResolveRequest(mode persistence.ConflictResolveWorkflowMode) *pe
 			},
 		},
 		NewWorkflowSnapshot: nil,
+	}
+}
+
+func TestRangeCompleteHistoryTask(t *testing.T) {
+	ctx := context.Background()
+	shardID := 1
+
+	tests := []struct {
+		name          string
+		request       *persistence.RangeCompleteHistoryTaskRequest
+		setupMock     func(*nosqlplugin.MockDB)
+		expectedError error
+	}{
+		{
+			name: "success - scheduled timer task",
+			request: &persistence.RangeCompleteHistoryTaskRequest{
+				TaskCategory:        persistence.HistoryTaskCategoryTimer,
+				InclusiveMinTaskKey: persistence.HistoryTaskKey{ScheduledTime: time.Unix(0, 0)},
+				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{ScheduledTime: time.Unix(0, 0).Add(time.Minute)},
+			},
+			setupMock: func(mockDB *nosqlplugin.MockDB) {
+				mockDB.EXPECT().RangeDeleteTimerTasks(ctx, shardID, time.Unix(0, 0), time.Unix(0, 0).Add(time.Minute)).Return(nil)
+			},
+			expectedError: nil,
+		},
+		{
+			name: "success - immediate transfer task",
+			request: &persistence.RangeCompleteHistoryTaskRequest{
+				TaskCategory:        persistence.HistoryTaskCategoryTransfer,
+				InclusiveMinTaskKey: persistence.HistoryTaskKey{TaskID: 100},
+				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{TaskID: 200},
+			},
+			setupMock: func(mockDB *nosqlplugin.MockDB) {
+				mockDB.EXPECT().RangeDeleteTransferTasks(ctx, shardID, int64(100), int64(200)).Return(nil)
+			},
+			expectedError: nil,
+		},
+		{
+			name: "success - immediate replication task",
+			request: &persistence.RangeCompleteHistoryTaskRequest{
+				TaskCategory:        persistence.HistoryTaskCategoryReplication,
+				InclusiveMinTaskKey: persistence.HistoryTaskKey{TaskID: 100}, // this is ignored by replication task
+				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{TaskID: 200},
+			},
+			setupMock: func(mockDB *nosqlplugin.MockDB) {
+				mockDB.EXPECT().RangeDeleteReplicationTasks(ctx, shardID, int64(200)).Return(nil)
+			},
+			expectedError: nil,
+		},
+		{
+			name: "unknown task category error",
+			request: &persistence.RangeCompleteHistoryTaskRequest{
+				TaskCategory: persistence.HistoryTaskCategory{},
+			},
+			setupMock:     func(mockDB *nosqlplugin.MockDB) {},
+			expectedError: &types.BadRequestError{},
+		},
+		{
+			name: "database error on timer task",
+			request: &persistence.RangeCompleteHistoryTaskRequest{
+				TaskCategory:        persistence.HistoryTaskCategoryTimer,
+				InclusiveMinTaskKey: persistence.HistoryTaskKey{ScheduledTime: time.Unix(0, 0)},
+				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{ScheduledTime: time.Unix(0, 0).Add(time.Minute)},
+			},
+			setupMock: func(mockDB *nosqlplugin.MockDB) {
+				mockDB.EXPECT().RangeDeleteTimerTasks(ctx, shardID, time.Unix(0, 0), time.Unix(0, 0).Add(time.Minute)).Return(errors.New("db error"))
+				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
+			},
+			expectedError: errors.New("db error"),
+		},
+		{
+			name: "database error on transfer task",
+			request: &persistence.RangeCompleteHistoryTaskRequest{
+				TaskCategory:        persistence.HistoryTaskCategoryTransfer,
+				InclusiveMinTaskKey: persistence.HistoryTaskKey{TaskID: 100},
+				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{TaskID: 200},
+			},
+			setupMock: func(mockDB *nosqlplugin.MockDB) {
+				mockDB.EXPECT().RangeDeleteTransferTasks(ctx, shardID, int64(100), int64(200)).Return(errors.New("db error"))
+				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
+			},
+			expectedError: errors.New("db error"),
+		},
+		{
+			name: "database error on replication task",
+			request: &persistence.RangeCompleteHistoryTaskRequest{
+				TaskCategory:        persistence.HistoryTaskCategoryReplication,
+				InclusiveMinTaskKey: persistence.HistoryTaskKey{TaskID: 100},
+				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{TaskID: 200},
+			},
+			setupMock: func(mockDB *nosqlplugin.MockDB) {
+				mockDB.EXPECT().RangeDeleteReplicationTasks(ctx, shardID, int64(200)).Return(errors.New("db error"))
+				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
+			},
+			expectedError: errors.New("db error"),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			controller := gomock.NewController(t)
+			defer controller.Finish()
+
+			mockDB := nosqlplugin.NewMockDB(controller)
+			store := &nosqlExecutionStore{nosqlStore: nosqlStore{db: mockDB}, shardID: shardID}
+
+			tc.setupMock(mockDB)
+
+			_, err := store.RangeCompleteHistoryTask(ctx, tc.request)
+			if tc.expectedError != nil {
+				require.ErrorAs(t, err, &tc.expectedError)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestGetHistoryTasks(t *testing.T) {
+	ctx := context.Background()
+	shardID := 1
+
+	tests := []struct {
+		name                             string
+		request                          *persistence.GetHistoryTasksRequest
+		readNoSQLHistoryTaskFromDataBlob bool
+		setupMock                        func(*nosqlplugin.MockDB, *serialization.MockTaskSerializer)
+		expectedError                    error
+		expectedTasks                    []persistence.Task
+	}{
+		{
+			name: "success - get immediate transfer tasks",
+			request: &persistence.GetHistoryTasksRequest{
+				TaskCategory:        persistence.HistoryTaskCategoryTransfer,
+				InclusiveMinTaskKey: persistence.HistoryTaskKey{TaskID: 100},
+				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{TaskID: 200},
+				PageSize:            10,
+				NextPageToken:       []byte("next-page-token"),
+			},
+			setupMock: func(mockDB *nosqlplugin.MockDB, mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockDB.EXPECT().SelectTransferTasksOrderByTaskID(ctx, shardID, 10, []byte("next-page-token"), int64(100), int64(200)).Return([]*nosqlplugin.HistoryMigrationTask{
+					{
+						Transfer: &persistence.TransferTaskInfo{
+							DomainID:            "testDomainID",
+							WorkflowID:          "testWorkflowID",
+							RunID:               "testRunID",
+							VisibilityTimestamp: time.Unix(0, 0),
+							TaskID:              1,
+							TaskType:            persistence.TransferTaskTypeDecisionTask,
+							ScheduleID:          1,
+							Version:             1,
+							TaskList:            "testTaskList",
+						},
+						Task: &persistence.DataBlob{Data: []byte("task"), Encoding: "json"},
+					},
+				}, nil, nil)
+			},
+			expectedError: nil,
+			expectedTasks: []persistence.Task{
+				&persistence.DecisionTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID:   "testDomainID",
+						WorkflowID: "testWorkflowID",
+						RunID:      "testRunID",
+					},
+					TaskData: persistence.TaskData{
+						TaskID:              1,
+						Version:             1,
+						VisibilityTimestamp: time.Unix(0, 0),
+					},
+					ScheduleID: 1,
+					TaskList:   "testTaskList",
+				},
+			},
+		},
+		{
+			name: "success - get immediate transfer tasks from data blob",
+			request: &persistence.GetHistoryTasksRequest{
+				TaskCategory:        persistence.HistoryTaskCategoryTransfer,
+				InclusiveMinTaskKey: persistence.HistoryTaskKey{TaskID: 100},
+				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{TaskID: 200},
+				PageSize:            10,
+				NextPageToken:       []byte("next-page-token"),
+			},
+			readNoSQLHistoryTaskFromDataBlob: true,
+			setupMock: func(mockDB *nosqlplugin.MockDB, mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockDB.EXPECT().SelectTransferTasksOrderByTaskID(ctx, shardID, 10, []byte("next-page-token"), int64(100), int64(200)).Return([]*nosqlplugin.HistoryMigrationTask{
+					{
+						Task:   &persistence.DataBlob{Data: []byte("task"), Encoding: "json"},
+						TaskID: 1,
+					},
+				}, nil, nil)
+				mockTaskSerializer.EXPECT().DeserializeTask(persistence.HistoryTaskCategoryTransfer, gomock.Any()).Return(&persistence.DecisionTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID:   "testDomainID",
+						WorkflowID: "testWorkflowID",
+						RunID:      "testRunID",
+					},
+					TaskData: persistence.TaskData{
+						TaskID:              1,
+						Version:             1,
+						VisibilityTimestamp: time.Unix(0, 0),
+					},
+					ScheduleID: 1,
+					TaskList:   "testTaskList",
+				}, nil)
+			},
+			expectedError: nil,
+			expectedTasks: []persistence.Task{
+				&persistence.DecisionTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID:   "testDomainID",
+						WorkflowID: "testWorkflowID",
+						RunID:      "testRunID",
+					},
+					TaskData: persistence.TaskData{
+						TaskID:              1,
+						Version:             1,
+						VisibilityTimestamp: time.Unix(0, 0),
+					},
+					ScheduleID: 1,
+					TaskList:   "testTaskList",
+				},
+			},
+		},
+		{
+			name: "success - get scheduled timer tasks",
+			request: &persistence.GetHistoryTasksRequest{
+				TaskCategory:        persistence.HistoryTaskCategoryTimer,
+				InclusiveMinTaskKey: persistence.HistoryTaskKey{ScheduledTime: time.Unix(0, 0)},
+				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{ScheduledTime: time.Unix(0, 0).Add(time.Minute)},
+				PageSize:            10,
+				NextPageToken:       []byte("next-page-token"),
+			},
+			setupMock: func(mockDB *nosqlplugin.MockDB, mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockDB.EXPECT().SelectTimerTasksOrderByVisibilityTime(ctx, shardID, 10, []byte("next-page-token"), time.Unix(0, 0), time.Unix(0, 0).Add(time.Minute)).Return([]*nosqlplugin.HistoryMigrationTask{
+					{
+						Timer: &persistence.TimerTaskInfo{
+							DomainID:            "testDomainID",
+							WorkflowID:          "testWorkflowID",
+							RunID:               "testRunID",
+							VisibilityTimestamp: time.Unix(0, 0),
+							TaskID:              1,
+							TaskType:            persistence.TaskTypeUserTimer,
+							Version:             1,
+							EventID:             12,
+						},
+						Task: &persistence.DataBlob{Data: []byte("task"), Encoding: "json"},
+					},
+				}, nil, nil)
+			},
+			expectedError: nil,
+			expectedTasks: []persistence.Task{
+				&persistence.UserTimerTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID:   "testDomainID",
+						WorkflowID: "testWorkflowID",
+						RunID:      "testRunID",
+					},
+					TaskData: persistence.TaskData{
+						TaskID:              1,
+						Version:             1,
+						VisibilityTimestamp: time.Unix(0, 0),
+					},
+					EventID: 12,
+				},
+			},
+		},
+		{
+			name: "success - get scheduled timer tasks from data blob",
+			request: &persistence.GetHistoryTasksRequest{
+				TaskCategory:        persistence.HistoryTaskCategoryTimer,
+				InclusiveMinTaskKey: persistence.HistoryTaskKey{ScheduledTime: time.Unix(0, 0)},
+				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{ScheduledTime: time.Unix(0, 0).Add(time.Minute)},
+				PageSize:            10,
+				NextPageToken:       []byte("next-page-token"),
+			},
+			readNoSQLHistoryTaskFromDataBlob: true,
+			setupMock: func(mockDB *nosqlplugin.MockDB, mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockDB.EXPECT().SelectTimerTasksOrderByVisibilityTime(ctx, shardID, 10, []byte("next-page-token"), time.Unix(0, 0), time.Unix(0, 0).Add(time.Minute)).Return([]*nosqlplugin.HistoryMigrationTask{
+					{
+						Task:          &persistence.DataBlob{Data: []byte("task"), Encoding: "json"},
+						TaskID:        1,
+						ScheduledTime: time.Unix(1, 1),
+					},
+				}, nil, nil)
+				mockTaskSerializer.EXPECT().DeserializeTask(persistence.HistoryTaskCategoryTimer, gomock.Any()).Return(&persistence.UserTimerTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID:   "testDomainID",
+						WorkflowID: "testWorkflowID",
+						RunID:      "testRunID",
+					},
+					TaskData: persistence.TaskData{
+						Version: 1,
+					},
+					EventID: 12,
+				}, nil)
+			},
+			expectedError: nil,
+			expectedTasks: []persistence.Task{
+				&persistence.UserTimerTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID:   "testDomainID",
+						WorkflowID: "testWorkflowID",
+						RunID:      "testRunID",
+					},
+					TaskData: persistence.TaskData{
+						TaskID:              1,
+						Version:             1,
+						VisibilityTimestamp: time.Unix(1, 1),
+					},
+					EventID: 12,
+				},
+			},
+		},
+		{
+			name: "success - get immediate replication tasks",
+			request: &persistence.GetHistoryTasksRequest{
+				TaskCategory:        persistence.HistoryTaskCategoryReplication,
+				InclusiveMinTaskKey: persistence.HistoryTaskKey{TaskID: 100},
+				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{TaskID: 200},
+				PageSize:            10,
+				NextPageToken:       []byte("next-page-token"),
+			},
+			setupMock: func(mockDB *nosqlplugin.MockDB, mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockDB.EXPECT().SelectReplicationTasksOrderByTaskID(ctx, shardID, 10, []byte("next-page-token"), int64(100), int64(200)).Return([]*nosqlplugin.HistoryMigrationTask{
+					{
+						Replication: &persistence.InternalReplicationTaskInfo{
+							DomainID:          "testDomainID",
+							WorkflowID:        "testWorkflowID",
+							RunID:             "testRunID",
+							TaskID:            1,
+							TaskType:          persistence.ReplicationTaskTypeHistory,
+							Version:           1,
+							ScheduledID:       3,
+							FirstEventID:      1,
+							NextEventID:       2,
+							BranchToken:       []byte("branchToken"),
+							NewRunBranchToken: []byte("newRunBranchToken"),
+							CreationTime:      time.Unix(0, 0),
+						},
+						Task: &persistence.DataBlob{Data: []byte("task"), Encoding: "json"},
+					},
+				}, nil, nil)
+			},
+			expectedError: nil,
+			expectedTasks: []persistence.Task{
+				&persistence.HistoryReplicationTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID:   "testDomainID",
+						WorkflowID: "testWorkflowID",
+						RunID:      "testRunID",
+					},
+					TaskData: persistence.TaskData{
+						TaskID:              1,
+						Version:             1,
+						VisibilityTimestamp: time.Unix(0, 0),
+					},
+					FirstEventID:      1,
+					NextEventID:       2,
+					BranchToken:       []byte("branchToken"),
+					NewRunBranchToken: []byte("newRunBranchToken"),
+				},
+			},
+		},
+		{
+			name: "success - get immediate replication tasks from data blob",
+			request: &persistence.GetHistoryTasksRequest{
+				TaskCategory:        persistence.HistoryTaskCategoryReplication,
+				InclusiveMinTaskKey: persistence.HistoryTaskKey{TaskID: 100},
+				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{TaskID: 200},
+				PageSize:            10,
+				NextPageToken:       []byte("next-page-token"),
+			},
+			readNoSQLHistoryTaskFromDataBlob: true,
+			setupMock: func(mockDB *nosqlplugin.MockDB, mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockDB.EXPECT().SelectReplicationTasksOrderByTaskID(ctx, shardID, 10, []byte("next-page-token"), int64(100), int64(200)).Return([]*nosqlplugin.HistoryMigrationTask{
+					{
+						Task:   &persistence.DataBlob{Data: []byte("task"), Encoding: "json"},
+						TaskID: 1,
+					},
+				}, nil, nil)
+				mockTaskSerializer.EXPECT().DeserializeTask(persistence.HistoryTaskCategoryReplication, gomock.Any()).Return(&persistence.HistoryReplicationTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID:   "testDomainID",
+						WorkflowID: "testWorkflowID",
+						RunID:      "testRunID",
+					},
+					TaskData: persistence.TaskData{
+						Version:             1,
+						VisibilityTimestamp: time.Unix(0, 0),
+					},
+					FirstEventID:      1,
+					NextEventID:       2,
+					BranchToken:       []byte("branchToken"),
+					NewRunBranchToken: []byte("newRunBranchToken"),
+				}, nil)
+			},
+			expectedError: nil,
+			expectedTasks: []persistence.Task{
+				&persistence.HistoryReplicationTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID:   "testDomainID",
+						WorkflowID: "testWorkflowID",
+						RunID:      "testRunID",
+					},
+					TaskData: persistence.TaskData{
+						TaskID:              1,
+						Version:             1,
+						VisibilityTimestamp: time.Unix(0, 0),
+					},
+					FirstEventID:      1,
+					NextEventID:       2,
+					BranchToken:       []byte("branchToken"),
+					NewRunBranchToken: []byte("newRunBranchToken"),
+				},
+			},
+		},
+		{
+			name: "database error on transfer task retrieval",
+			request: &persistence.GetHistoryTasksRequest{
+				TaskCategory: persistence.HistoryTaskCategoryTransfer,
+				PageSize:     10,
+			},
+			setupMock: func(mockDB *nosqlplugin.MockDB, mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockDB.EXPECT().SelectTransferTasksOrderByTaskID(ctx, shardID, 10, gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil, errors.New("db error"))
+				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
+			},
+			expectedError: errors.New("db error"),
+		},
+		{
+			name: "database error on replication task retrieval",
+			request: &persistence.GetHistoryTasksRequest{
+				TaskCategory: persistence.HistoryTaskCategoryReplication,
+				PageSize:     10,
+			},
+			setupMock: func(mockDB *nosqlplugin.MockDB, mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockDB.EXPECT().SelectReplicationTasksOrderByTaskID(ctx, shardID, 10, gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil, errors.New("db error"))
+				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
+			},
+			expectedError: errors.New("db error"),
+		},
+		{
+			name: "database error on timer task retrieval",
+			request: &persistence.GetHistoryTasksRequest{
+				TaskCategory: persistence.HistoryTaskCategoryTimer,
+				PageSize:     10,
+			},
+			setupMock: func(mockDB *nosqlplugin.MockDB, mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockDB.EXPECT().SelectTimerTasksOrderByVisibilityTime(ctx, shardID, 10, gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil, errors.New("db error"))
+				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
+			},
+			expectedError: errors.New("db error"),
+		},
+		{
+			name: "unknown task category error",
+			request: &persistence.GetHistoryTasksRequest{
+				TaskCategory: persistence.HistoryTaskCategory{},
+			},
+			setupMock:     func(mockDB *nosqlplugin.MockDB, mockTaskSerializer *serialization.MockTaskSerializer) {},
+			expectedError: &types.BadRequestError{},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			controller := gomock.NewController(t)
+			defer controller.Finish()
+
+			mockDB := nosqlplugin.NewMockDB(controller)
+			mockTaskSerializer := serialization.NewMockTaskSerializer(controller)
+			store := &nosqlExecutionStore{nosqlStore: nosqlStore{db: mockDB, dc: &persistence.DynamicConfiguration{ReadNoSQLHistoryTaskFromDataBlob: func(...dynamicconfig.FilterOption) bool {
+				return tc.readNoSQLHistoryTaskFromDataBlob
+			}}}, shardID: shardID, taskSerializer: mockTaskSerializer}
+
+			tc.setupMock(mockDB, mockTaskSerializer)
+
+			resp, err := store.GetHistoryTasks(ctx, tc.request)
+			if tc.expectedError != nil {
+				require.ErrorAs(t, err, &tc.expectedError)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tc.expectedTasks, resp.Tasks)
+			}
+		})
 	}
 }

@@ -20,7 +20,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-//go:generate mockgen -package $GOPACKAGE -destination admin_timers_mock.go -self_package github.com/uber/cadence/tools/cli github.com/uber/cadence/tools/cli LoadCloser,Printer
+//go:generate mockgen -package $GOPACKAGE -destination admin_timers_mock.go github.com/uber/cadence/tools/cli LoadCloser,Printer
 
 package cli
 
@@ -264,14 +264,19 @@ func (cl *dbLoadCloser) Load() ([]*persistence.TimerTaskInfo, error) {
 	isFirstIteration := true
 	for isFirstIteration || len(token) != 0 {
 		isFirstIteration = false
-		req := persistence.GetTimerIndexTasksRequest{
-			MinTimestamp:  st,
-			MaxTimestamp:  et,
-			BatchSize:     batchSize,
+		req := persistence.GetHistoryTasksRequest{
+			TaskCategory: persistence.HistoryTaskCategoryTimer,
+			InclusiveMinTaskKey: persistence.HistoryTaskKey{
+				ScheduledTime: st,
+			},
+			ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
+				ScheduledTime: et,
+			},
+			PageSize:      batchSize,
 			NextPageToken: token,
 		}
 
-		resp := &persistence.GetTimerIndexTasksResponse{}
+		resp := &persistence.GetHistoryTasksResponse{}
 
 		op := func() error {
 			ctx, cancel, err := newContext(cl.ctx)
@@ -279,7 +284,7 @@ func (cl *dbLoadCloser) Load() ([]*persistence.TimerTaskInfo, error) {
 			if err != nil {
 				return commoncli.Problem("Error in creating context:", err)
 			}
-			resp, err = cl.executionManager.GetTimerIndexTasks(ctx, &req)
+			resp, err = cl.executionManager.GetHistoryTasks(ctx, &req)
 			return err
 		}
 
@@ -290,7 +295,13 @@ func (cl *dbLoadCloser) Load() ([]*persistence.TimerTaskInfo, error) {
 		}
 
 		token = resp.NextPageToken
-		timers = append(timers, resp.Timers...)
+		for _, task := range resp.Tasks {
+			timer, err := task.ToTimerTaskInfo()
+			if err != nil {
+				return nil, fmt.Errorf("error converting task to timer task info: %w", err)
+			}
+			timers = append(timers, timer)
+		}
 	}
 	return timers, nil
 }

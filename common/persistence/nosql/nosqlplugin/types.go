@@ -39,6 +39,7 @@ type (
 		VersionHistories *persistence.DataBlob
 		Checksums        *checksum.Checksum
 		LastWriteVersion int64
+		CurrentTimeStamp time.Time
 		// condition checking for updating execution info
 		PreviousNextEventIDCondition *int64
 
@@ -89,10 +90,12 @@ type (
 	TransferTask = persistence.TransferTaskInfo
 
 	HistoryMigrationTask struct {
-		Transfer    *TransferTask
-		Timer       *TimerTask
-		Replication *ReplicationTask
-		Task        *persistence.DataBlob
+		Transfer      *TransferTask
+		Timer         *TimerTask
+		Replication   *ReplicationTask
+		Task          *persistence.DataBlob
+		TaskID        int64
+		ScheduledTime time.Time
 	}
 
 	// ShardCondition is the condition for making changes within a shard
@@ -196,6 +199,7 @@ type (
 		RangeID                 int64
 		TaskListKind            int
 		AckLevel                int64
+		CurrentTimeStamp        time.Time
 		LastUpdatedTime         time.Time
 		AdaptivePartitionConfig *persistence.TaskListPartitionConfig
 	}
@@ -232,6 +236,7 @@ type (
 		NotificationVersion         int64
 		LastUpdatedTime             time.Time
 		IsGlobalDomain              bool
+		CurrentTimeStamp            time.Time
 	}
 
 	// SelectMessagesBetweenRequest is a request struct for SelectMessagesBetween
@@ -251,9 +256,10 @@ type (
 
 	// QueueMessageRow defines the row struct for queue message
 	QueueMessageRow struct {
-		QueueType persistence.QueueType
-		ID        int64
-		Payload   []byte
+		QueueType        persistence.QueueType
+		ID               int64
+		Payload          []byte
+		CurrentTimeStamp time.Time
 	}
 
 	// QueueMetadataRow defines the row struct for metadata
@@ -261,6 +267,7 @@ type (
 		QueueType        persistence.QueueType
 		ClusterAckLevels map[string]int64
 		Version          int64
+		CurrentTimeStamp time.Time
 	}
 
 	// HistoryNodeRow represents a row in history_node table
@@ -270,9 +277,10 @@ type (
 		BranchID string
 		NodeID   int64
 		// Note: use pointer so that it's easier to multiple by -1 if needed
-		TxnID        *int64
-		Data         []byte
-		DataEncoding string
+		TxnID           *int64
+		Data            []byte
+		DataEncoding    string
+		CreateTimestamp time.Time
 	}
 
 	// HistoryNodeFilter contains the column names within history_node table that

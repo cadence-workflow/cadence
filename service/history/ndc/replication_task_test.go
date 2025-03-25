@@ -30,8 +30,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
@@ -63,7 +63,7 @@ func TestReplicationTaskResetEvent(t *testing.T) {
 	}
 	events := []*types.HistoryEvent{}
 	events = append(events, event)
-	eventsBlob, err := historySerializer.SerializeBatchEvents(events, common.EncodingTypeThriftRW)
+	eventsBlob, err := historySerializer.SerializeBatchEvents(events, constants.EncodingTypeThriftRW)
 	require.NoError(t, err)
 	request := &types.ReplicateEventsV2Request{
 		DomainUUID: domainID,
@@ -94,7 +94,7 @@ func TestNewReplicationTask(t *testing.T) {
 
 	historyEvents := []*types.HistoryEvent{historyEvent1, historyEvent2}
 	serializer := persistence.NewPayloadSerializer()
-	serializedEvents, err := serializer.SerializeBatchEvents(historyEvents, common.EncodingTypeThriftRW)
+	serializedEvents, err := serializer.SerializeBatchEvents(historyEvents, constants.EncodingTypeThriftRW)
 	assert.NoError(t, err)
 
 	historyEvent3 := &types.HistoryEvent{
@@ -107,15 +107,15 @@ func TestNewReplicationTask(t *testing.T) {
 	}
 
 	historyEvents2 := []*types.HistoryEvent{historyEvent3}
-	serializedEvents2, err := serializer.SerializeBatchEvents(historyEvents2, common.EncodingTypeThriftRW)
+	serializedEvents2, err := serializer.SerializeBatchEvents(historyEvents2, constants.EncodingTypeThriftRW)
 	assert.NoError(t, err)
 
 	historyEvents3 := []*types.HistoryEvent{historyEvent3, historyEvent4}
-	serializedEvents3, err := serializer.SerializeBatchEvents(historyEvents3, common.EncodingTypeThriftRW)
+	serializedEvents3, err := serializer.SerializeBatchEvents(historyEvents3, constants.EncodingTypeThriftRW)
 	assert.NoError(t, err)
 
 	historyEvents4 := []*types.HistoryEvent{historyEvent4}
-	serializedEvents4, err := serializer.SerializeBatchEvents(historyEvents4, common.EncodingTypeThriftRW)
+	serializedEvents4, err := serializer.SerializeBatchEvents(historyEvents4, constants.EncodingTypeThriftRW)
 	assert.NoError(t, err)
 
 	tests := map[string]struct {

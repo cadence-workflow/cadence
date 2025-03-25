@@ -36,6 +36,7 @@ import (
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -236,7 +237,7 @@ func NewLocalDomainCacheEntryForTest(
 			ActiveClusterName: targetCluster,
 			Clusters:          []*persistence.ClusterReplicationConfig{{ClusterName: targetCluster}},
 		},
-		failoverVersion: common.EmptyVersion,
+		failoverVersion: constants.EmptyVersion,
 	}
 }
 

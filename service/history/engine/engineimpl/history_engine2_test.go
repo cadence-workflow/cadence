@@ -38,6 +38,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
+	commonconstants "github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/log/testlogger"
@@ -205,7 +206,7 @@ func (s *engine2Suite) TestRecordDecisionTaskStartedSuccessStickyExpired() {
 	expectedResponse := types.RecordDecisionTaskStartedResponse{}
 	expectedResponse.WorkflowType = msBuilder.GetWorkflowType()
 	executionInfo = msBuilder.GetExecutionInfo()
-	if executionInfo.LastProcessedEvent != common.EmptyEventID {
+	if executionInfo.LastProcessedEvent != commonconstants.EmptyEventID {
 		expectedResponse.PreviousStartedEventID = common.Int64Ptr(executionInfo.LastProcessedEvent)
 	}
 	expectedResponse.ScheduledEventID = di.ScheduleID
@@ -279,7 +280,7 @@ func (s *engine2Suite) TestRecordDecisionTaskStartedSuccessStickyEnabled() {
 	expectedResponse := types.RecordDecisionTaskStartedResponse{}
 	expectedResponse.WorkflowType = msBuilder.GetWorkflowType()
 	executionInfo = msBuilder.GetExecutionInfo()
-	if executionInfo.LastProcessedEvent != common.EmptyEventID {
+	if executionInfo.LastProcessedEvent != commonconstants.EmptyEventID {
 		expectedResponse.PreviousStartedEventID = common.Int64Ptr(executionInfo.LastProcessedEvent)
 	}
 	expectedResponse.ScheduledEventID = di.ScheduleID
@@ -1338,7 +1339,7 @@ func (s *engine2Suite) TestStartWorkflowExecution_StillRunning_Dedup() {
 	taskList := "testTaskList"
 	identity := "testIdentity"
 	requestID := "requestID"
-	lastWriteVersion := common.EmptyVersion
+	lastWriteVersion := commonconstants.EmptyVersion
 
 	s.mockHistoryV2Mgr.On("AppendHistoryNodes", mock.Anything, mock.Anything).Return(&p.AppendHistoryNodesResponse{}, nil).Once()
 	s.mockExecutionMgr.On("CreateWorkflowExecution", mock.Anything, mock.Anything).Return(nil, &p.WorkflowExecutionAlreadyStartedError{
@@ -1374,7 +1375,7 @@ func (s *engine2Suite) TestStartWorkflowExecution_StillRunning_NonDeDup() {
 	workflowType := "workflowType"
 	taskList := "testTaskList"
 	identity := "testIdentity"
-	lastWriteVersion := common.EmptyVersion
+	lastWriteVersion := commonconstants.EmptyVersion
 
 	s.mockHistoryV2Mgr.On("AppendHistoryNodes", mock.Anything, mock.Anything).Return(&p.AppendHistoryNodesResponse{}, nil).Once()
 	s.mockExecutionMgr.On("CreateWorkflowExecution", mock.Anything, mock.Anything).Return(nil, &p.WorkflowExecutionAlreadyStartedError{
@@ -1412,7 +1413,7 @@ func (s *engine2Suite) TestStartWorkflowExecution_NotRunning_PrevSuccess_Duplica
 	workflowType := "workflowType"
 	taskList := "testTaskList"
 	identity := "testIdentity"
-	lastWriteVersion := common.EmptyVersion
+	lastWriteVersion := commonconstants.EmptyVersion
 	partitionConfig := map[string]string{
 		"zone": "phx",
 	}
@@ -1474,7 +1475,7 @@ func (s *engine2Suite) TestStartWorkflowExecution_NotRunning_PrevSuccess_Duplica
 	workflowType := "workflowType"
 	taskList := "testTaskList"
 	identity := "testIdentity"
-	lastWriteVersion := common.EmptyVersion
+	lastWriteVersion := commonconstants.EmptyVersion
 	partitionConfig := map[string]string{
 		"zone": "phx",
 	}
@@ -1536,7 +1537,7 @@ func (s *engine2Suite) TestStartWorkflowExecution_NotRunning_PrevSuccess() {
 	workflowType := "workflowType"
 	taskList := "testTaskList"
 	identity := "testIdentity"
-	lastWriteVersion := common.EmptyVersion
+	lastWriteVersion := commonconstants.EmptyVersion
 	partitionConfig := map[string]string{
 		"zone": "phx",
 	}
@@ -1616,7 +1617,7 @@ func (s *engine2Suite) TestStartWorkflowExecution_NotRunning_PrevFail() {
 	workflowType := "workflowType"
 	taskList := "testTaskList"
 	identity := "testIdentity"
-	lastWriteVersion := common.EmptyVersion
+	lastWriteVersion := commonconstants.EmptyVersion
 	partitionConfig := map[string]string{
 		"zone": "phx",
 	}
@@ -2116,7 +2117,7 @@ func (s *engine2Suite) TestSignalWithStartWorkflowExecution_Start_DuplicateReque
 		RunID:            runID,
 		State:            p.WorkflowStateRunning,
 		CloseStatus:      p.WorkflowCloseStatusNone,
-		LastWriteVersion: common.EmptyVersion,
+		LastWriteVersion: commonconstants.EmptyVersion,
 	}
 
 	s.mockExecutionMgr.On("GetCurrentExecution", mock.Anything, mock.Anything).Return(gceResponse, nil).Once()
@@ -2223,7 +2224,7 @@ func (s *engine2Suite) TestSignalWithStartWorkflowExecution_Start_WorkflowAlread
 		RunID:            runID,
 		State:            p.WorkflowStateRunning,
 		CloseStatus:      p.WorkflowCloseStatusNone,
-		LastWriteVersion: common.EmptyVersion,
+		LastWriteVersion: commonconstants.EmptyVersion,
 	}
 
 	s.mockExecutionMgr.On("GetCurrentExecution", mock.Anything, mock.Anything).Return(gceResponse, nil).Once()

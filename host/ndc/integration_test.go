@@ -37,6 +37,7 @@ import (
 	adminClient "github.com/uber/cadence/client/admin"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/log/testlogger"
@@ -99,6 +100,8 @@ func (s *NDCIntegrationTestSuite) SetupSuite() {
 	dc := persistence.DynamicConfiguration{
 		EnableSQLAsyncTransaction:                dynamicconfig.GetBoolPropertyFn(false),
 		EnableCassandraAllConsistencyLevelDelete: dynamicconfig.GetBoolPropertyFn(true),
+		EnableHistoryTaskDualWriteMode:           dynamicconfig.GetBoolPropertyFn(true),
+		ReadNoSQLHistoryTaskFromDataBlob:         dynamicconfig.GetBoolPropertyFn(false),
 	}
 	params := pt.TestBaseParams{
 		DefaultTestCluster:    s.defaultTestCluster,
@@ -2277,7 +2280,7 @@ func (s *NDCIntegrationTestSuite) generateNewRunHistory(
 
 	firstScheduleTime := time.Unix(0, 100)
 	newRunFirstEvent := &types.HistoryEvent{
-		ID:        common.FirstEventID,
+		ID:        constants.FirstEventID,
 		Timestamp: common.Int64Ptr(time.Now().UnixNano()),
 		EventType: types.EventTypeWorkflowExecutionStarted.Ptr(),
 		Version:   version,
@@ -2307,7 +2310,7 @@ func (s *NDCIntegrationTestSuite) generateNewRunHistory(
 		},
 	}
 
-	eventBlob, err := s.serializer.SerializeBatchEvents([]*types.HistoryEvent{newRunFirstEvent}, common.EncodingTypeThriftRW)
+	eventBlob, err := s.serializer.SerializeBatchEvents([]*types.HistoryEvent{newRunFirstEvent}, constants.EncodingTypeThriftRW)
 	s.NoError(err)
 
 	return eventBlob
@@ -2323,12 +2326,12 @@ func (s *NDCIntegrationTestSuite) toInternalDataBlob(
 
 	var encodingType types.EncodingType
 	switch blob.GetEncoding() {
-	case common.EncodingTypeThriftRW:
+	case constants.EncodingTypeThriftRW:
 		encodingType = types.EncodingTypeThriftRW
-	case common.EncodingTypeJSON,
-		common.EncodingTypeGob,
-		common.EncodingTypeUnknown,
-		common.EncodingTypeEmpty:
+	case constants.EncodingTypeJSON,
+		constants.EncodingTypeGob,
+		constants.EncodingTypeUnknown,
+		constants.EncodingTypeEmpty:
 		panic(fmt.Sprintf("unsupported encoding type: %v", blob.GetEncoding()))
 	default:
 		panic(fmt.Sprintf("unknown encoding type: %v", blob.GetEncoding()))
@@ -2355,7 +2358,7 @@ func (s *NDCIntegrationTestSuite) generateEventBlobs(
 	)
 	// must serialize events batch after attempt on continue as new as generateNewRunHistory will
 	// modify the NewExecutionRunID attr
-	eventBlob, err := s.serializer.SerializeBatchEvents(batch.Events, common.EncodingTypeThriftRW)
+	eventBlob, err := s.serializer.SerializeBatchEvents(batch.Events, constants.EncodingTypeThriftRW)
 	s.NoError(err)
 	return eventBlob, newRunEventBlob
 }

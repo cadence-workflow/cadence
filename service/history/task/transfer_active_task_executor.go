@@ -34,6 +34,7 @@ import (
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -196,7 +197,7 @@ func (t *transferActiveTaskExecutor) processActivityTask(
 		return err
 	}
 
-	timeout := common.MinInt32(ai.ScheduleToStartTimeout, common.MaxTaskTimeout)
+	timeout := min(ai.ScheduleToStartTimeout, constants.MaxTaskTimeout)
 	// release the context lock since we no longer need mutable state builder and
 	// the rest of logic is making RPC call, which takes time.
 	release(nil)
@@ -253,7 +254,7 @@ func (t *transferActiveTaskExecutor) processDecisionTask(
 	domainName := mutableState.GetDomainEntry().GetInfo().Name
 	executionInfo := mutableState.GetExecutionInfo()
 	workflowTimeout := executionInfo.WorkflowTimeout
-	decisionTimeout := common.MinInt32(workflowTimeout, common.MaxTaskTimeout)
+	decisionTimeout := min(workflowTimeout, constants.MaxTaskTimeout)
 
 	// NOTE: previously this section check whether mutable state has enabled
 	// sticky decision, if so convert the decision to a sticky decision.
@@ -789,7 +790,7 @@ func (t *transferActiveTaskExecutor) processStartChildExecution(
 	}
 
 	workflowRunning := mutableState.IsWorkflowExecutionRunning()
-	childStarted := childInfo.StartedID != common.EmptyEventID
+	childStarted := childInfo.StartedID != constants.EmptyEventID
 
 	if !workflowRunning && (!childStarted || childInfo.ParentClosePolicy != types.ParentClosePolicyAbandon) {
 		// three cases here:
@@ -1176,7 +1177,7 @@ func recordChildExecutionStarted(
 			domain := initiatedAttributes.Domain
 			initiatedEventID := task.ScheduleID
 			ci, ok := mutableState.GetChildExecutionInfo(initiatedEventID)
-			if !ok || ci.StartedID != common.EmptyEventID {
+			if !ok || ci.StartedID != constants.EmptyEventID {
 				return &types.EntityNotExistsError{Message: "Pending child execution not found."}
 			}
 
@@ -1213,7 +1214,7 @@ func recordStartChildExecutionFailed(
 
 			initiatedEventID := task.ScheduleID
 			ci, ok := mutableState.GetChildExecutionInfo(initiatedEventID)
-			if !ok || ci.StartedID != common.EmptyEventID {
+			if !ok || ci.StartedID != constants.EmptyEventID {
 				return &types.EntityNotExistsError{Message: "Pending child execution not found."}
 			}
 
@@ -1367,7 +1368,7 @@ func requestCancelExternalExecutionFailed(
 			}
 
 			_, err := mutableState.AddRequestCancelExternalWorkflowExecutionFailedEvent(
-				common.EmptyEventID,
+				constants.EmptyEventID,
 				initiatedEventID,
 				targetDomain,
 				targetWorkflowID,
@@ -1412,7 +1413,7 @@ func signalExternalExecutionFailed(
 			}
 
 			_, err := mutableState.AddSignalExternalWorkflowExecutionFailedEvent(
-				common.EmptyEventID,
+				constants.EmptyEventID,
 				initiatedEventID,
 				targetDomain,
 				targetWorkflowID,
@@ -1761,7 +1762,7 @@ func (t *transferActiveTaskExecutor) processParentClosePolicy(
 		len(childInfos) >= t.shard.GetConfig().ParentClosePolicyThreshold(domainName) {
 
 		batchSize := t.shard.GetConfig().ParentClosePolicyBatchSize(domainName)
-		executions := make([]parentclosepolicy.RequestDetail, 0, common.MinInt(len(childInfos), batchSize))
+		executions := make([]parentclosepolicy.RequestDetail, 0, min(len(childInfos), batchSize))
 		count := 0
 		for _, childInfo := range childInfos {
 			count++
@@ -1785,7 +1786,7 @@ func (t *transferActiveTaskExecutor) processParentClosePolicy(
 				if err != nil {
 					return err
 				}
-				executions = make([]parentclosepolicy.RequestDetail, 0, common.MinInt(len(childInfos)-count, batchSize))
+				executions = make([]parentclosepolicy.RequestDetail, 0, min(len(childInfos)-count, batchSize))
 			}
 		}
 

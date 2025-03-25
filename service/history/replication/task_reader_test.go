@@ -69,8 +69,8 @@ func TestDynamicTaskReader(t *testing.T) {
 			maxReadLevel: 100,
 			prepareExecutions: func(m *persistence.MockExecutionManager) {
 				m.EXPECT().GetReplicationTasks(gomock.Any(), &persistence.GetReplicationTasksRequest{
-					ReadLevel:    50,
-					MaxReadLevel: 100,
+					ReadLevel:    51,
+					MaxReadLevel: 101,
 					BatchSize:    testBatchSize,
 				}).Return(&persistence.GetReplicationTasksResponse{Tasks: testReplicationTasks}, nil)
 			},
@@ -83,8 +83,8 @@ func TestDynamicTaskReader(t *testing.T) {
 			lastCreateTime: testTime.Add(-time.Second),
 			prepareExecutions: func(m *persistence.MockExecutionManager) {
 				m.EXPECT().GetReplicationTasks(gomock.Any(), &persistence.GetReplicationTasksRequest{
-					ReadLevel:    50,
-					MaxReadLevel: 100,
+					ReadLevel:    51,
+					MaxReadLevel: 101,
 					BatchSize:    30, // minReadTaskSize (20) + (latency (1s) / maxLatency (5s) * defaultBatchSize (50))
 				}).Return(&persistence.GetReplicationTasksResponse{Tasks: testReplicationTasks}, nil)
 			},
@@ -97,8 +97,8 @@ func TestDynamicTaskReader(t *testing.T) {
 			lastCreateTime: testTime.Add(-(testUpperLatency + time.Second)),
 			prepareExecutions: func(m *persistence.MockExecutionManager) {
 				m.EXPECT().GetReplicationTasks(gomock.Any(), &persistence.GetReplicationTasksRequest{
-					ReadLevel:    50,
-					MaxReadLevel: 100,
+					ReadLevel:    51,
+					MaxReadLevel: 101,
 					BatchSize:    50,
 				}).Return(&persistence.GetReplicationTasksResponse{Tasks: testReplicationTasks}, nil)
 			},
@@ -111,8 +111,8 @@ func TestDynamicTaskReader(t *testing.T) {
 			lastCreateTime: testTime.Add(time.Second),
 			prepareExecutions: func(m *persistence.MockExecutionManager) {
 				m.EXPECT().GetReplicationTasks(gomock.Any(), &persistence.GetReplicationTasksRequest{
-					ReadLevel:    50,
-					MaxReadLevel: 100,
+					ReadLevel:    51,
+					MaxReadLevel: 101,
 					BatchSize:    20, // minReadTaskSize (20)
 				}).Return(&persistence.GetReplicationTasksResponse{Tasks: testReplicationTasks}, nil)
 			},

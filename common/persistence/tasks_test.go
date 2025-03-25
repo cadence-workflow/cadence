@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	fuzz "github.com/google/gofuzz"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -47,7 +48,6 @@ func TestTaskCommonMethods(t *testing.T) {
 		&CancelExecutionTask{TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
 		&SignalExecutionTask{TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
 		&RecordChildExecutionCompletedTask{TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
-		&ApplyParentClosePolicyTask{TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
 		&UpsertWorkflowSearchAttributesTask{TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
 		&StartChildExecutionTask{TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
 		&RecordWorkflowClosedTask{TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
@@ -59,49 +59,47 @@ func TestTaskCommonMethods(t *testing.T) {
 	for _, task := range tasks {
 		switch ty := task.(type) {
 		case *ActivityTask:
-			assert.Equal(t, TransferTaskTypeActivityTask, ty.GetType())
+			assert.Equal(t, TransferTaskTypeActivityTask, ty.GetTaskType())
 		case *DecisionTask:
-			assert.Equal(t, TransferTaskTypeDecisionTask, ty.GetType())
+			assert.Equal(t, TransferTaskTypeDecisionTask, ty.GetTaskType())
 		case *RecordWorkflowStartedTask:
-			assert.Equal(t, TransferTaskTypeRecordWorkflowStarted, ty.GetType())
+			assert.Equal(t, TransferTaskTypeRecordWorkflowStarted, ty.GetTaskType())
 		case *ResetWorkflowTask:
-			assert.Equal(t, TransferTaskTypeResetWorkflow, ty.GetType())
+			assert.Equal(t, TransferTaskTypeResetWorkflow, ty.GetTaskType())
 		case *CloseExecutionTask:
-			assert.Equal(t, TransferTaskTypeCloseExecution, ty.GetType())
+			assert.Equal(t, TransferTaskTypeCloseExecution, ty.GetTaskType())
 		case *DeleteHistoryEventTask:
-			assert.Equal(t, TaskTypeDeleteHistoryEvent, ty.GetType())
+			assert.Equal(t, TaskTypeDeleteHistoryEvent, ty.GetTaskType())
 		case *DecisionTimeoutTask:
-			assert.Equal(t, TaskTypeDecisionTimeout, ty.GetType())
+			assert.Equal(t, TaskTypeDecisionTimeout, ty.GetTaskType())
 		case *ActivityTimeoutTask:
-			assert.Equal(t, TaskTypeActivityTimeout, ty.GetType())
+			assert.Equal(t, TaskTypeActivityTimeout, ty.GetTaskType())
 		case *UserTimerTask:
-			assert.Equal(t, TaskTypeUserTimer, ty.GetType())
+			assert.Equal(t, TaskTypeUserTimer, ty.GetTaskType())
 		case *ActivityRetryTimerTask:
-			assert.Equal(t, TaskTypeActivityRetryTimer, ty.GetType())
+			assert.Equal(t, TaskTypeActivityRetryTimer, ty.GetTaskType())
 		case *WorkflowBackoffTimerTask:
-			assert.Equal(t, TaskTypeWorkflowBackoffTimer, ty.GetType())
+			assert.Equal(t, TaskTypeWorkflowBackoffTimer, ty.GetTaskType())
 		case *WorkflowTimeoutTask:
-			assert.Equal(t, TaskTypeWorkflowTimeout, ty.GetType())
+			assert.Equal(t, TaskTypeWorkflowTimeout, ty.GetTaskType())
 		case *CancelExecutionTask:
-			assert.Equal(t, TransferTaskTypeCancelExecution, ty.GetType())
+			assert.Equal(t, TransferTaskTypeCancelExecution, ty.GetTaskType())
 		case *SignalExecutionTask:
-			assert.Equal(t, TransferTaskTypeSignalExecution, ty.GetType())
+			assert.Equal(t, TransferTaskTypeSignalExecution, ty.GetTaskType())
 		case *RecordChildExecutionCompletedTask:
-			assert.Equal(t, TransferTaskTypeRecordChildExecutionCompleted, ty.GetType())
-		case *ApplyParentClosePolicyTask:
-			assert.Equal(t, TransferTaskTypeApplyParentClosePolicy, ty.GetType())
+			assert.Equal(t, TransferTaskTypeRecordChildExecutionCompleted, ty.GetTaskType())
 		case *UpsertWorkflowSearchAttributesTask:
-			assert.Equal(t, TransferTaskTypeUpsertWorkflowSearchAttributes, ty.GetType())
+			assert.Equal(t, TransferTaskTypeUpsertWorkflowSearchAttributes, ty.GetTaskType())
 		case *StartChildExecutionTask:
-			assert.Equal(t, TransferTaskTypeStartChildExecution, ty.GetType())
+			assert.Equal(t, TransferTaskTypeStartChildExecution, ty.GetTaskType())
 		case *RecordWorkflowClosedTask:
-			assert.Equal(t, TransferTaskTypeRecordWorkflowClosed, ty.GetType())
+			assert.Equal(t, TransferTaskTypeRecordWorkflowClosed, ty.GetTaskType())
 		case *HistoryReplicationTask:
-			assert.Equal(t, ReplicationTaskTypeHistory, ty.GetType())
+			assert.Equal(t, ReplicationTaskTypeHistory, ty.GetTaskType())
 		case *SyncActivityTask:
-			assert.Equal(t, ReplicationTaskTypeSyncActivity, ty.GetType())
+			assert.Equal(t, ReplicationTaskTypeSyncActivity, ty.GetTaskType())
 		case *FailoverMarkerTask:
-			assert.Equal(t, ReplicationTaskTypeFailoverMarker, ty.GetType())
+			assert.Equal(t, ReplicationTaskTypeFailoverMarker, ty.GetTaskType())
 		default:
 			t.Fatalf("Unhandled task type: %T", t)
 		}
@@ -121,5 +119,56 @@ func TestTaskCommonMethods(t *testing.T) {
 		newTime := timeNow.Add(time.Second)
 		task.SetVisibilityTimestamp(newTime)
 		assert.Equal(t, newTime, task.GetVisibilityTimestamp())
+	}
+}
+
+func TestTransferTaskMapping(t *testing.T) {
+	f := fuzz.New().NilChance(0.0)
+	tasks := []Task{
+		&ActivityTask{},
+		&DecisionTask{},
+		&RecordWorkflowStartedTask{},
+		&ResetWorkflowTask{},
+		&CloseExecutionTask{},
+		&CancelExecutionTask{},
+		&SignalExecutionTask{},
+		&RecordChildExecutionCompletedTask{},
+		&UpsertWorkflowSearchAttributesTask{},
+		&StartChildExecutionTask{},
+		&RecordWorkflowClosedTask{},
+	}
+	for i := 0; i < 1000; i++ {
+		for _, task := range tasks {
+			f.Fuzz(task)
+			transfer, err := task.ToTransferTaskInfo()
+			assert.NoError(t, err)
+			t.Log(transfer)
+			task2, err := transfer.ToTask()
+			assert.NoError(t, err)
+			assert.Equal(t, task, task2)
+		}
+	}
+}
+
+func TestTimerTaskMapping(t *testing.T) {
+	f := fuzz.New().NilChance(0.0)
+	tasks := []Task{
+		&DecisionTimeoutTask{},
+		&ActivityTimeoutTask{},
+		&DeleteHistoryEventTask{},
+		&WorkflowTimeoutTask{},
+		&UserTimerTask{},
+		&ActivityRetryTimerTask{},
+		&WorkflowBackoffTimerTask{},
+	}
+	for i := 0; i < 1000; i++ {
+		for _, task := range tasks {
+			f.Fuzz(task)
+			timer, err := task.ToTimerTaskInfo()
+			assert.NoError(t, err)
+			task2, err := timer.ToTask()
+			assert.NoError(t, err)
+			assert.Equal(t, task, task2)
+		}
 	}
 }

@@ -37,6 +37,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/constants"
 	p "github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
@@ -164,7 +165,7 @@ func (m *MetadataPersistenceSuiteV2) TestCreateDomain() {
 	m.Equal(isGlobalDomain, resp1.IsGlobalDomain)
 	m.Equal(configVersion, resp1.ConfigVersion)
 	m.Equal(failoverVersion, resp1.FailoverVersion)
-	m.Equal(common.InitialPreviousFailoverVersion, resp1.PreviousFailoverVersion)
+	m.Equal(constants.InitialPreviousFailoverVersion, resp1.PreviousFailoverVersion)
 	m.True(resp1.ReplicationConfig.Clusters[0].ClusterName == cluster.TestCurrentClusterName)
 	m.Equal(p.InitialFailoverNotificationVersion, resp1.FailoverNotificationVersion)
 	m.Nil(resp1.FailoverEndTime)
@@ -303,7 +304,7 @@ func (m *MetadataPersistenceSuiteV2) TestGetDomain() {
 	m.Equal(isGlobalDomain, resp2.IsGlobalDomain)
 	m.Equal(configVersion, resp2.ConfigVersion)
 	m.Equal(failoverVersion, resp2.FailoverVersion)
-	m.Equal(common.InitialPreviousFailoverVersion, resp2.PreviousFailoverVersion)
+	m.Equal(constants.InitialPreviousFailoverVersion, resp2.PreviousFailoverVersion)
 	m.Equal(p.InitialFailoverNotificationVersion, resp2.FailoverNotificationVersion)
 	m.Nil(resp2.FailoverEndTime)
 	m.NotEqual(0, resp2.LastUpdatedTime)
@@ -331,7 +332,7 @@ func (m *MetadataPersistenceSuiteV2) TestGetDomain() {
 	m.Equal(isGlobalDomain, resp3.IsGlobalDomain)
 	m.Equal(configVersion, resp3.ConfigVersion)
 	m.Equal(failoverVersion, resp3.FailoverVersion)
-	m.Equal(common.InitialPreviousFailoverVersion, resp2.PreviousFailoverVersion)
+	m.Equal(constants.InitialPreviousFailoverVersion, resp2.PreviousFailoverVersion)
 	m.Equal(p.InitialFailoverNotificationVersion, resp3.FailoverNotificationVersion)
 	m.NotEqual(0, resp3.LastUpdatedTime)
 
@@ -498,7 +499,7 @@ func (m *MetadataPersistenceSuiteV2) TestConcurrentCreateDomain() {
 		m.Equal(isGlobalDomain, resp.IsGlobalDomain)
 		m.Equal(configVersion, resp.ConfigVersion)
 		m.Equal(failoverVersion, resp.FailoverVersion)
-		m.Equal(common.InitialPreviousFailoverVersion, resp.PreviousFailoverVersion)
+		m.Equal(constants.InitialPreviousFailoverVersion, resp.PreviousFailoverVersion)
 
 		// check domain data
 		ss := strings.Split(resp.Info.Data["k0"], "-")
@@ -687,7 +688,7 @@ func (m *MetadataPersistenceSuiteV2) TestConcurrentUpdateDomain() {
 	m.Equal(isGlobalDomain, resp3.IsGlobalDomain)
 	m.Equal(configVersion, resp3.ConfigVersion)
 	m.Equal(failoverVersion, resp3.FailoverVersion)
-	m.Equal(common.InitialPreviousFailoverVersion, resp3.PreviousFailoverVersion)
+	m.Equal(constants.InitialPreviousFailoverVersion, resp3.PreviousFailoverVersion)
 
 	// check domain data
 	ss := strings.Split(resp3.Info.Data["k0"], "-")

@@ -28,7 +28,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/uber/cadence/common"
 	p "github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/serialization"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
@@ -41,6 +40,7 @@ func applyWorkflowMutationTx(
 	shardID int,
 	workflowMutation *p.InternalWorkflowMutation,
 	parser serialization.Parser,
+	taskSerializer serialization.TaskSerializer,
 ) error {
 
 	executionInfo := workflowMutation.ExecutionInfo
@@ -81,11 +81,8 @@ func applyWorkflowMutationTx(
 		ctx,
 		tx,
 		shardID,
-		domainID,
-		workflowID,
-		runID,
 		workflowMutation.TasksByCategory,
-		parser,
+		taskSerializer,
 	); err != nil {
 		return err
 	}
@@ -203,6 +200,7 @@ func applyWorkflowSnapshotTxAsReset(
 	shardID int,
 	workflowSnapshot *p.InternalWorkflowSnapshot,
 	parser serialization.Parser,
+	taskSerializer serialization.TaskSerializer,
 ) error {
 
 	executionInfo := workflowSnapshot.ExecutionInfo
@@ -243,11 +241,8 @@ func applyWorkflowSnapshotTxAsReset(
 		ctx,
 		tx,
 		shardID,
-		domainID,
-		workflowID,
-		runID,
 		workflowSnapshot.TasksByCategory,
-		parser,
+		taskSerializer,
 	); err != nil {
 		return err
 	}
@@ -404,6 +399,7 @@ func applyWorkflowSnapshotTxAsNew(
 	shardID int,
 	workflowSnapshot *p.InternalWorkflowSnapshot,
 	parser serialization.Parser,
+	taskSerializer serialization.TaskSerializer,
 ) error {
 
 	executionInfo := workflowSnapshot.ExecutionInfo
@@ -432,11 +428,8 @@ func applyWorkflowSnapshotTxAsNew(
 		ctx,
 		tx,
 		shardID,
-		domainID,
-		workflowID,
-		runID,
 		workflowSnapshot.TasksByCategory,
-		parser,
+		taskSerializer,
 	); err != nil {
 		return err
 	}
@@ -521,19 +514,16 @@ func applyTasks(
 	ctx context.Context,
 	tx sqlplugin.Tx,
 	shardID int,
-	domainID serialization.UUID,
-	workflowID string,
-	runID serialization.UUID,
 	tasksByCategory map[p.HistoryTaskCategory][]p.Task,
-	parser serialization.Parser,
+	taskSerializer serialization.TaskSerializer,
 ) error {
 	var err error
 	for c, tasks := range tasksByCategory {
 		switch c.Type() {
 		case p.HistoryTaskCategoryTypeImmediate:
-			err = createImmediateTasks(ctx, tx, shardID, domainID, workflowID, runID, c.ID(), tasks, parser)
+			err = createImmediateTasks(ctx, tx, shardID, c.ID(), tasks, taskSerializer)
 		case p.HistoryTaskCategoryTypeScheduled:
-			err = createScheduledTasks(ctx, tx, shardID, domainID, workflowID, runID, c.ID(), tasks, parser)
+			err = createScheduledTasks(ctx, tx, shardID, c.ID(), tasks, taskSerializer)
 		}
 		if err != nil {
 			return err
@@ -698,18 +688,15 @@ func createImmediateTasks(
 	ctx context.Context,
 	tx sqlplugin.Tx,
 	shardID int,
-	domainID serialization.UUID,
-	workflowID string,
-	runID serialization.UUID,
 	categoryID int,
 	tasks []p.Task,
-	parser serialization.Parser,
+	taskSerializer serialization.TaskSerializer,
 ) error {
 	switch categoryID {
 	case p.HistoryTaskCategoryIDTransfer:
-		return createTransferTasks(ctx, tx, tasks, shardID, domainID, workflowID, runID, parser)
+		return createTransferTasks(ctx, tx, tasks, shardID, taskSerializer)
 	case p.HistoryTaskCategoryIDReplication:
-		return createReplicationTasks(ctx, tx, tasks, shardID, domainID, workflowID, runID, parser)
+		return createReplicationTasks(ctx, tx, tasks, shardID, taskSerializer)
 	}
 	// TODO: implement creating tasks for other categories
 	return nil
@@ -719,16 +706,13 @@ func createScheduledTasks(
 	ctx context.Context,
 	tx sqlplugin.Tx,
 	shardID int,
-	domainID serialization.UUID,
-	workflowID string,
-	runID serialization.UUID,
 	categoryID int,
 	tasks []p.Task,
-	parser serialization.Parser,
+	taskSerializer serialization.TaskSerializer,
 ) error {
 	switch categoryID {
 	case p.HistoryTaskCategoryIDTimer:
-		return createTimerTasks(ctx, tx, tasks, shardID, domainID, workflowID, runID, parser)
+		return createTimerTasks(ctx, tx, tasks, shardID, taskSerializer)
 	}
 	// TODO: implement creating tasks for other categories
 	return nil
@@ -739,10 +723,7 @@ func createTransferTasks(
 	tx sqlplugin.Tx,
 	transferTasks []p.Task,
 	shardID int,
-	domainID serialization.UUID,
-	workflowID string,
-	runID serialization.UUID,
-	parser serialization.Parser,
+	taskSerializer serialization.TaskSerializer,
 ) error {
 
 	if len(transferTasks) == 0 {
@@ -751,84 +732,12 @@ func createTransferTasks(
 
 	transferTasksRows := make([]sqlplugin.TransferTasksRow, len(transferTasks))
 	for i, task := range transferTasks {
-		info := &serialization.TransferTaskInfo{
-			DomainID:            domainID,
-			WorkflowID:          workflowID,
-			RunID:               runID,
-			TaskType:            int16(task.GetType()),
-			TargetDomainID:      domainID,
-			TargetWorkflowID:    p.TransferTaskTransferTargetWorkflowID,
-			ScheduleID:          0,
-			Version:             task.GetVersion(),
-			VisibilityTimestamp: task.GetVisibilityTimestamp(),
-		}
-
-		transferTasksRows[i].ShardID = shardID
-		transferTasksRows[i].TaskID = task.GetTaskID()
-
-		switch task.GetType() {
-		case p.TransferTaskTypeActivityTask:
-			info.TargetDomainID = serialization.MustParseUUID(task.(*p.ActivityTask).DomainID)
-			info.TaskList = task.(*p.ActivityTask).TaskList
-			info.ScheduleID = task.(*p.ActivityTask).ScheduleID
-
-		case p.TransferTaskTypeDecisionTask:
-			info.TargetDomainID = serialization.MustParseUUID(task.(*p.DecisionTask).DomainID)
-			info.TaskList = task.(*p.DecisionTask).TaskList
-			info.ScheduleID = task.(*p.DecisionTask).ScheduleID
-
-		case p.TransferTaskTypeCancelExecution:
-			info.TargetDomainID = serialization.MustParseUUID(task.(*p.CancelExecutionTask).TargetDomainID)
-			info.TargetWorkflowID = task.(*p.CancelExecutionTask).TargetWorkflowID
-			if targetRunID := task.(*p.CancelExecutionTask).TargetRunID; targetRunID != "" {
-				info.TargetRunID = serialization.MustParseUUID(targetRunID)
-			}
-			info.TargetChildWorkflowOnly = task.(*p.CancelExecutionTask).TargetChildWorkflowOnly
-			info.ScheduleID = task.(*p.CancelExecutionTask).InitiatedID
-
-		case p.TransferTaskTypeSignalExecution:
-			info.TargetDomainID = serialization.MustParseUUID(task.(*p.SignalExecutionTask).TargetDomainID)
-			info.TargetWorkflowID = task.(*p.SignalExecutionTask).TargetWorkflowID
-			if targetRunID := task.(*p.SignalExecutionTask).TargetRunID; targetRunID != "" {
-				info.TargetRunID = serialization.MustParseUUID(targetRunID)
-			}
-			info.TargetChildWorkflowOnly = task.(*p.SignalExecutionTask).TargetChildWorkflowOnly
-			info.ScheduleID = task.(*p.SignalExecutionTask).InitiatedID
-
-		case p.TransferTaskTypeStartChildExecution:
-			info.TargetDomainID = serialization.MustParseUUID(task.(*p.StartChildExecutionTask).TargetDomainID)
-			info.TargetWorkflowID = task.(*p.StartChildExecutionTask).TargetWorkflowID
-			info.ScheduleID = task.(*p.StartChildExecutionTask).InitiatedID
-
-		case p.TransferTaskTypeRecordChildExecutionCompleted:
-			info.TargetDomainID = serialization.MustParseUUID(task.(*p.RecordChildExecutionCompletedTask).TargetDomainID)
-			info.TargetWorkflowID = task.(*p.RecordChildExecutionCompletedTask).TargetWorkflowID
-			if targetRunID := task.(*p.RecordChildExecutionCompletedTask).TargetRunID; targetRunID != "" {
-				info.TargetRunID = serialization.MustParseUUID(targetRunID)
-			}
-
-		case p.TransferTaskTypeApplyParentClosePolicy:
-			for targetDomainID := range task.(*p.ApplyParentClosePolicyTask).TargetDomainIDs {
-				info.TargetDomainIDs = append(info.TargetDomainIDs, serialization.MustParseUUID(targetDomainID))
-			}
-
-		case p.TransferTaskTypeCloseExecution,
-			p.TransferTaskTypeRecordWorkflowStarted,
-			p.TransferTaskTypeResetWorkflow,
-			p.TransferTaskTypeUpsertWorkflowSearchAttributes,
-			p.TransferTaskTypeRecordWorkflowClosed:
-			// No explicit property needs to be set
-
-		default:
-			return &types.InternalServiceError{
-				Message: fmt.Sprintf("createTransferTasks failed. Unknown transfer type: %v", task.GetType()),
-			}
-		}
-
-		blob, err := parser.TransferTaskInfoToBlob(info)
+		blob, err := taskSerializer.SerializeTask(p.HistoryTaskCategoryTransfer, task)
 		if err != nil {
 			return err
 		}
+		transferTasksRows[i].ShardID = shardID
+		transferTasksRows[i].TaskID = task.GetTaskID()
 		transferTasksRows[i].Data = blob.Data
 		transferTasksRows[i].DataEncoding = string(blob.Encoding)
 	}
@@ -859,10 +768,7 @@ func createReplicationTasks(
 	tx sqlplugin.Tx,
 	replicationTasks []p.Task,
 	shardID int,
-	domainID serialization.UUID,
-	workflowID string,
-	runID serialization.UUID,
-	parser serialization.Parser,
+	taskSerializer serialization.TaskSerializer,
 ) error {
 
 	if len(replicationTasks) == 0 {
@@ -871,55 +777,7 @@ func createReplicationTasks(
 	replicationTasksRows := make([]sqlplugin.ReplicationTasksRow, len(replicationTasks))
 
 	for i, task := range replicationTasks {
-
-		firstEventID := common.EmptyEventID
-		nextEventID := common.EmptyEventID
-		version := common.EmptyVersion
-		activityScheduleID := common.EmptyEventID
-		var branchToken, newRunBranchToken []byte
-
-		switch task.GetType() {
-		case p.ReplicationTaskTypeHistory:
-			historyReplicationTask, ok := task.(*p.HistoryReplicationTask)
-			if !ok {
-				return &types.InternalServiceError{
-					Message: fmt.Sprintf("createReplicationTasks failed. Failed to cast %v to HistoryReplicationTask", task),
-				}
-			}
-			firstEventID = historyReplicationTask.FirstEventID
-			nextEventID = historyReplicationTask.NextEventID
-			version = task.GetVersion()
-			branchToken = historyReplicationTask.BranchToken
-			newRunBranchToken = historyReplicationTask.NewRunBranchToken
-
-		case p.ReplicationTaskTypeSyncActivity:
-			version = task.GetVersion()
-			activityScheduleID = task.(*p.SyncActivityTask).ScheduledID
-
-		case p.ReplicationTaskTypeFailoverMarker:
-			version = task.GetVersion()
-
-		default:
-			return &types.InternalServiceError{
-				Message: fmt.Sprintf("Unknown replication task: %v", task.GetType()),
-			}
-		}
-
-		blob, err := parser.ReplicationTaskInfoToBlob(&serialization.ReplicationTaskInfo{
-			DomainID:                domainID,
-			WorkflowID:              workflowID,
-			RunID:                   runID,
-			TaskType:                int16(task.GetType()),
-			FirstEventID:            firstEventID,
-			NextEventID:             nextEventID,
-			Version:                 version,
-			ScheduledID:             activityScheduleID,
-			EventStoreVersion:       p.EventStoreVersion,
-			NewRunEventStoreVersion: p.EventStoreVersion,
-			BranchToken:             branchToken,
-			NewRunBranchToken:       newRunBranchToken,
-			CreationTimestamp:       task.GetVisibilityTimestamp(),
-		})
+		blob, err := taskSerializer.SerializeTask(p.HistoryTaskCategoryReplication, task)
 		if err != nil {
 			return err
 		}
@@ -955,10 +813,7 @@ func createTimerTasks(
 	tx sqlplugin.Tx,
 	timerTasks []p.Task,
 	shardID int,
-	domainID serialization.UUID,
-	workflowID string,
-	runID serialization.UUID,
-	parser serialization.Parser,
+	taskSerializer serialization.TaskSerializer,
 ) error {
 
 	if len(timerTasks) == 0 {
@@ -968,55 +823,10 @@ func createTimerTasks(
 	timerTasksRows := make([]sqlplugin.TimerTasksRow, len(timerTasks))
 
 	for i, task := range timerTasks {
-		info := &serialization.TimerTaskInfo{
-			DomainID:        domainID,
-			WorkflowID:      workflowID,
-			RunID:           runID,
-			TaskType:        int16(task.GetType()),
-			Version:         task.GetVersion(),
-			EventID:         common.EmptyEventID,
-			ScheduleAttempt: 0,
-		}
-
-		switch t := task.(type) {
-		case *p.DecisionTimeoutTask:
-			info.EventID = t.EventID
-			info.TimeoutType = common.Int16Ptr(int16(t.TimeoutType))
-			info.ScheduleAttempt = t.ScheduleAttempt
-
-		case *p.ActivityTimeoutTask:
-			info.EventID = t.EventID
-			info.TimeoutType = common.Int16Ptr(int16(t.TimeoutType))
-			info.ScheduleAttempt = t.Attempt
-
-		case *p.UserTimerTask:
-			info.EventID = t.EventID
-
-		case *p.ActivityRetryTimerTask:
-			info.EventID = t.EventID
-			info.ScheduleAttempt = int64(t.Attempt)
-
-		case *p.WorkflowBackoffTimerTask:
-			info.EventID = t.EventID
-			info.TimeoutType = common.Int16Ptr(int16(t.TimeoutType))
-
-		case *p.WorkflowTimeoutTask:
-			// noop
-
-		case *p.DeleteHistoryEventTask:
-			// noop
-
-		default:
-			return &types.InternalServiceError{
-				Message: fmt.Sprintf("createTimerTasks failed. Unknown timer task: %v", task.GetType()),
-			}
-		}
-
-		blob, err := parser.TimerTaskInfoToBlob(info)
+		blob, err := taskSerializer.SerializeTask(p.HistoryTaskCategoryTimer, task)
 		if err != nil {
 			return err
 		}
-
 		timerTasksRows[i].ShardID = shardID
 		timerTasksRows[i].VisibilityTimestamp = task.GetVisibilityTimestamp()
 		timerTasksRows[i].TaskID = task.GetTaskID()

@@ -35,6 +35,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/uber/cadence/common"
+	commonconstants "github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -142,6 +143,7 @@ func (h *handlerImpl) Start() {
 		h.GetLogger(),
 		h.GetMetricsClient(),
 		h.GetTimeSource(),
+		h.GetDomainCache(),
 	)
 	if err != nil {
 		h.GetLogger().Fatal("Creating priority task processor failed", tag.Error(err))
@@ -735,17 +737,17 @@ func (h *handlerImpl) RemoveTask(
 		return err
 	}
 
-	switch taskType := common.TaskType(request.GetType()); taskType {
-	case common.TaskTypeTransfer:
+	switch taskType := commonconstants.TaskType(request.GetType()); taskType {
+	case commonconstants.TaskTypeTransfer:
 		return executionMgr.CompleteTransferTask(ctx, &persistence.CompleteTransferTaskRequest{
 			TaskID: request.GetTaskID(),
 		})
-	case common.TaskTypeTimer:
+	case commonconstants.TaskTypeTimer:
 		return executionMgr.CompleteTimerTask(ctx, &persistence.CompleteTimerTaskRequest{
 			VisibilityTimestamp: time.Unix(0, request.GetVisibilityTimestamp()),
 			TaskID:              request.GetTaskID(),
 		})
-	case common.TaskTypeReplication:
+	case commonconstants.TaskTypeReplication:
 		return executionMgr.CompleteReplicationTask(ctx, &persistence.CompleteReplicationTaskRequest{
 			TaskID: request.GetTaskID(),
 		})
@@ -780,10 +782,10 @@ func (h *handlerImpl) ResetQueue(
 		return h.error(err, scope, "", "", "")
 	}
 
-	switch taskType := common.TaskType(request.GetType()); taskType {
-	case common.TaskTypeTransfer:
+	switch taskType := commonconstants.TaskType(request.GetType()); taskType {
+	case commonconstants.TaskTypeTransfer:
 		err = engine.ResetTransferQueue(ctx, request.GetClusterName())
-	case common.TaskTypeTimer:
+	case commonconstants.TaskTypeTimer:
 		err = engine.ResetTimerQueue(ctx, request.GetClusterName())
 	default:
 		err = constants.ErrInvalidTaskType
@@ -812,10 +814,10 @@ func (h *handlerImpl) DescribeQueue(
 		return nil, h.error(err, scope, "", "", "")
 	}
 
-	switch taskType := common.TaskType(request.GetType()); taskType {
-	case common.TaskTypeTransfer:
+	switch taskType := commonconstants.TaskType(request.GetType()); taskType {
+	case commonconstants.TaskTypeTransfer:
 		resp, err = engine.DescribeTransferQueue(ctx, request.GetClusterName())
-	case common.TaskTypeTimer:
+	case commonconstants.TaskTypeTimer:
 		resp, err = engine.DescribeTimerQueue(ctx, request.GetClusterName())
 	default:
 		err = constants.ErrInvalidTaskType
@@ -1578,7 +1580,6 @@ func (h *handlerImpl) GetReplicationMessages(
 
 // getReplicationShardMessages gets replication messages from all the shards of the request
 // it queries the replication tasks from each shard in parallel
-// and returns the replication tasks in the order of the request tokens
 func (h *handlerImpl) getReplicationShardMessages(
 	ctx context.Context,
 	request *types.GetReplicationMessagesRequest,
@@ -1629,7 +1630,7 @@ func (h *handlerImpl) getReplicationShardMessages(
 // The response can be partial if the total size of the response exceeds the max size.
 // In this case, responses with oldest replication tasks will be returned
 func (h *handlerImpl) buildGetReplicationMessagesResponse(metricsScope metrics.Scope, msgs []replicationShardMessages) *types.GetReplicationMessagesResponse {
-	// Shards with large maessages can cause the response to exceed the max size.
+	// Shards with large messages can cause the response to exceed the max size.
 	// In this case, we need to skip some shard messages to make sure the result response size is within the limit.
 	// To prevent a replication lag in the future, we should return the messages with the oldest replication task.
 	// So we sort the shard messages by the earliest creation time of the replication task.
@@ -1817,7 +1818,7 @@ func (h *handlerImpl) ReapplyEvents(
 	}
 	// deserialize history event object
 	historyEvents, err := h.GetPayloadSerializer().DeserializeBatchEvents(&persistence.DataBlob{
-		Encoding: common.EncodingTypeThriftRW,
+		Encoding: commonconstants.EncodingTypeThriftRW,
 		Data:     request.GetRequest().GetEvents().GetData(),
 	})
 	if err != nil {

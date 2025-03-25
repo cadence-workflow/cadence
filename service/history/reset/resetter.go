@@ -29,6 +29,7 @@ import (
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/collection"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
@@ -381,9 +382,9 @@ func (r *workflowResetterImpl) failInflightActivity(
 
 	for _, ai := range mutableState.GetPendingActivityInfos() {
 		switch ai.StartedID {
-		case common.EmptyEventID:
+		case constants.EmptyEventID:
 			// activity not started, noop
-		case common.TransientEventID:
+		case constants.TransientEventID:
 			// activity is started (with retry policy)
 			// should not encounter this case when rebuilding mutable state
 			return &types.InternalServiceError{
@@ -515,7 +516,7 @@ func (r *workflowResetterImpl) reapplyResetAndContinueAsNewWorkflowEvents(
 		if nextRunID, err = r.reapplyWorkflowEvents(
 			ctx,
 			resetMutableState,
-			common.FirstEventID,
+			constants.FirstEventID,
 			nextWorkflowNextEventID,
 			nextWorkflowBranchToken,
 		); err != nil {

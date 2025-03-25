@@ -31,9 +31,9 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
+	commonconstants "github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log/loggerimpl"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
@@ -815,7 +815,7 @@ func Test_retryWorkflow(t *testing.T) {
 				m.EXPECT().AddContinueAsNewEvent(
 					gomock.Any(),
 					eventBatchFirstEventID,
-					common.EmptyEventID,
+					commonconstants.EmptyEventID,
 					parentDomainName,
 					continueAsNewAttributes,
 				).Return(nil, m, nil).Times(1)
@@ -845,7 +845,7 @@ func Test_retryWorkflow(t *testing.T) {
 				m.EXPECT().AddContinueAsNewEvent(
 					gomock.Any(),
 					eventBatchFirstEventID,
-					common.EmptyEventID,
+					commonconstants.EmptyEventID,
 					parentDomainName,
 					continueAsNewAttributes,
 				).Return(nil, nil, errors.New("continueAsNew-error")).Times(1)
@@ -875,7 +875,7 @@ func Test_retryWorkflow(t *testing.T) {
 				m.EXPECT().AddContinueAsNewEvent(
 					gomock.Any(),
 					eventBatchFirstEventID,
-					common.EmptyEventID,
+					commonconstants.EmptyEventID,
 					parentDomainName,
 					continueAsNewAttributes,
 				).Return(nil, m, nil).Times(1)

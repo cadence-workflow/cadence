@@ -28,6 +28,7 @@ import (
 	"github.com/pborman/uuid"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -150,7 +151,7 @@ func (e *mutableStateBuilder) AddWorkflowExecutionStartedEvent(
 
 	request := startRequest.StartRequest
 	eventID := e.GetNextEventID()
-	if eventID != common.FirstEventID {
+	if eventID != constants.FirstEventID {
 		e.logger.Warn(mutableStateInvalidHistoryActionMsg, opTag,
 			tag.WorkflowEventID(eventID),
 			tag.ErrorTypeInvalidHistoryAction)
@@ -215,13 +216,13 @@ func (e *mutableStateBuilder) ReplicateWorkflowExecutionStartedEvent(
 	); err != nil {
 		return err
 	}
-	e.executionInfo.LastProcessedEvent = common.EmptyEventID
+	e.executionInfo.LastProcessedEvent = constants.EmptyEventID
 	e.executionInfo.LastFirstEventID = startEvent.ID
 
-	e.executionInfo.DecisionVersion = common.EmptyVersion
-	e.executionInfo.DecisionScheduleID = common.EmptyEventID
-	e.executionInfo.DecisionStartedID = common.EmptyEventID
-	e.executionInfo.DecisionRequestID = common.EmptyUUID
+	e.executionInfo.DecisionVersion = constants.EmptyVersion
+	e.executionInfo.DecisionScheduleID = constants.EmptyEventID
+	e.executionInfo.DecisionStartedID = constants.EmptyEventID
+	e.executionInfo.DecisionRequestID = constants.EmptyUUID
 	e.executionInfo.DecisionTimeout = 0
 
 	e.executionInfo.CronSchedule = event.GetCronSchedule()
@@ -236,7 +237,7 @@ func (e *mutableStateBuilder) ReplicateWorkflowExecutionStartedEvent(
 	if event.ParentInitiatedEventID != nil {
 		e.executionInfo.InitiatedID = event.GetParentInitiatedEventID()
 	} else {
-		e.executionInfo.InitiatedID = common.EmptyEventID
+		e.executionInfo.InitiatedID = constants.EmptyEventID
 	}
 
 	e.executionInfo.Attempt = event.GetAttempt()

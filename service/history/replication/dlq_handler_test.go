@@ -274,8 +274,8 @@ func (s *dlqHandlerSuite) TestReadMessages_OK() {
 	s.executionManager.On("GetReplicationTasksFromDLQ", mock.Anything, &persistence.GetReplicationTasksFromDLQRequest{
 		SourceClusterName: s.sourceCluster,
 		GetReplicationTasksRequest: persistence.GetReplicationTasksRequest{
-			ReadLevel:     -1,
-			MaxReadLevel:  lastMessageID,
+			ReadLevel:     0,
+			MaxReadLevel:  lastMessageID + 1,
 			BatchSize:     pageSize,
 			NextPageToken: pageToken,
 		},
@@ -328,8 +328,8 @@ func (s *dlqHandlerSuite) TestReadMessagesWithAckLevel_OK() {
 	req := &persistence.GetReplicationTasksFromDLQRequest{
 		SourceClusterName: s.sourceCluster,
 		GetReplicationTasksRequest: persistence.GetReplicationTasksRequest{
-			ReadLevel:     defaultBeginningMessageID,
-			MaxReadLevel:  lastMessageID,
+			ReadLevel:     defaultBeginningMessageID + 1,
+			MaxReadLevel:  lastMessageID + 1,
 			BatchSize:     pageSize,
 			NextPageToken: pageToken,
 		},
@@ -371,8 +371,8 @@ func (s *dlqHandlerSuite) TestReadMessagesWithAckLevel_GetReplicationTasksFromDL
 	req := &persistence.GetReplicationTasksFromDLQRequest{
 		SourceClusterName: s.sourceCluster,
 		GetReplicationTasksRequest: persistence.GetReplicationTasksRequest{
-			ReadLevel:     defaultBeginningMessageID,
-			MaxReadLevel:  lastMessageID,
+			ReadLevel:     defaultBeginningMessageID + 1,
+			MaxReadLevel:  lastMessageID + 1,
 			BatchSize:     pageSize,
 			NextPageToken: pageToken,
 		},
@@ -408,8 +408,8 @@ func (s *dlqHandlerSuite) TestReadMessagesWithAckLevel_GetDLQReplicationMessages
 	req := &persistence.GetReplicationTasksFromDLQRequest{
 		SourceClusterName: s.sourceCluster,
 		GetReplicationTasksRequest: persistence.GetReplicationTasksRequest{
-			ReadLevel:     defaultBeginningMessageID,
-			MaxReadLevel:  lastMessageID,
+			ReadLevel:     defaultBeginningMessageID + 1,
+			MaxReadLevel:  lastMessageID + 1,
 			BatchSize:     pageSize,
 			NextPageToken: pageToken,
 		},
@@ -455,8 +455,8 @@ func (s *dlqHandlerSuite) TestPurgeMessages() {
 			s.executionManager.On("RangeDeleteReplicationTaskFromDLQ", mock.Anything,
 				&persistence.RangeDeleteReplicationTaskFromDLQRequest{
 					SourceClusterName:    s.sourceCluster,
-					ExclusiveBeginTaskID: -1,
-					InclusiveEndTaskID:   lastMessageID,
+					InclusiveBeginTaskID: 0,
+					ExclusiveEndTaskID:   lastMessageID + 1,
 				}).Return(&persistence.RangeDeleteReplicationTaskFromDLQResponse{TasksCompleted: persistence.UnknownNumRowsAffected}, tc.err).Times(1)
 
 			err := s.messageHandler.PurgeMessages(context.Background(), s.sourceCluster, lastMessageID)
@@ -497,8 +497,8 @@ func (s *dlqHandlerSuite) TestMergeMessages_OK() {
 	s.executionManager.On("GetReplicationTasksFromDLQ", mock.Anything, &persistence.GetReplicationTasksFromDLQRequest{
 		SourceClusterName: s.sourceCluster,
 		GetReplicationTasksRequest: persistence.GetReplicationTasksRequest{
-			ReadLevel:     -1,
-			MaxReadLevel:  lastMessageID,
+			ReadLevel:     0,
+			MaxReadLevel:  lastMessageID + 1,
 			BatchSize:     pageSize,
 			NextPageToken: pageToken,
 		},
@@ -517,8 +517,8 @@ func (s *dlqHandlerSuite) TestMergeMessages_OK() {
 	s.executionManager.On("RangeDeleteReplicationTaskFromDLQ", mock.Anything,
 		&persistence.RangeDeleteReplicationTaskFromDLQRequest{
 			SourceClusterName:    s.sourceCluster,
-			ExclusiveBeginTaskID: -1,
-			InclusiveEndTaskID:   lastMessageID,
+			InclusiveBeginTaskID: 0,
+			ExclusiveEndTaskID:   lastMessageID + 1,
 		}).Return(&persistence.RangeDeleteReplicationTaskFromDLQResponse{TasksCompleted: persistence.UnknownNumRowsAffected}, nil).Times(1)
 
 	token, err := s.messageHandler.MergeMessages(ctx, s.sourceCluster, lastMessageID, pageSize, pageToken)
@@ -562,8 +562,8 @@ func (s *dlqHandlerSuite) TestMergeMessages_executeFailed() {
 	s.executionManager.On("GetReplicationTasksFromDLQ", mock.Anything, &persistence.GetReplicationTasksFromDLQRequest{
 		SourceClusterName: s.sourceCluster,
 		GetReplicationTasksRequest: persistence.GetReplicationTasksRequest{
-			ReadLevel:     -1,
-			MaxReadLevel:  lastMessageID,
+			ReadLevel:     0,
+			MaxReadLevel:  lastMessageID + 1,
 			BatchSize:     pageSize,
 			NextPageToken: pageToken,
 		},

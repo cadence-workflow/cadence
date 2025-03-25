@@ -30,7 +30,6 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
-	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log/testlogger"
@@ -250,7 +249,6 @@ func TestInsertDomain(t *testing.T) {
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
 			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
-			db.timeSrc = clock.NewMockedTimeSourceAt(FixedTime)
 
 			err := db.InsertDomain(context.Background(), tc.row)
 

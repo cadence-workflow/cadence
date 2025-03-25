@@ -26,6 +26,8 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/types"
 )
@@ -37,6 +39,7 @@ type (
 		persistence   ExecutionStore
 		statsComputer statsComputer
 		logger        log.Logger
+		timeSrc       clock.TimeSource
 	}
 )
 
@@ -53,6 +56,7 @@ func NewExecutionManagerImpl(
 		persistence:   persistence,
 		statsComputer: statsComputer{},
 		logger:        logger,
+		timeSrc:       clock.NewRealTimeSource(),
 	}
 }
 
@@ -348,6 +352,8 @@ func (m *executionManagerImpl) UpdateWorkflowExecution(
 		NewWorkflowSnapshot:    serializedNewWorkflowSnapshot,
 
 		WorkflowRequestMode: request.WorkflowRequestMode,
+
+		CurrentTimeStamp: m.timeSrc.Now(),
 	}
 	msuss := m.statsComputer.computeMutableStateUpdateStats(newRequest)
 	err = m.persistence.UpdateWorkflowExecution(ctx, newRequest)
@@ -359,7 +365,7 @@ func (m *executionManagerImpl) UpdateWorkflowExecution(
 
 func (m *executionManagerImpl) SerializeUpsertChildExecutionInfos(
 	infos []*ChildExecutionInfo,
-	encoding common.EncodingType,
+	encoding constants.EncodingType,
 ) ([]*InternalChildExecutionInfo, error) {
 
 	newInfos := make([]*InternalChildExecutionInfo, 0)
@@ -395,7 +401,7 @@ func (m *executionManagerImpl) SerializeUpsertChildExecutionInfos(
 
 func (m *executionManagerImpl) SerializeUpsertActivityInfos(
 	infos []*ActivityInfo,
-	encoding common.EncodingType,
+	encoding constants.EncodingType,
 ) ([]*InternalActivityInfo, error) {
 
 	newInfos := make([]*InternalActivityInfo, 0)
@@ -452,7 +458,7 @@ func (m *executionManagerImpl) SerializeUpsertActivityInfos(
 func (m *executionManagerImpl) SerializeExecutionInfo(
 	info *WorkflowExecutionInfo,
 	stats *ExecutionStats,
-	encoding common.EncodingType,
+	encoding constants.EncodingType,
 ) (*InternalWorkflowExecutionInfo, error) {
 
 	if info == nil {
@@ -567,6 +573,8 @@ func (m *executionManagerImpl) ConflictResolveWorkflowExecution(
 		CurrentWorkflowMutation: serializedCurrentWorkflowMutation,
 
 		WorkflowRequestMode: request.WorkflowRequestMode,
+
+		CurrentTimeStamp: m.timeSrc.Now(),
 	}
 	msuss := m.statsComputer.computeMutableStateConflictResolveStats(newRequest)
 	err = m.persistence.ConflictResolveWorkflowExecution(ctx, newRequest)
@@ -581,7 +589,7 @@ func (m *executionManagerImpl) CreateWorkflowExecution(
 	request *CreateWorkflowExecutionRequest,
 ) (*CreateWorkflowExecutionResponse, error) {
 
-	encoding := common.EncodingTypeThriftRW
+	encoding := constants.EncodingTypeThriftRW
 
 	serializedNewWorkflowSnapshot, err := m.SerializeWorkflowSnapshot(&request.NewWorkflowSnapshot, encoding)
 	if err != nil {
@@ -599,6 +607,8 @@ func (m *executionManagerImpl) CreateWorkflowExecution(
 		NewWorkflowSnapshot: *serializedNewWorkflowSnapshot,
 
 		WorkflowRequestMode: request.WorkflowRequestMode,
+
+		CurrentTimeStamp: m.timeSrc.Now(),
 	}
 
 	msuss := m.statsComputer.computeMutableStateCreateStats(newRequest)
@@ -611,7 +621,7 @@ func (m *executionManagerImpl) CreateWorkflowExecution(
 
 func (m *executionManagerImpl) SerializeWorkflowMutation(
 	input *WorkflowMutation,
-	encoding common.EncodingType,
+	encoding constants.EncodingType,
 ) (*InternalWorkflowMutation, error) {
 
 	serializedExecutionInfo, err := m.SerializeExecutionInfo(
@@ -650,7 +660,7 @@ func (m *executionManagerImpl) SerializeWorkflowMutation(
 	if err != nil {
 		return nil, err
 	}
-	checksumData, err := m.serializer.SerializeChecksum(input.Checksum, common.EncodingTypeJSON)
+	checksumData, err := m.serializer.SerializeChecksum(input.Checksum, constants.EncodingTypeJSON)
 	if err != nil {
 		return nil, err
 	}
@@ -688,7 +698,7 @@ func (m *executionManagerImpl) SerializeWorkflowMutation(
 
 func (m *executionManagerImpl) SerializeWorkflowSnapshot(
 	input *WorkflowSnapshot,
-	encoding common.EncodingType,
+	encoding constants.EncodingType,
 ) (*InternalWorkflowSnapshot, error) {
 
 	serializedExecutionInfo, err := m.SerializeExecutionInfo(
@@ -721,7 +731,7 @@ func (m *executionManagerImpl) SerializeWorkflowSnapshot(
 		return nil, err
 	}
 
-	checksumData, err := m.serializer.SerializeChecksum(input.Checksum, common.EncodingTypeJSON)
+	checksumData, err := m.serializer.SerializeChecksum(input.Checksum, constants.EncodingTypeJSON)
 	if err != nil {
 		return nil, err
 	}
@@ -751,7 +761,7 @@ func (m *executionManagerImpl) SerializeWorkflowSnapshot(
 
 func (m *executionManagerImpl) SerializeVersionHistories(
 	versionHistories *VersionHistories,
-	encoding common.EncodingType,
+	encoding constants.EncodingType,
 ) (*DataBlob, error) {
 
 	if versionHistories == nil {
@@ -853,13 +863,6 @@ func (m *executionManagerImpl) CompleteTransferTask(
 	return m.persistence.CompleteTransferTask(ctx, request)
 }
 
-func (m *executionManagerImpl) RangeCompleteTransferTask(
-	ctx context.Context,
-	request *RangeCompleteTransferTaskRequest,
-) (*RangeCompleteTransferTaskResponse, error) {
-	return m.persistence.RangeCompleteTransferTask(ctx, request)
-}
-
 // Replication task related methods
 func (m *executionManagerImpl) GetReplicationTasks(
 	ctx context.Context,
@@ -881,13 +884,6 @@ func (m *executionManagerImpl) CompleteReplicationTask(
 	request *CompleteReplicationTaskRequest,
 ) error {
 	return m.persistence.CompleteReplicationTask(ctx, request)
-}
-
-func (m *executionManagerImpl) RangeCompleteReplicationTask(
-	ctx context.Context,
-	request *RangeCompleteReplicationTaskRequest,
-) (*RangeCompleteReplicationTaskResponse, error) {
-	return m.persistence.RangeCompleteReplicationTask(ctx, request)
 }
 
 func (m *executionManagerImpl) PutReplicationTaskToDLQ(
@@ -940,15 +936,8 @@ func (m *executionManagerImpl) CreateFailoverMarkerTasks(
 	ctx context.Context,
 	request *CreateFailoverMarkersRequest,
 ) error {
+	request.CurrentTimeStamp = m.timeSrc.Now()
 	return m.persistence.CreateFailoverMarkerTasks(ctx, request)
-}
-
-// Timer related methods.
-func (m *executionManagerImpl) GetTimerIndexTasks(
-	ctx context.Context,
-	request *GetTimerIndexTasksRequest,
-) (*GetTimerIndexTasksResponse, error) {
-	return m.persistence.GetTimerIndexTasks(ctx, request)
 }
 
 func (m *executionManagerImpl) CompleteTimerTask(
@@ -956,13 +945,6 @@ func (m *executionManagerImpl) CompleteTimerTask(
 	request *CompleteTimerTaskRequest,
 ) error {
 	return m.persistence.CompleteTimerTask(ctx, request)
-}
-
-func (m *executionManagerImpl) RangeCompleteTimerTask(
-	ctx context.Context,
-	request *RangeCompleteTimerTaskRequest,
-) (*RangeCompleteTimerTaskResponse, error) {
-	return m.persistence.RangeCompleteTimerTask(ctx, request)
 }
 
 func (m *executionManagerImpl) Close() {
@@ -1017,7 +999,22 @@ func (m *executionManagerImpl) toInternalReplicationTaskInfo(info *ReplicationTa
 		BranchToken:       info.BranchToken,
 		NewRunBranchToken: info.NewRunBranchToken,
 		CreationTime:      time.Unix(0, info.CreationTime).UTC(),
+		CurrentTimeStamp:  m.timeSrc.Now(),
 	}
+}
+
+func (m *executionManagerImpl) GetHistoryTasks(
+	ctx context.Context,
+	request *GetHistoryTasksRequest,
+) (*GetHistoryTasksResponse, error) {
+	return m.persistence.GetHistoryTasks(ctx, request)
+}
+
+func (m *executionManagerImpl) RangeCompleteHistoryTask(
+	ctx context.Context,
+	request *RangeCompleteHistoryTaskRequest,
+) (*RangeCompleteHistoryTaskResponse, error) {
+	return m.persistence.RangeCompleteHistoryTask(ctx, request)
 }
 
 func getStartVersion(
@@ -1025,7 +1022,7 @@ func getStartVersion(
 ) (int64, error) {
 
 	if versionHistories == nil {
-		return common.EmptyVersion, nil
+		return constants.EmptyVersion, nil
 	}
 
 	versionHistory, err := versionHistories.GetCurrentVersionHistory()
@@ -1044,7 +1041,7 @@ func getLastWriteVersion(
 ) (int64, error) {
 
 	if versionHistories == nil {
-		return common.EmptyVersion, nil
+		return constants.EmptyVersion, nil
 	}
 
 	versionHistory, err := versionHistories.GetCurrentVersionHistory()

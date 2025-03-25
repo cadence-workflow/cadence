@@ -26,7 +26,7 @@ import (
 
 	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -69,6 +69,12 @@ func InitializeLoggerForTask(
 		// noop
 	case *persistence.ReplicationTaskInfo:
 		// noop
+	case persistence.Task:
+		if timerTask, err := task.ToTimerTaskInfo(); err == nil {
+			taskLogger = taskLogger.WithTags(
+				tag.WorkflowTimeoutType(int64(timerTask.TimeoutType)),
+			)
+		}
 	default:
 		taskLogger.Error(fmt.Sprintf("Unknown queue task type: %v", task))
 	}
@@ -377,7 +383,7 @@ func retryWorkflow(
 	_, newMutableState, err := mutableState.AddContinueAsNewEvent(
 		ctx,
 		eventBatchFirstEventID,
-		common.EmptyEventID,
+		constants.EmptyEventID,
 		parentDomainName,
 		continueAsNewAttributes,
 	)

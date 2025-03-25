@@ -34,6 +34,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/locks"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -49,6 +50,7 @@ import (
 const (
 	defaultRemoteCallTimeout = 30 * time.Second
 	checksumErrorRetryCount  = 3
+	maxLockDuration          = 1 * time.Second
 )
 
 type conflictError struct {
@@ -163,7 +165,7 @@ type (
 			now time.Time,
 		) error
 
-		Size() uint64
+		cache.Sizeable
 	}
 )
 
@@ -176,9 +178,11 @@ type (
 		logger            log.Logger
 		metricsClient     metrics.Client
 
-		mutex        locks.Mutex
-		mutableState MutableState
-		stats        *persistence.ExecutionStats
+		mutex           locks.Mutex
+		lockTime        time.Time
+		maxLockDuration time.Duration
+		mutableState    MutableState
+		stats           *persistence.ExecutionStats
 
 		appendHistoryNodesFn                  func(context.Context, string, types.WorkflowExecution, *persistence.AppendHistoryNodesRequest) (*persistence.AppendHistoryNodesResponse, error)
 		persistStartWorkflowBatchEventsFn     func(context.Context, *persistence.WorkflowEvents) (events.PersistedBlob, error)
@@ -220,6 +224,7 @@ func NewContext(
 		logger:            logger,
 		metricsClient:     shard.GetMetricsClient(),
 		mutex:             locks.NewMutex(),
+		maxLockDuration:   maxLockDuration,
 		stats: &persistence.ExecutionStats{
 			HistorySize: 0,
 		},
@@ -267,11 +272,26 @@ func NewContext(
 }
 
 func (c *contextImpl) Lock(ctx context.Context) error {
-	return c.mutex.Lock(ctx)
+	err := c.mutex.Lock(ctx)
+	if err != nil {
+		return err
+	}
+	c.lockTime = time.Now()
+	return nil
 }
 
 func (c *contextImpl) Unlock() {
-	c.mutex.Unlock()
+	defer c.mutex.Unlock()
+
+	if c.lockTime.IsZero() { // skip logging if the lock is never acquired
+		return
+	}
+	elapsed := time.Since(c.lockTime)
+	c.metricsClient.RecordTimer(metrics.WorkflowContextScope, metrics.WorkflowContextLockLatency, elapsed)
+	if elapsed > c.maxLockDuration {
+		c.maxLockDuration = elapsed
+		c.logger.Info("workflow context lock is released. this is logged only when it's longer than maxLockDuration", tag.WorkflowContextLockLatency(elapsed))
+	}
 }
 
 func (c *contextImpl) Clear() {
@@ -404,7 +424,7 @@ func (c *contextImpl) LoadWorkflowExecution(
 ) (MutableState, error) {
 
 	// Use empty version to skip incoming task version validation
-	return c.LoadWorkflowExecutionWithTaskVersion(ctx, common.EmptyVersion)
+	return c.LoadWorkflowExecutionWithTaskVersion(ctx, constants.EmptyVersion)
 }
 
 func (c *contextImpl) CreateWorkflowExecution(
@@ -797,7 +817,7 @@ func (c *contextImpl) UpdateWorkflowExecutionWithNew(
 		startEvents := newWorkflowEventsSeq[0]
 		firstEventID := startEvents.Events[0].ID
 		var blob events.PersistedBlob
-		if firstEventID == common.FirstEventID {
+		if firstEventID == constants.FirstEventID {
 			blob, err = c.persistStartWorkflowBatchEventsFn(ctx, startEvents)
 			if err != nil {
 				return err
@@ -1363,7 +1383,7 @@ func (c *contextImpl) ReapplyEvents(
 	// Use the history from the same cluster to reapply events
 	reapplyEventsDataBlob, err := serializer.SerializeBatchEvents(
 		reapplyEvents,
-		common.EncodingTypeThriftRW,
+		constants.EncodingTypeThriftRW,
 	)
 	if err != nil {
 		return err
@@ -1394,15 +1414,14 @@ func (c *contextImpl) Size() uint64 {
 	size += len(c.domainID)
 
 	size += len(c.workflowExecution.GetWorkflowID()) + len(c.workflowExecution.GetRunID())
-	size += 3 * common.StringSizeOverheadBytes
-	size += int(c.shard.Size())
+	size += 3 * constants.StringSizeOverheadBytes
 
 	size += 3 * 8 // logger
 	size += 512   // MetricsClient estimation
 	size += 256   // ExecutionManager estimation
 	size += 8     // Mutex
-	size += c.mutableState.GetEstimatedMutableStateSize()
-	size += 8 // stats pointer
+	size += 1024  // Mutable-state estimation
+	size += 8     // stats pointer
 
 	size += 18 * 8 // 18 function pointers with 8 bytes each
 	return uint64(size)

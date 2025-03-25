@@ -37,6 +37,7 @@ import (
 	"github.com/uber/cadence/.gen/go/indexer"
 	workflow "github.com/uber/cadence/.gen/go/shared"
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
 	es "github.com/uber/cadence/common/elasticsearch"
 	"github.com/uber/cadence/common/elasticsearch/query"
@@ -81,7 +82,7 @@ func NewElasticSearchVisibilityStore(
 func (v *esVisibilityStore) Close() {}
 
 func (v *esVisibilityStore) GetName() string {
-	return common.ESPersistenceName
+	return constants.ESPersistenceName
 }
 
 func (v *esVisibilityStore) RecordWorkflowExecutionStarted(
@@ -103,7 +104,7 @@ func (v *esVisibilityStore) RecordWorkflowExecutionStarted(
 		request.IsCron,
 		request.NumClusters,
 		request.SearchAttributes,
-		common.RecordStarted,
+		constants.RecordStarted,
 		0,                                  // will not be used
 		0,                                  // will not be used
 		0,                                  // will not be used
@@ -132,7 +133,7 @@ func (v *esVisibilityStore) RecordWorkflowExecutionClosed(
 		request.IsCron,
 		request.NumClusters,
 		request.SearchAttributes,
-		common.RecordClosed,
+		constants.RecordClosed,
 		request.CloseTimestamp.UnixNano(),
 		*thrift.FromWorkflowExecutionCloseStatus(&request.Status),
 		request.HistoryLength,
@@ -177,7 +178,7 @@ func (v *esVisibilityStore) UpsertWorkflowExecution(
 		request.IsCron,
 		request.NumClusters,
 		request.SearchAttributes,
-		common.UpsertSearchAttributes,
+		constants.UpsertSearchAttributes,
 		0, // will not be used
 		0, // will not be used
 		0, // will not be used
@@ -772,11 +773,11 @@ func createVisibilityMessage(
 	executionTimeUnixNano int64,
 	taskID int64,
 	memo []byte,
-	encoding common.EncodingType,
+	encoding constants.EncodingType,
 	isCron bool,
 	NumClusters int16,
 	searchAttributes map[string][]byte,
-	visibilityOperation common.VisibilityOperation,
+	visibilityOperation constants.VisibilityOperation,
 	// specific to certain status
 	endTimeUnixNano int64, // close execution
 	closeStatus workflow.WorkflowExecutionCloseStatus, // close execution
@@ -806,8 +807,8 @@ func createVisibilityMessage(
 	}
 
 	switch visibilityOperation {
-	case common.RecordStarted:
-	case common.RecordClosed:
+	case constants.RecordStarted:
+	case constants.RecordClosed:
 		fields[es.CloseTime] = &indexer.Field{Type: &es.FieldTypeInt, IntData: common.Int64Ptr(endTimeUnixNano)}
 		fields[es.CloseStatus] = &indexer.Field{Type: &es.FieldTypeInt, IntData: common.Int64Ptr(int64(closeStatus))}
 		fields[es.HistoryLength] = &indexer.Field{Type: &es.FieldTypeInt, IntData: common.Int64Ptr(historyLength)}
@@ -815,11 +816,11 @@ func createVisibilityMessage(
 
 	var visibilityOperationThrift indexer.VisibilityOperation = -1
 	switch visibilityOperation {
-	case common.RecordStarted:
+	case constants.RecordStarted:
 		visibilityOperationThrift = indexer.VisibilityOperationRecordStarted
-	case common.RecordClosed:
+	case constants.RecordClosed:
 		visibilityOperationThrift = indexer.VisibilityOperationRecordClosed
-	case common.UpsertSearchAttributes:
+	case constants.UpsertSearchAttributes:
 		visibilityOperationThrift = indexer.VisibilityOperationUpsertSearchAttributes
 	default:
 		panic("VisibilityOperation not set")

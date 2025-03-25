@@ -457,13 +457,21 @@ func TestGetChildExecutionDomainEntry(t *testing.T) {
 
 func TestConvert(t *testing.T) {
 	t.Run("convertSyncActivityInfos", func(t *testing.T) {
+		executionInfo := &persistence.WorkflowExecutionInfo{
+			DomainID:   "some-domain-id",
+			WorkflowID: "some-workflow-id",
+			RunID:      "some-run-id",
+		}
 		activityInfos := map[int64]*persistence.ActivityInfo{1: {Version: 1, ScheduleID: 1}}
 		inputs := map[int64]struct{}{1: {}}
-		outputs := convertSyncActivityInfos(activityInfos, inputs)
+		outputs := convertSyncActivityInfos(executionInfo, activityInfos, inputs)
 		assert.NotNil(t, outputs)
 		assert.Equal(t, 1, len(outputs))
 		assert.Equal(t, int64(1), outputs[0].(*persistence.SyncActivityTask).ScheduledID)
 		assert.Equal(t, int64(1), outputs[0].GetVersion())
+		assert.Equal(t, executionInfo.DomainID, outputs[0].(*persistence.SyncActivityTask).DomainID)
+		assert.Equal(t, executionInfo.WorkflowID, outputs[0].(*persistence.SyncActivityTask).WorkflowID)
+		assert.Equal(t, executionInfo.RunID, outputs[0].(*persistence.SyncActivityTask).RunID)
 	})
 }
 

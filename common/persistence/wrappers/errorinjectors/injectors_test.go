@@ -286,15 +286,13 @@ func builderForPassThrough(t *testing.T, injector any, errorRate float64, logger
 			mocked.EXPECT().GetReplicationDLQSize(gomock.Any(), gomock.Any()).Return(&persistence.GetReplicationDLQSizeResponse{}, expectedErr)
 			mocked.EXPECT().GetReplicationTasks(gomock.Any(), gomock.Any()).Return(&persistence.GetReplicationTasksResponse{}, expectedErr)
 			mocked.EXPECT().GetReplicationTasksFromDLQ(gomock.Any(), gomock.Any()).Return(&persistence.GetReplicationTasksFromDLQResponse{}, expectedErr)
-			mocked.EXPECT().GetTimerIndexTasks(gomock.Any(), gomock.Any()).Return(&persistence.GetTimerIndexTasksResponse{}, expectedErr)
 			mocked.EXPECT().GetTransferTasks(gomock.Any(), gomock.Any()).Return(&persistence.GetTransferTasksResponse{}, expectedErr)
 			mocked.EXPECT().IsWorkflowExecutionExists(gomock.Any(), gomock.Any()).Return(&persistence.IsWorkflowExecutionExistsResponse{}, expectedErr)
 			mocked.EXPECT().ListConcreteExecutions(gomock.Any(), gomock.Any()).Return(&persistence.ListConcreteExecutionsResponse{}, expectedErr)
 			mocked.EXPECT().ListCurrentExecutions(gomock.Any(), gomock.Any()).Return(&persistence.ListCurrentExecutionsResponse{}, expectedErr)
 			mocked.EXPECT().PutReplicationTaskToDLQ(gomock.Any(), gomock.Any()).Return(expectedErr)
-			mocked.EXPECT().RangeCompleteReplicationTask(gomock.Any(), gomock.Any()).Return(&persistence.RangeCompleteReplicationTaskResponse{}, expectedErr)
-			mocked.EXPECT().RangeCompleteTimerTask(gomock.Any(), gomock.Any()).Return(&persistence.RangeCompleteTimerTaskResponse{}, expectedErr)
-			mocked.EXPECT().RangeCompleteTransferTask(gomock.Any(), gomock.Any()).Return(&persistence.RangeCompleteTransferTaskResponse{}, expectedErr)
+			mocked.EXPECT().GetHistoryTasks(gomock.Any(), gomock.Any()).Return(&persistence.GetHistoryTasksResponse{}, expectedErr)
+			mocked.EXPECT().RangeCompleteHistoryTask(gomock.Any(), gomock.Any()).Return(&persistence.RangeCompleteHistoryTaskResponse{}, expectedErr)
 			mocked.EXPECT().RangeDeleteReplicationTaskFromDLQ(gomock.Any(), gomock.Any()).Return(&persistence.RangeDeleteReplicationTaskFromDLQResponse{}, expectedErr)
 		}
 	default:

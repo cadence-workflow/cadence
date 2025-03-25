@@ -25,7 +25,7 @@ import (
 
 	"go.uber.org/cadence/workflow"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -107,7 +107,7 @@ func GetDomainsForRebalanceActivity(ctx context.Context) ([]*DomainRebalanceData
 }
 
 func getPreferredClusterName(domain *types.DescribeDomainResponse) string {
-	return domain.GetDomainInfo().GetData()[common.DomainDataKeyForPreferredCluster]
+	return domain.GetDomainInfo().GetData()[constants.DomainDataKeyForPreferredCluster]
 }
 
 func shouldAllowRebalance(domain *types.DescribeDomainResponse) bool {

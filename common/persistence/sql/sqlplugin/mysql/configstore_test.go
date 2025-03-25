@@ -31,7 +31,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/sql/sqldriver"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
@@ -121,7 +121,7 @@ func TestSelectLatestConfig(t *testing.T) {
 				Timestamp: now,
 				Values: &persistence.DataBlob{
 					Data:     []byte("test data"),
-					Encoding: common.EncodingType("json"),
+					Encoding: constants.EncodingType("json"),
 				},
 			},
 		},

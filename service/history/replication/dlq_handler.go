@@ -223,8 +223,8 @@ func (r *dlqHandlerImpl) readMessagesWithAckLevel(
 		&persistence.GetReplicationTasksFromDLQRequest{
 			SourceClusterName: sourceCluster,
 			GetReplicationTasksRequest: persistence.GetReplicationTasksRequest{
-				ReadLevel:     defaultBeginningMessageID,
-				MaxReadLevel:  lastMessageID,
+				ReadLevel:     defaultBeginningMessageID + 1,
+				MaxReadLevel:  lastMessageID + 1,
 				BatchSize:     pageSize,
 				NextPageToken: pageToken,
 			},
@@ -279,8 +279,8 @@ func (r *dlqHandlerImpl) PurgeMessages(
 		ctx,
 		&persistence.RangeDeleteReplicationTaskFromDLQRequest{
 			SourceClusterName:    sourceCluster,
-			ExclusiveBeginTaskID: defaultBeginningMessageID,
-			InclusiveEndTaskID:   lastMessageID,
+			InclusiveBeginTaskID: defaultBeginningMessageID + 1,
+			ExclusiveEndTaskID:   lastMessageID + 1,
 		},
 	)
 	if err != nil {
@@ -336,8 +336,8 @@ func (r *dlqHandlerImpl) MergeMessages(
 		ctx,
 		&persistence.RangeDeleteReplicationTaskFromDLQRequest{
 			SourceClusterName:    sourceCluster,
-			ExclusiveBeginTaskID: defaultBeginningMessageID,
-			InclusiveEndTaskID:   lastMessageID,
+			InclusiveBeginTaskID: defaultBeginningMessageID + 1,
+			ExclusiveEndTaskID:   lastMessageID + 1,
 		},
 	)
 	if err != nil {

@@ -25,7 +25,7 @@ package execution
 import (
 	"context"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -119,7 +119,7 @@ func (e *mutableStateBuilder) GetCompletionEvent(
 	}
 
 	// Needed for backward compatibility reason
-	if e.executionInfo.CompletionEventBatchID == common.EmptyEventID {
+	if e.executionInfo.CompletionEventBatchID == constants.EmptyEventID {
 		return nil, ErrMissingWorkflowCompletionEvent
 	}
 

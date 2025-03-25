@@ -29,8 +29,8 @@ import (
 	"go.uber.org/cadence/worker"
 
 	"github.com/uber/cadence/client"
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -95,6 +95,6 @@ func (s *Batcher) Start() error {
 		BackgroundActivityContext: ctx,
 		Tracer:                    opentracing.GlobalTracer(),
 	}
-	batchWorker := worker.New(s.svcClient, common.BatcherLocalDomainName, BatcherTaskListName, workerOpts)
+	batchWorker := worker.New(s.svcClient, constants.BatcherLocalDomainName, BatcherTaskListName, workerOpts)
 	return batchWorker.Start()
 }

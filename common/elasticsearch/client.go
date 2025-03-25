@@ -31,7 +31,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/elasticsearch/bulk"
 	"github.com/uber/cadence/common/elasticsearch/client"
 	"github.com/uber/cadence/common/elasticsearch/query"
@@ -275,7 +275,7 @@ func (c *ESClient) convertSearchResultToVisibilityRecord(hit *client.SearchHit) 
 		TypeName:         source.WorkflowType,
 		StartTime:        time.Unix(0, source.StartTime),
 		ExecutionTime:    time.Unix(0, source.ExecutionTime),
-		Memo:             p.NewDataBlob(source.Memo, common.EncodingType(source.Encoding)),
+		Memo:             p.NewDataBlob(source.Memo, constants.EncodingType(source.Encoding)),
 		TaskList:         source.TaskList,
 		IsCron:           source.IsCron,
 		NumClusters:      source.NumClusters,

@@ -27,7 +27,7 @@ import (
 
 	"go.uber.org/thriftrw/protocol/binary"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 )
 
 type thriftEncoder struct{}
@@ -96,8 +96,8 @@ func (e *thriftEncoder) replicationTaskInfoToBlob(info *ReplicationTaskInfo) ([]
 	return thriftRWEncode(replicationTaskInfoToThrift(info))
 }
 
-func (e *thriftEncoder) encodingType() common.EncodingType {
-	return common.EncodingTypeThriftRW
+func (e *thriftEncoder) encodingType() constants.EncodingType {
+	return constants.EncodingTypeThriftRW
 }
 
 func thriftRWEncode(t thriftRWType) ([]byte, error) {

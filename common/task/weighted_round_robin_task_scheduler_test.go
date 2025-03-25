@@ -48,6 +48,7 @@ type (
 
 		controller    *gomock.Controller
 		mockProcessor *MockProcessor
+		realProcessor Processor
 
 		queueSize int
 
@@ -81,12 +82,19 @@ func (s *weightedRoundRobinTaskSchedulerSuite) SetupTest() {
 	s.mockProcessor = NewMockProcessor(s.controller)
 
 	s.queueSize = 1000
+	s.realProcessor = NewParallelTaskProcessor(
+		testlogger.New(s.Suite.T()),
+		metrics.NewClient(tally.NoopScope, metrics.Common),
+		&ParallelTaskProcessorOptions{
+			QueueSize:   1,
+			WorkerCount: dynamicconfig.GetIntPropertyFn(1),
+			RetryPolicy: backoff.NewExponentialRetryPolicy(time.Millisecond),
+		},
+	)
 	s.scheduler = s.newTestWeightedRoundRobinTaskScheduler(
 		&WeightedRoundRobinTaskSchedulerOptions[int]{
 			QueueSize:       s.queueSize,
-			WorkerCount:     dynamicconfig.GetIntPropertyFn(1),
 			DispatcherCount: 3,
-			RetryPolicy:     backoff.NewExponentialRetryPolicy(time.Millisecond),
 			TaskToChannelKeyFn: func(task PriorityTask) int {
 				return task.Priority()
 			},
@@ -125,9 +133,7 @@ func (s *weightedRoundRobinTaskSchedulerSuite) TestSubmit_Fail_SchedulerShutDown
 	scheduler := s.newTestWeightedRoundRobinTaskScheduler(
 		&WeightedRoundRobinTaskSchedulerOptions[int]{
 			QueueSize:       0,
-			WorkerCount:     dynamicconfig.GetIntPropertyFn(1),
 			DispatcherCount: 3,
-			RetryPolicy:     backoff.NewExponentialRetryPolicy(time.Millisecond),
 		},
 	)
 
@@ -251,9 +257,6 @@ func (s *weightedRoundRobinTaskSchedulerSuite) TestWRR() {
 	numTasks := 1000
 	var taskWG sync.WaitGroup
 
-	s.mockProcessor.EXPECT().Start()
-	s.mockProcessor.EXPECT().Stop()
-
 	tasks := []PriorityTask{}
 	mockFn := func(_ Task) error {
 		taskWG.Done()
@@ -283,7 +286,7 @@ func (s *weightedRoundRobinTaskSchedulerSuite) TestWRR() {
 }
 
 func (s *weightedRoundRobinTaskSchedulerSuite) TestSchedulerContract() {
-	testSchedulerContract(s.Assertions, s.controller, s.scheduler)
+	testSchedulerContract(s.Assertions, s.controller, s.scheduler, s.realProcessor)
 }
 
 func (s *weightedRoundRobinTaskSchedulerSuite) newTestWeightedRoundRobinTaskScheduler(
@@ -293,6 +296,7 @@ func (s *weightedRoundRobinTaskSchedulerSuite) newTestWeightedRoundRobinTaskSche
 		testlogger.New(s.Suite.T()),
 		metrics.NewClient(tally.NoopScope, metrics.Common),
 		clock.NewMockedTimeSource(),
+		s.realProcessor,
 		options,
 	)
 	s.NoError(err)
@@ -303,6 +307,7 @@ func testSchedulerContract(
 	s *require.Assertions,
 	controller *gomock.Controller,
 	scheduler Scheduler,
+	processor Processor,
 ) {
 	numTasks := 10000
 	var taskWG sync.WaitGroup
@@ -335,10 +340,16 @@ func testSchedulerContract(
 		taskWG.Add(1)
 	}
 
+	if processor != nil {
+		processor.Start()
+	}
 	scheduler.Start()
 	go func() {
 		time.Sleep(time.Duration(rand.Intn(50)) * time.Millisecond)
 		scheduler.Stop()
+		if processor != nil {
+			processor.Stop()
+		}
 	}()
 
 	for _, task := range tasks {

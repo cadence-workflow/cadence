@@ -25,24 +25,24 @@ package serialization
 import (
 	"fmt"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 )
 
 type (
 	parser struct {
 		encoder  encoder
-		decoders map[common.EncodingType]decoder
+		decoders map[constants.EncodingType]decoder
 	}
 )
 
 // NewParser constructs a new parser using encoder as specified by encodingType and using decoders specified by decodingTypes
-func NewParser(encodingType common.EncodingType, decodingTypes ...common.EncodingType) (Parser, error) {
+func NewParser(encodingType constants.EncodingType, decodingTypes ...constants.EncodingType) (Parser, error) {
 	encoder, err := getEncoder(encodingType)
 	if err != nil {
 		return nil, err
 	}
-	decoders := make(map[common.EncodingType]decoder)
+	decoders := make(map[constants.EncodingType]decoder)
 	for _, dt := range decodingTypes {
 		decoder, err := getDecoder(dt)
 		if err != nil {
@@ -222,7 +222,7 @@ func (p *parser) ReplicationTaskInfoToBlob(info *ReplicationTaskInfo) (persisten
 }
 
 func (p *parser) ShardInfoFromBlob(data []byte, encoding string) (*ShardInfo, error) {
-	decoder, err := p.getCachedDecoder(common.EncodingType(encoding))
+	decoder, err := p.getCachedDecoder(constants.EncodingType(encoding))
 	if err != nil {
 		return nil, err
 	}
@@ -230,7 +230,7 @@ func (p *parser) ShardInfoFromBlob(data []byte, encoding string) (*ShardInfo, er
 }
 
 func (p *parser) DomainInfoFromBlob(data []byte, encoding string) (*DomainInfo, error) {
-	decoder, err := p.getCachedDecoder(common.EncodingType(encoding))
+	decoder, err := p.getCachedDecoder(constants.EncodingType(encoding))
 	if err != nil {
 		return nil, err
 	}
@@ -238,7 +238,7 @@ func (p *parser) DomainInfoFromBlob(data []byte, encoding string) (*DomainInfo, 
 }
 
 func (p *parser) HistoryTreeInfoFromBlob(data []byte, encoding string) (*HistoryTreeInfo, error) {
-	decoder, err := p.getCachedDecoder(common.EncodingType(encoding))
+	decoder, err := p.getCachedDecoder(constants.EncodingType(encoding))
 	if err != nil {
 		return nil, err
 	}
@@ -246,7 +246,7 @@ func (p *parser) HistoryTreeInfoFromBlob(data []byte, encoding string) (*History
 }
 
 func (p *parser) WorkflowExecutionInfoFromBlob(data []byte, encoding string) (*WorkflowExecutionInfo, error) {
-	decoder, err := p.getCachedDecoder(common.EncodingType(encoding))
+	decoder, err := p.getCachedDecoder(constants.EncodingType(encoding))
 	if err != nil {
 		return nil, err
 	}
@@ -254,7 +254,7 @@ func (p *parser) WorkflowExecutionInfoFromBlob(data []byte, encoding string) (*W
 }
 
 func (p *parser) ActivityInfoFromBlob(data []byte, encoding string) (*ActivityInfo, error) {
-	decoder, err := p.getCachedDecoder(common.EncodingType(encoding))
+	decoder, err := p.getCachedDecoder(constants.EncodingType(encoding))
 	if err != nil {
 		return nil, err
 	}
@@ -262,7 +262,7 @@ func (p *parser) ActivityInfoFromBlob(data []byte, encoding string) (*ActivityIn
 }
 
 func (p *parser) ChildExecutionInfoFromBlob(data []byte, encoding string) (*ChildExecutionInfo, error) {
-	decoder, err := p.getCachedDecoder(common.EncodingType(encoding))
+	decoder, err := p.getCachedDecoder(constants.EncodingType(encoding))
 	if err != nil {
 		return nil, err
 	}
@@ -270,7 +270,7 @@ func (p *parser) ChildExecutionInfoFromBlob(data []byte, encoding string) (*Chil
 }
 
 func (p *parser) SignalInfoFromBlob(data []byte, encoding string) (*SignalInfo, error) {
-	decoder, err := p.getCachedDecoder(common.EncodingType(encoding))
+	decoder, err := p.getCachedDecoder(constants.EncodingType(encoding))
 	if err != nil {
 		return nil, err
 	}
@@ -278,7 +278,7 @@ func (p *parser) SignalInfoFromBlob(data []byte, encoding string) (*SignalInfo, 
 }
 
 func (p *parser) RequestCancelInfoFromBlob(data []byte, encoding string) (*RequestCancelInfo, error) {
-	decoder, err := p.getCachedDecoder(common.EncodingType(encoding))
+	decoder, err := p.getCachedDecoder(constants.EncodingType(encoding))
 	if err != nil {
 		return nil, err
 	}
@@ -286,7 +286,7 @@ func (p *parser) RequestCancelInfoFromBlob(data []byte, encoding string) (*Reque
 }
 
 func (p *parser) TimerInfoFromBlob(data []byte, encoding string) (*TimerInfo, error) {
-	decoder, err := p.getCachedDecoder(common.EncodingType(encoding))
+	decoder, err := p.getCachedDecoder(constants.EncodingType(encoding))
 	if err != nil {
 		return nil, err
 	}
@@ -294,7 +294,7 @@ func (p *parser) TimerInfoFromBlob(data []byte, encoding string) (*TimerInfo, er
 }
 
 func (p *parser) TaskInfoFromBlob(data []byte, encoding string) (*TaskInfo, error) {
-	decoder, err := p.getCachedDecoder(common.EncodingType(encoding))
+	decoder, err := p.getCachedDecoder(constants.EncodingType(encoding))
 	if err != nil {
 		return nil, err
 	}
@@ -302,7 +302,7 @@ func (p *parser) TaskInfoFromBlob(data []byte, encoding string) (*TaskInfo, erro
 }
 
 func (p *parser) TaskListInfoFromBlob(data []byte, encoding string) (*TaskListInfo, error) {
-	decoder, err := p.getCachedDecoder(common.EncodingType(encoding))
+	decoder, err := p.getCachedDecoder(constants.EncodingType(encoding))
 	if err != nil {
 		return nil, err
 	}
@@ -310,7 +310,7 @@ func (p *parser) TaskListInfoFromBlob(data []byte, encoding string) (*TaskListIn
 }
 
 func (p *parser) TransferTaskInfoFromBlob(data []byte, encoding string) (*TransferTaskInfo, error) {
-	decoder, err := p.getCachedDecoder(common.EncodingType(encoding))
+	decoder, err := p.getCachedDecoder(constants.EncodingType(encoding))
 	if err != nil {
 		return nil, err
 	}
@@ -318,7 +318,7 @@ func (p *parser) TransferTaskInfoFromBlob(data []byte, encoding string) (*Transf
 }
 
 func (p *parser) CrossClusterTaskInfoFromBlob(data []byte, encoding string) (*CrossClusterTaskInfo, error) {
-	decoder, err := p.getCachedDecoder(common.EncodingType(encoding))
+	decoder, err := p.getCachedDecoder(constants.EncodingType(encoding))
 	if err != nil {
 		return nil, err
 	}
@@ -326,7 +326,7 @@ func (p *parser) CrossClusterTaskInfoFromBlob(data []byte, encoding string) (*Cr
 }
 
 func (p *parser) TimerTaskInfoFromBlob(data []byte, encoding string) (*TimerTaskInfo, error) {
-	decoder, err := p.getCachedDecoder(common.EncodingType(encoding))
+	decoder, err := p.getCachedDecoder(constants.EncodingType(encoding))
 	if err != nil {
 		return nil, err
 	}
@@ -334,14 +334,14 @@ func (p *parser) TimerTaskInfoFromBlob(data []byte, encoding string) (*TimerTask
 }
 
 func (p *parser) ReplicationTaskInfoFromBlob(data []byte, encoding string) (*ReplicationTaskInfo, error) {
-	decoder, err := p.getCachedDecoder(common.EncodingType(encoding))
+	decoder, err := p.getCachedDecoder(constants.EncodingType(encoding))
 	if err != nil {
 		return nil, err
 	}
 	return decoder.replicationTaskInfoFromBlob(data)
 }
 
-func (p *parser) getCachedDecoder(encoding common.EncodingType) (decoder, error) {
+func (p *parser) getCachedDecoder(encoding constants.EncodingType) (decoder, error) {
 	decoder, ok := p.decoders[encoding]
 	if !ok {
 		return nil, unsupportedEncodingError(encoding)
@@ -349,24 +349,24 @@ func (p *parser) getCachedDecoder(encoding common.EncodingType) (decoder, error)
 	return decoder, nil
 }
 
-func getDecoder(encoding common.EncodingType) (decoder, error) {
+func getDecoder(encoding constants.EncodingType) (decoder, error) {
 	switch encoding {
-	case common.EncodingTypeThriftRW:
+	case constants.EncodingTypeThriftRW:
 		return newThriftDecoder(), nil
 	default:
 		return nil, unsupportedEncodingError(encoding)
 	}
 }
 
-func getEncoder(encoding common.EncodingType) (encoder, error) {
+func getEncoder(encoding constants.EncodingType) (encoder, error) {
 	switch encoding {
-	case common.EncodingTypeThriftRW:
+	case constants.EncodingTypeThriftRW:
 		return newThriftEncoder(), nil
 	default:
 		return nil, unsupportedEncodingError(encoding)
 	}
 }
 
-func unsupportedEncodingError(encoding common.EncodingType) error {
+func unsupportedEncodingError(encoding constants.EncodingType) error {
 	return fmt.Errorf("invalid encoding type: %v", encoding)
 }

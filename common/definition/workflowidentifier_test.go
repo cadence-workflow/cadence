@@ -26,46 +26,36 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/suite"
 )
 
-// WorkflowIdentifierTestSuite is a test suite for the WorkflowIdentifier struct.
-type WorkflowIdentifierTestSuite struct {
-	suite.Suite
-}
-
-// SetupTest runs before each test function in the suite.
-func (suite *WorkflowIdentifierTestSuite) SetupTest() {
-	// Any necessary setup would go here, but it's not required in this case.
-}
-
-// TestSize verifies the Size method of WorkflowIdentifier.
-func (suite *WorkflowIdentifierTestSuite) TestSize() {
+// TestWorkflowIdentifierSize verifies the Size method of WorkflowIdentifier.
+func TestWorkflowIdentifierSize(t *testing.T) {
 	tests := []struct {
+		name     string
 		wi       WorkflowIdentifier
 		expected uint64
 	}{
 		{
+			name:     "non-empty fields",
 			wi:       NewWorkflowIdentifier("domain", "workflow", "run"),
 			expected: uint64(len("domain") + len("workflow") + len("run") + 3*16),
 		},
 		{
+			name:     "empty fields",
 			wi:       NewWorkflowIdentifier("", "", ""),
 			expected: uint64(3 * 16),
 		},
 		{
+			name:     "short fields",
 			wi:       NewWorkflowIdentifier("a", "b", "c"),
 			expected: uint64(3 + 3*16),
 		},
 	}
 
 	for _, test := range tests {
-		size := test.wi.Size()
-		assert.Equal(suite.T(), test.expected, size)
+		t.Run(test.name, func(t *testing.T) {
+			size := test.wi.Size()
+			assert.Equal(t, test.expected, size)
+		})
 	}
-}
-
-// TestWorkflowIdentifierTestSuite runs the test suite.
-func TestWorkflowIdentifierTestSuite(t *testing.T) {
-	suite.Run(t, new(WorkflowIdentifierTestSuite))
 }

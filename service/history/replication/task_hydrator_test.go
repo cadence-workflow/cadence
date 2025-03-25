@@ -36,6 +36,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
@@ -480,7 +481,7 @@ func TestHistoryLoader_GetEventBlob(t *testing.T) {
 					ShardID:     common.IntPtr(testShardID),
 					DomainName:  testDomainName,
 				}).Return(&persistence.ReadRawHistoryBranchResponse{
-					HistoryEventBlobs: []*persistence.DataBlob{{Encoding: common.EncodingTypeJSON, Data: testDataBlob.Data}},
+					HistoryEventBlobs: []*persistence.DataBlob{{Encoding: constants.EncodingTypeJSON, Data: testDataBlob.Data}},
 				}, nil)
 			},
 			expectDataBlob: testDataBlob,
@@ -546,7 +547,7 @@ func TestHistoryLoader_GetNextRunEventBlob(t *testing.T) {
 		ShardID:     common.IntPtr(testShardID),
 		DomainName:  testDomainName,
 	}).Return(&persistence.ReadRawHistoryBranchResponse{
-		HistoryEventBlobs: []*persistence.DataBlob{{Encoding: common.EncodingTypeJSON, Data: testDataBlob.Data}},
+		HistoryEventBlobs: []*persistence.DataBlob{{Encoding: constants.EncodingTypeJSON, Data: testDataBlob.Data}},
 	}, nil)
 	dataBlob, err = loader.GetNextRunEventBlob(context.Background(), persistence.ReplicationTaskInfo{DomainID: testDomainID, NewRunBranchToken: testBranchTokenNewRun})
 	assert.NoError(t, err)

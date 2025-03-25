@@ -28,6 +28,7 @@ import (
 	"github.com/uber/cadence/.gen/go/shared"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -79,9 +80,13 @@ func (t *timerActiveTaskExecutor) Execute(
 	task Task,
 	shouldProcessTask bool,
 ) error {
-	timerTask, ok := task.GetInfo().(*persistence.TimerTaskInfo)
+	timer, ok := task.GetInfo().(persistence.Task)
 	if !ok {
 		return errUnexpectedTask
+	}
+	timerTask, err := timer.ToTimerTaskInfo()
+	if err != nil {
+		return err
 	}
 
 	if !shouldProcessTask {
@@ -527,7 +532,7 @@ func (t *timerActiveTaskExecutor) executeDecisionTimeoutTask(
 		scheduleDecision = true
 
 	case execution.TimerTypeScheduleToStart:
-		if decision.StartedID != common.EmptyEventID {
+		if decision.StartedID != constants.EmptyEventID {
 			// decision has already started
 			return nil
 		}
@@ -630,7 +635,7 @@ func (t *timerActiveTaskExecutor) executeActivityRetryTimerTask(
 	// generate activity task
 	scheduledID := task.EventID
 	activityInfo, ok := mutableState.GetActivityInfo(scheduledID)
-	if !ok || task.ScheduleAttempt < int64(activityInfo.Attempt) || activityInfo.StartedID != common.EmptyEventID {
+	if !ok || task.ScheduleAttempt < int64(activityInfo.Attempt) || activityInfo.StartedID != constants.EmptyEventID {
 		if ok {
 			t.logger.Info("Duplicate activity retry timer task",
 				tag.WorkflowID(mutableState.GetExecutionInfo().WorkflowID),

@@ -126,7 +126,7 @@ func (w *Workflow) getDomainWorkflowTypeCountQuery(domainName string) (string, e
                 },
 				{
 					"exists": {
-						"field": "StartTime" 
+						"field": "StartTime"
 					}
 				}
             ]

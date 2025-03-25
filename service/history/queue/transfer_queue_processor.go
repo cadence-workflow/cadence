@@ -458,10 +458,18 @@ func (t *transferQueueProcessor) completeTransfer() error {
 
 	for {
 		pageSize := t.config.TransferTaskDeleteBatchSize()
-		resp, err := t.shard.GetExecutionManager().RangeCompleteTransferTask(context.Background(), &persistence.RangeCompleteTransferTaskRequest{
-			ExclusiveBeginTaskID: t.ackLevel,
-			InclusiveEndTaskID:   newAckLevelTaskID,
-			PageSize:             pageSize, // pageSize may or may not be honored
+		// we're switching from exclusive begin/end to inclusive min/exclusive max,
+		// so we need to adjust the taskID, for example, if the original range is (1, 10],
+		// the new range should be [2, 11), so we add 1 to both the min and max taskID
+		resp, err := t.shard.GetExecutionManager().RangeCompleteHistoryTask(context.Background(), &persistence.RangeCompleteHistoryTaskRequest{
+			TaskCategory: persistence.HistoryTaskCategoryTransfer,
+			InclusiveMinTaskKey: persistence.HistoryTaskKey{
+				TaskID: t.ackLevel + 1,
+			},
+			ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
+				TaskID: newAckLevelTaskID + 1,
+			},
+			PageSize: pageSize,
 		})
 		if err != nil {
 			return err

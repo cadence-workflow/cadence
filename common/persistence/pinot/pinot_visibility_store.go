@@ -30,6 +30,7 @@ import (
 	"github.com/uber/cadence/.gen/go/indexer"
 	workflow "github.com/uber/cadence/.gen/go/shared"
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/messaging"
@@ -93,7 +94,7 @@ func NewPinotVisibilityStore(
 		producer:            producer,
 		logger:              logger.WithTags(tag.ComponentPinotVisibilityManager),
 		config:              config,
-		pinotQueryValidator: pnt.NewPinotQueryValidator(config.ValidSearchAttributes),
+		pinotQueryValidator: pnt.NewPinotQueryValidator(config.ValidSearchAttributes, config.PinotOptimizedQueryColumns),
 	}
 }
 
@@ -102,7 +103,7 @@ func (v *pinotVisibilityStore) Close() {
 }
 
 func (v *pinotVisibilityStore) GetName() string {
-	return common.PinotPersistenceName
+	return constants.PinotPersistenceName
 }
 
 func (v *pinotVisibilityStore) RecordWorkflowExecutionStarted(

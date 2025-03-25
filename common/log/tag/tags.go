@@ -860,6 +860,33 @@ func ResponseMaxSize(size int) Tag {
 	return newInt("response-max-size", size)
 }
 
+// ReplicationMessagesTotalSize returns tag for ReplicationMessagesTotalSize
+// Should be used to indicate the final size of types.ReplicationMessages
+func ReplicationMessagesTotalSize(size int) Tag {
+	return newInt("replication-messages-total-size", size)
+}
+
+// ReplicationMessagesMaxSize returns tag for ReplicationMessagesMaxSize
+// Should be used to indicate maximum allowed size of types.ReplicationMessages
+func ReplicationMessagesMaxSize(size int) Tag {
+	return newInt("replication-messages-max-size", size)
+}
+
+// ReplicationTaskID returns tag for ReplicationTaskID
+// Should be used to indicate id of a types.ReplicationTask
+func ReplicationTaskID(id int64) Tag {
+	return newInt64("replication-task-id", id)
+}
+
+// ReplicationTaskCreationTime returns tag for ReplicationTaskCreationTime
+// Should be used to indicate CreationTime of a types.ReplicationTask
+func ReplicationTaskCreationTime(creationTime *int64) Tag {
+	if creationTime == nil {
+		return newStringTag("replication-task-creation-time", "nil")
+	}
+	return newInt64("replication-task-creation-time", *creationTime)
+}
+
 // /////////////////  Archival tags defined here: archival- ///////////////////
 // archival request tags
 
@@ -1090,4 +1117,8 @@ func ActivityTaskState(state int32) Tag {
 
 func Namespace(name string) Tag {
 	return newStringTag("namespace", name)
+}
+
+func WorkflowContextLockLatency(duration time.Duration) Tag {
+	return newDurationTag("workflow-context-lock-latency", duration)
 }

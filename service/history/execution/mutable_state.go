@@ -237,6 +237,6 @@ type (
 		GetHistorySize() int64
 		SetHistorySize(size int64)
 
-		GetEstimatedMutableStateSize() int
+		cache.Sizeable
 	}
 )

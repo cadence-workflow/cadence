@@ -35,6 +35,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -111,6 +112,8 @@ func (s *IntegrationBase) setupSuite() {
 			EnableCassandraAllConsistencyLevelDelete: dynamicconfig.GetBoolPropertyFn(true),
 			PersistenceSampleLoggingRate:             dynamicconfig.GetIntPropertyFn(100),
 			EnableShardIDMetrics:                     dynamicconfig.GetBoolPropertyFn(true),
+			EnableHistoryTaskDualWriteMode:           dynamicconfig.GetBoolPropertyFn(true),
+			ReadNoSQLHistoryTaskFromDataBlob:         dynamicconfig.GetBoolPropertyFn(false),
 		}
 		params := pt.TestBaseParams{
 			DefaultTestCluster:    s.DefaultTestCluster,
@@ -169,7 +172,7 @@ func GetTestClusterConfig(configFile string) (*TestClusterConfig, error) {
 
 	options.FrontendAddress = TestFlags.FrontendAddr
 	if options.ESConfig != nil {
-		options.ESConfig.Indices[common.VisibilityAppName] += uuid.New()
+		options.ESConfig.Indices[constants.VisibilityAppName] += uuid.New()
 	}
 	if options.Persistence.DBName == "" {
 		options.Persistence.DBName = "test_" + pt.GenerateRandomDBName(10)
@@ -304,7 +307,7 @@ func (s *IntegrationBase) registerArchivalDomain() error {
 			},
 		},
 		IsGlobalDomain:  false,
-		FailoverVersion: common.EmptyVersion,
+		FailoverVersion: constants.EmptyVersion,
 	}
 	response, err := s.TestCluster.testBase.DomainManager.CreateDomain(ctx, domainRequest)
 	if err == nil {

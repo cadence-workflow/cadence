@@ -33,7 +33,7 @@ import (
 	"go.uber.org/yarpc"
 
 	"github.com/uber/cadence/client/matching"
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 )
@@ -234,7 +234,7 @@ func (c *matchingClient) emitForwardedFromStats(scope int, req any) {
 	taskList := p.GetTaskList()
 	forwardedFrom := p.GetForwardedFrom()
 
-	isChildPartition := strings.HasPrefix(taskList.GetName(), common.ReservedTaskListPrefix)
+	isChildPartition := strings.HasPrefix(taskList.GetName(), constants.ReservedTaskListPrefix)
 	if forwardedFrom != "" {
 		c.metricsClient.IncCounter(scope, metrics.MatchingClientForwardedCounter)
 		return

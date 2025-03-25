@@ -91,6 +91,20 @@ func (mr *MockPartitionConfigProviderMockRecorder) GetNumberOfWritePartitions(do
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNumberOfWritePartitions", reflect.TypeOf((*MockPartitionConfigProvider)(nil).GetNumberOfWritePartitions), domainID, taskList, taskListType)
 }
 
+// GetPartitionConfig mocks base method.
+func (m *MockPartitionConfigProvider) GetPartitionConfig(domainID string, taskList types.TaskList, taskListType int) *types.TaskListPartitionConfig {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPartitionConfig", domainID, taskList, taskListType)
+	ret0, _ := ret[0].(*types.TaskListPartitionConfig)
+	return ret0
+}
+
+// GetPartitionConfig indicates an expected call of GetPartitionConfig.
+func (mr *MockPartitionConfigProviderMockRecorder) GetPartitionConfig(domainID, taskList, taskListType any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPartitionConfig", reflect.TypeOf((*MockPartitionConfigProvider)(nil).GetPartitionConfig), domainID, taskList, taskListType)
+}
+
 // UpdatePartitionConfig mocks base method.
 func (m *MockPartitionConfigProvider) UpdatePartitionConfig(domainID string, taskList types.TaskList, taskListType int, config *types.TaskListPartitionConfig) {
 	m.ctrl.T.Helper()

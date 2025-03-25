@@ -129,15 +129,13 @@ func (p *ESProcessorImpl) bulkBeforeAction(executionID int64, requests []bulk.Ge
 // bulkAfterAction is triggered after bulk bulkProcessor commit
 func (p *ESProcessorImpl) bulkAfterAction(id int64, requests []bulk.GenericBulkableRequest, response *bulk.GenericBulkResponse, err *bulk.GenericError) {
 	if err != nil {
-		// This happens after configured retry, which means something bad happens on cluster or index
-		// When cluster back to live, bulkProcessor will re-commit those failure requests
-		p.logger.Error("Error commit bulk request.", tag.Error(err.Details))
-
 		isRetryable := isResponseRetriable(err.Status)
 		for _, request := range requests {
 			if isRetryable {
+				// This happens after configured retry, which means something bad happens on cluster or index
+				// When cluster back to live, bulkProcessor will re-commit those failure requests
 				// retryable errors will be retried by the bulk processor
-				p.logger.Error("ES request failed", tag.ESRequest(request.String()))
+				p.logger.Error("Error commit bulk request. ES request failed and is retryable", tag.Error(err.Details), tag.ESRequest(request.String()))
 			} else {
 				key := p.retrieveKafkaKey(request)
 				if key == "" {
@@ -172,7 +170,7 @@ func (p *ESProcessorImpl) bulkAfterAction(id int64, requests []bulk.GenericBulka
 						p.scope.IncCounter(metrics.ESProcessorCorruptedData)
 					}
 				}
-				p.logger.Error("ES request failed and is not retryable",
+				p.logger.Error("Error commit bulk request. ES request failed and is not retryable",
 					tag.ESResponseStatus(err.Status),
 					tag.ESRequest(request.String()),
 					tag.WorkflowID(wid),

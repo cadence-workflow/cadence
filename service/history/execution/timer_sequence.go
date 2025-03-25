@@ -27,7 +27,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
@@ -150,7 +150,13 @@ func (t *timerSequenceImpl) CreateNextUserTimer() (bool, error) {
 	if err := t.mutableState.UpdateUserTimer(timerInfo); err != nil {
 		return false, err
 	}
+	executionInfo := t.mutableState.GetExecutionInfo()
 	t.mutableState.AddTimerTasks(&persistence.UserTimerTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   executionInfo.DomainID,
+			WorkflowID: executionInfo.WorkflowID,
+			RunID:      executionInfo.RunID,
+		},
 		TaskData: persistence.TaskData{
 			// TaskID is set by shard
 			VisibilityTimestamp: firstTimerTask.Timestamp,
@@ -189,7 +195,13 @@ func (t *timerSequenceImpl) CreateNextActivityTimer() (bool, error) {
 	if err := t.mutableState.UpdateActivity(activityInfo); err != nil {
 		return false, err
 	}
+	executionInfo := t.mutableState.GetExecutionInfo()
 	t.mutableState.AddTimerTasks(&persistence.ActivityTimeoutTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   executionInfo.DomainID,
+			WorkflowID: executionInfo.WorkflowID,
+			RunID:      executionInfo.RunID,
+		},
 		TaskData: persistence.TaskData{
 			// TaskID is set by shard
 			VisibilityTimestamp: firstTimerTask.Timestamp,
@@ -275,12 +287,12 @@ func (t *timerSequenceImpl) getActivityScheduleToStartTimeout(
 ) *TimerSequenceID {
 
 	// activity is not scheduled yet, probably due to retry & backoff
-	if activityInfo.ScheduleID == common.EmptyEventID {
+	if activityInfo.ScheduleID == constants.EmptyEventID {
 		return nil
 	}
 
 	// activity is already started
-	if activityInfo.StartedID != common.EmptyEventID {
+	if activityInfo.StartedID != constants.EmptyEventID {
 		return nil
 	}
 
@@ -302,7 +314,7 @@ func (t *timerSequenceImpl) getActivityScheduleToCloseTimeout(
 ) *TimerSequenceID {
 
 	// activity is not scheduled yet, probably due to retry & backoff
-	if activityInfo.ScheduleID == common.EmptyEventID {
+	if activityInfo.ScheduleID == constants.EmptyEventID {
 		return nil
 	}
 
@@ -324,12 +336,12 @@ func (t *timerSequenceImpl) getActivityStartToCloseTimeout(
 ) *TimerSequenceID {
 
 	// activity is not scheduled yet, probably due to retry & backoff
-	if activityInfo.ScheduleID == common.EmptyEventID {
+	if activityInfo.ScheduleID == constants.EmptyEventID {
 		return nil
 	}
 
 	// activity is not started yet
-	if activityInfo.StartedID == common.EmptyEventID {
+	if activityInfo.StartedID == constants.EmptyEventID {
 		return nil
 	}
 
@@ -351,12 +363,12 @@ func (t *timerSequenceImpl) getActivityHeartbeatTimeout(
 ) *TimerSequenceID {
 
 	// activity is not scheduled yet, probably due to retry & backoff
-	if activityInfo.ScheduleID == common.EmptyEventID {
+	if activityInfo.ScheduleID == constants.EmptyEventID {
 		return nil
 	}
 
 	// activity is not started yet
-	if activityInfo.StartedID == common.EmptyEventID {
+	if activityInfo.StartedID == constants.EmptyEventID {
 		return nil
 	}
 

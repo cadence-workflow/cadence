@@ -34,6 +34,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/persistence"
 	pt "github.com/uber/cadence/common/persistence/persistence-tests"
@@ -73,6 +74,8 @@ func (s *WorkflowIDRateLimitIntegrationSuite) SetupSuite() {
 		EnableCassandraAllConsistencyLevelDelete: dynamicconfig.GetBoolPropertyFn(true),
 		PersistenceSampleLoggingRate:             dynamicconfig.GetIntPropertyFn(100),
 		EnableShardIDMetrics:                     dynamicconfig.GetBoolPropertyFn(true),
+		EnableHistoryTaskDualWriteMode:           dynamicconfig.GetBoolPropertyFn(true),
+		ReadNoSQLHistoryTaskFromDataBlob:         dynamicconfig.GetBoolPropertyFn(false),
 	}
 	params := pt.TestBaseParams{
 		DefaultTestCluster:    s.DefaultTestCluster,
@@ -139,7 +142,7 @@ func (s *WorkflowIDRateLimitIntegrationSuite) TestWorkflowIDSpecificRateLimits()
 		if err != nil {
 			if assert.ErrorAs(s.T(), err, &busyErr) {
 				limited++
-				assert.Equal(s.T(), common.WorkflowIDRateLimitReason, busyErr.Reason)
+				assert.Equal(s.T(), constants.WorkflowIDRateLimitReason, busyErr.Reason)
 			}
 		}
 	}

@@ -168,6 +168,7 @@ func (sn *shardedNosqlStoreImpl) connectToShard(shardName string) (*nosqlStore, 
 	shard := nosqlStore{
 		db:     db,
 		logger: sn.logger,
+		dc:     sn.dc,
 	}
 	return &shard, nil
 }

@@ -98,7 +98,7 @@ func (t *nosqlTaskStore) LeaseTaskList(
 			Message: "LeaseTaskList requires non empty task list",
 		}
 	}
-	now := time.Now()
+	currentTimeStamp := request.CurrentTimeStamp
 	var err, selectErr error
 	var currTL *nosqlplugin.TaskListRow
 	storeShard, err := t.GetStoreShardByTaskList(request.DomainID, request.TaskList, request.TaskType)
@@ -115,13 +115,14 @@ func (t *nosqlTaskStore) LeaseTaskList(
 	if selectErr != nil {
 		if storeShard.db.IsNotFoundError(selectErr) { // First time task list is used
 			currTL = &nosqlplugin.TaskListRow{
-				DomainID:        request.DomainID,
-				TaskListName:    request.TaskList,
-				TaskListType:    request.TaskType,
-				RangeID:         initialRangeID,
-				TaskListKind:    request.TaskListKind,
-				AckLevel:        initialAckLevel,
-				LastUpdatedTime: now,
+				DomainID:         request.DomainID,
+				TaskListName:     request.TaskList,
+				TaskListType:     request.TaskType,
+				RangeID:          initialRangeID,
+				TaskListKind:     request.TaskListKind,
+				AckLevel:         initialAckLevel,
+				LastUpdatedTime:  currentTimeStamp,
+				CurrentTimeStamp: currentTimeStamp,
 			}
 			err = storeShard.db.InsertTaskList(ctx, currTL)
 		} else {
@@ -148,7 +149,8 @@ func (t *nosqlTaskStore) LeaseTaskList(
 			RangeID:                 currTL.RangeID,
 			TaskListKind:            currTL.TaskListKind,
 			AckLevel:                currTL.AckLevel,
-			LastUpdatedTime:         now,
+			LastUpdatedTime:         currentTimeStamp,
+			CurrentTimeStamp:        currentTimeStamp,
 			AdaptivePartitionConfig: currTL.AdaptivePartitionConfig,
 		}, currTL.RangeID-1)
 	}
@@ -169,7 +171,7 @@ func (t *nosqlTaskStore) LeaseTaskList(
 		RangeID:                 currTL.RangeID,
 		AckLevel:                currTL.AckLevel,
 		Kind:                    request.TaskListKind,
-		LastUpdated:             now,
+		LastUpdated:             currentTimeStamp,
 		AdaptivePartitionConfig: currTL.AdaptivePartitionConfig,
 	}
 	return &persistence.LeaseTaskListResponse{TaskListInfo: tli}, nil
@@ -217,7 +219,8 @@ func (t *nosqlTaskStore) UpdateTaskList(
 		RangeID:                 tli.RangeID,
 		TaskListKind:            tli.Kind,
 		AckLevel:                tli.AckLevel,
-		LastUpdatedTime:         time.Now(),
+		LastUpdatedTime:         request.CurrentTimeStamp,
+		CurrentTimeStamp:        request.CurrentTimeStamp,
 		AdaptivePartitionConfig: tli.AdaptivePartitionConfig,
 	}
 	storeShard, err := t.GetStoreShardByTaskList(tli.DomainID, tli.Name, tli.TaskType)
@@ -287,7 +290,7 @@ func (t *nosqlTaskStore) CreateTasks(
 	ctx context.Context,
 	request *persistence.CreateTasksRequest,
 ) (*persistence.CreateTasksResponse, error) {
-	now := time.Now()
+	currentTimeStamp := request.CurrentTimeStamp
 	var tasks []*nosqlplugin.TaskRowForInsert
 	for _, taskRequest := range request.Tasks {
 		task := &nosqlplugin.TaskRow{
@@ -298,7 +301,7 @@ func (t *nosqlTaskStore) CreateTasks(
 			WorkflowID:      taskRequest.Data.WorkflowID,
 			RunID:           taskRequest.Data.RunID,
 			ScheduledID:     taskRequest.Data.ScheduleID,
-			CreatedTime:     now,
+			CreatedTime:     currentTimeStamp,
 			PartitionConfig: taskRequest.Data.PartitionConfig,
 		}
 
@@ -306,7 +309,7 @@ func (t *nosqlTaskStore) CreateTasks(
 		// If the Data has a non-zero Expiry value, means that the ask is being re-added to the tasks table.
 		// If that's the case, use the Expiry value to calculate the new TTL value to match history's timeout value.
 		if !taskRequest.Data.Expiry.IsZero() {
-			scheduleToStartTimeoutSeconds := int(taskRequest.Data.Expiry.Sub(now).Seconds())
+			scheduleToStartTimeoutSeconds := int(taskRequest.Data.Expiry.Sub(currentTimeStamp).Seconds())
 
 			if scheduleToStartTimeoutSeconds > 0 {
 				ttl = scheduleToStartTimeoutSeconds
@@ -326,10 +329,12 @@ func (t *nosqlTaskStore) CreateTasks(
 	}
 
 	tasklistCondition := &nosqlplugin.TaskListRow{
-		DomainID:     request.TaskListInfo.DomainID,
-		TaskListName: request.TaskListInfo.Name,
-		TaskListType: request.TaskListInfo.TaskType,
-		RangeID:      request.TaskListInfo.RangeID,
+		DomainID:         request.TaskListInfo.DomainID,
+		TaskListName:     request.TaskListInfo.Name,
+		TaskListType:     request.TaskListInfo.TaskType,
+		RangeID:          request.TaskListInfo.RangeID,
+		LastUpdatedTime:  currentTimeStamp,
+		CurrentTimeStamp: currentTimeStamp,
 	}
 
 	tli := request.TaskListInfo

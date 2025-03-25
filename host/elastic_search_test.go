@@ -36,6 +36,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/types"
@@ -84,14 +85,14 @@ func (s *ElasticSearchIntegrationSuite) SetupSuite() {
 	s.setupSuite()
 	s.esClient = esutils.CreateESClient(s.Suite.T(), s.TestClusterConfig.ESConfig.URL.String(), environment.GetESVersion())
 	s.esClient.PutIndexTemplate(s.Suite.T(), "testdata/es_"+environment.GetESVersion()+"_index_template.json", "test-visibility-template")
-	indexName := s.TestClusterConfig.ESConfig.Indices[common.VisibilityAppName]
+	indexName := s.TestClusterConfig.ESConfig.Indices[constants.VisibilityAppName]
 	s.esClient.CreateIndex(s.Suite.T(), indexName)
 	s.putIndexSettings(s.Suite.T(), indexName, defaultTestValueOfESIndexMaxResultWindow)
 }
 
 func (s *ElasticSearchIntegrationSuite) TearDownSuite() {
 	s.TearDownBaseSuite()
-	s.esClient.DeleteIndex(s.Suite.T(), s.TestClusterConfig.ESConfig.Indices[common.VisibilityAppName])
+	s.esClient.DeleteIndex(s.Suite.T(), s.TestClusterConfig.ESConfig.Indices[constants.VisibilityAppName])
 }
 
 func (s *ElasticSearchIntegrationSuite) SetupTest() {
