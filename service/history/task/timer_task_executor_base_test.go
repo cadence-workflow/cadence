@@ -39,6 +39,7 @@ import (
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/config"
 	"github.com/uber/cadence/service/history/execution"
+	executioncache "github.com/uber/cadence/service/history/execution"
 	"github.com/uber/cadence/service/history/shard"
 	"github.com/uber/cadence/service/worker/archiver"
 )
@@ -216,4 +217,171 @@ func (s *timerQueueTaskExecutorBaseSuite) TestArchiveHistory_SendSignalErr() {
 		s.mockMutableState, domainCacheEntry,
 	)
 	s.Error(err)
+}
+
+func TestExecuteDeleteHistoryEventTask(t *testing.T) {
+	tests := []struct {
+		name          string
+		setupMocks    func(*gomock.Controller) (*timerTaskExecutorBase, *persistence.TimerTaskInfo)
+		expectedError error
+	}{
+		{
+			name: "mutable was not able to be loaded",
+			setupMocks: func(controller *gomock.Controller) (*timerTaskExecutorBase, *persistence.TimerTaskInfo) {
+
+				mockShard := shard.NewTestContext(
+					t,
+					controller,
+					&persistence.ShardInfo{
+						ShardID:          0,
+						RangeID:          1,
+						TransferAckLevel: 0,
+					},
+					config.NewForTest(),
+				)
+
+				mockShard.Resource.DomainCache.EXPECT().GetDomainByID(gomock.Any()).Return(cache.NewDomainCacheEntryForTest(
+					&persistence.DomainInfo{},
+					&persistence.DomainConfig{},
+					false,
+					nil,
+					0,
+					nil,
+					0,
+					0,
+					0,
+				), nil)
+
+				timerTask := &persistence.TimerTaskInfo{
+					DomainID:            "test-domain-id",
+					WorkflowID:          "test-workflow-id",
+					RunID:               "test-run-id",
+					TaskType:            persistence.TaskTypeDeleteHistoryEvent,
+					VisibilityTimestamp: time.Now(),
+				}
+
+				wfContext := execution.NewContext(
+					timerTask.DomainID,
+					types.WorkflowExecution{
+						WorkflowID: timerTask.WorkflowID,
+						RunID:      timerTask.RunID,
+					},
+					mockShard,
+					mockShard.Resource.ExecutionMgr,
+					mockShard.GetLogger(),
+				)
+
+				executionCache := executioncache.NewMockCache(controller)
+				executionCache.EXPECT().GetOrCreateWorkflowExecutionWithTimeout(
+					gomock.Any(),
+					gomock.Any(),
+					gomock.Any(),
+				).Return(wfContext, func(error) {}, nil)
+
+				mockExecutionMgr := mockShard.Resource.ExecutionMgr
+				mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(nil, &types.EntityNotExistsError{}).Once()
+
+				return newTimerTaskExecutorBase(
+					mockShard,
+					&archiver.ClientMock{},
+					executionCache,
+					mockShard.GetLogger(),
+					mockShard.GetMetricsClient(),
+					mockShard.GetConfig(),
+				), timerTask
+			},
+			expectedError: nil,
+		},
+		{
+			name: "mutable showed that the workflow was still running ",
+			setupMocks: func(controller *gomock.Controller) (*timerTaskExecutorBase, *persistence.TimerTaskInfo) {
+
+				mockShard := shard.NewTestContext(
+					t,
+					controller,
+					&persistence.ShardInfo{
+						ShardID:          0,
+						RangeID:          1,
+						TransferAckLevel: 0,
+					},
+					config.NewForTest(),
+				)
+
+				mockShard.Resource.DomainCache.EXPECT().GetDomainByID(gomock.Any()).Return(cache.NewDomainCacheEntryForTest(
+					&persistence.DomainInfo{},
+					&persistence.DomainConfig{},
+					false,
+					nil,
+					0,
+					nil,
+					0,
+					0,
+					0,
+				), nil).AnyTimes()
+
+				timerTask := &persistence.TimerTaskInfo{
+					DomainID:            "test-domain-id",
+					WorkflowID:          "test-workflow-id",
+					RunID:               "test-run-id",
+					TaskType:            persistence.TaskTypeDeleteHistoryEvent,
+					VisibilityTimestamp: time.Now(),
+				}
+
+				wfContext := execution.NewContext(
+					timerTask.DomainID,
+					types.WorkflowExecution{
+						WorkflowID: timerTask.WorkflowID,
+						RunID:      timerTask.RunID,
+					},
+					mockShard,
+					mockShard.Resource.ExecutionMgr,
+					mockShard.GetLogger(),
+				)
+
+				executionCache := executioncache.NewMockCache(controller)
+				executionCache.EXPECT().GetOrCreateWorkflowExecutionWithTimeout(
+					gomock.Any(),
+					gomock.Any(),
+					gomock.Any(),
+				).Return(wfContext, func(error) {}, nil)
+
+				mockExecutionMgr := mockShard.Resource.ExecutionMgr
+				mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(&persistence.GetWorkflowExecutionResponse{
+					State: &persistence.WorkflowMutableState{
+						ExecutionStats: &persistence.ExecutionStats{},
+						ExecutionInfo: &persistence.WorkflowExecutionInfo{
+							CloseStatus: 0,
+							State:       persistence.WorkflowStateRunning,
+						},
+					},
+				}, nil)
+
+				return newTimerTaskExecutorBase(
+					mockShard,
+					&archiver.ClientMock{},
+					executionCache,
+					mockShard.GetLogger(),
+					mockShard.GetMetricsClient(),
+					mockShard.GetConfig(),
+				), timerTask
+			},
+			expectedError: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			controller := gomock.NewController(t)
+			defer controller.Finish()
+
+			executor, timerTask := tt.setupMocks(controller)
+			err := executor.executeDeleteHistoryEventTask(context.Background(), timerTask)
+			if tt.expectedError != nil {
+				require.Error(t, err)
+				require.Equal(t, tt.expectedError, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }

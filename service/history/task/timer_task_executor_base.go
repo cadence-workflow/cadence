@@ -23,6 +23,8 @@ package task
 import (
 	"context"
 
+	"github.com/uber/cadence/common/log/tag"
+
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/cache"
@@ -99,7 +101,22 @@ func (t *timerTaskExecutorBase) executeDeleteHistoryEventTask(
 	if err != nil {
 		return err
 	}
-	if mutableState == nil || mutableState.IsWorkflowExecutionRunning() {
+	if mutableState == nil {
+		t.logger.Warn("could not load mutable state while attempting to clean up workflow",
+			tag.WorkflowID(task.WorkflowID),
+			tag.WorkflowRunID(task.RunID),
+			tag.WorkflowDomainID(task.DomainID),
+		)
+		t.metricsClient.IncCounter(metrics.HistoryProcessDeleteHistoryEventScope, metrics.TimerProcessingDeletionTimerNoopDueToMutableStateNotLoading)
+		return nil
+	}
+	if mutableState.IsWorkflowExecutionRunning() {
+		t.logger.Warn("could not clean up workflow, it was running",
+			tag.WorkflowID(task.WorkflowID),
+			tag.WorkflowRunID(task.RunID),
+			tag.WorkflowDomainID(task.DomainID),
+		)
+		t.metricsClient.IncCounter(metrics.HistoryProcessDeleteHistoryEventScope, metrics.TimerProcessingDeletionTimerNoopDueToMutableStateNotLoading)
 		return nil
 	}
 
