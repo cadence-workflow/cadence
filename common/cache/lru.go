@@ -23,10 +23,14 @@ package cache
 import (
 	"container/list"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/tag"
 )
 
 var (
@@ -36,6 +40,9 @@ var (
 
 // upper limit to prevent infinite growing
 const cacheCountLimit = 1 << 25
+
+// default size limit for size based cache if not defined (1 GB)
+const cacheDefaultSizeLimit = 1 << 30
 
 // lru is a concurrent fixed size cache that evicts elements in lru order
 type (
@@ -48,13 +55,14 @@ type (
 		pin           bool
 		rmFunc        RemovedFunc
 		sizeFunc      GetCacheItemSizeFunc
-		maxSize       uint64
+		maxSize       dynamicconfig.IntPropertyFn
 		currSize      uint64
 		sizeByKey     map[interface{}]uint64
 		isSizeBased   bool
 		activelyEvict bool
 		// We use this instead of time.Now() in order to make testing easier
 		timeSource clock.TimeSource
+		logger     log.Logger
 	}
 
 	iteratorImpl struct {
@@ -139,8 +147,8 @@ func (entry *entryImpl) CreateTime() time.Time {
 }
 
 // New creates a new cache with the given options
-func New(opts *Options) Cache {
-	if opts == nil || (opts.MaxCount <= 0 && (opts.MaxSize <= 0 || opts.GetCacheItemSizeFunc == nil)) {
+func New(opts *Options, logger log.Logger) Cache {
+	if opts == nil || (opts.MaxCount <= 0 && (opts.MaxSize() <= 0 || opts.GetCacheItemSizeFunc == nil)) {
 		panic("Either MaxCount (count based) or " +
 			"MaxSize and GetCacheItemSizeFunc (size based) options must be provided for the LRU cache")
 	}
@@ -149,6 +157,10 @@ func New(opts *Options) Cache {
 	if timeSource == nil {
 		timeSource = clock.NewRealTimeSource()
 	}
+	if logger == nil {
+		logger = log.NewNoop()
+	}
+
 	cache := &lru{
 		byAccess:      list.New(),
 		byKey:         make(map[interface{}]*list.Element, opts.InitialCapacity),
@@ -157,21 +169,35 @@ func New(opts *Options) Cache {
 		rmFunc:        opts.RemovedFunc,
 		activelyEvict: opts.ActivelyEvict,
 		timeSource:    timeSource,
+		logger:        logger,
+		isSizeBased:   opts.IsSizeBased,
 	}
-
-	cache.isSizeBased = opts.GetCacheItemSizeFunc != nil && opts.MaxSize > 0
 
 	if cache.isSizeBased {
 		cache.sizeFunc = opts.GetCacheItemSizeFunc
 		cache.maxSize = opts.MaxSize
+		if cache.maxSize == nil {
+			// If maxSize is not defined for size-based cache, set default to cacheCountLimit
+			cache.maxSize = dynamicconfig.GetIntPropertyFn(cacheDefaultSizeLimit)
+		}
 		cache.sizeByKey = make(map[interface{}]uint64, opts.InitialCapacity)
 	} else {
 		// cache is count based if max size and sizeFunc are not provided
 		cache.maxCount = opts.MaxCount
+		cache.maxSize = dynamicconfig.GetIntPropertyFn(0)
 		cache.sizeFunc = func(interface{}) uint64 {
 			return 0
 		}
 	}
+
+	cache.logger.Info("LRU cache initialized",
+		tag.Value(map[string]interface{}{
+			"isSizeBased": cache.isSizeBased,
+			"maxCount":    cache.maxCount,
+			"maxSize":     cache.maxSize(),
+		}),
+	)
+
 	return cache
 }
 
@@ -281,28 +307,48 @@ func (c *lru) evictExpiredItems() {
 // Put puts a new value associated with a given key, returning the existing value (if present)
 // allowUpdate flag is used to control overwrite behavior if the value exists
 func (c *lru) putInternal(key interface{}, value interface{}, allowUpdate bool) (interface{}, error) {
-	valueSize := c.sizeFunc(value)
+	valueSize := uint64(0)
+	if c.isSizeBased {
+		sizeableValue, ok := value.(Sizeable)
+		if !ok {
+			return nil, fmt.Errorf("value %T does not implement sizable. Key: %+v", value, key)
+		}
+		valueSize = sizeableValue.Size()
+	}
 	c.mut.Lock()
 	defer c.mut.Unlock()
 
 	c.evictExpiredItems()
 
-	elt := c.byKey[key]
-	if elt != nil {
-		entry := elt.Value.(*entryImpl)
+	element := c.byKey[key]
+	if element != nil {
+		entry := element.Value.(*entryImpl)
 		if c.isEntryExpired(entry, c.timeSource.Now()) {
 			// Entry has expired
-			c.deleteInternal(elt)
+			c.deleteInternal(element)
 		} else {
 			existing := entry.value
 			if allowUpdate {
+				if c.isSizeBased {
+					for c.isCacheFull() {
+						oldest := c.byAccess.Back().Value.(*entryImpl)
+						if oldest.refCount > 0 {
+							// Cache is full with pinned elements
+							// we don't update
+							return existing, ErrCacheFull
+						}
+						c.deleteInternal(c.byAccess.Back())
+					}
+					c.updateSizeOnDelete(key)
+					c.updateSizeOnAdd(key, valueSize)
+				}
 				entry.value = value
 				if c.ttl != 0 {
 					entry.createTime = c.timeSource.Now()
 				}
 			}
 
-			c.byAccess.MoveToFront(elt)
+			c.byAccess.MoveToFront(element)
 			if c.pin {
 				entry.refCount++
 			}
@@ -355,8 +401,8 @@ func (c *lru) isEntryExpired(entry *entryImpl, currentTime time.Time) bool {
 
 func (c *lru) isCacheFull() bool {
 	count := len(c.byKey)
-	// if the value size is greater than maxSize(should never happen) then the item wont be cached
-	return (!c.isSizeBased && count == c.maxCount) || c.currSize > c.maxSize || count > cacheCountLimit
+	// if the value size is greater than maxSize(should never happen) then the item won't be cached
+	return (!c.isSizeBased && count == c.maxCount) || c.currSize > uint64(c.maxSize()) || count > cacheCountLimit
 }
 
 func (c *lru) updateSizeOnAdd(key interface{}, valueSize uint64) {

@@ -1634,7 +1634,7 @@ const (
 	// MatchingEnableStandbyTaskCompletion is to enable completion of tasks in the domain's passive side
 	// KeyName: matching.enableStandbyTaskCompletion
 	// Value type: Bool
-	// Default value: false
+	// Default value: true
 	// Allowed filters: DomainName,TasklistName,TasklistType
 	MatchingEnableStandbyTaskCompletion
 
@@ -1885,7 +1885,7 @@ const (
 	// EnableAsyncWorkflowConsumption decides whether to enable system workers for processing async workflows
 	// KeyName: worker.enableAsyncWorkflowConsumption
 	// Value type: Bool
-	// Default value: false
+	// Default value: true
 	// Allowed filters: N/A
 	EnableAsyncWorkflowConsumption
 

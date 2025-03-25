@@ -125,7 +125,7 @@ func NewWeightedLoadBalancer(
 			Pin:             false,
 			MaxCount:        3000,
 			ActivelyEvict:   false,
-		}),
+		}, logger),
 		logger: logger,
 	}
 }

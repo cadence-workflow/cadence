@@ -29,6 +29,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -91,7 +92,7 @@ func NewGlobalCache(
 	historyManager persistence.HistoryManager,
 	logger log.Logger,
 	metricsClient metrics.Client,
-	maxSize uint64,
+	maxSize dynamicconfig.IntPropertyFn,
 	domainCache cache.DomainCache,
 ) Cache {
 	return newCacheWithOption(
@@ -126,7 +127,7 @@ func NewCache(
 		false,
 		logger,
 		metricsClient,
-		0,
+		config.EventsCacheMaxSize,
 		domainCache,
 	)
 }
@@ -140,7 +141,7 @@ func newCacheWithOption(
 	disabled bool,
 	logger log.Logger,
 	metrics metrics.Client,
-	maxSize uint64,
+	maxSize dynamicconfig.IntPropertyFn,
 	domainCache cache.DomainCache,
 ) *cacheImpl {
 	opts := &cache.Options{}
@@ -148,14 +149,14 @@ func newCacheWithOption(
 	opts.TTL = ttl
 	opts.MaxCount = maxCount
 
-	if maxSize > 0 {
+	if maxSize() > 0 {
 		opts.MaxSize = maxSize
 		opts.GetCacheItemSizeFunc = func(event interface{}) uint64 {
 			return common.GetSizeOfHistoryEvent(event.(*types.HistoryEvent))
 		}
 	}
 	return &cacheImpl{
-		Cache:          cache.New(opts),
+		Cache:          cache.New(opts, logger.WithTags(tag.ComponentEventsCache)),
 		domainCache:    domainCache,
 		historyManager: historyManager,
 		disabled:       disabled,

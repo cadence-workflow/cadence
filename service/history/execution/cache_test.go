@@ -273,7 +273,7 @@ func (s *historyCacheSuite) TestGetOrCreateCurrentWorkflowExecution() {
 					TTL:             s.mockShard.GetConfig().HistoryCacheTTL(),
 					Pin:             true,
 					MaxCount:        s.mockShard.GetConfig().HistoryCacheMaxSize(),
-				}),
+				}, s.mockShard.GetLogger().WithTags(tag.ComponentHistoryCache)),
 				shard:            s.mockShard,
 				executionManager: s.mockShard.GetExecutionManager(),
 				logger:           s.mockShard.GetLogger().WithTags(tag.ComponentHistoryCache),
