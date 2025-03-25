@@ -82,7 +82,7 @@ func newTimerTaskExecutorBase(
 
 func (t *timerTaskExecutorBase) executeDeleteHistoryEventTask(
 	ctx context.Context,
-	task *persistence.TimerTaskInfo,
+	task *persistence.DeleteHistoryEventTask,
 ) (retError error) {
 
 	wfContext, release, err := t.executionCache.GetOrCreateWorkflowExecutionWithTimeout(
@@ -95,7 +95,7 @@ func (t *timerTaskExecutorBase) executeDeleteHistoryEventTask(
 	}
 	defer func() { release(retError) }()
 
-	mutableState, err := loadMutableStateForTimerTask(ctx, wfContext, task, t.metricsClient, t.logger)
+	mutableState, err := loadMutableState(ctx, wfContext, task, t.metricsClient.Scope(metrics.TimerQueueProcessorScope), t.logger, 0)
 	if err != nil {
 		return err
 	}
@@ -132,7 +132,7 @@ func (t *timerTaskExecutorBase) executeDeleteHistoryEventTask(
 
 func (t *timerTaskExecutorBase) deleteWorkflow(
 	ctx context.Context,
-	task *persistence.TimerTaskInfo,
+	task *persistence.DeleteHistoryEventTask,
 	context execution.Context,
 	msBuilder execution.MutableState,
 ) error {
@@ -162,7 +162,7 @@ func (t *timerTaskExecutorBase) deleteWorkflow(
 
 func (t *timerTaskExecutorBase) archiveWorkflow(
 	ctx context.Context,
-	task *persistence.TimerTaskInfo,
+	task *persistence.DeleteHistoryEventTask,
 	workflowContext execution.Context,
 	msBuilder execution.MutableState,
 	domainCacheEntry *cache.DomainCacheEntry,
@@ -231,7 +231,7 @@ func (t *timerTaskExecutorBase) archiveWorkflow(
 
 func (t *timerTaskExecutorBase) deleteWorkflowExecution(
 	ctx context.Context,
-	task *persistence.TimerTaskInfo,
+	task *persistence.DeleteHistoryEventTask,
 ) error {
 	domainName, err := t.shard.GetDomainCache().GetDomainName(task.DomainID)
 	if err != nil {
@@ -250,7 +250,7 @@ func (t *timerTaskExecutorBase) deleteWorkflowExecution(
 
 func (t *timerTaskExecutorBase) deleteCurrentWorkflowExecution(
 	ctx context.Context,
-	task *persistence.TimerTaskInfo,
+	task *persistence.DeleteHistoryEventTask,
 ) error {
 	domainName, err := t.shard.GetDomainCache().GetDomainName(task.DomainID)
 	if err != nil {
@@ -269,7 +269,7 @@ func (t *timerTaskExecutorBase) deleteCurrentWorkflowExecution(
 
 func (t *timerTaskExecutorBase) deleteWorkflowHistory(
 	ctx context.Context,
-	task *persistence.TimerTaskInfo,
+	task *persistence.DeleteHistoryEventTask,
 	msBuilder execution.MutableState,
 ) error {
 
@@ -294,7 +294,7 @@ func (t *timerTaskExecutorBase) deleteWorkflowHistory(
 
 func (t *timerTaskExecutorBase) deleteWorkflowVisibility(
 	ctx context.Context,
-	task *persistence.TimerTaskInfo,
+	task *persistence.DeleteHistoryEventTask,
 ) error {
 
 	domain, errorDomainName := t.shard.GetDomainCache().GetDomainName(task.DomainID)
