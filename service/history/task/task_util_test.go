@@ -29,7 +29,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
@@ -47,46 +46,23 @@ func TestInitializeLoggerForTask(t *testing.T) {
 	timeSource := clock.NewMockedTimeSource()
 
 	testCases := []struct {
-		name       string
-		task       Info
-		assertions func(logs *observer.ObservedLogs)
+		name string
+		task persistence.Task
 	}{
 		{
-			name: "TimerTaskInfo",
-			task: &persistence.TimerTaskInfo{
-				TaskID:              1,
-				VisibilityTimestamp: timeSource.Now(),
-				Version:             10,
-				TaskType:            persistence.TaskTypeDecisionTimeout,
-				DomainID:            constants.TestDomainID,
-				WorkflowID:          constants.TestWorkflowID,
-				RunID:               constants.TestRunID,
+			name: "UserTimerTask",
+			task: &persistence.UserTimerTask{
+				WorkflowIdentifier: persistence.WorkflowIdentifier{
+					DomainID:   constants.TestDomainID,
+					WorkflowID: constants.TestWorkflowID,
+					RunID:      constants.TestRunID,
+				},
+				TaskData: persistence.TaskData{
+					TaskID:              1,
+					VisibilityTimestamp: timeSource.Now(),
+					Version:             10,
+				},
 			},
-		},
-		{
-			name: "TransferTaskInfo",
-			task: &persistence.TransferTaskInfo{
-				TaskID:              1,
-				VisibilityTimestamp: timeSource.Now(),
-				Version:             10,
-				TaskType:            persistence.TransferTaskTypeDecisionTask,
-				DomainID:            constants.TestDomainID,
-				WorkflowID:          constants.TestWorkflowID,
-				RunID:               constants.TestRunID,
-			},
-			assertions: func(logs *observer.ObservedLogs) {},
-		},
-		{
-			name: "ReplicationTaskInfo",
-			task: &persistence.ReplicationTaskInfo{
-				TaskID:     1,
-				Version:    10,
-				TaskType:   persistence.TransferTaskTypeDecisionTask,
-				DomainID:   constants.TestDomainID,
-				WorkflowID: constants.TestWorkflowID,
-				RunID:      constants.TestRunID,
-			},
-			assertions: func(logs *observer.ObservedLogs) {},
 		},
 	}
 
@@ -438,8 +414,10 @@ func Test_verifyTaskVersion(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			s := shard.NewMockContext(ctrl)
 			l := loggerimpl.NewLogger(zap.NewNop())
-			task := &persistence.TimerTaskInfo{
-				Version: constants.TestVersion,
+			task := &persistence.UserTimerTask{
+				TaskData: persistence.TaskData{
+					Version: constants.TestVersion,
+				},
 			}
 			mockDomainCache := cache.NewMockDomainCache(ctrl)
 
@@ -455,7 +433,8 @@ func Test_loadMutableStateForTimerTask(t *testing.T) {
 	testCases := []struct {
 		name                 string
 		setupMock            func(*execution.MockContext, *execution.MockMutableState)
-		timerTask            *persistence.TimerTaskInfo
+		timerTask            persistence.Task
+		eventID              int64
 		err                  error
 		mutableStateReturned bool
 	}{
@@ -485,11 +464,9 @@ func Test_loadMutableStateForTimerTask(t *testing.T) {
 				)
 
 			},
-			timerTask: &persistence.TimerTaskInfo{
-				TaskType: persistence.TransferTaskTypeDecisionTask,
-				EventID:  11,
-			},
-			err: errors.New("some-other-error"),
+			timerTask: &persistence.DecisionTimeoutTask{},
+			eventID:   11,
+			err:       errors.New("some-other-error"),
 		},
 		{
 			name: "no mutable state returned - timer task eventID > next eventID after refresh",
@@ -505,11 +482,9 @@ func Test_loadMutableStateForTimerTask(t *testing.T) {
 					m.EXPECT().GetNextEventID().Return(int64(10)).Times(1),
 				)
 			},
-			timerTask: &persistence.TimerTaskInfo{
-				TaskType: persistence.TransferTaskTypeDecisionTask,
-				EventID:  11,
-			},
-			err: nil,
+			timerTask: &persistence.DecisionTimeoutTask{},
+			eventID:   11,
+			err:       nil,
 		},
 		{
 			name: "success - timer task eventID < next eventID",
@@ -518,10 +493,8 @@ func Test_loadMutableStateForTimerTask(t *testing.T) {
 				m.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{NextEventID: int64(5), DecisionAttempt: 1, DecisionScheduleID: 1}).Times(1)
 				m.EXPECT().GetNextEventID().Return(int64(10)).Times(1)
 			},
-			timerTask: &persistence.TimerTaskInfo{
-				TaskType: persistence.TransferTaskTypeDecisionTask,
-				EventID:  3,
-			},
+			timerTask:            &persistence.DecisionTimeoutTask{},
+			eventID:              3,
 			mutableStateReturned: true,
 		},
 	}
@@ -535,7 +508,7 @@ func Test_loadMutableStateForTimerTask(t *testing.T) {
 			l := loggerimpl.NewNopLogger()
 
 			tc.setupMock(w, m)
-			ms, err := loadMutableStateForTimerTask(context.Background(), w, tc.timerTask, metricsClient, l)
+			ms, err := loadMutableStateForTimerTask(context.Background(), w, tc.timerTask, metricsClient, l, tc.eventID)
 			assert.Equal(t, tc.err, err)
 			if tc.err != nil {
 				assert.Nil(t, ms)
@@ -552,7 +525,8 @@ func Test_loadMutableStateForTransferTask(t *testing.T) {
 	testCases := []struct {
 		name                   string
 		setupMock              func(*execution.MockContext, *execution.MockMutableState)
-		transferTask           *persistence.TransferTaskInfo
+		transferTask           persistence.Task
+		eventID                int64
 		err                    error
 		isMutableStateReturned bool
 	}{
@@ -581,11 +555,11 @@ func Test_loadMutableStateForTransferTask(t *testing.T) {
 					w.EXPECT().LoadWorkflowExecution(gomock.Any()).Return(nil, errors.New("some-other-error")).Times(1),
 				)
 			},
-			transferTask: &persistence.TransferTaskInfo{
-				TaskType:   persistence.TransferTaskTypeDecisionTask,
+			transferTask: &persistence.DecisionTask{
 				ScheduleID: 11,
 			},
-			err: errors.New("some-other-error"),
+			eventID: 11,
+			err:     errors.New("some-other-error"),
 		},
 		{
 			name: "no mutable state returned - transfer task scheduleID > next eventID after refresh",
@@ -602,11 +576,11 @@ func Test_loadMutableStateForTransferTask(t *testing.T) {
 				)
 
 			},
-			transferTask: &persistence.TransferTaskInfo{
-				TaskType:   persistence.TransferTaskTypeDecisionTask,
+			transferTask: &persistence.DecisionTask{
 				ScheduleID: 11,
 			},
-			err: nil,
+			eventID: 11,
+			err:     nil,
 		},
 		{
 			name: "success - transfer task scheduleID < next eventID",
@@ -615,10 +589,10 @@ func Test_loadMutableStateForTransferTask(t *testing.T) {
 				m.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{NextEventID: int64(5), DecisionAttempt: 1, DecisionScheduleID: 1}).Times(1)
 				m.EXPECT().GetNextEventID().Return(int64(10)).Times(1)
 			},
-			transferTask: &persistence.TransferTaskInfo{
-				TaskType:   persistence.TransferTaskTypeDecisionTask,
+			transferTask: &persistence.DecisionTask{
 				ScheduleID: 3,
 			},
+			eventID:                3,
 			isMutableStateReturned: true,
 		},
 	}
@@ -632,7 +606,7 @@ func Test_loadMutableStateForTransferTask(t *testing.T) {
 			l := loggerimpl.NewNopLogger()
 
 			tc.setupMock(w, m)
-			ms, err := loadMutableStateForTransferTask(context.Background(), w, tc.transferTask, metricsClient, l)
+			ms, err := loadMutableStateForTransferTask(context.Background(), w, tc.transferTask, metricsClient, l, tc.eventID)
 			assert.Equal(t, tc.err, err)
 			if tc.err != nil {
 				assert.Nil(t, ms)
