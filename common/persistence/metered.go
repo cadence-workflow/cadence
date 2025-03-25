@@ -23,9 +23,10 @@
 package persistence
 
 import (
+	"unsafe"
+
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
-	"unsafe"
 )
 
 // This file defines method for persistence requests/responses that affects metered persistence wrapper.
