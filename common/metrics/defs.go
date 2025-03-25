@@ -3114,7 +3114,7 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		StaleMutableStateCounter:                                     {metricName: "stale_mutable_state", metricType: Counter},
 		DataInconsistentCounter:                                      {metricName: "data_inconsistent", metricType: Counter},
 		TimerResurrectionCounter:                                     {metricName: "timer_resurrection", metricType: Counter},
-		TimerProcessingDeletionTimerNoopDueToMutableStateNotLoading:  {metricName: "timer_processing_skipping_deletion_due_to_missing_mutable_State", metricType: Counter},
+		TimerProcessingDeletionTimerNoopDueToMutableStateNotLoading:  {metricName: "timer_processing_skipping_deletion_due_to_missing_mutable_state", metricType: Counter},
 		TimerProcessingDeletionTimerNoopDueToWFRunning:               {metricName: "timer_processing_skipping_deletion_due_to_running", metricType: Counter},
 		ActivityResurrectionCounter:                                  {metricName: "activity_resurrection", metricType: Counter},
 		AutoResetPointsLimitExceededCounter:                          {metricName: "auto_reset_points_exceed_limit", metricType: Counter},
