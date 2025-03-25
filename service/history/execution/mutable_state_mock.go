@@ -1207,20 +1207,6 @@ func (mr *MockMutableStateMockRecorder) GetDomainEntry() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDomainEntry", reflect.TypeOf((*MockMutableState)(nil).GetDomainEntry))
 }
 
-// GetEstimatedMutableStateSize mocks base method.
-func (m *MockMutableState) GetEstimatedMutableStateSize() int {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetEstimatedMutableStateSize")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// GetEstimatedMutableStateSize indicates an expected call of GetEstimatedMutableStateSize.
-func (mr *MockMutableStateMockRecorder) GetEstimatedMutableStateSize() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEstimatedMutableStateSize", reflect.TypeOf((*MockMutableState)(nil).GetEstimatedMutableStateSize))
-}
-
 // GetExecutionInfo mocks base method.
 func (m *MockMutableState) GetExecutionInfo() *persistence.WorkflowExecutionInfo {
 	m.ctrl.T.Helper()
