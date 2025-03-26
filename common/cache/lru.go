@@ -313,7 +313,7 @@ func (c *lru) putInternal(key interface{}, value interface{}, allowUpdate bool) 
 		if !ok {
 			return nil, fmt.Errorf("value %T does not implement sizable. Key: %+v", value, key)
 		}
-		valueSize = sizeableValue.Size()
+		valueSize = sizeableValue.ByteSize()
 	}
 	c.mut.Lock()
 	defer c.mut.Unlock()

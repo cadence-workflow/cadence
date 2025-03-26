@@ -1407,7 +1407,7 @@ func (c *contextImpl) ReapplyEvents(
 	)
 }
 
-func (c *contextImpl) Size() uint64 {
+func (c *contextImpl) ByteSize() uint64 {
 
 	var size int
 	// Estimate size of strings

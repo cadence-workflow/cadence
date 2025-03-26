@@ -156,8 +156,8 @@ type DomainMetricsScopeCache interface {
 	common.Daemon
 }
 
-// Sizeable is a interface that implements Size() function
+// Sizeable is a interface that implements ByteSize() function
 type Sizeable interface {
-	// Size returns an approximate size of the object in bytes
-	Size() uint64
+	// ByteSize returns an approximate size of the object in bytes
+	ByteSize() uint64
 }

@@ -289,7 +289,7 @@ type sizeableValue struct {
 	size uint64
 }
 
-func (s sizeableValue) Size() uint64 {
+func (s sizeableValue) ByteSize() uint64 {
 	return s.size
 }
 
