@@ -1314,12 +1314,12 @@ LIMIT 0, 10
 				Domain:        testDomain,
 				PageSize:      testPageSize,
 				NextPageToken: serializedToken,
-				Query:         "CloseStatus < 0 and CustomKeywordField = 'keywordCustomized' AND CustomIntField<=10 and CustomStringField = 'String field is for text' Order by DomainID Desc",
+				Query:         "CloseStatus = -1 and CustomKeywordField = 'keywordCustomized' AND CustomIntField<=10 and CustomStringField = 'String field is for text' Order by DomainID Desc",
 			},
 			expectedOutput: fmt.Sprintf(`SELECT *
 FROM %s
 WHERE DomainID = 'bfd5c907-f899-4baf-a7b2-2ab85e623ebd'
-AND CloseStatus < 0 and (JSON_MATCH(Attr, '"$.CustomKeywordField"=''keywordCustomized''') or JSON_MATCH(Attr, '"$.CustomKeywordField[*]"=''keywordCustomized''')) and (JSON_MATCH(Attr, '"$.CustomIntField" is not null') AND CAST(JSON_EXTRACT_SCALAR(Attr, '$.CustomIntField') AS INT) <= 10) and JSON_MATCH(Attr, '"$.CustomStringField" is not null') AND JSON_MATCH(Attr, 'REGEXP_LIKE("$.CustomStringField", ''.*String field is for text.*'')')
+AND CloseStatus = -1 and (JSON_MATCH(Attr, '"$.CustomKeywordField"=''keywordCustomized''') or JSON_MATCH(Attr, '"$.CustomKeywordField[*]"=''keywordCustomized''')) and (JSON_MATCH(Attr, '"$.CustomIntField" is not null') AND CAST(JSON_EXTRACT_SCALAR(Attr, '$.CustomIntField') AS INT) <= 10) and JSON_MATCH(Attr, '"$.CustomStringField" is not null') AND JSON_MATCH(Attr, 'REGEXP_LIKE("$.CustomStringField", ''.*String field is for text.*'')')
 Order by DomainID Desc
 LIMIT 11, 10
 `, testTableName),
@@ -1453,7 +1453,7 @@ LIMIT 0, 10
 FROM %s
 WHERE DomainID = 'bfd5c907-f899-4baf-a7b2-2ab85e623ebd'
 AND StartTime BETWEEN 1547596871371 AND 2547596873371
-AND CloseStatus < 0
+AND CloseStatus = -1
 AND CloseTime = -1
 Order BY StartTime DESC
 LIMIT 0, 10
@@ -1498,7 +1498,7 @@ FROM %s
 WHERE DomainID = 'bfd5c907-f899-4baf-a7b2-2ab85e623ebd'
 AND WorkflowType = 'test-wf-type'
 AND StartTime BETWEEN 1547596871371 AND 2547596873371
-AND CloseStatus < 0
+AND CloseStatus = -1
 AND CloseTime = -1
 Order BY StartTime DESC
 LIMIT 0, 10
@@ -1543,7 +1543,7 @@ FROM %s
 WHERE DomainID = 'bfd5c907-f899-4baf-a7b2-2ab85e623ebd'
 AND WorkflowID = 'test-wid'
 AND StartTime BETWEEN 1547596871371 AND 2547596873371
-AND CloseStatus < 0
+AND CloseStatus = -1
 AND CloseTime = -1
 Order BY StartTime DESC
 LIMIT 0, 10

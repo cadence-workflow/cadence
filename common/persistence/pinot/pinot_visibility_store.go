@@ -967,7 +967,7 @@ func getListWorkflowExecutionsQuery(tableName string, request *p.InternalListWor
 		query.filters.addGte(CloseStatus, 0)
 	} else {
 		query.filters.addTimeRange(StartTime, earliest, latest) // convert Unix Time to miliseconds
-		query.filters.addLt(CloseStatus, 0)
+		query.filters.addEqual(CloseStatus, -1)
 		query.filters.addEqual(CloseTime, -1)
 	}
 
@@ -994,7 +994,7 @@ func getListWorkflowExecutionsByTypeQuery(tableName string, request *p.InternalL
 		query.filters.addGte(CloseStatus, 0)
 	} else {
 		query.filters.addTimeRange(StartTime, earliest, latest) // convert Unix Time to miliseconds
-		query.filters.addLt(CloseStatus, 0)
+		query.filters.addEqual(CloseStatus, -1)
 		query.filters.addEqual(CloseTime, -1)
 	}
 
@@ -1029,7 +1029,7 @@ func getListWorkflowExecutionsByWorkflowIDQuery(tableName string, request *p.Int
 		query.filters.addGte(CloseStatus, 0)
 	} else {
 		query.filters.addTimeRange(StartTime, earliest, latest) // convert Unix Time to miliseconds
-		query.filters.addLt(CloseStatus, 0)
+		query.filters.addEqual(CloseStatus, -1)
 		query.filters.addEqual(CloseTime, -1)
 	}
 
