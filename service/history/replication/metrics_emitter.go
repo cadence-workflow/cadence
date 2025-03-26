@@ -173,7 +173,7 @@ func (m *MetricsEmitterImpl) determineReplicationLatency(remoteClusterName strin
 
 	var replicationLatency time.Duration
 	if len(tasks) > 0 {
-		creationTime := time.Unix(0, tasks[0].CreationTime)
+		creationTime := tasks[0].GetVisibilityTimestamp()
 		replicationLatency = m.shardData.GetTimeSource().Now().Sub(creationTime)
 	}
 

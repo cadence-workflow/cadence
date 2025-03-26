@@ -63,28 +63,31 @@ func NewDynamicTaskReader(
 // Read reads and returns replications tasks from readLevel to maxReadLevel. Batch size is determined dynamically.
 // If replication lag is less than config.ReplicatorUpperLatency it will be proportionally smaller.
 // Otherwise default batch size of config.ReplicatorProcessorFetchTasksBatchSize will be used.
-func (r *DynamicTaskReader) Read(ctx context.Context, readLevel int64, maxReadLevel int64) ([]*persistence.ReplicationTaskInfo, bool, error) {
+func (r *DynamicTaskReader) Read(ctx context.Context, readLevel int64, maxReadLevel int64) ([]persistence.Task, bool, error) {
 	// Check if it is even possible to return any results.
 	// If not return early with empty response. Do not hit persistence.
 	if readLevel >= maxReadLevel {
 		return nil, false, nil
 	}
 
-	request := persistence.GetReplicationTasksRequest{
-		ReadLevel:    readLevel + 1,
-		MaxReadLevel: maxReadLevel + 1,
-		BatchSize:    r.getBatchSize(),
-	}
-	response, err := r.executionManager.GetReplicationTasks(ctx, &request)
+	response, err := r.executionManager.GetHistoryTasks(ctx, &persistence.GetHistoryTasksRequest{
+		TaskCategory: persistence.HistoryTaskCategoryReplication,
+		InclusiveMinTaskKey: persistence.HistoryTaskKey{
+			TaskID: readLevel + 1,
+		},
+		ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
+			TaskID: maxReadLevel + 1,
+		},
+		PageSize: r.getBatchSize(),
+	})
 	if err != nil {
 		return nil, false, err
 	}
 
 	var lastTaskCreationTime time.Time
 	for _, task := range response.Tasks {
-		creationTime := time.Unix(0, task.CreationTime)
-		if creationTime.After(lastTaskCreationTime) {
-			lastTaskCreationTime = creationTime
+		if task.GetVisibilityTimestamp().After(lastTaskCreationTime) {
+			lastTaskCreationTime = task.GetVisibilityTimestamp()
 		}
 	}
 	r.lastTaskCreationTime.Store(lastTaskCreationTime)

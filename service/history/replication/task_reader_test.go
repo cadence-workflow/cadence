@@ -46,9 +46,9 @@ const (
 var (
 	testTime = time.Now()
 
-	testReplicationTasks = []*persistence.ReplicationTaskInfo{
-		{TaskID: 50, CreationTime: testTime.Add(-1 * time.Second).UnixNano()},
-		{TaskID: 51, CreationTime: testTime.Add(-2 * time.Second).UnixNano()},
+	testReplicationTasks = []persistence.Task{
+		&persistence.HistoryReplicationTask{TaskData: persistence.TaskData{TaskID: 50, VisibilityTimestamp: testTime.Add(-1 * time.Second)}},
+		&persistence.HistoryReplicationTask{TaskData: persistence.TaskData{TaskID: 51, VisibilityTimestamp: testTime.Add(-2 * time.Second)}},
 	}
 )
 
@@ -60,7 +60,7 @@ func TestDynamicTaskReader(t *testing.T) {
 		maxReadLevel      int64
 		lastCreateTime    time.Time
 		expectCreateTime  time.Time
-		expectResponse    []*persistence.ReplicationTaskInfo
+		expectResponse    []persistence.Task
 		expectErr         string
 	}{
 		{
@@ -68,11 +68,16 @@ func TestDynamicTaskReader(t *testing.T) {
 			readLevel:    50,
 			maxReadLevel: 100,
 			prepareExecutions: func(m *persistence.MockExecutionManager) {
-				m.EXPECT().GetReplicationTasks(gomock.Any(), &persistence.GetReplicationTasksRequest{
-					ReadLevel:    51,
-					MaxReadLevel: 101,
-					BatchSize:    testBatchSize,
-				}).Return(&persistence.GetReplicationTasksResponse{Tasks: testReplicationTasks}, nil)
+				m.EXPECT().GetHistoryTasks(gomock.Any(), &persistence.GetHistoryTasksRequest{
+					TaskCategory: persistence.HistoryTaskCategoryReplication,
+					InclusiveMinTaskKey: persistence.HistoryTaskKey{
+						TaskID: 51,
+					},
+					ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
+						TaskID: 101,
+					},
+					PageSize: testBatchSize,
+				}).Return(&persistence.GetHistoryTasksResponse{Tasks: testReplicationTasks}, nil)
 			},
 			expectResponse: testReplicationTasks,
 		},
@@ -82,11 +87,16 @@ func TestDynamicTaskReader(t *testing.T) {
 			maxReadLevel:   100,
 			lastCreateTime: testTime.Add(-time.Second),
 			prepareExecutions: func(m *persistence.MockExecutionManager) {
-				m.EXPECT().GetReplicationTasks(gomock.Any(), &persistence.GetReplicationTasksRequest{
-					ReadLevel:    51,
-					MaxReadLevel: 101,
-					BatchSize:    30, // minReadTaskSize (20) + (latency (1s) / maxLatency (5s) * defaultBatchSize (50))
-				}).Return(&persistence.GetReplicationTasksResponse{Tasks: testReplicationTasks}, nil)
+				m.EXPECT().GetHistoryTasks(gomock.Any(), &persistence.GetHistoryTasksRequest{
+					TaskCategory: persistence.HistoryTaskCategoryReplication,
+					InclusiveMinTaskKey: persistence.HistoryTaskKey{
+						TaskID: 51,
+					},
+					ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
+						TaskID: 101,
+					},
+					PageSize: 30, // minReadTaskSize (20) + (latency (1s) / maxLatency (5s) * defaultBatchSize (50))
+				}).Return(&persistence.GetHistoryTasksResponse{Tasks: testReplicationTasks}, nil)
 			},
 			expectResponse: testReplicationTasks,
 		},
@@ -96,11 +106,16 @@ func TestDynamicTaskReader(t *testing.T) {
 			maxReadLevel:   100,
 			lastCreateTime: testTime.Add(-(testUpperLatency + time.Second)),
 			prepareExecutions: func(m *persistence.MockExecutionManager) {
-				m.EXPECT().GetReplicationTasks(gomock.Any(), &persistence.GetReplicationTasksRequest{
-					ReadLevel:    51,
-					MaxReadLevel: 101,
-					BatchSize:    50,
-				}).Return(&persistence.GetReplicationTasksResponse{Tasks: testReplicationTasks}, nil)
+				m.EXPECT().GetHistoryTasks(gomock.Any(), &persistence.GetHistoryTasksRequest{
+					TaskCategory: persistence.HistoryTaskCategoryReplication,
+					InclusiveMinTaskKey: persistence.HistoryTaskKey{
+						TaskID: 51,
+					},
+					ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
+						TaskID: 101,
+					},
+					PageSize: 50,
+				}).Return(&persistence.GetHistoryTasksResponse{Tasks: testReplicationTasks}, nil)
 			},
 			expectResponse: testReplicationTasks,
 		},
@@ -110,11 +125,16 @@ func TestDynamicTaskReader(t *testing.T) {
 			maxReadLevel:   100,
 			lastCreateTime: testTime.Add(time.Second),
 			prepareExecutions: func(m *persistence.MockExecutionManager) {
-				m.EXPECT().GetReplicationTasks(gomock.Any(), &persistence.GetReplicationTasksRequest{
-					ReadLevel:    51,
-					MaxReadLevel: 101,
-					BatchSize:    20, // minReadTaskSize (20)
-				}).Return(&persistence.GetReplicationTasksResponse{Tasks: testReplicationTasks}, nil)
+				m.EXPECT().GetHistoryTasks(gomock.Any(), &persistence.GetHistoryTasksRequest{
+					TaskCategory: persistence.HistoryTaskCategoryReplication,
+					InclusiveMinTaskKey: persistence.HistoryTaskKey{
+						TaskID: 51,
+					},
+					ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
+						TaskID: 101,
+					},
+					PageSize: 20, // minReadTaskSize (20)
+				}).Return(&persistence.GetHistoryTasksResponse{Tasks: testReplicationTasks}, nil)
 			},
 			expectResponse: testReplicationTasks,
 		},
@@ -123,7 +143,7 @@ func TestDynamicTaskReader(t *testing.T) {
 			readLevel:    50,
 			maxReadLevel: 100,
 			prepareExecutions: func(m *persistence.MockExecutionManager) {
-				m.EXPECT().GetReplicationTasks(gomock.Any(), gomock.Any()).Return(&persistence.GetReplicationTasksResponse{Tasks: testReplicationTasks}, nil)
+				m.EXPECT().GetHistoryTasks(gomock.Any(), gomock.Any()).Return(&persistence.GetHistoryTasksResponse{Tasks: testReplicationTasks}, nil)
 			},
 			expectResponse:   testReplicationTasks,
 			expectCreateTime: testTime.Add(-1 * time.Second),
@@ -133,7 +153,7 @@ func TestDynamicTaskReader(t *testing.T) {
 			readLevel:    50,
 			maxReadLevel: 100,
 			prepareExecutions: func(m *persistence.MockExecutionManager) {
-				m.EXPECT().GetReplicationTasks(gomock.Any(), gomock.Any()).Return(nil, errors.New("failed to read replication tasks"))
+				m.EXPECT().GetHistoryTasks(gomock.Any(), gomock.Any()).Return(nil, errors.New("failed to read replication tasks"))
 			},
 			expectErr: "failed to read replication tasks",
 		},
@@ -142,7 +162,7 @@ func TestDynamicTaskReader(t *testing.T) {
 			readLevel:    50,
 			maxReadLevel: 50,
 			prepareExecutions: func(m *persistence.MockExecutionManager) {
-				m.EXPECT().GetReplicationTasks(gomock.Any(), gomock.Any()).Times(0)
+				m.EXPECT().GetHistoryTasks(gomock.Any(), gomock.Any()).Times(0)
 			},
 			expectResponse: nil,
 		},

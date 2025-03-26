@@ -284,46 +284,20 @@ func (_m *ExecutionManager) GetReplicationDLQSize(ctx context.Context, request *
 	return r0, r1
 }
 
-// GetReplicationTasks provides a mock function with given fields: ctx, request
-func (_m *ExecutionManager) GetReplicationTasks(ctx context.Context, request *persistence.GetReplicationTasksRequest) (*persistence.GetReplicationTasksResponse, error) {
-	ret := _m.Called(ctx, request)
-
-	var r0 *persistence.GetReplicationTasksResponse
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *persistence.GetReplicationTasksRequest) (*persistence.GetReplicationTasksResponse, error)); ok {
-		return rf(ctx, request)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, *persistence.GetReplicationTasksRequest) *persistence.GetReplicationTasksResponse); ok {
-		r0 = rf(ctx, request)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*persistence.GetReplicationTasksResponse)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, *persistence.GetReplicationTasksRequest) error); ok {
-		r1 = rf(ctx, request)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
 // GetReplicationTasksFromDLQ provides a mock function with given fields: ctx, request
-func (_m *ExecutionManager) GetReplicationTasksFromDLQ(ctx context.Context, request *persistence.GetReplicationTasksFromDLQRequest) (*persistence.GetReplicationTasksResponse, error) {
+func (_m *ExecutionManager) GetReplicationTasksFromDLQ(ctx context.Context, request *persistence.GetReplicationTasksFromDLQRequest) (*persistence.GetHistoryTasksResponse, error) {
 	ret := _m.Called(ctx, request)
 
-	var r0 *persistence.GetReplicationTasksResponse
+	var r0 *persistence.GetHistoryTasksResponse
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *persistence.GetReplicationTasksFromDLQRequest) (*persistence.GetReplicationTasksResponse, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *persistence.GetReplicationTasksFromDLQRequest) (*persistence.GetHistoryTasksResponse, error)); ok {
 		return rf(ctx, request)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, *persistence.GetReplicationTasksFromDLQRequest) *persistence.GetReplicationTasksResponse); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *persistence.GetReplicationTasksFromDLQRequest) *persistence.GetHistoryTasksResponse); ok {
 		r0 = rf(ctx, request)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*persistence.GetReplicationTasksResponse)
+			r0 = ret.Get(0).(*persistence.GetHistoryTasksResponse)
 		}
 	}
 
@@ -348,58 +322,6 @@ func (_m *ExecutionManager) GetShardID() int {
 	}
 
 	return r0
-}
-
-// GetTimerIndexTasks provides a mock function with given fields: ctx, request
-func (_m *ExecutionManager) GetTimerIndexTasks(ctx context.Context, request *persistence.GetTimerIndexTasksRequest) (*persistence.GetTimerIndexTasksResponse, error) {
-	ret := _m.Called(ctx, request)
-
-	var r0 *persistence.GetTimerIndexTasksResponse
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *persistence.GetTimerIndexTasksRequest) (*persistence.GetTimerIndexTasksResponse, error)); ok {
-		return rf(ctx, request)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, *persistence.GetTimerIndexTasksRequest) *persistence.GetTimerIndexTasksResponse); ok {
-		r0 = rf(ctx, request)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*persistence.GetTimerIndexTasksResponse)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, *persistence.GetTimerIndexTasksRequest) error); ok {
-		r1 = rf(ctx, request)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// GetTransferTasks provides a mock function with given fields: ctx, request
-func (_m *ExecutionManager) GetTransferTasks(ctx context.Context, request *persistence.GetTransferTasksRequest) (*persistence.GetTransferTasksResponse, error) {
-	ret := _m.Called(ctx, request)
-
-	var r0 *persistence.GetTransferTasksResponse
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *persistence.GetTransferTasksRequest) (*persistence.GetTransferTasksResponse, error)); ok {
-		return rf(ctx, request)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, *persistence.GetTransferTasksRequest) *persistence.GetTransferTasksResponse); ok {
-		r0 = rf(ctx, request)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*persistence.GetTransferTasksResponse)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, *persistence.GetTransferTasksRequest) error); ok {
-		r1 = rf(ctx, request)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
 }
 
 // GetWorkflowExecution provides a mock function with given fields: ctx, request

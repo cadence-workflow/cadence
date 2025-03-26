@@ -41,11 +41,36 @@ import (
 )
 
 var (
-	testTask11 = persistence.ReplicationTaskInfo{TaskID: 11, DomainID: testDomainID}
-	testTask12 = persistence.ReplicationTaskInfo{TaskID: 12, DomainID: testDomainID}
-	testTask13 = persistence.ReplicationTaskInfo{TaskID: 13, DomainID: testDomainID}
-	testTask14 = persistence.ReplicationTaskInfo{TaskID: 14, DomainID: testDomainID}
-
+	testTask11 = persistence.HistoryReplicationTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID: testDomainID,
+		},
+		TaskData: persistence.TaskData{
+			TaskID: 11,
+		},
+	}
+	testTask12 = persistence.SyncActivityTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID: testDomainID,
+		},
+		TaskData: persistence.TaskData{
+			TaskID: 12,
+		},
+	}
+	testTask13 = persistence.HistoryReplicationTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID: testDomainID,
+		},
+		TaskData: persistence.TaskData{
+			TaskID: 13,
+		},
+	}
+	testTask14 = persistence.FailoverMarkerTask{
+		DomainID: testDomainID,
+		TaskData: persistence.TaskData{
+			TaskID: 14,
+		},
+	}
 	testHydratedTask11 = types.ReplicationTask{SourceTaskID: 11, HistoryTaskV2Attributes: &types.HistoryTaskV2Attributes{DomainID: testDomainID}}
 	testHydratedTask12 = types.ReplicationTask{SourceTaskID: 12, SyncActivityTaskAttributes: &types.SyncActivityTaskAttributes{DomainID: testDomainID}}
 	testHydratedTask13 = types.ReplicationTask{SourceTaskID: 13, HistoryTaskV2Attributes: &types.HistoryTaskV2Attributes{DomainID: testDomainID}}
@@ -349,20 +374,20 @@ func (s *fakeAckLevelStore) UpdateClusterReplicationLevel(cluster string, lastTa
 	return s.updateErr
 }
 
-type fakeTaskReader []*persistence.ReplicationTaskInfo
+type fakeTaskReader []persistence.Task
 
-func (r fakeTaskReader) Read(ctx context.Context, readLevel int64, maxReadLevel int64) ([]*persistence.ReplicationTaskInfo, bool, error) {
+func (r fakeTaskReader) Read(ctx context.Context, readLevel int64, maxReadLevel int64) ([]persistence.Task, bool, error) {
 	if r == nil {
 		return nil, false, errors.New("error reading replication tasks")
 	}
 
 	hasMore := false
-	var result []*persistence.ReplicationTaskInfo
+	var result []persistence.Task
 	for _, task := range r {
-		if task.TaskID < readLevel {
+		if task.GetTaskID() < readLevel {
 			continue
 		}
-		if task.TaskID >= maxReadLevel {
+		if task.GetTaskID() >= maxReadLevel {
 			hasMore = true
 			break
 		}
@@ -373,8 +398,8 @@ func (r fakeTaskReader) Read(ctx context.Context, readLevel int64, maxReadLevel 
 
 type fakeTaskHydrator map[int64]types.ReplicationTask
 
-func (h fakeTaskHydrator) Hydrate(ctx context.Context, task persistence.ReplicationTaskInfo) (*types.ReplicationTask, error) {
-	if hydratedTask, ok := h[task.TaskID]; ok {
+func (h fakeTaskHydrator) Hydrate(ctx context.Context, task persistence.Task) (*types.ReplicationTask, error) {
+	if hydratedTask, ok := h[task.GetTaskID()]; ok {
 		if hydratedTask == testHydratedTaskErrorNonRecoverable {
 			return nil, errors.New("error hydrating task")
 		}

@@ -37,6 +37,8 @@ import (
 	time "time"
 
 	gomock "go.uber.org/mock/gomock"
+
+	types "github.com/uber/cadence/common/types"
 )
 
 // MockTask is a mock of Task interface.
@@ -209,6 +211,21 @@ func (m *MockTask) SetVisibilityTimestamp(timestamp time.Time) {
 func (mr *MockTaskMockRecorder) SetVisibilityTimestamp(timestamp any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetVisibilityTimestamp", reflect.TypeOf((*MockTask)(nil).SetVisibilityTimestamp), timestamp)
+}
+
+// ToInternalReplicationTaskInfo mocks base method.
+func (m *MockTask) ToInternalReplicationTaskInfo() (*types.ReplicationTaskInfo, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ToInternalReplicationTaskInfo")
+	ret0, _ := ret[0].(*types.ReplicationTaskInfo)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ToInternalReplicationTaskInfo indicates an expected call of ToInternalReplicationTaskInfo.
+func (mr *MockTaskMockRecorder) ToInternalReplicationTaskInfo() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ToInternalReplicationTaskInfo", reflect.TypeOf((*MockTask)(nil).ToInternalReplicationTaskInfo))
 }
 
 // ToTimerTaskInfo mocks base method.
@@ -557,26 +574,11 @@ func (mr *MockExecutionManagerMockRecorder) GetReplicationDLQSize(ctx, request a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReplicationDLQSize", reflect.TypeOf((*MockExecutionManager)(nil).GetReplicationDLQSize), ctx, request)
 }
 
-// GetReplicationTasks mocks base method.
-func (m *MockExecutionManager) GetReplicationTasks(ctx context.Context, request *GetReplicationTasksRequest) (*GetReplicationTasksResponse, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetReplicationTasks", ctx, request)
-	ret0, _ := ret[0].(*GetReplicationTasksResponse)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetReplicationTasks indicates an expected call of GetReplicationTasks.
-func (mr *MockExecutionManagerMockRecorder) GetReplicationTasks(ctx, request any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReplicationTasks", reflect.TypeOf((*MockExecutionManager)(nil).GetReplicationTasks), ctx, request)
-}
-
 // GetReplicationTasksFromDLQ mocks base method.
-func (m *MockExecutionManager) GetReplicationTasksFromDLQ(ctx context.Context, request *GetReplicationTasksFromDLQRequest) (*GetReplicationTasksResponse, error) {
+func (m *MockExecutionManager) GetReplicationTasksFromDLQ(ctx context.Context, request *GetReplicationTasksFromDLQRequest) (*GetHistoryTasksResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetReplicationTasksFromDLQ", ctx, request)
-	ret0, _ := ret[0].(*GetReplicationTasksResponse)
+	ret0, _ := ret[0].(*GetHistoryTasksResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

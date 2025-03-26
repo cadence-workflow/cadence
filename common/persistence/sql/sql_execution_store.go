@@ -921,35 +921,6 @@ func (m *sqlExecutionStore) CompleteCrossClusterTask(
 	return nil
 }
 
-func (m *sqlExecutionStore) GetReplicationTasks(
-	ctx context.Context,
-	request *p.GetReplicationTasksRequest,
-) (*p.InternalGetReplicationTasksResponse, error) {
-
-	readLevel, maxReadLevel, err := getReadLevels(request)
-	if err != nil {
-		return nil, err
-	}
-
-	rows, err := m.db.SelectFromReplicationTasks(
-		ctx,
-		&sqlplugin.ReplicationTasksFilter{
-			ShardID:            m.shardID,
-			InclusiveMinTaskID: readLevel,
-			ExclusiveMaxTaskID: maxReadLevel,
-			PageSize:           request.BatchSize,
-		})
-
-	switch err {
-	case nil:
-		return m.populateGetReplicationTasksResponse(rows, request.MaxReadLevel)
-	case sql.ErrNoRows:
-		return &p.InternalGetReplicationTasksResponse{}, nil
-	default:
-		return nil, convertCommonErrors(m.db, "GetReplicationTasks", "", err)
-	}
-}
-
 func getReadLevels(request *p.GetReplicationTasksRequest) (readLevel int64, maxReadLevel int64, err error) {
 	readLevel = request.ReadLevel
 	if len(request.NextPageToken) > 0 {
@@ -1021,7 +992,7 @@ func (m *sqlExecutionStore) CompleteReplicationTask(
 func (m *sqlExecutionStore) GetReplicationTasksFromDLQ(
 	ctx context.Context,
 	request *p.GetReplicationTasksFromDLQRequest,
-) (*p.InternalGetReplicationTasksFromDLQResponse, error) {
+) (*p.GetHistoryTasksResponse, error) {
 
 	readLevel, maxReadLevel, err := getReadLevels(&request.GetReplicationTasksRequest)
 	if err != nil {
@@ -1038,15 +1009,28 @@ func (m *sqlExecutionStore) GetReplicationTasksFromDLQ(
 		ReplicationTasksFilter: filter,
 		SourceClusterName:      request.SourceClusterName,
 	})
-
-	switch err {
-	case nil:
-		return m.populateGetReplicationTasksResponse(rows, request.MaxReadLevel)
-	case sql.ErrNoRows:
-		return &p.InternalGetReplicationTasksResponse{}, nil
-	default:
-		return nil, convertCommonErrors(m.db, "GetReplicationTasksFromDLQ", "", err)
+	if err != nil {
+		if err != sql.ErrNoRows {
+			return nil, convertCommonErrors(m.db, "GetReplicationTasksFromDLQ", "", err)
+		}
 	}
+	var tasks []p.Task
+	for _, row := range rows {
+		task, err := m.taskSerializer.DeserializeTask(p.HistoryTaskCategoryReplication, p.NewDataBlob(row.Data, constants.EncodingType(row.DataEncoding)))
+		if err != nil {
+			return nil, convertCommonErrors(m.db, "GetReplicationTasksFromDLQ", "", err)
+		}
+		task.SetTaskID(row.TaskID)
+		tasks = append(tasks, task)
+	}
+	resp := &p.GetHistoryTasksResponse{Tasks: tasks}
+	if len(rows) > 0 {
+		nextTaskID := rows[len(rows)-1].TaskID + 1
+		if nextTaskID < maxReadLevel {
+			resp.NextPageToken = serializePageToken(nextTaskID)
+		}
+	}
+	return resp, nil
 }
 
 func (m *sqlExecutionStore) GetReplicationDLQSize(

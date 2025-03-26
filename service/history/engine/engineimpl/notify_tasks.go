@@ -112,5 +112,5 @@ func hydrateReplicationTask(
 		history.Find(info.NewRunBranchToken, constants.FirstEventID),
 	)
 
-	return hydrator.Hydrate(context.Background(), info)
+	return hydrator.Hydrate(context.Background(), task)
 }

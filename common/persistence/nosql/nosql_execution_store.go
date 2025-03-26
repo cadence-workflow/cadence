@@ -588,25 +588,6 @@ func (d *nosqlExecutionStore) ListConcreteExecutions(
 	}, nil
 }
 
-func (d *nosqlExecutionStore) GetReplicationTasks(
-	ctx context.Context,
-	request *persistence.GetReplicationTasksRequest,
-) (*persistence.InternalGetReplicationTasksResponse, error) {
-
-	tasks, nextPageToken, err := d.db.SelectReplicationTasksOrderByTaskID(ctx, d.shardID, request.BatchSize, request.NextPageToken, request.ReadLevel, request.MaxReadLevel)
-	if err != nil {
-		return nil, convertCommonErrors(d.db, "GetReplicationTasks", err)
-	}
-	var tTasks []*persistence.InternalReplicationTaskInfo
-	for _, t := range tasks {
-		tTasks = append(tTasks, t.Replication)
-	}
-	return &persistence.InternalGetReplicationTasksResponse{
-		Tasks:         tTasks,
-		NextPageToken: nextPageToken,
-	}, nil
-}
-
 func (d *nosqlExecutionStore) CompleteTransferTask(
 	ctx context.Context,
 	request *persistence.CompleteTransferTaskRequest,
@@ -674,7 +655,7 @@ func (d *nosqlExecutionStore) PutReplicationTaskToDLQ(
 func (d *nosqlExecutionStore) GetReplicationTasksFromDLQ(
 	ctx context.Context,
 	request *persistence.GetReplicationTasksFromDLQRequest,
-) (*persistence.InternalGetReplicationTasksFromDLQResponse, error) {
+) (*persistence.GetHistoryTasksResponse, error) {
 	if request.ReadLevel > request.MaxReadLevel {
 		return nil, &types.BadRequestError{Message: "ReadLevel cannot be higher than MaxReadLevel"}
 	}
@@ -682,11 +663,15 @@ func (d *nosqlExecutionStore) GetReplicationTasksFromDLQ(
 	if err != nil {
 		return nil, convertCommonErrors(d.db, "GetReplicationTasksFromDLQ", err)
 	}
-	var tTasks []*persistence.InternalReplicationTaskInfo
+	var tTasks []persistence.Task
 	for _, t := range tasks {
-		tTasks = append(tTasks, t.Replication)
+		task, err := t.Replication.ToTask()
+		if err != nil {
+			return nil, convertCommonErrors(d.db, "GetReplicationTasksFromDLQ", err)
+		}
+		tTasks = append(tTasks, task)
 	}
-	return &persistence.InternalGetReplicationTasksResponse{
+	return &persistence.GetHistoryTasksResponse{
 		Tasks:         tTasks,
 		NextPageToken: nextPageToken,
 	}, nil

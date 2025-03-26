@@ -1470,16 +1470,21 @@ func (s *TestBase) GetCrossClusterTasks(ctx context.Context, targetCluster strin
 }
 
 // GetReplicationTasks is a utility method to get tasks from replication task queue
-func (s *TestBase) GetReplicationTasks(ctx context.Context, batchSize int, getAll bool) ([]*persistence.ReplicationTaskInfo, error) {
-	result := []*persistence.ReplicationTaskInfo{}
+func (s *TestBase) GetReplicationTasks(ctx context.Context, batchSize int, getAll bool) ([]persistence.Task, error) {
+	result := []persistence.Task{}
 	var token []byte
 
 Loop:
 	for {
-		response, err := s.ExecutionManager.GetReplicationTasks(ctx, &persistence.GetReplicationTasksRequest{
-			ReadLevel:     0,
-			MaxReadLevel:  math.MaxInt64,
-			BatchSize:     batchSize,
+		response, err := s.ExecutionManager.GetHistoryTasks(ctx, &persistence.GetHistoryTasksRequest{
+			TaskCategory: persistence.HistoryTaskCategoryReplication,
+			InclusiveMinTaskKey: persistence.HistoryTaskKey{
+				TaskID: 0,
+			},
+			ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
+				TaskID: math.MaxInt64,
+			},
+			PageSize:      batchSize,
 			NextPageToken: token,
 		})
 		if err != nil {
@@ -1537,7 +1542,7 @@ func (s *TestBase) GetReplicationTasksFromDLQ(
 	maxReadLevel int64,
 	pageSize int,
 	pageToken []byte,
-) (*persistence.GetReplicationTasksFromDLQResponse, error) {
+) (*persistence.GetHistoryTasksResponse, error) {
 
 	return s.ExecutionManager.GetReplicationTasksFromDLQ(ctx, &persistence.GetReplicationTasksFromDLQRequest{
 		SourceClusterName: sourceCluster,
@@ -1897,8 +1902,8 @@ func (s *TestBase) ClearReplicationQueue() {
 
 	counter := 0
 	for _, t := range tasks {
-		s.Logger.Info("Deleting replication task with ID", tag.TaskID(t.TaskID))
-		s.NoError(s.CompleteReplicationTask(context.Background(), t.TaskID))
+		s.Logger.Info("Deleting replication task with ID", tag.TaskID(t.GetTaskID()))
+		s.NoError(s.CompleteReplicationTask(context.Background(), t.GetTaskID()))
 		counter++
 	}
 

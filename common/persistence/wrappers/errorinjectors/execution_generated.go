@@ -242,22 +242,7 @@ func (c *injectorExecutionManager) GetReplicationDLQSize(ctx context.Context, re
 	return
 }
 
-func (c *injectorExecutionManager) GetReplicationTasks(ctx context.Context, request *persistence.GetReplicationTasksRequest) (gp1 *persistence.GetReplicationTasksResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
-	var forwardCall bool
-	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
-		gp1, err = c.wrapped.GetReplicationTasks(ctx, request)
-	}
-
-	if fakeErr != nil {
-		logErr(c.logger, "ExecutionManager.GetReplicationTasks", fakeErr, forwardCall, err)
-		err = fakeErr
-		return
-	}
-	return
-}
-
-func (c *injectorExecutionManager) GetReplicationTasksFromDLQ(ctx context.Context, request *persistence.GetReplicationTasksFromDLQRequest) (gp1 *persistence.GetReplicationTasksFromDLQResponse, err error) {
+func (c *injectorExecutionManager) GetReplicationTasksFromDLQ(ctx context.Context, request *persistence.GetReplicationTasksFromDLQRequest) (gp1 *persistence.GetHistoryTasksResponse, err error) {
 	fakeErr := generateFakeError(c.errorRate)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {

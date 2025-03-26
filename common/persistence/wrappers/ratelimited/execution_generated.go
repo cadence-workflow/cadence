@@ -155,15 +155,7 @@ func (c *ratelimitedExecutionManager) GetReplicationDLQSize(ctx context.Context,
 	return c.wrapped.GetReplicationDLQSize(ctx, request)
 }
 
-func (c *ratelimitedExecutionManager) GetReplicationTasks(ctx context.Context, request *persistence.GetReplicationTasksRequest) (gp1 *persistence.GetReplicationTasksResponse, err error) {
-	if ok := c.rateLimiter.Allow(); !ok {
-		err = ErrPersistenceLimitExceeded
-		return
-	}
-	return c.wrapped.GetReplicationTasks(ctx, request)
-}
-
-func (c *ratelimitedExecutionManager) GetReplicationTasksFromDLQ(ctx context.Context, request *persistence.GetReplicationTasksFromDLQRequest) (gp1 *persistence.GetReplicationTasksFromDLQResponse, err error) {
+func (c *ratelimitedExecutionManager) GetReplicationTasksFromDLQ(ctx context.Context, request *persistence.GetReplicationTasksFromDLQRequest) (gp1 *persistence.GetHistoryTasksResponse, err error) {
 	if ok := c.rateLimiter.Allow(); !ok {
 		err = ErrPersistenceLimitExceeded
 		return

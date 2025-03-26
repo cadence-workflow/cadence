@@ -855,22 +855,6 @@ func (m *executionManagerImpl) CompleteTransferTask(
 	return m.persistence.CompleteTransferTask(ctx, request)
 }
 
-// Replication task related methods
-func (m *executionManagerImpl) GetReplicationTasks(
-	ctx context.Context,
-	request *GetReplicationTasksRequest,
-) (*GetReplicationTasksResponse, error) {
-	resp, err := m.persistence.GetReplicationTasks(ctx, request)
-	if err != nil {
-		return nil, err
-	}
-
-	return &GetReplicationTasksResponse{
-		Tasks:         m.fromInternalReplicationTaskInfos(resp.Tasks),
-		NextPageToken: resp.NextPageToken,
-	}, nil
-}
-
 func (m *executionManagerImpl) CompleteReplicationTask(
 	ctx context.Context,
 	request *CompleteReplicationTaskRequest,
@@ -892,15 +876,8 @@ func (m *executionManagerImpl) PutReplicationTaskToDLQ(
 func (m *executionManagerImpl) GetReplicationTasksFromDLQ(
 	ctx context.Context,
 	request *GetReplicationTasksFromDLQRequest,
-) (*GetReplicationTasksFromDLQResponse, error) {
-	resp, err := m.persistence.GetReplicationTasksFromDLQ(ctx, request)
-	if err != nil {
-		return nil, err
-	}
-	return &GetReplicationTasksFromDLQResponse{
-		Tasks:         m.fromInternalReplicationTaskInfos(resp.Tasks),
-		NextPageToken: resp.NextPageToken,
-	}, nil
+) (*GetHistoryTasksResponse, error) {
+	return m.persistence.GetReplicationTasksFromDLQ(ctx, request)
 }
 
 func (m *executionManagerImpl) GetReplicationDLQSize(

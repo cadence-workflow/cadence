@@ -500,6 +500,21 @@ func (mr *MockTaskMockRecorder) State() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "State", reflect.TypeOf((*MockTask)(nil).State))
 }
 
+// ToInternalReplicationTaskInfo mocks base method.
+func (m *MockTask) ToInternalReplicationTaskInfo() (*types.ReplicationTaskInfo, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ToInternalReplicationTaskInfo")
+	ret0, _ := ret[0].(*types.ReplicationTaskInfo)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ToInternalReplicationTaskInfo indicates an expected call of ToInternalReplicationTaskInfo.
+func (mr *MockTaskMockRecorder) ToInternalReplicationTaskInfo() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ToInternalReplicationTaskInfo", reflect.TypeOf((*MockTask)(nil).ToInternalReplicationTaskInfo))
+}
+
 // ToTimerTaskInfo mocks base method.
 func (m *MockTask) ToTimerTaskInfo() (*persistence.TimerTaskInfo, error) {
 	m.ctrl.T.Helper()
@@ -919,6 +934,21 @@ func (m *MockCrossClusterTask) State() task.State {
 func (mr *MockCrossClusterTaskMockRecorder) State() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "State", reflect.TypeOf((*MockCrossClusterTask)(nil).State))
+}
+
+// ToInternalReplicationTaskInfo mocks base method.
+func (m *MockCrossClusterTask) ToInternalReplicationTaskInfo() (*types.ReplicationTaskInfo, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ToInternalReplicationTaskInfo")
+	ret0, _ := ret[0].(*types.ReplicationTaskInfo)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ToInternalReplicationTaskInfo indicates an expected call of ToInternalReplicationTaskInfo.
+func (mr *MockCrossClusterTaskMockRecorder) ToInternalReplicationTaskInfo() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ToInternalReplicationTaskInfo", reflect.TypeOf((*MockCrossClusterTask)(nil).ToInternalReplicationTaskInfo))
 }
 
 // ToTimerTaskInfo mocks base method.

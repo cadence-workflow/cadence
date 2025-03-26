@@ -44,19 +44,19 @@ func TestTaskStore(t *testing.T) {
 
 	t.Run("Get error on unknown cluster", func(t *testing.T) {
 		ts := createTestTaskStore(t, nil, nil)
-		_, err := ts.Get(ctx, "unknown cluster", testTask11)
+		_, err := ts.Get(ctx, "unknown cluster", &testTask11)
 		assert.Equal(t, ErrUnknownCluster, err)
 	})
 
 	t.Run("Get error resolving domain", func(t *testing.T) {
 		ts := createTestTaskStore(t, fakeDomainCache{}, nil)
-		_, err := ts.Get(ctx, testClusterA, testTask11)
+		_, err := ts.Get(ctx, testClusterA, &testTask11)
 		assert.EqualError(t, err, "resolving domain: domain does not exist")
 	})
 
 	t.Run("Get skips task for domains non belonging to polling cluster", func(t *testing.T) {
 		ts := createTestTaskStore(t, fakeDomainCache{testDomainID: testDomain}, nil)
-		task, err := ts.Get(ctx, testClusterB, testTask11)
+		task, err := ts.Get(ctx, testClusterB, &testTask11)
 		assert.NoError(t, err)
 		assert.Nil(t, task)
 	})
@@ -64,21 +64,21 @@ func TestTaskStore(t *testing.T) {
 	t.Run("Get returns cached replication task", func(t *testing.T) {
 		ts := createTestTaskStore(t, fakeDomainCache{testDomainID: testDomain}, nil)
 		ts.Put(&testHydratedTask11)
-		task, err := ts.Get(ctx, testClusterA, testTask11)
+		task, err := ts.Get(ctx, testClusterA, &testTask11)
 		assert.NoError(t, err)
 		assert.Equal(t, &testHydratedTask11, task)
 	})
 
 	t.Run("Get returns non-cached replication task by hydrating it", func(t *testing.T) {
 		ts := createTestTaskStore(t, fakeDomainCache{testDomainID: testDomain}, fakeTaskHydrator{testTask11.TaskID: testHydratedTask11})
-		task, err := ts.Get(ctx, testClusterA, testTask11)
+		task, err := ts.Get(ctx, testClusterA, &testTask11)
 		assert.NoError(t, err)
 		assert.Equal(t, &testHydratedTask11, task)
 	})
 
 	t.Run("Get fails to hydrate replication task", func(t *testing.T) {
 		ts := createTestTaskStore(t, fakeDomainCache{testDomainID: testDomain}, fakeTaskHydrator{testTask11.TaskID: testHydratedTaskErrorNonRecoverable})
-		task, err := ts.Get(ctx, testClusterA, testTask11)
+		task, err := ts.Get(ctx, testClusterA, &testTask11)
 		assert.EqualError(t, err, "error hydrating task")
 		assert.Nil(t, task)
 	})

@@ -260,26 +260,11 @@ func (mr *MockExecutionStoreMockRecorder) GetReplicationDLQSize(ctx, request any
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReplicationDLQSize", reflect.TypeOf((*MockExecutionStore)(nil).GetReplicationDLQSize), ctx, request)
 }
 
-// GetReplicationTasks mocks base method.
-func (m *MockExecutionStore) GetReplicationTasks(ctx context.Context, request *GetReplicationTasksRequest) (*InternalGetReplicationTasksResponse, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetReplicationTasks", ctx, request)
-	ret0, _ := ret[0].(*InternalGetReplicationTasksResponse)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetReplicationTasks indicates an expected call of GetReplicationTasks.
-func (mr *MockExecutionStoreMockRecorder) GetReplicationTasks(ctx, request any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReplicationTasks", reflect.TypeOf((*MockExecutionStore)(nil).GetReplicationTasks), ctx, request)
-}
-
 // GetReplicationTasksFromDLQ mocks base method.
-func (m *MockExecutionStore) GetReplicationTasksFromDLQ(ctx context.Context, request *GetReplicationTasksFromDLQRequest) (*InternalGetReplicationTasksResponse, error) {
+func (m *MockExecutionStore) GetReplicationTasksFromDLQ(ctx context.Context, request *GetReplicationTasksFromDLQRequest) (*GetHistoryTasksResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetReplicationTasksFromDLQ", ctx, request)
-	ret0, _ := ret[0].(*InternalGetReplicationTasksResponse)
+	ret0, _ := ret[0].(*GetHistoryTasksResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

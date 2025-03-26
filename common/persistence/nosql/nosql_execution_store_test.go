@@ -673,49 +673,6 @@ func TestNosqlExecutionStore(t *testing.T) {
 			expectedError: &types.InternalServiceError{Message: "database error"},
 		},
 		{
-			name: "GetReplicationTasks success",
-			setupMock: func(ctrl *gomock.Controller) *nosqlExecutionStore {
-				mockDB := nosqlplugin.NewMockDB(ctrl)
-				tasks := []*nosqlplugin.HistoryMigrationTask{{Replication: &persistence.InternalReplicationTaskInfo{TaskID: 1}}}
-				mockDB.EXPECT().
-					SelectReplicationTasksOrderByTaskID(ctx, shardID, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(tasks, nil, nil)
-				return newTestNosqlExecutionStore(mockDB, log.NewNoop())
-			},
-			testFunc: func(store *nosqlExecutionStore) error {
-				resp, err := store.GetReplicationTasks(ctx, &persistence.GetReplicationTasksRequest{})
-				if err != nil {
-					return err
-				}
-				if len(resp.Tasks) == 0 {
-					return errors.New("expected to find replication tasks")
-				}
-				return nil
-			},
-			expectedError: nil,
-		},
-		{
-			name: "GetReplicationTasks success - empty task list",
-			setupMock: func(ctrl *gomock.Controller) *nosqlExecutionStore {
-				mockDB := nosqlplugin.NewMockDB(ctrl)
-				mockDB.EXPECT().
-					SelectReplicationTasksOrderByTaskID(ctx, shardID, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return([]*nosqlplugin.HistoryMigrationTask{}, nil, nil)
-				return newTestNosqlExecutionStore(mockDB, log.NewNoop())
-			},
-			testFunc: func(store *nosqlExecutionStore) error {
-				resp, err := store.GetReplicationTasks(ctx, &persistence.GetReplicationTasksRequest{})
-				if err != nil {
-					return err
-				}
-				if len(resp.Tasks) != 0 {
-					return errors.New("expected no replication tasks")
-				}
-				return nil
-			},
-			expectedError: nil,
-		},
-		{
 			name: "CompleteTransferTask success",
 			setupMock: func(ctrl *gomock.Controller) *nosqlExecutionStore {
 				mockDB := nosqlplugin.NewMockDB(ctrl)

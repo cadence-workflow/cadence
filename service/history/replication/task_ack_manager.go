@@ -67,7 +67,7 @@ type (
 		UpdateClusterReplicationLevel(cluster string, lastTaskID int64) error
 	}
 	taskReader interface {
-		Read(ctx context.Context, readLevel int64, maxReadLevel int64) ([]*persistence.ReplicationTaskInfo, bool, error)
+		Read(ctx context.Context, readLevel int64, maxReadLevel int64) ([]persistence.Task, bool, error)
 	}
 )
 
@@ -127,12 +127,12 @@ func (t *TaskAckManager) GetTasks(ctx context.Context, pollingCluster string, la
 	if len(tasks) > 0 {
 		// it does not matter if we can process task or not, but we need to know what was the oldest task information we have read.
 		// tasks must be ordered by taskID/time.
-		oldestUnprocessedTaskID = tasks[0].TaskID
-		oldestUnprocessedTaskTimestamp = tasks[0].CreationTime
+		oldestUnprocessedTaskID = tasks[0].GetTaskID()
+		oldestUnprocessedTaskTimestamp = tasks[0].GetVisibilityTimestamp().UnixNano()
 	}
 
 	for _, task := range tasks {
-		replicationTask, err := t.store.Get(ctx, pollingCluster, *task)
+		replicationTask, err := t.store.Get(ctx, pollingCluster, task)
 		if err != nil {
 			if errors.As(err, new(*types.BadRequestError)) ||
 				errors.As(err, new(*types.InternalDataInconsistencyError)) ||
@@ -146,7 +146,7 @@ func (t *TaskAckManager) GetTasks(ctx context.Context, pollingCluster string, la
 		}
 
 		// We update readLevel only if we have found matching replication tasks on the passive side.
-		msgs.LastRetrievedMessageID = task.TaskID
+		msgs.LastRetrievedMessageID = task.GetTaskID()
 		if replicationTask != nil {
 			msgs.ReplicationTasks = append(msgs.ReplicationTasks, replicationTask)
 		}

@@ -46,8 +46,8 @@ type TaskHydrator struct {
 
 type (
 	historyProvider interface {
-		GetEventBlob(ctx context.Context, task persistence.ReplicationTaskInfo) (*types.DataBlob, error)
-		GetNextRunEventBlob(ctx context.Context, task persistence.ReplicationTaskInfo) (*types.DataBlob, error)
+		GetEventBlob(ctx context.Context, task *persistence.HistoryReplicationTask) (*types.DataBlob, error)
+		GetNextRunEventBlob(ctx context.Context, task *persistence.HistoryReplicationTask) (*types.DataBlob, error)
 	}
 
 	mutableStateProvider interface {
@@ -79,13 +79,13 @@ func NewDeferredTaskHydrator(shardID int, historyManager persistence.HistoryMana
 }
 
 // Hydrate will enrich replication task with additional information from mutable state and history events.
-func (h TaskHydrator) Hydrate(ctx context.Context, task persistence.ReplicationTaskInfo) (retTask *types.ReplicationTask, retErr error) {
-	switch task.TaskType {
-	case persistence.ReplicationTaskTypeFailoverMarker:
-		return hydrateFailoverMarkerTask(task), nil
+func (h TaskHydrator) Hydrate(ctx context.Context, task persistence.Task) (retTask *types.ReplicationTask, retErr error) {
+	switch t := task.(type) {
+	case *persistence.FailoverMarkerTask:
+		return hydrateFailoverMarkerTask(t), nil
 	}
 
-	ms, release, err := h.msProvider.GetMutableState(ctx, task.DomainID, task.WorkflowID, task.RunID)
+	ms, release, err := h.msProvider.GetMutableState(ctx, task.GetDomainID(), task.GetWorkflowID(), task.GetRunID())
 	defer func() {
 		if release != nil {
 			release(retErr)
@@ -99,35 +99,35 @@ func (h TaskHydrator) Hydrate(ctx context.Context, task persistence.ReplicationT
 		return nil, err
 	}
 
-	switch task.TaskType {
-	case persistence.ReplicationTaskTypeSyncActivity:
-		return hydrateSyncActivityTask(task, ms)
-	case persistence.ReplicationTaskTypeHistory:
+	switch t := task.(type) {
+	case *persistence.SyncActivityTask:
+		return hydrateSyncActivityTask(t, ms)
+	case *persistence.HistoryReplicationTask:
 		versionHistories := ms.GetVersionHistories()
 		if versionHistories != nil {
 			// Create a copy to release workflow lock early, as hydration will make a DB call, which may take a while
 			versionHistories = versionHistories.Duplicate()
 		}
 		release(nil)
-		return hydrateHistoryReplicationTask(ctx, task, versionHistories, h.history)
+		return hydrateHistoryReplicationTask(ctx, t, versionHistories, h.history)
 	default:
 		return nil, errUnknownReplicationTask
 	}
 }
 
-func hydrateFailoverMarkerTask(task persistence.ReplicationTaskInfo) *types.ReplicationTask {
+func hydrateFailoverMarkerTask(t *persistence.FailoverMarkerTask) *types.ReplicationTask {
 	return &types.ReplicationTask{
 		TaskType:     types.ReplicationTaskTypeFailoverMarker.Ptr(),
-		SourceTaskID: task.TaskID,
+		SourceTaskID: t.TaskID,
 		FailoverMarkerAttributes: &types.FailoverMarkerAttributes{
-			DomainID:        task.DomainID,
-			FailoverVersion: task.Version,
+			DomainID:        t.DomainID,
+			FailoverVersion: t.Version,
 		},
-		CreationTime: common.Int64Ptr(task.CreationTime),
+		CreationTime: common.Ptr(t.VisibilityTimestamp.UnixNano()),
 	}
 }
 
-func hydrateSyncActivityTask(task persistence.ReplicationTaskInfo, ms mutableState) (*types.ReplicationTask, error) {
+func hydrateSyncActivityTask(task *persistence.SyncActivityTask, ms mutableState) (*types.ReplicationTask, error) {
 	if !ms.IsWorkflowExecutionRunning() {
 		// workflow already finished, no need to process the replication task
 		return nil, nil
@@ -168,16 +168,16 @@ func hydrateSyncActivityTask(task persistence.ReplicationTaskInfo, ms mutableSta
 			LastHeartbeatTime:  timeToUnixNano(activityInfo.LastHeartBeatUpdatedTime),
 			Details:            activityInfo.Details,
 			Attempt:            activityInfo.Attempt,
-			LastFailureReason:  common.StringPtr(activityInfo.LastFailureReason),
+			LastFailureReason:  common.Ptr(activityInfo.LastFailureReason),
 			LastWorkerIdentity: activityInfo.LastWorkerIdentity,
 			LastFailureDetails: activityInfo.LastFailureDetails,
 			VersionHistory:     versionHistory,
 		},
-		CreationTime: common.Int64Ptr(task.CreationTime),
+		CreationTime: common.Ptr(task.VisibilityTimestamp.UnixNano()),
 	}, nil
 }
 
-func hydrateHistoryReplicationTask(ctx context.Context, task persistence.ReplicationTaskInfo, versionHistories *persistence.VersionHistories, history historyProvider) (*types.ReplicationTask, error) {
+func hydrateHistoryReplicationTask(ctx context.Context, task *persistence.HistoryReplicationTask, versionHistories *persistence.VersionHistories, history historyProvider) (*types.ReplicationTask, error) {
 	if versionHistories == nil {
 		return nil, nil
 	}
@@ -213,7 +213,7 @@ func hydrateHistoryReplicationTask(ctx context.Context, task persistence.Replica
 			Events:              eventsBlob,
 			NewRunEvents:        newRunEventsBlob,
 		},
-		CreationTime: common.Int64Ptr(task.CreationTime),
+		CreationTime: common.Ptr(task.VisibilityTimestamp.UnixNano()),
 	}, nil
 }
 
@@ -224,11 +224,11 @@ type historyLoader struct {
 	domains domainCache
 }
 
-func (h historyLoader) GetEventBlob(ctx context.Context, task persistence.ReplicationTaskInfo) (*types.DataBlob, error) {
+func (h historyLoader) GetEventBlob(ctx context.Context, task *persistence.HistoryReplicationTask) (*types.DataBlob, error) {
 	return h.getEventsBlob(ctx, task.DomainID, task.BranchToken, task.FirstEventID, task.NextEventID)
 }
 
-func (h historyLoader) GetNextRunEventBlob(ctx context.Context, task persistence.ReplicationTaskInfo) (*types.DataBlob, error) {
+func (h historyLoader) GetNextRunEventBlob(ctx context.Context, task *persistence.HistoryReplicationTask) (*types.DataBlob, error) {
 	if len(task.NewRunBranchToken) == 0 {
 		return nil, nil
 	}
@@ -290,14 +290,14 @@ type immediateHistoryProvider struct {
 	nextBlob *persistence.DataBlob
 }
 
-func (h immediateHistoryProvider) GetEventBlob(_ context.Context, _ persistence.ReplicationTaskInfo) (*types.DataBlob, error) {
+func (h immediateHistoryProvider) GetEventBlob(_ context.Context, _ *persistence.HistoryReplicationTask) (*types.DataBlob, error) {
 	if h.blob == nil {
 		return nil, errors.New("history blob not set")
 	}
 	return h.blob.ToInternal(), nil
 }
 
-func (h immediateHistoryProvider) GetNextRunEventBlob(_ context.Context, _ persistence.ReplicationTaskInfo) (*types.DataBlob, error) {
+func (h immediateHistoryProvider) GetNextRunEventBlob(_ context.Context, _ *persistence.HistoryReplicationTask) (*types.DataBlob, error) {
 	if h.nextBlob == nil {
 		return nil, nil // Expected and common
 	}

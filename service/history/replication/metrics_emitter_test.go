@@ -63,9 +63,19 @@ func TestMetricsEmitter(t *testing.T) {
 	metadata := newClusterMetadata(t)
 	testShardData := newTestShardData(timeSource, metadata)
 
-	task1 := persistence.ReplicationTaskInfo{TaskID: 1, CreationTime: timeSource.Now().Add(-time.Hour).UnixNano()}
-	task2 := persistence.ReplicationTaskInfo{TaskID: 2, CreationTime: timeSource.Now().Add(-time.Minute).UnixNano()}
-	reader := fakeTaskReader{&task1, &task2}
+	task1 := &persistence.HistoryReplicationTask{
+		TaskData: persistence.TaskData{
+			TaskID:              1,
+			VisibilityTimestamp: timeSource.Now().Add(-time.Hour),
+		},
+	}
+	task2 := &persistence.HistoryReplicationTask{
+		TaskData: persistence.TaskData{
+			TaskID:              2,
+			VisibilityTimestamp: timeSource.Now().Add(-time.Minute),
+		},
+	}
+	reader := fakeTaskReader{task1, task2}
 
 	metricsEmitter := NewMetricsEmitter(1, testShardData, reader, metrics.NewNoopMetricsClient())
 	latency, err := metricsEmitter.determineReplicationLatency(cluster2)
