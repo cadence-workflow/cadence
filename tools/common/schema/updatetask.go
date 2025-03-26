@@ -30,10 +30,11 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"log"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/uber/cadence/common/log"
 )
 
 type (
@@ -42,6 +43,7 @@ type (
 	UpdateTask struct {
 		db     SchemaClient
 		config *UpdateConfig
+		logger log.Logger
 	}
 
 	// manifest is a value type that represents
@@ -86,9 +88,10 @@ var (
 )
 
 // NewUpdateSchemaTask returns a new instance of UpdateTask.
-func NewUpdateSchemaTask(db SchemaClient, config *UpdateConfig) *UpdateTask {
+func NewUpdateSchemaTask(db SchemaClient, logger log.Logger, config *UpdateConfig) *UpdateTask {
 	return &UpdateTask{
 		db:     db,
+		logger: logger,
 		config: config,
 	}
 }
@@ -97,7 +100,7 @@ func NewUpdateSchemaTask(db SchemaClient, config *UpdateConfig) *UpdateTask {
 func (task *UpdateTask) Run() error {
 	config := task.config
 
-	log.Printf("UpdateSchemeTask started, config=%+v\n", config)
+	task.logger.Info(fmt.Sprintf("UpdateSchemeTask started, config=%+v\n", config))
 
 	currVer, err := task.db.ReadSchemaVersion()
 	if err != nil {
@@ -110,14 +113,14 @@ func (task *UpdateTask) Run() error {
 	}
 
 	if config.IsDryRun {
-		log.Println("In DryRun mode, this command will only print queries without executing.....")
+		task.logger.Info("In DryRun mode, this command will only print queries without executing.....")
 		if len(updates) == 0 {
-			log.Println("Found zero updates to run")
+			task.logger.Info("Found zero updates to run")
 		}
 		for _, upd := range updates {
-			log.Printf("DryRun of updating to version: %s, manifest: %s \n", upd.Version, upd.manifest)
+			task.logger.Info(fmt.Sprintf("DryRun of updating to version: %s, manifest: %s \n", upd.Version, upd.manifest))
 			for _, stmt := range upd.CqlStmts {
-				log.Printf("DryRun query:%s \n", stmt)
+				task.logger.Info(fmt.Sprintf("DryRun query:%s \n", stmt))
 			}
 		}
 	} else {
@@ -126,7 +129,7 @@ func (task *UpdateTask) Run() error {
 			return err
 		}
 	}
-	log.Printf("UpdateSchemeTask done\n")
+	task.logger.Info("UpdateSchemeTask done")
 
 	return nil
 }
@@ -134,7 +137,7 @@ func (task *UpdateTask) Run() error {
 func (task *UpdateTask) executeUpdates(currVer string, updates []ChangeSet) error {
 
 	if len(updates) == 0 {
-		log.Printf("found zero updates from current version %v", currVer)
+		task.logger.Info(fmt.Sprintf("found zero updates from current version %v", currVer))
 		return nil
 	}
 	updStart := time.Now()
@@ -150,25 +153,25 @@ func (task *UpdateTask) executeUpdates(currVer string, updates []ChangeSet) erro
 			return err
 		}
 
-		log.Printf("Schema updated from %v to %v, elapsed %v\n", currVer, cs.Version, time.Since(csStart))
+		task.logger.Info(fmt.Sprintf("Schema updated from %v to %v, elapsed %v\n", currVer, cs.Version, time.Since(csStart)))
 		currVer = cs.Version
 	}
 
-	log.Printf("All schema changes completed in %v\n", time.Since(updStart))
+	task.logger.Info(fmt.Sprintf("All schema changes completed in %v\n", time.Since(updStart)))
 
 	return nil
 }
 
 func (task *UpdateTask) execCQLStmts(ver string, stmts []string) error {
-	log.Printf("---- Executing updates for version %v ----\n", ver)
+	task.logger.Info(fmt.Sprintf("---- Executing updates for version %v ----\n", ver))
 	for _, stmt := range stmts {
-		log.Println(rmspaceRegex.ReplaceAllString(stmt, " "))
+		task.logger.Info(rmspaceRegex.ReplaceAllString(stmt, " "))
 		e := task.db.ExecDDLQuery(stmt)
 		if e != nil {
 			return fmt.Errorf("error executing CQL statement:%v", e)
 		}
 	}
-	log.Printf("---- Done ----\n")
+	task.logger.Info("---- Done ----")
 	return nil
 }
 

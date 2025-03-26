@@ -21,8 +21,10 @@
 package schema
 
 import (
-	"log"
+	"fmt"
 	"os"
+
+	"github.com/uber/cadence/common/log"
 )
 
 // SetupTask represents a task
@@ -31,19 +33,21 @@ import (
 type SetupTask struct {
 	db     SchemaClient
 	config *SetupConfig
+	logger log.Logger
 }
 
-func newSetupSchemaTask(db SchemaClient, config *SetupConfig) *SetupTask {
+func newSetupSchemaTask(db SchemaClient, logger log.Logger, config *SetupConfig) *SetupTask {
 	return &SetupTask{
 		db:     db,
 		config: config,
+		logger: logger,
 	}
 }
 
 // Run executes the task
 func (task *SetupTask) Run() error {
 	config := task.config
-	log.Printf("Starting schema setup, config=%+v\n", config)
+	task.logger.Info(fmt.Sprintf("Starting schema setup, config=%+v\n", config))
 
 	if config.Overwrite {
 		err := task.db.DropAllTables()
@@ -53,7 +57,7 @@ func (task *SetupTask) Run() error {
 	}
 
 	if !config.DisableVersioning {
-		log.Printf("Setting up version tables\n")
+		task.logger.Info(fmt.Sprintf("Setting up version tables\n"))
 		if err := task.db.CreateSchemaVersionTables(); err != nil {
 			return err
 		}
@@ -69,30 +73,30 @@ func (task *SetupTask) Run() error {
 			return err
 		}
 
-		log.Println("----- Creating types and tables -----")
+		task.logger.Info("----- Creating types and tables -----")
 		for _, stmt := range stmts {
-			log.Println(rmspaceRegex.ReplaceAllString(stmt, " "))
+			task.logger.Info(rmspaceRegex.ReplaceAllString(stmt, " "))
 			if err := task.db.ExecDDLQuery(stmt); err != nil {
 				return err
 			}
 		}
-		log.Println("----- Done -----")
+		task.logger.Info("----- Done -----")
 	}
 
 	if !config.DisableVersioning {
-		log.Printf("Setting initial schema version to %v\n", config.InitialVersion)
+		task.logger.Info(fmt.Sprintf("Setting initial schema version to %v\n", config.InitialVersion))
 		err := task.db.UpdateSchemaVersion(config.InitialVersion, config.InitialVersion)
 		if err != nil {
 			return err
 		}
-		log.Printf("Updating schema update log\n")
+		task.logger.Info("Updating schema update log\n")
 		err = task.db.WriteSchemaUpdateLog("0", config.InitialVersion, "", "initial version")
 		if err != nil {
 			return err
 		}
 	}
 
-	log.Println("Schema setup complete")
+	task.logger.Info("Schema setup complete")
 
 	return nil
 }

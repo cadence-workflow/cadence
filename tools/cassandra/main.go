@@ -25,6 +25,7 @@ import (
 
 	"github.com/urfave/cli/v2"
 
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql"
 	"github.com/uber/cadence/tools/common/schema"
 )
@@ -36,7 +37,7 @@ func RunTool(args []string) error {
 }
 
 // SetupSchema setups the cassandra schema
-func SetupSchema(config *SetupSchemaConfig) error {
+func SetupSchema(config *SetupSchemaConfig, logger log.Logger) error {
 	if err := validateCQLClientConfig(&config.CQLClientConfig); err != nil {
 		return err
 	}
@@ -44,7 +45,7 @@ func SetupSchema(config *SetupSchemaConfig) error {
 	if err != nil {
 		return err
 	}
-	return schema.SetupFromConfig(&config.SetupConfig, db)
+	return schema.SetupFromConfig(&config.SetupConfig, logger, db)
 }
 
 // root handler for all cli commands
