@@ -64,7 +64,7 @@ func (v *ActivityTaskCancelRequestedEventAttributes) GetActivityID() (o string) 
 }
 
 // Size returns the approximate memory used in bytes
-func (v *ActivityTaskCancelRequestedEventAttributes) Size() uint64 {
+func (v *ActivityTaskCancelRequestedEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -86,7 +86,7 @@ func (v *ActivityTaskCanceledEventAttributes) GetScheduledEventID() (o int64) {
 }
 
 // Size returns the approximate memory used in bytes
-func (v *ActivityTaskCanceledEventAttributes) Size() uint64 {
+func (v *ActivityTaskCanceledEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -115,7 +115,7 @@ func (v *ActivityTaskCompletedEventAttributes) GetStartedEventID() (o int64) {
 }
 
 // Size returns the approximate memory used in bytes
-func (v *ActivityTaskCompletedEventAttributes) Size() uint64 {
+func (v *ActivityTaskCompletedEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -145,7 +145,7 @@ func (v *ActivityTaskFailedEventAttributes) GetStartedEventID() (o int64) {
 }
 
 // Size returns the approximate memory used in bytes
-func (v *ActivityTaskFailedEventAttributes) Size() uint64 {
+func (v *ActivityTaskFailedEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -230,7 +230,7 @@ func (v *ActivityTaskScheduledEventAttributes) GetHeartbeatTimeoutSeconds() (o i
 }
 
 // Size returns the approximate memory used in bytes
-func (v *ActivityTaskScheduledEventAttributes) Size() uint64 {
+func (v *ActivityTaskScheduledEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -261,7 +261,7 @@ func (v *ActivityTaskStartedEventAttributes) GetRequestID() (o string) {
 }
 
 // Size returns the approximate memory used in bytes
-func (v *ActivityTaskStartedEventAttributes) Size() uint64 {
+func (v *ActivityTaskStartedEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -292,7 +292,7 @@ func (v *ActivityTaskTimedOutEventAttributes) GetTimeoutType() (o TimeoutType) {
 }
 
 // Size returns the approximate memory used in bytes
-func (v *ActivityTaskTimedOutEventAttributes) Size() uint64 {
+func (v *ActivityTaskTimedOutEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -473,7 +473,7 @@ type CancelTimerFailedEventAttributes struct {
 }
 
 // Size returns the approximate memory used in bytes
-func (v *CancelTimerFailedEventAttributes) Size() uint64 {
+func (v *CancelTimerFailedEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -506,7 +506,7 @@ func (v *ChildWorkflowExecutionCanceledEventAttributes) GetInitiatedEventID() (o
 }
 
 // Size returns the approximate memory used in bytes
-func (v *ChildWorkflowExecutionCanceledEventAttributes) Size() uint64 {
+func (v *ChildWorkflowExecutionCanceledEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -529,7 +529,7 @@ func (v *ChildWorkflowExecutionCompletedEventAttributes) GetInitiatedEventID() (
 }
 
 // Size returns the approximate memory used in bytes
-func (v *ChildWorkflowExecutionCompletedEventAttributes) Size() uint64 {
+func (v *ChildWorkflowExecutionCompletedEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -597,7 +597,7 @@ func (v *ChildWorkflowExecutionFailedEventAttributes) GetInitiatedEventID() (o i
 }
 
 // Size returns the approximate memory used in bytes
-func (v *ChildWorkflowExecutionFailedEventAttributes) Size() uint64 {
+func (v *ChildWorkflowExecutionFailedEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -635,7 +635,7 @@ func (v *ChildWorkflowExecutionStartedEventAttributes) GetWorkflowExecution() (o
 }
 
 // Size returns the approximate memory used in bytes
-func (v *ChildWorkflowExecutionStartedEventAttributes) Size() uint64 {
+func (v *ChildWorkflowExecutionStartedEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -657,7 +657,7 @@ func (v *ChildWorkflowExecutionTerminatedEventAttributes) GetInitiatedEventID() 
 }
 
 // Size returns the approximate memory used in bytes
-func (v *ChildWorkflowExecutionTerminatedEventAttributes) Size() uint64 {
+func (v *ChildWorkflowExecutionTerminatedEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -680,7 +680,7 @@ func (v *ChildWorkflowExecutionTimedOutEventAttributes) GetInitiatedEventID() (o
 }
 
 // Size returns the approximate memory used in bytes
-func (v *ChildWorkflowExecutionTimedOutEventAttributes) Size() uint64 {
+func (v *ChildWorkflowExecutionTimedOutEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -998,7 +998,7 @@ func (v *DecisionTaskCompletedEventAttributes) GetBinaryChecksum() (o string) {
 }
 
 // Size returns the approximate memory used in bytes
-func (v *DecisionTaskCompletedEventAttributes) Size() uint64 {
+func (v *DecisionTaskCompletedEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -1264,7 +1264,7 @@ func (v *DecisionTaskFailedEventAttributes) GetRequestID() (o string) {
 }
 
 // Size returns the approximate memory used in bytes
-func (v *DecisionTaskFailedEventAttributes) Size() uint64 {
+func (v *DecisionTaskFailedEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -1300,7 +1300,7 @@ func (v *DecisionTaskScheduledEventAttributes) GetAttempt() (o int64) {
 }
 
 // Size returns the approximate memory used in bytes
-func (v *DecisionTaskScheduledEventAttributes) Size() uint64 {
+func (v *DecisionTaskScheduledEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -1328,7 +1328,7 @@ func (v *DecisionTaskStartedEventAttributes) GetRequestID() (o string) {
 }
 
 // Size returns the approximate memory used in bytes
-func (v *DecisionTaskStartedEventAttributes) Size() uint64 {
+func (v *DecisionTaskStartedEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -1453,7 +1453,7 @@ func (v *DecisionTaskTimedOutEventAttributes) GetRequestID() (o string) {
 }
 
 // Size returns the approximate memory used in bytes
-func (v *DecisionTaskTimedOutEventAttributes) Size() uint64 {
+func (v *DecisionTaskTimedOutEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -2530,7 +2530,7 @@ func (v *ExternalWorkflowExecutionCancelRequestedEventAttributes) GetDomain() (o
 }
 
 // Size returns the approximate memory used in bytes
-func (v *ExternalWorkflowExecutionCancelRequestedEventAttributes) Size() uint64 {
+func (v *ExternalWorkflowExecutionCancelRequestedEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -2559,7 +2559,7 @@ func (v *ExternalWorkflowExecutionSignaledEventAttributes) GetDomain() (o string
 }
 
 // Size returns the approximate memory used in bytes
-func (v *ExternalWorkflowExecutionSignaledEventAttributes) Size() uint64 {
+func (v *ExternalWorkflowExecutionSignaledEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -3166,7 +3166,7 @@ func (v *HistoryEvent) GetUpsertWorkflowSearchAttributesEventAttributes() (o *Up
 }
 
 // Size is an internal method to get the estimated size of the event
-func (v *HistoryEvent) Size() uint64 {
+func (v *HistoryEvent) ByteSize() uint64 {
 	if v == nil {
 		return 0
 	}
@@ -3174,171 +3174,171 @@ func (v *HistoryEvent) Size() uint64 {
 	size := uint64(8 + 8 + 4 + 8 + 8) // size of ID, Timestamp, EventType, Version, TaskID
 
 	if v.WorkflowExecutionStartedEventAttributes != nil {
-		size += v.WorkflowExecutionStartedEventAttributes.Size()
+		size += v.WorkflowExecutionStartedEventAttributes.ByteSize()
 	}
 
 	if v.WorkflowExecutionCompletedEventAttributes != nil {
-		size += v.WorkflowExecutionCompletedEventAttributes.Size()
+		size += v.WorkflowExecutionCompletedEventAttributes.ByteSize()
 	}
 
 	if v.WorkflowExecutionFailedEventAttributes != nil {
-		size += v.WorkflowExecutionFailedEventAttributes.Size()
+		size += v.WorkflowExecutionFailedEventAttributes.ByteSize()
 	}
 
 	if v.WorkflowExecutionTimedOutEventAttributes != nil {
-		size += v.WorkflowExecutionTimedOutEventAttributes.Size()
+		size += v.WorkflowExecutionTimedOutEventAttributes.ByteSize()
 	}
 
 	if v.WorkflowExecutionCancelRequestedEventAttributes != nil {
-		size += v.WorkflowExecutionCancelRequestedEventAttributes.Size()
+		size += v.WorkflowExecutionCancelRequestedEventAttributes.ByteSize()
 	}
 
 	if v.WorkflowExecutionCanceledEventAttributes != nil {
-		size += v.WorkflowExecutionCanceledEventAttributes.Size()
+		size += v.WorkflowExecutionCanceledEventAttributes.ByteSize()
 	}
 
 	if v.WorkflowExecutionTerminatedEventAttributes != nil {
-		size += v.WorkflowExecutionTerminatedEventAttributes.Size()
+		size += v.WorkflowExecutionTerminatedEventAttributes.ByteSize()
 	}
 
 	if v.WorkflowExecutionContinuedAsNewEventAttributes != nil {
-		size += v.WorkflowExecutionContinuedAsNewEventAttributes.Size()
+		size += v.WorkflowExecutionContinuedAsNewEventAttributes.ByteSize()
 	}
 
 	if v.WorkflowExecutionSignaledEventAttributes != nil {
-		size += v.WorkflowExecutionSignaledEventAttributes.Size()
+		size += v.WorkflowExecutionSignaledEventAttributes.ByteSize()
 	}
 
 	if v.DecisionTaskScheduledEventAttributes != nil {
-		size += v.DecisionTaskScheduledEventAttributes.Size()
+		size += v.DecisionTaskScheduledEventAttributes.ByteSize()
 	}
 
 	if v.DecisionTaskStartedEventAttributes != nil {
-		size += v.DecisionTaskStartedEventAttributes.Size()
+		size += v.DecisionTaskStartedEventAttributes.ByteSize()
 	}
 
 	if v.DecisionTaskCompletedEventAttributes != nil {
-		size += v.DecisionTaskCompletedEventAttributes.Size()
+		size += v.DecisionTaskCompletedEventAttributes.ByteSize()
 	}
 
 	if v.DecisionTaskTimedOutEventAttributes != nil {
-		size += v.DecisionTaskTimedOutEventAttributes.Size()
+		size += v.DecisionTaskTimedOutEventAttributes.ByteSize()
 	}
 
 	if v.DecisionTaskFailedEventAttributes != nil {
-		size += v.DecisionTaskFailedEventAttributes.Size()
+		size += v.DecisionTaskFailedEventAttributes.ByteSize()
 	}
 
 	if v.ActivityTaskScheduledEventAttributes != nil {
-		size += v.ActivityTaskScheduledEventAttributes.Size()
+		size += v.ActivityTaskScheduledEventAttributes.ByteSize()
 	}
 
 	if v.ActivityTaskStartedEventAttributes != nil {
-		size += v.ActivityTaskStartedEventAttributes.Size()
+		size += v.ActivityTaskStartedEventAttributes.ByteSize()
 	}
 
 	if v.ActivityTaskCompletedEventAttributes != nil {
-		size += v.ActivityTaskCompletedEventAttributes.Size()
+		size += v.ActivityTaskCompletedEventAttributes.ByteSize()
 	}
 
 	if v.ActivityTaskFailedEventAttributes != nil {
-		size += v.ActivityTaskFailedEventAttributes.Size()
+		size += v.ActivityTaskFailedEventAttributes.ByteSize()
 	}
 
 	if v.ActivityTaskTimedOutEventAttributes != nil {
-		size += v.ActivityTaskTimedOutEventAttributes.Size()
+		size += v.ActivityTaskTimedOutEventAttributes.ByteSize()
 	}
 
 	if v.ActivityTaskCancelRequestedEventAttributes != nil {
-		size += v.ActivityTaskCancelRequestedEventAttributes.Size()
+		size += v.ActivityTaskCancelRequestedEventAttributes.ByteSize()
 	}
 
 	if v.ActivityTaskCanceledEventAttributes != nil {
-		size += v.ActivityTaskCanceledEventAttributes.Size()
+		size += v.ActivityTaskCanceledEventAttributes.ByteSize()
 	}
 
 	if v.RequestCancelActivityTaskFailedEventAttributes != nil {
-		size += v.RequestCancelActivityTaskFailedEventAttributes.Size()
+		size += v.RequestCancelActivityTaskFailedEventAttributes.ByteSize()
 	}
 
 	if v.TimerStartedEventAttributes != nil {
-		size += v.TimerStartedEventAttributes.Size()
+		size += v.TimerStartedEventAttributes.ByteSize()
 	}
 
 	if v.TimerFiredEventAttributes != nil {
-		size += v.TimerFiredEventAttributes.Size()
+		size += v.TimerFiredEventAttributes.ByteSize()
 	}
 
 	if v.TimerCanceledEventAttributes != nil {
-		size += v.TimerCanceledEventAttributes.Size()
+		size += v.TimerCanceledEventAttributes.ByteSize()
 	}
 
 	if v.CancelTimerFailedEventAttributes != nil {
-		size += v.CancelTimerFailedEventAttributes.Size()
+		size += v.CancelTimerFailedEventAttributes.ByteSize()
 	}
 
 	if v.MarkerRecordedEventAttributes != nil {
-		size += v.MarkerRecordedEventAttributes.Size()
+		size += v.MarkerRecordedEventAttributes.ByteSize()
 	}
 
 	if v.RequestCancelExternalWorkflowExecutionInitiatedEventAttributes != nil {
-		size += v.RequestCancelExternalWorkflowExecutionInitiatedEventAttributes.Size()
+		size += v.RequestCancelExternalWorkflowExecutionInitiatedEventAttributes.ByteSize()
 	}
 
 	if v.RequestCancelExternalWorkflowExecutionFailedEventAttributes != nil {
-		size += v.RequestCancelExternalWorkflowExecutionFailedEventAttributes.Size()
+		size += v.RequestCancelExternalWorkflowExecutionFailedEventAttributes.ByteSize()
 	}
 
 	if v.ExternalWorkflowExecutionCancelRequestedEventAttributes != nil {
-		size += v.ExternalWorkflowExecutionCancelRequestedEventAttributes.Size()
+		size += v.ExternalWorkflowExecutionCancelRequestedEventAttributes.ByteSize()
 	}
 
 	if v.SignalExternalWorkflowExecutionInitiatedEventAttributes != nil {
-		size += v.SignalExternalWorkflowExecutionInitiatedEventAttributes.Size()
+		size += v.SignalExternalWorkflowExecutionInitiatedEventAttributes.ByteSize()
 	}
 
 	if v.SignalExternalWorkflowExecutionFailedEventAttributes != nil {
-		size += v.SignalExternalWorkflowExecutionFailedEventAttributes.Size()
+		size += v.SignalExternalWorkflowExecutionFailedEventAttributes.ByteSize()
 	}
 
 	if v.ExternalWorkflowExecutionSignaledEventAttributes != nil {
-		size += v.ExternalWorkflowExecutionSignaledEventAttributes.Size()
+		size += v.ExternalWorkflowExecutionSignaledEventAttributes.ByteSize()
 	}
 
 	if v.StartChildWorkflowExecutionInitiatedEventAttributes != nil {
-		size += v.StartChildWorkflowExecutionInitiatedEventAttributes.Size()
+		size += v.StartChildWorkflowExecutionInitiatedEventAttributes.ByteSize()
 	}
 
 	if v.StartChildWorkflowExecutionFailedEventAttributes != nil {
-		size += v.StartChildWorkflowExecutionFailedEventAttributes.Size()
+		size += v.StartChildWorkflowExecutionFailedEventAttributes.ByteSize()
 	}
 
 	if v.ChildWorkflowExecutionStartedEventAttributes != nil {
-		size += v.ChildWorkflowExecutionStartedEventAttributes.Size()
+		size += v.ChildWorkflowExecutionStartedEventAttributes.ByteSize()
 	}
 
 	if v.ChildWorkflowExecutionCompletedEventAttributes != nil {
-		size += v.ChildWorkflowExecutionCompletedEventAttributes.Size()
+		size += v.ChildWorkflowExecutionCompletedEventAttributes.ByteSize()
 	}
 
 	if v.ChildWorkflowExecutionFailedEventAttributes != nil {
-		size += v.ChildWorkflowExecutionFailedEventAttributes.Size()
+		size += v.ChildWorkflowExecutionFailedEventAttributes.ByteSize()
 	}
 
 	if v.ChildWorkflowExecutionCanceledEventAttributes != nil {
-		size += v.ChildWorkflowExecutionCanceledEventAttributes.Size()
+		size += v.ChildWorkflowExecutionCanceledEventAttributes.ByteSize()
 	}
 
 	if v.ChildWorkflowExecutionTimedOutEventAttributes != nil {
-		size += v.ChildWorkflowExecutionTimedOutEventAttributes.Size()
+		size += v.ChildWorkflowExecutionTimedOutEventAttributes.ByteSize()
 	}
 
 	if v.ChildWorkflowExecutionTerminatedEventAttributes != nil {
-		size += v.ChildWorkflowExecutionTerminatedEventAttributes.Size()
+		size += v.ChildWorkflowExecutionTerminatedEventAttributes.ByteSize()
 	}
 
 	if v.UpsertWorkflowSearchAttributesEventAttributes != nil {
-		size += v.UpsertWorkflowSearchAttributesEventAttributes.Size()
+		size += v.UpsertWorkflowSearchAttributesEventAttributes.ByteSize()
 	}
 
 	return size
@@ -3802,7 +3802,7 @@ func (v *MarkerRecordedEventAttributes) GetMarkerName() (o string) {
 }
 
 // Size returns the approximate memory used in bytes
-func (v *MarkerRecordedEventAttributes) Size() uint64 {
+func (v *MarkerRecordedEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -4860,7 +4860,7 @@ func (v *RegisterDomainRequest) GetVisibilityArchivalURI() (o string) {
 }
 
 // Size returns the approximate memory used in bytes
-func (v *RegisterDomainRequest) Size() uint64 {
+func (v *RegisterDomainRequest) ByteSize() uint64 {
 	return 0
 }
 
@@ -4870,7 +4870,7 @@ type RemoteSyncMatchedError struct {
 }
 
 // Size returns the approximate memory used in bytes
-func (v *RemoteSyncMatchedError) Size() uint64 {
+func (v *RemoteSyncMatchedError) ByteSize() uint64 {
 	return 0
 }
 
@@ -4924,7 +4924,7 @@ func (v *RemoveTaskRequest) GetClusterName() (o string) {
 }
 
 // Size returns the approximate memory used in bytes
-func (v *RemoveTaskRequest) Size() uint64 {
+func (v *RemoveTaskRequest) ByteSize() uint64 {
 	return 0
 }
 
@@ -4942,7 +4942,7 @@ func (v *RequestCancelActivityTaskDecisionAttributes) GetActivityID() (o string)
 }
 
 // Size returns the approximate memory used in bytes
-func (v *RequestCancelActivityTaskDecisionAttributes) Size() uint64 {
+func (v *RequestCancelActivityTaskDecisionAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -4954,7 +4954,7 @@ type RequestCancelActivityTaskFailedEventAttributes struct {
 }
 
 // Size returns the approximate memory used in bytes
-func (v *RequestCancelActivityTaskFailedEventAttributes) Size() uint64 {
+func (v *RequestCancelActivityTaskFailedEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -4992,7 +4992,7 @@ func (v *RequestCancelExternalWorkflowExecutionDecisionAttributes) GetRunID() (o
 }
 
 // Size returns the approximate memory used in bytes
-func (v *RequestCancelExternalWorkflowExecutionDecisionAttributes) Size() uint64 {
+func (v *RequestCancelExternalWorkflowExecutionDecisionAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -5031,7 +5031,7 @@ func (v *RequestCancelExternalWorkflowExecutionFailedEventAttributes) GetInitiat
 }
 
 // Size returns the approximate memory used in bytes
-func (v *RequestCancelExternalWorkflowExecutionFailedEventAttributes) Size() uint64 {
+func (v *RequestCancelExternalWorkflowExecutionFailedEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -5069,7 +5069,7 @@ func (v *RequestCancelExternalWorkflowExecutionInitiatedEventAttributes) GetChil
 }
 
 // Size returns the approximate memory used in bytes
-func (v *RequestCancelExternalWorkflowExecutionInitiatedEventAttributes) Size() uint64 {
+func (v *RequestCancelExternalWorkflowExecutionInitiatedEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -5116,7 +5116,7 @@ func (v *RequestCancelWorkflowExecutionRequest) GetFirstExecutionRunID() (o stri
 }
 
 // Size returns the approximate memory used in bytes
-func (v *RequestCancelWorkflowExecutionRequest) Size() uint64 {
+func (v *RequestCancelWorkflowExecutionRequest) ByteSize() uint64 {
 	return 0
 }
 
@@ -5179,7 +5179,7 @@ func (v *ResetPointInfo) GetResettable() (o bool) {
 }
 
 // Size returns the approximate memory used in bytes
-func (v *ResetPointInfo) Size() uint64 {
+func (v *ResetPointInfo) ByteSize() uint64 {
 	return 0
 }
 
@@ -5189,7 +5189,7 @@ type ResetPoints struct {
 }
 
 // Size returns the approximate memory used in bytes
-func (v *ResetPoints) Size() uint64 {
+func (v *ResetPoints) ByteSize() uint64 {
 	return 0
 }
 
@@ -5225,7 +5225,7 @@ func (v *ResetQueueRequest) GetType() (o int32) {
 }
 
 // Size returns the approximate memory used in bytes
-func (v *ResetQueueRequest) Size() uint64 {
+func (v *ResetQueueRequest) ByteSize() uint64 {
 	return 0
 }
 
@@ -5252,7 +5252,7 @@ func (v *ResetStickyTaskListRequest) GetExecution() (o *WorkflowExecution) {
 }
 
 // Size returns the approximate memory used in bytes
-func (v *ResetStickyTaskListRequest) Size() uint64 {
+func (v *ResetStickyTaskListRequest) ByteSize() uint64 {
 	return 0
 }
 
@@ -5261,7 +5261,7 @@ type ResetStickyTaskListResponse struct {
 }
 
 // Size returns the approximate memory used in bytes
-func (v *ResetStickyTaskListResponse) Size() uint64 {
+func (v *ResetStickyTaskListResponse) ByteSize() uint64 {
 	return 0
 }
 
@@ -5324,7 +5324,7 @@ func (v *ResetWorkflowExecutionRequest) GetSkipSignalReapply() (o bool) {
 }
 
 // Size returns the approximate memory used in bytes
-func (v *ResetWorkflowExecutionRequest) Size() uint64 {
+func (v *ResetWorkflowExecutionRequest) ByteSize() uint64 {
 	return 0
 }
 
@@ -5342,7 +5342,7 @@ func (v *ResetWorkflowExecutionResponse) GetRunID() (o string) {
 }
 
 // Size returns the approximate memory used in bytes
-func (v *ResetWorkflowExecutionResponse) Size() uint64 {
+func (v *ResetWorkflowExecutionResponse) ByteSize() uint64 {
 	return 0
 }
 
@@ -5397,7 +5397,7 @@ func (v *RespondActivityTaskCanceledByIDRequest) GetIdentity() (o string) {
 }
 
 // Size returns the approximate memory used in bytes
-func (v *RespondActivityTaskCanceledByIDRequest) Size() uint64 {
+func (v *RespondActivityTaskCanceledByIDRequest) ByteSize() uint64 {
 	return 0
 }
 
@@ -5417,7 +5417,7 @@ func (v *RespondActivityTaskCanceledRequest) GetIdentity() (o string) {
 }
 
 // Size returns the approximate memory used in bytes
-func (v *RespondActivityTaskCanceledRequest) Size() uint64 {
+func (v *RespondActivityTaskCanceledRequest) ByteSize() uint64 {
 	return 0
 }
 
@@ -5472,7 +5472,7 @@ func (v *RespondActivityTaskCompletedByIDRequest) GetIdentity() (o string) {
 }
 
 // Size returns the approximate memory used in bytes
-func (v *RespondActivityTaskCompletedByIDRequest) Size() uint64 {
+func (v *RespondActivityTaskCompletedByIDRequest) ByteSize() uint64 {
 	return 0
 }
 
@@ -5492,7 +5492,7 @@ func (v *RespondActivityTaskCompletedRequest) GetIdentity() (o string) {
 }
 
 // Size returns the approximate memory used in bytes
-func (v *RespondActivityTaskCompletedRequest) Size() uint64 {
+func (v *RespondActivityTaskCompletedRequest) ByteSize() uint64 {
 	return 0
 }
 
@@ -5548,7 +5548,7 @@ func (v *RespondActivityTaskFailedByIDRequest) GetIdentity() (o string) {
 }
 
 // Size returns the approximate memory used in bytes
-func (v *RespondActivityTaskFailedByIDRequest) Size() uint64 {
+func (v *RespondActivityTaskFailedByIDRequest) ByteSize() uint64 {
 	return 0
 }
 
@@ -5585,7 +5585,7 @@ func (v *RespondActivityTaskFailedRequest) GetIdentity() (o string) {
 }
 
 // Size returns the approximate memory used in bytes
-func (v *RespondActivityTaskFailedRequest) Size() uint64 {
+func (v *RespondActivityTaskFailedRequest) ByteSize() uint64 {
 	return 0
 }
 
@@ -5643,7 +5643,7 @@ func (v *RespondDecisionTaskCompletedRequest) GetQueryResults() (o map[string]*W
 }
 
 // Size returns the approximate memory used in bytes
-func (v *RespondDecisionTaskCompletedRequest) Size() uint64 {
+func (v *RespondDecisionTaskCompletedRequest) ByteSize() uint64 {
 	return 0
 }
 
@@ -5662,7 +5662,7 @@ func (v *RespondDecisionTaskCompletedResponse) GetDecisionTask() (o *PollForDeci
 }
 
 // Size returns the approximate memory used in bytes
-func (v *RespondDecisionTaskCompletedResponse) Size() uint64 {
+func (v *RespondDecisionTaskCompletedResponse) ByteSize() uint64 {
 	return 0
 }
 
@@ -6028,7 +6028,7 @@ func (v *SignalExternalWorkflowExecutionFailedEventAttributes) GetInitiatedEvent
 }
 
 // Size returns the approximate memory used in bytes
-func (v *SignalExternalWorkflowExecutionFailedEventAttributes) Size() uint64 {
+func (v *SignalExternalWorkflowExecutionFailedEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -6076,7 +6076,7 @@ func (v *SignalExternalWorkflowExecutionInitiatedEventAttributes) GetChildWorkfl
 }
 
 // Size returns the approximate memory used in bytes
-func (v *SignalExternalWorkflowExecutionInitiatedEventAttributes) Size() uint64 {
+func (v *SignalExternalWorkflowExecutionInitiatedEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -6364,7 +6364,7 @@ func (v *StartChildWorkflowExecutionFailedEventAttributes) GetInitiatedEventID()
 }
 
 // Size returns the approximate memory used in bytes
-func (v *StartChildWorkflowExecutionFailedEventAttributes) Size() uint64 {
+func (v *StartChildWorkflowExecutionFailedEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -6432,7 +6432,7 @@ func (v *StartChildWorkflowExecutionInitiatedEventAttributes) GetExecutionStartT
 }
 
 // Size returns the approximate memory used in bytes
-func (v *StartChildWorkflowExecutionInitiatedEventAttributes) Size() uint64 {
+func (v *StartChildWorkflowExecutionInitiatedEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -7077,7 +7077,7 @@ func (v *TimerCanceledEventAttributes) GetTimerID() (o string) {
 }
 
 // Size returns the approximate memory used in bytes
-func (v *TimerCanceledEventAttributes) Size() uint64 {
+func (v *TimerCanceledEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -7104,7 +7104,7 @@ func (v *TimerFiredEventAttributes) GetStartedEventID() (o int64) {
 }
 
 // Size returns the approximate memory used in bytes
-func (v *TimerFiredEventAttributes) Size() uint64 {
+func (v *TimerFiredEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -7132,7 +7132,7 @@ func (v *TimerStartedEventAttributes) GetStartToFireTimeoutSeconds() (o int64) {
 }
 
 // Size returns the approximate memory used in bytes
-func (v *TimerStartedEventAttributes) Size() uint64 {
+func (v *TimerStartedEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -7255,7 +7255,7 @@ func (v *UpsertWorkflowSearchAttributesEventAttributes) GetSearchAttributes() (o
 }
 
 // Size returns the approximate memory used in bytes
-func (v *UpsertWorkflowSearchAttributesEventAttributes) Size() uint64 {
+func (v *UpsertWorkflowSearchAttributesEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -7370,7 +7370,7 @@ type WorkflowExecutionCancelRequestedEventAttributes struct {
 }
 
 // Size returns the approximate memory used in bytes
-func (v *WorkflowExecutionCancelRequestedEventAttributes) Size() uint64 {
+func (v *WorkflowExecutionCancelRequestedEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -7381,7 +7381,7 @@ type WorkflowExecutionCanceledEventAttributes struct {
 }
 
 // Size returns the approximate memory used in bytes
-func (v *WorkflowExecutionCanceledEventAttributes) Size() uint64 {
+func (v *WorkflowExecutionCanceledEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -7471,7 +7471,7 @@ type WorkflowExecutionCompletedEventAttributes struct {
 }
 
 // Size returns the approximate memory used in bytes
-func (v *WorkflowExecutionCompletedEventAttributes) Size() uint64 {
+func (v *WorkflowExecutionCompletedEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -7535,7 +7535,7 @@ func (v *WorkflowExecutionContinuedAsNewEventAttributes) GetLastCompletionResult
 }
 
 // Size returns the approximate memory used in bytes
-func (v *WorkflowExecutionContinuedAsNewEventAttributes) Size() uint64 {
+func (v *WorkflowExecutionContinuedAsNewEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -7555,7 +7555,7 @@ func (v *WorkflowExecutionFailedEventAttributes) GetReason() (o string) {
 }
 
 // Size returns the approximate memory used in bytes
-func (v *WorkflowExecutionFailedEventAttributes) Size() uint64 {
+func (v *WorkflowExecutionFailedEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -7708,7 +7708,7 @@ func (v *WorkflowExecutionSignaledEventAttributes) GetRequestID() (o string) {
 }
 
 // Size returns the approximate memory used in bytes
-func (v *WorkflowExecutionSignaledEventAttributes) Size() uint64 {
+func (v *WorkflowExecutionSignaledEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -7890,7 +7890,7 @@ func (v *WorkflowExecutionStartedEventAttributes) GetRequestID() (o string) {
 }
 
 // Size returns the approximate memory used in bytes
-func (v *WorkflowExecutionStartedEventAttributes) Size() uint64 {
+func (v *WorkflowExecutionStartedEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -7918,7 +7918,7 @@ func (v *WorkflowExecutionTerminatedEventAttributes) GetIdentity() (o string) {
 }
 
 // Size returns the approximate memory used in bytes
-func (v *WorkflowExecutionTerminatedEventAttributes) Size() uint64 {
+func (v *WorkflowExecutionTerminatedEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
@@ -7936,7 +7936,7 @@ func (v *WorkflowExecutionTimedOutEventAttributes) GetTimeoutType() (o TimeoutTy
 }
 
 // Size returns the approximate memory used in bytes
-func (v *WorkflowExecutionTimedOutEventAttributes) Size() uint64 {
+func (v *WorkflowExecutionTimedOutEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
