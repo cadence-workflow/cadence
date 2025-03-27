@@ -26,6 +26,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/uber/cadence/common/metrics"
+
 	"github.com/stretchr/testify/assert"
 
 	"github.com/uber/cadence/common/log/testlogger"
@@ -47,7 +49,7 @@ func TestDynamicTaskBatchSizer(t *testing.T) {
 			ReplicatorProcessorMinTaskBatchSize:   func(_ int) int { return min },
 			ReplicatorProcessorMaxTaskBatchSize:   func(_ int) int { return max },
 			ReplicatorProcessorBatchSizeStepCount: func(_ int) int { return stepCount },
-		})
+		}, metrics.NewNoopMetricsClient()).(*dynamicTaskBatchSizerImpl)
 	)
 
 	t.Run("initial batch size", func(t *testing.T) {
@@ -59,18 +61,22 @@ func TestDynamicTaskBatchSizer(t *testing.T) {
 
 		sizer.analyse(err, nil)
 		assert.Equal(t, 400, sizer.value())
+		assert.False(t, sizer.isFetchedTasks.Load())
 
 		sizer.analyse(err, nil)
 		assert.Equal(t, 300, sizer.value())
+		assert.False(t, sizer.isFetchedTasks.Load())
 
 		sizer.analyse(err, nil)
 		assert.Equal(t, 200, sizer.value())
+		assert.False(t, sizer.isFetchedTasks.Load())
 	})
 
 	t.Run("read level has changed 2 times and there are tasks in db", func(t *testing.T) {
 		state := &getTasksResult{
 			previousReadTaskID: 0,
 			lastReadTaskID:     10,
+			taskInfos:          make([]*persistence.ReplicationTaskInfo, 10),
 			msgs: &types.ReplicationMessages{
 				HasMore: true,
 			},
@@ -78,9 +84,11 @@ func TestDynamicTaskBatchSizer(t *testing.T) {
 
 		sizer.analyse(nil, state)
 		assert.Equal(t, 300, sizer.value())
+		assert.True(t, sizer.isFetchedTasks.Load())
 
 		sizer.analyse(nil, state)
 		assert.Equal(t, 400, sizer.value())
+		assert.True(t, sizer.isFetchedTasks.Load())
 	})
 
 	t.Run("read level has changed, there are tasks in db, but shrunk", func(t *testing.T) {
@@ -90,11 +98,13 @@ func TestDynamicTaskBatchSizer(t *testing.T) {
 			msgs: &types.ReplicationMessages{
 				HasMore: true,
 			},
-			isShrunk: true,
+			taskInfos: make([]*persistence.ReplicationTaskInfo, 10),
+			isShrunk:  true,
 		}
 
 		sizer.analyse(nil, state)
 		assert.Equal(t, 300, sizer.value())
+		assert.True(t, sizer.isFetchedTasks.Load())
 	})
 
 	t.Run("read level has not changed, replication tasks are returned", func(t *testing.T) {
@@ -109,6 +119,7 @@ func TestDynamicTaskBatchSizer(t *testing.T) {
 
 		sizer.analyse(nil, state)
 		assert.Equal(t, 200, sizer.value())
+		assert.True(t, sizer.isFetchedTasks.Load())
 	})
 
 	t.Run("read level has not changed, replication tasks are not returned", func(t *testing.T) {
@@ -122,6 +133,7 @@ func TestDynamicTaskBatchSizer(t *testing.T) {
 
 		sizer.analyse(nil, state)
 		assert.Equal(t, 200, sizer.value())
+		assert.False(t, sizer.isFetchedTasks.Load())
 	})
 
 	t.Run("read level has changed 2 times and there are no tasks in db", func(t *testing.T) {
@@ -135,9 +147,11 @@ func TestDynamicTaskBatchSizer(t *testing.T) {
 
 		sizer.analyse(nil, state)
 		assert.Equal(t, 200, sizer.value())
+		assert.False(t, sizer.isFetchedTasks.Load())
 
 		sizer.analyse(nil, state)
 		assert.Equal(t, 200, sizer.value())
+		assert.False(t, sizer.isFetchedTasks.Load())
 	})
 
 	t.Run("an error occurred 3 times", func(t *testing.T) {
@@ -145,12 +159,15 @@ func TestDynamicTaskBatchSizer(t *testing.T) {
 
 		sizer.analyse(err, nil)
 		assert.Equal(t, 100, sizer.value())
+		assert.False(t, sizer.isFetchedTasks.Load())
 
 		sizer.analyse(err, nil)
 		assert.Equal(t, 0, sizer.value())
+		assert.False(t, sizer.isFetchedTasks.Load())
 
 		sizer.analyse(err, nil)
 		assert.Equal(t, 0, sizer.value())
+		assert.False(t, sizer.isFetchedTasks.Load())
 	})
 
 	t.Run("max has been changed to 500", func(t *testing.T) {
@@ -159,6 +176,7 @@ func TestDynamicTaskBatchSizer(t *testing.T) {
 		max = 500
 
 		assert.Equal(t, 250, sizer.value())
+		assert.False(t, sizer.isFetchedTasks.Load())
 	})
 
 	t.Run("shrunk 10 times", func(t *testing.T) {
@@ -169,11 +187,13 @@ func TestDynamicTaskBatchSizer(t *testing.T) {
 
 		for i := 0; i < len(want); i++ {
 			state := &getTasksResult{
-				isShrunk: true,
+				taskInfos: make([]*persistence.ReplicationTaskInfo, 10),
+				isShrunk:  true,
 			}
 
 			sizer.analyse(nil, state)
 			assert.Equal(t, want[i], sizer.value())
+			assert.True(t, sizer.isFetchedTasks.Load())
 		}
 	})
 
@@ -181,6 +201,7 @@ func TestDynamicTaskBatchSizer(t *testing.T) {
 		state := &getTasksResult{
 			previousReadTaskID: 0,
 			lastReadTaskID:     10,
+			taskInfos:          make([]*persistence.ReplicationTaskInfo, 10),
 			msgs: &types.ReplicationMessages{
 				HasMore: true,
 			},
@@ -188,12 +209,14 @@ func TestDynamicTaskBatchSizer(t *testing.T) {
 
 		sizer.analyse(nil, state)
 		assert.Equal(t, 50, sizer.value())
+		assert.True(t, sizer.isFetchedTasks.Load())
 	})
 
 	t.Run("read level has changed and there are no tasks in db", func(t *testing.T) {
 		state := &getTasksResult{
 			previousReadTaskID: 0,
 			lastReadTaskID:     10,
+			taskInfos:          make([]*persistence.ReplicationTaskInfo, 5),
 			msgs: &types.ReplicationMessages{
 				HasMore: false,
 			},
@@ -201,5 +224,21 @@ func TestDynamicTaskBatchSizer(t *testing.T) {
 
 		sizer.analyse(nil, state)
 		assert.Equal(t, 50, sizer.value())
+		assert.True(t, sizer.isFetchedTasks.Load())
+	})
+
+	t.Run("read level has not changed, there are returned tasks, previously tasks were returned", func(t *testing.T) {
+		state := &getTasksResult{
+			previousReadTaskID: 10,
+			lastReadTaskID:     10,
+			taskInfos:          make([]*persistence.ReplicationTaskInfo, 5),
+			msgs: &types.ReplicationMessages{
+				HasMore: false,
+			},
+		}
+
+		sizer.analyse(nil, state)
+		assert.Equal(t, 0, sizer.value())
+		assert.True(t, sizer.isFetchedTasks.Load())
 	})
 }
