@@ -23,6 +23,11 @@
 package replication
 
 import (
+	"strconv"
+	"sync/atomic"
+
+	"github.com/uber/cadence/common/metrics"
+
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/rangeiter"
@@ -41,18 +46,22 @@ import (
 //     the number of messages to be sure that future messages will not be shrunk
 //
 //  3. If the read level of a passive cluster has not been changed and there are no fetched tasks,
-//     not changed the task batch size. There is no need to change because the replication is not stuck,
+//     not change the task batch size. There is no need to change because the replication is not stuck,
 //     there just are no new tasks
 //
 //  4. If the read level of a passive cluster has not been changed and if there are fetched tasks,
-//     decrease the task batch size. There were no new replication tasks in the previous call
-//     or the replication was stuck on the passive side
+//     and number of previously fetched tasks is not zero, decrease the task batch size.
+//     The replication is stuck on the passive side
 //
-//  5. If the read level of a passive cluster has been changed and if there are more tasks in db,
+//  5. If the read level of a passive cluster has not been changed and if there are fetched tasks,
+//     and number of previously fetched tasks is zero, not change the task batch size.
+//     The replication is not stuck, and there are new tasks to be replicated
+//
+//  6. If the read level of a passive cluster has been changed and if there are more tasks in db,
 //     increase the task batch size. We should retrieve the maximum possible value at the next time,
 //     as there are more tasks to be replicated
 //
-//  6. If the read level of a passive cluster has been changed and if there are no more tasks in db,
+//  7. If the read level of a passive cluster has been changed and if there are no more tasks in db,
 //     not change the size. The existing size is already enough, and there are no more tasks to be replicated
 type DynamicTaskBatchSizer interface {
 	analyse(err error, state *getTasksResult)
@@ -61,15 +70,22 @@ type DynamicTaskBatchSizer interface {
 
 // dynamicTaskBatchSizerImpl is the implementation of DynamicTaskBatchSizer
 type dynamicTaskBatchSizerImpl struct {
-	iter   rangeiter.Iterator[int]
-	logger log.Logger
+	// previousTaskCount is the number of tasks fetched in the previous call
+	previousTaskCount atomic.Int64
+	iter              rangeiter.Iterator[int]
+	logger            log.Logger
+	scope             metrics.Scope
 }
 
 // NewDynamicTaskBatchSizer creates a new dynamicTaskBatchSizerImpl
-func NewDynamicTaskBatchSizer(shardID int, logger log.Logger, config *config.Config) DynamicTaskBatchSizer {
+func NewDynamicTaskBatchSizer(shardID int, logger log.Logger, config *config.Config, metricsClient metrics.Client) DynamicTaskBatchSizer {
 	logger = logger.WithTags(tag.ComponentReplicationDynamicTaskBatchSizer)
 	return &dynamicTaskBatchSizerImpl{
 		logger: logger,
+		scope: metricsClient.Scope(
+			metrics.ReplicatorQueueProcessorScope,
+			metrics.InstanceTag(strconv.Itoa(shardID)),
+		),
 		iter: rangeiter.NewDynamicConfigLinearIterator(
 			func() int { return config.ReplicatorProcessorMinTaskBatchSize(shardID) },
 			func() int { return config.ReplicatorProcessorMaxTaskBatchSize(shardID) },
@@ -85,19 +101,40 @@ func (d *dynamicTaskBatchSizerImpl) analyse(err error, state *getTasksResult) {
 		d.logger.Debug(
 			"Decrease task batch size due to error",
 			tag.Error(err), tag.ReplicationTaskBatchSize(d.iter.Previous()))
+
+		d.emitMetric("error", "decrease")
+
 	case state.isShrunk:
 		d.logger.Debug(
 			"Decrease task batch size due to message shrinking",
 			tag.ReplicationTaskBatchSize(d.iter.Previous()))
-	case state.previousReadTaskID == state.lastReadTaskID && len(state.taskInfos) > 0:
+
+		d.emitMetric("shrunk", "decrease")
+
+	case state.previousReadTaskID == state.lastReadTaskID &&
+		len(state.taskInfos) > 0 && d.previousTaskCount.Load() != 0:
 		d.logger.Debug(
 			"Decrease task batch size due to possible replication stuck",
 			tag.ReplicationTaskBatchSize(d.iter.Previous()))
+
+		d.emitMetric("possible_stuck", "decrease")
+
 	case state.msgs.HasMore:
 		d.logger.Debug(
 			"Increase task batch size due to more replication tasks in database",
 			tag.ReplicationTaskBatchSize(d.iter.Next()))
+
+		d.emitMetric("more_tasks", "increase")
 	}
+
+	d.previousTaskCount.Store(int64(len(state.taskInfos)))
+}
+
+func (d *dynamicTaskBatchSizerImpl) emitMetric(reason, decision string) {
+	d.scope.Tagged(
+		metrics.ReasonTag(reason),
+		metrics.DecisionTag(decision),
+	).IncCounter(metrics.ReplicationDynamicTaskBatchSizerDecision)
 }
 
 func (d *dynamicTaskBatchSizerImpl) value() int {
