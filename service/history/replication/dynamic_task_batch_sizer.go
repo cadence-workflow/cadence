@@ -26,10 +26,9 @@ import (
 	"strconv"
 	"sync/atomic"
 
-	"github.com/uber/cadence/common/metrics"
-
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/rangeiter"
 	"github.com/uber/cadence/service/history/config"
 )
