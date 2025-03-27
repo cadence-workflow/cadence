@@ -70,11 +70,11 @@ type DynamicTaskBatchSizer interface {
 
 // dynamicTaskBatchSizerImpl is the implementation of DynamicTaskBatchSizer
 type dynamicTaskBatchSizerImpl struct {
-	// previousTaskCount is the number of tasks fetched in the previous call
-	previousTaskCount atomic.Int64
-	iter              rangeiter.Iterator[int]
-	logger            log.Logger
-	scope             metrics.Scope
+	// isFetchedTasks indicates that there are fetched tasks in the last GetTasks call
+	isFetchedTasks atomic.Bool
+	iter           rangeiter.Iterator[int]
+	logger         log.Logger
+	scope          metrics.Scope
 }
 
 // NewDynamicTaskBatchSizer creates a new dynamicTaskBatchSizerImpl
@@ -112,7 +112,7 @@ func (d *dynamicTaskBatchSizerImpl) analyse(err error, state *getTasksResult) {
 		d.emitMetric("shrunk", "decrease")
 
 	case state.previousReadTaskID == state.lastReadTaskID &&
-		len(state.taskInfos) > 0 && d.previousTaskCount.Load() != 0:
+		len(state.taskInfos) > 0 && d.isFetchedTasks.Load():
 		d.logger.Debug(
 			"Decrease task batch size due to possible replication stuck",
 			tag.ReplicationTaskBatchSize(d.iter.Previous()))
@@ -127,7 +127,13 @@ func (d *dynamicTaskBatchSizerImpl) analyse(err error, state *getTasksResult) {
 		d.emitMetric("more_tasks", "increase")
 	}
 
-	d.previousTaskCount.Store(int64(len(state.taskInfos)))
+	// update isFetchedTasks
+	if state == nil {
+		d.isFetchedTasks.Store(false)
+		return
+	}
+
+	d.isFetchedTasks.Store(len(state.taskInfos) != 0)
 }
 
 func (d *dynamicTaskBatchSizerImpl) emitMetric(reason, decision string) {
