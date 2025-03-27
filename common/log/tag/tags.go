@@ -463,6 +463,11 @@ func Value(v interface{}) Tag {
 	return newObjectTag("value", v)
 }
 
+// Reason returns tag for Reason
+func Reason(reason string) Tag {
+	return newStringTag("reason", reason)
+}
+
 // ValueType returns tag for ValueType
 func ValueType(v interface{}) Tag {
 	return newStringTag("value-type", fmt.Sprintf("%T", v))
