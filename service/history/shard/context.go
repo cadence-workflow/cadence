@@ -116,8 +116,6 @@ type (
 		ReplicateFailoverMarkers(ctx context.Context, markers []*persistence.FailoverMarkerTask) error
 		AddingPendingFailoverMarker(*types.FailoverMarkerAttributes) error
 		ValidateAndUpdateFailoverMarkers() ([]*types.FailoverMarkerAttributes, error)
-
-		Size() uint64
 	}
 
 	// TransferFailoverLevel contains corresponding start / end level
@@ -1414,11 +1412,6 @@ func (s *contextImpl) ValidateAndUpdateFailoverMarkers() ([]*types.FailoverMarke
 	}
 
 	return s.shardInfo.PendingFailoverMarkers, nil
-}
-
-func (s *contextImpl) Size() uint64 {
-	// TODO: To be implemented
-	return 0
 }
 
 func acquireShard(

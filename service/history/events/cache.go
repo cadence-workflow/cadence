@@ -279,7 +279,7 @@ func (e *cacheImpl) getHistoryEventFromStore(
 	return nil, errEventNotFoundInBatch
 }
 
-func (e *eventKey) Size() uint64 {
+func (e *eventKey) ByteSize() uint64 {
 	// Calculate the size of strings in bytes, we assume that all those fields are using ASCII which is 1 byte per char
 	size := len(e.domainID) + len(e.workflowID) + len(e.runID)
 	stringOverhead := 3 * constants.StringSizeOverheadBytes
