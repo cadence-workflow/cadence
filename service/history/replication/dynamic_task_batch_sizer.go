@@ -39,29 +39,36 @@ import (
 //
 //  1. If there is an error, decrease the task batch size.
 //     In case of an increased load to the database, we should reduce the load to the database
+//     Emitted metric with tag reason:"error"
 //
 //  2. If the task batch size is shrunk, decrease the task batch size.
 //     The payload size of messages is too big, so we should decrease
 //     the number of messages to be sure that future messages will not be shrunk
+//     Emitted metric with tag reason:"shrunk"
 //
 //  3. If the read level of a passive cluster has not been changed and there are no fetched tasks,
 //     not change the task batch size. There is no need to change because the replication is not stuck,
 //     there just are no new tasks
+//     Metric is not emitted
 //
 //  4. If the read level of a passive cluster has not been changed and if there are fetched tasks,
 //     and number of previously fetched tasks is not zero, decrease the task batch size.
 //     The replication is stuck on the passive side
+//     Emitted metric with tag reason:"possible_stuck"
 //
 //  5. If the read level of a passive cluster has not been changed and if there are fetched tasks,
 //     and number of previously fetched tasks is zero, not change the task batch size.
 //     The replication is not stuck, and there are new tasks to be replicated
+//     Metric is not emitted
 //
 //  6. If the read level of a passive cluster has been changed and if there are more tasks in db,
 //     increase the task batch size. We should retrieve the maximum possible value at the next time,
 //     as there are more tasks to be replicated
+//     Emitted metric with tag reason:"more_tasks"
 //
 //  7. If the read level of a passive cluster has been changed and if there are no more tasks in db,
 //     not change the size. The existing size is already enough, and there are no more tasks to be replicated
+//     Metric is not emitted
 type DynamicTaskBatchSizer interface {
 	analyse(err error, state *getTasksResult)
 	value() int
@@ -97,33 +104,17 @@ func NewDynamicTaskBatchSizer(shardID int, logger log.Logger, config *config.Con
 func (d *dynamicTaskBatchSizerImpl) analyse(err error, state *getTasksResult) {
 	switch {
 	case err != nil:
-		d.logger.Debug(
-			"Decrease task batch size due to error",
-			tag.Error(err), tag.ReplicationTaskBatchSize(d.iter.Previous()))
-
-		d.emitMetric("error", "decrease")
+		d.decrease("error")
 
 	case state.isShrunk:
-		d.logger.Debug(
-			"Decrease task batch size due to message shrinking",
-			tag.ReplicationTaskBatchSize(d.iter.Previous()))
-
-		d.emitMetric("shrunk", "decrease")
+		d.decrease("shrunk")
 
 	case state.previousReadTaskID == state.lastReadTaskID &&
 		len(state.taskInfos) > 0 && d.isFetchedTasks.Load():
-		d.logger.Debug(
-			"Decrease task batch size due to possible replication stuck",
-			tag.ReplicationTaskBatchSize(d.iter.Previous()))
-
-		d.emitMetric("possible_stuck", "decrease")
+		d.decrease("possible_stuck")
 
 	case state.msgs.HasMore:
-		d.logger.Debug(
-			"Increase task batch size due to more replication tasks in database",
-			tag.ReplicationTaskBatchSize(d.iter.Next()))
-
-		d.emitMetric("more_tasks", "increase")
+		d.increase("more_tasks")
 	}
 
 	// update isFetchedTasks
@@ -135,13 +126,31 @@ func (d *dynamicTaskBatchSizerImpl) analyse(err error, state *getTasksResult) {
 	d.isFetchedTasks.Store(len(state.taskInfos) != 0)
 }
 
+func (d *dynamicTaskBatchSizerImpl) value() int {
+	return d.iter.Value()
+}
+
+func (d *dynamicTaskBatchSizerImpl) decrease(reason string) {
+	oldVal, newVal := d.iter.Value(), d.iter.Previous()
+
+	if oldVal != newVal {
+		d.emitMetric(reason, "decrease")
+	}
+	d.logger.Debug("Decrease task batch size", tag.Reason(reason), tag.ReplicationTaskBatchSize(newVal))
+}
+
+func (d *dynamicTaskBatchSizerImpl) increase(reason string) {
+	oldVal, newVal := d.iter.Value(), d.iter.Next()
+
+	if oldVal != newVal {
+		d.emitMetric(reason, "increase")
+	}
+	d.logger.Debug("Increase task batch size", tag.Reason(reason), tag.ReplicationTaskBatchSize(newVal))
+}
+
 func (d *dynamicTaskBatchSizerImpl) emitMetric(reason, decision string) {
 	d.scope.Tagged(
 		metrics.ReasonTag(reason),
 		metrics.DecisionTag(decision),
 	).IncCounter(metrics.ReplicationDynamicTaskBatchSizerDecision)
-}
-
-func (d *dynamicTaskBatchSizerImpl) value() int {
-	return d.iter.Value()
 }
