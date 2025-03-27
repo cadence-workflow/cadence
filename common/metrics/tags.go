@@ -346,3 +346,13 @@ func ModeTag(value string) Tag {
 func NamespaceTag(namespace string) Tag {
 	return metricWithUnknown("namespace", namespace)
 }
+
+// ReasonTag returns a new reason tag
+func ReasonTag(reason string) Tag {
+	return metricWithUnknown("reason", reason)
+}
+
+// DecisionTag returns a new decision tag
+func DecisionTag(decision string) Tag {
+	return metricWithUnknown("decision", decision)
+}
