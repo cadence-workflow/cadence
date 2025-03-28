@@ -26,7 +26,7 @@ import (
 	"fmt"
 	"math/rand"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -134,5 +134,5 @@ func getPartitionTaskListName(root string, partition int) string {
 	if partition <= 0 {
 		return root
 	}
-	return fmt.Sprintf("%v%v/%v", common.ReservedTaskListPrefix, root, partition)
+	return fmt.Sprintf("%v%v/%v", constants.ReservedTaskListPrefix, root, partition)
 }

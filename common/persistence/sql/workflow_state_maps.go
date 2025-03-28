@@ -25,7 +25,7 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/serialization"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
@@ -153,7 +153,7 @@ func getActivityInfoMap(
 			LastHeartBeatUpdatedTime: row.LastHeartbeatUpdatedTime,
 			Version:                  decoded.GetVersion(),
 			ScheduledEventBatchID:    decoded.GetScheduledEventBatchID(),
-			ScheduledEvent:           persistence.NewDataBlob(decoded.ScheduledEvent, common.EncodingType(decoded.GetScheduledEventEncoding())),
+			ScheduledEvent:           persistence.NewDataBlob(decoded.ScheduledEvent, constants.EncodingType(decoded.GetScheduledEventEncoding())),
 			ScheduledTime:            decoded.GetScheduledTimestamp(),
 			StartedID:                decoded.GetStartedID(),
 			StartedTime:              decoded.GetStartedTimestamp(),
@@ -181,7 +181,7 @@ func getActivityInfoMap(
 			LastFailureDetails:       decoded.GetRetryLastFailureDetails(),
 		}
 		if decoded.StartedEvent != nil {
-			info.StartedEvent = persistence.NewDataBlob(decoded.StartedEvent, common.EncodingType(decoded.GetStartedEventEncoding()))
+			info.StartedEvent = persistence.NewDataBlob(decoded.StartedEvent, constants.EncodingType(decoded.GetStartedEventEncoding()))
 		}
 		ret[row.ScheduleID] = info
 	}
@@ -434,10 +434,10 @@ func getChildExecutionInfoMap(
 			ParentClosePolicy:     types.ParentClosePolicy(rowInfo.GetParentClosePolicy()),
 		}
 		if rowInfo.InitiatedEvent != nil {
-			info.InitiatedEvent = persistence.NewDataBlob(rowInfo.InitiatedEvent, common.EncodingType(rowInfo.GetInitiatedEventEncoding()))
+			info.InitiatedEvent = persistence.NewDataBlob(rowInfo.InitiatedEvent, constants.EncodingType(rowInfo.GetInitiatedEventEncoding()))
 		}
 		if rowInfo.StartedEvent != nil {
-			info.StartedEvent = persistence.NewDataBlob(rowInfo.StartedEvent, common.EncodingType(rowInfo.GetStartedEventEncoding()))
+			info.StartedEvent = persistence.NewDataBlob(rowInfo.StartedEvent, constants.EncodingType(rowInfo.GetStartedEventEncoding()))
 		}
 		ret[row.InitiatedID] = info
 	}

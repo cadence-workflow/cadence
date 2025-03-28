@@ -30,7 +30,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
@@ -68,12 +68,12 @@ func TestFetchConfig(t *testing.T) {
 					SelectLatestConfig(gomock.Any(), int(persistence.DynamicConfig)).
 					Return(&persistence.InternalConfigStoreEntry{
 						Version: 1,
-						Values:  &persistence.DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("config-values")},
+						Values:  &persistence.DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("config-values")},
 					}, nil).Times(1)
 			},
 			configType:     persistence.DynamicConfig,
 			expectError:    false,
-			expectedResult: &persistence.InternalConfigStoreEntry{Version: 1, Values: &persistence.DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("config-values")}},
+			expectedResult: &persistence.InternalConfigStoreEntry{Version: 1, Values: &persistence.DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("config-values")}},
 		},
 		{
 			name: "config not found",
@@ -137,14 +137,14 @@ func TestUpdateConfig(t *testing.T) {
 				mockDB.EXPECT().
 					InsertConfig(gomock.Any(), &persistence.InternalConfigStoreEntry{
 						Version: 1,
-						Values:  &persistence.DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("config-values")},
+						Values:  &persistence.DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("config-values")},
 					}).
 					Return(nil).
 					Times(1)
 			},
 			value: &persistence.InternalConfigStoreEntry{
 				Version: 1,
-				Values:  &persistence.DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("config-values")},
+				Values:  &persistence.DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("config-values")},
 			},
 			expectError: false,
 		},
@@ -158,7 +158,7 @@ func TestUpdateConfig(t *testing.T) {
 			},
 			value: &persistence.InternalConfigStoreEntry{
 				Version: 1,
-				Values:  &persistence.DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("config-values")},
+				Values:  &persistence.DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("config-values")},
 			},
 			expectError:   true,
 			expectedError: "Version 1 already exists. Condition Failed",
@@ -174,7 +174,7 @@ func TestUpdateConfig(t *testing.T) {
 			},
 			value: &persistence.InternalConfigStoreEntry{
 				Version: 1,
-				Values:  &persistence.DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("config-values")},
+				Values:  &persistence.DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("config-values")},
 			},
 			expectError:   true,
 			expectedError: "insert error",

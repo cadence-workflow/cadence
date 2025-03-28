@@ -36,6 +36,7 @@ import (
 	"github.com/uber/cadence/common/archiver/provider"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -270,7 +271,7 @@ func (d *handlerImpl) RegisterDomain(
 		}
 	}
 
-	failoverVersion := common.EmptyVersion
+	failoverVersion := constants.EmptyVersion
 	if registerRequest.GetIsGlobalDomain() {
 		failoverVersion = d.clusterMetadata.GetNextFailoverVersion(activeClusterName, 0, registerRequest.Name)
 	}
@@ -299,7 +300,7 @@ func (d *handlerImpl) RegisterDomain(
 			domainRequest.ReplicationConfig,
 			domainRequest.ConfigVersion,
 			domainRequest.FailoverVersion,
-			common.InitialPreviousFailoverVersion,
+			constants.InitialPreviousFailoverVersion,
 			domainRequest.IsGlobalDomain,
 		)
 		if err != nil {
@@ -514,15 +515,15 @@ func (d *handlerImpl) UpdateDomain(
 		}
 
 		if activeClusterChanged && isGlobalDomain {
-			var failoverType common.FailoverType = common.FailoverTypeGrace
+			var failoverType constants.FailoverType = constants.FailoverTypeGrace
 
 			// Force failover cleans graceful failover state
 			if updateRequest.FailoverTimeoutInSeconds == nil {
-				failoverType = common.FailoverTypeForce
+				failoverType = constants.FailoverTypeForce
 
 				// force failover cleanup graceful failover state
 				gracefulFailoverEndTime = nil
-				previousFailoverVersion = common.InitialPreviousFailoverVersion
+				previousFailoverVersion = constants.InitialPreviousFailoverVersion
 			}
 			failoverVersion = d.clusterMetadata.GetNextFailoverVersion(
 				replicationConfig.ActiveClusterName,
@@ -1295,7 +1296,7 @@ func updateFailoverHistory(
 	eventTime time.Time,
 	fromCluster string,
 	toCluster string,
-	failoverType common.FailoverType,
+	failoverType constants.FailoverType,
 ) error {
 	data := info.Data
 	if info.Data == nil {
@@ -1305,7 +1306,7 @@ func updateFailoverHistory(
 	newFailoverEvent := FailoverEvent{EventTime: eventTime, FromCluster: fromCluster, ToCluster: toCluster, FailoverType: failoverType.String()}
 
 	var failoverHistory []FailoverEvent
-	_ = json.Unmarshal([]byte(data[common.DomainDataKeyForFailoverHistory]), &failoverHistory)
+	_ = json.Unmarshal([]byte(data[constants.DomainDataKeyForFailoverHistory]), &failoverHistory)
 
 	failoverHistory = append([]FailoverEvent{newFailoverEvent}, failoverHistory...)
 
@@ -1314,7 +1315,7 @@ func updateFailoverHistory(
 	if err != nil {
 		return err
 	}
-	data[common.DomainDataKeyForFailoverHistory] = string(failoverHistoryJSON)
+	data[constants.DomainDataKeyForFailoverHistory] = string(failoverHistoryJSON)
 
 	info.Data = data
 

@@ -36,6 +36,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/serialization"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
@@ -144,7 +145,7 @@ func TestLeaseTaskList(t *testing.T) {
 					assert.Equal(t, int64(0), info.AckLevel)
 					return persistence.DataBlob{
 						Data:     []byte(`tl`),
-						Encoding: common.EncodingType("tl"),
+						Encoding: constants.EncodingType("tl"),
 					}, nil
 				})
 				mockDB.EXPECT().SupportsTTL().Return(true)
@@ -174,7 +175,7 @@ func TestLeaseTaskList(t *testing.T) {
 				}).Return(int64(0), nil)
 				mockParser.EXPECT().TaskListInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte(`tl`),
-					Encoding: common.EncodingType("tl"),
+					Encoding: constants.EncodingType("tl"),
 				}, nil)
 				mockDB.EXPECT().SupportsTTL().Return(true)
 				mockTx.EXPECT().UpdateTaskListsWithTTL(gomock.Any(), &sqlplugin.TaskListsRowWithTTL{
@@ -225,7 +226,7 @@ func TestLeaseTaskList(t *testing.T) {
 					assert.Equal(t, int64(0), info.AckLevel)
 					return persistence.DataBlob{
 						Data:     []byte(`tl`),
-						Encoding: common.EncodingType("tl"),
+						Encoding: constants.EncodingType("tl"),
 					}, nil
 				})
 				mockDB.EXPECT().SupportsTTL().Return(true)
@@ -261,7 +262,7 @@ func TestLeaseTaskList(t *testing.T) {
 				}).Return(int64(0), nil)
 				mockParser.EXPECT().TaskListInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte(`tl`),
-					Encoding: common.EncodingType("tl"),
+					Encoding: constants.EncodingType("tl"),
 				}, nil)
 				mockDB.EXPECT().SupportsTTL().Return(true)
 				mockTx.EXPECT().UpdateTaskListsWithTTL(gomock.Any(), &sqlplugin.TaskListsRowWithTTL{
@@ -335,7 +336,7 @@ func TestLeaseTaskList(t *testing.T) {
 				mockDB.EXPECT().SelectFromTaskLists(gomock.Any(), gomock.Any()).Return(nil, sql.ErrNoRows)
 				mockParser.EXPECT().TaskListInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte(`tl`),
-					Encoding: common.EncodingType("tl"),
+					Encoding: constants.EncodingType("tl"),
 				}, nil)
 				mockDB.EXPECT().SupportsTTL().Return(true)
 				err := errors.New("some error")
@@ -363,7 +364,7 @@ func TestLeaseTaskList(t *testing.T) {
 				}).Return(nil, sql.ErrNoRows)
 				mockParser.EXPECT().TaskListInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte(`tl`),
-					Encoding: common.EncodingType("tl"),
+					Encoding: constants.EncodingType("tl"),
 				}, nil)
 				mockDB.EXPECT().SupportsTTL().Return(true)
 				mockDB.EXPECT().InsertIntoTaskListsWithTTL(gomock.Any(), &sqlplugin.TaskListsRowWithTTL{
@@ -403,7 +404,7 @@ func TestLeaseTaskList(t *testing.T) {
 				}).Return(nil, sql.ErrNoRows)
 				mockParser.EXPECT().TaskListInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte(`tl`),
-					Encoding: common.EncodingType("tl"),
+					Encoding: constants.EncodingType("tl"),
 				}, nil)
 				mockDB.EXPECT().SupportsTTL().Return(true)
 				mockDB.EXPECT().InsertIntoTaskListsWithTTL(gomock.Any(), &sqlplugin.TaskListsRowWithTTL{
@@ -455,7 +456,7 @@ func TestLeaseTaskList(t *testing.T) {
 				}).Return(nil, sql.ErrNoRows)
 				mockParser.EXPECT().TaskListInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte(`tl`),
-					Encoding: common.EncodingType("tl"),
+					Encoding: constants.EncodingType("tl"),
 				}, nil)
 				mockDB.EXPECT().SupportsTTL().Return(true)
 				mockDB.EXPECT().InsertIntoTaskListsWithTTL(gomock.Any(), &sqlplugin.TaskListsRowWithTTL{
@@ -484,7 +485,7 @@ func TestLeaseTaskList(t *testing.T) {
 				}).Return(int64(0), nil)
 				mockParser.EXPECT().TaskListInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte(`tl`),
-					Encoding: common.EncodingType("tl"),
+					Encoding: constants.EncodingType("tl"),
 				}, nil)
 				mockDB.EXPECT().SupportsTTL().Return(true)
 				err := errors.New("some error")
@@ -745,7 +746,7 @@ func TestUpdateTaskList(t *testing.T) {
 				mockDB.EXPECT().GetTotalNumDBShards().Return(1)
 				mockParser.EXPECT().TaskListInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte(`tl`),
-					Encoding: common.EncodingType("tl"),
+					Encoding: constants.EncodingType("tl"),
 				}, nil)
 				mockDB.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(mockTx, nil)
 				mockTx.EXPECT().LockTaskLists(gomock.Any(), &sqlplugin.TaskListsFilter{
@@ -809,7 +810,7 @@ func TestUpdateTaskList(t *testing.T) {
 					assert.Equal(t, "bar", info.AdaptivePartitionConfig.WritePartitions[0].IsolationGroups[0])
 					return persistence.DataBlob{
 						Data:     []byte(`tl`),
-						Encoding: common.EncodingType("tl"),
+						Encoding: constants.EncodingType("tl"),
 					}, nil
 				})
 				mockDB.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(mockTx, nil)
@@ -852,7 +853,7 @@ func TestUpdateTaskList(t *testing.T) {
 				mockDB.EXPECT().GetTotalNumDBShards().Return(1)
 				mockParser.EXPECT().TaskListInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte(`tl`),
-					Encoding: common.EncodingType("tl"),
+					Encoding: constants.EncodingType("tl"),
 				}, nil)
 				mockDB.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(mockTx, nil)
 				err := errors.New("some error")
@@ -884,7 +885,7 @@ func TestUpdateTaskList(t *testing.T) {
 				mockDB.EXPECT().GetTotalNumDBShards().Return(1)
 				mockParser.EXPECT().TaskListInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte(`tl`),
-					Encoding: common.EncodingType("tl"),
+					Encoding: constants.EncodingType("tl"),
 				}, nil)
 				mockDB.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(mockTx, nil)
 				mockTx.EXPECT().LockTaskLists(gomock.Any(), &sqlplugin.TaskListsFilter{
@@ -1164,7 +1165,7 @@ func TestCreateTasks(t *testing.T) {
 				mockDB.EXPECT().MaxAllowedTTL().Return(common.DurationPtr(time.Hour), nil)
 				mockParser.EXPECT().TaskInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte(`tl`),
-					Encoding: common.EncodingType("tl"),
+					Encoding: constants.EncodingType("tl"),
 				}, nil)
 				mockDB.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(mockTx, nil)
 				mockTx.EXPECT().InsertIntoTasksWithTTL(gomock.Any(), []sqlplugin.TasksRowWithTTL{
@@ -1218,7 +1219,7 @@ func TestCreateTasks(t *testing.T) {
 				mockDB.EXPECT().MaxAllowedTTL().Return(common.DurationPtr(time.Hour), nil)
 				mockParser.EXPECT().TaskInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte(`tl`),
-					Encoding: common.EncodingType("tl"),
+					Encoding: constants.EncodingType("tl"),
 				}, nil)
 				mockDB.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(mockTx, nil)
 				err := errors.New("some error")
@@ -1267,7 +1268,7 @@ func TestCreateTasks(t *testing.T) {
 				mockDB.EXPECT().MaxAllowedTTL().Return(common.DurationPtr(time.Hour), nil)
 				mockParser.EXPECT().TaskInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte(`tl`),
-					Encoding: common.EncodingType("tl"),
+					Encoding: constants.EncodingType("tl"),
 				}, nil)
 				mockDB.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(mockTx, nil)
 				mockTx.EXPECT().InsertIntoTasksWithTTL(gomock.Any(), []sqlplugin.TasksRowWithTTL{
@@ -1596,7 +1597,7 @@ func TestHelp(t *testing.T) {
 	shard := sqlplugin.GetDBShardIDFromDomainIDAndTasklist("c4b5cb22-c213-4812-bb4a-fc1ade5405ef", "pgtasklist", 16384)
 	println("shard: ", shard)
 	// BgAKAAAKAAwAAAAABQ+kWAoADgAAAAAAAAAACgAQGB6uFsU9cvEMABIKAAoAAAAAAAAAAQgADAAAAAAIAA4AAAAAAAA=
-	parser, err := serialization.NewParser(common.EncodingTypeThriftRW, common.EncodingTypeThriftRW)
+	parser, err := serialization.NewParser(constants.EncodingTypeThriftRW, constants.EncodingTypeThriftRW)
 	require.NoError(t, err)
 	data, err := base64.StdEncoding.DecodeString("BgAKAAAKAAwAAAAABGGFYAoADgAAAAAAAAAACgAQGB6uGPaVqOUMABIKAAoAAAAAAAAAAQgADAAAAAIIAA4AAAACAAA=")
 	require.NoError(t, err)

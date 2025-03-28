@@ -24,8 +24,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/types"
 )
@@ -197,11 +197,11 @@ func (a *archivalConfig) GetDomainDefaultURI() string {
 func getClusterArchivalStatus(str string) (ArchivalStatus, error) {
 	str = strings.TrimSpace(strings.ToLower(str))
 	switch str {
-	case "", common.ArchivalDisabled:
+	case "", constants.ArchivalDisabled:
 		return ArchivalDisabled, nil
-	case common.ArchivalPaused:
+	case constants.ArchivalPaused:
 		return ArchivalPaused, nil
-	case common.ArchivalEnabled:
+	case constants.ArchivalEnabled:
 		return ArchivalEnabled, nil
 	}
 	return ArchivalDisabled, fmt.Errorf("invalid archival status of %v for cluster, valid status are: {\"\", \"disabled\", \"paused\", \"enabled\"}", str)
@@ -210,9 +210,9 @@ func getClusterArchivalStatus(str string) (ArchivalStatus, error) {
 func getDomainArchivalStatus(str string) (types.ArchivalStatus, error) {
 	str = strings.TrimSpace(strings.ToLower(str))
 	switch str {
-	case "", common.ArchivalDisabled:
+	case "", constants.ArchivalDisabled:
 		return types.ArchivalStatusDisabled, nil
-	case common.ArchivalEnabled:
+	case constants.ArchivalEnabled:
 		return types.ArchivalStatusEnabled, nil
 	}
 	return types.ArchivalStatusDisabled, fmt.Errorf("invalid archival status of %v for domain, valid status are: {\"\", \"disabled\", \"enabled\"}", str)

@@ -30,8 +30,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
@@ -545,7 +545,7 @@ func TestSelectWorkflowExecution(t *testing.T) {
 					"aae7b881-48ea-4b23-8d11-aabfd1c1291e": {},
 				},
 				BufferedEvents: []*persistence.DataBlob{
-					{Encoding: common.EncodingTypeThriftRW, Data: []byte("test-buffered-events-1")},
+					{Encoding: constants.EncodingTypeThriftRW, Data: []byte("test-buffered-events-1")},
 				},
 			},
 		},
@@ -1818,7 +1818,7 @@ func TestInsertReplicationDLQTask(t *testing.T) {
 				},
 				Task: &persistence.DataBlob{
 					Data:     []byte("dlq"),
-					Encoding: common.EncodingTypeThriftRW,
+					Encoding: constants.EncodingTypeThriftRW,
 				},
 			},
 			queryMockFn: func(query *gocql.MockQuery) {
@@ -1838,7 +1838,7 @@ func TestInsertReplicationDLQTask(t *testing.T) {
 				},
 				Task: &persistence.DataBlob{
 					Data:     []byte("dlq"),
-					Encoding: common.EncodingTypeThriftRW,
+					Encoding: constants.EncodingTypeThriftRW,
 				},
 			},
 			queryMockFn: func(query *gocql.MockQuery) {
@@ -2189,7 +2189,7 @@ func TestInsertReplicationTask(t *testing.T) {
 					},
 					Task: &persistence.DataBlob{
 						Data:     []byte("r1"),
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 					},
 				},
 				{
@@ -2200,7 +2200,7 @@ func TestInsertReplicationTask(t *testing.T) {
 					},
 					Task: &persistence.DataBlob{
 						Data:     []byte("r2"),
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 					},
 				},
 			},
@@ -2218,7 +2218,7 @@ func TestInsertReplicationTask(t *testing.T) {
 					},
 					Task: &persistence.DataBlob{
 						Data:     []byte("r1"),
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 					},
 				},
 				{
@@ -2229,7 +2229,7 @@ func TestInsertReplicationTask(t *testing.T) {
 					},
 					Task: &persistence.DataBlob{
 						Data:     []byte("r2"),
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 					},
 				},
 			},
@@ -2247,7 +2247,7 @@ func TestInsertReplicationTask(t *testing.T) {
 					},
 					Task: &persistence.DataBlob{
 						Data:     []byte("r1"),
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 					},
 				},
 				{
@@ -2258,7 +2258,7 @@ func TestInsertReplicationTask(t *testing.T) {
 					},
 					Task: &persistence.DataBlob{
 						Data:     []byte("r2"),
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 					},
 				},
 			},
@@ -2284,7 +2284,7 @@ func TestInsertReplicationTask(t *testing.T) {
 					},
 					Task: &persistence.DataBlob{
 						Data:     []byte("r1"),
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 					},
 				},
 				{
@@ -2295,7 +2295,7 @@ func TestInsertReplicationTask(t *testing.T) {
 					},
 					Task: &persistence.DataBlob{
 						Data:     []byte("r2"),
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 					},
 				},
 			},
@@ -2316,7 +2316,7 @@ func TestInsertReplicationTask(t *testing.T) {
 					},
 					Task: &persistence.DataBlob{
 						Data:     []byte("r1"),
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 					},
 				},
 				{
@@ -2327,7 +2327,7 @@ func TestInsertReplicationTask(t *testing.T) {
 					},
 					Task: &persistence.DataBlob{
 						Data:     []byte("r2"),
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 					},
 				},
 			},

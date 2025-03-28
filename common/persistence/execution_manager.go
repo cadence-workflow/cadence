@@ -27,6 +27,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/types"
 )
@@ -364,7 +365,7 @@ func (m *executionManagerImpl) UpdateWorkflowExecution(
 
 func (m *executionManagerImpl) SerializeUpsertChildExecutionInfos(
 	infos []*ChildExecutionInfo,
-	encoding common.EncodingType,
+	encoding constants.EncodingType,
 ) ([]*InternalChildExecutionInfo, error) {
 
 	newInfos := make([]*InternalChildExecutionInfo, 0)
@@ -400,7 +401,7 @@ func (m *executionManagerImpl) SerializeUpsertChildExecutionInfos(
 
 func (m *executionManagerImpl) SerializeUpsertActivityInfos(
 	infos []*ActivityInfo,
-	encoding common.EncodingType,
+	encoding constants.EncodingType,
 ) ([]*InternalActivityInfo, error) {
 
 	newInfos := make([]*InternalActivityInfo, 0)
@@ -457,7 +458,7 @@ func (m *executionManagerImpl) SerializeUpsertActivityInfos(
 func (m *executionManagerImpl) SerializeExecutionInfo(
 	info *WorkflowExecutionInfo,
 	stats *ExecutionStats,
-	encoding common.EncodingType,
+	encoding constants.EncodingType,
 ) (*InternalWorkflowExecutionInfo, error) {
 
 	if info == nil {
@@ -588,7 +589,7 @@ func (m *executionManagerImpl) CreateWorkflowExecution(
 	request *CreateWorkflowExecutionRequest,
 ) (*CreateWorkflowExecutionResponse, error) {
 
-	encoding := common.EncodingTypeThriftRW
+	encoding := constants.EncodingTypeThriftRW
 
 	serializedNewWorkflowSnapshot, err := m.SerializeWorkflowSnapshot(&request.NewWorkflowSnapshot, encoding)
 	if err != nil {
@@ -620,7 +621,7 @@ func (m *executionManagerImpl) CreateWorkflowExecution(
 
 func (m *executionManagerImpl) SerializeWorkflowMutation(
 	input *WorkflowMutation,
-	encoding common.EncodingType,
+	encoding constants.EncodingType,
 ) (*InternalWorkflowMutation, error) {
 
 	serializedExecutionInfo, err := m.SerializeExecutionInfo(
@@ -659,7 +660,7 @@ func (m *executionManagerImpl) SerializeWorkflowMutation(
 	if err != nil {
 		return nil, err
 	}
-	checksumData, err := m.serializer.SerializeChecksum(input.Checksum, common.EncodingTypeJSON)
+	checksumData, err := m.serializer.SerializeChecksum(input.Checksum, constants.EncodingTypeJSON)
 	if err != nil {
 		return nil, err
 	}
@@ -697,7 +698,7 @@ func (m *executionManagerImpl) SerializeWorkflowMutation(
 
 func (m *executionManagerImpl) SerializeWorkflowSnapshot(
 	input *WorkflowSnapshot,
-	encoding common.EncodingType,
+	encoding constants.EncodingType,
 ) (*InternalWorkflowSnapshot, error) {
 
 	serializedExecutionInfo, err := m.SerializeExecutionInfo(
@@ -730,7 +731,7 @@ func (m *executionManagerImpl) SerializeWorkflowSnapshot(
 		return nil, err
 	}
 
-	checksumData, err := m.serializer.SerializeChecksum(input.Checksum, common.EncodingTypeJSON)
+	checksumData, err := m.serializer.SerializeChecksum(input.Checksum, constants.EncodingTypeJSON)
 	if err != nil {
 		return nil, err
 	}
@@ -760,7 +761,7 @@ func (m *executionManagerImpl) SerializeWorkflowSnapshot(
 
 func (m *executionManagerImpl) SerializeVersionHistories(
 	versionHistories *VersionHistories,
-	encoding common.EncodingType,
+	encoding constants.EncodingType,
 ) (*DataBlob, error) {
 
 	if versionHistories == nil {
@@ -845,14 +846,6 @@ func (m *executionManagerImpl) ListConcreteExecutions(
 		}
 	}
 	return newResponse, nil
-}
-
-// Transfer task related methods
-func (m *executionManagerImpl) GetTransferTasks(
-	ctx context.Context,
-	request *GetTransferTasksRequest,
-) (*GetTransferTasksResponse, error) {
-	return m.persistence.GetTransferTasks(ctx, request)
 }
 
 func (m *executionManagerImpl) CompleteTransferTask(
@@ -1021,7 +1014,7 @@ func getStartVersion(
 ) (int64, error) {
 
 	if versionHistories == nil {
-		return common.EmptyVersion, nil
+		return constants.EmptyVersion, nil
 	}
 
 	versionHistory, err := versionHistories.GetCurrentVersionHistory()
@@ -1040,7 +1033,7 @@ func getLastWriteVersion(
 ) (int64, error) {
 
 	if versionHistories == nil {
-		return common.EmptyVersion, nil
+		return constants.EmptyVersion, nil
 	}
 
 	versionHistory, err := versionHistories.GetCurrentVersionHistory()

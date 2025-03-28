@@ -34,6 +34,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log/loggerimpl"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
@@ -75,7 +76,7 @@ func TestGenerateFailoverTasksForDomainCallback(t *testing.T) {
 		1,
 		nil,
 		2,
-		common.InitialPreviousFailoverVersion,
+		constants.InitialPreviousFailoverVersion,
 		15,
 	)
 
@@ -86,7 +87,7 @@ func TestGenerateFailoverTasksForDomainCallback(t *testing.T) {
 		10,
 		nil,
 		3,
-		common.InitialPreviousFailoverVersion,
+		constants.InitialPreviousFailoverVersion,
 		15,
 	)
 
@@ -324,7 +325,7 @@ func TestDomainCallback(t *testing.T) {
 		1,
 		nil,
 		0,
-		common.InitialPreviousFailoverVersion,
+		constants.InitialPreviousFailoverVersion,
 		2,
 	)
 
@@ -346,7 +347,7 @@ func TestDomainCallback(t *testing.T) {
 		2,
 		nil,
 		3,
-		common.InitialPreviousFailoverVersion,
+		constants.InitialPreviousFailoverVersion,
 		3,
 	)
 

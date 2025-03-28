@@ -25,10 +25,10 @@ package client
 import (
 	"sync"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/codec"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/constants"
 	es "github.com/uber/cadence/common/elasticsearch"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -285,15 +285,15 @@ func (f *factoryImpl) NewVisibilityManager(
 	}
 
 	switch params.PersistenceConfig.AdvancedVisibilityStore {
-	case common.PinotVisibilityStoreName:
+	case constants.PinotVisibilityStoreName:
 		visibilityFromPinot, err = setupPinotVisibilityManager(params, resourceConfig, f.logger)
 		if err != nil {
 			f.logger.Fatal("Creating Pinot advanced visibility manager failed", tag.Error(err))
 		}
 
 		visibilityMgrs := map[string]p.VisibilityManager{
-			common.VisibilityModeDB:    visibilityFromDB,
-			common.VisibilityModePinot: visibilityFromPinot,
+			constants.VisibilityModeDB:    visibilityFromDB,
+			constants.VisibilityModePinot: visibilityFromPinot,
 		}
 
 		if params.PinotConfig.Migration.Enabled {
@@ -302,7 +302,7 @@ func (f *factoryImpl) NewVisibilityManager(
 				f.logger.Fatal("Creating ES advanced visibility manager failed", tag.Error(err))
 			}
 
-			visibilityMgrs[common.VisibilityModeES] = visibilityFromES
+			visibilityMgrs[constants.VisibilityModeES] = visibilityFromES
 		}
 
 		return p.NewVisibilityHybridManager(
@@ -310,18 +310,18 @@ func (f *factoryImpl) NewVisibilityManager(
 			resourceConfig.ReadVisibilityStoreName,
 			resourceConfig.WriteVisibilityStoreName,
 			resourceConfig.EnableLogCustomerQueryParameter,
-			common.PinotPersistenceName,
+			constants.PinotPersistenceName,
 			f.logger,
 		), nil
-	case common.OSVisibilityStoreName:
+	case constants.OSVisibilityStoreName:
 		visibilityFromOS, err = setupOSVisibilityManager(params, resourceConfig, f.logger)
 		if err != nil {
 			f.logger.Fatal("Creating OS advanced visibility manager failed", tag.Error(err))
 		}
 
 		visibilityMgrs := map[string]p.VisibilityManager{
-			common.VisibilityModeDB: visibilityFromDB,
-			common.VisibilityModeOS: visibilityFromOS,
+			constants.VisibilityModeDB: visibilityFromDB,
+			constants.VisibilityModeOS: visibilityFromOS,
 		}
 		if params.OSConfig.Migration.Enabled {
 			visibilityFromES, err = setupESVisibilityManager(params, resourceConfig, f.logger)
@@ -329,36 +329,36 @@ func (f *factoryImpl) NewVisibilityManager(
 				f.logger.Fatal("Creating ES advanced visibility manager failed", tag.Error(err))
 			}
 
-			visibilityMgrs[common.VisibilityModeES] = visibilityFromES
+			visibilityMgrs[constants.VisibilityModeES] = visibilityFromES
 		}
 		return p.NewVisibilityHybridManager(
 			visibilityMgrs,
 			resourceConfig.ReadVisibilityStoreName,
 			resourceConfig.WriteVisibilityStoreName,
 			resourceConfig.EnableLogCustomerQueryParameter,
-			common.ESPersistenceName,
+			constants.ESPersistenceName,
 			f.logger,
 		), nil
-	case common.ESVisibilityStoreName:
+	case constants.ESVisibilityStoreName:
 		visibilityFromES, err = setupESVisibilityManager(params, resourceConfig, f.logger)
 		if err != nil {
 			f.logger.Fatal("Creating advanced visibility manager failed", tag.Error(err))
 		}
 		visibilityMgrs := map[string]p.VisibilityManager{
-			common.VisibilityModeDB: visibilityFromDB,
-			common.VisibilityModeES: visibilityFromES,
+			constants.VisibilityModeDB: visibilityFromDB,
+			constants.VisibilityModeES: visibilityFromES,
 		}
 		return p.NewVisibilityHybridManager(
 			visibilityMgrs,
 			resourceConfig.ReadVisibilityStoreName,
 			resourceConfig.WriteVisibilityStoreName,
 			resourceConfig.EnableLogCustomerQueryParameter,
-			common.ESPersistenceName,
+			constants.ESPersistenceName,
 			f.logger,
 		), nil
 	default:
 		visibilityMgrs := map[string]p.VisibilityManager{
-			common.VisibilityModeDB: visibilityFromDB,
+			constants.VisibilityModeDB: visibilityFromDB,
 		}
 		if visibilityFromDB != nil {
 			return p.NewVisibilityHybridManager(
@@ -526,32 +526,32 @@ func (f *factoryImpl) init(clusterName string, limiters map[string]quotas.Limite
 	defaultDataStore := Datastore{ratelimit: limiters[f.config.DefaultStore]}
 	switch {
 	case defaultCfg.NoSQL != nil:
-		parser := getParser(f.logger, common.EncodingTypeThriftRW, common.EncodingTypeThriftRW)
+		parser := getParser(f.logger, constants.EncodingTypeThriftRW, constants.EncodingTypeThriftRW)
 		taskSerializer := serialization.NewTaskSerializer(parser)
 		shardedNoSQLConfig := defaultCfg.NoSQL.ConvertToShardedNoSQLConfig()
 		defaultDataStore.factory = nosql.NewFactory(*shardedNoSQLConfig, clusterName, f.logger, taskSerializer, f.dc)
 	case defaultCfg.ShardedNoSQL != nil:
-		parser := getParser(f.logger, common.EncodingTypeThriftRW, common.EncodingTypeThriftRW)
+		parser := getParser(f.logger, constants.EncodingTypeThriftRW, constants.EncodingTypeThriftRW)
 		taskSerializer := serialization.NewTaskSerializer(parser)
 		defaultDataStore.factory = nosql.NewFactory(*defaultCfg.ShardedNoSQL, clusterName, f.logger, taskSerializer, f.dc)
 	case defaultCfg.SQL != nil:
 		if defaultCfg.SQL.EncodingType == "" {
-			defaultCfg.SQL.EncodingType = string(common.EncodingTypeThriftRW)
+			defaultCfg.SQL.EncodingType = string(constants.EncodingTypeThriftRW)
 		}
 		if len(defaultCfg.SQL.DecodingTypes) == 0 {
 			defaultCfg.SQL.DecodingTypes = []string{
-				string(common.EncodingTypeThriftRW),
+				string(constants.EncodingTypeThriftRW),
 			}
 		}
-		var decodingTypes []common.EncodingType
+		var decodingTypes []constants.EncodingType
 		for _, dt := range defaultCfg.SQL.DecodingTypes {
-			decodingTypes = append(decodingTypes, common.EncodingType(dt))
+			decodingTypes = append(decodingTypes, constants.EncodingType(dt))
 		}
 		defaultDataStore.factory = sql.NewFactory(
 			*defaultCfg.SQL,
 			clusterName,
 			f.logger,
-			getParser(f.logger, common.EncodingType(defaultCfg.SQL.EncodingType), decodingTypes...),
+			getParser(f.logger, constants.EncodingType(defaultCfg.SQL.EncodingType), decodingTypes...),
 			f.dc)
 	default:
 		f.logger.Fatal("invalid config: one of nosql or sql params must be specified for defaultDataStore")
@@ -576,20 +576,20 @@ func (f *factoryImpl) init(clusterName string, limiters map[string]quotas.Limite
 	visibilityDataStore := Datastore{ratelimit: limiters[f.config.VisibilityStore]}
 	switch {
 	case visibilityCfg.NoSQL != nil:
-		parser := getParser(f.logger, common.EncodingTypeThriftRW, common.EncodingTypeThriftRW)
+		parser := getParser(f.logger, constants.EncodingTypeThriftRW, constants.EncodingTypeThriftRW)
 		taskSerializer := serialization.NewTaskSerializer(parser)
 		shardedNoSQLConfig := visibilityCfg.NoSQL.ConvertToShardedNoSQLConfig()
 		visibilityDataStore.factory = nosql.NewFactory(*shardedNoSQLConfig, clusterName, f.logger, taskSerializer, f.dc)
 	case visibilityCfg.SQL != nil:
-		var decodingTypes []common.EncodingType
+		var decodingTypes []constants.EncodingType
 		for _, dt := range visibilityCfg.SQL.DecodingTypes {
-			decodingTypes = append(decodingTypes, common.EncodingType(dt))
+			decodingTypes = append(decodingTypes, constants.EncodingType(dt))
 		}
 		visibilityDataStore.factory = sql.NewFactory(
 			*visibilityCfg.SQL,
 			clusterName,
 			f.logger,
-			getParser(f.logger, common.EncodingType(visibilityCfg.SQL.EncodingType), decodingTypes...),
+			getParser(f.logger, constants.EncodingType(visibilityCfg.SQL.EncodingType), decodingTypes...),
 			f.dc)
 	default:
 		f.logger.Fatal("invalid config: one of nosql or sql params must be specified for visibilityStore")
@@ -598,7 +598,7 @@ func (f *factoryImpl) init(clusterName string, limiters map[string]quotas.Limite
 	f.datastores[storeTypeVisibility] = visibilityDataStore
 }
 
-func getParser(logger log.Logger, encodingType common.EncodingType, decodingTypes ...common.EncodingType) serialization.Parser {
+func getParser(logger log.Logger, encodingType constants.EncodingType, decodingTypes ...constants.EncodingType) serialization.Parser {
 	parser, err := serialization.NewParser(encodingType, decodingTypes...)
 	if err != nil {
 		logger.Fatal("failed to construct parser", tag.Error(err))
@@ -617,7 +617,7 @@ func buildRatelimiters(cfg *config.Persistence, maxQPS quotas.RPSFunc) map[strin
 }
 
 func setupPinotVisibilityManager(params *Params, resourceConfig *service.Config, logger log.Logger) (p.VisibilityManager, error) {
-	visibilityProducer, err := params.MessagingClient.NewProducer(common.PinotVisibilityAppName)
+	visibilityProducer, err := params.MessagingClient.NewProducer(constants.PinotVisibilityAppName)
 	if err != nil {
 		return nil, err
 	}
@@ -625,8 +625,8 @@ func setupPinotVisibilityManager(params *Params, resourceConfig *service.Config,
 }
 
 func setupESVisibilityManager(params *Params, resourceConfig *service.Config, logger log.Logger) (p.VisibilityManager, error) {
-	visibilityIndexName := params.ESConfig.Indices[common.VisibilityAppName]
-	visibilityProducer, err := params.MessagingClient.NewProducer(common.VisibilityAppName)
+	visibilityIndexName := params.ESConfig.Indices[constants.VisibilityAppName]
+	visibilityProducer, err := params.MessagingClient.NewProducer(constants.VisibilityAppName)
 	if err != nil {
 		return nil, err
 	}
@@ -634,8 +634,8 @@ func setupESVisibilityManager(params *Params, resourceConfig *service.Config, lo
 }
 
 func setupOSVisibilityManager(params *Params, resourceConfig *service.Config, logger log.Logger) (p.VisibilityManager, error) {
-	visibilityIndexName := params.OSConfig.Indices[common.VisibilityAppName]
-	visibilityProducer, err := params.MessagingClient.NewProducer(common.VisibilityAppName)
+	visibilityIndexName := params.OSConfig.Indices[constants.VisibilityAppName]
+	visibilityProducer, err := params.MessagingClient.NewProducer(constants.VisibilityAppName)
 	if err != nil {
 		return nil, err
 	}

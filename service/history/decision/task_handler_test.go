@@ -37,6 +37,7 @@ import (
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
+	commonconstants "github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -150,7 +151,7 @@ func TestHandleDecisionRequestCancelActivity(t *testing.T) {
 					testTaskCompletedID,
 					testdata.ActivityID,
 					testdata.Identity,
-				).Times(1).Return(&types.HistoryEvent{}, &persistence.ActivityInfo{StartedID: common.EmptyEventID}, nil)
+				).Times(1).Return(&types.HistoryEvent{}, &persistence.ActivityInfo{StartedID: commonconstants.EmptyEventID}, nil)
 				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().AddActivityTaskCanceledEvent(int64(0), int64(-23), int64(0), []byte(activityCancellationMsgActivityNotStarted), testdata.Identity).Return(nil, nil)
 			},
 			asserts: func(t *testing.T, taskHandler *taskHandlerImpl, err error) {
@@ -169,7 +170,7 @@ func TestHandleDecisionRequestCancelActivity(t *testing.T) {
 					testTaskCompletedID,
 					testdata.ActivityID,
 					testdata.Identity,
-				).Times(1).Return(&types.HistoryEvent{}, &persistence.ActivityInfo{StartedID: common.EmptyEventID}, nil)
+				).Times(1).Return(&types.HistoryEvent{}, &persistence.ActivityInfo{StartedID: commonconstants.EmptyEventID}, nil)
 				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().AddActivityTaskCanceledEvent(int64(0), int64(-23), int64(0), []byte(activityCancellationMsgActivityNotStarted), testdata.Identity).Return(nil, errors.New("some random error"))
 			},
 			asserts: func(t *testing.T, taskHandler *taskHandlerImpl, err error) {
@@ -184,7 +185,7 @@ func TestHandleDecisionRequestCancelActivity(t *testing.T) {
 					testTaskCompletedID,
 					testdata.ActivityID,
 					testdata.Identity,
-				).Times(1).Return(&types.HistoryEvent{}, &persistence.ActivityInfo{StartedID: common.EmptyEventID}, &types.BadRequestError{Message: "some types.BadRequestError error"})
+				).Times(1).Return(&types.HistoryEvent{}, &persistence.ActivityInfo{StartedID: commonconstants.EmptyEventID}, &types.BadRequestError{Message: "some types.BadRequestError error"})
 				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().AddRequestCancelActivityTaskFailedEvent(testTaskCompletedID, testdata.ActivityID, activityCancellationMsgActivityIDUnknown).Return(nil, errors.New("some random error"))
 			},
 			asserts: func(t *testing.T, taskHandler *taskHandlerImpl, err error) {
@@ -199,7 +200,7 @@ func TestHandleDecisionRequestCancelActivity(t *testing.T) {
 					testTaskCompletedID,
 					testdata.ActivityID,
 					testdata.Identity,
-				).Times(1).Return(&types.HistoryEvent{}, &persistence.ActivityInfo{StartedID: common.EmptyEventID}, errors.New("some default error"))
+				).Times(1).Return(&types.HistoryEvent{}, &persistence.ActivityInfo{StartedID: commonconstants.EmptyEventID}, errors.New("some default error"))
 			},
 			asserts: func(t *testing.T, taskHandler *taskHandlerImpl, err error) {
 				assert.Equal(t, errors.New("some default error"), err)

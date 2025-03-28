@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
@@ -134,7 +135,7 @@ func (e *historyEngineImpl) RecordActivityTaskStarted(
 			response.WorkflowType = mutableState.GetWorkflowType()
 			response.WorkflowDomain = domainName
 
-			if ai.StartedID != common.EmptyEventID {
+			if ai.StartedID != constants.EmptyEventID {
 				// If activity is started as part of the current request scope then return a positive response
 				if ai.RequestID == requestID {
 					response.StartedTimestamp = common.Int64Ptr(ai.StartedTime.UnixNano())

@@ -31,6 +31,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/serialization"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
@@ -870,7 +871,7 @@ func TestReadHistoryBranch(t *testing.T) {
 				}, nil)
 			},
 			want: &persistence.InternalReadHistoryBranchResponse{
-				History:           []*persistence.DataBlob{{Data: []byte(`b`), Encoding: common.EncodingType("b")}},
+				History:           []*persistence.DataBlob{{Data: []byte(`b`), Encoding: constants.EncodingType("b")}},
 				NextPageToken:     serializePageToken(202),
 				LastNodeID:        202,
 				LastTransactionID: 101,

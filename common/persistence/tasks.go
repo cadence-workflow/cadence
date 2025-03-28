@@ -29,6 +29,7 @@ import (
 
 // Task is the generic interface for workflow tasks
 type Task interface {
+	GetTaskCategory() HistoryTaskCategory
 	GetTaskType() int
 	GetDomainID() string
 	GetWorkflowID() string
@@ -297,6 +298,10 @@ func (a *ActivityTask) GetTaskType() int {
 	return TransferTaskTypeActivityTask
 }
 
+func (a *ActivityTask) GetTaskCategory() HistoryTaskCategory {
+	return HistoryTaskCategoryTransfer
+}
+
 func (a *ActivityTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 	return &TransferTaskInfo{
 		TaskType:            TransferTaskTypeActivityTask,
@@ -319,6 +324,10 @@ func (a *ActivityTask) ToTimerTaskInfo() (*TimerTaskInfo, error) {
 // GetType returns the type of the decision task
 func (d *DecisionTask) GetTaskType() int {
 	return TransferTaskTypeDecisionTask
+}
+
+func (d *DecisionTask) GetTaskCategory() HistoryTaskCategory {
+	return HistoryTaskCategoryTransfer
 }
 
 func (d *DecisionTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
@@ -345,6 +354,10 @@ func (a *RecordWorkflowStartedTask) GetTaskType() int {
 	return TransferTaskTypeRecordWorkflowStarted
 }
 
+func (a *RecordWorkflowStartedTask) GetTaskCategory() HistoryTaskCategory {
+	return HistoryTaskCategoryTransfer
+}
+
 func (a *RecordWorkflowStartedTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 	return &TransferTaskInfo{
 		TaskType:            TransferTaskTypeRecordWorkflowStarted,
@@ -364,6 +377,10 @@ func (a *RecordWorkflowStartedTask) ToTimerTaskInfo() (*TimerTaskInfo, error) {
 // GetType returns the type of the ResetWorkflowTask
 func (a *ResetWorkflowTask) GetTaskType() int {
 	return TransferTaskTypeResetWorkflow
+}
+
+func (a *ResetWorkflowTask) GetTaskCategory() HistoryTaskCategory {
+	return HistoryTaskCategoryTransfer
 }
 
 func (a *ResetWorkflowTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
@@ -387,6 +404,10 @@ func (a *CloseExecutionTask) GetTaskType() int {
 	return TransferTaskTypeCloseExecution
 }
 
+func (a *CloseExecutionTask) GetTaskCategory() HistoryTaskCategory {
+	return HistoryTaskCategoryTransfer
+}
+
 func (a *CloseExecutionTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 	return &TransferTaskInfo{
 		TaskType:            TransferTaskTypeCloseExecution,
@@ -408,6 +429,10 @@ func (a *DeleteHistoryEventTask) GetTaskType() int {
 	return TaskTypeDeleteHistoryEvent
 }
 
+func (a *DeleteHistoryEventTask) GetTaskCategory() HistoryTaskCategory {
+	return HistoryTaskCategoryTimer
+}
+
 func (a *DeleteHistoryEventTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 	return nil, fmt.Errorf("delete history event task is not transfer task")
 }
@@ -427,6 +452,10 @@ func (a *DeleteHistoryEventTask) ToTimerTaskInfo() (*TimerTaskInfo, error) {
 // GetType returns the type of the timer task
 func (d *DecisionTimeoutTask) GetTaskType() int {
 	return TaskTypeDecisionTimeout
+}
+
+func (d *DecisionTimeoutTask) GetTaskCategory() HistoryTaskCategory {
+	return HistoryTaskCategoryTimer
 }
 
 func (d *DecisionTimeoutTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
@@ -453,6 +482,10 @@ func (a *ActivityTimeoutTask) GetTaskType() int {
 	return TaskTypeActivityTimeout
 }
 
+func (a *ActivityTimeoutTask) GetTaskCategory() HistoryTaskCategory {
+	return HistoryTaskCategoryTimer
+}
+
 func (a *ActivityTimeoutTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 	return nil, fmt.Errorf("activity timeout task is not transfer task")
 }
@@ -477,6 +510,10 @@ func (u *UserTimerTask) GetTaskType() int {
 	return TaskTypeUserTimer
 }
 
+func (u *UserTimerTask) GetTaskCategory() HistoryTaskCategory {
+	return HistoryTaskCategoryTimer
+}
+
 func (u *UserTimerTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 	return nil, fmt.Errorf("user timer task is not transfer task")
 }
@@ -497,6 +534,10 @@ func (u *UserTimerTask) ToTimerTaskInfo() (*TimerTaskInfo, error) {
 // GetType returns the type of the retry timer task
 func (r *ActivityRetryTimerTask) GetTaskType() int {
 	return TaskTypeActivityRetryTimer
+}
+
+func (r *ActivityRetryTimerTask) GetTaskCategory() HistoryTaskCategory {
+	return HistoryTaskCategoryTimer
 }
 
 func (r *ActivityRetryTimerTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
@@ -522,6 +563,10 @@ func (r *WorkflowBackoffTimerTask) GetTaskType() int {
 	return TaskTypeWorkflowBackoffTimer
 }
 
+func (r *WorkflowBackoffTimerTask) GetTaskCategory() HistoryTaskCategory {
+	return HistoryTaskCategoryTimer
+}
+
 func (r *WorkflowBackoffTimerTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 	return nil, fmt.Errorf("workflow backoff timer task is not transfer task")
 }
@@ -544,6 +589,10 @@ func (u *WorkflowTimeoutTask) GetTaskType() int {
 	return TaskTypeWorkflowTimeout
 }
 
+func (u *WorkflowTimeoutTask) GetTaskCategory() HistoryTaskCategory {
+	return HistoryTaskCategoryTimer
+}
+
 func (u *WorkflowTimeoutTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 	return nil, fmt.Errorf("workflow timeout task is not transfer task")
 }
@@ -563,6 +612,10 @@ func (u *WorkflowTimeoutTask) ToTimerTaskInfo() (*TimerTaskInfo, error) {
 // GetType returns the type of the cancel transfer task
 func (u *CancelExecutionTask) GetTaskType() int {
 	return TransferTaskTypeCancelExecution
+}
+
+func (u *CancelExecutionTask) GetTaskCategory() HistoryTaskCategory {
+	return HistoryTaskCategoryTransfer
 }
 
 func (u *CancelExecutionTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
@@ -591,6 +644,10 @@ func (u *SignalExecutionTask) GetTaskType() int {
 	return TransferTaskTypeSignalExecution
 }
 
+func (u *SignalExecutionTask) GetTaskCategory() HistoryTaskCategory {
+	return HistoryTaskCategoryTransfer
+}
+
 func (u *SignalExecutionTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 	return &TransferTaskInfo{
 		TaskType:                TransferTaskTypeSignalExecution,
@@ -617,6 +674,10 @@ func (u *RecordChildExecutionCompletedTask) GetTaskType() int {
 	return TransferTaskTypeRecordChildExecutionCompleted
 }
 
+func (u *RecordChildExecutionCompletedTask) GetTaskCategory() HistoryTaskCategory {
+	return HistoryTaskCategoryTransfer
+}
+
 func (u *RecordChildExecutionCompletedTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 	return &TransferTaskInfo{
 		TaskType:            TransferTaskTypeRecordChildExecutionCompleted,
@@ -641,6 +702,10 @@ func (u *UpsertWorkflowSearchAttributesTask) GetTaskType() int {
 	return TransferTaskTypeUpsertWorkflowSearchAttributes
 }
 
+func (u *UpsertWorkflowSearchAttributesTask) GetTaskCategory() HistoryTaskCategory {
+	return HistoryTaskCategoryTransfer
+}
+
 func (u *UpsertWorkflowSearchAttributesTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 	return &TransferTaskInfo{
 		TaskType:            TransferTaskTypeUpsertWorkflowSearchAttributes,
@@ -660,6 +725,10 @@ func (u *UpsertWorkflowSearchAttributesTask) ToTimerTaskInfo() (*TimerTaskInfo, 
 // GetType returns the type of the start child transfer task
 func (u *StartChildExecutionTask) GetTaskType() int {
 	return TransferTaskTypeStartChildExecution
+}
+
+func (u *StartChildExecutionTask) GetTaskCategory() HistoryTaskCategory {
+	return HistoryTaskCategoryTransfer
 }
 
 func (u *StartChildExecutionTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
@@ -686,6 +755,10 @@ func (u *RecordWorkflowClosedTask) GetTaskType() int {
 	return TransferTaskTypeRecordWorkflowClosed
 }
 
+func (u *RecordWorkflowClosedTask) GetTaskCategory() HistoryTaskCategory {
+	return HistoryTaskCategoryTransfer
+}
+
 func (u *RecordWorkflowClosedTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 	return &TransferTaskInfo{
 		TaskType:            TransferTaskTypeRecordWorkflowClosed,
@@ -707,6 +780,10 @@ func (a *HistoryReplicationTask) GetTaskType() int {
 	return ReplicationTaskTypeHistory
 }
 
+func (a *HistoryReplicationTask) GetTaskCategory() HistoryTaskCategory {
+	return HistoryTaskCategoryReplication
+}
+
 func (a *HistoryReplicationTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 	return nil, fmt.Errorf("history replication task is not transfer task")
 }
@@ -720,6 +797,10 @@ func (a *SyncActivityTask) GetTaskType() int {
 	return ReplicationTaskTypeSyncActivity
 }
 
+func (a *SyncActivityTask) GetTaskCategory() HistoryTaskCategory {
+	return HistoryTaskCategoryReplication
+}
+
 func (a *SyncActivityTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 	return nil, fmt.Errorf("sync activity task is not transfer task")
 }
@@ -731,6 +812,10 @@ func (a *SyncActivityTask) ToTimerTaskInfo() (*TimerTaskInfo, error) {
 // GetType returns the type of the history replication task
 func (a *FailoverMarkerTask) GetTaskType() int {
 	return ReplicationTaskTypeFailoverMarker
+}
+
+func (a *FailoverMarkerTask) GetTaskCategory() HistoryTaskCategory {
+	return HistoryTaskCategoryReplication
 }
 
 func (a *FailoverMarkerTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {

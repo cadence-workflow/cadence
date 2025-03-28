@@ -46,6 +46,7 @@ import (
 	cc "github.com/uber/cadence/common/client"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
+	commonconstants "github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
@@ -1705,7 +1706,7 @@ func (s *engineSuite) TestRespondDecisionTaskCompletedSingleActivityScheduledAtt
 			s.Equal(iVar.expectedStartToClose, activity1Attributes.GetStartToCloseTimeoutSeconds())
 		} else {
 			s.Equal(int64(5), executionBuilder.GetExecutionInfo().NextEventID)
-			s.Equal(common.EmptyEventID, executionBuilder.GetExecutionInfo().LastProcessedEvent)
+			s.Equal(commonconstants.EmptyEventID, executionBuilder.GetExecutionInfo().LastProcessedEvent)
 			s.Equal(persistence.WorkflowStateRunning, executionBuilder.GetExecutionInfo().State)
 			s.True(executionBuilder.HasPendingDecision())
 		}
@@ -1776,7 +1777,7 @@ func (s *engineSuite) TestRespondDecisionTaskCompletedBadBinary() {
 	s.Nil(err, s.printHistory(msBuilder))
 	executionBuilder := s.getBuilder(domainID, we)
 	s.Equal(int64(5), executionBuilder.GetExecutionInfo().NextEventID)
-	s.Equal(common.EmptyEventID, executionBuilder.GetExecutionInfo().LastProcessedEvent)
+	s.Equal(commonconstants.EmptyEventID, executionBuilder.GetExecutionInfo().LastProcessedEvent)
 	s.Empty(executionBuilder.GetExecutionInfo().ExecutionContext)
 	s.Equal(persistence.WorkflowStateRunning, executionBuilder.GetExecutionInfo().State)
 	s.True(executionBuilder.HasPendingDecision())
@@ -2522,7 +2523,7 @@ func (s *engineSuite) TestRespondActivityTaskCompletedIfNoAIdProvided() {
 	identity := "testIdentity"
 	taskToken, _ := json.Marshal(&common.TaskToken{
 		WorkflowID: "wId",
-		ScheduleID: common.EmptyEventID,
+		ScheduleID: commonconstants.EmptyEventID,
 	})
 
 	msBuilder := execution.NewMutableStateBuilderWithEventV2(
@@ -2554,7 +2555,7 @@ func (s *engineSuite) TestRespondActivityTaskCompletedIfNotFound() {
 
 	taskToken, _ := json.Marshal(&common.TaskToken{
 		WorkflowID: "wId",
-		ScheduleID: common.EmptyEventID,
+		ScheduleID: commonconstants.EmptyEventID,
 		ActivityID: "aid",
 	})
 	workflowExecution := types.WorkflowExecution{
@@ -2815,7 +2816,7 @@ func (s *engineSuite) TestRespondActivityTaskCompletedConflictOnUpdate() {
 	s.True(ok)
 	s.Equal(int32(100), di.DecisionTimeout)
 	s.Equal(int64(10), di.ScheduleID)
-	s.Equal(common.EmptyEventID, di.StartedID)
+	s.Equal(commonconstants.EmptyEventID, di.StartedID)
 }
 
 func (s *engineSuite) TestRespondActivityTaskCompletedMaxAttemptsExceeded() {
@@ -2930,7 +2931,7 @@ func (s *engineSuite) TestRespondActivityTaskCompletedSuccess() {
 	s.True(ok)
 	s.Equal(int32(100), di.DecisionTimeout)
 	s.Equal(int64(8), di.ScheduleID)
-	s.Equal(common.EmptyEventID, di.StartedID)
+	s.Equal(commonconstants.EmptyEventID, di.StartedID)
 }
 
 func (s *engineSuite) TestRespondActivityTaskCompletedByIdSuccess() {
@@ -2948,7 +2949,7 @@ func (s *engineSuite) TestRespondActivityTaskCompletedByIdSuccess() {
 	activityResult := []byte("activity result")
 	taskToken, _ := json.Marshal(&common.TaskToken{
 		WorkflowID: we.WorkflowID,
-		ScheduleID: common.EmptyEventID,
+		ScheduleID: commonconstants.EmptyEventID,
 		ActivityID: activityID,
 	})
 
@@ -2995,7 +2996,7 @@ func (s *engineSuite) TestRespondActivityTaskCompletedByIdSuccess() {
 	s.True(ok)
 	s.Equal(int32(100), di.DecisionTimeout)
 	s.Equal(int64(8), di.ScheduleID)
-	s.Equal(common.EmptyEventID, di.StartedID)
+	s.Equal(commonconstants.EmptyEventID, di.StartedID)
 }
 
 func (s *engineSuite) TestRespondActivityTaskFailedInvalidToken() {
@@ -3086,7 +3087,7 @@ func (s *engineSuite) TestRespondActivityTaskFailededIfNoAIdProvided() {
 
 	taskToken, _ := json.Marshal(&common.TaskToken{
 		WorkflowID: "wId",
-		ScheduleID: common.EmptyEventID,
+		ScheduleID: commonconstants.EmptyEventID,
 	})
 	workflowExecution := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -3124,7 +3125,7 @@ func (s *engineSuite) TestRespondActivityTaskFailededIfNotFound() {
 
 	taskToken, _ := json.Marshal(&common.TaskToken{
 		WorkflowID: "wId",
-		ScheduleID: common.EmptyEventID,
+		ScheduleID: commonconstants.EmptyEventID,
 		ActivityID: "aid",
 	})
 	workflowExecution := types.WorkflowExecution{
@@ -3390,7 +3391,7 @@ func (s *engineSuite) TestRespondActivityTaskFailedConflictOnUpdate() {
 	s.True(ok)
 	s.Equal(int32(25), di.DecisionTimeout)
 	s.Equal(int64(10), di.ScheduleID)
-	s.Equal(common.EmptyEventID, di.StartedID)
+	s.Equal(commonconstants.EmptyEventID, di.StartedID)
 }
 
 func (s *engineSuite) TestRespondActivityTaskFailedMaxAttemptsExceeded() {
@@ -3505,7 +3506,7 @@ func (s *engineSuite) TestRespondActivityTaskFailedSuccess() {
 	s.True(ok)
 	s.Equal(int32(100), di.DecisionTimeout)
 	s.Equal(int64(8), di.ScheduleID)
-	s.Equal(common.EmptyEventID, di.StartedID)
+	s.Equal(commonconstants.EmptyEventID, di.StartedID)
 }
 
 func (s *engineSuite) TestRespondActivityTaskFailedByIDSuccess() {
@@ -3524,7 +3525,7 @@ func (s *engineSuite) TestRespondActivityTaskFailedByIDSuccess() {
 	failDetails := []byte("fail details.")
 	taskToken, _ := json.Marshal(&common.TaskToken{
 		WorkflowID: we.WorkflowID,
-		ScheduleID: common.EmptyEventID,
+		ScheduleID: commonconstants.EmptyEventID,
 		ActivityID: activityID,
 	})
 
@@ -3572,7 +3573,7 @@ func (s *engineSuite) TestRespondActivityTaskFailedByIDSuccess() {
 	s.True(ok)
 	s.Equal(int32(100), di.DecisionTimeout)
 	s.Equal(int64(8), di.ScheduleID)
-	s.Equal(common.EmptyEventID, di.StartedID)
+	s.Equal(commonconstants.EmptyEventID, di.StartedID)
 }
 
 func (s *engineSuite) TestRecordActivityTaskHeartBeatSuccess_NoTimer() {
@@ -3697,7 +3698,7 @@ func (s *engineSuite) TestRecordActivityTaskHeartBeatByIDSuccess() {
 	taskToken, _ := json.Marshal(&common.TaskToken{
 		WorkflowID: we.WorkflowID,
 		RunID:      we.RunID,
-		ScheduleID: common.EmptyEventID,
+		ScheduleID: commonconstants.EmptyEventID,
 		ActivityID: activityID,
 	})
 
@@ -3843,7 +3844,7 @@ func (s *engineSuite) TestRespondActivityTaskCanceled_Started() {
 	s.True(ok)
 	s.Equal(int32(100), di.DecisionTimeout)
 	s.Equal(int64(9), di.ScheduleID)
-	s.Equal(common.EmptyEventID, di.StartedID)
+	s.Equal(commonconstants.EmptyEventID, di.StartedID)
 }
 
 func (s *engineSuite) TestRespondActivityTaskCanceledByID_Started() {
@@ -3859,7 +3860,7 @@ func (s *engineSuite) TestRespondActivityTaskCanceledByID_Started() {
 	activityInput := []byte("input1")
 	taskToken, _ := json.Marshal(&common.TaskToken{
 		WorkflowID: we.WorkflowID,
-		ScheduleID: common.EmptyEventID,
+		ScheduleID: commonconstants.EmptyEventID,
 		ActivityID: activityID,
 	})
 
@@ -3908,7 +3909,7 @@ func (s *engineSuite) TestRespondActivityTaskCanceledByID_Started() {
 	s.True(ok)
 	s.Equal(int32(100), di.DecisionTimeout)
 	s.Equal(int64(9), di.ScheduleID)
-	s.Equal(common.EmptyEventID, di.StartedID)
+	s.Equal(commonconstants.EmptyEventID, di.StartedID)
 }
 
 func (s *engineSuite) TestRespondActivityTaskCanceledIfNoRunID() {
@@ -3936,7 +3937,7 @@ func (s *engineSuite) TestRespondActivityTaskCanceledIfNoAIdProvided() {
 
 	taskToken, _ := json.Marshal(&common.TaskToken{
 		WorkflowID: "wId",
-		ScheduleID: common.EmptyEventID,
+		ScheduleID: commonconstants.EmptyEventID,
 	})
 	identity := "testIdentity"
 
@@ -3967,7 +3968,7 @@ func (s *engineSuite) TestRespondActivityTaskCanceledIfNotFound() {
 
 	taskToken, _ := json.Marshal(&common.TaskToken{
 		WorkflowID: "wId",
-		ScheduleID: common.EmptyEventID,
+		ScheduleID: commonconstants.EmptyEventID,
 		ActivityID: "aid",
 	})
 	identity := "testIdentity"
@@ -5257,7 +5258,7 @@ func (s *engineSuite) TestReapplyEvents_IgnoreSameVersionEvents() {
 		{
 			ID:        1,
 			EventType: types.EventTypeTimerStarted.Ptr(),
-			Version:   common.EmptyVersion,
+			Version:   commonconstants.EmptyVersion,
 		},
 	}
 	msBuilder := execution.NewMutableStateBuilderWithEventV2(
@@ -5446,7 +5447,7 @@ func TestRecordChildExecutionCompleted(t *testing.T) {
 			},
 			mockSetup: func(ms *execution.MockMutableState) {
 				ms.EXPECT().IsWorkflowExecutionRunning().Return(true)
-				ms.EXPECT().GetChildExecutionInfo(int64(10)).Return(&persistence.ChildExecutionInfo{StartedID: common.EmptyEventID}, true)
+				ms.EXPECT().GetChildExecutionInfo(int64(10)).Return(&persistence.ChildExecutionInfo{StartedID: commonconstants.EmptyEventID}, true)
 				ms.EXPECT().GetNextEventID().Return(int64(11)).Times(2)
 			},
 			wantErr: true,
@@ -5471,7 +5472,7 @@ func TestRecordChildExecutionCompleted(t *testing.T) {
 			},
 			mockSetup: func(ms *execution.MockMutableState) {
 				ms.EXPECT().IsWorkflowExecutionRunning().Return(true)
-				ms.EXPECT().GetChildExecutionInfo(int64(10)).Return(&persistence.ChildExecutionInfo{StartedID: common.EmptyEventID}, true)
+				ms.EXPECT().GetChildExecutionInfo(int64(10)).Return(&persistence.ChildExecutionInfo{StartedID: commonconstants.EmptyEventID}, true)
 				ms.EXPECT().GetNextEventID().Return(int64(12)).Times(1)
 			},
 			wantErr: true,

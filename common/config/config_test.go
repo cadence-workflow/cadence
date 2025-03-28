@@ -27,7 +27,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/service"
 )
 
@@ -50,8 +50,8 @@ func TestFillingDefaultSQLEncodingDecodingTypes(t *testing.T) {
 		ClusterGroupMetadata: &ClusterGroupMetadata{},
 	}
 	cfg.fillDefaults()
-	assert.Equal(t, string(common.EncodingTypeThriftRW), cfg.Persistence.DataStores["sql"].SQL.EncodingType)
-	assert.Equal(t, []string{string(common.EncodingTypeThriftRW)}, cfg.Persistence.DataStores["sql"].SQL.DecodingTypes)
+	assert.Equal(t, string(constants.EncodingTypeThriftRW), cfg.Persistence.DataStores["sql"].SQL.EncodingType)
+	assert.Equal(t, []string{string(constants.EncodingTypeThriftRW)}, cfg.Persistence.DataStores["sql"].SQL.DecodingTypes)
 }
 
 func getValidMultipleDatabasseConfig() *Config {

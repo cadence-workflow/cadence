@@ -33,6 +33,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
+	commonconstants "github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
@@ -1119,7 +1120,7 @@ func TestCreateFailoverMarkerTasks(t *testing.T) {
 			setupMock: func(mockDB *nosqlplugin.MockDB, mockTaskSerializer *serialization.MockTaskSerializer) {
 				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryReplication, gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte("1"),
-					Encoding: common.EncodingTypeThriftRW,
+					Encoding: commonconstants.EncodingTypeThriftRW,
 				}, nil)
 				mockDB.EXPECT().
 					InsertReplicationTask(ctx, gomock.Any(), nosqlplugin.ShardCondition{ShardID: shardID, RangeID: 123}).
@@ -1153,7 +1154,7 @@ func TestCreateFailoverMarkerTasks(t *testing.T) {
 			setupMock: func(mockDB *nosqlplugin.MockDB, mockTaskSerializer *serialization.MockTaskSerializer) {
 				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryReplication, gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte("1"),
-					Encoding: common.EncodingTypeThriftRW,
+					Encoding: commonconstants.EncodingTypeThriftRW,
 				}, nil)
 				conditionFailureErr := &nosqlplugin.ShardOperationConditionFailure{
 					RangeID: 123,                      // Use direct int64 value

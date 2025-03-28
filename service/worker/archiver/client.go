@@ -30,9 +30,9 @@ import (
 	"go.uber.org/cadence/.gen/go/cadence/workflowserviceclient"
 	cclient "go.uber.org/cadence/client"
 
-	"github.com/uber/cadence/common"
 	carchiver "github.com/uber/cadence/common/archiver"
 	"github.com/uber/cadence/common/archiver/provider"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -136,7 +136,7 @@ func NewClient(
 	return &client{
 		metricsScope:                metricsClient.Scope(metrics.ArchiverClientScope),
 		logger:                      logger,
-		cadenceClient:               cclient.NewClient(publicClient, common.SystemLocalDomainName, &cclient.Options{}),
+		cadenceClient:               cclient.NewClient(publicClient, constants.SystemLocalDomainName, &cclient.Options{}),
 		numWorkflows:                numWorkflows,
 		rateLimiter:                 requestRateLimiter,
 		inlineHistoryRateLimiter:    inlineHistoryRateLimiter,

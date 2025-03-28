@@ -34,6 +34,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/persistence"
 	pt "github.com/uber/cadence/common/persistence/persistence-tests"
@@ -141,7 +142,7 @@ func (s *WorkflowIDRateLimitIntegrationSuite) TestWorkflowIDSpecificRateLimits()
 		if err != nil {
 			if assert.ErrorAs(s.T(), err, &busyErr) {
 				limited++
-				assert.Equal(s.T(), common.WorkflowIDRateLimitReason, busyErr.Reason)
+				assert.Equal(s.T(), constants.WorkflowIDRateLimitReason, busyErr.Reason)
 			}
 		}
 	}

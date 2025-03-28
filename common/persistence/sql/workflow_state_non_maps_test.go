@@ -29,7 +29,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/serialization"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
@@ -132,7 +132,7 @@ func TestUpdateBufferedEvents(t *testing.T) {
 	}{
 		{
 			name:  "Success case",
-			batch: &persistence.DataBlob{Data: []byte(`buffer`), Encoding: common.EncodingType("buffer")},
+			batch: &persistence.DataBlob{Data: []byte(`buffer`), Encoding: constants.EncodingType("buffer")},
 			mockSetup: func(mockTx *sqlplugin.MockTx) {
 				mockTx.EXPECT().InsertIntoBufferedEvents(gomock.Any(), []sqlplugin.BufferedEventsRow{
 					{
@@ -149,7 +149,7 @@ func TestUpdateBufferedEvents(t *testing.T) {
 		},
 		{
 			name:  "Error case",
-			batch: &persistence.DataBlob{Data: []byte(`buffer`), Encoding: common.EncodingType("buffer")},
+			batch: &persistence.DataBlob{Data: []byte(`buffer`), Encoding: constants.EncodingType("buffer")},
 			mockSetup: func(mockTx *sqlplugin.MockTx) {
 				err := errors.New("some error")
 				mockTx.EXPECT().InsertIntoBufferedEvents(gomock.Any(), gomock.Any()).Return(nil, err)

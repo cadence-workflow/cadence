@@ -31,6 +31,7 @@ import (
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/client"
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -206,7 +207,7 @@ func (handler *handlerImpl) HandleDecisionTaskStarted(
 
 			updateAction := &workflow.UpdateAction{}
 
-			if decision.StartedID != common.EmptyEventID {
+			if decision.StartedID != constants.EmptyEventID {
 				// If decision is started as part of the current request scope then return a positive response
 				if decision.RequestID == requestID {
 					resp, err = handler.createRecordDecisionTaskStartedResponse(domainID, mutableState, decision, req.PollRequest.GetIdentity())
@@ -272,7 +273,7 @@ func (handler *handlerImpl) HandleDecisionTaskFailed(
 
 			scheduleID := token.ScheduleID
 			decision, isRunning := mutableState.GetDecisionInfo(scheduleID)
-			if !isRunning || decision.Attempt != token.ScheduleAttempt || decision.StartedID == common.EmptyEventID {
+			if !isRunning || decision.Attempt != token.ScheduleAttempt || decision.StartedID == constants.EmptyEventID {
 				return &types.EntityNotExistsError{Message: "Decision task not found."}
 			}
 
@@ -354,7 +355,7 @@ Update_History_Loop:
 			continue Update_History_Loop
 		}
 
-		if !msBuilder.IsWorkflowExecutionRunning() || !isRunning || currentDecision.Attempt != token.ScheduleAttempt || currentDecision.StartedID == common.EmptyEventID {
+		if !msBuilder.IsWorkflowExecutionRunning() || !isRunning || currentDecision.Attempt != token.ScheduleAttempt || currentDecision.StartedID == constants.EmptyEventID {
 			logger.Debugf("Decision task not found. IsWorkflowExecutionRunning: %v, isRunning: %v, currentDecision.Attempt: %v, token.ScheduleAttempt: %v, currentDecision.StartID: %v",
 				msBuilder.IsWorkflowExecutionRunning(), isRunning, getDecisionInfoAttempt(currentDecision), token.ScheduleAttempt, getDecisionInfoStartedID(currentDecision))
 			return nil, &types.EntityNotExistsError{Message: "Decision task not found."}
@@ -644,7 +645,7 @@ func (handler *handlerImpl) createRecordDecisionTaskStartedResponse(
 	response := &types.RecordDecisionTaskStartedResponse{}
 	response.WorkflowType = msBuilder.GetWorkflowType()
 	executionInfo := msBuilder.GetExecutionInfo()
-	if executionInfo.LastProcessedEvent != common.EmptyEventID {
+	if executionInfo.LastProcessedEvent != constants.EmptyEventID {
 		response.PreviousStartedEventID = common.Int64Ptr(executionInfo.LastProcessedEvent)
 	}
 

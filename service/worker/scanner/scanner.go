@@ -33,9 +33,9 @@ import (
 	"go.uber.org/cadence/worker"
 	"go.uber.org/zap"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/resource"
@@ -166,7 +166,7 @@ func (s *Scanner) Start() error {
 
 	for _, tl := range workerTaskListNames {
 		s.zapLogger.Info("Starting worker for task list", zap.String("TaskList", tl))
-		if err := s.newWorkerFn(s.context.resource.GetSDKClient(), common.SystemLocalDomainName, tl, workerOpts).Start(); err != nil {
+		if err := s.newWorkerFn(s.context.resource.GetSDKClient(), constants.SystemLocalDomainName, tl, workerOpts).Start(); err != nil {
 			s.zapLogger.Error("Failed to start worker", zap.String("TaskList", tl), zap.Error(err))
 			return err
 		}

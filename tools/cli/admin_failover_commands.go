@@ -32,6 +32,7 @@ import (
 
 	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/worker/failovermanager"
 	"github.com/uber/cadence/tools/common/commoncli"
@@ -123,7 +124,7 @@ func AdminFailoverQuery(c *cli.Context) error {
 		return err
 	}
 	request := &types.DescribeWorkflowExecutionRequest{
-		Domain: common.SystemLocalDomainName,
+		Domain: constants.SystemLocalDomainName,
 		Execution: &types.WorkflowExecution{
 			WorkflowID: workflowID,
 			RunID:      runID,
@@ -159,7 +160,7 @@ func AdminFailoverAbort(c *cli.Context) error {
 	workflowID := getFailoverWorkflowID(c)
 	runID := getRunID(c)
 	request := &types.TerminateWorkflowExecutionRequest{
-		Domain: common.SystemLocalDomainName,
+		Domain: constants.SystemLocalDomainName,
 		WorkflowExecution: &types.WorkflowExecution{
 			WorkflowID: workflowID,
 			RunID:      runID,
@@ -195,7 +196,7 @@ func AdminFailoverRollback(c *cli.Context) error {
 	}
 	if isWorkflowRunning(queryResult) {
 		request := &types.TerminateWorkflowExecutionRequest{
-			Domain: common.SystemLocalDomainName,
+			Domain: constants.SystemLocalDomainName,
 			WorkflowExecution: &types.WorkflowExecution{
 				WorkflowID: failovermanager.FailoverWorkflowID,
 				RunID:      runID,
@@ -236,7 +237,7 @@ func AdminFailoverList(c *cli.Context) error {
 	if err := c.Set(FlagWorkflowID, getFailoverWorkflowID(c)); err != nil {
 		return err
 	}
-	if err := c.Set(FlagDomain, common.SystemLocalDomainName); err != nil {
+	if err := c.Set(FlagDomain, constants.SystemLocalDomainName); err != nil {
 		return err
 	}
 	return ListWorkflow(c)
@@ -249,7 +250,7 @@ func query(
 	runID string) (*failovermanager.QueryResult, error) {
 
 	request := &types.QueryWorkflowRequest{
-		Domain: common.SystemLocalDomainName,
+		Domain: constants.SystemLocalDomainName,
 		Execution: &types.WorkflowExecution{
 			WorkflowID: workflowID,
 			RunID:      runID,
@@ -326,13 +327,13 @@ func failoverStart(c *cli.Context, params *startParams) error {
 		return commoncli.Problem("Error in getting operator: ", err)
 	}
 	memo, err := getWorkflowMemo(map[string]interface{}{
-		common.MemoKeyForOperator: op,
+		constants.MemoKeyForOperator: op,
 	})
 	if err != nil {
 		return commoncli.Problem("Failed to serialize memo", err)
 	}
 	request := &types.StartWorkflowExecutionRequest{
-		Domain:                              common.SystemLocalDomainName,
+		Domain:                              constants.SystemLocalDomainName,
 		RequestID:                           uuidFn(),
 		WorkflowID:                          workflowID,
 		WorkflowIDReusePolicy:               types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
@@ -426,7 +427,7 @@ func executePauseOrResume(c *cli.Context, workflowID string, isPause bool) error
 	}
 
 	request := &types.SignalWorkflowExecutionRequest{
-		Domain: common.SystemLocalDomainName,
+		Domain: constants.SystemLocalDomainName,
 		WorkflowExecution: &types.WorkflowExecution{
 			WorkflowID: workflowID,
 			RunID:      runID,

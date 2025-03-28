@@ -67,6 +67,20 @@ func (m *MockContext) EXPECT() *MockContextMockRecorder {
 	return m.recorder
 }
 
+// ByteSize mocks base method.
+func (m *MockContext) ByteSize() uint64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ByteSize")
+	ret0, _ := ret[0].(uint64)
+	return ret0
+}
+
+// ByteSize indicates an expected call of ByteSize.
+func (mr *MockContextMockRecorder) ByteSize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ByteSize", reflect.TypeOf((*MockContext)(nil).ByteSize))
+}
+
 // Clear mocks base method.
 func (m *MockContext) Clear() {
 	m.ctrl.T.Helper()
@@ -302,20 +316,6 @@ func (m *MockContext) SetWorkflowExecution(mutableState MutableState) {
 func (mr *MockContextMockRecorder) SetWorkflowExecution(mutableState any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetWorkflowExecution", reflect.TypeOf((*MockContext)(nil).SetWorkflowExecution), mutableState)
-}
-
-// Size mocks base method.
-func (m *MockContext) Size() uint64 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Size")
-	ret0, _ := ret[0].(uint64)
-	return ret0
-}
-
-// Size indicates an expected call of Size.
-func (mr *MockContextMockRecorder) Size() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockContext)(nil).Size))
 }
 
 // Unlock mocks base method.

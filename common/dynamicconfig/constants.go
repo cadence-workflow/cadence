@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
 )
 
@@ -1653,7 +1654,7 @@ const (
 	// MatchingEnableStandbyTaskCompletion is to enable completion of tasks in the domain's passive side
 	// KeyName: matching.enableStandbyTaskCompletion
 	// Value type: Bool
-	// Default value: false
+	// Default value: true
 	// Allowed filters: DomainName,TasklistName,TasklistType
 	MatchingEnableStandbyTaskCompletion
 
@@ -1904,7 +1905,7 @@ const (
 	// EnableAsyncWorkflowConsumption decides whether to enable system workers for processing async workflows
 	// KeyName: worker.enableAsyncWorkflowConsumption
 	// Value type: Bool
-	// Default value: false
+	// Default value: true
 	// Allowed filters: N/A
 	EnableAsyncWorkflowConsumption
 
@@ -2284,7 +2285,7 @@ const (
 	// DefaultEventEncoding is the encoding type for history events
 	// KeyName: history.defaultEventEncoding
 	// Value type: String
-	// Default value: string(common.EncodingTypeThriftRW)
+	// Default value: string(constants.EncodingTypeThriftRW)
 	// Allowed filters: DomainName
 	DefaultEventEncoding
 	// AdminOperationToken is the token to pass admin checking
@@ -4633,7 +4634,7 @@ var StringKeys = map[StringKey]DynamicString{
 		KeyName:      "history.defaultEventEncoding",
 		Filters:      []Filter{DomainName},
 		Description:  "DefaultEventEncoding is the encoding type for history events",
-		DefaultValue: string(common.EncodingTypeThriftRW),
+		DefaultValue: string(constants.EncodingTypeThriftRW),
 	},
 	AdminOperationToken: {
 		KeyName:      "history.adminOperationToken",
@@ -5245,8 +5246,8 @@ func init() {
 
 var (
 	DefaultTaskSchedulerRoundRobinWeights = map[int]int{
-		common.GetTaskPriority(common.HighPriorityClass, common.DefaultPrioritySubclass):    500,
-		common.GetTaskPriority(common.DefaultPriorityClass, common.DefaultPrioritySubclass): 20,
-		common.GetTaskPriority(common.LowPriorityClass, common.DefaultPrioritySubclass):     5,
+		common.GetTaskPriority(constants.HighPriorityClass, constants.DefaultPrioritySubclass):    500,
+		common.GetTaskPriority(constants.DefaultPriorityClass, constants.DefaultPrioritySubclass): 20,
+		common.GetTaskPriority(constants.LowPriorityClass, constants.DefaultPrioritySubclass):     5,
 	}
 )

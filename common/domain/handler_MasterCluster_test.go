@@ -38,6 +38,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/constants"
 	dc "github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
@@ -204,7 +205,7 @@ func (s *domainHandlerGlobalDomainEnabledPrimaryClusterSuite) TestRegisterGetDom
 		ActiveClusterName: s.ClusterMetadata.GetCurrentClusterName(),
 		Clusters:          clusters,
 	}, resp.ReplicationConfiguration)
-	s.Equal(common.EmptyVersion, resp.GetFailoverVersion())
+	s.Equal(constants.EmptyVersion, resp.GetFailoverVersion())
 	s.Equal(isGlobalDomain, resp.GetIsGlobalDomain())
 }
 
@@ -273,7 +274,7 @@ func (s *domainHandlerGlobalDomainEnabledPrimaryClusterSuite) TestRegisterGetDom
 		ActiveClusterName: s.ClusterMetadata.GetCurrentClusterName(),
 		Clusters:          expectedClusters,
 	}, resp.ReplicationConfiguration)
-	s.Equal(common.EmptyVersion, resp.GetFailoverVersion())
+	s.Equal(constants.EmptyVersion, resp.GetFailoverVersion())
 	s.Equal(isGlobalDomain, resp.GetIsGlobalDomain())
 }
 
@@ -332,7 +333,7 @@ func (s *domainHandlerGlobalDomainEnabledPrimaryClusterSuite) TestUpdateGetDomai
 			ActiveClusterName: s.ClusterMetadata.GetCurrentClusterName(),
 			Clusters:          clusters,
 		}, replicationConfig)
-		s.Equal(common.EmptyVersion, failoverVersion)
+		s.Equal(constants.EmptyVersion, failoverVersion)
 		s.Equal(isGlobalDomain, isGlobalDomain)
 	}
 
@@ -410,7 +411,7 @@ func (s *domainHandlerGlobalDomainEnabledPrimaryClusterSuite) TestUpdateGetDomai
 			ActiveClusterName: s.ClusterMetadata.GetCurrentClusterName(),
 			Clusters:          clusters,
 		}, replicationConfig)
-		s.Equal(common.EmptyVersion, failoverVersion)
+		s.Equal(constants.EmptyVersion, failoverVersion)
 		s.Equal(isGlobalDomain, isGlobalDomain)
 	}
 
@@ -825,9 +826,9 @@ func (s *domainHandlerGlobalDomainEnabledPrimaryClusterSuite) TestUpdateGetDomai
 	s.Nil(err)
 
 	var failoverHistory []FailoverEvent
-	failoverHistory = append(failoverHistory, FailoverEvent{EventTime: s.handler.timeSource.Now(), FromCluster: prevActiveClusterName, ToCluster: nextActiveClusterName, FailoverType: common.FailoverType(common.FailoverTypeForce).String()})
+	failoverHistory = append(failoverHistory, FailoverEvent{EventTime: s.handler.timeSource.Now(), FromCluster: prevActiveClusterName, ToCluster: nextActiveClusterName, FailoverType: constants.FailoverType(constants.FailoverTypeForce).String()})
 	failoverHistoryJSON, _ := json.Marshal(failoverHistory)
-	data[common.DomainDataKeyForFailoverHistory] = string(failoverHistoryJSON)
+	data[constants.DomainDataKeyForFailoverHistory] = string(failoverHistoryJSON)
 
 	fnTest := func(info *types.DomainInfo, config *types.DomainConfiguration,
 		replicationConfig *types.DomainReplicationConfiguration, isGlobalDomain bool, failoverVersion int64) {

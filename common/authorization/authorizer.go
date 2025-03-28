@@ -32,7 +32,7 @@ import (
 
 	clientworker "go.uber.org/cadence/worker"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -149,12 +149,12 @@ func validatePermission(claims *JWTClaims, attributes *Attributes, data domainDa
 	allowedGroups := map[string]bool{}
 	// groups that allowed by domain configuration(in domainData)
 	// write groups are always checked
-	for _, g := range data.Groups(common.DomainDataKeyForWriteGroups) {
+	for _, g := range data.Groups(constants.DomainDataKeyForWriteGroups) {
 		allowedGroups[g] = true
 	}
 
 	if attributes.Permission == PermissionRead {
-		for _, g := range data.Groups(common.DomainDataKeyForReadGroups) {
+		for _, g := range data.Groups(constants.DomainDataKeyForReadGroups) {
 			allowedGroups[g] = true
 		}
 	}

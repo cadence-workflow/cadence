@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
 	persistenceutils "github.com/uber/cadence/common/persistence/persistence-utils"
@@ -198,7 +199,7 @@ func (m *sqlHistoryStore) ReadHistoryBranch(
 
 	for _, row := range rows {
 		eventBlob.Data = row.Data
-		eventBlob.Encoding = common.EncodingType(row.DataEncoding)
+		eventBlob.Encoding = constants.EncodingType(row.DataEncoding)
 
 		if *row.TxnID < lastTxnID {
 			// assuming that business logic layer is correct and transaction ID only increase

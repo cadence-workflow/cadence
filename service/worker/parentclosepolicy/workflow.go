@@ -35,6 +35,7 @@ import (
 	"github.com/uber/cadence/client"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -257,7 +258,7 @@ func signalRemoteCluster(
 		}
 
 		_, err = remoteClient.SignalWithStartWorkflowExecution(signalCtx, &types.SignalWithStartWorkflowExecutionRequest{
-			Domain:                              common.SystemLocalDomainName,
+			Domain:                              constants.SystemLocalDomainName,
 			RequestID:                           uuid.New(),
 			WorkflowID:                          fmt.Sprintf("%v-%v", workflowIDPrefix, rand.Intn(numWorkflows)),
 			WorkflowType:                        &types.WorkflowType{Name: processorWFTypeName},

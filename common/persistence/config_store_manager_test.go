@@ -31,8 +31,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/types"
 )
@@ -65,7 +65,7 @@ func TestNewConfigStoreManagerImpl(t *testing.T) {
 }
 
 func TestFetchDynamicConfig(t *testing.T) {
-	encodingType := common.EncodingTypeThriftRW
+	encodingType := constants.EncodingTypeThriftRW
 	testCases := []struct {
 		name             string
 		setupMock        func(mockStore *MockConfigStore, mockSerializer *MockPayloadSerializer)
@@ -193,7 +193,7 @@ func TestFetchDynamicConfig(t *testing.T) {
 }
 
 func TestUpdateDynamicConfig(t *testing.T) {
-	encodingType := common.EncodingTypeThriftRW
+	encodingType := constants.EncodingTypeThriftRW
 	testCases := []struct {
 		name          string
 		setupMock     func(mockStore *MockConfigStore, mockSerializer *MockPayloadSerializer)
@@ -231,7 +231,7 @@ func TestUpdateDynamicConfig(t *testing.T) {
 								},
 							},
 						},
-					}, common.EncodingTypeThriftRW).
+					}, constants.EncodingTypeThriftRW).
 					Return(&DataBlob{Encoding: encodingType, Data: []byte("serialized-values")}, nil).Times(1)
 
 				mockStore.EXPECT().UpdateConfig(gomock.Any(), gomock.Any()).Return(nil).Times(1)
@@ -297,7 +297,7 @@ func TestUpdateDynamicConfig(t *testing.T) {
 								},
 							},
 						},
-					}, common.EncodingTypeThriftRW).
+					}, constants.EncodingTypeThriftRW).
 					Return(nil, errors.New("serialization error")).Times(1)
 			},
 			cfgType: DynamicConfig, // Updated to use DynamicConfig
@@ -362,7 +362,7 @@ func TestUpdateDynamicConfig(t *testing.T) {
 								},
 							},
 						},
-					}, common.EncodingTypeThriftRW).
+					}, constants.EncodingTypeThriftRW).
 					Return(&DataBlob{Encoding: encodingType, Data: []byte("serialized-values")}, nil).Times(1)
 
 				mockStore.EXPECT().UpdateConfig(gomock.Any(), gomock.Any()).

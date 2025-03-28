@@ -34,6 +34,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/checksum"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/types"
 )
@@ -263,12 +264,12 @@ func TestExecutionManager_GetWorkflowExecution(t *testing.T) {
 	activityOne := sampleInternalActivityInfo("activity1")
 	activityTwo := sampleInternalActivityInfo("activity2")
 
-	wfCompletionEvent := NewDataBlob([]byte("wf-event"), common.EncodingTypeThriftRW)
+	wfCompletionEvent := NewDataBlob([]byte("wf-event"), constants.EncodingTypeThriftRW)
 	wfCompletionEventData := generateTestHistoryEvent(99)
 
 	wfInfo := sampleInternalWorkflowExecutionInfo()
 	wfInfo.CompletionEvent = wfCompletionEvent
-	wfInfo.AutoResetPoints = NewDataBlob([]byte("test-reset-points"), common.EncodingTypeThriftRW)
+	wfInfo.AutoResetPoints = NewDataBlob([]byte("test-reset-points"), constants.EncodingTypeThriftRW)
 
 	mockedStore.EXPECT().GetWorkflowExecution(gomock.Any(), gomock.Any()).Return(&InternalGetWorkflowExecutionResponse{
 		State: &InternalWorkflowMutableState{
@@ -363,18 +364,18 @@ func TestExecutionManager_UpdateWorkflowExecution(t *testing.T) {
 
 	expectedInfo := sampleInternalWorkflowMutation()
 
-	mockedSerializer.EXPECT().SerializeEvent(completionEvent(), common.EncodingTypeThriftRW).Return(expectedInfo.ExecutionInfo.CompletionEvent, nil).Times(2)
-	mockedSerializer.EXPECT().SerializeEvent(activityStartedEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
-	mockedSerializer.EXPECT().SerializeEvent(activityScheduledEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
-	mockedSerializer.EXPECT().SerializeEvent(childWorkflowScheduledEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
-	mockedSerializer.EXPECT().SerializeEvent(childWorkflowStartedEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
-	mockedSerializer.EXPECT().SerializeResetPoints(generateResetPoints(), common.EncodingTypeThriftRW).Return(expectedInfo.ExecutionInfo.AutoResetPoints, nil).Times(2)
+	mockedSerializer.EXPECT().SerializeEvent(completionEvent(), constants.EncodingTypeThriftRW).Return(expectedInfo.ExecutionInfo.CompletionEvent, nil).Times(2)
+	mockedSerializer.EXPECT().SerializeEvent(activityStartedEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+	mockedSerializer.EXPECT().SerializeEvent(activityScheduledEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+	mockedSerializer.EXPECT().SerializeEvent(childWorkflowScheduledEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+	mockedSerializer.EXPECT().SerializeEvent(childWorkflowStartedEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+	mockedSerializer.EXPECT().SerializeResetPoints(generateResetPoints(), constants.EncodingTypeThriftRW).Return(expectedInfo.ExecutionInfo.AutoResetPoints, nil).Times(2)
 
 	request := &UpdateWorkflowExecutionRequest{
 		RangeID:                1,
 		Mode:                   UpdateWorkflowModeBypassCurrent,
 		UpdateWorkflowMutation: *sampleWorkflowMutation(),
-		Encoding:               common.EncodingTypeThriftRW,
+		Encoding:               constants.EncodingTypeThriftRW,
 		NewWorkflowSnapshot: &WorkflowSnapshot{
 			ExecutionInfo: sampleWorkflowExecutionInfo(),
 			ExecutionStats: &ExecutionStats{
@@ -384,7 +385,7 @@ func TestExecutionManager_UpdateWorkflowExecution(t *testing.T) {
 		},
 	}
 
-	mockedSerializer.EXPECT().SerializeChecksum(request.UpdateWorkflowMutation.Checksum, common.EncodingTypeJSON).Return(expectedInfo.ChecksumData, nil).Times(2)
+	mockedSerializer.EXPECT().SerializeChecksum(request.UpdateWorkflowMutation.Checksum, constants.EncodingTypeJSON).Return(expectedInfo.ChecksumData, nil).Times(2)
 
 	expectedRequest := &InternalUpdateWorkflowExecutionRequest{
 		RangeID:                1,
@@ -425,13 +426,13 @@ func TestSerializeWorkflowSnapshot(t *testing.T) {
 		{
 			name: "success",
 			prepareMocks: func(mockedSerializer *MockPayloadSerializer) {
-				mockedSerializer.EXPECT().SerializeEvent(completionEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeEvent(completionEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeResetPoints(gomock.Any(), gomock.Any()).Return(sampleResetPointsData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeVersionHistories(gomock.Any(), gomock.Any()).Return(sampleEventData(), nil).Times(1)
-				mockedSerializer.EXPECT().SerializeEvent(activityScheduledEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
-				mockedSerializer.EXPECT().SerializeEvent(activityStartedEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
-				mockedSerializer.EXPECT().SerializeEvent(childWorkflowScheduledEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
-				mockedSerializer.EXPECT().SerializeEvent(childWorkflowStartedEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeEvent(activityScheduledEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeEvent(activityStartedEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeEvent(childWorkflowScheduledEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeEvent(childWorkflowStartedEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeChecksum(gomock.Any(), gomock.Any()).Return(sampleCheckSumData(), nil).Times(1)
 			},
 			input: sampleWorkflowSnapshot(),
@@ -451,8 +452,8 @@ func TestSerializeWorkflowSnapshot(t *testing.T) {
 				assert.Equal(t, &InternalWorkflowSnapshot{
 					ExecutionInfo:       &InternalWorkflowExecutionInfo{},
 					ChecksumData:        sampleTestCheckSumData(),
-					StartVersion:        common.EmptyVersion,
-					LastWriteVersion:    common.EmptyVersion,
+					StartVersion:        constants.EmptyVersion,
+					LastWriteVersion:    constants.EmptyVersion,
 					ActivityInfos:       make([]*InternalActivityInfo, 0),
 					ChildExecutionInfos: make([]*InternalChildExecutionInfo, 0),
 				}, res)
@@ -483,7 +484,7 @@ func TestSerializeWorkflowSnapshot(t *testing.T) {
 			name: "serialize version histories error",
 			prepareMocks: func(mockedSerializer *MockPayloadSerializer) {
 				mockedSerializer.EXPECT().SerializeEvent(gomock.Any(), gomock.Any()).Return(sampleEventData(), nil).Times(1)
-				mockedSerializer.EXPECT().SerializeResetPoints(gomock.Any(), gomock.Any()).Return(NewDataBlob([]byte("test-reset-points"), common.EncodingTypeThriftRW), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeResetPoints(gomock.Any(), gomock.Any()).Return(NewDataBlob([]byte("test-reset-points"), constants.EncodingTypeThriftRW), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeVersionHistories(gomock.Any(), gomock.Any()).Return(nil, assert.AnError).Times(1)
 			},
 			input: sampleWorkflowSnapshot(),
@@ -494,10 +495,10 @@ func TestSerializeWorkflowSnapshot(t *testing.T) {
 		{
 			name: "serialize activity scheduled event error",
 			prepareMocks: func(mockedSerializer *MockPayloadSerializer) {
-				mockedSerializer.EXPECT().SerializeEvent(completionEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeEvent(completionEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeResetPoints(gomock.Any(), gomock.Any()).Return(sampleResetPointsData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeVersionHistories(gomock.Any(), gomock.Any()).Return(sampleTestCheckSumData(), nil).Times(1)
-				mockedSerializer.EXPECT().SerializeEvent(activityScheduledEvent(), common.EncodingTypeThriftRW).Return(nil, assert.AnError).Times(1)
+				mockedSerializer.EXPECT().SerializeEvent(activityScheduledEvent(), constants.EncodingTypeThriftRW).Return(nil, assert.AnError).Times(1)
 			},
 			input: sampleWorkflowSnapshot(),
 			checkRes: func(t *testing.T, res *InternalWorkflowSnapshot, err error) {
@@ -507,11 +508,11 @@ func TestSerializeWorkflowSnapshot(t *testing.T) {
 		{
 			name: "serialize activity started event error",
 			prepareMocks: func(mockedSerializer *MockPayloadSerializer) {
-				mockedSerializer.EXPECT().SerializeEvent(completionEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeEvent(completionEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeResetPoints(gomock.Any(), gomock.Any()).Return(sampleResetPointsData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeVersionHistories(gomock.Any(), gomock.Any()).Return(sampleTestCheckSumData(), nil).Times(1)
-				mockedSerializer.EXPECT().SerializeEvent(activityScheduledEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
-				mockedSerializer.EXPECT().SerializeEvent(activityStartedEvent(), common.EncodingTypeThriftRW).Return(nil, assert.AnError).Times(1)
+				mockedSerializer.EXPECT().SerializeEvent(activityScheduledEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeEvent(activityStartedEvent(), constants.EncodingTypeThriftRW).Return(nil, assert.AnError).Times(1)
 			},
 			input: sampleWorkflowSnapshot(),
 			checkRes: func(t *testing.T, res *InternalWorkflowSnapshot, err error) {
@@ -522,12 +523,12 @@ func TestSerializeWorkflowSnapshot(t *testing.T) {
 		{
 			name: "serialize child workflow scheduled event error",
 			prepareMocks: func(mockedSerializer *MockPayloadSerializer) {
-				mockedSerializer.EXPECT().SerializeEvent(completionEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeEvent(completionEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeResetPoints(gomock.Any(), gomock.Any()).Return(sampleResetPointsData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeVersionHistories(gomock.Any(), gomock.Any()).Return(sampleTestCheckSumData(), nil).Times(1)
-				mockedSerializer.EXPECT().SerializeEvent(activityScheduledEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
-				mockedSerializer.EXPECT().SerializeEvent(activityStartedEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
-				mockedSerializer.EXPECT().SerializeEvent(childWorkflowScheduledEvent(), common.EncodingTypeThriftRW).Return(nil, assert.AnError).Times(1)
+				mockedSerializer.EXPECT().SerializeEvent(activityScheduledEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeEvent(activityStartedEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeEvent(childWorkflowScheduledEvent(), constants.EncodingTypeThriftRW).Return(nil, assert.AnError).Times(1)
 			},
 			input: sampleWorkflowSnapshot(),
 			checkRes: func(t *testing.T, res *InternalWorkflowSnapshot, err error) {
@@ -537,13 +538,13 @@ func TestSerializeWorkflowSnapshot(t *testing.T) {
 		{
 			name: "serialize child workflow started event error",
 			prepareMocks: func(mockedSerializer *MockPayloadSerializer) {
-				mockedSerializer.EXPECT().SerializeEvent(completionEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeEvent(completionEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeResetPoints(gomock.Any(), gomock.Any()).Return(sampleResetPointsData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeVersionHistories(gomock.Any(), gomock.Any()).Return(sampleTestCheckSumData(), nil).Times(1)
-				mockedSerializer.EXPECT().SerializeEvent(activityScheduledEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
-				mockedSerializer.EXPECT().SerializeEvent(activityStartedEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
-				mockedSerializer.EXPECT().SerializeEvent(childWorkflowScheduledEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
-				mockedSerializer.EXPECT().SerializeEvent(childWorkflowStartedEvent(), common.EncodingTypeThriftRW).Return(nil, assert.AnError).Times(1)
+				mockedSerializer.EXPECT().SerializeEvent(activityScheduledEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeEvent(activityStartedEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeEvent(childWorkflowScheduledEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeEvent(childWorkflowStartedEvent(), constants.EncodingTypeThriftRW).Return(nil, assert.AnError).Times(1)
 			},
 			input: sampleWorkflowSnapshot(),
 			checkRes: func(t *testing.T, res *InternalWorkflowSnapshot, err error) {
@@ -557,7 +558,7 @@ func TestSerializeWorkflowSnapshot(t *testing.T) {
 			mockedSerializer := NewMockPayloadSerializer(ctrl)
 			tc.prepareMocks(mockedSerializer)
 			manager := NewExecutionManagerImpl(nil, testlogger.New(t), mockedSerializer).(*executionManagerImpl)
-			res, err := manager.SerializeWorkflowSnapshot(tc.input, common.EncodingTypeThriftRW)
+			res, err := manager.SerializeWorkflowSnapshot(tc.input, constants.EncodingTypeThriftRW)
 			tc.checkRes(t, res, err)
 		})
 	}
@@ -992,13 +993,13 @@ func TestCreateWorkflowExecution(t *testing.T) {
 					})
 
 				// Prepare DeserializeWorkflow call
-				mockedSerializer.EXPECT().SerializeEvent(completionEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeEvent(completionEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeResetPoints(gomock.Any(), gomock.Any()).Return(sampleResetPointsData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeVersionHistories(gomock.Any(), gomock.Any()).Return(sampleEventData(), nil).Times(1)
-				mockedSerializer.EXPECT().SerializeEvent(activityScheduledEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
-				mockedSerializer.EXPECT().SerializeEvent(activityStartedEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
-				mockedSerializer.EXPECT().SerializeEvent(childWorkflowScheduledEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
-				mockedSerializer.EXPECT().SerializeEvent(childWorkflowStartedEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeEvent(activityScheduledEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeEvent(activityStartedEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeEvent(childWorkflowScheduledEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeEvent(childWorkflowStartedEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeChecksum(gomock.Any(), gomock.Any()).Return(sampleCheckSumData(), nil).Times(1)
 			},
 			checkRes: func(t *testing.T, response *CreateWorkflowExecutionResponse, err error) {
@@ -1021,13 +1022,13 @@ func TestCreateWorkflowExecution(t *testing.T) {
 			name: "persistence error",
 			prepareMocks: func(mockedStore *MockExecutionStore, mockedSerializer *MockPayloadSerializer) {
 				// Prepare DeserializeWorkflow call
-				mockedSerializer.EXPECT().SerializeEvent(completionEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeEvent(completionEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeResetPoints(gomock.Any(), gomock.Any()).Return(sampleResetPointsData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeVersionHistories(gomock.Any(), gomock.Any()).Return(sampleEventData(), nil).Times(1)
-				mockedSerializer.EXPECT().SerializeEvent(activityScheduledEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
-				mockedSerializer.EXPECT().SerializeEvent(activityStartedEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
-				mockedSerializer.EXPECT().SerializeEvent(childWorkflowScheduledEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
-				mockedSerializer.EXPECT().SerializeEvent(childWorkflowStartedEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeEvent(activityScheduledEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeEvent(activityStartedEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeEvent(childWorkflowScheduledEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeEvent(childWorkflowStartedEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeChecksum(gomock.Any(), gomock.Any()).Return(sampleCheckSumData(), nil).Times(1)
 
 				// Persistence call will fail
@@ -1040,7 +1041,7 @@ func TestCreateWorkflowExecution(t *testing.T) {
 		{
 			name: "serialize workflow snapshot error",
 			prepareMocks: func(mockedStore *MockExecutionStore, mockedSerializer *MockPayloadSerializer) {
-				mockedSerializer.EXPECT().SerializeEvent(completionEvent(), common.EncodingTypeThriftRW).Return(nil, assert.AnError).Times(1)
+				mockedSerializer.EXPECT().SerializeEvent(completionEvent(), constants.EncodingTypeThriftRW).Return(nil, assert.AnError).Times(1)
 			},
 			checkRes: func(t *testing.T, response *CreateWorkflowExecutionResponse, err error) {
 				assert.ErrorIs(t, err, assert.AnError)
@@ -1085,7 +1086,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 				RangeID:               1,
 				Mode:                  ConflictResolveWorkflowModeBypassCurrent,
 				ResetWorkflowSnapshot: *sampleWorkflowSnapshot(),
-				Encoding:              common.EncodingTypeThriftRW,
+				Encoding:              constants.EncodingTypeThriftRW,
 			},
 			prepareMocks: func(mockedStore *MockExecutionStore, mockedSerializer *MockPayloadSerializer) {
 				expectedRequest := &InternalConflictResolveWorkflowExecutionRequest{
@@ -1104,13 +1105,13 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 						return nil
 					})
 
-				mockedSerializer.EXPECT().SerializeEvent(completionEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeEvent(completionEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeResetPoints(gomock.Any(), gomock.Any()).Return(sampleResetPointsData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeVersionHistories(gomock.Any(), gomock.Any()).Return(sampleEventData(), nil).Times(1)
-				mockedSerializer.EXPECT().SerializeEvent(activityScheduledEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
-				mockedSerializer.EXPECT().SerializeEvent(activityStartedEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
-				mockedSerializer.EXPECT().SerializeEvent(childWorkflowScheduledEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
-				mockedSerializer.EXPECT().SerializeEvent(childWorkflowStartedEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeEvent(activityScheduledEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeEvent(activityStartedEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeEvent(childWorkflowScheduledEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeEvent(childWorkflowStartedEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeChecksum(gomock.Any(), gomock.Any()).Return(sampleCheckSumData(), nil).Times(1)
 			},
 			checkRes: func(t *testing.T, response *ConflictResolveWorkflowExecutionResponse, err error) {
@@ -1136,10 +1137,10 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 				RangeID:               1,
 				Mode:                  ConflictResolveWorkflowModeBypassCurrent,
 				ResetWorkflowSnapshot: *sampleWorkflowSnapshot(),
-				Encoding:              common.EncodingTypeThriftRW,
+				Encoding:              constants.EncodingTypeThriftRW,
 			},
 			prepareMocks: func(mockedStore *MockExecutionStore, mockedSerializer *MockPayloadSerializer) {
-				mockedSerializer.EXPECT().SerializeEvent(completionEvent(), common.EncodingTypeThriftRW).Return(nil, assert.AnError).Times(1)
+				mockedSerializer.EXPECT().SerializeEvent(completionEvent(), constants.EncodingTypeThriftRW).Return(nil, assert.AnError).Times(1)
 			},
 			checkRes: func(t *testing.T, response *ConflictResolveWorkflowExecutionResponse, err error) {
 				assert.ErrorIs(t, err, assert.AnError)
@@ -1151,7 +1152,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 				RangeID:                 1,
 				Mode:                    ConflictResolveWorkflowModeBypassCurrent,
 				ResetWorkflowSnapshot:   *sampleWorkflowSnapshot(),
-				Encoding:                common.EncodingTypeThriftRW,
+				Encoding:                constants.EncodingTypeThriftRW,
 				CurrentWorkflowMutation: sampleWorkflowMutation(),
 			},
 			prepareMocks: func(mockedStore *MockExecutionStore, mockedSerializer *MockPayloadSerializer) {
@@ -1173,18 +1174,18 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 				})
 
 				// Mutation call
-				mockedSerializer.EXPECT().SerializeEvent(activityStartedEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
-				mockedSerializer.EXPECT().SerializeEvent(activityScheduledEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeEvent(activityStartedEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeEvent(activityScheduledEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeResetPoints(gomock.Any(), gomock.Any()).Return(sampleResetPointsData(), nil).Times(1)
 
 				// Expect mutation doubles the calls for workflow execution serialization
-				mockedSerializer.EXPECT().SerializeEvent(completionEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(2)
+				mockedSerializer.EXPECT().SerializeEvent(completionEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(2)
 				mockedSerializer.EXPECT().SerializeResetPoints(gomock.Any(), gomock.Any()).Return(sampleResetPointsData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeVersionHistories(gomock.Any(), gomock.Any()).Return(sampleEventData(), nil).Times(1)
-				mockedSerializer.EXPECT().SerializeEvent(activityScheduledEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(2)
-				mockedSerializer.EXPECT().SerializeEvent(activityStartedEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(2)
-				mockedSerializer.EXPECT().SerializeEvent(childWorkflowScheduledEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
-				mockedSerializer.EXPECT().SerializeEvent(childWorkflowStartedEvent(), common.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeEvent(activityScheduledEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(2)
+				mockedSerializer.EXPECT().SerializeEvent(activityStartedEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(2)
+				mockedSerializer.EXPECT().SerializeEvent(childWorkflowScheduledEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeEvent(childWorkflowStartedEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeChecksum(gomock.Any(), gomock.Any()).Return(sampleCheckSumData(), nil).Times(2)
 			},
 			checkRes: func(t *testing.T, response *ConflictResolveWorkflowExecutionResponse, err error) {
@@ -1210,10 +1211,10 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 				RangeID:               1,
 				Mode:                  ConflictResolveWorkflowModeBypassCurrent,
 				ResetWorkflowSnapshot: *sampleWorkflowSnapshot(),
-				Encoding:              common.EncodingTypeThriftRW,
+				Encoding:              constants.EncodingTypeThriftRW,
 			},
 			prepareMocks: func(mockedStore *MockExecutionStore, mockedSerializer *MockPayloadSerializer) {
-				mockedSerializer.EXPECT().SerializeEvent(completionEvent(), common.EncodingTypeThriftRW).Return(nil, assert.AnError).Times(1)
+				mockedSerializer.EXPECT().SerializeEvent(completionEvent(), constants.EncodingTypeThriftRW).Return(nil, assert.AnError).Times(1)
 			},
 			checkRes: func(t *testing.T, response *ConflictResolveWorkflowExecutionResponse, err error) {
 				assert.ErrorIs(t, err, assert.AnError)
@@ -1272,8 +1273,8 @@ func sampleInternalActivityInfo(name string) *InternalActivityInfo {
 		Version:        1,
 		ScheduleID:     1,
 		ActivityID:     name,
-		ScheduledEvent: NewDataBlob([]byte(fmt.Sprintf("%s-activity-scheduled-event", name)), common.EncodingTypeThriftRW),
-		StartedEvent:   NewDataBlob([]byte(fmt.Sprintf("%s-activity-started-event", name)), common.EncodingTypeThriftRW),
+		ScheduledEvent: NewDataBlob([]byte(fmt.Sprintf("%s-activity-scheduled-event", name)), constants.EncodingTypeThriftRW),
+		StartedEvent:   NewDataBlob([]byte(fmt.Sprintf("%s-activity-started-event", name)), constants.EncodingTypeThriftRW),
 	}
 }
 
@@ -1361,8 +1362,8 @@ func sampleInternalWorkflowMutation() *InternalWorkflowMutation {
 		},
 		Checksum:         generateChecksum(),
 		ChecksumData:     sampleTestCheckSumData(),
-		StartVersion:     common.EmptyVersion,
-		LastWriteVersion: common.EmptyVersion,
+		StartVersion:     constants.EmptyVersion,
+		LastWriteVersion: constants.EmptyVersion,
 	}
 }
 
@@ -1546,21 +1547,21 @@ func sampleWorkflowExecutionStats() *ExecutionStats {
 
 func sampleTestCheckSumData() *DataBlob {
 	return &DataBlob{
-		Encoding: common.EncodingTypeThriftRW,
+		Encoding: constants.EncodingTypeThriftRW,
 		Data:     []byte("test-checksum"),
 	}
 }
 
 func sampleEventData() *DataBlob {
-	return NewDataBlob([]byte("test-event"), common.EncodingTypeThriftRW)
+	return NewDataBlob([]byte("test-event"), constants.EncodingTypeThriftRW)
 }
 
 func sampleResetPointsData() *DataBlob {
-	return NewDataBlob([]byte("test-reset-points"), common.EncodingTypeThriftRW)
+	return NewDataBlob([]byte("test-reset-points"), constants.EncodingTypeThriftRW)
 }
 
 func sampleCheckSumData() *DataBlob {
-	return NewDataBlob([]byte("test-checksum"), common.EncodingTypeThriftRW)
+	return NewDataBlob([]byte("test-checksum"), constants.EncodingTypeThriftRW)
 }
 
 func sampleInternalChildExecutionInfo(initEventID, startedEventID int64) *InternalChildExecutionInfo {
@@ -1579,5 +1580,5 @@ func sampleInternalChildExecutionInfo(initEventID, startedEventID int64) *Intern
 }
 
 func sampleEventDataWithVersion(i int64) *DataBlob {
-	return NewDataBlob([]byte(fmt.Sprintf("test-event-%d", i)), common.EncodingTypeThriftRW)
+	return NewDataBlob([]byte(fmt.Sprintf("test-event-%d", i)), constants.EncodingTypeThriftRW)
 }

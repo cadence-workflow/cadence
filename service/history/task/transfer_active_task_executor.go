@@ -34,6 +34,7 @@ import (
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -114,9 +115,14 @@ func (t *transferActiveTaskExecutor) Execute(
 	shouldProcessTask bool,
 ) error {
 
-	transferTask, ok := task.GetInfo().(*persistence.TransferTaskInfo)
+	transfer, ok := task.GetInfo().(persistence.Task)
 	if !ok {
 		return errUnexpectedTask
+	}
+
+	transferTask, err := transfer.ToTransferTaskInfo()
+	if err != nil {
+		return err
 	}
 
 	if !shouldProcessTask {
@@ -196,7 +202,7 @@ func (t *transferActiveTaskExecutor) processActivityTask(
 		return err
 	}
 
-	timeout := min(ai.ScheduleToStartTimeout, common.MaxTaskTimeout)
+	timeout := min(ai.ScheduleToStartTimeout, constants.MaxTaskTimeout)
 	// release the context lock since we no longer need mutable state builder and
 	// the rest of logic is making RPC call, which takes time.
 	release(nil)
@@ -253,7 +259,7 @@ func (t *transferActiveTaskExecutor) processDecisionTask(
 	domainName := mutableState.GetDomainEntry().GetInfo().Name
 	executionInfo := mutableState.GetExecutionInfo()
 	workflowTimeout := executionInfo.WorkflowTimeout
-	decisionTimeout := min(workflowTimeout, common.MaxTaskTimeout)
+	decisionTimeout := min(workflowTimeout, constants.MaxTaskTimeout)
 
 	// NOTE: previously this section check whether mutable state has enabled
 	// sticky decision, if so convert the decision to a sticky decision.
@@ -789,7 +795,7 @@ func (t *transferActiveTaskExecutor) processStartChildExecution(
 	}
 
 	workflowRunning := mutableState.IsWorkflowExecutionRunning()
-	childStarted := childInfo.StartedID != common.EmptyEventID
+	childStarted := childInfo.StartedID != constants.EmptyEventID
 
 	if !workflowRunning && (!childStarted || childInfo.ParentClosePolicy != types.ParentClosePolicyAbandon) {
 		// three cases here:
@@ -1176,7 +1182,7 @@ func recordChildExecutionStarted(
 			domain := initiatedAttributes.Domain
 			initiatedEventID := task.ScheduleID
 			ci, ok := mutableState.GetChildExecutionInfo(initiatedEventID)
-			if !ok || ci.StartedID != common.EmptyEventID {
+			if !ok || ci.StartedID != constants.EmptyEventID {
 				return &types.EntityNotExistsError{Message: "Pending child execution not found."}
 			}
 
@@ -1213,7 +1219,7 @@ func recordStartChildExecutionFailed(
 
 			initiatedEventID := task.ScheduleID
 			ci, ok := mutableState.GetChildExecutionInfo(initiatedEventID)
-			if !ok || ci.StartedID != common.EmptyEventID {
+			if !ok || ci.StartedID != constants.EmptyEventID {
 				return &types.EntityNotExistsError{Message: "Pending child execution not found."}
 			}
 
@@ -1367,7 +1373,7 @@ func requestCancelExternalExecutionFailed(
 			}
 
 			_, err := mutableState.AddRequestCancelExternalWorkflowExecutionFailedEvent(
-				common.EmptyEventID,
+				constants.EmptyEventID,
 				initiatedEventID,
 				targetDomain,
 				targetWorkflowID,
@@ -1412,7 +1418,7 @@ func signalExternalExecutionFailed(
 			}
 
 			_, err := mutableState.AddSignalExternalWorkflowExecutionFailedEvent(
-				common.EmptyEventID,
+				constants.EmptyEventID,
 				initiatedEventID,
 				targetDomain,
 				targetWorkflowID,

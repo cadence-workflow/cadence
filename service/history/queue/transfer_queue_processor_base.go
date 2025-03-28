@@ -116,7 +116,7 @@ func newTransferQueueProcessorBase(
 
 	transferQueueProcessorBase := &transferQueueProcessorBase{
 		processorBase: processorBase,
-		taskInitializer: func(taskInfo task.Info) task.Task {
+		taskInitializer: func(taskInfo persistence.Task) task.Task {
 			return task.NewTransferTask(
 				shard,
 				taskInfo,
@@ -523,15 +523,20 @@ func (t *transferQueueProcessorBase) handleActionNotification(notification actio
 func (t *transferQueueProcessorBase) readTasks(
 	readLevel task.Key,
 	maxReadLevel task.Key,
-) ([]*persistence.TransferTaskInfo, bool, error) {
+) ([]persistence.Task, bool, error) {
 
-	var response *persistence.GetTransferTasksResponse
+	var response *persistence.GetHistoryTasksResponse
 	op := func() error {
 		var err error
-		response, err = t.shard.GetExecutionManager().GetTransferTasks(context.Background(), &persistence.GetTransferTasksRequest{
-			ReadLevel:    readLevel.(transferTaskKey).taskID + 1,
-			MaxReadLevel: maxReadLevel.(transferTaskKey).taskID + 1,
-			BatchSize:    t.options.BatchSize(),
+		response, err = t.shard.GetExecutionManager().GetHistoryTasks(context.Background(), &persistence.GetHistoryTasksRequest{
+			TaskCategory: persistence.HistoryTaskCategoryTransfer,
+			InclusiveMinTaskKey: persistence.HistoryTaskKey{
+				TaskID: readLevel.(transferTaskKey).taskID + 1,
+			},
+			ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
+				TaskID: maxReadLevel.(transferTaskKey).taskID + 1,
+			},
+			PageSize: t.options.BatchSize(),
 		})
 		return err
 	}

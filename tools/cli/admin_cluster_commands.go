@@ -29,6 +29,7 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/visibility"
 	"github.com/uber/cadence/service/worker/failovermanager"
@@ -130,13 +131,13 @@ func AdminRebalanceStart(c *cli.Context) error {
 		return commoncli.Problem("Failed to get operator", err)
 	}
 	memo, err := getWorkflowMemo(map[string]interface{}{
-		common.MemoKeyForOperator: op,
+		constants.MemoKeyForOperator: op,
 	})
 	if err != nil {
 		return commoncli.Problem("Failed to serialize memo", err)
 	}
 	request := &types.StartWorkflowExecutionRequest{
-		Domain:                              common.SystemLocalDomainName,
+		Domain:                              constants.SystemLocalDomainName,
 		WorkflowID:                          workflowID,
 		RequestID:                           uuid.New(),
 		Identity:                            getCliIdentity(),
@@ -170,7 +171,7 @@ func AdminRebalanceList(c *cli.Context) error {
 	if err := c.Set(FlagWorkflowID, failovermanager.RebalanceWorkflowID); err != nil {
 		return err
 	}
-	if err := c.Set(FlagDomain, common.SystemLocalDomainName); err != nil {
+	if err := c.Set(FlagDomain, constants.SystemLocalDomainName); err != nil {
 		return err
 	}
 	return ListWorkflow(c)

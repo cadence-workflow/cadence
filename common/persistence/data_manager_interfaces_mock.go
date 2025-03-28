@@ -91,6 +91,20 @@ func (mr *MockTaskMockRecorder) GetRunID() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRunID", reflect.TypeOf((*MockTask)(nil).GetRunID))
 }
 
+// GetTaskCategory mocks base method.
+func (m *MockTask) GetTaskCategory() HistoryTaskCategory {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTaskCategory")
+	ret0, _ := ret[0].(HistoryTaskCategory)
+	return ret0
+}
+
+// GetTaskCategory indicates an expected call of GetTaskCategory.
+func (mr *MockTaskMockRecorder) GetTaskCategory() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskCategory", reflect.TypeOf((*MockTask)(nil).GetTaskCategory))
+}
+
 // GetTaskID mocks base method.
 func (m *MockTask) GetTaskID() int64 {
 	m.ctrl.T.Helper()
@@ -585,21 +599,6 @@ func (m *MockExecutionManager) GetShardID() int {
 func (mr *MockExecutionManagerMockRecorder) GetShardID() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetShardID", reflect.TypeOf((*MockExecutionManager)(nil).GetShardID))
-}
-
-// GetTransferTasks mocks base method.
-func (m *MockExecutionManager) GetTransferTasks(ctx context.Context, request *GetTransferTasksRequest) (*GetTransferTasksResponse, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTransferTasks", ctx, request)
-	ret0, _ := ret[0].(*GetTransferTasksResponse)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetTransferTasks indicates an expected call of GetTransferTasks.
-func (mr *MockExecutionManagerMockRecorder) GetTransferTasks(ctx, request any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTransferTasks", reflect.TypeOf((*MockExecutionManager)(nil).GetTransferTasks), ctx, request)
 }
 
 // GetWorkflowExecution mocks base method.

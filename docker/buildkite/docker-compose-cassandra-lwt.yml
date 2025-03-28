@@ -1,5 +1,3 @@
-version: "3.5"
-
 services:
   cass1:
     container_name: cass1

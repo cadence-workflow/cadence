@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/execution"
@@ -138,7 +139,7 @@ func hydrateSyncActivityTask(task persistence.ReplicationTaskInfo, ms mutableSta
 	}
 
 	var startedTime *int64
-	if activityInfo.StartedID != common.EmptyEventID {
+	if activityInfo.StartedID != constants.EmptyEventID {
 		startedTime = timeToUnixNano(activityInfo.StartedTime)
 	}
 
@@ -232,7 +233,7 @@ func (h historyLoader) GetNextRunEventBlob(ctx context.Context, task persistence
 		return nil, nil
 	}
 	// only get the first batch
-	return h.getEventsBlob(ctx, task.DomainID, task.NewRunBranchToken, common.FirstEventID, common.FirstEventID+1)
+	return h.getEventsBlob(ctx, task.DomainID, task.NewRunBranchToken, constants.FirstEventID, constants.FirstEventID+1)
 }
 
 func (h historyLoader) getEventsBlob(ctx context.Context, domainID string, branchToken []byte, minEventID, maxEventID int64) (*types.DataBlob, error) {

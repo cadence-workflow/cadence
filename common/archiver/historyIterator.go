@@ -28,6 +28,7 @@ import (
 	"errors"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	persistenceutils "github.com/uber/cadence/common/persistence/persistence-utils"
 	"github.com/uber/cadence/common/types"
@@ -122,7 +123,7 @@ func newHistoryIterator(
 ) *historyIterator {
 	return &historyIterator{
 		historyIteratorState: historyIteratorState{
-			NextEventID:       common.FirstEventID,
+			NextEventID:       constants.FirstEventID,
 			FinishedIteration: false,
 		},
 		ctx:                   ctx,
@@ -188,7 +189,7 @@ func (i *historyIterator) readHistoryBatches(ctx context.Context, firstEventID i
 	newIterState := historyIteratorState{}
 	for size < targetSize {
 		currHistoryBatches, err := i.readHistory(ctx, firstEventID)
-		if _, ok := err.(*types.EntityNotExistsError); ok && firstEventID != common.FirstEventID {
+		if _, ok := err.(*types.EntityNotExistsError); ok && firstEventID != constants.FirstEventID {
 			newIterState.FinishedIteration = true
 			return historyBatches, newIterState, nil
 		}
@@ -217,7 +218,7 @@ func (i *historyIterator) readHistoryBatches(ctx context.Context, firstEventID i
 	// If you are here, it means the target size is met after adding the last batch of read history.
 	// We need to check if there's more history batches.
 	_, err := i.readHistory(ctx, firstEventID)
-	if _, ok := err.(*types.EntityNotExistsError); ok && firstEventID != common.FirstEventID {
+	if _, ok := err.(*types.EntityNotExistsError); ok && firstEventID != constants.FirstEventID {
 		newIterState.FinishedIteration = true
 		return historyBatches, newIterState, nil
 	}
@@ -233,7 +234,7 @@ func (i *historyIterator) readHistory(ctx context.Context, firstEventID int64) (
 	req := &persistence.ReadHistoryBranchRequest{
 		BranchToken: i.request.BranchToken,
 		MinEventID:  firstEventID,
-		MaxEventID:  common.EndEventID,
+		MaxEventID:  constants.EndEventID,
 		PageSize:    i.historyPageSize,
 		ShardID:     common.IntPtr(i.request.ShardID),
 		DomainName:  i.request.DomainName,

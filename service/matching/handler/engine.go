@@ -41,6 +41,7 @@ import (
 	"github.com/uber/cadence/common/client"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/constants"
 	cadence_errors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -1138,7 +1139,7 @@ func (e *matchingEngineImpl) getAllPartitions(
 	partitionKeys := []string{rootPartition}
 	n := e.config.NumTasklistWritePartitions(request.GetDomain(), rootPartition, taskListType)
 	for i := 1; i < n; i++ {
-		partitionKeys = append(partitionKeys, fmt.Sprintf("%v%v/%v", common.ReservedTaskListPrefix, rootPartition, i))
+		partitionKeys = append(partitionKeys, fmt.Sprintf("%v%v/%v", constants.ReservedTaskListPrefix, rootPartition, i))
 	}
 	return partitionKeys, nil
 }

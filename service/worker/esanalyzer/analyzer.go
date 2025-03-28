@@ -33,9 +33,9 @@ import (
 
 	"github.com/uber/cadence/client"
 	"github.com/uber/cadence/client/frontend"
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
 	es "github.com/uber/cadence/common/elasticsearch"
 	"github.com/uber/cadence/common/log"
@@ -124,7 +124,7 @@ func New(
 
 	if esClient != nil {
 		mode = ES
-		indexName = esConfig.Indices[common.VisibilityAppName]
+		indexName = esConfig.Indices[constants.VisibilityAppName]
 		pinotTableName = ""
 	} else if pinotClient != nil {
 		mode = Pinot
@@ -161,7 +161,7 @@ func (a *Analyzer) Start() error {
 		BackgroundActivityContext: ctx,
 		Tracer:                    opentracing.GlobalTracer(),
 	}
-	esWorker := worker.New(a.svcClient, common.SystemLocalDomainName, taskListName, workerOpts)
+	esWorker := worker.New(a.svcClient, constants.SystemLocalDomainName, taskListName, workerOpts)
 	err := esWorker.Start()
 	return err
 }

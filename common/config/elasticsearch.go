@@ -29,7 +29,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 )
 
 var errAWSSigningCredential = fmt.Errorf("must provide exactly one type of credential, EnvironmentCredential or StaticCredential")
@@ -96,7 +96,7 @@ type (
 
 // GetVisibilityIndex return visibility index name
 func (cfg *ElasticSearchConfig) GetVisibilityIndex() string {
-	return cfg.Indices[common.VisibilityAppName]
+	return cfg.Indices[constants.VisibilityAppName]
 }
 
 // SetUsernamePassword set the username/password into URL

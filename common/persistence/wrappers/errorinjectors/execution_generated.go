@@ -276,21 +276,6 @@ func (c *injectorExecutionManager) GetShardID() (i1 int) {
 	return c.wrapped.GetShardID()
 }
 
-func (c *injectorExecutionManager) GetTransferTasks(ctx context.Context, request *persistence.GetTransferTasksRequest) (gp1 *persistence.GetTransferTasksResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
-	var forwardCall bool
-	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
-		gp1, err = c.wrapped.GetTransferTasks(ctx, request)
-	}
-
-	if fakeErr != nil {
-		logErr(c.logger, "ExecutionManager.GetTransferTasks", fakeErr, forwardCall, err)
-		err = fakeErr
-		return
-	}
-	return
-}
-
 func (c *injectorExecutionManager) GetWorkflowExecution(ctx context.Context, request *persistence.GetWorkflowExecutionRequest) (gp1 *persistence.GetWorkflowExecutionResponse, err error) {
 	fakeErr := generateFakeError(c.errorRate)
 	var forwardCall bool

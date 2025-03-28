@@ -29,8 +29,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -129,7 +129,7 @@ func (t *TaskAckManager) getTasks(ctx context.Context, pollingCluster string, la
 		previousReadTaskID             = t.ackLevels.GetClusterReplicationLevel(pollingCluster)
 	)
 
-	if lastReadTaskID == common.EmptyMessageID {
+	if lastReadTaskID == constants.EmptyMessageID {
 		lastReadTaskID = previousReadTaskID
 	}
 

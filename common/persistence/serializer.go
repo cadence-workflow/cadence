@@ -28,9 +28,9 @@ import (
 	"github.com/uber/cadence/.gen/go/history"
 	"github.com/uber/cadence/.gen/go/replicator"
 	workflow "github.com/uber/cadence/.gen/go/shared"
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/checksum"
 	"github.com/uber/cadence/common/codec"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/types/mapper/thrift"
 )
@@ -42,51 +42,51 @@ type (
 	// It will only be used inside persistence, so that serialize/deserialize is transparent for application
 	PayloadSerializer interface {
 		// serialize/deserialize history events
-		SerializeBatchEvents(batch []*types.HistoryEvent, encodingType common.EncodingType) (*DataBlob, error)
+		SerializeBatchEvents(batch []*types.HistoryEvent, encodingType constants.EncodingType) (*DataBlob, error)
 		DeserializeBatchEvents(data *DataBlob) ([]*types.HistoryEvent, error)
 
 		// serialize/deserialize a single history event
-		SerializeEvent(event *types.HistoryEvent, encodingType common.EncodingType) (*DataBlob, error)
+		SerializeEvent(event *types.HistoryEvent, encodingType constants.EncodingType) (*DataBlob, error)
 		DeserializeEvent(data *DataBlob) (*types.HistoryEvent, error)
 
 		// serialize/deserialize visibility memo fields
-		SerializeVisibilityMemo(memo *types.Memo, encodingType common.EncodingType) (*DataBlob, error)
+		SerializeVisibilityMemo(memo *types.Memo, encodingType constants.EncodingType) (*DataBlob, error)
 		DeserializeVisibilityMemo(data *DataBlob) (*types.Memo, error)
 
 		// serialize/deserialize reset points
-		SerializeResetPoints(event *types.ResetPoints, encodingType common.EncodingType) (*DataBlob, error)
+		SerializeResetPoints(event *types.ResetPoints, encodingType constants.EncodingType) (*DataBlob, error)
 		DeserializeResetPoints(data *DataBlob) (*types.ResetPoints, error)
 
 		// serialize/deserialize bad binaries
-		SerializeBadBinaries(event *types.BadBinaries, encodingType common.EncodingType) (*DataBlob, error)
+		SerializeBadBinaries(event *types.BadBinaries, encodingType constants.EncodingType) (*DataBlob, error)
 		DeserializeBadBinaries(data *DataBlob) (*types.BadBinaries, error)
 
 		// serialize/deserialize version histories
-		SerializeVersionHistories(histories *types.VersionHistories, encodingType common.EncodingType) (*DataBlob, error)
+		SerializeVersionHistories(histories *types.VersionHistories, encodingType constants.EncodingType) (*DataBlob, error)
 		DeserializeVersionHistories(data *DataBlob) (*types.VersionHistories, error)
 
 		// serialize/deserialize pending failover markers
-		SerializePendingFailoverMarkers(markers []*types.FailoverMarkerAttributes, encodingType common.EncodingType) (*DataBlob, error)
+		SerializePendingFailoverMarkers(markers []*types.FailoverMarkerAttributes, encodingType constants.EncodingType) (*DataBlob, error)
 		DeserializePendingFailoverMarkers(data *DataBlob) ([]*types.FailoverMarkerAttributes, error)
 
 		// serialize/deserialize processing queue statesss
-		SerializeProcessingQueueStates(states *types.ProcessingQueueStates, encodingType common.EncodingType) (*DataBlob, error)
+		SerializeProcessingQueueStates(states *types.ProcessingQueueStates, encodingType constants.EncodingType) (*DataBlob, error)
 		DeserializeProcessingQueueStates(data *DataBlob) (*types.ProcessingQueueStates, error)
 
 		// serialize/deserialize DynamicConfigBlob
-		SerializeDynamicConfigBlob(blob *types.DynamicConfigBlob, encodingType common.EncodingType) (*DataBlob, error)
+		SerializeDynamicConfigBlob(blob *types.DynamicConfigBlob, encodingType constants.EncodingType) (*DataBlob, error)
 		DeserializeDynamicConfigBlob(data *DataBlob) (*types.DynamicConfigBlob, error)
 
 		// serialize/deserialize IsolationGroupConfiguration
-		SerializeIsolationGroups(event *types.IsolationGroupConfiguration, encodingType common.EncodingType) (*DataBlob, error)
+		SerializeIsolationGroups(event *types.IsolationGroupConfiguration, encodingType constants.EncodingType) (*DataBlob, error)
 		DeserializeIsolationGroups(data *DataBlob) (*types.IsolationGroupConfiguration, error)
 
 		// serialize/deserialize async workflow configuration
-		SerializeAsyncWorkflowsConfig(config *types.AsyncWorkflowConfiguration, encodingType common.EncodingType) (*DataBlob, error)
+		SerializeAsyncWorkflowsConfig(config *types.AsyncWorkflowConfiguration, encodingType constants.EncodingType) (*DataBlob, error)
 		DeserializeAsyncWorkflowsConfig(data *DataBlob) (*types.AsyncWorkflowConfiguration, error)
 
 		// serialize/deserialize checksum
-		SerializeChecksum(sum checksum.Checksum, encodingType common.EncodingType) (*DataBlob, error)
+		SerializeChecksum(sum checksum.Checksum, encodingType constants.EncodingType) (*DataBlob, error)
 		DeserializeChecksum(data *DataBlob) (checksum.Checksum, error)
 	}
 
@@ -102,7 +102,7 @@ type (
 
 	// UnknownEncodingTypeError is an error type for unknown or unsupported encoding type
 	UnknownEncodingTypeError struct {
-		encodingType common.EncodingType
+		encodingType constants.EncodingType
 	}
 
 	serializerImpl struct {
@@ -117,7 +117,7 @@ func NewPayloadSerializer() PayloadSerializer {
 	}
 }
 
-func (t *serializerImpl) SerializeBatchEvents(events []*types.HistoryEvent, encodingType common.EncodingType) (*DataBlob, error) {
+func (t *serializerImpl) SerializeBatchEvents(events []*types.HistoryEvent, encodingType constants.EncodingType) (*DataBlob, error) {
 	return t.serialize(events, encodingType)
 }
 
@@ -133,7 +133,7 @@ func (t *serializerImpl) DeserializeBatchEvents(data *DataBlob) ([]*types.Histor
 	return events, err
 }
 
-func (t *serializerImpl) SerializeEvent(event *types.HistoryEvent, encodingType common.EncodingType) (*DataBlob, error) {
+func (t *serializerImpl) SerializeEvent(event *types.HistoryEvent, encodingType constants.EncodingType) (*DataBlob, error) {
 	if event == nil {
 		return nil, nil
 	}
@@ -149,7 +149,7 @@ func (t *serializerImpl) DeserializeEvent(data *DataBlob) (*types.HistoryEvent, 
 	return &event, err
 }
 
-func (t *serializerImpl) SerializeResetPoints(rp *types.ResetPoints, encodingType common.EncodingType) (*DataBlob, error) {
+func (t *serializerImpl) SerializeResetPoints(rp *types.ResetPoints, encodingType constants.EncodingType) (*DataBlob, error) {
 	if rp == nil {
 		rp = &types.ResetPoints{}
 	}
@@ -162,7 +162,7 @@ func (t *serializerImpl) DeserializeResetPoints(data *DataBlob) (*types.ResetPoi
 	return &rp, err
 }
 
-func (t *serializerImpl) SerializeBadBinaries(bb *types.BadBinaries, encodingType common.EncodingType) (*DataBlob, error) {
+func (t *serializerImpl) SerializeBadBinaries(bb *types.BadBinaries, encodingType constants.EncodingType) (*DataBlob, error) {
 	if bb == nil {
 		bb = &types.BadBinaries{}
 	}
@@ -175,7 +175,7 @@ func (t *serializerImpl) DeserializeBadBinaries(data *DataBlob) (*types.BadBinar
 	return &bb, err
 }
 
-func (t *serializerImpl) SerializeVisibilityMemo(memo *types.Memo, encodingType common.EncodingType) (*DataBlob, error) {
+func (t *serializerImpl) SerializeVisibilityMemo(memo *types.Memo, encodingType constants.EncodingType) (*DataBlob, error) {
 	if memo == nil {
 		// Return nil here to be consistent with Event
 		// This check is not duplicate as check in following serialize
@@ -190,7 +190,7 @@ func (t *serializerImpl) DeserializeVisibilityMemo(data *DataBlob) (*types.Memo,
 	return &memo, err
 }
 
-func (t *serializerImpl) SerializeVersionHistories(histories *types.VersionHistories, encodingType common.EncodingType) (*DataBlob, error) {
+func (t *serializerImpl) SerializeVersionHistories(histories *types.VersionHistories, encodingType constants.EncodingType) (*DataBlob, error) {
 	if histories == nil {
 		return nil, nil
 	}
@@ -203,7 +203,7 @@ func (t *serializerImpl) DeserializeVersionHistories(data *DataBlob) (*types.Ver
 	return &histories, err
 }
 
-func (t *serializerImpl) SerializePendingFailoverMarkers(markers []*types.FailoverMarkerAttributes, encodingType common.EncodingType) (*DataBlob, error) {
+func (t *serializerImpl) SerializePendingFailoverMarkers(markers []*types.FailoverMarkerAttributes, encodingType constants.EncodingType) (*DataBlob, error) {
 	if markers == nil {
 		return nil, nil
 	}
@@ -222,7 +222,7 @@ func (t *serializerImpl) DeserializePendingFailoverMarkers(data *DataBlob) ([]*t
 	return markers, err
 }
 
-func (t *serializerImpl) SerializeProcessingQueueStates(states *types.ProcessingQueueStates, encodingType common.EncodingType) (*DataBlob, error) {
+func (t *serializerImpl) SerializeProcessingQueueStates(states *types.ProcessingQueueStates, encodingType constants.EncodingType) (*DataBlob, error) {
 	if states == nil {
 		return nil, nil
 	}
@@ -242,7 +242,7 @@ func (t *serializerImpl) DeserializeProcessingQueueStates(data *DataBlob) (*type
 	return &states, err
 }
 
-func (t *serializerImpl) SerializeDynamicConfigBlob(blob *types.DynamicConfigBlob, encodingType common.EncodingType) (*DataBlob, error) {
+func (t *serializerImpl) SerializeDynamicConfigBlob(blob *types.DynamicConfigBlob, encodingType constants.EncodingType) (*DataBlob, error) {
 	if blob == nil {
 		return nil, nil
 	}
@@ -263,7 +263,7 @@ func (t *serializerImpl) DeserializeDynamicConfigBlob(data *DataBlob) (*types.Dy
 	return &blob, err
 }
 
-func (t *serializerImpl) SerializeIsolationGroups(c *types.IsolationGroupConfiguration, encodingType common.EncodingType) (*DataBlob, error) {
+func (t *serializerImpl) SerializeIsolationGroups(c *types.IsolationGroupConfiguration, encodingType constants.EncodingType) (*DataBlob, error) {
 	if c == nil {
 		return nil, nil
 	}
@@ -284,7 +284,7 @@ func (t *serializerImpl) DeserializeIsolationGroups(data *DataBlob) (*types.Isol
 	return &cfg, err
 }
 
-func (t *serializerImpl) SerializeAsyncWorkflowsConfig(c *types.AsyncWorkflowConfiguration, encodingType common.EncodingType) (*DataBlob, error) {
+func (t *serializerImpl) SerializeAsyncWorkflowsConfig(c *types.AsyncWorkflowConfiguration, encodingType constants.EncodingType) (*DataBlob, error) {
 	if c == nil {
 		return nil, nil
 	}
@@ -305,7 +305,7 @@ func (t *serializerImpl) DeserializeAsyncWorkflowsConfig(data *DataBlob) (*types
 	return &cfg, err
 }
 
-func (t *serializerImpl) SerializeChecksum(sum checksum.Checksum, encodingType common.EncodingType) (*DataBlob, error) {
+func (t *serializerImpl) SerializeChecksum(sum checksum.Checksum, encodingType constants.EncodingType) (*DataBlob, error) {
 	if len(sum.Value) == 0 {
 		return nil, nil
 	}
@@ -329,7 +329,7 @@ func (t *serializerImpl) DeserializeChecksum(data *DataBlob) (checksum.Checksum,
 	return sum, err
 }
 
-func (t *serializerImpl) serialize(input interface{}, encodingType common.EncodingType) (*DataBlob, error) {
+func (t *serializerImpl) serialize(input interface{}, encodingType constants.EncodingType) (*DataBlob, error) {
 	if input == nil {
 		return nil, nil
 	}
@@ -338,10 +338,10 @@ func (t *serializerImpl) serialize(input interface{}, encodingType common.Encodi
 	var err error
 
 	switch encodingType {
-	case common.EncodingTypeThriftRW:
+	case constants.EncodingTypeThriftRW:
 		data, err = t.thriftrwEncode(input)
-	case common.EncodingTypeJSON, common.EncodingTypeUnknown, common.EncodingTypeEmpty: // For backward-compatibility
-		encodingType = common.EncodingTypeJSON
+	case constants.EncodingTypeJSON, constants.EncodingTypeUnknown, constants.EncodingTypeEmpty: // For backward-compatibility
+		encodingType = constants.EncodingTypeJSON
 		data, err = json.Marshal(input)
 	default:
 		return nil, NewUnknownEncodingTypeError(encodingType)
@@ -393,9 +393,9 @@ func (t *serializerImpl) deserialize(data *DataBlob, target interface{}) error {
 	var err error
 
 	switch data.GetEncoding() {
-	case common.EncodingTypeThriftRW:
+	case constants.EncodingTypeThriftRW:
 		err = t.thriftrwDecode(data.Data, target)
-	case common.EncodingTypeJSON, common.EncodingTypeUnknown, common.EncodingTypeEmpty: // For backward-compatibility
+	case constants.EncodingTypeJSON, constants.EncodingTypeUnknown, constants.EncodingTypeEmpty: // For backward-compatibility
 		err = json.Unmarshal(data.Data, target)
 	default:
 		return NewUnknownEncodingTypeError(data.GetEncoding())
@@ -492,7 +492,7 @@ func (t *serializerImpl) thriftrwDecode(data []byte, target interface{}) error {
 }
 
 // NewUnknownEncodingTypeError returns a new instance of encoding type error
-func NewUnknownEncodingTypeError(encodingType common.EncodingType) error {
+func NewUnknownEncodingTypeError(encodingType constants.EncodingType) error {
 	return &UnknownEncodingTypeError{encodingType: encodingType}
 }
 

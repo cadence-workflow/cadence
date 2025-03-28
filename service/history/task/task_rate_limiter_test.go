@@ -27,7 +27,6 @@ import (
 	"errors"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,6 +36,7 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/quotas"
 	ctask "github.com/uber/cadence/common/task"
 	"github.com/uber/cadence/service/history/config"
@@ -46,22 +46,12 @@ import (
 type (
 	noopTask struct {
 		sync.RWMutex
-		*noopTaskInfo
+		persistence.Task
 		queueType QueueType
 		shard     shard.Context
 		attempt   int
 		priority  int
 		state     ctask.State
-	}
-
-	noopTaskInfo struct {
-		version             int64
-		taskID              int64
-		taskType            int
-		visibilityTimestamp time.Time
-		workflowID          string
-		runID               string
-		domainID            string
 	}
 )
 
@@ -117,36 +107,8 @@ func (s *noopTask) GetAttempt() int {
 	return s.attempt
 }
 
-func (s *noopTask) GetInfo() Info {
-	return s.noopTaskInfo
-}
-
-func (s *noopTaskInfo) GetVersion() int64 {
-	return s.version
-}
-
-func (s *noopTaskInfo) GetTaskID() int64 {
-	return s.taskID
-}
-
-func (s *noopTaskInfo) GetTaskType() int {
-	return s.taskType
-}
-
-func (s *noopTaskInfo) GetVisibilityTimestamp() time.Time {
-	return s.visibilityTimestamp
-}
-
-func (s *noopTaskInfo) GetWorkflowID() string {
-	return s.workflowID
-}
-
-func (s *noopTaskInfo) GetRunID() string {
-	return s.runID
-}
-
-func (s *noopTaskInfo) GetDomainID() string {
-	return s.domainID
+func (s *noopTask) GetInfo() persistence.Task {
+	return s.Task
 }
 
 type taskRateLimiterMockDeps struct {
@@ -221,8 +183,10 @@ func TestRateLimiterAllow(t *testing.T) {
 		{
 			name: "Not rate limited",
 			task: &noopTask{
-				noopTaskInfo: &noopTaskInfo{
-					domainID: "test-domain-id",
+				Task: &persistence.DecisionTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID: "test-domain-id",
+					},
 				},
 			},
 			setupMocks: func(deps *taskRateLimiterMockDeps) {
@@ -239,8 +203,10 @@ func TestRateLimiterAllow(t *testing.T) {
 		{
 			name: "Not rate limited - domain cache error ignored",
 			task: &noopTask{
-				noopTaskInfo: &noopTaskInfo{
-					domainID: "test-domain-id",
+				Task: &persistence.DecisionTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID: "test-domain-id",
+					},
 				},
 			},
 			setupMocks: func(deps *taskRateLimiterMockDeps) {
@@ -257,8 +223,10 @@ func TestRateLimiterAllow(t *testing.T) {
 		{
 			name: "Rate limited - shadow mode",
 			task: &noopTask{
-				noopTaskInfo: &noopTaskInfo{
-					domainID: "test-domain-id",
+				Task: &persistence.DecisionTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID: "test-domain-id",
+					},
 				},
 			},
 			setupMocks: func(deps *taskRateLimiterMockDeps) {
@@ -275,8 +243,10 @@ func TestRateLimiterAllow(t *testing.T) {
 		{
 			name: "Rate limited",
 			task: &noopTask{
-				noopTaskInfo: &noopTaskInfo{
-					domainID: "test-domain-id",
+				Task: &persistence.DecisionTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID: "test-domain-id",
+					},
 				},
 			},
 			setupMocks: func(deps *taskRateLimiterMockDeps) {
@@ -315,8 +285,10 @@ func TestRateLimiterWait(t *testing.T) {
 		{
 			name: "Not rate limited",
 			task: &noopTask{
-				noopTaskInfo: &noopTaskInfo{
-					domainID: "test-domain-id",
+				Task: &persistence.DecisionTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID: "test-domain-id",
+					},
 				},
 			},
 			setupMocks: func(deps *taskRateLimiterMockDeps) {
@@ -333,8 +305,10 @@ func TestRateLimiterWait(t *testing.T) {
 		{
 			name: "Not rate limited - domain cache error ignored",
 			task: &noopTask{
-				noopTaskInfo: &noopTaskInfo{
-					domainID: "test-domain-id",
+				Task: &persistence.DecisionTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID: "test-domain-id",
+					},
 				},
 			},
 			setupMocks: func(deps *taskRateLimiterMockDeps) {
@@ -351,8 +325,10 @@ func TestRateLimiterWait(t *testing.T) {
 		{
 			name: "Rate limited - error",
 			task: &noopTask{
-				noopTaskInfo: &noopTaskInfo{
-					domainID: "test-domain-id",
+				Task: &persistence.DecisionTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID: "test-domain-id",
+					},
 				},
 			},
 			setupMocks: func(deps *taskRateLimiterMockDeps) {

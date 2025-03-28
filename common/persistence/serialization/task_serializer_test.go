@@ -29,12 +29,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 )
 
 func TestTaskSerializerThriftRW(t *testing.T) {
-	parser, err := NewParser(common.EncodingTypeThriftRW, common.EncodingTypeThriftRW)
+	parser, err := NewParser(constants.EncodingTypeThriftRW, constants.EncodingTypeThriftRW)
 	require.NoError(t, err)
 	taskSerializer := NewTaskSerializer(parser)
 

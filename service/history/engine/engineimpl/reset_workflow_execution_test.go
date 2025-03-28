@@ -31,7 +31,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common"
+	commonconstants "github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/constants"
@@ -70,8 +70,8 @@ func TestResetWorkflowExecution(t *testing.T) {
 						DomainID:           constants.TestDomainID,
 						WorkflowID:         constants.TestWorkflowID,
 						RunID:              latestRunID,
-						DecisionScheduleID: common.EmptyEventID,
-						LastProcessedEvent: common.EmptyEventID,
+						DecisionScheduleID: commonconstants.EmptyEventID,
+						LastProcessedEvent: commonconstants.EmptyEventID,
 					},
 					ExecutionStats: &persistence.ExecutionStats{HistorySize: 1},
 				}),

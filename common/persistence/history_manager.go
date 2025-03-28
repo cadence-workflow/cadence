@@ -31,6 +31,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/codec"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -72,7 +73,7 @@ type (
 
 const (
 	notStartedIndex          = -1
-	defaultLastNodeID        = common.FirstEventID - 1
+	defaultLastNodeID        = constants.FirstEventID - 1
 	defaultLastTransactionID = int64(0)
 )
 
@@ -388,7 +389,7 @@ func (m *historyV2ManagerImpl) readRawHistoryBranch(
 
 	allBRs := branch.Ancestors
 	// We may also query the current branch from beginNodeID
-	beginNodeID := common.FirstEventID
+	beginNodeID := constants.FirstEventID
 	if len(branch.Ancestors) > 0 {
 		beginNodeID = *branch.Ancestors[len(branch.Ancestors)-1].EndNodeID
 	}
@@ -482,7 +483,7 @@ func (m *historyV2ManagerImpl) readHistoryBranch(
 	historyEvents := make([]*types.HistoryEvent, 0, request.PageSize)
 	historyEventBatches := make([]*types.History, 0, request.PageSize)
 	// first_event_id of the last batch
-	lastFirstEventID := common.EmptyEventID
+	lastFirstEventID := constants.EmptyEventID
 
 	for _, batch := range dataBlobs {
 		events, err := m.historySerializer.DeserializeBatchEvents(batch)
@@ -561,7 +562,7 @@ func deserializeToken(
 	if len(data) == 0 {
 		return &historyV2PagingToken{
 			LastEventID:       defaultLastEventID,
-			LastEventVersion:  common.EmptyVersion,
+			LastEventVersion:  constants.EmptyVersion,
 			CurrentRangeIndex: notStartedIndex,
 			LastNodeID:        defaultLastNodeID,
 			LastTransactionID: defaultLastTransactionID,

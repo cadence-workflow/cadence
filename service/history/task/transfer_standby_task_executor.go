@@ -25,7 +25,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -74,9 +74,14 @@ func (t *transferStandbyTaskExecutor) Execute(
 	task Task,
 	shouldProcessTask bool,
 ) error {
-	transferTask, ok := task.GetInfo().(*persistence.TransferTaskInfo)
+	transfer, ok := task.GetInfo().(persistence.Task)
 	if !ok {
 		return errUnexpectedTask
+	}
+
+	transferTask, err := transfer.ToTransferTaskInfo()
+	if err != nil {
+		return err
 	}
 
 	if !shouldProcessTask {
@@ -139,7 +144,7 @@ func (t *transferStandbyTaskExecutor) processActivityTask(
 			return nil, err
 		}
 
-		if activityInfo.StartedID == common.EmptyEventID {
+		if activityInfo.StartedID == constants.EmptyEventID {
 			return newPushActivityToMatchingInfo(
 				activityInfo.ScheduleToStartTimeout,
 				mutableState.GetExecutionInfo().PartitionConfig,
@@ -180,7 +185,7 @@ func (t *transferStandbyTaskExecutor) processDecisionTask(
 
 		executionInfo := mutableState.GetExecutionInfo()
 		workflowTimeout := executionInfo.WorkflowTimeout
-		decisionTimeout := min(workflowTimeout, common.MaxTaskTimeout)
+		decisionTimeout := min(workflowTimeout, constants.MaxTaskTimeout)
 		if executionInfo.TaskList != transferTask.TaskList {
 			// Experimental: try to push sticky task as regular task with sticky timeout as TTL.
 			// workflow might be sticky before namespace become standby
@@ -193,7 +198,7 @@ func (t *transferStandbyTaskExecutor) processDecisionTask(
 			return nil, err
 		}
 
-		if decisionInfo.StartedID == common.EmptyEventID {
+		if decisionInfo.StartedID == constants.EmptyEventID {
 			return newPushDecisionToMatchingInfo(
 				decisionTimeout,
 				types.TaskList{Name: executionInfo.TaskList}, // at standby, always use non-sticky tasklist
@@ -396,7 +401,7 @@ func (t *transferStandbyTaskExecutor) processStartChildExecution(
 			return nil, err
 		}
 
-		if childWorkflowInfo.StartedID != common.EmptyEventID {
+		if childWorkflowInfo.StartedID != constants.EmptyEventID {
 			return nil, nil
 		}
 
@@ -542,12 +547,10 @@ func (t *transferStandbyTaskExecutor) processRecordWorkflowStartedOrUpsertHelper
 func (t *transferStandbyTaskExecutor) processTransfer(
 	ctx context.Context,
 	processTaskIfClosed bool,
-	taskInfo Info,
+	transferTask *persistence.TransferTaskInfo,
 	actionFn standbyActionFn,
 	postActionFn standbyPostActionFn,
 ) (retError error) {
-
-	transferTask := taskInfo.(*persistence.TransferTaskInfo)
 	wfContext, release, err := t.executionCache.GetOrCreateWorkflowExecutionWithTimeout(
 		transferTask.DomainID,
 		getWorkflowExecution(transferTask),
@@ -583,7 +586,7 @@ func (t *transferStandbyTaskExecutor) processTransfer(
 	}
 
 	release(nil)
-	return postActionFn(ctx, taskInfo, historyResendInfo, t.logger)
+	return postActionFn(ctx, transferTask, historyResendInfo, t.logger)
 }
 
 func (t *transferStandbyTaskExecutor) pushActivity(
@@ -598,7 +601,7 @@ func (t *transferStandbyTaskExecutor) pushActivity(
 	}
 
 	pushActivityInfo := postActionInfo.(*pushActivityToMatchingInfo)
-	timeout := min(pushActivityInfo.activityScheduleToStartTimeout, common.MaxTaskTimeout)
+	timeout := min(pushActivityInfo.activityScheduleToStartTimeout, constants.MaxTaskTimeout)
 	return t.transferTaskExecutorBase.pushActivity(
 		ctx,
 		task.(*persistence.TransferTaskInfo),
@@ -619,7 +622,7 @@ func (t *transferStandbyTaskExecutor) pushDecision(
 	}
 
 	pushDecisionInfo := postActionInfo.(*pushDecisionToMatchingInfo)
-	timeout := min(pushDecisionInfo.decisionScheduleToStartTimeout, common.MaxTaskTimeout)
+	timeout := min(pushDecisionInfo.decisionScheduleToStartTimeout, constants.MaxTaskTimeout)
 	return t.transferTaskExecutorBase.pushDecision(
 		ctx,
 		task.(*persistence.TransferTaskInfo),

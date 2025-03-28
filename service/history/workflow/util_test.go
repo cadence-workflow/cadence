@@ -30,7 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common"
+	commonconstants "github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/service/history/config"
 	"github.com/uber/cadence/service/history/constants"
@@ -48,11 +48,11 @@ func TestUpdateHelper(t *testing.T) {
 			msg: "stale mutable state",
 			mockSetupFn: func(mockContext *execution.MockContext, mockMutableState *execution.MockMutableState) {
 				mockContext.EXPECT().Clear().Times(1)
-				mockMutableState.EXPECT().GetNextEventID().Return(common.FirstEventID).Times(1)
-				mockMutableState.EXPECT().GetNextEventID().Return(common.FirstEventID + 1).Times(1)
+				mockMutableState.EXPECT().GetNextEventID().Return(commonconstants.FirstEventID).Times(1)
+				mockMutableState.EXPECT().GetNextEventID().Return(commonconstants.FirstEventID + 1).Times(1)
 			},
 			actionFn: func(context execution.Context, mutableState execution.MutableState) (*UpdateAction, error) {
-				if mutableState.GetNextEventID() == common.FirstEventID {
+				if mutableState.GetNextEventID() == commonconstants.FirstEventID {
 					return nil, ErrStaleState
 				}
 				return &UpdateAction{Noop: true}, nil

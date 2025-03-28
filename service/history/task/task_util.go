@@ -26,7 +26,7 @@ import (
 
 	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -383,7 +383,7 @@ func retryWorkflow(
 	_, newMutableState, err := mutableState.AddContinueAsNewEvent(
 		ctx,
 		eventBatchFirstEventID,
-		common.EmptyEventID,
+		constants.EmptyEventID,
 		parentDomainName,
 		continueAsNewAttributes,
 	)

@@ -25,7 +25,7 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	p "github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/serialization"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
@@ -166,7 +166,7 @@ func getBufferedEvents(
 	}
 	var result []*p.DataBlob
 	for _, row := range rows {
-		result = append(result, p.NewDataBlob(row.Data, common.EncodingType(row.DataEncoding)))
+		result = append(result, p.NewDataBlob(row.Data, constants.EncodingType(row.DataEncoding)))
 	}
 	return result, nil
 }

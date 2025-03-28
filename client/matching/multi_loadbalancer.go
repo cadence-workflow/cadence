@@ -25,7 +25,7 @@ package matching
 import (
 	"strings"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -122,5 +122,5 @@ func (lb *multiLoadBalancer) UpdateWeight(
 }
 
 func (lb *multiLoadBalancer) canRedirectToPartition(req ReadRequest) bool {
-	return req.GetForwardedFrom() == "" && req.GetTaskList().GetKind() != types.TaskListKindSticky && !strings.HasPrefix(req.GetTaskList().GetName(), common.ReservedTaskListPrefix)
+	return req.GetForwardedFrom() == "" && req.GetTaskList().GetKind() != types.TaskListKindSticky && !strings.HasPrefix(req.GetTaskList().GetName(), constants.ReservedTaskListPrefix)
 }

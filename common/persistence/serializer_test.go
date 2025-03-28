@@ -30,6 +30,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/checksum"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/types"
 )
@@ -39,22 +40,22 @@ type testDef struct {
 	// payloads is a map of payload name to payload. "nil" is a special name for nil payload which expects to return nil with some exceptions
 	payloads      map[string]any
 	nilHandled    bool
-	serializeFn   func(any, common.EncodingType) (*DataBlob, error)
+	serializeFn   func(any, constants.EncodingType) (*DataBlob, error)
 	deserializeFn func(*DataBlob) (any, error)
 }
 
 // key is encoding type, value is whether the encoding type is supported
-var encodingTypes = map[common.EncodingType]bool{
-	common.EncodingTypeEmpty:    true,
-	common.EncodingTypeUnknown:  true,
-	common.EncodingTypeJSON:     true,
-	common.EncodingTypeThriftRW: true,
-	common.EncodingTypeGob:      false,
+var encodingTypes = map[constants.EncodingType]bool{
+	constants.EncodingTypeEmpty:    true,
+	constants.EncodingTypeUnknown:  true,
+	constants.EncodingTypeJSON:     true,
+	constants.EncodingTypeThriftRW: true,
+	constants.EncodingTypeGob:      false,
 }
 
 type runnableTest struct {
 	testDef
-	encoding    common.EncodingType
+	encoding    constants.EncodingType
 	supported   bool
 	payloadName string
 	payload     any
@@ -71,7 +72,7 @@ func TestSerializers(t *testing.T) {
 				"nil":    (*types.HistoryEvent)(nil),
 				"normal": generateTestHistoryEvent(1),
 			},
-			serializeFn: func(payload any, encoding common.EncodingType) (*DataBlob, error) {
+			serializeFn: func(payload any, encoding constants.EncodingType) (*DataBlob, error) {
 				return serializer.SerializeEvent(payload.(*types.HistoryEvent), encoding)
 			},
 			deserializeFn: func(data *DataBlob) (any, error) {
@@ -85,7 +86,7 @@ func TestSerializers(t *testing.T) {
 				"normal": generateTestHistoryEventBatch(),
 			},
 			nilHandled: true,
-			serializeFn: func(payload any, encoding common.EncodingType) (*DataBlob, error) {
+			serializeFn: func(payload any, encoding constants.EncodingType) (*DataBlob, error) {
 				return serializer.SerializeBatchEvents(payload.([]*types.HistoryEvent), encoding)
 			},
 			deserializeFn: func(data *DataBlob) (any, error) {
@@ -98,7 +99,7 @@ func TestSerializers(t *testing.T) {
 				"nil":    (*types.Memo)(nil),
 				"normal": generateVisibilityMemo(),
 			},
-			serializeFn: func(payload any, encoding common.EncodingType) (*DataBlob, error) {
+			serializeFn: func(payload any, encoding constants.EncodingType) (*DataBlob, error) {
 				return serializer.SerializeVisibilityMemo(payload.(*types.Memo), encoding)
 			},
 			deserializeFn: func(data *DataBlob) (any, error) {
@@ -111,7 +112,7 @@ func TestSerializers(t *testing.T) {
 				"nil":    (*types.VersionHistories)(nil),
 				"normal": generateVersionHistories(),
 			},
-			serializeFn: func(payload any, encoding common.EncodingType) (*DataBlob, error) {
+			serializeFn: func(payload any, encoding constants.EncodingType) (*DataBlob, error) {
 				return serializer.SerializeVersionHistories(payload.(*types.VersionHistories), encoding)
 			},
 			deserializeFn: func(data *DataBlob) (any, error) {
@@ -125,7 +126,7 @@ func TestSerializers(t *testing.T) {
 				"normal": generateResetPoints(),
 			},
 			nilHandled: true,
-			serializeFn: func(payload any, encoding common.EncodingType) (*DataBlob, error) {
+			serializeFn: func(payload any, encoding constants.EncodingType) (*DataBlob, error) {
 				return serializer.SerializeResetPoints(payload.(*types.ResetPoints), encoding)
 			},
 			deserializeFn: func(data *DataBlob) (any, error) {
@@ -139,7 +140,7 @@ func TestSerializers(t *testing.T) {
 				"normal": generateBadBinaries(),
 			},
 			nilHandled: true,
-			serializeFn: func(payload any, encoding common.EncodingType) (*DataBlob, error) {
+			serializeFn: func(payload any, encoding constants.EncodingType) (*DataBlob, error) {
 				return serializer.SerializeBadBinaries(payload.(*types.BadBinaries), encoding)
 			},
 			deserializeFn: func(data *DataBlob) (any, error) {
@@ -152,7 +153,7 @@ func TestSerializers(t *testing.T) {
 				"nil":    (*types.ProcessingQueueStates)(nil),
 				"normal": generateProcessingQueueStates(),
 			},
-			serializeFn: func(payload any, encoding common.EncodingType) (*DataBlob, error) {
+			serializeFn: func(payload any, encoding constants.EncodingType) (*DataBlob, error) {
 				return serializer.SerializeProcessingQueueStates(payload.(*types.ProcessingQueueStates), encoding)
 			},
 			deserializeFn: func(data *DataBlob) (any, error) {
@@ -165,7 +166,7 @@ func TestSerializers(t *testing.T) {
 				"nil":    (*types.DynamicConfigBlob)(nil),
 				"normal": generateDynamicConfigBlob(),
 			},
-			serializeFn: func(payload any, encoding common.EncodingType) (*DataBlob, error) {
+			serializeFn: func(payload any, encoding constants.EncodingType) (*DataBlob, error) {
 				return serializer.SerializeDynamicConfigBlob(payload.(*types.DynamicConfigBlob), encoding)
 			},
 			deserializeFn: func(data *DataBlob) (any, error) {
@@ -178,7 +179,7 @@ func TestSerializers(t *testing.T) {
 				"nil":    (*types.IsolationGroupConfiguration)(nil),
 				"normal": generateIsolationGroupConfiguration(),
 			},
-			serializeFn: func(payload any, encoding common.EncodingType) (*DataBlob, error) {
+			serializeFn: func(payload any, encoding constants.EncodingType) (*DataBlob, error) {
 				return serializer.SerializeIsolationGroups(payload.(*types.IsolationGroupConfiguration), encoding)
 			},
 			deserializeFn: func(data *DataBlob) (any, error) {
@@ -191,7 +192,7 @@ func TestSerializers(t *testing.T) {
 				"nil":    ([]*types.FailoverMarkerAttributes)(nil),
 				"normal": generateFailoverMarkerAttributes(),
 			},
-			serializeFn: func(payload any, encoding common.EncodingType) (*DataBlob, error) {
+			serializeFn: func(payload any, encoding constants.EncodingType) (*DataBlob, error) {
 				return serializer.SerializePendingFailoverMarkers(payload.([]*types.FailoverMarkerAttributes), encoding)
 			},
 			deserializeFn: func(data *DataBlob) (any, error) {
@@ -204,7 +205,7 @@ func TestSerializers(t *testing.T) {
 				"nil":    (*types.AsyncWorkflowConfiguration)(nil),
 				"normal": generateAsyncWorkflowConfig(),
 			},
-			serializeFn: func(payload any, encoding common.EncodingType) (*DataBlob, error) {
+			serializeFn: func(payload any, encoding constants.EncodingType) (*DataBlob, error) {
 				return serializer.SerializeAsyncWorkflowsConfig(payload.(*types.AsyncWorkflowConfiguration), encoding)
 			},
 			deserializeFn: func(data *DataBlob) (any, error) {
@@ -217,7 +218,7 @@ func TestSerializers(t *testing.T) {
 				"empty":  checksum.Checksum{},
 				"normal": generateChecksum(),
 			},
-			serializeFn: func(payload any, encoding common.EncodingType) (*DataBlob, error) {
+			serializeFn: func(payload any, encoding constants.EncodingType) (*DataBlob, error) {
 				return serializer.SerializeChecksum(payload.(checksum.Checksum), encoding)
 			},
 			deserializeFn: func(data *DataBlob) (any, error) {
@@ -232,7 +233,7 @@ func TestSerializers(t *testing.T) {
 		for encoding, supported := range encodingTypes {
 			for payloadName, payload := range td.payloads {
 				if _, ok := payload.(checksum.Checksum); ok {
-					if encoding != common.EncodingTypeJSON {
+					if encoding != constants.EncodingTypeJSON {
 						continue
 					}
 				}

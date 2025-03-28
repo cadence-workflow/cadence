@@ -23,7 +23,7 @@ package config
 import (
 	"fmt"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 )
 
 const (
@@ -53,11 +53,11 @@ func (c *Persistence) FillDefaults() {
 		if store.SQL != nil {
 			// filling default encodingType/decodingTypes for SQL persistence
 			if store.SQL.EncodingType == "" {
-				store.SQL.EncodingType = string(common.EncodingTypeThriftRW)
+				store.SQL.EncodingType = string(constants.EncodingTypeThriftRW)
 			}
 			if len(store.SQL.DecodingTypes) == 0 {
 				store.SQL.DecodingTypes = []string{
-					string(common.EncodingTypeThriftRW),
+					string(constants.EncodingTypeThriftRW),
 				}
 			}
 

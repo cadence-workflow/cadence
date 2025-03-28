@@ -24,7 +24,7 @@ package engineimpl
 import (
 	"context"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
@@ -77,7 +77,7 @@ func (e *historyEngineImpl) RecordChildExecutionCompleted(
 				}
 				return &types.EntityNotExistsError{Message: "Pending child execution not found."}
 			}
-			if ci.StartedID == common.EmptyEventID {
+			if ci.StartedID == constants.EmptyEventID {
 				if startedID >= mutableState.GetNextEventID() {
 					e.metricsClient.IncCounter(metrics.HistoryRecordChildExecutionCompletedScope, metrics.StaleMutableStateCounter)
 					e.logger.Error("Encounter stale mutable state in RecordChildExecutionCompleted",

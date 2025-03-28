@@ -30,6 +30,7 @@ import (
 	"github.com/uber/cadence/.gen/go/indexer"
 	workflow "github.com/uber/cadence/.gen/go/shared"
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/messaging"
@@ -102,7 +103,7 @@ func (v *pinotVisibilityStore) Close() {
 }
 
 func (v *pinotVisibilityStore) GetName() string {
-	return common.PinotPersistenceName
+	return constants.PinotPersistenceName
 }
 
 func (v *pinotVisibilityStore) RecordWorkflowExecutionStarted(
@@ -966,7 +967,7 @@ func getListWorkflowExecutionsQuery(tableName string, request *p.InternalListWor
 		query.filters.addGte(CloseStatus, 0)
 	} else {
 		query.filters.addTimeRange(StartTime, earliest, latest) // convert Unix Time to miliseconds
-		query.filters.addLt(CloseStatus, 0)
+		query.filters.addEqual(CloseStatus, -1)
 		query.filters.addEqual(CloseTime, -1)
 	}
 
@@ -993,7 +994,7 @@ func getListWorkflowExecutionsByTypeQuery(tableName string, request *p.InternalL
 		query.filters.addGte(CloseStatus, 0)
 	} else {
 		query.filters.addTimeRange(StartTime, earliest, latest) // convert Unix Time to miliseconds
-		query.filters.addLt(CloseStatus, 0)
+		query.filters.addEqual(CloseStatus, -1)
 		query.filters.addEqual(CloseTime, -1)
 	}
 
@@ -1028,7 +1029,7 @@ func getListWorkflowExecutionsByWorkflowIDQuery(tableName string, request *p.Int
 		query.filters.addGte(CloseStatus, 0)
 	} else {
 		query.filters.addTimeRange(StartTime, earliest, latest) // convert Unix Time to miliseconds
-		query.filters.addLt(CloseStatus, 0)
+		query.filters.addEqual(CloseStatus, -1)
 		query.filters.addEqual(CloseTime, -1)
 	}
 
