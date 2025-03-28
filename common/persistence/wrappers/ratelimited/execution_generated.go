@@ -55,28 +55,12 @@ func (c *ratelimitedExecutionManager) Close() {
 	return
 }
 
-func (c *ratelimitedExecutionManager) CompleteReplicationTask(ctx context.Context, request *persistence.CompleteReplicationTaskRequest) (err error) {
+func (c *ratelimitedExecutionManager) CompleteHistoryTask(ctx context.Context, request *persistence.CompleteHistoryTaskRequest) (err error) {
 	if ok := c.rateLimiter.Allow(); !ok {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
-	return c.wrapped.CompleteReplicationTask(ctx, request)
-}
-
-func (c *ratelimitedExecutionManager) CompleteTimerTask(ctx context.Context, request *persistence.CompleteTimerTaskRequest) (err error) {
-	if ok := c.rateLimiter.Allow(); !ok {
-		err = ErrPersistenceLimitExceeded
-		return
-	}
-	return c.wrapped.CompleteTimerTask(ctx, request)
-}
-
-func (c *ratelimitedExecutionManager) CompleteTransferTask(ctx context.Context, request *persistence.CompleteTransferTaskRequest) (err error) {
-	if ok := c.rateLimiter.Allow(); !ok {
-		err = ErrPersistenceLimitExceeded
-		return
-	}
-	return c.wrapped.CompleteTransferTask(ctx, request)
+	return c.wrapped.CompleteHistoryTask(ctx, request)
 }
 
 func (c *ratelimitedExecutionManager) ConflictResolveWorkflowExecution(ctx context.Context, request *persistence.ConflictResolveWorkflowExecutionRequest) (cp1 *persistence.ConflictResolveWorkflowExecutionResponse, err error) {

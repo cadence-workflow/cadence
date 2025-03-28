@@ -42,40 +42,12 @@ func (_m *ExecutionManager) Close() {
 	_m.Called()
 }
 
-// CompleteReplicationTask provides a mock function with given fields: ctx, request
-func (_m *ExecutionManager) CompleteReplicationTask(ctx context.Context, request *persistence.CompleteReplicationTaskRequest) error {
+// CompleteHistoryTask provides a mock function with given fields: ctx, request
+func (_m *ExecutionManager) CompleteHistoryTask(ctx context.Context, request *persistence.CompleteHistoryTaskRequest) error {
 	ret := _m.Called(ctx, request)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *persistence.CompleteReplicationTaskRequest) error); ok {
-		r0 = rf(ctx, request)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
-// CompleteTimerTask provides a mock function with given fields: ctx, request
-func (_m *ExecutionManager) CompleteTimerTask(ctx context.Context, request *persistence.CompleteTimerTaskRequest) error {
-	ret := _m.Called(ctx, request)
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *persistence.CompleteTimerTaskRequest) error); ok {
-		r0 = rf(ctx, request)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
-// CompleteTransferTask provides a mock function with given fields: ctx, request
-func (_m *ExecutionManager) CompleteTransferTask(ctx context.Context, request *persistence.CompleteTransferTaskRequest) error {
-	ret := _m.Called(ctx, request)
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *persistence.CompleteTransferTaskRequest) error); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *persistence.CompleteHistoryTaskRequest) error); ok {
 		r0 = rf(ctx, request)
 	} else {
 		r0 = ret.Error(0)

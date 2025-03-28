@@ -62,18 +62,18 @@ func (m *MockRetryer) EXPECT() *MockRetryerMockRecorder {
 	return m.recorder
 }
 
-// CompleteTimerTask mocks base method.
-func (m *MockRetryer) CompleteTimerTask(ctx context.Context, request *CompleteTimerTaskRequest) error {
+// CompleteHistoryTask mocks base method.
+func (m *MockRetryer) CompleteHistoryTask(ctx context.Context, request *CompleteHistoryTaskRequest) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CompleteTimerTask", ctx, request)
+	ret := m.ctrl.Call(m, "CompleteHistoryTask", ctx, request)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// CompleteTimerTask indicates an expected call of CompleteTimerTask.
-func (mr *MockRetryerMockRecorder) CompleteTimerTask(ctx, request any) *gomock.Call {
+// CompleteHistoryTask indicates an expected call of CompleteHistoryTask.
+func (mr *MockRetryerMockRecorder) CompleteHistoryTask(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CompleteTimerTask", reflect.TypeOf((*MockRetryer)(nil).CompleteTimerTask), ctx, request)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CompleteHistoryTask", reflect.TypeOf((*MockRetryer)(nil).CompleteHistoryTask), ctx, request)
 }
 
 // DeleteCurrentWorkflowExecution mocks base method.

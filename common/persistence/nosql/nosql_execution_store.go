@@ -588,55 +588,6 @@ func (d *nosqlExecutionStore) ListConcreteExecutions(
 	}, nil
 }
 
-func (d *nosqlExecutionStore) CompleteTransferTask(
-	ctx context.Context,
-	request *persistence.CompleteTransferTaskRequest,
-) error {
-	err := d.db.DeleteTransferTask(ctx, d.shardID, request.TaskID)
-	if err != nil {
-		return convertCommonErrors(d.db, "CompleteTransferTask", err)
-	}
-
-	return nil
-}
-
-func (d *nosqlExecutionStore) CompleteCrossClusterTask(
-	ctx context.Context,
-	request *persistence.CompleteCrossClusterTaskRequest,
-) error {
-
-	err := d.db.DeleteCrossClusterTask(ctx, d.shardID, request.TargetCluster, request.TaskID)
-	if err != nil {
-		return convertCommonErrors(d.db, "CompleteCrossClusterTask", err)
-	}
-
-	return nil
-}
-
-func (d *nosqlExecutionStore) CompleteReplicationTask(
-	ctx context.Context,
-	request *persistence.CompleteReplicationTaskRequest,
-) error {
-	err := d.db.DeleteReplicationTask(ctx, d.shardID, request.TaskID)
-	if err != nil {
-		return convertCommonErrors(d.db, "CompleteReplicationTask", err)
-	}
-
-	return nil
-}
-
-func (d *nosqlExecutionStore) CompleteTimerTask(
-	ctx context.Context,
-	request *persistence.CompleteTimerTaskRequest,
-) error {
-	err := d.db.DeleteTimerTask(ctx, d.shardID, request.TaskID, request.VisibilityTimestamp)
-	if err != nil {
-		return convertCommonErrors(d.db, "CompleteTimerTask", err)
-	}
-
-	return nil
-}
-
 func (d *nosqlExecutionStore) PutReplicationTaskToDLQ(
 	ctx context.Context,
 	request *persistence.InternalPutReplicationTaskToDLQRequest,
@@ -862,6 +813,58 @@ func (d *nosqlExecutionStore) getScheduledHistoryTasks(
 		}, nil
 	default:
 		return nil, &types.BadRequestError{Message: fmt.Sprintf("Unknown task category: %v", request.TaskCategory.ID())}
+	}
+}
+
+func (d *nosqlExecutionStore) CompleteHistoryTask(
+	ctx context.Context,
+	request *persistence.CompleteHistoryTaskRequest,
+) error {
+	switch request.TaskCategory.Type() {
+	case persistence.HistoryTaskCategoryTypeScheduled:
+		return d.completeScheduledHistoryTask(ctx, request)
+	case persistence.HistoryTaskCategoryTypeImmediate:
+		return d.completeImmediateHistoryTask(ctx, request)
+	default:
+		return &types.BadRequestError{Message: fmt.Sprintf("Unknown task category type: %v", request.TaskCategory.Type())}
+	}
+}
+
+func (d *nosqlExecutionStore) completeScheduledHistoryTask(
+	ctx context.Context,
+	request *persistence.CompleteHistoryTaskRequest,
+) error {
+	switch request.TaskCategory.ID() {
+	case persistence.HistoryTaskCategoryIDTimer:
+		err := d.db.DeleteTimerTask(ctx, d.shardID, request.TaskKey.TaskID, request.TaskKey.ScheduledTime)
+		if err != nil {
+			return convertCommonErrors(d.db, "CompleteScheduledHistoryTask", err)
+		}
+		return nil
+	default:
+		return &types.BadRequestError{Message: fmt.Sprintf("Unknown task category ID: %v", request.TaskCategory.ID())}
+	}
+}
+
+func (d *nosqlExecutionStore) completeImmediateHistoryTask(
+	ctx context.Context,
+	request *persistence.CompleteHistoryTaskRequest,
+) error {
+	switch request.TaskCategory.ID() {
+	case persistence.HistoryTaskCategoryIDTransfer:
+		err := d.db.DeleteTransferTask(ctx, d.shardID, request.TaskKey.TaskID)
+		if err != nil {
+			return convertCommonErrors(d.db, "CompleteImmediateHistoryTask", err)
+		}
+		return nil
+	case persistence.HistoryTaskCategoryIDReplication:
+		err := d.db.DeleteReplicationTask(ctx, d.shardID, request.TaskKey.TaskID)
+		if err != nil {
+			return convertCommonErrors(d.db, "CompleteImmediateHistoryTask", err)
+		}
+		return nil
+	default:
+		return &types.BadRequestError{Message: fmt.Sprintf("Unknown task category ID: %v", request.TaskCategory.ID())}
 	}
 }
 

@@ -58,45 +58,15 @@ func (c *injectorExecutionManager) Close() {
 	return
 }
 
-func (c *injectorExecutionManager) CompleteReplicationTask(ctx context.Context, request *persistence.CompleteReplicationTaskRequest) (err error) {
+func (c *injectorExecutionManager) CompleteHistoryTask(ctx context.Context, request *persistence.CompleteHistoryTaskRequest) (err error) {
 	fakeErr := generateFakeError(c.errorRate)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
-		err = c.wrapped.CompleteReplicationTask(ctx, request)
+		err = c.wrapped.CompleteHistoryTask(ctx, request)
 	}
 
 	if fakeErr != nil {
-		logErr(c.logger, "ExecutionManager.CompleteReplicationTask", fakeErr, forwardCall, err)
-		err = fakeErr
-		return
-	}
-	return
-}
-
-func (c *injectorExecutionManager) CompleteTimerTask(ctx context.Context, request *persistence.CompleteTimerTaskRequest) (err error) {
-	fakeErr := generateFakeError(c.errorRate)
-	var forwardCall bool
-	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
-		err = c.wrapped.CompleteTimerTask(ctx, request)
-	}
-
-	if fakeErr != nil {
-		logErr(c.logger, "ExecutionManager.CompleteTimerTask", fakeErr, forwardCall, err)
-		err = fakeErr
-		return
-	}
-	return
-}
-
-func (c *injectorExecutionManager) CompleteTransferTask(ctx context.Context, request *persistence.CompleteTransferTaskRequest) (err error) {
-	fakeErr := generateFakeError(c.errorRate)
-	var forwardCall bool
-	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
-		err = c.wrapped.CompleteTransferTask(ctx, request)
-	}
-
-	if fakeErr != nil {
-		logErr(c.logger, "ExecutionManager.CompleteTransferTask", fakeErr, forwardCall, err)
+		logErr(c.logger, "ExecutionManager.CompleteHistoryTask", fakeErr, forwardCall, err)
 		err = fakeErr
 		return
 	}

@@ -42,7 +42,7 @@ type Retryer interface {
 	DeleteCurrentWorkflowExecution(context.Context, *DeleteCurrentWorkflowExecutionRequest) error
 	GetShardID() int
 	GetHistoryTasks(context.Context, *GetHistoryTasksRequest) (*GetHistoryTasksResponse, error)
-	CompleteTimerTask(ctx context.Context, request *CompleteTimerTaskRequest) error
+	CompleteHistoryTask(ctx context.Context, request *CompleteHistoryTaskRequest) error
 }
 
 type (
@@ -223,13 +223,13 @@ func (pr *persistenceRetryer) GetHistoryTasks(
 	return resp, nil
 }
 
-// CompleteTimerTask is a retryable version of CompleteTimerTask method
-func (pr *persistenceRetryer) CompleteTimerTask(
+// CompleteHistoryTask is a retryable version of CompleteHistoryTask method
+func (pr *persistenceRetryer) CompleteHistoryTask(
 	ctx context.Context,
-	request *CompleteTimerTaskRequest,
+	request *CompleteHistoryTaskRequest,
 ) error {
 	op := func() error {
-		return pr.execManager.CompleteTimerTask(ctx, request)
+		return pr.execManager.CompleteHistoryTask(ctx, request)
 	}
 
 	return pr.throttleRetry.Do(ctx, op)

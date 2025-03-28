@@ -387,46 +387,18 @@ func (mr *MockExecutionManagerMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockExecutionManager)(nil).Close))
 }
 
-// CompleteReplicationTask mocks base method.
-func (m *MockExecutionManager) CompleteReplicationTask(ctx context.Context, request *CompleteReplicationTaskRequest) error {
+// CompleteHistoryTask mocks base method.
+func (m *MockExecutionManager) CompleteHistoryTask(ctx context.Context, request *CompleteHistoryTaskRequest) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CompleteReplicationTask", ctx, request)
+	ret := m.ctrl.Call(m, "CompleteHistoryTask", ctx, request)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// CompleteReplicationTask indicates an expected call of CompleteReplicationTask.
-func (mr *MockExecutionManagerMockRecorder) CompleteReplicationTask(ctx, request any) *gomock.Call {
+// CompleteHistoryTask indicates an expected call of CompleteHistoryTask.
+func (mr *MockExecutionManagerMockRecorder) CompleteHistoryTask(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CompleteReplicationTask", reflect.TypeOf((*MockExecutionManager)(nil).CompleteReplicationTask), ctx, request)
-}
-
-// CompleteTimerTask mocks base method.
-func (m *MockExecutionManager) CompleteTimerTask(ctx context.Context, request *CompleteTimerTaskRequest) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CompleteTimerTask", ctx, request)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// CompleteTimerTask indicates an expected call of CompleteTimerTask.
-func (mr *MockExecutionManagerMockRecorder) CompleteTimerTask(ctx, request any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CompleteTimerTask", reflect.TypeOf((*MockExecutionManager)(nil).CompleteTimerTask), ctx, request)
-}
-
-// CompleteTransferTask mocks base method.
-func (m *MockExecutionManager) CompleteTransferTask(ctx context.Context, request *CompleteTransferTaskRequest) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CompleteTransferTask", ctx, request)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// CompleteTransferTask indicates an expected call of CompleteTransferTask.
-func (mr *MockExecutionManagerMockRecorder) CompleteTransferTask(ctx, request any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CompleteTransferTask", reflect.TypeOf((*MockExecutionManager)(nil).CompleteTransferTask), ctx, request)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CompleteHistoryTask", reflect.TypeOf((*MockExecutionManager)(nil).CompleteHistoryTask), ctx, request)
 }
 
 // ConflictResolveWorkflowExecution mocks base method.

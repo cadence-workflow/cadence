@@ -272,7 +272,7 @@ func (ts *TimerInvalidTest) TestFix() {
 		ts.Run(tc.name, func() {
 			execManager := &mocks.ExecutionManager{}
 			execManager.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(tc.getExecResp, tc.getExecErr)
-			execManager.On("CompleteTimerTask", mock.Anything, mock.Anything).Return(tc.ttComplete)
+			execManager.On("CompleteHistoryTask", mock.Anything, mock.Anything).Return(tc.ttComplete)
 			i := NewTimerInvalid(
 				persistence.NewPersistenceRetryer(
 					execManager,

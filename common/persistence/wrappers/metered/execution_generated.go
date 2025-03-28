@@ -69,71 +69,25 @@ func (c *meteredExecutionManager) Close() {
 	return
 }
 
-func (c *meteredExecutionManager) CompleteReplicationTask(ctx context.Context, request *persistence.CompleteReplicationTaskRequest) (err error) {
+func (c *meteredExecutionManager) CompleteHistoryTask(ctx context.Context, request *persistence.CompleteHistoryTaskRequest) (err error) {
 	op := func() error {
-		err = c.wrapped.CompleteReplicationTask(ctx, request)
+		err = c.wrapped.CompleteHistoryTask(ctx, request)
 		return err
 	}
 
 	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
 		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
-		c.logger.SampleInfo("Persistence CompleteReplicationTask called", c.sampleLoggingRate(), logTags...)
+		c.logger.SampleInfo("Persistence CompleteHistoryTask called", c.sampleLoggingRate(), logTags...)
 		if c.enableShardIDMetrics() {
-			err = c.callWithDomainAndShardScope(metrics.PersistenceCompleteReplicationTaskScope, op, metrics.DomainTag(domainName),
+			err = c.callWithDomainAndShardScope(metrics.PersistenceCompleteHistoryTaskScope, op, metrics.DomainTag(domainName),
 				metrics.ShardIDTag(c.GetShardID()))
 		} else {
-			err = c.call(metrics.PersistenceCompleteReplicationTaskScope, op, metrics.DomainTag(domainName))
+			err = c.call(metrics.PersistenceCompleteHistoryTaskScope, op, metrics.DomainTag(domainName))
 		}
 		return
 	}
 
-	err = c.call(metrics.PersistenceCompleteReplicationTaskScope, op, getCustomMetricTags(request)...)
-
-	return
-}
-
-func (c *meteredExecutionManager) CompleteTimerTask(ctx context.Context, request *persistence.CompleteTimerTaskRequest) (err error) {
-	op := func() error {
-		err = c.wrapped.CompleteTimerTask(ctx, request)
-		return err
-	}
-
-	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
-		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
-		c.logger.SampleInfo("Persistence CompleteTimerTask called", c.sampleLoggingRate(), logTags...)
-		if c.enableShardIDMetrics() {
-			err = c.callWithDomainAndShardScope(metrics.PersistenceCompleteTimerTaskScope, op, metrics.DomainTag(domainName),
-				metrics.ShardIDTag(c.GetShardID()))
-		} else {
-			err = c.call(metrics.PersistenceCompleteTimerTaskScope, op, metrics.DomainTag(domainName))
-		}
-		return
-	}
-
-	err = c.call(metrics.PersistenceCompleteTimerTaskScope, op, getCustomMetricTags(request)...)
-
-	return
-}
-
-func (c *meteredExecutionManager) CompleteTransferTask(ctx context.Context, request *persistence.CompleteTransferTaskRequest) (err error) {
-	op := func() error {
-		err = c.wrapped.CompleteTransferTask(ctx, request)
-		return err
-	}
-
-	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
-		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
-		c.logger.SampleInfo("Persistence CompleteTransferTask called", c.sampleLoggingRate(), logTags...)
-		if c.enableShardIDMetrics() {
-			err = c.callWithDomainAndShardScope(metrics.PersistenceCompleteTransferTaskScope, op, metrics.DomainTag(domainName),
-				metrics.ShardIDTag(c.GetShardID()))
-		} else {
-			err = c.call(metrics.PersistenceCompleteTransferTaskScope, op, metrics.DomainTag(domainName))
-		}
-		return
-	}
-
-	err = c.call(metrics.PersistenceCompleteTransferTaskScope, op, getCustomMetricTags(request)...)
+	err = c.call(metrics.PersistenceCompleteHistoryTaskScope, op, getCustomMetricTags(request)...)
 
 	return
 }

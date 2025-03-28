@@ -848,20 +848,6 @@ func (m *executionManagerImpl) ListConcreteExecutions(
 	return newResponse, nil
 }
 
-func (m *executionManagerImpl) CompleteTransferTask(
-	ctx context.Context,
-	request *CompleteTransferTaskRequest,
-) error {
-	return m.persistence.CompleteTransferTask(ctx, request)
-}
-
-func (m *executionManagerImpl) CompleteReplicationTask(
-	ctx context.Context,
-	request *CompleteReplicationTaskRequest,
-) error {
-	return m.persistence.CompleteReplicationTask(ctx, request)
-}
-
 func (m *executionManagerImpl) PutReplicationTaskToDLQ(
 	ctx context.Context,
 	request *PutReplicationTaskToDLQRequest,
@@ -907,13 +893,6 @@ func (m *executionManagerImpl) CreateFailoverMarkerTasks(
 ) error {
 	request.CurrentTimeStamp = m.timeSrc.Now()
 	return m.persistence.CreateFailoverMarkerTasks(ctx, request)
-}
-
-func (m *executionManagerImpl) CompleteTimerTask(
-	ctx context.Context,
-	request *CompleteTimerTaskRequest,
-) error {
-	return m.persistence.CompleteTimerTask(ctx, request)
 }
 
 func (m *executionManagerImpl) Close() {
@@ -977,6 +956,13 @@ func (m *executionManagerImpl) GetHistoryTasks(
 	request *GetHistoryTasksRequest,
 ) (*GetHistoryTasksResponse, error) {
 	return m.persistence.GetHistoryTasks(ctx, request)
+}
+
+func (m *executionManagerImpl) CompleteHistoryTask(
+	ctx context.Context,
+	request *CompleteHistoryTaskRequest,
+) error {
+	return m.persistence.CompleteHistoryTask(ctx, request)
 }
 
 func (m *executionManagerImpl) RangeCompleteHistoryTask(
