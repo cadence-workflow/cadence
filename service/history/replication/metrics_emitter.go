@@ -162,7 +162,7 @@ func (m *MetricsEmitterImpl) determineReplicationLatency(remoteClusterName strin
 	logger := m.logger.WithTags(tag.RemoteCluster(remoteClusterName))
 	lastReadTaskID := m.shardData.GetClusterReplicationLevel(remoteClusterName)
 
-	tasks, _, err := m.reader.Read(m.ctx, lastReadTaskID, lastReadTaskID+1)
+	tasks, _, err := m.reader.Read(m.ctx, lastReadTaskID, lastReadTaskID+1, 1)
 	if err != nil {
 		logger.Error(fmt.Sprintf(
 			"Error reading when determining replication latency, lastReadTaskID=%v", lastReadTaskID),
