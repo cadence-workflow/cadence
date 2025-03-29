@@ -22,10 +22,12 @@ package nosql
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 	persistenceutils "github.com/uber/cadence/common/persistence/persistence-utils"
@@ -401,20 +403,43 @@ func (h *nosqlHistoryStore) DeleteHistoryBranch(
 	// we want to know what is the max nodeID referred by other valid branches
 	validBRsMaxEndNode := persistenceutils.GetBranchesMaxReferredNodeIDs(rsp.Branches)
 
-	// Todo (david.porter) handle the case of the history nodes being left over
-	// in the last branch (see unit test TestDeleteHistoryBranch_usedBranchWithGarbageFullyCleanedUp).
-	//
-	// Todo (david.porter) handle the case of out of order deletions where the
-	// ancestor branch is still 'valid' or being deleted after, and this
-	// deletion shouldn't necessarily render it invalid. (see test skipped)
+	treesByBranchID := rsp.ByBranchID()
 
 	// for each branch range to delete, we iterate from bottom to up, and delete up to the point according to validBRsEndNode
 	// brsToDelete here includes both the current branch being operated on and its ancestors
 	for i := len(brsToDelete) - 1; i >= 0; i-- {
 
 		br := brsToDelete[i]
-		maxReferredEndNodeID, ok := validBRsMaxEndNode[br.BranchID]
-		if ok {
+
+		maxReferredEndNodeID, branchIsReferenced := validBRsMaxEndNode[br.BranchID]
+		isLastBranchRemaining := len(rsp.Branches) <= 1
+		_, treeExists := treesByBranchID[br.BranchID]
+
+		if treeExists && br.BranchID != request.BranchInfo.BranchID {
+			// the underlying assumption of this cleanup logic, is that cleanup will happen
+			// from the oldest branch cleaning up first, to the more recent.
+			//
+			// However, this is by no means guaranteed, timers jitter on deletion intentionally
+			// and so to avoid accidentally breaking valid ancestor branches with short-lived
+			// branches doing cleanup, we'll stop the history node reaping here and let them
+			// clean their history nodes when they're removed
+			h.GetLogger().Debug(fmt.Sprintf("out of order deletion observed trying to clean up branch %q", br.BranchID),
+				tag.WorkflowTreeID(request.BranchInfo.TreeID),
+				tag.WorkflowBranchID(request.BranchInfo.BranchID))
+			break
+		}
+
+		if isLastBranchRemaining && branchIsReferenced {
+			// special case, when this branch is being deleted is the last branch
+			// and it's referring to multiple other previous (and now nonexisting branches)
+			// then in this instance, delete all referenced branch nodes
+			nodeFilter := &nosqlplugin.HistoryNodeFilter{
+				ShardID:  request.ShardID,
+				TreeID:   treeID,
+				BranchID: br.BranchID,
+			}
+			nodeFilters = append(nodeFilters, nodeFilter)
+		} else if branchIsReferenced {
 			// we can only delete from the maxEndNode and stop here
 			nodeFilter := &nosqlplugin.HistoryNodeFilter{
 				ShardID:   request.ShardID,
