@@ -100,6 +100,36 @@ func (s *noopDCRedirectionPolicySuite) TestWithDomainRedirect() {
 	s.Equal(2, callCount)
 }
 
+func (s *noopDCRedirectionPolicySuite) TestWithDomainRedirectForAllowedAPIs() {
+	domainName := "some random domain name"
+	domainID := "some random domain ID"
+	callCount := 0
+	callFn := func(targetCluster string) error {
+		callCount++
+		s.Equal(s.currentClusterName, targetCluster)
+		return nil
+	}
+
+	// Test all allowed APIs for deprecated domains
+	allowedAPIs := []string{
+		"ListWorkflowExecutions",
+		"CountWorkflowExecutions",
+		"ScanWorkflowExecutions",
+		"TerminateWorkflowExecution",
+	}
+
+	for _, apiName := range allowedAPIs {
+		err := s.policy.WithDomainIDRedirect(context.Background(), domainID, apiName, callFn)
+		s.Nil(err)
+
+		err = s.policy.WithDomainNameRedirect(context.Background(), domainName, apiName, callFn)
+		s.Nil(err)
+	}
+
+	// Verify that each API was tested for both domain ID and domain name redirects
+	s.Equal(2*len(allowedAPIs), callCount)
+}
+
 func TestSelectedAPIsForwardingRedirectionPolicySuite(t *testing.T) {
 	s := new(selectedAPIsForwardingRedirectionPolicySuite)
 	suite.Run(t, s)
@@ -395,7 +425,12 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) TestGetTargetDataCenter_G
 		}
 	}
 
+	// Test non-allowed APIs
 	for apiName := range selectedAPIsForwardingRedirectionPolicyAPIAllowlist {
+		if _, ok := allowedAPIsForDeprecatedDomains[apiName]; ok {
+			continue // Skip allowed APIs
+		}
+
 		err := s.policy.WithDomainIDRedirect(context.Background(), s.domainID, apiName, callFn)
 		s.Error(err)
 		s.Equal("domain is deprecated.", err.Error())
@@ -404,9 +439,21 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) TestGetTargetDataCenter_G
 		s.Error(err)
 		s.Equal("domain is deprecated or deleted", err.Error())
 	}
-
 	s.Equal(0, currentClustercallCount)
 	s.Equal(0, alternativeClustercallCount)
+
+	// Test allowed APIs
+	for apiName := range allowedAPIsForDeprecatedDomains {
+		err := s.policy.WithDomainIDRedirect(context.Background(), s.domainID, apiName, callFn)
+		s.NoError(err)
+
+		err = s.policy.WithDomainNameRedirect(context.Background(), s.domainName, apiName, callFn)
+		s.NoError(err)
+	}
+
+	// Verify that allowed APIs were called on the current cluster
+	s.Equal(2*len(allowedAPIsForDeprecatedDomains), currentClustercallCount)
+	s.Equal(2, alternativeClustercallCount)
 }
 
 func (s *selectedAPIsForwardingRedirectionPolicySuite) setupLocalDomain() {
