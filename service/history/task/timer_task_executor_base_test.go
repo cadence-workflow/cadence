@@ -119,9 +119,11 @@ func (s *timerQueueTaskExecutorBaseSuite) TearDownTest() {
 }
 
 func (s *timerQueueTaskExecutorBaseSuite) TestDeleteWorkflow_NoErr() {
-	task := &persistence.TimerTaskInfo{
-		TaskID:              12345,
-		VisibilityTimestamp: time.Now(),
+	task := &persistence.DeleteHistoryEventTask{
+		TaskData: persistence.TaskData{
+			TaskID:              12345,
+			VisibilityTimestamp: time.Now(),
+		},
 	}
 	executionInfo := types.WorkflowExecution{
 		WorkflowID: task.WorkflowID,
@@ -177,7 +179,7 @@ func (s *timerQueueTaskExecutorBaseSuite) TestArchiveHistory_NoErr_InlineArchiva
 	)
 	err := s.timerQueueTaskExecutorBase.archiveWorkflow(
 		context.Background(),
-		&persistence.TimerTaskInfo{},
+		&persistence.DeleteHistoryEventTask{},
 		s.mockWorkflowExecutionContext,
 		s.mockMutableState,
 		domainCacheEntry,
@@ -211,7 +213,7 @@ func (s *timerQueueTaskExecutorBaseSuite) TestArchiveHistory_SendSignalErr() {
 	)
 	err := s.timerQueueTaskExecutorBase.archiveWorkflow(
 		context.Background(),
-		&persistence.TimerTaskInfo{},
+		&persistence.DeleteHistoryEventTask{},
 		s.mockWorkflowExecutionContext,
 		s.mockMutableState, domainCacheEntry,
 	)

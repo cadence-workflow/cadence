@@ -35,14 +35,14 @@ import (
 
 type (
 	standbyActionFn     func(context.Context, execution.Context, execution.MutableState) (interface{}, error)
-	standbyPostActionFn func(context.Context, Info, interface{}, log.Logger) error
+	standbyPostActionFn func(context.Context, persistence.Task, interface{}, log.Logger) error
 
 	standbyCurrentTimeFn func() time.Time
 )
 
 func standbyTaskPostActionNoOp(
 	ctx context.Context,
-	taskInfo Info,
+	taskInfo persistence.Task,
 	postActionInfo interface{},
 	_ log.Logger,
 ) error {
@@ -57,7 +57,7 @@ func standbyTaskPostActionNoOp(
 
 func standbyTransferTaskPostActionTaskDiscarded(
 	ctx context.Context,
-	taskInfo Info,
+	transferTask persistence.Task,
 	postActionInfo interface{},
 	logger log.Logger,
 ) error {
@@ -66,22 +66,20 @@ func standbyTransferTaskPostActionTaskDiscarded(
 		return nil
 	}
 
-	transferTask := taskInfo.(*persistence.TransferTaskInfo)
 	logger.Error("Discarding standby transfer task due to task being pending for too long.",
-		tag.WorkflowID(transferTask.WorkflowID),
-		tag.WorkflowRunID(transferTask.RunID),
-		tag.WorkflowDomainID(transferTask.DomainID),
-		tag.TaskID(transferTask.TaskID),
-		tag.TaskType(transferTask.TaskType),
+		tag.WorkflowID(transferTask.GetWorkflowID()),
+		tag.WorkflowRunID(transferTask.GetRunID()),
+		tag.WorkflowDomainID(transferTask.GetDomainID()),
+		tag.TaskID(transferTask.GetTaskID()),
+		tag.TaskType(transferTask.GetTaskType()),
 		tag.FailoverVersion(transferTask.GetVersion()),
-		tag.Timestamp(transferTask.VisibilityTimestamp),
-		tag.WorkflowEventID(transferTask.ScheduleID))
+		tag.Timestamp(transferTask.GetVisibilityTimestamp()))
 	return ErrTaskDiscarded
 }
 
 func standbyTimerTaskPostActionTaskDiscarded(
 	ctx context.Context,
-	taskInfo Info,
+	timerTask persistence.Task,
 	postActionInfo interface{},
 	logger log.Logger,
 ) error {
@@ -90,17 +88,14 @@ func standbyTimerTaskPostActionTaskDiscarded(
 		return nil
 	}
 
-	timerTask := taskInfo.(*persistence.TimerTaskInfo)
 	logger.Error("Discarding standby timer task due to task being pending for too long.",
-		tag.WorkflowID(timerTask.WorkflowID),
-		tag.WorkflowRunID(timerTask.RunID),
-		tag.WorkflowDomainID(timerTask.DomainID),
-		tag.TaskID(timerTask.TaskID),
-		tag.TaskType(timerTask.TaskType),
-		tag.WorkflowTimeoutType(int64(timerTask.TimeoutType)),
+		tag.WorkflowID(timerTask.GetWorkflowID()),
+		tag.WorkflowRunID(timerTask.GetRunID()),
+		tag.WorkflowDomainID(timerTask.GetDomainID()),
+		tag.TaskID(timerTask.GetTaskID()),
+		tag.TaskType(timerTask.GetTaskType()),
 		tag.FailoverVersion(timerTask.GetVersion()),
-		tag.Timestamp(timerTask.VisibilityTimestamp),
-		tag.WorkflowEventID(timerTask.EventID))
+		tag.Timestamp(timerTask.GetVisibilityTimestamp()))
 	return ErrTaskDiscarded
 }
 
@@ -170,7 +165,7 @@ func getHistoryResendInfo(
 }
 
 func getStandbyPostActionFn(
-	taskInfo Info,
+	taskInfo persistence.Task,
 	standbyNow standbyCurrentTimeFn,
 	standbyTaskMissingEventsResendDelay time.Duration,
 	standbyTaskMissingEventsDiscardDelay time.Duration,
