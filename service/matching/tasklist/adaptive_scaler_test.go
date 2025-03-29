@@ -259,7 +259,7 @@ func TestAdaptiveScalerRun(t *testing.T) {
 		{
 			name: "isolation - aggregate metrics to scale up",
 			mockSetup: func(deps *mockAdaptiveScalerDeps) {
-				deps.config.EnableTasklistIsolation = func() bool {
+				deps.config.EnablePartitionIsolationGroupAssignment = func() bool {
 					return true
 				}
 				// overload start
@@ -287,7 +287,7 @@ func TestAdaptiveScalerRun(t *testing.T) {
 		{
 			name: "isolation - aggregate metrics to scale down",
 			mockSetup: func(deps *mockAdaptiveScalerDeps) {
-				deps.config.EnableTasklistIsolation = func() bool {
+				deps.config.EnablePartitionIsolationGroupAssignment = func() bool {
 					return true
 				}
 				// underload start
@@ -328,9 +328,177 @@ func TestAdaptiveScalerRun(t *testing.T) {
 			cycles: 3,
 		},
 		{
+			name: "isolation - scale group up",
+			mockSetup: func(deps *mockAdaptiveScalerDeps) {
+				deps.config.EnablePartitionIsolationGroupAssignment = func() bool {
+					return true
+				}
+				partitionConfig := &types.TaskListPartitionConfig{
+					Version: 1,
+					ReadPartitions: map[int]*types.TaskListPartition{
+						0: {IsolationGroups: []string{"a", "b"}},
+						1: {IsolationGroups: []string{"c", "d"}},
+					},
+					WritePartitions: map[int]*types.TaskListPartition{
+						0: {IsolationGroups: []string{"a", "b"}},
+						1: {IsolationGroups: []string{"c", "d"}},
+					},
+				}
+				partition0Resp := withConfigAndQPS(partitionConfig, map[string]float64{
+					"a": 101,
+					"b": 20,
+				})
+				partition1Resp := withConfigAndQPS(partitionConfig, map[string]float64{
+					"c": 20,
+					"d": 20,
+				})
+				// overload start for a
+				mockDescribeTaskList(deps, 0, partition0Resp)
+				mockDescribeTaskList(deps, 1, partition1Resp)
+
+				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(partitionConfig)
+
+				// overload sustained
+				mockDescribeTaskList(deps, 0, partition0Resp)
+				mockDescribeTaskList(deps, 1, partition1Resp)
+				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(partitionConfig)
+				deps.mockManager.EXPECT().UpdateTaskListPartitionConfig(gomock.Any(), &types.TaskListPartitionConfig{
+					ReadPartitions: map[int]*types.TaskListPartition{
+						0: {IsolationGroups: []string{"a", "b"}},
+						1: {IsolationGroups: []string{"a", "c", "d"}},
+					},
+					WritePartitions: map[int]*types.TaskListPartition{
+						0: {IsolationGroups: []string{"a", "b"}},
+						1: {IsolationGroups: []string{"a", "c", "d"}},
+					},
+				}).Return(nil)
+
+			},
+			cycles: 2,
+		},
+		{
+			name: "isolation - scale group down",
+			mockSetup: func(deps *mockAdaptiveScalerDeps) {
+				deps.config.EnablePartitionIsolationGroupAssignment = func() bool {
+					return true
+				}
+				partitionConfig := &types.TaskListPartitionConfig{
+					Version: 1,
+					ReadPartitions: map[int]*types.TaskListPartition{
+						0: {IsolationGroups: []string{"a", "b"}},
+						1: {IsolationGroups: []string{"a", "c", "d"}},
+					},
+					WritePartitions: map[int]*types.TaskListPartition{
+						0: {IsolationGroups: []string{"a", "b"}},
+						1: {IsolationGroups: []string{"a", "c", "d"}},
+					},
+				}
+				partition0Resp := withConfigAndQPS(partitionConfig, map[string]float64{
+					"a": 74,
+					"b": 50,
+				})
+				partition1Resp := withConfigAndQPS(partitionConfig, map[string]float64{
+					"c": 50,
+					"d": 50,
+				})
+				// overload start for a
+				mockDescribeTaskList(deps, 0, partition0Resp)
+				mockDescribeTaskList(deps, 1, partition1Resp)
+
+				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(partitionConfig)
+
+				// overload sustained
+				mockDescribeTaskList(deps, 0, partition0Resp)
+				mockDescribeTaskList(deps, 1, partition1Resp)
+				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(partitionConfig)
+				deps.mockManager.EXPECT().UpdateTaskListPartitionConfig(gomock.Any(), &types.TaskListPartitionConfig{
+					ReadPartitions: map[int]*types.TaskListPartition{
+						0: {IsolationGroups: []string{"a", "b"}},
+						1: {IsolationGroups: []string{"c", "d"}},
+					},
+					WritePartitions: map[int]*types.TaskListPartition{
+						0: {IsolationGroups: []string{"a", "b"}},
+						1: {IsolationGroups: []string{"c", "d"}},
+					},
+				}).Return(nil)
+			},
+			cycles: 2,
+		},
+		{
+			name: "isolation - scale partitions down",
+			mockSetup: func(deps *mockAdaptiveScalerDeps) {
+				deps.config.EnablePartitionIsolationGroupAssignment = func() bool {
+					return true
+				}
+
+				partitionConfig := &types.TaskListPartitionConfig{
+					Version: 1,
+					ReadPartitions: map[int]*types.TaskListPartition{
+						0: {IsolationGroups: []string{"a", "b"}},
+						1: {IsolationGroups: []string{"a", "c", "d"}},
+					},
+					WritePartitions: map[int]*types.TaskListPartition{
+						0: {IsolationGroups: []string{"a", "b"}},
+						1: {IsolationGroups: []string{"a", "c", "d"}},
+					},
+				}
+				partition0Resp := withConfigAndQPS(partitionConfig, map[string]float64{
+					"a": 74,
+					"b": 20,
+				})
+				partition1Resp := withConfigAndQPS(partitionConfig, map[string]float64{
+					"c": 20,
+					"d": 20,
+				})
+				// overload start for a
+				mockDescribeTaskList(deps, 0, partition0Resp)
+				mockDescribeTaskList(deps, 1, partition1Resp)
+
+				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(partitionConfig)
+
+				// overload sustained
+				mockDescribeTaskList(deps, 0, partition0Resp)
+				mockDescribeTaskList(deps, 1, partition1Resp)
+				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(partitionConfig)
+				deps.mockManager.EXPECT().UpdateTaskListPartitionConfig(gomock.Any(), &types.TaskListPartitionConfig{
+					ReadPartitions: map[int]*types.TaskListPartition{
+						0: {},
+						1: {IsolationGroups: []string{"a", "c", "d"}},
+					},
+					WritePartitions: map[int]*types.TaskListPartition{
+						0: {},
+					},
+				}).Return(nil)
+
+				drainConfig := &types.TaskListPartitionConfig{
+					ReadPartitions: map[int]*types.TaskListPartition{
+						0: {},
+						1: {IsolationGroups: []string{"c", "d"}},
+					},
+					WritePartitions: map[int]*types.TaskListPartition{
+						0: {},
+					},
+				}
+				// Drain partition 1
+				mockDescribeTaskList(deps, 0, partition0Resp)
+				mockDescribeTaskList(deps, 1, withConfigAndQPS(drainConfig, nil))
+
+				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(drainConfig)
+				deps.mockManager.EXPECT().UpdateTaskListPartitionConfig(gomock.Any(), &types.TaskListPartitionConfig{
+					ReadPartitions: map[int]*types.TaskListPartition{
+						0: {},
+					},
+					WritePartitions: map[int]*types.TaskListPartition{
+						0: {},
+					},
+				}).Return(nil)
+			},
+			cycles: 3,
+		},
+		{
 			name: "isolation - error calling DescribeTaskList results in no-op",
 			mockSetup: func(deps *mockAdaptiveScalerDeps) {
-				deps.config.EnableTasklistIsolation = func() bool {
+				deps.config.EnablePartitionIsolationGroupAssignment = func() bool {
 					return true
 				}
 				mockDescribeTaskList(deps, 0, withPartitionsAndQPS(3, 0))
@@ -379,13 +547,44 @@ func TestAdaptiveScalerRun(t *testing.T) {
 			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.MatchingPartitionDownscaleFactor, 0.75))
 			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.MatchingPartitionUpscaleSustainedDuration, time.Second))
 			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.MatchingPartitionDownscaleSustainedDuration, time.Second))
+			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.MatchingIsolationGroupsPerPartition, 2))
+			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.MatchingIsolationGroupUpscaleSustainedDuration, time.Second))
+			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.MatchingIsolationGroupDownscaleSustainedDuration, time.Second))
+			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.MatchingIsolationGroupHasPollersSustainedDuration, time.Second))
+			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.MatchingIsolationGroupNoPollersSustainedDuration, time.Second))
 			tc.mockSetup(deps)
 
 			for i := 0; i < tc.cycles; i++ {
 				scaler.run()
-				deps.mockTimeSource.Advance(time.Second + time.Millisecond)
+				deps.mockTimeSource.Advance(time.Second)
 			}
 		})
+	}
+}
+
+func withConfigAndQPS(config *types.TaskListPartitionConfig, qpsByGroup map[string]float64) *types.DescribeTaskListResponse {
+	isolationMetrics := make(map[string]*types.IsolationGroupMetrics)
+	total := float64(0)
+	for group, qps := range qpsByGroup {
+		isolationMetrics[group] = &types.IsolationGroupMetrics{
+			NewTasksPerSecond: qps,
+			PollerCount:       1,
+		}
+		total += qps
+	}
+
+	return &types.DescribeTaskListResponse{
+		Pollers: []*types.PollerInfo{},
+		TaskListStatus: &types.TaskListStatus{
+			BacklogCountHint:      0,
+			ReadLevel:             0,
+			AckLevel:              0,
+			RatePerSecond:         0,
+			TaskIDBlock:           nil,
+			IsolationGroupMetrics: isolationMetrics,
+			NewTasksPerSecond:     total,
+		},
+		PartitionConfig: config,
 	}
 }
 

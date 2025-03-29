@@ -821,6 +821,12 @@ const (
 	MatchingReadRangeSize
 
 	MatchingPartitionUpscaleRPS
+	// MatchingIsolationGroupsPerPartition is the target number of isolation groups to assign to each partition
+	// KeyName: matching.isolationGroupsPerPartition
+	// Value type: Int
+	// Default value: 2
+	// Allowed filters: DomainName,TasklistName,TasklistType
+	MatchingIsolationGroupsPerPartition
 
 	// key for history
 
@@ -1997,6 +2003,13 @@ const (
 	// Default value: false
 	EnableTasklistIsolation
 
+	// EnablePartitionIsolationGroupAssignment enables assigning isolation groups to individual TaskList partitions
+	// KeyName: matching.enablePartitionIsolationGroupAssignment
+	// Value type: bool
+	// Default value: false
+	// Allowed filters: DomainName,TasklistName,TasklistType
+	EnablePartitionIsolationGroupAssignment
+
 	// EnableShardIDMetrics turns on or off shardId metrics
 	// KeyName: system.enableShardIDMetrics
 	// Value type: Bool
@@ -2400,6 +2413,31 @@ const (
 	MatchingPartitionDownscaleSustainedDuration
 	MatchingAdaptiveScalerUpdateInterval
 	MatchingQPSTrackerInterval
+
+	// MatchingIsolationGroupUpscaleSustainedDuration is the sustained period to wait before upscaling the number of partitions an isolation group is assigned to
+	// KeyName: matching.isolationGroupUpscaleSustainedDuration
+	// Value type: Duration
+	// Default value: 1m
+	// Allowed filters: DomainName,TasklistName,TasklistType
+	MatchingIsolationGroupUpscaleSustainedDuration
+	// MatchingIsolationGroupDownscaleSustainedDuration is the sustained period to wait before downscaling the number of partitions an isolation group is assigned to
+	// KeyName: matching.isolationGroupDownscaleSustainedDuration
+	// Value type: Duration
+	// Default value: 2m
+	// Allowed filters: DomainName,TasklistName,TasklistType
+	MatchingIsolationGroupDownscaleSustainedDuration
+	// MatchingIsolationGroupHasPollersSustainedDuration is the sustained period to wait before considering an isolation group as an active and assigning partitions to it
+	// KeyName: matching.isolationGroupHasPollersSustainedDuration
+	// Value type: Duration
+	// Default value: 1m
+	// Allowed filters: DomainName,TasklistName,TasklistType
+	MatchingIsolationGroupHasPollersSustainedDuration
+	// MatchingIsolationGroupNoPollersSustainedDuration is the sustained period to wait before considering an isolation group as inactive and unassigning all partitions from it
+	// KeyName: matching.isolationGroupNoPollersSustainedDuration
+	// Value type: Duration
+	// Default value: 1m
+	// Allowed filters: DomainName,TasklistName,TasklistType
+	MatchingIsolationGroupNoPollersSustainedDuration
 
 	// HistoryLongPollExpirationInterval is the long poll expiration interval in the history service
 	// KeyName: history.longPollExpirationInterval
@@ -3304,6 +3342,12 @@ var IntKeys = map[IntKey]DynamicInt{
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
 		Description:  "MatchingPartitionUpscaleRPS is the threshold of adding tasks RPS per partition to trigger upscale",
 		DefaultValue: 200,
+	},
+	MatchingIsolationGroupsPerPartition: {
+		KeyName:      "matching.isolationGroupsPerPartition",
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
+		Description:  "MatchingIsolationGroupsPerPartition is the target number of isolation groups to assign to each partition",
+		DefaultValue: 2,
 	},
 	HistoryRPS: {
 		KeyName:      "history.rps",
@@ -4402,6 +4446,12 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "MatchingEnableClientAutoConfig is to enable auto config on worker side",
 		DefaultValue: false,
 	},
+	EnablePartitionIsolationGroupAssignment: {
+		KeyName:      "matching.enablePartitionIsolationGroupAssignment",
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
+		Description:  "EnablePartitionIsolationGroupAssignment enables assigning isolation groups to individual TaskList partitions",
+		DefaultValue: false,
+	},
 	EnableNoSQLHistoryTaskDualWriteMode: {
 		KeyName:      "history.enableNoSQLHistoryTaskDualWrite",
 		Description:  "EnableHistoryTaskDualWrite is to enable dual write of history events",
@@ -4749,6 +4799,30 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
 		Description:  "MatchingPartitionDownscaleSustainedDuration is the sustained period to wait before downscaling the number of partitions",
 		DefaultValue: 2 * time.Minute,
+	},
+	MatchingIsolationGroupUpscaleSustainedDuration: {
+		KeyName:      "matching.isolationGroupUpscaleSustainedDuration",
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
+		Description:  "MatchingIsolationGroupUpscaleSustainedDuration is the sustained period to wait before upscaling the number of partitions an isolation group is assigned to",
+		DefaultValue: time.Minute,
+	},
+	MatchingIsolationGroupDownscaleSustainedDuration: {
+		KeyName:      "matching.isolationGroupDownscaleSustainedDuration",
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
+		Description:  "MatchingIsolationGroupDownscaleSustainedDuration is the sustained period to wait before downscaling the number of partitions an isolation group is assigned to",
+		DefaultValue: 2 * time.Minute,
+	},
+	MatchingIsolationGroupHasPollersSustainedDuration: {
+		KeyName:      "matching.isolationGroupHasPollersSustainedDuration",
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
+		Description:  "MatchingIsolationGroupHasPollersSustainedDuration is the sustained period to wait before considering an isolation group as an active and assigning partitions to it",
+		DefaultValue: time.Minute,
+	},
+	MatchingIsolationGroupNoPollersSustainedDuration: {
+		KeyName:      "matching.isolationGroupNoPollersSustainedDuration",
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
+		Description:  "MatchingIsolationGroupNoPollersSustainedDuration is the sustained period to wait before considering an isolation group as inactive and unassigning all partitions from it",
+		DefaultValue: time.Minute,
 	},
 	MatchingAdaptiveScalerUpdateInterval: {
 		KeyName:      "matching.adaptiveScalerUpdateInterval",

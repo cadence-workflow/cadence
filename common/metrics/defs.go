@@ -2659,6 +2659,10 @@ const (
 	StandbyClusterTasksNotStartedCounterPerTaskList
 	StandbyClusterTasksCompletionFailurePerTaskList
 	TaskIsolationLeakPerTaskList
+	TaskListPartitionUpscale
+	TaskListPartitionDownscale
+	TaskListIsolationRebalance
+	TaskListPartitionDrained
 	NumMatchingMetrics
 )
 
@@ -3369,6 +3373,10 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		StandbyClusterTasksNotStartedCounterPerTaskList:         {metricName: "standby_cluster_tasks_not_started_per_tl", metricType: Counter},
 		StandbyClusterTasksCompletionFailurePerTaskList:         {metricName: "standby_cluster_tasks_completion_failure_per_tl", metricType: Counter},
 		TaskIsolationLeakPerTaskList:                            {metricName: "task_isolation_leak_per_tl", metricRollupName: "task_isolation_leak"},
+		TaskListPartitionUpscale:                                {metricName: "tasklist_partition_upscale_per_tl", metricRollupName: "tasklist_partition_upscale"},
+		TaskListPartitionDownscale:                              {metricName: "tasklist_partition_downscale_per_tl", metricRollupName: "tasklist_partition_downscale"},
+		TaskListIsolationRebalance:                              {metricName: "tasklist_isolation_rebalance_per_tl", metricRollupName: "tasklist_isolation_rebalance"},
+		TaskListPartitionDrained:                                {metricName: "tasklist_partition_drained_per_tl", metricRollupName: "tasklist_partition_drained"},
 	},
 	Worker: {
 		ReplicatorMessages:                            {metricName: "replicator_messages"},

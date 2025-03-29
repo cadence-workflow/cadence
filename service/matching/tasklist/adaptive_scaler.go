@@ -63,13 +63,15 @@ type (
 		cancel       func()
 		overLoad     clock.Sustain
 		underLoad    clock.Sustain
+		isolation    *isolationBalancer
 		baseEvent    event.E
 	}
 
 	aggregatePartitionMetrics struct {
-		totalQPS            float64
-		qpsByIsolationGroup map[string]float64
-		byPartition         map[int]*partitionMetrics
+		totalQPS                float64
+		qpsByIsolationGroup     map[string]float64
+		pollersByIsolationGroup map[string]int
+		byPartition             map[int]*partitionMetrics
 	}
 
 	partitionMetrics struct {
@@ -101,6 +103,7 @@ func NewAdaptiveScaler(
 		taskListType:   getTaskListType(taskListID.GetType()),
 		ctx:            ctx,
 		cancel:         cancel,
+		isolation:      newIsolationBalancer(timeSource, config),
 		overLoad:       clock.NewSustain(timeSource, config.PartitionUpscaleSustainedDuration),
 		underLoad:      clock.NewSustain(timeSource, config.PartitionDownscaleSustainedDuration),
 		baseEvent:      baseEvent,
@@ -151,14 +154,24 @@ func (a *adaptiveScalerImpl) run() {
 	if err != nil {
 		a.underLoad.Reset()
 		a.overLoad.Reset()
+		a.isolation.reset()
 		a.logger.Error("Failed to collect partition metrics", tag.Error(err))
 		return
 	}
 	// adjust the number of write partitions based on qps
 	numWritePartitions := a.calculateWritePartitionCount(m.totalQPS, len(partitionConfig.WritePartitions))
 	writePartitions, writeChanged := a.adjustWritePartitions(partitionConfig.WritePartitions, numWritePartitions)
-	// TODO: Rebalance isolation groups between partitions
-	// adjust the read partitions
+
+	isolationChanged := false
+	if a.config.EnablePartitionIsolationGroupAssignment() && len(m.pollersByIsolationGroup) > 0 {
+		writePartitions, isolationChanged = a.isolation.adjustWritePartitions(m, writePartitions)
+		if isolationChanged {
+			a.scope.IncCounter(metrics.TaskListIsolationRebalance)
+		}
+	}
+
+	// adjustReadPartitions will copy over any changes to the writePartitions, so it needs to happen after we
+	// potentially change the isolation group assignments
 	readPartitions, readChanged := a.adjustReadPartitions(m, partitionConfig.ReadPartitions, writePartitions)
 
 	e := a.baseEvent
@@ -166,17 +179,23 @@ func (a *adaptiveScalerImpl) run() {
 	e.Payload = map[string]any{
 		"NumReadPartitions":  len(readPartitions),
 		"NumWritePartitions": len(writePartitions),
+		"ReadChanged":        readChanged,
+		"WriteChanged":       writeChanged,
+		"IsolationChanged":   isolationChanged,
 		"QPS":                m.totalQPS,
 	}
 	event.Log(e)
 
-	if !writeChanged && !readChanged {
+	if !writeChanged && !readChanged && !isolationChanged {
 		return
 	}
 	a.logger.Info("adaptive scaler is updating number of partitions",
 		tag.CurrentQPS(m.totalQPS),
 		tag.NumReadPartitions(len(readPartitions)),
 		tag.NumWritePartitions(len(writePartitions)),
+		tag.ReadChanged(readChanged),
+		tag.WriteChanged(writeChanged),
+		tag.IsolationChanged(isolationChanged),
 		tag.Dynamic("task-list-partition-config", partitionConfig),
 	)
 	a.scope.IncCounter(metrics.CadenceRequests)
@@ -216,13 +235,16 @@ func (a *adaptiveScalerImpl) calculateWritePartitionCount(qps float64, numWriteP
 	a.scope.UpdateGauge(metrics.TaskListPartitionDownscaleThresholdGauge, downscaleThreshold)
 
 	result := numWritePartitions
-	if a.overLoad.Check(qps > upscaleThreshold) {
+	if a.overLoad.CheckAndReset(qps > upscaleThreshold) {
 		result = getNumberOfPartitions(qps, upscaleRps)
+		a.scope.IncCounter(metrics.TaskListPartitionUpscale)
 		a.logger.Info("adjust write partitions", tag.CurrentQPS(qps), tag.PartitionUpscaleThreshold(upscaleThreshold), tag.PartitionDownscaleThreshold(downscaleThreshold), tag.PartitionDownscaleFactor(downscaleFactor), tag.CurrentNumWritePartitions(numWritePartitions), tag.NumWritePartitions(result))
 	}
-	if a.underLoad.Check(qps < downscaleThreshold) {
+	if a.underLoad.CheckAndReset(qps < downscaleThreshold) {
 		result = getNumberOfPartitions(qps, upscaleRps)
+		a.scope.IncCounter(metrics.TaskListPartitionDownscale)
 		a.logger.Info("adjust write partitions", tag.CurrentQPS(qps), tag.PartitionUpscaleThreshold(upscaleThreshold), tag.PartitionDownscaleThreshold(downscaleThreshold), tag.PartitionDownscaleFactor(downscaleFactor), tag.CurrentNumWritePartitions(numWritePartitions), tag.NumWritePartitions(result))
+
 	}
 	return result
 }
@@ -269,6 +291,7 @@ func (a *adaptiveScalerImpl) adjustReadPartitions(m *aggregatePartitionMetrics, 
 		if p.readOnly && p.backlog == 0 {
 			changed = true
 			delete(result, i)
+			a.scope.IncCounter(metrics.TaskListPartitionDrained)
 		} else {
 			break
 		}
@@ -280,7 +303,7 @@ func (a *adaptiveScalerImpl) adjustReadPartitions(m *aggregatePartitionMetrics, 
 }
 
 func (a *adaptiveScalerImpl) collectPartitionMetrics(config *types.TaskListPartitionConfig) (*aggregatePartitionMetrics, error) {
-	if a.config.EnableTasklistIsolation() {
+	if a.config.EnablePartitionIsolationGroupAssignment() {
 		return a.fetchMetricsFromPartitions(config)
 	}
 	return a.assumeEvenQPS(config)
@@ -345,19 +368,22 @@ func (a *adaptiveScalerImpl) describePartition(partitionID int) (*types.Describe
 func toAggregateMetrics(partitions map[int]*types.DescribeTaskListResponse) *aggregatePartitionMetrics {
 	total := 0.0
 	byIsolationGroup := make(map[string]float64)
+	pollersByIsolationGroup := make(map[string]int)
 	byPartition := make(map[int]*partitionMetrics, len(partitions))
 	for id, p := range partitions {
 		for ig, groupMetrics := range p.TaskListStatus.IsolationGroupMetrics {
 			byIsolationGroup[ig] += groupMetrics.NewTasksPerSecond
+			pollersByIsolationGroup[ig] += int(groupMetrics.PollerCount)
 		}
 		total += p.TaskListStatus.NewTasksPerSecond
 
 		byPartition[id] = toPartitionMetrics(id, p)
 	}
 	return &aggregatePartitionMetrics{
-		totalQPS:            total,
-		qpsByIsolationGroup: byIsolationGroup,
-		byPartition:         byPartition,
+		totalQPS:                total,
+		qpsByIsolationGroup:     byIsolationGroup,
+		pollersByIsolationGroup: pollersByIsolationGroup,
+		byPartition:             byPartition,
 	}
 }
 
