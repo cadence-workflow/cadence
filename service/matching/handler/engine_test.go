@@ -37,7 +37,7 @@ import (
 	"github.com/uber/cadence/common/client"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/dynamicconfig"
-	"github.com/uber/cadence/common/log/loggerimpl"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/service"
@@ -665,7 +665,7 @@ func TestGetTasklistsNotOwned(t *testing.T) {
 		config: &config.Config{
 			EnableTasklistOwnershipGuard: func(opts ...dynamicconfig.FilterOption) bool { return true },
 		},
-		logger: loggerimpl.NewNopLogger(),
+		logger: log.NewNoop(),
 	}
 
 	tls, err := e.getNonOwnedTasklistsLocked()
@@ -706,7 +706,7 @@ func TestShutDownTasklistsNotOwned(t *testing.T) {
 			EnableTasklistOwnershipGuard: func(opts ...dynamicconfig.FilterOption) bool { return true },
 		},
 		metricsClient: metrics.NewNoopMetricsClient(),
-		logger:        loggerimpl.NewNopLogger(),
+		logger:        log.NewNoop(),
 	}
 
 	wg := sync.WaitGroup{}

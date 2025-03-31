@@ -44,6 +44,7 @@ import (
 
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -185,7 +186,7 @@ func TestConvertDynamicConfigMapPropertyToIntMap(t *testing.T) {
 		dcValue[strconv.Itoa(idx)] = value
 	}
 
-	intMap, err := ConvertDynamicConfigMapPropertyToIntMap(dcValue)
+	intMap, err := dynamicconfig.ConvertDynamicConfigMapPropertyToIntMap(dcValue)
 	require.NoError(t, err)
 	require.Len(t, intMap, 4)
 	for i := 0; i != 4; i++ {

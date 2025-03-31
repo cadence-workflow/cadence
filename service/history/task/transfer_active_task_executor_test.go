@@ -48,7 +48,6 @@ import (
 	"github.com/uber/cadence/common/clock"
 	dc "github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
-	"github.com/uber/cadence/common/log/loggerimpl"
 	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -1336,7 +1335,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessSignalExecution_WorkflowSig
 
 	// Make sure we can observe the logs
 	observedZapCore, _ := observer.New(zap.InfoLevel)
-	s.transferActiveTaskExecutor.logger = loggerimpl.NewLogger(zap.New(observedZapCore))
+	s.transferActiveTaskExecutor.logger = log.New(zap.New(observedZapCore))
 
 	setupMockFn := func(
 		mutableState execution.MutableState,
@@ -1422,7 +1421,7 @@ func (s *transferActiveTaskExecutorSuite) testProcessSignalExecutionWithErrorAnd
 
 	// Make sure we can observe the logs
 	observedZapCore, observedLogs := observer.New(zap.InfoLevel)
-	s.transferActiveTaskExecutor.logger = loggerimpl.NewLogger(zap.New(observedZapCore))
+	s.transferActiveTaskExecutor.logger = log.New(zap.New(observedZapCore))
 
 	setupMockFn(mutableState, workflowExecution, targetExecution, event, transferTask, signalInfo)
 

@@ -35,7 +35,6 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/uber/cadence/common/log"
-	"github.com/uber/cadence/common/log/loggerimpl"
 )
 
 type TestingT interface {
@@ -46,7 +45,7 @@ type TestingT interface {
 // New is a helper to create new development logger in unit test
 func New(t TestingT) log.Logger {
 	// test logger that emits all logs (none dropped / sample func never returns false)
-	return loggerimpl.NewLogger(NewZap(t), loggerimpl.WithSampleFunc(func(int) bool { return true }))
+	return log.New(NewZap(t), log.WithSampleFunc(func(int) bool { return true }))
 }
 
 // NewZap makes a new test-oriented logger that prevents bad-lifecycle logs from failing tests.
@@ -87,13 +86,13 @@ func NewObserved(t TestingT) (log.Logger, *observer.ObservedLogs) {
 	z = z.WithOptions(zap.WrapCore(func(core zapcore.Core) zapcore.Core {
 		return zapcore.NewTee(core, obsCore)
 	}))
-	l := loggerimpl.NewLogger(z, loggerimpl.WithSampleFunc(func(int) bool { return true }))
+	l := log.New(z, log.WithSampleFunc(func(int) bool { return true }))
 	return l, obs
 }
 
 type fallbackTestCore struct {
-	t         TestingT
-	fallback  zapcore.Core
+	t        TestingT
+	fallback zapcore.Core
 	testing   zapcore.Core
 	completed *atomic.Bool
 }

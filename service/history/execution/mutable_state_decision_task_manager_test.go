@@ -31,12 +31,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
-	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/uber/cadence/common/clock"
 	commonconstants "github.com/uber/cadence/common/constants"
-	"github.com/uber/cadence/common/log/loggerimpl"
+	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/config"
@@ -176,8 +175,8 @@ func TestReplicateDecisionTaskScheduledEvent(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			m := &mutableStateDecisionTaskManagerImpl{msb: test.newMsb(t)}
-			core, observedLogs := observer.New(zap.DebugLevel)
-			m.msb.logger = loggerimpl.NewLogger(zap.New(core))
+			var observedLogs *observer.ObservedLogs
+			m.msb.logger, observedLogs = testlogger.NewObserved(t)
 			if test.expectations != nil {
 				test.expectations(m)
 			}
@@ -236,8 +235,8 @@ func TestReplicateTransientDecisionTaskScheduled(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			m := &mutableStateDecisionTaskManagerImpl{msb: test.newMsb(t)}
-			core, observedLogs := observer.New(zap.DebugLevel)
-			m.msb.logger = loggerimpl.NewLogger(zap.New(core))
+			var observedLogs *observer.ObservedLogs
+			m.msb.logger, observedLogs = testlogger.NewObserved(t)
 			if test.expectations != nil {
 				test.expectations(m)
 			}
@@ -394,7 +393,6 @@ func TestReplicateDecisionTaskStartedEvent(t *testing.T) {
 	var originalTimeStamp int64 = 1
 
 	t.Run("success", func(t *testing.T) {
-		core, observedLogs := observer.New(zap.DebugLevel)
 		m := &mutableStateDecisionTaskManagerImpl{
 			msb: &mutableStateBuilder{
 				executionInfo: &persistence.WorkflowExecutionInfo{
@@ -408,9 +406,10 @@ func TestReplicateDecisionTaskStartedEvent(t *testing.T) {
 				},
 				taskGenerator: NewMockMutableStateTaskGenerator(gomock.NewController(t)),
 				timeSource:    clock.NewMockedTimeSource(),
-				logger:        loggerimpl.NewLogger(zap.New(core)),
 			},
 		}
+		var observedLogs *observer.ObservedLogs
+		m.msb.logger, observedLogs = testlogger.NewObserved(t)
 		var decision *DecisionInfo
 		m.msb.taskGenerator.(*MockMutableStateTaskGenerator).EXPECT().GenerateDecisionStartTasks(scheduleID)
 		result, err := m.ReplicateDecisionTaskStartedEvent(decision, version, scheduleID, startedID, requestID, timeStamp)

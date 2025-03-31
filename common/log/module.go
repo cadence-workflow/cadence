@@ -20,41 +20,50 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-package quotas
+package log
 
-import "github.com/uber/cadence/common/dynamicconfig"
+import (
+	"fmt"
 
-// LimiterFactory is used to create a Limiter for a given domain
-// the created Limiter will use the primary dynamic config if it is set
-// otherwise it will use the secondary dynamic config
-func NewFallbackDynamicRateLimiterFactory(
-	primary dynamicconfig.IntPropertyFnWithDomainFilter,
-	secondary dynamicconfig.IntPropertyFn,
-) LimiterFactory {
-	return fallbackDynamicRateLimiterFactory{
-		primary:   primary,
-		secondary: secondary,
+	"go.uber.org/config"
+	"go.uber.org/fx"
+)
+
+// Module provides the logger dependencies
+var Module = fx.Options(
+	fx.Provide(Provide),
+)
+
+const (
+	_configurationKey = "log"
+)
+
+// Params defines the parameters for constructing loggers
+type Params struct {
+	fx.In
+
+	ConfigProvider config.Provider
+}
+
+// Result contains the logger instances
+type Result struct {
+	fx.Out
+
+	CommonLogger Logger
+}
+
+// Provide creates and returns both zap and common loggers
+func Provide(p Params) (Result, error) {
+	var loggerConfig Config
+	err := p.ConfigProvider.Get(_configurationKey).Populate(&loggerConfig)
+	if err != nil {
+		return Result{}, fmt.Errorf("extract logger config: %w", err)
 	}
-}
-
-type fallbackDynamicRateLimiterFactory struct {
-	primary dynamicconfig.IntPropertyFnWithDomainFilter
-	// secondary is used when primary is not set
-	secondary dynamicconfig.IntPropertyFn
-}
-
-// GetLimiter returns a new Limiter for the given domain
-func (f fallbackDynamicRateLimiterFactory) GetLimiter(domain string) Limiter {
-	return NewDynamicRateLimiter(func() float64 {
-		return limitWithFallback(
-			float64(f.primary(domain)),
-			float64(f.secondary()))
-	})
-}
-
-func limitWithFallback(primary, secondary float64) float64 {
-	if primary > 0 {
-		return primary
+	zapLogger, err := loggerConfig.NewZapLogger()
+	if err != nil {
+		return Result{}, fmt.Errorf("build logger with config (%+v): %w", loggerConfig, err)
 	}
-	return secondary
+	return Result{
+		CommonLogger: New(zapLogger),
+	}, nil
 }

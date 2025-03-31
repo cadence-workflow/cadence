@@ -18,18 +18,16 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package loggerimpl
+package log
 
 import (
 	"fmt"
-	"math/rand"
 	"path/filepath"
 	"runtime"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 )
 
@@ -41,37 +39,29 @@ type loggerImpl struct {
 
 const (
 	skipForDefaultLogger = 3
-	// we put a default message when it is empty so that the log can be searchable/filterable
-	defaultMsgForEmpty = "none"
+	// DefaultMsgForEmpty a default message when it is empty so that the log can be searchable/filterable
+	DefaultMsgForEmpty = "none"
 )
 
-var defaultSampleFn = func(i int) bool { return rand.Intn(i) == 0 }
-
-// NewNopLogger returns a no-op logger
-func NewNopLogger() log.Logger {
-	return NewLogger(zap.NewNop())
-}
-
-// NewDevelopment returns a logger at debug level and log into STDERR
-func NewDevelopment() (log.Logger, error) {
-	zapLogger, err := zap.NewDevelopment()
-	if err != nil {
-		return nil, err
-	}
-	return NewLogger(zapLogger), nil
-}
-
 // NewLogger returns a new logger
-func NewLogger(zapLogger *zap.Logger, opts ...Option) log.Logger {
+func newLogger(zapLogger *zap.Logger, skip int, sampleFn func(i int) bool) Logger {
+	if skip == 0 {
+		skip = skipForDefaultLogger
+	}
 	impl := &loggerImpl{
 		zapLogger:     zapLogger,
-		skip:          skipForDefaultLogger,
-		sampleLocalFn: defaultSampleFn,
-	}
-	for _, opt := range opts {
-		opt(impl)
+		skip:          skip,
+		sampleLocalFn: sampleFn,
 	}
 	return impl
+}
+
+func (lg *loggerImpl) GetLogger() *zap.Logger {
+	return lg.zapLogger
+}
+
+func (lg *loggerImpl) GetSampleFn() func(int) bool {
+	return lg.sampleLocalFn
 }
 
 func caller(skip int) string {
@@ -107,7 +97,7 @@ func (lg *loggerImpl) buildFields(tags []tag.Tag) []zap.Field {
 
 func setDefaultMsg(msg string) string {
 	if msg == "" {
-		return defaultMsgForEmpty
+		return DefaultMsgForEmpty
 	}
 	return msg
 }
@@ -156,7 +146,7 @@ func (lg *loggerImpl) Fatal(msg string, tags ...tag.Tag) {
 	lg.zapLogger.Fatal(msg, fields...)
 }
 
-func (lg *loggerImpl) WithTags(tags ...tag.Tag) log.Logger {
+func (lg *loggerImpl) WithTags(tags ...tag.Tag) Logger {
 	fields := lg.buildFields(tags)
 	zapLogger := lg.zapLogger.With(fields...)
 	return &loggerImpl{

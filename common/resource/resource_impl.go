@@ -51,7 +51,6 @@ import (
 	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/isolationgroup/defaultisolationgroupstate"
 	"github.com/uber/cadence/common/log"
-	"github.com/uber/cadence/common/log/loggerimpl"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/messaging"
@@ -159,7 +158,9 @@ func New(
 	hostname := params.HostName
 
 	logger := params.Logger
-	throttledLogger := loggerimpl.NewThrottledLogger(logger, serviceConfig.ThrottledLoggerMaxRPS)
+	throttledLogger := log.NewThrottledLogger(logger, func() int {
+		return serviceConfig.ThrottledLoggerMaxRPS()
+	})
 
 	numShards := params.PersistenceConfig.NumHistoryShards
 	dispatcher := params.RPCFactory.GetDispatcher()

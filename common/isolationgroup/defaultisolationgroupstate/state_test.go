@@ -29,12 +29,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/isolationgroup/isolationgroupapi"
-	"github.com/uber/cadence/common/log/loggerimpl"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
@@ -325,14 +326,15 @@ func TestNewDefaultIsolationGroupStateWatcherWithConfigStoreClient(t *testing.T)
 	domainCache := cache.NewNoOpDomainCache()
 	client := metrics.NewNoopMetricsClient()
 	ig := func() []string { return nil }
-	NewDefaultIsolationGroupStateWatcherWithConfigStoreClient(
-		loggerimpl.NewNopLogger(),
+	_, err := NewDefaultIsolationGroupStateWatcherWithConfigStoreClient(
+		log.NewNoop(),
 		dc,
 		domainCache,
 		nil,
 		client,
 		ig,
 	)
+	require.NoError(t, err)
 }
 
 func TestIsolationGroupShutdown(t *testing.T) {

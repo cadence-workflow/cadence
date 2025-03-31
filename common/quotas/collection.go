@@ -22,7 +22,9 @@
 
 package quotas
 
-import "sync"
+import (
+	"sync"
+)
 
 // Collection stores a map of limiters by key
 type Collection struct {

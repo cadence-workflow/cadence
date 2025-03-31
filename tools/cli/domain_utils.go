@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/uber-go/tally"
 	"github.com/urfave/cli/v2"
+	"go.uber.org/zap"
 
 	"github.com/uber/cadence/client/admin"
 	"github.com/uber/cadence/client/frontend"
@@ -38,7 +39,6 @@ import (
 	"github.com/uber/cadence/common/domain"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
-	"github.com/uber/cadence/common/log/loggerimpl"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
@@ -284,10 +284,11 @@ func initializeAdminDomainHandler(c *cli.Context) (domain.Handler, error) {
 		return nil, err
 	}
 	metricsClient := initializeMetricsClient()
-	logger, err := initializeLogger(configuration)
+	zapLogger, err := zap.NewDevelopment()
 	if err != nil {
-		return nil, fmt.Errorf("Error in init admin domain handler: %w", err)
+		return nil, fmt.Errorf("create logger: %w", err)
 	}
+	logger := log.New(zapLogger)
 	clusterMetadata := initializeClusterMetadata(configuration, metricsClient, logger)
 	metadataMgr, err := getDeps(c).initializeDomainManager(c)
 	if err != nil {
@@ -351,16 +352,6 @@ func initializeDomainHandler(
 		archiverProvider,
 		clock.NewRealTimeSource(),
 	)
-}
-
-func initializeLogger(
-	serviceConfig *config.Config,
-) (log.Logger, error) {
-	zapLogger, err := serviceConfig.Log.NewZapLogger()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create zap logger, err: %w", err)
-	}
-	return loggerimpl.NewLogger(zapLogger), nil
 }
 
 func initializeClusterMetadata(serviceConfig *config.Config, metrics metrics.Client, logger log.Logger) cluster.Metadata {

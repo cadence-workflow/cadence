@@ -35,7 +35,7 @@ import (
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/constants"
-	"github.com/uber/cadence/common/log/loggerimpl"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -178,11 +178,11 @@ func TestGenerateFailoverTasksForDomainCallback(t *testing.T) {
 				},
 				func(string) bool { return false },
 				metrics.NewNoopMetricsClient(),
-				loggerimpl.NewNopLogger(),
+				log.NewNoop(),
 			)
 
 			he := historyEngineImpl{
-				logger:             loggerimpl.NewNopLogger(),
+				logger:             log.NewNoop(),
 				clusterMetadata:    cluster,
 				currentClusterName: "cluster0",
 				metricsClient:      metrics.NewNoopMetricsClient(),
@@ -601,7 +601,7 @@ func TestDomainCallback(t *testing.T) {
 				},
 				func(string) bool { return false },
 				metrics.NewNoopMetricsClient(),
-				loggerimpl.NewNopLogger(),
+				log.NewNoop(),
 			)
 
 			ctrl := gomock.NewController(t)
@@ -614,7 +614,7 @@ func TestDomainCallback(t *testing.T) {
 			td.affordances(shardCtx, txProcessor, timeProcessor, queueTaskProcessor)
 
 			he := historyEngineImpl{
-				logger:             loggerimpl.NewNopLogger(),
+				logger:             log.NewNoop(),
 				clusterMetadata:    cluster,
 				currentClusterName: td.asCluster,
 				metricsClient:      metrics.NewNoopMetricsClient(),
@@ -642,7 +642,7 @@ func TestDomainLocking(t *testing.T) {
 		},
 		func(string) bool { return false },
 		metrics.NewNoopMetricsClient(),
-		loggerimpl.NewNopLogger(),
+		log.NewNoop(),
 	)
 
 	ctrl := gomock.NewController(t)
@@ -658,7 +658,7 @@ func TestDomainLocking(t *testing.T) {
 	txProcessor.EXPECT().UnlockTaskProcessing()
 
 	he := historyEngineImpl{
-		logger:             loggerimpl.NewNopLogger(),
+		logger:             log.NewNoop(),
 		clusterMetadata:    cluster,
 		currentClusterName: "cluster0",
 		metricsClient:      metrics.NewNoopMetricsClient(),

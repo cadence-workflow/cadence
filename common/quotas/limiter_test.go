@@ -154,11 +154,18 @@ func newFixedRpsMultiStageRateLimiter(globalRps float64, domainRps int) Policy {
 		NewDynamicRateLimiter(func() float64 {
 			return globalRps
 		}),
-		NewCollection(NewSimpleDynamicRateLimiterFactory(func(domain string) int {
-			return domainRps
-		})),
+		NewCollection(&stubDomainRatelimiter{rps: domainRps}),
 	)
 }
+
+type stubDomainRatelimiter struct {
+	rps int
+}
+
+func (s *stubDomainRatelimiter) GetLimiter(domain string) Limiter {
+	return NewDynamicRateLimiter(func() float64 { return float64(s.rps) })
+}
+
 func getDomains(n int) []string {
 	domains := make([]string, 0, n)
 	for i := 0; i < n; i++ {

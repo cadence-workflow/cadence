@@ -20,7 +20,13 @@
 
 package log
 
-import "github.com/uber/cadence/common/log/tag"
+import (
+	"math/rand"
+
+	"go.uber.org/zap"
+
+	"github.com/uber/cadence/common/log/tag"
+)
 
 // Logger is our abstraction for logging
 // Usage examples:
@@ -65,4 +71,30 @@ func (n *noop) Fatal(msg string, tags ...tag.Tag)                      {}
 func (n *noop) SampleInfo(msg string, sampleRate int, tags ...tag.Tag) {}
 func (n *noop) WithTags(tags ...tag.Tag) Logger {
 	return n
+}
+
+var defaultSampleFn = func(i int) bool { return rand.Intn(i) == 0 }
+
+func New(zapLogger *zap.Logger, opts ...Option) Logger {
+	p := loggerParams{
+		sampleLocalFn: defaultSampleFn,
+	}
+	for _, opt := range opts {
+		opt(&p)
+	}
+	return newLogger(zapLogger, 0, p.sampleLocalFn)
+}
+
+// Option is used to set options for the logger.
+type Option func(params *loggerParams)
+
+// WithSampleFunc sets the sampling function for the logger.
+func WithSampleFunc(fn func(int) bool) Option {
+	return func(impl *loggerParams) {
+		impl.sampleLocalFn = fn
+	}
+}
+
+type loggerParams struct {
+	sampleLocalFn func(int) bool
 }

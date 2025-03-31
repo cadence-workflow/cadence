@@ -24,6 +24,7 @@ import (
 	"errors"
 
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/log"
 )
 
 const (
@@ -42,7 +43,7 @@ type (
 	Config struct {
 		Bench   Bench          `yaml:"bench"`
 		Cadence Cadence        `yaml:"cadence"`
-		Log     config.Logger  `yaml:"log"`
+		Log     log.Config     `yaml:"log"`
 		Metrics config.Metrics `yaml:"metrics"`
 	}
 

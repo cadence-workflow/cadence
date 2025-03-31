@@ -74,3 +74,9 @@ type Policy interface {
 	// progress
 	Allow(info Info) bool
 }
+
+// LimiterFactory is used to create a Limiter for a given domain
+type LimiterFactory interface {
+	// GetLimiter returns a new Limiter for the given domain
+	GetLimiter(domain string) Limiter
+}

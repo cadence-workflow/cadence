@@ -21,12 +21,14 @@
 package config
 
 import (
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
+
+const fileMode = os.FileMode(0644)
 
 type (
 	LoaderSuite struct {
@@ -129,6 +131,6 @@ func (s *LoaderSuite) TestInvalidPath() {
 }
 
 func (s *LoaderSuite) createFile(dir string, file string, content string) {
-	err := ioutil.WriteFile(path(dir, file), []byte(content), fileMode)
+	err := os.WriteFile(path(dir, file), []byte(content), fileMode)
 	s.Nil(err)
 }

@@ -21,7 +21,6 @@
 package cadence
 
 import (
-	"log"
 	"time"
 
 	"github.com/startreedata/pinot-client-go/pinot"
@@ -48,8 +47,8 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig/configstore"
 	"github.com/uber/cadence/common/elasticsearch"
 	"github.com/uber/cadence/common/isolationgroup/isolationgroupapi"
+	"github.com/uber/cadence/common/log"
 	cadencelog "github.com/uber/cadence/common/log"
-	"github.com/uber/cadence/common/log/loggerimpl"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/messaging/kafka"
@@ -78,16 +77,18 @@ type (
 		cfg    *config.Config
 		doneC  chan struct{}
 		daemon common.Daemon
+		logger log.Logger
 	}
 )
 
 // newServer returns a new instance of a daemon
 // that represents a cadence service
-func newServer(service string, cfg *config.Config) common.Daemon {
+func newServer(service string, cfg config.Config, logger log.Logger) common.Daemon {
 	return &server{
-		cfg:   cfg,
-		name:  service,
-		doneC: make(chan struct{}),
+		cfg:    &cfg,
+		name:   service,
+		doneC:  make(chan struct{}),
+		logger: logger,
 	}
 }
 
@@ -98,7 +99,6 @@ func (s *server) Start() {
 
 // Stop stops the server
 func (s *server) Stop() {
-
 	if s.daemon == nil {
 		return
 	}
@@ -110,7 +110,7 @@ func (s *server) Stop() {
 		select {
 		case <-s.doneC:
 		case <-time.After(time.Minute):
-			log.Printf("timed out waiting for server %v to exit\n", s.name)
+			s.logger.Info("timed out waiting for server to exit")
 		}
 	}
 }
@@ -119,17 +119,13 @@ func (s *server) Stop() {
 func (s *server) startService() common.Daemon {
 	svcCfg, err := s.cfg.GetServiceConfig(s.name)
 	if err != nil {
-		log.Fatal(err.Error())
+		s.logger.Fatal(err.Error())
 	}
 
 	params := resource.Params{}
 	params.Name = service.FullName(s.name)
 
-	zapLogger, err := s.cfg.Log.NewZapLogger()
-	if err != nil {
-		log.Fatal("failed to create the zap logger, err: ", err.Error())
-	}
-	params.Logger = loggerimpl.NewLogger(zapLogger).WithTags(tag.Service(params.Name))
+	params.Logger = s.logger.WithTags(tag.Service(params.Name))
 
 	params.PersistenceConfig = s.cfg.Persistence
 
@@ -173,7 +169,7 @@ func (s *server) startService() common.Daemon {
 
 	rpcParams, err := rpc.NewParams(params.Name, s.cfg, dc, params.Logger, params.MetricsClient)
 	if err != nil {
-		log.Fatalf("error creating rpc factory params: %v", err)
+		s.logger.Fatal("error creating rpc factory params", tag.Error(err))
 	}
 	rpcParams.OutboundsBuilder = rpc.CombineOutbounds(
 		rpcParams.OutboundsBuilder,
@@ -194,7 +190,7 @@ func (s *server) startService() common.Daemon {
 	)
 
 	if err != nil {
-		log.Fatalf("ringpop provider failed: %v", err)
+		s.logger.Fatal("ringpop provider failed", tag.Error(err))
 	}
 
 	shardDistributorClient := s.createShardDistributorClient(params, dc)
@@ -213,7 +209,7 @@ func (s *server) startService() common.Daemon {
 	)
 
 	if err != nil {
-		log.Fatalf("error creating membership monitor: %v", err)
+		s.logger.Fatal("error creating membership monitor", tag.Error(err))
 	}
 	params.PProfInitializer = svcCfg.PProf.NewInitializer(params.Logger)
 
@@ -272,13 +268,13 @@ func (s *server) startService() common.Daemon {
 	params.AuthorizationConfig = s.cfg.Authorization
 	params.BlobstoreClient, err = filestore.NewFilestoreClient(s.cfg.Blobstore.Filestore)
 	if err != nil {
-		log.Printf("failed to create file blobstore client, will continue startup without it: %v", err)
+		s.logger.Warn("failed to create file blobstore client, will continue startup without it", tag.Error(err))
 		params.BlobstoreClient = nil
 	}
 
 	params.AsyncWorkflowQueueProvider, err = queue.NewAsyncQueueProvider(s.cfg.AsyncWorkflowQueues)
 	if err != nil {
-		log.Fatalf("error creating async queue provider: %v", err)
+		s.logger.Fatal("error creating async queue provider", tag.Error(err))
 	}
 
 	params.KafkaConfig = s.cfg.Kafka
@@ -371,7 +367,7 @@ func (s *server) setupVisibilityClients(params *resource.Params) {
 	advancedVisStoreKey := s.cfg.Persistence.AdvancedVisibilityStore
 	advancedVisStore, ok := s.cfg.Persistence.DataStores[advancedVisStoreKey]
 	if !ok {
-		log.Fatalf("Cannot find advanced visibility store in config: %v", advancedVisStoreKey)
+		s.logger.Fatal("Cannot find advanced visibility store in config", tag.Key(advancedVisStoreKey))
 	}
 
 	// Handle advanced visibility store based on type and migration state
@@ -390,7 +386,7 @@ func (s *server) setupPinotClient(params *resource.Params, advancedVisStore conf
 	pinotBroker := params.PinotConfig.Broker
 	pinotRawClient, err := pinot.NewFromBrokerList([]string{pinotBroker})
 	if err != nil || pinotRawClient == nil {
-		log.Fatalf("Creating Pinot visibility client failed: %v", err)
+		s.logger.Fatal("Creating Pinot visibility client failed", tag.Error(err))
 	}
 	params.PinotClient = pnt.NewPinotClient(pinotRawClient, params.Logger, params.PinotConfig)
 	if advancedVisStore.Pinot.Migration.Enabled {
@@ -401,7 +397,7 @@ func (s *server) setupPinotClient(params *resource.Params, advancedVisStore conf
 func (s *server) setupESClient(params *resource.Params) {
 	esVisibilityStore, ok := s.cfg.Persistence.DataStores[constants.ESVisibilityStoreName]
 	if !ok {
-		log.Fatalf("Cannot find Elasticsearch visibility store in config")
+		s.logger.Fatal("Cannot find Elasticsearch visibility store in config")
 	}
 
 	params.ESConfig = esVisibilityStore.ElasticSearch
@@ -409,11 +405,11 @@ func (s *server) setupESClient(params *resource.Params) {
 
 	esClient, err := elasticsearch.NewGenericClient(params.ESConfig, params.Logger)
 	if err != nil {
-		log.Fatalf("Error creating Elasticsearch client: %v", err)
+		s.logger.Fatal("Error creating Elasticsearch clien", tag.Error(err))
 	}
 	params.ESClient = esClient
 
-	validateIndex(params.ESConfig)
+	s.validateIndex(params.ESConfig)
 }
 
 func (s *server) setupOSClient(params *resource.Params, advancedVisStore config.DataStore) {
@@ -424,11 +420,11 @@ func (s *server) setupOSClient(params *resource.Params, advancedVisStore config.
 
 	osClient, err := elasticsearch.NewGenericClient(params.OSConfig, params.Logger)
 	if err != nil {
-		log.Fatalf("Error creating OpenSearch client: %v", err)
+		s.logger.Fatal("Error creating OpenSearch client", tag.Error(err))
 	}
 	params.OSClient = osClient
 
-	validateIndex(params.OSConfig)
+	s.validateIndex(params.OSConfig)
 
 	if advancedVisStore.ElasticSearch.Migration.Enabled {
 		s.setupESClient(params)
@@ -440,10 +436,10 @@ func (s *server) setupOSClient(params *resource.Params, advancedVisStore config.
 	}
 }
 
-func validateIndex(config *config.ElasticSearchConfig) {
+func (s *server) validateIndex(config *config.ElasticSearchConfig) {
 	indexName, ok := config.Indices[constants.VisibilityAppName]
 	if !ok || len(indexName) == 0 {
-		log.Fatalf("Visibility index is missing in config")
+		s.logger.Fatal("Visibility index is missing in config")
 	}
 }
 

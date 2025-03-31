@@ -33,7 +33,6 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/log"
-	"github.com/uber/cadence/common/log/loggerimpl"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 )
@@ -97,7 +96,7 @@ func TestInjectorsWith100ErrorRate(t *testing.T) {
 		name := reflect.TypeOf(injector).String()
 		t.Run(name, func(t *testing.T) {
 			// We cannot use test logger here, since logger.Error will fail the test.
-			object := builderForPassThrough(t, injector, 1, loggerimpl.NewNopLogger(), false, nil)
+			object := builderForPassThrough(t, injector, 1, log.NewNoop(), false, nil)
 			v := reflect.ValueOf(object)
 			infoT := reflect.TypeOf(v.Interface())
 			for i := 0; i < infoT.NumMethod(); i++ {

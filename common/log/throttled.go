@@ -18,14 +18,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package loggerimpl
+package log
 
 import (
 	"math/rand"
 	"sync/atomic"
 
-	"github.com/uber/cadence/common/dynamicconfig"
-	"github.com/uber/cadence/common/log"
+	"go.uber.org/zap"
+
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/quotas"
 )
@@ -33,30 +33,33 @@ import (
 type throttledLogger struct {
 	rps     int32
 	limiter quotas.Limiter
-	log     log.Logger
+	log     Logger
 }
 
-var _ log.Logger = (*throttledLogger)(nil)
-
 const skipForThrottleLogger = 6
+
+type ExtractLogger interface {
+	GetLogger() *zap.Logger
+	GetSampleFn() func(i int) bool
+}
 
 // NewThrottledLogger returns an implementation of logger that throttles the
 // log messages being emitted. The underlying implementation uses a token bucket
 // ratelimiter and stops emitting logs once the bucket runs out of tokens
 //
 // Fatal/Panic logs are always emitted without any throttling
-func NewThrottledLogger(logger log.Logger, rps dynamicconfig.IntPropertyFn) log.Logger {
-	var log log.Logger
+func NewThrottledLogger(logger Logger, rps func() int) Logger {
+	var wrappedLog Logger
 	lg, ok := logger.(*loggerImpl)
 	if ok {
-		log = &loggerImpl{
+		wrappedLog = &loggerImpl{
 			zapLogger:     lg.zapLogger,
 			skip:          skipForThrottleLogger,
 			sampleLocalFn: lg.sampleLocalFn,
 		}
 	} else {
 		logger.Warn("ReplayLogger may not emit callat tag correctly because the logger passed in is not loggerImpl")
-		log = logger
+		wrappedLog = logger
 	}
 
 	rate := rps()
@@ -66,7 +69,7 @@ func NewThrottledLogger(logger log.Logger, rps dynamicconfig.IntPropertyFn) log.
 	tl := &throttledLogger{
 		limiter: limiter,
 		rps:     int32(rate),
-		log:     log,
+		log:     wrappedLog,
 	}
 	return tl
 }
@@ -116,7 +119,7 @@ func (tl *throttledLogger) SampleInfo(msg string, sampleRate int, tags ...tag.Ta
 }
 
 // Return a logger with the specified key-value pairs set, to be included in a subsequent normal logging call
-func (tl *throttledLogger) WithTags(tags ...tag.Tag) log.Logger {
+func (tl *throttledLogger) WithTags(tags ...tag.Tag) Logger {
 	result := &throttledLogger{
 		rps:     atomic.LoadInt32(&tl.rps),
 		limiter: tl.limiter,

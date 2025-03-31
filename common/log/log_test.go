@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package config
+package log
 
 import (
 	"os"
@@ -55,7 +55,7 @@ func (s *LogSuite) TestNewLogger() {
 
 	dir := s.T().TempDir()
 
-	config := &Logger{
+	config := &Config{
 		Level:      "info",
 		OutputFile: dir + "/test.log",
 	}

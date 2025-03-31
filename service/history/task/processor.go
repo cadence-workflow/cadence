@@ -85,7 +85,7 @@ func NewProcessor(
 		return t.Priority()
 	}
 	channelKeyToWeightFn := func(priority int) int {
-		weights, err := common.ConvertDynamicConfigMapPropertyToIntMap(config.TaskSchedulerRoundRobinWeights())
+		weights, err := dynamicconfig.ConvertDynamicConfigMapPropertyToIntMap(config.TaskSchedulerRoundRobinWeights())
 		if err != nil {
 			logger.Error("failed to convert dynamic config map to int map", tag.Error(err))
 			weights = dynamicconfig.DefaultTaskSchedulerRoundRobinWeights
@@ -259,7 +259,7 @@ func getDomainPriorityWeight(
 		logger.Error("failed to get domain name from cache, use default round robin weights", tag.Error(err))
 		weights = dynamicconfig.DefaultTaskSchedulerRoundRobinWeights
 	} else {
-		weights, err = common.ConvertDynamicConfigMapPropertyToIntMap(config.TaskSchedulerDomainRoundRobinWeights(domainName))
+		weights, err = dynamicconfig.ConvertDynamicConfigMapPropertyToIntMap(config.TaskSchedulerDomainRoundRobinWeights(domainName))
 		if err != nil {
 			logger.Error("failed to convert dynamic config map to int map, use default round robin weights", tag.Error(err))
 			weights = dynamicconfig.DefaultTaskSchedulerRoundRobinWeights

@@ -18,22 +18,19 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package config
+package log
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
-const fileMode = os.FileMode(0644)
-
 // NewZapLogger builds and returns a new
 // Zap logger for this logging configuration
-func (cfg *Logger) NewZapLogger() (*zap.Logger, error) {
+func (cfg *Config) NewZapLogger() (*zap.Logger, error) {
 	levelKey := cfg.LevelKey
 	if levelKey == "" {
 		levelKey = "level"

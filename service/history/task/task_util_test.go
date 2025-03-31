@@ -28,13 +28,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	commonconstants "github.com/uber/cadence/common/constants"
-	"github.com/uber/cadence/common/log/loggerimpl"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -92,7 +91,7 @@ func TestInitializeLoggerForTask(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			logger := InitializeLoggerForTask(1, tc.task, loggerimpl.NewLogger(zap.NewNop()))
+			logger := InitializeLoggerForTask(1, tc.task, log.NewNoop())
 			assert.NotNil(t, logger)
 		})
 	}
@@ -437,7 +436,7 @@ func Test_verifyTaskVersion(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			s := shard.NewMockContext(ctrl)
-			l := loggerimpl.NewLogger(zap.NewNop())
+			l := log.NewNoop()
 			task := &persistence.TimerTaskInfo{
 				Version: constants.TestVersion,
 			}
@@ -532,7 +531,7 @@ func Test_loadMutableStateForTimerTask(t *testing.T) {
 			w := execution.NewMockContext(ctrl)
 			m := execution.NewMockMutableState(ctrl)
 			metricsClient := metrics.NewNoopMetricsClient()
-			l := loggerimpl.NewNopLogger()
+			l := log.NewNoop()
 
 			tc.setupMock(w, m)
 			ms, err := loadMutableStateForTimerTask(context.Background(), w, tc.timerTask, metricsClient, l)
@@ -629,7 +628,7 @@ func Test_loadMutableStateForTransferTask(t *testing.T) {
 			w := execution.NewMockContext(ctrl)
 			m := execution.NewMockMutableState(ctrl)
 			metricsClient := metrics.NewNoopMetricsClient()
-			l := loggerimpl.NewNopLogger()
+			l := log.NewNoop()
 
 			tc.setupMock(w, m)
 			ms, err := loadMutableStateForTransferTask(context.Background(), w, tc.transferTask, metricsClient, l)

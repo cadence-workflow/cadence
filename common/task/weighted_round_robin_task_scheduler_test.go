@@ -163,7 +163,7 @@ func (s *weightedRoundRobinTaskSchedulerSuite) TestTrySubmit() {
 }
 
 func (s *weightedRoundRobinTaskSchedulerSuite) TestDispatcher_SubmitWithNoError() {
-	weights, err := common.ConvertDynamicConfigMapPropertyToIntMap(testSchedulerWeights())
+	weights, err := dynamicconfig.ConvertDynamicConfigMapPropertyToIntMap(testSchedulerWeights())
 	s.NoError(err)
 
 	numPriorities := len(weights)

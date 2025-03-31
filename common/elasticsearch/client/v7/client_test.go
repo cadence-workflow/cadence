@@ -31,7 +31,7 @@ import (
 	"net/url"
 	"testing"
 
-	elastic "github.com/olivere/elastic/v7"
+	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/uber/cadence/common/config"

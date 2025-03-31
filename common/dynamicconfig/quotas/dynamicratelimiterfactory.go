@@ -20,49 +20,28 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-package logger
+//go:generate mockgen -package=$GOPACKAGE -destination=limiterfactory_mock.go github.com/uber/cadence/common/quotas LimiterFactory
+
+package quotas
 
 import (
-	"go.uber.org/fx"
-	"go.uber.org/zap"
-
-	"github.com/uber/cadence/common/config"
-	"github.com/uber/cadence/common/log"
-	"github.com/uber/cadence/common/log/loggerimpl"
+	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/quotas"
 )
 
-// Params defines the parameters for constructing loggers
-type Params struct {
-	fx.In
-
-	ConfigProvider config.Provider
-}
-
-// Result contains the logger instances
-type Result struct {
-	fx.Out
-
-	ZapLogger    *zap.Logger
-	CommonLogger log.Logger
-}
-
-// Provide creates and returns both zap and common loggers
-func Provide(p Params) (Result, error) {
-	loggerConfig := p.ConfigProvider.GetLogger()
-	zapLogger, err := loggerConfig.NewZapLogger()
-	if err != nil {
-		return Result{}, err
+// NewSimpleDynamicRateLimiterFactory creates a new LimiterFactory which creates
+// a new DynamicRateLimiter for each domain, the RPS for the DynamicRateLimiter is given by the dynamic config
+func NewSimpleDynamicRateLimiterFactory(rps dynamicconfig.IntPropertyFnWithDomainFilter) quotas.LimiterFactory {
+	return dynamicRateLimiterFactory{
+		rps: rps,
 	}
-
-	commonLogger := loggerimpl.NewLogger(zapLogger)
-
-	return Result{
-		ZapLogger:    zapLogger,
-		CommonLogger: commonLogger,
-	}, nil
 }
 
-// Module provides the logger dependencies
-var Module = fx.Options(
-	fx.Provide(Provide),
-)
+type dynamicRateLimiterFactory struct {
+	rps dynamicconfig.IntPropertyFnWithDomainFilter
+}
+
+// GetLimiter returns a new Limiter for the given domain
+func (f dynamicRateLimiterFactory) GetLimiter(domain string) quotas.Limiter {
+	return quotas.NewDynamicRateLimiter(func() float64 { return float64(f.rps(domain)) })
+}

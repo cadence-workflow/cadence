@@ -28,7 +28,6 @@ import (
 
 	"github.com/stretchr/testify/suite"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/constants"
 )
 
@@ -315,17 +314,17 @@ func (s *constantSuite) TestMapKey() {
 			Key:         TaskSchedulerRoundRobinWeights,
 			KeyName:     "history.taskSchedulerRoundRobinWeight",
 			Description: "TaskSchedulerRoundRobinWeights is the priority weight for weighted round robin task scheduler",
-			DefaultValue: common.ConvertIntMapToDynamicConfigMapProperty(map[int]int{
-				common.GetTaskPriority(constants.HighPriorityClass, constants.DefaultPrioritySubclass):    500,
-				common.GetTaskPriority(constants.DefaultPriorityClass, constants.DefaultPrioritySubclass): 20,
-				common.GetTaskPriority(constants.LowPriorityClass, constants.DefaultPrioritySubclass):     5,
+			DefaultValue: ConvertIntMapToDynamicConfigMapProperty(map[int]int{
+				constants.GetTaskPriority(constants.HighPriorityClass, constants.DefaultPrioritySubclass):    500,
+				constants.GetTaskPriority(constants.DefaultPriorityClass, constants.DefaultPrioritySubclass): 20,
+				constants.GetTaskPriority(constants.LowPriorityClass, constants.DefaultPrioritySubclass):     5,
 			}),
 		},
 		"QueueProcessorStuckTaskSplitThreshold": {
 			Key:          QueueProcessorStuckTaskSplitThreshold,
 			KeyName:      "history.queueProcessorStuckTaskSplitThreshold",
 			Description:  "QueueProcessorStuckTaskSplitThreshold is the threshold for the number of attempts of a task",
-			DefaultValue: common.ConvertIntMapToDynamicConfigMapProperty(map[int]int{0: 100, 1: 10000}),
+			DefaultValue: ConvertIntMapToDynamicConfigMapProperty(map[int]int{0: 100, 1: 10000}),
 		},
 	}
 

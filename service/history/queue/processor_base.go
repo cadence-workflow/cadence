@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -187,7 +188,7 @@ func (p *processorBase) initializeSplitPolicy(lookAheadFunc lookAheadFunc) Proce
 	var policies []ProcessingQueueSplitPolicy
 	maxNewQueueLevel := p.options.SplitMaxLevel()
 
-	pendingTaskThresholds, err := common.ConvertDynamicConfigMapPropertyToIntMap(p.options.PendingTaskSplitThreshold())
+	pendingTaskThresholds, err := dynamicconfig.ConvertDynamicConfigMapPropertyToIntMap(p.options.PendingTaskSplitThreshold())
 	if err != nil {
 		p.logger.Error("Failed to convert pending task threshold", tag.Error(err))
 	} else {
@@ -201,7 +202,7 @@ func (p *processorBase) initializeSplitPolicy(lookAheadFunc lookAheadFunc) Proce
 		))
 	}
 
-	taskAttemptThresholds, err := common.ConvertDynamicConfigMapPropertyToIntMap(p.options.StuckTaskSplitThreshold())
+	taskAttemptThresholds, err := dynamicconfig.ConvertDynamicConfigMapPropertyToIntMap(p.options.StuckTaskSplitThreshold())
 	if err != nil {
 		p.logger.Error("Failed to convert stuck task threshold", tag.Error(err))
 	} else {

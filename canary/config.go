@@ -29,6 +29,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/log"
 )
 
 const (
@@ -60,7 +61,7 @@ type (
 	Config struct {
 		Canary  Canary         `yaml:"canary"`
 		Cadence Cadence        `yaml:"cadence"`
-		Log     config.Logger  `yaml:"log"`
+		Log     log.Config     `yaml:"log"`
 		Metrics config.Metrics `yaml:"metrics"`
 	}
 
