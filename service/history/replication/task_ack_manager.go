@@ -118,7 +118,7 @@ type getTasksResult struct {
 	previousReadTaskID int64
 	lastReadTaskID     int64
 	msgs               *types.ReplicationMessages
-	taskInfos          []*persistence.ReplicationTaskInfo
+	taskInfos          []persistence.Task
 	isShrunk           bool
 }
 
@@ -164,7 +164,7 @@ func (t *TaskAckManager) getTasks(ctx context.Context, pollingCluster string, la
 
 	// hydrate the tasks
 	for _, info := range taskInfos {
-		task, err := t.store.Get(ctx, pollingCluster, *info)
+		task, err := t.store.Get(ctx, pollingCluster, info)
 		if err != nil {
 			if errors.As(err, new(*types.BadRequestError)) ||
 				errors.As(err, new(*types.InternalDataInconsistencyError)) ||

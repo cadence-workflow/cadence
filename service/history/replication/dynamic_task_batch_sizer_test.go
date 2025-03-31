@@ -75,7 +75,7 @@ func TestDynamicTaskBatchSizer(t *testing.T) {
 		state := &getTasksResult{
 			previousReadTaskID: 0,
 			lastReadTaskID:     10,
-			taskInfos:          make([]*persistence.ReplicationTaskInfo, 10),
+			taskInfos:          make([]persistence.Task, 10),
 			msgs: &types.ReplicationMessages{
 				HasMore: true,
 			},
@@ -97,7 +97,7 @@ func TestDynamicTaskBatchSizer(t *testing.T) {
 			msgs: &types.ReplicationMessages{
 				HasMore: true,
 			},
-			taskInfos: make([]*persistence.ReplicationTaskInfo, 10),
+			taskInfos: make([]persistence.Task, 10),
 			isShrunk:  true,
 		}
 
@@ -110,7 +110,7 @@ func TestDynamicTaskBatchSizer(t *testing.T) {
 		state := &getTasksResult{
 			previousReadTaskID: 10,
 			lastReadTaskID:     10,
-			taskInfos:          make([]*persistence.ReplicationTaskInfo, 10),
+			taskInfos:          make([]persistence.Task, 10),
 			msgs: &types.ReplicationMessages{
 				HasMore: true,
 			},
@@ -186,7 +186,7 @@ func TestDynamicTaskBatchSizer(t *testing.T) {
 
 		for i := 0; i < len(want); i++ {
 			state := &getTasksResult{
-				taskInfos: make([]*persistence.ReplicationTaskInfo, 10),
+				taskInfos: make([]persistence.Task, 10),
 				isShrunk:  true,
 			}
 
@@ -200,7 +200,7 @@ func TestDynamicTaskBatchSizer(t *testing.T) {
 		state := &getTasksResult{
 			previousReadTaskID: 0,
 			lastReadTaskID:     10,
-			taskInfos:          make([]*persistence.ReplicationTaskInfo, 10),
+			taskInfos:          make([]persistence.Task, 10),
 			msgs: &types.ReplicationMessages{
 				HasMore: true,
 			},
@@ -215,7 +215,7 @@ func TestDynamicTaskBatchSizer(t *testing.T) {
 		state := &getTasksResult{
 			previousReadTaskID: 0,
 			lastReadTaskID:     10,
-			taskInfos:          make([]*persistence.ReplicationTaskInfo, 5),
+			taskInfos:          make([]persistence.Task, 5),
 			msgs: &types.ReplicationMessages{
 				HasMore: false,
 			},
@@ -230,7 +230,7 @@ func TestDynamicTaskBatchSizer(t *testing.T) {
 		state := &getTasksResult{
 			previousReadTaskID: 10,
 			lastReadTaskID:     10,
-			taskInfos:          make([]*persistence.ReplicationTaskInfo, 5),
+			taskInfos:          make([]persistence.Task, 5),
 			msgs: &types.ReplicationMessages{
 				HasMore: false,
 			},
