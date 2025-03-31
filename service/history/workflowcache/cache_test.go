@@ -30,6 +30,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/cache"
+	dynamicquotas "github.com/uber/cadence/common/dynamicconfig/quotas"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -55,7 +56,7 @@ func TestWfCache_AllowSingleWorkflow(t *testing.T) {
 	externalLimiter.EXPECT().Allow().Return(true).Times(1)
 	externalLimiter.EXPECT().Allow().Return(false).Times(1)
 
-	externalLimiterFactory := quotas.NewMockLimiterFactory(ctrl)
+	externalLimiterFactory := dynamicquotas.NewMockLimiterFactory(ctrl)
 	externalLimiterFactory.EXPECT().GetLimiter(testDomainName).Return(externalLimiter).Times(1)
 
 	// The internal rate limiter will allow the second request, but not the first.
@@ -63,7 +64,7 @@ func TestWfCache_AllowSingleWorkflow(t *testing.T) {
 	internalLimiter.EXPECT().Allow().Return(false).Times(1)
 	internalLimiter.EXPECT().Allow().Return(true).Times(1)
 
-	internalLimiterFactory := quotas.NewMockLimiterFactory(ctrl)
+	internalLimiterFactory := dynamicquotas.NewMockLimiterFactory(ctrl)
 	internalLimiterFactory.EXPECT().GetLimiter(testDomainName).Return(internalLimiter).Times(1)
 
 	wfCache := New(Params{
@@ -101,7 +102,7 @@ func TestWfCache_AllowMultipleWorkflow(t *testing.T) {
 	externalLimiterWf2.EXPECT().Allow().Return(false).Times(1)
 	externalLimiterWf2.EXPECT().Allow().Return(true).Times(1)
 
-	externalLimiterFactory := quotas.NewMockLimiterFactory(ctrl)
+	externalLimiterFactory := dynamicquotas.NewMockLimiterFactory(ctrl)
 	externalLimiterFactory.EXPECT().GetLimiter(testDomainName).Return(externalLimiterWf1).Times(1)
 	externalLimiterFactory.EXPECT().GetLimiter(testDomainName).Return(externalLimiterWf2).Times(1)
 
@@ -109,7 +110,7 @@ func TestWfCache_AllowMultipleWorkflow(t *testing.T) {
 	internalLimiterWf1 := quotas.NewMockLimiter(ctrl)
 	internalLimiterWf2 := quotas.NewMockLimiter(ctrl)
 
-	internalLimiterFactory := quotas.NewMockLimiterFactory(ctrl)
+	internalLimiterFactory := dynamicquotas.NewMockLimiterFactory(ctrl)
 	internalLimiterFactory.EXPECT().GetLimiter(testDomainName).Return(internalLimiterWf1).Times(1)
 	internalLimiterFactory.EXPECT().GetLimiter(testDomainName).Return(internalLimiterWf2).Times(1)
 
@@ -243,14 +244,14 @@ func TestWfCache_RejectLog(t *testing.T) {
 	externalLimiter := quotas.NewMockLimiter(ctrl)
 	externalLimiter.EXPECT().Allow().Return(false).Times(1)
 
-	externalLimiterFactory := quotas.NewMockLimiterFactory(ctrl)
+	externalLimiterFactory := dynamicquotas.NewMockLimiterFactory(ctrl)
 	externalLimiterFactory.EXPECT().GetLimiter(testDomainName).Return(externalLimiter).Times(1)
 
 	// The internal rate limiter will reject
 	internalLimiter := quotas.NewMockLimiter(ctrl)
 	internalLimiter.EXPECT().Allow().Return(false).Times(1)
 
-	internalLimiterFactory := quotas.NewMockLimiterFactory(ctrl)
+	internalLimiterFactory := dynamicquotas.NewMockLimiterFactory(ctrl)
 	internalLimiterFactory.EXPECT().GetLimiter(testDomainName).Return(internalLimiter).Times(1)
 
 	// Setup the mock logger

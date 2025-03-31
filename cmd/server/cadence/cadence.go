@@ -130,12 +130,11 @@ func BuildCLI(releaseVersion string, gitRevision string) *cli.App {
 					return err
 				}
 
-				// Stop the application
-				if err := fxApp.Stop(ctx); err != nil {
-					return err
-				}
+				// Block until FX receives a shutdown signal
+				<-fxApp.Done()
 
-				return nil
+				// Stop the application
+				return fxApp.Stop(ctx)
 			},
 		},
 	}

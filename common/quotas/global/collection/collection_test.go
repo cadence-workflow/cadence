@@ -54,8 +54,8 @@ func TestLifecycleBasics(t *testing.T) {
 	logger, logs := testlogger.NewObserved(t)
 	c, err := New(
 		"test",
-		quotas.NewCollection(quotas.NewMockLimiterFactory(ctrl)),
-		quotas.NewCollection(quotas.NewMockLimiterFactory(ctrl)),
+		quotas.NewCollection(dynamicquotas.NewMockLimiterFactory(ctrl)),
+		quotas.NewCollection(dynamicquotas.NewMockLimiterFactory(ctrl)),
 		func(opts ...dynamicconfig.FilterOption) time.Duration { return time.Second },
 		nil, // not used
 		func(globalRatelimitKey string) string { return string(modeGlobal) },

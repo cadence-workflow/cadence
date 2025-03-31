@@ -91,8 +91,8 @@ func NewObserved(t TestingT) (log.Logger, *observer.ObservedLogs) {
 }
 
 type fallbackTestCore struct {
-	t        TestingT
-	fallback zapcore.Core
+	t         TestingT
+	fallback  zapcore.Core
 	testing   zapcore.Core
 	completed *atomic.Bool
 }
