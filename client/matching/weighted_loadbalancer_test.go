@@ -359,6 +359,18 @@ func TestWeightedLoadBalancer_UpdateWeight(t *testing.T) {
 				}).Return(newWeightSelector(2, 100))
 			},
 		},
+		{
+			name:      "updating when the partition number is greater than whats in DB due to race with workers",
+			domainID:  "domainA",
+			taskList:  types.TaskList{Name: "a"},
+			partition: "/__cadence_sys/a/2",
+			loadBalancerHints: &types.LoadBalancerHints{
+				BacklogCount: 1,
+			},
+			setupMock: func(mockCache *cache.MockCache, mockPartitionConfigProvider *MockPartitionConfigProvider) {
+				mockPartitionConfigProvider.EXPECT().GetNumberOfReadPartitions("domainA", types.TaskList{Name: "a"}, 0).Return(2)
+			},
+		},
 	}
 
 	for _, tc := range testCases {

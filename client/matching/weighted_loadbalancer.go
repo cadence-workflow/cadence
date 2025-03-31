@@ -23,6 +23,7 @@
 package matching
 
 import (
+	"fmt"
 	"math"
 	"math/rand"
 	"path"
@@ -191,6 +192,17 @@ func (lb *weightedLoadBalancer) UpdateWeight(
 		lb.weightCache.Delete(taskListKey)
 		return
 	}
+
+	if (n - 1) < p {
+		lb.logger.Warn(fmt.Sprintf("Encountered case where the number of partitions "+
+			"(%d) was less than the partition to update (%d), skipping. "+
+			"This should only ever be a transient state", n, p),
+			tag.WorkflowTaskListName(taskList.GetName()),
+			tag.WorkflowTaskListType(taskListType),
+		)
+		return
+	}
+
 	wI := lb.weightCache.Get(taskListKey)
 	if wI == nil {
 		var err error
