@@ -71,7 +71,7 @@ func New{{.Interface.Name}}(
                   {{ $extraTags = printf ", getCustomMetricTags(%s)..." $reqName }}
              {{ end -}}
 
-	        err = c.call({{$scopeName}}, op{{$extraTags}})
+	        err = c.callWithoutDomainTag({{$scopeName}}, op{{$extraTags}})
 
 	        return
         }

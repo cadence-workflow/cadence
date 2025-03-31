@@ -178,6 +178,7 @@ const (
 type HistoryTaskCategory struct {
 	categoryType int
 	categoryID   int
+	categoryName string
 }
 
 func (c *HistoryTaskCategory) Type() int {
@@ -186,6 +187,10 @@ func (c *HistoryTaskCategory) Type() int {
 
 func (c *HistoryTaskCategory) ID() int {
 	return c.categoryID
+}
+
+func (c *HistoryTaskCategory) Name() string {
+	return c.categoryName
 }
 
 const (
@@ -203,14 +208,17 @@ var (
 	HistoryTaskCategoryTransfer = HistoryTaskCategory{
 		categoryType: HistoryTaskCategoryTypeImmediate,
 		categoryID:   HistoryTaskCategoryIDTransfer,
+		categoryName: "transfer",
 	}
 	HistoryTaskCategoryTimer = HistoryTaskCategory{
 		categoryType: HistoryTaskCategoryTypeScheduled,
 		categoryID:   HistoryTaskCategoryIDTimer,
+		categoryName: "timer",
 	}
 	HistoryTaskCategoryReplication = HistoryTaskCategory{
 		categoryType: HistoryTaskCategoryTypeImmediate,
 		categoryID:   HistoryTaskCategoryIDReplication,
+		categoryName: "replication",
 	}
 )
 

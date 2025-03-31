@@ -87,7 +87,7 @@ func (c *meteredExecutionManager) CompleteHistoryTask(ctx context.Context, reque
 		return
 	}
 
-	err = c.call(metrics.PersistenceCompleteHistoryTaskScope, op, getCustomMetricTags(request)...)
+	err = c.callWithoutDomainTag(metrics.PersistenceCompleteHistoryTaskScope, op, getCustomMetricTags(request)...)
 
 	return
 }
@@ -111,7 +111,7 @@ func (c *meteredExecutionManager) ConflictResolveWorkflowExecution(ctx context.C
 		return
 	}
 
-	err = c.call(metrics.PersistenceConflictResolveWorkflowExecutionScope, op, getCustomMetricTags(request)...)
+	err = c.callWithoutDomainTag(metrics.PersistenceConflictResolveWorkflowExecutionScope, op, getCustomMetricTags(request)...)
 
 	return
 }
@@ -134,7 +134,7 @@ func (c *meteredExecutionManager) CreateFailoverMarkerTasks(ctx context.Context,
 		return
 	}
 
-	err = c.call(metrics.PersistenceCreateFailoverMarkerTasksScope, op, getCustomMetricTags(request)...)
+	err = c.callWithoutDomainTag(metrics.PersistenceCreateFailoverMarkerTasksScope, op, getCustomMetricTags(request)...)
 
 	return
 }
@@ -158,7 +158,7 @@ func (c *meteredExecutionManager) CreateWorkflowExecution(ctx context.Context, r
 		return
 	}
 
-	err = c.call(metrics.PersistenceCreateWorkflowExecutionScope, op, getCustomMetricTags(request)...)
+	err = c.callWithoutDomainTag(metrics.PersistenceCreateWorkflowExecutionScope, op, getCustomMetricTags(request)...)
 
 	return
 }
@@ -181,7 +181,7 @@ func (c *meteredExecutionManager) DeleteCurrentWorkflowExecution(ctx context.Con
 		return
 	}
 
-	err = c.call(metrics.PersistenceDeleteCurrentWorkflowExecutionScope, op, getCustomMetricTags(request)...)
+	err = c.callWithoutDomainTag(metrics.PersistenceDeleteCurrentWorkflowExecutionScope, op, getCustomMetricTags(request)...)
 
 	return
 }
@@ -204,7 +204,7 @@ func (c *meteredExecutionManager) DeleteReplicationTaskFromDLQ(ctx context.Conte
 		return
 	}
 
-	err = c.call(metrics.PersistenceDeleteReplicationTaskFromDLQScope, op, getCustomMetricTags(request)...)
+	err = c.callWithoutDomainTag(metrics.PersistenceDeleteReplicationTaskFromDLQScope, op, getCustomMetricTags(request)...)
 
 	return
 }
@@ -227,7 +227,7 @@ func (c *meteredExecutionManager) DeleteWorkflowExecution(ctx context.Context, r
 		return
 	}
 
-	err = c.call(metrics.PersistenceDeleteWorkflowExecutionScope, op, getCustomMetricTags(request)...)
+	err = c.callWithoutDomainTag(metrics.PersistenceDeleteWorkflowExecutionScope, op, getCustomMetricTags(request)...)
 
 	return
 }
@@ -251,7 +251,7 @@ func (c *meteredExecutionManager) GetCurrentExecution(ctx context.Context, reque
 		return
 	}
 
-	err = c.call(metrics.PersistenceGetCurrentExecutionScope, op, getCustomMetricTags(request)...)
+	err = c.callWithoutDomainTag(metrics.PersistenceGetCurrentExecutionScope, op, getCustomMetricTags(request)...)
 
 	return
 }
@@ -275,7 +275,7 @@ func (c *meteredExecutionManager) GetHistoryTasks(ctx context.Context, request *
 		return
 	}
 
-	err = c.call(metrics.PersistenceGetHistoryTasksScope, op, getCustomMetricTags(request)...)
+	err = c.callWithoutDomainTag(metrics.PersistenceGetHistoryTasksScope, op, getCustomMetricTags(request)...)
 
 	return
 }
@@ -303,7 +303,7 @@ func (c *meteredExecutionManager) GetReplicationDLQSize(ctx context.Context, req
 		return
 	}
 
-	err = c.call(metrics.PersistenceGetReplicationDLQSizeScope, op, getCustomMetricTags(request)...)
+	err = c.callWithoutDomainTag(metrics.PersistenceGetReplicationDLQSizeScope, op, getCustomMetricTags(request)...)
 
 	return
 }
@@ -327,7 +327,7 @@ func (c *meteredExecutionManager) GetReplicationTasksFromDLQ(ctx context.Context
 		return
 	}
 
-	err = c.call(metrics.PersistenceGetReplicationTasksFromDLQScope, op, getCustomMetricTags(request)...)
+	err = c.callWithoutDomainTag(metrics.PersistenceGetReplicationTasksFromDLQScope, op, getCustomMetricTags(request)...)
 
 	return
 }
@@ -355,7 +355,7 @@ func (c *meteredExecutionManager) GetWorkflowExecution(ctx context.Context, requ
 		return
 	}
 
-	err = c.call(metrics.PersistenceGetWorkflowExecutionScope, op, getCustomMetricTags(request)...)
+	err = c.callWithoutDomainTag(metrics.PersistenceGetWorkflowExecutionScope, op, getCustomMetricTags(request)...)
 
 	return
 }
@@ -379,7 +379,7 @@ func (c *meteredExecutionManager) IsWorkflowExecutionExists(ctx context.Context,
 		return
 	}
 
-	err = c.call(metrics.PersistenceIsWorkflowExecutionExistsScope, op, getCustomMetricTags(request)...)
+	err = c.callWithoutDomainTag(metrics.PersistenceIsWorkflowExecutionExistsScope, op, getCustomMetricTags(request)...)
 
 	return
 }
@@ -403,7 +403,7 @@ func (c *meteredExecutionManager) ListConcreteExecutions(ctx context.Context, re
 		return
 	}
 
-	err = c.call(metrics.PersistenceListConcreteExecutionsScope, op, getCustomMetricTags(request)...)
+	err = c.callWithoutDomainTag(metrics.PersistenceListConcreteExecutionsScope, op, getCustomMetricTags(request)...)
 
 	return
 }
@@ -427,7 +427,7 @@ func (c *meteredExecutionManager) ListCurrentExecutions(ctx context.Context, req
 		return
 	}
 
-	err = c.call(metrics.PersistenceListCurrentExecutionsScope, op, getCustomMetricTags(request)...)
+	err = c.callWithoutDomainTag(metrics.PersistenceListCurrentExecutionsScope, op, getCustomMetricTags(request)...)
 
 	return
 }
@@ -450,7 +450,7 @@ func (c *meteredExecutionManager) PutReplicationTaskToDLQ(ctx context.Context, r
 		return
 	}
 
-	err = c.call(metrics.PersistencePutReplicationTaskToDLQScope, op, getCustomMetricTags(request)...)
+	err = c.callWithoutDomainTag(metrics.PersistencePutReplicationTaskToDLQScope, op, getCustomMetricTags(request)...)
 
 	return
 }
@@ -474,7 +474,7 @@ func (c *meteredExecutionManager) RangeCompleteHistoryTask(ctx context.Context, 
 		return
 	}
 
-	err = c.call(metrics.PersistenceRangeCompleteHistoryTaskScope, op, getCustomMetricTags(request)...)
+	err = c.callWithoutDomainTag(metrics.PersistenceRangeCompleteHistoryTaskScope, op, getCustomMetricTags(request)...)
 
 	return
 }
@@ -498,7 +498,7 @@ func (c *meteredExecutionManager) RangeDeleteReplicationTaskFromDLQ(ctx context.
 		return
 	}
 
-	err = c.call(metrics.PersistenceRangeDeleteReplicationTaskFromDLQScope, op, getCustomMetricTags(request)...)
+	err = c.callWithoutDomainTag(metrics.PersistenceRangeDeleteReplicationTaskFromDLQScope, op, getCustomMetricTags(request)...)
 
 	return
 }
@@ -522,7 +522,7 @@ func (c *meteredExecutionManager) UpdateWorkflowExecution(ctx context.Context, r
 		return
 	}
 
-	err = c.call(metrics.PersistenceUpdateWorkflowExecutionScope, op, getCustomMetricTags(request)...)
+	err = c.callWithoutDomainTag(metrics.PersistenceUpdateWorkflowExecutionScope, op, getCustomMetricTags(request)...)
 
 	return
 }

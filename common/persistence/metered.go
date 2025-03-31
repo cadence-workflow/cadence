@@ -438,3 +438,15 @@ func (r GetCurrentExecutionRequest) GetDomainName() string {
 func (r GetCurrentExecutionRequest) GetExtraLogTags() []tag.Tag {
 	return []tag.Tag{tag.WorkflowID(r.WorkflowID)}
 }
+
+func (r GetHistoryTasksRequest) MetricTags() []metrics.Tag {
+	return []metrics.Tag{metrics.TaskCategoryTag(r.TaskCategory.Name())}
+}
+
+func (r RangeCompleteHistoryTaskRequest) MetricTags() []metrics.Tag {
+	return []metrics.Tag{metrics.TaskCategoryTag(r.TaskCategory.Name())}
+}
+
+func (r CompleteHistoryTaskRequest) MetricTags() []metrics.Tag {
+	return []metrics.Tag{metrics.TaskCategoryTag(r.TaskCategory.Name())}
+}

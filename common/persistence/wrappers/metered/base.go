@@ -143,6 +143,23 @@ func (p *base) call(scope int, op func() error, tags ...metrics.Tag) error {
 	return err
 }
 
+func (p *base) callWithoutDomainTag(scope int, op func() error, tags ...metrics.Tag) error {
+	metricsScope := p.metricClient.Scope(scope, tags...)
+	metricsScope.IncCounter(metrics.PersistenceRequests)
+	before := time.Now()
+	err := op()
+	duration := time.Since(before)
+	metricsScope.RecordTimer(metrics.PersistenceLatency, duration)
+
+	if p.enableLatencyHistogramMetrics {
+		metricsScope.RecordHistogramDuration(metrics.PersistenceLatencyHistogram, duration)
+	}
+	if err != nil {
+		p.updateErrorMetric(scope, err, metricsScope)
+	}
+	return err
+}
+
 func (p *base) callWithDomainAndShardScope(scope int, op func() error, domainTag metrics.Tag, shardIDTag metrics.Tag) error {
 	domainMetricsScope := p.metricClient.Scope(scope, domainTag)
 	shardOperationsMetricsScope := p.metricClient.Scope(scope, shardIDTag)
