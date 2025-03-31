@@ -51,7 +51,7 @@ require (
 	go.uber.org/atomic v1.10.0 // indirect
 	go.uber.org/cadence v0.19.0
 	go.uber.org/config v1.4.0 // indirect
-	go.uber.org/fx v1.13.1 // indirect
+	go.uber.org/fx v1.13.1
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/thriftrw v1.29.2 // indirect
 	go.uber.org/yarpc v1.70.3 // indirect
@@ -72,12 +72,7 @@ require (
 	go.uber.org/mock v0.5.0
 )
 
-require (
-	github.com/fatih/color v1.13.0 // indirect
-	github.com/mattn/go-colorable v0.1.9 // indirect
-	github.com/mattn/go-isatty v0.0.14 // indirect
-	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
-)
+require github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
 
 require (
 	cloud.google.com/go v0.110.8 // indirect
