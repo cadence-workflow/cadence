@@ -45,8 +45,8 @@ const (
 	FirstBlobPageToken = 1
 	// LastBlobNextPageToken is the next page token on the last blob for each history archival
 	LastBlobNextPageToken = -1
-	// EndMessageID is the id of the end message, here we use the int64 max
-	EndMessageID int64 = 1<<63 - 1
+	// InclusiveEndMessageID is the id of the end message, here we use the int64 max -1 because in some place we need to convert it to exclusive end message id
+	InclusiveEndMessageID int64 = 1<<63 - 2
 	// EmptyMessageID is the default start message ID for replication level
 	EmptyMessageID = -1
 	// InitialPreviousFailoverVersion is the initial previous failover version

@@ -154,11 +154,11 @@ func AdminGetDLQMessages(c *cli.Context) error {
 	if err != nil {
 		return commoncli.Problem("Required flag not found", err)
 	}
-	remainingMessageCount := constants.EndMessageID
+	remainingMessageCount := constants.InclusiveEndMessageID
 	if c.IsSet(FlagMaxMessageCount) {
 		remainingMessageCount = c.Int64(FlagMaxMessageCount)
 	}
-	lastMessageID := constants.EndMessageID
+	lastMessageID := constants.InclusiveEndMessageID
 	if c.IsSet(FlagLastMessageID) {
 		lastMessageID = c.Int64(FlagLastMessageID)
 	}

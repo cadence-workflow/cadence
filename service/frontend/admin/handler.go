@@ -61,7 +61,6 @@ import (
 const (
 	getDomainReplicationMessageBatchSize = 100
 	defaultLastMessageID                 = int64(-1)
-	endMessageID                         = int64(1<<63 - 1)
 )
 
 type (
@@ -1083,7 +1082,7 @@ func (adh *adminHandlerImpl) ReadDLQMessages(
 	}
 
 	if request.InclusiveEndMessageID == nil {
-		request.InclusiveEndMessageID = common.Int64Ptr(constants.EndMessageID)
+		request.InclusiveEndMessageID = common.Ptr(constants.InclusiveEndMessageID)
 	}
 
 	var tasks []*types.ReplicationTask
@@ -1140,7 +1139,7 @@ func (adh *adminHandlerImpl) PurgeDLQMessages(
 	}
 
 	if request.InclusiveEndMessageID == nil {
-		request.InclusiveEndMessageID = common.Int64Ptr(endMessageID)
+		request.InclusiveEndMessageID = common.Ptr(constants.InclusiveEndMessageID)
 	}
 
 	var op func() error
@@ -1214,7 +1213,7 @@ func (adh *adminHandlerImpl) MergeDLQMessages(
 	}
 
 	if request.InclusiveEndMessageID == nil {
-		request.InclusiveEndMessageID = common.Int64Ptr(endMessageID)
+		request.InclusiveEndMessageID = common.Ptr(constants.InclusiveEndMessageID)
 	}
 
 	var token []byte
