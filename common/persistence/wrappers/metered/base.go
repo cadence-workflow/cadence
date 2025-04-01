@@ -253,20 +253,11 @@ var emptyCountedMethods = map[string]struct {
 	"ExecutionManager.ListCurrentExecutions": {
 		scope: metrics.PersistenceListCurrentExecutionsScope,
 	},
-	"ExecutionManager.GetTransferTasks": {
-		scope: metrics.PersistenceGetTransferTasksScope,
-	},
-	"ExecutionManager.GetCrossClusterTasks": {
-		scope: metrics.PersistenceGetCrossClusterTasksScope,
-	},
-	"ExecutionManager.GetReplicationTasks": {
-		scope: metrics.PersistenceGetReplicationTasksScope,
-	},
 	"ExecutionManager.GetReplicationTasksFromDLQ": {
 		scope: metrics.PersistenceGetReplicationTasksFromDLQScope,
 	},
-	"ExecutionManager.GetTimerIndexTasks": {
-		scope: metrics.PersistenceGetTimerIndexTasksScope,
+	"ExecutionManager.GetHistoryTasks": {
+		scope: metrics.PersistenceGetHistoryTasksScope,
 	},
 	"TaskManager.GetTasks": {
 		scope: metrics.PersistenceGetTasksScope,
@@ -291,20 +282,11 @@ var payloadSizeEmittingMethods = map[string]struct {
 	"ExecutionManager.ListCurrentExecutions": {
 		scope: metrics.PersistenceListCurrentExecutionsScope,
 	},
-	"ExecutionManager.GetTransferTasks": {
-		scope: metrics.PersistenceGetTransferTasksScope,
-	},
-	"ExecutionManager.GetCrossClusterTasks": {
-		scope: metrics.PersistenceGetCrossClusterTasksScope,
-	},
-	"ExecutionManager.GetReplicationTasks": {
-		scope: metrics.PersistenceGetReplicationTasksScope,
-	},
 	"ExecutionManager.GetReplicationTasksFromDLQ": {
 		scope: metrics.PersistenceGetReplicationTasksFromDLQScope,
 	},
-	"ExecutionManager.GetTimerIndexTasks": {
-		scope: metrics.PersistenceGetTimerIndexTasksScope,
+	"ExecutionManager.GetHistoryTasks": {
+		scope: metrics.PersistenceGetHistoryTasksScope,
 	},
 	"TaskManager.GetTasks": {
 		scope: metrics.PersistenceGetTasksScope,

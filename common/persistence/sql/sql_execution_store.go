@@ -836,7 +836,7 @@ func (m *sqlExecutionStore) ListConcreteExecutions(
 	}, nil
 }
 
-func getReadLevels(request *p.GetReplicationTasksRequest) (readLevel int64, maxReadLevel int64, err error) {
+func getReadLevels(request *p.GetReplicationTasksFromDLQRequest) (readLevel int64, maxReadLevel int64, err error) {
 	readLevel = request.ReadLevel
 	if len(request.NextPageToken) > 0 {
 		readLevel, err = deserializePageToken(request.NextPageToken)
@@ -849,53 +849,12 @@ func getReadLevels(request *p.GetReplicationTasksRequest) (readLevel int64, maxR
 	return readLevel, maxReadLevel, nil
 }
 
-func (m *sqlExecutionStore) populateGetReplicationTasksResponse(
-	rows []sqlplugin.ReplicationTasksRow,
-	requestMaxReadLevel int64,
-) (*p.InternalGetReplicationTasksResponse, error) {
-	if len(rows) == 0 {
-		return &p.InternalGetReplicationTasksResponse{}, nil
-	}
-
-	var tasks = make([]*p.InternalReplicationTaskInfo, len(rows))
-	for i, row := range rows {
-		info, err := m.parser.ReplicationTaskInfoFromBlob(row.Data, row.DataEncoding)
-		if err != nil {
-			return nil, err
-		}
-
-		tasks[i] = &p.InternalReplicationTaskInfo{
-			TaskID:            row.TaskID,
-			DomainID:          info.DomainID.String(),
-			WorkflowID:        info.GetWorkflowID(),
-			RunID:             info.RunID.String(),
-			TaskType:          int(info.GetTaskType()),
-			FirstEventID:      info.GetFirstEventID(),
-			NextEventID:       info.GetNextEventID(),
-			Version:           info.GetVersion(),
-			ScheduledID:       info.GetScheduledID(),
-			BranchToken:       info.GetBranchToken(),
-			NewRunBranchToken: info.GetNewRunBranchToken(),
-			CreationTime:      info.GetCreationTimestamp(),
-		}
-	}
-	var nextPageToken []byte
-	nextTaskID := rows[len(rows)-1].TaskID + 1
-	if nextTaskID < requestMaxReadLevel {
-		nextPageToken = serializePageToken(nextTaskID)
-	}
-	return &p.InternalGetReplicationTasksResponse{
-		Tasks:         tasks,
-		NextPageToken: nextPageToken,
-	}, nil
-}
-
 func (m *sqlExecutionStore) GetReplicationTasksFromDLQ(
 	ctx context.Context,
 	request *p.GetReplicationTasksFromDLQRequest,
 ) (*p.GetHistoryTasksResponse, error) {
 
-	readLevel, maxReadLevel, err := getReadLevels(&request.GetReplicationTasksRequest)
+	readLevel, maxReadLevel, err := getReadLevels(request)
 	if err != nil {
 		return nil, err
 	}

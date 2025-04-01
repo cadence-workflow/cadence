@@ -202,6 +202,20 @@ func (mr *MockTaskMockRecorder) Ack() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Ack", reflect.TypeOf((*MockTask)(nil).Ack))
 }
 
+// ByteSize mocks base method.
+func (m *MockTask) ByteSize() uint64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ByteSize")
+	ret0, _ := ret[0].(uint64)
+	return ret0
+}
+
+// ByteSize indicates an expected call of ByteSize.
+func (mr *MockTaskMockRecorder) ByteSize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ByteSize", reflect.TypeOf((*MockTask)(nil).ByteSize))
+}
+
 // Execute mocks base method.
 func (m *MockTask) Execute() error {
 	m.ctrl.T.Helper()
@@ -579,6 +593,20 @@ func (m *MockCrossClusterTask) Ack() {
 func (mr *MockCrossClusterTaskMockRecorder) Ack() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Ack", reflect.TypeOf((*MockCrossClusterTask)(nil).Ack))
+}
+
+// ByteSize mocks base method.
+func (m *MockCrossClusterTask) ByteSize() uint64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ByteSize")
+	ret0, _ := ret[0].(uint64)
+	return ret0
+}
+
+// ByteSize indicates an expected call of ByteSize.
+func (mr *MockCrossClusterTaskMockRecorder) ByteSize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ByteSize", reflect.TypeOf((*MockCrossClusterTask)(nil).ByteSize))
 }
 
 // Execute mocks base method.

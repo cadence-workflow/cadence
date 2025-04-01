@@ -26,100 +26,12 @@ import (
 	"testing"
 	"time"
 
+	fuzz "github.com/google/gofuzz"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/uber/cadence/common/testing/testdatagen"
 	"github.com/uber/cadence/common/types"
 )
-
-func TestGetReplicationTaskResponseEstimatePayloadSize(t *testing.T) {
-	t.Run("does not panic", func(t *testing.T) {
-		fuzzer := testdatagen.NewWithNilChance(t, int64(123), 0.25)
-		assert.NotPanics(t, func() {
-			for i := 0; i < 100; i++ {
-				response := &GetReplicationTasksResponse{}
-				fuzzer.Fuzz(&response)
-
-				_ = response.ByteSize()
-			}
-		})
-	})
-
-	t.Run("response is not nil", func(t *testing.T) {
-		response := &GetReplicationTasksResponse{
-			Tasks: []*ReplicationTaskInfo{
-				{
-					DomainID: "domainID", WorkflowID: "workflowID", RunID: "runID",
-					TaskID: 0, TaskType: 1, FirstEventID: 2, NextEventID: 3, Version: 4, ScheduledID: 5, CreationTime: 6,
-					BranchToken: nil, NewRunBranchToken: nil,
-				},
-			},
-			NextPageToken: []byte{1, 2, 3},
-		}
-
-		assert.Equal(t, uint64(226), response.ByteSize())
-	})
-
-	t.Run("response with bigger payload emits a bigger value", func(t *testing.T) {
-		response := &GetReplicationTasksResponse{
-			Tasks: []*ReplicationTaskInfo{
-				{
-					DomainID: "domainID", WorkflowID: "workflowID", RunID: "runID",
-					TaskID: 0, TaskType: 1, FirstEventID: 2, NextEventID: 3, Version: 4, ScheduledID: 5, CreationTime: 6,
-					BranchToken: []byte{1, 2, 3, 4, 5, 6}, NewRunBranchToken: []byte{1, 1, 1},
-				},
-			},
-			NextPageToken: []byte{1, 2, 3},
-		}
-
-		assert.Equal(t, uint64(235), response.ByteSize())
-	})
-}
-
-func TestGetTimerIndexTasksResponseEstimatePayloadSize(t *testing.T) {
-	t.Run("does not panic", func(t *testing.T) {
-		fuzzer := testdatagen.NewWithNilChance(t, int64(123), 0.25)
-		assert.NotPanics(t, func() {
-			for i := 0; i < 100; i++ {
-				response := &GetTimerIndexTasksResponse{}
-				fuzzer.Fuzz(&response)
-
-				_ = response.ByteSize()
-			}
-		})
-	})
-
-	t.Run("response is not nil", func(t *testing.T) {
-		response := &GetTimerIndexTasksResponse{
-			Timers: []*TimerTaskInfo{
-				{
-					DomainID: "domainID", WorkflowID: "workflowID", RunID: "runID",
-					VisibilityTimestamp: time.Time{},
-					TaskID:              0, TaskType: 0, TimeoutType: 0, EventID: 0, ScheduleAttempt: 0, Version: 0,
-				},
-			},
-			NextPageToken: []byte{1, 2, 3},
-		}
-
-		assert.Equal(t, uint64(194), response.ByteSize())
-	})
-
-	t.Run("response with bigger payload emits a bigger value", func(t *testing.T) {
-		response := &GetTimerIndexTasksResponse{
-			Timers: []*TimerTaskInfo{
-				nil,
-				{
-					DomainID: "longDomainID", WorkflowID: "longWorkflowID", RunID: "longRunID",
-					VisibilityTimestamp: time.Time{},
-					TaskID:              0, TaskType: 0, TimeoutType: 0, EventID: 0, ScheduleAttempt: 0, Version: 0,
-				},
-			},
-			NextPageToken: []byte{1, 2, 3},
-		}
-
-		assert.Equal(t, uint64(206), response.ByteSize())
-	})
-}
 
 func TestGetTasksResponseEstimatePayloadSize(t *testing.T) {
 	t.Run("does not panic", func(t *testing.T) {
@@ -325,12 +237,101 @@ func TestListCurrentExecutionsResponseEstimatePayloadSize(t *testing.T) {
 	})
 }
 
-func TestGetTransferTasksResponseEstimatePayloadSize(t *testing.T) {
+func TestGetHistoryTasksResponseEstimatePayloadSize(t *testing.T) {
 	t.Run("does not panic", func(t *testing.T) {
-		fuzzer := testdatagen.NewWithNilChance(t, int64(123), 0.25)
+		fuzzer := testdatagen.NewWithNilChance(t, int64(123), 0.25).Funcs(
+			func(t *Task, c fuzz.Continue) {
+				switch c.Intn(21) {
+				case 0:
+					var m DecisionTask
+					c.Fuzz(&m)
+					*t = &m
+				case 1:
+					var m ActivityTask
+					c.Fuzz(&m)
+					*t = &m
+				case 2:
+					var m RecordWorkflowStartedTask
+					c.Fuzz(&m)
+					*t = &m
+				case 3:
+					var m ResetWorkflowTask
+					c.Fuzz(&m)
+					*t = &m
+				case 4:
+					var m CloseExecutionTask
+					c.Fuzz(&m)
+					*t = &m
+				case 5:
+					var m DeleteHistoryEventTask
+					c.Fuzz(&m)
+					*t = &m
+				case 6:
+					var m DecisionTimeoutTask
+					c.Fuzz(&m)
+					*t = &m
+				case 7:
+					var m WorkflowTimeoutTask
+					c.Fuzz(&m)
+					*t = &m
+				case 8:
+					var m CancelExecutionTask
+					c.Fuzz(&m)
+					*t = &m
+				case 9:
+					var m SignalExecutionTask
+					c.Fuzz(&m)
+					*t = &m
+				case 10:
+					var m RecordChildExecutionCompletedTask
+					c.Fuzz(&m)
+					*t = &m
+				case 11:
+					var m UpsertWorkflowSearchAttributesTask
+					c.Fuzz(&m)
+					*t = &m
+				case 12:
+					var m UserTimerTask
+					c.Fuzz(&m)
+					*t = &m
+				case 13:
+					var m ActivityTimeoutTask
+					c.Fuzz(&m)
+					*t = &m
+				case 14:
+					var m ActivityRetryTimerTask
+					c.Fuzz(&m)
+					*t = &m
+				case 15:
+					var m WorkflowBackoffTimerTask
+					c.Fuzz(&m)
+					*t = &m
+				case 16:
+					var m HistoryReplicationTask
+					c.Fuzz(&m)
+					*t = &m
+				case 17:
+					var m StartChildExecutionTask
+					c.Fuzz(&m)
+					*t = &m
+				case 18:
+					var m RecordWorkflowClosedTask
+					c.Fuzz(&m)
+					*t = &m
+				case 19:
+					var m SyncActivityTask
+					c.Fuzz(&m)
+					*t = &m
+				case 20:
+					var m FailoverMarkerTask
+					c.Fuzz(&m)
+					*t = &m
+				}
+			},
+		)
 		assert.NotPanics(t, func() {
 			for i := 0; i < 100; i++ {
-				response := &GetTransferTasksResponse{}
+				response := &GetHistoryTasksResponse{}
 				fuzzer.Fuzz(&response)
 
 				_ = response.ByteSize()
@@ -339,40 +340,50 @@ func TestGetTransferTasksResponseEstimatePayloadSize(t *testing.T) {
 	})
 
 	t.Run("response is not nil", func(t *testing.T) {
-		response := &GetTransferTasksResponse{
-			Tasks: []*TransferTaskInfo{
+		response := &GetHistoryTasksResponse{
+			Tasks: []Task{
 				nil,
-				{
-					DomainID: "DomainID", WorkflowID: "WorkflowID", RunID: "ID",
-					TargetDomainID: "DomainID", TargetWorkflowID: "WfID", TargetRunID: "RunID",
-					VisibilityTimestamp: time.Time{}, TaskID: 0, TargetChildWorkflowOnly: false,
-					TaskList: "", TaskType: 0, ScheduleID: 0, Version: 0, RecordVisibility: false,
-					TargetDomainIDs: nil,
+				&DecisionTask{
+					WorkflowIdentifier: WorkflowIdentifier{
+						DomainID: "DomainID", WorkflowID: "WorkflowID", RunID: "ID",
+					},
+					TaskData: TaskData{
+						TaskID:              0,
+						VisibilityTimestamp: time.Time{},
+						Version:             0,
+					},
+					TargetDomainID: "DomainID",
+					TaskList:       "", ScheduleID: 0,
 				},
 			},
 			NextPageToken: []byte{1, 2, 3},
 		}
 
-		assert.Equal(t, uint64(280), response.ByteSize())
+		assert.Equal(t, uint64(127), response.ByteSize())
 	})
 
 	t.Run("a bigger response emits a bigger value", func(t *testing.T) {
-		response := &GetTransferTasksResponse{
-			Tasks: []*TransferTaskInfo{
-				{
-					DomainID: "LongDomainID", WorkflowID: "LongWorkflowID", RunID: "ID",
-					TargetDomainID: "LongDomainID", TargetWorkflowID: "WfID", TargetRunID: "RunID",
-					VisibilityTimestamp: time.Time{}, TaskID: 0, TargetChildWorkflowOnly: false,
-					TaskList: "", TaskType: 0, ScheduleID: 0, Version: 0, RecordVisibility: false,
-					TargetDomainIDs: map[string]struct{}{
-						"key": {},
+		response := &GetHistoryTasksResponse{
+			Tasks: []Task{
+				&SignalExecutionTask{
+					WorkflowIdentifier: WorkflowIdentifier{
+						DomainID: "DomainID", WorkflowID: "WorkflowID", RunID: "ID",
 					},
+					TaskData: TaskData{
+						TaskID:              0,
+						VisibilityTimestamp: time.Time{},
+						Version:             0,
+					},
+					TargetDomainID:          "DomainID",
+					TargetWorkflowID:        "WorkflowID",
+					TargetRunID:             "ID",
+					TargetChildWorkflowOnly: false,
 				},
 			},
 			NextPageToken: []byte{1, 2, 3},
 		}
 
-		assert.Equal(t, uint64(292), response.ByteSize())
+		assert.Equal(t, uint64(140), response.ByteSize())
 	})
 }
 

@@ -718,12 +718,10 @@ func TestNosqlExecutionStore(t *testing.T) {
 				initialNextPageToken := []byte{}
 				_, err := store.GetReplicationTasksFromDLQ(ctx, &persistence.GetReplicationTasksFromDLQRequest{
 					SourceClusterName: "sourceCluster",
-					GetReplicationTasksRequest: persistence.GetReplicationTasksRequest{
-						BatchSize:     10,
-						NextPageToken: initialNextPageToken,
-						ReadLevel:     0,
-						MaxReadLevel:  100,
-					},
+					BatchSize:         10,
+					NextPageToken:     initialNextPageToken,
+					ReadLevel:         0,
+					MaxReadLevel:      100,
 				})
 
 				return err
@@ -738,12 +736,10 @@ func TestNosqlExecutionStore(t *testing.T) {
 			testFunc: func(store *nosqlExecutionStore) error {
 				_, err := store.GetReplicationTasksFromDLQ(ctx, &persistence.GetReplicationTasksFromDLQRequest{
 					SourceClusterName: "sourceCluster",
-					GetReplicationTasksRequest: persistence.GetReplicationTasksRequest{
-						ReadLevel:     100,
-						MaxReadLevel:  50,
-						BatchSize:     10,
-						NextPageToken: []byte{},
-					},
+					ReadLevel:         100,
+					MaxReadLevel:      50,
+					BatchSize:         10,
+					NextPageToken:     []byte{},
 				})
 				return err
 			},

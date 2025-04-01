@@ -43,6 +43,7 @@ type Task interface {
 	SetTaskID(id int64)
 	GetVisibilityTimestamp() time.Time
 	SetVisibilityTimestamp(timestamp time.Time)
+	ByteSize() uint64
 	ToTransferTaskInfo() (*TransferTaskInfo, error)
 	ToTimerTaskInfo() (*TimerTaskInfo, error)
 	ToInternalReplicationTaskInfo() (*types.ReplicationTaskInfo, error)
@@ -267,6 +268,10 @@ func (a *WorkflowIdentifier) GetRunID() string {
 	return a.RunID
 }
 
+func (a *WorkflowIdentifier) ByteSize() uint64 {
+	return uint64(len(a.DomainID) + len(a.WorkflowID) + len(a.RunID))
+}
+
 // GetVersion returns the version of the task
 func (a *TaskData) GetVersion() int64 {
 	return a.Version
@@ -297,6 +302,10 @@ func (a *TaskData) SetVisibilityTimestamp(timestamp time.Time) {
 	a.VisibilityTimestamp = timestamp
 }
 
+func (a *TaskData) ByteSize() uint64 {
+	return uint64(8 + 8 + 24) // time.Time is 24 bytes
+}
+
 // GetType returns the type of the activity task
 func (a *ActivityTask) GetTaskType() int {
 	return TransferTaskTypeActivityTask
@@ -304,6 +313,10 @@ func (a *ActivityTask) GetTaskType() int {
 
 func (a *ActivityTask) GetTaskCategory() HistoryTaskCategory {
 	return HistoryTaskCategoryTransfer
+}
+
+func (a *ActivityTask) ByteSize() uint64 {
+	return a.WorkflowIdentifier.ByteSize() + a.TaskData.ByteSize() + uint64(len(a.TargetDomainID)) + uint64(len(a.TaskList)) + 8
 }
 
 func (a *ActivityTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
@@ -338,6 +351,10 @@ func (d *DecisionTask) GetTaskCategory() HistoryTaskCategory {
 	return HistoryTaskCategoryTransfer
 }
 
+func (d *DecisionTask) ByteSize() uint64 {
+	return d.WorkflowIdentifier.ByteSize() + d.TaskData.ByteSize() + uint64(len(d.TargetDomainID)) + uint64(len(d.TaskList)) + 8
+}
+
 func (d *DecisionTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 	return &TransferTaskInfo{
 		TaskType:            TransferTaskTypeDecisionTask,
@@ -370,6 +387,10 @@ func (a *RecordWorkflowStartedTask) GetTaskCategory() HistoryTaskCategory {
 	return HistoryTaskCategoryTransfer
 }
 
+func (a *RecordWorkflowStartedTask) ByteSize() uint64 {
+	return a.WorkflowIdentifier.ByteSize() + a.TaskData.ByteSize()
+}
+
 func (a *RecordWorkflowStartedTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 	return &TransferTaskInfo{
 		TaskType:            TransferTaskTypeRecordWorkflowStarted,
@@ -397,6 +418,10 @@ func (a *ResetWorkflowTask) GetTaskType() int {
 
 func (a *ResetWorkflowTask) GetTaskCategory() HistoryTaskCategory {
 	return HistoryTaskCategoryTransfer
+}
+
+func (a *ResetWorkflowTask) ByteSize() uint64 {
+	return a.WorkflowIdentifier.ByteSize() + a.TaskData.ByteSize()
 }
 
 func (a *ResetWorkflowTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
@@ -428,6 +453,10 @@ func (a *CloseExecutionTask) GetTaskCategory() HistoryTaskCategory {
 	return HistoryTaskCategoryTransfer
 }
 
+func (a *CloseExecutionTask) ByteSize() uint64 {
+	return a.WorkflowIdentifier.ByteSize() + a.TaskData.ByteSize()
+}
+
 func (a *CloseExecutionTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 	return &TransferTaskInfo{
 		TaskType:            TransferTaskTypeCloseExecution,
@@ -457,6 +486,10 @@ func (a *DeleteHistoryEventTask) GetTaskCategory() HistoryTaskCategory {
 	return HistoryTaskCategoryTimer
 }
 
+func (a *DeleteHistoryEventTask) ByteSize() uint64 {
+	return a.WorkflowIdentifier.ByteSize() + a.TaskData.ByteSize()
+}
+
 func (a *DeleteHistoryEventTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 	return nil, fmt.Errorf("delete history event task is not transfer task")
 }
@@ -484,6 +517,10 @@ func (d *DecisionTimeoutTask) GetTaskType() int {
 
 func (d *DecisionTimeoutTask) GetTaskCategory() HistoryTaskCategory {
 	return HistoryTaskCategoryTimer
+}
+
+func (d *DecisionTimeoutTask) ByteSize() uint64 {
+	return d.WorkflowIdentifier.ByteSize() + d.TaskData.ByteSize() + 8 + 8 + 8
 }
 
 func (d *DecisionTimeoutTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
@@ -518,6 +555,10 @@ func (a *ActivityTimeoutTask) GetTaskCategory() HistoryTaskCategory {
 	return HistoryTaskCategoryTimer
 }
 
+func (a *ActivityTimeoutTask) ByteSize() uint64 {
+	return a.WorkflowIdentifier.ByteSize() + a.TaskData.ByteSize() + 8 + 8 + 8
+}
+
 func (a *ActivityTimeoutTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 	return nil, fmt.Errorf("activity timeout task is not transfer task")
 }
@@ -550,6 +591,10 @@ func (u *UserTimerTask) GetTaskCategory() HistoryTaskCategory {
 	return HistoryTaskCategoryTimer
 }
 
+func (u *UserTimerTask) ByteSize() uint64 {
+	return u.WorkflowIdentifier.ByteSize() + u.TaskData.ByteSize() + 8
+}
+
 func (u *UserTimerTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 	return nil, fmt.Errorf("user timer task is not transfer task")
 }
@@ -578,6 +623,10 @@ func (r *ActivityRetryTimerTask) GetTaskType() int {
 
 func (r *ActivityRetryTimerTask) GetTaskCategory() HistoryTaskCategory {
 	return HistoryTaskCategoryTimer
+}
+
+func (r *ActivityRetryTimerTask) ByteSize() uint64 {
+	return r.WorkflowIdentifier.ByteSize() + r.TaskData.ByteSize() + 8 + 8
 }
 
 func (r *ActivityRetryTimerTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
@@ -611,6 +660,10 @@ func (r *WorkflowBackoffTimerTask) GetTaskCategory() HistoryTaskCategory {
 	return HistoryTaskCategoryTimer
 }
 
+func (r *WorkflowBackoffTimerTask) ByteSize() uint64 {
+	return r.WorkflowIdentifier.ByteSize() + r.TaskData.ByteSize() + 8
+}
+
 func (r *WorkflowBackoffTimerTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 	return nil, fmt.Errorf("workflow backoff timer task is not transfer task")
 }
@@ -641,6 +694,10 @@ func (u *WorkflowTimeoutTask) GetTaskCategory() HistoryTaskCategory {
 	return HistoryTaskCategoryTimer
 }
 
+func (u *WorkflowTimeoutTask) ByteSize() uint64 {
+	return u.WorkflowIdentifier.ByteSize() + u.TaskData.ByteSize()
+}
+
 func (u *WorkflowTimeoutTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 	return nil, fmt.Errorf("workflow timeout task is not transfer task")
 }
@@ -668,6 +725,10 @@ func (u *CancelExecutionTask) GetTaskType() int {
 
 func (u *CancelExecutionTask) GetTaskCategory() HistoryTaskCategory {
 	return HistoryTaskCategoryTransfer
+}
+
+func (u *CancelExecutionTask) ByteSize() uint64 {
+	return u.WorkflowIdentifier.ByteSize() + u.TaskData.ByteSize() + uint64(len(u.TargetDomainID)) + uint64(len(u.TargetWorkflowID)) + uint64(len(u.TargetRunID)) + 8 + 1
 }
 
 func (u *CancelExecutionTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
@@ -704,6 +765,10 @@ func (u *SignalExecutionTask) GetTaskCategory() HistoryTaskCategory {
 	return HistoryTaskCategoryTransfer
 }
 
+func (u *SignalExecutionTask) ByteSize() uint64 {
+	return u.WorkflowIdentifier.ByteSize() + u.TaskData.ByteSize() + uint64(len(u.TargetDomainID)) + uint64(len(u.TargetWorkflowID)) + uint64(len(u.TargetRunID)) + 8 + 1
+}
+
 func (u *SignalExecutionTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 	return &TransferTaskInfo{
 		TaskType:                TransferTaskTypeSignalExecution,
@@ -738,6 +803,10 @@ func (u *RecordChildExecutionCompletedTask) GetTaskCategory() HistoryTaskCategor
 	return HistoryTaskCategoryTransfer
 }
 
+func (u *RecordChildExecutionCompletedTask) ByteSize() uint64 {
+	return u.WorkflowIdentifier.ByteSize() + u.TaskData.ByteSize() + uint64(len(u.TargetDomainID)) + uint64(len(u.TargetWorkflowID)) + uint64(len(u.TargetRunID))
+}
+
 func (u *RecordChildExecutionCompletedTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 	return &TransferTaskInfo{
 		TaskType:            TransferTaskTypeRecordChildExecutionCompleted,
@@ -770,6 +839,10 @@ func (u *UpsertWorkflowSearchAttributesTask) GetTaskCategory() HistoryTaskCatego
 	return HistoryTaskCategoryTransfer
 }
 
+func (u *UpsertWorkflowSearchAttributesTask) ByteSize() uint64 {
+	return u.WorkflowIdentifier.ByteSize() + u.TaskData.ByteSize()
+}
+
 func (u *UpsertWorkflowSearchAttributesTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 	return &TransferTaskInfo{
 		TaskType:            TransferTaskTypeUpsertWorkflowSearchAttributes,
@@ -797,6 +870,10 @@ func (u *StartChildExecutionTask) GetTaskType() int {
 
 func (u *StartChildExecutionTask) GetTaskCategory() HistoryTaskCategory {
 	return HistoryTaskCategoryTransfer
+}
+
+func (u *StartChildExecutionTask) ByteSize() uint64 {
+	return u.WorkflowIdentifier.ByteSize() + u.TaskData.ByteSize() + uint64(len(u.TargetDomainID)) + uint64(len(u.TargetWorkflowID)) + 8
 }
 
 func (u *StartChildExecutionTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
@@ -831,6 +908,10 @@ func (u *RecordWorkflowClosedTask) GetTaskCategory() HistoryTaskCategory {
 	return HistoryTaskCategoryTransfer
 }
 
+func (u *RecordWorkflowClosedTask) ByteSize() uint64 {
+	return u.WorkflowIdentifier.ByteSize() + u.TaskData.ByteSize()
+}
+
 func (u *RecordWorkflowClosedTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 	return &TransferTaskInfo{
 		TaskType:            TransferTaskTypeRecordWorkflowClosed,
@@ -858,6 +939,10 @@ func (a *HistoryReplicationTask) GetTaskType() int {
 
 func (a *HistoryReplicationTask) GetTaskCategory() HistoryTaskCategory {
 	return HistoryTaskCategoryReplication
+}
+
+func (a *HistoryReplicationTask) ByteSize() uint64 {
+	return a.WorkflowIdentifier.ByteSize() + a.TaskData.ByteSize() + 8 + 8 + uint64(len(a.BranchToken)) + uint64(len(a.NewRunBranchToken))
 }
 
 func (a *HistoryReplicationTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
@@ -891,6 +976,10 @@ func (a *SyncActivityTask) GetTaskCategory() HistoryTaskCategory {
 	return HistoryTaskCategoryReplication
 }
 
+func (a *SyncActivityTask) ByteSize() uint64 {
+	return a.WorkflowIdentifier.ByteSize() + a.TaskData.ByteSize() + 8
+}
+
 func (a *SyncActivityTask) ToInternalReplicationTaskInfo() (*types.ReplicationTaskInfo, error) {
 	return &types.ReplicationTaskInfo{
 		DomainID:     a.DomainID,
@@ -920,6 +1009,10 @@ func (a *FailoverMarkerTask) GetTaskType() int {
 
 func (a *FailoverMarkerTask) GetTaskCategory() HistoryTaskCategory {
 	return HistoryTaskCategoryReplication
+}
+
+func (a *FailoverMarkerTask) ByteSize() uint64 {
+	return uint64(len(a.DomainID)) + a.TaskData.ByteSize()
 }
 
 func (a *FailoverMarkerTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
