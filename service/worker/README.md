@@ -32,7 +32,7 @@ make install-schema-xdc
 
 3. Create a global Cadence domain that replicates data across clusters
 ```
-cadence --do sample domain register --ac cluster0 --cl cluster0 cluster1 cluster2
+cadence --do samples-domain domain register --ac cluster0 --cl cluster0,cluster1,cluster2
 ```
 Then run a helloworld from [Go Client Sample](https://github.com/cadence-workflow/cadence-samples/) or [Java Client Sample](https://github.com/cadence-workflow/cadence-java-samples)
 
@@ -48,7 +48,7 @@ or failover to cluster2:
    ```
 Failback to cluster0:
 ```
-cadence --do sample samples-domain update --ac cluster0
+cadence --do samples-domain domain update --ac cluster0
 ```
 
 ## Multiple region setup
