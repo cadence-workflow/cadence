@@ -142,12 +142,15 @@ func (h *TimerInvalid) Fix(
 		}
 	}
 
-	req := persistence.CompleteTimerTaskRequest{
-		VisibilityTimestamp: timer.VisibilityTimestamp,
-		TaskID:              timer.TaskID,
+	req := persistence.CompleteHistoryTaskRequest{
+		TaskCategory: persistence.HistoryTaskCategoryTimer,
+		TaskKey: persistence.HistoryTaskKey{
+			ScheduledTime: timer.VisibilityTimestamp,
+			TaskID:        timer.TaskID,
+		},
 	}
 
-	if err := h.pr.CompleteTimerTask(ctx, &req); err != nil {
+	if err := h.pr.CompleteHistoryTask(ctx, &req); err != nil {
 		return FixResult{
 			FixResultType: FixResultTypeFailed,
 			InvariantName: h.Name(),

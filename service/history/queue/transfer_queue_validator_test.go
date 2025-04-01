@@ -172,8 +172,10 @@ func (s *transferQueueValidatorSuite) TestAckTasks_NoTaskLost() {
 	for _, pendingTask := range pendingTasks[:len(pendingTasks)-1] {
 		loadedTasks[newTransferTaskKey(pendingTask.GetTaskID())] = task.NewTransferTask(
 			s.mockShard,
-			&persistence.TransferTaskInfo{
-				TaskID: pendingTask.GetTaskID(),
+			&persistence.DecisionTask{
+				TaskData: persistence.TaskData{
+					TaskID: pendingTask.GetTaskID(),
+				},
 			},
 			task.QueueTypeActiveTransfer,
 			nil, nil, nil, nil, nil, nil,
@@ -203,8 +205,10 @@ func (s *transferQueueValidatorSuite) TestAckTasks_TaskLost() {
 	for _, pendingTask := range pendingTasks[1:] {
 		loadedTasks[newTransferTaskKey(pendingTask.GetTaskID())] = task.NewTransferTask(
 			s.mockShard,
-			&persistence.TransferTaskInfo{
-				TaskID: pendingTask.GetTaskID(),
+			&persistence.DecisionTask{
+				TaskData: persistence.TaskData{
+					TaskID: pendingTask.GetTaskID(),
+				},
 			},
 			task.QueueTypeActiveTransfer,
 			nil, nil, nil, nil, nil, nil,

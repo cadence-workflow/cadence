@@ -739,17 +739,26 @@ func (h *handlerImpl) RemoveTask(
 
 	switch taskType := commonconstants.TaskType(request.GetType()); taskType {
 	case commonconstants.TaskTypeTransfer:
-		return executionMgr.CompleteTransferTask(ctx, &persistence.CompleteTransferTaskRequest{
-			TaskID: request.GetTaskID(),
+		return executionMgr.CompleteHistoryTask(ctx, &persistence.CompleteHistoryTaskRequest{
+			TaskCategory: persistence.HistoryTaskCategoryTransfer,
+			TaskKey: persistence.HistoryTaskKey{
+				TaskID: request.GetTaskID(),
+			},
 		})
 	case commonconstants.TaskTypeTimer:
-		return executionMgr.CompleteTimerTask(ctx, &persistence.CompleteTimerTaskRequest{
-			VisibilityTimestamp: time.Unix(0, request.GetVisibilityTimestamp()),
-			TaskID:              request.GetTaskID(),
+		return executionMgr.CompleteHistoryTask(ctx, &persistence.CompleteHistoryTaskRequest{
+			TaskCategory: persistence.HistoryTaskCategoryTimer,
+			TaskKey: persistence.HistoryTaskKey{
+				ScheduledTime: time.Unix(0, request.GetVisibilityTimestamp()),
+				TaskID:        request.GetTaskID(),
+			},
 		})
 	case commonconstants.TaskTypeReplication:
-		return executionMgr.CompleteReplicationTask(ctx, &persistence.CompleteReplicationTaskRequest{
-			TaskID: request.GetTaskID(),
+		return executionMgr.CompleteHistoryTask(ctx, &persistence.CompleteHistoryTaskRequest{
+			TaskCategory: persistence.HistoryTaskCategoryReplication,
+			TaskKey: persistence.HistoryTaskKey{
+				TaskID: request.GetTaskID(),
+			},
 		})
 	default:
 		return constants.ErrInvalidTaskType

@@ -1043,6 +1043,26 @@ const (
 	// Default value: 25
 	// Allowed filters: N/A
 	ReplicatorTaskBatchSize
+	// ReplicatorMaxTaskBatchSize is the maximum batch size for ReplicatorProcessor
+	// KeyName: history.replicatorMaxTaskBatchSize
+	// Value type: Int
+	// Default value: 1000
+	// Allowed filters: ShardID, ClusterName
+	ReplicatorMaxTaskBatchSize
+	// ReplicatorMinTaskBatchSize is the minimum batch size for ReplicatorProcessor
+	// KeyName: history.replicatorMinTaskBatchSize
+	// Value type: Int
+	// Default value: 1
+	// Allowed filters: ShardID, ClusterName
+	ReplicatorMinTaskBatchSize
+	// ReplicatorTaskBatchStepCount is how many batch size values between ReplicatorMinTaskBatchSize and ReplicatorMaxTaskBatchSize are used
+	// 	by ReplicatorProcessor to adjust the batch size of the replication tasks. Less value will make the adjustment more aggressive.
+	//  cannot be less than 3, otherwise only ReplicatorMinTaskBatchSize and ReplicatorMaxTaskBatchSize will be used.
+	// KeyName: history.replicatorTaskBatchStepCount
+	// Value type: Int
+	// Default value: 10
+	// Allowed filters: ShardID, ClusterName
+	ReplicatorTaskBatchStepCount
 	// ReplicatorTaskDeleteBatchSize is batch size for ReplicatorProcessor to delete replication tasks
 	// KeyName: history.replicatorTaskDeleteBatchSize
 	// Value type: Int
@@ -3497,6 +3517,24 @@ var IntKeys = map[IntKey]DynamicInt{
 		KeyName:      "history.replicatorTaskBatchSize",
 		Description:  "ReplicatorTaskBatchSize is batch size for ReplicatorProcessor",
 		DefaultValue: 25,
+	},
+	ReplicatorMinTaskBatchSize: {
+		KeyName:      "history.replicatorMinTaskBatchSize",
+		Description:  "ReplicatorMinTaskBatchSize is minimum batch size for ReplicatorProcessor",
+		Filters:      []Filter{ShardID, ClusterName},
+		DefaultValue: 1,
+	},
+	ReplicatorMaxTaskBatchSize: {
+		KeyName:      "history.replicatorMaxTaskBatchSize",
+		Description:  "ReplicatorMaxTaskBatchSize is maximum size for ReplicatorProcessor",
+		Filters:      []Filter{ShardID, ClusterName},
+		DefaultValue: 1000,
+	},
+	ReplicatorTaskBatchStepCount: {
+		KeyName:      "history.replicatorTaskBatchStepCount",
+		Description:  "ReplicatorTaskBatchStepCount is how many batch size values between ReplicatorMinTaskBatchSize and ReplicatorMaxTaskBatchSize are used by ReplicatorProcessor to adjust the batch size of the replication tasks. Less value will make the adjustment more aggressive. It cannot be less than 3, otherwise only ReplicatorMinTaskBatchSize and ReplicatorMaxTaskBatchSize will be used.",
+		Filters:      []Filter{ShardID, ClusterName},
+		DefaultValue: 10,
 	},
 	ReplicatorTaskDeleteBatchSize: {
 		KeyName:      "history.replicatorTaskDeleteBatchSize",

@@ -80,12 +80,6 @@ func TestExecutionManager_ProxyStoreMethods(t *testing.T) {
 			},
 		},
 		{
-			method: "CompleteTransferTask",
-			prepareMocks: func(mockedStore *MockExecutionStore) {
-				mockedStore.EXPECT().CompleteTransferTask(gomock.Any(), gomock.Any()).Return(nil)
-			},
-		},
-		{
 			method: "GetHistoryTasks",
 			prepareMocks: func(mockedStore *MockExecutionStore) {
 				mockedStore.EXPECT().GetHistoryTasks(gomock.Any(), gomock.Any()).Return(nil, nil)
@@ -107,18 +101,6 @@ func TestExecutionManager_ProxyStoreMethods(t *testing.T) {
 			method: "RangeDeleteReplicationTaskFromDLQ",
 			prepareMocks: func(mockedStore *MockExecutionStore) {
 				mockedStore.EXPECT().RangeDeleteReplicationTaskFromDLQ(gomock.Any(), gomock.Any()).Return(nil, nil)
-			},
-		},
-		{
-			method: "CompleteTimerTask",
-			prepareMocks: func(mockedStore *MockExecutionStore) {
-				mockedStore.EXPECT().CompleteTimerTask(gomock.Any(), gomock.Any()).Return(nil)
-			},
-		},
-		{
-			method: "CompleteReplicationTask",
-			prepareMocks: func(mockedStore *MockExecutionStore) {
-				mockedStore.EXPECT().CompleteReplicationTask(gomock.Any(), gomock.Any()).Return(nil)
 			},
 		},
 		{
@@ -187,60 +169,6 @@ func TestExecutionManager_ProxyStoreMethods(t *testing.T) {
 			if ok {
 				assert.NoError(t, err)
 			}
-		})
-	}
-}
-
-func TestGetReplicationTasks(t *testing.T) {
-	for _, tc := range []struct {
-		name         string
-		prepareMocks func(*MockExecutionStore)
-		checkRes     func(*testing.T, *GetReplicationTasksResponse, error)
-	}{
-		{
-			name: "success",
-			prepareMocks: func(mockedStore *MockExecutionStore) {
-				mockedStore.EXPECT().GetReplicationTasks(gomock.Any(), gomock.Any()).Return(&InternalGetReplicationTasksResponse{
-					Tasks: []*InternalReplicationTaskInfo{
-						{
-							DomainID: "test",
-							TaskID:   1,
-						},
-						{
-							DomainID: "test",
-							TaskID:   2,
-						},
-					},
-					NextPageToken: nil,
-				}, nil)
-			},
-			checkRes: func(t *testing.T, res *GetReplicationTasksResponse, err error) {
-				assert.NoError(t, err)
-				assert.Len(t, res.Tasks, 2)
-				assert.Equal(t, int64(1), res.Tasks[0].TaskID)
-				assert.Equal(t, int64(2), res.Tasks[1].TaskID)
-				assert.Nil(t, res.NextPageToken)
-			},
-		},
-		{
-			name: "error",
-			prepareMocks: func(mockedStore *MockExecutionStore) {
-				mockedStore.EXPECT().GetReplicationTasks(gomock.Any(), gomock.Any()).Return(nil, assert.AnError)
-			},
-			checkRes: func(t *testing.T, res *GetReplicationTasksResponse, err error) {
-				assert.Error(t, err)
-				assert.Nil(t, res)
-			},
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-
-			mockedStore := NewMockExecutionStore(ctrl)
-			tc.prepareMocks(mockedStore)
-			manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), nil)
-			res, err := manager.GetReplicationTasks(context.Background(), &GetReplicationTasksRequest{})
-			tc.checkRes(t, res, err)
 		})
 	}
 }
@@ -663,21 +591,17 @@ func TestGetReplicationTasksFromDLQ(t *testing.T) {
 	now := time.Now().UTC().Round(time.Second)
 
 	mockedStore.EXPECT().GetReplicationTasksFromDLQ(gomock.Any(), request).Return(
-		&InternalGetReplicationTasksFromDLQResponse{
-			Tasks: []*InternalReplicationTaskInfo{
-				{
-					DomainID:     testDomainID,
-					WorkflowID:   testWorkflowID,
-					TaskID:       1,
-					TaskType:     1,
-					CreationTime: now,
-				},
-				{
-					DomainID:     testDomainID,
-					WorkflowID:   testWorkflowID,
-					TaskID:       2,
-					TaskType:     2,
-					CreationTime: now.Add(time.Second),
+		&GetHistoryTasksResponse{
+			Tasks: []Task{
+				&HistoryReplicationTask{
+					WorkflowIdentifier: WorkflowIdentifier{
+						DomainID:   testDomainID,
+						WorkflowID: testWorkflowID,
+					},
+					TaskData: TaskData{
+						TaskID:              1,
+						VisibilityTimestamp: now,
+					},
 				},
 			},
 			NextPageToken: []byte("test-token"),
@@ -685,21 +609,17 @@ func TestGetReplicationTasksFromDLQ(t *testing.T) {
 
 	res, err := manager.GetReplicationTasksFromDLQ(context.Background(), request)
 	assert.NoError(t, err)
-	assert.Equal(t, &GetReplicationTasksFromDLQResponse{
-		Tasks: []*ReplicationTaskInfo{
-			{
-				DomainID:     testDomainID,
-				WorkflowID:   testWorkflowID,
-				TaskID:       1,
-				TaskType:     1,
-				CreationTime: now.UnixNano(),
-			},
-			{
-				DomainID:     testDomainID,
-				WorkflowID:   testWorkflowID,
-				TaskID:       2,
-				TaskType:     2,
-				CreationTime: now.Add(time.Second).UnixNano(),
+	assert.Equal(t, &GetHistoryTasksResponse{
+		Tasks: []Task{
+			&HistoryReplicationTask{
+				WorkflowIdentifier: WorkflowIdentifier{
+					DomainID:   testDomainID,
+					WorkflowID: testWorkflowID,
+				},
+				TaskData: TaskData{
+					TaskID:              1,
+					VisibilityTimestamp: now,
+				},
 			},
 		},
 		NextPageToken: []byte("test-token"),

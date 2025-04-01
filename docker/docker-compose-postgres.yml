@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:12.4
+    image: postgres:17.4
     environment:
       POSTGRES_USER: cadence
       POSTGRES_PASSWORD: cadence

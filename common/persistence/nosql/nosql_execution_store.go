@@ -588,95 +588,6 @@ func (d *nosqlExecutionStore) ListConcreteExecutions(
 	}, nil
 }
 
-func (d *nosqlExecutionStore) GetTransferTasks(
-	ctx context.Context,
-	request *persistence.GetTransferTasksRequest,
-) (*persistence.GetTransferTasksResponse, error) {
-
-	tasks, nextPageToken, err := d.db.SelectTransferTasksOrderByTaskID(ctx, d.shardID, request.BatchSize, request.NextPageToken, request.ReadLevel, request.MaxReadLevel)
-	if err != nil {
-		return nil, convertCommonErrors(d.db, "GetTransferTasks", err)
-	}
-
-	var tTasks []*persistence.TransferTaskInfo
-	for _, t := range tasks {
-		tTasks = append(tTasks, t.Transfer)
-	}
-
-	return &persistence.GetTransferTasksResponse{
-		Tasks:         tTasks,
-		NextPageToken: nextPageToken,
-	}, nil
-}
-
-func (d *nosqlExecutionStore) GetReplicationTasks(
-	ctx context.Context,
-	request *persistence.GetReplicationTasksRequest,
-) (*persistence.InternalGetReplicationTasksResponse, error) {
-
-	tasks, nextPageToken, err := d.db.SelectReplicationTasksOrderByTaskID(ctx, d.shardID, request.BatchSize, request.NextPageToken, request.ReadLevel, request.MaxReadLevel)
-	if err != nil {
-		return nil, convertCommonErrors(d.db, "GetReplicationTasks", err)
-	}
-	var tTasks []*persistence.InternalReplicationTaskInfo
-	for _, t := range tasks {
-		tTasks = append(tTasks, t.Replication)
-	}
-	return &persistence.InternalGetReplicationTasksResponse{
-		Tasks:         tTasks,
-		NextPageToken: nextPageToken,
-	}, nil
-}
-
-func (d *nosqlExecutionStore) CompleteTransferTask(
-	ctx context.Context,
-	request *persistence.CompleteTransferTaskRequest,
-) error {
-	err := d.db.DeleteTransferTask(ctx, d.shardID, request.TaskID)
-	if err != nil {
-		return convertCommonErrors(d.db, "CompleteTransferTask", err)
-	}
-
-	return nil
-}
-
-func (d *nosqlExecutionStore) CompleteCrossClusterTask(
-	ctx context.Context,
-	request *persistence.CompleteCrossClusterTaskRequest,
-) error {
-
-	err := d.db.DeleteCrossClusterTask(ctx, d.shardID, request.TargetCluster, request.TaskID)
-	if err != nil {
-		return convertCommonErrors(d.db, "CompleteCrossClusterTask", err)
-	}
-
-	return nil
-}
-
-func (d *nosqlExecutionStore) CompleteReplicationTask(
-	ctx context.Context,
-	request *persistence.CompleteReplicationTaskRequest,
-) error {
-	err := d.db.DeleteReplicationTask(ctx, d.shardID, request.TaskID)
-	if err != nil {
-		return convertCommonErrors(d.db, "CompleteReplicationTask", err)
-	}
-
-	return nil
-}
-
-func (d *nosqlExecutionStore) CompleteTimerTask(
-	ctx context.Context,
-	request *persistence.CompleteTimerTaskRequest,
-) error {
-	err := d.db.DeleteTimerTask(ctx, d.shardID, request.TaskID, request.VisibilityTimestamp)
-	if err != nil {
-		return convertCommonErrors(d.db, "CompleteTimerTask", err)
-	}
-
-	return nil
-}
-
 func (d *nosqlExecutionStore) PutReplicationTaskToDLQ(
 	ctx context.Context,
 	request *persistence.InternalPutReplicationTaskToDLQRequest,
@@ -695,7 +606,7 @@ func (d *nosqlExecutionStore) PutReplicationTaskToDLQ(
 func (d *nosqlExecutionStore) GetReplicationTasksFromDLQ(
 	ctx context.Context,
 	request *persistence.GetReplicationTasksFromDLQRequest,
-) (*persistence.InternalGetReplicationTasksFromDLQResponse, error) {
+) (*persistence.GetHistoryTasksResponse, error) {
 	if request.ReadLevel > request.MaxReadLevel {
 		return nil, &types.BadRequestError{Message: "ReadLevel cannot be higher than MaxReadLevel"}
 	}
@@ -703,11 +614,15 @@ func (d *nosqlExecutionStore) GetReplicationTasksFromDLQ(
 	if err != nil {
 		return nil, convertCommonErrors(d.db, "GetReplicationTasksFromDLQ", err)
 	}
-	var tTasks []*persistence.InternalReplicationTaskInfo
+	var tTasks []persistence.Task
 	for _, t := range tasks {
-		tTasks = append(tTasks, t.Replication)
+		task, err := t.Replication.ToTask()
+		if err != nil {
+			return nil, convertCommonErrors(d.db, "GetReplicationTasksFromDLQ", err)
+		}
+		tTasks = append(tTasks, task)
 	}
-	return &persistence.InternalGetReplicationTasksResponse{
+	return &persistence.GetHistoryTasksResponse{
 		Tasks:         tTasks,
 		NextPageToken: nextPageToken,
 	}, nil
@@ -898,6 +813,58 @@ func (d *nosqlExecutionStore) getScheduledHistoryTasks(
 		}, nil
 	default:
 		return nil, &types.BadRequestError{Message: fmt.Sprintf("Unknown task category: %v", request.TaskCategory.ID())}
+	}
+}
+
+func (d *nosqlExecutionStore) CompleteHistoryTask(
+	ctx context.Context,
+	request *persistence.CompleteHistoryTaskRequest,
+) error {
+	switch request.TaskCategory.Type() {
+	case persistence.HistoryTaskCategoryTypeScheduled:
+		return d.completeScheduledHistoryTask(ctx, request)
+	case persistence.HistoryTaskCategoryTypeImmediate:
+		return d.completeImmediateHistoryTask(ctx, request)
+	default:
+		return &types.BadRequestError{Message: fmt.Sprintf("Unknown task category type: %v", request.TaskCategory.Type())}
+	}
+}
+
+func (d *nosqlExecutionStore) completeScheduledHistoryTask(
+	ctx context.Context,
+	request *persistence.CompleteHistoryTaskRequest,
+) error {
+	switch request.TaskCategory.ID() {
+	case persistence.HistoryTaskCategoryIDTimer:
+		err := d.db.DeleteTimerTask(ctx, d.shardID, request.TaskKey.TaskID, request.TaskKey.ScheduledTime)
+		if err != nil {
+			return convertCommonErrors(d.db, "CompleteScheduledHistoryTask", err)
+		}
+		return nil
+	default:
+		return &types.BadRequestError{Message: fmt.Sprintf("Unknown task category ID: %v", request.TaskCategory.ID())}
+	}
+}
+
+func (d *nosqlExecutionStore) completeImmediateHistoryTask(
+	ctx context.Context,
+	request *persistence.CompleteHistoryTaskRequest,
+) error {
+	switch request.TaskCategory.ID() {
+	case persistence.HistoryTaskCategoryIDTransfer:
+		err := d.db.DeleteTransferTask(ctx, d.shardID, request.TaskKey.TaskID)
+		if err != nil {
+			return convertCommonErrors(d.db, "CompleteImmediateHistoryTask", err)
+		}
+		return nil
+	case persistence.HistoryTaskCategoryIDReplication:
+		err := d.db.DeleteReplicationTask(ctx, d.shardID, request.TaskKey.TaskID)
+		if err != nil {
+			return convertCommonErrors(d.db, "CompleteImmediateHistoryTask", err)
+		}
+		return nil
+	default:
+		return &types.BadRequestError{Message: fmt.Sprintf("Unknown task category ID: %v", request.TaskCategory.ID())}
 	}
 }
 

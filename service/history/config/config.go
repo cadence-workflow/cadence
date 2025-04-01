@@ -166,6 +166,9 @@ type Config struct {
 	ReplicatorTaskDeleteBatchSize          dynamicconfig.IntPropertyFn
 	ReplicatorReadTaskMaxRetryCount        dynamicconfig.IntPropertyFn
 	ReplicatorProcessorFetchTasksBatchSize dynamicconfig.IntPropertyFnWithShardIDFilter
+	ReplicatorProcessorMaxTaskBatchSize    dynamicconfig.IntPropertyFnWithShardIDFilter
+	ReplicatorProcessorMinTaskBatchSize    dynamicconfig.IntPropertyFnWithShardIDFilter
+	ReplicatorProcessorBatchSizeStepCount  dynamicconfig.IntPropertyFnWithShardIDFilter
 	ReplicatorUpperLatency                 dynamicconfig.DurationPropertyFn
 	ReplicatorCacheCapacity                dynamicconfig.IntPropertyFn
 
@@ -444,6 +447,9 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		ReplicatorTaskDeleteBatchSize:          dc.GetIntProperty(dynamicconfig.ReplicatorTaskDeleteBatchSize),
 		ReplicatorReadTaskMaxRetryCount:        dc.GetIntProperty(dynamicconfig.ReplicatorReadTaskMaxRetryCount),
 		ReplicatorProcessorFetchTasksBatchSize: dc.GetIntPropertyFilteredByShardID(dynamicconfig.ReplicatorTaskBatchSize),
+		ReplicatorProcessorMaxTaskBatchSize:    dc.GetIntPropertyFilteredByShardID(dynamicconfig.ReplicatorMaxTaskBatchSize),
+		ReplicatorProcessorMinTaskBatchSize:    dc.GetIntPropertyFilteredByShardID(dynamicconfig.ReplicatorMinTaskBatchSize),
+		ReplicatorProcessorBatchSizeStepCount:  dc.GetIntPropertyFilteredByShardID(dynamicconfig.ReplicatorTaskBatchStepCount),
 		ReplicatorUpperLatency:                 dc.GetDurationProperty(dynamicconfig.ReplicatorUpperLatency),
 		ReplicatorCacheCapacity:                dc.GetIntProperty(dynamicconfig.ReplicatorCacheCapacity),
 

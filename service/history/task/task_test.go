@@ -54,7 +54,7 @@ type (
 		mockTaskExecutor     *MockExecutor
 		mockTaskProcessor    *MockProcessor
 		mockTaskRedispatcher *MockRedispatcher
-		mockTaskInfo         *MockInfo
+		mockTaskInfo         *persistence.MockTask
 
 		logger        log.Logger
 		maxRetryCount dynamicconfig.IntPropertyFn
@@ -82,7 +82,7 @@ func (s *taskSuite) SetupTest() {
 	s.mockTaskExecutor = NewMockExecutor(s.controller)
 	s.mockTaskProcessor = NewMockProcessor(s.controller)
 	s.mockTaskRedispatcher = NewMockRedispatcher(s.controller)
-	s.mockTaskInfo = NewMockInfo(s.controller)
+	s.mockTaskInfo = persistence.NewMockTask(s.controller)
 	s.mockTaskInfo.EXPECT().GetDomainID().Return(constants.TestDomainID).AnyTimes()
 	s.mockShard.Resource.DomainCache.EXPECT().GetDomainName(constants.TestDomainID).Return(constants.TestDomainName, nil).AnyTimes()
 
@@ -97,7 +97,7 @@ func (s *taskSuite) TearDownTest() {
 
 func (s *taskSuite) TestExecute_TaskFilterErr() {
 	taskFilterErr := errors.New("some random error")
-	taskBase := s.newTestTask(func(task Info) (bool, error) {
+	taskBase := s.newTestTask(func(task persistence.Task) (bool, error) {
 		return false, taskFilterErr
 	}, nil)
 	err := taskBase.Execute()
@@ -105,7 +105,7 @@ func (s *taskSuite) TestExecute_TaskFilterErr() {
 }
 
 func (s *taskSuite) TestExecute_ExecutionErr() {
-	task := s.newTestTask(func(task Info) (bool, error) {
+	task := s.newTestTask(func(task persistence.Task) (bool, error) {
 		return true, nil
 	}, nil)
 
@@ -117,7 +117,7 @@ func (s *taskSuite) TestExecute_ExecutionErr() {
 }
 
 func (s *taskSuite) TestExecute_Success() {
-	task := s.newTestTask(func(task Info) (bool, error) {
+	task := s.newTestTask(func(task persistence.Task) (bool, error) {
 		return true, nil
 	}, nil)
 
@@ -128,7 +128,7 @@ func (s *taskSuite) TestExecute_Success() {
 }
 
 func (s *taskSuite) TestHandleErr_ErrEntityNotExists() {
-	taskBase := s.newTestTask(func(task Info) (bool, error) {
+	taskBase := s.newTestTask(func(task persistence.Task) (bool, error) {
 		return true, nil
 	}, nil)
 
@@ -137,7 +137,7 @@ func (s *taskSuite) TestHandleErr_ErrEntityNotExists() {
 }
 
 func (s *taskSuite) TestHandleErr_ErrTaskRetry() {
-	taskBase := s.newTestTask(func(task Info) (bool, error) {
+	taskBase := s.newTestTask(func(task persistence.Task) (bool, error) {
 		return true, nil
 	}, nil)
 
@@ -146,7 +146,7 @@ func (s *taskSuite) TestHandleErr_ErrTaskRetry() {
 }
 
 func (s *taskSuite) TestHandleErr_ErrTaskDiscarded() {
-	taskBase := s.newTestTask(func(task Info) (bool, error) {
+	taskBase := s.newTestTask(func(task persistence.Task) (bool, error) {
 		return true, nil
 	}, nil)
 
@@ -155,7 +155,7 @@ func (s *taskSuite) TestHandleErr_ErrTaskDiscarded() {
 }
 
 func (s *taskSuite) TestHandleErr_ErrTargetDomainNotActive() {
-	taskBase := s.newTestTask(func(task Info) (bool, error) {
+	taskBase := s.newTestTask(func(task persistence.Task) (bool, error) {
 		return true, nil
 	}, nil)
 
@@ -171,7 +171,7 @@ func (s *taskSuite) TestHandleErr_ErrTargetDomainNotActive() {
 }
 
 func (s *taskSuite) TestHandleErr_ErrDomainNotActive() {
-	taskBase := s.newTestTask(func(task Info) (bool, error) {
+	taskBase := s.newTestTask(func(task persistence.Task) (bool, error) {
 		return true, nil
 	}, nil)
 
@@ -185,7 +185,7 @@ func (s *taskSuite) TestHandleErr_ErrDomainNotActive() {
 }
 
 func (s *taskSuite) TestHandleErr_ErrWorkflowRateLimited() {
-	taskBase := s.newTestTask(func(task Info) (bool, error) {
+	taskBase := s.newTestTask(func(task persistence.Task) (bool, error) {
 		return true, nil
 	}, nil)
 
@@ -194,7 +194,7 @@ func (s *taskSuite) TestHandleErr_ErrWorkflowRateLimited() {
 }
 
 func (s *taskSuite) TestHandleErr_ErrShardRecentlyClosed() {
-	taskBase := s.newTestTask(func(task Info) (bool, error) {
+	taskBase := s.newTestTask(func(task persistence.Task) (bool, error) {
 		return true, nil
 	}, nil)
 
@@ -210,7 +210,7 @@ func (s *taskSuite) TestHandleErr_ErrShardRecentlyClosed() {
 }
 
 func (s *taskSuite) TestHandleErr_ErrTaskListNotOwnedByHost() {
-	taskBase := s.newTestTask(func(task Info) (bool, error) {
+	taskBase := s.newTestTask(func(task persistence.Task) (bool, error) {
 		return true, nil
 	}, nil)
 
@@ -226,7 +226,7 @@ func (s *taskSuite) TestHandleErr_ErrTaskListNotOwnedByHost() {
 }
 
 func (s *taskSuite) TestHandleErr_ErrCurrentWorkflowConditionFailed() {
-	taskBase := s.newTestTask(func(task Info) (bool, error) {
+	taskBase := s.newTestTask(func(task persistence.Task) (bool, error) {
 		return true, nil
 	}, nil)
 
@@ -235,7 +235,7 @@ func (s *taskSuite) TestHandleErr_ErrCurrentWorkflowConditionFailed() {
 }
 
 func (s *taskSuite) TestHandleErr_UnknownErr() {
-	taskBase := s.newTestTask(func(task Info) (bool, error) {
+	taskBase := s.newTestTask(func(task persistence.Task) (bool, error) {
 		return true, nil
 	}, nil)
 
@@ -254,7 +254,7 @@ func (s *taskSuite) TestHandleErr_UnknownErr() {
 }
 
 func (s *taskSuite) TestTaskState() {
-	taskBase := s.newTestTask(func(task Info) (bool, error) {
+	taskBase := s.newTestTask(func(task persistence.Task) (bool, error) {
 		return true, nil
 	}, nil)
 
@@ -269,7 +269,7 @@ func (s *taskSuite) TestTaskState() {
 }
 
 func (s *taskSuite) TestTaskPriority() {
-	taskBase := s.newTestTask(func(task Info) (bool, error) {
+	taskBase := s.newTestTask(func(task persistence.Task) (bool, error) {
 		return true, nil
 	}, nil)
 
@@ -280,7 +280,7 @@ func (s *taskSuite) TestTaskPriority() {
 
 func (s *taskSuite) TestTaskNack_ResubmitSucceeded() {
 	task := s.newTestTask(
-		func(task Info) (bool, error) {
+		func(task persistence.Task) (bool, error) {
 			return true, nil
 		},
 		func(task Task) {
@@ -296,7 +296,7 @@ func (s *taskSuite) TestTaskNack_ResubmitSucceeded() {
 
 func (s *taskSuite) TestTaskNack_ResubmitFailed() {
 	task := s.newTestTask(
-		func(task Info) (bool, error) {
+		func(task persistence.Task) (bool, error) {
 			return true, nil
 		},
 		func(task Task) {
@@ -312,7 +312,7 @@ func (s *taskSuite) TestTaskNack_ResubmitFailed() {
 }
 
 func (s *taskSuite) TestHandleErr_ErrMaxAttempts() {
-	taskBase := s.newTestTask(func(task Info) (bool, error) {
+	taskBase := s.newTestTask(func(task persistence.Task) (bool, error) {
 		return true, nil
 	}, nil)
 
@@ -324,7 +324,7 @@ func (s *taskSuite) TestHandleErr_ErrMaxAttempts() {
 }
 
 func (s *taskSuite) TestRetryErr() {
-	taskBase := s.newTestTask(func(task Info) (bool, error) {
+	taskBase := s.newTestTask(func(task persistence.Task) (bool, error) {
 		return true, nil
 	}, nil)
 

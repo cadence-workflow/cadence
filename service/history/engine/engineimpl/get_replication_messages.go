@@ -23,6 +23,7 @@ package engineimpl
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/log/tag"
@@ -70,17 +71,12 @@ func (e *historyEngineImpl) GetDLQReplicationMessages(
 
 	tasks := make([]*types.ReplicationTask, 0, len(taskInfos))
 	for _, taskInfo := range taskInfos {
-		task, err := e.replicationHydrator.Hydrate(ctx, persistence.ReplicationTaskInfo{
-			DomainID:     taskInfo.DomainID,
-			WorkflowID:   taskInfo.WorkflowID,
-			RunID:        taskInfo.RunID,
-			TaskID:       taskInfo.TaskID,
-			TaskType:     int(taskInfo.TaskType),
-			FirstEventID: taskInfo.FirstEventID,
-			NextEventID:  taskInfo.NextEventID,
-			Version:      taskInfo.Version,
-			ScheduledID:  taskInfo.ScheduledID,
-		})
+		t, err := convertToReplicationTask(taskInfo)
+		if err != nil {
+			e.logger.Error("Failed to convert replication task.", tag.Error(err))
+			return nil, err
+		}
+		task, err := e.replicationHydrator.Hydrate(ctx, t)
 		if err != nil {
 			e.logger.Error("Failed to fetch DLQ replication messages.", tag.Error(err))
 			return nil, err
@@ -91,4 +87,46 @@ func (e *historyEngineImpl) GetDLQReplicationMessages(
 	}
 
 	return tasks, nil
+}
+
+func convertToReplicationTask(taskInfo *types.ReplicationTaskInfo) (persistence.Task, error) {
+	switch taskInfo.TaskType {
+	case persistence.ReplicationTaskTypeHistory:
+		return &persistence.HistoryReplicationTask{
+			WorkflowIdentifier: persistence.WorkflowIdentifier{
+				DomainID:   taskInfo.DomainID,
+				WorkflowID: taskInfo.WorkflowID,
+				RunID:      taskInfo.RunID,
+			},
+			TaskData: persistence.TaskData{
+				TaskID:  taskInfo.TaskID,
+				Version: taskInfo.Version,
+			},
+			FirstEventID: taskInfo.FirstEventID,
+			NextEventID:  taskInfo.NextEventID,
+		}, nil
+	case persistence.ReplicationTaskTypeSyncActivity:
+		return &persistence.SyncActivityTask{
+			WorkflowIdentifier: persistence.WorkflowIdentifier{
+				DomainID:   taskInfo.DomainID,
+				WorkflowID: taskInfo.WorkflowID,
+				RunID:      taskInfo.RunID,
+			},
+			TaskData: persistence.TaskData{
+				TaskID:  taskInfo.TaskID,
+				Version: taskInfo.Version,
+			},
+			ScheduledID: taskInfo.ScheduledID,
+		}, nil
+	case persistence.ReplicationTaskTypeFailoverMarker:
+		return &persistence.FailoverMarkerTask{
+			DomainID: taskInfo.DomainID,
+			TaskData: persistence.TaskData{
+				TaskID:  taskInfo.TaskID,
+				Version: taskInfo.Version,
+			},
+		}, nil
+	default:
+		return nil, fmt.Errorf("unsupported task type: %v", taskInfo.TaskType)
+	}
 }

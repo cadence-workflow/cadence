@@ -195,6 +195,8 @@ const (
 	PersistenceCompleteTimerTaskScope
 	// PersistenceGetHistoryTasksScope tracks GetHistoryTasks calls made by service to persistence layer
 	PersistenceGetHistoryTasksScope
+	// PersistenceCompleteHistoryTaskScope tracks CompleteHistoryTask calls made by service to persistence layer
+	PersistenceCompleteHistoryTaskScope
 	// PersistenceRangeCompleteHistoryTaskScope tracks RangeCompleteHistoryTask calls made by service to persistence layer
 	PersistenceRangeCompleteHistoryTaskScope
 	// PersistenceCreateTasksScope tracks CreateTask calls made by service to persistence layer
@@ -1441,6 +1443,7 @@ var ScopeDefs = map[ServiceIdx]map[int]scopeDefinition{
 		PersistenceGetTimerIndexTasksScope:                       {operation: "GetTimerIndexTasks"},
 		PersistenceCompleteTimerTaskScope:                        {operation: "CompleteTimerTask"},
 		PersistenceGetHistoryTasksScope:                          {operation: "GetHistoryTasks"},
+		PersistenceCompleteHistoryTaskScope:                      {operation: "CompleteHistoryTask"},
 		PersistenceRangeCompleteHistoryTaskScope:                 {operation: "RangeCompleteHistoryTask"},
 		PersistenceCreateTasksScope:                              {operation: "CreateTask"},
 		PersistenceGetTasksScope:                                 {operation: "GetTasks"},
@@ -2534,6 +2537,8 @@ const (
 	ReplicationTasksReturned
 	ReplicationTasksReturnedDiff
 	ReplicationTasksAppliedLatency
+	ReplicationTasksBatchSize
+	ReplicationDynamicTaskBatchSizerDecision
 	ReplicationDLQFailed
 	ReplicationDLQMaxLevelGauge
 	ReplicationDLQAckLevelGauge
@@ -3243,6 +3248,8 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		ReplicationTasksReturned:                                     {metricName: "replication_tasks_returned", metricType: Timer},
 		ReplicationTasksReturnedDiff:                                 {metricName: "replication_tasks_returned_diff", metricType: Timer},
 		ReplicationTasksAppliedLatency:                               {metricName: "replication_tasks_applied_latency", metricType: Timer},
+		ReplicationTasksBatchSize:                                    {metricName: "replication_tasks_batch_size", metricType: Gauge},
+		ReplicationDynamicTaskBatchSizerDecision:                     {metricName: "replication_dynamic_task_batch_sizer_decision", metricType: Counter},
 		ReplicationDLQFailed:                                         {metricName: "replication_dlq_enqueue_failed", metricType: Counter},
 		ReplicationDLQMaxLevelGauge:                                  {metricName: "replication_dlq_max_level", metricType: Gauge},
 		ReplicationDLQAckLevelGauge:                                  {metricName: "replication_dlq_ack_level", metricType: Gauge},

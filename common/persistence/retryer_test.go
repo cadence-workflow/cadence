@@ -527,38 +527,38 @@ func TestPersistenceRetryerGetHistoryTasks(t *testing.T) {
 	}
 }
 
-func TestPersistenceRetryerCompleteTimerTask(t *testing.T) {
+func TestPersistenceRetryerCompleteHistoryTask(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	tests := map[string]struct {
-		request                        *CompleteTimerTaskRequest
+		request                        *CompleteHistoryTaskRequest
 		mockExecutionManager           *MockExecutionManager
 		mockExecutionManagerAccordance func(mockExecutionManager *MockExecutionManager)
 		expectedError                  error
 	}{
 		"Success": {
-			request:              &CompleteTimerTaskRequest{},
+			request:              &CompleteHistoryTaskRequest{},
 			mockExecutionManager: NewMockExecutionManager(ctrl),
 			mockExecutionManagerAccordance: func(mockExecutionManager *MockExecutionManager) {
-				mockExecutionManager.EXPECT().CompleteTimerTask(gomock.Any(), gomock.Eq(&CompleteTimerTaskRequest{})).Return(nil)
+				mockExecutionManager.EXPECT().CompleteHistoryTask(gomock.Any(), gomock.Eq(&CompleteHistoryTaskRequest{})).Return(nil)
 			},
 			expectedError: nil,
 		},
 		"Transient Error": {
-			request:              &CompleteTimerTaskRequest{},
+			request:              &CompleteHistoryTaskRequest{},
 			mockExecutionManager: NewMockExecutionManager(ctrl),
 			mockExecutionManagerAccordance: func(mockExecutionManager *MockExecutionManager) {
 				gomock.InOrder(
-					mockExecutionManager.EXPECT().CompleteTimerTask(gomock.Any(), gomock.Eq(&CompleteTimerTaskRequest{})).Return(&types.InternalServiceError{}),
-					mockExecutionManager.EXPECT().CompleteTimerTask(gomock.Any(), gomock.Eq(&CompleteTimerTaskRequest{})).Return(nil),
+					mockExecutionManager.EXPECT().CompleteHistoryTask(gomock.Any(), gomock.Eq(&CompleteHistoryTaskRequest{})).Return(&types.InternalServiceError{}),
+					mockExecutionManager.EXPECT().CompleteHistoryTask(gomock.Any(), gomock.Eq(&CompleteHistoryTaskRequest{})).Return(nil),
 				)
 			},
 			expectedError: nil,
 		},
 		"Fatal Error": {
-			request:              &CompleteTimerTaskRequest{},
+			request:              &CompleteHistoryTaskRequest{},
 			mockExecutionManager: NewMockExecutionManager(ctrl),
 			mockExecutionManagerAccordance: func(mockExecutionManager *MockExecutionManager) {
-				mockExecutionManager.EXPECT().CompleteTimerTask(gomock.Any(), gomock.Eq(&CompleteTimerTaskRequest{})).Return(&types.AccessDeniedError{}).Times(1)
+				mockExecutionManager.EXPECT().CompleteHistoryTask(gomock.Any(), gomock.Eq(&CompleteHistoryTaskRequest{})).Return(&types.AccessDeniedError{}).Times(1)
 			},
 			expectedError: &types.AccessDeniedError{},
 		},
@@ -570,7 +570,7 @@ func TestPersistenceRetryerCompleteTimerTask(t *testing.T) {
 			}
 			retryer := NewPersistenceRetryer(test.mockExecutionManager, NewMockHistoryManager(ctrl), backoff.NewExponentialRetryPolicy(time.Nanosecond))
 
-			err := retryer.CompleteTimerTask(context.Background(), test.request)
+			err := retryer.CompleteHistoryTask(context.Background(), test.request)
 			if test.expectedError != nil {
 				assert.Equal(t, test.expectedError, err)
 			} else {

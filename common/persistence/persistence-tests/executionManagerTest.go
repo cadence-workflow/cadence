@@ -2611,20 +2611,8 @@ func (s *ExecutionManagerSuite) TestReplicationTasks() {
 	s.Equal(len(replicationTasks), len(respTasks))
 
 	for index := range replicationTasks {
-		s.Equal(replicationTasks[index].GetTaskID(), respTasks[index].GetTaskID())
-		s.Equal(replicationTasks[index].GetTaskType(), respTasks[index].GetTaskType())
-		s.Equal(replicationTasks[index].GetVersion(), respTasks[index].GetVersion())
-		switch replicationTasks[index].GetTaskType() {
-		case p.ReplicationTaskTypeHistory:
-			expected := replicationTasks[index].(*p.HistoryReplicationTask)
-			s.Equal(expected.FirstEventID, respTasks[index].FirstEventID)
-			s.Equal(expected.NextEventID, respTasks[index].NextEventID)
-			s.Equal(expected.BranchToken, respTasks[index].BranchToken)
-			s.Equal(expected.NewRunBranchToken, respTasks[index].NewRunBranchToken)
-		case p.ReplicationTaskTypeSyncActivity:
-			expected := replicationTasks[index].(*p.SyncActivityTask)
-			s.Equal(expected.ScheduledID, respTasks[index].ScheduledID)
-		}
+		respTasks[index].SetVisibilityTimestamp(replicationTasks[index].GetVisibilityTimestamp()) // ignore visibility timestamp
+		s.Equal(replicationTasks[index], respTasks[index])
 		err = s.CompleteReplicationTask(ctx, respTasks[index].GetTaskID())
 		s.NoError(err)
 	}
@@ -3893,8 +3881,8 @@ func (s *ExecutionManagerSuite) TestReplicationTransferTaskTasks() {
 	s.NoError(err)
 	s.NotNil(tasks1, "expected valid list of tasks.")
 	s.Equal(1, len(tasks1), "Expected 1 replication task.")
-	task1 := tasks1[0]
-	s.Equal(p.ReplicationTaskTypeHistory, task1.TaskType)
+	task1, ok := tasks1[0].(*p.HistoryReplicationTask)
+	s.True(ok, "expected a history replication task")
 	s.Equal(domainID, task1.DomainID)
 	s.Equal(workflowExecution.GetWorkflowID(), task1.WorkflowID)
 	s.Equal(workflowExecution.GetRunID(), task1.RunID)
@@ -3985,8 +3973,8 @@ func (s *ExecutionManagerSuite) TestReplicationTransferTaskRangeComplete() {
 	s.NoError(err)
 	s.NotNil(tasks1, "expected valid list of tasks.")
 	s.Equal(2, len(tasks1), "Expected 2 replication tasks.")
-	task1 := tasks1[0]
-	s.Equal(p.ReplicationTaskTypeHistory, task1.TaskType)
+	task1, ok := tasks1[0].(*p.HistoryReplicationTask)
+	s.True(ok, "expected a history replication task")
 	s.Equal(domainID, task1.DomainID)
 	s.Equal(workflowExecution.GetWorkflowID(), task1.WorkflowID)
 	s.Equal(workflowExecution.GetRunID(), task1.RunID)
@@ -3994,8 +3982,8 @@ func (s *ExecutionManagerSuite) TestReplicationTransferTaskRangeComplete() {
 	s.Equal(int64(3), task1.NextEventID)
 	s.Equal(int64(9), task1.Version)
 
-	task2 := tasks1[1]
-	s.Equal(p.ReplicationTaskTypeHistory, task2.TaskType)
+	task2, ok := tasks1[1].(*p.HistoryReplicationTask)
+	s.True(ok, "expected a history replication task")
 	s.Equal(domainID, task2.DomainID)
 	s.Equal(workflowExecution.GetWorkflowID(), task2.WorkflowID)
 	s.Equal(workflowExecution.GetRunID(), task2.RunID)
@@ -5820,10 +5808,10 @@ func (s *ExecutionManagerSuite) TestCreateFailoverMarkerTasks() {
 	tasks, err := s.GetReplicationTasks(ctx, 1, true)
 	s.NoError(err)
 	s.Equal(len(tasks), 1)
-	s.Equal(tasks[0].Version, int64(1))
-	s.Equal(tasks[0].TaskID, int64(1))
-	s.Equal(tasks[0].DomainID, domainID)
-	s.Equal(tasks[0].TaskType, p.ReplicationTaskTypeFailoverMarker)
+	s.Equal(tasks[0].GetVersion(), int64(1))
+	s.Equal(tasks[0].GetTaskID(), int64(1))
+	s.Equal(tasks[0].GetDomainID(), domainID)
+	s.Equal(tasks[0].GetTaskType(), p.ReplicationTaskTypeFailoverMarker)
 }
 
 func copyWorkflowExecutionInfo(sourceInfo *p.WorkflowExecutionInfo) *p.WorkflowExecutionInfo {

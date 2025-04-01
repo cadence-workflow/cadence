@@ -115,9 +115,14 @@ func (t *transferActiveTaskExecutor) Execute(
 	shouldProcessTask bool,
 ) error {
 
-	transferTask, ok := task.GetInfo().(*persistence.TransferTaskInfo)
+	transfer, ok := task.GetInfo().(persistence.Task)
 	if !ok {
 		return errUnexpectedTask
+	}
+
+	transferTask, err := transfer.ToTransferTaskInfo()
+	if err != nil {
+		return err
 	}
 
 	if !shouldProcessTask {

@@ -836,175 +836,6 @@ func (m *sqlExecutionStore) ListConcreteExecutions(
 	}, nil
 }
 
-func (m *sqlExecutionStore) GetTransferTasks(
-	ctx context.Context,
-	request *p.GetTransferTasksRequest,
-) (*p.GetTransferTasksResponse, error) {
-	minReadLevel := request.ReadLevel
-	if len(request.NextPageToken) > 0 {
-		readLevel, err := deserializePageToken(request.NextPageToken)
-		if err != nil {
-			return nil, convertCommonErrors(m.db, "GetTransferTasks", "failed to deserialize page token", err)
-		}
-		minReadLevel = readLevel
-	}
-	rows, err := m.db.SelectFromTransferTasks(ctx, &sqlplugin.TransferTasksFilter{
-		ShardID:            m.shardID,
-		InclusiveMinTaskID: minReadLevel,
-		ExclusiveMaxTaskID: request.MaxReadLevel,
-		PageSize:           request.BatchSize,
-	})
-	if err != nil {
-		if err != sql.ErrNoRows {
-			return nil, convertCommonErrors(m.db, "GetTransferTasks", "", err)
-		}
-	}
-	resp := &p.GetTransferTasksResponse{Tasks: make([]*p.TransferTaskInfo, len(rows))}
-	for i, row := range rows {
-		info, err := m.parser.TransferTaskInfoFromBlob(row.Data, row.DataEncoding)
-		if err != nil {
-			return nil, err
-		}
-		resp.Tasks[i] = &p.TransferTaskInfo{
-			TaskID:                  row.TaskID,
-			DomainID:                info.DomainID.String(),
-			WorkflowID:              info.GetWorkflowID(),
-			RunID:                   info.RunID.String(),
-			VisibilityTimestamp:     info.GetVisibilityTimestamp(),
-			TargetDomainID:          info.TargetDomainID.String(),
-			TargetDomainIDs:         info.GetTargetDomainIDs(),
-			TargetWorkflowID:        info.GetTargetWorkflowID(),
-			TargetRunID:             info.TargetRunID.String(),
-			TargetChildWorkflowOnly: info.GetTargetChildWorkflowOnly(),
-			TaskList:                info.GetTaskList(),
-			TaskType:                int(info.GetTaskType()),
-			ScheduleID:              info.GetScheduleID(),
-			Version:                 info.GetVersion(),
-		}
-	}
-	if len(rows) > 0 {
-		nextTaskID := rows[len(rows)-1].TaskID + 1
-		if nextTaskID < request.MaxReadLevel {
-			resp.NextPageToken = serializePageToken(nextTaskID)
-		}
-	}
-	return resp, nil
-}
-
-func (m *sqlExecutionStore) CompleteTransferTask(
-	ctx context.Context,
-	request *p.CompleteTransferTaskRequest,
-) error {
-
-	if _, err := m.db.DeleteFromTransferTasks(ctx, &sqlplugin.TransferTasksFilter{
-		ShardID: m.shardID,
-		TaskID:  request.TaskID,
-	}); err != nil {
-		return convertCommonErrors(m.db, "CompleteTransferTask", "", err)
-	}
-	return nil
-}
-
-func (m *sqlExecutionStore) GetCrossClusterTasks(
-	ctx context.Context,
-	request *p.GetCrossClusterTasksRequest,
-) (*p.GetCrossClusterTasksResponse, error) {
-	minReadLevel := request.ReadLevel
-	if len(request.NextPageToken) > 0 {
-		readLevel, err := deserializePageToken(request.NextPageToken)
-		if err != nil {
-			return nil, convertCommonErrors(m.db, "GetCrossClusterTasks", "failed to deserialize page token", err)
-		}
-		minReadLevel = readLevel
-	}
-	rows, err := m.db.SelectFromCrossClusterTasks(ctx, &sqlplugin.CrossClusterTasksFilter{
-		TargetCluster: request.TargetCluster,
-		ShardID:       m.shardID,
-		MinTaskID:     minReadLevel,
-		MaxTaskID:     request.MaxReadLevel,
-		PageSize:      request.BatchSize,
-	})
-	if err != nil {
-		if err != sql.ErrNoRows {
-			return nil, convertCommonErrors(m.db, "GetCrossClusterTasks", "", err)
-		}
-	}
-	resp := &p.GetCrossClusterTasksResponse{Tasks: make([]*p.CrossClusterTaskInfo, len(rows))}
-	for i, row := range rows {
-		info, err := m.parser.CrossClusterTaskInfoFromBlob(row.Data, row.DataEncoding)
-		if err != nil {
-			return nil, err
-		}
-		resp.Tasks[i] = &p.CrossClusterTaskInfo{
-			TaskID:                  row.TaskID,
-			DomainID:                info.DomainID.String(),
-			WorkflowID:              info.GetWorkflowID(),
-			RunID:                   info.RunID.String(),
-			VisibilityTimestamp:     info.GetVisibilityTimestamp(),
-			TargetDomainID:          info.TargetDomainID.String(),
-			TargetDomainIDs:         info.GetTargetDomainIDs(),
-			TargetWorkflowID:        info.GetTargetWorkflowID(),
-			TargetRunID:             info.TargetRunID.String(),
-			TargetChildWorkflowOnly: info.GetTargetChildWorkflowOnly(),
-			TaskList:                info.GetTaskList(),
-			TaskType:                int(info.GetTaskType()),
-			ScheduleID:              info.GetScheduleID(),
-			Version:                 info.GetVersion(),
-		}
-	}
-	if len(rows) > 0 {
-		lastTaskID := rows[len(rows)-1].TaskID
-		if lastTaskID < request.MaxReadLevel {
-			resp.NextPageToken = serializePageToken(lastTaskID)
-		}
-	}
-	return resp, nil
-
-}
-
-func (m *sqlExecutionStore) CompleteCrossClusterTask(
-	ctx context.Context,
-	request *p.CompleteCrossClusterTaskRequest,
-) error {
-	if _, err := m.db.DeleteFromCrossClusterTasks(ctx, &sqlplugin.CrossClusterTasksFilter{
-		TargetCluster: request.TargetCluster,
-		ShardID:       m.shardID,
-		TaskID:        request.TaskID,
-	}); err != nil {
-		return convertCommonErrors(m.db, "CompleteCrossClusterTask", "", err)
-	}
-	return nil
-}
-
-func (m *sqlExecutionStore) GetReplicationTasks(
-	ctx context.Context,
-	request *p.GetReplicationTasksRequest,
-) (*p.InternalGetReplicationTasksResponse, error) {
-
-	readLevel, maxReadLevel, err := getReadLevels(request)
-	if err != nil {
-		return nil, err
-	}
-
-	rows, err := m.db.SelectFromReplicationTasks(
-		ctx,
-		&sqlplugin.ReplicationTasksFilter{
-			ShardID:            m.shardID,
-			InclusiveMinTaskID: readLevel,
-			ExclusiveMaxTaskID: maxReadLevel,
-			PageSize:           request.BatchSize,
-		})
-
-	switch err {
-	case nil:
-		return m.populateGetReplicationTasksResponse(rows, request.MaxReadLevel)
-	case sql.ErrNoRows:
-		return &p.InternalGetReplicationTasksResponse{}, nil
-	default:
-		return nil, convertCommonErrors(m.db, "GetReplicationTasks", "", err)
-	}
-}
-
 func getReadLevels(request *p.GetReplicationTasksRequest) (readLevel int64, maxReadLevel int64, err error) {
 	readLevel = request.ReadLevel
 	if len(request.NextPageToken) > 0 {
@@ -1059,24 +890,10 @@ func (m *sqlExecutionStore) populateGetReplicationTasksResponse(
 	}, nil
 }
 
-func (m *sqlExecutionStore) CompleteReplicationTask(
-	ctx context.Context,
-	request *p.CompleteReplicationTaskRequest,
-) error {
-
-	if _, err := m.db.DeleteFromReplicationTasks(ctx, &sqlplugin.ReplicationTasksFilter{
-		ShardID: m.shardID,
-		TaskID:  request.TaskID,
-	}); err != nil {
-		return convertCommonErrors(m.db, "CompleteReplicationTask", "", err)
-	}
-	return nil
-}
-
 func (m *sqlExecutionStore) GetReplicationTasksFromDLQ(
 	ctx context.Context,
 	request *p.GetReplicationTasksFromDLQRequest,
-) (*p.InternalGetReplicationTasksFromDLQResponse, error) {
+) (*p.GetHistoryTasksResponse, error) {
 
 	readLevel, maxReadLevel, err := getReadLevels(&request.GetReplicationTasksRequest)
 	if err != nil {
@@ -1093,15 +910,28 @@ func (m *sqlExecutionStore) GetReplicationTasksFromDLQ(
 		ReplicationTasksFilter: filter,
 		SourceClusterName:      request.SourceClusterName,
 	})
-
-	switch err {
-	case nil:
-		return m.populateGetReplicationTasksResponse(rows, request.MaxReadLevel)
-	case sql.ErrNoRows:
-		return &p.InternalGetReplicationTasksResponse{}, nil
-	default:
-		return nil, convertCommonErrors(m.db, "GetReplicationTasksFromDLQ", "", err)
+	if err != nil {
+		if err != sql.ErrNoRows {
+			return nil, convertCommonErrors(m.db, "GetReplicationTasksFromDLQ", "", err)
+		}
 	}
+	var tasks []p.Task
+	for _, row := range rows {
+		task, err := m.taskSerializer.DeserializeTask(p.HistoryTaskCategoryReplication, p.NewDataBlob(row.Data, constants.EncodingType(row.DataEncoding)))
+		if err != nil {
+			return nil, convertCommonErrors(m.db, "GetReplicationTasksFromDLQ", "", err)
+		}
+		task.SetTaskID(row.TaskID)
+		tasks = append(tasks, task)
+	}
+	resp := &p.GetHistoryTasksResponse{Tasks: tasks}
+	if len(rows) > 0 {
+		nextTaskID := rows[len(rows)-1].TaskID + 1
+		if nextTaskID < maxReadLevel {
+			resp.NextPageToken = serializePageToken(nextTaskID)
+		}
+	}
+	return resp, nil
 }
 
 func (m *sqlExecutionStore) GetReplicationDLQSize(
@@ -1228,21 +1058,6 @@ func (t *timerTaskPageToken) serialize() ([]byte, error) {
 
 func (t *timerTaskPageToken) deserialize(payload []byte) error {
 	return json.Unmarshal(payload, t)
-}
-
-func (m *sqlExecutionStore) CompleteTimerTask(
-	ctx context.Context,
-	request *p.CompleteTimerTaskRequest,
-) error {
-
-	if _, err := m.db.DeleteFromTimerTasks(ctx, &sqlplugin.TimerTasksFilter{
-		ShardID:             m.shardID,
-		VisibilityTimestamp: request.VisibilityTimestamp,
-		TaskID:              request.TaskID,
-	}); err != nil {
-		return convertCommonErrors(m.db, "CompleteTimerTask", "", err)
-	}
-	return nil
 }
 
 func (m *sqlExecutionStore) PutReplicationTaskToDLQ(
@@ -1503,6 +1318,65 @@ func (m *sqlExecutionStore) getScheduledHistoryTasks(
 		return resp, nil
 	default:
 		return nil, &types.BadRequestError{Message: fmt.Sprintf("Unknown task category ID: %v", request.TaskCategory.ID())}
+	}
+}
+
+func (m *sqlExecutionStore) CompleteHistoryTask(
+	ctx context.Context,
+	request *p.CompleteHistoryTaskRequest,
+) error {
+	switch request.TaskCategory.Type() {
+	case p.HistoryTaskCategoryTypeScheduled:
+		return m.completeScheduledHistoryTask(ctx, request)
+	case p.HistoryTaskCategoryTypeImmediate:
+		return m.completeImmediateHistoryTask(ctx, request)
+	default:
+		return &types.BadRequestError{Message: fmt.Sprintf("Unknown task category type: %v", request.TaskCategory.Type())}
+	}
+}
+
+func (m *sqlExecutionStore) completeScheduledHistoryTask(
+	ctx context.Context,
+	request *p.CompleteHistoryTaskRequest,
+) error {
+	switch request.TaskCategory.ID() {
+	case p.HistoryTaskCategoryIDTimer:
+		if _, err := m.db.DeleteFromTimerTasks(ctx, &sqlplugin.TimerTasksFilter{
+			ShardID:             m.shardID,
+			VisibilityTimestamp: request.TaskKey.ScheduledTime,
+			TaskID:              request.TaskKey.TaskID,
+		}); err != nil {
+			return convertCommonErrors(m.db, "CompleteScheduledHistoryTask", "", err)
+		}
+		return nil
+	default:
+		return &types.BadRequestError{Message: fmt.Sprintf("Unknown task category ID: %v", request.TaskCategory.ID())}
+	}
+}
+
+func (m *sqlExecutionStore) completeImmediateHistoryTask(
+	ctx context.Context,
+	request *p.CompleteHistoryTaskRequest,
+) error {
+	switch request.TaskCategory.ID() {
+	case p.HistoryTaskCategoryIDTransfer:
+		if _, err := m.db.DeleteFromTransferTasks(ctx, &sqlplugin.TransferTasksFilter{
+			ShardID: m.shardID,
+			TaskID:  request.TaskKey.TaskID,
+		}); err != nil {
+			return convertCommonErrors(m.db, "CompleteImmediateHistoryTask", "", err)
+		}
+		return nil
+	case p.HistoryTaskCategoryIDReplication:
+		if _, err := m.db.DeleteFromReplicationTasks(ctx, &sqlplugin.ReplicationTasksFilter{
+			ShardID: m.shardID,
+			TaskID:  request.TaskKey.TaskID,
+		}); err != nil {
+			return convertCommonErrors(m.db, "CompleteImmediateHistoryTask", "", err)
+		}
+		return nil
+	default:
+		return &types.BadRequestError{Message: fmt.Sprintf("Unknown task category ID: %v", request.TaskCategory.ID())}
 	}
 }
 

@@ -41,11 +41,36 @@ import (
 )
 
 var (
-	testTask11 = persistence.ReplicationTaskInfo{TaskID: 11, DomainID: testDomainID}
-	testTask12 = persistence.ReplicationTaskInfo{TaskID: 12, DomainID: testDomainID}
-	testTask13 = persistence.ReplicationTaskInfo{TaskID: 13, DomainID: testDomainID}
-	testTask14 = persistence.ReplicationTaskInfo{TaskID: 14, DomainID: testDomainID}
-
+	testTask11 = persistence.HistoryReplicationTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID: testDomainID,
+		},
+		TaskData: persistence.TaskData{
+			TaskID: 11,
+		},
+	}
+	testTask12 = persistence.SyncActivityTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID: testDomainID,
+		},
+		TaskData: persistence.TaskData{
+			TaskID: 12,
+		},
+	}
+	testTask13 = persistence.HistoryReplicationTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID: testDomainID,
+		},
+		TaskData: persistence.TaskData{
+			TaskID: 13,
+		},
+	}
+	testTask14 = persistence.FailoverMarkerTask{
+		DomainID: testDomainID,
+		TaskData: persistence.TaskData{
+			TaskID: 14,
+		},
+	}
 	testHydratedTask11 = types.ReplicationTask{SourceTaskID: 11, HistoryTaskV2Attributes: &types.HistoryTaskV2Attributes{DomainID: testDomainID}}
 	testHydratedTask12 = types.ReplicationTask{SourceTaskID: 12, SyncActivityTaskAttributes: &types.SyncActivityTaskAttributes{DomainID: testDomainID}}
 	testHydratedTask13 = types.ReplicationTask{SourceTaskID: 13, HistoryTaskV2Attributes: &types.HistoryTaskV2Attributes{DomainID: testDomainID}}
@@ -73,6 +98,10 @@ var (
 		0,
 		0,
 	)
+
+	testConfig = &config.Config{
+		MaxResponseSize: testMaxResponseSize,
+	}
 )
 
 const (
@@ -88,6 +117,7 @@ func TestTaskAckManager_GetTasks(t *testing.T) {
 		hydrator       taskHydrator
 		pollingCluster string
 		lastReadLevel  int64
+		batchSize      fakeDynamicTaskBatchSizer
 		expectResult   *types.ReplicationMessages
 		expectErr      string
 		expectAckLevel int64
@@ -104,13 +134,14 @@ func TestTaskAckManager_GetTasks(t *testing.T) {
 			hydrator:       fakeTaskHydrator{},
 			pollingCluster: testClusterA,
 			lastReadLevel:  5,
+			batchSize:      10,
 			expectResult: &types.ReplicationMessages{
 				ReplicationTasks:       []*types.ReplicationTask{},
 				LastRetrievedMessageID: 5,
 				HasMore:                false,
 			},
 			expectAckLevel: 5,
-			config:         &config.Config{MaxResponseSize: testMaxResponseSize},
+			config:         testConfig,
 		},
 		{
 			name: "main flow - continues on recoverable error",
@@ -128,13 +159,14 @@ func TestTaskAckManager_GetTasks(t *testing.T) {
 			},
 			pollingCluster: testClusterA,
 			lastReadLevel:  5,
+			batchSize:      10,
 			expectResult: &types.ReplicationMessages{
 				ReplicationTasks:       []*types.ReplicationTask{&testHydratedTask11, &testHydratedTask12, &testHydratedTask14},
 				LastRetrievedMessageID: 14,
 				HasMore:                false,
 			},
 			expectAckLevel: 5,
-			config:         &config.Config{MaxResponseSize: testMaxResponseSize},
+			config:         testConfig,
 		},
 		{
 			name: "main flow - stops at non recoverable error",
@@ -152,13 +184,39 @@ func TestTaskAckManager_GetTasks(t *testing.T) {
 			},
 			pollingCluster: testClusterA,
 			lastReadLevel:  5,
+			batchSize:      10,
 			expectResult: &types.ReplicationMessages{
 				ReplicationTasks:       []*types.ReplicationTask{&testHydratedTask11, &testHydratedTask12},
 				LastRetrievedMessageID: 12,
 				HasMore:                true,
 			},
 			expectAckLevel: 5,
-			config:         &config.Config{MaxResponseSize: testMaxResponseSize},
+			config:         testConfig,
+		},
+		{
+			name: "main flow - stops at second task, batch size is 2",
+			ackLevels: &fakeAckLevelStore{
+				readLevel: 200,
+				remote:    map[string]int64{testClusterA: 2},
+			},
+			domains: fakeDomainCache{testDomainID: testDomain},
+			reader:  fakeTaskReader{&testTask11, &testTask12, &testTask13, &testTask14},
+			hydrator: fakeTaskHydrator{
+				testTask11.TaskID: testHydratedTask11,
+				testTask12.TaskID: testHydratedTask12, // Will stop hydrating beyond this point
+				testTask13.TaskID: testHydratedTask13,
+				testTask14.TaskID: testHydratedTask14,
+			},
+			pollingCluster: testClusterA,
+			lastReadLevel:  5,
+			batchSize:      2,
+			expectResult: &types.ReplicationMessages{
+				ReplicationTasks:       []*types.ReplicationTask{&testHydratedTask11, &testHydratedTask12},
+				LastRetrievedMessageID: 12,
+				HasMore:                true,
+			},
+			expectAckLevel: 5,
+			config:         testConfig,
 		},
 		{
 			name: "main flow - stops at a message exceeded max response size",
@@ -182,6 +240,7 @@ func TestTaskAckManager_GetTasks(t *testing.T) {
 				HasMore:                true,
 			},
 			expectAckLevel: 5,
+			batchSize:      10,
 			config: &config.Config{
 				MaxResponseSize: proto.FromReplicationMessages(&types.ReplicationMessages{
 					ReplicationTasks:       []*types.ReplicationTask{&testHydratedTask11, &testHydratedTask12, &testHydratedTask13},
@@ -206,6 +265,7 @@ func TestTaskAckManager_GetTasks(t *testing.T) {
 			},
 			pollingCluster: testClusterA,
 			lastReadLevel:  5,
+			batchSize:      10,
 			expectResult:   nil,
 			expectErr:      "replication messages size is too large and cannot be shrunk anymore, shard will be stuck until the message size is reduced or max size is increased",
 			expectAckLevel: 2,
@@ -224,13 +284,14 @@ func TestTaskAckManager_GetTasks(t *testing.T) {
 			hydrator:       fakeTaskHydrator{testTask11.TaskID: testHydratedTask11},
 			pollingCluster: testClusterB,
 			lastReadLevel:  5,
+			batchSize:      10,
 			expectResult: &types.ReplicationMessages{
 				ReplicationTasks:       []*types.ReplicationTask{},
 				LastRetrievedMessageID: 11,
 				HasMore:                false,
 			},
 			expectAckLevel: 5,
-			config:         &config.Config{MaxResponseSize: testMaxResponseSize},
+			config:         testConfig,
 		},
 		{
 			name: "uses remote ack level for first fetch (empty task ID)",
@@ -243,13 +304,14 @@ func TestTaskAckManager_GetTasks(t *testing.T) {
 			hydrator:       fakeTaskHydrator{testTask12.TaskID: testHydratedTask12},
 			pollingCluster: testClusterA,
 			lastReadLevel:  -1,
+			batchSize:      10,
 			expectResult: &types.ReplicationMessages{
 				ReplicationTasks:       []*types.ReplicationTask{&testHydratedTask12},
 				LastRetrievedMessageID: 12,
 				HasMore:                false,
 			},
 			expectAckLevel: 12,
-			config:         &config.Config{MaxResponseSize: testMaxResponseSize},
+			config:         testConfig,
 		},
 		{
 			name: "failed to read replication tasks - return error",
@@ -260,8 +322,9 @@ func TestTaskAckManager_GetTasks(t *testing.T) {
 			reader:         (fakeTaskReader)(nil),
 			pollingCluster: testClusterA,
 			lastReadLevel:  5,
+			batchSize:      10,
 			expectErr:      "error reading replication tasks",
-			config:         &config.Config{MaxResponseSize: testMaxResponseSize},
+			config:         testConfig,
 		},
 		{
 			name: "failed to get domain - stops",
@@ -274,12 +337,13 @@ func TestTaskAckManager_GetTasks(t *testing.T) {
 			hydrator:       fakeTaskHydrator{},
 			pollingCluster: testClusterA,
 			lastReadLevel:  5,
+			batchSize:      10,
 			expectResult: &types.ReplicationMessages{
 				ReplicationTasks:       []*types.ReplicationTask{},
 				LastRetrievedMessageID: 5,
 				HasMore:                true,
 			},
-			config: &config.Config{MaxResponseSize: testMaxResponseSize},
+			config: testConfig,
 		},
 		{
 			name: "failed to update ack level - no error, return response anyway",
@@ -293,12 +357,13 @@ func TestTaskAckManager_GetTasks(t *testing.T) {
 			hydrator:       fakeTaskHydrator{testTask11.TaskID: testHydratedTask11},
 			pollingCluster: testClusterA,
 			lastReadLevel:  5,
+			batchSize:      10,
 			expectResult: &types.ReplicationMessages{
 				ReplicationTasks:       []*types.ReplicationTask{&testHydratedTask11},
 				LastRetrievedMessageID: 11,
 				HasMore:                false,
 			},
-			config: &config.Config{MaxResponseSize: testMaxResponseSize},
+			config: testConfig,
 		},
 	}
 
@@ -315,6 +380,7 @@ func TestTaskAckManager_GetTasks(t *testing.T) {
 				clock.NewMockedTimeSource(),
 				tt.config,
 				proto.ReplicationMessagesSize,
+				tt.batchSize,
 			)
 			result, err := ackManager.GetTasks(context.Background(), tt.pollingCluster, tt.lastReadLevel)
 
@@ -349,32 +415,37 @@ func (s *fakeAckLevelStore) UpdateClusterReplicationLevel(cluster string, lastTa
 	return s.updateErr
 }
 
-type fakeTaskReader []*persistence.ReplicationTaskInfo
+type fakeTaskReader []persistence.Task
 
-func (r fakeTaskReader) Read(ctx context.Context, readLevel int64, maxReadLevel int64) ([]*persistence.ReplicationTaskInfo, bool, error) {
+func (r fakeTaskReader) Read(ctx context.Context, readLevel int64, maxReadLevel int64, batchSize int) ([]persistence.Task, bool, error) {
 	if r == nil {
 		return nil, false, errors.New("error reading replication tasks")
 	}
 
 	hasMore := false
-	var result []*persistence.ReplicationTaskInfo
+	var result []persistence.Task
 	for _, task := range r {
-		if task.TaskID < readLevel {
+		if task.GetTaskID() < readLevel {
 			continue
 		}
-		if task.TaskID >= maxReadLevel {
+		if task.GetTaskID() >= maxReadLevel {
 			hasMore = true
 			break
 		}
 		result = append(result, task)
 	}
+
+	if len(result) > batchSize {
+		return result[:batchSize], true, nil
+	}
+
 	return result, hasMore, nil
 }
 
 type fakeTaskHydrator map[int64]types.ReplicationTask
 
-func (h fakeTaskHydrator) Hydrate(ctx context.Context, task persistence.ReplicationTaskInfo) (*types.ReplicationTask, error) {
-	if hydratedTask, ok := h[task.TaskID]; ok {
+func (h fakeTaskHydrator) Hydrate(ctx context.Context, task persistence.Task) (*types.ReplicationTask, error) {
+	if hydratedTask, ok := h[task.GetTaskID()]; ok {
 		if hydratedTask == testHydratedTaskErrorNonRecoverable {
 			return nil, errors.New("error hydrating task")
 		}
@@ -385,3 +456,8 @@ func (h fakeTaskHydrator) Hydrate(ctx context.Context, task persistence.Replicat
 	}
 	panic("fix the test, should not reach this")
 }
+
+type fakeDynamicTaskBatchSizer int
+
+func (s fakeDynamicTaskBatchSizer) analyse(_ error, _ *getTasksResult) {}
+func (s fakeDynamicTaskBatchSizer) value() int                         { return int(s) }

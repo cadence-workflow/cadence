@@ -848,44 +848,6 @@ func (m *executionManagerImpl) ListConcreteExecutions(
 	return newResponse, nil
 }
 
-// Transfer task related methods
-func (m *executionManagerImpl) GetTransferTasks(
-	ctx context.Context,
-	request *GetTransferTasksRequest,
-) (*GetTransferTasksResponse, error) {
-	return m.persistence.GetTransferTasks(ctx, request)
-}
-
-func (m *executionManagerImpl) CompleteTransferTask(
-	ctx context.Context,
-	request *CompleteTransferTaskRequest,
-) error {
-	return m.persistence.CompleteTransferTask(ctx, request)
-}
-
-// Replication task related methods
-func (m *executionManagerImpl) GetReplicationTasks(
-	ctx context.Context,
-	request *GetReplicationTasksRequest,
-) (*GetReplicationTasksResponse, error) {
-	resp, err := m.persistence.GetReplicationTasks(ctx, request)
-	if err != nil {
-		return nil, err
-	}
-
-	return &GetReplicationTasksResponse{
-		Tasks:         m.fromInternalReplicationTaskInfos(resp.Tasks),
-		NextPageToken: resp.NextPageToken,
-	}, nil
-}
-
-func (m *executionManagerImpl) CompleteReplicationTask(
-	ctx context.Context,
-	request *CompleteReplicationTaskRequest,
-) error {
-	return m.persistence.CompleteReplicationTask(ctx, request)
-}
-
 func (m *executionManagerImpl) PutReplicationTaskToDLQ(
 	ctx context.Context,
 	request *PutReplicationTaskToDLQRequest,
@@ -900,15 +862,8 @@ func (m *executionManagerImpl) PutReplicationTaskToDLQ(
 func (m *executionManagerImpl) GetReplicationTasksFromDLQ(
 	ctx context.Context,
 	request *GetReplicationTasksFromDLQRequest,
-) (*GetReplicationTasksFromDLQResponse, error) {
-	resp, err := m.persistence.GetReplicationTasksFromDLQ(ctx, request)
-	if err != nil {
-		return nil, err
-	}
-	return &GetReplicationTasksFromDLQResponse{
-		Tasks:         m.fromInternalReplicationTaskInfos(resp.Tasks),
-		NextPageToken: resp.NextPageToken,
-	}, nil
+) (*GetHistoryTasksResponse, error) {
+	return m.persistence.GetReplicationTasksFromDLQ(ctx, request)
 }
 
 func (m *executionManagerImpl) GetReplicationDLQSize(
@@ -938,13 +893,6 @@ func (m *executionManagerImpl) CreateFailoverMarkerTasks(
 ) error {
 	request.CurrentTimeStamp = m.timeSrc.Now()
 	return m.persistence.CreateFailoverMarkerTasks(ctx, request)
-}
-
-func (m *executionManagerImpl) CompleteTimerTask(
-	ctx context.Context,
-	request *CompleteTimerTaskRequest,
-) error {
-	return m.persistence.CompleteTimerTask(ctx, request)
 }
 
 func (m *executionManagerImpl) Close() {
@@ -1008,6 +956,13 @@ func (m *executionManagerImpl) GetHistoryTasks(
 	request *GetHistoryTasksRequest,
 ) (*GetHistoryTasksResponse, error) {
 	return m.persistence.GetHistoryTasks(ctx, request)
+}
+
+func (m *executionManagerImpl) CompleteHistoryTask(
+	ctx context.Context,
+	request *CompleteHistoryTaskRequest,
+) error {
+	return m.persistence.CompleteHistoryTask(ctx, request)
 }
 
 func (m *executionManagerImpl) RangeCompleteHistoryTask(

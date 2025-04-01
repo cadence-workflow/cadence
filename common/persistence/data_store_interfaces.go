@@ -110,25 +110,17 @@ type (
 		GetCurrentExecution(ctx context.Context, request *GetCurrentExecutionRequest) (*GetCurrentExecutionResponse, error)
 		IsWorkflowExecutionExists(ctx context.Context, request *IsWorkflowExecutionExistsRequest) (*IsWorkflowExecutionExistsResponse, error)
 
-		// Transfer task related methods
-		GetTransferTasks(ctx context.Context, request *GetTransferTasksRequest) (*GetTransferTasksResponse, error)
-		CompleteTransferTask(ctx context.Context, request *CompleteTransferTaskRequest) error
-
 		// Replication task related methods
-		GetReplicationTasks(ctx context.Context, request *GetReplicationTasksRequest) (*InternalGetReplicationTasksResponse, error)
-		CompleteReplicationTask(ctx context.Context, request *CompleteReplicationTaskRequest) error
 		PutReplicationTaskToDLQ(ctx context.Context, request *InternalPutReplicationTaskToDLQRequest) error
-		GetReplicationTasksFromDLQ(ctx context.Context, request *GetReplicationTasksFromDLQRequest) (*InternalGetReplicationTasksFromDLQResponse, error)
+		GetReplicationTasksFromDLQ(ctx context.Context, request *GetReplicationTasksFromDLQRequest) (*GetHistoryTasksResponse, error)
 		GetReplicationDLQSize(ctx context.Context, request *GetReplicationDLQSizeRequest) (*GetReplicationDLQSizeResponse, error)
 		DeleteReplicationTaskFromDLQ(ctx context.Context, request *DeleteReplicationTaskFromDLQRequest) error
 		RangeDeleteReplicationTaskFromDLQ(ctx context.Context, request *RangeDeleteReplicationTaskFromDLQRequest) (*RangeDeleteReplicationTaskFromDLQResponse, error)
 		CreateFailoverMarkerTasks(ctx context.Context, request *CreateFailoverMarkersRequest) error
 
-		// Timer related methods.
-		CompleteTimerTask(ctx context.Context, request *CompleteTimerTaskRequest) error
-
 		// History task related methods
 		GetHistoryTasks(ctx context.Context, request *GetHistoryTasksRequest) (*GetHistoryTasksResponse, error)
+		CompleteHistoryTask(ctx context.Context, request *CompleteHistoryTaskRequest) error
 		RangeCompleteHistoryTask(ctx context.Context, request *RangeCompleteHistoryTaskRequest) (*RangeCompleteHistoryTaskResponse, error)
 
 		// Scan related methods
