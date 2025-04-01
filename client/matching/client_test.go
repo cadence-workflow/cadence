@@ -24,14 +24,22 @@ package matching
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/yarpc"
 
+	"github.com/uber/cadence/client/sharddistributor"
+	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/sharddistributor/constants"
 )
 
 const (
@@ -47,9 +55,120 @@ func TestNewClient(t *testing.T) {
 	peerResolver := NewMockPeerResolver(ctrl)
 	loadbalancer := NewMockLoadBalancer(ctrl)
 	provider := NewMockPartitionConfigProvider(ctrl)
+	shardDistributor := sharddistributor.NewMockClient(ctrl)
+	shardDistributorMode := dynamicconfig.StringPropertyFn(func(opts ...dynamicconfig.FilterOption) string { return common.ShardModeHashRing })
+	logger := log.NewNoop()
 
-	c := NewClient(client, peerResolver, loadbalancer, provider)
+	c := NewClient(client, peerResolver, shardDistributor, shardDistributorMode, loadbalancer, provider, logger)
 	assert.NotNil(t, c)
+}
+
+func TestGetShardOwner(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	mockPeerResolver := NewMockPeerResolver(ctrl)
+	mockShardDistributorClient := sharddistributor.NewMockClient(ctrl)
+	mockLogger, observedLogs := testlogger.NewObserved(t)
+
+	tests := []struct {
+		name                   string
+		shardDistributionMode  string
+		shardDistributorClient sharddistributor.Client
+		setupMocks             func()
+		expectedOwner          string
+		expectedError          error
+		expectedLog            string
+	}{
+		{
+			name:                   "ShardDistributorMode_Success",
+			shardDistributionMode:  common.ShardModeShardDistributor,
+			shardDistributorClient: mockShardDistributorClient,
+			setupMocks: func() {
+				mockShardDistributorClient.EXPECT().GetShardOwner(gomock.Any(), &types.GetShardOwnerRequest{
+					ShardKey:  "test-tasklist",
+					Namespace: constants.MatchingNamespace,
+				}).Return(&types.GetShardOwnerResponse{Owner: "shardDistributorOwner"}, nil)
+			},
+			expectedOwner: "shardDistributorOwner",
+		},
+		{
+			name:                   "ShardDistributorMode_Error",
+			shardDistributionMode:  common.ShardModeShardDistributor,
+			shardDistributorClient: mockShardDistributorClient,
+			setupMocks: func() {
+				mockShardDistributorClient.EXPECT().GetShardOwner(gomock.Any(), &types.GetShardOwnerRequest{
+					ShardKey:  "test-tasklist",
+					Namespace: constants.MatchingNamespace,
+				}).Return(nil, assert.AnError)
+			},
+			expectedError: fmt.Errorf("find shard in shard distributor: %w", assert.AnError),
+		},
+		{
+			name:                   "ShardDistributorMode_FallbackToHashRing",
+			shardDistributionMode:  common.ShardModeShardDistributor,
+			shardDistributorClient: nil,
+			setupMocks: func() {
+				mockPeerResolver.EXPECT().FromTaskList("test-tasklist").Return("hashRingOwner", nil)
+			},
+			expectedOwner: "hashRingOwner",
+			expectedLog:   "ShardDistributor mode enabled, but shard distributor is not available, falling back to hash-ring",
+		},
+		{
+			name:                  "HashRingMode_Success",
+			shardDistributionMode: common.ShardModeHashRing,
+			setupMocks: func() {
+				mockPeerResolver.EXPECT().FromTaskList("test-tasklist").Return("hashRingOwner", nil)
+			},
+			expectedOwner: "hashRingOwner",
+		},
+		{
+			name:                  "HashRingMode_Error",
+			shardDistributionMode: common.ShardModeHashRing,
+			setupMocks: func() {
+				mockPeerResolver.EXPECT().FromTaskList("test-tasklist").Return("", assert.AnError)
+			},
+			expectedError: fmt.Errorf("find shard in hash ring: %w", assert.AnError),
+		},
+		{
+			name:                  "UnknownMode_FallbackToHashRing",
+			shardDistributionMode: "some-bad-shard-distribution-mode",
+			setupMocks: func() {
+				mockPeerResolver.EXPECT().FromTaskList("test-tasklist").Return("hashRingOwner", nil)
+			},
+			expectedOwner: "hashRingOwner",
+			expectedLog:   "Unknown hash distribution mode, falling back to hash-ring",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockShardDistributionModeFn := func(opts ...dynamicconfig.FilterOption) string {
+				return tt.shardDistributionMode
+			}
+
+			client := &clientImpl{
+				peerResolver:           mockPeerResolver,
+				shardDistributorClient: tt.shardDistributorClient,
+				shardDistributionMode:  mockShardDistributionModeFn,
+				logger:                 mockLogger,
+			}
+
+			tt.setupMocks()
+			owner, err := client.getShardOwner(context.Background(), "test-tasklist")
+
+			if tt.expectedError != nil {
+				require.Error(t, err)
+				require.Equal(t, tt.expectedError, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.expectedOwner, owner)
+			}
+
+			if tt.expectedLog != "" {
+				assert.Equal(t, 1, observedLogs.FilterMessage(tt.expectedLog).Len())
+			}
+		})
+	}
 }
 
 func TestClient_withoutResponse(t *testing.T) {
@@ -133,7 +252,11 @@ func TestClient_withoutResponse(t *testing.T) {
 			loadbalancerMock := NewMockLoadBalancer(ctrl)
 			providerMock := NewMockPartitionConfigProvider(ctrl)
 			tt.mock(peerResolverMock, loadbalancerMock, client)
-			c := NewClient(client, peerResolverMock, loadbalancerMock, providerMock)
+			shardDistributor := sharddistributor.NewMockClient(ctrl)
+			shardDistributorMode := dynamicconfig.StringPropertyFn(func(opts ...dynamicconfig.FilterOption) string { return common.ShardModeHashRing })
+			logger := log.NewNoop()
+
+			c := NewClient(client, peerResolverMock, shardDistributor, shardDistributorMode, loadbalancerMock, providerMock, logger)
 
 			err := tt.op(c)
 			if tt.wantError {
@@ -515,7 +638,11 @@ func TestClient_withResponse(t *testing.T) {
 			loadbalancerMock := NewMockLoadBalancer(ctrl)
 			providerMock := NewMockPartitionConfigProvider(ctrl)
 			tt.mock(peerResolverMock, loadbalancerMock, client, providerMock)
-			c := NewClient(client, peerResolverMock, loadbalancerMock, providerMock)
+			shardDistributor := sharddistributor.NewMockClient(ctrl)
+			shardDistributorMode := dynamicconfig.StringPropertyFn(func(opts ...dynamicconfig.FilterOption) string { return common.ShardModeHashRing })
+			logger := log.NewNoop()
+
+			c := NewClient(client, peerResolverMock, shardDistributor, shardDistributorMode, loadbalancerMock, providerMock, logger)
 
 			res, err := tt.op(c)
 			if tt.wantError {

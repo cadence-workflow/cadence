@@ -22,35 +22,51 @@ package matching
 
 import (
 	"context"
+	"fmt"
 
 	"go.uber.org/yarpc"
 
+	"github.com/uber/cadence/client/sharddistributor"
+	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/future"
+	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/sharddistributor/constants"
 )
 
 var _ Client = (*clientImpl)(nil)
 
 type clientImpl struct {
-	client       Client
-	peerResolver PeerResolver
-	loadBalancer LoadBalancer
-	provider     PartitionConfigProvider
+	client                 Client
+	peerResolver           PeerResolver
+	shardDistributorClient sharddistributor.Client
+	shardDistributionMode  dynamicconfig.StringPropertyFn
+	loadBalancer           LoadBalancer
+	provider               PartitionConfigProvider
+	logger                 log.Logger
 }
 
 // NewClient creates a new history service TChannel client
 func NewClient(
 	client Client,
 	peerResolver PeerResolver,
+	shardDistributorClient sharddistributor.Client,
+	hashDistributionMode dynamicconfig.StringPropertyFn,
 	lb LoadBalancer,
 	provider PartitionConfigProvider,
+	logger log.Logger,
 ) Client {
 	return &clientImpl{
-		client:       client,
-		peerResolver: peerResolver,
-		loadBalancer: lb,
-		provider:     provider,
+		client:                 client,
+		peerResolver:           peerResolver,
+		shardDistributorClient: shardDistributorClient,
+		shardDistributionMode:  hashDistributionMode,
+		loadBalancer:           lb,
+		provider:               provider,
+		logger:                 logger,
 	}
 }
 
@@ -65,7 +81,7 @@ func (c *clientImpl) AddActivityTask(
 	)
 	originalTaskListName := request.TaskList.GetName()
 	request.TaskList.Name = partition
-	peer, err := c.peerResolver.FromTaskList(request.TaskList.GetName())
+	peer, err := c.getShardOwner(ctx, request.TaskList.GetName())
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +110,7 @@ func (c *clientImpl) AddDecisionTask(
 	)
 	originalTaskListName := request.TaskList.GetName()
 	request.TaskList.Name = partition
-	peer, err := c.peerResolver.FromTaskList(request.TaskList.GetName())
+	peer, err := c.getShardOwner(ctx, request.TaskList.GetName())
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +140,7 @@ func (c *clientImpl) PollForActivityTask(
 	)
 	originalTaskListName := request.PollRequest.GetTaskList().GetName()
 	request.PollRequest.TaskList.Name = partition
-	peer, err := c.peerResolver.FromTaskList(request.PollRequest.TaskList.GetName())
+	peer, err := c.getShardOwner(ctx, request.PollRequest.TaskList.GetName())
 	if err != nil {
 		return nil, err
 	}
@@ -162,7 +178,7 @@ func (c *clientImpl) PollForDecisionTask(
 	)
 	originalTaskListName := request.PollRequest.GetTaskList().GetName()
 	request.PollRequest.TaskList.Name = partition
-	peer, err := c.peerResolver.FromTaskList(request.PollRequest.TaskList.GetName())
+	peer, err := c.getShardOwner(ctx, request.PollRequest.TaskList.GetName())
 	if err != nil {
 		return nil, err
 	}
@@ -199,7 +215,7 @@ func (c *clientImpl) QueryWorkflow(
 		"",
 	)
 	request.TaskList.Name = partition
-	peer, err := c.peerResolver.FromTaskList(request.TaskList.GetName())
+	peer, err := c.getShardOwner(ctx, request.TaskList.GetName())
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +227,7 @@ func (c *clientImpl) RespondQueryTaskCompleted(
 	request *types.MatchingRespondQueryTaskCompletedRequest,
 	opts ...yarpc.CallOption,
 ) error {
-	peer, err := c.peerResolver.FromTaskList(request.TaskList.GetName())
+	peer, err := c.getShardOwner(ctx, request.TaskList.GetName())
 	if err != nil {
 		return err
 	}
@@ -223,7 +239,7 @@ func (c *clientImpl) CancelOutstandingPoll(
 	request *types.CancelOutstandingPollRequest,
 	opts ...yarpc.CallOption,
 ) error {
-	peer, err := c.peerResolver.FromTaskList(request.TaskList.GetName())
+	peer, err := c.getShardOwner(ctx, request.TaskList.GetName())
 	if err != nil {
 		return err
 	}
@@ -235,7 +251,7 @@ func (c *clientImpl) DescribeTaskList(
 	request *types.MatchingDescribeTaskListRequest,
 	opts ...yarpc.CallOption,
 ) (*types.DescribeTaskListResponse, error) {
-	peer, err := c.peerResolver.FromTaskList(request.DescRequest.TaskList.GetName())
+	peer, err := c.getShardOwner(ctx, request.DescRequest.TaskList.GetName())
 	if err != nil {
 		return nil, err
 	}
@@ -247,7 +263,7 @@ func (c *clientImpl) ListTaskListPartitions(
 	request *types.MatchingListTaskListPartitionsRequest,
 	opts ...yarpc.CallOption,
 ) (*types.ListTaskListPartitionsResponse, error) {
-	peer, err := c.peerResolver.FromTaskList(request.TaskList.GetName())
+	peer, err := c.getShardOwner(ctx, request.TaskList.GetName())
 	if err != nil {
 		return nil, err
 	}
@@ -305,7 +321,7 @@ func (c *clientImpl) UpdateTaskListPartitionConfig(
 	request *types.MatchingUpdateTaskListPartitionConfigRequest,
 	opts ...yarpc.CallOption,
 ) (*types.MatchingUpdateTaskListPartitionConfigResponse, error) {
-	peer, err := c.peerResolver.FromTaskList(request.TaskList.GetName())
+	peer, err := c.getShardOwner(ctx, request.TaskList.GetName())
 	if err != nil {
 		return nil, err
 	}
@@ -317,9 +333,39 @@ func (c *clientImpl) RefreshTaskListPartitionConfig(
 	request *types.MatchingRefreshTaskListPartitionConfigRequest,
 	opts ...yarpc.CallOption,
 ) (*types.MatchingRefreshTaskListPartitionConfigResponse, error) {
-	peer, err := c.peerResolver.FromTaskList(request.TaskList.GetName())
+	peer, err := c.getShardOwner(ctx, request.TaskList.GetName())
 	if err != nil {
 		return nil, err
 	}
 	return c.client.RefreshTaskListPartitionConfig(ctx, request, append(opts, yarpc.WithShardKey(peer))...)
+}
+
+func (c *clientImpl) getShardOwner(ctx context.Context, taskListName string) (string, error) {
+	sharddistributorMode := c.shardDistributionMode()
+	if sharddistributorMode == common.ShardModeShardDistributor && c.shardDistributorClient != nil {
+		request := &types.GetShardOwnerRequest{
+			ShardKey:  taskListName,
+			Namespace: constants.MatchingNamespace,
+		}
+
+		resp, err := c.shardDistributorClient.GetShardOwner(ctx, request)
+		if err != nil {
+			return "", fmt.Errorf("find shard in shard distributor: %w", err)
+		}
+
+		return resp.Owner, nil
+	}
+
+	if sharddistributorMode == common.ShardModeShardDistributor && c.shardDistributorClient == nil {
+		c.logger.Warn("ShardDistributor mode enabled, but shard distributor is not available, falling back to hash-ring")
+	} else if c.shardDistributionMode() != common.ShardModeHashRing {
+		c.logger.Warn("Unknown hash distribution mode, falling back to hash-ring", tag.Mode(c.shardDistributionMode()))
+	}
+
+	owner, err := c.peerResolver.FromTaskList(taskListName)
+	if err != nil {
+		return "", fmt.Errorf("find shard in hash ring: %w", err)
+	}
+
+	return owner, nil
 }
