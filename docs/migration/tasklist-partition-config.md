@@ -27,8 +27,7 @@ cadence admin tasklist describe -h
 5. You can enable adaptive task list scaler for the task list. Set [matching.enableAdaptiveScaler](https://github.com/cadence-workflow/cadence/blob/v1.2.17/common/dynamicconfig/constants.go#L4012) to true for the task list.
 
 # Status
-As of v1.2.17, the default value of [matching.enableGetNumberOfPartitionsFromCache](https://github.com/cadence-workflow/cadence/blob/v1.2.17/common/dynamicconfig/constants.go#L4004) is still false.
+As of v1.2.19, the default value of [matching.enableGetNumberOfPartitionsFromCache](https://github.com/cadence-workflow/cadence/blob/v1.2.17/common/dynamicconfig/constants.go#L4004) is changed from false to true. If you're upgrading server to v1.2.19 or a newer version, please either do the migration or set the dynamic configuration to false explicitly to avoid using the default value.
 
 # Plan
-We're planning to change the default value of [matching.enableGetNumberOfPartitionsFromCache](https://github.com/cadence-workflow/cadence/blob/v1.2.17/common/dynamicconfig/constants.go#L4004) to `true` in v1.2.18.
 We're planning to deprecate [matching.numTasklistReadPartitions](https://github.com/cadence-workflow/cadence/blob/v1.2.13/common/dynamicconfig/constants.go#L3350) and [matching.numTasklistWritePartitions](https://github.com/cadence-workflow/cadence/blob/v1.2.13/common/dynamicconfig/constants.go#L3344), but we haven't decided when to do it. Please be prepared for the migration.

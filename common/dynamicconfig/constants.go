@@ -4078,7 +4078,7 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "matching.enableGetNumberOfPartitionsFromCache",
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
 		Description:  "MatchingEnableGetNumberOfPartitionsFromCache is to enable getting number of partitions from cache instead of dynamic config",
-		DefaultValue: false,
+		DefaultValue: true,
 	},
 	MatchingEnableStandbyTaskCompletion: {
 		KeyName:      "matching.enableStandbyTaskCompletion",

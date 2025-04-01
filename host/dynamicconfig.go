@@ -35,8 +35,10 @@ var (
 		dynamicconfig.FrontendUserRPS:                               3000,
 		dynamicconfig.FrontendVisibilityListMaxQPS:                  200,
 		dynamicconfig.FrontendESIndexMaxResultWindow:                defaultTestValueOfESIndexMaxResultWindow,
+		// TODO: update integration tests to set MatchingEnableGetNumberOfPartitionsFromCache to true
 		dynamicconfig.MatchingNumTasklistWritePartitions:            3,
 		dynamicconfig.MatchingNumTasklistReadPartitions:             3,
+		dynamicconfig.MatchingEnableGetNumberOfPartitionsFromCache:  false,
 		dynamicconfig.TimerProcessorHistoryArchivalSizeLimit:        5 * 1024,
 		dynamicconfig.ReplicationTaskProcessorErrorRetryMaxAttempts: 1,
 		dynamicconfig.WriteVisibilityStoreName:                      constants.AdvancedVisibilityModeOff,
