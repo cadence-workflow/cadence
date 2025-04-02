@@ -35,7 +35,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/dynamicconfig"
-	dynamicQuotas "github.com/uber/cadence/common/dynamicconfig/quotas"
+	dynamicquotas "github.com/uber/cadence/common/dynamicconfig/quotas"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/quotas"
 	"github.com/uber/cadence/common/resource"
@@ -88,11 +88,11 @@ func (s *handlerSuite) SetupTest() {
 		startWG:       sync.WaitGroup{},
 		userRateLimiter: quotas.NewMultiStageRateLimiter(
 			s.mockLimiter,
-			quotas.NewCollection(dynamicQuotas.NewSimpleDynamicRateLimiterFactory(func(domain string) int { return 10 })),
+			quotas.NewCollection(dynamicquotas.NewSimpleDynamicRateLimiterFactory(func(domain string) int { return 10 })),
 		),
 		workerRateLimiter: quotas.NewMultiStageRateLimiter(
 			s.mockLimiter,
-			quotas.NewCollection(dynamicQuotas.NewSimpleDynamicRateLimiterFactory(func(domain string) int { return 10 })),
+			quotas.NewCollection(dynamicquotas.NewSimpleDynamicRateLimiterFactory(func(domain string) int { return 10 })),
 		),
 		logger:          s.mockResource.GetLogger(),
 		throttledLogger: s.mockResource.GetThrottledLogger(),
