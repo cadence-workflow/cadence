@@ -37,7 +37,6 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
-	"github.com/uber/cadence/common/log/loggerimpl"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -145,7 +144,7 @@ func TestWrappersAgainstPreviousImplementation(t *testing.T) {
 				zapLogger, logs := setupLogsCapture()
 				metricScope := tally.NewTestScope("", nil)
 				metricsClient := metrics.NewClient(metricScope, metrics.ServiceIdx(0))
-				logger := loggerimpl.NewLogger(zapLogger)
+				logger := log.NewLogger(zapLogger)
 
 				wrapper, mocked := tc.prepareMock(t, ctrl, metricsClient, logger)
 				prepareMockForTest(t, mocked, nil)
@@ -174,7 +173,7 @@ func TestWrappersAgainstPreviousImplementation(t *testing.T) {
 						zapLogger, logs := setupLogsCapture()
 						metricScope := tally.NewTestScope("", nil)
 						metricsClient := metrics.NewClient(metricScope, metrics.ServiceIdx(0))
-						logger := loggerimpl.NewLogger(zapLogger)
+						logger := log.NewLogger(zapLogger)
 
 						newObj, mocked := tc.prepareMock(t, ctrl, metricsClient, logger)
 						prepareMockForTest(t, mocked, errorType)

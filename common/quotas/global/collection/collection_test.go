@@ -38,6 +38,7 @@ import (
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/dynamicconfig"
+	dynamicQuotas "github.com/uber/cadence/common/dynamicconfig/quotas"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/quotas"
@@ -120,10 +121,10 @@ func TestCollectionLimitersCollectMetrics(t *testing.T) {
 			t.Parallel()
 
 			// anything non-zero
-			localLimiters := quotas.NewSimpleDynamicRateLimiterFactory(func(domain string) int {
+			localLimiters := dynamicQuotas.NewSimpleDynamicRateLimiterFactory(func(domain string) int {
 				return 1
 			})
-			globalLimiters := quotas.NewSimpleDynamicRateLimiterFactory(func(domain string) int {
+			globalLimiters := dynamicQuotas.NewSimpleDynamicRateLimiterFactory(func(domain string) int {
 				return 10
 			})
 
@@ -183,7 +184,7 @@ func TestCollectionSubmitsDataAndUpdates(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	// anything non-zero
-	limiters := quotas.NewSimpleDynamicRateLimiterFactory(func(domain string) int {
+	limiters := dynamicQuotas.NewSimpleDynamicRateLimiterFactory(func(domain string) int {
 		return 1
 	})
 	logger, observed := testlogger.NewObserved(t)
@@ -279,8 +280,8 @@ func TestTogglingMode(t *testing.T) {
 	mode.Store(modeDisabled)
 	c, err := New(
 		"test",
-		quotas.NewCollection(quotas.NewSimpleDynamicRateLimiterFactory(func(domain string) int { return 1 })),
-		quotas.NewCollection(quotas.NewSimpleDynamicRateLimiterFactory(func(domain string) int { return 1 })),
+		quotas.NewCollection(dynamicQuotas.NewSimpleDynamicRateLimiterFactory(func(domain string) int { return 1 })),
+		quotas.NewCollection(dynamicQuotas.NewSimpleDynamicRateLimiterFactory(func(domain string) int { return 1 })),
 		func(opts ...dynamicconfig.FilterOption) time.Duration { return time.Second }, // update every second
 		func(domain string) int { return 1 },
 		func(globalRatelimitKey string) string { return string(mode.Load().(keyMode)) },

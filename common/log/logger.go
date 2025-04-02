@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package loggerimpl
+package log
 
 import (
 	"fmt"
@@ -29,7 +29,6 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 )
 
@@ -47,22 +46,8 @@ const (
 
 var defaultSampleFn = func(i int) bool { return rand.Intn(i) == 0 }
 
-// NewNopLogger returns a no-op logger
-func NewNopLogger() log.Logger {
-	return NewLogger(zap.NewNop())
-}
-
-// NewDevelopment returns a logger at debug level and log into STDERR
-func NewDevelopment() (log.Logger, error) {
-	zapLogger, err := zap.NewDevelopment()
-	if err != nil {
-		return nil, err
-	}
-	return NewLogger(zapLogger), nil
-}
-
 // NewLogger returns a new logger
-func NewLogger(zapLogger *zap.Logger, opts ...Option) log.Logger {
+func NewLogger(zapLogger *zap.Logger, opts ...Option) Logger {
 	impl := &loggerImpl{
 		zapLogger:     zapLogger,
 		skip:          skipForDefaultLogger,
@@ -156,7 +141,7 @@ func (lg *loggerImpl) Fatal(msg string, tags ...tag.Tag) {
 	lg.zapLogger.Fatal(msg, fields...)
 }
 
-func (lg *loggerImpl) WithTags(tags ...tag.Tag) log.Logger {
+func (lg *loggerImpl) WithTags(tags ...tag.Tag) Logger {
 	fields := lg.buildFields(tags)
 	zapLogger := lg.zapLogger.With(fields...)
 	return &loggerImpl{

@@ -31,7 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/uber/cadence/common/config"
-	"github.com/uber/cadence/common/log/loggerimpl"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 )
@@ -226,7 +226,7 @@ func TestResolvingClusterVersion(t *testing.T) {
 			initialFailoverVersionC2: clusterName2,
 		},
 		metrics: metrics.NewNoopMetricsClient().Scope(0),
-		log:     loggerimpl.NewNopLogger(),
+		log:     log.NewNoop(),
 	}
 
 	for name, td := range tests {
@@ -290,7 +290,7 @@ func TestIsPartOfTheSameCluster(t *testing.T) {
 					initialFailoverVersionC1: clusterName1,
 					initialFailoverVersionC2: clusterName2,
 				},
-				log:     loggerimpl.NewNopLogger(),
+				log:     log.NewNoop(),
 				metrics: metrics.NewNoopMetricsClient().Scope(0),
 			}
 
@@ -532,7 +532,7 @@ func TestIsPartOfTheSameClusterAPIFixing(t *testing.T) {
 		},
 		useNewFailoverVersionOverride: func(domain string) bool { return false },
 		metrics:                       metrics.NewNoopMetricsClient().Scope(0),
-		log:                           loggerimpl.NewNopLogger(),
+		log:                           log.NewNoop(),
 	}
 
 	for i := range tests {
@@ -774,7 +774,7 @@ func TestClusterNameForFailoverVersion(t *testing.T) {
 		},
 		metrics:                       metrics.NewNoopMetricsClient().Scope(0),
 		useNewFailoverVersionOverride: func(domain string) bool { return false },
-		log:                           loggerimpl.NewNopLogger(),
+		log:                           log.NewNoop(),
 	}
 
 	for i := range tests {
@@ -811,7 +811,7 @@ func TestServerResolution(t *testing.T) {
 		},
 		metrics:                       metrics.NewNoopMetricsClient().Scope(0),
 		useNewFailoverVersionOverride: func(domain string) bool { return domain == domainToMigrate },
-		log:                           loggerimpl.NewNopLogger(),
+		log:                           log.NewNoop(),
 	}
 
 	err := quick.Check(func(currentFOVersion int64, migrateDomain bool) bool {
@@ -876,7 +876,7 @@ func TestNoChangesInUnmigratedState(t *testing.T) {
 		},
 		metrics:                       metrics.NewNoopMetricsClient().Scope(0),
 		useNewFailoverVersionOverride: func(domain string) bool { return false },
-		log:                           loggerimpl.NewNopLogger(),
+		log:                           log.NewNoop(),
 	}
 
 	err := quick.CheckEqual(func(currVersion int64) int64 {
@@ -920,7 +920,7 @@ func TestFailoverVersionResolution(t *testing.T) {
 		},
 		metrics:                       metrics.NewNoopMetricsClient().Scope(0),
 		useNewFailoverVersionOverride: func(domain string) bool { return false },
-		log:                           loggerimpl.NewNopLogger(),
+		log:                           log.NewNoop(),
 	}
 
 	tests := map[string]struct {

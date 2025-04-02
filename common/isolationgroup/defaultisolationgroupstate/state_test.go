@@ -34,7 +34,7 @@ import (
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/isolationgroup/isolationgroupapi"
-	"github.com/uber/cadence/common/log/loggerimpl"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
@@ -326,7 +326,7 @@ func TestNewDefaultIsolationGroupStateWatcherWithConfigStoreClient(t *testing.T)
 	client := metrics.NewNoopMetricsClient()
 	ig := func() []string { return nil }
 	NewDefaultIsolationGroupStateWatcherWithConfigStoreClient(
-		loggerimpl.NewNopLogger(),
+		log.NewNoop(),
 		dc,
 		domainCache,
 		nil,

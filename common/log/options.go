@@ -20,41 +20,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-package quotas
+package log
 
-import "github.com/uber/cadence/common/dynamicconfig"
+// Option is used to set options for the logger.
+type Option func(impl *loggerImpl)
 
-// LimiterFactory is used to create a Limiter for a given domain
-// the created Limiter will use the primary dynamic config if it is set
-// otherwise it will use the secondary dynamic config
-func NewFallbackDynamicRateLimiterFactory(
-	primary dynamicconfig.IntPropertyFnWithDomainFilter,
-	secondary dynamicconfig.IntPropertyFn,
-) LimiterFactory {
-	return fallbackDynamicRateLimiterFactory{
-		primary:   primary,
-		secondary: secondary,
+// WithSampleFunc sets the sampling function for the logger.
+func WithSampleFunc(fn func(int) bool) Option {
+	return func(impl *loggerImpl) {
+		impl.sampleLocalFn = fn
 	}
-}
-
-type fallbackDynamicRateLimiterFactory struct {
-	primary dynamicconfig.IntPropertyFnWithDomainFilter
-	// secondary is used when primary is not set
-	secondary dynamicconfig.IntPropertyFn
-}
-
-// GetLimiter returns a new Limiter for the given domain
-func (f fallbackDynamicRateLimiterFactory) GetLimiter(domain string) Limiter {
-	return NewDynamicRateLimiter(func() float64 {
-		return limitWithFallback(
-			float64(f.primary(domain)),
-			float64(f.secondary()))
-	})
-}
-
-func limitWithFallback(primary, secondary float64) float64 {
-	if primary > 0 {
-		return primary
-	}
-	return secondary
 }

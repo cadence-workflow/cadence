@@ -45,7 +45,6 @@ import (
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
-	"github.com/uber/cadence/common/log/loggerimpl"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
@@ -2588,7 +2587,7 @@ func TestStartTransactionHandleFailover(t *testing.T) {
 				},
 				func(string) bool { return false },
 				metrics.NewNoopMetricsClient(),
-				loggerimpl.NewNopLogger(),
+				log.NewNoop(),
 			)
 
 			domainEntry := cache.NewDomainCacheEntryForTest(&persistence.DomainInfo{

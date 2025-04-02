@@ -58,7 +58,7 @@ func TestSimpleRatelimiter(t *testing.T) {
 
 func TestMultiStageRateLimiterBlockedByDomainRps(t *testing.T) {
 	t.Parallel()
-	policy := newFixedRpsMultiStageRateLimiter(2, 1)
+	policy := newFixedRpsMultiStageRateLimiter(t, 2, 1)
 	check := func(suffix string) {
 		assert.True(t, policy.Allow(Info{Domain: defaultDomain}), "first should work"+suffix)
 		assert.False(t, policy.Allow(Info{Domain: defaultDomain}), "second should be limited"+suffix) // smaller local limit applies
@@ -73,7 +73,7 @@ func TestMultiStageRateLimiterBlockedByDomainRps(t *testing.T) {
 
 func TestMultiStageRateLimiterBlockedByGlobalRps(t *testing.T) {
 	t.Parallel()
-	policy := newFixedRpsMultiStageRateLimiter(1, 2)
+	policy := newFixedRpsMultiStageRateLimiter(t, 1, 2)
 	check := func(suffix string) {
 		assert.True(t, policy.Allow(Info{Domain: defaultDomain}), "first should work"+suffix)
 		assert.False(t, policy.Allow(Info{Domain: defaultDomain}), "second should be limited"+suffix) // smaller global limit applies
@@ -88,7 +88,7 @@ func TestMultiStageRateLimiterBlockedByGlobalRps(t *testing.T) {
 
 func TestMultiStageRateLimitingMultipleDomains(t *testing.T) {
 	t.Parallel()
-	policy := newFixedRpsMultiStageRateLimiter(2, 1) // should allow 1/s per domain, 2/s total
+	policy := newFixedRpsMultiStageRateLimiter(t, 2, 1) // should allow 1/s per domain, 2/s total
 
 	check := func(suffix string) {
 		assert.True(t, policy.Allow(Info{Domain: "one"}), "1:1 should work"+suffix)
@@ -116,7 +116,7 @@ func BenchmarkRateLimiter(b *testing.B) {
 }
 
 func BenchmarkMultiStageRateLimiter(b *testing.B) {
-	policy := newFixedRpsMultiStageRateLimiter(defaultRps, defaultRps)
+	policy := newFixedRpsMultiStageRateLimiter(b, defaultRps, defaultRps)
 	for n := 0; n < b.N; n++ {
 		policy.Allow(Info{Domain: defaultDomain})
 	}
@@ -124,7 +124,7 @@ func BenchmarkMultiStageRateLimiter(b *testing.B) {
 
 func BenchmarkMultiStageRateLimiter20Domains(b *testing.B) {
 	numDomains := 20
-	policy := newFixedRpsMultiStageRateLimiter(defaultRps, defaultRps)
+	policy := newFixedRpsMultiStageRateLimiter(b, defaultRps, defaultRps)
 	domains := getDomains(numDomains)
 	for n := 0; n < b.N; n++ {
 		policy.Allow(Info{Domain: domains[n%numDomains]})
@@ -133,7 +133,7 @@ func BenchmarkMultiStageRateLimiter20Domains(b *testing.B) {
 
 func BenchmarkMultiStageRateLimiter100Domains(b *testing.B) {
 	numDomains := 100
-	policy := newFixedRpsMultiStageRateLimiter(defaultRps, defaultRps)
+	policy := newFixedRpsMultiStageRateLimiter(b, defaultRps, defaultRps)
 	domains := getDomains(numDomains)
 	for n := 0; n < b.N; n++ {
 		policy.Allow(Info{Domain: domains[n%numDomains]})
@@ -142,27 +142,42 @@ func BenchmarkMultiStageRateLimiter100Domains(b *testing.B) {
 
 func BenchmarkMultiStageRateLimiter1000Domains(b *testing.B) {
 	numDomains := 1000
-	policy := newFixedRpsMultiStageRateLimiter(defaultRps, defaultRps)
+	policy := newFixedRpsMultiStageRateLimiter(b, defaultRps, defaultRps)
 	domains := getDomains(numDomains)
 	for n := 0; n < b.N; n++ {
 		policy.Allow(Info{Domain: domains[n%numDomains]})
 	}
 }
 
-func newFixedRpsMultiStageRateLimiter(globalRps float64, domainRps int) Policy {
+func newFixedRpsMultiStageRateLimiter(t testing.TB, globalRps float64, domainRps int) Policy {
 	return NewMultiStageRateLimiter(
 		NewDynamicRateLimiter(func() float64 {
 			return globalRps
 		}),
-		NewCollection(NewSimpleDynamicRateLimiterFactory(func(domain string) int {
-			return domainRps
-		})),
+		NewCollection(newStubFactory(t, domainRps)),
 	)
 }
+
 func getDomains(n int) []string {
 	domains := make([]string, 0, n)
 	for i := 0; i < n; i++ {
 		domains = append(domains, fmt.Sprintf("domains%v", i))
 	}
 	return domains
+}
+
+func newStubFactory(t testing.TB, rps int) *stubLimiterFactory {
+	return &stubLimiterFactory{
+		t:   t,
+		rps: rps,
+	}
+}
+
+type stubLimiterFactory struct {
+	t   testing.TB
+	rps int
+}
+
+func (s *stubLimiterFactory) GetLimiter(domain string) Limiter {
+	return NewSimpleRateLimiter(s.t, s.rps)
 }

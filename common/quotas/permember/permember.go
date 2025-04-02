@@ -24,6 +24,7 @@ import (
 	"math"
 
 	"github.com/uber/cadence/common/dynamicconfig"
+	dynamicQuotas "github.com/uber/cadence/common/dynamicconfig/quotas"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/quotas"
 )
@@ -53,7 +54,7 @@ func NewPerMemberDynamicRateLimiterFactory(
 	globalRPS dynamicconfig.IntPropertyFnWithDomainFilter,
 	instanceRPS dynamicconfig.IntPropertyFnWithDomainFilter,
 	resolver membership.Resolver,
-) quotas.LimiterFactory {
+) dynamicQuotas.LimiterFactory {
 	return perMemberFactory{
 		service:     service,
 		globalRPS:   globalRPS,

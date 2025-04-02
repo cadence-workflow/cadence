@@ -49,7 +49,6 @@ import (
 	"github.com/uber/cadence/common/elasticsearch"
 	"github.com/uber/cadence/common/isolationgroup/isolationgroupapi"
 	cadencelog "github.com/uber/cadence/common/log"
-	"github.com/uber/cadence/common/log/loggerimpl"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/messaging/kafka"
@@ -129,7 +128,7 @@ func (s *server) startService() common.Daemon {
 	if err != nil {
 		log.Fatal("failed to create the zap logger, err: ", err.Error())
 	}
-	params.Logger = loggerimpl.NewLogger(zapLogger).WithTags(tag.Service(params.Name))
+	params.Logger = cadencelog.NewLogger(zapLogger).WithTags(tag.Service(params.Name))
 
 	params.PersistenceConfig = s.cfg.Persistence
 

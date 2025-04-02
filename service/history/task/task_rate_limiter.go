@@ -29,6 +29,7 @@ import (
 
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/dynamicconfig"
+	dynamicQuotas "github.com/uber/cadence/common/dynamicconfig/quotas"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -66,7 +67,7 @@ func NewRateLimiter(
 		numShards := float64(controller.NumShards())
 		return int(totalRPS * numShards / totalShards)
 	}
-	limiterFactory := quotas.NewSimpleDynamicRateLimiterFactory(rps)
+	limiterFactory := dynamicQuotas.NewSimpleDynamicRateLimiterFactory(rps)
 	return &taskRateLimiterImpl{
 		logger:           logger,
 		metricsScope:     metricsClient.Scope(metrics.TaskSchedulerRateLimiterScope),

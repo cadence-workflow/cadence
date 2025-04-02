@@ -26,6 +26,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
+	dynamicQuotas "github.com/uber/cadence/common/dynamicconfig/quotas"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/quotas"
@@ -64,14 +65,14 @@ func NewHandler(
 		metricsClient: metricsClient,
 		userRateLimiter: quotas.NewMultiStageRateLimiter(
 			quotas.NewDynamicRateLimiter(config.UserRPS.AsFloat64()),
-			quotas.NewCollection(quotas.NewFallbackDynamicRateLimiterFactory(
+			quotas.NewCollection(dynamicQuotas.NewFallbackDynamicRateLimiterFactory(
 				config.DomainUserRPS,
 				config.UserRPS,
 			)),
 		),
 		workerRateLimiter: quotas.NewMultiStageRateLimiter(
 			quotas.NewDynamicRateLimiter(config.WorkerRPS.AsFloat64()),
-			quotas.NewCollection(quotas.NewFallbackDynamicRateLimiterFactory(
+			quotas.NewCollection(dynamicQuotas.NewFallbackDynamicRateLimiterFactory(
 				config.DomainWorkerRPS,
 				config.WorkerRPS,
 			)),

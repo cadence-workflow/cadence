@@ -38,7 +38,6 @@ import (
 	"github.com/uber/cadence/common/domain"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
-	"github.com/uber/cadence/common/log/loggerimpl"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
@@ -360,7 +359,7 @@ func initializeLogger(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create zap logger, err: %w", err)
 	}
-	return loggerimpl.NewLogger(zapLogger), nil
+	return log.NewLogger(zapLogger), nil
 }
 
 func initializeClusterMetadata(serviceConfig *config.Config, metrics metrics.Client, logger log.Logger) cluster.Metadata {
