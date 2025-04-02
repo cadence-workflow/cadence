@@ -30,7 +30,6 @@ import (
 
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
-	dynamicQuotas "github.com/uber/cadence/common/dynamicconfig/quotas"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -49,8 +48,8 @@ type WFCache interface {
 
 type wfCache struct {
 	lru                    cache.Cache
-	externalLimiterFactory dynamicQuotas.LimiterFactory
-	internalLimiterFactory dynamicQuotas.LimiterFactory
+	externalLimiterFactory quotas.LimiterFactory
+	internalLimiterFactory quotas.LimiterFactory
 	domainCache            cache.DomainCache
 	metricsClient          metrics.Client
 	logger                 log.Logger
@@ -76,8 +75,8 @@ type cacheValue struct {
 type Params struct {
 	TTL                    time.Duration
 	MaxCount               int
-	ExternalLimiterFactory dynamicQuotas.LimiterFactory
-	InternalLimiterFactory dynamicQuotas.LimiterFactory
+	ExternalLimiterFactory quotas.LimiterFactory
+	InternalLimiterFactory quotas.LimiterFactory
 	DomainCache            cache.DomainCache
 	MetricsClient          metrics.Client
 	Logger                 log.Logger
