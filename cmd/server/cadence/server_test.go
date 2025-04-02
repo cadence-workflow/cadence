@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/fx/fxtest"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
@@ -74,9 +75,13 @@ func (s *ServerSuite) TestServerStartup() {
 
 	s.T().Logf("Loading config; env=%v,zone=%v,configDir=%v\n", env, zone, configDir)
 
-	var cfg config.Config
-	err := config.Load(env, configDir, zone, &cfg)
+	fxRes, err := config.New(config.Params{
+		ConfigDir: configDir,
+		Lifecycle: fxtest.NewLifecycle(s.T()),
+	})
 	s.NoError(err, "Config file corrupted.")
+
+	cfg := fxRes.Config
 
 	if os.Getenv("CASSANDRA_SEEDS") == "cassandra" {
 		// replace local host to docker network

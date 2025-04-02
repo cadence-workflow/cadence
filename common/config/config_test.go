@@ -26,16 +26,20 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx/fxtest"
 
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/service"
 )
 
 func TestToString(t *testing.T) {
-	var cfg Config
-	err := Load("", "../../config", "", &cfg)
-	assert.NoError(t, err)
-	assert.NotEmpty(t, cfg.String())
+	res, err := New(Params{
+		ConfigDir: "../../config",
+		Lifecycle: fxtest.NewLifecycle(t),
+	})
+	require.NoError(t, err)
+
+	assert.True(t, res.Provider.Get("log").HasValue())
 }
 
 func TestFillingDefaultSQLEncodingDecodingTypes(t *testing.T) {

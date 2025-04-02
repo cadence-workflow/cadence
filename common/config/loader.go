@@ -62,7 +62,6 @@ const (
 //	    env.yaml   -- environment is one of the input params ex-development
 //	      env_az.yaml -- zone is another input param
 func Load(env string, configDir string, zone string, config interface{}) error {
-
 	if len(env) == 0 {
 		env = envDevelopment
 	}
@@ -88,17 +87,17 @@ func Load(env string, configDir string, zone string, config interface{}) error {
 
 	yaml, err := uconfig.NewYAML(options...)
 	if err != nil {
-		return fmt.Errorf("unable to create yaml parser: %w", err)
+		return fmt.Errorf("create yaml parser: %w", err)
 	}
 
 	err = yaml.Get(uconfig.Root).Populate(config)
 	if err != nil {
-		return fmt.Errorf("unable to populate config: %w", err)
+		return fmt.Errorf("populate config: %w", err)
 	}
 
 	err = validator.Validate(config)
 	if err != nil {
-		return fmt.Errorf("failed to validate config: %w", err)
+		return fmt.Errorf("validate config: %w", err)
 	}
 	return nil
 }

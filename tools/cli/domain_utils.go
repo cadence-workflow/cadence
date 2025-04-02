@@ -312,23 +312,6 @@ func initializeAdminDomainHandler(c *cli.Context) (domain.Handler, error) {
 	return domainhandler, nil
 }
 
-func loadConfig(
-	context *cli.Context,
-) (*config.Config, error) {
-	env := getEnvironment(context)
-	zone := getZone(context)
-	configDir, err := getConfigDir(context)
-	if err != nil {
-		return nil, fmt.Errorf("Unable to load config. %w", err)
-	}
-	var cfg config.Config
-	err = config.Load(env, configDir, zone, &cfg)
-	if err != nil {
-		return nil, fmt.Errorf("Unable to load config. %w", err)
-	}
-	return &cfg, nil
-}
-
 func initializeDomainHandler(
 	logger log.Logger,
 	domainManager persistence.DomainManager,
