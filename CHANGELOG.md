@@ -7,7 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 You can find a list of previous releases on the [github releases](https://github.com/cadence-workflow/cadence/releases) page.
 
 ## [Note]
-A bug introduced in version v1.2.16-prerelease01 and reverted in v1.2.16-prerelease04 had the potential to set the tasklist partition to 0.
+There's a new opt-in feature for autoscale of tasklist partitions. It's optional but recommended for large scale use cases. Please refer to [tasklist-partition-config.md](https://github.com/cadence-workflow/cadence/blob/master/docs/migration/tasklist-partition-config.md) for additional details on the migration and its rationale.
+
+## [1.2.18] - 2025-04-03
+See [Release Note](https://github.com/cadence-workflow/cadence/releases/tag/v1.2.18) for details
+
+## [1.2.17] - 2025-03-05
+See [Release Note](https://github.com/cadence-workflow/cadence/releases/tag/v1.2.17) for details
+
+## [1.2.16] - 2025-02-19
+See [Release Note](https://github.com/cadence-workflow/cadence/releases/tag/v1.2.16) for details
 
 ## [1.2.15] - 2025-01-22
 See [Release Note](https://github.com/cadence-workflow/cadence/releases/tag/v1.2.15) for details
