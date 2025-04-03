@@ -30,6 +30,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/types"
 )
@@ -45,7 +46,7 @@ func TestNewMultiLoadBalancer(t *testing.T) {
 	domainIDToName := func(domainID string) (string, error) {
 		return "testDomainName", nil
 	}
-	dc := dynamicconfig.NewCollection(dynamicconfig.NewNopClient(), testlogger.New(t))
+	dc := collection.NewCollection(dynamicconfig.NewNopClient(), testlogger.New(t))
 	lb := NewMultiLoadBalancer(randomMock, lbs, domainIDToName, dc, testlogger.New(t))
 	assert.NotNil(t, lb)
 	multiLB, ok := lb.(*multiLoadBalancer)

@@ -49,6 +49,7 @@ import (
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/domain"
 	dc "github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
 	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/messaging"
 	"github.com/uber/cadence/common/metrics"
@@ -1042,7 +1043,7 @@ func TestRespondActivityTaskFailed(t *testing.T) {
 			mockProducerManager := NewMockProducerManager(mockCtrl)
 
 			config := frontendcfg.NewConfig(
-				dc.NewCollection(
+				collection.NewCollection(
 					dc.NewInMemoryClient(),
 					mockResource.GetLogger(),
 				),
@@ -1896,7 +1897,7 @@ func (s *workflowHandlerSuite) TestRestartWorkflowExecution__Success() {
 	s.NoError(err)
 	wh := s.getWorkflowHandler(
 		frontendcfg.NewConfig(
-			dc.NewCollection(
+			collection.NewCollection(
 				dynamicClient,
 				s.mockResource.GetLogger()),
 			numHistoryShards,
@@ -1962,7 +1963,7 @@ func (s *workflowHandlerSuite) getWorkflowExecutionHistory(nextEventID int64, tr
 	s.NoError(err)
 	wh := s.getWorkflowHandler(
 		frontendcfg.NewConfig(
-			dc.NewCollection(
+			collection.NewCollection(
 				dynamicClient,
 				s.mockResource.GetLogger()),
 			numHistoryShards,
@@ -2215,7 +2216,7 @@ func (s *workflowHandlerSuite) TestVerifyHistoryIsComplete() {
 
 func (s *workflowHandlerSuite) newConfig(dynamicClient dc.Client) *frontendcfg.Config {
 	config := frontendcfg.NewConfig(
-		dc.NewCollection(
+		collection.NewCollection(
 			dynamicClient,
 			s.mockResource.GetLogger(),
 		),
@@ -3494,7 +3495,7 @@ func TestStartWorkflowExecutionAsync(t *testing.T) {
 			mockProducerManager := NewMockProducerManager(mockCtrl)
 
 			cfg := frontendcfg.NewConfig(
-				dc.NewCollection(
+				collection.NewCollection(
 					dc.NewInMemoryClient(),
 					mockResource.GetLogger(),
 				),
@@ -3614,7 +3615,7 @@ func TestSignalWithStartWorkflowExecutionAsync(t *testing.T) {
 			mockProducerManager := NewMockProducerManager(mockCtrl)
 
 			cfg := frontendcfg.NewConfig(
-				dc.NewCollection(
+				collection.NewCollection(
 					dc.NewInMemoryClient(),
 					mockResource.GetLogger(),
 				),
@@ -3726,7 +3727,7 @@ func TestRequestCancelWorkflowExecution(t *testing.T) {
 			mockVersionChecker := client.NewMockVersionChecker(mockCtrl)
 
 			cfg := frontendcfg.NewConfig(
-				dc.NewCollection(
+				collection.NewCollection(
 					dc.NewInMemoryClient(),
 					mockResource.GetLogger(),
 				),
@@ -3926,7 +3927,7 @@ func TestQueryWorkflow(t *testing.T) {
 			mockVersionChecker := client.NewMockVersionChecker(mockCtrl)
 
 			cfg := frontendcfg.NewConfig(
-				dc.NewCollection(
+				collection.NewCollection(
 					tc.inMemoryClient,
 					mockResource.GetLogger(),
 				),
@@ -4051,7 +4052,7 @@ func TestDescribeWorkflowExecution(t *testing.T) {
 			mockVersionChecker := client.NewMockVersionChecker(mockCtrl)
 
 			cfg := frontendcfg.NewConfig(
-				dc.NewCollection(
+				collection.NewCollection(
 					dc.NewInMemoryClient(),
 					mockResource.GetLogger(),
 				),

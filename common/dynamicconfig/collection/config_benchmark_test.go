@@ -18,20 +18,21 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package dynamicconfig
+package collection
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 )
 
 func BenchmarkGetIntProperty(b *testing.B) {
-	client := NewInMemoryClient()
+	client := dynamicconfig.NewInMemoryClient()
 	cln := NewCollection(client, log.NewNoop())
-	key := MatchingMaxTaskBatchSize
+	key := dynamicconfig.MatchingMaxTaskBatchSize
 	for i := 0; i < b.N; i++ {
 		size := cln.GetIntProperty(key)
 		assert.Equal(b, 100, size())

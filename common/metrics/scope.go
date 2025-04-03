@@ -24,7 +24,11 @@ import (
 	"time"
 
 	"github.com/uber-go/tally"
+
+	"github.com/uber/cadence/common/types"
 )
+
+var stickyTaskListMetricTag = TaskListTag("__sticky__")
 
 type metricsScope struct {
 	scope          tally.Scope
@@ -140,4 +144,26 @@ func (m *metricsScope) getBuckets(id int) tally.Buckets {
 
 func isDomainTagged(tag Tag) bool {
 	return tag.Key() == domain && tag.Value() != allValue
+}
+
+// NewPerTaskListScope creates a tasklist metrics scope
+func NewPerTaskListScope(
+	domainName string,
+	taskListName string,
+	taskListKind types.TaskListKind,
+	client Client,
+	scopeIdx int,
+) Scope {
+	domainTag := DomainUnknownTag()
+	taskListTag := TaskListUnknownTag()
+	if domainName != "" {
+		domainTag = DomainTag(domainName)
+	}
+	if taskListName != "" && taskListKind != types.TaskListKindSticky {
+		taskListTag = TaskListTag(taskListName)
+	}
+	if taskListKind == types.TaskListKindSticky {
+		taskListTag = stickyTaskListMetricTag
+	}
+	return client.Scope(scopeIdx, domainTag, taskListTag)
 }

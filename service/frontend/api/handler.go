@@ -52,6 +52,7 @@ import (
 	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/types/mapper/thrift"
+	"github.com/uber/cadence/common/validation"
 	"github.com/uber/cadence/service/frontend/config"
 	"github.com/uber/cadence/service/frontend/validate"
 	"github.com/uber/cadence/service/worker/diagnostics"
@@ -283,7 +284,7 @@ func (wh *WorkflowHandler) PollForActivityTask(
 
 	scope := getMetricsScopeWithDomain(metrics.FrontendPollForActivityTaskScope, pollRequest, wh.GetMetricsClient()).Tagged(metrics.GetContextTags(ctx)...)
 	wh.GetLogger().Debug("Received PollForActivityTask")
-	if err := common.ValidateLongPollContextTimeout(
+	if err := validation.ValidateLongPollContextTimeout(
 		ctx,
 		"PollForActivityTask",
 		wh.GetThrottledLogger().WithTags(tag.WorkflowDomainName(domainName), tag.WorkflowTaskListName(pollRequest.GetTaskList().GetName())),
@@ -292,7 +293,7 @@ func (wh *WorkflowHandler) PollForActivityTask(
 	}
 
 	idLengthWarnLimit := wh.config.MaxIDLengthWarnLimit()
-	if !common.IsValidIDLength(
+	if !validation.IsValidIDLength(
 		domainName,
 		scope,
 		idLengthWarnLimit,
@@ -308,7 +309,7 @@ func (wh *WorkflowHandler) PollForActivityTask(
 		return nil, err
 	}
 
-	if !common.IsValidIDLength(
+	if !validation.IsValidIDLength(
 		pollRequest.GetIdentity(),
 		scope,
 		idLengthWarnLimit,
@@ -331,7 +332,7 @@ func (wh *WorkflowHandler) PollForActivityTask(
 	}
 	// it is possible that we wait for a very long time and the remaining time is not long enough for a long poll
 	// in this case, return an empty response
-	if err := common.ValidateLongPollContextTimeout(
+	if err := validation.ValidateLongPollContextTimeout(
 		ctx,
 		"PollForActivityTask",
 		wh.GetThrottledLogger().WithTags(tag.WorkflowDomainName(domainName), tag.WorkflowTaskListName(pollRequest.GetTaskList().GetName())),
@@ -415,7 +416,7 @@ func (wh *WorkflowHandler) PollForDecisionTask(
 
 	scope := getMetricsScopeWithDomain(metrics.FrontendPollForDecisionTaskScope, pollRequest, wh.GetMetricsClient()).Tagged(metrics.GetContextTags(ctx)...)
 	wh.GetLogger().Debug("Received PollForDecisionTask")
-	if err := common.ValidateLongPollContextTimeout(
+	if err := validation.ValidateLongPollContextTimeout(
 		ctx,
 		"PollForDecisionTask",
 		wh.GetThrottledLogger().WithTags(tag.WorkflowDomainName(domainName), tag.WorkflowTaskListName(pollRequest.GetTaskList().GetName())),
@@ -424,7 +425,7 @@ func (wh *WorkflowHandler) PollForDecisionTask(
 	}
 
 	idLengthWarnLimit := wh.config.MaxIDLengthWarnLimit()
-	if !common.IsValidIDLength(
+	if !validation.IsValidIDLength(
 		domainName,
 		scope,
 		idLengthWarnLimit,
@@ -436,7 +437,7 @@ func (wh *WorkflowHandler) PollForDecisionTask(
 		return nil, validate.ErrDomainTooLong
 	}
 
-	if !common.IsValidIDLength(
+	if !validation.IsValidIDLength(
 		pollRequest.GetIdentity(),
 		scope,
 		idLengthWarnLimit,
@@ -469,7 +470,7 @@ func (wh *WorkflowHandler) PollForDecisionTask(
 	}
 	// it is possible that we wait for a very long time and the remaining time is not long enough for a long poll
 	// in this case, return an empty response
-	if err := common.ValidateLongPollContextTimeout(
+	if err := validation.ValidateLongPollContextTimeout(
 		ctx,
 		"PollForDecisionTask",
 		wh.GetThrottledLogger().WithTags(tag.WorkflowDomainName(domainName), tag.WorkflowTaskListName(pollRequest.GetTaskList().GetName())),
@@ -642,7 +643,7 @@ func (wh *WorkflowHandler) RecordActivityTaskHeartbeat(
 	sizeLimitError := wh.config.BlobSizeLimitError(domainName)
 	sizeLimitWarn := wh.config.BlobSizeLimitWarn(domainName)
 
-	if err := common.CheckEventBlobSizeLimit(
+	if err := validation.CheckEventBlobSizeLimit(
 		len(heartbeatRequest.Details),
 		sizeLimitWarn,
 		sizeLimitError,
@@ -735,7 +736,7 @@ func (wh *WorkflowHandler) RecordActivityTaskHeartbeatByID(
 	sizeLimitError := wh.config.BlobSizeLimitError(domainName)
 	sizeLimitWarn := wh.config.BlobSizeLimitWarn(domainName)
 
-	if err := common.CheckEventBlobSizeLimit(
+	if err := validation.CheckEventBlobSizeLimit(
 		len(heartbeatRequest.Details),
 		sizeLimitWarn,
 		sizeLimitError,
@@ -814,7 +815,7 @@ func (wh *WorkflowHandler) RespondActivityTaskCompleted(
 		domain: domainName,
 	}
 	scope := getMetricsScopeWithDomain(metrics.FrontendRespondActivityTaskCompletedScope, dw, wh.GetMetricsClient()).Tagged(metrics.GetContextTags(ctx)...)
-	if !common.IsValidIDLength(
+	if !validation.IsValidIDLength(
 		completeRequest.GetIdentity(),
 		scope,
 		wh.config.MaxIDLengthWarnLimit(),
@@ -829,7 +830,7 @@ func (wh *WorkflowHandler) RespondActivityTaskCompleted(
 	sizeLimitError := wh.config.BlobSizeLimitError(domainName)
 	sizeLimitWarn := wh.config.BlobSizeLimitWarn(domainName)
 
-	if err := common.CheckEventBlobSizeLimit(
+	if err := validation.CheckEventBlobSizeLimit(
 		len(completeRequest.Result),
 		sizeLimitWarn,
 		sizeLimitError,
@@ -904,7 +905,7 @@ func (wh *WorkflowHandler) RespondActivityTaskCompletedByID(
 	}
 
 	scope := getMetricsScopeWithDomain(metrics.FrontendRespondActivityTaskCompletedByIDScope, completeRequest, wh.GetMetricsClient()).Tagged(metrics.GetContextTags(ctx)...)
-	if !common.IsValidIDLength(
+	if !validation.IsValidIDLength(
 		completeRequest.GetIdentity(),
 		scope,
 		wh.config.MaxIDLengthWarnLimit(),
@@ -931,7 +932,7 @@ func (wh *WorkflowHandler) RespondActivityTaskCompletedByID(
 	sizeLimitError := wh.config.BlobSizeLimitError(domainName)
 	sizeLimitWarn := wh.config.BlobSizeLimitWarn(domainName)
 
-	if err := common.CheckEventBlobSizeLimit(
+	if err := validation.CheckEventBlobSizeLimit(
 		len(completeRequest.Result),
 		sizeLimitWarn,
 		sizeLimitError,
@@ -1009,7 +1010,7 @@ func (wh *WorkflowHandler) RespondActivityTaskFailed(
 		domain: domainName,
 	}
 	scope := getMetricsScopeWithDomain(metrics.FrontendRespondActivityTaskFailedScope, dw, wh.GetMetricsClient()).Tagged(metrics.GetContextTags(ctx)...)
-	if !common.IsValidIDLength(
+	if !validation.IsValidIDLength(
 		failedRequest.GetIdentity(),
 		scope,
 		wh.config.MaxIDLengthWarnLimit(),
@@ -1024,7 +1025,7 @@ func (wh *WorkflowHandler) RespondActivityTaskFailed(
 	sizeLimitError := wh.config.BlobSizeLimitError(domainName)
 	sizeLimitWarn := wh.config.BlobSizeLimitWarn(domainName)
 
-	if err := common.CheckEventBlobSizeLimit(
+	if err := validation.CheckEventBlobSizeLimit(
 		len(failedRequest.Details),
 		sizeLimitWarn,
 		sizeLimitError,
@@ -1088,7 +1089,7 @@ func (wh *WorkflowHandler) RespondActivityTaskFailedByID(
 	}
 
 	scope := getMetricsScopeWithDomain(metrics.FrontendRespondActivityTaskFailedByIDScope, failedRequest, wh.GetMetricsClient()).Tagged(metrics.GetContextTags(ctx)...)
-	if !common.IsValidIDLength(
+	if !validation.IsValidIDLength(
 		failedRequest.GetIdentity(),
 		scope,
 		wh.config.MaxIDLengthWarnLimit(),
@@ -1115,7 +1116,7 @@ func (wh *WorkflowHandler) RespondActivityTaskFailedByID(
 	sizeLimitError := wh.config.BlobSizeLimitError(domainName)
 	sizeLimitWarn := wh.config.BlobSizeLimitWarn(domainName)
 
-	if err := common.CheckEventBlobSizeLimit(
+	if err := validation.CheckEventBlobSizeLimit(
 		len(failedRequest.Details),
 		sizeLimitWarn,
 		sizeLimitError,
@@ -1184,7 +1185,7 @@ func (wh *WorkflowHandler) RespondActivityTaskCanceled(
 		domain: domainName,
 	}
 	scope := getMetricsScopeWithDomain(metrics.FrontendRespondActivityTaskCanceledScope, dw, wh.GetMetricsClient()).Tagged(metrics.GetContextTags(ctx)...)
-	if !common.IsValidIDLength(
+	if !validation.IsValidIDLength(
 		cancelRequest.GetIdentity(),
 		scope,
 		wh.config.MaxIDLengthWarnLimit(),
@@ -1199,7 +1200,7 @@ func (wh *WorkflowHandler) RespondActivityTaskCanceled(
 	sizeLimitError := wh.config.BlobSizeLimitError(domainName)
 	sizeLimitWarn := wh.config.BlobSizeLimitWarn(domainName)
 
-	if err := common.CheckEventBlobSizeLimit(
+	if err := validation.CheckEventBlobSizeLimit(
 		len(cancelRequest.Details),
 		sizeLimitWarn,
 		sizeLimitError,
@@ -1274,7 +1275,7 @@ func (wh *WorkflowHandler) RespondActivityTaskCanceledByID(
 	}
 
 	scope := getMetricsScopeWithDomain(metrics.FrontendRespondActivityTaskCanceledByIDScope, cancelRequest, wh.GetMetricsClient()).Tagged(metrics.GetContextTags(ctx)...)
-	if !common.IsValidIDLength(
+	if !validation.IsValidIDLength(
 		cancelRequest.GetIdentity(),
 		scope,
 		wh.config.MaxIDLengthWarnLimit(),
@@ -1301,7 +1302,7 @@ func (wh *WorkflowHandler) RespondActivityTaskCanceledByID(
 	sizeLimitError := wh.config.BlobSizeLimitError(domainName)
 	sizeLimitWarn := wh.config.BlobSizeLimitWarn(domainName)
 
-	if err := common.CheckEventBlobSizeLimit(
+	if err := validation.CheckEventBlobSizeLimit(
 		len(cancelRequest.Details),
 		sizeLimitWarn,
 		sizeLimitError,
@@ -1379,7 +1380,7 @@ func (wh *WorkflowHandler) RespondDecisionTaskCompleted(
 		domain: domainName,
 	}
 	scope := getMetricsScopeWithDomain(metrics.FrontendRespondDecisionTaskCompletedScope, dw, wh.GetMetricsClient()).Tagged(metrics.GetContextTags(ctx)...)
-	if !common.IsValidIDLength(
+	if !validation.IsValidIDLength(
 		completeRequest.GetIdentity(),
 		scope,
 		wh.config.MaxIDLengthWarnLimit(),
@@ -1391,7 +1392,7 @@ func (wh *WorkflowHandler) RespondDecisionTaskCompleted(
 		return nil, validate.ErrIdentityTooLong
 	}
 
-	if err := common.CheckDecisionResultLimit(
+	if err := validation.CheckDecisionResultLimit(
 		len(completeRequest.Decisions),
 		wh.config.DecisionResultCountLimit(domainName),
 		scope); err != nil {
@@ -1466,7 +1467,7 @@ func (wh *WorkflowHandler) RespondDecisionTaskFailed(
 		domain: domainName,
 	}
 	scope := getMetricsScopeWithDomain(metrics.FrontendRespondDecisionTaskFailedScope, dw, wh.GetMetricsClient()).Tagged(metrics.GetContextTags(ctx)...)
-	if !common.IsValidIDLength(
+	if !validation.IsValidIDLength(
 		failedRequest.GetIdentity(),
 		scope,
 		wh.config.MaxIDLengthWarnLimit(),
@@ -1481,7 +1482,7 @@ func (wh *WorkflowHandler) RespondDecisionTaskFailed(
 	sizeLimitError := wh.config.BlobSizeLimitError(domainName)
 	sizeLimitWarn := wh.config.BlobSizeLimitWarn(domainName)
 
-	if err := common.CheckEventBlobSizeLimit(
+	if err := validation.CheckEventBlobSizeLimit(
 		len(failedRequest.Details),
 		sizeLimitWarn,
 		sizeLimitError,
@@ -1543,7 +1544,7 @@ func (wh *WorkflowHandler) RespondQueryTaskCompleted(
 	sizeLimitWarn := wh.config.BlobSizeLimitWarn(domainName)
 
 	scope := getMetricsScopeWithDomain(metrics.FrontendRespondQueryTaskCompletedScope, dw, wh.GetMetricsClient()).Tagged(metrics.GetContextTags(ctx)...)
-	if err := common.CheckEventBlobSizeLimit(
+	if err := validation.CheckEventBlobSizeLimit(
 		len(completeRequest.GetQueryResult()),
 		sizeLimitWarn,
 		sizeLimitError,
@@ -1695,7 +1696,7 @@ func (wh *WorkflowHandler) validateStartWorkflowExecutionRequest(ctx context.Con
 		return validate.ErrWorkflowTypeNotSet
 	}
 	idLengthWarnLimit := wh.config.MaxIDLengthWarnLimit()
-	if !common.IsValidIDLength(
+	if !validation.IsValidIDLength(
 		domainName,
 		scope,
 		idLengthWarnLimit,
@@ -1706,7 +1707,7 @@ func (wh *WorkflowHandler) validateStartWorkflowExecutionRequest(ctx context.Con
 		tag.IDTypeDomainName) {
 		return validate.ErrDomainTooLong
 	}
-	if !common.IsValidIDLength(
+	if !validation.IsValidIDLength(
 		startRequest.GetWorkflowID(),
 		scope,
 		idLengthWarnLimit,
@@ -1717,13 +1718,13 @@ func (wh *WorkflowHandler) validateStartWorkflowExecutionRequest(ctx context.Con
 		tag.IDTypeWorkflowID) {
 		return validate.ErrWorkflowIDTooLong
 	}
-	if err := common.ValidateRetryPolicy(startRequest.RetryPolicy); err != nil {
+	if err := validation.ValidateRetryPolicy(startRequest.RetryPolicy); err != nil {
 		return err
 	}
 	wh.GetLogger().Debug(
 		"Received StartWorkflowExecution. WorkflowID",
 		tag.WorkflowID(startRequest.GetWorkflowID()))
-	if !common.IsValidIDLength(
+	if !validation.IsValidIDLength(
 		startRequest.WorkflowType.GetName(),
 		scope,
 		idLengthWarnLimit,
@@ -1770,7 +1771,7 @@ func (wh *WorkflowHandler) validateStartWorkflowExecutionRequest(ctx context.Con
 			return validate.ErrInvalidJitterStartSeconds2
 		}
 	}
-	if !common.IsValidIDLength(
+	if !validation.IsValidIDLength(
 		startRequest.GetRequestID(),
 		scope,
 		idLengthWarnLimit,
@@ -1795,7 +1796,7 @@ func (wh *WorkflowHandler) validateStartWorkflowExecutionRequest(ctx context.Con
 	if startRequest.Memo != nil {
 		actualSize += common.GetSizeOfMapStringToByteArray(startRequest.Memo.GetFields())
 	}
-	if err := common.CheckEventBlobSizeLimit(
+	if err := validation.CheckEventBlobSizeLimit(
 		actualSize,
 		sizeLimitWarn,
 		sizeLimitError,
@@ -1949,7 +1950,7 @@ func (wh *WorkflowHandler) GetWorkflowExecutionHistory(
 			// TODO: for now we only log the invalid timeout (this is done inside the helper function) in case
 			// this change breaks existing customers. Once we are sure no one is calling this API with very short timeout
 			// we can return the error.
-			_ = common.ValidateLongPollContextTimeout(ctx, "GetWorkflowExecutionHistory", logger)
+			_ = validation.ValidateLongPollContextTimeout(ctx, "GetWorkflowExecutionHistory", logger)
 
 			if !isCloseEventOnly {
 				queryNextEventID = token.NextEventID
@@ -2109,7 +2110,7 @@ func (wh *WorkflowHandler) SignalWorkflowExecution(
 
 	scope := getMetricsScopeWithDomain(metrics.FrontendSignalWorkflowExecutionScope, signalRequest, wh.GetMetricsClient()).Tagged(metrics.GetContextTags(ctx)...)
 	idLengthWarnLimit := wh.config.MaxIDLengthWarnLimit()
-	if !common.IsValidIDLength(
+	if !validation.IsValidIDLength(
 		domainName,
 		scope,
 		idLengthWarnLimit,
@@ -2125,7 +2126,7 @@ func (wh *WorkflowHandler) SignalWorkflowExecution(
 		return validate.ErrSignalNameNotSet
 	}
 
-	if !common.IsValidIDLength(
+	if !validation.IsValidIDLength(
 		signalRequest.GetSignalName(),
 		scope,
 		idLengthWarnLimit,
@@ -2137,7 +2138,7 @@ func (wh *WorkflowHandler) SignalWorkflowExecution(
 		return validate.ErrSignalNameTooLong
 	}
 
-	if !common.IsValidIDLength(
+	if !validation.IsValidIDLength(
 		signalRequest.GetRequestID(),
 		scope,
 		idLengthWarnLimit,
@@ -2156,7 +2157,7 @@ func (wh *WorkflowHandler) SignalWorkflowExecution(
 
 	sizeLimitError := wh.config.BlobSizeLimitError(domainName)
 	sizeLimitWarn := wh.config.BlobSizeLimitWarn(domainName)
-	if err := common.CheckEventBlobSizeLimit(
+	if err := validation.CheckEventBlobSizeLimit(
 		len(signalRequest.Input),
 		sizeLimitWarn,
 		sizeLimitError,
@@ -2285,7 +2286,7 @@ func (wh *WorkflowHandler) validateSignalWithStartWorkflowExecutionRequest(ctx c
 	}
 
 	idLengthWarnLimit := wh.config.MaxIDLengthWarnLimit()
-	if !common.IsValidIDLength(
+	if !validation.IsValidIDLength(
 		domainName,
 		scope,
 		idLengthWarnLimit,
@@ -2297,7 +2298,7 @@ func (wh *WorkflowHandler) validateSignalWithStartWorkflowExecutionRequest(ctx c
 		return validate.ErrDomainTooLong
 	}
 
-	if !common.IsValidIDLength(
+	if !validation.IsValidIDLength(
 		signalWithStartRequest.GetWorkflowID(),
 		scope,
 		idLengthWarnLimit,
@@ -2313,7 +2314,7 @@ func (wh *WorkflowHandler) validateSignalWithStartWorkflowExecutionRequest(ctx c
 		return validate.ErrSignalNameNotSet
 	}
 
-	if !common.IsValidIDLength(
+	if !validation.IsValidIDLength(
 		signalWithStartRequest.GetSignalName(),
 		scope,
 		idLengthWarnLimit,
@@ -2329,7 +2330,7 @@ func (wh *WorkflowHandler) validateSignalWithStartWorkflowExecutionRequest(ctx c
 		return validate.ErrWorkflowTypeNotSet
 	}
 
-	if !common.IsValidIDLength(
+	if !validation.IsValidIDLength(
 		signalWithStartRequest.WorkflowType.GetName(),
 		scope,
 		idLengthWarnLimit,
@@ -2345,7 +2346,7 @@ func (wh *WorkflowHandler) validateSignalWithStartWorkflowExecutionRequest(ctx c
 		return err
 	}
 
-	if !common.IsValidIDLength(
+	if !validation.IsValidIDLength(
 		signalWithStartRequest.GetRequestID(),
 		scope,
 		idLengthWarnLimit,
@@ -2365,7 +2366,7 @@ func (wh *WorkflowHandler) validateSignalWithStartWorkflowExecutionRequest(ctx c
 		return validate.ErrInvalidTaskStartToCloseTimeoutSeconds
 	}
 
-	if err := common.ValidateRetryPolicy(signalWithStartRequest.RetryPolicy); err != nil {
+	if err := validation.ValidateRetryPolicy(signalWithStartRequest.RetryPolicy); err != nil {
 		return err
 	}
 
@@ -2386,7 +2387,7 @@ func (wh *WorkflowHandler) validateSignalWithStartWorkflowExecutionRequest(ctx c
 
 	sizeLimitError := wh.config.BlobSizeLimitError(domainName)
 	sizeLimitWarn := wh.config.BlobSizeLimitWarn(domainName)
-	if err := common.CheckEventBlobSizeLimit(
+	if err := validation.CheckEventBlobSizeLimit(
 		len(signalWithStartRequest.SignalInput),
 		sizeLimitWarn,
 		sizeLimitError,
@@ -2401,7 +2402,7 @@ func (wh *WorkflowHandler) validateSignalWithStartWorkflowExecutionRequest(ctx c
 		return err
 	}
 	actualSize := len(signalWithStartRequest.Input) + common.GetSizeOfMapStringToByteArray(signalWithStartRequest.Memo.GetFields())
-	if err := common.CheckEventBlobSizeLimit(
+	if err := validation.CheckEventBlobSizeLimit(
 		actualSize,
 		sizeLimitWarn,
 		sizeLimitError,
@@ -2656,7 +2657,7 @@ func (wh *WorkflowHandler) QueryWorkflow(
 	sizeLimitWarn := wh.config.BlobSizeLimitWarn(domainName)
 
 	scope := getMetricsScopeWithDomain(metrics.FrontendQueryWorkflowScope, queryRequest, wh.GetMetricsClient()).Tagged(metrics.GetContextTags(ctx)...)
-	if err := common.CheckEventBlobSizeLimit(
+	if err := validation.CheckEventBlobSizeLimit(
 		len(queryRequest.GetQuery().GetQueryArgs()),
 		sizeLimitWarn,
 		sizeLimitError,
@@ -2884,7 +2885,7 @@ func (wh *WorkflowHandler) validateTaskList(t *types.TaskList, scope metrics.Sco
 		return validate.ErrTaskListNotSet
 	}
 
-	if !common.IsValidIDLength(
+	if !validation.IsValidIDLength(
 		t.GetName(),
 		scope,
 		wh.config.MaxIDLengthWarnLimit(),
@@ -3199,7 +3200,7 @@ func (wh *WorkflowHandler) getArchivedHistory(
 func (wh *WorkflowHandler) convertIndexedKeyToThrift(keys map[string]interface{}) map[string]types.IndexedValueType {
 	converted := make(map[string]types.IndexedValueType)
 	for k, v := range keys {
-		converted[k] = common.ConvertIndexedValueTypeToInternalType(v, wh.GetLogger())
+		converted[k] = types.ConvertIndexedValueTypeToInternalType(v)
 	}
 	return converted
 }

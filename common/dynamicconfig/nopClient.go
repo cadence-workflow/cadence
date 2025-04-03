@@ -24,7 +24,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -85,9 +84,4 @@ func (mc *nopClient) ListValue(name Key) ([]*types.DynamicConfigEntry, error) {
 // NewNopClient creates a nop client
 func NewNopClient() Client {
 	return &nopClient{}
-}
-
-// NewNopCollection creates a new nop collection
-func NewNopCollection() *Collection {
-	return NewCollection(&nopClient{}, log.NewNoop())
 }

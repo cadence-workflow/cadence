@@ -33,6 +33,7 @@ import (
 	"github.com/uber/cadence/common/blobstore"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
 	"github.com/uber/cadence/common/pagination"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/reconciliation/entity"
@@ -173,7 +174,7 @@ func Config(ctx shardscanner.ScannerContext) shardscanner.CustomScannerConfig {
 }
 
 // ScannerConfig configures timers scanner
-func ScannerConfig(dc *dynamicconfig.Collection) *shardscanner.ScannerConfig {
+func ScannerConfig(dc *collection.Collection) *shardscanner.ScannerConfig {
 	return &shardscanner.ScannerConfig{
 		ScannerWFTypeName: ScannerWFTypeName,
 		FixerWFTypeName:   FixerWFTypeName,

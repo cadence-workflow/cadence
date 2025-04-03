@@ -35,6 +35,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 )
@@ -212,7 +213,7 @@ func (s *parallelTaskProcessorSuite) TestMonitor() {
 	dcClient := dynamicconfig.NewInMemoryClient()
 	err := dcClient.UpdateValue(dynamicconfig.TaskSchedulerWorkerCount, workerCount)
 	s.NoError(err)
-	dcCollection := dynamicconfig.NewCollection(dcClient, s.processor.logger)
+	dcCollection := collection.NewCollection(dcClient, s.processor.logger)
 	s.processor.options.WorkerCount = dcCollection.GetIntProperty(dynamicconfig.TaskSchedulerWorkerCount)
 
 	testMonitorTickerDuration := 100 * time.Millisecond

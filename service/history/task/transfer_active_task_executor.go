@@ -201,7 +201,7 @@ func (t *transferActiveTaskExecutor) processActivityTask(
 
 	err = t.pushActivity(ctx, task, timeout, mutableState.GetExecutionInfo().PartitionConfig)
 	if err == nil {
-		scope := common.NewPerTaskListScope(domainName, task.TaskList, types.TaskListKindNormal, t.metricsClient, metrics.TransferActiveTaskActivityScope)
+		scope := metrics.NewPerTaskListScope(domainName, task.TaskList, types.TaskListKindNormal, t.metricsClient, metrics.TransferActiveTaskActivityScope)
 		scope.RecordTimer(metrics.ScheduleToStartHistoryQueueLatencyPerTaskList, time.Since(task.GetVisibilityTimestamp()))
 	}
 	return err
@@ -299,7 +299,7 @@ func (t *transferActiveTaskExecutor) processDecisionTask(
 		if taskList.Kind != nil {
 			tlKind = *taskList.Kind
 		}
-		scope := common.NewPerTaskListScope(domainName, taskList.Name, tlKind, t.metricsClient, metrics.TransferActiveTaskDecisionScope)
+		scope := metrics.NewPerTaskListScope(domainName, taskList.Name, tlKind, t.metricsClient, metrics.TransferActiveTaskDecisionScope)
 		scope.RecordTimer(metrics.ScheduleToStartHistoryQueueLatencyPerTaskList, time.Since(task.GetVisibilityTimestamp()))
 	}
 	return err

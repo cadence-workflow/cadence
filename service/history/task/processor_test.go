@@ -32,6 +32,7 @@ import (
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
@@ -233,7 +234,7 @@ func TestGetDomainPriorityWeight(t *testing.T) {
 			mockDomainCache := cache.NewMockDomainCache(mockCtrl)
 			client := dynamicconfig.NewInMemoryClient()
 			config := config.New(
-				dynamicconfig.NewCollection(
+				collection.NewCollection(
 					client,
 					testlogger.New(t),
 				),

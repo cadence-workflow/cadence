@@ -35,6 +35,7 @@ import (
 	"github.com/uber/cadence/common/blobstore"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
 	"github.com/uber/cadence/common/pagination"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/reconciliation/invariant"
@@ -201,7 +202,7 @@ func concreteExecutionCustomFixerConfig(ctx shardscanner.FixerContext) shardscan
 }
 
 // ConcreteExecutionConfig configures concrete execution scanner
-func ConcreteExecutionConfig(dc *dynamicconfig.Collection) *shardscanner.ScannerConfig {
+func ConcreteExecutionConfig(dc *collection.Collection) *shardscanner.ScannerConfig {
 	return &shardscanner.ScannerConfig{
 		ScannerWFTypeName: ConcreteExecutionsScannerWFTypeName,
 		FixerWFTypeName:   ConcreteExecutionsFixerWFTypeName,

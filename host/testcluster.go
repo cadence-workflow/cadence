@@ -39,6 +39,7 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/domain"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
 	"github.com/uber/cadence/common/elasticsearch"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -346,7 +347,7 @@ func setupShards(testBase *persistencetests.TestBase, numHistoryShards int, logg
 }
 
 func newArchiverBase(enabled bool, logger log.Logger) *ArchiverBase {
-	dcCollection := dynamicconfig.NewNopCollection()
+	dcCollection := collection.NewNopCollection()
 	if !enabled {
 		return &ArchiverBase{
 			metadata: archiver.NewArchivalMetadata(dcCollection, "", false, "", false, &config.ArchivalDomainDefaults{}),

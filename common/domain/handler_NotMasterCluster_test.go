@@ -40,6 +40,7 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/constants"
 	dc "github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
 	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql/public"
@@ -89,7 +90,7 @@ func (s *domainHandlerGlobalDomainEnabledNotPrimaryClusterSuite) SetupTest() {
 	s.Setup()
 
 	logger := s.Logger
-	dcCollection := dc.NewCollection(dc.NewNopClient(), logger)
+	dcCollection := collection.NewCollection(dc.NewNopClient(), logger)
 	s.minRetentionDays = 1
 	s.maxBadBinaryCount = 10
 	s.failoverHistoryMaxSize = 5

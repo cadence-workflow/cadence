@@ -26,6 +26,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
 	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/service/matching/config"
@@ -50,7 +51,7 @@ func NewService(
 ) (resource.Resource, error) {
 
 	serviceConfig := config.NewConfig(
-		dynamicconfig.NewCollection(
+		collection.NewCollection(
 			params.DynamicConfig,
 			params.Logger,
 			dynamicconfig.ClusterNameFilter(params.ClusterMetadata.GetCurrentClusterName()),

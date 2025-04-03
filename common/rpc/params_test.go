@@ -27,7 +27,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/uber/cadence/common/config"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/service"
@@ -35,7 +35,7 @@ import (
 
 func TestNewParams(t *testing.T) {
 	serviceName := service.Frontend
-	dc := dynamicconfig.NewNopCollection()
+	dc := collection.NewNopCollection()
 	makeConfig := func(svc config.Service) *config.Config {
 		return &config.Config{
 			PublicClient:           config.PublicClient{HostPort: "localhost:9999"},

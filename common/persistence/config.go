@@ -20,7 +20,10 @@
 
 package persistence
 
-import "github.com/uber/cadence/common/dynamicconfig"
+import (
+	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
+)
 
 type (
 	// DynamicConfiguration represents dynamic configuration for persistence layer
@@ -35,7 +38,7 @@ type (
 )
 
 // NewDynamicConfiguration returns new config with default values
-func NewDynamicConfiguration(dc *dynamicconfig.Collection) *DynamicConfiguration {
+func NewDynamicConfiguration(dc *collection.Collection) *DynamicConfiguration {
 	return &DynamicConfiguration{
 		EnableSQLAsyncTransaction:                dc.GetBoolProperty(dynamicconfig.EnableSQLAsyncTransaction),
 		EnableCassandraAllConsistencyLevelDelete: dc.GetBoolProperty(dynamicconfig.EnableCassandraAllConsistencyLevelDelete),

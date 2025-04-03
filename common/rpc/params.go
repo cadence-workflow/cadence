@@ -33,6 +33,7 @@ import (
 
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/service"
@@ -63,7 +64,7 @@ type httpParams struct {
 }
 
 // NewParams creates parameters for rpc.Factory from the given config
-func NewParams(serviceName string, config *config.Config, dc *dynamicconfig.Collection, logger log.Logger, metricsCl metrics.Client) (Params, error) {
+func NewParams(serviceName string, config *config.Config, dc *collection.Collection, logger log.Logger, metricsCl metrics.Client) (Params, error) {
 	serviceConfig, err := config.GetServiceConfig(serviceName)
 	if err != nil {
 		return Params{}, err
@@ -179,7 +180,7 @@ func NewParams(serviceName string, config *config.Config, dc *dynamicconfig.Coll
 	}, nil
 }
 
-func getForwardingRules(dc *dynamicconfig.Collection) ([]config.HeaderRule, error) {
+func getForwardingRules(dc *collection.Collection) ([]config.HeaderRule, error) {
 	var forwardingRules []config.HeaderRule
 	dynForwarding := dc.GetListProperty(dynamicconfig.HeaderForwardingRules)()
 	if len(dynForwarding) > 0 {

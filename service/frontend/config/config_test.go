@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
 	"github.com/uber/cadence/common/log/testlogger"
 )
 
@@ -115,7 +116,7 @@ func TestNewConfig(t *testing.T) {
 		"FailoverHistoryMaxSize": {dynamicconfig.FrontendFailoverHistoryMaxSize, 44},
 	}
 	client := dynamicconfig.NewInMemoryClient()
-	dc := dynamicconfig.NewCollection(client, testlogger.New(t))
+	dc := collection.NewCollection(client, testlogger.New(t))
 
 	config := NewConfig(dc, 1001, true, "hostname")
 

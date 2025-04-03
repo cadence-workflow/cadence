@@ -25,7 +25,6 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/uber/cadence/common"
 	cadence_errors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -49,7 +48,7 @@ func newHandlerContext(
 ) *handlerContext {
 	return &handlerContext{
 		Context: ctx,
-		scope:   common.NewPerTaskListScope(domainName, taskList.GetName(), taskList.GetKind(), metricsClient, metricsScope).Tagged(metrics.GetContextTags(ctx)...),
+		scope:   metrics.NewPerTaskListScope(domainName, taskList.GetName(), taskList.GetKind(), metricsClient, metricsScope).Tagged(metrics.GetContextTags(ctx)...),
 		logger:  logger.WithTags(tag.WorkflowDomainName(domainName), tag.WorkflowTaskListName(taskList.GetName())),
 	}
 }

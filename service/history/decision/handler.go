@@ -37,6 +37,7 @@ import (
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/common/validation"
 	"github.com/uber/cadence/service/history/config"
 	"github.com/uber/cadence/service/history/execution"
 	"github.com/uber/cadence/service/history/query"
@@ -776,7 +777,7 @@ func (handler *handlerImpl) handleBufferedQueries(
 
 	// Complete or fail all queries we have results for
 	for id, result := range queryResults {
-		if err := common.CheckEventBlobSizeLimit(
+		if err := validation.CheckEventBlobSizeLimit(
 			len(result.GetAnswer()),
 			sizeLimitWarn,
 			sizeLimitError,

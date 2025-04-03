@@ -33,6 +33,7 @@ import (
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/common/validation"
 	"github.com/uber/cadence/service/frontend/config"
 	"github.com/uber/cadence/service/frontend/validate"
 )
@@ -74,7 +75,7 @@ func (v *requestValidatorImpl) validateTaskList(t *types.TaskList, scope metrics
 	if t == nil || t.GetName() == "" {
 		return validate.ErrTaskListNotSet
 	}
-	if !common.IsValidIDLength(
+	if !validation.IsValidIDLength(
 		t.GetName(),
 		scope,
 		v.config.MaxIDLengthWarnLimit(),
@@ -289,7 +290,7 @@ func (v *requestValidatorImpl) ValidateRegisterDomainRequest(ctx context.Context
 	}
 	domain := registerRequest.GetName()
 	scope := v.metricsClient.Scope(metrics.FrontendRegisterDomainScope).Tagged(metrics.DomainTag(domain)).Tagged(metrics.GetContextTags(ctx)...)
-	if !common.IsValidIDLength(
+	if !validation.IsValidIDLength(
 		domain,
 		scope,
 		v.config.MaxIDLengthWarnLimit(),

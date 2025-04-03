@@ -34,6 +34,7 @@ import (
 	"github.com/uber/cadence/common/cluster"
 	commonconstants "github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
@@ -70,7 +71,7 @@ func (s *taskPriorityAssignerSuite) SetupTest() {
 	client := dynamicconfig.NewInMemoryClient()
 	err := client.UpdateValue(dynamicconfig.TaskProcessRPS, s.testTaskProcessRPS)
 	s.NoError(err)
-	dc := dynamicconfig.NewCollection(client, log.NewNoop())
+	dc := collection.NewCollection(client, log.NewNoop())
 	s.config = config.NewForTest()
 	s.config.TaskProcessRPS = dc.GetIntPropertyFilteredByDomain(dynamicconfig.TaskProcessRPS)
 

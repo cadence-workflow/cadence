@@ -45,6 +45,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
 	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/isolationgroup/defaultisolationgroupstate"
 	"github.com/uber/cadence/common/log"
@@ -135,7 +136,7 @@ func (s *matchingEngineSuite) SetupTest() {
 	s.mockIsolationStore = dynamicconfig.NewMockClient(s.controller)
 	dcClient := dynamicconfig.NewInMemoryClient()
 	dcClient.UpdateValue(dynamicconfig.EnableTasklistIsolation, true)
-	dc := dynamicconfig.NewCollection(dcClient, s.logger)
+	dc := collection.NewCollection(dcClient, s.logger)
 	s.isolationState, _ = defaultisolationgroupstate.NewDefaultIsolationGroupStateWatcherWithConfigStoreClient(s.logger,
 		dc,
 		s.mockDomainCache,
@@ -1465,7 +1466,7 @@ func validateTimeRange(t time.Time, expectedDuration time.Duration) bool {
 }
 
 func defaultTestConfig() *config.Config {
-	config := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", getIsolationGroupsHelper)
+	config := config.NewConfig(collection.NewNopCollection(), "some random hostname", getIsolationGroupsHelper)
 	config.LongPollExpirationInterval = dynamicconfig.GetDurationPropertyFnFilteredByTaskListInfo(100 * time.Millisecond)
 	config.MaxTaskDeleteBatchSize = dynamicconfig.GetIntPropertyFilteredByTaskListInfo(1)
 	config.ReadRangeSize = dynamicconfig.GetIntPropertyFn(50000)

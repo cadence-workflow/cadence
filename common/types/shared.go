@@ -8618,3 +8618,33 @@ type AutoConfigHint struct {
 	EnableAutoConfig   bool  `json:"enableAutoConfig"`
 	PollerWaitTimeInMs int64 `json:"pollerWaitTimeInMs"`
 }
+
+// ConvertIndexedValueTypeToInternalType takes fieldType as interface{} and convert to IndexedValueType.
+// Because different implementation of dynamic config client may lead to different types
+func ConvertIndexedValueTypeToInternalType(fieldType interface{}) IndexedValueType {
+	switch t := fieldType.(type) {
+	case float64:
+		return IndexedValueType(t)
+	case int:
+		return IndexedValueType(t)
+	case IndexedValueType:
+		return t
+	case []byte:
+		var result IndexedValueType
+		if err := result.UnmarshalText(t); err != nil {
+			// panic will be captured by logger
+			panic(fmt.Sprintf("unknown index value type [%+v|%T] err: [%v]", fieldType, fieldType, err))
+		}
+		return result
+	case string:
+		var result IndexedValueType
+		if err := result.UnmarshalText([]byte(t)); err != nil {
+			// panic will be captured by logger
+			panic(fmt.Sprintf("unknown index value type [%+v|%T] err: [%v]", fieldType, fieldType, err))
+		}
+		return result
+	default:
+		// panic will be captured by logger
+		panic(fmt.Sprintf("unknown index value type [%+v|%T]", fieldType, fieldType))
+	}
+}

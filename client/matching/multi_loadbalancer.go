@@ -27,6 +27,7 @@ import (
 
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/types"
@@ -46,7 +47,7 @@ func NewMultiLoadBalancer(
 	defaultLoadBalancer LoadBalancer,
 	loadBalancers map[string]LoadBalancer,
 	domainIDToName func(string) (string, error),
-	dc *dynamicconfig.Collection,
+	dc *collection.Collection,
 	logger log.Logger,
 ) LoadBalancer {
 	return &multiLoadBalancer{

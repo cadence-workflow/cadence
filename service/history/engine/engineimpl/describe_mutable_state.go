@@ -25,8 +25,8 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/common/validation"
 	"github.com/uber/cadence/service/history/execution"
 )
 
@@ -35,7 +35,7 @@ func (e *historyEngineImpl) DescribeMutableState(
 	request *types.DescribeMutableStateRequest,
 ) (response *types.DescribeMutableStateResponse, retError error) {
 
-	if err := common.ValidateDomainUUID(request.DomainUUID); err != nil {
+	if err := validation.ValidateDomainUUID(request.DomainUUID); err != nil {
 		return nil, err
 	}
 

@@ -36,6 +36,7 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/domain"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/types"
@@ -93,7 +94,7 @@ func (s *clusterRedirectionHandlerSuite) SetupTest() {
 	s.mockRemoteFrontendClient = s.mockResource.RemoteFrontendClient
 
 	s.config = frontendcfg.NewConfig(
-		dynamicconfig.NewCollection(
+		collection.NewCollection(
 			dynamicconfig.NewNopClient(),
 			s.mockResource.GetLogger(),
 		),

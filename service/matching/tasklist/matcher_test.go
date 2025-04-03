@@ -42,7 +42,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/constants"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/metrics/mocks"
@@ -73,7 +73,7 @@ func TestMatcherSuite(t *testing.T) {
 func (t *MatcherTestSuite) SetupTest() {
 	t.controller = gomock.NewController(t.T())
 	t.client = matching.NewMockClient(t.controller)
-	cfg := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", func() []string { return nil })
+	cfg := config.NewConfig(collection.NewNopCollection(), "some random hostname", func() []string { return nil })
 	t.taskList = NewTestTaskListID(t.T(), uuid.New(), constants.ReservedTaskListPrefix+"tl0/1", persistence.TaskListTypeDecision)
 	tlCfg := newTaskListConfig(t.taskList, cfg, testDomainName)
 

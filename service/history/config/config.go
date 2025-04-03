@@ -25,6 +25,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
 	"github.com/uber/cadence/common/log"
 )
 
@@ -325,7 +326,7 @@ type Config struct {
 }
 
 // New returns new service config with default values
-func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, isAdvancedVisConfigExist bool, hostname string) *Config {
+func New(dc *collection.Collection, numberOfShards int, maxMessageSize int, isAdvancedVisConfigExist bool, hostname string) *Config {
 	cfg := &Config{
 		NumberOfShards:                       numberOfShards,
 		IsAdvancedVisConfigExist:             isAdvancedVisConfigExist,
@@ -610,7 +611,7 @@ func NewForTestByShardNumber(shardNumber int) *Config {
 	panicIfErr(inMem.UpdateValue(dynamicconfig.QueueProcessorRandomSplitProbability, 0.5))
 	panicIfErr(inMem.UpdateValue(dynamicconfig.EnableStrongIdempotency, true))
 
-	dc := dynamicconfig.NewCollection(inMem, log.NewNoop())
+	dc := collection.NewCollection(inMem, log.NewNoop())
 	config := New(dc, shardNumber, 1024*1024, false, "")
 	// reduce the duration of long poll to increase test speed
 	config.LongPollExpirationInterval = dc.GetDurationPropertyFilteredByDomain(dynamicconfig.HistoryLongPollExpirationInterval)

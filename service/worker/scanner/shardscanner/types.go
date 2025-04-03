@@ -34,6 +34,7 @@ import (
 	"go.uber.org/cadence/workflow"
 
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -281,7 +282,7 @@ type (
 		ScannerHooks         func() *ScannerHooks
 		FixerHooks           func() *FixerHooks
 		DynamicParams        DynamicParams
-		DynamicCollection    *dynamicconfig.Collection
+		DynamicCollection    *collection.Collection
 		StartWorkflowOptions client.StartWorkflowOptions
 		StartFixerOptions    client.StartWorkflowOptions
 	}

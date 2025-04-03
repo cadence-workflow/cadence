@@ -30,10 +30,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	gomock "go.uber.org/mock/gomock"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
@@ -133,7 +134,7 @@ func setupMocksForTaskRateLimiter(t *testing.T, mockQuotasCollection bool) (*tas
 	}
 
 	config := config.New(
-		dynamicconfig.NewCollection(
+		collection.NewCollection(
 			dynamicClient,
 			testlogger.New(t),
 		),

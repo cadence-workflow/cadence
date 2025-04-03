@@ -712,7 +712,7 @@ func (v *esVisibilityStore) getFieldType(fieldName string) types.IndexedValueTyp
 	if !ok {
 		v.logger.Error("Unknown fieldName, validation should be done in frontend already", tag.Value(fieldName))
 	}
-	return common.ConvertIndexedValueTypeToInternalType(fieldType, v.logger)
+	return types.ConvertIndexedValueTypeToInternalType(fieldType)
 }
 
 func (v *esVisibilityStore) getValueOfSearchAfterInJSON(token *es.ElasticVisibilityPageToken, sortField string) (string, error) {

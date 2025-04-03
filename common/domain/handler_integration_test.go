@@ -41,6 +41,7 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/constants"
 	dc "github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/messaging"
 	"github.com/uber/cadence/common/mocks"
@@ -94,7 +95,7 @@ func (s *domainHandlerCommonSuite) SetupTest() {
 	s.Setup()
 
 	logger := s.Logger
-	dcCollection := dc.NewCollection(dc.NewNopClient(), logger)
+	dcCollection := collection.NewCollection(dc.NewNopClient(), logger)
 	s.minRetentionDays = 1
 	s.maxBadBinaryCount = 10
 	s.failoverHistoryMaxSize = 5

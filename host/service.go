@@ -36,6 +36,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/membership"
@@ -91,7 +92,7 @@ type (
 		clusterMetadata        cluster.Metadata
 		messagingClient        messaging.Client
 		blobstoreClient        blobstore.Client
-		dynamicCollection      *dynamicconfig.Collection
+		dynamicCollection      *collection.Collection
 		archivalMetadata       archiver.ArchivalMetadata
 		archiverProvider       provider.ArchiverProvider
 		serializer             persistence.PayloadSerializer
@@ -119,7 +120,7 @@ func NewService(params *resource.Params) Service {
 		metricsClient:         params.MetricsClient,
 		messagingClient:       params.MessagingClient,
 		blobstoreClient:       params.BlobstoreClient,
-		dynamicCollection: dynamicconfig.NewCollection(
+		dynamicCollection: collection.NewCollection(
 			params.DynamicConfig,
 			params.Logger,
 			dynamicconfig.ClusterNameFilter(params.ClusterMetadata.GetCurrentClusterName()),

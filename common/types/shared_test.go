@@ -27,6 +27,7 @@ import (
 	"unsafe"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDataBlobDeepCopy(t *testing.T) {
@@ -73,4 +74,17 @@ func TestDataBlobDeepCopy(t *testing.T) {
 // identicalByteArray returns true if a and b are the same slice, false otherwise.
 func identicalByteArray(a, b []byte) bool {
 	return len(a) == len(b) && unsafe.SliceData(a) == unsafe.SliceData(b)
+}
+
+func TestConvertIndexedValueTypeToInternalType(t *testing.T) {
+	values := []IndexedValueType{IndexedValueTypeString, IndexedValueTypeKeyword, IndexedValueTypeInt, IndexedValueTypeDouble, IndexedValueTypeBool, IndexedValueTypeDatetime}
+	for _, expected := range values {
+		require.Equal(t, expected, ConvertIndexedValueTypeToInternalType(int(expected)))
+		require.Equal(t, expected, ConvertIndexedValueTypeToInternalType(float64(expected)))
+
+		buffer, err := expected.MarshalText()
+		require.NoError(t, err)
+		require.Equal(t, expected, ConvertIndexedValueTypeToInternalType(buffer))
+		require.Equal(t, expected, ConvertIndexedValueTypeToInternalType(string(buffer)))
+	}
 }

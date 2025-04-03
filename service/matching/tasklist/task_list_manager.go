@@ -176,7 +176,7 @@ func NewManager(
 		taskListKind = &normalTaskListKind
 	}
 
-	scope := common.NewPerTaskListScope(domainName, taskList.GetName(), *taskListKind, metricsClient, metrics.MatchingTaskListMgrScope).
+	scope := metrics.NewPerTaskListScope(domainName, taskList.GetName(), *taskListKind, metricsClient, metrics.MatchingTaskListMgrScope).
 		Tagged(getTaskListTypeTag(taskList.GetType()))
 	db := newTaskListDB(taskManager, taskList.GetDomainID(), domainName, taskList.GetName(), taskList.GetType(), int(*taskListKind), logger)
 
@@ -225,7 +225,7 @@ func NewManager(
 
 	tlMgr.qpsTracker = stats.NewEmaFixedWindowQPSTracker(timeSource, 0.5, taskListConfig.QPSTrackerInterval(), baseEvent)
 	if taskList.IsRoot() && *taskListKind == types.TaskListKindNormal {
-		adaptiveScalerScope := common.NewPerTaskListScope(domainName, taskList.GetName(), *taskListKind, metricsClient, metrics.MatchingAdaptiveScalerScope).
+		adaptiveScalerScope := metrics.NewPerTaskListScope(domainName, taskList.GetName(), *taskListKind, metricsClient, metrics.MatchingAdaptiveScalerScope).
 			Tagged(getTaskListTypeTag(taskList.GetType()))
 		tlMgr.adaptiveScaler = NewAdaptiveScaler(taskList, tlMgr, taskListConfig, timeSource, tlMgr.logger, adaptiveScalerScope, matchingClient, baseEvent)
 	}

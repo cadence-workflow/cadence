@@ -22,6 +22,7 @@ package host
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"testing"
@@ -33,7 +34,6 @@ import (
 	"go.uber.org/yarpc/transport/tchannel"
 	"gopkg.in/yaml.v2"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
@@ -248,7 +248,7 @@ func (s *IntegrationBase) printWorkflowHistory(domain string, execution *types.W
 	events := s.getHistory(domain, execution)
 	history := &types.History{}
 	history.Events = events
-	common.PrettyPrintHistory(history, s.Logger)
+	PrettyPrintHistory(history, s.Logger)
 }
 
 func (s *IntegrationBase) getHistory(domain string, execution *types.WorkflowExecution) []*types.HistoryEvent {
@@ -317,4 +317,17 @@ func (s *IntegrationBase) registerArchivalDomain() error {
 		)
 	}
 	return err
+}
+
+// PrettyPrintHistory prints history in human readable format
+func PrettyPrintHistory(history *types.History, logger log.Logger) {
+	data, err := json.MarshalIndent(history, "", "    ")
+
+	if err != nil {
+		logger.Error("Error serializing history: %v\n", tag.Error(err))
+	}
+
+	fmt.Println("******************************************")
+	fmt.Println("History", tag.DetailInfo(string(data)))
+	fmt.Println("******************************************")
 }

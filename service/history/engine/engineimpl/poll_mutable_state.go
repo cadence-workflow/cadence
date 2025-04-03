@@ -32,6 +32,7 @@ import (
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/common/validation"
 )
 
 // GetMutableState retrieves the mutable state of the workflow execution
@@ -176,7 +177,7 @@ func (e *historyEngineImpl) getMutableStateOrLongPoll(
 	request *types.GetMutableStateRequest,
 ) (*types.GetMutableStateResponse, error) {
 
-	if err := common.ValidateDomainUUID(request.DomainUUID); err != nil {
+	if err := validation.ValidateDomainUUID(request.DomainUUID); err != nil {
 		return nil, err
 	}
 	domainID := request.DomainUUID

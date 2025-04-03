@@ -24,13 +24,13 @@ import (
 	"context"
 	"sync"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	dynamicquotas "github.com/uber/cadence/common/dynamicconfig/quotas"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/quotas"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/common/validation"
 	"github.com/uber/cadence/service/matching/config"
 )
 
@@ -207,7 +207,7 @@ func (h *handlerImpl) PollForActivityTask(
 		return nil, hCtx.handleErr(errMatchingHostThrottle)
 	}
 
-	if _, err := common.ValidateLongPollContextTimeoutIsSet(ctx,
+	if _, err := validation.ValidateLongPollContextTimeoutIsSet(ctx,
 		"PollForActivityTask",
 		h.throttledLogger,
 	); err != nil {
@@ -244,7 +244,7 @@ func (h *handlerImpl) PollForDecisionTask(
 		return nil, hCtx.handleErr(errMatchingHostThrottle)
 	}
 
-	if _, err := common.ValidateLongPollContextTimeoutIsSet(
+	if _, err := validation.ValidateLongPollContextTimeoutIsSet(
 		ctx,
 		"PollForDecisionTask",
 		h.throttledLogger,

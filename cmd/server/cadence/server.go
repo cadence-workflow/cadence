@@ -45,7 +45,9 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
 	"github.com/uber/cadence/common/dynamicconfig/configstore"
+	filestore2 "github.com/uber/cadence/common/dynamicconfig/filestore"
 	"github.com/uber/cadence/common/elasticsearch"
 	"github.com/uber/cadence/common/isolationgroup/isolationgroupapi"
 	cadencelog "github.com/uber/cadence/common/log"
@@ -135,7 +137,7 @@ func (s *server) startService() common.Daemon {
 	err = nil
 	if s.cfg.DynamicConfig.Client == "" {
 		params.Logger.Warn("falling back to legacy file based dynamicClientConfig")
-		params.DynamicConfig, err = dynamicconfig.NewFileBasedClient(&s.cfg.DynamicConfigClient, params.Logger, s.doneC)
+		params.DynamicConfig, err = filestore2.NewFileBasedClient(&s.cfg.DynamicConfigClient, params.Logger, s.doneC)
 	} else {
 		switch s.cfg.DynamicConfig.Client {
 		case dynamicconfig.ConfigStoreClient:
@@ -148,7 +150,7 @@ func (s *server) startService() common.Daemon {
 			)
 		case dynamicconfig.FileBasedClient:
 			params.Logger.Info("initialising File Based dynamic config client")
-			params.DynamicConfig, err = dynamicconfig.NewFileBasedClient(&s.cfg.DynamicConfig.FileBased, params.Logger, s.doneC)
+			params.DynamicConfig, err = filestore2.NewFileBasedClient(&s.cfg.DynamicConfig.FileBased, params.Logger, s.doneC)
 		default:
 			params.Logger.Info("initialising NOP dynamic config client")
 			params.DynamicConfig = dynamicconfig.NewNopClient()
@@ -161,7 +163,7 @@ func (s *server) startService() common.Daemon {
 	}
 
 	clusterGroupMetadata := s.cfg.ClusterGroupMetadata
-	dc := dynamicconfig.NewCollection(
+	dc := collection.NewCollection(
 		params.DynamicConfig,
 		params.Logger,
 		dynamicconfig.ClusterNameFilter(clusterGroupMetadata.CurrentClusterName),
@@ -311,7 +313,7 @@ func (s *server) startService() common.Daemon {
 func (*server) newMethod(
 	hashRings map[string]*membership.Ring,
 	shardDistributorClient sharddistributorClient.Client,
-	dc *dynamicconfig.Collection,
+	dc *collection.Collection,
 	logger cadencelog.Logger,
 ) map[string]membership.SingleProvider {
 	wrappedRings := make(map[string]membership.SingleProvider, len(hashRings))
@@ -331,7 +333,7 @@ func (*server) newMethod(
 	return wrappedRings
 }
 
-func (*server) createShardDistributorClient(params resource.Params, dc *dynamicconfig.Collection) sharddistributorClient.Client {
+func (*server) createShardDistributorClient(params resource.Params, dc *collection.Collection) sharddistributorClient.Client {
 	shardDistributorClientConfig, ok := params.RPCFactory.GetDispatcher().OutboundConfig(service.ShardDistributor)
 	var shardDistributorClient sharddistributorClient.Client
 	if ok {
@@ -446,7 +448,7 @@ func validateIndex(config *config.ElasticSearchConfig) {
 	}
 }
 
-func getFromDynamicConfig(params resource.Params, dc *dynamicconfig.Collection) func() []string {
+func getFromDynamicConfig(params resource.Params, dc *collection.Collection) func() []string {
 	return func() []string {
 		res, err := isolationgroupapi.MapAllIsolationGroupsResponse(dc.GetListProperty(dynamicconfig.AllIsolationGroups)())
 		if err != nil {

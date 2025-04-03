@@ -33,6 +33,7 @@ import (
 
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/messaging"
 	"github.com/uber/cadence/common/messaging/kafka"
@@ -260,7 +261,7 @@ func makeFactoryWithMetrics(t *testing.T, withMetrics bool) Factory {
 		)
 	}
 	ctrl := gomock.NewController(t)
-	dc := dynamicconfig.NewCollection(dynamicconfig.NewMockClient(ctrl), logger)
+	dc := collection.NewCollection(dynamicconfig.NewMockClient(ctrl), logger)
 	pdc := persistence.NewDynamicConfiguration(dc)
 
 	cfg := &config.Persistence{

@@ -33,6 +33,7 @@ import (
 
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
 	"github.com/uber/cadence/common/isolationgroup/isolationgroupapi"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
@@ -321,7 +322,7 @@ func TestUpdateRequest(t *testing.T) {
 }
 
 func TestNewDefaultIsolationGroupStateWatcherWithConfigStoreClient(t *testing.T) {
-	dc := dynamicconfig.NewNopCollection()
+	dc := collection.NewNopCollection()
 	domainCache := cache.NewNoOpDomainCache()
 	client := metrics.NewNoopMetricsClient()
 	ig := func() []string { return nil }

@@ -30,6 +30,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
 	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/isolationgroup/isolationgroupapi"
 	"github.com/uber/cadence/common/log"
@@ -50,7 +51,7 @@ type defaultIsolationGroupStateHandler struct {
 // NewDefaultIsolationGroupStateWatcherWithConfigStoreClient Is a constructor which allows passing in the dynamic config client
 func NewDefaultIsolationGroupStateWatcherWithConfigStoreClient(
 	logger log.Logger,
-	dc *dynamicconfig.Collection,
+	dc *collection.Collection,
 	domainCache cache.DomainCache,
 	cfgStoreClient dynamicconfig.Client, // can be nil, which means global drain is unsupported
 	metricsClient metrics.Client,

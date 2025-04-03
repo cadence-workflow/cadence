@@ -37,6 +37,8 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/domain"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
+	"github.com/uber/cadence/common/dynamicconfig/filestore"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/mocks"
@@ -378,7 +380,7 @@ func initializeClusterMetadata(serviceConfig *config.Config, metrics metrics.Cli
 
 func initializeArchivalMetadata(
 	serviceConfig *config.Config,
-	dynamicConfig *dynamicconfig.Collection,
+	dynamicConfig *collection.Collection,
 ) archiver.ArchivalMetadata {
 
 	return archiver.NewArchivalMetadata(
@@ -440,13 +442,13 @@ func initializeDomainReplicator(
 func initializeDynamicConfig(
 	serviceConfig *config.Config,
 	logger log.Logger,
-) (*dynamicconfig.Collection, error) {
+) (*collection.Collection, error) {
 
 	// the done channel is used by dynamic config to stop refreshing
 	// and CLI does not need that, so just close the done channel
 	doneChan := make(chan struct{})
 	close(doneChan)
-	dynamicConfigClient, err := dynamicconfig.NewFileBasedClient(
+	dynamicConfigClient, err := filestore.NewFileBasedClient(
 		&serviceConfig.DynamicConfig.FileBased,
 		logger,
 		doneChan,
@@ -454,7 +456,7 @@ func initializeDynamicConfig(
 	if err != nil {
 		return nil, fmt.Errorf("Error initializing dynamic config. %w", err)
 	}
-	return dynamicconfig.NewCollection(dynamicConfigClient, logger), nil
+	return collection.NewCollection(dynamicConfigClient, logger), nil
 }
 
 func initializeMetricsClient() metrics.Client {

@@ -38,6 +38,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/blobstore"
 	"github.com/uber/cadence/common/dynamicconfig"
+	collection2 "github.com/uber/cadence/common/dynamicconfig/collection"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/reconciliation/invariant"
@@ -331,7 +332,7 @@ func (s *currentExectionsWorkflowsSuite) TestCurrentFixerWorkflow_Success() {
 func Test_currentExecutionCustomScannerConfig(t *testing.T) {
 	mockClient := dynamicconfig.NewMockClient(gomock.NewController(t))
 
-	collection := dynamicconfig.NewCollection(mockClient, log.NewNoop())
+	collection := collection2.NewCollection(mockClient, log.NewNoop())
 
 	mockClient.EXPECT().GetBoolValue(gomock.Any(), gomock.Any()).Return(true, nil).Times(2)
 
@@ -358,7 +359,7 @@ func Test_currentExecutionFixerHooks(t *testing.T) {
 func TestCurrentExecutionConfig(t *testing.T) {
 	mockClient := dynamicconfig.NewMockClient(gomock.NewController(t))
 
-	collection := dynamicconfig.NewCollection(mockClient, log.NewNoop())
+	collection := collection2.NewCollection(mockClient, log.NewNoop())
 
 	cfg := CurrentExecutionConfig(collection)
 

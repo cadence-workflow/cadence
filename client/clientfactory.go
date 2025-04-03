@@ -46,6 +46,7 @@ import (
 	"github.com/uber/cadence/client/wrappers/thrift"
 	timeoutwrapper "github.com/uber/cadence/client/wrappers/timeout"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/metrics"
@@ -76,7 +77,7 @@ type (
 		rpcFactory            rpc.Factory
 		resolver              membership.Resolver
 		metricsClient         metrics.Client
-		dynConfig             *dynamicconfig.Collection
+		dynConfig             *collection.Collection
 		numberOfHistoryShards int
 		allIsolationGroups    func() []string
 		logger                log.Logger
@@ -88,7 +89,7 @@ func NewRPCClientFactory(
 	rpcFactory rpc.Factory,
 	resolver membership.Resolver,
 	metricsClient metrics.Client,
-	dc *dynamicconfig.Collection,
+	dc *collection.Collection,
 	numberOfHistoryShards int,
 	allIsolationGroups func() []string,
 	logger log.Logger,

@@ -83,7 +83,7 @@ func (h *{{$decorator}}) {{$method.Declaration}} {
 	{{- $domainMetricTag = printf "metrics.DomainTag(%s)" $domain}}
 	{{- end}}
 	{{- if has $method.Name $pollerAPIs}}
-	scope := common.NewPerTaskListScope({{(index $method.Params 1).Name}}.Domain, {{(index $method.Params 1).Name}}.TaskList.GetName(), {{(index $method.Params 1).Name}}.TaskList.GetKind(), h.metricsClient, {{$scope}}).Tagged(metrics.GetContextTags(ctx)...)
+	scope := metrics.NewPerTaskListScope({{(index $method.Params 1).Name}}.Domain, {{(index $method.Params 1).Name}}.TaskList.GetName(), {{(index $method.Params 1).Name}}.TaskList.GetKind(), h.metricsClient, {{$scope}}).Tagged(metrics.GetContextTags(ctx)...)
 	scope.IncCounter(metrics.CadenceRequestsPerTaskList)
 	sw := scope.StartTimer(metrics.CadenceLatencyPerTaskList)
 	defer sw.Stop()

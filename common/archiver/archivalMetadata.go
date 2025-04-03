@@ -27,6 +27,7 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -77,7 +78,7 @@ const (
 
 // NewArchivalMetadata constructs a new ArchivalMetadata
 func NewArchivalMetadata(
-	dc *dynamicconfig.Collection,
+	dc *collection.Collection,
 	historyStatus string,
 	historyReadEnabled bool,
 	visibilityStatus string,

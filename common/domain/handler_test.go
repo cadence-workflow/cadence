@@ -42,6 +42,7 @@ import (
 	"github.com/uber/cadence/common/config"
 	commonconstants "github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -50,7 +51,7 @@ import (
 
 // newTestHandler creates a new instance of the handler with mocked dependencies for testing.
 func newTestHandler(domainManager persistence.DomainManager, primaryCluster bool, domainReplicator Replicator) Handler {
-	mockDC := dynamicconfig.NewCollection(dynamicconfig.NewNopClient(), log.NewNoop())
+	mockDC := collection.NewCollection(dynamicconfig.NewNopClient(), log.NewNoop())
 	domainDefaults := &config.ArchivalDomainDefaults{
 		History: config.HistoryArchivalDomainDefaults{
 			Status: "Disabled",

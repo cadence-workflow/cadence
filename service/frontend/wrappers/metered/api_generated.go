@@ -319,7 +319,7 @@ func (h *apiHandler) PollForActivityTask(ctx context.Context, pp1 *types.PollFor
 	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
 	tags := []tag.Tag{tag.WorkflowHandlerName("PollForActivityTask")}
 	tags = append(tags, toPollForActivityTaskRequestTags(pp1)...)
-	scope := common.NewPerTaskListScope(pp1.Domain, pp1.TaskList.GetName(), pp1.TaskList.GetKind(), h.metricsClient, metrics.FrontendPollForActivityTaskScope).Tagged(metrics.GetContextTags(ctx)...)
+	scope := metrics.NewPerTaskListScope(pp1.Domain, pp1.TaskList.GetName(), pp1.TaskList.GetKind(), h.metricsClient, metrics.FrontendPollForActivityTaskScope).Tagged(metrics.GetContextTags(ctx)...)
 	scope.IncCounter(metrics.CadenceRequestsPerTaskList)
 	sw := scope.StartTimer(metrics.CadenceLatencyPerTaskList)
 	defer sw.Stop()
@@ -337,7 +337,7 @@ func (h *apiHandler) PollForDecisionTask(ctx context.Context, pp1 *types.PollFor
 	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
 	tags := []tag.Tag{tag.WorkflowHandlerName("PollForDecisionTask")}
 	tags = append(tags, toPollForDecisionTaskRequestTags(pp1)...)
-	scope := common.NewPerTaskListScope(pp1.Domain, pp1.TaskList.GetName(), pp1.TaskList.GetKind(), h.metricsClient, metrics.FrontendPollForDecisionTaskScope).Tagged(metrics.GetContextTags(ctx)...)
+	scope := metrics.NewPerTaskListScope(pp1.Domain, pp1.TaskList.GetName(), pp1.TaskList.GetKind(), h.metricsClient, metrics.FrontendPollForDecisionTaskScope).Tagged(metrics.GetContextTags(ctx)...)
 	scope.IncCounter(metrics.CadenceRequestsPerTaskList)
 	sw := scope.StartTimer(metrics.CadenceLatencyPerTaskList)
 	defer sw.Stop()

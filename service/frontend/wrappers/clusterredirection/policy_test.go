@@ -32,6 +32,7 @@ import (
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -155,7 +156,7 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) SetupTest() {
 
 	logger := testlogger.New(s.T())
 
-	s.mockConfig = frontendcfg.NewConfig(dynamicconfig.NewCollection(
+	s.mockConfig = frontendcfg.NewConfig(collection.NewCollection(
 		dynamicconfig.NewNopClient(),
 		logger,
 	),

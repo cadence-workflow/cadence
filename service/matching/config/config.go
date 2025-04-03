@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
 )
 
 type (
@@ -155,7 +156,7 @@ type (
 )
 
 // NewConfig returns new service config with default values
-func NewConfig(dc *dynamicconfig.Collection, hostName string, getIsolationGroups func() []string) *Config {
+func NewConfig(dc *collection.Collection, hostName string, getIsolationGroups func() []string) *Config {
 	return &Config{
 		PersistenceMaxQPS:                    dc.GetIntProperty(dynamicconfig.MatchingPersistenceMaxQPS),
 		PersistenceGlobalMaxQPS:              dc.GetIntProperty(dynamicconfig.MatchingPersistenceGlobalMaxQPS),

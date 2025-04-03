@@ -31,6 +31,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
@@ -42,7 +43,7 @@ func setupMocksForRequestValidator(t *testing.T) (*requestValidatorImpl, *mockDe
 	metricsClient := metrics.NewNoopMetricsClient()
 	dynamicClient := dynamicconfig.NewInMemoryClient()
 	config := frontendcfg.NewConfig(
-		dynamicconfig.NewCollection(
+		collection.NewCollection(
 			dynamicClient,
 			logger,
 		),

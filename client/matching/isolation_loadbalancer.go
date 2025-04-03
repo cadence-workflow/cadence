@@ -26,6 +26,7 @@ import (
 	"math/rand"
 
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
 	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/types"
 )
@@ -37,7 +38,7 @@ type isolationLoadBalancer struct {
 	isolationEnabled func(string) bool
 }
 
-func NewIsolationLoadBalancer(fallback LoadBalancer, provider PartitionConfigProvider, domainIDToName func(string) (string, error), config *dynamicconfig.Collection) LoadBalancer {
+func NewIsolationLoadBalancer(fallback LoadBalancer, provider PartitionConfigProvider, domainIDToName func(string) (string, error), config *collection.Collection) LoadBalancer {
 	isolationEnabled := config.GetBoolPropertyFilteredByDomain(dynamicconfig.EnableTasklistIsolation)
 	return &isolationLoadBalancer{
 		provider:         provider,

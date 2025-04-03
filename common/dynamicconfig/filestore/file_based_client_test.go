@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package dynamicconfig
+package filestore
 
 import (
 	"fmt"
@@ -28,13 +28,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
+	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 )
 
 type fileBasedClientSuite struct {
 	suite.Suite
 	*require.Assertions
-	client Client
+	client dynamicconfig.Client
 	doneCh chan struct{}
 }
 
@@ -62,107 +63,107 @@ func (s *fileBasedClientSuite) SetupTest() {
 }
 
 func (s *fileBasedClientSuite) TestGetValue() {
-	v, err := s.client.GetValue(TestGetBoolPropertyKey)
+	v, err := s.client.GetValue(dynamicconfig.TestGetBoolPropertyKey)
 	s.NoError(err)
 	s.Equal(false, v)
 }
 
 func (s *fileBasedClientSuite) TestGetValue_NonExistKey() {
-	v, err := s.client.GetValue(EnableVisibilitySampling)
+	v, err := s.client.GetValue(dynamicconfig.EnableVisibilitySampling)
 	s.Error(err)
-	s.Equal(EnableVisibilitySampling.DefaultBool(), v)
+	s.Equal(dynamicconfig.EnableVisibilitySampling.DefaultBool(), v)
 }
 
 func (s *fileBasedClientSuite) TestGetValueWithFilters() {
-	filters := map[Filter]interface{}{
-		DomainName: "global-samples-domain",
+	filters := map[dynamicconfig.Filter]interface{}{
+		dynamicconfig.DomainName: "global-samples-domain",
 	}
-	v, err := s.client.GetValueWithFilters(TestGetBoolPropertyKey, filters)
+	v, err := s.client.GetValueWithFilters(dynamicconfig.TestGetBoolPropertyKey, filters)
 	s.NoError(err)
 	s.Equal(true, v)
 
-	filters = map[Filter]interface{}{
-		DomainName: "non-exist-domain",
+	filters = map[dynamicconfig.Filter]interface{}{
+		dynamicconfig.DomainName: "non-exist-domain",
 	}
-	v, err = s.client.GetValueWithFilters(TestGetBoolPropertyKey, filters)
+	v, err = s.client.GetValueWithFilters(dynamicconfig.TestGetBoolPropertyKey, filters)
 	s.NoError(err)
 	s.Equal(false, v)
 
-	filters = map[Filter]interface{}{
-		DomainName:   "samples-domain",
-		TaskListName: "non-exist-tasklist",
+	filters = map[dynamicconfig.Filter]interface{}{
+		dynamicconfig.DomainName:   "samples-domain",
+		dynamicconfig.TaskListName: "non-exist-tasklist",
 	}
-	v, err = s.client.GetValueWithFilters(TestGetBoolPropertyKey, filters)
+	v, err = s.client.GetValueWithFilters(dynamicconfig.TestGetBoolPropertyKey, filters)
 	s.NoError(err)
 	s.Equal(true, v)
 }
 
 func (s *fileBasedClientSuite) TestGetValueWithFilters_UnknownFilter() {
-	filters := map[Filter]interface{}{
-		DomainName:    "global-samples-domain1",
-		UnknownFilter: "unknown-filter1",
+	filters := map[dynamicconfig.Filter]interface{}{
+		dynamicconfig.DomainName:    "global-samples-domain1",
+		dynamicconfig.UnknownFilter: "unknown-filter1",
 	}
-	v, err := s.client.GetValueWithFilters(TestGetBoolPropertyKey, filters)
+	v, err := s.client.GetValueWithFilters(dynamicconfig.TestGetBoolPropertyKey, filters)
 	s.NoError(err)
 	s.Equal(false, v)
 }
 
 func (s *fileBasedClientSuite) TestGetIntValue() {
-	v, err := s.client.GetIntValue(TestGetIntPropertyKey, nil)
+	v, err := s.client.GetIntValue(dynamicconfig.TestGetIntPropertyKey, nil)
 	s.NoError(err)
 	s.Equal(1000, v)
 }
 
 func (s *fileBasedClientSuite) TestGetIntValue_FilterNotMatch() {
-	filters := map[Filter]interface{}{
-		DomainName: "samples-domain",
+	filters := map[dynamicconfig.Filter]interface{}{
+		dynamicconfig.DomainName: "samples-domain",
 	}
-	v, err := s.client.GetIntValue(TestGetIntPropertyKey, filters)
+	v, err := s.client.GetIntValue(dynamicconfig.TestGetIntPropertyKey, filters)
 	s.NoError(err)
 	s.Equal(1000, v)
 }
 
 func (s *fileBasedClientSuite) TestGetIntValue_WrongType() {
-	filters := map[Filter]interface{}{
-		DomainName: "global-samples-domain",
+	filters := map[dynamicconfig.Filter]interface{}{
+		dynamicconfig.DomainName: "global-samples-domain",
 	}
-	v, err := s.client.GetIntValue(TestGetIntPropertyKey, filters)
+	v, err := s.client.GetIntValue(dynamicconfig.TestGetIntPropertyKey, filters)
 	s.Error(err)
-	s.Equal(TestGetIntPropertyKey.DefaultInt(), v)
+	s.Equal(dynamicconfig.TestGetIntPropertyKey.DefaultInt(), v)
 }
 
 func (s *fileBasedClientSuite) TestGetFloatValue() {
-	v, err := s.client.GetFloatValue(TestGetFloat64PropertyKey, nil)
+	v, err := s.client.GetFloatValue(dynamicconfig.TestGetFloat64PropertyKey, nil)
 	s.NoError(err)
 	s.Equal(12.0, v)
 }
 
 func (s *fileBasedClientSuite) TestGetFloatValue_WrongType() {
-	filters := map[Filter]interface{}{
-		DomainName: "samples-domain",
+	filters := map[dynamicconfig.Filter]interface{}{
+		dynamicconfig.DomainName: "samples-domain",
 	}
-	v, err := s.client.GetFloatValue(TestGetFloat64PropertyKey, filters)
+	v, err := s.client.GetFloatValue(dynamicconfig.TestGetFloat64PropertyKey, filters)
 	s.Error(err)
-	s.Equal(TestGetFloat64PropertyKey.DefaultFloat(), v)
+	s.Equal(dynamicconfig.TestGetFloat64PropertyKey.DefaultFloat(), v)
 }
 
 func (s *fileBasedClientSuite) TestGetBoolValue() {
-	v, err := s.client.GetBoolValue(TestGetBoolPropertyKey, nil)
+	v, err := s.client.GetBoolValue(dynamicconfig.TestGetBoolPropertyKey, nil)
 	s.NoError(err)
 	s.Equal(false, v)
 }
 
 func (s *fileBasedClientSuite) TestGetStringValue() {
-	filters := map[Filter]interface{}{
-		TaskListName: "random tasklist",
+	filters := map[dynamicconfig.Filter]interface{}{
+		dynamicconfig.TaskListName: "random tasklist",
 	}
-	v, err := s.client.GetStringValue(TestGetStringPropertyKey, filters)
+	v, err := s.client.GetStringValue(dynamicconfig.TestGetStringPropertyKey, filters)
 	s.NoError(err)
 	s.Equal("constrained-string", v)
 }
 
 func (s *fileBasedClientSuite) TestGetMapValue() {
-	v, err := s.client.GetMapValue(TestGetMapPropertyKey, nil)
+	v, err := s.client.GetMapValue(dynamicconfig.TestGetMapPropertyKey, nil)
 	s.NoError(err)
 	expectedVal := map[string]interface{}{
 		"key1": "1",
@@ -179,37 +180,37 @@ func (s *fileBasedClientSuite) TestGetMapValue() {
 }
 
 func (s *fileBasedClientSuite) TestGetMapValue_WrongType() {
-	filters := map[Filter]interface{}{
-		TaskListName: "random tasklist",
+	filters := map[dynamicconfig.Filter]interface{}{
+		dynamicconfig.TaskListName: "random tasklist",
 	}
-	v, err := s.client.GetMapValue(TestGetMapPropertyKey, filters)
+	v, err := s.client.GetMapValue(dynamicconfig.TestGetMapPropertyKey, filters)
 	s.Error(err)
-	s.Equal(TestGetMapPropertyKey.DefaultMap(), v)
+	s.Equal(dynamicconfig.TestGetMapPropertyKey.DefaultMap(), v)
 }
 
 func (s *fileBasedClientSuite) TestGetDurationValue() {
-	v, err := s.client.GetDurationValue(TestGetDurationPropertyKey, nil)
+	v, err := s.client.GetDurationValue(dynamicconfig.TestGetDurationPropertyKey, nil)
 	s.NoError(err)
 	s.Equal(time.Minute, v)
 }
 
 func (s *fileBasedClientSuite) TestGetDurationValue_NotStringRepresentation() {
-	filters := map[Filter]interface{}{
-		DomainName: "samples-domain",
+	filters := map[dynamicconfig.Filter]interface{}{
+		dynamicconfig.DomainName: "samples-domain",
 	}
-	v, err := s.client.GetDurationValue(TestGetDurationPropertyKey, filters)
+	v, err := s.client.GetDurationValue(dynamicconfig.TestGetDurationPropertyKey, filters)
 	s.Error(err)
-	s.Equal(TestGetDurationPropertyKey.DefaultDuration(), v)
+	s.Equal(dynamicconfig.TestGetDurationPropertyKey.DefaultDuration(), v)
 }
 
 func (s *fileBasedClientSuite) TestGetDurationValue_ParseFailed() {
-	filters := map[Filter]interface{}{
-		DomainName:   "samples-domain",
-		TaskListName: "longIdleTimeTasklist",
+	filters := map[dynamicconfig.Filter]interface{}{
+		dynamicconfig.DomainName:   "samples-domain",
+		dynamicconfig.TaskListName: "longIdleTimeTasklist",
 	}
-	v, err := s.client.GetDurationValue(TestGetDurationPropertyKey, filters)
+	v, err := s.client.GetDurationValue(dynamicconfig.TestGetDurationPropertyKey, filters)
 	s.Error(err)
-	s.Equal(TestGetDurationPropertyKey.DefaultDuration(), v)
+	s.Equal(dynamicconfig.TestGetDurationPropertyKey.DefaultDuration(), v)
 }
 
 func (s *fileBasedClientSuite) TestValidateConfig_ConfigNotExist() {
@@ -239,15 +240,15 @@ func (s *fileBasedClientSuite) TestValidateConfig_ShortPollInterval() {
 func (s *fileBasedClientSuite) TestMatch() {
 	testCases := []struct {
 		v       *constrainedValue
-		filters map[Filter]interface{}
+		filters map[dynamicconfig.Filter]interface{}
 		matched bool
 	}{
 		{
 			v: &constrainedValue{
 				Constraints: map[string]interface{}{},
 			},
-			filters: map[Filter]interface{}{
-				DomainName: "some random domain",
+			filters: map[dynamicconfig.Filter]interface{}{
+				dynamicconfig.DomainName: "some random domain",
 			},
 			matched: true,
 		},
@@ -255,15 +256,15 @@ func (s *fileBasedClientSuite) TestMatch() {
 			v: &constrainedValue{
 				Constraints: map[string]interface{}{"some key": "some value"},
 			},
-			filters: map[Filter]interface{}{},
+			filters: map[dynamicconfig.Filter]interface{}{},
 			matched: false,
 		},
 		{
 			v: &constrainedValue{
 				Constraints: map[string]interface{}{"domainName": "samples-domain"},
 			},
-			filters: map[Filter]interface{}{
-				DomainName: "some random domain",
+			filters: map[dynamicconfig.Filter]interface{}{
+				dynamicconfig.DomainName: "some random domain",
 			},
 			matched: false,
 		},
@@ -274,9 +275,9 @@ func (s *fileBasedClientSuite) TestMatch() {
 					"taskListName": "sample-task-list",
 				},
 			},
-			filters: map[Filter]interface{}{
-				DomainName:   "samples-domain",
-				TaskListName: "sample-task-list",
+			filters: map[dynamicconfig.Filter]interface{}{
+				dynamicconfig.DomainName:   "samples-domain",
+				dynamicconfig.TaskListName: "sample-task-list",
 			},
 			matched: true,
 		},
@@ -287,9 +288,9 @@ func (s *fileBasedClientSuite) TestMatch() {
 					"some-other-filter": "sample-task-list",
 				},
 			},
-			filters: map[Filter]interface{}{
-				DomainName:   "samples-domain",
-				TaskListName: "sample-task-list",
+			filters: map[dynamicconfig.Filter]interface{}{
+				dynamicconfig.DomainName:   "samples-domain",
+				dynamicconfig.TaskListName: "sample-task-list",
 			},
 			matched: false,
 		},
@@ -299,8 +300,8 @@ func (s *fileBasedClientSuite) TestMatch() {
 					"domainName": "samples-domain",
 				},
 			},
-			filters: map[Filter]interface{}{
-				TaskListName: "sample-task-list",
+			filters: map[dynamicconfig.Filter]interface{}{
+				dynamicconfig.TaskListName: "sample-task-list",
 			},
 			matched: false,
 		},
@@ -314,7 +315,7 @@ func (s *fileBasedClientSuite) TestMatch() {
 
 func (s *fileBasedClientSuite) TestUpdateConfig() {
 	client := s.client.(*fileBasedClient)
-	key := ValidSearchAttributes
+	key := dynamicconfig.ValidSearchAttributes
 
 	// pre-check existing config
 	current, err := client.GetMapValue(key, nil)

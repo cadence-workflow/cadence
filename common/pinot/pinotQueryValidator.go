@@ -34,7 +34,6 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/dynamicconfig"
-	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -418,7 +417,7 @@ func (qv *VisibilityQueryValidator) processCustomKey(expr sqlparser.Expr) (strin
 	}
 
 	// get the value type
-	indexValType := common.ConvertIndexedValueTypeToInternalType(valType, log.NewNoop())
+	indexValType := types.ConvertIndexedValueTypeToInternalType(valType)
 	colValStr := string(colVal.Val)
 
 	switch indexValType {

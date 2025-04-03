@@ -46,6 +46,7 @@ import (
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/domain"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
 	"github.com/uber/cadence/common/dynamicconfig/configstore"
 	csc "github.com/uber/cadence/common/dynamicconfig/configstore/config"
 	"github.com/uber/cadence/common/isolationgroup"
@@ -158,9 +159,7 @@ func New(
 	hostname := params.HostName
 
 	logger := params.Logger
-	throttledLogger := log.NewThrottledLogger(logger, func() int {
-		return serviceConfig.ThrottledLoggerMaxRPS()
-	})
+	throttledLogger := log.NewThrottledLogger(logger, serviceConfig.ThrottledLoggerMaxRPS)
 
 	numShards := params.PersistenceConfig.NumHistoryShards
 	dispatcher := params.RPCFactory.GetDispatcher()
@@ -168,7 +167,7 @@ func New(
 
 	ensureGetAllIsolationGroupsFnIsSet(params)
 
-	dynamicCollection := dynamicconfig.NewCollection(
+	dynamicCollection := collection.NewCollection(
 		params.DynamicConfig,
 		logger,
 		dynamicconfig.ClusterNameFilter(params.ClusterMetadata.GetCurrentClusterName()),
@@ -680,7 +679,7 @@ func (h *Impl) GetAsyncWorkflowQueueProvider() queue.Provider {
 // will be optionally available
 func createConfigStoreOrDefault(
 	params *Params,
-	dc *dynamicconfig.Collection,
+	dc *collection.Collection,
 ) configstore.Client {
 
 	if params.IsolationGroupStore != nil {
@@ -707,7 +706,7 @@ func createConfigStoreOrDefault(
 // will be optionally available
 func ensureIsolationGroupStateHandlerOrDefault(
 	params *Params,
-	dc *dynamicconfig.Collection,
+	dc *collection.Collection,
 	domainCache cache.DomainCache,
 	isolationGroupStore dynamicconfig.Client,
 ) (isolationgroup.State, error) {

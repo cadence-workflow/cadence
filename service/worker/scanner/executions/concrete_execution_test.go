@@ -37,6 +37,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/blobstore"
 	"github.com/uber/cadence/common/dynamicconfig"
+	collection2 "github.com/uber/cadence/common/dynamicconfig/collection"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/reconciliation/invariant"
@@ -448,7 +449,7 @@ func Test_concreteExecutionFixerManager_Panic(t *testing.T) {
 func Test_concreteExecutionCustomScannerConfig(t *testing.T) {
 	mockClient := dynamicconfig.NewMockClient(gomock.NewController(t))
 
-	collection := dynamicconfig.NewCollection(mockClient, log.NewNoop())
+	collection := collection2.NewCollection(mockClient, log.NewNoop())
 
 	mockClient.EXPECT().GetBoolValue(gomock.Any(), gomock.Any()).Return(true, nil).Times(3)
 
@@ -470,7 +471,7 @@ func Test_concreteExecutionCustomScannerConfig(t *testing.T) {
 func Test_concreteExecutionCustomFixerConfig(t *testing.T) {
 	mockClient := dynamicconfig.NewMockClient(gomock.NewController(t))
 
-	collection := dynamicconfig.NewCollection(mockClient, log.NewNoop())
+	collection := collection2.NewCollection(mockClient, log.NewNoop())
 
 	mockClient.EXPECT().GetBoolValue(gomock.Any(), gomock.Any()).Return(true, nil).Times(3)
 
@@ -492,7 +493,7 @@ func Test_concreteExecutionCustomFixerConfig(t *testing.T) {
 func TestConcreteExecutionConfig(t *testing.T) {
 	mockClient := dynamicconfig.NewMockClient(gomock.NewController(t))
 
-	collection := dynamicconfig.NewCollection(mockClient, log.NewNoop())
+	collection := collection2.NewCollection(mockClient, log.NewNoop())
 
 	cfg := ConcreteExecutionConfig(collection)
 

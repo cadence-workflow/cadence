@@ -39,6 +39,7 @@ import (
 	"github.com/uber/cadence/common/client"
 	"github.com/uber/cadence/common/domain"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/messaging"
 	"github.com/uber/cadence/common/metrics"
@@ -104,7 +105,7 @@ func setupMocksForWorkflowHandler(t *testing.T) (*WorkflowHandler, *mockDeps) {
 	}
 
 	config := frontendcfg.NewConfig(
-		dynamicconfig.NewCollection(
+		collection.NewCollection(
 			dynamicClient,
 			testlogger.New(t),
 		),

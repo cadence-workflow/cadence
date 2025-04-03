@@ -32,6 +32,7 @@ import (
 
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
@@ -75,7 +76,7 @@ func setUpMocksForPartitionConfigProvider(t *testing.T, enableReadFromCache bool
 }
 
 func TestNewPartitionConfigProvider(t *testing.T) {
-	dc := dynamicconfig.NewCollection(dynamicconfig.NewNopClient(), testlogger.New(t))
+	dc := collection.NewCollection(dynamicconfig.NewNopClient(), testlogger.New(t))
 	logger := testlogger.New(t)
 	domainIDToName := func(domainID string) (string, error) {
 		return "test-domain", nil

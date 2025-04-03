@@ -34,6 +34,7 @@ import (
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/common/validation"
 	"github.com/uber/cadence/service/history/execution"
 	"github.com/uber/cadence/service/history/workflow"
 )
@@ -522,7 +523,7 @@ func (e *historyEngineImpl) validateStartWorkflowExecutionRequest(request *types
 		return &types.BadRequestError{Message: "Missing WorkflowType."}
 	}
 
-	if !common.IsValidIDLength(
+	if !validation.IsValidIDLength(
 		request.GetDomain(),
 		e.metricsClient.Scope(metricsScope),
 		e.config.MaxIDLengthWarnLimit(),
@@ -534,7 +535,7 @@ func (e *historyEngineImpl) validateStartWorkflowExecutionRequest(request *types
 		return &types.BadRequestError{Message: "Domain exceeds length limit."}
 	}
 
-	if !common.IsValidIDLength(
+	if !validation.IsValidIDLength(
 		request.GetWorkflowID(),
 		e.metricsClient.Scope(metricsScope),
 		e.config.MaxIDLengthWarnLimit(),
@@ -545,7 +546,7 @@ func (e *historyEngineImpl) validateStartWorkflowExecutionRequest(request *types
 		tag.IDTypeWorkflowID) {
 		return &types.BadRequestError{Message: "WorkflowId exceeds length limit."}
 	}
-	if !common.IsValidIDLength(
+	if !validation.IsValidIDLength(
 		request.TaskList.GetName(),
 		e.metricsClient.Scope(metricsScope),
 		e.config.MaxIDLengthWarnLimit(),
@@ -556,7 +557,7 @@ func (e *historyEngineImpl) validateStartWorkflowExecutionRequest(request *types
 		tag.IDTypeTaskListName) {
 		return &types.BadRequestError{Message: "TaskList exceeds length limit."}
 	}
-	if !common.IsValidIDLength(
+	if !validation.IsValidIDLength(
 		request.WorkflowType.GetName(),
 		e.metricsClient.Scope(metricsScope),
 		e.config.MaxIDLengthWarnLimit(),
@@ -568,7 +569,7 @@ func (e *historyEngineImpl) validateStartWorkflowExecutionRequest(request *types
 		return &types.BadRequestError{Message: "WorkflowType exceeds length limit."}
 	}
 
-	return common.ValidateRetryPolicy(request.RetryPolicy)
+	return validation.ValidateRetryPolicy(request.RetryPolicy)
 }
 
 func (e *historyEngineImpl) overrideStartWorkflowExecutionRequest(

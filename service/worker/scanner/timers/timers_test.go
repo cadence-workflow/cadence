@@ -33,6 +33,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/reconciliation/invariant"
 	"github.com/uber/cadence/common/reconciliation/store"
@@ -58,7 +59,7 @@ func (s *timersWorkflowsSuite) TestScannerWorkflow_SetsHooks() {
 	dcClient := dynamicconfig.NewMockClient(s.controller)
 	logger := log.NewNoop()
 
-	dc := dynamicconfig.NewCollection(dcClient, logger)
+	dc := collection.NewCollection(dcClient, logger)
 	cfg := ScannerConfig(dc)
 	s.Equal(ScannerWFTypeName, cfg.ScannerWFTypeName, "scanner wf type name is set")
 	s.NotNil(cfg.FixerHooks)

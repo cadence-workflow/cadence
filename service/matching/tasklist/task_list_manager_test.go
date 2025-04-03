@@ -44,6 +44,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
 	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -85,7 +86,7 @@ func setupMocksForTaskListManager(t *testing.T, taskListID *Identifier, taskList
 		dynamicClient:      dynamicClient,
 	}
 	deps.mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("domainName", nil).Times(1)
-	config := config.NewConfig(dynamicconfig.NewCollection(dynamicClient, logger), "hostname", getIsolationgroupsHelper)
+	config := config.NewConfig(collection.NewCollection(dynamicClient, logger), "hostname", getIsolationgroupsHelper)
 	mockHistoryService := history.NewMockClient(ctrl)
 
 	tlm, err := NewManager(
@@ -109,7 +110,7 @@ func setupMocksForTaskListManager(t *testing.T, taskListID *Identifier, taskList
 }
 
 func defaultTestConfig() *config.Config {
-	config := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", getIsolationgroupsHelper)
+	config := config.NewConfig(collection.NewNopCollection(), "some random hostname", getIsolationgroupsHelper)
 	config.LongPollExpirationInterval = dynamicconfig.GetDurationPropertyFnFilteredByTaskListInfo(100 * time.Millisecond)
 	config.MaxTaskDeleteBatchSize = dynamicconfig.GetIntPropertyFilteredByTaskListInfo(1)
 	config.AllIsolationGroups = getIsolationgroupsHelper
@@ -393,7 +394,7 @@ func TestDescribeTaskList(t *testing.T) {
 
 func TestCheckIdleTaskList(t *testing.T) {
 	defer goleak.VerifyNone(t)
-	cfg := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", getIsolationgroupsHelper)
+	cfg := config.NewConfig(collection.NewNopCollection(), "some random hostname", getIsolationgroupsHelper)
 	cfg.IdleTasklistCheckInterval = dynamicconfig.GetDurationPropertyFnFilteredByTaskListInfo(10 * time.Millisecond)
 
 	t.Run("Idle task-list", func(t *testing.T) {
@@ -464,7 +465,7 @@ func TestAddTaskStandby(t *testing.T) {
 	controller := gomock.NewController(t)
 	logger := testlogger.New(t)
 
-	cfg := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", getIsolationgroupsHelper)
+	cfg := config.NewConfig(collection.NewNopCollection(), "some random hostname", getIsolationgroupsHelper)
 	cfg.IdleTasklistCheckInterval = dynamicconfig.GetDurationPropertyFnFilteredByTaskListInfo(10 * time.Millisecond)
 
 	tlm := createTestTaskListManagerWithConfig(t, logger, controller, cfg, clock.NewMockedTimeSource())

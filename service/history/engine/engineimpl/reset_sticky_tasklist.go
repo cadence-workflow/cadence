@@ -24,8 +24,8 @@ package engineimpl
 import (
 	"context"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/common/validation"
 	"github.com/uber/cadence/service/history/execution"
 	"github.com/uber/cadence/service/history/workflow"
 )
@@ -42,7 +42,7 @@ func (e *historyEngineImpl) ResetStickyTaskList(
 	resetRequest *types.HistoryResetStickyTaskListRequest,
 ) (*types.HistoryResetStickyTaskListResponse, error) {
 
-	if err := common.ValidateDomainUUID(resetRequest.DomainUUID); err != nil {
+	if err := validation.ValidateDomainUUID(resetRequest.DomainUUID); err != nil {
 		return nil, err
 	}
 	domainID := resetRequest.DomainUUID

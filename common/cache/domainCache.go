@@ -43,6 +43,7 @@ import (
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/common/validation"
 )
 
 // ReplicationPolicy is the domain's replication policy,
@@ -946,7 +947,7 @@ func (entry *DomainCacheEntry) IsSampledForLongerRetention(
 }
 
 func GetActiveDomainByID(cache DomainCache, currentCluster string, domainID string) (*DomainCacheEntry, error) {
-	if err := common.ValidateDomainUUID(domainID); err != nil {
+	if err := validation.ValidateDomainUUID(domainID); err != nil {
 		return nil, err
 	}
 

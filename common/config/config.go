@@ -34,6 +34,7 @@ import (
 
 	"github.com/uber/cadence/common/dynamicconfig"
 	c "github.com/uber/cadence/common/dynamicconfig/configstore/config"
+	"github.com/uber/cadence/common/dynamicconfig/filestore"
 	"github.com/uber/cadence/common/peerprovider/ringpopprovider"
 	"github.com/uber/cadence/common/service"
 )
@@ -67,7 +68,7 @@ type (
 		// Filepath would be relative to the root directory when the path wasn't absolute.
 		// Included for backwards compatibility, please transition to DynamicConfig
 		// If both are specified, DynamicConig will be used.
-		DynamicConfigClient dynamicconfig.FileBasedClientConfig `yaml:"dynamicConfigClient"`
+		DynamicConfigClient filestore.FileBasedClientConfig `yaml:"dynamicConfigClient"`
 		// DynamicConfig is the config for setting up all dynamic config clients
 		// Allows for changes in client without needing code change
 		DynamicConfig DynamicConfig `yaml:"dynamicconfig"`
@@ -104,9 +105,9 @@ type (
 	}
 
 	DynamicConfig struct {
-		Client      string                              `yaml:"client"`
-		ConfigStore c.ClientConfig                      `yaml:"configstore"`
-		FileBased   dynamicconfig.FileBasedClientConfig `yaml:"filebased"`
+		Client      string                          `yaml:"client"`
+		ConfigStore c.ClientConfig                  `yaml:"configstore"`
+		FileBased   filestore.FileBasedClientConfig `yaml:"filebased"`
 	}
 
 	// Service contains the service specific config items

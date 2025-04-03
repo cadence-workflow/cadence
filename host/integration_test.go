@@ -918,7 +918,7 @@ func (s *IntegrationSuite) TestDecisionAndActivityTimeoutsWorkflow() {
 			cancel()
 			s.Nil(err)
 			history := historyResponse.History
-			common.PrettyPrintHistory(history, s.Logger)
+			PrettyPrintHistory(history, s.Logger)
 		}
 		s.True(err == nil || err == tasklist.ErrNoTasks, "%v", err)
 		if !dropDecisionTask {

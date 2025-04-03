@@ -29,6 +29,7 @@ import (
 
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -83,7 +84,7 @@ func NewPartitionConfigProvider(
 	logger log.Logger,
 	metricsClient metrics.Client,
 	domainIDToName func(string) (string, error),
-	dc *dynamicconfig.Collection,
+	dc *collection.Collection,
 ) PartitionConfigProvider {
 	return &partitionConfigProviderImpl{
 		logger:              logger,

@@ -20,31 +20,17 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-package config
+package metrics
 
 import (
-	"github.com/uber/cadence/common/dynamicconfig"
-	"github.com/uber/cadence/common/dynamicconfig/collection"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/uber/cadence/common/types"
 )
 
-type (
-	// Config represents configuration for shard manager service
-	Config struct {
-		PersistenceMaxQPS       dynamicconfig.IntPropertyFn
-		PersistenceGlobalMaxQPS dynamicconfig.IntPropertyFn
-		ThrottledLogRPS         dynamicconfig.IntPropertyFn
-
-		// hostname info
-		HostName string
-	}
-)
-
-// NewConfig returns new service config with default values
-func NewConfig(dc *collection.Collection, hostName string) *Config {
-	return &Config{
-		PersistenceMaxQPS:       dc.GetIntProperty(dynamicconfig.ShardManagerPersistenceMaxQPS),
-		PersistenceGlobalMaxQPS: dc.GetIntProperty(dynamicconfig.ShardManagerPersistenceGlobalMaxQPS),
-		ThrottledLogRPS:         dc.GetIntProperty(dynamicconfig.ShardManagerThrottledLogRPS),
-		HostName:                hostName,
-	}
+func TestNewPerTaskListScope(t *testing.T) {
+	assert.NotNil(t, NewPerTaskListScope("test-domain", "test-tasklist", types.TaskListKindNormal, NewNoopMetricsClient(), 0))
+	assert.NotNil(t, NewPerTaskListScope("test-domain", "test-tasklist", types.TaskListKindSticky, NewNoopMetricsClient(), 0))
 }

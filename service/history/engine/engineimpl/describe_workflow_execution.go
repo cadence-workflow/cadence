@@ -29,6 +29,7 @@ import (
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/common/validation"
 	"github.com/uber/cadence/service/history/execution"
 )
 
@@ -38,7 +39,7 @@ func (e *historyEngineImpl) DescribeWorkflowExecution(
 	request *types.HistoryDescribeWorkflowExecutionRequest,
 ) (retResp *types.DescribeWorkflowExecutionResponse, retError error) {
 
-	if err := common.ValidateDomainUUID(request.DomainUUID); err != nil {
+	if err := validation.ValidateDomainUUID(request.DomainUUID); err != nil {
 		return nil, err
 	}
 

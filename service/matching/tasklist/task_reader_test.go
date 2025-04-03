@@ -33,6 +33,7 @@ import (
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/service/matching/config"
@@ -278,7 +279,7 @@ func TestGetDispatchTimeout(t *testing.T) {
 }
 
 func defaultConfig() *config.Config {
-	config := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", func() []string {
+	config := config.NewConfig(collection.NewNopCollection(), "some random hostname", func() []string {
 		return defaultIsolationGroups
 	})
 	config.EnableTasklistIsolation = dynamicconfig.GetBoolPropertyFnFilteredByDomain(true)

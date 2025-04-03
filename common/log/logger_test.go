@@ -30,6 +30,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
+	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log/tag"
 )
 
@@ -49,9 +50,7 @@ func TestLoggers(t *testing.T) {
 		{
 			name: "throttled",
 			loggerFactory: func(zapLogger *zap.Logger) Logger {
-				return NewThrottledLogger(NewLogger(zapLogger), func() int {
-					return 1
-				})
+				return NewThrottledLogger(NewLogger(zapLogger), dynamicconfig.GetIntPropertyFn(1))
 			},
 		},
 		// Unfortunately, replay logger is impossible to test because it requires a workflow context, which is not exposed by go client.

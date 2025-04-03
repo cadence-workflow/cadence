@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/collection"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/types"
 )
@@ -103,7 +104,7 @@ func TestNewConfig(t *testing.T) {
 			}
 		}
 	}
-	dc := dynamicconfig.NewCollection(client, testlogger.New(t))
+	dc := collection.NewCollection(client, testlogger.New(t))
 
 	config := NewConfig(dc, hostname, isolationGroupsHelper)
 
