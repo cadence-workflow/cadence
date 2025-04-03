@@ -224,12 +224,12 @@ func (s *timerQueueTaskExecutorBaseSuite) TestArchiveHistory_SendSignalErr() {
 func TestExecuteDeleteHistoryEventTask(t *testing.T) {
 	tests := []struct {
 		name          string
-		setupMocks    func(*gomock.Controller) (*timerTaskExecutorBase, *persistence.TimerTaskInfo)
+		setupMocks    func(*gomock.Controller) (*timerTaskExecutorBase, *persistence.DeleteHistoryEventTask)
 		expectedError error
 	}{
 		{
 			name: "mutable was not able to be loaded",
-			setupMocks: func(controller *gomock.Controller) (*timerTaskExecutorBase, *persistence.TimerTaskInfo) {
+			setupMocks: func(controller *gomock.Controller) (*timerTaskExecutorBase, *persistence.DeleteHistoryEventTask) {
 
 				mockShard := shard.NewTestContext(
 					t,
@@ -254,12 +254,16 @@ func TestExecuteDeleteHistoryEventTask(t *testing.T) {
 					0,
 				), nil)
 
-				timerTask := &persistence.TimerTaskInfo{
-					DomainID:            "test-domain-id",
-					WorkflowID:          "test-workflow-id",
-					RunID:               "test-run-id",
-					TaskType:            persistence.TaskTypeDeleteHistoryEvent,
-					VisibilityTimestamp: time.Now(),
+				timerTask := &persistence.DeleteHistoryEventTask{
+					TaskData: persistence.TaskData{
+						TaskID:              123,
+						VisibilityTimestamp: time.Now(),
+					},
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID:   "domain",
+						WorkflowID: "wf",
+						RunID:      "run",
+					},
 				}
 
 				wfContext := execution.NewContext(
@@ -296,7 +300,7 @@ func TestExecuteDeleteHistoryEventTask(t *testing.T) {
 		},
 		{
 			name: "mutable showed that the workflow was still running ",
-			setupMocks: func(controller *gomock.Controller) (*timerTaskExecutorBase, *persistence.TimerTaskInfo) {
+			setupMocks: func(controller *gomock.Controller) (*timerTaskExecutorBase, *persistence.DeleteHistoryEventTask) {
 
 				mockShard := shard.NewTestContext(
 					t,
@@ -321,12 +325,16 @@ func TestExecuteDeleteHistoryEventTask(t *testing.T) {
 					0,
 				), nil).AnyTimes()
 
-				timerTask := &persistence.TimerTaskInfo{
-					DomainID:            "test-domain-id",
-					WorkflowID:          "test-workflow-id",
-					RunID:               "test-run-id",
-					TaskType:            persistence.TaskTypeDeleteHistoryEvent,
-					VisibilityTimestamp: time.Now(),
+				timerTask := &persistence.DeleteHistoryEventTask{
+					TaskData: persistence.TaskData{
+						TaskID:              123,
+						VisibilityTimestamp: time.Now(),
+					},
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID:   "domain",
+						WorkflowID: "wf",
+						RunID:      "run",
+					},
 				}
 
 				wfContext := execution.NewContext(
