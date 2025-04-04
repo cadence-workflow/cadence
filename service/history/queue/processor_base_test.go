@@ -30,7 +30,7 @@ import (
 	"github.com/uber-go/tally"
 	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
@@ -283,7 +283,7 @@ func (s *processorBaseSuite) TestUpdateAckLevel_Timer_UpdateAckLevel() {
 	}
 
 	timerQueueProcessBase := s.newTestProcessorBase(processingQueueStates, nil, updateTransferAckLevelFn, nil, nil)
-	timerQueueProcessBase.options.EnablePersistQueueStates = dynamicconfig.GetBoolPropertyFn(true)
+	timerQueueProcessBase.options.EnablePersistQueueStates = dynamicproperties.GetBoolPropertyFn(true)
 	processFinished, ackLevel, err := timerQueueProcessBase.updateAckLevel()
 	s.NoError(err)
 	s.False(processFinished)
@@ -321,7 +321,7 @@ func (s *processorBaseSuite) TestUpdateAckLevel_Timer_UpdateQueueStates() {
 	}
 
 	timerQueueProcessBase := s.newTestProcessorBase(processingQueueStates, nil, nil, updateProcessingQueueStates, nil)
-	timerQueueProcessBase.options.EnablePersistQueueStates = dynamicconfig.GetBoolPropertyFn(true)
+	timerQueueProcessBase.options.EnablePersistQueueStates = dynamicproperties.GetBoolPropertyFn(true)
 	processFinished, ackLevel, err := timerQueueProcessBase.updateAckLevel()
 	s.NoError(err)
 	s.False(processFinished)
@@ -345,7 +345,7 @@ func (s *processorBaseSuite) TestInitializeSplitPolicy_Disabled() {
 func (s *processorBaseSuite) TestInitializeSplitPolicy_Enabled() {
 	processorBase := s.newTestProcessorBase(nil, nil, nil, nil, nil)
 
-	processorBase.options.EnableSplit = dynamicconfig.GetBoolPropertyFn(true)
+	processorBase.options.EnableSplit = dynamicproperties.GetBoolPropertyFn(true)
 
 	splitPolicy := processorBase.initializeSplitPolicy(nil)
 	s.NotNil(splitPolicy, "got nil split policy, want non-nil")

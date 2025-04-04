@@ -32,7 +32,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/cache"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	cadence_errors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
@@ -57,7 +57,7 @@ type (
 		mockTaskInfo         *persistence.MockTask
 
 		logger        log.Logger
-		maxRetryCount dynamicconfig.IntPropertyFn
+		maxRetryCount dynamicproperties.IntPropertyFn
 	}
 )
 
@@ -87,7 +87,7 @@ func (s *taskSuite) SetupTest() {
 	s.mockShard.Resource.DomainCache.EXPECT().GetDomainName(constants.TestDomainID).Return(constants.TestDomainName, nil).AnyTimes()
 
 	s.logger = testlogger.New(s.Suite.T())
-	s.maxRetryCount = dynamicconfig.GetIntPropertyFn(10)
+	s.maxRetryCount = dynamicproperties.GetIntPropertyFn(10)
 }
 
 func (s *taskSuite) TearDownTest() {
@@ -316,7 +316,7 @@ func (s *taskSuite) TestHandleErr_ErrMaxAttempts() {
 		return true, nil
 	}, nil)
 
-	taskBase.criticalRetryCount = func(i ...dynamicconfig.FilterOption) int { return 0 }
+	taskBase.criticalRetryCount = func(i ...dynamicproperties.FilterOption) int { return 0 }
 	s.mockTaskInfo.EXPECT().GetTaskType().Return(0)
 	assert.NotPanics(s.T(), func() {
 		taskBase.HandleErr(errors.New("err"))

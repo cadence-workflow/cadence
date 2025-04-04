@@ -28,7 +28,7 @@ import (
 	"github.com/olekukonko/tablewriter"
 	"github.com/urfave/cli/v2"
 
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/tools/common/commoncli"
 )
@@ -236,7 +236,7 @@ func AdminListConfigKeys(c *cli.Context) error {
 
 	var rows []ConfigRow
 
-	for name, k := range dynamicconfig.GetAllKeys() {
+	for name, k := range dynamicproperties.GetAllKeys() {
 		rows = append(rows, ConfigRow{
 			Name:        name,
 			Description: k.Description(),

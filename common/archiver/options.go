@@ -26,7 +26,7 @@ import (
 
 	"go.uber.org/cadence/activity"
 
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 )
 
 type (
@@ -39,7 +39,7 @@ type (
 	ArchiveFeatureCatalog struct {
 		ProgressManager          ProgressManager
 		NonRetriableError        NonRetriableError
-		ArchiveIncompleteHistory dynamicconfig.BoolPropertyFn
+		ArchiveIncompleteHistory dynamicproperties.BoolPropertyFn
 	}
 
 	// NonRetriableError returns an error indicating archiver has encountered an non-retriable error
@@ -57,7 +57,7 @@ type (
 // It should be called inside the Archive method.
 func GetFeatureCatalog(opts ...ArchiveOption) *ArchiveFeatureCatalog {
 	catalog := &ArchiveFeatureCatalog{
-		ArchiveIncompleteHistory: dynamicconfig.GetBoolPropertyFn(false),
+		ArchiveIncompleteHistory: dynamicproperties.GetBoolPropertyFn(false),
 	}
 	for _, opt := range opts {
 		opt(catalog)
@@ -102,7 +102,7 @@ func GetNonRetriableErrorOption(nonRetryableErr error) ArchiveOption {
 }
 
 // GetArchivingIncompleteHistoryOption returns an ArchiveOption so that archiver would archive incomplete history
-func GetArchivingIncompleteHistoryOption(allow dynamicconfig.BoolPropertyFn) ArchiveOption {
+func GetArchivingIncompleteHistoryOption(allow dynamicproperties.BoolPropertyFn) ArchiveOption {
 	return func(catalog *ArchiveFeatureCatalog) {
 		catalog.ArchiveIncompleteHistory = allow
 	}

@@ -49,6 +49,7 @@ import (
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/domain"
 	dc "github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/messaging"
 	"github.com/uber/cadence/common/metrics"
@@ -168,7 +169,7 @@ func (s *workflowHandlerSuite) getWorkflowHandler(config *frontendcfg.Config) *W
 
 func (s *workflowHandlerSuite) TestDisableListVisibilityByFilter() {
 	config := s.newConfig(dc.NewInMemoryClient())
-	config.DisableListVisibilityByFilter = dc.GetBoolPropertyFnFilteredByDomain(true)
+	config.DisableListVisibilityByFilter = dynamicproperties.GetBoolPropertyFnFilteredByDomain(true)
 
 	wh := s.getWorkflowHandler(config)
 
@@ -332,7 +333,7 @@ func (s *workflowHandlerSuite) TestPollForDecisionTask_AutoConfigHint() {
 
 func (s *workflowHandlerSuite) TestPollForDecisionTask_IsolationGroupDrained() {
 	config := s.newConfig(dc.NewInMemoryClient())
-	config.EnableTasklistIsolation = dc.GetBoolPropertyFnFilteredByDomain(true)
+	config.EnableTasklistIsolation = dynamicproperties.GetBoolPropertyFnFilteredByDomain(true)
 	wh := s.getWorkflowHandler(config)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
@@ -358,7 +359,7 @@ func (s *workflowHandlerSuite) TestPollForDecisionTask_IsolationGroupDrained() {
 
 func (s *workflowHandlerSuite) TestPollForActivityTask_IsolationGroupDrained() {
 	config := s.newConfig(dc.NewInMemoryClient())
-	config.EnableTasklistIsolation = dc.GetBoolPropertyFnFilteredByDomain(true)
+	config.EnableTasklistIsolation = dynamicproperties.GetBoolPropertyFnFilteredByDomain(true)
 	wh := s.getWorkflowHandler(config)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
@@ -420,7 +421,7 @@ func (s *workflowHandlerSuite) TestPollForActivityTask() {
 	} {
 		s.T().Run(tt.name, func(t *testing.T) {
 			config := s.newConfig(dc.NewInMemoryClient())
-			config.EnableTasklistIsolation = dc.GetBoolPropertyFnFilteredByDomain(true)
+			config.EnableTasklistIsolation = dynamicproperties.GetBoolPropertyFnFilteredByDomain(true)
 			wh := s.getWorkflowHandler(config)
 
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
@@ -445,7 +446,7 @@ func (s *workflowHandlerSuite) TestPollForActivityTask() {
 
 func (s *workflowHandlerSuite) TestStartWorkflowExecution_Failed_RequestIdNotSet() {
 	config := s.newConfig(dc.NewInMemoryClient())
-	config.UserRPS = dc.GetIntPropertyFn(10)
+	config.UserRPS = dynamicproperties.GetIntPropertyFn(10)
 	wh := s.getWorkflowHandler(config)
 
 	startWorkflowExecutionRequest := &types.StartWorkflowExecutionRequest{
@@ -479,7 +480,7 @@ func (s *workflowHandlerSuite) TestStartWorkflowExecution_Failed_RequestIdNotSet
 
 func (s *workflowHandlerSuite) TestStartWorkflowExecution_Failed_BadDelayStartSeconds() {
 	config := s.newConfig(dc.NewInMemoryClient())
-	config.UserRPS = dc.GetIntPropertyFn(10)
+	config.UserRPS = dynamicproperties.GetIntPropertyFn(10)
 	wh := s.getWorkflowHandler(config)
 
 	startWorkflowExecutionRequest := &types.StartWorkflowExecutionRequest{
@@ -510,7 +511,7 @@ func (s *workflowHandlerSuite) TestStartWorkflowExecution_Failed_BadDelayStartSe
 
 func (s *workflowHandlerSuite) TestStartWorkflowExecution_Failed_StartRequestNotSet() {
 	config := s.newConfig(dc.NewInMemoryClient())
-	config.UserRPS = dc.GetIntPropertyFn(10)
+	config.UserRPS = dynamicproperties.GetIntPropertyFn(10)
 	wh := s.getWorkflowHandler(config)
 
 	_, err := wh.StartWorkflowExecution(context.Background(), nil)
@@ -520,7 +521,7 @@ func (s *workflowHandlerSuite) TestStartWorkflowExecution_Failed_StartRequestNot
 
 func (s *workflowHandlerSuite) TestStartWorkflowExecution_Failed_DomainNotSet() {
 	config := s.newConfig(dc.NewInMemoryClient())
-	config.UserRPS = dc.GetIntPropertyFn(10)
+	config.UserRPS = dynamicproperties.GetIntPropertyFn(10)
 	wh := s.getWorkflowHandler(config)
 
 	startWorkflowExecutionRequest := &types.StartWorkflowExecutionRequest{
@@ -549,7 +550,7 @@ func (s *workflowHandlerSuite) TestStartWorkflowExecution_Failed_DomainNotSet() 
 
 func (s *workflowHandlerSuite) TestStartWorkflowExecution_Failed_WorkflowIdNotSet() {
 	config := s.newConfig(dc.NewInMemoryClient())
-	config.UserRPS = dc.GetIntPropertyFn(10)
+	config.UserRPS = dynamicproperties.GetIntPropertyFn(10)
 	wh := s.getWorkflowHandler(config)
 
 	startWorkflowExecutionRequest := &types.StartWorkflowExecutionRequest{
@@ -578,7 +579,7 @@ func (s *workflowHandlerSuite) TestStartWorkflowExecution_Failed_WorkflowIdNotSe
 
 func (s *workflowHandlerSuite) TestStartWorkflowExecution_Failed_WorkflowTypeNotSet() {
 	config := s.newConfig(dc.NewInMemoryClient())
-	config.UserRPS = dc.GetIntPropertyFn(10)
+	config.UserRPS = dynamicproperties.GetIntPropertyFn(10)
 	wh := s.getWorkflowHandler(config)
 
 	startWorkflowExecutionRequest := &types.StartWorkflowExecutionRequest{
@@ -608,7 +609,7 @@ func (s *workflowHandlerSuite) TestStartWorkflowExecution_Failed_WorkflowTypeNot
 
 func (s *workflowHandlerSuite) TestStartWorkflowExecution_Failed_TaskListNotSet() {
 	config := s.newConfig(dc.NewInMemoryClient())
-	config.UserRPS = dc.GetIntPropertyFn(10)
+	config.UserRPS = dynamicproperties.GetIntPropertyFn(10)
 	wh := s.getWorkflowHandler(config)
 
 	startWorkflowExecutionRequest := &types.StartWorkflowExecutionRequest{
@@ -638,7 +639,7 @@ func (s *workflowHandlerSuite) TestStartWorkflowExecution_Failed_TaskListNotSet(
 
 func (s *workflowHandlerSuite) TestStartWorkflowExecution_Failed_InvalidExecutionStartToCloseTimeout() {
 	config := s.newConfig(dc.NewInMemoryClient())
-	config.UserRPS = dc.GetIntPropertyFn(10)
+	config.UserRPS = dynamicproperties.GetIntPropertyFn(10)
 	wh := s.getWorkflowHandler(config)
 
 	startWorkflowExecutionRequest := &types.StartWorkflowExecutionRequest{
@@ -668,7 +669,7 @@ func (s *workflowHandlerSuite) TestStartWorkflowExecution_Failed_InvalidExecutio
 
 func (s *workflowHandlerSuite) TestStartWorkflowExecution_Failed_InvalidTaskStartToCloseTimeout() {
 	config := s.newConfig(dc.NewInMemoryClient())
-	config.UserRPS = dc.GetIntPropertyFn(10)
+	config.UserRPS = dynamicproperties.GetIntPropertyFn(10)
 	wh := s.getWorkflowHandler(config)
 
 	startWorkflowExecutionRequest := &types.StartWorkflowExecutionRequest{
@@ -698,8 +699,8 @@ func (s *workflowHandlerSuite) TestStartWorkflowExecution_Failed_InvalidTaskStar
 
 func (s *workflowHandlerSuite) TestStartWorkflowExecution_IsolationGroupDrained() {
 	config := s.newConfig(dc.NewInMemoryClient())
-	config.UserRPS = dc.GetIntPropertyFn(10)
-	config.EnableTasklistIsolation = dc.GetBoolPropertyFnFilteredByDomain(true)
+	config.UserRPS = dynamicproperties.GetIntPropertyFn(10)
+	config.EnableTasklistIsolation = dynamicproperties.GetBoolPropertyFnFilteredByDomain(true)
 	wh := s.getWorkflowHandler(config)
 
 	startWorkflowExecutionRequest := &types.StartWorkflowExecutionRequest{
@@ -733,7 +734,7 @@ func (s *workflowHandlerSuite) TestStartWorkflowExecution_IsolationGroupDrained(
 
 func (s *workflowHandlerSuite) TestStartWorkflowExecution_LogJitterTime() {
 	config := s.newConfig(dc.NewInMemoryClient())
-	config.UserRPS = dc.GetIntPropertyFn(10)
+	config.UserRPS = dynamicproperties.GetIntPropertyFn(10)
 	wh := s.getWorkflowHandler(config)
 	jitterStart := int32(10)
 
@@ -1064,7 +1065,7 @@ func TestRespondActivityTaskFailed(t *testing.T) {
 
 func (s *workflowHandlerSuite) TestRegisterDomain_Failure_MissingDomainDataKey() {
 	dynamicClient := dc.NewInMemoryClient()
-	err := dynamicClient.UpdateValue(dc.RequiredDomainDataKeys, map[string]interface{}{"Tier": true})
+	err := dynamicClient.UpdateValue(dynamicproperties.RequiredDomainDataKeys, map[string]interface{}{"Tier": true})
 	s.NoError(err)
 	cfg := s.newConfig(dynamicClient)
 	wh := s.getWorkflowHandler(cfg)
@@ -1081,8 +1082,8 @@ func (s *workflowHandlerSuite) TestRegisterDomain_Failure_MissingDomainDataKey()
 }
 
 func (s *workflowHandlerSuite) TestRegisterDomain_Failure_InvalidArchivalURI() {
-	s.mockArchivalMetadata.On("GetHistoryConfig").Return(archiver.NewArchivalConfig("enabled", dc.GetStringPropertyFn("enabled"), true, dc.GetBoolPropertyFn(true), "disabled", "random URI"))
-	s.mockArchivalMetadata.On("GetVisibilityConfig").Return(archiver.NewArchivalConfig("enabled", dc.GetStringPropertyFn("enabled"), true, dc.GetBoolPropertyFn(true), "disabled", "random URI"))
+	s.mockArchivalMetadata.On("GetHistoryConfig").Return(archiver.NewArchivalConfig("enabled", dynamicproperties.GetStringPropertyFn("enabled"), true, dynamicproperties.GetBoolPropertyFn(true), "disabled", "random URI"))
+	s.mockArchivalMetadata.On("GetVisibilityConfig").Return(archiver.NewArchivalConfig("enabled", dynamicproperties.GetStringPropertyFn("enabled"), true, dynamicproperties.GetBoolPropertyFn(true), "disabled", "random URI"))
 	s.mockMetadataMgr.On("GetDomain", mock.Anything, mock.Anything).Return(nil, &types.EntityNotExistsError{})
 	s.mockHistoryArchiver.On("ValidateURI", mock.Anything).Return(nil)
 	s.mockVisibilityArchiver.On("ValidateURI", mock.Anything).Return(errors.New("invalid URI"))
@@ -1102,8 +1103,8 @@ func (s *workflowHandlerSuite) TestRegisterDomain_Failure_InvalidArchivalURI() {
 }
 
 func (s *workflowHandlerSuite) TestRegisterDomain_Success_EnabledWithNoArchivalURI() {
-	s.mockArchivalMetadata.On("GetHistoryConfig").Return(archiver.NewArchivalConfig("enabled", dc.GetStringPropertyFn("enabled"), true, dc.GetBoolPropertyFn(true), "disabled", testHistoryArchivalURI))
-	s.mockArchivalMetadata.On("GetVisibilityConfig").Return(archiver.NewArchivalConfig("enabled", dc.GetStringPropertyFn("enabled"), true, dc.GetBoolPropertyFn(true), "disabled", testVisibilityArchivalURI))
+	s.mockArchivalMetadata.On("GetHistoryConfig").Return(archiver.NewArchivalConfig("enabled", dynamicproperties.GetStringPropertyFn("enabled"), true, dynamicproperties.GetBoolPropertyFn(true), "disabled", testHistoryArchivalURI))
+	s.mockArchivalMetadata.On("GetVisibilityConfig").Return(archiver.NewArchivalConfig("enabled", dynamicproperties.GetStringPropertyFn("enabled"), true, dynamicproperties.GetBoolPropertyFn(true), "disabled", testVisibilityArchivalURI))
 	s.mockMetadataMgr.On("GetDomain", mock.Anything, mock.Anything).Return(nil, &types.EntityNotExistsError{})
 	s.mockMetadataMgr.On("CreateDomain", mock.Anything, mock.Anything).Return(&persistence.CreateDomainResponse{
 		ID: "test-id",
@@ -1121,8 +1122,8 @@ func (s *workflowHandlerSuite) TestRegisterDomain_Success_EnabledWithNoArchivalU
 }
 
 func (s *workflowHandlerSuite) TestRegisterDomain_Success_EnabledWithArchivalURI() {
-	s.mockArchivalMetadata.On("GetHistoryConfig").Return(archiver.NewArchivalConfig("enabled", dc.GetStringPropertyFn("enabled"), true, dc.GetBoolPropertyFn(true), "disabled", "invalidURI"))
-	s.mockArchivalMetadata.On("GetVisibilityConfig").Return(archiver.NewArchivalConfig("enabled", dc.GetStringPropertyFn("enabled"), true, dc.GetBoolPropertyFn(true), "disabled", "invalidURI"))
+	s.mockArchivalMetadata.On("GetHistoryConfig").Return(archiver.NewArchivalConfig("enabled", dynamicproperties.GetStringPropertyFn("enabled"), true, dynamicproperties.GetBoolPropertyFn(true), "disabled", "invalidURI"))
+	s.mockArchivalMetadata.On("GetVisibilityConfig").Return(archiver.NewArchivalConfig("enabled", dynamicproperties.GetStringPropertyFn("enabled"), true, dynamicproperties.GetBoolPropertyFn(true), "disabled", "invalidURI"))
 	s.mockMetadataMgr.On("GetDomain", mock.Anything, mock.Anything).Return(nil, &types.EntityNotExistsError{})
 	s.mockMetadataMgr.On("CreateDomain", mock.Anything, mock.Anything).Return(&persistence.CreateDomainResponse{
 		ID: "test-id",
@@ -1165,8 +1166,8 @@ func (s *workflowHandlerSuite) TestRegisterDomain_Success_ClusterNotConfiguredFo
 }
 
 func (s *workflowHandlerSuite) TestRegisterDomain_Success_NotEnabled() {
-	s.mockArchivalMetadata.On("GetHistoryConfig").Return(archiver.NewArchivalConfig("enabled", dc.GetStringPropertyFn("enabled"), true, dc.GetBoolPropertyFn(true), "disabled", "some random URI"))
-	s.mockArchivalMetadata.On("GetVisibilityConfig").Return(archiver.NewArchivalConfig("enabled", dc.GetStringPropertyFn("enabled"), true, dc.GetBoolPropertyFn(true), "disabled", "some random URI"))
+	s.mockArchivalMetadata.On("GetHistoryConfig").Return(archiver.NewArchivalConfig("enabled", dynamicproperties.GetStringPropertyFn("enabled"), true, dynamicproperties.GetBoolPropertyFn(true), "disabled", "some random URI"))
+	s.mockArchivalMetadata.On("GetVisibilityConfig").Return(archiver.NewArchivalConfig("enabled", dynamicproperties.GetStringPropertyFn("enabled"), true, dynamicproperties.GetBoolPropertyFn(true), "disabled", "some random URI"))
 	s.mockMetadataMgr.On("GetDomain", mock.Anything, mock.Anything).Return(nil, &types.EntityNotExistsError{})
 	s.mockMetadataMgr.On("CreateDomain", mock.Anything, mock.Anything).Return(&persistence.CreateDomainResponse{
 		ID: "test-id",
@@ -1301,8 +1302,8 @@ func (s *workflowHandlerSuite) TestUpdateDomain_Failure_UpdateExistingArchivalUR
 		&domain.ArchivalState{Status: types.ArchivalStatusEnabled, URI: testVisibilityArchivalURI},
 	)
 	s.mockMetadataMgr.On("GetDomain", mock.Anything, mock.Anything).Return(getDomainResp, nil)
-	s.mockArchivalMetadata.On("GetHistoryConfig").Return(archiver.NewArchivalConfig("enabled", dc.GetStringPropertyFn("enabled"), true, dc.GetBoolPropertyFn(true), "disabled", "some random URI"))
-	s.mockArchivalMetadata.On("GetVisibilityConfig").Return(archiver.NewArchivalConfig("enabled", dc.GetStringPropertyFn("enabled"), true, dc.GetBoolPropertyFn(true), "disabled", "some random URI"))
+	s.mockArchivalMetadata.On("GetHistoryConfig").Return(archiver.NewArchivalConfig("enabled", dynamicproperties.GetStringPropertyFn("enabled"), true, dynamicproperties.GetBoolPropertyFn(true), "disabled", "some random URI"))
+	s.mockArchivalMetadata.On("GetVisibilityConfig").Return(archiver.NewArchivalConfig("enabled", dynamicproperties.GetStringPropertyFn("enabled"), true, dynamicproperties.GetBoolPropertyFn(true), "disabled", "some random URI"))
 	s.mockHistoryArchiver.On("ValidateURI", mock.Anything).Return(nil)
 	s.mockArchiverProvider.On("GetHistoryArchiver", mock.Anything, mock.Anything).Return(s.mockHistoryArchiver, nil)
 
@@ -1327,7 +1328,7 @@ func (s *workflowHandlerSuite) TestUpdateDomain_Failure_InvalidArchivalURI() {
 		&domain.ArchivalState{Status: types.ArchivalStatusDisabled, URI: ""},
 	)
 	s.mockMetadataMgr.On("GetDomain", mock.Anything, mock.Anything).Return(getDomainResp, nil)
-	s.mockArchivalMetadata.On("GetHistoryConfig").Return(archiver.NewArchivalConfig("enabled", dc.GetStringPropertyFn("enabled"), true, dc.GetBoolPropertyFn(true), "disabled", "some random URI"))
+	s.mockArchivalMetadata.On("GetHistoryConfig").Return(archiver.NewArchivalConfig("enabled", dynamicproperties.GetStringPropertyFn("enabled"), true, dynamicproperties.GetBoolPropertyFn(true), "disabled", "some random URI"))
 	s.mockHistoryArchiver.On("ValidateURI", mock.Anything).Return(errors.New("invalid URI"))
 	s.mockArchiverProvider.On("GetHistoryArchiver", mock.Anything, mock.Anything).Return(s.mockHistoryArchiver, nil)
 
@@ -1354,8 +1355,8 @@ func (s *workflowHandlerSuite) TestUpdateDomain_Success_ArchivalEnabledToArchiva
 	)
 	s.mockMetadataMgr.On("GetDomain", mock.Anything, mock.Anything).Return(getDomainResp, nil)
 	s.mockMetadataMgr.On("UpdateDomain", mock.Anything, mock.Anything).Return(nil)
-	s.mockArchivalMetadata.On("GetHistoryConfig").Return(archiver.NewArchivalConfig("enabled", dc.GetStringPropertyFn("enabled"), true, dc.GetBoolPropertyFn(true), "disabled", "some random URI"))
-	s.mockArchivalMetadata.On("GetVisibilityConfig").Return(archiver.NewArchivalConfig("enabled", dc.GetStringPropertyFn("enabled"), true, dc.GetBoolPropertyFn(true), "disabled", "some random URI"))
+	s.mockArchivalMetadata.On("GetHistoryConfig").Return(archiver.NewArchivalConfig("enabled", dynamicproperties.GetStringPropertyFn("enabled"), true, dynamicproperties.GetBoolPropertyFn(true), "disabled", "some random URI"))
+	s.mockArchivalMetadata.On("GetVisibilityConfig").Return(archiver.NewArchivalConfig("enabled", dynamicproperties.GetStringPropertyFn("enabled"), true, dynamicproperties.GetBoolPropertyFn(true), "disabled", "some random URI"))
 	s.mockHistoryArchiver.On("ValidateURI", mock.Anything).Return(nil)
 	s.mockVisibilityArchiver.On("ValidateURI", mock.Anything).Return(nil)
 	s.mockArchiverProvider.On("GetHistoryArchiver", mock.Anything, mock.Anything).Return(s.mockHistoryArchiver, nil)
@@ -1414,8 +1415,8 @@ func (s *workflowHandlerSuite) TestUpdateDomain_Success_ArchivalEnabledToArchiva
 	)
 	s.mockMetadataMgr.On("GetDomain", mock.Anything, mock.Anything).Return(getDomainResp, nil)
 	s.mockMetadataMgr.On("UpdateDomain", mock.Anything, mock.Anything).Return(nil)
-	s.mockArchivalMetadata.On("GetHistoryConfig").Return(archiver.NewArchivalConfig("enabled", dc.GetStringPropertyFn("enabled"), true, dc.GetBoolPropertyFn(true), "disabled", "some random URI"))
-	s.mockArchivalMetadata.On("GetVisibilityConfig").Return(archiver.NewArchivalConfig("enabled", dc.GetStringPropertyFn("enabled"), true, dc.GetBoolPropertyFn(true), "disabled", "some random URI"))
+	s.mockArchivalMetadata.On("GetHistoryConfig").Return(archiver.NewArchivalConfig("enabled", dynamicproperties.GetStringPropertyFn("enabled"), true, dynamicproperties.GetBoolPropertyFn(true), "disabled", "some random URI"))
+	s.mockArchivalMetadata.On("GetVisibilityConfig").Return(archiver.NewArchivalConfig("enabled", dynamicproperties.GetStringPropertyFn("enabled"), true, dynamicproperties.GetBoolPropertyFn(true), "disabled", "some random URI"))
 	s.mockHistoryArchiver.On("ValidateURI", mock.Anything).Return(nil)
 	s.mockVisibilityArchiver.On("ValidateURI", mock.Anything).Return(nil)
 	s.mockArchiverProvider.On("GetHistoryArchiver", mock.Anything, mock.Anything).Return(s.mockHistoryArchiver, nil)
@@ -1448,8 +1449,8 @@ func (s *workflowHandlerSuite) TestUpdateDomain_Success_ArchivalEnabledToEnabled
 		&domain.ArchivalState{Status: types.ArchivalStatusEnabled, URI: testVisibilityArchivalURI},
 	)
 	s.mockMetadataMgr.On("GetDomain", mock.Anything, mock.Anything).Return(getDomainResp, nil)
-	s.mockArchivalMetadata.On("GetHistoryConfig").Return(archiver.NewArchivalConfig("enabled", dc.GetStringPropertyFn("enabled"), true, dc.GetBoolPropertyFn(true), "disabled", "some random URI"))
-	s.mockArchivalMetadata.On("GetVisibilityConfig").Return(archiver.NewArchivalConfig("enabled", dc.GetStringPropertyFn("enabled"), true, dc.GetBoolPropertyFn(true), "disabled", "some random URI"))
+	s.mockArchivalMetadata.On("GetHistoryConfig").Return(archiver.NewArchivalConfig("enabled", dynamicproperties.GetStringPropertyFn("enabled"), true, dynamicproperties.GetBoolPropertyFn(true), "disabled", "some random URI"))
+	s.mockArchivalMetadata.On("GetVisibilityConfig").Return(archiver.NewArchivalConfig("enabled", dynamicproperties.GetStringPropertyFn("enabled"), true, dynamicproperties.GetBoolPropertyFn(true), "disabled", "some random URI"))
 	s.mockHistoryArchiver.On("ValidateURI", mock.Anything).Return(nil)
 	s.mockVisibilityArchiver.On("ValidateURI", mock.Anything).Return(nil)
 	s.mockArchiverProvider.On("GetHistoryArchiver", mock.Anything, mock.Anything).Return(s.mockHistoryArchiver, nil)
@@ -1483,8 +1484,8 @@ func (s *workflowHandlerSuite) TestUpdateDomain_Success_ArchivalNeverEnabledToEn
 	)
 	s.mockMetadataMgr.On("GetDomain", mock.Anything, mock.Anything).Return(getDomainResp, nil)
 	s.mockMetadataMgr.On("UpdateDomain", mock.Anything, mock.Anything).Return(nil)
-	s.mockArchivalMetadata.On("GetHistoryConfig").Return(archiver.NewArchivalConfig("enabled", dc.GetStringPropertyFn("enabled"), true, dc.GetBoolPropertyFn(true), "disabled", "some random URI"))
-	s.mockArchivalMetadata.On("GetVisibilityConfig").Return(archiver.NewArchivalConfig("enabled", dc.GetStringPropertyFn("enabled"), true, dc.GetBoolPropertyFn(true), "disabled", "some random URI"))
+	s.mockArchivalMetadata.On("GetHistoryConfig").Return(archiver.NewArchivalConfig("enabled", dynamicproperties.GetStringPropertyFn("enabled"), true, dynamicproperties.GetBoolPropertyFn(true), "disabled", "some random URI"))
+	s.mockArchivalMetadata.On("GetVisibilityConfig").Return(archiver.NewArchivalConfig("enabled", dynamicproperties.GetStringPropertyFn("enabled"), true, dynamicproperties.GetBoolPropertyFn(true), "disabled", "some random URI"))
 	s.mockHistoryArchiver.On("ValidateURI", mock.Anything).Return(nil)
 	s.mockVisibilityArchiver.On("ValidateURI", mock.Anything).Return(nil)
 	s.mockArchiverProvider.On("GetHistoryArchiver", mock.Anything, mock.Anything).Return(s.mockHistoryArchiver, nil)
@@ -1539,8 +1540,8 @@ func (s *workflowHandlerSuite) TestUpdateDomain_Success_FailOver() {
 
 	s.mockMetadataMgr.On("GetDomain", mock.Anything, mock.Anything).Return(getDomainResp, nil)
 	s.mockMetadataMgr.On("UpdateDomain", mock.Anything, mock.Anything).Return(nil)
-	s.mockArchivalMetadata.On("GetHistoryConfig").Return(archiver.NewArchivalConfig("enabled", dc.GetStringPropertyFn("disabled"), false, dc.GetBoolPropertyFn(false), "disabled", "some random URI"))
-	s.mockArchivalMetadata.On("GetVisibilityConfig").Return(archiver.NewArchivalConfig("enabled", dc.GetStringPropertyFn("disabled"), false, dc.GetBoolPropertyFn(false), "disabled", "some random URI"))
+	s.mockArchivalMetadata.On("GetHistoryConfig").Return(archiver.NewArchivalConfig("enabled", dynamicproperties.GetStringPropertyFn("disabled"), false, dynamicproperties.GetBoolPropertyFn(false), "disabled", "some random URI"))
+	s.mockArchivalMetadata.On("GetVisibilityConfig").Return(archiver.NewArchivalConfig("enabled", dynamicproperties.GetStringPropertyFn("disabled"), false, dynamicproperties.GetBoolPropertyFn(false), "disabled", "some random URI"))
 	s.mockProducer.On("Publish", mock.Anything, mock.Anything).Return(nil).Once()
 	s.mockResource.RemoteFrontendClient.EXPECT().DescribeDomain(gomock.Any(), gomock.Any()).
 		Return(describeDomainResponseServer, nil).AnyTimes()
@@ -1566,7 +1567,7 @@ func (s *workflowHandlerSuite) TestUpdateDomain_Success_FailOver() {
 func (s *workflowHandlerSuite) TestUpdateDomain_Failure_FailoverLockdown() {
 
 	dynamicClient := dc.NewInMemoryClient()
-	err := dynamicClient.UpdateValue(dc.Lockdown, true)
+	err := dynamicClient.UpdateValue(dynamicproperties.Lockdown, true)
 	s.NoError(err)
 	wh := s.getWorkflowHandler(s.newConfig(dynamicClient))
 
@@ -1779,7 +1780,7 @@ func (s *workflowHandlerSuite) TestListArchivedVisibility_Failure_ClusterNotConf
 
 func (s *workflowHandlerSuite) TestListArchivedVisibility_Failure_DomainCacheEntryError() {
 	s.mockDomainCache.EXPECT().GetDomain(gomock.Any()).Return(nil, errors.New("error getting domain"))
-	s.mockArchivalMetadata.On("GetVisibilityConfig").Return(archiver.NewArchivalConfig("enabled", dc.GetStringPropertyFn("enabled"), true, dc.GetBoolPropertyFn(true), "disabled", "random URI"))
+	s.mockArchivalMetadata.On("GetVisibilityConfig").Return(archiver.NewArchivalConfig("enabled", dynamicproperties.GetStringPropertyFn("enabled"), true, dynamicproperties.GetBoolPropertyFn(true), "disabled", "random URI"))
 
 	wh := s.getWorkflowHandler(s.newConfig(dc.NewInMemoryClient()))
 
@@ -1796,7 +1797,7 @@ func (s *workflowHandlerSuite) TestListArchivedVisibility_Failure_DomainNotConfi
 		},
 		"",
 	), nil)
-	s.mockArchivalMetadata.On("GetVisibilityConfig").Return(archiver.NewArchivalConfig("enabled", dc.GetStringPropertyFn("enabled"), true, dc.GetBoolPropertyFn(true), "disabled", "random URI"))
+	s.mockArchivalMetadata.On("GetVisibilityConfig").Return(archiver.NewArchivalConfig("enabled", dynamicproperties.GetStringPropertyFn("enabled"), true, dynamicproperties.GetBoolPropertyFn(true), "disabled", "random URI"))
 
 	wh := s.getWorkflowHandler(s.newConfig(dc.NewInMemoryClient()))
 
@@ -1814,7 +1815,7 @@ func (s *workflowHandlerSuite) TestListArchivedVisibility_Failure_InvalidURI() {
 		},
 		"",
 	), nil)
-	s.mockArchivalMetadata.On("GetVisibilityConfig").Return(archiver.NewArchivalConfig("enabled", dc.GetStringPropertyFn("enabled"), true, dc.GetBoolPropertyFn(true), "disabled", "random URI"))
+	s.mockArchivalMetadata.On("GetVisibilityConfig").Return(archiver.NewArchivalConfig("enabled", dynamicproperties.GetStringPropertyFn("enabled"), true, dynamicproperties.GetBoolPropertyFn(true), "disabled", "random URI"))
 
 	wh := s.getWorkflowHandler(s.newConfig(dc.NewInMemoryClient()))
 
@@ -1832,7 +1833,7 @@ func (s *workflowHandlerSuite) TestListArchivedVisibility_Success() {
 		},
 		"",
 	), nil).AnyTimes()
-	s.mockArchivalMetadata.On("GetVisibilityConfig").Return(archiver.NewArchivalConfig("enabled", dc.GetStringPropertyFn("enabled"), true, dc.GetBoolPropertyFn(true), "disabled", "random URI"))
+	s.mockArchivalMetadata.On("GetVisibilityConfig").Return(archiver.NewArchivalConfig("enabled", dynamicproperties.GetStringPropertyFn("enabled"), true, dynamicproperties.GetBoolPropertyFn(true), "disabled", "random URI"))
 	s.mockVisibilityArchiver.On("Query", mock.Anything, mock.Anything, mock.Anything).Return(&archiver.QueryVisibilityResponse{}, nil)
 	s.mockArchiverProvider.On("GetVisibilityArchiver", mock.Anything, mock.Anything).Return(s.mockVisibilityArchiver, nil)
 
@@ -1870,10 +1871,10 @@ func (s *workflowHandlerSuite) TestGetWorkflowExecutionHistory__Success__RawHist
 
 func (s *workflowHandlerSuite) TestRestartWorkflowExecution_IsolationGroupDrained() {
 	dynamicClient := dc.NewInMemoryClient()
-	err := dynamicClient.UpdateValue(dc.SendRawWorkflowHistory, false)
+	err := dynamicClient.UpdateValue(dynamicproperties.SendRawWorkflowHistory, false)
 	s.NoError(err)
 	config := s.newConfig(dc.NewInMemoryClient())
-	config.EnableTasklistIsolation = dc.GetBoolPropertyFnFilteredByDomain(true)
+	config.EnableTasklistIsolation = dynamicproperties.GetBoolPropertyFnFilteredByDomain(true)
 	wh := s.getWorkflowHandler(config)
 	isolationGroup := "dca1"
 	ctx := isolationgroup.ContextWithIsolationGroup(context.Background(), isolationGroup)
@@ -1892,7 +1893,7 @@ func (s *workflowHandlerSuite) TestRestartWorkflowExecution_IsolationGroupDraine
 
 func (s *workflowHandlerSuite) TestRestartWorkflowExecution__Success() {
 	dynamicClient := dc.NewInMemoryClient()
-	err := dynamicClient.UpdateValue(dc.SendRawWorkflowHistory, false)
+	err := dynamicClient.UpdateValue(dynamicproperties.SendRawWorkflowHistory, false)
 	s.NoError(err)
 	wh := s.getWorkflowHandler(
 		frontendcfg.NewConfig(
@@ -1958,7 +1959,7 @@ func (s *workflowHandlerSuite) TestRestartWorkflowExecution__Success() {
 
 func (s *workflowHandlerSuite) getWorkflowExecutionHistory(nextEventID int64, transientDecision *types.TransientDecisionInfo, historyEvents []*types.HistoryEvent) {
 	dynamicClient := dc.NewInMemoryClient()
-	err := dynamicClient.UpdateValue(dc.SendRawWorkflowHistory, true)
+	err := dynamicClient.UpdateValue(dynamicproperties.SendRawWorkflowHistory, true)
 	s.NoError(err)
 	wh := s.getWorkflowHandler(
 		frontendcfg.NewConfig(
@@ -2223,13 +2224,13 @@ func (s *workflowHandlerSuite) newConfig(dynamicClient dc.Client) *frontendcfg.C
 		false,
 		"hostname",
 	)
-	config.EmitSignalNameMetricsTag = dc.GetBoolPropertyFnFilteredByDomain(true)
+	config.EmitSignalNameMetricsTag = dynamicproperties.GetBoolPropertyFnFilteredByDomain(true)
 	return config
 }
 
 func (s *workflowHandlerSuite) TestRespondActivityTaskFailedByID() {
 	config := s.newConfig(dc.NewInMemoryClient())
-	config.EnableClientVersionCheck = dc.GetBoolPropertyFn(true)
+	config.EnableClientVersionCheck = dynamicproperties.GetBoolPropertyFn(true)
 	wh := NewWorkflowHandler(s.mockResource, config, s.mockVersionChecker, nil)
 	wh.tokenSerializer = s.mockTokenSerializer
 
@@ -2308,8 +2309,8 @@ func (s *workflowHandlerSuite) TestRespondActivityTaskFailedByID() {
 			request: validRequest,
 			mockFn: func() {
 				s.mockDomainCache.EXPECT().GetDomainID(s.testDomain).Return(s.testDomainID, nil)
-				wh.config.MaxIDLengthWarnLimit = dc.GetIntPropertyFn(1)
-				wh.config.IdentityMaxLength = dc.GetIntPropertyFilteredByDomain(1)
+				wh.config.MaxIDLengthWarnLimit = dynamicproperties.GetIntPropertyFn(1)
+				wh.config.IdentityMaxLength = dynamicproperties.GetIntPropertyFilteredByDomain(1)
 			},
 			expectError: true,
 		},
@@ -2326,8 +2327,8 @@ func (s *workflowHandlerSuite) TestRespondActivityTaskFailedByID() {
 			mockFn: func() {
 				s.mockDomainCache.EXPECT().GetDomainID(s.testDomain).Return(s.testDomainID, nil)
 				s.mockTokenSerializer.EXPECT().Serialize(gomock.Any()).Return(make([]byte, 100), nil)
-				wh.config.BlobSizeLimitWarn = dc.GetIntPropertyFilteredByDomain(1)
-				wh.config.BlobSizeLimitError = dc.GetIntPropertyFilteredByDomain(1)
+				wh.config.BlobSizeLimitWarn = dynamicproperties.GetIntPropertyFilteredByDomain(1)
+				wh.config.BlobSizeLimitError = dynamicproperties.GetIntPropertyFilteredByDomain(1)
 				s.mockHistoryClient.EXPECT().RespondActivityTaskFailed(gomock.Any(), gomock.Any()).Return(nil)
 			},
 			expectError: false,
@@ -2353,8 +2354,8 @@ func (s *workflowHandlerSuite) TestRespondActivityTaskFailedByID() {
 				s.NoError(err)
 			}
 			wh.shuttingDown = int32(0)
-			wh.config.MaxIDLengthWarnLimit = dc.GetIntPropertyFn(1000)
-			wh.config.IdentityMaxLength = dc.GetIntPropertyFilteredByDomain(1000)
+			wh.config.MaxIDLengthWarnLimit = dynamicproperties.GetIntPropertyFn(1000)
+			wh.config.IdentityMaxLength = dynamicproperties.GetIntPropertyFilteredByDomain(1000)
 
 		})
 	}
@@ -2362,7 +2363,7 @@ func (s *workflowHandlerSuite) TestRespondActivityTaskFailedByID() {
 
 func (s *workflowHandlerSuite) TestRespondActivityTaskCanceled() {
 	config := s.newConfig(dc.NewInMemoryClient())
-	config.EnableClientVersionCheck = dc.GetBoolPropertyFn(true)
+	config.EnableClientVersionCheck = dynamicproperties.GetBoolPropertyFn(true)
 	wh := NewWorkflowHandler(s.mockResource, config, s.mockVersionChecker, nil)
 	wh.tokenSerializer = s.mockTokenSerializer
 
@@ -2423,8 +2424,8 @@ func (s *workflowHandlerSuite) TestRespondActivityTaskCanceled() {
 			mockFn: func() {
 				s.mockTokenSerializer.EXPECT().Deserialize(gomock.Any()).Return(&common.TaskToken{DomainID: s.testDomainID}, nil)
 				s.mockDomainCache.EXPECT().GetDomainName(s.testDomainID).Return(s.testDomain, nil)
-				wh.config.MaxIDLengthWarnLimit = dc.GetIntPropertyFn(1)
-				wh.config.IdentityMaxLength = dc.GetIntPropertyFilteredByDomain(1)
+				wh.config.MaxIDLengthWarnLimit = dynamicproperties.GetIntPropertyFn(1)
+				wh.config.IdentityMaxLength = dynamicproperties.GetIntPropertyFilteredByDomain(1)
 			},
 			expectError: true,
 		},
@@ -2433,8 +2434,8 @@ func (s *workflowHandlerSuite) TestRespondActivityTaskCanceled() {
 			mockFn: func() {
 				s.mockTokenSerializer.EXPECT().Deserialize(gomock.Any()).Return(&common.TaskToken{DomainID: s.testDomainID}, nil)
 				s.mockDomainCache.EXPECT().GetDomainName(s.testDomainID).Return(s.testDomain, nil)
-				wh.config.BlobSizeLimitWarn = dc.GetIntPropertyFilteredByDomain(1)
-				wh.config.BlobSizeLimitError = dc.GetIntPropertyFilteredByDomain(1)
+				wh.config.BlobSizeLimitWarn = dynamicproperties.GetIntPropertyFilteredByDomain(1)
+				wh.config.BlobSizeLimitError = dynamicproperties.GetIntPropertyFilteredByDomain(1)
 				s.mockHistoryClient.EXPECT().RespondActivityTaskFailed(gomock.Any(), gomock.Any()).Return(errors.New("error"))
 			},
 			expectError: true,
@@ -2444,8 +2445,8 @@ func (s *workflowHandlerSuite) TestRespondActivityTaskCanceled() {
 			mockFn: func() {
 				s.mockTokenSerializer.EXPECT().Deserialize(gomock.Any()).Return(&common.TaskToken{DomainID: s.testDomainID}, nil)
 				s.mockDomainCache.EXPECT().GetDomainName(s.testDomainID).Return(s.testDomain, nil)
-				wh.config.BlobSizeLimitWarn = dc.GetIntPropertyFilteredByDomain(1000)
-				wh.config.BlobSizeLimitError = dc.GetIntPropertyFilteredByDomain(1000)
+				wh.config.BlobSizeLimitWarn = dynamicproperties.GetIntPropertyFilteredByDomain(1000)
+				wh.config.BlobSizeLimitError = dynamicproperties.GetIntPropertyFilteredByDomain(1000)
 				s.mockHistoryClient.EXPECT().RespondActivityTaskCanceled(gomock.Any(), gomock.Any()).Return(errors.New("error"))
 			},
 			expectError: true,
@@ -2455,8 +2456,8 @@ func (s *workflowHandlerSuite) TestRespondActivityTaskCanceled() {
 			mockFn: func() {
 				s.mockTokenSerializer.EXPECT().Deserialize(gomock.Any()).Return(&common.TaskToken{DomainID: s.testDomainID}, nil)
 				s.mockDomainCache.EXPECT().GetDomainName(s.testDomainID).Return(s.testDomain, nil)
-				wh.config.BlobSizeLimitWarn = dc.GetIntPropertyFilteredByDomain(1000)
-				wh.config.BlobSizeLimitError = dc.GetIntPropertyFilteredByDomain(1000)
+				wh.config.BlobSizeLimitWarn = dynamicproperties.GetIntPropertyFilteredByDomain(1000)
+				wh.config.BlobSizeLimitError = dynamicproperties.GetIntPropertyFilteredByDomain(1000)
 				s.mockHistoryClient.EXPECT().RespondActivityTaskCanceled(gomock.Any(), gomock.Any()).Return(nil)
 			},
 			expectError: false,
@@ -2473,8 +2474,8 @@ func (s *workflowHandlerSuite) TestRespondActivityTaskCanceled() {
 				s.NoError(err)
 			}
 			wh.shuttingDown = int32(0)
-			wh.config.MaxIDLengthWarnLimit = dc.GetIntPropertyFn(1000)
-			wh.config.IdentityMaxLength = dc.GetIntPropertyFilteredByDomain(1000)
+			wh.config.MaxIDLengthWarnLimit = dynamicproperties.GetIntPropertyFn(1000)
+			wh.config.IdentityMaxLength = dynamicproperties.GetIntPropertyFilteredByDomain(1000)
 
 		})
 	}
@@ -2482,7 +2483,7 @@ func (s *workflowHandlerSuite) TestRespondActivityTaskCanceled() {
 
 func (s *workflowHandlerSuite) TestRespondActivityTaskCanceledByID() {
 	config := s.newConfig(dc.NewInMemoryClient())
-	config.EnableClientVersionCheck = dc.GetBoolPropertyFn(true)
+	config.EnableClientVersionCheck = dynamicproperties.GetBoolPropertyFn(true)
 	wh := NewWorkflowHandler(s.mockResource, config, s.mockVersionChecker, nil)
 	wh.tokenSerializer = s.mockTokenSerializer
 
@@ -2560,8 +2561,8 @@ func (s *workflowHandlerSuite) TestRespondActivityTaskCanceledByID() {
 			request: validInput,
 			mockFn: func() {
 				s.mockDomainCache.EXPECT().GetDomainID(s.testDomain).Return(s.testDomainID, nil)
-				wh.config.MaxIDLengthWarnLimit = dc.GetIntPropertyFn(1)
-				wh.config.IdentityMaxLength = dc.GetIntPropertyFilteredByDomain(1)
+				wh.config.MaxIDLengthWarnLimit = dynamicproperties.GetIntPropertyFn(1)
+				wh.config.IdentityMaxLength = dynamicproperties.GetIntPropertyFilteredByDomain(1)
 			},
 			expectError: true,
 		},
@@ -2578,8 +2579,8 @@ func (s *workflowHandlerSuite) TestRespondActivityTaskCanceledByID() {
 			mockFn: func() {
 				s.mockDomainCache.EXPECT().GetDomainID(s.testDomain).Return(s.testDomainID, nil)
 				s.mockTokenSerializer.EXPECT().Serialize(gomock.Any()).Return(make([]byte, 100), nil)
-				wh.config.BlobSizeLimitWarn = dc.GetIntPropertyFilteredByDomain(10)
-				wh.config.BlobSizeLimitError = dc.GetIntPropertyFilteredByDomain(10)
+				wh.config.BlobSizeLimitWarn = dynamicproperties.GetIntPropertyFilteredByDomain(10)
+				wh.config.BlobSizeLimitError = dynamicproperties.GetIntPropertyFilteredByDomain(10)
 				s.mockHistoryClient.EXPECT().RespondActivityTaskFailed(gomock.Any(), gomock.Any()).Return(errors.New("error"))
 			},
 			expectError: true,
@@ -2589,8 +2590,8 @@ func (s *workflowHandlerSuite) TestRespondActivityTaskCanceledByID() {
 			mockFn: func() {
 				s.mockDomainCache.EXPECT().GetDomainID(s.testDomain).Return(s.testDomainID, nil)
 				s.mockTokenSerializer.EXPECT().Serialize(gomock.Any()).Return(make([]byte, 5), nil)
-				wh.config.BlobSizeLimitWarn = dc.GetIntPropertyFilteredByDomain(1000)
-				wh.config.BlobSizeLimitError = dc.GetIntPropertyFilteredByDomain(1000)
+				wh.config.BlobSizeLimitWarn = dynamicproperties.GetIntPropertyFilteredByDomain(1000)
+				wh.config.BlobSizeLimitError = dynamicproperties.GetIntPropertyFilteredByDomain(1000)
 				s.mockHistoryClient.EXPECT().RespondActivityTaskCanceled(gomock.Any(), gomock.Any()).Return(errors.New("error"))
 			},
 			expectError: true,
@@ -2600,8 +2601,8 @@ func (s *workflowHandlerSuite) TestRespondActivityTaskCanceledByID() {
 			mockFn: func() {
 				s.mockDomainCache.EXPECT().GetDomainID(s.testDomain).Return(s.testDomainID, nil)
 				s.mockTokenSerializer.EXPECT().Serialize(gomock.Any()).Return(make([]byte, 5), nil)
-				wh.config.BlobSizeLimitWarn = dc.GetIntPropertyFilteredByDomain(1000)
-				wh.config.BlobSizeLimitError = dc.GetIntPropertyFilteredByDomain(1000)
+				wh.config.BlobSizeLimitWarn = dynamicproperties.GetIntPropertyFilteredByDomain(1000)
+				wh.config.BlobSizeLimitError = dynamicproperties.GetIntPropertyFilteredByDomain(1000)
 				s.mockHistoryClient.EXPECT().RespondActivityTaskCanceled(gomock.Any(), gomock.Any()).Return(nil)
 			},
 			expectError: false,
@@ -2618,8 +2619,8 @@ func (s *workflowHandlerSuite) TestRespondActivityTaskCanceledByID() {
 				s.NoError(err)
 			}
 			wh.shuttingDown = int32(0)
-			wh.config.MaxIDLengthWarnLimit = dc.GetIntPropertyFn(1000)
-			wh.config.IdentityMaxLength = dc.GetIntPropertyFilteredByDomain(1000)
+			wh.config.MaxIDLengthWarnLimit = dynamicproperties.GetIntPropertyFn(1000)
+			wh.config.IdentityMaxLength = dynamicproperties.GetIntPropertyFilteredByDomain(1000)
 		})
 	}
 }
@@ -2637,7 +2638,7 @@ func (s *workflowHandlerSuite) TestRespondDecisionTaskCompleted() {
 		},
 	}
 	config := s.newConfig(dc.NewInMemoryClient())
-	config.EnableClientVersionCheck = dc.GetBoolPropertyFn(true)
+	config.EnableClientVersionCheck = dynamicproperties.GetBoolPropertyFn(true)
 	wh := NewWorkflowHandler(s.mockResource, config, s.mockVersionChecker, nil)
 	wh.tokenSerializer = s.mockTokenSerializer
 
@@ -2697,8 +2698,8 @@ func (s *workflowHandlerSuite) TestRespondDecisionTaskCompleted() {
 			mockFn: func() {
 				s.mockTokenSerializer.EXPECT().Deserialize(gomock.Any()).Return(&common.TaskToken{DomainID: s.testDomainID}, nil)
 				s.mockDomainCache.EXPECT().GetDomainName(s.testDomainID).Return(s.testDomain, nil)
-				wh.config.MaxIDLengthWarnLimit = dc.GetIntPropertyFn(1)
-				wh.config.IdentityMaxLength = dc.GetIntPropertyFilteredByDomain(1)
+				wh.config.MaxIDLengthWarnLimit = dynamicproperties.GetIntPropertyFn(1)
+				wh.config.IdentityMaxLength = dynamicproperties.GetIntPropertyFilteredByDomain(1)
 			},
 			expectError:     true,
 			expectErrorType: validate.ErrIdentityTooLong,
@@ -2708,7 +2709,7 @@ func (s *workflowHandlerSuite) TestRespondDecisionTaskCompleted() {
 			mockFn: func() {
 				s.mockTokenSerializer.EXPECT().Deserialize(gomock.Any()).Return(&common.TaskToken{DomainID: s.testDomainID}, nil)
 				s.mockDomainCache.EXPECT().GetDomainName(s.testDomainID).Return(s.testDomain, nil)
-				wh.config.DecisionResultCountLimit = dc.GetIntPropertyFilteredByDomain(10)
+				wh.config.DecisionResultCountLimit = dynamicproperties.GetIntPropertyFilteredByDomain(10)
 			},
 			expectError: true,
 		},
@@ -2765,9 +2766,9 @@ func (s *workflowHandlerSuite) TestRespondDecisionTaskCompleted() {
 				s.NoError(err)
 			}
 			wh.shuttingDown = int32(0)
-			wh.config.MaxIDLengthWarnLimit = dc.GetIntPropertyFn(1000)
-			wh.config.IdentityMaxLength = dc.GetIntPropertyFilteredByDomain(1000)
-			wh.config.DecisionResultCountLimit = dc.GetIntPropertyFilteredByDomain(1000)
+			wh.config.MaxIDLengthWarnLimit = dynamicproperties.GetIntPropertyFn(1000)
+			wh.config.IdentityMaxLength = dynamicproperties.GetIntPropertyFilteredByDomain(1000)
+			wh.config.DecisionResultCountLimit = dynamicproperties.GetIntPropertyFilteredByDomain(1000)
 		})
 	}
 }
@@ -2780,7 +2781,7 @@ func (s *workflowHandlerSuite) TestRespondDecisionTaskFailed() {
 		Details:   make([]byte, 1000),
 	}
 	config := s.newConfig(dc.NewInMemoryClient())
-	config.EnableClientVersionCheck = dc.GetBoolPropertyFn(true)
+	config.EnableClientVersionCheck = dynamicproperties.GetBoolPropertyFn(true)
 	wh := NewWorkflowHandler(s.mockResource, config, s.mockVersionChecker, nil)
 	wh.tokenSerializer = s.mockTokenSerializer
 
@@ -2840,8 +2841,8 @@ func (s *workflowHandlerSuite) TestRespondDecisionTaskFailed() {
 			mockFn: func() {
 				s.mockTokenSerializer.EXPECT().Deserialize(gomock.Any()).Return(&common.TaskToken{DomainID: s.testDomainID}, nil)
 				s.mockDomainCache.EXPECT().GetDomainName(s.testDomainID).Return(s.testDomain, nil)
-				wh.config.MaxIDLengthWarnLimit = dc.GetIntPropertyFn(1)
-				wh.config.IdentityMaxLength = dc.GetIntPropertyFilteredByDomain(1)
+				wh.config.MaxIDLengthWarnLimit = dynamicproperties.GetIntPropertyFn(1)
+				wh.config.IdentityMaxLength = dynamicproperties.GetIntPropertyFilteredByDomain(1)
 			},
 			expectError:     true,
 			expectErrorType: validate.ErrIdentityTooLong,
@@ -2851,8 +2852,8 @@ func (s *workflowHandlerSuite) TestRespondDecisionTaskFailed() {
 			mockFn: func() {
 				s.mockTokenSerializer.EXPECT().Deserialize(gomock.Any()).Return(&common.TaskToken{DomainID: s.testDomainID}, nil)
 				s.mockDomainCache.EXPECT().GetDomainName(s.testDomainID).Return(s.testDomain, nil)
-				wh.config.BlobSizeLimitWarn = dc.GetIntPropertyFilteredByDomain(1)
-				wh.config.BlobSizeLimitError = dc.GetIntPropertyFilteredByDomain(1)
+				wh.config.BlobSizeLimitWarn = dynamicproperties.GetIntPropertyFilteredByDomain(1)
+				wh.config.BlobSizeLimitError = dynamicproperties.GetIntPropertyFilteredByDomain(1)
 				s.mockHistoryClient.EXPECT().RespondDecisionTaskFailed(gomock.Any(), gomock.Any()).Return(nil)
 			},
 			expectError: false,
@@ -2862,8 +2863,8 @@ func (s *workflowHandlerSuite) TestRespondDecisionTaskFailed() {
 			mockFn: func() {
 				s.mockTokenSerializer.EXPECT().Deserialize(gomock.Any()).Return(&common.TaskToken{DomainID: s.testDomainID}, nil)
 				s.mockDomainCache.EXPECT().GetDomainName(s.testDomainID).Return(s.testDomain, nil)
-				wh.config.BlobSizeLimitWarn = dc.GetIntPropertyFilteredByDomain(1000)
-				wh.config.BlobSizeLimitError = dc.GetIntPropertyFilteredByDomain(1000)
+				wh.config.BlobSizeLimitWarn = dynamicproperties.GetIntPropertyFilteredByDomain(1000)
+				wh.config.BlobSizeLimitError = dynamicproperties.GetIntPropertyFilteredByDomain(1000)
 				s.mockHistoryClient.EXPECT().RespondDecisionTaskFailed(gomock.Any(), gomock.Any()).Return(errors.New("error"))
 			},
 			expectError: true,
@@ -2883,15 +2884,15 @@ func (s *workflowHandlerSuite) TestRespondDecisionTaskFailed() {
 				s.NoError(err)
 			}
 			wh.shuttingDown = int32(0)
-			wh.config.MaxIDLengthWarnLimit = dc.GetIntPropertyFn(1000)
-			wh.config.IdentityMaxLength = dc.GetIntPropertyFilteredByDomain(1000)
+			wh.config.MaxIDLengthWarnLimit = dynamicproperties.GetIntPropertyFn(1000)
+			wh.config.IdentityMaxLength = dynamicproperties.GetIntPropertyFilteredByDomain(1000)
 		})
 	}
 }
 
 func (s *workflowHandlerSuite) TestRespondQueryTaskCompleted() {
 	config := s.newConfig(dc.NewInMemoryClient())
-	config.EnableClientVersionCheck = dc.GetBoolPropertyFn(true)
+	config.EnableClientVersionCheck = dynamicproperties.GetBoolPropertyFn(true)
 	wh := NewWorkflowHandler(s.mockResource, config, s.mockVersionChecker, nil)
 	wh.tokenSerializer = s.mockTokenSerializer
 
@@ -2962,8 +2963,8 @@ func (s *workflowHandlerSuite) TestRespondQueryTaskCompleted() {
 					TaskList: "tasklist",
 					TaskID:   "taskID"}, nil)
 				s.mockDomainCache.EXPECT().GetDomainName(s.testDomainID).Return(s.testDomain, nil)
-				wh.config.BlobSizeLimitWarn = dc.GetIntPropertyFilteredByDomain(1)
-				wh.config.BlobSizeLimitError = dc.GetIntPropertyFilteredByDomain(1)
+				wh.config.BlobSizeLimitWarn = dynamicproperties.GetIntPropertyFilteredByDomain(1)
+				wh.config.BlobSizeLimitError = dynamicproperties.GetIntPropertyFilteredByDomain(1)
 				s.mockMatchingClient.EXPECT().RespondQueryTaskCompleted(gomock.Any(), gomock.Any()).Return(nil)
 			},
 			expectError: false,
@@ -2976,8 +2977,8 @@ func (s *workflowHandlerSuite) TestRespondQueryTaskCompleted() {
 					TaskList: "tasklist",
 					TaskID:   "taskID"}, nil)
 				s.mockDomainCache.EXPECT().GetDomainName(s.testDomainID).Return(s.testDomain, nil)
-				wh.config.BlobSizeLimitWarn = dc.GetIntPropertyFilteredByDomain(1000)
-				wh.config.BlobSizeLimitError = dc.GetIntPropertyFilteredByDomain(1000)
+				wh.config.BlobSizeLimitWarn = dynamicproperties.GetIntPropertyFilteredByDomain(1000)
+				wh.config.BlobSizeLimitError = dynamicproperties.GetIntPropertyFilteredByDomain(1000)
 				s.mockMatchingClient.EXPECT().RespondQueryTaskCompleted(gomock.Any(), gomock.Any()).Return(errors.New("error"))
 			},
 			expectError: true,
@@ -3003,7 +3004,7 @@ func (s *workflowHandlerSuite) TestRespondQueryTaskCompleted() {
 
 func (s *workflowHandlerSuite) TestStartWorkflowExecution_Remaining() {
 	config := s.newConfig(dc.NewInMemoryClient())
-	config.EnableClientVersionCheck = dc.GetBoolPropertyFn(true)
+	config.EnableClientVersionCheck = dynamicproperties.GetBoolPropertyFn(true)
 	wh := NewWorkflowHandler(s.mockResource, config, s.mockVersionChecker, nil)
 	wh.tokenSerializer = s.mockTokenSerializer
 
@@ -3082,7 +3083,7 @@ func (s *workflowHandlerSuite) TestStartWorkflowExecution_Remaining() {
 
 func (s *workflowHandlerSuite) TestSignalWorkflowExecution() {
 	config := s.newConfig(dc.NewInMemoryClient())
-	config.EnableClientVersionCheck = dc.GetBoolPropertyFn(true)
+	config.EnableClientVersionCheck = dynamicproperties.GetBoolPropertyFn(true)
 	wh := NewWorkflowHandler(s.mockResource, config, s.mockVersionChecker, nil)
 	wh.tokenSerializer = s.mockTokenSerializer
 
@@ -3139,7 +3140,7 @@ func (s *workflowHandlerSuite) TestSignalWorkflowExecution() {
 		"domain length exceeds limit": {
 			request: validRequest,
 			mockFn: func() {
-				wh.config.DomainNameMaxLength = dc.GetIntPropertyFilteredByDomain(1)
+				wh.config.DomainNameMaxLength = dynamicproperties.GetIntPropertyFilteredByDomain(1)
 			},
 			expectError:     true,
 			expectErrorType: validate.ErrDomainTooLong,
@@ -3160,7 +3161,7 @@ func (s *workflowHandlerSuite) TestSignalWorkflowExecution() {
 		"signal name length exceeds limit": {
 			request: validRequest,
 			mockFn: func() {
-				wh.config.SignalNameMaxLength = dc.GetIntPropertyFilteredByDomain(1)
+				wh.config.SignalNameMaxLength = dynamicproperties.GetIntPropertyFilteredByDomain(1)
 			},
 			expectError:     true,
 			expectErrorType: validate.ErrSignalNameTooLong,
@@ -3168,7 +3169,7 @@ func (s *workflowHandlerSuite) TestSignalWorkflowExecution() {
 		"requestID length exceeds limit": {
 			request: validRequest,
 			mockFn: func() {
-				wh.config.RequestIDMaxLength = dc.GetIntPropertyFilteredByDomain(1)
+				wh.config.RequestIDMaxLength = dynamicproperties.GetIntPropertyFilteredByDomain(1)
 			},
 			expectError:     true,
 			expectErrorType: validate.ErrRequestIDTooLong,
@@ -3184,8 +3185,8 @@ func (s *workflowHandlerSuite) TestSignalWorkflowExecution() {
 			request: validRequest,
 			mockFn: func() {
 				s.mockDomainCache.EXPECT().GetDomainID(s.testDomain).Return(s.testDomainID, nil)
-				wh.config.BlobSizeLimitWarn = dc.GetIntPropertyFilteredByDomain(1)
-				wh.config.BlobSizeLimitError = dc.GetIntPropertyFilteredByDomain(1)
+				wh.config.BlobSizeLimitWarn = dynamicproperties.GetIntPropertyFilteredByDomain(1)
+				wh.config.BlobSizeLimitError = dynamicproperties.GetIntPropertyFilteredByDomain(1)
 			},
 			expectError: true,
 		},
@@ -3220,11 +3221,11 @@ func (s *workflowHandlerSuite) TestSignalWorkflowExecution() {
 				s.NoError(err)
 			}
 			wh.shuttingDown = int32(0)
-			wh.config.DomainNameMaxLength = dc.GetIntPropertyFilteredByDomain(200)
-			wh.config.SignalNameMaxLength = dc.GetIntPropertyFilteredByDomain(200)
-			wh.config.RequestIDMaxLength = dc.GetIntPropertyFilteredByDomain(200)
-			wh.config.BlobSizeLimitWarn = dc.GetIntPropertyFilteredByDomain(1000)
-			wh.config.BlobSizeLimitError = dc.GetIntPropertyFilteredByDomain(1000)
+			wh.config.DomainNameMaxLength = dynamicproperties.GetIntPropertyFilteredByDomain(200)
+			wh.config.SignalNameMaxLength = dynamicproperties.GetIntPropertyFilteredByDomain(200)
+			wh.config.RequestIDMaxLength = dynamicproperties.GetIntPropertyFilteredByDomain(200)
+			wh.config.BlobSizeLimitWarn = dynamicproperties.GetIntPropertyFilteredByDomain(1000)
+			wh.config.BlobSizeLimitError = dynamicproperties.GetIntPropertyFilteredByDomain(1000)
 		})
 	}
 }
@@ -3820,7 +3821,7 @@ func TestQueryWorkflow(t *testing.T) {
 			},
 			inMemoryClient: func() dc.Client {
 				inMemoryClient := dc.NewInMemoryClient()
-				inMemoryClient.UpdateValue(dc.DisallowQuery, true)
+				inMemoryClient.UpdateValue(dynamicproperties.DisallowQuery, true)
 				return inMemoryClient
 			}(),
 			queryRequest: &types.QueryWorkflowRequest{
@@ -4080,7 +4081,7 @@ func TestDescribeWorkflowExecution(t *testing.T) {
 
 func (s *workflowHandlerSuite) TestSignalWithStartWorkflowExecution() {
 	config := s.newConfig(dc.NewInMemoryClient())
-	config.EnableClientVersionCheck = dc.GetBoolPropertyFn(true)
+	config.EnableClientVersionCheck = dynamicproperties.GetBoolPropertyFn(true)
 	wh := NewWorkflowHandler(s.mockResource, config, s.mockVersionChecker, nil)
 	wh.tokenSerializer = s.mockTokenSerializer
 
@@ -4179,7 +4180,7 @@ func (s *workflowHandlerSuite) TestSignalWithStartWorkflowExecution() {
 
 func (s *workflowHandlerSuite) TestResetWorkflowExecution() {
 	config := s.newConfig(dc.NewInMemoryClient())
-	config.EnableClientVersionCheck = dc.GetBoolPropertyFn(true)
+	config.EnableClientVersionCheck = dynamicproperties.GetBoolPropertyFn(true)
 	wh := NewWorkflowHandler(s.mockResource, config, s.mockVersionChecker, nil)
 	wh.tokenSerializer = s.mockTokenSerializer
 
@@ -4279,7 +4280,7 @@ func (s *workflowHandlerSuite) TestResetWorkflowExecution() {
 
 func (s *workflowHandlerSuite) TestTerminateWorkflowExecution() {
 	config := s.newConfig(dc.NewInMemoryClient())
-	config.EnableClientVersionCheck = dc.GetBoolPropertyFn(true)
+	config.EnableClientVersionCheck = dynamicproperties.GetBoolPropertyFn(true)
 	wh := NewWorkflowHandler(s.mockResource, config, s.mockVersionChecker, nil)
 	wh.tokenSerializer = s.mockTokenSerializer
 

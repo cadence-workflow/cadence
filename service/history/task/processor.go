@@ -31,7 +31,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -56,7 +56,7 @@ type processorImpl struct {
 	logger                    log.Logger
 	metricsClient             metrics.Client
 	timeSource                clock.TimeSource
-	newSchedulerProbabilityFn dynamicconfig.IntPropertyFn
+	newSchedulerProbabilityFn dynamicproperties.IntPropertyFn
 }
 
 var (
@@ -85,10 +85,10 @@ func NewProcessor(
 		return t.Priority()
 	}
 	channelKeyToWeightFn := func(priority int) int {
-		weights, err := common.ConvertDynamicConfigMapPropertyToIntMap(config.TaskSchedulerRoundRobinWeights())
+		weights, err := dynamicproperties.ConvertDynamicConfigMapPropertyToIntMap(config.TaskSchedulerRoundRobinWeights())
 		if err != nil {
 			logger.Error("failed to convert dynamic config map to int map", tag.Error(err))
-			weights = dynamicconfig.DefaultTaskSchedulerRoundRobinWeights
+			weights = dynamicproperties.DefaultTaskSchedulerRoundRobinWeights
 		}
 		weight, ok := weights[priority]
 		if !ok {
@@ -112,7 +112,7 @@ func NewProcessor(
 		return nil, err
 	}
 	var newScheduler task.Scheduler
-	var newSchedulerProbabilityFn dynamicconfig.IntPropertyFn
+	var newSchedulerProbabilityFn dynamicproperties.IntPropertyFn
 	if config.TaskSchedulerEnableMigration() {
 		taskToChannelKeyFn := func(t task.PriorityTask) DomainPriorityKey {
 			var domainID string
@@ -257,12 +257,12 @@ func getDomainPriorityWeight(
 	domainName, err := domainCache.GetDomainName(k.DomainID)
 	if err != nil {
 		logger.Error("failed to get domain name from cache, use default round robin weights", tag.Error(err))
-		weights = dynamicconfig.DefaultTaskSchedulerRoundRobinWeights
+		weights = dynamicproperties.DefaultTaskSchedulerRoundRobinWeights
 	} else {
-		weights, err = common.ConvertDynamicConfigMapPropertyToIntMap(config.TaskSchedulerDomainRoundRobinWeights(domainName))
+		weights, err = dynamicproperties.ConvertDynamicConfigMapPropertyToIntMap(config.TaskSchedulerDomainRoundRobinWeights(domainName))
 		if err != nil {
 			logger.Error("failed to convert dynamic config map to int map, use default round robin weights", tag.Error(err))
-			weights = dynamicconfig.DefaultTaskSchedulerRoundRobinWeights
+			weights = dynamicproperties.DefaultTaskSchedulerRoundRobinWeights
 		}
 	}
 	weight, ok := weights[k.Priority]

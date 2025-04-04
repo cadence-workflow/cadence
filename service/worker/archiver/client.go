@@ -33,7 +33,7 @@ import (
 	carchiver "github.com/uber/cadence/common/archiver"
 	"github.com/uber/cadence/common/archiver/provider"
 	"github.com/uber/cadence/common/constants"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -92,12 +92,12 @@ type (
 		metricsScope                metrics.Scope
 		logger                      log.Logger
 		cadenceClient               cclient.Client
-		numWorkflows                dynamicconfig.IntPropertyFn
+		numWorkflows                dynamicproperties.IntPropertyFn
 		rateLimiter                 quotas.Limiter
 		inlineHistoryRateLimiter    quotas.Limiter
 		inlineVisibilityRateLimiter quotas.Limiter
 		archiverProvider            provider.ArchiverProvider
-		archivingIncompleteHistory  dynamicconfig.BoolPropertyFn
+		archivingIncompleteHistory  dynamicproperties.BoolPropertyFn
 	}
 
 	// ArchivalTarget is either history or visibility
@@ -126,12 +126,12 @@ func NewClient(
 	metricsClient metrics.Client,
 	logger log.Logger,
 	publicClient workflowserviceclient.Interface,
-	numWorkflows dynamicconfig.IntPropertyFn,
+	numWorkflows dynamicproperties.IntPropertyFn,
 	requestRateLimiter quotas.Limiter,
 	inlineHistoryRateLimiter quotas.Limiter,
 	inlineVisibilityRateLimiter quotas.Limiter,
 	archiverProvider provider.ArchiverProvider,
-	archivingIncompleteHistory dynamicconfig.BoolPropertyFn,
+	archivingIncompleteHistory dynamicproperties.BoolPropertyFn,
 ) Client {
 	return &client{
 		metricsScope:                metricsClient.Scope(metrics.ArchiverClientScope),

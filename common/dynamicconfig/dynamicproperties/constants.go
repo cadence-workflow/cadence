@@ -18,14 +18,13 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package dynamicconfig
+package dynamicproperties
 
 import (
 	"fmt"
 	"math"
 	"time"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
 )
@@ -5164,23 +5163,23 @@ var MapKeys = map[MapKey]DynamicMap{
 	TaskSchedulerRoundRobinWeights: {
 		KeyName:      "history.taskSchedulerRoundRobinWeight",
 		Description:  "TaskSchedulerRoundRobinWeights is the priority weight for weighted round robin task scheduler",
-		DefaultValue: common.ConvertIntMapToDynamicConfigMapProperty(DefaultTaskSchedulerRoundRobinWeights),
+		DefaultValue: ConvertIntMapToDynamicConfigMapProperty(DefaultTaskSchedulerRoundRobinWeights),
 	},
 	TaskSchedulerDomainRoundRobinWeights: {
 		KeyName:      "history.taskSchedulerDomainRoundRobinWeight",
 		Description:  "TaskSchedulerDomainRoundRobinWeights is the priority round robin weights for domains",
 		Filters:      []Filter{DomainName},
-		DefaultValue: common.ConvertIntMapToDynamicConfigMapProperty(DefaultTaskSchedulerRoundRobinWeights),
+		DefaultValue: ConvertIntMapToDynamicConfigMapProperty(DefaultTaskSchedulerRoundRobinWeights),
 	},
 	QueueProcessorPendingTaskSplitThreshold: {
 		KeyName:      "history.queueProcessorPendingTaskSplitThreshold",
 		Description:  "QueueProcessorPendingTaskSplitThreshold is the threshold for the number of pending tasks per domain",
-		DefaultValue: common.ConvertIntMapToDynamicConfigMapProperty(map[int]int{0: 1000, 1: 10000}),
+		DefaultValue: ConvertIntMapToDynamicConfigMapProperty(map[int]int{0: 1000, 1: 10000}),
 	},
 	QueueProcessorStuckTaskSplitThreshold: {
 		KeyName:      "history.queueProcessorStuckTaskSplitThreshold",
 		Description:  "QueueProcessorStuckTaskSplitThreshold is the threshold for the number of attempts of a task",
-		DefaultValue: common.ConvertIntMapToDynamicConfigMapProperty(map[int]int{0: 100, 1: 10000}),
+		DefaultValue: ConvertIntMapToDynamicConfigMapProperty(map[int]int{0: 100, 1: 10000}),
 	},
 	PinotOptimizedQueryColumns: {
 		KeyName:      "frontend.pinotOptimizedQueryColumns",
@@ -5264,8 +5263,8 @@ func init() {
 
 var (
 	DefaultTaskSchedulerRoundRobinWeights = map[int]int{
-		common.GetTaskPriority(constants.HighPriorityClass, constants.DefaultPrioritySubclass):    500,
-		common.GetTaskPriority(constants.DefaultPriorityClass, constants.DefaultPrioritySubclass): 20,
-		common.GetTaskPriority(constants.LowPriorityClass, constants.DefaultPrioritySubclass):     5,
+		constants.GetTaskPriority(constants.HighPriorityClass, constants.DefaultPrioritySubclass):    500,
+		constants.GetTaskPriority(constants.DefaultPriorityClass, constants.DefaultPrioritySubclass): 20,
+		constants.GetTaskPriority(constants.LowPriorityClass, constants.DefaultPrioritySubclass):     5,
 	}
 )

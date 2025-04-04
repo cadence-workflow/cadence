@@ -31,7 +31,7 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/quotas/global/shared"
@@ -66,10 +66,10 @@ func FuzzMultiUpdate(f *testing.F) {
 			// TODO: fuzz test with different weights too? though only some human-friendly values are likely, like 0.25..0.75
 			// extremely high or low values are kinda-intentionally allowed to misbehave since they're really not rational to set,
 			// but it might be a good exercise to make sure the math is reasonable even in those edge cases...
-			NewDataWeight:  func(opts ...dynamicconfig.FilterOption) float64 { return 0.5 },
-			UpdateInterval: func(opts ...dynamicconfig.FilterOption) time.Duration { return time.Second },
-			DecayAfter:     func(opts ...dynamicconfig.FilterOption) time.Duration { return time.Hour },
-			GcAfter:        func(opts ...dynamicconfig.FilterOption) time.Duration { return time.Hour },
+			NewDataWeight:  func(opts ...dynamicproperties.FilterOption) float64 { return 0.5 },
+			UpdateInterval: func(opts ...dynamicproperties.FilterOption) time.Duration { return time.Second },
+			DecayAfter:     func(opts ...dynamicproperties.FilterOption) time.Duration { return time.Hour },
+			GcAfter:        func(opts ...dynamicproperties.FilterOption) time.Duration { return time.Hour },
 		})
 		if err != nil {
 			f.Fatal(err)

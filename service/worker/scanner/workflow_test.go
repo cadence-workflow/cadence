@@ -31,7 +31,7 @@ import (
 	"go.uber.org/cadence/worker"
 	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/metrics"
 	p "github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/resource"
@@ -66,8 +66,8 @@ func (s *scannerWorkflowTestSuite) TestScavengerActivity() {
 		resource: mockResource,
 		cfg: Config{
 			TaskListScannerOptions: tasklist.Options{
-				GetOrphanTasksPageSizeFn: dynamicconfig.GetIntPropertyFn(dynamicconfig.ScannerGetOrphanTasksPageSize.DefaultInt()),
-				EnableCleaning:           dynamicconfig.GetBoolPropertyFn(true),
+				GetOrphanTasksPageSizeFn: dynamicproperties.GetIntPropertyFn(dynamicproperties.ScannerGetOrphanTasksPageSize.DefaultInt()),
+				EnableCleaning:           dynamicproperties.GetBoolPropertyFn(true),
 				ExecutorPollInterval:     time.Millisecond * 50,
 			},
 		},

@@ -33,7 +33,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/cluster"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/membership"
@@ -180,7 +180,7 @@ func (s *controllerSuite) TestAcquireShardSuccess() {
 func (s *controllerSuite) TestAcquireShardsConcurrently() {
 	numShards := 10
 	s.config.NumberOfShards = numShards
-	s.config.AcquireShardConcurrency = func(opts ...dynamicconfig.FilterOption) int {
+	s.config.AcquireShardConcurrency = func(opts ...dynamicproperties.FilterOption) int {
 		return 10
 	}
 

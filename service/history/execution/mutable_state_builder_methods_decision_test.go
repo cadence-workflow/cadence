@@ -34,7 +34,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/definition"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -866,7 +866,7 @@ func TestAddBinaryCheckSumIfNotExistsMutableStateBuilder(t *testing.T) {
 				},
 			},
 			shardConfig: &config.Config{
-				WriteVisibilityStoreName: dynamicconfig.GetStringPropertyFn("off"),
+				WriteVisibilityStoreName: dynamicproperties.GetStringPropertyFn("off"),
 			},
 			wantWorkFlowExecutionInfo: &persistence.WorkflowExecutionInfo{
 				RunID: runID,
@@ -895,7 +895,7 @@ func TestAddBinaryCheckSumIfNotExistsMutableStateBuilder(t *testing.T) {
 				BinaryChecksum: checkSum,
 			},
 			shardConfig: &config.Config{
-				WriteVisibilityStoreName: dynamicconfig.GetStringPropertyFn("es"),
+				WriteVisibilityStoreName: dynamicproperties.GetStringPropertyFn("es"),
 				IsAdvancedVisConfigExist: true,
 			},
 			wantWorkFlowExecutionInfo: &persistence.WorkflowExecutionInfo{
@@ -925,7 +925,7 @@ func TestAddBinaryCheckSumIfNotExistsMutableStateBuilder(t *testing.T) {
 				BinaryChecksum: checkSum,
 			},
 			shardConfig: &config.Config{
-				WriteVisibilityStoreName: dynamicconfig.GetStringPropertyFn("off"),
+				WriteVisibilityStoreName: dynamicproperties.GetStringPropertyFn("off"),
 			},
 			pendingChildExecutionInfoIDs: map[int64]*persistence.ChildExecutionInfo{
 				1: {},

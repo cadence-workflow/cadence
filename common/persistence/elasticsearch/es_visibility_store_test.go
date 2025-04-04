@@ -37,7 +37,7 @@ import (
 	"github.com/uber/cadence/.gen/go/indexer"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	es "github.com/uber/cadence/common/elasticsearch"
 	esMocks "github.com/uber/cadence/common/elasticsearch/mocks"
 	"github.com/uber/cadence/common/elasticsearch/query"
@@ -100,8 +100,8 @@ func (s *ESVisibilitySuite) SetupTest() {
 
 	s.mockESClient = &esMocks.GenericClient{}
 	config := &service.Config{
-		ESIndexMaxResultWindow: dynamicconfig.GetIntPropertyFn(esIndexMaxResultWindow),
-		ValidSearchAttributes:  dynamicconfig.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
+		ESIndexMaxResultWindow: dynamicproperties.GetIntPropertyFn(esIndexMaxResultWindow),
+		ValidSearchAttributes:  dynamicproperties.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
 	}
 
 	s.mockProducer = &mocks.KafkaProducer{}

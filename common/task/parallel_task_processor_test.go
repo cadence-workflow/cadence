@@ -35,6 +35,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 )
@@ -70,7 +71,7 @@ func (s *parallelTaskProcessorSuite) SetupTest() {
 		metrics.NewClient(tally.NoopScope, metrics.Common),
 		&ParallelTaskProcessorOptions{
 			QueueSize:   0,
-			WorkerCount: dynamicconfig.GetIntPropertyFn(1),
+			WorkerCount: dynamicproperties.GetIntPropertyFn(1),
 			RetryPolicy: backoff.NewExponentialRetryPolicy(time.Millisecond),
 		},
 	).(*parallelTaskProcessorImpl)
@@ -210,10 +211,10 @@ func (s *parallelTaskProcessorSuite) TestMonitor() {
 
 	s.processor.shutdownWG.Add(1) // for monitor
 	dcClient := dynamicconfig.NewInMemoryClient()
-	err := dcClient.UpdateValue(dynamicconfig.TaskSchedulerWorkerCount, workerCount)
+	err := dcClient.UpdateValue(dynamicproperties.TaskSchedulerWorkerCount, workerCount)
 	s.NoError(err)
 	dcCollection := dynamicconfig.NewCollection(dcClient, s.processor.logger)
-	s.processor.options.WorkerCount = dcCollection.GetIntProperty(dynamicconfig.TaskSchedulerWorkerCount)
+	s.processor.options.WorkerCount = dcCollection.GetIntProperty(dynamicproperties.TaskSchedulerWorkerCount)
 
 	testMonitorTickerDuration := 100 * time.Millisecond
 	go s.processor.workerMonitor(testMonitorTickerDuration)
@@ -229,7 +230,7 @@ func (s *parallelTaskProcessorSuite) TestMonitor() {
 	s.processor.shutdownWG.Add(workerCount + 1)
 
 	newWorkerCount := 3
-	err = dcClient.UpdateValue(dynamicconfig.TaskSchedulerWorkerCount, newWorkerCount)
+	err = dcClient.UpdateValue(dynamicproperties.TaskSchedulerWorkerCount, newWorkerCount)
 	s.NoError(err)
 
 	time.Sleep(2 * testMonitorTickerDuration)
@@ -281,7 +282,7 @@ func (s *parallelTaskProcessorSuite) TestProcessorContract() {
 		metrics.NewClient(tally.NoopScope, metrics.Common),
 		&ParallelTaskProcessorOptions{
 			QueueSize:   100,
-			WorkerCount: dynamicconfig.GetIntPropertyFn(10),
+			WorkerCount: dynamicproperties.GetIntPropertyFn(10),
 			RetryPolicy: backoff.NewExponentialRetryPolicy(time.Millisecond),
 		},
 	).(*parallelTaskProcessorImpl)

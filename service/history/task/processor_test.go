@@ -32,6 +32,7 @@ import (
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
@@ -119,7 +120,7 @@ func (s *queueTaskProcessorSuite) TestSubmitNewScheduler() {
 	mockScheduler.EXPECT().Submit(NewMockTaskMatcher(mockTask)).Return(nil).Times(1)
 
 	s.processor.newScheduler = mockScheduler
-	s.processor.newSchedulerProbabilityFn = func(...dynamicconfig.FilterOption) int { return 100 }
+	s.processor.newSchedulerProbabilityFn = func(...dynamicproperties.FilterOption) int { return 100 }
 
 	err := s.processor.Submit(mockTask)
 	s.NoError(err)
@@ -160,14 +161,14 @@ func (s *queueTaskProcessorSuite) TestTrySubmit_Fail_NewScheduler() {
 	mockScheduler.EXPECT().TrySubmit(NewMockTaskMatcher(mockTask)).Return(false, errTrySubmit).Times(1)
 
 	s.processor.newScheduler = mockScheduler
-	s.processor.newSchedulerProbabilityFn = func(...dynamicconfig.FilterOption) int { return 100 }
+	s.processor.newSchedulerProbabilityFn = func(...dynamicproperties.FilterOption) int { return 100 }
 
 	submitted, err := s.processor.TrySubmit(mockTask)
 	s.Equal(errTrySubmit, err)
 	s.False(submitted)
 }
 func (s *queueTaskProcessorSuite) TestNewSchedulerOptions_UnknownSchedulerType() {
-	options, err := task.NewSchedulerOptions[int](0, 100, dynamicconfig.GetIntPropertyFn(10), 1, func(task.PriorityTask) int { return 1 }, func(int) int { return 1 })
+	options, err := task.NewSchedulerOptions[int](0, 100, dynamicproperties.GetIntPropertyFn(10), 1, func(task.PriorityTask) int { return 1 }, func(int) int { return 1 })
 	s.Error(err)
 	s.Nil(options)
 }
@@ -196,7 +197,7 @@ func TestGetDomainPriorityWeight(t *testing.T) {
 			name: "success",
 			mockSetup: func(mockDomainCache *cache.MockDomainCache, client dynamicconfig.Client) {
 				mockDomainCache.EXPECT().GetDomainName("test-domain-id").Return("test-domain-name", nil).Times(1)
-				client.UpdateValue(dynamicconfig.TaskSchedulerDomainRoundRobinWeights, map[string]interface{}{"1": 10})
+				client.UpdateValue(dynamicproperties.TaskSchedulerDomainRoundRobinWeights, map[string]interface{}{"1": 10})
 			},
 			expected: 10,
 		},
@@ -204,7 +205,7 @@ func TestGetDomainPriorityWeight(t *testing.T) {
 			name: "domain cache error, use default",
 			mockSetup: func(mockDomainCache *cache.MockDomainCache, client dynamicconfig.Client) {
 				mockDomainCache.EXPECT().GetDomainName("test-domain-id").Return("", errors.New("test-error")).Times(1)
-				client.UpdateValue(dynamicconfig.TaskSchedulerDomainRoundRobinWeights, map[string]interface{}{"1": 10})
+				client.UpdateValue(dynamicproperties.TaskSchedulerDomainRoundRobinWeights, map[string]interface{}{"1": 10})
 			},
 			expected: 500,
 		},
@@ -212,7 +213,7 @@ func TestGetDomainPriorityWeight(t *testing.T) {
 			name: "invalid map value, use default",
 			mockSetup: func(mockDomainCache *cache.MockDomainCache, client dynamicconfig.Client) {
 				mockDomainCache.EXPECT().GetDomainName("test-domain-id").Return("test-domain-name", nil).Times(1)
-				client.UpdateValue(dynamicconfig.TaskSchedulerDomainRoundRobinWeights, map[string]interface{}{"1": "invalid"})
+				client.UpdateValue(dynamicproperties.TaskSchedulerDomainRoundRobinWeights, map[string]interface{}{"1": "invalid"})
 			},
 			expected: 500,
 		},
@@ -220,7 +221,7 @@ func TestGetDomainPriorityWeight(t *testing.T) {
 			name: "unspecified priority",
 			mockSetup: func(mockDomainCache *cache.MockDomainCache, client dynamicconfig.Client) {
 				mockDomainCache.EXPECT().GetDomainName("test-domain-id").Return("test-domain-name", nil).Times(1)
-				client.UpdateValue(dynamicconfig.TaskSchedulerDomainRoundRobinWeights, map[string]interface{}{"2": 10})
+				client.UpdateValue(dynamicproperties.TaskSchedulerDomainRoundRobinWeights, map[string]interface{}{"2": 10})
 			},
 			expected: 1,
 		},

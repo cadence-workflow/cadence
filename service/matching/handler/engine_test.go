@@ -36,7 +36,7 @@ import (
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/client"
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/metrics"
@@ -252,7 +252,7 @@ func TestListTaskListPartitions(t *testing.T) {
 				domainCache:        mockDomainCache,
 				membershipResolver: mockResolver,
 				config: &config.Config{
-					NumTasklistWritePartitions: dynamicconfig.GetIntPropertyFilteredByTaskListInfo(3),
+					NumTasklistWritePartitions: dynamicproperties.GetIntPropertyFilteredByTaskListInfo(3),
 				},
 			}
 			resp, err := engine.ListTaskListPartitions(nil, tc.req)
@@ -663,7 +663,7 @@ func TestGetTasklistsNotOwned(t *testing.T) {
 			*tl3: tl3m,
 		},
 		config: &config.Config{
-			EnableTasklistOwnershipGuard: func(opts ...dynamicconfig.FilterOption) bool { return true },
+			EnableTasklistOwnershipGuard: func(opts ...dynamicproperties.FilterOption) bool { return true },
 		},
 		logger: log.NewNoop(),
 	}
@@ -703,7 +703,7 @@ func TestShutDownTasklistsNotOwned(t *testing.T) {
 			*tl3: tl3m,
 		},
 		config: &config.Config{
-			EnableTasklistOwnershipGuard: func(opts ...dynamicconfig.FilterOption) bool { return true },
+			EnableTasklistOwnershipGuard: func(opts ...dynamicproperties.FilterOption) bool { return true },
 		},
 		metricsClient: metrics.NewNoopMetricsClient(),
 		logger:        log.NewNoop(),
@@ -929,7 +929,7 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 				timeSource:  clock.NewRealTimeSource(),
 				domainCache: mockDomainCache,
 				config: &config.Config{
-					EnableAdaptiveScaler: dynamicconfig.GetBoolPropertyFilteredByTaskListInfo(tc.enableAdaptiveScaler),
+					EnableAdaptiveScaler: dynamicproperties.GetBoolPropertyFilteredByTaskListInfo(tc.enableAdaptiveScaler),
 				},
 			}
 			_, err = engine.UpdateTaskListPartitionConfig(tc.hCtx, tc.req)

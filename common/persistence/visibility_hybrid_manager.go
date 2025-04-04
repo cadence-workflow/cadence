@@ -27,7 +27,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/types"
@@ -37,9 +37,9 @@ type (
 	visibilityHybridManager struct {
 		logger                    log.Logger
 		visibilityMgrs            map[string]VisibilityManager
-		readVisibilityStoreName   dynamicconfig.StringPropertyFnWithDomainFilter
-		writeVisibilityStoreName  dynamicconfig.StringPropertyFn
-		logCustomerQueryParameter dynamicconfig.BoolPropertyFnWithDomainFilter
+		readVisibilityStoreName   dynamicproperties.StringPropertyFnWithDomainFilter
+		writeVisibilityStoreName  dynamicproperties.StringPropertyFn
+		logCustomerQueryParameter dynamicproperties.BoolPropertyFnWithDomainFilter
 		name                      string
 	}
 )
@@ -70,9 +70,9 @@ var _ VisibilityManager = (*visibilityHybridManager)(nil)
 // For OpenSearch migration, OS is the destination visibility manager, ES is the source visibility manager, and DB is the fallback.
 func NewVisibilityHybridManager(
 	visibilityMgrs map[string]VisibilityManager,
-	readVisibilityStoreName dynamicconfig.StringPropertyFnWithDomainFilter,
-	writeVisibilityStoreName dynamicconfig.StringPropertyFn,
-	logCustomerQueryParameter dynamicconfig.BoolPropertyFnWithDomainFilter,
+	readVisibilityStoreName dynamicproperties.StringPropertyFnWithDomainFilter,
+	writeVisibilityStoreName dynamicproperties.StringPropertyFn,
+	logCustomerQueryParameter dynamicproperties.BoolPropertyFnWithDomainFilter,
 	name string,
 	logger log.Logger,
 ) VisibilityManager {
@@ -82,7 +82,7 @@ func NewVisibilityHybridManager(
 	}
 
 	if logCustomerQueryParameter == nil {
-		logCustomerQueryParameter = dynamicconfig.GetBoolPropertyFnFilteredByDomain(false)
+		logCustomerQueryParameter = dynamicproperties.GetBoolPropertyFnFilteredByDomain(false)
 	}
 
 	return &visibilityHybridManager{

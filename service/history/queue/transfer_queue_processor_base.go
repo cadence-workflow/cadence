@@ -30,7 +30,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -590,11 +590,11 @@ func newTransferQueueProcessorOptions(
 
 	if isFailover {
 		// disable queue split for failover processor
-		options.EnableSplit = dynamicconfig.GetBoolPropertyFn(false)
+		options.EnableSplit = dynamicproperties.GetBoolPropertyFn(false)
 
 		// disable persist and load processing queue states for failover processor as it will never be split
-		options.EnablePersistQueueStates = dynamicconfig.GetBoolPropertyFn(false)
-		options.EnableLoadQueueStates = dynamicconfig.GetBoolPropertyFn(false)
+		options.EnablePersistQueueStates = dynamicproperties.GetBoolPropertyFn(false)
+		options.EnableLoadQueueStates = dynamicproperties.GetBoolPropertyFn(false)
 
 		options.MaxStartJitterInterval = config.TransferProcessorFailoverMaxStartJitterInterval
 	} else {
@@ -611,7 +611,7 @@ func newTransferQueueProcessorOptions(
 		options.EnablePersistQueueStates = config.QueueProcessorEnablePersistQueueStates
 		options.EnableLoadQueueStates = config.QueueProcessorEnableLoadQueueStates
 
-		options.MaxStartJitterInterval = dynamicconfig.GetDurationPropertyFn(0)
+		options.MaxStartJitterInterval = dynamicproperties.GetDurationPropertyFn(0)
 	}
 
 	if isActive {

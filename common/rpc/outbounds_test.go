@@ -35,7 +35,7 @@ import (
 	"go.uber.org/yarpc/transport/tchannel"
 
 	"github.com/uber/cadence/common/config"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/service"
@@ -165,7 +165,7 @@ func TestDirectOutbound(t *testing.T) {
 	tchannel := &tchannel.Transport{}
 	logger := testlogger.New(t)
 	metricCl := metrics.NewNoopMetricsClient()
-	falseFn := func(opts ...dynamicconfig.FilterOption) bool { return false }
+	falseFn := func(opts ...dynamicproperties.FilterOption) bool { return false }
 
 	o, err := NewDirectOutboundBuilder("cadence-history", false, nil, NewDirectPeerChooserFactory("cadence-history", logger, metricCl), falseFn).Build(grpc, tchannel)
 	assert.NoError(t, err)

@@ -40,7 +40,7 @@ import (
 	"github.com/uber/cadence/common/cluster"
 	commonconstants "github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
@@ -88,27 +88,27 @@ func (s *attrValidatorSuite) SetupTest() {
 	s.controller = gomock.NewController(s.T())
 	s.mockDomainCache = cache.NewMockDomainCache(s.controller)
 	config := &config.Config{
-		MaxIDLengthWarnLimit:              dynamicconfig.GetIntPropertyFn(128),
-		DomainNameMaxLength:               dynamicconfig.GetIntPropertyFilteredByDomain(1000),
-		IdentityMaxLength:                 dynamicconfig.GetIntPropertyFilteredByDomain(1000),
-		WorkflowIDMaxLength:               dynamicconfig.GetIntPropertyFilteredByDomain(1000),
-		SignalNameMaxLength:               dynamicconfig.GetIntPropertyFilteredByDomain(1000),
-		WorkflowTypeMaxLength:             dynamicconfig.GetIntPropertyFilteredByDomain(1000),
-		RequestIDMaxLength:                dynamicconfig.GetIntPropertyFilteredByDomain(1000),
-		TaskListNameMaxLength:             dynamicconfig.GetIntPropertyFilteredByDomain(1000),
-		ActivityIDMaxLength:               dynamicconfig.GetIntPropertyFilteredByDomain(1000),
-		ActivityTypeMaxLength:             dynamicconfig.GetIntPropertyFilteredByDomain(1000),
-		MarkerNameMaxLength:               dynamicconfig.GetIntPropertyFilteredByDomain(1000),
-		TimerIDMaxLength:                  dynamicconfig.GetIntPropertyFilteredByDomain(1000),
-		ValidSearchAttributes:             dynamicconfig.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
-		EnableQueryAttributeValidation:    dynamicconfig.GetBoolPropertyFn(true),
-		SearchAttributesNumberOfKeysLimit: dynamicconfig.GetIntPropertyFilteredByDomain(100),
-		SearchAttributesSizeOfValueLimit:  dynamicconfig.GetIntPropertyFilteredByDomain(2 * 1024),
-		SearchAttributesTotalSizeLimit:    dynamicconfig.GetIntPropertyFilteredByDomain(40 * 1024),
-		ActivityMaxScheduleToStartTimeoutForRetry: dynamicconfig.GetDurationPropertyFnFilteredByDomain(
+		MaxIDLengthWarnLimit:              dynamicproperties.GetIntPropertyFn(128),
+		DomainNameMaxLength:               dynamicproperties.GetIntPropertyFilteredByDomain(1000),
+		IdentityMaxLength:                 dynamicproperties.GetIntPropertyFilteredByDomain(1000),
+		WorkflowIDMaxLength:               dynamicproperties.GetIntPropertyFilteredByDomain(1000),
+		SignalNameMaxLength:               dynamicproperties.GetIntPropertyFilteredByDomain(1000),
+		WorkflowTypeMaxLength:             dynamicproperties.GetIntPropertyFilteredByDomain(1000),
+		RequestIDMaxLength:                dynamicproperties.GetIntPropertyFilteredByDomain(1000),
+		TaskListNameMaxLength:             dynamicproperties.GetIntPropertyFilteredByDomain(1000),
+		ActivityIDMaxLength:               dynamicproperties.GetIntPropertyFilteredByDomain(1000),
+		ActivityTypeMaxLength:             dynamicproperties.GetIntPropertyFilteredByDomain(1000),
+		MarkerNameMaxLength:               dynamicproperties.GetIntPropertyFilteredByDomain(1000),
+		TimerIDMaxLength:                  dynamicproperties.GetIntPropertyFilteredByDomain(1000),
+		ValidSearchAttributes:             dynamicproperties.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
+		EnableQueryAttributeValidation:    dynamicproperties.GetBoolPropertyFn(true),
+		SearchAttributesNumberOfKeysLimit: dynamicproperties.GetIntPropertyFilteredByDomain(100),
+		SearchAttributesSizeOfValueLimit:  dynamicproperties.GetIntPropertyFilteredByDomain(2 * 1024),
+		SearchAttributesTotalSizeLimit:    dynamicproperties.GetIntPropertyFilteredByDomain(40 * 1024),
+		ActivityMaxScheduleToStartTimeoutForRetry: dynamicproperties.GetDurationPropertyFnFilteredByDomain(
 			time.Duration(s.testActivityMaxScheduleToStartTimeoutForRetryInSeconds) * time.Second,
 		),
-		EnableCrossClusterOperationsForDomain: dynamicconfig.GetBoolPropertyFnFilteredByDomain(false),
+		EnableCrossClusterOperationsForDomain: dynamicproperties.GetBoolPropertyFnFilteredByDomain(false),
 	}
 	s.validator = newAttrValidator(
 		s.mockDomainCache,
@@ -505,7 +505,7 @@ func (s *attrValidatorSuite) TestValidateCrossDomainCall_GlobalToGlobal_DiffDoma
 	err := s.validator.validateCrossDomainCall(s.testDomainID, s.testTargetDomainID)
 	s.IsType(&types.BadRequestError{}, err)
 
-	s.validator.config.EnableCrossClusterOperationsForDomain = dynamicconfig.GetBoolPropertyFnFilteredByDomain(true)
+	s.validator.config.EnableCrossClusterOperationsForDomain = dynamicproperties.GetBoolPropertyFnFilteredByDomain(true)
 	err = s.validator.validateCrossDomainCall(s.testDomainID, s.testTargetDomainID)
 	s.Nil(err)
 }

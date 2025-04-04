@@ -46,6 +46,7 @@ import (
 	"github.com/uber/cadence/client/wrappers/thrift"
 	timeoutwrapper "github.com/uber/cadence/client/wrappers/timeout"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/metrics"
@@ -133,7 +134,7 @@ func (cf *rpcClientFactory) NewHistoryClientWithTimeout(timeout time.Duration) (
 		peerResolver,
 		cf.logger,
 	)
-	if errorRate := cf.dynConfig.GetFloat64Property(dynamicconfig.HistoryErrorInjectionRate)(); errorRate != 0 {
+	if errorRate := cf.dynConfig.GetFloat64Property(dynamicproperties.HistoryErrorInjectionRate)(); errorRate != 0 {
 		client = errorinjectors.NewHistoryClient(client, errorRate, cf.logger)
 	}
 	if cf.metricsClient != nil {
@@ -178,7 +179,7 @@ func (cf *rpcClientFactory) NewMatchingClientWithTimeout(
 		partitionConfigProvider,
 	)
 	client = timeoutwrapper.NewMatchingClient(client, longPollTimeout, timeout)
-	if errorRate := cf.dynConfig.GetFloat64Property(dynamicconfig.MatchingErrorInjectionRate)(); errorRate != 0 {
+	if errorRate := cf.dynConfig.GetFloat64Property(dynamicproperties.MatchingErrorInjectionRate)(); errorRate != 0 {
 		client = errorinjectors.NewMatchingClient(client, errorRate, cf.logger)
 	}
 	if cf.metricsClient != nil {
@@ -200,7 +201,7 @@ func (cf *rpcClientFactory) NewAdminClientWithTimeoutAndConfig(
 	}
 
 	client = timeoutwrapper.NewAdminClient(client, largeTimeout, timeout)
-	if errorRate := cf.dynConfig.GetFloat64Property(dynamicconfig.AdminErrorInjectionRate)(); errorRate != 0 {
+	if errorRate := cf.dynConfig.GetFloat64Property(dynamicproperties.AdminErrorInjectionRate)(); errorRate != 0 {
 		client = errorinjectors.NewAdminClient(client, errorRate, cf.logger)
 	}
 	if cf.metricsClient != nil {
@@ -227,7 +228,7 @@ func (cf *rpcClientFactory) NewFrontendClientWithTimeoutAndConfig(
 	}
 
 	client = timeoutwrapper.NewFrontendClient(client, longPollTimeout, timeout)
-	if errorRate := cf.dynConfig.GetFloat64Property(dynamicconfig.FrontendErrorInjectionRate)(); errorRate != 0 {
+	if errorRate := cf.dynConfig.GetFloat64Property(dynamicproperties.FrontendErrorInjectionRate)(); errorRate != 0 {
 		client = errorinjectors.NewFrontendClient(client, errorRate, cf.logger)
 	}
 	if cf.metricsClient != nil {
@@ -259,7 +260,7 @@ func (cf *rpcClientFactory) NewShardDistributorClientWithTimeout(
 	)
 
 	client = timeoutwrapper.NewShardDistributorClient(client, timeout)
-	if errorRate := cf.dynConfig.GetFloat64Property(dynamicconfig.ShardDistributorErrorInjectionRate)(); errorRate != 0 {
+	if errorRate := cf.dynConfig.GetFloat64Property(dynamicproperties.ShardDistributorErrorInjectionRate)(); errorRate != 0 {
 		client = errorinjectors.NewShardDistributorClient(client, errorRate, cf.logger)
 	}
 	if cf.metricsClient != nil {

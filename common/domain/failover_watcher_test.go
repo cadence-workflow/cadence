@@ -37,7 +37,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/mocks"
@@ -91,8 +91,8 @@ func (s *failoverWatcherSuite) SetupTest() {
 		s.mockDomainCache,
 		s.mockMetadataMgr,
 		s.timeSource,
-		dynamicconfig.GetDurationPropertyFn(10*time.Second),
-		dynamicconfig.GetFloatPropertyFn(0.2),
+		dynamicproperties.GetDurationPropertyFn(10*time.Second),
+		dynamicproperties.GetFloatPropertyFn(0.2),
 		metricsClient,
 		logger,
 	).(*failoverWatcherImpl)

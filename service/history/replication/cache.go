@@ -27,7 +27,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -48,7 +48,7 @@ var (
 type Cache struct {
 	mu sync.RWMutex
 
-	capacity dynamicconfig.IntPropertyFn
+	capacity dynamicproperties.IntPropertyFn
 
 	order int64Heap
 	cache map[int64]*types.ReplicationTask
@@ -57,7 +57,7 @@ type Cache struct {
 }
 
 // NewCache create a new instance of replication cache
-func NewCache(capacity dynamicconfig.IntPropertyFn) *Cache {
+func NewCache(capacity dynamicproperties.IntPropertyFn) *Cache {
 	initialCapacity := capacity()
 	return &Cache{
 		capacity: capacity,

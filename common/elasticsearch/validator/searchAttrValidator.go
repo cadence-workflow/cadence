@@ -25,7 +25,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/definition"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/types"
@@ -35,21 +35,21 @@ import (
 type SearchAttributesValidator struct {
 	logger log.Logger
 
-	enableQueryAttributeValidation    dynamicconfig.BoolPropertyFn
-	validSearchAttributes             dynamicconfig.MapPropertyFn
-	searchAttributesNumberOfKeysLimit dynamicconfig.IntPropertyFnWithDomainFilter
-	searchAttributesSizeOfValueLimit  dynamicconfig.IntPropertyFnWithDomainFilter
-	searchAttributesTotalSizeLimit    dynamicconfig.IntPropertyFnWithDomainFilter
+	enableQueryAttributeValidation    dynamicproperties.BoolPropertyFn
+	validSearchAttributes             dynamicproperties.MapPropertyFn
+	searchAttributesNumberOfKeysLimit dynamicproperties.IntPropertyFnWithDomainFilter
+	searchAttributesSizeOfValueLimit  dynamicproperties.IntPropertyFnWithDomainFilter
+	searchAttributesTotalSizeLimit    dynamicproperties.IntPropertyFnWithDomainFilter
 }
 
 // NewSearchAttributesValidator create SearchAttributesValidator
 func NewSearchAttributesValidator(
 	logger log.Logger,
-	enableQueryAttributeValidation dynamicconfig.BoolPropertyFn,
-	validSearchAttributes dynamicconfig.MapPropertyFn,
-	searchAttributesNumberOfKeysLimit dynamicconfig.IntPropertyFnWithDomainFilter,
-	searchAttributesSizeOfValueLimit dynamicconfig.IntPropertyFnWithDomainFilter,
-	searchAttributesTotalSizeLimit dynamicconfig.IntPropertyFnWithDomainFilter,
+	enableQueryAttributeValidation dynamicproperties.BoolPropertyFn,
+	validSearchAttributes dynamicproperties.MapPropertyFn,
+	searchAttributesNumberOfKeysLimit dynamicproperties.IntPropertyFnWithDomainFilter,
+	searchAttributesSizeOfValueLimit dynamicproperties.IntPropertyFnWithDomainFilter,
+	searchAttributesTotalSizeLimit dynamicproperties.IntPropertyFnWithDomainFilter,
 ) *SearchAttributesValidator {
 	return &SearchAttributesValidator{
 		logger:                            logger,

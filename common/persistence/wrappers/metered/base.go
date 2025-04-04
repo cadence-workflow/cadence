@@ -26,7 +26,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -38,8 +38,8 @@ type base struct {
 	metricClient                  metrics.Client
 	logger                        log.Logger
 	enableLatencyHistogramMetrics bool
-	sampleLoggingRate             dynamicconfig.IntPropertyFn
-	enableShardIDMetrics          dynamicconfig.BoolPropertyFn
+	sampleLoggingRate             dynamicproperties.IntPropertyFn
+	enableShardIDMetrics          dynamicproperties.BoolPropertyFn
 }
 
 func (p *base) updateErrorMetricPerDomain(scope int, err error, scopeWithDomainTag metrics.Scope) {

@@ -35,7 +35,7 @@ import (
 
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/definition"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
@@ -121,7 +121,7 @@ func (s *historyCacheSuite) TestHistoryCacheBasic() {
 }
 
 func (s *historyCacheSuite) TestHistoryCachePinning() {
-	s.mockShard.GetConfig().HistoryCacheMaxSize = dynamicconfig.GetIntPropertyFn(2)
+	s.mockShard.GetConfig().HistoryCacheMaxSize = dynamicproperties.GetIntPropertyFn(2)
 	domainID := "test_domain_id"
 	s.cache = NewCache(s.mockShard)
 	we := types.WorkflowExecution{
@@ -156,7 +156,7 @@ func (s *historyCacheSuite) TestHistoryCachePinning() {
 }
 
 func (s *historyCacheSuite) TestHistoryCacheClear() {
-	s.mockShard.GetConfig().HistoryCacheMaxSize = dynamicconfig.GetIntPropertyFn(20)
+	s.mockShard.GetConfig().HistoryCacheMaxSize = dynamicproperties.GetIntPropertyFn(20)
 	domainID := "test_domain_id"
 	s.cache = NewCache(s.mockShard)
 	we := types.WorkflowExecution{
@@ -187,7 +187,7 @@ func (s *historyCacheSuite) TestHistoryCacheClear() {
 }
 
 func (s *historyCacheSuite) TestHistoryCacheConcurrentAccess() {
-	s.mockShard.GetConfig().HistoryCacheMaxSize = dynamicconfig.GetIntPropertyFn(20)
+	s.mockShard.GetConfig().HistoryCacheMaxSize = dynamicproperties.GetIntPropertyFn(20)
 	domainID := "test_domain_id"
 	s.cache = NewCache(s.mockShard)
 	we := types.WorkflowExecution{

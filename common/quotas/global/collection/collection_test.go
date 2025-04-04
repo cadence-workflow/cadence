@@ -37,7 +37,7 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	dynamicquotas "github.com/uber/cadence/common/dynamicconfig/quotas"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
@@ -56,7 +56,7 @@ func TestLifecycleBasics(t *testing.T) {
 		"test",
 		quotas.NewCollection(quotas.NewMockLimiterFactory(ctrl)),
 		quotas.NewCollection(quotas.NewMockLimiterFactory(ctrl)),
-		func(opts ...dynamicconfig.FilterOption) time.Duration { return time.Second },
+		func(opts ...dynamicproperties.FilterOption) time.Duration { return time.Second },
 		nil, // not used
 		func(globalRatelimitKey string) string { return string(modeGlobal) },
 		nil, // no rpc expected as there are no metrics to submit
@@ -132,7 +132,7 @@ func TestCollectionLimitersCollectMetrics(t *testing.T) {
 				"test",
 				quotas.NewCollection(localLimiters),
 				quotas.NewCollection(globalLimiters),
-				func(opts ...dynamicconfig.FilterOption) time.Duration { return time.Second },
+				func(opts ...dynamicproperties.FilterOption) time.Duration { return time.Second },
 				func(domain string) int { return 5 },
 				func(globalRatelimitKey string) string { return string(test.mode) },
 				nil,
@@ -193,7 +193,7 @@ func TestCollectionSubmitsDataAndUpdates(t *testing.T) {
 		"test",
 		quotas.NewCollection(limiters),
 		quotas.NewCollection(limiters),
-		func(opts ...dynamicconfig.FilterOption) time.Duration { return time.Second },
+		func(opts ...dynamicproperties.FilterOption) time.Duration { return time.Second },
 		func(domain string) int { return 10 }, // target 10 rps / one per 100ms
 		func(globalRatelimitKey string) string { return string(modeGlobal) },
 		aggs,
@@ -282,7 +282,7 @@ func TestTogglingMode(t *testing.T) {
 		"test",
 		quotas.NewCollection(dynamicquotas.NewSimpleDynamicRateLimiterFactory(func(domain string) int { return 1 })),
 		quotas.NewCollection(dynamicquotas.NewSimpleDynamicRateLimiterFactory(func(domain string) int { return 1 })),
-		func(opts ...dynamicconfig.FilterOption) time.Duration { return time.Second }, // update every second
+		func(opts ...dynamicproperties.FilterOption) time.Duration { return time.Second }, // update every second
 		func(domain string) int { return 1 },
 		func(globalRatelimitKey string) string { return string(mode.Load().(keyMode)) },
 		aggs,

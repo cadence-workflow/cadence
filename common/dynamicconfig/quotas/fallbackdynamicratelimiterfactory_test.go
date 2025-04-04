@@ -27,13 +27,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 )
 
 func TestNewFallbackDynamicRateLimiterFactory(t *testing.T) {
 	factory := NewFallbackDynamicRateLimiterFactory(
 		func(string) int { return 2 },
-		func(opts ...dynamicconfig.FilterOption) int { return 100 },
+		func(opts ...dynamicproperties.FilterOption) int { return 100 },
 	)
 
 	limiter := factory.GetLimiter("TestDomainName")
@@ -47,7 +47,7 @@ func TestNewFallbackDynamicRateLimiterFactory(t *testing.T) {
 func TestNewFallbackDynamicRateLimiterFactoryFallback(t *testing.T) {
 	factory := NewFallbackDynamicRateLimiterFactory(
 		func(string) int { return 0 },
-		func(opts ...dynamicconfig.FilterOption) int { return 2 },
+		func(opts ...dynamicproperties.FilterOption) int { return 2 },
 	)
 
 	limiter := factory.GetLimiter("TestDomainName")

@@ -27,7 +27,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/config"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql"
@@ -162,7 +162,7 @@ func TestExecuteWithConsistencyAll(t *testing.T) {
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{
-				EnableCassandraAllConsistencyLevelDelete: func(opts ...dynamicconfig.FilterOption) bool {
+				EnableCassandraAllConsistencyLevelDelete: func(opts ...dynamicproperties.FilterOption) bool {
 					return tc.enableAllConsistencyLevelDelete
 				},
 			}
@@ -262,7 +262,7 @@ func TestExecuteBatchWithConsistencyAll(t *testing.T) {
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{
-				EnableCassandraAllConsistencyLevelDelete: func(opts ...dynamicconfig.FilterOption) bool {
+				EnableCassandraAllConsistencyLevelDelete: func(opts ...dynamicproperties.FilterOption) bool {
 					return tc.enableAllConsistencyLevelDelete
 				},
 			}

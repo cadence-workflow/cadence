@@ -34,7 +34,7 @@ import (
 	"github.com/uber/cadence/common/codec"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	es "github.com/uber/cadence/common/elasticsearch"
 	"github.com/uber/cadence/common/elasticsearch/bulk"
 	"github.com/uber/cadence/common/log"
@@ -83,13 +83,13 @@ type (
 
 	// Config contains all configs for indexer
 	Config struct {
-		IndexerConcurrency             dynamicconfig.IntPropertyFn
-		ESProcessorNumOfWorkers        dynamicconfig.IntPropertyFn
-		ESProcessorBulkActions         dynamicconfig.IntPropertyFn // max number of requests in bulk
-		ESProcessorBulkSize            dynamicconfig.IntPropertyFn // max total size of bytes in bulk
-		ESProcessorFlushInterval       dynamicconfig.DurationPropertyFn
-		ValidSearchAttributes          dynamicconfig.MapPropertyFn
-		EnableQueryAttributeValidation dynamicconfig.BoolPropertyFn
+		IndexerConcurrency             dynamicproperties.IntPropertyFn
+		ESProcessorNumOfWorkers        dynamicproperties.IntPropertyFn
+		ESProcessorBulkActions         dynamicproperties.IntPropertyFn // max number of requests in bulk
+		ESProcessorBulkSize            dynamicproperties.IntPropertyFn // max total size of bytes in bulk
+		ESProcessorFlushInterval       dynamicproperties.DurationPropertyFn
+		ValidSearchAttributes          dynamicproperties.MapPropertyFn
+		EnableQueryAttributeValidation dynamicproperties.BoolPropertyFn
 	}
 )
 

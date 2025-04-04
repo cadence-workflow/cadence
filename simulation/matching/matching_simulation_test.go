@@ -59,7 +59,7 @@ import (
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/constants"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/persistence"
 	pt "github.com/uber/cadence/common/persistence/persistence-tests"
@@ -112,27 +112,27 @@ func TestMatchingSimulation(t *testing.T) {
 
 	isolationGroups := getIsolationGroups(clusterConfig.MatchingConfig.SimulationConfig)
 
-	clusterConfig.MatchingDynamicConfigOverrides = map[dynamicconfig.Key]interface{}{
-		dynamicconfig.MatchingNumTasklistWritePartitions:           getPartitions(clusterConfig.MatchingConfig.SimulationConfig.TaskListWritePartitions),
-		dynamicconfig.MatchingNumTasklistReadPartitions:            getPartitions(clusterConfig.MatchingConfig.SimulationConfig.TaskListReadPartitions),
-		dynamicconfig.MatchingForwarderMaxOutstandingPolls:         getForwarderMaxOutstandingPolls(clusterConfig.MatchingConfig.SimulationConfig.ForwarderMaxOutstandingPolls),
-		dynamicconfig.MatchingForwarderMaxOutstandingTasks:         getForwarderMaxOutstandingTasks(clusterConfig.MatchingConfig.SimulationConfig.ForwarderMaxOutstandingTasks),
-		dynamicconfig.MatchingForwarderMaxRatePerSecond:            getForwarderMaxRPS(clusterConfig.MatchingConfig.SimulationConfig.ForwarderMaxRatePerSecond),
-		dynamicconfig.MatchingForwarderMaxChildrenPerNode:          getForwarderMaxChildPerNode(clusterConfig.MatchingConfig.SimulationConfig.ForwarderMaxChildrenPerNode),
-		dynamicconfig.LocalPollWaitTime:                            clusterConfig.MatchingConfig.SimulationConfig.LocalPollWaitTime,
-		dynamicconfig.LocalTaskWaitTime:                            clusterConfig.MatchingConfig.SimulationConfig.LocalTaskWaitTime,
-		dynamicconfig.EnableTasklistIsolation:                      len(isolationGroups) > 0,
-		dynamicconfig.AllIsolationGroups:                           isolationGroups,
-		dynamicconfig.TasklistLoadBalancerStrategy:                 getTasklistLoadBalancerStrategy(clusterConfig.MatchingConfig.SimulationConfig.TasklistLoadBalancerStrategy),
-		dynamicconfig.MatchingEnableGetNumberOfPartitionsFromCache: clusterConfig.MatchingConfig.SimulationConfig.GetPartitionConfigFromDB,
-		dynamicconfig.MatchingEnableAdaptiveScaler:                 clusterConfig.MatchingConfig.SimulationConfig.EnableAdaptiveScaler,
-		dynamicconfig.MatchingPartitionDownscaleFactor:             clusterConfig.MatchingConfig.SimulationConfig.PartitionDownscaleFactor,
-		dynamicconfig.MatchingPartitionUpscaleRPS:                  clusterConfig.MatchingConfig.SimulationConfig.PartitionUpscaleRPS,
-		dynamicconfig.MatchingPartitionUpscaleSustainedDuration:    clusterConfig.MatchingConfig.SimulationConfig.PartitionUpscaleSustainedDuration,
-		dynamicconfig.MatchingPartitionDownscaleSustainedDuration:  clusterConfig.MatchingConfig.SimulationConfig.PartitionDownscaleSustainedDuration,
-		dynamicconfig.MatchingAdaptiveScalerUpdateInterval:         clusterConfig.MatchingConfig.SimulationConfig.AdaptiveScalerUpdateInterval,
-		dynamicconfig.MatchingQPSTrackerInterval:                   getQPSTrackerInterval(clusterConfig.MatchingConfig.SimulationConfig.QPSTrackerInterval),
-		dynamicconfig.TaskIsolationDuration:                        clusterConfig.MatchingConfig.SimulationConfig.TaskIsolationDuration,
+	clusterConfig.MatchingDynamicConfigOverrides = map[dynamicproperties.Key]interface{}{
+		dynamicproperties.MatchingNumTasklistWritePartitions:           getPartitions(clusterConfig.MatchingConfig.SimulationConfig.TaskListWritePartitions),
+		dynamicproperties.MatchingNumTasklistReadPartitions:            getPartitions(clusterConfig.MatchingConfig.SimulationConfig.TaskListReadPartitions),
+		dynamicproperties.MatchingForwarderMaxOutstandingPolls:         getForwarderMaxOutstandingPolls(clusterConfig.MatchingConfig.SimulationConfig.ForwarderMaxOutstandingPolls),
+		dynamicproperties.MatchingForwarderMaxOutstandingTasks:         getForwarderMaxOutstandingTasks(clusterConfig.MatchingConfig.SimulationConfig.ForwarderMaxOutstandingTasks),
+		dynamicproperties.MatchingForwarderMaxRatePerSecond:            getForwarderMaxRPS(clusterConfig.MatchingConfig.SimulationConfig.ForwarderMaxRatePerSecond),
+		dynamicproperties.MatchingForwarderMaxChildrenPerNode:          getForwarderMaxChildPerNode(clusterConfig.MatchingConfig.SimulationConfig.ForwarderMaxChildrenPerNode),
+		dynamicproperties.LocalPollWaitTime:                            clusterConfig.MatchingConfig.SimulationConfig.LocalPollWaitTime,
+		dynamicproperties.LocalTaskWaitTime:                            clusterConfig.MatchingConfig.SimulationConfig.LocalTaskWaitTime,
+		dynamicproperties.EnableTasklistIsolation:                      len(isolationGroups) > 0,
+		dynamicproperties.AllIsolationGroups:                           isolationGroups,
+		dynamicproperties.TasklistLoadBalancerStrategy:                 getTasklistLoadBalancerStrategy(clusterConfig.MatchingConfig.SimulationConfig.TasklistLoadBalancerStrategy),
+		dynamicproperties.MatchingEnableGetNumberOfPartitionsFromCache: clusterConfig.MatchingConfig.SimulationConfig.GetPartitionConfigFromDB,
+		dynamicproperties.MatchingEnableAdaptiveScaler:                 clusterConfig.MatchingConfig.SimulationConfig.EnableAdaptiveScaler,
+		dynamicproperties.MatchingPartitionDownscaleFactor:             clusterConfig.MatchingConfig.SimulationConfig.PartitionDownscaleFactor,
+		dynamicproperties.MatchingPartitionUpscaleRPS:                  clusterConfig.MatchingConfig.SimulationConfig.PartitionUpscaleRPS,
+		dynamicproperties.MatchingPartitionUpscaleSustainedDuration:    clusterConfig.MatchingConfig.SimulationConfig.PartitionUpscaleSustainedDuration,
+		dynamicproperties.MatchingPartitionDownscaleSustainedDuration:  clusterConfig.MatchingConfig.SimulationConfig.PartitionDownscaleSustainedDuration,
+		dynamicproperties.MatchingAdaptiveScalerUpdateInterval:         clusterConfig.MatchingConfig.SimulationConfig.AdaptiveScalerUpdateInterval,
+		dynamicproperties.MatchingQPSTrackerInterval:                   getQPSTrackerInterval(clusterConfig.MatchingConfig.SimulationConfig.QPSTrackerInterval),
+		dynamicproperties.TaskIsolationDuration:                        clusterConfig.MatchingConfig.SimulationConfig.TaskIsolationDuration,
 	}
 
 	ctrl := gomock.NewController(t)
@@ -164,10 +164,10 @@ func (s *MatchingSimulationSuite) SetupSuite() {
 	s.Logger.Info("Running integration test against test cluster")
 	clusterMetadata := host.NewClusterMetadata(s.T(), s.TestClusterConfig)
 	dc := persistence.DynamicConfiguration{
-		EnableCassandraAllConsistencyLevelDelete: dynamicconfig.GetBoolPropertyFn(true),
-		PersistenceSampleLoggingRate:             dynamicconfig.GetIntPropertyFn(100),
-		EnableShardIDMetrics:                     dynamicconfig.GetBoolPropertyFn(true),
-		EnableHistoryTaskDualWriteMode:           dynamicconfig.GetBoolPropertyFn(true),
+		EnableCassandraAllConsistencyLevelDelete: dynamicproperties.GetBoolPropertyFn(true),
+		PersistenceSampleLoggingRate:             dynamicproperties.GetIntPropertyFn(100),
+		EnableShardIDMetrics:                     dynamicproperties.GetBoolPropertyFn(true),
+		EnableHistoryTaskDualWriteMode:           dynamicproperties.GetBoolPropertyFn(true),
 	}
 	params := pt.TestBaseParams{
 		DefaultTestCluster:    s.DefaultTestCluster,
@@ -323,16 +323,16 @@ func (s *MatchingSimulationSuite) TestMatchingSimulation() {
 	testSummary = append(testSummary, fmt.Sprintf("Num of Pollers: %d", numPollers))
 	testSummary = append(testSummary, fmt.Sprintf("Num of Task Generators: %d", numGenerators))
 	testSummary = append(testSummary, fmt.Sprintf("Record Decision Task Started Time: %v", s.TestClusterConfig.MatchingConfig.SimulationConfig.RecordDecisionTaskStartedTime))
-	testSummary = append(testSummary, fmt.Sprintf("Num of Write Partitions: %d", s.TestClusterConfig.MatchingDynamicConfigOverrides[dynamicconfig.MatchingNumTasklistWritePartitions]))
-	testSummary = append(testSummary, fmt.Sprintf("Num of Read Partitions: %d", s.TestClusterConfig.MatchingDynamicConfigOverrides[dynamicconfig.MatchingNumTasklistReadPartitions]))
-	testSummary = append(testSummary, fmt.Sprintf("Get Num of Partitions from DB: %v", s.TestClusterConfig.MatchingDynamicConfigOverrides[dynamicconfig.MatchingEnableGetNumberOfPartitionsFromCache]))
-	testSummary = append(testSummary, fmt.Sprintf("Tasklist load balancer strategy: %v", s.TestClusterConfig.MatchingDynamicConfigOverrides[dynamicconfig.TasklistLoadBalancerStrategy]))
-	testSummary = append(testSummary, fmt.Sprintf("Forwarder Max Outstanding Polls: %d", s.TestClusterConfig.MatchingDynamicConfigOverrides[dynamicconfig.MatchingForwarderMaxOutstandingPolls]))
-	testSummary = append(testSummary, fmt.Sprintf("Forwarder Max Outstanding Tasks: %d", s.TestClusterConfig.MatchingDynamicConfigOverrides[dynamicconfig.MatchingForwarderMaxOutstandingTasks]))
-	testSummary = append(testSummary, fmt.Sprintf("Forwarder Max RPS: %d", s.TestClusterConfig.MatchingDynamicConfigOverrides[dynamicconfig.MatchingForwarderMaxRatePerSecond]))
-	testSummary = append(testSummary, fmt.Sprintf("Forwarder Max Children per Node: %d", s.TestClusterConfig.MatchingDynamicConfigOverrides[dynamicconfig.MatchingForwarderMaxChildrenPerNode]))
-	testSummary = append(testSummary, fmt.Sprintf("Local Poll Wait Time: %v", s.TestClusterConfig.MatchingDynamicConfigOverrides[dynamicconfig.LocalPollWaitTime]))
-	testSummary = append(testSummary, fmt.Sprintf("Local Task Wait Time: %v", s.TestClusterConfig.MatchingDynamicConfigOverrides[dynamicconfig.LocalTaskWaitTime]))
+	testSummary = append(testSummary, fmt.Sprintf("Num of Write Partitions: %d", s.TestClusterConfig.MatchingDynamicConfigOverrides[dynamicproperties.MatchingNumTasklistWritePartitions]))
+	testSummary = append(testSummary, fmt.Sprintf("Num of Read Partitions: %d", s.TestClusterConfig.MatchingDynamicConfigOverrides[dynamicproperties.MatchingNumTasklistReadPartitions]))
+	testSummary = append(testSummary, fmt.Sprintf("Get Num of Partitions from DB: %v", s.TestClusterConfig.MatchingDynamicConfigOverrides[dynamicproperties.MatchingEnableGetNumberOfPartitionsFromCache]))
+	testSummary = append(testSummary, fmt.Sprintf("Tasklist load balancer strategy: %v", s.TestClusterConfig.MatchingDynamicConfigOverrides[dynamicproperties.TasklistLoadBalancerStrategy]))
+	testSummary = append(testSummary, fmt.Sprintf("Forwarder Max Outstanding Polls: %d", s.TestClusterConfig.MatchingDynamicConfigOverrides[dynamicproperties.MatchingForwarderMaxOutstandingPolls]))
+	testSummary = append(testSummary, fmt.Sprintf("Forwarder Max Outstanding Tasks: %d", s.TestClusterConfig.MatchingDynamicConfigOverrides[dynamicproperties.MatchingForwarderMaxOutstandingTasks]))
+	testSummary = append(testSummary, fmt.Sprintf("Forwarder Max RPS: %d", s.TestClusterConfig.MatchingDynamicConfigOverrides[dynamicproperties.MatchingForwarderMaxRatePerSecond]))
+	testSummary = append(testSummary, fmt.Sprintf("Forwarder Max Children per Node: %d", s.TestClusterConfig.MatchingDynamicConfigOverrides[dynamicproperties.MatchingForwarderMaxChildrenPerNode]))
+	testSummary = append(testSummary, fmt.Sprintf("Local Poll Wait Time: %v", s.TestClusterConfig.MatchingDynamicConfigOverrides[dynamicproperties.LocalPollWaitTime]))
+	testSummary = append(testSummary, fmt.Sprintf("Local Task Wait Time: %v", s.TestClusterConfig.MatchingDynamicConfigOverrides[dynamicproperties.LocalTaskWaitTime]))
 	testSummary = append(testSummary, fmt.Sprintf("Tasks generated: %d", aggStats[operationAddDecisionTask].successCnt))
 	testSummary = append(testSummary, fmt.Sprintf("Tasks polled: %d", aggStats[operationPollReceivedTask].successCnt))
 

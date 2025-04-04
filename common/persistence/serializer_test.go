@@ -31,7 +31,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/checksum"
 	"github.com/uber/cadence/common/constants"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -434,7 +434,7 @@ func generateDynamicConfigBlob() *types.DynamicConfigBlob {
 		SchemaVersion: 1,
 		Entries: []*types.DynamicConfigEntry{
 			{
-				Name: dynamicconfig.TestGetBoolPropertyKey.String(),
+				Name: dynamicproperties.TestGetBoolPropertyKey.String(),
 				Values: []*types.DynamicConfigValue{
 					{
 						Value: &types.DataBlob{

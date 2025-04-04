@@ -36,6 +36,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/membership"
@@ -122,7 +123,7 @@ func NewService(params *resource.Params) Service {
 		dynamicCollection: dynamicconfig.NewCollection(
 			params.DynamicConfig,
 			params.Logger,
-			dynamicconfig.ClusterNameFilter(params.ClusterMetadata.GetCurrentClusterName()),
+			dynamicproperties.ClusterNameFilter(params.ClusterMetadata.GetCurrentClusterName()),
 		),
 		archivalMetadata: params.ArchivalMetadata,
 		archiverProvider: params.ArchiverProvider,

@@ -32,7 +32,7 @@ import (
 
 	carchiver "github.com/uber/cadence/common/archiver"
 	"github.com/uber/cadence/common/archiver/provider"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	mmocks "github.com/uber/cadence/common/metrics/mocks"
@@ -69,12 +69,12 @@ func (s *clientSuite) SetupTest() {
 		s.metricsClient,
 		log.NewNoop(),
 		nil,
-		dynamicconfig.GetIntPropertyFn(1000),
+		dynamicproperties.GetIntPropertyFn(1000),
 		quotas.NewSimpleRateLimiter(s.T(), 1000),
 		quotas.NewSimpleRateLimiter(s.T(), 1),
 		quotas.NewSimpleRateLimiter(s.T(), 1),
 		s.archiverProvider,
-		dynamicconfig.GetBoolPropertyFn(false),
+		dynamicproperties.GetBoolPropertyFn(false),
 	).(*client)
 	s.client.cadenceClient = s.cadenceClient
 }

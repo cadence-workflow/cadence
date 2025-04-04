@@ -33,6 +33,7 @@ import (
 	"github.com/uber/cadence/common/blobstore"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/pagination"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/reconciliation/entity"
@@ -167,8 +168,8 @@ func FixerManager(
 // Config resolves dynamic config for timers scanner.
 func Config(ctx shardscanner.ScannerContext) shardscanner.CustomScannerConfig {
 	res := shardscanner.CustomScannerConfig{}
-	res[periodStartKey] = strconv.Itoa(ctx.Config.DynamicCollection.GetIntProperty(dynamicconfig.TimersScannerPeriodStart)())
-	res[periodEndKey] = strconv.Itoa(ctx.Config.DynamicCollection.GetIntProperty(dynamicconfig.TimersScannerPeriodEnd)())
+	res[periodStartKey] = strconv.Itoa(ctx.Config.DynamicCollection.GetIntProperty(dynamicproperties.TimersScannerPeriodStart)())
+	res[periodEndKey] = strconv.Itoa(ctx.Config.DynamicCollection.GetIntProperty(dynamicproperties.TimersScannerPeriodEnd)())
 	return res
 }
 
@@ -178,13 +179,13 @@ func ScannerConfig(dc *dynamicconfig.Collection) *shardscanner.ScannerConfig {
 		ScannerWFTypeName: ScannerWFTypeName,
 		FixerWFTypeName:   FixerWFTypeName,
 		DynamicParams: shardscanner.DynamicParams{
-			ScannerEnabled:          dc.GetBoolProperty(dynamicconfig.TimersScannerEnabled),
-			FixerEnabled:            dc.GetBoolProperty(dynamicconfig.TimersFixerEnabled),
-			Concurrency:             dc.GetIntProperty(dynamicconfig.TimersScannerConcurrency),
-			PageSize:                dc.GetIntProperty(dynamicconfig.TimersScannerPersistencePageSize),
-			BlobstoreFlushThreshold: dc.GetIntProperty(dynamicconfig.TimersScannerBlobstoreFlushThreshold),
-			ActivityBatchSize:       dc.GetIntProperty(dynamicconfig.TimersScannerActivityBatchSize),
-			AllowDomain:             dc.GetBoolPropertyFilteredByDomain(dynamicconfig.TimersFixerDomainAllow),
+			ScannerEnabled:          dc.GetBoolProperty(dynamicproperties.TimersScannerEnabled),
+			FixerEnabled:            dc.GetBoolProperty(dynamicproperties.TimersFixerEnabled),
+			Concurrency:             dc.GetIntProperty(dynamicproperties.TimersScannerConcurrency),
+			PageSize:                dc.GetIntProperty(dynamicproperties.TimersScannerPersistencePageSize),
+			BlobstoreFlushThreshold: dc.GetIntProperty(dynamicproperties.TimersScannerBlobstoreFlushThreshold),
+			ActivityBatchSize:       dc.GetIntProperty(dynamicproperties.TimersScannerActivityBatchSize),
+			AllowDomain:             dc.GetBoolPropertyFilteredByDomain(dynamicproperties.TimersFixerDomainAllow),
 		},
 		DynamicCollection: dc,
 		ScannerHooks:      ScannerHooks,

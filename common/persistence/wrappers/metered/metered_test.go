@@ -35,7 +35,7 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/uber/cadence/common/config"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
@@ -131,7 +131,7 @@ func TestWrappersAgainstPreviousImplementation(t *testing.T) {
 				wrapped.EXPECT().GetShardID().Return(0).AnyTimes()
 
 				newObj := NewExecutionManager(wrapped, newMetricsClient, newLogger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true},
-					dynamicconfig.GetIntPropertyFn(1), dynamicconfig.GetBoolPropertyFn(true))
+					dynamicproperties.GetIntPropertyFn(1), dynamicproperties.GetBoolPropertyFn(true))
 
 				return newObj, wrapped
 			},

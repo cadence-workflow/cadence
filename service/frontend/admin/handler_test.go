@@ -46,6 +46,7 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/domain"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	esmock "github.com/uber/cadence/common/elasticsearch/mocks"
 	"github.com/uber/cadence/common/isolationgroup/isolationgroupapi"
 	"github.com/uber/cadence/common/log/testlogger"
@@ -110,8 +111,8 @@ func (s *adminHandlerSuite) SetupTest() {
 		},
 	}
 	config := &frontendcfg.Config{
-		EnableAdminProtection:  dynamicconfig.GetBoolPropertyFn(false),
-		EnableGracefulFailover: dynamicconfig.GetBoolPropertyFn(false),
+		EnableAdminProtection:  dynamicproperties.GetBoolPropertyFn(false),
+		EnableGracefulFailover: dynamicproperties.GetBoolPropertyFn(false),
 	}
 
 	dh := domain.NewMockHandler(s.controller)
@@ -576,7 +577,7 @@ func (s *adminHandlerSuite) Test_AddSearchAttribute_Validate() {
 	mockValidAttr := map[string]interface{}{
 		"testkey": types.IndexedValueTypeKeyword,
 	}
-	dynamicConfig.EXPECT().GetMapValue(dynamicconfig.ValidSearchAttributes, nil).
+	dynamicConfig.EXPECT().GetMapValue(dynamicproperties.ValidSearchAttributes, nil).
 		Return(mockValidAttr, nil).AnyTimes()
 
 	testCases2 := []test{
@@ -612,7 +613,7 @@ func (s *adminHandlerSuite) Test_AddSearchAttribute_Validate() {
 		},
 		Expected: &types.BadRequestError{Message: "Unknown value type, IndexedValueType(-1)"},
 	}
-	dynamicConfig.EXPECT().UpdateValue(dynamicconfig.ValidSearchAttributes, map[string]interface{}{
+	dynamicConfig.EXPECT().UpdateValue(dynamicproperties.ValidSearchAttributes, map[string]interface{}{
 		"testkey":  types.IndexedValueTypeKeyword,
 		"testkey2": -1,
 	}).Return(errors.New("error"))
@@ -652,8 +653,8 @@ func (s *adminHandlerSuite) Test_AddSearchAttribute_Permission() {
 	ctx := context.Background()
 	handler := s.handler
 	handler.config = &frontendcfg.Config{
-		EnableAdminProtection: dynamicconfig.GetBoolPropertyFn(true),
-		AdminOperationToken:   dynamicconfig.GetStringPropertyFn(dynamicconfig.AdminOperationToken.DefaultString()),
+		EnableAdminProtection: dynamicproperties.GetBoolPropertyFn(true),
+		AdminOperationToken:   dynamicproperties.GetStringPropertyFn(dynamicproperties.AdminOperationToken.DefaultString()),
 	}
 
 	type test struct {
@@ -672,7 +673,7 @@ func (s *adminHandlerSuite) Test_AddSearchAttribute_Permission() {
 		{
 			Name: "correct token",
 			Request: &types.AddSearchAttributeRequest{
-				SecurityToken: dynamicconfig.AdminOperationToken.DefaultString(),
+				SecurityToken: dynamicproperties.AdminOperationToken.DefaultString(),
 			},
 			Expected: &types.BadRequestError{Message: "SearchAttributes are not provided"},
 		},
@@ -744,11 +745,11 @@ func (s *adminHandlerSuite) Test_GetDynamicConfig_NoFilter() {
 	handler.params.DynamicConfig = dynamicConfig
 
 	dynamicConfig.EXPECT().
-		GetValue(dynamicconfig.TestGetBoolPropertyKey).
+		GetValue(dynamicproperties.TestGetBoolPropertyKey).
 		Return(true, nil).AnyTimes()
 
 	resp, err := handler.GetDynamicConfig(ctx, &types.GetDynamicConfigRequest{
-		ConfigName: dynamicconfig.TestGetBoolPropertyKey.String(),
+		ConfigName: dynamicproperties.TestGetBoolPropertyKey.String(),
 		Filters:    nil,
 	})
 	s.NoError(err)
@@ -765,8 +766,8 @@ func (s *adminHandlerSuite) Test_GetDynamicConfig_FilterMatch() {
 	handler.params.DynamicConfig = dynamicConfig
 
 	dynamicConfig.EXPECT().
-		GetValueWithFilters(dynamicconfig.TestGetBoolPropertyKey, map[dynamicconfig.Filter]interface{}{
-			dynamicconfig.DomainName: "samples_domain",
+		GetValueWithFilters(dynamicproperties.TestGetBoolPropertyKey, map[dynamicproperties.Filter]interface{}{
+			dynamicproperties.DomainName: "samples_domain",
 		}).
 		Return(true, nil).AnyTimes()
 
@@ -774,10 +775,10 @@ func (s *adminHandlerSuite) Test_GetDynamicConfig_FilterMatch() {
 	s.NoError(err)
 
 	resp, err := handler.GetDynamicConfig(ctx, &types.GetDynamicConfigRequest{
-		ConfigName: dynamicconfig.TestGetBoolPropertyKey.String(),
+		ConfigName: dynamicproperties.TestGetBoolPropertyKey.String(),
 		Filters: []*types.DynamicConfigFilter{
 			{
-				Name: dynamicconfig.DomainName.String(),
+				Name: dynamicproperties.DomainName.String(),
 				Value: &types.DataBlob{
 					EncodingType: types.EncodingTypeJSON.Ptr(),
 					Data:         encDomainName,

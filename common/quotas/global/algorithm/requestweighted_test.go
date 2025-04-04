@@ -39,7 +39,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/quotas/global/shared"
@@ -68,16 +68,16 @@ func newValid(t testlogger.TestingT, snap configSnapshot) (*impl, clock.MockedTi
 
 func newForTest(t testlogger.TestingT, snap configSnapshot, validate bool) (*impl, clock.MockedTimeSource) {
 	cfg := Config{
-		NewDataWeight: func(_ ...dynamicconfig.FilterOption) float64 {
+		NewDataWeight: func(_ ...dynamicproperties.FilterOption) float64 {
 			return snap.weight
 		},
-		UpdateInterval: func(_ ...dynamicconfig.FilterOption) time.Duration {
+		UpdateInterval: func(_ ...dynamicproperties.FilterOption) time.Duration {
 			return snap.rate
 		},
-		DecayAfter: func(_ ...dynamicconfig.FilterOption) time.Duration {
+		DecayAfter: func(_ ...dynamicproperties.FilterOption) time.Duration {
 			return snap.decayAfter
 		},
-		GcAfter: func(_ ...dynamicconfig.FilterOption) time.Duration {
+		GcAfter: func(_ ...dynamicproperties.FilterOption) time.Duration {
 			return snap.gcAfter
 		},
 	}

@@ -29,7 +29,7 @@ import (
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/metrics/mocks"
@@ -99,7 +99,7 @@ func (s *transferQueueValidatorSuite) SetupTest() {
 	}
 	s.validator = newTransferQueueValidator(
 		s.processor,
-		dynamicconfig.GetDurationPropertyFn(testValidationInterval),
+		dynamicproperties.GetDurationPropertyFn(testValidationInterval),
 		s.mockLogger,
 		s.mockMetricScope,
 	)

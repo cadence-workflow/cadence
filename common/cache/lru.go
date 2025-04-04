@@ -28,7 +28,7 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 )
@@ -55,7 +55,7 @@ type (
 		pin           bool
 		rmFunc        RemovedFunc
 		sizeFunc      GetCacheItemSizeFunc
-		maxSize       dynamicconfig.IntPropertyFn
+		maxSize       dynamicproperties.IntPropertyFn
 		currSize      uint64
 		sizeByKey     map[interface{}]uint64
 		isSizeBased   bool
@@ -178,13 +178,13 @@ func New(opts *Options, logger log.Logger) Cache {
 		cache.maxSize = opts.MaxSize
 		if cache.maxSize == nil {
 			// If maxSize is not defined for size-based cache, set default to cacheCountLimit
-			cache.maxSize = dynamicconfig.GetIntPropertyFn(cacheDefaultSizeLimit)
+			cache.maxSize = dynamicproperties.GetIntPropertyFn(cacheDefaultSizeLimit)
 		}
 		cache.sizeByKey = make(map[interface{}]uint64, opts.InitialCapacity)
 	} else {
 		// cache is count based if max size and sizeFunc are not provided
 		cache.maxCount = opts.MaxCount
-		cache.maxSize = dynamicconfig.GetIntPropertyFn(0)
+		cache.maxSize = dynamicproperties.GetIntPropertyFn(0)
 		cache.sizeFunc = func(interface{}) uint64 {
 			return 0
 		}
