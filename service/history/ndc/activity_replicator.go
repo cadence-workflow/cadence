@@ -196,6 +196,16 @@ func (r *activityReplicatorImpl) SyncActivity(
 		updateMode = persistence.UpdateWorkflowModeBypassCurrent
 	}
 
+	// TODO: The replicated event arrived at the passive side, but there could have been a failover in the middle.
+	// Should we switch to TransactionPolicyActive below?
+	// If the policy is passive replication tasks are not generated to be sent to other clusters.
+	// Same applies to other places in this folder.
+	r.logger.Debugf("SyncActivity calling UpdateWorkflowExecutionWithNew for wfID %s, updateMode %v, current policy %v, new policy %v",
+		workflowExecution.GetWorkflowID(),
+		updateMode,
+		execution.TransactionPolicyPassive,
+		nil,
+	)
 	return context.UpdateWorkflowExecutionWithNew(
 		ctx,
 		now,

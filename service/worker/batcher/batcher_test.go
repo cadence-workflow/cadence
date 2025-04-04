@@ -64,12 +64,14 @@ func setuptest(t *testing.T) (*Batcher, *resource.Test) {
 		TallyScope:    tally.TestScope(nil),
 		Config: Config{
 			ClusterMetadata: cluster.NewMetadata(
-				12,
-				"test-primary-cluster",
-				"test-primary-cluster",
-				map[string]config.ClusterInformation{
-					"test-primary-cluster":   {},
-					"test-secondary-cluster": {},
+				config.ClusterGroupMetadata{
+					FailoverVersionIncrement: 12,
+					PrimaryClusterName:       "test-primary-cluster",
+					CurrentClusterName:       "test-primary-cluster",
+					ClusterGroup: map[string]config.ClusterInformation{
+						"test-primary-cluster":   {},
+						"test-secondary-cluster": {},
+					},
 				},
 				nil,
 				metrics.NewClient(tally.NoopScope, metrics.Worker),

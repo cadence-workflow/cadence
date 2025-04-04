@@ -22,6 +22,9 @@
 //go:generate gowrap gen -g -p . -i Handler -t ../../templates/grpc.tmpl -o ../wrappers/grpc/grpc_handler_generated.go -v handler=GRPC -v package=historyv1 -v path=github.com/uber/cadence/.gen/proto/history/v1 -v prefix=History
 //go:generate gowrap gen -g -p ../../../.gen/go/history/historyserviceserver -i Interface -t ../../templates/thrift.tmpl -o ../wrappers/thrift/thrift_handler_generated.go -v handler=Thrift -v prefix=History
 
+// TODO: generate a wrapper for handler which handles redirection to the correct cluster based on <domainid, workflowid, runid> and redirection policy.
+// This will be needed only if we want to support forwarding of active-active domain calls in frontend instead of always relying on history.
+
 package handler
 
 import (

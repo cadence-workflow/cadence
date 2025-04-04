@@ -505,7 +505,7 @@ func newTransferQueueActiveProcessor(
 			logger.Info("Domain is not in registered status, skip task in active transfer queue.", tag.WorkflowDomainID(task.GetDomainID()), tag.Value(task))
 			return false, nil
 		}
-		return taskAllocator.VerifyActiveTask(task.GetDomainID(), task)
+		return taskAllocator.VerifyActiveTask(task.GetDomainID(), task.GetWorkflowID(), task.GetRunID(), task)
 	}
 
 	updateMaxReadLevel := func() task.Key {
@@ -581,7 +581,7 @@ func newTransferQueueStandbyProcessor(
 				return false, nil
 			}
 		}
-		return taskAllocator.VerifyStandbyTask(clusterName, task.GetDomainID(), task)
+		return taskAllocator.VerifyStandbyTask(clusterName, task.GetDomainID(), task.GetWorkflowID(), task.GetRunID(), task)
 	}
 
 	updateMaxReadLevel := func() task.Key {
@@ -647,7 +647,7 @@ func newTransferQueueFailoverProcessor(
 			logger.Info("Domain is not in registered status, skip task in failover transfer queue.", tag.WorkflowDomainID(task.GetDomainID()), tag.Value(task))
 			return false, nil
 		}
-		return taskAllocator.VerifyFailoverActiveTask(domainIDs, task.GetDomainID(), task)
+		return taskAllocator.VerifyFailoverActiveTask(domainIDs, task.GetDomainID(), task.GetWorkflowID(), task.GetRunID(), task)
 	}
 
 	maxReadLevelTaskKey := newTransferTaskKey(maxLevel)

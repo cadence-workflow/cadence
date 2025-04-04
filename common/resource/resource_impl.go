@@ -37,6 +37,7 @@ import (
 	"github.com/uber/cadence/client/sharddistributor"
 	"github.com/uber/cadence/client/wrappers/retryable"
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/archiver"
 	"github.com/uber/cadence/common/archiver/provider"
 	"github.com/uber/cadence/common/asyncworkflow/queue"
@@ -92,6 +93,7 @@ type Impl struct {
 
 	domainCache             cache.DomainCache
 	domainMetricsScopeCache cache.DomainMetricsScopeCache
+	activeClusterMgr        activecluster.Manager
 	timeSource              clock.TimeSource
 	payloadSerializer       persistence.PayloadSerializer
 	metricsClient           metrics.Client
@@ -231,6 +233,8 @@ func New(
 		cache.WithTimeSource(params.TimeSource),
 	)
 
+	activeClusterMgr := activecluster.NewManager(domainCache.GetDomainByID, params.ClusterMetadata, params.MetricsClient, logger)
+
 	domainMetricsScopeCache := cache.NewDomainMetricsScopeCache()
 	domainReplicationQueue := domain.NewReplicationQueue(
 		persistenceBean.GetDomainReplicationQueueManager(),
@@ -339,6 +343,7 @@ func New(
 
 		domainCache:             domainCache,
 		domainMetricsScopeCache: domainMetricsScopeCache,
+		activeClusterMgr:        activeClusterMgr,
 		timeSource:              clock.NewRealTimeSource(),
 		payloadSerializer:       persistence.NewPayloadSerializer(),
 		metricsClient:           params.MetricsClient,
@@ -424,6 +429,7 @@ func (h *Impl) Start() {
 	h.membershipResolver.Start()
 	h.domainCache.Start()
 	h.domainMetricsScopeCache.Start()
+	h.activeClusterMgr.Start()
 
 	hostInfo, err := h.membershipResolver.WhoAmI()
 	if err != nil {
@@ -452,6 +458,7 @@ func (h *Impl) Stop() {
 
 	h.domainCache.Stop()
 	h.domainMetricsScopeCache.Stop()
+	h.activeClusterMgr.Stop()
 	h.membershipResolver.Stop()
 
 	if err := h.dispatcher.Stop(); err != nil {
@@ -492,6 +499,11 @@ func (h *Impl) GetDomainCache() cache.DomainCache {
 // GetDomainMetricsScopeCache return domainMetricsScope cache
 func (h *Impl) GetDomainMetricsScopeCache() cache.DomainMetricsScopeCache {
 	return h.domainMetricsScopeCache
+}
+
+// GetActiveClusterManager return active cluster manager
+func (h *Impl) GetActiveClusterManager() activecluster.Manager {
+	return h.activeClusterMgr
 }
 
 // GetTimeSource return time source

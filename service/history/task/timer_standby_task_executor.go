@@ -158,6 +158,7 @@ func (t *timerStandbyTaskExecutor) executeUserTimerTimeoutTask(
 		timerTask.EventID,
 		actionFn,
 		getStandbyPostActionFn(
+			t.logger,
 			timerTask,
 			t.getCurrentTime,
 			t.config.StandbyTaskMissingEventsResendDelay(),
@@ -246,9 +247,13 @@ func (t *timerStandbyTaskExecutor) executeActivityTimeoutTask(
 		}
 
 		now := t.getStandbyClusterTime()
+		// TODO: add logs here
+
 		// we need to handcraft some of the variables
 		// since the job being done here is update the activity and possibly write a timer task to DB
 		// also need to reset the current version.
+		t.logger.Debugf("executeActivityTimeoutTask calling UpdateCurrentVersion for domain %s, wfID %v, lastWriteVersion %v",
+			timerTask.DomainID, timerTask.WorkflowID, lastWriteVersion)
 		if err := mutableState.UpdateCurrentVersion(lastWriteVersion, true); err != nil {
 			return nil, err
 		}
@@ -263,6 +268,7 @@ func (t *timerStandbyTaskExecutor) executeActivityTimeoutTask(
 		timerTask.EventID,
 		actionFn,
 		getStandbyPostActionFn(
+			t.logger,
 			timerTask,
 			t.getCurrentTime,
 			t.config.StandbyTaskMissingEventsResendDelay(),
@@ -312,6 +318,7 @@ func (t *timerStandbyTaskExecutor) executeDecisionTimeoutTask(
 		timerTask.EventID,
 		actionFn,
 		getStandbyPostActionFn(
+			t.logger,
 			timerTask,
 			t.getCurrentTime,
 			t.config.StandbyTaskMissingEventsResendDelay(),
@@ -354,6 +361,7 @@ func (t *timerStandbyTaskExecutor) executeWorkflowBackoffTimerTask(
 		0,
 		actionFn,
 		getStandbyPostActionFn(
+			t.logger,
 			timerTask,
 			t.getCurrentTime,
 			t.config.StandbyTaskMissingEventsResendDelay(),
@@ -392,6 +400,7 @@ func (t *timerStandbyTaskExecutor) executeWorkflowTimeoutTask(
 		0,
 		actionFn,
 		getStandbyPostActionFn(
+			t.logger,
 			timerTask,
 			t.getCurrentTime,
 			t.config.StandbyTaskMissingEventsResendDelay(),
@@ -444,13 +453,32 @@ func (t *timerStandbyTaskExecutor) processTimer(
 	}
 
 	if !mutableState.IsWorkflowExecutionRunning() {
+		// TODO: Check if workflow timeout timer comes to this point and then discarded.
 		// workflow already finished, no need to process the timer
 		return nil
 	}
 
 	historyResendInfo, err := actionFn(ctx, wfContext, mutableState)
 	if err != nil {
+		t.logger.Debug("processTimer got error from actionFn",
+			tag.Error(err),
+			tag.WorkflowID(timerTask.GetWorkflowID()),
+			tag.WorkflowRunID(timerTask.GetRunID()),
+			tag.WorkflowDomainID(timerTask.GetDomainID()),
+			tag.TaskID(timerTask.GetTaskID()),
+			tag.TaskType(int(timerTask.GetTaskType())),
+			tag.Timestamp(timerTask.GetVisibilityTimestamp()),
+		)
 		return err
+	} else {
+		t.logger.Debug("processTimer got historyResendInfo from actionFn",
+			tag.WorkflowID(timerTask.GetWorkflowID()),
+			tag.WorkflowRunID(timerTask.GetRunID()),
+			tag.WorkflowDomainID(timerTask.GetDomainID()),
+			tag.TaskID(timerTask.GetTaskID()),
+			tag.TaskType(int(timerTask.GetTaskType())),
+			tag.Timestamp(timerTask.GetVisibilityTimestamp()),
+		)
 	}
 
 	release(nil)
@@ -502,6 +530,17 @@ func (t *timerStandbyTaskExecutor) fetchHistoryFromRemote(
 			tag.SourceCluster(t.clusterName),
 			tag.Error(err),
 		)
+	} else {
+		t.logger.Debug("Successfully re-replicated history from remote.",
+			tag.WorkflowID(taskInfo.GetWorkflowID()),
+			tag.WorkflowRunID(taskInfo.GetRunID()),
+			tag.WorkflowDomainID(taskInfo.GetDomainID()),
+			tag.TaskID(taskInfo.GetTaskID()),
+			tag.TaskType(int(taskInfo.GetTaskType())),
+			tag.SourceCluster(t.clusterName),
+		)
+
+		// TODO: Should this case still return redispatch error?
 	}
 
 	// return error so task processing logic will retry

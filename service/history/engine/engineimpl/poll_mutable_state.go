@@ -136,6 +136,7 @@ func (e *historyEngineImpl) updateEntityNotExistsErrorOnPassiveCluster(err error
 			return &types.EntityNotExistsError{
 				Message:        "Workflow execution not found in non-active cluster",
 				ActiveCluster:  domainNotActiveErrCasted.GetActiveCluster(),
+				ActiveClusters: domainNotActiveErrCasted.GetActiveClusters(),
 				CurrentCluster: domainNotActiveErrCasted.GetCurrentCluster(),
 			}
 		}

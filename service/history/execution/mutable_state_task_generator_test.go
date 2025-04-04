@@ -34,6 +34,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/constants"
@@ -67,6 +68,7 @@ func (s *mutableStateTaskGeneratorSuite) SetupTest() {
 	s.mockDomainCache.EXPECT().GetDomainByID(constants.TestDomainID).Return(constants.TestGlobalDomainEntry, nil).AnyTimes()
 
 	s.taskGenerator = NewMutableStateTaskGenerator(
+		log.NewNoop(),
 		constants.TestClusterMetadata,
 		s.mockDomainCache,
 		s.mockMutableState,
@@ -94,6 +96,7 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateWorkflowCloseTasks_Jittered
 		// create new mockMutableState so can we can setup separete mock for each test case
 		mockMutableState := NewMockMutableState(s.controller)
 		taskGenerator := NewMutableStateTaskGenerator(
+			log.NewNoop(),
 			constants.TestClusterMetadata,
 			s.mockDomainCache,
 			mockMutableState,
@@ -149,6 +152,7 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateWorkflowCloseTasks() {
 		// create new mockMutableState so can we can setup separete mock for each test case
 		mockMutableState := NewMockMutableState(s.controller)
 		taskGenerator := NewMutableStateTaskGenerator(
+			log.NewNoop(),
 			constants.TestClusterMetadata,
 			s.mockDomainCache,
 			mockMutableState,

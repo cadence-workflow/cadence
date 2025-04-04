@@ -246,7 +246,10 @@ clusterGroupMetadata:
                 enable: {{ default .Env.ENABLE_OAUTH "false" }}
                 type: "OAuthAuthorization"
                 privateKey: {{ default .Env.OAUTH_PRIVATE_KEY "" }}
-        {{- if .Env.ENABLE_GLOBAL_DOMAIN }}
+            {{- if .Env.ENABLE_GLOBAL_ACTIVE_ACTIVE_DOMAIN }}
+            region: "region0"
+            {{- end }}
+        {{- if or .Env.ENABLE_GLOBAL_DOMAIN .Env.ENABLE_GLOBAL_ACTIVE_ACTIVE_DOMAIN }}
         cluster1:
             enabled: true
             initialFailoverVersion: 2
@@ -257,7 +260,17 @@ clusterGroupMetadata:
                 enable: {{ default .Env.ENABLE_OAUTH "false" }}
                 type: "OAuthAuthorization"
                 privateKey: {{ default .Env.OAUTH_PRIVATE_KEY "" }}
+            {{- if .Env.ENABLE_GLOBAL_ACTIVE_ACTIVE_DOMAIN }}
+            region: "region1"
+            {{- end }}
         {{- end }}
+    {{- if .Env.ENABLE_GLOBAL_ACTIVE_ACTIVE_DOMAIN }}
+    regions:
+        region0:
+            initialFailoverVersion: 1
+        region1:
+            initialFailoverVersion: 3
+    {{- end }}
 
 archival:
   history:

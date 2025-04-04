@@ -162,6 +162,7 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) SetupTest() {
 		0,
 		false,
 		"hostname",
+		logger,
 	)
 	s.policy = newSelectedOrAllAPIsForwardingPolicy(
 		s.currentClusterName,
