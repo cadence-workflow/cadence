@@ -41,7 +41,7 @@ import (
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/domain"
-	dc "github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/elasticsearch"
 	"github.com/uber/cadence/common/isolationgroup/isolationgroupapi"
 	"github.com/uber/cadence/common/log"
@@ -191,7 +191,7 @@ func (adh *adminHandlerImpl) AddSearchAttribute(
 	}
 
 	searchAttr := request.GetSearchAttribute()
-	currentValidAttr, err := adh.params.DynamicConfig.GetMapValue(dc.ValidSearchAttributes, nil)
+	currentValidAttr, err := adh.params.DynamicConfig.GetMapValue(dynamicproperties.ValidSearchAttributes, nil)
 	if err != nil {
 		return adh.error(&types.InternalServiceError{Message: fmt.Sprintf("Failed to get dynamic config, err: %v", err)}, scope)
 	}
@@ -210,7 +210,7 @@ func (adh *adminHandlerImpl) AddSearchAttribute(
 	}
 
 	// update dynamic config. Until the DB based dynamic config is implemented, we shouldn't fail the updating.
-	err = adh.params.DynamicConfig.UpdateValue(dc.ValidSearchAttributes, currentValidAttr)
+	err = adh.params.DynamicConfig.UpdateValue(dynamicproperties.ValidSearchAttributes, currentValidAttr)
 	if err != nil {
 		adh.GetLogger().Warn("Failed to update dynamicconfig. This is only useful in local dev environment for filebased config. Please ignore this warn if this is in a real Cluster, because your filebased dynamicconfig MUST be updated separately. Configstore dynamic config will also require separate updating via the CLI.")
 	}
@@ -1579,7 +1579,7 @@ func (adh *adminHandlerImpl) GetDynamicConfig(ctx context.Context, request *type
 		return nil, adh.error(validate.ErrRequestNotSet, scope)
 	}
 
-	keyVal, err := dc.GetKeyFromKeyName(request.ConfigName)
+	keyVal, err := dynamicproperties.GetKeyFromKeyName(request.ConfigName)
 	if err != nil {
 		return nil, adh.error(err, scope)
 	}
@@ -1623,7 +1623,7 @@ func (adh *adminHandlerImpl) UpdateDynamicConfig(ctx context.Context, request *t
 		return adh.error(validate.ErrRequestNotSet, scope)
 	}
 
-	keyVal, err := dc.GetKeyFromKeyName(request.ConfigName)
+	keyVal, err := dynamicproperties.GetKeyFromKeyName(request.ConfigName)
 	if err != nil {
 		return adh.error(err, scope)
 	}
@@ -1640,12 +1640,12 @@ func (adh *adminHandlerImpl) RestoreDynamicConfig(ctx context.Context, request *
 		return adh.error(validate.ErrRequestNotSet, scope)
 	}
 
-	keyVal, err := dc.GetKeyFromKeyName(request.ConfigName)
+	keyVal, err := dynamicproperties.GetKeyFromKeyName(request.ConfigName)
 	if err != nil {
 		return adh.error(err, scope)
 	}
 
-	var filters map[dc.Filter]interface{}
+	var filters map[dynamicproperties.Filter]interface{}
 
 	if request.Filters == nil {
 		filters = nil
@@ -1667,7 +1667,7 @@ func (adh *adminHandlerImpl) ListDynamicConfig(ctx context.Context, request *typ
 		return nil, adh.error(validate.ErrRequestNotSet, scope)
 	}
 
-	keyVal, err := dc.GetKeyFromKeyName(request.ConfigName)
+	keyVal, err := dynamicproperties.GetKeyFromKeyName(request.ConfigName)
 	if err != nil || request.ConfigName == "" {
 		entries, err2 := adh.params.DynamicConfig.ListValue(nil)
 		if err2 != nil {
@@ -1832,15 +1832,15 @@ func convertFromDataBlob(blob *types.DataBlob) (interface{}, error) {
 	}
 }
 
-func convertFilterListToMap(filters []*types.DynamicConfigFilter) (map[dc.Filter]interface{}, error) {
-	newFilters := make(map[dc.Filter]interface{})
+func convertFilterListToMap(filters []*types.DynamicConfigFilter) (map[dynamicproperties.Filter]interface{}, error) {
+	newFilters := make(map[dynamicproperties.Filter]interface{})
 
 	for _, filter := range filters {
 		val, err := convertFromDataBlob(filter.Value)
 		if err != nil {
 			return nil, err
 		}
-		newFilters[dc.ParseFilter(filter.Name)] = val
+		newFilters[dynamicproperties.ParseFilter(filter.Name)] = val
 	}
 	return newFilters, nil
 }

@@ -33,6 +33,7 @@ import (
 
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/isolationgroup/isolationgroupapi"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
@@ -76,7 +77,7 @@ func TestIsDrainedHandler(t *testing.T) {
 			},
 			dcAffordance: func(client *dynamicconfig.MockClient) {
 				client.EXPECT().GetListValue(
-					dynamicconfig.DefaultIsolationGroupConfigStoreManagerGlobalMapping,
+					dynamicproperties.DefaultIsolationGroupConfigStoreManagerGlobalMapping,
 					gomock.Any(), // covering the mapping in the mapper unit-test instead
 				).Return(dynamicConfigResponse, nil)
 			},
@@ -95,7 +96,7 @@ func TestIsDrainedHandler(t *testing.T) {
 			},
 			dcAffordance: func(client *dynamicconfig.MockClient) {
 				client.EXPECT().GetListValue(
-					dynamicconfig.DefaultIsolationGroupConfigStoreManagerGlobalMapping,
+					dynamicproperties.DefaultIsolationGroupConfigStoreManagerGlobalMapping,
 					gomock.Any(), // covering the mapping in the mapper unit-test instead
 				).Return(dynamicConfigResponse, nil)
 			},

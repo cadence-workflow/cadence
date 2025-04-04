@@ -32,7 +32,7 @@ import (
 
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/definition"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	p "github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/client"
 	"github.com/uber/cadence/common/service"
@@ -72,10 +72,10 @@ func (s *DBVisibilityPersistenceSuite) SetupSuite() {
 			},
 		},
 		&service.Config{
-			ReadVisibilityStoreName:                     dynamicconfig.GetStringPropertyFnFilteredByDomain("db"),
-			WriteVisibilityStoreName:                    dynamicconfig.GetStringPropertyFn("db"),
-			EnableReadDBVisibilityFromClosedExecutionV2: dynamicconfig.GetBoolPropertyFn(false),
-			EnableDBVisibilitySampling:                  dynamicconfig.GetBoolPropertyFn(false),
+			ReadVisibilityStoreName:                     dynamicproperties.GetStringPropertyFnFilteredByDomain("db"),
+			WriteVisibilityStoreName:                    dynamicproperties.GetStringPropertyFn("db"),
+			EnableReadDBVisibilityFromClosedExecutionV2: dynamicproperties.GetBoolPropertyFn(false),
+			EnableDBVisibilitySampling:                  dynamicproperties.GetBoolPropertyFn(false),
 		},
 	)
 	if err != nil {

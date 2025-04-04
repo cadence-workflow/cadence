@@ -24,6 +24,7 @@ import (
 	"math/rand"
 	"sync/atomic"
 
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/quotas"
 )
@@ -41,7 +42,7 @@ const skipForThrottleLogger = 6
 // ratelimiter and stops emitting logs once the bucket runs out of tokens
 //
 // Fatal/Panic logs are always emitted without any throttling
-func NewThrottledLogger(logger Logger, rps func() int) Logger {
+func NewThrottledLogger(logger Logger, rps dynamicproperties.IntPropertyFn) Logger {
 	var log Logger
 	lg, ok := logger.(*loggerImpl)
 	if ok {

@@ -30,6 +30,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/types"
@@ -95,15 +96,15 @@ func NewFileBasedClient(config *FileBasedClientConfig, logger log.Logger, doneCh
 	return client, nil
 }
 
-func (fc *fileBasedClient) GetValue(name Key) (interface{}, error) {
+func (fc *fileBasedClient) GetValue(name dynamicproperties.Key) (interface{}, error) {
 	return fc.getValueWithFilters(name, nil, name.DefaultValue())
 }
 
-func (fc *fileBasedClient) GetValueWithFilters(name Key, filters map[Filter]interface{}) (interface{}, error) {
+func (fc *fileBasedClient) GetValueWithFilters(name dynamicproperties.Key, filters map[dynamicproperties.Filter]interface{}) (interface{}, error) {
 	return fc.getValueWithFilters(name, filters, name.DefaultValue())
 }
 
-func (fc *fileBasedClient) GetIntValue(name IntKey, filters map[Filter]interface{}) (int, error) {
+func (fc *fileBasedClient) GetIntValue(name dynamicproperties.IntKey, filters map[dynamicproperties.Filter]interface{}) (int, error) {
 	defaultValue := name.DefaultInt()
 	val, err := fc.getValueWithFilters(name, filters, defaultValue)
 	if err != nil {
@@ -116,7 +117,7 @@ func (fc *fileBasedClient) GetIntValue(name IntKey, filters map[Filter]interface
 	return defaultValue, fmt.Errorf("value type is not int but is: %T", val)
 }
 
-func (fc *fileBasedClient) GetFloatValue(name FloatKey, filters map[Filter]interface{}) (float64, error) {
+func (fc *fileBasedClient) GetFloatValue(name dynamicproperties.FloatKey, filters map[dynamicproperties.Filter]interface{}) (float64, error) {
 	defaultValue := name.DefaultFloat()
 	val, err := fc.getValueWithFilters(name, filters, defaultValue)
 	if err != nil {
@@ -131,7 +132,7 @@ func (fc *fileBasedClient) GetFloatValue(name FloatKey, filters map[Filter]inter
 	return defaultValue, fmt.Errorf("value type is not float64 but is: %T", val)
 }
 
-func (fc *fileBasedClient) GetBoolValue(name BoolKey, filters map[Filter]interface{}) (bool, error) {
+func (fc *fileBasedClient) GetBoolValue(name dynamicproperties.BoolKey, filters map[dynamicproperties.Filter]interface{}) (bool, error) {
 	defaultValue := name.DefaultBool()
 	val, err := fc.getValueWithFilters(name, filters, defaultValue)
 	if err != nil {
@@ -144,7 +145,7 @@ func (fc *fileBasedClient) GetBoolValue(name BoolKey, filters map[Filter]interfa
 	return defaultValue, fmt.Errorf("value type is not bool but is: %T", val)
 }
 
-func (fc *fileBasedClient) GetStringValue(name StringKey, filters map[Filter]interface{}) (string, error) {
+func (fc *fileBasedClient) GetStringValue(name dynamicproperties.StringKey, filters map[dynamicproperties.Filter]interface{}) (string, error) {
 	defaultValue := name.DefaultString()
 	val, err := fc.getValueWithFilters(name, filters, defaultValue)
 	if err != nil {
@@ -157,7 +158,7 @@ func (fc *fileBasedClient) GetStringValue(name StringKey, filters map[Filter]int
 	return defaultValue, fmt.Errorf("value type is not string but is: %T", val)
 }
 
-func (fc *fileBasedClient) GetMapValue(name MapKey, filters map[Filter]interface{}) (map[string]interface{}, error) {
+func (fc *fileBasedClient) GetMapValue(name dynamicproperties.MapKey, filters map[dynamicproperties.Filter]interface{}) (map[string]interface{}, error) {
 	defaultValue := name.DefaultMap()
 	val, err := fc.getValueWithFilters(name, filters, defaultValue)
 	if err != nil {
@@ -169,7 +170,7 @@ func (fc *fileBasedClient) GetMapValue(name MapKey, filters map[Filter]interface
 	return defaultValue, fmt.Errorf("value type is not map but is: %T", val)
 }
 
-func (fc *fileBasedClient) GetDurationValue(name DurationKey, filters map[Filter]interface{}) (time.Duration, error) {
+func (fc *fileBasedClient) GetDurationValue(name dynamicproperties.DurationKey, filters map[dynamicproperties.Filter]interface{}) (time.Duration, error) {
 	defaultValue := name.DefaultDuration()
 	val, err := fc.getValueWithFilters(name, filters, defaultValue)
 	if err != nil {
@@ -188,7 +189,7 @@ func (fc *fileBasedClient) GetDurationValue(name DurationKey, filters map[Filter
 	return durationVal, nil
 }
 
-func (fc *fileBasedClient) GetListValue(name ListKey, filters map[Filter]interface{}) ([]interface{}, error) {
+func (fc *fileBasedClient) GetListValue(name dynamicproperties.ListKey, filters map[dynamicproperties.Filter]interface{}) ([]interface{}, error) {
 	defaultValue := name.DefaultList()
 	val, err := fc.getValueWithFilters(name, filters, defaultValue)
 	if err != nil {
@@ -200,8 +201,8 @@ func (fc *fileBasedClient) GetListValue(name ListKey, filters map[Filter]interfa
 	return defaultValue, fmt.Errorf("value type is not list but is: %T", val)
 }
 
-func (fc *fileBasedClient) UpdateValue(name Key, value interface{}) error {
-	if err := ValidateKeyValuePair(name, value); err != nil {
+func (fc *fileBasedClient) UpdateValue(name dynamicproperties.Key, value interface{}) error {
+	if err := dynamicproperties.ValidateKeyValuePair(name, value); err != nil {
 		return err
 	}
 	keyName := name.String()
@@ -230,11 +231,11 @@ func (fc *fileBasedClient) UpdateValue(name Key, value interface{}) error {
 	return fc.storeValues(currentValues)
 }
 
-func (fc *fileBasedClient) RestoreValue(name Key, filters map[Filter]interface{}) error {
+func (fc *fileBasedClient) RestoreValue(name dynamicproperties.Key, filters map[dynamicproperties.Filter]interface{}) error {
 	return errors.New("not supported for file based client")
 }
 
-func (fc *fileBasedClient) ListValue(name Key) ([]*types.DynamicConfigEntry, error) {
+func (fc *fileBasedClient) ListValue(name dynamicproperties.Key) ([]*types.DynamicConfigEntry, error) {
 	return nil, errors.New("not supported for file based client")
 }
 
@@ -285,7 +286,7 @@ func (fc *fileBasedClient) storeValues(newValues map[string][]*constrainedValue)
 	return nil
 }
 
-func (fc *fileBasedClient) getValueWithFilters(key Key, filters map[Filter]interface{}, defaultValue interface{}) (interface{}, error) {
+func (fc *fileBasedClient) getValueWithFilters(key dynamicproperties.Key, filters map[dynamicproperties.Filter]interface{}, defaultValue interface{}) (interface{}, error) {
 	keyName := key.String()
 	values := fc.values.Load().(map[string][]*constrainedValue)
 	found := false
@@ -307,13 +308,13 @@ func (fc *fileBasedClient) getValueWithFilters(key Key, filters map[Filter]inter
 }
 
 // match will return true if the constraints matches the filters or any subsets
-func match(v *constrainedValue, filters map[Filter]interface{}) bool {
+func match(v *constrainedValue, filters map[dynamicproperties.Filter]interface{}) bool {
 	if len(v.Constraints) > len(filters) {
 		return false
 	}
 
 	for constrain, constrainedValue := range v.Constraints {
-		constrainKey := ParseFilter(constrain)
+		constrainKey := dynamicproperties.ParseFilter(constrain)
 		if filters[constrainKey] == nil || filters[constrainKey] != constrainedValue {
 			return false
 		}

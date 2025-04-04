@@ -42,7 +42,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	commonconstants "github.com/uber/cadence/common/constants"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
@@ -662,7 +662,7 @@ func TestHandleDecisionTaskCompleted(t *testing.T) {
 					WorkflowTimeout: 600,
 					AutoResetPoints: &types.ResetPoints{
 						Points: func() []*types.ResetPointInfo {
-							if historyMaxResetPoints, ok := dynamicconfig.IntKeys[dynamicconfig.HistoryMaxAutoResetPoints]; ok {
+							if historyMaxResetPoints, ok := dynamicproperties.IntKeys[dynamicproperties.HistoryMaxAutoResetPoints]; ok {
 								return make([]*types.ResetPointInfo, historyMaxResetPoints.DefaultValue)
 							}
 							return []*types.ResetPointInfo{}

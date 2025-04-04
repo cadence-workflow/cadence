@@ -31,7 +31,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/backoff"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 )
@@ -67,7 +67,7 @@ func (s *fifoTaskSchedulerSuite) SetupTest() {
 		metrics.NewClient(tally.NoopScope, metrics.Common),
 		&FIFOTaskSchedulerOptions{
 			QueueSize:       s.queueSize,
-			WorkerCount:     dynamicconfig.GetIntPropertyFn(1),
+			WorkerCount:     dynamicproperties.GetIntPropertyFn(1),
 			DispatcherCount: 1,
 			RetryPolicy:     backoff.NewExponentialRetryPolicy(time.Millisecond),
 		},

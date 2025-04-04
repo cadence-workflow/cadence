@@ -34,6 +34,7 @@ import (
 
 	"github.com/uber/cadence/common/dynamicconfig"
 	c "github.com/uber/cadence/common/dynamicconfig/configstore/config"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/peerprovider/ringpopprovider"
 	"github.com/uber/cadence/common/service"
 )
@@ -198,10 +199,10 @@ type (
 		DataStores map[string]DataStore `yaml:"datastores"`
 		// TODO: move dynamic config out of static config
 		// TransactionSizeLimit is the largest allowed transaction size
-		TransactionSizeLimit dynamicconfig.IntPropertyFn `yaml:"-" json:"-"`
+		TransactionSizeLimit dynamicproperties.IntPropertyFn `yaml:"-" json:"-"`
 		// TODO: move dynamic config out of static config
 		// ErrorInjectionRate is the the rate for injecting random error
-		ErrorInjectionRate dynamicconfig.FloatPropertyFn `yaml:"-" json:"-"`
+		ErrorInjectionRate dynamicproperties.FloatPropertyFn `yaml:"-" json:"-"`
 	}
 
 	// DataStore is the configuration for a single datastore

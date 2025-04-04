@@ -129,7 +129,7 @@ import (
 	"golang.org/x/exp/constraints"
 
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -217,11 +217,11 @@ type (
 	Config struct {
 		// How much each update should be weighted vs prior data.
 		// Must be between 0 and 1, recommend starting with 0.5 (4 updates until data has <10% influence)
-		NewDataWeight dynamicconfig.FloatPropertyFn
+		NewDataWeight dynamicproperties.FloatPropertyFn
 
 		// Expected time between updates.  Should match the cluster's config for how often limiters check in,
 		// i.e. this should probably be the same dynamic config value, updated at / near the same time.
-		UpdateInterval dynamicconfig.DurationPropertyFn
+		UpdateInterval dynamicproperties.DurationPropertyFn
 
 		// How long to wait before considering a host-limit's RPS usage "probably inactive", rather than
 		// simply delayed.
@@ -230,7 +230,7 @@ type (
 		// missed UpdateInterval multiples, not DecayAfter.
 		// Unsure about a good default (try 2x UpdateInterval?), but larger numbers mean smoother behavior
 		// but longer delays on adjusting to hosts that have disappeared or stopped receiving requests.
-		DecayAfter dynamicconfig.DurationPropertyFn
+		DecayAfter dynamicproperties.DurationPropertyFn
 
 		// How much time can pass without receiving any update before completely deleting data.
 		//
@@ -240,7 +240,7 @@ type (
 		//
 		// "Good" values depend on a lot of details, but >=10*UpdateInterval seems reasonably safe for a
 		// NewDataWeight of 0.5, as the latest data will be reduced to only 0.1% and may not be worth keeping.
-		GcAfter dynamicconfig.DurationPropertyFn
+		GcAfter dynamicproperties.DurationPropertyFn
 	}
 
 	// UpdateParams contains args for calling Update.

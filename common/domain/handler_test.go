@@ -42,6 +42,7 @@ import (
 	"github.com/uber/cadence/common/config"
 	commonconstants "github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -63,8 +64,8 @@ func newTestHandler(domainManager persistence.DomainManager, primaryCluster bool
 	}
 	archivalMetadata := archiver.NewArchivalMetadata(mockDC, "Enabled", true, "Enabled", true, domainDefaults)
 	testConfig := Config{
-		MinRetentionDays:       dynamicconfig.GetIntPropertyFn(1),
-		MaxRetentionDays:       dynamicconfig.GetIntPropertyFn(5),
+		MinRetentionDays:       dynamicproperties.GetIntPropertyFn(1),
+		MaxRetentionDays:       dynamicproperties.GetIntPropertyFn(5),
 		RequiredDomainDataKeys: nil,
 		MaxBadBinaryCount:      func(string) int { return 3 },
 		FailoverCoolDown:       func(string) time.Duration { return time.Second },
@@ -1315,9 +1316,9 @@ func TestHandler_UpdateDomain(t *testing.T) {
 					Return(domainResponse, nil).Times(1)
 				archivalConfig := archiver.NewArchivalConfig(
 					commonconstants.ArchivalDisabled,
-					dynamicconfig.GetStringPropertyFn(commonconstants.ArchivalDisabled),
+					dynamicproperties.GetStringPropertyFn(commonconstants.ArchivalDisabled),
 					false,
-					dynamicconfig.GetBoolPropertyFn(false),
+					dynamicproperties.GetBoolPropertyFn(false),
 					commonconstants.ArchivalDisabled,
 					"")
 				archivalMetadata.On("GetHistoryConfig").Return(archivalConfig).Times(1)
@@ -1410,9 +1411,9 @@ func TestHandler_UpdateDomain(t *testing.T) {
 					Return(domainResponse, nil).Times(1)
 				archivalConfig := archiver.NewArchivalConfig(
 					commonconstants.ArchivalDisabled,
-					dynamicconfig.GetStringPropertyFn(commonconstants.ArchivalDisabled),
+					dynamicproperties.GetStringPropertyFn(commonconstants.ArchivalDisabled),
 					false,
-					dynamicconfig.GetBoolPropertyFn(false),
+					dynamicproperties.GetBoolPropertyFn(false),
 					commonconstants.ArchivalDisabled,
 					"")
 				archivalMetadata.On("GetHistoryConfig").Return(archivalConfig).Times(1)
@@ -1507,9 +1508,9 @@ func TestHandler_UpdateDomain(t *testing.T) {
 					Return(domainResponse, nil).Times(1)
 				archivalConfig := archiver.NewArchivalConfig(
 					commonconstants.ArchivalDisabled,
-					dynamicconfig.GetStringPropertyFn(commonconstants.ArchivalDisabled),
+					dynamicproperties.GetStringPropertyFn(commonconstants.ArchivalDisabled),
 					false,
-					dynamicconfig.GetBoolPropertyFn(false),
+					dynamicproperties.GetBoolPropertyFn(false),
 					commonconstants.ArchivalDisabled,
 					"")
 				archivalMetadata.On("GetHistoryConfig").Return(archivalConfig).Times(1)
@@ -1600,9 +1601,9 @@ func TestHandler_UpdateDomain(t *testing.T) {
 					Return(domainResponse, nil).Times(1)
 				archivalConfig := archiver.NewArchivalConfig(
 					commonconstants.ArchivalDisabled,
-					dynamicconfig.GetStringPropertyFn(commonconstants.ArchivalDisabled),
+					dynamicproperties.GetStringPropertyFn(commonconstants.ArchivalDisabled),
 					false,
-					dynamicconfig.GetBoolPropertyFn(false),
+					dynamicproperties.GetBoolPropertyFn(false),
 					commonconstants.ArchivalDisabled,
 					"")
 				archivalMetadata.On("GetHistoryConfig").Return(archivalConfig).Times(1)
@@ -1671,9 +1672,9 @@ func TestHandler_UpdateDomain(t *testing.T) {
 					}, nil).Times(1)
 				archivalConfig := archiver.NewArchivalConfig(
 					commonconstants.ArchivalEnabled,
-					dynamicconfig.GetStringPropertyFn(commonconstants.ArchivalEnabled),
+					dynamicproperties.GetStringPropertyFn(commonconstants.ArchivalEnabled),
 					false,
-					dynamicconfig.GetBoolPropertyFn(false),
+					dynamicproperties.GetBoolPropertyFn(false),
 					commonconstants.ArchivalEnabled,
 					"")
 				archivalMetadata.On("GetHistoryConfig").Return(archivalConfig).Times(1)
@@ -1694,16 +1695,16 @@ func TestHandler_UpdateDomain(t *testing.T) {
 					}, nil).Times(1)
 				archivalConfigHistory := archiver.NewArchivalConfig(
 					commonconstants.ArchivalDisabled,
-					dynamicconfig.GetStringPropertyFn(commonconstants.ArchivalDisabled),
+					dynamicproperties.GetStringPropertyFn(commonconstants.ArchivalDisabled),
 					false,
-					dynamicconfig.GetBoolPropertyFn(false),
+					dynamicproperties.GetBoolPropertyFn(false),
 					commonconstants.ArchivalDisabled,
 					"")
 				archivalConfigVisibility := archiver.NewArchivalConfig(
 					commonconstants.ArchivalEnabled,
-					dynamicconfig.GetStringPropertyFn(commonconstants.ArchivalEnabled),
+					dynamicproperties.GetStringPropertyFn(commonconstants.ArchivalEnabled),
 					false,
-					dynamicconfig.GetBoolPropertyFn(false),
+					dynamicproperties.GetBoolPropertyFn(false),
 					commonconstants.ArchivalEnabled,
 					"")
 				archivalMetadata.On("GetHistoryConfig").Return(archivalConfigHistory).Times(1)
@@ -1726,9 +1727,9 @@ func TestHandler_UpdateDomain(t *testing.T) {
 					}, nil).Times(1)
 				archivalConfig := archiver.NewArchivalConfig(
 					commonconstants.ArchivalDisabled,
-					dynamicconfig.GetStringPropertyFn(commonconstants.ArchivalDisabled),
+					dynamicproperties.GetStringPropertyFn(commonconstants.ArchivalDisabled),
 					false,
-					dynamicconfig.GetBoolPropertyFn(false),
+					dynamicproperties.GetBoolPropertyFn(false),
 					commonconstants.ArchivalDisabled,
 					"")
 				archivalMetadata.On("GetHistoryConfig").Return(archivalConfig).Times(1)
@@ -1760,9 +1761,9 @@ func TestHandler_UpdateDomain(t *testing.T) {
 					}, nil).Times(1)
 				archivalConfig := archiver.NewArchivalConfig(
 					commonconstants.ArchivalDisabled,
-					dynamicconfig.GetStringPropertyFn(commonconstants.ArchivalDisabled),
+					dynamicproperties.GetStringPropertyFn(commonconstants.ArchivalDisabled),
 					false,
-					dynamicconfig.GetBoolPropertyFn(false),
+					dynamicproperties.GetBoolPropertyFn(false),
 					commonconstants.ArchivalDisabled,
 					"")
 				archivalMetadata.On("GetHistoryConfig").Return(archivalConfig).Times(1)
@@ -1787,9 +1788,9 @@ func TestHandler_UpdateDomain(t *testing.T) {
 					}, nil).Times(1)
 				archivalConfig := archiver.NewArchivalConfig(
 					commonconstants.ArchivalDisabled,
-					dynamicconfig.GetStringPropertyFn(commonconstants.ArchivalDisabled),
+					dynamicproperties.GetStringPropertyFn(commonconstants.ArchivalDisabled),
 					false,
-					dynamicconfig.GetBoolPropertyFn(false),
+					dynamicproperties.GetBoolPropertyFn(false),
 					commonconstants.ArchivalDisabled,
 					"")
 				archivalMetadata.On("GetHistoryConfig").Return(archivalConfig).Times(1)
@@ -1812,9 +1813,9 @@ func TestHandler_UpdateDomain(t *testing.T) {
 					}, nil).Times(1)
 				archivalConfig := archiver.NewArchivalConfig(
 					commonconstants.ArchivalDisabled,
-					dynamicconfig.GetStringPropertyFn(commonconstants.ArchivalDisabled),
+					dynamicproperties.GetStringPropertyFn(commonconstants.ArchivalDisabled),
 					false,
-					dynamicconfig.GetBoolPropertyFn(false),
+					dynamicproperties.GetBoolPropertyFn(false),
 					commonconstants.ArchivalDisabled,
 					"")
 				archivalMetadata.On("GetHistoryConfig").Return(archivalConfig).Times(1)
@@ -1841,9 +1842,9 @@ func TestHandler_UpdateDomain(t *testing.T) {
 					}, nil).Times(1)
 				archivalConfig := archiver.NewArchivalConfig(
 					commonconstants.ArchivalDisabled,
-					dynamicconfig.GetStringPropertyFn(commonconstants.ArchivalDisabled),
+					dynamicproperties.GetStringPropertyFn(commonconstants.ArchivalDisabled),
 					false,
-					dynamicconfig.GetBoolPropertyFn(false),
+					dynamicproperties.GetBoolPropertyFn(false),
 					commonconstants.ArchivalDisabled,
 					"")
 				archivalMetadata.On("GetHistoryConfig").Return(archivalConfig).Times(1)
@@ -1878,9 +1879,9 @@ func TestHandler_UpdateDomain(t *testing.T) {
 					}, nil).Times(1)
 				archivalConfig := archiver.NewArchivalConfig(
 					commonconstants.ArchivalDisabled,
-					dynamicconfig.GetStringPropertyFn(commonconstants.ArchivalDisabled),
+					dynamicproperties.GetStringPropertyFn(commonconstants.ArchivalDisabled),
 					false,
-					dynamicconfig.GetBoolPropertyFn(false),
+					dynamicproperties.GetBoolPropertyFn(false),
 					commonconstants.ArchivalDisabled,
 					"")
 				archivalMetadata.On("GetHistoryConfig").Return(archivalConfig).Times(1)
@@ -1914,9 +1915,9 @@ func TestHandler_UpdateDomain(t *testing.T) {
 					}, nil).Times(1)
 				archivalConfig := archiver.NewArchivalConfig(
 					commonconstants.ArchivalDisabled,
-					dynamicconfig.GetStringPropertyFn(commonconstants.ArchivalDisabled),
+					dynamicproperties.GetStringPropertyFn(commonconstants.ArchivalDisabled),
 					false,
-					dynamicconfig.GetBoolPropertyFn(false),
+					dynamicproperties.GetBoolPropertyFn(false),
 					commonconstants.ArchivalDisabled,
 					"")
 				archivalMetadata.On("GetHistoryConfig").Return(archivalConfig).Times(1)
@@ -1951,9 +1952,9 @@ func TestHandler_UpdateDomain(t *testing.T) {
 					}, nil).Times(1)
 				archivalConfig := archiver.NewArchivalConfig(
 					commonconstants.ArchivalDisabled,
-					dynamicconfig.GetStringPropertyFn(commonconstants.ArchivalDisabled),
+					dynamicproperties.GetStringPropertyFn(commonconstants.ArchivalDisabled),
 					false,
-					dynamicconfig.GetBoolPropertyFn(false),
+					dynamicproperties.GetBoolPropertyFn(false),
 					commonconstants.ArchivalDisabled,
 					"")
 				archivalMetadata.On("GetHistoryConfig").Return(archivalConfig).Times(1)
@@ -1982,12 +1983,12 @@ func TestHandler_UpdateDomain(t *testing.T) {
 			mockArchivalMetadata := &archiver.MockArchivalMetadata{}
 
 			testConfig := Config{
-				MinRetentionDays:       dynamicconfig.GetIntPropertyFn(1),
-				MaxRetentionDays:       dynamicconfig.GetIntPropertyFn(5),
+				MinRetentionDays:       dynamicproperties.GetIntPropertyFn(1),
+				MaxRetentionDays:       dynamicproperties.GetIntPropertyFn(5),
 				RequiredDomainDataKeys: nil,
-				MaxBadBinaryCount:      dynamicconfig.GetIntPropertyFilteredByDomain(maxLength),
+				MaxBadBinaryCount:      dynamicproperties.GetIntPropertyFilteredByDomain(maxLength),
 				FailoverCoolDown:       func(string) time.Duration { return time.Second },
-				FailoverHistoryMaxSize: dynamicconfig.GetIntPropertyFilteredByDomain(5),
+				FailoverHistoryMaxSize: dynamicproperties.GetIntPropertyFilteredByDomain(5),
 			}
 
 			clusterMetadata := cluster.GetTestClusterMetadata(true)

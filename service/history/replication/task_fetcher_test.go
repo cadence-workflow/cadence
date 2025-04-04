@@ -34,7 +34,7 @@ import (
 	"github.com/uber/cadence/client/admin"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/resource"
@@ -76,7 +76,7 @@ func (s *taskFetcherSuite) SetupTest() {
 	s.frontendClient = s.mockResource.RemoteAdminClient
 	logger := testlogger.New(s.T())
 	s.config = config.NewForTest()
-	s.config.ReplicationTaskFetcherTimerJitterCoefficient = dynamicconfig.GetFloatPropertyFn(0.0) // set jitter to 0 for test
+	s.config.ReplicationTaskFetcherTimerJitterCoefficient = dynamicproperties.GetFloatPropertyFn(0.0) // set jitter to 0 for test
 
 	s.taskFetcher = newReplicationTaskFetcher(
 		logger,

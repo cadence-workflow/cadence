@@ -23,7 +23,6 @@ package task
 import (
 	"sync"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/constants"
 	dynamicquotas "github.com/uber/cadence/common/dynamicconfig/quotas"
@@ -36,9 +35,9 @@ import (
 )
 
 var (
-	highTaskPriority    = common.GetTaskPriority(constants.HighPriorityClass, constants.DefaultPrioritySubclass)
-	defaultTaskPriority = common.GetTaskPriority(constants.DefaultPriorityClass, constants.DefaultPrioritySubclass)
-	lowTaskPriority     = common.GetTaskPriority(constants.LowPriorityClass, constants.DefaultPrioritySubclass)
+	highTaskPriority    = constants.GetTaskPriority(constants.HighPriorityClass, constants.DefaultPrioritySubclass)
+	defaultTaskPriority = constants.GetTaskPriority(constants.DefaultPriorityClass, constants.DefaultPrioritySubclass)
+	lowTaskPriority     = constants.GetTaskPriority(constants.LowPriorityClass, constants.DefaultPrioritySubclass)
 )
 
 type priorityAssignerImpl struct {

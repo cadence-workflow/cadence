@@ -5,6 +5,7 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 )
 
 {{ $decorator := (printf "metered%s" .Interface.Name) }}
@@ -22,8 +23,8 @@ func New{{.Interface.Name}}(
 	metricClient metrics.Client,
 	logger       log.Logger,
 	cfg          *config.Persistence,
-    sampleLoggingRate dynamicconfig.IntPropertyFn,
-    enableShardIDMetrics dynamicconfig.BoolPropertyFn,
+    sampleLoggingRate dynamicproperties.IntPropertyFn,
+    enableShardIDMetrics dynamicproperties.BoolPropertyFn,
 ) persistence.{{.Interface.Name}} {
     return &{{$decorator}}{
         wrapped: wrapped,

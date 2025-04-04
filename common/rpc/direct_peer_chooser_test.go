@@ -30,7 +30,7 @@ import (
 	"go.uber.org/yarpc/api/transport"
 	"go.uber.org/yarpc/transport/grpc"
 
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/metrics"
@@ -40,7 +40,7 @@ func TestDirectChooser_PeerUpdates(t *testing.T) {
 	logger := testlogger.New(t)
 	metricCl := metrics.NewNoopMetricsClient()
 	serviceName := "service"
-	directConnRetainFn := func(opts ...dynamicconfig.FilterOption) bool { return true }
+	directConnRetainFn := func(opts ...dynamicproperties.FilterOption) bool { return true }
 	grpcTransport := grpc.NewTransport()
 	chooser := newDirectChooser(serviceName, grpcTransport, logger, metricCl, directConnRetainFn)
 
@@ -182,7 +182,7 @@ func TestDirectChooser_StartStop(t *testing.T) {
 			logger := testlogger.New(t)
 			metricCl := metrics.NewNoopMetricsClient()
 			serviceName := "service"
-			directConnRetainFn := func(opts ...dynamicconfig.FilterOption) bool { return tc.retainConn }
+			directConnRetainFn := func(opts ...dynamicproperties.FilterOption) bool { return tc.retainConn }
 			grpcTransport := grpc.NewTransport()
 
 			chooser := newDirectChooser(serviceName, grpcTransport, logger, metricCl, directConnRetainFn)

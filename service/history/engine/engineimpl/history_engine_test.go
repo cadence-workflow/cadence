@@ -47,7 +47,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	commonconstants "github.com/uber/cadence/common/constants"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/mocks"
@@ -527,7 +527,7 @@ func (s *engineSuite) TestGetMutableStateLongPollTimeout() {
 }
 
 func (s *engineSuite) TestQueryWorkflow_RejectBasedOnNotEnabled() {
-	s.mockHistoryEngine.config.EnableConsistentQueryByDomain = dynamicconfig.GetBoolPropertyFnFilteredByDomain(false)
+	s.mockHistoryEngine.config.EnableConsistentQueryByDomain = dynamicproperties.GetBoolPropertyFnFilteredByDomain(false)
 	request := &types.HistoryQueryWorkflowRequest{
 		DomainUUID: constants.TestDomainID,
 		Request: &types.QueryWorkflowRequest{
@@ -538,8 +538,8 @@ func (s *engineSuite) TestQueryWorkflow_RejectBasedOnNotEnabled() {
 	s.Nil(resp)
 	s.Equal(workflow.ErrConsistentQueryNotEnabled, err)
 
-	s.mockHistoryEngine.config.EnableConsistentQueryByDomain = dynamicconfig.GetBoolPropertyFnFilteredByDomain(true)
-	s.mockHistoryEngine.config.EnableConsistentQuery = dynamicconfig.GetBoolPropertyFn(false)
+	s.mockHistoryEngine.config.EnableConsistentQueryByDomain = dynamicproperties.GetBoolPropertyFnFilteredByDomain(true)
+	s.mockHistoryEngine.config.EnableConsistentQuery = dynamicproperties.GetBoolPropertyFn(false)
 	resp, err = s.mockHistoryEngine.QueryWorkflow(context.Background(), request)
 	s.Nil(resp)
 	s.Equal(workflow.ErrConsistentQueryNotEnabled, err)

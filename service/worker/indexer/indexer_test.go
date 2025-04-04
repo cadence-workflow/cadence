@@ -34,7 +34,7 @@ import (
 	"github.com/uber/cadence/.gen/go/indexer"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/definition"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/elasticsearch/bulk"
 	mocks2 "github.com/uber/cadence/common/elasticsearch/bulk/mocks"
 	esMocks "github.com/uber/cadence/common/elasticsearch/mocks"
@@ -48,10 +48,10 @@ func TestNewDualIndexer(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	config := &Config{
-		ESProcessorNumOfWorkers:  dynamicconfig.GetIntPropertyFn(1),
-		ESProcessorBulkActions:   dynamicconfig.GetIntPropertyFn(10),
-		ESProcessorBulkSize:      dynamicconfig.GetIntPropertyFn(2 << 20),
-		ESProcessorFlushInterval: dynamicconfig.GetDurationPropertyFn(1 * time.Minute),
+		ESProcessorNumOfWorkers:  dynamicproperties.GetIntPropertyFn(1),
+		ESProcessorBulkActions:   dynamicproperties.GetIntPropertyFn(10),
+		ESProcessorBulkSize:      dynamicproperties.GetIntPropertyFn(2 << 20),
+		ESProcessorFlushInterval: dynamicproperties.GetDurationPropertyFn(1 * time.Minute),
 	}
 	processorName := "test-bulkProcessor"
 	consumerName := "test-bulkProcessor-os-consumer"
@@ -73,10 +73,10 @@ func TestNewIndexer(t *testing.T) {
 	defer ctrl.Finish()
 
 	config := &Config{
-		ESProcessorNumOfWorkers:  dynamicconfig.GetIntPropertyFn(1),
-		ESProcessorBulkActions:   dynamicconfig.GetIntPropertyFn(10),
-		ESProcessorBulkSize:      dynamicconfig.GetIntPropertyFn(2 << 20),
-		ESProcessorFlushInterval: dynamicconfig.GetDurationPropertyFn(1 * time.Minute),
+		ESProcessorNumOfWorkers:  dynamicproperties.GetIntPropertyFn(1),
+		ESProcessorBulkActions:   dynamicproperties.GetIntPropertyFn(10),
+		ESProcessorBulkSize:      dynamicproperties.GetIntPropertyFn(2 << 20),
+		ESProcessorFlushInterval: dynamicproperties.GetDurationPropertyFn(1 * time.Minute),
 	}
 	processorName := "test-bulkProcessor"
 	mockESClient := &esMocks.GenericClient{}
@@ -96,11 +96,11 @@ func TestIndexerStart(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	config := &Config{
-		ESProcessorNumOfWorkers:  dynamicconfig.GetIntPropertyFn(1),
-		ESProcessorBulkActions:   dynamicconfig.GetIntPropertyFn(10),
-		ESProcessorBulkSize:      dynamicconfig.GetIntPropertyFn(2 << 20),
-		ESProcessorFlushInterval: dynamicconfig.GetDurationPropertyFn(1 * time.Minute),
-		IndexerConcurrency:       dynamicconfig.GetIntPropertyFn(1),
+		ESProcessorNumOfWorkers:  dynamicproperties.GetIntPropertyFn(1),
+		ESProcessorBulkActions:   dynamicproperties.GetIntPropertyFn(10),
+		ESProcessorBulkSize:      dynamicproperties.GetIntPropertyFn(2 << 20),
+		ESProcessorFlushInterval: dynamicproperties.GetDurationPropertyFn(1 * time.Minute),
+		IndexerConcurrency:       dynamicproperties.GetIntPropertyFn(1),
 	}
 	mockConsumer := messaging.NewMockConsumer(ctrl)
 	mockConsumer.EXPECT().Start().Return(nil).Times(1)
@@ -134,11 +134,11 @@ func TestIndexerStart_ConsumerError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	config := &Config{
-		ESProcessorNumOfWorkers:  dynamicconfig.GetIntPropertyFn(1),
-		ESProcessorBulkActions:   dynamicconfig.GetIntPropertyFn(10),
-		ESProcessorBulkSize:      dynamicconfig.GetIntPropertyFn(2 << 20),
-		ESProcessorFlushInterval: dynamicconfig.GetDurationPropertyFn(1 * time.Minute),
-		IndexerConcurrency:       dynamicconfig.GetIntPropertyFn(1),
+		ESProcessorNumOfWorkers:  dynamicproperties.GetIntPropertyFn(1),
+		ESProcessorBulkActions:   dynamicproperties.GetIntPropertyFn(10),
+		ESProcessorBulkSize:      dynamicproperties.GetIntPropertyFn(2 << 20),
+		ESProcessorFlushInterval: dynamicproperties.GetDurationPropertyFn(1 * time.Minute),
+		IndexerConcurrency:       dynamicproperties.GetIntPropertyFn(1),
 	}
 	mockConsumer := messaging.NewMockConsumer(ctrl)
 	mockConsumer.EXPECT().Start().Return(fmt.Errorf("some error")).Times(1)
@@ -163,11 +163,11 @@ func TestIndexerStop(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	config := &Config{
-		ESProcessorNumOfWorkers:  dynamicconfig.GetIntPropertyFn(1),
-		ESProcessorBulkActions:   dynamicconfig.GetIntPropertyFn(10),
-		ESProcessorBulkSize:      dynamicconfig.GetIntPropertyFn(2 << 20),
-		ESProcessorFlushInterval: dynamicconfig.GetDurationPropertyFn(1 * time.Minute),
-		IndexerConcurrency:       dynamicconfig.GetIntPropertyFn(1),
+		ESProcessorNumOfWorkers:  dynamicproperties.GetIntPropertyFn(1),
+		ESProcessorBulkActions:   dynamicproperties.GetIntPropertyFn(10),
+		ESProcessorBulkSize:      dynamicproperties.GetIntPropertyFn(2 << 20),
+		ESProcessorFlushInterval: dynamicproperties.GetDurationPropertyFn(1 * time.Minute),
+		IndexerConcurrency:       dynamicproperties.GetIntPropertyFn(1),
 	}
 
 	// Mock the messaging consumer
@@ -232,7 +232,7 @@ func TestIsValidFieldToES(t *testing.T) {
 		"not EnableQueryAttributeValidation": {
 			testIndexer: &Indexer{
 				config: &Config{
-					EnableQueryAttributeValidation: dynamicconfig.GetBoolPropertyFn(false),
+					EnableQueryAttributeValidation: dynamicproperties.GetBoolPropertyFn(false),
 				},
 			},
 			field:       "someField",
@@ -241,8 +241,8 @@ func TestIsValidFieldToES(t *testing.T) {
 		"field is valid": {
 			testIndexer: &Indexer{
 				config: &Config{
-					EnableQueryAttributeValidation: dynamicconfig.GetBoolPropertyFn(true),
-					ValidSearchAttributes:          dynamicconfig.GetMapPropertyFn(map[string]interface{}{"someField": "ok"}),
+					EnableQueryAttributeValidation: dynamicproperties.GetBoolPropertyFn(true),
+					ValidSearchAttributes:          dynamicproperties.GetMapPropertyFn(map[string]interface{}{"someField": "ok"}),
 				},
 			},
 			field:       "someField",
@@ -251,8 +251,8 @@ func TestIsValidFieldToES(t *testing.T) {
 		"field is not valid, but meet definition": {
 			testIndexer: &Indexer{
 				config: &Config{
-					EnableQueryAttributeValidation: dynamicconfig.GetBoolPropertyFn(true),
-					ValidSearchAttributes:          dynamicconfig.GetMapPropertyFn(map[string]interface{}{}),
+					EnableQueryAttributeValidation: dynamicproperties.GetBoolPropertyFn(true),
+					ValidSearchAttributes:          dynamicproperties.GetMapPropertyFn(map[string]interface{}{}),
 				},
 			},
 			field:       definition.Memo,
@@ -261,8 +261,8 @@ func TestIsValidFieldToES(t *testing.T) {
 		"false": {
 			testIndexer: &Indexer{
 				config: &Config{
-					EnableQueryAttributeValidation: dynamicconfig.GetBoolPropertyFn(true),
-					ValidSearchAttributes:          dynamicconfig.GetMapPropertyFn(map[string]interface{}{}),
+					EnableQueryAttributeValidation: dynamicproperties.GetBoolPropertyFn(true),
+					ValidSearchAttributes:          dynamicproperties.GetMapPropertyFn(map[string]interface{}{}),
 				},
 			},
 			field:       "stuff",
@@ -305,8 +305,8 @@ func TestFulfillDoc_AllFieldsPresent(t *testing.T) {
 func TestDumpFieldsToMap(t *testing.T) {
 	testIndexer := &Indexer{
 		config: &Config{
-			EnableQueryAttributeValidation: dynamicconfig.GetBoolPropertyFn(true),
-			ValidSearchAttributes:          dynamicconfig.GetMapPropertyFn(map[string]interface{}{}),
+			EnableQueryAttributeValidation: dynamicproperties.GetBoolPropertyFn(true),
+			ValidSearchAttributes:          dynamicproperties.GetMapPropertyFn(map[string]interface{}{}),
 		},
 		logger: log.NewNoop(),
 		scope:  metrics.NoopScope(metrics.Worker),

@@ -32,7 +32,7 @@ import (
 	"go.uber.org/yarpc/api/transport"
 	"go.uber.org/yarpc/transport/grpc"
 
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
@@ -91,7 +91,7 @@ func TestDirectPeerChooserFactory(t *testing.T) {
 	metricCl := metrics.NewNoopMetricsClient()
 	serviceName := "service"
 	pcf := NewDirectPeerChooserFactory(serviceName, logger, metricCl)
-	directConnRetainFn := func(opts ...dynamicconfig.FilterOption) bool { return false }
+	directConnRetainFn := func(opts ...dynamicproperties.FilterOption) bool { return false }
 	grpcTransport := grpc.NewTransport()
 	chooser, err := pcf.CreatePeerChooser(grpcTransport, PeerChooserOptions{
 		ServiceName:                            serviceName,

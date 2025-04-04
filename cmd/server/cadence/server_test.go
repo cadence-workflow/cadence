@@ -36,6 +36,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/log/testlogger"
@@ -128,7 +129,7 @@ func TestSettingGettingZonalIsolationGroupsFromIG(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	client := dynamicconfig.NewMockClient(ctrl)
-	client.EXPECT().GetListValue(dynamicconfig.AllIsolationGroups, gomock.Any()).Return([]interface{}{
+	client.EXPECT().GetListValue(dynamicproperties.AllIsolationGroups, gomock.Any()).Return([]interface{}{
 		"zone-1", "zone-2",
 	}, nil)
 
@@ -146,7 +147,7 @@ func TestSettingGettingZonalIsolationGroupsFromIG(t *testing.T) {
 func TestSettingGettingZonalIsolationGroupsFromIGError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	client := dynamicconfig.NewMockClient(ctrl)
-	client.EXPECT().GetListValue(dynamicconfig.AllIsolationGroups, gomock.Any()).Return(nil, assert.AnError)
+	client.EXPECT().GetListValue(dynamicproperties.AllIsolationGroups, gomock.Any()).Return(nil, assert.AnError)
 	dc := dynamicconfig.NewCollection(client, log.NewNoop())
 
 	assert.NotPanics(t, func() {

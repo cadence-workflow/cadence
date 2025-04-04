@@ -44,6 +44,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -110,12 +111,12 @@ func setupMocksForTaskListManager(t *testing.T, taskListID *Identifier, taskList
 
 func defaultTestConfig() *config.Config {
 	config := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", getIsolationgroupsHelper)
-	config.LongPollExpirationInterval = dynamicconfig.GetDurationPropertyFnFilteredByTaskListInfo(100 * time.Millisecond)
-	config.MaxTaskDeleteBatchSize = dynamicconfig.GetIntPropertyFilteredByTaskListInfo(1)
+	config.LongPollExpirationInterval = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(100 * time.Millisecond)
+	config.MaxTaskDeleteBatchSize = dynamicproperties.GetIntPropertyFilteredByTaskListInfo(1)
 	config.AllIsolationGroups = getIsolationgroupsHelper
-	config.GetTasksBatchSize = dynamicconfig.GetIntPropertyFilteredByTaskListInfo(10)
-	config.AsyncTaskDispatchTimeout = dynamicconfig.GetDurationPropertyFnFilteredByTaskListInfo(10 * time.Millisecond)
-	config.LocalTaskWaitTime = dynamicconfig.GetDurationPropertyFnFilteredByTaskListInfo(time.Millisecond)
+	config.GetTasksBatchSize = dynamicproperties.GetIntPropertyFilteredByTaskListInfo(10)
+	config.AsyncTaskDispatchTimeout = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(10 * time.Millisecond)
+	config.LocalTaskWaitTime = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(time.Millisecond)
 	return config
 }
 
@@ -396,7 +397,7 @@ func TestDescribeTaskList(t *testing.T) {
 func TestCheckIdleTaskList(t *testing.T) {
 	defer goleak.VerifyNone(t)
 	cfg := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", getIsolationgroupsHelper)
-	cfg.IdleTasklistCheckInterval = dynamicconfig.GetDurationPropertyFnFilteredByTaskListInfo(10 * time.Millisecond)
+	cfg.IdleTasklistCheckInterval = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(10 * time.Millisecond)
 
 	t.Run("Idle task-list", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
@@ -467,7 +468,7 @@ func TestAddTaskStandby(t *testing.T) {
 	logger := testlogger.New(t)
 
 	cfg := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", getIsolationgroupsHelper)
-	cfg.IdleTasklistCheckInterval = dynamicconfig.GetDurationPropertyFnFilteredByTaskListInfo(10 * time.Millisecond)
+	cfg.IdleTasklistCheckInterval = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(10 * time.Millisecond)
 
 	tlm := createTestTaskListManagerWithConfig(t, logger, controller, cfg, clock.NewMockedTimeSource())
 	require.NoError(t, tlm.Start())
@@ -809,7 +810,7 @@ func TestTaskListManagerGetTaskBatch(t *testing.T) {
 	taskListID := NewTestTaskListID(t, "domainId", "tl", 0)
 	cfg := defaultTestConfig()
 	cfg.RangeSize = rangeSize
-	cfg.ReadRangeSize = dynamicconfig.GetIntPropertyFn(rangeSize / 2)
+	cfg.ReadRangeSize = dynamicproperties.GetIntPropertyFn(rangeSize / 2)
 	tlMgr, err := NewManager(
 		mockDomainCache,
 		logger,
@@ -938,7 +939,7 @@ func TestTaskListReaderPumpAdvancesAckLevelAfterEmptyReads(t *testing.T) {
 	taskListID := NewTestTaskListID(t, "domainId", "tl", 0)
 	cfg := defaultTestConfig()
 	cfg.RangeSize = rangeSize
-	cfg.ReadRangeSize = dynamicconfig.GetIntPropertyFn(rangeSize / 2)
+	cfg.ReadRangeSize = dynamicproperties.GetIntPropertyFn(rangeSize / 2)
 
 	tlMgr, err := NewManager(
 		mockDomainCache,
@@ -1013,7 +1014,7 @@ func TestTaskListManagerGetTaskBatch_ReadBatchDone(t *testing.T) {
 	const maxReadLevel = int64(120)
 	config := defaultTestConfig()
 	config.RangeSize = rangeSize
-	config.ReadRangeSize = dynamicconfig.GetIntPropertyFn(rangeSize / 2)
+	config.ReadRangeSize = dynamicproperties.GetIntPropertyFn(rangeSize / 2)
 	controller := gomock.NewController(t)
 	logger := testlogger.New(t)
 	tlm := createTestTaskListManagerWithConfig(t, logger, controller, config, clock.NewMockedTimeSource())
@@ -1081,12 +1082,12 @@ func TestTaskExpiryAndCompletion(t *testing.T) {
 			taskListID := NewTestTaskListID(t, "domainId", "tl", 0)
 			cfg := defaultTestConfig()
 			cfg.RangeSize = rangeSize
-			cfg.ReadRangeSize = dynamicconfig.GetIntPropertyFn(rangeSize / 2)
-			cfg.MaxTaskDeleteBatchSize = dynamicconfig.GetIntPropertyFilteredByTaskListInfo(tc.batchSize)
+			cfg.ReadRangeSize = dynamicproperties.GetIntPropertyFn(rangeSize / 2)
+			cfg.MaxTaskDeleteBatchSize = dynamicproperties.GetIntPropertyFilteredByTaskListInfo(tc.batchSize)
 			cfg.MaxTimeBetweenTaskDeletes = tc.maxTimeBtwnDeletes
 			// set idle timer check to a really small value to assert that we don't accidentally drop tasks while blocking
 			// on enqueuing a task to task buffer
-			cfg.IdleTasklistCheckInterval = dynamicconfig.GetDurationPropertyFnFilteredByTaskListInfo(20 * time.Millisecond)
+			cfg.IdleTasklistCheckInterval = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(20 * time.Millisecond)
 			tlMgr, err := NewManager(
 				mockDomainCache,
 				logger,
@@ -1766,7 +1767,7 @@ func TestGetNumPartitions(t *testing.T) {
 	tlID, err := NewIdentifier("domain-id", "tl", persistence.TaskListTypeDecision)
 	require.NoError(t, err)
 	tlm, deps := setupMocksForTaskListManager(t, tlID, types.TaskListKindNormal)
-	require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.MatchingEnableGetNumberOfPartitionsFromCache, true))
+	require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.MatchingEnableGetNumberOfPartitionsFromCache, true))
 	assert.NotPanics(t, func() { tlm.matcher.UpdateRatelimit(common.Ptr(float64(100))) })
 }
 

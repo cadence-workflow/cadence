@@ -53,6 +53,7 @@ import (
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/domain"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/elasticsearch"
 	"github.com/uber/cadence/common/isolationgroup/isolationgroupapi"
 	"github.com/uber/cadence/common/log"
@@ -130,10 +131,10 @@ type (
 		timeSource                    clock.TimeSource
 
 		// dynamicconfig overrides per service
-		frontendDynCfgOverrides map[dynamicconfig.Key]interface{}
-		historyDynCfgOverrides  map[dynamicconfig.Key]interface{}
-		matchingDynCfgOverrides map[dynamicconfig.Key]interface{}
-		workerDynCfgOverrides   map[dynamicconfig.Key]interface{}
+		frontendDynCfgOverrides map[dynamicproperties.Key]interface{}
+		historyDynCfgOverrides  map[dynamicproperties.Key]interface{}
+		matchingDynCfgOverrides map[dynamicproperties.Key]interface{}
+		workerDynCfgOverrides   map[dynamicproperties.Key]interface{}
 	}
 
 	// HistoryConfig contains configs for history service
@@ -293,10 +294,10 @@ type (
 		AsyncWFQueues                 map[string]config.AsyncWorkflowQueueProvider
 		TimeSource                    clock.TimeSource
 
-		FrontendDynCfgOverrides map[dynamicconfig.Key]interface{}
-		HistoryDynCfgOverrides  map[dynamicconfig.Key]interface{}
-		MatchingDynCfgOverrides map[dynamicconfig.Key]interface{}
-		WorkerDynCfgOverrides   map[dynamicconfig.Key]interface{}
+		FrontendDynCfgOverrides map[dynamicproperties.Key]interface{}
+		HistoryDynCfgOverrides  map[dynamicproperties.Key]interface{}
+		MatchingDynCfgOverrides map[dynamicproperties.Key]interface{}
+		WorkerDynCfgOverrides   map[dynamicproperties.Key]interface{}
 	}
 )
 
@@ -659,7 +660,7 @@ func (c *cadenceImpl) startFrontend(hosts map[string][]membership.HostInfo, star
 	if c.pinotConfig != nil {
 		pinotDataStoreName := "pinot-visibility"
 		params.PersistenceConfig.AdvancedVisibilityStore = pinotDataStoreName
-		params.DynamicConfig.UpdateValue(dynamicconfig.ReadVisibilityStoreName, constants.VisibilityModePinot)
+		params.DynamicConfig.UpdateValue(dynamicproperties.ReadVisibilityStoreName, constants.VisibilityModePinot)
 		params.PersistenceConfig.DataStores[pinotDataStoreName] = config.DataStore{
 			Pinot: c.pinotConfig,
 		}
@@ -744,7 +745,7 @@ func (c *cadenceImpl) startHistory(hosts map[string][]membership.HostInfo, start
 				Pinot:         c.pinotConfig,
 				ElasticSearch: c.esConfig,
 			}
-			params.DynamicConfig.UpdateValue(dynamicconfig.WriteVisibilityStoreName, constants.VisibilityModePinot)
+			params.DynamicConfig.UpdateValue(dynamicproperties.WriteVisibilityStoreName, constants.VisibilityModePinot)
 		} else if c.esConfig != nil {
 			esDataStoreName := "es-visibility"
 			params.PersistenceConfig.AdvancedVisibilityStore = esDataStoreName
@@ -969,7 +970,7 @@ func (c *cadenceImpl) startWorkerReplicator(svc Service) {
 
 func (c *cadenceImpl) startWorkerClientWorker(params *resource.Params, svc Service, domainCache cache.DomainCache) {
 	workerConfig := worker.NewConfig(params)
-	workerConfig.ArchiverConfig.ArchiverConcurrency = dynamicconfig.GetIntPropertyFn(10)
+	workerConfig.ArchiverConfig.ArchiverConcurrency = dynamicproperties.GetIntPropertyFn(10)
 	historyArchiverBootstrapContainer := &carchiver.HistoryBootstrapContainer{
 		HistoryV2Manager: c.historyV2Mgr,
 		Logger:           c.logger,
@@ -999,7 +1000,7 @@ func (c *cadenceImpl) startWorkerClientWorker(params *resource.Params, svc Servi
 }
 
 func (c *cadenceImpl) startWorkerIndexer(params *resource.Params, service Service) {
-	params.DynamicConfig.UpdateValue(dynamicconfig.WriteVisibilityStoreName, constants.VisibilityModeES)
+	params.DynamicConfig.UpdateValue(dynamicproperties.WriteVisibilityStoreName, constants.VisibilityModeES)
 	workerConfig := worker.NewConfig(params)
 	c.indexer = indexer.NewIndexer(
 		workerConfig.IndexerCfg,
@@ -1048,16 +1049,16 @@ func (c *cadenceImpl) GetExecutionManagerFactory() persistence.ExecutionManagerF
 }
 
 func (c *cadenceImpl) overrideHistoryDynamicConfig(client *dynamicClient) {
-	client.OverrideValue(dynamicconfig.ReplicationTaskProcessorStartWait, time.Nanosecond)
+	client.OverrideValue(dynamicproperties.ReplicationTaskProcessorStartWait, time.Nanosecond)
 
 	if c.workerConfig.EnableIndexer {
-		client.OverrideValue(dynamicconfig.WriteVisibilityStoreName, constants.VisibilityModeES)
+		client.OverrideValue(dynamicproperties.WriteVisibilityStoreName, constants.VisibilityModeES)
 	}
 	if c.historyConfig.HistoryCountLimitWarn != 0 {
-		client.OverrideValue(dynamicconfig.HistoryCountLimitWarn, c.historyConfig.HistoryCountLimitWarn)
+		client.OverrideValue(dynamicproperties.HistoryCountLimitWarn, c.historyConfig.HistoryCountLimitWarn)
 	}
 	if c.historyConfig.HistoryCountLimitError != 0 {
-		client.OverrideValue(dynamicconfig.HistoryCountLimitError, c.historyConfig.HistoryCountLimitError)
+		client.OverrideValue(dynamicproperties.HistoryCountLimitError, c.historyConfig.HistoryCountLimitError)
 	}
 }
 
@@ -1123,7 +1124,7 @@ func (c *cadenceImpl) newRPCFactory(serviceName string, host membership.HostInfo
 	}
 
 	directOutboundPCF := rpc.NewDirectPeerChooserFactory(serviceName, c.logger, metricsCl)
-	directConnRetainFn := func(opts ...dynamicconfig.FilterOption) bool { return false }
+	directConnRetainFn := func(opts ...dynamicproperties.FilterOption) bool { return false }
 
 	return rpc.NewFactory(c.logger, rpc.Params{
 		ServiceName:     serviceName,
@@ -1165,7 +1166,7 @@ func (vm *versionMiddleware) Handle(ctx context.Context, req *transport.Request,
 
 func getFromDynamicConfig(params *resource.Params) func() []string {
 	return func() []string {
-		list, err := params.DynamicConfig.GetListValue(dynamicconfig.AllIsolationGroups, nil)
+		list, err := params.DynamicConfig.GetListValue(dynamicproperties.AllIsolationGroups, nil)
 		if err != nil {
 			params.Logger.Error("failed to get isolation groups from config", tag.Error(err))
 			return nil

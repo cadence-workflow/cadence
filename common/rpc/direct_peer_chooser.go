@@ -33,7 +33,7 @@ import (
 	"go.uber.org/yarpc/yarpcerrors"
 
 	"github.com/uber/cadence/common"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/membership"
@@ -52,7 +52,7 @@ type directPeerChooser struct {
 	logger               log.Logger
 	scope                metrics.Scope
 	t                    peer.Transport
-	enableConnRetainMode dynamicconfig.BoolPropertyFn
+	enableConnRetainMode dynamicproperties.BoolPropertyFn
 	legacyChooser        peer.Chooser
 	legacyChooserErr     error
 	mu                   sync.RWMutex
@@ -64,7 +64,7 @@ func newDirectChooser(
 	t peer.Transport,
 	logger log.Logger,
 	metricsCl metrics.Client,
-	enableConnRetainMode dynamicconfig.BoolPropertyFn,
+	enableConnRetainMode dynamicproperties.BoolPropertyFn,
 ) *directPeerChooser {
 	dpc := &directPeerChooser{
 		serviceName:          serviceName,
@@ -76,7 +76,7 @@ func newDirectChooser(
 	}
 
 	if dpc.enableConnRetainMode == nil {
-		dpc.enableConnRetainMode = func(opts ...dynamicconfig.FilterOption) bool { return false }
+		dpc.enableConnRetainMode = func(opts ...dynamicproperties.FilterOption) bool { return false }
 	}
 
 	return dpc

@@ -35,7 +35,7 @@ import (
 
 	"github.com/uber/cadence/common/authorization"
 	"github.com/uber/cadence/common/config"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/service"
 )
@@ -214,10 +214,10 @@ type directOutbound struct {
 	grpcEnabled          bool
 	tlsConfig            *tls.Config
 	pcf                  PeerChooserFactory
-	enableConnRetainMode dynamicconfig.BoolPropertyFn
+	enableConnRetainMode dynamicproperties.BoolPropertyFn
 }
 
-func NewDirectOutboundBuilder(serviceName string, grpcEnabled bool, tlsConfig *tls.Config, pcf PeerChooserFactory, enableConnRetainMode dynamicconfig.BoolPropertyFn) OutboundsBuilder {
+func NewDirectOutboundBuilder(serviceName string, grpcEnabled bool, tlsConfig *tls.Config, pcf PeerChooserFactory, enableConnRetainMode dynamicproperties.BoolPropertyFn) OutboundsBuilder {
 	return directOutbound{serviceName, grpcEnabled, tlsConfig, pcf, enableConnRetainMode}
 }
 

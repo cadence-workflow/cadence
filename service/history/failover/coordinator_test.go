@@ -37,7 +37,7 @@ import (
 
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/common"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/metrics"
 	mmocks "github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
@@ -73,8 +73,8 @@ func (s *coordinatorSuite) SetupTest() {
 	s.historyClient = s.mockResource.HistoryClient
 	s.config = config.NewForTest()
 	s.config.NumberOfShards = 2
-	s.config.NotifyFailoverMarkerInterval = dynamicconfig.GetDurationPropertyFn(10 * time.Millisecond)
-	s.config.NotifyFailoverMarkerTimerJitterCoefficient = dynamicconfig.GetFloatPropertyFn(0.01)
+	s.config.NotifyFailoverMarkerInterval = dynamicproperties.GetDurationPropertyFn(10 * time.Millisecond)
+	s.config.NotifyFailoverMarkerTimerJitterCoefficient = dynamicproperties.GetFloatPropertyFn(0.01)
 	s.mockResource.DomainCache.EXPECT().GetDomainName(gomock.Any()).Return("test", nil).AnyTimes()
 
 	s.coordinator = NewCoordinator(

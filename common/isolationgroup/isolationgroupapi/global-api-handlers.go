@@ -27,7 +27,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -40,7 +40,7 @@ func (z *handlerImpl) UpdateGlobalState(ctx context.Context, in types.UpdateGlob
 		return err
 	}
 	return z.globalIsolationGroupDrains.UpdateValue(
-		dynamicconfig.DefaultIsolationGroupConfigStoreManagerGlobalMapping,
+		dynamicproperties.DefaultIsolationGroupConfigStoreManagerGlobalMapping,
 		mappedInput,
 	)
 }
@@ -49,7 +49,7 @@ func (z *handlerImpl) GetGlobalState(ctx context.Context) (*types.GetGlobalIsola
 	if z.globalIsolationGroupDrains == nil {
 		return nil, &types.BadRequestError{"global isolation group drain is not supported in this cluster"}
 	}
-	res, err := z.globalIsolationGroupDrains.GetListValue(dynamicconfig.DefaultIsolationGroupConfigStoreManagerGlobalMapping, nil)
+	res, err := z.globalIsolationGroupDrains.GetListValue(dynamicproperties.DefaultIsolationGroupConfigStoreManagerGlobalMapping, nil)
 	if err != nil {
 		var e types.EntityNotExistsError
 		if errors.As(err, &e) {

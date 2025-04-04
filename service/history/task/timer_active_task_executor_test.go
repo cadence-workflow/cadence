@@ -38,7 +38,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	commonconstants "github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
@@ -278,7 +278,7 @@ func (s *timerActiveTaskExecutorSuite) TestProcessUserTimerTimeout_Resurrected()
 		return len(req.UpdateWorkflowMutation.DeleteTimerInfos) == 2
 	})).Return(&persistence.UpdateWorkflowExecutionResponse{MutableStateUpdateSessionStats: &persistence.MutableStateUpdateSessionStats{}}, nil).Once()
 
-	s.timerActiveTaskExecutor.config.ResurrectionCheckMinDelay = dynamicconfig.GetDurationPropertyFnFilteredByDomain(timerTimeout2 - timerTimeout1)
+	s.timerActiveTaskExecutor.config.ResurrectionCheckMinDelay = dynamicproperties.GetDurationPropertyFnFilteredByDomain(timerTimeout2 - timerTimeout1)
 	s.timeSource.Advance(timerTimeout2)
 	err = s.timerActiveTaskExecutor.Execute(timerTask, true)
 	s.NoError(err)
@@ -670,7 +670,7 @@ func (s *timerActiveTaskExecutorSuite) TestProcessActivityTimeout_Resurrected() 
 		return len(req.UpdateWorkflowMutation.DeleteActivityInfos) == 2
 	})).Return(&persistence.UpdateWorkflowExecutionResponse{MutableStateUpdateSessionStats: &persistence.MutableStateUpdateSessionStats{}}, nil).Once()
 
-	s.timerActiveTaskExecutor.config.ResurrectionCheckMinDelay = dynamicconfig.GetDurationPropertyFnFilteredByDomain(timerTimeout2 - timerTimeout1)
+	s.timerActiveTaskExecutor.config.ResurrectionCheckMinDelay = dynamicproperties.GetDurationPropertyFnFilteredByDomain(timerTimeout2 - timerTimeout1)
 	s.timeSource.Advance(timerTimeout2)
 	err = s.timerActiveTaskExecutor.Execute(timerTask, true)
 	s.NoError(err)
@@ -714,7 +714,7 @@ func (s *timerActiveTaskExecutorSuite) TestDecisionScheduleToStartTimeout_Normal
 }
 
 func (s *timerActiveTaskExecutorSuite) TestDecisionScheduleToStartTimeout_TransientDecision() {
-	s.mockShard.GetConfig().NormalDecisionScheduleToStartMaxAttempts = dynamicconfig.GetIntPropertyFilteredByDomain(1)
+	s.mockShard.GetConfig().NormalDecisionScheduleToStartMaxAttempts = dynamicproperties.GetIntPropertyFilteredByDomain(1)
 
 	workflowExecution, mutableState, err := test.StartWorkflow(s.T(), s.mockShard, s.domainID)
 	s.NoError(err)

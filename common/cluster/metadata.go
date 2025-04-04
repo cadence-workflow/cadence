@@ -25,7 +25,7 @@ import (
 
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/constants"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -53,7 +53,7 @@ type (
 		// versionToClusterName contains all initial version -> corresponding cluster name
 		versionToClusterName map[int64]string
 		// allows for a new failover version migration
-		useNewFailoverVersionOverride dynamicconfig.BoolPropertyFnWithDomainFilter
+		useNewFailoverVersionOverride dynamicproperties.BoolPropertyFnWithDomainFilter
 	}
 )
 
@@ -63,7 +63,7 @@ func NewMetadata(
 	primaryClusterName string,
 	currentClusterName string,
 	clusterGroup map[string]config.ClusterInformation,
-	useMinFailoverVersionOverrideConfig dynamicconfig.BoolPropertyFnWithDomainFilter,
+	useMinFailoverVersionOverrideConfig dynamicproperties.BoolPropertyFnWithDomainFilter,
 	metricsClient metrics.Client,
 	logger log.Logger,
 ) Metadata {

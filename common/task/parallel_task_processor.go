@@ -30,7 +30,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -40,7 +40,7 @@ type (
 	// ParallelTaskProcessorOptions configs PriorityTaskProcessor
 	ParallelTaskProcessorOptions struct {
 		QueueSize   int
-		WorkerCount dynamicconfig.IntPropertyFn
+		WorkerCount dynamicproperties.IntPropertyFn
 		RetryPolicy backoff.RetryPolicy
 	}
 

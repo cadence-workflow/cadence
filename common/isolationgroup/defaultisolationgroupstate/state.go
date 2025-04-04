@@ -30,6 +30,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/isolationgroup/isolationgroupapi"
 	"github.com/uber/cadence/common/log"
@@ -59,7 +60,7 @@ func NewDefaultIsolationGroupStateWatcherWithConfigStoreClient(
 	stopChan := make(chan struct{})
 
 	config := defaultConfig{
-		IsolationGroupEnabled: dc.GetBoolPropertyFilteredByDomain(dynamicconfig.EnableTasklistIsolation),
+		IsolationGroupEnabled: dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableTasklistIsolation),
 		AllIsolationGroups:    getIsolationGroups,
 	}
 
@@ -129,7 +130,7 @@ func (z *defaultIsolationGroupStateHandler) get(ctx context.Context, domain stri
 	}
 
 	if z.globalIsolationGroupDrains != nil {
-		globalCfg, err := z.globalIsolationGroupDrains.GetListValue(dynamicconfig.DefaultIsolationGroupConfigStoreManagerGlobalMapping, nil)
+		globalCfg, err := z.globalIsolationGroupDrains.GetListValue(dynamicproperties.DefaultIsolationGroupConfigStoreManagerGlobalMapping, nil)
 		if err != nil {
 			return nil, fmt.Errorf("could not resolve global drains in %w", err)
 		}

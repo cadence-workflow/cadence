@@ -29,7 +29,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/config"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
@@ -396,7 +396,7 @@ func TestDeleteVisibility(t *testing.T) {
 				query.EXPECT().Exec().Return(nil)
 			},
 			context: context.WithValue(context.Background(), persistence.VisibilityAdminDeletionKey("visibilityAdminDelete"), true),
-			dc: &persistence.DynamicConfiguration{EnableCassandraAllConsistencyLevelDelete: func(opts ...dynamicconfig.FilterOption) bool {
+			dc: &persistence.DynamicConfiguration{EnableCassandraAllConsistencyLevelDelete: func(opts ...dynamicproperties.FilterOption) bool {
 				return true
 			}},
 			clientMockFunc: nil,
@@ -425,7 +425,7 @@ func TestDeleteVisibility(t *testing.T) {
 				itr.EXPECT().Close().Return(nil)
 			},
 			dc: &persistence.DynamicConfiguration{
-				EnableCassandraAllConsistencyLevelDelete: func(opts ...dynamicconfig.FilterOption) bool { return true },
+				EnableCassandraAllConsistencyLevelDelete: func(opts ...dynamicproperties.FilterOption) bool { return true },
 			},
 			clientMockFunc: func(client *gocql.MockClient) {
 				client.EXPECT().IsCassandraConsistencyError(gomock.Any()).Return(true)
@@ -453,7 +453,7 @@ func TestDeleteVisibility(t *testing.T) {
 				itr.EXPECT().Close().Return(nil)
 			},
 			dc: &persistence.DynamicConfiguration{
-				EnableCassandraAllConsistencyLevelDelete: func(opts ...dynamicconfig.FilterOption) bool { return true },
+				EnableCassandraAllConsistencyLevelDelete: func(opts ...dynamicproperties.FilterOption) bool { return true },
 			},
 			clientMockFunc: func(client *gocql.MockClient) {
 				client.EXPECT().IsCassandraConsistencyError(gomock.Any()).Return(false)

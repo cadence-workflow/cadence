@@ -36,7 +36,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
 	pt "github.com/uber/cadence/common/persistence/persistence-tests"
@@ -52,8 +52,8 @@ func TestWorkflowIDInternalRateLimitIntegrationSuite(t *testing.T) {
 	require.NoError(t, err)
 
 	clusterConfig.TimeSource = clock.NewMockedTimeSource()
-	clusterConfig.HistoryDynamicConfigOverrides = map[dynamicconfig.Key]interface{}{
-		dynamicconfig.WorkflowIDInternalRPS: 2,
+	clusterConfig.HistoryDynamicConfigOverrides = map[dynamicproperties.Key]interface{}{
+		dynamicproperties.WorkflowIDInternalRPS: 2,
 	}
 
 	testCluster := NewPersistenceTestCluster(t, clusterConfig)
@@ -74,11 +74,11 @@ func (s *WorkflowIDInternalRateLimitIntegrationSuite) SetupSuite() {
 	s.Logger.Info("Running integration test against test cluster")
 	clusterMetadata := NewClusterMetadata(s.T(), s.TestClusterConfig)
 	dc := persistence.DynamicConfiguration{
-		EnableCassandraAllConsistencyLevelDelete: dynamicconfig.GetBoolPropertyFn(true),
-		PersistenceSampleLoggingRate:             dynamicconfig.GetIntPropertyFn(100),
-		EnableShardIDMetrics:                     dynamicconfig.GetBoolPropertyFn(true),
-		EnableHistoryTaskDualWriteMode:           dynamicconfig.GetBoolPropertyFn(true),
-		ReadNoSQLHistoryTaskFromDataBlob:         dynamicconfig.GetBoolPropertyFn(false),
+		EnableCassandraAllConsistencyLevelDelete: dynamicproperties.GetBoolPropertyFn(true),
+		PersistenceSampleLoggingRate:             dynamicproperties.GetIntPropertyFn(100),
+		EnableShardIDMetrics:                     dynamicproperties.GetBoolPropertyFn(true),
+		EnableHistoryTaskDualWriteMode:           dynamicproperties.GetBoolPropertyFn(true),
+		ReadNoSQLHistoryTaskFromDataBlob:         dynamicproperties.GetBoolPropertyFn(false),
 	}
 	params := pt.TestBaseParams{
 		DefaultTestCluster:    s.DefaultTestCluster,

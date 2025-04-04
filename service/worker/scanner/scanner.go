@@ -36,7 +36,7 @@ import (
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/constants"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/service/worker/scanner/shardscanner"
@@ -56,9 +56,9 @@ type (
 	Config struct {
 		// ScannerPersistenceMaxQPS the max rate of calls to persistence
 		// Right now is being used by historyScanner to determine the rate of persistence API calls
-		ScannerPersistenceMaxQPS dynamicconfig.IntPropertyFn
+		ScannerPersistenceMaxQPS dynamicproperties.IntPropertyFn
 		// TaskListScannerEnabled indicates if taskList scanner should be started as part of scanner
-		TaskListScannerEnabled dynamicconfig.BoolPropertyFn
+		TaskListScannerEnabled dynamicproperties.BoolPropertyFn
 		// TaskListScannerOptions contains options for TaskListScanner
 		TaskListScannerOptions tasklist.Options
 		// Persistence contains the persistence configuration
@@ -66,10 +66,10 @@ type (
 		// ClusterMetadata contains the metadata for this cluster
 		ClusterMetadata cluster.Metadata
 		// HistoryScannerEnabled indicates if history scanner should be started as part of scanner
-		HistoryScannerEnabled dynamicconfig.BoolPropertyFn
+		HistoryScannerEnabled dynamicproperties.BoolPropertyFn
 		// ShardScanners is a list of shard scanner configs
 		ShardScanners              []*shardscanner.ScannerConfig
-		MaxWorkflowRetentionInDays dynamicconfig.IntPropertyFn
+		MaxWorkflowRetentionInDays dynamicproperties.IntPropertyFn
 	}
 
 	// BootstrapParams contains the set of params needed to bootstrap

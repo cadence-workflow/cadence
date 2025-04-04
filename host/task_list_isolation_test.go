@@ -35,7 +35,7 @@ import (
 	"go.uber.org/yarpc"
 
 	"github.com/uber/cadence/common"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -54,24 +54,24 @@ func TestTaskListIsolationSuite(t *testing.T) {
 		panic(err)
 	}
 	testCluster := NewPersistenceTestCluster(t, clusterConfig)
-	clusterConfig.FrontendDynamicConfigOverrides = map[dynamicconfig.Key]interface{}{
-		dynamicconfig.EnableTasklistIsolation:            true,
-		dynamicconfig.AllIsolationGroups:                 isolationGroups,
-		dynamicconfig.MatchingNumTasklistWritePartitions: 1,
-		dynamicconfig.MatchingNumTasklistReadPartitions:  1,
+	clusterConfig.FrontendDynamicConfigOverrides = map[dynamicproperties.Key]interface{}{
+		dynamicproperties.EnableTasklistIsolation:            true,
+		dynamicproperties.AllIsolationGroups:                 isolationGroups,
+		dynamicproperties.MatchingNumTasklistWritePartitions: 1,
+		dynamicproperties.MatchingNumTasklistReadPartitions:  1,
 	}
-	clusterConfig.HistoryDynamicConfigOverrides = map[dynamicconfig.Key]interface{}{
-		dynamicconfig.EnableTasklistIsolation:            true,
-		dynamicconfig.AllIsolationGroups:                 isolationGroups,
-		dynamicconfig.MatchingNumTasklistWritePartitions: 1,
-		dynamicconfig.MatchingNumTasklistReadPartitions:  1,
+	clusterConfig.HistoryDynamicConfigOverrides = map[dynamicproperties.Key]interface{}{
+		dynamicproperties.EnableTasklistIsolation:            true,
+		dynamicproperties.AllIsolationGroups:                 isolationGroups,
+		dynamicproperties.MatchingNumTasklistWritePartitions: 1,
+		dynamicproperties.MatchingNumTasklistReadPartitions:  1,
 	}
-	clusterConfig.MatchingDynamicConfigOverrides = map[dynamicconfig.Key]interface{}{
-		dynamicconfig.EnableTasklistIsolation:            true,
-		dynamicconfig.AllIsolationGroups:                 isolationGroups,
-		dynamicconfig.TaskIsolationDuration:              time.Second * 5,
-		dynamicconfig.MatchingNumTasklistWritePartitions: 1,
-		dynamicconfig.MatchingNumTasklistReadPartitions:  1,
+	clusterConfig.MatchingDynamicConfigOverrides = map[dynamicproperties.Key]interface{}{
+		dynamicproperties.EnableTasklistIsolation:            true,
+		dynamicproperties.AllIsolationGroups:                 isolationGroups,
+		dynamicproperties.TaskIsolationDuration:              time.Second * 5,
+		dynamicproperties.MatchingNumTasklistWritePartitions: 1,
+		dynamicproperties.MatchingNumTasklistReadPartitions:  1,
 	}
 
 	s := new(TaskListIsolationIntegrationSuite)

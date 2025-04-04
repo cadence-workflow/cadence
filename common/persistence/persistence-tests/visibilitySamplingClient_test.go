@@ -30,7 +30,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	mmocks "github.com/uber/cadence/common/metrics/mocks"
@@ -69,9 +69,9 @@ func (s *VisibilitySamplingSuite) SetupTest() {
 
 	s.persistence = &mocks.VisibilityManager{}
 	config := &sampled.Config{
-		VisibilityOpenMaxQPS:   dynamicconfig.GetIntPropertyFilteredByDomain(1),
-		VisibilityClosedMaxQPS: dynamicconfig.GetIntPropertyFilteredByDomain(10),
-		VisibilityListMaxQPS:   dynamicconfig.GetIntPropertyFilteredByDomain(1),
+		VisibilityOpenMaxQPS:   dynamicproperties.GetIntPropertyFilteredByDomain(1),
+		VisibilityClosedMaxQPS: dynamicproperties.GetIntPropertyFilteredByDomain(10),
+		VisibilityListMaxQPS:   dynamicproperties.GetIntPropertyFilteredByDomain(1),
 	}
 	s.metricClient = &mmocks.Client{}
 	s.client = sampled.NewVisibilityManager(s.persistence, sampled.Params{

@@ -40,6 +40,7 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/constants"
 	dc "github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql/public"
@@ -106,10 +107,10 @@ func (s *domainHandlerGlobalDomainEnabledNotPrimaryClusterSuite) SetupTest() {
 	)
 	s.mockArchiverProvider = &provider.MockArchiverProvider{}
 	domainConfig := Config{
-		MinRetentionDays:       dc.GetIntPropertyFn(s.minRetentionDays),
-		MaxBadBinaryCount:      dc.GetIntPropertyFilteredByDomain(s.maxBadBinaryCount),
-		FailoverCoolDown:       dc.GetDurationPropertyFnFilteredByDomain(0 * time.Second),
-		FailoverHistoryMaxSize: dc.GetIntPropertyFilteredByDomain(s.failoverHistoryMaxSize),
+		MinRetentionDays:       dynamicproperties.GetIntPropertyFn(s.minRetentionDays),
+		MaxBadBinaryCount:      dynamicproperties.GetIntPropertyFilteredByDomain(s.maxBadBinaryCount),
+		FailoverCoolDown:       dynamicproperties.GetDurationPropertyFnFilteredByDomain(0 * time.Second),
+		FailoverHistoryMaxSize: dynamicproperties.GetIntPropertyFilteredByDomain(s.failoverHistoryMaxSize),
 	}
 	s.handler = NewHandler(
 		domainConfig,

@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -59,13 +59,13 @@ type (
 		maxReadLevels      map[int]task.Key
 		minReadTaskID      int64
 		lastValidateTime   time.Time
-		validationInterval dynamicconfig.DurationPropertyFn
+		validationInterval dynamicproperties.DurationPropertyFn
 	}
 )
 
 func newTransferQueueValidator(
 	processor *transferQueueProcessorBase,
-	validationInterval dynamicconfig.DurationPropertyFn,
+	validationInterval dynamicproperties.DurationPropertyFn,
 	logger log.Logger,
 	metricsScope metrics.Scope,
 ) *transferQueueValidator {

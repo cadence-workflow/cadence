@@ -40,6 +40,7 @@ import (
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/metrics"
@@ -83,7 +84,7 @@ func TestStartStop(t *testing.T) {
 		"secondary-cluster": {InitialFailoverVersion: 1, Enabled: true, RPCTransport: "tchannel", RPCAddress: "localhost:0"},
 	}, nil, metricsCl, logger)
 	directOutboundPCF := rpc.NewDirectPeerChooserFactory(serviceName, logger, metricsCl)
-	directConnRetainFn := func(opts ...dynamicconfig.FilterOption) bool { return false }
+	directConnRetainFn := func(opts ...dynamicproperties.FilterOption) bool { return false }
 	pcf := rpc.NewMockPeerChooserFactory(ctrl)
 	peerChooser := rpc.NewMockPeerChooser(ctrl)
 	peerChooser.EXPECT().Start().Return(nil).AnyTimes()
@@ -171,13 +172,13 @@ func TestStartStop(t *testing.T) {
 
 	// bare minimum service config
 	svcCfg := &service.Config{
-		ThrottledLoggerMaxRPS: func(opts ...dynamicconfig.FilterOption) int {
+		ThrottledLoggerMaxRPS: func(opts ...dynamicproperties.FilterOption) int {
 			return 100
 		},
-		PersistenceGlobalMaxQPS: func(opts ...dynamicconfig.FilterOption) int {
+		PersistenceGlobalMaxQPS: func(opts ...dynamicproperties.FilterOption) int {
 			return 100
 		},
-		PersistenceMaxQPS: func(opts ...dynamicconfig.FilterOption) int {
+		PersistenceMaxQPS: func(opts ...dynamicproperties.FilterOption) int {
 			return 100
 		},
 	}

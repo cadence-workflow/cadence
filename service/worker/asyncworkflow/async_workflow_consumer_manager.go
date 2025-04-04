@@ -33,7 +33,7 @@ import (
 	"github.com/uber/cadence/common/asyncworkflow/queue/provider"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -59,7 +59,7 @@ func WithRefreshInterval(interval time.Duration) ConsumerManagerOptions {
 	}
 }
 
-func WithEnabledPropertyFn(enabledFn dynamicconfig.BoolPropertyFn) ConsumerManagerOptions {
+func WithEnabledPropertyFn(enabledFn dynamicproperties.BoolPropertyFn) ConsumerManagerOptions {
 	return func(c *ConsumerManager) {
 		c.enabledFn = enabledFn
 	}
@@ -81,7 +81,7 @@ func NewConsumerManager(
 ) *ConsumerManager {
 	ctx, cancel := context.WithCancel(context.Background())
 	cm := &ConsumerManager{
-		enabledFn:       dynamicconfig.GetBoolPropertyFn(true),
+		enabledFn:       dynamicproperties.GetBoolPropertyFn(true),
 		logger:          logger.WithTags(tag.ComponentAsyncWFConsumptionManager),
 		metricsClient:   metricsClient,
 		domainCache:     domainCache,
@@ -105,7 +105,7 @@ func NewConsumerManager(
 
 type ConsumerManager struct {
 	// all member variables are accessed without any mutex with the assumption that they are only accessed by the background loop
-	enabledFn                 dynamicconfig.BoolPropertyFn
+	enabledFn                 dynamicproperties.BoolPropertyFn
 	logger                    log.Logger
 	metricsClient             metrics.Client
 	timeSrc                   clock.TimeSource

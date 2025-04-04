@@ -23,7 +23,7 @@
 package quotas
 
 import (
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/quotas"
 )
 
@@ -31,8 +31,8 @@ import (
 // the created Limiter will use the primary dynamic config if it is set
 // otherwise it will use the secondary dynamic config
 func NewFallbackDynamicRateLimiterFactory(
-	primary dynamicconfig.IntPropertyFnWithDomainFilter,
-	secondary dynamicconfig.IntPropertyFn,
+	primary dynamicproperties.IntPropertyFnWithDomainFilter,
+	secondary dynamicproperties.IntPropertyFn,
 ) quotas.LimiterFactory {
 	return fallbackDynamicRateLimiterFactory{
 		primary:   primary,
@@ -41,9 +41,9 @@ func NewFallbackDynamicRateLimiterFactory(
 }
 
 type fallbackDynamicRateLimiterFactory struct {
-	primary dynamicconfig.IntPropertyFnWithDomainFilter
+	primary dynamicproperties.IntPropertyFnWithDomainFilter
 	// secondary is used when primary is not set
-	secondary dynamicconfig.IntPropertyFn
+	secondary dynamicproperties.IntPropertyFn
 }
 
 // GetLimiter returns a new Limiter for the given domain

@@ -33,6 +33,7 @@ import (
 
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/messaging"
 	"github.com/uber/cadence/common/messaging/kafka"
@@ -183,10 +184,10 @@ func TestFactoryMethods(t *testing.T) {
 				return "es" // any value is fine as there are no read calls
 			},
 			// non-nil avoids a warning log
-			EnableReadDBVisibilityFromClosedExecutionV2: func(opts ...dynamicconfig.FilterOption) bool {
+			EnableReadDBVisibilityFromClosedExecutionV2: func(opts ...dynamicproperties.FilterOption) bool {
 				return readFromClosed // any value is fine as there are no read calls
 			},
-			ValidSearchAttributes: func(opts ...dynamicconfig.FilterOption) map[string]interface{} {
+			ValidSearchAttributes: func(opts ...dynamicproperties.FilterOption) map[string]interface{} {
 				return testAttributes
 			},
 		})
@@ -234,10 +235,10 @@ func TestFactoryMethods(t *testing.T) {
 				return "es" // any value is fine as there are no read calls
 			},
 			// non-nil avoids a warning log
-			EnableReadDBVisibilityFromClosedExecutionV2: func(opts ...dynamicconfig.FilterOption) bool {
+			EnableReadDBVisibilityFromClosedExecutionV2: func(opts ...dynamicproperties.FilterOption) bool {
 				return readFromClosed // any value is fine as there are no read calls
 			},
-			ValidSearchAttributes: func(opts ...dynamicconfig.FilterOption) map[string]interface{} {
+			ValidSearchAttributes: func(opts ...dynamicproperties.FilterOption) map[string]interface{} {
 				return testAttributes
 			},
 		})
@@ -276,7 +277,7 @@ func makeFactoryWithMetrics(t *testing.T, withMetrics bool) Factory {
 			},
 		},
 		TransactionSizeLimit: nil,
-		ErrorInjectionRate: func(opts ...dynamicconfig.FilterOption) float64 {
+		ErrorInjectionRate: func(opts ...dynamicproperties.FilterOption) float64 {
 			return 0.5 // half errors, unused in these tests beyond "nonzero" so it wraps with the error injector
 		},
 	}
@@ -441,10 +442,10 @@ func TestVisibilityManagers(t *testing.T) {
 				return "es" // any value is fine as there are no read calls
 			},
 			// non-nil avoids a warning log
-			EnableReadDBVisibilityFromClosedExecutionV2: func(opts ...dynamicconfig.FilterOption) bool {
+			EnableReadDBVisibilityFromClosedExecutionV2: func(opts ...dynamicproperties.FilterOption) bool {
 				return true // any value is fine as there are no read calls
 			},
-			ValidSearchAttributes: func(opts ...dynamicconfig.FilterOption) map[string]interface{} {
+			ValidSearchAttributes: func(opts ...dynamicproperties.FilterOption) map[string]interface{} {
 				return map[string]interface{}{
 					"CustomAttribute": "test",
 				}

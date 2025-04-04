@@ -32,7 +32,7 @@ import (
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -54,8 +54,8 @@ type (
 	failoverWatcherImpl struct {
 		status          int32
 		shutdownChan    chan struct{}
-		refreshInterval dynamicconfig.DurationPropertyFn
-		refreshJitter   dynamicconfig.FloatPropertyFn
+		refreshInterval dynamicproperties.DurationPropertyFn
+		refreshJitter   dynamicproperties.FloatPropertyFn
 		retryPolicy     backoff.RetryPolicy
 
 		domainManager persistence.DomainManager
@@ -73,8 +73,8 @@ func NewFailoverWatcher(
 	domainCache cache.DomainCache,
 	domainManager persistence.DomainManager,
 	timeSource clock.TimeSource,
-	refreshInterval dynamicconfig.DurationPropertyFn,
-	refreshJitter dynamicconfig.FloatPropertyFn,
+	refreshInterval dynamicproperties.DurationPropertyFn,
+	refreshJitter dynamicproperties.FloatPropertyFn,
 	metricsClient metrics.Client,
 	logger log.Logger,
 ) FailoverWatcher {

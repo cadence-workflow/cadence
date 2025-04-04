@@ -33,15 +33,15 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/definition"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/types"
 )
 
 // VisibilityQueryValidator for sql query validation
 type VisibilityQueryValidator struct {
-	validSearchAttributes      dynamicconfig.MapPropertyFn
-	pinotOptimizedQueryColumns dynamicconfig.MapPropertyFn
+	validSearchAttributes      dynamicproperties.MapPropertyFn
+	pinotOptimizedQueryColumns dynamicproperties.MapPropertyFn
 }
 
 var timeSystemKeys = map[string]bool{
@@ -52,7 +52,7 @@ var timeSystemKeys = map[string]bool{
 }
 
 // NewPinotQueryValidator create VisibilityQueryValidator
-func NewPinotQueryValidator(validSearchAttributes dynamicconfig.MapPropertyFn, pinotOptimizedQueryColumns dynamicconfig.MapPropertyFn) *VisibilityQueryValidator {
+func NewPinotQueryValidator(validSearchAttributes dynamicproperties.MapPropertyFn, pinotOptimizedQueryColumns dynamicproperties.MapPropertyFn) *VisibilityQueryValidator {
 	return &VisibilityQueryValidator{
 		validSearchAttributes:      validSearchAttributes,
 		pinotOptimizedQueryColumns: pinotOptimizedQueryColumns,

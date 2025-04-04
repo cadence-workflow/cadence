@@ -40,7 +40,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/uber/cadence/common/config"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/metrics"
 	commonResource "github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/service/history/resource"
@@ -112,10 +112,10 @@ func (s *scannerTestSuite) TestStart() {
 					{
 						ScannerWFTypeName: "testScannerWF1",
 						DynamicParams: shardscanner.DynamicParams{
-							ScannerEnabled: func(opts ...dynamicconfig.FilterOption) bool {
+							ScannerEnabled: func(opts ...dynamicproperties.FilterOption) bool {
 								return true
 							},
-							FixerEnabled: func(opts ...dynamicconfig.FilterOption) bool {
+							FixerEnabled: func(opts ...dynamicproperties.FilterOption) bool {
 								return true
 							},
 						},
@@ -146,7 +146,7 @@ func (s *scannerTestSuite) TestStart() {
 						},
 					},
 				},
-				HistoryScannerEnabled: func(opts ...dynamicconfig.FilterOption) bool {
+				HistoryScannerEnabled: func(opts ...dynamicproperties.FilterOption) bool {
 					return false
 				},
 			},
@@ -169,10 +169,10 @@ func (s *scannerTestSuite) TestStart() {
 						},
 					},
 				},
-				TaskListScannerEnabled: func(opts ...dynamicconfig.FilterOption) bool {
+				TaskListScannerEnabled: func(opts ...dynamicproperties.FilterOption) bool {
 					return true
 				},
-				HistoryScannerEnabled: func(opts ...dynamicconfig.FilterOption) bool {
+				HistoryScannerEnabled: func(opts ...dynamicproperties.FilterOption) bool {
 					return false
 				},
 			},
@@ -191,10 +191,10 @@ func (s *scannerTestSuite) TestStart() {
 						},
 					},
 				},
-				TaskListScannerEnabled: func(opts ...dynamicconfig.FilterOption) bool {
+				TaskListScannerEnabled: func(opts ...dynamicproperties.FilterOption) bool {
 					return false
 				},
-				HistoryScannerEnabled: func(opts ...dynamicconfig.FilterOption) bool {
+				HistoryScannerEnabled: func(opts ...dynamicproperties.FilterOption) bool {
 					return true
 				},
 			},
@@ -213,10 +213,10 @@ func (s *scannerTestSuite) TestStart() {
 						},
 					},
 				},
-				TaskListScannerEnabled: func(opts ...dynamicconfig.FilterOption) bool {
+				TaskListScannerEnabled: func(opts ...dynamicproperties.FilterOption) bool {
 					return false
 				},
-				HistoryScannerEnabled: func(opts ...dynamicconfig.FilterOption) bool {
+				HistoryScannerEnabled: func(opts ...dynamicproperties.FilterOption) bool {
 					return true
 				},
 			},

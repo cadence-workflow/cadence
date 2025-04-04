@@ -23,20 +23,20 @@
 package quotas
 
 import (
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/quotas"
 )
 
 // NewSimpleDynamicRateLimiterFactory creates a new LimiterFactory which creates
 // a new DynamicRateLimiter for each domain, the RPS for the DynamicRateLimiter is given by the dynamic config
-func NewSimpleDynamicRateLimiterFactory(rps dynamicconfig.IntPropertyFnWithDomainFilter) quotas.LimiterFactory {
+func NewSimpleDynamicRateLimiterFactory(rps dynamicproperties.IntPropertyFnWithDomainFilter) quotas.LimiterFactory {
 	return dynamicRateLimiterFactory{
 		rps: rps,
 	}
 }
 
 type dynamicRateLimiterFactory struct {
-	rps dynamicconfig.IntPropertyFnWithDomainFilter
+	rps dynamicproperties.IntPropertyFnWithDomainFilter
 }
 
 // GetLimiter returns a new Limiter for the given domain

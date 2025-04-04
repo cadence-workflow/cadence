@@ -29,20 +29,20 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/definition"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/types"
 )
 
 // VisibilityQueryValidator for sql query validation
 type VisibilityQueryValidator struct {
-	validSearchAttributes          dynamicconfig.MapPropertyFn
-	enableQueryAttributeValidation dynamicconfig.BoolPropertyFn
+	validSearchAttributes          dynamicproperties.MapPropertyFn
+	enableQueryAttributeValidation dynamicproperties.BoolPropertyFn
 }
 
 // NewQueryValidator create VisibilityQueryValidator
 func NewQueryValidator(
-	validSearchAttributes dynamicconfig.MapPropertyFn,
-	enableQueryAttributeValidation dynamicconfig.BoolPropertyFn) *VisibilityQueryValidator {
+	validSearchAttributes dynamicproperties.MapPropertyFn,
+	enableQueryAttributeValidation dynamicproperties.BoolPropertyFn) *VisibilityQueryValidator {
 	return &VisibilityQueryValidator{
 		validSearchAttributes:          validSearchAttributes,
 		enableQueryAttributeValidation: enableQueryAttributeValidation,

@@ -30,10 +30,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	gomock "go.uber.org/mock/gomock"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
@@ -163,12 +164,12 @@ func TestRateLimiterRPS(t *testing.T) {
 	r, deps := setupMocksForTaskRateLimiter(t, false)
 
 	deps.mockShardController.EXPECT().NumShards().Return(8).AnyTimes()
-	require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.TaskSchedulerGlobalDomainRPS, 100))
+	require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.TaskSchedulerGlobalDomainRPS, 100))
 
 	l := r.limiters.For("test-domain").Limit()
 	assert.Equal(t, 50, int(l))
 
-	require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.TaskSchedulerGlobalDomainRPS, 200))
+	require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.TaskSchedulerGlobalDomainRPS, 200))
 	l = r.limiters.For("test-domain").Limit()
 	assert.Equal(t, 100, int(l))
 }
@@ -190,9 +191,9 @@ func TestRateLimiterAllow(t *testing.T) {
 				},
 			},
 			setupMocks: func(deps *taskRateLimiterMockDeps) {
-				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.TaskSchedulerGlobalDomainRPS, 100))
-				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.TaskSchedulerEnableRateLimiter, true))
-				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.TaskSchedulerEnableRateLimiterShadowMode, false))
+				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.TaskSchedulerGlobalDomainRPS, 100))
+				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.TaskSchedulerEnableRateLimiter, true))
+				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.TaskSchedulerEnableRateLimiterShadowMode, false))
 				deps.mockDomainCache.EXPECT().GetDomainName("test-domain-id").Return("test-domain", nil)
 				limiter := quotas.NewMockLimiter(deps.ctrl)
 				deps.mockICollection.EXPECT().For("test-domain").Return(limiter)
@@ -210,9 +211,9 @@ func TestRateLimiterAllow(t *testing.T) {
 				},
 			},
 			setupMocks: func(deps *taskRateLimiterMockDeps) {
-				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.TaskSchedulerGlobalDomainRPS, 100))
-				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.TaskSchedulerEnableRateLimiter, true))
-				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.TaskSchedulerEnableRateLimiterShadowMode, false))
+				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.TaskSchedulerGlobalDomainRPS, 100))
+				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.TaskSchedulerEnableRateLimiter, true))
+				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.TaskSchedulerEnableRateLimiterShadowMode, false))
 				deps.mockDomainCache.EXPECT().GetDomainName("test-domain-id").Return("", errors.New("cache error"))
 				limiter := quotas.NewMockLimiter(deps.ctrl)
 				deps.mockICollection.EXPECT().For("").Return(limiter)
@@ -230,9 +231,9 @@ func TestRateLimiterAllow(t *testing.T) {
 				},
 			},
 			setupMocks: func(deps *taskRateLimiterMockDeps) {
-				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.TaskSchedulerGlobalDomainRPS, 100))
-				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.TaskSchedulerEnableRateLimiter, true))
-				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.TaskSchedulerEnableRateLimiterShadowMode, true))
+				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.TaskSchedulerGlobalDomainRPS, 100))
+				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.TaskSchedulerEnableRateLimiter, true))
+				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.TaskSchedulerEnableRateLimiterShadowMode, true))
 				deps.mockDomainCache.EXPECT().GetDomainName("test-domain-id").Return("test-domain", nil)
 				limiter := quotas.NewMockLimiter(deps.ctrl)
 				deps.mockICollection.EXPECT().For("test-domain").Return(limiter)
@@ -250,9 +251,9 @@ func TestRateLimiterAllow(t *testing.T) {
 				},
 			},
 			setupMocks: func(deps *taskRateLimiterMockDeps) {
-				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.TaskSchedulerGlobalDomainRPS, 100))
-				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.TaskSchedulerEnableRateLimiter, true))
-				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.TaskSchedulerEnableRateLimiterShadowMode, false))
+				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.TaskSchedulerGlobalDomainRPS, 100))
+				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.TaskSchedulerEnableRateLimiter, true))
+				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.TaskSchedulerEnableRateLimiterShadowMode, false))
 				deps.mockDomainCache.EXPECT().GetDomainName("test-domain-id").Return("test-domain", nil)
 				limiter := quotas.NewMockLimiter(deps.ctrl)
 				deps.mockICollection.EXPECT().For("test-domain").Return(limiter)
@@ -292,9 +293,9 @@ func TestRateLimiterWait(t *testing.T) {
 				},
 			},
 			setupMocks: func(deps *taskRateLimiterMockDeps) {
-				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.TaskSchedulerGlobalDomainRPS, 100))
-				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.TaskSchedulerEnableRateLimiter, true))
-				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.TaskSchedulerEnableRateLimiterShadowMode, false))
+				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.TaskSchedulerGlobalDomainRPS, 100))
+				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.TaskSchedulerEnableRateLimiter, true))
+				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.TaskSchedulerEnableRateLimiterShadowMode, false))
 				deps.mockDomainCache.EXPECT().GetDomainName("test-domain-id").Return("test-domain", nil)
 				limiter := quotas.NewMockLimiter(deps.ctrl)
 				deps.mockICollection.EXPECT().For("test-domain").Return(limiter)
@@ -312,9 +313,9 @@ func TestRateLimiterWait(t *testing.T) {
 				},
 			},
 			setupMocks: func(deps *taskRateLimiterMockDeps) {
-				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.TaskSchedulerGlobalDomainRPS, 100))
-				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.TaskSchedulerEnableRateLimiter, true))
-				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.TaskSchedulerEnableRateLimiterShadowMode, false))
+				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.TaskSchedulerGlobalDomainRPS, 100))
+				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.TaskSchedulerEnableRateLimiter, true))
+				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.TaskSchedulerEnableRateLimiterShadowMode, false))
 				deps.mockDomainCache.EXPECT().GetDomainName("test-domain-id").Return("", errors.New("cache error"))
 				limiter := quotas.NewMockLimiter(deps.ctrl)
 				deps.mockICollection.EXPECT().For("").Return(limiter)
@@ -332,9 +333,9 @@ func TestRateLimiterWait(t *testing.T) {
 				},
 			},
 			setupMocks: func(deps *taskRateLimiterMockDeps) {
-				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.TaskSchedulerGlobalDomainRPS, 100))
-				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.TaskSchedulerEnableRateLimiter, true))
-				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.TaskSchedulerEnableRateLimiterShadowMode, false))
+				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.TaskSchedulerGlobalDomainRPS, 100))
+				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.TaskSchedulerEnableRateLimiter, true))
+				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.TaskSchedulerEnableRateLimiterShadowMode, false))
 				deps.mockDomainCache.EXPECT().GetDomainName("test-domain-id").Return("test-domain", nil)
 				limiter := quotas.NewMockLimiter(deps.ctrl)
 				deps.mockICollection.EXPECT().For("test-domain").Return(limiter)

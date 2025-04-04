@@ -30,7 +30,7 @@ import (
 	"github.com/uber-go/tally"
 	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
@@ -399,7 +399,7 @@ func (s *transferQueueProcessorBaseSuite) TestProcessQueueCollections_WithNextPa
 		nil,
 		nil,
 	)
-	processorBase.options.PollBackoffInterval = dynamicconfig.GetDurationPropertyFn(time.Millisecond * 100)
+	processorBase.options.PollBackoffInterval = dynamicproperties.GetDurationPropertyFn(time.Millisecond * 100)
 
 	processorBase.processQueueCollections()
 
@@ -604,7 +604,7 @@ func (s *transferQueueProcessorBaseSuite) TestTransferProcessorPump_UpdateAckLev
 	}
 
 	processorBase := s.newTestTransferQueueProcessorBase(processingQueueStates, updateMaxReadLevel, nil, nil, nil)
-	processorBase.options.UpdateAckInterval = dynamicconfig.GetDurationPropertyFn(1 * time.Millisecond)
+	processorBase.options.UpdateAckInterval = dynamicproperties.GetDurationPropertyFn(1 * time.Millisecond)
 	updatedCh := make(chan struct{}, 1)
 	processorBase.processQueueCollectionsFn = func() {}
 	processorBase.updateAckLevelFn = func() (bool, task.Key, error) {
