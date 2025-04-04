@@ -260,7 +260,7 @@ func TestExecuteDeleteHistoryEventTask(t *testing.T) {
 						VisibilityTimestamp: time.Now(),
 					},
 					WorkflowIdentifier: persistence.WorkflowIdentifier{
-						DomainID:   "domain",
+						DomainID:   "test-domain",
 						WorkflowID: "wf",
 						RunID:      "run",
 					},
