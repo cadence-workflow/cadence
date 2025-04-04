@@ -42,8 +42,7 @@ const (
 	// 3. SignalWorkflowExecution
 	// 4. RequestCancelWorkflowExecution
 	// 5. TerminateWorkflowExecution
-	// 6. QueryWorkflowStrongConsistency
-	// 7. ResetWorkflow
+	// 6. ResetWorkflow
 	// please also reference selectedAPIsForwardingRedirectionPolicyAPIAllowlist and DCRedirectionPolicySelectedAPIsForwardingV2
 	DCRedirectionPolicySelectedAPIsForwarding = "selected-apis-forwarding"
 	// DCRedirectionPolicySelectedAPIsForwardingV2 forwards everything in DCRedirectionPolicySelectedAPIsForwarding,
@@ -53,15 +52,15 @@ const (
 	//
 	// This will likely replace DCRedirectionPolicySelectedAPIsForwarding soon.
 	//
-	// 1-7. from DCRedirectionPolicySelectedAPIsForwarding
-	// 8. RecordActivityTaskHeartbeat
-	// 9. RecordActivityTaskHeartbeatByID
-	// 10. RespondActivityTaskCanceled
-	// 11. RespondActivityTaskCanceledByID
-	// 12. RespondActivityTaskCompleted
-	// 13. RespondActivityTaskCompletedByID
-	// 14. RespondActivityTaskFailed
-	// 15. RespondActivityTaskFailedByID
+	// 1-6. from DCRedirectionPolicySelectedAPIsForwarding
+	// 7. RecordActivityTaskHeartbeat
+	// 8. RecordActivityTaskHeartbeatByID
+	// 9. RespondActivityTaskCanceled
+	// 10. RespondActivityTaskCanceledByID
+	// 11. RespondActivityTaskCompleted
+	// 12. RespondActivityTaskCompletedByID
+	// 13. RespondActivityTaskFailed
+	// 14. RespondActivityTaskFailedByID
 	// please also reference selectedAPIsForwardingRedirectionPolicyAPIAllowlistV2
 	DCRedirectionPolicySelectedAPIsForwardingV2 = "selected-apis-forwarding-v2"
 	// DCRedirectionPolicyAllDomainAPIsForwarding means forwarding all the worker and non-worker APIs based domain,
@@ -106,7 +105,6 @@ var selectedAPIsForwardingRedirectionPolicyAPIAllowlist = map[string]struct{}{
 	"SignalWorkflowExecution":          {},
 	"RequestCancelWorkflowExecution":   {},
 	"TerminateWorkflowExecution":       {},
-	"QueryWorkflowStrongConsistency":   {},
 	"ResetWorkflowExecution":           {},
 }
 
@@ -119,7 +117,6 @@ var selectedAPIsForwardingRedirectionPolicyAPIAllowlistV2 = map[string]struct{}{
 	"SignalWorkflowExecution":          {},
 	"RequestCancelWorkflowExecution":   {},
 	"TerminateWorkflowExecution":       {},
-	"QueryWorkflowStrongConsistency":   {},
 	"ResetWorkflowExecution":           {},
 	// additional endpoints
 	"RecordActivityTaskHeartbeat":      {},

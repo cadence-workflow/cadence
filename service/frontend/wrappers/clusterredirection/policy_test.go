@@ -205,7 +205,7 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) TestWithDomainRedirect_Lo
 	s.Equal(2*(len(selectedAPIsForwardingRedirectionPolicyAPIAllowlist)+1), callCount)
 }
 
-func (s *selectedAPIsForwardingRedirectionPolicySuite) TestWithDomainRedirect_GlobalDomain_NoForwarding_DomainNotWhiltelisted() {
+func (s *selectedAPIsForwardingRedirectionPolicySuite) TestWithDomainRedirect_GlobalDomain_NoForwarding_DomainNotWhitelisted() {
 	s.setupGlobalDomainWithTwoReplicationCluster(false, true)
 
 	domainNotActiveErr := &types.DomainNotActiveError{
@@ -227,12 +227,16 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) TestWithDomainRedirect_Gl
 		err = s.policy.WithDomainNameRedirect(context.Background(), s.domainName, apiName, types.QueryConsistencyLevelEventual, callFn)
 		s.NotNil(err)
 		s.Equal(err.Error(), domainNotActiveErr.Error())
+
+		err = s.policy.WithDomainNameRedirect(context.Background(), s.domainName, apiName, types.QueryConsistencyLevelStrong, callFn)
+		s.NotNil(err)
+		s.Equal(err.Error(), domainNotActiveErr.Error())
 	}
 
-	s.Equal(2*len(selectedAPIsForwardingRedirectionPolicyAPIAllowlist), callCount)
+	s.Equal(3*len(selectedAPIsForwardingRedirectionPolicyAPIAllowlist), callCount)
 }
 
-func (s *selectedAPIsForwardingRedirectionPolicySuite) TestWithDomainRedirect_GlobalDomain_NoForwarding_APINotWhiltelisted() {
+func (s *selectedAPIsForwardingRedirectionPolicySuite) TestWithDomainRedirect_GlobalDomain_Forwarding_APINotWhitelisted() {
 	s.setupGlobalDomainWithTwoReplicationCluster(true, true)
 
 	apiName := "any random API name"
@@ -298,6 +302,26 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) TestGetTargetDataCenter_G
 	}
 
 	s.Equal(2*len(selectedAPIsForwardingRedirectionPolicyAPIAllowlist), callCount)
+}
+
+func (s *selectedAPIsForwardingRedirectionPolicySuite) TestGetTargetDataCenter_GlobalDomain_Forwarding_AlternativeCluster_StrongConsistency() {
+	s.setupGlobalDomainWithTwoReplicationCluster(true, false)
+
+	callCount := 0
+	callFn := func(targetCluster string) error {
+		callCount++
+		s.Equal(s.alternativeClusterName, targetCluster)
+		return nil
+	}
+
+	apiName := "any random API name"
+	err := s.policy.WithDomainIDRedirect(context.Background(), s.domainID, apiName, types.QueryConsistencyLevelStrong, callFn)
+	s.Nil(err)
+
+	err = s.policy.WithDomainNameRedirect(context.Background(), s.domainName, apiName, types.QueryConsistencyLevelStrong, callFn)
+	s.Nil(err)
+
+	s.Equal(2, callCount)
 }
 
 func (s *selectedAPIsForwardingRedirectionPolicySuite) TestGetTargetDataCenter_GlobalDomain_Forwarding_CurrentClusterToAlternativeCluster() {

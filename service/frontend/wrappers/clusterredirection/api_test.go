@@ -162,6 +162,30 @@ func (s *clusterRedirectionHandlerSuite) TestDescribeWorkflowExecution() {
 	s.Nil(err)
 }
 
+func (s *clusterRedirectionHandlerSuite) TestDescribeWorkflowExecutionStrongConsistency() {
+	apiName := "DescribeWorkflowExecution"
+
+	s.mockClusterRedirectionPolicy.On("WithDomainNameRedirect",
+		s.domainName, apiName, types.QueryConsistencyLevelStrong, mock.Anything).Return(nil).Times(1)
+
+	req := &types.DescribeWorkflowExecutionRequest{
+		Domain:                s.domainName,
+		QueryConsistencyLevel: types.QueryConsistencyLevelStrong.Ptr(),
+	}
+	resp, err := s.handler.DescribeWorkflowExecution(context.Background(), req)
+	s.Nil(err)
+	// the resp is initialized to nil, since inner function is not called
+	s.Nil(resp)
+
+	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[3].(func(string) error)
+	s.mockFrontendHandler.EXPECT().DescribeWorkflowExecution(gomock.Any(), req).Return(&types.DescribeWorkflowExecutionResponse{}, nil).Times(1)
+	err = callFn(s.currentClusterName)
+	s.Nil(err)
+	s.mockRemoteFrontendClient.EXPECT().DescribeWorkflowExecution(gomock.Any(), req, s.handler.callOptions).Return(&types.DescribeWorkflowExecutionResponse{}, nil).Times(1)
+	err = callFn(s.alternativeClusterName)
+	s.Nil(err)
+}
+
 func (s *clusterRedirectionHandlerSuite) TestGetWorkflowExecutionHistory() {
 	apiName := "GetWorkflowExecutionHistory"
 
@@ -170,6 +194,30 @@ func (s *clusterRedirectionHandlerSuite) TestGetWorkflowExecutionHistory() {
 
 	req := &types.GetWorkflowExecutionHistoryRequest{
 		Domain: s.domainName,
+	}
+	resp, err := s.handler.GetWorkflowExecutionHistory(context.Background(), req)
+	s.Nil(err)
+	// the resp is initialized to nil, since inner function is not called
+	s.Nil(resp)
+
+	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[3].(func(string) error)
+	s.mockFrontendHandler.EXPECT().GetWorkflowExecutionHistory(gomock.Any(), req).Return(&types.GetWorkflowExecutionHistoryResponse{}, nil).Times(1)
+	err = callFn(s.currentClusterName)
+	s.Nil(err)
+	s.mockRemoteFrontendClient.EXPECT().GetWorkflowExecutionHistory(gomock.Any(), req, s.handler.callOptions).Return(&types.GetWorkflowExecutionHistoryResponse{}, nil).Times(1)
+	err = callFn(s.alternativeClusterName)
+	s.Nil(err)
+}
+
+func (s *clusterRedirectionHandlerSuite) TestGetWorkflowExecutionHistoryStrongConsistency() {
+	apiName := "GetWorkflowExecutionHistory"
+
+	s.mockClusterRedirectionPolicy.On("WithDomainNameRedirect",
+		s.domainName, apiName, types.QueryConsistencyLevelStrong, mock.Anything).Return(nil).Times(1)
+
+	req := &types.GetWorkflowExecutionHistoryRequest{
+		Domain:                s.domainName,
+		QueryConsistencyLevel: types.QueryConsistencyLevelStrong.Ptr(),
 	}
 	resp, err := s.handler.GetWorkflowExecutionHistory(context.Background(), req)
 	s.Nil(err)
@@ -392,7 +440,7 @@ func (s *clusterRedirectionHandlerSuite) TestQueryWorkflow() {
 	s.Nil(err)
 }
 
-func (s *clusterRedirectionHandlerSuite) TestQueryWorkflowStrongConsistency() {
+func (s *clusterRedirectionHandlerSuite) TestQueryWorkflowWithStrongConsistency() {
 	apiName := "QueryWorkflow"
 
 	s.mockClusterRedirectionPolicy.On("WithDomainNameRedirect",
