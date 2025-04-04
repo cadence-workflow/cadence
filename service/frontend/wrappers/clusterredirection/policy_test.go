@@ -91,10 +91,10 @@ func (s *noopDCRedirectionPolicySuite) TestWithDomainRedirect() {
 		return nil
 	}
 
-	err := s.policy.WithDomainIDRedirect(context.Background(), domainID, apiName, callFn)
+	err := s.policy.WithDomainIDRedirect(context.Background(), domainID, apiName, types.QueryConsistencyLevelEventual, callFn)
 	s.Nil(err)
 
-	err = s.policy.WithDomainNameRedirect(context.Background(), domainName, apiName, callFn)
+	err = s.policy.WithDomainNameRedirect(context.Background(), domainName, apiName, types.QueryConsistencyLevelEventual, callFn)
 	s.Nil(err)
 
 	s.Equal(2, callCount)
@@ -119,10 +119,10 @@ func (s *noopDCRedirectionPolicySuite) TestWithDomainRedirectForAllowedAPIs() {
 	}
 
 	for _, apiName := range allowedAPIs {
-		err := s.policy.WithDomainIDRedirect(context.Background(), domainID, apiName, callFn)
+		err := s.policy.WithDomainIDRedirect(context.Background(), domainID, apiName, types.QueryConsistencyLevelEventual, callFn)
 		s.Nil(err)
 
-		err = s.policy.WithDomainNameRedirect(context.Background(), domainName, apiName, callFn)
+		err = s.policy.WithDomainNameRedirect(context.Background(), domainName, apiName, types.QueryConsistencyLevelEventual, callFn)
 		s.Nil(err)
 	}
 
@@ -188,17 +188,17 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) TestWithDomainRedirect_Lo
 		return nil
 	}
 
-	err := s.policy.WithDomainIDRedirect(context.Background(), s.domainID, apiName, callFn)
+	err := s.policy.WithDomainIDRedirect(context.Background(), s.domainID, apiName, types.QueryConsistencyLevelEventual, callFn)
 	s.Nil(err)
 
-	err = s.policy.WithDomainNameRedirect(context.Background(), s.domainName, apiName, callFn)
+	err = s.policy.WithDomainNameRedirect(context.Background(), s.domainName, apiName, types.QueryConsistencyLevelEventual, callFn)
 	s.Nil(err)
 
 	for apiName := range selectedAPIsForwardingRedirectionPolicyAPIAllowlist {
-		err := s.policy.WithDomainIDRedirect(context.Background(), s.domainID, apiName, callFn)
+		err := s.policy.WithDomainIDRedirect(context.Background(), s.domainID, apiName, types.QueryConsistencyLevelEventual, callFn)
 		s.Nil(err)
 
-		err = s.policy.WithDomainNameRedirect(context.Background(), s.domainName, apiName, callFn)
+		err = s.policy.WithDomainNameRedirect(context.Background(), s.domainName, apiName, types.QueryConsistencyLevelEventual, callFn)
 		s.Nil(err)
 	}
 
@@ -220,11 +220,11 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) TestWithDomainRedirect_Gl
 	}
 
 	for apiName := range selectedAPIsForwardingRedirectionPolicyAPIAllowlist {
-		err := s.policy.WithDomainIDRedirect(context.Background(), s.domainID, apiName, callFn)
+		err := s.policy.WithDomainIDRedirect(context.Background(), s.domainID, apiName, types.QueryConsistencyLevelEventual, callFn)
 		s.NotNil(err)
 		s.Equal(err.Error(), domainNotActiveErr.Error())
 
-		err = s.policy.WithDomainNameRedirect(context.Background(), s.domainName, apiName, callFn)
+		err = s.policy.WithDomainNameRedirect(context.Background(), s.domainName, apiName, types.QueryConsistencyLevelEventual, callFn)
 		s.NotNil(err)
 		s.Equal(err.Error(), domainNotActiveErr.Error())
 	}
@@ -247,11 +247,11 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) TestWithDomainRedirect_Gl
 		return domainNotActiveErr
 	}
 
-	err := s.policy.WithDomainIDRedirect(context.Background(), s.domainID, apiName, callFn)
+	err := s.policy.WithDomainIDRedirect(context.Background(), s.domainID, apiName, types.QueryConsistencyLevelEventual, callFn)
 	s.NotNil(err)
 	s.Equal(err.Error(), domainNotActiveErr.Error())
 
-	err = s.policy.WithDomainNameRedirect(context.Background(), s.domainName, apiName, callFn)
+	err = s.policy.WithDomainNameRedirect(context.Background(), s.domainName, apiName, types.QueryConsistencyLevelEventual, callFn)
 	s.NotNil(err)
 	s.Equal(err.Error(), domainNotActiveErr.Error())
 
@@ -269,10 +269,10 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) TestGetTargetDataCenter_G
 	}
 
 	for apiName := range selectedAPIsForwardingRedirectionPolicyAPIAllowlist {
-		err := s.policy.WithDomainIDRedirect(context.Background(), s.domainID, apiName, callFn)
+		err := s.policy.WithDomainIDRedirect(context.Background(), s.domainID, apiName, types.QueryConsistencyLevelEventual, callFn)
 		s.Nil(err)
 
-		err = s.policy.WithDomainNameRedirect(context.Background(), s.domainName, apiName, callFn)
+		err = s.policy.WithDomainNameRedirect(context.Background(), s.domainName, apiName, types.QueryConsistencyLevelEventual, callFn)
 		s.Nil(err)
 	}
 
@@ -290,10 +290,10 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) TestGetTargetDataCenter_G
 	}
 
 	for apiName := range selectedAPIsForwardingRedirectionPolicyAPIAllowlist {
-		err := s.policy.WithDomainIDRedirect(context.Background(), s.domainID, apiName, callFn)
+		err := s.policy.WithDomainIDRedirect(context.Background(), s.domainID, apiName, types.QueryConsistencyLevelEventual, callFn)
 		s.Nil(err)
 
-		err = s.policy.WithDomainNameRedirect(context.Background(), s.domainName, apiName, callFn)
+		err = s.policy.WithDomainNameRedirect(context.Background(), s.domainName, apiName, types.QueryConsistencyLevelEventual, callFn)
 		s.Nil(err)
 	}
 
@@ -322,10 +322,10 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) TestGetTargetDataCenter_G
 	}
 
 	for apiName := range selectedAPIsForwardingRedirectionPolicyAPIAllowlist {
-		err := s.policy.WithDomainIDRedirect(context.Background(), s.domainID, apiName, callFn)
+		err := s.policy.WithDomainIDRedirect(context.Background(), s.domainID, apiName, types.QueryConsistencyLevelEventual, callFn)
 		s.Nil(err)
 
-		err = s.policy.WithDomainNameRedirect(context.Background(), s.domainName, apiName, callFn)
+		err = s.policy.WithDomainNameRedirect(context.Background(), s.domainName, apiName, types.QueryConsistencyLevelEventual, callFn)
 		s.Nil(err)
 	}
 
@@ -355,10 +355,10 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) TestGetTargetDataCenter_G
 	}
 
 	for apiName := range selectedAPIsForwardingRedirectionPolicyAPIAllowlist {
-		err := s.policy.WithDomainIDRedirect(context.Background(), s.domainID, apiName, callFn)
+		err := s.policy.WithDomainIDRedirect(context.Background(), s.domainID, apiName, types.QueryConsistencyLevelEventual, callFn)
 		s.Nil(err)
 
-		err = s.policy.WithDomainNameRedirect(context.Background(), s.domainName, apiName, callFn)
+		err = s.policy.WithDomainNameRedirect(context.Background(), s.domainName, apiName, types.QueryConsistencyLevelEventual, callFn)
 		s.Nil(err)
 	}
 
@@ -390,11 +390,11 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) TestGetTargetDataCenter_G
 	s.mockDomainCache.EXPECT().GetDomain(s.domainName).Return(nil, expectedErr).Times(len(selectedAPIsForwardingRedirectionPolicyAPIAllowlist))
 
 	for apiName := range selectedAPIsForwardingRedirectionPolicyAPIAllowlist {
-		err := s.policy.WithDomainIDRedirect(context.Background(), s.domainID, apiName, callFn)
+		err := s.policy.WithDomainIDRedirect(context.Background(), s.domainID, apiName, types.QueryConsistencyLevelEventual, callFn)
 		s.Error(err)
 		s.Equal(expectedErr.Error(), err.Error())
 
-		err = s.policy.WithDomainNameRedirect(context.Background(), s.domainName, apiName, callFn)
+		err = s.policy.WithDomainNameRedirect(context.Background(), s.domainName, apiName, types.QueryConsistencyLevelEventual, callFn)
 		s.Error(err)
 		s.Equal(expectedErr.Error(), err.Error())
 	}
@@ -431,23 +431,23 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) TestGetTargetDataCenter_G
 			continue // Skip allowed APIs
 		}
 
-		err := s.policy.WithDomainIDRedirect(context.Background(), s.domainID, apiName, callFn)
+		err := s.policy.WithDomainIDRedirect(context.Background(), s.domainID, apiName, types.QueryConsistencyLevelEventual, callFn)
 		s.Error(err)
 		s.Equal("domain is deprecated.", err.Error())
 
-		err = s.policy.WithDomainNameRedirect(context.Background(), s.domainName, apiName, callFn)
+		err = s.policy.WithDomainNameRedirect(context.Background(), s.domainName, apiName, types.QueryConsistencyLevelEventual, callFn)
 		s.Error(err)
-		s.Equal("domain is deprecated or deleted", err.Error())
+		s.Equal("domain is deprecated or deleted.", err.Error())
 	}
 	s.Equal(0, currentClustercallCount)
 	s.Equal(0, alternativeClustercallCount)
 
 	// Test allowed APIs
 	for apiName := range allowedAPIsForDeprecatedDomains {
-		err := s.policy.WithDomainIDRedirect(context.Background(), s.domainID, apiName, callFn)
+		err := s.policy.WithDomainIDRedirect(context.Background(), s.domainID, apiName, types.QueryConsistencyLevelEventual, callFn)
 		s.NoError(err)
 
-		err = s.policy.WithDomainNameRedirect(context.Background(), s.domainName, apiName, callFn)
+		err = s.policy.WithDomainNameRedirect(context.Background(), s.domainName, apiName, types.QueryConsistencyLevelEventual, callFn)
 		s.NoError(err)
 	}
 

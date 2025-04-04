@@ -77,8 +77,8 @@ const (
 type (
 	// ClusterRedirectionPolicy is a DC redirection policy interface
 	ClusterRedirectionPolicy interface {
-		WithDomainIDRedirect(ctx context.Context, domainID string, apiName string, call func(string) error) error
-		WithDomainNameRedirect(ctx context.Context, domainName string, apiName string, call func(string) error) error
+		WithDomainIDRedirect(ctx context.Context, domainID string, apiName string, requestedConsistencyLevel types.QueryConsistencyLevel, call func(string) error) error
+		WithDomainNameRedirect(ctx context.Context, domainName string, apiName string, requestedConsistencyLevel types.QueryConsistencyLevel, call func(string) error) error
 	}
 
 	// noopRedirectionPolicy is DC redirection policy which does nothing
@@ -175,29 +175,42 @@ func newNoopRedirectionPolicy(currentClusterName string) *noopRedirectionPolicy 
 }
 
 // WithDomainIDRedirect redirect the API call based on domain ID
-func (policy *noopRedirectionPolicy) WithDomainIDRedirect(ctx context.Context, domainID string, apiName string, call func(string) error) error {
+func (policy *noopRedirectionPolicy) WithDomainIDRedirect(ctx context.Context, domainID string, apiName string, requestedConsistencyLevel types.QueryConsistencyLevel, call func(string) error) error {
 	return call(policy.currentClusterName)
 }
 
 // WithDomainNameRedirect redirect the API call based on domain name
-func (policy *noopRedirectionPolicy) WithDomainNameRedirect(ctx context.Context, domainName string, apiName string, call func(string) error) error {
+func (policy *noopRedirectionPolicy) WithDomainNameRedirect(ctx context.Context, domainName string, apiName string, requestedConsistencyLevel types.QueryConsistencyLevel, call func(string) error) error {
 	return call(policy.currentClusterName)
 }
 
 // newSelectedOrAllAPIsForwardingPolicy creates a forwarding policy for selected APIs based on domain
-func newSelectedOrAllAPIsForwardingPolicy(currentClusterName string, config *frontendcfg.Config, domainCache cache.DomainCache, allDoaminAPIs bool, selectedAPIs map[string]struct{}, targetCluster string) *selectedOrAllAPIsForwardingRedirectionPolicy {
+func newSelectedOrAllAPIsForwardingPolicy(
+	currentClusterName string,
+	config *frontendcfg.Config,
+	domainCache cache.DomainCache,
+	allDomainAPIs bool,
+	selectedAPIs map[string]struct{},
+	targetCluster string,
+) *selectedOrAllAPIsForwardingRedirectionPolicy {
 	return &selectedOrAllAPIsForwardingRedirectionPolicy{
 		currentClusterName: currentClusterName,
 		config:             config,
 		domainCache:        domainCache,
-		allDomainAPIs:      allDoaminAPIs,
+		allDomainAPIs:      allDomainAPIs,
 		selectedAPIs:       selectedAPIs,
 		targetCluster:      targetCluster,
 	}
 }
 
 // WithDomainIDRedirect redirect the API call based on domain ID
-func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) WithDomainIDRedirect(ctx context.Context, domainID string, apiName string, call func(string) error) error {
+func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) WithDomainIDRedirect(
+	ctx context.Context,
+	domainID string,
+	apiName string,
+	requestedConsistencyLevel types.QueryConsistencyLevel,
+	call func(string) error,
+) error {
 	domainEntry, err := policy.domainCache.GetDomainByID(domainID)
 	if err != nil {
 		return err
@@ -213,11 +226,18 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) WithDomainIDRedirect
 			}
 		}
 	}
-	return policy.withRedirect(ctx, domainEntry, apiName, call)
+
+	return policy.withRedirect(ctx, domainEntry, apiName, requestedConsistencyLevel, call)
 }
 
 // WithDomainNameRedirect redirect the API call based on domain name
-func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) WithDomainNameRedirect(ctx context.Context, domainName string, apiName string, call func(string) error) error {
+func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) WithDomainNameRedirect(
+	ctx context.Context,
+	domainName string,
+	apiName string,
+	requestedConsistencyLevel types.QueryConsistencyLevel,
+	call func(string) error,
+) error {
 	domainEntry, err := policy.domainCache.GetDomain(domainName)
 	if err != nil {
 		return err
@@ -226,18 +246,25 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) WithDomainNameRedire
 	if domainEntry.IsDeprecatedOrDeleted() {
 		if _, ok := allowedAPIsForDeprecatedDomains[apiName]; !ok {
 			return &types.DomainNotActiveError{
-				Message:        "domain is deprecated or deleted",
+				Message:        "domain is deprecated or deleted.",
 				DomainName:     domainName,
 				CurrentCluster: policy.currentClusterName,
 				ActiveCluster:  policy.currentClusterName,
 			}
 		}
 	}
-	return policy.withRedirect(ctx, domainEntry, apiName, call)
+
+	return policy.withRedirect(ctx, domainEntry, apiName, requestedConsistencyLevel, call)
 }
 
-func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) withRedirect(ctx context.Context, domainEntry *cache.DomainCacheEntry, apiName string, call func(string) error) error {
-	targetDC, enableDomainNotActiveForwarding := policy.getTargetClusterAndIsDomainNotActiveAutoForwarding(ctx, domainEntry, apiName)
+func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) withRedirect(
+	ctx context.Context,
+	domainEntry *cache.DomainCacheEntry,
+	apiName string,
+	requestedConsistencyLevel types.QueryConsistencyLevel,
+	call func(string) error,
+) error {
+	targetDC, enableDomainNotActiveForwarding := policy.getTargetClusterAndIsDomainNotActiveAutoForwarding(ctx, domainEntry, apiName, requestedConsistencyLevel)
 
 	err := call(targetDC)
 
@@ -257,7 +284,12 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) isDomainNotActiveErr
 }
 
 // return two values: the target cluster name, and whether or not forwarding to the active cluster
-func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) getTargetClusterAndIsDomainNotActiveAutoForwarding(ctx context.Context, domainEntry *cache.DomainCacheEntry, apiName string) (string, bool) {
+func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) getTargetClusterAndIsDomainNotActiveAutoForwarding(
+	_ context.Context,
+	domainEntry *cache.DomainCacheEntry,
+	apiName string,
+	requestedConsistencyLevel types.QueryConsistencyLevel,
+) (string, bool) {
 	if !domainEntry.IsGlobalDomain() {
 		// do not do dc redirection if domain is local domain,
 		// for global domains with 1 dc, it's still useful to do auto-forwarding during cluster migration
@@ -278,6 +310,10 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) getTargetClusterAndI
 			return currentActiveCluster, true
 		}
 		// fallback to selected APIs if targetCluster is not empty and not the same as currentActiveCluster
+	}
+
+	if requestedConsistencyLevel == types.QueryConsistencyLevelStrong {
+		return currentActiveCluster, true
 	}
 
 	_, ok := policy.selectedAPIs[apiName]

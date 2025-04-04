@@ -120,7 +120,7 @@ func (s *clusterRedirectionHandlerSuite) TestDescribeTaskList() {
 	apiName := "DescribeTaskList"
 
 	s.mockClusterRedirectionPolicy.On("WithDomainNameRedirect",
-		s.domainName, apiName, mock.Anything).Return(nil).Times(1)
+		s.domainName, apiName, types.QueryConsistencyLevelEventual, mock.Anything).Return(nil).Times(1)
 
 	req := &types.DescribeTaskListRequest{
 		Domain: s.domainName,
@@ -130,7 +130,7 @@ func (s *clusterRedirectionHandlerSuite) TestDescribeTaskList() {
 	// the resp is initialized to nil, since inner function is not called
 	s.Nil(resp)
 
-	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[2].(func(string) error)
+	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[3].(func(string) error)
 	s.mockFrontendHandler.EXPECT().DescribeTaskList(gomock.Any(), req).Return(&types.DescribeTaskListResponse{}, nil).Times(1)
 	err = callFn(s.currentClusterName)
 	s.Nil(err)
@@ -143,7 +143,7 @@ func (s *clusterRedirectionHandlerSuite) TestDescribeWorkflowExecution() {
 	apiName := "DescribeWorkflowExecution"
 
 	s.mockClusterRedirectionPolicy.On("WithDomainNameRedirect",
-		s.domainName, apiName, mock.Anything).Return(nil).Times(1)
+		s.domainName, apiName, types.QueryConsistencyLevelEventual, mock.Anything).Return(nil).Times(1)
 
 	req := &types.DescribeWorkflowExecutionRequest{
 		Domain: s.domainName,
@@ -153,7 +153,7 @@ func (s *clusterRedirectionHandlerSuite) TestDescribeWorkflowExecution() {
 	// the resp is initialized to nil, since inner function is not called
 	s.Nil(resp)
 
-	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[2].(func(string) error)
+	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[3].(func(string) error)
 	s.mockFrontendHandler.EXPECT().DescribeWorkflowExecution(gomock.Any(), req).Return(&types.DescribeWorkflowExecutionResponse{}, nil).Times(1)
 	err = callFn(s.currentClusterName)
 	s.Nil(err)
@@ -166,7 +166,7 @@ func (s *clusterRedirectionHandlerSuite) TestGetWorkflowExecutionHistory() {
 	apiName := "GetWorkflowExecutionHistory"
 
 	s.mockClusterRedirectionPolicy.On("WithDomainNameRedirect",
-		s.domainName, apiName, mock.Anything).Return(nil).Times(1)
+		s.domainName, apiName, types.QueryConsistencyLevelEventual, mock.Anything).Return(nil).Times(1)
 
 	req := &types.GetWorkflowExecutionHistoryRequest{
 		Domain: s.domainName,
@@ -176,7 +176,7 @@ func (s *clusterRedirectionHandlerSuite) TestGetWorkflowExecutionHistory() {
 	// the resp is initialized to nil, since inner function is not called
 	s.Nil(resp)
 
-	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[2].(func(string) error)
+	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[3].(func(string) error)
 	s.mockFrontendHandler.EXPECT().GetWorkflowExecutionHistory(gomock.Any(), req).Return(&types.GetWorkflowExecutionHistoryResponse{}, nil).Times(1)
 	err = callFn(s.currentClusterName)
 	s.Nil(err)
@@ -189,7 +189,7 @@ func (s *clusterRedirectionHandlerSuite) TestListArchivedWorkflowExecutions() {
 	apiName := "ListArchivedWorkflowExecutions"
 
 	s.mockClusterRedirectionPolicy.On("WithDomainNameRedirect",
-		s.domainName, apiName, mock.Anything).Return(nil).Times(1)
+		s.domainName, apiName, types.QueryConsistencyLevelEventual, mock.Anything).Return(nil).Times(1)
 
 	req := &types.ListArchivedWorkflowExecutionsRequest{
 		Domain: s.domainName,
@@ -199,7 +199,7 @@ func (s *clusterRedirectionHandlerSuite) TestListArchivedWorkflowExecutions() {
 	// the resp is initialized to nil, since inner function is not called
 	s.Nil(resp)
 
-	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[2].(func(string) error)
+	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[3].(func(string) error)
 	s.mockFrontendHandler.EXPECT().ListArchivedWorkflowExecutions(gomock.Any(), req).Return(&types.ListArchivedWorkflowExecutionsResponse{}, nil).Times(1)
 	err = callFn(s.currentClusterName)
 	s.Nil(err)
@@ -212,7 +212,7 @@ func (s *clusterRedirectionHandlerSuite) TestListClosedWorkflowExecutions() {
 	apiName := "ListClosedWorkflowExecutions"
 
 	s.mockClusterRedirectionPolicy.On("WithDomainNameRedirect",
-		s.domainName, apiName, mock.Anything).Return(nil).Times(1)
+		s.domainName, apiName, types.QueryConsistencyLevelEventual, mock.Anything).Return(nil).Times(1)
 
 	req := &types.ListClosedWorkflowExecutionsRequest{
 		Domain: s.domainName,
@@ -222,7 +222,7 @@ func (s *clusterRedirectionHandlerSuite) TestListClosedWorkflowExecutions() {
 	// the resp is initialized to nil, since inner function is not called
 	s.Nil(resp)
 
-	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[2].(func(string) error)
+	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[3].(func(string) error)
 	s.mockFrontendHandler.EXPECT().ListClosedWorkflowExecutions(gomock.Any(), req).Return(&types.ListClosedWorkflowExecutionsResponse{}, nil).Times(1)
 	err = callFn(s.currentClusterName)
 	s.Nil(err)
@@ -235,7 +235,7 @@ func (s *clusterRedirectionHandlerSuite) TestListOpenWorkflowExecutions() {
 	apiName := "ListOpenWorkflowExecutions"
 
 	s.mockClusterRedirectionPolicy.On("WithDomainNameRedirect",
-		s.domainName, apiName, mock.Anything).Return(nil).Times(1)
+		s.domainName, apiName, types.QueryConsistencyLevelEventual, mock.Anything).Return(nil).Times(1)
 
 	req := &types.ListOpenWorkflowExecutionsRequest{
 		Domain: s.domainName,
@@ -245,7 +245,7 @@ func (s *clusterRedirectionHandlerSuite) TestListOpenWorkflowExecutions() {
 	// the resp is initialized to nil, since inner function is not called
 	s.Nil(resp)
 
-	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[2].(func(string) error)
+	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[3].(func(string) error)
 	s.mockFrontendHandler.EXPECT().ListOpenWorkflowExecutions(gomock.Any(), req).Return(&types.ListOpenWorkflowExecutionsResponse{}, nil).Times(1)
 	err = callFn(s.currentClusterName)
 	s.Nil(err)
@@ -258,7 +258,7 @@ func (s *clusterRedirectionHandlerSuite) TestListWorkflowExecutions() {
 	apiName := "ListWorkflowExecutions"
 
 	s.mockClusterRedirectionPolicy.On("WithDomainNameRedirect",
-		s.domainName, apiName, mock.Anything).Return(nil).Times(1)
+		s.domainName, apiName, types.QueryConsistencyLevelEventual, mock.Anything).Return(nil).Times(1)
 
 	req := &types.ListWorkflowExecutionsRequest{
 		Domain: s.domainName,
@@ -268,7 +268,7 @@ func (s *clusterRedirectionHandlerSuite) TestListWorkflowExecutions() {
 	// the resp is initialized to nil, since inner function is not called
 	s.Nil(resp)
 
-	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[2].(func(string) error)
+	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[3].(func(string) error)
 	s.mockFrontendHandler.EXPECT().ListWorkflowExecutions(gomock.Any(), req).Return(&types.ListWorkflowExecutionsResponse{}, nil).Times(1)
 	err = callFn(s.currentClusterName)
 	s.Nil(err)
@@ -281,7 +281,7 @@ func (s *clusterRedirectionHandlerSuite) TestScanWorkflowExecutions() {
 	apiName := "ScanWorkflowExecutions"
 
 	s.mockClusterRedirectionPolicy.On("WithDomainNameRedirect",
-		s.domainName, apiName, mock.Anything).Return(nil).Times(1)
+		s.domainName, apiName, types.QueryConsistencyLevelEventual, mock.Anything).Return(nil).Times(1)
 
 	req := &types.ListWorkflowExecutionsRequest{
 		Domain: s.domainName,
@@ -291,7 +291,7 @@ func (s *clusterRedirectionHandlerSuite) TestScanWorkflowExecutions() {
 	// the resp is initialized to nil, since inner function is not called
 	s.Nil(resp)
 
-	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[2].(func(string) error)
+	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[3].(func(string) error)
 	s.mockFrontendHandler.EXPECT().ScanWorkflowExecutions(gomock.Any(), req).Return(&types.ListWorkflowExecutionsResponse{}, nil).Times(1)
 	err = callFn(s.currentClusterName)
 	s.Nil(err)
@@ -304,7 +304,7 @@ func (s *clusterRedirectionHandlerSuite) TestCountWorkflowExecutions() {
 	apiName := "CountWorkflowExecutions"
 
 	s.mockClusterRedirectionPolicy.On("WithDomainNameRedirect",
-		s.domainName, apiName, mock.Anything).Return(nil).Times(1)
+		s.domainName, apiName, types.QueryConsistencyLevelEventual, mock.Anything).Return(nil).Times(1)
 
 	req := &types.CountWorkflowExecutionsRequest{
 		Domain: s.domainName,
@@ -314,7 +314,7 @@ func (s *clusterRedirectionHandlerSuite) TestCountWorkflowExecutions() {
 	// the resp is initialized to nil, since inner function is not called
 	s.Nil(resp)
 
-	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[2].(func(string) error)
+	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[3].(func(string) error)
 	s.mockFrontendHandler.EXPECT().CountWorkflowExecutions(gomock.Any(), req).Return(&types.CountWorkflowExecutionsResponse{}, nil).Times(1)
 	err = callFn(s.currentClusterName)
 	s.Nil(err)
@@ -327,7 +327,7 @@ func (s *clusterRedirectionHandlerSuite) TestPollForActivityTask() {
 	apiName := "PollForActivityTask"
 
 	s.mockClusterRedirectionPolicy.On("WithDomainNameRedirect",
-		s.domainName, apiName, mock.Anything).Return(nil).Times(1)
+		s.domainName, apiName, types.QueryConsistencyLevelEventual, mock.Anything).Return(nil).Times(1)
 
 	req := &types.PollForActivityTaskRequest{
 		Domain: s.domainName,
@@ -337,7 +337,7 @@ func (s *clusterRedirectionHandlerSuite) TestPollForActivityTask() {
 	// the resp is initialized to nil, since inner function is not called
 	s.Nil(resp)
 
-	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[2].(func(string) error)
+	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[3].(func(string) error)
 	s.mockFrontendHandler.EXPECT().PollForActivityTask(gomock.Any(), req).Return(&types.PollForActivityTaskResponse{}, nil).Times(1)
 	err = callFn(s.currentClusterName)
 	s.Nil(err)
@@ -350,7 +350,7 @@ func (s *clusterRedirectionHandlerSuite) TestPollForDecisionTask() {
 	apiName := "PollForDecisionTask"
 
 	s.mockClusterRedirectionPolicy.On("WithDomainNameRedirect",
-		s.domainName, apiName, mock.Anything).Return(nil).Times(1)
+		s.domainName, apiName, types.QueryConsistencyLevelEventual, mock.Anything).Return(nil).Times(1)
 
 	req := &types.PollForDecisionTaskRequest{
 		Domain: s.domainName,
@@ -360,7 +360,7 @@ func (s *clusterRedirectionHandlerSuite) TestPollForDecisionTask() {
 	// the resp is initialized to nil, since inner function is not called
 	s.Nil(resp)
 
-	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[2].(func(string) error)
+	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[3].(func(string) error)
 	s.mockFrontendHandler.EXPECT().PollForDecisionTask(gomock.Any(), req).Return(&types.PollForDecisionTaskResponse{}, nil).Times(1)
 	err = callFn(s.currentClusterName)
 	s.Nil(err)
@@ -373,7 +373,7 @@ func (s *clusterRedirectionHandlerSuite) TestQueryWorkflow() {
 	apiName := "QueryWorkflow"
 
 	s.mockClusterRedirectionPolicy.On("WithDomainNameRedirect",
-		s.domainName, apiName, mock.Anything).Return(nil).Times(1)
+		s.domainName, apiName, types.QueryConsistencyLevelEventual, mock.Anything).Return(nil).Times(1)
 
 	req := &types.QueryWorkflowRequest{
 		Domain: s.domainName,
@@ -383,7 +383,7 @@ func (s *clusterRedirectionHandlerSuite) TestQueryWorkflow() {
 	// the resp is initialized to nil, since inner function is not called
 	s.Nil(resp)
 
-	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[2].(func(string) error)
+	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[3].(func(string) error)
 	s.mockFrontendHandler.EXPECT().QueryWorkflow(gomock.Any(), req).Return(&types.QueryWorkflowResponse{}, nil).Times(1)
 	err = callFn(s.currentClusterName)
 	s.Nil(err)
@@ -393,10 +393,10 @@ func (s *clusterRedirectionHandlerSuite) TestQueryWorkflow() {
 }
 
 func (s *clusterRedirectionHandlerSuite) TestQueryWorkflowStrongConsistency() {
-	apiName := "QueryWorkflowStrongConsistency"
+	apiName := "QueryWorkflow"
 
 	s.mockClusterRedirectionPolicy.On("WithDomainNameRedirect",
-		s.domainName, apiName, mock.Anything).Return(nil).Times(1)
+		s.domainName, apiName, types.QueryConsistencyLevelStrong, mock.Anything).Return(nil).Times(1)
 
 	req := &types.QueryWorkflowRequest{
 		Domain:                s.domainName,
@@ -407,7 +407,7 @@ func (s *clusterRedirectionHandlerSuite) TestQueryWorkflowStrongConsistency() {
 	// the resp is initialized to nil, since inner function is not called
 	s.Nil(resp)
 
-	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[2].(func(string) error)
+	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[3].(func(string) error)
 	s.mockFrontendHandler.EXPECT().QueryWorkflow(gomock.Any(), req).Return(&types.QueryWorkflowResponse{}, nil).Times(1)
 	err = callFn(s.currentClusterName)
 	s.Nil(err)
@@ -420,7 +420,7 @@ func (s *clusterRedirectionHandlerSuite) TestRecordActivityTaskHeartbeat() {
 	apiName := "RecordActivityTaskHeartbeat"
 
 	s.mockClusterRedirectionPolicy.On("WithDomainIDRedirect",
-		s.domainID, apiName, mock.Anything).Return(nil).Times(1)
+		s.domainID, apiName, types.QueryConsistencyLevelEventual, mock.Anything).Return(nil).Times(1)
 
 	token, err := s.handler.tokenSerializer.Serialize(&common.TaskToken{
 		DomainID: s.domainID,
@@ -434,7 +434,7 @@ func (s *clusterRedirectionHandlerSuite) TestRecordActivityTaskHeartbeat() {
 	// the resp is initialized to nil, since inner function is not called
 	s.Nil(resp)
 
-	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[2].(func(string) error)
+	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[3].(func(string) error)
 	s.mockFrontendHandler.EXPECT().RecordActivityTaskHeartbeat(gomock.Any(), req).Return(&types.RecordActivityTaskHeartbeatResponse{}, nil).Times(1)
 	err = callFn(s.currentClusterName)
 	s.Nil(err)
@@ -447,7 +447,7 @@ func (s *clusterRedirectionHandlerSuite) TestRecordActivityTaskHeartbeatByID() {
 	apiName := "RecordActivityTaskHeartbeatByID"
 
 	s.mockClusterRedirectionPolicy.On("WithDomainNameRedirect",
-		s.domainName, apiName, mock.Anything).Return(nil).Times(1)
+		s.domainName, apiName, types.QueryConsistencyLevelEventual, mock.Anything).Return(nil).Times(1)
 
 	req := &types.RecordActivityTaskHeartbeatByIDRequest{
 		Domain: s.domainName,
@@ -457,7 +457,7 @@ func (s *clusterRedirectionHandlerSuite) TestRecordActivityTaskHeartbeatByID() {
 	// the resp is initialized to nil, since inner function is not called
 	s.Nil(resp)
 
-	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[2].(func(string) error)
+	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[3].(func(string) error)
 	s.mockFrontendHandler.EXPECT().RecordActivityTaskHeartbeatByID(gomock.Any(), req).Return(&types.RecordActivityTaskHeartbeatResponse{}, nil).Times(1)
 	err = callFn(s.currentClusterName)
 	s.Nil(err)
@@ -470,7 +470,7 @@ func (s *clusterRedirectionHandlerSuite) TestRequestCancelWorkflowExecution() {
 	apiName := "RequestCancelWorkflowExecution"
 
 	s.mockClusterRedirectionPolicy.On("WithDomainNameRedirect",
-		s.domainName, apiName, mock.Anything).Return(nil).Times(1)
+		s.domainName, apiName, types.QueryConsistencyLevelEventual, mock.Anything).Return(nil).Times(1)
 
 	req := &types.RequestCancelWorkflowExecutionRequest{
 		Domain: s.domainName,
@@ -478,7 +478,7 @@ func (s *clusterRedirectionHandlerSuite) TestRequestCancelWorkflowExecution() {
 	err := s.handler.RequestCancelWorkflowExecution(context.Background(), req)
 	s.Nil(err)
 
-	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[2].(func(string) error)
+	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[3].(func(string) error)
 	s.mockFrontendHandler.EXPECT().RequestCancelWorkflowExecution(gomock.Any(), req).Return(nil).Times(1)
 	err = callFn(s.currentClusterName)
 	s.Nil(err)
@@ -491,7 +491,7 @@ func (s *clusterRedirectionHandlerSuite) TestResetStickyTaskList() {
 	apiName := "ResetStickyTaskList"
 
 	s.mockClusterRedirectionPolicy.On("WithDomainNameRedirect",
-		s.domainName, apiName, mock.Anything).Return(nil).Times(1)
+		s.domainName, apiName, types.QueryConsistencyLevelEventual, mock.Anything).Return(nil).Times(1)
 
 	req := &types.ResetStickyTaskListRequest{
 		Domain: s.domainName,
@@ -501,7 +501,7 @@ func (s *clusterRedirectionHandlerSuite) TestResetStickyTaskList() {
 	// the resp is initialized to nil, since inner function is not called
 	s.Nil(resp)
 
-	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[2].(func(string) error)
+	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[3].(func(string) error)
 	s.mockFrontendHandler.EXPECT().ResetStickyTaskList(gomock.Any(), req).Return(&types.ResetStickyTaskListResponse{}, nil).Times(1)
 	err = callFn(s.currentClusterName)
 	s.Nil(err)
@@ -514,7 +514,7 @@ func (s *clusterRedirectionHandlerSuite) TestResetWorkflowExecution() {
 	apiName := "ResetWorkflowExecution"
 
 	s.mockClusterRedirectionPolicy.On("WithDomainNameRedirect",
-		s.domainName, apiName, mock.Anything).Return(nil).Times(1)
+		s.domainName, apiName, types.QueryConsistencyLevelEventual, mock.Anything).Return(nil).Times(1)
 
 	req := &types.ResetWorkflowExecutionRequest{
 		Domain: s.domainName,
@@ -524,7 +524,7 @@ func (s *clusterRedirectionHandlerSuite) TestResetWorkflowExecution() {
 	// the resp is initialized to nil, since inner function is not called
 	s.Nil(resp)
 
-	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[2].(func(string) error)
+	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[3].(func(string) error)
 	s.mockFrontendHandler.EXPECT().ResetWorkflowExecution(gomock.Any(), req).Return(&types.ResetWorkflowExecutionResponse{}, nil).Times(1)
 	err = callFn(s.currentClusterName)
 	s.Nil(err)
@@ -537,7 +537,7 @@ func (s *clusterRedirectionHandlerSuite) TestRespondActivityTaskCanceled() {
 	apiName := "RespondActivityTaskCanceled"
 
 	s.mockClusterRedirectionPolicy.On("WithDomainIDRedirect",
-		s.domainID, apiName, mock.Anything).Return(nil).Times(1)
+		s.domainID, apiName, types.QueryConsistencyLevelEventual, mock.Anything).Return(nil).Times(1)
 
 	token, err := s.handler.tokenSerializer.Serialize(&common.TaskToken{
 		DomainID: s.domainID,
@@ -549,7 +549,7 @@ func (s *clusterRedirectionHandlerSuite) TestRespondActivityTaskCanceled() {
 	err = s.handler.RespondActivityTaskCanceled(context.Background(), req)
 	s.Nil(err)
 
-	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[2].(func(string) error)
+	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[3].(func(string) error)
 	s.mockFrontendHandler.EXPECT().RespondActivityTaskCanceled(gomock.Any(), req).Return(nil).Times(1)
 	err = callFn(s.currentClusterName)
 	s.Nil(err)
@@ -562,7 +562,7 @@ func (s *clusterRedirectionHandlerSuite) TestRespondActivityTaskCanceledByID() {
 	apiName := "RespondActivityTaskCanceledByID"
 
 	s.mockClusterRedirectionPolicy.On("WithDomainNameRedirect",
-		s.domainName, apiName, mock.Anything).Return(nil).Times(1)
+		s.domainName, apiName, types.QueryConsistencyLevelEventual, mock.Anything).Return(nil).Times(1)
 
 	req := &types.RespondActivityTaskCanceledByIDRequest{
 		Domain: s.domainName,
@@ -570,7 +570,7 @@ func (s *clusterRedirectionHandlerSuite) TestRespondActivityTaskCanceledByID() {
 	err := s.handler.RespondActivityTaskCanceledByID(context.Background(), req)
 	s.Nil(err)
 
-	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[2].(func(string) error)
+	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[3].(func(string) error)
 	s.mockFrontendHandler.EXPECT().RespondActivityTaskCanceledByID(gomock.Any(), req).Return(nil).Times(1)
 	err = callFn(s.currentClusterName)
 	s.Nil(err)
@@ -583,7 +583,7 @@ func (s *clusterRedirectionHandlerSuite) TestRespondActivityTaskCompleted() {
 	apiName := "RespondActivityTaskCompleted"
 
 	s.mockClusterRedirectionPolicy.On("WithDomainIDRedirect",
-		s.domainID, apiName, mock.Anything).Return(nil).Times(1)
+		s.domainID, apiName, types.QueryConsistencyLevelEventual, mock.Anything).Return(nil).Times(1)
 
 	token, err := s.handler.tokenSerializer.Serialize(&common.TaskToken{
 		DomainID: s.domainID,
@@ -595,7 +595,7 @@ func (s *clusterRedirectionHandlerSuite) TestRespondActivityTaskCompleted() {
 	err = s.handler.RespondActivityTaskCompleted(context.Background(), req)
 	s.Nil(err)
 
-	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[2].(func(string) error)
+	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[3].(func(string) error)
 	s.mockFrontendHandler.EXPECT().RespondActivityTaskCompleted(gomock.Any(), req).Return(nil).Times(1)
 	err = callFn(s.currentClusterName)
 	s.Nil(err)
@@ -608,7 +608,7 @@ func (s *clusterRedirectionHandlerSuite) TestRespondActivityTaskCompletedByID() 
 	apiName := "RespondActivityTaskCompletedByID"
 
 	s.mockClusterRedirectionPolicy.On("WithDomainNameRedirect",
-		s.domainName, apiName, mock.Anything).Return(nil).Times(1)
+		s.domainName, apiName, types.QueryConsistencyLevelEventual, mock.Anything).Return(nil).Times(1)
 
 	req := &types.RespondActivityTaskCompletedByIDRequest{
 		Domain: s.domainName,
@@ -616,7 +616,7 @@ func (s *clusterRedirectionHandlerSuite) TestRespondActivityTaskCompletedByID() 
 	err := s.handler.RespondActivityTaskCompletedByID(context.Background(), req)
 	s.Nil(err)
 
-	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[2].(func(string) error)
+	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[3].(func(string) error)
 	s.mockFrontendHandler.EXPECT().RespondActivityTaskCompletedByID(gomock.Any(), req).Return(nil).Times(1)
 	err = callFn(s.currentClusterName)
 	s.Nil(err)
@@ -629,7 +629,7 @@ func (s *clusterRedirectionHandlerSuite) TestRespondActivityTaskFailed() {
 	apiName := "RespondActivityTaskFailed"
 
 	s.mockClusterRedirectionPolicy.On("WithDomainIDRedirect",
-		s.domainID, apiName, mock.Anything).Return(nil).Times(1)
+		s.domainID, apiName, types.QueryConsistencyLevelEventual, mock.Anything).Return(nil).Times(1)
 
 	token, err := s.handler.tokenSerializer.Serialize(&common.TaskToken{
 		DomainID: s.domainID,
@@ -641,7 +641,7 @@ func (s *clusterRedirectionHandlerSuite) TestRespondActivityTaskFailed() {
 	err = s.handler.RespondActivityTaskFailed(context.Background(), req)
 	s.Nil(err)
 
-	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[2].(func(string) error)
+	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[3].(func(string) error)
 	s.mockFrontendHandler.EXPECT().RespondActivityTaskFailed(gomock.Any(), req).Return(nil).Times(1)
 	err = callFn(s.currentClusterName)
 	s.Nil(err)
@@ -654,7 +654,7 @@ func (s *clusterRedirectionHandlerSuite) TestRespondActivityTaskFailedByID() {
 	apiName := "RespondActivityTaskFailedByID"
 
 	s.mockClusterRedirectionPolicy.On("WithDomainNameRedirect",
-		s.domainName, apiName, mock.Anything).Return(nil).Times(1)
+		s.domainName, apiName, types.QueryConsistencyLevelEventual, mock.Anything).Return(nil).Times(1)
 
 	req := &types.RespondActivityTaskFailedByIDRequest{
 		Domain: s.domainName,
@@ -662,7 +662,7 @@ func (s *clusterRedirectionHandlerSuite) TestRespondActivityTaskFailedByID() {
 	err := s.handler.RespondActivityTaskFailedByID(context.Background(), req)
 	s.Nil(err)
 
-	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[2].(func(string) error)
+	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[3].(func(string) error)
 	s.mockFrontendHandler.EXPECT().RespondActivityTaskFailedByID(gomock.Any(), req).Return(nil).Times(1)
 	err = callFn(s.currentClusterName)
 	s.Nil(err)
@@ -675,7 +675,7 @@ func (s *clusterRedirectionHandlerSuite) TestRespondDecisionTaskCompleted() {
 	apiName := "RespondDecisionTaskCompleted"
 
 	s.mockClusterRedirectionPolicy.On("WithDomainIDRedirect",
-		s.domainID, apiName, mock.Anything).Return(nil).Times(1)
+		s.domainID, apiName, types.QueryConsistencyLevelEventual, mock.Anything).Return(nil).Times(1)
 
 	token, err := s.handler.tokenSerializer.Serialize(&common.TaskToken{
 		DomainID: s.domainID,
@@ -689,7 +689,7 @@ func (s *clusterRedirectionHandlerSuite) TestRespondDecisionTaskCompleted() {
 	// the resp is initialized to nil, since inner function is not called
 	s.Nil(resp)
 
-	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[2].(func(string) error)
+	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[3].(func(string) error)
 	s.mockFrontendHandler.EXPECT().RespondDecisionTaskCompleted(gomock.Any(), req).Return(&types.RespondDecisionTaskCompletedResponse{}, nil).Times(1)
 	err = callFn(s.currentClusterName)
 	s.Nil(err)
@@ -702,7 +702,7 @@ func (s *clusterRedirectionHandlerSuite) TestRespondDecisionTaskFailed() {
 	apiName := "RespondDecisionTaskFailed"
 
 	s.mockClusterRedirectionPolicy.On("WithDomainIDRedirect",
-		s.domainID, apiName, mock.Anything).Return(nil).Times(1)
+		s.domainID, apiName, types.QueryConsistencyLevelEventual, mock.Anything).Return(nil).Times(1)
 
 	token, err := s.handler.tokenSerializer.Serialize(&common.TaskToken{
 		DomainID: s.domainID,
@@ -714,7 +714,7 @@ func (s *clusterRedirectionHandlerSuite) TestRespondDecisionTaskFailed() {
 	err = s.handler.RespondDecisionTaskFailed(context.Background(), req)
 	s.Nil(err)
 
-	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[2].(func(string) error)
+	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[3].(func(string) error)
 	s.mockFrontendHandler.EXPECT().RespondDecisionTaskFailed(gomock.Any(), req).Return(nil).Times(1)
 	err = callFn(s.currentClusterName)
 	s.Nil(err)
@@ -727,7 +727,7 @@ func (s *clusterRedirectionHandlerSuite) TestRespondQueryTaskCompleted() {
 	apiName := "RespondQueryTaskCompleted"
 
 	s.mockClusterRedirectionPolicy.On("WithDomainIDRedirect",
-		s.domainID, apiName, mock.Anything).Return(nil).Times(1)
+		s.domainID, apiName, types.QueryConsistencyLevelEventual, mock.Anything).Return(nil).Times(1)
 
 	token, err := s.handler.tokenSerializer.SerializeQueryTaskToken(&common.QueryTaskToken{
 		DomainID: s.domainID,
@@ -739,7 +739,7 @@ func (s *clusterRedirectionHandlerSuite) TestRespondQueryTaskCompleted() {
 	err = s.handler.RespondQueryTaskCompleted(context.Background(), req)
 	s.Nil(err)
 
-	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[2].(func(string) error)
+	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[3].(func(string) error)
 	s.mockFrontendHandler.EXPECT().RespondQueryTaskCompleted(gomock.Any(), req).Return(nil).Times(1)
 	err = callFn(s.currentClusterName)
 	s.Nil(err)
@@ -752,7 +752,7 @@ func (s *clusterRedirectionHandlerSuite) TestSignalWithStartWorkflowExecution() 
 	apiName := "SignalWithStartWorkflowExecution"
 
 	s.mockClusterRedirectionPolicy.On("WithDomainNameRedirect",
-		s.domainName, apiName, mock.Anything).Return(nil).Times(1)
+		s.domainName, apiName, types.QueryConsistencyLevelEventual, mock.Anything).Return(nil).Times(1)
 
 	req := &types.SignalWithStartWorkflowExecutionRequest{
 		Domain: s.domainName,
@@ -762,7 +762,7 @@ func (s *clusterRedirectionHandlerSuite) TestSignalWithStartWorkflowExecution() 
 	// the resp is initialized to nil, since inner function is not called
 	s.Nil(resp)
 
-	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[2].(func(string) error)
+	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[3].(func(string) error)
 	s.mockFrontendHandler.EXPECT().SignalWithStartWorkflowExecution(gomock.Any(), req).Return(&types.StartWorkflowExecutionResponse{}, nil).Times(1)
 	err = callFn(s.currentClusterName)
 	s.Nil(err)
@@ -775,7 +775,7 @@ func (s *clusterRedirectionHandlerSuite) TestSignalWorkflowExecution() {
 	apiName := "SignalWorkflowExecution"
 
 	s.mockClusterRedirectionPolicy.On("WithDomainNameRedirect",
-		s.domainName, apiName, mock.Anything).Return(nil).Times(1)
+		s.domainName, apiName, types.QueryConsistencyLevelEventual, mock.Anything).Return(nil).Times(1)
 
 	req := &types.SignalWorkflowExecutionRequest{
 		Domain: s.domainName,
@@ -783,7 +783,7 @@ func (s *clusterRedirectionHandlerSuite) TestSignalWorkflowExecution() {
 	err := s.handler.SignalWorkflowExecution(context.Background(), req)
 	s.Nil(err)
 
-	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[2].(func(string) error)
+	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[3].(func(string) error)
 	s.mockFrontendHandler.EXPECT().SignalWorkflowExecution(gomock.Any(), req).Return(nil).Times(1)
 	err = callFn(s.currentClusterName)
 	s.Nil(err)
@@ -796,7 +796,7 @@ func (s *clusterRedirectionHandlerSuite) TestStartWorkflowExecution() {
 	apiName := "StartWorkflowExecution"
 
 	s.mockClusterRedirectionPolicy.On("WithDomainNameRedirect",
-		s.domainName, apiName, mock.Anything).Return(nil).Times(1)
+		s.domainName, apiName, types.QueryConsistencyLevelEventual, mock.Anything).Return(nil).Times(1)
 
 	req := &types.StartWorkflowExecutionRequest{
 		Domain: s.domainName,
@@ -806,7 +806,7 @@ func (s *clusterRedirectionHandlerSuite) TestStartWorkflowExecution() {
 	// the resp is initialized to nil, since inner function is not called
 	s.Nil(resp)
 
-	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[2].(func(string) error)
+	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[3].(func(string) error)
 	s.mockFrontendHandler.EXPECT().StartWorkflowExecution(gomock.Any(), req).Return(&types.StartWorkflowExecutionResponse{}, nil).Times(1)
 	err = callFn(s.currentClusterName)
 	s.Nil(err)
@@ -819,7 +819,7 @@ func (s *clusterRedirectionHandlerSuite) TestTerminateWorkflowExecution() {
 	apiName := "TerminateWorkflowExecution"
 
 	s.mockClusterRedirectionPolicy.On("WithDomainNameRedirect",
-		s.domainName, apiName, mock.Anything).Return(nil).Times(1)
+		s.domainName, apiName, types.QueryConsistencyLevelEventual, mock.Anything).Return(nil).Times(1)
 
 	req := &types.TerminateWorkflowExecutionRequest{
 		Domain: s.domainName,
@@ -827,7 +827,7 @@ func (s *clusterRedirectionHandlerSuite) TestTerminateWorkflowExecution() {
 	err := s.handler.TerminateWorkflowExecution(context.Background(), req)
 	s.Nil(err)
 
-	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[2].(func(string) error)
+	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[3].(func(string) error)
 	s.mockFrontendHandler.EXPECT().TerminateWorkflowExecution(gomock.Any(), req).Return(nil).Times(1)
 	err = callFn(s.currentClusterName)
 	s.Nil(err)
@@ -840,7 +840,7 @@ func (s *clusterRedirectionHandlerSuite) TestListTaskListPartitions() {
 	apiName := "ListTaskListPartitions"
 
 	s.mockClusterRedirectionPolicy.On("WithDomainNameRedirect",
-		s.domainName, apiName, mock.Anything).Return(nil).Times(1)
+		s.domainName, apiName, types.QueryConsistencyLevelEventual, mock.Anything).Return(nil).Times(1)
 
 	req := &types.ListTaskListPartitionsRequest{
 		Domain: s.domainName,
@@ -854,7 +854,7 @@ func (s *clusterRedirectionHandlerSuite) TestListTaskListPartitions() {
 	// the resp is initialized to nil, since inner function is not called
 	s.Nil(resp)
 
-	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[2].(func(string) error)
+	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[3].(func(string) error)
 	s.mockFrontendHandler.EXPECT().ListTaskListPartitions(gomock.Any(), req).Return(&types.ListTaskListPartitionsResponse{}, nil).Times(1)
 	err = callFn(s.currentClusterName)
 	s.Nil(err)
@@ -867,7 +867,7 @@ func (s *clusterRedirectionHandlerSuite) TestGetTaskListsByDomain() {
 	apiName := "GetTaskListsByDomain"
 
 	s.mockClusterRedirectionPolicy.On("WithDomainNameRedirect",
-		s.domainName, apiName, mock.Anything).Return(nil).Times(1)
+		s.domainName, apiName, types.QueryConsistencyLevelEventual, mock.Anything).Return(nil).Times(1)
 
 	req := &types.GetTaskListsByDomainRequest{
 		Domain: s.domainName,
@@ -877,7 +877,7 @@ func (s *clusterRedirectionHandlerSuite) TestGetTaskListsByDomain() {
 	// the resp is initialized to nil, since inner function is not called
 	s.Nil(resp)
 
-	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[2].(func(string) error)
+	callFn := s.mockClusterRedirectionPolicy.Calls[0].Arguments[3].(func(string) error)
 	s.mockFrontendHandler.EXPECT().GetTaskListsByDomain(gomock.Any(), req).Return(&types.GetTaskListsByDomainResponse{}, nil).Times(1)
 	err = callFn(s.currentClusterName)
 	s.Nil(err)

@@ -1808,8 +1808,9 @@ func (v *DescribeTaskListResponse) GetTaskListStatus() (o *TaskListStatus) {
 
 // DescribeWorkflowExecutionRequest is an internal type (TBD...)
 type DescribeWorkflowExecutionRequest struct {
-	Domain    string             `json:"domain,omitempty"`
-	Execution *WorkflowExecution `json:"execution,omitempty"`
+	Domain                string                 `json:"domain,omitempty"`
+	Execution             *WorkflowExecution     `json:"execution,omitempty"`
+	QueryConsistencyLevel *QueryConsistencyLevel `json:"queryConsistencyLevel,omitempty"`
 }
 
 // GetDomain is an internal getter (TBD...)
@@ -1824,6 +1825,14 @@ func (v *DescribeWorkflowExecutionRequest) GetDomain() (o string) {
 func (v *DescribeWorkflowExecutionRequest) GetExecution() (o *WorkflowExecution) {
 	if v != nil && v.Execution != nil {
 		return v.Execution
+	}
+	return
+}
+
+// GetQueryConsistencyLevel is an internal getter (TBD...)
+func (v *DescribeWorkflowExecutionRequest) GetQueryConsistencyLevel() (o QueryConsistencyLevel) {
+	if v != nil && v.QueryConsistencyLevel != nil {
+		return *v.QueryConsistencyLevel
 	}
 	return
 }
@@ -2599,6 +2608,7 @@ type GetWorkflowExecutionHistoryRequest struct {
 	WaitForNewEvent        bool                    `json:"waitForNewEvent,omitempty"`
 	HistoryEventFilterType *HistoryEventFilterType `json:"HistoryEventFilterType,omitempty"`
 	SkipArchival           bool                    `json:"skipArchival,omitempty"`
+	QueryConsistencyLevel  *QueryConsistencyLevel  `json:"queryConsistencyLevel,omitempty"`
 }
 
 // GetDomain is an internal getter (TBD...)
@@ -2653,6 +2663,14 @@ func (v *GetWorkflowExecutionHistoryRequest) GetHistoryEventFilterType() (o Hist
 func (v *GetWorkflowExecutionHistoryRequest) GetSkipArchival() (o bool) {
 	if v != nil {
 		return v.SkipArchival
+	}
+	return
+}
+
+// GetQueryConsistencyLevel is an internal getter (TBD...)
+func (v *GetWorkflowExecutionHistoryRequest) GetQueryConsistencyLevel() (o QueryConsistencyLevel) {
+	if v != nil && v.QueryConsistencyLevel != nil {
+		return *v.QueryConsistencyLevel
 	}
 	return
 }
