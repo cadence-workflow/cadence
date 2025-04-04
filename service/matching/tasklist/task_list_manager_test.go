@@ -599,6 +599,7 @@ func TestGetIsolationGroupForTask(t *testing.T) {
 		drainedGroups            map[string]bool
 		isolationStateErr        error
 		disableTaskIsolation     bool
+		partitionConfig          *types.TaskListPartition
 	}{
 		{
 			name:                     "success - recent poller allows group",
@@ -637,6 +638,15 @@ func TestGetIsolationGroupForTask(t *testing.T) {
 			drainedGroups: map[string]bool{
 				"b": true,
 			},
+		},
+		{
+			name:                     "success - right partition",
+			taskIsolationGroup:       "a",
+			availableIsolationGroups: defaultAvailableIsolationGroups,
+			expectedGroup:            "a",
+			expectedDuration:         0,
+			recentPollers:            []string{"a"},
+			partitionConfig:          &types.TaskListPartition{IsolationGroups: []string{"a", "b", "c", "d"}},
 		},
 		{
 			name:                     "leak - no recent pollers",
@@ -707,6 +717,15 @@ func TestGetIsolationGroupForTask(t *testing.T) {
 			expectedDuration:         0,
 			disableTaskIsolation:     true,
 		},
+		{
+			name:                     "leak - wrong partition",
+			taskIsolationGroup:       "a",
+			availableIsolationGroups: defaultAvailableIsolationGroups,
+			expectedGroup:            "",
+			expectedDuration:         0,
+			recentPollers:            []string{"a"},
+			partitionConfig:          &types.TaskListPartition{IsolationGroups: []string{"b", "c", "d"}},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -727,6 +746,23 @@ func TestGetIsolationGroupForTask(t *testing.T) {
 			}
 			mockClock := clock.NewMockedTimeSource()
 			tlm := createTestTaskListManagerWithConfig(t, logger, controller, config, mockClock)
+
+			if tc.partitionConfig != nil {
+				tlm.startWG.Done()
+				// Add a partition and update the root to the specified config.
+				// If we're not adding a new partition it is treated as a no-op since the default is 1 partition
+				err := tlm.UpdateTaskListPartitionConfig(context.Background(), &types.TaskListPartitionConfig{
+					ReadPartitions: map[int]*types.TaskListPartition{
+						0: tc.partitionConfig,
+						1: {},
+					},
+					WritePartitions: map[int]*types.TaskListPartition{
+						0: tc.partitionConfig,
+						1: {},
+					},
+				})
+				require.NoError(t, err)
+			}
 
 			mockIsolationGroupState := isolationgroup.NewMockState(controller)
 			if tc.isolationStateErr != nil {
