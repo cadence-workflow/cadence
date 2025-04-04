@@ -26,7 +26,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 )
@@ -189,15 +189,15 @@ func convertToShardInfo(
 	}
 	info.PendingFailoverMarkers = persistence.NewDataBlob(
 		pendingFailoverMarkersRawData,
-		common.EncodingType(pendingFailoverMarkersEncoding),
+		constants.EncodingType(pendingFailoverMarkersEncoding),
 	)
 	info.TransferProcessingQueueStates = persistence.NewDataBlob(
 		transferProcessingQueueStatesRawData,
-		common.EncodingType(transferProcessingQueueStatesEncoding),
+		constants.EncodingType(transferProcessingQueueStatesEncoding),
 	)
 	info.TimerProcessingQueueStates = persistence.NewDataBlob(
 		timerProcessingQueueStatesRawData,
-		common.EncodingType(timerProcessingQueueStatesEncoding),
+		constants.EncodingType(timerProcessingQueueStatesEncoding),
 	)
 
 	return info

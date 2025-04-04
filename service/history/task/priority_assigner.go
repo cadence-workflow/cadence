@@ -25,6 +25,8 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/constants"
+	dynamicquotas "github.com/uber/cadence/common/dynamicconfig/quotas"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -34,9 +36,9 @@ import (
 )
 
 var (
-	highTaskPriority    = common.GetTaskPriority(common.HighPriorityClass, common.DefaultPrioritySubclass)
-	defaultTaskPriority = common.GetTaskPriority(common.DefaultPriorityClass, common.DefaultPrioritySubclass)
-	lowTaskPriority     = common.GetTaskPriority(common.LowPriorityClass, common.DefaultPrioritySubclass)
+	highTaskPriority    = common.GetTaskPriority(constants.HighPriorityClass, constants.DefaultPrioritySubclass)
+	defaultTaskPriority = common.GetTaskPriority(constants.DefaultPriorityClass, constants.DefaultPrioritySubclass)
+	lowTaskPriority     = common.GetTaskPriority(constants.LowPriorityClass, constants.DefaultPrioritySubclass)
 )
 
 type priorityAssignerImpl struct {
@@ -64,7 +66,7 @@ func NewPriorityAssigner(
 		config:             config,
 		logger:             logger,
 		scope:              metricClient.Scope(metrics.TaskPriorityAssignerScope),
-		rateLimiters: quotas.NewCollection(quotas.NewSimpleDynamicRateLimiterFactory(
+		rateLimiters: quotas.NewCollection(dynamicquotas.NewSimpleDynamicRateLimiterFactory(
 			config.TaskProcessRPS,
 		)),
 	}

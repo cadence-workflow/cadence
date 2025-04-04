@@ -28,7 +28,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common/partition"
+	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -131,7 +131,7 @@ func TestIsolationPickWritePartition(t *testing.T) {
 			}
 			if tc.group != "" {
 				req.PartitionConfig = map[string]string{
-					partition.IsolationGroupKey: tc.group,
+					isolationgroup.GroupKey: tc.group,
 				}
 			}
 			if tc.shouldFallback {

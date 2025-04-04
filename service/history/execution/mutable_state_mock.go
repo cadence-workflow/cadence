@@ -813,6 +813,20 @@ func (mr *MockMutableStateMockRecorder) AddWorkflowExecutionTerminatedEvent(firs
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddWorkflowExecutionTerminatedEvent", reflect.TypeOf((*MockMutableState)(nil).AddWorkflowExecutionTerminatedEvent), firstEventID, reason, details, identity)
 }
 
+// ByteSize mocks base method.
+func (m *MockMutableState) ByteSize() uint64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ByteSize")
+	ret0, _ := ret[0].(uint64)
+	return ret0
+}
+
+// ByteSize indicates an expected call of ByteSize.
+func (mr *MockMutableStateMockRecorder) ByteSize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ByteSize", reflect.TypeOf((*MockMutableState)(nil).ByteSize))
+}
+
 // CheckResettable mocks base method.
 func (m *MockMutableState) CheckResettable() error {
 	m.ctrl.T.Helper()
@@ -2476,20 +2490,6 @@ func (m *MockMutableState) SetVersionHistories(arg0 *persistence.VersionHistorie
 func (mr *MockMutableStateMockRecorder) SetVersionHistories(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetVersionHistories", reflect.TypeOf((*MockMutableState)(nil).SetVersionHistories), arg0)
-}
-
-// Size mocks base method.
-func (m *MockMutableState) Size() uint64 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Size")
-	ret0, _ := ret[0].(uint64)
-	return ret0
-}
-
-// Size indicates an expected call of Size.
-func (mr *MockMutableStateMockRecorder) Size() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockMutableState)(nil).Size))
 }
 
 // StartTransaction mocks base method.

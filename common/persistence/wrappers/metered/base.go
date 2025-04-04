@@ -143,6 +143,23 @@ func (p *base) call(scope int, op func() error, tags ...metrics.Tag) error {
 	return err
 }
 
+func (p *base) callWithoutDomainTag(scope int, op func() error, tags ...metrics.Tag) error {
+	metricsScope := p.metricClient.Scope(scope, tags...)
+	metricsScope.IncCounter(metrics.PersistenceRequests)
+	before := time.Now()
+	err := op()
+	duration := time.Since(before)
+	metricsScope.RecordTimer(metrics.PersistenceLatency, duration)
+
+	if p.enableLatencyHistogramMetrics {
+		metricsScope.RecordHistogramDuration(metrics.PersistenceLatencyHistogram, duration)
+	}
+	if err != nil {
+		p.updateErrorMetric(scope, err, metricsScope)
+	}
+	return err
+}
+
 func (p *base) callWithDomainAndShardScope(scope int, op func() error, domainTag metrics.Tag, shardIDTag metrics.Tag) error {
 	domainMetricsScope := p.metricClient.Scope(scope, domainTag)
 	shardOperationsMetricsScope := p.metricClient.Scope(scope, shardIDTag)
@@ -173,6 +190,10 @@ type lengther interface {
 	Len() int
 }
 
+type sizer interface {
+	ByteSize() uint64
+}
+
 type taggedRequest interface {
 	MetricTags() []metrics.Tag
 }
@@ -181,7 +202,7 @@ type extraLogRequest interface {
 	GetExtraLogTags() []tag.Tag
 }
 
-func (p *base) emptyMetric(methodName string, req any, res any, err error) {
+func (p *base) emitRowCountMetrics(methodName string, req any, res any) {
 	scope, ok := emptyCountedMethods[methodName]
 	if !ok {
 		// Method is not counted as empty.
@@ -190,10 +211,6 @@ func (p *base) emptyMetric(methodName string, req any, res any, err error) {
 
 	resLen, ok := res.(lengther)
 	if !ok {
-		return
-	}
-
-	if err != nil {
 		return
 	}
 
@@ -206,26 +223,41 @@ func (p *base) emptyMetric(methodName string, req any, res any, err error) {
 	}
 }
 
+func (p *base) emitPayloadSizeMetrics(methodName string, req any, res any) {
+	scope, ok := payloadSizeEmittingMethods[methodName]
+	if !ok {
+		return
+	}
+
+	resSize, ok := res.(sizer)
+	if !ok {
+		return
+	}
+
+	metricScope := p.metricClient.Scope(scope.scope, getCustomMetricTags(req)...)
+	metricScope.RecordHistogramValue(metrics.PersistenceResponsePayloadSize, float64(resSize.ByteSize()))
+}
+
+func (p *base) emptyMetric(methodName string, req any, res any, err error) {
+	if err != nil {
+		return
+	}
+
+	p.emitRowCountMetrics(methodName, req, res)
+	p.emitPayloadSizeMetrics(methodName, req, res)
+}
+
 var emptyCountedMethods = map[string]struct {
 	scope int
 }{
 	"ExecutionManager.ListCurrentExecutions": {
 		scope: metrics.PersistenceListCurrentExecutionsScope,
 	},
-	"ExecutionManager.GetTransferTasks": {
-		scope: metrics.PersistenceGetTransferTasksScope,
-	},
-	"ExecutionManager.GetCrossClusterTasks": {
-		scope: metrics.PersistenceGetCrossClusterTasksScope,
-	},
-	"ExecutionManager.GetReplicationTasks": {
-		scope: metrics.PersistenceGetReplicationTasksScope,
-	},
 	"ExecutionManager.GetReplicationTasksFromDLQ": {
 		scope: metrics.PersistenceGetReplicationTasksFromDLQScope,
 	},
-	"ExecutionManager.GetTimerIndexTasks": {
-		scope: metrics.PersistenceGetTimerIndexTasksScope,
+	"ExecutionManager.GetHistoryTasks": {
+		scope: metrics.PersistenceGetHistoryTasksScope,
 	},
 	"TaskManager.GetTasks": {
 		scope: metrics.PersistenceGetTasksScope,
@@ -235,6 +267,35 @@ var emptyCountedMethods = map[string]struct {
 	},
 	"HistoryManager.ReadHistoryBranch": {
 		scope: metrics.PersistenceReadHistoryBranchScope,
+	},
+	"HistoryManager.GetAllHistoryTreeBranches": {
+		scope: metrics.PersistenceGetAllHistoryTreeBranchesScope,
+	},
+	"QueueManager.ReadMessages": {
+		scope: metrics.PersistenceReadMessagesScope,
+	},
+}
+
+var payloadSizeEmittingMethods = map[string]struct {
+	scope int
+}{
+	"ExecutionManager.ListCurrentExecutions": {
+		scope: metrics.PersistenceListCurrentExecutionsScope,
+	},
+	"ExecutionManager.GetReplicationTasksFromDLQ": {
+		scope: metrics.PersistenceGetReplicationTasksFromDLQScope,
+	},
+	"ExecutionManager.GetHistoryTasks": {
+		scope: metrics.PersistenceGetHistoryTasksScope,
+	},
+	"TaskManager.GetTasks": {
+		scope: metrics.PersistenceGetTasksScope,
+	},
+	"DomainManager.ListDomains": {
+		scope: metrics.PersistenceListDomainsScope,
+	},
+	"HistoryManager.ReadRawHistoryBranch": {
+		scope: metrics.PersistenceReadRawHistoryBranchScope,
 	},
 	"HistoryManager.GetAllHistoryTreeBranches": {
 		scope: metrics.PersistenceGetAllHistoryTreeBranchesScope,

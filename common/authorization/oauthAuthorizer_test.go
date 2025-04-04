@@ -39,6 +39,7 @@ import (
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
@@ -101,7 +102,7 @@ func (s *oauthSuite) SetupTest() {
 			ID:   "test-domain-id",
 			Name: "test-domain",
 			Data: map[string]string{
-				common.DomainDataKeyForReadGroups: "c",
+				constants.DomainDataKeyForReadGroups: "c",
 			},
 		},
 		&persistence.DomainConfig{Retention: 1},
@@ -235,7 +236,7 @@ func (s *oauthSuite) TestIatExpiredToken() {
 }
 
 func (s *oauthSuite) TestDifferentGroup() {
-	s.domainEntry.GetInfo().Data[common.DomainDataKeyForReadGroups] = "AdifferentGroup"
+	s.domainEntry.GetInfo().Data[constants.DomainDataKeyForReadGroups] = "AdifferentGroup"
 	s.domainCache.EXPECT().GetDomain(s.att.DomainName).Return(s.domainEntry, nil).Times(1)
 	s.att.Permission = PermissionWrite
 	authorizer, err := NewOAuthAuthorizer(s.cfg, s.logger, s.domainCache)

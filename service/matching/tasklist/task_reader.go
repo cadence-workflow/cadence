@@ -83,7 +83,7 @@ type (
 		handleErr                func(error) error
 		onFatalErr               func()
 		dispatchTask             func(context.Context, *InternalTask) error
-		getIsolationGroupForTask func(context.Context, *persistence.TaskInfo) (string, time.Duration, error)
+		getIsolationGroupForTask func(context.Context, *persistence.TaskInfo) (string, time.Duration)
 		ratePerSecond            func() float64
 
 		// stopWg is used to wait for all dispatchers to stop.
@@ -324,20 +324,7 @@ func (tr *taskReader) addSingleTaskToBuffer(task *persistence.TaskInfo) bool {
 		tr.logger.Fatal("critical bug when adding item to ackManager", tag.Error(err))
 	}
 	// Ignore the isolation duration as we're just putting it into a buffer to be dispatched later.
-	isolationGroup, _, err := tr.getIsolationGroupForTask(tr.cancelCtx, task)
-	if err != nil {
-		// it only errors when the tasklist is a sticky tasklist and
-		// the sticky pollers are not available, in this case, we just complete the task
-		// and let the decision get timed out and rescheduled to non-sticky tasklist
-		if err == _stickyPollerUnavailableError {
-			tr.completeTask(task, nil)
-		} else {
-			// it should never happen, unless there is a bug in 'getIsolationGroupForTask' method
-			tr.logger.Error("taskReader: unexpected error getting isolation group", tag.Error(err))
-			tr.completeTask(task, err)
-		}
-		return true
-	}
+	isolationGroup, _ := tr.getIsolationGroupForTask(tr.cancelCtx, task)
 	select {
 	case tr.taskBuffers[isolationGroup] <- task:
 		return true
@@ -434,15 +421,7 @@ func (tr *taskReader) dispatchSingleTaskFromBufferWithRetries(taskInfo *persiste
 }
 
 func (tr *taskReader) dispatchSingleTaskFromBuffer(taskInfo *persistence.TaskInfo) (breakDispatchLoop bool, breakRetries bool) {
-	isolationGroup, isolationDuration, err := tr.getIsolationGroupForTask(tr.cancelCtx, taskInfo)
-	if err != nil {
-		// it should never happen, unless there is a bug in 'getIsolationGroupForTask' method
-		tr.logger.Error("taskReader: unexpected error getting isolation group",
-			tag.Error(err),
-			tag.PartitionConfig(taskInfo.PartitionConfig))
-		isolationGroup = defaultTaskBufferIsolationGroup
-		isolationDuration = noIsolationTimeout
-	}
+	isolationGroup, isolationDuration := tr.getIsolationGroupForTask(tr.cancelCtx, taskInfo)
 	_, isolationGroupIsKnown := tr.taskBuffers[isolationGroup]
 	if !isolationGroupIsKnown {
 		isolationGroup = defaultTaskBufferIsolationGroup
@@ -451,7 +430,7 @@ func (tr *taskReader) dispatchSingleTaskFromBuffer(taskInfo *persistence.TaskInf
 	task := newInternalTask(taskInfo, tr.completeTask, types.TaskSourceDbBacklog, "", false, nil, isolationGroup)
 	dispatchCtx, cancel := tr.newDispatchContext(isolationGroup, isolationDuration)
 	timerScope := tr.scope.StartTimer(metrics.AsyncMatchLatencyPerTaskList)
-	err = tr.dispatchTask(dispatchCtx, task)
+	err := tr.dispatchTask(dispatchCtx, task)
 	timerScope.Stop()
 	cancel()
 

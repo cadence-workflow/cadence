@@ -41,12 +41,13 @@ import (
 	"github.com/uber/cadence/common/client"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/constants"
 	cadence_errors "github.com/uber/cadence/common/errors"
+	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/metrics"
-	"github.com/uber/cadence/common/partition"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/common/types"
@@ -94,7 +95,7 @@ type (
 		domainCache          cache.DomainCache
 		versionChecker       client.VersionChecker
 		membershipResolver   membership.Resolver
-		partitioner          partition.Partitioner
+		isolationState       isolationgroup.State
 		timeSource           clock.TimeSource
 
 		waitForQueryResultFn func(hCtx *handlerContext, isStrongConsistencyQuery bool, queryResultCh <-chan *queryResult) (*types.QueryWorkflowResponse, error)
@@ -132,7 +133,7 @@ func NewEngine(
 	metricsClient metrics.Client,
 	domainCache cache.DomainCache,
 	resolver membership.Resolver,
-	partitioner partition.Partitioner,
+	isolationState isolationgroup.State,
 	timeSource clock.TimeSource,
 ) Engine {
 
@@ -152,7 +153,7 @@ func NewEngine(
 		domainCache:          domainCache,
 		versionChecker:       client.NewVersionChecker(),
 		membershipResolver:   resolver,
-		partitioner:          partitioner,
+		isolationState:       isolationState,
 		timeSource:           timeSource,
 	}
 
@@ -237,7 +238,7 @@ func (e *matchingEngineImpl) getTaskListManager(taskList *tasklist.Identifier, t
 		e.metricsClient,
 		e.taskManager,
 		e.clusterMetadata,
-		e.partitioner,
+		e.isolationState,
 		e.matchingClient,
 		e.removeTaskListManager,
 		taskList,
@@ -1138,7 +1139,7 @@ func (e *matchingEngineImpl) getAllPartitions(
 	partitionKeys := []string{rootPartition}
 	n := e.config.NumTasklistWritePartitions(request.GetDomain(), rootPartition, taskListType)
 	for i := 1; i < n; i++ {
-		partitionKeys = append(partitionKeys, fmt.Sprintf("%v%v/%v", common.ReservedTaskListPrefix, rootPartition, i))
+		partitionKeys = append(partitionKeys, fmt.Sprintf("%v%v/%v", constants.ReservedTaskListPrefix, rootPartition, i))
 	}
 	return partitionKeys, nil
 }
@@ -1336,8 +1337,8 @@ func (e *matchingEngineImpl) emitTaskIsolationMetrics(
 	partitionConfig map[string]string,
 	pollerIsolationGroup string,
 ) {
-	if currentGroup, ok := partitionConfig[partition.IsolationGroupKey]; ok {
-		originalGroup, ok := partitionConfig[partition.OriginalIsolationGroupKey]
+	if currentGroup, ok := partitionConfig[isolationgroup.GroupKey]; ok {
+		originalGroup, ok := partitionConfig[isolationgroup.OriginalGroupKey]
 		if !ok {
 			originalGroup = currentGroup
 		}

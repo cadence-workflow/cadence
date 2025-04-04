@@ -24,7 +24,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 	"github.com/uber/cadence/common/types"
@@ -59,7 +59,7 @@ func NewVisibilityRow() persistence.InternalVisibilityWorkflowExecutionInfo {
 		Status:        types.WorkflowExecutionCloseStatusCompleted.Ptr(),
 		HistoryLength: HistoryLenght,
 		Memo: &persistence.DataBlob{
-			Encoding: common.EncodingTypeJSON,
+			Encoding: constants.EncodingTypeJSON,
 			Data:     []byte{},
 		},
 		TaskList:         TaskList,

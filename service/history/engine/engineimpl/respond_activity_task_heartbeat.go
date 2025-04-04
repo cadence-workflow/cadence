@@ -25,7 +25,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
@@ -68,7 +68,7 @@ func (e *historyEngineImpl) RecordActivityTaskHeartbeat(
 			}
 
 			scheduleID := token.ScheduleID
-			if scheduleID == common.EmptyEventID { // client call RecordActivityHeartbeatByID, so get scheduleID by activityID
+			if scheduleID == constants.EmptyEventID { // client call RecordActivityHeartbeatByID, so get scheduleID by activityID
 				scheduleID, err0 = getScheduleID(token.ActivityID, mutableState)
 				if err0 != nil {
 					return err0
@@ -90,8 +90,8 @@ func (e *historyEngineImpl) RecordActivityTaskHeartbeat(
 				return workflow.ErrStaleState
 			}
 
-			if !isRunning || ai.StartedID == common.EmptyEventID ||
-				(token.ScheduleID != common.EmptyEventID && token.ScheduleAttempt != int64(ai.Attempt)) {
+			if !isRunning || ai.StartedID == constants.EmptyEventID ||
+				(token.ScheduleID != constants.EmptyEventID && token.ScheduleAttempt != int64(ai.Attempt)) {
 				e.logger.Warn(fmt.Sprintf(
 					"Encounter non existing activity in RecordActivityTaskHeartbeat: isRunning: %t, ai: %#v, token: %#v.",
 					isRunning, ai, token),

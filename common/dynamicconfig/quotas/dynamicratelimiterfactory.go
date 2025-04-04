@@ -20,7 +20,26 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-package partition
+package quotas
 
-// A PartitionConfig is the values passed in by a workflow on start for their partitioning
-type PartitionConfig map[string]string
+import (
+	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/quotas"
+)
+
+// NewSimpleDynamicRateLimiterFactory creates a new LimiterFactory which creates
+// a new DynamicRateLimiter for each domain, the RPS for the DynamicRateLimiter is given by the dynamic config
+func NewSimpleDynamicRateLimiterFactory(rps dynamicconfig.IntPropertyFnWithDomainFilter) quotas.LimiterFactory {
+	return dynamicRateLimiterFactory{
+		rps: rps,
+	}
+}
+
+type dynamicRateLimiterFactory struct {
+	rps dynamicconfig.IntPropertyFnWithDomainFilter
+}
+
+// GetLimiter returns a new Limiter for the given domain
+func (f dynamicRateLimiterFactory) GetLimiter(domain string) quotas.Limiter {
+	return quotas.NewDynamicRateLimiter(func() float64 { return float64(f.rps(domain)) })
+}

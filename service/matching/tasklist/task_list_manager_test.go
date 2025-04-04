@@ -23,6 +23,7 @@ package tasklist
 import (
 	"context"
 	"errors"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -48,7 +49,6 @@ import (
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
-	"github.com/uber/cadence/common/partition"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/stats"
 	"github.com/uber/cadence/common/types"
@@ -60,7 +60,7 @@ import (
 type mockDeps struct {
 	mockDomainCache    *cache.MockDomainCache
 	mockTaskManager    *persistence.MockTaskManager
-	mockPartitioner    *partition.MockPartitioner
+	mockIsolationState *isolationgroup.MockState
 	mockMatchingClient *matching.MockClient
 	mockTimeSource     clock.MockedTimeSource
 	dynamicClient      dynamicconfig.Client
@@ -79,7 +79,7 @@ func setupMocksForTaskListManager(t *testing.T, taskListID *Identifier, taskList
 	deps := &mockDeps{
 		mockDomainCache:    cache.NewMockDomainCache(ctrl),
 		mockTaskManager:    persistence.NewMockTaskManager(ctrl),
-		mockPartitioner:    partition.NewMockPartitioner(ctrl),
+		mockIsolationState: isolationgroup.NewMockState(ctrl),
 		mockMatchingClient: matching.NewMockClient(ctrl),
 		mockTimeSource:     clock.NewMockedTimeSource(),
 		dynamicClient:      dynamicClient,
@@ -94,7 +94,7 @@ func setupMocksForTaskListManager(t *testing.T, taskListID *Identifier, taskList
 		metricsClient,
 		deps.mockTaskManager,
 		clusterMetadata,
-		deps.mockPartitioner,
+		deps.mockIsolationState,
 		deps.mockMatchingClient,
 		func(Manager) {},
 		taskListID,
@@ -226,8 +226,8 @@ func createTestTaskListManager(t *testing.T, logger log.Logger, controller *gomo
 
 func createTestTaskListManagerWithConfig(t *testing.T, logger log.Logger, controller *gomock.Controller, cfg *config.Config, timeSource clock.TimeSource) *taskListManagerImpl {
 	tm := NewTestTaskManager(t, logger, timeSource)
-	mockPartitioner := partition.NewMockPartitioner(controller)
-	mockPartitioner.EXPECT().GetIsolationGroupByDomainID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return("", nil).AnyTimes()
+	mockIsolationState := isolationgroup.NewMockState(controller)
+	mockIsolationState.EXPECT().IsDrained(gomock.Any(), "domainName", gomock.Any()).Return(false, nil).AnyTimes()
 	mockDomainCache := cache.NewMockDomainCache(controller)
 	mockDomainCache.EXPECT().GetDomainByID(gomock.Any()).Return(cache.CreateDomainCacheEntry("domainName"), nil).AnyTimes()
 	mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("domainName", nil).AnyTimes()
@@ -239,7 +239,7 @@ func createTestTaskListManagerWithConfig(t *testing.T, logger log.Logger, contro
 		panic(err)
 	}
 	tlKind := types.TaskListKindNormal
-	tlMgr, err := NewManager(mockDomainCache, logger, metrics.NewClient(tally.NoopScope, metrics.Matching), tm, cluster.GetTestClusterMetadata(true), mockPartitioner, nil, func(Manager) {}, tlID, &tlKind, cfg, timeSource, timeSource.Now(), mockHistoryService)
+	tlMgr, err := NewManager(mockDomainCache, logger, metrics.NewClient(tally.NoopScope, metrics.Matching), tm, cluster.GetTestClusterMetadata(true), mockIsolationState, nil, func(Manager) {}, tlID, &tlKind, cfg, timeSource, timeSource.Now(), mockHistoryService)
 	if err != nil {
 		logger.Fatal("error when createTestTaskListManager", tag.Error(err))
 	}
@@ -286,6 +286,7 @@ func TestDescribeTaskList(t *testing.T) {
 			name: "no status, with pollers",
 			pollers: map[string]poller.Info{
 				"pollerID": {
+					Identity:       "pollerIdentity",
 					RatePerSecond:  1.0,
 					IsolationGroup: "a",
 				},
@@ -332,6 +333,7 @@ func TestDescribeTaskList(t *testing.T) {
 			includeStatus: true,
 			pollers: map[string]poller.Info{
 				"a-1": {
+					Identity:       "a1Identity",
 					RatePerSecond:  1.0,
 					IsolationGroup: "datacenterA",
 				},
@@ -373,10 +375,10 @@ func TestDescribeTaskList(t *testing.T) {
 
 			expectedPollers := make([]*types.PollerInfo, 0, len(tc.pollers))
 			for id, info := range tc.pollers {
-				tlm.pollerHistory.UpdatePollerInfo(poller.Identity(id), info)
+				tlm.pollers.StartPoll(id, func() {}, &info)
 				expectedPollers = append(expectedPollers, &types.PollerInfo{
 					LastAccessTime: common.Int64Ptr(tlm.timeSource.Now().UnixNano()),
-					Identity:       id,
+					Identity:       info.Identity,
 					RatePerSecond:  info.RatePerSecond,
 				})
 			}
@@ -514,53 +516,6 @@ func TestAddTaskStandby(t *testing.T) {
 	require.False(t, syncMatch)
 }
 
-func TestGetPollerIsolationGroup(t *testing.T) {
-	controller := gomock.NewController(t)
-	logger := testlogger.New(t)
-
-	config := defaultTestConfig()
-	mockClock := clock.NewMockedTimeSource()
-	config.LongPollExpirationInterval = dynamicconfig.GetDurationPropertyFnFilteredByTaskListInfo(30 * time.Second)
-	config.EnableTasklistIsolation = dynamicconfig.GetBoolPropertyFnFilteredByDomainID(true)
-	tlm := createTestTaskListManagerWithConfig(t, logger, controller, config, mockClock)
-
-	bgCtx := ContextWithPollerID(context.Background(), "poller0")
-	bgCtx = ContextWithIdentity(bgCtx, "id0")
-	bgCtx = ContextWithIsolationGroup(bgCtx, getIsolationgroupsHelper()[0])
-	ctx, cancel := context.WithTimeout(bgCtx, time.Millisecond)
-	_, err := tlm.GetTask(ctx, nil)
-	cancel()
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), ErrNoTasks.Error())
-
-	// we should get isolation groups that showed up within last isolationDuration
-	groups := tlm.getPollerIsolationGroups()
-	assert.Equal(t, 1, len(groups))
-	assert.Equal(t, getIsolationgroupsHelper()[0], groups[0])
-
-	// after isolation duration, the poller from that isolation group are cleared from the poller history
-	mockClock.Advance((10 * time.Second) + time.Nanosecond)
-	groups = tlm.getPollerIsolationGroups()
-	assert.Equal(t, 0, len(groups))
-
-	// we should get isolation groups of outstanding pollers
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		tlm.GetTask(ctx, nil)
-		cancel()
-	}()
-	awaitCondition(func() bool {
-		return len(tlm.getPollerIsolationGroups()) > 0
-	}, time.Second)
-	groups = tlm.getPollerIsolationGroups()
-	cancel()
-	wg.Wait()
-	assert.Equal(t, 1, len(groups))
-	assert.Equal(t, getIsolationgroupsHelper()[0], groups[0])
-}
-
 // return a client side tasklist throttle error from the rate limiter.
 // The expected behaviour is to retry
 func TestRateLimitErrorsFromTasklistDispatch(t *testing.T) {
@@ -574,8 +529,8 @@ func TestRateLimitErrorsFromTasklistDispatch(t *testing.T) {
 	tlm.taskReader.dispatchTask = func(ctx context.Context, task *InternalTask) error {
 		return ErrTasklistThrottled
 	}
-	tlm.taskReader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration, error) {
-		return "datacenterA", -1, nil
+	tlm.taskReader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration) {
+		return "datacenterA", -1
 	}
 
 	breakDispatcher, breakRetryLoop := tlm.taskReader.dispatchSingleTaskFromBuffer(&persistence.TaskInfo{})
@@ -603,8 +558,8 @@ func TestMisconfiguredZoneDoesNotBlock(t *testing.T) {
 		dispatched[task.isolationGroup] = dispatched[task.isolationGroup] + 1
 		return nil
 	}
-	tlm.taskReader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration, error) {
-		return invalidIsolationGroup, -1, nil
+	tlm.taskReader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration) {
+		return invalidIsolationGroup, -1
 	}
 
 	maxBufferSize := config.GetTasksBatchSize("", "", 0) - 1
@@ -640,6 +595,8 @@ func TestGetIsolationGroupForTask(t *testing.T) {
 		recentPollers            []string
 		expectedGroup            string
 		expectedDuration         time.Duration
+		drainedGroups            map[string]bool
+		isolationStateErr        error
 		disableTaskIsolation     bool
 	}{
 		{
@@ -670,6 +627,17 @@ func TestGetIsolationGroupForTask(t *testing.T) {
 			recentPollers:            []string{"a"},
 		},
 		{
+			name:                     "success - other group drained",
+			taskIsolationGroup:       "a",
+			availableIsolationGroups: defaultAvailableIsolationGroups,
+			expectedGroup:            "a",
+			expectedDuration:         0,
+			recentPollers:            []string{"a"},
+			drainedGroups: map[string]bool{
+				"b": true,
+			},
+		},
+		{
 			name:                     "leak - no recent pollers",
 			taskIsolationGroup:       "a",
 			availableIsolationGroups: defaultAvailableIsolationGroups,
@@ -692,6 +660,7 @@ func TestGetIsolationGroupForTask(t *testing.T) {
 			taskIsolationDuration:    time.Second,
 			taskLatency:              time.Second,
 			availableIsolationGroups: defaultAvailableIsolationGroups,
+			recentPollers:            []string{"a"},
 			expectedGroup:            "",
 			expectedDuration:         0,
 		},
@@ -701,23 +670,38 @@ func TestGetIsolationGroupForTask(t *testing.T) {
 			taskIsolationDuration:    time.Second,
 			taskLatency:              time.Second - minimumIsolationDuration,
 			availableIsolationGroups: defaultAvailableIsolationGroups,
+			recentPollers:            []string{"a"},
 			expectedGroup:            "",
 			expectedDuration:         0,
 		},
 		{
-			name:                  "leak - partitioner error",
-			taskIsolationGroup:    "a",
-			taskIsolationDuration: time.Second,
-			// No isolation groups causes an error
-			// availableIsolationGroups: defaultAvailableIsolationGroups,
-			expectedGroup:    "",
-			expectedDuration: 0,
+			name:                     "leak - group drained",
+			taskIsolationGroup:       "a",
+			taskIsolationDuration:    time.Second,
+			availableIsolationGroups: defaultAvailableIsolationGroups,
+			recentPollers:            []string{"a"},
+			expectedGroup:            "",
+			expectedDuration:         0,
+			drainedGroups: map[string]bool{
+				"a": true,
+			},
+		},
+		{
+			name:                     "leak - state error",
+			taskIsolationGroup:       "a",
+			taskIsolationDuration:    time.Second,
+			availableIsolationGroups: defaultAvailableIsolationGroups,
+			recentPollers:            []string{"a"},
+			isolationStateErr:        errors.New(">:("),
+			expectedGroup:            "",
+			expectedDuration:         0,
 		},
 		{
 			name:                     "leak - task isolation disabled",
 			taskIsolationGroup:       "a",
 			taskIsolationDuration:    time.Second,
 			availableIsolationGroups: defaultAvailableIsolationGroups,
+			recentPollers:            []string{"a"},
 			expectedGroup:            "",
 			expectedDuration:         0,
 			disableTaskIsolation:     true,
@@ -744,24 +728,17 @@ func TestGetIsolationGroupForTask(t *testing.T) {
 			tlm := createTestTaskListManagerWithConfig(t, logger, controller, config, mockClock)
 
 			mockIsolationGroupState := isolationgroup.NewMockState(controller)
-			mockIsolationGroupState.EXPECT().IsDrained(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
-			mockIsolationGroupState.EXPECT().IsDrainedByDomainID(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
-			mockIsolationGroupState.EXPECT().IsolationGroupsByDomainID(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, domainId string) (types.IsolationGroupConfiguration, error) {
-				// Report all available isolation groups as healthy
-				isolationGroupStates := make(types.IsolationGroupConfiguration, len(tc.availableIsolationGroups))
-				for _, availableGroup := range tc.availableIsolationGroups {
-					isolationGroupStates[availableGroup] = types.IsolationGroupPartition{
-						Name:  availableGroup,
-						State: types.IsolationGroupStateHealthy,
-					}
-				}
-				return isolationGroupStates, nil
-			}).AnyTimes()
-			partitioner := partition.NewDefaultPartitioner(log.NewNoop(), mockIsolationGroupState)
-			tlm.partitioner = partitioner
+			if tc.isolationStateErr != nil {
+				mockIsolationGroupState.EXPECT().IsDrained(gomock.Any(), "domainName", gomock.Any()).Return(false, tc.isolationStateErr).AnyTimes()
+			} else {
+				mockIsolationGroupState.EXPECT().IsDrained(gomock.Any(), "domainName", gomock.Any()).DoAndReturn(func(ctx context.Context, domainName, group string) (bool, error) {
+					return tc.drainedGroups[group], nil
+				}).AnyTimes()
+			}
+			tlm.isolationState = mockIsolationGroupState
 
-			for _, pollerGroup := range tc.recentPollers {
-				tlm.pollerHistory.UpdatePollerInfo(poller.Identity(pollerGroup), poller.Info{IsolationGroup: pollerGroup})
+			for i, pollerGroup := range tc.recentPollers {
+				tlm.pollers.StartPoll(strconv.Itoa(i), func() {}, &poller.Info{Identity: pollerGroup, IsolationGroup: pollerGroup})
 			}
 
 			taskInfo := &persistence.TaskInfo{
@@ -771,18 +748,16 @@ func TestGetIsolationGroupForTask(t *testing.T) {
 				ScheduleID:                    5,
 				ScheduleToStartTimeoutSeconds: 1,
 				PartitionConfig: map[string]string{
-					partition.IsolationGroupKey: tc.taskIsolationGroup,
-					partition.WorkflowIDKey:     "workflow1",
+					isolationgroup.GroupKey:      tc.taskIsolationGroup,
+					isolationgroup.WorkflowIDKey: "workflow1",
 				},
 				CreatedTime: mockClock.Now().Add(-1 * tc.taskLatency),
 			}
 
-			actual, actualDuration, err := tlm.getIsolationGroupForTask(context.Background(), taskInfo)
+			actual, actualDuration := tlm.getIsolationGroupForTask(context.Background(), taskInfo)
 
 			assert.Equal(t, tc.expectedGroup, actual)
 			assert.Equal(t, tc.expectedDuration, actualDuration)
-			// There are no longer any error cases
-			assert.Nil(t, err)
 		})
 	}
 }
@@ -822,8 +797,8 @@ func TestTaskListManagerGetTaskBatch(t *testing.T) {
 	const taskCount = 1200
 	const rangeSize = 10
 	controller := gomock.NewController(t)
-	mockPartitioner := partition.NewMockPartitioner(controller)
-	mockPartitioner.EXPECT().GetIsolationGroupByDomainID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return("", nil).AnyTimes()
+	mockIsolationState := isolationgroup.NewMockState(controller)
+	mockIsolationState.EXPECT().IsDrained(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
 	mockDomainCache := cache.NewMockDomainCache(controller)
 	mockDomainCache.EXPECT().GetDomainByID(gomock.Any()).Return(cache.CreateDomainCacheEntry("domainName"), nil).AnyTimes()
 	mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("domainName", nil).AnyTimes()
@@ -841,7 +816,7 @@ func TestTaskListManagerGetTaskBatch(t *testing.T) {
 		metrics.NewClient(tally.NoopScope, metrics.Matching),
 		tm,
 		cluster.GetTestClusterMetadata(true),
-		mockPartitioner,
+		mockIsolationState,
 		nil,
 		func(Manager) {},
 		taskListID,
@@ -912,7 +887,7 @@ func TestTaskListManagerGetTaskBatch(t *testing.T) {
 		metrics.NewClient(tally.NoopScope, metrics.Matching),
 		tm,
 		cluster.GetTestClusterMetadata(true),
-		mockPartitioner,
+		mockIsolationState,
 		nil,
 		func(Manager) {},
 		taskListID,
@@ -950,8 +925,8 @@ func TestTaskListReaderPumpAdvancesAckLevelAfterEmptyReads(t *testing.T) {
 	const nLeaseRenewals = 15
 
 	controller := gomock.NewController(t)
-	mockPartitioner := partition.NewMockPartitioner(controller)
-	mockPartitioner.EXPECT().GetIsolationGroupByDomainID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return("", nil).AnyTimes()
+	mockIsolationState := isolationgroup.NewMockState(controller)
+	mockIsolationState.EXPECT().IsDrained(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
 	mockDomainCache := cache.NewMockDomainCache(controller)
 	mockDomainCache.EXPECT().GetDomainByID(gomock.Any()).Return(cache.CreateDomainCacheEntry("domainName"), nil).AnyTimes()
 	mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("domainName", nil).AnyTimes()
@@ -971,7 +946,7 @@ func TestTaskListReaderPumpAdvancesAckLevelAfterEmptyReads(t *testing.T) {
 		metrics.NewClient(tally.NoopScope, metrics.Matching),
 		tm,
 		cluster.GetTestClusterMetadata(true),
-		mockPartitioner,
+		mockIsolationState,
 		nil,
 		func(Manager) {},
 		taskListID,
@@ -1094,8 +1069,8 @@ func TestTaskExpiryAndCompletion(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run("", func(t *testing.T) {
 			controller := gomock.NewController(t)
-			mockPartitioner := partition.NewMockPartitioner(controller)
-			mockPartitioner.EXPECT().GetIsolationGroupByDomainID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return("", nil).AnyTimes()
+			mockIsolationState := isolationgroup.NewMockState(controller)
+			mockIsolationState.EXPECT().IsDrained(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
 			mockDomainCache := cache.NewMockDomainCache(controller)
 			mockDomainCache.EXPECT().GetDomainByID(gomock.Any()).Return(cache.CreateDomainCacheEntry("domainName"), nil).AnyTimes()
 			mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("domainName", nil).AnyTimes()
@@ -1118,7 +1093,7 @@ func TestTaskExpiryAndCompletion(t *testing.T) {
 				metrics.NewClient(tally.NoopScope, metrics.Matching),
 				tm,
 				cluster.GetTestClusterMetadata(true),
-				mockPartitioner,
+				mockIsolationState,
 				nil,
 				func(Manager) {},
 				taskListID,
@@ -1184,13 +1159,13 @@ func TestTaskListManagerImpl_HasPollerAfter(t *testing.T) {
 	}{
 		"has_outstanding_pollers": {
 			prepareManager: func(tlm *taskListManagerImpl) {
-				tlm.addOutstandingPoller("poller1", "group1", func() {})
-				tlm.addOutstandingPoller("poller2", "group2", func() {})
+				tlm.pollers.StartPoll("poller1", func() {}, &poller.Info{Identity: "foo"})
 			},
 		},
 		"no_outstanding_pollers": {
 			prepareManager: func(tlm *taskListManagerImpl) {
-				tlm.pollerHistory.UpdatePollerInfo("identity", poller.Info{RatePerSecond: 1.0, IsolationGroup: "isolationGroup"})
+				tlm.pollers.StartPoll("poller1", func() {}, &poller.Info{Identity: "foo"})
+				tlm.pollers.EndPoll("poller1")
 			},
 		},
 	} {

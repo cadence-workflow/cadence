@@ -98,7 +98,7 @@ func NewPartitionConfigProvider(
 			Pin:             false,
 			MaxCount:        3000,
 			ActivelyEvict:   false,
-		}),
+		}, logger),
 	}
 }
 

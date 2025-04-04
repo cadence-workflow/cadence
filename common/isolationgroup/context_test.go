@@ -20,14 +20,19 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-package loggerimpl
+package isolationgroup
 
-// Option is used to set options for the logger.
-type Option func(impl *loggerImpl)
+import (
+	"context"
+	"testing"
 
-// WithSampleFunc sets the sampling function for the logger.
-func WithSampleFunc(fn func(int) bool) Option {
-	return func(impl *loggerImpl) {
-		impl.sampleLocalFn = fn
-	}
+	"github.com/stretchr/testify/assert"
+)
+
+func TestContext(t *testing.T) {
+	partitionConfig := map[string]string{"test": "abc"}
+	assert.Equal(t, partitionConfig, ConfigFromContext(ContextWithConfig(context.Background(), partitionConfig)))
+
+	isolationGroup := "zone1"
+	assert.Equal(t, isolationGroup, IsolationGroupFromContext(ContextWithIsolationGroup(context.Background(), isolationGroup)))
 }

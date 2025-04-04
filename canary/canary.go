@@ -29,7 +29,7 @@ import (
 	"go.uber.org/cadence/worker"
 	"go.uber.org/zap"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 )
 
 type (
@@ -66,8 +66,8 @@ const (
 func newCanary(domain string, rc *RuntimeContext, canaryConfig *Canary) Runnable {
 	canaryClient := newCadenceClient(domain, rc)
 	archivalClient := newCadenceClient(archivalDomain, rc)
-	systemClient := newCadenceClient(common.SystemLocalDomainName, rc)
-	batcherClient := newCadenceClient(common.BatcherLocalDomainName, rc)
+	systemClient := newCadenceClient(constants.SystemLocalDomainName, rc)
+	batcherClient := newCadenceClient(constants.BatcherLocalDomainName, rc)
 	var xClusterDest cadenceClient
 	if canaryConfig.CrossClusterTestMode == CrossClusterCanaryModeFull {
 		xClusterDest = newCadenceClient(deriveCanaryDomain(domain), rc)

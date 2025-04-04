@@ -27,6 +27,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/checksum"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 )
@@ -52,16 +53,16 @@ func WFExecRequest(opts ...WFExecRequestOption) *nosqlplugin.WorkflowExecutionRe
 			DomainID:   "test-domain-id",
 			WorkflowID: "test-workflow-id",
 			CompletionEvent: &persistence.DataBlob{
-				Encoding: common.EncodingTypeThriftRW,
+				Encoding: constants.EncodingTypeThriftRW,
 				Data:     []byte("test-completion-event"),
 			},
 			AutoResetPoints: &persistence.DataBlob{
-				Encoding: common.EncodingTypeThriftRW,
+				Encoding: constants.EncodingTypeThriftRW,
 				Data:     []byte("test-auto-reset-points"),
 			},
 		},
 		VersionHistories: &persistence.DataBlob{
-			Encoding: common.EncodingTypeThriftRW,
+			Encoding: constants.EncodingTypeThriftRW,
 			Data:     []byte("test-version-histories"),
 		},
 		Checksums: &checksum.Checksum{

@@ -102,7 +102,9 @@ func (pw *weightSelector) update(n, p int, weight int64) {
 	} else if n < len(pw.weights) {
 		pw.weights = pw.weights[:n]
 	}
-	pw.weights[p] = weight
+	if p < n { // the opposite condition can happen when the task list is scaled down and we get an update from a drained partition
+		pw.weights[p] = weight
+	}
 	for _, w := range pw.weights {
 		if w == -1 {
 			return
@@ -125,7 +127,7 @@ func NewWeightedLoadBalancer(
 			Pin:             false,
 			MaxCount:        3000,
 			ActivelyEvict:   false,
-		}),
+		}, logger),
 		logger: logger,
 	}
 }

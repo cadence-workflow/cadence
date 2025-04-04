@@ -101,7 +101,7 @@ func (s *Service) Start() {
 		s.GetMetricsClient(),
 		s.GetDomainCache(),
 		s.GetMembershipResolver(),
-		s.GetPartitioner(),
+		s.GetIsolationGroupState(),
 		s.GetTimeSource(),
 	)
 

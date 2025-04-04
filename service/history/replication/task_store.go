@@ -68,7 +68,7 @@ type (
 		GetDomainByID(id string) (*cache.DomainCacheEntry, error)
 	}
 	taskHydrator interface {
-		Hydrate(ctx context.Context, task persistence.ReplicationTaskInfo) (*types.ReplicationTask, error)
+		Hydrate(ctx context.Context, task persistence.Task) (*types.ReplicationTask, error)
 	}
 )
 
@@ -110,13 +110,13 @@ func NewTaskStore(
 //
 // Returned task may be nil. This may be due domain not existing in a given cluster or replication message is not longer relevant.
 // Either case is valid and such replication message should be ignored and not returned in the response.
-func (m *TaskStore) Get(ctx context.Context, cluster string, info persistence.ReplicationTaskInfo) (*types.ReplicationTask, error) {
+func (m *TaskStore) Get(ctx context.Context, cluster string, info persistence.Task) (*types.ReplicationTask, error) {
 	cache, ok := m.clusters[cluster]
 	if !ok {
 		return nil, ErrUnknownCluster
 	}
 
-	domain, err := m.domains.GetDomainByID(info.DomainID)
+	domain, err := m.domains.GetDomainByID(info.GetDomainID())
 	if err != nil {
 		return nil, fmt.Errorf("resolving domain: %w", err)
 	}
@@ -132,7 +132,7 @@ func (m *TaskStore) Get(ctx context.Context, cluster string, info persistence.Re
 	sw := scope.StartTimer(metrics.CacheLatency)
 	defer sw.Stop()
 
-	task := cache.Get(info.TaskID)
+	task := cache.Get(info.GetTaskID())
 	if task != nil {
 		scope.IncCounter(metrics.CacheHitCounter)
 		return task, nil

@@ -60,9 +60,9 @@ import (
 	"github.com/pborman/uuid"
 
 	workflow "github.com/uber/cadence/.gen/go/shared"
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/checksum"
 	"github.com/uber/cadence/common/codec"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -178,6 +178,7 @@ const (
 type HistoryTaskCategory struct {
 	categoryType int
 	categoryID   int
+	categoryName string
 }
 
 func (c *HistoryTaskCategory) Type() int {
@@ -186,6 +187,10 @@ func (c *HistoryTaskCategory) Type() int {
 
 func (c *HistoryTaskCategory) ID() int {
 	return c.categoryID
+}
+
+func (c *HistoryTaskCategory) Name() string {
+	return c.categoryName
 }
 
 const (
@@ -203,14 +208,17 @@ var (
 	HistoryTaskCategoryTransfer = HistoryTaskCategory{
 		categoryType: HistoryTaskCategoryTypeImmediate,
 		categoryID:   HistoryTaskCategoryIDTransfer,
+		categoryName: "transfer",
 	}
 	HistoryTaskCategoryTimer = HistoryTaskCategory{
 		categoryType: HistoryTaskCategoryTypeScheduled,
 		categoryID:   HistoryTaskCategoryIDTimer,
+		categoryName: "timer",
 	}
 	HistoryTaskCategoryReplication = HistoryTaskCategory{
 		categoryType: HistoryTaskCategoryTypeImmediate,
 		categoryID:   HistoryTaskCategoryIDReplication,
+		categoryName: "replication",
 	}
 )
 
@@ -782,7 +790,7 @@ type (
 
 		WorkflowRequestMode CreateWorkflowRequestMode
 
-		Encoding common.EncodingType // optional binary encoding type
+		Encoding constants.EncodingType // optional binary encoding type
 
 		DomainName string
 	}
@@ -804,7 +812,7 @@ type (
 
 		WorkflowRequestMode CreateWorkflowRequestMode
 
-		Encoding common.EncodingType // optional binary encoding type
+		Encoding constants.EncodingType // optional binary encoding type
 
 		DomainName string
 	}
@@ -891,65 +899,6 @@ type (
 		DomainName string
 	}
 
-	// GetTransferTasksRequest is used to read tasks from the transfer task queue
-	GetTransferTasksRequest struct {
-		ReadLevel     int64
-		MaxReadLevel  int64
-		BatchSize     int
-		NextPageToken []byte
-	}
-
-	// GetTransferTasksResponse is the response to GetTransferTasksRequest
-	GetTransferTasksResponse struct {
-		Tasks         []*TransferTaskInfo
-		NextPageToken []byte
-	}
-
-	// GetCrossClusterTasksRequest is used to read tasks from the cross-cluster task queue
-	GetCrossClusterTasksRequest struct {
-		TargetCluster string
-		ReadLevel     int64
-		MaxReadLevel  int64
-		BatchSize     int
-		NextPageToken []byte
-	}
-
-	// GetCrossClusterTasksResponse is the response to GetCrossClusterTasksRequest
-	GetCrossClusterTasksResponse struct {
-		Tasks         []*CrossClusterTaskInfo
-		NextPageToken []byte
-	}
-
-	// GetReplicationTasksRequest is used to read tasks from the replication task queue
-	GetReplicationTasksRequest struct {
-		ReadLevel     int64
-		MaxReadLevel  int64
-		BatchSize     int
-		NextPageToken []byte
-	}
-
-	// GetReplicationTasksResponse is the response to GetReplicationTask
-	GetReplicationTasksResponse struct {
-		Tasks         []*ReplicationTaskInfo
-		NextPageToken []byte
-	}
-
-	// CompleteTransferTaskRequest is used to complete a task in the transfer task queue
-	CompleteTransferTaskRequest struct {
-		TaskID int64
-	}
-
-	// CompleteCrossClusterTaskRequest is used to complete a task in the cross-cluster task queue
-	CompleteCrossClusterTaskRequest struct {
-		TargetCluster string
-		TaskID        int64
-	}
-
-	// CompleteReplicationTaskRequest is used to complete a task in the replication task queue
-	CompleteReplicationTaskRequest struct {
-		TaskID int64
-	}
-
 	// PutReplicationTaskToDLQRequest is used to put a replication task to dlq
 	PutReplicationTaskToDLQRequest struct {
 		SourceClusterName string
@@ -960,7 +909,10 @@ type (
 	// GetReplicationTasksFromDLQRequest is used to get replication tasks from dlq
 	GetReplicationTasksFromDLQRequest struct {
 		SourceClusterName string
-		GetReplicationTasksRequest
+		ReadLevel         int64
+		MaxReadLevel      int64
+		BatchSize         int
+		NextPageToken     []byte
 	}
 
 	// GetReplicationDLQSizeRequest is used to get one replication task from dlq
@@ -987,18 +939,9 @@ type (
 		TasksCompleted int
 	}
 
-	// GetReplicationTasksFromDLQResponse is the response for GetReplicationTasksFromDLQ
-	GetReplicationTasksFromDLQResponse = GetReplicationTasksResponse
-
 	// GetReplicationDLQSizeResponse is the response for GetReplicationDLQSize
 	GetReplicationDLQSizeResponse struct {
 		Size int64
-	}
-
-	// CompleteTimerTaskRequest is used to complete a task in the timer task queue
-	CompleteTimerTaskRequest struct {
-		VisibilityTimestamp time.Time
-		TaskID              int64
 	}
 
 	// GetHistoryTasksRequest is used to get history tasks
@@ -1016,6 +959,13 @@ type (
 		NextPageToken []byte
 	}
 
+	// CompleteHistoryTaskRequest is used to complete a history task
+	CompleteHistoryTaskRequest struct {
+		TaskCategory HistoryTaskCategory
+		TaskKey      HistoryTaskKey
+	}
+
+	// RangeCompleteHistoryTaskRequest is used to complete a range of history tasks
 	RangeCompleteHistoryTaskRequest struct {
 		TaskCategory        HistoryTaskCategory
 		InclusiveMinTaskKey HistoryTaskKey
@@ -1162,21 +1112,6 @@ type (
 	// GetOrphanTasksResponse is the response to GetOrphanTasksRequests
 	GetOrphanTasksResponse struct {
 		Tasks []*TaskKey
-	}
-
-	// GetTimerIndexTasksRequest is the request for GetTimerIndexTasks
-	// TODO: replace this with an iterator that can configure min and max index.
-	GetTimerIndexTasksRequest struct {
-		MinTimestamp  time.Time
-		MaxTimestamp  time.Time
-		BatchSize     int
-		NextPageToken []byte
-	}
-
-	// GetTimerIndexTasksResponse is the response for GetTimerIndexTasks
-	GetTimerIndexTasksResponse struct {
-		Timers        []*TimerTaskInfo
-		NextPageToken []byte
 	}
 
 	// DomainInfo describes the domain entity
@@ -1368,7 +1303,7 @@ type (
 		// requested TransactionID for this write operation. For the same eventID, the node with larger TransactionID always wins
 		TransactionID int64
 		// optional binary encoding type
-		Encoding common.EncodingType
+		Encoding constants.EncodingType
 		// The shard to get history node data
 		ShardID *int
 
@@ -1576,25 +1511,16 @@ type (
 		GetCurrentExecution(ctx context.Context, request *GetCurrentExecutionRequest) (*GetCurrentExecutionResponse, error)
 		IsWorkflowExecutionExists(ctx context.Context, request *IsWorkflowExecutionExistsRequest) (*IsWorkflowExecutionExistsResponse, error)
 
-		// Transfer task related methods
-		GetTransferTasks(ctx context.Context, request *GetTransferTasksRequest) (*GetTransferTasksResponse, error)
-		CompleteTransferTask(ctx context.Context, request *CompleteTransferTaskRequest) error
-
 		// Replication task related methods
-		GetReplicationTasks(ctx context.Context, request *GetReplicationTasksRequest) (*GetReplicationTasksResponse, error)
-		CompleteReplicationTask(ctx context.Context, request *CompleteReplicationTaskRequest) error
 		PutReplicationTaskToDLQ(ctx context.Context, request *PutReplicationTaskToDLQRequest) error
-		GetReplicationTasksFromDLQ(ctx context.Context, request *GetReplicationTasksFromDLQRequest) (*GetReplicationTasksFromDLQResponse, error)
+		GetReplicationTasksFromDLQ(ctx context.Context, request *GetReplicationTasksFromDLQRequest) (*GetHistoryTasksResponse, error)
 		GetReplicationDLQSize(ctx context.Context, request *GetReplicationDLQSizeRequest) (*GetReplicationDLQSizeResponse, error)
 		DeleteReplicationTaskFromDLQ(ctx context.Context, request *DeleteReplicationTaskFromDLQRequest) error
 		RangeDeleteReplicationTaskFromDLQ(ctx context.Context, request *RangeDeleteReplicationTaskFromDLQRequest) (*RangeDeleteReplicationTaskFromDLQResponse, error)
 		CreateFailoverMarkerTasks(ctx context.Context, request *CreateFailoverMarkersRequest) error
 
-		// Timer related methods.
-		GetTimerIndexTasks(ctx context.Context, request *GetTimerIndexTasksRequest) (*GetTimerIndexTasksResponse, error)
-		CompleteTimerTask(ctx context.Context, request *CompleteTimerTaskRequest) error
-
 		GetHistoryTasks(ctx context.Context, request *GetHistoryTasksRequest) (*GetHistoryTasksResponse, error)
+		CompleteHistoryTask(ctx context.Context, request *CompleteHistoryTaskRequest) error
 		RangeCompleteHistoryTask(ctx context.Context, request *RangeCompleteHistoryTaskRequest) (*RangeCompleteHistoryTaskResponse, error)
 
 		// Scan operations
@@ -2153,12 +2079,10 @@ func NewGetReplicationTasksFromDLQRequest(
 ) *GetReplicationTasksFromDLQRequest {
 	return &GetReplicationTasksFromDLQRequest{
 		SourceClusterName: sourceClusterName,
-		GetReplicationTasksRequest: GetReplicationTasksRequest{
-			ReadLevel:     readLevel,
-			MaxReadLevel:  maxReadLevel,
-			BatchSize:     batchSize,
-			NextPageToken: nextPageToken,
-		},
+		ReadLevel:         readLevel,
+		MaxReadLevel:      maxReadLevel,
+		BatchSize:         batchSize,
+		NextPageToken:     nextPageToken,
 	}
 }
 

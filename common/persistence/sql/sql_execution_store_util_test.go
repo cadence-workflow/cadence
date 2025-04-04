@@ -30,7 +30,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/serialization"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
@@ -811,7 +811,7 @@ func TestCreateExecution(t *testing.T) {
 			mockSetup: func(mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
 				mockParser.EXPECT().WorkflowExecutionInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte(`workflow`),
-					Encoding: common.EncodingType("workflow"),
+					Encoding: constants.EncodingType("workflow"),
 				}, nil)
 				mockTx.EXPECT().InsertIntoExecutions(gomock.Any(), &sqlplugin.ExecutionsRow{
 					ShardID:          shardID,
@@ -842,7 +842,7 @@ func TestCreateExecution(t *testing.T) {
 			mockSetup: func(mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
 				mockParser.EXPECT().WorkflowExecutionInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte(`workflow`),
-					Encoding: common.EncodingType("workflow"),
+					Encoding: constants.EncodingType("workflow"),
 				}, nil)
 				err := errors.New("some error")
 				mockTx.EXPECT().InsertIntoExecutions(gomock.Any(), &sqlplugin.ExecutionsRow{
@@ -910,7 +910,7 @@ func TestUpdateExecution(t *testing.T) {
 			mockSetup: func(mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
 				mockParser.EXPECT().WorkflowExecutionInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte(`workflow`),
-					Encoding: common.EncodingType("workflow"),
+					Encoding: constants.EncodingType("workflow"),
 				}, nil)
 				mockTx.EXPECT().UpdateExecutions(gomock.Any(), &sqlplugin.ExecutionsRow{
 					ShardID:          shardID,
@@ -941,7 +941,7 @@ func TestUpdateExecution(t *testing.T) {
 			mockSetup: func(mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
 				mockParser.EXPECT().WorkflowExecutionInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte(`workflow`),
-					Encoding: common.EncodingType("workflow"),
+					Encoding: constants.EncodingType("workflow"),
 				}, nil)
 				err := errors.New("some error")
 				mockTx.EXPECT().UpdateExecutions(gomock.Any(), &sqlplugin.ExecutionsRow{
@@ -1016,11 +1016,11 @@ func TestCreateTransferTasks(t *testing.T) {
 			mockSetup: func(mockTx *sqlplugin.MockTx, mockTaskSerializer *serialization.MockTaskSerializer) {
 				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryTransfer, gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte(`1`),
-					Encoding: common.EncodingType("1"),
+					Encoding: constants.EncodingType("1"),
 				}, nil)
 				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryTransfer, gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte(`2`),
-					Encoding: common.EncodingType("2"),
+					Encoding: constants.EncodingType("2"),
 				}, nil)
 				mockTx.EXPECT().InsertIntoTransferTasks(gomock.Any(), []sqlplugin.TransferTasksRow{
 					{
@@ -1056,7 +1056,7 @@ func TestCreateTransferTasks(t *testing.T) {
 			mockSetup: func(mockTx *sqlplugin.MockTx, mockTaskSerializer *serialization.MockTaskSerializer) {
 				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryTransfer, gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte(`1`),
-					Encoding: common.EncodingType("1"),
+					Encoding: constants.EncodingType("1"),
 				}, nil)
 				err := errors.New("some error")
 				mockTx.EXPECT().InsertIntoTransferTasks(gomock.Any(), gomock.Any()).Return(nil, err)
@@ -1125,11 +1125,11 @@ func TestCreateTimerTasks(t *testing.T) {
 			mockSetup: func(mockTx *sqlplugin.MockTx, mockTaskSerializer *serialization.MockTaskSerializer) {
 				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryTimer, gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte(`1`),
-					Encoding: common.EncodingType("1"),
+					Encoding: constants.EncodingType("1"),
 				}, nil)
 				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryTimer, gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte(`2`),
-					Encoding: common.EncodingType("2"),
+					Encoding: constants.EncodingType("2"),
 				}, nil)
 				mockTx.EXPECT().InsertIntoTimerTasks(gomock.Any(), []sqlplugin.TimerTasksRow{
 					{
@@ -1167,7 +1167,7 @@ func TestCreateTimerTasks(t *testing.T) {
 			mockSetup: func(mockTx *sqlplugin.MockTx, mockTaskSerializer *serialization.MockTaskSerializer) {
 				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryTimer, gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte(`1`),
-					Encoding: common.EncodingType("1"),
+					Encoding: constants.EncodingType("1"),
 				}, nil)
 				err := errors.New("some error")
 				mockTx.EXPECT().InsertIntoTimerTasks(gomock.Any(), gomock.Any()).Return(nil, err)
@@ -1235,11 +1235,11 @@ func TestCreateReplicationTasks(t *testing.T) {
 			mockSetup: func(mockTx *sqlplugin.MockTx, mockTaskSerializer *serialization.MockTaskSerializer) {
 				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryReplication, gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte(`1`),
-					Encoding: common.EncodingType("1"),
+					Encoding: constants.EncodingType("1"),
 				}, nil)
 				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryReplication, gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte(`2`),
-					Encoding: common.EncodingType("2"),
+					Encoding: constants.EncodingType("2"),
 				}, nil)
 				mockTx.EXPECT().InsertIntoReplicationTasks(gomock.Any(), []sqlplugin.ReplicationTasksRow{
 					{

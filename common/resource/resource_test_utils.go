@@ -52,7 +52,6 @@ import (
 	"github.com/uber/cadence/common/messaging"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/mocks"
-	"github.com/uber/cadence/common/partition"
 	"github.com/uber/cadence/common/persistence"
 	persistenceClient "github.com/uber/cadence/common/persistence/client"
 	"github.com/uber/cadence/common/quotas/global/rpc"
@@ -103,7 +102,6 @@ type (
 
 		IsolationGroups     *isolationgroup.MockState
 		IsolationGroupStore *configstore.MockClient
-		Partitioner         *partition.MockPartitioner
 		HostName            string
 		Logger              log.Logger
 		taskvalidator       taskvalidator.Checker
@@ -164,10 +162,6 @@ func NewTest(
 	isolationGroupMock := isolationgroup.NewMockState(controller)
 	isolationGroupMock.EXPECT().Stop().AnyTimes()
 
-	partitionMock := partition.NewMockPartitioner(controller)
-	mockZone := "zone1"
-	partitionMock.EXPECT().GetIsolationGroupByDomainID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(mockZone, nil)
-
 	scope := tally.NewTestScope("test", nil)
 
 	asyncWorkflowQueueProvider := queue.NewMockProvider(controller)
@@ -214,8 +208,6 @@ func NewTest(
 		ExecutionMgr:    executionMgr,
 		PersistenceBean: persistenceBean,
 		IsolationGroups: isolationGroupMock,
-		Partitioner:     partitionMock,
-
 		// logger
 
 		Logger: logger,
@@ -439,11 +431,6 @@ func (s *Test) GetDispatcher() *yarpc.Dispatcher {
 // GetIsolationGroupState returns the isolationGroupState for testing
 func (s *Test) GetIsolationGroupState() isolationgroup.State {
 	return s.IsolationGroups
-}
-
-// GetPartitioner returns the partitioner
-func (s *Test) GetPartitioner() partition.Partitioner {
-	return s.Partitioner
 }
 
 // GetIsolationGroupStore returns the config store for their

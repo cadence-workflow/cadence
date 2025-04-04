@@ -27,8 +27,8 @@ import (
 	"time"
 
 	workflow "github.com/uber/cadence/.gen/go/shared"
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/checksum"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -110,26 +110,17 @@ type (
 		GetCurrentExecution(ctx context.Context, request *GetCurrentExecutionRequest) (*GetCurrentExecutionResponse, error)
 		IsWorkflowExecutionExists(ctx context.Context, request *IsWorkflowExecutionExistsRequest) (*IsWorkflowExecutionExistsResponse, error)
 
-		// Transfer task related methods
-		GetTransferTasks(ctx context.Context, request *GetTransferTasksRequest) (*GetTransferTasksResponse, error)
-		CompleteTransferTask(ctx context.Context, request *CompleteTransferTaskRequest) error
-
 		// Replication task related methods
-		GetReplicationTasks(ctx context.Context, request *GetReplicationTasksRequest) (*InternalGetReplicationTasksResponse, error)
-		CompleteReplicationTask(ctx context.Context, request *CompleteReplicationTaskRequest) error
 		PutReplicationTaskToDLQ(ctx context.Context, request *InternalPutReplicationTaskToDLQRequest) error
-		GetReplicationTasksFromDLQ(ctx context.Context, request *GetReplicationTasksFromDLQRequest) (*InternalGetReplicationTasksFromDLQResponse, error)
+		GetReplicationTasksFromDLQ(ctx context.Context, request *GetReplicationTasksFromDLQRequest) (*GetHistoryTasksResponse, error)
 		GetReplicationDLQSize(ctx context.Context, request *GetReplicationDLQSizeRequest) (*GetReplicationDLQSizeResponse, error)
 		DeleteReplicationTaskFromDLQ(ctx context.Context, request *DeleteReplicationTaskFromDLQRequest) error
 		RangeDeleteReplicationTaskFromDLQ(ctx context.Context, request *RangeDeleteReplicationTaskFromDLQRequest) (*RangeDeleteReplicationTaskFromDLQResponse, error)
 		CreateFailoverMarkerTasks(ctx context.Context, request *CreateFailoverMarkersRequest) error
 
-		// Timer related methods.
-		GetTimerIndexTasks(ctx context.Context, request *GetTimerIndexTasksRequest) (*GetTimerIndexTasksResponse, error)
-		CompleteTimerTask(ctx context.Context, request *CompleteTimerTaskRequest) error
-
 		// History task related methods
 		GetHistoryTasks(ctx context.Context, request *GetHistoryTasksRequest) (*GetHistoryTasksResponse, error)
+		CompleteHistoryTask(ctx context.Context, request *CompleteHistoryTaskRequest) error
 		RangeCompleteHistoryTask(ctx context.Context, request *RangeCompleteHistoryTaskRequest) (*RangeCompleteHistoryTaskResponse, error)
 
 		// Scan related methods
@@ -223,7 +214,7 @@ type (
 	// It contains raw data, and metadata(right now only encoding) in other field
 	// Note that it should be only used for Persistence layer, below dataInterface and application(historyEngine/etc)
 	DataBlob struct {
-		Encoding common.EncodingType
+		Encoding constants.EncodingType
 		Data     []byte
 	}
 
@@ -243,20 +234,11 @@ type (
 		CurrentTimeStamp time.Time
 	}
 
-	// InternalGetReplicationTasksResponse is the response to GetReplicationTask
-	InternalGetReplicationTasksResponse struct {
-		Tasks         []*InternalReplicationTaskInfo
-		NextPageToken []byte
-	}
-
 	// InternalPutReplicationTaskToDLQRequest is used to put a replication task to dlq
 	InternalPutReplicationTaskToDLQRequest struct {
 		SourceClusterName string
 		TaskInfo          *InternalReplicationTaskInfo
 	}
-
-	// InternalGetReplicationTasksFromDLQResponse is the response for GetReplicationTasksFromDLQ
-	InternalGetReplicationTasksFromDLQResponse = InternalGetReplicationTasksResponse
 
 	// InternalReplicationTaskInfo describes the replication task created for replication of history events
 	InternalReplicationTaskInfo struct {
@@ -914,11 +896,11 @@ func (tr *InternalGetHistoryTreeResponse) ByBranchID() map[string]*types.History
 }
 
 // NewDataBlob returns a new DataBlob
-func NewDataBlob(data []byte, encodingType common.EncodingType) *DataBlob {
+func NewDataBlob(data []byte, encodingType constants.EncodingType) *DataBlob {
 	if len(data) == 0 {
 		return nil
 	}
-	if encodingType != common.EncodingTypeThriftRW && data[0] == 'Y' {
+	if encodingType != constants.EncodingTypeThriftRW && data[0] == 'Y' {
 		// original reason for this is not written down, but maybe for handling data prior to an encoding type?
 		panic(fmt.Sprintf("Invalid data blob encoding: \"%v\"", encodingType))
 	}
@@ -960,32 +942,32 @@ func (d *DataBlob) GetData() []byte {
 }
 
 // GetEncoding returns encoding type
-func (d *DataBlob) GetEncoding() common.EncodingType {
+func (d *DataBlob) GetEncoding() constants.EncodingType {
 	encodingStr := d.GetEncodingString()
 
-	switch common.EncodingType(encodingStr) {
-	case common.EncodingTypeGob:
-		return common.EncodingTypeGob
-	case common.EncodingTypeJSON:
-		return common.EncodingTypeJSON
-	case common.EncodingTypeThriftRW:
-		return common.EncodingTypeThriftRW
-	case common.EncodingTypeEmpty:
-		return common.EncodingTypeEmpty
+	switch constants.EncodingType(encodingStr) {
+	case constants.EncodingTypeGob:
+		return constants.EncodingTypeGob
+	case constants.EncodingTypeJSON:
+		return constants.EncodingTypeJSON
+	case constants.EncodingTypeThriftRW:
+		return constants.EncodingTypeThriftRW
+	case constants.EncodingTypeEmpty:
+		return constants.EncodingTypeEmpty
 	default:
-		return common.EncodingTypeUnknown
+		return constants.EncodingTypeUnknown
 	}
 }
 
 // ToInternal convert data blob to internal representation
 func (d *DataBlob) ToInternal() *types.DataBlob {
 	switch d.Encoding {
-	case common.EncodingTypeJSON:
+	case constants.EncodingTypeJSON:
 		return &types.DataBlob{
 			EncodingType: types.EncodingTypeJSON.Ptr(),
 			Data:         d.Data,
 		}
-	case common.EncodingTypeThriftRW:
+	case constants.EncodingTypeThriftRW:
 		return &types.DataBlob{
 			EncodingType: types.EncodingTypeThriftRW.Ptr(),
 			Data:         d.Data,
@@ -1000,12 +982,12 @@ func NewDataBlobFromInternal(blob *types.DataBlob) *DataBlob {
 	switch blob.GetEncodingType() {
 	case types.EncodingTypeJSON:
 		return &DataBlob{
-			Encoding: common.EncodingTypeJSON,
+			Encoding: constants.EncodingTypeJSON,
 			Data:     blob.Data,
 		}
 	case types.EncodingTypeThriftRW:
 		return &DataBlob{
-			Encoding: common.EncodingTypeThriftRW,
+			Encoding: constants.EncodingTypeThriftRW,
 			Data:     blob.Data,
 		}
 	default:

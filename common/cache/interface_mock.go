@@ -388,16 +388,16 @@ func (m *MockSizeable) EXPECT() *MockSizeableMockRecorder {
 	return m.recorder
 }
 
-// Size mocks base method.
-func (m *MockSizeable) Size() uint64 {
+// ByteSize mocks base method.
+func (m *MockSizeable) ByteSize() uint64 {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Size")
+	ret := m.ctrl.Call(m, "ByteSize")
 	ret0, _ := ret[0].(uint64)
 	return ret0
 }
 
-// Size indicates an expected call of Size.
-func (mr *MockSizeableMockRecorder) Size() *gomock.Call {
+// ByteSize indicates an expected call of ByteSize.
+func (mr *MockSizeableMockRecorder) ByteSize() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockSizeable)(nil).Size))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ByteSize", reflect.TypeOf((*MockSizeable)(nil).ByteSize))
 }

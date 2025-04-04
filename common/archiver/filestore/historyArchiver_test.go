@@ -36,6 +36,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/archiver"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/util"
@@ -203,7 +204,7 @@ func (s *historyArchiverSuite) TestArchive_Fail_HistoryMutated() {
 		{
 			Events: []*types.HistoryEvent{
 				{
-					ID:        common.FirstEventID + 1,
+					ID:        constants.FirstEventID + 1,
 					Timestamp: common.Int64Ptr(time.Now().UnixNano()),
 					Version:   testCloseFailoverVersion + 1,
 				},
@@ -269,7 +270,7 @@ func (s *historyArchiverSuite) TestArchive_Skip() {
 			{
 				Events: []*types.HistoryEvent{
 					{
-						ID:        common.FirstEventID,
+						ID:        constants.FirstEventID,
 						Timestamp: common.Int64Ptr(time.Now().UnixNano()),
 						Version:   testCloseFailoverVersion,
 					},
@@ -305,12 +306,12 @@ func (s *historyArchiverSuite) TestArchive_Success() {
 		{
 			Events: []*types.HistoryEvent{
 				{
-					ID:        common.FirstEventID + 1,
+					ID:        constants.FirstEventID + 1,
 					Timestamp: common.Int64Ptr(time.Now().UnixNano()),
 					Version:   testCloseFailoverVersion,
 				},
 				{
-					ID:        common.FirstEventID + 2,
+					ID:        constants.FirstEventID + 2,
 					Timestamp: common.Int64Ptr(time.Now().UnixNano()),
 					Version:   testCloseFailoverVersion,
 				},
@@ -581,12 +582,12 @@ func (s *historyArchiverSuite) setupHistoryDirectory() {
 		{
 			Events: []*types.HistoryEvent{
 				{
-					ID:        common.FirstEventID + 1,
+					ID:        constants.FirstEventID + 1,
 					Timestamp: common.Int64Ptr(time.Now().UnixNano()),
 					Version:   testCloseFailoverVersion,
 				},
 				{
-					ID:        common.FirstEventID + 1,
+					ID:        constants.FirstEventID + 1,
 					Timestamp: common.Int64Ptr(time.Now().UnixNano()),
 					Version:   testCloseFailoverVersion,
 				},

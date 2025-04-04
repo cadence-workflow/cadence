@@ -20,9 +20,15 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-package partition
+package isolationgroup
 
 import "context"
+
+const (
+	GroupKey         = "isolation-group"
+	OriginalGroupKey = "original-isolation-group"
+	WorkflowIDKey    = "wf-id"
+)
 
 type configKey struct{}
 

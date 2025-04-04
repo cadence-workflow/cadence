@@ -28,7 +28,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/uber/cadence/common/partition"
+	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
@@ -90,13 +90,13 @@ func TestNewInternalTask(t *testing.T) {
 			source:         types.TaskSourceDbBacklog,
 			isolationGroup: "a",
 			partitionConfig: map[string]string{
-				partition.IsolationGroupKey: "a",
-				partition.WorkflowIDKey:     "workflowID",
+				isolationgroup.GroupKey:      "a",
+				isolationgroup.WorkflowIDKey: "workflowID",
 			},
 			expectedPartitionConfig: map[string]string{
-				partition.OriginalIsolationGroupKey: "a",
-				partition.IsolationGroupKey:         "a",
-				partition.WorkflowIDKey:             "workflowID",
+				isolationgroup.OriginalGroupKey: "a",
+				isolationgroup.GroupKey:         "a",
+				isolationgroup.WorkflowIDKey:    "workflowID",
 			},
 		},
 		{
@@ -104,13 +104,13 @@ func TestNewInternalTask(t *testing.T) {
 			source:         types.TaskSourceDbBacklog,
 			isolationGroup: "",
 			partitionConfig: map[string]string{
-				partition.IsolationGroupKey: "a",
-				partition.WorkflowIDKey:     "workflowID",
+				isolationgroup.GroupKey:      "a",
+				isolationgroup.WorkflowIDKey: "workflowID",
 			},
 			expectedPartitionConfig: map[string]string{
-				partition.OriginalIsolationGroupKey: "a",
-				partition.IsolationGroupKey:         "",
-				partition.WorkflowIDKey:             "workflowID",
+				isolationgroup.OriginalGroupKey: "a",
+				isolationgroup.GroupKey:         "",
+				isolationgroup.WorkflowIDKey:    "workflowID",
 			},
 		},
 		{
@@ -118,14 +118,14 @@ func TestNewInternalTask(t *testing.T) {
 			source:         types.TaskSourceDbBacklog,
 			isolationGroup: "",
 			partitionConfig: map[string]string{
-				partition.OriginalIsolationGroupKey: "a",
-				partition.IsolationGroupKey:         "",
-				partition.WorkflowIDKey:             "workflowID",
+				isolationgroup.OriginalGroupKey: "a",
+				isolationgroup.GroupKey:         "",
+				isolationgroup.WorkflowIDKey:    "workflowID",
 			},
 			expectedPartitionConfig: map[string]string{
-				partition.OriginalIsolationGroupKey: "a",
-				partition.IsolationGroupKey:         "",
-				partition.WorkflowIDKey:             "workflowID",
+				isolationgroup.OriginalGroupKey: "a",
+				isolationgroup.GroupKey:         "",
+				isolationgroup.WorkflowIDKey:    "workflowID",
 			},
 		},
 	}

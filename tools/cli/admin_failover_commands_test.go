@@ -34,6 +34,7 @@ import (
 
 	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/worker/failovermanager"
 )
@@ -78,7 +79,7 @@ func TestAdminFailoverStart(t *testing.T) {
 
 				// then failover workflow will be started
 				wantReq := &types.StartWorkflowExecutionRequest{
-					Domain:                              common.SystemLocalDomainName,
+					Domain:                              constants.SystemLocalDomainName,
 					RequestID:                           "test-uuid",
 					WorkflowID:                          failovermanager.FailoverWorkflowID,
 					WorkflowIDReusePolicy:               types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
@@ -87,7 +88,7 @@ func TestAdminFailoverStart(t *testing.T) {
 					ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(600), // == failoverWFTimeout
 					TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(defaultDecisionTimeoutInSeconds),
 					Memo: mustGetWorkflowMemo(t, map[string]interface{}{
-						common.MemoKeyForOperator: "test-user",
+						constants.MemoKeyForOperator: "test-user",
 					}),
 					WorkflowType: &types.WorkflowType{Name: failovermanager.FailoverWorkflowTypeName},
 				}
@@ -158,7 +159,7 @@ func TestAdminFailoverStart(t *testing.T) {
 			mockFn: func(t *testing.T, m *frontend.MockClient) {
 				// failover drill workflow will be started
 				wantReq := &types.StartWorkflowExecutionRequest{
-					Domain:                              common.SystemLocalDomainName,
+					Domain:                              constants.SystemLocalDomainName,
 					RequestID:                           "test-uuid",
 					CronSchedule:                        "0 0 * * *",
 					WorkflowID:                          failovermanager.DrillWorkflowID,
@@ -168,7 +169,7 @@ func TestAdminFailoverStart(t *testing.T) {
 					ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(600), // == failoverWFTimeout
 					TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(defaultDecisionTimeoutInSeconds),
 					Memo: mustGetWorkflowMemo(t, map[string]interface{}{
-						common.MemoKeyForOperator: "test-user",
+						constants.MemoKeyForOperator: "test-user",
 					}),
 					WorkflowType: &types.WorkflowType{Name: failovermanager.FailoverWorkflowTypeName},
 				}
@@ -234,7 +235,7 @@ func TestAdminFailoverPauseResume(t *testing.T) {
 				m.EXPECT().SignalWorkflowExecution(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(ctx context.Context, gotReq *types.SignalWorkflowExecutionRequest, opts ...yarpc.CallOption) error {
 						wantReq := &types.SignalWorkflowExecutionRequest{
-							Domain: common.SystemLocalDomainName,
+							Domain: constants.SystemLocalDomainName,
 							WorkflowExecution: &types.WorkflowExecution{
 								WorkflowID: failovermanager.FailoverWorkflowID,
 								RunID:      "runid1",
@@ -266,7 +267,7 @@ func TestAdminFailoverPauseResume(t *testing.T) {
 			runID:         "runid1",
 			mockFn: func(t *testing.T, m *frontend.MockClient) {
 				wantReq := &types.SignalWorkflowExecutionRequest{
-					Domain: common.SystemLocalDomainName,
+					Domain: constants.SystemLocalDomainName,
 					WorkflowExecution: &types.WorkflowExecution{
 						WorkflowID: failovermanager.FailoverWorkflowID,
 						RunID:      "runid1",
@@ -339,7 +340,7 @@ func TestAdminFailoverQuery(t *testing.T) {
 				m.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(ctx context.Context, gotReq *types.QueryWorkflowRequest, opts ...yarpc.CallOption) (*types.QueryWorkflowResponse, error) {
 						wantReq := &types.QueryWorkflowRequest{
-							Domain: common.SystemLocalDomainName,
+							Domain: constants.SystemLocalDomainName,
 							Execution: &types.WorkflowExecution{
 								WorkflowID: failovermanager.FailoverWorkflowID,
 								RunID:      "",
@@ -359,7 +360,7 @@ func TestAdminFailoverQuery(t *testing.T) {
 				m.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(ctx context.Context, gotReq *types.DescribeWorkflowExecutionRequest, opts ...yarpc.CallOption) (*types.DescribeWorkflowExecutionResponse, error) {
 						wantReq := &types.DescribeWorkflowExecutionRequest{
-							Domain: common.SystemLocalDomainName,
+							Domain: constants.SystemLocalDomainName,
 							Execution: &types.WorkflowExecution{
 								WorkflowID: failovermanager.FailoverWorkflowID,
 								RunID:      "",
@@ -393,7 +394,7 @@ func TestAdminFailoverQuery(t *testing.T) {
 				m.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(ctx context.Context, gotReq *types.QueryWorkflowRequest, opts ...yarpc.CallOption) (*types.QueryWorkflowResponse, error) {
 						wantReq := &types.QueryWorkflowRequest{
-							Domain: common.SystemLocalDomainName,
+							Domain: constants.SystemLocalDomainName,
 							Execution: &types.WorkflowExecution{
 								WorkflowID: failovermanager.FailoverWorkflowID,
 								RunID:      "",
@@ -454,7 +455,7 @@ func TestAdminFailoverAbort(t *testing.T) {
 				m.EXPECT().TerminateWorkflowExecution(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(ctx context.Context, gotReq *types.TerminateWorkflowExecutionRequest, opts ...yarpc.CallOption) error {
 						wantReq := &types.TerminateWorkflowExecutionRequest{
-							Domain: common.SystemLocalDomainName,
+							Domain: constants.SystemLocalDomainName,
 							WorkflowExecution: &types.WorkflowExecution{
 								WorkflowID: failovermanager.FailoverWorkflowID,
 								RunID:      "",
@@ -516,7 +517,7 @@ func TestAdminFailoverRollback(t *testing.T) {
 				m.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(ctx context.Context, gotReq *types.QueryWorkflowRequest, opts ...yarpc.CallOption) (*types.QueryWorkflowResponse, error) {
 						wantReq := &types.QueryWorkflowRequest{
-							Domain: common.SystemLocalDomainName,
+							Domain: constants.SystemLocalDomainName,
 							Execution: &types.WorkflowExecution{
 								WorkflowID: failovermanager.FailoverWorkflowID,
 								RunID:      "",
@@ -539,7 +540,7 @@ func TestAdminFailoverRollback(t *testing.T) {
 				m.EXPECT().TerminateWorkflowExecution(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(ctx context.Context, gotReq *types.TerminateWorkflowExecutionRequest, opts ...yarpc.CallOption) error {
 						wantReq := &types.TerminateWorkflowExecutionRequest{
-							Domain: common.SystemLocalDomainName,
+							Domain: constants.SystemLocalDomainName,
 							WorkflowExecution: &types.WorkflowExecution{
 								WorkflowID: failovermanager.FailoverWorkflowID,
 								RunID:      "",
@@ -557,7 +558,7 @@ func TestAdminFailoverRollback(t *testing.T) {
 				m.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(ctx context.Context, gotReq *types.QueryWorkflowRequest, opts ...yarpc.CallOption) (*types.QueryWorkflowResponse, error) {
 						wantReq := &types.QueryWorkflowRequest{
-							Domain: common.SystemLocalDomainName,
+							Domain: constants.SystemLocalDomainName,
 							Execution: &types.WorkflowExecution{
 								WorkflowID: failovermanager.FailoverWorkflowID,
 								RunID:      "",
@@ -589,7 +590,7 @@ func TestAdminFailoverRollback(t *testing.T) {
 				m.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(ctx context.Context, gotReq *types.StartWorkflowExecutionRequest, opts ...yarpc.CallOption) (*types.StartWorkflowExecutionResponse, error) {
 						wantReq := &types.StartWorkflowExecutionRequest{
-							Domain:                common.SystemLocalDomainName,
+							Domain:                constants.SystemLocalDomainName,
 							RequestID:             "test-uuid",
 							WorkflowID:            failovermanager.FailoverWorkflowID,
 							WorkflowIDReusePolicy: types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
@@ -604,7 +605,7 @@ func TestAdminFailoverRollback(t *testing.T) {
 							ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(1200), // default value will be used
 							TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(defaultDecisionTimeoutInSeconds),
 							Memo: mustGetWorkflowMemo(t, map[string]interface{}{
-								common.MemoKeyForOperator: "test-user",
+								constants.MemoKeyForOperator: "test-user",
 							}),
 							WorkflowType: &types.WorkflowType{Name: failovermanager.FailoverWorkflowTypeName},
 						}

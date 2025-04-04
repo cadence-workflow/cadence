@@ -32,6 +32,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/types"
 )
@@ -102,14 +103,14 @@ func TestCreateDomain(t *testing.T) {
 			name: "success",
 			setupMock: func(mockStore *MockDomainStore, mockSerializer *MockPayloadSerializer) {
 				mockSerializer.EXPECT().
-					SerializeBadBinaries(&types.BadBinaries{Binaries: map[string]*types.BadBinaryInfo{}}, common.EncodingTypeThriftRW).
-					Return(&DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("bad-binaries")}, nil).Times(1)
+					SerializeBadBinaries(&types.BadBinaries{Binaries: map[string]*types.BadBinaryInfo{}}, constants.EncodingTypeThriftRW).
+					Return(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("bad-binaries")}, nil).Times(1)
 				mockSerializer.EXPECT().
-					SerializeIsolationGroups(&types.IsolationGroupConfiguration{"abc": {Name: "abc", State: types.IsolationGroupStateDrained}}, common.EncodingTypeThriftRW).
-					Return(&DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("isolation-groups")}, nil).Times(1)
+					SerializeIsolationGroups(&types.IsolationGroupConfiguration{"abc": {Name: "abc", State: types.IsolationGroupStateDrained}}, constants.EncodingTypeThriftRW).
+					Return(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("isolation-groups")}, nil).Times(1)
 				mockSerializer.EXPECT().
-					SerializeAsyncWorkflowsConfig(&types.AsyncWorkflowConfiguration{Enabled: true, PredefinedQueueName: "q", QueueType: "kafka"}, common.EncodingTypeThriftRW).
-					Return(&DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("async-workflow-config")}, nil).Times(1)
+					SerializeAsyncWorkflowsConfig(&types.AsyncWorkflowConfiguration{Enabled: true, PredefinedQueueName: "q", QueueType: "kafka"}, constants.EncodingTypeThriftRW).
+					Return(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("async-workflow-config")}, nil).Times(1)
 
 				expectedReq := &InternalCreateDomainRequest{
 					Info: testFixtureDomainInfo(),
@@ -120,9 +121,9 @@ func TestCreateDomain(t *testing.T) {
 						HistoryArchivalURI:       "s3://abc",
 						VisibilityArchivalStatus: types.ArchivalStatusEnabled,
 						VisibilityArchivalURI:    "s3://xyz",
-						BadBinaries:              &DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("bad-binaries")},
-						IsolationGroups:          &DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("isolation-groups")},
-						AsyncWorkflowsConfig:     &DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("async-workflow-config")},
+						BadBinaries:              &DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("bad-binaries")},
+						IsolationGroups:          &DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("isolation-groups")},
+						AsyncWorkflowsConfig:     &DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("async-workflow-config")},
 					},
 					ReplicationConfig: testFixtureDomainReplicationConfig(),
 					IsGlobalDomain:    true,
@@ -212,9 +213,9 @@ func TestGetDomain(t *testing.T) {
 							HistoryArchivalURI:       "s3://abc",
 							VisibilityArchivalStatus: types.ArchivalStatusEnabled,
 							VisibilityArchivalURI:    "s3://xyz",
-							BadBinaries:              &DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("bad-binaries")},
-							IsolationGroups:          &DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("isolation-groups")},
-							AsyncWorkflowsConfig:     &DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("async-workflow-config")},
+							BadBinaries:              &DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("bad-binaries")},
+							IsolationGroups:          &DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("isolation-groups")},
+							AsyncWorkflowsConfig:     &DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("async-workflow-config")},
 						},
 						ReplicationConfig: testFixtureDomainReplicationConfig(),
 						IsGlobalDomain:    true,
@@ -224,13 +225,13 @@ func TestGetDomain(t *testing.T) {
 						FailoverEndTime:   common.Ptr(time.Unix(0, 200)),
 					}, nil).Times(1)
 				mockSerializer.EXPECT().
-					DeserializeBadBinaries(&DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("bad-binaries")}).
+					DeserializeBadBinaries(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("bad-binaries")}).
 					Return(&types.BadBinaries{}, nil).Times(1)
 				mockSerializer.EXPECT().
-					DeserializeIsolationGroups(&DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("isolation-groups")}).
+					DeserializeIsolationGroups(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("isolation-groups")}).
 					Return(&types.IsolationGroupConfiguration{"abc": {Name: "abc", State: types.IsolationGroupStateDrained}}, nil).Times(1)
 				mockSerializer.EXPECT().
-					DeserializeAsyncWorkflowsConfig(&DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("async-workflow-config")}).
+					DeserializeAsyncWorkflowsConfig(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("async-workflow-config")}).
 					Return(&types.AsyncWorkflowConfiguration{}, nil).Times(1)
 			},
 			request:     &GetDomainRequest{ID: "domain1"},
@@ -318,14 +319,14 @@ func TestUpdateDomain(t *testing.T) {
 			name: "success",
 			setupMock: func(mockStore *MockDomainStore, mockSerializer *MockPayloadSerializer) {
 				mockSerializer.EXPECT().
-					SerializeBadBinaries(&types.BadBinaries{Binaries: map[string]*types.BadBinaryInfo{}}, common.EncodingTypeThriftRW).
-					Return(&DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("bad-binaries")}, nil).Times(1)
+					SerializeBadBinaries(&types.BadBinaries{Binaries: map[string]*types.BadBinaryInfo{}}, constants.EncodingTypeThriftRW).
+					Return(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("bad-binaries")}, nil).Times(1)
 				mockSerializer.EXPECT().
-					SerializeIsolationGroups(&types.IsolationGroupConfiguration{"abc": {Name: "abc", State: types.IsolationGroupStateDrained}}, common.EncodingTypeThriftRW).
-					Return(&DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("isolation-groups")}, nil).Times(1)
+					SerializeIsolationGroups(&types.IsolationGroupConfiguration{"abc": {Name: "abc", State: types.IsolationGroupStateDrained}}, constants.EncodingTypeThriftRW).
+					Return(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("isolation-groups")}, nil).Times(1)
 				mockSerializer.EXPECT().
-					SerializeAsyncWorkflowsConfig(&types.AsyncWorkflowConfiguration{Enabled: true, PredefinedQueueName: "q", QueueType: "kafka"}, common.EncodingTypeThriftRW).
-					Return(&DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("async-workflow-config")}, nil).Times(1)
+					SerializeAsyncWorkflowsConfig(&types.AsyncWorkflowConfiguration{Enabled: true, PredefinedQueueName: "q", QueueType: "kafka"}, constants.EncodingTypeThriftRW).
+					Return(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("async-workflow-config")}, nil).Times(1)
 				mockStore.EXPECT().
 					UpdateDomain(gomock.Any(), &InternalUpdateDomainRequest{
 						Info: testFixtureDomainInfo(),
@@ -336,9 +337,9 @@ func TestUpdateDomain(t *testing.T) {
 							HistoryArchivalURI:       "s3://abc",
 							VisibilityArchivalStatus: types.ArchivalStatusEnabled,
 							VisibilityArchivalURI:    "s3://xyz",
-							BadBinaries:              &DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("bad-binaries")},
-							IsolationGroups:          &DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("isolation-groups")},
-							AsyncWorkflowsConfig:     &DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("async-workflow-config")},
+							BadBinaries:              &DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("bad-binaries")},
+							IsolationGroups:          &DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("isolation-groups")},
+							AsyncWorkflowsConfig:     &DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("async-workflow-config")},
 						},
 						ReplicationConfig:           testFixtureDomainReplicationConfig(),
 						ConfigVersion:               1,
@@ -529,9 +530,9 @@ func TestListDomains(t *testing.T) {
 									HistoryArchivalURI:       "s3://abc",
 									VisibilityArchivalStatus: types.ArchivalStatusEnabled,
 									VisibilityArchivalURI:    "s3://xyz",
-									BadBinaries:              &DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("bad-binaries")},
-									IsolationGroups:          &DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("isolation-groups")},
-									AsyncWorkflowsConfig:     &DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("async-workflow-config")},
+									BadBinaries:              &DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("bad-binaries")},
+									IsolationGroups:          &DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("isolation-groups")},
+									AsyncWorkflowsConfig:     &DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("async-workflow-config")},
 								},
 								ReplicationConfig: testFixtureDomainReplicationConfig(),
 								IsGlobalDomain:    true,
@@ -544,13 +545,13 @@ func TestListDomains(t *testing.T) {
 						NextPageToken: []byte("token"),
 					}, nil).Times(1)
 				mockSerializer.EXPECT().
-					DeserializeBadBinaries(&DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("bad-binaries")}).
+					DeserializeBadBinaries(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("bad-binaries")}).
 					Return(&types.BadBinaries{}, nil).Times(1)
 				mockSerializer.EXPECT().
-					DeserializeIsolationGroups(&DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("isolation-groups")}).
+					DeserializeIsolationGroups(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("isolation-groups")}).
 					Return(&types.IsolationGroupConfiguration{"abc": {Name: "abc", State: types.IsolationGroupStateDrained}}, nil).Times(1)
 				mockSerializer.EXPECT().
-					DeserializeAsyncWorkflowsConfig(&DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("async-workflow-config")}).
+					DeserializeAsyncWorkflowsConfig(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("async-workflow-config")}).
 					Return(&types.AsyncWorkflowConfiguration{}, nil).Times(1)
 			},
 			request:     &ListDomainsRequest{PageSize: 10},

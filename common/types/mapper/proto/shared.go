@@ -25,6 +25,7 @@ import (
 
 	sharedv1 "github.com/uber/cadence/.gen/proto/shared/v1"
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
@@ -986,14 +987,14 @@ func FromTaskType(t *int32) adminv1.TaskType {
 	if t == nil {
 		return adminv1.TaskType_TASK_TYPE_INVALID
 	}
-	switch common.TaskType(*t) {
-	case common.TaskTypeTransfer:
+	switch constants.TaskType(*t) {
+	case constants.TaskTypeTransfer:
 		return adminv1.TaskType_TASK_TYPE_TRANSFER
-	case common.TaskTypeTimer:
+	case constants.TaskTypeTimer:
 		return adminv1.TaskType_TASK_TYPE_TIMER
-	case common.TaskTypeReplication:
+	case constants.TaskTypeReplication:
 		return adminv1.TaskType_TASK_TYPE_REPLICATION
-	case common.TaskTypeCrossCluster:
+	case constants.TaskTypeCrossCluster:
 		return adminv1.TaskType_TASK_TYPE_CROSS_CLUSTER
 	}
 	panic("unexpected enum value")
@@ -1004,13 +1005,13 @@ func ToTaskType(t adminv1.TaskType) *int32 {
 	case adminv1.TaskType_TASK_TYPE_INVALID:
 		return nil
 	case adminv1.TaskType_TASK_TYPE_TRANSFER:
-		return common.Int32Ptr(int32(common.TaskTypeTransfer))
+		return common.Int32Ptr(int32(constants.TaskTypeTransfer))
 	case adminv1.TaskType_TASK_TYPE_TIMER:
-		return common.Int32Ptr(int32(common.TaskTypeTimer))
+		return common.Int32Ptr(int32(constants.TaskTypeTimer))
 	case adminv1.TaskType_TASK_TYPE_REPLICATION:
-		return common.Int32Ptr(int32(common.TaskTypeReplication))
+		return common.Int32Ptr(int32(constants.TaskTypeReplication))
 	case adminv1.TaskType_TASK_TYPE_CROSS_CLUSTER:
-		return common.Int32Ptr(int32(common.TaskTypeCrossCluster))
+		return common.Int32Ptr(int32(constants.TaskTypeCrossCluster))
 	}
 	panic("unexpected enum value")
 }

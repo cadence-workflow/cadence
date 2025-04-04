@@ -1,5 +1,3 @@
-version: "3.5"
-
 services:
   cassandra:
     image: cassandra:4.1.1
@@ -33,7 +31,7 @@ services:
           - mysql
 
   postgres:
-    image: postgres:12.4
+    image: postgres:17.4
     environment:
       POSTGRES_PASSWORD: cadence
       POSTGRES_USER: cadence

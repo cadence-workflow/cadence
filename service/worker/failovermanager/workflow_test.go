@@ -35,6 +35,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/types"
@@ -312,7 +313,7 @@ func (s *failoverWorkflowTestSuite) TestShouldFailover() {
 				},
 				DomainInfo: &types.DomainInfo{
 					Data: map[string]string{
-						common.DomainDataKeyForManagedFailover: "true",
+						constants.DomainDataKeyForManagedFailover: "true",
 					},
 				},
 			},
@@ -333,7 +334,7 @@ func (s *failoverWorkflowTestSuite) TestGetDomainsActivity() {
 			{
 				DomainInfo: &types.DomainInfo{
 					Name: "d1",
-					Data: map[string]string{common.DomainDataKeyForManagedFailover: "true"},
+					Data: map[string]string{constants.DomainDataKeyForManagedFailover: "true"},
 				},
 				ReplicationConfiguration: &types.DomainReplicationConfiguration{
 					ActiveClusterName: "c1",
@@ -364,7 +365,7 @@ func (s *failoverWorkflowTestSuite) TestGetDomainsActivity_WithTargetDomains() {
 			{
 				DomainInfo: &types.DomainInfo{
 					Name: "d1",
-					Data: map[string]string{common.DomainDataKeyForManagedFailover: "true"},
+					Data: map[string]string{constants.DomainDataKeyForManagedFailover: "true"},
 				},
 				ReplicationConfiguration: &types.DomainReplicationConfiguration{
 					ActiveClusterName: "c1",
@@ -375,7 +376,7 @@ func (s *failoverWorkflowTestSuite) TestGetDomainsActivity_WithTargetDomains() {
 			{
 				DomainInfo: &types.DomainInfo{
 					Name: "d2",
-					Data: map[string]string{common.DomainDataKeyForManagedFailover: "true"},
+					Data: map[string]string{constants.DomainDataKeyForManagedFailover: "true"},
 				},
 				ReplicationConfiguration: &types.DomainReplicationConfiguration{
 					ActiveClusterName: "c1",
@@ -580,7 +581,7 @@ func (s *failoverWorkflowTestSuite) TestFailoverActivity_NoPoller_Error() {
 func (s *failoverWorkflowTestSuite) TestGetOperator() {
 	operator := "testOperator"
 	s.workflowEnv.SetMemoOnStart(map[string]interface{}{
-		common.MemoKeyForOperator: operator,
+		constants.MemoKeyForOperator: operator,
 	})
 
 	s.workflowEnv.OnActivity(getDomainsActivityName, mock.Anything, mock.Anything).Return(nil, nil)

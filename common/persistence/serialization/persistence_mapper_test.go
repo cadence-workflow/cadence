@@ -30,7 +30,7 @@ import (
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 )
 
@@ -42,7 +42,7 @@ func TestInternalWorkflowExecutionInfo(t *testing.T) {
 		FirstExecutionRunID:                uuid.New(),
 		InitiatedID:                        int64(rand.Intn(1000)),
 		CompletionEventBatchID:             int64(rand.Intn(1000)),
-		CompletionEvent:                    persistence.NewDataBlob([]byte(`CompletionEvent`), common.EncodingTypeJSON),
+		CompletionEvent:                    persistence.NewDataBlob([]byte(`CompletionEvent`), constants.EncodingTypeJSON),
 		TaskList:                           "TaskList",
 		WorkflowTypeName:                   "WorkflowTypeName",
 		WorkflowTimeout:                    time.Minute * time.Duration(rand.Intn(10)),
@@ -73,7 +73,7 @@ func TestInternalWorkflowExecutionInfo(t *testing.T) {
 		ClientLibraryVersion:               "ClientLibraryVersion",
 		ClientFeatureVersion:               "ClientFeatureVersion",
 		ClientImpl:                         "ClientImpl",
-		AutoResetPoints:                    persistence.NewDataBlob([]byte("AutoResetPoints"), common.EncodingTypeJSON),
+		AutoResetPoints:                    persistence.NewDataBlob([]byte("AutoResetPoints"), constants.EncodingTypeJSON),
 		Attempt:                            int32(rand.Intn(1000)),
 		HasRetryPolicy:                     true,
 		InitialInterval:                    time.Minute * time.Duration(rand.Intn(10)),

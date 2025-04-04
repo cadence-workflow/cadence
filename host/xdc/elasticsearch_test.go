@@ -40,6 +40,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -115,8 +116,8 @@ func (s *esCrossDCTestSuite) SetupSuite() {
 	s.esClient = esutils.CreateESClient(s.Suite, s.clusterConfigs[0].ESConfig.URL.String(), "v6")
 	// TODO Do we also want to run v7 test here?
 	s.esClient.PutIndexTemplate(s.Suite, "../testdata/es_index_v6_template.json", "test-visibility-template")
-	s.esClient.CreateIndex(s.Suite, s.clusterConfigs[0].ESConfig.Indices[common.VisibilityAppName])
-	s.esClient.CreateIndex(s.Suite, s.clusterConfigs[1].ESConfig.Indices[common.VisibilityAppName])
+	s.esClient.CreateIndex(s.Suite, s.clusterConfigs[0].ESConfig.Indices[constants.VisibilityAppName])
+	s.esClient.CreateIndex(s.Suite, s.clusterConfigs[1].ESConfig.Indices[constants.VisibilityAppName])
 
 	s.testSearchAttributeKey = definition.CustomStringField
 	s.testSearchAttributeVal = "test value"
@@ -130,8 +131,8 @@ func (s *esCrossDCTestSuite) SetupTest() {
 func (s *esCrossDCTestSuite) TearDownSuite() {
 	s.cluster1.TearDownCluster()
 	s.cluster2.TearDownCluster()
-	s.esClient.DeleteIndex(s.Suite, s.clusterConfigs[0].ESConfig.Indices[common.VisibilityAppName])
-	s.esClient.DeleteIndex(s.Suite, s.clusterConfigs[1].ESConfig.Indices[common.VisibilityAppName])
+	s.esClient.DeleteIndex(s.Suite, s.clusterConfigs[0].ESConfig.Indices[constants.VisibilityAppName])
+	s.esClient.DeleteIndex(s.Suite, s.clusterConfigs[1].ESConfig.Indices[constants.VisibilityAppName])
 }
 
 func (s *esCrossDCTestSuite) TestSearchAttributes() {

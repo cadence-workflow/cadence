@@ -20,19 +20,20 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-package partition
+package membership
 
-import (
-	"context"
-	"testing"
+import "github.com/uber/cadence/common"
 
-	"github.com/stretchr/testify/assert"
-)
+//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination=singleprovider_mock.go SingleProvider
 
-func TestContext(t *testing.T) {
-	partitionConfig := map[string]string{"test": "abc"}
-	assert.Equal(t, partitionConfig, ConfigFromContext(ContextWithConfig(context.Background(), partitionConfig)))
-
-	isolationGroup := "zone1"
-	assert.Equal(t, isolationGroup, IsolationGroupFromContext(ContextWithIsolationGroup(context.Background(), isolationGroup)))
+type SingleProvider interface {
+	common.Daemon
+	Lookup(key string) (HostInfo, error)
+	LookupRaw(key string) (string, error)
+	Subscribe(name string, channel chan<- *ChangedEvent) error
+	AddressToHost(owner string) (HostInfo, error)
+	Unsubscribe(name string) error
+	Members() []HostInfo
+	MemberCount() int
+	Refresh() error
 }

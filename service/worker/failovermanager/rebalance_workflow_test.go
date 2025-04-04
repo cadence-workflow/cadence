@@ -34,7 +34,7 @@ import (
 	"go.uber.org/cadence/workflow"
 	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/types"
@@ -74,8 +74,8 @@ func (s *rebalanceWorkflowTestSuite) TestGetDomainsForRebalanceActivity_ReturnOn
 				DomainInfo: &types.DomainInfo{
 					Name: "d1",
 					Data: map[string]string{
-						common.DomainDataKeyForManagedFailover:  "true",
-						common.DomainDataKeyForPreferredCluster: "c2",
+						constants.DomainDataKeyForManagedFailover:  "true",
+						constants.DomainDataKeyForPreferredCluster: "c2",
 					},
 				},
 				ReplicationConfiguration: &types.DomainReplicationConfiguration{
@@ -88,8 +88,8 @@ func (s *rebalanceWorkflowTestSuite) TestGetDomainsForRebalanceActivity_ReturnOn
 				DomainInfo: &types.DomainInfo{
 					Name: "d2",
 					Data: map[string]string{
-						common.DomainDataKeyForManagedFailover:  "false",
-						common.DomainDataKeyForPreferredCluster: "c2",
+						constants.DomainDataKeyForManagedFailover:  "false",
+						constants.DomainDataKeyForPreferredCluster: "c2",
 					},
 				},
 				ReplicationConfiguration: &types.DomainReplicationConfiguration{
@@ -102,8 +102,8 @@ func (s *rebalanceWorkflowTestSuite) TestGetDomainsForRebalanceActivity_ReturnOn
 				DomainInfo: &types.DomainInfo{
 					Name: "d3",
 					Data: map[string]string{
-						common.DomainDataKeyForManagedFailover:  "true",
-						common.DomainDataKeyForPreferredCluster: "c1",
+						constants.DomainDataKeyForManagedFailover:  "true",
+						constants.DomainDataKeyForPreferredCluster: "c1",
 					},
 				},
 				ReplicationConfiguration: &types.DomainReplicationConfiguration{
@@ -116,7 +116,7 @@ func (s *rebalanceWorkflowTestSuite) TestGetDomainsForRebalanceActivity_ReturnOn
 				DomainInfo: &types.DomainInfo{
 					Name: "d4",
 					Data: map[string]string{
-						common.DomainDataKeyForManagedFailover: "false",
+						constants.DomainDataKeyForManagedFailover: "false",
 					},
 				},
 				ReplicationConfiguration: &types.DomainReplicationConfiguration{
@@ -129,7 +129,7 @@ func (s *rebalanceWorkflowTestSuite) TestGetDomainsForRebalanceActivity_ReturnOn
 				DomainInfo: &types.DomainInfo{
 					Name: "d5",
 					Data: map[string]string{
-						common.DomainDataKeyForManagedFailover: "true",
+						constants.DomainDataKeyForManagedFailover: "true",
 					},
 				},
 				ReplicationConfiguration: &types.DomainReplicationConfiguration{
@@ -299,8 +299,8 @@ func (s *rebalanceWorkflowTestSuite) TestShouldAllowRebalance() {
 				DomainInfo: &types.DomainInfo{
 					Name: "d1",
 					Data: map[string]string{
-						common.DomainDataKeyForManagedFailover:  "true",
-						common.DomainDataKeyForPreferredCluster: "c2",
+						constants.DomainDataKeyForManagedFailover:  "true",
+						constants.DomainDataKeyForPreferredCluster: "c2",
 					},
 					Status: types.DomainStatusRegistered.Ptr(),
 				},
@@ -318,8 +318,8 @@ func (s *rebalanceWorkflowTestSuite) TestShouldAllowRebalance() {
 				DomainInfo: &types.DomainInfo{
 					Name: "d1",
 					Data: map[string]string{
-						common.DomainDataKeyForManagedFailover:  "false",
-						common.DomainDataKeyForPreferredCluster: "c2",
+						constants.DomainDataKeyForManagedFailover:  "false",
+						constants.DomainDataKeyForPreferredCluster: "c2",
 					},
 					Status: types.DomainStatusRegistered.Ptr(),
 				},
@@ -337,8 +337,8 @@ func (s *rebalanceWorkflowTestSuite) TestShouldAllowRebalance() {
 				DomainInfo: &types.DomainInfo{
 					Name: "d1",
 					Data: map[string]string{
-						common.DomainDataKeyForManagedFailover:  "true",
-						common.DomainDataKeyForPreferredCluster: "c2",
+						constants.DomainDataKeyForManagedFailover:  "true",
+						constants.DomainDataKeyForPreferredCluster: "c2",
 					},
 					Status: types.DomainStatusRegistered.Ptr(),
 				},
@@ -356,8 +356,8 @@ func (s *rebalanceWorkflowTestSuite) TestShouldAllowRebalance() {
 				DomainInfo: &types.DomainInfo{
 					Name: "d1",
 					Data: map[string]string{
-						common.DomainDataKeyForManagedFailover:  "true",
-						common.DomainDataKeyForPreferredCluster: "c2",
+						constants.DomainDataKeyForManagedFailover:  "true",
+						constants.DomainDataKeyForPreferredCluster: "c2",
 					},
 					Status: types.DomainStatusDeprecated.Ptr(),
 				},
@@ -374,7 +374,7 @@ func (s *rebalanceWorkflowTestSuite) TestShouldAllowRebalance() {
 				DomainInfo: &types.DomainInfo{
 					Name: "d1",
 					Data: map[string]string{
-						common.DomainDataKeyForManagedFailover: "true",
+						constants.DomainDataKeyForManagedFailover: "true",
 					},
 					Status: types.DomainStatusRegistered.Ptr(),
 				},
@@ -391,8 +391,8 @@ func (s *rebalanceWorkflowTestSuite) TestShouldAllowRebalance() {
 				DomainInfo: &types.DomainInfo{
 					Name: "d1",
 					Data: map[string]string{
-						common.DomainDataKeyForManagedFailover:  "true",
-						common.DomainDataKeyForPreferredCluster: "c1",
+						constants.DomainDataKeyForManagedFailover:  "true",
+						constants.DomainDataKeyForPreferredCluster: "c1",
 					},
 					Status: types.DomainStatusRegistered.Ptr(),
 				},
@@ -409,8 +409,8 @@ func (s *rebalanceWorkflowTestSuite) TestShouldAllowRebalance() {
 				DomainInfo: &types.DomainInfo{
 					Name: "d1",
 					Data: map[string]string{
-						common.DomainDataKeyForManagedFailover:  "true",
-						common.DomainDataKeyForPreferredCluster: "c3",
+						constants.DomainDataKeyForManagedFailover:  "true",
+						constants.DomainDataKeyForPreferredCluster: "c3",
 					},
 					Status: types.DomainStatusRegistered.Ptr(),
 				},

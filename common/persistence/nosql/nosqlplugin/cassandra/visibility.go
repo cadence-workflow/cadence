@@ -26,7 +26,7 @@ import (
 	"time"
 
 	workflow "github.com/uber/cadence/.gen/go/shared"
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql"
@@ -555,7 +555,7 @@ func readOpenWorkflowExecutionRecord(
 			TypeName:      typeName,
 			StartTime:     startTime,
 			ExecutionTime: executionTime,
-			Memo:          persistence.NewDataBlob(memo, common.EncodingType(encoding)),
+			Memo:          persistence.NewDataBlob(memo, constants.EncodingType(encoding)),
 			TaskList:      taskList,
 			IsCron:        isCron,
 			NumClusters:   numClusters,
@@ -595,7 +595,7 @@ func readClosedWorkflowExecutionRecord(
 			CloseTime:     closeTime,
 			Status:        thrift.ToWorkflowExecutionCloseStatus(&status),
 			HistoryLength: historyLength,
-			Memo:          persistence.NewDataBlob(memo, common.EncodingType(encoding)),
+			Memo:          persistence.NewDataBlob(memo, constants.EncodingType(encoding)),
 			TaskList:      taskList,
 			IsCron:        isCron,
 			NumClusters:   numClusters,

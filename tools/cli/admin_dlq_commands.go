@@ -33,6 +33,7 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/tools/common/commoncli"
@@ -153,11 +154,11 @@ func AdminGetDLQMessages(c *cli.Context) error {
 	if err != nil {
 		return commoncli.Problem("Required flag not found", err)
 	}
-	remainingMessageCount := common.EndMessageID
+	remainingMessageCount := constants.InclusiveEndMessageID
 	if c.IsSet(FlagMaxMessageCount) {
 		remainingMessageCount = c.Int64(FlagMaxMessageCount)
 	}
-	lastMessageID := common.EndMessageID
+	lastMessageID := constants.InclusiveEndMessageID
 	if c.IsSet(FlagLastMessageID) {
 		lastMessageID = c.Int64(FlagLastMessageID)
 	}

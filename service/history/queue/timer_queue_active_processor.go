@@ -44,17 +44,16 @@ func newTimerQueueActiveProcessor(
 
 	logger = logger.WithTags(tag.ClusterName(clusterName))
 
-	taskFilter := func(taskInfo task.Info) (bool, error) {
-		timer, ok := taskInfo.(*persistence.TimerTaskInfo)
-		if !ok {
+	taskFilter := func(timer persistence.Task) (bool, error) {
+		if timer.GetTaskCategory() != persistence.HistoryTaskCategoryTimer {
 			return false, errUnexpectedQueueTask
 		}
-		if notRegistered, err := isDomainNotRegistered(shard, timer.DomainID); notRegistered && err == nil {
-			logger.Info("Domain is not in registered status, skip task in active timer queue.", tag.WorkflowDomainID(timer.DomainID), tag.Value(taskInfo))
+		if notRegistered, err := isDomainNotRegistered(shard, timer.GetDomainID()); notRegistered && err == nil {
+			logger.Info("Domain is not in registered status, skip task in active timer queue.", tag.WorkflowDomainID(timer.GetDomainID()), tag.Value(timer))
 			return false, nil
 		}
 
-		return taskAllocator.VerifyActiveTask(timer.DomainID, timer)
+		return taskAllocator.VerifyActiveTask(timer.GetDomainID(), timer)
 	}
 
 	updateMaxReadLevel := func() task.Key {

@@ -27,7 +27,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql"
@@ -93,7 +93,7 @@ func (db *cdb) SelectCurrentWorkflow(
 
 	currentRunID := result["current_run_id"].(gocql.UUID).String()
 	executionInfo := parseWorkflowExecutionInfo(result["execution"].(map[string]interface{}))
-	lastWriteVersion := common.EmptyVersion
+	lastWriteVersion := constants.EmptyVersion
 	if result["workflow_last_write_version"] != nil {
 		lastWriteVersion = result["workflow_last_write_version"].(int64)
 	}
@@ -195,7 +195,7 @@ func (db *cdb) SelectWorkflowExecution(ctx context.Context, shardID int, domainI
 	state := &nosqlplugin.WorkflowExecution{}
 	info := parseWorkflowExecutionInfo(result["execution"].(map[string]interface{}))
 	state.ExecutionInfo = info
-	state.VersionHistories = persistence.NewDataBlob(result["version_histories"].([]byte), common.EncodingType(result["version_histories_encoding"].(string)))
+	state.VersionHistories = persistence.NewDataBlob(result["version_histories"].([]byte), constants.EncodingType(result["version_histories_encoding"].(string)))
 	// TODO: remove this after all 2DC workflows complete
 	replicationState := parseReplicationState(result["replication_state"].(map[string]interface{}))
 	state.ReplicationState = replicationState
@@ -347,7 +347,7 @@ func (db *cdb) SelectAllWorkflowExecutions(ctx context.Context, shardID int, pag
 		}
 		executions = append(executions, &persistence.InternalListConcreteExecutionsEntity{
 			ExecutionInfo:    parseWorkflowExecutionInfo(result["execution"].(map[string]interface{})),
-			VersionHistories: persistence.NewDataBlob(result["version_histories"].([]byte), common.EncodingType(result["version_histories_encoding"].(string))),
+			VersionHistories: persistence.NewDataBlob(result["version_histories"].([]byte), constants.EncodingType(result["version_histories_encoding"].(string))),
 		})
 		result = make(map[string]interface{})
 	}
@@ -405,7 +405,7 @@ func (db *cdb) SelectTransferTasksOrderByTaskID(ctx context.Context, shardID, pa
 		taskID := task["task_id"].(int64)
 		data := task["data"].([]byte)
 		encoding := task["data_encoding"].(string)
-		taskBlob := persistence.NewDataBlob(data, common.EncodingType(encoding))
+		taskBlob := persistence.NewDataBlob(data, constants.EncodingType(encoding))
 
 		// Reset task map to get it ready for next scan
 		task = make(map[string]interface{})
@@ -480,7 +480,7 @@ func (db *cdb) SelectTimerTasksOrderByVisibilityTime(ctx context.Context, shardI
 		scheduledTime := task["visibility_ts"].(time.Time)
 		data := task["data"].([]byte)
 		encoding := task["data_encoding"].(string)
-		taskBlob := persistence.NewDataBlob(data, common.EncodingType(encoding))
+		taskBlob := persistence.NewDataBlob(data, constants.EncodingType(encoding))
 
 		// Reset task map to get it ready for next scan
 		task = make(map[string]interface{})

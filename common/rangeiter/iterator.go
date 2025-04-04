@@ -20,28 +20,27 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-package partition
+package rangeiter
 
-//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination partitioning_mock.go -self_package github.com/uber/cadence/common/partition
+import "golang.org/x/exp/constraints"
 
-import (
-	"context"
+// Iterator is an interface for iterating through a range between two values.
+// The range is a range of integers from a minimum to a maximum value (inclusive).
+type Iterator[T Integer] interface {
+	// Next returns the next value closer to the max value in the range
+	// If the current value is the max value, Next will return the max value
+	Next() T
 
-	"github.com/uber/cadence/common/metrics"
-)
+	// Previous returns the previous value closer to the min value in the range
+	// If the current value is the min value, Previous will return the min value
+	Previous() T
 
-// PollerInfo captures relevant information from the poller side
-type PollerInfo struct {
-	DomainID     string
-	TasklistName string
-	// The isolation groups that are known to have pollers in them and are able to receive tasks
-	// for this domain and tasklist.
-	AvailableIsolationGroups []string
+	// Value returns the current value in the range
+	Value() T
+
+	// Reset resets the Iterator to its initial state
+	Reset()
 }
 
-type Partitioner interface {
-	// GetIsolationGroupByDomainID gets where the task workflow should be executing. Largely used by Matching
-	// when determining which isolationGroup to place the tasks in.
-	// Implementations ought to return (nil, nil) for when the feature is not enabled.
-	GetIsolationGroupByDomainID(ctx context.Context, scope metrics.Scope, pollerinfo PollerInfo, partitionKey PartitionConfig) (string, error)
-}
+// Integer is a type constraint for the Iterator interface to ensure that only integer types are used.
+type Integer = constraints.Integer

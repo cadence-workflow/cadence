@@ -36,8 +36,6 @@ import (
 	reflect "reflect"
 
 	gomock "go.uber.org/mock/gomock"
-
-	types "github.com/uber/cadence/common/types"
 )
 
 // MockState is a mock of State interface.
@@ -92,21 +90,6 @@ func (m *MockState) IsDrainedByDomainID(ctx context.Context, DomainID, Isolation
 func (mr *MockStateMockRecorder) IsDrainedByDomainID(ctx, DomainID, IsolationGroup any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsDrainedByDomainID", reflect.TypeOf((*MockState)(nil).IsDrainedByDomainID), ctx, DomainID, IsolationGroup)
-}
-
-// IsolationGroupsByDomainID mocks base method.
-func (m *MockState) IsolationGroupsByDomainID(ctx context.Context, domainID string) (types.IsolationGroupConfiguration, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IsolationGroupsByDomainID", ctx, domainID)
-	ret0, _ := ret[0].(types.IsolationGroupConfiguration)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// IsolationGroupsByDomainID indicates an expected call of IsolationGroupsByDomainID.
-func (mr *MockStateMockRecorder) IsolationGroupsByDomainID(ctx, domainID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsolationGroupsByDomainID", reflect.TypeOf((*MockState)(nil).IsolationGroupsByDomainID), ctx, domainID)
 }
 
 // Start mocks base method.

@@ -36,6 +36,7 @@ import (
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -649,8 +650,8 @@ func (s *contextImpl) CreateWorkflowExecution(
 	}
 }
 
-func (s *contextImpl) getDefaultEncoding(domainName string) common.EncodingType {
-	return common.EncodingType(s.config.EventEncodingType(domainName))
+func (s *contextImpl) getDefaultEncoding(domainName string) constants.EncodingType {
+	return constants.EncodingType(s.config.EventEncodingType(domainName))
 }
 
 func (s *contextImpl) UpdateWorkflowExecution(
@@ -1237,7 +1238,7 @@ func (s *contextImpl) allocateTimerIDsLocked(
 	currentCluster := s.GetClusterMetadata().GetCurrentClusterName()
 	for _, task := range timerTasks {
 		ts := task.GetVisibilityTimestamp()
-		if task.GetVersion() != common.EmptyVersion {
+		if task.GetVersion() != constants.EmptyVersion {
 			// cannot use version to determine the corresponding cluster for timer task
 			// this is because during failover, timer task should be created as active
 			// or otherwise, failover + active processing logic may not pick up the task.

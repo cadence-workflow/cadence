@@ -35,7 +35,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/dynamicconfig"
-	"github.com/uber/cadence/common/log/loggerimpl"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/config"
@@ -220,7 +220,7 @@ func TestAddFirstDecisionTaskScheduledMutableStateBuilder(t *testing.T) {
 			builder := &mutableStateBuilder{
 				decisionTaskManager: decisionTaskManager,
 				executionInfo:       tc.executionInfo,
-				logger:              loggerimpl.NewNopLogger(),
+				logger:              log.NewNoop(),
 			}
 
 			startEvent := &types.HistoryEvent{}
@@ -267,7 +267,7 @@ func TestAddDecisionTaskScheduledEventMutableStateBuilder(t *testing.T) {
 			builder := &mutableStateBuilder{
 				decisionTaskManager: decisionTaskManager,
 				executionInfo:       tc.executionInfo,
-				logger:              loggerimpl.NewNopLogger(),
+				logger:              log.NewNoop(),
 			}
 
 			rets := CreateDecisionInfo()
@@ -315,7 +315,7 @@ func TestAddDecisionTaskScheduledEventAsHeartbeatMutableStateBuilder(t *testing.
 			builder := &mutableStateBuilder{
 				decisionTaskManager: decisionTaskManager,
 				executionInfo:       tc.executionInfo,
-				logger:              loggerimpl.NewNopLogger(),
+				logger:              log.NewNoop(),
 			}
 
 			rets := CreateDecisionInfo()
@@ -399,7 +399,7 @@ func TestAddDecisionTaskStartedEventMutableStateBuilder(t *testing.T) {
 			builder := &mutableStateBuilder{
 				decisionTaskManager: decisionTaskManager,
 				executionInfo:       tc.executionInfo,
-				logger:              loggerimpl.NewNopLogger(),
+				logger:              log.NewNoop(),
 			}
 
 			scheduleEventID := int64(123)
@@ -546,7 +546,7 @@ func TestAddDecisionTaskCompletedEventMutableStateBuilder(t *testing.T) {
 			builder := &mutableStateBuilder{
 				decisionTaskManager: decisionTaskManager,
 				executionInfo:       tc.executionInfo,
-				logger:              loggerimpl.NewNopLogger(),
+				logger:              log.NewNoop(),
 			}
 
 			var scheduleEventID, startedEventID int64 = 123, 234
@@ -612,7 +612,7 @@ func TestAddDecisionTaskTimedOutEventMutableStateBuilder(t *testing.T) {
 			builder := &mutableStateBuilder{
 				decisionTaskManager: decisionTaskManager,
 				executionInfo:       tc.executionInfo,
-				logger:              loggerimpl.NewNopLogger(),
+				logger:              log.NewNoop(),
 			}
 
 			var scheduleEventID, startedEventID int64 = 123, 234
@@ -676,7 +676,7 @@ func TestAddDecisionTaskScheduleToStartTimeoutEventMutableStateBuilder(t *testin
 			builder := &mutableStateBuilder{
 				decisionTaskManager: decisionTaskManager,
 				executionInfo:       tc.executionInfo,
-				logger:              loggerimpl.NewNopLogger(),
+				logger:              log.NewNoop(),
 			}
 
 			scheduleEventID := int64(123)
@@ -725,7 +725,7 @@ func TestAddDecisionTaskResetTimeoutEventMutableStateBuilder(t *testing.T) {
 			builder := &mutableStateBuilder{
 				decisionTaskManager: decisionTaskManager,
 				executionInfo:       tc.executionInfo,
-				logger:              loggerimpl.NewNopLogger(),
+				logger:              log.NewNoop(),
 			}
 
 			var scheduleEventID, forkEventVersion int64 = 123, 1
@@ -775,7 +775,7 @@ func TestAddDecisionTaskFailedEventMutableStateBuilder(t *testing.T) {
 			builder := &mutableStateBuilder{
 				decisionTaskManager: decisionTaskManager,
 				executionInfo:       tc.executionInfo,
-				logger:              loggerimpl.NewNopLogger(),
+				logger:              log.NewNoop(),
 			}
 
 			var scheduleEventID, startedEventID, forkEventVersion int64 = 123, 234, 1
@@ -957,7 +957,7 @@ func TestAddBinaryCheckSumIfNotExistsMutableStateBuilder(t *testing.T) {
 			ctrl := gomock.NewController(t)
 
 			builder := &mutableStateBuilder{
-				logger: loggerimpl.NewNopLogger(),
+				logger: log.NewNoop(),
 				executionInfo: &persistence.WorkflowExecutionInfo{
 					AutoResetPoints: tc.autoResetPoints,
 					RunID:           runID,

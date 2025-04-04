@@ -26,7 +26,7 @@ import (
 
 	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -45,11 +45,10 @@ type (
 // InitializeLoggerForTask creates a new logger with additional tags for task info
 func InitializeLoggerForTask(
 	shardID int,
-	task Info,
+	task persistence.Task,
 	logger log.Logger,
 ) log.Logger {
-
-	taskLogger := logger.WithTags(
+	return logger.WithTags(
 		tag.ShardID(shardID),
 		tag.TaskID(task.GetTaskID()),
 		tag.TaskVisibilityTimestamp(task.GetVisibilityTimestamp().UnixNano()),
@@ -59,21 +58,6 @@ func InitializeLoggerForTask(
 		tag.WorkflowID(task.GetWorkflowID()),
 		tag.WorkflowRunID(task.GetRunID()),
 	)
-
-	switch task := task.(type) {
-	case *persistence.TimerTaskInfo:
-		taskLogger = taskLogger.WithTags(
-			tag.WorkflowTimeoutType(int64(task.TimeoutType)),
-		)
-	case *persistence.TransferTaskInfo:
-		// noop
-	case *persistence.ReplicationTaskInfo:
-		// noop
-	default:
-		taskLogger.Error(fmt.Sprintf("Unknown queue task type: %v", task))
-	}
-
-	return taskLogger
 }
 
 // GetTransferTaskMetricsScope returns the metrics scope index for transfer task
@@ -206,7 +190,7 @@ func verifyTaskVersion(
 	domainID string,
 	version int64,
 	taskVersion int64,
-	task interface{},
+	task persistence.Task,
 ) (bool, error) {
 
 	// the first return value is whether this task is valid for further processing
@@ -226,14 +210,15 @@ func verifyTaskVersion(
 	return true, nil
 }
 
-// load mutable state, if mutable state's next event ID <= task ID, will attempt to refresh
-// if still mutable state's next event ID <= task ID, will return nil, nil
-func loadMutableStateForTimerTask(
+// load mutable state, if mutable state's next event ID <= task event ID, will attempt to refresh
+// if still mutable state's next event ID <= task event ID, will return nil, nil
+func loadMutableState(
 	ctx context.Context,
 	wfContext execution.Context,
-	timerTask *persistence.TimerTaskInfo,
-	metricsClient metrics.Client,
+	task persistence.Task,
+	metricsScope metrics.Scope,
 	logger log.Logger,
+	eventID int64,
 ) (execution.MutableState, error) {
 	msBuilder, err := wfContext.LoadWorkflowExecution(ctx)
 	if err != nil {
@@ -248,12 +233,12 @@ func loadMutableStateForTimerTask(
 	// check to see if cache needs to be refreshed as we could potentially have stale workflow execution
 	// the exception is decision consistently fail
 	// there will be no event generated, thus making the decision schedule ID == next event ID
-	isDecisionRetry := timerTask.TaskType == persistence.TaskTypeDecisionTimeout &&
-		executionInfo.DecisionScheduleID == timerTask.EventID &&
+	isDecisionRetry := (task.GetTaskType() == persistence.TaskTypeDecisionTimeout || task.GetTaskType() == persistence.TransferTaskTypeDecisionTask) &&
+		executionInfo.DecisionScheduleID == eventID &&
 		executionInfo.DecisionAttempt > 0
 
-	if timerTask.EventID >= msBuilder.GetNextEventID() && !isDecisionRetry {
-		metricsClient.IncCounter(metrics.TimerQueueProcessorScope, metrics.StaleMutableStateCounter)
+	if eventID >= msBuilder.GetNextEventID() && !isDecisionRetry {
+		metricsScope.IncCounter(metrics.StaleMutableStateCounter)
 		wfContext.Clear()
 
 		msBuilder, err = wfContext.LoadWorkflowExecution(ctx)
@@ -261,72 +246,17 @@ func loadMutableStateForTimerTask(
 			return nil, err
 		}
 		// after refresh, still mutable state's next event ID <= task ID
-		if timerTask.EventID >= msBuilder.GetNextEventID() {
+		if eventID >= msBuilder.GetNextEventID() {
 			domainName := msBuilder.GetDomainEntry().GetInfo().Name
-			metricsClient.Scope(metrics.TimerQueueProcessorScope, metrics.DomainTag(domainName)).IncCounter(metrics.DataInconsistentCounter)
-			logger.Error("Timer Task Processor: task event ID >= MS NextEventID, skip.",
+			metricsScope.Tagged(metrics.DomainTag(domainName)).IncCounter(metrics.DataInconsistentCounter)
+			logger.Error("Task Processor: task event ID >= MS NextEventID, skip.",
 				tag.WorkflowDomainName(domainName),
-				tag.WorkflowDomainID(timerTask.DomainID),
-				tag.WorkflowID(timerTask.WorkflowID),
-				tag.WorkflowRunID(timerTask.RunID),
-				tag.TaskType(timerTask.TaskType),
-				tag.TaskID(timerTask.TaskID),
-				tag.WorkflowEventID(timerTask.EventID),
-				tag.WorkflowNextEventID(msBuilder.GetNextEventID()),
-			)
-			return nil, nil
-		}
-	}
-	return msBuilder, nil
-}
-
-// load mutable state, if mutable state's next event ID <= task ID, will attempt to refresh
-// if still mutable state's next event ID <= task ID, will return nil, nil
-func loadMutableStateForTransferTask(
-	ctx context.Context,
-	wfContext execution.Context,
-	transferTask *persistence.TransferTaskInfo,
-	metricsClient metrics.Client,
-	logger log.Logger,
-) (execution.MutableState, error) {
-
-	msBuilder, err := wfContext.LoadWorkflowExecution(ctx)
-	if err != nil {
-		if _, ok := err.(*types.EntityNotExistsError); ok {
-			// this could happen if this is a duplicate processing of the task, and the execution has already completed.
-			return nil, nil
-		}
-		return nil, err
-	}
-	executionInfo := msBuilder.GetExecutionInfo()
-
-	// check to see if cache needs to be refreshed as we could potentially have stale workflow execution
-	// the exception is decision consistently fail
-	// there will be no event generated, thus making the decision schedule ID == next event ID
-	isDecisionRetry := transferTask.TaskType == persistence.TransferTaskTypeDecisionTask &&
-		executionInfo.DecisionScheduleID == transferTask.ScheduleID &&
-		executionInfo.DecisionAttempt > 0
-
-	if transferTask.ScheduleID >= msBuilder.GetNextEventID() && !isDecisionRetry {
-		metricsClient.IncCounter(metrics.TransferQueueProcessorScope, metrics.StaleMutableStateCounter)
-		wfContext.Clear()
-
-		msBuilder, err = wfContext.LoadWorkflowExecution(ctx)
-		if err != nil {
-			return nil, err
-		}
-		// after refresh, still mutable state's next event ID <= task ID
-		if transferTask.ScheduleID >= msBuilder.GetNextEventID() {
-			domainName := msBuilder.GetDomainEntry().GetInfo().Name
-			metricsClient.Scope(metrics.TransferQueueProcessorScope, metrics.DomainTag(domainName)).IncCounter(metrics.DataInconsistentCounter)
-			logger.Error("Transfer Task Processor: task event ID >= MS NextEventID, skip.",
-				tag.WorkflowDomainName(domainName),
-				tag.WorkflowDomainID(transferTask.DomainID),
-				tag.WorkflowID(transferTask.WorkflowID),
-				tag.WorkflowRunID(transferTask.RunID),
-				tag.TaskType(transferTask.TaskType),
-				tag.TaskID(transferTask.TaskID),
-				tag.WorkflowScheduleID(transferTask.ScheduleID),
+				tag.WorkflowDomainID(task.GetDomainID()),
+				tag.WorkflowID(task.GetWorkflowID()),
+				tag.WorkflowRunID(task.GetRunID()),
+				tag.TaskType(task.GetTaskType()),
+				tag.TaskID(task.GetTaskID()),
+				tag.WorkflowEventID(eventID),
 				tag.WorkflowNextEventID(msBuilder.GetNextEventID()),
 			)
 			return nil, nil
@@ -377,7 +307,7 @@ func retryWorkflow(
 	_, newMutableState, err := mutableState.AddContinueAsNewEvent(
 		ctx,
 		eventBatchFirstEventID,
-		common.EmptyEventID,
+		constants.EmptyEventID,
 		parentDomainName,
 		continueAsNewAttributes,
 	)
@@ -388,7 +318,7 @@ func retryWorkflow(
 }
 
 func getWorkflowExecution(
-	taskInfo Info,
+	taskInfo persistence.Task,
 ) types.WorkflowExecution {
 
 	return types.WorkflowExecution{

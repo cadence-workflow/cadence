@@ -93,7 +93,7 @@ func newTransferTaskExecutorBase(
 
 func (t *transferTaskExecutorBase) pushActivity(
 	ctx context.Context,
-	task *persistence.TransferTaskInfo,
+	task *persistence.ActivityTask,
 	activityScheduleToStartTimeout int32,
 	partitionConfig map[string]string,
 ) error {
@@ -101,7 +101,7 @@ func (t *transferTaskExecutorBase) pushActivity(
 	ctx, cancel := context.WithTimeout(ctx, taskRPCCallTimeout)
 	defer cancel()
 
-	if task.TaskType != persistence.TransferTaskTypeActivityTask {
+	if task.GetTaskType() != persistence.TransferTaskTypeActivityTask {
 		t.logger.Fatal("Cannot process non activity task", tag.TaskType(task.GetTaskType()))
 	}
 
@@ -122,7 +122,7 @@ func (t *transferTaskExecutorBase) pushActivity(
 
 func (t *transferTaskExecutorBase) pushDecision(
 	ctx context.Context,
-	task *persistence.TransferTaskInfo,
+	task *persistence.DecisionTask,
 	tasklist *types.TaskList,
 	decisionScheduleToStartTimeout int32,
 	partitionConfig map[string]string,
@@ -131,7 +131,7 @@ func (t *transferTaskExecutorBase) pushDecision(
 	ctx, cancel := context.WithTimeout(ctx, taskRPCCallTimeout)
 	defer cancel()
 
-	if task.TaskType != persistence.TransferTaskTypeDecisionTask {
+	if task.GetTaskType() != persistence.TransferTaskTypeDecisionTask {
 		t.logger.Fatal("Cannot process non decision task", tag.TaskType(task.GetTaskType()))
 	}
 

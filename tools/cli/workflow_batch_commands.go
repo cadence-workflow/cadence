@@ -32,6 +32,7 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/worker/batcher"
 	"github.com/uber/cadence/tools/common/commoncli"
@@ -60,7 +61,7 @@ func TerminateBatchJob(c *cli.Context) error {
 	err = svcClient.TerminateWorkflowExecution(
 		tcCtx,
 		&types.TerminateWorkflowExecutionRequest{
-			Domain: common.BatcherLocalDomainName,
+			Domain: constants.BatcherLocalDomainName,
 			WorkflowExecution: &types.WorkflowExecution{
 				WorkflowID: jobID,
 				RunID:      "",
@@ -98,7 +99,7 @@ func DescribeBatchJob(c *cli.Context) error {
 	wf, err := svcClient.DescribeWorkflowExecution(
 		tcCtx,
 		&types.DescribeWorkflowExecutionRequest{
-			Domain: common.BatcherLocalDomainName,
+			Domain: constants.BatcherLocalDomainName,
 			Execution: &types.WorkflowExecution{
 				WorkflowID: jobID,
 				RunID:      "",
@@ -153,7 +154,7 @@ func ListBatchJobs(c *cli.Context) error {
 	resp, err := svcClient.ListWorkflowExecutions(
 		tcCtx,
 		&types.ListWorkflowExecutionsRequest{
-			Domain:   common.BatcherLocalDomainName,
+			Domain:   constants.BatcherLocalDomainName,
 			PageSize: int32(pageSize),
 			Query:    fmt.Sprintf("CustomDomain = '%v'", domain),
 		},
@@ -317,7 +318,7 @@ func StartBatchJob(c *cli.Context) error {
 	}
 	workflowID := uuid.NewRandom().String()
 	request := &types.StartWorkflowExecutionRequest{
-		Domain:                              common.BatcherLocalDomainName,
+		Domain:                              constants.BatcherLocalDomainName,
 		RequestID:                           uuid.New(),
 		WorkflowID:                          workflowID,
 		ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(int32(batcher.InfiniteDuration.Seconds())),

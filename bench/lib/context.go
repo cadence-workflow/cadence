@@ -24,7 +24,7 @@ import (
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 
-	"github.com/uber/cadence/common/log/loggerimpl"
+	"github.com/uber/cadence/common/log"
 )
 
 const (
@@ -59,7 +59,7 @@ func NewRuntimeContext(cfg *Config) (*RuntimeContext, error) {
 		return nil, err
 	}
 
-	metricsScope := cfg.Metrics.NewScope(loggerimpl.NewLogger(logger), cfg.Bench.Name)
+	metricsScope := cfg.Metrics.NewScope(log.NewLogger(logger), cfg.Bench.Name)
 
 	if cfg.Cadence.ServiceName == "" {
 		cfg.Cadence.ServiceName = defaultCadenceServiceName

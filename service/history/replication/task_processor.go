@@ -36,6 +36,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -149,8 +150,8 @@ func NewTaskProcessor(
 		requestChan:            taskFetcher.GetRequestChan(),
 		syncShardChan:          make(chan *types.SyncShardStatus, 1),
 		done:                   make(chan struct{}),
-		lastProcessedMessageID: common.EmptyMessageID,
-		lastRetrievedMessageID: common.EmptyMessageID,
+		lastProcessedMessageID: constants.EmptyMessageID,
+		lastRetrievedMessageID: constants.EmptyMessageID,
 	}
 }
 
@@ -616,7 +617,7 @@ func (p *taskProcessorImpl) triggerDataInconsistencyScan(replicationTask *types.
 	}
 	// Assume the workflow is corrupted, rely on invariant to validate it
 	_, err = client.SignalWithStartWorkflowExecution(context.Background(), &types.SignalWithStartWorkflowExecutionRequest{
-		Domain:                              common.SystemLocalDomainName,
+		Domain:                              constants.SystemLocalDomainName,
 		WorkflowID:                          reconciliation.CheckDataCorruptionWorkflowID,
 		WorkflowType:                        &types.WorkflowType{Name: reconciliation.CheckDataCorruptionWorkflowType},
 		TaskList:                            &types.TaskList{Name: reconciliation.CheckDataCorruptionWorkflowTaskList},

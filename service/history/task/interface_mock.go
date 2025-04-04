@@ -38,132 +38,11 @@ import (
 	gomock "go.uber.org/mock/gomock"
 
 	future "github.com/uber/cadence/common/future"
+	persistence "github.com/uber/cadence/common/persistence"
 	task "github.com/uber/cadence/common/task"
 	types "github.com/uber/cadence/common/types"
 	shard "github.com/uber/cadence/service/history/shard"
 )
-
-// MockInfo is a mock of Info interface.
-type MockInfo struct {
-	ctrl     *gomock.Controller
-	recorder *MockInfoMockRecorder
-	isgomock struct{}
-}
-
-// MockInfoMockRecorder is the mock recorder for MockInfo.
-type MockInfoMockRecorder struct {
-	mock *MockInfo
-}
-
-// NewMockInfo creates a new mock instance.
-func NewMockInfo(ctrl *gomock.Controller) *MockInfo {
-	mock := &MockInfo{ctrl: ctrl}
-	mock.recorder = &MockInfoMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockInfo) EXPECT() *MockInfoMockRecorder {
-	return m.recorder
-}
-
-// GetDomainID mocks base method.
-func (m *MockInfo) GetDomainID() string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetDomainID")
-	ret0, _ := ret[0].(string)
-	return ret0
-}
-
-// GetDomainID indicates an expected call of GetDomainID.
-func (mr *MockInfoMockRecorder) GetDomainID() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDomainID", reflect.TypeOf((*MockInfo)(nil).GetDomainID))
-}
-
-// GetRunID mocks base method.
-func (m *MockInfo) GetRunID() string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetRunID")
-	ret0, _ := ret[0].(string)
-	return ret0
-}
-
-// GetRunID indicates an expected call of GetRunID.
-func (mr *MockInfoMockRecorder) GetRunID() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRunID", reflect.TypeOf((*MockInfo)(nil).GetRunID))
-}
-
-// GetTaskID mocks base method.
-func (m *MockInfo) GetTaskID() int64 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTaskID")
-	ret0, _ := ret[0].(int64)
-	return ret0
-}
-
-// GetTaskID indicates an expected call of GetTaskID.
-func (mr *MockInfoMockRecorder) GetTaskID() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskID", reflect.TypeOf((*MockInfo)(nil).GetTaskID))
-}
-
-// GetTaskType mocks base method.
-func (m *MockInfo) GetTaskType() int {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTaskType")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// GetTaskType indicates an expected call of GetTaskType.
-func (mr *MockInfoMockRecorder) GetTaskType() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskType", reflect.TypeOf((*MockInfo)(nil).GetTaskType))
-}
-
-// GetVersion mocks base method.
-func (m *MockInfo) GetVersion() int64 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetVersion")
-	ret0, _ := ret[0].(int64)
-	return ret0
-}
-
-// GetVersion indicates an expected call of GetVersion.
-func (mr *MockInfoMockRecorder) GetVersion() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVersion", reflect.TypeOf((*MockInfo)(nil).GetVersion))
-}
-
-// GetVisibilityTimestamp mocks base method.
-func (m *MockInfo) GetVisibilityTimestamp() time.Time {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetVisibilityTimestamp")
-	ret0, _ := ret[0].(time.Time)
-	return ret0
-}
-
-// GetVisibilityTimestamp indicates an expected call of GetVisibilityTimestamp.
-func (mr *MockInfoMockRecorder) GetVisibilityTimestamp() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVisibilityTimestamp", reflect.TypeOf((*MockInfo)(nil).GetVisibilityTimestamp))
-}
-
-// GetWorkflowID mocks base method.
-func (m *MockInfo) GetWorkflowID() string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetWorkflowID")
-	ret0, _ := ret[0].(string)
-	return ret0
-}
-
-// GetWorkflowID indicates an expected call of GetWorkflowID.
-func (mr *MockInfoMockRecorder) GetWorkflowID() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkflowID", reflect.TypeOf((*MockInfo)(nil).GetWorkflowID))
-}
 
 // MockTask is a mock of Task interface.
 type MockTask struct {
@@ -199,6 +78,20 @@ func (m *MockTask) Ack() {
 func (mr *MockTaskMockRecorder) Ack() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Ack", reflect.TypeOf((*MockTask)(nil).Ack))
+}
+
+// ByteSize mocks base method.
+func (m *MockTask) ByteSize() uint64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ByteSize")
+	ret0, _ := ret[0].(uint64)
+	return ret0
+}
+
+// ByteSize indicates an expected call of ByteSize.
+func (mr *MockTaskMockRecorder) ByteSize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ByteSize", reflect.TypeOf((*MockTask)(nil).ByteSize))
 }
 
 // Execute mocks base method.
@@ -244,10 +137,10 @@ func (mr *MockTaskMockRecorder) GetDomainID() *gomock.Call {
 }
 
 // GetInfo mocks base method.
-func (m *MockTask) GetInfo() Info {
+func (m *MockTask) GetInfo() persistence.Task {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetInfo")
-	ret0, _ := ret[0].(Info)
+	ret0, _ := ret[0].(persistence.Task)
 	return ret0
 }
 
@@ -297,6 +190,20 @@ func (m *MockTask) GetShard() shard.Context {
 func (mr *MockTaskMockRecorder) GetShard() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetShard", reflect.TypeOf((*MockTask)(nil).GetShard))
+}
+
+// GetTaskCategory mocks base method.
+func (m *MockTask) GetTaskCategory() persistence.HistoryTaskCategory {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTaskCategory")
+	ret0, _ := ret[0].(persistence.HistoryTaskCategory)
+	return ret0
+}
+
+// GetTaskCategory indicates an expected call of GetTaskCategory.
+func (mr *MockTaskMockRecorder) GetTaskCategory() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskCategory", reflect.TypeOf((*MockTask)(nil).GetTaskCategory))
 }
 
 // GetTaskID mocks base method.
@@ -435,6 +342,42 @@ func (mr *MockTaskMockRecorder) SetPriority(arg0 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetPriority", reflect.TypeOf((*MockTask)(nil).SetPriority), arg0)
 }
 
+// SetTaskID mocks base method.
+func (m *MockTask) SetTaskID(id int64) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetTaskID", id)
+}
+
+// SetTaskID indicates an expected call of SetTaskID.
+func (mr *MockTaskMockRecorder) SetTaskID(id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTaskID", reflect.TypeOf((*MockTask)(nil).SetTaskID), id)
+}
+
+// SetVersion mocks base method.
+func (m *MockTask) SetVersion(version int64) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetVersion", version)
+}
+
+// SetVersion indicates an expected call of SetVersion.
+func (mr *MockTaskMockRecorder) SetVersion(version any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetVersion", reflect.TypeOf((*MockTask)(nil).SetVersion), version)
+}
+
+// SetVisibilityTimestamp mocks base method.
+func (m *MockTask) SetVisibilityTimestamp(timestamp time.Time) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetVisibilityTimestamp", timestamp)
+}
+
+// SetVisibilityTimestamp indicates an expected call of SetVisibilityTimestamp.
+func (mr *MockTaskMockRecorder) SetVisibilityTimestamp(timestamp any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetVisibilityTimestamp", reflect.TypeOf((*MockTask)(nil).SetVisibilityTimestamp), timestamp)
+}
+
 // State mocks base method.
 func (m *MockTask) State() task.State {
 	m.ctrl.T.Helper()
@@ -447,6 +390,51 @@ func (m *MockTask) State() task.State {
 func (mr *MockTaskMockRecorder) State() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "State", reflect.TypeOf((*MockTask)(nil).State))
+}
+
+// ToInternalReplicationTaskInfo mocks base method.
+func (m *MockTask) ToInternalReplicationTaskInfo() (*types.ReplicationTaskInfo, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ToInternalReplicationTaskInfo")
+	ret0, _ := ret[0].(*types.ReplicationTaskInfo)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ToInternalReplicationTaskInfo indicates an expected call of ToInternalReplicationTaskInfo.
+func (mr *MockTaskMockRecorder) ToInternalReplicationTaskInfo() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ToInternalReplicationTaskInfo", reflect.TypeOf((*MockTask)(nil).ToInternalReplicationTaskInfo))
+}
+
+// ToTimerTaskInfo mocks base method.
+func (m *MockTask) ToTimerTaskInfo() (*persistence.TimerTaskInfo, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ToTimerTaskInfo")
+	ret0, _ := ret[0].(*persistence.TimerTaskInfo)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ToTimerTaskInfo indicates an expected call of ToTimerTaskInfo.
+func (mr *MockTaskMockRecorder) ToTimerTaskInfo() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ToTimerTaskInfo", reflect.TypeOf((*MockTask)(nil).ToTimerTaskInfo))
+}
+
+// ToTransferTaskInfo mocks base method.
+func (m *MockTask) ToTransferTaskInfo() (*persistence.TransferTaskInfo, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ToTransferTaskInfo")
+	ret0, _ := ret[0].(*persistence.TransferTaskInfo)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ToTransferTaskInfo indicates an expected call of ToTransferTaskInfo.
+func (mr *MockTaskMockRecorder) ToTransferTaskInfo() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ToTransferTaskInfo", reflect.TypeOf((*MockTask)(nil).ToTransferTaskInfo))
 }
 
 // MockCrossClusterTask is a mock of CrossClusterTask interface.
@@ -483,6 +471,20 @@ func (m *MockCrossClusterTask) Ack() {
 func (mr *MockCrossClusterTaskMockRecorder) Ack() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Ack", reflect.TypeOf((*MockCrossClusterTask)(nil).Ack))
+}
+
+// ByteSize mocks base method.
+func (m *MockCrossClusterTask) ByteSize() uint64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ByteSize")
+	ret0, _ := ret[0].(uint64)
+	return ret0
+}
+
+// ByteSize indicates an expected call of ByteSize.
+func (mr *MockCrossClusterTaskMockRecorder) ByteSize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ByteSize", reflect.TypeOf((*MockCrossClusterTask)(nil).ByteSize))
 }
 
 // Execute mocks base method.
@@ -543,10 +545,10 @@ func (mr *MockCrossClusterTaskMockRecorder) GetDomainID() *gomock.Call {
 }
 
 // GetInfo mocks base method.
-func (m *MockCrossClusterTask) GetInfo() Info {
+func (m *MockCrossClusterTask) GetInfo() persistence.Task {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetInfo")
-	ret0, _ := ret[0].(Info)
+	ret0, _ := ret[0].(persistence.Task)
 	return ret0
 }
 
@@ -596,6 +598,20 @@ func (m *MockCrossClusterTask) GetShard() shard.Context {
 func (mr *MockCrossClusterTaskMockRecorder) GetShard() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetShard", reflect.TypeOf((*MockCrossClusterTask)(nil).GetShard))
+}
+
+// GetTaskCategory mocks base method.
+func (m *MockCrossClusterTask) GetTaskCategory() persistence.HistoryTaskCategory {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTaskCategory")
+	ret0, _ := ret[0].(persistence.HistoryTaskCategory)
+	return ret0
+}
+
+// GetTaskCategory indicates an expected call of GetTaskCategory.
+func (mr *MockCrossClusterTaskMockRecorder) GetTaskCategory() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskCategory", reflect.TypeOf((*MockCrossClusterTask)(nil).GetTaskCategory))
 }
 
 // GetTaskID mocks base method.
@@ -776,6 +792,42 @@ func (mr *MockCrossClusterTaskMockRecorder) SetPriority(arg0 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetPriority", reflect.TypeOf((*MockCrossClusterTask)(nil).SetPriority), arg0)
 }
 
+// SetTaskID mocks base method.
+func (m *MockCrossClusterTask) SetTaskID(id int64) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetTaskID", id)
+}
+
+// SetTaskID indicates an expected call of SetTaskID.
+func (mr *MockCrossClusterTaskMockRecorder) SetTaskID(id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTaskID", reflect.TypeOf((*MockCrossClusterTask)(nil).SetTaskID), id)
+}
+
+// SetVersion mocks base method.
+func (m *MockCrossClusterTask) SetVersion(version int64) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetVersion", version)
+}
+
+// SetVersion indicates an expected call of SetVersion.
+func (mr *MockCrossClusterTaskMockRecorder) SetVersion(version any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetVersion", reflect.TypeOf((*MockCrossClusterTask)(nil).SetVersion), version)
+}
+
+// SetVisibilityTimestamp mocks base method.
+func (m *MockCrossClusterTask) SetVisibilityTimestamp(timestamp time.Time) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetVisibilityTimestamp", timestamp)
+}
+
+// SetVisibilityTimestamp indicates an expected call of SetVisibilityTimestamp.
+func (mr *MockCrossClusterTaskMockRecorder) SetVisibilityTimestamp(timestamp any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetVisibilityTimestamp", reflect.TypeOf((*MockCrossClusterTask)(nil).SetVisibilityTimestamp), timestamp)
+}
+
 // State mocks base method.
 func (m *MockCrossClusterTask) State() task.State {
 	m.ctrl.T.Helper()
@@ -788,6 +840,51 @@ func (m *MockCrossClusterTask) State() task.State {
 func (mr *MockCrossClusterTaskMockRecorder) State() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "State", reflect.TypeOf((*MockCrossClusterTask)(nil).State))
+}
+
+// ToInternalReplicationTaskInfo mocks base method.
+func (m *MockCrossClusterTask) ToInternalReplicationTaskInfo() (*types.ReplicationTaskInfo, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ToInternalReplicationTaskInfo")
+	ret0, _ := ret[0].(*types.ReplicationTaskInfo)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ToInternalReplicationTaskInfo indicates an expected call of ToInternalReplicationTaskInfo.
+func (mr *MockCrossClusterTaskMockRecorder) ToInternalReplicationTaskInfo() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ToInternalReplicationTaskInfo", reflect.TypeOf((*MockCrossClusterTask)(nil).ToInternalReplicationTaskInfo))
+}
+
+// ToTimerTaskInfo mocks base method.
+func (m *MockCrossClusterTask) ToTimerTaskInfo() (*persistence.TimerTaskInfo, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ToTimerTaskInfo")
+	ret0, _ := ret[0].(*persistence.TimerTaskInfo)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ToTimerTaskInfo indicates an expected call of ToTimerTaskInfo.
+func (mr *MockCrossClusterTaskMockRecorder) ToTimerTaskInfo() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ToTimerTaskInfo", reflect.TypeOf((*MockCrossClusterTask)(nil).ToTimerTaskInfo))
+}
+
+// ToTransferTaskInfo mocks base method.
+func (m *MockCrossClusterTask) ToTransferTaskInfo() (*persistence.TransferTaskInfo, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ToTransferTaskInfo")
+	ret0, _ := ret[0].(*persistence.TransferTaskInfo)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ToTransferTaskInfo indicates an expected call of ToTransferTaskInfo.
+func (mr *MockCrossClusterTaskMockRecorder) ToTransferTaskInfo() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ToTransferTaskInfo", reflect.TypeOf((*MockCrossClusterTask)(nil).ToTransferTaskInfo))
 }
 
 // MockKey is a mock of Key interface.

@@ -39,6 +39,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/constants"
 	dc "github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/messaging"
@@ -342,7 +343,7 @@ func (s *domainHandlerCommonSuite) TestListDomain() {
 			domains[resp.Domains[0].DomainInfo.GetName()] = resp.Domains[0]
 		}
 	}
-	delete(domains, common.SystemLocalDomainName)
+	delete(domains, constants.SystemLocalDomainName)
 
 	s.Equal(map[string]*types.DescribeDomainResponse{
 		domainName1: {
@@ -369,7 +370,7 @@ func (s *domainHandlerCommonSuite) TestListDomain() {
 				ActiveClusterName: activeClusterName1,
 				Clusters:          cluster1,
 			},
-			FailoverVersion: common.EmptyVersion,
+			FailoverVersion: constants.EmptyVersion,
 			IsGlobalDomain:  isGlobalDomain1,
 		},
 		domainName2: {

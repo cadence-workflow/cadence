@@ -32,6 +32,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/collection"
+	commonconstants "github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
@@ -285,7 +286,7 @@ func (s *workflowResetterSuite) TestFailInflightActivity() {
 	activity2 := &persistence.ActivityInfo{
 		Version:    12,
 		ScheduleID: 456,
-		StartedID:  common.EmptyEventID,
+		StartedID:  commonconstants.EmptyEventID,
 	}
 	mutableState.EXPECT().GetPendingActivityInfos().Return(map[int64]*persistence.ActivityInfo{
 		activity1.ScheduleID: activity1,
@@ -373,7 +374,7 @@ func (s *workflowResetterSuite) TestReapplyContinueAsNewWorkflowEvents() {
 	baseBranchToken := []byte("some random base branch token")
 
 	newRunID := uuid.New()
-	newFirstEventID := common.FirstEventID
+	newFirstEventID := commonconstants.FirstEventID
 	newNextEventID := int64(6)
 	newBranchToken := []byte("some random new branch token")
 
@@ -481,7 +482,7 @@ func (s *workflowResetterSuite) TestReapplyContinueAsNewWorkflowEvents() {
 }
 
 func (s *workflowResetterSuite) TestReapplyWorkflowEvents() {
-	firstEventID := common.FirstEventID
+	firstEventID := commonconstants.FirstEventID
 	nextEventID := int64(6)
 	branchToken := []byte("some random branch token")
 	domainName := "test-domain"
@@ -652,7 +653,7 @@ func (s *workflowResetterSuite) TestReapplyEvents() {
 }
 
 func (s *workflowResetterSuite) TestPagination() {
-	firstEventID := common.FirstEventID
+	firstEventID := commonconstants.FirstEventID
 	nextEventID := int64(101)
 	branchToken := []byte("some random branch token")
 	domainName := "some random domain name"

@@ -32,6 +32,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -334,11 +335,11 @@ func failingSerializer(ctrl *gomock.Controller) PayloadSerializer {
 
 func sampleInternalShardInfo(t *testing.T) *InternalShardInfo {
 	serializer := NewPayloadSerializer()
-	transferProcessingQueueStatesBlob, err := serializer.SerializeProcessingQueueStates(transferProcessingQueueStates, common.EncodingTypeThriftRW)
+	transferProcessingQueueStatesBlob, err := serializer.SerializeProcessingQueueStates(transferProcessingQueueStates, constants.EncodingTypeThriftRW)
 	assert.NoError(t, err)
-	timerProcessingQueueStatesBlob, err := serializer.SerializeProcessingQueueStates(timerProcesssingQueueStates, common.EncodingTypeThriftRW)
+	timerProcessingQueueStatesBlob, err := serializer.SerializeProcessingQueueStates(timerProcesssingQueueStates, constants.EncodingTypeThriftRW)
 	assert.NoError(t, err)
-	pendingFailoverMarkerBlob, err := serializer.SerializePendingFailoverMarkers(pendingFailoverMarkers, common.EncodingTypeThriftRW)
+	pendingFailoverMarkerBlob, err := serializer.SerializePendingFailoverMarkers(pendingFailoverMarkers, constants.EncodingTypeThriftRW)
 	assert.NoError(t, err)
 	return &InternalShardInfo{
 		ShardID:                       shardID,

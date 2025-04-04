@@ -27,7 +27,7 @@ import (
 
 	"github.com/pborman/uuid"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -66,7 +66,7 @@ func (e *historyEngineImpl) ResetWorkflowExecution(
 			Message: "Cannot reset workflow without a decision task schedule.",
 		}
 	}
-	if request.GetDecisionFinishEventID() <= common.FirstEventID ||
+	if request.GetDecisionFinishEventID() <= constants.FirstEventID ||
 		request.GetDecisionFinishEventID() > baseMutableState.GetNextEventID() {
 		return nil, &types.BadRequestError{
 			Message: "Decision finish ID must be > 1 && <= workflow next event ID.",

@@ -33,8 +33,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/environment"
 	"github.com/uber/cadence/tools/sql"
@@ -125,7 +125,7 @@ func (s *VersionTestSuite) TestVerifyCompatibleVersion() {
 			"default":    {SQL: &defaultCfg},
 			"visibility": {SQL: &visibilityCfg},
 		},
-		TransactionSizeLimit: dynamicconfig.GetIntPropertyFn(common.DefaultTransactionSizeLimit),
+		TransactionSizeLimit: dynamicconfig.GetIntPropertyFn(constants.DefaultTransactionSizeLimit),
 		ErrorInjectionRate:   dynamicconfig.GetFloatPropertyFn(0),
 	}
 	s.NoError(sql.VerifyCompatibleVersion(cfg))

@@ -35,6 +35,7 @@ import (
 
 	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -351,7 +352,7 @@ func (t *ForwarderTestSuite) TestMaxOutstandingConfigUpdate() {
 }
 
 func (t *ForwarderTestSuite) usingTasklistPartition(taskType int) {
-	t.taskList = NewTestTaskListID(t.T(), "fwdr", common.ReservedTaskListPrefix+"tl0/1", taskType)
+	t.taskList = NewTestTaskListID(t.T(), "fwdr", constants.ReservedTaskListPrefix+"tl0/1", taskType)
 	t.fwdr.taskListID = t.taskList
 }
 

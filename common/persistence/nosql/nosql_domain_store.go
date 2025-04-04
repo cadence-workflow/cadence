@@ -27,6 +27,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
@@ -71,7 +72,7 @@ func (m *nosqlDomainStore) CreateDomain(
 		ConfigVersion:               request.ConfigVersion,
 		FailoverVersion:             request.FailoverVersion,
 		FailoverNotificationVersion: persistence.InitialFailoverNotificationVersion,
-		PreviousFailoverVersion:     common.InitialPreviousFailoverVersion,
+		PreviousFailoverVersion:     constants.InitialPreviousFailoverVersion,
 		FailoverEndTime:             nil,
 		IsGlobalDomain:              request.IsGlobalDomain,
 		LastUpdatedTime:             request.LastUpdatedTime,

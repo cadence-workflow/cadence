@@ -33,6 +33,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -234,7 +235,7 @@ func TestRefreshTasksForDecision(t *testing.T) {
 			name: "success - generate decision started task",
 			mockSetup: func(ms *MockMutableState, mtg *MockMutableStateTaskGenerator) {
 				ms.EXPECT().HasPendingDecision().Return(true)
-				ms.EXPECT().GetPendingDecision().Return(&DecisionInfo{ScheduleID: 2, StartedID: common.EmptyEventID}, true)
+				ms.EXPECT().GetPendingDecision().Return(&DecisionInfo{ScheduleID: 2, StartedID: constants.EmptyEventID}, true)
 				mtg.EXPECT().GenerateDecisionScheduleTasks(int64(2)).Return(nil)
 			},
 			wantErr: false,
@@ -283,8 +284,8 @@ func TestRefreshTasksForActivity(t *testing.T) {
 			mockSetup: func(ms *MockMutableState, mtg *MockMutableStateTaskGenerator, mc *events.MockCache, mt *MockTimerSequence) {
 				ms.EXPECT().GetCurrentBranchToken().Return([]byte("token"), nil)
 				ms.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{DomainID: "domain-id", WorkflowID: "wf-id", RunID: "run-id"})
-				ms.EXPECT().GetPendingActivityInfos().Return(map[int64]*persistence.ActivityInfo{1: {Version: 1, TimerTaskStatus: TimerTaskStatusCreated, ScheduledEventBatchID: 11, ScheduleID: 12, StartedID: common.EmptyEventID}})
-				ms.EXPECT().UpdateActivity(&persistence.ActivityInfo{Version: 1, TimerTaskStatus: TimerTaskStatusNone, ScheduledEventBatchID: 11, ScheduleID: 12, StartedID: common.EmptyEventID}).Return(nil)
+				ms.EXPECT().GetPendingActivityInfos().Return(map[int64]*persistence.ActivityInfo{1: {Version: 1, TimerTaskStatus: TimerTaskStatusCreated, ScheduledEventBatchID: 11, ScheduleID: 12, StartedID: constants.EmptyEventID}})
+				ms.EXPECT().UpdateActivity(&persistence.ActivityInfo{Version: 1, TimerTaskStatus: TimerTaskStatusNone, ScheduledEventBatchID: 11, ScheduleID: 12, StartedID: constants.EmptyEventID}).Return(nil)
 				mc.EXPECT().GetEvent(gomock.Any(), gomock.Any(), "domain-id", "wf-id", "run-id", int64(11), int64(12), []byte("token")).Return(nil, errors.New("some error"))
 			},
 			wantErr: true,
@@ -294,8 +295,8 @@ func TestRefreshTasksForActivity(t *testing.T) {
 			mockSetup: func(ms *MockMutableState, mtg *MockMutableStateTaskGenerator, mc *events.MockCache, mt *MockTimerSequence) {
 				ms.EXPECT().GetCurrentBranchToken().Return([]byte("token"), nil)
 				ms.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{DomainID: "domain-id", WorkflowID: "wf-id", RunID: "run-id"})
-				ms.EXPECT().GetPendingActivityInfos().Return(map[int64]*persistence.ActivityInfo{1: {Version: 1, TimerTaskStatus: TimerTaskStatusCreated, ScheduledEventBatchID: 11, ScheduleID: 12, StartedID: common.EmptyEventID}})
-				ms.EXPECT().UpdateActivity(&persistence.ActivityInfo{Version: 1, TimerTaskStatus: TimerTaskStatusNone, ScheduledEventBatchID: 11, ScheduleID: 12, StartedID: common.EmptyEventID}).Return(nil)
+				ms.EXPECT().GetPendingActivityInfos().Return(map[int64]*persistence.ActivityInfo{1: {Version: 1, TimerTaskStatus: TimerTaskStatusCreated, ScheduledEventBatchID: 11, ScheduleID: 12, StartedID: constants.EmptyEventID}})
+				ms.EXPECT().UpdateActivity(&persistence.ActivityInfo{Version: 1, TimerTaskStatus: TimerTaskStatusNone, ScheduledEventBatchID: 11, ScheduleID: 12, StartedID: constants.EmptyEventID}).Return(nil)
 				mc.EXPECT().GetEvent(gomock.Any(), gomock.Any(), "domain-id", "wf-id", "run-id", int64(11), int64(12), []byte("token")).Return(&types.HistoryEvent{ID: 1}, nil)
 				mtg.EXPECT().GenerateActivityTransferTasks(&types.HistoryEvent{ID: 1}).Return(errors.New("some error"))
 			},
@@ -306,8 +307,8 @@ func TestRefreshTasksForActivity(t *testing.T) {
 			mockSetup: func(ms *MockMutableState, mtg *MockMutableStateTaskGenerator, mc *events.MockCache, mt *MockTimerSequence) {
 				ms.EXPECT().GetCurrentBranchToken().Return([]byte("token"), nil)
 				ms.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{DomainID: "domain-id", WorkflowID: "wf-id", RunID: "run-id"})
-				ms.EXPECT().GetPendingActivityInfos().Return(map[int64]*persistence.ActivityInfo{1: {Version: 1, TimerTaskStatus: TimerTaskStatusCreated, ScheduledEventBatchID: 11, ScheduleID: 12, StartedID: common.EmptyEventID}})
-				ms.EXPECT().UpdateActivity(&persistence.ActivityInfo{Version: 1, TimerTaskStatus: TimerTaskStatusNone, ScheduledEventBatchID: 11, ScheduleID: 12, StartedID: common.EmptyEventID}).Return(nil)
+				ms.EXPECT().GetPendingActivityInfos().Return(map[int64]*persistence.ActivityInfo{1: {Version: 1, TimerTaskStatus: TimerTaskStatusCreated, ScheduledEventBatchID: 11, ScheduleID: 12, StartedID: constants.EmptyEventID}})
+				ms.EXPECT().UpdateActivity(&persistence.ActivityInfo{Version: 1, TimerTaskStatus: TimerTaskStatusNone, ScheduledEventBatchID: 11, ScheduleID: 12, StartedID: constants.EmptyEventID}).Return(nil)
 				mc.EXPECT().GetEvent(gomock.Any(), gomock.Any(), "domain-id", "wf-id", "run-id", int64(11), int64(12), []byte("token")).Return(&types.HistoryEvent{ID: 1}, nil)
 				mtg.EXPECT().GenerateActivityTransferTasks(&types.HistoryEvent{ID: 1}).Return(nil)
 				mt.EXPECT().CreateNextActivityTimer().Return(false, errors.New("some error"))
@@ -319,9 +320,9 @@ func TestRefreshTasksForActivity(t *testing.T) {
 			mockSetup: func(ms *MockMutableState, mtg *MockMutableStateTaskGenerator, mc *events.MockCache, mt *MockTimerSequence) {
 				ms.EXPECT().GetCurrentBranchToken().Return([]byte("token"), nil)
 				ms.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{DomainID: "domain-id", WorkflowID: "wf-id", RunID: "run-id"})
-				ms.EXPECT().GetPendingActivityInfos().Return(map[int64]*persistence.ActivityInfo{10: {Version: 0, StartedID: 10}, 1: {Version: 1, TimerTaskStatus: TimerTaskStatusCreated, ScheduledEventBatchID: 11, ScheduleID: 12, StartedID: common.EmptyEventID}})
+				ms.EXPECT().GetPendingActivityInfos().Return(map[int64]*persistence.ActivityInfo{10: {Version: 0, StartedID: 10}, 1: {Version: 1, TimerTaskStatus: TimerTaskStatusCreated, ScheduledEventBatchID: 11, ScheduleID: 12, StartedID: constants.EmptyEventID}})
 				ms.EXPECT().UpdateActivity(&persistence.ActivityInfo{Version: 0, StartedID: 10, TimerTaskStatus: TimerTaskStatusNone}).Return(nil)
-				ms.EXPECT().UpdateActivity(&persistence.ActivityInfo{Version: 1, TimerTaskStatus: TimerTaskStatusNone, ScheduledEventBatchID: 11, ScheduleID: 12, StartedID: common.EmptyEventID}).Return(nil)
+				ms.EXPECT().UpdateActivity(&persistence.ActivityInfo{Version: 1, TimerTaskStatus: TimerTaskStatusNone, ScheduledEventBatchID: 11, ScheduleID: 12, StartedID: constants.EmptyEventID}).Return(nil)
 				mc.EXPECT().GetEvent(gomock.Any(), gomock.Any(), "domain-id", "wf-id", "run-id", int64(11), int64(12), []byte("token")).Return(&types.HistoryEvent{ID: 1}, nil)
 				mtg.EXPECT().GenerateActivityTransferTasks(&types.HistoryEvent{ID: 1}).Return(nil)
 				mt.EXPECT().CreateNextActivityTimer().Return(true, nil)
@@ -413,7 +414,7 @@ func TestRefreshTasksForChildWorkflow(t *testing.T) {
 			mockSetup: func(ms *MockMutableState, mtg *MockMutableStateTaskGenerator, mc *events.MockCache) {
 				ms.EXPECT().GetCurrentBranchToken().Return([]byte("token"), nil)
 				ms.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{DomainID: "domain-id", WorkflowID: "wf-id", RunID: "run-id"})
-				ms.EXPECT().GetPendingChildExecutionInfos().Return(map[int64]*persistence.ChildExecutionInfo{1: {InitiatedEventBatchID: 1, InitiatedID: 2, StartedID: common.EmptyEventID, Version: 1}})
+				ms.EXPECT().GetPendingChildExecutionInfos().Return(map[int64]*persistence.ChildExecutionInfo{1: {InitiatedEventBatchID: 1, InitiatedID: 2, StartedID: constants.EmptyEventID, Version: 1}})
 				mc.EXPECT().GetEvent(gomock.Any(), gomock.Any(), "domain-id", "wf-id", "run-id", int64(1), int64(2), []byte("token")).Return(nil, errors.New("some error"))
 			},
 			wantErr: true,
@@ -423,7 +424,7 @@ func TestRefreshTasksForChildWorkflow(t *testing.T) {
 			mockSetup: func(ms *MockMutableState, mtg *MockMutableStateTaskGenerator, mc *events.MockCache) {
 				ms.EXPECT().GetCurrentBranchToken().Return([]byte("token"), nil)
 				ms.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{DomainID: "domain-id", WorkflowID: "wf-id", RunID: "run-id"})
-				ms.EXPECT().GetPendingChildExecutionInfos().Return(map[int64]*persistence.ChildExecutionInfo{1: {InitiatedEventBatchID: 1, InitiatedID: 2, StartedID: common.EmptyEventID, Version: 1}})
+				ms.EXPECT().GetPendingChildExecutionInfos().Return(map[int64]*persistence.ChildExecutionInfo{1: {InitiatedEventBatchID: 1, InitiatedID: 2, StartedID: constants.EmptyEventID, Version: 1}})
 				mc.EXPECT().GetEvent(gomock.Any(), gomock.Any(), "domain-id", "wf-id", "run-id", int64(1), int64(2), []byte("token")).Return(&types.HistoryEvent{ID: 1}, nil)
 				mtg.EXPECT().GenerateChildWorkflowTasks(&types.HistoryEvent{ID: 1}).Return(errors.New("some error"))
 			},
@@ -434,7 +435,7 @@ func TestRefreshTasksForChildWorkflow(t *testing.T) {
 			mockSetup: func(ms *MockMutableState, mtg *MockMutableStateTaskGenerator, mc *events.MockCache) {
 				ms.EXPECT().GetCurrentBranchToken().Return([]byte("token"), nil)
 				ms.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{DomainID: "domain-id", WorkflowID: "wf-id", RunID: "run-id"})
-				ms.EXPECT().GetPendingChildExecutionInfos().Return(map[int64]*persistence.ChildExecutionInfo{1: {InitiatedEventBatchID: 1, InitiatedID: 2, StartedID: common.EmptyEventID, Version: 1}, 11: {StartedID: 12}})
+				ms.EXPECT().GetPendingChildExecutionInfos().Return(map[int64]*persistence.ChildExecutionInfo{1: {InitiatedEventBatchID: 1, InitiatedID: 2, StartedID: constants.EmptyEventID, Version: 1}, 11: {StartedID: 12}})
 				mc.EXPECT().GetEvent(gomock.Any(), gomock.Any(), "domain-id", "wf-id", "run-id", int64(1), int64(2), []byte("token")).Return(&types.HistoryEvent{ID: 1}, nil)
 				mtg.EXPECT().GenerateChildWorkflowTasks(&types.HistoryEvent{ID: 1}).Return(nil)
 			},
@@ -659,7 +660,7 @@ func TestRefreshTasks(t *testing.T) {
 			ms.EXPECT().GetDomainEntry().Return(cache.NewLocalDomainCacheEntryForTest(&persistence.DomainInfo{ID: "domain-id"}, nil, "test")).AnyTimes()
 			refresher := &mutableStateTaskRefresherImpl{
 				config: &config.Config{
-					WriteVisibilityStoreName:    dynamicconfig.GetStringPropertyFn(common.VisibilityModeES),
+					WriteVisibilityStoreName:    dynamicconfig.GetStringPropertyFn(constants.VisibilityModeES),
 					WorkflowDeletionJitterRange: dynamicconfig.GetIntPropertyFilteredByDomain(1),
 					IsAdvancedVisConfigExist:    true,
 				},

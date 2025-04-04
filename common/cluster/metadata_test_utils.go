@@ -22,7 +22,7 @@ package cluster
 
 import (
 	"github.com/uber/cadence/common/config"
-	"github.com/uber/cadence/common/log/loggerimpl"
+	"github.com/uber/cadence/common/log"
 	commonMetrics "github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/service"
 )
@@ -96,7 +96,7 @@ var (
 		TestAllClusterInfo,
 		func(d string) bool { return false },
 		commonMetrics.NewNoopMetricsClient(),
-		loggerimpl.NewNopLogger(),
+		log.NewNoop(),
 	)
 
 	// TestPassiveClusterMetadata is metadata for a passive cluster
@@ -107,7 +107,7 @@ var (
 		TestAllClusterInfo,
 		func(d string) bool { return false },
 		commonMetrics.NewNoopMetricsClient(),
-		loggerimpl.NewNopLogger(),
+		log.NewNoop(),
 	)
 )
 
@@ -125,6 +125,6 @@ func GetTestClusterMetadata(isPrimaryCluster bool) Metadata {
 		TestAllClusterInfo,
 		func(d string) bool { return false },
 		commonMetrics.NewNoopMetricsClient(),
-		loggerimpl.NewNopLogger(),
+		log.NewNoop(),
 	)
 }

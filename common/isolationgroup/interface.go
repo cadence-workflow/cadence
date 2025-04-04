@@ -26,7 +26,6 @@ import (
 	"context"
 
 	"github.com/uber/cadence/common"
-	"github.com/uber/cadence/common/types"
 )
 
 //go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination isolation_group_mock.go -self_package github.com/uber/cadence/common/isolationgroup
@@ -40,8 +39,4 @@ type State interface {
 	// and similar sync frontend calls to make routing decisions
 	IsDrained(ctx context.Context, Domain string, IsolationGroup string) (bool, error)
 	IsDrainedByDomainID(ctx context.Context, DomainID string, IsolationGroup string) (bool, error)
-
-	// AvailableIsolationGroupsByDomainID returns the available isolation zones for a domain.
-	// Takes into account global and domain zones
-	IsolationGroupsByDomainID(ctx context.Context, domainID string) (types.IsolationGroupConfiguration, error)
 }

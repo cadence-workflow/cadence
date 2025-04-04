@@ -68,7 +68,7 @@ func createTestHistoryReplicator(t *testing.T) historyReplicatorImpl {
 	// before going into NewHistoryReplicator
 	mockExecutionManager := persistence.NewMockExecutionManager(ctrl)
 	mockShard.EXPECT().GetExecutionManager().Return(mockExecutionManager).Times(1)
-	mockShard.EXPECT().GetLogger().Return(log.NewNoop()).Times(1)
+	mockShard.EXPECT().GetLogger().Return(log.NewNoop()).AnyTimes()
 	mockShard.EXPECT().GetMetricsClient().Return(nil).Times(3)
 
 	testExecutionCache := execution.NewCache(mockShard)
@@ -117,7 +117,7 @@ func TestNewHistoryReplicator_newBranchManager(t *testing.T) {
 	// before going into NewHistoryReplicator
 	mockExecutionManager := persistence.NewMockExecutionManager(ctrl)
 	mockShard.EXPECT().GetExecutionManager().Return(mockExecutionManager).Times(1)
-	mockShard.EXPECT().GetLogger().Return(log.NewNoop()).Times(1)
+	mockShard.EXPECT().GetLogger().Return(log.NewNoop()).AnyTimes()
 	mockShard.EXPECT().GetMetricsClient().Return(nil).Times(3)
 
 	testExecutionCache := execution.NewCache(mockShard)
@@ -166,7 +166,7 @@ func TestNewHistoryReplicator_newConflictResolver(t *testing.T) {
 	// before going into NewHistoryReplicator
 	mockExecutionManager := persistence.NewMockExecutionManager(ctrl)
 	mockShard.EXPECT().GetExecutionManager().Return(mockExecutionManager).Times(1)
-	mockShard.EXPECT().GetLogger().Return(log.NewNoop()).Times(1)
+	mockShard.EXPECT().GetLogger().Return(log.NewNoop()).AnyTimes()
 	mockShard.EXPECT().GetMetricsClient().Return(nil).Times(3)
 
 	testExecutionCache := execution.NewCache(mockShard)
@@ -219,7 +219,7 @@ func TestNewHistoryReplicator_newWorkflowResetter(t *testing.T) {
 	// before going into NewHistoryReplicator
 	mockExecutionManager := persistence.NewMockExecutionManager(ctrl)
 	mockShard.EXPECT().GetExecutionManager().Return(mockExecutionManager).Times(1)
-	mockShard.EXPECT().GetLogger().Return(log.NewNoop()).Times(1)
+	mockShard.EXPECT().GetLogger().Return(log.NewNoop()).AnyTimes()
 	mockShard.EXPECT().GetMetricsClient().Return(nil).Times(3)
 
 	testExecutionCache := execution.NewCache(mockShard)
@@ -278,7 +278,7 @@ func TestNewHistoryReplicator_newStateBuilder(t *testing.T) {
 	// before going into NewHistoryReplicator
 	mockExecutionManager := persistence.NewMockExecutionManager(ctrl)
 	mockShard.EXPECT().GetExecutionManager().Return(mockExecutionManager).Times(1)
-	mockShard.EXPECT().GetLogger().Return(log.NewNoop()).Times(1)
+	mockShard.EXPECT().GetLogger().Return(log.NewNoop()).AnyTimes()
 	mockShard.EXPECT().GetMetricsClient().Return(nil).Times(3)
 
 	testExecutionCache := execution.NewCache(mockShard)
@@ -326,7 +326,7 @@ func TestNewHistoryReplicator_newMutableState(t *testing.T) {
 	// before going into NewHistoryReplicator
 	mockExecutionManager := persistence.NewMockExecutionManager(ctrl)
 	mockShard.EXPECT().GetExecutionManager().Return(mockExecutionManager).Times(1)
-	mockShard.EXPECT().GetLogger().Return(log.NewNoop()).Times(1)
+	mockShard.EXPECT().GetLogger().Return(log.NewNoop()).AnyTimes()
 	mockShard.EXPECT().GetMetricsClient().Return(nil).Times(4)
 
 	testExecutionCache := execution.NewCache(mockShard)

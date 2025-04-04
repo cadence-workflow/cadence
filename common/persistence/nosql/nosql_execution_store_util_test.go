@@ -32,6 +32,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/checksum"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
@@ -67,7 +68,7 @@ func TestNosqlExecutionStoreUtils(t *testing.T) {
 						RunID:      "test-run-id",
 					},
 					VersionHistories: &persistence.DataBlob{
-						Encoding: common.EncodingTypeJSON,
+						Encoding: constants.EncodingTypeJSON,
 						Data:     []byte(`[{"Branches":[{"BranchID":"test-branch-id","BeginNodeID":1,"EndNodeID":2}]}]`),
 					},
 				}
@@ -91,7 +92,7 @@ func TestNosqlExecutionStoreUtils(t *testing.T) {
 						RunID:      "test-run-id",
 					},
 					VersionHistories: &persistence.DataBlob{
-						Encoding: common.EncodingTypeJSON,
+						Encoding: constants.EncodingTypeJSON,
 						Data:     []byte(`[{"Branches":[{"BranchID":"test-branch-id","BeginNodeID":1,"EndNodeID":2}]}]`),
 					},
 					Checksum: checksum.Checksum{Value: nil},
@@ -115,7 +116,7 @@ func TestNosqlExecutionStoreUtils(t *testing.T) {
 						RunID:      "test-run-id-2",
 					},
 					VersionHistories: &persistence.DataBlob{
-						Encoding: common.EncodingTypeJSON,
+						Encoding: constants.EncodingTypeJSON,
 						Data:     []byte("[]"), // Empty VersionHistories
 					},
 				}
@@ -138,7 +139,7 @@ func TestNosqlExecutionStoreUtils(t *testing.T) {
 					},
 					LastWriteVersion: 123,
 					Checksum:         checksum.Checksum{Version: 1},
-					VersionHistories: &persistence.DataBlob{Encoding: common.EncodingTypeJSON, Data: []byte(`[{"Branches":[{"BranchID":"reset-branch-id","BeginNodeID":1,"EndNodeID":2}]}]`)},
+					VersionHistories: &persistence.DataBlob{Encoding: constants.EncodingTypeJSON, Data: []byte(`[{"Branches":[{"BranchID":"reset-branch-id","BeginNodeID":1,"EndNodeID":2}]}]`)},
 					ActivityInfos:    []*persistence.InternalActivityInfo{{ScheduleID: 1}},
 					TimerInfos:       []*persistence.TimerInfo{{TimerID: "timerID"}},
 					ChildExecutionInfos: []*persistence.InternalChildExecutionInfo{
@@ -170,7 +171,7 @@ func TestNosqlExecutionStoreUtils(t *testing.T) {
 					},
 					LastWriteVersion: 456,
 					Checksum:         checksum.Checksum{Version: 1},
-					VersionHistories: &persistence.DataBlob{Encoding: common.EncodingTypeJSON, Data: []byte("{malformed}")},
+					VersionHistories: &persistence.DataBlob{Encoding: constants.EncodingTypeJSON, Data: []byte("{malformed}")},
 				}
 				return store.prepareResetWorkflowExecutionRequestWithMapsAndEventBuffer(resetWorkflow, FixedTime)
 			},
@@ -239,7 +240,7 @@ func TestPrepareTasksForWorkflowTxn(t *testing.T) {
 			mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryTimer, gomock.Any()).
 				Return(persistence.DataBlob{
 					Data:     []byte("timer"),
-					Encoding: common.EncodingTypeThriftRW,
+					Encoding: constants.EncodingTypeThriftRW,
 				}, nil)
 		},
 		setupStore: func(store *nosqlExecutionStore) ([]*nosqlplugin.HistoryMigrationTask, error) {
@@ -291,7 +292,7 @@ func TestPrepareTasksForWorkflowTxn(t *testing.T) {
 				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryTimer, gomock.Any()).
 					Return(persistence.DataBlob{
 						Data:     []byte("timer"),
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 					}, nil)
 			},
 			setupStore: func(store *nosqlExecutionStore) ([]*nosqlplugin.HistoryMigrationTask, error) {
@@ -314,7 +315,7 @@ func TestPrepareTasksForWorkflowTxn(t *testing.T) {
 				assert.Equal(t, int64(3), tasks[0].Timer.EventID)
 				assert.Equal(t, int64(2), tasks[0].Timer.ScheduleAttempt)
 				assert.Equal(t, []byte("timer"), tasks[0].Task.Data)
-				assert.Equal(t, common.EncodingTypeThriftRW, tasks[0].Task.Encoding)
+				assert.Equal(t, constants.EncodingTypeThriftRW, tasks[0].Task.Encoding)
 			},
 		},
 		{
@@ -323,7 +324,7 @@ func TestPrepareTasksForWorkflowTxn(t *testing.T) {
 				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryTimer, gomock.Any()).
 					Return(persistence.DataBlob{
 						Data:     []byte("timer"),
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 					}, nil)
 			},
 			setupStore: func(store *nosqlExecutionStore) ([]*nosqlplugin.HistoryMigrationTask, error) {
@@ -344,7 +345,7 @@ func TestPrepareTasksForWorkflowTxn(t *testing.T) {
 				assert.Len(t, tasks, 1)
 				assert.Equal(t, int64(4), tasks[0].Timer.EventID)
 				assert.Equal(t, []byte("timer"), tasks[0].Task.Data)
-				assert.Equal(t, common.EncodingTypeThriftRW, tasks[0].Task.Encoding)
+				assert.Equal(t, constants.EncodingTypeThriftRW, tasks[0].Task.Encoding)
 			},
 		},
 		{
@@ -353,7 +354,7 @@ func TestPrepareTasksForWorkflowTxn(t *testing.T) {
 				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryTimer, gomock.Any()).
 					Return(persistence.DataBlob{
 						Data:     []byte("timer"),
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 					}, nil)
 			},
 			setupStore: func(store *nosqlExecutionStore) ([]*nosqlplugin.HistoryMigrationTask, error) {
@@ -376,7 +377,7 @@ func TestPrepareTasksForWorkflowTxn(t *testing.T) {
 				assert.Equal(t, int64(5), tasks[0].Timer.EventID)
 				assert.Equal(t, int64(3), tasks[0].Timer.ScheduleAttempt)
 				assert.Equal(t, []byte("timer"), tasks[0].Task.Data)
-				assert.Equal(t, common.EncodingTypeThriftRW, tasks[0].Task.Encoding)
+				assert.Equal(t, constants.EncodingTypeThriftRW, tasks[0].Task.Encoding)
 			},
 		},
 		{
@@ -385,7 +386,7 @@ func TestPrepareTasksForWorkflowTxn(t *testing.T) {
 				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryTimer, gomock.Any()).
 					Return(persistence.DataBlob{
 						Data:     []byte("timer"),
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 					}, nil)
 			},
 			setupStore: func(store *nosqlExecutionStore) ([]*nosqlplugin.HistoryMigrationTask, error) {
@@ -404,7 +405,7 @@ func TestPrepareTasksForWorkflowTxn(t *testing.T) {
 				assert.NoError(t, err)
 				assert.Len(t, tasks, 1)
 				assert.Equal(t, []byte("timer"), tasks[0].Task.Data)
-				assert.Equal(t, common.EncodingTypeThriftRW, tasks[0].Task.Encoding)
+				assert.Equal(t, constants.EncodingTypeThriftRW, tasks[0].Task.Encoding)
 			},
 		},
 	}
@@ -437,7 +438,7 @@ func TestPrepareReplicationTasksForWorkflowTxn(t *testing.T) {
 				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryReplication, gomock.Any()).
 					Return(persistence.DataBlob{
 						Data:     []byte("replication"),
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 					}, nil)
 			},
 			setupStore: func(store *nosqlExecutionStore) ([]*nosqlplugin.HistoryMigrationTask, error) {
@@ -478,7 +479,7 @@ func TestPrepareReplicationTasksForWorkflowTxn(t *testing.T) {
 				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryReplication, gomock.Any()).
 					Return(persistence.DataBlob{
 						Data:     []byte("replication"),
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 					}, nil)
 			},
 			setupStore: func(store *nosqlExecutionStore) ([]*nosqlplugin.HistoryMigrationTask, error) {
@@ -501,7 +502,7 @@ func TestPrepareReplicationTasksForWorkflowTxn(t *testing.T) {
 				assert.Equal(t, persistence.ReplicationTaskTypeSyncActivity, task.Replication.TaskType)
 				assert.Equal(t, int64(123), task.Replication.ScheduledID)
 				assert.Equal(t, []byte("replication"), task.Task.Data)
-				assert.Equal(t, common.EncodingTypeThriftRW, task.Task.Encoding)
+				assert.Equal(t, constants.EncodingTypeThriftRW, task.Task.Encoding)
 			},
 		},
 		{
@@ -510,7 +511,7 @@ func TestPrepareReplicationTasksForWorkflowTxn(t *testing.T) {
 				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryReplication, gomock.Any()).
 					Return(persistence.DataBlob{
 						Data:     []byte("replication"),
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 					}, nil)
 			},
 			setupStore: func(store *nosqlExecutionStore) ([]*nosqlplugin.HistoryMigrationTask, error) {
@@ -533,7 +534,7 @@ func TestPrepareReplicationTasksForWorkflowTxn(t *testing.T) {
 				assert.Equal(t, persistence.ReplicationTaskTypeFailoverMarker, task.Replication.TaskType)
 				assert.Equal(t, "domainID", task.Replication.DomainID)
 				assert.Equal(t, []byte("replication"), task.Task.Data)
-				assert.Equal(t, common.EncodingTypeThriftRW, task.Task.Encoding)
+				assert.Equal(t, constants.EncodingTypeThriftRW, task.Task.Encoding)
 			},
 		},
 	}
@@ -585,7 +586,7 @@ func TestPrepareTransferTasksForWorkflowTxn(t *testing.T) {
 				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryTransfer, gomock.Any()).
 					Return(persistence.DataBlob{
 						Data:     []byte("transfer"),
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 					}, nil)
 			},
 			validate: func(t *testing.T, tasks []*nosqlplugin.HistoryMigrationTask, err error) {
@@ -597,7 +598,7 @@ func TestPrepareTransferTasksForWorkflowTxn(t *testing.T) {
 				assert.Equal(t, int64(1002), task.Transfer.TaskID)
 				assert.Equal(t, int64(1), task.Transfer.Version)
 				assert.Equal(t, []byte("transfer"), task.Task.Data)
-				assert.Equal(t, common.EncodingTypeThriftRW, task.Task.Encoding)
+				assert.Equal(t, constants.EncodingTypeThriftRW, task.Task.Encoding)
 			},
 		},
 		{
@@ -621,7 +622,7 @@ func TestPrepareTransferTasksForWorkflowTxn(t *testing.T) {
 				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryTransfer, gomock.Any()).
 					Return(persistence.DataBlob{
 						Data:     []byte("transfer"),
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 					}, nil)
 			},
 			validate: func(t *testing.T, tasks []*nosqlplugin.HistoryMigrationTask, err error) {
@@ -634,7 +635,7 @@ func TestPrepareTransferTasksForWorkflowTxn(t *testing.T) {
 				assert.Equal(t, int64(1001), task.Transfer.ScheduleID)
 				assert.Equal(t, int64(1), task.Transfer.Version)
 				assert.Equal(t, []byte("transfer"), task.Task.Data)
-				assert.Equal(t, common.EncodingTypeThriftRW, task.Task.Encoding)
+				assert.Equal(t, constants.EncodingTypeThriftRW, task.Task.Encoding)
 			},
 		},
 		{
@@ -672,7 +673,7 @@ func TestPrepareTransferTasksForWorkflowTxn(t *testing.T) {
 				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryTransfer, gomock.Any()).
 					Return(persistence.DataBlob{
 						Data:     []byte("transfer"),
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 					}, nil).Times(2)
 			},
 			validate: func(t *testing.T, tasks []*nosqlplugin.HistoryMigrationTask, err error) {
@@ -680,7 +681,7 @@ func TestPrepareTransferTasksForWorkflowTxn(t *testing.T) {
 				for _, task := range tasks {
 					assert.Equal(t, persistence.TransferTaskTransferTargetRunID, task.Transfer.TargetRunID, "TargetRunID should default to TransferTaskTransferTargetRunID")
 					assert.Equal(t, []byte("transfer"), task.Task.Data)
-					assert.Equal(t, common.EncodingTypeThriftRW, task.Task.Encoding)
+					assert.Equal(t, constants.EncodingTypeThriftRW, task.Task.Encoding)
 				}
 			},
 		},
@@ -707,7 +708,7 @@ func TestPrepareTransferTasksForWorkflowTxn(t *testing.T) {
 				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryTransfer, gomock.Any()).
 					Return(persistence.DataBlob{
 						Data:     []byte("transfer"),
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 					}, nil)
 			},
 			validate: func(t *testing.T, tasks []*nosqlplugin.HistoryMigrationTask, err error) {
@@ -719,7 +720,7 @@ func TestPrepareTransferTasksForWorkflowTxn(t *testing.T) {
 				assert.Equal(t, int64(1003), task.Transfer.TaskID)
 				assert.Equal(t, int64(1), task.Transfer.Version)
 				assert.Equal(t, []byte("transfer"), task.Task.Data)
-				assert.Equal(t, common.EncodingTypeThriftRW, task.Task.Encoding)
+				assert.Equal(t, constants.EncodingTypeThriftRW, task.Task.Encoding)
 			},
 		},
 		{
@@ -743,7 +744,7 @@ func TestPrepareTransferTasksForWorkflowTxn(t *testing.T) {
 				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryTransfer, gomock.Any()).
 					Return(persistence.DataBlob{
 						Data:     []byte("transfer"),
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 					}, nil)
 			},
 			validate: func(t *testing.T, tasks []*nosqlplugin.HistoryMigrationTask, err error) {
@@ -755,7 +756,7 @@ func TestPrepareTransferTasksForWorkflowTxn(t *testing.T) {
 				assert.Equal(t, int64(1004), task.Transfer.TaskID)
 				assert.Equal(t, int64(1), task.Transfer.Version)
 				assert.Equal(t, []byte("transfer"), task.Task.Data)
-				assert.Equal(t, common.EncodingTypeThriftRW, task.Task.Encoding)
+				assert.Equal(t, constants.EncodingTypeThriftRW, task.Task.Encoding)
 			},
 		},
 		{
@@ -779,7 +780,7 @@ func TestPrepareTransferTasksForWorkflowTxn(t *testing.T) {
 				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryTransfer, gomock.Any()).
 					Return(persistence.DataBlob{
 						Data:     []byte("transfer"),
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 					}, nil)
 			},
 			validate: func(t *testing.T, tasks []*nosqlplugin.HistoryMigrationTask, err error) {
@@ -792,7 +793,7 @@ func TestPrepareTransferTasksForWorkflowTxn(t *testing.T) {
 				assert.Equal(t, int64(1005), task.Transfer.TaskID)
 				assert.Equal(t, int64(1), task.Transfer.Version)
 				assert.Equal(t, []byte("transfer"), task.Task.Data)
-				assert.Equal(t, common.EncodingTypeThriftRW, task.Task.Encoding)
+				assert.Equal(t, constants.EncodingTypeThriftRW, task.Task.Encoding)
 			},
 		},
 		{
@@ -816,7 +817,7 @@ func TestPrepareTransferTasksForWorkflowTxn(t *testing.T) {
 				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryTransfer, gomock.Any()).
 					Return(persistence.DataBlob{
 						Data:     []byte("transfer"),
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 					}, nil)
 			},
 			validate: func(t *testing.T, tasks []*nosqlplugin.HistoryMigrationTask, err error) {
@@ -827,7 +828,7 @@ func TestPrepareTransferTasksForWorkflowTxn(t *testing.T) {
 				assert.Equal(t, "targetDomainID-decision", task.Transfer.TargetDomainID)
 				assert.Equal(t, false, task.Transfer.RecordVisibility)
 				assert.Equal(t, []byte("transfer"), task.Task.Data)
-				assert.Equal(t, common.EncodingTypeThriftRW, task.Task.Encoding)
+				assert.Equal(t, constants.EncodingTypeThriftRW, task.Task.Encoding)
 			},
 		},
 		{
@@ -875,8 +876,8 @@ func TestNosqlExecutionStoreUtilsExtended(t *testing.T) {
 				activityInfos := []*persistence.InternalActivityInfo{
 					{
 						ScheduleID:     1,
-						ScheduledEvent: persistence.NewDataBlob([]byte("scheduled event data"), common.EncodingTypeThriftRW),
-						StartedEvent:   persistence.NewDataBlob([]byte("started event data"), common.EncodingTypeThriftRW),
+						ScheduledEvent: persistence.NewDataBlob([]byte("scheduled event data"), constants.EncodingTypeThriftRW),
+						StartedEvent:   persistence.NewDataBlob([]byte("started event data"), constants.EncodingTypeThriftRW),
 					},
 				}
 				return store.prepareActivityInfosForWorkflowTxn(activityInfos)
@@ -916,8 +917,8 @@ func TestNosqlExecutionStoreUtilsExtended(t *testing.T) {
 				childWFInfos := []*persistence.InternalChildExecutionInfo{
 					{
 						InitiatedID:    1,
-						InitiatedEvent: persistence.NewDataBlob([]byte("initiated event data"), common.EncodingTypeThriftRW),
-						StartedEvent:   persistence.NewDataBlob([]byte("started event data"), common.EncodingTypeThriftRW),
+						InitiatedEvent: persistence.NewDataBlob([]byte("initiated event data"), constants.EncodingTypeThriftRW),
+						StartedEvent:   persistence.NewDataBlob([]byte("started event data"), constants.EncodingTypeThriftRW),
 					},
 				}
 				return store.prepareChildWFInfosForWorkflowTxn(childWFInfos)
@@ -959,8 +960,8 @@ func TestNosqlExecutionStoreUtilsExtended(t *testing.T) {
 				childWFInfos := []*persistence.InternalChildExecutionInfo{
 					{
 						InitiatedID:    1,
-						InitiatedEvent: persistence.NewDataBlob([]byte("initiated"), common.EncodingTypeThriftRW),
-						StartedEvent:   persistence.NewDataBlob([]byte("started"), common.EncodingTypeJSON), // Encoding mismatch
+						InitiatedEvent: persistence.NewDataBlob([]byte("initiated"), constants.EncodingTypeThriftRW),
+						StartedEvent:   persistence.NewDataBlob([]byte("started"), constants.EncodingTypeJSON), // Encoding mismatch
 					},
 				}
 				return store.prepareChildWFInfosForWorkflowTxn(childWFInfos)
@@ -1045,7 +1046,7 @@ func TestNosqlExecutionStoreUtilsExtended(t *testing.T) {
 					CloseStatus: persistence.WorkflowCloseStatusNone,
 				}
 				versionHistories := &persistence.DataBlob{
-					Encoding: common.EncodingTypeJSON,
+					Encoding: constants.EncodingTypeJSON,
 					Data:     []byte(`[{"Branches":[{"BranchID":"test-branch-id","BeginNodeID":1,"EndNodeID":2}]}]`),
 				}
 				checksum := checksum.Checksum{Version: 1,
@@ -1068,7 +1069,7 @@ func TestNosqlExecutionStoreUtilsExtended(t *testing.T) {
 					State:      persistence.WorkflowStateCompleted,
 				}
 				versionHistories := &persistence.DataBlob{
-					Encoding: common.EncodingTypeJSON,
+					Encoding: constants.EncodingTypeJSON,
 					Data:     []byte(`[{"Branches":[{"BranchID":"branch-id","BeginNodeID":1,"EndNodeID":2}]}]`),
 				}
 				checksum := checksum.Checksum{Version: 1, Value: []byte("checksum")}
@@ -1091,7 +1092,7 @@ func TestNosqlExecutionStoreUtilsExtended(t *testing.T) {
 					CloseStatus: persistence.WorkflowCloseStatusNone,
 				}
 				versionHistories := &persistence.DataBlob{
-					Encoding: common.EncodingTypeJSON,
+					Encoding: constants.EncodingTypeJSON,
 					Data:     []byte(`[{"Branches":[{"BranchID":"branch-id","BeginNodeID":1,"EndNodeID":2}]}]`),
 				}
 				checksum := checksum.Checksum{Version: 1, Value: []byte("checksum")}
@@ -1113,7 +1114,7 @@ func TestNosqlExecutionStoreUtilsExtended(t *testing.T) {
 					CloseStatus: persistence.WorkflowCloseStatusNone,
 				}
 				versionHistories := &persistence.DataBlob{
-					Encoding: common.EncodingTypeJSON,
+					Encoding: constants.EncodingTypeJSON,
 					Data:     []byte(`[{"Branches":[{"BranchID":"create-branch-id","BeginNodeID":1,"EndNodeID":2}]}]`),
 				}
 				checksum := checksum.Checksum{Version: 1, Value: []byte("create-checksum")}
@@ -1137,7 +1138,7 @@ func TestNosqlExecutionStoreUtilsExtended(t *testing.T) {
 					CloseStatus: persistence.WorkflowCloseStatusNone,
 				}
 				versionHistories := &persistence.DataBlob{
-					Encoding: common.EncodingTypeJSON,
+					Encoding: constants.EncodingTypeJSON,
 					Data:     []byte(`[{"Branches":[{"BranchID":"create-branch-id","BeginNodeID":1,"EndNodeID":2}]}]`),
 				}
 				checksum := checksum.Checksum{Version: 1, Value: []byte("create-checksum")}

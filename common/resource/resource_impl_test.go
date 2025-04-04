@@ -240,6 +240,5 @@ func TestStartStop(t *testing.T) {
 	assert.NotNil(t, i.GetDispatcher())
 	assert.NotNil(t, i.GetIsolationGroupState())
 	assert.Nil(t, i.GetIsolationGroupStore())
-	assert.NotNil(t, i.GetPartitioner())
 	assert.Equal(t, params.AsyncWorkflowQueueProvider, i.GetAsyncWorkflowQueueProvider())
 }

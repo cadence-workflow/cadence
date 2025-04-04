@@ -32,8 +32,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/reconciliation/entity"
@@ -624,11 +624,11 @@ func withClosedHistory(finish *time.Time, pr *persistence.MockRetryer) {
 	}
 	pr.EXPECT().ReadHistoryBranch(
 		gomock.Any(),
-		requestMaxEvent{common.EndEventID, ""}, // not a first-event-only request
+		requestMaxEvent{constants.EndEventID, ""}, // not a first-event-only request
 	).Return(firstPage, nil).Times(1)
 	pr.EXPECT().ReadHistoryBranch(
 		gomock.Any(),
-		requestMaxEvent{common.EndEventID, "not nil"}, // token from first page
+		requestMaxEvent{constants.EndEventID, "not nil"}, // token from first page
 	).Return(final, nil).Times(1)
 }
 
@@ -668,7 +668,7 @@ func withOpenHistoryFallback(start time.Time, backoff time.Duration, pr *persist
 	}
 	pr.EXPECT().ReadHistoryBranch(
 		gomock.Any(),
-		requestMaxEvent{common.EndEventID, ""}, // not a first-event-only request
+		requestMaxEvent{constants.EndEventID, ""}, // not a first-event-only request
 	).Return(closedHistory, nil).Times(1)
 
 	// and then it's just another open request, no need to customize

@@ -26,9 +26,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 )
@@ -68,7 +70,7 @@ func TestMethodsAreRoutedToARing(t *testing.T) {
 	pp.EXPECT().WhoAmI().AnyTimes()
 
 	r, err := a.getRing("test-worker")
-	r.refresh()
+	r.Refresh()
 
 	assert.NoError(t, err)
 
@@ -134,10 +136,19 @@ func newTestResolver(t *testing.T) (*MultiringResolver, *MockPeerProvider) {
 
 	ctrl := gomock.NewController(t)
 	pp := NewMockPeerProvider(ctrl)
-	return NewMultiringResolver(
-		testServices,
+
+	rings := make(map[string]SingleProvider, len(testServices))
+	for _, testService := range testServices {
+		ring := NewHashring(testService, pp, clock.NewMockedTimeSource(), log.NewNoop(), metrics.NewNoopMetricsClient().Scope(metrics.HashringScope))
+		rings[testService] = ring
+	}
+
+	resolver, err := NewResolver(
 		pp,
-		log.NewNoop(),
 		metrics.NewNoopMetricsClient(),
-	), pp
+		rings,
+	)
+	require.NoError(t, err)
+
+	return resolver.(*MultiringResolver), pp
 }

@@ -26,7 +26,7 @@ import (
 	"math/rand"
 
 	"github.com/uber/cadence/common/dynamicconfig"
-	"github.com/uber/cadence/common/partition"
+	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -55,7 +55,7 @@ func (i *isolationLoadBalancer) PickWritePartition(taskListType int, req WriteRe
 		return i.fallback.PickWritePartition(taskListType, req)
 	}
 
-	taskGroup, ok := req.GetPartitionConfig()[partition.IsolationGroupKey]
+	taskGroup, ok := req.GetPartitionConfig()[isolationgroup.GroupKey]
 	if !ok || taskGroup == "" {
 		return i.fallback.PickWritePartition(taskListType, req)
 	}

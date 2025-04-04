@@ -29,18 +29,26 @@ import (
 	"go.uber.org/cadence/.gen/go/cadence/workflowserviceclient"
 	"go.uber.org/cadence/compatibility"
 
+	sharddistributorv1 "github.com/uber/cadence/.gen/proto/sharddistributor/v1"
+	sharddistributorClient "github.com/uber/cadence/client/sharddistributor"
+	"github.com/uber/cadence/client/wrappers/errorinjectors"
+	"github.com/uber/cadence/client/wrappers/grpc"
+	"github.com/uber/cadence/client/wrappers/metered"
+	timeoutwrapper "github.com/uber/cadence/client/wrappers/timeout"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/archiver"
 	"github.com/uber/cadence/common/archiver/provider"
 	"github.com/uber/cadence/common/asyncworkflow/queue"
 	"github.com/uber/cadence/common/blobstore/filestore"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/configstore"
 	"github.com/uber/cadence/common/elasticsearch"
 	"github.com/uber/cadence/common/isolationgroup/isolationgroupapi"
-	"github.com/uber/cadence/common/log/loggerimpl"
+	cadencelog "github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/messaging/kafka"
@@ -55,6 +63,7 @@ import (
 	"github.com/uber/cadence/service/history"
 	"github.com/uber/cadence/service/matching"
 	"github.com/uber/cadence/service/sharddistributor"
+	sharddistributorconstants "github.com/uber/cadence/service/sharddistributor/constants"
 	"github.com/uber/cadence/service/worker"
 	diagnosticsInvariant "github.com/uber/cadence/service/worker/diagnostics/invariant"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant/failure"
@@ -119,7 +128,7 @@ func (s *server) startService() common.Daemon {
 	if err != nil {
 		log.Fatal("failed to create the zap logger, err: ", err.Error())
 	}
-	params.Logger = loggerimpl.NewLogger(zapLogger).WithTags(tag.Service(params.Name))
+	params.Logger = cadencelog.NewLogger(zapLogger).WithTags(tag.Service(params.Name))
 
 	params.PersistenceConfig = s.cfg.Persistence
 
@@ -187,11 +196,21 @@ func (s *server) startService() common.Daemon {
 		log.Fatalf("ringpop provider failed: %v", err)
 	}
 
+	shardDistributorClient := s.createShardDistributorClient(params, dc)
+
+	params.HashRings = make(map[string]*membership.Ring)
+	for _, s := range service.ListWithRing {
+		params.HashRings[s] = membership.NewHashring(s, peerProvider, clock.NewRealTimeSource(), params.Logger, params.MetricsClient.Scope(metrics.HashringScope))
+	}
+
+	wrappedRings := s.newMethod(params.HashRings, shardDistributorClient, dc, params.Logger)
+
 	params.MembershipResolver, err = membership.NewResolver(
 		peerProvider,
-		params.Logger,
 		params.MetricsClient,
+		wrappedRings,
 	)
+
 	if err != nil {
 		log.Fatalf("error creating membership monitor: %v", err)
 	}
@@ -289,6 +308,52 @@ func (s *server) startService() common.Daemon {
 	return daemon
 }
 
+func (*server) newMethod(
+	hashRings map[string]*membership.Ring,
+	shardDistributorClient sharddistributorClient.Client,
+	dc *dynamicconfig.Collection,
+	logger cadencelog.Logger,
+) map[string]membership.SingleProvider {
+	wrappedRings := make(map[string]membership.SingleProvider, len(hashRings))
+	for k, v := range hashRings {
+		if k == service.Matching {
+			wrappedRings[k] = membership.NewShardDistributorResolver(
+				sharddistributorconstants.MatchingNamespace,
+				shardDistributorClient,
+				dc.GetStringProperty(dynamicconfig.MatchingShardDistributionMode),
+				v,
+				logger,
+			)
+		} else {
+			wrappedRings[k] = v
+		}
+	}
+	return wrappedRings
+}
+
+func (*server) createShardDistributorClient(params resource.Params, dc *dynamicconfig.Collection) sharddistributorClient.Client {
+	shardDistributorClientConfig, ok := params.RPCFactory.GetDispatcher().OutboundConfig(service.ShardDistributor)
+	var shardDistributorClient sharddistributorClient.Client
+	if ok {
+		if !rpc.IsGRPCOutbound(shardDistributorClientConfig) {
+			params.Logger.Error("shard distributor client does not support non-GRPC outbound will fail back to hashring")
+		}
+
+		shardDistributorClient = grpc.NewShardDistributorClient(
+			sharddistributorv1.NewShardDistributorAPIYARPCClient(shardDistributorClientConfig),
+		)
+
+		shardDistributorClient = timeoutwrapper.NewShardDistributorClient(shardDistributorClient, timeoutwrapper.ShardDistributorDefaultTimeout)
+		if errorRate := dc.GetFloat64Property(dynamicconfig.ShardDistributorErrorInjectionRate)(); errorRate != 0 {
+			shardDistributorClient = errorinjectors.NewShardDistributorClient(shardDistributorClient, errorRate, params.Logger)
+		}
+		if params.MetricsClient != nil {
+			shardDistributorClient = metered.NewShardDistributorClient(shardDistributorClient, params.MetricsClient)
+		}
+	}
+	return shardDistributorClient
+}
+
 // execute runs the daemon in a separate go routine
 func execute(d common.Daemon, doneC chan struct{}) {
 	d.Start()
@@ -310,9 +375,9 @@ func (s *server) setupVisibilityClients(params *resource.Params) {
 
 	// Handle advanced visibility store based on type and migration state
 	switch advancedVisStoreKey {
-	case common.PinotVisibilityStoreName:
+	case constants.PinotVisibilityStoreName:
 		s.setupPinotClient(params, advancedVisStore)
-	case common.OSVisibilityStoreName:
+	case constants.OSVisibilityStoreName:
 		s.setupOSClient(params, advancedVisStore)
 	default: // Assume Elasticsearch by default
 		s.setupESClient(params)
@@ -333,7 +398,7 @@ func (s *server) setupPinotClient(params *resource.Params, advancedVisStore conf
 }
 
 func (s *server) setupESClient(params *resource.Params) {
-	esVisibilityStore, ok := s.cfg.Persistence.DataStores[common.ESVisibilityStoreName]
+	esVisibilityStore, ok := s.cfg.Persistence.DataStores[constants.ESVisibilityStoreName]
 	if !ok {
 		log.Fatalf("Cannot find Elasticsearch visibility store in config")
 	}
@@ -375,7 +440,7 @@ func (s *server) setupOSClient(params *resource.Params, advancedVisStore config.
 }
 
 func validateIndex(config *config.ElasticSearchConfig) {
-	indexName, ok := config.Indices[common.VisibilityAppName]
+	indexName, ok := config.Indices[constants.VisibilityAppName]
 	if !ok || len(indexName) == 0 {
 		log.Fatalf("Visibility index is missing in config")
 	}

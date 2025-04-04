@@ -71,6 +71,9 @@ func TestPollerWeight(t *testing.T) {
 	pw.update(n, 3, 300)
 	pw.update(n+1, 4, 400)
 	testPickProbHelper(t, pw, time.Now().UnixNano())
+
+	// no panics
+	pw.update(n, 4, 0)
 }
 
 func testPickProbHelper(t *testing.T, pw *weightSelector, seed int64) {

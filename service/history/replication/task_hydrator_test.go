@@ -36,6 +36,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
@@ -85,11 +86,12 @@ func TestNewDeferredTaskHydrator(t *testing.T) {
 }
 
 func TestTaskHydrator_UnknownTask(t *testing.T) {
-	task := persistence.ReplicationTaskInfo{
-		TaskType:   99,
-		DomainID:   testDomainID,
-		WorkflowID: testWorkflowID,
-		RunID:      testRunID,
+	task := &persistence.DecisionTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   testWorkflowIdentifier.DomainID,
+			WorkflowID: testWorkflowIdentifier.WorkflowID,
+			RunID:      testWorkflowIdentifier.RunID,
+		},
 	}
 	th := TaskHydrator{msProvider: &fakeMutableStateProvider{
 		workflows: map[definition.WorkflowIdentifier]mutableState{
@@ -103,12 +105,13 @@ func TestTaskHydrator_UnknownTask(t *testing.T) {
 }
 
 func TestTaskHydrator_HydrateFailoverMarkerTask(t *testing.T) {
-	task := persistence.ReplicationTaskInfo{
-		TaskType:     persistence.ReplicationTaskTypeFailoverMarker,
-		DomainID:     testDomainID,
-		TaskID:       testTaskID,
-		Version:      testVersion,
-		CreationTime: testCreationTime,
+	task := &persistence.FailoverMarkerTask{
+		DomainID: testDomainID,
+		TaskData: persistence.TaskData{
+			TaskID:              testTaskID,
+			Version:             testVersion,
+			VisibilityTimestamp: time.Unix(0, testCreationTime),
+		},
 	}
 
 	expected := types.ReplicationTask{
@@ -128,14 +131,18 @@ func TestTaskHydrator_HydrateFailoverMarkerTask(t *testing.T) {
 }
 
 func TestTaskHydrator_HydrateSyncActivityTask(t *testing.T) {
-	task := persistence.ReplicationTaskInfo{
-		TaskType:     persistence.ReplicationTaskTypeSyncActivity,
-		TaskID:       testTaskID,
-		DomainID:     testDomainID,
-		WorkflowID:   testWorkflowID,
-		RunID:        testRunID,
-		ScheduledID:  testScheduleID,
-		CreationTime: testCreationTime,
+	task := &persistence.SyncActivityTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   testDomainID,
+			WorkflowID: testWorkflowID,
+			RunID:      testRunID,
+		},
+		TaskData: persistence.TaskData{
+			TaskID:              testTaskID,
+			Version:             testVersion,
+			VisibilityTimestamp: time.Unix(0, testCreationTime),
+		},
+		ScheduledID: testScheduleID,
 	}
 
 	versionHistories := &persistence.VersionHistories{
@@ -166,7 +173,7 @@ func TestTaskHydrator_HydrateSyncActivityTask(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		task       persistence.ReplicationTaskInfo
+		task       persistence.Task
 		msProvider mutableStateProvider
 		expectTask *types.ReplicationTask
 		expectErr  string
@@ -280,21 +287,37 @@ func TestTaskHydrator_HydrateSyncActivityTask(t *testing.T) {
 }
 
 func TestTaskHydrator_HydrateHistoryReplicationTask(t *testing.T) {
-	task := persistence.ReplicationTaskInfo{
-		TaskType:          persistence.ReplicationTaskTypeHistory,
-		TaskID:            testTaskID,
-		DomainID:          testDomainID,
-		WorkflowID:        testWorkflowID,
-		RunID:             testRunID,
+	task := &persistence.HistoryReplicationTask{
+		TaskData: persistence.TaskData{
+			TaskID:              testTaskID,
+			Version:             testVersion,
+			VisibilityTimestamp: time.Unix(0, testCreationTime),
+		},
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   testDomainID,
+			WorkflowID: testWorkflowID,
+			RunID:      testRunID,
+		},
 		FirstEventID:      testFirstEventID,
 		NextEventID:       testNextEventID,
 		BranchToken:       testBranchToken,
 		NewRunBranchToken: testBranchTokenNewRun,
-		Version:           testVersion,
-		CreationTime:      testCreationTime,
 	}
-	taskWithoutBranchToken := task
-	taskWithoutBranchToken.BranchToken = nil
+	taskWithoutBranchToken := &persistence.HistoryReplicationTask{
+		TaskData: persistence.TaskData{
+			TaskID:              testTaskID,
+			Version:             testVersion,
+			VisibilityTimestamp: time.Unix(0, testCreationTime),
+		},
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   testDomainID,
+			WorkflowID: testWorkflowID,
+			RunID:      testRunID,
+		},
+		FirstEventID:      testFirstEventID,
+		NextEventID:       testNextEventID,
+		NewRunBranchToken: testBranchTokenNewRun,
+	}
 
 	versionHistories := persistence.VersionHistories{
 		CurrentVersionHistoryIndex: 0,
@@ -310,7 +333,7 @@ func TestTaskHydrator_HydrateHistoryReplicationTask(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		task       persistence.ReplicationTaskInfo
+		task       *persistence.HistoryReplicationTask
 		msProvider mutableStateProvider
 		history    historyProvider
 		expectTask *types.ReplicationTask
@@ -456,7 +479,7 @@ func TestTaskHydrator_HydrateHistoryReplicationTask(t *testing.T) {
 func TestHistoryLoader_GetEventBlob(t *testing.T) {
 	tests := []struct {
 		name           string
-		task           persistence.ReplicationTaskInfo
+		task           *persistence.HistoryReplicationTask
 		domains        fakeDomainCache
 		mockHistory    func(hm *mocks.HistoryV2Manager)
 		expectDataBlob *types.DataBlob
@@ -464,8 +487,10 @@ func TestHistoryLoader_GetEventBlob(t *testing.T) {
 	}{
 		{
 			name: "loads data blob",
-			task: persistence.ReplicationTaskInfo{
-				DomainID:     testDomainID,
+			task: &persistence.HistoryReplicationTask{
+				WorkflowIdentifier: persistence.WorkflowIdentifier{
+					DomainID: testDomainID,
+				},
 				BranchToken:  testBranchToken,
 				FirstEventID: 10,
 				NextEventID:  11,
@@ -480,21 +505,21 @@ func TestHistoryLoader_GetEventBlob(t *testing.T) {
 					ShardID:     common.IntPtr(testShardID),
 					DomainName:  testDomainName,
 				}).Return(&persistence.ReadRawHistoryBranchResponse{
-					HistoryEventBlobs: []*persistence.DataBlob{{Encoding: common.EncodingTypeJSON, Data: testDataBlob.Data}},
+					HistoryEventBlobs: []*persistence.DataBlob{{Encoding: constants.EncodingTypeJSON, Data: testDataBlob.Data}},
 				}, nil)
 			},
 			expectDataBlob: testDataBlob,
 		},
 		{
 			name:        "failed to get domain name",
-			task:        persistence.ReplicationTaskInfo{DomainID: testDomainID},
+			task:        &persistence.HistoryReplicationTask{WorkflowIdentifier: persistence.WorkflowIdentifier{DomainID: testDomainID}},
 			domains:     fakeDomainCache{},
 			mockHistory: func(hm *mocks.HistoryV2Manager) {},
 			expectErr:   "domain does not exist",
 		},
 		{
 			name:    "load failure",
-			task:    persistence.ReplicationTaskInfo{DomainID: testDomainID},
+			task:    &persistence.HistoryReplicationTask{WorkflowIdentifier: persistence.WorkflowIdentifier{DomainID: testDomainID}},
 			domains: fakeDomainCache{testDomainID: testDomain},
 			mockHistory: func(hm *mocks.HistoryV2Manager) {
 				hm.On("ReadRawHistoryBranch", mock.Anything, mock.Anything).Return(nil, errors.New("load failure"))
@@ -503,7 +528,7 @@ func TestHistoryLoader_GetEventBlob(t *testing.T) {
 		},
 		{
 			name:    "response must contain exactly one blob",
-			task:    persistence.ReplicationTaskInfo{DomainID: testDomainID},
+			task:    &persistence.HistoryReplicationTask{WorkflowIdentifier: persistence.WorkflowIdentifier{DomainID: testDomainID}},
 			domains: fakeDomainCache{testDomainID: testDomain},
 			mockHistory: func(hm *mocks.HistoryV2Manager) {
 				hm.On("ReadRawHistoryBranch", mock.Anything, mock.Anything).Return(&persistence.ReadRawHistoryBranchResponse{
@@ -534,7 +559,7 @@ func TestHistoryLoader_GetNextRunEventBlob(t *testing.T) {
 	hm := &mocks.HistoryV2Manager{}
 	loader := historyLoader{shardID: testShardID, history: hm, domains: fakeDomainCache{testDomainID: testDomain}}
 
-	dataBlob, err := loader.GetNextRunEventBlob(context.Background(), persistence.ReplicationTaskInfo{NewRunBranchToken: nil})
+	dataBlob, err := loader.GetNextRunEventBlob(context.Background(), &persistence.HistoryReplicationTask{NewRunBranchToken: nil})
 	assert.NoError(t, err)
 	assert.Nil(t, dataBlob)
 
@@ -546,9 +571,9 @@ func TestHistoryLoader_GetNextRunEventBlob(t *testing.T) {
 		ShardID:     common.IntPtr(testShardID),
 		DomainName:  testDomainName,
 	}).Return(&persistence.ReadRawHistoryBranchResponse{
-		HistoryEventBlobs: []*persistence.DataBlob{{Encoding: common.EncodingTypeJSON, Data: testDataBlob.Data}},
+		HistoryEventBlobs: []*persistence.DataBlob{{Encoding: constants.EncodingTypeJSON, Data: testDataBlob.Data}},
 	}, nil)
-	dataBlob, err = loader.GetNextRunEventBlob(context.Background(), persistence.ReplicationTaskInfo{DomainID: testDomainID, NewRunBranchToken: testBranchTokenNewRun})
+	dataBlob, err = loader.GetNextRunEventBlob(context.Background(), &persistence.HistoryReplicationTask{WorkflowIdentifier: persistence.WorkflowIdentifier{DomainID: testDomainID}, NewRunBranchToken: testBranchTokenNewRun})
 	assert.NoError(t, err)
 	assert.Equal(t, testDataBlob, dataBlob)
 }
@@ -631,7 +656,7 @@ func TestImmediateTaskHydrator(t *testing.T) {
 		activities       map[int64]*persistence.ActivityInfo
 		blob             *persistence.DataBlob
 		nextRunBlob      *persistence.DataBlob
-		task             persistence.ReplicationTaskInfo
+		task             persistence.Task
 		expectResult     *types.ReplicationTask
 		expectErr        string
 	}{
@@ -639,14 +664,18 @@ func TestImmediateTaskHydrator(t *testing.T) {
 			name:             "sync activity task - happy path",
 			versionHistories: versionHistories,
 			activities:       map[int64]*persistence.ActivityInfo{testScheduleID: &activityInfo},
-			task: persistence.ReplicationTaskInfo{
-				TaskType:     persistence.ReplicationTaskTypeSyncActivity,
-				TaskID:       testTaskID,
-				DomainID:     testDomainID,
-				WorkflowID:   testWorkflowID,
-				RunID:        testRunID,
-				ScheduledID:  testScheduleID,
-				CreationTime: testCreationTime,
+			task: &persistence.SyncActivityTask{
+				WorkflowIdentifier: persistence.WorkflowIdentifier{
+					DomainID:   testDomainID,
+					WorkflowID: testWorkflowID,
+					RunID:      testRunID,
+				},
+				TaskData: persistence.TaskData{
+					TaskID:              testTaskID,
+					Version:             testVersion,
+					VisibilityTimestamp: time.Unix(0, testCreationTime),
+				},
+				ScheduledID: testScheduleID,
 			},
 			expectResult: &types.ReplicationTask{
 				TaskType:     types.ReplicationTaskTypeSyncActivity.Ptr(),
@@ -678,8 +707,7 @@ func TestImmediateTaskHydrator(t *testing.T) {
 			name:             "sync activity task - missing activity info",
 			versionHistories: versionHistories,
 			activities:       map[int64]*persistence.ActivityInfo{},
-			task: persistence.ReplicationTaskInfo{
-				TaskType:    persistence.ReplicationTaskTypeSyncActivity,
+			task: &persistence.SyncActivityTask{
 				ScheduledID: testScheduleID,
 			},
 			expectResult: nil,
@@ -689,18 +717,21 @@ func TestImmediateTaskHydrator(t *testing.T) {
 			versionHistories: versionHistories,
 			blob:             persistence.NewDataBlobFromInternal(testDataBlob),
 			nextRunBlob:      persistence.NewDataBlobFromInternal(testDataBlobNewRun),
-			task: persistence.ReplicationTaskInfo{
-				TaskType:          persistence.ReplicationTaskTypeHistory,
-				TaskID:            testTaskID,
-				DomainID:          testDomainID,
-				WorkflowID:        testWorkflowID,
-				RunID:             testRunID,
+			task: &persistence.HistoryReplicationTask{
+				WorkflowIdentifier: persistence.WorkflowIdentifier{
+					DomainID:   testDomainID,
+					WorkflowID: testWorkflowID,
+					RunID:      testRunID,
+				},
+				TaskData: persistence.TaskData{
+					TaskID:              testTaskID,
+					Version:             testVersion,
+					VisibilityTimestamp: time.Unix(0, testCreationTime),
+				},
 				FirstEventID:      testFirstEventID,
 				NextEventID:       testNextEventID,
 				BranchToken:       testBranchToken,
 				NewRunBranchToken: testBranchTokenNewRun,
-				Version:           testVersion,
-				CreationTime:      testCreationTime,
 			},
 			expectResult: &types.ReplicationTask{
 				TaskType:     types.ReplicationTaskTypeHistoryV2.Ptr(),
@@ -720,17 +751,20 @@ func TestImmediateTaskHydrator(t *testing.T) {
 			name:             "history task - no next run",
 			versionHistories: versionHistories,
 			blob:             persistence.NewDataBlobFromInternal(testDataBlob),
-			task: persistence.ReplicationTaskInfo{
-				TaskType:     persistence.ReplicationTaskTypeHistory,
-				TaskID:       testTaskID,
-				DomainID:     testDomainID,
-				WorkflowID:   testWorkflowID,
-				RunID:        testRunID,
+			task: &persistence.HistoryReplicationTask{
+				WorkflowIdentifier: persistence.WorkflowIdentifier{
+					DomainID:   testDomainID,
+					WorkflowID: testWorkflowID,
+					RunID:      testRunID,
+				},
+				TaskData: persistence.TaskData{
+					TaskID:              testTaskID,
+					Version:             testVersion,
+					VisibilityTimestamp: time.Unix(0, testCreationTime),
+				},
 				FirstEventID: testFirstEventID,
 				NextEventID:  testNextEventID,
 				BranchToken:  testBranchToken,
-				Version:      testVersion,
-				CreationTime: testCreationTime,
 			},
 			expectResult: &types.ReplicationTask{
 				TaskType:     types.ReplicationTaskTypeHistoryV2.Ptr(),
@@ -748,10 +782,11 @@ func TestImmediateTaskHydrator(t *testing.T) {
 		{
 			name:             "history task - missing data blob",
 			versionHistories: versionHistories,
-			task: persistence.ReplicationTaskInfo{
-				TaskType:     persistence.ReplicationTaskTypeHistory,
+			task: &persistence.HistoryReplicationTask{
+				TaskData: persistence.TaskData{
+					Version: testVersion,
+				},
 				FirstEventID: testFirstEventID,
-				Version:      testVersion,
 				BranchToken:  testBranchToken,
 			},
 			expectErr: "history blob not set",
@@ -820,10 +855,10 @@ type fakeHistoryProvider struct {
 	blobs []historyBlob
 }
 
-func (h fakeHistoryProvider) GetEventBlob(ctx context.Context, task persistence.ReplicationTaskInfo) (*types.DataBlob, error) {
+func (h fakeHistoryProvider) GetEventBlob(ctx context.Context, task *persistence.HistoryReplicationTask) (*types.DataBlob, error) {
 	return h.getBlob(task.BranchToken)
 }
-func (h fakeHistoryProvider) GetNextRunEventBlob(ctx context.Context, task persistence.ReplicationTaskInfo) (*types.DataBlob, error) {
+func (h fakeHistoryProvider) GetNextRunEventBlob(ctx context.Context, task *persistence.HistoryReplicationTask) (*types.DataBlob, error) {
 	return h.getBlob(task.NewRunBranchToken)
 }
 func (h fakeHistoryProvider) getBlob(branch []byte) (*types.DataBlob, error) {

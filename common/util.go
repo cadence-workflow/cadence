@@ -37,6 +37,7 @@ import (
 	"go.uber.org/yarpc/yarpcerrors"
 
 	"github.com/uber/cadence/common/backoff"
+	"github.com/uber/cadence/common/constants"
 	cadence_errors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -288,7 +289,7 @@ func FrontendRetry(err error) bool {
 	var sbErr *types.ServiceBusyError
 	if errors.As(err, &sbErr) {
 		// If the service busy error is due to workflow id rate limiting, proxy it to the caller
-		return sbErr.Reason != WorkflowIDRateLimitReason
+		return sbErr.Reason != constants.WorkflowIDRateLimitReason
 	}
 	return IsServiceTransientError(err)
 }
@@ -474,7 +475,7 @@ func CreateMatchingPollForDecisionTaskResponse(historyResponse *types.RecordDeci
 		Queries:                   historyResponse.Queries,
 		TotalHistoryBytes:         historyResponse.HistorySize,
 	}
-	if historyResponse.GetPreviousStartedEventID() != EmptyEventID {
+	if historyResponse.GetPreviousStartedEventID() != constants.EmptyEventID {
 		matchingResp.PreviousStartedEventID = historyResponse.PreviousStartedEventID
 	}
 	return matchingResp
@@ -630,13 +631,13 @@ func ValidateLongPollContextTimeout(
 		return err
 	}
 	timeout := time.Until(deadline)
-	if timeout < MinLongPollTimeout {
+	if timeout < constants.MinLongPollTimeout {
 		err := ErrContextTimeoutTooShort
 		logger.Error("Context timeout is too short for long poll API.",
 			tag.WorkflowHandlerName(handlerName), tag.Error(err), tag.WorkflowPollContextTimeout(timeout))
 		return err
 	}
-	if timeout < CriticalLongPollTimeout {
+	if timeout < constants.CriticalLongPollTimeout {
 		logger.Debug("Context timeout is lower than critical value for long poll API.",
 			tag.WorkflowHandlerName(handlerName), tag.WorkflowPollContextTimeout(timeout))
 	}
@@ -896,7 +897,7 @@ func DeserializeSearchAttributeValue(value []byte, valueType types.IndexedValueT
 
 // IsAdvancedVisibilityWritingEnabled returns true if we should write to advanced visibility
 func IsAdvancedVisibilityWritingEnabled(advancedVisibilityWritingMode string, isAdvancedVisConfigExist bool) bool {
-	return advancedVisibilityWritingMode != AdvancedVisibilityModeOff && isAdvancedVisConfigExist
+	return advancedVisibilityWritingMode != constants.AdvancedVisibilityModeOff && isAdvancedVisConfigExist
 }
 
 // IsAdvancedVisibilityReadingEnabled returns true if we should read from advanced visibility
@@ -947,7 +948,7 @@ func ConvertDynamicConfigMapPropertyToIntMap(dcValue map[string]interface{}) (ma
 // IsStickyTaskConditionError is error from matching engine
 func IsStickyTaskConditionError(err error) bool {
 	if e, ok := err.(*types.InternalServiceError); ok {
-		return e.GetMessage() == StickyTaskConditionFailedErrorMsg
+		return e.GetMessage() == constants.StickyTaskConditionFailedErrorMsg
 	}
 	return false
 }

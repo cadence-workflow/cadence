@@ -28,7 +28,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/uber/cadence/common/log/loggerimpl"
+	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/mapq/types"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
@@ -37,10 +37,7 @@ import (
 func TestExample(t *testing.T) {
 	persister := &InMemoryPersister{}
 
-	logger, err := loggerimpl.NewDevelopment()
-	if err != nil {
-		panic(err)
-	}
+	logger := testlogger.New(t)
 	scope := metrics.NoopScope(0)
 	cl, err := New(
 		logger,

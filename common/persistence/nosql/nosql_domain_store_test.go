@@ -33,6 +33,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 	"github.com/uber/cadence/common/types"
@@ -122,7 +123,7 @@ func TestCreateDomain(t *testing.T) {
 					ConfigVersion:               1,
 					FailoverVersion:             2,
 					FailoverNotificationVersion: persistence.InitialFailoverNotificationVersion,
-					PreviousFailoverVersion:     common.InitialPreviousFailoverVersion,
+					PreviousFailoverVersion:     constants.InitialPreviousFailoverVersion,
 					IsGlobalDomain:              true,
 					LastUpdatedTime:             time.Unix(1, 2),
 				}).Return(nil).Times(1)

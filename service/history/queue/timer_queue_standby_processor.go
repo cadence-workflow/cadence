@@ -45,18 +45,17 @@ func newTimerQueueStandbyProcessor(
 
 	logger = logger.WithTags(tag.ClusterName(clusterName))
 
-	taskFilter := func(taskInfo task.Info) (bool, error) {
-		timer, ok := taskInfo.(*persistence.TimerTaskInfo)
-		if !ok {
+	taskFilter := func(timer persistence.Task) (bool, error) {
+		if timer.GetTaskCategory() != persistence.HistoryTaskCategoryTimer {
 			return false, errUnexpectedQueueTask
 		}
-		if notRegistered, err := isDomainNotRegistered(shard, timer.DomainID); notRegistered && err == nil {
-			logger.Info("Domain is not in registered status, skip task in standby timer queue.", tag.WorkflowDomainID(timer.DomainID), tag.Value(taskInfo))
+		if notRegistered, err := isDomainNotRegistered(shard, timer.GetDomainID()); notRegistered && err == nil {
+			logger.Info("Domain is not in registered status, skip task in standby timer queue.", tag.WorkflowDomainID(timer.GetDomainID()), tag.Value(timer))
 			return false, nil
 		}
-		if timer.TaskType == persistence.TaskTypeWorkflowTimeout ||
-			timer.TaskType == persistence.TaskTypeDeleteHistoryEvent {
-			domainEntry, err := shard.GetDomainCache().GetDomainByID(timer.DomainID)
+		if timer.GetTaskType() == persistence.TaskTypeWorkflowTimeout ||
+			timer.GetTaskType() == persistence.TaskTypeDeleteHistoryEvent {
+			domainEntry, err := shard.GetDomainCache().GetDomainByID(timer.GetDomainID())
 			if err == nil {
 				if domainEntry.HasReplicationCluster(clusterName) {
 					// guarantee the processing of workflow execution history deletion
@@ -65,14 +64,14 @@ func newTimerQueueStandbyProcessor(
 			} else {
 				if _, ok := err.(*types.EntityNotExistsError); !ok {
 					// retry the task if failed to find the domain
-					logger.Warn("Cannot find domain", tag.WorkflowDomainID(timer.DomainID))
+					logger.Warn("Cannot find domain", tag.WorkflowDomainID(timer.GetDomainID()))
 					return false, err
 				}
-				logger.Warn("Cannot find domain, default to not process task.", tag.WorkflowDomainID(timer.DomainID), tag.Value(timer))
+				logger.Warn("Cannot find domain, default to not process task.", tag.WorkflowDomainID(timer.GetDomainID()), tag.Value(timer))
 				return false, nil
 			}
 		}
-		return taskAllocator.VerifyStandbyTask(clusterName, timer.DomainID, timer)
+		return taskAllocator.VerifyStandbyTask(clusterName, timer.GetDomainID(), timer)
 	}
 
 	updateMaxReadLevel := func() task.Key {

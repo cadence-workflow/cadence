@@ -34,9 +34,9 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/log/loggerimpl"
+	commonconstants "github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/config"
@@ -122,8 +122,8 @@ func TestReplicateDecisionTaskScheduledEvent(t *testing.T) {
 				assert.Equal(t, 1, observedLogs.FilterMessage(fmt.Sprintf(
 					"Decision Updated: {Schedule: %v, Started: %v, ID: %v, Timeout: %v, Attempt: %v, Timestamp: %v}",
 					scheduleID,
-					common.EmptyEventID,
-					common.EmptyUUID,
+					commonconstants.EmptyEventID,
+					commonconstants.EmptyUUID,
 					startToCloseTimeoutSeconds,
 					attempt,
 					0,
@@ -164,8 +164,8 @@ func TestReplicateDecisionTaskScheduledEvent(t *testing.T) {
 				assert.Equal(t, 1, observedLogs.FilterMessage(fmt.Sprintf(
 					"Decision Updated: {Schedule: %v, Started: %v, ID: %v, Timeout: %v, Attempt: %v, Timestamp: %v}",
 					scheduleID,
-					common.EmptyEventID,
-					common.EmptyUUID,
+					commonconstants.EmptyEventID,
+					commonconstants.EmptyUUID,
 					startToCloseTimeoutSeconds,
 					attempt,
 					0,
@@ -177,7 +177,7 @@ func TestReplicateDecisionTaskScheduledEvent(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			m := &mutableStateDecisionTaskManagerImpl{msb: test.newMsb(t)}
 			core, observedLogs := observer.New(zap.DebugLevel)
-			m.msb.logger = loggerimpl.NewLogger(zap.New(core))
+			m.msb.logger = log.NewLogger(zap.New(core))
 			if test.expectations != nil {
 				test.expectations(m)
 			}
@@ -199,7 +199,7 @@ func TestReplicateTransientDecisionTaskScheduled(t *testing.T) {
 			newMsb: func(t *testing.T) *mutableStateBuilder {
 				return &mutableStateBuilder{
 					executionInfo: &persistence.WorkflowExecutionInfo{
-						DecisionScheduleID: common.EmptyEventID,
+						DecisionScheduleID: commonconstants.EmptyEventID,
 						DecisionAttempt:    1,
 					},
 					taskGenerator: NewMockMutableStateTaskGenerator(gomock.NewController(t)),
@@ -213,7 +213,7 @@ func TestReplicateTransientDecisionTaskScheduled(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, 1, observedLogs.FilterMessage(fmt.Sprintf(
 					"Decision Updated: {Schedule: %v, Started: %v, ID: %v, Timeout: %v, Attempt: %v, Timestamp: %v}",
-					0, common.EmptyEventID, common.EmptyUUID, 0, 1, 0)).Len())
+					0, commonconstants.EmptyEventID, commonconstants.EmptyUUID, 0, 1, 0)).Len())
 			},
 		},
 		{
@@ -237,7 +237,7 @@ func TestReplicateTransientDecisionTaskScheduled(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			m := &mutableStateDecisionTaskManagerImpl{msb: test.newMsb(t)}
 			core, observedLogs := observer.New(zap.DebugLevel)
-			m.msb.logger = loggerimpl.NewLogger(zap.New(core))
+			m.msb.logger = log.NewLogger(zap.New(core))
 			if test.expectations != nil {
 				test.expectations(m)
 			}
@@ -305,8 +305,8 @@ func TestHasProcessedOrPendingDecision(t *testing.T) {
 		m := &mutableStateDecisionTaskManagerImpl{
 			msb: &mutableStateBuilder{executionInfo: &persistence.WorkflowExecutionInfo{
 				// has no pending decisions
-				DecisionScheduleID: common.EmptyEventID,
-				LastProcessedEvent: common.EmptyEventID,
+				DecisionScheduleID: commonconstants.EmptyEventID,
+				LastProcessedEvent: commonconstants.EmptyEventID,
 			}},
 		}
 		ok := m.HasProcessedOrPendingDecision()
@@ -340,8 +340,8 @@ func TestGetInFlightDecision(t *testing.T) {
 	t.Run("failure", func(t *testing.T) {
 		m := &mutableStateDecisionTaskManagerImpl{
 			msb: &mutableStateBuilder{executionInfo: &persistence.WorkflowExecutionInfo{
-				DecisionScheduleID: common.EmptyEventID,
-				DecisionStartedID:  common.EmptyEventID,
+				DecisionScheduleID: commonconstants.EmptyEventID,
+				DecisionStartedID:  commonconstants.EmptyEventID,
 			}},
 		}
 		decision, value := m.GetInFlightDecision()
@@ -376,7 +376,7 @@ func TestGetPendingDecision(t *testing.T) {
 	t.Run("failure", func(t *testing.T) {
 		m := &mutableStateDecisionTaskManagerImpl{
 			msb: &mutableStateBuilder{executionInfo: &persistence.WorkflowExecutionInfo{
-				DecisionScheduleID: common.EmptyEventID,
+				DecisionScheduleID: commonconstants.EmptyEventID,
 			}},
 		}
 		decision, value := m.GetPendingDecision()
@@ -408,7 +408,7 @@ func TestReplicateDecisionTaskStartedEvent(t *testing.T) {
 				},
 				taskGenerator: NewMockMutableStateTaskGenerator(gomock.NewController(t)),
 				timeSource:    clock.NewMockedTimeSource(),
-				logger:        loggerimpl.NewLogger(zap.New(core)),
+				logger:        log.NewLogger(zap.New(core)),
 			},
 		}
 		var decision *DecisionInfo
@@ -433,7 +433,7 @@ func TestReplicateDecisionTaskStartedEvent(t *testing.T) {
 		m := &mutableStateDecisionTaskManagerImpl{
 			msb: &mutableStateBuilder{
 				executionInfo: &persistence.WorkflowExecutionInfo{
-					DecisionScheduleID: common.EmptyEventID,
+					DecisionScheduleID: commonconstants.EmptyEventID,
 					DecisionAttempt:    1,
 				},
 			},

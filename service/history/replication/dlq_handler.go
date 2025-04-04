@@ -222,12 +222,10 @@ func (r *dlqHandlerImpl) readMessagesWithAckLevel(
 		ctx,
 		&persistence.GetReplicationTasksFromDLQRequest{
 			SourceClusterName: sourceCluster,
-			GetReplicationTasksRequest: persistence.GetReplicationTasksRequest{
-				ReadLevel:     defaultBeginningMessageID + 1,
-				MaxReadLevel:  lastMessageID + 1,
-				BatchSize:     pageSize,
-				NextPageToken: pageToken,
-			},
+			ReadLevel:         defaultBeginningMessageID + 1,
+			MaxReadLevel:      lastMessageID + 1,
+			BatchSize:         pageSize,
+			NextPageToken:     pageToken,
 		},
 	)
 	if err != nil {
@@ -241,17 +239,11 @@ func (r *dlqHandlerImpl) readMessagesWithAckLevel(
 
 	taskInfo := make([]*types.ReplicationTaskInfo, 0, len(resp.Tasks))
 	for _, task := range resp.Tasks {
-		taskInfo = append(taskInfo, &types.ReplicationTaskInfo{
-			DomainID:     task.GetDomainID(),
-			WorkflowID:   task.GetWorkflowID(),
-			RunID:        task.GetRunID(),
-			TaskType:     int16(task.GetTaskType()),
-			TaskID:       task.GetTaskID(),
-			Version:      task.GetVersion(),
-			FirstEventID: task.FirstEventID,
-			NextEventID:  task.NextEventID,
-			ScheduledID:  task.ScheduledID,
-		})
+		ti, err := task.ToInternalReplicationTaskInfo()
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		taskInfo = append(taskInfo, ti)
 	}
 	response := &types.GetDLQReplicationMessagesResponse{}
 	if len(taskInfo) > 0 {

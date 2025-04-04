@@ -33,7 +33,7 @@ import (
 
 	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/client/matching"
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 )
@@ -161,7 +161,7 @@ func TestMatching(t *testing.T) {
 
 		_, err := retryableClient.AddActivityTask(context.Background(), &types.AddActivityTaskRequest{
 			ForwardedFrom: "",
-			TaskList:      &types.TaskList{Name: common.ReservedTaskListPrefix + "test"},
+			TaskList:      &types.TaskList{Name: constants.ReservedTaskListPrefix + "test"},
 		})
 		assert.NoError(t, err)
 		assert.Len(t, testScope.Snapshot().Counters(), 2, "there should be two counters registered, one for call and one for invalid task list")

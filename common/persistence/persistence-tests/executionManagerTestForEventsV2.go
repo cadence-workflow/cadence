@@ -31,8 +31,8 @@ import (
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/checksum"
+	"github.com/uber/cadence/common/constants"
 	p "github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
@@ -111,7 +111,7 @@ func (s *ExecutionManagerSuiteForEventsV2) TestWorkflowCreation() {
 	csum := s.newRandomChecksum()
 	decisionScheduleID := int64(2)
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
-		{decisionScheduleID, common.EmptyVersion},
+		{decisionScheduleID, constants.EmptyVersion},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
 	_, err0 := s.ExecutionManager.CreateWorkflowExecution(ctx, &p.CreateWorkflowExecutionRequest{
@@ -132,7 +132,7 @@ func (s *ExecutionManagerSuiteForEventsV2) TestWorkflowCreation() {
 				NextEventID:                 3,
 				LastProcessedEvent:          0,
 				DecisionScheduleID:          decisionScheduleID,
-				DecisionStartedID:           common.EmptyEventID,
+				DecisionStartedID:           constants.EmptyEventID,
 				DecisionTimeout:             1,
 				BranchToken:                 []byte("branchToken1"),
 			},
@@ -248,10 +248,10 @@ func (s *ExecutionManagerSuiteForEventsV2) TestWorkflowCreationWithVersionHistor
 				ExecutionContext:            nil,
 				State:                       p.WorkflowStateRunning,
 				CloseStatus:                 p.WorkflowCloseStatusNone,
-				NextEventID:                 common.EmptyEventID,
+				NextEventID:                 constants.EmptyEventID,
 				LastProcessedEvent:          0,
 				DecisionScheduleID:          2,
-				DecisionStartedID:           common.EmptyEventID,
+				DecisionStartedID:           constants.EmptyEventID,
 				DecisionTimeout:             1,
 				BranchToken:                 nil,
 			},
@@ -306,7 +306,7 @@ func (s *ExecutionManagerSuiteForEventsV2) TestWorkflowCreationWithVersionHistor
 	err = versionHistory.AddOrUpdateItem(p.NewVersionHistoryItem(2, 0))
 	s.NoError(err)
 
-	err2 := s.UpdateWorkflowExecution(ctx, updatedInfo, updatedStats, versionHistories, []int64{int64(4)}, nil, common.EmptyEventID, nil, nil, nil, timerInfos, nil)
+	err2 := s.UpdateWorkflowExecution(ctx, updatedInfo, updatedStats, versionHistories, []int64{int64(4)}, nil, constants.EmptyEventID, nil, nil, nil, timerInfos, nil)
 	s.NoError(err2)
 
 	state, err1 := s.GetWorkflowExecutionInfo(ctx, domainID, workflowExecution)
@@ -349,7 +349,7 @@ func (s *ExecutionManagerSuiteForEventsV2) TestContinueAsNew() {
 	updatedInfo.NextEventID = int64(5)
 	updatedInfo.LastProcessedEvent = int64(2)
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
-		{decisionScheduleID, common.EmptyVersion},
+		{decisionScheduleID, constants.EmptyVersion},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
 
@@ -401,9 +401,9 @@ func (s *ExecutionManagerSuiteForEventsV2) TestContinueAsNew() {
 				State:                       p.WorkflowStateRunning,
 				CloseStatus:                 p.WorkflowCloseStatusNone,
 				NextEventID:                 info0.NextEventID,
-				LastProcessedEvent:          common.EmptyEventID,
+				LastProcessedEvent:          constants.EmptyEventID,
 				DecisionScheduleID:          int64(2),
-				DecisionStartedID:           common.EmptyEventID,
+				DecisionStartedID:           constants.EmptyEventID,
 				DecisionTimeout:             1,
 				BranchToken:                 []byte("branchToken1"),
 				PartitionConfig:             partitionConfig,
@@ -433,7 +433,7 @@ func (s *ExecutionManagerSuiteForEventsV2) TestContinueAsNew() {
 	s.Equal(p.WorkflowStateRunning, newExecutionInfo.State)
 	s.Equal(p.WorkflowCloseStatusNone, newExecutionInfo.CloseStatus)
 	s.Equal(int64(3), newExecutionInfo.NextEventID)
-	s.Equal(common.EmptyEventID, newExecutionInfo.LastProcessedEvent)
+	s.Equal(constants.EmptyEventID, newExecutionInfo.LastProcessedEvent)
 	s.Equal(int64(2), newExecutionInfo.DecisionScheduleID)
 	s.Equal([]byte("branchToken1"), newExecutionInfo.BranchToken)
 	s.Equal(partitionConfig, newExecutionInfo.PartitionConfig)

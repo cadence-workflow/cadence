@@ -74,14 +74,6 @@ func NewDefaultIsolationGroupStateWatcherWithConfigStoreClient(
 	}, nil
 }
 
-func (z *defaultIsolationGroupStateHandler) IsolationGroupsByDomainID(ctx context.Context, domainID string) (types.IsolationGroupConfiguration, error) {
-	state, err := z.getByDomainID(ctx, domainID)
-	if err != nil {
-		return nil, fmt.Errorf("unable to get isolation group state: %w", err)
-	}
-	return toIsolationGroupConfiguration(z.config.AllIsolationGroups(), state.Global, state.Domain), nil
-}
-
 func (z *defaultIsolationGroupStateHandler) IsDrained(ctx context.Context, domain string, isolationGroup string) (bool, error) {
 	state, err := z.get(ctx, domain)
 	if err != nil {
@@ -113,14 +105,6 @@ func (z *defaultIsolationGroupStateHandler) Stop() {
 		return
 	}
 	close(z.done)
-}
-
-func (z *defaultIsolationGroupStateHandler) getByDomainID(ctx context.Context, domainID string) (*isolationGroups, error) {
-	domain, err := z.domainCache.GetDomainByID(domainID)
-	if err != nil {
-		return nil, fmt.Errorf("could not resolve domain in isolationGroup handler: %w", err)
-	}
-	return z.get(ctx, domain.GetInfo().Name)
 }
 
 // Get the statue of a isolationGroup, with respect to both domain and global drains. Domain-specific drains override global config
@@ -158,29 +142,6 @@ func (z *defaultIsolationGroupStateHandler) get(ctx context.Context, domain stri
 	}
 
 	return ig, nil
-}
-
-// A simple explicit deny-based isolation group implementation
-func toIsolationGroupConfiguration(
-	allIsolationGroups []string,
-	global types.IsolationGroupConfiguration,
-	domain types.IsolationGroupConfiguration,
-) types.IsolationGroupConfiguration {
-	out := types.IsolationGroupConfiguration{}
-	for _, isolationGroup := range allIsolationGroups {
-		if isDrained(isolationGroup, global, domain) {
-			out[isolationGroup] = types.IsolationGroupPartition{
-				Name:  isolationGroup,
-				State: types.IsolationGroupStateDrained,
-			}
-			continue
-		}
-		out[isolationGroup] = types.IsolationGroupPartition{
-			Name:  isolationGroup,
-			State: types.IsolationGroupStateHealthy,
-		}
-	}
-	return out
 }
 
 func isDrained(isolationGroup string, global types.IsolationGroupConfiguration, domain types.IsolationGroupConfiguration) bool {

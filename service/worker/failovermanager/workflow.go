@@ -35,6 +35,7 @@ import (
 
 	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -286,7 +287,7 @@ func getOperator(ctx workflow.Context) string {
 	if memo == nil || len(memo.Fields) == 0 {
 		return unknownOperator
 	}
-	opBytes, ok := memo.Fields[common.MemoKeyForOperator]
+	opBytes, ok := memo.Fields[constants.MemoKeyForOperator]
 	if !ok {
 		return unknownOperator
 	}
@@ -387,7 +388,7 @@ func shouldFailover(domain *types.DescribeDomainResponse, sourceCluster string) 
 
 func isDomainFailoverManagedByCadence(domain *types.DescribeDomainResponse) bool {
 	domainData := domain.DomainInfo.GetData()
-	return strings.ToLower(strings.TrimSpace(domainData[common.DomainDataKeyForManagedFailover])) == "true"
+	return strings.ToLower(strings.TrimSpace(domainData[constants.DomainDataKeyForManagedFailover])) == "true"
 }
 
 func getClient(ctx context.Context) frontend.Client {

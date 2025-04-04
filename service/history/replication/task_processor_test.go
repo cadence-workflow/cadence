@@ -45,6 +45,7 @@ import (
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/mocks"
@@ -413,7 +414,7 @@ func (s *taskProcessorSuite) TestGenerateDLQRequest_ReplicationTaskTypeHistoryV2
 		},
 	}
 	serializer := s.mockShard.GetPayloadSerializer()
-	data, err := serializer.SerializeBatchEvents(events, common.EncodingTypeThriftRW)
+	data, err := serializer.SerializeBatchEvents(events, constants.EncodingTypeThriftRW)
 	s.NoError(err)
 	task := &types.ReplicationTask{
 		TaskType: types.ReplicationTaskTypeHistoryV2.Ptr(),
@@ -476,7 +477,7 @@ func (s *taskProcessorSuite) TestGenerateDLQRequest_InvalidTaskType() {
 		},
 	}
 	serializer := s.mockShard.GetPayloadSerializer()
-	data, err := serializer.SerializeBatchEvents(events, common.EncodingTypeThriftRW)
+	data, err := serializer.SerializeBatchEvents(events, constants.EncodingTypeThriftRW)
 	s.NoError(err)
 	taskType := types.ReplicationTaskType(-1)
 	task := &types.ReplicationTask{
@@ -520,7 +521,7 @@ func (s *taskProcessorSuite) TestTriggerDataInconsistencyScan_Success() {
 	s.NoError(err)
 	s.mockFrontendClient.EXPECT().SignalWithStartWorkflowExecution(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(_ context.Context, request *types.SignalWithStartWorkflowExecutionRequest, option ...yarpc.CallOption) {
-			s.Equal(common.SystemLocalDomainName, request.GetDomain())
+			s.Equal(constants.SystemLocalDomainName, request.GetDomain())
 			s.Equal(reconciliation.CheckDataCorruptionWorkflowID, request.GetWorkflowID())
 			s.Equal(reconciliation.CheckDataCorruptionWorkflowType, request.GetWorkflowType().GetName())
 			s.Equal(reconciliation.CheckDataCorruptionWorkflowTaskList, request.GetTaskList().GetName())

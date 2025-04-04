@@ -30,6 +30,7 @@ import (
 	workflow "github.com/uber/cadence/.gen/go/shared"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	p "github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
@@ -345,7 +346,7 @@ func (s *sqlVisibilityStore) rowToInfo(row *sqlplugin.VisibilityRow) *p.Internal
 		ExecutionTime: row.ExecutionTime,
 		IsCron:        row.IsCron,
 		NumClusters:   row.NumClusters,
-		Memo:          p.NewDataBlob(row.Memo, common.EncodingType(row.Encoding)),
+		Memo:          p.NewDataBlob(row.Memo, constants.EncodingType(row.Encoding)),
 		UpdateTime:    row.UpdateTime,
 		ShardID:       row.ShardID,
 	}

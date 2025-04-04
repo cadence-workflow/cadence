@@ -34,6 +34,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
@@ -63,7 +64,7 @@ func validInternalAppendHistoryNodesRequest() *persistence.InternalAppendHistory
 		},
 		NodeID: testNodeID,
 		Events: &persistence.DataBlob{
-			Encoding: common.EncodingTypeThriftRW,
+			Encoding: constants.EncodingTypeThriftRW,
 			Data:     []byte("TestEvents"),
 		},
 		TransactionID:    testTransactionID,
@@ -79,7 +80,7 @@ func validHistoryNodeRow() *nosqlplugin.HistoryNodeRow {
 		NodeID:          testNodeID,
 		TxnID:           common.Ptr[int64](123),
 		Data:            []byte("TestEvents"),
-		DataEncoding:    string(common.EncodingTypeThriftRW),
+		DataEncoding:    string(constants.EncodingTypeThriftRW),
 		ShardID:         testShardID,
 		CreateTimestamp: FixedTime,
 	}
@@ -227,7 +228,7 @@ func validHistoryNodeRows() []*nosqlplugin.HistoryNodeRow {
 			NodeID:       testRowNodeID1,
 			TxnID:        common.Ptr(testRowTxnID1),
 			Data:         []byte("TestEvents"),
-			DataEncoding: string(common.EncodingTypeThriftRW),
+			DataEncoding: string(constants.EncodingTypeThriftRW),
 			ShardID:      testShardID,
 		},
 		{
@@ -236,7 +237,7 @@ func validHistoryNodeRows() []*nosqlplugin.HistoryNodeRow {
 			NodeID:       testRowNodeID2,
 			TxnID:        common.Ptr(testRowTxnID2),
 			Data:         []byte("TestEvents2"),
-			DataEncoding: string(common.EncodingTypeThriftRW),
+			DataEncoding: string(constants.EncodingTypeThriftRW),
 			ShardID:      testShardID,
 		},
 	}
@@ -263,8 +264,8 @@ func TestReadHistoryBranch(t *testing.T) {
 	assert.Equal(t, 2, len(resp.History))
 	assert.Equal(t, rows[0].Data, resp.History[0].Data)
 	assert.Equal(t, rows[1].Data, resp.History[1].Data)
-	assert.Equal(t, common.EncodingTypeThriftRW, resp.History[0].Encoding)
-	assert.Equal(t, common.EncodingTypeThriftRW, resp.History[1].Encoding)
+	assert.Equal(t, constants.EncodingTypeThriftRW, resp.History[0].Encoding)
+	assert.Equal(t, constants.EncodingTypeThriftRW, resp.History[1].Encoding)
 
 	assert.Nil(t, resp.NextPageToken)
 

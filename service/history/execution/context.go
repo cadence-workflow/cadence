@@ -34,6 +34,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/locks"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -423,7 +424,7 @@ func (c *contextImpl) LoadWorkflowExecution(
 ) (MutableState, error) {
 
 	// Use empty version to skip incoming task version validation
-	return c.LoadWorkflowExecutionWithTaskVersion(ctx, common.EmptyVersion)
+	return c.LoadWorkflowExecutionWithTaskVersion(ctx, constants.EmptyVersion)
 }
 
 func (c *contextImpl) CreateWorkflowExecution(
@@ -816,7 +817,7 @@ func (c *contextImpl) UpdateWorkflowExecutionWithNew(
 		startEvents := newWorkflowEventsSeq[0]
 		firstEventID := startEvents.Events[0].ID
 		var blob events.PersistedBlob
-		if firstEventID == common.FirstEventID {
+		if firstEventID == constants.FirstEventID {
 			blob, err = c.persistStartWorkflowBatchEventsFn(ctx, startEvents)
 			if err != nil {
 				return err
@@ -1382,7 +1383,7 @@ func (c *contextImpl) ReapplyEvents(
 	// Use the history from the same cluster to reapply events
 	reapplyEventsDataBlob, err := serializer.SerializeBatchEvents(
 		reapplyEvents,
-		common.EncodingTypeThriftRW,
+		constants.EncodingTypeThriftRW,
 	)
 	if err != nil {
 		return err
@@ -1406,14 +1407,14 @@ func (c *contextImpl) ReapplyEvents(
 	)
 }
 
-func (c *contextImpl) Size() uint64 {
+func (c *contextImpl) ByteSize() uint64 {
 
 	var size int
 	// Estimate size of strings
 	size += len(c.domainID)
 
 	size += len(c.workflowExecution.GetWorkflowID()) + len(c.workflowExecution.GetRunID())
-	size += 3 * common.StringSizeOverheadBytes
+	size += 3 * constants.StringSizeOverheadBytes
 
 	size += 3 * 8 // logger
 	size += 512   // MetricsClient estimation

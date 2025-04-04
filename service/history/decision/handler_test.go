@@ -41,8 +41,9 @@ import (
 	"github.com/uber/cadence/common/client"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
+	commonconstants "github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
-	"github.com/uber/cadence/common/log/loggerimpl"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
@@ -817,7 +818,7 @@ func TestHandleDecisionTaskCompleted(t *testing.T) {
 				decisionHandler.tokenSerializer.(*common.MockTaskTokenSerializer).EXPECT().Deserialize(serializedTestToken).Return(deserializedTestToken, nil)
 				eventsCache := events.NewMockCache(ctrl)
 				decisionHandler.shard.(*shard.MockContext).EXPECT().GetEventsCache().Times(3).Return(eventsCache)
-				eventsCache.EXPECT().GetEvent(context.Background(), testShardID, constants.TestDomainID, constants.TestWorkflowID, constants.TestRunID, common.FirstEventID, common.FirstEventID, nil).Return(&types.HistoryEvent{}, nil)
+				eventsCache.EXPECT().GetEvent(context.Background(), testShardID, constants.TestDomainID, constants.TestWorkflowID, constants.TestRunID, commonconstants.FirstEventID, commonconstants.FirstEventID, nil).Return(&types.HistoryEvent{}, nil)
 				eventsCache.EXPECT().PutEvent(constants.TestDomainID, constants.TestWorkflowID, gomock.Any(), int64(1), gomock.Any()).Times(2)
 				decisionHandler.shard.(*shard.MockContext).EXPECT().GetShardID().Times(1).Return(testShardID)
 				decisionHandler.shard.(*shard.MockContext).EXPECT().GenerateTransferTaskIDs(2).Times(1).Return([]int64{0, 1}, nil)
@@ -855,7 +856,7 @@ func TestHandleDecisionTaskCompleted(t *testing.T) {
 				decisionHandler.tokenSerializer.(*common.MockTaskTokenSerializer).EXPECT().Deserialize(serializedTestToken).Return(deserializedTestToken, nil)
 				eventsCache := events.NewMockCache(ctrl)
 				decisionHandler.shard.(*shard.MockContext).EXPECT().GetEventsCache().Times(3).Return(eventsCache)
-				eventsCache.EXPECT().GetEvent(context.Background(), testShardID, constants.TestDomainID, constants.TestWorkflowID, constants.TestRunID, common.FirstEventID, common.FirstEventID, nil).
+				eventsCache.EXPECT().GetEvent(context.Background(), testShardID, constants.TestDomainID, constants.TestWorkflowID, constants.TestRunID, commonconstants.FirstEventID, commonconstants.FirstEventID, nil).
 					Return(&types.HistoryEvent{
 						WorkflowExecutionStartedEventAttributes: &types.WorkflowExecutionStartedEventAttributes{},
 					}, nil).Times(3)
@@ -896,7 +897,7 @@ func TestHandleDecisionTaskCompleted(t *testing.T) {
 				decisionHandler.tokenSerializer.(*common.MockTaskTokenSerializer).EXPECT().Deserialize(serializedTestToken).Return(deserializedTestToken, nil)
 				eventsCache := events.NewMockCache(ctrl)
 				decisionHandler.shard.(*shard.MockContext).EXPECT().GetEventsCache().Times(2).Return(eventsCache)
-				eventsCache.EXPECT().GetEvent(context.Background(), testShardID, constants.TestDomainID, constants.TestWorkflowID, constants.TestRunID, common.FirstEventID, common.FirstEventID, nil).
+				eventsCache.EXPECT().GetEvent(context.Background(), testShardID, constants.TestDomainID, constants.TestWorkflowID, constants.TestRunID, commonconstants.FirstEventID, commonconstants.FirstEventID, nil).
 					Return(&types.HistoryEvent{
 						WorkflowExecutionStartedEventAttributes: &types.WorkflowExecutionStartedEventAttributes{},
 					}, nil).Times(3)
@@ -947,7 +948,7 @@ func TestHandleDecisionTaskCompleted(t *testing.T) {
 				decisionHandler.tokenSerializer.(*common.MockTaskTokenSerializer).EXPECT().Deserialize(serializedTestToken).Return(deserializedTestToken, nil)
 				eventsCache := events.NewMockCache(ctrl)
 				decisionHandler.shard.(*shard.MockContext).EXPECT().GetEventsCache().Times(3).Return(eventsCache)
-				eventsCache.EXPECT().GetEvent(context.Background(), testShardID, constants.TestDomainID, constants.TestWorkflowID, constants.TestRunID, common.FirstEventID, common.FirstEventID, nil).
+				eventsCache.EXPECT().GetEvent(context.Background(), testShardID, constants.TestDomainID, constants.TestWorkflowID, constants.TestRunID, commonconstants.FirstEventID, commonconstants.FirstEventID, nil).
 					Return(&types.HistoryEvent{
 						WorkflowExecutionStartedEventAttributes: &types.WorkflowExecutionStartedEventAttributes{},
 					}, nil).Times(3)
@@ -1415,7 +1416,7 @@ func (s *DecisionHandlerSuite) TestHandleBufferedQueries_QueryRegistryFailures()
 		s.Run(test.name, func() {
 			core, observedLogs := observer.New(zap.ErrorLevel)
 			logger := zap.New(core)
-			s.decisionHandler.logger = loggerimpl.NewLogger(logger, loggerimpl.WithSampleFunc(func(int) bool { return true }))
+			s.decisionHandler.logger = log.NewLogger(logger, log.WithSampleFunc(func(int) bool { return true }))
 
 			test.expectMockCalls()
 			s.decisionHandler.handleBufferedQueries(s.mockMutableState, client.GoSDK, test.clientFeatureVersion, test.queryResults, false, constants.TestGlobalDomainEntry, false)

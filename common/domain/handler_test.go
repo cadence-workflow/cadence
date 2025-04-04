@@ -40,6 +40,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
+	commonconstants "github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
@@ -237,7 +238,7 @@ func TestRegisterDomain(t *testing.T) {
 			mockSetup: func(mockDomainMgr *persistence.MockDomainManager, replicator *MockReplicator, request *types.RegisterDomainRequest) {
 				mockDomainMgr.EXPECT().GetDomain(gomock.Any(), &persistence.GetDomainRequest{Name: request.Name}).Return(nil, &types.EntityNotExistsError{})
 				mockDomainMgr.EXPECT().CreateDomain(gomock.Any(), gomock.Any()).Return(&persistence.CreateDomainResponse{ID: "domain-id"}, nil)
-				replicator.EXPECT().HandleTransmissionTask(gomock.Any(), types.DomainOperationCreate, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), common.InitialPreviousFailoverVersion, true).Return(nil)
+				replicator.EXPECT().HandleTransmissionTask(gomock.Any(), types.DomainOperationCreate, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), commonconstants.InitialPreviousFailoverVersion, true).Return(nil)
 			},
 			wantErr: false,
 		},
@@ -260,7 +261,7 @@ func TestRegisterDomain(t *testing.T) {
 					gomock.Any(),
 					gomock.Any(),
 					gomock.Any(),
-					common.InitialPreviousFailoverVersion,
+					commonconstants.InitialPreviousFailoverVersion,
 					true,
 				).Return(errors.New("replication task failed"))
 			},
@@ -1313,11 +1314,11 @@ func TestHandler_UpdateDomain(t *testing.T) {
 				domainManager.EXPECT().GetDomain(ctx, &persistence.GetDomainRequest{Name: updateRequest.GetName()}).
 					Return(domainResponse, nil).Times(1)
 				archivalConfig := archiver.NewArchivalConfig(
-					common.ArchivalDisabled,
-					dynamicconfig.GetStringPropertyFn(common.ArchivalDisabled),
+					commonconstants.ArchivalDisabled,
+					dynamicconfig.GetStringPropertyFn(commonconstants.ArchivalDisabled),
 					false,
 					dynamicconfig.GetBoolPropertyFn(false),
-					common.ArchivalDisabled,
+					commonconstants.ArchivalDisabled,
 					"")
 				archivalMetadata.On("GetHistoryConfig").Return(archivalConfig).Times(1)
 				archivalMetadata.On("GetVisibilityConfig").Return(archivalConfig).Times(1)
@@ -1326,7 +1327,7 @@ func TestHandler_UpdateDomain(t *testing.T) {
 					Info:                    domainResponse.Info,
 					Config:                  domainResponse.Config,
 					ReplicationConfig:       domainResponse.ReplicationConfig,
-					PreviousFailoverVersion: common.InitialPreviousFailoverVersion,
+					PreviousFailoverVersion: commonconstants.InitialPreviousFailoverVersion,
 					ConfigVersion:           domainResponse.ConfigVersion,
 					FailoverVersion:         cluster.TestAlternativeClusterInitialFailoverVersion,
 					LastUpdatedTime:         timeSource.Now().UnixNano(),
@@ -1340,7 +1341,7 @@ func TestHandler_UpdateDomain(t *testing.T) {
 						domainResponse.ReplicationConfig,
 						domainResponse.ConfigVersion,
 						cluster.TestAlternativeClusterInitialFailoverVersion,
-						common.InitialPreviousFailoverVersion,
+						commonconstants.InitialPreviousFailoverVersion,
 						domainResponse.IsGlobalDomain,
 					).Return(nil).Times(1)
 			},
@@ -1349,14 +1350,14 @@ func TestHandler_UpdateDomain(t *testing.T) {
 				ActiveClusterName: common.Ptr(cluster.TestAlternativeClusterName),
 			},
 			response: func(timeSource clock.MockedTimeSource) *types.UpdateDomainResponse {
-				data, _ := json.Marshal([]FailoverEvent{{EventTime: timeSource.Now(), FromCluster: cluster.TestCurrentClusterName, ToCluster: cluster.TestAlternativeClusterName, FailoverType: common.FailoverType(common.FailoverTypeForce).String()}})
+				data, _ := json.Marshal([]FailoverEvent{{EventTime: timeSource.Now(), FromCluster: cluster.TestCurrentClusterName, ToCluster: cluster.TestAlternativeClusterName, FailoverType: commonconstants.FailoverType(commonconstants.FailoverTypeForce).String()}})
 				return &types.UpdateDomainResponse{
 					IsGlobalDomain:  true,
 					FailoverVersion: cluster.TestCurrentClusterInitialFailoverVersion/cluster.TestFailoverVersionIncrement*cluster.TestFailoverVersionIncrement + cluster.TestAlternativeClusterInitialFailoverVersion,
 					DomainInfo: &types.DomainInfo{
 						Name:   constants.TestDomainName,
 						UUID:   constants.TestDomainID,
-						Data:   map[string]string{common.DomainDataKeyForFailoverHistory: string(data)},
+						Data:   map[string]string{commonconstants.DomainDataKeyForFailoverHistory: string(data)},
 						Status: common.Ptr(types.DomainStatusRegistered),
 					},
 					Configuration: &types.DomainConfiguration{
@@ -1408,11 +1409,11 @@ func TestHandler_UpdateDomain(t *testing.T) {
 				domainManager.EXPECT().GetDomain(ctx, &persistence.GetDomainRequest{Name: updateRequest.GetName()}).
 					Return(domainResponse, nil).Times(1)
 				archivalConfig := archiver.NewArchivalConfig(
-					common.ArchivalDisabled,
-					dynamicconfig.GetStringPropertyFn(common.ArchivalDisabled),
+					commonconstants.ArchivalDisabled,
+					dynamicconfig.GetStringPropertyFn(commonconstants.ArchivalDisabled),
 					false,
 					dynamicconfig.GetBoolPropertyFn(false),
-					common.ArchivalDisabled,
+					commonconstants.ArchivalDisabled,
 					"")
 				archivalMetadata.On("GetHistoryConfig").Return(archivalConfig).Times(1)
 				archivalMetadata.On("GetVisibilityConfig").Return(archivalConfig).Times(1)
@@ -1446,14 +1447,14 @@ func TestHandler_UpdateDomain(t *testing.T) {
 				FailoverTimeoutInSeconds: common.Int32Ptr(10),
 			},
 			response: func(timeSource clock.MockedTimeSource) *types.UpdateDomainResponse {
-				data, _ := json.Marshal([]FailoverEvent{{EventTime: timeSource.Now(), FromCluster: cluster.TestAlternativeClusterName, ToCluster: cluster.TestCurrentClusterName, FailoverType: common.FailoverType(common.FailoverTypeGrace).String()}})
+				data, _ := json.Marshal([]FailoverEvent{{EventTime: timeSource.Now(), FromCluster: cluster.TestAlternativeClusterName, ToCluster: cluster.TestCurrentClusterName, FailoverType: commonconstants.FailoverType(commonconstants.FailoverTypeGrace).String()}})
 				return &types.UpdateDomainResponse{
 					IsGlobalDomain:  true,
 					FailoverVersion: cluster.TestFailoverVersionIncrement,
 					DomainInfo: &types.DomainInfo{
 						Name:   constants.TestDomainName,
 						UUID:   constants.TestDomainID,
-						Data:   map[string]string{common.DomainDataKeyForFailoverHistory: string(data)},
+						Data:   map[string]string{commonconstants.DomainDataKeyForFailoverHistory: string(data)},
 						Status: common.Ptr(types.DomainStatusRegistered),
 					},
 					Configuration: &types.DomainConfiguration{
@@ -1505,11 +1506,11 @@ func TestHandler_UpdateDomain(t *testing.T) {
 				domainManager.EXPECT().GetDomain(ctx, &persistence.GetDomainRequest{Name: updateRequest.GetName()}).
 					Return(domainResponse, nil).Times(1)
 				archivalConfig := archiver.NewArchivalConfig(
-					common.ArchivalDisabled,
-					dynamicconfig.GetStringPropertyFn(common.ArchivalDisabled),
+					commonconstants.ArchivalDisabled,
+					dynamicconfig.GetStringPropertyFn(commonconstants.ArchivalDisabled),
 					false,
 					dynamicconfig.GetBoolPropertyFn(false),
-					common.ArchivalDisabled,
+					commonconstants.ArchivalDisabled,
 					"")
 				archivalMetadata.On("GetHistoryConfig").Return(archivalConfig).Times(1)
 				archivalMetadata.On("GetVisibilityConfig").Return(archivalConfig).Times(1)
@@ -1598,11 +1599,11 @@ func TestHandler_UpdateDomain(t *testing.T) {
 				domainManager.EXPECT().GetDomain(ctx, &persistence.GetDomainRequest{Name: updateRequest.GetName()}).
 					Return(domainResponse, nil).Times(1)
 				archivalConfig := archiver.NewArchivalConfig(
-					common.ArchivalDisabled,
-					dynamicconfig.GetStringPropertyFn(common.ArchivalDisabled),
+					commonconstants.ArchivalDisabled,
+					dynamicconfig.GetStringPropertyFn(commonconstants.ArchivalDisabled),
 					false,
 					dynamicconfig.GetBoolPropertyFn(false),
-					common.ArchivalDisabled,
+					commonconstants.ArchivalDisabled,
 					"")
 				archivalMetadata.On("GetHistoryConfig").Return(archivalConfig).Times(1)
 				archivalMetadata.On("GetVisibilityConfig").Return(archivalConfig).Times(1)
@@ -1669,11 +1670,11 @@ func TestHandler_UpdateDomain(t *testing.T) {
 						Config:            &persistence.DomainConfig{},
 					}, nil).Times(1)
 				archivalConfig := archiver.NewArchivalConfig(
-					common.ArchivalEnabled,
-					dynamicconfig.GetStringPropertyFn(common.ArchivalEnabled),
+					commonconstants.ArchivalEnabled,
+					dynamicconfig.GetStringPropertyFn(commonconstants.ArchivalEnabled),
 					false,
 					dynamicconfig.GetBoolPropertyFn(false),
-					common.ArchivalEnabled,
+					commonconstants.ArchivalEnabled,
 					"")
 				archivalMetadata.On("GetHistoryConfig").Return(archivalConfig).Times(1)
 			},
@@ -1692,18 +1693,18 @@ func TestHandler_UpdateDomain(t *testing.T) {
 						Config:            &persistence.DomainConfig{},
 					}, nil).Times(1)
 				archivalConfigHistory := archiver.NewArchivalConfig(
-					common.ArchivalDisabled,
-					dynamicconfig.GetStringPropertyFn(common.ArchivalDisabled),
+					commonconstants.ArchivalDisabled,
+					dynamicconfig.GetStringPropertyFn(commonconstants.ArchivalDisabled),
 					false,
 					dynamicconfig.GetBoolPropertyFn(false),
-					common.ArchivalDisabled,
+					commonconstants.ArchivalDisabled,
 					"")
 				archivalConfigVisibility := archiver.NewArchivalConfig(
-					common.ArchivalEnabled,
-					dynamicconfig.GetStringPropertyFn(common.ArchivalEnabled),
+					commonconstants.ArchivalEnabled,
+					dynamicconfig.GetStringPropertyFn(commonconstants.ArchivalEnabled),
 					false,
 					dynamicconfig.GetBoolPropertyFn(false),
-					common.ArchivalEnabled,
+					commonconstants.ArchivalEnabled,
 					"")
 				archivalMetadata.On("GetHistoryConfig").Return(archivalConfigHistory).Times(1)
 				archivalMetadata.On("GetVisibilityConfig").Return(archivalConfigVisibility).Times(1)
@@ -1724,11 +1725,11 @@ func TestHandler_UpdateDomain(t *testing.T) {
 						LastUpdatedTime:   time.Now().UnixNano(),
 					}, nil).Times(1)
 				archivalConfig := archiver.NewArchivalConfig(
-					common.ArchivalDisabled,
-					dynamicconfig.GetStringPropertyFn(common.ArchivalDisabled),
+					commonconstants.ArchivalDisabled,
+					dynamicconfig.GetStringPropertyFn(commonconstants.ArchivalDisabled),
 					false,
 					dynamicconfig.GetBoolPropertyFn(false),
-					common.ArchivalDisabled,
+					commonconstants.ArchivalDisabled,
 					"")
 				archivalMetadata.On("GetHistoryConfig").Return(archivalConfig).Times(1)
 				archivalMetadata.On("GetVisibilityConfig").Return(archivalConfig).Times(1)
@@ -1758,11 +1759,11 @@ func TestHandler_UpdateDomain(t *testing.T) {
 						Config:            &persistence.DomainConfig{},
 					}, nil).Times(1)
 				archivalConfig := archiver.NewArchivalConfig(
-					common.ArchivalDisabled,
-					dynamicconfig.GetStringPropertyFn(common.ArchivalDisabled),
+					commonconstants.ArchivalDisabled,
+					dynamicconfig.GetStringPropertyFn(commonconstants.ArchivalDisabled),
 					false,
 					dynamicconfig.GetBoolPropertyFn(false),
-					common.ArchivalDisabled,
+					commonconstants.ArchivalDisabled,
 					"")
 				archivalMetadata.On("GetHistoryConfig").Return(archivalConfig).Times(1)
 				archivalMetadata.On("GetVisibilityConfig").Return(archivalConfig).Times(1)
@@ -1785,11 +1786,11 @@ func TestHandler_UpdateDomain(t *testing.T) {
 						Config:            &persistence.DomainConfig{},
 					}, nil).Times(1)
 				archivalConfig := archiver.NewArchivalConfig(
-					common.ArchivalDisabled,
-					dynamicconfig.GetStringPropertyFn(common.ArchivalDisabled),
+					commonconstants.ArchivalDisabled,
+					dynamicconfig.GetStringPropertyFn(commonconstants.ArchivalDisabled),
 					false,
 					dynamicconfig.GetBoolPropertyFn(false),
-					common.ArchivalDisabled,
+					commonconstants.ArchivalDisabled,
 					"")
 				archivalMetadata.On("GetHistoryConfig").Return(archivalConfig).Times(1)
 				archivalMetadata.On("GetVisibilityConfig").Return(archivalConfig).Times(1)
@@ -1810,11 +1811,11 @@ func TestHandler_UpdateDomain(t *testing.T) {
 						Config:            &persistence.DomainConfig{},
 					}, nil).Times(1)
 				archivalConfig := archiver.NewArchivalConfig(
-					common.ArchivalDisabled,
-					dynamicconfig.GetStringPropertyFn(common.ArchivalDisabled),
+					commonconstants.ArchivalDisabled,
+					dynamicconfig.GetStringPropertyFn(commonconstants.ArchivalDisabled),
 					false,
 					dynamicconfig.GetBoolPropertyFn(false),
-					common.ArchivalDisabled,
+					commonconstants.ArchivalDisabled,
 					"")
 				archivalMetadata.On("GetHistoryConfig").Return(archivalConfig).Times(1)
 				archivalMetadata.On("GetVisibilityConfig").Return(archivalConfig).Times(1)
@@ -1839,11 +1840,11 @@ func TestHandler_UpdateDomain(t *testing.T) {
 						IsGlobalDomain: true,
 					}, nil).Times(1)
 				archivalConfig := archiver.NewArchivalConfig(
-					common.ArchivalDisabled,
-					dynamicconfig.GetStringPropertyFn(common.ArchivalDisabled),
+					commonconstants.ArchivalDisabled,
+					dynamicconfig.GetStringPropertyFn(commonconstants.ArchivalDisabled),
 					false,
 					dynamicconfig.GetBoolPropertyFn(false),
-					common.ArchivalDisabled,
+					commonconstants.ArchivalDisabled,
 					"")
 				archivalMetadata.On("GetHistoryConfig").Return(archivalConfig).Times(1)
 				archivalMetadata.On("GetVisibilityConfig").Return(archivalConfig).Times(1)
@@ -1876,11 +1877,11 @@ func TestHandler_UpdateDomain(t *testing.T) {
 						LastUpdatedTime: timeSource.Now().UnixNano(),
 					}, nil).Times(1)
 				archivalConfig := archiver.NewArchivalConfig(
-					common.ArchivalDisabled,
-					dynamicconfig.GetStringPropertyFn(common.ArchivalDisabled),
+					commonconstants.ArchivalDisabled,
+					dynamicconfig.GetStringPropertyFn(commonconstants.ArchivalDisabled),
 					false,
 					dynamicconfig.GetBoolPropertyFn(false),
-					common.ArchivalDisabled,
+					commonconstants.ArchivalDisabled,
 					"")
 				archivalMetadata.On("GetHistoryConfig").Return(archivalConfig).Times(1)
 				archivalMetadata.On("GetVisibilityConfig").Return(archivalConfig).Times(1)
@@ -1912,11 +1913,11 @@ func TestHandler_UpdateDomain(t *testing.T) {
 						LastUpdatedTime: timeSource.Now().UnixNano(),
 					}, nil).Times(1)
 				archivalConfig := archiver.NewArchivalConfig(
-					common.ArchivalDisabled,
-					dynamicconfig.GetStringPropertyFn(common.ArchivalDisabled),
+					commonconstants.ArchivalDisabled,
+					dynamicconfig.GetStringPropertyFn(commonconstants.ArchivalDisabled),
 					false,
 					dynamicconfig.GetBoolPropertyFn(false),
-					common.ArchivalDisabled,
+					commonconstants.ArchivalDisabled,
 					"")
 				archivalMetadata.On("GetHistoryConfig").Return(archivalConfig).Times(1)
 				archivalMetadata.On("GetVisibilityConfig").Return(archivalConfig).Times(1)
@@ -1949,11 +1950,11 @@ func TestHandler_UpdateDomain(t *testing.T) {
 						LastUpdatedTime: timeSource.Now().UnixNano(),
 					}, nil).Times(1)
 				archivalConfig := archiver.NewArchivalConfig(
-					common.ArchivalDisabled,
-					dynamicconfig.GetStringPropertyFn(common.ArchivalDisabled),
+					commonconstants.ArchivalDisabled,
+					dynamicconfig.GetStringPropertyFn(commonconstants.ArchivalDisabled),
 					false,
 					dynamicconfig.GetBoolPropertyFn(false),
-					common.ArchivalDisabled,
+					commonconstants.ArchivalDisabled,
 					"")
 				archivalMetadata.On("GetHistoryConfig").Return(archivalConfig).Times(1)
 				archivalMetadata.On("GetVisibilityConfig").Return(archivalConfig).Times(1)
@@ -2501,7 +2502,7 @@ func TestUpdateFailoverHistory(t *testing.T) {
 	now := time.Now()
 	fromCluster := "fromCluster"
 	toCluster := "toCluster"
-	failoverType := common.FailoverType(common.FailoverTypeForce)
+	failoverType := commonconstants.FailoverType(commonconstants.FailoverTypeForce)
 	failoverHistoryMaxSize := 5
 
 	testCases := []struct {
@@ -2532,13 +2533,13 @@ func TestUpdateFailoverHistory(t *testing.T) {
 			name: "Success case - FailoverHistory is not nil",
 			domainInfo: func() *persistence.DomainInfo {
 				eventTime := time.Date(2021, 1, 1, 1, 1, 1, 1, time.UTC)
-				failoverHistory := []FailoverEvent{{EventTime: eventTime, FromCluster: "fromCluster1", ToCluster: "toCluster1", FailoverType: common.FailoverType(common.FailoverTypeGrace).String()}}
+				failoverHistory := []FailoverEvent{{EventTime: eventTime, FromCluster: "fromCluster1", ToCluster: "toCluster1", FailoverType: commonconstants.FailoverType(commonconstants.FailoverTypeGrace).String()}}
 				failoverHistoryJSON, _ := json.Marshal(failoverHistory)
-				return &persistence.DomainInfo{Data: map[string]string{common.DomainDataKeyForFailoverHistory: string(failoverHistoryJSON)}}
+				return &persistence.DomainInfo{Data: map[string]string{commonconstants.DomainDataKeyForFailoverHistory: string(failoverHistoryJSON)}}
 			},
 			response: func() string {
 				eventTime := time.Date(2021, 1, 1, 1, 1, 1, 1, time.UTC)
-				failoverHistory := []FailoverEvent{{EventTime: eventTime, FromCluster: "fromCluster1", ToCluster: "toCluster1", FailoverType: common.FailoverType(common.FailoverTypeGrace).String()}}
+				failoverHistory := []FailoverEvent{{EventTime: eventTime, FromCluster: "fromCluster1", ToCluster: "toCluster1", FailoverType: commonconstants.FailoverType(commonconstants.FailoverTypeGrace).String()}}
 				failoverHistory = append([]FailoverEvent{{EventTime: now, FromCluster: fromCluster, ToCluster: toCluster, FailoverType: failoverType.String()}}, failoverHistory...)
 				jsonResp, _ := json.Marshal(failoverHistory)
 				return string(jsonResp)
@@ -2550,16 +2551,16 @@ func TestUpdateFailoverHistory(t *testing.T) {
 				var failoverHistory []FailoverEvent
 				for i := 0; i < failoverHistoryMaxSize; i++ {
 					eventTime := time.Date(2021, 1, i, 1, 1, 1, 1, time.UTC)
-					failoverHistory = append(failoverHistory, FailoverEvent{EventTime: eventTime, FromCluster: "fromCluster" + strconv.Itoa(i), ToCluster: "toCluster" + strconv.Itoa(i), FailoverType: common.FailoverType(common.FailoverTypeGrace).String()})
+					failoverHistory = append(failoverHistory, FailoverEvent{EventTime: eventTime, FromCluster: "fromCluster" + strconv.Itoa(i), ToCluster: "toCluster" + strconv.Itoa(i), FailoverType: commonconstants.FailoverType(commonconstants.FailoverTypeGrace).String()})
 				}
 				failoverHistoryJSON, _ := json.Marshal(failoverHistory)
-				return &persistence.DomainInfo{Data: map[string]string{common.DomainDataKeyForFailoverHistory: string(failoverHistoryJSON)}}
+				return &persistence.DomainInfo{Data: map[string]string{commonconstants.DomainDataKeyForFailoverHistory: string(failoverHistoryJSON)}}
 			},
 			response: func() string {
 				var failoverHistory []FailoverEvent
 				for i := 0; i < 5; i++ {
 					eventTime := time.Date(2021, 1, i, 1, 1, 1, 1, time.UTC)
-					failoverHistory = append(failoverHistory, FailoverEvent{EventTime: eventTime, FromCluster: "fromCluster" + strconv.Itoa(i), ToCluster: "toCluster" + strconv.Itoa(i), FailoverType: common.FailoverType(common.FailoverTypeGrace).String()})
+					failoverHistory = append(failoverHistory, FailoverEvent{EventTime: eventTime, FromCluster: "fromCluster" + strconv.Itoa(i), ToCluster: "toCluster" + strconv.Itoa(i), FailoverType: commonconstants.FailoverType(commonconstants.FailoverTypeGrace).String()})
 				}
 				failoverHistory = append([]FailoverEvent{{EventTime: now, FromCluster: fromCluster, ToCluster: toCluster, FailoverType: failoverType.String()}}, failoverHistory[:(5-1)]...)
 				jsonResp, _ := json.Marshal(failoverHistory)
@@ -2584,8 +2585,8 @@ func TestUpdateFailoverHistory(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.NotNil(t, domainInfo.Data)
-				assert.NotNil(t, domainInfo.Data[common.DomainDataKeyForFailoverHistory])
-				assert.Equal(t, tc.response(), domainInfo.Data[common.DomainDataKeyForFailoverHistory])
+				assert.NotNil(t, domainInfo.Data[commonconstants.DomainDataKeyForFailoverHistory])
+				assert.Equal(t, tc.response(), domainInfo.Data[commonconstants.DomainDataKeyForFailoverHistory])
 			}
 		})
 	}

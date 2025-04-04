@@ -57,7 +57,6 @@ import (
 	membership "github.com/uber/cadence/common/membership"
 	messaging "github.com/uber/cadence/common/messaging"
 	metrics "github.com/uber/cadence/common/metrics"
-	partition "github.com/uber/cadence/common/partition"
 	persistence "github.com/uber/cadence/common/persistence"
 	client0 "github.com/uber/cadence/common/persistence/client"
 	rpc "github.com/uber/cadence/common/quotas/global/rpc"
@@ -504,20 +503,6 @@ func (m *MockResource) GetMetricsClient() metrics.Client {
 func (mr *MockResourceMockRecorder) GetMetricsClient() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMetricsClient", reflect.TypeOf((*MockResource)(nil).GetMetricsClient))
-}
-
-// GetPartitioner mocks base method.
-func (m *MockResource) GetPartitioner() partition.Partitioner {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetPartitioner")
-	ret0, _ := ret[0].(partition.Partitioner)
-	return ret0
-}
-
-// GetPartitioner indicates an expected call of GetPartitioner.
-func (mr *MockResourceMockRecorder) GetPartitioner() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPartitioner", reflect.TypeOf((*MockResource)(nil).GetPartitioner))
 }
 
 // GetPayloadSerializer mocks base method.

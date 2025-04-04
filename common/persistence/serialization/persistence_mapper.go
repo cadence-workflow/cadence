@@ -23,13 +23,13 @@
 package serialization
 
 import (
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 )
 
 func ToInternalWorkflowExecutionInfo(info *WorkflowExecutionInfo) *persistence.InternalWorkflowExecutionInfo {
 	result := &persistence.InternalWorkflowExecutionInfo{
-		CompletionEventBatchID:             common.EmptyEventID,
+		CompletionEventBatchID:             constants.EmptyEventID,
 		TaskList:                           info.GetTaskList(),
 		WorkflowTypeName:                   info.GetWorkflowTypeName(),
 		WorkflowTimeout:                    info.GetWorkflowTimeout(),
@@ -94,12 +94,12 @@ func ToInternalWorkflowExecutionInfo(info *WorkflowExecutionInfo) *persistence.I
 
 	if info.CompletionEvent != nil {
 		result.CompletionEvent = persistence.NewDataBlob(info.CompletionEvent,
-			common.EncodingType(info.GetCompletionEventEncoding()))
+			constants.EncodingType(info.GetCompletionEventEncoding()))
 	}
 
 	if info.AutoResetPoints != nil {
 		result.AutoResetPoints = persistence.NewDataBlob(info.AutoResetPoints,
-			common.EncodingType(info.GetAutoResetPointsEncoding()))
+			constants.EncodingType(info.GetAutoResetPointsEncoding()))
 	}
 	return result
 }
@@ -152,9 +152,9 @@ func FromInternalWorkflowExecutionInfo(executionInfo *persistence.InternalWorkfl
 		AutoResetPointsEncoding:            string(executionInfo.AutoResetPoints.GetEncoding()),
 		SearchAttributes:                   executionInfo.SearchAttributes,
 		Memo:                               executionInfo.Memo,
-		CompletionEventEncoding:            string(common.EncodingTypeEmpty),
-		VersionHistoriesEncoding:           string(common.EncodingTypeEmpty),
-		InitiatedID:                        common.EmptyEventID,
+		CompletionEventEncoding:            string(constants.EncodingTypeEmpty),
+		VersionHistoriesEncoding:           string(constants.EncodingTypeEmpty),
+		InitiatedID:                        constants.EmptyEventID,
 		FirstExecutionRunID:                MustParseUUID(executionInfo.FirstExecutionRunID),
 		PartitionConfig:                    executionInfo.PartitionConfig,
 		IsCron:                             executionInfo.IsCron,

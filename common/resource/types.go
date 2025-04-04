@@ -46,7 +46,6 @@ import (
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/messaging"
 	"github.com/uber/cadence/common/metrics"
-	"github.com/uber/cadence/common/partition"
 	"github.com/uber/cadence/common/persistence"
 	persistenceClient "github.com/uber/cadence/common/persistence/client"
 	qrpc "github.com/uber/cadence/common/quotas/global/rpc"
@@ -121,7 +120,6 @@ type Resource interface {
 
 	// GetIsolationGroupState returns the isolationGroupState
 	GetIsolationGroupState() isolationgroup.State
-	GetPartitioner() partition.Partitioner
 	GetIsolationGroupStore() configstore.Client
 
 	GetAsyncWorkflowQueueProvider() queue.Provider

@@ -45,6 +45,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/isolationgroup/defaultisolationgroupstate"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -52,7 +53,6 @@ import (
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/mocks"
-	"github.com/uber/cadence/common/partition"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/common/types"
@@ -71,7 +71,7 @@ type (
 
 		matchingEngine       *matchingEngineImpl
 		taskManager          *tasklist.TestTaskManager
-		partitioner          partition.Partitioner
+		isolationState       isolationgroup.State
 		mockExecutionManager *mocks.ExecutionManager
 		mockTimeSource       clock.MockedTimeSource
 		logger               log.Logger
@@ -136,13 +136,12 @@ func (s *matchingEngineSuite) SetupTest() {
 	dcClient := dynamicconfig.NewInMemoryClient()
 	dcClient.UpdateValue(dynamicconfig.EnableTasklistIsolation, true)
 	dc := dynamicconfig.NewCollection(dcClient, s.logger)
-	isolationGroupState, _ := defaultisolationgroupstate.NewDefaultIsolationGroupStateWatcherWithConfigStoreClient(s.logger,
+	s.isolationState, _ = defaultisolationgroupstate.NewDefaultIsolationGroupStateWatcherWithConfigStoreClient(s.logger,
 		dc,
 		s.mockDomainCache,
 		s.mockIsolationStore,
 		metrics.NewNoopMetricsClient(),
 		getIsolationGroupsHelper)
-	s.partitioner = partition.NewDefaultPartitioner(s.logger, isolationGroupState)
 	s.handlerContext = newHandlerContext(
 		context.Background(),
 		matchingTestDomainName,
@@ -175,7 +174,7 @@ func (s *matchingEngineSuite) newMatchingEngine(
 		metrics.NewClient(tally.NoopScope, metrics.Matching),
 		s.mockDomainCache,
 		s.mockMembershipResolver,
-		s.partitioner,
+		s.isolationState,
 		s.mockTimeSource,
 	).(*matchingEngineImpl)
 }
@@ -218,7 +217,7 @@ func (s *matchingEngineSuite) TestOnlyUnloadMatchingInstance() {
 		s.matchingEngine.metricsClient,
 		s.matchingEngine.taskManager,
 		s.matchingEngine.clusterMetadata,
-		s.matchingEngine.partitioner,
+		s.matchingEngine.isolationState,
 		s.matchingEngine.matchingClient,
 		s.matchingEngine.removeTaskListManager,
 		taskListID, // same taskListID as above
@@ -601,7 +600,7 @@ func (s *matchingEngineSuite) AddAndPollTasks(taskType int, enableIsolation bool
 			ScheduleID:                    scheduleID,
 			TaskList:                      testParam.TaskList,
 			ScheduleToStartTimeoutSeconds: 1,
-			PartitionConfig:               map[string]string{partition.IsolationGroupKey: isolationGroups[int(i)%len(isolationGroups)]},
+			PartitionConfig:               map[string]string{isolationgroup.GroupKey: isolationGroups[int(i)%len(isolationGroups)]},
 		}
 		_, err := addTask(s.matchingEngine, s.handlerContext, addRequest)
 		s.NoError(err)
@@ -710,7 +709,7 @@ func (s *matchingEngineSuite) SyncMatchTasks(taskType int, enableIsolation bool)
 			ScheduleID:                    scheduleID,
 			TaskList:                      testParam.TaskList,
 			ScheduleToStartTimeoutSeconds: 1,
-			PartitionConfig:               map[string]string{partition.IsolationGroupKey: group},
+			PartitionConfig:               map[string]string{isolationgroup.GroupKey: group},
 		}
 		_, err := addTask(s.matchingEngine, s.handlerContext, addRequest)
 		wg.Wait()
@@ -743,7 +742,7 @@ func (s *matchingEngineSuite) SyncMatchTasks(taskType int, enableIsolation bool)
 			ScheduleID:                    scheduleID,
 			TaskList:                      testParam.TaskList,
 			ScheduleToStartTimeoutSeconds: 1,
-			PartitionConfig:               map[string]string{partition.IsolationGroupKey: group},
+			PartitionConfig:               map[string]string{isolationgroup.GroupKey: group},
 		}
 		_, err := addTask(s.matchingEngine, s.handlerContext, addRequest)
 		wg.Wait()
@@ -859,7 +858,7 @@ func (s *matchingEngineSuite) ConcurrentAddAndPollTasks(taskType int, workerCoun
 					ScheduleID:                    scheduleID,
 					TaskList:                      testParam.TaskList,
 					ScheduleToStartTimeoutSeconds: 1,
-					PartitionConfig:               map[string]string{partition.IsolationGroupKey: group},
+					PartitionConfig:               map[string]string{isolationgroup.GroupKey: group},
 				}
 				_, err := addTask(s.matchingEngine, s.handlerContext, addRequest)
 				if err != nil {
@@ -1209,7 +1208,7 @@ func (s *matchingEngineSuite) DrainBacklogNoPollersIsolationGroup(taskType int) 
 			ScheduleID:                    scheduleID,
 			TaskList:                      testParam.TaskList,
 			ScheduleToStartTimeoutSeconds: 1,
-			PartitionConfig:               map[string]string{partition.IsolationGroupKey: isolationGroups()[int(i)%len(isolationGroups())]},
+			PartitionConfig:               map[string]string{isolationgroup.GroupKey: isolationGroups()[int(i)%len(isolationGroups())]},
 		}
 		_, err := addTask(s.matchingEngine, s.handlerContext, addRequest)
 		s.NoError(err)
@@ -1219,92 +1218,6 @@ func (s *matchingEngineSuite) DrainBacklogNoPollersIsolationGroup(taskType int) 
 	s.setupRecordTaskStartedMock(taskType, testParam, false)
 
 	for i := int64(0); i < taskCount; {
-		pollReq := &pollTaskRequest{
-			TaskType:       taskType,
-			DomainUUID:     testParam.DomainID,
-			TaskList:       testParam.TaskList,
-			Identity:       testParam.Identity,
-			IsolationGroup: isolationGroups()[0],
-		}
-		result, err := pollTask(s.matchingEngine, s.handlerContext, pollReq)
-		s.NoError(err)
-		s.NotNil(result)
-		if isEmptyToken(result.TaskToken) {
-			s.logger.Debug("empty poll returned")
-			continue
-		}
-		s.assertPollTaskResponse(taskType, testParam, scheduleID, result)
-		i++
-	}
-	s.EqualValues(0, s.taskManager.GetTaskCount(testParam.TaskListID))
-	expectedRange := getExpectedRange(initialRangeID, taskCount, rangeSize)
-	// Due to conflicts some ids are skipped and more real ranges are used.
-	s.True(expectedRange <= s.taskManager.GetRangeID(testParam.TaskListID))
-}
-
-func (s *matchingEngineSuite) TestAddStickyDecisionNoPollerIsolation() {
-	s.T().Skip("skip test until we re-enable isolation for sticky tasklist")
-	taskType := persistence.TaskListTypeDecision
-	s.matchingEngine.config.LongPollExpirationInterval = dynamicconfig.GetDurationPropertyFnFilteredByTaskListInfo(10 * time.Millisecond)
-	s.matchingEngine.config.EnableTasklistIsolation = dynamicconfig.GetBoolPropertyFnFilteredByDomainID(true)
-	s.matchingEngine.config.AsyncTaskDispatchTimeout = dynamicconfig.GetDurationPropertyFnFilteredByTaskListInfo(100 * time.Millisecond)
-
-	isolationGroups := s.matchingEngine.config.AllIsolationGroups
-
-	const taskCount = 10
-	const initialRangeID = 102
-	// TODO: Understand why publish is low when rangeSize is 3
-	const rangeSize = 30
-
-	testParam := newTestParam(s.T(), taskType)
-	stickyKind := types.TaskListKindSticky
-	testParam.TaskList.Kind = &stickyKind
-	s.taskManager.SetRangeID(testParam.TaskListID, initialRangeID)
-	s.matchingEngine.config.RangeSize = rangeSize // override to low number for the test
-	s.matchingEngine.config.ReadRangeSize = dynamicconfig.GetIntPropertyFn(rangeSize / 2)
-
-	s.setupGetDrainStatus()
-
-	pollReq := &pollTaskRequest{
-		TaskType:       taskType,
-		DomainUUID:     testParam.DomainID,
-		TaskList:       testParam.TaskList,
-		Identity:       testParam.Identity,
-		IsolationGroup: isolationGroups()[0],
-	}
-	result, err := pollTask(s.matchingEngine, s.handlerContext, pollReq)
-	s.NoError(err)
-	s.True(isEmptyToken(result.TaskToken))
-
-	count := int64(0)
-	scheduleIDs := []int64{}
-	for i := int64(0); i < taskCount; i++ {
-		scheduleID := i * 3
-		addRequest := &addTaskRequest{
-			TaskType:                      taskType,
-			DomainUUID:                    testParam.DomainID,
-			Execution:                     testParam.WorkflowExecution,
-			ScheduleID:                    scheduleID,
-			TaskList:                      testParam.TaskList,
-			ScheduleToStartTimeoutSeconds: 1,
-			PartitionConfig:               map[string]string{partition.IsolationGroupKey: isolationGroups()[int(i)%len(isolationGroups())]},
-		}
-		_, err := addTask(s.matchingEngine, s.handlerContext, addRequest)
-		if int(i)%len(isolationGroups()) == 0 {
-			s.NoError(err)
-			count++
-			scheduleIDs = append(scheduleIDs, scheduleID)
-		} else {
-			s.Error(err)
-			s.Contains(err.Error(), "sticky worker is unavailable")
-		}
-	}
-	s.EqualValues(count, s.taskManager.GetTaskCount(testParam.TaskListID))
-
-	s.setupRecordTaskStartedMock(taskType, testParam, false)
-
-	for i := int64(0); i < count; {
-		scheduleID := scheduleIDs[i]
 		pollReq := &pollTaskRequest{
 			TaskType:       taskType,
 			DomainUUID:     testParam.DomainID,

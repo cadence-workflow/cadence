@@ -28,7 +28,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/uber/cadence/common/persistence"
 	p "github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/serialization"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
@@ -733,7 +732,7 @@ func createTransferTasks(
 
 	transferTasksRows := make([]sqlplugin.TransferTasksRow, len(transferTasks))
 	for i, task := range transferTasks {
-		blob, err := taskSerializer.SerializeTask(persistence.HistoryTaskCategoryTransfer, task)
+		blob, err := taskSerializer.SerializeTask(p.HistoryTaskCategoryTransfer, task)
 		if err != nil {
 			return err
 		}
@@ -778,7 +777,7 @@ func createReplicationTasks(
 	replicationTasksRows := make([]sqlplugin.ReplicationTasksRow, len(replicationTasks))
 
 	for i, task := range replicationTasks {
-		blob, err := taskSerializer.SerializeTask(persistence.HistoryTaskCategoryReplication, task)
+		blob, err := taskSerializer.SerializeTask(p.HistoryTaskCategoryReplication, task)
 		if err != nil {
 			return err
 		}
@@ -824,7 +823,7 @@ func createTimerTasks(
 	timerTasksRows := make([]sqlplugin.TimerTasksRow, len(timerTasks))
 
 	for i, task := range timerTasks {
-		blob, err := taskSerializer.SerializeTask(persistence.HistoryTaskCategoryTimer, task)
+		blob, err := taskSerializer.SerializeTask(p.HistoryTaskCategoryTimer, task)
 		if err != nil {
 			return err
 		}

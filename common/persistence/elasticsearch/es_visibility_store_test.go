@@ -35,7 +35,7 @@ import (
 	"github.com/valyala/fastjson"
 
 	"github.com/uber/cadence/.gen/go/indexer"
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/dynamicconfig"
 	es "github.com/uber/cadence/common/elasticsearch"
@@ -127,7 +127,7 @@ func (s *ESVisibilitySuite) TestRecordWorkflowExecutionStarted() {
 	request.IsCron = true
 	request.NumClusters = 2
 	memoBytes := []byte(`test bytes`)
-	request.Memo = p.NewDataBlob(memoBytes, common.EncodingTypeThriftRW)
+	request.Memo = p.NewDataBlob(memoBytes, constants.EncodingTypeThriftRW)
 	request.ShardID = 1234
 
 	s.mockProducer.On("Publish", mock.Anything, mock.MatchedBy(func(input *indexer.Message) bool {
@@ -140,7 +140,7 @@ func (s *ESVisibilitySuite) TestRecordWorkflowExecutionStarted() {
 		s.Equal(request.StartTimestamp.UnixNano(), fields[es.StartTime].GetIntData())
 		s.Equal(request.ExecutionTimestamp.UnixNano(), fields[es.ExecutionTime].GetIntData())
 		s.Equal(memoBytes, fields[es.Memo].GetBinaryData())
-		s.Equal(string(common.EncodingTypeThriftRW), fields[es.Encoding].GetStringData())
+		s.Equal(string(constants.EncodingTypeThriftRW), fields[es.Encoding].GetStringData())
 		s.Equal(request.IsCron, fields[es.IsCron].GetBoolData())
 		s.Equal((int64)(request.NumClusters), fields[es.NumClusters].GetIntData())
 		s.Equal(indexer.VisibilityOperationRecordStarted, *input.VisibilityOperation)
@@ -187,7 +187,7 @@ func (s *ESVisibilitySuite) TestRecordWorkflowExecutionClosed() {
 	request.ExecutionTimestamp = time.Unix(0, int64(321))
 	request.TaskID = int64(111)
 	memoBytes := []byte(`test bytes`)
-	request.Memo = p.NewDataBlob(memoBytes, common.EncodingTypeThriftRW)
+	request.Memo = p.NewDataBlob(memoBytes, constants.EncodingTypeThriftRW)
 	request.CloseTimestamp = time.Unix(0, int64(999))
 	request.Status = types.WorkflowExecutionCloseStatusTerminated
 	request.HistoryLength = int64(20)
@@ -205,7 +205,7 @@ func (s *ESVisibilitySuite) TestRecordWorkflowExecutionClosed() {
 		s.Equal(request.StartTimestamp.UnixNano(), fields[es.StartTime].GetIntData())
 		s.Equal(request.ExecutionTimestamp.UnixNano(), fields[es.ExecutionTime].GetIntData())
 		s.Equal(memoBytes, fields[es.Memo].GetBinaryData())
-		s.Equal(string(common.EncodingTypeThriftRW), fields[es.Encoding].GetStringData())
+		s.Equal(string(constants.EncodingTypeThriftRW), fields[es.Encoding].GetStringData())
 		s.Equal(request.CloseTimestamp.UnixNano(), fields[es.CloseTime].GetIntData())
 		s.Equal(int64(request.Status), fields[es.CloseStatus].GetIntData())
 		s.Equal(request.HistoryLength, fields[es.HistoryLength].GetIntData())

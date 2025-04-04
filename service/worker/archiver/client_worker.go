@@ -29,9 +29,9 @@ import (
 	"go.uber.org/cadence/worker"
 	"go.uber.org/cadence/workflow"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/archiver/provider"
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -100,7 +100,7 @@ func init() {
 
 // NewClientWorker returns a new ClientWorker
 func NewClientWorker(container *BootstrapContainer) ClientWorker {
-	globalLogger = container.Logger.WithTags(tag.ComponentArchiver, tag.WorkflowDomainName(common.SystemLocalDomainName))
+	globalLogger = container.Logger.WithTags(tag.ComponentArchiver, tag.WorkflowDomainName(constants.SystemLocalDomainName))
 	globalMetricsClient = container.MetricsClient
 	globalConfig = container.Config
 	actCtx := context.WithValue(context.Background(), bootstrapContainerKey, container)
@@ -108,7 +108,7 @@ func NewClientWorker(container *BootstrapContainer) ClientWorker {
 		BackgroundActivityContext: actCtx,
 	}
 	return &clientWorker{
-		worker:      worker.New(container.PublicClient, common.SystemLocalDomainName, decisionTaskList, wo),
+		worker:      worker.New(container.PublicClient, constants.SystemLocalDomainName, decisionTaskList, wo),
 		domainCache: container.DomainCache,
 	}
 }

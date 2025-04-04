@@ -31,8 +31,8 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/metrics"
-	"github.com/uber/cadence/common/partition"
 	"github.com/uber/cadence/common/persistence"
 )
 
@@ -217,16 +217,16 @@ func (m *ForwardPartitionConfigMiddleware) Handle(ctx context.Context, req *tran
 				return err
 			}
 		}
-		ctx = partition.ContextWithConfig(ctx, partitionConfig)
+		ctx = isolationgroup.ContextWithConfig(ctx, partitionConfig)
 		isolationGroup, _ := req.Headers.Get(common.IsolationGroupHeaderName)
-		ctx = partition.ContextWithIsolationGroup(ctx, isolationGroup)
+		ctx = isolationgroup.ContextWithIsolationGroup(ctx, isolationGroup)
 	}
 	return h.Handle(ctx, req, resw)
 }
 
 func (m *ForwardPartitionConfigMiddleware) Call(ctx context.Context, request *transport.Request, out transport.UnaryOutbound) (*transport.Response, error) {
 	if _, ok := request.Headers.Get(common.AutoforwardingClusterHeaderName); ok {
-		partitionConfig := partition.ConfigFromContext(ctx)
+		partitionConfig := isolationgroup.ConfigFromContext(ctx)
 		if len(partitionConfig) > 0 {
 			blob, err := json.Marshal(partitionConfig)
 			if err != nil {
@@ -236,7 +236,7 @@ func (m *ForwardPartitionConfigMiddleware) Call(ctx context.Context, request *tr
 		} else {
 			request.Headers.Del(common.PartitionConfigHeaderName)
 		}
-		isolationGroup := partition.IsolationGroupFromContext(ctx)
+		isolationGroup := isolationgroup.IsolationGroupFromContext(ctx)
 		if isolationGroup != "" {
 			request.Headers = request.Headers.With(common.IsolationGroupHeaderName, isolationGroup)
 		} else {
@@ -253,10 +253,10 @@ type ClientPartitionConfigMiddleware struct{}
 func (m *ClientPartitionConfigMiddleware) Handle(ctx context.Context, req *transport.Request, resw transport.ResponseWriter, h transport.UnaryHandler) error {
 	zone, _ := req.Headers.Get(common.ClientIsolationGroupHeaderName)
 	if zone != "" {
-		ctx = partition.ContextWithConfig(ctx, map[string]string{
-			partition.IsolationGroupKey: zone,
+		ctx = isolationgroup.ContextWithConfig(ctx, map[string]string{
+			isolationgroup.GroupKey: zone,
 		})
-		ctx = partition.ContextWithIsolationGroup(ctx, zone)
+		ctx = isolationgroup.ContextWithIsolationGroup(ctx, zone)
 	}
 	return h.Handle(ctx, req, resw)
 }

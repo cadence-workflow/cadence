@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
 )
 
@@ -1042,6 +1043,26 @@ const (
 	// Default value: 25
 	// Allowed filters: N/A
 	ReplicatorTaskBatchSize
+	// ReplicatorMaxTaskBatchSize is the maximum batch size for ReplicatorProcessor
+	// KeyName: history.replicatorMaxTaskBatchSize
+	// Value type: Int
+	// Default value: 1000
+	// Allowed filters: ShardID, ClusterName
+	ReplicatorMaxTaskBatchSize
+	// ReplicatorMinTaskBatchSize is the minimum batch size for ReplicatorProcessor
+	// KeyName: history.replicatorMinTaskBatchSize
+	// Value type: Int
+	// Default value: 1
+	// Allowed filters: ShardID, ClusterName
+	ReplicatorMinTaskBatchSize
+	// ReplicatorTaskBatchStepCount is how many batch size values between ReplicatorMinTaskBatchSize and ReplicatorMaxTaskBatchSize are used
+	// 	by ReplicatorProcessor to adjust the batch size of the replication tasks. Less value will make the adjustment more aggressive.
+	//  cannot be less than 3, otherwise only ReplicatorMinTaskBatchSize and ReplicatorMaxTaskBatchSize will be used.
+	// KeyName: history.replicatorTaskBatchStepCount
+	// Value type: Int
+	// Default value: 10
+	// Allowed filters: ShardID, ClusterName
+	ReplicatorTaskBatchStepCount
 	// ReplicatorTaskDeleteBatchSize is batch size for ReplicatorProcessor to delete replication tasks
 	// KeyName: history.replicatorTaskDeleteBatchSize
 	// Value type: Int
@@ -1633,7 +1654,7 @@ const (
 	// MatchingEnableStandbyTaskCompletion is to enable completion of tasks in the domain's passive side
 	// KeyName: matching.enableStandbyTaskCompletion
 	// Value type: Bool
-	// Default value: false
+	// Default value: true
 	// Allowed filters: DomainName,TasklistName,TasklistType
 	MatchingEnableStandbyTaskCompletion
 
@@ -1884,7 +1905,7 @@ const (
 	// EnableAsyncWorkflowConsumption decides whether to enable system workers for processing async workflows
 	// KeyName: worker.enableAsyncWorkflowConsumption
 	// Value type: Bool
-	// Default value: false
+	// Default value: true
 	// Allowed filters: N/A
 	EnableAsyncWorkflowConsumption
 
@@ -2264,7 +2285,7 @@ const (
 	// DefaultEventEncoding is the encoding type for history events
 	// KeyName: history.defaultEventEncoding
 	// Value type: String
-	// Default value: string(common.EncodingTypeThriftRW)
+	// Default value: string(constants.EncodingTypeThriftRW)
 	// Allowed filters: DomainName
 	DefaultEventEncoding
 	// AdminOperationToken is the token to pass admin checking
@@ -2317,6 +2338,19 @@ const (
 	FrontendGlobalRatelimiterMode
 
 	TasklistLoadBalancerStrategy
+
+	// MatchingShardDistributionMode is the mode of shard distribution for matching, we currently have four modes, we _highly_
+	// recommend using hash_ring while the shard distributor is still in development.
+	//
+	// - "hash_ring" means that the shards are distributed using a consistent hash ring, in particular using the ringpop library
+	// - "shard_distributor" means that the shards are distributed using the _highly experimental_ shard distributor service
+	// - "hash_ring-shadow-shard_distributor" means that the shards are distrubuted using the hash ring, but shadowed by the shard distributor
+	// - "shard_distributor-shadow-hash_ring" means that the shards are distrubuted using the shard distributor, but shadowed by the hash ring
+	//
+	// KeyName: matching.shardDistributionMode
+	// Value type: string enum: "hash-ring" or "shard-distributor"
+	// Default value: "hash-ring"
+	MatchingShardDistributionMode
 
 	// LastStringKey must be the last one in this const group
 	LastStringKey
@@ -3497,6 +3531,24 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "ReplicatorTaskBatchSize is batch size for ReplicatorProcessor",
 		DefaultValue: 25,
 	},
+	ReplicatorMinTaskBatchSize: {
+		KeyName:      "history.replicatorMinTaskBatchSize",
+		Description:  "ReplicatorMinTaskBatchSize is minimum batch size for ReplicatorProcessor",
+		Filters:      []Filter{ShardID, ClusterName},
+		DefaultValue: 1,
+	},
+	ReplicatorMaxTaskBatchSize: {
+		KeyName:      "history.replicatorMaxTaskBatchSize",
+		Description:  "ReplicatorMaxTaskBatchSize is maximum size for ReplicatorProcessor",
+		Filters:      []Filter{ShardID, ClusterName},
+		DefaultValue: 1000,
+	},
+	ReplicatorTaskBatchStepCount: {
+		KeyName:      "history.replicatorTaskBatchStepCount",
+		Description:  "ReplicatorTaskBatchStepCount is how many batch size values between ReplicatorMinTaskBatchSize and ReplicatorMaxTaskBatchSize are used by ReplicatorProcessor to adjust the batch size of the replication tasks. Less value will make the adjustment more aggressive. It cannot be less than 3, otherwise only ReplicatorMinTaskBatchSize and ReplicatorMaxTaskBatchSize will be used.",
+		Filters:      []Filter{ShardID, ClusterName},
+		DefaultValue: 10,
+	},
 	ReplicatorTaskDeleteBatchSize: {
 		KeyName:      "history.replicatorTaskDeleteBatchSize",
 		Description:  "ReplicatorTaskDeleteBatchSize is batch size for ReplicatorProcessor to delete replication tasks",
@@ -4032,7 +4084,7 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "matching.enableStandbyTaskCompletion",
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
 		Description:  "MatchingEnableStandbyTaskCompletion is to enable completion of tasks in the domain's passive side",
-		DefaultValue: false,
+		DefaultValue: true,
 	},
 	MatchingEnableAdaptiveScaler: {
 		KeyName:      "matching.enableAdaptiveScaler",
@@ -4260,7 +4312,7 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	EnableAsyncWorkflowConsumption: {
 		KeyName:      "worker.enableAsyncWorkflowConsumption",
 		Description:  "EnableAsyncWorkflowConsumption decides whether to enable async workflows",
-		DefaultValue: false,
+		DefaultValue: true,
 	},
 	EnableStickyQuery: {
 		KeyName:      "system.enableStickyQuery",
@@ -4595,7 +4647,7 @@ var StringKeys = map[StringKey]DynamicString{
 		KeyName:      "history.defaultEventEncoding",
 		Filters:      []Filter{DomainName},
 		Description:  "DefaultEventEncoding is the encoding type for history events",
-		DefaultValue: string(common.EncodingTypeThriftRW),
+		DefaultValue: string(constants.EncodingTypeThriftRW),
 	},
 	AdminOperationToken: {
 		KeyName:      "history.adminOperationToken",
@@ -4644,6 +4696,11 @@ var StringKeys = map[StringKey]DynamicString{
 		Description:  "ReadVisibilityStoreName is key to identify which store to read visibility data from",
 		DefaultValue: "es",
 		Filters:      []Filter{DomainName},
+	},
+	MatchingShardDistributionMode: {
+		KeyName:      "matching.shardDistributionMode",
+		Description:  "MatchingShardDistributionMode defines which shard distribution mode should be used",
+		DefaultValue: "hash-ring",
 	},
 }
 
@@ -5207,8 +5264,8 @@ func init() {
 
 var (
 	DefaultTaskSchedulerRoundRobinWeights = map[int]int{
-		common.GetTaskPriority(common.HighPriorityClass, common.DefaultPrioritySubclass):    500,
-		common.GetTaskPriority(common.DefaultPriorityClass, common.DefaultPrioritySubclass): 20,
-		common.GetTaskPriority(common.LowPriorityClass, common.DefaultPrioritySubclass):     5,
+		common.GetTaskPriority(constants.HighPriorityClass, constants.DefaultPrioritySubclass):    500,
+		common.GetTaskPriority(constants.DefaultPriorityClass, constants.DefaultPrioritySubclass): 20,
+		common.GetTaskPriority(constants.LowPriorityClass, constants.DefaultPrioritySubclass):     5,
 	}
 )

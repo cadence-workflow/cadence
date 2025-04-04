@@ -36,6 +36,7 @@ import (
 	"github.com/uber/cadence/common/checksum"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/log"
@@ -236,16 +237,16 @@ func newMutableStateBuilder(
 		workflowRequests: make(map[persistence.WorkflowRequest]struct{}),
 	}
 	s.executionInfo = &persistence.WorkflowExecutionInfo{
-		DecisionVersion:    common.EmptyVersion,
-		DecisionScheduleID: common.EmptyEventID,
-		DecisionStartedID:  common.EmptyEventID,
-		DecisionRequestID:  common.EmptyUUID,
+		DecisionVersion:    constants.EmptyVersion,
+		DecisionScheduleID: constants.EmptyEventID,
+		DecisionStartedID:  constants.EmptyEventID,
+		DecisionRequestID:  constants.EmptyUUID,
 		DecisionTimeout:    0,
 
-		NextEventID:        common.FirstEventID,
+		NextEventID:        constants.FirstEventID,
 		State:              persistence.WorkflowStateCreated,
 		CloseStatus:        persistence.WorkflowCloseStatusNone,
-		LastProcessedEvent: common.EmptyEventID,
+		LastProcessedEvent: constants.EmptyEventID,
 	}
 	s.hBuilder = NewHistoryBuilder(s)
 
@@ -340,7 +341,7 @@ func (e *mutableStateBuilder) Load(
 	e.executionInfo = state.ExecutionInfo
 	e.bufferedEvents = state.BufferedEvents
 
-	e.currentVersion = common.EmptyVersion
+	e.currentVersion = constants.EmptyVersion
 	e.hasBufferedEventsInDB = len(e.bufferedEvents) > 0
 	e.stateInDB = state.ExecutionInfo.State
 	e.nextEventIDInDB = state.ExecutionInfo.NextEventID
@@ -469,7 +470,7 @@ func (e *mutableStateBuilder) FlushBufferedEvents() error {
 	var newBufferedEvents []*types.HistoryEvent
 	var newCommittedEvents []*types.HistoryEvent
 	for _, event := range e.hBuilder.history {
-		if event.ID == common.BufferedEventID {
+		if event.ID == constants.BufferedEventID {
 			newBufferedEvents = append(newBufferedEvents, event)
 		} else {
 			newCommittedEvents = append(newCommittedEvents, event)
@@ -578,7 +579,7 @@ func (e *mutableStateBuilder) UpdateCurrentVersion(
 
 		return nil
 	}
-	e.currentVersion = common.EmptyVersion
+	e.currentVersion = constants.EmptyVersion
 	return nil
 }
 
@@ -593,7 +594,7 @@ func (e *mutableStateBuilder) GetCurrentVersion() int64 {
 		return e.currentVersion
 	}
 
-	return common.EmptyVersion
+	return constants.EmptyVersion
 }
 
 func (e *mutableStateBuilder) GetStartVersion() (int64, error) {
@@ -610,7 +611,7 @@ func (e *mutableStateBuilder) GetStartVersion() (int64, error) {
 		return firstItem.Version, nil
 	}
 
-	return common.EmptyVersion, nil
+	return constants.EmptyVersion, nil
 }
 
 func (e *mutableStateBuilder) GetLastWriteVersion() (int64, error) {
@@ -632,7 +633,7 @@ func (e *mutableStateBuilder) GetLastWriteVersion() (int64, error) {
 		return lastItem.Version, nil
 	}
 
-	return common.EmptyVersion, nil
+	return constants.EmptyVersion, nil
 }
 
 func (e *mutableStateBuilder) checkAndClearTimerFiredEvent(
@@ -687,7 +688,7 @@ func (e *mutableStateBuilder) assignEventIDToBufferedEvents() {
 
 	scheduledIDToStartedID := make(map[int64]int64)
 	for _, event := range newCommittedEvents {
-		if event.ID != common.BufferedEventID {
+		if event.ID != constants.BufferedEventID {
 			continue
 		}
 
@@ -773,7 +774,7 @@ func (e *mutableStateBuilder) assignTaskIDToEvents() error {
 		}
 
 		for index, event := range e.hBuilder.transientHistory {
-			if event.TaskID == common.EmptyEventTaskID {
+			if event.TaskID == constants.EmptyEventTaskID {
 				taskID := taskIDs[index]
 				event.TaskID = taskID
 				e.executionInfo.LastEventTaskID = taskID
@@ -790,7 +791,7 @@ func (e *mutableStateBuilder) assignTaskIDToEvents() error {
 		}
 
 		for index, event := range e.hBuilder.history {
-			if event.TaskID == common.EmptyEventTaskID {
+			if event.TaskID == constants.EmptyEventTaskID {
 				taskID := taskIDs[index]
 				event.TaskID = taskID
 				e.executionInfo.LastEventTaskID = taskID
@@ -853,7 +854,7 @@ func (e *mutableStateBuilder) CreateNewHistoryEventWithTimestamp(
 ) *types.HistoryEvent {
 	eventID := e.executionInfo.NextEventID
 	if e.shouldBufferEvent(eventType) {
-		eventID = common.BufferedEventID
+		eventID = constants.BufferedEventID
 	} else {
 		// only increase NextEventID if event is not buffered
 		e.executionInfo.IncreaseNextEventID()
@@ -865,7 +866,7 @@ func (e *mutableStateBuilder) CreateNewHistoryEventWithTimestamp(
 	historyEvent.Timestamp = ts
 	historyEvent.EventType = &eventType
 	historyEvent.Version = e.GetCurrentVersion()
-	historyEvent.TaskID = common.EmptyEventTaskID
+	historyEvent.TaskID = constants.EmptyEventTaskID
 
 	return historyEvent
 }
@@ -1004,8 +1005,8 @@ func (e *mutableStateBuilder) GetStartEvent(
 		e.executionInfo.DomainID,
 		e.executionInfo.WorkflowID,
 		e.executionInfo.RunID,
-		common.FirstEventID,
-		common.FirstEventID,
+		constants.FirstEventID,
+		constants.FirstEventID,
 		currentBranchToken,
 	)
 	if err != nil {
@@ -1087,7 +1088,7 @@ func (e *mutableStateBuilder) HasBufferedEvents() bool {
 	}
 
 	for _, event := range e.hBuilder.history {
-		if event.ID == common.BufferedEventID {
+		if event.ID == constants.BufferedEventID {
 			return true
 		}
 	}
@@ -1595,7 +1596,7 @@ func (e *mutableStateBuilder) SetHistorySize(size int64) {
 	e.executionStats.HistorySize = size
 }
 
-func (e *mutableStateBuilder) Size() uint64 {
+func (e *mutableStateBuilder) ByteSize() uint64 {
 	// TODO: To be implemented
 	return 0
 }
@@ -1772,6 +1773,11 @@ func (e *mutableStateBuilder) eventsToReplicationTask(
 
 	// the visibility timestamp will be set in shard context
 	replicationTask := &persistence.HistoryReplicationTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   e.executionInfo.DomainID,
+			WorkflowID: e.executionInfo.WorkflowID,
+			RunID:      e.executionInfo.RunID,
+		},
 		TaskData: persistence.TaskData{
 			Version: firstEvent.Version,
 		},
@@ -1794,6 +1800,7 @@ func (e *mutableStateBuilder) syncActivityToReplicationTask(
 	}
 
 	return convertSyncActivityInfos(
+		e.executionInfo,
 		e.pendingActivityInfoIDs,
 		e.syncActivityTasks,
 	)
@@ -1945,7 +1952,7 @@ func (e *mutableStateBuilder) startTransactionHandleDecisionFailover(
 	if err != nil {
 		return false, err
 	}
-	if incomingTaskVersion != common.EmptyVersion &&
+	if incomingTaskVersion != constants.EmptyVersion &&
 		currentVersionCluster != currentCluster &&
 		incomingTaskSourceCluster == currentCluster {
 		return false, nil

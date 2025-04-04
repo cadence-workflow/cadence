@@ -62,18 +62,18 @@ func (m *MockRetryer) EXPECT() *MockRetryerMockRecorder {
 	return m.recorder
 }
 
-// CompleteTimerTask mocks base method.
-func (m *MockRetryer) CompleteTimerTask(ctx context.Context, request *CompleteTimerTaskRequest) error {
+// CompleteHistoryTask mocks base method.
+func (m *MockRetryer) CompleteHistoryTask(ctx context.Context, request *CompleteHistoryTaskRequest) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CompleteTimerTask", ctx, request)
+	ret := m.ctrl.Call(m, "CompleteHistoryTask", ctx, request)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// CompleteTimerTask indicates an expected call of CompleteTimerTask.
-func (mr *MockRetryerMockRecorder) CompleteTimerTask(ctx, request any) *gomock.Call {
+// CompleteHistoryTask indicates an expected call of CompleteHistoryTask.
+func (mr *MockRetryerMockRecorder) CompleteHistoryTask(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CompleteTimerTask", reflect.TypeOf((*MockRetryer)(nil).CompleteTimerTask), ctx, request)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CompleteHistoryTask", reflect.TypeOf((*MockRetryer)(nil).CompleteHistoryTask), ctx, request)
 }
 
 // DeleteCurrentWorkflowExecution mocks base method.
@@ -119,6 +119,21 @@ func (mr *MockRetryerMockRecorder) GetCurrentExecution(arg0, arg1 any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCurrentExecution", reflect.TypeOf((*MockRetryer)(nil).GetCurrentExecution), arg0, arg1)
 }
 
+// GetHistoryTasks mocks base method.
+func (m *MockRetryer) GetHistoryTasks(arg0 context.Context, arg1 *GetHistoryTasksRequest) (*GetHistoryTasksResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetHistoryTasks", arg0, arg1)
+	ret0, _ := ret[0].(*GetHistoryTasksResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetHistoryTasks indicates an expected call of GetHistoryTasks.
+func (mr *MockRetryerMockRecorder) GetHistoryTasks(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHistoryTasks", reflect.TypeOf((*MockRetryer)(nil).GetHistoryTasks), arg0, arg1)
+}
+
 // GetShardID mocks base method.
 func (m *MockRetryer) GetShardID() int {
 	m.ctrl.T.Helper()
@@ -131,21 +146,6 @@ func (m *MockRetryer) GetShardID() int {
 func (mr *MockRetryerMockRecorder) GetShardID() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetShardID", reflect.TypeOf((*MockRetryer)(nil).GetShardID))
-}
-
-// GetTimerIndexTasks mocks base method.
-func (m *MockRetryer) GetTimerIndexTasks(arg0 context.Context, arg1 *GetTimerIndexTasksRequest) (*GetTimerIndexTasksResponse, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTimerIndexTasks", arg0, arg1)
-	ret0, _ := ret[0].(*GetTimerIndexTasksResponse)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetTimerIndexTasks indicates an expected call of GetTimerIndexTasks.
-func (mr *MockRetryerMockRecorder) GetTimerIndexTasks(arg0, arg1 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTimerIndexTasks", reflect.TypeOf((*MockRetryer)(nil).GetTimerIndexTasks), arg0, arg1)
 }
 
 // GetWorkflowExecution mocks base method.

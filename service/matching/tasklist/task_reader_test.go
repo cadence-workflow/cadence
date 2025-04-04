@@ -59,8 +59,8 @@ func TestDispatchSingleTaskFromBuffer(t *testing.T) {
 		{
 			name: "success - no isolation",
 			allowances: func(t *testing.T, reader *taskReader) {
-				reader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration, error) {
-					return "", -1, nil
+				reader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration) {
+					return "", -1
 				}
 				markCalled := requireCallbackInvocation(t, "expected task to be dispatched")
 				reader.dispatchTask = func(ctx context.Context, task *InternalTask) error {
@@ -75,8 +75,8 @@ func TestDispatchSingleTaskFromBuffer(t *testing.T) {
 		{
 			name: "success - isolation",
 			allowances: func(t *testing.T, reader *taskReader) {
-				reader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration, error) {
-					return defaultIsolationGroup, -1, nil
+				reader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration) {
+					return defaultIsolationGroup, -1
 				}
 				markCalled := requireCallbackInvocation(t, "expected task to be dispatched")
 				reader.dispatchTask = func(ctx context.Context, task *InternalTask) error {
@@ -89,26 +89,10 @@ func TestDispatchSingleTaskFromBuffer(t *testing.T) {
 			breakRetries:  true,
 		},
 		{
-			name: "success - isolation group error",
-			allowances: func(t *testing.T, reader *taskReader) {
-				reader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration, error) {
-					return "", -1, errors.New("wow")
-				}
-				markCalled := requireCallbackInvocation(t, "expected task to be dispatched")
-				reader.dispatchTask = func(ctx context.Context, task *InternalTask) error {
-					assert.Equal(t, "", task.isolationGroup)
-					markCalled()
-					return nil
-				}
-			},
-			breakDispatch: false,
-			breakRetries:  true,
-		},
-		{
 			name: "success - unknown isolation group",
 			allowances: func(t *testing.T, reader *taskReader) {
-				reader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration, error) {
-					return "mystery group", -1, nil
+				reader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration) {
+					return "mystery group", -1
 				}
 				markCalled := requireCallbackInvocation(t, "expected task to be dispatched")
 				reader.dispatchTask = func(ctx context.Context, task *InternalTask) error {
@@ -124,8 +108,8 @@ func TestDispatchSingleTaskFromBuffer(t *testing.T) {
 		{
 			name: "Error - context cancelled, should stop",
 			allowances: func(t *testing.T, reader *taskReader) {
-				reader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration, error) {
-					return defaultIsolationGroup, -1, nil
+				reader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration) {
+					return defaultIsolationGroup, -1
 				}
 				reader.dispatchTask = func(ctx context.Context, task *InternalTask) error {
 					return context.Canceled
@@ -138,8 +122,8 @@ func TestDispatchSingleTaskFromBuffer(t *testing.T) {
 		{
 			name: "Error - Deadline Exceeded, should retry",
 			allowances: func(t *testing.T, reader *taskReader) {
-				reader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration, error) {
-					return defaultIsolationGroup, -1, nil
+				reader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration) {
+					return defaultIsolationGroup, -1
 				}
 				reader.dispatchTask = func(ctx context.Context, task *InternalTask) error {
 					return context.DeadlineExceeded
@@ -152,8 +136,8 @@ func TestDispatchSingleTaskFromBuffer(t *testing.T) {
 		{
 			name: "Error - throttled, should retry",
 			allowances: func(t *testing.T, reader *taskReader) {
-				reader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration, error) {
-					return defaultIsolationGroup, -1, nil
+				reader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration) {
+					return defaultIsolationGroup, -1
 				}
 				reader.dispatchTask = func(ctx context.Context, task *InternalTask) error {
 					return ErrTasklistThrottled
@@ -165,8 +149,8 @@ func TestDispatchSingleTaskFromBuffer(t *testing.T) {
 		{
 			name: "Error - unknown, should retry",
 			allowances: func(t *testing.T, reader *taskReader) {
-				reader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration, error) {
-					return defaultIsolationGroup, -1, nil
+				reader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration) {
+					return defaultIsolationGroup, -1
 				}
 				reader.dispatchTask = func(ctx context.Context, task *InternalTask) error {
 					return errors.New("wow")
@@ -178,8 +162,8 @@ func TestDispatchSingleTaskFromBuffer(t *testing.T) {
 		{
 			name: "Error - task not started and not expired, should retry",
 			allowances: func(t *testing.T, reader *taskReader) {
-				reader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration, error) {
-					return defaultIsolationGroup, -1, nil
+				reader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration) {
+					return defaultIsolationGroup, -1
 				}
 				reader.dispatchTask = func(ctx context.Context, task *InternalTask) error {
 					return errTaskNotStarted
@@ -192,8 +176,8 @@ func TestDispatchSingleTaskFromBuffer(t *testing.T) {
 		{
 			name: "Error - task not started and expired, should not retry",
 			allowances: func(t *testing.T, reader *taskReader) {
-				reader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration, error) {
-					return defaultIsolationGroup, -1, nil
+				reader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration) {
+					return defaultIsolationGroup, -1
 				}
 				reader.dispatchTask = func(ctx context.Context, task *InternalTask) error {
 					return errTaskNotStarted
@@ -206,8 +190,8 @@ func TestDispatchSingleTaskFromBuffer(t *testing.T) {
 		{
 			name: "Error - time not reached to complete task without workflow execution, should retry",
 			allowances: func(t *testing.T, reader *taskReader) {
-				reader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration, error) {
-					return defaultIsolationGroup, -1, nil
+				reader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration) {
+					return defaultIsolationGroup, -1
 				}
 				reader.dispatchTask = func(ctx context.Context, task *InternalTask) error {
 					return errWaitTimeNotReachedForEntityNotExists

@@ -56,14 +56,14 @@ func NewRoundRobinLoadBalancer(
 			Pin:             false,
 			MaxCount:        3000,
 			ActivelyEvict:   false,
-		}),
+		}, nil),
 		writeCache: cache.New(&cache.Options{
 			TTL:             0,
 			InitialCapacity: 100,
 			Pin:             false,
 			MaxCount:        3000,
 			ActivelyEvict:   false,
-		}),
+		}, nil),
 		pickPartitionFn: pickPartition,
 	}
 }

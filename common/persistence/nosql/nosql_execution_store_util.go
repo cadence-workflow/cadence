@@ -28,6 +28,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/checksum"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
@@ -278,10 +279,10 @@ func (d *nosqlExecutionStore) prepareReplicationTasksForWorkflowTxn(domainID, wo
 
 	for _, task := range replicationTasks {
 		// Replication task specific information
-		firstEventID := common.EmptyEventID
-		nextEventID := common.EmptyEventID
-		version := common.EmptyVersion //nolint:ineffassign
-		activityScheduleID := common.EmptyEventID
+		firstEventID := constants.EmptyEventID
+		nextEventID := constants.EmptyEventID
+		version := constants.EmptyVersion //nolint:ineffassign
+		activityScheduleID := constants.EmptyEventID
 		var branchToken, newRunBranchToken []byte
 
 		switch task.GetTaskType() {

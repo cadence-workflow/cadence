@@ -25,8 +25,8 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/serialization"
@@ -99,7 +99,7 @@ func (m *sqlDomainStore) CreateDomain(
 	}
 
 	var badBinaries []byte
-	badBinariesEncoding := string(common.EncodingTypeEmpty)
+	badBinariesEncoding := string(constants.EncodingTypeEmpty)
 	if request.Config.BadBinaries != nil {
 		badBinaries = request.Config.BadBinaries.Data
 		badBinariesEncoding = string(request.Config.BadBinaries.GetEncoding())
@@ -139,7 +139,7 @@ func (m *sqlDomainStore) CreateDomain(
 		FailoverVersion:             request.FailoverVersion,
 		NotificationVersion:         metadata.NotificationVersion,
 		FailoverNotificationVersion: persistence.InitialFailoverNotificationVersion,
-		PreviousFailoverVersion:     common.InitialPreviousFailoverVersion,
+		PreviousFailoverVersion:     constants.InitialPreviousFailoverVersion,
 		LastUpdatedTimestamp:        request.LastUpdatedTime,
 		BadBinaries:                 badBinaries,
 		BadBinariesEncoding:         badBinariesEncoding,
@@ -241,17 +241,17 @@ func (m *sqlDomainStore) domainRowToGetDomainResponse(row *sqlplugin.DomainRow) 
 
 	var badBinaries *persistence.DataBlob
 	if domainInfo.BadBinaries != nil {
-		badBinaries = persistence.NewDataBlob(domainInfo.BadBinaries, common.EncodingType(domainInfo.GetBadBinariesEncoding()))
+		badBinaries = persistence.NewDataBlob(domainInfo.BadBinaries, constants.EncodingType(domainInfo.GetBadBinariesEncoding()))
 	}
 
 	var isolationGroups *persistence.DataBlob
 	if domainInfo.IsolationGroups != nil {
-		isolationGroups = persistence.NewDataBlob(domainInfo.IsolationGroups, common.EncodingType(domainInfo.IsolationGroupsEncoding))
+		isolationGroups = persistence.NewDataBlob(domainInfo.IsolationGroups, constants.EncodingType(domainInfo.IsolationGroupsEncoding))
 	}
 
 	var asyncWorkflowsCfg *persistence.DataBlob
 	if domainInfo.AsyncWorkflowConfig != nil {
-		asyncWorkflowsCfg = persistence.NewDataBlob(domainInfo.AsyncWorkflowConfig, common.EncodingType(domainInfo.AsyncWorkflowConfigEncoding))
+		asyncWorkflowsCfg = persistence.NewDataBlob(domainInfo.AsyncWorkflowConfig, constants.EncodingType(domainInfo.AsyncWorkflowConfigEncoding))
 	}
 
 	return &persistence.InternalGetDomainResponse{
@@ -302,21 +302,21 @@ func (m *sqlDomainStore) UpdateDomain(
 	}
 
 	var badBinaries []byte
-	badBinariesEncoding := string(common.EncodingTypeEmpty)
+	badBinariesEncoding := string(constants.EncodingTypeEmpty)
 	if request.Config.BadBinaries != nil {
 		badBinaries = request.Config.BadBinaries.Data
 		badBinariesEncoding = string(request.Config.BadBinaries.GetEncoding())
 	}
 
 	var isolationGroups []byte
-	isolationGroupsEncoding := string(common.EncodingTypeEmpty)
+	isolationGroupsEncoding := string(constants.EncodingTypeEmpty)
 	if request.Config.IsolationGroups != nil {
 		isolationGroups = request.Config.IsolationGroups.Data
 		isolationGroupsEncoding = request.Config.IsolationGroups.GetEncodingString()
 	}
 
 	var asyncWorkflowsCfg []byte
-	asyncWorkflowsEncoding := string(common.EncodingTypeEmpty)
+	asyncWorkflowsEncoding := string(constants.EncodingTypeEmpty)
 	if request.Config.AsyncWorkflowsConfig != nil {
 		asyncWorkflowsCfg = request.Config.AsyncWorkflowsConfig.Data
 		asyncWorkflowsEncoding = request.Config.AsyncWorkflowsConfig.GetEncodingString()

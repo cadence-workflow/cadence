@@ -54,7 +54,7 @@ func TestWorkflowIdentifierSize(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			size := test.wi.Size()
+			size := test.wi.ByteSize()
 			assert.Equal(t, test.expected, size)
 		})
 	}

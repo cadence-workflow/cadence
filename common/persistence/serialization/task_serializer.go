@@ -28,6 +28,7 @@ import (
 	"fmt"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
@@ -266,7 +267,7 @@ func (s *taskSerializerImpl) serializeTimerTask(task persistence.Task) (persiste
 	info := &TimerTaskInfo{
 		TaskType: int16(task.GetTaskType()),
 		Version:  task.GetVersion(),
-		EventID:  common.EmptyEventID,
+		EventID:  constants.EmptyEventID,
 	}
 	switch t := task.(type) {
 	case *persistence.DecisionTimeoutTask:
@@ -384,10 +385,10 @@ func (s *taskSerializerImpl) deserializeTimerTask(blob *persistence.DataBlob) (p
 func (s *taskSerializerImpl) serializeReplicationTask(task persistence.Task) (persistence.DataBlob, error) {
 	info := &ReplicationTaskInfo{
 		TaskType:                int16(task.GetTaskType()),
-		FirstEventID:            common.EmptyEventID,
-		NextEventID:             common.EmptyEventID,
+		FirstEventID:            constants.EmptyEventID,
+		NextEventID:             constants.EmptyEventID,
 		Version:                 task.GetVersion(),
-		ScheduledID:             common.EmptyEventID,
+		ScheduledID:             constants.EmptyEventID,
 		EventStoreVersion:       persistence.EventStoreVersion,
 		NewRunEventStoreVersion: persistence.EventStoreVersion,
 		CreationTimestamp:       task.GetVisibilityTimestamp(),

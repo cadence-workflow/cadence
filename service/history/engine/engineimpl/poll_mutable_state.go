@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
@@ -212,7 +213,7 @@ func (e *historyEngineImpl) getMutableStateOrLongPoll(
 	execution.RunID = mutableState.Execution.RunID
 
 	// expectedNextEventID is 0 when caller want to get the current next event ID without blocking
-	expectedNextEventID := common.FirstEventID
+	expectedNextEventID := constants.FirstEventID
 	if request.ExpectedNextEventID != 0 {
 		expectedNextEventID = request.GetExpectedNextEventID()
 	}
