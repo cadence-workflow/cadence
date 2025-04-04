@@ -29,7 +29,7 @@ import (
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/collection"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -51,7 +51,7 @@ type (
 
 	// RedispatcherOptions configs redispatch interval
 	RedispatcherOptions struct {
-		TaskRedispatchInterval dynamicconfig.DurationPropertyFn
+		TaskRedispatchInterval dynamicproperties.DurationPropertyFn
 	}
 	redispatcherImpl struct {
 		sync.Mutex

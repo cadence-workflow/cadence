@@ -20,24 +20,25 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-package defaultisolationgroupstate
+package dynamicproperties
 
 import (
-	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
-	"github.com/uber/cadence/common/types"
+	"strconv"
+	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
-// IsolationGroups is an internal convenience return type of a collection of IsolationGroup configurations
-type isolationGroups struct {
-	Global types.IsolationGroupConfiguration
-	Domain types.IsolationGroupConfiguration
-}
+func TestConvertDynamicConfigMapPropertyToIntMap(t *testing.T) {
+	dcValue := make(map[string]interface{})
+	for idx, value := range []interface{}{int(0), int32(1), int64(2), float64(3.0)} {
+		dcValue[strconv.Itoa(idx)] = value
+	}
 
-// defaultConfig values for the partitioning library for segmenting portions of workflows into isolation-groups - a resiliency
-// concept meant to help move workflows around and away from failure zones.
-type defaultConfig struct {
-	// IsolationGroupEnabled is a domain-based configuration value for whether this feature is enabled at all
-	IsolationGroupEnabled dynamicproperties.BoolPropertyFnWithDomainFilter
-	// AllIsolationGroups is all the possible isolation-groups available for a region
-	AllIsolationGroups func() []string
+	intMap, err := ConvertDynamicConfigMapPropertyToIntMap(dcValue)
+	require.NoError(t, err)
+	require.Len(t, intMap, 4)
+	for i := 0; i != 4; i++ {
+		require.Equal(t, i, intMap[i])
+	}
 }

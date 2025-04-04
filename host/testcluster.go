@@ -39,6 +39,7 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/domain"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/elasticsearch"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -100,10 +101,10 @@ type (
 		// Note that most components don't respect this, and it's only used in a few places.
 		// e.g. async workflow test's consumer manager and domain manager
 		TimeSource                     clock.MockedTimeSource
-		FrontendDynamicConfigOverrides map[dynamicconfig.Key]interface{}
-		HistoryDynamicConfigOverrides  map[dynamicconfig.Key]interface{}
-		MatchingDynamicConfigOverrides map[dynamicconfig.Key]interface{}
-		WorkerDynamicConfigOverrides   map[dynamicconfig.Key]interface{}
+		FrontendDynamicConfigOverrides map[dynamicproperties.Key]interface{}
+		HistoryDynamicConfigOverrides  map[dynamicproperties.Key]interface{}
+		MatchingDynamicConfigOverrides map[dynamicproperties.Key]interface{}
+		WorkerDynamicConfigOverrides   map[dynamicproperties.Key]interface{}
 	}
 
 	// MessagingClientConfig is the config for messaging config

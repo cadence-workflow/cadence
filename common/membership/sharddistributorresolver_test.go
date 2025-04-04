@@ -29,7 +29,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/client/sharddistributor"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/types"
@@ -37,7 +37,7 @@ import (
 
 func TestShardDistributorResolver_Lookup_modeHashRing(t *testing.T) {
 	resolver, ring, _ := newShardDistributorResolver(t)
-	resolver.shardDistributionMode = func(...dynamicconfig.FilterOption) string {
+	resolver.shardDistributionMode = func(...dynamicproperties.FilterOption) string {
 		return string(modeKeyHashRing)
 	}
 
@@ -51,7 +51,7 @@ func TestShardDistributorResolver_Lookup_modeHashRing(t *testing.T) {
 
 func TestShardDistributorResolver_Lookup_modeShardDistributor(t *testing.T) {
 	resolver, ring, shardDistributorMock := newShardDistributorResolver(t)
-	resolver.shardDistributionMode = func(...dynamicconfig.FilterOption) string {
+	resolver.shardDistributionMode = func(...dynamicproperties.FilterOption) string {
 		return string(modeKeyShardDistributor)
 	}
 
@@ -67,7 +67,7 @@ func TestShardDistributorResolver_Lookup_modeShardDistributor(t *testing.T) {
 
 func TestShardDistributorResolver_Lookup_modeHashRingShadowShardDistributor(t *testing.T) {
 	resolver, ring, shardDistributorMock := newShardDistributorResolver(t)
-	resolver.shardDistributionMode = func(...dynamicconfig.FilterOption) string {
+	resolver.shardDistributionMode = func(...dynamicproperties.FilterOption) string {
 		return string(modeKeyHashRingShadowShardDistributor)
 	}
 
@@ -136,7 +136,7 @@ func TestShardDistributorResolver_Lookup_modeHashRingShadowShardDistributor(t *t
 
 func TestShardDistributorResolver_Lookup_modeShardDistributorShadowHashRing(t *testing.T) {
 	resolver, ring, shardDistributorMock := newShardDistributorResolver(t)
-	resolver.shardDistributionMode = func(...dynamicconfig.FilterOption) string {
+	resolver.shardDistributionMode = func(...dynamicproperties.FilterOption) string {
 		return string(modeKeyShardDistributorShadowHashRing)
 	}
 
@@ -205,7 +205,7 @@ func TestShardDistributorResolver_Lookup_modeShardDistributorShadowHashRing(t *t
 
 func TestShardDistributorResolver_Lookup_UnknownMode(t *testing.T) {
 	resolver, ring, _ := newShardDistributorResolver(t)
-	resolver.shardDistributionMode = func(...dynamicconfig.FilterOption) string {
+	resolver.shardDistributionMode = func(...dynamicproperties.FilterOption) string {
 		return "unknown"
 	}
 
@@ -271,7 +271,7 @@ func newShardDistributorResolver(t *testing.T) (*shardDistributorResolver, *Mock
 	ctrl := gomock.NewController(t)
 	namespace := "test-namespace"
 	client := sharddistributor.NewMockClient(ctrl)
-	shardDistributionMode := dynamicconfig.GetStringPropertyFn("")
+	shardDistributionMode := dynamicproperties.GetStringPropertyFn("")
 	ring := NewMockSingleProvider(ctrl)
 	logger := log.NewNoop()
 

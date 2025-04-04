@@ -31,6 +31,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
@@ -184,7 +185,7 @@ func TestValidateValidateDescribeTaskListRequest(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			v, deps := setupMocksForRequestValidator(t)
-			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.TaskListNameMaxLength, 5))
+			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.TaskListNameMaxLength, 5))
 
 			err := v.ValidateDescribeTaskListRequest(context.Background(), tc.req)
 			if tc.expectError {
@@ -260,7 +261,7 @@ func TestValidateValidateListTaskListPartitionsRequest(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			v, deps := setupMocksForRequestValidator(t)
-			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.TaskListNameMaxLength, 5))
+			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.TaskListNameMaxLength, 5))
 
 			err := v.ValidateListTaskListPartitionsRequest(context.Background(), tc.req)
 			if tc.expectError {
@@ -305,7 +306,7 @@ func TestValidateValidateGetTaskListsByDomainRequest(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			v, deps := setupMocksForRequestValidator(t)
-			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.TaskListNameMaxLength, 5))
+			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.TaskListNameMaxLength, 5))
 
 			err := v.ValidateGetTaskListsByDomainRequest(context.Background(), tc.req)
 			if tc.expectError {
@@ -383,7 +384,7 @@ func TestValidateValidateResetStickyTaskListRequest(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			v, deps := setupMocksForRequestValidator(t)
-			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.TaskListNameMaxLength, 5))
+			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.TaskListNameMaxLength, 5))
 
 			err := v.ValidateResetStickyTaskListRequest(context.Background(), tc.req)
 			if tc.expectError {
@@ -481,8 +482,8 @@ func TestValidateListWorkflowExecutionsRequest(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			v, deps := setupMocksForRequestValidator(t)
-			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.FrontendESIndexMaxResultWindow, 100))
-			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.FrontendVisibilityMaxPageSize, 10))
+			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.FrontendESIndexMaxResultWindow, 100))
+			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.FrontendVisibilityMaxPageSize, 10))
 
 			err := v.ValidateListWorkflowExecutionsRequest(context.Background(), tc.req)
 			if tc.expectError {
@@ -600,8 +601,8 @@ func TestValidateListOpenWorkflowExecutionsRequest(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			v, deps := setupMocksForRequestValidator(t)
-			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.FrontendESIndexMaxResultWindow, 100))
-			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.FrontendVisibilityMaxPageSize, 10))
+			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.FrontendESIndexMaxResultWindow, 100))
+			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.FrontendVisibilityMaxPageSize, 10))
 
 			err := v.ValidateListOpenWorkflowExecutionsRequest(context.Background(), tc.req)
 			if tc.expectError {
@@ -747,8 +748,8 @@ func TestValidateListClosedWorkflowExecutionsRequest(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			v, deps := setupMocksForRequestValidator(t)
-			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.FrontendESIndexMaxResultWindow, 100))
-			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.FrontendVisibilityMaxPageSize, 10))
+			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.FrontendESIndexMaxResultWindow, 100))
+			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.FrontendVisibilityMaxPageSize, 10))
 
 			err := v.ValidateListClosedWorkflowExecutionsRequest(context.Background(), tc.req)
 			if tc.expectError {
@@ -803,8 +804,8 @@ func TestValidateListArchivedWorkflowExecutionsRequest(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			v, deps := setupMocksForRequestValidator(t)
-			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.VisibilityArchivalQueryMaxPageSize, 100))
-			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.FrontendVisibilityMaxPageSize, 10))
+			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.VisibilityArchivalQueryMaxPageSize, 100))
+			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.FrontendVisibilityMaxPageSize, 10))
 
 			err := v.ValidateListArchivedWorkflowExecutionsRequest(context.Background(), tc.req)
 			if tc.expectError {
@@ -860,8 +861,8 @@ func TestValidateDeprecateDomainRequest(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			v, deps := setupMocksForRequestValidator(t)
-			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.EnableAdminProtection, true))
-			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.AdminOperationToken, "token"))
+			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.EnableAdminProtection, true))
+			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.AdminOperationToken, "token"))
 
 			err := v.ValidateDeprecateDomainRequest(context.Background(), tc.req)
 			if tc.expectError {
@@ -981,10 +982,10 @@ func TestValidateUpdateDomainRequest(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			v, deps := setupMocksForRequestValidator(t)
-			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.EnableAdminProtection, true))
-			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.AdminOperationToken, "token"))
-			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.MaxRetentionDays, 3))
-			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.Lockdown, true))
+			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.EnableAdminProtection, true))
+			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.AdminOperationToken, "token"))
+			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.MaxRetentionDays, 3))
+			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.Lockdown, true))
 
 			err := v.ValidateUpdateDomainRequest(context.Background(), tc.req)
 			if tc.expectError {
@@ -1065,11 +1066,11 @@ func TestValidateRegisterDomainRequest(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			v, deps := setupMocksForRequestValidator(t)
-			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.EnableAdminProtection, true))
-			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.AdminOperationToken, "token"))
-			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.MaxRetentionDays, 3))
-			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.DomainNameMaxLength, 10))
-			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.RequiredDomainDataKeys, map[string]interface{}{"tier": true}))
+			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.EnableAdminProtection, true))
+			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.AdminOperationToken, "token"))
+			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.MaxRetentionDays, 3))
+			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.DomainNameMaxLength, 10))
+			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.RequiredDomainDataKeys, map[string]interface{}{"tier": true}))
 
 			err := v.ValidateRegisterDomainRequest(context.Background(), tc.req)
 			if tc.expectError {

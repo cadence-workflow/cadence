@@ -36,7 +36,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 )
@@ -61,7 +61,7 @@ type (
 )
 
 var (
-	testSchedulerWeights = dynamicconfig.GetMapPropertyFn(
+	testSchedulerWeights = dynamicproperties.GetMapPropertyFn(
 		map[string]interface{}{
 			"0": 3,
 			"1": 2,
@@ -87,7 +87,7 @@ func (s *weightedRoundRobinTaskSchedulerSuite) SetupTest() {
 		metrics.NewClient(tally.NoopScope, metrics.Common),
 		&ParallelTaskProcessorOptions{
 			QueueSize:   1,
-			WorkerCount: dynamicconfig.GetIntPropertyFn(1),
+			WorkerCount: dynamicproperties.GetIntPropertyFn(1),
 			RetryPolicy: backoff.NewExponentialRetryPolicy(time.Millisecond),
 		},
 	)
@@ -163,7 +163,7 @@ func (s *weightedRoundRobinTaskSchedulerSuite) TestTrySubmit() {
 }
 
 func (s *weightedRoundRobinTaskSchedulerSuite) TestDispatcher_SubmitWithNoError() {
-	weights, err := common.ConvertDynamicConfigMapPropertyToIntMap(testSchedulerWeights())
+	weights, err := dynamicproperties.ConvertDynamicConfigMapPropertyToIntMap(testSchedulerWeights())
 	s.NoError(err)
 
 	numPriorities := len(weights)

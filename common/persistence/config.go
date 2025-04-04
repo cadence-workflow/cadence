@@ -20,28 +20,31 @@
 
 package persistence
 
-import "github.com/uber/cadence/common/dynamicconfig"
+import (
+	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+)
 
 type (
 	// DynamicConfiguration represents dynamic configuration for persistence layer
 	DynamicConfiguration struct {
-		EnableSQLAsyncTransaction                dynamicconfig.BoolPropertyFn
-		EnableCassandraAllConsistencyLevelDelete dynamicconfig.BoolPropertyFn
-		PersistenceSampleLoggingRate             dynamicconfig.IntPropertyFn
-		EnableShardIDMetrics                     dynamicconfig.BoolPropertyFn
-		EnableHistoryTaskDualWriteMode           dynamicconfig.BoolPropertyFn
-		ReadNoSQLHistoryTaskFromDataBlob         dynamicconfig.BoolPropertyFn
+		EnableSQLAsyncTransaction                dynamicproperties.BoolPropertyFn
+		EnableCassandraAllConsistencyLevelDelete dynamicproperties.BoolPropertyFn
+		PersistenceSampleLoggingRate             dynamicproperties.IntPropertyFn
+		EnableShardIDMetrics                     dynamicproperties.BoolPropertyFn
+		EnableHistoryTaskDualWriteMode           dynamicproperties.BoolPropertyFn
+		ReadNoSQLHistoryTaskFromDataBlob         dynamicproperties.BoolPropertyFn
 	}
 )
 
 // NewDynamicConfiguration returns new config with default values
 func NewDynamicConfiguration(dc *dynamicconfig.Collection) *DynamicConfiguration {
 	return &DynamicConfiguration{
-		EnableSQLAsyncTransaction:                dc.GetBoolProperty(dynamicconfig.EnableSQLAsyncTransaction),
-		EnableCassandraAllConsistencyLevelDelete: dc.GetBoolProperty(dynamicconfig.EnableCassandraAllConsistencyLevelDelete),
-		PersistenceSampleLoggingRate:             dc.GetIntProperty(dynamicconfig.SampleLoggingRate),
-		EnableShardIDMetrics:                     dc.GetBoolProperty(dynamicconfig.EnableShardIDMetrics),
-		EnableHistoryTaskDualWriteMode:           dc.GetBoolProperty(dynamicconfig.EnableNoSQLHistoryTaskDualWriteMode),
-		ReadNoSQLHistoryTaskFromDataBlob:         dc.GetBoolProperty(dynamicconfig.ReadNoSQLHistoryTaskFromDataBlob),
+		EnableSQLAsyncTransaction:                dc.GetBoolProperty(dynamicproperties.EnableSQLAsyncTransaction),
+		EnableCassandraAllConsistencyLevelDelete: dc.GetBoolProperty(dynamicproperties.EnableCassandraAllConsistencyLevelDelete),
+		PersistenceSampleLoggingRate:             dc.GetIntProperty(dynamicproperties.SampleLoggingRate),
+		EnableShardIDMetrics:                     dc.GetBoolProperty(dynamicproperties.EnableShardIDMetrics),
+		EnableHistoryTaskDualWriteMode:           dc.GetBoolProperty(dynamicproperties.EnableNoSQLHistoryTaskDualWriteMode),
+		ReadNoSQLHistoryTaskFromDataBlob:         dc.GetBoolProperty(dynamicproperties.ReadNoSQLHistoryTaskFromDataBlob),
 	}
 }

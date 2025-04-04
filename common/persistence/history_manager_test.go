@@ -34,7 +34,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/codec"
 	"github.com/uber/cadence/common/constants"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/types"
 )
@@ -53,7 +53,7 @@ func setUpMocksForHistoryV2Manager(t *testing.T) (*historyV2ManagerImpl, *MockHi
 		logger,
 		mockSerializer,
 		mockEncoder,
-		dynamicconfig.GetIntPropertyFn(1024*10),
+		dynamicproperties.GetIntPropertyFn(1024*10),
 	)
 	assert.Equal(t, "mock history store", historyManager.GetName())
 

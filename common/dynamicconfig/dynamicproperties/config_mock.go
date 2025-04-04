@@ -18,9 +18,11 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package dynamicconfig
+package dynamicproperties
 
-import "time"
+import (
+	"time"
+)
 
 // These mock functions are for tests to use config properties that are dynamic
 

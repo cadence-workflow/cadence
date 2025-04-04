@@ -36,7 +36,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	commonconstants "github.com/uber/cadence/common/constants"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/metrics"
@@ -3708,10 +3708,10 @@ func TestRatelimitUpdate(t *testing.T) {
 		metrics.NewNoopMetricsClient(),
 		testlogger.New(t),
 		algorithm.Config{
-			NewDataWeight:  func(opts ...dynamicconfig.FilterOption) float64 { return 0.5 },
-			UpdateInterval: func(opts ...dynamicconfig.FilterOption) time.Duration { return 3 * time.Second },
-			DecayAfter:     func(opts ...dynamicconfig.FilterOption) time.Duration { return 6 * time.Second },
-			GcAfter:        func(opts ...dynamicconfig.FilterOption) time.Duration { return time.Minute },
+			NewDataWeight:  func(opts ...dynamicproperties.FilterOption) float64 { return 0.5 },
+			UpdateInterval: func(opts ...dynamicproperties.FilterOption) time.Duration { return 3 * time.Second },
+			DecayAfter:     func(opts ...dynamicproperties.FilterOption) time.Duration { return 6 * time.Second },
+			GcAfter:        func(opts ...dynamicproperties.FilterOption) time.Duration { return time.Minute },
 		},
 	)
 	require.NoError(t, err)

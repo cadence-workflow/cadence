@@ -18,14 +18,13 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package dynamicconfig
+package dynamicproperties
 
 import (
 	"fmt"
 	"math"
 	"time"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
 )
@@ -1464,7 +1463,7 @@ const (
 	// WorkflowDeletionJitterRange defines the duration in minutes for workflow close tasks jittering
 	// KeyName: system.workflowDeletionJitterRange
 	// Value type: Int
-	// Default value: 60 (no jittering)
+	// Default value: 60
 	WorkflowDeletionJitterRange
 
 	// SampleLoggingRate defines the rate we want sampled logs to be logged at
@@ -4084,7 +4083,7 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "matching.enableStandbyTaskCompletion",
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
 		Description:  "MatchingEnableStandbyTaskCompletion is to enable completion of tasks in the domain's passive side",
-		DefaultValue: false,
+		DefaultValue: true,
 	},
 	MatchingEnableAdaptiveScaler: {
 		KeyName:      "matching.enableAdaptiveScaler",
@@ -4312,7 +4311,7 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	EnableAsyncWorkflowConsumption: {
 		KeyName:      "worker.enableAsyncWorkflowConsumption",
 		Description:  "EnableAsyncWorkflowConsumption decides whether to enable async workflows",
-		DefaultValue: false,
+		DefaultValue: true,
 	},
 	EnableStickyQuery: {
 		KeyName:      "system.enableStickyQuery",
@@ -5164,23 +5163,23 @@ var MapKeys = map[MapKey]DynamicMap{
 	TaskSchedulerRoundRobinWeights: {
 		KeyName:      "history.taskSchedulerRoundRobinWeight",
 		Description:  "TaskSchedulerRoundRobinWeights is the priority weight for weighted round robin task scheduler",
-		DefaultValue: common.ConvertIntMapToDynamicConfigMapProperty(DefaultTaskSchedulerRoundRobinWeights),
+		DefaultValue: ConvertIntMapToDynamicConfigMapProperty(DefaultTaskSchedulerRoundRobinWeights),
 	},
 	TaskSchedulerDomainRoundRobinWeights: {
 		KeyName:      "history.taskSchedulerDomainRoundRobinWeight",
 		Description:  "TaskSchedulerDomainRoundRobinWeights is the priority round robin weights for domains",
 		Filters:      []Filter{DomainName},
-		DefaultValue: common.ConvertIntMapToDynamicConfigMapProperty(DefaultTaskSchedulerRoundRobinWeights),
+		DefaultValue: ConvertIntMapToDynamicConfigMapProperty(DefaultTaskSchedulerRoundRobinWeights),
 	},
 	QueueProcessorPendingTaskSplitThreshold: {
 		KeyName:      "history.queueProcessorPendingTaskSplitThreshold",
 		Description:  "QueueProcessorPendingTaskSplitThreshold is the threshold for the number of pending tasks per domain",
-		DefaultValue: common.ConvertIntMapToDynamicConfigMapProperty(map[int]int{0: 1000, 1: 10000}),
+		DefaultValue: ConvertIntMapToDynamicConfigMapProperty(map[int]int{0: 1000, 1: 10000}),
 	},
 	QueueProcessorStuckTaskSplitThreshold: {
 		KeyName:      "history.queueProcessorStuckTaskSplitThreshold",
 		Description:  "QueueProcessorStuckTaskSplitThreshold is the threshold for the number of attempts of a task",
-		DefaultValue: common.ConvertIntMapToDynamicConfigMapProperty(map[int]int{0: 100, 1: 10000}),
+		DefaultValue: ConvertIntMapToDynamicConfigMapProperty(map[int]int{0: 100, 1: 10000}),
 	},
 	PinotOptimizedQueryColumns: {
 		KeyName:      "frontend.pinotOptimizedQueryColumns",
@@ -5264,8 +5263,8 @@ func init() {
 
 var (
 	DefaultTaskSchedulerRoundRobinWeights = map[int]int{
-		common.GetTaskPriority(constants.HighPriorityClass, constants.DefaultPrioritySubclass):    500,
-		common.GetTaskPriority(constants.DefaultPriorityClass, constants.DefaultPrioritySubclass): 20,
-		common.GetTaskPriority(constants.LowPriorityClass, constants.DefaultPrioritySubclass):     5,
+		constants.GetTaskPriority(constants.HighPriorityClass, constants.DefaultPrioritySubclass):    500,
+		constants.GetTaskPriority(constants.DefaultPriorityClass, constants.DefaultPrioritySubclass): 20,
+		constants.GetTaskPriority(constants.LowPriorityClass, constants.DefaultPrioritySubclass):     5,
 	}
 )

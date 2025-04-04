@@ -37,7 +37,7 @@ import (
 	"github.com/uber/cadence/common/asyncworkflow/queue/provider"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
@@ -357,7 +357,7 @@ func TestConsumerManagerEnabledDisabled(t *testing.T) {
 		mockQueueProvider,
 		nil,
 		WithTimeSource(mockTimeSrc),
-		WithEnabledPropertyFn(func(opts ...dynamicconfig.FilterOption) bool {
+		WithEnabledPropertyFn(func(opts ...dynamicproperties.FilterOption) bool {
 			return atomic.LoadInt32(&consumerMgrEnabled) == 1
 		}),
 		WithEmitConsumerCountMetrifFn(func(count int) {

@@ -32,6 +32,7 @@ import (
 	"github.com/uber/cadence/common/client"
 	"github.com/uber/cadence/common/domain"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/quotas"
 	"github.com/uber/cadence/common/quotas/global/collection"
@@ -73,7 +74,7 @@ func NewService(
 		dynamicconfig.NewCollection(
 			params.DynamicConfig,
 			params.Logger,
-			dynamicconfig.ClusterNameFilter(params.ClusterMetadata.GetCurrentClusterName()),
+			dynamicproperties.ClusterNameFilter(params.ClusterMetadata.GetCurrentClusterName()),
 		),
 		params.PersistenceConfig.NumHistoryShards,
 		isAdvancedVisExistInConfig,
@@ -219,7 +220,7 @@ type ratelimiterCollections struct {
 }
 
 func (s *Service) createGlobalQuotaCollections() (globalRatelimiterCollections, error) {
-	create := func(name string, local, global *quotas.Collection, targetRPS dynamicconfig.IntPropertyFnWithDomainFilter) (*collection.Collection, error) {
+	create := func(name string, local, global *quotas.Collection, targetRPS dynamicproperties.IntPropertyFnWithDomainFilter) (*collection.Collection, error) {
 		c, err := collection.New(
 			name,
 			local,
@@ -263,7 +264,7 @@ func (s *Service) createGlobalQuotaCollections() (globalRatelimiterCollections, 
 	}, combinedErr
 }
 func (s *Service) createBaseLimiters() ratelimiterCollections {
-	create := func(shared, perInstance dynamicconfig.IntPropertyFnWithDomainFilter) *quotas.Collection {
+	create := func(shared, perInstance dynamicproperties.IntPropertyFnWithDomainFilter) *quotas.Collection {
 		return quotas.NewCollection(permember.NewPerMemberDynamicRateLimiterFactory(
 			service.Frontend,
 			shared,

@@ -31,7 +31,7 @@ import (
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
@@ -145,9 +145,9 @@ func TestTaskStore(t *testing.T) {
 
 func createTestTaskStore(t *testing.T, domains domainCache, hydrator taskHydrator) *TaskStore {
 	cfg := hconfig.Config{
-		ReplicatorCacheCapacity:         dynamicconfig.GetIntPropertyFn(2),
-		ReplicationTaskGenerationQPS:    dynamicconfig.GetFloatPropertyFn(0),
-		ReplicatorReadTaskMaxRetryCount: dynamicconfig.GetIntPropertyFn(1),
+		ReplicatorCacheCapacity:         dynamicproperties.GetIntPropertyFn(2),
+		ReplicationTaskGenerationQPS:    dynamicproperties.GetFloatPropertyFn(0),
+		ReplicatorReadTaskMaxRetryCount: dynamicproperties.GetIntPropertyFn(1),
 	}
 
 	clusterMetadata := cluster.NewMetadata(0, testClusterC, testClusterC, map[string]config.ClusterInformation{

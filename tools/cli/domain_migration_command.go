@@ -36,8 +36,7 @@ import (
 
 	"github.com/uber/cadence/client/admin"
 	"github.com/uber/cadence/client/frontend"
-	"github.com/uber/cadence/common/dynamicconfig"
-	dc "github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -367,7 +366,7 @@ func (d *domainMigrationCLIImpl) DynamicConfigCheck(c *cli.Context) (DomainMigra
 	var mismatchedConfigs []MismatchedDynamicConfig
 	check := true
 
-	resp := dynamicconfig.ListAllProductionKeys()
+	resp := dynamicproperties.ListAllProductionKeys()
 
 	currDomain := c.String(FlagDomain)
 	newDomain := c.String(FlagDestinationDomain)
@@ -388,14 +387,14 @@ func (d *domainMigrationCLIImpl) DynamicConfigCheck(c *cli.Context) (DomainMigra
 	}
 
 	for _, configKey := range resp {
-		if len(configKey.Filters()) == 1 && configKey.Filters()[0] == dc.DomainName {
+		if len(configKey.Filters()) == 1 && configKey.Filters()[0] == dynamicproperties.DomainName {
 			// Validate dynamic configs with only domainName filter
-			currRequest := dynamicconfig.ToGetDynamicConfigFilterRequest(configKey.String(), []dynamicconfig.FilterOption{
-				dynamicconfig.DomainFilter(currDomain),
+			currRequest := dynamicproperties.ToGetDynamicConfigFilterRequest(configKey.String(), []dynamicproperties.FilterOption{
+				dynamicproperties.DomainFilter(currDomain),
 			})
 
-			newRequest := dynamicconfig.ToGetDynamicConfigFilterRequest(configKey.String(), []dynamicconfig.FilterOption{
-				dynamicconfig.DomainFilter(newDomain),
+			newRequest := dynamicproperties.ToGetDynamicConfigFilterRequest(configKey.String(), []dynamicproperties.FilterOption{
+				dynamicproperties.DomainFilter(newDomain),
 			})
 
 			currResp, err := d.frontendAdminClient.GetDynamicConfig(ctx, currRequest)
@@ -414,26 +413,26 @@ func (d *domainMigrationCLIImpl) DynamicConfigCheck(c *cli.Context) (DomainMigra
 				mismatchedConfigs = append(mismatchedConfigs, MismatchedDynamicConfig{
 					Key: configKey,
 					CurrValues: []*types.DynamicConfigValue{
-						toDynamicConfigValue(currResp.Value, map[dc.Filter]interface{}{
-							dynamicconfig.DomainName: currDomain,
+						toDynamicConfigValue(currResp.Value, map[dynamicproperties.Filter]interface{}{
+							dynamicproperties.DomainName: currDomain,
 						}),
 					},
 					NewValues: []*types.DynamicConfigValue{
-						toDynamicConfigValue(newResp.Value, map[dc.Filter]interface{}{
-							dynamicconfig.DomainName: newDomain,
+						toDynamicConfigValue(newResp.Value, map[dynamicproperties.Filter]interface{}{
+							dynamicproperties.DomainName: newDomain,
 						}),
 					},
 				})
 			}
 
-		} else if len(configKey.Filters()) == 1 && configKey.Filters()[0] == dc.DomainID {
+		} else if len(configKey.Filters()) == 1 && configKey.Filters()[0] == dynamicproperties.DomainID {
 			// Validate dynamic configs with only domainID filter
-			currRequest := dynamicconfig.ToGetDynamicConfigFilterRequest(configKey.String(), []dynamicconfig.FilterOption{
-				dynamicconfig.DomainIDFilter(currentDomainID),
+			currRequest := dynamicproperties.ToGetDynamicConfigFilterRequest(configKey.String(), []dynamicproperties.FilterOption{
+				dynamicproperties.DomainIDFilter(currentDomainID),
 			})
 
-			newRequest := dynamicconfig.ToGetDynamicConfigFilterRequest(configKey.String(), []dynamicconfig.FilterOption{
-				dynamicconfig.DomainIDFilter(destinationDomainID),
+			newRequest := dynamicproperties.ToGetDynamicConfigFilterRequest(configKey.String(), []dynamicproperties.FilterOption{
+				dynamicproperties.DomainIDFilter(destinationDomainID),
 			})
 
 			currResp, err := d.frontendAdminClient.GetDynamicConfig(ctx, currRequest)
@@ -452,33 +451,33 @@ func (d *domainMigrationCLIImpl) DynamicConfigCheck(c *cli.Context) (DomainMigra
 				mismatchedConfigs = append(mismatchedConfigs, MismatchedDynamicConfig{
 					Key: configKey,
 					CurrValues: []*types.DynamicConfigValue{
-						toDynamicConfigValue(currResp.Value, map[dc.Filter]interface{}{
-							dynamicconfig.DomainID: currentDomainID,
+						toDynamicConfigValue(currResp.Value, map[dynamicproperties.Filter]interface{}{
+							dynamicproperties.DomainID: currentDomainID,
 						}),
 					},
 					NewValues: []*types.DynamicConfigValue{
-						toDynamicConfigValue(newResp.Value, map[dc.Filter]interface{}{
-							dynamicconfig.DomainID: destinationDomainID,
+						toDynamicConfigValue(newResp.Value, map[dynamicproperties.Filter]interface{}{
+							dynamicproperties.DomainID: destinationDomainID,
 						}),
 					},
 				})
 			}
 
-		} else if containsFilter(configKey, dc.DomainName.String()) && containsFilter(configKey, dc.TaskListName.String()) {
+		} else if containsFilter(configKey, dynamicproperties.DomainName.String()) && containsFilter(configKey, dynamicproperties.TaskListName.String()) {
 			// Validate dynamic configs with only domainName and TaskList filters
 			taskLists := c.StringSlice(FlagTaskList)
 			var mismatchedCurValues []*types.DynamicConfigValue
 			var mismatchedNewValues []*types.DynamicConfigValue
 			for _, taskList := range taskLists {
 
-				currRequest := dynamicconfig.ToGetDynamicConfigFilterRequest(configKey.String(), []dynamicconfig.FilterOption{
-					dynamicconfig.DomainFilter(currDomain),
-					dynamicconfig.TaskListFilter(taskList),
+				currRequest := dynamicproperties.ToGetDynamicConfigFilterRequest(configKey.String(), []dynamicproperties.FilterOption{
+					dynamicproperties.DomainFilter(currDomain),
+					dynamicproperties.TaskListFilter(taskList),
 				})
 
-				newRequest := dynamicconfig.ToGetDynamicConfigFilterRequest(configKey.String(), []dynamicconfig.FilterOption{
-					dynamicconfig.DomainFilter(newDomain),
-					dynamicconfig.TaskListFilter(taskList),
+				newRequest := dynamicproperties.ToGetDynamicConfigFilterRequest(configKey.String(), []dynamicproperties.FilterOption{
+					dynamicproperties.DomainFilter(newDomain),
+					dynamicproperties.TaskListFilter(taskList),
 				})
 
 				currResp, err := d.frontendAdminClient.GetDynamicConfig(ctx, currRequest)
@@ -494,13 +493,13 @@ func (d *domainMigrationCLIImpl) DynamicConfigCheck(c *cli.Context) (DomainMigra
 
 				if !reflect.DeepEqual(currResp.Value, newResp.Value) {
 					check = false
-					mismatchedCurValues = append(mismatchedCurValues, toDynamicConfigValue(currResp.Value, map[dc.Filter]interface{}{
-						dynamicconfig.DomainName:   currDomain,
-						dynamicconfig.TaskListName: taskLists,
+					mismatchedCurValues = append(mismatchedCurValues, toDynamicConfigValue(currResp.Value, map[dynamicproperties.Filter]interface{}{
+						dynamicproperties.DomainName:   currDomain,
+						dynamicproperties.TaskListName: taskLists,
 					}))
-					mismatchedNewValues = append(mismatchedNewValues, toDynamicConfigValue(newResp.Value, map[dc.Filter]interface{}{
-						dynamicconfig.DomainName:   newDomain,
-						dynamicconfig.TaskListName: taskLists,
+					mismatchedNewValues = append(mismatchedNewValues, toDynamicConfigValue(newResp.Value, map[dynamicproperties.Filter]interface{}{
+						dynamicproperties.DomainName:   newDomain,
+						dynamicproperties.TaskListName: taskLists,
 					}))
 
 				}
@@ -549,7 +548,7 @@ func valueToDataBlob(value interface{}) *types.DataBlob {
 	}
 }
 
-func toDynamicConfigValue(value *types.DataBlob, filterMaps map[dynamicconfig.Filter]interface{}) *types.DynamicConfigValue {
+func toDynamicConfigValue(value *types.DataBlob, filterMaps map[dynamicproperties.Filter]interface{}) *types.DynamicConfigValue {
 	var configFilters []*types.DynamicConfigFilter
 	for filter, filterValue := range filterMaps {
 		configFilters = append(configFilters, &types.DynamicConfigFilter{
@@ -564,7 +563,7 @@ func toDynamicConfigValue(value *types.DataBlob, filterMaps map[dynamicconfig.Fi
 	}
 }
 
-func containsFilter(key dynamicconfig.Key, value string) bool {
+func containsFilter(key dynamicproperties.Key, value string) bool {
 	filters := key.Filters()
 	for _, filter := range filters {
 		if filter.String() == value {

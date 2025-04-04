@@ -34,7 +34,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/reconciliation/invariant"
@@ -101,7 +101,7 @@ func TestTransferQueueProcessor_StartStop(t *testing.T) {
 
 func TestTransferQueueProcessor_StartNotGracefulStop(t *testing.T) {
 	cfg := config.NewForTest()
-	cfg.QueueProcessorEnableGracefulSyncShutdown = dynamicconfig.GetBoolPropertyFn(false)
+	cfg.QueueProcessorEnableGracefulSyncShutdown = dynamicproperties.GetBoolPropertyFn(false)
 
 	ctrl, processor := setupTransferQueueProcessor(t, cfg)
 	defer ctrl.Finish()
@@ -369,7 +369,7 @@ func TestTransferQueueProcessor_completeTransferLoop(t *testing.T) {
 	ctrl, processor := setupTransferQueueProcessor(t, nil)
 	defer ctrl.Finish()
 
-	processor.config.TransferProcessorCompleteTransferInterval = dynamicconfig.GetDurationPropertyFn(10 * time.Millisecond)
+	processor.config.TransferProcessorCompleteTransferInterval = dynamicproperties.GetDurationPropertyFn(10 * time.Millisecond)
 
 	processor.activeQueueProcessor.Start()
 	for _, standbyQueueProcessor := range processor.standbyQueueProcessors {
@@ -401,7 +401,7 @@ func TestTransferQueueProcessor_completeTransferLoop_ErrShardClosed(t *testing.T
 	ctrl, processor := setupTransferQueueProcessor(t, nil)
 	defer ctrl.Finish()
 
-	processor.config.TransferProcessorCompleteTransferInterval = dynamicconfig.GetDurationPropertyFn(30 * time.Millisecond)
+	processor.config.TransferProcessorCompleteTransferInterval = dynamicproperties.GetDurationPropertyFn(30 * time.Millisecond)
 
 	processor.activeQueueProcessor.Start()
 	for _, standbyQueueProcessor := range processor.standbyQueueProcessors {
@@ -429,12 +429,12 @@ func TestTransferQueueProcessor_completeTransferLoop_ErrShardClosed(t *testing.T
 
 func TestTransferQueueProcessor_completeTransferLoop_ErrShardClosedNotGraceful(t *testing.T) {
 	cfg := config.NewForTest()
-	cfg.QueueProcessorEnableGracefulSyncShutdown = dynamicconfig.GetBoolPropertyFn(false)
+	cfg.QueueProcessorEnableGracefulSyncShutdown = dynamicproperties.GetBoolPropertyFn(false)
 
 	ctrl, processor := setupTransferQueueProcessor(t, cfg)
 	defer ctrl.Finish()
 
-	processor.config.TransferProcessorCompleteTransferInterval = dynamicconfig.GetDurationPropertyFn(30 * time.Millisecond)
+	processor.config.TransferProcessorCompleteTransferInterval = dynamicproperties.GetDurationPropertyFn(30 * time.Millisecond)
 
 	processor.activeQueueProcessor.Start()
 	for _, standbyQueueProcessor := range processor.standbyQueueProcessors {
@@ -464,7 +464,7 @@ func TestTransferQueueProcessor_completeTransferLoop_OtherError(t *testing.T) {
 	ctrl, processor := setupTransferQueueProcessor(t, nil)
 	defer ctrl.Finish()
 
-	processor.config.TransferProcessorCompleteTransferInterval = dynamicconfig.GetDurationPropertyFn(30 * time.Millisecond)
+	processor.config.TransferProcessorCompleteTransferInterval = dynamicproperties.GetDurationPropertyFn(30 * time.Millisecond)
 
 	processor.activeQueueProcessor.Start()
 	for _, standbyQueueProcessor := range processor.standbyQueueProcessors {
@@ -968,7 +968,7 @@ func Test_loadTransferProcessingQueueStates(t *testing.T) {
 			defer ctrl.Finish()
 
 			opts := &queueProcessorOptions{
-				EnableLoadQueueStates: func(opts ...dynamicconfig.FilterOption) bool {
+				EnableLoadQueueStates: func(opts ...dynamicproperties.FilterOption) bool {
 					return tt.enableLoadQueueStates
 				},
 			}

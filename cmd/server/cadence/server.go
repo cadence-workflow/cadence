@@ -46,6 +46,7 @@ import (
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/configstore"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/elasticsearch"
 	"github.com/uber/cadence/common/isolationgroup/isolationgroupapi"
 	cadencelog "github.com/uber/cadence/common/log"
@@ -164,7 +165,7 @@ func (s *server) startService() common.Daemon {
 	dc := dynamicconfig.NewCollection(
 		params.DynamicConfig,
 		params.Logger,
-		dynamicconfig.ClusterNameFilter(clusterGroupMetadata.CurrentClusterName),
+		dynamicproperties.ClusterNameFilter(clusterGroupMetadata.CurrentClusterName),
 	)
 
 	params.MetricScope = svcCfg.Metrics.NewScope(params.Logger, params.Name)
@@ -225,13 +226,13 @@ func (s *server) startService() common.Daemon {
 		clusterGroupMetadata.PrimaryClusterName,
 		clusterGroupMetadata.CurrentClusterName,
 		clusterGroupMetadata.ClusterGroup,
-		dc.GetBoolPropertyFilteredByDomain(dynamicconfig.UseNewInitialFailoverVersion),
+		dc.GetBoolPropertyFilteredByDomain(dynamicproperties.UseNewInitialFailoverVersion),
 		params.MetricsClient,
 		params.Logger,
 	)
 
 	advancedVisMode := dc.GetStringProperty(
-		dynamicconfig.WriteVisibilityStoreName,
+		dynamicproperties.WriteVisibilityStoreName,
 	)()
 	isAdvancedVisEnabled := common.IsAdvancedVisibilityWritingEnabled(advancedVisMode, params.PersistenceConfig.IsAdvancedVisibilityConfigExist())
 	if isAdvancedVisEnabled {
@@ -266,8 +267,8 @@ func (s *server) startService() common.Daemon {
 	)
 
 	params.ArchiverProvider = provider.NewArchiverProvider(s.cfg.Archival.History.Provider, s.cfg.Archival.Visibility.Provider)
-	params.PersistenceConfig.TransactionSizeLimit = dc.GetIntProperty(dynamicconfig.TransactionSizeLimit)
-	params.PersistenceConfig.ErrorInjectionRate = dc.GetFloat64Property(dynamicconfig.PersistenceErrorInjectionRate)
+	params.PersistenceConfig.TransactionSizeLimit = dc.GetIntProperty(dynamicproperties.TransactionSizeLimit)
+	params.PersistenceConfig.ErrorInjectionRate = dc.GetFloat64Property(dynamicproperties.PersistenceErrorInjectionRate)
 	params.AuthorizationConfig = s.cfg.Authorization
 	params.BlobstoreClient, err = filestore.NewFilestoreClient(s.cfg.Blobstore.Filestore)
 	if err != nil {
@@ -320,7 +321,7 @@ func (*server) newMethod(
 			wrappedRings[k] = membership.NewShardDistributorResolver(
 				sharddistributorconstants.MatchingNamespace,
 				shardDistributorClient,
-				dc.GetStringProperty(dynamicconfig.MatchingShardDistributionMode),
+				dc.GetStringProperty(dynamicproperties.MatchingShardDistributionMode),
 				v,
 				logger,
 			)
@@ -344,7 +345,7 @@ func (*server) createShardDistributorClient(params resource.Params, dc *dynamicc
 		)
 
 		shardDistributorClient = timeoutwrapper.NewShardDistributorClient(shardDistributorClient, timeoutwrapper.ShardDistributorDefaultTimeout)
-		if errorRate := dc.GetFloat64Property(dynamicconfig.ShardDistributorErrorInjectionRate)(); errorRate != 0 {
+		if errorRate := dc.GetFloat64Property(dynamicproperties.ShardDistributorErrorInjectionRate)(); errorRate != 0 {
 			shardDistributorClient = errorinjectors.NewShardDistributorClient(shardDistributorClient, errorRate, params.Logger)
 		}
 		if params.MetricsClient != nil {
@@ -448,7 +449,7 @@ func validateIndex(config *config.ElasticSearchConfig) {
 
 func getFromDynamicConfig(params resource.Params, dc *dynamicconfig.Collection) func() []string {
 	return func() []string {
-		res, err := isolationgroupapi.MapAllIsolationGroupsResponse(dc.GetListProperty(dynamicconfig.AllIsolationGroups)())
+		res, err := isolationgroupapi.MapAllIsolationGroupsResponse(dc.GetListProperty(dynamicproperties.AllIsolationGroups)())
 		if err != nil {
 			params.Logger.Error("failed to get isolation groups from config", tag.Error(err))
 			return nil

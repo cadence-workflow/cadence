@@ -37,6 +37,7 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/domain"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/mocks"
@@ -336,9 +337,9 @@ func initializeDomainHandler(
 ) domain.Handler {
 
 	domainConfig := domain.Config{
-		MinRetentionDays:  dynamicconfig.GetIntPropertyFn(dynamicconfig.MinRetentionDays.DefaultInt()),
-		MaxBadBinaryCount: dynamicconfig.GetIntPropertyFilteredByDomain(dynamicconfig.FrontendMaxBadBinaries.DefaultInt()),
-		FailoverCoolDown:  dynamicconfig.GetDurationPropertyFnFilteredByDomain(dynamicconfig.FrontendFailoverCoolDown.DefaultDuration()),
+		MinRetentionDays:  dynamicproperties.GetIntPropertyFn(dynamicproperties.MinRetentionDays.DefaultInt()),
+		MaxBadBinaryCount: dynamicproperties.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendMaxBadBinaries.DefaultInt()),
+		FailoverCoolDown:  dynamicproperties.GetDurationPropertyFnFilteredByDomain(dynamicproperties.FrontendFailoverCoolDown.DefaultDuration()),
 	}
 	return domain.NewHandler(
 		domainConfig,

@@ -27,7 +27,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 )
 
 func TestRpsEnforced(t *testing.T) {
@@ -87,9 +87,9 @@ func testRpsEnforcedHelper(tb TokenBucket, ts clock.MockedTimeSource, maxAttempt
 	return
 }
 
-func getTestRPSConfigFn(defaultValue int) (dynamicconfig.IntPropertyFn, *int) {
+func getTestRPSConfigFn(defaultValue int) (dynamicproperties.IntPropertyFn, *int) {
 	rps := defaultValue
-	return func(_ ...dynamicconfig.FilterOption) int {
+	return func(_ ...dynamicproperties.FilterOption) int {
 		return rps
 	}, &rps
 }

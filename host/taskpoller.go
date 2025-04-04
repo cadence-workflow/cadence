@@ -204,7 +204,7 @@ Loop:
 		}
 
 		if dumpHistory {
-			common.PrettyPrintHistory(response.History, p.Logger)
+			PrettyPrintHistory(response.History, p.Logger)
 		}
 
 		// handle query task response

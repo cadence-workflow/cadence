@@ -33,8 +33,8 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/config"
-	dc "github.com/uber/cadence/common/dynamicconfig"
 	c "github.com/uber/cadence/common/dynamicconfig/configstore/config"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	p "github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql"
@@ -86,7 +86,7 @@ func (s *configStoreClientSuite) SetupTest() {
 			SchemaVersion: 1,
 			Entries: []*types.DynamicConfigEntry{
 				{
-					Name: dc.TestGetBoolPropertyKey.String(),
+					Name: dynamicproperties.TestGetBoolPropertyKey.String(),
 					Values: []*types.DynamicConfigValue{
 						{
 							Value: &types.DataBlob{
@@ -128,7 +128,7 @@ func (s *configStoreClientSuite) SetupTest() {
 					},
 				},
 				{
-					Name: dc.TestGetIntPropertyKey.String(),
+					Name: dynamicproperties.TestGetIntPropertyKey.String(),
 					Values: []*types.DynamicConfigValue{
 						{
 							Value: &types.DataBlob{
@@ -155,7 +155,7 @@ func (s *configStoreClientSuite) SetupTest() {
 					},
 				},
 				{
-					Name: dc.TestGetFloat64PropertyKey.String(),
+					Name: dynamicproperties.TestGetFloat64PropertyKey.String(),
 					Values: []*types.DynamicConfigValue{
 						{
 							Value: &types.DataBlob{
@@ -182,7 +182,7 @@ func (s *configStoreClientSuite) SetupTest() {
 					},
 				},
 				{
-					Name: dc.TestGetStringPropertyKey.String(),
+					Name: dynamicproperties.TestGetStringPropertyKey.String(),
 					Values: []*types.DynamicConfigValue{
 						{
 							Value: &types.DataBlob{
@@ -209,7 +209,7 @@ func (s *configStoreClientSuite) SetupTest() {
 					},
 				},
 				{
-					Name: dc.TestGetMapPropertyKey.String(),
+					Name: dynamicproperties.TestGetMapPropertyKey.String(),
 					Values: []*types.DynamicConfigValue{
 						{
 							Value: &types.DataBlob{
@@ -246,7 +246,7 @@ func (s *configStoreClientSuite) SetupTest() {
 					},
 				},
 				{
-					Name: dc.TestGetDurationPropertyKey.String(),
+					Name: dynamicproperties.TestGetDurationPropertyKey.String(),
 					Values: []*types.DynamicConfigValue{
 						{
 							Value: &types.DataBlob{
@@ -338,135 +338,135 @@ func defaultTestSetup(s *configStoreClientSuite) {
 
 func (s *configStoreClientSuite) TestGetValue() {
 	defaultTestSetup(s)
-	v, err := s.client.GetValue(dc.TestGetBoolPropertyKey)
+	v, err := s.client.GetValue(dynamicproperties.TestGetBoolPropertyKey)
 	s.NoError(err)
 	s.Equal(false, v)
 }
 
 func (s *configStoreClientSuite) TestGetValue_NonExistKey() {
 	defaultTestSetup(s)
-	v, err := s.client.GetValue(dc.MaxRetentionDays)
+	v, err := s.client.GetValue(dynamicproperties.MaxRetentionDays)
 	s.Error(err)
-	s.Equal(dc.MaxRetentionDays.DefaultInt(), v)
-	v, err = s.client.GetValue(dc.EnableVisibilitySampling)
+	s.Equal(dynamicproperties.MaxRetentionDays.DefaultInt(), v)
+	v, err = s.client.GetValue(dynamicproperties.EnableVisibilitySampling)
 	s.Error(err)
-	s.Equal(dc.EnableVisibilitySampling.DefaultBool(), v)
-	v, err = s.client.GetValue(dc.FrontendErrorInjectionRate)
+	s.Equal(dynamicproperties.EnableVisibilitySampling.DefaultBool(), v)
+	v, err = s.client.GetValue(dynamicproperties.FrontendErrorInjectionRate)
 	s.Error(err)
-	s.Equal(dc.FrontendErrorInjectionRate.DefaultFloat(), v)
-	v, err = s.client.GetValue(dc.WriteVisibilityStoreName)
+	s.Equal(dynamicproperties.FrontendErrorInjectionRate.DefaultFloat(), v)
+	v, err = s.client.GetValue(dynamicproperties.WriteVisibilityStoreName)
 	s.Error(err)
-	s.Equal(dc.WriteVisibilityStoreName.DefaultString(), v)
-	v, err = s.client.GetValue(dc.FrontendShutdownDrainDuration)
+	s.Equal(dynamicproperties.WriteVisibilityStoreName.DefaultString(), v)
+	v, err = s.client.GetValue(dynamicproperties.FrontendShutdownDrainDuration)
 	s.Error(err)
-	s.Equal(dc.FrontendShutdownDrainDuration.DefaultDuration(), v)
-	v, err = s.client.GetValue(dc.RequiredDomainDataKeys)
+	s.Equal(dynamicproperties.FrontendShutdownDrainDuration.DefaultDuration(), v)
+	v, err = s.client.GetValue(dynamicproperties.RequiredDomainDataKeys)
 	s.Error(err)
-	s.Equal(dc.RequiredDomainDataKeys.DefaultMap(), v)
+	s.Equal(dynamicproperties.RequiredDomainDataKeys.DefaultMap(), v)
 }
 
 func (s *configStoreClientSuite) TestGetValueWithFilters() {
 	defaultTestSetup(s)
 
-	filters := map[dc.Filter]interface{}{
-		dc.DomainName: "global-samples-domain",
+	filters := map[dynamicproperties.Filter]interface{}{
+		dynamicproperties.DomainName: "global-samples-domain",
 	}
 
-	v, err := s.client.GetValueWithFilters(dc.TestGetBoolPropertyKey, filters)
+	v, err := s.client.GetValueWithFilters(dynamicproperties.TestGetBoolPropertyKey, filters)
 	s.NoError(err)
 	s.Equal(true, v)
 
-	filters = map[dc.Filter]interface{}{
-		dc.DomainName: "non-exist-domain",
+	filters = map[dynamicproperties.Filter]interface{}{
+		dynamicproperties.DomainName: "non-exist-domain",
 	}
-	v, err = s.client.GetValueWithFilters(dc.TestGetBoolPropertyKey, filters)
+	v, err = s.client.GetValueWithFilters(dynamicproperties.TestGetBoolPropertyKey, filters)
 	s.NoError(err)
 	s.Equal(false, v)
 
-	filters = map[dc.Filter]interface{}{
-		dc.DomainName:   "samples-domain",
-		dc.TaskListName: "non-exist-tasklist",
+	filters = map[dynamicproperties.Filter]interface{}{
+		dynamicproperties.DomainName:   "samples-domain",
+		dynamicproperties.TaskListName: "non-exist-tasklist",
 	}
-	v, err = s.client.GetValueWithFilters(dc.TestGetBoolPropertyKey, filters)
+	v, err = s.client.GetValueWithFilters(dynamicproperties.TestGetBoolPropertyKey, filters)
 	s.NoError(err)
 	s.Equal(true, v)
 }
 
 func (s *configStoreClientSuite) TestGetValueWithFilters_UnknownFilter() {
 	defaultTestSetup(s)
-	filters := map[dc.Filter]interface{}{
-		dc.DomainName:    "global-samples-domain1",
-		dc.UnknownFilter: "unknown-filter1",
+	filters := map[dynamicproperties.Filter]interface{}{
+		dynamicproperties.DomainName:    "global-samples-domain1",
+		dynamicproperties.UnknownFilter: "unknown-filter1",
 	}
-	v, err := s.client.GetValueWithFilters(dc.TestGetBoolPropertyKey, filters)
+	v, err := s.client.GetValueWithFilters(dynamicproperties.TestGetBoolPropertyKey, filters)
 	s.NoError(err)
 	s.Equal(false, v)
 }
 
 func (s *configStoreClientSuite) TestGetIntValue() {
 	defaultTestSetup(s)
-	v, err := s.client.GetIntValue(dc.TestGetIntPropertyKey, nil)
+	v, err := s.client.GetIntValue(dynamicproperties.TestGetIntPropertyKey, nil)
 	s.NoError(err)
 	s.Equal(1000, v)
 }
 
 func (s *configStoreClientSuite) TestGetIntValue_FilterNotMatch() {
 	defaultTestSetup(s)
-	filters := map[dc.Filter]interface{}{
-		dc.DomainName: "samples-domain",
+	filters := map[dynamicproperties.Filter]interface{}{
+		dynamicproperties.DomainName: "samples-domain",
 	}
-	v, err := s.client.GetIntValue(dc.TestGetIntPropertyKey, filters)
+	v, err := s.client.GetIntValue(dynamicproperties.TestGetIntPropertyKey, filters)
 	s.NoError(err)
 	s.Equal(1000, v)
 }
 
 func (s *configStoreClientSuite) TestGetIntValue_WrongType() {
 	defaultTestSetup(s)
-	filters := map[dc.Filter]interface{}{
-		dc.DomainName: "global-samples-domain",
+	filters := map[dynamicproperties.Filter]interface{}{
+		dynamicproperties.DomainName: "global-samples-domain",
 	}
-	v, err := s.client.GetIntValue(dc.TestGetIntPropertyKey, filters)
+	v, err := s.client.GetIntValue(dynamicproperties.TestGetIntPropertyKey, filters)
 	s.Error(err)
-	s.Equal(dc.TestGetIntPropertyKey.DefaultInt(), v)
+	s.Equal(dynamicproperties.TestGetIntPropertyKey.DefaultInt(), v)
 }
 
 func (s *configStoreClientSuite) TestGetFloatValue() {
 	defaultTestSetup(s)
-	v, err := s.client.GetFloatValue(dc.TestGetFloat64PropertyKey, nil)
+	v, err := s.client.GetFloatValue(dynamicproperties.TestGetFloat64PropertyKey, nil)
 	s.NoError(err)
 	s.Equal(12.0, v)
 }
 
 func (s *configStoreClientSuite) TestGetFloatValue_WrongType() {
 	defaultTestSetup(s)
-	filters := map[dc.Filter]interface{}{
-		dc.DomainName: "samples-domain",
+	filters := map[dynamicproperties.Filter]interface{}{
+		dynamicproperties.DomainName: "samples-domain",
 	}
-	v, err := s.client.GetFloatValue(dc.TestGetFloat64PropertyKey, filters)
+	v, err := s.client.GetFloatValue(dynamicproperties.TestGetFloat64PropertyKey, filters)
 	s.Error(err)
-	s.Equal(dc.TestGetFloat64PropertyKey.DefaultFloat(), v)
+	s.Equal(dynamicproperties.TestGetFloat64PropertyKey.DefaultFloat(), v)
 }
 
 func (s *configStoreClientSuite) TestGetBoolValue() {
 	defaultTestSetup(s)
-	v, err := s.client.GetBoolValue(dc.TestGetBoolPropertyKey, nil)
+	v, err := s.client.GetBoolValue(dynamicproperties.TestGetBoolPropertyKey, nil)
 	s.NoError(err)
 	s.Equal(false, v)
 }
 
 func (s *configStoreClientSuite) TestGetStringValue() {
 	defaultTestSetup(s)
-	filters := map[dc.Filter]interface{}{
-		dc.TaskListName: "random tasklist",
+	filters := map[dynamicproperties.Filter]interface{}{
+		dynamicproperties.TaskListName: "random tasklist",
 	}
-	v, err := s.client.GetStringValue(dc.TestGetStringPropertyKey, filters)
+	v, err := s.client.GetStringValue(dynamicproperties.TestGetStringPropertyKey, filters)
 	s.NoError(err)
 	s.Equal("constrained-string", v)
 }
 
 func (s *configStoreClientSuite) TestGetMapValue() {
 	defaultTestSetup(s)
-	v, err := s.client.GetMapValue(dc.TestGetMapPropertyKey, nil)
+	v, err := s.client.GetMapValue(dynamicproperties.TestGetMapPropertyKey, nil)
 	s.NoError(err)
 	expectedVal := map[string]interface{}{
 		"key1": "1",
@@ -484,40 +484,40 @@ func (s *configStoreClientSuite) TestGetMapValue() {
 
 func (s *configStoreClientSuite) TestGetMapValue_WrongType() {
 	defaultTestSetup(s)
-	filters := map[dc.Filter]interface{}{
-		dc.TaskListName: "random tasklist",
+	filters := map[dynamicproperties.Filter]interface{}{
+		dynamicproperties.TaskListName: "random tasklist",
 	}
-	v, err := s.client.GetMapValue(dc.TestGetMapPropertyKey, filters)
+	v, err := s.client.GetMapValue(dynamicproperties.TestGetMapPropertyKey, filters)
 	s.Error(err)
-	s.Equal(dc.TestGetMapPropertyKey.DefaultMap(), v)
+	s.Equal(dynamicproperties.TestGetMapPropertyKey.DefaultMap(), v)
 }
 
 func (s *configStoreClientSuite) TestGetDurationValue() {
 	defaultTestSetup(s)
-	v, err := s.client.GetDurationValue(dc.TestGetDurationPropertyKey, nil)
+	v, err := s.client.GetDurationValue(dynamicproperties.TestGetDurationPropertyKey, nil)
 	s.NoError(err)
 	s.Equal(time.Minute, v)
 }
 
 func (s *configStoreClientSuite) TestGetDurationValue_NotStringRepresentation() {
 	defaultTestSetup(s)
-	filters := map[dc.Filter]interface{}{
-		dc.DomainName: "samples-domain",
+	filters := map[dynamicproperties.Filter]interface{}{
+		dynamicproperties.DomainName: "samples-domain",
 	}
-	v, err := s.client.GetDurationValue(dc.TestGetDurationPropertyKey, filters)
+	v, err := s.client.GetDurationValue(dynamicproperties.TestGetDurationPropertyKey, filters)
 	s.Error(err)
-	s.Equal(dc.TestGetDurationPropertyKey.DefaultDuration(), v)
+	s.Equal(dynamicproperties.TestGetDurationPropertyKey.DefaultDuration(), v)
 }
 
 func (s *configStoreClientSuite) TestGetDurationValue_ParseFailed() {
 	defaultTestSetup(s)
-	filters := map[dc.Filter]interface{}{
-		dc.DomainName:   "samples-domain",
-		dc.TaskListName: "longIdleTimeTaskList",
+	filters := map[dynamicproperties.Filter]interface{}{
+		dynamicproperties.DomainName:   "samples-domain",
+		dynamicproperties.TaskListName: "longIdleTimeTaskList",
 	}
-	v, err := s.client.GetDurationValue(dc.TestGetDurationPropertyKey, filters)
+	v, err := s.client.GetDurationValue(dynamicproperties.TestGetDurationPropertyKey, filters)
 	s.Error(err)
-	s.Equal(dc.TestGetDurationPropertyKey.DefaultDuration(), v)
+	s.Equal(dynamicproperties.TestGetDurationPropertyKey.DefaultDuration(), v)
 }
 
 func (s *configStoreClientSuite) TestValidateConfig_InvalidConfig() {
@@ -565,7 +565,7 @@ func (s *configStoreClientSuite) TestValidateConfig_InvalidConfig() {
 func (s *configStoreClientSuite) TestMatchFilters() {
 	testCases := []struct {
 		v       *types.DynamicConfigValue
-		filters map[dc.Filter]interface{}
+		filters map[dynamicproperties.Filter]interface{}
 		matched bool
 	}{
 		{
@@ -573,8 +573,8 @@ func (s *configStoreClientSuite) TestMatchFilters() {
 				Value:   nil,
 				Filters: nil,
 			},
-			filters: map[dc.Filter]interface{}{
-				dc.DomainName: "some random domain",
+			filters: map[dynamicproperties.Filter]interface{}{
+				dynamicproperties.DomainName: "some random domain",
 			},
 			matched: true,
 		},
@@ -591,7 +591,7 @@ func (s *configStoreClientSuite) TestMatchFilters() {
 					},
 				},
 			},
-			filters: map[dc.Filter]interface{}{},
+			filters: map[dynamicproperties.Filter]interface{}{},
 			matched: false,
 		},
 		{
@@ -607,8 +607,8 @@ func (s *configStoreClientSuite) TestMatchFilters() {
 					},
 				},
 			},
-			filters: map[dc.Filter]interface{}{
-				dc.DomainName: "some random domain",
+			filters: map[dynamicproperties.Filter]interface{}{
+				dynamicproperties.DomainName: "some random domain",
 			},
 			matched: false,
 		},
@@ -632,9 +632,9 @@ func (s *configStoreClientSuite) TestMatchFilters() {
 					},
 				},
 			},
-			filters: map[dc.Filter]interface{}{
-				dc.DomainName:   "samples-domain",
-				dc.TaskListName: "sample-task-list",
+			filters: map[dynamicproperties.Filter]interface{}{
+				dynamicproperties.DomainName:   "samples-domain",
+				dynamicproperties.TaskListName: "sample-task-list",
 			},
 			matched: true,
 		},
@@ -658,9 +658,9 @@ func (s *configStoreClientSuite) TestMatchFilters() {
 					},
 				},
 			},
-			filters: map[dc.Filter]interface{}{
-				dc.DomainName:   "samples-domain",
-				dc.TaskListName: "sample-task-list",
+			filters: map[dynamicproperties.Filter]interface{}{
+				dynamicproperties.DomainName:   "samples-domain",
+				dynamicproperties.TaskListName: "sample-task-list",
 			},
 			matched: false,
 		},
@@ -677,8 +677,8 @@ func (s *configStoreClientSuite) TestMatchFilters() {
 					},
 				},
 			},
-			filters: map[dc.Filter]interface{}{
-				dc.TaskListName: "sample-task-list",
+			filters: map[dynamicproperties.Filter]interface{}{
+				dynamicproperties.TaskListName: "sample-task-list",
 			},
 			matched: false,
 		},
@@ -696,13 +696,13 @@ func (s *configStoreClientSuite) TestUpdateValue_NilOverwrite() {
 	s.mockManager.EXPECT().
 		UpdateDynamicConfig(gomock.Any(), gomock.Any(), p.DynamicConfig).
 		DoAndReturn(func(_ context.Context, request *p.UpdateDynamicConfigRequest, cfgType p.ConfigType) error {
-			if request.Snapshot.Values.Entries[0].Name != dc.TestGetBoolPropertyKey.String() {
+			if request.Snapshot.Values.Entries[0].Name != dynamicproperties.TestGetBoolPropertyKey.String() {
 				return nil
 			}
 			return errors.New("entry not removed")
 		}).AnyTimes()
 
-	err := s.client.UpdateValue(dc.TestGetBoolPropertyKey, nil)
+	err := s.client.UpdateValue(dynamicproperties.TestGetBoolPropertyKey, nil)
 	s.NoError(err)
 }
 
@@ -723,7 +723,7 @@ func (s *configStoreClientSuite) TestUpdateValue_NoRetrySuccess() {
 		},
 	}
 
-	err := s.client.UpdateValue(dc.TestGetBoolPropertyKey, values)
+	err := s.client.UpdateValue(dynamicproperties.TestGetBoolPropertyKey, values)
 	s.NoError(err)
 
 	snapshot2 := snapshot1
@@ -737,7 +737,7 @@ func (s *configStoreClientSuite) TestUpdateValue_NoRetrySuccess() {
 	err = s.client.update()
 	s.NoError(err)
 
-	v, err := s.client.GetValue(dc.TestGetBoolPropertyKey)
+	v, err := s.client.GetValue(dynamicproperties.TestGetBoolPropertyKey)
 	s.NoError(err)
 	s.Equal(true, v)
 }
@@ -775,7 +775,7 @@ func (s *configStoreClientSuite) TestUpdateValue_SuccessNewKey() {
 		}).AnyTimes()
 
 	s.client.update()
-	err := s.client.UpdateValue(dc.TestGetBoolPropertyKey, values)
+	err := s.client.UpdateValue(dynamicproperties.TestGetBoolPropertyKey, values)
 	s.NoError(err)
 }
 
@@ -797,7 +797,7 @@ func (s *configStoreClientSuite) TestUpdateValue_RetrySuccess() {
 
 	s.client.update()
 
-	err := s.client.UpdateValue(dc.TestGetBoolPropertyKey, []*types.DynamicConfigValue{})
+	err := s.client.UpdateValue(dynamicproperties.TestGetBoolPropertyKey, []*types.DynamicConfigValue{})
 	s.NoError(err)
 }
 
@@ -808,7 +808,7 @@ func (s *configStoreClientSuite) TestUpdateValue_RetryFailure() {
 		UpdateDynamicConfig(gomock.Any(), gomock.Any(), p.DynamicConfig).
 		Return(&p.ConditionFailedError{}).MaxTimes(retryAttempts + 1)
 
-	err := s.client.UpdateValue(dc.TestGetFloat64PropertyKey, []*types.DynamicConfigValue{})
+	err := s.client.UpdateValue(dynamicproperties.TestGetFloat64PropertyKey, []*types.DynamicConfigValue{})
 	s.Error(err)
 }
 
@@ -821,7 +821,7 @@ func (s *configStoreClientSuite) TestUpdateValue_Timeout() {
 			return nil
 		}).AnyTimes()
 
-	err := s.client.UpdateValue(dc.TestGetDurationPropertyKey, []*types.DynamicConfigValue{})
+	err := s.client.UpdateValue(dynamicproperties.TestGetDurationPropertyKey, []*types.DynamicConfigValue{})
 	s.Error(err)
 }
 
@@ -831,7 +831,7 @@ func (s *configStoreClientSuite) TestRestoreValue_NoFilter() {
 		UpdateDynamicConfig(gomock.Any(), gomock.Any(), p.DynamicConfig).
 		DoAndReturn(func(_ context.Context, request *p.UpdateDynamicConfigRequest, cfgType p.ConfigType) error {
 			for _, entry := range request.Snapshot.Values.Entries {
-				if entry.Name == dc.TestGetBoolPropertyKey.String() {
+				if entry.Name == dynamicproperties.TestGetBoolPropertyKey.String() {
 					for _, value := range entry.Values {
 						s.Equal(value.Value.Data, jsonMarshalHelper(true))
 						if value.Filters == nil {
@@ -843,7 +843,7 @@ func (s *configStoreClientSuite) TestRestoreValue_NoFilter() {
 			return nil
 		}).AnyTimes()
 
-	err := s.client.RestoreValue(dc.TestGetBoolPropertyKey, nil)
+	err := s.client.RestoreValue(dynamicproperties.TestGetBoolPropertyKey, nil)
 	s.NoError(err)
 }
 
@@ -863,11 +863,11 @@ func (s *configStoreClientSuite) TestRestoreValue_FilterNoMatch() {
 			return nil
 		}).AnyTimes()
 
-	noMatchFilter := map[dc.Filter]interface{}{
-		dc.DomainName: "unknown-domain",
+	noMatchFilter := map[dynamicproperties.Filter]interface{}{
+		dynamicproperties.DomainName: "unknown-domain",
 	}
 
-	err := s.client.RestoreValue(dc.TestGetBoolPropertyKey, noMatchFilter)
+	err := s.client.RestoreValue(dynamicproperties.TestGetBoolPropertyKey, noMatchFilter)
 	s.NoError(err)
 }
 
@@ -877,18 +877,18 @@ func (s *configStoreClientSuite) TestRestoreValue_FilterMatch() {
 		UpdateDynamicConfig(gomock.Any(), gomock.Any(), p.DynamicConfig).
 		DoAndReturn(func(_ context.Context, request *p.UpdateDynamicConfigRequest, cfgType p.ConfigType) error {
 			for _, resEntry := range request.Snapshot.Values.Entries {
-				if resEntry.Name == dc.TestGetBoolPropertyKey.String() {
+				if resEntry.Name == dynamicproperties.TestGetBoolPropertyKey.String() {
 					s.Equal(2, len(resEntry.Values))
 				}
 			}
 			return nil
 		}).AnyTimes()
 
-	filters := map[dc.Filter]interface{}{
-		dc.DomainName: "samples-domain",
+	filters := map[dynamicproperties.Filter]interface{}{
+		dynamicproperties.DomainName: "samples-domain",
 	}
 
-	err := s.client.RestoreValue(dc.TestGetBoolPropertyKey, filters)
+	err := s.client.RestoreValue(dynamicproperties.TestGetBoolPropertyKey, filters)
 	s.NoError(err)
 }
 
@@ -929,13 +929,13 @@ func (s *configStoreClientSuite) TestListValues_EmptyCache() {
 func (s *configStoreClientSuite) TestValidateKeyDataBlobPair() {
 	tests := []struct {
 		name    string
-		key     dc.Key
+		key     dynamicproperties.Key
 		blob    *types.DataBlob
 		wantErr bool
 	}{
 		{
 			name: "valid int key",
-			key:  dc.TestGetIntPropertyKey,
+			key:  dynamicproperties.TestGetIntPropertyKey,
 			blob: &types.DataBlob{
 				EncodingType: types.EncodingTypeJSON.Ptr(),
 				Data:         jsonMarshalHelper(10),
@@ -944,7 +944,7 @@ func (s *configStoreClientSuite) TestValidateKeyDataBlobPair() {
 		},
 		{
 			name: "invalid int key - wrong type",
-			key:  dc.TestGetIntPropertyKey,
+			key:  dynamicproperties.TestGetIntPropertyKey,
 			blob: &types.DataBlob{
 				EncodingType: types.EncodingTypeJSON.Ptr(),
 				Data:         jsonMarshalHelper(true),
@@ -953,7 +953,7 @@ func (s *configStoreClientSuite) TestValidateKeyDataBlobPair() {
 		},
 		{
 			name: "valid bool key",
-			key:  dc.TestGetBoolPropertyKey,
+			key:  dynamicproperties.TestGetBoolPropertyKey,
 			blob: &types.DataBlob{
 				EncodingType: types.EncodingTypeJSON.Ptr(),
 				Data:         jsonMarshalHelper(true),
@@ -962,7 +962,7 @@ func (s *configStoreClientSuite) TestValidateKeyDataBlobPair() {
 		},
 		{
 			name: "invalid bool key - wrong type",
-			key:  dc.TestGetBoolPropertyKey,
+			key:  dynamicproperties.TestGetBoolPropertyKey,
 			blob: &types.DataBlob{
 				EncodingType: types.EncodingTypeJSON.Ptr(),
 				Data:         jsonMarshalHelper("true"),

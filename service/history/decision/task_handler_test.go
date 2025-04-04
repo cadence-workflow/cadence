@@ -38,7 +38,7 @@ import (
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
 	commonconstants "github.com/uber/cadence/common/constants"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/log/testlogger"
@@ -1634,7 +1634,7 @@ func newTaskHandlerForTest(t *testing.T) *taskHandlerImpl {
 	ctrl := gomock.NewController(t)
 	testLogger := testlogger.New(t)
 	testConfig := config.NewForTest()
-	testConfig.ValidSearchAttributes = func(opts ...dynamicconfig.FilterOption) map[string]interface{} {
+	testConfig.ValidSearchAttributes = func(opts ...dynamicproperties.FilterOption) map[string]interface{} {
 		validSearchAttr := make(map[string]interface{})
 		validSearchAttr["some-key"] = types.IndexedValueTypeString
 		return validSearchAttr

@@ -44,7 +44,7 @@ import (
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/constants"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/elasticsearch"
 	esMocks "github.com/uber/cadence/common/elasticsearch/mocks"
 	"github.com/uber/cadence/common/log"
@@ -107,16 +107,16 @@ func (s *esanalyzerWorkflowTestSuite) SetupTest() {
 	)
 
 	s.config = Config{
-		ESAnalyzerPause:                          dynamicconfig.GetBoolPropertyFn(false),
-		ESAnalyzerTimeWindow:                     dynamicconfig.GetDurationPropertyFn(time.Hour * 24 * 30),
-		ESAnalyzerMaxNumDomains:                  dynamicconfig.GetIntPropertyFn(500),
-		ESAnalyzerMaxNumWorkflowTypes:            dynamicconfig.GetIntPropertyFn(100),
-		ESAnalyzerLimitToTypes:                   dynamicconfig.GetStringPropertyFn(""),
-		ESAnalyzerLimitToDomains:                 dynamicconfig.GetStringPropertyFn(""),
-		ESAnalyzerNumWorkflowsToRefresh:          dynamicconfig.GetIntPropertyFilteredByWorkflowType(2),
-		ESAnalyzerBufferWaitTime:                 dynamicconfig.GetDurationPropertyFilteredByWorkflowType(time.Minute * 30),
-		ESAnalyzerMinNumWorkflowsForAvg:          dynamicconfig.GetIntPropertyFilteredByWorkflowType(100),
-		ESAnalyzerWorkflowDurationWarnThresholds: dynamicconfig.GetStringPropertyFn(""),
+		ESAnalyzerPause:                          dynamicproperties.GetBoolPropertyFn(false),
+		ESAnalyzerTimeWindow:                     dynamicproperties.GetDurationPropertyFn(time.Hour * 24 * 30),
+		ESAnalyzerMaxNumDomains:                  dynamicproperties.GetIntPropertyFn(500),
+		ESAnalyzerMaxNumWorkflowTypes:            dynamicproperties.GetIntPropertyFn(100),
+		ESAnalyzerLimitToTypes:                   dynamicproperties.GetStringPropertyFn(""),
+		ESAnalyzerLimitToDomains:                 dynamicproperties.GetStringPropertyFn(""),
+		ESAnalyzerNumWorkflowsToRefresh:          dynamicproperties.GetIntPropertyFilteredByWorkflowType(2),
+		ESAnalyzerBufferWaitTime:                 dynamicproperties.GetDurationPropertyFilteredByWorkflowType(time.Minute * 30),
+		ESAnalyzerMinNumWorkflowsForAvg:          dynamicproperties.GetIntPropertyFilteredByWorkflowType(100),
+		ESAnalyzerWorkflowDurationWarnThresholds: dynamicproperties.GetStringPropertyFn(""),
 	}
 
 	s.activityEnv = s.NewTestActivityEnvironment()
@@ -187,7 +187,7 @@ func (s *esanalyzerWorkflowTestSuite) TestExecuteWorkflow() {
 }
 
 func (s *esanalyzerWorkflowTestSuite) TestEmitWorkflowVersionMetricsActivity() {
-	s.config.ESAnalyzerWorkflowVersionDomains = dynamicconfig.GetStringPropertyFn(
+	s.config.ESAnalyzerWorkflowVersionDomains = dynamicproperties.GetStringPropertyFn(
 		fmt.Sprintf(`["%s"]`, s.DomainName),
 	)
 	esRaw := `
@@ -286,7 +286,7 @@ func (s *esanalyzerWorkflowTestSuite) TestEmitWorkflowVersionMetricsActivity() {
 }
 
 func (s *esanalyzerWorkflowTestSuite) TestEmitWorkflowTypeCountMetricsActivity() {
-	s.config.ESAnalyzerWorkflowTypeDomains = dynamicconfig.GetStringPropertyFn(
+	s.config.ESAnalyzerWorkflowTypeDomains = dynamicproperties.GetStringPropertyFn(
 		fmt.Sprintf(`["%s"]`, s.DomainName),
 	)
 	esRaw := `

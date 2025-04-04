@@ -27,6 +27,7 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -54,9 +55,9 @@ type (
 
 	archivalConfig struct {
 		staticClusterStatus  ArchivalStatus
-		dynamicClusterStatus dynamicconfig.StringPropertyFn
+		dynamicClusterStatus dynamicproperties.StringPropertyFn
 		staticEnableRead     bool
-		dynamicEnableRead    dynamicconfig.BoolPropertyFn
+		dynamicEnableRead    dynamicproperties.BoolPropertyFn
 		domainDefaultStatus  types.ArchivalStatus
 		domainDefaultURI     string
 	}
@@ -86,18 +87,18 @@ func NewArchivalMetadata(
 ) ArchivalMetadata {
 	historyConfig := NewArchivalConfig(
 		historyStatus,
-		dc.GetStringProperty(dynamicconfig.HistoryArchivalStatus),
+		dc.GetStringProperty(dynamicproperties.HistoryArchivalStatus),
 		historyReadEnabled,
-		dc.GetBoolProperty(dynamicconfig.EnableReadFromHistoryArchival),
+		dc.GetBoolProperty(dynamicproperties.EnableReadFromHistoryArchival),
 		domainDefaults.History.Status,
 		domainDefaults.History.URI,
 	)
 
 	visibilityConfig := NewArchivalConfig(
 		visibilityStatus,
-		dc.GetStringProperty(dynamicconfig.VisibilityArchivalStatus),
+		dc.GetStringProperty(dynamicproperties.VisibilityArchivalStatus),
 		visibilityReadEnabled,
-		dc.GetBoolProperty(dynamicconfig.EnableReadFromVisibilityArchival),
+		dc.GetBoolProperty(dynamicproperties.EnableReadFromVisibilityArchival),
 		domainDefaults.Visibility.Status,
 		domainDefaults.Visibility.URI,
 	)
@@ -119,9 +120,9 @@ func (metadata *archivalMetadata) GetVisibilityConfig() ArchivalConfig {
 // NewArchivalConfig constructs a new valid ArchivalConfig
 func NewArchivalConfig(
 	staticClusterStatusStr string,
-	dynamicClusterStatus dynamicconfig.StringPropertyFn,
+	dynamicClusterStatus dynamicproperties.StringPropertyFn,
 	staticEnableRead bool,
-	dynamicEnableRead dynamicconfig.BoolPropertyFn,
+	dynamicEnableRead dynamicproperties.BoolPropertyFn,
 	domainDefaultStatusStr string,
 	domainDefaultURI string,
 ) ArchivalConfig {

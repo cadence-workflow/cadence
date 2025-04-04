@@ -33,7 +33,7 @@ import (
 	"go.uber.org/yarpc/yarpcerrors"
 
 	"github.com/uber/cadence/common/cache"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
@@ -72,7 +72,7 @@ func TestSignalMetricHasSignalName(t *testing.T) {
 	mockDomainCache := cache.NewMockDomainCache(ctrl)
 	testScope := tally.NewTestScope("test", nil)
 	metricsClient := metrics.NewClient(testScope, metrics.Frontend)
-	handler := NewAPIHandler(mockHandler, testlogger.New(t), metricsClient, mockDomainCache, &config.Config{EmitSignalNameMetricsTag: dynamicconfig.GetBoolPropertyFnFilteredByDomain(true)})
+	handler := NewAPIHandler(mockHandler, testlogger.New(t), metricsClient, mockDomainCache, &config.Config{EmitSignalNameMetricsTag: dynamicproperties.GetBoolPropertyFnFilteredByDomain(true)})
 
 	signalRequest := &types.SignalWorkflowExecutionRequest{
 		SignalName: "test_signal",

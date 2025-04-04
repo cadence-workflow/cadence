@@ -29,7 +29,7 @@ import (
 	"github.com/xwb1989/sqlparser"
 
 	"github.com/uber/cadence/common/definition"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -372,8 +372,8 @@ func TestValidateQuery(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			validSearchAttr := dynamicconfig.GetMapPropertyFn(definition.GetDefaultIndexedKeys())
-			pinotOptimizedQueryColumns := dynamicconfig.GetMapPropertyFn(map[string]interface{}{
+			validSearchAttr := dynamicproperties.GetMapPropertyFn(definition.GetDefaultIndexedKeys())
+			pinotOptimizedQueryColumns := dynamicproperties.GetMapPropertyFn(map[string]interface{}{
 				"CustomTestField": "test",
 			})
 			qv := NewPinotQueryValidator(validSearchAttr, pinotOptimizedQueryColumns)
@@ -408,8 +408,8 @@ func TestProcessInClause_FailedInputExprCases(t *testing.T) {
 	}
 
 	// Create a new VisibilityQueryValidator
-	validSearchAttr := dynamicconfig.GetMapPropertyFn(definition.GetDefaultIndexedKeys())
-	pinotOptimizedQueryColumns := dynamicconfig.GetMapPropertyFn(map[string]interface{}{
+	validSearchAttr := dynamicproperties.GetMapPropertyFn(definition.GetDefaultIndexedKeys())
+	pinotOptimizedQueryColumns := dynamicproperties.GetMapPropertyFn(map[string]interface{}{
 		"CustomTestField": "test",
 	})
 	qv := NewPinotQueryValidator(validSearchAttr, pinotOptimizedQueryColumns)
@@ -511,8 +511,8 @@ func TestIsOptimizedQueryColumn(t *testing.T) {
 			searchAttr := definition.GetDefaultIndexedKeys()
 			searchAttr["CustomTestKeywordField"] = types.IndexedValueTypeKeyword
 			searchAttr["CustomTestStringField"] = types.IndexedValueTypeString
-			validSearchAttr := dynamicconfig.GetMapPropertyFn(searchAttr)
-			pinotOptimizedQueryColumns := dynamicconfig.GetMapPropertyFn(map[string]interface{}{
+			validSearchAttr := dynamicproperties.GetMapPropertyFn(searchAttr)
+			pinotOptimizedQueryColumns := dynamicproperties.GetMapPropertyFn(map[string]interface{}{
 				"CustomTestKeywordField": "test",
 				"CustomTestStringField":  "test",
 			})

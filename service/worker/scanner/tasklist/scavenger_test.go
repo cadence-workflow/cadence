@@ -33,7 +33,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/cache"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/mocks"
@@ -76,9 +76,9 @@ func (s *ScavengerTestSuite) SetupTest() {
 		metrics.NewClient(tally.NoopScope, metrics.Worker),
 		logger,
 		&Options{
-			EnableCleaning:           dynamicconfig.GetBoolPropertyFn(true),
-			TaskBatchSizeFn:          dynamicconfig.GetIntPropertyFn(16),
-			GetOrphanTasksPageSizeFn: dynamicconfig.GetIntPropertyFn(16),
+			EnableCleaning:           dynamicproperties.GetBoolPropertyFn(true),
+			TaskBatchSizeFn:          dynamicproperties.GetIntPropertyFn(16),
+			GetOrphanTasksPageSizeFn: dynamicproperties.GetIntPropertyFn(16),
 			ExecutorPollInterval:     time.Millisecond * 50,
 		},
 		s.mockDomainCache,

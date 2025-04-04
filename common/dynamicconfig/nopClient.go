@@ -24,6 +24,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/types"
 )
@@ -31,54 +32,54 @@ import (
 // nopClient is a dummy implements of dynamicconfig Client interface, all operations will always return default values.
 type nopClient struct{}
 
-func (mc *nopClient) GetValue(name Key) (interface{}, error) {
+func (mc *nopClient) GetValue(name dynamicproperties.Key) (interface{}, error) {
 	return nil, NotFoundError
 }
 
-func (mc *nopClient) GetValueWithFilters(name Key, filters map[Filter]interface{}) (interface{}, error) {
+func (mc *nopClient) GetValueWithFilters(name dynamicproperties.Key, filters map[dynamicproperties.Filter]interface{}) (interface{}, error) {
 	return nil, NotFoundError
 }
 
-func (mc *nopClient) GetIntValue(name IntKey, filters map[Filter]interface{}) (int, error) {
+func (mc *nopClient) GetIntValue(name dynamicproperties.IntKey, filters map[dynamicproperties.Filter]interface{}) (int, error) {
 	return name.DefaultInt(), NotFoundError
 }
 
-func (mc *nopClient) GetFloatValue(name FloatKey, filters map[Filter]interface{}) (float64, error) {
+func (mc *nopClient) GetFloatValue(name dynamicproperties.FloatKey, filters map[dynamicproperties.Filter]interface{}) (float64, error) {
 	return name.DefaultFloat(), NotFoundError
 }
 
-func (mc *nopClient) GetBoolValue(name BoolKey, filters map[Filter]interface{}) (bool, error) {
-	if filters[DomainName] == "TestRawHistoryDomain" {
+func (mc *nopClient) GetBoolValue(name dynamicproperties.BoolKey, filters map[dynamicproperties.Filter]interface{}) (bool, error) {
+	if filters[dynamicproperties.DomainName] == "TestRawHistoryDomain" {
 		return true, NotFoundError
 	}
 	return name.DefaultBool(), NotFoundError
 }
 
-func (mc *nopClient) GetStringValue(name StringKey, filters map[Filter]interface{}) (string, error) {
+func (mc *nopClient) GetStringValue(name dynamicproperties.StringKey, filters map[dynamicproperties.Filter]interface{}) (string, error) {
 	return name.DefaultString(), NotFoundError
 }
 
-func (mc *nopClient) GetMapValue(name MapKey, filters map[Filter]interface{}) (map[string]interface{}, error) {
+func (mc *nopClient) GetMapValue(name dynamicproperties.MapKey, filters map[dynamicproperties.Filter]interface{}) (map[string]interface{}, error) {
 	return name.DefaultMap(), NotFoundError
 }
 
-func (mc *nopClient) GetDurationValue(name DurationKey, filters map[Filter]interface{}) (time.Duration, error) {
+func (mc *nopClient) GetDurationValue(name dynamicproperties.DurationKey, filters map[dynamicproperties.Filter]interface{}) (time.Duration, error) {
 	return name.DefaultDuration(), NotFoundError
 }
 
-func (mc *nopClient) GetListValue(name ListKey, filters map[Filter]interface{}) ([]interface{}, error) {
+func (mc *nopClient) GetListValue(name dynamicproperties.ListKey, filters map[dynamicproperties.Filter]interface{}) ([]interface{}, error) {
 	return name.DefaultList(), NotFoundError
 }
 
-func (mc *nopClient) UpdateValue(name Key, value interface{}) error {
+func (mc *nopClient) UpdateValue(name dynamicproperties.Key, value interface{}) error {
 	return errors.New("not supported for nop client")
 }
 
-func (mc *nopClient) RestoreValue(name Key, filters map[Filter]interface{}) error {
+func (mc *nopClient) RestoreValue(name dynamicproperties.Key, filters map[dynamicproperties.Filter]interface{}) error {
 	return errors.New("not supported for nop client")
 }
 
-func (mc *nopClient) ListValue(name Key) ([]*types.DynamicConfigEntry, error) {
+func (mc *nopClient) ListValue(name dynamicproperties.Key) ([]*types.DynamicConfigEntry, error) {
 	return nil, errors.New("not supported for nop client")
 }
 

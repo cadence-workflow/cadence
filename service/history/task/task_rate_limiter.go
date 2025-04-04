@@ -28,7 +28,7 @@ import (
 	"context"
 
 	"github.com/uber/cadence/common/cache"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	dynamicquotas "github.com/uber/cadence/common/dynamicconfig/quotas"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -49,8 +49,8 @@ type (
 		metricsScope     metrics.Scope
 		domainCache      cache.DomainCache
 		limiters         quotas.ICollection
-		enabled          dynamicconfig.BoolPropertyFn
-		enableShadowMode dynamicconfig.BoolPropertyFnWithDomainFilter
+		enabled          dynamicproperties.BoolPropertyFn
+		enableShadowMode dynamicproperties.BoolPropertyFnWithDomainFilter
 	}
 )
 

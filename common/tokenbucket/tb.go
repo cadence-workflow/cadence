@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 )
 
 type (
@@ -72,7 +72,7 @@ type (
 	dynamicTokenBucketImpl struct {
 		tb         *tokenBucketImpl
 		currentRPS int32
-		rps        dynamicconfig.IntPropertyFn
+		rps        dynamicproperties.IntPropertyFn
 	}
 
 	priorityTokenBucketImpl struct {
@@ -217,7 +217,7 @@ func (tb *tokenBucketImpl) isOverflowRefillDue(now time.Time) bool {
 // @param rps
 //
 //	Dynamic config function for rate per second
-func NewDynamicTokenBucket(rps dynamicconfig.IntPropertyFn, timeSource clock.TimeSource) TokenBucket {
+func NewDynamicTokenBucket(rps dynamicproperties.IntPropertyFn, timeSource clock.TimeSource) TokenBucket {
 	initialRPS := rps()
 	return &dynamicTokenBucketImpl{
 		rps:        rps,

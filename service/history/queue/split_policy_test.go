@@ -29,7 +29,7 @@ import (
 	"github.com/uber-go/tally"
 	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
@@ -82,7 +82,7 @@ func (s *splitPolicySuite) TestPendingTaskSplitPolicy() {
 	}
 	pendingTaskSplitPolicy := NewPendingTaskSplitPolicy(
 		pendingTaskThreshold,
-		dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
+		dynamicproperties.GetBoolPropertyFnFilteredByDomain(true),
 		lookAheadFunc,
 		maxNewQueueLevel,
 		s.logger,
@@ -291,7 +291,7 @@ func (s *splitPolicySuite) TestStuckTaskSplitPolicy() {
 
 	stuckTaskSplitPolicy := NewStuckTaskSplitPolicy(
 		attemptThreshold,
-		dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
+		dynamicproperties.GetBoolPropertyFnFilteredByDomain(true),
 		maxNewQueueLevel,
 		s.logger,
 		s.metricsScope,
@@ -649,7 +649,7 @@ func (s *splitPolicySuite) TestRandomSplitPolicy() {
 		)
 		splitPolicy := NewRandomSplitPolicy(
 			tc.splitProbability,
-			dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
+			dynamicproperties.GetBoolPropertyFnFilteredByDomain(true),
 			maxNewQueueLevel,
 			lookAheadFunc,
 			s.logger,

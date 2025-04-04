@@ -32,7 +32,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
@@ -67,7 +67,7 @@ func (s *redispatcherSuite) SetupTest() {
 	s.mockProcessor = NewMockProcessor(s.controller)
 	s.mockTimeSource = clock.NewMockedTimeSource()
 	s.options = &RedispatcherOptions{
-		TaskRedispatchInterval: dynamicconfig.GetDurationPropertyFn(time.Millisecond * 50),
+		TaskRedispatchInterval: dynamicproperties.GetDurationPropertyFn(time.Millisecond * 50),
 	}
 
 	s.metricsScope = metrics.NewClient(tally.NoopScope, metrics.History).Scope(0)

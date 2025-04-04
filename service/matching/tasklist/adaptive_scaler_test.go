@@ -35,6 +35,7 @@ import (
 	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
@@ -373,12 +374,12 @@ func TestAdaptiveScalerRun(t *testing.T) {
 			taskListID, err := NewIdentifier("test-domain-id", "test-task-list", 0)
 			require.NoError(t, err)
 			scaler, deps := setupMocksForAdaptiveScaler(t, taskListID)
-			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.MatchingEnableAdaptiveScaler, true))
-			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.MatchingEnableGetNumberOfPartitionsFromCache, true))
-			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.MatchingPartitionUpscaleRPS, 200))
-			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.MatchingPartitionDownscaleFactor, 0.75))
-			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.MatchingPartitionUpscaleSustainedDuration, time.Second))
-			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.MatchingPartitionDownscaleSustainedDuration, time.Second))
+			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.MatchingEnableAdaptiveScaler, true))
+			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.MatchingEnableGetNumberOfPartitionsFromCache, true))
+			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.MatchingPartitionUpscaleRPS, 200))
+			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.MatchingPartitionDownscaleFactor, 0.75))
+			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.MatchingPartitionUpscaleSustainedDuration, time.Second))
+			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.MatchingPartitionDownscaleSustainedDuration, time.Second))
 			tc.mockSetup(deps)
 
 			for i := 0; i < tc.cycles; i++ {

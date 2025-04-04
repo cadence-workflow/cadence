@@ -37,7 +37,7 @@ import (
 
 	gomock "go.uber.org/mock/gomock"
 
-	dynamicconfig "github.com/uber/cadence/common/dynamicconfig"
+	dynamicproperties "github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	types "github.com/uber/cadence/common/types"
 )
 
@@ -66,7 +66,7 @@ func (m *MockClient) EXPECT() *MockClientMockRecorder {
 }
 
 // GetBoolValue mocks base method.
-func (m *MockClient) GetBoolValue(name dynamicconfig.BoolKey, filters map[dynamicconfig.Filter]any) (bool, error) {
+func (m *MockClient) GetBoolValue(name dynamicproperties.BoolKey, filters map[dynamicproperties.Filter]any) (bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetBoolValue", name, filters)
 	ret0, _ := ret[0].(bool)
@@ -81,7 +81,7 @@ func (mr *MockClientMockRecorder) GetBoolValue(name, filters any) *gomock.Call {
 }
 
 // GetDurationValue mocks base method.
-func (m *MockClient) GetDurationValue(name dynamicconfig.DurationKey, filters map[dynamicconfig.Filter]any) (time.Duration, error) {
+func (m *MockClient) GetDurationValue(name dynamicproperties.DurationKey, filters map[dynamicproperties.Filter]any) (time.Duration, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetDurationValue", name, filters)
 	ret0, _ := ret[0].(time.Duration)
@@ -96,7 +96,7 @@ func (mr *MockClientMockRecorder) GetDurationValue(name, filters any) *gomock.Ca
 }
 
 // GetFloatValue mocks base method.
-func (m *MockClient) GetFloatValue(name dynamicconfig.FloatKey, filters map[dynamicconfig.Filter]any) (float64, error) {
+func (m *MockClient) GetFloatValue(name dynamicproperties.FloatKey, filters map[dynamicproperties.Filter]any) (float64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetFloatValue", name, filters)
 	ret0, _ := ret[0].(float64)
@@ -111,7 +111,7 @@ func (mr *MockClientMockRecorder) GetFloatValue(name, filters any) *gomock.Call 
 }
 
 // GetIntValue mocks base method.
-func (m *MockClient) GetIntValue(name dynamicconfig.IntKey, filters map[dynamicconfig.Filter]any) (int, error) {
+func (m *MockClient) GetIntValue(name dynamicproperties.IntKey, filters map[dynamicproperties.Filter]any) (int, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetIntValue", name, filters)
 	ret0, _ := ret[0].(int)
@@ -126,7 +126,7 @@ func (mr *MockClientMockRecorder) GetIntValue(name, filters any) *gomock.Call {
 }
 
 // GetListValue mocks base method.
-func (m *MockClient) GetListValue(name dynamicconfig.ListKey, filters map[dynamicconfig.Filter]any) ([]any, error) {
+func (m *MockClient) GetListValue(name dynamicproperties.ListKey, filters map[dynamicproperties.Filter]any) ([]any, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetListValue", name, filters)
 	ret0, _ := ret[0].([]any)
@@ -141,7 +141,7 @@ func (mr *MockClientMockRecorder) GetListValue(name, filters any) *gomock.Call {
 }
 
 // GetMapValue mocks base method.
-func (m *MockClient) GetMapValue(name dynamicconfig.MapKey, filters map[dynamicconfig.Filter]any) (map[string]any, error) {
+func (m *MockClient) GetMapValue(name dynamicproperties.MapKey, filters map[dynamicproperties.Filter]any) (map[string]any, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetMapValue", name, filters)
 	ret0, _ := ret[0].(map[string]any)
@@ -156,7 +156,7 @@ func (mr *MockClientMockRecorder) GetMapValue(name, filters any) *gomock.Call {
 }
 
 // GetStringValue mocks base method.
-func (m *MockClient) GetStringValue(name dynamicconfig.StringKey, filters map[dynamicconfig.Filter]any) (string, error) {
+func (m *MockClient) GetStringValue(name dynamicproperties.StringKey, filters map[dynamicproperties.Filter]any) (string, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetStringValue", name, filters)
 	ret0, _ := ret[0].(string)
@@ -171,7 +171,7 @@ func (mr *MockClientMockRecorder) GetStringValue(name, filters any) *gomock.Call
 }
 
 // GetValue mocks base method.
-func (m *MockClient) GetValue(name dynamicconfig.Key) (any, error) {
+func (m *MockClient) GetValue(name dynamicproperties.Key) (any, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetValue", name)
 	ret0, _ := ret[0].(any)
@@ -186,7 +186,7 @@ func (mr *MockClientMockRecorder) GetValue(name any) *gomock.Call {
 }
 
 // GetValueWithFilters mocks base method.
-func (m *MockClient) GetValueWithFilters(name dynamicconfig.Key, filters map[dynamicconfig.Filter]any) (any, error) {
+func (m *MockClient) GetValueWithFilters(name dynamicproperties.Key, filters map[dynamicproperties.Filter]any) (any, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetValueWithFilters", name, filters)
 	ret0, _ := ret[0].(any)
@@ -201,7 +201,7 @@ func (mr *MockClientMockRecorder) GetValueWithFilters(name, filters any) *gomock
 }
 
 // ListValue mocks base method.
-func (m *MockClient) ListValue(name dynamicconfig.Key) ([]*types.DynamicConfigEntry, error) {
+func (m *MockClient) ListValue(name dynamicproperties.Key) ([]*types.DynamicConfigEntry, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListValue", name)
 	ret0, _ := ret[0].([]*types.DynamicConfigEntry)
@@ -216,7 +216,7 @@ func (mr *MockClientMockRecorder) ListValue(name any) *gomock.Call {
 }
 
 // RestoreValue mocks base method.
-func (m *MockClient) RestoreValue(name dynamicconfig.Key, filters map[dynamicconfig.Filter]any) error {
+func (m *MockClient) RestoreValue(name dynamicproperties.Key, filters map[dynamicproperties.Filter]any) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RestoreValue", name, filters)
 	ret0, _ := ret[0].(error)
@@ -254,7 +254,7 @@ func (mr *MockClientMockRecorder) Stop() *gomock.Call {
 }
 
 // UpdateValue mocks base method.
-func (m *MockClient) UpdateValue(name dynamicconfig.Key, value any) error {
+func (m *MockClient) UpdateValue(name dynamicproperties.Key, value any) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateValue", name, value)
 	ret0, _ := ret[0].(error)

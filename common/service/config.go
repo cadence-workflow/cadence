@@ -22,37 +22,37 @@ package service
 
 import (
 	"github.com/uber/cadence/common/backoff"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 )
 
 type (
 	// Config is a subset of the service dynamic config for single service
 	Config struct {
-		PersistenceMaxQPS       dynamicconfig.IntPropertyFn
-		PersistenceGlobalMaxQPS dynamicconfig.IntPropertyFn
-		ThrottledLoggerMaxRPS   dynamicconfig.IntPropertyFn
+		PersistenceMaxQPS       dynamicproperties.IntPropertyFn
+		PersistenceGlobalMaxQPS dynamicproperties.IntPropertyFn
+		ThrottledLoggerMaxRPS   dynamicproperties.IntPropertyFn
 
 		// WriteVisibilityStoreName is the write mode of visibility
-		WriteVisibilityStoreName dynamicconfig.StringPropertyFn
+		WriteVisibilityStoreName dynamicproperties.StringPropertyFn
 		// EnableLogCustomerQueryParameter is to enable log customer parameters
-		EnableLogCustomerQueryParameter dynamicconfig.BoolPropertyFnWithDomainFilter
+		EnableLogCustomerQueryParameter dynamicproperties.BoolPropertyFnWithDomainFilter
 		// ReadVisibilityStoreName is the read store for visibility
-		ReadVisibilityStoreName dynamicconfig.StringPropertyFnWithDomainFilter
+		ReadVisibilityStoreName dynamicproperties.StringPropertyFnWithDomainFilter
 
 		// configs for db visibility
-		EnableDBVisibilitySampling                  dynamicconfig.BoolPropertyFn                `yaml:"-" json:"-"`
-		EnableReadDBVisibilityFromClosedExecutionV2 dynamicconfig.BoolPropertyFn                `yaml:"-" json:"-"`
-		WriteDBVisibilityOpenMaxQPS                 dynamicconfig.IntPropertyFnWithDomainFilter `yaml:"-" json:"-"`
-		WriteDBVisibilityClosedMaxQPS               dynamicconfig.IntPropertyFnWithDomainFilter `yaml:"-" json:"-"`
-		DBVisibilityListMaxQPS                      dynamicconfig.IntPropertyFnWithDomainFilter `yaml:"-" json:"-"`
+		EnableDBVisibilitySampling                  dynamicproperties.BoolPropertyFn                `yaml:"-" json:"-"`
+		EnableReadDBVisibilityFromClosedExecutionV2 dynamicproperties.BoolPropertyFn                `yaml:"-" json:"-"`
+		WriteDBVisibilityOpenMaxQPS                 dynamicproperties.IntPropertyFnWithDomainFilter `yaml:"-" json:"-"`
+		WriteDBVisibilityClosedMaxQPS               dynamicproperties.IntPropertyFnWithDomainFilter `yaml:"-" json:"-"`
+		DBVisibilityListMaxQPS                      dynamicproperties.IntPropertyFnWithDomainFilter `yaml:"-" json:"-"`
 
 		// configs for es visibility
-		ESIndexMaxResultWindow          dynamicconfig.IntPropertyFn `yaml:"-" json:"-"`
-		ValidSearchAttributes           dynamicconfig.MapPropertyFn `yaml:"-" json:"-"`
-		PinotOptimizedQueryColumns      dynamicconfig.MapPropertyFn `yaml:"-" json:"-"`
-		SearchAttributesHiddenValueKeys dynamicconfig.MapPropertyFn `yaml:"-" json:"-"`
+		ESIndexMaxResultWindow          dynamicproperties.IntPropertyFn `yaml:"-" json:"-"`
+		ValidSearchAttributes           dynamicproperties.MapPropertyFn `yaml:"-" json:"-"`
+		PinotOptimizedQueryColumns      dynamicproperties.MapPropertyFn `yaml:"-" json:"-"`
+		SearchAttributesHiddenValueKeys dynamicproperties.MapPropertyFn `yaml:"-" json:"-"`
 		// deprecated: never read from, all ES reads and writes erroneously use PersistenceMaxQPS
-		ESVisibilityListMaxQPS dynamicconfig.IntPropertyFnWithDomainFilter `yaml:"-" json:"-"`
+		ESVisibilityListMaxQPS dynamicproperties.IntPropertyFnWithDomainFilter `yaml:"-" json:"-"`
 
 		IsErrorRetryableFunction backoff.IsRetryable
 	}

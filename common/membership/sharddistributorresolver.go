@@ -26,7 +26,7 @@ import (
 	"context"
 
 	"github.com/uber/cadence/client/sharddistributor"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/types"
@@ -43,7 +43,7 @@ var (
 
 type shardDistributorResolver struct {
 	namespace             string
-	shardDistributionMode dynamicconfig.StringPropertyFn
+	shardDistributionMode dynamicproperties.StringPropertyFn
 	client                sharddistributor.Client
 	ring                  SingleProvider
 	logger                log.Logger
@@ -56,7 +56,7 @@ func (s shardDistributorResolver) AddressToHost(owner string) (HostInfo, error) 
 func NewShardDistributorResolver(
 	namespace string,
 	client sharddistributor.Client,
-	shardDistributionMode dynamicconfig.StringPropertyFn,
+	shardDistributionMode dynamicproperties.StringPropertyFn,
 	ring SingleProvider,
 	logger log.Logger,
 ) SingleProvider {

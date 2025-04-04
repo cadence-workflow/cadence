@@ -28,7 +28,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -38,7 +38,7 @@ func TestCache(t *testing.T) {
 	task3 := &types.ReplicationTask{SourceTaskID: 300}
 	task4 := &types.ReplicationTask{SourceTaskID: 400}
 
-	cache := NewCache(dynamicconfig.GetIntPropertyFn(3))
+	cache := NewCache(dynamicproperties.GetIntPropertyFn(3))
 
 	assert.Equal(t, 0, cache.Size())
 	require.NoError(t, cache.Put(task2))
@@ -100,7 +100,7 @@ func TestCache(t *testing.T) {
 }
 
 func BenchmarkCache(b *testing.B) {
-	cache := NewCache(dynamicconfig.GetIntPropertyFn(10000))
+	cache := NewCache(dynamicproperties.GetIntPropertyFn(10000))
 	for i := 0; i < 5000; i++ {
 		cache.Put(&types.ReplicationTask{SourceTaskID: int64(i * 100)})
 	}

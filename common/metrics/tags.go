@@ -65,7 +65,6 @@ const (
 	workflowCloseStatus       = "workflow_close_status"
 	isolationEnabled          = "isolation_enabled"
 	isolationGroup            = "isolation_group"
-	originalIsolationGroup    = "original_isolation_group"
 	leakCause                 = "leak_cause"
 	topic                     = "topic"
 	mode                      = "mode"
@@ -312,10 +311,6 @@ func WorkflowTerminationReasonTag(value string) Tag {
 func WorkflowCloseStatusTag(value string) Tag {
 	value = safeAlphaNumericStringRE.ReplaceAllString(value, "_")
 	return simpleMetric{key: workflowCloseStatus, value: value}
-}
-
-func OriginalIsolationGroupTag(group string) Tag {
-	return simpleMetric{key: originalIsolationGroup, value: sanitizer.Value(group)}
 }
 
 func IsolationGroupTag(group string) Tag {
