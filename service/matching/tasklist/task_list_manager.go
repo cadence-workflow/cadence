@@ -1034,6 +1034,24 @@ func newTaskListConfig(id *Identifier, cfg *config.Config, domainName string) *c
 		AdaptiveScalerUpdateInterval: func() time.Duration {
 			return cfg.AdaptiveScalerUpdateInterval(domainName, taskListName, taskType)
 		},
+		EnablePartitionIsolationGroupAssignment: func() bool {
+			return cfg.EnablePartitionIsolationGroupAssignment(domainName, taskListName, taskType)
+		},
+		IsolationGroupUpscaleSustainedDuration: func() time.Duration {
+			return cfg.IsolationGroupUpscaleSustainedDuration(domainName, taskListName, taskType)
+		},
+		IsolationGroupDownscaleSustainedDuration: func() time.Duration {
+			return cfg.IsolationGroupDownscaleSustainedDuration(domainName, taskListName, taskType)
+		},
+		IsolationGroupHasPollersSustainedDuration: func() time.Duration {
+			return cfg.IsolationGroupHasPollersSustainedDuration(domainName, taskListName, taskType)
+		},
+		IsolationGroupNoPollersSustainedDuration: func() time.Duration {
+			return cfg.IsolationGroupNoPollersSustainedDuration(domainName, taskListName, taskType)
+		},
+		IsolationGroupsPerPartition: func() int {
+			return cfg.IsolationGroupsPerPartition(domainName, taskListName, taskType)
+		},
 		QPSTrackerInterval: func() time.Duration {
 			return cfg.QPSTrackerInterval(domainName, taskListName, taskType)
 		},

@@ -2663,6 +2663,15 @@ const (
 	StandbyClusterTasksNotStartedCounterPerTaskList
 	StandbyClusterTasksCompletionFailurePerTaskList
 	TaskIsolationLeakPerTaskList
+	PartitionUpscale
+	PartitionDownscale
+	IsolationRebalance
+	IsolationGroupPartitionsGauge
+	IsolationGroupStartedPolling
+	IsolationGroupStoppedPolling
+	IsolationGroupUpscale
+	IsolationGroupDownscale
+	PartitionDrained
 	NumMatchingMetrics
 )
 
@@ -3377,6 +3386,15 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		StandbyClusterTasksNotStartedCounterPerTaskList:         {metricName: "standby_cluster_tasks_not_started_per_tl", metricType: Counter},
 		StandbyClusterTasksCompletionFailurePerTaskList:         {metricName: "standby_cluster_tasks_completion_failure_per_tl", metricType: Counter},
 		TaskIsolationLeakPerTaskList:                            {metricName: "task_isolation_leak_per_tl", metricRollupName: "task_isolation_leak"},
+		PartitionUpscale:                                        {metricName: "partition_upscale_per_tl", metricRollupName: "partition_upscale"},
+		PartitionDownscale:                                      {metricName: "partition_downscale_per_tl", metricRollupName: "partition_downscale"},
+		PartitionDrained:                                        {metricName: "partition_drained_per_tl", metricRollupName: "partition_drained"},
+		IsolationRebalance:                                      {metricName: "isolation_rebalance_per_tl", metricRollupName: "isolation_rebalance"},
+		IsolationGroupStartedPolling:                            {metricName: "ig_started_polling_per_tl", metricRollupName: "ig_started_polling"},
+		IsolationGroupStoppedPolling:                            {metricName: "ig_stopped_polling_per_tl", metricRollupName: "ig_stopped_polling"},
+		IsolationGroupUpscale:                                   {metricName: "ig_upscale_per_tl", metricRollupName: "ig_upscale"},
+		IsolationGroupDownscale:                                 {metricName: "ig_downscale_per_tl", metricRollupName: "ig_downscale"},
+		IsolationGroupPartitionsGauge:                           {metricName: "ig_partitions_per_tl", metricType: Gauge},
 	},
 	Worker: {
 		ReplicatorMessages:                            {metricName: "replicator_messages"},

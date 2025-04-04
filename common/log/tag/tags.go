@@ -1090,6 +1090,18 @@ func NumWritePartitions(n int) Tag {
 	return newInt("num-write-partitions", n)
 }
 
+func ReadChanged(b bool) Tag {
+	return newBoolTag("read-changed", b)
+}
+
+func WriteChanged(b bool) Tag {
+	return newBoolTag("write-changed", b)
+}
+
+func IsolationChanged(b bool) Tag {
+	return newBoolTag("isolation-changed", b)
+}
+
 func CurrentNumReadPartitions(n int) Tag {
 	return newInt("current-num-read-partitions", n)
 }
