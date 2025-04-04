@@ -12,10 +12,10 @@ import (
 	frontendcfg "github.com/uber/cadence/service/frontend/config"
 )
 
-{{$nonFowradingAPIs := list "Health" "DeprecateDomain" "DescribeDomain" "ListDomains" "RegisterDomain" "UpdateDomain" "GetSearchAttributes" "GetClusterInfo" "DiagnoseWorkflowExecution"}}
+{{$nonForwardingAPIs := list "Health" "DeprecateDomain" "DescribeDomain" "ListDomains" "RegisterDomain" "UpdateDomain" "GetSearchAttributes" "GetClusterInfo" "DiagnoseWorkflowExecution"}}
 {{$domainIDAPIs := list "RecordActivityTaskHeartbeat" "RespondActivityTaskCanceled" "RespondActivityTaskCompleted" "RespondActivityTaskFailed" "RespondDecisionTaskCompleted" "RespondDecisionTaskFailed" "RespondQueryTaskCompleted"}}
 {{$queryTaskTokenAPIs := list "RespondQueryTaskCompleted"}}
-{{$specialCaseAPIs := list "QueryWorkflow"}}
+{{$readAPIsWithStrongConsistency := list "QueryWorkflow" "DescribeWorkflowExecution" "GetWorkflowExecutionHistory"}}
 
 type (
 	// ClusterRedirectionHandlerImpl is simple wrapper over frontend service, doing redirection based on policy for global domains not being active in current cluster
@@ -55,13 +55,24 @@ func NewAPIHandler(
 }
 
 {{range $method := .Interface.Methods}}
-{{- if not (has $method.Name $specialCaseAPIs)}}
 func (handler *clusterRedirectionHandler) {{$method.Declaration}} {
-	{{- if has $method.Name $nonFowradingAPIs}}
+	{{- if has $method.Name $nonForwardingAPIs}}
 	return handler.frontendHandler.{{$method.Call}}
 	{{- else}}
-	var apiName = "{{$method.Name}}"
-	var cluster string
+	var (
+		apiName = "{{$method.Name}}"
+		cluster string
+		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+	)
+
+	{{- if has $method.Name $readAPIsWithStrongConsistency}}
+	// Only autoforward strong consistent queries, this is done for two reasons:
+	// 1. Query is meant to be fast, autoforwarding all queries will increase latency.
+	// 2. If eventual consistency was requested then the results from running out of local dc will be fine.
+	if {{(index $method.Params 1).Name}}.GetQueryConsistencyLevel() == types.QueryConsistencyLevelStrong {
+		requestedConsistencyLevel = types.QueryConsistencyLevelStrong
+	}
+	{{- end}}
 
     {{$policyMethod := "WithDomainNameRedirect"}}
     {{$domain := printf "%s.GetDomain()" (index $method.Params 1).Name}}
@@ -94,7 +105,7 @@ func (handler *clusterRedirectionHandler) {{$method.Declaration}} {
 	}
 	{{- end}}
 
-	err = handler.redirectionPolicy.{{$policyMethod}}(ctx, {{$domain}}, apiName, func(targetDC string) error {
+	err = handler.redirectionPolicy.{{$policyMethod}}(ctx, {{$domain}}, apiName, requestedConsistencyLevel, func(targetDC string) error {
 		cluster = targetDC
 		switch {
 		case targetDC == handler.currentClusterName:
@@ -110,38 +121,3 @@ func (handler *clusterRedirectionHandler) {{$method.Declaration}} {
 	{{- end}}
 }
 {{end}}
-{{end}}
-
-func (handler *clusterRedirectionHandler) QueryWorkflow(
-	ctx context.Context,
-	request *types.QueryWorkflowRequest,
-) (resp *types.QueryWorkflowResponse, retError error) {
-	var apiName = "QueryWorkflow"
-	var err error
-	var cluster string
-
-	// Only autoforward strong consistent queries, this is done for two reasons:
-	// 1. Query is meant to be fast, autoforwarding all queries will increase latency.
-	// 2. If eventual consistency was requested then the results from running out of local dc will be fine.
-	if request.GetQueryConsistencyLevel() == types.QueryConsistencyLevelStrong {
-		apiName = "QueryWorkflowStrongConsistency"
-	}
-	scope, startTime := handler.beforeCall(metrics.DCRedirectionQueryWorkflowScope)
-	defer func() {
-		handler.afterCall(recover(), scope, startTime, request.GetDomain(), "", cluster, &retError)
-	}()
-
-	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, request.GetDomain(), apiName, func(targetDC string) error {
-		cluster = targetDC
-		switch {
-		case targetDC == handler.currentClusterName:
-			resp, err = handler.frontendHandler.QueryWorkflow(ctx, request)
-		default:
-			remoteClient := handler.GetRemoteFrontendClient(targetDC)
-			resp, err = remoteClient.QueryWorkflow(ctx, request, handler.callOptions...)
-		}
-		return err
-	})
-
-	return resp, err
-}
