@@ -51,7 +51,7 @@ type (
 		DispatchTask(ctx context.Context, task *InternalTask) error
 		// DispatchQueryTask will dispatch query to local or remote poller. If forwarded then result or error is returned,
 		// if dispatched to local poller then nil and nil is returned.
-		DispatchQueryTask(ctx context.Context, taskID string, request *types.MatchingQueryWorkflowRequest) (*types.QueryWorkflowResponse, error)
+		DispatchQueryTask(ctx context.Context, taskID string, request *types.MatchingQueryWorkflowRequest) (*types.MatchingQueryWorkflowResponse, error)
 		CancelPoller(pollerID string)
 		GetAllPollerInfo() []*types.PollerInfo
 		HasPollerAfter(accessTime time.Time) bool
@@ -70,7 +70,7 @@ type (
 		DisconnectBlockedPollers()
 		Offer(ctx context.Context, task *InternalTask) (bool, error)
 		OfferOrTimeout(ctx context.Context, startT time.Time, task *InternalTask) (bool, error)
-		OfferQuery(ctx context.Context, task *InternalTask) (*types.QueryWorkflowResponse, error)
+		OfferQuery(ctx context.Context, task *InternalTask) (*types.MatchingQueryWorkflowResponse, error)
 		MustOffer(ctx context.Context, task *InternalTask) error
 		Poll(ctx context.Context, isolationGroup string) (*InternalTask, error)
 		PollForQuery(ctx context.Context) (*InternalTask, error)
@@ -80,7 +80,7 @@ type (
 
 	Forwarder interface {
 		ForwardTask(ctx context.Context, task *InternalTask) error
-		ForwardQueryTask(ctx context.Context, task *InternalTask) (*types.QueryWorkflowResponse, error)
+		ForwardQueryTask(ctx context.Context, task *InternalTask) (*types.MatchingQueryWorkflowResponse, error)
 		ForwardPoll(ctx context.Context) (*InternalTask, error)
 		AddReqTokenC() <-chan *ForwarderReqToken
 		PollReqTokenC(isolationGroup string) <-chan *ForwarderReqToken

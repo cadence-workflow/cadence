@@ -228,6 +228,7 @@ message QueryWorkflowRequest {
 message QueryWorkflowResponse {
   api.v1.Payload query_result = 1;
   api.v1.QueryRejected query_rejected = 2;
+  api.v1.TaskListPartitionConfig partition_config = 3;
 }
 
 message RespondQueryTaskCompletedRequest {

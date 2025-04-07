@@ -98,7 +98,7 @@ type (
 		isolationState       isolationgroup.State
 		timeSource           clock.TimeSource
 
-		waitForQueryResultFn func(hCtx *handlerContext, isStrongConsistencyQuery bool, queryResultCh <-chan *queryResult) (*types.QueryWorkflowResponse, error)
+		waitForQueryResultFn func(hCtx *handlerContext, isStrongConsistencyQuery bool, queryResultCh <-chan *queryResult) (*types.MatchingQueryWorkflowResponse, error)
 	}
 
 	// HistoryInfo consists of two integer regarding the history size and history count
@@ -849,7 +849,7 @@ func (e *matchingEngineImpl) createSyncMatchPollForActivityTaskResponse(
 func (e *matchingEngineImpl) QueryWorkflow(
 	hCtx *handlerContext,
 	queryRequest *types.MatchingQueryWorkflowRequest,
-) (*types.QueryWorkflowResponse, error) {
+) (*types.MatchingQueryWorkflowResponse, error) {
 	domainID := queryRequest.GetDomainUUID()
 	taskListName := queryRequest.GetTaskList().GetName()
 	taskListKind := queryRequest.GetTaskList().Kind
@@ -872,11 +872,14 @@ func (e *matchingEngineImpl) QueryWorkflow(
 
 	taskID := uuid.New()
 	resp, err := tlMgr.DispatchQueryTask(hCtx.Context, taskID, queryRequest)
-
 	// if get response or error it means that query task was handled by forwarding to another matching host
 	// this remote host's result can be returned directly
-	if resp != nil || err != nil {
-		return resp, err
+	if err != nil {
+		return nil, err
+	}
+	if resp != nil {
+		resp.PartitionConfig = tlMgr.TaskListPartitionConfig()
+		return resp, nil
 	}
 
 	// if get here it means that dispatch of query task has occurred locally
@@ -884,10 +887,15 @@ func (e *matchingEngineImpl) QueryWorkflow(
 	queryResultCh := make(chan *queryResult, 1)
 	e.lockableQueryTaskMap.put(taskID, queryResultCh)
 	defer e.lockableQueryTaskMap.delete(taskID)
-	return e.waitForQueryResultFn(hCtx, queryRequest.GetQueryRequest().GetQueryConsistencyLevel() == types.QueryConsistencyLevelStrong, queryResultCh)
+	resp, err = e.waitForQueryResultFn(hCtx, queryRequest.GetQueryRequest().GetQueryConsistencyLevel() == types.QueryConsistencyLevelStrong, queryResultCh)
+	if err != nil {
+		return nil, err
+	}
+	resp.PartitionConfig = tlMgr.TaskListPartitionConfig()
+	return resp, nil
 }
 
-func (e *matchingEngineImpl) waitForQueryResult(hCtx *handlerContext, isStrongConsistencyQuery bool, queryResultCh <-chan *queryResult) (*types.QueryWorkflowResponse, error) {
+func (e *matchingEngineImpl) waitForQueryResult(hCtx *handlerContext, isStrongConsistencyQuery bool, queryResultCh <-chan *queryResult) (*types.MatchingQueryWorkflowResponse, error) {
 	select {
 	case result := <-queryResultCh:
 		if result.internalError != nil {
@@ -904,7 +912,7 @@ func (e *matchingEngineImpl) waitForQueryResult(hCtx *handlerContext, isStrongCo
 		}
 		switch workerResponse.GetCompletedRequest().GetCompletedType() {
 		case types.QueryTaskCompletedTypeCompleted:
-			return &types.QueryWorkflowResponse{QueryResult: workerResponse.GetCompletedRequest().GetQueryResult()}, nil
+			return &types.MatchingQueryWorkflowResponse{QueryResult: workerResponse.GetCompletedRequest().GetQueryResult()}, nil
 		case types.QueryTaskCompletedTypeFailed:
 			return nil, &types.QueryFailedError{Message: workerResponse.GetCompletedRequest().GetErrorMessage()}
 		default:

@@ -177,7 +177,7 @@ func (fwdr *forwarderImpl) ForwardTask(ctx context.Context, task *InternalTask) 
 func (fwdr *forwarderImpl) ForwardQueryTask(
 	ctx context.Context,
 	task *InternalTask,
-) (*types.QueryWorkflowResponse, error) {
+) (*types.MatchingQueryWorkflowResponse, error) {
 
 	if fwdr.taskListKind == types.TaskListKindSticky {
 		return nil, ErrTaskListKind

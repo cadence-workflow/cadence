@@ -137,8 +137,8 @@ func (c *matchingClient) PollForDecisionTask(ctx context.Context, mp1 *types.Mat
 	return resp, err
 }
 
-func (c *matchingClient) QueryWorkflow(ctx context.Context, mp1 *types.MatchingQueryWorkflowRequest, p1 ...yarpc.CallOption) (qp1 *types.QueryWorkflowResponse, err error) {
-	var resp *types.QueryWorkflowResponse
+func (c *matchingClient) QueryWorkflow(ctx context.Context, mp1 *types.MatchingQueryWorkflowRequest, p1 ...yarpc.CallOption) (mp2 *types.MatchingQueryWorkflowResponse, err error) {
+	var resp *types.MatchingQueryWorkflowResponse
 	op := func() error {
 		var err error
 		resp, err = c.client.QueryWorkflow(ctx, mp1, p1...)

@@ -107,10 +107,10 @@ func (mr *MockManagerMockRecorder) DescribeTaskList(includeTaskListStatus any) *
 }
 
 // DispatchQueryTask mocks base method.
-func (m *MockManager) DispatchQueryTask(ctx context.Context, taskID string, request *types.MatchingQueryWorkflowRequest) (*types.QueryWorkflowResponse, error) {
+func (m *MockManager) DispatchQueryTask(ctx context.Context, taskID string, request *types.MatchingQueryWorkflowRequest) (*types.MatchingQueryWorkflowResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DispatchQueryTask", ctx, taskID, request)
-	ret0, _ := ret[0].(*types.QueryWorkflowResponse)
+	ret0, _ := ret[0].(*types.MatchingQueryWorkflowResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -383,10 +383,10 @@ func (mr *MockTaskMatcherMockRecorder) OfferOrTimeout(ctx, startT, task any) *go
 }
 
 // OfferQuery mocks base method.
-func (m *MockTaskMatcher) OfferQuery(ctx context.Context, task *InternalTask) (*types.QueryWorkflowResponse, error) {
+func (m *MockTaskMatcher) OfferQuery(ctx context.Context, task *InternalTask) (*types.MatchingQueryWorkflowResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "OfferQuery", ctx, task)
-	ret0, _ := ret[0].(*types.QueryWorkflowResponse)
+	ret0, _ := ret[0].(*types.MatchingQueryWorkflowResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -507,10 +507,10 @@ func (mr *MockForwarderMockRecorder) ForwardPoll(ctx any) *gomock.Call {
 }
 
 // ForwardQueryTask mocks base method.
-func (m *MockForwarder) ForwardQueryTask(ctx context.Context, task *InternalTask) (*types.QueryWorkflowResponse, error) {
+func (m *MockForwarder) ForwardQueryTask(ctx context.Context, task *InternalTask) (*types.MatchingQueryWorkflowResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ForwardQueryTask", ctx, task)
-	ret0, _ := ret[0].(*types.QueryWorkflowResponse)
+	ret0, _ := ret[0].(*types.MatchingQueryWorkflowResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

@@ -36,8 +36,6 @@ var (
 	ToMatchingGetTaskListsByDomainResponse     = ToGetTaskListsByDomainResponse
 	FromMatchingListTaskListPartitionsResponse = FromListTaskListPartitionsResponse
 	ToMatchingListTaskListPartitionsResponse   = ToListTaskListPartitionsResponse
-	FromMatchingQueryWorkflowResponse          = FromQueryWorkflowResponse
-	ToMatchingQueryWorkflowResponse            = ToQueryWorkflowResponse
 )
 
 // FromMatchingAddActivityTaskRequest converts internal AddActivityTaskRequest type to thrift
@@ -457,4 +455,24 @@ func ToTaskSource(t *matching.TaskSource) *types.TaskSource {
 		return &v
 	}
 	panic("unexpected enum value")
+}
+
+func FromMatchingQueryWorkflowResponse(t *types.MatchingQueryWorkflowResponse) *shared.QueryWorkflowResponse {
+	if t == nil {
+		return nil
+	}
+	return &shared.QueryWorkflowResponse{
+		QueryResult:   t.QueryResult,
+		QueryRejected: FromQueryRejected(t.QueryRejected),
+	}
+}
+
+func ToMatchingQueryWorkflowResponse(t *shared.QueryWorkflowResponse) *types.MatchingQueryWorkflowResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.MatchingQueryWorkflowResponse{
+		QueryResult:   t.QueryResult,
+		QueryRejected: ToQueryRejected(t.QueryRejected),
+	}
 }

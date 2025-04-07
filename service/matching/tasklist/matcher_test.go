@@ -327,7 +327,7 @@ func (t *MatcherTestSuite) TestQueryRemoteSyncMatch() {
 			ready()
 			t.rootMatcher.OfferQuery(ctx, task)
 		},
-	).Return(&types.QueryWorkflowResponse{QueryResult: []byte("answer")}, nil)
+	).Return(&types.MatchingQueryWorkflowResponse{QueryResult: []byte("answer")}, nil)
 
 	result, err := t.matcher.OfferQuery(ctx, task)
 	cancel()

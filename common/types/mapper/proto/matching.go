@@ -594,23 +594,25 @@ func ToMatchingQueryWorkflowRequest(t *matchingv1.QueryWorkflowRequest) *types.M
 	}
 }
 
-func FromMatchingQueryWorkflowResponse(t *types.QueryWorkflowResponse) *matchingv1.QueryWorkflowResponse {
+func FromMatchingQueryWorkflowResponse(t *types.MatchingQueryWorkflowResponse) *matchingv1.QueryWorkflowResponse {
 	if t == nil {
 		return nil
 	}
 	return &matchingv1.QueryWorkflowResponse{
-		QueryResult:   FromPayload(t.QueryResult),
-		QueryRejected: FromQueryRejected(t.QueryRejected),
+		QueryResult:     FromPayload(t.QueryResult),
+		QueryRejected:   FromQueryRejected(t.QueryRejected),
+		PartitionConfig: FromAPITaskListPartitionConfig(t.PartitionConfig),
 	}
 }
 
-func ToMatchingQueryWorkflowResponse(t *matchingv1.QueryWorkflowResponse) *types.QueryWorkflowResponse {
+func ToMatchingQueryWorkflowResponse(t *matchingv1.QueryWorkflowResponse) *types.MatchingQueryWorkflowResponse {
 	if t == nil {
 		return nil
 	}
-	return &types.QueryWorkflowResponse{
-		QueryResult:   ToPayload(t.QueryResult),
-		QueryRejected: ToQueryRejected(t.QueryRejected),
+	return &types.MatchingQueryWorkflowResponse{
+		QueryResult:     ToPayload(t.QueryResult),
+		QueryRejected:   ToQueryRejected(t.QueryRejected),
+		PartitionConfig: ToAPITaskListPartitionConfig(t.PartitionConfig),
 	}
 }
 
