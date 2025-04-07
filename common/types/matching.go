@@ -564,6 +564,36 @@ func (v *MatchingQueryWorkflowRequest) GetForwardedFrom() (o string) {
 	return
 }
 
+type MatchingQueryWorkflowResponse struct {
+	QueryResult     []byte
+	QueryRejected   *QueryRejected
+	PartitionConfig *TaskListPartitionConfig
+}
+
+// GetQueryResult is an internal getter (TBD...)
+func (v *MatchingQueryWorkflowResponse) GetQueryResult() (o []byte) {
+	if v != nil {
+		return v.QueryResult
+	}
+	return
+}
+
+// GetQueryRejected is an internal getter (TBD...)
+func (v *MatchingQueryWorkflowResponse) GetQueryRejected() (o *QueryRejected) {
+	if v != nil {
+		return v.QueryRejected
+	}
+	return
+}
+
+// GetPartitionConfig is an internal getter (TBD...)
+func (v *MatchingQueryWorkflowResponse) GetPartitionConfig() (o *TaskListPartitionConfig) {
+	if v != nil {
+		return v.PartitionConfig
+	}
+	return
+}
+
 // MatchingRespondQueryTaskCompletedRequest is an internal type (TBD...)
 type MatchingRespondQueryTaskCompletedRequest struct {
 	DomainUUID       string                            `json:"domainUUID,omitempty"`

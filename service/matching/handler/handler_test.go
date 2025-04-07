@@ -458,7 +458,7 @@ func (s *handlerSuite) TestQueryWorkflow() {
 			setupMocks: func() {
 				s.mockLimiter.EXPECT().Allow().Return(true).Times(1)
 				s.mockEngine.EXPECT().QueryWorkflow(gomock.Any(), &request).
-					Return(&types.QueryWorkflowResponse{QueryResult: []byte("query-result")}, nil).Times(1)
+					Return(&types.MatchingQueryWorkflowResponse{QueryResult: []byte("query-result")}, nil).Times(1)
 			},
 		},
 		{
@@ -490,7 +490,7 @@ func (s *handlerSuite) TestQueryWorkflow() {
 				s.Equal(tc.err, err)
 			} else {
 				s.NoError(err)
-				s.Equal(&types.QueryWorkflowResponse{QueryResult: []byte("query-result")}, resp)
+				s.Equal(&types.MatchingQueryWorkflowResponse{QueryResult: []byte("query-result")}, resp)
 			}
 		})
 	}

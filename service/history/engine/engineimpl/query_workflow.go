@@ -244,7 +244,7 @@ func (e *historyEngineImpl) queryDirectlyThroughMatching(
 		cancel()
 		if err == nil {
 			scope.IncCounter(metrics.DirectQueryDispatchStickySuccessCount)
-			return &types.HistoryQueryWorkflowResponse{Response: matchingResp}, nil
+			return &types.HistoryQueryWorkflowResponse{Response: &types.QueryWorkflowResponse{QueryResult: matchingResp.GetQueryResult(), QueryRejected: matchingResp.GetQueryRejected()}}, nil
 		}
 		switch v := err.(type) {
 		case *types.StickyWorkerUnavailableError:
@@ -326,5 +326,5 @@ func (e *historyEngineImpl) queryDirectlyThroughMatching(
 		return nil, err
 	}
 	scope.IncCounter(metrics.DirectQueryDispatchNonStickySuccessCount)
-	return &types.HistoryQueryWorkflowResponse{Response: matchingResp}, err
+	return &types.HistoryQueryWorkflowResponse{Response: &types.QueryWorkflowResponse{QueryResult: matchingResp.GetQueryResult(), QueryRejected: matchingResp.GetQueryRejected()}}, err
 }
