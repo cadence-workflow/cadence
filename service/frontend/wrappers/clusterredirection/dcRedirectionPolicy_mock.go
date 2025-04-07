@@ -24,6 +24,7 @@ import (
 	"context"
 
 	"github.com/stretchr/testify/mock"
+
 	"github.com/uber/cadence/common/types"
 )
 
