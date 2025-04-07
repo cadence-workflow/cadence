@@ -1013,26 +1013,25 @@ func (t *MatcherTestSuite) TestMustOffer_ContextExpiredAfterForwardError() {
 		ch: make(chan *ForwarderReqToken, 1),
 	}
 
-	fn := func() <-chan *ForwarderReqToken {
-		c := make(chan *ForwarderReqToken, 1)
-		c <- forwardToken
-		return c
-	}
+	// Have 1 token ready and waiting
+	c := make(chan *ForwarderReqToken, 1)
+	c <- forwardToken
 
 	task := newInternalTask(t.newTaskInfo(), nil, types.TaskSourceHistory, "", false, nil, "")
 
-	mockForwarder.EXPECT().AddReqTokenC().Return(fn()).Times(1)
+	mockForwarder.EXPECT().AddReqTokenC().Return(c).Times(1)
 	mockForwarder.EXPECT().ForwardTask(gomock.Any(), task).Return(ErrNoParent).Times(1)
 
 	go func() {
+		// Wait for the token to be returned
 		<-forwardToken.ch
 		// using cancel here to simulate the context being expired
 		cancel()
 	}()
 
 	err := t.matcher.MustOffer(ctx, task)
-
-	t.Error(err)
+	t.ErrorIs(err, context.Canceled)
+	t.ErrorContains(err, "failed to offer task:")
 }
 
 func (t *MatcherTestSuite) Test_pollOrForward_PollIsolatedTask() {

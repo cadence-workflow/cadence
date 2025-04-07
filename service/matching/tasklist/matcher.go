@@ -323,6 +323,11 @@ func (tm *taskMatcherImpl) MustOffer(ctx context.Context, task *InternalTask) er
 	attempt := 0
 forLoop:
 	for {
+		if err := ctx.Err(); err != nil {
+			e.EventName = "Context Done While Dispatching to Local or Forwarding"
+			event.Log(e)
+			return fmt.Errorf("failed to offer task: %w", ctx.Err())
+		}
 		select {
 		case taskC <- task: // poller picked up the task
 			e.EventName = "Dispatched to Local Poller"
@@ -363,13 +368,10 @@ forLoop:
 					tm.scope.RecordTimer(metrics.AsyncMatchLocalPollAfterForwardFailedLatencyPerTaskList, time.Since(startT))
 					return nil
 				case <-childCtx.Done():
-				case <-ctx.Done():
+					attempt++
 					cancel()
-					return fmt.Errorf("failed to dispatch after failing to forward task: %w", ctx.Err())
+					continue forLoop
 				}
-				cancel()
-				attempt++
-				continue forLoop
 			}
 			cancel()
 
