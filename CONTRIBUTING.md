@@ -221,6 +221,17 @@ If you make changes in the idls submodule and want to test them locally, you can
 
 ```replace github.com/uber/cadence-idl => ./idls```
 
+### Using IDL Changes
+
+Once your [Pull Request](#pull-requests) has been successfully merged you can update cadence to use the new version:
+
+```bash
+# Update the IDLs directory
+git submodule foreach git pull origin master
+# Update go to use the latest idl package
+go get github.com/uber/cadence-idl@latest
+```
+
 ## Pull Requests
 After all the preparation you are about to write code and make a Pull Request for the issue.
 
