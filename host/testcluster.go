@@ -274,10 +274,7 @@ func NewClusterMetadata(t *testing.T, options *TestClusterConfig) cluster.Metada
 	clusterMetadata := cluster.GetTestClusterMetadata(options.IsPrimaryCluster)
 	if !options.IsPrimaryCluster && options.ClusterGroupMetadata.PrimaryClusterName != "" { // xdc cluster metadata setup
 		clusterMetadata = cluster.NewMetadata(
-			options.ClusterGroupMetadata.FailoverVersionIncrement,
-			options.ClusterGroupMetadata.PrimaryClusterName,
-			options.ClusterGroupMetadata.CurrentClusterName,
-			options.ClusterGroupMetadata.ClusterGroup,
+			options.ClusterGroupMetadata,
 			func(domain string) bool { return false },
 			metrics.NewNoopMetricsClient(),
 			testlogger.New(t),

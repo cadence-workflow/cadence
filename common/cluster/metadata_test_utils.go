@@ -90,10 +90,12 @@ var (
 
 	// TestActiveClusterMetadata is metadata for an active cluster
 	TestActiveClusterMetadata = NewMetadata(
-		TestFailoverVersionIncrement,
-		TestCurrentClusterName,
-		TestCurrentClusterName,
-		TestAllClusterInfo,
+		config.ClusterGroupMetadata{
+			FailoverVersionIncrement: TestFailoverVersionIncrement,
+			PrimaryClusterName:       TestCurrentClusterName,
+			CurrentClusterName:       TestCurrentClusterName,
+			ClusterGroup:             TestAllClusterInfo,
+		},
 		func(d string) bool { return false },
 		commonMetrics.NewNoopMetricsClient(),
 		log.NewNoop(),
@@ -101,10 +103,12 @@ var (
 
 	// TestPassiveClusterMetadata is metadata for a passive cluster
 	TestPassiveClusterMetadata = NewMetadata(
-		TestFailoverVersionIncrement,
-		TestCurrentClusterName,
-		TestAlternativeClusterName,
-		TestAllClusterInfo,
+		config.ClusterGroupMetadata{
+			FailoverVersionIncrement: TestFailoverVersionIncrement,
+			PrimaryClusterName:       TestCurrentClusterName,
+			CurrentClusterName:       TestAlternativeClusterName,
+			ClusterGroup:             TestAllClusterInfo,
+		},
 		func(d string) bool { return false },
 		commonMetrics.NewNoopMetricsClient(),
 		log.NewNoop(),
@@ -119,10 +123,12 @@ func GetTestClusterMetadata(isPrimaryCluster bool) Metadata {
 	}
 
 	return NewMetadata(
-		TestFailoverVersionIncrement,
-		primaryClusterName,
-		TestCurrentClusterName,
-		TestAllClusterInfo,
+		config.ClusterGroupMetadata{
+			FailoverVersionIncrement: TestFailoverVersionIncrement,
+			PrimaryClusterName:       primaryClusterName,
+			CurrentClusterName:       TestCurrentClusterName,
+			ClusterGroup:             TestAllClusterInfo,
+		},
 		func(d string) bool { return false },
 		commonMetrics.NewNoopMetricsClient(),
 		log.NewNoop(),

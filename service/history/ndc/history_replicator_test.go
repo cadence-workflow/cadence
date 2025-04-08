@@ -2222,10 +2222,12 @@ func Test_notify(t *testing.T) {
 
 			// Create Metadata instance
 			clusterMetadata := cluster.NewMetadata(
-				1,
-				test.primaryClusterName,
-				test.currentClusterName,
-				clusterGroup,
+				commonConfig.ClusterGroupMetadata{
+					FailoverVersionIncrement: 1,
+					PrimaryClusterName:       test.primaryClusterName,
+					CurrentClusterName:       test.currentClusterName,
+					ClusterGroup:             clusterGroup,
+				},
 				dynamicproperties.GetBoolPropertyFnFilteredByDomain(false),
 				metrics.NewNoopMetricsClient(),
 				log.NewNoop(),

@@ -27,17 +27,22 @@ import (
 )
 
 // NewDomainNotActiveError return a domain not exist error
-func NewDomainNotActiveError(domainName string, currentCluster string, activeCluster string) *types.DomainNotActiveError {
+func NewDomainNotActiveError(domainName string, currentCluster string, activeClusters ...string) *types.DomainNotActiveError {
+	activeCluster := ""
+	if len(activeClusters) == 1 {
+		activeCluster = activeClusters[0]
+	}
 	return &types.DomainNotActiveError{
 		Message: fmt.Sprintf(
-			"Domain: %s is active in cluster: %s, while current cluster %s is a standby cluster.",
+			"Domain: %s is active in cluster(s): %v, while current cluster %s is a standby cluster.",
 			domainName,
-			activeCluster,
+			activeClusters,
 			currentCluster,
 		),
 		DomainName:     domainName,
 		CurrentCluster: currentCluster,
 		ActiveCluster:  activeCluster,
+		ActiveClusters: activeClusters,
 	}
 }
 

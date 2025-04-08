@@ -221,10 +221,7 @@ func (s *server) startService() common.Daemon {
 	params.GetIsolationGroups = getFromDynamicConfig(params, dc)
 
 	params.ClusterMetadata = cluster.NewMetadata(
-		clusterGroupMetadata.FailoverVersionIncrement,
-		clusterGroupMetadata.PrimaryClusterName,
-		clusterGroupMetadata.CurrentClusterName,
-		clusterGroupMetadata.ClusterGroup,
+		*clusterGroupMetadata,
 		dc.GetBoolPropertyFilteredByDomain(dynamicproperties.UseNewInitialFailoverVersion),
 		params.MetricsClient,
 		params.Logger,

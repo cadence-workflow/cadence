@@ -2570,21 +2570,23 @@ func TestStartTransactionHandleFailover(t *testing.T) {
 			}).Times(1)
 
 			clusterMetadata := cluster.NewMetadata(
-				10,
-				"cluster0",
-				"cluster0",
-				map[string]commonConfig.ClusterInformation{
-					"cluster0": commonConfig.ClusterInformation{
-						Enabled:                true,
-						InitialFailoverVersion: 1,
-					},
-					"cluster1": commonConfig.ClusterInformation{
-						Enabled:                true,
-						InitialFailoverVersion: 0,
-					},
-					"cluster2": commonConfig.ClusterInformation{
-						Enabled:                true,
-						InitialFailoverVersion: 2,
+				commonConfig.ClusterGroupMetadata{
+					FailoverVersionIncrement: 10,
+					PrimaryClusterName:       "cluster0",
+					CurrentClusterName:       "cluster0",
+					ClusterGroup: map[string]commonConfig.ClusterInformation{
+						"cluster0": commonConfig.ClusterInformation{
+							Enabled:                true,
+							InitialFailoverVersion: 1,
+						},
+						"cluster1": commonConfig.ClusterInformation{
+							Enabled:                true,
+							InitialFailoverVersion: 0,
+						},
+						"cluster2": commonConfig.ClusterInformation{
+							Enabled:                true,
+							InitialFailoverVersion: 2,
+						},
 					},
 				},
 				func(string) bool { return false },
