@@ -141,6 +141,7 @@ var (
 	ComponentMapQTreeNode                     = component("mapq-tree-node")
 	ComponentRPCFactory                       = component("rpc-factory")
 	ComponentTaskListAdaptiveScaler           = component("task-list-adaptive-scaler")
+	ComponentActiveClusterManager             = component("active-cluster-manager")
 )
 
 // Predefined values for QueueTypes
