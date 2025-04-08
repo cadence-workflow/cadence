@@ -961,8 +961,8 @@
             "uid": "PBFA97CFB590B2093"
           },
           "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "sum by(global_ratelimit_collection) (rate(global_ratelimiter_allowed_requests{is_primary=\"true\", cadence_service=\"cadence_frontend\", operation=\"GlobalRatelimiter\", global_ratelimit_type=\"local\", global_ratelimit_key=~\"$domain\"}[$__rate_interval]))",
+          "editorMode": "code",
+          "expr": "sum by(global_ratelimit_collection) (rate(global_ratelimiter_allowed_requests{is_primary=\"true\", cadence_service=\"cadence_frontend\", operation=\"GlobalRatelimiter\", global_ratelimit_key=~\"$domain\"}[$__rate_interval]))",
           "fullMetaSearch": false,
           "includeNullMetadata": false,
           "legendFormat": "__auto",
@@ -1265,7 +1265,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "sum(rate(global_ratelimiter_allowed_requests{is_primary=\"true\", cadence_service=\"cadence_frontend\", operation=\"GlobalRatelimiter\", global_ratelimit_type=\"local\"}[$__rate_interval]))",
+          "expr": "sum(rate(global_ratelimiter_allowed_requests{is_primary=\"true\", cadence_service=\"cadence_frontend\", operation=\"GlobalRatelimiter\", global_ratelimit_type=~\"$domain\"}[$__rate_interval]))",
           "fullMetaSearch": false,
           "includeNullMetadata": false,
           "legendFormat": "__auto",
@@ -1365,7 +1365,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "sum by(global_ratelimit_collection, global_ratelimit_key, global_ratelimit_type) (rate(global_ratelimiter_rejected_requests{is_primary=\"true\", cadence_service=\"cadence_frontend\", operation=\"GlobalRatelimiter\", global_ratelimit_key=\"$domain\"}[$__rate_interval]))",
+          "expr": "sum by(global_ratelimit_collection, global_ratelimit_key, global_ratelimit_type) (rate(global_ratelimiter_rejected_requests{is_primary=\"true\", cadence_service=\"cadence_frontend\", operation=\"GlobalRatelimiter\", global_ratelimit_key=~\"$domain\"}[$__rate_interval]))",
           "fullMetaSearch": false,
           "includeNullMetadata": false,
           "interval": "",
@@ -1574,11 +1574,15 @@
       "pluginVersion": "11.4.0",
       "targets": [
         {
+          "disableTextWrap": false,
           "editorMode": "code",
-          "expr": "histogram_quantile(0.95, sum(avg(cadence_workflow_endtoend_latency_bucket)) by (le,namespace,Domain,TaskList,workflowType))",
+          "expr": "histogram_quantile(0.95, sum by(le, domain) (rate(cadence_workflow_endtoend_latency_bucket[$__rate_interval])))",
+          "fullMetaSearch": false,
+          "includeNullMetadata": false,
           "legendFormat": "__auto",
           "range": true,
-          "refId": "A"
+          "refId": "A",
+          "useBackend": false
         }
       ],
       "title": "Workflow End to End Latency",
@@ -1863,7 +1867,7 @@
       "pluginVersion": "11.4.0",
       "targets": [
         {
-          "editorMode": "code",
+          "editorMode": "builder",
           "expr": "sum(count(cadence_activity_task_failed{domain=\"$domain\"})) by (activitytype)",
           "legendFormat": "__auto",
           "range": true,
@@ -1955,11 +1959,15 @@
       "pluginVersion": "11.4.0",
       "targets": [
         {
-          "editorMode": "code",
-          "expr": "avg(cadence_activity_execution_latency) by (namespace,domain,tasklist,activitytype)",
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "avg by(domain, tasklist, activitytype) (cadence_activity_execution_latency{domain=~\"$domain\"})",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
           "legendFormat": "__auto",
           "range": true,
-          "refId": "A"
+          "refId": "A",
+          "useBackend": false
         }
       ],
       "title": "Activity Execution Latency",
@@ -2053,11 +2061,15 @@
       "pluginVersion": "11.4.0",
       "targets": [
         {
-          "editorMode": "code",
-          "expr": "sum(rate(cadence_requests_per_tl{cadence_service=\"cadence_matching\"}[5m])) by (domain,tasklist)",
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "sum by(domain, tasklist) (rate(cadence_requests_per_tl{cadence_service=\"cadence_matching\", domain=~\"$domain\"}[5m]))",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
           "legendFormat": "__auto",
           "range": true,
-          "refId": "A"
+          "refId": "A",
+          "useBackend": false
         }
       ],
       "title": "ActivityTasks scheduled per Second",
@@ -2145,11 +2157,15 @@
       "pluginVersion": "11.4.0",
       "targets": [
         {
-          "editorMode": "code",
-          "expr": "avg(cadence_activity_scheduled_to_start_latency_count{Domain=\"$domain\"}) by (Domain, TaskList,ActivityType)",
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "avg by(Domain, TaskList, ActivityType) (cadence_activity_scheduled_to_start_latency_count{domain=~\"$domain\"})",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
           "legendFormat": "__auto",
           "range": true,
-          "refId": "A"
+          "refId": "A",
+          "useBackend": false
         }
       ],
       "title": "Activity Scheduled To Start Latency",
