@@ -109,10 +109,12 @@ func (s *ServerSuite) TestServerStartup() {
 		s.logger.Fatal("cassandra schema version compatibility check failed", tag.Error(err))
 	}
 
+	logger := testlogger.New(s.T())
+
 	var daemons []common.Daemon
 	services := service.ShortNames(service.List)
 	for _, svc := range services {
-		server := newServer(svc, &cfg)
+		server := newServer(svc, cfg, logger)
 		daemons = append(daemons, server)
 		server.Start()
 	}
