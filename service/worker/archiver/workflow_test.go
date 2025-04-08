@@ -29,7 +29,7 @@ import (
 	"go.uber.org/cadence/worker"
 	"go.uber.org/cadence/workflow"
 
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
@@ -63,9 +63,9 @@ func (s *workflowSuite) SetupTest() {
 	workflowTestHandler = &MockHandler{}
 	workflowTestPump = &PumpMock{}
 	workflowTestConfig = &Config{
-		ArchiverConcurrency:           dynamicconfig.GetIntPropertyFn(0),
-		ArchivalsPerIteration:         dynamicconfig.GetIntPropertyFn(0),
-		TimeLimitPerArchivalIteration: dynamicconfig.GetDurationPropertyFn(MaxArchivalIterationTimeout()),
+		ArchiverConcurrency:           dynamicproperties.GetIntPropertyFn(0),
+		ArchivalsPerIteration:         dynamicproperties.GetIntPropertyFn(0),
+		TimeLimitPerArchivalIteration: dynamicproperties.GetDurationPropertyFn(MaxArchivalIterationTimeout()),
 	}
 }
 
@@ -139,9 +139,9 @@ func (s *workflowSuite) TestReplayArchiveHistoryWorkflow() {
 	globalLogger = workflowTestLogger
 	globalMetricsClient = metrics.NewClient(tally.NewTestScope("replay", nil), metrics.Worker)
 	globalConfig = &Config{
-		ArchiverConcurrency:           dynamicconfig.GetIntPropertyFn(50),
-		ArchivalsPerIteration:         dynamicconfig.GetIntPropertyFn(1000),
-		TimeLimitPerArchivalIteration: dynamicconfig.GetDurationPropertyFn(MaxArchivalIterationTimeout()),
+		ArchiverConcurrency:           dynamicproperties.GetIntPropertyFn(50),
+		ArchivalsPerIteration:         dynamicproperties.GetIntPropertyFn(1000),
+		TimeLimitPerArchivalIteration: dynamicproperties.GetDurationPropertyFn(MaxArchivalIterationTimeout()),
 	}
 	err := worker.ReplayWorkflowHistoryFromJSONFile(logger, "testdata/archival_workflow_history_v1.json")
 	s.NoError(err)

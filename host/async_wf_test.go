@@ -52,7 +52,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/persistence"
 	pt "github.com/uber/cadence/common/persistence/persistence-tests"
 	"github.com/uber/cadence/common/types"
@@ -70,9 +70,9 @@ func TestAsyncWFIntegrationSuite(t *testing.T) {
 	}
 
 	clusterConfig.TimeSource = clock.NewMockedTimeSource()
-	clusterConfig.FrontendDynamicConfigOverrides = map[dynamicconfig.Key]interface{}{
-		dynamicconfig.FrontendFailoverCoolDown:        time.Duration(0),
-		dynamicconfig.EnableReadFromClosedExecutionV2: true,
+	clusterConfig.FrontendDynamicConfigOverrides = map[dynamicproperties.Key]interface{}{
+		dynamicproperties.FrontendFailoverCoolDown:        time.Duration(0),
+		dynamicproperties.EnableReadFromClosedExecutionV2: true,
 	}
 
 	testCluster := NewPersistenceTestCluster(t, clusterConfig)
@@ -93,11 +93,11 @@ func (s *AsyncWFIntegrationSuite) SetupSuite() {
 	s.Logger.Info("Running integration test against test cluster")
 	clusterMetadata := NewClusterMetadata(s.T(), s.TestClusterConfig)
 	dc := persistence.DynamicConfiguration{
-		EnableCassandraAllConsistencyLevelDelete: dynamicconfig.GetBoolPropertyFn(true),
-		PersistenceSampleLoggingRate:             dynamicconfig.GetIntPropertyFn(100),
-		EnableShardIDMetrics:                     dynamicconfig.GetBoolPropertyFn(true),
-		EnableHistoryTaskDualWriteMode:           dynamicconfig.GetBoolPropertyFn(true),
-		ReadNoSQLHistoryTaskFromDataBlob:         dynamicconfig.GetBoolPropertyFn(false),
+		EnableCassandraAllConsistencyLevelDelete: dynamicproperties.GetBoolPropertyFn(true),
+		PersistenceSampleLoggingRate:             dynamicproperties.GetIntPropertyFn(100),
+		EnableShardIDMetrics:                     dynamicproperties.GetBoolPropertyFn(true),
+		EnableHistoryTaskDualWriteMode:           dynamicproperties.GetBoolPropertyFn(true),
+		ReadNoSQLHistoryTaskFromDataBlob:         dynamicproperties.GetBoolPropertyFn(false),
 	}
 	params := pt.TestBaseParams{
 		DefaultTestCluster:    s.DefaultTestCluster,

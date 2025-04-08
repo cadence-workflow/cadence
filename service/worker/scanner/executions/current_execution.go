@@ -34,6 +34,7 @@ import (
 	"github.com/uber/cadence/common/blobstore"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/pagination"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/reconciliation/invariant"
@@ -133,10 +134,10 @@ func CurrentFixerWorkflow(
 func currentExecutionCustomScannerConfig(ctx shardscanner.ScannerContext) shardscanner.CustomScannerConfig {
 	res := shardscanner.CustomScannerConfig{}
 
-	if ctx.Config.DynamicCollection.GetBoolProperty(dynamicconfig.CurrentExecutionsScannerInvariantCollectionHistory)() {
+	if ctx.Config.DynamicCollection.GetBoolProperty(dynamicproperties.CurrentExecutionsScannerInvariantCollectionHistory)() {
 		res[invariant.CollectionHistory.String()] = strconv.FormatBool(true)
 	}
-	if ctx.Config.DynamicCollection.GetBoolProperty(dynamicconfig.CurrentExecutionsScannerInvariantCollectionMutableState)() {
+	if ctx.Config.DynamicCollection.GetBoolProperty(dynamicproperties.CurrentExecutionsScannerInvariantCollectionMutableState)() {
 		res[invariant.CollectionMutableState.String()] = strconv.FormatBool(true)
 	}
 
@@ -164,13 +165,13 @@ func CurrentExecutionConfig(dc *dynamicconfig.Collection) *shardscanner.ScannerC
 		FixerWFTypeName:   CurrentExecutionsFixerWFTypeName,
 		DynamicCollection: dc,
 		DynamicParams: shardscanner.DynamicParams{
-			ScannerEnabled:          dc.GetBoolProperty(dynamicconfig.CurrentExecutionsScannerEnabled),
-			FixerEnabled:            dc.GetBoolProperty(dynamicconfig.CurrentExecutionFixerEnabled),
-			Concurrency:             dc.GetIntProperty(dynamicconfig.CurrentExecutionsScannerConcurrency),
-			PageSize:                dc.GetIntProperty(dynamicconfig.CurrentExecutionsScannerPersistencePageSize),
-			BlobstoreFlushThreshold: dc.GetIntProperty(dynamicconfig.CurrentExecutionsScannerBlobstoreFlushThreshold),
-			ActivityBatchSize:       dc.GetIntProperty(dynamicconfig.CurrentExecutionsScannerActivityBatchSize),
-			AllowDomain:             dc.GetBoolPropertyFilteredByDomain(dynamicconfig.CurrentExecutionFixerDomainAllow),
+			ScannerEnabled:          dc.GetBoolProperty(dynamicproperties.CurrentExecutionsScannerEnabled),
+			FixerEnabled:            dc.GetBoolProperty(dynamicproperties.CurrentExecutionFixerEnabled),
+			Concurrency:             dc.GetIntProperty(dynamicproperties.CurrentExecutionsScannerConcurrency),
+			PageSize:                dc.GetIntProperty(dynamicproperties.CurrentExecutionsScannerPersistencePageSize),
+			BlobstoreFlushThreshold: dc.GetIntProperty(dynamicproperties.CurrentExecutionsScannerBlobstoreFlushThreshold),
+			ActivityBatchSize:       dc.GetIntProperty(dynamicproperties.CurrentExecutionsScannerActivityBatchSize),
+			AllowDomain:             dc.GetBoolPropertyFilteredByDomain(dynamicproperties.CurrentExecutionFixerDomainAllow),
 		},
 		ScannerHooks: currentExecutionScannerHooks,
 		FixerHooks:   currentExecutionFixerHooks,

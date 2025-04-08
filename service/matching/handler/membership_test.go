@@ -37,9 +37,9 @@ import (
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	cadence_errors "github.com/uber/cadence/common/errors"
-	"github.com/uber/cadence/common/log/loggerimpl"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/metrics"
@@ -98,7 +98,7 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 
 			ctrl := gomock.NewController(t)
-			logger := loggerimpl.NewNopLogger()
+			logger := log.NewNoop()
 
 			mockTimeSource := clock.NewMockedTimeSourceAt(time.Now())
 			taskManager := tasklist.NewTestTaskManager(t, logger, mockTimeSource)
@@ -114,7 +114,7 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 
 			config := defaultTestConfig()
 			taskListEnabled := tc.tasklistGuardEnabled
-			config.EnableTasklistOwnershipGuard = func(opts ...dynamicconfig.FilterOption) bool {
+			config.EnableTasklistOwnershipGuard = func(opts ...dynamicproperties.FilterOption) bool {
 				return taskListEnabled
 			}
 
@@ -164,10 +164,10 @@ func TestMembershipSubscriptionShutdown(t *testing.T) {
 		e := matchingEngineImpl{
 			membershipResolver: m,
 			config: &config.Config{
-				EnableTasklistOwnershipGuard: func(opts ...dynamicconfig.FilterOption) bool { return true },
+				EnableTasklistOwnershipGuard: func(opts ...dynamicproperties.FilterOption) bool { return true },
 			},
 			shutdown: make(chan struct{}),
-			logger:   loggerimpl.NewNopLogger(),
+			logger:   log.NewNoop(),
 		}
 
 		go func() {
@@ -190,9 +190,9 @@ func TestMembershipSubscriptionPanicHandling(t *testing.T) {
 		e := matchingEngineImpl{
 			membershipResolver: r.MembershipResolver,
 			config: &config.Config{
-				EnableTasklistOwnershipGuard: func(opts ...dynamicconfig.FilterOption) bool { return true },
+				EnableTasklistOwnershipGuard: func(opts ...dynamicproperties.FilterOption) bool { return true },
 			},
-			logger:   loggerimpl.NewNopLogger(),
+			logger:   log.NewNoop(),
 			shutdown: make(chan struct{}),
 		}
 
@@ -211,10 +211,10 @@ func TestSubscriptionAndShutdown(t *testing.T) {
 		shutdownCompletion: shutdownWG,
 		membershipResolver: m,
 		config: &config.Config{
-			EnableTasklistOwnershipGuard: func(opts ...dynamicconfig.FilterOption) bool { return true },
+			EnableTasklistOwnershipGuard: func(opts ...dynamicproperties.FilterOption) bool { return true },
 		},
 		shutdown: make(chan struct{}),
-		logger:   loggerimpl.NewNopLogger(),
+		logger:   log.NewNoop(),
 	}
 
 	// anytimes here because this is quite a racy test and the actual assertions for the unsubscription logic will be separated out
@@ -249,10 +249,10 @@ func TestSubscriptionAndErrorReturned(t *testing.T) {
 		shutdownCompletion: &shutdownWG,
 		membershipResolver: m,
 		config: &config.Config{
-			EnableTasklistOwnershipGuard: func(opts ...dynamicconfig.FilterOption) bool { return true },
+			EnableTasklistOwnershipGuard: func(opts ...dynamicproperties.FilterOption) bool { return true },
 		},
 		shutdown: make(chan struct{}),
-		logger:   loggerimpl.NewNopLogger(),
+		logger:   log.NewNoop(),
 	}
 
 	// this should trigger the error case on a membership event
@@ -290,7 +290,7 @@ func TestSubscribeToMembershipChangesQuitsIfSubscribeFails(t *testing.T) {
 		shutdownCompletion: &shutdownWG,
 		membershipResolver: m,
 		config: &config.Config{
-			EnableTasklistOwnershipGuard: func(opts ...dynamicconfig.FilterOption) bool { return true },
+			EnableTasklistOwnershipGuard: func(opts ...dynamicproperties.FilterOption) bool { return true },
 		},
 		shutdown: make(chan struct{}),
 		logger:   logger,
@@ -335,10 +335,10 @@ func TestGetTasklistManagerShutdownScenario(t *testing.T) {
 		shutdownCompletion: &shutdownWG,
 		membershipResolver: m,
 		config: &config.Config{
-			EnableTasklistOwnershipGuard: func(opts ...dynamicconfig.FilterOption) bool { return true },
+			EnableTasklistOwnershipGuard: func(opts ...dynamicproperties.FilterOption) bool { return true },
 		},
 		shutdown: make(chan struct{}),
-		logger:   loggerimpl.NewNopLogger(),
+		logger:   log.NewNoop(),
 	}
 
 	// set this engine to be shutting down so as to trigger the tasklistGetTasklistByID guard

@@ -42,8 +42,8 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	commonconstants "github.com/uber/cadence/common/constants"
-	"github.com/uber/cadence/common/dynamicconfig"
-	"github.com/uber/cadence/common/log/loggerimpl"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
@@ -662,7 +662,7 @@ func TestHandleDecisionTaskCompleted(t *testing.T) {
 					WorkflowTimeout: 600,
 					AutoResetPoints: &types.ResetPoints{
 						Points: func() []*types.ResetPointInfo {
-							if historyMaxResetPoints, ok := dynamicconfig.IntKeys[dynamicconfig.HistoryMaxAutoResetPoints]; ok {
+							if historyMaxResetPoints, ok := dynamicproperties.IntKeys[dynamicproperties.HistoryMaxAutoResetPoints]; ok {
 								return make([]*types.ResetPointInfo, historyMaxResetPoints.DefaultValue)
 							}
 							return []*types.ResetPointInfo{}
@@ -1416,7 +1416,7 @@ func (s *DecisionHandlerSuite) TestHandleBufferedQueries_QueryRegistryFailures()
 		s.Run(test.name, func() {
 			core, observedLogs := observer.New(zap.ErrorLevel)
 			logger := zap.New(core)
-			s.decisionHandler.logger = loggerimpl.NewLogger(logger, loggerimpl.WithSampleFunc(func(int) bool { return true }))
+			s.decisionHandler.logger = log.NewLogger(logger, log.WithSampleFunc(func(int) bool { return true }))
 
 			test.expectMockCalls()
 			s.decisionHandler.handleBufferedQueries(s.mockMutableState, client.GoSDK, test.clientFeatureVersion, test.queryResults, false, constants.TestGlobalDomainEntry, false)

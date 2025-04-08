@@ -28,7 +28,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -91,7 +91,7 @@ func NewGlobalCache(
 	historyManager persistence.HistoryManager,
 	logger log.Logger,
 	metricsClient metrics.Client,
-	maxSize dynamicconfig.IntPropertyFn,
+	maxSize dynamicproperties.IntPropertyFn,
 	domainCache cache.DomainCache,
 ) Cache {
 	return newCacheWithOption(
@@ -140,7 +140,7 @@ func newCacheWithOption(
 	disabled bool,
 	logger log.Logger,
 	metrics metrics.Client,
-	maxSize dynamicconfig.IntPropertyFn,
+	maxSize dynamicproperties.IntPropertyFn,
 	domainCache cache.DomainCache,
 ) *cacheImpl {
 	opts := &cache.Options{}

@@ -234,20 +234,11 @@ type (
 		CurrentTimeStamp time.Time
 	}
 
-	// InternalGetReplicationTasksResponse is the response to GetReplicationTask
-	InternalGetReplicationTasksResponse struct {
-		Tasks         []*InternalReplicationTaskInfo
-		NextPageToken []byte
-	}
-
 	// InternalPutReplicationTaskToDLQRequest is used to put a replication task to dlq
 	InternalPutReplicationTaskToDLQRequest struct {
 		SourceClusterName string
 		TaskInfo          *InternalReplicationTaskInfo
 	}
-
-	// InternalGetReplicationTasksFromDLQResponse is the response for GetReplicationTasksFromDLQ
-	InternalGetReplicationTasksFromDLQResponse = InternalGetReplicationTasksResponse
 
 	// InternalReplicationTaskInfo describes the replication task created for replication of history events
 	InternalReplicationTaskInfo struct {

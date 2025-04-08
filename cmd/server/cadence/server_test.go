@@ -24,7 +24,6 @@
 package cadence
 
 import (
-	"log"
 	"os"
 	"testing"
 	"time"
@@ -37,7 +36,10 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
-	"github.com/uber/cadence/common/log/loggerimpl"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql"
 	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/service"
@@ -51,6 +53,8 @@ import (
 type ServerSuite struct {
 	*require.Assertions
 	suite.Suite
+
+	logger log.Logger
 }
 
 func TestServerSuite(t *testing.T) {
@@ -60,6 +64,7 @@ func TestServerSuite(t *testing.T) {
 
 func (s *ServerSuite) SetupTest() {
 	s.Assertions = require.New(s.T())
+	s.logger = testlogger.New(s.T())
 }
 
 /*
@@ -77,7 +82,7 @@ func (s *ServerSuite) TestServerStartup() {
 	var cfg config.Config
 	err := config.Load(env, configDir, zone, &cfg)
 	if err != nil {
-		log.Fatal("Config file corrupted.", err)
+		s.logger.Fatal("Config file corrupted.", tag.Error(err))
 	}
 
 	if os.Getenv("CASSANDRA_SEEDS") == "cassandra" {
@@ -97,11 +102,11 @@ func (s *ServerSuite) TestServerStartup() {
 	cfg.DynamicConfig.FileBased.Filepath = constructPathIfNeed(rootDir, cfg.DynamicConfig.FileBased.Filepath)
 
 	if err := cfg.ValidateAndFillDefaults(); err != nil {
-		log.Fatalf("config validation failed: %v", err)
+		s.logger.Fatal("config validation failed", tag.Error(err))
 	}
 	// cassandra schema version validation
 	if err := cassandra.VerifyCompatibleVersion(cfg.Persistence, gocql.All); err != nil {
-		log.Fatal("cassandra schema version compatibility check failed: ", err)
+		s.logger.Fatal("cassandra schema version compatibility check failed", tag.Error(err))
 	}
 
 	var daemons []common.Daemon
@@ -124,15 +129,15 @@ func TestSettingGettingZonalIsolationGroupsFromIG(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	client := dynamicconfig.NewMockClient(ctrl)
-	client.EXPECT().GetListValue(dynamicconfig.AllIsolationGroups, gomock.Any()).Return([]interface{}{
+	client.EXPECT().GetListValue(dynamicproperties.AllIsolationGroups, gomock.Any()).Return([]interface{}{
 		"zone-1", "zone-2",
 	}, nil)
 
-	dc := dynamicconfig.NewCollection(client, loggerimpl.NewNopLogger())
+	dc := dynamicconfig.NewCollection(client, log.NewNoop())
 
 	assert.NotPanics(t, func() {
 		fn := getFromDynamicConfig(resource.Params{
-			Logger: loggerimpl.NewNopLogger(),
+			Logger: log.NewNoop(),
 		}, dc)
 		out := fn()
 		assert.Equal(t, []string{"zone-1", "zone-2"}, out)
@@ -142,12 +147,12 @@ func TestSettingGettingZonalIsolationGroupsFromIG(t *testing.T) {
 func TestSettingGettingZonalIsolationGroupsFromIGError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	client := dynamicconfig.NewMockClient(ctrl)
-	client.EXPECT().GetListValue(dynamicconfig.AllIsolationGroups, gomock.Any()).Return(nil, assert.AnError)
-	dc := dynamicconfig.NewCollection(client, loggerimpl.NewNopLogger())
+	client.EXPECT().GetListValue(dynamicproperties.AllIsolationGroups, gomock.Any()).Return(nil, assert.AnError)
+	dc := dynamicconfig.NewCollection(client, log.NewNoop())
 
 	assert.NotPanics(t, func() {
 		getFromDynamicConfig(resource.Params{
-			Logger: loggerimpl.NewNopLogger(),
+			Logger: log.NewNoop(),
 		}, dc)()
 	})
 }

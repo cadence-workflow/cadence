@@ -43,9 +43,8 @@ import (
 	commonConfig "github.com/uber/cadence/common/config"
 	commonconstants "github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
-	"github.com/uber/cadence/common/log/loggerimpl"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
@@ -446,7 +445,7 @@ func (s *mutableStateSuite) TestChecksum() {
 
 			// test checksum is invalidated
 			loadErrors = loadErrorsFunc()
-			s.mockShard.GetConfig().MutableStateChecksumInvalidateBefore = func(...dynamicconfig.FilterOption) float64 {
+			s.mockShard.GetConfig().MutableStateChecksumInvalidateBefore = func(...dynamicproperties.FilterOption) float64 {
 				return float64((s.msBuilder.executionInfo.LastUpdatedTimestamp.UnixNano() / int64(time.Second)) + 1)
 			}
 			err = s.msBuilder.Load(dbState)
@@ -455,7 +454,7 @@ func (s *mutableStateSuite) TestChecksum() {
 			s.EqualValues(checksum.Checksum{}, s.msBuilder.checksum)
 
 			// revert the config value for the next test case
-			s.mockShard.GetConfig().MutableStateChecksumInvalidateBefore = func(...dynamicconfig.FilterOption) float64 {
+			s.mockShard.GetConfig().MutableStateChecksumInvalidateBefore = func(...dynamicproperties.FilterOption) float64 {
 				return float64(0)
 			}
 		})
@@ -476,14 +475,14 @@ func (s *mutableStateSuite) TestChecksumProbabilities() {
 }
 
 func (s *mutableStateSuite) TestChecksumShouldInvalidate() {
-	s.mockShard.GetConfig().MutableStateChecksumInvalidateBefore = func(...dynamicconfig.FilterOption) float64 { return 0 }
+	s.mockShard.GetConfig().MutableStateChecksumInvalidateBefore = func(...dynamicproperties.FilterOption) float64 { return 0 }
 	s.False(s.msBuilder.shouldInvalidateChecksum())
 	s.msBuilder.executionInfo.LastUpdatedTimestamp = time.Now()
-	s.mockShard.GetConfig().MutableStateChecksumInvalidateBefore = func(...dynamicconfig.FilterOption) float64 {
+	s.mockShard.GetConfig().MutableStateChecksumInvalidateBefore = func(...dynamicproperties.FilterOption) float64 {
 		return float64((s.msBuilder.executionInfo.LastUpdatedTimestamp.UnixNano() / int64(time.Second)) + 1)
 	}
 	s.True(s.msBuilder.shouldInvalidateChecksum())
-	s.mockShard.GetConfig().MutableStateChecksumInvalidateBefore = func(...dynamicconfig.FilterOption) float64 {
+	s.mockShard.GetConfig().MutableStateChecksumInvalidateBefore = func(...dynamicproperties.FilterOption) float64 {
 		return float64((s.msBuilder.executionInfo.LastUpdatedTimestamp.UnixNano() / int64(time.Second)) - 1)
 	}
 	s.False(s.msBuilder.shouldInvalidateChecksum())
@@ -1933,8 +1932,8 @@ func TestMutableStateBuilder_CopyToPersistence_roundtrip(t *testing.T) {
 			NumberOfShards:                        2,
 			IsAdvancedVisConfigExist:              false,
 			MaxResponseSize:                       0,
-			MutableStateChecksumInvalidateBefore:  dynamicconfig.GetFloatPropertyFn(10),
-			MutableStateChecksumVerifyProbability: dynamicconfig.GetIntPropertyFilteredByDomain(0.0),
+			MutableStateChecksumInvalidateBefore:  dynamicproperties.GetFloatPropertyFn(10),
+			MutableStateChecksumVerifyProbability: dynamicproperties.GetIntPropertyFilteredByDomain(0.0),
 			HostName:                              "test-host",
 		}).Times(1)
 		shardContext.EXPECT().GetTimeSource().Return(clock.NewMockedTimeSource())
@@ -2562,8 +2561,8 @@ func TestStartTransactionHandleFailover(t *testing.T) {
 				NumberOfShards:                        3,
 				IsAdvancedVisConfigExist:              false,
 				MaxResponseSize:                       0,
-				MutableStateChecksumInvalidateBefore:  dynamicconfig.GetFloatPropertyFn(10),
-				MutableStateChecksumVerifyProbability: dynamicconfig.GetIntPropertyFilteredByDomain(0.0),
+				MutableStateChecksumInvalidateBefore:  dynamicproperties.GetFloatPropertyFn(10),
+				MutableStateChecksumVerifyProbability: dynamicproperties.GetIntPropertyFilteredByDomain(0.0),
 				EnableReplicationTaskGeneration:       func(_ string, _ string) bool { return true },
 				HostName:                              "test-host",
 			}).Times(1)
@@ -2588,7 +2587,7 @@ func TestStartTransactionHandleFailover(t *testing.T) {
 				},
 				func(string) bool { return false },
 				metrics.NewNoopMetricsClient(),
-				loggerimpl.NewNopLogger(),
+				log.NewNoop(),
 			)
 
 			domainEntry := cache.NewDomainCacheEntryForTest(&persistence.DomainInfo{
@@ -3440,11 +3439,11 @@ func TestCloseTransactionAsMutation(t *testing.T) {
 					NumberOfShards:                        2,
 					IsAdvancedVisConfigExist:              false,
 					MaxResponseSize:                       0,
-					MutableStateChecksumInvalidateBefore:  dynamicconfig.GetFloatPropertyFn(10),
-					MutableStateChecksumVerifyProbability: dynamicconfig.GetIntPropertyFilteredByDomain(0.0),
+					MutableStateChecksumInvalidateBefore:  dynamicproperties.GetFloatPropertyFn(10),
+					MutableStateChecksumVerifyProbability: dynamicproperties.GetIntPropertyFilteredByDomain(0.0),
 					HostName:                              "test-host",
 					EnableReplicationTaskGeneration:       func(string, string) bool { return true },
-					MaximumBufferedEventsBatch:            func(...dynamicconfig.FilterOption) int { return 100 },
+					MaximumBufferedEventsBatch:            func(...dynamicproperties.FilterOption) int { return 100 },
 				}).Times(2)
 
 				shardContext.EXPECT().GetDomainCache().Return(mockDomainCache).Times(1)
@@ -3506,11 +3505,11 @@ func TestCloseTransactionAsMutation(t *testing.T) {
 					NumberOfShards:                        2,
 					IsAdvancedVisConfigExist:              false,
 					MaxResponseSize:                       0,
-					MutableStateChecksumInvalidateBefore:  dynamicconfig.GetFloatPropertyFn(10),
-					MutableStateChecksumVerifyProbability: dynamicconfig.GetIntPropertyFilteredByDomain(0.0),
+					MutableStateChecksumInvalidateBefore:  dynamicproperties.GetFloatPropertyFn(10),
+					MutableStateChecksumVerifyProbability: dynamicproperties.GetIntPropertyFilteredByDomain(0.0),
 					HostName:                              "test-host",
 					EnableReplicationTaskGeneration:       func(string, string) bool { return true },
-					MaximumBufferedEventsBatch:            func(...dynamicconfig.FilterOption) int { return 100 },
+					MaximumBufferedEventsBatch:            func(...dynamicproperties.FilterOption) int { return 100 },
 				}).Times(3)
 
 				shardContext.EXPECT().GenerateTransferTaskIDs(1).Return([]int64{123}, nil).Times(1)
@@ -3612,12 +3611,12 @@ func createMSBWithMocks(mockCache *events.MockCache, shardContext *shardCtx.Mock
 		NumberOfShards:                        2,
 		IsAdvancedVisConfigExist:              false,
 		MaxResponseSize:                       0,
-		MutableStateChecksumInvalidateBefore:  dynamicconfig.GetFloatPropertyFn(10),
-		MutableStateChecksumVerifyProbability: dynamicconfig.GetIntPropertyFilteredByDomain(0.0),
-		MutableStateChecksumGenProbability:    dynamicconfig.GetIntPropertyFilteredByDomain(0.0),
+		MutableStateChecksumInvalidateBefore:  dynamicproperties.GetFloatPropertyFn(10),
+		MutableStateChecksumVerifyProbability: dynamicproperties.GetIntPropertyFilteredByDomain(0.0),
+		MutableStateChecksumGenProbability:    dynamicproperties.GetIntPropertyFilteredByDomain(0.0),
 		HostName:                              "test-host",
 		EnableReplicationTaskGeneration:       func(string, string) bool { return true },
-		MaximumBufferedEventsBatch:            func(...dynamicconfig.FilterOption) int { return 100 },
+		MaximumBufferedEventsBatch:            func(...dynamicproperties.FilterOption) int { return 100 },
 	}).Times(1)
 	shardContext.EXPECT().GetTimeSource().Return(clock.NewMockedTimeSource())
 	shardContext.EXPECT().GetMetricsClient().Return(metrics.NewNoopMetricsClient())

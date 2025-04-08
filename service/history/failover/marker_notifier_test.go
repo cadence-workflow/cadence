@@ -35,7 +35,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/config"
@@ -66,7 +66,7 @@ func (s *markerNotifierSuite) SetupTest() {
 	s.controller = gomock.NewController(s.T())
 
 	config := config.NewForTest()
-	config.NotifyFailoverMarkerInterval = dynamicconfig.GetDurationPropertyFn(time.Millisecond)
+	config.NotifyFailoverMarkerInterval = dynamicproperties.GetDurationPropertyFn(time.Millisecond)
 	s.coordinator = NewMockCoordinator(s.controller)
 	s.mockShard = shard.NewTestContext(
 		s.T(),

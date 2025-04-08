@@ -24,7 +24,7 @@ import (
 	"fmt"
 
 	"github.com/uber/cadence/common"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 )
 
 type SchedulerOptions[K comparable] struct {
@@ -36,7 +36,7 @@ type SchedulerOptions[K comparable] struct {
 func NewSchedulerOptions[K comparable](
 	schedulerType int,
 	queueSize int,
-	workerCount dynamicconfig.IntPropertyFn,
+	workerCount dynamicproperties.IntPropertyFn,
 	dispatcherCount int,
 	taskToChannelKeyFn func(PriorityTask) K,
 	channelKeyToWeightFn func(K) int,

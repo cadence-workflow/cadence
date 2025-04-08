@@ -32,6 +32,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/types"
 )
@@ -50,7 +51,7 @@ func TestUpdateGlobalState(t *testing.T) {
 			}},
 			dcAffordance: func(client *dynamicconfig.MockClient) {
 				client.EXPECT().UpdateValue(
-					dynamicconfig.DefaultIsolationGroupConfigStoreManagerGlobalMapping,
+					dynamicproperties.DefaultIsolationGroupConfigStoreManagerGlobalMapping,
 					gomock.Any(), // covering the mapping in the mapper unit-test instead
 				)
 			},
@@ -100,7 +101,7 @@ func TestGetGlobalState(t *testing.T) {
 			in: types.GetGlobalIsolationGroupsRequest{},
 			dcAffordance: func(client *dynamicconfig.MockClient) {
 				client.EXPECT().GetListValue(
-					dynamicconfig.DefaultIsolationGroupConfigStoreManagerGlobalMapping,
+					dynamicproperties.DefaultIsolationGroupConfigStoreManagerGlobalMapping,
 					gomock.Any(),
 				).Return(dynamicConfigResponse, nil)
 			},
@@ -110,7 +111,7 @@ func TestGetGlobalState(t *testing.T) {
 			in: types.GetGlobalIsolationGroupsRequest{},
 			dcAffordance: func(client *dynamicconfig.MockClient) {
 				client.EXPECT().GetListValue(
-					dynamicconfig.DefaultIsolationGroupConfigStoreManagerGlobalMapping,
+					dynamicproperties.DefaultIsolationGroupConfigStoreManagerGlobalMapping,
 					gomock.Any(),
 				).Return(nil, errors.New("an error"))
 			},

@@ -35,7 +35,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	commonConfig "github.com/uber/cadence/common/config"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
@@ -59,9 +59,9 @@ func createTestHistoryReplicator(t *testing.T) historyReplicatorImpl {
 		NumberOfShards:           0,
 		IsAdvancedVisConfigExist: false,
 		MaxResponseSize:          0,
-		HistoryCacheInitialSize:  dynamicconfig.GetIntPropertyFn(10),
-		HistoryCacheMaxSize:      dynamicconfig.GetIntPropertyFn(10),
-		HistoryCacheTTL:          dynamicconfig.GetDurationPropertyFn(10),
+		HistoryCacheInitialSize:  dynamicproperties.GetIntPropertyFn(10),
+		HistoryCacheMaxSize:      dynamicproperties.GetIntPropertyFn(10),
+		HistoryCacheTTL:          dynamicproperties.GetDurationPropertyFn(10),
 		HostName:                 "test-host",
 	}).Times(1)
 
@@ -108,9 +108,9 @@ func TestNewHistoryReplicator_newBranchManager(t *testing.T) {
 		NumberOfShards:           0,
 		IsAdvancedVisConfigExist: false,
 		MaxResponseSize:          0,
-		HistoryCacheInitialSize:  dynamicconfig.GetIntPropertyFn(10),
-		HistoryCacheMaxSize:      dynamicconfig.GetIntPropertyFn(10),
-		HistoryCacheTTL:          dynamicconfig.GetDurationPropertyFn(10),
+		HistoryCacheInitialSize:  dynamicproperties.GetIntPropertyFn(10),
+		HistoryCacheMaxSize:      dynamicproperties.GetIntPropertyFn(10),
+		HistoryCacheTTL:          dynamicproperties.GetDurationPropertyFn(10),
 		HostName:                 "test-host",
 	}).Times(1)
 
@@ -157,9 +157,9 @@ func TestNewHistoryReplicator_newConflictResolver(t *testing.T) {
 		NumberOfShards:           0,
 		IsAdvancedVisConfigExist: false,
 		MaxResponseSize:          0,
-		HistoryCacheInitialSize:  dynamicconfig.GetIntPropertyFn(10),
-		HistoryCacheMaxSize:      dynamicconfig.GetIntPropertyFn(10),
-		HistoryCacheTTL:          dynamicconfig.GetDurationPropertyFn(10),
+		HistoryCacheInitialSize:  dynamicproperties.GetIntPropertyFn(10),
+		HistoryCacheMaxSize:      dynamicproperties.GetIntPropertyFn(10),
+		HistoryCacheTTL:          dynamicproperties.GetDurationPropertyFn(10),
 		HostName:                 "test-host",
 	}).Times(2)
 
@@ -210,9 +210,9 @@ func TestNewHistoryReplicator_newWorkflowResetter(t *testing.T) {
 		NumberOfShards:           0,
 		IsAdvancedVisConfigExist: false,
 		MaxResponseSize:          0,
-		HistoryCacheInitialSize:  dynamicconfig.GetIntPropertyFn(10),
-		HistoryCacheMaxSize:      dynamicconfig.GetIntPropertyFn(10),
-		HistoryCacheTTL:          dynamicconfig.GetDurationPropertyFn(10),
+		HistoryCacheInitialSize:  dynamicproperties.GetIntPropertyFn(10),
+		HistoryCacheMaxSize:      dynamicproperties.GetIntPropertyFn(10),
+		HistoryCacheTTL:          dynamicproperties.GetDurationPropertyFn(10),
 		HostName:                 "test-host",
 	}).Times(2)
 
@@ -269,9 +269,9 @@ func TestNewHistoryReplicator_newStateBuilder(t *testing.T) {
 		NumberOfShards:           0,
 		IsAdvancedVisConfigExist: false,
 		MaxResponseSize:          0,
-		HistoryCacheInitialSize:  dynamicconfig.GetIntPropertyFn(10),
-		HistoryCacheMaxSize:      dynamicconfig.GetIntPropertyFn(10),
-		HistoryCacheTTL:          dynamicconfig.GetDurationPropertyFn(10),
+		HistoryCacheInitialSize:  dynamicproperties.GetIntPropertyFn(10),
+		HistoryCacheMaxSize:      dynamicproperties.GetIntPropertyFn(10),
+		HistoryCacheTTL:          dynamicproperties.GetDurationPropertyFn(10),
 		HostName:                 "test-host",
 	}).Times(1)
 
@@ -317,9 +317,9 @@ func TestNewHistoryReplicator_newMutableState(t *testing.T) {
 		NumberOfShards:           0,
 		IsAdvancedVisConfigExist: false,
 		MaxResponseSize:          0,
-		HistoryCacheInitialSize:  dynamicconfig.GetIntPropertyFn(10),
-		HistoryCacheMaxSize:      dynamicconfig.GetIntPropertyFn(10),
-		HistoryCacheTTL:          dynamicconfig.GetDurationPropertyFn(10),
+		HistoryCacheInitialSize:  dynamicproperties.GetIntPropertyFn(10),
+		HistoryCacheMaxSize:      dynamicproperties.GetIntPropertyFn(10),
+		HistoryCacheTTL:          dynamicproperties.GetDurationPropertyFn(10),
 		HostName:                 "test-host",
 	}).Times(2)
 
@@ -1053,11 +1053,11 @@ func Test_applyStartEvents(t *testing.T) {
 					NumberOfShards:           0,
 					IsAdvancedVisConfigExist: false,
 					MaxResponseSize:          0,
-					HistoryCacheInitialSize:  dynamicconfig.GetIntPropertyFn(10),
-					HistoryCacheMaxSize:      dynamicconfig.GetIntPropertyFn(10),
-					HistoryCacheTTL:          dynamicconfig.GetDurationPropertyFn(10),
+					HistoryCacheInitialSize:  dynamicproperties.GetIntPropertyFn(10),
+					HistoryCacheMaxSize:      dynamicproperties.GetIntPropertyFn(10),
+					HistoryCacheTTL:          dynamicproperties.GetDurationPropertyFn(10),
 					HostName:                 "test-host",
-					StandbyClusterDelay:      dynamicconfig.GetDurationPropertyFn(10),
+					StandbyClusterDelay:      dynamicproperties.GetDurationPropertyFn(10),
 				}).Times(1)
 				mockShard.EXPECT().SetCurrentTime(gomock.Any(), gomock.Any()).Times(1)
 			},
@@ -1444,11 +1444,11 @@ func Test_applyNonStartEventsToCurrentBranch(t *testing.T) {
 					NumberOfShards:           0,
 					IsAdvancedVisConfigExist: false,
 					MaxResponseSize:          0,
-					HistoryCacheInitialSize:  dynamicconfig.GetIntPropertyFn(10),
-					HistoryCacheMaxSize:      dynamicconfig.GetIntPropertyFn(10),
-					HistoryCacheTTL:          dynamicconfig.GetDurationPropertyFn(10),
+					HistoryCacheInitialSize:  dynamicproperties.GetIntPropertyFn(10),
+					HistoryCacheMaxSize:      dynamicproperties.GetIntPropertyFn(10),
+					HistoryCacheTTL:          dynamicproperties.GetDurationPropertyFn(10),
 					HostName:                 "test-host",
-					StandbyClusterDelay:      dynamicconfig.GetDurationPropertyFn(10),
+					StandbyClusterDelay:      dynamicproperties.GetDurationPropertyFn(10),
 				}).Times(1)
 				mockShard.EXPECT().SetCurrentTime(gomock.Any(), gomock.Any()).Times(1)
 			},
@@ -2040,11 +2040,11 @@ func Test_applyNonStartEventsResetWorkflow(t *testing.T) {
 					NumberOfShards:           0,
 					IsAdvancedVisConfigExist: false,
 					MaxResponseSize:          0,
-					HistoryCacheInitialSize:  dynamicconfig.GetIntPropertyFn(10),
-					HistoryCacheMaxSize:      dynamicconfig.GetIntPropertyFn(10),
-					HistoryCacheTTL:          dynamicconfig.GetDurationPropertyFn(10),
+					HistoryCacheInitialSize:  dynamicproperties.GetIntPropertyFn(10),
+					HistoryCacheMaxSize:      dynamicproperties.GetIntPropertyFn(10),
+					HistoryCacheTTL:          dynamicproperties.GetDurationPropertyFn(10),
 					HostName:                 "test-host",
-					StandbyClusterDelay:      dynamicconfig.GetDurationPropertyFn(10),
+					StandbyClusterDelay:      dynamicproperties.GetDurationPropertyFn(10),
 				}).Times(1)
 				mockShard.EXPECT().SetCurrentTime(gomock.Any(), gomock.Any()).Times(1)
 			},
@@ -2210,7 +2210,7 @@ func Test_notify(t *testing.T) {
 				test.primaryClusterName,
 				test.currentClusterName,
 				clusterGroup,
-				dynamicconfig.GetBoolPropertyFnFilteredByDomain(false),
+				dynamicproperties.GetBoolPropertyFnFilteredByDomain(false),
 				metrics.NewNoopMetricsClient(),
 				log.NewNoop(),
 			)
@@ -2219,7 +2219,7 @@ func Test_notify(t *testing.T) {
 			mockShard := shard.NewMockContext(ctrl)
 			if test.expectSetCurrentTime {
 				mockShard.EXPECT().GetConfig().Return(&config.Config{
-					StandbyClusterDelay: dynamicconfig.GetDurationPropertyFn(5 * time.Minute),
+					StandbyClusterDelay: dynamicproperties.GetDurationPropertyFn(5 * time.Minute),
 				}).Times(1)
 				mockShard.EXPECT().SetCurrentTime(test.clusterName, gomock.Any()).Times(1)
 			}

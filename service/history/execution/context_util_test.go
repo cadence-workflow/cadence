@@ -30,7 +30,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/cache"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/metrics/mocks"
@@ -41,14 +41,14 @@ import (
 
 func createTestConfig() *config.Config {
 	return &config.Config{
-		EnableShardIDMetrics:                  dynamicconfig.GetBoolPropertyFn(true),
-		LargeShardHistoryBlobMetricThreshold:  dynamicconfig.GetIntPropertyFn(1024 * 1024 * 5),        // 5 MB
+		EnableShardIDMetrics:                  dynamicproperties.GetBoolPropertyFn(true),
+		LargeShardHistoryBlobMetricThreshold:  dynamicproperties.GetIntPropertyFn(1024 * 1024 * 5),    // 5 MB
 		BlobSizeLimitWarn:                     func(domainName string) int { return 1024 * 1024 * 5 }, // 5 MB
-		LargeShardHistoryEventMetricThreshold: dynamicconfig.GetIntPropertyFn(1500),
+		LargeShardHistoryEventMetricThreshold: dynamicproperties.GetIntPropertyFn(1500),
 		HistoryCountLimitWarn:                 func(domainName string) int { return 1500 },
-		LargeShardHistorySizeMetricThreshold:  dynamicconfig.GetIntPropertyFn(1024 * 1024 * 2),        // 2 MB
+		LargeShardHistorySizeMetricThreshold:  dynamicproperties.GetIntPropertyFn(1024 * 1024 * 2),    // 2 MB
 		HistorySizeLimitWarn:                  func(domainName string) int { return 1024 * 1024 * 2 }, // 2 MB
-		SampleLoggingRate:                     dynamicconfig.GetIntPropertyFn(100),
+		SampleLoggingRate:                     dynamicproperties.GetIntPropertyFn(100),
 	}
 }
 

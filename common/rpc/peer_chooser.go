@@ -30,7 +30,7 @@ import (
 	"go.uber.org/yarpc/api/transport"
 	"go.uber.org/yarpc/peer/roundrobin"
 
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/metrics"
@@ -49,7 +49,7 @@ type (
 		// EnableConnectionRetainingDirectChooser is used by direct peer chooser.
 		// If false, yarpc's own default direct peer chooser will be used which doesn't retain connections.
 		// If true, cadence's own direct peer chooser will be used which retains connections.
-		EnableConnectionRetainingDirectChooser dynamicconfig.BoolPropertyFn
+		EnableConnectionRetainingDirectChooser dynamicproperties.BoolPropertyFn
 	}
 	PeerChooserFactory interface {
 		CreatePeerChooser(transport peer.Transport, opts PeerChooserOptions) (PeerChooser, error)

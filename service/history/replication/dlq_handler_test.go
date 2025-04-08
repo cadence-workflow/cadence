@@ -276,12 +276,10 @@ func (s *dlqHandlerSuite) TestReadMessages_OK() {
 	}
 	s.executionManager.On("GetReplicationTasksFromDLQ", mock.Anything, &persistence.GetReplicationTasksFromDLQRequest{
 		SourceClusterName: s.sourceCluster,
-		GetReplicationTasksRequest: persistence.GetReplicationTasksRequest{
-			ReadLevel:     0,
-			MaxReadLevel:  lastMessageID + 1,
-			BatchSize:     pageSize,
-			NextPageToken: pageToken,
-		},
+		ReadLevel:         0,
+		MaxReadLevel:      lastMessageID + 1,
+		BatchSize:         pageSize,
+		NextPageToken:     pageToken,
 	}).Return(resp, nil).Times(1)
 
 	s.mockClientBean.EXPECT().GetRemoteAdminClient(s.sourceCluster).Return(s.adminClient).AnyTimes()
@@ -332,12 +330,10 @@ func (s *dlqHandlerSuite) TestReadMessagesWithAckLevel_OK() {
 
 	req := &persistence.GetReplicationTasksFromDLQRequest{
 		SourceClusterName: s.sourceCluster,
-		GetReplicationTasksRequest: persistence.GetReplicationTasksRequest{
-			ReadLevel:     defaultBeginningMessageID + 1,
-			MaxReadLevel:  lastMessageID + 1,
-			BatchSize:     pageSize,
-			NextPageToken: pageToken,
-		},
+		ReadLevel:         defaultBeginningMessageID + 1,
+		MaxReadLevel:      lastMessageID + 1,
+		BatchSize:         pageSize,
+		NextPageToken:     pageToken,
 	}
 
 	s.executionManager.On("GetReplicationTasksFromDLQ", ctx, req).Return(replicationTasksResponse, nil).Times(1)
@@ -369,12 +365,10 @@ func (s *dlqHandlerSuite) TestReadMessagesWithAckLevel_GetReplicationTasksFromDL
 
 	req := &persistence.GetReplicationTasksFromDLQRequest{
 		SourceClusterName: s.sourceCluster,
-		GetReplicationTasksRequest: persistence.GetReplicationTasksRequest{
-			ReadLevel:     defaultBeginningMessageID + 1,
-			MaxReadLevel:  lastMessageID + 1,
-			BatchSize:     pageSize,
-			NextPageToken: pageToken,
-		},
+		ReadLevel:         defaultBeginningMessageID + 1,
+		MaxReadLevel:      lastMessageID + 1,
+		BatchSize:         pageSize,
+		NextPageToken:     pageToken,
 	}
 
 	s.executionManager.On("GetReplicationTasksFromDLQ", ctx, req).Return(nil, errors.New(errorMessage)).Times(1)
@@ -406,12 +400,10 @@ func (s *dlqHandlerSuite) TestReadMessagesWithAckLevel_GetDLQReplicationMessages
 
 	req := &persistence.GetReplicationTasksFromDLQRequest{
 		SourceClusterName: s.sourceCluster,
-		GetReplicationTasksRequest: persistence.GetReplicationTasksRequest{
-			ReadLevel:     defaultBeginningMessageID + 1,
-			MaxReadLevel:  lastMessageID + 1,
-			BatchSize:     pageSize,
-			NextPageToken: pageToken,
-		},
+		ReadLevel:         defaultBeginningMessageID + 1,
+		MaxReadLevel:      lastMessageID + 1,
+		BatchSize:         pageSize,
+		NextPageToken:     pageToken,
 	}
 
 	replicationTasksResponse := &persistence.GetHistoryTasksResponse{
@@ -501,12 +493,10 @@ func (s *dlqHandlerSuite) TestMergeMessages_OK() {
 	}
 	s.executionManager.On("GetReplicationTasksFromDLQ", mock.Anything, &persistence.GetReplicationTasksFromDLQRequest{
 		SourceClusterName: s.sourceCluster,
-		GetReplicationTasksRequest: persistence.GetReplicationTasksRequest{
-			ReadLevel:     0,
-			MaxReadLevel:  lastMessageID + 1,
-			BatchSize:     pageSize,
-			NextPageToken: pageToken,
-		},
+		ReadLevel:         0,
+		MaxReadLevel:      lastMessageID + 1,
+		BatchSize:         pageSize,
+		NextPageToken:     pageToken,
 	}).Return(resp, nil).Times(1)
 
 	s.mockClientBean.EXPECT().GetRemoteAdminClient(s.sourceCluster).Return(s.adminClient).AnyTimes()
@@ -566,12 +556,10 @@ func (s *dlqHandlerSuite) TestMergeMessages_executeFailed() {
 
 	s.executionManager.On("GetReplicationTasksFromDLQ", mock.Anything, &persistence.GetReplicationTasksFromDLQRequest{
 		SourceClusterName: s.sourceCluster,
-		GetReplicationTasksRequest: persistence.GetReplicationTasksRequest{
-			ReadLevel:     0,
-			MaxReadLevel:  lastMessageID + 1,
-			BatchSize:     pageSize,
-			NextPageToken: pageToken,
-		},
+		ReadLevel:         0,
+		MaxReadLevel:      lastMessageID + 1,
+		BatchSize:         pageSize,
+		NextPageToken:     pageToken,
 	}).Return(&persistence.GetHistoryTasksResponse{Tasks: []persistence.Task{&persistence.HistoryReplicationTask{TaskData: persistence.TaskData{TaskID: 1}}}}, nil).Times(1)
 
 	s.adminClient.EXPECT().GetDLQReplicationMessages(ctx, gomock.Any()).

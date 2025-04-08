@@ -30,7 +30,7 @@ import (
 	"context"
 
 	"github.com/uber/cadence/common/config"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -49,8 +49,8 @@ func NewExecutionManager(
 	metricClient metrics.Client,
 	logger log.Logger,
 	cfg *config.Persistence,
-	sampleLoggingRate dynamicconfig.IntPropertyFn,
-	enableShardIDMetrics dynamicconfig.BoolPropertyFn,
+	sampleLoggingRate dynamicproperties.IntPropertyFn,
+	enableShardIDMetrics dynamicproperties.BoolPropertyFn,
 ) persistence.ExecutionManager {
 	return &meteredExecutionManager{
 		wrapped: wrapped,

@@ -37,7 +37,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/constants"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
@@ -98,12 +98,12 @@ type (
 
 	// Config is the domain config for domain handler
 	Config struct {
-		MinRetentionDays       dynamicconfig.IntPropertyFn
-		MaxRetentionDays       dynamicconfig.IntPropertyFn
-		RequiredDomainDataKeys dynamicconfig.MapPropertyFn
-		MaxBadBinaryCount      dynamicconfig.IntPropertyFnWithDomainFilter
-		FailoverCoolDown       dynamicconfig.DurationPropertyFnWithDomainFilter
-		FailoverHistoryMaxSize dynamicconfig.IntPropertyFnWithDomainFilter
+		MinRetentionDays       dynamicproperties.IntPropertyFn
+		MaxRetentionDays       dynamicproperties.IntPropertyFn
+		RequiredDomainDataKeys dynamicproperties.MapPropertyFn
+		MaxBadBinaryCount      dynamicproperties.IntPropertyFnWithDomainFilter
+		FailoverCoolDown       dynamicproperties.DurationPropertyFnWithDomainFilter
+		FailoverHistoryMaxSize dynamicproperties.IntPropertyFnWithDomainFilter
 	}
 
 	// FailoverEvent is the failover information to be stored for each failover event in domain data

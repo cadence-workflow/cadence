@@ -30,7 +30,7 @@ import (
 
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/constants"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
@@ -250,8 +250,8 @@ func (f *defaultManagerFactory) initPersistenceFactory(c *cli.Context) (client.F
 	}
 	cfg.Persistence.DataStores[cfg.Persistence.DefaultStore] = defaultStore
 
-	cfg.Persistence.TransactionSizeLimit = dynamicconfig.GetIntPropertyFn(constants.DefaultTransactionSizeLimit)
-	cfg.Persistence.ErrorInjectionRate = dynamicconfig.GetFloatPropertyFn(0.0)
+	cfg.Persistence.TransactionSizeLimit = dynamicproperties.GetIntPropertyFn(constants.DefaultTransactionSizeLimit)
+	cfg.Persistence.ErrorInjectionRate = dynamicproperties.GetFloatPropertyFn(0.0)
 
 	rps := c.Float64(FlagRPS)
 
@@ -262,7 +262,7 @@ func (f *defaultManagerFactory) initPersistenceFactory(c *cli.Context) (client.F
 		metrics.NewNoopMetricsClient(),
 		log.NewNoop(),
 		&persistence.DynamicConfiguration{
-			EnableSQLAsyncTransaction: dynamicconfig.GetBoolPropertyFn(false),
+			EnableSQLAsyncTransaction: dynamicproperties.GetBoolPropertyFn(false),
 		},
 	), nil
 }

@@ -1342,7 +1342,10 @@ func (e *matchingEngineImpl) emitTaskIsolationMetrics(
 		if !ok {
 			originalGroup = currentGroup
 		}
-		scope.Tagged(metrics.OriginalIsolationGroupTag(originalGroup), metrics.IsolationGroupTag(currentGroup), metrics.PollerIsolationGroupTag(pollerIsolationGroup)).IncCounter(metrics.IsolationTaskMatchPerTaskListCounter)
+		scope.Tagged(metrics.IsolationGroupTag(originalGroup), metrics.PollerIsolationGroupTag(pollerIsolationGroup)).IncCounter(metrics.IsolationTaskMatchPerTaskListCounter)
+		if originalGroup == pollerIsolationGroup {
+			scope.Tagged(metrics.IsolationGroupTag(originalGroup)).IncCounter(metrics.IsolationSuccessPerTaskListCounter)
+		}
 	}
 }
 

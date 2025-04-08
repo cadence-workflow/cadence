@@ -78,15 +78,18 @@ func NewAPIHandler(
 }
 
 func (handler *clusterRedirectionHandler) CountWorkflowExecutions(ctx context.Context, cp1 *types.CountWorkflowExecutionsRequest) (cp2 *types.CountWorkflowExecutionsResponse, err error) {
-	var apiName = "CountWorkflowExecutions"
-	var cluster string
+	var (
+		apiName                   = "CountWorkflowExecutions"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+	)
 
 	scope, startTime := handler.beforeCall(metrics.DCRedirectionCountWorkflowExecutionsScope)
 	defer func() {
 		handler.afterCall(recover(), scope, startTime, cp1.GetDomain(), "", cluster, &err)
 	}()
 
-	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, cp1.GetDomain(), apiName, func(targetDC string) error {
+	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, cp1.GetDomain(), apiName, requestedConsistencyLevel, func(targetDC string) error {
 		cluster = targetDC
 		switch {
 		case targetDC == handler.currentClusterName:
@@ -110,15 +113,18 @@ func (handler *clusterRedirectionHandler) DescribeDomain(ctx context.Context, dp
 }
 
 func (handler *clusterRedirectionHandler) DescribeTaskList(ctx context.Context, dp1 *types.DescribeTaskListRequest) (dp2 *types.DescribeTaskListResponse, err error) {
-	var apiName = "DescribeTaskList"
-	var cluster string
+	var (
+		apiName                   = "DescribeTaskList"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+	)
 
 	scope, startTime := handler.beforeCall(metrics.DCRedirectionDescribeTaskListScope)
 	defer func() {
 		handler.afterCall(recover(), scope, startTime, dp1.GetDomain(), "", cluster, &err)
 	}()
 
-	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, dp1.GetDomain(), apiName, func(targetDC string) error {
+	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, dp1.GetDomain(), apiName, requestedConsistencyLevel, func(targetDC string) error {
 		cluster = targetDC
 		switch {
 		case targetDC == handler.currentClusterName:
@@ -134,15 +140,24 @@ func (handler *clusterRedirectionHandler) DescribeTaskList(ctx context.Context, 
 }
 
 func (handler *clusterRedirectionHandler) DescribeWorkflowExecution(ctx context.Context, dp1 *types.DescribeWorkflowExecutionRequest) (dp2 *types.DescribeWorkflowExecutionResponse, err error) {
-	var apiName = "DescribeWorkflowExecution"
-	var cluster string
+	var (
+		apiName                   = "DescribeWorkflowExecution"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+	)
+	// Only autoforward strong consistent queries, this is done for two reasons:
+	// 1. Query is meant to be fast, autoforwarding all queries will increase latency.
+	// 2. If eventual consistency was requested then the results from running out of local dc will be fine.
+	if dp1.GetQueryConsistencyLevel() == types.QueryConsistencyLevelStrong {
+		requestedConsistencyLevel = types.QueryConsistencyLevelStrong
+	}
 
 	scope, startTime := handler.beforeCall(metrics.DCRedirectionDescribeWorkflowExecutionScope)
 	defer func() {
 		handler.afterCall(recover(), scope, startTime, dp1.GetDomain(), "", cluster, &err)
 	}()
 
-	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, dp1.GetDomain(), apiName, func(targetDC string) error {
+	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, dp1.GetDomain(), apiName, requestedConsistencyLevel, func(targetDC string) error {
 		cluster = targetDC
 		switch {
 		case targetDC == handler.currentClusterName:
@@ -170,15 +185,18 @@ func (handler *clusterRedirectionHandler) GetSearchAttributes(ctx context.Contex
 }
 
 func (handler *clusterRedirectionHandler) GetTaskListsByDomain(ctx context.Context, gp1 *types.GetTaskListsByDomainRequest) (gp2 *types.GetTaskListsByDomainResponse, err error) {
-	var apiName = "GetTaskListsByDomain"
-	var cluster string
+	var (
+		apiName                   = "GetTaskListsByDomain"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+	)
 
 	scope, startTime := handler.beforeCall(metrics.DCRedirectionGetTaskListsByDomainScope)
 	defer func() {
 		handler.afterCall(recover(), scope, startTime, gp1.GetDomain(), "", cluster, &err)
 	}()
 
-	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, gp1.GetDomain(), apiName, func(targetDC string) error {
+	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, gp1.GetDomain(), apiName, requestedConsistencyLevel, func(targetDC string) error {
 		cluster = targetDC
 		switch {
 		case targetDC == handler.currentClusterName:
@@ -194,15 +212,24 @@ func (handler *clusterRedirectionHandler) GetTaskListsByDomain(ctx context.Conte
 }
 
 func (handler *clusterRedirectionHandler) GetWorkflowExecutionHistory(ctx context.Context, gp1 *types.GetWorkflowExecutionHistoryRequest) (gp2 *types.GetWorkflowExecutionHistoryResponse, err error) {
-	var apiName = "GetWorkflowExecutionHistory"
-	var cluster string
+	var (
+		apiName                   = "GetWorkflowExecutionHistory"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+	)
+	// Only autoforward strong consistent queries, this is done for two reasons:
+	// 1. Query is meant to be fast, autoforwarding all queries will increase latency.
+	// 2. If eventual consistency was requested then the results from running out of local dc will be fine.
+	if gp1.GetQueryConsistencyLevel() == types.QueryConsistencyLevelStrong {
+		requestedConsistencyLevel = types.QueryConsistencyLevelStrong
+	}
 
 	scope, startTime := handler.beforeCall(metrics.DCRedirectionGetWorkflowExecutionHistoryScope)
 	defer func() {
 		handler.afterCall(recover(), scope, startTime, gp1.GetDomain(), "", cluster, &err)
 	}()
 
-	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, gp1.GetDomain(), apiName, func(targetDC string) error {
+	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, gp1.GetDomain(), apiName, requestedConsistencyLevel, func(targetDC string) error {
 		cluster = targetDC
 		switch {
 		case targetDC == handler.currentClusterName:
@@ -222,15 +249,18 @@ func (handler *clusterRedirectionHandler) Health(ctx context.Context) (hp1 *type
 }
 
 func (handler *clusterRedirectionHandler) ListArchivedWorkflowExecutions(ctx context.Context, lp1 *types.ListArchivedWorkflowExecutionsRequest) (lp2 *types.ListArchivedWorkflowExecutionsResponse, err error) {
-	var apiName = "ListArchivedWorkflowExecutions"
-	var cluster string
+	var (
+		apiName                   = "ListArchivedWorkflowExecutions"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+	)
 
 	scope, startTime := handler.beforeCall(metrics.DCRedirectionListArchivedWorkflowExecutionsScope)
 	defer func() {
 		handler.afterCall(recover(), scope, startTime, lp1.GetDomain(), "", cluster, &err)
 	}()
 
-	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, lp1.GetDomain(), apiName, func(targetDC string) error {
+	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, lp1.GetDomain(), apiName, requestedConsistencyLevel, func(targetDC string) error {
 		cluster = targetDC
 		switch {
 		case targetDC == handler.currentClusterName:
@@ -246,15 +276,18 @@ func (handler *clusterRedirectionHandler) ListArchivedWorkflowExecutions(ctx con
 }
 
 func (handler *clusterRedirectionHandler) ListClosedWorkflowExecutions(ctx context.Context, lp1 *types.ListClosedWorkflowExecutionsRequest) (lp2 *types.ListClosedWorkflowExecutionsResponse, err error) {
-	var apiName = "ListClosedWorkflowExecutions"
-	var cluster string
+	var (
+		apiName                   = "ListClosedWorkflowExecutions"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+	)
 
 	scope, startTime := handler.beforeCall(metrics.DCRedirectionListClosedWorkflowExecutionsScope)
 	defer func() {
 		handler.afterCall(recover(), scope, startTime, lp1.GetDomain(), "", cluster, &err)
 	}()
 
-	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, lp1.GetDomain(), apiName, func(targetDC string) error {
+	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, lp1.GetDomain(), apiName, requestedConsistencyLevel, func(targetDC string) error {
 		cluster = targetDC
 		switch {
 		case targetDC == handler.currentClusterName:
@@ -274,15 +307,18 @@ func (handler *clusterRedirectionHandler) ListDomains(ctx context.Context, lp1 *
 }
 
 func (handler *clusterRedirectionHandler) ListOpenWorkflowExecutions(ctx context.Context, lp1 *types.ListOpenWorkflowExecutionsRequest) (lp2 *types.ListOpenWorkflowExecutionsResponse, err error) {
-	var apiName = "ListOpenWorkflowExecutions"
-	var cluster string
+	var (
+		apiName                   = "ListOpenWorkflowExecutions"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+	)
 
 	scope, startTime := handler.beforeCall(metrics.DCRedirectionListOpenWorkflowExecutionsScope)
 	defer func() {
 		handler.afterCall(recover(), scope, startTime, lp1.GetDomain(), "", cluster, &err)
 	}()
 
-	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, lp1.GetDomain(), apiName, func(targetDC string) error {
+	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, lp1.GetDomain(), apiName, requestedConsistencyLevel, func(targetDC string) error {
 		cluster = targetDC
 		switch {
 		case targetDC == handler.currentClusterName:
@@ -298,15 +334,18 @@ func (handler *clusterRedirectionHandler) ListOpenWorkflowExecutions(ctx context
 }
 
 func (handler *clusterRedirectionHandler) ListTaskListPartitions(ctx context.Context, lp1 *types.ListTaskListPartitionsRequest) (lp2 *types.ListTaskListPartitionsResponse, err error) {
-	var apiName = "ListTaskListPartitions"
-	var cluster string
+	var (
+		apiName                   = "ListTaskListPartitions"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+	)
 
 	scope, startTime := handler.beforeCall(metrics.DCRedirectionListTaskListPartitionsScope)
 	defer func() {
 		handler.afterCall(recover(), scope, startTime, lp1.GetDomain(), "", cluster, &err)
 	}()
 
-	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, lp1.GetDomain(), apiName, func(targetDC string) error {
+	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, lp1.GetDomain(), apiName, requestedConsistencyLevel, func(targetDC string) error {
 		cluster = targetDC
 		switch {
 		case targetDC == handler.currentClusterName:
@@ -322,15 +361,18 @@ func (handler *clusterRedirectionHandler) ListTaskListPartitions(ctx context.Con
 }
 
 func (handler *clusterRedirectionHandler) ListWorkflowExecutions(ctx context.Context, lp1 *types.ListWorkflowExecutionsRequest) (lp2 *types.ListWorkflowExecutionsResponse, err error) {
-	var apiName = "ListWorkflowExecutions"
-	var cluster string
+	var (
+		apiName                   = "ListWorkflowExecutions"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+	)
 
 	scope, startTime := handler.beforeCall(metrics.DCRedirectionListWorkflowExecutionsScope)
 	defer func() {
 		handler.afterCall(recover(), scope, startTime, lp1.GetDomain(), "", cluster, &err)
 	}()
 
-	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, lp1.GetDomain(), apiName, func(targetDC string) error {
+	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, lp1.GetDomain(), apiName, requestedConsistencyLevel, func(targetDC string) error {
 		cluster = targetDC
 		switch {
 		case targetDC == handler.currentClusterName:
@@ -346,15 +388,18 @@ func (handler *clusterRedirectionHandler) ListWorkflowExecutions(ctx context.Con
 }
 
 func (handler *clusterRedirectionHandler) PollForActivityTask(ctx context.Context, pp1 *types.PollForActivityTaskRequest) (pp2 *types.PollForActivityTaskResponse, err error) {
-	var apiName = "PollForActivityTask"
-	var cluster string
+	var (
+		apiName                   = "PollForActivityTask"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+	)
 
 	scope, startTime := handler.beforeCall(metrics.DCRedirectionPollForActivityTaskScope)
 	defer func() {
 		handler.afterCall(recover(), scope, startTime, pp1.GetDomain(), "", cluster, &err)
 	}()
 
-	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, pp1.GetDomain(), apiName, func(targetDC string) error {
+	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, pp1.GetDomain(), apiName, requestedConsistencyLevel, func(targetDC string) error {
 		cluster = targetDC
 		switch {
 		case targetDC == handler.currentClusterName:
@@ -370,15 +415,18 @@ func (handler *clusterRedirectionHandler) PollForActivityTask(ctx context.Contex
 }
 
 func (handler *clusterRedirectionHandler) PollForDecisionTask(ctx context.Context, pp1 *types.PollForDecisionTaskRequest) (pp2 *types.PollForDecisionTaskResponse, err error) {
-	var apiName = "PollForDecisionTask"
-	var cluster string
+	var (
+		apiName                   = "PollForDecisionTask"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+	)
 
 	scope, startTime := handler.beforeCall(metrics.DCRedirectionPollForDecisionTaskScope)
 	defer func() {
 		handler.afterCall(recover(), scope, startTime, pp1.GetDomain(), "", cluster, &err)
 	}()
 
-	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, pp1.GetDomain(), apiName, func(targetDC string) error {
+	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, pp1.GetDomain(), apiName, requestedConsistencyLevel, func(targetDC string) error {
 		cluster = targetDC
 		switch {
 		case targetDC == handler.currentClusterName:
@@ -393,9 +441,45 @@ func (handler *clusterRedirectionHandler) PollForDecisionTask(ctx context.Contex
 	return pp2, err
 }
 
+func (handler *clusterRedirectionHandler) QueryWorkflow(ctx context.Context, qp1 *types.QueryWorkflowRequest) (qp2 *types.QueryWorkflowResponse, err error) {
+	var (
+		apiName                   = "QueryWorkflow"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+	)
+	// Only autoforward strong consistent queries, this is done for two reasons:
+	// 1. Query is meant to be fast, autoforwarding all queries will increase latency.
+	// 2. If eventual consistency was requested then the results from running out of local dc will be fine.
+	if qp1.GetQueryConsistencyLevel() == types.QueryConsistencyLevelStrong {
+		requestedConsistencyLevel = types.QueryConsistencyLevelStrong
+	}
+
+	scope, startTime := handler.beforeCall(metrics.DCRedirectionQueryWorkflowScope)
+	defer func() {
+		handler.afterCall(recover(), scope, startTime, qp1.GetDomain(), "", cluster, &err)
+	}()
+
+	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, qp1.GetDomain(), apiName, requestedConsistencyLevel, func(targetDC string) error {
+		cluster = targetDC
+		switch {
+		case targetDC == handler.currentClusterName:
+			qp2, err = handler.frontendHandler.QueryWorkflow(ctx, qp1)
+		default:
+			remoteClient := handler.GetRemoteFrontendClient(targetDC)
+			qp2, err = remoteClient.QueryWorkflow(ctx, qp1, handler.callOptions...)
+		}
+		return err
+	})
+
+	return qp2, err
+}
+
 func (handler *clusterRedirectionHandler) RecordActivityTaskHeartbeat(ctx context.Context, rp1 *types.RecordActivityTaskHeartbeatRequest) (rp2 *types.RecordActivityTaskHeartbeatResponse, err error) {
-	var apiName = "RecordActivityTaskHeartbeat"
-	var cluster string
+	var (
+		apiName                   = "RecordActivityTaskHeartbeat"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+	)
 
 	token := domainIDGetter(noopdomainIDGetter{})
 	scope, startTime := handler.beforeCall(metrics.DCRedirectionRecordActivityTaskHeartbeatScope)
@@ -408,7 +492,7 @@ func (handler *clusterRedirectionHandler) RecordActivityTaskHeartbeat(ctx contex
 		return nil, err
 	}
 
-	err = handler.redirectionPolicy.WithDomainIDRedirect(ctx, token.GetDomainID(), apiName, func(targetDC string) error {
+	err = handler.redirectionPolicy.WithDomainIDRedirect(ctx, token.GetDomainID(), apiName, requestedConsistencyLevel, func(targetDC string) error {
 		cluster = targetDC
 		switch {
 		case targetDC == handler.currentClusterName:
@@ -424,15 +508,18 @@ func (handler *clusterRedirectionHandler) RecordActivityTaskHeartbeat(ctx contex
 }
 
 func (handler *clusterRedirectionHandler) RecordActivityTaskHeartbeatByID(ctx context.Context, rp1 *types.RecordActivityTaskHeartbeatByIDRequest) (rp2 *types.RecordActivityTaskHeartbeatResponse, err error) {
-	var apiName = "RecordActivityTaskHeartbeatByID"
-	var cluster string
+	var (
+		apiName                   = "RecordActivityTaskHeartbeatByID"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+	)
 
 	scope, startTime := handler.beforeCall(metrics.DCRedirectionRecordActivityTaskHeartbeatByIDScope)
 	defer func() {
 		handler.afterCall(recover(), scope, startTime, rp1.GetDomain(), "", cluster, &err)
 	}()
 
-	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, rp1.GetDomain(), apiName, func(targetDC string) error {
+	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, rp1.GetDomain(), apiName, requestedConsistencyLevel, func(targetDC string) error {
 		cluster = targetDC
 		switch {
 		case targetDC == handler.currentClusterName:
@@ -448,15 +535,18 @@ func (handler *clusterRedirectionHandler) RecordActivityTaskHeartbeatByID(ctx co
 }
 
 func (handler *clusterRedirectionHandler) RefreshWorkflowTasks(ctx context.Context, rp1 *types.RefreshWorkflowTasksRequest) (err error) {
-	var apiName = "RefreshWorkflowTasks"
-	var cluster string
+	var (
+		apiName                   = "RefreshWorkflowTasks"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+	)
 
 	scope, startTime := handler.beforeCall(metrics.DCRedirectionRefreshWorkflowTasksScope)
 	defer func() {
 		handler.afterCall(recover(), scope, startTime, rp1.GetDomain(), "", cluster, &err)
 	}()
 
-	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, rp1.GetDomain(), apiName, func(targetDC string) error {
+	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, rp1.GetDomain(), apiName, requestedConsistencyLevel, func(targetDC string) error {
 		cluster = targetDC
 		switch {
 		case targetDC == handler.currentClusterName:
@@ -476,15 +566,18 @@ func (handler *clusterRedirectionHandler) RegisterDomain(ctx context.Context, rp
 }
 
 func (handler *clusterRedirectionHandler) RequestCancelWorkflowExecution(ctx context.Context, rp1 *types.RequestCancelWorkflowExecutionRequest) (err error) {
-	var apiName = "RequestCancelWorkflowExecution"
-	var cluster string
+	var (
+		apiName                   = "RequestCancelWorkflowExecution"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+	)
 
 	scope, startTime := handler.beforeCall(metrics.DCRedirectionRequestCancelWorkflowExecutionScope)
 	defer func() {
 		handler.afterCall(recover(), scope, startTime, rp1.GetDomain(), "", cluster, &err)
 	}()
 
-	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, rp1.GetDomain(), apiName, func(targetDC string) error {
+	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, rp1.GetDomain(), apiName, requestedConsistencyLevel, func(targetDC string) error {
 		cluster = targetDC
 		switch {
 		case targetDC == handler.currentClusterName:
@@ -500,15 +593,18 @@ func (handler *clusterRedirectionHandler) RequestCancelWorkflowExecution(ctx con
 }
 
 func (handler *clusterRedirectionHandler) ResetStickyTaskList(ctx context.Context, rp1 *types.ResetStickyTaskListRequest) (rp2 *types.ResetStickyTaskListResponse, err error) {
-	var apiName = "ResetStickyTaskList"
-	var cluster string
+	var (
+		apiName                   = "ResetStickyTaskList"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+	)
 
 	scope, startTime := handler.beforeCall(metrics.DCRedirectionResetStickyTaskListScope)
 	defer func() {
 		handler.afterCall(recover(), scope, startTime, rp1.GetDomain(), "", cluster, &err)
 	}()
 
-	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, rp1.GetDomain(), apiName, func(targetDC string) error {
+	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, rp1.GetDomain(), apiName, requestedConsistencyLevel, func(targetDC string) error {
 		cluster = targetDC
 		switch {
 		case targetDC == handler.currentClusterName:
@@ -524,15 +620,18 @@ func (handler *clusterRedirectionHandler) ResetStickyTaskList(ctx context.Contex
 }
 
 func (handler *clusterRedirectionHandler) ResetWorkflowExecution(ctx context.Context, rp1 *types.ResetWorkflowExecutionRequest) (rp2 *types.ResetWorkflowExecutionResponse, err error) {
-	var apiName = "ResetWorkflowExecution"
-	var cluster string
+	var (
+		apiName                   = "ResetWorkflowExecution"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+	)
 
 	scope, startTime := handler.beforeCall(metrics.DCRedirectionResetWorkflowExecutionScope)
 	defer func() {
 		handler.afterCall(recover(), scope, startTime, rp1.GetDomain(), "", cluster, &err)
 	}()
 
-	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, rp1.GetDomain(), apiName, func(targetDC string) error {
+	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, rp1.GetDomain(), apiName, requestedConsistencyLevel, func(targetDC string) error {
 		cluster = targetDC
 		switch {
 		case targetDC == handler.currentClusterName:
@@ -548,8 +647,11 @@ func (handler *clusterRedirectionHandler) ResetWorkflowExecution(ctx context.Con
 }
 
 func (handler *clusterRedirectionHandler) RespondActivityTaskCanceled(ctx context.Context, rp1 *types.RespondActivityTaskCanceledRequest) (err error) {
-	var apiName = "RespondActivityTaskCanceled"
-	var cluster string
+	var (
+		apiName                   = "RespondActivityTaskCanceled"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+	)
 
 	token := domainIDGetter(noopdomainIDGetter{})
 	scope, startTime := handler.beforeCall(metrics.DCRedirectionRespondActivityTaskCanceledScope)
@@ -562,7 +664,7 @@ func (handler *clusterRedirectionHandler) RespondActivityTaskCanceled(ctx contex
 		return err
 	}
 
-	err = handler.redirectionPolicy.WithDomainIDRedirect(ctx, token.GetDomainID(), apiName, func(targetDC string) error {
+	err = handler.redirectionPolicy.WithDomainIDRedirect(ctx, token.GetDomainID(), apiName, requestedConsistencyLevel, func(targetDC string) error {
 		cluster = targetDC
 		switch {
 		case targetDC == handler.currentClusterName:
@@ -578,15 +680,18 @@ func (handler *clusterRedirectionHandler) RespondActivityTaskCanceled(ctx contex
 }
 
 func (handler *clusterRedirectionHandler) RespondActivityTaskCanceledByID(ctx context.Context, rp1 *types.RespondActivityTaskCanceledByIDRequest) (err error) {
-	var apiName = "RespondActivityTaskCanceledByID"
-	var cluster string
+	var (
+		apiName                   = "RespondActivityTaskCanceledByID"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+	)
 
 	scope, startTime := handler.beforeCall(metrics.DCRedirectionRespondActivityTaskCanceledByIDScope)
 	defer func() {
 		handler.afterCall(recover(), scope, startTime, rp1.GetDomain(), "", cluster, &err)
 	}()
 
-	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, rp1.GetDomain(), apiName, func(targetDC string) error {
+	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, rp1.GetDomain(), apiName, requestedConsistencyLevel, func(targetDC string) error {
 		cluster = targetDC
 		switch {
 		case targetDC == handler.currentClusterName:
@@ -602,8 +707,11 @@ func (handler *clusterRedirectionHandler) RespondActivityTaskCanceledByID(ctx co
 }
 
 func (handler *clusterRedirectionHandler) RespondActivityTaskCompleted(ctx context.Context, rp1 *types.RespondActivityTaskCompletedRequest) (err error) {
-	var apiName = "RespondActivityTaskCompleted"
-	var cluster string
+	var (
+		apiName                   = "RespondActivityTaskCompleted"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+	)
 
 	token := domainIDGetter(noopdomainIDGetter{})
 	scope, startTime := handler.beforeCall(metrics.DCRedirectionRespondActivityTaskCompletedScope)
@@ -616,7 +724,7 @@ func (handler *clusterRedirectionHandler) RespondActivityTaskCompleted(ctx conte
 		return err
 	}
 
-	err = handler.redirectionPolicy.WithDomainIDRedirect(ctx, token.GetDomainID(), apiName, func(targetDC string) error {
+	err = handler.redirectionPolicy.WithDomainIDRedirect(ctx, token.GetDomainID(), apiName, requestedConsistencyLevel, func(targetDC string) error {
 		cluster = targetDC
 		switch {
 		case targetDC == handler.currentClusterName:
@@ -632,15 +740,18 @@ func (handler *clusterRedirectionHandler) RespondActivityTaskCompleted(ctx conte
 }
 
 func (handler *clusterRedirectionHandler) RespondActivityTaskCompletedByID(ctx context.Context, rp1 *types.RespondActivityTaskCompletedByIDRequest) (err error) {
-	var apiName = "RespondActivityTaskCompletedByID"
-	var cluster string
+	var (
+		apiName                   = "RespondActivityTaskCompletedByID"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+	)
 
 	scope, startTime := handler.beforeCall(metrics.DCRedirectionRespondActivityTaskCompletedByIDScope)
 	defer func() {
 		handler.afterCall(recover(), scope, startTime, rp1.GetDomain(), "", cluster, &err)
 	}()
 
-	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, rp1.GetDomain(), apiName, func(targetDC string) error {
+	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, rp1.GetDomain(), apiName, requestedConsistencyLevel, func(targetDC string) error {
 		cluster = targetDC
 		switch {
 		case targetDC == handler.currentClusterName:
@@ -656,8 +767,11 @@ func (handler *clusterRedirectionHandler) RespondActivityTaskCompletedByID(ctx c
 }
 
 func (handler *clusterRedirectionHandler) RespondActivityTaskFailed(ctx context.Context, rp1 *types.RespondActivityTaskFailedRequest) (err error) {
-	var apiName = "RespondActivityTaskFailed"
-	var cluster string
+	var (
+		apiName                   = "RespondActivityTaskFailed"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+	)
 
 	token := domainIDGetter(noopdomainIDGetter{})
 	scope, startTime := handler.beforeCall(metrics.DCRedirectionRespondActivityTaskFailedScope)
@@ -670,7 +784,7 @@ func (handler *clusterRedirectionHandler) RespondActivityTaskFailed(ctx context.
 		return err
 	}
 
-	err = handler.redirectionPolicy.WithDomainIDRedirect(ctx, token.GetDomainID(), apiName, func(targetDC string) error {
+	err = handler.redirectionPolicy.WithDomainIDRedirect(ctx, token.GetDomainID(), apiName, requestedConsistencyLevel, func(targetDC string) error {
 		cluster = targetDC
 		switch {
 		case targetDC == handler.currentClusterName:
@@ -686,15 +800,18 @@ func (handler *clusterRedirectionHandler) RespondActivityTaskFailed(ctx context.
 }
 
 func (handler *clusterRedirectionHandler) RespondActivityTaskFailedByID(ctx context.Context, rp1 *types.RespondActivityTaskFailedByIDRequest) (err error) {
-	var apiName = "RespondActivityTaskFailedByID"
-	var cluster string
+	var (
+		apiName                   = "RespondActivityTaskFailedByID"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+	)
 
 	scope, startTime := handler.beforeCall(metrics.DCRedirectionRespondActivityTaskFailedByIDScope)
 	defer func() {
 		handler.afterCall(recover(), scope, startTime, rp1.GetDomain(), "", cluster, &err)
 	}()
 
-	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, rp1.GetDomain(), apiName, func(targetDC string) error {
+	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, rp1.GetDomain(), apiName, requestedConsistencyLevel, func(targetDC string) error {
 		cluster = targetDC
 		switch {
 		case targetDC == handler.currentClusterName:
@@ -710,8 +827,11 @@ func (handler *clusterRedirectionHandler) RespondActivityTaskFailedByID(ctx cont
 }
 
 func (handler *clusterRedirectionHandler) RespondDecisionTaskCompleted(ctx context.Context, rp1 *types.RespondDecisionTaskCompletedRequest) (rp2 *types.RespondDecisionTaskCompletedResponse, err error) {
-	var apiName = "RespondDecisionTaskCompleted"
-	var cluster string
+	var (
+		apiName                   = "RespondDecisionTaskCompleted"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+	)
 
 	token := domainIDGetter(noopdomainIDGetter{})
 	scope, startTime := handler.beforeCall(metrics.DCRedirectionRespondDecisionTaskCompletedScope)
@@ -724,7 +844,7 @@ func (handler *clusterRedirectionHandler) RespondDecisionTaskCompleted(ctx conte
 		return nil, err
 	}
 
-	err = handler.redirectionPolicy.WithDomainIDRedirect(ctx, token.GetDomainID(), apiName, func(targetDC string) error {
+	err = handler.redirectionPolicy.WithDomainIDRedirect(ctx, token.GetDomainID(), apiName, requestedConsistencyLevel, func(targetDC string) error {
 		cluster = targetDC
 		switch {
 		case targetDC == handler.currentClusterName:
@@ -740,8 +860,11 @@ func (handler *clusterRedirectionHandler) RespondDecisionTaskCompleted(ctx conte
 }
 
 func (handler *clusterRedirectionHandler) RespondDecisionTaskFailed(ctx context.Context, rp1 *types.RespondDecisionTaskFailedRequest) (err error) {
-	var apiName = "RespondDecisionTaskFailed"
-	var cluster string
+	var (
+		apiName                   = "RespondDecisionTaskFailed"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+	)
 
 	token := domainIDGetter(noopdomainIDGetter{})
 	scope, startTime := handler.beforeCall(metrics.DCRedirectionRespondDecisionTaskFailedScope)
@@ -754,7 +877,7 @@ func (handler *clusterRedirectionHandler) RespondDecisionTaskFailed(ctx context.
 		return err
 	}
 
-	err = handler.redirectionPolicy.WithDomainIDRedirect(ctx, token.GetDomainID(), apiName, func(targetDC string) error {
+	err = handler.redirectionPolicy.WithDomainIDRedirect(ctx, token.GetDomainID(), apiName, requestedConsistencyLevel, func(targetDC string) error {
 		cluster = targetDC
 		switch {
 		case targetDC == handler.currentClusterName:
@@ -770,8 +893,11 @@ func (handler *clusterRedirectionHandler) RespondDecisionTaskFailed(ctx context.
 }
 
 func (handler *clusterRedirectionHandler) RespondQueryTaskCompleted(ctx context.Context, rp1 *types.RespondQueryTaskCompletedRequest) (err error) {
-	var apiName = "RespondQueryTaskCompleted"
-	var cluster string
+	var (
+		apiName                   = "RespondQueryTaskCompleted"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+	)
 
 	token := domainIDGetter(noopdomainIDGetter{})
 	scope, startTime := handler.beforeCall(metrics.DCRedirectionRespondQueryTaskCompletedScope)
@@ -784,7 +910,7 @@ func (handler *clusterRedirectionHandler) RespondQueryTaskCompleted(ctx context.
 		return err
 	}
 
-	err = handler.redirectionPolicy.WithDomainIDRedirect(ctx, token.GetDomainID(), apiName, func(targetDC string) error {
+	err = handler.redirectionPolicy.WithDomainIDRedirect(ctx, token.GetDomainID(), apiName, requestedConsistencyLevel, func(targetDC string) error {
 		cluster = targetDC
 		switch {
 		case targetDC == handler.currentClusterName:
@@ -800,15 +926,18 @@ func (handler *clusterRedirectionHandler) RespondQueryTaskCompleted(ctx context.
 }
 
 func (handler *clusterRedirectionHandler) RestartWorkflowExecution(ctx context.Context, rp1 *types.RestartWorkflowExecutionRequest) (rp2 *types.RestartWorkflowExecutionResponse, err error) {
-	var apiName = "RestartWorkflowExecution"
-	var cluster string
+	var (
+		apiName                   = "RestartWorkflowExecution"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+	)
 
 	scope, startTime := handler.beforeCall(metrics.DCRedirectionRestartWorkflowExecutionScope)
 	defer func() {
 		handler.afterCall(recover(), scope, startTime, rp1.GetDomain(), "", cluster, &err)
 	}()
 
-	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, rp1.GetDomain(), apiName, func(targetDC string) error {
+	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, rp1.GetDomain(), apiName, requestedConsistencyLevel, func(targetDC string) error {
 		cluster = targetDC
 		switch {
 		case targetDC == handler.currentClusterName:
@@ -824,15 +953,18 @@ func (handler *clusterRedirectionHandler) RestartWorkflowExecution(ctx context.C
 }
 
 func (handler *clusterRedirectionHandler) ScanWorkflowExecutions(ctx context.Context, lp1 *types.ListWorkflowExecutionsRequest) (lp2 *types.ListWorkflowExecutionsResponse, err error) {
-	var apiName = "ScanWorkflowExecutions"
-	var cluster string
+	var (
+		apiName                   = "ScanWorkflowExecutions"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+	)
 
 	scope, startTime := handler.beforeCall(metrics.DCRedirectionScanWorkflowExecutionsScope)
 	defer func() {
 		handler.afterCall(recover(), scope, startTime, lp1.GetDomain(), "", cluster, &err)
 	}()
 
-	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, lp1.GetDomain(), apiName, func(targetDC string) error {
+	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, lp1.GetDomain(), apiName, requestedConsistencyLevel, func(targetDC string) error {
 		cluster = targetDC
 		switch {
 		case targetDC == handler.currentClusterName:
@@ -848,15 +980,18 @@ func (handler *clusterRedirectionHandler) ScanWorkflowExecutions(ctx context.Con
 }
 
 func (handler *clusterRedirectionHandler) SignalWithStartWorkflowExecution(ctx context.Context, sp1 *types.SignalWithStartWorkflowExecutionRequest) (sp2 *types.StartWorkflowExecutionResponse, err error) {
-	var apiName = "SignalWithStartWorkflowExecution"
-	var cluster string
+	var (
+		apiName                   = "SignalWithStartWorkflowExecution"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+	)
 
 	scope, startTime := handler.beforeCall(metrics.DCRedirectionSignalWithStartWorkflowExecutionScope)
 	defer func() {
 		handler.afterCall(recover(), scope, startTime, sp1.GetDomain(), "", cluster, &err)
 	}()
 
-	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, sp1.GetDomain(), apiName, func(targetDC string) error {
+	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, sp1.GetDomain(), apiName, requestedConsistencyLevel, func(targetDC string) error {
 		cluster = targetDC
 		switch {
 		case targetDC == handler.currentClusterName:
@@ -872,15 +1007,18 @@ func (handler *clusterRedirectionHandler) SignalWithStartWorkflowExecution(ctx c
 }
 
 func (handler *clusterRedirectionHandler) SignalWithStartWorkflowExecutionAsync(ctx context.Context, sp1 *types.SignalWithStartWorkflowExecutionAsyncRequest) (sp2 *types.SignalWithStartWorkflowExecutionAsyncResponse, err error) {
-	var apiName = "SignalWithStartWorkflowExecutionAsync"
-	var cluster string
+	var (
+		apiName                   = "SignalWithStartWorkflowExecutionAsync"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+	)
 
 	scope, startTime := handler.beforeCall(metrics.DCRedirectionSignalWithStartWorkflowExecutionAsyncScope)
 	defer func() {
 		handler.afterCall(recover(), scope, startTime, sp1.GetDomain(), "", cluster, &err)
 	}()
 
-	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, sp1.GetDomain(), apiName, func(targetDC string) error {
+	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, sp1.GetDomain(), apiName, requestedConsistencyLevel, func(targetDC string) error {
 		cluster = targetDC
 		switch {
 		case targetDC == handler.currentClusterName:
@@ -896,15 +1034,18 @@ func (handler *clusterRedirectionHandler) SignalWithStartWorkflowExecutionAsync(
 }
 
 func (handler *clusterRedirectionHandler) SignalWorkflowExecution(ctx context.Context, sp1 *types.SignalWorkflowExecutionRequest) (err error) {
-	var apiName = "SignalWorkflowExecution"
-	var cluster string
+	var (
+		apiName                   = "SignalWorkflowExecution"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+	)
 
 	scope, startTime := handler.beforeCall(metrics.DCRedirectionSignalWorkflowExecutionScope)
 	defer func() {
 		handler.afterCall(recover(), scope, startTime, sp1.GetDomain(), "", cluster, &err)
 	}()
 
-	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, sp1.GetDomain(), apiName, func(targetDC string) error {
+	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, sp1.GetDomain(), apiName, requestedConsistencyLevel, func(targetDC string) error {
 		cluster = targetDC
 		switch {
 		case targetDC == handler.currentClusterName:
@@ -920,15 +1061,18 @@ func (handler *clusterRedirectionHandler) SignalWorkflowExecution(ctx context.Co
 }
 
 func (handler *clusterRedirectionHandler) StartWorkflowExecution(ctx context.Context, sp1 *types.StartWorkflowExecutionRequest) (sp2 *types.StartWorkflowExecutionResponse, err error) {
-	var apiName = "StartWorkflowExecution"
-	var cluster string
+	var (
+		apiName                   = "StartWorkflowExecution"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+	)
 
 	scope, startTime := handler.beforeCall(metrics.DCRedirectionStartWorkflowExecutionScope)
 	defer func() {
 		handler.afterCall(recover(), scope, startTime, sp1.GetDomain(), "", cluster, &err)
 	}()
 
-	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, sp1.GetDomain(), apiName, func(targetDC string) error {
+	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, sp1.GetDomain(), apiName, requestedConsistencyLevel, func(targetDC string) error {
 		cluster = targetDC
 		switch {
 		case targetDC == handler.currentClusterName:
@@ -944,15 +1088,18 @@ func (handler *clusterRedirectionHandler) StartWorkflowExecution(ctx context.Con
 }
 
 func (handler *clusterRedirectionHandler) StartWorkflowExecutionAsync(ctx context.Context, sp1 *types.StartWorkflowExecutionAsyncRequest) (sp2 *types.StartWorkflowExecutionAsyncResponse, err error) {
-	var apiName = "StartWorkflowExecutionAsync"
-	var cluster string
+	var (
+		apiName                   = "StartWorkflowExecutionAsync"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+	)
 
 	scope, startTime := handler.beforeCall(metrics.DCRedirectionStartWorkflowExecutionAsyncScope)
 	defer func() {
 		handler.afterCall(recover(), scope, startTime, sp1.GetDomain(), "", cluster, &err)
 	}()
 
-	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, sp1.GetDomain(), apiName, func(targetDC string) error {
+	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, sp1.GetDomain(), apiName, requestedConsistencyLevel, func(targetDC string) error {
 		cluster = targetDC
 		switch {
 		case targetDC == handler.currentClusterName:
@@ -968,15 +1115,18 @@ func (handler *clusterRedirectionHandler) StartWorkflowExecutionAsync(ctx contex
 }
 
 func (handler *clusterRedirectionHandler) TerminateWorkflowExecution(ctx context.Context, tp1 *types.TerminateWorkflowExecutionRequest) (err error) {
-	var apiName = "TerminateWorkflowExecution"
-	var cluster string
+	var (
+		apiName                   = "TerminateWorkflowExecution"
+		cluster                   string
+		requestedConsistencyLevel types.QueryConsistencyLevel = types.QueryConsistencyLevelEventual
+	)
 
 	scope, startTime := handler.beforeCall(metrics.DCRedirectionTerminateWorkflowExecutionScope)
 	defer func() {
 		handler.afterCall(recover(), scope, startTime, tp1.GetDomain(), "", cluster, &err)
 	}()
 
-	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, tp1.GetDomain(), apiName, func(targetDC string) error {
+	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, tp1.GetDomain(), apiName, requestedConsistencyLevel, func(targetDC string) error {
 		cluster = targetDC
 		switch {
 		case targetDC == handler.currentClusterName:
@@ -993,38 +1143,4 @@ func (handler *clusterRedirectionHandler) TerminateWorkflowExecution(ctx context
 
 func (handler *clusterRedirectionHandler) UpdateDomain(ctx context.Context, up1 *types.UpdateDomainRequest) (up2 *types.UpdateDomainResponse, err error) {
 	return handler.frontendHandler.UpdateDomain(ctx, up1)
-}
-
-func (handler *clusterRedirectionHandler) QueryWorkflow(
-	ctx context.Context,
-	request *types.QueryWorkflowRequest,
-) (resp *types.QueryWorkflowResponse, retError error) {
-	var apiName = "QueryWorkflow"
-	var err error
-	var cluster string
-
-	// Only autoforward strong consistent queries, this is done for two reasons:
-	// 1. Query is meant to be fast, autoforwarding all queries will increase latency.
-	// 2. If eventual consistency was requested then the results from running out of local dc will be fine.
-	if request.GetQueryConsistencyLevel() == types.QueryConsistencyLevelStrong {
-		apiName = "QueryWorkflowStrongConsistency"
-	}
-	scope, startTime := handler.beforeCall(metrics.DCRedirectionQueryWorkflowScope)
-	defer func() {
-		handler.afterCall(recover(), scope, startTime, request.GetDomain(), "", cluster, &retError)
-	}()
-
-	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, request.GetDomain(), apiName, func(targetDC string) error {
-		cluster = targetDC
-		switch {
-		case targetDC == handler.currentClusterName:
-			resp, err = handler.frontendHandler.QueryWorkflow(ctx, request)
-		default:
-			remoteClient := handler.GetRemoteFrontendClient(targetDC)
-			resp, err = remoteClient.QueryWorkflow(ctx, request, handler.callOptions...)
-		}
-		return err
-	})
-
-	return resp, err
 }

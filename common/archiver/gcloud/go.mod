@@ -1,6 +1,6 @@
 module github.com/uber/cadence/common/archiver/gcloud
 
-go 1.22
+go 1.23
 
 toolchain go1.23.4
 
@@ -46,7 +46,7 @@ require (
 	golang.org/x/tools v0.22.0 // indirect
 	google.golang.org/grpc v1.59.0 // indirect
 	gopkg.in/validator.v2 v2.0.0-20180514200540-135c24b11c19 // indirect
-	gopkg.in/yaml.v2 v2.3.0 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 
 require (

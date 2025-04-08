@@ -34,7 +34,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
@@ -89,7 +89,7 @@ func (s *eventsCacheSuite) TearDownTest() {
 
 func (s *eventsCacheSuite) newTestEventsCache() *cacheImpl {
 	return newCacheWithOption(common.IntPtr(10), 16, 32, time.Minute, s.mockHistoryManager, false, s.logger,
-		metrics.NewClient(tally.NoopScope, metrics.History), dynamicconfig.GetIntPropertyFn(0), s.domainCache)
+		metrics.NewClient(tally.NoopScope, metrics.History), dynamicproperties.GetIntPropertyFn(0), s.domainCache)
 }
 
 func (s *eventsCacheSuite) TestEventsCacheHitSuccess() {

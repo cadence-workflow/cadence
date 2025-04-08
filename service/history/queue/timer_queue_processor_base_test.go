@@ -35,7 +35,7 @@ import (
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
@@ -968,7 +968,7 @@ func (s *timerQueueProcessorBaseSuite) TestTimerProcessorPump_HandleAckLevelUpda
 	}
 
 	timerQueueProcessBase, _ := s.newTestTimerQueueProcessorBase(processingQueueStates, updateMaxReadLevel, nil, nil, nil)
-	timerQueueProcessBase.options.UpdateAckInterval = dynamicconfig.GetDurationPropertyFn(1 * time.Millisecond)
+	timerQueueProcessBase.options.UpdateAckInterval = dynamicproperties.GetDurationPropertyFn(1 * time.Millisecond)
 	updatedCh := make(chan struct{}, 1)
 	timerQueueProcessBase.updateAckLevelFn = func() (bool, task.Key, error) {
 		updatedCh <- struct{}{}
@@ -1003,7 +1003,7 @@ func (s *timerQueueProcessorBaseSuite) TestTimerProcessorPump_SplitQueue() {
 	}
 
 	timerQueueProcessBase, _ := s.newTestTimerQueueProcessorBase(processingQueueStates, updateMaxReadLevel, nil, nil, nil)
-	timerQueueProcessBase.options.SplitQueueInterval = dynamicconfig.GetDurationPropertyFn(1 * time.Millisecond)
+	timerQueueProcessBase.options.SplitQueueInterval = dynamicproperties.GetDurationPropertyFn(1 * time.Millisecond)
 	splittedCh := make(chan struct{}, 1)
 	timerQueueProcessBase.splitProcessingQueueCollectionFn = func(splitPolicy ProcessingQueueSplitPolicy, upsertPollTimeFn func(int, time.Time)) {
 		splittedCh <- struct{}{}

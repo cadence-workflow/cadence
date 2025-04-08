@@ -24,14 +24,15 @@ package config
 
 import (
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 )
 
 type (
 	// Config represents configuration for shard manager service
 	Config struct {
-		PersistenceMaxQPS       dynamicconfig.IntPropertyFn
-		PersistenceGlobalMaxQPS dynamicconfig.IntPropertyFn
-		ThrottledLogRPS         dynamicconfig.IntPropertyFn
+		PersistenceMaxQPS       dynamicproperties.IntPropertyFn
+		PersistenceGlobalMaxQPS dynamicproperties.IntPropertyFn
+		ThrottledLogRPS         dynamicproperties.IntPropertyFn
 
 		// hostname info
 		HostName string
@@ -41,9 +42,9 @@ type (
 // NewConfig returns new service config with default values
 func NewConfig(dc *dynamicconfig.Collection, hostName string) *Config {
 	return &Config{
-		PersistenceMaxQPS:       dc.GetIntProperty(dynamicconfig.ShardManagerPersistenceMaxQPS),
-		PersistenceGlobalMaxQPS: dc.GetIntProperty(dynamicconfig.ShardManagerPersistenceGlobalMaxQPS),
-		ThrottledLogRPS:         dc.GetIntProperty(dynamicconfig.ShardManagerThrottledLogRPS),
+		PersistenceMaxQPS:       dc.GetIntProperty(dynamicproperties.ShardManagerPersistenceMaxQPS),
+		PersistenceGlobalMaxQPS: dc.GetIntProperty(dynamicproperties.ShardManagerPersistenceGlobalMaxQPS),
+		ThrottledLogRPS:         dc.GetIntProperty(dynamicproperties.ShardManagerThrottledLogRPS),
 		HostName:                hostName,
 	}
 }

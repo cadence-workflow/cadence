@@ -32,6 +32,7 @@ import (
 
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
@@ -68,9 +69,9 @@ func setUpMocksForPartitionConfigProvider(t *testing.T, enableReadFromCache bool
 		logger:              logger,
 		metricsClient:       metrics.NewNoopMetricsClient(),
 		domainIDToName:      domainIDToName,
-		enableReadFromCache: dynamicconfig.GetBoolPropertyFilteredByTaskListInfo(enableReadFromCache),
-		nReadPartitions:     dynamicconfig.GetIntPropertyFilteredByTaskListInfo(3),
-		nWritePartitions:    dynamicconfig.GetIntPropertyFilteredByTaskListInfo(5),
+		enableReadFromCache: dynamicproperties.GetBoolPropertyFilteredByTaskListInfo(enableReadFromCache),
+		nReadPartitions:     dynamicproperties.GetIntPropertyFilteredByTaskListInfo(3),
+		nWritePartitions:    dynamicproperties.GetIntPropertyFilteredByTaskListInfo(5),
 	}, mockCache
 }
 

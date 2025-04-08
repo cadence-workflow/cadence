@@ -23,7 +23,7 @@ package task
 import (
 	"testing"
 
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 )
 
 func TestSchedulerOptionsString(t *testing.T) {
@@ -31,7 +31,7 @@ func TestSchedulerOptionsString(t *testing.T) {
 		desc            string
 		schedulerType   int
 		queueSize       int
-		workerCount     dynamicconfig.IntPropertyFn
+		workerCount     dynamicproperties.IntPropertyFn
 		dispatcherCount int
 		wantErr         bool
 		want            string
@@ -40,7 +40,7 @@ func TestSchedulerOptionsString(t *testing.T) {
 			desc:            "FIFO",
 			schedulerType:   int(SchedulerTypeFIFO),
 			queueSize:       1,
-			workerCount:     dynamicconfig.GetIntPropertyFn(3),
+			workerCount:     dynamicproperties.GetIntPropertyFn(3),
 			dispatcherCount: 1,
 			want:            "{schedulerType:1, fifoSchedulerOptions:{QueueSize: 1, WorkerCount: 3, DispatcherCount: 1}, wrrSchedulerOptions:<nil>}",
 		},
@@ -48,7 +48,7 @@ func TestSchedulerOptionsString(t *testing.T) {
 			desc:            "WRR",
 			schedulerType:   int(SchedulerTypeWRR),
 			queueSize:       3,
-			workerCount:     dynamicconfig.GetIntPropertyFn(4),
+			workerCount:     dynamicproperties.GetIntPropertyFn(4),
 			dispatcherCount: 5,
 			want:            "{schedulerType:2, fifoSchedulerOptions:<nil>, wrrSchedulerOptions:{QueueSize: 3, DispatcherCount: 5}}",
 		},

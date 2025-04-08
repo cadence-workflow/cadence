@@ -39,7 +39,7 @@ import (
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/constants"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/log/testlogger"
@@ -150,12 +150,12 @@ func NewTestBaseWithNoSQL(t *testing.T, options *TestBaseOptions) *TestBase {
 		metadata = cluster.GetTestClusterMetadata(false)
 	}
 	dc := persistence.DynamicConfiguration{
-		EnableSQLAsyncTransaction:                dynamicconfig.GetBoolPropertyFn(false),
-		EnableCassandraAllConsistencyLevelDelete: dynamicconfig.GetBoolPropertyFn(true),
-		PersistenceSampleLoggingRate:             dynamicconfig.GetIntPropertyFn(100),
-		EnableShardIDMetrics:                     dynamicconfig.GetBoolPropertyFn(true),
-		EnableHistoryTaskDualWriteMode:           dynamicconfig.GetBoolPropertyFn(true),
-		ReadNoSQLHistoryTaskFromDataBlob:         dynamicconfig.GetBoolPropertyFn(false),
+		EnableSQLAsyncTransaction:                dynamicproperties.GetBoolPropertyFn(false),
+		EnableCassandraAllConsistencyLevelDelete: dynamicproperties.GetBoolPropertyFn(true),
+		PersistenceSampleLoggingRate:             dynamicproperties.GetIntPropertyFn(100),
+		EnableShardIDMetrics:                     dynamicproperties.GetBoolPropertyFn(true),
+		EnableHistoryTaskDualWriteMode:           dynamicproperties.GetBoolPropertyFn(true),
+		ReadNoSQLHistoryTaskFromDataBlob:         dynamicproperties.GetBoolPropertyFn(false),
 	}
 	params := TestBaseParams{
 		DefaultTestCluster:    testCluster,
@@ -180,11 +180,11 @@ func NewTestBaseWithSQL(t *testing.T, options *TestBaseOptions) *TestBase {
 		metadata = cluster.GetTestClusterMetadata(false)
 	}
 	dc := persistence.DynamicConfiguration{
-		EnableSQLAsyncTransaction:                dynamicconfig.GetBoolPropertyFn(false),
-		EnableCassandraAllConsistencyLevelDelete: dynamicconfig.GetBoolPropertyFn(true),
-		PersistenceSampleLoggingRate:             dynamicconfig.GetIntPropertyFn(100),
-		EnableShardIDMetrics:                     dynamicconfig.GetBoolPropertyFn(true),
-		EnableHistoryTaskDualWriteMode:           dynamicconfig.GetBoolPropertyFn(true),
+		EnableSQLAsyncTransaction:                dynamicproperties.GetBoolPropertyFn(false),
+		EnableCassandraAllConsistencyLevelDelete: dynamicproperties.GetBoolPropertyFn(true),
+		PersistenceSampleLoggingRate:             dynamicproperties.GetIntPropertyFn(100),
+		EnableShardIDMetrics:                     dynamicproperties.GetBoolPropertyFn(true),
+		EnableHistoryTaskDualWriteMode:           dynamicproperties.GetBoolPropertyFn(true),
 	}
 	params := TestBaseParams{
 		DefaultTestCluster:    testCluster,
@@ -1546,12 +1546,10 @@ func (s *TestBase) GetReplicationTasksFromDLQ(
 
 	return s.ExecutionManager.GetReplicationTasksFromDLQ(ctx, &persistence.GetReplicationTasksFromDLQRequest{
 		SourceClusterName: sourceCluster,
-		GetReplicationTasksRequest: persistence.GetReplicationTasksRequest{
-			ReadLevel:     readLevel,
-			MaxReadLevel:  maxReadLevel,
-			BatchSize:     pageSize,
-			NextPageToken: pageToken,
-		},
+		ReadLevel:         readLevel,
+		MaxReadLevel:      maxReadLevel,
+		BatchSize:         pageSize,
+		NextPageToken:     pageToken,
 	})
 }
 

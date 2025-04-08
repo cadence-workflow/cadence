@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package loggerimpl
+package log
 
 import (
 	"fmt"
@@ -27,12 +27,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	"github.com/uber/cadence/common/dynamicconfig"
-	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/tag"
 )
 
@@ -41,18 +39,18 @@ const anyNum = "[0-9]+"
 func TestLoggers(t *testing.T) {
 	for _, tc := range []struct {
 		name          string
-		loggerFactory func(zapLogger *zap.Logger) log.Logger
+		loggerFactory func(zapLogger *zap.Logger) Logger
 	}{
 		{
 			name: "normal",
-			loggerFactory: func(zapLogger *zap.Logger) log.Logger {
+			loggerFactory: func(zapLogger *zap.Logger) Logger {
 				return NewLogger(zapLogger)
 			},
 		},
 		{
 			name: "throttled",
-			loggerFactory: func(zapLogger *zap.Logger) log.Logger {
-				return NewThrottledLogger(NewLogger(zapLogger), dynamicconfig.GetIntPropertyFn(1))
+			loggerFactory: func(zapLogger *zap.Logger) Logger {
+				return NewThrottledLogger(NewLogger(zapLogger), dynamicproperties.GetIntPropertyFn(1))
 			},
 		},
 		// Unfortunately, replay logger is impossible to test because it requires a workflow context, which is not exposed by go client.
@@ -60,61 +58,61 @@ func TestLoggers(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, scenario := range []struct {
 				name     string
-				fn       func(logger log.Logger)
+				fn       func(logger Logger)
 				expected string
 			}{
 				{
 					name: "debug",
-					fn: func(logger log.Logger) {
+					fn: func(logger Logger) {
 						logger.Debug("test debug")
 					},
 					expected: `{"level":"debug","msg":"test debug","logging-call-at":"logger_test.go:%s"}`,
 				},
 				{
 					name: "info",
-					fn: func(logger log.Logger) {
+					fn: func(logger Logger) {
 						logger.Info("test info")
 					},
 					expected: `{"level":"info","msg":"test info","logging-call-at":"logger_test.go:%s"}`,
 				},
 				{
 					name: "warn",
-					fn: func(logger log.Logger) {
+					fn: func(logger Logger) {
 						logger.Warn("test warn")
 					},
 					expected: `{"level":"warn","msg":"test warn","logging-call-at":"logger_test.go:%s"}`,
 				},
 				{
 					name: "error",
-					fn: func(logger log.Logger) {
+					fn: func(logger Logger) {
 						logger.Error("test error")
 					},
 					expected: `{"level":"error","msg":"test error","logging-call-at":"logger_test.go:%s"}`,
 				},
 				{
 					name: "debugf",
-					fn: func(logger log.Logger) {
+					fn: func(logger Logger) {
 						logger.Debugf("test %v", "debug")
 					},
 					expected: `{"level":"debug","msg":"test debug","logging-call-at":"logger_test.go:%s"}`,
 				},
 				{
 					name: "with tags",
-					fn: func(logger log.Logger) {
+					fn: func(logger Logger) {
 						logger.WithTags(tag.Error(fmt.Errorf("test error"))).Info("test info", tag.WorkflowActionWorkflowStarted)
 					},
 					expected: `{"level":"info","msg":"test info","error":"test error","wf-action":"add-workflow-started-event","logging-call-at":"logger_test.go:%s"}`,
 				},
 				{
 					name: "empty message",
-					fn: func(logger log.Logger) {
+					fn: func(logger Logger) {
 						logger.Info("", tag.WorkflowActionWorkflowStarted)
 					},
 					expected: `{"level":"info","msg":"` + defaultMsgForEmpty + `","wf-action":"add-workflow-started-event","logging-call-at":"logger_test.go:%s"}`,
 				},
 				{
 					name: "error with details",
-					fn: func(logger log.Logger) {
+					fn: func(logger Logger) {
 						logger.Error("oh no", tag.Error(&testError{"workflow123"}))
 					},
 					expected: `{"level":"error","msg":"oh no","error":"test error","error-details":{"workflow-id":"workflow123"},"logging-call-at":"logger_test.go:%s"}`,
@@ -163,13 +161,6 @@ func TestLoggerCallAt(t *testing.T) {
 	lineNum := fmt.Sprintf("%v", par+1)
 	assert.Equal(t, `{"level":"info","msg":"test info","error":"test error","wf-action":"add-workflow-started-event","logging-call-at":"logger_test.go:`+lineNum+`"}`, out)
 
-}
-
-func TestDevelopment_sampleFn(t *testing.T) {
-	logger, err := NewDevelopment()
-	require.NoError(t, err)
-	impl := logger.(*loggerImpl)
-	assert.NotNil(t, impl.sampleLocalFn)
 }
 
 func TestLogger_Sampled(t *testing.T) {

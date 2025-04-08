@@ -11,6 +11,7 @@
 .vscode/
 .build/
 .bin/
+.cursor/
 /vendor
 /_vendor-*
 /cadence

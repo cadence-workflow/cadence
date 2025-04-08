@@ -19,10 +19,19 @@
 // THE SOFTWARE.
 
 //go:generate mockgen -package=$GOPACKAGE -destination=collection_mock.go github.com/uber/cadence/common/quotas ICollection
+//go:generate mockgen -package=$GOPACKAGE -destination=limiterfactory_mock.go github.com/uber/cadence/common/quotas LimiterFactory
 
 package quotas
 
-import "sync"
+import (
+	"sync"
+)
+
+// LimiterFactory is used to create a Limiter for a given domain
+type LimiterFactory interface {
+	// GetLimiter returns a new Limiter for the given domain
+	GetLimiter(domain string) Limiter
+}
 
 // Collection stores a map of limiters by key
 type Collection struct {

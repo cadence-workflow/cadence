@@ -80,49 +80,38 @@ func (t *timerActiveTaskExecutor) Execute(
 	task Task,
 	shouldProcessTask bool,
 ) error {
-	timer, ok := task.GetInfo().(persistence.Task)
-	if !ok {
-		return errUnexpectedTask
-	}
-	timerTask, err := timer.ToTimerTaskInfo()
-	if err != nil {
-		return err
-	}
-
 	if !shouldProcessTask {
 		return nil
 	}
-
-	switch timerTask.TaskType {
-	case persistence.TaskTypeUserTimer:
+	switch timerTask := task.GetInfo().(type) {
+	case *persistence.UserTimerTask:
 		ctx, cancel := context.WithTimeout(t.ctx, taskDefaultTimeout)
 		defer cancel()
 		return t.executeUserTimerTimeoutTask(ctx, timerTask)
-	case persistence.TaskTypeActivityTimeout:
+	case *persistence.ActivityTimeoutTask:
 		ctx, cancel := context.WithTimeout(t.ctx, taskDefaultTimeout)
 		defer cancel()
 		return t.executeActivityTimeoutTask(ctx, timerTask)
-	case persistence.TaskTypeDecisionTimeout:
+	case *persistence.DecisionTimeoutTask:
 		ctx, cancel := context.WithTimeout(t.ctx, taskDefaultTimeout)
 		defer cancel()
 		return t.executeDecisionTimeoutTask(ctx, timerTask)
-	case persistence.TaskTypeWorkflowTimeout:
+	case *persistence.WorkflowTimeoutTask:
 		ctx, cancel := context.WithTimeout(t.ctx, taskDefaultTimeout)
 		defer cancel()
 		return t.executeWorkflowTimeoutTask(ctx, timerTask)
-	case persistence.TaskTypeActivityRetryTimer:
+	case *persistence.ActivityRetryTimerTask:
 		ctx, cancel := context.WithTimeout(t.ctx, taskDefaultTimeout)
 		defer cancel()
 		return t.executeActivityRetryTimerTask(ctx, timerTask)
-	case persistence.TaskTypeWorkflowBackoffTimer:
+	case *persistence.WorkflowBackoffTimerTask:
 		ctx, cancel := context.WithTimeout(t.ctx, taskDefaultTimeout)
 		defer cancel()
 		return t.executeWorkflowBackoffTimerTask(ctx, timerTask)
-	case persistence.TaskTypeDeleteHistoryEvent:
-		// special timeout for delete history event
-		deleteHistoryEventContext, deleteHistoryEventCancel := context.WithTimeout(t.ctx, time.Duration(t.config.DeleteHistoryEventContextTimeout())*time.Second)
-		defer deleteHistoryEventCancel()
-		return t.executeDeleteHistoryEventTask(deleteHistoryEventContext, timerTask)
+	case *persistence.DeleteHistoryEventTask:
+		ctx, cancel := context.WithTimeout(t.ctx, time.Duration(t.config.DeleteHistoryEventContextTimeout())*time.Second)
+		defer cancel()
+		return t.executeDeleteHistoryEventTask(ctx, timerTask)
 	default:
 		return errUnknownTimerTask
 	}
@@ -130,7 +119,7 @@ func (t *timerActiveTaskExecutor) Execute(
 
 func (t *timerActiveTaskExecutor) executeUserTimerTimeoutTask(
 	ctx context.Context,
-	task *persistence.TimerTaskInfo,
+	task *persistence.UserTimerTask,
 ) (retError error) {
 	t.logger.Debug("Processing user timer",
 		tag.WorkflowDomainID(task.DomainID),
@@ -151,7 +140,7 @@ func (t *timerActiveTaskExecutor) executeUserTimerTimeoutTask(
 	}
 	defer func() { release(retError) }()
 
-	mutableState, err := loadMutableStateForTimerTask(ctx, wfContext, task, t.metricsClient, t.logger)
+	mutableState, err := loadMutableState(ctx, wfContext, task, t.metricsClient.Scope(metrics.TimerQueueProcessorScope), t.logger, task.EventID)
 	if err != nil {
 		return err
 	}
@@ -197,7 +186,6 @@ Loop:
 			tag.WorkflowDomainID(task.DomainID),
 			tag.WorkflowID(task.WorkflowID),
 			tag.WorkflowRunID(task.RunID),
-			tag.TaskType(task.TaskType),
 			tag.TaskID(task.TaskID),
 			tag.WorkflowTimerID(timerInfo.TimerID),
 			tag.WorkflowScheduleID(timerInfo.StartedID),
@@ -233,7 +221,6 @@ Loop:
 					tag.WorkflowDomainID(task.DomainID),
 					tag.WorkflowID(task.WorkflowID),
 					tag.WorkflowRunID(task.RunID),
-					tag.TaskType(task.TaskType),
 					tag.TaskID(task.TaskID),
 					tag.WorkflowTimerID(timerInfo.TimerID),
 					tag.WorkflowScheduleID(timerInfo.StartedID), // timerStartedEvent is basically scheduled event
@@ -257,7 +244,6 @@ Loop:
 			tag.WorkflowDomainID(task.DomainID),
 			tag.WorkflowID(task.WorkflowID),
 			tag.WorkflowRunID(task.RunID),
-			tag.TaskType(task.TaskType),
 			tag.TaskID(task.TaskID),
 			tag.WorkflowTimerID(timerInfo.TimerID),
 			tag.WorkflowScheduleID(timerInfo.StartedID),
@@ -275,7 +261,7 @@ Loop:
 
 func (t *timerActiveTaskExecutor) executeActivityTimeoutTask(
 	ctx context.Context,
-	task *persistence.TimerTaskInfo,
+	task *persistence.ActivityTimeoutTask,
 ) (retError error) {
 
 	wfContext, release, err := t.executionCache.GetOrCreateWorkflowExecutionWithTimeout(
@@ -296,7 +282,7 @@ func (t *timerActiveTaskExecutor) executeActivityTimeoutTask(
 		return fmt.Errorf("unable to find domainID: %v, err: %v", task.DomainID, err)
 	}
 
-	mutableState, err := loadMutableStateForTimerTask(ctx, wfContext, task, t.metricsClient, t.logger)
+	mutableState, err := loadMutableState(ctx, wfContext, task, t.metricsClient.Scope(metrics.TimerQueueProcessorScope), t.logger, task.EventID)
 	if err != nil {
 		return err
 	}
@@ -306,7 +292,7 @@ func (t *timerActiveTaskExecutor) executeActivityTimeoutTask(
 
 	wfType := mutableState.GetWorkflowType()
 	if wfType == nil {
-		return fmt.Errorf("unable to find workflow type, task %s", task)
+		return fmt.Errorf("unable to find workflow type, task %v", task)
 	}
 
 	timerSequence := execution.NewTimerSequence(mutableState)
@@ -378,7 +364,7 @@ Loop:
 					tag.WorkflowDomainID(task.DomainID),
 					tag.WorkflowID(task.WorkflowID),
 					tag.WorkflowRunID(task.RunID),
-					tag.TaskType(task.TaskType),
+					tag.TaskType(task.GetTaskType()),
 					tag.TaskID(task.TaskID),
 					tag.WorkflowActivityID(activityInfo.ActivityID),
 					tag.WorkflowScheduleID(activityInfo.ScheduleID),
@@ -434,7 +420,7 @@ Loop:
 			tag.WorkflowDomainID(task.GetDomainID()),
 			tag.WorkflowID(task.GetWorkflowID()),
 			tag.WorkflowRunID(task.GetRunID()),
-			tag.ScheduleAttempt(task.ScheduleAttempt),
+			tag.ScheduleAttempt(task.Attempt),
 			tag.FailoverVersion(task.GetVersion()),
 			tag.ActivityTimeoutType(shared.TimeoutType(timerSequenceID.TimerType)),
 		)
@@ -459,7 +445,7 @@ Loop:
 
 func (t *timerActiveTaskExecutor) executeDecisionTimeoutTask(
 	ctx context.Context,
-	task *persistence.TimerTaskInfo,
+	task *persistence.DecisionTimeoutTask,
 ) (retError error) {
 
 	wfContext, release, err := t.executionCache.GetOrCreateWorkflowExecutionWithTimeout(
@@ -480,7 +466,7 @@ func (t *timerActiveTaskExecutor) executeDecisionTimeoutTask(
 		return fmt.Errorf("unable to find domainID: %v, err: %v", task.DomainID, err)
 	}
 
-	mutableState, err := loadMutableStateForTimerTask(ctx, wfContext, task, t.metricsClient, t.logger)
+	mutableState, err := loadMutableState(ctx, wfContext, task, t.metricsClient.Scope(metrics.TimerQueueProcessorScope), t.logger, task.EventID)
 	if err != nil {
 		return err
 	}
@@ -490,7 +476,7 @@ func (t *timerActiveTaskExecutor) executeDecisionTimeoutTask(
 
 	wfType := mutableState.GetWorkflowType()
 	if wfType == nil {
-		return fmt.Errorf("unable to find workflow type, task %s", task)
+		return fmt.Errorf("unable to find workflow type, task %v", task)
 	}
 
 	scheduleID := task.EventID
@@ -567,7 +553,7 @@ func (t *timerActiveTaskExecutor) executeDecisionTimeoutTask(
 
 func (t *timerActiveTaskExecutor) executeWorkflowBackoffTimerTask(
 	ctx context.Context,
-	task *persistence.TimerTaskInfo,
+	task *persistence.WorkflowBackoffTimerTask,
 ) (retError error) {
 
 	wfContext, release, err := t.executionCache.GetOrCreateWorkflowExecutionWithTimeout(
@@ -583,7 +569,7 @@ func (t *timerActiveTaskExecutor) executeWorkflowBackoffTimerTask(
 	}
 	defer func() { release(retError) }()
 
-	mutableState, err := loadMutableStateForTimerTask(ctx, wfContext, task, t.metricsClient, t.logger)
+	mutableState, err := loadMutableState(ctx, wfContext, task, t.metricsClient.Scope(metrics.TimerQueueProcessorScope), t.logger, 0)
 	if err != nil {
 		return err
 	}
@@ -608,7 +594,7 @@ func (t *timerActiveTaskExecutor) executeWorkflowBackoffTimerTask(
 
 func (t *timerActiveTaskExecutor) executeActivityRetryTimerTask(
 	ctx context.Context,
-	task *persistence.TimerTaskInfo,
+	task *persistence.ActivityRetryTimerTask,
 ) (retError error) {
 
 	wfContext, release, err := t.executionCache.GetOrCreateWorkflowExecutionWithTimeout(
@@ -624,7 +610,7 @@ func (t *timerActiveTaskExecutor) executeActivityRetryTimerTask(
 	}
 	defer func() { release(retError) }()
 
-	mutableState, err := loadMutableStateForTimerTask(ctx, wfContext, task, t.metricsClient, t.logger)
+	mutableState, err := loadMutableState(ctx, wfContext, task, t.metricsClient.Scope(metrics.TimerQueueProcessorScope), t.logger, task.EventID)
 	if err != nil {
 		return err
 	}
@@ -635,7 +621,7 @@ func (t *timerActiveTaskExecutor) executeActivityRetryTimerTask(
 	// generate activity task
 	scheduledID := task.EventID
 	activityInfo, ok := mutableState.GetActivityInfo(scheduledID)
-	if !ok || task.ScheduleAttempt < int64(activityInfo.Attempt) || activityInfo.StartedID != constants.EmptyEventID {
+	if !ok || task.Attempt < int64(activityInfo.Attempt) || activityInfo.StartedID != constants.EmptyEventID {
 		if ok {
 			t.logger.Info("Duplicate activity retry timer task",
 				tag.WorkflowID(mutableState.GetExecutionInfo().WorkflowID),
@@ -645,7 +631,7 @@ func (t *timerActiveTaskExecutor) executeActivityRetryTimerTask(
 				tag.Attempt(activityInfo.Attempt),
 				tag.FailoverVersion(activityInfo.Version),
 				tag.TimerTaskStatus(activityInfo.TimerTaskStatus),
-				tag.ScheduleAttempt(task.ScheduleAttempt))
+				tag.ScheduleAttempt(task.Attempt))
 		}
 		return nil
 	}
@@ -700,7 +686,7 @@ func (t *timerActiveTaskExecutor) executeActivityRetryTimerTask(
 
 func (t *timerActiveTaskExecutor) executeWorkflowTimeoutTask(
 	ctx context.Context,
-	task *persistence.TimerTaskInfo,
+	task *persistence.WorkflowTimeoutTask,
 ) (retError error) {
 
 	wfContext, release, err := t.executionCache.GetOrCreateWorkflowExecutionWithTimeout(
@@ -716,7 +702,7 @@ func (t *timerActiveTaskExecutor) executeWorkflowTimeoutTask(
 	}
 	defer func() { release(retError) }()
 
-	mutableState, err := loadMutableStateForTimerTask(ctx, wfContext, task, t.metricsClient, t.logger)
+	mutableState, err := loadMutableState(ctx, wfContext, task, t.metricsClient.Scope(metrics.TimerQueueProcessorScope), t.logger, 0)
 	if err != nil {
 		return err
 	}

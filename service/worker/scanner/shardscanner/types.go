@@ -34,6 +34,7 @@ import (
 	"go.uber.org/cadence/workflow"
 
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -265,13 +266,13 @@ type (
 
 	// DynamicParams is the dynamic config for scanner workflow.
 	DynamicParams struct {
-		ScannerEnabled          dynamicconfig.BoolPropertyFn
-		FixerEnabled            dynamicconfig.BoolPropertyFn
-		Concurrency             dynamicconfig.IntPropertyFn
-		PageSize                dynamicconfig.IntPropertyFn
-		BlobstoreFlushThreshold dynamicconfig.IntPropertyFn
-		ActivityBatchSize       dynamicconfig.IntPropertyFn
-		AllowDomain             dynamicconfig.BoolPropertyFnWithDomainFilter
+		ScannerEnabled          dynamicproperties.BoolPropertyFn
+		FixerEnabled            dynamicproperties.BoolPropertyFn
+		Concurrency             dynamicproperties.IntPropertyFn
+		PageSize                dynamicproperties.IntPropertyFn
+		BlobstoreFlushThreshold dynamicproperties.IntPropertyFn
+		ActivityBatchSize       dynamicproperties.IntPropertyFn
+		AllowDomain             dynamicproperties.BoolPropertyFnWithDomainFilter
 	}
 
 	// ScannerConfig is the config for ShardScanner workflow

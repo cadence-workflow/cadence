@@ -41,6 +41,7 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/constants"
 	dc "github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/messaging"
 	"github.com/uber/cadence/common/mocks"
@@ -111,10 +112,10 @@ func (s *domainHandlerCommonSuite) SetupTest() {
 	)
 	s.mockArchiverProvider = &provider.MockArchiverProvider{}
 	domainConfig := Config{
-		MinRetentionDays:       dc.GetIntPropertyFn(s.minRetentionDays),
-		MaxBadBinaryCount:      dc.GetIntPropertyFilteredByDomain(s.maxBadBinaryCount),
-		FailoverCoolDown:       dc.GetDurationPropertyFnFilteredByDomain(0 * time.Second),
-		FailoverHistoryMaxSize: dc.GetIntPropertyFilteredByDomain(s.failoverHistoryMaxSize),
+		MinRetentionDays:       dynamicproperties.GetIntPropertyFn(s.minRetentionDays),
+		MaxBadBinaryCount:      dynamicproperties.GetIntPropertyFilteredByDomain(s.maxBadBinaryCount),
+		FailoverCoolDown:       dynamicproperties.GetDurationPropertyFnFilteredByDomain(0 * time.Second),
+		FailoverHistoryMaxSize: dynamicproperties.GetIntPropertyFilteredByDomain(s.failoverHistoryMaxSize),
 	}
 	s.handler = NewHandler(
 		domainConfig,
@@ -726,7 +727,7 @@ func TestHandlerImpl_UpdateIsolationGroups(t *testing.T) {
 				archiverProvider:    nil,
 				timeSource:          clock,
 				config: Config{
-					MinRetentionDays:  func(opts ...dc.FilterOption) int { return 0 },
+					MinRetentionDays:  func(opts ...dynamicproperties.FilterOption) int { return 0 },
 					MaxBadBinaryCount: func(string) int { return 3 },
 					FailoverCoolDown:  func(string) time.Duration { return time.Second },
 				},
@@ -834,7 +835,7 @@ func TestHandlerImpl_UpdateAsyncWorkflowConfiguraton(t *testing.T) {
 				domainReplicator: replicator,
 				timeSource:       clock,
 				config: Config{
-					MinRetentionDays:  func(opts ...dc.FilterOption) int { return 0 },
+					MinRetentionDays:  func(opts ...dynamicproperties.FilterOption) int { return 0 },
 					MaxBadBinaryCount: func(string) int { return 3 },
 					FailoverCoolDown:  func(string) time.Duration { return time.Second },
 				},

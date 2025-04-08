@@ -18,14 +18,13 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package loggerimpl
+package log
 
 import (
 	"math/rand"
 	"sync/atomic"
 
-	"github.com/uber/cadence/common/dynamicconfig"
-	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/quotas"
 )
@@ -33,10 +32,8 @@ import (
 type throttledLogger struct {
 	rps     int32
 	limiter quotas.Limiter
-	log     log.Logger
+	log     Logger
 }
-
-var _ log.Logger = (*throttledLogger)(nil)
 
 const skipForThrottleLogger = 6
 
@@ -45,8 +42,8 @@ const skipForThrottleLogger = 6
 // ratelimiter and stops emitting logs once the bucket runs out of tokens
 //
 // Fatal/Panic logs are always emitted without any throttling
-func NewThrottledLogger(logger log.Logger, rps dynamicconfig.IntPropertyFn) log.Logger {
-	var log log.Logger
+func NewThrottledLogger(logger Logger, rps dynamicproperties.IntPropertyFn) Logger {
+	var log Logger
 	lg, ok := logger.(*loggerImpl)
 	if ok {
 		log = &loggerImpl{
@@ -116,7 +113,7 @@ func (tl *throttledLogger) SampleInfo(msg string, sampleRate int, tags ...tag.Ta
 }
 
 // Return a logger with the specified key-value pairs set, to be included in a subsequent normal logging call
-func (tl *throttledLogger) WithTags(tags ...tag.Tag) log.Logger {
+func (tl *throttledLogger) WithTags(tags ...tag.Tag) Logger {
 	result := &throttledLogger{
 		rps:     atomic.LoadInt32(&tl.rps),
 		limiter: tl.limiter,

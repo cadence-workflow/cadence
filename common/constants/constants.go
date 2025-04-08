@@ -308,3 +308,11 @@ func (v FailoverType) String() string {
 const (
 	StringSizeOverheadBytes = 16
 )
+
+// GetTaskPriority returns priority given a task's priority class and subclass
+func GetTaskPriority(
+	class int,
+	subClass int,
+) int {
+	return class | subClass
+}

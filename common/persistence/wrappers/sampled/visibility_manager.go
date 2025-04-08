@@ -24,7 +24,7 @@ import (
 	"context"
 
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -54,11 +54,11 @@ type visibilityManager struct {
 type (
 	// Config is config for visibility
 	Config struct {
-		VisibilityOpenMaxQPS dynamicconfig.IntPropertyFnWithDomainFilter `yaml:"-" json:"-"`
+		VisibilityOpenMaxQPS dynamicproperties.IntPropertyFnWithDomainFilter `yaml:"-" json:"-"`
 		// VisibilityClosedMaxQPS max QPS for record closed workflows
-		VisibilityClosedMaxQPS dynamicconfig.IntPropertyFnWithDomainFilter `yaml:"-" json:"-"`
+		VisibilityClosedMaxQPS dynamicproperties.IntPropertyFnWithDomainFilter `yaml:"-" json:"-"`
 		// VisibilityListMaxQPS max QPS for list workflow
-		VisibilityListMaxQPS dynamicconfig.IntPropertyFnWithDomainFilter `yaml:"-" json:"-"`
+		VisibilityListMaxQPS dynamicproperties.IntPropertyFnWithDomainFilter `yaml:"-" json:"-"`
 	}
 )
 

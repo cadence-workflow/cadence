@@ -201,11 +201,9 @@ func TestGetReplicationTasksFromDLQ(t *testing.T) {
 			name: "Success case",
 			req: &persistence.GetReplicationTasksFromDLQRequest{
 				SourceClusterName: "source",
-				GetReplicationTasksRequest: persistence.GetReplicationTasksRequest{
-					NextPageToken: serializePageToken(100),
-					MaxReadLevel:  199,
-					BatchSize:     1000,
-				},
+				NextPageToken:     serializePageToken(100),
+				MaxReadLevel:      199,
+				BatchSize:         1000,
 			},
 			mockSetup: func(mockDB *sqlplugin.MockDB, mockParser *serialization.MockTaskSerializer) {
 				mockDB.EXPECT().SelectFromReplicationTasksDLQ(gomock.Any(), &sqlplugin.ReplicationTasksDLQFilter{
@@ -267,11 +265,9 @@ func TestGetReplicationTasksFromDLQ(t *testing.T) {
 			name: "Error case - failed to load from database",
 			req: &persistence.GetReplicationTasksFromDLQRequest{
 				SourceClusterName: "source",
-				GetReplicationTasksRequest: persistence.GetReplicationTasksRequest{
-					NextPageToken: serializePageToken(100),
-					MaxReadLevel:  199,
-					BatchSize:     1000,
-				},
+				NextPageToken:     serializePageToken(100),
+				MaxReadLevel:      199,
+				BatchSize:         1000,
 			},
 			mockSetup: func(mockDB *sqlplugin.MockDB, mockParser *serialization.MockTaskSerializer) {
 				err := errors.New("some error")
@@ -292,11 +288,9 @@ func TestGetReplicationTasksFromDLQ(t *testing.T) {
 			name: "Error case - failed to decode data",
 			req: &persistence.GetReplicationTasksFromDLQRequest{
 				SourceClusterName: "source",
-				GetReplicationTasksRequest: persistence.GetReplicationTasksRequest{
-					NextPageToken: serializePageToken(100),
-					MaxReadLevel:  199,
-					BatchSize:     1000,
-				},
+				NextPageToken:     serializePageToken(100),
+				MaxReadLevel:      199,
+				BatchSize:         1000,
 			},
 			mockSetup: func(mockDB *sqlplugin.MockDB, mockParser *serialization.MockTaskSerializer) {
 				mockDB.EXPECT().SelectFromReplicationTasksDLQ(gomock.Any(), &sqlplugin.ReplicationTasksDLQFilter{

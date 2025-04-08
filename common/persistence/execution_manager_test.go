@@ -580,12 +580,10 @@ func TestGetReplicationTasksFromDLQ(t *testing.T) {
 
 	request := &GetReplicationTasksFromDLQRequest{
 		SourceClusterName: "test-cluster",
-		GetReplicationTasksRequest: GetReplicationTasksRequest{
-			ReadLevel:     1,
-			MaxReadLevel:  2,
-			BatchSize:     10,
-			NextPageToken: nil,
-		},
+		ReadLevel:         1,
+		MaxReadLevel:      2,
+		BatchSize:         10,
+		NextPageToken:     nil,
 	}
 
 	now := time.Now().UTC().Round(time.Second)

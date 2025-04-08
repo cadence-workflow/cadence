@@ -23,6 +23,7 @@ package tasklist
 import (
 	"context"
 	"errors"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -34,7 +35,6 @@ import (
 	"github.com/uber-go/tally"
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
-	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/uber/cadence/client/history"
@@ -44,6 +44,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -110,12 +111,12 @@ func setupMocksForTaskListManager(t *testing.T, taskListID *Identifier, taskList
 
 func defaultTestConfig() *config.Config {
 	config := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", getIsolationgroupsHelper)
-	config.LongPollExpirationInterval = dynamicconfig.GetDurationPropertyFnFilteredByTaskListInfo(100 * time.Millisecond)
-	config.MaxTaskDeleteBatchSize = dynamicconfig.GetIntPropertyFilteredByTaskListInfo(1)
+	config.LongPollExpirationInterval = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(100 * time.Millisecond)
+	config.MaxTaskDeleteBatchSize = dynamicproperties.GetIntPropertyFilteredByTaskListInfo(1)
 	config.AllIsolationGroups = getIsolationgroupsHelper
-	config.GetTasksBatchSize = dynamicconfig.GetIntPropertyFilteredByTaskListInfo(10)
-	config.AsyncTaskDispatchTimeout = dynamicconfig.GetDurationPropertyFnFilteredByTaskListInfo(10 * time.Millisecond)
-	config.LocalTaskWaitTime = dynamicconfig.GetDurationPropertyFnFilteredByTaskListInfo(time.Millisecond)
+	config.GetTasksBatchSize = dynamicproperties.GetIntPropertyFilteredByTaskListInfo(10)
+	config.AsyncTaskDispatchTimeout = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(10 * time.Millisecond)
+	config.LocalTaskWaitTime = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(time.Millisecond)
 	return config
 }
 
@@ -286,6 +287,7 @@ func TestDescribeTaskList(t *testing.T) {
 			name: "no status, with pollers",
 			pollers: map[string]poller.Info{
 				"pollerID": {
+					Identity:       "pollerIdentity",
 					RatePerSecond:  1.0,
 					IsolationGroup: "a",
 				},
@@ -332,6 +334,7 @@ func TestDescribeTaskList(t *testing.T) {
 			includeStatus: true,
 			pollers: map[string]poller.Info{
 				"a-1": {
+					Identity:       "a1Identity",
 					RatePerSecond:  1.0,
 					IsolationGroup: "datacenterA",
 				},
@@ -373,10 +376,10 @@ func TestDescribeTaskList(t *testing.T) {
 
 			expectedPollers := make([]*types.PollerInfo, 0, len(tc.pollers))
 			for id, info := range tc.pollers {
-				tlm.pollerHistory.UpdatePollerInfo(poller.Identity(id), info)
+				tlm.pollers.StartPoll(id, func() {}, &info)
 				expectedPollers = append(expectedPollers, &types.PollerInfo{
 					LastAccessTime: common.Int64Ptr(tlm.timeSource.Now().UnixNano()),
-					Identity:       id,
+					Identity:       info.Identity,
 					RatePerSecond:  info.RatePerSecond,
 				})
 			}
@@ -394,7 +397,7 @@ func TestDescribeTaskList(t *testing.T) {
 func TestCheckIdleTaskList(t *testing.T) {
 	defer goleak.VerifyNone(t)
 	cfg := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", getIsolationgroupsHelper)
-	cfg.IdleTasklistCheckInterval = dynamicconfig.GetDurationPropertyFnFilteredByTaskListInfo(10 * time.Millisecond)
+	cfg.IdleTasklistCheckInterval = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(10 * time.Millisecond)
 
 	t.Run("Idle task-list", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
@@ -465,7 +468,7 @@ func TestAddTaskStandby(t *testing.T) {
 	logger := testlogger.New(t)
 
 	cfg := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", getIsolationgroupsHelper)
-	cfg.IdleTasklistCheckInterval = dynamicconfig.GetDurationPropertyFnFilteredByTaskListInfo(10 * time.Millisecond)
+	cfg.IdleTasklistCheckInterval = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(10 * time.Millisecond)
 
 	tlm := createTestTaskListManagerWithConfig(t, logger, controller, cfg, clock.NewMockedTimeSource())
 	require.NoError(t, tlm.Start())
@@ -512,53 +515,6 @@ func TestAddTaskStandby(t *testing.T) {
 	syncMatch, err = tlm.AddTask(context.Background(), addTaskParam)
 	require.Error(t, err) // should not persist the task
 	require.False(t, syncMatch)
-}
-
-func TestGetRecentPollersByIsolationGroup(t *testing.T) {
-	controller := gomock.NewController(t)
-	logger := testlogger.New(t)
-
-	config := defaultTestConfig()
-	mockClock := clock.NewMockedTimeSource()
-	config.LongPollExpirationInterval = dynamicconfig.GetDurationPropertyFnFilteredByTaskListInfo(30 * time.Second)
-	config.EnableTasklistIsolation = dynamicconfig.GetBoolPropertyFnFilteredByDomainID(true)
-	tlm := createTestTaskListManagerWithConfig(t, logger, controller, config, mockClock)
-
-	bgCtx := ContextWithPollerID(context.Background(), "poller0")
-	bgCtx = ContextWithIdentity(bgCtx, "id0")
-	bgCtx = ContextWithIsolationGroup(bgCtx, getIsolationgroupsHelper()[0])
-	ctx, cancel := context.WithTimeout(bgCtx, time.Millisecond)
-	_, err := tlm.GetTask(ctx, nil)
-	cancel()
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), ErrNoTasks.Error())
-
-	// we should get isolation groups that showed up within last isolationDuration
-	groups := maps.Keys(tlm.getRecentPollersByIsolationGroup())
-	assert.Equal(t, 1, len(groups))
-	assert.Equal(t, getIsolationgroupsHelper()[0], groups[0])
-
-	// after isolation duration, the poller from that isolation group are cleared from the poller history
-	mockClock.Advance((10 * time.Second) + time.Nanosecond)
-	groups = maps.Keys(tlm.getRecentPollersByIsolationGroup())
-	assert.Equal(t, 0, len(groups))
-
-	// we should get isolation groups of outstanding pollers
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		tlm.GetTask(ctx, nil)
-		cancel()
-	}()
-	awaitCondition(func() bool {
-		return len(maps.Keys(tlm.getRecentPollersByIsolationGroup())) > 0
-	}, time.Second)
-	groups = maps.Keys(tlm.getRecentPollersByIsolationGroup())
-	cancel()
-	wg.Wait()
-	assert.Equal(t, 1, len(groups))
-	assert.Equal(t, getIsolationgroupsHelper()[0], groups[0])
 }
 
 // return a client side tasklist throttle error from the rate limiter.
@@ -782,8 +738,8 @@ func TestGetIsolationGroupForTask(t *testing.T) {
 			}
 			tlm.isolationState = mockIsolationGroupState
 
-			for _, pollerGroup := range tc.recentPollers {
-				tlm.pollerHistory.UpdatePollerInfo(poller.Identity(pollerGroup), poller.Info{IsolationGroup: pollerGroup})
+			for i, pollerGroup := range tc.recentPollers {
+				tlm.pollers.StartPoll(strconv.Itoa(i), func() {}, &poller.Info{Identity: pollerGroup, IsolationGroup: pollerGroup})
 			}
 
 			taskInfo := &persistence.TaskInfo{
@@ -854,7 +810,7 @@ func TestTaskListManagerGetTaskBatch(t *testing.T) {
 	taskListID := NewTestTaskListID(t, "domainId", "tl", 0)
 	cfg := defaultTestConfig()
 	cfg.RangeSize = rangeSize
-	cfg.ReadRangeSize = dynamicconfig.GetIntPropertyFn(rangeSize / 2)
+	cfg.ReadRangeSize = dynamicproperties.GetIntPropertyFn(rangeSize / 2)
 	tlMgr, err := NewManager(
 		mockDomainCache,
 		logger,
@@ -983,7 +939,7 @@ func TestTaskListReaderPumpAdvancesAckLevelAfterEmptyReads(t *testing.T) {
 	taskListID := NewTestTaskListID(t, "domainId", "tl", 0)
 	cfg := defaultTestConfig()
 	cfg.RangeSize = rangeSize
-	cfg.ReadRangeSize = dynamicconfig.GetIntPropertyFn(rangeSize / 2)
+	cfg.ReadRangeSize = dynamicproperties.GetIntPropertyFn(rangeSize / 2)
 
 	tlMgr, err := NewManager(
 		mockDomainCache,
@@ -1058,7 +1014,7 @@ func TestTaskListManagerGetTaskBatch_ReadBatchDone(t *testing.T) {
 	const maxReadLevel = int64(120)
 	config := defaultTestConfig()
 	config.RangeSize = rangeSize
-	config.ReadRangeSize = dynamicconfig.GetIntPropertyFn(rangeSize / 2)
+	config.ReadRangeSize = dynamicproperties.GetIntPropertyFn(rangeSize / 2)
 	controller := gomock.NewController(t)
 	logger := testlogger.New(t)
 	tlm := createTestTaskListManagerWithConfig(t, logger, controller, config, clock.NewMockedTimeSource())
@@ -1126,12 +1082,12 @@ func TestTaskExpiryAndCompletion(t *testing.T) {
 			taskListID := NewTestTaskListID(t, "domainId", "tl", 0)
 			cfg := defaultTestConfig()
 			cfg.RangeSize = rangeSize
-			cfg.ReadRangeSize = dynamicconfig.GetIntPropertyFn(rangeSize / 2)
-			cfg.MaxTaskDeleteBatchSize = dynamicconfig.GetIntPropertyFilteredByTaskListInfo(tc.batchSize)
+			cfg.ReadRangeSize = dynamicproperties.GetIntPropertyFn(rangeSize / 2)
+			cfg.MaxTaskDeleteBatchSize = dynamicproperties.GetIntPropertyFilteredByTaskListInfo(tc.batchSize)
 			cfg.MaxTimeBetweenTaskDeletes = tc.maxTimeBtwnDeletes
 			// set idle timer check to a really small value to assert that we don't accidentally drop tasks while blocking
 			// on enqueuing a task to task buffer
-			cfg.IdleTasklistCheckInterval = dynamicconfig.GetDurationPropertyFnFilteredByTaskListInfo(20 * time.Millisecond)
+			cfg.IdleTasklistCheckInterval = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(20 * time.Millisecond)
 			tlMgr, err := NewManager(
 				mockDomainCache,
 				logger,
@@ -1204,13 +1160,13 @@ func TestTaskListManagerImpl_HasPollerAfter(t *testing.T) {
 	}{
 		"has_outstanding_pollers": {
 			prepareManager: func(tlm *taskListManagerImpl) {
-				tlm.addOutstandingPoller("poller1", "group1", func() {})
-				tlm.addOutstandingPoller("poller2", "group2", func() {})
+				tlm.pollers.StartPoll("poller1", func() {}, &poller.Info{Identity: "foo"})
 			},
 		},
 		"no_outstanding_pollers": {
 			prepareManager: func(tlm *taskListManagerImpl) {
-				tlm.pollerHistory.UpdatePollerInfo("identity", poller.Info{RatePerSecond: 1.0, IsolationGroup: "isolationGroup"})
+				tlm.pollers.StartPoll("poller1", func() {}, &poller.Info{Identity: "foo"})
+				tlm.pollers.EndPoll("poller1")
 			},
 		},
 	} {
@@ -1811,7 +1767,7 @@ func TestGetNumPartitions(t *testing.T) {
 	tlID, err := NewIdentifier("domain-id", "tl", persistence.TaskListTypeDecision)
 	require.NoError(t, err)
 	tlm, deps := setupMocksForTaskListManager(t, tlID, types.TaskListKindNormal)
-	require.NoError(t, deps.dynamicClient.UpdateValue(dynamicconfig.MatchingEnableGetNumberOfPartitionsFromCache, true))
+	require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.MatchingEnableGetNumberOfPartitionsFromCache, true))
 	assert.NotPanics(t, func() { tlm.matcher.UpdateRatelimit(common.Ptr(float64(100))) })
 }
 

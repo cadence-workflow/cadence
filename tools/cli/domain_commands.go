@@ -36,7 +36,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/domain"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/tools/common/commoncli"
 	"github.com/uber/cadence/tools/common/flag"
@@ -550,7 +550,7 @@ type ValidationDetails struct {
 }
 
 type MismatchedDynamicConfig struct {
-	Key        dynamicconfig.Key
+	Key        dynamicproperties.Key
 	CurrValues []*types.DynamicConfigValue
 	NewValues  []*types.DynamicConfigValue
 }

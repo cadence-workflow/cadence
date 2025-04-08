@@ -30,7 +30,7 @@ import (
 
 	"github.com/uber/cadence/common/blobstore"
 	"github.com/uber/cadence/common/cache"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/reconciliation/entity"
 	"github.com/uber/cadence/common/reconciliation/invariant"
@@ -59,7 +59,7 @@ type (
 		invariantManager invariant.Manager
 		progressReportFn func()
 		domainCache      cache.DomainCache
-		allowDomain      dynamicconfig.BoolPropertyFnWithDomainFilter
+		allowDomain      dynamicproperties.BoolPropertyFnWithDomainFilter
 		scope            metrics.Scope
 	}
 )
@@ -74,7 +74,7 @@ func NewFixer(
 	blobstoreFlushThreshold int,
 	progressReportFn func(),
 	domainCache cache.DomainCache,
-	allowDomain dynamicconfig.BoolPropertyFnWithDomainFilter,
+	allowDomain dynamicproperties.BoolPropertyFnWithDomainFilter,
 	scope metrics.Scope,
 ) *ShardFixer {
 	id := uuid.New()

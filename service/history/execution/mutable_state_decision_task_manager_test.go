@@ -36,7 +36,7 @@ import (
 
 	"github.com/uber/cadence/common/clock"
 	commonconstants "github.com/uber/cadence/common/constants"
-	"github.com/uber/cadence/common/log/loggerimpl"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/config"
@@ -177,7 +177,7 @@ func TestReplicateDecisionTaskScheduledEvent(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			m := &mutableStateDecisionTaskManagerImpl{msb: test.newMsb(t)}
 			core, observedLogs := observer.New(zap.DebugLevel)
-			m.msb.logger = loggerimpl.NewLogger(zap.New(core))
+			m.msb.logger = log.NewLogger(zap.New(core))
 			if test.expectations != nil {
 				test.expectations(m)
 			}
@@ -237,7 +237,7 @@ func TestReplicateTransientDecisionTaskScheduled(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			m := &mutableStateDecisionTaskManagerImpl{msb: test.newMsb(t)}
 			core, observedLogs := observer.New(zap.DebugLevel)
-			m.msb.logger = loggerimpl.NewLogger(zap.New(core))
+			m.msb.logger = log.NewLogger(zap.New(core))
 			if test.expectations != nil {
 				test.expectations(m)
 			}
@@ -408,7 +408,7 @@ func TestReplicateDecisionTaskStartedEvent(t *testing.T) {
 				},
 				taskGenerator: NewMockMutableStateTaskGenerator(gomock.NewController(t)),
 				timeSource:    clock.NewMockedTimeSource(),
-				logger:        loggerimpl.NewLogger(zap.New(core)),
+				logger:        log.NewLogger(zap.New(core)),
 			},
 		}
 		var decision *DecisionInfo

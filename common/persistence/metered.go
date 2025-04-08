@@ -33,14 +33,6 @@ import (
 
 // For responses that require metrics for empty response Len() int should be defined.
 
-func (r *GetReplicationTasksResponse) Len() int {
-	return len(r.Tasks)
-}
-
-func (r *GetTimerIndexTasksResponse) Len() int {
-	return len(r.Timers)
-}
-
 func (r *GetHistoryTasksResponse) Len() int {
 	return len(r.Tasks)
 }
@@ -61,10 +53,6 @@ func (r *ListCurrentExecutionsResponse) Len() int {
 	return len(r.Executions)
 }
 
-func (r *GetTransferTasksResponse) Len() int {
-	return len(r.Tasks)
-}
-
 func (r QueueMessageList) Len() int {
 	return len(r)
 }
@@ -75,46 +63,19 @@ func (r GetAllHistoryTreeBranchesResponse) Len() int {
 
 // For responses that require metrics for payload size ByteSize() uint64 should be defined.
 
-func (r *GetReplicationTasksResponse) ByteSize() uint64 {
+func (r *GetHistoryTasksResponse) ByteSize() uint64 {
 	if r == nil {
 		return 0
 	}
 
 	size := uint64(int(unsafe.Sizeof(*r)) + len(r.NextPageToken))
 	for _, v := range r.Tasks {
-		size += v.ByteSize()
+		if v != nil {
+			size += v.ByteSize()
+		}
 	}
 
 	return size
-}
-
-func (r *ReplicationTaskInfo) ByteSize() uint64 {
-	if r == nil {
-		return 0
-	}
-
-	return uint64(int(unsafe.Sizeof(*r)) + len(r.DomainID) + len(r.WorkflowID) + len(r.RunID) + len(r.BranchToken) + len(r.NewRunBranchToken))
-}
-
-func (r *GetTimerIndexTasksResponse) ByteSize() uint64 {
-	if r == nil {
-		return 0
-	}
-
-	size := uint64(int(unsafe.Sizeof(*r)) + len(r.NextPageToken))
-	for _, v := range r.Timers {
-		size += v.ByteSize()
-	}
-
-	return size
-}
-
-func (r *TimerTaskInfo) ByteSize() uint64 {
-	if r == nil {
-		return 0
-	}
-
-	return uint64(int(unsafe.Sizeof(*r)) + len(r.DomainID) + len(r.WorkflowID) + len(r.RunID))
 }
 
 func (r *GetTasksResponse) ByteSize() uint64 {
@@ -257,28 +218,6 @@ func (r *CurrentWorkflowExecution) ByteSize() uint64 {
 	}
 
 	return uint64(int(unsafe.Sizeof(*r)) + len(r.DomainID) + len(r.WorkflowID) + len(r.RunID) + len(r.CurrentRunID))
-}
-
-func (r *GetTransferTasksResponse) ByteSize() uint64 {
-	if r == nil {
-		return 0
-	}
-
-	total := uint64(int(unsafe.Sizeof(*r)) + len(r.NextPageToken))
-	for _, v := range r.Tasks {
-		total += v.ByteSize()
-	}
-
-	return total
-}
-
-func (r *TransferTaskInfo) ByteSize() uint64 {
-	if r == nil {
-		return 0
-	}
-
-	return uint64(int(unsafe.Sizeof(*r)) + len(r.DomainID) + len(r.WorkflowID) + len(r.RunID) +
-		len(r.TargetDomainID) + len(r.TargetWorkflowID) + len(r.TargetRunID) + len(r.TaskList))
 }
 
 func (r QueueMessageList) ByteSize() uint64 {

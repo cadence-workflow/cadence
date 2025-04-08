@@ -30,15 +30,16 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 )
 
 type configTestCase struct {
-	key   dynamicconfig.Key
+	key   dynamicproperties.Key
 	value interface{}
 }
 
-var ignoreField = configTestCase{key: dynamicconfig.UnknownIntKey}
+var ignoreField = configTestCase{key: dynamicproperties.UnknownIntKey}
 
 func TestNewConfig(t *testing.T) {
 	fields := map[string]configTestCase{
@@ -46,73 +47,73 @@ func TestNewConfig(t *testing.T) {
 		"IsAdvancedVisConfigExist":                    {nil, true},
 		"HostName":                                    {nil, "hostname"},
 		"DomainConfig":                                ignoreField, // Handle this separately since it's also a config object
-		"PersistenceMaxQPS":                           {dynamicconfig.FrontendPersistenceMaxQPS, 1},
-		"PersistenceGlobalMaxQPS":                     {dynamicconfig.FrontendPersistenceGlobalMaxQPS, 2},
-		"VisibilityMaxPageSize":                       {dynamicconfig.FrontendVisibilityMaxPageSize, 3},
-		"EnableVisibilitySampling":                    {dynamicconfig.EnableVisibilitySampling, true},
-		"EnableReadFromClosedExecutionV2":             {dynamicconfig.EnableReadFromClosedExecutionV2, false},
-		"VisibilityListMaxQPS":                        {dynamicconfig.FrontendVisibilityListMaxQPS, 4},
-		"ESVisibilityListMaxQPS":                      {dynamicconfig.FrontendESVisibilityListMaxQPS, 5},
-		"ReadVisibilityStoreName":                     {dynamicconfig.ReadVisibilityStoreName, "es"},
-		"EnableLogCustomerQueryParameter":             {dynamicconfig.EnableLogCustomerQueryParameter, true},
-		"ESIndexMaxResultWindow":                      {dynamicconfig.FrontendESIndexMaxResultWindow, 6},
-		"HistoryMaxPageSize":                          {dynamicconfig.FrontendHistoryMaxPageSize, 7},
-		"UserRPS":                                     {dynamicconfig.FrontendUserRPS, 8},
-		"WorkerRPS":                                   {dynamicconfig.FrontendWorkerRPS, 9},
-		"VisibilityRPS":                               {dynamicconfig.FrontendVisibilityRPS, 10},
-		"AsyncRPS":                                    {dynamicconfig.FrontendAsyncRPS, 11},
-		"MaxDomainUserRPSPerInstance":                 {dynamicconfig.FrontendMaxDomainUserRPSPerInstance, 12},
-		"MaxDomainWorkerRPSPerInstance":               {dynamicconfig.FrontendMaxDomainWorkerRPSPerInstance, 13},
-		"MaxDomainVisibilityRPSPerInstance":           {dynamicconfig.FrontendMaxDomainVisibilityRPSPerInstance, 14},
-		"MaxDomainAsyncRPSPerInstance":                {dynamicconfig.FrontendMaxDomainAsyncRPSPerInstance, 15},
-		"GlobalDomainUserRPS":                         {dynamicconfig.FrontendGlobalDomainUserRPS, 16},
-		"GlobalDomainWorkerRPS":                       {dynamicconfig.FrontendGlobalDomainWorkerRPS, 17},
-		"GlobalDomainVisibilityRPS":                   {dynamicconfig.FrontendGlobalDomainVisibilityRPS, 18},
-		"GlobalDomainAsyncRPS":                        {dynamicconfig.FrontendGlobalDomainAsyncRPS, 19},
-		"MaxIDLengthWarnLimit":                        {dynamicconfig.MaxIDLengthWarnLimit, 20},
-		"DomainNameMaxLength":                         {dynamicconfig.DomainNameMaxLength, 21},
-		"IdentityMaxLength":                           {dynamicconfig.IdentityMaxLength, 22},
-		"WorkflowIDMaxLength":                         {dynamicconfig.WorkflowIDMaxLength, 23},
-		"SignalNameMaxLength":                         {dynamicconfig.SignalNameMaxLength, 24},
-		"WorkflowTypeMaxLength":                       {dynamicconfig.WorkflowTypeMaxLength, 25},
-		"RequestIDMaxLength":                          {dynamicconfig.RequestIDMaxLength, 26},
-		"TaskListNameMaxLength":                       {dynamicconfig.TaskListNameMaxLength, 27},
-		"HistoryMgrNumConns":                          {dynamicconfig.FrontendHistoryMgrNumConns, 28},
-		"EnableAdminProtection":                       {dynamicconfig.EnableAdminProtection, true},
-		"AdminOperationToken":                         {dynamicconfig.AdminOperationToken, "token"},
-		"DisableListVisibilityByFilter":               {dynamicconfig.DisableListVisibilityByFilter, false},
-		"BlobSizeLimitError":                          {dynamicconfig.BlobSizeLimitError, 29},
-		"BlobSizeLimitWarn":                           {dynamicconfig.BlobSizeLimitWarn, 30},
-		"ThrottledLogRPS":                             {dynamicconfig.FrontendThrottledLogRPS, 31},
-		"ShutdownDrainDuration":                       {dynamicconfig.FrontendShutdownDrainDuration, time.Duration(32)},
-		"EnableDomainNotActiveAutoForwarding":         {dynamicconfig.EnableDomainNotActiveAutoForwarding, true},
-		"EnableGracefulFailover":                      {dynamicconfig.EnableGracefulFailover, false},
-		"DomainFailoverRefreshInterval":               {dynamicconfig.DomainFailoverRefreshInterval, time.Duration(33)},
-		"DomainFailoverRefreshTimerJitterCoefficient": {dynamicconfig.DomainFailoverRefreshTimerJitterCoefficient, 34.0},
-		"EnableClientVersionCheck":                    {dynamicconfig.EnableClientVersionCheck, true},
-		"EnableQueryAttributeValidation":              {dynamicconfig.EnableQueryAttributeValidation, false},
-		"ValidSearchAttributes":                       {dynamicconfig.ValidSearchAttributes, map[string]interface{}{"foo": "bar"}},
-		"SearchAttributesNumberOfKeysLimit":           {dynamicconfig.SearchAttributesNumberOfKeysLimit, 35},
-		"SearchAttributesSizeOfValueLimit":            {dynamicconfig.SearchAttributesSizeOfValueLimit, 36},
-		"SearchAttributesTotalSizeLimit":              {dynamicconfig.SearchAttributesTotalSizeLimit, 37},
-		"VisibilityArchivalQueryMaxPageSize":          {dynamicconfig.VisibilityArchivalQueryMaxPageSize, 38},
-		"DisallowQuery":                               {dynamicconfig.DisallowQuery, true},
-		"SendRawWorkflowHistory":                      {dynamicconfig.SendRawWorkflowHistory, false},
-		"DecisionResultCountLimit":                    {dynamicconfig.FrontendDecisionResultCountLimit, 39},
-		"EmitSignalNameMetricsTag":                    {dynamicconfig.FrontendEmitSignalNameMetricsTag, true},
-		"Lockdown":                                    {dynamicconfig.Lockdown, false},
-		"EnableTasklistIsolation":                     {dynamicconfig.EnableTasklistIsolation, true},
-		"GlobalRatelimiterKeyMode":                    {dynamicconfig.FrontendGlobalRatelimiterMode, "disabled"},
-		"GlobalRatelimiterUpdateInterval":             {dynamicconfig.GlobalRatelimiterUpdateInterval, 3 * time.Second},
-		"PinotOptimizedQueryColumns":                  {dynamicconfig.PinotOptimizedQueryColumns, map[string]interface{}{"foo": "bar"}},
+		"PersistenceMaxQPS":                           {dynamicproperties.FrontendPersistenceMaxQPS, 1},
+		"PersistenceGlobalMaxQPS":                     {dynamicproperties.FrontendPersistenceGlobalMaxQPS, 2},
+		"VisibilityMaxPageSize":                       {dynamicproperties.FrontendVisibilityMaxPageSize, 3},
+		"EnableVisibilitySampling":                    {dynamicproperties.EnableVisibilitySampling, true},
+		"EnableReadFromClosedExecutionV2":             {dynamicproperties.EnableReadFromClosedExecutionV2, false},
+		"VisibilityListMaxQPS":                        {dynamicproperties.FrontendVisibilityListMaxQPS, 4},
+		"ESVisibilityListMaxQPS":                      {dynamicproperties.FrontendESVisibilityListMaxQPS, 5},
+		"ReadVisibilityStoreName":                     {dynamicproperties.ReadVisibilityStoreName, "es"},
+		"EnableLogCustomerQueryParameter":             {dynamicproperties.EnableLogCustomerQueryParameter, true},
+		"ESIndexMaxResultWindow":                      {dynamicproperties.FrontendESIndexMaxResultWindow, 6},
+		"HistoryMaxPageSize":                          {dynamicproperties.FrontendHistoryMaxPageSize, 7},
+		"UserRPS":                                     {dynamicproperties.FrontendUserRPS, 8},
+		"WorkerRPS":                                   {dynamicproperties.FrontendWorkerRPS, 9},
+		"VisibilityRPS":                               {dynamicproperties.FrontendVisibilityRPS, 10},
+		"AsyncRPS":                                    {dynamicproperties.FrontendAsyncRPS, 11},
+		"MaxDomainUserRPSPerInstance":                 {dynamicproperties.FrontendMaxDomainUserRPSPerInstance, 12},
+		"MaxDomainWorkerRPSPerInstance":               {dynamicproperties.FrontendMaxDomainWorkerRPSPerInstance, 13},
+		"MaxDomainVisibilityRPSPerInstance":           {dynamicproperties.FrontendMaxDomainVisibilityRPSPerInstance, 14},
+		"MaxDomainAsyncRPSPerInstance":                {dynamicproperties.FrontendMaxDomainAsyncRPSPerInstance, 15},
+		"GlobalDomainUserRPS":                         {dynamicproperties.FrontendGlobalDomainUserRPS, 16},
+		"GlobalDomainWorkerRPS":                       {dynamicproperties.FrontendGlobalDomainWorkerRPS, 17},
+		"GlobalDomainVisibilityRPS":                   {dynamicproperties.FrontendGlobalDomainVisibilityRPS, 18},
+		"GlobalDomainAsyncRPS":                        {dynamicproperties.FrontendGlobalDomainAsyncRPS, 19},
+		"MaxIDLengthWarnLimit":                        {dynamicproperties.MaxIDLengthWarnLimit, 20},
+		"DomainNameMaxLength":                         {dynamicproperties.DomainNameMaxLength, 21},
+		"IdentityMaxLength":                           {dynamicproperties.IdentityMaxLength, 22},
+		"WorkflowIDMaxLength":                         {dynamicproperties.WorkflowIDMaxLength, 23},
+		"SignalNameMaxLength":                         {dynamicproperties.SignalNameMaxLength, 24},
+		"WorkflowTypeMaxLength":                       {dynamicproperties.WorkflowTypeMaxLength, 25},
+		"RequestIDMaxLength":                          {dynamicproperties.RequestIDMaxLength, 26},
+		"TaskListNameMaxLength":                       {dynamicproperties.TaskListNameMaxLength, 27},
+		"HistoryMgrNumConns":                          {dynamicproperties.FrontendHistoryMgrNumConns, 28},
+		"EnableAdminProtection":                       {dynamicproperties.EnableAdminProtection, true},
+		"AdminOperationToken":                         {dynamicproperties.AdminOperationToken, "token"},
+		"DisableListVisibilityByFilter":               {dynamicproperties.DisableListVisibilityByFilter, false},
+		"BlobSizeLimitError":                          {dynamicproperties.BlobSizeLimitError, 29},
+		"BlobSizeLimitWarn":                           {dynamicproperties.BlobSizeLimitWarn, 30},
+		"ThrottledLogRPS":                             {dynamicproperties.FrontendThrottledLogRPS, 31},
+		"ShutdownDrainDuration":                       {dynamicproperties.FrontendShutdownDrainDuration, time.Duration(32)},
+		"EnableDomainNotActiveAutoForwarding":         {dynamicproperties.EnableDomainNotActiveAutoForwarding, true},
+		"EnableGracefulFailover":                      {dynamicproperties.EnableGracefulFailover, false},
+		"DomainFailoverRefreshInterval":               {dynamicproperties.DomainFailoverRefreshInterval, time.Duration(33)},
+		"DomainFailoverRefreshTimerJitterCoefficient": {dynamicproperties.DomainFailoverRefreshTimerJitterCoefficient, 34.0},
+		"EnableClientVersionCheck":                    {dynamicproperties.EnableClientVersionCheck, true},
+		"EnableQueryAttributeValidation":              {dynamicproperties.EnableQueryAttributeValidation, false},
+		"ValidSearchAttributes":                       {dynamicproperties.ValidSearchAttributes, map[string]interface{}{"foo": "bar"}},
+		"SearchAttributesNumberOfKeysLimit":           {dynamicproperties.SearchAttributesNumberOfKeysLimit, 35},
+		"SearchAttributesSizeOfValueLimit":            {dynamicproperties.SearchAttributesSizeOfValueLimit, 36},
+		"SearchAttributesTotalSizeLimit":              {dynamicproperties.SearchAttributesTotalSizeLimit, 37},
+		"VisibilityArchivalQueryMaxPageSize":          {dynamicproperties.VisibilityArchivalQueryMaxPageSize, 38},
+		"DisallowQuery":                               {dynamicproperties.DisallowQuery, true},
+		"SendRawWorkflowHistory":                      {dynamicproperties.SendRawWorkflowHistory, false},
+		"DecisionResultCountLimit":                    {dynamicproperties.FrontendDecisionResultCountLimit, 39},
+		"EmitSignalNameMetricsTag":                    {dynamicproperties.FrontendEmitSignalNameMetricsTag, true},
+		"Lockdown":                                    {dynamicproperties.Lockdown, false},
+		"EnableTasklistIsolation":                     {dynamicproperties.EnableTasklistIsolation, true},
+		"GlobalRatelimiterKeyMode":                    {dynamicproperties.FrontendGlobalRatelimiterMode, "disabled"},
+		"GlobalRatelimiterUpdateInterval":             {dynamicproperties.GlobalRatelimiterUpdateInterval, 3 * time.Second},
+		"PinotOptimizedQueryColumns":                  {dynamicproperties.PinotOptimizedQueryColumns, map[string]interface{}{"foo": "bar"}},
 	}
 	domainFields := map[string]configTestCase{
-		"MaxBadBinaryCount":      {dynamicconfig.FrontendMaxBadBinaries, 40},
-		"MinRetentionDays":       {dynamicconfig.MinRetentionDays, 41},
-		"MaxRetentionDays":       {dynamicconfig.MaxRetentionDays, 42},
-		"FailoverCoolDown":       {dynamicconfig.FrontendFailoverCoolDown, time.Duration(43)},
-		"RequiredDomainDataKeys": {dynamicconfig.RequiredDomainDataKeys, map[string]interface{}{"bar": "baz"}},
-		"FailoverHistoryMaxSize": {dynamicconfig.FrontendFailoverHistoryMaxSize, 44},
+		"MaxBadBinaryCount":      {dynamicproperties.FrontendMaxBadBinaries, 40},
+		"MinRetentionDays":       {dynamicproperties.MinRetentionDays, 41},
+		"MaxRetentionDays":       {dynamicproperties.MaxRetentionDays, 42},
+		"FailoverCoolDown":       {dynamicproperties.FrontendFailoverCoolDown, time.Duration(43)},
+		"RequiredDomainDataKeys": {dynamicproperties.RequiredDomainDataKeys, map[string]interface{}{"bar": "baz"}},
+		"FailoverHistoryMaxSize": {dynamicproperties.FrontendFailoverHistoryMaxSize, 44},
 	}
 	client := dynamicconfig.NewInMemoryClient()
 	dc := dynamicconfig.NewCollection(client, testlogger.New(t))
@@ -154,27 +155,27 @@ func getValue(f *reflect.Value) interface{} {
 	switch f.Kind() {
 	case reflect.Func:
 		switch fn := f.Interface().(type) {
-		case dynamicconfig.IntPropertyFn:
+		case dynamicproperties.IntPropertyFn:
 			return fn()
-		case dynamicconfig.IntPropertyFnWithDomainFilter:
+		case dynamicproperties.IntPropertyFnWithDomainFilter:
 			return fn("domain")
-		case dynamicconfig.BoolPropertyFn:
+		case dynamicproperties.BoolPropertyFn:
 			return fn()
-		case dynamicconfig.BoolPropertyFnWithDomainFilter:
+		case dynamicproperties.BoolPropertyFnWithDomainFilter:
 			return fn("domain")
-		case dynamicconfig.DurationPropertyFn:
+		case dynamicproperties.DurationPropertyFn:
 			return fn()
-		case dynamicconfig.DurationPropertyFnWithDomainFilter:
+		case dynamicproperties.DurationPropertyFnWithDomainFilter:
 			return fn("domain")
-		case dynamicconfig.FloatPropertyFn:
+		case dynamicproperties.FloatPropertyFn:
 			return fn()
-		case dynamicconfig.MapPropertyFn:
+		case dynamicproperties.MapPropertyFn:
 			return fn()
-		case dynamicconfig.StringPropertyFn:
+		case dynamicproperties.StringPropertyFn:
 			return fn()
-		case dynamicconfig.StringPropertyWithRatelimitKeyFilter:
+		case dynamicproperties.StringPropertyWithRatelimitKeyFilter:
 			return fn("user:domain")
-		case dynamicconfig.StringPropertyFnWithDomainFilter:
+		case dynamicproperties.StringPropertyFnWithDomainFilter:
 			return fn("domain")
 		default:
 			panic("Unable to handle type: " + f.Type().Name())

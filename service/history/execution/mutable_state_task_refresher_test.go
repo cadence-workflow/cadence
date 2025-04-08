@@ -34,7 +34,7 @@ import (
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/constants"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/config"
@@ -660,8 +660,8 @@ func TestRefreshTasks(t *testing.T) {
 			ms.EXPECT().GetDomainEntry().Return(cache.NewLocalDomainCacheEntryForTest(&persistence.DomainInfo{ID: "domain-id"}, nil, "test")).AnyTimes()
 			refresher := &mutableStateTaskRefresherImpl{
 				config: &config.Config{
-					WriteVisibilityStoreName:    dynamicconfig.GetStringPropertyFn(constants.VisibilityModeES),
-					WorkflowDeletionJitterRange: dynamicconfig.GetIntPropertyFilteredByDomain(1),
+					WriteVisibilityStoreName:    dynamicproperties.GetStringPropertyFn(constants.VisibilityModeES),
+					WorkflowDeletionJitterRange: dynamicproperties.GetIntPropertyFilteredByDomain(1),
 					IsAdvancedVisConfigExist:    true,
 				},
 				newMutableStateTaskGeneratorFn: func(cluster.Metadata, cache.DomainCache, MutableState) MutableStateTaskGenerator {

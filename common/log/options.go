@@ -20,33 +20,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-//go:generate mockgen -package=$GOPACKAGE -destination=limiterfactory_mock.go github.com/uber/cadence/common/quotas LimiterFactory
+package log
 
-package quotas
+// Option is used to set options for the logger.
+type Option func(impl *loggerImpl)
 
-import (
-	"github.com/uber/cadence/common/dynamicconfig"
-)
-
-// LimiterFactory is used to create a Limiter for a given domain
-type LimiterFactory interface {
-	// GetLimiter returns a new Limiter for the given domain
-	GetLimiter(domain string) Limiter
-}
-
-// NewSimpleDynamicRateLimiterFactory creates a new LimiterFactory which creates
-// a new DynamicRateLimiter for each domain, the RPS for the DynamicRateLimiter is given by the dynamic config
-func NewSimpleDynamicRateLimiterFactory(rps dynamicconfig.IntPropertyFnWithDomainFilter) LimiterFactory {
-	return dynamicRateLimiterFactory{
-		rps: rps,
+// WithSampleFunc sets the sampling function for the logger.
+func WithSampleFunc(fn func(int) bool) Option {
+	return func(impl *loggerImpl) {
+		impl.sampleLocalFn = fn
 	}
-}
-
-type dynamicRateLimiterFactory struct {
-	rps dynamicconfig.IntPropertyFnWithDomainFilter
-}
-
-// GetLimiter returns a new Limiter for the given domain
-func (f dynamicRateLimiterFactory) GetLimiter(domain string) Limiter {
-	return NewDynamicRateLimiter(func() float64 { return float64(f.rps(domain)) })
 }

@@ -29,6 +29,7 @@ import (
 
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -61,9 +62,9 @@ type (
 		logger              log.Logger
 		metricsClient       metrics.Client
 		domainIDToName      func(string) (string, error)
-		enableReadFromCache dynamicconfig.BoolPropertyFnWithTaskListInfoFilters
-		nReadPartitions     dynamicconfig.IntPropertyFnWithTaskListInfoFilters
-		nWritePartitions    dynamicconfig.IntPropertyFnWithTaskListInfoFilters
+		enableReadFromCache dynamicproperties.BoolPropertyFnWithTaskListInfoFilters
+		nReadPartitions     dynamicproperties.IntPropertyFnWithTaskListInfoFilters
+		nWritePartitions    dynamicproperties.IntPropertyFnWithTaskListInfoFilters
 	}
 )
 
@@ -89,9 +90,9 @@ func NewPartitionConfigProvider(
 		logger:              logger,
 		metricsClient:       metricsClient,
 		domainIDToName:      domainIDToName,
-		enableReadFromCache: dc.GetBoolPropertyFilteredByTaskListInfo(dynamicconfig.MatchingEnableGetNumberOfPartitionsFromCache),
-		nReadPartitions:     dc.GetIntPropertyFilteredByTaskListInfo(dynamicconfig.MatchingNumTasklistReadPartitions),
-		nWritePartitions:    dc.GetIntPropertyFilteredByTaskListInfo(dynamicconfig.MatchingNumTasklistWritePartitions),
+		enableReadFromCache: dc.GetBoolPropertyFilteredByTaskListInfo(dynamicproperties.MatchingEnableGetNumberOfPartitionsFromCache),
+		nReadPartitions:     dc.GetIntPropertyFilteredByTaskListInfo(dynamicproperties.MatchingNumTasklistReadPartitions),
+		nWritePartitions:    dc.GetIntPropertyFilteredByTaskListInfo(dynamicproperties.MatchingNumTasklistWritePartitions),
 		configCache: cache.New(&cache.Options{
 			TTL:             0,
 			InitialCapacity: 100,

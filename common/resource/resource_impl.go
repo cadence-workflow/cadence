@@ -48,10 +48,10 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/configstore"
 	csc "github.com/uber/cadence/common/dynamicconfig/configstore/config"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/isolationgroup/defaultisolationgroupstate"
 	"github.com/uber/cadence/common/log"
-	"github.com/uber/cadence/common/log/loggerimpl"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/messaging"
@@ -159,7 +159,7 @@ func New(
 	hostname := params.HostName
 
 	logger := params.Logger
-	throttledLogger := loggerimpl.NewThrottledLogger(logger, serviceConfig.ThrottledLoggerMaxRPS)
+	throttledLogger := log.NewThrottledLogger(logger, serviceConfig.ThrottledLoggerMaxRPS)
 
 	numShards := params.PersistenceConfig.NumHistoryShards
 	dispatcher := params.RPCFactory.GetDispatcher()
@@ -170,7 +170,7 @@ func New(
 	dynamicCollection := dynamicconfig.NewCollection(
 		params.DynamicConfig,
 		logger,
-		dynamicconfig.ClusterNameFilter(params.ClusterMetadata.GetCurrentClusterName()),
+		dynamicproperties.ClusterNameFilter(params.ClusterMetadata.GetCurrentClusterName()),
 	)
 	clientBean, err := client.NewClientBean(
 		client.NewRPCClientFactory(
@@ -686,10 +686,10 @@ func createConfigStoreOrDefault(
 		return params.IsolationGroupStore
 	}
 	cscConfig := &csc.ClientConfig{
-		PollInterval:        dc.GetDurationProperty(dynamicconfig.IsolationGroupStateRefreshInterval)(),
-		UpdateRetryAttempts: dc.GetIntProperty(dynamicconfig.IsolationGroupStateUpdateRetryAttempts)(),
-		FetchTimeout:        dc.GetDurationProperty(dynamicconfig.IsolationGroupStateFetchTimeout)(),
-		UpdateTimeout:       dc.GetDurationProperty(dynamicconfig.IsolationGroupStateUpdateTimeout)(),
+		PollInterval:        dc.GetDurationProperty(dynamicproperties.IsolationGroupStateRefreshInterval)(),
+		UpdateRetryAttempts: dc.GetIntProperty(dynamicproperties.IsolationGroupStateUpdateRetryAttempts)(),
+		FetchTimeout:        dc.GetDurationProperty(dynamicproperties.IsolationGroupStateFetchTimeout)(),
+		UpdateTimeout:       dc.GetDurationProperty(dynamicproperties.IsolationGroupStateUpdateTimeout)(),
 	}
 	cfgStoreClient, err := configstore.NewConfigStoreClient(cscConfig, &params.PersistenceConfig, params.Logger, persistence.GlobalIsolationGroupConfig)
 	if err != nil {

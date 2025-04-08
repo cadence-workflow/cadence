@@ -23,7 +23,7 @@
 package defaultisolationgroupstate
 
 import (
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -37,7 +37,7 @@ type isolationGroups struct {
 // concept meant to help move workflows around and away from failure zones.
 type defaultConfig struct {
 	// IsolationGroupEnabled is a domain-based configuration value for whether this feature is enabled at all
-	IsolationGroupEnabled dynamicconfig.BoolPropertyFnWithDomainFilter
+	IsolationGroupEnabled dynamicproperties.BoolPropertyFnWithDomainFilter
 	// AllIsolationGroups is all the possible isolation-groups available for a region
 	AllIsolationGroups func() []string
 }

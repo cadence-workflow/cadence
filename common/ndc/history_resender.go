@@ -31,7 +31,7 @@ import (
 	adminClient "github.com/uber/cadence/client/admin"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/collection"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
@@ -74,7 +74,7 @@ type (
 		domainCache           cache.DomainCache
 		adminClient           adminClient.Client
 		historyReplicationFn  nDCHistoryReplicationFn
-		rereplicationTimeout  dynamicconfig.DurationPropertyFnWithDomainIDFilter
+		rereplicationTimeout  dynamicproperties.DurationPropertyFnWithDomainIDFilter
 		currentExecutionCheck invariant.Invariant
 		logger                log.Logger
 	}
@@ -90,7 +90,7 @@ func NewHistoryResender(
 	domainCache cache.DomainCache,
 	adminClient adminClient.Client,
 	historyReplicationFn nDCHistoryReplicationFn,
-	rereplicationTimeout dynamicconfig.DurationPropertyFnWithDomainIDFilter,
+	rereplicationTimeout dynamicproperties.DurationPropertyFnWithDomainIDFilter,
 	currentExecutionCheck invariant.Invariant,
 	logger log.Logger,
 ) *HistoryResenderImpl {

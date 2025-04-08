@@ -34,7 +34,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	commonconstants "github.com/uber/cadence/common/constants"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
@@ -289,7 +289,7 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 			mockDB := nosqlplugin.NewMockDB(controller)
 			mockTaskSerializer := serialization.NewMockTaskSerializer(controller)
 			store, _ := NewExecutionStore(1, mockDB, log.NewNoop(), mockTaskSerializer, &persistence.DynamicConfiguration{
-				EnableHistoryTaskDualWriteMode: func(...dynamicconfig.FilterOption) bool { return false },
+				EnableHistoryTaskDualWriteMode: func(...dynamicproperties.FilterOption) bool { return false },
 			})
 
 			tc.setupMock(mockDB, 1)
@@ -718,12 +718,10 @@ func TestNosqlExecutionStore(t *testing.T) {
 				initialNextPageToken := []byte{}
 				_, err := store.GetReplicationTasksFromDLQ(ctx, &persistence.GetReplicationTasksFromDLQRequest{
 					SourceClusterName: "sourceCluster",
-					GetReplicationTasksRequest: persistence.GetReplicationTasksRequest{
-						BatchSize:     10,
-						NextPageToken: initialNextPageToken,
-						ReadLevel:     0,
-						MaxReadLevel:  100,
-					},
+					BatchSize:         10,
+					NextPageToken:     initialNextPageToken,
+					ReadLevel:         0,
+					MaxReadLevel:      100,
 				})
 
 				return err
@@ -738,12 +736,10 @@ func TestNosqlExecutionStore(t *testing.T) {
 			testFunc: func(store *nosqlExecutionStore) error {
 				_, err := store.GetReplicationTasksFromDLQ(ctx, &persistence.GetReplicationTasksFromDLQRequest{
 					SourceClusterName: "sourceCluster",
-					GetReplicationTasksRequest: persistence.GetReplicationTasksRequest{
-						ReadLevel:     100,
-						MaxReadLevel:  50,
-						BatchSize:     10,
-						NextPageToken: []byte{},
-					},
+					ReadLevel:         100,
+					MaxReadLevel:      50,
+					BatchSize:         10,
+					NextPageToken:     []byte{},
 				})
 				return err
 			},
@@ -1099,7 +1095,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 	mockDB := nosqlplugin.NewMockDB(gomockController)
 	mockTaskSerializer := serialization.NewMockTaskSerializer(gomockController)
 	store, err := NewExecutionStore(1, mockDB, log.NewNoop(), mockTaskSerializer, &persistence.DynamicConfiguration{
-		EnableHistoryTaskDualWriteMode: func(...dynamicconfig.FilterOption) bool { return false },
+		EnableHistoryTaskDualWriteMode: func(...dynamicproperties.FilterOption) bool { return false },
 	})
 	require.NoError(t, err)
 
@@ -1752,7 +1748,7 @@ func TestGetHistoryTasks(t *testing.T) {
 
 			mockDB := nosqlplugin.NewMockDB(controller)
 			mockTaskSerializer := serialization.NewMockTaskSerializer(controller)
-			store := &nosqlExecutionStore{nosqlStore: nosqlStore{db: mockDB, dc: &persistence.DynamicConfiguration{ReadNoSQLHistoryTaskFromDataBlob: func(...dynamicconfig.FilterOption) bool {
+			store := &nosqlExecutionStore{nosqlStore: nosqlStore{db: mockDB, dc: &persistence.DynamicConfiguration{ReadNoSQLHistoryTaskFromDataBlob: func(...dynamicproperties.FilterOption) bool {
 				return tc.readNoSQLHistoryTaskFromDataBlob
 			}}}, shardID: shardID, taskSerializer: mockTaskSerializer}
 

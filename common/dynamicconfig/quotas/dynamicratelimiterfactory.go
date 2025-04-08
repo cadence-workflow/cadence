@@ -20,14 +20,26 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-package loggerimpl
+package quotas
 
-// Option is used to set options for the logger.
-type Option func(impl *loggerImpl)
+import (
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/quotas"
+)
 
-// WithSampleFunc sets the sampling function for the logger.
-func WithSampleFunc(fn func(int) bool) Option {
-	return func(impl *loggerImpl) {
-		impl.sampleLocalFn = fn
+// NewSimpleDynamicRateLimiterFactory creates a new LimiterFactory which creates
+// a new DynamicRateLimiter for each domain, the RPS for the DynamicRateLimiter is given by the dynamic config
+func NewSimpleDynamicRateLimiterFactory(rps dynamicproperties.IntPropertyFnWithDomainFilter) quotas.LimiterFactory {
+	return dynamicRateLimiterFactory{
+		rps: rps,
 	}
+}
+
+type dynamicRateLimiterFactory struct {
+	rps dynamicproperties.IntPropertyFnWithDomainFilter
+}
+
+// GetLimiter returns a new Limiter for the given domain
+func (f dynamicRateLimiterFactory) GetLimiter(domain string) quotas.Limiter {
+	return quotas.NewDynamicRateLimiter(func() float64 { return float64(f.rps(domain)) })
 }

@@ -32,7 +32,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/cache"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/reconciliation/entity"
@@ -121,7 +121,7 @@ func (s *FixerSuite) TestFix_Failure_NonFirstError() {
 		fixedWriter:      fixedWriter,
 		progressReportFn: func() {},
 		domainCache:      domainCache,
-		allowDomain:      dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
+		allowDomain:      dynamicproperties.GetBoolPropertyFnFilteredByDomain(true),
 		scope:            metrics.NoopScope(metrics.Worker),
 	}
 	result := fixer.Fix()
@@ -173,7 +173,7 @@ func (s *FixerSuite) TestFix_Failure_SkippedWriterError() {
 		invariantManager: mockInvariantManager,
 		progressReportFn: func() {},
 		domainCache:      domainCache,
-		allowDomain:      dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
+		allowDomain:      dynamicproperties.GetBoolPropertyFnFilteredByDomain(true),
 		scope:            metrics.NoopScope(metrics.Worker),
 	}
 	result := fixer.Fix()
@@ -224,7 +224,7 @@ func (s *FixerSuite) TestFix_Failure_FailedWriterError() {
 		invariantManager: mockInvariantManager,
 		progressReportFn: func() {},
 		domainCache:      domainCache,
-		allowDomain:      dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
+		allowDomain:      dynamicproperties.GetBoolPropertyFnFilteredByDomain(true),
 		scope:            metrics.NoopScope(metrics.Worker),
 	}
 	result := fixer.Fix()
@@ -275,7 +275,7 @@ func (s *FixerSuite) TestFix_Failure_FixedWriterError() {
 		invariantManager: mockInvariantManager,
 		progressReportFn: func() {},
 		domainCache:      domainCache,
-		allowDomain:      dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
+		allowDomain:      dynamicproperties.GetBoolPropertyFnFilteredByDomain(true),
 		scope:            metrics.NoopScope(metrics.Worker),
 	}
 	result := fixer.Fix()

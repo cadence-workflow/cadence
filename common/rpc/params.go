@@ -33,6 +33,7 @@ import (
 
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/service"
@@ -90,7 +91,7 @@ func NewParams(serviceName string, config *config.Config, dc *dynamicconfig.Coll
 		}
 	}
 
-	enableGRPCOutbound := dc.GetBoolProperty(dynamicconfig.EnableGRPCOutbound)()
+	enableGRPCOutbound := dc.GetBoolProperty(dynamicproperties.EnableGRPCOutbound)()
 
 	publicClientOutbound, err := newPublicClientOutbound(config)
 	if err != nil {
@@ -139,14 +140,14 @@ func NewParams(serviceName string, config *config.Config, dc *dynamicconfig.Coll
 			enableGRPCOutbound,
 			outboundTLS[service.History],
 			NewDirectPeerChooserFactory(service.History, logger, metricsCl),
-			dc.GetBoolProperty(dynamicconfig.EnableConnectionRetainingDirectChooser),
+			dc.GetBoolProperty(dynamicproperties.EnableConnectionRetainingDirectChooser),
 		),
 		NewDirectOutboundBuilder(
 			service.Matching,
 			enableGRPCOutbound,
 			outboundTLS[service.Matching],
 			NewDirectPeerChooserFactory(service.Matching, logger, metricsCl),
-			dc.GetBoolProperty(dynamicconfig.EnableConnectionRetainingDirectChooser),
+			dc.GetBoolProperty(dynamicproperties.EnableConnectionRetainingDirectChooser),
 		),
 		publicClientOutbound,
 	}
@@ -181,7 +182,7 @@ func NewParams(serviceName string, config *config.Config, dc *dynamicconfig.Coll
 
 func getForwardingRules(dc *dynamicconfig.Collection) ([]config.HeaderRule, error) {
 	var forwardingRules []config.HeaderRule
-	dynForwarding := dc.GetListProperty(dynamicconfig.HeaderForwardingRules)()
+	dynForwarding := dc.GetListProperty(dynamicproperties.HeaderForwardingRules)()
 	if len(dynForwarding) > 0 {
 		for _, f := range dynForwarding {
 			switch v := f.(type) {

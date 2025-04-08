@@ -27,6 +27,7 @@ import (
 
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/types"
@@ -37,7 +38,7 @@ type (
 		defaultLoadBalancer  LoadBalancer
 		loadBalancers        map[string]LoadBalancer
 		domainIDToName       func(string) (string, error)
-		loadbalancerStrategy dynamicconfig.StringPropertyFnWithTaskListInfoFilters
+		loadbalancerStrategy dynamicproperties.StringPropertyFnWithTaskListInfoFilters
 		logger               log.Logger
 	}
 )
@@ -53,7 +54,7 @@ func NewMultiLoadBalancer(
 		defaultLoadBalancer:  defaultLoadBalancer,
 		loadBalancers:        loadBalancers,
 		domainIDToName:       domainIDToName,
-		loadbalancerStrategy: dc.GetStringPropertyFilteredByTaskListInfo(dynamicconfig.TasklistLoadBalancerStrategy),
+		loadbalancerStrategy: dc.GetStringPropertyFilteredByTaskListInfo(dynamicproperties.TasklistLoadBalancerStrategy),
 		logger:               logger,
 	}
 }

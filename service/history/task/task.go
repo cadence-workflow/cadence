@@ -29,7 +29,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	cadence_errors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -81,7 +81,7 @@ type (
 		taskExecutor       Executor
 		taskProcessor      Processor
 		redispatchFn       func(task Task)
-		criticalRetryCount dynamicconfig.IntPropertyFn
+		criticalRetryCount dynamicproperties.IntPropertyFn
 
 		// TODO: following three fields should be removed after new task lifecycle is implemented
 		taskFilter        Filter
@@ -100,7 +100,7 @@ func NewTimerTask(
 	taskExecutor Executor,
 	taskProcessor Processor,
 	redispatchFn func(task Task),
-	criticalRetryCount dynamicconfig.IntPropertyFn,
+	criticalRetryCount dynamicproperties.IntPropertyFn,
 ) Task {
 	return newTask(
 		shard,
@@ -126,7 +126,7 @@ func NewTransferTask(
 	taskExecutor Executor,
 	taskProcessor Processor,
 	redispatchFn func(task Task),
-	criticalRetryCount dynamicconfig.IntPropertyFn,
+	criticalRetryCount dynamicproperties.IntPropertyFn,
 ) Task {
 	return newTask(
 		shard,
@@ -151,7 +151,7 @@ func newTask(
 	taskFilter Filter,
 	taskExecutor Executor,
 	taskProcessor Processor,
-	criticalRetryCount dynamicconfig.IntPropertyFn,
+	criticalRetryCount dynamicproperties.IntPropertyFn,
 	redispatchFn func(task Task),
 ) *taskImpl {
 	timeSource := shard.GetTimeSource()

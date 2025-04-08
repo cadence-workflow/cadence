@@ -20,41 +20,25 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-package quotas
+package dynamicproperties
 
-import "github.com/uber/cadence/common/dynamicconfig"
+import (
+	"strconv"
+	"testing"
 
-// LimiterFactory is used to create a Limiter for a given domain
-// the created Limiter will use the primary dynamic config if it is set
-// otherwise it will use the secondary dynamic config
-func NewFallbackDynamicRateLimiterFactory(
-	primary dynamicconfig.IntPropertyFnWithDomainFilter,
-	secondary dynamicconfig.IntPropertyFn,
-) LimiterFactory {
-	return fallbackDynamicRateLimiterFactory{
-		primary:   primary,
-		secondary: secondary,
+	"github.com/stretchr/testify/require"
+)
+
+func TestConvertDynamicConfigMapPropertyToIntMap(t *testing.T) {
+	dcValue := make(map[string]interface{})
+	for idx, value := range []interface{}{int(0), int32(1), int64(2), float64(3.0)} {
+		dcValue[strconv.Itoa(idx)] = value
 	}
-}
 
-type fallbackDynamicRateLimiterFactory struct {
-	primary dynamicconfig.IntPropertyFnWithDomainFilter
-	// secondary is used when primary is not set
-	secondary dynamicconfig.IntPropertyFn
-}
-
-// GetLimiter returns a new Limiter for the given domain
-func (f fallbackDynamicRateLimiterFactory) GetLimiter(domain string) Limiter {
-	return NewDynamicRateLimiter(func() float64 {
-		return limitWithFallback(
-			float64(f.primary(domain)),
-			float64(f.secondary()))
-	})
-}
-
-func limitWithFallback(primary, secondary float64) float64 {
-	if primary > 0 {
-		return primary
+	intMap, err := ConvertDynamicConfigMapPropertyToIntMap(dcValue)
+	require.NoError(t, err)
+	require.Len(t, intMap, 4)
+	for i := 0; i != 4; i++ {
+		require.Equal(t, i, intMap[i])
 	}
-	return secondary
 }

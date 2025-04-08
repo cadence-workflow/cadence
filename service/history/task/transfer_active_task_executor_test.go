@@ -46,9 +46,8 @@ import (
 	"github.com/uber/cadence/common/archiver/provider"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
-	dc "github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
-	"github.com/uber/cadence/common/log/loggerimpl"
 	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -756,13 +755,13 @@ func (s *transferActiveTaskExecutorSuite) TestProcessCloseExecution_NoParent() {
 		s.domainName, startEvent, transferTask, mutableState, 2, s.mockShard.GetTimeSource().Now(), event.Timestamp,
 		true),
 	).Return(nil).Once()
-	s.mockArchivalMetadata.On("GetVisibilityConfig").Return(archiver.NewArchivalConfig("enabled", dc.GetStringPropertyFn("enabled"), true, dc.GetBoolPropertyFn(true), "disabled", "random URI"))
+	s.mockArchivalMetadata.On("GetVisibilityConfig").Return(archiver.NewArchivalConfig("enabled", dynamicproperties.GetStringPropertyFn("enabled"), true, dynamicproperties.GetBoolPropertyFn(true), "disabled", "random URI"))
 	s.mockArchivalClient.On("Archive", mock.Anything, mock.Anything).Return(nil, nil).Once()
 	// switch on context header in viz
 	s.mockShard.GetConfig().EnableContextHeaderInVisibility = func(domain string) bool {
 		return true
 	}
-	s.mockShard.GetConfig().ValidSearchAttributes = func(opts ...dc.FilterOption) map[string]interface{} {
+	s.mockShard.GetConfig().ValidSearchAttributes = func(opts ...dynamicproperties.FilterOption) map[string]interface{} {
 		return map[string]interface{}{
 			"Header_context_key": struct{}{},
 		}
@@ -1336,7 +1335,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessSignalExecution_WorkflowSig
 
 	// Make sure we can observe the logs
 	observedZapCore, _ := observer.New(zap.InfoLevel)
-	s.transferActiveTaskExecutor.logger = loggerimpl.NewLogger(zap.New(observedZapCore))
+	s.transferActiveTaskExecutor.logger = log.NewLogger(zap.New(observedZapCore))
 
 	setupMockFn := func(
 		mutableState execution.MutableState,
@@ -1422,7 +1421,7 @@ func (s *transferActiveTaskExecutorSuite) testProcessSignalExecutionWithErrorAnd
 
 	// Make sure we can observe the logs
 	observedZapCore, observedLogs := observer.New(zap.InfoLevel)
-	s.transferActiveTaskExecutor.logger = loggerimpl.NewLogger(zap.New(observedZapCore))
+	s.transferActiveTaskExecutor.logger = log.NewLogger(zap.New(observedZapCore))
 
 	setupMockFn(mutableState, workflowExecution, targetExecution, event, transferTask, signalInfo)
 
@@ -1773,7 +1772,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessRecordWorkflowStartedTask()
 func (s *transferActiveTaskExecutorSuite) TestProcessRecordWorkflowStartedTaskWithContextHeader() {
 	// switch on context header in viz
 	s.mockShard.GetConfig().EnableContextHeaderInVisibility = func(domain string) bool { return true }
-	s.mockShard.GetConfig().ValidSearchAttributes = func(opts ...dc.FilterOption) map[string]interface{} {
+	s.mockShard.GetConfig().ValidSearchAttributes = func(opts ...dynamicproperties.FilterOption) map[string]interface{} {
 		return map[string]interface{}{
 			"Header_context_key": struct{}{},
 			"123456":             struct{}{}, // unsanitizable key
@@ -1861,7 +1860,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessUpsertWorkflowSearchAttribu
 func (s *transferActiveTaskExecutorSuite) TestProcessUpsertWorkflowSearchAttributesWithContextHeader() {
 	// switch on context header in viz
 	s.mockShard.GetConfig().EnableContextHeaderInVisibility = func(domain string) bool { return true }
-	s.mockShard.GetConfig().ValidSearchAttributes = func(opts ...dc.FilterOption) map[string]interface{} {
+	s.mockShard.GetConfig().ValidSearchAttributes = func(opts ...dynamicproperties.FilterOption) map[string]interface{} {
 		return map[string]interface{}{
 			"Header_context_key": struct{}{},
 		}

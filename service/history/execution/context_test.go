@@ -38,7 +38,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/constants"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/log/testlogger"
@@ -1199,7 +1199,7 @@ func TestCreateWorkflowExecution(t *testing.T) {
 			mockDomainCache := cache.NewMockDomainCache(mockCtrl)
 			mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
 			mockShard.EXPECT().GetConfig().Return(&config.Config{
-				EnableStrongIdempotencySanityCheck: dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
+				EnableStrongIdempotencySanityCheck: dynamicproperties.GetBoolPropertyFnFilteredByDomain(true),
 			}).AnyTimes()
 			mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("test-domain", nil)
 			ctx := &contextImpl{
@@ -1266,7 +1266,7 @@ func TestUpdateWorkflowExecutionTasks(t *testing.T) {
 				mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
 				mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("test-domain", nil)
 				mockShard.EXPECT().GetConfig().Return(&config.Config{
-					EnableStrongIdempotencySanityCheck: dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
+					EnableStrongIdempotencySanityCheck: dynamicproperties.GetBoolPropertyFnFilteredByDomain(true),
 				})
 			},
 			wantErr: true,
@@ -1501,7 +1501,7 @@ func TestUpdateWorkflowExecutionWithNew(t *testing.T) {
 				mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
 				mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("test-domain", nil)
 				mockShard.EXPECT().GetConfig().Return(&config.Config{
-					EnableStrongIdempotencySanityCheck: dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
+					EnableStrongIdempotencySanityCheck: dynamicproperties.GetBoolPropertyFnFilteredByDomain(true),
 				})
 				mockMutableState.EXPECT().CloseTransactionAsMutation(gomock.Any(), gomock.Any()).Return(&persistence.WorkflowMutation{
 					WorkflowRequests: []*persistence.WorkflowRequest{{}},
@@ -2094,7 +2094,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 				mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
 				mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("test-domain", nil)
 				mockShard.EXPECT().GetConfig().Return(&config.Config{
-					EnableStrongIdempotencySanityCheck: dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
+					EnableStrongIdempotencySanityCheck: dynamicproperties.GetBoolPropertyFnFilteredByDomain(true),
 				})
 				mockResetMutableState.EXPECT().CloseTransactionAsSnapshot(gomock.Any(), gomock.Any()).Return(&persistence.WorkflowSnapshot{
 					WorkflowRequests: []*persistence.WorkflowRequest{
@@ -2244,7 +2244,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 				mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
 				mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("test-domain", nil)
 				mockShard.EXPECT().GetConfig().Return(&config.Config{
-					EnableStrongIdempotencySanityCheck: dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
+					EnableStrongIdempotencySanityCheck: dynamicproperties.GetBoolPropertyFnFilteredByDomain(true),
 				})
 				mockResetMutableState.EXPECT().CloseTransactionAsSnapshot(gomock.Any(), gomock.Any()).Return(&persistence.WorkflowSnapshot{}, []*persistence.WorkflowEvents{
 					{

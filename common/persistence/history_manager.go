@@ -32,7 +32,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/codec"
 	"github.com/uber/cadence/common/constants"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/types"
@@ -62,7 +62,7 @@ type (
 		persistence            HistoryStore
 		logger                 log.Logger
 		thriftEncoder          codec.BinaryEncoder
-		transactionSizeLimit   dynamicconfig.IntPropertyFn
+		transactionSizeLimit   dynamicproperties.IntPropertyFn
 		serializeTokenFn       func(*historyV2PagingToken) ([]byte, error)
 		deserializeTokenFn     func([]byte, int64) (*historyV2PagingToken, error)
 		readRawHistoryBranchFn func(context.Context, *ReadHistoryBranchRequest) ([]*DataBlob, *historyV2PagingToken, int, log.Logger, error)
@@ -89,7 +89,7 @@ func NewHistoryV2ManagerImpl(
 	logger log.Logger,
 	historySerializer PayloadSerializer,
 	binaryEncoder codec.BinaryEncoder,
-	transactionSizeLimit dynamicconfig.IntPropertyFn,
+	transactionSizeLimit dynamicproperties.IntPropertyFn,
 ) HistoryManager {
 	hm := &historyV2ManagerImpl{
 		historySerializer:    historySerializer,

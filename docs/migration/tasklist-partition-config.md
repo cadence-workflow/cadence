@@ -30,5 +30,5 @@ cadence admin tasklist describe -h
 As of v1.2.17, the default value of [matching.enableGetNumberOfPartitionsFromCache](https://github.com/cadence-workflow/cadence/blob/v1.2.17/common/dynamicconfig/constants.go#L4004) is still false.
 
 # Plan
-We're planning to change the default value of [matching.enableGetNumberOfPartitionsFromCache](https://github.com/cadence-workflow/cadence/blob/v1.2.17/common/dynamicconfig/constants.go#L4004) to `true` in v1.2.18.
+We're planning to change the default value of [matching.enableGetNumberOfPartitionsFromCache](https://github.com/cadence-workflow/cadence/blob/v1.2.17/common/dynamicconfig/constants.go#L4004) to `true` in v2.
 We're planning to deprecate [matching.numTasklistReadPartitions](https://github.com/cadence-workflow/cadence/blob/v1.2.13/common/dynamicconfig/constants.go#L3350) and [matching.numTasklistWritePartitions](https://github.com/cadence-workflow/cadence/blob/v1.2.13/common/dynamicconfig/constants.go#L3344), but we haven't decided when to do it. Please be prepared for the migration.
