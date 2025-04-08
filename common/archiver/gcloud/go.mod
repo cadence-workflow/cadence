@@ -94,6 +94,8 @@ require (
 	github.com/uber-common/bark v1.2.1 // indirect
 	github.com/uber-go/mapdecode v1.0.0 // indirect
 	go.opencensus.io v0.24.0 // indirect
+	go.uber.org/dig v1.10.0 // indirect
+	go.uber.org/fx v1.13.1 // indirect
 	go.uber.org/net/metrics v1.3.0 // indirect
 	golang.org/x/crypto v0.32.0 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20220218215828-6cf2b201936e // indirect

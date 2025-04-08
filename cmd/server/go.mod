@@ -51,7 +51,7 @@ require (
 	go.uber.org/atomic v1.10.0 // indirect
 	go.uber.org/cadence v0.19.0
 	go.uber.org/config v1.4.0 // indirect
-	go.uber.org/fx v1.13.1 // indirect
+	go.uber.org/fx v1.13.1
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/thriftrw v1.29.2 // indirect
 	go.uber.org/yarpc v1.70.3 // indirect
