@@ -53,7 +53,7 @@ func newTimerQueueActiveProcessor(
 			if timer.GetTaskType() == persistence.TaskTypeDeleteHistoryEvent {
 				return true, nil
 			}
-			
+
 			logger.Info("Domain is not in registered status, skip task in active timer queue.", tag.WorkflowDomainID(timer.GetDomainID()), tag.Value(timer))
 			return false, nil
 		}
