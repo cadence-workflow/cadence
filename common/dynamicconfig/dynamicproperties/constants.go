@@ -2360,8 +2360,8 @@ const (
 	// - "shard_distributor-shadow-hash_ring" means that the shards are distrubuted using the shard distributor, but shadowed by the hash ring
 	//
 	// KeyName: matching.shardDistributionMode
-	// Value type: string enum: "hash-ring" or "shard-distributor"
-	// Default value: "hash-ring"
+	// Value type: string enum: "hash_ring" or "shard_distributor"
+	// Default value: "hash_ring"
 	MatchingShardDistributionMode
 
 	// LastStringKey must be the last one in this const group
@@ -4749,7 +4749,7 @@ var StringKeys = map[StringKey]DynamicString{
 	MatchingShardDistributionMode: {
 		KeyName:      "matching.shardDistributionMode",
 		Description:  "MatchingShardDistributionMode defines which shard distribution mode should be used",
-		DefaultValue: "hash-ring",
+		DefaultValue: "hash_ring",
 	},
 }
 
