@@ -194,6 +194,24 @@ services:
         aliases:
           - integration-test
 
+  integration-test-sqlite:
+    build:
+      context: ../../
+      dockerfile: ./docker/buildkite/Dockerfile
+    environment:
+      - "PERSISTENCE_PLUGIN=sqlite"
+      - "PERSISTENCE_TYPE=sql"
+      - BUILDKITE_AGENT_ACCESS_TOKEN
+      - BUILDKITE_JOB_ID
+      - BUILDKITE_BUILD_ID
+      - BUILDKITE_BUILD_NUMBER
+    volumes:
+      - ../../:/cadence
+    networks:
+      services-network:
+        aliases:
+          - integration-test
+
   integration-test-ndc-cassandra:
     build:
       context: ../../
