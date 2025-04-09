@@ -5,7 +5,7 @@
 [![Github release](https://img.shields.io/github/v/release/cadence-workflow/cadence.svg)](https://github.com/cadence-workflow/cadence/releases)
 [![License](https://img.shields.io/github/license/cadence-workflow/cadence.svg)](http://www.apache.org/licenses/LICENSE-2.0)
 
-<img src="https://cadenceworkflow.io/img/cadence-logo.svg" width="100">
+<img src="https://cadenceworkflow.io/img/cadence-logo.svg" width="100" style="background-color:white">
 
 Cadence Workflow is an open-source platform since 2017 for building and running scalable, fault-tolerant, and long-running workflows. This repository contains the core orchestration engine and tools including CLI, schema managment, benchmark and canary.
 
