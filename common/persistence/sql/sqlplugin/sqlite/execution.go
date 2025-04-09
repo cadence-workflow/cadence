@@ -10,6 +10,7 @@ const (
 	lockExecutionQueryBase = `SELECT next_event_id FROM executions
  WHERE shard_id = ? AND domain_id = ? AND workflow_id = ? AND run_id = ?`
 	writeLockExecutionQuery = lockExecutionQueryBase
+	readLockExecutionQuery  = lockExecutionQueryBase
 
 	lockCurrentExecutionJoinExecutionsQuery = `SELECT
 ce.shard_id, ce.domain_id, ce.workflow_id, ce.run_id, ce.create_request_id, ce.state, ce.close_status, ce.start_version, e.last_write_version
@@ -22,6 +23,14 @@ shard_id, domain_id, workflow_id, run_id, create_request_id, state, close_status
 FROM current_executions WHERE shard_id = ? AND domain_id = ? AND workflow_id = ?`
 	lockCurrentExecutionQuery = getCurrentExecutionQuery
 )
+
+// ReadLockExecutions acquires a write lock on a single row in executions table
+func (mdb *DB) ReadLockExecutions(ctx context.Context, filter *sqlplugin.ExecutionsFilter) (int, error) {
+	var nextEventID int
+	dbShardID := sqlplugin.GetDBShardIDFromHistoryShardID(filter.ShardID, mdb.GetTotalNumDBShards())
+	err := mdb.driver.GetContext(ctx, dbShardID, &nextEventID, readLockExecutionQuery, filter.ShardID, filter.DomainID, filter.WorkflowID, filter.RunID)
+	return nextEventID, err
+}
 
 // WriteLockExecutions acquires a write lock on a single row in executions table
 func (mdb *DB) WriteLockExecutions(ctx context.Context, filter *sqlplugin.ExecutionsFilter) (int, error) {
