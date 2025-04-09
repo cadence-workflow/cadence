@@ -67,7 +67,7 @@ func (p *plugin) createDB(cfg *config.SQL) (*DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewDB(conns, nil, sqlplugin.DbShardUndefined, cfg.NumShards)
+	return NewDB(conns, nil, sqlplugin.DbShardUndefined, cfg.NumShards, newConverter())
 }
 
 // createSingleDBConn creates a single database connection for sqlite
