@@ -23,7 +23,6 @@ package sqlite
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 
 	pt "github.com/uber/cadence/common/persistence/persistence-tests"
@@ -31,8 +30,7 @@ import (
 
 func TestSQLiteHistoryV2PersistenceSuite(t *testing.T) {
 	s := new(pt.HistoryV2PersistenceSuite)
-	option, err := GetTestClusterOption()
-	assert.NoError(t, err)
+	option := GetTestClusterOption()
 	s.TestBase = pt.NewTestBaseWithSQL(t, option)
 	s.TestBase.Setup()
 	suite.Run(t, s)
@@ -40,8 +38,7 @@ func TestSQLiteHistoryV2PersistenceSuite(t *testing.T) {
 
 func TestSQLiteMatchingPersistenceSuite(t *testing.T) {
 	s := new(pt.MatchingPersistenceSuite)
-	option, err := GetTestClusterOption()
-	assert.NoError(t, err)
+	option := GetTestClusterOption()
 	s.TestBase = pt.NewTestBaseWithSQL(t, option)
 	s.TestBase.Setup()
 	suite.Run(t, s)
@@ -49,8 +46,7 @@ func TestSQLiteMatchingPersistenceSuite(t *testing.T) {
 
 func TestSQLiteMetadataPersistenceSuiteV2(t *testing.T) {
 	s := new(pt.MetadataPersistenceSuiteV2)
-	option, err := GetTestClusterOption()
-	assert.NoError(t, err)
+	option := GetTestClusterOption()
 	s.TestBase = pt.NewTestBaseWithSQL(t, option)
 	s.TestBase.Setup()
 	suite.Run(t, s)
@@ -58,8 +54,7 @@ func TestSQLiteMetadataPersistenceSuiteV2(t *testing.T) {
 
 func TestSQLiteShardPersistenceSuite(t *testing.T) {
 	s := new(pt.ShardPersistenceSuite)
-	option, err := GetTestClusterOption()
-	assert.NoError(t, err)
+	option := GetTestClusterOption()
 	s.TestBase = pt.NewTestBaseWithSQL(t, option)
 	s.TestBase.Setup()
 	suite.Run(t, s)
@@ -79,8 +74,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionWithWorkflowRequestsD
 
 func TestSQLiteExecutionManagerSuite(t *testing.T) {
 	s := new(ExecutionManagerSuite)
-	option, err := GetTestClusterOption()
-	assert.NoError(t, err)
+	option := GetTestClusterOption()
 	s.TestBase = pt.NewTestBaseWithSQL(t, option)
 	s.TestBase.Setup()
 	suite.Run(t, s)
@@ -88,8 +82,7 @@ func TestSQLiteExecutionManagerSuite(t *testing.T) {
 
 func TestSQLiteExecutionManagerWithEventsV2(t *testing.T) {
 	s := new(pt.ExecutionManagerSuiteForEventsV2)
-	option, err := GetTestClusterOption()
-	assert.NoError(t, err)
+	option := GetTestClusterOption()
 	s.TestBase = pt.NewTestBaseWithSQL(t, option)
 	s.TestBase.Setup()
 	suite.Run(t, s)
@@ -97,8 +90,7 @@ func TestSQLiteExecutionManagerWithEventsV2(t *testing.T) {
 
 func TestSQLiteVisibilityPersistenceSuite(t *testing.T) {
 	s := new(pt.DBVisibilityPersistenceSuite)
-	option, err := GetTestClusterOption()
-	assert.NoError(t, err)
+	option := GetTestClusterOption()
 	s.TestBase = pt.NewTestBaseWithSQL(t, option)
 	s.TestBase.Setup()
 	suite.Run(t, s)
@@ -106,8 +98,7 @@ func TestSQLiteVisibilityPersistenceSuite(t *testing.T) {
 
 func TestSQLiteQueuePersistence(t *testing.T) {
 	s := new(pt.QueuePersistenceSuite)
-	option, err := GetTestClusterOption()
-	assert.NoError(t, err)
+	option := GetTestClusterOption()
 	s.TestBase = pt.NewTestBaseWithSQL(t, option)
 	s.TestBase.Setup()
 	suite.Run(t, s)
@@ -115,8 +106,7 @@ func TestSQLiteQueuePersistence(t *testing.T) {
 
 func TestSQLiteConfigPersistence(t *testing.T) {
 	s := new(pt.ConfigStorePersistenceSuite)
-	option, err := GetTestClusterOption()
-	assert.NoError(t, err)
+	option := GetTestClusterOption()
 	s.TestBase = pt.NewTestBaseWithSQL(t, option)
 	s.TestBase.Setup()
 	suite.Run(t, s)

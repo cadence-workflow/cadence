@@ -18,55 +18,60 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package tests
+package cassandra
 
 import (
-	"log"
-	"os"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/uber/cadence/environment"
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/testflags"
 	"github.com/uber/cadence/tools/cassandra"
 	"github.com/uber/cadence/tools/common/schema/test"
+
+	_ "github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql/public" // needed to load the default gocql client
 )
 
 type (
-	SetupSchemaTestSuite struct {
-		test.SetupSchemaTestBase
-		client cassandra.CqlClient
+	CQLClientTestSuite struct {
+		test.DBTestBase
 	}
 )
 
-func TestSetupSchemaTestSuite(t *testing.T) {
+var _ test.DB = (cassandra.CqlClient)(nil)
+
+func TestCQLClientTestSuite(t *testing.T) {
 	testflags.RequireCassandra(t)
-	suite.Run(t, new(SetupSchemaTestSuite))
+	suite.Run(t, new(CQLClientTestSuite))
 }
 
-func (s *SetupSchemaTestSuite) SetupSuite() {
-	os.Setenv("CASSANDRA_HOST", environment.GetCassandraAddress())
+func (s *CQLClientTestSuite) SetupTest() {
+	s.Assertions = require.New(s.T()) // Have to define our overridden assertions in the test setup. If we did it earlier, s.T() will return nil
+}
+
+func (s *CQLClientTestSuite) SetupSuite() {
 	client, err := NewTestCQLClient(cassandra.SystemKeyspace)
 	if err != nil {
-		log.Fatal("Error creating CQLClient")
+		s.Log.Fatal("error creating CQLClient, ", tag.Error(err))
 	}
-	s.client = client
 	s.SetupSuiteBase(client)
 }
 
-func (s *SetupSchemaTestSuite) TearDownSuite() {
+func (s *CQLClientTestSuite) TearDownSuite() {
 	s.TearDownSuiteBase()
 }
 
-func (s *SetupSchemaTestSuite) TestCreateKeyspace() {
-	s.Nil(cassandra.RunTool([]string{"./tool", "create", "-k", "foobar123", "--rf", "1"}))
-	err := s.client.DropKeyspace("foobar123")
-	s.Nil(err)
+func (s *CQLClientTestSuite) TestParseCQLFile() {
+	s.RunParseFileTest(CreateTestCQLFileContent())
 }
 
-func (s *SetupSchemaTestSuite) TestSetupSchema() {
+func (s *CQLClientTestSuite) TestCQLClient() {
 	client, err := NewTestCQLClient(s.DBName)
 	s.Nil(err)
-	s.RunSetupTest(cassandra.BuildCLIOptions(), client, "-k", CreateTestCQLFileContent(), []string{"tasks", "events"})
+	s.RunCreateTest(client)
+	s.RunUpdateTest(client)
+	s.RunDropTest(client)
+	client.Close()
 }

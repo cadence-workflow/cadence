@@ -24,7 +24,6 @@
 package cadence
 
 import (
-	"os"
 	"testing"
 	"time"
 
@@ -40,14 +39,10 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/log/testlogger"
-	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql"
+	pt "github.com/uber/cadence/common/persistence/persistence-tests"
+	"github.com/uber/cadence/common/persistence/sql/sqlplugin/sqlite"
 	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/service"
-	"github.com/uber/cadence/testflags"
-	"github.com/uber/cadence/tools/cassandra"
-
-	_ "github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra"              // needed to load cassandra plugin
-	_ "github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql/public" // needed to load the default gocql client
 )
 
 type ServerSuite struct {
@@ -58,7 +53,6 @@ type ServerSuite struct {
 }
 
 func TestServerSuite(t *testing.T) {
-	testflags.RequireCassandra(t)
 	suite.Run(t, new(ServerSuite))
 }
 
@@ -85,17 +79,10 @@ func (s *ServerSuite) TestServerStartup() {
 		s.logger.Fatal("Config file corrupted.", tag.Error(err))
 	}
 
-	if os.Getenv("CASSANDRA_SEEDS") == "cassandra" {
-		// replace local host to docker network
-		// this env variable value is set by buildkite's docker-compose
-		ds := cfg.Persistence.DataStores[cfg.Persistence.DefaultStore]
-		ds.NoSQL.Hosts = "cassandra"
-		cfg.Persistence.DataStores[cfg.Persistence.DefaultStore] = ds
-
-		ds = cfg.Persistence.DataStores[cfg.Persistence.VisibilityStore]
-		ds.NoSQL.Hosts = "cassandra"
-		cfg.Persistence.DataStores[cfg.Persistence.VisibilityStore] = ds
-	}
+	// set up sqlite persistence layer and apply schema to sqlite db
+	testBase := pt.NewTestBaseWithSQL(s.T(), sqlite.GetTestClusterOption())
+	cfg.Persistence = testBase.Config()
+	testBase.Setup()
 
 	s.T().Logf("config=\n%v\n", cfg.String())
 
@@ -103,10 +90,6 @@ func (s *ServerSuite) TestServerStartup() {
 
 	if err := cfg.ValidateAndFillDefaults(); err != nil {
 		s.logger.Fatal("config validation failed", tag.Error(err))
-	}
-	// cassandra schema version validation
-	if err := cassandra.VerifyCompatibleVersion(cfg.Persistence, gocql.All); err != nil {
-		s.logger.Fatal("cassandra schema version compatibility check failed", tag.Error(err))
 	}
 
 	logger := testlogger.New(s.T())

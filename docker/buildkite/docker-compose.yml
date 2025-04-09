@@ -9,7 +9,7 @@ services:
         aliases:
           - cassandra
     healthcheck:
-      test: ["CMD", "cqlsh", "-u cassandra", "-p cassandra" ,"-e describe keyspaces"]
+      test: [ "CMD", "cqlsh", "-u cassandra", "-p cassandra" ,"-e describe keyspaces" ]
       interval: 15s
       timeout: 30s
       retries: 10
@@ -83,28 +83,15 @@ services:
       context: ../../
       dockerfile: ./docker/buildkite/Dockerfile
     environment:
-      - "CASSANDRA_HOST=cassandra"
+      # keep them to be sure that tests requiring dependencies are not skipped
       - "CASSANDRA=1"
       - "MYSQL=1"
       - "POSTGRES=1"
       - "MONGODB=1"
-      - "CASSANDRA_SEEDS=cassandra"
-      - "MYSQL_SEEDS=mysql"
-      - "POSTGRES_SEEDS=postgres"
-      - "MONGO_SEEDS=mongo"
       - BUILDKITE_AGENT_ACCESS_TOKEN
       - BUILDKITE_JOB_ID
       - BUILDKITE_BUILD_ID
       - BUILDKITE_BUILD_NUMBER
-    depends_on:
-      cassandra:
-        condition: service_healthy
-      mysql:
-        condition: service_started
-      postgres:
-        condition: service_started
-      mongo:
-        condition: service_started
     volumes:
       - ../../:/cadence
     networks:

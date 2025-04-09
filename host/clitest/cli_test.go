@@ -29,8 +29,6 @@ import (
 	"github.com/uber/cadence/testflags"
 )
 
-// TODO: Setup postgres test in build-kite
-
 func TestMySQLConnTestSuite(t *testing.T) {
 	testflags.RequireMySQL(t)
 	suite.Run(t, NewSQLConnTestSuite(mysql.PluginName))

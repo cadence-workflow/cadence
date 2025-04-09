@@ -27,13 +27,14 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	pt "github.com/uber/cadence/common/persistence/persistence-tests"
+	"github.com/uber/cadence/common/persistence/sql/sqlplugin/postgres"
 	"github.com/uber/cadence/testflags"
 )
 
 func TestPostgresSQLHistoryV2PersistenceSuite(t *testing.T) {
 	testflags.RequirePostgres(t)
 	s := new(pt.HistoryV2PersistenceSuite)
-	options, err := GetTestClusterOption()
+	options, err := postgres.GetTestClusterOption()
 	assert.NoError(t, err)
 	s.TestBase = pt.NewTestBaseWithSQL(t, options)
 	s.TestBase.Setup()
@@ -43,7 +44,7 @@ func TestPostgresSQLHistoryV2PersistenceSuite(t *testing.T) {
 func TestPostgresSQLMatchingPersistenceSuite(t *testing.T) {
 	testflags.RequirePostgres(t)
 	s := new(pt.MatchingPersistenceSuite)
-	options, err := GetTestClusterOption()
+	options, err := postgres.GetTestClusterOption()
 	assert.NoError(t, err)
 	s.TestBase = pt.NewTestBaseWithSQL(t, options)
 	s.TestBase.Setup()
@@ -53,7 +54,7 @@ func TestPostgresSQLMatchingPersistenceSuite(t *testing.T) {
 func TestPostgresSQLMetadataPersistenceSuiteV2(t *testing.T) {
 	testflags.RequirePostgres(t)
 	s := new(pt.MetadataPersistenceSuiteV2)
-	options, err := GetTestClusterOption()
+	options, err := postgres.GetTestClusterOption()
 	assert.NoError(t, err)
 	s.TestBase = pt.NewTestBaseWithSQL(t, options)
 	s.TestBase.Setup()
@@ -63,7 +64,7 @@ func TestPostgresSQLMetadataPersistenceSuiteV2(t *testing.T) {
 func TestPostgresSQLShardPersistenceSuite(t *testing.T) {
 	testflags.RequirePostgres(t)
 	s := new(pt.ShardPersistenceSuite)
-	options, err := GetTestClusterOption()
+	options, err := postgres.GetTestClusterOption()
 	assert.NoError(t, err)
 	s.TestBase = pt.NewTestBaseWithSQL(t, options)
 	s.TestBase.Setup()
@@ -85,7 +86,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionWithWorkflowRequestsD
 func TestPostgresSQLExecutionManagerSuite(t *testing.T) {
 	testflags.RequirePostgres(t)
 	s := new(ExecutionManagerSuite)
-	options, err := GetTestClusterOption()
+	options, err := postgres.GetTestClusterOption()
 	assert.NoError(t, err)
 	s.TestBase = pt.NewTestBaseWithSQL(t, options)
 	s.TestBase.Setup()
@@ -95,7 +96,7 @@ func TestPostgresSQLExecutionManagerSuite(t *testing.T) {
 func TestPostgresSQLExecutionManagerWithEventsV2(t *testing.T) {
 	testflags.RequirePostgres(t)
 	s := new(pt.ExecutionManagerSuiteForEventsV2)
-	option, err := GetTestClusterOption()
+	option, err := postgres.GetTestClusterOption()
 	assert.NoError(t, err)
 	s.TestBase = pt.NewTestBaseWithSQL(t, option)
 	s.TestBase.Setup()
@@ -105,7 +106,7 @@ func TestPostgresSQLExecutionManagerWithEventsV2(t *testing.T) {
 func TestPostgresSQLVisibilityPersistenceSuite(t *testing.T) {
 	testflags.RequirePostgres(t)
 	s := new(pt.DBVisibilityPersistenceSuite)
-	options, err := GetTestClusterOption()
+	options, err := postgres.GetTestClusterOption()
 	assert.NoError(t, err)
 	s.TestBase = pt.NewTestBaseWithSQL(t, options)
 	s.TestBase.Setup()
@@ -133,7 +134,7 @@ FAIL: TestPostgresSQLQueuePersistence/TestDomainReplicationQueue (0.26s)
 func TestPostgresSQLConfigPersistence(t *testing.T) {
 	testflags.RequirePostgres(t)
 	s := new(pt.ConfigStorePersistenceSuite)
-	options, err := GetTestClusterOption()
+	options, err := postgres.GetTestClusterOption()
 	assert.NoError(t, err)
 	s.TestBase = pt.NewTestBaseWithSQL(t, options)
 	s.TestBase.Setup()

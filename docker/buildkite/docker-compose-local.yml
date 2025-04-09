@@ -11,7 +11,7 @@ services:
         aliases:
           - cassandra
     healthcheck:
-      test: ["CMD", "cqlsh", "-u cassandra", "-p cassandra" ,"-e describe keyspaces"]
+      test: [ "CMD", "cqlsh", "-u cassandra", "-p cassandra" ,"-e describe keyspaces" ]
       interval: 15s
       timeout: 30s
       retries: 10
@@ -94,25 +94,11 @@ services:
       dockerfile: ./docker/buildkite/Dockerfile
     command: sh -c "make .just-build && make install-schema && make cover_profile"
     environment:
-      - "CASSANDRA_HOST=cassandra"
+      # keep them to be sure that tests requiring dependencies are not skipped
       - "CASSANDRA=1"
       - "MYSQL=1"
       - "POSTGRES=1"
       - "MONGODB=1"
-      - "CASSANDRA_SEEDS=cassandra"
-      - "MYSQL_SEEDS=mysql"
-      - "POSTGRES_SEEDS=postgres"
-      - "POSTGRES_USER=cadence"
-      - "POSTGRES_PASSWORD=cadence"
-    depends_on:
-      cassandra:
-        condition: service_healthy
-      mysql:
-        condition: service_started
-      postgres:
-        condition: service_started
-      mongo:
-        condition: service_started
     volumes:
       - ../../:/cadence
       - /cadence/.build/ # ensure we don't mount the build directory

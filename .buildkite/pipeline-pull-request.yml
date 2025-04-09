@@ -64,8 +64,8 @@ steps:
                 - |-
                   # ensure that we are not rebuilding binaries and not regenerating code
                   make .just-build
-                  # make install-schema is needed for a server startup test. See main_test.go
-                  CASSANDRA_HOST=cassandra make install-schema && make cover_profile
+                  # run tests with coverage
+                  make cover_profile
                   ./scripts/buildkite/gen_coverage_metadata.sh .build/coverage/metadata.txt
       - docker-compose#v3.0.0:
           run: unit-test
