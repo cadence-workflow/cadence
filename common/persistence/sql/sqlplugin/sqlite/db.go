@@ -25,10 +25,9 @@ package sqlite
 import (
 	"context"
 
-	"github.com/uber/cadence/common/persistence/sql/sqldriver"
-
 	"github.com/jmoiron/sqlx"
 
+	"github.com/uber/cadence/common/persistence/sql/sqldriver"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin/mysql"
 

@@ -27,8 +27,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/uber/cadence/common/persistence/sql/sqlplugin/sqlite"
-
 	"github.com/startreedata/pinot-client-go/pinot"
 	"github.com/uber-go/tally"
 
@@ -57,6 +55,7 @@ import (
 	"github.com/uber/cadence/common/persistence/sql"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin/mysql"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin/postgres"
+	"github.com/uber/cadence/common/persistence/sql/sqlplugin/sqlite"
 	pnt "github.com/uber/cadence/common/pinot"
 	"github.com/uber/cadence/testflags"
 
