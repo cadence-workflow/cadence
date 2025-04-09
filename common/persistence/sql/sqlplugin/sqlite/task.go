@@ -23,8 +23,8 @@ const (
     LIMIT ?
 )
 
-DELETE FROM transfer_tasks
-WHERE (domain_id,task_list_name,task_type,task_id ) IN (SELECT domain_id,task_list_name,task_type,task_id  tasks_to_delete);`
+DELETE FROM tasks
+WHERE (domain_id,task_list_name,task_type,task_id) IN (SELECT domain_id,task_list_name,task_type,task_id FROM tasks_to_delete);`
 )
 
 // LockTaskLists locks a row in task_lists table
