@@ -1,7 +1,7 @@
 CREATE TABLE domains
 (
     shard_id      INT                 NOT NULL DEFAULT 54321,
-    id BINARY (16) NOT NULL,
+    id            BINARY(16)          NOT NULL,
     name          VARCHAR(255) UNIQUE NOT NULL,
     --
     data          MEDIUMBLOB          NOT NULL,
@@ -13,7 +13,7 @@ CREATE TABLE domains
 CREATE TABLE domain_metadata
 (
     id                   INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-    notification_version BIGINT NOT NULL
+    notification_version BIGINT                            NOT NULL
 );
 
 INSERT INTO domain_metadata (notification_version)
@@ -53,9 +53,9 @@ CREATE TABLE cross_cluster_tasks
 CREATE TABLE executions
 (
     shard_id           INT          NOT NULL,
-    domain_id BINARY (16) NOT NULL,
+    domain_id          BINARY(16)   NOT NULL,
     workflow_id        VARCHAR(255) NOT NULL,
-    run_id BINARY (16) NOT NULL,
+    run_id             BINARY(16)   NOT NULL,
     --
     next_event_id      BIGINT       NOT NULL,
     last_write_version BIGINT       NOT NULL,
@@ -67,10 +67,10 @@ CREATE TABLE executions
 CREATE TABLE current_executions
 (
     shard_id           INT          NOT NULL,
-    domain_id BINARY (16) NOT NULL,
+    domain_id          BINARY(16)   NOT NULL,
     workflow_id        VARCHAR(255) NOT NULL,
     --
-    run_id BINARY (16) NOT NULL,
+    run_id             BINARY(16)   NOT NULL,
     create_request_id  VARCHAR(64)  NOT NULL,
     state              INT          NOT NULL,
     close_status       INT          NOT NULL,
@@ -81,22 +81,21 @@ CREATE TABLE current_executions
 
 CREATE TABLE buffered_events
 (
-    id            BIGINT AUTO_INCREMENT NOT NULL,
-    shard_id      INT          NOT NULL,
-    domain_id BINARY (16) NOT NULL,
-    workflow_id   VARCHAR(255) NOT NULL,
-    run_id BINARY (16) NOT NULL,
+    id            INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    shard_id      INT                               NOT NULL,
+    domain_id     BINARY(16)                        NOT NULL,
+    workflow_id   VARCHAR(255)                      NOT NULL,
+    run_id        BINARY(16)                        NOT NULL,
     --
-    data          MEDIUMBLOB   NOT NULL,
-    data_encoding VARCHAR(16)  NOT NULL,
-    PRIMARY KEY (id)
+    data          MEDIUMBLOB                        NOT NULL,
+    data_encoding VARCHAR(16)                       NOT NULL
 );
 
 CREATE INDEX buffered_events_by_events_ids ON buffered_events (shard_id, domain_id, workflow_id, run_id);
 
 CREATE TABLE tasks
 (
-    domain_id BINARY (16) NOT NULL,
+    domain_id      BINARY(16)   NOT NULL,
     task_list_name VARCHAR(255) NOT NULL,
     task_type      TINYINT      NOT NULL, -- {Activity, Decision}
     task_id        BIGINT       NOT NULL,
@@ -109,7 +108,7 @@ CREATE TABLE tasks
 CREATE TABLE task_lists
 (
     shard_id      INT          NOT NULL,
-    domain_id BINARY (16) NOT NULL,
+    domain_id     BINARY(16)   NOT NULL,
     name          VARCHAR(255) NOT NULL,
     task_type     TINYINT      NOT NULL, -- {Activity, Decision}
     --
@@ -155,9 +154,9 @@ CREATE TABLE activity_info_maps
 (
 -- each row corresponds to one key of one map<string, ActivityInfo>
     shard_id                    INT          NOT NULL,
-    domain_id BINARY (16) NOT NULL,
+    domain_id                   BINARY(16)   NOT NULL,
     workflow_id                 VARCHAR(255) NOT NULL,
-    run_id BINARY (16) NOT NULL,
+    run_id                      BINARY(16)   NOT NULL,
     schedule_id                 BIGINT       NOT NULL,
 --
     data                        MEDIUMBLOB   NOT NULL,
@@ -170,9 +169,9 @@ CREATE TABLE activity_info_maps
 CREATE TABLE timer_info_maps
 (
     shard_id      INT          NOT NULL,
-    domain_id BINARY (16) NOT NULL,
+    domain_id     BINARY(16)   NOT NULL,
     workflow_id   VARCHAR(255) NOT NULL,
-    run_id BINARY (16) NOT NULL,
+    run_id        BINARY(16)   NOT NULL,
     timer_id      VARCHAR(255) NOT NULL,
 --
     data          MEDIUMBLOB   NOT NULL,
@@ -183,9 +182,9 @@ CREATE TABLE timer_info_maps
 CREATE TABLE child_execution_info_maps
 (
     shard_id      INT          NOT NULL,
-    domain_id BINARY (16) NOT NULL,
+    domain_id     BINARY(16)   NOT NULL,
     workflow_id   VARCHAR(255) NOT NULL,
-    run_id BINARY (16) NOT NULL,
+    run_id        BINARY(16)   NOT NULL,
     initiated_id  BIGINT       NOT NULL,
 --
     data          MEDIUMBLOB   NOT NULL,
@@ -196,9 +195,9 @@ CREATE TABLE child_execution_info_maps
 CREATE TABLE request_cancel_info_maps
 (
     shard_id      INT          NOT NULL,
-    domain_id BINARY (16) NOT NULL,
+    domain_id     BINARY(16)   NOT NULL,
     workflow_id   VARCHAR(255) NOT NULL,
-    run_id BINARY (16) NOT NULL,
+    run_id        BINARY(16)   NOT NULL,
     initiated_id  BIGINT       NOT NULL,
 --
     data          MEDIUMBLOB   NOT NULL,
@@ -209,9 +208,9 @@ CREATE TABLE request_cancel_info_maps
 CREATE TABLE signal_info_maps
 (
     shard_id      INT          NOT NULL,
-    domain_id BINARY (16) NOT NULL,
+    domain_id     BINARY(16)   NOT NULL,
     workflow_id   VARCHAR(255) NOT NULL,
-    run_id BINARY (16) NOT NULL,
+    run_id        BINARY(16)   NOT NULL,
     initiated_id  BIGINT       NOT NULL,
 --
     data          MEDIUMBLOB   NOT NULL,
@@ -222,9 +221,9 @@ CREATE TABLE signal_info_maps
 CREATE TABLE buffered_replication_task_maps
 (
     shard_id                    INT          NOT NULL,
-    domain_id BINARY (16) NOT NULL,
+    domain_id                   BINARY(16)   NOT NULL,
     workflow_id                 VARCHAR(255) NOT NULL,
-    run_id BINARY (16) NOT NULL,
+    run_id                      BINARY(16)   NOT NULL,
     first_event_id              BIGINT       NOT NULL,
 --
     version                     BIGINT       NOT NULL,
@@ -241,9 +240,9 @@ CREATE TABLE buffered_replication_task_maps
 CREATE TABLE signals_requested_sets
 (
     shard_id    INT          NOT NULL,
-    domain_id BINARY (16) NOT NULL,
+    domain_id   BINARY(16)   NOT NULL,
     workflow_id VARCHAR(255) NOT NULL,
-    run_id BINARY (16) NOT NULL,
+    run_id      BINARY(16)   NOT NULL,
     signal_id   VARCHAR(64)  NOT NULL,
     --
     PRIMARY KEY (shard_id, domain_id, workflow_id, run_id, signal_id)
@@ -253,8 +252,8 @@ CREATE TABLE signals_requested_sets
 CREATE TABLE history_node
 (
     shard_id      INT         NOT NULL,
-    tree_id BINARY (16) NOT NULL,
-    branch_id BINARY (16) NOT NULL,
+    tree_id       BINARY(16)  NOT NULL,
+    branch_id     BINARY(16)  NOT NULL,
     node_id       BIGINT      NOT NULL,
     txn_id        BIGINT      NOT NULL,
     --
@@ -267,8 +266,8 @@ CREATE TABLE history_node
 CREATE TABLE history_tree
 (
     shard_id      INT         NOT NULL,
-    tree_id BINARY (16) NOT NULL,
-    branch_id BINARY (16) NOT NULL,
+    tree_id       BINARY(16)  NOT NULL,
+    branch_id     BINARY(16)  NOT NULL,
     --
     data          MEDIUMBLOB  NOT NULL,
     data_encoding VARCHAR(16) NOT NULL,

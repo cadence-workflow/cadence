@@ -81,15 +81,14 @@ CREATE TABLE current_executions
 
 CREATE TABLE buffered_events
 (
-    id            BIGINT AUTO_INCREMENT NOT NULL,
-    shard_id      INT                   NOT NULL,
-    domain_id     BINARY(16)            NOT NULL,
-    workflow_id   VARCHAR(255)          NOT NULL,
-    run_id        BINARY(16)            NOT NULL,
+    id            INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    shard_id      INT                               NOT NULL,
+    domain_id     BINARY(16)                        NOT NULL,
+    workflow_id   VARCHAR(255)                      NOT NULL,
+    run_id        BINARY(16)                        NOT NULL,
     --
-    data          MEDIUMBLOB            NOT NULL,
-    data_encoding VARCHAR(16)           NOT NULL,
-    PRIMARY KEY (id)
+    data          MEDIUMBLOB                        NOT NULL,
+    data_encoding VARCHAR(16)                       NOT NULL
 );
 
 CREATE INDEX buffered_events_by_events_ids ON buffered_events (shard_id, domain_id, workflow_id, run_id);
