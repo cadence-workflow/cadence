@@ -27,6 +27,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/uber/cadence/common/persistence/sql/sqlplugin/sqlite"
+
 	"github.com/startreedata/pinot-client-go/pinot"
 	"github.com/uber-go/tally"
 
@@ -316,6 +318,8 @@ func NewPersistenceTestCluster(t *testing.T, clusterConfig *TestClusterConfig) t
 		case postgres.PluginName:
 			testflags.RequirePostgres(t)
 			ops, err = postgres.GetTestClusterOption()
+		case sqlite.PluginName:
+			ops, err = sqlite.GetTestClusterOption()
 		default:
 			t.Fatal("not supported plugin " + TestFlags.SQLPluginName)
 		}

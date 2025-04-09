@@ -23,10 +23,14 @@
 package sqlite
 
 import (
+	"os"
+	"path"
+
+	"github.com/google/uuid"
 	"github.com/iancoleman/strcase"
 	"github.com/jmoiron/sqlx"
-
 	"github.com/uber/cadence/common/config"
+	pt "github.com/uber/cadence/common/persistence/persistence-tests"
 	"github.com/uber/cadence/common/persistence/sql"
 	"github.com/uber/cadence/common/persistence/sql/sqldriver"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
@@ -88,4 +92,17 @@ func (p *plugin) createSingleDBConn(cfg *config.SQL) (*sqlx.DB, error) {
 	// Maps struct names in CamelCase to snake without need for DB struct tags.
 	db.MapperFunc(strcase.ToSnake)
 	return db, nil
+}
+
+const testSchemaDir = "schema/sqlite"
+
+// GetTestClusterOption returns a test cluster option for sqlite plugin
+// It uses a temporary directory for the database name
+func GetTestClusterOption() (*pt.TestBaseOptions, error) {
+	return &pt.TestBaseOptions{
+		DBPluginName: PluginName,
+		DBName:       path.Join(os.TempDir(), uuid.New().String()),
+		SchemaDir:    testSchemaDir,
+		StoreType:    config.StoreTypeSQL,
+	}, nil
 }
