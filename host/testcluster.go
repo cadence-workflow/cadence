@@ -318,7 +318,7 @@ func NewPersistenceTestCluster(t *testing.T, clusterConfig *TestClusterConfig) t
 			testflags.RequirePostgres(t)
 			ops, err = postgres.GetTestClusterOption()
 		case sqlite.PluginName:
-			ops, err = sqlite.GetTestClusterOption()
+			ops = sqlite.GetTestClusterOption()
 		default:
 			t.Fatal("not supported plugin " + TestFlags.SQLPluginName)
 		}

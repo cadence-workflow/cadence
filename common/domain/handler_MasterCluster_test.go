@@ -43,10 +43,9 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
-	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql/public"
 	persistencetests "github.com/uber/cadence/common/persistence/persistence-tests"
+	"github.com/uber/cadence/common/persistence/sql/sqlplugin/sqlite"
 	"github.com/uber/cadence/common/types"
-	"github.com/uber/cadence/testflags"
 )
 
 type (
@@ -67,19 +66,20 @@ type (
 )
 
 func TestDomainHandlerGlobalDomainEnabledPrimaryClusterSuite(t *testing.T) {
-	testflags.RequireCassandra(t)
-
 	if testing.Verbose() {
 		log.SetOutput(os.Stdout)
 	}
 
 	s := new(domainHandlerGlobalDomainEnabledPrimaryClusterSuite)
-
-	s.TestBase = public.NewTestBaseWithPublicCassandra(t, &persistencetests.TestBaseOptions{
-		ClusterMetadata: cluster.GetTestClusterMetadata(true),
-	})
-
+	s.setupTestBase(t)
 	suite.Run(t, s)
+}
+
+func (s *domainHandlerGlobalDomainEnabledPrimaryClusterSuite) setupTestBase(t *testing.T) {
+	sqliteTestBaseOptions := sqlite.GetTestClusterOption()
+	sqliteTestBaseOptions.ClusterMetadata = cluster.GetTestClusterMetadata(true)
+	s.TestBase = persistencetests.NewTestBaseWithSQL(t, sqliteTestBaseOptions)
+	s.Setup()
 }
 
 func (s *domainHandlerGlobalDomainEnabledPrimaryClusterSuite) TearDownSuite() {
@@ -87,7 +87,7 @@ func (s *domainHandlerGlobalDomainEnabledPrimaryClusterSuite) TearDownSuite() {
 }
 
 func (s *domainHandlerGlobalDomainEnabledPrimaryClusterSuite) SetupTest() {
-	s.Setup()
+	s.setupTestBase(s.T())
 
 	logger := s.Logger
 	dcCollection := dc.NewCollection(dc.NewNopClient(), logger)
@@ -188,7 +188,7 @@ func (s *domainHandlerGlobalDomainEnabledPrimaryClusterSuite) TestRegisterGetDom
 		Status:      types.DomainStatusRegistered.Ptr(),
 		Description: "",
 		OwnerEmail:  "",
-		Data:        map[string]string{},
+		Data:        nil,
 		UUID:        "",
 	}, resp.DomainInfo)
 	s.Equal(&types.DomainConfiguration{
@@ -504,7 +504,7 @@ func (s *domainHandlerGlobalDomainEnabledPrimaryClusterSuite) TestRegisterGetDom
 		Status:      types.DomainStatusRegistered.Ptr(),
 		Description: "",
 		OwnerEmail:  "",
-		Data:        map[string]string{},
+		Data:        nil,
 		UUID:        "",
 	}, resp.DomainInfo)
 	s.Equal(&types.DomainConfiguration{
@@ -939,7 +939,7 @@ func (s *domainHandlerGlobalDomainEnabledPrimaryClusterSuite) TestUpdateDomain_C
 		Status:      types.DomainStatusRegistered.Ptr(),
 		Description: "",
 		OwnerEmail:  "",
-		Data:        map[string]string{},
+		Data:        nil,
 		UUID:        "",
 	}, resp.DomainInfo)
 	s.Equal(&types.DomainConfiguration{
