@@ -666,11 +666,7 @@ cover_profile:
 	$Q echo Running special test cases without race detector:
 	$Q go test ./cmd/server/cadence/
 	$Q echo Running package tests:
-	$Q for dir in $(PKG_TEST_DIRS); do \
-		mkdir -p $(BUILD)/"$$dir"; \
-		go test "$$dir" $(TEST_ARG) -coverprofile=$(BUILD)/"$$dir"/coverage.out || exit 1; \
-		(cat $(BUILD)/"$$dir"/coverage.out | grep -v "^mode: \w\+" >> $(UNIT_COVER_FILE)) || true; \
-	done;
+	$Q go test $(PKG_TEST_DIRS) $(TEST_ARG) -coverprofile=$(UNIT_COVER_FILE)
 
 cover_integration_profile:
 	$Q mkdir -p $(BUILD)
