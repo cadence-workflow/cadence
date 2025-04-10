@@ -60,7 +60,7 @@ type Result struct {
 
 // LookupEnvFunc returns the value of the environment variable given by key.
 // It should behave the same as `os.LookupEnv`. If a function returns false,
-// an environment variable is looked up using `envfx.Context.LookupEnv`.
+// an environment variable is looked up using `os.LookupEnv`.
 type LookupEnvFunc func(key string) (string, bool)
 
 // New exports functionality similar to Module, but allows the caller to wrap
