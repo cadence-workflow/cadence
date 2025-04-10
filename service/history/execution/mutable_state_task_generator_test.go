@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
@@ -1025,11 +1026,14 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateChildWorkflowTasks() {
 					DomainID:          "child-domain-B",
 				}
 
+				cacheEntry := cache.NewGlobalDomainCacheEntryForTest(nil, nil, nil, 0)
+
+				s.mockDomainCache.EXPECT().GetDomainByID(gomock.Any()).Return(cacheEntry, nil).Times(1)
 				s.mockMutableState.EXPECT().GetChildExecutionInfo(eventID).Return(childWorkflowInfo, true).Times(1)
-				s.mockMutableState.EXPECT().GetDomainEntry().Return(parentDomain).Times(1)
+				s.mockMutableState.EXPECT().GetDomainEntry().Return(parentDomain).Times(2)
 			},
 			err: &types.BadRequestError{
-				Message: "there would appear to be a bug: The child workflow is trying to use domain child-domain-B but it's running in domain deadbeef-0123-4567-890a-bcdef0123456. Cross-cluster child workflows are not supported",
+				Message: "The child workflow is trying to use domain child-domain-B but it's running in domain deadbeef-0123-4567-890a-bcdef0123456. Cross-cluster and cross domain child workflows are not supported for global domains",
 			},
 		},
 		{
@@ -1321,6 +1325,81 @@ func (s *mutableStateTaskGeneratorSuite) TestGetTargetDomainID() {
 func getNextBackoffRange(duration time.Duration) (time.Duration, time.Duration) {
 	rangeMin := time.Duration((1 - defaultJitterCoefficient) * float64(duration))
 	return rangeMin, duration
+}
+
+func TestValidationOfChildWorkflowParameters(t *testing.T) {
+
+	g1 := cache.NewGlobalDomainCacheEntryForTest(&persistence.DomainInfo{ID: "g1", Name: "g1"}, nil, nil, 0)
+	g2 := cache.NewGlobalDomainCacheEntryForTest(&persistence.DomainInfo{ID: "g2", Name: "g2"}, nil, nil, 0)
+	l1 := cache.NewLocalDomainCacheEntryForTest(&persistence.DomainInfo{ID: "l1", Name: "l1"}, nil, "")
+	l2 := cache.NewLocalDomainCacheEntryForTest(&persistence.DomainInfo{ID: "l2", Name: "l2"}, nil, "")
+
+	tests := map[string]struct {
+		thisDomain    *cache.DomainCacheEntry
+		childWorkflow *cache.DomainCacheEntry
+		setupCache    func(mockCache *cache.MockDomainCache)
+		expectedError error
+	}{
+		"Normal case: a child workflow running from the same domain as the parent shouldn't see any errors": {
+			thisDomain:    g1,
+			childWorkflow: g1,
+			setupCache:    func(mockCache *cache.MockDomainCache) {},
+			expectedError: nil,
+		},
+		"local domains, cross-domain call": {
+			thisDomain:    l1,
+			childWorkflow: l2,
+			setupCache: func(cache *cache.MockDomainCache) {
+				cache.EXPECT().GetDomainByID(l2.GetInfo().ID).Return(l2, nil).Times(1)
+			},
+			expectedError: nil,
+		},
+		"Global domains cross domain call. This is not permitted": {
+			thisDomain:    g1,
+			childWorkflow: g2,
+			setupCache: func(cache *cache.MockDomainCache) {
+				cache.EXPECT().GetDomainByID(g2.GetInfo().ID).Return(g2, nil).Times(1)
+			},
+			expectedError: &types.BadRequestError{Message: "The child workflow is trying to use domain g2 but it's running in domain g1. Cross-cluster and cross domain child workflows are not supported for global domains"},
+		},
+		"Global domains cross domain call 2. This is not permitted": {
+			thisDomain:    l1,
+			childWorkflow: g2,
+			setupCache: func(cache *cache.MockDomainCache) {
+				cache.EXPECT().GetDomainByID(g2.GetInfo().ID).Return(g2, nil).Times(1)
+			},
+			expectedError: &types.BadRequestError{Message: "The child workflow is trying to use domain g2 but it's running in domain l1. Cross-cluster and cross domain child workflows are not supported for global domains"},
+		},
+		"Global domains cross domain call 3. This is not permitted": {
+			thisDomain:    g1,
+			childWorkflow: l2,
+			setupCache: func(cache *cache.MockDomainCache) {
+				cache.EXPECT().GetDomainByID(l2.GetInfo().ID).Return(g2, nil).Times(1)
+			},
+			expectedError: &types.BadRequestError{Message: "The child workflow is trying to use domain l2 but it's running in domain g1. Cross-cluster and cross domain child workflows are not supported for global domains"},
+		},
+	}
+
+	for name, td := range tests {
+		t.Run(name, func(t *testing.T) {
+
+			msb := mutableStateBuilder{
+				domainEntry: td.thisDomain,
+			}
+
+			ctrl := gomock.NewController(t)
+			domainCache := cache.NewMockDomainCache(ctrl)
+			td.setupCache(domainCache)
+
+			mstb := mutableStateTaskGeneratorImpl{
+				mutableState: &msb,
+				domainCache:  domainCache,
+			}
+
+			err := mstb.validateChildWorkflowParameters(td.thisDomain.GetInfo().ID, td.childWorkflow.GetInfo().ID)
+			assert.Equal(t, td.expectedError, err)
+		})
+	}
 }
 
 func GenerateWorkflowCloseTasksTestCases(retention time.Duration, closeEvent *types.HistoryEvent, now time.Time) []struct {
