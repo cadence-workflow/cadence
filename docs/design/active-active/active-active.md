@@ -80,6 +80,7 @@ There's no "region" concept in Cadence today. However, with active-active domain
 3. A workflow of an active-active domain can ONLY be active in one cluster in a region.
 4. A workflow of an active-active domain can be passive in any number of clusters in any number of regions.
 
+![Active-Active One Cluster Per Region](./active-active-one-cluster-per-region.png)
 
 The underlying reason for these constraints is mainly to reuse existing failover version to cluster mapping that relies on failover versions. By restricting active-active domains to have only one active cluster per region, we can reuse the failover version mapping mechanism to determine the active cluster of a workflow.
 
