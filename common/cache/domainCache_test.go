@@ -308,7 +308,12 @@ func Test_IsActiveIn(t *testing.T) {
 			msg:              "global pending active domain",
 			isGlobalDomain:   true,
 			failoverDeadline: common.Int64Ptr(time.Now().Unix()),
-			expectedErr:      &types.DomainNotActiveError{Message: "Domain: test-domain is pending active in cluster: .", DomainName: "test-domain", CurrentCluster: "", ActiveCluster: ""},
+			expectedErr: &types.DomainNotActiveError{
+				Message:        "Domain: test-domain is pending active in cluster: .",
+				DomainName:     "test-domain",
+				CurrentCluster: "",
+				ActiveCluster:  "",
+			},
 		},
 		{
 			msg:            "global domain on active cluster",
@@ -322,7 +327,13 @@ func Test_IsActiveIn(t *testing.T) {
 			isGlobalDomain: true,
 			currentCluster: "A",
 			activeCluster:  "B",
-			expectedErr:    &types.DomainNotActiveError{Message: "Domain: test-domain is active in cluster: B, while current cluster A is a standby cluster.", DomainName: "test-domain", CurrentCluster: "A", ActiveCluster: "B"},
+			expectedErr: &types.DomainNotActiveError{
+				Message:        "Domain: test-domain is active in cluster(s): [B], while current cluster A is a standby cluster.",
+				DomainName:     "test-domain",
+				CurrentCluster: "A",
+				ActiveCluster:  "B",
+				ActiveClusters: []string{"B"},
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -1145,8 +1156,18 @@ func Test_GetActiveDomainByID(t *testing.T) {
 	activeDomainUUID := uuid.New()
 	passiveDomainUUID := uuid.New()
 
-	activeDomain := NewGlobalDomainCacheEntryForTest(&persistence.DomainInfo{ID: activeDomainUUID, Name: "active"}, nil, &persistence.DomainReplicationConfig{ActiveClusterName: "A"}, 0)
-	passiveDomain := NewGlobalDomainCacheEntryForTest(&persistence.DomainInfo{ID: passiveDomainUUID, Name: "passive"}, nil, &persistence.DomainReplicationConfig{ActiveClusterName: "B"}, 0)
+	activeDomain := NewGlobalDomainCacheEntryForTest(
+		&persistence.DomainInfo{ID: activeDomainUUID, Name: "active"},
+		nil,
+		&persistence.DomainReplicationConfig{ActiveClusterName: "A"},
+		0,
+	)
+	passiveDomain := NewGlobalDomainCacheEntryForTest(
+		&persistence.DomainInfo{ID: passiveDomainUUID, Name: "passive"},
+		nil,
+		&persistence.DomainReplicationConfig{ActiveClusterName: "B"},
+		0,
+	)
 
 	tests := []struct {
 		msg          string
@@ -1173,7 +1194,13 @@ func Test_GetActiveDomainByID(t *testing.T) {
 			msg:          "passive domain",
 			domainID:     passiveDomainUUID,
 			expectDomain: passiveDomain,
-			expectedErr:  &types.DomainNotActiveError{Message: "Domain: passive is active in cluster: B, while current cluster A is a standby cluster.", DomainName: "passive", CurrentCluster: "A", ActiveCluster: "B"},
+			expectedErr: &types.DomainNotActiveError{
+				Message:        "Domain: passive is active in cluster(s): [B], while current cluster A is a standby cluster.",
+				DomainName:     "passive",
+				CurrentCluster: "A",
+				ActiveCluster:  "B",
+				ActiveClusters: []string{"B"},
+			},
 		},
 	}
 
