@@ -304,8 +304,3 @@ Domain/region entities are entities that are managed by default domain plugin as
 User defined entities are entities that are defined by the user and are used to associate workflows with an external entity. Corresponding watcher implementation will be provided by the user. It should perform CRUD operations on EntityActiveRegion table following similar pattern to domain/region entities.
 
 Entity updates are replicated to all clusters and history service will subscribe to these updates to notify task queues. This is similar to how domain failover changes are handled today. Notifying the task queues wake up the queues to resume processing and they will be able to apply active/standby logic based on new failover versions.
-
-
-### Diagram
-
-![Active-Active Domain Diagram](./active-active-domain-diagram.png)
