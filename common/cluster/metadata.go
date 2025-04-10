@@ -222,8 +222,8 @@ func (m Metadata) getInitialFailoverVersion(cluster string, domainName string) i
 // resolves the server name from a version number. Better to use this
 // than to check versionToClusterName directly, as this also falls back to catch
 // when there's a migration NewInitialFailoverVersion
-func (m Metadata) resolveServerName(version int64) (string, error) {
-	version = version % m.failoverVersionIncrement
+func (m Metadata) resolveServerName(originalVersion int64) (string, error) {
+	version := originalVersion % m.failoverVersionIncrement
 	// attempt a lookup first
 	server, ok := m.versionToClusterName[version]
 	if ok {
@@ -238,16 +238,16 @@ func (m Metadata) resolveServerName(version int64) (string, error) {
 	}
 
 	m.metrics.IncCounter(metrics.ClusterMetadataFailureToResolveCounter)
-	return "", fmt.Errorf("could not resolve failover version: %d", version)
+	return "", fmt.Errorf("could not resolve failover version: %d", originalVersion)
 }
 
-func (m Metadata) resolveRegion(version int64) (string, error) {
-	version = version % m.failoverVersionIncrement
+func (m Metadata) resolveRegion(originalVersion int64) (string, error) {
+	version := originalVersion % m.failoverVersionIncrement
 	region, ok := m.versionToRegionName[version]
 	if ok {
 		return region, nil
 	}
 
 	m.metrics.IncCounter(metrics.ClusterMetadataFailureToResolveCounter)
-	return "", fmt.Errorf("could not resolve failover version to region: %d", version)
+	return "", fmt.Errorf("could not resolve failover version to region: %d", originalVersion)
 }
