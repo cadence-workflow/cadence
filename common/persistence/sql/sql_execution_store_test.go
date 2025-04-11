@@ -2911,7 +2911,7 @@ func TestGetHistoryTasks_SQL(t *testing.T) {
 				},
 			},
 			expectedNextPageToken: func() []byte {
-				ti := &timerTaskPageToken{TaskID: 101, Timestamp: time.Unix(1, 1).UTC()}
+				ti := &timerTaskPageToken{TaskID: 101, Timestamp: time.Unix(1, 1)}
 				token, err := ti.serialize()
 				require.NoError(t, err, "failed to serialize timer page token")
 				return token

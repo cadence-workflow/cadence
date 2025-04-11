@@ -32,10 +32,9 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
-	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql/public"
 	persistencetests "github.com/uber/cadence/common/persistence/persistence-tests"
+	"github.com/uber/cadence/common/persistence/sql/sqlplugin/sqlite"
 	"github.com/uber/cadence/common/types"
-	"github.com/uber/cadence/testflags"
 )
 
 type (
@@ -46,21 +45,23 @@ type (
 )
 
 func TestDomainReplicationTaskExecutorSuite(t *testing.T) {
-	testflags.RequireCassandra(t)
-
 	if testing.Verbose() {
 		log.SetOutput(os.Stdout)
 	}
 
 	s := new(domainReplicationTaskExecutorSuite)
-
-	s.TestBase = public.NewTestBaseWithPublicCassandra(t, &persistencetests.TestBaseOptions{})
-
+	s.setupTestBase(t)
 	suite.Run(t, s)
 }
 
-func (s *domainReplicationTaskExecutorSuite) SetupTest() {
+func (s *domainReplicationTaskExecutorSuite) setupTestBase(t *testing.T) {
+	sqliteTestBaseOptions := sqlite.GetTestClusterOption()
+	s.TestBase = persistencetests.NewTestBaseWithSQL(t, sqliteTestBaseOptions)
 	s.Setup()
+}
+
+func (s *domainReplicationTaskExecutorSuite) SetupTest() {
+	s.setupTestBase(s.T())
 
 	s.domainReplicator = NewReplicationTaskExecutor(
 		s.DomainManager,

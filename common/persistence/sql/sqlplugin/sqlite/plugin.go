@@ -99,11 +99,11 @@ const testSchemaDir = "schema/sqlite"
 
 // GetTestClusterOption returns a test cluster option for sqlite plugin
 // It uses a temporary directory for the database name
-func GetTestClusterOption() (*pt.TestBaseOptions, error) {
+func GetTestClusterOption() *pt.TestBaseOptions {
 	return &pt.TestBaseOptions{
 		DBPluginName: PluginName,
 		DBName:       path.Join(os.TempDir(), uuid.New().String()),
 		SchemaDir:    testSchemaDir,
 		StoreType:    config.StoreTypeSQL,
-	}, nil
+	}
 }
