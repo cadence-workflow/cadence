@@ -461,14 +461,10 @@ func (r *mutableStateTaskGeneratorImpl) GenerateChildWorkflowTasks(
 	if childWorkflowInfo.DomainID == "" {
 		targetDomainID = msbDomainID
 	}
-	// This was formerly supported with the cross cluster feature
-	// but is no longer. So erroring out explicitly here
-	if targetDomainID != msbDomainID {
-		return &types.BadRequestError{
-			Message: fmt.Sprintf("there would appear to be a bug: The child workflow is trying to use domain %s but it's running in domain %s. Cross-cluster child workflows are not supported",
-				childWorkflowInfo.DomainID, msbDomainID),
-		}
 
+	err := r.validateChildWorkflowParameters(msbDomainID, targetDomainID)
+	if err != nil {
+		return err
 	}
 
 	executionInfo := r.mutableState.GetExecutionInfo()
@@ -645,6 +641,35 @@ func (r *mutableStateTaskGeneratorImpl) getTargetDomainID(
 	}
 
 	return r.mutableState.GetExecutionInfo().DomainID, nil
+}
+
+func (r *mutableStateTaskGeneratorImpl) validateChildWorkflowParameters(msbDomainID string, targetDomainID string) error {
+	// standard case
+	if msbDomainID == targetDomainID {
+		return nil
+	}
+
+	thisDomain := r.mutableState.GetDomainEntry()
+	targetDomain, err := r.domainCache.GetDomainByID(targetDomainID)
+	if err != nil {
+		return fmt.Errorf("cannot get target domain for child workflow: %w", err)
+	}
+
+	// Generally, cross-domain calls are not allowed for launching child workflows in global domains due to
+	// the fact that we have removed cross-cluster calls (due to their overhead and limited use).
+	//
+	// There is a limited exception for local domains, which do not suffer from this problem can be
+	// handled as an exception where the transfer task may be picked up by another domain in-cluster
+	// without risk of the child workflow may end up in a different cluster.
+	if thisDomain.IsGlobalDomain() || targetDomain.IsGlobalDomain() {
+		return &types.BadRequestError{
+			Message: fmt.Sprintf("The child workflow is "+
+				"trying to use domain %s but it's running in domain %s. "+
+				"Cross-cluster and cross domain child workflows are not supported for global domains",
+				targetDomainID, msbDomainID),
+		}
+	}
+	return nil
 }
 
 func getTargetCluster(
