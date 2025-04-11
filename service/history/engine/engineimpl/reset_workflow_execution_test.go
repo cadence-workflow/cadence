@@ -345,7 +345,7 @@ func TestResetWorkflowExecution(t *testing.T) {
 				},
 			},
 			expectedErr: &types.BadRequestError{
-				Message: "workflow is not resettable. Error: fail to get cluster name for failover version: failed to resolve failover version: could not resolve failover version: 1004",
+				Message: "workflow is not resettable. Error: fail to get cluster name for failover version: failed to resolve failover version to a cluster: could not resolve failover version: 1004",
 			},
 		},
 		{

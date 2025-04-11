@@ -1140,8 +1140,17 @@ type (
 
 	// DomainReplicationConfig describes the cross DC domain replication configuration
 	DomainReplicationConfig struct {
+		Clusters []*ClusterReplicationConfig
+
+		// ActiveClusterName is the name of the cluster that the domain is active in.
+		// Applicable for active-passive domains.
+		// If this is set, ActiveClusters is ignored.
 		ActiveClusterName string
-		Clusters          []*ClusterReplicationConfig
+
+		// ActiveClusters is the list of clusters that the domain is active in.
+		// Applicable for active-active domains.
+		// If this is set, ActiveClusterName is ignored.
+		ActiveClusters []*ClusterReplicationConfig
 	}
 
 	// ClusterReplicationConfig describes the cross DC cluster replication configuration
@@ -2184,4 +2193,8 @@ func (p *TaskListPartition) ToInternalType() *types.TaskListPartition {
 		return nil
 	}
 	return &types.TaskListPartition{IsolationGroups: p.IsolationGroups}
+}
+
+func (d *DomainReplicationConfig) IsActiveActive() bool {
+	return d != nil && len(d.ActiveClusters) > 1
 }
