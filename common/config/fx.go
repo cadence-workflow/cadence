@@ -81,7 +81,7 @@ func New(p Params) (Result, error) {
 	if err != nil {
 		return Result{}, fmt.Errorf("load config: %w", err)
 	}
-	
+
 	return Result{
 		Config: cfg,
 	}, nil
