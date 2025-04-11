@@ -222,11 +222,11 @@ func (c *matchingClient) PollForDecisionTask(ctx context.Context, mp1 *types.Mat
 	return
 }
 
-func (c *matchingClient) QueryWorkflow(ctx context.Context, mp1 *types.MatchingQueryWorkflowRequest, p1 ...yarpc.CallOption) (qp1 *types.QueryWorkflowResponse, err error) {
+func (c *matchingClient) QueryWorkflow(ctx context.Context, mp1 *types.MatchingQueryWorkflowRequest, p1 ...yarpc.CallOption) (mp2 *types.MatchingQueryWorkflowResponse, err error) {
 	fakeErr := c.fakeErrFn(c.errorRate)
 	var forwardCall bool
 	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
-		qp1, err = c.client.QueryWorkflow(ctx, mp1, p1...)
+		mp2, err = c.client.QueryWorkflow(ctx, mp1, p1...)
 	}
 
 	if fakeErr != nil {

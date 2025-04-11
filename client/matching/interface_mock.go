@@ -225,14 +225,14 @@ func (mr *MockClientMockRecorder) PollForDecisionTask(arg0, arg1 any, arg2 ...an
 }
 
 // QueryWorkflow mocks base method.
-func (m *MockClient) QueryWorkflow(arg0 context.Context, arg1 *types.MatchingQueryWorkflowRequest, arg2 ...yarpc.CallOption) (*types.QueryWorkflowResponse, error) {
+func (m *MockClient) QueryWorkflow(arg0 context.Context, arg1 *types.MatchingQueryWorkflowRequest, arg2 ...yarpc.CallOption) (*types.MatchingQueryWorkflowResponse, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{arg0, arg1}
 	for _, a := range arg2 {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "QueryWorkflow", varargs...)
-	ret0, _ := ret[0].(*types.QueryWorkflowResponse)
+	ret0, _ := ret[0].(*types.MatchingQueryWorkflowResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

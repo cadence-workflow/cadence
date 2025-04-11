@@ -164,18 +164,18 @@ func (c *matchingClient) PollForDecisionTask(ctx context.Context, mp1 *types.Mat
 	return mp2, err
 }
 
-func (c *matchingClient) QueryWorkflow(ctx context.Context, mp1 *types.MatchingQueryWorkflowRequest, p1 ...yarpc.CallOption) (qp1 *types.QueryWorkflowResponse, err error) {
+func (c *matchingClient) QueryWorkflow(ctx context.Context, mp1 *types.MatchingQueryWorkflowRequest, p1 ...yarpc.CallOption) (mp2 *types.MatchingQueryWorkflowResponse, err error) {
 	c.metricsClient.IncCounter(metrics.MatchingClientQueryWorkflowScope, metrics.CadenceClientRequests)
 	c.emitForwardedFromStats(metrics.MatchingClientQueryWorkflowScope, mp1)
 
 	sw := c.metricsClient.StartTimer(metrics.MatchingClientQueryWorkflowScope, metrics.CadenceClientLatency)
-	qp1, err = c.client.QueryWorkflow(ctx, mp1, p1...)
+	mp2, err = c.client.QueryWorkflow(ctx, mp1, p1...)
 	sw.Stop()
 
 	if err != nil {
 		c.metricsClient.IncCounter(metrics.MatchingClientQueryWorkflowScope, metrics.CadenceClientFailures)
 	}
-	return qp1, err
+	return mp2, err
 }
 
 func (c *matchingClient) RefreshTaskListPartitionConfig(ctx context.Context, mp1 *types.MatchingRefreshTaskListPartitionConfigRequest, p1 ...yarpc.CallOption) (mp2 *types.MatchingRefreshTaskListPartitionConfigResponse, err error) {

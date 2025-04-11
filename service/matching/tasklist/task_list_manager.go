@@ -630,7 +630,7 @@ func (c *taskListManagerImpl) DispatchQueryTask(
 	ctx context.Context,
 	taskID string,
 	request *types.MatchingQueryWorkflowRequest,
-) (*types.QueryWorkflowResponse, error) {
+) (*types.MatchingQueryWorkflowResponse, error) {
 	c.startWG.Wait()
 	task := newInternalQueryTask(taskID, request)
 	return c.matcher.OfferQuery(ctx, task)

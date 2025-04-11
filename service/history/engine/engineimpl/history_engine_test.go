@@ -694,7 +694,7 @@ func (s *engineSuite) TestQueryWorkflow_DirectlyThroughMatching() {
 	ms := execution.CreatePersistenceMutableState(s.T(), msBuilder)
 	gweResponse := &persistence.GetWorkflowExecutionResponse{State: ms}
 	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(gweResponse, nil).Once()
-	s.mockMatchingClient.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).Return(&types.QueryWorkflowResponse{QueryResult: []byte{1, 2, 3}}, nil)
+	s.mockMatchingClient.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).Return(&types.MatchingQueryWorkflowResponse{QueryResult: []byte{1, 2, 3}}, nil)
 	s.mockHistoryEngine.matchingClient = s.mockMatchingClient
 	request := &types.HistoryQueryWorkflowRequest{
 		DomainUUID: constants.TestDomainID,
@@ -915,7 +915,7 @@ func (s *engineSuite) TestQueryWorkflow_DecisionTaskDispatch_Unblocked() {
 	ms := execution.CreatePersistenceMutableState(s.T(), msBuilder)
 	gweResponse := &persistence.GetWorkflowExecutionResponse{State: ms}
 	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(gweResponse, nil).Once()
-	s.mockMatchingClient.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).Return(&types.QueryWorkflowResponse{QueryResult: []byte{1, 2, 3}}, nil)
+	s.mockMatchingClient.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).Return(&types.MatchingQueryWorkflowResponse{QueryResult: []byte{1, 2, 3}}, nil)
 	s.mockHistoryEngine.matchingClient = s.mockMatchingClient
 	waitGroup := &sync.WaitGroup{}
 	waitGroup.Add(1)

@@ -248,7 +248,7 @@ func (tm *taskMatcherImpl) OfferOrTimeout(ctx context.Context, startT time.Time,
 // OfferQuery will either match task to local poller or will forward query task.
 // Local match is always attempted before forwarding is attempted. If local match occurs
 // response and error are both nil, if forwarding occurs then response or error is returned.
-func (tm *taskMatcherImpl) OfferQuery(ctx context.Context, task *InternalTask) (*types.QueryWorkflowResponse, error) {
+func (tm *taskMatcherImpl) OfferQuery(ctx context.Context, task *InternalTask) (*types.MatchingQueryWorkflowResponse, error) {
 	select {
 	case tm.queryTaskC <- task:
 		<-task.ResponseC

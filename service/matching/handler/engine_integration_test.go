@@ -490,7 +490,7 @@ func (s *matchingEngineSuite) TestQueryWorkflow() {
 	})
 	wg.Wait()
 	s.NoError(err)
-	s.Equal(&types.QueryWorkflowResponse{
+	s.Equal(&types.MatchingQueryWorkflowResponse{
 		QueryResult: []byte(`result`),
 	}, resp)
 }

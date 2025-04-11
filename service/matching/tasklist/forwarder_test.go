@@ -161,7 +161,7 @@ func (t *ForwarderTestSuite) TestForwardQueryTaskError() {
 func (t *ForwarderTestSuite) TestForwardQueryTask() {
 	t.usingTasklistPartition(persistence.TaskListTypeDecision)
 	task := newInternalQueryTask("id1", &types.MatchingQueryWorkflowRequest{})
-	resp := &types.QueryWorkflowResponse{}
+	resp := &types.MatchingQueryWorkflowResponse{}
 	var request *types.MatchingQueryWorkflowRequest
 	t.client.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).Do(
 		func(arg0 context.Context, arg1 *types.MatchingQueryWorkflowRequest, option ...yarpc.CallOption) {
@@ -180,7 +180,7 @@ func (t *ForwarderTestSuite) TestForwardQueryTask() {
 func (t *ForwarderTestSuite) TestForwardQueryTaskRateNotEnforced() {
 	t.usingTasklistPartition(persistence.TaskListTypeActivity)
 	task := newInternalQueryTask("id1", &types.MatchingQueryWorkflowRequest{})
-	resp := &types.QueryWorkflowResponse{}
+	resp := &types.MatchingQueryWorkflowResponse{}
 	rps := 2
 	t.client.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).Return(resp, nil).Times(rps + 1)
 	for i := 0; i < rps; i++ {

@@ -127,7 +127,7 @@ func TestMatchingQueryWorkflowRequest(t *testing.T) {
 }
 
 func TestMatchingQueryWorkflowResponse(t *testing.T) {
-	for _, item := range []*types.QueryWorkflowResponse{nil, {}, &testdata.MatchingQueryWorkflowResponse} {
+	for _, item := range []*types.MatchingQueryWorkflowResponse{nil, {}, &testdata.MatchingQueryWorkflowResponse} {
 		assert.Equal(t, item, ToMatchingQueryWorkflowResponse(FromMatchingQueryWorkflowResponse(item)))
 	}
 }

@@ -382,9 +382,9 @@ func TestQueryWorkflow(t *testing.T) {
 		req                  *types.MatchingQueryWorkflowRequest
 		hCtx                 *handlerContext
 		mockSetup            func(*tasklist.MockManager)
-		waitForQueryResultFn func(hCtx *handlerContext, isStrongConsistencyQuery bool, queryResultCh <-chan *queryResult) (*types.QueryWorkflowResponse, error)
+		waitForQueryResultFn func(hCtx *handlerContext, isStrongConsistencyQuery bool, queryResultCh <-chan *queryResult) (*types.MatchingQueryWorkflowResponse, error)
 		wantErr              bool
-		want                 *types.QueryWorkflowResponse
+		want                 *types.MatchingQueryWorkflowResponse
 	}{
 		{
 			name: "invalid tasklist name",
@@ -444,15 +444,33 @@ func TestQueryWorkflow(t *testing.T) {
 			},
 			mockSetup: func(mockManager *tasklist.MockManager) {
 				mockManager.EXPECT().DispatchQueryTask(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil)
+				mockManager.EXPECT().TaskListPartitionConfig().Return(&types.TaskListPartitionConfig{
+					Version: 1,
+					ReadPartitions: map[int]*types.TaskListPartition{
+						0: {},
+					},
+					WritePartitions: map[int]*types.TaskListPartition{
+						0: {},
+					},
+				})
 			},
-			waitForQueryResultFn: func(hCtx *handlerContext, isStrongConsistencyQuery bool, queryResultCh <-chan *queryResult) (*types.QueryWorkflowResponse, error) {
-				return &types.QueryWorkflowResponse{
+			waitForQueryResultFn: func(hCtx *handlerContext, isStrongConsistencyQuery bool, queryResultCh <-chan *queryResult) (*types.MatchingQueryWorkflowResponse, error) {
+				return &types.MatchingQueryWorkflowResponse{
 					QueryResult: []byte("some result"),
 				}, nil
 			},
 			wantErr: false,
-			want: &types.QueryWorkflowResponse{
+			want: &types.MatchingQueryWorkflowResponse{
 				QueryResult: []byte("some result"),
+				PartitionConfig: &types.TaskListPartitionConfig{
+					Version: 1,
+					ReadPartitions: map[int]*types.TaskListPartition{
+						0: {},
+					},
+					WritePartitions: map[int]*types.TaskListPartition{
+						0: {},
+					},
+				},
 			},
 		},
 	}
@@ -490,7 +508,7 @@ func TestWaitForQueryResult(t *testing.T) {
 		mockSetup func(*client.MockVersionChecker)
 		wantErr   bool
 		assertErr func(*testing.T, error)
-		want      *types.QueryWorkflowResponse
+		want      *types.MatchingQueryWorkflowResponse
 	}{
 		{
 			name: "internal error",
@@ -541,7 +559,7 @@ func TestWaitForQueryResult(t *testing.T) {
 				mockVersionChecker.EXPECT().SupportsConsistentQuery("uber-go", "1.0.0").Return(nil)
 			},
 			wantErr: false,
-			want: &types.QueryWorkflowResponse{
+			want: &types.MatchingQueryWorkflowResponse{
 				QueryResult: []byte("some result"),
 			},
 		},

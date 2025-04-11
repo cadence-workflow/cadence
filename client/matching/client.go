@@ -192,18 +192,30 @@ func (c *clientImpl) QueryWorkflow(
 	ctx context.Context,
 	request *types.MatchingQueryWorkflowRequest,
 	opts ...yarpc.CallOption,
-) (*types.QueryWorkflowResponse, error) {
+) (*types.MatchingQueryWorkflowResponse, error) {
 	partition := c.loadBalancer.PickReadPartition(
 		persistence.TaskListTypeDecision,
 		request,
 		"",
 	)
+	originalTaskListName := request.TaskList.GetName()
 	request.TaskList.Name = partition
 	peer, err := c.peerResolver.FromTaskList(request.TaskList.GetName())
 	if err != nil {
 		return nil, err
 	}
-	return c.client.QueryWorkflow(ctx, request, append(opts, yarpc.WithShardKey(peer))...)
+	resp, err := c.client.QueryWorkflow(ctx, request, append(opts, yarpc.WithShardKey(peer))...)
+	if err != nil {
+		return nil, err
+	}
+	request.TaskList.Name = originalTaskListName
+	c.provider.UpdatePartitionConfig(
+		request.GetDomainUUID(),
+		*request.TaskList,
+		persistence.TaskListTypeDecision,
+		resp.PartitionConfig,
+	)
+	return resp, nil
 }
 
 func (c *clientImpl) RespondQueryTaskCompleted(

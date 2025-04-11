@@ -312,9 +312,10 @@ func TestClient_withResponse(t *testing.T) {
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
 				balancer.EXPECT().PickReadPartition(persistence.TaskListTypeDecision, testMatchingQueryWorkflowRequest(), "").Return(_testPartition)
 				p.EXPECT().FromTaskList(_testPartition).Return("peer0", nil)
-				c.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any(), []yarpc.CallOption{yarpc.WithShardKey("peer0")}).Return(&types.QueryWorkflowResponse{}, nil)
+				c.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any(), []yarpc.CallOption{yarpc.WithShardKey("peer0")}).Return(&types.MatchingQueryWorkflowResponse{}, nil)
+				mp.EXPECT().UpdatePartitionConfig(_testDomainUUID, types.TaskList{Name: _testTaskList}, persistence.TaskListTypeDecision, nil)
 			},
-			want: &types.QueryWorkflowResponse{},
+			want: &types.MatchingQueryWorkflowResponse{},
 		},
 		{
 			name: "QueryWorkflow - Error in resolving peer",

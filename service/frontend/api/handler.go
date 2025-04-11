@@ -2678,7 +2678,10 @@ func (wh *WorkflowHandler) QueryWorkflow(
 	if err != nil {
 		return nil, err
 	}
-	return hResponse.GetResponse(), nil
+	return &types.QueryWorkflowResponse{
+		QueryResult:   hResponse.GetResponse().QueryResult,
+		QueryRejected: hResponse.GetResponse().QueryRejected,
+	}, nil
 }
 
 // DescribeWorkflowExecution returns information about the specified workflow execution.
