@@ -31,6 +31,7 @@ import (
 
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log/logfx"
+	"github.com/uber/cadence/testflags"
 )
 
 func TestFxDependencies(t *testing.T) {
@@ -52,6 +53,8 @@ func TestFxDependencies(t *testing.T) {
 }
 
 func TestFxStart(t *testing.T) {
+	testflags.RequireCassandra(t)
+
 	fxApp := fxtest.New(
 		t,
 		config.Module,

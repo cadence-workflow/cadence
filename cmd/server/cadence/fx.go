@@ -52,6 +52,7 @@ type AppParams struct {
 	AppContext config.Context
 	Config     config.Config
 	Logger     log.Logger
+	LifeCycle  fx.Lifecycle
 }
 
 // NewApp created a new Application from pre initalized config and logger.
@@ -62,6 +63,7 @@ func NewApp(params AppParams) *App {
 		logger:   params.Logger,
 		services: params.Services,
 	}
+	params.LifeCycle.Append(fx.Hook{OnStart: app.Start, OnStop: app.Stop})
 	return app
 }
 
