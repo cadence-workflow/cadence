@@ -49,6 +49,11 @@ func newTimerQueueActiveProcessor(
 			return false, errUnexpectedQueueTask
 		}
 		if notRegistered, err := isDomainNotRegistered(shard, timer.GetDomainID()); notRegistered && err == nil {
+			// Allow deletion tasks for deprecated domains
+			if timer.GetTaskType() == persistence.TaskTypeDeleteHistoryEvent {
+				return true, nil
+			}
+
 			logger.Info("Domain is not in registered status, skip task in active timer queue.", tag.WorkflowDomainID(timer.GetDomainID()), tag.Value(timer))
 			return false, nil
 		}
