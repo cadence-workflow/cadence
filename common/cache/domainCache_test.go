@@ -332,7 +332,8 @@ func Test_IsActiveIn(t *testing.T) {
 				DomainName:     "test-domain",
 				CurrentCluster: "A",
 				ActiveCluster:  "B",
-				ActiveClusters: []string{"B"},
+				// TODO(active-active): After ActiveClusters field is introduced, uncomment following line
+				// ActiveClusters: []string{"B"},
 			},
 		},
 	}
@@ -1199,7 +1200,8 @@ func Test_GetActiveDomainByID(t *testing.T) {
 				DomainName:     "passive",
 				CurrentCluster: "A",
 				ActiveCluster:  "B",
-				ActiveClusters: []string{"B"},
+				// TODO(active-active): After ActiveClusters field is introduced, uncomment following line
+				// ActiveClusters: []string{"B"},
 			},
 		},
 	}

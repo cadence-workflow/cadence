@@ -42,7 +42,11 @@ func NewDomainNotActiveError(domainName string, currentCluster string, activeClu
 		DomainName:     domainName,
 		CurrentCluster: currentCluster,
 		ActiveCluster:  activeCluster,
-		ActiveClusters: activeClusters,
+		// TODO(active-active): After ActiveClusters field is introduced, uncomment this line and update following lines
+		// - common/types/testdata/error.go
+		// - common/testing/allisset_test.go
+		// - mappers
+		// ActiveClusters: activeClusters,
 	}
 }
 
