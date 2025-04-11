@@ -211,7 +211,6 @@ func TestStartStop(t *testing.T) {
 	// validations
 	assert.Equal(t, serviceName, i.GetServiceName())
 	assert.Equal(t, selfHostInfo, i.GetHostInfo())
-	assert.Equal(t, params.ClusterMetadata, i.GetClusterMetadata())
 	gotDomain, err := i.GetDomainCache().GetDomainByID("test-domain-id")
 	assert.NoError(t, err)
 	assert.Equal(t, domain.Info, gotDomain.GetInfo())

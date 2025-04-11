@@ -160,7 +160,7 @@ func TestGenerateFailoverTasksForDomainCallback(t *testing.T) {
 
 			cluster := cluster.NewMetadata(
 				config.ClusterGroupMetadata{
-					FailoverVersionIncrement: 1,
+					FailoverVersionIncrement: 10,
 					PrimaryClusterName:       "cluster0",
 					CurrentClusterName:       "cluster0",
 					ClusterGroup: map[string]config.ClusterInformation{
@@ -585,7 +585,7 @@ func TestDomainCallback(t *testing.T) {
 
 			cluster := cluster.NewMetadata(
 				config.ClusterGroupMetadata{
-					FailoverVersionIncrement: 1,
+					FailoverVersionIncrement: 10,
 					PrimaryClusterName:       "cluster0",
 					CurrentClusterName:       "cluster0",
 					ClusterGroup: map[string]config.ClusterInformation{
@@ -636,7 +636,7 @@ func TestDomainLocking(t *testing.T) {
 
 	cluster := cluster.NewMetadata(
 		config.ClusterGroupMetadata{
-			FailoverVersionIncrement: 1,
+			FailoverVersionIncrement: 10,
 			PrimaryClusterName:       "cluster0",
 			CurrentClusterName:       "cluster0",
 			ClusterGroup: map[string]config.ClusterInformation{

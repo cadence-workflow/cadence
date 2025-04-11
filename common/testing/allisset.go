@@ -37,6 +37,6 @@ func allIsSet(t *testing.T, err error) {
 		field := errValue.Field(i)
 
 		// IsZero checks if the value is the default value (e.g. nil, "", 0 etc)
-		assert.True(t, !field.IsZero(), "Field %s is not set", errValue.Type().Field(i).Name)
+		assert.True(t, !field.IsZero(), "Field %s is not set for error %s", errValue.Type().Field(i).Name, errValue.Type())
 	}
 }
