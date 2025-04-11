@@ -46,10 +46,9 @@ import (
 	"github.com/uber/cadence/common/messaging"
 	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
-	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql/public"
 	persistencetests "github.com/uber/cadence/common/persistence/persistence-tests"
+	"github.com/uber/cadence/common/persistence/sql/sqlplugin/sqlite"
 	"github.com/uber/cadence/common/types"
-	"github.com/uber/cadence/testflags"
 )
 
 type (
@@ -72,19 +71,20 @@ type (
 var nowInt64 = time.Now().UnixNano()
 
 func TestDomainHandlerCommonSuite(t *testing.T) {
-	testflags.RequireCassandra(t)
-
 	if testing.Verbose() {
 		log.SetOutput(os.Stdout)
 	}
 
 	s := new(domainHandlerCommonSuite)
-
-	s.TestBase = public.NewTestBaseWithPublicCassandra(t, &persistencetests.TestBaseOptions{
-		ClusterMetadata: cluster.GetTestClusterMetadata(true),
-	})
-
+	s.setupTestBase(t)
 	suite.Run(t, s)
+}
+
+func (s *domainHandlerCommonSuite) setupTestBase(t *testing.T) {
+	sqliteTestBaseOptions := sqlite.GetTestClusterOption()
+	sqliteTestBaseOptions.ClusterMetadata = cluster.GetTestClusterMetadata(true)
+	s.TestBase = persistencetests.NewTestBaseWithSQL(t, sqliteTestBaseOptions)
+	s.Setup()
 }
 
 func (s *domainHandlerCommonSuite) TearDownSuite() {
@@ -92,7 +92,7 @@ func (s *domainHandlerCommonSuite) TearDownSuite() {
 }
 
 func (s *domainHandlerCommonSuite) SetupTest() {
-	s.Setup()
+	s.setupTestBase(s.T())
 
 	logger := s.Logger
 	dcCollection := dc.NewCollection(dc.NewNopClient(), logger)
