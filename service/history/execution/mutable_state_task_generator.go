@@ -660,7 +660,7 @@ func (r *mutableStateTaskGeneratorImpl) validateChildWorkflowParameters(msbDomai
 	//
 	// There is a limited exception for local domains, which do not suffer from this problem can be
 	// handled as an exception where the transfer task may be picked up by another domain in-cluster
-	// without risk of the child workflow may end up in a different cluster
+	// without risk of the child workflow may end up in a different cluster.
 	if thisDomain.IsGlobalDomain() || targetDomain.IsGlobalDomain() {
 		return &types.BadRequestError{
 			Message: fmt.Sprintf("The child workflow is "+
