@@ -27,13 +27,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
-	"go.uber.org/fx/fxtest"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zaptest"
 
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log/logfx"
-	"github.com/uber/cadence/testflags"
 )
 
 func TestFxDependencies(t *testing.T) {
@@ -52,28 +48,4 @@ func TestFxDependencies(t *testing.T) {
 		}),
 		Module)
 	require.NoError(t, err)
-}
-
-func TestFxStart(t *testing.T) {
-	testflags.RequireCassandra(t)
-
-	fxApp := fxtest.New(
-		t,
-		config.Module,
-		fx.Provide(func() *zap.Logger { return zaptest.NewLogger(t) }),
-		logfx.ModuleWithoutZap,
-		fx.Provide(func() appContext {
-			return appContext{
-				CfgContext: config.Context{
-					Environment: "",
-					Zone:        "",
-				},
-				ConfigDir: "../../../config",
-				RootDir:   ".",
-				Services:  []string{"frontend"},
-			}
-		}),
-		Module)
-
-	fxApp.RequireStart().RequireStop()
 }

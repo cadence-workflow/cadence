@@ -55,7 +55,7 @@ require (
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/thriftrw v1.29.2 // indirect
 	go.uber.org/yarpc v1.70.3 // indirect
-	go.uber.org/zap v1.13.0
+	go.uber.org/zap v1.13.0 // indirect
 	golang.org/x/net v0.26.0 // indirect
 	golang.org/x/sync v0.10.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
