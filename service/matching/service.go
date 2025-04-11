@@ -104,6 +104,7 @@ func (s *Service) Start() {
 		s.GetMembershipResolver(),
 		s.GetIsolationGroupState(),
 		s.GetTimeSource(),
+		s.GetActiveClusterManager(),
 	)
 
 	s.handler = handler.NewHandler(engine, s.config, s.GetDomainCache(), s.GetMetricsClient(), s.GetLogger(), s.GetThrottledLogger())

@@ -63,12 +63,11 @@ type (
 	}
 
 	stateRebuilderImpl struct {
-		shard           shard.Context
-		domainCache     cache.DomainCache
-		clusterMetadata cluster.Metadata
-		historyV2Mgr    persistence.HistoryManager
-		taskRefresher   MutableStateTaskRefresher
-
+		shard              shard.Context
+		domainCache        cache.DomainCache
+		clusterMetadata    cluster.Metadata
+		historyV2Mgr       persistence.HistoryManager
+		taskRefresher      MutableStateTaskRefresher
 		rebuiltHistorySize int64
 		logger             log.Logger
 	}
@@ -93,6 +92,7 @@ func NewStateRebuilder(
 			shard.GetDomainCache(),
 			shard.GetEventsCache(),
 			shard.GetShardID(),
+			logger,
 		),
 		rebuiltHistorySize: 0,
 		logger:             logger,

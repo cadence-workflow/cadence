@@ -36,6 +36,7 @@ import (
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/client"
@@ -97,6 +98,7 @@ type (
 		membershipResolver   membership.Resolver
 		isolationState       isolationgroup.State
 		timeSource           clock.TimeSource
+		activeClusterMgr     activecluster.Manager
 
 		waitForQueryResultFn func(hCtx *handlerContext, isStrongConsistencyQuery bool, queryResultCh <-chan *queryResult) (*types.QueryWorkflowResponse, error)
 	}
@@ -135,6 +137,7 @@ func NewEngine(
 	resolver membership.Resolver,
 	isolationState isolationgroup.State,
 	timeSource clock.TimeSource,
+	activeClusterMgr activecluster.Manager,
 ) Engine {
 
 	e := &matchingEngineImpl{
@@ -155,6 +158,7 @@ func NewEngine(
 		membershipResolver:   resolver,
 		isolationState:       isolationState,
 		timeSource:           timeSource,
+		activeClusterMgr:     activeClusterMgr,
 	}
 
 	e.shutdownCompletion.Add(1)
@@ -247,6 +251,7 @@ func (e *matchingEngineImpl) getTaskListManager(taskList *tasklist.Identifier, t
 		e.timeSource,
 		e.timeSource.Now(),
 		e.historyService,
+		e.activeClusterMgr,
 	)
 	if err != nil {
 		e.taskListsLock.Unlock()

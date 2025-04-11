@@ -116,9 +116,10 @@ func TestNewConfig(t *testing.T) {
 		"FailoverHistoryMaxSize": {dynamicproperties.FrontendFailoverHistoryMaxSize, 44},
 	}
 	client := dynamicconfig.NewInMemoryClient()
-	dc := dynamicconfig.NewCollection(client, testlogger.New(t))
+	logger := testlogger.New(t)
+	dc := dynamicconfig.NewCollection(client, logger)
 
-	config := NewConfig(dc, 1001, true, "hostname")
+	config := NewConfig(dc, 1001, true, "hostname", logger)
 
 	assertFieldsMatch(t, *config, client, fields)
 	assertFieldsMatch(t, config.DomainConfig, client, domainFields)

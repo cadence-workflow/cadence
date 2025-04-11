@@ -672,6 +672,14 @@ func (t *timerActiveTaskExecutor) executeActivityRetryTimerTask(
 
 	release(nil) // release earlier as we don't need the lock anymore
 
+	shouldPush, err := shouldPushToMatching(ctx, t.shard, task)
+	if err != nil {
+		return err
+	}
+	if !shouldPush {
+		return nil
+	}
+
 	_, err = t.shard.GetService().GetMatchingClient().AddActivityTask(ctx, &types.AddActivityTaskRequest{
 		DomainUUID:                    targetDomainID,
 		SourceDomainUUID:              domainID,
@@ -813,6 +821,9 @@ func (t *timerActiveTaskExecutor) updateWorkflowExecution(
 	}
 
 	now := t.shard.GetTimeSource().Now()
+	t.logger.Debugf("timerActiveTaskExecutor.updateWorkflowExecution calling UpdateWorkflowExecutionAsActive for wfID %s",
+		mutableState.GetExecutionInfo().WorkflowID,
+	)
 	err = wfContext.UpdateWorkflowExecutionAsActive(ctx, now)
 	if err != nil {
 		// if is shard ownership error, the shard context will stop the entire history engine

@@ -107,7 +107,7 @@ func main() {
 		}
 	})
 	go http.ListenAndServe(":6060", nil)
-	waitUntilDomainReady(logger, cadenceClient)
+	waitUntilDomainReady(logger, cadenceClient, simCfg)
 
 	workerOptions := worker.Options{
 		Identity:     simTypes.WorkerIdentityFor(*clusterName),
@@ -117,7 +117,7 @@ func main() {
 
 	w := worker.New(
 		cadenceClient,
-		simTypes.DomainName,
+		simCfg.Domain.Name,
 		simTypes.TasklistName,
 		workerOptions,
 	)
@@ -139,21 +139,21 @@ func main() {
 	logger.Sugar().Infof("Received signal: %v so terminating", sig)
 }
 
-func waitUntilDomainReady(logger *zap.Logger, client workflowserviceclient.Interface) {
+func waitUntilDomainReady(logger *zap.Logger, client workflowserviceclient.Interface, simCfg *simTypes.ReplicationSimulationConfig) {
 	for {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		_, err := client.DescribeDomain(ctx, &shared.DescribeDomainRequest{
-			Name: common.StringPtr(simTypes.DomainName),
+			Name: common.StringPtr(simCfg.Domain.Name),
 		})
 
 		cancel()
 		if err == nil {
-			logger.Info("Domain is ready", zap.String("domain", simTypes.DomainName))
+			logger.Info("Domain is ready", zap.String("domain", simCfg.Domain.Name))
 			atomic.StoreInt32(&ready, 1)
 			return
 		}
 
-		logger.Info("Domain not ready", zap.String("domain", simTypes.DomainName), zap.Error(err))
+		logger.Info("Domain not ready", zap.String("domain", simCfg.Domain.Name), zap.Error(err))
 		time.Sleep(2 * time.Second)
 	}
 }

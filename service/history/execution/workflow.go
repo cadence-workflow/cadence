@@ -26,7 +26,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
@@ -54,7 +56,9 @@ type (
 	}
 
 	workflowImpl struct {
-		clusterMetadata cluster.Metadata
+		logger               log.Logger
+		clusterMetadata      cluster.Metadata
+		activeClusterManager activecluster.Manager
 
 		ctx          context.Context
 		context      Context
@@ -67,18 +71,21 @@ type (
 func NewWorkflow(
 	ctx context.Context,
 	clusterMetadata cluster.Metadata,
+	activeClusterManager activecluster.Manager,
 	context Context,
 	mutableState MutableState,
 	releaseFn ReleaseFunc,
+	logger log.Logger,
 ) Workflow {
 
 	return &workflowImpl{
-		ctx:             ctx,
-		clusterMetadata: clusterMetadata,
-
-		context:      context,
-		mutableState: mutableState,
-		releaseFn:    releaseFn,
+		ctx:                  ctx,
+		clusterMetadata:      clusterMetadata,
+		activeClusterManager: activeClusterManager,
+		logger:               logger,
+		context:              context,
+		mutableState:         mutableState,
+		releaseFn:            releaseFn,
 	}
 }
 
@@ -182,10 +189,11 @@ func (r *workflowImpl) SuppressBy(
 		return TransactionPolicyPassive, nil
 	}
 
-	lastWriteCluster, err := r.clusterMetadata.ClusterNameForFailoverVersion(lastWriteVersion)
+	lookupResult, err := r.activeClusterManager.LookupFailoverVersion(lastWriteVersion, r.mutableState.GetExecutionInfo().DomainID)
 	if err != nil {
 		return TransactionPolicyActive, err
 	}
+	lastWriteCluster := lookupResult.ClusterName
 	currentCluster := r.clusterMetadata.GetCurrentClusterName()
 
 	if currentCluster == lastWriteCluster {
@@ -209,13 +217,16 @@ func (r *workflowImpl) FlushBufferedEvents() error {
 		return err
 	}
 
-	lastWriteCluster, err := r.clusterMetadata.ClusterNameForFailoverVersion(lastWriteVersion)
+	lookupResult, err := r.activeClusterManager.LookupFailoverVersion(lastWriteVersion, r.mutableState.GetExecutionInfo().DomainID)
 	if err != nil {
+		// TODO: add a test for this
 		return err
 	}
+	lastWriteCluster := lookupResult.ClusterName
 	currentCluster := r.clusterMetadata.GetCurrentClusterName()
 
 	if lastWriteCluster != currentCluster {
+		// TODO: add a test for this
 		return &types.InternalServiceError{
 			Message: "nDCWorkflow encounter workflow with buffered events but last write not from current cluster",
 		}
@@ -230,6 +241,8 @@ func (r *workflowImpl) failDecision(
 ) error {
 
 	// do not persist the change right now, NDC requires transaction
+	r.logger.Debugf("failDecision calling UpdateCurrentVersion for domain %s, wfID %v, lastWriteVersion %v",
+		r.mutableState.GetExecutionInfo().DomainID, r.mutableState.GetExecutionInfo().WorkflowID, lastWriteVersion)
 	if err := r.mutableState.UpdateCurrentVersion(lastWriteVersion, true); err != nil {
 		return err
 	}
@@ -260,6 +273,8 @@ func (r *workflowImpl) terminateWorkflow(
 	}
 
 	// do not persist the change right now, NDC requires transaction
+	r.logger.Debugf("terminateWorkflow calling UpdateCurrentVersion for domain %s, wfID %v, lastWriteVersion %v",
+		r.mutableState.GetExecutionInfo().DomainID, r.mutableState.GetExecutionInfo().WorkflowID, lastWriteVersion)
 	if err := r.mutableState.UpdateCurrentVersion(lastWriteVersion, true); err != nil {
 		return err
 	}

@@ -1,0 +1,49 @@
+# This file is a replication simulation scenario spec.
+# It is parsed into ReplicationSimulationConfig struct.
+# Replication simulation for this file can be run via ./simulation/replication/run.sh activeactive
+# Dynamic config overrides can be set via config/dynamicconfig/replication_simulation_activeactive.yml
+clusters:
+  cluster0:
+    grpcEndpoint: "cadence-cluster0:7833"
+  cluster1:
+    grpcEndpoint: "cadence-cluster1:7833"
+
+# primaryCluster is where domain data is written to and replicates to others. e.g. domain registration
+primaryCluster: "cluster0"
+
+domain:
+  name: test-domain-aa
+  activeClusters:
+  - cluster0
+  - cluster1
+
+operations:
+  - op: start_workflow
+    at: 0s
+    workflowID: wf1
+    cluster: cluster0
+    workflowDuration: 60s
+
+  - op: start_workflow
+    at: 0s
+    workflowID: wf2
+    cluster: cluster1
+    workflowDuration: 60s
+
+  - op: validate
+    at: 70s
+    workflowID: wf1
+    cluster: cluster0
+    want:
+      status: completed
+      startedByWorkersInCluster: cluster0
+      completedByWorkersInCluster: cluster1 # it should complete in cluster1 because of fake logic in activecluster/manager.go
+
+  - op: validate
+    at: 70s
+    workflowID: wf2
+    cluster: cluster1
+    want:
+      status: completed
+      startedByWorkersInCluster: cluster1
+      completedByWorkersInCluster: cluster1

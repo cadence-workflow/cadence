@@ -52,6 +52,11 @@ func ActiveClusterName(activeClusterName string) Tag {
 	return newStringTag("active-cluster-name", activeClusterName)
 }
 
+// ActiveClusterChangeType returns tag for ActiveClusterChangeType.
+func ActiveClusterChangeType(changeType string) Tag {
+	return newStringTag("active-active-change-type", changeType)
+}
+
 // Timestamp returns tag for Timestamp
 func Timestamp(timestamp time.Time) Tag {
 	return newTimeTag("timestamp", timestamp)
@@ -652,6 +657,11 @@ func QueueSplitPolicyType(policyType int) Tag {
 // TaskID returns tag for TaskID
 func TaskID(taskID int64) Tag {
 	return newInt64("queue-task-id", taskID)
+}
+
+// TaskCategory returns tag for TaskCategory
+func TaskCategory(categoryID int) Tag {
+	return newInt("queue-task-category", categoryID)
 }
 
 // TaskType returns tag for TaskType for queue processor

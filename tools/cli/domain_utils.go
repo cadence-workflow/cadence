@@ -364,13 +364,9 @@ func initializeLogger(
 }
 
 func initializeClusterMetadata(serviceConfig *config.Config, metrics metrics.Client, logger log.Logger) cluster.Metadata {
-
 	clusterGroupMetadata := serviceConfig.ClusterGroupMetadata
 	return cluster.NewMetadata(
-		clusterGroupMetadata.FailoverVersionIncrement,
-		clusterGroupMetadata.PrimaryClusterName,
-		clusterGroupMetadata.CurrentClusterName,
-		clusterGroupMetadata.ClusterGroup,
+		*clusterGroupMetadata,
 		func(d string) bool { return false },
 		metrics,
 		logger,

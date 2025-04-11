@@ -105,6 +105,16 @@ func (m *domainManagerImpl) GetDomain(
 	if internalResp.FailoverEndTime != nil {
 		resp.FailoverEndTime = common.Int64Ptr(internalResp.FailoverEndTime.UnixNano())
 	}
+
+	// TODO: remove this after API & persistence layer supports ActiveClusters
+	if resp.Info.Name == "test-domain-aa" {
+		for _, cl := range resp.ReplicationConfig.Clusters {
+			resp.ReplicationConfig.ActiveClusters = append(resp.ReplicationConfig.ActiveClusters, &ClusterReplicationConfig{
+				ClusterName: cl.ClusterName,
+			})
+		}
+	}
+
 	return resp, nil
 }
 
@@ -176,6 +186,16 @@ func (m *domainManagerImpl) ListDomains(
 		if d.FailoverEndTime != nil {
 			currResp.FailoverEndTime = common.Int64Ptr(d.FailoverEndTime.UnixNano())
 		}
+
+		// TODO: remove this after API & persistence layer supports ActiveClusters
+		if d.Info.Name == "test-domain-aa" {
+			for _, cl := range currResp.ReplicationConfig.Clusters {
+				currResp.ReplicationConfig.ActiveClusters = append(currResp.ReplicationConfig.ActiveClusters, &ClusterReplicationConfig{
+					ClusterName: cl.ClusterName,
+				})
+			}
+		}
+
 		domains = append(domains, currResp)
 	}
 	return &ListDomainsResponse{
