@@ -38,6 +38,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/codec"
+	"github.com/uber/cadence/common/persistence"
 	p "github.com/uber/cadence/common/persistence"
 	persistenceutils "github.com/uber/cadence/common/persistence/persistence-utils"
 	"github.com/uber/cadence/common/types"
@@ -87,6 +88,31 @@ func (s *HistoryV2PersistenceSuite) SetupSuite() {
 	}
 }
 
+func (s *HistoryV2PersistenceSuite) AfterTest(_, _ string) {
+	// ensure there's no leftover trees in the database
+	// between tests
+	if os.Getenv("SKIP_SCAN_HISTORY") != "" {
+		s.T().Skipf("GetAllHistoryTreeBranches not supported in %v", s.TaskMgr.GetName())
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), largeTestContextTimeout)
+	defer cancel()
+
+	resp, err := s.HistoryV2Mgr.GetAllHistoryTreeBranches(ctx, &p.GetAllHistoryTreeBranchesRequest{
+		PageSize: 1,
+	})
+	s.Nil(err)
+	for _, br := range resp.Branches {
+		branchToken, err := persistence.NewHistoryBranchToken(br.TreeID)
+		s.Nil(err)
+
+		s.HistoryV2Mgr.DeleteHistoryBranch(ctx, &p.DeleteHistoryBranchRequest{
+			BranchToken: branchToken,
+		})
+		s.Nil(err)
+	}
+	s.Equal(0, len(resp.Branches), "some trees were leaked in other tests")
+}
+
 // SetupTest implementation
 func (s *HistoryV2PersistenceSuite) SetupTest() {
 	// Have to define our overridden assertions in the test setup. If we did it earlier, s.T() will return nil
@@ -122,17 +148,8 @@ func (s *HistoryV2PersistenceSuite) TestGenUUIDs() {
 
 // TestScanAllTrees test
 func (s *HistoryV2PersistenceSuite) TestScanAllTrees() {
-	if os.Getenv("SKIP_SCAN_HISTORY") != "" {
-		s.T().Skipf("GetAllHistoryTreeBranches not supported in %v", s.TaskMgr.GetName())
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), largeTestContextTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
 	defer cancel()
-
-	resp, err := s.HistoryV2Mgr.GetAllHistoryTreeBranches(ctx, &p.GetAllHistoryTreeBranchesRequest{
-		PageSize: 1,
-	})
-	s.Nil(err)
-	s.Equal(0, len(resp.Branches), "some trees were leaked in other tests")
 
 	trees := map[string]bool{}
 	totalTrees := 1002
