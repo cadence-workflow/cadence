@@ -29,6 +29,7 @@ import (
 	"strings"
 
 	"github.com/urfave/cli/v2"
+	_ "go.uber.org/automaxprocs" // defines automaxpocs for dockerized usage.
 	"go.uber.org/fx"
 
 	"github.com/uber/cadence/common/client"
