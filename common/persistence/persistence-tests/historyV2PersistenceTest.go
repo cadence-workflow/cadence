@@ -107,7 +107,7 @@ func (s *HistoryV2PersistenceSuite) AfterTest(_, _ string) {
 
 		s.HistoryV2Mgr.DeleteHistoryBranch(ctx, &p.DeleteHistoryBranchRequest{
 			BranchToken: branchToken,
-			ShardID: common.IntPtr(0),
+			ShardID:     common.IntPtr(0),
 		})
 		s.Nil(err)
 	}
