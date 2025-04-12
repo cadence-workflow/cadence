@@ -102,7 +102,7 @@ func (s *HistoryV2PersistenceSuite) AfterTest(_, _ string) {
 	})
 	s.Nil(err)
 	for _, br := range resp.Branches {
-		branchToken, err := persistence.NewHistoryBranchToken(br.TreeID)
+		branchToken, err := persistence.NewHistoryBranchTokenByBranchID(br.TreeID, br.BranchID)
 		s.Nil(err)
 
 		s.HistoryV2Mgr.DeleteHistoryBranch(ctx, &p.DeleteHistoryBranchRequest{
