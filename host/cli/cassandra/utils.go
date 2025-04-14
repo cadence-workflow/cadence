@@ -27,7 +27,8 @@ import (
 )
 
 // NOTE: change this when moving the test files around during refactoring
-const rootRelativePath = "../../../../../../"
+// Path to root folder of cadence repo
+const rootRelativePath = "../../../"
 
 func NewTestCQLClient(keyspace string) (cassandra.CqlClient, error) {
 	protoVersion, err := environment.GetCassandraProtoVersion()

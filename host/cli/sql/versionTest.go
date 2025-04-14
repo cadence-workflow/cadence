@@ -18,15 +18,13 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package clitest
+package sql
 
 import (
 	"fmt"
 	"io/ioutil"
 	"math/rand"
 	"os"
-	"path"
-	"runtime"
 	"strconv"
 	"time"
 
@@ -65,11 +63,8 @@ func (s *VersionTestSuite) SetupTest() {
 func (s *VersionTestSuite) TestVerifyCompatibleVersion() {
 	database := "cadence_test"
 	visDatabase := "cadence_visibility_test"
-	_, filename, _, ok := runtime.Caller(0)
-	s.True(ok)
-	root := path.Dir(path.Dir(path.Dir(path.Dir(filename))))
-	sqlFile := path.Join(root, "schema/mysql/v8/cadence/schema.sql")
-	visSQLFile := path.Join(root, "schema/mysql/v8/visibility/schema.sql")
+	sqlFile := rootRelativePath + "schema/mysql/v8/cadence/schema.sql"
+	visSQLFile := rootRelativePath + "schema/mysql/v8/visibility/schema.sql"
 
 	defer s.createDatabase(database)()
 	defer s.createDatabase(visDatabase)()
