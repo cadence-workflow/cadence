@@ -107,7 +107,7 @@ func domainRRHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.Cal
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		debugLog("Error checking domain resilience: %v, %s\n", err, string(output))
-		return mcp.NewToolResultText("Error checking domain resilience: " + err.Error() + "\n" + string(output)), nil
+		return mcp.NewToolResultError("Error checking domain resilience: " + err.Error() + "\n" + string(output)), nil
 	}
 
 	// parse the output of the cadence CLI
@@ -144,7 +144,7 @@ func payloadDecoderHandler(ctx context.Context, request mcp.CallToolRequest) (*m
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		debugLog("Error decoding payload: %v, %s\n", err, string(output))
-		return mcp.NewToolResultText("Error decoding payload: " + err.Error() + "\n" + string(output)), nil
+		return mcp.NewToolResultError("Error decoding payload: " + err.Error() + "\n" + string(output)), nil
 	}
 
 	return mcp.NewToolResultText(string(output)), nil
