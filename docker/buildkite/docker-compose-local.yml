@@ -92,7 +92,7 @@ services:
     build:
       context: ../../
       dockerfile: ./docker/buildkite/Dockerfile
-    command: sh -c "make .just-build && make install-schema && make cover_profile"
+    command: sh -c "make .just-build && make cover_profile"
     environment:
       # keep them to be sure that tests requiring dependencies are not skipped
       - "CASSANDRA=1"
