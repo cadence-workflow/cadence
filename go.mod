@@ -72,7 +72,7 @@ require (
 require (
 	github.com/flynn/go-shlex v0.0.0-20150515145356-3f9db97f8568
 	github.com/google/gofuzz v1.0.0
-	github.com/mark3labs/mcp-go v0.17.0
+	github.com/mark3labs/mcp-go v0.18.0
 	github.com/ncruces/go-sqlite3 v0.22.0
 	go.uber.org/mock v0.5.0
 )
