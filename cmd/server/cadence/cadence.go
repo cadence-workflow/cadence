@@ -29,13 +29,14 @@ import (
 	"strings"
 
 	"github.com/urfave/cli/v2"
-	_ "go.uber.org/automaxprocs" // defines automaxpocs for dockerized usage.
 	"go.uber.org/fx"
 
 	"github.com/uber/cadence/common/client"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log/logfx"
 	"github.com/uber/cadence/common/service"
+
+	_ "go.uber.org/automaxprocs" // defines automaxpocs for dockerized usage.
 )
 
 // validServices is the list of all valid cadence services
