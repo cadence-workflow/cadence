@@ -22,8 +22,6 @@
 
 package log
 
-import "time"
-
 // Option is used to set options for the logger.
 type Option func(impl *loggerImpl)
 
@@ -31,11 +29,5 @@ type Option func(impl *loggerImpl)
 func WithSampleFunc(fn func(int) bool) Option {
 	return func(impl *loggerImpl) {
 		impl.sampleLocalFn = fn
-	}
-}
-
-func WithDebugCheckInterval(interval time.Duration) Option {
-	return func(impl *loggerImpl) {
-		impl.debugCheckInterval = interval
 	}
 }

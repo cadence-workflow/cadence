@@ -25,7 +25,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
@@ -197,21 +196,18 @@ func TestDebugOn(t *testing.T) {
 		EncodeDuration: zapcore.StringDurationEncoder,
 	}), zapcore.AddSync(buf), l))
 
-	logger := NewLogger(zapLogger, WithDebugCheckInterval(time.Millisecond))
+	logger := NewLogger(zapLogger)
 
 	// Set level to debug and check if debugOn is true
 	l.SetLevel(zap.DebugLevel)
-	time.Sleep(time.Millisecond)
 	assert.True(t, logger.DebugOn())
 
 	// Set level to info and check if debugOn is false
 	l.SetLevel(zap.InfoLevel)
-	time.Sleep(time.Millisecond)
 	assert.False(t, logger.DebugOn())
 
 	// Set level to debug again and check if debugOn is true
 	l.SetLevel(zap.DebugLevel)
-	time.Sleep(time.Millisecond)
 	assert.True(t, logger.DebugOn())
 }
 
