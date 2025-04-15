@@ -102,8 +102,13 @@ clusterGroupMetadata:
             region: us-west
         cluster1:
             initialFailoverVersion: 2
+            region: us-west
+        cluster2:
+            initialFailoverVersion: 4
             region: us-east
-            ...
+        cluster3:
+            initialFailoverVersion: 6
+            region: eu-west
 ```
 
 
@@ -150,17 +155,74 @@ The lookup source "custom.user-location-provider" is a custom provider that can 
 
 Workflow start request determines which cluster selection strategy to be used.
 
-| Has active-region.lookup-key | Has active-region.origin | Strategy |
-|------------------------------|-------------------------|----------|
-| No                           | No                      | Type 1   |
-| No                           | Yes                     | Type 1   |
-| Yes                          | No                      | Type 2   |
+If both `active-region.lookup-source` and `active-region.lookup-key` are set, then the workflow will be associated with the entity specified and the active cluster will be determined based on that entity's region.
 
-If none of the new parameters are set, the default behavior is to pick the cluster that received the start workflow request.
-It's not allowed to have both active-region.lookup-key and active-region.origin set.
+Otherwise, the default behavior is to pick the cluster that received the start workflow request.
+
+### Workflow activeness metadata in execution table
+A new row will be added to executions table as part of StartWorkflow LWT for active-active-domains. It will grab external entity source/key info from workflow’s headers if provided. If no such header is provided then current cluster’s region is stored as origin. These records are immutable and are replicated as part of regular per-shard replication tasks.
+
+| Shard | RowType | Domain | WFID | RunID | Data |
+|-------|---------|--------|------|-------|------|
+| 1     | ActivenessMetadata | test-domain | wf1 | 123 | Origin=us-west |
+| 2     | ActivenessMetadata | test-domain | wf2 | 456 | EntityType=user-location, EntityKey=london |
+
+
+In the above example:
+- `wf1` is created on us-west. No external entity associations exist. Its tasks will have failover version of the active cluster in us-west specified in domain's `RegionToClusterMap` which is 0.
+- `wf2` is created with an external entity association. Its tasks will have failover version of following row in `EntityActiveRegion` table:
+<type=user-location, key=london> which is 5. Its tasks will be processed by cluster3 because version 5 maps to us-east region and cluster3 is active in us-east.
+- `wf3` is a long running workflow which was created when the domain was active-passive (migrated to active-active later on). It doesn't have an activeness metadata row in the executions table. Its existing tasks already have failover version of the cluster that it was active in so it will continue to be active in that cluster.
+
+TODO: How to come up with such version when loading mutable state of `wf3`?
+
+
+### Domain records
+
+Domain records will have a new field called ActiveClusters which contains the information about region to cluster mapping and failover versions of the clusters. Active-active domains will have this field set and ActiveClusterName field will be empty.
+Active-passive domains will not have this field set and ActiveClusterName field will be set.
+
+```
+{
+	// Clusters can be a subset of clusters in the group.
+	Clusters: 	    [us-west, us-east, eu-west, eu-central]
+
+	// Active clusters can have at most one from each region. Remaining clusters will be considered passive.
+	ActiveClusters:  {
+        RegionToClusterMap: {
+            us-west: {
+                ActiveClusterName: cluster0,
+                FailoverVersion: 0, # failover version of cluster0.
+            },
+            us-east: {
+                ActiveClusterName: cluster3,
+                FailoverVersion: 6, # failover version of cluster3.
+            },
+        },
+    }
+}
+```
+
+**RegionToClusterMap:**
+
+A map of regions to clusters that the domain can have active workflows in. It's initially formed based on cluster group configuration and given active clusters of the domain. Each region that the domain is active in will have an entry in this map.
+
+Workflow task versions are assigned based on the failover version of the region that their associated entity belongs to.
+If there's no entity associated with a workflow, then the task version is assigned based on the failover version of the region that the workflow is created on.
+
+Active-passive domains can be turned into active-active domains by setting the ActiveClusters field. There can be open workflows with task versions mapping to a cluster failover version instead of a region failover version. Mapping logic will support this fallback to support migration from active-passive to active-active domains.
+
+e.g.
+A long running workflow of an active-passive domain has task in the queue with version 0. This is supposed to be active in cluster0.
+If we make this domain active-active, the task version should resolve to:
+- cluster0 if domain is active in cluster0 (direct mapping).
+- cluster1 if domain is active in cluster1 (fallback to active cluster of the region).
+- if domain has no active cluster in the region, then it's a resolution error and the task will not be processed as active anywhere.
 
 
 ### EntityActiveRegion Lookup Table
+This table is used to lookup the active cluster of a workflow based on the entity that the workflow is associated with.
+
 - Primary key of the table is <EntityType, EntityKey>
 - A new plugin system will be introduced to watch supported entity types and populate the table
 - Watchers are per cluster group
@@ -178,42 +240,130 @@ It's not allowed to have both active-region.lookup-key and active-region.origin 
 | user-location | boston    | us-east    | 3                |             |
 | user-location | london    | eu-west    | 5                |             |
 | user-location | frankfurt | eu-central    | 7                |             |
-| user-location | ..        | ..         | ..               |             |
-| domain | test-domain.us-west         | us-west     | 1               |             |
-| domain | test-domain.us-east         | us-east     | 3               |             |
-| domain | test-domain.eu-west         | eu-west     | 5               |             |
-| domain | test-domain.eu-central     | eu-central  | 7               |             |
 
 
-### Workflow activeness metadata in execution table
-A new row will be added to executions table as part of StartWorkflow LWT for active-active-domains. It will grab external entity lookup info from workflow’s headers if provided. If no such header is provided then current cluster’s region is stored as origin. These records are immutable and are replicated as part of regular per-shard replication tasks.
+This table is not domain specific so failover versions are not the failover versions of a cluster but instead the failover versions of a region. Region to cluster mapping is specific to domain.
 
-| Shard | RowType | Domain | WFID | RunID | Data |
-|-------|---------|--------|------|-------|------|
-| 1     | ActivenessMetadata | test-domain | wf1 | 123 | Origin=us-west |
-| 2     | ActivenessMetadata | test-domain | wf2 | 456 | EntityType=user-location, EntityKey=london |
+Workflows associated with an entity will have task versions as indicated in the table above. Since these workflows are bound to a region, we cannot use the cluster failover versions.
 
 
-In the above example:
-- `wf1` is created on us-west. No external entity associations exist. Its tasks will have failover version of the
-<type=domain, key=test-domain.us-west> which is 1.
-- `wf2` is created with an external entity. Its tasks will have failover version of following row
-<type=user-location, key=london> which is 5.
 
+### Failover scenarios
 
-### Domain configuration
+**1. Regional failover (disabling a region):**
+This is a typical operation when the operator updates `ActiveClusterName` field in the domain record to failover the active-passive domain to one of the passive clusters.
+It's called cluster failover because of active-passive domains where only one cluster can be active.
 
-Domain configuration will have a new field called ActiveClusters which is a list of clusters that workflows of the domain can be active in. Active-active domains will have this field set. Active-passive domains will not have this field set.
+In the active-active domain context, this operation will be done by updating `ActiveClusters` field in the domain record. Arbitrary changes can be made to the `ActiveClusters` field as long as following criterias are satisfied
+- it's a subset of clusters in the cluster group.
+- it has at most one active cluster per region.
 
+For example, let's say we want to failover cluster0 to cluster3. (us-west -> us-east).
+
+Before failover:
 ```
-{
-	// Clusters can be a subset of clusters in the group.
-	Clusters: 	    [us-west, us-east, eu-west, eu-central]
-
-	// Active clusters can have at most one from each region. Remaining clusters will be considered passive.
-	ActiveClusters:  [us-west, eu-west]
+ActiveClusters:  {
+    RegionToClusterMap: {
+        us-west: {
+            ActiveClusterName: cluster0,
+            FailoverVersion: 1,
+        },
+        us-east: {
+            ActiveClusterName: cluster3,
+            FailoverVersion: 3,
+        },
+    },
 }
 ```
+
+After failover:
+```
+ActiveClusters:  {
+    RegionToClusterMap: {
+        us-west: { // failover version of us-west region is changed to 3 so that it maps to us-east region.
+            ActiveClusterName: cluster3,
+            FailoverVersion: 3,
+        },
+        us-east: {
+            ActiveClusterName: cluster3,
+            FailoverVersion: 3,
+        },
+    },
+}
+```
+
+Failover version to cluster mapping:
+- Workflows whose task version resolves to region us-west will start using version 3 from now on.
+- Workflows whose task version resolves to region us-east will continue using version 3.
+
+
+**2. Within region failover (changing active cluster of a region):**
+
+In the example active-active domain above, the cluster0 & cluster1 are available in us-west region and cluster0 is active.
+
+If we want to failover from cluster0 to cluster1, then we need to update the `RegionToClusterMap` in the domain record and replace cluster0 with cluster1.
+
+Before failover:
+```
+ActiveClusters:  {
+    RegionToClusterMap: {
+        us-west: {
+            ActiveClusterName: cluster0,
+            FailoverVersion: 1,
+        },
+        us-east: {
+            ActiveClusterName: cluster3,
+            FailoverVersion: 3,
+        },
+    },
+}
+```
+
+After failover:
+```
+ActiveClusters:  {
+    RegionToClusterMap: {
+        us-west: {
+            ActiveClusterName: cluster1,
+            FailoverVersion: 2,
+        },
+        us-east: {
+            ActiveClusterName: cluster3,
+            FailoverVersion: 3,
+        },
+    },
+}
+```
+
+Failover version to cluster mapping:
+- Workflows whose task version resolves to region us-west will start using version 2 from now on.
+- Workflows whose task version resolves to region us-east will continue using version 3.
+
+
+**3. Entity failover:**
+
+The external entity support is optional. If no entity is provided, the workflow will be associated with the region that the workflow is created on and they will be failed over as explained in the previous section.
+
+If an external entity is provided for a workflow, then it can be failed over by updating the corresponding record in `EntityActiveRegion` lookup table.
+
+Let's say we want to failover the entity with key "seattle" to region us-east so it gets processed by cluster3.
+
+Before failover:
+| EntityType | EntityKey | Region | Failover Version | LastUpdated |
+|------------|-----------|--------|------------------|-------------|
+| user-location | seattle   | us-west    | 1                |             |
+
+After failover:
+| EntityType | EntityKey | Region | Failover Version | LastUpdated |
+|------------|-----------|--------|------------------|-------------|
+| user-location | seattle   | us-east    | 3                |             |
+
+Notice that the failover version is updated to 3. This means that all workflows associated with this entity will be considered active in us-east region from now on. Since there can only be one active cluster per region, the coresponding workflows will be active in cluster3.
+
+Failover version to cluster mapping:
+There's no change in the failover version to cluster mapping in entity failovers. Same versions map to same clusters as before.
+However, new task versions of workflows belonging to "seattle" entity will be 3 from now on and therefore they will be active in cluster3.
+
 
 ### API Call Forwarding
 
