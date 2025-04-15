@@ -107,6 +107,7 @@ func (s *testCluster) Config() config.Persistence {
 		},
 		TransactionSizeLimit: dynamicproperties.GetIntPropertyFn(constants.DefaultTransactionSizeLimit),
 		ErrorInjectionRate:   dynamicproperties.GetFloatPropertyFn(0),
+		NumHistoryShards:     s.cfg.NumShards,
 	}
 }
 
