@@ -44,7 +44,7 @@ const (
 )
 
 // Manager is the interface for active cluster manager.
-// It is used to lookup active cluster, cluster name and failover versions.
+// It is used to lookup region, active cluster, cluster name and failover version etc.
 // This was introduced to support active-active domains.
 // It encapsulates the logic to lookup the active cluster for all kinds of domains. Most other components should use this interface instead of cluster metadata directly.
 // It is also used to notify components when there's an external entity change. History engine subscribes to these updates similar to domain change notifications.

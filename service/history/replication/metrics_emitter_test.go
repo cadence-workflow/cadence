@@ -140,9 +140,8 @@ func (t testShardData) GetClusterMetadata() cluster.Metadata {
 func newClusterMetadata(t *testing.T) cluster.Metadata {
 	return cluster.NewMetadata(
 		config.ClusterGroupMetadata{
-			FailoverVersionIncrement: 1,
-			PrimaryClusterName:       cluster1,
-			CurrentClusterName:       cluster1,
+			PrimaryClusterName: cluster1,
+			CurrentClusterName: cluster1,
 			ClusterGroup: map[string]config.ClusterInformation{
 				cluster1: {Enabled: true},
 				cluster2: {Enabled: true},

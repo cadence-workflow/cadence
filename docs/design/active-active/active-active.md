@@ -33,7 +33,7 @@ The main drawbacks of Active-Passive approach are:
 
 ## Design
 
-Active-active domains are a new mode of isolation where domain is active in multiple clusters but individual workflows are only active in one cluster at any given time. Users can create workflows in any of the active clusters under the same domain. Each workflow will be considered active in of the domain's active clusters. The per-workflow active cluster selection mechanism will be dynamic/extensible to support different strategies.
+Active-active domains are a new mode of isolation where domain is active in multiple clusters but individual workflows are only active in one cluster at any given time. Users can create workflows in any of the active clusters under the same domain. Each workflow will be considered active in one of the domain's active clusters. The per-workflow active cluster selection mechanism will be dynamic/extensible to support different strategies.
 
 Before diving into the details of active-active domains design, let's look at how active-passive domains work at high level. Then we will cover how active-active domains will be implemented in follow up sections.
 
@@ -82,7 +82,7 @@ There's no "region" concept in Cadence today. However, with active-active domain
 
 ![Active-Active One Cluster Per Region](./active-active-one-cluster-per-region.png)
 
-The underlying reason for these constraints is mainly to reuse existing failover version to cluster mapping that relies on failover versions. By restricting active-active domains to have only one active cluster per region, we can reuse the failover version mapping mechanism to determine the active cluster of a workflow.
+The underlying reason for these constraints is mainly to reuse existing failover version to cluster mapping that relies on failover versions. By restricting active-active workflows of active-active domains to have only one active cluster per region, we can reuse the failover version mapping mechanism to determine the active cluster of a workflow.
 
 Active-active domains do NOT have a failover version in the database because "activeness" is not a property of a domain. Instead, workflows of active-active domains will be associated with an "entity" which has a failover version based on the region.
 
@@ -153,8 +153,8 @@ Workflow start request determines which cluster selection strategy to be used.
 | Has active-region.lookup-key | Has active-region.origin | Strategy |
 |------------------------------|-------------------------|----------|
 | No                           | No                      | Type 1   |
-| Yes                          | No                      | Type 1   |
-| No                           | Yes                     | Type 2   |
+| No                           | Yes                     | Type 1   |
+| Yes                          | No                      | Type 2   |
 
 If none of the new parameters are set, the default behavior is to pick the cluster that received the start workflow request.
 It's not allowed to have both active-region.lookup-key and active-region.origin set.
