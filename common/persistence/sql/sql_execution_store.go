@@ -1007,8 +1007,8 @@ func (m *sqlExecutionStore) CreateFailoverMarkerTasks(
 }
 
 type timerTaskPageToken struct {
-	TaskID    int64
-	Timestamp time.Time
+	TaskID    int64     `json:"TaskID"`    // CAUTION: JSON format is used in replication, this should not be changed without great care
+	Timestamp time.Time `json:"Timestamp"` // CAUTION: JSON format is used in replication, this should not be changed without great care
 }
 
 func (t *timerTaskPageToken) serialize() ([]byte, error) {
