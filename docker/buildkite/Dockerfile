@@ -40,6 +40,7 @@ WORKDIR /cadence
 
 # Copy go mod dependencies and try to share the module download cache
 COPY go.* /cadence
+COPY internal/tools/go.* /cadence/internal/tools/
 COPY cmd/server/go.* /cadence/cmd/server/
 COPY common/archiver/gcloud/go.* /cadence/common/archiver/gcloud/
 # go.work means this downloads everything, not just the top module
