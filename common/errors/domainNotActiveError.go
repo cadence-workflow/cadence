@@ -22,6 +22,7 @@ package errors
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/uber/cadence/common/types"
 )
@@ -32,6 +33,8 @@ func NewDomainNotActiveError(domainName string, currentCluster string, activeClu
 	if len(activeClusters) == 1 {
 		activeCluster = activeClusters[0]
 	}
+	// ensure predictable order in the error.
+	slices.Sort(activeClusters)
 	return &types.DomainNotActiveError{
 		Message: fmt.Sprintf(
 			"Domain: %s is active in cluster(s): %v, while current cluster %s is a standby cluster.",
