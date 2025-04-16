@@ -337,6 +337,3 @@ networks:
   services-network:
     name: services-network
     driver: bridge
-
-volumes:
-  go-modules: # Define the volume
