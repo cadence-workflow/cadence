@@ -20,34 +20,18 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-package cadence
+package testlogger
 
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
+	"go.uber.org/fx/fxtest"
 
-	"github.com/uber/cadence/common/config"
-	"github.com/uber/cadence/common/dynamicconfig/dynamicconfigfx"
-	"github.com/uber/cadence/common/log/logfx"
+	"github.com/uber/cadence/common/log"
 )
 
-func TestFxDependencies(t *testing.T) {
-	err := fx.ValidateApp(config.Module,
-		logfx.Module,
-		dynamicconfigfx.Module,
-		fx.Provide(func() appContext {
-			return appContext{
-				CfgContext: config.Context{
-					Environment: "",
-					Zone:        "",
-				},
-				ConfigDir: "",
-				RootDir:   "",
-				Services:  []string{"frontend"},
-			}
-		}),
-		Module)
-	require.NoError(t, err)
+func TestModule(t *testing.T) {
+	app := fxtest.New(t, Module(t), fx.Invoke(func(logger log.Logger) {}))
+	app.RequireStart().RequireStop()
 }

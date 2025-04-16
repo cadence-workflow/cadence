@@ -30,6 +30,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql"
 	"github.com/uber/cadence/tools/cassandra"
@@ -47,21 +48,23 @@ var Module = fx.Options(
 type AppParams struct {
 	fx.In
 
-	RootDir    string   `name:"root-dir"`
-	Services   []string `name:"services"`
-	AppContext config.Context
-	Config     config.Config
-	Logger     log.Logger
-	LifeCycle  fx.Lifecycle
+	RootDir       string   `name:"root-dir"`
+	Services      []string `name:"services"`
+	AppContext    config.Context
+	Config        config.Config
+	Logger        log.Logger
+	LifeCycle     fx.Lifecycle
+	DynamicConfig dynamicconfig.Client
 }
 
 // NewApp created a new Application from pre initalized config and logger.
 func NewApp(params AppParams) *App {
 	app := &App{
-		cfg:      params.Config,
-		rootDir:  params.RootDir,
-		logger:   params.Logger,
-		services: params.Services,
+		cfg:           params.Config,
+		rootDir:       params.RootDir,
+		logger:        params.Logger,
+		services:      params.Services,
+		dynamicConfig: params.DynamicConfig,
 	}
 	params.LifeCycle.Append(fx.Hook{OnStart: app.Start, OnStop: app.Stop})
 	return app
@@ -70,21 +73,16 @@ func NewApp(params AppParams) *App {
 // App is a fx application that registers itself into fx.Lifecycle and runs.
 // It is done implicitly, since it provides methods Start and Stop which are picked up by fx.
 type App struct {
-	cfg     config.Config
-	rootDir string
-	logger  log.Logger
+	cfg           config.Config
+	rootDir       string
+	logger        log.Logger
+	dynamicConfig dynamicconfig.Client
 
 	daemons  []common.Daemon
 	services []string
 }
 
 func (a *App) Start(_ context.Context) error {
-	if a.cfg.DynamicConfig.Client == "" {
-		a.cfg.DynamicConfigClient.Filepath = constructPathIfNeed(a.rootDir, a.cfg.DynamicConfigClient.Filepath)
-	} else {
-		a.cfg.DynamicConfig.FileBased.Filepath = constructPathIfNeed(a.rootDir, a.cfg.DynamicConfig.FileBased.Filepath)
-	}
-
 	if err := a.cfg.ValidateAndFillDefaults(); err != nil {
 		return fmt.Errorf("config validation failed: %w", err)
 	}
@@ -99,7 +97,7 @@ func (a *App) Start(_ context.Context) error {
 
 	var daemons []common.Daemon
 	for _, svc := range a.services {
-		server := newServer(svc, a.cfg, a.logger)
+		server := newServer(svc, a.cfg, a.logger, a.dynamicConfig)
 		daemons = append(daemons, server)
 		server.Start()
 	}

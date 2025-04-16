@@ -45,7 +45,6 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
-	"github.com/uber/cadence/common/dynamicconfig/configstore"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/elasticsearch"
 	"github.com/uber/cadence/common/isolationgroup/isolationgroupapi"
@@ -56,7 +55,6 @@ import (
 	"github.com/uber/cadence/common/messaging/kafka"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/peerprovider/ringpopprovider"
-	"github.com/uber/cadence/common/persistence"
 	pnt "github.com/uber/cadence/common/pinot"
 	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/rpc"
@@ -75,22 +73,24 @@ import (
 
 type (
 	server struct {
-		name   string
-		cfg    config.Config
-		logger log.Logger
-		doneC  chan struct{}
-		daemon common.Daemon
+		name             string
+		cfg              config.Config
+		logger           log.Logger
+		doneC            chan struct{}
+		daemon           common.Daemon
+		dynamicCfgClient dynamicconfig.Client
 	}
 )
 
 // newServer returns a new instance of a daemon
 // that represents a cadence service
-func newServer(service string, cfg config.Config, logger log.Logger) common.Daemon {
+func newServer(service string, cfg config.Config, logger log.Logger, dynamicCfgClient dynamicconfig.Client) common.Daemon {
 	return &server{
-		cfg:    cfg,
-		name:   service,
-		doneC:  make(chan struct{}),
-		logger: logger.WithTags(tag.Service(service)),
+		cfg:              cfg,
+		name:             service,
+		doneC:            make(chan struct{}),
+		logger:           logger,
+		dynamicCfgClient: dynamicCfgClient,
 	}
 }
 
@@ -125,39 +125,11 @@ func (s *server) startService() common.Daemon {
 		s.logger.Fatal(err.Error())
 	}
 
-	params := resource.Params{}
-	params.Name = service.FullName(s.name)
-
-	params.Logger = s.logger.WithTags(tag.Service(params.Name))
-
-	params.PersistenceConfig = s.cfg.Persistence
-
-	err = nil
-	if s.cfg.DynamicConfig.Client == "" {
-		params.Logger.Warn("falling back to legacy file based dynamicClientConfig")
-		params.DynamicConfig, err = dynamicconfig.NewFileBasedClient(&s.cfg.DynamicConfigClient, params.Logger, s.doneC)
-	} else {
-		switch s.cfg.DynamicConfig.Client {
-		case dynamicconfig.ConfigStoreClient:
-			params.Logger.Info("initialising ConfigStore dynamic config client")
-			params.DynamicConfig, err = configstore.NewConfigStoreClient(
-				&s.cfg.DynamicConfig.ConfigStore,
-				&s.cfg.Persistence,
-				params.Logger,
-				persistence.DynamicConfig,
-			)
-		case dynamicconfig.FileBasedClient:
-			params.Logger.Info("initialising File Based dynamic config client")
-			params.DynamicConfig, err = dynamicconfig.NewFileBasedClient(&s.cfg.DynamicConfig.FileBased, params.Logger, s.doneC)
-		default:
-			params.Logger.Info("initialising NOP dynamic config client")
-			params.DynamicConfig = dynamicconfig.NewNopClient()
-		}
-	}
-
-	if err != nil {
-		params.Logger.Error("creating dynamic config client failed, using no-op config client instead", tag.Error(err))
-		params.DynamicConfig = dynamicconfig.NewNopClient()
+	params := resource.Params{
+		Name:              service.FullName(s.name),
+		Logger:            s.logger.WithTags(tag.Service(service.FullName(s.name))),
+		PersistenceConfig: s.cfg.Persistence,
+		DynamicConfig:     s.dynamicCfgClient,
 	}
 
 	clusterGroupMetadata := s.cfg.ClusterGroupMetadata

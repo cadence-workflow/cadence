@@ -33,6 +33,7 @@ import (
 
 	"github.com/uber/cadence/common/client"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicconfigfx"
 	"github.com/uber/cadence/common/log/logfx"
 	"github.com/uber/cadence/common/service"
 
@@ -113,6 +114,7 @@ func BuildCLI(releaseVersion string, gitRevision string) *cli.App {
 				fxApp := fx.New(
 					config.Module,
 					logfx.Module,
+					dynamicconfigfx.Module,
 					fx.Provide(func() appContext {
 						return appContext{
 							CfgContext: config.Context{
