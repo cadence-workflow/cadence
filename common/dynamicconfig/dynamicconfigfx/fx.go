@@ -24,6 +24,7 @@ package dynamicconfigfx
 
 import (
 	"context"
+	"path/filepath"
 
 	"go.uber.org/fx"
 
@@ -38,11 +39,28 @@ import (
 // Module provides fx options for dynamic config initialization
 var Module = fx.Options(fx.Provide(New))
 
+// Params required to build a new dynamic config.
+type Params struct {
+	fx.In
+
+	Cfg     config.Config
+	Logger  log.Logger
+	RootDir string `name:"root-dir"`
+
+	Lifecycle fx.Lifecycle
+}
+
 // New creates dynamicconfig.Client from the configuration
-func New(cfg config.Config, logger log.Logger, lifecycle fx.Lifecycle) dynamicconfig.Client {
+func New(p Params) dynamicconfig.Client {
 	stopped := make(chan struct{})
 
-	lifecycle.Append(fx.Hook{OnStop: func(_ context.Context) error {
+	if p.Cfg.DynamicConfig.Client == "" {
+		p.Cfg.DynamicConfigClient.Filepath = constructPathIfNeed(p.RootDir, p.Cfg.DynamicConfigClient.Filepath)
+	} else {
+		p.Cfg.DynamicConfig.FileBased.Filepath = constructPathIfNeed(p.RootDir, p.Cfg.DynamicConfig.FileBased.Filepath)
+	}
+
+	p.Lifecycle.Append(fx.Hook{OnStop: func(_ context.Context) error {
 		close(stopped)
 		return nil
 	}})
@@ -50,32 +68,41 @@ func New(cfg config.Config, logger log.Logger, lifecycle fx.Lifecycle) dynamicco
 	var res dynamicconfig.Client
 
 	var err error
-	if cfg.DynamicConfig.Client == "" {
-		logger.Warn("falling back to legacy file based dynamicClientConfig")
-		res, err = dynamicconfig.NewFileBasedClient(&cfg.DynamicConfigClient, logger, stopped)
+	if p.Cfg.DynamicConfig.Client == "" {
+		p.Logger.Warn("falling back to legacy file based dynamicClientConfig")
+		res, err = dynamicconfig.NewFileBasedClient(&p.Cfg.DynamicConfigClient, p.Logger, stopped)
 	} else {
-		switch cfg.DynamicConfig.Client {
+		switch p.Cfg.DynamicConfig.Client {
 		case dynamicconfig.ConfigStoreClient:
-			logger.Info("initialising ConfigStore dynamic config client")
+			p.Logger.Info("initialising ConfigStore dynamic config client")
 			res, err = configstore.NewConfigStoreClient(
-				&cfg.DynamicConfig.ConfigStore,
-				&cfg.Persistence,
-				logger,
+				&p.Cfg.DynamicConfig.ConfigStore,
+				&p.Cfg.Persistence,
+				p.Logger,
 				persistence.DynamicConfig,
 			)
 		case dynamicconfig.FileBasedClient:
-			logger.Info("initialising File Based dynamic config client")
-			res, err = dynamicconfig.NewFileBasedClient(&cfg.DynamicConfig.FileBased, logger, stopped)
+			p.Logger.Info("initialising File Based dynamic config client")
+			res, err = dynamicconfig.NewFileBasedClient(&p.Cfg.DynamicConfig.FileBased, p.Logger, stopped)
 		}
 	}
 
 	if res == nil {
-		logger.Info("initialising NOP dynamic config client")
+		p.Logger.Info("initialising NOP dynamic config client")
 		res = dynamicconfig.NewNopClient()
 	} else if err != nil {
-		logger.Error("creating dynamic config client failed, using no-op config client instead", tag.Error(err))
+		p.Logger.Error("creating dynamic config client failed, using no-op config client instead", tag.Error(err))
 		res = dynamicconfig.NewNopClient()
 	}
 
 	return res
+}
+
+// constructPathIfNeed would append the dir as the root dir
+// when the file wasn't absolute path.
+func constructPathIfNeed(dir string, file string) string {
+	if !filepath.IsAbs(file) {
+		return dir + "/" + file
+	}
+	return file
 }

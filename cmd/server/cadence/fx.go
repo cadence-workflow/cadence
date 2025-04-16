@@ -48,7 +48,6 @@ var Module = fx.Options(
 type AppParams struct {
 	fx.In
 
-	RootDir       string   `name:"root-dir"`
 	Services      []string `name:"services"`
 	AppContext    config.Context
 	Config        config.Config
@@ -61,7 +60,6 @@ type AppParams struct {
 func NewApp(params AppParams) *App {
 	app := &App{
 		cfg:           params.Config,
-		rootDir:       params.RootDir,
 		logger:        params.Logger,
 		services:      params.Services,
 		dynamicConfig: params.DynamicConfig,

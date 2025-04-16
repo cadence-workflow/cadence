@@ -36,9 +36,20 @@ import (
 func TestModule(t *testing.T) {
 	app := fxtest.New(t,
 		testlogger.Module(t),
-		fx.Provide(func() config.Config { return config.Config{} }),
+		fx.Provide(func() config.Config { return config.Config{} },
+			func() fxRoot {
+				return fxRoot{
+					RootDir: "../../../",
+				}
+			}),
 		Module,
 		fx.Invoke(func(c dynamicconfig.Client) {}),
 	)
 	app.RequireStart().RequireStop()
+}
+
+type fxRoot struct {
+	fx.Out
+
+	RootDir string `name:"root-dir"`
 }
