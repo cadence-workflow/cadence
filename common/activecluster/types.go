@@ -70,10 +70,11 @@ type Manager interface {
 	//     	Returns corresponding active cluster name and failover version by checking workflow's activeness metadata and EntityActiveRegion lookup table.
 	LookupWorkflow(ctx context.Context, domainID, wfID, rID string) (*LookupResult, error)
 
-	// LookupFailoverVersion returns active cluster, cluster name and failover version of given failover version.
-	// For local and active-passive global domains, it returns the value based on cluster metadata.
-	// For active-active global domains, it returns the value based on region metadata and domain's cluster list.
-	LookupFailoverVersion(failoverVersion int64, domainID string) (*LookupResult, error)
+	// ClusterNameForFailoverVersion returns cluster name of given failover version.
+	// For local domains, it returns current cluster name.
+	// For active-passive global domains, it returns the cluster name based on cluster metadata.
+	// For active-active global domains, it returns the cluster name based on cluster & region metadata and domain's activeactive config.
+	ClusterNameForFailoverVersion(failoverVersion int64, domainID string) (string, error)
 
 	// RegisterChangeCallback registers a callback that will be called for change events such as entity map changes.
 	RegisterChangeCallback(shardID int, callback func(ChangeType))

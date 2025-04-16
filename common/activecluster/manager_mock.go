@@ -64,6 +64,21 @@ func (m *MockManager) EXPECT() *MockManagerMockRecorder {
 	return m.recorder
 }
 
+// ClusterNameForFailoverVersion mocks base method.
+func (m *MockManager) ClusterNameForFailoverVersion(failoverVersion int64, domainID string) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClusterNameForFailoverVersion", failoverVersion, domainID)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ClusterNameForFailoverVersion indicates an expected call of ClusterNameForFailoverVersion.
+func (mr *MockManagerMockRecorder) ClusterNameForFailoverVersion(failoverVersion, domainID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClusterNameForFailoverVersion", reflect.TypeOf((*MockManager)(nil).ClusterNameForFailoverVersion), failoverVersion, domainID)
+}
+
 // LookupExternalEntity mocks base method.
 func (m *MockManager) LookupExternalEntity(ctx context.Context, entityType, entityKey string) (*LookupResult, error) {
 	m.ctrl.T.Helper()
@@ -92,21 +107,6 @@ func (m *MockManager) LookupExternalEntityOfNewWorkflow(ctx context.Context, req
 func (mr *MockManagerMockRecorder) LookupExternalEntityOfNewWorkflow(ctx, req any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LookupExternalEntityOfNewWorkflow", reflect.TypeOf((*MockManager)(nil).LookupExternalEntityOfNewWorkflow), ctx, req)
-}
-
-// LookupFailoverVersion mocks base method.
-func (m *MockManager) LookupFailoverVersion(failoverVersion int64, domainID string) (*LookupResult, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "LookupFailoverVersion", failoverVersion, domainID)
-	ret0, _ := ret[0].(*LookupResult)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// LookupFailoverVersion indicates an expected call of LookupFailoverVersion.
-func (mr *MockManagerMockRecorder) LookupFailoverVersion(failoverVersion, domainID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LookupFailoverVersion", reflect.TypeOf((*MockManager)(nil).LookupFailoverVersion), failoverVersion, domainID)
 }
 
 // LookupWorkflow mocks base method.

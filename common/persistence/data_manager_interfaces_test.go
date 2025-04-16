@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -595,4 +596,50 @@ func TestVersionHistoryCopy(t *testing.T) {
 		},
 	}
 	assert.Equal(t, &a, a.Duplicate())
+}
+
+func TestActiveClustersConfigDeepCopy(t *testing.T) {
+	normalConfig := &ActiveClustersConfig{
+		RegionToClusterMap: map[string]ActiveClusterConfig{
+			"us-east-1": {
+				ActiveClusterName: "us-east-1-cluster",
+				FailoverVersion:   1,
+			},
+			"us-east-2": {
+				ActiveClusterName: "us-east-2-cluster",
+				FailoverVersion:   2,
+			},
+		},
+	}
+
+	tests := []struct {
+		name   string
+		input  *ActiveClustersConfig
+		expect *ActiveClustersConfig
+	}{
+		{
+			name:   "nil case",
+			input:  nil,
+			expect: nil,
+		},
+		{
+			name:   "empty case",
+			input:  &ActiveClustersConfig{},
+			expect: &ActiveClustersConfig{},
+		},
+		{
+			name:   "normal case",
+			input:  normalConfig,
+			expect: normalConfig,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			deepCopy := tc.input.DeepCopy()
+			if diff := cmp.Diff(tc.expect, deepCopy); diff != "" {
+				t.Errorf("DeepCopy() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
 }

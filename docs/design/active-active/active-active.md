@@ -185,7 +185,7 @@ Active-passive domains will not have this field set and ActiveClusterName field 
 ```
 {
 	// Clusters can be a subset of clusters in the group.
-	Clusters: 	    [us-west, us-east, eu-west, eu-central]
+	Clusters: 	    [us-west, us-east, eu-west, eu-central],
 
 	// Active clusters can have at most one from each region. Remaining clusters will be considered passive.
 	ActiveClusters:  {
@@ -199,7 +199,7 @@ Active-passive domains will not have this field set and ActiveClusterName field 
                 FailoverVersion: 6, # failover version of cluster3.
             },
         },
-    }
+    },
 }
 ```
 

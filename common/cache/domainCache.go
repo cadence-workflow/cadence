@@ -761,10 +761,7 @@ func (entry *DomainCacheEntry) duplicate() *DomainCacheEntry {
 		c := *clusterCfg
 		result.replicationConfig.Clusters = append(result.replicationConfig.Clusters, &c)
 	}
-	for _, clusterCfg := range entry.replicationConfig.ActiveClusters {
-		c := *clusterCfg
-		result.replicationConfig.ActiveClusters = append(result.replicationConfig.ActiveClusters, &c)
-	}
+	result.replicationConfig.ActiveClusters = entry.replicationConfig.ActiveClusters.DeepCopy()
 	result.configVersion = entry.configVersion
 	result.failoverVersion = entry.failoverVersion
 	result.isGlobalDomain = entry.isGlobalDomain
@@ -841,11 +838,11 @@ func (entry *DomainCacheEntry) IsActiveIn(currentCluster string) (bool, error) {
 
 	if entry.GetReplicationConfig().IsActiveActive() {
 		var activeClusters []string
-		for _, cl := range entry.GetReplicationConfig().ActiveClusters {
-			if cl.ClusterName == currentCluster {
+		for _, cl := range entry.GetReplicationConfig().ActiveClusters.RegionToClusterMap {
+			if cl.ActiveClusterName == currentCluster {
 				return true, nil
 			}
-			activeClusters = append(activeClusters, cl.ClusterName)
+			activeClusters = append(activeClusters, cl.ActiveClusterName)
 		}
 
 		return false, errors.NewDomainNotActiveError(domainName, currentCluster, activeClusters...)

@@ -25,6 +25,7 @@ package activecluster
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -119,57 +120,46 @@ func (m *manager) LookupWorkflow(ctx context.Context, domainID, wfID, rID string
 	return m.fakeLookupWorkflow(wfID)
 }
 
-func (m *manager) LookupFailoverVersion(failoverVersion int64, domainID string) (*LookupResult, error) {
+func (m *manager) ClusterNameForFailoverVersion(failoverVersion int64, domainID string) (string, error) {
 	d, err := m.domainIDToDomainFn(domainID)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	if !d.GetReplicationConfig().IsActiveActive() {
 		cluster, err := m.clusterMetadata.ClusterNameForFailoverVersion(failoverVersion)
 		if err != nil {
-			return nil, err
+			return "", err
 		}
-		return &LookupResult{
-			ClusterName:     cluster,
-			FailoverVersion: failoverVersion,
-		}, nil
+		return cluster, nil
 	}
 
 	// For active-active domains, the failover version might be mapped to a cluster or a region
 	// First check if it maps to a cluster
 	cluster, err := m.clusterMetadata.ClusterNameForFailoverVersion(failoverVersion)
 	if err == nil {
-		return &LookupResult{
-			ClusterName:     cluster,
-			FailoverVersion: failoverVersion,
-			Region:          m.regionOfCluster(cluster),
-		}, nil
+		return cluster, nil
 	}
 
 	// Check if it maps to a region.
 	region, err := m.clusterMetadata.RegionForFailoverVersion(failoverVersion)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	// Now we know the region, find the cluster in the domain's active cluster list which belongs to the region
-	enabledClusters := m.clusterMetadata.GetEnabledClusterInfo()
-	for _, c := range d.GetReplicationConfig().ActiveClusters {
-		cl, ok := enabledClusters[c.ClusterName]
-		if !ok {
-			continue
-		}
-		if cl.Region == region {
-			return &LookupResult{
-				ClusterName:     c.ClusterName,
-				Region:          region,
-				FailoverVersion: failoverVersion,
-			}, nil
-		}
+	cfg, ok := d.GetReplicationConfig().ActiveClusters.RegionToClusterMap[region]
+	if !ok {
+		return "", fmt.Errorf("could not find region %s in the domain's active cluster config", region)
 	}
 
-	return nil, errors.New("could not find cluster in the domain's active cluster list which belongs to the region")
+	enabledClusters := m.clusterMetadata.GetEnabledClusterInfo()
+	_, ok = enabledClusters[cfg.ActiveClusterName]
+	if !ok {
+		return "", fmt.Errorf("cluster %s is disabled", cfg.ActiveClusterName)
+	}
+
+	return cfg.ActiveClusterName, nil
 }
 
 func (m *manager) RegisterChangeCallback(shardID int, callback func(ChangeType)) {
@@ -193,9 +183,4 @@ func (m *manager) notifyChangeCallbacks(changeType ChangeType) {
 	for _, callback := range m.changeCallbacks {
 		callback(changeType)
 	}
-}
-
-// regionOfCluster returns the region of a cluster as defined in cluster metadata. May return empty if cluster is not found or have no region.
-func (m *manager) regionOfCluster(cluster string) string {
-	return m.clusterMetadata.GetAllClusterInfo()[cluster].Region
 }
