@@ -102,7 +102,7 @@ func (s *ServerSuite) TestServerStartup() {
 	var daemons []common.Daemon
 	services := service.ShortNames(service.List)
 	for _, svc := range services {
-		server := newServer(svc, cfg, logger, dynamicconfigfx.New(cfg, logger, lifecycle))
+		server := newServer(svc, cfg, logger, dynamicconfigfx.New(dynamicconfigfx.Params{Logger: logger, Cfg: cfg, Lifecycle: lifecycle}))
 		daemons = append(daemons, server)
 		server.Start()
 	}
