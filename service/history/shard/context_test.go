@@ -40,6 +40,7 @@ import (
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
+	cerrors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
@@ -1057,7 +1058,7 @@ func TestShardClosedGuard(t *testing.T) {
 
 			shardContext.closedAt.Store(&closedAt)
 			err := tc.call()
-			var shardClosedErr *ErrShardClosed
+			var shardClosedErr *cerrors.ErrShardClosed
 			assert.ErrorAs(t, err, &shardClosedErr)
 			assert.Equal(t, closedAt, shardClosedErr.ClosedAt)
 			assert.ErrorContains(t, err, "shard closed")
