@@ -860,6 +860,7 @@ func TestCreateJWT(t *testing.T) {
 	claims, ok := token.Claims.(*authorization.JWTClaims)
 	assert.True(t, ok)
 	assert.True(t, claims.Admin)
-	assert.Equal(t, timeSource.Now().Round(jwt.TimePrecision), claims.IssuedAt.Time)
-	assert.Equal(t, timeSource.Now().Add(10*time.Minute).Round(jwt.TimePrecision), claims.ExpiresAt.Time)
+	// jwt serialization does Truncate(jwt.TimePrecision)
+	assert.Equal(t, timeSource.Now().Truncate(jwt.TimePrecision), claims.IssuedAt.Time)
+	assert.Equal(t, timeSource.Now().Add(10*time.Minute).Truncate(jwt.TimePrecision), claims.ExpiresAt.Time)
 }
