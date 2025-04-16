@@ -68,7 +68,7 @@ func NewTestCluster(pluginName, dbName, username, password, host string, port in
 		ConnectProtocol: "tcp",
 		PluginName:      pluginName,
 		DatabaseName:    dbName,
-		NumShards:       4,
+		NumShards:       42,
 		EncodingType:    "thriftrw",
 		DecodingTypes:   []string{"thriftrw"},
 	}
