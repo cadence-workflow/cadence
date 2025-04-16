@@ -94,6 +94,7 @@ services:
       - BUILDKITE_BUILD_NUMBER
     volumes:
       - ../../:/cadence
+      - go-modules:/go/pkg/mod # Put modules cache into a separate volume
     networks:
       services-network:
         aliases:
@@ -122,6 +123,7 @@ services:
         condition: service_started
     volumes:
       - ../../:/cadence
+      - go-modules:/go/pkg/mod # Put modules cache into a separate volume
     networks:
       services-network:
         aliases:
@@ -149,6 +151,7 @@ services:
       - kafka
     volumes:
       - ../../:/cadence
+      - go-modules:/go/pkg/mod # Put modules cache into a separate volume
     networks:
       services-network:
         aliases:
@@ -176,6 +179,7 @@ services:
       - kafka
     volumes:
       - ../../:/cadence
+      - go-modules:/go/pkg/mod # Put modules cache into a separate volume
     networks:
       services-network:
         aliases:
@@ -194,6 +198,7 @@ services:
       - BUILDKITE_BUILD_NUMBER
     volumes:
       - ../../:/cadence
+      - go-modules:/go/pkg/mod # Put modules cache into a separate volume
     networks:
       services-network:
         aliases:
@@ -222,6 +227,7 @@ services:
         condition: service_started
     volumes:
       - ../../:/cadence
+      - go-modules:/go/pkg/mod # Put modules cache into a separate volume
     networks:
       services-network:
         aliases:
@@ -249,6 +255,7 @@ services:
       - kafka
     volumes:
       - ../../:/cadence
+      - go-modules:/go/pkg/mod # Put modules cache into a separate volume
     networks:
       services-network:
         aliases:
@@ -276,6 +283,7 @@ services:
       - kafka
     volumes:
       - ../../:/cadence
+      - go-modules:/go/pkg/mod # Put modules cache into a separate volume
     networks:
       services-network:
         aliases:
@@ -303,6 +311,7 @@ services:
         condition: service_started
     volumes:
       - ../../:/cadence
+      - go-modules:/go/pkg/mod # Put modules cache into a separate volume
     networks:
       services-network:
         aliases:
@@ -332,8 +341,12 @@ services:
       - BUILDKITE_PULL_REQUEST_REPO
     volumes:
       - ../../:/cadence
+      - go-modules:/go/pkg/mod # Put modules cache into a separate volume
 
 networks:
   services-network:
     name: services-network
     driver: bridge
+
+volumes:
+  go-modules: # Define the volume

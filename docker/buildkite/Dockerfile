@@ -34,6 +34,13 @@ ENV V=0
 # allow git-status and similar to work
 RUN git config --global --add safe.directory /cadence
 
+# Copy go mod dependencies and try to share the module download cache
+COPY go.* ./
+COPY cmd/server/go.* ./cmd/server/
+COPY common/archiver/gcloud/go.* ./common/archiver/gcloud/
+# go.work means this downloads everything, not just the top module
+RUN go mod download
+
 # https://github.com/docker-library/golang/blob/c1baf037d71331eb0b8d4c70cff4c29cf124c5e0/1.4/Dockerfile
 RUN mkdir -p /cadence
 WORKDIR /cadence
