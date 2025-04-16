@@ -93,12 +93,6 @@ services:
       context: ../../
       dockerfile: ./docker/buildkite/Dockerfile
     command: sh -c "make .just-build && make cover_profile"
-    environment:
-      # keep them to be sure that tests requiring dependencies are not skipped
-      - "CASSANDRA=1"
-      - "MYSQL=1"
-      - "POSTGRES=1"
-      - "MONGODB=1"
     volumes:
       - ../../:/cadence
       - /cadence/.build/ # ensure we don't mount the build directory

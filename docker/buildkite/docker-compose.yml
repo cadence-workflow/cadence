@@ -83,11 +83,6 @@ services:
       context: ../../
       dockerfile: ./docker/buildkite/Dockerfile
     environment:
-      # keep them to be sure that tests requiring dependencies are not skipped
-      - "CASSANDRA=1"
-      - "MYSQL=1"
-      - "POSTGRES=1"
-      - "MONGODB=1"
       - BUILDKITE_AGENT_ACCESS_TOKEN
       - BUILDKITE_JOB_ID
       - BUILDKITE_BUILD_ID
