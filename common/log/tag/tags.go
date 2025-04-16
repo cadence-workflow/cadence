@@ -659,11 +659,6 @@ func TaskID(taskID int64) Tag {
 	return newInt64("queue-task-id", taskID)
 }
 
-// TaskCategory returns tag for TaskCategory
-func TaskCategory(categoryID int) Tag {
-	return newInt("queue-task-category", categoryID)
-}
-
 // TaskType returns tag for TaskType for queue processor
 func TaskType(taskType int) Tag {
 	return newInt("queue-task-type", taskType)

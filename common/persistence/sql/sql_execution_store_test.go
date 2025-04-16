@@ -2881,14 +2881,14 @@ func TestGetHistoryTasks_SQL(t *testing.T) {
 					{
 						ShardID:             shardID,
 						TaskID:              10,
-						VisibilityTimestamp: time.Unix(1, 1).UTC(),
+						VisibilityTimestamp: time.Unix(1, 1),
 						Data:                []byte(`{"task": "timer"}`),
 						DataEncoding:        "json",
 					},
 					{
 						ShardID:             shardID,
 						TaskID:              101,
-						VisibilityTimestamp: time.Unix(1, 1).UTC(),
+						VisibilityTimestamp: time.Unix(1, 1),
 						Data:                []byte(`{"task": "timer"}`),
 						DataEncoding:        "json",
 					},
@@ -2906,7 +2906,7 @@ func TestGetHistoryTasks_SQL(t *testing.T) {
 					EventID: 100,
 					TaskData: persistence.TaskData{
 						TaskID:              10,
-						VisibilityTimestamp: time.Unix(1, 1).UTC(),
+						VisibilityTimestamp: time.Unix(1, 1),
 					},
 				},
 			},
