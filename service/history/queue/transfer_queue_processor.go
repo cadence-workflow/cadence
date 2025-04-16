@@ -32,6 +32,7 @@ import (
 	"github.com/pborman/uuid"
 
 	"github.com/uber/cadence/common"
+	cerrors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -52,8 +53,6 @@ import (
 
 var (
 	errUnexpectedQueueTask = errors.New("unexpected queue task")
-	errProcessorShutdown   = errors.New("queue processor has been shutdown")
-
 	maximumTransferTaskKey = newTransferTaskKey(math.MaxInt64)
 )
 
@@ -253,7 +252,7 @@ func (t *transferQueueProcessor) FailoverDomain(domainIDs map[string]struct{}) {
 	actionResult, err := t.HandleAction(context.Background(), t.currentClusterName, NewGetStateAction())
 	if err != nil {
 		t.logger.Error("Transfer Failover Failed", tag.WorkflowDomainIDs(domainIDs), tag.Error(err))
-		if err == errProcessorShutdown {
+		if err == cerrors.ErrProcessorShutdown {
 			// processor/shard already shutdown, we don't need to create failover queue processor
 			return
 		}
@@ -329,14 +328,14 @@ func (t *transferQueueProcessor) HandleAction(
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return nil, ctxErr
 		}
-		return nil, errProcessorShutdown
+		return nil, cerrors.ErrProcessorShutdown
 	}
 
 	select {
 	case resultNotification := <-resultNotificationCh:
 		return resultNotification.result, resultNotification.err
 	case <-t.shutdownChan:
-		return nil, errProcessorShutdown
+		return nil, cerrors.ErrProcessorShutdown
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
@@ -384,8 +383,7 @@ func (t *transferQueueProcessor) completeTransferLoop() {
 				}
 
 				t.logger.Error("Failed to complete transfer task", tag.Error(err))
-				var errShardClosed *shard.ErrShardClosed
-				if errors.As(err, &errShardClosed) {
+				if cerrors.IsShutdownError(err) {
 					// shard closed, trigger shutdown and bail out
 					if !t.shard.GetConfig().QueueProcessorEnableGracefulSyncShutdown() {
 						go t.Stop()
@@ -395,6 +393,7 @@ func (t *transferQueueProcessor) completeTransferLoop() {
 					t.Stop()
 					return
 				}
+
 				// Reset the retryTimer for the delay between attempts
 				// TODO: the first retry has 0 backoff, revisit it to see if it's expected
 				retryDuration := time.Duration(attempt*100) * time.Millisecond

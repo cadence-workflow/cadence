@@ -200,7 +200,7 @@ func (s *taskSuite) TestHandleErr_ErrShardRecentlyClosed() {
 
 	taskBase.submitTime = time.Now()
 
-	shardClosedError := &shard.ErrShardClosed{
+	shardClosedError := &cadence_errors.ErrShardClosed{
 		Msg: "shard closed",
 		// The shard was closed within the TimeBeforeShardClosedIsError interval
 		ClosedAt: time.Now().Add(-shard.TimeBeforeShardClosedIsError / 2),
@@ -328,7 +328,7 @@ func (s *taskSuite) TestRetryErr() {
 		return true, nil
 	}, nil)
 
-	s.Equal(false, taskBase.RetryErr(&shard.ErrShardClosed{}))
+	s.Equal(false, taskBase.RetryErr(&cadence_errors.ErrShardClosed{}))
 	s.Equal(false, taskBase.RetryErr(errWorkflowBusy))
 	s.Equal(false, taskBase.RetryErr(ErrTaskPendingActive))
 	s.Equal(false, taskBase.RetryErr(context.DeadlineExceeded))

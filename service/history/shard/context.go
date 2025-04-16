@@ -37,6 +37,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/constants"
+	cerrors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -170,17 +171,6 @@ type (
 )
 
 var _ Context = (*contextImpl)(nil)
-
-type ErrShardClosed struct {
-	Msg      string
-	ClosedAt time.Time
-}
-
-var _ error = (*ErrShardClosed)(nil)
-
-func (e *ErrShardClosed) Error() string {
-	return e.Msg
-}
 
 const (
 	TimeBeforeShardClosedIsError = 10 * time.Second
@@ -956,7 +946,7 @@ func (s *contextImpl) closedError() error {
 		return nil
 	}
 
-	return &ErrShardClosed{
+	return &cerrors.ErrShardClosed{
 		Msg:      "shard closed",
 		ClosedAt: *closedAt,
 	}

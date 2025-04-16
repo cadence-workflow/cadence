@@ -39,6 +39,7 @@ import (
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	cerrors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/log/testlogger"
@@ -2974,14 +2975,14 @@ func TestGetWorkflowExecutionWithRetry(t *testing.T) {
 				RangeID: 100,
 			},
 			mockSetup: func(mockShard *shard.MockContext, mockLogger *log.MockLogger, timeSource clock.MockedTimeSource) {
-				mockShard.EXPECT().GetWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil, &shard.ErrShardClosed{
+				mockShard.EXPECT().GetWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil, &cerrors.ErrShardClosed{
 					ClosedAt: timeSource.Now().Add(-shard.TimeBeforeShardClosedIsError / 2),
 				})
 				// We do _not_ expect a log call
 			},
 			wantErr: true,
 			assertErr: func(t *testing.T, err error) {
-				assert.ErrorAs(t, err, new(*shard.ErrShardClosed))
+				assert.ErrorAs(t, err, new(*cerrors.ErrShardClosed))
 			},
 		},
 		{
@@ -2990,7 +2991,7 @@ func TestGetWorkflowExecutionWithRetry(t *testing.T) {
 				RangeID: 100,
 			},
 			mockSetup: func(mockShard *shard.MockContext, mockLogger *log.MockLogger, timeSource clock.MockedTimeSource) {
-				err := &shard.ErrShardClosed{
+				err := &cerrors.ErrShardClosed{
 					ClosedAt: timeSource.Now().Add(-shard.TimeBeforeShardClosedIsError * 2),
 				}
 				mockShard.EXPECT().GetWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil, err)
@@ -2998,7 +2999,7 @@ func TestGetWorkflowExecutionWithRetry(t *testing.T) {
 			},
 			wantErr: true,
 			assertErr: func(t *testing.T, err error) {
-				assert.ErrorAs(t, err, new(*shard.ErrShardClosed))
+				assert.ErrorAs(t, err, new(*cerrors.ErrShardClosed))
 			},
 		},
 		{

@@ -35,6 +35,7 @@ import (
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/constants"
+	cerrors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/locks"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -1212,7 +1213,7 @@ func getWorkflowExecutionWithRetry(
 	default:
 		// If error is shard closed, only log error if shard has been closed for a while,
 		// otherwise always log
-		var shardClosedError *shard.ErrShardClosed
+		var shardClosedError *cerrors.ErrShardClosed
 		if !errors.As(err, &shardClosedError) || shardContext.GetTimeSource().Since(shardClosedError.ClosedAt) > shard.TimeBeforeShardClosedIsError {
 			logger.Error("Persistent fetch operation failure", tag.StoreOperationGetWorkflowExecution, tag.Error(err))
 		}

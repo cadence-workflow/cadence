@@ -22,7 +22,6 @@ package queue
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math"
 	"math/rand"
@@ -34,6 +33,7 @@ import (
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	cerrors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -387,8 +387,7 @@ func (t *timerQueueProcessorBase) splitQueue(splitQueueTimer *time.Timer) {
 // returns true if processing should be terminated
 func (t *timerQueueProcessorBase) handleAckLevelUpdate(updateAckTimer *time.Timer) bool {
 	processFinished, _, err := t.updateAckLevelFn()
-	var errShardClosed *shard.ErrShardClosed
-	if errors.As(err, &errShardClosed) || (err == nil && processFinished) {
+	if cerrors.IsShutdownError(err) || (err == nil && processFinished) {
 		return true
 	}
 	updateAckTimer.Reset(backoff.JitDuration(

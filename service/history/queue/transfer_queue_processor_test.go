@@ -35,6 +35,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	cerrors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/reconciliation/invariant"
@@ -409,7 +410,7 @@ func TestTransferQueueProcessor_completeTransferLoop_ErrShardClosed(t *testing.T
 	}
 
 	processor.shard.(*shard.TestContext).Resource.ExecutionMgr.On("RangeCompleteHistoryTask", mock.Anything, mock.Anything).
-		Return(&persistence.RangeCompleteHistoryTaskResponse{}, &shard.ErrShardClosed{}).Once()
+		Return(&persistence.RangeCompleteHistoryTaskResponse{}, &cerrors.ErrShardClosed{}).Once()
 
 	processor.shutdownWG.Add(1)
 
@@ -442,7 +443,7 @@ func TestTransferQueueProcessor_completeTransferLoop_ErrShardClosedNotGraceful(t
 	}
 
 	processor.shard.(*shard.TestContext).Resource.ExecutionMgr.On("RangeCompleteHistoryTask", mock.Anything, mock.Anything).
-		Return(&persistence.RangeCompleteHistoryTaskResponse{}, &shard.ErrShardClosed{}).Once()
+		Return(&persistence.RangeCompleteHistoryTaskResponse{}, &cerrors.ErrShardClosed{}).Once()
 
 	processor.shutdownWG.Add(1)
 

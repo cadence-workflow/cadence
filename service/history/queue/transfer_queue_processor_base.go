@@ -22,7 +22,6 @@ package queue
 
 import (
 	"context"
-	"errors"
 	"math/rand"
 	"sync"
 	"sync/atomic"
@@ -31,6 +30,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	cerrors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -335,8 +335,7 @@ func (t *transferQueueProcessorBase) processorPump() {
 			}
 		case <-updateAckTimer.C:
 			processFinished, _, err := t.updateAckLevelFn()
-			var errShardClosed *shard.ErrShardClosed
-			if errors.As(err, &errShardClosed) || (err == nil && processFinished) {
+			if cerrors.IsShutdownError(err) || (err == nil && processFinished) {
 				if !t.options.EnableGracefulSyncShutdown() {
 					go t.Stop()
 					return
