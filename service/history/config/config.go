@@ -146,6 +146,7 @@ type Config struct {
 	TimerProcessorMaxTimeShift                        dynamicproperties.DurationPropertyFn
 	TimerProcessorHistoryArchivalSizeLimit            dynamicproperties.IntPropertyFn
 	TimerProcessorArchivalTimeLimit                   dynamicproperties.DurationPropertyFn
+	DisableTimerFailoverQueue                         dynamicproperties.BoolPropertyFn
 
 	// TransferQueueProcessor settings
 	TransferTaskBatchSize                                dynamicproperties.IntPropertyFn
@@ -165,7 +166,7 @@ type Config struct {
 	TransferProcessorEnableValidator                     dynamicproperties.BoolPropertyFn
 	TransferProcessorValidationInterval                  dynamicproperties.DurationPropertyFn
 	TransferProcessorVisibilityArchivalTimeLimit         dynamicproperties.DurationPropertyFn
-
+	DisableTransferFailoverQueue                         dynamicproperties.BoolPropertyFn
 	// ReplicatorQueueProcessor settings
 	ReplicatorTaskDeleteBatchSize          dynamicproperties.IntPropertyFn
 	ReplicatorReadTaskMaxRetryCount        dynamicproperties.IntPropertyFn
@@ -414,25 +415,25 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		QueueProcessorEnableLoadQueueStates:                dc.GetBoolProperty(dynamicproperties.QueueProcessorEnableLoadQueueStates),
 		QueueProcessorEnableGracefulSyncShutdown:           dc.GetBoolProperty(dynamicproperties.QueueProcessorEnableGracefulSyncShutdown),
 
-		TimerTaskBatchSize:                                dc.GetIntProperty(dynamicproperties.TimerTaskBatchSize),
-		TimerTaskDeleteBatchSize:                          dc.GetIntProperty(dynamicproperties.TimerTaskDeleteBatchSize),
-		TimerProcessorGetFailureRetryCount:                dc.GetIntProperty(dynamicproperties.TimerProcessorGetFailureRetryCount),
-		TimerProcessorCompleteTimerFailureRetryCount:      dc.GetIntProperty(dynamicproperties.TimerProcessorCompleteTimerFailureRetryCount),
-		TimerProcessorUpdateAckInterval:                   dc.GetDurationProperty(dynamicproperties.TimerProcessorUpdateAckInterval),
-		TimerProcessorUpdateAckIntervalJitterCoefficient:  dc.GetFloat64Property(dynamicproperties.TimerProcessorUpdateAckIntervalJitterCoefficient),
-		TimerProcessorCompleteTimerInterval:               dc.GetDurationProperty(dynamicproperties.TimerProcessorCompleteTimerInterval),
-		TimerProcessorFailoverMaxStartJitterInterval:      dc.GetDurationProperty(dynamicproperties.TimerProcessorFailoverMaxStartJitterInterval),
-		TimerProcessorFailoverMaxPollRPS:                  dc.GetIntProperty(dynamicproperties.TimerProcessorFailoverMaxPollRPS),
-		TimerProcessorMaxPollRPS:                          dc.GetIntProperty(dynamicproperties.TimerProcessorMaxPollRPS),
-		TimerProcessorMaxPollInterval:                     dc.GetDurationProperty(dynamicproperties.TimerProcessorMaxPollInterval),
-		TimerProcessorMaxPollIntervalJitterCoefficient:    dc.GetFloat64Property(dynamicproperties.TimerProcessorMaxPollIntervalJitterCoefficient),
-		TimerProcessorSplitQueueInterval:                  dc.GetDurationProperty(dynamicproperties.TimerProcessorSplitQueueInterval),
-		TimerProcessorSplitQueueIntervalJitterCoefficient: dc.GetFloat64Property(dynamicproperties.TimerProcessorSplitQueueIntervalJitterCoefficient),
-		TimerProcessorMaxRedispatchQueueSize:              dc.GetIntProperty(dynamicproperties.TimerProcessorMaxRedispatchQueueSize),
-		TimerProcessorMaxTimeShift:                        dc.GetDurationProperty(dynamicproperties.TimerProcessorMaxTimeShift),
-		TimerProcessorHistoryArchivalSizeLimit:            dc.GetIntProperty(dynamicproperties.TimerProcessorHistoryArchivalSizeLimit),
-		TimerProcessorArchivalTimeLimit:                   dc.GetDurationProperty(dynamicproperties.TimerProcessorArchivalTimeLimit),
-
+		TimerTaskBatchSize:                                   dc.GetIntProperty(dynamicproperties.TimerTaskBatchSize),
+		TimerTaskDeleteBatchSize:                             dc.GetIntProperty(dynamicproperties.TimerTaskDeleteBatchSize),
+		TimerProcessorGetFailureRetryCount:                   dc.GetIntProperty(dynamicproperties.TimerProcessorGetFailureRetryCount),
+		TimerProcessorCompleteTimerFailureRetryCount:         dc.GetIntProperty(dynamicproperties.TimerProcessorCompleteTimerFailureRetryCount),
+		TimerProcessorUpdateAckInterval:                      dc.GetDurationProperty(dynamicproperties.TimerProcessorUpdateAckInterval),
+		TimerProcessorUpdateAckIntervalJitterCoefficient:     dc.GetFloat64Property(dynamicproperties.TimerProcessorUpdateAckIntervalJitterCoefficient),
+		TimerProcessorCompleteTimerInterval:                  dc.GetDurationProperty(dynamicproperties.TimerProcessorCompleteTimerInterval),
+		TimerProcessorFailoverMaxStartJitterInterval:         dc.GetDurationProperty(dynamicproperties.TimerProcessorFailoverMaxStartJitterInterval),
+		TimerProcessorFailoverMaxPollRPS:                     dc.GetIntProperty(dynamicproperties.TimerProcessorFailoverMaxPollRPS),
+		TimerProcessorMaxPollRPS:                             dc.GetIntProperty(dynamicproperties.TimerProcessorMaxPollRPS),
+		TimerProcessorMaxPollInterval:                        dc.GetDurationProperty(dynamicproperties.TimerProcessorMaxPollInterval),
+		TimerProcessorMaxPollIntervalJitterCoefficient:       dc.GetFloat64Property(dynamicproperties.TimerProcessorMaxPollIntervalJitterCoefficient),
+		TimerProcessorSplitQueueInterval:                     dc.GetDurationProperty(dynamicproperties.TimerProcessorSplitQueueInterval),
+		TimerProcessorSplitQueueIntervalJitterCoefficient:    dc.GetFloat64Property(dynamicproperties.TimerProcessorSplitQueueIntervalJitterCoefficient),
+		TimerProcessorMaxRedispatchQueueSize:                 dc.GetIntProperty(dynamicproperties.TimerProcessorMaxRedispatchQueueSize),
+		TimerProcessorMaxTimeShift:                           dc.GetDurationProperty(dynamicproperties.TimerProcessorMaxTimeShift),
+		TimerProcessorHistoryArchivalSizeLimit:               dc.GetIntProperty(dynamicproperties.TimerProcessorHistoryArchivalSizeLimit),
+		TimerProcessorArchivalTimeLimit:                      dc.GetDurationProperty(dynamicproperties.TimerProcessorArchivalTimeLimit),
+		DisableTimerFailoverQueue:                            dc.GetBoolProperty(dynamicproperties.DisableTimerFailoverQueue),
 		TransferTaskBatchSize:                                dc.GetIntProperty(dynamicproperties.TransferTaskBatchSize),
 		TransferTaskDeleteBatchSize:                          dc.GetIntProperty(dynamicproperties.TransferTaskDeleteBatchSize),
 		TransferProcessorFailoverMaxStartJitterInterval:      dc.GetDurationProperty(dynamicproperties.TransferProcessorFailoverMaxStartJitterInterval),
@@ -450,6 +451,7 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		TransferProcessorEnableValidator:                     dc.GetBoolProperty(dynamicproperties.TransferProcessorEnableValidator),
 		TransferProcessorValidationInterval:                  dc.GetDurationProperty(dynamicproperties.TransferProcessorValidationInterval),
 		TransferProcessorVisibilityArchivalTimeLimit:         dc.GetDurationProperty(dynamicproperties.TransferProcessorVisibilityArchivalTimeLimit),
+		DisableTransferFailoverQueue:                         dc.GetBoolProperty(dynamicproperties.DisableTransferFailoverQueue),
 
 		ReplicatorTaskDeleteBatchSize:          dc.GetIntProperty(dynamicproperties.ReplicatorTaskDeleteBatchSize),
 		ReplicatorReadTaskMaxRetryCount:        dc.GetIntProperty(dynamicproperties.ReplicatorReadTaskMaxRetryCount),

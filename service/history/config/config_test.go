@@ -266,6 +266,8 @@ func TestNewConfig(t *testing.T) {
 		"HostName":                                             {nil, hostname},
 		"SearchAttributesHiddenValueKeys":                      {dynamicproperties.SearchAttributesHiddenValueKeys, map[string]interface{}{"CustomStringField": true}},
 		"ExecutionCacheMaxByteSize":                            {dynamicproperties.ExecutionCacheMaxByteSize, 98},
+		"DisableTransferFailoverQueue":                         {dynamicproperties.DisableTransferFailoverQueue, true},
+		"DisableTimerFailoverQueue":                            {dynamicproperties.DisableTimerFailoverQueue, true},
 	}
 	client := dynamicconfig.NewInMemoryClient()
 	for fieldName, expected := range fields {

@@ -232,6 +232,10 @@ func (t *transferQueueProcessor) NotifyNewTask(clusterName string, info *hcommon
 }
 
 func (t *transferQueueProcessor) FailoverDomain(domainIDs map[string]struct{}) {
+	if t.shard.GetConfig().DisableTransferFailoverQueue() {
+		return
+	}
+
 	// Failover queue is used to scan all inflight tasks, if queue processor is not
 	// started, there's no inflight task and we don't need to create a failover processor.
 	// Also the HandleAction will be blocked if queue processor processing loop is not running.

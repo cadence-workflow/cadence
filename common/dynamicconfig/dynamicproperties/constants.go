@@ -2093,6 +2093,9 @@ const (
 	// Default value: false
 	EnableSizeBasedHistoryEventCache
 
+	DisableTransferFailoverQueue
+	DisableTimerFailoverQueue
+
 	// LastBoolKey must be the last one in this const group
 	LastBoolKey
 )
@@ -4543,6 +4546,16 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	EnableSizeBasedHistoryEventCache: {
 		KeyName:      "history.enableSizeBasedHistoryEventCache",
 		Description:  "EnableSizeBasedHistoryEventCache is to enable size based history event cache",
+		DefaultValue: false,
+	},
+	DisableTransferFailoverQueue: {
+		KeyName:      "history.disableTransferFailoverQueue",
+		Description:  "DisableTransferFailoverQueue is to disable transfer failover queue",
+		DefaultValue: false,
+	},
+	DisableTimerFailoverQueue: {
+		KeyName:      "history.disableTimerFailoverQueue",
+		Description:  "DisableTimerFailoverQueue is to disable timer failover queue",
 		DefaultValue: false,
 	},
 }
