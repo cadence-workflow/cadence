@@ -150,13 +150,13 @@ func (e *historyEngineImpl) generateGracefulFailoverTasksForDomainUpdateCallback
 }
 
 func (e *historyEngineImpl) lockProcessingForFailover() {
-	e.logger.Debug("locking processing for failover")
+	e.logger.Info("Locking processing for failover")
 	e.txProcessor.LockTaskProcessing()
 	e.timerProcessor.LockTaskProcessing()
 }
 
 func (e *historyEngineImpl) unlockProcessingForFailover() {
-	e.logger.Debug("unlocking processing for failover")
+	e.logger.Info("Unlocking processing for failover")
 	e.txProcessor.UnlockTaskProcessing()
 	e.timerProcessor.UnlockTaskProcessing()
 }
