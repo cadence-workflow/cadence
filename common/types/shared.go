@@ -2177,6 +2177,8 @@ type EntityNotExistsError struct {
 	Message        string `json:"message,required"`
 	CurrentCluster string `json:"currentCluster,omitempty"`
 	ActiveCluster  string `json:"activeCluster,omitempty"`
+	// TODO(active-active): Add ActiveClusters field
+	// ActiveClusters []string `json:"activeClusters,omitempty"`
 }
 
 // WorkflowExecutionAlreadyCompletedError is an internal type (TBD...)
