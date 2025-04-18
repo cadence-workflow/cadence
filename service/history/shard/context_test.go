@@ -958,6 +958,7 @@ func TestCloseShard(t *testing.T) {
 		closeCallback: func(i int, item *historyShardsItem) {
 			close(closeCallback)
 		},
+		logger: log.NewNoop(),
 	}
 	shardContext.closeShard()
 
