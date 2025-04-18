@@ -241,8 +241,13 @@ func (c *controller) ShardIDs() []int32 {
 func (c *controller) removeEngineForShard(shardID int, shardItem *historyShardsItem) {
 	sw := c.metricsScope.StartTimer(metrics.RemoveEngineForShardLatency)
 	defer sw.Stop()
+	c.logger.Info("removeEngineForShard called", tag.ShardID(shardID))
+	defer c.logger.Info("removeEngineForShard completed", tag.ShardID(shardID))
+
 	currentShardItem, err := c.removeHistoryShardItem(shardID, shardItem)
-	c.logger.Error("Failed to remove history shard item", tag.Error(err), tag.ShardID(shardID))
+	if err != nil {
+		c.logger.Error("Failed to remove history shard item", tag.Error(err), tag.ShardID(shardID))
+	}
 	if shardItem != nil {
 		// if shardItem is not nil, then currentShardItem either equals to shardItem or is nil
 		// in both cases, we need to stop the engine in shardItem
