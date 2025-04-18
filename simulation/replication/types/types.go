@@ -28,7 +28,6 @@ import (
 
 const (
 	DefaultTestCase = "testdata/replication_simulation_default.yaml"
-	DomainName      = "test-domain"
 	TasklistName    = "test-tasklist"
 	WorkflowName    = "test-workflow"
 	ActivityName    = "test-activity"

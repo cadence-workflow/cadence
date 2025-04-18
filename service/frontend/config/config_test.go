@@ -43,6 +43,7 @@ var ignoreField = configTestCase{key: dynamicproperties.UnknownIntKey}
 
 func TestNewConfig(t *testing.T) {
 	fields := map[string]configTestCase{
+		"Logger":                                      ignoreField, // Logger is not a config to be compared in test
 		"NumHistoryShards":                            {nil, 1001},
 		"IsAdvancedVisConfigExist":                    {nil, true},
 		"HostName":                                    {nil, "hostname"},
@@ -116,9 +117,10 @@ func TestNewConfig(t *testing.T) {
 		"FailoverHistoryMaxSize": {dynamicproperties.FrontendFailoverHistoryMaxSize, 44},
 	}
 	client := dynamicconfig.NewInMemoryClient()
-	dc := dynamicconfig.NewCollection(client, testlogger.New(t))
+	logger := testlogger.New(t)
+	dc := dynamicconfig.NewCollection(client, logger)
 
-	config := NewConfig(dc, 1001, true, "hostname")
+	config := NewConfig(dc, 1001, true, "hostname", logger)
 
 	assertFieldsMatch(t, *config, client, fields)
 	assertFieldsMatch(t, config.DomainConfig, client, domainFields)

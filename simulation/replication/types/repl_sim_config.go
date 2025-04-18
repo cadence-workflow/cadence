@@ -35,6 +35,7 @@ import (
 	"go.uber.org/yarpc/transport/grpc"
 	"gopkg.in/yaml.v2"
 
+	"github.com/uber/cadence/.gen/go/shared"
 	"github.com/uber/cadence/client/admin"
 	"github.com/uber/cadence/client/frontend"
 	grpcClient "github.com/uber/cadence/client/wrappers/grpc"
@@ -44,17 +45,30 @@ import (
 type ReplicationSimulationOperation string
 
 const (
-	ReplicationSimulationOperationStartWorkflow ReplicationSimulationOperation = "start_workflow"
-	ReplicationSimulationOperationFailover      ReplicationSimulationOperation = "failover"
-	ReplicationSimulationOperationValidate      ReplicationSimulationOperation = "validate"
+	ReplicationSimulationOperationStartWorkflow        ReplicationSimulationOperation = "start_workflow"
+	ReplicationSimulationOperationChangeActiveClusters ReplicationSimulationOperation = "change_active_clusters"
+	ReplicationSimulationOperationValidate             ReplicationSimulationOperation = "validate"
 )
 
 type ReplicationSimulationConfig struct {
+	// Clusters is the map of all clusters
 	Clusters map[string]*Cluster `yaml:"clusters"`
 
+	// PrimaryCluster is used for domain registration
 	PrimaryCluster string `yaml:"primaryCluster"`
 
+	Domain ReplicationDomainConfig `yaml:"domain"`
+
 	Operations []*Operation `yaml:"operations"`
+}
+
+type ReplicationDomainConfig struct {
+	Name string `yaml:"name"`
+
+	// ActiveClusters is the list of clusters that the test domain is active in
+	// If one cluster is specified, the test domain will be regular active-passive global domain.
+	// If multiple clusters are specified, the test domain will be active-active global domain.
+	ActiveClusters []string `yaml:"activeClusters"`
 }
 
 type Operation struct {
@@ -65,8 +79,8 @@ type Operation struct {
 	WorkflowID       string        `yaml:"workflowID"`
 	WorkflowDuration time.Duration `yaml:"workflowDuration"`
 
-	NewActiveCluster   string `yaml:"newActiveCluster"`
-	FailovertimeoutSec *int32 `yaml:"failoverTimeoutSec"`
+	NewActiveClusters []string `yaml:"newActiveClusters"`
+	FailoverTimeout   *int32   `yaml:"failoverTimeoutSec"`
 
 	Want Validation `yaml:"want"`
 }
@@ -100,6 +114,7 @@ func LoadConfig() (*ReplicationSimulationConfig, error) {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
+	fmt.Printf("Loaded config from path: %s\n", path)
 	return &cfg, nil
 }
 
@@ -140,8 +155,12 @@ func (s *ReplicationSimulationConfig) MustInitClientsFor(t *testing.T, clusterNa
 	Logf(t, "Initialized clients for cluster %s", clusterName)
 }
 
+func (s *ReplicationSimulationConfig) IsActiveActiveDomain() bool {
+	return len(s.Domain.ActiveClusters) > 1
+}
+
 func (s *ReplicationSimulationConfig) MustRegisterDomain(t *testing.T) {
-	Logf(t, "Registering domain: %s", DomainName)
+	Logf(t, "Registering domain: %s", s.Domain.Name)
 	var clusters []*types.ClusterReplicationConfiguration
 	for name := range s.Clusters {
 		clusters = append(clusters, &types.ClusterReplicationConfiguration{
@@ -151,12 +170,23 @@ func (s *ReplicationSimulationConfig) MustRegisterDomain(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	err := s.MustGetFrontendClient(t, s.PrimaryCluster).RegisterDomain(ctx, &types.RegisterDomainRequest{
-		Name:                                   DomainName,
+		Name:                                   s.Domain.Name,
 		Clusters:                               clusters,
 		WorkflowExecutionRetentionPeriodInDays: 1,
-		ActiveClusterName:                      s.PrimaryCluster,
 		IsGlobalDomain:                         true,
+		ActiveClusterName:                      s.PrimaryCluster,
+		// TODO: Once API is updated to support ActiveClusterNames, update this
+		// ActiveClusterNames:                      s.DomainActiveClusters,
 	})
-	require.NoError(t, err, "failed to register domain")
-	Logf(t, "Registered domain: %s", DomainName)
+
+	if err != nil {
+		if _, ok := err.(*shared.DomainAlreadyExistsError); !ok {
+			require.NoError(t, err, "failed to register domain")
+		} else {
+			Logf(t, "Domain already exists: %s", s.Domain.Name)
+		}
+		return
+	}
+
+	Logf(t, "Registered domain: %s", s.Domain.Name)
 }

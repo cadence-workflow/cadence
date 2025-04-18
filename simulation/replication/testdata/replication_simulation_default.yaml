@@ -10,6 +10,12 @@ clusters:
 # primaryCluster is where domain data is written to and replicates to others. e.g. domain registration
 primaryCluster: "cluster0"
 
+
+domain:
+  name: test-domain
+  activeClusters:
+  - cluster0
+
 operations:
   - op: start_workflow
     at: 0s
@@ -17,9 +23,9 @@ operations:
     cluster: cluster0
     workflowDuration: 35s
 
-  - op: failover # failover from cluster0 to cluster1
+  - op: change_active_clusters # failover from cluster0 to cluster1
     at: 20s
-    newActiveCluster: cluster1
+    newActiveClusters: ["cluster1"]
     # failoverTimeoutSec: 5 # unset means force failover. setting it means graceful failover request
 
   - op: validate

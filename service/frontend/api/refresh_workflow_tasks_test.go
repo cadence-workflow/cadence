@@ -103,14 +103,16 @@ func setupMocksForWorkflowHandler(t *testing.T) (*WorkflowHandler, *mockDeps) {
 		dynamicClient:          dynamicClient,
 	}
 
+	logger := testlogger.New(t)
 	config := frontendcfg.NewConfig(
 		dynamicconfig.NewCollection(
 			dynamicClient,
-			testlogger.New(t),
+			logger,
 		),
 		numHistoryShards,
 		false,
 		"hostname",
+		logger,
 	)
 	wh := NewWorkflowHandler(deps.mockResource, config, deps.mockVersionChecker, deps.mockDomainHandler)
 	wh.requestValidator = deps.mockRequestValidator

@@ -33,7 +33,7 @@ var (
 	cluster0Result = &LookupResult{
 		Region:          "region0",
 		ClusterName:     "cluster0",
-		FailoverVersion: 1,
+		FailoverVersion: 0,
 	}
 
 	cluster1Result = &LookupResult{
