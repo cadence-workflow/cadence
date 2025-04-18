@@ -129,7 +129,9 @@ func TestDisableArchivalActivity(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupMocks()
-			err := deprecator.DisableArchivalActivity(context.Background(), testDomain)
+			err := deprecator.DisableArchivalActivity(context.Background(), DomainActivityParams{
+				DomainName: testDomain,
+			})
 			if tt.expectedError != nil {
 				assert.Error(t, err)
 			} else {
@@ -163,14 +165,14 @@ func TestDeprecateDomainActivity(t *testing.T) {
 		expectedError error
 	}{
 		{
-			name: "Success - Deprecate domain",
+			name: "Success",
 			setupMocks: func() {
 				mockClient.EXPECT().DeprecateDomain(gomock.Any(), gomock.Any()).Return(nil)
 			},
 			expectedError: nil,
 		},
 		{
-			name: "Error - Deprecate domain",
+			name: "Error",
 			setupMocks: func() {
 				mockClient.EXPECT().DeprecateDomain(gomock.Any(), gomock.Any()).Return(assert.AnError)
 			},
@@ -181,7 +183,67 @@ func TestDeprecateDomainActivity(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupMocks()
-			err := deprecator.DeprecateDomainActivity(context.Background(), testDomain)
+			err := deprecator.DeprecateDomainActivity(context.Background(), DomainActivityParams{
+				DomainName: testDomain,
+			})
+			if tt.expectedError != nil {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestListOpenWorkflowsActivity(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient := frontend.NewMockClient(ctrl)
+	mockClientBean := client.NewMockBean(ctrl)
+	mockClientBean.EXPECT().GetFrontendClient().Return(mockClient).AnyTimes()
+
+	deprecator := &domainDeprecator{
+		cfg: Config{
+			AdminOperationToken: dynamicproperties.GetStringPropertyFn(""),
+		},
+		clientBean: mockClientBean,
+		logger:     testlogger.New(t),
+	}
+
+	testDomain := "test-domain"
+
+	tests := []struct {
+		name          string
+		setupMocks    func()
+		expectedError error
+	}{
+		{
+			name: "Success",
+			setupMocks: func() {
+				mockClient.EXPECT().ListWorkflowExecutions(gomock.Any(), gomock.Any()).Return(
+					&types.ListWorkflowExecutionsResponse{
+						Executions: []*types.WorkflowExecutionInfo{},
+					}, nil)
+			},
+			expectedError: nil,
+		},
+		{
+			name: "Error",
+			setupMocks: func() {
+				mockClient.EXPECT().ListWorkflowExecutions(gomock.Any(), gomock.Any()).Return(
+					nil, assert.AnError)
+			},
+			expectedError: assert.AnError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setupMocks()
+			_, err := deprecator.ListOpenWorkflowsActivity(context.Background(), DomainActivityParams{
+				DomainName: testDomain,
+			})
 			if tt.expectedError != nil {
 				assert.Error(t, err)
 			} else {

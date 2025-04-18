@@ -32,8 +32,10 @@ const (
 	domainDeprecationWorkflowTypeName = "domain-deprecation-workflow"
 	domainDeprecationTaskListName     = "domain-deprecation-tasklist"
 
-	disableArchivalActivity = "disableArchival"
-	deprecateDomainActivity = "deprecateDomain"
+	disableArchivalActivity    = "disableArchival"
+	deprecateDomainActivity    = "deprecateDomain"
+	listWorkflowsActivity      = "listWorkflowsActivity"
+	terminateWorkflowsActivity = "terminateWorkflowsActivity"
 )
 
 var (
@@ -43,13 +45,14 @@ var (
 		MaximumInterval:    5 * time.Minute,
 		ExpirationInterval: 10 * time.Minute,
 		NonRetriableErrorReasons: []string{
-			errDomainDoesNotExistNonRetryable,
+			ErrDomainDoesNotExistNonRetryable,
 		},
 	}
 
 	activityOptions = workflow.ActivityOptions{
-		ScheduleToStartTimeout: time.Minute,
+		ScheduleToStartTimeout: 5 * time.Minute,
 		StartToCloseTimeout:    5 * time.Minute,
+		HeartbeatTimeout:       5 * time.Minute,
 		RetryPolicy:            &retryPolicy,
 	}
 )
@@ -59,11 +62,15 @@ func (w *domainDeprecator) DomainDeprecationWorkflow(ctx workflow.Context, domai
 	logger := workflow.GetLogger(ctx)
 	logger.Info("Starting domain deprecation workflow", zap.String("domain", domainName))
 
+	domainParams := DomainActivityParams{
+		DomainName: domainName,
+	}
+
 	// Step 1: Activity disables archival
 	err := workflow.ExecuteActivity(
 		workflow.WithActivityOptions(ctx, activityOptions),
 		w.DisableArchivalActivity,
-		domainName,
+		domainParams,
 	).Get(ctx, nil)
 	if err != nil {
 		return err
@@ -73,8 +80,34 @@ func (w *domainDeprecator) DomainDeprecationWorkflow(ctx workflow.Context, domai
 	err = workflow.ExecuteActivity(
 		workflow.WithActivityOptions(ctx, activityOptions),
 		w.DeprecateDomainActivity,
-		domainName,
+		domainParams,
 	).Get(ctx, nil)
+	if err != nil {
+		return err
+	}
+
+	// Step 3: List open workflows of the domain
+	var workflowDetails []WorkflowDetails
+	err = workflow.ExecuteActivity(
+		workflow.WithActivityOptions(ctx, activityOptions),
+		w.ListOpenWorkflowsActivity,
+		domainParams,
+	).Get(ctx, &workflowDetails)
+	if err != nil {
+		return err
+	}
+
+	// Step 4: Terminate open workflows of the domain
+	if len(workflowDetails) > 0 {
+		err = workflow.ExecuteActivity(
+			workflow.WithActivityOptions(ctx, activityOptions),
+			w.TerminateWorkflowsActivity,
+			TerminateWorkflowsActivityParams{
+				DomainName:      domainName,
+				WorkflowDetails: workflowDetails,
+			},
+		).Get(ctx, nil)
+	}
 	if err != nil {
 		return err
 	}
