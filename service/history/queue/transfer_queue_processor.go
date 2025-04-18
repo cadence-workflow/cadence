@@ -185,6 +185,9 @@ func (t *transferQueueProcessor) Stop() {
 		return
 	}
 
+	t.logger.Info("Stopping transfer queue processor")
+	defer t.logger.Info("Transfer queue processor stopped")
+
 	if !t.shard.GetConfig().QueueProcessorEnableGracefulSyncShutdown() {
 		t.activeQueueProcessor.Stop()
 		for _, standbyQueueProcessor := range t.standbyQueueProcessors {
@@ -343,10 +346,12 @@ func (t *transferQueueProcessor) HandleAction(
 }
 
 func (t *transferQueueProcessor) LockTaskProcessing() {
+	t.logger.Info("Transfer queue processor locking task processing")
 	t.taskAllocator.Lock()
 }
 
 func (t *transferQueueProcessor) UnlockTaskProcessing() {
+	t.logger.Info("Transfer queue processor unlocking task processing")
 	t.taskAllocator.Unlock()
 }
 
@@ -383,7 +388,7 @@ func (t *transferQueueProcessor) completeTransferLoop() {
 					break
 				}
 
-				t.logger.Error("Failed to complete transfer task", tag.Error(err))
+				t.logger.Error("Failed to complete transfer task", tag.Error(err), tag.Attempt(int32(attempt)))
 				var errShardClosed *shard.ErrShardClosed
 				if errors.As(err, &errShardClosed) {
 					// shard closed, trigger shutdown and bail out
@@ -447,7 +452,7 @@ func (t *transferQueueProcessor) completeTransfer() error {
 	}
 
 	newAckLevelTaskID := newAckLevel.(transferTaskKey).taskID
-	t.logger.Debug(fmt.Sprintf("Start completing transfer task from: %v, to %v.", t.ackLevel, newAckLevelTaskID))
+	t.logger.Debugf("Start completing transfer task from: %v, to %v.", t.ackLevel, newAckLevelTaskID)
 	if t.ackLevel >= newAckLevelTaskID {
 		return nil
 	}

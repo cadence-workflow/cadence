@@ -968,7 +968,9 @@ func (s *contextImpl) closeShard() {
 	}
 
 	go func() {
+		s.logger.Info("Shard context calling close callback")
 		s.closeCallback(s.shardID, s.shardItem)
+		s.logger.Info("Shard context close callback completed")
 	}()
 
 	// fails any writes that may start after this point.

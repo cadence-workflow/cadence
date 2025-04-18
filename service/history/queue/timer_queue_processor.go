@@ -186,6 +186,9 @@ func (t *timerQueueProcessor) Stop() {
 		return
 	}
 
+	t.logger.Info("Stopping timer queue processor")
+	defer t.logger.Info("Timer queue processor stopped")
+
 	if !t.shard.GetConfig().QueueProcessorEnableGracefulSyncShutdown() {
 		t.activeQueueProcessor.Stop()
 		// stop active executor after queue processor
@@ -376,10 +379,12 @@ func (t *timerQueueProcessor) HandleAction(ctx context.Context, clusterName stri
 }
 
 func (t *timerQueueProcessor) LockTaskProcessing() {
+	t.logger.Info("Timer queue processor locking task processing")
 	t.taskAllocator.Lock()
 }
 
 func (t *timerQueueProcessor) UnlockTaskProcessing() {
+	t.logger.Info("Timer queue processor unlocking task processing")
 	t.taskAllocator.Unlock()
 }
 
@@ -424,7 +429,7 @@ func (t *timerQueueProcessor) completeTimerLoop() {
 					break
 				}
 
-				t.logger.Error("Failed to complete timer task", tag.Error(err))
+				t.logger.Error("Failed to complete timer task", tag.Error(err), tag.Attempt(int32(attempt)))
 				var errShardClosed *shard.ErrShardClosed
 				if errors.As(err, &errShardClosed) {
 					if !t.shard.GetConfig().QueueProcessorEnableGracefulSyncShutdown() {

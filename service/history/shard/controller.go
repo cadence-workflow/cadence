@@ -241,7 +241,8 @@ func (c *controller) ShardIDs() []int32 {
 func (c *controller) removeEngineForShard(shardID int, shardItem *historyShardsItem) {
 	sw := c.metricsScope.StartTimer(metrics.RemoveEngineForShardLatency)
 	defer sw.Stop()
-	currentShardItem, _ := c.removeHistoryShardItem(shardID, shardItem)
+	currentShardItem, err := c.removeHistoryShardItem(shardID, shardItem)
+	c.logger.Error("Failed to remove history shard item", tag.Error(err), tag.ShardID(shardID))
 	if shardItem != nil {
 		// if shardItem is not nil, then currentShardItem either equals to shardItem or is nil
 		// in both cases, we need to stop the engine in shardItem
@@ -257,7 +258,7 @@ func (c *controller) removeEngineForShard(shardID int, shardItem *historyShardsI
 
 func (c *controller) shardClosedCallback(shardID int, shardItem *historyShardsItem) {
 	c.metricsScope.IncCounter(metrics.ShardClosedCounter)
-	c.logger.Info("Shard controller state changed", tag.LifeCycleStopping, tag.ComponentShard, tag.ShardID(shardID))
+	c.logger.Info("Shard controller state changed", tag.LifeCycleStopping, tag.ComponentShard, tag.ShardID(shardID), tag.Reason("shardClosedCallback"))
 	c.removeEngineForShard(shardID, shardItem)
 }
 
@@ -321,7 +322,6 @@ func (c *controller) getOrCreateHistoryShardItem(shardID int) (*historyShardsIte
 }
 
 func (c *controller) removeHistoryShardItem(shardID int, shardItem *historyShardsItem) (*historyShardsItem, error) {
-	nShards := 0
 	c.Lock()
 	defer c.Unlock()
 
@@ -336,11 +336,8 @@ func (c *controller) removeHistoryShardItem(shardID int, shardItem *historyShard
 	}
 
 	delete(c.historyShards, shardID)
-	nShards = len(c.historyShards)
-
 	c.metricsScope.IncCounter(metrics.ShardItemRemovedCounter)
-
-	currentShardItem.logger.Info("Shard item state changed", tag.LifeCycleStopped, tag.ComponentShardItem, tag.Number(int64(nShards)))
+	currentShardItem.logger.Info("Shard item state changed", tag.LifeCycleStopped, tag.ComponentShardItem, tag.Number(int64(len(c.historyShards))))
 	return currentShardItem, nil
 }
 
@@ -425,7 +422,7 @@ func (c *controller) acquireShards() {
 }
 
 func (c *controller) doShutdown() {
-	c.logger.Info("Shard controller state changed", tag.LifeCycleStopping)
+	c.logger.Info("Shard controller state changed", tag.LifeCycleStopping, tag.Reason("shutdown"))
 	c.Lock()
 	defer c.Unlock()
 	for _, item := range c.historyShards {
@@ -482,6 +479,8 @@ func (i *historyShardsItem) getOrCreateEngine(
 func (i *historyShardsItem) stopEngine() {
 	i.Lock()
 	defer i.Unlock()
+
+	i.logger.Info("Shard item stopEngine called", tag.ComponentShardEngine, tag.Dynamic("status", i.status))
 
 	switch i.status {
 	case historyShardsItemStatusInitialized:
