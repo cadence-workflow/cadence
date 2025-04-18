@@ -172,6 +172,9 @@ func (t *timerQueueProcessor) Start() {
 		return
 	}
 
+	t.logger.Info("Starting timer queue processor")
+	defer t.logger.Info("Timer queue processor started")
+
 	t.activeQueueProcessor.Start()
 	for _, standbyQueueProcessor := range t.standbyQueueProcessors {
 		standbyQueueProcessor.Start()
@@ -405,6 +408,9 @@ func (t *timerQueueProcessor) drain() {
 }
 
 func (t *timerQueueProcessor) completeTimerLoop() {
+	t.logger.Info("Timer queue processor completeTimerLoop")
+	defer t.logger.Info("Timer queue processor completeTimerLoop completed")
+
 	defer t.shutdownWG.Done()
 
 	completeTimer := time.NewTimer(t.config.TimerProcessorCompleteTimerInterval())

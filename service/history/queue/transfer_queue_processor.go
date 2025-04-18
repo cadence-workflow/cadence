@@ -171,6 +171,9 @@ func (t *transferQueueProcessor) Start() {
 		return
 	}
 
+	t.logger.Info("Starting transfer queue processor")
+	defer t.logger.Info("Transfer queue processor started")
+
 	t.activeQueueProcessor.Start()
 	for _, standbyQueueProcessor := range t.standbyQueueProcessors {
 		standbyQueueProcessor.Start()
@@ -363,6 +366,9 @@ func (t *transferQueueProcessor) drain() {
 }
 
 func (t *transferQueueProcessor) completeTransferLoop() {
+	t.logger.Info("Transfer queue processor completeTransferLoop")
+	defer t.logger.Info("Transfer queue processor completeTransferLoop completed")
+
 	defer t.shutdownWG.Done()
 
 	completeTimer := time.NewTimer(t.config.TransferProcessorCompleteTransferInterval())
