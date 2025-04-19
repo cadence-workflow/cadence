@@ -1321,6 +1321,8 @@ const (
 	HistoryExecutionCacheScope
 	// HistoryWorkflowCacheScope is the scope used by history workflow cache
 	HistoryWorkflowCacheScope
+	// HistoryFlushBufferedEventsScope is the scope used by history when flushing buffered events
+	HistoryFlushBufferedEventsScope
 
 	NumHistoryScopes
 )
@@ -2018,6 +2020,7 @@ var ScopeDefs = map[ServiceIdx]map[int]scopeDefinition{
 		LargeExecutionBlobShardScope:                                    {operation: "LargeExecutionBlobShard"},
 		HistoryExecutionCacheScope:                                      {operation: "HistoryExecutionCache"},
 		HistoryWorkflowCacheScope:                                       {operation: "HistoryWorkflowCache"},
+		HistoryFlushBufferedEventsScope:                                 {operation: "HistoryFlushBufferedEvents"},
 	},
 	// Matching Scope Names
 	Matching: {
@@ -2420,6 +2423,7 @@ const (
 	DecisionRetriesExceededCounter
 	StaleMutableStateCounter
 	DataInconsistentCounter
+	DuplicateActivityTaskEventCounter
 	TimerResurrectionCounter
 	TimerProcessingDeletionTimerNoopDueToMutableStateNotLoading
 	TimerProcessingDeletionTimerNoopDueToWFRunning
@@ -3152,6 +3156,7 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		DecisionRetriesExceededCounter:                               {metricName: "decision_retries_exceeded", metricType: Counter},
 		StaleMutableStateCounter:                                     {metricName: "stale_mutable_state", metricType: Counter},
 		DataInconsistentCounter:                                      {metricName: "data_inconsistent", metricType: Counter},
+		DuplicateActivityTaskEventCounter:                            {metricName: "duplicate_activity_task_event", metricType: Counter},
 		TimerResurrectionCounter:                                     {metricName: "timer_resurrection", metricType: Counter},
 		TimerProcessingDeletionTimerNoopDueToMutableStateNotLoading:  {metricName: "timer_processing_skipping_deletion_due_to_missing_mutable_state", metricType: Counter},
 		TimerProcessingDeletionTimerNoopDueToWFRunning:               {metricName: "timer_processing_skipping_deletion_due_to_running", metricType: Counter},
