@@ -184,7 +184,6 @@ func (t *transferQueueProcessorBase) Stop() {
 	}
 
 	t.logger.Info("Transfer queue processor state changed", tag.LifeCycleStopping)
-	defer t.logger.Info("Transfer queue processor state changed", tag.LifeCycleStopped)
 
 	close(t.shutdownCh)
 	if t.startJitterTimer != nil {
@@ -204,6 +203,7 @@ func (t *transferQueueProcessorBase) Stop() {
 	}
 
 	t.redispatcher.Stop()
+	t.logger.Info("Transfer queue processor state changed", tag.LifeCycleStopped)
 }
 
 func (t *transferQueueProcessorBase) notifyNewTask(info *hcommon.NotifyTaskInfo) {

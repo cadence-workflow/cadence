@@ -185,7 +185,6 @@ func (t *timerQueueProcessorBase) Stop() {
 	}
 
 	t.logger.Info("Timer queue processor state changed", tag.LifeCycleStopping)
-	defer t.logger.Info("Timer queue processor state changed", tag.LifeCycleStopped)
 
 	t.timerGate.Stop()
 	close(t.shutdownCh)
@@ -200,6 +199,7 @@ func (t *timerQueueProcessorBase) Stop() {
 	}
 
 	t.redispatcher.Stop()
+	t.logger.Info("Timer queue processor state changed", tag.LifeCycleStopped)
 }
 
 func (t *timerQueueProcessorBase) processorPump() {

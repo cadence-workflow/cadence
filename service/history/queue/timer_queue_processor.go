@@ -412,10 +412,10 @@ func (t *timerQueueProcessor) drain() {
 }
 
 func (t *timerQueueProcessor) completeTimerLoop() {
+	defer t.shutdownWG.Done()
+
 	t.logger.Info("Timer queue processor completeTimerLoop")
 	defer t.logger.Info("Timer queue processor completeTimerLoop completed")
-
-	defer t.shutdownWG.Done()
 
 	completeTimer := time.NewTimer(t.config.TimerProcessorCompleteTimerInterval())
 	defer completeTimer.Stop()

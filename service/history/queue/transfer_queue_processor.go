@@ -370,10 +370,10 @@ func (t *transferQueueProcessor) drain() {
 }
 
 func (t *transferQueueProcessor) completeTransferLoop() {
+	defer t.shutdownWG.Done()
+
 	t.logger.Info("Transfer queue processor completeTransferLoop")
 	defer t.logger.Info("Transfer queue processor completeTransferLoop completed")
-
-	defer t.shutdownWG.Done()
 
 	completeTimer := time.NewTimer(t.config.TransferProcessorCompleteTransferInterval())
 	defer completeTimer.Stop()
