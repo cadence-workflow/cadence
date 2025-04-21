@@ -49,15 +49,9 @@ type fallbackDynamicRateLimiterFactory struct {
 // GetLimiter returns a new Limiter for the given domain
 func (f fallbackDynamicRateLimiterFactory) GetLimiter(domain string) quotas.Limiter {
 	return quotas.NewDynamicRateLimiter(func() float64 {
-		return limitWithFallback(
-			float64(f.primary(domain)),
-			float64(f.secondary()))
+		if primaryLimit := f.primary(domain); primaryLimit > 0 {
+			return float64(primaryLimit)
+		}
+		return float64(f.secondary())
 	})
-}
-
-func limitWithFallback(primary, secondary float64) float64 {
-	if primary > 0 {
-		return primary
-	}
-	return secondary
 }

@@ -26,6 +26,8 @@ import (
 	"fmt"
 	"time"
 
+	"go.uber.org/atomic"
+
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/ctxutils"
 	"github.com/uber/cadence/common/log"
@@ -55,7 +57,9 @@ type taskMatcherImpl struct {
 	// not active in a cluster
 	queryTaskC chan *InternalTask
 	// ratelimiter that limits the rate at which tasks can be dispatched to consumers
-	limiter *quotas.RateLimiter
+	limiter quotas.Limiter
+	// The most recently received Dispatch rate from a poller
+	lastReceivedRate atomic.Float64
 
 	fwdr   Forwarder
 	scope  metrics.Scope // domain metric scope
@@ -86,8 +90,6 @@ func newTaskMatcher(
 	tasklistKind types.TaskListKind,
 	numReadPartitionsFn func(*config.TaskListConfig) int,
 ) TaskMatcher {
-	dPtr := config.TaskDispatchRPS
-	limiter := quotas.NewRateLimiter(&dPtr, config.TaskDispatchRPSTTL, config.MinTaskThrottlingBurstSize())
 	isolatedTaskC := make(map[string]chan *InternalTask)
 	for _, g := range isolationGroups {
 		isolatedTaskC[g] = make(chan *InternalTask)
@@ -95,9 +97,8 @@ func newTaskMatcher(
 
 	cancelCtx, cancelFunc := context.WithCancel(context.Background())
 
-	return &taskMatcherImpl{
+	matcher := &taskMatcherImpl{
 		log:                 log,
-		limiter:             limiter,
 		scope:               scope,
 		fwdr:                fwdr,
 		taskC:               make(chan *InternalTask),
@@ -110,6 +111,13 @@ func newTaskMatcher(
 		cancelFunc:          cancelFunc,
 		numReadPartitionsFn: numReadPartitionsFn,
 	}
+	matcher.lastReceivedRate.Store(config.TaskDispatchRPS)
+	matcher.limiter = quotas.NewDynamicRateLimiterWithOpts(matcher.Rate, quotas.DynamicRateLimiterOpts{
+		TTL:      config.TaskDispatchRPSTTL,
+		MinBurst: config.MinTaskThrottlingBurstSize(),
+	})
+
+	return matcher
 }
 
 // DisconnectBlockedPollers gradually disconnects pollers which are blocked on long polling
@@ -464,21 +472,20 @@ func (tm *taskMatcherImpl) PollForQuery(ctx context.Context) (*InternalTask, err
 
 // UpdateRatelimit updates the task dispatch rate
 func (tm *taskMatcherImpl) UpdateRatelimit(rps *float64) {
-	if rps == nil {
-		return
+	if rps != nil {
+		tm.lastReceivedRate.Store(*rps)
 	}
-	rate := *rps
+}
+
+// Rate returns the current rate at which tasks are dispatched
+func (tm *taskMatcherImpl) Rate() float64 {
+	rate := tm.lastReceivedRate.Load()
 	nPartitions := tm.numReadPartitionsFn(tm.config)
 	if rate > float64(nPartitions) {
 		// divide the rate equally across all partitions
 		rate = rate / float64(nPartitions)
 	}
-	tm.limiter.UpdateMaxDispatch(&rate)
-}
-
-// Rate returns the current rate at which tasks are dispatched
-func (tm *taskMatcherImpl) Rate() float64 {
-	return float64(tm.limiter.Limit())
+	return rate
 }
 
 func (tm *taskMatcherImpl) pollOrForward(

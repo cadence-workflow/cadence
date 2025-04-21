@@ -39,7 +39,7 @@ import (
 func TestUsage(t *testing.T) {
 	t.Run("tracks allow", func(t *testing.T) {
 		ts := clock.NewMockedTimeSource()
-		counted := NewCountedLimiter(clock.NewMockRatelimiter(ts, 1, 1))
+		counted := NewCountedLimiter(clock.NewRateLimiterWithTimeSource(ts, 1, 1))
 
 		assert.True(t, counted.Allow(), "should match wrapped limiter")
 		assert.Equal(t, UsageMetrics{1, 0, 0}, counted.Collect())
@@ -49,7 +49,7 @@ func TestUsage(t *testing.T) {
 	})
 	t.Run("tracks wait", func(t *testing.T) {
 		ts := clock.NewMockedTimeSource()
-		counted := NewCountedLimiter(clock.NewMockRatelimiter(ts, 1, 1))
+		counted := NewCountedLimiter(clock.NewRateLimiterWithTimeSource(ts, 1, 1))
 
 		// consume the available token
 		requireQuickly(t, 100*time.Millisecond, func() {
@@ -82,7 +82,7 @@ func TestUsage(t *testing.T) {
 	})
 	t.Run("tracks reserve", func(t *testing.T) {
 		ts := clock.NewMockedTimeSource()
-		lim := NewCountedLimiter(clock.NewMockRatelimiter(ts, 1, 1))
+		lim := NewCountedLimiter(clock.NewRateLimiterWithTimeSource(ts, 1, 1))
 
 		r := lim.Reserve()
 		assert.True(t, r.Allow(), "should have used the available burst")
@@ -99,7 +99,7 @@ func TestUsage(t *testing.T) {
 	// largely for coverage
 	t.Run("supports Limit", func(t *testing.T) {
 		rps := rate.Limit(1)
-		lim := NewCountedLimiter(clock.NewMockRatelimiter(clock.NewMockedTimeSource(), rps, 1))
+		lim := NewCountedLimiter(clock.NewRateLimiterWithTimeSource(clock.NewMockedTimeSource(), rps, 1))
 		assert.Equal(t, rps, lim.Limit())
 	})
 }
@@ -152,7 +152,7 @@ func TestRegression_ReserveCountsCorrectly(t *testing.T) {
 	t.Run("counted", func(t *testing.T) {
 		// "base" counting-limiter should count correctly
 		ts := clock.NewMockedTimeSource()
-		wrapped := clock.NewMockRatelimiter(ts, 1, 100)
+		wrapped := clock.NewRateLimiterWithTimeSource(ts, 1, 100)
 		lim := NewCountedLimiter(wrapped)
 
 		run(t, lim, ts.Advance, lim.Collect)
@@ -160,7 +160,7 @@ func TestRegression_ReserveCountsCorrectly(t *testing.T) {
 	t.Run("shadowed", func(t *testing.T) {
 		// "shadowed" should call the primary correctly at the very least
 		ts := clock.NewMockedTimeSource()
-		wrapped := clock.NewMockRatelimiter(ts, 1, 100)
+		wrapped := clock.NewRateLimiterWithTimeSource(ts, 1, 100)
 		counted := NewCountedLimiter(wrapped)
 		lim := NewShadowedLimiter(counted, allowlimiter{})
 
@@ -170,7 +170,7 @@ func TestRegression_ReserveCountsCorrectly(t *testing.T) {
 		// "fallback" uses a different implementation, but it should count exactly the same.
 		// TODO: ideally it would actually be the same code, but that's a bit awkward due to needing different interfaces.
 		ts := clock.NewMockedTimeSource()
-		wrapped := clock.NewMockRatelimiter(ts, 1, 100)
+		wrapped := clock.NewRateLimiterWithTimeSource(ts, 1, 100)
 		l := NewFallbackLimiter(allowlimiter{})
 		l.Update(1)         // allows using primary, else it calls the fallback
 		l.primary = wrapped // cheat, just swap it out

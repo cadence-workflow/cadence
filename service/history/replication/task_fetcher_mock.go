@@ -64,10 +64,10 @@ func (m *MockTaskFetcher) EXPECT() *MockTaskFetcherMockRecorder {
 }
 
 // GetRateLimiter mocks base method.
-func (m *MockTaskFetcher) GetRateLimiter() *quotas.DynamicRateLimiter {
+func (m *MockTaskFetcher) GetRateLimiter() quotas.Limiter {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetRateLimiter")
-	ret0, _ := ret[0].(*quotas.DynamicRateLimiter)
+	ret0, _ := ret[0].(quotas.Limiter)
 	return ret0
 }
 

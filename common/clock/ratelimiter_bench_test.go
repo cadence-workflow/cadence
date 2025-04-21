@@ -161,7 +161,7 @@ func BenchmarkLimiter(b *testing.B) {
 				})
 				b.Run("mocked timesource", func(b *testing.B) {
 					ts := NewMockedTimeSource()
-					rl := NewMockRatelimiter(ts, rate.Every(normalLimit), burst)
+					rl := NewRateLimiterWithTimeSource(ts, rate.Every(normalLimit), burst)
 					runner(b, func(i int) bool {
 						// adjusted by eye, to try to very roughly match the above values for the final runs.
 						// anything not extremely higher or lower is probably fine.
@@ -260,7 +260,7 @@ func BenchmarkLimiter(b *testing.B) {
 				})
 				b.Run("mocked timesource", func(b *testing.B) {
 					ts := NewMockedTimeSource()
-					rl := NewMockRatelimiter(ts, rate.Every(normalLimit), burst)
+					rl := NewRateLimiterWithTimeSource(ts, rate.Every(normalLimit), burst)
 					runWrapped(b, rl, runner, func() {
 						// any value should work, but smaller than normalLimit revealed
 						// some issues in the past, where time-thrashing would lead to
@@ -322,7 +322,7 @@ func BenchmarkLimiter(b *testing.B) {
 						})
 						b.Run("mocked timesource", func(b *testing.B) {
 							ts := NewMockedTimeSource()
-							rl := NewMockRatelimiter(ts, limit, burst)
+							rl := NewRateLimiterWithTimeSource(ts, limit, burst)
 							ctx := &timesourceContext{
 								ts:       ts,
 								deadline: time.Now().Add(timeout),

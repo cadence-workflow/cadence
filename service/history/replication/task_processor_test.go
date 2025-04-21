@@ -82,7 +82,7 @@ type (
 type fakeTaskFetcher struct {
 	sourceCluster string
 	requestChan   chan *request
-	rateLimiter   *quotas.DynamicRateLimiter
+	rateLimiter   quotas.Limiter
 }
 
 func (f fakeTaskFetcher) Start() {}
@@ -93,7 +93,7 @@ func (f fakeTaskFetcher) GetSourceCluster() string {
 func (f fakeTaskFetcher) GetRequestChan() chan<- *request {
 	return f.requestChan
 }
-func (f fakeTaskFetcher) GetRateLimiter() *quotas.DynamicRateLimiter {
+func (f fakeTaskFetcher) GetRateLimiter() quotas.Limiter {
 	return f.rateLimiter
 }
 

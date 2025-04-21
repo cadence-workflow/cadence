@@ -59,7 +59,7 @@ type (
 
 		// todo: implement a rate limiter that automatically
 		// adjusts rate based on ServiceBusy errors from API calls
-		limiter *quotas.DynamicRateLimiter
+		limiter quotas.Limiter
 	}
 	// ForwarderReqToken is the token that must be acquired before
 	// making forwarder API calls. This type contains the state

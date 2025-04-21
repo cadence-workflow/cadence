@@ -67,7 +67,7 @@ func assertRatelimiterBasicsWork(t *testing.T, makeTimesource func() MockedTimeS
 		if ts == nil {
 			return NewRatelimiter(limit, burst), time.Sleep
 		}
-		return NewMockRatelimiter(ts, limit, burst), ts.Advance
+		return NewRateLimiterWithTimeSource(ts, limit, burst), ts.Advance
 	}
 
 	now := func(ts MockedTimeSource) time.Time {
@@ -466,7 +466,7 @@ func TestRatelimiterCoverage(t *testing.T) {
 	})
 	t.Run("mock limiter constructor", func(t *testing.T) {
 		// covered by fuzz testing, but this gets it to 100% without fuzz.
-		_ = NewMockRatelimiter(NewMockedTimeSource(), 1, 1)
+		_ = NewRateLimiterWithTimeSource(NewMockedTimeSource(), 1, 1)
 	})
 }
 

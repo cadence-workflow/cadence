@@ -41,13 +41,13 @@ import (
 	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/metrics/mocks"
 	"github.com/uber/cadence/common/persistence"
-	"github.com/uber/cadence/common/quotas"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/matching/config"
 )
@@ -74,6 +74,7 @@ func (t *MatcherTestSuite) SetupTest() {
 	t.controller = gomock.NewController(t.T())
 	t.client = matching.NewMockClient(t.controller)
 	cfg := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", func() []string { return nil })
+	cfg.TaskDispatchRPSTTL = 0
 	t.taskList = NewTestTaskListID(t.T(), uuid.New(), constants.ReservedTaskListPrefix+"tl0/1", persistence.TaskListTypeDecision)
 	tlCfg := newTaskListConfig(t.taskList, cfg, testDomainName)
 
@@ -1449,7 +1450,7 @@ func TestRatelimitBehavior(t *testing.T) {
 			t.Run("current", func(t *testing.T) {
 				t.Parallel()
 				perSecond := float64(time.Second / granularity)
-				limiter := quotas.NewRateLimiter(&perSecond, time.Minute, int(perSecond))
+				limiter := clock.NewRatelimiter(rate.Limit(perSecond), int(perSecond))
 				check(t, limiter.Allow, func(ctx context.Context) (*rate.Reservation, error) {
 					return nil, (&taskMatcherImpl{limiter: limiter}).ratelimit(ctx)
 				})
@@ -1548,7 +1549,7 @@ func TestRatelimitBehavior(t *testing.T) {
 			t.Run("new code stops quickly and returns unused tokens", func(t *testing.T) {
 				t.Parallel()
 				perSecond := float64(time.Second / granularity)
-				limit := quotas.NewRateLimiter(&perSecond, time.Minute, int(perSecond))
+				limit := clock.NewRatelimiter(rate.Limit(perSecond), int(perSecond))
 				for limit.Allow() {
 					// drain tokens to start
 				}

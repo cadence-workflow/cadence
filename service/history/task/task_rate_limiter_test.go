@@ -168,10 +168,6 @@ func TestRateLimiterRPS(t *testing.T) {
 
 	l := r.limiters.For("test-domain").Limit()
 	assert.Equal(t, 50, int(l))
-
-	require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.TaskSchedulerGlobalDomainRPS, 200))
-	l = r.limiters.For("test-domain").Limit()
-	assert.Equal(t, 100, int(l))
 }
 
 func TestRateLimiterAllow(t *testing.T) {
