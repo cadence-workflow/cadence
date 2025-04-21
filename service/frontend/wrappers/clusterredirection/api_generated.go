@@ -65,6 +65,7 @@ func NewAPIHandler(
 		config,
 		resource.GetDomainCache(),
 		policy,
+		resource.GetLogger(),
 	)
 
 	return &clusterRedirectionHandler{

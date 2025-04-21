@@ -43,7 +43,6 @@ var ignoreField = configTestCase{key: dynamicproperties.UnknownIntKey}
 
 func TestNewConfig(t *testing.T) {
 	fields := map[string]configTestCase{
-		"Logger":                                      ignoreField, // Logger is not a config to be compared in test
 		"NumHistoryShards":                            {nil, 1001},
 		"IsAdvancedVisConfigExist":                    {nil, true},
 		"HostName":                                    {nil, "hostname"},

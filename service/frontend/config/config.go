@@ -29,8 +29,6 @@ import (
 
 // Config represents configuration for cadence-frontend service
 type Config struct {
-	Logger log.Logger
-
 	NumHistoryShards                int
 	IsAdvancedVisConfigExist        bool
 	DomainConfig                    domain.Config
@@ -124,8 +122,8 @@ type Config struct {
 
 // NewConfig returns new service config with default values
 func NewConfig(dc *dynamicconfig.Collection, numHistoryShards int, isAdvancedVisConfigExist bool, hostName string, logger log.Logger) *Config {
+	logger.Debugf("Creating new frontend config for host %s, numHistoryShards: %d, isAdvancedVisConfigExist: %t", hostName, numHistoryShards, isAdvancedVisConfigExist)
 	return &Config{
-		Logger:                                      logger,
 		NumHistoryShards:                            numHistoryShards,
 		IsAdvancedVisConfigExist:                    isAdvancedVisConfigExist,
 		PersistenceMaxQPS:                           dc.GetIntProperty(dynamicproperties.FrontendPersistenceMaxQPS),

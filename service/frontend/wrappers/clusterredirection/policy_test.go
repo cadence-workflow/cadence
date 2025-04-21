@@ -172,6 +172,7 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) SetupTest() {
 		false,
 		selectedAPIsForwardingRedirectionPolicyAPIAllowlist,
 		"",
+		logger,
 	)
 }
 
