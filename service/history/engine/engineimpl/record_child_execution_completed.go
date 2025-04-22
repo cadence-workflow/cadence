@@ -49,7 +49,7 @@ func (e *historyEngineImpl) RecordChildExecutionCompleted(
 		RunID:      completionRequest.WorkflowExecution.GetRunID(),
 	}
 
-	return e.updateWithActionFn(ctx, e.executionCache, domainID, workflowExecution, true, e.timeSource.Now(),
+	return e.updateWithActionFn(ctx, e.logger, e.executionCache, domainID, workflowExecution, true, e.timeSource.Now(),
 		func(wfContext execution.Context, mutableState execution.MutableState) error {
 			if !mutableState.IsWorkflowExecutionRunning() {
 				return workflow.ErrNotExists

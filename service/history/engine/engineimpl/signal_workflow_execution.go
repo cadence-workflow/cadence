@@ -54,6 +54,7 @@ func (e *historyEngineImpl) SignalWorkflowExecution(
 
 	return workflow.UpdateCurrentWithActionFunc(
 		ctx,
+		e.logger,
 		e.executionCache,
 		e.executionManager,
 		domainID,

@@ -53,7 +53,7 @@ func (e *historyEngineImpl) RequestCancelWorkflowExecution(
 		workflowExecution.RunID = request.WorkflowExecution.RunID
 	}
 
-	return workflow.UpdateCurrentWithActionFunc(ctx, e.executionCache, e.executionManager, domainID, e.shard.GetDomainCache(), workflowExecution, e.timeSource.Now(),
+	return workflow.UpdateCurrentWithActionFunc(ctx, e.logger, e.executionCache, e.executionManager, domainID, e.shard.GetDomainCache(), workflowExecution, e.timeSource.Now(),
 		func(wfContext execution.Context, mutableState execution.MutableState) (*workflow.UpdateAction, error) {
 			isCancelRequested, cancelRequestID := mutableState.IsCancelRequested()
 			if !mutableState.IsWorkflowExecutionRunning() {

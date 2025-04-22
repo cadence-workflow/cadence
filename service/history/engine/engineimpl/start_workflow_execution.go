@@ -108,7 +108,7 @@ func (e *historyEngineImpl) startWorkflowHelper(
 		WorkflowID: workflowID,
 		RunID:      uuid.New(),
 	}
-	curMutableState, err := e.createMutableState(domainEntry, workflowExecution.GetRunID())
+	curMutableState, err := e.createMutableState(ctx, domainEntry, workflowExecution.GetRunID(), startRequest)
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +128,7 @@ func (e *historyEngineImpl) startWorkflowHelper(
 		}
 		if prevLastWriteVersion > curMutableState.GetCurrentVersion() {
 			return nil, e.newDomainNotActiveError(
-				domainEntry.GetInfo().Name,
+				domainEntry,
 				prevLastWriteVersion,
 			)
 		}
@@ -182,6 +182,7 @@ func (e *historyEngineImpl) startWorkflowHelper(
 	}
 	wfContext := execution.NewContext(domainID, workflowExecution, e.shard, e.executionManager, e.logger)
 
+	// TODO(active-active): mutable state should handle recording RowType=ActiveCluster for active-active domains.
 	newWorkflow, newWorkflowEventsSeq, err := curMutableState.CloseTransactionAsSnapshot(
 		e.timeSource.Now(),
 		execution.TransactionPolicyActive,
@@ -246,7 +247,7 @@ func (e *historyEngineImpl) startWorkflowHelper(
 
 		if curMutableState.GetCurrentVersion() < t.LastWriteVersion {
 			return nil, e.newDomainNotActiveError(
-				domainEntry.GetInfo().Name,
+				domainEntry,
 				t.LastWriteVersion,
 			)
 		}
@@ -426,6 +427,9 @@ func (e *historyEngineImpl) SignalWithStartWorkflowExecution(
 
 			// We apply the update to execution using optimistic concurrency.  If it fails due to a conflict then reload
 			// the history and try the operation again.
+			e.logger.Debugf("SignalWithStartWorkflowExecution calling UpdateWorkflowExecutionAsActive for wfID %s",
+				workflowExecution.GetWorkflowID(),
+			)
 			if err := wfContext.UpdateWorkflowExecutionAsActive(ctx, e.shard.GetTimeSource().Now()); err != nil {
 				if t, ok := persistence.AsDuplicateRequestError(err); ok {
 					if t.RequestType == persistence.WorkflowRequestTypeSignal {
@@ -632,7 +636,7 @@ UpdateWorkflowLoop:
 		}
 
 		// new mutable state
-		newMutableState, err := e.createMutableState(domainEntry, workflowExecution.GetRunID())
+		newMutableState, err := e.createMutableState(ctx, domainEntry, workflowExecution.GetRunID(), startRequest)
 		if err != nil {
 			return nil, err
 		}
@@ -815,7 +819,12 @@ func (e *historyEngineImpl) newChildContext(
 	return context.WithTimeout(context.Background(), ctxTimeout)
 }
 
-func (e *historyEngineImpl) createMutableState(domainEntry *cache.DomainCacheEntry, runID string) (execution.MutableState, error) {
+func (e *historyEngineImpl) createMutableState(
+	ctx context.Context,
+	domainEntry *cache.DomainCacheEntry,
+	runID string,
+	startRequest *types.HistoryStartWorkflowExecutionRequest,
+) (execution.MutableState, error) {
 
 	newMutableState := execution.NewMutableStateBuilderWithVersionHistories(
 		e.shard,
@@ -825,6 +834,14 @@ func (e *historyEngineImpl) createMutableState(domainEntry *cache.DomainCacheEnt
 
 	if err := newMutableState.SetHistoryTree(runID); err != nil {
 		return nil, err
+	}
+
+	if domainEntry.GetReplicationConfig().IsActiveActive() {
+		res, err := e.shard.GetActiveClusterManager().LookupExternalEntityOfNewWorkflow(ctx, startRequest)
+		if err != nil {
+			return nil, err
+		}
+		newMutableState.UpdateCurrentVersion(res.FailoverVersion, true)
 	}
 
 	return newMutableState, nil

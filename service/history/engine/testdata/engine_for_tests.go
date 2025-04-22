@@ -89,6 +89,13 @@ func NewEngineForTest(t *testing.T, newEngineFn NewEngineFn) *EngineForTest {
 	domainCache.EXPECT().RegisterDomainChangeCallback(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 	domainCache.EXPECT().UnregisterDomainChangeCallback(gomock.Any()).Times(1)
 
+	activeClusterMgr := shardCtx.Resource.ActiveClusterMgr
+	activeClusterMgr.EXPECT().RegisterChangeCallback(gomock.Any(), gomock.Any()).AnyTimes()
+
+	activeClusterMgr.EXPECT().ClusterNameForFailoverVersion(gomock.Any(), gomock.Any()).DoAndReturn(func(version int64, domainID string) (string, error) {
+		return shardCtx.GetClusterMetadata().ClusterNameForFailoverVersion(version)
+	}).AnyTimes()
+
 	executionMgr := shardCtx.Resource.ExecutionMgr
 	// RangeCompleteReplicationTask is called by taskProcessorImpl's background loop
 	executionMgr.

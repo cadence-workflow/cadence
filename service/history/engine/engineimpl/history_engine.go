@@ -118,7 +118,16 @@ type historyEngineImpl struct {
 	failoverMarkerNotifier    failover.MarkerNotifier
 	wfIDCache                 workflowcache.WFCache
 
-	updateWithActionFn func(context.Context, execution.Cache, string, types.WorkflowExecution, bool, time.Time, func(wfContext execution.Context, mutableState execution.MutableState) error) error
+	updateWithActionFn func(
+		context.Context,
+		log.Logger,
+		execution.Cache,
+		string,
+		types.WorkflowExecution,
+		bool,
+		time.Time,
+		func(wfContext execution.Context, mutableState execution.MutableState) error,
+	) error
 }
 
 var (
@@ -417,17 +426,16 @@ func (e *historyEngineImpl) SyncActivity(ctx context.Context, request *types.Syn
 }
 
 func (e *historyEngineImpl) newDomainNotActiveError(
-	domainName string,
+	domainEntry *cache.DomainCacheEntry,
 	failoverVersion int64,
 ) error {
-	clusterMetadata := e.shard.GetService().GetClusterMetadata()
-	clusterName, err := clusterMetadata.ClusterNameForFailoverVersion(failoverVersion)
+	clusterName, err := e.shard.GetActiveClusterManager().ClusterNameForFailoverVersion(failoverVersion, domainEntry.GetInfo().ID)
 	if err != nil {
 		clusterName = "_unknown_"
 	}
 	return ce.NewDomainNotActiveError(
-		domainName,
-		clusterMetadata.GetCurrentClusterName(),
+		domainEntry.GetInfo().Name,
+		e.clusterMetadata.GetCurrentClusterName(),
 		clusterName,
 	)
 }

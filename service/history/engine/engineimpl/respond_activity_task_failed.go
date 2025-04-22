@@ -62,6 +62,7 @@ func (e *historyEngineImpl) RespondActivityTaskFailed(
 	var taskList string
 	err = workflow.UpdateWithActionFunc(
 		ctx,
+		e.logger,
 		e.executionCache,
 		domainID,
 		workflowExecution,
