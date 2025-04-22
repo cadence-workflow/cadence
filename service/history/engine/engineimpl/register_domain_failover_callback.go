@@ -29,6 +29,7 @@ import (
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	hcommon "github.com/uber/cadence/service/history/common"
+	"time"
 )
 
 func (e *historyEngineImpl) registerDomainFailoverCallback() {

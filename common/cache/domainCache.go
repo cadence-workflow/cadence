@@ -533,6 +533,7 @@ UpdateLoop:
 	if now.Sub(c.lastCallbackEmitTime) > 30*time.Minute {
 		c.lastCallbackEmitTime = now
 		c.scope.AddCounter(metrics.DomainCacheCallbacksCount, int64(len(c.callbacks)))
+		c.scope.RecordHistogramDuration(metrics.DomainCacheCallbackDuration, c.timeSource.Now().Sub(now))
 	}
 
 	return nil
