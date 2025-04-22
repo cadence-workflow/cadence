@@ -704,8 +704,6 @@ const (
 
 	// DomainCacheScope tracks domain cache callbacks
 	DomainCacheScope
-	// DomainReplicationCallbackScope is the scope for metrics used in the domain update callback operations
-	DomainReplicationCallbackScope
 	// HistoryRereplicationByTransferTaskScope tracks history replication calls made by transfer task
 	HistoryRereplicationByTransferTaskScope
 	// HistoryRereplicationByTimerTaskScope tracks history replication calls made by timer task

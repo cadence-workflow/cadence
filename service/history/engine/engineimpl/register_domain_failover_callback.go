@@ -63,12 +63,8 @@ func (e *historyEngineImpl) registerDomainFailoverCallback() {
 }
 
 func (e *historyEngineImpl) domainChangeCB(nextDomains []*cache.DomainCacheEntry) {
-	startTS := e.timeSource.Now()
 	defer func() {
 		e.unlockProcessingForDomainUpdate()
-		if e.timeSource.Now().Sub(startTS).Seconds() > 1 {
-			e.logger.Warn("domain update took longer than expected.", tag.Duration(e.timeSource.Now().Sub(startTS)))
-		}
 	}()
 
 	if len(nextDomains) == 0 {
