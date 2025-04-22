@@ -118,6 +118,7 @@ func (handler *handlerImpl) HandleDecisionTaskScheduled(
 
 	return workflow.UpdateWithActionFunc(
 		ctx,
+		handler.logger,
 		handler.executionCache,
 		domainID,
 		workflowExecution,
@@ -170,6 +171,7 @@ func (handler *handlerImpl) HandleDecisionTaskStarted(
 	var resp *types.RecordDecisionTaskStartedResponse
 	err = workflow.UpdateWithActionFunc(
 		ctx,
+		handler.logger,
 		handler.executionCache,
 		domainID,
 		workflowExecution,
@@ -265,7 +267,7 @@ func (handler *handlerImpl) HandleDecisionTaskFailed(
 		RunID:      token.RunID,
 	}
 
-	return workflow.UpdateWithAction(ctx, handler.executionCache, domainID, workflowExecution, true, handler.timeSource.Now(),
+	return workflow.UpdateWithAction(ctx, handler.logger, handler.executionCache, domainID, workflowExecution, true, handler.timeSource.Now(),
 		func(context execution.Context, mutableState execution.MutableState) error {
 			if !mutableState.IsWorkflowExecutionRunning() {
 				return workflow.ErrAlreadyCompleted
@@ -548,6 +550,7 @@ Update_History_Loop:
 				continueAsNewBuilder,
 			)
 		} else {
+			handler.logger.Debug("HandleDecisionTaskCompleted calling UpdateWorkflowExecutionAsActive", tag.WorkflowID(msBuilder.GetExecutionInfo().WorkflowID))
 			updateErr = wfContext.UpdateWorkflowExecutionAsActive(ctx, handler.shard.GetTimeSource().Now())
 		}
 
@@ -577,6 +580,8 @@ Update_History_Loop:
 				); err != nil {
 					return nil, err
 				}
+
+				handler.logger.Debug("HandleDecisionTaskCompleted calling UpdateWorkflowExecutionAsActive", tag.WorkflowID(msBuilder.GetExecutionInfo().WorkflowID))
 				if err := wfContext.UpdateWorkflowExecutionAsActive(
 					ctx,
 					handler.shard.GetTimeSource().Now(),
