@@ -38,7 +38,7 @@ import (
 
 	gomock "go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common/log"
+	log "github.com/uber/cadence/common/log"
 	persistence "github.com/uber/cadence/common/persistence"
 	types "github.com/uber/cadence/common/types"
 	events "github.com/uber/cadence/service/history/events"

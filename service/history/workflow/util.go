@@ -26,6 +26,7 @@ import (
 
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/execution"
@@ -266,9 +267,7 @@ UpdateHistoryLoop:
 			}
 		}
 
-		logger.Debugf("updateHelper calling UpdateWorkflowExecutionAsActive for wfID %s",
-			mutableState.GetExecutionInfo().WorkflowID,
-		)
+		logger.Debug("updateHelper calling UpdateWorkflowExecutionAsActive", tag.WorkflowID(mutableState.GetExecutionInfo().WorkflowID))
 		err = workflowContext.GetContext().UpdateWorkflowExecutionAsActive(ctx, now)
 		if _, ok := err.(*persistence.DuplicateRequestError); ok {
 			return nil

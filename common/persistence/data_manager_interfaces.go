@@ -2207,6 +2207,7 @@ func (p *TaskListPartition) ToInternalType() *types.TaskListPartition {
 	return &types.TaskListPartition{IsolationGroups: p.IsolationGroups}
 }
 
+// TODO(active-active): Update unit tests of all components that use this function to cover active-active case
 func (d *DomainReplicationConfig) IsActiveActive() bool {
 	return d != nil && d.ActiveClusters != nil
 }

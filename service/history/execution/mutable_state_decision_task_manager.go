@@ -741,7 +741,7 @@ func (m *mutableStateDecisionTaskManagerImpl) UpdateDecision(
 	// NOTE: do not update tasklist in execution info
 
 	if m.msb.logger.DebugOn() {
-		m.msb.logger.Debug(fmt.Sprintf(
+		m.msb.logger.Debugf(
 			"Decision Updated: {Schedule: %v, Started: %v, ID: %v, Timeout: %v, Attempt: %v, Timestamp: %v}, Stacktrace: %v",
 			decision.ScheduleID,
 			decision.StartedID,
@@ -750,7 +750,7 @@ func (m *mutableStateDecisionTaskManagerImpl) UpdateDecision(
 			decision.Attempt,
 			decision.StartedTimestamp,
 			debug.Stack(),
-		))
+		)
 	}
 }
 

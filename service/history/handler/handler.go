@@ -161,8 +161,6 @@ func (h *handlerImpl) Start() {
 	// events notifier must starts before controller
 	h.historyEventNotifier.Start()
 
-	// TODO(taylan): Learn about failover markers and various components involved in this.
-	// There's a replication task type for failover markers.
 	h.failoverCoordinator = failover.NewCoordinator(
 		h.GetDomainManager(),
 		h.GetHistoryClient(),

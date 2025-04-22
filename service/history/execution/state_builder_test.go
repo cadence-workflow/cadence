@@ -97,9 +97,6 @@ func (s *stateBuilderSuite) SetupTest() {
 
 	s.mockMutableState.EXPECT().GetVersionHistories().Return(persistence.NewVersionHistories(&persistence.VersionHistory{})).AnyTimes()
 
-	// TODO: add mock expectations
-	// s.mockShard.Resource.ActiveClusterMgr.EXPECT()....
-
 	s.stateBuilder = NewStateBuilder(
 		s.mockShard,
 		s.logger,

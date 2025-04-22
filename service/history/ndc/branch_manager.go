@@ -30,6 +30,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/execution"
@@ -180,9 +181,7 @@ func (r *branchManagerImpl) flushBufferedEvents(
 		return 0, nil, err
 	}
 	// the workflow must be updated as active, to send out replication tasks
-	r.logger.Debugf("flushBufferedEvents calling UpdateWorkflowExecutionAsActive for wfID %s",
-		r.mutableState.GetExecutionInfo().WorkflowID,
-	)
+	r.logger.Debug("flushBufferedEvents calling UpdateWorkflowExecutionAsActive", tag.WorkflowID(r.mutableState.GetExecutionInfo().WorkflowID))
 	if err := targetWorkflow.GetContext().UpdateWorkflowExecutionAsActive(
 		ctx,
 		r.shard.GetTimeSource().Now(),
