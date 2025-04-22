@@ -38,6 +38,7 @@ import (
 
 	gomock "go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common/log"
 	persistence "github.com/uber/cadence/common/persistence"
 	types "github.com/uber/cadence/common/types"
 	events "github.com/uber/cadence/service/history/events"
@@ -185,10 +186,24 @@ func (m *MockContext) GetWorkflowExecution() MutableState {
 	return ret0
 }
 
+// GetLogger mocks base method.
+func (m *MockContext) GetLogger() log.Logger {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLogger")
+	ret0, _ := ret[0].(log.Logger)
+	return ret0
+}
+
 // GetWorkflowExecution indicates an expected call of GetWorkflowExecution.
 func (mr *MockContextMockRecorder) GetWorkflowExecution() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkflowExecution", reflect.TypeOf((*MockContext)(nil).GetWorkflowExecution))
+}
+
+// GetLogger indicates an expected call of GetLogger.
+func (mr *MockContextMockRecorder) GetLogger() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLogger", reflect.TypeOf((*MockContext)(nil).GetLogger))
 }
 
 // LoadExecutionStats mocks base method.

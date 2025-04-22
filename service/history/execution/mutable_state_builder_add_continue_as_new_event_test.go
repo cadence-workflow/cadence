@@ -323,7 +323,7 @@ func TestAddContinueAsNewEvent(t *testing.T) {
 	for name, td := range tests {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-
+			logger := log.NewNoop()
 			msb := &mutableStateBuilder{
 				domainEntry: cache.NewDomainCacheEntryForTest(
 					&persistence.DomainInfo{ID: domainID},
@@ -337,11 +337,12 @@ func TestAddContinueAsNewEvent(t *testing.T) {
 					0,
 				),
 				executionInfo: td.startingState,
-				logger:        log.NewNoop(),
+				logger:        logger,
 				config:        config.NewForTest(),
 			}
 
 			shardContext := shardCtx.NewMockContext(ctrl)
+			shardContext.EXPECT().GetLogger().Return(logger).AnyTimes()
 			historyManager := persistence.NewMockHistoryManager(ctrl)
 			domainCache := cache.NewMockDomainCache(ctrl)
 			taskGenerator := NewMockMutableStateTaskGenerator(ctrl)
@@ -350,7 +351,7 @@ func TestAddContinueAsNewEvent(t *testing.T) {
 			msb.eventsCache = events.NewCache(shardID,
 				historyManager,
 				config.NewForTest(),
-				log.NewNoop(),
+				logger,
 				metrics.NewNoopMetricsClient(),
 				domainCache)
 			msb.shard = shardContext

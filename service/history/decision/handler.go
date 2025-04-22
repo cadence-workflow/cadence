@@ -553,9 +553,7 @@ Update_History_Loop:
 				continueAsNewBuilder,
 			)
 		} else {
-			handler.logger.Debugf("HandleDecisionTaskCompleted calling UpdateWorkflowExecutionAsActive for wfID %s",
-				msBuilder.GetExecutionInfo().WorkflowID,
-			)
+			handler.logger.Debug("HandleDecisionTaskCompleted calling UpdateWorkflowExecutionAsActive", tag.WorkflowID(msBuilder.GetExecutionInfo().WorkflowID))
 			updateErr = wfContext.UpdateWorkflowExecutionAsActive(ctx, handler.shard.GetTimeSource().Now())
 		}
 
@@ -586,9 +584,7 @@ Update_History_Loop:
 					return nil, err
 				}
 
-				handler.logger.Debugf("HandleDecisionTaskCompleted calling UpdateWorkflowExecutionAsActive for wfID %s",
-					msBuilder.GetExecutionInfo().WorkflowID,
-				)
+				handler.logger.Debug("HandleDecisionTaskCompleted calling UpdateWorkflowExecutionAsActive", tag.WorkflowID(msBuilder.GetExecutionInfo().WorkflowID))
 				if err := wfContext.UpdateWorkflowExecutionAsActive(
 					ctx,
 					handler.shard.GetTimeSource().Now(),

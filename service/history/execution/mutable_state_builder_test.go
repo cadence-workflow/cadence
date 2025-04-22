@@ -1943,10 +1943,9 @@ func TestMutableStateBuilder_CopyToPersistence_roundtrip(t *testing.T) {
 		shardContext.EXPECT().GetTimeSource().Return(clock.NewMockedTimeSource())
 		shardContext.EXPECT().GetMetricsClient().Return(metrics.NewNoopMetricsClient())
 		shardContext.EXPECT().GetDomainCache().Return(mockDomainCache).AnyTimes()
+		shardContext.EXPECT().GetLogger().Return(testlogger.New(t)).AnyTimes()
 
 		activeClusterManager := activecluster.NewMockManager(ctrl)
-		// TODO: setup mock call expectations
-
 		shardContext.EXPECT().GetActiveClusterManager().Return(activeClusterManager).AnyTimes()
 
 		msb := newMutableStateBuilder(shardContext, log.NewNoop(), constants.TestGlobalDomainEntry)
@@ -1974,7 +1973,6 @@ func TestMutableStateBuilder_CopyToPersistence_roundtrip(t *testing.T) {
 }
 
 func TestMutableStateBuilder_closeTransactionHandleWorkflowReset(t *testing.T) {
-
 	t1 := time.Unix(123, 0)
 	now := time.Unix(500, 0)
 
@@ -2146,6 +2144,7 @@ func TestMutableStateBuilder_closeTransactionHandleWorkflowReset(t *testing.T) {
 			mockCache := events.NewMockCache(ctrl)
 			mockDomainCache := cache.NewMockDomainCache(ctrl)
 
+			shardContext.EXPECT().GetLogger().Return(testlogger.New(t)).AnyTimes()
 			td.shardContextExpectations(mockCache, shardContext, mockDomainCache)
 
 			nowClock := clock.NewMockedTimeSourceAt(now)
@@ -2163,12 +2162,10 @@ func TestMutableStateBuilder_closeTransactionHandleWorkflowReset(t *testing.T) {
 }
 
 func TestMutableStateBuilder_GetVersionHistoriesStart(t *testing.T) {
-
 	tests := map[string]struct {
 		mutableStateBuilderStartingState func(m *mutableStateBuilder)
-
-		expectedVersion int64
-		expectedErr     error
+		expectedVersion                  int64
+		expectedErr                      error
 	}{
 		"A mutable state with version history": {
 			mutableStateBuilderStartingState: func(m *mutableStateBuilder) {
@@ -2257,6 +2254,8 @@ func TestMutableStateBuilder_GetVersionHistoriesStart(t *testing.T) {
 			ctrl := gomock.NewController(t)
 
 			shardContext := shard.NewMockContext(ctrl)
+			shardContext.EXPECT().GetLogger().Return(testlogger.New(t)).AnyTimes()
+
 			mockCache := events.NewMockCache(ctrl)
 			mockDomainCache := cache.NewMockDomainCache(ctrl)
 
@@ -2470,6 +2469,7 @@ func TestGetCronRetryBackoffDuration(t *testing.T) {
 			ctrl := gomock.NewController(t)
 
 			shardContext := shard.NewMockContext(ctrl)
+			shardContext.EXPECT().GetLogger().Return(testlogger.New(t)).AnyTimes()
 			mockCache := events.NewMockCache(ctrl)
 			mockDomainCache := cache.NewMockDomainCache(ctrl)
 
@@ -2558,10 +2558,41 @@ func TestStartTransactionHandleFailover(t *testing.T) {
 
 	for name, td := range tests {
 		t.Run(name, func(t *testing.T) {
-
 			ctrl := gomock.NewController(t)
 
+			clusterMetadata := cluster.NewMetadata(
+				commonConfig.ClusterGroupMetadata{
+					FailoverVersionIncrement: 10,
+					PrimaryClusterName:       "cluster0",
+					CurrentClusterName:       "cluster0",
+					ClusterGroup: map[string]commonConfig.ClusterInformation{
+						"cluster0": {
+							Enabled:                true,
+							InitialFailoverVersion: 1,
+						},
+						"cluster1": {
+							Enabled:                true,
+							InitialFailoverVersion: 0,
+						},
+						"cluster2": {
+							Enabled:                true,
+							InitialFailoverVersion: 2,
+						},
+					},
+				},
+				func(string) bool { return false },
+				metrics.NewNoopMetricsClient(),
+				log.NewNoop(),
+			)
+
 			shardContext := shardCtx.NewMockContext(ctrl)
+			shardContext.EXPECT().GetLogger().Return(testlogger.New(t)).AnyTimes()
+
+			activeClusterManager := activecluster.NewMockManager(ctrl)
+			activeClusterManager.EXPECT().ClusterNameForFailoverVersion(gomock.Any(), gomock.Any()).DoAndReturn(func(version int64, domainID string) (string, error) {
+				return clusterMetadata.ClusterNameForFailoverVersion(version)
+			}).AnyTimes()
+			shardContext.EXPECT().GetActiveClusterManager().Return(activeClusterManager).AnyTimes()
 
 			decisionManager := NewMockmutableStateDecisionTaskManager(ctrl)
 			td.decisionManagerAffordance(decisionManager)
@@ -2575,31 +2606,6 @@ func TestStartTransactionHandleFailover(t *testing.T) {
 				EnableReplicationTaskGeneration:       func(_ string, _ string) bool { return true },
 				HostName:                              "test-host",
 			}).Times(1)
-
-			clusterMetadata := cluster.NewMetadata(
-				commonConfig.ClusterGroupMetadata{
-					FailoverVersionIncrement: 10,
-					PrimaryClusterName:       "cluster0",
-					CurrentClusterName:       "cluster0",
-					ClusterGroup: map[string]commonConfig.ClusterInformation{
-						"cluster0": commonConfig.ClusterInformation{
-							Enabled:                true,
-							InitialFailoverVersion: 1,
-						},
-						"cluster1": commonConfig.ClusterInformation{
-							Enabled:                true,
-							InitialFailoverVersion: 0,
-						},
-						"cluster2": commonConfig.ClusterInformation{
-							Enabled:                true,
-							InitialFailoverVersion: 2,
-						},
-					},
-				},
-				func(string) bool { return false },
-				metrics.NewNoopMetricsClient(),
-				log.NewNoop(),
-			)
 
 			domainEntry := cache.NewDomainCacheEntryForTest(&persistence.DomainInfo{
 				ID:   "domain-id",
@@ -3209,6 +3215,7 @@ func TestAssignTaskIDToTransientHistoryEvents(t *testing.T) {
 			ctrl := gomock.NewController(t)
 
 			shardContext := shard.NewMockContext(ctrl)
+			shardContext.EXPECT().GetLogger().Return(testlogger.New(t)).AnyTimes()
 			mockCache := events.NewMockCache(ctrl)
 			mockDomainCache := cache.NewMockDomainCache(ctrl)
 
@@ -3321,6 +3328,7 @@ func TestAssignTaskIDToHistoryEvents(t *testing.T) {
 			ctrl := gomock.NewController(t)
 
 			shardContext := shard.NewMockContext(ctrl)
+			shardContext.EXPECT().GetLogger().Return(testlogger.New(t)).AnyTimes()
 			mockCache := events.NewMockCache(ctrl)
 			mockDomainCache := cache.NewMockDomainCache(ctrl)
 
@@ -3400,6 +3408,7 @@ func TestAddUpsertWorkflowSearchAttributesEvent(t *testing.T) {
 			ctrl := gomock.NewController(t)
 
 			shardContext := shard.NewMockContext(ctrl)
+			shardContext.EXPECT().GetLogger().Return(testlogger.New(t)).AnyTimes()
 			mockCache := events.NewMockCache(ctrl)
 			mockDomainCache := cache.NewMockDomainCache(ctrl)
 
@@ -3599,12 +3608,21 @@ func TestCloseTransactionAsMutation(t *testing.T) {
 			ctrl := gomock.NewController(t)
 
 			shardContext := shard.NewMockContext(ctrl)
+			shardContext.EXPECT().GetLogger().Return(testlogger.New(t)).AnyTimes()
+
+			activeClusterManager := activecluster.NewMockManager(ctrl)
+			shardContext.EXPECT().GetActiveClusterManager().Return(activeClusterManager).AnyTimes()
+
 			mockCache := events.NewMockCache(ctrl)
 			mockDomainCache := cache.NewMockDomainCache(ctrl)
 
 			ms := createMSBWithMocks(mockCache, shardContext, mockDomainCache)
 			td.mutableStateSetup(ms)
 			td.shardContextExpectations(mockCache, shardContext, mockDomainCache)
+
+			activeClusterManager.EXPECT().ClusterNameForFailoverVersion(gomock.Any(), gomock.Any()).DoAndReturn(func(version int64, domainID string) (string, error) {
+				return cluster.TestActiveClusterMetadata.GetCurrentClusterName(), nil
+			}).AnyTimes()
 
 			mutation, workflowEvents, err := ms.CloseTransactionAsMutation(now, td.transactionPolicy)
 			assert.Equal(t, td.expectedMutation, mutation)
@@ -3742,6 +3760,7 @@ func Test__logDuplicatedActivityEvents(t *testing.T) {
 
 			mockCache := events.NewMockCache(ctrl)
 			shardContext := shard.NewMockContext(ctrl)
+			shardContext.EXPECT().GetLogger().Return(testlogger.New(t)).AnyTimes()
 			mockDomainCache := cache.NewMockDomainCache(ctrl)
 
 			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache)

@@ -65,6 +65,7 @@ func (s *workflowSuite) SetupTest() {
 
 	s.controller = gomock.NewController(s.T())
 	s.mockContext = NewMockContext(s.controller)
+	s.mockContext.EXPECT().GetLogger().Return(testlogger.New(s.T())).AnyTimes()
 	s.mockMutableState = NewMockMutableState(s.controller)
 	s.domainID = uuid.New()
 	s.domainName = "domain-name"
@@ -420,7 +421,7 @@ func (s *workflowSuite) TestFlushBufferedEvents_Success() {
 	s.mockMutableState.EXPECT().IsWorkflowExecutionRunning().Return(true)
 	s.mockMutableState.EXPECT().HasBufferedEvents().Return(true)
 	s.mockMutableState.EXPECT().GetLastWriteVersion().Return(lastWriteVersion, nil)
-	s.mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{LastEventTaskID: lastEventTaskID})
+	s.mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{LastEventTaskID: lastEventTaskID}).AnyTimes()
 	s.mockMutableState.EXPECT().UpdateCurrentVersion(lastWriteVersion, true).Return(nil)
 	s.mockMutableState.EXPECT().GetInFlightDecision().Return(decision, true)
 	s.mockMutableState.EXPECT().AddDecisionTaskFailedEvent(decision.ScheduleID, decision.StartedID, types.DecisionTaskFailedCauseFailoverCloseDecision, nil, IdentityHistoryService, "", "", "", "", int64(0), "").Return(&types.HistoryEvent{}, nil)

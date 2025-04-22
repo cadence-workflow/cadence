@@ -394,9 +394,7 @@ func (c *contextImpl) LoadWorkflowExecutionWithTaskVersion(
 	if !flushBeforeReady {
 		return c.mutableState, nil
 	}
-	c.logger.Debugf("LoadWorkflowExecutionWithTaskVersion calling UpdateWorkflowExecutionAsActive for wfID %s",
-		c.workflowExecution.GetWorkflowID(),
-	)
+	c.logger.Debug("LoadWorkflowExecutionWithTaskVersion calling UpdateWorkflowExecutionAsActive", tag.WorkflowID(c.workflowExecution.GetWorkflowID()))
 	if err = c.UpdateWorkflowExecutionAsActive(ctx, c.shard.GetTimeSource().Now()); err != nil {
 		return nil, err
 	}
@@ -570,11 +568,7 @@ func (c *contextImpl) ConflictResolveWorkflowExecution(
 				currentContext.Clear()
 			}
 		}()
-		c.logger.Debugf("ConflictResolveWorkflowExecution calling CloseTransactionAsMutation for domain %s, wfID %s, policy %v",
-			c.domainID,
-			c.workflowExecution.GetWorkflowID(),
-			*currentTransactionPolicy,
-		)
+		c.logger.Debug("ConflictResolveWorkflowExecution calling CloseTransactionAsMutation", tag.WorkflowID(c.workflowExecution.GetWorkflowID()), tag.Dynamic("policy", *currentTransactionPolicy))
 		currentWorkflow, currentWorkflowEventsSeq, err = currentMutableState.CloseTransactionAsMutation(now, *currentTransactionPolicy)
 		if err != nil {
 			return err
@@ -662,10 +656,10 @@ func (c *contextImpl) UpdateWorkflowExecutionAsActive(
 	ctx context.Context,
 	now time.Time,
 ) error {
-	c.logger.Debugf("UpdateWorkflowExecutionAsActive calling UpdateWorkflowExecutionWithNew for wfID %s, current policy %v, new policy %v",
-		c.workflowExecution.GetWorkflowID(),
-		TransactionPolicyPassive,
-		nil,
+	c.logger.Debug("UpdateWorkflowExecutionAsActive calling UpdateWorkflowExecutionWithNew",
+		tag.WorkflowID(c.workflowExecution.GetWorkflowID()),
+		tag.Dynamic("current policy", TransactionPolicyPassive),
+		tag.Dynamic("new policy", nil),
 	)
 	return c.updateWorkflowExecutionWithNewFn(ctx, now, persistence.UpdateWorkflowModeUpdateCurrent, nil, nil, TransactionPolicyActive, nil, persistence.CreateWorkflowRequestModeNew)
 }
@@ -676,10 +670,10 @@ func (c *contextImpl) UpdateWorkflowExecutionWithNewAsActive(
 	newContext Context,
 	newMutableState MutableState,
 ) error {
-	c.logger.Debugf("UpdateWorkflowExecutionWithNewAsActive calling UpdateWorkflowExecutionWithNew for wfID %s, current policy %v, new policy %v",
-		c.workflowExecution.GetWorkflowID(),
-		TransactionPolicyPassive,
-		TransactionPolicyActive,
+	c.logger.Debug("UpdateWorkflowExecutionWithNewAsActive calling UpdateWorkflowExecutionWithNew",
+		tag.WorkflowID(c.workflowExecution.GetWorkflowID()),
+		tag.Dynamic("current policy", TransactionPolicyPassive),
+		tag.Dynamic("new policy", TransactionPolicyActive),
 	)
 	return c.updateWorkflowExecutionWithNewFn(ctx, now, persistence.UpdateWorkflowModeUpdateCurrent, newContext, newMutableState, TransactionPolicyActive, TransactionPolicyActive.Ptr(), persistence.CreateWorkflowRequestModeNew)
 }
@@ -688,10 +682,10 @@ func (c *contextImpl) UpdateWorkflowExecutionAsPassive(
 	ctx context.Context,
 	now time.Time,
 ) error {
-	c.logger.Debugf("UpdateWorkflowExecutionAsPassive calling UpdateWorkflowExecutionWithNew for wfID %s, current policy %v, new policy %v",
-		c.workflowExecution.GetWorkflowID(),
-		TransactionPolicyPassive,
-		nil,
+	c.logger.Debug("UpdateWorkflowExecutionAsPassive calling UpdateWorkflowExecutionWithNew",
+		tag.WorkflowID(c.workflowExecution.GetWorkflowID()),
+		tag.Dynamic("current policy", TransactionPolicyPassive),
+		tag.Dynamic("new policy", nil),
 	)
 	return c.updateWorkflowExecutionWithNewFn(ctx, now, persistence.UpdateWorkflowModeUpdateCurrent, nil, nil, TransactionPolicyPassive, nil, persistence.CreateWorkflowRequestModeReplicated)
 }
@@ -702,10 +696,10 @@ func (c *contextImpl) UpdateWorkflowExecutionWithNewAsPassive(
 	newContext Context,
 	newMutableState MutableState,
 ) error {
-	c.logger.Debugf("UpdateWorkflowExecutionWithNewAsPassive calling UpdateWorkflowExecutionWithNew for wfID %s, current policy %v, new policy %v",
-		c.workflowExecution.GetWorkflowID(),
-		TransactionPolicyPassive,
-		TransactionPolicyPassive,
+	c.logger.Debug("UpdateWorkflowExecutionWithNewAsPassive calling UpdateWorkflowExecutionWithNew",
+		tag.WorkflowID(c.workflowExecution.GetWorkflowID()),
+		tag.Dynamic("current policy", TransactionPolicyPassive),
+		tag.Dynamic("new policy", TransactionPolicyPassive),
 	)
 	return c.updateWorkflowExecutionWithNewFn(ctx, now, persistence.UpdateWorkflowModeUpdateCurrent, newContext, newMutableState, TransactionPolicyPassive, TransactionPolicyPassive.Ptr(), persistence.CreateWorkflowRequestModeReplicated)
 }
@@ -720,10 +714,7 @@ func (c *contextImpl) UpdateWorkflowExecutionTasks(
 		}
 	}()
 
-	c.logger.Debugf("UpdateWorkflowExecutionTask calling CloseTransactionAsMutation for domain %s, wfID %s",
-		c.domainID,
-		c.workflowExecution.GetWorkflowID(),
-	)
+	c.logger.Debug("UpdateWorkflowExecutionTask calling CloseTransactionAsMutation", tag.WorkflowID(c.workflowExecution.GetWorkflowID()))
 	currentWorkflow, currentWorkflowEventsSeq, err := c.mutableState.CloseTransactionAsMutation(now, TransactionPolicyPassive)
 	if err != nil {
 		return err
@@ -782,11 +773,8 @@ func (c *contextImpl) UpdateWorkflowExecutionWithNew(
 		}
 	}()
 
-	c.logger.Debugf("UpdateWorkflowExecutionWithNew calling CloseTransactionAsMutation for domain %s, wfID %s, policy %v",
-		c.domainID,
-		c.workflowExecution.GetWorkflowID(),
-		currentWorkflowTransactionPolicy,
-	)
+	c.logger.Debug("UpdateWorkflowExecutionWithNew calling CloseTransactionAsMutation", tag.WorkflowID(c.workflowExecution.GetWorkflowID()), tag.Dynamic("policy", currentWorkflowTransactionPolicy))
+
 	currentWorkflow, currentWorkflowEventsSeq, err := c.mutableState.CloseTransactionAsMutation(now, currentWorkflowTransactionPolicy)
 	if err != nil {
 		return err
