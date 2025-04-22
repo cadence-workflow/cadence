@@ -35,6 +35,7 @@ import (
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/config"
@@ -664,7 +665,7 @@ func TestRefreshTasks(t *testing.T) {
 					WorkflowDeletionJitterRange: dynamicproperties.GetIntPropertyFilteredByDomain(1),
 					IsAdvancedVisConfigExist:    true,
 				},
-				newMutableStateTaskGeneratorFn: func(cluster.Metadata, cache.DomainCache, MutableState) MutableStateTaskGenerator {
+				newMutableStateTaskGeneratorFn: func(log.Logger, cluster.Metadata, cache.DomainCache, MutableState) MutableStateTaskGenerator {
 					return mtg
 				},
 				refreshTasksForWorkflowStartFn:                 tc.refreshTasksForWorkflowStartFn,

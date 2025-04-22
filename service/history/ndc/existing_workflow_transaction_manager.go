@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/execution"
@@ -45,6 +46,7 @@ type (
 
 	transactionManagerForExistingWorkflowImpl struct {
 		transactionManager transactionManager
+		logger             log.Logger
 	}
 )
 
@@ -52,10 +54,12 @@ var _ transactionManagerForExistingWorkflow = (*transactionManagerForExistingWor
 
 func newTransactionManagerForExistingWorkflow(
 	transactionManager transactionManager,
+	logger log.Logger,
 ) transactionManagerForExistingWorkflow {
 
 	return &transactionManagerForExistingWorkflowImpl{
 		transactionManager: transactionManager,
+		logger:             logger,
 	}
 }
 
@@ -308,6 +312,11 @@ func (r *transactionManagerForExistingWorkflowImpl) updateAsZombie(
 	currentWorkflow.GetReleaseFn()(nil)
 	currentWorkflow = nil
 
+	r.logger.Debugf("updateAsZombie calling UpdateWorkflowExecutionWithNew for wfID %s, current policy %v, new policy %v",
+		targetWorkflow.GetMutableState().GetExecutionInfo().WorkflowID,
+		execution.TransactionPolicyPassive,
+		newTransactionPolicy,
+	)
 	return targetWorkflow.GetContext().UpdateWorkflowExecutionWithNew(
 		ctx,
 		now,

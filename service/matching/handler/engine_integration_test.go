@@ -41,6 +41,7 @@ import (
 
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
@@ -77,6 +78,7 @@ type (
 		mockTimeSource       clock.MockedTimeSource
 		logger               log.Logger
 		handlerContext       *handlerContext
+		mockActiveClusterMgr activecluster.MockManager
 		sync.Mutex
 	}
 )
@@ -151,6 +153,7 @@ func (s *matchingEngineSuite) SetupTest() {
 		metrics.MatchingTaskListMgrScope,
 		testlogger.New(s.Suite.T()),
 	)
+	s.mockActiveClusterMgr = *activecluster.NewMockManager(s.controller)
 
 	s.matchingEngine = s.newMatchingEngine(defaultTestConfig(), s.taskManager)
 	s.matchingEngine.Start()

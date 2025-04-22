@@ -105,7 +105,15 @@ func (t *transferTaskExecutorBase) pushActivity(
 		t.logger.Fatal("Cannot process non activity task", tag.TaskType(task.GetTaskType()))
 	}
 
-	_, err := t.matchingClient.AddActivityTask(ctx, &types.AddActivityTaskRequest{
+	shouldPush, err := shouldPushToMatching(ctx, t.shard, task)
+	if err != nil {
+		return err
+	}
+	if !shouldPush {
+		return nil
+	}
+
+	_, err = t.matchingClient.AddActivityTask(ctx, &types.AddActivityTaskRequest{
 		DomainUUID:       task.TargetDomainID,
 		SourceDomainUUID: task.DomainID,
 		Execution: &types.WorkflowExecution{
@@ -135,7 +143,15 @@ func (t *transferTaskExecutorBase) pushDecision(
 		t.logger.Fatal("Cannot process non decision task", tag.TaskType(task.GetTaskType()))
 	}
 
-	_, err := t.matchingClient.AddDecisionTask(ctx, &types.AddDecisionTaskRequest{
+	shouldPush, err := shouldPushToMatching(ctx, t.shard, task)
+	if err != nil {
+		return err
+	}
+	if !shouldPush {
+		return nil
+	}
+
+	_, err = t.matchingClient.AddDecisionTask(ctx, &types.AddDecisionTaskRequest{
 		DomainUUID: task.DomainID,
 		Execution: &types.WorkflowExecution{
 			WorkflowID: task.WorkflowID,

@@ -154,6 +154,7 @@ func (t *transferStandbyTaskExecutor) processActivityTask(
 		transferTask.ScheduleID,
 		actionFn,
 		getStandbyPostActionFn(
+			t.logger,
 			transferTask,
 			t.getCurrentTime,
 			t.config.StandbyTaskMissingEventsResendDelay(),
@@ -210,6 +211,7 @@ func (t *transferStandbyTaskExecutor) processDecisionTask(
 		transferTask.ScheduleID,
 		actionFn,
 		getStandbyPostActionFn(
+			t.logger,
 			transferTask,
 			t.getCurrentTime,
 			t.config.StandbyTaskMissingEventsResendDelay(),
@@ -333,6 +335,7 @@ func (t *transferStandbyTaskExecutor) processCancelExecution(
 		transferTask.InitiatedID,
 		actionFn,
 		getStandbyPostActionFn(
+			t.logger,
 			transferTask,
 			t.getCurrentTime,
 			t.config.StandbyTaskMissingEventsResendDelay(),
@@ -371,6 +374,7 @@ func (t *transferStandbyTaskExecutor) processSignalExecution(
 		transferTask.InitiatedID,
 		actionFn,
 		getStandbyPostActionFn(
+			t.logger,
 			transferTask,
 			t.getCurrentTime,
 			t.config.StandbyTaskMissingEventsResendDelay(),
@@ -413,6 +417,7 @@ func (t *transferStandbyTaskExecutor) processStartChildExecution(
 		transferTask.InitiatedID,
 		actionFn,
 		getStandbyPostActionFn(
+			t.logger,
 			transferTask,
 			t.getCurrentTime,
 			t.config.StandbyTaskMissingEventsResendDelay(),

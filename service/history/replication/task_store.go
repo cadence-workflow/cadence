@@ -190,6 +190,8 @@ func (m *TaskStore) Put(task *types.ReplicationTask) {
 			// This will help debug which shard is full. Logger already has ShardID tag attached.
 			// Log only once a minute to not flood the logs.
 			if time.Since(m.lastLogTime) > time.Minute {
+				// TODO(active-active): I see this log in production a lot. Consider improving this cache's size limit and/or change log level to debug if no action needed.
+				// Check CacheHitCounter and CacheMissCounter to see utilization.
 				m.logger.Warn("Replication cache is full")
 				m.lastLogTime = time.Now()
 			}

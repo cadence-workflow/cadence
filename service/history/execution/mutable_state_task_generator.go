@@ -31,6 +31,8 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
@@ -84,6 +86,7 @@ type (
 	}
 
 	mutableStateTaskGeneratorImpl struct {
+		logger          log.Logger
 		clusterMetadata cluster.Metadata
 		domainCache     cache.DomainCache
 
@@ -102,16 +105,17 @@ var _ MutableStateTaskGenerator = (*mutableStateTaskGeneratorImpl)(nil)
 
 // NewMutableStateTaskGenerator creates a new task generator for mutable state
 func NewMutableStateTaskGenerator(
+	logger log.Logger,
 	clusterMetadata cluster.Metadata,
 	domainCache cache.DomainCache,
 	mutableState MutableState,
 ) MutableStateTaskGenerator {
 
 	return &mutableStateTaskGeneratorImpl{
+		logger:          logger,
 		clusterMetadata: clusterMetadata,
 		domainCache:     domainCache,
-
-		mutableState: mutableState,
+		mutableState:    mutableState,
 	}
 }
 
@@ -182,6 +186,12 @@ func (r *mutableStateTaskGeneratorImpl) GenerateWorkflowCloseTasks(
 		retentionDuration += time.Duration(rand.Intn(workflowDeletionTaskJitterRange*60)) * time.Second
 	}
 
+	r.logger.Debug("GenerateWorkflowCloseTasks",
+		tag.WorkflowID(executionInfo.WorkflowID),
+		tag.WorkflowRunID(executionInfo.RunID),
+		tag.WorkflowDomainID(executionInfo.DomainID),
+		tag.Timestamp(closeTimestamp),
+	)
 	r.mutableState.AddTimerTasks(&persistence.DeleteHistoryEventTask{
 		WorkflowIdentifier: persistence.WorkflowIdentifier{
 			DomainID:   executionInfo.DomainID,

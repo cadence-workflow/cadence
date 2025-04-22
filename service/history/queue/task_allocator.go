@@ -21,9 +21,13 @@
 package queue
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
+	"runtime/debug"
 	"sync"
 
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -36,9 +40,9 @@ import (
 type (
 	// TaskAllocator verifies if a task should be processed or not
 	TaskAllocator interface {
-		VerifyActiveTask(taskDomainID string, task interface{}) (bool, error)
-		VerifyFailoverActiveTask(targetDomainIDs map[string]struct{}, taskDomainID string, task interface{}) (bool, error)
-		VerifyStandbyTask(standbyCluster string, taskDomainID string, task interface{}) (bool, error)
+		VerifyActiveTask(domainID, wfID, rID string, task interface{}) (bool, error)
+		VerifyFailoverActiveTask(targetDomainIDs map[string]struct{}, domainID, wfID, rID string, task interface{}) (bool, error)
+		VerifyStandbyTask(standbyCluster string, domainID, wfID, rID string, task interface{}) (bool, error)
 		Lock()
 		Unlock()
 	}
@@ -47,6 +51,7 @@ type (
 		currentClusterName string
 		shard              shard.Context
 		domainCache        cache.DomainCache
+		activeClusterMgr   activecluster.Manager
 		logger             log.Logger
 
 		locker sync.RWMutex
@@ -59,117 +64,103 @@ func NewTaskAllocator(shard shard.Context) TaskAllocator {
 		currentClusterName: shard.GetService().GetClusterMetadata().GetCurrentClusterName(),
 		shard:              shard,
 		domainCache:        shard.GetDomainCache(),
+		activeClusterMgr:   shard.GetActiveClusterManager(),
 		logger:             shard.GetLogger(),
 	}
 }
 
 // VerifyActiveTask, will return true if task activeness check is successful
-func (t *taskAllocatorImpl) VerifyActiveTask(taskDomainID string, task interface{}) (bool, error) {
-	t.locker.RLock()
-	defer t.locker.RUnlock()
-
-	domainEntry, err := t.domainCache.GetDomainByID(taskDomainID)
-	if err != nil {
-		// it is possible that the domain is deleted
-		// we should treat that domain as active
-		if _, ok := err.(*types.EntityNotExistsError); !ok {
-			t.logger.Warn("Cannot find domain", tag.WorkflowDomainID(taskDomainID))
-			return false, err
-		}
-		t.logger.Warn("Cannot find domain, default to process task.", tag.WorkflowDomainID(taskDomainID), tag.Value(task))
-		return true, nil
-	}
-	if domainEntry.IsGlobalDomain() && t.currentClusterName != domainEntry.GetReplicationConfig().ActiveClusterName {
-		// timer task does not belong to cluster name
-		t.logger.Debug("Domain is not active, skip task.", tag.WorkflowDomainID(taskDomainID), tag.Value(task))
-		return false, nil
-	}
-
-	if err := t.checkDomainPendingActive(
-		domainEntry,
-		taskDomainID,
-		task,
-	); err != nil {
-		return false, err
-	}
-
-	t.logger.Debug("Domain is active, process task.", tag.WorkflowDomainID(taskDomainID), tag.Value(task))
-	return true, nil
+func (t *taskAllocatorImpl) VerifyActiveTask(domainID, wfID, rID string, task interface{}) (bool, error) {
+	return t.verifyTaskActiveness(t.currentClusterName, domainID, wfID, rID, task)
 }
 
 // VerifyFailoverActiveTask, will return true if task activeness check is successful
-func (t *taskAllocatorImpl) VerifyFailoverActiveTask(targetDomainIDs map[string]struct{}, taskDomainID string, task interface{}) (bool, error) {
-	_, ok := targetDomainIDs[taskDomainID]
-	if ok {
-		t.locker.RLock()
-		defer t.locker.RUnlock()
-
-		domainEntry, err := t.domainCache.GetDomainByID(taskDomainID)
-		if err != nil {
-			// it is possible that the domain is deleted
-			// we should treat that domain as not active
-			if _, ok := err.(*types.EntityNotExistsError); !ok {
-				t.logger.Warn("Cannot find domain", tag.WorkflowDomainID(taskDomainID))
-				return false, err
-			}
-			t.logger.Warn("Cannot find domain, default to not process task.", tag.WorkflowDomainID(taskDomainID), tag.Value(task))
-			return false, nil
-		}
-		if err := t.checkDomainPendingActive(
-			domainEntry,
-			taskDomainID,
-			task,
-		); err != nil {
-			return false, err
-		}
-
-		t.logger.Debug("Failover Domain is active, process task.", tag.WorkflowDomainID(taskDomainID), tag.Value(task))
-		return true, nil
+func (t *taskAllocatorImpl) VerifyFailoverActiveTask(targetDomainIDs map[string]struct{}, domainID, wfID, rID string, task interface{}) (bool, error) {
+	_, ok := targetDomainIDs[domainID]
+	if !ok {
+		return false, nil
 	}
-	t.logger.Debug("Failover Domain is not active, skip task.", tag.WorkflowDomainID(taskDomainID), tag.Value(task))
-	return false, nil
+
+	return t.verifyTaskActiveness("", domainID, wfID, rID, task)
 }
 
 // VerifyStandbyTask, will return true if task standbyness check is successful
-func (t *taskAllocatorImpl) VerifyStandbyTask(standbyCluster string, taskDomainID string, task interface{}) (bool, error) {
+func (t *taskAllocatorImpl) VerifyStandbyTask(standbyCluster string, domainID, wfID, rID string, task interface{}) (bool, error) {
+	return t.verifyTaskActiveness(standbyCluster, domainID, wfID, rID, task)
+}
+
+func (t *taskAllocatorImpl) verifyTaskActiveness(cluster string, domainID, wfID, rID string, task interface{}) (b bool, e error) {
+	if t.logger.DebugOn() {
+		defer func() {
+			data, err := json.Marshal(task)
+			if err != nil {
+				t.logger.Error("Failed to marshal task.", tag.Error(err))
+			}
+			t.logger.Debugf("verifyTaskActiveness returning (%v, %v) for cluster %s, domainID %s, wfID %s, rID %s, task %s, stacktrace %s",
+				b,
+				e,
+				cluster,
+				domainID,
+				wfID,
+				rID,
+				string(data),
+				string(debug.Stack()),
+			)
+		}()
+	}
 	t.locker.RLock()
 	defer t.locker.RUnlock()
 
-	domainEntry, err := t.domainCache.GetDomainByID(taskDomainID)
+	domainEntry, err := t.domainCache.GetDomainByID(domainID)
 	if err != nil {
 		// it is possible that the domain is deleted
 		// we should treat that domain as not active
 		if _, ok := err.(*types.EntityNotExistsError); !ok {
-			t.logger.Warn("Cannot find domain", tag.WorkflowDomainID(taskDomainID))
+			t.logger.Warn("Cannot find domain", tag.WorkflowDomainID(domainID))
 			return false, err
 		}
-		t.logger.Warn("Cannot find domain, default to not process task.", tag.WorkflowDomainID(taskDomainID), tag.Value(task))
-		return false, nil
-	}
-	if !domainEntry.IsGlobalDomain() {
-		// non global domain, timer task does not belong here
-		t.logger.Debug("Domain is not global, skip task.", tag.WorkflowDomainID(taskDomainID), tag.Value(task))
-		return false, nil
-	} else if domainEntry.IsGlobalDomain() && domainEntry.GetReplicationConfig().ActiveClusterName != standbyCluster {
-		// timer task does not belong here
-		t.logger.Debug("Domain is not standby, skip task.", tag.WorkflowDomainID(taskDomainID), tag.Value(task))
+		t.logger.Warn("Cannot find domain, default to not process task.", tag.WorkflowDomainID(domainID), tag.Value(task))
 		return false, nil
 	}
 
+	// return error for pending active domain so the task can be retried
 	if err := t.checkDomainPendingActive(
 		domainEntry,
-		taskDomainID,
+		domainID,
 		task,
 	); err != nil {
 		return false, err
 	}
 
-	t.logger.Debug("Domain is standby, process task.", tag.WorkflowDomainID(taskDomainID), tag.Value(task))
+	if cluster == "" { // failover queue task. Revisit this logic. It's copied from previous implementation
+		return true, nil
+	}
+
+	if domainEntry.GetReplicationConfig().IsActiveActive() {
+		resp, err := t.activeClusterMgr.LookupWorkflow(context.Background(), domainID, wfID, rID)
+		if err != nil {
+			t.logger.Debugf("Error getting active cluster for domain %s, wfID %s, rID %s: %v", domainID, wfID, rID, err)
+			return false, err
+		}
+		if resp.ClusterName != cluster {
+			t.logger.Debugf("Skip task because workflow %s of domain %s is not active on cluster: %s", wfID, domainID, cluster)
+			return false, nil
+		}
+
+		t.logger.Debugf("Active cluster for domain %s, wfID %s, rID %s: %s", domainID, wfID, rID, resp.ClusterName)
+		return true, nil
+	}
+
+	isActiveInGivenCluster, _ := domainEntry.IsActiveIn(cluster)
+	if !isActiveInGivenCluster {
+		t.logger.Debugf("Skip task because domain %s is not active on cluster: %s", domainID, cluster)
+		return false, nil
+	}
+
 	return true, nil
 }
 
 func (t *taskAllocatorImpl) checkDomainPendingActive(domainEntry *cache.DomainCacheEntry, taskDomainID string, task interface{}) error {
-
 	if domainEntry.IsGlobalDomain() && domainEntry.GetFailoverEndTime() != nil {
 		// the domain is pending active, pause on processing this task
 		t.logger.Debug("Domain is not in pending active, skip task.", tag.WorkflowDomainID(taskDomainID), tag.Value(task))

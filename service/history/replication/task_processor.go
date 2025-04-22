@@ -424,7 +424,7 @@ func (p *taskProcessorImpl) processSingleTask(replicationTask *types.Replication
 		return err
 	case err == execution.ErrMissingVersionHistories:
 		// skip the workflow without version histories
-		p.logger.Warn("Encounter workflow withour version histories")
+		p.logger.Warn("Encounter workflow without version histories")
 		return nil
 	default:
 		// handle error
@@ -436,9 +436,9 @@ func (p *taskProcessorImpl) processSingleTask(replicationTask *types.Replication
 		p.logger.Warn("Skip adding new messages to DLQ.", tag.Error(err))
 		return err
 	default:
-		request, err := p.generateDLQRequest(replicationTask)
-		if err != nil {
-			p.logger.Error("Failed to generate DLQ replication task.", tag.Error(err))
+		request, err2 := p.generateDLQRequest(replicationTask)
+		if err2 != nil {
+			p.logger.Error("Failed to generate DLQ replication task.", tag.Error(err2))
 			// We cannot deserialize the task. Dropping it.
 			return nil
 		}

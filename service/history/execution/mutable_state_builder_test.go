@@ -37,6 +37,7 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/checksum"
@@ -48,6 +49,7 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/testing/testdatagen"
@@ -352,7 +354,7 @@ func (s *mutableStateSuite) TestReorderEvents() {
 		BufferedEvents: bufferedEvents,
 	}
 
-	s.msBuilder.Load(dbState)
+	s.msBuilder.Load(context.Background(), dbState)
 	s.Equal(types.EventTypeActivityTaskCompleted, s.msBuilder.bufferedEvents[0].GetEventType())
 	s.Equal(types.EventTypeActivityTaskStarted, s.msBuilder.bufferedEvents[1].GetEventType())
 
@@ -415,7 +417,7 @@ func (s *mutableStateSuite) TestChecksum() {
 
 			// create mutable state and verify checksum is generated on close
 			loadErrors = loadErrorsFunc()
-			s.msBuilder.Load(dbState)
+			s.msBuilder.Load(context.Background(), dbState)
 			s.Equal(loadErrors, loadErrorsFunc()) // no errors expected
 			s.EqualValues(dbState.Checksum, s.msBuilder.checksum)
 			s.msBuilder.domainEntry = s.newDomainCacheEntry()
@@ -428,7 +430,7 @@ func (s *mutableStateSuite) TestChecksum() {
 
 			// verify checksum is verified on Load
 			dbState.Checksum = csum
-			err = s.msBuilder.Load(dbState)
+			err = s.msBuilder.Load(context.Background(), dbState)
 			s.NoError(err)
 			s.Equal(loadErrors, loadErrorsFunc())
 
@@ -440,7 +442,7 @@ func (s *mutableStateSuite) TestChecksum() {
 
 			// modify checksum and verify Load fails
 			dbState.Checksum.Value[0]++
-			err = s.msBuilder.Load(dbState)
+			err = s.msBuilder.Load(context.Background(), dbState)
 			s.Error(err)
 			s.Equal(loadErrors+1, loadErrorsFunc())
 			s.EqualValues(dbState.Checksum, s.msBuilder.checksum)
@@ -450,7 +452,7 @@ func (s *mutableStateSuite) TestChecksum() {
 			s.mockShard.GetConfig().MutableStateChecksumInvalidateBefore = func(...dynamicproperties.FilterOption) float64 {
 				return float64((s.msBuilder.executionInfo.LastUpdatedTimestamp.UnixNano() / int64(time.Second)) + 1)
 			}
-			err = s.msBuilder.Load(dbState)
+			err = s.msBuilder.Load(context.Background(), dbState)
 			s.NoError(err)
 			s.Equal(loadErrors, loadErrorsFunc())
 			s.EqualValues(checksum.Checksum{}, s.msBuilder.checksum)
@@ -850,7 +852,7 @@ func (s *mutableStateSuite) prepareTransientDecisionCompletionFirstBatchReplicat
 func (s *mutableStateSuite) TestLoad_BackwardsCompatibility() {
 	mutableState := s.buildWorkflowMutableState()
 
-	s.msBuilder.Load(mutableState)
+	s.msBuilder.Load(context.Background(), mutableState)
 
 	s.Equal(constants.TestDomainID, s.msBuilder.pendingChildExecutionInfoIDs[81].DomainID)
 }
@@ -858,7 +860,7 @@ func (s *mutableStateSuite) TestLoad_BackwardsCompatibility() {
 func (s *mutableStateSuite) TestUpdateCurrentVersion_WorkflowOpen() {
 	mutableState := s.buildWorkflowMutableState()
 
-	s.msBuilder.Load(mutableState)
+	s.msBuilder.Load(context.Background(), mutableState)
 	s.Equal(commonconstants.EmptyVersion, s.msBuilder.GetCurrentVersion())
 
 	version := int64(2000)
@@ -871,7 +873,7 @@ func (s *mutableStateSuite) TestUpdateCurrentVersion_WorkflowClosed() {
 	mutableState.ExecutionInfo.State = persistence.WorkflowStateCompleted
 	mutableState.ExecutionInfo.CloseStatus = persistence.WorkflowCloseStatusCompleted
 
-	s.msBuilder.Load(mutableState)
+	s.msBuilder.Load(context.Background(), mutableState)
 	s.Equal(commonconstants.EmptyVersion, s.msBuilder.GetCurrentVersion())
 
 	versionHistory, err := mutableState.VersionHistories.GetCurrentVersionHistory()
@@ -1942,9 +1944,14 @@ func TestMutableStateBuilder_CopyToPersistence_roundtrip(t *testing.T) {
 		shardContext.EXPECT().GetMetricsClient().Return(metrics.NewNoopMetricsClient())
 		shardContext.EXPECT().GetDomainCache().Return(mockDomainCache).AnyTimes()
 
+		activeClusterManager := activecluster.NewMockManager(ctrl)
+		// TODO: setup mock call expectations
+
+		shardContext.EXPECT().GetActiveClusterManager().Return(activeClusterManager).AnyTimes()
+
 		msb := newMutableStateBuilder(shardContext, log.NewNoop(), constants.TestGlobalDomainEntry)
 
-		msb.Load(execution)
+		msb.Load(context.Background(), execution)
 
 		out := msb.CopyToPersistence()
 
@@ -2651,6 +2658,7 @@ func TestStartTransactionHandleFailover(t *testing.T) {
 					NextEventID:            0,
 					LastProcessedEvent:     0,
 				},
+				logger: testlogger.New(t),
 			}
 
 			msb.hBuilder = NewHistoryBuilder(&msb)
@@ -2668,7 +2676,7 @@ func TestStartTransactionHandleFailover(t *testing.T) {
 
 func TestSimpleGetters(t *testing.T) {
 
-	msb := createMSB()
+	msb := createMSB(t)
 	assert.Equal(t, msb.versionHistories, msb.GetVersionHistories())
 
 	branchToken, err := msb.GetCurrentBranchToken()
@@ -2755,13 +2763,14 @@ func TestMutableState_IsCurrentWorkflowGuaranteed(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			msb := mutableStateBuilder{
 				stateInDB: td.state,
+				logger:    testlogger.New(t),
 			}
 			assert.Equal(t, td.expected, msb.IsCurrentWorkflowGuaranteed())
 		})
 	}
 }
 
-func createMSB() mutableStateBuilder {
+func createMSB(t *testing.T) mutableStateBuilder {
 
 	sampleDomain := cache.NewDomainCacheEntryForTest(&persistence.DomainInfo{ID: "domain-id", Name: "domain"}, &persistence.DomainConfig{}, true, nil, 0, nil, 0, 0, 0)
 
@@ -2881,6 +2890,7 @@ func createMSB() mutableStateBuilder {
 		checksum:         checksum.Checksum{},
 		executionStats:   &persistence.ExecutionStats{HistorySize: 403},
 		queryRegistry:    query.NewRegistry(),
+		logger:           testlogger.New(t),
 	}
 }
 

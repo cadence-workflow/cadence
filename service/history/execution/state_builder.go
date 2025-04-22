@@ -97,10 +97,17 @@ func (b *stateBuilderImpl) ApplyEvents(
 	lastEvent := history[len(history)-1]
 	var newRunMutableStateBuilder MutableState
 
+	b.logger.Debugf("Applying events for domain %s, wfID %v, first event [id:%v, version:%v], last event [id:%v, version:%v]",
+		domainID, workflowExecution.WorkflowID, firstEvent.ID, firstEvent.Version, lastEvent.ID, lastEvent.Version)
+
 	// need to clear the stickiness since workflow turned to passive
 	b.mutableState.ClearStickyness()
 
-	for _, event := range history {
+	historyLength := len(history)
+	for i, event := range history {
+		b.logger.Debugf("Applying event %v of %v. Calling UpdateCurrentVersion for domain %s, wfID %v, event [id:%v, version:%v]",
+			i+1, historyLength, domainID, workflowExecution.WorkflowID, event.ID, event.Version)
+
 		// NOTE: stateBuilder is also being used in the active side
 		if err := b.mutableState.UpdateCurrentVersion(event.Version, true); err != nil {
 			return nil, err
@@ -508,6 +515,9 @@ func (b *stateBuilderImpl) ApplyEvents(
 		default:
 			return nil, &types.BadRequestError{Message: "Unknown event type"}
 		}
+
+		b.logger.Debugf("Applied event %v of %v for domain %s, wfID %v, event [id:%v, version:%v]",
+			i+1, historyLength, domainID, workflowExecution.WorkflowID, event.ID, event.Version)
 	}
 
 	b.mutableState.GetExecutionInfo().SetLastFirstEventID(firstEvent.ID)

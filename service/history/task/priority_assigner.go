@@ -145,6 +145,15 @@ func (a *priorityAssignerImpl) getDomainInfo(domainID string) (string, bool, err
 		return "", true, nil
 	}
 
+	if domainEntry.GetReplicationConfig().IsActiveActive() {
+		active, _ := domainEntry.IsActiveIn(a.currentClusterName)
+		return domainEntry.GetInfo().Name, active, nil
+	}
+
+	// TODO(active-active): The logic below ignores pending active case for active-passive domains.
+	// However IsActiveIn() that is used above for active-active domains returns false for pending active domains.
+	// What should be the behavior for pending active domains?
+
 	if domainEntry.IsGlobalDomain() && a.currentClusterName != domainEntry.GetReplicationConfig().ActiveClusterName {
 		return domainEntry.GetInfo().Name, false, nil
 	}

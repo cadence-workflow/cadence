@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/events"
@@ -60,6 +61,7 @@ func (s *transactionManagerForNewWorkflowSuite) SetupTest() {
 
 	s.createManager = newTransactionManagerForNewWorkflow(
 		s.mockTransactionManager,
+		testlogger.New(s.T()),
 	).(*transactionManagerForNewWorkflowImpl)
 }
 

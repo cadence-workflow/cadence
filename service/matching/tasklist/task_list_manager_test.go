@@ -240,7 +240,22 @@ func createTestTaskListManagerWithConfig(t *testing.T, logger log.Logger, contro
 		panic(err)
 	}
 	tlKind := types.TaskListKindNormal
-	tlMgr, err := NewManager(mockDomainCache, logger, metrics.NewClient(tally.NoopScope, metrics.Matching), tm, cluster.GetTestClusterMetadata(true), mockIsolationState, nil, func(Manager) {}, tlID, &tlKind, cfg, timeSource, timeSource.Now(), mockHistoryService)
+	tlMgr, err := NewManager(
+		mockDomainCache,
+		logger,
+		metrics.NewClient(tally.NoopScope, metrics.Matching),
+		tm,
+		cluster.GetTestClusterMetadata(true),
+		mockIsolationState,
+		nil,
+		func(Manager) {},
+		tlID,
+		&tlKind,
+		cfg,
+		timeSource,
+		timeSource.Now(),
+		mockHistoryService,
+	)
 	if err != nil {
 		logger.Fatal("error when createTestTaskListManager", tag.Error(err))
 	}

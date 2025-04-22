@@ -28,6 +28,7 @@ import (
 
 	"github.com/pborman/uuid"
 
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
@@ -144,15 +145,16 @@ type (
 	}
 
 	transactionManagerImpl struct {
-		shard            shard.Context
-		executionCache   execution.Cache
-		clusterMetadata  cluster.Metadata
-		historyV2Manager persistence.HistoryManager
-		serializer       persistence.PayloadSerializer
-		metricsClient    metrics.Client
-		workflowResetter reset.WorkflowResetter
-		eventsReapplier  EventsReapplier
-		logger           log.Logger
+		shard                shard.Context
+		executionCache       execution.Cache
+		clusterMetadata      cluster.Metadata
+		activeClusterManager activecluster.Manager
+		historyV2Manager     persistence.HistoryManager
+		serializer           persistence.PayloadSerializer
+		metricsClient        metrics.Client
+		workflowResetter     reset.WorkflowResetter
+		eventsReapplier      EventsReapplier
+		logger               log.Logger
 
 		createManager transactionManagerForNewWorkflow
 		updateManager transactionManagerForExistingWorkflow
@@ -169,12 +171,13 @@ func newTransactionManager(
 ) *transactionManagerImpl {
 
 	transactionManager := &transactionManagerImpl{
-		shard:            shard,
-		executionCache:   executionCache,
-		clusterMetadata:  shard.GetClusterMetadata(),
-		historyV2Manager: shard.GetHistoryManager(),
-		serializer:       shard.GetService().GetPayloadSerializer(),
-		metricsClient:    shard.GetMetricsClient(),
+		shard:                shard,
+		executionCache:       executionCache,
+		clusterMetadata:      shard.GetClusterMetadata(),
+		activeClusterManager: shard.GetActiveClusterManager(),
+		historyV2Manager:     shard.GetHistoryManager(),
+		serializer:           shard.GetService().GetPayloadSerializer(),
+		metricsClient:        shard.GetMetricsClient(),
 		workflowResetter: reset.NewWorkflowResetter(
 			shard,
 			executionCache,
@@ -186,8 +189,8 @@ func newTransactionManager(
 		createManager: nil,
 		updateManager: nil,
 	}
-	transactionManager.createManager = newTransactionManagerForNewWorkflow(transactionManager)
-	transactionManager.updateManager = newTransactionManagerForExistingWorkflow(transactionManager)
+	transactionManager.createManager = newTransactionManagerForNewWorkflow(transactionManager, logger)
+	transactionManager.updateManager = newTransactionManagerForExistingWorkflow(transactionManager, logger)
 	return transactionManager
 }
 
@@ -253,6 +256,13 @@ func (r *transactionManagerImpl) backfillWorkflow(
 		return err
 	}
 
+	r.logger.Debugf("backfillWorkflowEventsReapply calling UpdateWorkflowExecutionWithNew for wfID %s, updateMode %v, current policy %v, new policy %v",
+		targetWorkflow.GetMutableState().GetExecutionInfo().WorkflowID,
+		updateMode,
+		transactionPolicy,
+		nil,
+	)
+
 	return targetWorkflow.GetContext().UpdateWorkflowExecutionWithNew(
 		ctx,
 		now,
@@ -276,8 +286,9 @@ func (r *transactionManagerImpl) backfillWorkflowEventsReapply(
 		return 0, execution.TransactionPolicyActive, err
 	}
 	isWorkflowRunning := targetWorkflow.GetMutableState().IsWorkflowExecutionRunning()
-	targetWorkflowActiveCluster, err := r.clusterMetadata.ClusterNameForFailoverVersion(
+	targetWorkflowActiveCluster, err := r.activeClusterManager.ClusterNameForFailoverVersion(
 		targetWorkflow.GetMutableState().GetDomainEntry().GetFailoverVersion(),
+		targetWorkflow.GetMutableState().GetExecutionInfo().DomainID,
 	)
 	if err != nil {
 		return 0, execution.TransactionPolicyActive, err
@@ -467,7 +478,7 @@ func (r *transactionManagerImpl) loadNDCWorkflow(
 		release(err)
 		return nil, err
 	}
-	return execution.NewWorkflow(ctx, r.clusterMetadata, context, msBuilder, release), nil
+	return execution.NewWorkflow(ctx, r.clusterMetadata, r.shard.GetActiveClusterManager(), context, msBuilder, release, r.logger), nil
 }
 
 func (r *transactionManagerImpl) isWorkflowCurrent(

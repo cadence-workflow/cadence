@@ -27,7 +27,7 @@ import (
 
 	"github.com/pborman/uuid"
 
-	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -93,7 +93,7 @@ var (
 )
 
 func newReplicationTask(
-	clusterMetadata cluster.Metadata,
+	activeClusterManager activecluster.Manager,
 	historySerializer persistence.PayloadSerializer,
 	taskStartTime time.Time,
 	logger log.Logger,
@@ -119,7 +119,7 @@ func newReplicationTask(
 	lastEvent := events[len(events)-1]
 	version := firstEvent.Version
 
-	sourceCluster, err := clusterMetadata.ClusterNameForFailoverVersion(version)
+	sourceCluster, err := activeClusterManager.ClusterNameForFailoverVersion(version, domainID)
 	if err != nil {
 		return nil, err
 	}

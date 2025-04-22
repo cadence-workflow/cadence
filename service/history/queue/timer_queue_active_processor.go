@@ -58,7 +58,7 @@ func newTimerQueueActiveProcessor(
 			return false, nil
 		}
 
-		return taskAllocator.VerifyActiveTask(timer.GetDomainID(), timer)
+		return taskAllocator.VerifyActiveTask(timer.GetDomainID(), timer.GetWorkflowID(), timer.GetRunID(), timer)
 	}
 
 	updateMaxReadLevel := func() task.Key {

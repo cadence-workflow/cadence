@@ -86,6 +86,7 @@ func TestTaskAllocatorSuite(t *testing.T) {
 	suite.Run(t, new(TaskAllocatorSuite))
 }
 
+// TODO(active-active): add test cases for active-active domains
 func (s *TaskAllocatorSuite) TestVerifyActiveTask() {
 	tests := []struct {
 		name                string
@@ -145,7 +146,7 @@ func (s *TaskAllocatorSuite) TestVerifyActiveTask() {
 	for _, tt := range tests {
 		s.Run(tt.name, func() {
 			tt.setupMocks()
-			result, err := s.allocator.VerifyActiveTask(s.taskDomainID, s.task)
+			result, err := s.allocator.VerifyActiveTask(s.taskDomainID, "TODO", "TODO", s.task)
 			assert.Equal(s.T(), tt.expectedResult, result)
 			if tt.expectedErrorString != "" {
 				assert.Contains(s.T(), err.Error(), tt.expectedErrorString)
@@ -156,6 +157,7 @@ func (s *TaskAllocatorSuite) TestVerifyActiveTask() {
 	}
 }
 
+// TODO(active-active): add test cases for active-active domains
 func (s *TaskAllocatorSuite) TestVerifyFailoverActiveTask() {
 	tests := []struct {
 		name                string
@@ -251,7 +253,7 @@ func (s *TaskAllocatorSuite) TestVerifyFailoverActiveTask() {
 	for _, tt := range tests {
 		s.Run(tt.name, func() {
 			tt.setupMocks()
-			result, err := s.allocator.VerifyFailoverActiveTask(tt.targetDomainIDs, s.taskDomainID, s.task)
+			result, err := s.allocator.VerifyFailoverActiveTask(tt.targetDomainIDs, s.taskDomainID, "TODO", "TODO", s.task)
 			assert.Equal(s.T(), tt.expectedResult, result)
 			if tt.expectedError != nil {
 				assert.Equal(s.T(), tt.expectedError, err)
@@ -264,6 +266,7 @@ func (s *TaskAllocatorSuite) TestVerifyFailoverActiveTask() {
 	}
 }
 
+// TODO(active-active): add test cases for active-active domains
 func (s *TaskAllocatorSuite) TestVerifyStandbyTask() {
 	tests := []struct {
 		name                string
@@ -357,7 +360,7 @@ func (s *TaskAllocatorSuite) TestVerifyStandbyTask() {
 	for _, tt := range tests {
 		s.Run(tt.name, func() {
 			tt.setupMocks()
-			result, err := s.allocator.VerifyStandbyTask(tt.standbyCluster, s.taskDomainID, s.task)
+			result, err := s.allocator.VerifyStandbyTask(tt.standbyCluster, s.taskDomainID, "TODO", "TODO", s.task)
 			assert.Equal(s.T(), tt.expectedResult, result)
 			if tt.expectedError != nil {
 				assert.Equal(s.T(), tt.expectedError, err)

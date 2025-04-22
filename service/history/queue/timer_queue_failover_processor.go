@@ -68,7 +68,7 @@ func newTimerQueueFailoverProcessor(
 			logger.Info("Domain is not in registered status, skip task in failover timer queue.", tag.WorkflowDomainID(timer.GetDomainID()), tag.Value(timer))
 			return false, nil
 		}
-		return taskAllocator.VerifyFailoverActiveTask(domainIDs, timer.GetDomainID(), timer)
+		return taskAllocator.VerifyFailoverActiveTask(domainIDs, timer.GetDomainID(), timer.GetWorkflowID(), timer.GetRunID(), timer)
 	}
 
 	maxReadLevelTaskKey := newTimerTaskKey(maxLevel, 0)

@@ -610,7 +610,7 @@ func (c *taskListManagerImpl) DispatchTask(ctx context.Context, task *InternalTa
 	}
 
 	// optional configuration to enable cleanup of tasks, in the standby cluster, that have already been started
-	if c.config.EnableStandbyTaskCompletion() {
+	if c.config.EnableStandbyTaskCompletion() && !domainEntry.GetReplicationConfig().IsActiveActive() {
 		if err := c.taskCompleter.CompleteTaskIfStarted(ctx, task); err != nil {
 			if errors.Is(err, errDomainIsActive) {
 				return c.matcher.MustOffer(ctx, task)
