@@ -53,11 +53,11 @@ require (
 	go.uber.org/atomic v1.10.0
 	go.uber.org/cadence v0.19.0
 	go.uber.org/config v1.4.0
-	go.uber.org/fx v1.13.1
-	go.uber.org/multierr v1.6.0
+	go.uber.org/fx v1.23.0
+	go.uber.org/multierr v1.10.0
 	go.uber.org/thriftrw v1.29.2
 	go.uber.org/yarpc v1.70.3
-	go.uber.org/zap v1.13.0
+	go.uber.org/zap v1.26.0
 	golang.org/x/exp v0.0.0-20231226003508-02704c960a9b
 	golang.org/x/net v0.26.0
 	golang.org/x/sync v0.10.0
@@ -144,8 +144,8 @@ require (
 	github.com/xdg-go/stringprep v1.0.3 // indirect
 	github.com/xdg/stringprep v1.0.0 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20181117223130-1be2e3e5546d // indirect
-	go.uber.org/dig v1.10.0 // indirect
-	go.uber.org/goleak v1.0.0
+	go.uber.org/dig v1.18.0 // indirect
+	go.uber.org/goleak v1.2.0
 	go.uber.org/net/metrics v1.3.0 // indirect
 	golang.org/x/crypto v0.32.0 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20220218215828-6cf2b201936e // indirect
