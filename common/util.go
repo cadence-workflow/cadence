@@ -29,6 +29,7 @@ import (
 	"math/rand"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/dgryski/go-farm"
@@ -139,6 +140,22 @@ func AwaitWaitGroup(wg *sync.WaitGroup, timeout time.Duration) bool {
 		return true
 	case <-time.After(timeout):
 		return false
+	}
+}
+
+func WatchMissedDeadline(shouldBeDoneBy time.Duration, deadMansSwitch func()) (isDone func()) {
+	done := atomic.Bool{}
+	go func() {
+		time.Sleep(shouldBeDoneBy)
+		isDone := done.Load()
+		if isDone {
+			return
+		}
+		deadMansSwitch()
+	}()
+
+	return func() {
+		done.Swap(true)
 	}
 }
 

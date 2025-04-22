@@ -1721,3 +1721,22 @@ func TestCheckEventBlobSizeLimit(t *testing.T) {
 		})
 	}
 }
+
+func TestWatchMissedDeadlineDoesNotFireWhenDone(t *testing.T) {
+	fired := false
+	isDone := WatchMissedDeadline(time.Millisecond*10, func() {
+		fired = true
+	})
+	isDone()
+	assert.False(t, fired)
+}
+
+func TestWatchMissedDeadlineDoesFireWhenNotDone(t *testing.T) {
+	fired := false
+	isDone := WatchMissedDeadline(time.Millisecond*10, func() {
+		fired = true
+	})
+	time.Sleep(time.Millisecond * 11)
+	isDone()
+	assert.True(t, fired)
+}
