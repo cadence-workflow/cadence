@@ -188,19 +188,23 @@ func (t *transferQueueProcessor) Stop() {
 		return
 	}
 
-	t.logger.Info("Stopping transfer queue processor")
-	defer t.logger.Info("Transfer queue processor stopped")
-
 	if !t.shard.GetConfig().QueueProcessorEnableGracefulSyncShutdown() {
+		t.logger.Info("Stopping transfer queue processor non-gracefully")
+		defer t.logger.Info("Transfer queue processor stopped non-gracefully")
 		t.activeQueueProcessor.Stop()
 		for _, standbyQueueProcessor := range t.standbyQueueProcessors {
 			standbyQueueProcessor.Stop()
 		}
 
 		close(t.shutdownChan)
-		common.AwaitWaitGroup(&t.shutdownWG, time.Minute)
+		if !common.AwaitWaitGroup(&t.shutdownWG, time.Minute) {
+			t.logger.Warn("transferQueueProcessor timed out on shut down", tag.LifeCycleStopTimedout)
+		}
 		return
 	}
+
+	t.logger.Info("Stopping transfer queue processor gracefully")
+	defer t.logger.Info("Transfer queue processor stopped gracefully")
 
 	// close the shutdown channel so processor pump goroutine drains tasks and then stop the processors
 	close(t.shutdownChan)

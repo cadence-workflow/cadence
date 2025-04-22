@@ -189,10 +189,9 @@ func (t *timerQueueProcessor) Stop() {
 		return
 	}
 
-	t.logger.Info("Stopping timer queue processor")
-	defer t.logger.Info("Timer queue processor stopped")
-
 	if !t.shard.GetConfig().QueueProcessorEnableGracefulSyncShutdown() {
+		t.logger.Info("Stopping timer queue processor non-gracefully")
+		defer t.logger.Info("Timer queue processor stopped non-gracefully")
 		t.activeQueueProcessor.Stop()
 		// stop active executor after queue processor
 		t.activeTaskExecutor.Stop()
@@ -206,9 +205,14 @@ func (t *timerQueueProcessor) Stop() {
 		}
 
 		close(t.shutdownChan)
-		common.AwaitWaitGroup(&t.shutdownWG, time.Minute)
+		if !common.AwaitWaitGroup(&t.shutdownWG, time.Minute) {
+			t.logger.Warn("timerQueueProcessor timed out on shut down", tag.LifeCycleStopTimedout)
+		}
 		return
 	}
+
+	t.logger.Info("Stopping timer queue processor gracefully")
+	defer t.logger.Info("Timer queue processor stopped gracefully")
 
 	// close the shutdown channel first so processor pumps drains tasks
 	// and then stop the processors
