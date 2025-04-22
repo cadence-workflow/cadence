@@ -38,6 +38,7 @@ import (
 
 	gomock "go.uber.org/mock/gomock"
 
+	activecluster "github.com/uber/cadence/common/activecluster"
 	cache "github.com/uber/cadence/common/cache"
 	clock "github.com/uber/cadence/common/clock"
 	cluster "github.com/uber/cadence/common/cluster"
@@ -190,6 +191,20 @@ func (m *MockContext) GenerateTransferTaskIDs(number int) ([]int64, error) {
 func (mr *MockContextMockRecorder) GenerateTransferTaskIDs(number any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateTransferTaskIDs", reflect.TypeOf((*MockContext)(nil).GenerateTransferTaskIDs), number)
+}
+
+// GetActiveClusterManager mocks base method.
+func (m *MockContext) GetActiveClusterManager() activecluster.Manager {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetActiveClusterManager")
+	ret0, _ := ret[0].(activecluster.Manager)
+	return ret0
+}
+
+// GetActiveClusterManager indicates an expected call of GetActiveClusterManager.
+func (mr *MockContextMockRecorder) GetActiveClusterManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveClusterManager", reflect.TypeOf((*MockContext)(nil).GetActiveClusterManager))
 }
 
 // GetAllTimerFailoverLevels mocks base method.

@@ -36,6 +36,7 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/checksum"
 	"github.com/uber/cadence/common/client"
@@ -112,6 +113,7 @@ func (s *DecisionHandlerSuite) TestNewHandler() {
 	shardContext.EXPECT().GetDomainCache().Times(2)
 	shardContext.EXPECT().GetMetricsClient().Times(2)
 	shardContext.EXPECT().GetThrottledLogger().Times(1).Return(testlogger.New(s.T()))
+	shardContext.EXPECT().GetActiveClusterManager().Times(1).Return(activecluster.NewMockManager(s.controller))
 	h := NewHandler(shardContext, execution.NewMockCache(s.controller), tokenSerializer)
 	s.NotNil(h)
 	s.Equal("handlerImpl", reflect.ValueOf(h).Elem().Type().Name())

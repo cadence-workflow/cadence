@@ -28,6 +28,7 @@ import (
 	"go.uber.org/yarpc"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/client"
 	"github.com/uber/cadence/common/clock"
@@ -58,17 +59,18 @@ type (
 	}
 
 	handlerImpl struct {
-		config          *config.Config
-		shard           shard.Context
-		timeSource      clock.TimeSource
-		domainCache     cache.DomainCache
-		executionCache  execution.Cache
-		tokenSerializer common.TaskTokenSerializer
-		metricsClient   metrics.Client
-		logger          log.Logger
-		throttledLogger log.Logger
-		attrValidator   *attrValidator
-		versionChecker  client.VersionChecker
+		config               *config.Config
+		shard                shard.Context
+		timeSource           clock.TimeSource
+		domainCache          cache.DomainCache
+		executionCache       execution.Cache
+		tokenSerializer      common.TaskTokenSerializer
+		metricsClient        metrics.Client
+		logger               log.Logger
+		throttledLogger      log.Logger
+		attrValidator        *attrValidator
+		versionChecker       client.VersionChecker
+		activeClusterManager activecluster.Manager
 	}
 )
 
@@ -81,15 +83,16 @@ func NewHandler(
 	config := shard.GetConfig()
 	logger := shard.GetLogger().WithTags(tag.ComponentDecisionHandler)
 	return &handlerImpl{
-		config:          config,
-		shard:           shard,
-		timeSource:      shard.GetTimeSource(),
-		domainCache:     shard.GetDomainCache(),
-		executionCache:  executionCache,
-		tokenSerializer: tokenSerializer,
-		metricsClient:   shard.GetMetricsClient(),
-		logger:          shard.GetLogger().WithTags(tag.ComponentDecisionHandler),
-		throttledLogger: shard.GetThrottledLogger().WithTags(tag.ComponentDecisionHandler),
+		config:               config,
+		shard:                shard,
+		timeSource:           shard.GetTimeSource(),
+		domainCache:          shard.GetDomainCache(),
+		executionCache:       executionCache,
+		tokenSerializer:      tokenSerializer,
+		metricsClient:        shard.GetMetricsClient(),
+		logger:               shard.GetLogger().WithTags(tag.ComponentDecisionHandler),
+		activeClusterManager: shard.GetActiveClusterManager(),
+		throttledLogger:      shard.GetThrottledLogger().WithTags(tag.ComponentDecisionHandler),
 		attrValidator: newAttrValidator(
 			shard.GetDomainCache(),
 			shard.GetMetricsClient(),
@@ -550,7 +553,9 @@ Update_History_Loop:
 				continueAsNewBuilder,
 			)
 		} else {
-			handler.logger.Debug("HandleDecisionTaskCompleted calling UpdateWorkflowExecutionAsActive", tag.WorkflowID(msBuilder.GetExecutionInfo().WorkflowID))
+			handler.logger.Debugf("HandleDecisionTaskCompleted calling UpdateWorkflowExecutionAsActive for wfID %s",
+				msBuilder.GetExecutionInfo().WorkflowID,
+			)
 			updateErr = wfContext.UpdateWorkflowExecutionAsActive(ctx, handler.shard.GetTimeSource().Now())
 		}
 
@@ -581,7 +586,9 @@ Update_History_Loop:
 					return nil, err
 				}
 
-				handler.logger.Debug("HandleDecisionTaskCompleted calling UpdateWorkflowExecutionAsActive", tag.WorkflowID(msBuilder.GetExecutionInfo().WorkflowID))
+				handler.logger.Debugf("HandleDecisionTaskCompleted calling UpdateWorkflowExecutionAsActive for wfID %s",
+					msBuilder.GetExecutionInfo().WorkflowID,
+				)
 				if err := wfContext.UpdateWorkflowExecutionAsActive(
 					ctx,
 					handler.shard.GetTimeSource().Now(),

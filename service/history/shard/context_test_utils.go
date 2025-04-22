@@ -73,6 +73,7 @@ func NewTestContext(
 		rangeID:                   shardInfo.RangeID,
 		shardInfo:                 shardInfo,
 		executionManager:          resource.ExecutionMgr,
+		activeClusterManager:      resource.ActiveClusterMgr,
 		config:                    config,
 		logger:                    resource.GetLogger(),
 		throttledLogger:           resource.GetThrottledLogger(),

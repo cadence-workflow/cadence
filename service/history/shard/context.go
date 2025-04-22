@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
@@ -56,6 +57,7 @@ type (
 		GetExecutionManager() persistence.ExecutionManager
 		GetHistoryManager() persistence.HistoryManager
 		GetDomainCache() cache.DomainCache
+		GetActiveClusterManager() activecluster.Manager
 		GetClusterMetadata() cluster.Metadata
 		GetConfig() *config.Config
 		GetEventsCache() events.Cache
@@ -139,17 +141,18 @@ type (
 	contextImpl struct {
 		resource.Resource
 
-		shardItem        *historyShardsItem
-		shardID          int
-		rangeID          int64
-		executionManager persistence.ExecutionManager
-		eventsCache      events.Cache
-		closeCallback    func(int, *historyShardsItem)
-		closedAt         atomic.Pointer[time.Time]
-		config           *config.Config
-		logger           log.Logger
-		throttledLogger  log.Logger
-		engine           engine.Engine
+		shardItem            *historyShardsItem
+		shardID              int
+		rangeID              int64
+		executionManager     persistence.ExecutionManager
+		activeClusterManager activecluster.Manager
+		eventsCache          events.Cache
+		closeCallback        func(int, *historyShardsItem)
+		closedAt             atomic.Pointer[time.Time]
+		config               *config.Config
+		logger               log.Logger
+		throttledLogger      log.Logger
+		engine               engine.Engine
 
 		sync.RWMutex
 		lastUpdated               time.Time
@@ -214,6 +217,10 @@ func (s *contextImpl) GetEngine() engine.Engine {
 
 func (s *contextImpl) SetEngine(engine engine.Engine) {
 	s.engine = engine
+}
+
+func (s *contextImpl) GetActiveClusterManager() activecluster.Manager {
+	return s.activeClusterManager
 }
 
 func (s *contextImpl) GenerateTransferTaskID() (int64, error) {
@@ -1229,6 +1236,7 @@ func (s *contextImpl) allocateTransferIDsLocked(
 // NOTE: allocateTimerIDsLocked should always been called after assigning taskID for transferTasks when assigning taskID together,
 // because Cadence Indexer assume timer taskID of deleteWorkflowExecution is larger than transfer taskID of closeWorkflowExecution
 // for a given workflow.
+// TODO(active-active): Write unit tests for this. It's missing tests for both active-active and active-passive.
 func (s *contextImpl) allocateTimerIDsLocked(
 	domainEntry *cache.DomainCacheEntry,
 	workflowID string,
@@ -1236,16 +1244,26 @@ func (s *contextImpl) allocateTimerIDsLocked(
 ) error {
 
 	// assign IDs for the timer tasks. They need to be assigned under shard lock.
-	currentCluster := s.GetClusterMetadata().GetCurrentClusterName()
+	cluster := s.GetClusterMetadata().GetCurrentClusterName()
 	for _, task := range timerTasks {
 		ts := task.GetVisibilityTimestamp()
 		if task.GetVersion() != constants.EmptyVersion {
 			// cannot use version to determine the corresponding cluster for timer task
 			// this is because during failover, timer task should be created as active
 			// or otherwise, failover + active processing logic may not pick up the task.
-			currentCluster = domainEntry.GetReplicationConfig().ActiveClusterName
+			cluster = domainEntry.GetReplicationConfig().ActiveClusterName
+
+			// if domain is active-active, lookup the workflow to determine the corresponding cluster
+			if domainEntry.GetReplicationConfig().IsActiveActive() {
+				lookupRes, err := s.GetActiveClusterManager().LookupWorkflow(context.Background(), task.GetDomainID(), task.GetWorkflowID(), task.GetRunID())
+				if err != nil {
+					return err
+				}
+				cluster = lookupRes.ClusterName
+			}
 		}
-		readCursorTS := s.timerMaxReadLevelMap[currentCluster]
+
+		readCursorTS := s.timerMaxReadLevelMap[cluster]
 		if ts.Before(readCursorTS) {
 			// This can happen if shard move and new host have a time SKU, or there is db write delay.
 			// We generate a new timer ID using timerMaxReadLevel.
@@ -1254,8 +1272,9 @@ func (s *contextImpl) allocateTimerIDsLocked(
 				tag.WorkflowID(workflowID),
 				tag.Timestamp(ts),
 				tag.CursorTimestamp(readCursorTS),
+				tag.ClusterName(cluster),
 				tag.ValueShardAllocateTimerBeforeRead)
-			task.SetVisibilityTimestamp(s.timerMaxReadLevelMap[currentCluster].Add(time.Millisecond))
+			task.SetVisibilityTimestamp(s.timerMaxReadLevelMap[cluster].Add(time.Millisecond))
 		}
 
 		seqNum, err := s.generateTransferTaskIDLocked()
@@ -1509,6 +1528,7 @@ func acquireShard(
 		shardItem:                      shardItem,
 		shardID:                        shardItem.shardID,
 		executionManager:               executionMgr,
+		activeClusterManager:           shardItem.GetActiveClusterManager(),
 		shardInfo:                      updatedShardInfo,
 		closeCallback:                  closeCallback,
 		config:                         shardItem.config,
