@@ -229,6 +229,10 @@ func WorkflowTerminationReason(reason string) Tag {
 	return newStringTag("wf-termination-reason", reason)
 }
 
+func Duration(duration time.Duration) Tag {
+	return newDurationTag("duration", duration)
+}
+
 // domain related
 
 // WorkflowDomainID returns tag for WorkflowDomainID
