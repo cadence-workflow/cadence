@@ -674,6 +674,6 @@ func TestDomainLocking(t *testing.T) {
 		shard:              shardCtx,
 	}
 
-	he.lockProcessingForFailover()
-	he.unlockProcessingForFailover()
+	he.lockTaskProcessingForDomainUpdate()
+	he.unlockProcessingForDomainUpdate()
 }

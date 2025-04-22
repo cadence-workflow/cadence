@@ -353,12 +353,12 @@ func (t *transferQueueProcessor) HandleAction(
 }
 
 func (t *transferQueueProcessor) LockTaskProcessing() {
-	t.logger.Info("Transfer queue processor locking task processing")
+	t.logger.Debug("Transfer queue processor locking task processing")
 	t.taskAllocator.Lock()
 }
 
 func (t *transferQueueProcessor) UnlockTaskProcessing() {
-	t.logger.Info("Transfer queue processor unlocking task processing")
+	t.logger.Debug("Transfer queue processor unlocking task processing")
 	t.taskAllocator.Unlock()
 }
 
