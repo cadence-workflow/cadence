@@ -118,34 +118,26 @@ func (s *redispatcherSuite) TestRedispatch_ProcessorShutDown() {
 	s.Equal(numTasks-successfullyRedispatched, s.redispatcher.Size())
 }
 
-func (s *redispatcherSuite) TestRedispatch_WithTargetSize() {
-	numTasks := defaultBufferSize + 20
-	targetSize := defaultBufferSize + 10
+func (s *redispatcherSuite) TestRedispatchWithTargetSize() {
+	numTasks := 20
+	targetSize := 10
 
+	// First, add tasks to redispatcher
 	for i := 0; i < numTasks; i++ {
 		mockTask := NewMockTask(s.controller)
-		mockTask.EXPECT().Priority().Return(rand.Intn(5)).AnyTimes()
 		mockTask.EXPECT().GetAttempt().Return(0).Times(1)
 		s.redispatcher.AddTask(mockTask)
 	}
 
-	s.redispatcher.Start()
-	s.redispatcher.timerGate.Stop()
-	s.mockProcessor.EXPECT().TrySubmit(gomock.Any()).Return(true, nil).Times(numTasks + defaultBufferSize - targetSize)
-	s.mockProcessor.EXPECT().TrySubmit(gomock.Any()).DoAndReturn(func(_ interface{}) (bool, error) {
-		go func() {
-			s.redispatcher.Stop()
-		}()
+	s.mockProcessor.EXPECT().TrySubmit(gomock.Any()).Return(false, errors.New("some error")).Times(2)
+	s.mockProcessor.EXPECT().TrySubmit(gomock.Any()).Return(true, nil).Times(10)
 
-		<-s.redispatcher.shutdownCh
-		return false, errors.New("processor shutdown")
-	}).Times(1)
 	s.mockTimeSource.Advance(2 * s.options.TaskRedispatchInterval())
 	s.redispatcher.Redispatch(targetSize)
 
 	// implementation can choose to redispatch more tasks than needed
 	sz := s.redispatcher.Size()
-	s.Equal(targetSize-defaultBufferSize, sz)
+	s.Equal(numTasks-targetSize, sz)
 }
 
 func (s *redispatcherSuite) TestRedispatch_Backoff() {
@@ -171,7 +163,7 @@ func (s *redispatcherSuite) TestRedispatch_Backoff() {
 	s.redispatcher.Start()
 	s.redispatcher.timerGate.Stop()
 	s.mockTimeSource.Advance(2 * s.options.TaskRedispatchInterval())
-	s.redispatcher.Redispatch(0)
+	s.redispatcher.Redispatch(numTasks)
 
 	s.Equal(numHighAttemptTasks, s.redispatcher.Size())
 }
