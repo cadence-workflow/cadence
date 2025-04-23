@@ -65,7 +65,6 @@ func (s *workflowSuite) SetupTest() {
 
 	s.controller = gomock.NewController(s.T())
 	s.mockContext = NewMockContext(s.controller)
-	s.mockContext.EXPECT().GetLogger().Return(testlogger.New(s.T())).AnyTimes()
 	s.mockMutableState = NewMockMutableState(s.controller)
 	s.domainID = uuid.New()
 	s.domainName = "domain-name"
