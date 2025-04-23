@@ -192,6 +192,9 @@ func (t *transferQueueProcessor) Stop() {
 	defer t.logger.Info("Transfer queue processor stopped")
 
 	if !t.shard.GetConfig().QueueProcessorEnableGracefulSyncShutdown() {
+		isDone := common.WatchMissedDeadline(time.Minute, func() {
+			t.logger.Error("Graceful shutdown of transfer queue processor has failed")
+		})
 		t.activeQueueProcessor.Stop()
 		for _, standbyQueueProcessor := range t.standbyQueueProcessors {
 			standbyQueueProcessor.Stop()
@@ -199,6 +202,7 @@ func (t *transferQueueProcessor) Stop() {
 
 		close(t.shutdownChan)
 		common.AwaitWaitGroup(&t.shutdownWG, time.Minute)
+		isDone()
 		return
 	}
 
