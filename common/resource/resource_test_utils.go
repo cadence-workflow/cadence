@@ -168,6 +168,11 @@ func NewTest(
 
 	asyncWorkflowQueueProvider := queue.NewMockProvider(controller)
 
+	activeClusterMgr := activecluster.NewMockManager(controller)
+	activeClusterMgr.EXPECT().ClusterNameForFailoverVersion(gomock.Any(), gomock.Any()).DoAndReturn(func(version int64, domainID string) (string, error) {
+		return cluster.TestActiveClusterMetadata.ClusterNameForFailoverVersion(version)
+	}).AnyTimes()
+
 	return &Test{
 		MetricsScope: scope,
 
@@ -179,7 +184,7 @@ func NewTest(
 		DomainCache:             cache.NewMockDomainCache(controller),
 		DomainMetricsScopeCache: cache.NewDomainMetricsScopeCache(),
 		DomainReplicationQueue:  domainReplicationQueue,
-		ActiveClusterMgr:        activecluster.NewMockManager(controller),
+		ActiveClusterMgr:        activeClusterMgr,
 		TimeSource:              clock.NewRealTimeSource(),
 		PayloadSerializer:       persistence.NewPayloadSerializer(),
 		MetricsClient:           metrics.NewClient(scope, serviceMetricsIndex),

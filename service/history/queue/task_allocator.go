@@ -89,12 +89,24 @@ func (t *taskAllocatorImpl) VerifyStandbyTask(standbyCluster string, domainID, w
 	return t.verifyTaskActiveness(standbyCluster, domainID, wfID, rID, task)
 }
 
+// verifyTaskActiveness verifies if a task should be processed or not based on domain's state
+//   - If failed to fetch the domain, it returns (false, err) indicating the task should be retried
+//   - If domain is not found, it returns (false, nil) indicating the task should be skipped
+//   - If domain is pending active, it returns (false, ErrTaskPendingActive) indicating the task should be retried
+//   - If domain is active in the given cluster, it returns (true, nil) indicating the task should be processed
+//     Special case: if it's a failover queue, it returns (true, nil) indicating the task should be processed
 func (t *taskAllocatorImpl) verifyTaskActiveness(cluster string, domainID, wfID, rID string, task interface{}) (b bool, e error) {
 	if t.logger.DebugOn() {
 		defer func() {
-			data, err := json.Marshal(task)
-			if err != nil {
-				t.logger.Error("Failed to marshal task.", tag.Error(err))
+			taskString := "nil"
+			if task != nil {
+				data, err := json.Marshal(task)
+				if err != nil {
+					t.logger.Error("Failed to marshal task.", tag.Error(err))
+					taskString = "nil"
+				} else {
+					taskString = string(data)
+				}
 			}
 			t.logger.Debugf("verifyTaskActiveness returning (%v, %v) for cluster %s, domainID %s, wfID %s, rID %s, task %s, stacktrace %s",
 				b,
@@ -103,7 +115,7 @@ func (t *taskAllocatorImpl) verifyTaskActiveness(cluster string, domainID, wfID,
 				domainID,
 				wfID,
 				rID,
-				string(data),
+				taskString,
 				string(debug.Stack()),
 			)
 		}()
@@ -116,7 +128,7 @@ func (t *taskAllocatorImpl) verifyTaskActiveness(cluster string, domainID, wfID,
 		// it is possible that the domain is deleted
 		// we should treat that domain as not active
 		if _, ok := err.(*types.EntityNotExistsError); !ok {
-			t.logger.Warn("Cannot find domain", tag.WorkflowDomainID(domainID))
+			t.logger.Warn("Failed to get domain from cache", tag.WorkflowDomainID(domainID), tag.Error(err))
 			return false, err
 		}
 		t.logger.Warn("Cannot find domain, default to not process task.", tag.WorkflowDomainID(domainID), tag.Value(task))
@@ -136,24 +148,50 @@ func (t *taskAllocatorImpl) verifyTaskActiveness(cluster string, domainID, wfID,
 		return true, nil
 	}
 
+	// handle local domain
+	if !domainEntry.IsGlobalDomain() {
+		// non global domain. only active in domain's cluster
+		return t.currentClusterName == cluster, nil
+	}
+
+	// handle active-active domain
 	if domainEntry.GetReplicationConfig().IsActiveActive() {
 		resp, err := t.activeClusterMgr.LookupWorkflow(context.Background(), domainID, wfID, rID)
 		if err != nil {
-			t.logger.Debugf("Error getting active cluster for domain %s, wfID %s, rID %s: %v", domainID, wfID, rID, err)
+			t.logger.Warn("Failed to lookup active cluster",
+				tag.WorkflowDomainID(domainID),
+				tag.WorkflowID(wfID),
+				tag.WorkflowRunID(rID),
+				tag.Error(err),
+			)
 			return false, err
 		}
 		if resp.ClusterName != cluster {
-			t.logger.Debugf("Skip task because workflow %s of domain %s is not active on cluster: %s", wfID, domainID, cluster)
+			t.logger.Debugf("Skip task because workflow is not active on the given cluster",
+				tag.WorkflowID(wfID),
+				tag.WorkflowDomainID(domainID),
+				tag.ClusterName(cluster),
+			)
 			return false, nil
 		}
 
-		t.logger.Debugf("Active cluster for domain %s, wfID %s, rID %s: %s", domainID, wfID, rID, resp.ClusterName)
+		t.logger.Debugf("Active cluster for given task",
+			tag.WorkflowDomainID(domainID),
+			tag.WorkflowID(wfID),
+			tag.WorkflowRunID(rID),
+			tag.ClusterName(resp.ClusterName),
+		)
 		return true, nil
 	}
 
-	isActiveInGivenCluster, _ := domainEntry.IsActiveIn(cluster)
-	if !isActiveInGivenCluster {
-		t.logger.Debugf("Skip task because domain %s is not active on cluster: %s", domainID, cluster)
+	// handle active-passive domain
+	if domainEntry.GetReplicationConfig().ActiveClusterName != cluster {
+		t.logger.Debug("Domain is not active in the given cluster, skip task.",
+			tag.WorkflowDomainID(domainID),
+			tag.WorkflowID(wfID),
+			tag.WorkflowRunID(rID),
+			tag.ClusterName(cluster),
+		)
 		return false, nil
 	}
 

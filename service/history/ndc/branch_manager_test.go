@@ -188,7 +188,7 @@ func (s *branchManagerSuite) TestFlushBufferedEvents() {
 	}
 	s.mockMutableState.EXPECT().GetInFlightDecision().Return(decisionInfo, true).Times(1)
 	// GetExecutionInfo's return value is not used by this test
-	s.mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{}).Times(1)
+	s.mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{}).AnyTimes()
 	s.mockMutableState.EXPECT().AddDecisionTaskFailedEvent(
 		decisionInfo.ScheduleID,
 		decisionInfo.StartedID,

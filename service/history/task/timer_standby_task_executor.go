@@ -470,17 +470,17 @@ func (t *timerStandbyTaskExecutor) processTimer(
 			)
 		}
 		return err
-	} else {
-		if t.logger.DebugOn() {
-			t.logger.Debug("processTimer got historyResendInfo from actionFn",
-				tag.WorkflowID(timerTask.GetWorkflowID()),
-				tag.WorkflowRunID(timerTask.GetRunID()),
-				tag.WorkflowDomainID(timerTask.GetDomainID()),
-				tag.TaskID(timerTask.GetTaskID()),
-				tag.TaskType(int(timerTask.GetTaskType())),
-				tag.Timestamp(timerTask.GetVisibilityTimestamp()),
-			)
-		}
+	}
+
+	if t.logger.DebugOn() {
+		t.logger.Debug("processTimer got historyResendInfo from actionFn",
+			tag.WorkflowID(timerTask.GetWorkflowID()),
+			tag.WorkflowRunID(timerTask.GetRunID()),
+			tag.WorkflowDomainID(timerTask.GetDomainID()),
+			tag.TaskID(timerTask.GetTaskID()),
+			tag.TaskType(int(timerTask.GetTaskType())),
+			tag.Timestamp(timerTask.GetVisibilityTimestamp()),
+		)
 	}
 
 	release(nil)
