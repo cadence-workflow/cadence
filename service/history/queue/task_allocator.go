@@ -94,7 +94,7 @@ func (t *taskAllocatorImpl) VerifyStandbyTask(standbyCluster string, domainID, w
 //   - If domain is not found, it returns (false, nil) indicating the task should be skipped
 //   - If domain is pending active, it returns (false, ErrTaskPendingActive) indicating the task should be retried
 //   - If domain is active in the given cluster, it returns (true, nil) indicating the task should be processed
-//     Special case: if it's a failover queue, it returns (true, nil) indicating the task should be processed
+//     Special case: if it's a failover queue (cluster == ""), it returns (true, nil) indicating the task should be processed in any cluster
 func (t *taskAllocatorImpl) verifyTaskActiveness(cluster string, domainID, wfID, rID string, task interface{}) (b bool, e error) {
 	if t.logger.DebugOn() {
 		defer func() {
