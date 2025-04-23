@@ -1253,11 +1253,7 @@ func (s *contextImpl) allocateTimerIDsLocked(
 			// or otherwise, failover + active processing logic may not pick up the task.
 			cluster = domainEntry.GetReplicationConfig().ActiveClusterName
 
-<<<<<<< HEAD
 			// if domain is active-active, lookup the workflow to determine the corresponding cluster
-=======
-			// if domain is active-active and the current cluster is one of those active clusters, then use the current cluster
->>>>>>> f21e8db03 (Active-Active prototype remaining changes as of apr 22)
 			if domainEntry.GetReplicationConfig().IsActiveActive() {
 				lookupRes, err := s.GetActiveClusterManager().LookupWorkflow(context.Background(), task.GetDomainID(), task.GetWorkflowID(), task.GetRunID())
 				if err != nil {
