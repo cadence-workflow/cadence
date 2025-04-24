@@ -203,6 +203,23 @@ func TestGetProducerByDomain(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name:   "Error case - async wf not enabled",
+			domain: "test-domain",
+			mockSetup: func(mockDomainCache *cache.MockDomainCache, mockProvider *queue.MockProvider, mockQueue *provider.MockQueue, mockProducerCache *cache.MockCache) {
+				mockDomainCache.EXPECT().GetDomain("test-domain").Return(cache.NewGlobalDomainCacheEntryForTest(
+					nil,
+					&persistence.DomainConfig{
+						AsyncWorkflowConfig: types.AsyncWorkflowConfiguration{
+							Enabled: false,
+						},
+					},
+					nil,
+					0,
+				), nil)
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tc := range testCases {

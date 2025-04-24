@@ -26,6 +26,7 @@ package api
 
 import (
 	"fmt"
+	"github.com/uber/cadence/common/types"
 	"time"
 
 	"github.com/uber/cadence/common/asyncworkflow/queue"
@@ -84,7 +85,7 @@ func (q *producerManagerImpl) GetProducerByDomain(
 		return nil, err
 	}
 	if !domainEntry.GetConfig().AsyncWorkflowConfig.Enabled {
-		return nil, fmt.Errorf("async workflow is not enabled for domain %v", domain)
+		return nil, &types.BadRequestError{Message: fmt.Sprintf("async workflow is not enabled for domain %v", domain)}
 	}
 	queueName := domainEntry.GetConfig().AsyncWorkflowConfig.PredefinedQueueName
 	var queue provider.Queue
