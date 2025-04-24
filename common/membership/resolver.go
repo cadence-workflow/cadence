@@ -29,6 +29,8 @@ import (
 	"sync/atomic"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 )
 
@@ -80,6 +82,7 @@ type (
 // MultiringResolver uses ring-per-service for membership information
 type MultiringResolver struct {
 	metrics metrics.Client
+	logger  log.Logger
 	status  int32
 
 	provider PeerProvider
@@ -93,6 +96,7 @@ var _ Resolver = (*MultiringResolver)(nil)
 func NewResolver(
 	provider PeerProvider,
 	metricsClient metrics.Client,
+	logger log.Logger,
 	rings map[string]SingleProvider,
 ) (Resolver, error) {
 	rpo := &MultiringResolver{
@@ -100,6 +104,7 @@ func NewResolver(
 		provider: provider,
 		rings:    rings,
 		metrics:  metricsClient,
+		logger:   logger.WithTags(tag.ComponentMembershipResolver),
 		mu:       sync.Mutex{},
 	}
 
@@ -115,6 +120,9 @@ func (rpo *MultiringResolver) Start() {
 	) {
 		return
 	}
+
+	rpo.logger.Info("Starting membership resolver", tag.ComponentMembershipResolver)
+	defer rpo.logger.Info("Started membership resolver", tag.ComponentMembershipResolver)
 
 	rpo.provider.Start()
 
@@ -134,6 +142,9 @@ func (rpo *MultiringResolver) Stop() {
 	) {
 		return
 	}
+
+	rpo.logger.Info("Stopping membership resolver", tag.ComponentMembershipResolver)
+	defer rpo.logger.Info("Stopped membership resolver", tag.ComponentMembershipResolver)
 
 	rpo.mu.Lock()
 	defer rpo.mu.Unlock()

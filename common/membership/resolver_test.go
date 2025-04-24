@@ -146,6 +146,7 @@ func newTestResolver(t *testing.T) (*MultiringResolver, *MockPeerProvider) {
 	resolver, err := NewResolver(
 		pp,
 		metrics.NewNoopMetricsClient(),
+		log.NewNoop(),
 		rings,
 	)
 	require.NoError(t, err)

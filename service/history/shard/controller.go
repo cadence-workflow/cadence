@@ -178,6 +178,9 @@ func (c *controller) Stop() {
 		return
 	}
 
+	c.logger.Info("Stopping shard controller", tag.ComponentShardController)
+	defer c.logger.Info("Stopped shard controller", tag.ComponentShardController)
+
 	c.PrepareToStop()
 
 	if err := c.GetMembershipResolver().Unsubscribe(service.History, shardControllerMembershipUpdateListenerName); err != nil {
@@ -287,6 +290,9 @@ func (c *controller) getOrCreateHistoryShardItem(shardID int) (*historyShardsIte
 	}
 	c.RUnlock()
 
+	c.logger.Info("Creating new history shard item", tag.ShardID(shardID))
+	defer c.logger.Info("Created new history shard item", tag.ShardID(shardID))
+
 	c.Lock()
 	defer c.Unlock()
 
@@ -305,7 +311,15 @@ func (c *controller) getOrCreateHistoryShardItem(shardID int) (*historyShardsIte
 		return nil, err
 	}
 
-	if info.Identity() == c.GetHostInfo().Identity() {
+	shardBelongsToCurrentHost := info.Identity() == c.GetHostInfo().Identity()
+	c.logger.Info("Shard belongs to current host?",
+		tag.ShardID(shardID),
+		tag.Value(shardBelongsToCurrentHost),
+		tag.Dynamic("shard-owner", info.Identity()),
+		tag.Dynamic("current-host", c.GetHostInfo().Identity()),
+	)
+
+	if shardBelongsToCurrentHost {
 		shardItem, err := newHistoryShardsItem(
 			c.Resource,
 			shardID,
@@ -355,7 +369,6 @@ func (c *controller) removeHistoryShardItem(shardID int, shardItem *historyShard
 //	b. Periodic ticker
 //	c. ShardOwnershipLostError and subsequent ShardClosedEvents from engine
 func (c *controller) shardManagementPump() {
-
 	defer c.shutdownWG.Done()
 
 	acquireTicker := time.NewTicker(c.config.AcquireShardInterval())
@@ -382,6 +395,9 @@ func (c *controller) shardManagementPump() {
 }
 
 func (c *controller) acquireShards() {
+	c.logger.Info("Acquiring shards", tag.ComponentShardController, tag.Number(int64(c.NumShards())))
+	defer c.logger.Info("Acquired shards", tag.ComponentShardController, tag.Number(int64(c.NumShards())))
+
 	c.metricsScope.IncCounter(metrics.AcquireShardsCounter)
 	sw := c.metricsScope.StartTimer(metrics.AcquireShardsLatency)
 	defer sw.Stop()

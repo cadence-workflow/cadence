@@ -180,6 +180,7 @@ func (s *server) startService() common.Daemon {
 	params.MembershipResolver, err = membership.NewResolver(
 		peerProvider,
 		params.MetricsClient,
+		params.Logger,
 		wrappedRings,
 	)
 

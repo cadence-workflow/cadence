@@ -142,6 +142,8 @@ var (
 	ComponentRPCFactory                       = component("rpc-factory")
 	ComponentTaskListAdaptiveScaler           = component("task-list-adaptive-scaler")
 	ComponentActiveClusterManager             = component("active-cluster-manager")
+	ComponentMembershipResolver               = component("membership-resolver")
+	ComponentHashring                         = component("hashring")
 )
 
 // Predefined values for QueueTypes
