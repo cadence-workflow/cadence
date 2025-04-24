@@ -63,8 +63,8 @@ type (
 
 	ackLevelStore interface {
 		GetTransferMaxReadLevel() int64
-		GetClusterReplicationLevel(cluster string) int64
-		UpdateClusterReplicationLevel(cluster string, lastTaskID int64) error
+		GetQueueClusterAckLevel(category persistence.HistoryTaskCategory, cluster string) persistence.HistoryTaskKey
+		UpdateQueueClusterAckLevel(category persistence.HistoryTaskCategory, cluster string, ackLevel persistence.HistoryTaskKey) error
 	}
 	taskReader interface {
 		Read(ctx context.Context, readLevel int64, maxReadLevel int64, batchSize int) ([]persistence.Task, bool, error)
@@ -126,7 +126,7 @@ func (t *TaskAckManager) getTasks(ctx context.Context, pollingCluster string, la
 	var (
 		oldestUnprocessedTaskTimestamp = t.timeSource.Now().UnixNano()
 		oldestUnprocessedTaskID        = t.ackLevels.GetTransferMaxReadLevel()
-		previousReadTaskID             = t.ackLevels.GetClusterReplicationLevel(pollingCluster)
+		previousReadTaskID             = t.ackLevels.GetQueueClusterAckLevel(persistence.HistoryTaskCategoryReplication, pollingCluster).TaskID
 	)
 
 	if lastReadTaskID == constants.EmptyMessageID {
@@ -215,7 +215,9 @@ func (t *TaskAckManager) getTasks(ctx context.Context, pollingCluster string, la
 
 // ackLevel updates the ack level for the given cluster
 func (t *TaskAckManager) ackLevel(pollingCluster string, lastReadTaskID int64) {
-	if err := t.ackLevels.UpdateClusterReplicationLevel(pollingCluster, lastReadTaskID); err != nil {
+	if err := t.ackLevels.UpdateQueueClusterAckLevel(persistence.HistoryTaskCategoryReplication, pollingCluster, persistence.HistoryTaskKey{
+		TaskID: lastReadTaskID,
+	}); err != nil {
 		t.logger.Error("error updating replication level for shard", tag.Error(err), tag.OperationFailed)
 	}
 

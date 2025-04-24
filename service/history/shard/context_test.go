@@ -130,8 +130,7 @@ func (s *contextTestSuite) newContext() *contextImpl {
 		maxTransferSequenceNumber: testMaxTransferSequenceNumber,
 		timerMaxReadLevelMap:      make(map[string]time.Time),
 		remoteClusterCurrentTime:  make(map[string]time.Time),
-		transferFailoverLevels:    make(map[string]TransferFailoverLevel),
-		timerFailoverLevels:       make(map[string]TimerFailoverLevel),
+		failoverLevels:            make(map[persistence.HistoryTaskCategory]map[string]persistence.FailoverLevel),
 		eventsCache:               eventsCache,
 	}
 
@@ -161,38 +160,44 @@ func (s *contextTestSuite) TestAccessorMethods() {
 func (s *contextTestSuite) TestTransferAckLevel() {
 	// validate default value returned
 	s.context.shardInfo.TransferAckLevel = 5
-	s.Assert().EqualValues(5, s.context.GetTransferAckLevel())
+	s.Assert().EqualValues(5, s.context.GetQueueAckLevel(persistence.HistoryTaskCategoryTransfer).TaskID)
 
 	// update and validate it's returned
 	s.mockShardManager.On("UpdateShard", mock.Anything, mock.Anything).Once().Return(nil)
-	s.context.UpdateTransferAckLevel(20)
-	s.Assert().EqualValues(20, s.context.GetTransferAckLevel())
+	s.context.UpdateQueueAckLevel(persistence.HistoryTaskCategoryTransfer, persistence.HistoryTaskKey{
+		TaskID: 20,
+	})
+	s.Assert().EqualValues(20, s.context.GetQueueAckLevel(persistence.HistoryTaskCategoryTransfer).TaskID)
 	s.Assert().Equal(0, s.context.shardInfo.StolenSinceRenew)
 }
 
 func (s *contextTestSuite) TestClusterTransferAckLevel() {
 	// update and validate cluster transfer ack level
 	s.mockShardManager.On("UpdateShard", mock.Anything, mock.Anything).Once().Return(nil)
-	s.context.UpdateTransferClusterAckLevel(cluster.TestCurrentClusterName, 5)
-	s.Assert().EqualValues(5, s.context.GetTransferClusterAckLevel(cluster.TestCurrentClusterName))
+	s.context.UpdateQueueClusterAckLevel(persistence.HistoryTaskCategoryTransfer, cluster.TestCurrentClusterName, persistence.HistoryTaskKey{
+		TaskID: 5,
+	})
+	s.Assert().EqualValues(5, s.context.GetQueueClusterAckLevel(persistence.HistoryTaskCategoryTransfer, cluster.TestCurrentClusterName).TaskID)
 	s.Assert().Equal(0, s.context.shardInfo.StolenSinceRenew)
 
 	// get cluster transfer ack level for non existing cluster
 	s.context.shardInfo.TransferAckLevel = 10
-	s.Assert().EqualValues(10, s.context.GetTransferClusterAckLevel("non-existing-cluster"))
+	s.Assert().EqualValues(10, s.context.GetQueueClusterAckLevel(persistence.HistoryTaskCategoryTransfer, "non-existing-cluster").TaskID)
 }
 
 func (s *contextTestSuite) TestTimerAckLevel() {
 	// validate default value returned
 	now := time.Now()
 	s.context.shardInfo.TimerAckLevel = now
-	s.Assert().Equal(now.UnixNano(), s.context.GetTimerAckLevel().UnixNano())
+	s.Assert().Equal(now.UnixNano(), s.context.GetQueueAckLevel(persistence.HistoryTaskCategoryTimer).ScheduledTime.UnixNano())
 
 	// update and validate it's returned
 	newTime := time.Now()
 	s.mockShardManager.On("UpdateShard", mock.Anything, mock.Anything).Once().Return(nil)
-	s.context.UpdateTimerAckLevel(newTime)
-	s.Assert().EqualValues(newTime.UnixNano(), s.context.GetTimerAckLevel().UnixNano())
+	s.context.UpdateQueueAckLevel(persistence.HistoryTaskCategoryTimer, persistence.HistoryTaskKey{
+		ScheduledTime: newTime,
+	})
+	s.Assert().EqualValues(newTime.UnixNano(), s.context.GetQueueAckLevel(persistence.HistoryTaskCategoryTimer).ScheduledTime.UnixNano())
 	s.Assert().Equal(0, s.context.shardInfo.StolenSinceRenew)
 }
 
@@ -200,78 +205,80 @@ func (s *contextTestSuite) TestClusterTimerAckLevel() {
 	// update and validate cluster timer ack level
 	now := time.Now()
 	s.mockShardManager.On("UpdateShard", mock.Anything, mock.Anything).Once().Return(nil)
-	s.context.UpdateTimerClusterAckLevel(cluster.TestCurrentClusterName, now)
-	s.Assert().EqualValues(now.UnixNano(), s.context.GetTimerClusterAckLevel(cluster.TestCurrentClusterName).UnixNano())
+	s.context.UpdateQueueClusterAckLevel(persistence.HistoryTaskCategoryTimer, cluster.TestCurrentClusterName, persistence.HistoryTaskKey{
+		ScheduledTime: now,
+	})
+	s.Assert().EqualValues(now.UnixNano(), s.context.GetQueueClusterAckLevel(persistence.HistoryTaskCategoryTimer, cluster.TestCurrentClusterName).ScheduledTime.UnixNano())
 	s.Assert().Equal(0, s.context.shardInfo.StolenSinceRenew)
 
 	// get cluster timer ack level for non existing cluster
 	s.context.shardInfo.TimerAckLevel = now
-	s.Assert().EqualValues(now.UnixNano(), s.context.GetTimerClusterAckLevel("non-existing-cluster").UnixNano())
+	s.Assert().EqualValues(now.UnixNano(), s.context.GetQueueClusterAckLevel(persistence.HistoryTaskCategoryTimer, "non-existing-cluster").ScheduledTime.UnixNano())
 }
 
 func (s *contextTestSuite) TestUpdateTransferFailoverLevel() {
-	failoverLevel1 := TransferFailoverLevel{
+	failoverLevel1 := persistence.FailoverLevel{
 		StartTime:    time.Now(),
-		MinLevel:     1,
-		CurrentLevel: 10,
-		MaxLevel:     100,
+		MinLevel:     persistence.HistoryTaskKey{TaskID: 1},
+		CurrentLevel: persistence.HistoryTaskKey{TaskID: 10},
+		MaxLevel:     persistence.HistoryTaskKey{TaskID: 100},
 		DomainIDs:    map[string]struct{}{"testDomainID": {}},
 	}
-	failoverLevel2 := TransferFailoverLevel{
+	failoverLevel2 := persistence.FailoverLevel{
 		StartTime:    time.Now(),
-		MinLevel:     2,
-		CurrentLevel: 20,
-		MaxLevel:     200,
+		MinLevel:     persistence.HistoryTaskKey{TaskID: 2},
+		CurrentLevel: persistence.HistoryTaskKey{TaskID: 20},
+		MaxLevel:     persistence.HistoryTaskKey{TaskID: 200},
 		DomainIDs:    map[string]struct{}{"testDomainID2": {}},
 	}
 
-	err := s.context.UpdateTransferFailoverLevel("id1", failoverLevel1)
+	err := s.context.UpdateFailoverLevel(persistence.HistoryTaskCategoryTransfer, "id1", failoverLevel1)
 	s.NoError(err)
-	err = s.context.UpdateTransferFailoverLevel("id2", failoverLevel2)
+	err = s.context.UpdateFailoverLevel(persistence.HistoryTaskCategoryTransfer, "id2", failoverLevel2)
 	s.NoError(err)
 
-	gotLevels := s.context.GetAllTransferFailoverLevels()
+	gotLevels := s.context.GetAllFailoverLevels(persistence.HistoryTaskCategoryTransfer)
 	s.Len(gotLevels, 2)
 	assert.Equal(s.T(), failoverLevel1, gotLevels["id1"])
 	assert.Equal(s.T(), failoverLevel2, gotLevels["id2"])
 
-	err = s.context.DeleteTransferFailoverLevel("id1")
+	err = s.context.DeleteFailoverLevel(persistence.HistoryTaskCategoryTransfer, "id1")
 	s.NoError(err)
-	gotLevels = s.context.GetAllTransferFailoverLevels()
+	gotLevels = s.context.GetAllFailoverLevels(persistence.HistoryTaskCategoryTransfer)
 	s.Len(gotLevels, 1)
 	assert.Equal(s.T(), failoverLevel2, gotLevels["id2"])
 }
 
 func (s *contextTestSuite) TestUpdateTimerFailoverLevel() {
 	t := time.Now()
-	failoverLevel1 := TimerFailoverLevel{
+	failoverLevel1 := persistence.FailoverLevel{
 		StartTime:    t,
-		MinLevel:     t.Add(time.Minute),
-		CurrentLevel: t.Add(time.Minute * 2),
-		MaxLevel:     t.Add(time.Minute * 3),
+		MinLevel:     persistence.HistoryTaskKey{ScheduledTime: t.Add(time.Minute)},
+		CurrentLevel: persistence.HistoryTaskKey{ScheduledTime: t.Add(time.Minute * 2)},
+		MaxLevel:     persistence.HistoryTaskKey{ScheduledTime: t.Add(time.Minute * 3)},
 		DomainIDs:    map[string]struct{}{"testDomainID": {}},
 	}
-	failoverLevel2 := TimerFailoverLevel{
+	failoverLevel2 := persistence.FailoverLevel{
 		StartTime:    t,
-		MinLevel:     t.Add(time.Minute * 2),
-		CurrentLevel: t.Add(time.Minute * 4),
-		MaxLevel:     t.Add(time.Minute * 6),
+		MinLevel:     persistence.HistoryTaskKey{ScheduledTime: t.Add(time.Minute * 2)},
+		CurrentLevel: persistence.HistoryTaskKey{ScheduledTime: t.Add(time.Minute * 4)},
+		MaxLevel:     persistence.HistoryTaskKey{ScheduledTime: t.Add(time.Minute * 6)},
 		DomainIDs:    map[string]struct{}{"testDomainID2": {}},
 	}
 
-	err := s.context.UpdateTimerFailoverLevel("id1", failoverLevel1)
+	err := s.context.UpdateFailoverLevel(persistence.HistoryTaskCategoryTimer, "id1", failoverLevel1)
 	s.NoError(err)
-	err = s.context.UpdateTimerFailoverLevel("id2", failoverLevel2)
+	err = s.context.UpdateFailoverLevel(persistence.HistoryTaskCategoryTimer, "id2", failoverLevel2)
 	s.NoError(err)
 
-	gotLevels := s.context.GetAllTimerFailoverLevels()
+	gotLevels := s.context.GetAllFailoverLevels(persistence.HistoryTaskCategoryTimer)
 	s.Len(gotLevels, 2)
 	assert.Equal(s.T(), failoverLevel1, gotLevels["id1"])
 	assert.Equal(s.T(), failoverLevel2, gotLevels["id2"])
 
-	err = s.context.DeleteTimerFailoverLevel("id1")
+	err = s.context.DeleteFailoverLevel(persistence.HistoryTaskCategoryTimer, "id1")
 	s.NoError(err)
-	gotLevels = s.context.GetAllTimerFailoverLevels()
+	gotLevels = s.context.GetAllFailoverLevels(persistence.HistoryTaskCategoryTimer)
 	s.Len(gotLevels, 1)
 	assert.Equal(s.T(), failoverLevel2, gotLevels["id2"])
 }
@@ -308,11 +315,11 @@ func (s *contextTestSuite) TestTimerMaxReadLevel() {
 }
 
 func (s *contextTestSuite) TestGenerateTransferTaskID() {
-	taskID, err := s.context.GenerateTransferTaskID()
+	taskID, err := s.context.GenerateTaskID()
 	s.Require().NoError(err)
 	s.Assert().Equal(int64(1), taskID)
 
-	taskID, err = s.context.GenerateTransferTaskID()
+	taskID, err = s.context.GenerateTaskID()
 	s.Require().NoError(err)
 	s.Assert().Equal(int64(2), taskID)
 }
@@ -320,7 +327,7 @@ func (s *contextTestSuite) TestGenerateTransferTaskID() {
 func (s *contextTestSuite) TestGenerateTransferTaskIDs() {
 	expectedTaskIDs := []int64{1, 2, 3, 4}
 
-	taskIDs, err := s.context.GenerateTransferTaskIDs(4)
+	taskIDs, err := s.context.GenerateTaskIDs(4)
 	s.Require().NoError(err)
 	s.Assert().Equal(expectedTaskIDs, taskIDs)
 }
@@ -328,12 +335,12 @@ func (s *contextTestSuite) TestGenerateTransferTaskIDs() {
 func (s *contextTestSuite) TestGenerateTransferTaskID_RenewsRange() {
 	// we acquire task IDs until testMaxTransferSequenceNumber, then next generation should involve
 	// renewing range
-	_, err := s.context.GenerateTransferTaskIDs(testMaxTransferSequenceNumber - 1)
+	_, err := s.context.GenerateTaskIDs(testMaxTransferSequenceNumber - 1)
 	s.Require().NoError(err)
 
 	s.mockShardManager.On("UpdateShard", mock.Anything, mock.Anything).Once().Return(nil)
 
-	taskID, err := s.context.GenerateTransferTaskID()
+	taskID, err := s.context.GenerateTaskID()
 	s.Require().NoError(err)
 
 	newRangeID := testRangeID + 1
@@ -355,10 +362,10 @@ func (s *contextTestSuite) TestUpdateClusterReplicationLevel_Succeeds() {
 	lastTaskID := int64(123)
 
 	s.mockShardManager.On("UpdateShard", mock.Anything, mock.Anything).Once().Return(nil)
-	err := s.context.UpdateClusterReplicationLevel(testCluster, lastTaskID)
+	err := s.context.UpdateQueueClusterAckLevel(persistence.HistoryTaskCategoryReplication, testCluster, persistence.HistoryTaskKey{TaskID: lastTaskID})
 	s.Require().NoError(err)
 
-	s.Equal(lastTaskID, s.context.GetClusterReplicationLevel(testCluster))
+	s.Equal(lastTaskID, s.context.GetQueueClusterAckLevel(persistence.HistoryTaskCategoryReplication, testCluster).TaskID)
 }
 
 func (s *contextTestSuite) TestUpdateClusterReplicationLevel_FailsWhenUpdateShardFail() {
@@ -372,7 +379,7 @@ func (s *contextTestSuite) TestUpdateClusterReplicationLevel_FailsWhenUpdateShar
 		closeCallbackCalled <- true
 	}
 
-	err := s.context.UpdateClusterReplicationLevel(testCluster, int64(123))
+	err := s.context.UpdateQueueClusterAckLevel(persistence.HistoryTaskCategoryReplication, testCluster, persistence.HistoryTaskKey{TaskID: int64(123)})
 
 	select {
 	case <-closeCallbackCalled:
@@ -880,8 +887,8 @@ func (s *contextTestSuite) TestGetAndUpdateProcessingQueueStates() {
 	s.Equal(updatedTimerQueueStates, s.context.GetTimerProcessingQueueStates(clusterName))
 
 	// check if cluster ack level for transfer and timer is backfilled for backward compatibility
-	s.Equal(updatedTransferQueueStates[0].GetAckLevel(), s.context.GetTransferClusterAckLevel(clusterName))
-	s.Equal(time.Unix(0, updatedTimerQueueStates[0].GetAckLevel()), s.context.GetTimerClusterAckLevel(clusterName))
+	s.Equal(updatedTransferQueueStates[0].GetAckLevel(), s.context.GetQueueClusterAckLevel(persistence.HistoryTaskCategoryTransfer, clusterName).TaskID)
+	s.Equal(time.Unix(0, updatedTimerQueueStates[0].GetAckLevel()), s.context.GetQueueClusterAckLevel(persistence.HistoryTaskCategoryTimer, clusterName).ScheduledTime)
 }
 
 func TestGetWorkflowExecution(t *testing.T) {

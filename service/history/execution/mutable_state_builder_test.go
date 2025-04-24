@@ -3139,7 +3139,7 @@ func TestAssignTaskIDToTransientHistoryEvents(t *testing.T) {
 			},
 			taskID: 123,
 			shardContextExpectations: func(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache) {
-				shardContext.EXPECT().GenerateTransferTaskIDs(1).Return([]int64{123}, nil).Times(1)
+				shardContext.EXPECT().GenerateTaskIDs(1).Return([]int64{123}, nil).Times(1)
 			},
 			expectedEvents: []*types.HistoryEvent{
 				{
@@ -3164,7 +3164,7 @@ func TestAssignTaskIDToTransientHistoryEvents(t *testing.T) {
 			},
 			taskID: 456,
 			shardContextExpectations: func(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache) {
-				shardContext.EXPECT().GenerateTransferTaskIDs(2).Return([]int64{123, 124}, nil).Times(1)
+				shardContext.EXPECT().GenerateTaskIDs(2).Return([]int64{123, 124}, nil).Times(1)
 			},
 			expectedEvents: []*types.HistoryEvent{
 				{
@@ -3196,7 +3196,7 @@ func TestAssignTaskIDToTransientHistoryEvents(t *testing.T) {
 			},
 			taskID: 456,
 			shardContextExpectations: func(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache) {
-				shardContext.EXPECT().GenerateTransferTaskIDs(1).Return(nil, assert.AnError).Times(1)
+				shardContext.EXPECT().GenerateTaskIDs(1).Return(nil, assert.AnError).Times(1)
 			},
 			expectedEvents: []*types.HistoryEvent{
 				{
@@ -3252,7 +3252,7 @@ func TestAssignTaskIDToHistoryEvents(t *testing.T) {
 			},
 			taskID: 123,
 			shardContextExpectations: func(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache) {
-				shardContext.EXPECT().GenerateTransferTaskIDs(1).Return([]int64{123}, nil).Times(1)
+				shardContext.EXPECT().GenerateTaskIDs(1).Return([]int64{123}, nil).Times(1)
 			},
 			expectedEvents: []*types.HistoryEvent{
 				{
@@ -3277,7 +3277,7 @@ func TestAssignTaskIDToHistoryEvents(t *testing.T) {
 			},
 			taskID: 456,
 			shardContextExpectations: func(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache) {
-				shardContext.EXPECT().GenerateTransferTaskIDs(2).Return([]int64{123, 124}, nil).Times(1)
+				shardContext.EXPECT().GenerateTaskIDs(2).Return([]int64{123, 124}, nil).Times(1)
 			},
 			expectedEvents: []*types.HistoryEvent{
 				{
@@ -3309,7 +3309,7 @@ func TestAssignTaskIDToHistoryEvents(t *testing.T) {
 			},
 			taskID: 456,
 			shardContextExpectations: func(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache) {
-				shardContext.EXPECT().GenerateTransferTaskIDs(1).Return(nil, assert.AnError).Times(1)
+				shardContext.EXPECT().GenerateTaskIDs(1).Return(nil, assert.AnError).Times(1)
 			},
 			expectedEvents: []*types.HistoryEvent{
 				{
@@ -3535,7 +3535,7 @@ func TestCloseTransactionAsMutation(t *testing.T) {
 					MaximumBufferedEventsBatch:            func(...dynamicproperties.FilterOption) int { return 100 },
 				}).Times(3)
 
-				shardContext.EXPECT().GenerateTransferTaskIDs(1).Return([]int64{123}, nil).Times(1)
+				shardContext.EXPECT().GenerateTaskIDs(1).Return([]int64{123}, nil).Times(1)
 				shardContext.EXPECT().GetDomainCache().Return(mockDomainCache).Times(1)
 				mockDomainCache.EXPECT().GetDomainByID("some-domain-id").Return(mockDomain, nil)
 

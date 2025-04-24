@@ -157,7 +157,7 @@ func NewTimerQueueProcessor(
 		status:       common.DaemonStatusInitialized,
 		shutdownChan: make(chan struct{}),
 
-		ackLevel:               shard.GetTimerAckLevel(),
+		ackLevel:               shard.GetQueueAckLevel(persistence.HistoryTaskCategoryTimer).ScheduledTime,
 		taskAllocator:          taskAllocator,
 		activeTaskExecutor:     activeTaskExecutor,
 		activeQueueProcessor:   activeQueueProcessor,
@@ -275,10 +275,10 @@ func (t *timerQueueProcessor) FailoverDomain(domainIDs map[string]struct{}) {
 		return
 	}
 
-	minLevel := t.shard.GetTimerClusterAckLevel(t.currentClusterName)
+	minLevel := t.shard.GetQueueClusterAckLevel(persistence.HistoryTaskCategoryTimer, t.currentClusterName).ScheduledTime
 	standbyClusterName := t.currentClusterName
 	for clusterName := range t.shard.GetClusterMetadata().GetEnabledClusterInfo() {
-		ackLevel := t.shard.GetTimerClusterAckLevel(clusterName)
+		ackLevel := t.shard.GetQueueClusterAckLevel(persistence.HistoryTaskCategoryTimer, clusterName).ScheduledTime
 		if ackLevel.Before(minLevel) {
 			minLevel = ackLevel
 			standbyClusterName = clusterName
@@ -493,8 +493,8 @@ func (t *timerQueueProcessor) completeTimer(ctx context.Context) error {
 		}
 	}
 
-	for _, failoverInfo := range t.shard.GetAllTimerFailoverLevels() {
-		failoverLevel := newTimerTaskKey(failoverInfo.MinLevel, 0)
+	for _, failoverInfo := range t.shard.GetAllFailoverLevels(persistence.HistoryTaskCategoryTimer) {
+		failoverLevel := newTimerTaskKey(failoverInfo.MinLevel.ScheduledTime, 0)
 		newAckLevel = minTaskKey(newAckLevel, failoverLevel)
 	}
 
@@ -539,7 +539,9 @@ func (t *timerQueueProcessor) completeTimer(ctx context.Context) error {
 
 	t.ackLevel = newAckLevelTimestamp
 
-	return t.shard.UpdateTimerAckLevel(t.ackLevel)
+	return t.shard.UpdateQueueAckLevel(persistence.HistoryTaskCategoryTimer, persistence.HistoryTaskKey{
+		ScheduledTime: t.ackLevel,
+	})
 }
 
 func loadTimerProcessingQueueStates(
@@ -548,7 +550,7 @@ func loadTimerProcessingQueueStates(
 	options *queueProcessorOptions,
 	logger log.Logger,
 ) []ProcessingQueueState {
-	ackLevel := shard.GetTimerClusterAckLevel(clusterName)
+	ackLevel := shard.GetQueueClusterAckLevel(persistence.HistoryTaskCategoryTimer, clusterName).ScheduledTime
 	if options.EnableLoadQueueStates() {
 		pStates := shard.GetTimerProcessingQueueStates(clusterName)
 		if validateProcessingQueueStates(pStates, ackLevel) {

@@ -135,62 +135,48 @@ func (mr *MockContextMockRecorder) CreateWorkflowExecution(ctx, request any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateWorkflowExecution", reflect.TypeOf((*MockContext)(nil).CreateWorkflowExecution), ctx, request)
 }
 
-// DeleteTimerFailoverLevel mocks base method.
-func (m *MockContext) DeleteTimerFailoverLevel(failoverID string) error {
+// DeleteFailoverLevel mocks base method.
+func (m *MockContext) DeleteFailoverLevel(category persistence.HistoryTaskCategory, failoverID string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteTimerFailoverLevel", failoverID)
+	ret := m.ctrl.Call(m, "DeleteFailoverLevel", category, failoverID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// DeleteTimerFailoverLevel indicates an expected call of DeleteTimerFailoverLevel.
-func (mr *MockContextMockRecorder) DeleteTimerFailoverLevel(failoverID any) *gomock.Call {
+// DeleteFailoverLevel indicates an expected call of DeleteFailoverLevel.
+func (mr *MockContextMockRecorder) DeleteFailoverLevel(category, failoverID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTimerFailoverLevel", reflect.TypeOf((*MockContext)(nil).DeleteTimerFailoverLevel), failoverID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteFailoverLevel", reflect.TypeOf((*MockContext)(nil).DeleteFailoverLevel), category, failoverID)
 }
 
-// DeleteTransferFailoverLevel mocks base method.
-func (m *MockContext) DeleteTransferFailoverLevel(failoverID string) error {
+// GenerateTaskID mocks base method.
+func (m *MockContext) GenerateTaskID() (int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteTransferFailoverLevel", failoverID)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteTransferFailoverLevel indicates an expected call of DeleteTransferFailoverLevel.
-func (mr *MockContextMockRecorder) DeleteTransferFailoverLevel(failoverID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTransferFailoverLevel", reflect.TypeOf((*MockContext)(nil).DeleteTransferFailoverLevel), failoverID)
-}
-
-// GenerateTransferTaskID mocks base method.
-func (m *MockContext) GenerateTransferTaskID() (int64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GenerateTransferTaskID")
+	ret := m.ctrl.Call(m, "GenerateTaskID")
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GenerateTransferTaskID indicates an expected call of GenerateTransferTaskID.
-func (mr *MockContextMockRecorder) GenerateTransferTaskID() *gomock.Call {
+// GenerateTaskID indicates an expected call of GenerateTaskID.
+func (mr *MockContextMockRecorder) GenerateTaskID() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateTransferTaskID", reflect.TypeOf((*MockContext)(nil).GenerateTransferTaskID))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateTaskID", reflect.TypeOf((*MockContext)(nil).GenerateTaskID))
 }
 
-// GenerateTransferTaskIDs mocks base method.
-func (m *MockContext) GenerateTransferTaskIDs(number int) ([]int64, error) {
+// GenerateTaskIDs mocks base method.
+func (m *MockContext) GenerateTaskIDs(number int) ([]int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GenerateTransferTaskIDs", number)
+	ret := m.ctrl.Call(m, "GenerateTaskIDs", number)
 	ret0, _ := ret[0].([]int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GenerateTransferTaskIDs indicates an expected call of GenerateTransferTaskIDs.
-func (mr *MockContextMockRecorder) GenerateTransferTaskIDs(number any) *gomock.Call {
+// GenerateTaskIDs indicates an expected call of GenerateTaskIDs.
+func (mr *MockContextMockRecorder) GenerateTaskIDs(number any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateTransferTaskIDs", reflect.TypeOf((*MockContext)(nil).GenerateTransferTaskIDs), number)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateTaskIDs", reflect.TypeOf((*MockContext)(nil).GenerateTaskIDs), number)
 }
 
 // GetActiveClusterManager mocks base method.
@@ -207,32 +193,18 @@ func (mr *MockContextMockRecorder) GetActiveClusterManager() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveClusterManager", reflect.TypeOf((*MockContext)(nil).GetActiveClusterManager))
 }
 
-// GetAllTimerFailoverLevels mocks base method.
-func (m *MockContext) GetAllTimerFailoverLevels() map[string]TimerFailoverLevel {
+// GetAllFailoverLevels mocks base method.
+func (m *MockContext) GetAllFailoverLevels(category persistence.HistoryTaskCategory) map[string]persistence.FailoverLevel {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAllTimerFailoverLevels")
-	ret0, _ := ret[0].(map[string]TimerFailoverLevel)
+	ret := m.ctrl.Call(m, "GetAllFailoverLevels", category)
+	ret0, _ := ret[0].(map[string]persistence.FailoverLevel)
 	return ret0
 }
 
-// GetAllTimerFailoverLevels indicates an expected call of GetAllTimerFailoverLevels.
-func (mr *MockContextMockRecorder) GetAllTimerFailoverLevels() *gomock.Call {
+// GetAllFailoverLevels indicates an expected call of GetAllFailoverLevels.
+func (mr *MockContextMockRecorder) GetAllFailoverLevels(category any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllTimerFailoverLevels", reflect.TypeOf((*MockContext)(nil).GetAllTimerFailoverLevels))
-}
-
-// GetAllTransferFailoverLevels mocks base method.
-func (m *MockContext) GetAllTransferFailoverLevels() map[string]TransferFailoverLevel {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAllTransferFailoverLevels")
-	ret0, _ := ret[0].(map[string]TransferFailoverLevel)
-	return ret0
-}
-
-// GetAllTransferFailoverLevels indicates an expected call of GetAllTransferFailoverLevels.
-func (mr *MockContextMockRecorder) GetAllTransferFailoverLevels() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllTransferFailoverLevels", reflect.TypeOf((*MockContext)(nil).GetAllTransferFailoverLevels))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllFailoverLevels", reflect.TypeOf((*MockContext)(nil).GetAllFailoverLevels), category)
 }
 
 // GetClusterMetadata mocks base method.
@@ -247,20 +219,6 @@ func (m *MockContext) GetClusterMetadata() cluster.Metadata {
 func (mr *MockContextMockRecorder) GetClusterMetadata() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetClusterMetadata", reflect.TypeOf((*MockContext)(nil).GetClusterMetadata))
-}
-
-// GetClusterReplicationLevel mocks base method.
-func (m *MockContext) GetClusterReplicationLevel(cluster string) int64 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetClusterReplicationLevel", cluster)
-	ret0, _ := ret[0].(int64)
-	return ret0
-}
-
-// GetClusterReplicationLevel indicates an expected call of GetClusterReplicationLevel.
-func (mr *MockContextMockRecorder) GetClusterReplicationLevel(cluster any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetClusterReplicationLevel", reflect.TypeOf((*MockContext)(nil).GetClusterReplicationLevel), cluster)
 }
 
 // GetConfig mocks base method.
@@ -417,6 +375,34 @@ func (mr *MockContextMockRecorder) GetMetricsClient() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMetricsClient", reflect.TypeOf((*MockContext)(nil).GetMetricsClient))
 }
 
+// GetQueueAckLevel mocks base method.
+func (m *MockContext) GetQueueAckLevel(category persistence.HistoryTaskCategory) persistence.HistoryTaskKey {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetQueueAckLevel", category)
+	ret0, _ := ret[0].(persistence.HistoryTaskKey)
+	return ret0
+}
+
+// GetQueueAckLevel indicates an expected call of GetQueueAckLevel.
+func (mr *MockContextMockRecorder) GetQueueAckLevel(category any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetQueueAckLevel", reflect.TypeOf((*MockContext)(nil).GetQueueAckLevel), category)
+}
+
+// GetQueueClusterAckLevel mocks base method.
+func (m *MockContext) GetQueueClusterAckLevel(category persistence.HistoryTaskCategory, cluster string) persistence.HistoryTaskKey {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetQueueClusterAckLevel", category, cluster)
+	ret0, _ := ret[0].(persistence.HistoryTaskKey)
+	return ret0
+}
+
+// GetQueueClusterAckLevel indicates an expected call of GetQueueClusterAckLevel.
+func (mr *MockContextMockRecorder) GetQueueClusterAckLevel(category, cluster any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetQueueClusterAckLevel", reflect.TypeOf((*MockContext)(nil).GetQueueClusterAckLevel), category, cluster)
+}
+
 // GetService mocks base method.
 func (m *MockContext) GetService() resource.Resource {
 	m.ctrl.T.Helper()
@@ -473,34 +459,6 @@ func (mr *MockContextMockRecorder) GetTimeSource() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTimeSource", reflect.TypeOf((*MockContext)(nil).GetTimeSource))
 }
 
-// GetTimerAckLevel mocks base method.
-func (m *MockContext) GetTimerAckLevel() time.Time {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTimerAckLevel")
-	ret0, _ := ret[0].(time.Time)
-	return ret0
-}
-
-// GetTimerAckLevel indicates an expected call of GetTimerAckLevel.
-func (mr *MockContextMockRecorder) GetTimerAckLevel() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTimerAckLevel", reflect.TypeOf((*MockContext)(nil).GetTimerAckLevel))
-}
-
-// GetTimerClusterAckLevel mocks base method.
-func (m *MockContext) GetTimerClusterAckLevel(cluster string) time.Time {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTimerClusterAckLevel", cluster)
-	ret0, _ := ret[0].(time.Time)
-	return ret0
-}
-
-// GetTimerClusterAckLevel indicates an expected call of GetTimerClusterAckLevel.
-func (mr *MockContextMockRecorder) GetTimerClusterAckLevel(cluster any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTimerClusterAckLevel", reflect.TypeOf((*MockContext)(nil).GetTimerClusterAckLevel), cluster)
-}
-
 // GetTimerMaxReadLevel mocks base method.
 func (m *MockContext) GetTimerMaxReadLevel(cluster string) time.Time {
 	m.ctrl.T.Helper()
@@ -527,34 +485,6 @@ func (m *MockContext) GetTimerProcessingQueueStates(cluster string) []*types.Pro
 func (mr *MockContextMockRecorder) GetTimerProcessingQueueStates(cluster any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTimerProcessingQueueStates", reflect.TypeOf((*MockContext)(nil).GetTimerProcessingQueueStates), cluster)
-}
-
-// GetTransferAckLevel mocks base method.
-func (m *MockContext) GetTransferAckLevel() int64 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTransferAckLevel")
-	ret0, _ := ret[0].(int64)
-	return ret0
-}
-
-// GetTransferAckLevel indicates an expected call of GetTransferAckLevel.
-func (mr *MockContextMockRecorder) GetTransferAckLevel() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTransferAckLevel", reflect.TypeOf((*MockContext)(nil).GetTransferAckLevel))
-}
-
-// GetTransferClusterAckLevel mocks base method.
-func (m *MockContext) GetTransferClusterAckLevel(cluster string) int64 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTransferClusterAckLevel", cluster)
-	ret0, _ := ret[0].(int64)
-	return ret0
-}
-
-// GetTransferClusterAckLevel indicates an expected call of GetTransferClusterAckLevel.
-func (mr *MockContextMockRecorder) GetTransferClusterAckLevel(cluster any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTransferClusterAckLevel", reflect.TypeOf((*MockContext)(nil).GetTransferClusterAckLevel), cluster)
 }
 
 // GetTransferMaxReadLevel mocks base method.
@@ -652,20 +582,6 @@ func (mr *MockContextMockRecorder) SetEngine(arg0 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEngine", reflect.TypeOf((*MockContext)(nil).SetEngine), arg0)
 }
 
-// UpdateClusterReplicationLevel mocks base method.
-func (m *MockContext) UpdateClusterReplicationLevel(cluster string, lastTaskID int64) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateClusterReplicationLevel", cluster, lastTaskID)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// UpdateClusterReplicationLevel indicates an expected call of UpdateClusterReplicationLevel.
-func (mr *MockContextMockRecorder) UpdateClusterReplicationLevel(cluster, lastTaskID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateClusterReplicationLevel", reflect.TypeOf((*MockContext)(nil).UpdateClusterReplicationLevel), cluster, lastTaskID)
-}
-
 // UpdateDomainNotificationVersion mocks base method.
 func (m *MockContext) UpdateDomainNotificationVersion(domainNotificationVersion int64) error {
 	m.ctrl.T.Helper()
@@ -680,46 +596,46 @@ func (mr *MockContextMockRecorder) UpdateDomainNotificationVersion(domainNotific
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateDomainNotificationVersion", reflect.TypeOf((*MockContext)(nil).UpdateDomainNotificationVersion), domainNotificationVersion)
 }
 
-// UpdateTimerAckLevel mocks base method.
-func (m *MockContext) UpdateTimerAckLevel(ackLevel time.Time) error {
+// UpdateFailoverLevel mocks base method.
+func (m *MockContext) UpdateFailoverLevel(category persistence.HistoryTaskCategory, failoverID string, level persistence.FailoverLevel) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateTimerAckLevel", ackLevel)
+	ret := m.ctrl.Call(m, "UpdateFailoverLevel", category, failoverID, level)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// UpdateTimerAckLevel indicates an expected call of UpdateTimerAckLevel.
-func (mr *MockContextMockRecorder) UpdateTimerAckLevel(ackLevel any) *gomock.Call {
+// UpdateFailoverLevel indicates an expected call of UpdateFailoverLevel.
+func (mr *MockContextMockRecorder) UpdateFailoverLevel(category, failoverID, level any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTimerAckLevel", reflect.TypeOf((*MockContext)(nil).UpdateTimerAckLevel), ackLevel)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateFailoverLevel", reflect.TypeOf((*MockContext)(nil).UpdateFailoverLevel), category, failoverID, level)
 }
 
-// UpdateTimerClusterAckLevel mocks base method.
-func (m *MockContext) UpdateTimerClusterAckLevel(cluster string, ackLevel time.Time) error {
+// UpdateQueueAckLevel mocks base method.
+func (m *MockContext) UpdateQueueAckLevel(category persistence.HistoryTaskCategory, ackLevel persistence.HistoryTaskKey) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateTimerClusterAckLevel", cluster, ackLevel)
+	ret := m.ctrl.Call(m, "UpdateQueueAckLevel", category, ackLevel)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// UpdateTimerClusterAckLevel indicates an expected call of UpdateTimerClusterAckLevel.
-func (mr *MockContextMockRecorder) UpdateTimerClusterAckLevel(cluster, ackLevel any) *gomock.Call {
+// UpdateQueueAckLevel indicates an expected call of UpdateQueueAckLevel.
+func (mr *MockContextMockRecorder) UpdateQueueAckLevel(category, ackLevel any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTimerClusterAckLevel", reflect.TypeOf((*MockContext)(nil).UpdateTimerClusterAckLevel), cluster, ackLevel)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateQueueAckLevel", reflect.TypeOf((*MockContext)(nil).UpdateQueueAckLevel), category, ackLevel)
 }
 
-// UpdateTimerFailoverLevel mocks base method.
-func (m *MockContext) UpdateTimerFailoverLevel(failoverID string, level TimerFailoverLevel) error {
+// UpdateQueueClusterAckLevel mocks base method.
+func (m *MockContext) UpdateQueueClusterAckLevel(category persistence.HistoryTaskCategory, cluster string, ackLevel persistence.HistoryTaskKey) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateTimerFailoverLevel", failoverID, level)
+	ret := m.ctrl.Call(m, "UpdateQueueClusterAckLevel", category, cluster, ackLevel)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// UpdateTimerFailoverLevel indicates an expected call of UpdateTimerFailoverLevel.
-func (mr *MockContextMockRecorder) UpdateTimerFailoverLevel(failoverID, level any) *gomock.Call {
+// UpdateQueueClusterAckLevel indicates an expected call of UpdateQueueClusterAckLevel.
+func (mr *MockContextMockRecorder) UpdateQueueClusterAckLevel(category, cluster, ackLevel any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTimerFailoverLevel", reflect.TypeOf((*MockContext)(nil).UpdateTimerFailoverLevel), failoverID, level)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateQueueClusterAckLevel", reflect.TypeOf((*MockContext)(nil).UpdateQueueClusterAckLevel), category, cluster, ackLevel)
 }
 
 // UpdateTimerMaxReadLevel mocks base method.
@@ -748,48 +664,6 @@ func (m *MockContext) UpdateTimerProcessingQueueStates(cluster string, states []
 func (mr *MockContextMockRecorder) UpdateTimerProcessingQueueStates(cluster, states any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTimerProcessingQueueStates", reflect.TypeOf((*MockContext)(nil).UpdateTimerProcessingQueueStates), cluster, states)
-}
-
-// UpdateTransferAckLevel mocks base method.
-func (m *MockContext) UpdateTransferAckLevel(ackLevel int64) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateTransferAckLevel", ackLevel)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// UpdateTransferAckLevel indicates an expected call of UpdateTransferAckLevel.
-func (mr *MockContextMockRecorder) UpdateTransferAckLevel(ackLevel any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTransferAckLevel", reflect.TypeOf((*MockContext)(nil).UpdateTransferAckLevel), ackLevel)
-}
-
-// UpdateTransferClusterAckLevel mocks base method.
-func (m *MockContext) UpdateTransferClusterAckLevel(cluster string, ackLevel int64) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateTransferClusterAckLevel", cluster, ackLevel)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// UpdateTransferClusterAckLevel indicates an expected call of UpdateTransferClusterAckLevel.
-func (mr *MockContextMockRecorder) UpdateTransferClusterAckLevel(cluster, ackLevel any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTransferClusterAckLevel", reflect.TypeOf((*MockContext)(nil).UpdateTransferClusterAckLevel), cluster, ackLevel)
-}
-
-// UpdateTransferFailoverLevel mocks base method.
-func (m *MockContext) UpdateTransferFailoverLevel(failoverID string, level TransferFailoverLevel) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateTransferFailoverLevel", failoverID, level)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// UpdateTransferFailoverLevel indicates an expected call of UpdateTransferFailoverLevel.
-func (mr *MockContextMockRecorder) UpdateTransferFailoverLevel(failoverID, level any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTransferFailoverLevel", reflect.TypeOf((*MockContext)(nil).UpdateTransferFailoverLevel), failoverID, level)
 }
 
 // UpdateTransferProcessingQueueStates mocks base method.

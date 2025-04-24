@@ -798,7 +798,7 @@ func (e *mutableStateBuilder) assignTaskIDToEvents() error {
 	// first transient events
 	numTaskIDs := len(e.hBuilder.transientHistory)
 	if numTaskIDs > 0 {
-		taskIDs, err := e.shard.GenerateTransferTaskIDs(numTaskIDs)
+		taskIDs, err := e.shard.GenerateTaskIDs(numTaskIDs)
 		if err != nil {
 			return err
 		}
@@ -815,7 +815,7 @@ func (e *mutableStateBuilder) assignTaskIDToEvents() error {
 	// then normal events
 	numTaskIDs = len(e.hBuilder.history)
 	if numTaskIDs > 0 {
-		taskIDs, err := e.shard.GenerateTransferTaskIDs(numTaskIDs)
+		taskIDs, err := e.shard.GenerateTaskIDs(numTaskIDs)
 		if err != nil {
 			return err
 		}

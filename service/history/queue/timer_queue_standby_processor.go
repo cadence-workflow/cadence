@@ -84,7 +84,9 @@ func newTimerQueueStandbyProcessor(
 	}
 
 	updateClusterAckLevel := func(ackLevel task.Key) error {
-		return shard.UpdateTimerClusterAckLevel(clusterName, ackLevel.(timerTaskKey).visibilityTimestamp)
+		return shard.UpdateQueueClusterAckLevel(persistence.HistoryTaskCategoryTimer, clusterName, persistence.HistoryTaskKey{
+			ScheduledTime: ackLevel.(timerTaskKey).visibilityTimestamp,
+		})
 	}
 
 	updateProcessingQueueStates := func(states []ProcessingQueueState) error {

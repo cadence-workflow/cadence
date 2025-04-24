@@ -438,6 +438,15 @@ type (
 		CurrentRunID string
 	}
 
+	// FailoverLevel contains corresponding start / end level
+	FailoverLevel struct {
+		StartTime    time.Time
+		MinLevel     HistoryTaskKey
+		CurrentLevel HistoryTaskKey
+		MaxLevel     HistoryTaskKey
+		DomainIDs    map[string]struct{}
+	}
+
 	// TransferTaskInfo describes a transfer task
 	TransferTaskInfo struct {
 		DomainID                string

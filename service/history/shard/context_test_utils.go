@@ -81,7 +81,7 @@ func NewTestContext(
 		transferMaxReadLevel:      0,
 		maxTransferSequenceNumber: 100000,
 		timerMaxReadLevelMap:      make(map[string]time.Time),
-		transferFailoverLevels:    make(map[string]TransferFailoverLevel),
+		failoverLevels:            make(map[persistence.HistoryTaskCategory]map[string]persistence.FailoverLevel),
 		remoteClusterCurrentTime:  make(map[string]time.Time),
 		eventsCache:               eventsCache,
 	}

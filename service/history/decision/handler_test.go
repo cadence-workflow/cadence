@@ -200,7 +200,7 @@ func TestHandleDecisionTaskScheduled(t *testing.T) {
 					Times(1).
 					Return(&types.HistoryEvent{}, nil)
 				shardContext.EXPECT().GetShardID().Return(testShardID).Times(1)
-				shardContext.EXPECT().GenerateTransferTaskIDs(gomock.Any()).Times(1).Return([]int64{}, errors.New("some random error to avoid going too deep in call stack unrelated to this unit"))
+				shardContext.EXPECT().GenerateTaskIDs(gomock.Any()).Times(1).Return([]int64{}, errors.New("some random error to avoid going too deep in call stack unrelated to this unit"))
 			},
 			expectErr:       true,
 			isfirstDecision: true,
@@ -222,7 +222,7 @@ func TestHandleDecisionTaskScheduled(t *testing.T) {
 					Times(1).
 					Return(&types.HistoryEvent{}, nil)
 				shardContext.EXPECT().GetShardID().Return(testShardID).Times(1)
-				shardContext.EXPECT().GenerateTransferTaskIDs(gomock.Any()).Times(1).Return([]int64{}, errors.New("some random error to avoid going too deep in call stack unrelated to this unit"))
+				shardContext.EXPECT().GenerateTaskIDs(gomock.Any()).Times(1).Return([]int64{}, errors.New("some random error to avoid going too deep in call stack unrelated to this unit"))
 			},
 			expectErr:       true,
 			isfirstDecision: true,
@@ -301,7 +301,7 @@ func TestHandleDecisionTaskFailed(t *testing.T) {
 				}
 				h.tokenSerializer.(*common.MockTaskTokenSerializer).EXPECT().Deserialize(taskToken).Return(token, nil)
 				h.shard.(*shard.MockContext).EXPECT().GetEventsCache().Times(1).Return(events.NewMockCache(ctrl))
-				h.shard.(*shard.MockContext).EXPECT().GenerateTransferTaskIDs(gomock.Any()).Return([]int64{0}, nil)
+				h.shard.(*shard.MockContext).EXPECT().GenerateTaskIDs(gomock.Any()).Return([]int64{0}, nil)
 				h.shard.(*shard.MockContext).EXPECT().AppendHistoryV2Events(gomock.Any(), gomock.Any(), constants.TestDomainID, types.WorkflowExecution{
 					WorkflowID: constants.TestWorkflowID,
 					RunID:      constants.TestRunID,
@@ -494,7 +494,7 @@ func TestHandleDecisionTaskStarted(t *testing.T) {
 			domainID: constants.TestDomainID,
 			expectCalls: func(ctrl *gomock.Controller, h *handlerImpl) {
 				h.shard.(*shard.MockContext).EXPECT().GetEventsCache().Times(1).Return(events.NewMockCache(ctrl))
-				h.shard.(*shard.MockContext).EXPECT().GenerateTransferTaskIDs(gomock.Any()).Times(1).Return([]int64{0}, nil)
+				h.shard.(*shard.MockContext).EXPECT().GenerateTaskIDs(gomock.Any()).Times(1).Return([]int64{0}, nil)
 				h.shard.(*shard.MockContext).EXPECT().
 					AppendHistoryV2Events(gomock.Any(), gomock.Any(), constants.TestDomainID, types.WorkflowExecution{WorkflowID: constants.TestWorkflowID, RunID: constants.TestRunID}).
 					Return(&persistence.AppendHistoryNodesResponse{}, nil)
@@ -639,8 +639,8 @@ func TestHandleDecisionTaskCompleted(t *testing.T) {
 				decisionHandler.shard.(*shard.MockContext).EXPECT().GetEventsCache().Times(1).Return(eventsCache)
 				eventsCache.EXPECT().PutEvent(constants.TestDomainID, constants.TestWorkflowID, constants.TestRunID, int64(1), gomock.Any())
 				decisionHandler.shard.(*shard.MockContext).EXPECT().GetShardID().Times(1).Return(testShardID)
-				decisionHandler.shard.(*shard.MockContext).EXPECT().GenerateTransferTaskIDs(4).Return([]int64{0, 1, 2, 3}, nil)
-				decisionHandler.shard.(*shard.MockContext).EXPECT().GenerateTransferTaskIDs(6).Return([]int64{0, 1, 2, 3, 4, 5}, nil)
+				decisionHandler.shard.(*shard.MockContext).EXPECT().GenerateTaskIDs(4).Return([]int64{0, 1, 2, 3}, nil)
+				decisionHandler.shard.(*shard.MockContext).EXPECT().GenerateTaskIDs(6).Return([]int64{0, 1, 2, 3, 4, 5}, nil)
 				decisionHandler.shard.(*shard.MockContext).EXPECT().AppendHistoryV2Events(gomock.Any(), gomock.Any(), constants.TestDomainID, types.WorkflowExecution{
 					WorkflowID: constants.TestWorkflowID,
 					RunID:      constants.TestRunID,
@@ -769,7 +769,7 @@ func TestHandleDecisionTaskCompleted(t *testing.T) {
 				eventsCache := events.NewMockCache(ctrl)
 				decisionHandler.shard.(*shard.MockContext).EXPECT().GetEventsCache().Times(1).Return(eventsCache)
 				decisionHandler.shard.(*shard.MockContext).EXPECT().GetShardID().Times(1).Return(testShardID)
-				decisionHandler.shard.(*shard.MockContext).EXPECT().GenerateTransferTaskIDs(1).Return([]int64{0}, nil)
+				decisionHandler.shard.(*shard.MockContext).EXPECT().GenerateTaskIDs(1).Return([]int64{0}, nil)
 				decisionHandler.shard.(*shard.MockContext).EXPECT().AppendHistoryV2Events(gomock.Any(), gomock.Any(), constants.TestDomainID, types.WorkflowExecution{
 					WorkflowID: constants.TestWorkflowID,
 					RunID:      constants.TestRunID,
@@ -822,7 +822,7 @@ func TestHandleDecisionTaskCompleted(t *testing.T) {
 				eventsCache.EXPECT().GetEvent(context.Background(), testShardID, constants.TestDomainID, constants.TestWorkflowID, constants.TestRunID, commonconstants.FirstEventID, commonconstants.FirstEventID, nil).Return(&types.HistoryEvent{}, nil)
 				eventsCache.EXPECT().PutEvent(constants.TestDomainID, constants.TestWorkflowID, gomock.Any(), int64(1), gomock.Any()).Times(2)
 				decisionHandler.shard.(*shard.MockContext).EXPECT().GetShardID().Times(1).Return(testShardID)
-				decisionHandler.shard.(*shard.MockContext).EXPECT().GenerateTransferTaskIDs(2).Times(1).Return([]int64{0, 1}, nil)
+				decisionHandler.shard.(*shard.MockContext).EXPECT().GenerateTaskIDs(2).Times(1).Return([]int64{0, 1}, nil)
 				decisionHandler.shard.(*shard.MockContext).EXPECT().AppendHistoryV2Events(gomock.Any(), gomock.Any(), constants.TestDomainID, gomock.Any()).Return(nil, &persistence.TransactionSizeLimitError{Msg: fmt.Sprintf("transaction size exceeds limit")})
 				decisionHandler.shard.(*shard.MockContext).EXPECT().GetExecutionManager().Times(1)
 			},
@@ -863,7 +863,7 @@ func TestHandleDecisionTaskCompleted(t *testing.T) {
 					}, nil).Times(3)
 				eventsCache.EXPECT().PutEvent(constants.TestDomainID, constants.TestWorkflowID, gomock.Any(), int64(1), gomock.Any()).Times(2)
 				decisionHandler.shard.(*shard.MockContext).EXPECT().GetShardID().Times(3).Return(testShardID)
-				decisionHandler.shard.(*shard.MockContext).EXPECT().GenerateTransferTaskIDs(2).Times(1).Return([]int64{0, 1}, nil)
+				decisionHandler.shard.(*shard.MockContext).EXPECT().GenerateTaskIDs(2).Times(1).Return([]int64{0, 1}, nil)
 				decisionHandler.shard.(*shard.MockContext).EXPECT().AppendHistoryV2Events(gomock.Any(), gomock.Any(), constants.TestDomainID, gomock.Any()).Return(nil, execution.NewConflictError(new(testing.T), errors.New("some random conflict error")))
 				decisionHandler.shard.(*shard.MockContext).EXPECT().GetExecutionManager().Times(1)
 			},
@@ -904,7 +904,7 @@ func TestHandleDecisionTaskCompleted(t *testing.T) {
 					}, nil).Times(3)
 				eventsCache.EXPECT().PutEvent(constants.TestDomainID, constants.TestWorkflowID, gomock.Any(), int64(1), gomock.Any()).Times(2)
 				decisionHandler.shard.(*shard.MockContext).EXPECT().GetShardID().Times(3).Return(testShardID)
-				decisionHandler.shard.(*shard.MockContext).EXPECT().GenerateTransferTaskIDs(2).Times(1).Return([]int64{0, 1}, nil)
+				decisionHandler.shard.(*shard.MockContext).EXPECT().GenerateTaskIDs(2).Times(1).Return([]int64{0, 1}, nil)
 				decisionHandler.shard.(*shard.MockContext).EXPECT().AppendHistoryV2Events(gomock.Any(), gomock.Any(), constants.TestDomainID, gomock.Any()).Return(nil, &persistence.TransactionSizeLimitError{Msg: fmt.Sprintf("transaction size exceeds limit")})
 				decisionHandler.shard.(*shard.MockContext).EXPECT().GetExecutionManager().Times(1)
 				firstGetWfExecutionCall := decisionHandler.shard.(*shard.MockContext).EXPECT().GetWorkflowExecution(context.Background(), gomock.Any()).
@@ -955,8 +955,8 @@ func TestHandleDecisionTaskCompleted(t *testing.T) {
 					}, nil).Times(3)
 				eventsCache.EXPECT().PutEvent(constants.TestDomainID, constants.TestWorkflowID, gomock.Any(), int64(1), gomock.Any()).Times(3)
 				decisionHandler.shard.(*shard.MockContext).EXPECT().GetShardID().Times(3).Return(testShardID)
-				decisionHandler.shard.(*shard.MockContext).EXPECT().GenerateTransferTaskIDs(2).Times(2).Return([]int64{0, 1}, nil)
-				decisionHandler.shard.(*shard.MockContext).EXPECT().GenerateTransferTaskIDs(1).Times(1).Return([]int64{0}, nil)
+				decisionHandler.shard.(*shard.MockContext).EXPECT().GenerateTaskIDs(2).Times(2).Return([]int64{0, 1}, nil)
+				decisionHandler.shard.(*shard.MockContext).EXPECT().GenerateTaskIDs(1).Times(1).Return([]int64{0}, nil)
 				decisionHandler.shard.(*shard.MockContext).EXPECT().AppendHistoryV2Events(gomock.Any(), gomock.Any(), constants.TestDomainID, gomock.Any()).Return(nil, &persistence.TransactionSizeLimitError{Msg: fmt.Sprintf("transaction size exceeds limit")})
 				decisionHandler.shard.(*shard.MockContext).EXPECT().AppendHistoryV2Events(gomock.Any(), gomock.Any(), constants.TestDomainID, gomock.Any()).Return(&persistence.AppendHistoryNodesResponse{}, nil)
 				decisionHandler.shard.(*shard.MockContext).EXPECT().GetExecutionManager().Times(1)
@@ -999,7 +999,7 @@ func TestHandleDecisionTaskCompleted(t *testing.T) {
 				eventsCache := events.NewMockCache(ctrl)
 				decisionHandler.shard.(*shard.MockContext).EXPECT().GetEventsCache().Times(3).Return(eventsCache)
 				eventsCache.EXPECT().PutEvent(constants.TestDomainID, constants.TestWorkflowID, constants.TestRunID, int64(0), gomock.Any())
-				decisionHandler.shard.(*shard.MockContext).EXPECT().GenerateTransferTaskIDs(1).Return([]int64{0}, nil)
+				decisionHandler.shard.(*shard.MockContext).EXPECT().GenerateTaskIDs(1).Return([]int64{0}, nil)
 				decisionHandler.shard.(*shard.MockContext).EXPECT().AppendHistoryV2Events(gomock.Any(), gomock.Any(), constants.TestDomainID, gomock.Any()).Return(nil, errors.New("some error updating continue as new info"))
 				domainEntry := cache.NewLocalDomainCacheEntryForTest(
 					&persistence.DomainInfo{ID: constants.TestDomainID, Name: constants.TestDomainName},
@@ -1146,7 +1146,7 @@ func TestHandleDecisionTaskCompleted(t *testing.T) {
 				decisionHandler.tokenSerializer.(*common.MockTaskTokenSerializer).EXPECT().Deserialize(serializedTestToken).Return(deserializedTestToken, nil)
 				decisionHandler.shard.(*shard.MockContext).EXPECT().GetEventsCache().Times(1).Return(events.NewMockCache(ctrl))
 				decisionHandler.shard.(*shard.MockContext).EXPECT().GetShardID().Times(1).Return(testShardID)
-				decisionHandler.shard.(*shard.MockContext).EXPECT().GenerateTransferTaskIDs(3).Return([]int64{0, 1, 2}, nil)
+				decisionHandler.shard.(*shard.MockContext).EXPECT().GenerateTaskIDs(3).Return([]int64{0, 1, 2}, nil)
 				decisionHandler.shard.(*shard.MockContext).EXPECT().AppendHistoryV2Events(gomock.Any(), gomock.Any(), constants.TestDomainID, types.WorkflowExecution{
 					WorkflowID: constants.TestWorkflowID,
 					RunID:      constants.TestRunID,

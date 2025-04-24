@@ -265,7 +265,7 @@ func (p *taskProcessorImpl) cleanupReplicationTaskLoop() {
 func (p *taskProcessorImpl) cleanupAckedReplicationTasks() error {
 	minAckLevel := int64(math.MaxInt64)
 	for clusterName := range p.shard.GetClusterMetadata().GetRemoteClusterInfo() {
-		ackLevel := p.shard.GetClusterReplicationLevel(clusterName)
+		ackLevel := p.shard.GetQueueClusterAckLevel(persistence.HistoryTaskCategoryReplication, clusterName).TaskID
 		if ackLevel < minAckLevel {
 			minAckLevel = ackLevel
 		}

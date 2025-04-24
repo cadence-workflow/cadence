@@ -83,13 +83,17 @@ func TestMetricsEmitter(t *testing.T) {
 	assert.Equal(t, time.Hour, latency)
 
 	// Move replication level up for cluster2 and our latency shortens
-	testShardData.clusterReplicationLevel[cluster2] = 2
+	testShardData.clusterReplicationLevel[cluster2] = persistence.HistoryTaskKey{
+		TaskID: 2,
+	}
 	latency, err = metricsEmitter.determineReplicationLatency(cluster2)
 	assert.NoError(t, err)
 	assert.Equal(t, time.Minute, latency)
 
 	// Move replication level up for cluster2 and we no longer have latency
-	testShardData.clusterReplicationLevel[cluster2] = 3
+	testShardData.clusterReplicationLevel[cluster2] = persistence.HistoryTaskKey{
+		TaskID: 3,
+	}
 	latency, err = metricsEmitter.determineReplicationLatency(cluster2)
 	assert.NoError(t, err)
 	assert.Equal(t, time.Duration(0), latency)
@@ -102,16 +106,18 @@ func TestMetricsEmitter(t *testing.T) {
 
 type testShardData struct {
 	logger                  log.Logger
-	clusterReplicationLevel map[string]int64
+	clusterReplicationLevel map[string]persistence.HistoryTaskKey
 	timeSource              clock.TimeSource
 	metadata                cluster.Metadata
 }
 
 func newTestShardData(timeSource clock.TimeSource, metadata cluster.Metadata) testShardData {
 	remotes := metadata.GetRemoteClusterInfo()
-	clusterReplicationLevels := make(map[string]int64, len(remotes))
+	clusterReplicationLevels := make(map[string]persistence.HistoryTaskKey, len(remotes))
 	for remote := range remotes {
-		clusterReplicationLevels[remote] = 1
+		clusterReplicationLevels[remote] = persistence.HistoryTaskKey{
+			TaskID: 1,
+		}
 	}
 	return testShardData{
 		logger:                  log.NewNoop(),
@@ -125,7 +131,7 @@ func (t testShardData) GetLogger() log.Logger {
 	return t.logger
 }
 
-func (t testShardData) GetClusterReplicationLevel(cluster string) int64 {
+func (t testShardData) GetQueueClusterAckLevel(category persistence.HistoryTaskCategory, cluster string) persistence.HistoryTaskKey {
 	return t.clusterReplicationLevel[cluster]
 }
 

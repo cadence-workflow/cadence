@@ -77,20 +77,30 @@ func newTimerQueueFailoverProcessor(
 	}
 
 	updateClusterAckLevel := func(ackLevel task.Key) error {
-		return shardContext.UpdateTimerFailoverLevel(
+		return shardContext.UpdateFailoverLevel(
+			persistence.HistoryTaskCategoryTimer,
 			failoverUUID,
-			shard.TimerFailoverLevel{
-				StartTime:    failoverStartTime,
-				MinLevel:     minLevel,
-				CurrentLevel: ackLevel.(timerTaskKey).visibilityTimestamp,
-				MaxLevel:     maxLevel,
-				DomainIDs:    domainIDs,
+			persistence.FailoverLevel{
+				StartTime: failoverStartTime,
+				MinLevel: persistence.HistoryTaskKey{
+					ScheduledTime: minLevel,
+				},
+				CurrentLevel: persistence.HistoryTaskKey{
+					ScheduledTime: ackLevel.(timerTaskKey).visibilityTimestamp,
+				},
+				MaxLevel: persistence.HistoryTaskKey{
+					ScheduledTime: maxLevel,
+				},
+				DomainIDs: domainIDs,
 			},
 		)
 	}
 
 	queueShutdown := func() error {
-		return shardContext.DeleteTimerFailoverLevel(failoverUUID)
+		return shardContext.DeleteFailoverLevel(
+			persistence.HistoryTaskCategoryTimer,
+			failoverUUID,
+		)
 	}
 
 	processingQueueStates := []ProcessingQueueState{
