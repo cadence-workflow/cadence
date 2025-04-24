@@ -26,7 +26,6 @@ package api
 
 import (
 	"fmt"
-	"github.com/uber/cadence/common/types"
 	"time"
 
 	"github.com/uber/cadence/common/asyncworkflow/queue"
@@ -35,6 +34,7 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/messaging"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/types"
 )
 
 type (
