@@ -59,7 +59,13 @@ func TestLegacyServiceStartStop(t *testing.T) {
 		RPCFactory:    factory,
 	}
 
-	service, err := NewService(params)
+	resourceMock := resource.NewMockResource(ctrl)
+	resourceMock.EXPECT().Start()
+	resourceMock.EXPECT().Stop()
+	factoryMock := resource.NewMockResourceFactory(ctrl)
+	factoryMock.EXPECT().NewResource(gomock.Any(), gomock.Any(), gomock.Any()).Return(resourceMock, nil).AnyTimes()
+
+	service, err := NewService(params, factoryMock)
 	require.NoError(t, err)
 
 	doneWG := sync.WaitGroup{}

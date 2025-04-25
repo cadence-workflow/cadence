@@ -58,8 +58,9 @@ type Service struct {
 	historyRing  membership.SingleProvider
 
 	// DEPRECATED: does not affect fx lifecycle.
-	stopC  chan struct{}
-	status int32
+	stopC    chan struct{}
+	status   int32
+	resource resource.Resource
 }
 
 type ServiceParams struct {
@@ -106,6 +107,7 @@ func FXService(params ServiceParams) *Service {
 // NewService is an adapter for legacy initialization without fx.
 func NewService(
 	params *resource.Params,
+	factory resource.ResourceFactory,
 ) (*Service, error) {
 	logger := params.Logger.WithTags(tag.Service("shard-distributor"))
 
@@ -118,24 +120,47 @@ func NewService(
 		params.HostName,
 	)
 
+	serviceResource, err := factory.NewResource(
+		params,
+		service.ShardDistributor,
+		&service.Config{
+			PersistenceMaxQPS:        serviceConfig.PersistenceMaxQPS,
+			PersistenceGlobalMaxQPS:  serviceConfig.PersistenceGlobalMaxQPS,
+			ThrottledLoggerMaxRPS:    serviceConfig.ThrottledLogRPS,
+			IsErrorRetryableFunction: common.IsServiceTransientError,
+			// shard distributor doesn't need visibility config as it never read or write visibility
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	matchingRing := params.HashRings[service.Matching]
 	historyRing := params.HashRings[service.History]
 
 	rawHandler := handler.NewHandler(logger, params.MetricsClient, matchingRing, historyRing)
 	meteredHandler := metered.NewMetricsHandler(rawHandler, logger, params.MetricsClient)
 
+	dispatcher := params.RPCFactory.GetDispatcher()
+
+	grpcHandler := grpc.NewGRPCHandler(meteredHandler)
+	grpcHandler.Register(dispatcher)
+
 	return &Service{
-		status:           common.DaemonStatusInitialized,
 		config:           serviceConfig,
-		stopC:            make(chan struct{}),
 		numHistoryShards: params.PersistenceConfig.NumHistoryShards,
 		logger:           logger,
 		metricsClient:    params.MetricsClient,
-		dispatcher:       params.RPCFactory.GetDispatcher(),
+		dispatcher:       dispatcher,
 		handler:          meteredHandler,
 
 		matchingRing: matchingRing,
 		historyRing:  historyRing,
+
+		// legacy components
+		resource: serviceResource,
+		stopC:    make(chan struct{}),
+		status:   common.DaemonStatusInitialized,
 	}, nil
 }
 
@@ -147,8 +172,8 @@ func (s *Service) Start() {
 
 	s.logger.Info("starting")
 
-	grpcHandler := grpc.NewGRPCHandler(s.handler)
-	grpcHandler.Register(s.dispatcher)
+	// legacy mode, if resouce is provided
+	s.resource.Start()
 
 	s.handler.Start()
 
@@ -173,6 +198,9 @@ func (s *Service) Stop() {
 	}
 
 	s.handler.Stop()
+	if s.resource != nil {
+		s.resource.Stop()
+	}
 
 	s.logger.Info("stopped")
 }
