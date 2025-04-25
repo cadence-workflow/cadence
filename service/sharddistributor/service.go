@@ -23,11 +23,19 @@ package sharddistributor
 import (
 	"sync/atomic"
 
+	"go.uber.org/fx"
+	"go.uber.org/yarpc"
+
 	"github.com/uber/cadence/common"
+	commonConfig "github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/membership"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/resource"
+	"github.com/uber/cadence/common/rpc"
 	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/handler"
@@ -37,58 +45,94 @@ import (
 
 // Service represents the shard distributor service
 type Service struct {
-	resource.Resource
+	logger        log.Logger
+	metricsClient metrics.Client
+	dispatcher    *yarpc.Dispatcher
 
-	status           int32
 	handler          handler.Handler
-	stopC            chan struct{}
 	config           *config.Config
 	numHistoryShards int
 	peerProvider     membership.PeerProvider
 
-	matchingRing *membership.Ring
-	historyRing  *membership.Ring
+	matchingRing membership.SingleProvider
+	historyRing  membership.SingleProvider
+
+	// DEPRECATED: does not affect fx lifecycle.
+	stopC  chan struct{}
+	status int32
 }
 
-// NewService builds a new task manager service
+type ServiceParams struct {
+	fx.In
+
+	Logger            log.Logger
+	MetricsClient     metrics.Client
+	RPCFactory        rpc.Factory
+	DynamicCollection *dynamicconfig.Collection
+	Config            commonConfig.Config
+
+	Lifecycle fx.Lifecycle
+
+	HostName string `name:"hostname"`
+
+	MembershipRings map[string]membership.SingleProvider
+}
+
+// FXService builds a new shard distributor service
+func FXService(params ServiceParams) *Service {
+	serviceConfig := config.NewConfig(params.DynamicCollection, params.HostName)
+
+	logger := params.Logger.WithTags(tag.Service("shard-distributor"))
+
+	svc := &Service{
+		config: serviceConfig,
+
+		logger:           logger,
+		metricsClient:    params.MetricsClient,
+		dispatcher:       params.RPCFactory.GetDispatcher(),
+		numHistoryShards: params.Config.Persistence.NumHistoryShards,
+
+		matchingRing: params.MembershipRings[service.Matching],
+		historyRing:  params.MembershipRings[service.History],
+	}
+
+	rawHandler := handler.NewHandler(logger, params.MetricsClient, svc.matchingRing, svc.historyRing)
+	svc.handler = metered.NewMetricsHandler(rawHandler, logger, params.MetricsClient)
+
+	params.Lifecycle.Append(fx.StartStopHook(svc.Start, svc.Stop))
+	return svc
+}
+
+// NewService is an adapter for legacy initialization without fx.
 func NewService(
 	params *resource.Params,
-	factory resource.ResourceFactory,
-) (resource.Resource, error) {
+) (*Service, error) {
+	logger := params.Logger.WithTags(tag.Service("shard-distributor"))
 
 	serviceConfig := config.NewConfig(
 		dynamicconfig.NewCollection(
 			params.DynamicConfig,
-			params.Logger,
+			logger,
 			dynamicproperties.ClusterNameFilter(params.ClusterMetadata.GetCurrentClusterName()),
 		),
 		params.HostName,
 	)
 
-	serviceResource, err := factory.NewResource(
-		params,
-		service.ShardDistributor,
-		&service.Config{
-			PersistenceMaxQPS:        serviceConfig.PersistenceMaxQPS,
-			PersistenceGlobalMaxQPS:  serviceConfig.PersistenceGlobalMaxQPS,
-			ThrottledLoggerMaxRPS:    serviceConfig.ThrottledLogRPS,
-			IsErrorRetryableFunction: common.IsServiceTransientError,
-			// shard distributor doesn't need visibility config as it never read or write visibility
-		},
-	)
-	if err != nil {
-		return nil, err
-	}
-
 	matchingRing := params.HashRings[service.Matching]
 	historyRing := params.HashRings[service.History]
 
+	rawHandler := handler.NewHandler(logger, params.MetricsClient, matchingRing, historyRing)
+	meteredHandler := metered.NewMetricsHandler(rawHandler, logger, params.MetricsClient)
+
 	return &Service{
-		Resource:         serviceResource,
 		status:           common.DaemonStatusInitialized,
 		config:           serviceConfig,
 		stopC:            make(chan struct{}),
 		numHistoryShards: params.PersistenceConfig.NumHistoryShards,
+		logger:           logger,
+		metricsClient:    params.MetricsClient,
+		dispatcher:       params.RPCFactory.GetDispatcher(),
+		handler:          meteredHandler,
 
 		matchingRing: matchingRing,
 		historyRing:  historyRing,
@@ -101,23 +145,21 @@ func (s *Service) Start() {
 		return
 	}
 
-	logger := s.GetLogger()
-	logger.Info("shard distributor starting")
-
-	rawHandler := handler.NewHandler(s.GetLogger(), s.GetMetricsClient(), s.matchingRing, s.historyRing)
-	meteredHandler := metered.NewMetricsHandler(rawHandler, s.GetLogger(), s.GetMetricsClient())
-
-	s.handler = meteredHandler
+	s.logger.Info("starting")
 
 	grpcHandler := grpc.NewGRPCHandler(s.handler)
-	grpcHandler.Register(s.GetDispatcher())
+	grpcHandler.Register(s.dispatcher)
 
-	s.Resource.Start()
 	s.handler.Start()
 
-	logger.Info("shard distributor started")
+	s.logger.Info("started")
 
-	<-s.stopC
+	// legacy mode, fx Lifecyle requires component to start and return nil
+	if s.stopC != nil {
+		<-s.stopC
+	}
+
+	return
 }
 
 func (s *Service) Stop() {
@@ -125,10 +167,12 @@ func (s *Service) Stop() {
 		return
 	}
 
-	close(s.stopC)
+	// legacy mode, fx stops the component and ensures order/wait time between dependent components.
+	if s.stopC != nil {
+		close(s.stopC)
+	}
 
 	s.handler.Stop()
-	s.Resource.Stop()
 
-	s.GetLogger().Info("shard distributor stopped")
+	s.logger.Info("stopped")
 }

@@ -23,70 +23,87 @@
 package sharddistributor
 
 import (
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
+	"go.uber.org/fx/fxtest"
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/yarpc"
 
 	"github.com/uber/cadence/common"
-	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/log/testlogger"
+	"github.com/uber/cadence/common/membership"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/resource"
+	"github.com/uber/cadence/common/rpc"
 )
 
-func TestNewService(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	resourceMock := resource.NewMockResource(ctrl)
-	factoryMock := resource.NewMockResourceFactory(ctrl)
-	factoryMock.EXPECT().NewResource(gomock.Any(), gomock.Any(), gomock.Any()).Return(resourceMock, nil).AnyTimes()
-
-	service, err := NewService(&resource.Params{}, factoryMock)
-	assert.NoError(t, err)
-	assert.NotNil(t, service)
-}
-
-func TestServiceStartStop(t *testing.T) {
+func TestLegacyServiceStartStop(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	ctrl := gomock.NewController(t)
-
 	testDispatcher := yarpc.NewDispatcher(yarpc.Config{Name: "test"})
+	ctrl := gomock.NewController(t)
+	factory := rpc.NewMockFactory(ctrl)
+	factory.EXPECT().GetDispatcher().Return(testDispatcher)
 
-	resourceMock := resource.NewMockResource(ctrl)
-	resourceMock.EXPECT().GetLogger().Return(log.NewNoop()).AnyTimes()
-	resourceMock.EXPECT().GetMembershipResolver().Return(nil).AnyTimes()
-	resourceMock.EXPECT().GetMetricsClient().Return(nil).AnyTimes()
-	resourceMock.EXPECT().GetDispatcher().Return(testDispatcher).AnyTimes()
-	resourceMock.EXPECT().Start().Return()
-	resourceMock.EXPECT().Stop().Return()
-
-	service := &Service{
-		Resource: resourceMock,
-		status:   common.DaemonStatusInitialized,
-		stopC:    make(chan struct{}),
+	params := &resource.Params{
+		Logger:        testlogger.New(t),
+		MetricsClient: metrics.NewNoopMetricsClient(),
+		RPCFactory:    factory,
 	}
 
-	go service.Start()
+	service, err := NewService(params)
+	require.NoError(t, err)
 
-	time.Sleep(100 * time.Millisecond) // The code assumes the service is started when calling Stop
-	assert.Equal(t, int32(common.DaemonStatusStarted), atomic.LoadInt32(&service.status))
+	doneWG := sync.WaitGroup{}
+	doneWG.Add(1)
+
+	go func() {
+		defer doneWG.Done()
+		service.Start()
+	}()
+
+	time.Sleep(time.Millisecond) // The code assumes the service is started when calling Stop
+	assert.Equal(t, common.DaemonStatusStarted, atomic.LoadInt32(&service.status))
 
 	service.Stop()
-	assert.Equal(t, int32(common.DaemonStatusStopped), atomic.LoadInt32(&service.status))
+	success := common.AwaitWaitGroup(&doneWG, time.Second)
+	assert.True(t, success)
 }
 
-func TestStartAndStopDoesNotChangeStatusWhenAlreadyStopped(t *testing.T) {
+func TestFxServiceStartStop(t *testing.T) {
+	defer goleak.VerifyNone(t)
 
-	service := &Service{
-		status: common.DaemonStatusStopped,
-	}
+	testDispatcher := yarpc.NewDispatcher(yarpc.Config{Name: "test"})
+	ctrl := gomock.NewController(t)
+	app := fxtest.New(t,
+		testlogger.Module(t),
+		fx.Provide(
+			func() metrics.Client { return metrics.NewNoopMetricsClient() },
+			func() rpc.Factory {
+				factory := rpc.NewMockFactory(ctrl)
+				factory.EXPECT().GetDispatcher().Return(testDispatcher)
+				return factory
+			},
+			func() *dynamicconfig.Collection {
+				return &dynamicconfig.Collection{}
+			},
+			func() hostResult { return hostResult{} },
+			func() map[string]membership.SingleProvider { return make(map[string]membership.SingleProvider) },
+		),
+		fx.Provide(FXService))
+	app.RequireStart().RequireStop()
+}
 
-	service.Start()
-	assert.Equal(t, int32(common.DaemonStatusStopped), atomic.LoadInt32(&service.status))
+type hostResult struct {
+	fx.Out
 
-	service.Stop()
-	assert.Equal(t, int32(common.DaemonStatusStopped), atomic.LoadInt32(&service.status))
+	HostName string `name:"hostname"`
 }

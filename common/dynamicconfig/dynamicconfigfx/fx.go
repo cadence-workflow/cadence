@@ -31,6 +31,7 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/configstore"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
@@ -50,8 +51,15 @@ type Params struct {
 	Lifecycle fx.Lifecycle
 }
 
+type Result struct {
+	fx.Out
+
+	Client     dynamicconfig.Client
+	Collection *dynamicconfig.Collection
+}
+
 // New creates dynamicconfig.Client from the configuration
-func New(p Params) dynamicconfig.Client {
+func New(p Params) Result {
 	stopped := make(chan struct{})
 
 	if p.Cfg.DynamicConfig.Client == "" {
@@ -95,7 +103,17 @@ func New(p Params) dynamicconfig.Client {
 		res = dynamicconfig.NewNopClient()
 	}
 
-	return res
+	clusterGroupMetadata := p.Cfg.ClusterGroupMetadata
+	dc := dynamicconfig.NewCollection(
+		res,
+		p.Logger,
+		dynamicproperties.ClusterNameFilter(clusterGroupMetadata.CurrentClusterName),
+	)
+
+	return Result{
+		Client:     res,
+		Collection: dc,
+	}
 }
 
 // constructPathIfNeed would append the dir as the root dir

@@ -32,23 +32,38 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/membership/membershipfx"
+	"github.com/uber/cadence/common/peerprovider/ringpopprovider/ringpopfx"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql"
+	"github.com/uber/cadence/common/rpc/rpcfx"
+	"github.com/uber/cadence/common/service"
+	"github.com/uber/cadence/service/sharddistributor/sharddistributorfx"
 	"github.com/uber/cadence/tools/cassandra"
 	"github.com/uber/cadence/tools/sql"
 )
 
 // Module provides a cadence server initialization with root components.
 // AppParams allows to provide optional/overrides for implementation specific dependencies.
-var Module = fx.Options(
-	fx.Provide(NewApp),
-	// empty invoke so fx won't drop the application from the dependencies.
-	fx.Invoke(func(a *App) {}),
-)
+func Module(serviceName string) fx.Option {
+	if serviceName == service.ShortName(service.ShardDistributor) {
+		return fx.Options(
+			rpcfx.Module,
+			// PeerProvider could be overriden. Inside Uber we use DNS based internal solution.
+			ringpopfx.Module,
+			membershipfx.Module,
+			sharddistributorfx.Module)
+	}
+	return fx.Options(
+		fx.Provide(NewApp),
+		// empty invoke so fx won't drop the application from the dependencies.
+		fx.Invoke(func(a *App) {}),
+	)
+}
 
 type AppParams struct {
 	fx.In
 
-	Services      []string `name:"services"`
+	Service       string `name:"service"`
 	AppContext    config.Context
 	Config        config.Config
 	Logger        log.Logger
@@ -61,10 +76,12 @@ func NewApp(params AppParams) *App {
 	app := &App{
 		cfg:           params.Config,
 		logger:        params.Logger,
-		services:      params.Services,
+		service:       params.Service,
 		dynamicConfig: params.DynamicConfig,
 	}
-	params.LifeCycle.Append(fx.Hook{OnStart: app.Start, OnStop: app.Stop})
+
+	params.LifeCycle.Append(fx.StartHook(app.verifySchema))
+	params.LifeCycle.Append(fx.StartStopHook(app.Start, app.Stop))
 	return app
 }
 
@@ -76,14 +93,22 @@ type App struct {
 	logger        log.Logger
 	dynamicConfig dynamicconfig.Client
 
-	daemons  []common.Daemon
-	services []string
+	daemon  common.Daemon
+	service string
 }
 
 func (a *App) Start(_ context.Context) error {
-	if err := a.cfg.ValidateAndFillDefaults(); err != nil {
-		return fmt.Errorf("config validation failed: %w", err)
-	}
+	a.daemon = newServer(a.service, a.cfg, a.logger, a.dynamicConfig)
+	a.daemon.Start()
+	return nil
+}
+
+func (a *App) Stop(ctx context.Context) error {
+	a.daemon.Stop()
+	return nil
+}
+
+func (a *App) verifySchema(ctx context.Context) error {
 	// cassandra schema version validation
 	if err := cassandra.VerifyCompatibleVersion(a.cfg.Persistence, gocql.Quorum); err != nil {
 		return fmt.Errorf("cassandra schema version compatibility check failed: %w", err)
@@ -91,21 +116,6 @@ func (a *App) Start(_ context.Context) error {
 	// sql schema version validation
 	if err := sql.VerifyCompatibleVersion(a.cfg.Persistence); err != nil {
 		return fmt.Errorf("sql schema version compatibility check failed: %w", err)
-	}
-
-	var daemons []common.Daemon
-	for _, svc := range a.services {
-		server := newServer(svc, a.cfg, a.logger, a.dynamicConfig)
-		daemons = append(daemons, server)
-		server.Start()
-	}
-
-	return nil
-}
-
-func (a *App) Stop(ctx context.Context) error {
-	for _, daemon := range a.daemons {
-		daemon.Stop()
 	}
 	return nil
 }

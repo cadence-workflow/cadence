@@ -36,7 +36,11 @@ import (
 func TestModule(t *testing.T) {
 	app := fxtest.New(t,
 		testlogger.Module(t),
-		fx.Provide(func() config.Config { return config.Config{} },
+		fx.Provide(func() config.Config {
+			return config.Config{
+				ClusterGroupMetadata: &config.ClusterGroupMetadata{},
+			}
+		},
 			func() fxRoot {
 				return fxRoot{
 					RootDir: "../../../",

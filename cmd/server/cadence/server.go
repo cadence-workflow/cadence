@@ -62,7 +62,6 @@ import (
 	"github.com/uber/cadence/service/frontend"
 	"github.com/uber/cadence/service/history"
 	"github.com/uber/cadence/service/matching"
-	"github.com/uber/cadence/service/sharddistributor"
 	sharddistributorconstants "github.com/uber/cadence/service/sharddistributor/constants"
 	"github.com/uber/cadence/service/worker"
 	diagnosticsInvariant "github.com/uber/cadence/service/worker/diagnostics/invariant"
@@ -101,7 +100,6 @@ func (s *server) Start() {
 
 // Stop stops the server
 func (s *server) Stop() {
-
 	if s.daemon == nil {
 		return
 	}
@@ -170,7 +168,7 @@ func (s *server) startService() common.Daemon {
 
 	shardDistributorClient := s.createShardDistributorClient(params, dc)
 
-	params.HashRings = make(map[string]*membership.Ring)
+	params.HashRings = make(map[string]membership.SingleProvider)
 	for _, s := range service.ListWithRing {
 		params.HashRings[s] = membership.NewHashring(s, peerProvider, clock.NewRealTimeSource(), params.Logger, params.MetricsClient.Scope(metrics.HashringScope))
 	}
@@ -266,8 +264,8 @@ func (s *server) startService() common.Daemon {
 		daemon, err = matching.NewService(&params)
 	case service.Worker:
 		daemon, err = worker.NewService(&params)
-	case service.ShardDistributor:
-		daemon, err = sharddistributor.NewService(&params, resource.NewResourceFactory())
+	default:
+		params.Logger.Fatal("unknown service", tag.Service(params.Name))
 	}
 	if err != nil {
 		params.Logger.Fatal("Fail to start "+s.name+" service ", tag.Error(err))
@@ -279,26 +277,21 @@ func (s *server) startService() common.Daemon {
 }
 
 func (*server) newMethod(
-	hashRings map[string]*membership.Ring,
+	hashRings map[string]membership.SingleProvider,
 	shardDistributorClient sharddistributorClient.Client,
 	dc *dynamicconfig.Collection,
 	logger cadencelog.Logger,
 ) map[string]membership.SingleProvider {
-	wrappedRings := make(map[string]membership.SingleProvider, len(hashRings))
-	for k, v := range hashRings {
-		if k == service.Matching {
-			wrappedRings[k] = membership.NewShardDistributorResolver(
-				sharddistributorconstants.MatchingNamespace,
-				shardDistributorClient,
-				dc.GetStringProperty(dynamicproperties.MatchingShardDistributionMode),
-				v,
-				logger,
-			)
-		} else {
-			wrappedRings[k] = v
-		}
+	if _, ok := hashRings[service.Matching]; ok {
+		hashRings[service.Matching] = membership.NewShardDistributorResolver(
+			sharddistributorconstants.MatchingNamespace,
+			shardDistributorClient,
+			dc.GetStringProperty(dynamicproperties.MatchingShardDistributionMode),
+			hashRings[service.Matching],
+			logger,
+		)
 	}
-	return wrappedRings
+	return hashRings
 }
 
 func (*server) createShardDistributorClient(params resource.Params, dc *dynamicconfig.Collection) sharddistributorClient.Client {

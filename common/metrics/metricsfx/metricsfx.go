@@ -20,39 +20,34 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-package cadence
+package metricsfx
 
 import (
-	"testing"
-
-	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 	"go.uber.org/fx"
 
 	"github.com/uber/cadence/common/config"
-	"github.com/uber/cadence/common/dynamicconfig/dynamicconfigfx"
-	"github.com/uber/cadence/common/log/logfx"
+	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/service"
 )
 
-func TestFxDependencies(t *testing.T) {
-	err := fx.ValidateApp(config.Module,
-		logfx.Module,
-		dynamicconfigfx.Module,
-		fx.Provide(func() appContext {
-			return appContext{
-				CfgContext: config.Context{
-					Environment: "",
-					Zone:        "",
-				},
-				ConfigDir: "",
-				RootDir:   "",
-			}
-		},
-			func() serviceContext {
-				return serviceContext{
-					Name:     "",
-					FullName: "",
-				}
-			}),
-		Module(""))
-	require.NoError(t, err)
+// Module provides metrics client for fx application.
+var Module = fx.Module("metricfx",
+	fx.Provide(buildClient))
+
+type clientParams struct {
+	fx.In
+
+	Logger          log.Logger
+	ServiceFullName string `name:"service-full-name"`
+	SvcCfg          config.Service
+	Scope           tally.Scope `optional:"true"` // maybe filled outside
+}
+
+func buildClient(params clientParams) metrics.Client {
+	if params.Scope == nil {
+		params.Scope = params.SvcCfg.Metrics.NewScope(params.Logger, params.ServiceFullName)
+	}
+	return metrics.NewClient(params.Scope, service.GetMetricsServiceIdx(params.ServiceFullName, params.Logger))
 }

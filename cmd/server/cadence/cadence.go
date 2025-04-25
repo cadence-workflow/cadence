@@ -27,14 +27,17 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/urfave/cli/v2"
 	"go.uber.org/fx"
 
 	"github.com/uber/cadence/common/client"
+	"github.com/uber/cadence/common/clock/clockfx"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicconfigfx"
 	"github.com/uber/cadence/common/log/logfx"
+	"github.com/uber/cadence/common/metrics/metricsfx"
 	"github.com/uber/cadence/common/service"
 
 	_ "go.uber.org/automaxprocs" // defines automaxpocs for dockerized usage.
@@ -111,34 +114,77 @@ func BuildCLI(releaseVersion string, gitRevision string) *cli.App {
 				},
 			},
 			Action: func(c *cli.Context) error {
-				fxApp := fx.New(
-					config.Module,
-					logfx.Module,
-					dynamicconfigfx.Module,
-					fx.Provide(func() appContext {
-						return appContext{
-							CfgContext: config.Context{
-								Environment: getEnvironment(c),
-								Zone:        getZone(c),
-							},
-							ConfigDir: getConfigDir(c),
-							RootDir:   getRootDir(c),
-							Services:  getServices(c),
+				stoppedWg := &sync.WaitGroup{}
+
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+
+				services := getServices(c)
+				// non blocking channel that can accommodate at least 3 errors per service (worst case).
+				errChan := make(chan error, len(services)*3)
+				for _, serv := range getServices(c) {
+					stoppedWg.Add(1)
+					go func(s string) {
+						defer stoppedWg.Done()
+						fxApp := fx.New(
+							fx.Module(s,
+								config.Module,
+								dynamicconfigfx.Module,
+								logfx.Module,
+								metricsfx.Module,
+								clockfx.Module,
+								fx.Provide(
+									func() appContext {
+										return appContext{
+											CfgContext: config.Context{
+												Environment: getEnvironment(c),
+												Zone:        getZone(c),
+											},
+											ConfigDir: getConfigDir(c),
+											RootDir:   getRootDir(c),
+										}
+									},
+									func() serviceContext {
+										return serviceContext{
+											Name:     s,
+											FullName: service.FullName(s),
+										}
+									}),
+								Module(s),
+							),
+						)
+
+						//  If any of the start hooks return an error, Start short-circuits, calls Stop, and returns the inciting error.
+						if err := fxApp.Start(ctx); err != nil {
+							errChan <- fmt.Errorf("service %s start: %w", s, err)
+							return
 						}
-					}),
-					Module,
-				)
 
-				ctx := context.Background()
-				if err := fxApp.Start(ctx); err != nil {
-					return err
+						select {
+						// Block until FX receives a shutdown signal
+						case <-fxApp.Done():
+						}
+
+						// Stop the application
+						err := fxApp.Stop(ctx)
+						if err != nil {
+							errChan <- fmt.Errorf("service %s stop: %w", s, err)
+						}
+					}(serv)
 				}
-
-				// Block until FX receives a shutdown signal
-				<-fxApp.Done()
-
-				// Stop the application
-				return fxApp.Stop(ctx)
+				stoppedWg.Wait()
+				// After stoppedWg unblocked all services are stopped to we no longer wait for errors.
+				close(errChan)
+				var resErrors multiError
+				for err := range errChan {
+					if err != nil {
+						resErrors = append(resErrors, err)
+					}
+				}
+				if len(resErrors) > 0 {
+					return &resErrors
+				}
+				return nil
 			},
 		},
 	}
@@ -151,9 +197,16 @@ type appContext struct {
 	fx.Out
 
 	CfgContext config.Context
-	ConfigDir  string   `name:"config-dir"`
-	RootDir    string   `name:"root-dir"`
-	Services   []string `name:"services"`
+	ConfigDir  string `name:"config-dir"`
+	RootDir    string `name:"root-dir"`
+	HostName   string `name:"hostname"`
+}
+
+type serviceContext struct {
+	fx.Out
+
+	Name     string `name:"service"`
+	FullName string `name:"service-full-name"`
 }
 
 func getEnvironment(c *cli.Context) string {
@@ -206,4 +259,25 @@ func constructPathIfNeed(dir string, file string) string {
 		return dir + "/" + file
 	}
 	return file
+}
+
+type multiError []error
+
+// Error implements the error interface.
+func (m *multiError) Error() string {
+	errs := make([]string, len(*m))
+	for i, err := range *m {
+		errs[i] = err.Error()
+	}
+
+	return strings.Join(errs, "\n")
+}
+
+// Errors returns a copy of the errors slice
+func (m *multiError) Errors() []error {
+	errs := make([]error, len(*m))
+	for _, err := range *m {
+		errs = append(errs, err)
+	}
+	return errs
 }

@@ -37,7 +37,6 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
-	"github.com/uber/cadence/common/dynamicconfig/dynamicconfigfx"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -100,9 +99,10 @@ func (s *ServerSuite) TestServerStartup() {
 	lifecycle := fxtest.NewLifecycle(s.T())
 
 	var daemons []common.Daemon
-	services := service.ShortNames(service.List)
+	// Shard distributor should be tested separately
+	services := service.ShortNames(service.List[:len(service.List)-1])
 	for _, svc := range services {
-		server := newServer(svc, cfg, logger, dynamicconfigfx.New(dynamicconfigfx.Params{Logger: logger, Cfg: cfg, Lifecycle: lifecycle}))
+		server := newServer(svc, cfg, logger, dynamicconfig.NewNopClient())
 		daemons = append(daemons, server)
 		server.Start()
 	}

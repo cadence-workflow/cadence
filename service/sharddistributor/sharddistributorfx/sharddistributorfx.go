@@ -20,39 +20,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-package cadence
+package sharddistributorfx
 
 import (
-	"testing"
-
-	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/uber/cadence/common/config"
-	"github.com/uber/cadence/common/dynamicconfig/dynamicconfigfx"
-	"github.com/uber/cadence/common/log/logfx"
+	"github.com/uber/cadence/service/sharddistributor"
 )
 
-func TestFxDependencies(t *testing.T) {
-	err := fx.ValidateApp(config.Module,
-		logfx.Module,
-		dynamicconfigfx.Module,
-		fx.Provide(func() appContext {
-			return appContext{
-				CfgContext: config.Context{
-					Environment: "",
-					Zone:        "",
-				},
-				ConfigDir: "",
-				RootDir:   "",
-			}
-		},
-			func() serviceContext {
-				return serviceContext{
-					Name:     "",
-					FullName: "",
-				}
-			}),
-		Module(""))
-	require.NoError(t, err)
-}
+var Module = fx.Module("sharddistributor", fx.Provide(sharddistributor.FXService))

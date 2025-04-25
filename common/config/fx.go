@@ -23,6 +23,7 @@
 package config
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -30,7 +31,7 @@ import (
 )
 
 // Module returns a config.Provider that could be used byother components.
-var Module = fx.Options(
+var Module = fx.Module("configfx",
 	fx.Provide(New),
 )
 
@@ -42,6 +43,8 @@ type Context struct {
 // Params defines the dependencies of the configfx module.
 type Params struct {
 	fx.In
+
+	Service string `name:"service"`
 
 	Context   Context
 	LookupEnv LookupEnvFunc `optional:"true"`
@@ -55,7 +58,8 @@ type Params struct {
 type Result struct {
 	fx.Out
 
-	Config Config
+	Config        Config
+	ServiceConfig Service
 }
 
 // LookupEnvFunc returns the value of the environment variable given by key.
@@ -82,7 +86,23 @@ func New(p Params) (Result, error) {
 		return Result{}, fmt.Errorf("load config: %w", err)
 	}
 
+	cfg.fillDefaults()
+
+	svcCfg, err := cfg.GetServiceConfig(p.Service)
+	if err != nil {
+		return Result{}, fmt.Errorf("get service config: %w", err)
+	}
+
+	p.Lifecycle.Append(fx.Hook{OnStart: func(ctx context.Context) error {
+		err := cfg.validate()
+		if err != nil {
+			return fmt.Errorf("validate config: %w", err)
+		}
+		return nil
+	}})
+
 	return Result{
-		Config: cfg,
+		Config:        cfg,
+		ServiceConfig: svcCfg,
 	}, nil
 }

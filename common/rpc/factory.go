@@ -65,7 +65,7 @@ type FactoryImpl struct {
 }
 
 // NewFactory builds a new rpc.Factory
-func NewFactory(logger log.Logger, p Params) *FactoryImpl {
+func NewFactory(logger log.Logger, p Params) Factory {
 	logger = logger.WithTags(tag.ComponentRPCFactory)
 
 	inbounds := yarpc.Inbounds{}
@@ -169,7 +169,7 @@ func (d *FactoryImpl) GetDispatcher() *yarpc.Dispatcher {
 	return d.dispatcher
 }
 
-// GetChannel returns Tchannel Channel used by Ringpop
+// GetTChannel GetChannel returns Tchannel Channel used by Ringpop
 func (d *FactoryImpl) GetTChannel() tchannel.Channel {
 	return d.channel
 }
