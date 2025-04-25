@@ -37,22 +37,14 @@ func TestFxDependencies(t *testing.T) {
 	err := fx.ValidateApp(config.Module,
 		logfx.Module,
 		dynamicconfigfx.Module,
-		fx.Provide(func() appContext {
-			return appContext{
-				CfgContext: config.Context{
-					Environment: "",
-					Zone:        "",
-				},
-				ConfigDir: "",
-				RootDir:   "",
-			}
-		},
-			func() serviceContext {
-				return serviceContext{
-					Name:     "",
-					FullName: "",
-				}
-			}),
+		fx.Supply(appContext{
+			CfgContext: config.Context{
+				Environment: "",
+				Zone:        "",
+			},
+			ConfigDir: "",
+			RootDir:   "",
+		}),
 		Module(""))
 	require.NoError(t, err)
 }
