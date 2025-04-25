@@ -63,6 +63,7 @@ func buildMembership(params buildMembershipParams) (buildMembershipResult, error
 	resolver, err := membership.NewResolver(
 		params.PeerProvider,
 		params.MetricsClient,
+		params.Logger,
 		rings,
 	)
 	if err != nil {

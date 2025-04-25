@@ -37,7 +37,7 @@ import (
 // Module provides rpc.Params and rpc.Factory for fx application.
 var Module = fx.Module("rpcfx",
 	fx.Provide(paramsBuilder),
-	fx.Provide(rpc.NewFactory),
+	fx.Provide(buildFactory),
 )
 
 type paramsBuilderParams struct {
@@ -56,4 +56,19 @@ func paramsBuilder(p paramsBuilderParams) (rpc.Params, error) {
 		return rpc.Params{}, fmt.Errorf("create rpc params: %w", err)
 	}
 	return res, nil
+}
+
+type factoryParams struct {
+	fx.In
+
+	Logger    log.Logger
+	RPCParams rpc.Params
+
+	Lifecycle fx.Lifecycle
+}
+
+func buildFactory(p factoryParams) rpc.Factory {
+	res := rpc.NewFactory(p.Logger, p.RPCParams)
+	p.Lifecycle.Append(fx.StartStopHook(res.GetDispatcher().Start, res.GetDispatcher().Stop))
+	return res
 }

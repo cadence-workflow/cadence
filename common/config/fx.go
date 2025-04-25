@@ -23,7 +23,6 @@
 package config
 
 import (
-	"context"
 	"fmt"
 	"os"
 
@@ -93,13 +92,7 @@ func New(p Params) (Result, error) {
 		return Result{}, fmt.Errorf("get service config: %w", err)
 	}
 
-	p.Lifecycle.Append(fx.Hook{OnStart: func(ctx context.Context) error {
-		err := cfg.validate()
-		if err != nil {
-			return fmt.Errorf("validate config: %w", err)
-		}
-		return nil
-	}})
+	p.Lifecycle.Append(fx.StartHook(cfg.validate))
 
 	return Result{
 		Config:        cfg,

@@ -23,7 +23,6 @@
 package dynamicconfigfx
 
 import (
-	"context"
 	"path/filepath"
 
 	"go.uber.org/fx"
@@ -68,10 +67,9 @@ func New(p Params) Result {
 		p.Cfg.DynamicConfig.FileBased.Filepath = constructPathIfNeed(p.RootDir, p.Cfg.DynamicConfig.FileBased.Filepath)
 	}
 
-	p.Lifecycle.Append(fx.Hook{OnStop: func(_ context.Context) error {
+	p.Lifecycle.Append(fx.StopHook(func() {
 		close(stopped)
-		return nil
-	}})
+	}))
 
 	var res dynamicconfig.Client
 

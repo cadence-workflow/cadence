@@ -28,4 +28,4 @@ import (
 	"github.com/uber/cadence/service/sharddistributor"
 )
 
-var Module = fx.Module("sharddistributor", fx.Provide(sharddistributor.FXService))
+var Module = fx.Module("sharddistributor", fx.Provide(sharddistributor.FXService), fx.Invoke(func(*sharddistributor.Service) {}))
