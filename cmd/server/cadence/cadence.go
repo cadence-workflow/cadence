@@ -144,12 +144,7 @@ func BuildCLI(releaseVersion string, gitRevision string) *cli.App {
 											RootDir:   getRootDir(c),
 										}
 									},
-									func() serviceContext {
-										return serviceContext{
-											Name:     s,
-											FullName: service.FullName(s),
-										}
-									}),
+								),
 								Module(s),
 							),
 						)
@@ -200,13 +195,6 @@ type appContext struct {
 	ConfigDir  string `name:"config-dir"`
 	RootDir    string `name:"root-dir"`
 	HostName   string `name:"hostname"`
-}
-
-type serviceContext struct {
-	fx.Out
-
-	Name     string `name:"service"`
-	FullName string `name:"service-full-name"`
 }
 
 func getEnvironment(c *cli.Context) string {

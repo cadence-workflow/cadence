@@ -47,6 +47,10 @@ import (
 func Module(serviceName string) fx.Option {
 	if serviceName == service.ShortName(service.ShardDistributor) {
 		return fx.Options(
+			fx.Supply(serviceContext{
+				Name:     serviceName,
+				FullName: service.FullName(serviceName),
+			}),
 			rpcfx.Module,
 			// PeerProvider could be overriden. Inside Uber we use DNS based internal solution.
 			ringpopfx.Module,
@@ -54,6 +58,10 @@ func Module(serviceName string) fx.Option {
 			sharddistributorfx.Module)
 	}
 	return fx.Options(
+		fx.Supply(serviceContext{
+			Name:     serviceName,
+			FullName: service.FullName(serviceName),
+		}),
 		fx.Provide(NewApp),
 		// empty invoke so fx won't drop the application from the dependencies.
 		fx.Invoke(func(a *App) {}),
@@ -118,4 +126,11 @@ func (a *App) verifySchema(ctx context.Context) error {
 		return fmt.Errorf("sql schema version compatibility check failed: %w", err)
 	}
 	return nil
+}
+
+type serviceContext struct {
+	fx.Out
+
+	Name     string `name:"service"`
+	FullName string `name:"service-full-name"`
 }
