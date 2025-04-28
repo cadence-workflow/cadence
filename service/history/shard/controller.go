@@ -75,6 +75,11 @@ type (
 		ShardIDs() []int32
 	}
 
+	shardIDSnapshot struct {
+		shardIDs  []int32
+		numShards int
+	}
+
 	controller struct {
 		resource.Resource
 
@@ -90,7 +95,8 @@ type (
 		metricsScope       metrics.Scope
 
 		sync.RWMutex
-		historyShards map[int]*historyShardsItem
+		historyShards   map[int]*historyShardsItem
+		shardIDSnapshot atomic.Pointer[shardIDSnapshot]
 	}
 
 	historyShardsItemStatus int
@@ -223,22 +229,19 @@ func (c *controller) Status() int32 {
 }
 
 func (c *controller) NumShards() int {
-	nShards := 0
-	c.RLock()
-	nShards = len(c.historyShards)
-	c.RUnlock()
-	return nShards
+	s := c.shardIDSnapshot.Load()
+	if s == nil {
+		return 0
+	}
+	return s.numShards
 }
 
 func (c *controller) ShardIDs() []int32 {
-	c.RLock()
-	ids := []int32{}
-	for id := range c.historyShards {
-		id32 := int32(id)
-		ids = append(ids, id32)
+	s := c.shardIDSnapshot.Load()
+	if s == nil {
+		return []int32{}
 	}
-	c.RUnlock()
-	return ids
+	return s.shardIDs
 }
 
 func (c *controller) removeEngineForShard(shardID int, shardItem *historyShardsItem) {
@@ -330,6 +333,7 @@ func (c *controller) getOrCreateHistoryShardItem(shardID int) (*historyShardsIte
 			return nil, err
 		}
 		c.historyShards[shardID] = shardItem
+		c.updateShardIDSnapshotLocked()
 		c.metricsScope.IncCounter(metrics.ShardItemCreatedCounter)
 
 		shardItem.logger.Info("Shard item state changed", tag.LifeCycleStarted, tag.ComponentShardItem)
@@ -338,6 +342,18 @@ func (c *controller) getOrCreateHistoryShardItem(shardID int) (*historyShardsIte
 
 	// for backwards compatibility, always return tchannel port
 	return nil, CreateShardOwnershipLostError(c.GetHostInfo(), info)
+}
+
+func (c *controller) updateShardIDSnapshotLocked() {
+	shardIDs := make([]int32, 0, len(c.historyShards))
+	for shardID := range c.historyShards {
+		shardIDs = append(shardIDs, int32(shardID))
+	}
+	snapshot := &shardIDSnapshot{
+		shardIDs:  shardIDs,
+		numShards: len(shardIDs),
+	}
+	c.shardIDSnapshot.Store(snapshot)
 }
 
 func (c *controller) removeHistoryShardItem(shardID int, shardItem *historyShardsItem) (*historyShardsItem, error) {
@@ -355,6 +371,7 @@ func (c *controller) removeHistoryShardItem(shardID int, shardItem *historyShard
 	}
 
 	delete(c.historyShards, shardID)
+	c.updateShardIDSnapshotLocked()
 	c.metricsScope.IncCounter(metrics.ShardItemRemovedCounter)
 	currentShardItem.logger.Info("Shard item state changed", tag.LifeCycleStopped, tag.ComponentShardItem, tag.Number(int64(len(c.historyShards))))
 	return currentShardItem, nil
@@ -450,6 +467,7 @@ func (c *controller) doShutdown() {
 		item.stopEngine()
 	}
 	c.historyShards = nil
+	c.updateShardIDSnapshotLocked()
 }
 
 func (c *controller) isShuttingDown() bool {
