@@ -98,15 +98,16 @@ type (
 	}
 
 	DefaultDomainCache struct {
-		status        int32
-		shutdownChan  chan struct{}
-		clusterGroup  string
-		cacheNameToID *atomic.Value
-		cacheByID     *atomic.Value
-		domainManager persistence.DomainManager
-		timeSource    clock.TimeSource
-		scope         metrics.Scope
-		logger        log.Logger
+		status          int32
+		shutdownChan    chan struct{}
+		clusterGroup    string
+		clusterMetadata cluster.Metadata
+		cacheNameToID   *atomic.Value
+		cacheByID       *atomic.Value
+		domainManager   persistence.DomainManager
+		timeSource      clock.TimeSource
+		scope           metrics.Scope
+		logger          log.Logger
 
 		// refresh lock is used to guarantee at most one
 		// coroutine is doing domain refreshment
@@ -170,6 +171,7 @@ func NewDomainCache(
 		status:           domainCacheInitialized,
 		shutdownChan:     make(chan struct{}),
 		clusterGroup:     getClusterGroupIdentifier(metadata),
+		clusterMetadata:  metadata,
 		cacheNameToID:    &atomic.Value{},
 		cacheByID:        &atomic.Value{},
 		domainManager:    domainManager,
@@ -507,6 +509,7 @@ UpdateLoop:
 			metrics.DomainTypeTag(nextEntry.isGlobalDomain),
 			metrics.ClusterGroupTag(c.clusterGroup),
 			metrics.ActiveClusterTag(nextEntry.replicationConfig.ActiveClusterName),
+			metrics.IsActiveActiveDomainTag(nextEntry.replicationConfig.IsActiveActive()),
 		).UpdateGauge(metrics.ActiveClusterGauge, 1)
 
 		c.updateNameToIDCache(newCacheNameToID, nextEntry.info.Name, nextEntry.info.ID)
@@ -530,6 +533,7 @@ UpdateLoop:
 	if now.Sub(c.lastCallbackEmitTime) > 30*time.Minute {
 		c.lastCallbackEmitTime = now
 		c.scope.AddCounter(metrics.DomainCacheCallbacksCount, int64(len(c.callbacks)))
+		c.scope.RecordHistogramDuration(metrics.DomainCacheUpdateLatency, c.timeSource.Now().Sub(now))
 	}
 
 	return nil
@@ -626,6 +630,11 @@ func (c *DefaultDomainCache) getDomainByID(
 ) (*DomainCacheEntry, error) {
 
 	var result *DomainCacheEntry
+	defer func() {
+		if result != nil {
+			c.logger.Debugf("GetDomainByID returning domain %s, failoverVersion: %d", result.info.Name, result.failoverVersion)
+		}
+	}()
 	entry, cacheHit := c.cacheByID.Load().(Cache).Get(id).(*DomainCacheEntry)
 	if cacheHit {
 		entry.mu.RLock()
@@ -750,8 +759,10 @@ func (entry *DomainCacheEntry) duplicate() *DomainCacheEntry {
 		ActiveClusterName: entry.replicationConfig.ActiveClusterName,
 	}
 	for _, clusterCfg := range entry.replicationConfig.Clusters {
-		result.replicationConfig.Clusters = append(result.replicationConfig.Clusters, &*clusterCfg)
+		c := *clusterCfg
+		result.replicationConfig.Clusters = append(result.replicationConfig.Clusters, &c)
 	}
+	result.replicationConfig.ActiveClusters = entry.replicationConfig.ActiveClusters.DeepCopy()
 	result.configVersion = entry.configVersion
 	result.failoverVersion = entry.failoverVersion
 	result.isGlobalDomain = entry.isGlobalDomain
@@ -822,12 +833,23 @@ func (entry *DomainCacheEntry) IsActiveIn(currentCluster string) (bool, error) {
 	}
 
 	domainName := entry.GetInfo().Name
-	activeCluster := entry.GetReplicationConfig().ActiveClusterName
-
 	if entry.IsDomainPendingActive() {
 		return false, errors.NewDomainPendingActiveError(domainName, currentCluster)
 	}
 
+	if entry.GetReplicationConfig().IsActiveActive() {
+		var activeClusters []string
+		for _, cl := range entry.GetReplicationConfig().ActiveClusters.RegionToClusterMap {
+			if cl.ActiveClusterName == currentCluster {
+				return true, nil
+			}
+			activeClusters = append(activeClusters, cl.ActiveClusterName)
+		}
+
+		return false, errors.NewDomainNotActiveError(domainName, currentCluster, activeClusters...)
+	}
+
+	activeCluster := entry.GetReplicationConfig().ActiveClusterName
 	if currentCluster != activeCluster {
 		return false, errors.NewDomainNotActiveError(domainName, currentCluster, activeCluster)
 	}

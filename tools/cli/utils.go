@@ -46,6 +46,7 @@ import (
 	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/authorization"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/pagination"
 	"github.com/uber/cadence/common/types"
 )
@@ -723,7 +724,7 @@ func processJWTFlags(ctx context.Context, cliCtx *cli.Context) (context.Context,
 	if t != "" {
 		token = t
 	} else if path != "" {
-		token, err = createJWT(path)
+		token, err = createJWT(path, clock.NewRealTimeSource())
 		if err != nil {
 			return nil, fmt.Errorf("error creating JWT token: %w", err)
 		}
@@ -996,7 +997,7 @@ func getInputFile(inputFile string) (*os.File, error) {
 }
 
 // createJWT defines the logic to create a JWT
-func createJWT(keyPath string) (string, error) {
+func createJWT(keyPath string, timeSource clock.TimeSource) (string, error) {
 	privateKey, err := common.LoadRSAPrivateKey(keyPath)
 	if err != nil {
 		return "", err
@@ -1006,8 +1007,8 @@ func createJWT(keyPath string) (string, error) {
 	claims := authorization.JWTClaims{
 		Admin: true,
 		RegisteredClaims: jwt.RegisteredClaims{
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Second * time.Duration(ttl))),
+			IssuedAt:  jwt.NewNumericDate(timeSource.Now()),
+			ExpiresAt: jwt.NewNumericDate(timeSource.Now().Add(time.Second * time.Duration(ttl))),
 		},
 	}
 

@@ -71,23 +71,43 @@ func TestEmaFixedWindowQPSTracker(t *testing.T) {
 
 func TestEmaFixedWindowQPSTracker_Groups(t *testing.T) {
 	timeSource := clock.NewMockedTimeSourceAt(time.Now())
-	exp := 0.4
+	exp := 0.5
 	bucketInterval := time.Second
 
-	r := NewEmaFixedWindowQPSTracker(timeSource, exp, bucketInterval, event.E{})
-	r.Start()
-	defer r.Stop()
+	r := NewEmaFixedWindowQPSTracker(timeSource, exp, bucketInterval, event.E{}).(*emaFixedWindowQPSTracker)
 
 	r.ReportGroup("foo", 10)
 	r.ReportGroup("bar", 20)
+	r.report()
 
-	timeSource.BlockUntil(1)
-	timeSource.Advance(bucketInterval)
-	time.Sleep(10 * time.Millisecond)
 	// Test QPS
-	expectedQPS := float64(30) / (float64(bucketInterval) / float64(time.Second))
-	expectedFoo := float64(10) / (float64(bucketInterval) / float64(time.Second))
-	expectedBar := float64(20) / (float64(bucketInterval) / float64(time.Second))
+	expectedQPS := float64(30)
+	expectedFoo := float64(10)
+	expectedBar := float64(20)
+	assert.InDelta(t, expectedQPS, r.QPS(), floatResolution)
+	assert.InDelta(t, expectedFoo, r.GroupQPS("foo"), floatResolution)
+	assert.InDelta(t, expectedBar, r.GroupQPS("bar"), floatResolution)
+	assert.Equal(t, float64(0), r.GroupQPS("unknown"))
+}
+
+func TestEmaFixedWindowQPSTracker_MultipleReportCycles(t *testing.T) {
+	timeSource := clock.NewMockedTimeSourceAt(time.Now())
+	exp := 0.5
+	bucketInterval := time.Second
+
+	r := NewEmaFixedWindowQPSTracker(timeSource, exp, bucketInterval, event.E{}).(*emaFixedWindowQPSTracker)
+
+	r.ReportGroup("foo", 10)
+	r.ReportGroup("bar", 20)
+	r.report()
+	r.ReportGroup("foo", 20)
+	r.ReportGroup("bar", 40)
+	r.report()
+
+	// Test QPS
+	expectedQPS := float64(45)
+	expectedFoo := float64(15)
+	expectedBar := float64(30)
 	assert.InDelta(t, expectedQPS, r.QPS(), floatResolution)
 	assert.InDelta(t, expectedFoo, r.GroupQPS("foo"), floatResolution)
 	assert.InDelta(t, expectedBar, r.GroupQPS("bar"), floatResolution)

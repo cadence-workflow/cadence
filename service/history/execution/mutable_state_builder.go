@@ -501,8 +501,18 @@ func (e *mutableStateBuilder) FlushBufferedEvents() error {
 		}
 	}
 
+	e.logDuplicatedActivityEvents(newBufferedEvents, "newBufferedEvents")
+
 	// no decision in-flight, flush all buffered events to committed bucket
 	if !e.HasInFlightDecision() {
+		// adding logs to help identify duplicate activity task events
+		// duplicated activity events can cause DecisionTaskFailed events with cause UNHANDLED_DECISION
+		// and cause workflow to be stuck in decision task failed state
+		// this can be removed after the root cause is identified and fixed
+		// TODO: remove this after the root cause is identified and fixed or add deduplication
+		e.logDuplicatedActivityEvents(e.bufferedEvents, "bufferedEvents")
+		e.logDuplicatedActivityEvents(e.updateBufferedEvents, "updateBufferedEvents")
+
 		// flush persisted buffered events
 		if len(e.bufferedEvents) > 0 {
 			reorderFunc(e.bufferedEvents)
@@ -517,6 +527,8 @@ func (e *mutableStateBuilder) FlushBufferedEvents() error {
 		// clear pending buffered events
 		e.updateBufferedEvents = nil
 
+		e.logDuplicatedActivityEvents(reorderedEvents, "reorderedEvents")
+
 		// Put back all the reordered buffer events at the end
 		if len(reorderedEvents) > 0 {
 			newCommittedEvents = append(newCommittedEvents, reorderedEvents...)
@@ -529,6 +541,7 @@ func (e *mutableStateBuilder) FlushBufferedEvents() error {
 
 	newCommittedEvents = e.trimEventsAfterWorkflowClose(newCommittedEvents)
 	e.hBuilder.history = newCommittedEvents
+
 	// make sure all new committed events have correct EventID
 	e.assignEventIDToBufferedEvents()
 	if err := e.assignTaskIDToEvents(); err != nil {
@@ -2252,6 +2265,81 @@ func (e *mutableStateBuilder) logDataInconsistency() {
 		tag.WorkflowID(workflowID),
 		tag.WorkflowRunID(runID),
 	)
+}
+func (e *mutableStateBuilder) logDuplicatedActivityEvents(events []*types.HistoryEvent, duplicationSource string) {
+	type activityTaskUniqueEventParams struct {
+		eventType        types.EventType
+		scheduledEventID int64
+		attempt          int32
+		startedEventID   int64
+	}
+
+	activityTaskUniqueEvents := make(map[activityTaskUniqueEventParams]struct{})
+
+	checkActivityTaskEventUniqueness := func(event *types.HistoryEvent) {
+		var uniqueEventParams activityTaskUniqueEventParams
+
+		var scheduledEventID int64
+
+		switch event.GetEventType() {
+		case types.EventTypeActivityTaskStarted:
+			scheduledEventID = event.ActivityTaskStartedEventAttributes.GetScheduledEventID()
+			uniqueEventParams = activityTaskUniqueEventParams{
+				eventType:        event.GetEventType(),
+				scheduledEventID: scheduledEventID,
+				attempt:          event.ActivityTaskStartedEventAttributes.Attempt,
+			}
+		case types.EventTypeActivityTaskCompleted:
+			scheduledEventID = event.ActivityTaskCompletedEventAttributes.GetScheduledEventID()
+			uniqueEventParams = activityTaskUniqueEventParams{
+				eventType:        event.GetEventType(),
+				scheduledEventID: scheduledEventID,
+				startedEventID:   event.ActivityTaskCompletedEventAttributes.GetStartedEventID(),
+			}
+		case types.EventTypeActivityTaskFailed:
+			scheduledEventID = event.ActivityTaskFailedEventAttributes.GetScheduledEventID()
+			uniqueEventParams = activityTaskUniqueEventParams{
+				eventType:        event.GetEventType(),
+				scheduledEventID: scheduledEventID,
+				startedEventID:   event.ActivityTaskFailedEventAttributes.GetStartedEventID(),
+			}
+		case types.EventTypeActivityTaskCanceled:
+			scheduledEventID = event.ActivityTaskCanceledEventAttributes.GetScheduledEventID()
+			uniqueEventParams = activityTaskUniqueEventParams{
+				eventType:        event.GetEventType(),
+				scheduledEventID: scheduledEventID,
+				startedEventID:   event.ActivityTaskCanceledEventAttributes.StartedEventID,
+			}
+		case types.EventTypeActivityTaskTimedOut:
+			scheduledEventID = event.ActivityTaskTimedOutEventAttributes.GetScheduledEventID()
+			uniqueEventParams = activityTaskUniqueEventParams{
+				eventType:        event.GetEventType(),
+				scheduledEventID: scheduledEventID,
+				startedEventID:   event.ActivityTaskTimedOutEventAttributes.StartedEventID,
+			}
+		default:
+			return
+		}
+
+		if _, ok := activityTaskUniqueEvents[uniqueEventParams]; ok {
+			e.logger.Error("Duplicate activity task event found",
+				tag.WorkflowDomainName(e.GetDomainEntry().GetInfo().Name),
+				tag.WorkflowID(e.GetExecutionInfo().WorkflowID),
+				tag.WorkflowRunID(e.GetExecutionInfo().RunID),
+				tag.WorkflowScheduleID(scheduledEventID),
+				tag.WorkflowEventType(event.GetEventType().String()),
+				tag.Dynamic("duplication-source", duplicationSource),
+			)
+
+			e.metricsClient.IncCounter(metrics.HistoryFlushBufferedEventsScope, metrics.DuplicateActivityTaskEventCounter)
+		} else {
+			activityTaskUniqueEvents[uniqueEventParams] = struct{}{}
+		}
+	}
+
+	for _, event := range events {
+		checkActivityTaskEventUniqueness(event)
+	}
 }
 
 func mergeMapOfByteArray(

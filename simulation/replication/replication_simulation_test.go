@@ -85,8 +85,8 @@ func TestReplicationSimulation(t *testing.T) {
 		switch op.Type {
 		case simTypes.ReplicationSimulationOperationStartWorkflow:
 			err = startWorkflow(t, op, simCfg)
-		case simTypes.ReplicationSimulationOperationFailover:
-			err = failover(t, op, simCfg)
+		case simTypes.ReplicationSimulationOperationChangeActiveClusters:
+			err = changeActiveClusters(t, op, simCfg)
 		case simTypes.ReplicationSimulationOperationValidate:
 			err = validate(t, op, simCfg)
 		default:
@@ -122,7 +122,7 @@ func startWorkflow(
 	resp, err := simCfg.MustGetFrontendClient(t, op.Cluster).StartWorkflowExecution(ctx,
 		&types.StartWorkflowExecutionRequest{
 			RequestID:                           uuid.New(),
-			Domain:                              simTypes.DomainName,
+			Domain:                              simCfg.Domain.Name,
 			WorkflowID:                          op.WorkflowID,
 			WorkflowType:                        &types.WorkflowType{Name: simTypes.WorkflowName},
 			TaskList:                            &types.TaskList{Name: simTypes.TasklistName},
@@ -140,42 +140,43 @@ func startWorkflow(
 	return nil
 }
 
-func failover(
+func changeActiveClusters(
 	t *testing.T,
 	op *simTypes.Operation,
 	simCfg *simTypes.ReplicationSimulationConfig,
 ) error {
 	t.Helper()
 
-	simTypes.Logf(t, "Failing over to cluster: %s", op.NewActiveCluster)
+	simTypes.Logf(t, "Changing active clusters to: %v", op.NewActiveClusters)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	descResp, err := simCfg.MustGetFrontendClient(t, simCfg.PrimaryCluster).DescribeDomain(ctx, &types.DescribeDomainRequest{Name: common.StringPtr(simTypes.DomainName)})
+	descResp, err := simCfg.MustGetFrontendClient(t, simCfg.PrimaryCluster).DescribeDomain(ctx, &types.DescribeDomainRequest{Name: common.StringPtr(simCfg.Domain.Name)})
 	if err != nil {
-		return fmt.Errorf("failed to describe domain %s: %w", simTypes.DomainName, err)
+		return fmt.Errorf("failed to describe domain %s: %w", simCfg.Domain.Name, err)
 	}
 
-	fromCluster := descResp.ReplicationConfiguration.ActiveClusterName
-	toCluster := op.NewActiveCluster
+	if !simCfg.IsActiveActiveDomain() {
+		fromCluster := descResp.ReplicationConfiguration.ActiveClusterName
+		toCluster := op.NewActiveClusters[0]
 
-	if fromCluster == toCluster {
-		return fmt.Errorf("domain %s is already active in cluster %s so cannot perform failover", simTypes.DomainName, toCluster)
+		ctx, cancel = context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		_, err = simCfg.MustGetFrontendClient(t, simCfg.PrimaryCluster).UpdateDomain(ctx,
+			&types.UpdateDomainRequest{
+				Name:                     simCfg.Domain.Name,
+				ActiveClusterName:        &toCluster,
+				FailoverTimeoutInSeconds: op.FailoverTimeout,
+			})
+		if err != nil {
+			return fmt.Errorf("failed to update ActiveClusterName, err: %w", err)
+		}
+
+		simTypes.Logf(t, "Failed over from %s to %s", fromCluster, toCluster)
+	} else {
+		// TODO(active-active): implement this once domain API is changed to support ActiveClusters field
+		return fmt.Errorf("active-active domains are not supported yet")
 	}
-
-	ctx, cancel = context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	_, err = simCfg.MustGetFrontendClient(t, simCfg.PrimaryCluster).UpdateDomain(ctx,
-		&types.UpdateDomainRequest{
-			Name:                     simTypes.DomainName,
-			ActiveClusterName:        &toCluster,
-			FailoverTimeoutInSeconds: op.FailovertimeoutSec,
-		})
-	if err != nil {
-		return fmt.Errorf("failed to update ActiveClusterName, err: %w", err)
-	}
-
-	simTypes.Logf(t, "Failed over from %s to %s", fromCluster, toCluster)
 	return nil
 }
 
@@ -195,7 +196,7 @@ func validate(
 	defer cancel()
 	resp, err := simCfg.MustGetFrontendClient(t, op.Cluster).DescribeWorkflowExecution(ctx,
 		&types.DescribeWorkflowExecutionRequest{
-			Domain: simTypes.DomainName,
+			Domain: simCfg.Domain.Name,
 			Execution: &types.WorkflowExecution{
 				WorkflowID: op.WorkflowID,
 			},
@@ -279,7 +280,7 @@ func getAllHistory(t *testing.T, simCfg *simTypes.ReplicationSimulationConfig, c
 	for {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		response, err := frontendCl.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
-			Domain: simTypes.DomainName,
+			Domain: simCfg.Domain.Name,
 			Execution: &types.WorkflowExecution{
 				WorkflowID: wfID,
 			},

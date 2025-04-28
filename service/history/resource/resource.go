@@ -129,6 +129,7 @@ func New(
 		serviceResource.GetHistoryManager(),
 		params.Logger,
 		params.MetricsClient,
+		config.EnableSizeBasedHistoryEventCache,
 		config.EventsCacheMaxSize,
 		serviceResource.GetDomainCache(),
 	)

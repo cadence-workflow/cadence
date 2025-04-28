@@ -462,6 +462,7 @@ func (s *workflowResetterSuite) TestReapplyContinueAsNewWorkflowEvents() {
 	resetContext.EXPECT().Lock(gomock.Any()).Return(nil).AnyTimes()
 	resetContext.EXPECT().Unlock().AnyTimes()
 	resetContext.EXPECT().LoadWorkflowExecution(gomock.Any()).Return(resetMutableState, nil).AnyTimes()
+	resetContext.EXPECT().ByteSize().Return(uint64(1)).AnyTimes()
 	resetMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{}).AnyTimes()
 	resetMutableState.EXPECT().GetNextEventID().Return(newNextEventID).AnyTimes()
 	resetMutableState.EXPECT().GetCurrentBranchToken().Return(newBranchToken, nil).AnyTimes()

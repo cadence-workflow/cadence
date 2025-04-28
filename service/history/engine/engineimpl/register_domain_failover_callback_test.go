@@ -159,21 +159,23 @@ func TestGenerateFailoverTasksForDomainCallback(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 
 			cluster := cluster.NewMetadata(
-				10,
-				"cluster0",
-				"cluster0",
-				map[string]config.ClusterInformation{
-					"cluster0": config.ClusterInformation{
-						Enabled:                true,
-						InitialFailoverVersion: 1,
-					},
-					"cluster1": config.ClusterInformation{
-						Enabled:                true,
-						InitialFailoverVersion: 0,
-					},
-					"cluster2": config.ClusterInformation{
-						Enabled:                true,
-						InitialFailoverVersion: 2,
+				config.ClusterGroupMetadata{
+					FailoverVersionIncrement: 10,
+					PrimaryClusterName:       "cluster0",
+					CurrentClusterName:       "cluster0",
+					ClusterGroup: map[string]config.ClusterInformation{
+						"cluster0": config.ClusterInformation{
+							Enabled:                true,
+							InitialFailoverVersion: 1,
+						},
+						"cluster1": config.ClusterInformation{
+							Enabled:                true,
+							InitialFailoverVersion: 0,
+						},
+						"cluster2": config.ClusterInformation{
+							Enabled:                true,
+							InitialFailoverVersion: 2,
+						},
 					},
 				},
 				func(string) bool { return false },
@@ -582,21 +584,23 @@ func TestDomainCallback(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 
 			cluster := cluster.NewMetadata(
-				10,
-				"cluster0",
-				"cluster0",
-				map[string]config.ClusterInformation{
-					"cluster0": config.ClusterInformation{
-						Enabled:                true,
-						InitialFailoverVersion: 1,
-					},
-					"cluster1": config.ClusterInformation{
-						Enabled:                true,
-						InitialFailoverVersion: 0,
-					},
-					"cluster2": config.ClusterInformation{
-						Enabled:                true,
-						InitialFailoverVersion: 2,
+				config.ClusterGroupMetadata{
+					FailoverVersionIncrement: 10,
+					PrimaryClusterName:       "cluster0",
+					CurrentClusterName:       "cluster0",
+					ClusterGroup: map[string]config.ClusterInformation{
+						"cluster0": config.ClusterInformation{
+							Enabled:                true,
+							InitialFailoverVersion: 1,
+						},
+						"cluster1": config.ClusterInformation{
+							Enabled:                true,
+							InitialFailoverVersion: 0,
+						},
+						"cluster2": config.ClusterInformation{
+							Enabled:                true,
+							InitialFailoverVersion: 2,
+						},
 					},
 				},
 				func(string) bool { return false },
@@ -631,13 +635,15 @@ func TestDomainCallback(t *testing.T) {
 func TestDomainLocking(t *testing.T) {
 
 	cluster := cluster.NewMetadata(
-		10,
-		"cluster0",
-		"cluster0",
-		map[string]config.ClusterInformation{
-			"cluster0": config.ClusterInformation{
-				Enabled:                true,
-				InitialFailoverVersion: 1,
+		config.ClusterGroupMetadata{
+			FailoverVersionIncrement: 10,
+			PrimaryClusterName:       "cluster0",
+			CurrentClusterName:       "cluster0",
+			ClusterGroup: map[string]config.ClusterInformation{
+				"cluster0": config.ClusterInformation{
+					Enabled:                true,
+					InitialFailoverVersion: 1,
+				},
 			},
 		},
 		func(string) bool { return false },
@@ -668,6 +674,6 @@ func TestDomainLocking(t *testing.T) {
 		shard:              shardCtx,
 	}
 
-	he.lockProcessingForFailover()
-	he.unlockProcessingForFailover()
+	he.lockTaskProcessingForDomainUpdate()
+	he.unlockProcessingForDomainUpdate()
 }

@@ -61,6 +61,7 @@ func NewEmaFixedWindowQPSTracker(timeSource clock.TimeSource, exp float64, bucke
 	return &emaFixedWindowQPSTracker{
 		root:           newEmaFixedWindowState(exp, bucketInterval, baseEvent),
 		timeSource:     timeSource,
+		exp:            exp,
 		bucketInterval: bucketInterval,
 		done:           make(chan struct{}),
 		status:         atomic.NewInt32(common.DaemonStatusInitialized),

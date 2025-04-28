@@ -107,10 +107,10 @@ func (mr *MockManagerMockRecorder) DescribeTaskList(includeTaskListStatus any) *
 }
 
 // DispatchQueryTask mocks base method.
-func (m *MockManager) DispatchQueryTask(ctx context.Context, taskID string, request *types.MatchingQueryWorkflowRequest) (*types.QueryWorkflowResponse, error) {
+func (m *MockManager) DispatchQueryTask(ctx context.Context, taskID string, request *types.MatchingQueryWorkflowRequest) (*types.MatchingQueryWorkflowResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DispatchQueryTask", ctx, taskID, request)
-	ret0, _ := ret[0].(*types.QueryWorkflowResponse)
+	ret0, _ := ret[0].(*types.MatchingQueryWorkflowResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -383,10 +383,10 @@ func (mr *MockTaskMatcherMockRecorder) OfferOrTimeout(ctx, startT, task any) *go
 }
 
 // OfferQuery mocks base method.
-func (m *MockTaskMatcher) OfferQuery(ctx context.Context, task *InternalTask) (*types.QueryWorkflowResponse, error) {
+func (m *MockTaskMatcher) OfferQuery(ctx context.Context, task *InternalTask) (*types.MatchingQueryWorkflowResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "OfferQuery", ctx, task)
-	ret0, _ := ret[0].(*types.QueryWorkflowResponse)
+	ret0, _ := ret[0].(*types.MatchingQueryWorkflowResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -507,10 +507,10 @@ func (mr *MockForwarderMockRecorder) ForwardPoll(ctx any) *gomock.Call {
 }
 
 // ForwardQueryTask mocks base method.
-func (m *MockForwarder) ForwardQueryTask(ctx context.Context, task *InternalTask) (*types.QueryWorkflowResponse, error) {
+func (m *MockForwarder) ForwardQueryTask(ctx context.Context, task *InternalTask) (*types.MatchingQueryWorkflowResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ForwardQueryTask", ctx, task)
-	ret0, _ := ret[0].(*types.QueryWorkflowResponse)
+	ret0, _ := ret[0].(*types.MatchingQueryWorkflowResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -536,17 +536,17 @@ func (mr *MockForwarderMockRecorder) ForwardTask(ctx, task any) *gomock.Call {
 }
 
 // PollReqTokenC mocks base method.
-func (m *MockForwarder) PollReqTokenC(isolationGroup string) <-chan *ForwarderReqToken {
+func (m *MockForwarder) PollReqTokenC() <-chan *ForwarderReqToken {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PollReqTokenC", isolationGroup)
+	ret := m.ctrl.Call(m, "PollReqTokenC")
 	ret0, _ := ret[0].(<-chan *ForwarderReqToken)
 	return ret0
 }
 
 // PollReqTokenC indicates an expected call of PollReqTokenC.
-func (mr *MockForwarderMockRecorder) PollReqTokenC(isolationGroup any) *gomock.Call {
+func (mr *MockForwarderMockRecorder) PollReqTokenC() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PollReqTokenC", reflect.TypeOf((*MockForwarder)(nil).PollReqTokenC), isolationGroup)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PollReqTokenC", reflect.TypeOf((*MockForwarder)(nil).PollReqTokenC))
 }
 
 // MockTaskCompleter is a mock of TaskCompleter interface.

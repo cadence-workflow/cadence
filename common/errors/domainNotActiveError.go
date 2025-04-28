@@ -22,22 +22,34 @@ package errors
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/uber/cadence/common/types"
 )
 
 // NewDomainNotActiveError return a domain not exist error
-func NewDomainNotActiveError(domainName string, currentCluster string, activeCluster string) *types.DomainNotActiveError {
+func NewDomainNotActiveError(domainName string, currentCluster string, activeClusters ...string) *types.DomainNotActiveError {
+	activeCluster := ""
+	if len(activeClusters) == 1 {
+		activeCluster = activeClusters[0]
+	}
+	// ensure predictable order in the error.
+	slices.Sort(activeClusters)
 	return &types.DomainNotActiveError{
 		Message: fmt.Sprintf(
-			"Domain: %s is active in cluster: %s, while current cluster %s is a standby cluster.",
+			"Domain: %s is active in cluster(s): %v, while current cluster %s is a standby cluster.",
 			domainName,
-			activeCluster,
+			activeClusters,
 			currentCluster,
 		),
 		DomainName:     domainName,
 		CurrentCluster: currentCluster,
 		ActiveCluster:  activeCluster,
+		// TODO(active-active): After ActiveClusters field is introduced, uncomment this line and update following lines
+		// - common/types/testdata/error.go
+		// - common/testing/allisset_test.go
+		// - mappers
+		// ActiveClusters: activeClusters,
 	}
 }
 

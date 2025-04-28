@@ -64,8 +64,8 @@ steps:
                 - |-
                   # ensure that we are not rebuilding binaries and not regenerating code
                   make .just-build
-                  # make install-schema is needed for a server startup test. See main_test.go
-                  CASSANDRA_HOST=cassandra make install-schema && make cover_profile
+                  # run tests with coverage
+                  make cover_profile
                   ./scripts/buildkite/gen_coverage_metadata.sh .build/coverage/metadata.txt
       - docker-compose#v3.0.0:
           run: unit-test
@@ -264,6 +264,30 @@ steps:
                   make cover_integration_profile
       - docker-compose#v3.0.0:
           run: integration-test-postgres
+          config: docker/buildkite/docker-compose.yml
+
+  - label: ":golang: integration test with sqlite"
+    artifact_paths:
+      - ".build/coverage/*.out"
+    # sqlite persistence storage is still in development
+    # so persistence tests should not fail the build
+    # but we still want to run them
+    soft_fail: true
+    retry:
+      automatic:
+        limit: 1
+    plugins:
+      - kubernetes:
+          <<: *kubernetes
+          podSpec:
+            <<: *podSpec
+            containers:
+              - <<: *commandContainer
+                command:
+                  - |-
+                    make cover_integration_profile
+      - docker-compose#v3.0.0:
+          run: integration-test-sqlite
           config: docker/buildkite/docker-compose.yml
 
   - label: ":golang: integration ndc test with postgres"

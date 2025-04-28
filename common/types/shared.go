@@ -2019,10 +2019,10 @@ func (v *DomainInfo) GetUUID() (o string) {
 // this is a retriable error and *must* be retried under at least
 // some circumstances due to domain failover races.
 type DomainNotActiveError struct {
-	Message        string `json:"message,required"`
-	DomainName     string `json:"domainName,required"`
-	CurrentCluster string `json:"currentCluster,required"`
-	ActiveCluster  string `json:"activeCluster,required"`
+	Message        string `json:"message"`
+	DomainName     string `json:"domainName"`
+	CurrentCluster string `json:"currentCluster"`
+	ActiveCluster  string `json:"activeCluster,omitempty"`
 }
 
 // GetCurrentCluster is an internal getter (TBD...)
@@ -2177,6 +2177,8 @@ type EntityNotExistsError struct {
 	Message        string `json:"message,required"`
 	CurrentCluster string `json:"currentCluster,omitempty"`
 	ActiveCluster  string `json:"activeCluster,omitempty"`
+	// TODO(active-active): Add ActiveClusters field
+	// ActiveClusters []string `json:"activeClusters,omitempty"`
 }
 
 // WorkflowExecutionAlreadyCompletedError is an internal type (TBD...)

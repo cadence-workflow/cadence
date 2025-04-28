@@ -121,7 +121,7 @@ func (s *historyCacheSuite) TestHistoryCacheBasic() {
 }
 
 func (s *historyCacheSuite) TestHistoryCachePinning() {
-	s.mockShard.GetConfig().HistoryCacheMaxSize = dynamicproperties.GetIntPropertyFn(2)
+	s.mockShard.GetConfig().HistoryCacheMaxSize = dynamicproperties.GetIntPropertyFn(1)
 	domainID := "test_domain_id"
 	s.cache = NewCache(s.mockShard)
 	we := types.WorkflowExecution{
@@ -248,6 +248,7 @@ func (s *historyCacheSuite) TestGetOrCreateCurrentWorkflowExecution() {
 		{
 			name: "success - cache enabled - cache hit",
 			mockSetup: func(c *cacheImpl, mockContext *MockContext, ctx context.Context) {
+				mockContext.EXPECT().ByteSize().Return(uint64(1)).AnyTimes()
 				key := definition.NewWorkflowIdentifier(constants.TestDomainID, constants.TestWorkflowID, "")
 				_, _ = c.Cache.PutIfNotExist(key, mockContext)
 				mockContext.EXPECT().Lock(ctx).Return(nil).Times(1)
@@ -256,6 +257,7 @@ func (s *historyCacheSuite) TestGetOrCreateCurrentWorkflowExecution() {
 		{
 			name: "error - cache enabled - cache hit error on lock",
 			mockSetup: func(cache *cacheImpl, mockContext *MockContext, ctx context.Context) {
+				mockContext.EXPECT().ByteSize().Return(uint64(1)).AnyTimes()
 				key := definition.NewWorkflowIdentifier(constants.TestDomainID, constants.TestWorkflowID, "")
 				_, _ = cache.Cache.PutIfNotExist(key, mockContext)
 				mockContext.EXPECT().Lock(ctx).Return(errors.New("test-error")).Times(1)
@@ -273,7 +275,8 @@ func (s *historyCacheSuite) TestGetOrCreateCurrentWorkflowExecution() {
 					TTL:             s.mockShard.GetConfig().HistoryCacheTTL(),
 					Pin:             true,
 					MaxCount:        s.mockShard.GetConfig().HistoryCacheMaxSize(),
-				}, s.mockShard.GetLogger().WithTags(tag.ComponentHistoryCache)),
+					Logger:          s.mockShard.GetLogger().WithTags(tag.ComponentHistoryCache),
+				}),
 				shard:            s.mockShard,
 				executionManager: s.mockShard.GetExecutionManager(),
 				logger:           s.mockShard.GetLogger().WithTags(tag.ComponentHistoryCache),
@@ -467,6 +470,7 @@ func (s *historyCacheSuite) TestGetAndCreateWorkflowExecution() {
 				RunID:      constants.TestRunID,
 			},
 			mockSetup: func(mockShard *shard.TestContext, mockContext *MockContext, c *cacheImpl) {
+				mockContext.EXPECT().ByteSize().Return(uint64(1)).AnyTimes()
 				mockShard.GetDomainCache().(*cache.MockDomainCache).EXPECT().GetDomainName(constants.TestDomainID).Return(constants.TestDomainName, nil).Times(1)
 				key := definition.NewWorkflowIdentifier(constants.TestDomainID, constants.TestWorkflowID, constants.TestRunID)
 				_, _ = c.Cache.PutIfNotExist(key, mockContext)
@@ -484,6 +488,7 @@ func (s *historyCacheSuite) TestGetAndCreateWorkflowExecution() {
 				RunID:      constants.TestRunID,
 			},
 			mockSetup: func(mockShard *shard.TestContext, mockContext *MockContext, c *cacheImpl) {
+				mockContext.EXPECT().ByteSize().Return(uint64(1)).AnyTimes()
 				mockShard.GetDomainCache().(*cache.MockDomainCache).EXPECT().GetDomainName(constants.TestDomainID).Return(constants.TestDomainName, nil).Times(1)
 				key := definition.NewWorkflowIdentifier(constants.TestDomainID, constants.TestWorkflowID, constants.TestRunID)
 				_, _ = c.Cache.PutIfNotExist(key, mockContext)

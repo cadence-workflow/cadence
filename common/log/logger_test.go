@@ -184,6 +184,33 @@ func TestLogger_Sampled(t *testing.T) {
 	assert.Regexp(t, `{"level":"info","msg":"test info","wf-action":"add-workflow-started-event","logging-call-at":"logger_test.go:`+anyNum+`"}`, out)
 }
 
+func TestDebugOn(t *testing.T) {
+	buf := &strings.Builder{}
+	l := zap.NewAtomicLevel()
+	zapLogger := zap.New(zapcore.NewCore(zapcore.NewJSONEncoder(zapcore.EncoderConfig{
+		MessageKey:     "msg",
+		LevelKey:       "level",
+		NameKey:        "logger",
+		EncodeLevel:    zapcore.LowercaseLevelEncoder,
+		EncodeTime:     zapcore.ISO8601TimeEncoder,
+		EncodeDuration: zapcore.StringDurationEncoder,
+	}), zapcore.AddSync(buf), l))
+
+	logger := NewLogger(zapLogger)
+
+	// Set level to debug and check if debugOn is true
+	l.SetLevel(zap.DebugLevel)
+	assert.True(t, logger.DebugOn())
+
+	// Set level to info and check if debugOn is false
+	l.SetLevel(zap.InfoLevel)
+	assert.False(t, logger.DebugOn())
+
+	// Set level to debug again and check if debugOn is true
+	l.SetLevel(zap.DebugLevel)
+	assert.True(t, logger.DebugOn())
+}
+
 type testError struct {
 	WorkflowID string
 }

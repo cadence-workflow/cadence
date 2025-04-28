@@ -61,9 +61,16 @@ func newIsolationBalancer(timeSource clock.TimeSource, scope metrics.Scope, conf
 }
 
 func (i *isolationBalancer) adjustWritePartitions(metrics *aggregatePartitionMetrics, writePartitions map[int]*types.TaskListPartition) (map[int]*types.TaskListPartition, bool) {
+	i.refreshGroups(metrics, writePartitions)
+	partitionCount := i.getPartitionsPerGroup(writePartitions)
+
+	partitionGoal := i.calculatePartitionGoal(metrics, partitionCount, len(writePartitions))
+
+	// If there's a single partition we can't actually change anything, but we still want to run the above calculations
+	// so that we record the correct sustain values. That way when a new partition is added we can immediately respond
+	// with the correct number of pollers
 	if len(writePartitions) == 1 {
 		// If we resized to 1 partition, remove all assignments from that partition and clear all group status
-		// There's nothing to do while there's only 1
 		if len(writePartitions[0].IsolationGroups) != 0 {
 			i.reset()
 			return map[int]*types.TaskListPartition{
@@ -72,10 +79,6 @@ func (i *isolationBalancer) adjustWritePartitions(metrics *aggregatePartitionMet
 		}
 		return writePartitions, false
 	}
-	i.refreshGroups(metrics, writePartitions)
-	partitionCount := i.getPartitionsPerGroup(writePartitions)
-
-	partitionGoal := i.calculatePartitionGoal(metrics, partitionCount, len(writePartitions))
 
 	return i.applyGroupChanges(metrics, partitionCount, partitionGoal, writePartitions)
 }
@@ -182,7 +185,8 @@ func (i *isolationBalancer) calculatePartitionGoal(aggregateMetrics *aggregatePa
 		// We may have a sustained overload but already be at the max number of partitions. Only reset the sustain
 		// if we can actually make changes. This allows for instantly scaling up if the number of write partitions
 		// changes
-		if (sustainedOverLoad || sustainedUnderLoad) && targetPartitions != currentPartitions {
+		// If currentPartitions == 0 then we just scaled up from not having pollers. Allow for more than the minimum
+		if (sustainedOverLoad || sustainedUnderLoad || currentPartitions == 0) && targetPartitions != currentPartitions {
 			if sustainedOverLoad {
 				i.scope.Tagged(metrics.IsolationGroupTag(group)).IncCounter(metrics.IsolationGroupUpscale)
 			} else if sustainedUnderLoad {

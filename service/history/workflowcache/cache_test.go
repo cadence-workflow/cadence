@@ -156,7 +156,7 @@ func TestWfCache_AllowError(t *testing.T) {
 			tag.Value(map[string]interface{}{
 				"isSizeBased": false,
 				"maxCount":    1000,
-				"maxSize":     0,
+				"maxSize":     1073741824,
 			}),
 		}).Times(1)
 
@@ -210,7 +210,7 @@ func TestWfCache_AllowDomainCacheError(t *testing.T) {
 			tag.Value(map[string]interface{}{
 				"isSizeBased": false,
 				"maxCount":    1000,
-				"maxSize":     0,
+				"maxSize":     1073741824,
 			}),
 		}).Times(1)
 
@@ -262,9 +262,13 @@ func TestWfCache_RejectLog(t *testing.T) {
 			tag.Value(map[string]interface{}{
 				"isSizeBased": false,
 				"maxCount":    1000,
-				"maxSize":     0,
+				"maxSize":     1073741824,
 			}),
 		}).Times(1)
+
+	logger.On("Warn",
+		"Cache is strictly count-based because value *workflowcache.cacheValue does not implement sizable",
+		[]tag.Tag(nil)).Times(1)
 
 	expectRatelimitLog(logger, "external")
 	expectRatelimitLog(logger, "internal")

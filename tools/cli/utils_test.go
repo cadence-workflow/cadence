@@ -40,6 +40,7 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/uber/cadence/common/authorization"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/testing/testdatagen/idlfuzzedtestdata"
 	"github.com/uber/cadence/common/types"
 )
@@ -841,8 +842,10 @@ func TestCreateJWT(t *testing.T) {
 	assert.NoError(t, err)
 	tmpFile.Close()
 
+	timeSource := clock.NewMockedTimeSource()
+
 	// Call createJWT with the path to the temporary private key file
-	tokenString, err := createJWT(tmpFile.Name())
+	tokenString, err := createJWT(tmpFile.Name(), timeSource)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, tokenString)
 
@@ -857,6 +860,7 @@ func TestCreateJWT(t *testing.T) {
 	claims, ok := token.Claims.(*authorization.JWTClaims)
 	assert.True(t, ok)
 	assert.True(t, claims.Admin)
-	assert.WithinDuration(t, time.Now(), claims.IssuedAt.Time, time.Second)
-	assert.WithinDuration(t, time.Now().Add(10*time.Minute), claims.ExpiresAt.Time, time.Second)
+	// jwt serialization does Truncate(jwt.TimePrecision)
+	assert.Equal(t, timeSource.Now().Truncate(jwt.TimePrecision), claims.IssuedAt.Time)
+	assert.Equal(t, timeSource.Now().Add(10*time.Minute).Truncate(jwt.TimePrecision), claims.ExpiresAt.Time)
 }

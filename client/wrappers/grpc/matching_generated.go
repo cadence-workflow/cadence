@@ -75,7 +75,7 @@ func (g matchingClient) PollForDecisionTask(ctx context.Context, mp1 *types.Matc
 	return proto.ToMatchingPollForDecisionTaskResponse(response), proto.ToError(err)
 }
 
-func (g matchingClient) QueryWorkflow(ctx context.Context, mp1 *types.MatchingQueryWorkflowRequest, p1 ...yarpc.CallOption) (qp1 *types.QueryWorkflowResponse, err error) {
+func (g matchingClient) QueryWorkflow(ctx context.Context, mp1 *types.MatchingQueryWorkflowRequest, p1 ...yarpc.CallOption) (mp2 *types.MatchingQueryWorkflowResponse, err error) {
 	response, err := g.c.QueryWorkflow(ctx, proto.FromMatchingQueryWorkflowRequest(mp1), p1...)
 	return proto.ToMatchingQueryWorkflowResponse(response), proto.ToError(err)
 }

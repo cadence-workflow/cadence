@@ -32,6 +32,7 @@ import (
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/archiver"
 	"github.com/uber/cadence/common/archiver/provider"
 	"github.com/uber/cadence/common/asyncworkflow/queue"
@@ -74,6 +75,7 @@ type Resource interface {
 
 	GetDomainCache() cache.DomainCache
 	GetDomainMetricsScopeCache() cache.DomainMetricsScopeCache
+	GetActiveClusterManager() activecluster.Manager
 	GetTimeSource() clock.TimeSource
 	GetPayloadSerializer() persistence.PayloadSerializer
 	GetMetricsClient() metrics.Client

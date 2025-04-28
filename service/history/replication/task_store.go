@@ -54,7 +54,7 @@ type TaskStore struct {
 	clusters      map[string]*Cache
 	domains       domainCache
 	hydrator      taskHydrator
-	rateLimiter   *quotas.DynamicRateLimiter
+	rateLimiter   quotas.Limiter
 	throttleRetry *backoff.ThrottleRetry
 
 	scope  metrics.Scope

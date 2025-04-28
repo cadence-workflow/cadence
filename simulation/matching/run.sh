@@ -22,11 +22,13 @@ docker-compose -f docker/buildkite/docker-compose-local-matching-simulation.yml 
 function check_test_failure()
 {
   faillog=$(grep 'FAIL: TestMatchingSimulationSuite' -B 10 test.log 2>/dev/null || true)
-  if [ -z "$faillog" ]; then
+  timeoutlog=$(grep 'test timed out' test.log 2>/dev/null || true)
+  if [ -z "$faillog" ] && [ -z "$timeoutlog" ]; then
     echo "Passed"
   else
     echo 'Test failed!!!'
-    echo "$faillog"
+    echo "Fail log: $faillog"
+    echo "Timeout log: $timeoutlog"
     echo "Check test.log file for more details"
     exit 1
   fi

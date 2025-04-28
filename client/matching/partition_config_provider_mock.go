@@ -36,6 +36,8 @@ import (
 
 	gomock "go.uber.org/mock/gomock"
 
+	log "github.com/uber/cadence/common/log"
+	metrics "github.com/uber/cadence/common/metrics"
 	types "github.com/uber/cadence/common/types"
 )
 
@@ -61,6 +63,34 @@ func NewMockPartitionConfigProvider(ctrl *gomock.Controller) *MockPartitionConfi
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockPartitionConfigProvider) EXPECT() *MockPartitionConfigProviderMockRecorder {
 	return m.recorder
+}
+
+// GetLogger mocks base method.
+func (m *MockPartitionConfigProvider) GetLogger() log.Logger {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLogger")
+	ret0, _ := ret[0].(log.Logger)
+	return ret0
+}
+
+// GetLogger indicates an expected call of GetLogger.
+func (mr *MockPartitionConfigProviderMockRecorder) GetLogger() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLogger", reflect.TypeOf((*MockPartitionConfigProvider)(nil).GetLogger))
+}
+
+// GetMetricsClient mocks base method.
+func (m *MockPartitionConfigProvider) GetMetricsClient() metrics.Client {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMetricsClient")
+	ret0, _ := ret[0].(metrics.Client)
+	return ret0
+}
+
+// GetMetricsClient indicates an expected call of GetMetricsClient.
+func (mr *MockPartitionConfigProviderMockRecorder) GetMetricsClient() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMetricsClient", reflect.TypeOf((*MockPartitionConfigProvider)(nil).GetMetricsClient))
 }
 
 // GetNumberOfReadPartitions mocks base method.

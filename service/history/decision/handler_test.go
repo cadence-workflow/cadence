@@ -253,7 +253,6 @@ func TestHandleDecisionTaskScheduled(t *testing.T) {
 			if test.expectCalls != nil {
 				test.expectCalls(ctrl, decisionHandler.shard.(*shard.MockContext))
 			}
-
 			decisionHandler.executionCache = execution.NewCache(decisionHandler.shard)
 			err := decisionHandler.HandleDecisionTaskScheduled(context.Background(), request)
 			assert.Equal(t, test.expectErr, err != nil)
@@ -1460,6 +1459,7 @@ func expectCommonCalls(handler *handlerImpl, domainID string) {
 	handler.shard.(*shard.MockContext).EXPECT().GetMetricsClient().AnyTimes().Return(handler.metricsClient)
 	handler.domainCache.(*cache.MockDomainCache).EXPECT().GetDomainName(domainID).AnyTimes().Return(constants.TestDomainName, nil)
 	handler.shard.(*shard.MockContext).EXPECT().GetExecutionManager().Times(1)
+	handler.shard.(*shard.MockContext).EXPECT().GetShardID().Return(testShardID).Times(1)
 }
 
 func expectGetWorkflowExecution(handler *handlerImpl, domainID string, state *persistence.WorkflowMutableState) {

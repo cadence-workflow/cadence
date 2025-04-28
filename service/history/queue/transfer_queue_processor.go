@@ -171,6 +171,9 @@ func (t *transferQueueProcessor) Start() {
 		return
 	}
 
+	t.logger.Info("Starting transfer queue processor")
+	defer t.logger.Info("Transfer queue processor started")
+
 	t.activeQueueProcessor.Start()
 	for _, standbyQueueProcessor := range t.standbyQueueProcessors {
 		standbyQueueProcessor.Start()
@@ -186,15 +189,22 @@ func (t *transferQueueProcessor) Stop() {
 	}
 
 	if !t.shard.GetConfig().QueueProcessorEnableGracefulSyncShutdown() {
+		t.logger.Info("Stopping transfer queue processor non-gracefully")
+		defer t.logger.Info("Transfer queue processor stopped non-gracefully")
 		t.activeQueueProcessor.Stop()
 		for _, standbyQueueProcessor := range t.standbyQueueProcessors {
 			standbyQueueProcessor.Stop()
 		}
 
 		close(t.shutdownChan)
-		common.AwaitWaitGroup(&t.shutdownWG, time.Minute)
+		if !common.AwaitWaitGroup(&t.shutdownWG, time.Minute) {
+			t.logger.Warn("transferQueueProcessor timed out on shut down", tag.LifeCycleStopTimedout)
+		}
 		return
 	}
+
+	t.logger.Info("Stopping transfer queue processor gracefully")
+	defer t.logger.Info("Transfer queue processor stopped gracefully")
 
 	// close the shutdown channel so processor pump goroutine drains tasks and then stop the processors
 	close(t.shutdownChan)
@@ -232,6 +242,10 @@ func (t *transferQueueProcessor) NotifyNewTask(clusterName string, info *hcommon
 }
 
 func (t *transferQueueProcessor) FailoverDomain(domainIDs map[string]struct{}) {
+	if t.shard.GetConfig().DisableTransferFailoverQueue() {
+		return
+	}
+
 	// Failover queue is used to scan all inflight tasks, if queue processor is not
 	// started, there's no inflight task and we don't need to create a failover processor.
 	// Also the HandleAction will be blocked if queue processor processing loop is not running.
@@ -343,10 +357,12 @@ func (t *transferQueueProcessor) HandleAction(
 }
 
 func (t *transferQueueProcessor) LockTaskProcessing() {
+	t.logger.Debug("Transfer queue processor locking task processing")
 	t.taskAllocator.Lock()
 }
 
 func (t *transferQueueProcessor) UnlockTaskProcessing() {
+	t.logger.Debug("Transfer queue processor unlocking task processing")
 	t.taskAllocator.Unlock()
 }
 
@@ -359,6 +375,9 @@ func (t *transferQueueProcessor) drain() {
 
 func (t *transferQueueProcessor) completeTransferLoop() {
 	defer t.shutdownWG.Done()
+
+	t.logger.Info("Transfer queue processor completeTransferLoop")
+	defer t.logger.Info("Transfer queue processor completeTransferLoop completed")
 
 	completeTimer := time.NewTimer(t.config.TransferProcessorCompleteTransferInterval())
 	defer completeTimer.Stop()
@@ -383,7 +402,7 @@ func (t *transferQueueProcessor) completeTransferLoop() {
 					break
 				}
 
-				t.logger.Error("Failed to complete transfer task", tag.Error(err))
+				t.logger.Error("Failed to complete transfer task", tag.Error(err), tag.Attempt(int32(attempt)))
 				var errShardClosed *shard.ErrShardClosed
 				if errors.As(err, &errShardClosed) {
 					// shard closed, trigger shutdown and bail out
@@ -447,7 +466,7 @@ func (t *transferQueueProcessor) completeTransfer() error {
 	}
 
 	newAckLevelTaskID := newAckLevel.(transferTaskKey).taskID
-	t.logger.Debug(fmt.Sprintf("Start completing transfer task from: %v, to %v.", t.ackLevel, newAckLevelTaskID))
+	t.logger.Debugf("Start completing transfer task from: %v, to %v.", t.ackLevel, newAckLevelTaskID)
 	if t.ackLevel >= newAckLevelTaskID {
 		return nil
 	}

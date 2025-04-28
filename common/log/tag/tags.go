@@ -52,6 +52,11 @@ func ActiveClusterName(activeClusterName string) Tag {
 	return newStringTag("active-cluster-name", activeClusterName)
 }
 
+// ActiveClusterChangeType returns tag for ActiveClusterChangeType.
+func ActiveClusterChangeType(changeType string) Tag {
+	return newStringTag("active-active-change-type", changeType)
+}
+
 // Timestamp returns tag for Timestamp
 func Timestamp(timestamp time.Time) Tag {
 	return newTimeTag("timestamp", timestamp)
@@ -222,6 +227,10 @@ func IsWorkflowOpen(isOpen bool) Tag {
 // WorkflowTerminationReason returns a tag to report a workflow's termination reason
 func WorkflowTerminationReason(reason string) Tag {
 	return newStringTag("wf-termination-reason", reason)
+}
+
+func Duration(duration time.Duration) Tag {
+	return newDurationTag("duration", duration)
 }
 
 // domain related

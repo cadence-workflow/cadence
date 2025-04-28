@@ -55,6 +55,7 @@ import (
 	"github.com/uber/cadence/common/persistence/sql"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin/mysql"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin/postgres"
+	"github.com/uber/cadence/common/persistence/sql/sqlplugin/sqlite"
 	pnt "github.com/uber/cadence/common/pinot"
 	"github.com/uber/cadence/testflags"
 
@@ -273,10 +274,7 @@ func NewClusterMetadata(t *testing.T, options *TestClusterConfig) cluster.Metada
 	clusterMetadata := cluster.GetTestClusterMetadata(options.IsPrimaryCluster)
 	if !options.IsPrimaryCluster && options.ClusterGroupMetadata.PrimaryClusterName != "" { // xdc cluster metadata setup
 		clusterMetadata = cluster.NewMetadata(
-			options.ClusterGroupMetadata.FailoverVersionIncrement,
-			options.ClusterGroupMetadata.PrimaryClusterName,
-			options.ClusterGroupMetadata.CurrentClusterName,
-			options.ClusterGroupMetadata.ClusterGroup,
+			options.ClusterGroupMetadata,
 			func(domain string) bool { return false },
 			metrics.NewNoopMetricsClient(),
 			testlogger.New(t),
@@ -316,6 +314,8 @@ func NewPersistenceTestCluster(t *testing.T, clusterConfig *TestClusterConfig) t
 		case postgres.PluginName:
 			testflags.RequirePostgres(t)
 			ops, err = postgres.GetTestClusterOption()
+		case sqlite.PluginName:
+			ops = sqlite.GetTestClusterOption()
 		default:
 			t.Fatal("not supported plugin " + TestFlags.SQLPluginName)
 		}

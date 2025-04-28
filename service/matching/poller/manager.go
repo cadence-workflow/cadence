@@ -95,7 +95,7 @@ func NewPollerManager(historyUpdatedFunc HistoryUpdatedFunc, timeSource clock.Ti
 	}
 
 	return &manager{
-		historyCache:             cache.New(opts, nil),
+		historyCache:             cache.New(opts),
 		timeSource:               timeSource,
 		onHistoryUpdatedFunc:     historyUpdatedFunc,
 		mostRecentPollEndByGroup: make(map[string]time.Time),

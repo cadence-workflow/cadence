@@ -79,6 +79,7 @@ func TestNewConfig(t *testing.T) {
 		"HistoryCacheInitialSize":                              {dynamicproperties.HistoryCacheInitialSize, 22},
 		"HistoryCacheMaxSize":                                  {dynamicproperties.HistoryCacheMaxSize, 23},
 		"HistoryCacheTTL":                                      {dynamicproperties.HistoryCacheTTL, time.Second},
+		"EnableSizeBasedHistoryExecutionCache":                 {dynamicproperties.EnableSizeBasedHistoryExecutionCache, true},
 		"EventsCacheInitialCount":                              {dynamicproperties.EventsCacheInitialCount, 24},
 		"EventsCacheMaxCount":                                  {dynamicproperties.EventsCacheMaxCount, 25},
 		"EventsCacheMaxSize":                                   {dynamicproperties.EventsCacheMaxSize, 26},
@@ -86,6 +87,7 @@ func TestNewConfig(t *testing.T) {
 		"EventsCacheGlobalEnable":                              {dynamicproperties.EventsCacheGlobalEnable, true},
 		"EventsCacheGlobalInitialCount":                        {dynamicproperties.EventsCacheGlobalInitialCount, 27},
 		"EventsCacheGlobalMaxCount":                            {dynamicproperties.EventsCacheGlobalMaxCount, 28},
+		"EnableSizeBasedHistoryEventCache":                     {dynamicproperties.EnableSizeBasedHistoryEventCache, true},
 		"RangeSizeBits":                                        {nil, uint(20)},
 		"AcquireShardInterval":                                 {dynamicproperties.AcquireShardInterval, time.Second},
 		"AcquireShardConcurrency":                              {dynamicproperties.AcquireShardConcurrency, 29},
@@ -263,6 +265,9 @@ func TestNewConfig(t *testing.T) {
 		"TaskSchedulerEnableRateLimiter":                       {dynamicproperties.TaskSchedulerEnableRateLimiter, true},
 		"HostName":                                             {nil, hostname},
 		"SearchAttributesHiddenValueKeys":                      {dynamicproperties.SearchAttributesHiddenValueKeys, map[string]interface{}{"CustomStringField": true}},
+		"ExecutionCacheMaxByteSize":                            {dynamicproperties.ExecutionCacheMaxByteSize, 98},
+		"DisableTransferFailoverQueue":                         {dynamicproperties.DisableTransferFailoverQueue, true},
+		"DisableTimerFailoverQueue":                            {dynamicproperties.DisableTimerFailoverQueue, true},
 	}
 	client := dynamicconfig.NewInMemoryClient()
 	for fieldName, expected := range fields {

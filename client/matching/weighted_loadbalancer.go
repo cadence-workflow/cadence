@@ -33,6 +33,7 @@ import (
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -62,11 +63,43 @@ func newWeightSelector(n int, threshold int64) *weightSelector {
 	return pw
 }
 
+func (pw *weightSelector) pickBetween(partitions []int) int {
+	totalWeight := int64(0)
+	cumulativeWeights := make([]int64, len(partitions))
+	pw.RLock()
+	defer pw.RUnlock()
+
+	if !pw.initialized {
+		return -1
+	}
+	shouldEnable := false
+	for i, partitionID := range partitions {
+		// Invalid partition specified, bail out
+		if partitionID >= len(pw.weights) {
+			return -1
+		}
+		weight := pw.weights[partitionID]
+		totalWeight += weight
+		cumulativeWeights[i] = totalWeight
+		if weight > pw.threshold {
+			shouldEnable = true // only enable weight selection if backlog size is larger than the threshold
+		}
+	}
+	if totalWeight <= 0 || !shouldEnable {
+		return -1
+	}
+	r := rand.Int63n(totalWeight)
+	index := sort.Search(len(cumulativeWeights), func(i int) bool {
+		return cumulativeWeights[i] > r
+	})
+	return partitions[index]
+}
+
 func (pw *weightSelector) pick() (int, []int64) {
-	cumulativeWeights := make([]int64, len(pw.weights))
 	totalWeight := int64(0)
 	pw.RLock()
 	defer pw.RUnlock()
+	cumulativeWeights := make([]int64, len(pw.weights))
 	if !pw.initialized {
 		return -1, cumulativeWeights
 	}
@@ -117,7 +150,7 @@ func NewWeightedLoadBalancer(
 	lb LoadBalancer,
 	provider PartitionConfigProvider,
 	logger log.Logger,
-) LoadBalancer {
+) WeightedLoadBalancer {
 	return &weightedLoadBalancer{
 		fallbackLoadBalancer: lb,
 		provider:             provider,
@@ -127,7 +160,9 @@ func NewWeightedLoadBalancer(
 			Pin:             false,
 			MaxCount:        3000,
 			ActivelyEvict:   false,
-		}, logger),
+			MetricsScope:    provider.GetMetricsClient().Scope(metrics.LoadBalancerScope),
+			Logger:          logger,
+		}),
 		logger: logger,
 	}
 }
@@ -209,6 +244,29 @@ func (lb *weightedLoadBalancer) UpdateWeight(
 	weight := calcWeightFromLoadBalancerHints(info)
 	lb.logger.Debug("update task list partition weight", tag.WorkflowDomainID(req.GetDomainUUID()), tag.WorkflowTaskListName(taskList.GetName()), tag.WorkflowTaskListType(taskListType), tag.Dynamic("task-list-partition", p), tag.Dynamic("weight", weight), tag.Dynamic("load-balancer-hints", info))
 	w.update(n, p, weight)
+}
+
+func (lb *weightedLoadBalancer) PickBetween(domainID, taskListName string, taskListType int, partitions []int) int {
+	if len(partitions) == 0 {
+		return -1
+	}
+	if len(partitions) == 1 {
+		return partitions[0]
+	}
+	taskListKey := key{
+		domainID:     domainID,
+		taskListName: taskListName,
+		taskListType: taskListType,
+	}
+	wI := lb.weightCache.Get(taskListKey)
+	if wI == nil {
+		return -1
+	}
+	w, ok := wI.(*weightSelector)
+	if !ok {
+		return -1
+	}
+	return w.pickBetween(partitions)
 }
 
 func calcWeightFromLoadBalancerHints(info *types.LoadBalancerHints) int64 {

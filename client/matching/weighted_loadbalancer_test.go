@@ -33,6 +33,7 @@ import (
 
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/log/testlogger"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -110,7 +111,9 @@ func TestNewWeightedLoadBalancer(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	roundRobinMock := NewMockLoadBalancer(ctrl)
 	p := NewMockPartitionConfigProvider(ctrl)
+	p.EXPECT().GetMetricsClient().Return(metrics.NewNoopMetricsClient()).AnyTimes()
 	logger := testlogger.New(t)
+	p.EXPECT().GetLogger().Return(logger).AnyTimes()
 	lb := NewWeightedLoadBalancer(roundRobinMock, p, logger)
 	assert.NotNil(t, lb)
 	weightedLB, ok := lb.(*weightedLoadBalancer)
@@ -425,6 +428,195 @@ func TestCalcWeightFromLoadBalancerHints(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := calcWeightFromLoadBalancerHints(&tt.info)
 			assert.Equal(t, tt.expected, result, "unexpected result for %s", tt.name)
+		})
+	}
+}
+
+func TestPickBetween(t *testing.T) {
+	tl := types.TaskList{Name: "a"}
+	cases := []struct {
+		name    string
+		hints   map[int]*types.LoadBalancerHints
+		config  *types.TaskListPartitionConfig
+		from    []int
+		allowed []int
+	}{
+		{
+			name:    "unknown TL",
+			config:  createDefaultConfig(1, 1),
+			from:    []int{0, 1, 2, 3},
+			allowed: []int{-1},
+		},
+		{
+			name:    "no partitions specified",
+			config:  createDefaultConfig(1, 1),
+			from:    []int{},
+			allowed: []int{-1},
+		},
+		{
+			name:    "single partition specified",
+			config:  createDefaultConfig(1, 1),
+			from:    []int{0},
+			allowed: []int{0},
+		},
+		{
+			name:    "single partition",
+			config:  createDefaultConfig(1, 1),
+			from:    []int{0, 1, 2, 3},
+			allowed: []int{-1},
+		},
+		{
+			name:    "not initialized",
+			config:  createDefaultConfig(4, 4),
+			from:    []int{0, 1, 2, 3},
+			allowed: []int{-1},
+		},
+		{
+			name:   "partially initialized",
+			config: createDefaultConfig(4, 4),
+			hints: map[int]*types.LoadBalancerHints{
+				0: {
+					BacklogCount:  1000000,
+					RatePerSecond: 100,
+				},
+				1: {
+					BacklogCount:  1000000,
+					RatePerSecond: 100,
+				},
+				2: {
+					BacklogCount:  1000000,
+					RatePerSecond: 100,
+				},
+			},
+			from:    []int{0, 1, 2, 3},
+			allowed: []int{-1},
+		},
+		{
+			name:   "fully initialized",
+			config: createDefaultConfig(4, 4),
+			hints: map[int]*types.LoadBalancerHints{
+				0: {
+					BacklogCount:  1000000,
+					RatePerSecond: 100,
+				},
+				1: {
+					BacklogCount:  1000000,
+					RatePerSecond: 100,
+				},
+				2: {
+					BacklogCount:  1000000,
+					RatePerSecond: 100,
+				},
+				3: {
+					BacklogCount:  1000000,
+					RatePerSecond: 100,
+				},
+			},
+			from:    []int{0, 1, 2, 3},
+			allowed: []int{0, 1, 2, 3},
+		},
+		{
+			name:   "invalid partition",
+			config: createDefaultConfig(4, 4),
+			hints: map[int]*types.LoadBalancerHints{
+				0: {
+					BacklogCount:  1000000,
+					RatePerSecond: 100,
+				},
+				1: {
+					BacklogCount:  1000000,
+					RatePerSecond: 100,
+				},
+				2: {
+					BacklogCount:  1000000,
+					RatePerSecond: 100,
+				},
+				3: {
+					BacklogCount:  1000000,
+					RatePerSecond: 100,
+				},
+			},
+			from:    []int{0, 1, 2, 4},
+			allowed: []int{-1},
+		},
+		{
+			name:   "only consider specified - below threshold",
+			config: createDefaultConfig(4, 4),
+			hints: map[int]*types.LoadBalancerHints{
+				0: {
+					BacklogCount:  1000000,
+					RatePerSecond: 100,
+				},
+				1: {
+					BacklogCount:  1,
+					RatePerSecond: 1,
+				},
+				2: {
+					BacklogCount:  1000000,
+					RatePerSecond: 100,
+				},
+				3: {
+					BacklogCount:  1,
+					RatePerSecond: 1,
+				},
+			},
+			from:    []int{1, 3},
+			allowed: []int{-1},
+		},
+		{
+			name:   "only consider specified - above threshold",
+			config: createDefaultConfig(4, 4),
+			hints: map[int]*types.LoadBalancerHints{
+				0: {
+					BacklogCount:  1000000,
+					RatePerSecond: 100,
+				},
+				1: {
+					BacklogCount:  _backlogThreshold,
+					RatePerSecond: 1,
+				},
+				2: {
+					BacklogCount:  1000000,
+					RatePerSecond: 100,
+				},
+				3: {
+					BacklogCount:  1,
+					RatePerSecond: 1,
+				},
+			},
+			from:    []int{1, 3},
+			allowed: []int{1},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := &types.AddDecisionTaskRequest{
+				DomainUUID:    testDomain,
+				TaskList:      &tl,
+				ForwardedFrom: "",
+			}
+			ctrl := gomock.NewController(t)
+			weightCache := cache.New(&cache.Options{
+				TTL:             0,
+				InitialCapacity: 100,
+				Pin:             false,
+				MaxCount:        3000,
+				ActivelyEvict:   false,
+				MetricsScope:    metrics.NoopScope(metrics.Frontend),
+				Logger:          testlogger.New(t),
+			})
+			mockPartitionConfigProvider := NewMockPartitionConfigProvider(ctrl)
+			mockPartitionConfigProvider.EXPECT().GetNumberOfReadPartitions(testDomain, tl, 0).Return(len(tc.config.ReadPartitions)).Times(len(tc.hints))
+			lb := &weightedLoadBalancer{
+				weightCache: weightCache,
+				provider:    mockPartitionConfigProvider,
+				logger:      testlogger.New(t),
+			}
+			for partitionID, hint := range tc.hints {
+				lb.UpdateWeight(0, req, getPartitionTaskListName(tl.Name, partitionID), hint)
+			}
+			actual := lb.PickBetween(testDomain, tl.Name, 0, tc.from)
+			assert.Contains(t, tc.allowed, actual)
 		})
 	}
 }

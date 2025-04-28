@@ -198,6 +198,8 @@ func TestFailingToSubscribeIsFatal(t *testing.T) {
 		},
 	).Times(1)
 
+	mockLogger.On("Info", mock.Anything, mock.Anything).Times(2)
+
 	td.mockPeerProvider.EXPECT().
 		Subscribe(gomock.Any(), gomock.Any()).
 		Return(errors.New("can't subscribe"))

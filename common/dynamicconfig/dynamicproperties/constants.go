@@ -871,6 +871,12 @@ const (
 	// Default value: 512
 	// Allowed filters: N/A
 	HistoryCacheMaxSize
+	// ExecutionCacheMaxByteSize is the max byte size of history cache
+	// KeyName: history.executionCacheMaxByteSize
+	// Value type: Int
+	// Default value: 0
+	// Allowed filters: N/A
+	ExecutionCacheMaxByteSize
 	// EventsCacheInitialCount is initial count of events cache
 	// KeyName: history.eventsCacheInitialSize
 	// Value type: Int
@@ -2075,6 +2081,21 @@ const (
 	EnableNoSQLHistoryTaskDualWriteMode
 	ReadNoSQLHistoryTaskFromDataBlob
 
+	// EnableSizeBasedHistoryExecutionCache is the feature flag to enable size based cache for execution cache
+	// KeyName: history.enableSizeBasedHistoryExecutionCache
+	// Value type: Bool
+	// Default value: false
+	EnableSizeBasedHistoryExecutionCache
+
+	// EnableSizeBasedHistoryEventCache is the feature flag to enable size based cache for event cache
+	// KeyName: history.enableSizeBasedHistoryEventCache
+	// Value type: Bool
+	// Default value: false
+	EnableSizeBasedHistoryEventCache
+
+	DisableTransferFailoverQueue
+	DisableTimerFailoverQueue
+
 	// LastBoolKey must be the last one in this const group
 	LastBoolKey
 )
@@ -2360,8 +2381,8 @@ const (
 	// - "shard_distributor-shadow-hash_ring" means that the shards are distrubuted using the shard distributor, but shadowed by the hash ring
 	//
 	// KeyName: matching.shardDistributionMode
-	// Value type: string enum: "hash-ring" or "shard-distributor"
-	// Default value: "hash-ring"
+	// Value type: string enum: "hash_ring" or "shard_distributor"
+	// Default value: "hash_ring"
 	MatchingShardDistributionMode
 
 	// LastStringKey must be the last one in this const group
@@ -2833,14 +2854,14 @@ const (
 	// TaskIsolationDuration is the time period for which we attempt to respect tasklist isolation before allowing any poller to process the task
 	// KeyName: matching.taskIsolationDuration
 	// Value type: Duration
-	// Default value: 0
+	// Default value: 200ms
 	// Allowed filters: domainName, taskListName, taskListType
 	TaskIsolationDuration
 
 	// TaskIsolationPollerWindow is the time period for which pollers are remembered when deciding whether to skip tasklist isolation due to unpolled isolation groups.
 	// KeyName: matching.taskIsolationPollerWindow
 	// Value type: Duration
-	// Default value: 10s
+	// Default value: 2s
 	// Allowed filters: domainName, taskListName, taskListType
 	TaskIsolationPollerWindow
 
@@ -3417,6 +3438,11 @@ var IntKeys = map[IntKey]DynamicInt{
 		KeyName:      "history.cacheMaxSize",
 		Description:  "HistoryCacheMaxSize is max size of history cache",
 		DefaultValue: 512,
+	},
+	ExecutionCacheMaxByteSize: {
+		KeyName:      "history.executionCacheMaxByteSize",
+		Description:  "ExecutionCacheMaxByteSize is max size of execution cache in bytes",
+		DefaultValue: 0,
 	},
 	EventsCacheInitialCount: {
 		KeyName:      "history.eventsCacheInitialSize",
@@ -4512,6 +4538,26 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "ReadNoSQLHistoryTaskFromDataBlob is to read history tasks from data blob",
 		DefaultValue: false,
 	},
+	EnableSizeBasedHistoryExecutionCache: {
+		KeyName:      "history.enableSizeBasedHistoryExecutionCache",
+		Description:  "EnableSizeBasedHistoryExecutionCache is to enable size based history execution cache",
+		DefaultValue: false,
+	},
+	EnableSizeBasedHistoryEventCache: {
+		KeyName:      "history.enableSizeBasedHistoryEventCache",
+		Description:  "EnableSizeBasedHistoryEventCache is to enable size based history event cache",
+		DefaultValue: false,
+	},
+	DisableTransferFailoverQueue: {
+		KeyName:      "history.disableTransferFailoverQueue",
+		Description:  "DisableTransferFailoverQueue is to disable transfer failover queue",
+		DefaultValue: false,
+	},
+	DisableTimerFailoverQueue: {
+		KeyName:      "history.disableTimerFailoverQueue",
+		Description:  "DisableTimerFailoverQueue is to disable timer failover queue",
+		DefaultValue: false,
+	},
 }
 
 var FloatKeys = map[FloatKey]DynamicFloat{
@@ -4749,7 +4795,7 @@ var StringKeys = map[StringKey]DynamicString{
 	MatchingShardDistributionMode: {
 		KeyName:      "matching.shardDistributionMode",
 		Description:  "MatchingShardDistributionMode defines which shard distribution mode should be used",
-		DefaultValue: "hash-ring",
+		DefaultValue: "hash_ring",
 	},
 }
 
@@ -5208,13 +5254,13 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		KeyName:      "matching.taskIsolationDuration",
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
 		Description:  "TaskIsolationDuration is the time period for which we attempt to respect tasklist isolation before allowing any poller to process the task",
-		DefaultValue: 0,
+		DefaultValue: time.Millisecond * 200,
 	},
 	TaskIsolationPollerWindow: {
 		KeyName:      "matching.taskIsolationPollerWindow",
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
 		Description:  "TaskIsolationDuration is the time period for which we attempt to respect tasklist isolation before allowing any poller to process the task",
-		DefaultValue: time.Second * 10,
+		DefaultValue: time.Second * 2,
 	},
 }
 

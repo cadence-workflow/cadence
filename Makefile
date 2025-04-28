@@ -577,6 +577,11 @@ INTEG_TEST_XDC_DIR=hostxdc
 INTEG_TEST_NDC_ROOT=./host/ndc
 INTEG_TEST_NDC_DIR=hostndc
 
+# INTEG_TEST_ROOT requires to use test flags that are not used in other sub directories
+# go test require all test package support the flags that are used in the test
+# So INTEG_TEST_DIRS contains all test directories of INTEG_TEST_ROOT that are not using test flags
+INTEG_TEST_DIRS=$$(go list $(INTEG_TEST_ROOT)/... | grep -v $(INTEG_TEST_XDC_ROOT) | grep -v $(INTEG_TEST_NDC_ROOT) | grep -v $(INTEG_TEST_ROOT)$$)
+
 # Opt out folders that shouldn't be run as part of unit tests such as integration tests, simulations.
 # Syntax: "folder1% folder2%" # space separated list of folders to opt out
 OPT_OUT_TEST_FOLDERS=./simulation%
@@ -661,11 +666,7 @@ cover_profile:
 	$Q echo Running special test cases without race detector:
 	$Q go test ./cmd/server/cadence/
 	$Q echo Running package tests:
-	$Q for dir in $(PKG_TEST_DIRS); do \
-		mkdir -p $(BUILD)/"$$dir"; \
-		go test "$$dir" $(TEST_ARG) -coverprofile=$(BUILD)/"$$dir"/coverage.out || exit 1; \
-		(cat $(BUILD)/"$$dir"/coverage.out | grep -v "^mode: \w\+" >> $(UNIT_COVER_FILE)) || true; \
-	done;
+	$Q go test $(PKG_TEST_DIRS) $(TEST_ARG) -coverprofile=$(UNIT_COVER_FILE)
 
 cover_integration_profile:
 	$Q mkdir -p $(BUILD)
@@ -674,6 +675,8 @@ cover_integration_profile:
 
 	$Q echo Running integration test with $(PERSISTENCE_TYPE) $(PERSISTENCE_PLUGIN)
 	$Q mkdir -p $(BUILD)/$(INTEG_TEST_DIR)
+	$Q time go test $(INTEG_TEST_DIRS) $(TEST_ARG) $(TEST_TAG) $(GOCOVERPKG_ARG) -coverprofile=$(BUILD)/$(INTEG_TEST_DIR)/coverage.out || exit 1;
+	$Q cat $(BUILD)/$(INTEG_TEST_DIR)/coverage.out | grep -v "^mode: \w\+" >> $(INTEG_COVER_FILE)
 	$Q time go test $(INTEG_TEST_ROOT) $(TEST_ARG) $(TEST_TAG) -persistenceType=$(PERSISTENCE_TYPE) -sqlPluginName=$(PERSISTENCE_PLUGIN) $(GOCOVERPKG_ARG) -coverprofile=$(BUILD)/$(INTEG_TEST_DIR)/coverage.out || exit 1;
 	$Q cat $(BUILD)/$(INTEG_TEST_DIR)/coverage.out | grep -v "^mode: \w\+" >> $(INTEG_COVER_FILE)
 

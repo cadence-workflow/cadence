@@ -32,19 +32,19 @@ import (
 )
 
 type isolationLoadBalancer struct {
-	provider         PartitionConfigProvider
-	fallback         LoadBalancer
-	domainIDToName   func(string) (string, error)
-	isolationEnabled func(string) bool
+	provider                   PartitionConfigProvider
+	fallback                   WeightedLoadBalancer
+	domainIDToName             func(string) (string, error)
+	isolationAssignmentEnabled func(string) bool
 }
 
-func NewIsolationLoadBalancer(fallback LoadBalancer, provider PartitionConfigProvider, domainIDToName func(string) (string, error), config *dynamicconfig.Collection) LoadBalancer {
-	isolationEnabled := config.GetBoolPropertyFilteredByDomain(dynamicproperties.EnablePartitionIsolationGroupAssignment)
+func NewIsolationLoadBalancer(fallback WeightedLoadBalancer, provider PartitionConfigProvider, domainIDToName func(string) (string, error), config *dynamicconfig.Collection) LoadBalancer {
+	isolationAssignmentEnabled := config.GetBoolPropertyFilteredByDomain(dynamicproperties.EnablePartitionIsolationGroupAssignment)
 	return &isolationLoadBalancer{
-		provider:         provider,
-		fallback:         fallback,
-		domainIDToName:   domainIDToName,
-		isolationEnabled: isolationEnabled,
+		provider:                   provider,
+		fallback:                   fallback,
+		domainIDToName:             domainIDToName,
+		isolationAssignmentEnabled: isolationAssignmentEnabled,
 	}
 }
 
@@ -52,7 +52,7 @@ func (i *isolationLoadBalancer) PickWritePartition(taskListType int, req WriteRe
 	taskList := *req.GetTaskList()
 
 	domainName, err := i.domainIDToName(req.GetDomainUUID())
-	if err != nil || !i.isolationEnabled(domainName) {
+	if err != nil || !i.isolationAssignmentEnabled(domainName) {
 		return i.fallback.PickWritePartition(taskListType, req)
 	}
 
@@ -62,13 +62,16 @@ func (i *isolationLoadBalancer) PickWritePartition(taskListType int, req WriteRe
 	}
 
 	config := i.provider.GetPartitionConfig(req.GetDomainUUID(), taskList, taskListType)
+	if len(config.WritePartitions) == 1 {
+		return taskList.GetName()
+	}
 
 	partitions := getPartitionsForGroup(taskGroup, config.WritePartitions)
 	if len(partitions) == 0 {
 		return i.fallback.PickWritePartition(taskListType, req)
 	}
 
-	p := pickBetween(partitions)
+	p := pickRandom(partitions)
 
 	return getPartitionTaskListName(taskList.GetName(), p)
 }
@@ -77,18 +80,28 @@ func (i *isolationLoadBalancer) PickReadPartition(taskListType int, req ReadRequ
 	taskList := *req.GetTaskList()
 
 	domainName, err := i.domainIDToName(req.GetDomainUUID())
-	if err != nil || !i.isolationEnabled(domainName) || isolationGroup == "" {
+	if err != nil || !i.isolationAssignmentEnabled(domainName) || isolationGroup == "" {
 		return i.fallback.PickReadPartition(taskListType, req, isolationGroup)
 	}
 
 	config := i.provider.GetPartitionConfig(req.GetDomainUUID(), taskList, taskListType)
+	if len(config.ReadPartitions) == 1 {
+		return taskList.GetName()
+	}
 
 	partitions := getPartitionsForGroup(isolationGroup, config.ReadPartitions)
 	if len(partitions) == 0 {
 		return i.fallback.PickReadPartition(taskListType, req, isolationGroup)
 	}
 
-	p := pickBetween(partitions)
+	p := partitions[0]
+	if len(partitions) > 1 {
+		p = i.fallback.PickBetween(req.GetDomainUUID(), taskList.GetName(), taskListType, partitions)
+
+		if p == -1 {
+			p = pickRandom(partitions)
+		}
+	}
 
 	return getPartitionTaskListName(taskList.GetName(), p)
 }
@@ -103,7 +116,8 @@ func getPartitionsForGroup(taskGroup string, partitions map[int]*types.TaskListP
 	}
 
 	var res []int
-	for id, p := range partitions {
+	for id := range len(partitions) {
+		p := partitions[id]
 		if partitionAcceptsGroup(p, taskGroup) {
 			res = append(res, id)
 		}
@@ -111,8 +125,7 @@ func getPartitionsForGroup(taskGroup string, partitions map[int]*types.TaskListP
 	return res
 }
 
-func pickBetween(partitions []int) int {
-	// Could alternatively use backlog weights to make a smarter choice
+func pickRandom(partitions []int) int {
 	picked := rand.Intn(len(partitions))
 	return partitions[picked]
 }

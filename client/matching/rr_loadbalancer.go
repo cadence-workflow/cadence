@@ -26,6 +26,7 @@ import (
 	"sync/atomic"
 
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -56,14 +57,18 @@ func NewRoundRobinLoadBalancer(
 			Pin:             false,
 			MaxCount:        3000,
 			ActivelyEvict:   false,
-		}, nil),
+			MetricsScope:    provider.GetMetricsClient().Scope(metrics.LoadBalancerScope),
+			Logger:          provider.GetLogger(),
+		}),
 		writeCache: cache.New(&cache.Options{
 			TTL:             0,
 			InitialCapacity: 100,
 			Pin:             false,
 			MaxCount:        3000,
 			ActivelyEvict:   false,
-		}, nil),
+			MetricsScope:    provider.GetMetricsClient().Scope(metrics.LoadBalancerScope),
+			Logger:          provider.GetLogger(),
+		}),
 		pickPartitionFn: pickPartition,
 	}
 }

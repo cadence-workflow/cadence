@@ -138,11 +138,16 @@ func (t testShardData) GetClusterMetadata() cluster.Metadata {
 }
 
 func newClusterMetadata(t *testing.T) cluster.Metadata {
-	return cluster.NewMetadata(0, cluster1, cluster1, map[string]config.ClusterInformation{
-		cluster1: {Enabled: true},
-		cluster2: {Enabled: true},
-		cluster3: {Enabled: true},
-	},
+	return cluster.NewMetadata(
+		config.ClusterGroupMetadata{
+			PrimaryClusterName: cluster1,
+			CurrentClusterName: cluster1,
+			ClusterGroup: map[string]config.ClusterInformation{
+				cluster1: {Enabled: true},
+				cluster2: {Enabled: true},
+				cluster3: {Enabled: true},
+			},
+		},
 		func(d string) bool { return false },
 		metrics.NewNoopMetricsClient(),
 		testlogger.New(t),

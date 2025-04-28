@@ -378,13 +378,12 @@ func TestRespondQueryTaskCompleted(t *testing.T) {
 
 func TestQueryWorkflow(t *testing.T) {
 	testCases := []struct {
-		name                 string
-		req                  *types.MatchingQueryWorkflowRequest
-		hCtx                 *handlerContext
-		mockSetup            func(*tasklist.MockManager)
-		waitForQueryResultFn func(hCtx *handlerContext, isStrongConsistencyQuery bool, queryResultCh <-chan *queryResult) (*types.QueryWorkflowResponse, error)
-		wantErr              bool
-		want                 *types.QueryWorkflowResponse
+		name      string
+		req       *types.MatchingQueryWorkflowRequest
+		hCtx      *handlerContext
+		mockSetup func(*tasklist.MockManager, *lockableQueryTaskMap)
+		wantErr   bool
+		want      *types.MatchingQueryWorkflowResponse
 	}{
 		{
 			name: "invalid tasklist name",
@@ -394,7 +393,7 @@ func TestQueryWorkflow(t *testing.T) {
 					Name: "/__cadence_sys/invalid-tasklist-name",
 				},
 			},
-			mockSetup: func(mockManager *tasklist.MockManager) {},
+			mockSetup: func(mockManager *tasklist.MockManager, queryResultMap *lockableQueryTaskMap) {},
 			wantErr:   true,
 		},
 		{
@@ -406,7 +405,7 @@ func TestQueryWorkflow(t *testing.T) {
 					Kind: types.TaskListKindSticky.Ptr(),
 				},
 			},
-			mockSetup: func(mockManager *tasklist.MockManager) {
+			mockSetup: func(mockManager *tasklist.MockManager, queryResultMap *lockableQueryTaskMap) {
 				mockManager.EXPECT().HasPollerAfter(gomock.Any()).Return(false)
 			},
 			wantErr: true,
@@ -422,7 +421,7 @@ func TestQueryWorkflow(t *testing.T) {
 			hCtx: &handlerContext{
 				Context: context.Background(),
 			},
-			mockSetup: func(mockManager *tasklist.MockManager) {
+			mockSetup: func(mockManager *tasklist.MockManager, queryResultMap *lockableQueryTaskMap) {
 				mockManager.EXPECT().DispatchQueryTask(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, errors.New("some error"))
 			},
 			wantErr: true,
@@ -437,22 +436,45 @@ func TestQueryWorkflow(t *testing.T) {
 			},
 			hCtx: &handlerContext{
 				Context: func() context.Context {
-					ctx, cancel := context.WithCancel(context.Background())
-					cancel()
-					return ctx
+					return context.Background()
 				}(),
 			},
-			mockSetup: func(mockManager *tasklist.MockManager) {
-				mockManager.EXPECT().DispatchQueryTask(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil)
-			},
-			waitForQueryResultFn: func(hCtx *handlerContext, isStrongConsistencyQuery bool, queryResultCh <-chan *queryResult) (*types.QueryWorkflowResponse, error) {
-				return &types.QueryWorkflowResponse{
-					QueryResult: []byte("some result"),
-				}, nil
+			mockSetup: func(mockManager *tasklist.MockManager, queryResultMap *lockableQueryTaskMap) {
+				mockManager.EXPECT().DispatchQueryTask(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, taskID string, request *types.MatchingQueryWorkflowRequest) (*types.MatchingQueryWorkflowResponse, error) {
+					queryResChan, ok := queryResultMap.get(taskID)
+					if !ok {
+						return nil, errors.New("cannot find query result channel by taskID")
+					}
+					queryResChan <- &queryResult{workerResponse: &types.MatchingRespondQueryTaskCompletedRequest{
+						TaskID: taskID,
+						CompletedRequest: &types.RespondQueryTaskCompletedRequest{
+							QueryResult: []byte("some result"),
+						},
+					}}
+					return nil, nil
+				})
+				mockManager.EXPECT().TaskListPartitionConfig().Return(&types.TaskListPartitionConfig{
+					Version: 1,
+					ReadPartitions: map[int]*types.TaskListPartition{
+						0: {},
+					},
+					WritePartitions: map[int]*types.TaskListPartition{
+						0: {},
+					},
+				})
 			},
 			wantErr: false,
-			want: &types.QueryWorkflowResponse{
+			want: &types.MatchingQueryWorkflowResponse{
 				QueryResult: []byte("some result"),
+				PartitionConfig: &types.TaskListPartitionConfig{
+					Version: 1,
+					ReadPartitions: map[int]*types.TaskListPartition{
+						0: {},
+					},
+					WritePartitions: map[int]*types.TaskListPartition{
+						0: {},
+					},
+				},
 			},
 		},
 	}
@@ -461,7 +483,6 @@ func TestQueryWorkflow(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			mockCtrl := gomock.NewController(t)
 			mockManager := tasklist.NewMockManager(mockCtrl)
-			tc.mockSetup(mockManager)
 			tasklistID, err := tasklist.NewIdentifier("test-domain-id", "test-tasklist", 0)
 			require.NoError(t, err)
 			engine := &matchingEngineImpl{
@@ -470,8 +491,8 @@ func TestQueryWorkflow(t *testing.T) {
 				},
 				timeSource:           clock.NewRealTimeSource(),
 				lockableQueryTaskMap: lockableQueryTaskMap{queryTaskMap: make(map[string]chan *queryResult)},
-				waitForQueryResultFn: tc.waitForQueryResultFn,
 			}
+			tc.mockSetup(mockManager, &engine.lockableQueryTaskMap)
 			resp, err := engine.QueryWorkflow(tc.hCtx, tc.req)
 			if tc.wantErr {
 				require.Error(t, err)
@@ -490,7 +511,7 @@ func TestWaitForQueryResult(t *testing.T) {
 		mockSetup func(*client.MockVersionChecker)
 		wantErr   bool
 		assertErr func(*testing.T, error)
-		want      *types.QueryWorkflowResponse
+		want      *types.MatchingQueryWorkflowResponse
 	}{
 		{
 			name: "internal error",
@@ -541,7 +562,7 @@ func TestWaitForQueryResult(t *testing.T) {
 				mockVersionChecker.EXPECT().SupportsConsistentQuery("uber-go", "1.0.0").Return(nil)
 			},
 			wantErr: false,
-			want: &types.QueryWorkflowResponse{
+			want: &types.MatchingQueryWorkflowResponse{
 				QueryResult: []byte("some result"),
 			},
 		},

@@ -43,6 +43,7 @@ import (
 	"github.com/uber/cadence/service/worker/asyncworkflow"
 	"github.com/uber/cadence/service/worker/batcher"
 	"github.com/uber/cadence/service/worker/diagnostics"
+	"github.com/uber/cadence/service/worker/domaindeprecation"
 	"github.com/uber/cadence/service/worker/esanalyzer"
 	"github.com/uber/cadence/service/worker/failovermanager"
 	"github.com/uber/cadence/service/worker/indexer"
@@ -71,6 +72,7 @@ type (
 
 	// Config contains all the service config for worker
 	Config struct {
+		AdminOperationToken                 dynamicproperties.StringPropertyFn
 		KafkaCfg                            config.KafkaConfig
 		ArchiverConfig                      *archiver.Config
 		IndexerCfg                          *indexer.Config
@@ -127,6 +129,7 @@ func NewConfig(params *resource.Params) *Config {
 		dynamicproperties.ClusterNameFilter(params.ClusterMetadata.GetCurrentClusterName()),
 	)
 	config := &Config{
+		AdminOperationToken: dc.GetStringProperty(dynamicproperties.AdminOperationToken),
 		ArchiverConfig: &archiver.Config{
 			ArchiverConcurrency:             dc.GetIntProperty(dynamicproperties.WorkerArchiverConcurrency),
 			ArchivalsPerIteration:           dc.GetIntProperty(dynamicproperties.WorkerArchivalsPerIteration),
@@ -231,6 +234,7 @@ func (s *Service) Start() {
 
 	s.startReplicator()
 	s.startDiagnostics()
+	s.startDomainDeprecation()
 
 	if s.GetArchivalMetadata().GetHistoryConfig().ClusterConfiguredForArchival() {
 		s.startArchiver()
@@ -470,6 +474,24 @@ func (s *Service) startAsyncWorkflowConsumerManager() common.Daemon {
 	)
 	cm.Start()
 	return cm
+}
+
+func (s *Service) startDomainDeprecation() {
+	params := domaindeprecation.Params{
+		Config: domaindeprecation.Config{
+			AdminOperationToken: s.config.AdminOperationToken,
+		},
+		ServiceClient: s.params.PublicClient,
+		ClientBean:    s.GetClientBean(),
+		MetricsClient: s.GetMetricsClient(),
+		Tally:         s.params.MetricScope,
+		Logger:        s.GetLogger(),
+	}
+
+	if err := domaindeprecation.New(params).Start(); err != nil {
+		s.Stop()
+		s.GetLogger().Fatal("error starting domain deprecator", tag.Error(err))
+	}
 }
 
 func (s *Service) ensureDomainExists(domain string) {

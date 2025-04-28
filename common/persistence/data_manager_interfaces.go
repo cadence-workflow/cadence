@@ -1140,8 +1140,29 @@ type (
 
 	// DomainReplicationConfig describes the cross DC domain replication configuration
 	DomainReplicationConfig struct {
+		Clusters []*ClusterReplicationConfig
+
+		// ActiveClusterName is the name of the cluster that the domain is active in.
+		// Applicable for active-passive domains.
+		// If this is set, ActiveClusters is ignored.
 		ActiveClusterName string
-		Clusters          []*ClusterReplicationConfig
+
+		// ActiveClustersConfig is only applicable for active-active domains.
+		// If this is set, ActiveClusterName is ignored.
+		ActiveClusters *ActiveClustersConfig
+	}
+
+	// ActiveClustersConfig describes the active-active domain configuration.
+	ActiveClustersConfig struct {
+		RegionToClusterMap map[string]ActiveClusterConfig
+	}
+
+	// ActiveClusterConfig describes the active cluster configuration for active-active domains.
+	ActiveClusterConfig struct {
+		// ActiveClusterName is the name of the active cluster for the region.
+		ActiveClusterName string
+		// FailoverVersion is the failover version of the active cluster.
+		FailoverVersion int64
 	}
 
 	// ClusterReplicationConfig describes the cross DC cluster replication configuration
@@ -2184,4 +2205,33 @@ func (p *TaskListPartition) ToInternalType() *types.TaskListPartition {
 		return nil
 	}
 	return &types.TaskListPartition{IsolationGroups: p.IsolationGroups}
+}
+
+func (d *DomainReplicationConfig) IsActiveActive() bool {
+	return d != nil && d.ActiveClusters != nil
+}
+
+func (c *ActiveClustersConfig) DeepCopy() *ActiveClustersConfig {
+	if c == nil {
+		return nil
+	}
+
+	if c.RegionToClusterMap == nil {
+		return &ActiveClustersConfig{}
+	}
+
+	regionToClusterMap := make(map[string]ActiveClusterConfig, len(c.RegionToClusterMap))
+	for k, v := range c.RegionToClusterMap {
+		regionToClusterMap[k] = v.DeepCopy()
+	}
+	return &ActiveClustersConfig{
+		RegionToClusterMap: regionToClusterMap,
+	}
+}
+
+func (c ActiveClusterConfig) DeepCopy() ActiveClusterConfig {
+	return ActiveClusterConfig{
+		ActiveClusterName: c.ActiveClusterName,
+		FailoverVersion:   c.FailoverVersion,
+	}
 }

@@ -184,10 +184,10 @@ func (mr *MockEngineMockRecorder) PollForDecisionTask(hCtx, request any) *gomock
 }
 
 // QueryWorkflow mocks base method.
-func (m *MockEngine) QueryWorkflow(hCtx *handlerContext, request *types.MatchingQueryWorkflowRequest) (*types.QueryWorkflowResponse, error) {
+func (m *MockEngine) QueryWorkflow(hCtx *handlerContext, request *types.MatchingQueryWorkflowRequest) (*types.MatchingQueryWorkflowResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "QueryWorkflow", hCtx, request)
-	ret0, _ := ret[0].(*types.QueryWorkflowResponse)
+	ret0, _ := ret[0].(*types.MatchingQueryWorkflowResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -425,10 +425,10 @@ func (mr *MockHandlerMockRecorder) PollForDecisionTask(arg0, arg1 any) *gomock.C
 }
 
 // QueryWorkflow mocks base method.
-func (m *MockHandler) QueryWorkflow(arg0 context.Context, arg1 *types.MatchingQueryWorkflowRequest) (*types.QueryWorkflowResponse, error) {
+func (m *MockHandler) QueryWorkflow(arg0 context.Context, arg1 *types.MatchingQueryWorkflowRequest) (*types.MatchingQueryWorkflowResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "QueryWorkflow", arg0, arg1)
-	ret0, _ := ret[0].(*types.QueryWorkflowResponse)
+	ret0, _ := ret[0].(*types.MatchingQueryWorkflowResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

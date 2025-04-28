@@ -51,11 +51,11 @@ require (
 	go.uber.org/atomic v1.10.0 // indirect
 	go.uber.org/cadence v0.19.0
 	go.uber.org/config v1.4.0 // indirect
-	go.uber.org/fx v1.13.1 // indirect
-	go.uber.org/multierr v1.6.0 // indirect
+	go.uber.org/fx v1.23.0
+	go.uber.org/multierr v1.10.0 // indirect
 	go.uber.org/thriftrw v1.29.2 // indirect
 	go.uber.org/yarpc v1.70.3 // indirect
-	go.uber.org/zap v1.13.0 // indirect
+	go.uber.org/zap v1.26.0 // indirect
 	golang.org/x/net v0.26.0 // indirect
 	golang.org/x/sync v0.10.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
@@ -69,6 +69,7 @@ require (
 require (
 	github.com/uber/cadence v0.0.0-00010101000000-000000000000
 	github.com/uber/cadence/common/archiver/gcloud v0.0.0-00010101000000-000000000000
+	go.uber.org/automaxprocs v1.6.0
 	go.uber.org/mock v0.5.0
 )
 
@@ -76,6 +77,9 @@ require (
 	github.com/fatih/color v1.13.0 // indirect
 	github.com/mattn/go-colorable v0.1.9 // indirect
 	github.com/mattn/go-isatty v0.0.14 // indirect
+	github.com/ncruces/go-sqlite3 v0.22.0 // indirect
+	github.com/ncruces/julianday v1.0.0 // indirect
+	github.com/tetratelabs/wazero v1.8.2 // indirect
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
 )
 
@@ -144,7 +148,7 @@ require (
 	github.com/urfave/cli/v2 v2.27.4
 	github.com/xdg/stringprep v1.0.0 // indirect
 	go.opencensus.io v0.24.0 // indirect
-	go.uber.org/dig v1.10.0 // indirect
+	go.uber.org/dig v1.18.0 // indirect
 	go.uber.org/net/metrics v1.3.0 // indirect
 	golang.org/x/crypto v0.32.0 // indirect
 	golang.org/x/exp v0.0.0-20231226003508-02704c960a9b // indirect

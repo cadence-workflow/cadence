@@ -57,14 +57,14 @@ func (e *historyEngineImpl) registerDomainFailoverCallback() {
 	e.shard.GetDomainCache().RegisterDomainChangeCallback(
 		e.shard.GetShardID(),
 		e.shard.GetDomainNotificationVersion(),
-		e.lockProcessingForFailover,
+		e.lockTaskProcessingForDomainUpdate,
 		e.domainChangeCB,
 	)
 }
 
 func (e *historyEngineImpl) domainChangeCB(nextDomains []*cache.DomainCacheEntry) {
 	defer func() {
-		e.unlockProcessingForFailover()
+		e.unlockProcessingForDomainUpdate()
 	}()
 
 	if len(nextDomains) == 0 {
@@ -149,14 +149,14 @@ func (e *historyEngineImpl) generateGracefulFailoverTasksForDomainUpdateCallback
 	return failoverMarkerTasks
 }
 
-func (e *historyEngineImpl) lockProcessingForFailover() {
-	e.logger.Debug("locking processing for failover")
+func (e *historyEngineImpl) lockTaskProcessingForDomainUpdate() {
+	e.logger.Debug("Locking processing for domain update")
 	e.txProcessor.LockTaskProcessing()
 	e.timerProcessor.LockTaskProcessing()
 }
 
-func (e *historyEngineImpl) unlockProcessingForFailover() {
-	e.logger.Debug("unlocking processing for failover")
+func (e *historyEngineImpl) unlockProcessingForDomainUpdate() {
+	e.logger.Debug("Unlocking processing for failover")
 	e.txProcessor.UnlockTaskProcessing()
 	e.timerProcessor.UnlockTaskProcessing()
 }

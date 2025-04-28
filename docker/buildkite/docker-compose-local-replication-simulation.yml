@@ -71,6 +71,7 @@ services:
       - "SECONDARY_FRONTEND_SERVICE=cadence-cluster1"
       - "CASSANDRA_SEEDS=cassandra"
       - "ENABLE_GLOBAL_DOMAIN=true"
+      - "ENABLE_GLOBAL_ACTIVE_ACTIVE_DOMAIN=true"
       - "KEYSPACE=cadence_primary"
       - "VISIBILITY_KEYSPACE=cadence_visibility_primary"
       - "LOG_LEVEL=debug"
@@ -118,6 +119,7 @@ services:
       - "CASSANDRA_SEEDS=cassandra"
       - "IS_NOT_PRIMARY=true"
       - "ENABLE_GLOBAL_DOMAIN=true"
+      - "ENABLE_GLOBAL_ACTIVE_ACTIVE_DOMAIN=true"
       - "KEYSPACE=cadence_secondary"
       - "VISIBILITY_KEYSPACE=cadence_visibility_secondary"
       - "LOG_LEVEL=debug"
@@ -163,6 +165,8 @@ services:
       - -c
       - >
         go run *.go --cluster cluster0 | tee worker0.log
+    environment:
+      - REPLICATION_SIMULATION_CONFIG=testdata/replication_simulation_${SCENARIO}.yaml
     depends_on:
       cadence-cluster0:
         condition: service_started
@@ -194,6 +198,8 @@ services:
       - -c
       - >
         go run *.go --cluster cluster1 | tee worker1.log
+    environment:
+      - REPLICATION_SIMULATION_CONFIG=testdata/replication_simulation_${SCENARIO}.yaml
     depends_on:
       cadence-cluster0:
         condition: service_started

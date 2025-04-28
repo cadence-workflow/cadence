@@ -967,6 +967,7 @@ func (s *contextImpl) closeShard() {
 		return
 	}
 
+	s.logger.Info("Shard context closeShard called")
 	go func() {
 		s.closeCallback(s.shardID, s.shardItem)
 	}()

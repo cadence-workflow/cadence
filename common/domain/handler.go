@@ -1180,6 +1180,9 @@ func (d *handlerImpl) updateReplicationConfig(
 		activeClusterUpdated = true
 		config.ActiveClusterName = *updateRequest.ActiveClusterName
 	}
+
+	// TODO(active-active): handle active-active case here which would be updateRequest.ActiveClusters != nil.
+
 	return config, clusterUpdated, activeClusterUpdated, nil
 }
 

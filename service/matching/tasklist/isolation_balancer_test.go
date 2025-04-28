@@ -89,6 +89,76 @@ func TestAdjustWritePartitions(t *testing.T) {
 			},
 		},
 		{
+			name: "initial balance - from one partition",
+			cycles: []*testCycle{
+				{
+					metrics: &aggregatePartitionMetrics{
+						qpsByIsolationGroup: map[string]float64{
+							"a": 100,
+							"b": 99,
+						},
+						hasPollersByIsolationGroup: map[string]bool{
+							"a": true,
+							"b": true,
+						},
+					},
+					partitions: map[int]*types.TaskListPartition{
+						0: {},
+					},
+				},
+				{},
+				{},
+				{},
+				{
+					partitions: map[int]*types.TaskListPartition{
+						0: {},
+						1: {},
+					},
+					expected: map[int]*types.TaskListPartition{
+						0: {IsolationGroups: []string{"a", "b"}},
+						1: {IsolationGroups: []string{"a", "b"}},
+					},
+				},
+			},
+		},
+		{
+			name: "initial balance - from one partition skewed",
+			cycles: []*testCycle{
+				{
+					metrics: &aggregatePartitionMetrics{
+						qpsByIsolationGroup: map[string]float64{
+							"a": 300,
+							"b": 75,
+							"c": 2,
+							"d": 1,
+						},
+						hasPollersByIsolationGroup: map[string]bool{
+							"a": true,
+							"b": true,
+							"c": true,
+							"d": true,
+						},
+					},
+					partitions: map[int]*types.TaskListPartition{
+						0: {},
+					},
+				},
+				{},
+				{},
+				{},
+				{
+					partitions: map[int]*types.TaskListPartition{
+						0: {},
+						1: {},
+					},
+					expected: map[int]*types.TaskListPartition{
+						0: {IsolationGroups: []string{"a", "b"}},
+						1: {IsolationGroups: []string{"a", "c", "d"}},
+					},
+				},
+			},
+		},
+		{
 			name:               "one partition minimum",
 			groupsPerPartition: 1,
 			cycles: []*testCycle{

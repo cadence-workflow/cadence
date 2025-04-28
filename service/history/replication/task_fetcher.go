@@ -54,7 +54,7 @@ type (
 
 		GetSourceCluster() string
 		GetRequestChan() chan<- *request
-		GetRateLimiter() *quotas.DynamicRateLimiter
+		GetRateLimiter() quotas.Limiter
 	}
 
 	// TaskFetchers is a group of fetchers, one per source DC.
@@ -72,7 +72,7 @@ type (
 		config         *config.Config
 		logger         log.Logger
 		remotePeer     admin.Client
-		rateLimiter    *quotas.DynamicRateLimiter
+		rateLimiter    quotas.Limiter
 		timeSource     clock.TimeSource
 		requestChan    chan *request
 		ctx            context.Context
@@ -313,6 +313,6 @@ func (f *taskFetcherImpl) GetRequestChan() chan<- *request {
 }
 
 // GetRateLimiter returns the host level rate limiter for the fetcher
-func (f *taskFetcherImpl) GetRateLimiter() *quotas.DynamicRateLimiter {
+func (f *taskFetcherImpl) GetRateLimiter() quotas.Limiter {
 	return f.rateLimiter
 }

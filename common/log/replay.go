@@ -108,6 +108,10 @@ func (r *replayLogger) SampleInfo(msg string, sampleRate int, tags ...tag.Tag) {
 	}
 }
 
+func (r *replayLogger) DebugOn() bool {
+	return r.logger.DebugOn()
+}
+
 func (r *replayLogger) WithTags(tags ...tag.Tag) Logger {
 	return &replayLogger{
 		logger:            r.logger.WithTags(tags...),

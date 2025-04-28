@@ -43,6 +43,7 @@ import (
 	frontend "github.com/uber/cadence/client/frontend"
 	history "github.com/uber/cadence/client/history"
 	matching "github.com/uber/cadence/client/matching"
+	activecluster "github.com/uber/cadence/common/activecluster"
 	archiver "github.com/uber/cadence/common/archiver"
 	provider "github.com/uber/cadence/common/archiver/provider"
 	queue "github.com/uber/cadence/common/asyncworkflow/queue"
@@ -124,6 +125,20 @@ func NewMockResource(ctrl *gomock.Controller) *MockResource {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockResource) EXPECT() *MockResourceMockRecorder {
 	return m.recorder
+}
+
+// GetActiveClusterManager mocks base method.
+func (m *MockResource) GetActiveClusterManager() activecluster.Manager {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetActiveClusterManager")
+	ret0, _ := ret[0].(activecluster.Manager)
+	return ret0
+}
+
+// GetActiveClusterManager indicates an expected call of GetActiveClusterManager.
+func (mr *MockResourceMockRecorder) GetActiveClusterManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveClusterManager", reflect.TypeOf((*MockResource)(nil).GetActiveClusterManager))
 }
 
 // GetArchivalMetadata mocks base method.

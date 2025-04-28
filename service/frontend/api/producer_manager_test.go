@@ -32,7 +32,9 @@ import (
 	"github.com/uber/cadence/common/asyncworkflow/queue"
 	"github.com/uber/cadence/common/asyncworkflow/queue/provider"
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/messaging"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
@@ -201,6 +203,23 @@ func TestGetProducerByDomain(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name:   "Error case - async wf not enabled",
+			domain: "test-domain",
+			mockSetup: func(mockDomainCache *cache.MockDomainCache, mockProvider *queue.MockProvider, mockQueue *provider.MockQueue, mockProducerCache *cache.MockCache) {
+				mockDomainCache.EXPECT().GetDomain("test-domain").Return(cache.NewGlobalDomainCacheEntryForTest(
+					nil,
+					&persistence.DomainConfig{
+						AsyncWorkflowConfig: types.AsyncWorkflowConfiguration{
+							Enabled: false,
+						},
+					},
+					nil,
+					0,
+				), nil)
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -216,8 +235,8 @@ func TestGetProducerByDomain(t *testing.T) {
 			producerManager := NewProducerManager(
 				mockDomainCache,
 				mockProvider,
-				nil,
-				nil,
+				log.NewNoop(),
+				metrics.NewNoopMetricsClient(),
 			)
 			producerManager.(*producerManagerImpl).producerCache = mockProducerCache
 

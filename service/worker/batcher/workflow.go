@@ -45,7 +45,7 @@ type (
 )
 
 const (
-	batcherContextKey contextKey = "batcherContext"
+	BatcherContextKey contextKey = "batcherContext"
 	// BatcherTaskListName is the tasklist name
 	BatcherTaskListName = "cadence-sys-batcher-tasklist"
 	// BatchWFTypeName is the workflow type
@@ -183,7 +183,7 @@ func setDefaultParams(params BatchParams) BatchParams {
 
 // BatchActivity is activity for processing batch operation
 func BatchActivity(ctx context.Context, batchParams BatchParams) (HeartBeatDetails, error) {
-	batcher := ctx.Value(batcherContextKey).(*Batcher)
+	batcher := ctx.Value(BatcherContextKey).(*Batcher)
 	client := batcher.clientBean.GetFrontendClient()
 	var adminClient admin.Client
 	if batchParams.BatchType == BatchTypeReplicate {
@@ -284,7 +284,7 @@ func BatchActivity(ctx context.Context, batchParams BatchParams) (HeartBeatDetai
 func getHeartBeatDetails(ctx context.Context) (hbd HeartBeatDetails, ok bool) {
 	if activity.HasHeartbeatDetails(ctx) {
 		if err := activity.GetHeartbeatDetails(ctx, &hbd); err != nil {
-			batcher := ctx.Value(batcherContextKey).(*Batcher)
+			batcher := ctx.Value(BatcherContextKey).(*Batcher)
 			batcher.metricsClient.IncCounter(metrics.BatcherScope, metrics.BatcherProcessorFailures)
 			getActivityLogger(ctx).Error("Failed to recover from last heartbeat, start over from beginning", tag.Error(err))
 			return HeartBeatDetails{}, false
@@ -305,7 +305,7 @@ func startTaskProcessor(
 	client frontend.Client,
 	adminClient admin.Client,
 ) {
-	batcher := ctx.Value(batcherContextKey).(*Batcher)
+	batcher := ctx.Value(BatcherContextKey).(*Batcher)
 	for {
 		select {
 		case <-ctx.Done():
@@ -461,7 +461,7 @@ func isDone(ctx context.Context) bool {
 }
 
 func getActivityLogger(ctx context.Context) log.Logger {
-	batcher := ctx.Value(batcherContextKey).(*Batcher)
+	batcher := ctx.Value(BatcherContextKey).(*Batcher)
 	wfInfo := activity.GetInfo(ctx)
 	return batcher.logger.WithTags(
 		tag.WorkflowID(wfInfo.WorkflowExecution.ID),

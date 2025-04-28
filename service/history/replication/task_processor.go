@@ -82,8 +82,8 @@ type (
 		metricsClient     metrics.Client
 		logger            log.Logger
 		taskExecutor      TaskExecutor
-		hostRateLimiter   *quotas.DynamicRateLimiter
-		shardRateLimiter  *quotas.DynamicRateLimiter
+		hostRateLimiter   quotas.Limiter
+		shardRateLimiter  quotas.Limiter
 
 		taskRetryPolicy backoff.RetryPolicy
 		dlqRetryPolicy  backoff.RetryPolicy

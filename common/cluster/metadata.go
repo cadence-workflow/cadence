@@ -44,14 +44,20 @@ type (
 		primaryClusterName string
 		// currentClusterName is the name of the current cluster
 		currentClusterName string
+		// currentRegion is the name of the current region
+		currentRegion string
 		// allClusters contains all cluster info
 		allClusters map[string]config.ClusterInformation
 		// enabledClusters contains enabled info
 		enabledClusters map[string]config.ClusterInformation
 		// remoteClusters contains enabled and remote info
 		remoteClusters map[string]config.ClusterInformation
+		// regions contains all region info
+		regions map[string]config.RegionInformation
 		// versionToClusterName contains all initial version -> corresponding cluster name
 		versionToClusterName map[int64]string
+		// versionToRegionName contains all initial version -> corresponding region name
+		versionToRegionName map[int64]string
 		// allows for a new failover version migration
 		useNewFailoverVersionOverride dynamicproperties.BoolPropertyFnWithDomainFilter
 	}
@@ -59,22 +65,24 @@ type (
 
 // NewMetadata create a new instance of Metadata
 func NewMetadata(
-	failoverVersionIncrement int64,
-	primaryClusterName string,
-	currentClusterName string,
-	clusterGroup map[string]config.ClusterInformation,
+	clusterGroupMetadata config.ClusterGroupMetadata,
 	useMinFailoverVersionOverrideConfig dynamicproperties.BoolPropertyFnWithDomainFilter,
 	metricsClient metrics.Client,
 	logger log.Logger,
 ) Metadata {
 	versionToClusterName := make(map[int64]string)
-	for clusterName, info := range clusterGroup {
+	for clusterName, info := range clusterGroupMetadata.ClusterGroup {
 		versionToClusterName[info.InitialFailoverVersion] = clusterName
+	}
+
+	versionToRegionName := make(map[int64]string)
+	for region, info := range clusterGroupMetadata.Regions {
+		versionToRegionName[info.InitialFailoverVersion] = region
 	}
 
 	// We never use disable clusters, filter them out on start
 	enabledClusters := map[string]config.ClusterInformation{}
-	for cluster, info := range clusterGroup {
+	for cluster, info := range clusterGroupMetadata.ClusterGroup {
 		if info.Enabled {
 			enabledClusters[cluster] = info
 		}
@@ -83,7 +91,7 @@ func NewMetadata(
 	// Precompute remote clusters, they are used in multiple places
 	remoteClusters := map[string]config.ClusterInformation{}
 	for cluster, info := range enabledClusters {
-		if cluster != currentClusterName {
+		if cluster != clusterGroupMetadata.CurrentClusterName {
 			remoteClusters[cluster] = info
 		}
 	}
@@ -91,13 +99,16 @@ func NewMetadata(
 	return Metadata{
 		log:                           logger,
 		metrics:                       metricsClient.Scope(metrics.ClusterMetadataScope),
-		failoverVersionIncrement:      failoverVersionIncrement,
-		primaryClusterName:            primaryClusterName,
-		currentClusterName:            currentClusterName,
-		allClusters:                   clusterGroup,
+		failoverVersionIncrement:      clusterGroupMetadata.FailoverVersionIncrement,
+		primaryClusterName:            clusterGroupMetadata.PrimaryClusterName,
+		currentClusterName:            clusterGroupMetadata.CurrentClusterName,
+		currentRegion:                 clusterGroupMetadata.ClusterGroup[clusterGroupMetadata.CurrentClusterName].Region,
+		allClusters:                   clusterGroupMetadata.ClusterGroup,
 		enabledClusters:               enabledClusters,
 		remoteClusters:                remoteClusters,
+		regions:                       clusterGroupMetadata.Regions,
 		versionToClusterName:          versionToClusterName,
+		versionToRegionName:           versionToRegionName,
 		useNewFailoverVersionOverride: useMinFailoverVersionOverrideConfig,
 	}
 }
@@ -161,9 +172,23 @@ func (m Metadata) ClusterNameForFailoverVersion(failoverVersion int64) (string, 
 	server, err := m.resolveServerName(failoverVersion)
 	if err != nil {
 		m.metrics.IncCounter(metrics.ClusterMetadataResolvingFailoverVersionCounter)
-		return "", fmt.Errorf("failed to resolve failover version: %v", err)
+		return "", fmt.Errorf("failed to resolve failover version to a cluster: %v", err)
 	}
 	return server, nil
+}
+
+// RegionForFailoverVersion return the corresponding region for a given failover version
+func (m Metadata) RegionForFailoverVersion(failoverVersion int64) (string, error) {
+	if failoverVersion == constants.EmptyVersion {
+		return m.currentRegion, nil
+	}
+
+	region, err := m.resolveRegion(failoverVersion)
+	if err != nil {
+		m.metrics.IncCounter(metrics.ClusterMetadataResolvingFailoverVersionCounter)
+		return "", fmt.Errorf("failed to resolve failover version to a region: %v", err)
+	}
+	return region, nil
 }
 
 // gets the initial failover version for a cluster / domain
@@ -197,20 +222,32 @@ func (m Metadata) getInitialFailoverVersion(cluster string, domainName string) i
 // resolves the server name from a version number. Better to use this
 // than to check versionToClusterName directly, as this also falls back to catch
 // when there's a migration NewInitialFailoverVersion
-func (m Metadata) resolveServerName(version int64) (string, error) {
-	moddedFoVersion := version % m.failoverVersionIncrement
+func (m Metadata) resolveServerName(originalVersion int64) (string, error) {
+	version := originalVersion % m.failoverVersionIncrement
 	// attempt a lookup first
-	server, ok := m.versionToClusterName[moddedFoVersion]
+	server, ok := m.versionToClusterName[version]
 	if ok {
 		return server, nil
 	}
 
 	// else fall back on checking for new failover versions
 	for name, cluster := range m.allClusters {
-		if cluster.NewInitialFailoverVersion != nil && *cluster.NewInitialFailoverVersion == moddedFoVersion {
+		if cluster.NewInitialFailoverVersion != nil && *cluster.NewInitialFailoverVersion == version {
 			return name, nil
 		}
 	}
+
 	m.metrics.IncCounter(metrics.ClusterMetadataFailureToResolveCounter)
-	return "", fmt.Errorf("could not resolve failover version: %d", version)
+	return "", fmt.Errorf("could not resolve failover version: %d", originalVersion)
+}
+
+func (m Metadata) resolveRegion(originalVersion int64) (string, error) {
+	version := originalVersion % m.failoverVersionIncrement
+	region, ok := m.versionToRegionName[version]
+	if ok {
+		return region, nil
+	}
+
+	m.metrics.IncCounter(metrics.ClusterMetadataFailureToResolveCounter)
+	return "", fmt.Errorf("could not resolve failover version to region: %d", originalVersion)
 }

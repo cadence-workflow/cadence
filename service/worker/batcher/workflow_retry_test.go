@@ -72,7 +72,7 @@ func (s *workflowRetrySuite) SetupTest() {
 	mockResource.FrontendClient.EXPECT().RequestCancelWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	mockResource.FrontendClient.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).Return(&types.DescribeWorkflowExecutionResponse{}, nil).AnyTimes()
 
-	ctx := context.WithValue(context.Background(), batcherContextKey, batcher)
+	ctx := context.WithValue(context.Background(), BatcherContextKey, batcher)
 	workerOpts := worker.Options{
 		MetricsScope:              tally.TestScope(nil),
 		BackgroundActivityContext: ctx,

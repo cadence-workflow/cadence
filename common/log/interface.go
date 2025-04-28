@@ -47,6 +47,7 @@ type Logger interface {
 	Fatal(msg string, tags ...tag.Tag)
 	WithTags(tags ...tag.Tag) Logger
 	SampleInfo(msg string, sampleRate int, tags ...tag.Tag)
+	DebugOn() bool
 }
 
 type noop struct{}
@@ -65,4 +66,7 @@ func (n *noop) Fatal(msg string, tags ...tag.Tag)                      {}
 func (n *noop) SampleInfo(msg string, sampleRate int, tags ...tag.Tag) {}
 func (n *noop) WithTags(tags ...tag.Tag) Logger {
 	return n
+}
+func (n *noop) DebugOn() bool {
+	return true
 }
