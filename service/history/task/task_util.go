@@ -327,7 +327,6 @@ func getWorkflowExecution(
 	}
 }
 
-// TODO(active-active): Write unit tests for this
 func shouldPushToMatching(
 	ctx context.Context,
 	shard shard.Context,

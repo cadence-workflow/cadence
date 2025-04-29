@@ -30,8 +30,11 @@ import (
 	"go.uber.org/mock/gomock"
 	"go.uber.org/zap"
 
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/config"
 	commonconstants "github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
@@ -841,4 +844,124 @@ func Test_mocks(t *testing.T) {
 	assert.False(t, matches)
 
 	assert.Equal(t, fmt.Sprintf("is equal to %v", mockTask), resp.String())
+}
+
+func TestShouldPushToMatching(t *testing.T) {
+	domainID := "domainID"
+	wfid := "wfid"
+	rid := "rid"
+	currentClusterName := "currentCluster"
+
+	tests := []struct {
+		name           string
+		setupMock      func(mockDomainCache *cache.MockDomainCache, mockActiveClusterMgr *activecluster.MockManager)
+		expectedResult bool
+		expectedError  string
+	}{
+		{
+			name: "failed to get domain",
+			setupMock: func(mockDomainCache *cache.MockDomainCache, mockActiveClusterMgr *activecluster.MockManager) {
+				mockDomainCache.EXPECT().GetDomainByID(domainID).Return(nil, errors.New("failed to get domain"))
+			},
+			expectedResult: false,
+			expectedError:  "failed to get domain",
+		},
+		{
+			name: "not an active-active domain so returns true",
+			setupMock: func(mockDomainCache *cache.MockDomainCache, mockActiveClusterMgr *activecluster.MockManager) {
+				mockDomainCache.EXPECT().GetDomainByID(domainID).Return(getDomainCacheEntry(true, false), nil)
+			},
+			expectedResult: true,
+		},
+		{
+			name: "active-active domain and workflow is active in current cluster so returns true",
+			setupMock: func(mockDomainCache *cache.MockDomainCache, mockActiveClusterMgr *activecluster.MockManager) {
+				mockDomainCache.EXPECT().GetDomainByID(domainID).Return(getDomainCacheEntry(true, true), nil)
+				mockActiveClusterMgr.EXPECT().LookupWorkflow(gomock.Any(), domainID, wfid, rid).
+					Return(&activecluster.LookupResult{
+						ClusterName: currentClusterName,
+					}, nil)
+			},
+			expectedResult: true,
+		},
+		{
+			name: "active-active domain and workflow is not active in current cluster so returns false",
+			setupMock: func(mockDomainCache *cache.MockDomainCache, mockActiveClusterMgr *activecluster.MockManager) {
+				mockDomainCache.EXPECT().GetDomainByID(domainID).Return(getDomainCacheEntry(true, true), nil)
+				mockActiveClusterMgr.EXPECT().LookupWorkflow(gomock.Any(), domainID, wfid, rid).
+					Return(&activecluster.LookupResult{
+						ClusterName: "otherCluster",
+					}, nil)
+			},
+			expectedResult: false,
+		},
+		{
+			name: "active-active domain - failed to lookup workflow",
+			setupMock: func(mockDomainCache *cache.MockDomainCache, mockActiveClusterMgr *activecluster.MockManager) {
+				mockDomainCache.EXPECT().GetDomainByID(domainID).Return(getDomainCacheEntry(true, true), nil)
+				mockActiveClusterMgr.EXPECT().LookupWorkflow(gomock.Any(), domainID, wfid, rid).
+					Return(nil, errors.New("failed to lookup workflow"))
+			},
+			expectedResult: false,
+			expectedError:  "failed to lookup workflow",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			shard := shard.NewMockContext(ctrl)
+
+			domainCache := cache.NewMockDomainCache(ctrl)
+
+			shard.EXPECT().GetClusterMetadata().Return(cluster.NewMetadata(
+				config.ClusterGroupMetadata{
+					CurrentClusterName: currentClusterName,
+				},
+				func(d string) bool { return false },
+				metrics.NewNoopMetricsClient(),
+				log.NewNoop(),
+			)).AnyTimes()
+
+			shard.EXPECT().GetDomainCache().Return(domainCache)
+
+			activeClusterMgr := activecluster.NewMockManager(ctrl)
+			shard.EXPECT().GetActiveClusterManager().Return(activeClusterMgr).AnyTimes()
+
+			test.setupMock(domainCache, activeClusterMgr)
+
+			mockTask := NewMockTask(ctrl)
+			mockTask.EXPECT().GetDomainID().Return(domainID).AnyTimes()
+			mockTask.EXPECT().GetWorkflowID().Return(wfid).AnyTimes()
+			mockTask.EXPECT().GetRunID().Return(rid).AnyTimes()
+
+			result, err := shouldPushToMatching(context.Background(), shard, mockTask)
+			assert.Equal(t, test.expectedResult, result)
+			if test.expectedError != "" {
+				assert.EqualError(t, err, test.expectedError)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func getDomainCacheEntry(isGlobal, isActiveActive bool) *cache.DomainCacheEntry {
+	activeClusters := &persistence.ActiveClustersConfig{}
+	if !isActiveActive {
+		activeClusters = nil
+	}
+	return cache.NewDomainCacheEntryForTest(
+		nil,
+		nil,
+		isGlobal,
+		&persistence.DomainReplicationConfig{
+			ActiveClusters: activeClusters,
+		},
+		1,
+		nil,
+		1,
+		1,
+		1,
+	)
 }
