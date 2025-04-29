@@ -136,6 +136,13 @@ func (m *sqlShardStore) GetShard(
 		}
 	}
 
+	var pendingFailoverMarkers *persistence.DataBlob
+	if shardInfo.GetPendingFailoverMarkers() != nil {
+		pendingFailoverMarkers = &persistence.DataBlob{
+			Encoding: constants.EncodingType(shardInfo.GetPendingFailoverMarkersEncoding()),
+			Data:     shardInfo.GetPendingFailoverMarkers(),
+		}
+	}
 	resp := &persistence.InternalGetShardResponse{ShardInfo: &persistence.InternalShardInfo{
 		ShardID:                       int(row.ShardID),
 		RangeID:                       row.RangeID,
@@ -152,6 +159,7 @@ func (m *sqlShardStore) GetShard(
 		DomainNotificationVersion:     shardInfo.GetDomainNotificationVersion(),
 		ClusterReplicationLevel:       shardInfo.ClusterReplicationLevel,
 		ReplicationDLQAckLevel:        shardInfo.ReplicationDlqAckLevel,
+		PendingFailoverMarkers:        pendingFailoverMarkers,
 	}}
 
 	return resp, nil

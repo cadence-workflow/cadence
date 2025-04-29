@@ -156,6 +156,7 @@ func NewTestBaseWithNoSQL(t *testing.T, options *TestBaseOptions) *TestBase {
 		EnableShardIDMetrics:                     dynamicproperties.GetBoolPropertyFn(true),
 		EnableHistoryTaskDualWriteMode:           dynamicproperties.GetBoolPropertyFn(true),
 		ReadNoSQLHistoryTaskFromDataBlob:         dynamicproperties.GetBoolPropertyFn(false),
+		ReadNoSQLShardFromDataBlob:               dynamicproperties.GetBoolPropertyFn(true),
 	}
 	params := TestBaseParams{
 		DefaultTestCluster:    testCluster,

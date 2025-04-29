@@ -48,6 +48,7 @@ var (
 		dynamicproperties.EnableConsistentQueryByDomain:                 true,
 		dynamicproperties.MinRetentionDays:                              0,
 		dynamicproperties.WorkflowDeletionJitterRange:                   1,
+		dynamicproperties.ReadNoSQLShardFromDataBlob:                    true,
 	}
 )
 

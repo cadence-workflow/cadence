@@ -212,7 +212,11 @@ type (
 
 	// ShardRow is the same as persistence.InternalShardInfo
 	// Separate them later when there is a need.
-	ShardRow = persistence.InternalShardInfo
+	ShardRow struct {
+		*persistence.InternalShardInfo
+		Data         []byte
+		DataEncoding string
+	}
 
 	// ConflictedShardRow contains the partial information about a shard returned when a conditional write fails
 	ConflictedShardRow struct {

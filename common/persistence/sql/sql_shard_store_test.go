@@ -71,6 +71,12 @@ func TestGetShard(t *testing.T) {
 					TimerProcessingQueueStates:            []byte(`timer`),
 					TimerProcessingQueueStatesEncoding:    "timer",
 					DomainNotificationVersion:             99,
+					PendingFailoverMarkers:                []byte(`markers`),
+					PendingFailoverMarkersEncoding:        "markers",
+					ReplicationDlqAckLevel:                map[string]int64{"active": 10},
+					ClusterReplicationLevel:               map[string]int64{"active": 1002},
+					ClusterTimerAckLevel:                  map[string]time.Time{"active": time.Unix(2, 1)},
+					ClusterTransferAckLevel:               map[string]int64{"active": 1002},
 				}, nil)
 			},
 			want: &persistence.InternalGetShardResponse{
@@ -94,8 +100,12 @@ func TestGetShard(t *testing.T) {
 						Data:     []byte(`timer`),
 					},
 					DomainNotificationVersion: 99,
-					ClusterReplicationLevel:   map[string]int64{},
-					ReplicationDLQAckLevel:    map[string]int64{},
+					ClusterReplicationLevel:   map[string]int64{"active": 1002},
+					ReplicationDLQAckLevel:    map[string]int64{"active": 10},
+					PendingFailoverMarkers: &persistence.DataBlob{
+						Encoding: constants.EncodingType("markers"),
+						Data:     []byte(`markers`),
+					},
 				},
 			},
 			wantErr: false,

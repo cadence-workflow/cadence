@@ -38,6 +38,7 @@ type (
 		logger           log.Logger
 		execStoreFactory *executionStoreFactory
 		dc               *persistence.DynamicConfiguration
+		parser           serialization.Parser
 		taskSerializer   serialization.TaskSerializer
 	}
 
@@ -50,13 +51,14 @@ type (
 
 // NewFactory returns an instance of a factory object which can be used to create
 // datastores that are backed by cassandra
-func NewFactory(cfg config.ShardedNoSQL, clusterName string, logger log.Logger, taskSerializer serialization.TaskSerializer, dc *persistence.DynamicConfiguration) *Factory {
+func NewFactory(cfg config.ShardedNoSQL, clusterName string, logger log.Logger, taskSerializer serialization.TaskSerializer, parser serialization.Parser, dc *persistence.DynamicConfiguration) *Factory {
 	return &Factory{
 		cfg:            cfg,
 		clusterName:    clusterName,
 		logger:         logger,
 		taskSerializer: taskSerializer,
 		dc:             dc,
+		parser:         parser,
 	}
 }
 
@@ -67,7 +69,7 @@ func (f *Factory) NewTaskStore() (persistence.TaskStore, error) {
 
 // NewShardStore returns a new shard store
 func (f *Factory) NewShardStore() (persistence.ShardStore, error) {
-	return newNoSQLShardStore(f.cfg, f.clusterName, f.logger, f.dc)
+	return newNoSQLShardStore(f.cfg, f.clusterName, f.logger, f.dc, f.parser)
 }
 
 // NewHistoryStore returns a new history store

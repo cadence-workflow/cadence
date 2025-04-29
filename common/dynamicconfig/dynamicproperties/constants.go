@@ -2080,7 +2080,7 @@ const (
 
 	EnableNoSQLHistoryTaskDualWriteMode
 	ReadNoSQLHistoryTaskFromDataBlob
-
+	ReadNoSQLShardFromDataBlob
 	// EnableSizeBasedHistoryExecutionCache is the feature flag to enable size based cache for execution cache
 	// KeyName: history.enableSizeBasedHistoryExecutionCache
 	// Value type: Bool
@@ -4536,6 +4536,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	ReadNoSQLHistoryTaskFromDataBlob: {
 		KeyName:      "history.readNoSQLHistoryTaskFromDataBlob",
 		Description:  "ReadNoSQLHistoryTaskFromDataBlob is to read history tasks from data blob",
+		DefaultValue: false,
+	},
+	ReadNoSQLShardFromDataBlob: {
+		KeyName:      "history.readNoSQLShardFromDataBlob",
+		Description:  "ReadNoSQLShardFromDataBlob is to read shards from data blob",
 		DefaultValue: false,
 	},
 	EnableSizeBasedHistoryExecutionCache: {
