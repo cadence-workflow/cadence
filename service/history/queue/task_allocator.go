@@ -71,7 +71,7 @@ func NewTaskAllocator(shard shard.Context) TaskAllocator {
 
 // VerifyActiveTask, will return true if task activeness check is successful
 func (t *taskAllocatorImpl) VerifyActiveTask(domainID, wfID, rID string, task interface{}) (bool, error) {
-	return t.verifyTaskActiveness(t.currentClusterName, domainID, wfID, rID, task)
+	return t.verifyTaskActiveness(t.currentClusterName, domainID, wfID, rID, task, false)
 }
 
 // VerifyFailoverActiveTask, will return true if task activeness check is successful
@@ -81,21 +81,22 @@ func (t *taskAllocatorImpl) VerifyFailoverActiveTask(targetDomainIDs map[string]
 		return false, nil
 	}
 
-	return t.verifyTaskActiveness("", domainID, wfID, rID, task)
+	return t.verifyTaskActiveness("", domainID, wfID, rID, task, true)
 }
 
 // VerifyStandbyTask, will return true if task standbyness check is successful
 func (t *taskAllocatorImpl) VerifyStandbyTask(standbyCluster string, domainID, wfID, rID string, task interface{}) (bool, error) {
-	return t.verifyTaskActiveness(standbyCluster, domainID, wfID, rID, task)
+	return t.verifyTaskActiveness(standbyCluster, domainID, wfID, rID, task, true)
 }
 
 // verifyTaskActiveness verifies if a task should be processed or not based on domain's state
 //   - If failed to fetch the domain, it returns (false, err) indicating the task should be retried
 //   - If domain is not found, it returns (false, nil) indicating the task should be skipped
+//   - If domain is local, return (!skipLocalDomain, nil) indicating the task should be skipped if skipLocalDomain is true
 //   - If domain is pending active, it returns (false, ErrTaskPendingActive) indicating the task should be retried
 //   - If domain is active in the given cluster, it returns (true, nil) indicating the task should be processed
 //     Special case: if it's a failover queue (cluster == ""), it returns (true, nil) indicating the task should be processed in any cluster
-func (t *taskAllocatorImpl) verifyTaskActiveness(cluster string, domainID, wfID, rID string, task interface{}) (b bool, e error) {
+func (t *taskAllocatorImpl) verifyTaskActiveness(cluster string, domainID, wfID, rID string, task interface{}, skipLocalDomain bool) (b bool, e error) {
 	if t.logger.DebugOn() {
 		defer func() {
 			taskString := "nil"
@@ -135,6 +136,12 @@ func (t *taskAllocatorImpl) verifyTaskActiveness(cluster string, domainID, wfID,
 		return false, nil
 	}
 
+	// handle local domain
+	if !domainEntry.IsGlobalDomain() {
+		// only active in domain's cluster but should be skipped if skipLocalDomain is true
+		return !skipLocalDomain && t.currentClusterName == cluster, nil
+	}
+
 	// return error for pending active domain so the task can be retried
 	if err := t.checkDomainPendingActive(
 		domainEntry,
@@ -146,12 +153,6 @@ func (t *taskAllocatorImpl) verifyTaskActiveness(cluster string, domainID, wfID,
 
 	if cluster == "" { // failover queue task. Revisit this logic. It's copied from previous implementation
 		return true, nil
-	}
-
-	// handle local domain
-	if !domainEntry.IsGlobalDomain() {
-		// non global domain. only active in domain's cluster
-		return t.currentClusterName == cluster, nil
 	}
 
 	// handle active-active domain

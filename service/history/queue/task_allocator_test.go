@@ -29,9 +29,9 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
@@ -40,96 +40,51 @@ import (
 	htask "github.com/uber/cadence/service/history/task"
 )
 
-// TaskAllocatorSuite defines the suite for TaskAllocator tests
-type TaskAllocatorSuite struct {
-	suite.Suite
-	controller      *gomock.Controller
-	mockShard       *shard.MockContext
-	mockDomainCache *cache.MockDomainCache
-	allocator       *taskAllocatorImpl
-	taskDomainID    string
-	task            interface{}
-}
-
-func (s *TaskAllocatorSuite) SetupTest() {
-	s.controller = gomock.NewController(s.T())
-
-	s.taskDomainID = "testDomainID"
-	s.task = "testTask"
-
-	// Create mocks
-	s.mockShard = shard.NewMockContext(s.controller)
-	s.mockDomainCache = cache.NewMockDomainCache(s.controller)
-
-	// Setup mock shard to return mock domain cache and logger
-	s.mockShard.EXPECT().GetDomainCache().Return(s.mockDomainCache).AnyTimes()
-	s.mockShard.EXPECT().GetService().Return(nil).AnyTimes() // Adjust based on your implementation
-
-	// Create the task allocator
-	s.allocator = &taskAllocatorImpl{
-		currentClusterName: "currentCluster",
-		shard:              s.mockShard,
-		domainCache:        s.mockDomainCache,
-		logger:             log.NewNoop(),
-	}
-
-	s.allocator.Lock()
-	defer s.allocator.Unlock()
-}
-
-func (s *TaskAllocatorSuite) TearDownTest() {
-	s.controller.Finish()
-}
-
-// Run the test suite
-func TestTaskAllocatorSuite(t *testing.T) {
-	suite.Run(t, new(TaskAllocatorSuite))
-}
-
-// TODO(active-active): add test cases for active-active domains
-func (s *TaskAllocatorSuite) TestVerifyActiveTask() {
+func TestVerifyActiveTask(t *testing.T) {
+	domainID := "testDomainID"
+	task := "testTask"
 	tests := []struct {
 		name                string
-		setupMocks          func()
+		setupMocks          func(mockDomainCache *cache.MockDomainCache, activeClusterMgr *activecluster.MockManager)
 		expectedResult      bool
 		expectedErrorString string
 	}{
 		{
 			name: "Failed to get domain from cache, non-EntityNotExistsError",
-			setupMocks: func() {
-				s.mockDomainCache.EXPECT().GetDomainByID(s.taskDomainID).Return(nil, errors.New("some error"))
+			setupMocks: func(mockDomainCache *cache.MockDomainCache, activeClusterMgr *activecluster.MockManager) {
+				mockDomainCache.EXPECT().GetDomainByID(domainID).Return(nil, errors.New("some error"))
 			},
 			expectedResult:      false,
 			expectedErrorString: "some error",
 		},
 		{
 			name: "Domain not found, EntityNotExistsError",
-			setupMocks: func() {
-				s.mockDomainCache.EXPECT().GetDomainByID(s.taskDomainID).Return(nil, &types.EntityNotExistsError{})
+			setupMocks: func(mockDomainCache *cache.MockDomainCache, activeClusterMgr *activecluster.MockManager) {
+				mockDomainCache.EXPECT().GetDomainByID(domainID).Return(nil, &types.EntityNotExistsError{})
 			},
 			expectedResult: false,
 		},
 		{
 			name: "Domain is global and not active in current cluster",
-			setupMocks: func() {
+			setupMocks: func(mockDomainCache *cache.MockDomainCache, activeClusterMgr *activecluster.MockManager) {
 				domainEntry := cache.NewGlobalDomainCacheEntryForTest(
-					&persistence.DomainInfo{Name: s.taskDomainID + "name"},
+					&persistence.DomainInfo{Name: domainID + "name"},
 					nil,
 					&persistence.DomainReplicationConfig{
 						ActiveClusterName: "otherCluster",
 					},
 					1,
 				)
-				s.mockDomainCache.EXPECT().GetDomainByID(s.taskDomainID).Return(domainEntry, nil)
+				mockDomainCache.EXPECT().GetDomainByID(domainID).Return(domainEntry, nil)
 			},
 			expectedResult: false,
 		},
 		{
 			name: "Domain is global and pending active in current cluster",
-			setupMocks: func() {
+			setupMocks: func(mockDomainCache *cache.MockDomainCache, activeClusterMgr *activecluster.MockManager) {
 				endtime := int64(1)
 				domainEntry := cache.NewDomainCacheEntryForTest(
-					&persistence.DomainInfo{Name: s.taskDomainID + "name"},
+					&persistence.DomainInfo{Name: domainID + "name"},
 					nil,
 					true,
 					&persistence.DomainReplicationConfig{
@@ -138,47 +93,148 @@ func (s *TaskAllocatorSuite) TestVerifyActiveTask() {
 					1,
 					&endtime, 1, 1, 1,
 				)
-				s.mockDomainCache.EXPECT().GetDomainByID(s.taskDomainID).Return(domainEntry, nil)
+				mockDomainCache.EXPECT().GetDomainByID(domainID).Return(domainEntry, nil)
 			},
 			expectedResult:      false,
 			expectedErrorString: "the domain is pending-active",
 		},
 		{
 			name: "Domain is global and active in current cluster",
-			setupMocks: func() {
+			setupMocks: func(mockDomainCache *cache.MockDomainCache, activeClusterMgr *activecluster.MockManager) {
 				domainEntry := cache.NewGlobalDomainCacheEntryForTest(
-					&persistence.DomainInfo{Name: s.taskDomainID + "name"},
+					&persistence.DomainInfo{Name: domainID + "name"},
 					nil,
 					&persistence.DomainReplicationConfig{
 						ActiveClusterName: "currentCluster",
 					},
 					1,
 				)
-				s.mockDomainCache.EXPECT().GetDomainByID(s.taskDomainID).Return(domainEntry, nil)
+				mockDomainCache.EXPECT().GetDomainByID(domainID).Return(domainEntry, nil)
 			},
 			expectedResult: true,
+		},
+		{
+			name: "Domain is active-active mode, task is not active in current cluster so should be skipped",
+			setupMocks: func(mockDomainCache *cache.MockDomainCache, activeClusterMgr *activecluster.MockManager) {
+				// Set up a domainEntry that is global and has a nil FailoverEndTime
+				domainEntry := cache.NewDomainCacheEntryForTest(
+					nil,
+					nil,
+					true,
+					&persistence.DomainReplicationConfig{
+						// ActiveClusters is not nil which means it's active-active
+						ActiveClusters: &persistence.ActiveClustersConfig{},
+					},
+					1,
+					nil,
+					1,
+					1,
+					1,
+				)
+				mockDomainCache.EXPECT().GetDomainByID(domainID).Return(domainEntry, nil)
+				activeClusterMgr.EXPECT().LookupWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&activecluster.LookupResult{
+						ClusterName: "another-cluster",
+					}, nil)
+			},
+			expectedResult: false,
+		},
+		{
+			name: "Domain is active-active mode, task is active in current cluster so should be processed",
+			setupMocks: func(mockDomainCache *cache.MockDomainCache, activeClusterMgr *activecluster.MockManager) {
+				// Set up a domainEntry that is global and has a nil FailoverEndTime
+				domainEntry := cache.NewDomainCacheEntryForTest(
+					nil,
+					nil,
+					true,
+					&persistence.DomainReplicationConfig{
+						// ActiveClusters is not nil which means it's active-active
+						ActiveClusters: &persistence.ActiveClustersConfig{},
+					},
+					1,
+					nil,
+					1,
+					1,
+					1,
+				)
+				mockDomainCache.EXPECT().GetDomainByID(domainID).Return(domainEntry, nil)
+				activeClusterMgr.EXPECT().LookupWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&activecluster.LookupResult{
+						ClusterName: "currentCluster",
+					}, nil)
+			},
+			expectedResult: true,
+		},
+		{
+			name: "Domain is active-active mode, activeness lookup returns error",
+			setupMocks: func(mockDomainCache *cache.MockDomainCache, activeClusterMgr *activecluster.MockManager) {
+				// Set up a domainEntry that is global and has a nil FailoverEndTime
+				domainEntry := cache.NewDomainCacheEntryForTest(
+					nil,
+					nil,
+					true,
+					&persistence.DomainReplicationConfig{
+						// ActiveClusters is not nil which means it's active-active
+						ActiveClusters: &persistence.ActiveClustersConfig{},
+					},
+					1,
+					nil,
+					1,
+					1,
+					1,
+				)
+				mockDomainCache.EXPECT().GetDomainByID(domainID).Return(domainEntry, nil)
+				activeClusterMgr.EXPECT().LookupWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, errors.New("some error"))
+			},
+			expectedResult:      false,
+			expectedErrorString: "some error",
 		},
 	}
 
 	for _, tt := range tests {
-		s.Run(tt.name, func() {
-			tt.setupMocks()
-			result, err := s.allocator.VerifyActiveTask(s.taskDomainID, "TODO", "TODO", s.task)
-			assert.Equal(s.T(), tt.expectedResult, result)
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+
+			// Create mocks
+			mockShard := shard.NewMockContext(ctrl)
+			mockDomainCache := cache.NewMockDomainCache(ctrl)
+
+			// Setup mock shard to return mock domain cache and logger
+			mockShard.EXPECT().GetDomainCache().Return(mockDomainCache).AnyTimes()
+			mockShard.EXPECT().GetService().Return(nil).AnyTimes() // Adjust based on your implementation
+
+			activeClusterMgr := activecluster.NewMockManager(ctrl)
+
+			// Create the task allocator
+			allocator := &taskAllocatorImpl{
+				currentClusterName: "currentCluster",
+				shard:              mockShard,
+				domainCache:        mockDomainCache,
+				logger:             log.NewNoop(),
+				activeClusterMgr:   activeClusterMgr,
+			}
+
+			tt.setupMocks(mockDomainCache, activeClusterMgr)
+			result, err := allocator.VerifyActiveTask(domainID, "wfid", "rid", task)
+			assert.Equal(t, tt.expectedResult, result)
 			if tt.expectedErrorString != "" {
-				assert.Contains(s.T(), err.Error(), tt.expectedErrorString)
+				assert.Contains(t, err.Error(), tt.expectedErrorString)
 			} else {
-				assert.NoError(s.T(), err)
+				assert.NoError(t, err)
 			}
 		})
 	}
 }
 
-func (s *TaskAllocatorSuite) TestVerifyFailoverActiveTask() {
+func TestVerifyFailoverActiveTask(t *testing.T) {
+	domainID := "testDomainID"
+	task := "testTask"
+
 	tests := []struct {
 		name                string
 		targetDomainIDs     map[string]struct{}
-		setupMocks          func()
+		setupMocks          func(mockDomainCache *cache.MockDomainCache)
 		expectedResult      bool
 		expectedError       error
 		expectedErrorString string
@@ -188,7 +244,7 @@ func (s *TaskAllocatorSuite) TestVerifyFailoverActiveTask() {
 			targetDomainIDs: map[string]struct{}{
 				"someOtherDomainID": {},
 			},
-			setupMocks: func() {
+			setupMocks: func(mockDomainCache *cache.MockDomainCache) {
 				// No mocks needed since the domain is not in targetDomainIDs
 			},
 			expectedResult: false,
@@ -197,10 +253,10 @@ func (s *TaskAllocatorSuite) TestVerifyFailoverActiveTask() {
 		{
 			name: "Domain in targetDomainIDs, GetDomainByID returns non-EntityNotExistsError",
 			targetDomainIDs: map[string]struct{}{
-				s.taskDomainID: {},
+				domainID: {},
 			},
-			setupMocks: func() {
-				s.mockDomainCache.EXPECT().GetDomainByID(s.taskDomainID).Return(nil, errors.New("some error"))
+			setupMocks: func(mockDomainCache *cache.MockDomainCache) {
+				mockDomainCache.EXPECT().GetDomainByID(domainID).Return(nil, errors.New("some error"))
 			},
 			expectedResult:      false,
 			expectedError:       errors.New("some error"),
@@ -209,10 +265,10 @@ func (s *TaskAllocatorSuite) TestVerifyFailoverActiveTask() {
 		{
 			name: "Domain in targetDomainIDs, GetDomainByID returns EntityNotExistsError",
 			targetDomainIDs: map[string]struct{}{
-				s.taskDomainID: {},
+				domainID: {},
 			},
-			setupMocks: func() {
-				s.mockDomainCache.EXPECT().GetDomainByID(s.taskDomainID).Return(nil, &types.EntityNotExistsError{})
+			setupMocks: func(mockDomainCache *cache.MockDomainCache) {
+				mockDomainCache.EXPECT().GetDomainByID(domainID).Return(nil, &types.EntityNotExistsError{})
 			},
 			expectedResult: false,
 			expectedError:  nil,
@@ -220,9 +276,9 @@ func (s *TaskAllocatorSuite) TestVerifyFailoverActiveTask() {
 		{
 			name: "Domain in targetDomainIDs, domain is pending active",
 			targetDomainIDs: map[string]struct{}{
-				s.taskDomainID: {},
+				domainID: {},
 			},
-			setupMocks: func() {
+			setupMocks: func(mockDomainCache *cache.MockDomainCache) {
 				// Set up a domainEntry that is global and has a non-nil FailoverEndTime
 				endtime := int64(1)
 				domainEntry := cache.NewDomainCacheEntryForTest(
@@ -236,7 +292,7 @@ func (s *TaskAllocatorSuite) TestVerifyFailoverActiveTask() {
 					1,
 					1,
 				)
-				s.mockDomainCache.EXPECT().GetDomainByID(s.taskDomainID).Return(domainEntry, nil)
+				mockDomainCache.EXPECT().GetDomainByID(domainID).Return(domainEntry, nil)
 			},
 			expectedResult: false,
 			expectedError:  htask.ErrTaskPendingActive,
@@ -244,9 +300,9 @@ func (s *TaskAllocatorSuite) TestVerifyFailoverActiveTask() {
 		{
 			name: "Domain in targetDomainIDs, checkDomainPendingActive returns nil",
 			targetDomainIDs: map[string]struct{}{
-				s.taskDomainID: {},
+				domainID: {},
 			},
-			setupMocks: func() {
+			setupMocks: func(mockDomainCache *cache.MockDomainCache) {
 				// Set up a domainEntry that is global and has a nil FailoverEndTime
 				domainEntry := cache.NewDomainCacheEntryForTest(
 					nil,
@@ -259,34 +315,76 @@ func (s *TaskAllocatorSuite) TestVerifyFailoverActiveTask() {
 					1,
 					1,
 				)
-				s.mockDomainCache.EXPECT().GetDomainByID(s.taskDomainID).Return(domainEntry, nil)
+				mockDomainCache.EXPECT().GetDomainByID(domainID).Return(domainEntry, nil)
 			},
 			expectedResult: true,
+			expectedError:  nil,
+		},
+		{
+			name: "Domain is local, should be skipped",
+			targetDomainIDs: map[string]struct{}{
+				domainID: {},
+			},
+			setupMocks: func(mockDomainCache *cache.MockDomainCache) {
+				// Set up a domainEntry that is global and has a nil FailoverEndTime
+				domainEntry := cache.NewDomainCacheEntryForTest(
+					nil,
+					nil,
+					false, // IsGlobalDomain
+					&persistence.DomainReplicationConfig{},
+					1,
+					nil,
+					1,
+					1,
+					1,
+				)
+				mockDomainCache.EXPECT().GetDomainByID(domainID).Return(domainEntry, nil)
+			},
+			expectedResult: false,
 			expectedError:  nil,
 		},
 	}
 
 	for _, tt := range tests {
-		s.Run(tt.name, func() {
-			tt.setupMocks()
-			result, err := s.allocator.VerifyFailoverActiveTask(tt.targetDomainIDs, s.taskDomainID, "TODO", "TODO", s.task)
-			assert.Equal(s.T(), tt.expectedResult, result)
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+
+			// Create mocks
+			mockShard := shard.NewMockContext(ctrl)
+			mockDomainCache := cache.NewMockDomainCache(ctrl)
+
+			// Setup mock shard to return mock domain cache and logger
+			mockShard.EXPECT().GetDomainCache().Return(mockDomainCache).AnyTimes()
+			mockShard.EXPECT().GetService().Return(nil).AnyTimes() // Adjust based on your implementation
+
+			// Create the task allocator
+			allocator := &taskAllocatorImpl{
+				currentClusterName: "currentCluster",
+				shard:              mockShard,
+				domainCache:        mockDomainCache,
+				logger:             log.NewNoop(),
+			}
+
+			tt.setupMocks(mockDomainCache)
+			result, err := allocator.VerifyFailoverActiveTask(tt.targetDomainIDs, domainID, "wfid", "rid", task)
+			assert.Equal(t, tt.expectedResult, result)
 			if tt.expectedError != nil {
-				assert.Equal(s.T(), tt.expectedError, err)
+				assert.Equal(t, tt.expectedError, err)
 			} else if tt.expectedErrorString != "" {
-				assert.Contains(s.T(), err.Error(), tt.expectedErrorString)
+				assert.Contains(t, err.Error(), tt.expectedErrorString)
 			} else {
-				assert.NoError(s.T(), err)
+				assert.NoError(t, err)
 			}
 		})
 	}
 }
 
-// TODO(active-active): add test cases for active-active domains
-func (s *TaskAllocatorSuite) TestVerifyStandbyTask() {
+func TestVerifyStandbyTask(t *testing.T) {
+	domainID := "testDomainID"
+	task := "testTask"
 	tests := []struct {
 		name                string
-		setupMocks          func()
+		setupMocks          func(mockDomainCache *cache.MockDomainCache, activeClusterMgr *activecluster.MockManager)
 		standbyCluster      string
 		expectedResult      bool
 		expectedError       error
@@ -294,8 +392,8 @@ func (s *TaskAllocatorSuite) TestVerifyStandbyTask() {
 	}{
 		{
 			name: "GetDomainByID returns non-EntityNotExistsError",
-			setupMocks: func() {
-				s.mockDomainCache.EXPECT().GetDomainByID(s.taskDomainID).Return(nil, errors.New("some error"))
+			setupMocks: func(mockDomainCache *cache.MockDomainCache, activeClusterMgr *activecluster.MockManager) {
+				mockDomainCache.EXPECT().GetDomainByID(domainID).Return(nil, errors.New("some error"))
 			},
 			standbyCluster:      "standbyCluster",
 			expectedResult:      false,
@@ -303,8 +401,8 @@ func (s *TaskAllocatorSuite) TestVerifyStandbyTask() {
 		},
 		{
 			name: "GetDomainByID returns EntityNotExistsError",
-			setupMocks: func() {
-				s.mockDomainCache.EXPECT().GetDomainByID(s.taskDomainID).Return(nil, &types.EntityNotExistsError{})
+			setupMocks: func(mockDomainCache *cache.MockDomainCache, activeClusterMgr *activecluster.MockManager) {
+				mockDomainCache.EXPECT().GetDomainByID(domainID).Return(nil, &types.EntityNotExistsError{})
 			},
 			standbyCluster: "standbyCluster",
 			expectedResult: false,
@@ -312,13 +410,13 @@ func (s *TaskAllocatorSuite) TestVerifyStandbyTask() {
 		},
 		{
 			name: "Domain is not global",
-			setupMocks: func() {
+			setupMocks: func(mockDomainCache *cache.MockDomainCache, activeClusterMgr *activecluster.MockManager) {
 				domainEntry := cache.NewLocalDomainCacheEntryForTest(
 					&persistence.DomainInfo{},
 					&persistence.DomainConfig{},
 					"",
 				)
-				s.mockDomainCache.EXPECT().GetDomainByID(s.taskDomainID).Return(domainEntry, nil)
+				mockDomainCache.EXPECT().GetDomainByID(domainID).Return(domainEntry, nil)
 			},
 			standbyCluster: "standbyCluster",
 			expectedResult: false,
@@ -326,7 +424,7 @@ func (s *TaskAllocatorSuite) TestVerifyStandbyTask() {
 		},
 		{
 			name: "Domain is global but not standby (active cluster name does not match standbyCluster)",
-			setupMocks: func() {
+			setupMocks: func(mockDomainCache *cache.MockDomainCache, activeClusterMgr *activecluster.MockManager) {
 				domainEntry := cache.NewGlobalDomainCacheEntryForTest(
 					&persistence.DomainInfo{},
 					&persistence.DomainConfig{},
@@ -335,7 +433,7 @@ func (s *TaskAllocatorSuite) TestVerifyStandbyTask() {
 					},
 					0,
 				)
-				s.mockDomainCache.EXPECT().GetDomainByID(s.taskDomainID).Return(domainEntry, nil)
+				mockDomainCache.EXPECT().GetDomainByID(domainID).Return(domainEntry, nil)
 			},
 			standbyCluster: "standbyCluster",
 			expectedResult: false,
@@ -343,12 +441,12 @@ func (s *TaskAllocatorSuite) TestVerifyStandbyTask() {
 		},
 		{
 			name: "Domain is global and standby, but checkDomainPendingActive returns error",
-			setupMocks: func() {
+			setupMocks: func(mockDomainCache *cache.MockDomainCache, activeClusterMgr *activecluster.MockManager) {
 				endTime := time.Now().Add(time.Hour).UnixNano()
 				domainEntry := cache.NewDomainCacheEntryForTest(nil, nil, true, &persistence.DomainReplicationConfig{
 					ActiveClusterName: "currentCluster",
 				}, 1, &endTime, 1, 1, 1)
-				s.mockDomainCache.EXPECT().GetDomainByID(s.taskDomainID).Return(domainEntry, nil)
+				mockDomainCache.EXPECT().GetDomainByID(domainID).Return(domainEntry, nil)
 			},
 			standbyCluster:      "currentCluster",
 			expectedResult:      false,
@@ -356,7 +454,7 @@ func (s *TaskAllocatorSuite) TestVerifyStandbyTask() {
 		},
 		{
 			name: "Domain is global and standby, checkDomainPendingActive returns nil",
-			setupMocks: func() {
+			setupMocks: func(mockDomainCache *cache.MockDomainCache, activeClusterMgr *activecluster.MockManager) {
 				domainEntry := cache.NewGlobalDomainCacheEntryForTest(
 					&persistence.DomainInfo{},
 					&persistence.DomainConfig{},
@@ -365,41 +463,165 @@ func (s *TaskAllocatorSuite) TestVerifyStandbyTask() {
 					},
 					0, // FailoverEndTime is zero
 				)
-				s.mockDomainCache.EXPECT().GetDomainByID(s.taskDomainID).Return(domainEntry, nil)
+				mockDomainCache.EXPECT().GetDomainByID(domainID).Return(domainEntry, nil)
 			},
 			standbyCluster: "standbyCluster",
 			expectedResult: true,
 			expectedError:  nil,
 		},
+		{
+			name: "Domain is local, should be skipped",
+			setupMocks: func(mockDomainCache *cache.MockDomainCache, activeClusterMgr *activecluster.MockManager) {
+				// Set up a domainEntry that is global and has a nil FailoverEndTime
+				domainEntry := cache.NewDomainCacheEntryForTest(
+					nil,
+					nil,
+					false, // IsGlobalDomain
+					&persistence.DomainReplicationConfig{},
+					1,
+					nil,
+					1,
+					1,
+					1,
+				)
+				mockDomainCache.EXPECT().GetDomainByID(domainID).Return(domainEntry, nil)
+			},
+			standbyCluster: "standbyCluster",
+			expectedResult: false,
+			expectedError:  nil,
+		},
+		{
+			name: "Domain is active-active mode, task is not active in standby cluster so should be skipped",
+			setupMocks: func(mockDomainCache *cache.MockDomainCache, activeClusterMgr *activecluster.MockManager) {
+				// Set up a domainEntry that is global and has a nil FailoverEndTime
+				domainEntry := cache.NewDomainCacheEntryForTest(
+					nil,
+					nil,
+					true,
+					&persistence.DomainReplicationConfig{
+						// ActiveClusters is not nil which means it's active-active
+						ActiveClusters: &persistence.ActiveClustersConfig{},
+					},
+					1,
+					nil,
+					1,
+					1,
+					1,
+				)
+				mockDomainCache.EXPECT().GetDomainByID(domainID).Return(domainEntry, nil)
+				activeClusterMgr.EXPECT().LookupWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&activecluster.LookupResult{
+						ClusterName: "another-cluster",
+					}, nil)
+			},
+			standbyCluster: "standbyCluster",
+			expectedResult: false,
+			expectedError:  nil,
+		},
+		{
+			name: "Domain is active-active mode, task is active in standby cluster so should be processed",
+			setupMocks: func(mockDomainCache *cache.MockDomainCache, activeClusterMgr *activecluster.MockManager) {
+				// Set up a domainEntry that is global and has a nil FailoverEndTime
+				domainEntry := cache.NewDomainCacheEntryForTest(
+					nil,
+					nil,
+					true,
+					&persistence.DomainReplicationConfig{
+						// ActiveClusters is not nil which means it's active-active
+						ActiveClusters: &persistence.ActiveClustersConfig{},
+					},
+					1,
+					nil,
+					1,
+					1,
+					1,
+				)
+				mockDomainCache.EXPECT().GetDomainByID(domainID).Return(domainEntry, nil)
+				activeClusterMgr.EXPECT().LookupWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&activecluster.LookupResult{
+						ClusterName: "standbyCluster",
+					}, nil)
+			},
+			standbyCluster: "standbyCluster",
+			expectedResult: true,
+			expectedError:  nil,
+		},
+		{
+			name: "Domain is active-active mode, activeness lookup returns error",
+			setupMocks: func(mockDomainCache *cache.MockDomainCache, activeClusterMgr *activecluster.MockManager) {
+				// Set up a domainEntry that is global and has a nil FailoverEndTime
+				domainEntry := cache.NewDomainCacheEntryForTest(
+					nil,
+					nil,
+					true,
+					&persistence.DomainReplicationConfig{
+						// ActiveClusters is not nil which means it's active-active
+						ActiveClusters: &persistence.ActiveClustersConfig{},
+					},
+					1,
+					nil,
+					1,
+					1,
+					1,
+				)
+				mockDomainCache.EXPECT().GetDomainByID(domainID).Return(domainEntry, nil)
+				activeClusterMgr.EXPECT().LookupWorkflow(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, errors.New("some error"))
+			},
+			standbyCluster: "standbyCluster",
+			expectedResult: false,
+			expectedError:  errors.New("some error"),
+		},
 	}
 
 	for _, tt := range tests {
-		s.Run(tt.name, func() {
-			tt.setupMocks()
-			result, err := s.allocator.VerifyStandbyTask(tt.standbyCluster, s.taskDomainID, "TODO", "TODO", s.task)
-			assert.Equal(s.T(), tt.expectedResult, result)
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+
+			// Create mocks
+			mockShard := shard.NewMockContext(ctrl)
+			mockDomainCache := cache.NewMockDomainCache(ctrl)
+
+			// Setup mock shard to return mock domain cache and logger
+			mockShard.EXPECT().GetDomainCache().Return(mockDomainCache).AnyTimes()
+			mockShard.EXPECT().GetService().Return(nil).AnyTimes() // Adjust based on your implementation
+
+			activeClusterMgr := activecluster.NewMockManager(ctrl)
+
+			// Create the task allocator
+			allocator := &taskAllocatorImpl{
+				currentClusterName: "currentCluster",
+				shard:              mockShard,
+				domainCache:        mockDomainCache,
+				logger:             log.NewNoop(),
+				activeClusterMgr:   activeClusterMgr,
+			}
+
+			tt.setupMocks(mockDomainCache, activeClusterMgr)
+			result, err := allocator.VerifyStandbyTask(tt.standbyCluster, domainID, "wfid", "rid", task)
+			assert.Equal(t, tt.expectedResult, result)
 			if tt.expectedError != nil {
-				assert.Equal(s.T(), tt.expectedError, err)
+				assert.Equal(t, tt.expectedError, err)
 			} else if tt.expectedErrorString != "" {
-				assert.Contains(s.T(), err.Error(), tt.expectedErrorString)
+				assert.Contains(t, err.Error(), tt.expectedErrorString)
 			} else {
-				assert.NoError(s.T(), err)
+				assert.NoError(t, err)
 			}
 		})
 	}
 }
 
-func (s *TaskAllocatorSuite) TestIsDomainNotRegistered() {
+func TestIsDomainNotRegistered(t *testing.T) {
 	tests := []struct {
 		name                string
 		domainID            string
-		mockFn              func()
+		mockFn              func(mockDomainCache *cache.MockDomainCache)
 		expectedErrorString string
 	}{
 		{
 			name: "domainID return error",
-			mockFn: func() {
-				s.mockDomainCache.EXPECT().GetDomainByID("").Return(nil, fmt.Errorf("testError"))
+			mockFn: func(mockDomainCache *cache.MockDomainCache) {
+				mockDomainCache.EXPECT().GetDomainByID("").Return(nil, fmt.Errorf("testError"))
 			},
 			domainID:            "",
 			expectedErrorString: "testError",
@@ -407,35 +629,49 @@ func (s *TaskAllocatorSuite) TestIsDomainNotRegistered() {
 		{
 			name:     "cannot get info",
 			domainID: "testDomainID",
-			mockFn: func() {
+			mockFn: func(mockDomainCache *cache.MockDomainCache) {
 				domainEntry := cache.NewDomainCacheEntryForTest(nil, nil, false, nil, 0, nil, 0, 0, 0)
-				s.mockDomainCache.EXPECT().GetDomainByID("testDomainID").Return(domainEntry, nil)
+				mockDomainCache.EXPECT().GetDomainByID("testDomainID").Return(domainEntry, nil)
 			},
 			expectedErrorString: "domain info is nil in cache",
 		},
 		{
 			name:     "domain is deprecated",
 			domainID: "testDomainID",
-			mockFn: func() {
+			mockFn: func(mockDomainCache *cache.MockDomainCache) {
 				domainEntry := cache.NewDomainCacheEntryForTest(
 					&persistence.DomainInfo{Status: persistence.DomainStatusDeprecated}, nil, false, nil, 0, nil, 0, 0, 0)
-				s.mockDomainCache.EXPECT().GetDomainByID("testDomainID").Return(domainEntry, nil)
+				mockDomainCache.EXPECT().GetDomainByID("testDomainID").Return(domainEntry, nil)
 			},
 			expectedErrorString: "",
 		},
 	}
 
 	for _, tt := range tests {
-		s.Run(tt.name, func() {
-			tt.mockFn()
-			res, err := isDomainNotRegistered(s.mockShard, tt.domainID)
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+
+			// Create mocks
+			mockShard := shard.NewMockContext(ctrl)
+			mockDomainCache := cache.NewMockDomainCache(ctrl)
+
+			// Setup mock shard to return mock domain cache and logger
+			mockShard.EXPECT().GetDomainCache().Return(mockDomainCache).AnyTimes()
+			mockShard.EXPECT().GetService().Return(nil).AnyTimes() // Adjust based on your implementation
+
+			tt.mockFn(mockDomainCache)
+			res, err := isDomainNotRegistered(mockShard, tt.domainID)
 			if tt.expectedErrorString != "" {
-				assert.ErrorContains(s.T(), err, tt.expectedErrorString)
-				assert.False(s.T(), res)
+				assert.ErrorContains(t, err, tt.expectedErrorString)
+				assert.False(t, res)
 			} else {
-				assert.NoError(s.T(), err)
-				assert.True(s.T(), res)
+				assert.NoError(t, err)
+				assert.True(t, res)
 			}
 		})
 	}
+}
+
+func TstLockUnlock(t *testing.T) {
+
 }
