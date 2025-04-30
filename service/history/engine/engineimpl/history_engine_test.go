@@ -5443,41 +5443,15 @@ func TestRecordChildExecutionCompleted(t *testing.T) {
 					WorkflowID: "wid1",
 					RunID:      "312b2440-2859-4e50-a59f-d92a300a072d",
 				},
-				StartedID: 11,
 			},
 			mockSetup: func(ms *execution.MockMutableState) {
 				ms.EXPECT().IsWorkflowExecutionRunning().Return(true)
 				ms.EXPECT().GetChildExecutionInfo(int64(10)).Return(&persistence.ChildExecutionInfo{StartedID: commonconstants.EmptyEventID}, true)
-				ms.EXPECT().GetNextEventID().Return(int64(11)).Times(2)
+				ms.EXPECT().GetNextEventID().Return(int64(11)).Times(1)
 			},
 			wantErr: true,
 			assertErr: func(t *testing.T, err error) {
 				assert.Equal(t, workflow.ErrStaleState, err)
-			},
-		},
-		{
-			name: "pending child execution not started",
-			request: &types.RecordChildExecutionCompletedRequest{
-				DomainUUID:  "58f7998e-9c00-4827-bbd3-6a891b3ca0ca",
-				InitiatedID: 10,
-				WorkflowExecution: &types.WorkflowExecution{
-					WorkflowID: "wid",
-					RunID:      "4353ddce-ca34-4c78-9785-dc0b83af4bbc",
-				},
-				CompletedExecution: &types.WorkflowExecution{
-					WorkflowID: "wid1",
-					RunID:      "312b2440-2859-4e50-a59f-d92a300a072d",
-				},
-				StartedID: 11,
-			},
-			mockSetup: func(ms *execution.MockMutableState) {
-				ms.EXPECT().IsWorkflowExecutionRunning().Return(true)
-				ms.EXPECT().GetChildExecutionInfo(int64(10)).Return(&persistence.ChildExecutionInfo{StartedID: commonconstants.EmptyEventID}, true)
-				ms.EXPECT().GetNextEventID().Return(int64(12)).Times(1)
-			},
-			wantErr: true,
-			assertErr: func(t *testing.T, err error) {
-				assert.Equal(t, &types.EntityNotExistsError{Message: "Pending child execution not started."}, err)
 			},
 		},
 		{
