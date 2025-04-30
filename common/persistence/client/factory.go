@@ -529,19 +529,11 @@ func (f *factoryImpl) init(clusterName string, limiters map[string]quotas.Limite
 		parser := getParser(f.logger, constants.EncodingTypeThriftRW, constants.EncodingTypeThriftRW)
 		taskSerializer := serialization.NewTaskSerializer(parser)
 		shardedNoSQLConfig := defaultCfg.NoSQL.ConvertToShardedNoSQLConfig()
-<<<<<<< HEAD
 		defaultDataStore.factory = nosql.NewFactory(*shardedNoSQLConfig, clusterName, f.logger, f.metricsClient, taskSerializer, parser, f.dc)
 	case defaultCfg.ShardedNoSQL != nil:
 		parser := getParser(f.logger, constants.EncodingTypeThriftRW, constants.EncodingTypeThriftRW)
 		taskSerializer := serialization.NewTaskSerializer(parser)
 		defaultDataStore.factory = nosql.NewFactory(*defaultCfg.ShardedNoSQL, clusterName, f.logger, f.metricsClient, taskSerializer, parser, f.dc)
-=======
-		defaultDataStore.factory = nosql.NewFactory(*shardedNoSQLConfig, clusterName, f.logger, taskSerializer, parser, f.dc)
-	case defaultCfg.ShardedNoSQL != nil:
-		parser := getParser(f.logger, constants.EncodingTypeThriftRW, constants.EncodingTypeThriftRW)
-		taskSerializer := serialization.NewTaskSerializer(parser)
-		defaultDataStore.factory = nosql.NewFactory(*defaultCfg.ShardedNoSQL, clusterName, f.logger, taskSerializer, parser, f.dc)
->>>>>>> 07426f270 (Serialize shard data)
 	case defaultCfg.SQL != nil:
 		if defaultCfg.SQL.EncodingType == "" {
 			defaultCfg.SQL.EncodingType = string(constants.EncodingTypeThriftRW)
