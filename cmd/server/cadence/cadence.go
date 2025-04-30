@@ -173,7 +173,7 @@ func runServices(services []string, appBuilder func(serviceName string) fxAppInt
 		stoppedWg.Add(1)
 		go func(s string) {
 			defer stoppedWg.Done()
-			fxApp := appBuilder(serv)
+			fxApp := appBuilder(s)
 
 			//  If any of the start hooks return an error, Start short-circuits, calls Stop, and returns the inciting error.
 			if err := fxApp.Start(ctx); err != nil {
