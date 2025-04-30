@@ -29,6 +29,7 @@ import (
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 	"github.com/uber/cadence/common/persistence/serialization"
@@ -47,10 +48,11 @@ func newNoSQLShardStore(
 	cfg config.ShardedNoSQL,
 	clusterName string,
 	logger log.Logger,
+	metricsClient metrics.Client,
 	dc *persistence.DynamicConfiguration,
 	parser serialization.Parser,
 ) (persistence.ShardStore, error) {
-	s, err := newShardedNosqlStore(cfg, logger, dc)
+	s, err := newShardedNosqlStore(cfg, logger, metricsClient, dc)
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +135,7 @@ func (sh *nosqlShardStore) GetShard(
 		// shardInfoRangeID and return rangeID instead. Later when updating the shard, CAS can still succeed
 		// as the value from rangeID columns is returned, shardInfoRangeID will also be updated to the correct value.
 	}
-	shardInfo, err := sh.shardsRowToShardInfo(storeShard, shardRow)
+	shardInfo, err := sh.shardsRowToShardInfo(storeShard, shardRow, rangeID)
 	if err != nil {
 		return nil, err
 	}
@@ -248,19 +250,25 @@ func (sh *nosqlShardStore) shardInfoToShardsRow(s *persistence.InternalShardInfo
 	}, nil
 }
 
-func (sh *nosqlShardStore) shardsRowToShardInfo(storeShard *nosqlStore, shardRow *nosqlplugin.ShardRow) (*persistence.InternalShardInfo, error) {
+func (sh *nosqlShardStore) shardsRowToShardInfo(storeShard *nosqlStore, shardRow *nosqlplugin.ShardRow, rangeID int64) (*persistence.InternalShardInfo, error) {
 	if !storeShard.dc.ReadNoSQLShardFromDataBlob() {
+		sh.GetMetricsClient().IncCounter(metrics.PersistenceGetShardScope, metrics.NoSQLShardStoreReadFromOriginalColumnCounter)
 		return shardRow.InternalShardInfo, nil
 	}
 	if len(shardRow.Data) == 0 {
+		sh.GetMetricsClient().IncCounter(metrics.PersistenceGetShardScope, metrics.NoSQLShardStoreReadFromOriginalColumnCounter)
 		sh.GetLogger().Warn("Shard info data blob is empty, falling back to typed fields")
 		return shardRow.InternalShardInfo, nil
 	}
 	shardInfo, err := sh.parser.ShardInfoFromBlob(shardRow.Data, shardRow.DataEncoding)
 	if err != nil {
+		sh.GetMetricsClient().IncCounter(metrics.PersistenceGetShardScope, metrics.NoSQLShardStoreReadFromOriginalColumnCounter)
 		sh.GetLogger().Error("Failed to decode shard info from data blob, falling back to typed fields", tag.Error(err))
 		return shardRow.InternalShardInfo, nil
 	}
+
+	sh.GetMetricsClient().IncCounter(metrics.PersistenceGetShardScope, metrics.NoSQLShardStoreReadFromDataBlobCounter)
+
 	if len(shardInfo.ClusterTransferAckLevel) == 0 {
 		shardInfo.ClusterTransferAckLevel = map[string]int64{
 			sh.currentClusterName: shardInfo.GetTransferAckLevel(),
@@ -310,7 +318,7 @@ func (sh *nosqlShardStore) shardsRowToShardInfo(storeShard *nosqlStore, shardRow
 	}
 	return &persistence.InternalShardInfo{
 		ShardID:                       int(shardRow.ShardID),
-		RangeID:                       shardRow.RangeID,
+		RangeID:                       rangeID,
 		Owner:                         shardInfo.GetOwner(),
 		StolenSinceRenew:              int(shardInfo.GetStolenSinceRenew()),
 		UpdatedAt:                     shardInfo.GetUpdatedAt(),

@@ -31,21 +31,25 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log/testlogger"
+	"github.com/uber/cadence/common/metrics"
 )
 
 func TestModule(t *testing.T) {
 	app := fxtest.New(t,
 		testlogger.Module(t),
-		fx.Provide(func() config.Config {
-			return config.Config{
-				ClusterGroupMetadata: &config.ClusterGroupMetadata{},
-			}
-		},
+		fx.Provide(
+			func() config.Config {
+				return config.Config{
+					ClusterGroupMetadata: &config.ClusterGroupMetadata{},
+				}
+			},
 			func() fxRoot {
 				return fxRoot{
 					RootDir: "../../../",
 				}
-			}),
+			},
+			metrics.NewNoopMetricsClient,
+		),
 		Module,
 		fx.Invoke(func(c dynamicconfig.Client) {}),
 	)

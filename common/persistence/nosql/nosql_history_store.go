@@ -28,6 +28,7 @@ import (
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 	persistenceutils "github.com/uber/cadence/common/persistence/persistence-utils"
@@ -42,9 +43,10 @@ type nosqlHistoryStore struct {
 func newNoSQLHistoryStore(
 	cfg config.ShardedNoSQL,
 	logger log.Logger,
+	metricsClient metrics.Client,
 	dc *persistence.DynamicConfiguration,
 ) (persistence.HistoryStore, error) {
-	s, err := newShardedNosqlStore(cfg, logger, dc)
+	s, err := newShardedNosqlStore(cfg, logger, metricsClient, dc)
 	if err != nil {
 		return nil, err
 	}

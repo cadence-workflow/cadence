@@ -33,6 +33,7 @@ import (
 
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 	"github.com/uber/cadence/common/persistence/serialization"
@@ -211,6 +212,7 @@ func TestGetShard(t *testing.T) {
 					Data:              []byte("shard-info"),
 					DataEncoding:      "base64",
 				}, nil).Times(1)
+				storeShardMock.EXPECT().GetMetricsClient().Return(metrics.NewNoopMetricsClient()).Times(1)
 				mockParser.EXPECT().ShardInfoFromBlob(gomock.Any(), gomock.Any()).Return(&serialization.ShardInfo{
 					Owner:               "test-owner",
 					StolenSinceRenew:    1,
@@ -294,6 +296,7 @@ func TestGetShard(t *testing.T) {
 					ReadNoSQLShardFromDataBlob: dynamicproperties.GetBoolPropertyFn(false),
 				}}, nil).Times(2)
 				storeShardMock.EXPECT().GetLogger().Return(log.NewNoop()).Times(1)
+				storeShardMock.EXPECT().GetMetricsClient().Return(metrics.NewNoopMetricsClient()).Times(1)
 				dbMock.EXPECT().SelectShard(gomock.Any(), 1, "test-cluster").Return(int64(100), &nosqlplugin.ShardRow{
 					InternalShardInfo: testFixtureInternalShardInfo(),
 					Data:              []byte("shard-info"),

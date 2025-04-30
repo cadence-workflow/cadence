@@ -25,6 +25,7 @@ import (
 
 	"github.com/stretchr/testify/suite"
 
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql/public"
 	persistencetests "github.com/uber/cadence/common/persistence/persistence-tests"
 	"github.com/uber/cadence/testflags"
@@ -58,6 +59,15 @@ func TestCassandraShardPersistence(t *testing.T) {
 	testflags.RequireCassandra(t)
 	s := new(persistencetests.ShardPersistenceSuite)
 	s.TestBase = public.NewTestBaseWithPublicCassandra(t, &persistencetests.TestBaseOptions{})
+	s.Setup()
+	suite.Run(t, s)
+}
+
+func TestCassandraShardMigrationPersistence(t *testing.T) {
+	testflags.RequireCassandra(t)
+	s := new(persistencetests.ShardPersistenceSuite)
+	s.TestBase = public.NewTestBaseWithPublicCassandra(t, &persistencetests.TestBaseOptions{})
+	s.TestBase.DynamicConfiguration.ReadNoSQLShardFromDataBlob = dynamicproperties.GetBoolPropertyFn(true)
 	s.Setup()
 	suite.Run(t, s)
 }

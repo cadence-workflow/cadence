@@ -2146,6 +2146,9 @@ const (
 	PersistenceSampledCounterPerDomain
 	PersistenceEmptyResponseCounterPerDomain
 
+	NoSQLShardStoreReadFromOriginalColumnCounter
+	NoSQLShardStoreReadFromDataBlobCounter
+
 	CadenceClientRequests
 	CadenceClientFailures
 	CadenceClientLatency
@@ -2874,6 +2877,8 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		PersistenceErrDBUnavailableCounterPerDomain:                  {metricName: "persistence_errors_db_unavailable_per_domain", metricRollupName: "persistence_errors_db_unavailable", metricType: Counter},
 		PersistenceSampledCounterPerDomain:                           {metricName: "persistence_sampled_per_domain", metricRollupName: "persistence_sampled", metricType: Counter},
 		PersistenceEmptyResponseCounterPerDomain:                     {metricName: "persistence_empty_response_per_domain", metricRollupName: "persistence_empty_response", metricType: Counter},
+		NoSQLShardStoreReadFromOriginalColumnCounter:                 {metricName: "nosql_shard_store_read_from_original_column", metricType: Counter},
+		NoSQLShardStoreReadFromDataBlobCounter:                       {metricName: "nosql_shard_store_read_from_data_blob", metricType: Counter},
 		CadenceClientRequests:                                        {metricName: "cadence_client_requests", metricType: Counter},
 		CadenceClientFailures:                                        {metricName: "cadence_client_errors", metricType: Counter},
 		CadenceClientLatency:                                         {metricName: "cadence_client_latency", metricType: Timer},

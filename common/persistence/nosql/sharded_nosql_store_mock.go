@@ -37,6 +37,7 @@ import (
 	gomock "go.uber.org/mock/gomock"
 
 	log "github.com/uber/cadence/common/log"
+	metrics "github.com/uber/cadence/common/metrics"
 )
 
 // MockshardedNosqlStore is a mock of shardedNosqlStore interface.
@@ -101,6 +102,20 @@ func (m *MockshardedNosqlStore) GetLogger() log.Logger {
 func (mr *MockshardedNosqlStoreMockRecorder) GetLogger() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLogger", reflect.TypeOf((*MockshardedNosqlStore)(nil).GetLogger))
+}
+
+// GetMetricsClient mocks base method.
+func (m *MockshardedNosqlStore) GetMetricsClient() metrics.Client {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMetricsClient")
+	ret0, _ := ret[0].(metrics.Client)
+	return ret0
+}
+
+// GetMetricsClient indicates an expected call of GetMetricsClient.
+func (mr *MockshardedNosqlStoreMockRecorder) GetMetricsClient() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMetricsClient", reflect.TypeOf((*MockshardedNosqlStore)(nil).GetMetricsClient))
 }
 
 // GetName mocks base method.

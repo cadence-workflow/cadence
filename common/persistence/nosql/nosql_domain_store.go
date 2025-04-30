@@ -29,6 +29,7 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 	"github.com/uber/cadence/common/types"
@@ -44,9 +45,10 @@ func newNoSQLDomainStore(
 	cfg config.ShardedNoSQL,
 	currentClusterName string,
 	logger log.Logger,
+	metricsClient metrics.Client,
 	dc *persistence.DynamicConfiguration,
 ) (persistence.DomainStore, error) {
-	shardedStore, err := newShardedNosqlStore(cfg, logger, dc)
+	shardedStore, err := newShardedNosqlStore(cfg, logger, metricsClient, dc)
 	if err != nil {
 		return nil, err
 	}

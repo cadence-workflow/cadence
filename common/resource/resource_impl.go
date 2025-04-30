@@ -703,7 +703,7 @@ func createConfigStoreOrDefault(
 		FetchTimeout:        dc.GetDurationProperty(dynamicproperties.IsolationGroupStateFetchTimeout)(),
 		UpdateTimeout:       dc.GetDurationProperty(dynamicproperties.IsolationGroupStateUpdateTimeout)(),
 	}
-	cfgStoreClient, err := configstore.NewConfigStoreClient(cscConfig, &params.PersistenceConfig, params.Logger, persistence.GlobalIsolationGroupConfig)
+	cfgStoreClient, err := configstore.NewConfigStoreClient(cscConfig, &params.PersistenceConfig, params.Logger, params.MetricsClient, persistence.GlobalIsolationGroupConfig)
 	if err != nil {
 		// not possible to create the client under some persistence configurations, so this is expected
 		params.Logger.Warn("not instantiating Isolation group config store, this feature will not be enabled", tag.Error(err))

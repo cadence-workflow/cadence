@@ -29,6 +29,7 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 )
 
@@ -40,26 +41,28 @@ type shardedNosqlStore interface {
 	GetName() string
 	GetShardingPolicy() shardingPolicy
 	GetLogger() log.Logger
+	GetMetricsClient() metrics.Client
 }
 
 // shardedNosqlStore is a store that may have one or more shards
 type shardedNosqlStoreImpl struct {
 	sync.RWMutex
 
-	config config.ShardedNoSQL
-	dc     *persistence.DynamicConfiguration
-	logger log.Logger
-
+	config          config.ShardedNoSQL
+	dc              *persistence.DynamicConfiguration
+	logger          log.Logger
+	metricsClient   metrics.Client
 	connectedShards map[string]nosqlStore
 	defaultShard    nosqlStore
 	shardingPolicy  shardingPolicy
 }
 
-func newShardedNosqlStore(cfg config.ShardedNoSQL, logger log.Logger, dc *persistence.DynamicConfiguration) (shardedNosqlStore, error) {
+func newShardedNosqlStore(cfg config.ShardedNoSQL, logger log.Logger, metricsClient metrics.Client, dc *persistence.DynamicConfiguration) (shardedNosqlStore, error) {
 	sn := shardedNosqlStoreImpl{
-		config: cfg,
-		dc:     dc,
-		logger: logger,
+		config:        cfg,
+		dc:            dc,
+		logger:        logger,
+		metricsClient: metricsClient,
 	}
 
 	// Connect to the default shard
@@ -118,6 +121,10 @@ func (sn *shardedNosqlStoreImpl) GetShardingPolicy() shardingPolicy {
 
 func (sn *shardedNosqlStoreImpl) GetLogger() log.Logger {
 	return sn.logger
+}
+
+func (sn *shardedNosqlStoreImpl) GetMetricsClient() metrics.Client {
+	return sn.metricsClient
 }
 
 func (sn *shardedNosqlStoreImpl) getShard(shardName string) (*nosqlStore, error) {

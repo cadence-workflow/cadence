@@ -33,6 +33,7 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 )
 
@@ -43,9 +44,10 @@ var Module = fx.Options(fx.Provide(New))
 type Params struct {
 	fx.In
 
-	Cfg     config.Config
-	Logger  log.Logger
-	RootDir string `name:"root-dir"`
+	Cfg           config.Config
+	Logger        log.Logger
+	MetricsClient metrics.Client
+	RootDir       string `name:"root-dir"`
 
 	Lifecycle fx.Lifecycle
 }
@@ -85,6 +87,7 @@ func New(p Params) Result {
 				&p.Cfg.DynamicConfig.ConfigStore,
 				&p.Cfg.Persistence,
 				p.Logger,
+				p.MetricsClient,
 				persistence.DynamicConfig,
 			)
 		case dynamicconfig.FileBasedClient:
