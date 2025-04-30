@@ -22,6 +22,7 @@ package cadence
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	stdLog "log"
 	"os"
@@ -194,12 +195,16 @@ func runServices(services []string, appBuilder func(serviceName string) fxAppInt
 			}
 		}(serv)
 	}
-	stoppedWg.Wait()
-	// After stoppedWg unblocked all services are stopped to we no longer wait for errors.
-	close(errChan)
+	go func() {
+		stoppedWg.Wait()
+		// After stoppedWg unblocked all services are stopped to we no longer wait for errors.
+		close(errChan)
+	}()
+
 	var resErrors error
 	for err := range errChan {
-		if err != nil {
+		// skip canceled errors, since they are caused by context cancelation and only focus on actual errors.
+		if err != nil && !errors.Is(err, context.Canceled) {
 			resErrors = multierr.Append(resErrors, err)
 		}
 	}

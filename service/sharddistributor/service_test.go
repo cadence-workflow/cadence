@@ -37,6 +37,7 @@ import (
 	"go.uber.org/yarpc"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/membership"
@@ -92,6 +93,7 @@ func TestFxServiceStartStop(t *testing.T) {
 	app := fxtest.New(t,
 		testlogger.Module(t),
 		fx.Provide(
+			func() config.Config { return config.Config{} },
 			func() metrics.Client { return metrics.NewNoopMetricsClient() },
 			func() rpc.Factory {
 				factory := rpc.NewMockFactory(ctrl)
@@ -104,8 +106,10 @@ func TestFxServiceStartStop(t *testing.T) {
 			func() hostResult { return hostResult{} },
 			func() map[string]membership.SingleProvider { return make(map[string]membership.SingleProvider) },
 		),
-		fx.Provide(FXService))
+		fx.Provide(FXService), fx.Invoke(func(*Service) {}))
 	app.RequireStart().RequireStop()
+	// API should be registered inside dispatcher.
+	assert.True(t, len(testDispatcher.Introspect().Procedures) > 1)
 }
 
 type hostResult struct {

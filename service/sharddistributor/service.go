@@ -85,12 +85,14 @@ func FXService(params ServiceParams) *Service {
 
 	logger := params.Logger.WithTags(tag.Service("shard-distributor"))
 
+	dispatcher := params.RPCFactory.GetDispatcher()
+
 	svc := &Service{
 		config: serviceConfig,
 
 		logger:           logger,
 		metricsClient:    params.MetricsClient,
-		dispatcher:       params.RPCFactory.GetDispatcher(),
+		dispatcher:       dispatcher,
 		numHistoryShards: params.Config.Persistence.NumHistoryShards,
 
 		matchingRing: params.MembershipRings[service.Matching],
@@ -99,6 +101,9 @@ func FXService(params ServiceParams) *Service {
 
 	rawHandler := handler.NewHandler(logger, params.MetricsClient, svc.matchingRing, svc.historyRing)
 	svc.handler = metered.NewMetricsHandler(rawHandler, logger, params.MetricsClient)
+
+	grpcHandler := grpc.NewGRPCHandler(svc.handler)
+	grpcHandler.Register(svc.dispatcher)
 
 	params.Lifecycle.Append(fx.StartStopHook(svc.Start, svc.Stop))
 	return svc
