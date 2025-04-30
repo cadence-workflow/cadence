@@ -25,6 +25,7 @@ package cadence
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
@@ -100,7 +101,12 @@ func (s *ServerSuite) TestServerStartup() {
 
 	var daemons []common.Daemon
 	// Shard distributor should be tested separately
-	services := service.ShortNames(service.List[:len(service.List)-1])
+	distributorShortName := service.ShortName(service.ShardDistributor)
+	services := slices.DeleteFunc(service.ShortNames(service.List),
+		func(s string) bool {
+			return s == distributorShortName
+		})
+
 	for _, svc := range services {
 		server := newServer(svc, cfg, logger, dynamicconfig.NewNopClient())
 		daemons = append(daemons, server)
@@ -117,7 +123,6 @@ func (s *ServerSuite) TestServerStartup() {
 }
 
 func TestSettingGettingZonalIsolationGroupsFromIG(t *testing.T) {
-
 	ctrl := gomock.NewController(t)
 	client := dynamicconfig.NewMockClient(ctrl)
 	client.EXPECT().GetListValue(dynamicproperties.AllIsolationGroups, gomock.Any()).Return([]interface{}{

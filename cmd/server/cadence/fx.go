@@ -52,7 +52,7 @@ func Module(serviceName string) fx.Option {
 				FullName: service.FullName(serviceName),
 			}),
 			rpcfx.Module,
-			// PeerProvider could be overriden. Inside Uber we use DNS based internal solution.
+			// PeerProvider could be overriden e.g. with a DNS based internal solution.
 			ringpopfx.Module,
 			membershipfx.Module,
 			sharddistributorfx.Module)

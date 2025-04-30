@@ -31,6 +31,7 @@ import (
 
 	"github.com/urfave/cli/v2"
 	"go.uber.org/fx"
+	"go.uber.org/multierr"
 
 	"github.com/uber/cadence/common/client"
 	"github.com/uber/cadence/common/clock/clockfx"
@@ -114,20 +115,22 @@ func BuildCLI(releaseVersion string, gitRevision string) *cli.App {
 				},
 			},
 			Action: func(c *cli.Context) error {
-				stoppedWg := &sync.WaitGroup{}
-
-				ctx, cancel := context.WithCancel(context.Background())
-				defer cancel()
+				appCtx := appContext{
+					CfgContext: config.Context{
+						Environment: getEnvironment(c),
+						Zone:        getZone(c),
+					},
+					ConfigDir: getConfigDir(c),
+					RootDir:   getRootDir(c),
+				}
 
 				services := getServices(c)
-				// non blocking channel that can accommodate at least 3 errors per service (worst case).
-				errChan := make(chan error, len(services)*3)
-				for _, serv := range getServices(c) {
-					stoppedWg.Add(1)
-					go func(s string) {
-						defer stoppedWg.Done()
-						fxApp := fx.New(
-							fx.Module(s,
+
+				return runServices(
+					services,
+					func(serviceName string) fxAppInterface {
+						return fx.New(
+							fx.Module(serviceName,
 								config.Module,
 								dynamicconfigfx.Module,
 								logfx.Module,
@@ -135,57 +138,69 @@ func BuildCLI(releaseVersion string, gitRevision string) *cli.App {
 								clockfx.Module,
 								fx.Provide(
 									func() appContext {
-										return appContext{
-											CfgContext: config.Context{
-												Environment: getEnvironment(c),
-												Zone:        getZone(c),
-											},
-											ConfigDir: getConfigDir(c),
-											RootDir:   getRootDir(c),
-										}
+										return appCtx
 									},
 								),
-								Module(s),
+								Module(serviceName),
 							),
 						)
-
-						//  If any of the start hooks return an error, Start short-circuits, calls Stop, and returns the inciting error.
-						if err := fxApp.Start(ctx); err != nil {
-							errChan <- fmt.Errorf("service %s start: %w", s, err)
-							return
-						}
-
-						select {
-						// Block until FX receives a shutdown signal
-						case <-fxApp.Done():
-						}
-
-						// Stop the application
-						err := fxApp.Stop(ctx)
-						if err != nil {
-							errChan <- fmt.Errorf("service %s stop: %w", s, err)
-						}
-					}(serv)
-				}
-				stoppedWg.Wait()
-				// After stoppedWg unblocked all services are stopped to we no longer wait for errors.
-				close(errChan)
-				var resErrors multiError
-				for err := range errChan {
-					if err != nil {
-						resErrors = append(resErrors, err)
-					}
-				}
-				if len(resErrors) > 0 {
-					return &resErrors
-				}
-				return nil
+					},
+				)
 			},
 		},
 	}
 
 	return app
 
+}
+
+func runServices(services []string, appBuilder func(serviceName string) fxAppInterface) error {
+	stoppedWg := &sync.WaitGroup{}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	errChan := make(chan error, len(services))
+
+	for _, serv := range services {
+		stoppedWg.Add(1)
+		go func(s string) {
+			defer stoppedWg.Done()
+			fxApp := appBuilder(serv)
+
+			//  If any of the start hooks return an error, Start short-circuits, calls Stop, and returns the inciting error.
+			if err := fxApp.Start(ctx); err != nil {
+				// If any of the apps fails to start, immediately cancel the context so others will also stop.
+				cancel()
+				errChan <- fmt.Errorf("service %s start: %w", s, err)
+				return
+			}
+
+			select {
+			// Block until FX receives a shutdown signal
+			case <-fxApp.Done():
+			}
+
+			// Stop the application
+			err := fxApp.Stop(ctx)
+			if err != nil {
+				errChan <- fmt.Errorf("service %s stop: %w", s, err)
+			}
+		}(serv)
+	}
+	stoppedWg.Wait()
+	// After stoppedWg unblocked all services are stopped to we no longer wait for errors.
+	close(errChan)
+	var resErrors error
+	for err := range errChan {
+		if err != nil {
+			resErrors = multierr.Append(resErrors, err)
+		}
+	}
+	if resErrors != nil {
+		return resErrors
+	}
+	return nil
 }
 
 type appContext struct {
@@ -249,23 +264,8 @@ func constructPathIfNeed(dir string, file string) string {
 	return file
 }
 
-type multiError []error
-
-// Error implements the error interface.
-func (m *multiError) Error() string {
-	errs := make([]string, len(*m))
-	for i, err := range *m {
-		errs[i] = err.Error()
-	}
-
-	return strings.Join(errs, "\n")
-}
-
-// Errors returns a copy of the errors slice
-func (m *multiError) Errors() []error {
-	errs := make([]error, len(*m))
-	for _, err := range *m {
-		errs = append(errs, err)
-	}
-	return errs
+type fxAppInterface interface {
+	Start(context.Context) error
+	Stop(context.Context) error
+	Done() <-chan os.Signal
 }

@@ -173,7 +173,9 @@ func (s *Service) Start() {
 	s.logger.Info("starting")
 
 	// legacy mode, if resouce is provided
-	s.resource.Start()
+	if s.resource != nil {
+		s.resource.Start()
+	}
 
 	s.handler.Start()
 
