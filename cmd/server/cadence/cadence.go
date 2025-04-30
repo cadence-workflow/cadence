@@ -115,6 +115,11 @@ func BuildCLI(releaseVersion string, gitRevision string) *cli.App {
 				},
 			},
 			Action: func(c *cli.Context) error {
+				host, err := os.Hostname()
+				if err != nil {
+					return fmt.Errorf("get hostname: %w", err)
+				}
+
 				appCtx := appContext{
 					CfgContext: config.Context{
 						Environment: getEnvironment(c),
@@ -122,6 +127,7 @@ func BuildCLI(releaseVersion string, gitRevision string) *cli.App {
 					},
 					ConfigDir: getConfigDir(c),
 					RootDir:   getRootDir(c),
+					HostName:  host,
 				}
 
 				services := getServices(c)
