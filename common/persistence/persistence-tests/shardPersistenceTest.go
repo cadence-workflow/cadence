@@ -131,7 +131,7 @@ func (s *ShardPersistenceSuite) TestUpdateShard() {
 	updatedAlternativeClusterDLQAckLevel := int64(100)
 	updatedStolenSinceRenew := 10
 
-	updatedInfo := shardInfo.Copy()
+	updatedInfo := shardInfo.ToNilSafeCopy()
 	updatedInfo.Owner = updatedOwner
 	updatedInfo.RangeID = updatedRangeID
 	updatedInfo.TransferAckLevel = updatedCurrentClusterTransferAckLevel
@@ -155,6 +155,29 @@ func (s *ShardPersistenceSuite) TestUpdateShard() {
 	updatedInfo.ReplicationDLQAckLevel = map[string]int64{
 		cluster.TestAlternativeClusterName: updatedAlternativeClusterDLQAckLevel,
 	}
+	updatedInfo.QueueStates = map[int32]*types.QueueState{
+		p.HistoryTaskCategoryIDTransfer: &types.QueueState{
+			VirtualQueueStates: map[int64]*types.VirtualQueueState{
+				0: &types.VirtualQueueState{
+					VirtualSliceStates: []*types.VirtualSliceState{
+						{
+							TaskRange: &types.TaskRange{
+								InclusiveMin: &types.TaskKey{
+									TaskID: updatedCurrentClusterTransferAckLevel + 1,
+								},
+								ExclusiveMax: &types.TaskKey{
+									TaskID: updatedCurrentClusterTransferAckLevel + 10,
+								},
+							},
+						},
+					},
+				},
+			},
+			ExclusiveMaxReadLevel: &types.TaskKey{
+				TaskID: updatedCurrentClusterTransferAckLevel + 10,
+			},
+		},
+	}
 	updatedInfo.ReplicationAckLevel = updatedReplicationAckLevel
 	updatedInfo.StolenSinceRenew = updatedStolenSinceRenew
 
@@ -177,7 +200,11 @@ func (s *ShardPersistenceSuite) TestUpdateShard() {
 	s.Equal(updatedInfo.ReplicationDLQAckLevel, info1.ReplicationDLQAckLevel)
 	s.Equal(updatedStolenSinceRenew, info1.StolenSinceRenew)
 
-	failedUpdateInfo := shardInfo.Copy()
+	if s.DynamicConfiguration.ReadNoSQLShardFromDataBlob() || s.ShardMgr.GetName() != "shardedNosql" {
+		s.Equal(updatedInfo.QueueStates, info1.QueueStates)
+	}
+
+	failedUpdateInfo := shardInfo.ToNilSafeCopy()
 	failedUpdateInfo.Owner = "failed_owner"
 	failedUpdateInfo.TransferAckLevel = int64(4000)
 	failedUpdateInfo.ReplicationAckLevel = int64(5000)
@@ -201,6 +228,10 @@ func (s *ShardPersistenceSuite) TestUpdateShard() {
 	s.Equal(updatedReplicationAckLevel, info2.ReplicationAckLevel)
 	s.Equal(updatedInfo.ReplicationDLQAckLevel, info2.ReplicationDLQAckLevel)
 	s.Equal(updatedStolenSinceRenew, info2.StolenSinceRenew)
+
+	if s.DynamicConfiguration.ReadNoSQLShardFromDataBlob() || s.ShardMgr.GetName() != "shardedNosql" {
+		s.Equal(updatedInfo.QueueStates, info2.QueueStates)
+	}
 }
 
 func (s *ShardPersistenceSuite) TestCreateGetShardBackfill() {
@@ -296,6 +327,29 @@ func (s *ShardPersistenceSuite) TestCreateGetUpdateGetShard() {
 		DomainNotificationVersion:     domainNotificationVersion,
 		ClusterReplicationLevel:       map[string]int64{},
 		ReplicationDLQAckLevel:        map[string]int64{},
+		QueueStates: map[int32]*types.QueueState{
+			p.HistoryTaskCategoryIDTransfer: &types.QueueState{
+				VirtualQueueStates: map[int64]*types.VirtualQueueState{
+					0: &types.VirtualQueueState{
+						VirtualSliceStates: []*types.VirtualSliceState{
+							{
+								TaskRange: &types.TaskRange{
+									InclusiveMin: &types.TaskKey{
+										TaskID: currentClusterTransferAck + 1,
+									},
+									ExclusiveMax: &types.TaskKey{
+										TaskID: currentClusterTransferAck + 10,
+									},
+								},
+							},
+						},
+					},
+				},
+				ExclusiveMaxReadLevel: &types.TaskKey{
+					TaskID: currentClusterTransferAck + 10,
+				},
+			},
+		},
 	}
 	createRequest := &p.CreateShardRequest{
 		ShardInfo: shardInfo,
@@ -311,6 +365,9 @@ func (s *ShardPersistenceSuite) TestCreateGetUpdateGetShard() {
 	resp.TimerAckLevel = shardInfo.TimerAckLevel
 	resp.UpdatedAt = shardInfo.UpdatedAt
 	resp.ClusterTimerAckLevel = shardInfo.ClusterTimerAckLevel
+	if !s.DynamicConfiguration.ReadNoSQLHistoryTaskFromDataBlob() && s.ShardMgr.GetName() == "shardedNosql" {
+		resp.QueueStates = shardInfo.QueueStates
+	}
 	s.Equal(shardInfo, resp)
 
 	// test update && get

@@ -114,6 +114,7 @@ func (s *contextTestSuite) newContext() *contextImpl {
 		TimerProcessingQueueStates: &types.ProcessingQueueStates{
 			StatesByCluster: make(map[string][]*types.ProcessingQueueState),
 		},
+		QueueStates: make(map[int32]*types.QueueState),
 	}
 	context := &contextImpl{
 		Resource:                     s.mockResource,
@@ -155,6 +156,91 @@ func (s *contextTestSuite) TestAccessorMethods() {
 	mockEngine := engine.NewMockEngine(s.controller)
 	s.context.SetEngine(mockEngine)
 	s.Assert().Equal(mockEngine, s.context.GetEngine())
+}
+
+func (s *contextTestSuite) TestTransferQueueState() {
+	s.context.shardInfo.TransferAckLevel = 5
+	queueState, err := s.context.GetQueueState(persistence.HistoryTaskCategoryTransfer)
+	s.NoError(err)
+	s.EqualValues(6, queueState.ExclusiveMaxReadLevel.TaskID)
+
+	s.mockShardManager.On("UpdateShard", mock.Anything, mock.Anything).Once().Return(nil)
+	err = s.context.UpdateQueueState(persistence.HistoryTaskCategoryTransfer, &types.QueueState{
+		VirtualQueueStates: map[int64]*types.VirtualQueueState{
+			0: {
+				VirtualSliceStates: []*types.VirtualSliceState{
+					{
+						TaskRange: &types.TaskRange{
+							InclusiveMin: &types.TaskKey{TaskID: 7},
+							ExclusiveMax: &types.TaskKey{TaskID: 10},
+						},
+					},
+				},
+			},
+		},
+		ExclusiveMaxReadLevel: &types.TaskKey{TaskID: 10},
+	})
+	s.NoError(err)
+	queueState, err = s.context.GetQueueState(persistence.HistoryTaskCategoryTransfer)
+	s.NoError(err)
+	s.EqualValues(10, queueState.ExclusiveMaxReadLevel.TaskID)
+	s.Assert().Equal(0, s.context.shardInfo.StolenSinceRenew)
+
+	s.EqualValues(6, s.context.GetQueueAckLevel(persistence.HistoryTaskCategoryTransfer).TaskID)
+	s.EqualValues(6, s.context.GetQueueClusterAckLevel(persistence.HistoryTaskCategoryTransfer, cluster.TestCurrentClusterName).TaskID)
+	s.Equal([]*types.ProcessingQueueState{
+		{
+			Level:    common.Int32Ptr(0),
+			AckLevel: common.Int64Ptr(6),
+			MaxLevel: common.Int64Ptr(math.MaxInt64),
+			DomainFilter: &types.DomainFilter{
+				ReverseMatch: true,
+			},
+		},
+	}, s.context.shardInfo.TransferProcessingQueueStates.StatesByCluster[cluster.TestCurrentClusterName])
+}
+
+func (s *contextTestSuite) TestTimerQueueState() {
+	now := time.Now()
+	s.context.shardInfo.TimerAckLevel = now
+	queueState, err := s.context.GetQueueState(persistence.HistoryTaskCategoryTimer)
+	s.NoError(err)
+	s.Equal(now.UnixNano(), queueState.ExclusiveMaxReadLevel.ScheduledTimeNano)
+
+	s.mockShardManager.On("UpdateShard", mock.Anything, mock.Anything).Once().Return(nil)
+	err = s.context.UpdateQueueState(persistence.HistoryTaskCategoryTimer, &types.QueueState{
+		VirtualQueueStates: map[int64]*types.VirtualQueueState{
+			0: {
+				VirtualSliceStates: []*types.VirtualSliceState{
+					{
+						TaskRange: &types.TaskRange{
+							InclusiveMin: &types.TaskKey{ScheduledTimeNano: now.Add(time.Second).UnixNano()},
+							ExclusiveMax: &types.TaskKey{ScheduledTimeNano: now.Add(time.Second * 2).UnixNano()},
+						},
+					},
+				},
+			},
+		},
+		ExclusiveMaxReadLevel: &types.TaskKey{ScheduledTimeNano: now.Add(time.Second * 2).UnixNano()},
+	})
+	s.NoError(err)
+	queueState, err = s.context.GetQueueState(persistence.HistoryTaskCategoryTimer)
+	s.NoError(err)
+	s.Equal(now.Add(time.Second*2).UnixNano(), queueState.ExclusiveMaxReadLevel.ScheduledTimeNano)
+	s.Assert().Equal(0, s.context.shardInfo.StolenSinceRenew)
+
+	s.EqualValues(now.Add(time.Second).UnixNano(), s.context.GetQueueAckLevel(persistence.HistoryTaskCategoryTimer).ScheduledTime.UnixNano())
+	s.EqualValues(now.Add(time.Second).UnixNano(), s.context.GetQueueClusterAckLevel(persistence.HistoryTaskCategoryTimer, cluster.TestCurrentClusterName).ScheduledTime.UnixNano())
+	s.Equal([]*types.ProcessingQueueState{
+		{
+			Level:    common.Int32Ptr(0),
+			AckLevel: common.Int64Ptr(now.Add(time.Second).UnixNano()),
+			MaxLevel: common.Int64Ptr(math.MaxInt64),
+			DomainFilter: &types.DomainFilter{
+				ReverseMatch: true,
+			},
+		},
+	}, s.context.shardInfo.TimerProcessingQueueStates.StatesByCluster[cluster.TestCurrentClusterName])
 }
 
 func (s *contextTestSuite) TestTransferAckLevel() {

@@ -164,6 +164,14 @@ func (s *ShardInfo) GetTimerProcessingQueueStatesEncoding() (o string) {
 	return
 }
 
+// GetQueueStates internal sql blob getter
+func (s *ShardInfo) GetQueueStates() (o map[int32]*types.QueueState) {
+	if s != nil {
+		return s.QueueStates
+	}
+	return
+}
+
 // GetName internal sql blob getter
 func (d *DomainInfo) GetName() (o string) {
 	if d != nil {

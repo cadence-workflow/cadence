@@ -453,4 +453,28 @@ var (
 		EnableAutoConfig:   false,
 		PollerWaitTimeInMs: 10,
 	}
+	TaskKey = types.TaskKey{
+		TaskID:            TaskID,
+		ScheduledTimeNano: Timestamp1,
+	}
+	TaskKey2 = types.TaskKey{
+		TaskID:            TaskID + 1,
+		ScheduledTimeNano: Timestamp2,
+	}
+	TaskRange = types.TaskRange{
+		InclusiveMin: &TaskKey,
+		ExclusiveMax: &TaskKey2,
+	}
+	VirtualSliceState = types.VirtualSliceState{
+		TaskRange: &TaskRange,
+	}
+	VirtualQueueState = types.VirtualQueueState{
+		VirtualSliceStates: []*types.VirtualSliceState{&VirtualSliceState},
+	}
+	QueueState = types.QueueState{
+		VirtualQueueStates: map[int64]*types.VirtualQueueState{
+			0: &VirtualQueueState,
+		},
+		ExclusiveMaxReadLevel: &TaskKey,
+	}
 )

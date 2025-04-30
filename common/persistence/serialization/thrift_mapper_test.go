@@ -53,6 +53,29 @@ func TestShardInfo(t *testing.T) {
 		TransferProcessingQueueStatesEncoding: "TransferProcessingQueueStatesEncoding",
 		TimerProcessingQueueStates:            []byte("TimerProcessingQueueStates"),
 		TimerProcessingQueueStatesEncoding:    "TimerProcessingQueueStatesEncoding",
+		QueueStates: map[int32]*types.QueueState{
+			0: &types.QueueState{
+				VirtualQueueStates: map[int64]*types.VirtualQueueState{
+					0: {
+						VirtualSliceStates: []*types.VirtualSliceState{
+							{
+								TaskRange: &types.TaskRange{
+									InclusiveMin: &types.TaskKey{
+										TaskID: 1000,
+									},
+									ExclusiveMax: &types.TaskKey{
+										TaskID: 2000,
+									},
+								},
+							},
+						},
+					},
+				},
+				ExclusiveMaxReadLevel: &types.TaskKey{
+					TaskID: 1000,
+				},
+			},
+		},
 	}
 	actual := shardInfoFromThrift(shardInfoToThrift(expected))
 	assert.Equal(t, expected.StolenSinceRenew, actual.StolenSinceRenew)

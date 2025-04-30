@@ -83,6 +83,8 @@ type (
 		UpdateQueueAckLevel(category persistence.HistoryTaskCategory, ackLevel persistence.HistoryTaskKey) error
 		GetQueueClusterAckLevel(category persistence.HistoryTaskCategory, cluster string) persistence.HistoryTaskKey
 		UpdateQueueClusterAckLevel(category persistence.HistoryTaskCategory, cluster string, ackLevel persistence.HistoryTaskKey) error
+		GetQueueState(category persistence.HistoryTaskCategory) (*types.QueueState, error)
+		UpdateQueueState(category persistence.HistoryTaskCategory, state *types.QueueState) error
 
 		GetTransferProcessingQueueStates(cluster string) []*types.ProcessingQueueState
 		UpdateTransferProcessingQueueStates(cluster string, states []*types.ProcessingQueueState) error
@@ -285,8 +287,16 @@ func (s *contextImpl) UpdateQueueAckLevel(category persistence.HistoryTaskCatego
 	switch category {
 	case persistence.HistoryTaskCategoryTransfer:
 		s.shardInfo.TransferAckLevel = ackLevel.TaskID
+		// for forward compatibility
+		s.shardInfo.QueueStates[int32(persistence.HistoryTaskCategoryIDTransfer)] = &types.QueueState{
+			ExclusiveMaxReadLevel: &types.TaskKey{TaskID: ackLevel.TaskID + 1},
+		}
 	case persistence.HistoryTaskCategoryTimer:
 		s.shardInfo.TimerAckLevel = ackLevel.ScheduledTime
+		// for forward compatibility
+		s.shardInfo.QueueStates[int32(persistence.HistoryTaskCategoryIDTimer)] = &types.QueueState{
+			ExclusiveMaxReadLevel: &types.TaskKey{ScheduledTimeNano: ackLevel.ScheduledTime.UnixNano()},
+		}
 	case persistence.HistoryTaskCategoryReplication:
 		s.shardInfo.ReplicationAckLevel = ackLevel.TaskID
 	default:
@@ -355,6 +365,96 @@ func (s *contextImpl) UpdateQueueClusterAckLevel(category persistence.HistoryTas
 	default:
 		return fmt.Errorf("unknown history task category: %v", category)
 	}
+	s.shardInfo.StolenSinceRenew = 0
+	return s.updateShardInfoLocked()
+}
+
+func (s *contextImpl) GetQueueState(category persistence.HistoryTaskCategory) (*types.QueueState, error) {
+	s.RLock()
+	defer s.RUnlock()
+	queueState, ok := s.shardInfo.QueueStates[int32(category.ID())]
+	if !ok {
+		switch category {
+		case persistence.HistoryTaskCategoryTransfer:
+			queueState = &types.QueueState{
+				ExclusiveMaxReadLevel: &types.TaskKey{TaskID: s.shardInfo.TransferAckLevel + 1},
+			}
+		case persistence.HistoryTaskCategoryTimer:
+			queueState = &types.QueueState{
+				ExclusiveMaxReadLevel: &types.TaskKey{ScheduledTimeNano: s.shardInfo.TimerAckLevel.UnixNano()},
+			}
+		default:
+			return nil, fmt.Errorf("unknown history task category: %v", category)
+		}
+	}
+	return queueState, nil
+}
+
+func (s *contextImpl) UpdateQueueState(category persistence.HistoryTaskCategory, state *types.QueueState) error {
+	s.Lock()
+	defer s.Unlock()
+
+	s.shardInfo.QueueStates[int32(category.ID())] = state
+
+	// for backward compatibility
+	// we must make sure that there is no task being missed when converting the queue state
+	// it's ok to have tasks being processed multiple times
+	// for immediate tasks the exclusive level should be converted back to inclusive level
+	switch category {
+	case persistence.HistoryTaskCategoryTransfer:
+		ackLevel := state.ExclusiveMaxReadLevel.TaskID
+		for _, virtualQueueState := range state.VirtualQueueStates {
+			for _, virtualSliceState := range virtualQueueState.VirtualSliceStates {
+				ackLevel = min(ackLevel, virtualSliceState.TaskRange.InclusiveMin.TaskID)
+			}
+		}
+		// exclusive to inclusive
+		ackLevel = ackLevel - 1
+		s.shardInfo.TransferAckLevel = ackLevel
+		for clusterName := range s.GetClusterMetadata().GetEnabledClusterInfo() {
+			s.shardInfo.ClusterTransferAckLevel[clusterName] = ackLevel
+			if s.shardInfo.TransferProcessingQueueStates.StatesByCluster == nil {
+				s.shardInfo.TransferProcessingQueueStates.StatesByCluster = make(map[string][]*types.ProcessingQueueState)
+			}
+			s.shardInfo.TransferProcessingQueueStates.StatesByCluster[clusterName] = []*types.ProcessingQueueState{
+				{
+					Level:    common.Int32Ptr(0),
+					AckLevel: common.Int64Ptr(ackLevel),
+					MaxLevel: common.Int64Ptr(math.MaxInt64),
+					DomainFilter: &types.DomainFilter{
+						ReverseMatch: true,
+					},
+				},
+			}
+		}
+	case persistence.HistoryTaskCategoryTimer:
+		ackLevel := state.ExclusiveMaxReadLevel.ScheduledTimeNano
+		for _, virtualQueueState := range state.VirtualQueueStates {
+			for _, virtualSliceState := range virtualQueueState.VirtualSliceStates {
+				ackLevel = min(ackLevel, virtualSliceState.TaskRange.InclusiveMin.ScheduledTimeNano)
+			}
+		}
+		s.shardInfo.TimerAckLevel = time.Unix(0, ackLevel)
+		for clusterName := range s.GetClusterMetadata().GetEnabledClusterInfo() {
+			s.shardInfo.ClusterTimerAckLevel[clusterName] = time.Unix(0, ackLevel)
+			if s.shardInfo.TimerProcessingQueueStates.StatesByCluster == nil {
+				s.shardInfo.TimerProcessingQueueStates.StatesByCluster = make(map[string][]*types.ProcessingQueueState)
+			}
+			s.shardInfo.TimerProcessingQueueStates.StatesByCluster[clusterName] = []*types.ProcessingQueueState{
+				{
+					Level:    common.Int32Ptr(0),
+					AckLevel: common.Int64Ptr(ackLevel),
+					MaxLevel: common.Int64Ptr(math.MaxInt64),
+					DomainFilter: &types.DomainFilter{
+						ReverseMatch: true,
+					},
+				},
+			}
+		}
+	case persistence.HistoryTaskCategoryReplication:
+		return fmt.Errorf("replication queue state is not supported")
+	}
+
 	s.shardInfo.StolenSinceRenew = 0
 	return s.updateShardInfoLocked()
 }
@@ -995,7 +1095,7 @@ func (s *contextImpl) updateRangeIfNeededLocked() error {
 }
 
 func (s *contextImpl) renewRangeLocked(isStealing bool) error {
-	updatedShardInfo := s.shardInfo.Copy()
+	updatedShardInfo := s.shardInfo.ToNilSafeCopy()
 	updatedShardInfo.RangeID++
 	if isStealing {
 		updatedShardInfo.StolenSinceRenew++
@@ -1075,7 +1175,7 @@ func (s *contextImpl) persistShardInfoLocked(
 	if !isForced && s.lastUpdated.Add(s.config.ShardUpdateMinInterval()).After(now) {
 		return nil
 	}
-	updatedShardInfo := s.shardInfo.Copy()
+	updatedShardInfo := s.shardInfo.ToNilSafeCopy()
 	s.emitShardInfoMetricsLogsLocked()
 
 	err = s.GetShardManager().UpdateShard(context.Background(), &persistence.UpdateShardRequest{
@@ -1475,7 +1575,7 @@ func acquireShard(
 		return nil, err
 	}
 
-	updatedShardInfo := shardInfo.Copy()
+	updatedShardInfo := shardInfo.ToNilSafeCopy()
 	ownershipChanged := shardInfo.Owner != shardItem.GetHostInfo().Identity()
 	updatedShardInfo.Owner = shardItem.GetHostInfo().Identity()
 
@@ -1496,17 +1596,6 @@ func acquireShard(
 		}
 
 		scheduledTaskMaxReadLevelMap[clusterName] = scheduledTaskMaxReadLevelMap[clusterName].Truncate(time.Millisecond)
-	}
-
-	if updatedShardInfo.TransferProcessingQueueStates == nil {
-		updatedShardInfo.TransferProcessingQueueStates = &types.ProcessingQueueStates{
-			StatesByCluster: make(map[string][]*types.ProcessingQueueState),
-		}
-	}
-	if updatedShardInfo.TimerProcessingQueueStates == nil {
-		updatedShardInfo.TimerProcessingQueueStates = &types.ProcessingQueueStates{
-			StatesByCluster: make(map[string][]*types.ProcessingQueueState),
-		}
 	}
 
 	executionMgr, err := shardItem.GetExecutionManager(shardItem.shardID)

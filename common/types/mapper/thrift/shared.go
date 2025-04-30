@@ -22,6 +22,7 @@ package thrift
 
 import (
 	"github.com/uber/cadence/.gen/go/shared"
+	"github.com/uber/cadence/common"
 	cadence_errors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/types"
 )
@@ -8221,5 +8222,145 @@ func ToAutoConfigHint(t *shared.AutoConfigHint) *types.AutoConfigHint {
 	return &types.AutoConfigHint{
 		PollerWaitTimeInMs: *t.PollerWaitTimeInMs,
 		EnableAutoConfig:   *t.EnableAutoConfig,
+	}
+}
+
+func FromTaskKey(t *types.TaskKey) *shared.TaskKey {
+	if t == nil {
+		return nil
+	}
+	return &shared.TaskKey{
+		TaskID:            common.Ptr(t.TaskID),
+		ScheduledTimeNano: common.Ptr(t.ScheduledTimeNano),
+	}
+}
+
+func ToTaskKey(t *shared.TaskKey) *types.TaskKey {
+	if t == nil {
+		return nil
+	}
+	return &types.TaskKey{
+		TaskID:            t.GetTaskID(),
+		ScheduledTimeNano: t.GetScheduledTimeNano(),
+	}
+}
+
+func FromTaskRange(t *types.TaskRange) *shared.TaskRange {
+	if t == nil {
+		return nil
+	}
+	return &shared.TaskRange{
+		InclusiveMin: FromTaskKey(t.InclusiveMin),
+		ExclusiveMax: FromTaskKey(t.ExclusiveMax),
+	}
+}
+
+func ToTaskRange(t *shared.TaskRange) *types.TaskRange {
+	if t == nil {
+		return nil
+	}
+	return &types.TaskRange{
+		InclusiveMin: ToTaskKey(t.InclusiveMin),
+		ExclusiveMax: ToTaskKey(t.ExclusiveMax),
+	}
+}
+
+func FromVirtualSliceState(t *types.VirtualSliceState) *shared.VirtualSliceState {
+	if t == nil {
+		return nil
+	}
+	return &shared.VirtualSliceState{
+		TaskRange: FromTaskRange(t.TaskRange),
+	}
+}
+
+func ToVirtualSliceState(t *shared.VirtualSliceState) *types.VirtualSliceState {
+	if t == nil {
+		return nil
+	}
+	return &types.VirtualSliceState{
+		TaskRange: ToTaskRange(t.TaskRange),
+	}
+}
+
+func FromVirtualSliceStateArray(t []*types.VirtualSliceState) []*shared.VirtualSliceState {
+	if t == nil {
+		return nil
+	}
+	v := make([]*shared.VirtualSliceState, len(t))
+	for i := range t {
+		v[i] = FromVirtualSliceState(t[i])
+	}
+	return v
+}
+
+func ToVirtualSliceStateArray(t []*shared.VirtualSliceState) []*types.VirtualSliceState {
+	if t == nil {
+		return nil
+	}
+	v := make([]*types.VirtualSliceState, len(t))
+	for i := range t {
+		v[i] = ToVirtualSliceState(t[i])
+	}
+	return v
+}
+
+func FromVirtualQueueState(t *types.VirtualQueueState) *shared.VirtualQueueState {
+	if t == nil {
+		return nil
+	}
+	return &shared.VirtualQueueState{
+		VirtualSliceStates: FromVirtualSliceStateArray(t.VirtualSliceStates),
+	}
+}
+
+func ToVirtualQueueState(t *shared.VirtualQueueState) *types.VirtualQueueState {
+	if t == nil {
+		return nil
+	}
+	return &types.VirtualQueueState{
+		VirtualSliceStates: ToVirtualSliceStateArray(t.VirtualSliceStates),
+	}
+}
+
+func FromVirtualQueueStateMap(t map[int64]*types.VirtualQueueState) map[int64]*shared.VirtualQueueState {
+	if t == nil {
+		return nil
+	}
+	v := make(map[int64]*shared.VirtualQueueState, len(t))
+	for key := range t {
+		v[key] = FromVirtualQueueState(t[key])
+	}
+	return v
+}
+
+func ToVirtualQueueStateMap(t map[int64]*shared.VirtualQueueState) map[int64]*types.VirtualQueueState {
+	if t == nil {
+		return nil
+	}
+	v := make(map[int64]*types.VirtualQueueState, len(t))
+	for key := range t {
+		v[key] = ToVirtualQueueState(t[key])
+	}
+	return v
+}
+
+func FromQueueState(t *types.QueueState) *shared.QueueState {
+	if t == nil {
+		return nil
+	}
+	return &shared.QueueState{
+		VirtualQueueStates:    FromVirtualQueueStateMap(t.VirtualQueueStates),
+		ExclusiveMaxReadLevel: FromTaskKey(t.ExclusiveMaxReadLevel),
+	}
+}
+
+func ToQueueState(t *shared.QueueState) *types.QueueState {
+	if t == nil {
+		return nil
+	}
+	return &types.QueueState{
+		VirtualQueueStates:    ToVirtualQueueStateMap(t.VirtualQueueStates),
+		ExclusiveMaxReadLevel: ToTaskKey(t.ExclusiveMaxReadLevel),
 	}
 }

@@ -343,6 +343,26 @@ func TestGettersForInfos(t *testing.T) {
 			TimerProcessingQueueStatesEncoding:        "timerProcessingQueueStatesEncoding",
 			CrossClusterProcessingQueueStates:         []byte("crossClusterProcessingQueueStates"),
 			CrossClusterProcessingQueueStatesEncoding: "crossClusterProcessingQueueStatesEncoding",
+			QueueStates: map[int32]*types.QueueState{
+				0: &types.QueueState{
+					VirtualQueueStates: map[int64]*types.VirtualQueueState{
+						0: {
+							VirtualSliceStates: []*types.VirtualSliceState{
+								{
+									TaskRange: &types.TaskRange{
+										InclusiveMin: &types.TaskKey{
+											TaskID: 1,
+										},
+										ExclusiveMax: &types.TaskKey{
+											TaskID: 2,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
 		},
 	} {
 		name := reflect.TypeOf(info).String()

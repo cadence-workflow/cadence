@@ -338,6 +338,96 @@ func (v *PollMutableStateResponse) GetWorkflowCloseState() (o int32) {
 	return
 }
 
+type QueueState struct {
+	VirtualQueueStates    map[int64]*VirtualQueueState
+	ExclusiveMaxReadLevel *TaskKey
+}
+
+func (q *QueueState) Copy() (o *QueueState) {
+	if q == nil {
+		return
+	}
+	var virtualQueueStates map[int64]*VirtualQueueState
+	if q.VirtualQueueStates != nil {
+		virtualQueueStates = make(map[int64]*VirtualQueueState)
+		for key, value := range q.VirtualQueueStates {
+			virtualQueueStates[key] = value.Copy()
+		}
+	}
+	o = &QueueState{
+		VirtualQueueStates:    virtualQueueStates,
+		ExclusiveMaxReadLevel: q.ExclusiveMaxReadLevel.Copy(),
+	}
+	return
+}
+
+type VirtualQueueState struct {
+	VirtualSliceStates []*VirtualSliceState
+}
+
+func (v *VirtualQueueState) Copy() (o *VirtualQueueState) {
+	if v == nil {
+		return
+	}
+	var virtualSliceStates []*VirtualSliceState
+	if v.VirtualSliceStates != nil {
+		virtualSliceStates = make([]*VirtualSliceState, len(v.VirtualSliceStates))
+		for i, slice := range v.VirtualSliceStates {
+			virtualSliceStates[i] = slice.Copy()
+		}
+	}
+	o = &VirtualQueueState{
+		VirtualSliceStates: virtualSliceStates,
+	}
+	return
+}
+
+type VirtualSliceState struct {
+	TaskRange *TaskRange
+}
+
+func (v *VirtualSliceState) Copy() (o *VirtualSliceState) {
+	if v == nil {
+		return
+	}
+	o = &VirtualSliceState{
+		TaskRange: v.TaskRange.Copy(),
+	}
+	return
+}
+
+type TaskRange struct {
+	InclusiveMin *TaskKey
+	ExclusiveMax *TaskKey
+}
+
+func (t *TaskRange) Copy() (o *TaskRange) {
+	if t == nil {
+		return
+	}
+	o = &TaskRange{
+		InclusiveMin: t.InclusiveMin.Copy(),
+		ExclusiveMax: t.ExclusiveMax.Copy(),
+	}
+	return
+}
+
+type TaskKey struct {
+	ScheduledTimeNano int64
+	TaskID            int64
+}
+
+func (t *TaskKey) Copy() (o *TaskKey) {
+	if t == nil {
+		return
+	}
+	o = &TaskKey{
+		ScheduledTimeNano: t.ScheduledTimeNano,
+		TaskID:            t.TaskID,
+	}
+	return
+}
+
 // ProcessingQueueState is an internal type (TBD...)
 type ProcessingQueueState struct {
 	Level        *int32        `json:"level,omitempty"`

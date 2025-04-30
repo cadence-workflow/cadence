@@ -35,6 +35,7 @@ import (
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/serialization"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
+	"github.com/uber/cadence/common/types"
 )
 
 func TestGetShard(t *testing.T) {
@@ -77,6 +78,13 @@ func TestGetShard(t *testing.T) {
 					ClusterReplicationLevel:               map[string]int64{"active": 1002},
 					ClusterTimerAckLevel:                  map[string]time.Time{"active": time.Unix(2, 1)},
 					ClusterTransferAckLevel:               map[string]int64{"active": 1002},
+					QueueStates: map[int32]*types.QueueState{
+						0: &types.QueueState{
+							VirtualQueueStates: map[int64]*types.VirtualQueueState{
+								0: {},
+							},
+						},
+					},
 				}, nil)
 			},
 			want: &persistence.InternalGetShardResponse{
@@ -105,6 +113,13 @@ func TestGetShard(t *testing.T) {
 					PendingFailoverMarkers: &persistence.DataBlob{
 						Encoding: constants.EncodingType("markers"),
 						Data:     []byte(`markers`),
+					},
+					QueueStates: map[int32]*types.QueueState{
+						0: &types.QueueState{
+							VirtualQueueStates: map[int64]*types.VirtualQueueState{
+								0: {},
+							},
+						},
 					},
 				},
 			},
@@ -204,6 +219,13 @@ func TestCreateShard(t *testing.T) {
 						Data:     []byte(`markers`),
 						Encoding: constants.EncodingType("markers"),
 					},
+					QueueStates: map[int32]*types.QueueState{
+						0: &types.QueueState{
+							VirtualQueueStates: map[int64]*types.VirtualQueueState{
+								0: {},
+							},
+						},
+					},
 				},
 			},
 			mockSetup: func(mockDB *sqlplugin.MockDB, mockParser *serialization.MockParser) {
@@ -227,6 +249,13 @@ func TestCreateShard(t *testing.T) {
 					ReplicationDlqAckLevel:                map[string]int64{"y": 1111},
 					PendingFailoverMarkers:                []byte(`markers`),
 					PendingFailoverMarkersEncoding:        "markers",
+					QueueStates: map[int32]*types.QueueState{
+						0: &types.QueueState{
+							VirtualQueueStates: map[int64]*types.VirtualQueueState{
+								0: {},
+							},
+						},
+					},
 				}).Return(persistence.DataBlob{
 					Encoding: constants.EncodingType("shard"),
 					Data:     []byte(`shard`),
@@ -353,6 +382,13 @@ func TestUpdateShard(t *testing.T) {
 						Data:     []byte(`markers`),
 						Encoding: constants.EncodingType("markers"),
 					},
+					QueueStates: map[int32]*types.QueueState{
+						0: &types.QueueState{
+							VirtualQueueStates: map[int64]*types.VirtualQueueState{
+								0: {},
+							},
+						},
+					},
 				},
 			},
 			mockSetup: func(mockDB *sqlplugin.MockDB, mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
@@ -374,6 +410,13 @@ func TestUpdateShard(t *testing.T) {
 					ReplicationDlqAckLevel:                map[string]int64{"y": 1111},
 					PendingFailoverMarkers:                []byte(`markers`),
 					PendingFailoverMarkersEncoding:        "markers",
+					QueueStates: map[int32]*types.QueueState{
+						0: &types.QueueState{
+							VirtualQueueStates: map[int64]*types.VirtualQueueState{
+								0: {},
+							},
+						},
+					},
 				}).Return(persistence.DataBlob{
 					Encoding: constants.EncodingType("shard"),
 					Data:     []byte(`shard`),

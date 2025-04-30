@@ -58,6 +58,7 @@ type (
 		CrossClusterProcessingQueueStatesEncoding string
 		TimerProcessingQueueStates                []byte
 		TimerProcessingQueueStatesEncoding        string
+		QueueStates                               map[int32]*types.QueueState
 	}
 
 	// DomainInfo blob in a serialization agnostic format

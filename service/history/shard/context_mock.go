@@ -381,6 +381,21 @@ func (mr *MockContextMockRecorder) GetQueueClusterAckLevel(category, cluster any
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetQueueClusterAckLevel", reflect.TypeOf((*MockContext)(nil).GetQueueClusterAckLevel), category, cluster)
 }
 
+// GetQueueState mocks base method.
+func (m *MockContext) GetQueueState(category persistence.HistoryTaskCategory) (*types.QueueState, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetQueueState", category)
+	ret0, _ := ret[0].(*types.QueueState)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetQueueState indicates an expected call of GetQueueState.
+func (mr *MockContextMockRecorder) GetQueueState(category any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetQueueState", reflect.TypeOf((*MockContext)(nil).GetQueueState), category)
+}
+
 // GetService mocks base method.
 func (m *MockContext) GetService() resource.Resource {
 	m.ctrl.T.Helper()
@@ -600,6 +615,20 @@ func (m *MockContext) UpdateQueueClusterAckLevel(category persistence.HistoryTas
 func (mr *MockContextMockRecorder) UpdateQueueClusterAckLevel(category, cluster, ackLevel any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateQueueClusterAckLevel", reflect.TypeOf((*MockContext)(nil).UpdateQueueClusterAckLevel), category, cluster, ackLevel)
+}
+
+// UpdateQueueState mocks base method.
+func (m *MockContext) UpdateQueueState(category persistence.HistoryTaskCategory, state *types.QueueState) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateQueueState", category, state)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateQueueState indicates an expected call of UpdateQueueState.
+func (mr *MockContextMockRecorder) UpdateQueueState(category, state any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateQueueState", reflect.TypeOf((*MockContext)(nil).UpdateQueueState), category, state)
 }
 
 // UpdateTimerProcessingQueueStates mocks base method.

@@ -237,6 +237,7 @@ func (sh *nosqlShardStore) shardInfoToShardsRow(s *persistence.InternalShardInfo
 		ReplicationDlqAckLevel:                s.ReplicationDLQAckLevel,
 		PendingFailoverMarkers:                markerData,
 		PendingFailoverMarkersEncoding:        markerEncoding,
+		QueueStates:                           s.QueueStates,
 	}
 
 	blob, err := sh.parser.ShardInfoToBlob(shardInfo)
@@ -333,5 +334,6 @@ func (sh *nosqlShardStore) shardsRowToShardInfo(storeShard *nosqlStore, shardRow
 		ClusterReplicationLevel:       shardInfo.ClusterReplicationLevel,
 		ReplicationDLQAckLevel:        shardInfo.ReplicationDlqAckLevel,
 		PendingFailoverMarkers:        pendingFailoverMarkers,
+		QueueStates:                   shardInfo.GetQueueStates(),
 	}, nil
 }

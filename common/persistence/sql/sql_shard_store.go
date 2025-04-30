@@ -160,6 +160,7 @@ func (m *sqlShardStore) GetShard(
 		ClusterReplicationLevel:       shardInfo.ClusterReplicationLevel,
 		ReplicationDLQAckLevel:        shardInfo.ReplicationDlqAckLevel,
 		PendingFailoverMarkers:        pendingFailoverMarkers,
+		QueueStates:                   shardInfo.GetQueueStates(),
 	}}
 
 	return resp, nil
@@ -278,6 +279,7 @@ func shardInfoToShardsRow(s persistence.InternalShardInfo, parser serialization.
 		ReplicationDlqAckLevel:                s.ReplicationDLQAckLevel,
 		PendingFailoverMarkers:                markerData,
 		PendingFailoverMarkersEncoding:        markerEncoding,
+		QueueStates:                           s.QueueStates,
 	}
 
 	blob, err := parser.ShardInfoToBlob(shardInfo)

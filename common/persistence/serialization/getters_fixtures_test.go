@@ -269,6 +269,7 @@ var expectedNil = map[string]map[string]any{
 		"GetTransferProcessingQueueStates":         []uint8(nil),
 		"GetTransferProcessingQueueStatesEncoding": "",
 		"GetUpdatedAt":                             zeroUnix,
+		"GetQueueStates":                           map[int32]*types.QueueState(nil),
 	},
 }
 
@@ -509,6 +510,7 @@ var expectedEmpty = map[string]map[string]any{
 		"GetTransferProcessingQueueStates":         []uint8(nil),
 		"GetTransferProcessingQueueStatesEncoding": "",
 		"GetUpdatedAt":                             time.Time{},
+		"GetQueueStates":                           map[int32]*types.QueueState(nil),
 	},
 }
 
@@ -766,5 +768,25 @@ var expectedNonEmpty = map[string]map[string]any{
 		"GetTransferProcessingQueueStates":         []byte("transferProcessingQueueStates"),
 		"GetTransferProcessingQueueStatesEncoding": "transferProcessingQueueStatesEncoding",
 		"GetUpdatedAt":                             shardInfoUpdatedTime,
+		"GetQueueStates": map[int32]*types.QueueState{
+			0: &types.QueueState{
+				VirtualQueueStates: map[int64]*types.VirtualQueueState{
+					0: {
+						VirtualSliceStates: []*types.VirtualSliceState{
+							{
+								TaskRange: &types.TaskRange{
+									InclusiveMin: &types.TaskKey{
+										TaskID: 1,
+									},
+									ExclusiveMax: &types.TaskKey{
+										TaskID: 2,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	},
 }

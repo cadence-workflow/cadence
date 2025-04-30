@@ -7877,25 +7877,26 @@ func (v *RequestCancelInfo) IsSetCancelRequestID() bool {
 }
 
 type ShardInfo struct {
-	StolenSinceRenew                          *int32           `json:"stolenSinceRenew,omitempty"`
-	UpdatedAtNanos                            *int64           `json:"updatedAtNanos,omitempty"`
-	ReplicationAckLevel                       *int64           `json:"replicationAckLevel,omitempty"`
-	TransferAckLevel                          *int64           `json:"transferAckLevel,omitempty"`
-	TimerAckLevelNanos                        *int64           `json:"timerAckLevelNanos,omitempty"`
-	DomainNotificationVersion                 *int64           `json:"domainNotificationVersion,omitempty"`
-	ClusterTransferAckLevel                   map[string]int64 `json:"clusterTransferAckLevel,omitempty"`
-	ClusterTimerAckLevel                      map[string]int64 `json:"clusterTimerAckLevel,omitempty"`
-	Owner                                     *string          `json:"owner,omitempty"`
-	ClusterReplicationLevel                   map[string]int64 `json:"clusterReplicationLevel,omitempty"`
-	PendingFailoverMarkers                    []byte           `json:"pendingFailoverMarkers,omitempty"`
-	PendingFailoverMarkersEncoding            *string          `json:"pendingFailoverMarkersEncoding,omitempty"`
-	ReplicationDlqAckLevel                    map[string]int64 `json:"replicationDlqAckLevel,omitempty"`
-	TransferProcessingQueueStates             []byte           `json:"transferProcessingQueueStates,omitempty"`
-	TransferProcessingQueueStatesEncoding     *string          `json:"transferProcessingQueueStatesEncoding,omitempty"`
-	TimerProcessingQueueStates                []byte           `json:"timerProcessingQueueStates,omitempty"`
-	TimerProcessingQueueStatesEncoding        *string          `json:"timerProcessingQueueStatesEncoding,omitempty"`
-	CrossClusterProcessingQueueStates         []byte           `json:"crossClusterProcessingQueueStates,omitempty"`
-	CrossClusterProcessingQueueStatesEncoding *string          `json:"crossClusterProcessingQueueStatesEncoding,omitempty"`
+	StolenSinceRenew                          *int32                       `json:"stolenSinceRenew,omitempty"`
+	UpdatedAtNanos                            *int64                       `json:"updatedAtNanos,omitempty"`
+	ReplicationAckLevel                       *int64                       `json:"replicationAckLevel,omitempty"`
+	TransferAckLevel                          *int64                       `json:"transferAckLevel,omitempty"`
+	TimerAckLevelNanos                        *int64                       `json:"timerAckLevelNanos,omitempty"`
+	DomainNotificationVersion                 *int64                       `json:"domainNotificationVersion,omitempty"`
+	ClusterTransferAckLevel                   map[string]int64             `json:"clusterTransferAckLevel,omitempty"`
+	ClusterTimerAckLevel                      map[string]int64             `json:"clusterTimerAckLevel,omitempty"`
+	Owner                                     *string                      `json:"owner,omitempty"`
+	ClusterReplicationLevel                   map[string]int64             `json:"clusterReplicationLevel,omitempty"`
+	PendingFailoverMarkers                    []byte                       `json:"pendingFailoverMarkers,omitempty"`
+	PendingFailoverMarkersEncoding            *string                      `json:"pendingFailoverMarkersEncoding,omitempty"`
+	ReplicationDlqAckLevel                    map[string]int64             `json:"replicationDlqAckLevel,omitempty"`
+	TransferProcessingQueueStates             []byte                       `json:"transferProcessingQueueStates,omitempty"`
+	TransferProcessingQueueStatesEncoding     *string                      `json:"transferProcessingQueueStatesEncoding,omitempty"`
+	TimerProcessingQueueStates                []byte                       `json:"timerProcessingQueueStates,omitempty"`
+	TimerProcessingQueueStatesEncoding        *string                      `json:"timerProcessingQueueStatesEncoding,omitempty"`
+	CrossClusterProcessingQueueStates         []byte                       `json:"crossClusterProcessingQueueStates,omitempty"`
+	CrossClusterProcessingQueueStatesEncoding *string                      `json:"crossClusterProcessingQueueStatesEncoding,omitempty"`
+	QueueStates                               map[int32]*shared.QueueState `json:"queueStates,omitempty"`
 }
 
 type _Map_String_I64_MapItemList map[string]int64
@@ -7933,6 +7934,44 @@ func (_Map_String_I64_MapItemList) ValueType() wire.Type {
 
 func (_Map_String_I64_MapItemList) Close() {}
 
+type _Map_I32_QueueState_MapItemList map[int32]*shared.QueueState
+
+func (m _Map_I32_QueueState_MapItemList) ForEach(f func(wire.MapItem) error) error {
+	for k, v := range m {
+		if v == nil {
+			return fmt.Errorf("invalid map 'map[int32]*shared.QueueState', key [%v]: value is nil", k)
+		}
+		kw, err := wire.NewValueI32(k), error(nil)
+		if err != nil {
+			return err
+		}
+
+		vw, err := v.ToWire()
+		if err != nil {
+			return err
+		}
+		err = f(wire.MapItem{Key: kw, Value: vw})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (m _Map_I32_QueueState_MapItemList) Size() int {
+	return len(m)
+}
+
+func (_Map_I32_QueueState_MapItemList) KeyType() wire.Type {
+	return wire.TI32
+}
+
+func (_Map_I32_QueueState_MapItemList) ValueType() wire.Type {
+	return wire.TStruct
+}
+
+func (_Map_I32_QueueState_MapItemList) Close() {}
+
 // ToWire translates a ShardInfo struct into a Thrift-level intermediate
 // representation. This intermediate representation may be serialized
 // into bytes using a ThriftRW protocol implementation.
@@ -7950,7 +7989,7 @@ func (_Map_String_I64_MapItemList) Close() {}
 //	}
 func (v *ShardInfo) ToWire() (wire.Value, error) {
 	var (
-		fields [19]wire.Field
+		fields [20]wire.Field
 		i      int = 0
 		w      wire.Value
 		err    error
@@ -8108,6 +8147,14 @@ func (v *ShardInfo) ToWire() (wire.Value, error) {
 		fields[i] = wire.Field{ID: 61, Value: w}
 		i++
 	}
+	if v.QueueStates != nil {
+		w, err = wire.NewValueMap(_Map_I32_QueueState_MapItemList(v.QueueStates)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 64, Value: w}
+		i++
+	}
 
 	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
 }
@@ -8129,6 +8176,40 @@ func _Map_String_I64_Read(m wire.MapItemList) (map[string]int64, error) {
 		}
 
 		v, err := x.Value.GetI64(), error(nil)
+		if err != nil {
+			return err
+		}
+
+		o[k] = v
+		return nil
+	})
+	m.Close()
+	return o, err
+}
+
+func _QueueState_Read(w wire.Value) (*shared.QueueState, error) {
+	var v shared.QueueState
+	err := v.FromWire(w)
+	return &v, err
+}
+
+func _Map_I32_QueueState_Read(m wire.MapItemList) (map[int32]*shared.QueueState, error) {
+	if m.KeyType() != wire.TI32 {
+		return nil, nil
+	}
+
+	if m.ValueType() != wire.TStruct {
+		return nil, nil
+	}
+
+	o := make(map[int32]*shared.QueueState, m.Size())
+	err := m.ForEach(func(x wire.MapItem) error {
+		k, err := x.Key.GetI32(), error(nil)
+		if err != nil {
+			return err
+		}
+
+		v, err := _QueueState_Read(x.Value)
 		if err != nil {
 			return err
 		}
@@ -8336,6 +8417,14 @@ func (v *ShardInfo) FromWire(w wire.Value) error {
 				}
 
 			}
+		case 64:
+			if field.Value.Type() == wire.TMap {
+				v.QueueStates, err = _Map_I32_QueueState_Read(field.Value.GetMap())
+				if err != nil {
+					return err
+				}
+
+			}
 		}
 	}
 
@@ -8358,6 +8447,32 @@ func _Map_String_I64_Encode(val map[string]int64, sw stream.Writer) error {
 			return err
 		}
 		if err := sw.WriteInt64(v); err != nil {
+			return err
+		}
+	}
+
+	return sw.WriteMapEnd()
+}
+
+func _Map_I32_QueueState_Encode(val map[int32]*shared.QueueState, sw stream.Writer) error {
+
+	mh := stream.MapHeader{
+		KeyType:   wire.TI32,
+		ValueType: wire.TStruct,
+		Length:    len(val),
+	}
+	if err := sw.WriteMapBegin(mh); err != nil {
+		return err
+	}
+
+	for k, v := range val {
+		if v == nil {
+			return fmt.Errorf("invalid map 'map[int32]*shared.QueueState', key [%v]: value is nil", k)
+		}
+		if err := sw.WriteInt32(k); err != nil {
+			return err
+		}
+		if err := v.Encode(sw); err != nil {
 			return err
 		}
 	}
@@ -8602,6 +8717,18 @@ func (v *ShardInfo) Encode(sw stream.Writer) error {
 		}
 	}
 
+	if v.QueueStates != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 64, Type: wire.TMap}); err != nil {
+			return err
+		}
+		if err := _Map_I32_QueueState_Encode(v.QueueStates, sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
 	return sw.WriteStructEnd()
 }
 
@@ -8632,6 +8759,52 @@ func _Map_String_I64_Decode(sr stream.Reader) (map[string]int64, error) {
 		}
 
 		v, err := sr.ReadInt64()
+		if err != nil {
+			return nil, err
+		}
+
+		o[k] = v
+	}
+
+	if err = sr.ReadMapEnd(); err != nil {
+		return nil, err
+	}
+	return o, err
+}
+
+func _QueueState_Decode(sr stream.Reader) (*shared.QueueState, error) {
+	var v shared.QueueState
+	err := v.Decode(sr)
+	return &v, err
+}
+
+func _Map_I32_QueueState_Decode(sr stream.Reader) (map[int32]*shared.QueueState, error) {
+	mh, err := sr.ReadMapBegin()
+	if err != nil {
+		return nil, err
+	}
+
+	if mh.KeyType != wire.TI32 || mh.ValueType != wire.TStruct {
+		for i := 0; i < mh.Length; i++ {
+			if err := sr.Skip(mh.KeyType); err != nil {
+				return nil, err
+			}
+
+			if err := sr.Skip(mh.ValueType); err != nil {
+				return nil, err
+			}
+		}
+		return nil, sr.ReadMapEnd()
+	}
+
+	o := make(map[int32]*shared.QueueState, mh.Length)
+	for i := 0; i < mh.Length; i++ {
+		k, err := sr.ReadInt32()
+		if err != nil {
+			return nil, err
+		}
+
+		v, err := _QueueState_Decode(sr)
 		if err != nil {
 			return nil, err
 		}
@@ -8799,6 +8972,12 @@ func (v *ShardInfo) Decode(sr stream.Reader) error {
 				return err
 			}
 
+		case fh.ID == 64 && fh.Type == wire.TMap:
+			v.QueueStates, err = _Map_I32_QueueState_Decode(sr)
+			if err != nil {
+				return err
+			}
+
 		default:
 			if err := sr.Skip(fh.Type); err != nil {
 				return err
@@ -8828,7 +9007,7 @@ func (v *ShardInfo) String() string {
 		return "<nil>"
 	}
 
-	var fields [19]string
+	var fields [20]string
 	i := 0
 	if v.StolenSinceRenew != nil {
 		fields[i] = fmt.Sprintf("StolenSinceRenew: %v", *(v.StolenSinceRenew))
@@ -8906,6 +9085,10 @@ func (v *ShardInfo) String() string {
 		fields[i] = fmt.Sprintf("CrossClusterProcessingQueueStatesEncoding: %v", *(v.CrossClusterProcessingQueueStatesEncoding))
 		i++
 	}
+	if v.QueueStates != nil {
+		fields[i] = fmt.Sprintf("QueueStates: %v", v.QueueStates)
+		i++
+	}
 
 	return fmt.Sprintf("ShardInfo{%v}", strings.Join(fields[:i], ", "))
 }
@@ -8921,6 +9104,23 @@ func _Map_String_I64_Equals(lhs, rhs map[string]int64) bool {
 			return false
 		}
 		if !(lv == rv) {
+			return false
+		}
+	}
+	return true
+}
+
+func _Map_I32_QueueState_Equals(lhs, rhs map[int32]*shared.QueueState) bool {
+	if len(lhs) != len(rhs) {
+		return false
+	}
+
+	for lk, lv := range lhs {
+		rv, ok := rhs[lk]
+		if !ok {
+			return false
+		}
+		if !lv.Equals(rv) {
 			return false
 		}
 	}
@@ -8994,6 +9194,9 @@ func (v *ShardInfo) Equals(rhs *ShardInfo) bool {
 	if !_String_EqualsPtr(v.CrossClusterProcessingQueueStatesEncoding, rhs.CrossClusterProcessingQueueStatesEncoding) {
 		return false
 	}
+	if !((v.QueueStates == nil && rhs.QueueStates == nil) || (v.QueueStates != nil && rhs.QueueStates != nil && _Map_I32_QueueState_Equals(v.QueueStates, rhs.QueueStates))) {
+		return false
+	}
 
 	return true
 }
@@ -9005,6 +9208,30 @@ type _Map_String_I64_Zapper map[string]int64
 func (m _Map_String_I64_Zapper) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
 	for k, v := range m {
 		enc.AddInt64((string)(k), v)
+	}
+	return err
+}
+
+type _Map_I32_QueueState_Item_Zapper struct {
+	Key   int32
+	Value *shared.QueueState
+}
+
+// MarshalLogArray implements zapcore.ArrayMarshaler, enabling
+// fast logging of _Map_I32_QueueState_Item_Zapper.
+func (v _Map_I32_QueueState_Item_Zapper) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	enc.AddInt32("key", v.Key)
+	err = multierr.Append(err, enc.AddObject("value", v.Value))
+	return err
+}
+
+type _Map_I32_QueueState_Zapper map[int32]*shared.QueueState
+
+// MarshalLogArray implements zapcore.ArrayMarshaler, enabling
+// fast logging of _Map_I32_QueueState_Zapper.
+func (m _Map_I32_QueueState_Zapper) MarshalLogArray(enc zapcore.ArrayEncoder) (err error) {
+	for k, v := range m {
+		err = multierr.Append(err, enc.AppendObject(_Map_I32_QueueState_Item_Zapper{Key: k, Value: v}))
 	}
 	return err
 }
@@ -9071,6 +9298,9 @@ func (v *ShardInfo) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
 	}
 	if v.CrossClusterProcessingQueueStatesEncoding != nil {
 		enc.AddString("crossClusterProcessingQueueStatesEncoding", *v.CrossClusterProcessingQueueStatesEncoding)
+	}
+	if v.QueueStates != nil {
+		err = multierr.Append(err, enc.AddArray("queueStates", (_Map_I32_QueueState_Zapper)(v.QueueStates)))
 	}
 	return err
 }
@@ -9358,6 +9588,21 @@ func (v *ShardInfo) GetCrossClusterProcessingQueueStatesEncoding() (o string) {
 // IsSetCrossClusterProcessingQueueStatesEncoding returns true if CrossClusterProcessingQueueStatesEncoding is not nil.
 func (v *ShardInfo) IsSetCrossClusterProcessingQueueStatesEncoding() bool {
 	return v != nil && v.CrossClusterProcessingQueueStatesEncoding != nil
+}
+
+// GetQueueStates returns the value of QueueStates if it is set or its
+// zero value if it is unset.
+func (v *ShardInfo) GetQueueStates() (o map[int32]*shared.QueueState) {
+	if v != nil && v.QueueStates != nil {
+		return v.QueueStates
+	}
+
+	return
+}
+
+// IsSetQueueStates returns true if QueueStates is not nil.
+func (v *ShardInfo) IsSetQueueStates() bool {
+	return v != nil && v.QueueStates != nil
 }
 
 type SignalInfo struct {
@@ -18098,11 +18343,11 @@ var ThriftModule = &thriftreflect.ThriftModule{
 	Name:     "sqlblobs",
 	Package:  "github.com/uber/cadence/.gen/go/sqlblobs",
 	FilePath: "sqlblobs.thrift",
-	SHA1:     "07563bc49d96c73d414ed5ce6fd4a74202911035",
+	SHA1:     "956cdeaa8460d9fb5b252e4cbef6edd6e097c1f7",
 	Includes: []*thriftreflect.ThriftModule{
 		shared.ThriftModule,
 	},
 	Raw: rawIDL,
 }
 
-const rawIDL = "// Copyright (c) 2017 Uber Technologies, Inc.\n//\n// Permission is hereby granted, free of charge, to any person obtaining a copy\n// of this software and associated documentation files (the \"Software\"), to deal\n// in the Software without restriction, including without limitation the rights\n// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n// copies of the Software, and to permit persons to whom the Software is\n// furnished to do so, subject to the following conditions:\n//\n// The above copyright notice and this permission notice shall be included in\n// all copies or substantial portions of the Software.\n//\n// THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n// THE SOFTWARE.\n\nnamespace java com.uber.cadence.sqlblobs\n\ninclude \"shared.thrift\"\n\nstruct ShardInfo {\n  10: optional i32 stolenSinceRenew\n  12: optional i64 (js.type = \"Long\") updatedAtNanos\n  14: optional i64 (js.type = \"Long\") replicationAckLevel\n  16: optional i64 (js.type = \"Long\") transferAckLevel\n  18: optional i64 (js.type = \"Long\") timerAckLevelNanos\n  24: optional i64 (js.type = \"Long\") domainNotificationVersion\n  34: optional map<string, i64> clusterTransferAckLevel\n  36: optional map<string, i64> clusterTimerAckLevel\n  38: optional string owner\n  40: optional map<string, i64> clusterReplicationLevel\n  42: optional binary pendingFailoverMarkers\n  44: optional string pendingFailoverMarkersEncoding\n  46: optional map<string, i64> replicationDlqAckLevel\n  50: optional binary transferProcessingQueueStates\n  51: optional string transferProcessingQueueStatesEncoding\n  55: optional binary timerProcessingQueueStates\n  56: optional string timerProcessingQueueStatesEncoding\n  60: optional binary crossClusterProcessingQueueStates\n  61: optional string crossClusterProcessingQueueStatesEncoding\n}\n\nstruct DomainInfo {\n  10: optional string name\n  12: optional string description\n  14: optional string owner\n  16: optional i32 status\n  18: optional i16 retentionDays\n  20: optional bool emitMetric\n  22: optional string archivalBucket\n  24: optional i16 archivalStatus\n  26: optional i64 (js.type = \"Long\") configVersion\n  28: optional i64 (js.type = \"Long\") notificationVersion\n  30: optional i64 (js.type = \"Long\") failoverNotificationVersion\n  32: optional i64 (js.type = \"Long\") failoverVersion\n  34: optional string activeClusterName\n  36: optional list<string> clusters\n  38: optional map<string, string> data\n  39: optional binary badBinaries\n  40: optional string badBinariesEncoding\n  42: optional i16 historyArchivalStatus\n  44: optional string historyArchivalURI\n  46: optional i16 visibilityArchivalStatus\n  48: optional string visibilityArchivalURI\n  50: optional i64 (js.type = \"Long\") failoverEndTime\n  52: optional i64 (js.type = \"Long\") previousFailoverVersion\n  54: optional i64 (js.type = \"Long\") lastUpdatedTime\n  56: optional binary isolationGroupsConfiguration\n  58: optional string isolationGroupsConfigurationEncoding\n  60: optional binary asyncWorkflowConfiguration\n  62: optional string asyncWorkflowConfigurationEncoding\n}\n\nstruct HistoryTreeInfo {\n  10: optional i64 (js.type = \"Long\") createdTimeNanos // For fork operation to prevent race condition of leaking event data when forking branches fail. Also can be used for clean up leaked data\n  12: optional list<shared.HistoryBranchRange> ancestors\n  14: optional string info // For lookup back to workflow during debugging, also background cleanup when fork operation cannot finish self cleanup due to crash.\n}\n\nstruct WorkflowExecutionInfo {\n  10: optional binary parentDomainID\n  12: optional string parentWorkflowID\n  14: optional binary parentRunID\n  16: optional i64 (js.type = \"Long\") initiatedID\n  18: optional i64 (js.type = \"Long\") completionEventBatchID\n  20: optional binary completionEvent\n  22: optional string completionEventEncoding\n  24: optional string taskList\n  26: optional string workflowTypeName\n  28: optional i32 workflowTimeoutSeconds\n  30: optional i32 decisionTaskTimeoutSeconds\n  32: optional binary executionContext\n  34: optional i32 state\n  36: optional i32 closeStatus\n  38: optional i64 (js.type = \"Long\") startVersion\n  44: optional i64 (js.type = \"Long\") lastWriteEventID\n  48: optional i64 (js.type = \"Long\") lastEventTaskID\n  50: optional i64 (js.type = \"Long\") lastFirstEventID\n  52: optional i64 (js.type = \"Long\") lastProcessedEvent\n  54: optional i64 (js.type = \"Long\") startTimeNanos\n  56: optional i64 (js.type = \"Long\") lastUpdatedTimeNanos\n  58: optional i64 (js.type = \"Long\") decisionVersion\n  60: optional i64 (js.type = \"Long\") decisionScheduleID\n  62: optional i64 (js.type = \"Long\") decisionStartedID\n  64: optional i32 decisionTimeout\n  66: optional i64 (js.type = \"Long\") decisionAttempt\n  68: optional i64 (js.type = \"Long\") decisionStartedTimestampNanos\n  69: optional i64 (js.type = \"Long\") decisionScheduledTimestampNanos\n  70: optional bool cancelRequested\n  71: optional i64 (js.type = \"Long\") decisionOriginalScheduledTimestampNanos\n  72: optional string createRequestID\n  74: optional string decisionRequestID\n  76: optional string cancelRequestID\n  78: optional string stickyTaskList\n  80: optional i64 (js.type = \"Long\") stickyScheduleToStartTimeout\n  82: optional i64 (js.type = \"Long\") retryAttempt\n  84: optional i32 retryInitialIntervalSeconds\n  86: optional i32 retryMaximumIntervalSeconds\n  88: optional i32 retryMaximumAttempts\n  90: optional i32 retryExpirationSeconds\n  92: optional double retryBackoffCoefficient\n  94: optional i64 (js.type = \"Long\") retryExpirationTimeNanos\n  96: optional list<string> retryNonRetryableErrors\n  98: optional bool hasRetryPolicy\n  100: optional string cronSchedule\n  102: optional i32 eventStoreVersion\n  104: optional binary eventBranchToken\n  106: optional i64 (js.type = \"Long\") signalCount\n  108: optional i64 (js.type = \"Long\") historySize\n  110: optional string clientLibraryVersion\n  112: optional string clientFeatureVersion\n  114: optional string clientImpl\n  115: optional binary autoResetPoints\n  116: optional string autoResetPointsEncoding\n  118: optional map<string, binary> searchAttributes\n  120: optional map<string, binary> memo\n  122: optional binary versionHistories\n  124: optional string versionHistoriesEncoding\n  126: optional binary firstExecutionRunID\n  128: optional map<string, string> partitionConfig\n  130: optional binary checksum\n  132: optional string checksumEncoding\n}\n\nstruct ActivityInfo {\n  10: optional i64 (js.type = \"Long\") version\n  12: optional i64 (js.type = \"Long\") scheduledEventBatchID\n  14: optional binary scheduledEvent\n  16: optional string scheduledEventEncoding\n  18: optional i64 (js.type = \"Long\") scheduledTimeNanos\n  20: optional i64 (js.type = \"Long\") startedID\n  22: optional binary startedEvent\n  24: optional string startedEventEncoding\n  26: optional i64 (js.type = \"Long\") startedTimeNanos\n  28: optional string activityID\n  30: optional string requestID\n  32: optional i32 scheduleToStartTimeoutSeconds\n  34: optional i32 scheduleToCloseTimeoutSeconds\n  36: optional i32 startToCloseTimeoutSeconds\n  38: optional i32 heartbeatTimeoutSeconds\n  40: optional bool cancelRequested\n  42: optional i64 (js.type = \"Long\") cancelRequestID\n  44: optional i32 timerTaskStatus\n  46: optional i32 attempt\n  48: optional string taskList\n  50: optional string startedIdentity\n  52: optional bool hasRetryPolicy\n  54: optional i32 retryInitialIntervalSeconds\n  56: optional i32 retryMaximumIntervalSeconds\n  58: optional i32 retryMaximumAttempts\n  60: optional i64 (js.type = \"Long\") retryExpirationTimeNanos\n  62: optional double retryBackoffCoefficient\n  64: optional list<string> retryNonRetryableErrors\n  66: optional string retryLastFailureReason\n  68: optional string retryLastWorkerIdentity\n  70: optional binary retryLastFailureDetails\n}\n\nstruct ChildExecutionInfo {\n  10: optional i64 (js.type = \"Long\") version\n  12: optional i64 (js.type = \"Long\") initiatedEventBatchID\n  14: optional i64 (js.type = \"Long\") startedID\n  16: optional binary initiatedEvent\n  18: optional string initiatedEventEncoding\n  20: optional string startedWorkflowID\n  22: optional binary startedRunID\n  24: optional binary startedEvent\n  26: optional string startedEventEncoding\n  28: optional string createRequestID\n  29: optional string domainID\n  30: optional string domainName // deprecated\n  32: optional string workflowTypeName\n  35: optional i32 parentClosePolicy\n}\n\nstruct SignalInfo {\n  10: optional i64 (js.type = \"Long\") version\n  11: optional i64 (js.type = \"Long\") initiatedEventBatchID\n  12: optional string requestID\n  14: optional string name\n  16: optional binary input\n  18: optional binary control\n}\n\nstruct RequestCancelInfo {\n  10: optional i64 (js.type = \"Long\") version\n  11: optional i64 (js.type = \"Long\") initiatedEventBatchID\n  12: optional string cancelRequestID\n}\n\nstruct TimerInfo {\n  10: optional i64 (js.type = \"Long\") version\n  12: optional i64 (js.type = \"Long\") startedID\n  14: optional i64 (js.type = \"Long\") expiryTimeNanos\n  // TaskID is a misleading variable, it actually serves\n  // the purpose of indicating whether a timer task is\n  // generated for this timer info\n  16: optional i64 (js.type = \"Long\") taskID\n}\n\nstruct TaskInfo {\n  10: optional string workflowID\n  12: optional binary runID\n  13: optional i64 (js.type = \"Long\") scheduleID\n  14: optional i64 (js.type = \"Long\") expiryTimeNanos\n  15: optional i64 (js.type = \"Long\") createdTimeNanos\n  17: optional map<string, string> partitionConfig\n}\n\nstruct TaskListPartition {\n    10: optional list<string> isolationGroups\n}\n\nstruct TaskListPartitionConfig {\n  10: optional i64 (js.type = \"Long\") version\n  12: optional i32 numReadPartitions\n  14: optional i32 numWritePartitions\n  16: optional map<i32, TaskListPartition> readPartitions\n  18: optional map<i32, TaskListPartition> writePartitions\n}\n\nstruct TaskListInfo {\n  10: optional i16 kind // {Normal, Sticky}\n  12: optional i64 (js.type = \"Long\") ackLevel\n  14: optional i64 (js.type = \"Long\") expiryTimeNanos\n  16: optional i64 (js.type = \"Long\") lastUpdatedNanos\n  18: optional TaskListPartitionConfig adaptivePartitionConfig\n}\n\nstruct TransferTaskInfo {\n  10: optional binary domainID\n  12: optional string workflowID\n  14: optional binary runID\n  16: optional i16 taskType\n  18: optional binary targetDomainID\n  20: optional string targetWorkflowID\n  22: optional binary targetRunID\n  24: optional string taskList\n  26: optional bool targetChildWorkflowOnly\n  28: optional i64 (js.type = \"Long\") scheduleID\n  30: optional i64 (js.type = \"Long\") version\n  32: optional i64 (js.type = \"Long\") visibilityTimestampNanos\n  34: optional set<binary> targetDomainIDs\n}\n\nstruct TimerTaskInfo {\n  10: optional binary domainID\n  12: optional string workflowID\n  14: optional binary runID\n  16: optional i16 taskType\n  18: optional i16 timeoutType\n  20: optional i64 (js.type = \"Long\") version\n  22: optional i64 (js.type = \"Long\") scheduleAttempt\n  24: optional i64 (js.type = \"Long\") eventID\n}\n\nstruct ReplicationTaskInfo {\n  10: optional binary domainID\n  12: optional string workflowID\n  14: optional binary runID\n  16: optional i16 taskType\n  18: optional i64 (js.type = \"Long\") version\n  20: optional i64 (js.type = \"Long\") firstEventID\n  22: optional i64 (js.type = \"Long\") nextEventID\n  24: optional i64 (js.type = \"Long\") scheduledID\n  26: optional i32 eventStoreVersion\n  28: optional i32 newRunEventStoreVersion\n  30: optional binary branch_token\n  34: optional binary newRunBranchToken\n  38: optional i64 (js.type = \"Long\") creationTime\n}\n\nenum AsyncRequestType {\n  StartWorkflowExecutionAsyncRequest\n  SignalWithStartWorkflowExecutionAsyncRequest\n}\n\nstruct AsyncRequestMessage {\n  10: optional string partitionKey\n  12: optional AsyncRequestType type\n  14: optional shared.Header header\n  16: optional string encoding\n  18: optional binary payload\n}\n"
+const rawIDL = "// Copyright (c) 2017 Uber Technologies, Inc.\n//\n// Permission is hereby granted, free of charge, to any person obtaining a copy\n// of this software and associated documentation files (the \"Software\"), to deal\n// in the Software without restriction, including without limitation the rights\n// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n// copies of the Software, and to permit persons to whom the Software is\n// furnished to do so, subject to the following conditions:\n//\n// The above copyright notice and this permission notice shall be included in\n// all copies or substantial portions of the Software.\n//\n// THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n// THE SOFTWARE.\n\nnamespace java com.uber.cadence.sqlblobs\n\ninclude \"shared.thrift\"\n\nstruct ShardInfo {\n  10: optional i32 stolenSinceRenew\n  12: optional i64 (js.type = \"Long\") updatedAtNanos\n  14: optional i64 (js.type = \"Long\") replicationAckLevel\n  16: optional i64 (js.type = \"Long\") transferAckLevel\n  18: optional i64 (js.type = \"Long\") timerAckLevelNanos\n  24: optional i64 (js.type = \"Long\") domainNotificationVersion\n  34: optional map<string, i64> clusterTransferAckLevel\n  36: optional map<string, i64> clusterTimerAckLevel\n  38: optional string owner\n  40: optional map<string, i64> clusterReplicationLevel\n  42: optional binary pendingFailoverMarkers\n  44: optional string pendingFailoverMarkersEncoding\n  46: optional map<string, i64> replicationDlqAckLevel\n  50: optional binary transferProcessingQueueStates\n  51: optional string transferProcessingQueueStatesEncoding\n  55: optional binary timerProcessingQueueStates\n  56: optional string timerProcessingQueueStatesEncoding\n  60: optional binary crossClusterProcessingQueueStates\n  61: optional string crossClusterProcessingQueueStatesEncoding\n  64: optional map<i32, shared.QueueState> queueStates\n}\n\nstruct DomainInfo {\n  10: optional string name\n  12: optional string description\n  14: optional string owner\n  16: optional i32 status\n  18: optional i16 retentionDays\n  20: optional bool emitMetric\n  22: optional string archivalBucket\n  24: optional i16 archivalStatus\n  26: optional i64 (js.type = \"Long\") configVersion\n  28: optional i64 (js.type = \"Long\") notificationVersion\n  30: optional i64 (js.type = \"Long\") failoverNotificationVersion\n  32: optional i64 (js.type = \"Long\") failoverVersion\n  34: optional string activeClusterName\n  36: optional list<string> clusters\n  38: optional map<string, string> data\n  39: optional binary badBinaries\n  40: optional string badBinariesEncoding\n  42: optional i16 historyArchivalStatus\n  44: optional string historyArchivalURI\n  46: optional i16 visibilityArchivalStatus\n  48: optional string visibilityArchivalURI\n  50: optional i64 (js.type = \"Long\") failoverEndTime\n  52: optional i64 (js.type = \"Long\") previousFailoverVersion\n  54: optional i64 (js.type = \"Long\") lastUpdatedTime\n  56: optional binary isolationGroupsConfiguration\n  58: optional string isolationGroupsConfigurationEncoding\n  60: optional binary asyncWorkflowConfiguration\n  62: optional string asyncWorkflowConfigurationEncoding\n}\n\nstruct HistoryTreeInfo {\n  10: optional i64 (js.type = \"Long\") createdTimeNanos // For fork operation to prevent race condition of leaking event data when forking branches fail. Also can be used for clean up leaked data\n  12: optional list<shared.HistoryBranchRange> ancestors\n  14: optional string info // For lookup back to workflow during debugging, also background cleanup when fork operation cannot finish self cleanup due to crash.\n}\n\nstruct WorkflowExecutionInfo {\n  10: optional binary parentDomainID\n  12: optional string parentWorkflowID\n  14: optional binary parentRunID\n  16: optional i64 (js.type = \"Long\") initiatedID\n  18: optional i64 (js.type = \"Long\") completionEventBatchID\n  20: optional binary completionEvent\n  22: optional string completionEventEncoding\n  24: optional string taskList\n  26: optional string workflowTypeName\n  28: optional i32 workflowTimeoutSeconds\n  30: optional i32 decisionTaskTimeoutSeconds\n  32: optional binary executionContext\n  34: optional i32 state\n  36: optional i32 closeStatus\n  38: optional i64 (js.type = \"Long\") startVersion\n  44: optional i64 (js.type = \"Long\") lastWriteEventID\n  48: optional i64 (js.type = \"Long\") lastEventTaskID\n  50: optional i64 (js.type = \"Long\") lastFirstEventID\n  52: optional i64 (js.type = \"Long\") lastProcessedEvent\n  54: optional i64 (js.type = \"Long\") startTimeNanos\n  56: optional i64 (js.type = \"Long\") lastUpdatedTimeNanos\n  58: optional i64 (js.type = \"Long\") decisionVersion\n  60: optional i64 (js.type = \"Long\") decisionScheduleID\n  62: optional i64 (js.type = \"Long\") decisionStartedID\n  64: optional i32 decisionTimeout\n  66: optional i64 (js.type = \"Long\") decisionAttempt\n  68: optional i64 (js.type = \"Long\") decisionStartedTimestampNanos\n  69: optional i64 (js.type = \"Long\") decisionScheduledTimestampNanos\n  70: optional bool cancelRequested\n  71: optional i64 (js.type = \"Long\") decisionOriginalScheduledTimestampNanos\n  72: optional string createRequestID\n  74: optional string decisionRequestID\n  76: optional string cancelRequestID\n  78: optional string stickyTaskList\n  80: optional i64 (js.type = \"Long\") stickyScheduleToStartTimeout\n  82: optional i64 (js.type = \"Long\") retryAttempt\n  84: optional i32 retryInitialIntervalSeconds\n  86: optional i32 retryMaximumIntervalSeconds\n  88: optional i32 retryMaximumAttempts\n  90: optional i32 retryExpirationSeconds\n  92: optional double retryBackoffCoefficient\n  94: optional i64 (js.type = \"Long\") retryExpirationTimeNanos\n  96: optional list<string> retryNonRetryableErrors\n  98: optional bool hasRetryPolicy\n  100: optional string cronSchedule\n  102: optional i32 eventStoreVersion\n  104: optional binary eventBranchToken\n  106: optional i64 (js.type = \"Long\") signalCount\n  108: optional i64 (js.type = \"Long\") historySize\n  110: optional string clientLibraryVersion\n  112: optional string clientFeatureVersion\n  114: optional string clientImpl\n  115: optional binary autoResetPoints\n  116: optional string autoResetPointsEncoding\n  118: optional map<string, binary> searchAttributes\n  120: optional map<string, binary> memo\n  122: optional binary versionHistories\n  124: optional string versionHistoriesEncoding\n  126: optional binary firstExecutionRunID\n  128: optional map<string, string> partitionConfig\n  130: optional binary checksum\n  132: optional string checksumEncoding\n}\n\nstruct ActivityInfo {\n  10: optional i64 (js.type = \"Long\") version\n  12: optional i64 (js.type = \"Long\") scheduledEventBatchID\n  14: optional binary scheduledEvent\n  16: optional string scheduledEventEncoding\n  18: optional i64 (js.type = \"Long\") scheduledTimeNanos\n  20: optional i64 (js.type = \"Long\") startedID\n  22: optional binary startedEvent\n  24: optional string startedEventEncoding\n  26: optional i64 (js.type = \"Long\") startedTimeNanos\n  28: optional string activityID\n  30: optional string requestID\n  32: optional i32 scheduleToStartTimeoutSeconds\n  34: optional i32 scheduleToCloseTimeoutSeconds\n  36: optional i32 startToCloseTimeoutSeconds\n  38: optional i32 heartbeatTimeoutSeconds\n  40: optional bool cancelRequested\n  42: optional i64 (js.type = \"Long\") cancelRequestID\n  44: optional i32 timerTaskStatus\n  46: optional i32 attempt\n  48: optional string taskList\n  50: optional string startedIdentity\n  52: optional bool hasRetryPolicy\n  54: optional i32 retryInitialIntervalSeconds\n  56: optional i32 retryMaximumIntervalSeconds\n  58: optional i32 retryMaximumAttempts\n  60: optional i64 (js.type = \"Long\") retryExpirationTimeNanos\n  62: optional double retryBackoffCoefficient\n  64: optional list<string> retryNonRetryableErrors\n  66: optional string retryLastFailureReason\n  68: optional string retryLastWorkerIdentity\n  70: optional binary retryLastFailureDetails\n}\n\nstruct ChildExecutionInfo {\n  10: optional i64 (js.type = \"Long\") version\n  12: optional i64 (js.type = \"Long\") initiatedEventBatchID\n  14: optional i64 (js.type = \"Long\") startedID\n  16: optional binary initiatedEvent\n  18: optional string initiatedEventEncoding\n  20: optional string startedWorkflowID\n  22: optional binary startedRunID\n  24: optional binary startedEvent\n  26: optional string startedEventEncoding\n  28: optional string createRequestID\n  29: optional string domainID\n  30: optional string domainName // deprecated\n  32: optional string workflowTypeName\n  35: optional i32 parentClosePolicy\n}\n\nstruct SignalInfo {\n  10: optional i64 (js.type = \"Long\") version\n  11: optional i64 (js.type = \"Long\") initiatedEventBatchID\n  12: optional string requestID\n  14: optional string name\n  16: optional binary input\n  18: optional binary control\n}\n\nstruct RequestCancelInfo {\n  10: optional i64 (js.type = \"Long\") version\n  11: optional i64 (js.type = \"Long\") initiatedEventBatchID\n  12: optional string cancelRequestID\n}\n\nstruct TimerInfo {\n  10: optional i64 (js.type = \"Long\") version\n  12: optional i64 (js.type = \"Long\") startedID\n  14: optional i64 (js.type = \"Long\") expiryTimeNanos\n  // TaskID is a misleading variable, it actually serves\n  // the purpose of indicating whether a timer task is\n  // generated for this timer info\n  16: optional i64 (js.type = \"Long\") taskID\n}\n\nstruct TaskInfo {\n  10: optional string workflowID\n  12: optional binary runID\n  13: optional i64 (js.type = \"Long\") scheduleID\n  14: optional i64 (js.type = \"Long\") expiryTimeNanos\n  15: optional i64 (js.type = \"Long\") createdTimeNanos\n  17: optional map<string, string> partitionConfig\n}\n\nstruct TaskListPartition {\n    10: optional list<string> isolationGroups\n}\n\nstruct TaskListPartitionConfig {\n  10: optional i64 (js.type = \"Long\") version\n  12: optional i32 numReadPartitions\n  14: optional i32 numWritePartitions\n  16: optional map<i32, TaskListPartition> readPartitions\n  18: optional map<i32, TaskListPartition> writePartitions\n}\n\nstruct TaskListInfo {\n  10: optional i16 kind // {Normal, Sticky}\n  12: optional i64 (js.type = \"Long\") ackLevel\n  14: optional i64 (js.type = \"Long\") expiryTimeNanos\n  16: optional i64 (js.type = \"Long\") lastUpdatedNanos\n  18: optional TaskListPartitionConfig adaptivePartitionConfig\n}\n\nstruct TransferTaskInfo {\n  10: optional binary domainID\n  12: optional string workflowID\n  14: optional binary runID\n  16: optional i16 taskType\n  18: optional binary targetDomainID\n  20: optional string targetWorkflowID\n  22: optional binary targetRunID\n  24: optional string taskList\n  26: optional bool targetChildWorkflowOnly\n  28: optional i64 (js.type = \"Long\") scheduleID\n  30: optional i64 (js.type = \"Long\") version\n  32: optional i64 (js.type = \"Long\") visibilityTimestampNanos\n  34: optional set<binary> targetDomainIDs\n}\n\nstruct TimerTaskInfo {\n  10: optional binary domainID\n  12: optional string workflowID\n  14: optional binary runID\n  16: optional i16 taskType\n  18: optional i16 timeoutType\n  20: optional i64 (js.type = \"Long\") version\n  22: optional i64 (js.type = \"Long\") scheduleAttempt\n  24: optional i64 (js.type = \"Long\") eventID\n}\n\nstruct ReplicationTaskInfo {\n  10: optional binary domainID\n  12: optional string workflowID\n  14: optional binary runID\n  16: optional i16 taskType\n  18: optional i64 (js.type = \"Long\") version\n  20: optional i64 (js.type = \"Long\") firstEventID\n  22: optional i64 (js.type = \"Long\") nextEventID\n  24: optional i64 (js.type = \"Long\") scheduledID\n  26: optional i32 eventStoreVersion\n  28: optional i32 newRunEventStoreVersion\n  30: optional binary branch_token\n  34: optional binary newRunBranchToken\n  38: optional i64 (js.type = \"Long\") creationTime\n}\n\nenum AsyncRequestType {\n  StartWorkflowExecutionAsyncRequest\n  SignalWithStartWorkflowExecutionAsyncRequest\n}\n\nstruct AsyncRequestMessage {\n  10: optional string partitionKey\n  12: optional AsyncRequestType type\n  14: optional shared.Header header\n  16: optional string encoding\n  18: optional binary payload\n}\n"

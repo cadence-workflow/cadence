@@ -25,8 +25,10 @@ package serialization
 import (
 	"time"
 
+	"github.com/uber/cadence/.gen/go/shared"
 	"github.com/uber/cadence/.gen/go/sqlblobs"
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/types/mapper/thrift"
 )
 
@@ -58,6 +60,12 @@ func shardInfoToThrift(info *ShardInfo) *sqlblobs.ShardInfo {
 		result.ClusterTimerAckLevel = make(map[string]int64, len(info.ClusterTimerAckLevel))
 		for k, v := range info.ClusterTimerAckLevel {
 			result.ClusterTimerAckLevel[k] = v.UnixNano()
+		}
+	}
+	if info.QueueStates != nil {
+		result.QueueStates = make(map[int32]*shared.QueueState, len(info.QueueStates))
+		for k, v := range info.QueueStates {
+			result.QueueStates[k] = thrift.FromQueueState(v)
 		}
 	}
 	return result
@@ -92,6 +100,12 @@ func shardInfoFromThrift(info *sqlblobs.ShardInfo) *ShardInfo {
 		result.ClusterTimerAckLevel = make(map[string]time.Time, len(info.ClusterTimerAckLevel))
 		for k, v := range info.ClusterTimerAckLevel {
 			result.ClusterTimerAckLevel[k] = time.Unix(0, v)
+		}
+	}
+	if info.QueueStates != nil {
+		result.QueueStates = make(map[int32]*types.QueueState, len(info.QueueStates))
+		for k, v := range info.QueueStates {
+			result.QueueStates[k] = thrift.ToQueueState(v)
 		}
 	}
 	return result

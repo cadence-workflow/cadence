@@ -37,6 +37,7 @@ import (
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 	"github.com/uber/cadence/common/persistence/serialization"
+	"github.com/uber/cadence/common/types"
 )
 
 func testFixtureInternalShardInfo() *persistence.InternalShardInfo {
@@ -78,6 +79,13 @@ func testFixtureInternalShardInfo() *persistence.InternalShardInfo {
 		PendingFailoverMarkers: &persistence.DataBlob{
 			Encoding: "base64",
 			Data:     []byte("pending-failover-markers"),
+		},
+		QueueStates: map[int32]*types.QueueState{
+			0: &types.QueueState{
+				VirtualQueueStates: map[int64]*types.VirtualQueueState{
+					0: {},
+				},
+			},
 		},
 	}
 }
@@ -243,6 +251,13 @@ func TestGetShard(t *testing.T) {
 						"cluster-1": 10,
 						"cluster-2": 15,
 					},
+					QueueStates: map[int32]*types.QueueState{
+						0: &types.QueueState{
+							VirtualQueueStates: map[int64]*types.VirtualQueueState{
+								0: {},
+							},
+						},
+					},
 				}, nil).Times(1)
 			},
 			request:     &persistence.InternalGetShardRequest{ShardID: 1},
@@ -285,6 +300,13 @@ func TestGetShard(t *testing.T) {
 					ReplicationDLQAckLevel: map[string]int64{
 						"cluster-1": 10,
 						"cluster-2": 15,
+					},
+					QueueStates: map[int32]*types.QueueState{
+						0: &types.QueueState{
+							VirtualQueueStates: map[int64]*types.VirtualQueueState{
+								0: {},
+							},
+						},
 					},
 				},
 			},

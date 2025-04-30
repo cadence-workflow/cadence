@@ -159,6 +159,7 @@ func (s *controllerSuite) TestAcquireShardSuccess() {
 					},
 					ClusterReplicationLevel: map[string]int64{},
 					ReplicationDLQAckLevel:  map[string]int64{},
+					QueueStates:             map[int32]*types.QueueState{},
 				},
 				PreviousRangeID: 5,
 			}).Return(nil).Once()
@@ -245,6 +246,7 @@ func (s *controllerSuite) TestAcquireShardsConcurrently() {
 					},
 					ClusterReplicationLevel: map[string]int64{},
 					ReplicationDLQAckLevel:  map[string]int64{},
+					QueueStates:             map[int32]*types.QueueState{},
 				},
 				PreviousRangeID: 5,
 			}).Return(nil).Once()
@@ -340,6 +342,7 @@ func (s *controllerSuite) TestAcquireShardRenewSuccess() {
 				},
 				ClusterReplicationLevel: map[string]int64{},
 				ReplicationDLQAckLevel:  map[string]int64{},
+				QueueStates:             map[int32]*types.QueueState{},
 			},
 			PreviousRangeID: 5,
 		}).Return(nil).Once()
@@ -422,6 +425,7 @@ func (s *controllerSuite) TestAcquireShardRenewLookupFailed() {
 				},
 				ClusterReplicationLevel: map[string]int64{},
 				ReplicationDLQAckLevel:  map[string]int64{},
+				QueueStates:             map[int32]*types.QueueState{},
 			},
 			PreviousRangeID: 5,
 		}).Return(nil).Once()
@@ -646,6 +650,7 @@ func (s *controllerSuite) setupMocksForAcquireShard(shardID int, mockEngine *eng
 			},
 			ClusterReplicationLevel: map[string]int64{},
 			ReplicationDLQAckLevel:  map[string]int64{},
+			QueueStates:             map[int32]*types.QueueState{},
 		},
 		PreviousRangeID: currentRangeID,
 	}).Return(nil).Once()

@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	fuzz "github.com/google/gofuzz"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -199,17 +200,29 @@ func TestTimeTaskInfo(t *testing.T) {
 }
 
 func TestShardInfoCopy(t *testing.T) {
-	info := &ShardInfo{
-		ShardID:                 1,
-		RangeID:                 2,
-		ClusterTransferAckLevel: map[string]int64{"test-cluster": 3},
-		ClusterTimerAckLevel:    map[string]time.Time{"test-cluster": time.Now()},
-		ClusterReplicationLevel: map[string]int64{"test-cluster": 4},
-		ReplicationDLQAckLevel:  map[string]int64{"test-cluster": 5},
+	f := fuzz.New().NilChance(0.1)
+	info := &ShardInfo{}
+	for i := 0; i < 1000; i++ {
+		f.Fuzz(info)
+		infoCopy := info.copy()
+		assert.Equal(t, info, infoCopy)
 	}
+}
 
-	infoCopy := info.Copy()
-	assert.Equal(t, info, infoCopy)
+func TestShardInfoNilSafeCopy(t *testing.T) {
+	var info *ShardInfo
+	infoCopy := info.ToNilSafeCopy()
+	assert.NotNil(t, infoCopy)
+	assert.NotNil(t, infoCopy.ClusterTransferAckLevel)
+	assert.NotNil(t, infoCopy.ClusterTimerAckLevel)
+	assert.NotNil(t, infoCopy.ClusterReplicationLevel)
+	assert.NotNil(t, infoCopy.QueueStates)
+	assert.NotNil(t, infoCopy.TransferProcessingQueueStates)
+	assert.NotNil(t, infoCopy.TransferProcessingQueueStates.StatesByCluster)
+	assert.NotNil(t, infoCopy.TimerProcessingQueueStates)
+	assert.NotNil(t, infoCopy.TimerProcessingQueueStates.StatesByCluster)
+	assert.NotNil(t, infoCopy.ReplicationDLQAckLevel)
+
 }
 
 func TestSerializeAndDeserializeClusterConfigs(t *testing.T) {
