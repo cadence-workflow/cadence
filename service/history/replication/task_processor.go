@@ -276,7 +276,7 @@ func (p *taskProcessorImpl) cleanupAckedReplicationTasks() error {
 		metrics.TargetClusterTag(p.currentCluster),
 	).RecordTimer(
 		metrics.ReplicationTasksLag,
-		time.Duration(p.shard.GetTransferMaxReadLevel()-minAckLevel),
+		time.Duration(p.shard.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryReplication, p.currentCluster).TaskID-minAckLevel),
 	)
 	for {
 		pageSize := p.config.ReplicatorTaskDeleteBatchSize()

@@ -62,7 +62,7 @@ type (
 	}
 
 	ackLevelStore interface {
-		GetTransferMaxReadLevel() int64
+		UpdateIfNeededAndGetQueueMaxReadLevel(category persistence.HistoryTaskCategory, cluster string) persistence.HistoryTaskKey
 		GetQueueClusterAckLevel(category persistence.HistoryTaskCategory, cluster string) persistence.HistoryTaskKey
 		UpdateQueueClusterAckLevel(category persistence.HistoryTaskCategory, cluster string, ackLevel persistence.HistoryTaskKey) error
 	}
@@ -125,7 +125,7 @@ type getTasksResult struct {
 func (t *TaskAckManager) getTasks(ctx context.Context, pollingCluster string, lastReadTaskID int64) (*getTasksResult, error) {
 	var (
 		oldestUnprocessedTaskTimestamp = t.timeSource.Now().UnixNano()
-		oldestUnprocessedTaskID        = t.ackLevels.GetTransferMaxReadLevel()
+		oldestUnprocessedTaskID        = t.ackLevels.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryReplication, pollingCluster).TaskID
 		previousReadTaskID             = t.ackLevels.GetQueueClusterAckLevel(persistence.HistoryTaskCategoryReplication, pollingCluster).TaskID
 	)
 
@@ -139,7 +139,7 @@ func (t *TaskAckManager) getTasks(ctx context.Context, pollingCluster string, la
 	batchSize := t.dynamicTaskBatchSizer.value()
 	t.scope.UpdateGauge(metrics.ReplicationTasksBatchSize, float64(batchSize))
 
-	taskInfos, hasMore, err := t.reader.Read(ctx, lastReadTaskID, t.ackLevels.GetTransferMaxReadLevel(), batchSize)
+	taskInfos, hasMore, err := t.reader.Read(ctx, lastReadTaskID, t.ackLevels.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryReplication, pollingCluster).TaskID, batchSize)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +159,7 @@ func (t *TaskAckManager) getTasks(ctx context.Context, pollingCluster string, la
 		oldestUnprocessedTaskTimestamp = taskInfos[0].GetVisibilityTimestamp().UnixNano()
 	}
 
-	t.scope.RecordTimer(metrics.ReplicationTasksLagRaw, time.Duration(t.ackLevels.GetTransferMaxReadLevel()-oldestUnprocessedTaskID))
+	t.scope.RecordTimer(metrics.ReplicationTasksLagRaw, time.Duration(t.ackLevels.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryReplication, pollingCluster).TaskID-oldestUnprocessedTaskID))
 	t.scope.RecordHistogramDuration(metrics.ReplicationTasksDelay, time.Duration(oldestUnprocessedTaskTimestamp-t.timeSource.Now().UnixNano()))
 
 	// hydrate the tasks
@@ -191,7 +191,7 @@ func (t *TaskAckManager) getTasks(ctx context.Context, pollingCluster string, la
 		return nil, err
 	}
 
-	t.scope.RecordTimer(metrics.ReplicationTasksLag, time.Duration(t.ackLevels.GetTransferMaxReadLevel()-msgs.LastRetrievedMessageID))
+	t.scope.RecordTimer(metrics.ReplicationTasksLag, time.Duration(t.ackLevels.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryReplication, pollingCluster).TaskID-msgs.LastRetrievedMessageID))
 	t.scope.RecordTimer(metrics.ReplicationTasksReturned, time.Duration(len(msgs.ReplicationTasks)))
 	t.scope.RecordTimer(metrics.ReplicationTasksReturnedDiff, time.Duration(len(taskInfos)-len(msgs.ReplicationTasks)))
 

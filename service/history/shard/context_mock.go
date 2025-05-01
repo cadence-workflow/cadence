@@ -459,20 +459,6 @@ func (mr *MockContextMockRecorder) GetTimeSource() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTimeSource", reflect.TypeOf((*MockContext)(nil).GetTimeSource))
 }
 
-// GetTimerMaxReadLevel mocks base method.
-func (m *MockContext) GetTimerMaxReadLevel(cluster string) time.Time {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTimerMaxReadLevel", cluster)
-	ret0, _ := ret[0].(time.Time)
-	return ret0
-}
-
-// GetTimerMaxReadLevel indicates an expected call of GetTimerMaxReadLevel.
-func (mr *MockContextMockRecorder) GetTimerMaxReadLevel(cluster any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTimerMaxReadLevel", reflect.TypeOf((*MockContext)(nil).GetTimerMaxReadLevel), cluster)
-}
-
 // GetTimerProcessingQueueStates mocks base method.
 func (m *MockContext) GetTimerProcessingQueueStates(cluster string) []*types.ProcessingQueueState {
 	m.ctrl.T.Helper()
@@ -485,20 +471,6 @@ func (m *MockContext) GetTimerProcessingQueueStates(cluster string) []*types.Pro
 func (mr *MockContextMockRecorder) GetTimerProcessingQueueStates(cluster any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTimerProcessingQueueStates", reflect.TypeOf((*MockContext)(nil).GetTimerProcessingQueueStates), cluster)
-}
-
-// GetTransferMaxReadLevel mocks base method.
-func (m *MockContext) GetTransferMaxReadLevel() int64 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTransferMaxReadLevel")
-	ret0, _ := ret[0].(int64)
-	return ret0
-}
-
-// GetTransferMaxReadLevel indicates an expected call of GetTransferMaxReadLevel.
-func (mr *MockContextMockRecorder) GetTransferMaxReadLevel() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTransferMaxReadLevel", reflect.TypeOf((*MockContext)(nil).GetTransferMaxReadLevel))
 }
 
 // GetTransferProcessingQueueStates mocks base method.
@@ -610,6 +582,20 @@ func (mr *MockContextMockRecorder) UpdateFailoverLevel(category, failoverID, lev
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateFailoverLevel", reflect.TypeOf((*MockContext)(nil).UpdateFailoverLevel), category, failoverID, level)
 }
 
+// UpdateIfNeededAndGetQueueMaxReadLevel mocks base method.
+func (m *MockContext) UpdateIfNeededAndGetQueueMaxReadLevel(category persistence.HistoryTaskCategory, cluster string) persistence.HistoryTaskKey {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateIfNeededAndGetQueueMaxReadLevel", category, cluster)
+	ret0, _ := ret[0].(persistence.HistoryTaskKey)
+	return ret0
+}
+
+// UpdateIfNeededAndGetQueueMaxReadLevel indicates an expected call of UpdateIfNeededAndGetQueueMaxReadLevel.
+func (mr *MockContextMockRecorder) UpdateIfNeededAndGetQueueMaxReadLevel(category, cluster any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateIfNeededAndGetQueueMaxReadLevel", reflect.TypeOf((*MockContext)(nil).UpdateIfNeededAndGetQueueMaxReadLevel), category, cluster)
+}
+
 // UpdateQueueAckLevel mocks base method.
 func (m *MockContext) UpdateQueueAckLevel(category persistence.HistoryTaskCategory, ackLevel persistence.HistoryTaskKey) error {
 	m.ctrl.T.Helper()
@@ -636,20 +622,6 @@ func (m *MockContext) UpdateQueueClusterAckLevel(category persistence.HistoryTas
 func (mr *MockContextMockRecorder) UpdateQueueClusterAckLevel(category, cluster, ackLevel any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateQueueClusterAckLevel", reflect.TypeOf((*MockContext)(nil).UpdateQueueClusterAckLevel), category, cluster, ackLevel)
-}
-
-// UpdateTimerMaxReadLevel mocks base method.
-func (m *MockContext) UpdateTimerMaxReadLevel(cluster string) time.Time {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateTimerMaxReadLevel", cluster)
-	ret0, _ := ret[0].(time.Time)
-	return ret0
-}
-
-// UpdateTimerMaxReadLevel indicates an expected call of UpdateTimerMaxReadLevel.
-func (mr *MockContextMockRecorder) UpdateTimerMaxReadLevel(cluster any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTimerMaxReadLevel", reflect.TypeOf((*MockContext)(nil).UpdateTimerMaxReadLevel), cluster)
 }
 
 // UpdateTimerProcessingQueueStates mocks base method.

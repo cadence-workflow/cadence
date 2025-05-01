@@ -80,7 +80,7 @@ func newTimerQueueStandbyProcessor(
 	}
 
 	updateMaxReadLevel := func() task.Key {
-		return newTimerTaskKey(shard.UpdateTimerMaxReadLevel(clusterName), 0)
+		return newTimerTaskKey(shard.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryTimer, clusterName).ScheduledTime, 0)
 	}
 
 	updateClusterAckLevel := func(ackLevel task.Key) error {

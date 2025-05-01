@@ -404,8 +404,10 @@ type fakeAckLevelStore struct {
 	updateErr error
 }
 
-func (s *fakeAckLevelStore) GetTransferMaxReadLevel() int64 {
-	return s.readLevel
+func (s *fakeAckLevelStore) UpdateIfNeededAndGetQueueMaxReadLevel(category persistence.HistoryTaskCategory, cluster string) persistence.HistoryTaskKey {
+	return persistence.HistoryTaskKey{
+		TaskID: s.readLevel,
+	}
 }
 func (s *fakeAckLevelStore) GetQueueClusterAckLevel(category persistence.HistoryTaskCategory, cluster string) persistence.HistoryTaskKey {
 	return s.remote[cluster]

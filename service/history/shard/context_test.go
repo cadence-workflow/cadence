@@ -116,22 +116,22 @@ func (s *contextTestSuite) newContext() *contextImpl {
 		},
 	}
 	context := &contextImpl{
-		Resource:                  s.mockResource,
-		shardID:                   shardInfo.ShardID,
-		rangeID:                   shardInfo.RangeID,
-		shardInfo:                 shardInfo,
-		executionManager:          s.mockResource.ExecutionMgr,
-		closeCallback:             func(i int, item *historyShardsItem) {},
-		config:                    config,
-		logger:                    s.logger,
-		throttledLogger:           s.logger,
-		transferSequenceNumber:    1,
-		transferMaxReadLevel:      testTransferMaxReadLevel,
-		maxTransferSequenceNumber: testMaxTransferSequenceNumber,
-		timerMaxReadLevelMap:      make(map[string]time.Time),
-		remoteClusterCurrentTime:  make(map[string]time.Time),
-		failoverLevels:            make(map[persistence.HistoryTaskCategory]map[string]persistence.FailoverLevel),
-		eventsCache:               eventsCache,
+		Resource:                     s.mockResource,
+		shardID:                      shardInfo.ShardID,
+		rangeID:                      shardInfo.RangeID,
+		shardInfo:                    shardInfo,
+		executionManager:             s.mockResource.ExecutionMgr,
+		closeCallback:                func(i int, item *historyShardsItem) {},
+		config:                       config,
+		logger:                       s.logger,
+		throttledLogger:              s.logger,
+		taskSequenceNumber:           1,
+		immediateTaskMaxReadLevel:    testTransferMaxReadLevel,
+		maxTaskSequenceNumber:        testMaxTransferSequenceNumber,
+		scheduledTaskMaxReadLevelMap: make(map[string]time.Time),
+		remoteClusterCurrentTime:     make(map[string]time.Time),
+		failoverLevels:               make(map[persistence.HistoryTaskCategory]map[string]persistence.FailoverLevel),
+		eventsCache:                  eventsCache,
 	}
 
 	s.Require().True(testMaxTransferSequenceNumber < (1<<context.config.RangeSizeBits), "bad config value")
@@ -148,7 +148,7 @@ func (s *contextTestSuite) TestAccessorMethods() {
 	s.Assert().EqualValues(testShardID, s.context.GetShardID())
 	s.Assert().Equal(s.mockResource, s.context.GetService())
 	s.Assert().Equal(s.mockResource.ExecutionMgr, s.context.GetExecutionManager())
-	s.Assert().EqualValues(testTransferMaxReadLevel, s.context.GetTransferMaxReadLevel())
+	s.Assert().EqualValues(testTransferMaxReadLevel, s.context.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryTransfer, cluster.TestCurrentClusterName).TaskID)
 	s.Assert().Equal(s.logger, s.context.GetLogger())
 	s.Assert().Equal(s.logger, s.context.GetThrottledLogger())
 

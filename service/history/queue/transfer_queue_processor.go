@@ -530,7 +530,7 @@ func newTransferQueueActiveProcessor(
 	}
 
 	updateMaxReadLevel := func() task.Key {
-		return newTransferTaskKey(shard.GetTransferMaxReadLevel())
+		return newTransferTaskKey(shard.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryTransfer, currentClusterName).TaskID)
 	}
 
 	updateClusterAckLevel := func(ackLevel task.Key) error {
@@ -608,7 +608,7 @@ func newTransferQueueStandbyProcessor(
 	}
 
 	updateMaxReadLevel := func() task.Key {
-		return newTransferTaskKey(shard.GetTransferMaxReadLevel())
+		return newTransferTaskKey(shard.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryTransfer, clusterName).TaskID)
 	}
 
 	updateClusterAckLevel := func(ackLevel task.Key) error {
