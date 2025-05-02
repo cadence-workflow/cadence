@@ -1,8 +1,8 @@
 module github.com/uber/cadence/cmd/server
 
-go 1.23.0
+go 1.23
 
-toolchain go1.24.1
+toolchain go1.23.4
 
 // build against the current code in the "main" (and gcloud) module, not a specific SHA.
 //

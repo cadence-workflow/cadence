@@ -1,6 +1,6 @@
 module github.com/uber/cadence
 
-go 1.23.0
+go 1.23
 
 toolchain go1.23.4
 
