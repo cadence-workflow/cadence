@@ -20,37 +20,26 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-package sharddistributorfx
+package leaderstore
 
-import (
-	"go.uber.org/fx"
+import "context"
 
-	"github.com/uber/cadence/common/config"
-	"github.com/uber/cadence/service/sharddistributor"
-	"github.com/uber/cadence/service/sharddistributor/leader/election"
-	"github.com/uber/cadence/service/sharddistributor/leader/leaderstore/etcd"
-	"github.com/uber/cadence/service/sharddistributor/leader/namespace"
-	"github.com/uber/cadence/service/sharddistributor/leader/process"
-)
+//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination=leaderstore_mock.go Store,Election
 
-var Module = fx.Module("sharddistributor",
-	fx.Provide(
-		func(c config.Config) configOut {
-			return configOut{
-				StoreConfig:          c.ETCD,
-				LeaderElectionConfig: c.LeaderElection,
-			}
-		},
-		etcd.NewStore,
-		sharddistributor.FXService),
-	election.Module,
-	process.Module,
-	namespace.Module,
-	fx.Invoke(func(*sharddistributor.Service) {}))
+// Store is an interface that provides a way to establish a session for election.
+// It establishes connection and a session and provides Election to run for leader.
+type Store interface {
+	CreateElection(ctx context.Context, namespace string) (Election, error)
+}
 
-type configOut struct {
-	fx.Out
-
-	StoreConfig          config.ETCD
-	LeaderElectionConfig config.LeaderElection
+// Election is an interface that establishes leader campaign.
+type Election interface {
+	// Campaign is a blocking call that will block until either leadership is acquired and return nil or block.
+	Campaign(ctx context.Context, hostname string) error
+	// Resign resigns from leadership.
+	Resign(ctx context.Context) error
+	// Done returns a channel that notifies that the election session closed.
+	Done() <-chan struct{}
+	// Cleanup stops internal processes and releases keys.
+	Cleanup(ctx context.Context) error
 }

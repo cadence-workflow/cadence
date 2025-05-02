@@ -21,6 +21,8 @@
 package clock
 
 import (
+	"context"
+	"fmt"
 	"time"
 
 	"github.com/jonboulle/clockwork"
@@ -37,6 +39,7 @@ type (
 		NewTicker(d time.Duration) Ticker
 		NewTimer(d time.Duration) Timer
 		AfterFunc(d time.Duration, f func()) Timer
+		Until(d time.Time) time.Duration
 	}
 
 	// Ticker provides an interface which can be used instead of directly using
@@ -65,7 +68,7 @@ type (
 
 	// fakeClock serves fake controlled time
 	fakeClock struct {
-		clockwork.FakeClock
+		*clockwork.FakeClock
 	}
 
 	// MockedTimeSource provides an interface for a clock which can be manually advanced
@@ -139,4 +142,21 @@ func (c *fakeClock) NewTimer(d time.Duration) Timer {
 
 func (c *fakeClock) AfterFunc(d time.Duration, f func()) Timer {
 	return c.FakeClock.AfterFunc(d, f)
+}
+
+func WithTimeout(ctx context.Context, ts TimeSource, timeout time.Duration) (context.Context, context.CancelFunc) {
+	return WithDeadline(ctx, ts, ts.Now().Add(timeout))
+}
+
+func WithDeadline(ctx context.Context, ts TimeSource, t time.Time) (context.Context, context.CancelFunc) {
+	var clockWork clockwork.Clock
+	switch typedClock := ts.(type) {
+	case *fakeClock:
+		clockWork = typedClock.FakeClock
+	case *clock:
+		clockWork = typedClock.Clock
+	default:
+		panic(fmt.Sprintf("unknown clock type %T", ts))
+	}
+	return clockwork.WithDeadline(ctx, clockWork, t)
 }

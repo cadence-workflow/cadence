@@ -89,6 +89,10 @@ type (
 		// Shard distributor is used to distribute shards across multiple cadence service instances
 		// Note: This is not recommended for use, it's still experimental
 		ShardDistributorClient ShardDistributorClient `yaml:"shardDistributorClient"`
+		// ETCD provides is the configuration for ETCD storage that is required for usage of Shard distributor
+		ETCD ETCD `yaml:"etcd"`
+		// LeaderElection is the configuration for leader election mechanism that is used by Shard distributor to handle shard distribution per namespace.
+		LeaderElection LeaderElection `yaml:"leaderElection"`
 	}
 
 	// Membership holds peer provider configuration.

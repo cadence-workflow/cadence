@@ -20,37 +20,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-package sharddistributorfx
+package config
 
-import (
-	"go.uber.org/fx"
+import "time"
 
-	"github.com/uber/cadence/common/config"
-	"github.com/uber/cadence/service/sharddistributor"
-	"github.com/uber/cadence/service/sharddistributor/leader/election"
-	"github.com/uber/cadence/service/sharddistributor/leader/leaderstore/etcd"
-	"github.com/uber/cadence/service/sharddistributor/leader/namespace"
-	"github.com/uber/cadence/service/sharddistributor/leader/process"
-)
-
-var Module = fx.Module("sharddistributor",
-	fx.Provide(
-		func(c config.Config) configOut {
-			return configOut{
-				StoreConfig:          c.ETCD,
-				LeaderElectionConfig: c.LeaderElection,
-			}
-		},
-		etcd.NewStore,
-		sharddistributor.FXService),
-	election.Module,
-	process.Module,
-	namespace.Module,
-	fx.Invoke(func(*sharddistributor.Service) {}))
-
-type configOut struct {
-	fx.Out
-
-	StoreConfig          config.ETCD
-	LeaderElectionConfig config.LeaderElection
+// ETCD provides configuration for ETCD that is used inside shard distributor service.
+type ETCD struct {
+	Endpoints   []string      `yaml:"endpoints"`
+	DialTimeout time.Duration `yaml:"dialTimeout"`
 }
