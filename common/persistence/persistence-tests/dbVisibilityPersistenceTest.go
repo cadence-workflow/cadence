@@ -424,13 +424,15 @@ func (s *DBVisibilityPersistenceSuite) TestFilteringByType() {
 	s.Equal(1, len(resp.Executions))
 	s.Equal(workflowExecution1.WorkflowID, resp.Executions[0].Execution.WorkflowID)
 
+	stopTime := time.Now().UnixNano()
+
 	// Close both executions
 	err3 := s.VisibilityMgr.RecordWorkflowExecutionClosed(ctx, &p.RecordWorkflowExecutionClosedRequest{
 		DomainUUID:       testDomainUUID,
 		Execution:        workflowExecution1,
 		WorkflowTypeName: "visibility-workflow-1",
 		StartTimestamp:   startTime,
-		CloseTimestamp:   time.Now().UnixNano(),
+		CloseTimestamp:   stopTime,
 		ShardID:          1234,
 	})
 	s.Nil(err3)
@@ -440,7 +442,7 @@ func (s *DBVisibilityPersistenceSuite) TestFilteringByType() {
 		Execution:        workflowExecution2,
 		WorkflowTypeName: "visibility-workflow-2",
 		StartTimestamp:   startTime,
-		CloseTimestamp:   time.Now().UnixNano(),
+		CloseTimestamp:   stopTime,
 		HistoryLength:    3,
 		ShardID:          1234,
 	}
@@ -511,13 +513,15 @@ func (s *DBVisibilityPersistenceSuite) TestFilteringByWorkflowID() {
 	s.Equal(1, len(resp.Executions))
 	s.Equal(workflowExecution1.WorkflowID, resp.Executions[0].Execution.WorkflowID)
 
+	stopTime := time.Now().UnixNano()
+
 	// Close both executions
 	err3 := s.VisibilityMgr.RecordWorkflowExecutionClosed(ctx, &p.RecordWorkflowExecutionClosedRequest{
 		DomainUUID:       testDomainUUID,
 		Execution:        workflowExecution1,
 		WorkflowTypeName: "visibility-workflow",
 		StartTimestamp:   startTime,
-		CloseTimestamp:   time.Now().UnixNano(),
+		CloseTimestamp:   stopTime,
 	})
 	s.Nil(err3)
 
@@ -526,7 +530,7 @@ func (s *DBVisibilityPersistenceSuite) TestFilteringByWorkflowID() {
 		Execution:        workflowExecution2,
 		WorkflowTypeName: "visibility-workflow",
 		StartTimestamp:   startTime,
-		CloseTimestamp:   time.Now().UnixNano(),
+		CloseTimestamp:   stopTime,
 		HistoryLength:    3,
 		ShardID:          1234,
 	}
@@ -583,13 +587,15 @@ func (s *DBVisibilityPersistenceSuite) TestFilteringByCloseStatus() {
 	})
 	s.Nil(err1)
 
+	stopTime := time.Now().UnixNano()
+
 	// Close both executions with different status
 	err2 := s.VisibilityMgr.RecordWorkflowExecutionClosed(ctx, &p.RecordWorkflowExecutionClosedRequest{
 		DomainUUID:       testDomainUUID,
 		Execution:        workflowExecution1,
 		WorkflowTypeName: "visibility-workflow",
 		StartTimestamp:   startTime,
-		CloseTimestamp:   time.Now().UnixNano(),
+		CloseTimestamp:   stopTime,
 		Status:           types.WorkflowExecutionCloseStatusCompleted,
 		ShardID:          1234,
 	})
@@ -601,7 +607,7 @@ func (s *DBVisibilityPersistenceSuite) TestFilteringByCloseStatus() {
 		WorkflowTypeName: "visibility-workflow",
 		StartTimestamp:   startTime,
 		Status:           types.WorkflowExecutionCloseStatusFailed,
-		CloseTimestamp:   time.Now().UnixNano(),
+		CloseTimestamp:   stopTime,
 		HistoryLength:    3,
 		ShardID:          1234,
 	}
@@ -654,13 +660,15 @@ func (s *DBVisibilityPersistenceSuite) TestGetClosedExecution() {
 	s.True(ok, "EntityNotExistsError")
 	s.Nil(closedResp)
 
+	stopTime := time.Now().UnixNano()
+
 	closeReq := &p.RecordWorkflowExecutionClosedRequest{
 		DomainUUID:       testDomainUUID,
 		Execution:        workflowExecution,
 		WorkflowTypeName: "visibility-workflow",
 		StartTimestamp:   startTime,
 		Status:           types.WorkflowExecutionCloseStatusFailed,
-		CloseTimestamp:   time.Now().UnixNano(),
+		CloseTimestamp:   stopTime,
 		HistoryLength:    3,
 		ShardID:          1234,
 	}
