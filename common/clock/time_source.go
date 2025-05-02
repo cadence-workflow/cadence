@@ -21,6 +21,8 @@
 package clock
 
 import (
+	"context"
+	"fmt"
 	"time"
 
 	"github.com/jonboulle/clockwork"
@@ -65,7 +67,7 @@ type (
 
 	// fakeClock serves fake controlled time
 	fakeClock struct {
-		clockwork.FakeClock
+		*clockwork.FakeClock
 	}
 
 	// MockedTimeSource provides an interface for a clock which can be manually advanced
@@ -139,4 +141,21 @@ func (c *fakeClock) NewTimer(d time.Duration) Timer {
 
 func (c *fakeClock) AfterFunc(d time.Duration, f func()) Timer {
 	return c.FakeClock.AfterFunc(d, f)
+}
+
+// WithDeadline provides a way to add a context deadline with a time controlled fashion using time source.
+func WithDeadline(ctx context.Context, ts TimeSource, deadline time.Time) (context.Context, context.CancelFunc) {
+	switch typedTS := ts.(type) {
+	case *clock:
+		return clockwork.WithDeadline(ctx, typedTS.Clock, deadline)
+	case *fakeClock:
+		return clockwork.WithDeadline(ctx, typedTS.FakeClock, deadline)
+	default:
+		panic(fmt.Sprintf("unexpected type: %T", typedTS))
+	}
+}
+
+// WithTimeout provides a way to add a context deadline with a time controlled fashion using time source.
+func WithTimeout(ctx context.Context, ts TimeSource, timeout time.Duration) (context.Context, context.CancelFunc) {
+	return WithDeadline(ctx, ts, time.Now().Add(timeout))
 }
