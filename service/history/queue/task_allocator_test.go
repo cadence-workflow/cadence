@@ -672,6 +672,9 @@ func TestIsDomainNotRegistered(t *testing.T) {
 	}
 }
 
-func TstLockUnlock(t *testing.T) {
-
+func TestLockUnlock(t *testing.T) {
+	// basic validation to ensure lock/unlock doesn't panic and get blocked
+	allocator := &taskAllocatorImpl{}
+	allocator.Lock()
+	defer allocator.Unlock()
 }

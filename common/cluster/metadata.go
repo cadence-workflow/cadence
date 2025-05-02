@@ -96,7 +96,7 @@ func NewMetadata(
 		}
 	}
 
-	return Metadata{
+	m := Metadata{
 		log:                           logger,
 		metrics:                       metricsClient.Scope(metrics.ClusterMetadataScope),
 		failoverVersionIncrement:      clusterGroupMetadata.FailoverVersionIncrement,
@@ -111,6 +111,15 @@ func NewMetadata(
 		versionToRegionName:           versionToRegionName,
 		useNewFailoverVersionOverride: useMinFailoverVersionOverrideConfig,
 	}
+
+	m.log.Info("cluster metadata created",
+		tag.Dynamic("primary-cluster-name", m.primaryClusterName),
+		tag.Dynamic("current-cluster-name", m.currentClusterName),
+		tag.Dynamic("current-region", m.currentRegion),
+		tag.Dynamic("failover-version-increment", m.failoverVersionIncrement),
+	)
+
+	return m
 }
 
 // GetNextFailoverVersion return the next failover version based on input
@@ -147,6 +156,12 @@ func (m Metadata) IsPrimaryCluster() bool {
 // GetCurrentClusterName return the current cluster name
 func (m Metadata) GetCurrentClusterName() string {
 	return m.currentClusterName
+}
+
+// GetCurrentRegion return the current region
+// TODO(active-active): Add tests
+func (m Metadata) GetCurrentRegion() string {
+	return m.currentRegion
 }
 
 // GetAllClusterInfo return all cluster info

@@ -57,34 +57,19 @@ func (mr *MockManagerMockRecorder) ClusterNameForFailoverVersion(failoverVersion
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClusterNameForFailoverVersion", reflect.TypeOf((*MockManager)(nil).ClusterNameForFailoverVersion), failoverVersion, domainID)
 }
 
-// LookupExternalEntity mocks base method.
-func (m *MockManager) LookupExternalEntity(ctx context.Context, entityType, entityKey string) (*LookupResult, error) {
+// FailoverVersionOfNewWorkflow mocks base method.
+func (m *MockManager) FailoverVersionOfNewWorkflow(ctx context.Context, req *types.HistoryStartWorkflowExecutionRequest) (int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "LookupExternalEntity", ctx, entityType, entityKey)
-	ret0, _ := ret[0].(*LookupResult)
+	ret := m.ctrl.Call(m, "FailoverVersionOfNewWorkflow", ctx, req)
+	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// LookupExternalEntity indicates an expected call of LookupExternalEntity.
-func (mr *MockManagerMockRecorder) LookupExternalEntity(ctx, entityType, entityKey any) *gomock.Call {
+// FailoverVersionOfNewWorkflow indicates an expected call of FailoverVersionOfNewWorkflow.
+func (mr *MockManagerMockRecorder) FailoverVersionOfNewWorkflow(ctx, req any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LookupExternalEntity", reflect.TypeOf((*MockManager)(nil).LookupExternalEntity), ctx, entityType, entityKey)
-}
-
-// LookupExternalEntityOfNewWorkflow mocks base method.
-func (m *MockManager) LookupExternalEntityOfNewWorkflow(ctx context.Context, req *types.HistoryStartWorkflowExecutionRequest) (*LookupResult, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "LookupExternalEntityOfNewWorkflow", ctx, req)
-	ret0, _ := ret[0].(*LookupResult)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// LookupExternalEntityOfNewWorkflow indicates an expected call of LookupExternalEntityOfNewWorkflow.
-func (mr *MockManagerMockRecorder) LookupExternalEntityOfNewWorkflow(ctx, req any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LookupExternalEntityOfNewWorkflow", reflect.TypeOf((*MockManager)(nil).LookupExternalEntityOfNewWorkflow), ctx, req)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FailoverVersionOfNewWorkflow", reflect.TypeOf((*MockManager)(nil).FailoverVersionOfNewWorkflow), ctx, req)
 }
 
 // LookupWorkflow mocks base method.

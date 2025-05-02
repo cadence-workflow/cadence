@@ -232,7 +232,19 @@ func New(
 		cache.WithTimeSource(params.TimeSource),
 	)
 
-	activeClusterMgr := activecluster.NewManager(domainCache.GetDomainByID, params.ClusterMetadata, params.MetricsClient, logger)
+	// TODO(active-active): define external entity providers as plugins
+	var externalEntityProviders []activecluster.ExternalEntityProvider
+	activeClusterMgr, err := activecluster.NewManager(
+		domainCache.GetDomainByID,
+		params.ClusterMetadata,
+		params.MetricsClient,
+		logger,
+		externalEntityProviders,
+		params.TimeSource,
+	)
+	if err != nil {
+		return nil, err
+	}
 
 	domainMetricsScopeCache := cache.NewDomainMetricsScopeCache()
 	domainReplicationQueue := domain.NewReplicationQueue(

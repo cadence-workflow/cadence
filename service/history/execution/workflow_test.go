@@ -33,6 +33,7 @@ import (
 
 	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
@@ -509,10 +510,16 @@ func (s *workflowSuite) newTestActiveClusterManager(clusterMetadata cluster.Meta
 	}
 
 	// Create and return the active cluster manager
-	return activecluster.NewManager(
+	activeClusterMgr, err := activecluster.NewManager(
 		domainIDToDomainFn,
 		clusterMetadata,
 		nil,
 		testlogger.New(s.T()),
+		nil,
+		clock.NewRealTimeSource(),
 	)
+	if err != nil {
+		s.T().Fatalf("failed to create active cluster manager, error: %v", err)
+	}
+	return activeClusterMgr
 }

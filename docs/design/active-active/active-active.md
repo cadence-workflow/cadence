@@ -172,9 +172,9 @@ In the above example:
 - `wf1` is created on us-west. No external entity associations exist. Its tasks will have failover version of the active cluster in us-west specified in domain's `RegionToClusterMap` which is 0.
 - `wf2` is created with an external entity association. Its tasks will have failover version of following row in `EntityActiveRegion` table:
 <type=user-location, key=london> which is 5. Its tasks will be processed by cluster3 because version 5 maps to us-east region and cluster3 is active in us-east.
-- `wf3` is a long running workflow which was created when the domain was active-passive (migrated to active-active later on). It doesn't have an activeness metadata row in the executions table. Its existing tasks already have failover version of the cluster that it was active in so it will continue to be active in that cluster.
+- `wf3` is a long running workflow which was created when the domain was active-passive (migrated to active-active later on). It doesn't have an activeness metadata row in the executions table. Its existing tasks already have failover version of the cluster that it was active in so it will continue to be active in that cluster. Such workflows will continue to be processed with same failover version by the same cluster.
 
-TODO: How to come up with such version when loading mutable state of `wf3`?
+NOTE: Long running workflows of active-passive domains like `wf3` will required the active-active domain to include pre-migration ActiveClusterName in active cluster config. Migrating a domain from active-passive to active-active and removing existing ActiveClusterName from active cluster config will break such workflows.
 
 
 ### Domain records
@@ -184,11 +184,11 @@ Active-passive domains will not have this field set and ActiveClusterName field 
 
 ```
 {
-	// Clusters can be a subset of clusters in the group.
-	Clusters: 	    [us-west, us-east, eu-west, eu-central],
+    // Clusters can be a subset of clusters in the group.
+    Clusters: 	    [us-west, us-east, eu-west, eu-central],
 
-	// Active clusters can have at most one from each region. Remaining clusters will be considered passive.
-	ActiveClusters:  {
+    // Active clusters can have at most one from each region. Remaining clusters will be considered passive.
+    ActiveClusters:  {
         RegionToClusterMap: {
             us-west: {
                 ActiveClusterName: cluster0,

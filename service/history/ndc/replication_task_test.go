@@ -45,7 +45,7 @@ func TestReplicationTaskResetEvent(t *testing.T) {
 	runID := uuid.New()
 	logger := testlogger.New(t)
 	clusterMetadata := cluster.GetTestClusterMetadata(true)
-	activeClusterManager := newActiveClusterManager(clusterMetadata, domainID, logger)
+	activeClusterManager := newActiveClusterManager(t, clusterMetadata, domainID, logger)
 
 	historySerializer := persistence.NewPayloadSerializer()
 	versionHistoryItems := []*types.VersionHistoryItem{}

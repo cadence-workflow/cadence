@@ -74,7 +74,7 @@ func (e *historyEngineImpl) activeActiveEntityMapChangeCB(changeType activeclust
 		return
 	}
 
-	e.logger.Info("Active cluster manager change callback", tag.ActiveClusterChangeType(string(changeType)))
+	e.logger.Info("Active cluster manager change callback received. will notify queues", tag.ActiveClusterChangeType(string(changeType)))
 
 	e.notifyQueues()
 }

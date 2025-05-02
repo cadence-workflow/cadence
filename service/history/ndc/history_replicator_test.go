@@ -98,7 +98,7 @@ func createTestHistoryReplicator(t *testing.T, domainID string) historyReplicato
 	// going back to NewHistoryReplicator
 	mockHistoryResource.EXPECT().GetClusterMetadata().Return(clusterMetadata).Times(1)
 
-	activeClusterManager := newActiveClusterManager(clusterMetadata, domainID, log.NewNoop())
+	activeClusterManager := newActiveClusterManager(t, clusterMetadata, domainID, log.NewNoop())
 	mockShard.EXPECT().GetActiveClusterManager().Return(activeClusterManager).AnyTimes()
 
 	replicator := NewHistoryReplicator(mockShard, testExecutionCache, mockEventsReapplier, log.NewNoop())
@@ -106,7 +106,7 @@ func createTestHistoryReplicator(t *testing.T, domainID string) historyReplicato
 	return *replicatorImpl
 }
 
-func newActiveClusterManager(clusterMetadata cluster.Metadata, domainID string, logger log.Logger) activecluster.Manager {
+func newActiveClusterManager(t *testing.T, clusterMetadata cluster.Metadata, domainID string, logger log.Logger) activecluster.Manager {
 	domainIDToDomainFn := func(id string) (*cache.DomainCacheEntry, error) {
 		return cache.NewGlobalDomainCacheEntryForTest(
 			&persistence.DomainInfo{
@@ -124,7 +124,11 @@ func newActiveClusterManager(clusterMetadata cluster.Metadata, domainID string, 
 			clusterMetadata.GetAllClusterInfo()[cluster.TestCurrentClusterName].InitialFailoverVersion,
 		), nil
 	}
-	return activecluster.NewManager(domainIDToDomainFn, clusterMetadata, nil, logger)
+	activeClusterMgr, err := activecluster.NewManager(domainIDToDomainFn, clusterMetadata, nil, logger, nil, clock.NewRealTimeSource())
+	if err != nil {
+		t.Fatalf("failed to create active cluster manager, error: %v", err)
+	}
+	return activeClusterMgr
 }
 
 func TestNewHistoryReplicator(t *testing.T) {

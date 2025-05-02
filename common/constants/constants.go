@@ -319,3 +319,10 @@ func GetTaskPriority(
 
 // GRPCConnectionClosingError is the error message returned when a gRPC client connection is closing
 const GRPCConnectionClosingError = "grpc: the client connection is closing"
+
+const (
+	// ActiveActiveEntityTypeHeaderKey is the header key in workflow start request header for active-active entity type
+	ActiveActiveEntityTypeHeaderKey = "active-active-entity-type"
+	// ActiveActiveEntityKeyHeaderKey is the header key in workflow start request header for active-active entity key
+	ActiveActiveEntityKeyHeaderKey = "active-active-entity-key"
+)
