@@ -61,8 +61,8 @@ $(BUILD)/lint: $(BUILD)/fmt # lint will fail if fmt fails, so fmt first
 $(BUILD)/proto-lint:
 $(BUILD)/gomod-lint:
 $(BUILD)/goversion-lint:
-$(BUILD)/fmt: 
-# $(BUILD)/copyright # formatting must occur only after all other go-file-modifications are done
+$(BUILD)/fmt: # formatting must occur only after all other go-file-modifications are done
+# $(BUILD)/copyright 
 # $(BUILD)/copyright: $(BUILD)/codegen # must add copyright to generated code, sometimes needs re-formatting
 $(BUILD)/codegen: $(BUILD)/thrift $(BUILD)/protoc
 $(BUILD)/thrift: $(BUILD)/go_mod_check

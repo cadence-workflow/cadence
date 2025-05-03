@@ -10,7 +10,7 @@ verify_no_files_changed () {
   if [ "${NUM_FILES_CHANGED}" -ne 0 ]; then
     printf "There file changes after applying your diff and performing a build.\n"
     printf "Please run this command and commit the changes:\n"
-    printf "\tmake tidy && make copyright && make go-generate && make fmt && make lint\n"
+    printf "\tmake tidy && make go-generate && make fmt && make lint\n"
     git status --porcelain
     git --no-pager diff
     exit 1
@@ -19,17 +19,15 @@ verify_no_files_changed () {
 
 # Run the fast checks first, to fail quickly.
 make tidy
-make copyright
 make fmt
 make lint
 
 verify_no_files_changed
 
 # Run go-generate after the fast checks, to avoid unnecessary waiting
-# We need to run copyright, fmt and lint after, as the generated files
+# We need to run fmt and lint after, as the generated files
 # may change the output of these commands.
 make go-generate
-make copyright
 make fmt
 make lint
 
