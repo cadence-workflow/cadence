@@ -168,7 +168,7 @@ func (c *fakeClock) ContextWithDeadline(ctx context.Context, deadline time.Time)
 
 func (c *fakeClock) SleepWithContext(ctx context.Context, duration time.Duration) error {
 	select {
-	case <-r.After(duration):
+	case <-c.After(duration):
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
