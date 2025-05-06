@@ -51,7 +51,7 @@ type Manager interface {
 	//     	3.2. if workflow has external entity, returns failover version of corresponding row in EntityActiveRegion lookup table.
 	FailoverVersionOfNewWorkflow(ctx context.Context, req *types.HistoryStartWorkflowExecutionRequest) (int64, error)
 
-	// LookupWorkflow returns active cluster, cluster name and failover version of given workflow.
+	// LookupWorkflow returns active cluster, region and failover version of given workflow.
 	// Returns the info from domain entry for local and active-passive domains
 	//
 	// Active-active domain logic:
