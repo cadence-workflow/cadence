@@ -124,7 +124,7 @@ func newActiveClusterManager(t *testing.T, clusterMetadata cluster.Metadata, dom
 			clusterMetadata.GetAllClusterInfo()[cluster.TestCurrentClusterName].InitialFailoverVersion,
 		), nil
 	}
-	activeClusterMgr, err := activecluster.NewManager(domainIDToDomainFn, clusterMetadata, nil, logger, nil, clock.NewRealTimeSource())
+	activeClusterMgr, err := activecluster.NewManager(domainIDToDomainFn, clusterMetadata, nil, logger, nil)
 	if err != nil {
 		t.Fatalf("failed to create active cluster manager, error: %v", err)
 	}

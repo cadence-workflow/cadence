@@ -37,6 +37,7 @@ import (
 	"go.uber.org/yarpc"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log/testlogger"
@@ -58,6 +59,7 @@ func TestLegacyServiceStartStop(t *testing.T) {
 		Logger:        testlogger.New(t),
 		MetricsClient: metrics.NewNoopMetricsClient(),
 		RPCFactory:    factory,
+		TimeSource:    clock.NewRealTimeSource(),
 	}
 
 	resourceMock := resource.NewMockResource(ctrl)

@@ -240,7 +240,7 @@ func New(
 		params.MetricsClient,
 		logger,
 		externalEntityProviders,
-		params.TimeSource,
+		activecluster.WithTimeSource(params.TimeSource),
 	)
 	if err != nil {
 		return nil, err

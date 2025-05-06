@@ -58,7 +58,7 @@ func TestStartStop(t *testing.T) {
 		logger,
 	)
 	timeSrc := clock.NewMockedTimeSource()
-	mgr, err := NewManager(domainIDToDomainFn, clusterMetadata, metricsCl, logger, nil, timeSrc)
+	mgr, err := NewManager(domainIDToDomainFn, clusterMetadata, metricsCl, logger, nil, WithTimeSource(timeSrc))
 	assert.NoError(t, err)
 	mgr.Start()
 	mgr.Stop()
@@ -86,7 +86,7 @@ func TestNotifyChangeCallbacks(t *testing.T) {
 	externalEntityProvider.EXPECT().ChangeEvents().Return(entityChangeEventsCh).AnyTimes()
 	externalEntityProvider.EXPECT().SupportedSource().Return("test-source").AnyTimes()
 
-	mgr, err := NewManager(domainIDToDomainFn, clusterMetadata, metricsCl, logger, []ExternalEntityProvider{externalEntityProvider}, timeSrc)
+	mgr, err := NewManager(domainIDToDomainFn, clusterMetadata, metricsCl, logger, []ExternalEntityProvider{externalEntityProvider}, WithTimeSource(timeSrc))
 	assert.NoError(t, err)
 	mgr.Start()
 	defer mgr.Stop()
@@ -108,7 +108,7 @@ func TestNotifyChangeCallbacks(t *testing.T) {
 	time.Sleep(20 * time.Millisecond)
 
 	// no external entity change event occurred so change callbacks should not be notified
-	assert.Equal(t, changeCallbackCount, int32(0))
+	assert.Equal(t, atomic.LoadInt32(&changeCallbackCount), int32(0))
 
 	// trigger a few external entity change events
 	for i := 0; i < 3; i++ {
@@ -126,7 +126,7 @@ func TestNotifyChangeCallbacks(t *testing.T) {
 	time.Sleep(20 * time.Millisecond)
 
 	// assert that change callbacks are notified
-	assert.Equal(t, changeCallbackCount, int32(2), "change callbacks should be notified for 2 times for 2 shards registered")
+	assert.Equal(t, atomic.LoadInt32(&changeCallbackCount), int32(2), "change callbacks should be notified for 2 times for 2 shards registered")
 }
 
 func TestClusterNameForFailoverVersion(t *testing.T) {
@@ -355,7 +355,7 @@ func TestClusterNameForFailoverVersion(t *testing.T) {
 				logger,
 			)
 			timeSrc := clock.NewMockedTimeSource()
-			mgr, err := NewManager(domainIDToDomainFn, clusterMetadata, metricsCl, logger, nil, timeSrc)
+			mgr, err := NewManager(domainIDToDomainFn, clusterMetadata, metricsCl, logger, nil, WithTimeSource(timeSrc))
 			assert.NoError(t, err)
 			result, err := mgr.ClusterNameForFailoverVersion(tc.failoverVersion, "test-domain-id")
 			if tc.expectedError != "" {
@@ -534,7 +534,7 @@ func TestFailoverVersionOfNewWorkflow(t *testing.T) {
 				metricsCl,
 				logger,
 				providers,
-				timeSrc,
+				WithTimeSource(timeSrc),
 			)
 			assert.NoError(t, err)
 
@@ -700,12 +700,12 @@ func TestLookupWorkflow(t *testing.T) {
 				metricsCl,
 				logger,
 				providers,
-				timeSrc,
+				WithTimeSource(timeSrc),
 			)
 			assert.NoError(t, err)
 
 			// override the getWorkflowActivenessMetadataFn to return a mock value
-			mgr.(*manager).getWorkflowActivenessMetadataFn = tc.getWorkflowActivenessMetadataFn
+			mgr.(*managerImpl).getWorkflowActivenessMetadataFn = tc.getWorkflowActivenessMetadataFn
 
 			result, err := mgr.LookupWorkflow(context.Background(), "test-domain-id", "test-wf-id", "test-run-id")
 			if tc.expectedError != "" {

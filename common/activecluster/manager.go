@@ -48,7 +48,7 @@ const (
 
 type DomainIDToDomainFn func(id string) (*cache.DomainCacheEntry, error)
 
-type manager struct {
+type managerImpl struct {
 	domainIDToDomainFn      DomainIDToDomainFn
 	clusterMetadata         cluster.Metadata
 	metricsCl               metrics.Client
@@ -67,16 +67,26 @@ type manager struct {
 	getWorkflowActivenessMetadataFn func(ctx context.Context, domainID, wfID, rID string) (*WorkflowActivenessMetadata, error)
 }
 
+type ManagerOption func(*managerImpl)
+
+func WithTimeSource(timeSource clock.TimeSource) ManagerOption {
+	return func(m *managerImpl) {
+		if timeSource != nil {
+			m.timeSrc = timeSource
+		}
+	}
+}
+
 func NewManager(
 	domainIDToDomainFn DomainIDToDomainFn,
 	clusterMetadata cluster.Metadata,
 	metricsCl metrics.Client,
 	logger log.Logger,
 	externalEntityProviders []ExternalEntityProvider,
-	timeSrc clock.TimeSource,
+	opts ...ManagerOption,
 ) (Manager, error) {
 	ctx, cancel := context.WithCancel(context.Background())
-	m := &manager{
+	m := &managerImpl{
 		domainIDToDomainFn:      domainIDToDomainFn,
 		clusterMetadata:         clusterMetadata,
 		metricsCl:               metricsCl,
@@ -85,7 +95,11 @@ func NewManager(
 		cancel:                  cancel,
 		changeCallbacks:         make(map[int]func(ChangeType)),
 		externalEntityProviders: make(map[string]ExternalEntityProvider),
-		timeSrc:                 timeSrc,
+		timeSrc:                 clock.NewRealTimeSource(),
+	}
+
+	for _, opt := range opts {
+		opt(m)
 	}
 
 	for _, provider := range externalEntityProviders {
@@ -99,7 +113,7 @@ func NewManager(
 	return m, nil
 }
 
-func (m *manager) Start() {
+func (m *managerImpl) Start() {
 	for _, provider := range m.externalEntityProviders {
 		m.wg.Add(1)
 		go m.listenForExternalEntityChanges(provider)
@@ -107,17 +121,17 @@ func (m *manager) Start() {
 
 	m.wg.Add(1)
 	go m.notifyChangeCallbacksPeriodically()
-	m.logger.Info("Active cluster manager started")
+	m.logger.Info("Active cluster managerImpl started")
 }
 
-func (m *manager) Stop() {
-	m.logger.Info("Stopping active cluster manager")
+func (m *managerImpl) Stop() {
+	m.logger.Info("Stopping active cluster managerImpl")
 	m.cancel()
 	m.wg.Wait()
-	m.logger.Info("Active cluster manager stopped")
+	m.logger.Info("Active cluster managerImpl stopped")
 }
 
-func (m *manager) listenForExternalEntityChanges(provider ExternalEntityProvider) {
+func (m *managerImpl) listenForExternalEntityChanges(provider ExternalEntityProvider) {
 	defer m.wg.Done()
 	logger := m.logger.WithTags(tag.Dynamic("entity-source", provider.SupportedSource()))
 	logger.Info("Listening for external entity changes")
@@ -134,7 +148,7 @@ func (m *manager) listenForExternalEntityChanges(provider ExternalEntityProvider
 	}
 }
 
-func (m *manager) notifyChangeCallbacksPeriodically() {
+func (m *managerImpl) notifyChangeCallbacksPeriodically() {
 	defer m.wg.Done()
 
 	t := m.timeSrc.NewTicker(notifyChangeCallbacksInterval)
@@ -162,7 +176,7 @@ func (m *manager) notifyChangeCallbacksPeriodically() {
 	}
 }
 
-func (m *manager) FailoverVersionOfNewWorkflow(ctx context.Context, req *types.HistoryStartWorkflowExecutionRequest) (int64, error) {
+func (m *managerImpl) FailoverVersionOfNewWorkflow(ctx context.Context, req *types.HistoryStartWorkflowExecutionRequest) (int64, error) {
 	if req == nil {
 		return 0, errors.New("request is nil")
 	}
@@ -204,7 +218,7 @@ func (m *manager) FailoverVersionOfNewWorkflow(ctx context.Context, req *types.H
 	return cluster.FailoverVersion, nil
 }
 
-func (m *manager) LookupWorkflow(ctx context.Context, domainID, wfID, rID string) (*LookupResult, error) {
+func (m *managerImpl) LookupWorkflow(ctx context.Context, domainID, wfID, rID string) (*LookupResult, error) {
 	d, err := m.domainIDToDomainFn(domainID)
 	if err != nil {
 		return nil, err
@@ -267,7 +281,7 @@ func (m *manager) LookupWorkflow(ctx context.Context, domainID, wfID, rID string
 	}, nil
 }
 
-func (m *manager) ClusterNameForFailoverVersion(failoverVersion int64, domainID string) (string, error) {
+func (m *managerImpl) ClusterNameForFailoverVersion(failoverVersion int64, domainID string) (string, error) {
 	d, err := m.domainIDToDomainFn(domainID)
 	if err != nil {
 		return "", err
@@ -310,21 +324,21 @@ func (m *manager) ClusterNameForFailoverVersion(failoverVersion int64, domainID 
 	return cfg.ActiveClusterName, nil
 }
 
-func (m *manager) RegisterChangeCallback(shardID int, callback func(ChangeType)) {
+func (m *managerImpl) RegisterChangeCallback(shardID int, callback func(ChangeType)) {
 	m.changeCallbacksLock.Lock()
 	defer m.changeCallbacksLock.Unlock()
 
 	m.changeCallbacks[shardID] = callback
 }
 
-func (m *manager) UnregisterChangeCallback(shardID int) {
+func (m *managerImpl) UnregisterChangeCallback(shardID int) {
 	m.changeCallbacksLock.Lock()
 	defer m.changeCallbacksLock.Unlock()
 
 	delete(m.changeCallbacks, shardID)
 }
 
-func (m *manager) getExternalEntity(ctx context.Context, entitySource, entityKey string) (*ExternalEntity, error) {
+func (m *managerImpl) getExternalEntity(ctx context.Context, entitySource, entityKey string) (*ExternalEntity, error) {
 	provider, ok := m.externalEntityProviders[entitySource]
 	if !ok {
 		return nil, fmt.Errorf("external entity provider for source %q not found", entitySource)
@@ -333,7 +347,7 @@ func (m *manager) getExternalEntity(ctx context.Context, entitySource, entityKey
 	return provider.GetExternalEntity(ctx, entityKey)
 }
 
-func (m *manager) getExternalEntitySourceAndKeyFromHeaders(header *types.Header) (string, string, bool) {
+func (m *managerImpl) getExternalEntitySourceAndKeyFromHeaders(header *types.Header) (string, string, bool) {
 	if header == nil || len(header.Fields) == 0 {
 		return "", "", false
 	}
@@ -351,7 +365,7 @@ func (m *manager) getExternalEntitySourceAndKeyFromHeaders(header *types.Header)
 	return string(entityType), string(entityKey), true
 }
 
-func (m *manager) getWorkflowActivenessMetadata(ctx context.Context, domainID, wfID, rID string) (*WorkflowActivenessMetadata, error) {
+func (m *managerImpl) getWorkflowActivenessMetadata(ctx context.Context, domainID, wfID, rID string) (*WorkflowActivenessMetadata, error) {
 	// TODO(active-active): Fetch ActivenessMetadata from persistence
 	return nil, errors.New("not implemented")
 }
