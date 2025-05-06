@@ -33,6 +33,7 @@ type (
 	TimeSource interface {
 		After(d time.Duration) <-chan time.Time
 		Sleep(d time.Duration)
+		SleepWithContext(ctx context.Context, d time.Duration) error
 		Now() time.Time
 		Since(t time.Time) time.Duration
 		NewTicker(d time.Duration) Ticker
@@ -128,6 +129,15 @@ func (r *clock) AfterFunc(d time.Duration, f func()) Timer {
 	return r.Clock.AfterFunc(d, f)
 }
 
+func (r *clock) SleepWithContext(ctx context.Context, duration time.Duration) error {
+	select {
+	case <-r.After(duration):
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
 // NewMockedTimeSource returns a time source that servers
 // fake controlled time
 func NewMockedTimeSource() MockedTimeSource {
@@ -154,4 +164,13 @@ func (c *fakeClock) ContextWithTimeout(ctx context.Context, duration time.Durati
 
 func (c *fakeClock) ContextWithDeadline(ctx context.Context, deadline time.Time) (context.Context, context.CancelFunc) {
 	return clockwork.WithDeadline(ctx, c.FakeClock, deadline)
+}
+
+func (r *fakeClock) SleepWithContext(ctx context.Context, duration time.Duration) error {
+	select {
+	case <-r.After(duration):
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
