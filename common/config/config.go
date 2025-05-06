@@ -37,6 +37,7 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/peerprovider/ringpopprovider"
 	"github.com/uber/cadence/common/service"
+	"github.com/uber/cadence/service/sharddistributor/config"
 )
 
 type (
@@ -89,6 +90,12 @@ type (
 		// Shard distributor is used to distribute shards across multiple cadence service instances
 		// Note: This is not recommended for use, it's still experimental
 		ShardDistributorClient ShardDistributorClient `yaml:"shardDistributorClient"`
+		// ShardDistributor is a config specific for shard distributor service.
+		ShardDistributor ShardDistributor `yaml:"shardDistributor"`
+	}
+
+	ShardDistributor struct {
+		LeaderElection config.LeaderElection `yaml:"leaderElection"`
 	}
 
 	// Membership holds peer provider configuration.

@@ -1,6 +1,6 @@
 module github.com/uber/cadence
 
-go 1.23
+go 1.23.0
 
 toolchain go1.23.4
 
@@ -59,8 +59,8 @@ require (
 	go.uber.org/yarpc v1.70.3
 	go.uber.org/zap v1.26.0
 	golang.org/x/exp v0.0.0-20231226003508-02704c960a9b
-	golang.org/x/net v0.26.0
-	golang.org/x/sync v0.10.0
+	golang.org/x/net v0.38.0
+	golang.org/x/sync v0.12.0
 	golang.org/x/time v0.5.0
 	golang.org/x/tools v0.22.0
 	gonum.org/v1/gonum v0.7.0
@@ -74,15 +74,22 @@ require (
 	github.com/google/gofuzz v1.0.0
 	github.com/mark3labs/mcp-go v0.18.0
 	github.com/ncruces/go-sqlite3 v0.22.0
+	go.etcd.io/etcd/client/v3 v3.5.21
 	go.uber.org/mock v0.5.0
 )
 
 require (
+	github.com/coreos/go-semver v0.3.0 // indirect
+	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
 	github.com/ncruces/julianday v1.0.0 // indirect
 	github.com/tetratelabs/wazero v1.8.2 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
+	go.etcd.io/etcd/api/v3 v3.5.21 // indirect
+	go.etcd.io/etcd/client/pkg/v3 v3.5.21 // indirect
+	google.golang.org/genproto v0.0.0-20231016165738-49dd2c1f3d0b // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20231012201019-e917dd12ba7a // indirect
 )
 
 require (
@@ -103,7 +110,7 @@ require (
 	github.com/go-zookeeper/zk v1.0.3 // indirect
 	github.com/gogo/googleapis v1.3.2 // indirect
 	github.com/gogo/status v1.1.0 // indirect
-	github.com/golang/protobuf v1.5.3 // indirect
+	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/hailocab/go-hostpool v0.0.0-20160125115350-e80d13ce29ed
 	github.com/hashicorp/errwrap v1.0.0 // indirect
@@ -147,14 +154,14 @@ require (
 	go.uber.org/dig v1.18.0 // indirect
 	go.uber.org/goleak v1.2.0
 	go.uber.org/net/metrics v1.3.0 // indirect
-	golang.org/x/crypto v0.32.0 // indirect
+	golang.org/x/crypto v0.36.0 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20220218215828-6cf2b201936e // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
 	golang.org/x/mod v0.18.0 // indirect
-	golang.org/x/sys v0.29.0 // indirect
-	golang.org/x/text v0.21.0 // indirect
+	golang.org/x/sys v0.31.0 // indirect
+	golang.org/x/text v0.23.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20231030173426-d783a09b4405 // indirect
-	google.golang.org/protobuf v1.31.0 // indirect
+	google.golang.org/protobuf v1.33.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	honnef.co/go/tools v0.3.2 // indirect

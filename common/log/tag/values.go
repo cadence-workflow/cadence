@@ -144,6 +144,9 @@ var (
 	ComponentActiveClusterManager             = component("active-cluster-manager")
 	ComponentMembershipResolver               = component("membership-resolver")
 	ComponentHashring                         = component("hashring")
+	ComponentNamespaceManager                 = component("namespace-manager")
+	ComponentLeaderElection                   = component("leader-election")
+	ComponentLeaderProcessor                  = component("leader-processor")
 )
 
 // Predefined values for QueueTypes

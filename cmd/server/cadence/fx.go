@@ -37,6 +37,7 @@ import (
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql"
 	"github.com/uber/cadence/common/rpc/rpcfx"
 	"github.com/uber/cadence/common/service"
+	sharddistributorconfig "github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/sharddistributorfx"
 	"github.com/uber/cadence/tools/cassandra"
 	"github.com/uber/cadence/tools/sql"
@@ -50,6 +51,9 @@ func Module(serviceName string) fx.Option {
 			fx.Supply(serviceContext{
 				Name:     serviceName,
 				FullName: service.FullName(serviceName),
+			}),
+			fx.Provide(func(c config.Config) sharddistributorconfig.LeaderElection {
+				return c.ShardDistributor.LeaderElection
 			}),
 			rpcfx.Module,
 			// PeerProvider could be overriden e.g. with a DNS based internal solution.

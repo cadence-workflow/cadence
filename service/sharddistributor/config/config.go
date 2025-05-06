@@ -23,6 +23,8 @@
 package config
 
 import (
+	"time"
+
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 )
@@ -36,6 +38,50 @@ type (
 
 		// hostname info
 		HostName string
+	}
+
+	StaticConfig struct {
+		// ETCD provides is the configuration for ETCD storage that is required for usage of Shard distributor
+		ETCD ETCD `yaml:"etcd"`
+		// LeaderElection is the configuration for leader election mechanism that is used by Shard distributor to handle shard distribution per namespace.
+		LeaderElection LeaderElection `yaml:"leaderElection"`
+	}
+
+	// ETCD provides configuration for ETCD that is used inside shard distributor service.
+	ETCD struct {
+		Endpoints   []string      `yaml:"endpoints"`
+		DialTimeout time.Duration `yaml:"dialTimeout"`
+	}
+
+	// LeaderElection is a configuration for leader election running.
+	LeaderElection struct {
+		Store      LeaderStore   `yaml:"leaderStore"`
+		Election   Election      `yaml:"election"`
+		Namespaces []Namespace   `yaml:"namespaces"`
+		Process    LeaderProcess `yaml:"process"`
+	}
+
+	// LeaderStore provides a config for leader election.
+	LeaderStore struct {
+		ETCD   ETCD          `yaml:"etcd"`
+		Prefix string        `yaml:"prefix"`
+		TTL    time.Duration `yaml:"ttl"`
+	}
+
+	Namespace struct {
+		Name string `yaml:"name"`
+		Type string `yaml:"type"` // TODO: this should be and ENUM of fixed/ephemeral
+		Mode string `yaml:"mode"` // TODO: this should be an ENUM with possible modes: enabled, read_only, proxy, disabled
+	}
+
+	Election struct {
+		LeaderPeriod           time.Duration `yaml:"leaderPeriod"`           // Time to hold leadership before resigning
+		MaxRandomDelay         time.Duration `yaml:"maxRandomDelay"`         // Maximum random delay before campaigning
+		FailedElectionCooldown time.Duration `yaml:"failedElectionCooldown"` // wait between election attempts with unhandled errors
+	}
+
+	LeaderProcess struct {
+		Period time.Duration `yaml:"period"`
 	}
 )
 
