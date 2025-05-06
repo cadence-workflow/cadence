@@ -166,7 +166,7 @@ func (c *fakeClock) ContextWithDeadline(ctx context.Context, deadline time.Time)
 	return clockwork.WithDeadline(ctx, c.FakeClock, deadline)
 }
 
-func (r *fakeClock) SleepWithContext(ctx context.Context, duration time.Duration) error {
+func (c *fakeClock) SleepWithContext(ctx context.Context, duration time.Duration) error {
 	select {
 	case <-r.After(duration):
 		return nil
