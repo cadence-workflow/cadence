@@ -79,7 +79,7 @@ func (r *PluginExecutor) Execute(ctx context.Context, args []string) error {
 	}
 
 	logger = logger.With(zap.String("cache id", string(cacheID)))
-	logger.Info("Cache not found, executing plugin")
+	logger.Debug("Cache not found, executing plugin")
 
 	if err = r.plugin.Execute(ctx, args); err != nil {
 		return fmt.Errorf("plugin failed: %w", err)
