@@ -36,7 +36,7 @@ func (h *metricsHandler) GetShardOwner(ctx context.Context, gp1 *types.GetShardO
 	scope.IncCounter(metrics.ShardDistributorRequests)
 	sw := scope.StartTimer(metrics.ShardDistributorLatency)
 	defer sw.Stop()
-	logger := h.logger.WithTags(tag.Namespace(gp1.GetNamespace()))
+	logger := h.logger.WithTags(tag.ShardNamespace(gp1.GetNamespace()))
 
 	gp2, err = h.handler.GetShardOwner(ctx, gp1)
 

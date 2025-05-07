@@ -43,7 +43,7 @@ func (h *{{$decorator}}) {{$method.Declaration}} {
         scope.IncCounter(metrics.ShardDistributorRequests)
         sw := scope.StartTimer(metrics.ShardDistributorLatency)
         defer sw.Stop()
-        logger := h.logger.WithTags(tag.Namespace({{ $namespace }}))
+        logger := h.logger.WithTags(tag.ShardNamespace({{ $namespace }}))
 
         {{$method.ResultsNames}} = h.handler.{{ $method.Call }}
 

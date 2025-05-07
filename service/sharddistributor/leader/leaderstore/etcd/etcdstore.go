@@ -3,18 +3,23 @@ package etcd
 import (
 	"context"
 	"fmt"
+	"time"
 
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/client/v3/concurrency"
 	"go.uber.org/fx"
 
-	"github.com/uber/cadence/service/sharddistributor/config"
+	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/service/sharddistributor/leader/leaderstore"
 )
 
+func init() {
+	leaderstore.RegisterStore("etcd", fx.Options(fx.Provide(NewStore)))
+}
+
 type LeaderStore struct {
 	client         *clientv3.Client
-	electionConfig config.LeaderStore
+	electionConfig etcdCfg
 }
 
 type StoreParams struct {
@@ -22,19 +27,31 @@ type StoreParams struct {
 
 	// Client could be provided externally.
 	Client    *clientv3.Client `optional:"true"`
-	Cfg       config.LeaderElection
+	Cfg       *config.YamlNode `name:"leaderStoreConfig"`
 	Lifecycle fx.Lifecycle
+}
+
+type etcdCfg struct {
+	Endpoints   []string      `yaml:"endpoints"`
+	DialTimeout time.Duration `yaml:"dialTimeout"`
+	Prefix      string        `yaml:"prefix"`
+	ElectionTTL time.Duration `yaml:"electionTTL"`
 }
 
 // NewStore creates a new leaderstore backed by ETCD.
 func NewStore(p StoreParams) (leaderstore.Store, error) {
 	var err error
 
+	var out etcdCfg
+	if err := p.Cfg.Decode(&out); err != nil {
+		return nil, fmt.Errorf("bad config: %w", err)
+	}
+
 	etcdClient := p.Client
 	if etcdClient == nil {
 		etcdClient, err = clientv3.New(clientv3.Config{
-			Endpoints:   p.Cfg.Store.ETCD.Endpoints,
-			DialTimeout: p.Cfg.Store.ETCD.DialTimeout,
+			Endpoints:   out.Endpoints,
+			DialTimeout: out.DialTimeout,
 		})
 		if err != nil {
 			return nil, err
@@ -45,14 +62,14 @@ func NewStore(p StoreParams) (leaderstore.Store, error) {
 
 	return &LeaderStore{
 		client:         etcdClient,
-		electionConfig: p.Cfg.Store,
+		electionConfig: out,
 	}, nil
 }
 
 func (ls *LeaderStore) CreateElection(ctx context.Context, namespace string) (el leaderstore.Election, err error) {
 	// Create a new session for election
 	session, err := concurrency.NewSession(ls.client,
-		concurrency.WithTTL(int(ls.electionConfig.TTL.Seconds())),
+		concurrency.WithTTL(int(ls.electionConfig.ElectionTTL.Seconds())),
 		concurrency.WithContext(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create session: %w", err)

@@ -222,7 +222,7 @@ type testCluster struct {
 	ctx         context.Context
 	cancel      context.CancelFunc
 	store       leaderstore.Store
-	storeConfig config.LeaderStore
+	storeConfig etcdCfg
 	endpoints   []string
 }
 
@@ -241,18 +241,16 @@ func setupETCDCluster(t *testing.T) *testCluster {
 
 	t.Logf("ETCD endpoints: %v", endpoints)
 
-	testConfig := config.LeaderStore{
-		ETCD: config.ETCD{
-			Endpoints:   endpoints,
-			DialTimeout: 5 * time.Second,
-		},
-		Prefix: fmt.Sprintf("/election/%s", t.Name()),
-		TTL:    5 * time.Second,
+	testConfig := etcdCfg{
+		Endpoints:   endpoints,
+		DialTimeout: 5 * time.Second,
+		Prefix:      fmt.Sprintf("/election/%s", t.Name()),
+		ElectionTTL: 5 * time.Second,
 	}
 
 	// Create store
 	storeParams := StoreParams{
-		Cfg:       config.LeaderElection{Store: testConfig},
+		Cfg:       &config.YamlNode{},
 		Lifecycle: fxtest.NewLifecycle(t),
 	}
 

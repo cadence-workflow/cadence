@@ -2,6 +2,7 @@ package namespace
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"go.uber.org/fx"
@@ -17,25 +18,19 @@ import (
 var Module = fx.Module(
 	"namespace-manager",
 	fx.Provide(
+		fx.Private,
 		NewManager,
 	),
 	// Force use manager to get it into fx.
-	fx.Invoke(func(Manager) {}),
+	fx.Invoke(func(*NamespaceManager) {}),
 )
 
-// Manager handles namespace distribution and leader election
-type Manager interface {
-	Start(ctx context.Context) error
-	Stop(ctx context.Context) error
-}
-
-type namespaceManager struct {
+type NamespaceManager struct {
 	cfg              config.LeaderElection
 	logger           log.Logger
 	electionFactory  election.Factory
 	processorFactory process.Factory
 	namespaces       map[string]*namespaceHandler
-	mu               sync.RWMutex
 	ctx              context.Context
 	cancel           context.CancelFunc
 }
@@ -60,8 +55,8 @@ type ManagerParams struct {
 }
 
 // NewManager creates a new namespace manager
-func NewManager(p ManagerParams) Manager {
-	manager := &namespaceManager{
+func NewManager(p ManagerParams) *NamespaceManager {
+	manager := &NamespaceManager{
 		cfg:              p.Cfg,
 		logger:           p.Logger.WithTags(tag.ComponentNamespaceManager),
 		electionFactory:  p.ElectionFactory,
@@ -75,7 +70,7 @@ func NewManager(p ManagerParams) Manager {
 }
 
 // Start initializes the namespace manager and starts handling all namespaces
-func (m *namespaceManager) Start(ctx context.Context) error {
+func (m *NamespaceManager) Start(ctx context.Context) error {
 	m.ctx, m.cancel = context.WithCancel(context.Background())
 
 	for _, ns := range m.cfg.Namespaces {
@@ -88,16 +83,15 @@ func (m *namespaceManager) Start(ctx context.Context) error {
 }
 
 // Stop gracefully stops all namespace handlers
-func (m *namespaceManager) Stop(ctx context.Context) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if m.cancel != nil {
-		m.cancel()
+func (m *NamespaceManager) Stop(ctx context.Context) error {
+	if m.cancel == nil {
+		return fmt.Errorf("manager was not running")
 	}
 
+	m.cancel()
+
 	for ns, handler := range m.namespaces {
-		m.logger.Info("Stopping namespace handler", tag.Namespace(ns))
+		m.logger.Info("Stopping namespace handler", tag.ShardNamespace(ns))
 		if handler.cancel != nil {
 			handler.cancel()
 		}
@@ -107,15 +101,12 @@ func (m *namespaceManager) Stop(ctx context.Context) error {
 }
 
 // handleNamespace sets up leadership election for a namespace
-func (m *namespaceManager) handleNamespace(namespace string) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
+func (m *NamespaceManager) handleNamespace(namespace string) error {
 	if _, exists := m.namespaces[namespace]; exists {
-		return nil // Already handling this namespace
+		return fmt.Errorf("namespace %s already running", namespace)
 	}
 
-	m.logger.Info("Setting up namespace handler", tag.Namespace(namespace))
+	m.logger.Info("Setting up namespace handler", tag.ShardNamespace(namespace))
 
 	ctx, cancel := context.WithCancel(m.ctx)
 
@@ -126,13 +117,10 @@ func (m *namespaceManager) handleNamespace(namespace string) error {
 		return err
 	}
 
-	// Create processor for this namespace
-	createProcessor := m.processorFactory.CreateProcessor(namespace)
-
 	handler := &namespaceHandler{
-		logger:    m.logger.WithTags(tag.Namespace(namespace)),
+		logger:    m.logger.WithTags(tag.ShardNamespace(namespace)),
 		elector:   elector,
-		processor: createProcessor,
+		processor: m.processorFactory.CreateProcessor(namespace),
 	}
 	// cancel cancels the context and ensures that electionRunner is stopped.
 	handler.cancel = func() {
@@ -141,6 +129,7 @@ func (m *namespaceManager) handleNamespace(namespace string) error {
 	}
 
 	m.namespaces[namespace] = handler
+	handler.cleanupWg.Add(1)
 	// Start leadership election
 	go handler.runElection(ctx)
 
@@ -149,12 +138,11 @@ func (m *namespaceManager) handleNamespace(namespace string) error {
 
 // runElection manages the leadership election for a namespace
 func (handler *namespaceHandler) runElection(ctx context.Context) {
-	handler.cleanupWg.Add(1)
 	defer handler.cleanupWg.Done()
 
 	handler.logger.Info("Starting election for namespace")
 
-	leaderCh := handler.elector.Run(ctx, handler.processor.Start, handler.processor.Stop)
+	leaderCh := handler.elector.Run(ctx, handler.processor.Run, handler.processor.Terminate)
 
 	for {
 		select {

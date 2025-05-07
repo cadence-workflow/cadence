@@ -74,22 +74,15 @@ require (
 	github.com/google/gofuzz v1.0.0
 	github.com/mark3labs/mcp-go v0.18.0
 	github.com/ncruces/go-sqlite3 v0.22.0
-	go.etcd.io/etcd/client/v3 v3.5.21
 	go.uber.org/mock v0.5.0
 )
 
 require (
-	github.com/coreos/go-semver v0.3.0 // indirect
-	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
 	github.com/ncruces/julianday v1.0.0 // indirect
 	github.com/tetratelabs/wazero v1.8.2 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
-	go.etcd.io/etcd/api/v3 v3.5.21 // indirect
-	go.etcd.io/etcd/client/pkg/v3 v3.5.21 // indirect
-	google.golang.org/genproto v0.0.0-20231016165738-49dd2c1f3d0b // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20231012201019-e917dd12ba7a // indirect
 )
 
 require (

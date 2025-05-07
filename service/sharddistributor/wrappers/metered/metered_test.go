@@ -84,7 +84,7 @@ func TestMetricsHandler_GetShardOwner(t *testing.T) {
 			mockHandler.EXPECT().GetShardOwner(gomock.Any(), request).Return(response, tt.error)
 
 			mockLogger := &log.MockLogger{}
-			mockLogger.On("WithTags", []tag.Tag{tag.Namespace("test-namespace")}).Return(mockLogger)
+			mockLogger.On("WithTags", []tag.Tag{tag.ShardNamespace("test-namespace")}).Return(mockLogger)
 
 			handler := NewMetricsHandler(mockHandler, mockLogger, metricsClient).(*metricsHandler)
 			tt.setupMocks(mockLogger)
@@ -199,7 +199,7 @@ func TestHandleErr(t *testing.T) {
 			setupMocks: func(mockLogger *log.MockLogger) {
 				mockLogger.On(
 					"Error",
-					"Namespace not found",
+					"ShardNamespace not found",
 					[]tag.Tag{tag.Error(&types.NamespaceNotFoundError{})},
 				).Once()
 			},

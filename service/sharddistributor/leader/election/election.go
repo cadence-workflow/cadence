@@ -83,7 +83,7 @@ func (f *electionFactory) CreateElector(ctx context.Context, namespace string) (
 	return &elector{
 		namespace: namespace,
 		store:     f.store,
-		logger:    f.logger.WithTags(tag.ComponentLeaderElection, tag.Namespace(namespace)),
+		logger:    f.logger.WithTags(tag.ComponentLeaderElection, tag.ShardNamespace(namespace)),
 		cfg:       f.cfg,
 		clock:     f.clock,
 		hostname:  f.hostname,
@@ -99,22 +99,18 @@ func (e *elector) Run(ctx context.Context, OnLeader, OnResign ProcessFunc) <-cha
 		defer close(leaderCh)
 
 		for {
-			select {
-			case <-ctx.Done():
-				e.logger.Info("Context cancelled, stopping election")
-				return
-
-			default:
-				if err := e.runElection(ctx, leaderCh, OnLeader, OnResign); err != nil {
-					// Self resign, immediately retry, otherwise, wait
-					if !errors.Is(err, errSelfResign) {
-						e.logger.Error("Error in election, retrying", tag.Error(err))
-						sleepErr := e.clock.SleepWithContext(ctx, e.cfg.FailedElectionCooldown)
-						if sleepErr != nil {
-							e.logger.Warn("sleep error", tag.Error(sleepErr))
-						}
+			if err := e.runElection(ctx, leaderCh, OnLeader, OnResign); err != nil {
+				// Self resign, immediately retry, otherwise, wait
+				if !errors.Is(err, errSelfResign) {
+					e.logger.Error("Error in election, retrying", tag.Error(err))
+					sleepErr := e.clock.SleepWithContext(ctx, e.cfg.FailedElectionCooldown)
+					if sleepErr != nil {
+						e.logger.Warn("sleep error", tag.Error(sleepErr))
 					}
 				}
+			}
+			if ctx.Err() != nil {
+				break
 			}
 		}
 	}()
@@ -123,7 +119,7 @@ func (e *elector) Run(ctx context.Context, OnLeader, OnResign ProcessFunc) <-cha
 }
 
 // runElection runs a single election attempt
-func (e *elector) runElection(ctx context.Context, leaderCh chan<- bool, OnLeader, OnResign ProcessFunc) (resErr error) {
+func (e *elector) runElection(ctx context.Context, leaderCh chan<- bool, OnLeader, OnResign ProcessFunc) (err error) {
 	// Add random delay before campaigning to spread load across instances
 	delay := time.Duration(rand.Intn(int(e.cfg.MaxRandomDelay)))
 
@@ -133,7 +129,7 @@ func (e *elector) runElection(ctx context.Context, leaderCh chan<- bool, OnLeade
 	case <-e.clock.After(delay):
 		// Continue after delay
 	case <-ctx.Done():
-		return fmt.Errorf("context cancelled during pre-campaign delay")
+		return fmt.Errorf("context cancelled during pre-campaign delay: %w", ctx.Err())
 	}
 
 	election, err := e.store.CreateElection(ctx, e.namespace)
@@ -141,24 +137,15 @@ func (e *elector) runElection(ctx context.Context, leaderCh chan<- bool, OnLeade
 		return fmt.Errorf("create session: %w", err)
 	}
 	defer func() {
-		// first - ensure that OnResign is called.
-		// that means that there can be a time frame between previos owner resigned and a new leader elected when leader processes are not running.
-
-		err = OnResign(ctx)
-		if resErr == nil && err != nil {
-			resErr = fmt.Errorf("OnResign: %w", err)
-		} else if err != nil {
-			e.logger.Error("OnResign failed", tag.Error(err))
-		}
-
-		// Secondly: attempt to resign leadership.
-		resignCtx, cancel := e.clock.ContextWithTimeout(ctx, 3*time.Second)
-		defer cancel()
-
-		err := election.Resign(resignCtx)
-		if err != nil {
-			// There is nothing to do, the session will close after TTL and the next leader will acquire it.
-			e.logger.Error("Failed to resign leadership", tag.Error(err))
+		resignErr := e.resign(election, OnResign)
+		if resignErr != nil {
+			if err == nil {
+				err = resignErr
+			} else {
+				// Something already went wrong, so the process is most likely not started or stopped.
+				// It should be safe to report leadership lost.
+				e.logger.Error("Error resigning leader", tag.Error(resignErr))
+			}
 		}
 
 		// We are no longer a leader and OnResign is called - notify the manager that leader elected process
@@ -200,4 +187,24 @@ func (e *elector) runElection(ctx context.Context, leaderCh chan<- bool, OnLeade
 
 		return errSelfResign
 	}
+}
+
+func (e *elector) resign(election leaderstore.Election, onResign ProcessFunc) error {
+	ctx, cancel := e.clock.ContextWithTimeout(context.Background(), 3*time.Second) // TODO: this should be configurable.
+	defer cancel()
+
+	// first - ensure that OnResign is called.
+	// that means that there can be a time frame between previos owner resigned and a new leader elected when leader processes are not running.
+	resignErr := onResign(ctx)
+	if resignErr != nil {
+		return fmt.Errorf("OnResign: %w", resignErr)
+	}
+
+	// When the leader process is stopped it is safe to resign and pass leadership to other instances.
+	err := election.Resign(ctx)
+	if err != nil {
+		return fmt.Errorf("election resign: %w", err)
+	}
+
+	return nil
 }

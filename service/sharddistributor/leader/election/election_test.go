@@ -135,22 +135,24 @@ func TestElector_Run_Resign(t *testing.T) {
 	})
 
 	t.Run("onResign error", func(t *testing.T) {
-		leaderChan, p := prepareRun(t, nil, nil)
-		p.election.EXPECT().Resign(gomock.Any()).Return(nil)
+		// Set onResign to return an error
+		onResignCalled := false
+		resignErr := errors.New("resign error")
+		onResign := func(ctx context.Context) error {
+			onResignCalled = true
+			return resignErr
+		}
+
+		leaderChan, p := prepareRun(t, nil, onResign)
 		defer p.cancel()
 		// We should be blocked on the timer.
 		p.timeSource.BlockUntil(1)
-
-		// Set onResign to return an error
-		resignErr := errors.New("resign error")
-		p.onResign = func(ctx context.Context) error {
-			return resignErr
-		}
 
 		// The resign function on election should not be called if onResign returns an error
 		p.timeSource.Advance(_testLeaderPeriod + 1)
 		p.timeSource.BlockUntil(1)
 		assert.False(t, <-leaderChan)
+		assert.True(t, onResignCalled, "OnResign callback should have been called")
 	})
 }
 

@@ -1147,8 +1147,8 @@ func ActivityTaskState(state int32) Tag {
 	return newInt32("activity-task-state", state)
 }
 
-func Namespace(name string) Tag {
-	return newStringTag("namespace", name)
+func ShardNamespace(name string) Tag {
+	return newStringTag("shard-namespace", name)
 }
 
 func WorkflowContextLockLatency(duration time.Duration) Tag {

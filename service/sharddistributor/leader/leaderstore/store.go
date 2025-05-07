@@ -1,6 +1,13 @@
 package leaderstore
 
-import "context"
+import (
+	"context"
+	"fmt"
+
+	"go.uber.org/fx"
+
+	"github.com/uber/cadence/common/config"
+)
 
 //go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination=leaderstore_mock.go Store,Election
 
@@ -20,4 +27,35 @@ type Election interface {
 	Done() <-chan struct{}
 	// Cleanup stops internal processes and releases keys.
 	Cleanup(ctx context.Context) error
+}
+
+// StoreImpl could be used to build an implementation in the registry.
+// We use registry based approach to avoid introduction of global etcd dependency.
+type StoreImpl fx.Option
+
+var (
+	storeRegistry = make(map[string]StoreImpl)
+)
+
+// RegisterStore registers store implementation in the registry.
+func RegisterStore(name string, factory StoreImpl) {
+	storeRegistry[name] = factory
+}
+
+// StoreModule returns registered a leader store fx.Option from the configuration.
+// This can introduce extra dependency requirements to the fx application.
+func StoreModule(name string, cfg *config.YamlNode) (fx.Option, error) {
+	factory, ok := storeRegistry[name]
+	if !ok {
+		return nil, fmt.Errorf("no leader store registered with name %s", name)
+	}
+	return fx.Options(
+		fx.Provide(func() configBuilder { return configBuilder{Cfg: cfg} }),
+		factory), nil
+}
+
+type configBuilder struct {
+	fx.Out
+
+	Cfg *config.YamlNode `name:"leaderStoreConfig"`
 }

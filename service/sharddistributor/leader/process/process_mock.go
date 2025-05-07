@@ -40,32 +40,32 @@ func (m *MockProcessor) EXPECT() *MockProcessorMockRecorder {
 	return m.recorder
 }
 
-// Start mocks base method.
-func (m *MockProcessor) Start(ctx context.Context) error {
+// Run mocks base method.
+func (m *MockProcessor) Run(ctx context.Context) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Start", ctx)
+	ret := m.ctrl.Call(m, "Run", ctx)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Start indicates an expected call of Start.
-func (mr *MockProcessorMockRecorder) Start(ctx any) *gomock.Call {
+// Run indicates an expected call of Run.
+func (mr *MockProcessorMockRecorder) Run(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockProcessor)(nil).Start), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockProcessor)(nil).Run), ctx)
 }
 
-// Stop mocks base method.
-func (m *MockProcessor) Stop(ctx context.Context) error {
+// Terminate mocks base method.
+func (m *MockProcessor) Terminate(ctx context.Context) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Stop", ctx)
+	ret := m.ctrl.Call(m, "Terminate", ctx)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Stop indicates an expected call of Stop.
-func (mr *MockProcessorMockRecorder) Stop(ctx any) *gomock.Call {
+// Terminate indicates an expected call of Terminate.
+func (mr *MockProcessorMockRecorder) Terminate(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockProcessor)(nil).Stop), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Terminate", reflect.TypeOf((*MockProcessor)(nil).Terminate), ctx)
 }
 
 // MockFactory is a mock of Factory interface.

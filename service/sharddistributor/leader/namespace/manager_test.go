@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx/fxtest"
 	"go.uber.org/mock/gomock"
 
@@ -36,7 +37,7 @@ func TestNewManager(t *testing.T) {
 		ElectionFactory:  electionFactory,
 		ProcessorFactory: processorFactory,
 		Lifecycle:        fxtest.NewLifecycle(t),
-	}).(*namespaceManager)
+	})
 
 	// Assert
 	assert.NotNil(t, manager)
@@ -66,7 +67,7 @@ func TestStartManager(t *testing.T) {
 		},
 	}
 
-	manager := &namespaceManager{
+	manager := &NamespaceManager{
 		cfg:              cfg,
 		logger:           logger,
 		electionFactory:  electionFactory,
@@ -104,7 +105,7 @@ func TestStartManagerWithElectorError(t *testing.T) {
 	expectedErr := errors.New("elector creation failed")
 	electionFactory.EXPECT().CreateElector(gomock.Any(), "test-namespace").Return(nil, expectedErr)
 
-	manager := &namespaceManager{
+	manager := &NamespaceManager{
 		cfg:              cfg,
 		logger:           logger,
 		electionFactory:  electionFactory,
@@ -143,7 +144,7 @@ func TestStopManager(t *testing.T) {
 		},
 	}
 
-	manager := &namespaceManager{
+	manager := &NamespaceManager{
 		cfg:              cfg,
 		logger:           logger,
 		electionFactory:  electionFactory,
@@ -173,7 +174,7 @@ func TestHandleNamespaceAlreadyExists(t *testing.T) {
 	processorFactory := process.NewMockFactory(ctrl)
 	mockProcessor := process.NewMockProcessor(ctrl)
 
-	manager := &namespaceManager{
+	manager := &NamespaceManager{
 		cfg:              config.LeaderElection{},
 		logger:           logger,
 		electionFactory:  electionFactory,
@@ -194,31 +195,45 @@ func TestHandleNamespaceAlreadyExists(t *testing.T) {
 	err := manager.handleNamespace("test-namespace")
 
 	// Assert
-	assert.NoError(t, err)
-	assert.Equal(t, 1, len(manager.namespaces))
+	assert.ErrorContains(t, err, "namespace test-namespace already running")
 }
 
 func TestRunElection(t *testing.T) {
 	// Setup
 	logger := testlogger.New(t)
 	ctrl := gomock.NewController(t)
-	mockElector := election.NewMockElector(ctrl)
-	mockProcessor := process.NewMockProcessor(ctrl)
+	electionFactory := election.NewMockFactory(ctrl)
+	elector := election.NewMockElector(ctrl)
+
+	electionFactory.EXPECT().CreateElector(gomock.Any(), gomock.Any()).Return(elector, nil)
+
+	processorFactory := process.NewMockFactory(ctrl)
+	processor := process.NewMockProcessor(ctrl)
+	processorFactory.EXPECT().CreateProcessor("test-namespace").Return(processor)
 
 	leaderCh := make(chan bool)
-	mockElector.EXPECT().Run(gomock.Any(), gomock.Any(), gomock.Any()).Return((<-chan bool)(leaderCh))
+	elector.EXPECT().Run(gomock.Any(), gomock.Any(), gomock.Any()).Return((<-chan bool)(leaderCh))
 
-	handler := &namespaceHandler{
-		logger:    logger,
-		elector:   mockElector,
-		processor: mockProcessor,
+	cfg := config.LeaderElection{
+		Namespaces: []config.Namespace{
+			{Name: "test-namespace"},
+		},
+	}
+
+	manager := &NamespaceManager{
+		cfg:              cfg,
+		logger:           logger,
+		electionFactory:  electionFactory,
+		processorFactory: processorFactory,
+		namespaces:       make(map[string]*namespaceHandler),
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	// Start the test goroutine
-	go handler.runElection(ctx)
+	err := manager.Start(ctx)
+	require.NoError(t, err)
 
 	// Test becoming leader
 	leaderCh <- true
@@ -229,6 +244,6 @@ func TestRunElection(t *testing.T) {
 	time.Sleep(10 * time.Millisecond) // Give some time for goroutine to process
 
 	// Cancel context to end the goroutine
-	cancel()
+	manager.cancel()
 	time.Sleep(10 * time.Millisecond) // Give some time for goroutine to exit
 }

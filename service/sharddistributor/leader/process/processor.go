@@ -2,6 +2,7 @@ package process
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"go.uber.org/fx"
@@ -22,8 +23,8 @@ var Module = fx.Module(
 
 // Processor represents a process that runs when the instance is the leader
 type Processor interface {
-	Start(ctx context.Context) error
-	Stop(ctx context.Context) error
+	Run(ctx context.Context) error
+	Terminate(ctx context.Context) error
 }
 
 // Factory creates processor instances
@@ -41,7 +42,6 @@ type namespaceProcessor struct {
 	namespace  string
 	logger     log.Logger
 	timeSource clock.TimeSource
-	mu         sync.Mutex
 	running    bool
 	cancel     context.CancelFunc
 	cfg        config.LeaderProcess
@@ -65,19 +65,16 @@ func NewProcessorFactory(
 func (f *processorFactory) CreateProcessor(namespace string) Processor {
 	return &namespaceProcessor{
 		namespace:  namespace,
-		logger:     f.logger.WithTags(tag.ComponentLeaderProcessor, tag.Namespace(namespace)),
+		logger:     f.logger.WithTags(tag.ComponentLeaderProcessor, tag.ShardNamespace(namespace)),
 		timeSource: f.timeSource,
 		cfg:        f.cfg,
 	}
 }
 
-// Start begins processing for this namespace
-func (p *namespaceProcessor) Start(ctx context.Context) error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
+// Run begins processing for this namespace
+func (p *namespaceProcessor) Run(ctx context.Context) error {
 	if p.running {
-		return nil // Already running
+		return fmt.Errorf("processor is already running")
 	}
 
 	pCtx, cancel := context.WithCancel(ctx)
@@ -93,13 +90,10 @@ func (p *namespaceProcessor) Start(ctx context.Context) error {
 	return nil
 }
 
-// Stop halts processing for this namespace
-func (p *namespaceProcessor) Stop(ctx context.Context) error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
+// Terminate halts processing for this namespace
+func (p *namespaceProcessor) Terminate(ctx context.Context) error {
 	if !p.running {
-		return nil // Not running
+		return fmt.Errorf("processor has not been started")
 	}
 
 	p.logger.Info("Stopping")
