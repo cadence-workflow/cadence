@@ -36,11 +36,8 @@ import (
 // If the plugin is not found or the plugin failed, it will return an error
 func Run(pluginName string, args []string) error {
 	cfg := LoadConfig()
-	if pluginName != "" {
-		cfg.PluginName = pluginName
-	}
 
-	if cfg.PluginName == "" {
+	if pluginName == "" {
 		return fmt.Errorf("plugin name is required")
 	}
 
@@ -57,16 +54,16 @@ func Run(pluginName string, args []string) error {
 	// Initialize plugins
 	InitializePlugins(logger, cfg)
 
-	plugin, ok := GetPlugin(cfg.PluginName)
+	plugin, ok := GetPlugin(pluginName)
 	if !ok {
-		return fmt.Errorf("%s plugin not found, supported plugins: %s", cfg.PluginName, ListPluginNames())
+		return fmt.Errorf("%s plugin not found, supported plugins: %s", pluginName, ListPluginNames())
 	}
 
 	executor := NewPluginExecutor(
 		plugin,
 		cfg,
 		logger,
-		cache.NewFileStorage(path.Join(cfg.CacheDirPath, cfg.PluginName), logger),
+		cache.NewFileStorage(path.Join(cfg.CacheDirPath, pluginName), logger),
 		cache.NewIDComputer(logger),
 	)
 

@@ -32,10 +32,6 @@ import (
 
 // Config contains the configuration for the fastgogenerate tool
 type Config struct {
-	// PluginName is the name of the plugin to be used
-	// Default value - empty
-	PluginName string
-
 	// Debug enables debug logs
 	// Default value - false
 	Debug bool
@@ -73,7 +69,6 @@ type Config struct {
 // LoadConfig loads the configuration from environment variables
 func LoadConfig() Config {
 	var cfg = Config{
-		PluginName:           os.Getenv("FASTGOGENERATE_PLUGIN_NAME"),
 		Debug:                os.Getenv("FASTGOGENERATE_DEBUG") != "",
 		CacheDisabled:        os.Getenv("FASTGOGENERATE_CACHE_DISABLED") != "",
 		Timeout:              10 * time.Second,

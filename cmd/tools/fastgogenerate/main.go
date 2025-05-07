@@ -35,8 +35,16 @@ var (
 )
 
 func main() {
+	// Check if the plugin name is built-in, if not,
+	// use the plugin name from the command line arguments
+	args := os.Args[1:]
+	if PluginName == "" && len(args) > 1 {
+		PluginName = os.Args[1]
+		args = args[1:]
+	}
+
 	// Pass the plugin name as the first argument and plugin args as the rest
-	if err := fastgogenerate.Run(PluginName, os.Args[1:]); err != nil {
+	if err := fastgogenerate.Run(PluginName, args); err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)
 	}

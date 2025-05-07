@@ -61,11 +61,12 @@ func NewPluginExecutor(
 
 // Execute runs the plugin with the provided arguments and caches the result
 func (r *PluginExecutor) Execute(ctx context.Context, args []string) error {
-	r.logger.Debug("Starting plugin execution", zap.Strings("args", args))
+	logger := r.logger.With(zap.Strings("args", args))
+	logger.Debug("Starting plugin execution")
 
 	cacheID, isExist, err := r.checkCache(ctx, args)
 	if err != nil {
-		r.logger.Debug("Couldn't use cache, executing plugin without caching", zap.Error(err), zap.Strings("args", args))
+		logger.Debug("Couldn't use cache, executing plugin without caching", zap.Error(err))
 		if err := r.plugin.Execute(ctx, args); err != nil {
 			return fmt.Errorf("plugin failed: %w", err)
 		}
@@ -73,21 +74,23 @@ func (r *PluginExecutor) Execute(ctx context.Context, args []string) error {
 	}
 
 	if isExist {
-		r.logger.Debug("Plugin already executed, skipping")
+		logger.Debug("Plugin already executed, skipping")
 		return nil
 	}
 
-	r.logger.Info("Cache not found, executing plugin", zap.String("cache id", string(cacheID)))
+	logger = logger.With(zap.String("cache id", string(cacheID)))
+	logger.Info("Cache not found, executing plugin")
+
 	if err = r.plugin.Execute(ctx, args); err != nil {
 		return fmt.Errorf("plugin failed: %w", err)
 	}
 
-	r.logger.Debug("Plugin executed successfully, saving cache", zap.String("cache id", string(cacheID)))
+	logger.Debug("Plugin executed successfully, saving cache")
 	if err := r.storage.Save(cacheID); err != nil {
-		r.logger.Warn("Failed to save cache", zap.Error(err))
+		logger.Warn("Failed to save cache", zap.Error(err))
 	}
 
-	r.logger.Debug("Cache saved successfully", zap.String("cache id", string(cacheID)))
+	logger.Debug("Cache saved successfully")
 	return nil
 }
 
