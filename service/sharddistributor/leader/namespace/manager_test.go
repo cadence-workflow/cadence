@@ -67,7 +67,7 @@ func TestStartManager(t *testing.T) {
 		},
 	}
 
-	manager := &NamespaceManager{
+	manager := &Manager{
 		cfg:              cfg,
 		logger:           logger,
 		electionFactory:  electionFactory,
@@ -105,7 +105,7 @@ func TestStartManagerWithElectorError(t *testing.T) {
 	expectedErr := errors.New("elector creation failed")
 	electionFactory.EXPECT().CreateElector(gomock.Any(), "test-namespace").Return(nil, expectedErr)
 
-	manager := &NamespaceManager{
+	manager := &Manager{
 		cfg:              cfg,
 		logger:           logger,
 		electionFactory:  electionFactory,
@@ -144,7 +144,7 @@ func TestStopManager(t *testing.T) {
 		},
 	}
 
-	manager := &NamespaceManager{
+	manager := &Manager{
 		cfg:              cfg,
 		logger:           logger,
 		electionFactory:  electionFactory,
@@ -174,7 +174,7 @@ func TestHandleNamespaceAlreadyExists(t *testing.T) {
 	processorFactory := process.NewMockFactory(ctrl)
 	mockProcessor := process.NewMockProcessor(ctrl)
 
-	manager := &NamespaceManager{
+	manager := &Manager{
 		cfg:              config.LeaderElection{},
 		logger:           logger,
 		electionFactory:  electionFactory,
@@ -220,7 +220,7 @@ func TestRunElection(t *testing.T) {
 		},
 	}
 
-	manager := &NamespaceManager{
+	manager := &Manager{
 		cfg:              cfg,
 		logger:           logger,
 		electionFactory:  electionFactory,

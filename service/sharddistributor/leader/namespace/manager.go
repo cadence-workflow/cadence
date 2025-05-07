@@ -17,15 +17,10 @@ import (
 // Module provides namespace manager component for an fx app.
 var Module = fx.Module(
 	"namespace-manager",
-	fx.Provide(
-		fx.Private,
-		NewManager,
-	),
-	// Force use manager to get it into fx.
-	fx.Invoke(func(*NamespaceManager) {}),
+	fx.Invoke(NewManager),
 )
 
-type NamespaceManager struct {
+type Manager struct {
 	cfg              config.LeaderElection
 	logger           log.Logger
 	electionFactory  election.Factory
@@ -55,8 +50,8 @@ type ManagerParams struct {
 }
 
 // NewManager creates a new namespace manager
-func NewManager(p ManagerParams) *NamespaceManager {
-	manager := &NamespaceManager{
+func NewManager(p ManagerParams) *Manager {
+	manager := &Manager{
 		cfg:              p.Cfg,
 		logger:           p.Logger.WithTags(tag.ComponentNamespaceManager),
 		electionFactory:  p.ElectionFactory,
@@ -70,7 +65,7 @@ func NewManager(p ManagerParams) *NamespaceManager {
 }
 
 // Start initializes the namespace manager and starts handling all namespaces
-func (m *NamespaceManager) Start(ctx context.Context) error {
+func (m *Manager) Start(ctx context.Context) error {
 	m.ctx, m.cancel = context.WithCancel(context.Background())
 
 	for _, ns := range m.cfg.Namespaces {
@@ -83,7 +78,7 @@ func (m *NamespaceManager) Start(ctx context.Context) error {
 }
 
 // Stop gracefully stops all namespace handlers
-func (m *NamespaceManager) Stop(ctx context.Context) error {
+func (m *Manager) Stop(ctx context.Context) error {
 	if m.cancel == nil {
 		return fmt.Errorf("manager was not running")
 	}
@@ -101,7 +96,7 @@ func (m *NamespaceManager) Stop(ctx context.Context) error {
 }
 
 // handleNamespace sets up leadership election for a namespace
-func (m *NamespaceManager) handleNamespace(namespace string) error {
+func (m *Manager) handleNamespace(namespace string) error {
 	if _, exists := m.namespaces[namespace]; exists {
 		return fmt.Errorf("namespace %s already running", namespace)
 	}
