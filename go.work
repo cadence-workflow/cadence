@@ -1,4 +1,4 @@
-go 1.23.4
+go 1.23
 
 // This file is primarily for gopls and IDEs it supports, as it does not
 // understand submodules correctly without it.
