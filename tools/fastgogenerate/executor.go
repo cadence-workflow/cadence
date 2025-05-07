@@ -77,7 +77,7 @@ func (r *PluginExecutor) Execute(ctx context.Context, args []string) error {
 		return nil
 	}
 
-	r.logger.Debug("Cache not found, executing plugin", zap.String("cache id", string(cacheID)))
+	r.logger.Info("Cache not found, executing plugin", zap.String("cache id", string(cacheID)))
 	if err = r.plugin.Execute(ctx, args); err != nil {
 		return fmt.Errorf("plugin failed: %w", err)
 	}

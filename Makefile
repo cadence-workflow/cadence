@@ -219,7 +219,7 @@ $(BIN)/goimports: internal/tools/go.mod go.work
 	$(call go_build_tool,golang.org/x/tools/cmd/goimports)
 
 $(BIN)/gowrap: go.mod go.work
-	$(call go_build_tool,github.com/hexdigest/gowrap/cmd/gowrap)
+	$(call go_build_tool_or_fastgogenerated_tool,github.com/hexdigest/gowrap/cmd/gowrap)
 
 $(BIN)/revive: internal/tools/go.mod go.work
 	$(call go_build_tool,github.com/mgechev/revive)

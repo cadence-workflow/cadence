@@ -26,6 +26,7 @@ import (
 	"go.uber.org/zap"
 
 	p "github.com/uber/cadence/tools/fastgogenerate/plugins"
+	"github.com/uber/cadence/tools/fastgogenerate/plugins/gowrap"
 	"github.com/uber/cadence/tools/fastgogenerate/plugins/mockgen"
 )
 
@@ -33,9 +34,11 @@ func InitializePlugins(logger *zap.Logger, config Config) {
 	// Use the original binary name + binary suffix as the default binary path
 	if config.BinarySuffix != "" {
 		config.Mockgen.BinaryPath = mockgen.Name + "." + config.BinarySuffix
+		config.GoWrap.BinaryPath = gowrap.Name + "." + config.BinarySuffix
 	}
 
 	RegisterPlugin(mockgen.NewPlugin(logger, config.Mockgen))
+	RegisterPlugin(gowrap.NewPlugin(logger, config.GoWrap))
 }
 
 var plugins = make(map[string]p.Plugin)

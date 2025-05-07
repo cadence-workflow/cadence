@@ -26,6 +26,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/uber/cadence/tools/fastgogenerate/plugins/gowrap"
 	"github.com/uber/cadence/tools/fastgogenerate/plugins/mockgen"
 )
 
@@ -48,7 +49,7 @@ type Config struct {
 	CacheDirPath string
 
 	// Timeout is the timeout for the plugin execution
-	// Default value - 1 minute
+	// Default value - 10 seconds
 	Timeout time.Duration
 
 	// BinarySuffixDisabled disables the usage of BinarySuffix to
@@ -64,6 +65,9 @@ type Config struct {
 
 	// Mockgen is the configuration for the mockgen plugin
 	Mockgen mockgen.Config
+
+	// GoWrap is the configuration for the gowrap plugin
+	GoWrap gowrap.Config
 }
 
 // LoadConfig loads the configuration from environment variables
@@ -72,12 +76,15 @@ func LoadConfig() Config {
 		PluginName:           os.Getenv("FASTGOGENERATE_PLUGIN_NAME"),
 		Debug:                os.Getenv("FASTGOGENERATE_DEBUG") != "",
 		CacheDisabled:        os.Getenv("FASTGOGENERATE_CACHE_DISABLED") != "",
-		Timeout:              time.Minute,
+		Timeout:              10 * time.Second,
 		BinarySuffixDisabled: os.Getenv("FASTGOGENERATE_BINARY_SUFFIX_DISABLED") != "",
 		BinarySuffix:         "bin",
 		CacheDirPath:         os.TempDir(),
 		Mockgen: mockgen.Config{
 			BinaryPath: os.Getenv("FASTGOGENERATE_MOCKGEN_BINARY_PATH"),
+		},
+		GoWrap: gowrap.Config{
+			BinaryPath: os.Getenv("FASTGOGENERATE_GOWRAP_BINARY_PATH"),
 		},
 	}
 
