@@ -1,6 +1,6 @@
 module github.com/uber/cadence/service/sharddistributor/leader/leaderstore/etcd
 
-go 1.23.4
+go 1.23
 
 replace github.com/uber/cadence => ../../../../..
 
