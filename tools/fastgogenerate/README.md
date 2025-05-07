@@ -58,18 +58,19 @@ FastGoGenerate is an experimental tool and is not enabled by default.
 
 To enable FastGoGenerate, follow these steps:
 1. Run `make clean` to delete all binaries and caches
-2. Run `FASTGOGENERATE_ENABLED=true make pr` or `FASTGOGENERATE_ENABLED=true make go-generate` to invoke go-generation. This will install the proper binaries by default
-3. The first run will take the same amount of time as without caching, but subsequent runs should be faster
+2. Run `make install-fastgogenerated-tools` to install fastgogenerated tools
+3. Run `make pr` or `make go-generate` to run the code generation with FastGoGenerate
+4. The first run will take the same amount of time as without caching, but subsequent runs should be faster
 
 #### How to Disable FastGoGenerate
 
 To disable FastGoGenerate, follow these steps:
 1. Run `make clean` to delete all binaries and caches
-2. Run `make pr` or `make go-generate` to install original binaries
+2. Run `make pr` or `make go-generate` to install original binaries and run the code generation with original binaries
 
 #### How It Works
 
-* When `FASTGOGENERATE_ENABLED=true` is set, the Makefile builds a fastgogenerate binary with a built-in plugin name that replaces the original plugin binary
+* When `make install-fastgogenerated-tools` is run, the Makefile builds a fastgogenerate binary with a built-in plugin name that replaces the original plugin binary
 * The original plugin binary is stored with the same name plus `.bin` suffix
 * The Makefile sets `FASTGOGENERATE_CACHE_PATH` to `$(shell pwd)/$(BUILD)/.fastgogenerate_cache` to ensure that the cache can be easily removed with `make clean`
 

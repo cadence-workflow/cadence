@@ -159,25 +159,6 @@ $Q echo "building $(or $(2), $(notdir $(1))) from internal/tools/go.mod..."
 $Q cd internal/tools; go build -mod=readonly -o ../../$(BIN)/$(or $(2), $(notdir $(1))) $(1)
 endef
 
-# fastgogenerated tool uses the folder to store cache
-# absolute path is needed to be sure that the cache is not stored in multiple folders
-export FASTGOGENERATE_CACHE_PATH := $(shell pwd)/$(BUILD)/.fastgogenerate_cache
-
-# does what go_build_tool does however uses another name of binary - <binary>.bin
-# instead of original binary, it install fastgogenerate tool with the same name as the tool
-# that is being built. Instead of use of original binaries, go generate will use a fastgogenerate tool
-# that cashes the results of go-generate executions and reuses them to speed up go-generate command
-define go_build_fastgogenerated_tool
-$Q echo "building fastgogenerated $(or $(2), $(notdir $(1))) from internal/tools/go.mod..."
-$Q go build -mod=readonly -ldflags="-X main.PluginName=$(or $(2), $(notdir $(1)))" -o $(BIN)/$(or $(2), $(notdir $(1))) ./cmd/tools/fastgogenerate
-$Q (cd internal/tools && go build -mod=readonly -o ../../$(BIN)/$(or $(2), $(notdir $(1))).bin $(1))
-endef
-
-# if FASTGOGENERATE_ENABLED is not set, use go_build_tool, otherwise use go_build_fastgogenerated_tool
-define go_build_tool_or_fastgogenerated_tool
-$Q $(if $(FASTGOGENERATE_ENABLED),$(call go_build_fastgogenerated_tool,$1,$2),$(call go_build_tool,$1,$2))
-endef
-
 # same as go_build_tool, but uses our main module file, not the tools one.
 # this is necessary / useful for tools that we are already importing in the repo, e.g. yarpc.
 # versions here are checked to make sure the tools version matches the service version.
@@ -202,7 +183,7 @@ $(BIN)/thriftrw-plugin-yarpc: go.mod go.work
 	$(call go_mod_build_tool,go.uber.org/yarpc/encoding/thrift/thriftrw-plugin-yarpc)
 
 $(BIN)/mockgen: internal/tools/go.mod go.work
-	$(call go_build_tool_or_fastgogenerated_tool,go.uber.org/mock/mockgen)
+	$(call go_build_tool,go.uber.org/mock/mockgen)
 
 $(BIN)/mockery: internal/tools/go.mod go.work
 	$(call go_build_tool,github.com/vektra/mockery/v2,mockery)
@@ -219,7 +200,7 @@ $(BIN)/goimports: internal/tools/go.mod go.work
 	$(call go_build_tool,golang.org/x/tools/cmd/goimports)
 
 $(BIN)/gowrap: go.mod go.work
-	$(call go_build_tool_or_fastgogenerated_tool,github.com/hexdigest/gowrap/cmd/gowrap)
+	$(call go_build_tool,github.com/hexdigest/gowrap/cmd/gowrap)
 
 $(BIN)/revive: internal/tools/go.mod go.work
 	$(call go_build_tool,github.com/mgechev/revive)
@@ -234,6 +215,30 @@ $(BUILD)/go_mod_check: go.mod internal/tools/go.mod go.work
 	$Q # generated == used is occasionally important for gomock / mock libs in general.  this is not a definite problem if violated though.
 	$Q ./scripts/check-gomod-version.sh github.com/golang/mock/gomock $(if $(verbose),-v)
 	$Q touch $@
+
+
+# fastgogenerated tool uses the folder to store cache
+# absolute path is needed to be sure that the cache is not stored in multiple folders
+export FASTGOGENERATE_CACHE_PATH := $(shell pwd)/$(BUILD)/.fastgogenerate_cache
+
+# does what go_build_tool does however uses another name of binary - <binary>.bin
+# instead of original binary, it install fastgogenerate tool with the same name as the tool
+# that is being built. Instead of use of original binaries, go generate will use a fastgogenerate tool
+# that cashes the results of go-generate executions and reuses them to speed up go-generate command
+define go_build_fastgogenerated_tool
+$Q echo "building fastgogenerated $(or $(2), $(notdir $(1))) from internal/tools/go.mod..."
+$Q go build -mod=readonly -ldflags="-X main.PluginName=$(or $(2), $(notdir $(1)))" -o $(BIN)/$(or $(2), $(notdir $(1))) ./cmd/tools/fastgogenerate
+$Q (cd internal/tools && go build -mod=readonly -o ../../$(BIN)/$(or $(2), $(notdir $(1))).bin $(1))
+endef
+
+# This target installs fastgogenerated  tools that cache their results
+# to speed up go generate commands. It's useful when you want to optimize the
+# performance of code generation during development.
+# The tools are installed with both their original binary and a fast version
+# that caches results for reuse.
+install-fastgogenerated-tools:
+	$(call go_build_fastgogenerated_tool,go.uber.org/mock/mockgen)
+	$(call go_build_fastgogenerated_tool,github.com/hexdigest/gowrap/cmd/gowrap)
 
 # copyright header checker/writer.  only requires stdlib, so no other dependencies are needed.
 # $(BIN)/copyright: cmd/tools/copyright/licensegen.go
