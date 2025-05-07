@@ -43,12 +43,19 @@ type PluginExecutor struct {
 }
 
 // NewPluginExecutor creates a new PluginExecutor
-func NewPluginExecutor(plugin p.Plugin, logger *zap.Logger, storage cache.Storage, computer cache.IDComputer) *PluginExecutor {
+func NewPluginExecutor(
+	plugin p.Plugin,
+	config Config,
+	logger *zap.Logger,
+	storage cache.Storage,
+	computer cache.IDComputer,
+) *PluginExecutor {
 	return &PluginExecutor{
-		plugin:     plugin,
-		logger:     logger.With(zap.String("plugin", plugin.Name())),
-		storage:    storage,
-		idComputer: computer,
+		plugin:        plugin,
+		logger:        logger.With(zap.String("plugin", plugin.Name())),
+		storage:       storage,
+		idComputer:    computer,
+		cacheDisabled: config.CacheDisabled,
 	}
 }
 

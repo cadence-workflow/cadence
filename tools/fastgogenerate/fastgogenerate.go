@@ -30,11 +30,10 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/uber/cadence/tools/fastgogenerate/cache"
-	"github.com/uber/cadence/tools/fastgogenerate/cache/file"
 )
 
 // Run executes the plugin with the provided name and arguments
-// If the plugin is not found or the plugin failed, it will print an error message and exit with a non-zero status
+// If the plugin is not found or the plugin failed, it will return an error
 func Run(pluginName string, args []string) error {
 	cfg := LoadConfig()
 	if pluginName != "" {
@@ -42,7 +41,7 @@ func Run(pluginName string, args []string) error {
 	}
 
 	if cfg.PluginName == "" {
-		return fmt.Errorf("Plugin name is required")
+		return fmt.Errorf("plugin name is required")
 	}
 
 	loggerConfig := zap.NewDevelopmentConfig()
@@ -65,8 +64,9 @@ func Run(pluginName string, args []string) error {
 
 	executor := NewPluginExecutor(
 		plugin,
+		cfg,
 		logger,
-		file.NewStorage(path.Join(cfg.CacheDirPath, cfg.PluginName)),
+		cache.NewFileStorage(path.Join(cfg.CacheDirPath, cfg.PluginName)),
 		cache.NewIDComputer(logger),
 	)
 

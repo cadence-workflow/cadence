@@ -37,6 +37,9 @@ import (
 
 const Name = "mockgen"
 
+// Plugin is a plugin for generating mocks using mockgen
+// Support a change detection of $GOFILE file content. In case of changes in other dependency files,
+// the plugin will not detect them.
 type Plugin struct {
 	logger  *zap.Logger
 	binPath string
@@ -74,6 +77,7 @@ func (p *Plugin) ComputeInfo(args []string) (plugins.ComputeInfo, error) {
 		},
 	}
 
+	// Parse the arguments to find output file names in --destination or -destination flags
 	for _, arg := range args {
 		if arg == "--destination" || arg == "-destination" {
 			nextIsDestination = true

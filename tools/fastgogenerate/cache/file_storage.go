@@ -20,30 +20,28 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-package file
+package cache
 
 import (
 	"fmt"
 	"os"
 	"path"
-
-	"github.com/uber/cadence/tools/fastgogenerate/cache"
 )
 
-// Storage interface for file-based cache storage
-type Storage struct {
+// FileStorage interface for file-based cache storage
+type FileStorage struct {
 	rootDir string
 }
 
-// NewStorage creates a new Storage instance
-func NewStorage(rootDir string) *Storage {
-	return &Storage{
+// NewFileStorage creates a new FileStorage instance
+func NewFileStorage(rootDir string) *FileStorage {
+	return &FileStorage{
 		rootDir: rootDir,
 	}
 }
 
 // IsExist return true if the compute info already present in the cache
-func (c *Storage) IsExist(id cache.ID) (isExists bool, err error) {
+func (c *FileStorage) IsExist(id ID) (isExists bool, err error) {
 	// create a directory if it does not exist
 	if err := os.MkdirAll(c.rootDir, os.ModePerm); err != nil {
 		return false, fmt.Errorf("failed to create directory %s: %w", c.rootDir, err)
@@ -61,7 +59,7 @@ func (c *Storage) IsExist(id cache.ID) (isExists bool, err error) {
 }
 
 // Save saves that compute info in the cache
-func (c *Storage) Save(id cache.ID) error {
+func (c *FileStorage) Save(id ID) error {
 	// create a directory if it does not exist
 	if err := os.MkdirAll(c.rootDir, os.ModePerm); err != nil {
 		return err
@@ -75,6 +73,6 @@ func (c *Storage) Save(id cache.ID) error {
 }
 
 // fileName generates a file name based on the ComputeInfo
-func (c *Storage) fileName(id cache.ID) string {
+func (c *FileStorage) fileName(id ID) string {
 	return path.Join(c.rootDir, string(id))
 }
