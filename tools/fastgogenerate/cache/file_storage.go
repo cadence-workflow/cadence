@@ -26,22 +26,28 @@ import (
 	"fmt"
 	"os"
 	"path"
+
+	"go.uber.org/zap"
 )
 
 // FileStorage interface for file-based cache storage
 type FileStorage struct {
 	rootDir string
+	logger  *zap.Logger
 }
 
 // NewFileStorage creates a new FileStorage instance
-func NewFileStorage(rootDir string) *FileStorage {
+func NewFileStorage(rootDir string, logger *zap.Logger) *FileStorage {
 	return &FileStorage{
 		rootDir: rootDir,
+		logger:  logger,
 	}
 }
 
 // IsExist return true if the compute info already present in the cache
 func (c *FileStorage) IsExist(id ID) (isExists bool, err error) {
+	c.logger.Debug("Check if cache exists", zap.String("filename", c.fileName(id)))
+
 	// create a directory if it does not exist
 	if err := os.MkdirAll(c.rootDir, os.ModePerm); err != nil {
 		return false, fmt.Errorf("failed to create directory %s: %w", c.rootDir, err)
@@ -60,6 +66,8 @@ func (c *FileStorage) IsExist(id ID) (isExists bool, err error) {
 
 // Save saves that compute info in the cache
 func (c *FileStorage) Save(id ID) error {
+	c.logger.Debug("Save cache", zap.String("filename", c.fileName(id)))
+
 	// create a directory if it does not exist
 	if err := os.MkdirAll(c.rootDir, os.ModePerm); err != nil {
 		return err

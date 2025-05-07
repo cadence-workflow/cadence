@@ -77,6 +77,10 @@ func (p *Plugin) ComputeInfo(args []string) (plugins.ComputeInfo, error) {
 		},
 	}
 
+	// mockgen has two modes: source and package
+	// plugin supports only source mode, package mode will get support later
+	isSourceMode := false
+
 	// Parse the arguments to find output file names in --destination or -destination flags
 	for _, arg := range args {
 		if arg == "--destination" || arg == "-destination" {
@@ -98,6 +102,15 @@ func (p *Plugin) ComputeInfo(args []string) (plugins.ComputeInfo, error) {
 			info.OutputFileNames = append(info.OutputFileNames, arg)
 			nextIsDestination = false
 		}
+
+		if arg == "--source" || arg == "-source" {
+			isSourceMode = true
+			continue
+		}
+	}
+
+	if !isSourceMode {
+		return plugins.ComputeInfo{}, fmt.Errorf("only source mode is supported")
 	}
 
 	p.logger.Debug("Prepared compute info",
@@ -110,7 +123,7 @@ func (p *Plugin) ComputeInfo(args []string) (plugins.ComputeInfo, error) {
 
 func (p *Plugin) Execute(ctx context.Context, args []string) error {
 	// Remove a comment from generated files to hide the fact that fastgogenerate was used
-	args = append(args, "-write_command_comment", "false")
+	args = append([]string{"-write_command_comment=false"}, args...)
 
 	cmd := exec.CommandContext(ctx, p.binPath, args...)
 	p.logger.Debug("Executing command", zap.Any("cmd", cmd))

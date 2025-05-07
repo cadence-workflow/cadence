@@ -66,7 +66,7 @@ func Run(pluginName string, args []string) error {
 		plugin,
 		cfg,
 		logger,
-		cache.NewFileStorage(path.Join(cfg.CacheDirPath, cfg.PluginName)),
+		cache.NewFileStorage(path.Join(cfg.CacheDirPath, cfg.PluginName), logger),
 		cache.NewIDComputer(logger),
 	)
 
@@ -74,7 +74,7 @@ func Run(pluginName string, args []string) error {
 	defer cancel()
 
 	if err := executor.Execute(ctx, args); err != nil {
-		return fmt.Errorf("%s returned error: %s", plugin.Name(), err)
+		return fmt.Errorf("%s returned error: %s, args: %s", plugin.Name(), err, args)
 	}
 
 	return nil

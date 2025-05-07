@@ -63,28 +63,15 @@ func NewPluginExecutor(
 func (r *PluginExecutor) Execute(ctx context.Context, args []string) error {
 	r.logger.Debug("Starting plugin execution", zap.Strings("args", args))
 
-	if r.cacheDisabled {
-		r.logger.Debug("Cache is disabled, executing plugin without caching")
+	cacheID, isExist, err := r.checkCache(ctx, args)
+	if err != nil {
+		r.logger.Debug("Couldn't use cache, executing plugin without caching", zap.Error(err), zap.Strings("args", args))
 		if err := r.plugin.Execute(ctx, args); err != nil {
 			return fmt.Errorf("plugin failed: %w", err)
 		}
 		return nil
 	}
 
-	info, err := r.plugin.ComputeInfo(args)
-	if err != nil {
-		return fmt.Errorf("failed to compute info: %w", err)
-	}
-
-	cacheID, err := r.idComputer.Compute(info)
-	if err != nil {
-		return fmt.Errorf("failed to compute cache ID: %w", err)
-	}
-
-	isExist, err := r.storage.IsExist(cacheID)
-	if err != nil {
-		return fmt.Errorf("failed to check cache existence: %w", err)
-	}
 	if isExist {
 		r.logger.Debug("Plugin already executed, skipping")
 		return nil
@@ -102,4 +89,27 @@ func (r *PluginExecutor) Execute(ctx context.Context, args []string) error {
 
 	r.logger.Debug("Cache saved successfully", zap.String("cache id", string(cacheID)))
 	return nil
+}
+
+func (r *PluginExecutor) checkCache(_ context.Context, args []string) (cache.ID, bool, error) {
+	if r.cacheDisabled {
+		return "", false, fmt.Errorf("cache is disabled")
+	}
+
+	info, err := r.plugin.ComputeInfo(args)
+	if err != nil {
+		return "", false, fmt.Errorf("failed to compute info: %w", err)
+	}
+
+	cacheID, err := r.idComputer.Compute(info)
+	if err != nil {
+		return "", false, fmt.Errorf("failed to compute cache ID: %w", err)
+	}
+
+	isExist, err := r.storage.IsExist(cacheID)
+	if err != nil {
+		return "", false, fmt.Errorf("failed to check cache existence: %w", err)
+	}
+
+	return cacheID, isExist, nil
 }

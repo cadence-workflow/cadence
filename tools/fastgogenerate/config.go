@@ -91,7 +91,7 @@ func LoadConfig() Config {
 		cfg.BinarySuffix = val
 	}
 
-	if val := os.Getenv("FASTGOGENERATE_CACHE_DIR_PATH"); val != "" {
+	if val := os.Getenv("FASTGOGENERATE_CACHE_PATH"); val != "" {
 		cfg.CacheDirPath = val
 	}
 
