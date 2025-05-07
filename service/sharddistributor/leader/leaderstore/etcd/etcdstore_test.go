@@ -34,8 +34,9 @@ import (
 	"github.com/stretchr/testify/require"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/fx/fxtest"
+	"gopkg.in/yaml.v2"
 
-	"github.com/uber/cadence/service/sharddistributor/config"
+	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/service/sharddistributor/leader/leaderstore"
 	"github.com/uber/cadence/testflags"
 )
@@ -250,7 +251,7 @@ func setupETCDCluster(t *testing.T) *testCluster {
 
 	// Create store
 	storeParams := StoreParams{
-		Cfg:       &config.YamlNode{},
+		Cfg:       createConfig(t, testConfig),
 		Lifecycle: fxtest.NewLifecycle(t),
 	}
 
@@ -263,4 +264,18 @@ func setupETCDCluster(t *testing.T) *testCluster {
 		storeConfig: testConfig,
 		endpoints:   endpoints,
 	}
+}
+
+func createConfig(t *testing.T, cfg etcdCfg) *config.YamlNode {
+	t.Helper()
+
+	yamlCfg, err := yaml.Marshal(cfg)
+	require.NoError(t, err)
+
+	var res *config.YamlNode
+
+	err = yaml.Unmarshal(yamlCfg, &res)
+	require.NoError(t, err)
+
+	return res
 }
