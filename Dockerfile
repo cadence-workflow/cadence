@@ -19,6 +19,7 @@ ENV GOFLAGS="-mod=readonly"
 COPY go.* ./
 COPY cmd/server/go.* ./cmd/server/
 COPY common/archiver/gcloud/go.* ./common/archiver/gcloud/
+COPY service/sharddistributor/leader/leaderstore/etcd/go.* ./service/sharddistributor/leader/leaderstore/etcd/
 # go.work means this downloads everything, not just the top module
 RUN go mod download
 
