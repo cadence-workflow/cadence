@@ -50,7 +50,7 @@ const (
 
 func Test__identifyIssues(t *testing.T) {
 	dwtest := testDiagnosticWorkflow(t)
-	actMetadata := failure.FailureMetadata{
+	actMetadata := failure.FailureIssuesMetadata{
 		Identity:            "localhost",
 		ActivityType:        "test-activity",
 		ActivityScheduledID: 2,
@@ -89,7 +89,7 @@ func Test__identifyIssues(t *testing.T) {
 
 func Test__rootCauseIssues(t *testing.T) {
 	dwtest := testDiagnosticWorkflow(t)
-	actMetadata := failure.FailureMetadata{
+	actMetadata := failure.FailureIssuesMetadata{
 		Identity:            "localhost",
 		ActivityScheduledID: 1,
 		ActivityStartedID:   2,

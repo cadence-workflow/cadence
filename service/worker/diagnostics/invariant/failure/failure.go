@@ -52,13 +52,13 @@ func (f *failure) Check(ctx context.Context, params invariant.InvariantCheckInpu
 				result = append(result, invariant.InvariantCheckResult{
 					InvariantType: DecisionCausedFailure.String(),
 					Reason:        DecisionBlobSizeLimit.String(),
-					Metadata:      invariant.MarshalData(FailureMetadata{Identity: identity}),
+					Metadata:      invariant.MarshalData(FailureIssuesMetadata{Identity: identity}),
 				})
 			} else {
 				result = append(result, invariant.InvariantCheckResult{
 					InvariantType: WorkflowFailed.String(),
 					Reason:        ErrorTypeFromReason(*reason).String(),
-					Metadata:      invariant.MarshalData(FailureMetadata{Identity: identity}),
+					Metadata:      invariant.MarshalData(FailureIssuesMetadata{Identity: identity}),
 				})
 			}
 
@@ -71,7 +71,7 @@ func (f *failure) Check(ctx context.Context, params invariant.InvariantCheckInpu
 				result = append(result, invariant.InvariantCheckResult{
 					InvariantType: ActivityFailed.String(),
 					Reason:        HeartBeatBlobSizeLimit.String(),
-					Metadata: invariant.MarshalData(FailureMetadata{
+					Metadata: invariant.MarshalData(FailureIssuesMetadata{
 						Identity:            attr.Identity,
 						ActivityType:        scheduled.ActivityType.GetName(),
 						ActivityScheduledID: attr.ScheduledEventID,
@@ -82,7 +82,7 @@ func (f *failure) Check(ctx context.Context, params invariant.InvariantCheckInpu
 				result = append(result, invariant.InvariantCheckResult{
 					InvariantType: ActivityFailed.String(),
 					Reason:        ActivityOutputBlobSizeLimit.String(),
-					Metadata: invariant.MarshalData(FailureMetadata{
+					Metadata: invariant.MarshalData(FailureIssuesMetadata{
 						Identity:            attr.Identity,
 						ActivityType:        scheduled.ActivityType.GetName(),
 						ActivityScheduledID: attr.ScheduledEventID,
@@ -93,7 +93,7 @@ func (f *failure) Check(ctx context.Context, params invariant.InvariantCheckInpu
 				result = append(result, invariant.InvariantCheckResult{
 					InvariantType: ActivityFailed.String(),
 					Reason:        ErrorTypeFromReason(*reason).String(),
-					Metadata: invariant.MarshalData(FailureMetadata{
+					Metadata: invariant.MarshalData(FailureIssuesMetadata{
 						Identity:            attr.Identity,
 						ActivityType:        scheduled.ActivityType.GetName(),
 						ActivityScheduledID: attr.ScheduledEventID,

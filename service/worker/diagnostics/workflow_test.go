@@ -113,9 +113,11 @@ func (s *diagnosticsWorkflowTestSuite) TestWorkflow() {
 	}
 	timeoutIssues := []*timeoutIssuesResult{
 		{
-			InvariantType:    timeout.TimeoutTypeExecution.String(),
-			Reason:           "START_TO_CLOSE",
-			ExecutionTimeout: &workflowTimeoutData,
+			InvariantType: timeout.TimeoutTypeExecution.String(),
+			Reason:        "START_TO_CLOSE",
+			Metadata: &timeout.TimeoutIssuesMetadata{
+				ExecutionTimeout: &workflowTimeoutData,
+			},
 		},
 	}
 	taskListBacklog := int64(10)
@@ -129,10 +131,11 @@ func (s *diagnosticsWorkflowTestSuite) TestWorkflow() {
 	}
 	timeoutRootCause := []*timeoutRootCauseResult{
 		{
-			RootCauseType:   invariant.RootCauseTypePollersStatus.String(),
-			PollersMetadata: &timeout.PollersMetadata{TaskListName: "test", TaskListBacklog: taskListBacklog},
-		},
-	}
+			RootCauseType: invariant.RootCauseTypePollersStatus.String(),
+			Metadata: &timeout.TimeoutRootcauseMetadata{
+				PollersMetadata: &timeout.PollersMetadata{TaskListName: "test", TaskListBacklog: taskListBacklog},
+			},
+		}}
 	s.workflowEnv.OnActivity(identifyIssuesActivity, mock.Anything, mock.Anything).Return(issues, nil)
 	s.workflowEnv.OnActivity(rootCauseIssuesActivity, mock.Anything, mock.Anything).Return(rootCause, nil)
 	s.workflowEnv.OnActivity(emitUsageLogsActivity, mock.Anything, mock.Anything).Return(nil)
@@ -247,24 +250,32 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveTimeoutIssues() {
 	}
 	timeoutIssues := []*timeoutIssuesResult{
 		{
-			InvariantType:    timeout.TimeoutTypeExecution.String(),
-			Reason:           "START_TO_CLOSE",
-			ExecutionTimeout: &workflowTimeoutData,
+			InvariantType: timeout.TimeoutTypeExecution.String(),
+			Reason:        "START_TO_CLOSE",
+			Metadata: &timeout.TimeoutIssuesMetadata{
+				ExecutionTimeout: &workflowTimeoutData,
+			},
 		},
 		{
-			InvariantType:   timeout.TimeoutTypeActivity.String(),
-			Reason:          "START_TO_CLOSE",
-			ActivityTimeout: &activityTimeoutData,
+			InvariantType: timeout.TimeoutTypeActivity.String(),
+			Reason:        "START_TO_CLOSE",
+			Metadata: &timeout.TimeoutIssuesMetadata{
+				ActivityTimeout: &activityTimeoutData,
+			},
 		},
 		{
-			InvariantType:   timeout.TimeoutTypeDecision.String(),
-			Reason:          "START_TO_CLOSE",
-			DecisionTimeout: &descTimeoutData,
+			InvariantType: timeout.TimeoutTypeDecision.String(),
+			Reason:        "START_TO_CLOSE",
+			Metadata: &timeout.TimeoutIssuesMetadata{
+				DecisionTimeout: &descTimeoutData,
+			},
 		},
 		{
-			InvariantType:  timeout.TimeoutTypeChildWorkflow.String(),
-			Reason:         "START_TO_CLOSE",
-			ChildWfTimeout: &childWorkflowTimeoutData,
+			InvariantType: timeout.TimeoutTypeChildWorkflow.String(),
+			Reason:        "START_TO_CLOSE",
+			Metadata: &timeout.TimeoutIssuesMetadata{
+				ChildWfTimeout: &childWorkflowTimeoutData,
+			},
 		},
 	}
 	result, err := retrieveTimeoutIssues(issues)
@@ -290,12 +301,16 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveTimeoutRootCause() {
 	}
 	timeoutRootCause := []*timeoutRootCauseResult{
 		{
-			RootCauseType:   invariant.RootCauseTypePollersStatus.String(),
-			PollersMetadata: &timeout.PollersMetadata{TaskListBacklog: taskListBacklog},
+			RootCauseType: invariant.RootCauseTypePollersStatus.String(),
+			Metadata: &timeout.TimeoutRootcauseMetadata{
+				PollersMetadata: &timeout.PollersMetadata{TaskListBacklog: taskListBacklog},
+			},
 		},
 		{
-			RootCauseType:        invariant.RootCauseTypeNoHeartBeatTimeoutNoRetryPolicy.String(),
-			HeartBeatingMetadata: &timeout.HeartbeatingMetadata{TimeElapsed: 5 * time.Second},
+			RootCauseType: invariant.RootCauseTypeNoHeartBeatTimeoutNoRetryPolicy.String(),
+			Metadata: &timeout.TimeoutRootcauseMetadata{
+				HeartBeatingMetadata: &timeout.HeartbeatingMetadata{TimeElapsed: 5 * time.Second},
+			},
 		},
 	}
 	result, err := retrieveTimeoutRootCause(rootCause)
@@ -304,7 +319,7 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveTimeoutRootCause() {
 }
 
 func (s *diagnosticsWorkflowTestSuite) Test__retrieveFailureIssues() {
-	actMetadata := failure.FailureMetadata{
+	actMetadata := failure.FailureIssuesMetadata{
 		Identity:            "localhost",
 		ActivityScheduledID: 1,
 		ActivityStartedID:   2,
@@ -351,9 +366,11 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveFailureRootCause() {
 		},
 		{
 			RootCauseType: invariant.RootCauseTypeBlobSizeLimit.String(),
-			BlobSizeMetadata: &failure.BlobSizeMetadata{
-				BlobSizeWarnLimit:  5,
-				BlobSizeErrorLimit: 10,
+			Metadata: &failure.FailureRootcauseMetadata{
+				BlobSizeMetadata: &failure.BlobSizeMetadata{
+					BlobSizeWarnLimit:  5,
+					BlobSizeErrorLimit: 10,
+				},
 			},
 		},
 	}
