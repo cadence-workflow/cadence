@@ -39,12 +39,12 @@ const (
 )
 
 func Test__Check(t *testing.T) {
-	metadata := FailureMetadata{
+	metadata := FailureIssuesMetadata{
 		Identity: "localhost",
 	}
 	metadataInBytes, err := json.Marshal(metadata)
 	require.NoError(t, err)
-	actMetadata := FailureMetadata{
+	actMetadata := FailureIssuesMetadata{
 		Identity:            "localhost",
 		ActivityType:        "test-activity",
 		ActivityScheduledID: 1,
@@ -224,7 +224,7 @@ func blobSizeLimitExceededHistory() *types.GetWorkflowExecutionHistoryResponse {
 }
 
 func Test__RootCause(t *testing.T) {
-	metadata := FailureMetadata{
+	metadata := FailureIssuesMetadata{
 		Identity: "localhost",
 	}
 	metadataInBytes, err := json.Marshal(metadata)
