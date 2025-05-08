@@ -123,7 +123,7 @@ func (e *elector) runElection(ctx context.Context, leaderCh chan<- bool, OnLeade
 	// Add random delay before campaigning to spread load across instances
 	delay := time.Duration(rand.Intn(int(e.cfg.MaxRandomDelay)))
 
-	e.logger.Debug("Adding random delay before campaigning") //tag.Duration("delay", delay)
+	e.logger.Debug("Adding random delay before campaigning", tag.ElectionDelay(delay))
 
 	select {
 	case <-e.clock.After(delay):

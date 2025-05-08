@@ -1151,6 +1151,10 @@ func ShardNamespace(name string) Tag {
 	return newStringTag("shard-namespace", name)
 }
 
+func ElectionDelay(t time.Duration) Tag {
+	return newDurationTag("election-delay", t)
+}
+
 func WorkflowContextLockLatency(duration time.Duration) Tag {
 	return newDurationTag("workflow-context-lock-latency", duration)
 }
