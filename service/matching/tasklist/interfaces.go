@@ -64,6 +64,8 @@ type (
 		UpdateTaskListPartitionConfig(context.Context, *types.TaskListPartitionConfig) error
 		RefreshTaskListPartitionConfig(context.Context, *types.TaskListPartitionConfig) error
 		LoadBalancerHints() *types.LoadBalancerHints
+		GetDomainActiveCluster() string
+		DisconnectBlockedPollers(domainActiveCluster *string)
 	}
 
 	TaskMatcher interface {

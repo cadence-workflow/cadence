@@ -464,10 +464,14 @@ func (tm *taskMatcherImpl) PollForQuery(ctx context.Context) (*InternalTask, err
 		tm.scope.RecordTimer(metrics.PollLocalMatchLatencyPerTaskList, time.Since(startT))
 		return task, nil
 	}
+
+	ctxWithCancelPropagation, stopFn := ctxutils.WithPropagatedContextCancel(ctx, tm.cancelCtx)
+	defer stopFn()
+
 	// there is no local poller available to pickup this task. Now block waiting
 	// either for a local poller or a forwarding token to be available. When a
 	// forwarding token becomes available, send this poll to a parent partition
-	return tm.pollOrForward(ctx, startT, "", nil, nil, tm.queryTaskC)
+	return tm.pollOrForward(ctxWithCancelPropagation, startT, "", nil, nil, tm.queryTaskC)
 }
 
 // UpdateRatelimit updates the task dispatch rate

@@ -97,6 +97,7 @@ type (
 		membershipResolver   membership.Resolver
 		isolationState       isolationgroup.State
 		timeSource           clock.TimeSource
+		notificationVersion  int64
 	}
 
 	// HistoryInfo consists of two integer regarding the history size and history count
@@ -162,6 +163,7 @@ func NewEngine(
 }
 
 func (e *matchingEngineImpl) Start() {
+	e.registerDomainFailoverCallback()
 }
 
 func (e *matchingEngineImpl) Stop() {
@@ -1425,6 +1427,58 @@ func (e *matchingEngineImpl) isShuttingDown() bool {
 	}
 }
 
+func (e *matchingEngineImpl) domainChangeCallback(nextDomains []*cache.DomainCacheEntry) {
+	newNotificationVersion := e.notificationVersion
+
+	for _, domain := range nextDomains {
+		if !isDomainEligibleToDisconnectPollers(domain, e.notificationVersion) {
+			continue
+		}
+
+		req := &types.GetTaskListsByDomainRequest{
+			Domain: domain.GetInfo().Name,
+		}
+
+		resp, err := e.GetTaskListsByDomain(nil, req)
+		if err != nil {
+			continue
+		}
+
+		for taskListName := range resp.DecisionTaskListMap {
+			e.disconnectTaskListPollersAfterDomainFailover(taskListName, domain, persistence.TaskListTypeDecision)
+		}
+
+		for taskListName := range resp.ActivityTaskListMap {
+			e.disconnectTaskListPollersAfterDomainFailover(taskListName, domain, persistence.TaskListTypeActivity)
+		}
+
+		if domain.GetNotificationVersion() > newNotificationVersion {
+			newNotificationVersion = domain.GetNotificationVersion()
+		}
+	}
+	e.notificationVersion = newNotificationVersion
+}
+
+func (e *matchingEngineImpl) registerDomainFailoverCallback() {
+	e.domainCache.RegisterDomainChangeCallback(
+		service.Matching,
+		func(_ cache.DomainCache, _ cache.PrepareCallbackFn, _ cache.CallbackFn) {},
+		func() {},
+		e.domainChangeCallback)
+}
+
+func (e *matchingEngineImpl) disconnectTaskListPollersAfterDomainFailover(taskListName string, domain *cache.DomainCacheEntry, taskType int) {
+	taskList, err := tasklist.NewIdentifier(domain.GetInfo().ID, taskListName, taskType)
+	if err != nil {
+		return
+	}
+	tlMgr, _ := e.getTaskListManager(taskList, types.TaskListKindNormal.Ptr())
+
+	if tlMgr.GetDomainActiveCluster() != "" && tlMgr.GetDomainActiveCluster() != domain.GetReplicationConfig().ActiveClusterName {
+		tlMgr.DisconnectBlockedPollers(&domain.GetReplicationConfig().ActiveClusterName)
+	}
+}
+
 func (m *lockableQueryTaskMap) put(key string, value chan *queryResult) {
 	m.Lock()
 	defer m.Unlock()
@@ -1450,4 +1504,11 @@ func isMatchingRetryableError(err error) bool {
 		return false
 	}
 	return true
+}
+
+func isDomainEligibleToDisconnectPollers(domain *cache.DomainCacheEntry, currentVersion int64) bool {
+	return domain.IsGlobalDomain() &&
+		domain.GetReplicationConfig() != nil &&
+		!domain.GetReplicationConfig().IsActiveActive() &&
+		domain.GetNotificationVersion() > currentVersion
 }

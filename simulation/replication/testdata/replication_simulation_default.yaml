@@ -29,7 +29,7 @@ operations:
     # failoverTimeoutSec: 5 # unset means force failover. setting it means graceful failover request
 
   - op: validate
-    at: 120s # todo: this should work at 40s mark
+    at: 40s
     workflowID: wf1
     cluster: cluster1
     want:

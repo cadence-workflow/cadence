@@ -123,6 +123,8 @@ func (s *handlerSuite) TestStart() {
 	cfg := config.NewConfig(dynamicconfig.NewCollection(dynamicconfig.NewInMemoryClient(), s.mockResource.Logger), "matching-test", getIsolationGroupsHelper)
 	handler := s.getHandler(cfg)
 
+	s.mockEngine.EXPECT().Start().Times(1)
+
 	handler.Start()
 }
 
@@ -132,6 +134,7 @@ func (s *handlerSuite) TestStop() {
 	cfg := config.NewConfig(dynamicconfig.NewCollection(dynamicconfig.NewInMemoryClient(), s.mockResource.Logger), "matching-test", getIsolationGroupsHelper)
 	handler := s.getHandler(cfg)
 
+	s.mockEngine.EXPECT().Start().Times(1)
 	s.mockEngine.EXPECT().Stop().Times(1)
 
 	handler.Start()

@@ -94,26 +94,27 @@ type (
 
 	// Single task list in memory state
 	taskListManagerImpl struct {
-		createTime      time.Time
-		enableIsolation bool
-		taskListID      *Identifier
-		taskListKind    types.TaskListKind // sticky taskList has different process in persistence
-		config          *config.TaskListConfig
-		db              *taskListDB
-		taskWriter      *taskWriter
-		taskReader      *taskReader // reads tasks from db and async matches it with poller
-		liveness        *liveness.Liveness
-		taskGC          *taskGC
-		taskAckManager  messaging.AckManager // tracks ackLevel for delivered messages
-		matcher         TaskMatcher          // for matching a task producer with a poller
-		clusterMetadata cluster.Metadata
-		domainCache     cache.DomainCache
-		isolationState  isolationgroup.State
-		logger          log.Logger
-		scope           metrics.Scope
-		timeSource      clock.TimeSource
-		matchingClient  matching.Client
-		domainName      string
+		createTime          time.Time
+		enableIsolation     bool
+		taskListID          *Identifier
+		taskListKind        types.TaskListKind // sticky taskList has different process in persistence
+		config              *config.TaskListConfig
+		db                  *taskListDB
+		taskWriter          *taskWriter
+		taskReader          *taskReader // reads tasks from db and async matches it with poller
+		liveness            *liveness.Liveness
+		taskGC              *taskGC
+		taskAckManager      messaging.AckManager // tracks ackLevel for delivered messages
+		matcher             TaskMatcher          // for matching a task producer with a poller
+		clusterMetadata     cluster.Metadata
+		domainCache         cache.DomainCache
+		isolationState      isolationgroup.State
+		logger              log.Logger
+		scope               metrics.Scope
+		timeSource          clock.TimeSource
+		matchingClient      matching.Client
+		domainName          string
+		domainActiveCluster string
 		// pollers stores poller which poll from this tasklist in last few minutes
 		pollers       poller.Manager
 		startWG       sync.WaitGroup // ensures that background processes do not start until setup is ready
@@ -155,9 +156,19 @@ func NewManager(
 	createTime time.Time,
 	historyService history.Client,
 ) (Manager, error) {
-	domainName, err := domainCache.GetDomainName(taskList.GetDomainID())
+	domain, err := domainCache.GetDomainByID(taskList.GetDomainID())
 	if err != nil {
 		return nil, err
+	}
+
+	domainName := domain.GetInfo().Name
+
+	// set domainActiveCluster for global active-passive domains and local domains
+	var domainActiveCluster string
+	if domain.IsGlobalDomain() && domain.GetReplicationConfig() != nil && !domain.GetReplicationConfig().IsActiveActive() {
+		domainActiveCluster = domain.GetReplicationConfig().ActiveClusterName
+	} else if !domain.IsGlobalDomain() {
+		domainActiveCluster = clusterMetadata.GetCurrentClusterName()
 	}
 
 	taskListConfig := newTaskListConfig(taskList, cfg, domainName)
@@ -172,23 +183,24 @@ func NewManager(
 	db := newTaskListDB(taskManager, taskList.GetDomainID(), domainName, taskList.GetName(), taskList.GetType(), int(*taskListKind), logger)
 
 	tlMgr := &taskListManagerImpl{
-		createTime:      createTime,
-		enableIsolation: taskListConfig.EnableTasklistIsolation(),
-		domainCache:     domainCache,
-		clusterMetadata: clusterMetadata,
-		isolationState:  isolationState,
-		taskListID:      taskList,
-		taskListKind:    *taskListKind,
-		logger:          logger.WithTags(tag.WorkflowDomainName(domainName), tag.WorkflowTaskListName(taskList.GetName()), tag.WorkflowTaskListType(taskList.GetType())),
-		db:              db,
-		taskAckManager:  messaging.NewAckManager(logger),
-		taskGC:          newTaskGC(db, taskListConfig),
-		config:          taskListConfig,
-		matchingClient:  matchingClient,
-		domainName:      domainName,
-		scope:           scope,
-		timeSource:      timeSource,
-		closeCallback:   closeCallback,
+		createTime:          createTime,
+		enableIsolation:     taskListConfig.EnableTasklistIsolation(),
+		domainCache:         domainCache,
+		clusterMetadata:     clusterMetadata,
+		isolationState:      isolationState,
+		taskListID:          taskList,
+		taskListKind:        *taskListKind,
+		logger:              logger.WithTags(tag.WorkflowDomainName(domainName), tag.WorkflowTaskListName(taskList.GetName()), tag.WorkflowTaskListType(taskList.GetType())),
+		db:                  db,
+		taskAckManager:      messaging.NewAckManager(logger),
+		taskGC:              newTaskGC(db, taskListConfig),
+		config:              taskListConfig,
+		matchingClient:      matchingClient,
+		domainName:          domainName,
+		domainActiveCluster: domainActiveCluster,
+		scope:               scope,
+		timeSource:          timeSource,
+		closeCallback:       closeCallback,
 		throttleRetry: backoff.NewThrottleRetry(
 			backoff.WithRetryPolicy(persistenceOperationRetryPolicy),
 			backoff.WithRetryableError(persistence.IsTransientError),
@@ -755,6 +767,18 @@ func (c *taskListManagerImpl) DescribeTaskList(includeTaskListStatus bool) *type
 	}
 
 	return response
+}
+
+func (c *taskListManagerImpl) GetDomainActiveCluster() string {
+	return c.domainActiveCluster
+}
+
+func (c *taskListManagerImpl) DisconnectBlockedPollers(domainActiveCluster *string) {
+	if domainActiveCluster == nil {
+		return
+	}
+	c.domainActiveCluster = *domainActiveCluster
+	c.matcher.DisconnectBlockedPollers()
 }
 
 func (c *taskListManagerImpl) String() string {

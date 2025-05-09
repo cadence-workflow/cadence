@@ -40,6 +40,7 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/matching/config"
@@ -645,7 +646,10 @@ func TestWaitForQueryResult(t *testing.T) {
 func TestIsShuttingDown(t *testing.T) {
 	wg := sync.WaitGroup{}
 	wg.Add(0)
+	mockDomainCache := cache.NewMockDomainCache(gomock.NewController(t))
+	mockDomainCache.EXPECT().RegisterDomainChangeCallback(service.Matching, gomock.Any(), gomock.Any(), gomock.Any()).Times(1)
 	e := matchingEngineImpl{
+		domainCache:        mockDomainCache,
 		shutdownCompletion: &wg,
 		shutdown:           make(chan struct{}),
 	}
@@ -1137,4 +1141,122 @@ func TestRefreshTaskListPartitionConfig(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_domainChangeCallback(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	mockDomainCache := cache.NewMockDomainCache(mockCtrl)
+
+	clusters := []string{"cluster0", "cluster1"}
+
+	mockTaskListManagerGlobal1 := tasklist.NewMockManager(mockCtrl)
+	mockTaskListManagerGlobal2 := tasklist.NewMockManager(mockCtrl)
+	mockTaskListManagerGlobal3 := tasklist.NewMockManager(mockCtrl)
+	mockTaskListManagerLocal1 := tasklist.NewMockManager(mockCtrl)
+	mockTaskListManagerActiveActive1 := tasklist.NewMockManager(mockCtrl)
+
+	tlIdentifierDecisionGlobal1, _ := tasklist.NewIdentifier("global-domain-1-id", "global-domain-1", persistence.TaskListTypeDecision)
+	tlIdentifierActivityGlobal1, _ := tasklist.NewIdentifier("global-domain-1-id", "global-domain-1", persistence.TaskListTypeActivity)
+	tlIdentifierDecisionGlobal2, _ := tasklist.NewIdentifier("global-domain-2-id", "global-domain-2", persistence.TaskListTypeDecision)
+	tlIdentifierActivityGlobal2, _ := tasklist.NewIdentifier("global-domain-2-id", "global-domain-2", persistence.TaskListTypeActivity)
+	tlIdentifierDecisionGlobal3, _ := tasklist.NewIdentifier("global-domain-3-id", "global-domain-3", persistence.TaskListTypeDecision)
+	tlIdentifierActivityGlobal3, _ := tasklist.NewIdentifier("global-domain-3-id", "global-domain-3", persistence.TaskListTypeActivity)
+	tlIdentifierDecisionLocal1, _ := tasklist.NewIdentifier("local-domain-1-id", "local-domain-1", persistence.TaskListTypeDecision)
+	tlIdentifierActivityLocal1, _ := tasklist.NewIdentifier("local-domain-1-id", "local-domain-1", persistence.TaskListTypeActivity)
+	tlIdentifierDecisionActiveActive1, _ := tasklist.NewIdentifier("active-active-domain-1-id", "active-active-domain-1", persistence.TaskListTypeDecision)
+	tlIdentifierActivityActiveActive1, _ := tasklist.NewIdentifier("active-active-domain-1-id", "active-active-domain-1", persistence.TaskListTypeActivity)
+
+	engine := &matchingEngineImpl{
+		domainCache:         mockDomainCache,
+		notificationVersion: 0,
+		config:              defaultTestConfig(),
+		taskLists: map[tasklist.Identifier]tasklist.Manager{
+			*tlIdentifierDecisionGlobal1:       mockTaskListManagerGlobal1,
+			*tlIdentifierActivityGlobal1:       mockTaskListManagerGlobal1,
+			*tlIdentifierDecisionGlobal2:       mockTaskListManagerGlobal2,
+			*tlIdentifierActivityGlobal2:       mockTaskListManagerGlobal2,
+			*tlIdentifierDecisionGlobal3:       mockTaskListManagerGlobal3,
+			*tlIdentifierActivityGlobal3:       mockTaskListManagerGlobal3,
+			*tlIdentifierDecisionLocal1:        mockTaskListManagerLocal1,
+			*tlIdentifierActivityLocal1:        mockTaskListManagerLocal1,
+			*tlIdentifierDecisionActiveActive1: mockTaskListManagerActiveActive1,
+			*tlIdentifierActivityActiveActive1: mockTaskListManagerActiveActive1,
+		},
+	}
+
+	mockTaskListManagerGlobal1.EXPECT().DisconnectBlockedPollers(&clusters[0]).Times(0)
+	mockTaskListManagerGlobal2.EXPECT().GetDomainActiveCluster().Return(clusters[0]).Times(4)
+	mockTaskListManagerGlobal2.EXPECT().GetTaskListKind().Return(types.TaskListKindNormal).Times(2)
+	mockTaskListManagerGlobal2.EXPECT().DescribeTaskList(gomock.Any()).Return(&types.DescribeTaskListResponse{}).Times(2)
+	mockTaskListManagerGlobal2.EXPECT().DisconnectBlockedPollers(&clusters[1]).Times(2)
+	mockTaskListManagerGlobal3.EXPECT().GetDomainActiveCluster().Return(clusters[1]).Times(4)
+	mockTaskListManagerGlobal3.EXPECT().GetTaskListKind().Return(types.TaskListKindNormal).Times(2)
+	mockTaskListManagerGlobal3.EXPECT().DescribeTaskList(gomock.Any()).Return(&types.DescribeTaskListResponse{}).Times(2)
+	mockTaskListManagerGlobal3.EXPECT().DisconnectBlockedPollers(clusters[1]).Times(0)
+	mockTaskListManagerLocal1.EXPECT().DisconnectBlockedPollers(gomock.Any()).Times(0)
+	mockTaskListManagerActiveActive1.EXPECT().DisconnectBlockedPollers(gomock.Any()).Times(0)
+	mockDomainCache.EXPECT().GetDomainID("global-domain-2").Return("global-domain-2-id", nil).Times(1)
+	mockDomainCache.EXPECT().GetDomainID("global-domain-3").Return("global-domain-3-id", nil).Times(1)
+
+	domains := []*cache.DomainCacheEntry{
+		cache.NewDomainCacheEntryForTest(
+			&persistence.DomainInfo{Name: "global-domain-1", ID: "global-domain-1-id"},
+			nil,
+			true,
+			&persistence.DomainReplicationConfig{ActiveClusterName: clusters[0], Clusters: []*persistence.ClusterReplicationConfig{{ClusterName: "cluster0"}, {ClusterName: "cluster1"}}},
+			0,
+			nil,
+			0,
+			0,
+			0,
+		),
+		cache.NewDomainCacheEntryForTest(
+			&persistence.DomainInfo{Name: "global-domain-2", ID: "global-domain-2-id"},
+			nil,
+			true,
+			&persistence.DomainReplicationConfig{ActiveClusterName: clusters[1], Clusters: []*persistence.ClusterReplicationConfig{{ClusterName: "cluster0"}, {ClusterName: "cluster1"}}},
+			0,
+			nil,
+			0,
+			0,
+			4,
+		),
+		cache.NewDomainCacheEntryForTest(
+			&persistence.DomainInfo{Name: "global-domain-3", ID: "global-domain-3-id"},
+			nil,
+			true,
+			&persistence.DomainReplicationConfig{ActiveClusterName: clusters[1], Clusters: []*persistence.ClusterReplicationConfig{{ClusterName: "cluster0"}, {ClusterName: "cluster1"}}},
+			0,
+			nil,
+			0,
+			0,
+			5,
+		),
+		cache.NewDomainCacheEntryForTest(
+			&persistence.DomainInfo{Name: "local-domain-1", ID: "local-domain-1-id"},
+			nil,
+			false,
+			nil,
+			0,
+			nil,
+			0,
+			0,
+			3,
+		),
+		cache.NewDomainCacheEntryForTest(
+			&persistence.DomainInfo{Name: "active-active-domain-1", ID: "active-active-domain-1-id"},
+			nil,
+			true,
+			&persistence.DomainReplicationConfig{ActiveClusters: &persistence.ActiveClustersConfig{}},
+			0,
+			nil,
+			0,
+			0,
+			3,
+		),
+	}
+
+	engine.domainChangeCallback(domains)
+
+	assert.Equal(t, int64(5), engine.notificationVersion)
 }
