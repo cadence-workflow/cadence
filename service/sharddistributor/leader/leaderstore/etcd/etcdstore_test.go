@@ -37,6 +37,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/uber/cadence/common/config"
+	shardDistributorCfg "github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/leader/leaderstore"
 	"github.com/uber/cadence/testflags"
 )
@@ -251,7 +252,7 @@ func setupETCDCluster(t *testing.T) *testCluster {
 
 	// Create store
 	storeParams := StoreParams{
-		Cfg:       createConfig(t, testConfig),
+		Cfg:       shardDistributorCfg.LeaderElection{Store: shardDistributorCfg.LeaderStore{StorageParams: createConfig(t, testConfig)}},
 		Lifecycle: fxtest.NewLifecycle(t),
 	}
 

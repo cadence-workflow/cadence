@@ -681,6 +681,19 @@ cover_integration_profile:
 	$Q time go test $(INTEG_TEST_ROOT) $(TEST_ARG) $(TEST_TAG) -persistenceType=$(PERSISTENCE_TYPE) -sqlPluginName=$(PERSISTENCE_PLUGIN) $(GOCOVERPKG_ARG) -coverprofile=$(BUILD)/$(INTEG_TEST_DIR)/coverage.out || exit 1;
 	$Q cat $(BUILD)/$(INTEG_TEST_DIR)/coverage.out | grep -v "^mode: \w\+" >> $(INTEG_COVER_FILE)
 
+integration_tests_etcd:
+	$Q mkdir -p $(BUILD)
+	$Q mkdir -p $(COVER_ROOT)
+	$Q echo "mode: atomic" > $(INTEG_COVER_FILE)
+
+	$Q echo "Running integration tests with etcd"
+	$Q mkdir -p $(BUILD)/$(INTEG_TEST_DIR)
+	$Q (ETCD_TEST_DIRS=$$(find . -name "*_test.go" -exec grep -l "testflags.RequireEtcd" {} \; | xargs -n1 dirname | sort | uniq); \
+		echo "Found etcd test directories:"; \
+		echo "$$ETCD_TEST_DIRS"; \
+		ETCD=1 ETCD_ENDPOINTS="${ETCD_ENDPOINTS:-}" time go test $$ETCD_TEST_DIRS $(TEST_ARG) $(TEST_TAG) -coverprofile=$(BUILD)/$(INTEG_TEST_DIR)/coverage.out || exit 1)
+	$Q cat $(BUILD)/$(INTEG_TEST_DIR)/coverage.out | grep -v "^mode: \w\+" >> $(INTEG_COVER_FILE)
+
 cover_ndc_profile:
 	$Q mkdir -p $(BUILD)
 	$Q mkdir -p $(COVER_ROOT)
