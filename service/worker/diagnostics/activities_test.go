@@ -69,11 +69,13 @@ func Test__identifyIssues(t *testing.T) {
 	require.NoError(t, err)
 	expectedResult := []invariant.InvariantCheckResult{
 		{
+			IssueID:       1,
 			InvariantType: failure.ActivityFailed.String(),
 			Reason:        failure.GenericError.String(),
 			Metadata:      actMetadataInBytes,
 		},
 		{
+			IssueID:       1,
 			InvariantType: retry.ActivityRetryIssue.String(),
 			Reason:        retry.RetryPolicyValidationMaxAttempts.String(),
 			Metadata:      retryMetadataInBytes,
@@ -98,6 +100,7 @@ func Test__rootCauseIssues(t *testing.T) {
 	require.NoError(t, err)
 	issues := []invariant.InvariantCheckResult{
 		{
+			IssueID:       1,
 			InvariantType: failure.ActivityFailed.String(),
 			Reason:        failure.CustomError.String(),
 			Metadata:      actMetadataInBytes,
@@ -105,6 +108,7 @@ func Test__rootCauseIssues(t *testing.T) {
 	}
 	expectedRootCause := []invariant.InvariantRootCauseResult{
 		{
+			IssueID:   1,
 			RootCause: invariant.RootCauseTypeServiceSideCustomError,
 			Metadata:  actMetadataInBytes,
 		},
