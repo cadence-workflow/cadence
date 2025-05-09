@@ -200,18 +200,17 @@ func (t *taskImpl) Execute() error {
 		time.Sleep(loadDomainEntryForTaskRetryDelay)
 		return err
 	}
+	logEvent(t.eventLogger, "Executing task", t.shouldProcessTask)
+	if !t.shouldProcessTask {
+		return nil
+	}
 
 	executionStartTime := t.timeSource.Now()
-
 	defer func() {
-		if t.shouldProcessTask {
-			t.scope.IncCounter(metrics.TaskRequestsPerDomain)
-			t.scope.RecordTimer(metrics.TaskProcessingLatencyPerDomain, time.Since(executionStartTime))
-		}
+		t.scope.IncCounter(metrics.TaskRequestsPerDomain)
+		t.scope.RecordTimer(metrics.TaskProcessingLatencyPerDomain, time.Since(executionStartTime))
 	}()
-
-	logEvent(t.eventLogger, "Executing task", t.shouldProcessTask)
-	return t.taskExecutor.Execute(t, t.shouldProcessTask)
+	return t.taskExecutor.Execute(t)
 }
 
 func (t *taskImpl) HandleErr(err error) (retErr error) {

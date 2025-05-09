@@ -59,7 +59,7 @@ type (
 
 	// Executor contains the execution logic for Task
 	Executor interface {
-		Execute(task Task, shouldProcessTask bool) error
+		Execute(task Task) error
 		Stop()
 	}
 

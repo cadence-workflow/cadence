@@ -70,14 +70,7 @@ func NewTransferStandbyTaskExecutor(
 	}
 }
 
-func (t *transferStandbyTaskExecutor) Execute(
-	task Task,
-	shouldProcessTask bool,
-) error {
-	if !shouldProcessTask {
-		return nil
-	}
-
+func (t *transferStandbyTaskExecutor) Execute(task Task) error {
 	ctx, cancel := context.WithTimeout(context.Background(), taskDefaultTimeout)
 	defer cancel()
 

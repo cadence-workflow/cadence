@@ -77,14 +77,7 @@ func NewTimerStandbyTaskExecutor(
 	}
 }
 
-func (t *timerStandbyTaskExecutor) Execute(
-	task Task,
-	shouldProcessTask bool,
-) error {
-	if !shouldProcessTask {
-		return nil
-	}
-
+func (t *timerStandbyTaskExecutor) Execute(task Task) error {
 	switch timerTask := task.GetInfo().(type) {
 	case *persistence.UserTimerTask:
 		ctx, cancel := context.WithTimeout(t.ctx, taskDefaultTimeout)
