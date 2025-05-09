@@ -692,7 +692,8 @@ integration_tests_etcd:
 	$Q (ETCD_TEST_DIRS=$$(find . -name "*_test.go" -exec grep -l "testflags.RequireEtcd" {} \; | xargs -n1 dirname | sort | uniq); \
 		echo "Found etcd test directories:"; \
 		echo "$$ETCD_TEST_DIRS"; \
-		ETCD=1 ETCD_ENDPOINTS="${ETCD_ENDPOINTS:-}" time go test $$ETCD_TEST_DIRS $(TEST_ARG) $(TEST_TAG) -coverprofile=$(BUILD)/$(INTEG_TEST_DIR)/coverage.out || exit 1)
+		echo "Using ETCD_ENDPOINTS='$(ETCD_ENDPOINTS)'"; \
+		ETCD=1 ETCD_ENDPOINTS="$(ETCD_ENDPOINTS)" time go test $$ETCD_TEST_DIRS $(TEST_ARG) $(TEST_TAG) -coverprofile=$(BUILD)/$(INTEG_TEST_DIR)/coverage.out || exit 1)
 	$Q cat $(BUILD)/$(INTEG_TEST_DIR)/coverage.out | grep -v "^mode: \w\+" >> $(INTEG_COVER_FILE_ETCD)
 
 cover_ndc_profile:
