@@ -170,7 +170,7 @@ func (s *transferQueueValidatorSuite) TestAckTasks_NoTaskLost() {
 
 	loadedTasks := make(map[task.Key]task.Task, len(pendingTasks))
 	for _, pendingTask := range pendingTasks[:len(pendingTasks)-1] {
-		loadedTasks[newTransferTaskKey(pendingTask.GetTaskID())] = task.NewTransferTask(
+		loadedTasks[newTransferTaskKey(pendingTask.GetTaskID())] = task.NewHistoryTask(
 			s.mockShard,
 			&persistence.DecisionTask{
 				TaskData: persistence.TaskData{
@@ -203,7 +203,7 @@ func (s *transferQueueValidatorSuite) TestAckTasks_TaskLost() {
 
 	loadedTasks := make(map[task.Key]task.Task, len(pendingTasks))
 	for _, pendingTask := range pendingTasks[1:] {
-		loadedTasks[newTransferTaskKey(pendingTask.GetTaskID())] = task.NewTransferTask(
+		loadedTasks[newTransferTaskKey(pendingTask.GetTaskID())] = task.NewHistoryTask(
 			s.mockShard,
 			&persistence.DecisionTask{
 				TaskData: persistence.TaskData{

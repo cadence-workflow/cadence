@@ -117,7 +117,7 @@ func newTransferQueueProcessorBase(
 	transferQueueProcessorBase := &transferQueueProcessorBase{
 		processorBase: processorBase,
 		taskInitializer: func(taskInfo persistence.Task) task.Task {
-			return task.NewTransferTask(
+			return task.NewHistoryTask(
 				shard,
 				taskInfo,
 				queueType,

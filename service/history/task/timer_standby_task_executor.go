@@ -77,39 +77,40 @@ func NewTimerStandbyTaskExecutor(
 	}
 }
 
-func (t *timerStandbyTaskExecutor) Execute(task Task) error {
+func (t *timerStandbyTaskExecutor) Execute(task Task) (metrics.Scope, error) {
+	scope := getOrCreateDomainTaggedScope(t.shard, GetTimerTaskMetricScope(task.GetTaskType(), false), task.GetDomainID(), t.logger)
 	switch timerTask := task.GetInfo().(type) {
 	case *persistence.UserTimerTask:
 		ctx, cancel := context.WithTimeout(t.ctx, taskDefaultTimeout)
 		defer cancel()
-		return t.executeUserTimerTimeoutTask(ctx, timerTask)
+		return scope, t.executeUserTimerTimeoutTask(ctx, timerTask)
 	case *persistence.ActivityTimeoutTask:
 		ctx, cancel := context.WithTimeout(t.ctx, taskDefaultTimeout)
 		defer cancel()
-		return t.executeActivityTimeoutTask(ctx, timerTask)
+		return scope, t.executeActivityTimeoutTask(ctx, timerTask)
 	case *persistence.DecisionTimeoutTask:
 		ctx, cancel := context.WithTimeout(t.ctx, taskDefaultTimeout)
 		defer cancel()
-		return t.executeDecisionTimeoutTask(ctx, timerTask)
+		return scope, t.executeDecisionTimeoutTask(ctx, timerTask)
 	case *persistence.WorkflowTimeoutTask:
 		ctx, cancel := context.WithTimeout(t.ctx, taskDefaultTimeout)
 		defer cancel()
-		return t.executeWorkflowTimeoutTask(ctx, timerTask)
+		return scope, t.executeWorkflowTimeoutTask(ctx, timerTask)
 	case *persistence.ActivityRetryTimerTask:
 		// retry backoff timer should not get created on passive cluster
 		// TODO: add error logs
-		return nil
+		return scope, nil
 	case *persistence.WorkflowBackoffTimerTask:
 		ctx, cancel := context.WithTimeout(t.ctx, taskDefaultTimeout)
 		defer cancel()
-		return t.executeWorkflowBackoffTimerTask(ctx, timerTask)
+		return scope, t.executeWorkflowBackoffTimerTask(ctx, timerTask)
 	case *persistence.DeleteHistoryEventTask:
 		// special timeout for delete history event
 		deleteHistoryEventContext, deleteHistoryEventCancel := context.WithTimeout(t.ctx, time.Duration(t.config.DeleteHistoryEventContextTimeout())*time.Second)
 		defer deleteHistoryEventCancel()
-		return t.executeDeleteHistoryEventTask(deleteHistoryEventContext, timerTask)
+		return scope, t.executeDeleteHistoryEventTask(deleteHistoryEventContext, timerTask)
 	default:
-		return errUnknownTimerTask
+		return scope, errUnknownTimerTask
 	}
 }
 

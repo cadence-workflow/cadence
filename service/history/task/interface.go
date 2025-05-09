@@ -25,6 +25,7 @@ package task
 import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/future"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/task"
 	"github.com/uber/cadence/common/types"
@@ -59,7 +60,7 @@ type (
 
 	// Executor contains the execution logic for Task
 	Executor interface {
-		Execute(task Task) error
+		Execute(task Task) (metrics.Scope, error)
 		Stop()
 	}
 

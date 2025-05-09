@@ -76,7 +76,6 @@ type (
 		submitTime         time.Time
 		logger             log.Logger
 		eventLogger        eventLogger
-		scopeIdx           int
 		scope              metrics.Scope // initialized when processing task to make the initialization parallel
 		taskExecutor       Executor
 		taskProcessor      Processor
@@ -90,8 +89,7 @@ type (
 	}
 )
 
-// NewTimerTask creates a new timer task
-func NewTimerTask(
+func NewHistoryTask(
 	shard shard.Context,
 	taskInfo persistence.Task,
 	queueType QueueType,
@@ -102,58 +100,6 @@ func NewTimerTask(
 	redispatchFn func(task Task),
 	criticalRetryCount dynamicproperties.IntPropertyFn,
 ) Task {
-	return newTask(
-		shard,
-		taskInfo,
-		queueType,
-		GetTimerTaskMetricScope(taskInfo.GetTaskType(), queueType == QueueTypeActiveTimer),
-		logger,
-		taskFilter,
-		taskExecutor,
-		taskProcessor,
-		criticalRetryCount,
-		redispatchFn,
-	)
-}
-
-// NewTransferTask creates a new transfer task
-func NewTransferTask(
-	shard shard.Context,
-	taskInfo persistence.Task,
-	queueType QueueType,
-	logger log.Logger,
-	taskFilter Filter,
-	taskExecutor Executor,
-	taskProcessor Processor,
-	redispatchFn func(task Task),
-	criticalRetryCount dynamicproperties.IntPropertyFn,
-) Task {
-	return newTask(
-		shard,
-		taskInfo,
-		queueType,
-		GetTransferTaskMetricsScope(taskInfo.GetTaskType(), queueType == QueueTypeActiveTransfer),
-		logger,
-		taskFilter,
-		taskExecutor,
-		taskProcessor,
-		criticalRetryCount,
-		redispatchFn,
-	)
-}
-
-func newTask(
-	shard shard.Context,
-	taskInfo persistence.Task,
-	queueType QueueType,
-	scopeIdx int,
-	logger log.Logger,
-	taskFilter Filter,
-	taskExecutor Executor,
-	taskProcessor Processor,
-	criticalRetryCount dynamicproperties.IntPropertyFn,
-	redispatchFn func(task Task),
-) *taskImpl {
 	timeSource := shard.GetTimeSource()
 	var eventLogger eventLogger
 	if shard.GetConfig().EnableDebugMode &&
@@ -169,8 +115,7 @@ func newTask(
 		state:              ctask.TaskStatePending,
 		priority:           noPriority,
 		queueType:          queueType,
-		scopeIdx:           scopeIdx,
-		scope:              nil,
+		scope:              metrics.NoopScope(metrics.History),
 		logger:             logger,
 		eventLogger:        eventLogger,
 		attempt:            0,
@@ -185,14 +130,6 @@ func newTask(
 }
 
 func (t *taskImpl) Execute() error {
-	// TODO: after mergering active and standby queue,
-	// the task should be smart enough to tell if it should be
-	// processed as active or standby and use the corresponding
-	// task executor.
-	if t.scope == nil {
-		t.scope = getOrCreateDomainTaggedScope(t.shard, t.scopeIdx, t.GetDomainID(), t.logger)
-	}
-
 	var err error
 	t.shouldProcessTask, err = t.taskFilter(t.Task)
 	if err != nil {
@@ -210,7 +147,8 @@ func (t *taskImpl) Execute() error {
 		t.scope.IncCounter(metrics.TaskRequestsPerDomain)
 		t.scope.RecordTimer(metrics.TaskProcessingLatencyPerDomain, time.Since(executionStartTime))
 	}()
-	return t.taskExecutor.Execute(t)
+	t.scope, err = t.taskExecutor.Execute(t)
+	return err
 }
 
 func (t *taskImpl) HandleErr(err error) (retErr error) {

@@ -36,6 +36,7 @@ import (
 	cadence_errors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	t "github.com/uber/cadence/common/task"
 	"github.com/uber/cadence/common/types"
@@ -110,7 +111,7 @@ func (s *taskSuite) TestExecute_ExecutionErr() {
 	}, nil)
 
 	executionErr := errors.New("some random error")
-	s.mockTaskExecutor.EXPECT().Execute(task).Return(executionErr).Times(1)
+	s.mockTaskExecutor.EXPECT().Execute(task).Return(metrics.NoopScope(metrics.History), executionErr).Times(1)
 
 	err := task.Execute()
 	s.Equal(executionErr, err)
@@ -121,7 +122,7 @@ func (s *taskSuite) TestExecute_Success() {
 		return true, nil
 	}, nil)
 
-	s.mockTaskExecutor.EXPECT().Execute(task).Return(nil).Times(1)
+	s.mockTaskExecutor.EXPECT().Execute(task).Return(metrics.NoopScope(metrics.History), nil).Times(1)
 
 	err := task.Execute()
 	s.NoError(err)
@@ -346,18 +347,17 @@ func (s *taskSuite) newTestTask(
 			// noop
 		}
 	}
-	taskBase := newTask(
+	taskBase := NewHistoryTask(
 		s.mockShard,
 		s.mockTaskInfo,
 		QueueTypeActiveTransfer,
-		0,
 		s.logger,
 		taskFilter,
 		s.mockTaskExecutor,
 		s.mockTaskProcessor,
-		s.maxRetryCount,
 		redispatchFn,
-	)
+		s.maxRetryCount,
+	).(*taskImpl)
 	taskBase.scope = s.mockShard.GetMetricsClient().Scope(0)
 	return taskBase
 }

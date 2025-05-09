@@ -128,7 +128,7 @@ func newTimerQueueProcessorBase(
 	t := &timerQueueProcessorBase{
 		processorBase: processorBase,
 		taskInitializer: func(taskInfo persistence.Task) task.Task {
-			return task.NewTimerTask(
+			return task.NewHistoryTask(
 				shard,
 				taskInfo,
 				queueType,

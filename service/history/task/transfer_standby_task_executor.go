@@ -70,42 +70,43 @@ func NewTransferStandbyTaskExecutor(
 	}
 }
 
-func (t *transferStandbyTaskExecutor) Execute(task Task) error {
+func (t *transferStandbyTaskExecutor) Execute(task Task) (metrics.Scope, error) {
+	scope := getOrCreateDomainTaggedScope(t.shard, GetTransferTaskMetricsScope(task.GetTaskType(), false), task.GetDomainID(), t.logger)
 	ctx, cancel := context.WithTimeout(context.Background(), taskDefaultTimeout)
 	defer cancel()
 
 	switch transferTask := task.GetInfo().(type) {
 	case *persistence.ActivityTask:
-		return t.processActivityTask(ctx, transferTask)
+		return scope, t.processActivityTask(ctx, transferTask)
 	case *persistence.DecisionTask:
-		return t.processDecisionTask(ctx, transferTask)
+		return scope, t.processDecisionTask(ctx, transferTask)
 	case *persistence.CloseExecutionTask:
-		return t.processCloseExecution(ctx, transferTask)
+		return scope, t.processCloseExecution(ctx, transferTask)
 	case *persistence.RecordWorkflowClosedTask:
-		return t.processCloseExecution(ctx, &persistence.CloseExecutionTask{
+		return scope, t.processCloseExecution(ctx, &persistence.CloseExecutionTask{
 			WorkflowIdentifier: transferTask.WorkflowIdentifier,
 			TaskData:           transferTask.TaskData,
 		})
 	case *persistence.RecordChildExecutionCompletedTask:
 		// no action needed for standby
 		// check the comment in t.processCloseExecution()
-		return nil
+		return scope, nil
 	case *persistence.CancelExecutionTask:
-		return t.processCancelExecution(ctx, transferTask)
+		return scope, t.processCancelExecution(ctx, transferTask)
 	case *persistence.SignalExecutionTask:
-		return t.processSignalExecution(ctx, transferTask)
+		return scope, t.processSignalExecution(ctx, transferTask)
 	case *persistence.StartChildExecutionTask:
-		return t.processStartChildExecution(ctx, transferTask)
+		return scope, t.processStartChildExecution(ctx, transferTask)
 	case *persistence.RecordWorkflowStartedTask:
-		return t.processRecordWorkflowStarted(ctx, transferTask)
+		return scope, t.processRecordWorkflowStarted(ctx, transferTask)
 	case *persistence.ResetWorkflowTask:
 		// no reset needed for standby
 		// TODO: add error logs
-		return nil
+		return scope, nil
 	case *persistence.UpsertWorkflowSearchAttributesTask:
-		return t.processUpsertWorkflowSearchAttributes(ctx, transferTask)
+		return scope, t.processUpsertWorkflowSearchAttributes(ctx, transferTask)
 	default:
-		return errUnknownTransferTask
+		return scope, errUnknownTransferTask
 	}
 }
 

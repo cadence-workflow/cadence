@@ -498,9 +498,6 @@ func Test_transferQueueActiveProcessor_taskFilter(t *testing.T) {
 	}{
 		"noop - domain not registered": {
 			mockSetup: func(testContext *shard.TestContext) {
-				testContext.GetDomainCache().(*cache.MockDomainCache).EXPECT().GetDomainName(constants.TestDomainID).
-					Return(constants.TestDomainName, nil).Times(1)
-
 				cacheEntry := cache.NewDomainCacheEntryForTest(&persistence.DomainInfo{Status: persistence.DomainStatusDeprecated}, nil, true, nil, 1, nil, 0, 0, 0)
 
 				testContext.GetDomainCache().(*cache.MockDomainCache).EXPECT().GetDomainByID(constants.TestDomainID).
@@ -623,9 +620,6 @@ func Test_transferQueueStandbyProcessor_taskFilter(t *testing.T) {
 	}{
 		"noop - domain not registered": {
 			mockSetup: func(testContext *shard.TestContext) {
-				testContext.GetDomainCache().(*cache.MockDomainCache).EXPECT().GetDomainName(constants.TestDomainID).
-					Return(constants.TestDomainName, nil).Times(1)
-
 				cacheEntry := cache.NewDomainCacheEntryForTest(&persistence.DomainInfo{Status: persistence.DomainStatusDeprecated}, nil, true, nil, 1, nil, 0, 0, 0)
 
 				testContext.GetDomainCache().(*cache.MockDomainCache).EXPECT().GetDomainByID(constants.TestDomainID).
@@ -674,9 +668,6 @@ func Test_transferQueueStandbyProcessor_taskFilter(t *testing.T) {
 		},
 		"error - TransferTaskTypeCloseExecution or TransferTaskTypeRecordWorkflowClosed - cannot find domain - retry": {
 			mockSetup: func(testContext *shard.TestContext) {
-				testContext.GetDomainCache().(*cache.MockDomainCache).EXPECT().GetDomainName(constants.TestDomainID).
-					Return(constants.TestDomainName, nil).Times(1)
-
 				testContext.GetDomainCache().(*cache.MockDomainCache).EXPECT().GetDomainByID(constants.TestDomainID).
 					Return(nil, assert.AnError).Times(2)
 			},
@@ -689,9 +680,6 @@ func Test_transferQueueStandbyProcessor_taskFilter(t *testing.T) {
 		},
 		"noop - TransferTaskTypeCloseExecution or TransferTaskTypeRecordWorkflowClosed - EntityNotExistsError": {
 			mockSetup: func(testContext *shard.TestContext) {
-				testContext.GetDomainCache().(*cache.MockDomainCache).EXPECT().GetDomainName(constants.TestDomainID).
-					Return(constants.TestDomainName, nil).Times(1)
-
 				testContext.GetDomainCache().(*cache.MockDomainCache).EXPECT().GetDomainByID(constants.TestDomainID).
 					Return(nil, &types.EntityNotExistsError{Message: "domain doesn't exist"}).Times(2)
 			},
@@ -704,9 +692,6 @@ func Test_transferQueueStandbyProcessor_taskFilter(t *testing.T) {
 		},
 		"taskFilter success": {
 			mockSetup: func(testContext *shard.TestContext) {
-				testContext.GetDomainCache().(*cache.MockDomainCache).EXPECT().GetDomainName(constants.TestDomainID).
-					Return(constants.TestDomainName, nil).Times(1)
-
 				cacheEntry := cache.NewDomainCacheEntryForTest(
 					&persistence.DomainInfo{Status: persistence.DomainStatusRegistered},
 					nil,
@@ -810,9 +795,6 @@ func Test_transferQueueFailoverProcessor_taskFilter(t *testing.T) {
 	}{
 		"noop - domain not registered": {
 			mockSetup: func(testContext *shard.TestContext) {
-				testContext.GetDomainCache().(*cache.MockDomainCache).EXPECT().GetDomainName(constants.TestDomainID).
-					Return(constants.TestDomainName, nil).Times(1)
-
 				cacheEntry := cache.NewDomainCacheEntryForTest(&persistence.DomainInfo{Status: persistence.DomainStatusDeprecated}, nil, true, nil, 1, nil, 0, 0, 0)
 
 				testContext.GetDomainCache().(*cache.MockDomainCache).EXPECT().GetDomainByID(constants.TestDomainID).
@@ -827,9 +809,6 @@ func Test_transferQueueFailoverProcessor_taskFilter(t *testing.T) {
 		},
 		"taskFilter success": {
 			mockSetup: func(testContext *shard.TestContext) {
-				testContext.GetDomainCache().(*cache.MockDomainCache).EXPECT().GetDomainName(constants.TestDomainID).
-					Return(constants.TestDomainName, nil).Times(1)
-
 				cacheEntry := cache.NewDomainCacheEntryForTest(
 					&persistence.DomainInfo{Status: persistence.DomainStatusRegistered},
 					nil,
