@@ -54,6 +54,7 @@ func NewInvariant(p Params) invariant.Invariant {
 func (t *timeout) Check(ctx context.Context, params invariant.InvariantCheckInput) ([]invariant.InvariantCheckResult, error) {
 	result := make([]invariant.InvariantCheckResult, 0)
 	events := params.WorkflowExecutionHistory.GetHistory().GetEvents()
+	issueID := 1
 	for _, event := range events {
 		if event.WorkflowExecutionTimedOutEventAttributes != nil {
 			timeoutLimit := getWorkflowExecutionConfiguredTimeout(events)
@@ -64,10 +65,12 @@ func (t *timeout) Check(ctx context.Context, params invariant.InvariantCheckInpu
 				Tasklist:          getWorkflowExecutionTasklist(events),
 			}
 			result = append(result, invariant.InvariantCheckResult{
+				IssueID:       issueID,
 				InvariantType: TimeoutTypeExecution.String(),
 				Reason:        event.GetWorkflowExecutionTimedOutEventAttributes().GetTimeoutType().String(),
 				Metadata:      invariant.MarshalData(data),
 			})
+			issueID++
 		}
 		if event.ActivityTaskTimedOutEventAttributes != nil {
 			metadata, err := getActivityTaskMetadata(event, events)
@@ -75,18 +78,22 @@ func (t *timeout) Check(ctx context.Context, params invariant.InvariantCheckInpu
 				return nil, err
 			}
 			result = append(result, invariant.InvariantCheckResult{
+				IssueID:       issueID,
 				InvariantType: TimeoutTypeActivity.String(),
 				Reason:        event.GetActivityTaskTimedOutEventAttributes().GetTimeoutType().String(),
 				Metadata:      invariant.MarshalData(metadata),
 			})
+			issueID++
 		}
 		if event.DecisionTaskTimedOutEventAttributes != nil {
 			reason, metadata := reasonForDecisionTaskTimeouts(event, events)
 			result = append(result, invariant.InvariantCheckResult{
+				IssueID:       issueID,
 				InvariantType: TimeoutTypeDecision.String(),
 				Reason:        reason,
 				Metadata:      invariant.MarshalData(metadata),
 			})
+			issueID++
 		}
 		if event.ChildWorkflowExecutionTimedOutEventAttributes != nil {
 			timeoutLimit := getChildWorkflowExecutionConfiguredTimeout(event, events)
@@ -96,10 +103,12 @@ func (t *timeout) Check(ctx context.Context, params invariant.InvariantCheckInpu
 				Execution:         event.GetChildWorkflowExecutionTimedOutEventAttributes().WorkflowExecution,
 			}
 			result = append(result, invariant.InvariantCheckResult{
+				IssueID:       issueID,
 				InvariantType: TimeoutTypeChildWorkflow.String(),
 				Reason:        event.GetChildWorkflowExecutionTimedOutEventAttributes().TimeoutType.String(),
 				Metadata:      invariant.MarshalData(data),
 			})
+			issueID++
 		}
 	}
 	return result, nil
@@ -171,11 +180,13 @@ func (t *timeout) checkTasklist(ctx context.Context, issue invariant.InvariantCh
 	})
 	if len(resp.GetPollers()) == 0 {
 		return invariant.InvariantRootCauseResult{
+			IssueID:   issue.IssueID,
 			RootCause: invariant.RootCauseTypeMissingPollers,
 			Metadata:  polllersMetadataInBytes,
 		}, nil
 	}
 	return invariant.InvariantRootCauseResult{
+		IssueID:   issue.IssueID,
 		RootCause: invariant.RootCauseTypePollersStatus,
 		Metadata:  polllersMetadataInBytes,
 	}, nil
@@ -203,6 +214,7 @@ func checkHeartbeatStatus(issue invariant.InvariantCheckResult) ([]invariant.Inv
 		if metadata.RetryPolicy != nil {
 			return []invariant.InvariantRootCauseResult{
 				{
+					IssueID:   issue.IssueID,
 					RootCause: invariant.RootCauseTypeHeartBeatingNotEnabledWithRetryPolicy,
 					Metadata:  heartbeatingMetadataInBytes,
 				},
@@ -210,6 +222,7 @@ func checkHeartbeatStatus(issue invariant.InvariantCheckResult) ([]invariant.Inv
 		}
 		return []invariant.InvariantRootCauseResult{
 			{
+				IssueID:   issue.IssueID,
 				RootCause: invariant.RootCauseTypeNoHeartBeatTimeoutNoRetryPolicy,
 				Metadata:  heartbeatingMetadataInBytes,
 			},
@@ -220,6 +233,7 @@ func checkHeartbeatStatus(issue invariant.InvariantCheckResult) ([]invariant.Inv
 		if metadata.RetryPolicy == nil {
 			return []invariant.InvariantRootCauseResult{
 				{
+					IssueID:   issue.IssueID,
 					RootCause: invariant.RootCauseTypeHeartBeatingEnabledWithoutRetryPolicy,
 					Metadata:  heartbeatingMetadataInBytes,
 				},
@@ -227,6 +241,7 @@ func checkHeartbeatStatus(issue invariant.InvariantCheckResult) ([]invariant.Inv
 		}
 		return []invariant.InvariantRootCauseResult{
 			{
+				IssueID:   issue.IssueID,
 				RootCause: invariant.RootCauseTypeHeartBeatingEnabledMissingHeartbeat,
 				Metadata:  heartbeatingMetadataInBytes,
 			},

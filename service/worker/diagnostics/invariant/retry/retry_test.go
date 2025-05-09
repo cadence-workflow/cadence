@@ -73,6 +73,7 @@ func Test__Check(t *testing.T) {
 			testData: retriedWfHistory(),
 			expectedResult: []invariant.InvariantCheckResult{
 				{
+					IssueID:       1,
 					InvariantType: WorkflowRetryInfo.String(),
 					Reason:        "The failure is caused by a timeout during the execution",
 					Metadata:      retriedWfMetadataInBytes,
@@ -85,11 +86,13 @@ func Test__Check(t *testing.T) {
 			testData: invalidRetryPolicyWfHistory(),
 			expectedResult: []invariant.InvariantCheckResult{
 				{
+					IssueID:       2,
 					InvariantType: ActivityRetryIssue.String(),
 					Reason:        RetryPolicyValidationMaxAttempts.String(),
 					Metadata:      invalidAttemptsMetadataInBytes,
 				},
 				{
+					IssueID:       1,
 					InvariantType: WorkflowRetryIssue.String(),
 					Reason:        RetryPolicyValidationExpInterval.String(),
 					Metadata:      invalidExpIntervalMetadataInBytes,

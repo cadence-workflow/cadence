@@ -43,11 +43,12 @@ func NewInvariant() Retry {
 func (r *retry) Check(ctx context.Context, params invariant.InvariantCheckInput) ([]invariant.InvariantCheckResult, error) {
 	result := make([]invariant.InvariantCheckResult, 0)
 	events := params.WorkflowExecutionHistory.GetHistory().GetEvents()
-
+	issueID := 1
 	lastEvent := fetchContinuedAsNewEvent(events)
 	startedEvent := fetchWfStartedEvent(events)
 	if lastEvent != nil && startedEvent != nil && startedEvent.RetryPolicy != nil {
 		result = append(result, invariant.InvariantCheckResult{
+			IssueID:       issueID,
 			InvariantType: WorkflowRetryInfo.String(),
 			Reason:        failure.ErrorTypeFromReason(*lastEvent.FailureReason).String(),
 			Metadata: invariant.MarshalData(RetryMetadata{
@@ -55,10 +56,12 @@ func (r *retry) Check(ctx context.Context, params invariant.InvariantCheckInput)
 				RetryPolicy: startedEvent.RetryPolicy,
 			}),
 		})
+		issueID++
 	}
 
 	if issue := checkRetryPolicy(startedEvent.RetryPolicy); issue != "" {
 		result = append(result, invariant.InvariantCheckResult{
+			IssueID:       issueID,
 			InvariantType: WorkflowRetryIssue.String(),
 			Reason:        issue.String(),
 			Metadata: invariant.MarshalData(RetryMetadata{
@@ -66,6 +69,7 @@ func (r *retry) Check(ctx context.Context, params invariant.InvariantCheckInput)
 				RetryPolicy: startedEvent.RetryPolicy,
 			}),
 		})
+		issueID++
 	}
 
 	for _, event := range events {
@@ -73,6 +77,7 @@ func (r *retry) Check(ctx context.Context, params invariant.InvariantCheckInput)
 			attr := event.GetActivityTaskScheduledEventAttributes()
 			if issue := checkRetryPolicy(attr.RetryPolicy); issue != "" {
 				result = append(result, invariant.InvariantCheckResult{
+					IssueID:       issueID,
 					InvariantType: ActivityRetryIssue.String(),
 					Reason:        issue.String(),
 					Metadata: invariant.MarshalData(RetryMetadata{
@@ -80,6 +85,7 @@ func (r *retry) Check(ctx context.Context, params invariant.InvariantCheckInput)
 						RetryPolicy: attr.RetryPolicy,
 					}),
 				})
+				issueID++
 			}
 		}
 	}
