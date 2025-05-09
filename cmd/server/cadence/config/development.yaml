@@ -1,4 +1,5 @@
 leaderElection:
+  enabled: true
   leaderStore:
     storageParams:
       endpoints:

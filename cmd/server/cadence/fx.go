@@ -43,10 +43,11 @@ import (
 	"github.com/uber/cadence/common/service"
 	shardDistributorCfg "github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/leader/leaderstore"
-	_ "github.com/uber/cadence/service/sharddistributor/leader/leaderstore/etcd"
 	"github.com/uber/cadence/service/sharddistributor/sharddistributorfx"
 	"github.com/uber/cadence/tools/cassandra"
 	"github.com/uber/cadence/tools/sql"
+
+	_ "github.com/uber/cadence/service/sharddistributor/leader/leaderstore/etcd"
 )
 
 var _commonModule = fx.Options(

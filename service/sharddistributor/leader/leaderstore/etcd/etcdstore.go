@@ -40,6 +40,10 @@ type etcdCfg struct {
 
 // NewStore creates a new leaderstore backed by ETCD.
 func NewStore(p StoreParams) (leaderstore.Store, error) {
+	if !p.Cfg.Enabled {
+		return nil, nil
+	}
+
 	var err error
 
 	var out etcdCfg

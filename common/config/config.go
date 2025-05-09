@@ -625,6 +625,7 @@ type (
 	// LeaderElection is a configuration for leader election running.
 	// This configuration should be in sync with sharddistributor.
 	LeaderElection struct {
+		Enabled    bool          `yaml:"enabled"`
 		Store      LeaderStore   `yaml:"leaderStore"`
 		Election   Election      `yaml:"election"`
 		Namespaces []Namespace   `yaml:"namespaces"`

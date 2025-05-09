@@ -48,6 +48,7 @@ type (
 
 	// LeaderElection is a configuration for leader election running.
 	LeaderElection struct {
+		Enabled    bool          `yaml:"enabled"`
 		Store      LeaderStore   `yaml:"leaderStore"`
 		Election   Election      `yaml:"election"`
 		Namespaces []Namespace   `yaml:"namespaces"`
@@ -95,6 +96,7 @@ func GetLeaderElectionFromExternal(in config.LeaderElection) LeaderElection {
 	}
 
 	return LeaderElection{
+		Enabled:    in.Enabled,
 		Store:      LeaderStore(in.Store),
 		Election:   Election(in.Election),
 		Namespaces: namespaces,
