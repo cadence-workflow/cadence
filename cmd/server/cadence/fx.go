@@ -29,18 +29,32 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/clock/clockfx"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicconfigfx"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/logfx"
 	"github.com/uber/cadence/common/membership/membershipfx"
+	"github.com/uber/cadence/common/metrics/metricsfx"
 	"github.com/uber/cadence/common/peerprovider/ringpopprovider/ringpopfx"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql"
 	"github.com/uber/cadence/common/rpc/rpcfx"
 	"github.com/uber/cadence/common/service"
+	shardDistributorCfg "github.com/uber/cadence/service/sharddistributor/config"
+	"github.com/uber/cadence/service/sharddistributor/leader/leaderstore"
+	_ "github.com/uber/cadence/service/sharddistributor/leader/leaderstore/etcd"
 	"github.com/uber/cadence/service/sharddistributor/sharddistributorfx"
 	"github.com/uber/cadence/tools/cassandra"
 	"github.com/uber/cadence/tools/sql"
 )
+
+var _commonModule = fx.Options(
+	config.Module,
+	dynamicconfigfx.Module,
+	logfx.Module,
+	metricsfx.Module,
+	clockfx.Module)
 
 // Module provides a cadence server initialization with root components.
 // AppParams allows to provide optional/overrides for implementation specific dependencies.
@@ -51,6 +65,11 @@ func Module(serviceName string) fx.Option {
 				Name:     serviceName,
 				FullName: service.FullName(serviceName),
 			}),
+			fx.Provide(func(cfg config.Config) shardDistributorCfg.LeaderElection {
+				return shardDistributorCfg.GetLeaderElectionFromExternal(cfg.LeaderElection)
+			}),
+			leaderstore.StoreModule("etcd"),
+
 			rpcfx.Module,
 			// PeerProvider could be overriden e.g. with a DNS based internal solution.
 			ringpopfx.Module,

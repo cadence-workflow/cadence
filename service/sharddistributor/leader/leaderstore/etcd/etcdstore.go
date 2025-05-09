@@ -9,12 +9,12 @@ import (
 	"go.etcd.io/etcd/client/v3/concurrency"
 	"go.uber.org/fx"
 
-	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/leader/leaderstore"
 )
 
 func init() {
-	leaderstore.RegisterStore("etcd", fx.Options(fx.Provide(NewStore)))
+	leaderstore.RegisterStore("etcd", fx.Provide(NewStore))
 }
 
 type LeaderStore struct {
@@ -27,7 +27,7 @@ type StoreParams struct {
 
 	// Client could be provided externally.
 	Client    *clientv3.Client `optional:"true"`
-	Cfg       *config.YamlNode `name:"leaderStoreConfig"`
+	Cfg       config.LeaderElection
 	Lifecycle fx.Lifecycle
 }
 
@@ -43,7 +43,7 @@ func NewStore(p StoreParams) (leaderstore.Store, error) {
 	var err error
 
 	var out etcdCfg
-	if err := p.Cfg.Decode(&out); err != nil {
+	if err := p.Cfg.Store.StorageParams.Decode(&out); err != nil {
 		return nil, fmt.Errorf("bad config: %w", err)
 	}
 

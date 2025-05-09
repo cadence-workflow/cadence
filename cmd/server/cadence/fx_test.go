@@ -29,16 +29,11 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/uber/cadence/common/config"
-	"github.com/uber/cadence/common/dynamicconfig/dynamicconfigfx"
-	"github.com/uber/cadence/common/log/logfx"
-	"github.com/uber/cadence/common/metrics/metricsfx"
+	"github.com/uber/cadence/common/service"
 )
 
 func TestFxDependencies(t *testing.T) {
-	err := fx.ValidateApp(config.Module,
-		logfx.Module,
-		metricsfx.Module,
-		dynamicconfigfx.Module,
+	err := fx.ValidateApp(_commonModule,
 		fx.Supply(appContext{
 			CfgContext: config.Context{
 				Environment: "",
@@ -48,5 +43,19 @@ func TestFxDependencies(t *testing.T) {
 			RootDir:   "",
 		}),
 		Module(""))
+	require.NoError(t, err)
+}
+
+func TestFxDependenciesForShardDistributor(t *testing.T) {
+	err := fx.ValidateApp(_commonModule,
+		fx.Supply(appContext{
+			CfgContext: config.Context{
+				Environment: "",
+				Zone:        "",
+			},
+			ConfigDir: "",
+			RootDir:   "",
+		}),
+		Module(service.ShortName(service.ShardDistributor)))
 	require.NoError(t, err)
 }

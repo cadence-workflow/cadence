@@ -25,6 +25,7 @@ package config
 import (
 	"time"
 
+	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 )
@@ -41,16 +42,8 @@ type (
 	}
 
 	StaticConfig struct {
-		// ETCD provides is the configuration for ETCD storage that is required for usage of Shard distributor
-		ETCD ETCD `yaml:"etcd"`
 		// LeaderElection is the configuration for leader election mechanism that is used by Shard distributor to handle shard distribution per namespace.
 		LeaderElection LeaderElection `yaml:"leaderElection"`
-	}
-
-	// ETCD provides configuration for ETCD that is used inside shard distributor service.
-	ETCD struct {
-		Endpoints   []string      `yaml:"endpoints"`
-		DialTimeout time.Duration `yaml:"dialTimeout"`
 	}
 
 	// LeaderElection is a configuration for leader election running.
@@ -63,9 +56,7 @@ type (
 
 	// LeaderStore provides a config for leader election.
 	LeaderStore struct {
-		ETCD   ETCD          `yaml:"etcd"`
-		Prefix string        `yaml:"prefix"`
-		TTL    time.Duration `yaml:"ttl"`
+		StorageParams *config.YamlNode `yaml:"storageParams"`
 	}
 
 	Namespace struct {
@@ -92,5 +83,21 @@ func NewConfig(dc *dynamicconfig.Collection, hostName string) *Config {
 		PersistenceGlobalMaxQPS: dc.GetIntProperty(dynamicproperties.ShardManagerPersistenceGlobalMaxQPS),
 		ThrottledLogRPS:         dc.GetIntProperty(dynamicproperties.ShardManagerThrottledLogRPS),
 		HostName:                hostName,
+	}
+}
+
+// GetLeaderElectionFromExternal converts other configs to an internal one.
+func GetLeaderElectionFromExternal(in config.LeaderElection) LeaderElection {
+
+	namespaces := make([]Namespace, 0, len(in.Namespaces))
+	for _, namespace := range in.Namespaces {
+		namespaces = append(namespaces, Namespace(namespace))
+	}
+
+	return LeaderElection{
+		Store:      LeaderStore(in.Store),
+		Election:   Election(in.Election),
+		Namespaces: namespaces,
+		Process:    LeaderProcess(in.Process),
 	}
 }
