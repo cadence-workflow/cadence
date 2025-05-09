@@ -35,11 +35,7 @@ import (
 	"go.uber.org/multierr"
 
 	"github.com/uber/cadence/common/client"
-	"github.com/uber/cadence/common/clock/clockfx"
 	"github.com/uber/cadence/common/config"
-	"github.com/uber/cadence/common/dynamicconfig/dynamicconfigfx"
-	"github.com/uber/cadence/common/log/logfx"
-	"github.com/uber/cadence/common/metrics/metricsfx"
 	"github.com/uber/cadence/common/service"
 
 	_ "go.uber.org/automaxprocs" // defines automaxpocs for dockerized usage.
@@ -138,11 +134,7 @@ func BuildCLI(releaseVersion string, gitRevision string) *cli.App {
 					func(serviceName string) fxAppInterface {
 						return fx.New(
 							fx.Module(serviceName,
-								config.Module,
-								dynamicconfigfx.Module,
-								logfx.Module,
-								metricsfx.Module,
-								clockfx.Module,
+								_commonModule,
 								fx.Provide(
 									func() appContext {
 										return appCtx
@@ -158,7 +150,6 @@ func BuildCLI(releaseVersion string, gitRevision string) *cli.App {
 	}
 
 	return app
-
 }
 
 func runServices(services []string, appBuilder func(serviceName string) fxAppInterface) error {

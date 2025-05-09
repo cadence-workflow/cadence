@@ -331,3 +331,23 @@ steps:
       - docker-compose#v3.0.0:
           run: integration-test-async-wf
           config: docker/buildkite/docker-compose.yml
+
+  - label: ":golang: integration test with etcd"
+    retry:
+      automatic:
+        limit: 1
+    plugins:
+      - kubernetes:
+          <<: *kubernetes
+          podSpec:
+            <<: *podSpec
+            containers:
+              - <<: *commandContainer
+                command:
+                  - |-
+                    # ensure that we are not rebuilding binaries and not regenerating code
+                    make .just-build
+                    make integration_tests_etcd
+      - docker-compose#v3.0.0:
+          run: integration-test-with-etcd
+          config: docker/buildkite/docker-compose.yml

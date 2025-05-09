@@ -1,0 +1,66 @@
+leaderElection:
+  enabled: true
+  leaderStore:
+    storageParams:
+      endpoints:
+      - ${ETCD_ENDPOINTS:"localhost:2379"}
+  election:
+    leaderPeriod: 30s
+    maxRandomDelay: 5s
+    failedElectionCooldown: 30s
+  namespaces:
+    - name: cadence-matching-dev
+      type: ephemeral
+      mode: shadow
+  process:
+    period: 2s
+
+persistence:
+  defaultStore: cass-default
+  visibilityStore: cass-visibility
+  numHistoryShards: 4
+  datastores:
+    cass-default:
+      nosql:
+        pluginName: "cassandra"
+        hosts: "127.0.0.1"
+        keyspace: "cadence"
+        connectTimeout: 2s # defaults to 2s if not defined
+        timeout: 5s # defaults to 10s if not defined
+        consistency: LOCAL_QUORUM # default value
+        serialConsistency: LOCAL_SERIAL # default value
+    cass-visibility:
+      nosql:
+        pluginName: "cassandra"
+        hosts: "127.0.0.1"
+        keyspace: "cadence_visibility"
+services:
+  shard-distributor:
+    rpc:
+      port: 7941
+      grpcPort: 7943
+      bindOnLocalHost: true
+    metrics:
+      statsd:
+        hostPort: "127.0.0.1:8125"
+        prefix: "cadence"
+    pprof:
+      port: 7942
+
+ringpop:
+  name: cadence
+  bootstrapMode: hosts
+  bootstrapHosts: [ "127.0.0.1:7941"]
+  maxJoinDuration: 30s
+
+clusterGroupMetadata:
+  failoverVersionIncrement: 10
+  primaryClusterName: "cluster0"
+  currentClusterName: "cluster0"
+  clusterGroup:
+    cluster0:
+      enabled: true
+      initialFailoverVersion: 0
+      newInitialFailoverVersion: 1 # migrating to this new failover version
+      rpcAddress: "localhost:7833" # this is to let worker service and XDC replicator connected to the frontend service. In cluster setup, localhost will not work
+      rpcTransport: "grpc"

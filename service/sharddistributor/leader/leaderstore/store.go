@@ -5,8 +5,6 @@ import (
 	"fmt"
 
 	"go.uber.org/fx"
-
-	"github.com/uber/cadence/common/config"
 )
 
 //go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination=leaderstore_mock.go Store,Election
@@ -44,18 +42,10 @@ func RegisterStore(name string, factory StoreImpl) {
 
 // StoreModule returns registered a leader store fx.Option from the configuration.
 // This can introduce extra dependency requirements to the fx application.
-func StoreModule(name string, cfg *config.YamlNode) (fx.Option, error) {
+func StoreModule(name string) fx.Option {
 	factory, ok := storeRegistry[name]
 	if !ok {
-		return nil, fmt.Errorf("no leader store registered with name %s", name)
+		panic(fmt.Sprintf("no leader store registered with name %s", name))
 	}
-	return fx.Options(
-		fx.Provide(func() configBuilder { return configBuilder{Cfg: cfg} }),
-		factory), nil
-}
-
-type configBuilder struct {
-	fx.Out
-
-	Cfg *config.YamlNode `name:"leaderStoreConfig"`
+	return factory
 }

@@ -26,6 +26,13 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/uber/cadence/service/sharddistributor"
+	"github.com/uber/cadence/service/sharddistributor/leader/election"
+	"github.com/uber/cadence/service/sharddistributor/leader/namespace"
+	"github.com/uber/cadence/service/sharddistributor/leader/process"
 )
 
-var Module = fx.Module("sharddistributor", fx.Provide(sharddistributor.FXService), fx.Invoke(func(*sharddistributor.Service) {}))
+var Module = fx.Module("sharddistributor",
+	namespace.Module,
+	election.Module,
+	process.Module,
+	fx.Provide(sharddistributor.FXService), fx.Invoke(func(*sharddistributor.Service) {}))

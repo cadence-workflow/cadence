@@ -25,6 +25,7 @@ func TestNewManager(t *testing.T) {
 	processorFactory := process.NewMockFactory(ctrl)
 
 	cfg := config.LeaderElection{
+		Enabled: true,
 		Namespaces: []config.Namespace{
 			{Name: "test-namespace"},
 		},
@@ -45,6 +46,33 @@ func TestNewManager(t *testing.T) {
 	assert.Equal(t, 0, len(manager.namespaces))
 }
 
+func TestNewManagerNotEnabled(t *testing.T) {
+	// Setup
+	logger := testlogger.New(t)
+	ctrl := gomock.NewController(t)
+	electionFactory := election.NewMockFactory(ctrl)
+	processorFactory := process.NewMockFactory(ctrl)
+
+	cfg := config.LeaderElection{
+		Enabled: false,
+		Namespaces: []config.Namespace{
+			{Name: "test-namespace"},
+		},
+	}
+
+	// Test
+	manager := NewManager(ManagerParams{
+		Cfg:              cfg,
+		Logger:           logger,
+		ElectionFactory:  electionFactory,
+		ProcessorFactory: processorFactory,
+		Lifecycle:        fxtest.NewLifecycle(t),
+	})
+
+	// Assert
+	assert.Nil(t, manager)
+}
+
 func TestStartManager(t *testing.T) {
 	// Setup
 	logger := testlogger.New(t)
@@ -62,6 +90,7 @@ func TestStartManager(t *testing.T) {
 	elector.EXPECT().Run(gomock.Any(), gomock.Any(), gomock.Any()).Return((<-chan bool)(leaderCh))
 
 	cfg := config.LeaderElection{
+		Enabled: true,
 		Namespaces: []config.Namespace{
 			{Name: "test-namespace"},
 		},
@@ -97,6 +126,7 @@ func TestStartManagerWithElectorError(t *testing.T) {
 	processorFactory := process.NewMockFactory(ctrl)
 
 	cfg := config.LeaderElection{
+		Enabled: true,
 		Namespaces: []config.Namespace{
 			{Name: "test-namespace"},
 		},
@@ -139,6 +169,7 @@ func TestStopManager(t *testing.T) {
 	elector.EXPECT().Run(gomock.Any(), gomock.Any(), gomock.Any()).Return((<-chan bool)(leaderCh))
 
 	cfg := config.LeaderElection{
+		Enabled: true,
 		Namespaces: []config.Namespace{
 			{Name: "test-namespace"},
 		},
@@ -215,6 +246,7 @@ func TestRunElection(t *testing.T) {
 	elector.EXPECT().Run(gomock.Any(), gomock.Any(), gomock.Any()).Return((<-chan bool)(leaderCh))
 
 	cfg := config.LeaderElection{
+		Enabled: true,
 		Namespaces: []config.Namespace{
 			{Name: "test-namespace"},
 		},

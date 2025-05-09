@@ -89,6 +89,9 @@ type (
 		// Shard distributor is used to distribute shards across multiple cadence service instances
 		// Note: This is not recommended for use, it's still experimental
 		ShardDistributorClient ShardDistributorClient `yaml:"shardDistributorClient"`
+
+		// LeaderElection is a config for the shard distributor leader election component that allows to run a single process per region and manage shard namespaces.
+		LeaderElection LeaderElection `yaml:"leaderElection"`
 	}
 
 	// Membership holds peer provider configuration.
@@ -617,6 +620,37 @@ type (
 	AsyncWorkflowQueueProvider struct {
 		Type   string    `yaml:"type"`
 		Config *YamlNode `yaml:"config"`
+	}
+
+	// LeaderElection is a configuration for leader election running.
+	// This configuration should be in sync with sharddistributor.
+	LeaderElection struct {
+		Enabled    bool          `yaml:"enabled"`
+		Store      LeaderStore   `yaml:"leaderStore"`
+		Election   Election      `yaml:"election"`
+		Namespaces []Namespace   `yaml:"namespaces"`
+		Process    LeaderProcess `yaml:"process"`
+	}
+
+	// LeaderStore provides a config for leader election.
+	LeaderStore struct {
+		StorageParams *YamlNode `yaml:"storageParams"`
+	}
+
+	Namespace struct {
+		Name string `yaml:"name"`
+		Type string `yaml:"type"`
+		Mode string `yaml:"mode"`
+	}
+
+	Election struct {
+		LeaderPeriod           time.Duration `yaml:"leaderPeriod"`           // Time to hold leadership before resigning
+		MaxRandomDelay         time.Duration `yaml:"maxRandomDelay"`         // Maximum random delay before campaigning
+		FailedElectionCooldown time.Duration `yaml:"failedElectionCooldown"` // wait between election attempts with unhandled errors
+	}
+
+	LeaderProcess struct {
+		Period time.Duration `yaml:"period"`
 	}
 )
 
