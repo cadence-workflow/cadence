@@ -35,6 +35,8 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/testflags"
+
+	_ "github.com/uber/cadence/service/sharddistributor/leader/leaderstore/etcd" // needed for shard distributor leader election
 )
 
 func TestFxDependencies(t *testing.T) {
@@ -65,7 +67,7 @@ func TestFxDependenciesForShardDistributor(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestSharddistributorStartStop(t *testing.T) {
+func TestShardDistributorStartStop(t *testing.T) {
 	flag.Parse()
 	testflags.RequireEtcd(t)
 

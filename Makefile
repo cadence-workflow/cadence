@@ -613,6 +613,7 @@ INTEG_COVER_FILE                := $(COVER_ROOT)/integ_$(PERSISTENCE_TYPE)_$(PER
 INTEG_COVER_FILE_CASS           := $(COVER_ROOT)/integ_cassandra__cover.out
 INTEG_COVER_FILE_MYSQL          := $(COVER_ROOT)/integ_sql_mysql_cover.out
 INTEG_COVER_FILE_POSTGRES       := $(COVER_ROOT)/integ_sql_postgres_cover.out
+INTEG_COVER_FILE_ETCD           := $(COVER_ROOT)/integ_etcd_cover.out
 
 INTEG_NDC_COVER_FILE            := $(COVER_ROOT)/integ_ndc_$(PERSISTENCE_TYPE)_$(PERSISTENCE_PLUGIN)_cover.out
 INTEG_NDC_COVER_FILE_CASS       := $(COVER_ROOT)/integ_ndc_cassandra__cover.out
@@ -684,7 +685,7 @@ cover_integration_profile:
 integration_tests_etcd:
 	$Q mkdir -p $(BUILD)
 	$Q mkdir -p $(COVER_ROOT)
-	$Q echo "mode: atomic" > $(INTEG_COVER_FILE)
+	$Q echo "mode: atomic" > $(INTEG_COVER_FILE_ETCD)
 
 	$Q echo "Running integration tests with etcd"
 	$Q mkdir -p $(BUILD)/$(INTEG_TEST_DIR)
@@ -692,7 +693,7 @@ integration_tests_etcd:
 		echo "Found etcd test directories:"; \
 		echo "$$ETCD_TEST_DIRS"; \
 		ETCD=1 ETCD_ENDPOINTS="${ETCD_ENDPOINTS:-}" time go test $$ETCD_TEST_DIRS $(TEST_ARG) $(TEST_TAG) -coverprofile=$(BUILD)/$(INTEG_TEST_DIR)/coverage.out || exit 1)
-	$Q cat $(BUILD)/$(INTEG_TEST_DIR)/coverage.out | grep -v "^mode: \w\+" >> $(INTEG_COVER_FILE)
+	$Q cat $(BUILD)/$(INTEG_TEST_DIR)/coverage.out | grep -v "^mode: \w\+" >> $(INTEG_COVER_FILE_ETCD)
 
 cover_ndc_profile:
 	$Q mkdir -p $(BUILD)
@@ -713,6 +714,7 @@ $(COVER_ROOT)/cover.out: $(UNIT_COVER_FILE) $(INTEG_COVER_FILE_CASS) $(INTEG_COV
 	cat $(INTEG_NDC_COVER_FILE_CASS) | grep -v "^mode: \w\+" | grep -vP ".gen|_generated|[Mm]ock[s]?" >> $(COVER_ROOT)/cover.out
 	cat $(INTEG_NDC_COVER_FILE_MYSQL) | grep -v "^mode: \w\+" | grep -vP ".gen|_generated|[Mm]ock[s]?" >> $(COVER_ROOT)/cover.out
 	cat $(INTEG_NDC_COVER_FILE_POSTGRES) | grep -v "^mode: \w\+" | grep -vP ".gen|_generated|[Mm]ock[s]?" >> $(COVER_ROOT)/cover.out
+	cat $(INTEG_COVER_FILE_ETCD) | grep -v "^mode: \w\+" | grep -vP ".gen|_generated|[Mm]ock[s]?" >> $(COVER_ROOT)/cover.out
 
 cover: $(COVER_ROOT)/cover.out
 	go tool cover -html=$(COVER_ROOT)/cover.out;
