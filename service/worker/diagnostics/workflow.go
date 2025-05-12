@@ -64,12 +64,14 @@ type timeoutDiagnostics struct {
 }
 
 type timeoutIssuesResult struct {
+	IssueID       int
 	InvariantType string
 	Reason        string
 	Metadata      *timeout.TimeoutIssuesMetadata
 }
 
 type timeoutRootCauseResult struct {
+	IssueID       int
 	RootCauseType string
 	Metadata      *timeout.TimeoutRootcauseMetadata
 }
@@ -81,12 +83,14 @@ type failureDiagnostics struct {
 }
 
 type failureIssuesResult struct {
+	IssueID       int
 	InvariantType string
 	Reason        string
 	Metadata      *failure.FailureIssuesMetadata
 }
 
 type failureRootCauseResult struct {
+	IssueID       int
 	RootCauseType string
 	Metadata      *failure.FailureRootcauseMetadata
 }
@@ -97,6 +101,7 @@ type retryDiagnostics struct {
 }
 
 type retryIssuesResult struct {
+	IssueID       int
 	InvariantType string
 	Reason        string
 	Metadata      retry.RetryMetadata
@@ -205,6 +210,7 @@ func retrieveTimeoutIssues(issues []invariant.InvariantCheckResult) ([]*timeoutI
 				return nil, err
 			}
 			result = append(result, &timeoutIssuesResult{
+				IssueID:       issue.IssueID,
 				InvariantType: issue.InvariantType,
 				Reason:        issue.Reason,
 				Metadata: &timeout.TimeoutIssuesMetadata{
@@ -218,6 +224,7 @@ func retrieveTimeoutIssues(issues []invariant.InvariantCheckResult) ([]*timeoutI
 				return nil, err
 			}
 			result = append(result, &timeoutIssuesResult{
+				IssueID:       issue.IssueID,
 				InvariantType: issue.InvariantType,
 				Reason:        issue.Reason,
 				Metadata: &timeout.TimeoutIssuesMetadata{
@@ -231,6 +238,7 @@ func retrieveTimeoutIssues(issues []invariant.InvariantCheckResult) ([]*timeoutI
 				return nil, err
 			}
 			result = append(result, &timeoutIssuesResult{
+				IssueID:       issue.IssueID,
 				InvariantType: issue.InvariantType,
 				Reason:        issue.Reason,
 				Metadata: &timeout.TimeoutIssuesMetadata{
@@ -244,6 +252,7 @@ func retrieveTimeoutIssues(issues []invariant.InvariantCheckResult) ([]*timeoutI
 				return nil, err
 			}
 			result = append(result, &timeoutIssuesResult{
+				IssueID:       issue.IssueID,
 				InvariantType: issue.InvariantType,
 				Reason:        issue.Reason,
 				Metadata: &timeout.TimeoutIssuesMetadata{
@@ -265,6 +274,7 @@ func retrieveTimeoutRootCause(rootCause []invariant.InvariantRootCauseResult) ([
 				return nil, err
 			}
 			result = append(result, &timeoutRootCauseResult{
+				IssueID:       rc.IssueID,
 				RootCauseType: rc.RootCause.String(),
 				Metadata: &timeout.TimeoutRootcauseMetadata{
 					PollersMetadata: &metadata,
@@ -277,6 +287,7 @@ func retrieveTimeoutRootCause(rootCause []invariant.InvariantRootCauseResult) ([
 				return nil, err
 			}
 			result = append(result, &timeoutRootCauseResult{
+				IssueID:       rc.IssueID,
 				RootCauseType: rc.RootCause.String(),
 				Metadata: &timeout.TimeoutRootcauseMetadata{
 					HeartBeatingMetadata: &metadata,
@@ -298,6 +309,7 @@ func retrieveFailureIssues(issues []invariant.InvariantCheckResult) ([]*failureI
 				return nil, err
 			}
 			result = append(result, &failureIssuesResult{
+				IssueID:       issue.IssueID,
 				InvariantType: issue.InvariantType,
 				Reason:        issue.Reason,
 				Metadata:      &data,
@@ -312,6 +324,7 @@ func retrieveFailureRootCause(rootCause []invariant.InvariantRootCauseResult) ([
 	for _, rc := range rootCause {
 		if rc.RootCause == invariant.RootCauseTypeServiceSideIssue || rc.RootCause == invariant.RootCauseTypeServiceSidePanic || rc.RootCause == invariant.RootCauseTypeServiceSideCustomError {
 			result = append(result, &failureRootCauseResult{
+				IssueID:       rc.IssueID,
 				RootCauseType: rc.RootCause.String(),
 			})
 		}
@@ -322,6 +335,7 @@ func retrieveFailureRootCause(rootCause []invariant.InvariantRootCauseResult) ([
 				return nil, err
 			}
 			result = append(result, &failureRootCauseResult{
+				IssueID:       rc.IssueID,
 				RootCauseType: rc.RootCause.String(),
 				Metadata: &failure.FailureRootcauseMetadata{
 					BlobSizeMetadata: &metadata,
@@ -342,6 +356,7 @@ func retrieveRetryIssues(issues []invariant.InvariantCheckResult) ([]*retryIssue
 				return nil, err
 			}
 			result = append(result, &retryIssuesResult{
+				IssueID:       issue.IssueID,
 				InvariantType: issue.InvariantType,
 				Reason:        issue.Reason,
 				Metadata:      data,
