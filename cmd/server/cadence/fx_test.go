@@ -79,7 +79,7 @@ func TestShardDistributorStartStop(t *testing.T) {
 				Environment: "development",
 				Zone:        "",
 			},
-			ConfigDir: fmt.Sprintf("%s/config", wd),
+			ConfigDir: fmt.Sprintf("%s/testdata/config", wd),
 			RootDir:   "",
 		}),
 		Module(service.ShortName(service.ShardDistributor)))
