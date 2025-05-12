@@ -83,7 +83,6 @@ type transferQueueProcessor struct {
 // NewTransferQueueProcessor creates a new transfer QueueProcessor
 func NewTransferQueueProcessor(
 	shard shard.Context,
-	historyEngine engine.Engine,
 	taskProcessor task.Processor,
 	executionCache execution.Cache,
 	workflowResetter reset.WorkflowResetter,
@@ -122,7 +121,7 @@ func NewTransferQueueProcessor(
 			shard.GetDomainCache(),
 			shard.GetService().GetClientBean().GetRemoteAdminClient(clusterName),
 			func(ctx context.Context, request *types.ReplicateEventsV2Request) error {
-				return historyEngine.ReplicateEventsV2(ctx, request)
+				return shard.GetEngine().ReplicateEventsV2(ctx, request)
 			},
 			config.StandbyTaskReReplicationContextTimeout,
 			executionCheck,
@@ -150,7 +149,6 @@ func NewTransferQueueProcessor(
 
 	return &transferQueueProcessor{
 		shard:                  shard,
-		historyEngine:          historyEngine,
 		taskProcessor:          taskProcessor,
 		config:                 config,
 		currentClusterName:     currentClusterName,

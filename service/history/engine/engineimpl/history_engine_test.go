@@ -173,11 +173,13 @@ func (s *engineSuite) SetupTest() {
 		tokenSerializer:      common.NewJSONTaskTokenSerializer(),
 		historyEventNotifier: historyEventNotifier,
 		config:               config.NewForTest(),
-		txProcessor:          s.mockTxProcessor,
-		timerProcessor:       s.mockTimerProcessor,
-		clientChecker:        cc.NewVersionChecker(),
-		eventsReapplier:      s.mockEventsReapplier,
-		workflowResetter:     s.mockWorkflowResetter,
+		queueProcessors: map[persistence.HistoryTaskCategory]queue.Processor{
+			persistence.HistoryTaskCategoryTransfer: s.mockTxProcessor,
+			persistence.HistoryTaskCategoryTimer:    s.mockTimerProcessor,
+		},
+		clientChecker:    cc.NewVersionChecker(),
+		eventsReapplier:  s.mockEventsReapplier,
+		workflowResetter: s.mockWorkflowResetter,
 	}
 	s.mockShard.SetEngine(h)
 	h.decisionHandler = decision.NewHandler(s.mockShard, h.executionCache, h.tokenSerializer)

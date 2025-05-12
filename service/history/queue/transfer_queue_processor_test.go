@@ -70,7 +70,6 @@ func setupTransferQueueProcessor(t *testing.T, cfg *config.Config) (*gomock.Cont
 
 	return ctrl, NewTransferQueueProcessor(
 		mockShard,
-		mockShard.GetEngine(),
 		task.NewMockProcessor(ctrl),
 		execution.NewCache(mockShard),
 		reset.NewMockWorkflowResetter(ctrl),

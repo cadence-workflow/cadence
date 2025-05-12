@@ -74,7 +74,6 @@ type timerQueueProcessor struct {
 // NewTimerQueueProcessor creates a new timer QueueProcessor
 func NewTimerQueueProcessor(
 	shard shard.Context,
-	historyEngine engine.Engine,
 	taskProcessor task.Processor,
 	executionCache execution.Cache,
 	archivalClient archiver.Client,
@@ -99,7 +98,6 @@ func NewTimerQueueProcessor(
 	activeQueueProcessor := newTimerQueueActiveProcessor(
 		currentClusterName,
 		shard,
-		historyEngine,
 		taskProcessor,
 		taskAllocator,
 		activeTaskExecutor,
@@ -114,7 +112,7 @@ func NewTimerQueueProcessor(
 			shard.GetDomainCache(),
 			shard.GetService().GetClientBean().GetRemoteAdminClient(clusterName),
 			func(ctx context.Context, request *types.ReplicateEventsV2Request) error {
-				return historyEngine.ReplicateEventsV2(ctx, request)
+				return shard.GetEngine().ReplicateEventsV2(ctx, request)
 			},
 			config.StandbyTaskReReplicationContextTimeout,
 			executionCheck,
@@ -135,7 +133,6 @@ func NewTimerQueueProcessor(
 		standbyQueueProcessors[clusterName], standbyQueueTimerGates[clusterName] = newTimerQueueStandbyProcessor(
 			clusterName,
 			shard,
-			historyEngine,
 			taskProcessor,
 			taskAllocator,
 			standbyTaskExecutor,
@@ -145,7 +142,6 @@ func NewTimerQueueProcessor(
 
 	return &timerQueueProcessor{
 		shard:         shard,
-		historyEngine: historyEngine,
 		taskProcessor: taskProcessor,
 
 		config:             config,

@@ -623,10 +623,11 @@ func TestDomainCallback(t *testing.T) {
 				clusterMetadata:    cluster,
 				currentClusterName: td.asCluster,
 				metricsClient:      metrics.NewNoopMetricsClient(),
-				timerProcessor:     timeProcessor,
-				queueTaskProcessor: queueTaskProcessor,
-				txProcessor:        txProcessor,
-				shard:              shardCtx,
+				queueProcessors: map[persistence.HistoryTaskCategory]queue.Processor{
+					persistence.HistoryTaskCategoryTransfer: txProcessor,
+					persistence.HistoryTaskCategoryTimer:    timeProcessor,
+				},
+				shard: shardCtx,
 			}
 			he.domainChangeCB(td.domainUpdates)
 		})
@@ -654,7 +655,6 @@ func TestDomainLocking(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	timeProcessor := queue.NewMockProcessor(ctrl)
-	queueTaskProcessor := task.NewMockProcessor(ctrl)
 	txProcessor := queue.NewMockProcessor(ctrl)
 	shardCtx := shard.NewMockContext(ctrl)
 
@@ -669,10 +669,11 @@ func TestDomainLocking(t *testing.T) {
 		clusterMetadata:    cluster,
 		currentClusterName: "cluster0",
 		metricsClient:      metrics.NewNoopMetricsClient(),
-		timerProcessor:     timeProcessor,
-		queueTaskProcessor: queueTaskProcessor,
-		txProcessor:        txProcessor,
-		shard:              shardCtx,
+		queueProcessors: map[persistence.HistoryTaskCategory]queue.Processor{
+			persistence.HistoryTaskCategoryTransfer: txProcessor,
+			persistence.HistoryTaskCategoryTimer:    timeProcessor,
+		},
+		shard: shardCtx,
 	}
 
 	he.lockTaskProcessingForDomainUpdate()

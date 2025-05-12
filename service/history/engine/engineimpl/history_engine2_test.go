@@ -150,8 +150,10 @@ func (s *engine2Suite) SetupTest() {
 		config:               s.config,
 		timeSource:           s.mockShard.GetTimeSource(),
 		historyEventNotifier: events.NewNotifier(clock.NewRealTimeSource(), metrics.NewClient(tally.NoopScope, metrics.History), func(string) int { return 0 }),
-		txProcessor:          s.mockTxProcessor,
-		timerProcessor:       s.mockTimerProcessor,
+		queueProcessors: map[p.HistoryTaskCategory]queue.Processor{
+			p.HistoryTaskCategoryTransfer: s.mockTxProcessor,
+			p.HistoryTaskCategoryTimer:    s.mockTimerProcessor,
+		},
 	}
 	s.mockShard.SetEngine(h)
 	h.decisionHandler = decision.NewHandler(s.mockShard, h.executionCache, h.tokenSerializer)

@@ -27,8 +27,6 @@ import (
 	"fmt"
 	"time"
 
-	"go.uber.org/cadence/.gen/go/cadence/workflowserviceclient"
-
 	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/client/wrappers/retryable"
 	"github.com/uber/cadence/common"
@@ -43,10 +41,7 @@ import (
 	"github.com/uber/cadence/common/metrics"
 	cndc "github.com/uber/cadence/common/ndc"
 	"github.com/uber/cadence/common/persistence"
-	"github.com/uber/cadence/common/quotas"
-	"github.com/uber/cadence/common/quotas/permember"
 	"github.com/uber/cadence/common/reconciliation/invariant"
-	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/types/mapper/proto"
 	hcommon "github.com/uber/cadence/service/history/common"
@@ -61,10 +56,8 @@ import (
 	"github.com/uber/cadence/service/history/replication"
 	"github.com/uber/cadence/service/history/reset"
 	"github.com/uber/cadence/service/history/shard"
-	"github.com/uber/cadence/service/history/task"
 	"github.com/uber/cadence/service/history/workflow"
-	"github.com/uber/cadence/service/history/workflowcache"
-	warchiver "github.com/uber/cadence/service/worker/archiver"
+	"github.com/uber/cadence/service/worker/archiver"
 )
 
 const (
@@ -92,8 +85,7 @@ type historyEngineImpl struct {
 	historyV2Mgr              persistence.HistoryManager
 	executionManager          persistence.ExecutionManager
 	visibilityMgr             persistence.VisibilityManager
-	txProcessor               queue.Processor
-	timerProcessor            queue.Processor
+	queueProcessors           map[persistence.HistoryTaskCategory]queue.Processor
 	nDCReplicator             ndc.HistoryReplicator
 	nDCActivityReplicator     ndc.ActivityReplicator
 	historyEventNotifier      events.Notifier
@@ -104,22 +96,19 @@ type historyEngineImpl struct {
 	throttledLogger           log.Logger
 	activeClusterManager      activecluster.Manager
 	config                    *config.Config
-	archivalClient            warchiver.Client
+	archivalClient            archiver.Client
 	workflowResetter          reset.WorkflowResetter
-	queueTaskProcessor        task.Processor
 	replicationTaskProcessors []replication.TaskProcessor
 	replicationAckManager     replication.TaskAckManager
 	replicationTaskStore      *replication.TaskStore
 	replicationHydrator       replication.TaskHydrator
 	replicationMetricsEmitter *replication.MetricsEmitterImpl
-	publicClient              workflowserviceclient.Interface
 	eventsReapplier           ndc.EventsReapplier
 	matchingClient            matching.Client
 	rawMatchingClient         matching.Client
 	clientChecker             client.VersionChecker
 	replicationDLQHandler     replication.DLQHandler
 	failoverMarkerNotifier    failover.MarkerNotifier
-	wfIDCache                 workflowcache.WFCache
 
 	updateWithActionFn func(
 		context.Context,
@@ -149,15 +138,12 @@ func NewEngineWithShardContext(
 	shard shard.Context,
 	visibilityMgr persistence.VisibilityManager,
 	matching matching.Client,
-	publicClient workflowserviceclient.Interface,
 	historyEventNotifier events.Notifier,
 	config *config.Config,
 	replicationTaskFetchers replication.TaskFetchers,
 	rawMatchingClient matching.Client,
-	queueTaskProcessor task.Processor,
 	failoverCoordinator failover.Coordinator,
-	wfIDCache workflowcache.WFCache,
-	queueProcessorFactory queue.ProcessorFactory,
+	queueFactories []queue.Factory,
 ) engine.Engine {
 	currentClusterName := shard.GetService().GetClusterMetadata().GetCurrentClusterName()
 
@@ -194,40 +180,13 @@ func NewEngineWithShardContext(
 		metricsClient:        shard.GetMetricsClient(),
 		historyEventNotifier: historyEventNotifier,
 		config:               config,
-		archivalClient: warchiver.NewClient(
-			shard.GetMetricsClient(),
-			logger,
-			publicClient,
-			shard.GetConfig().NumArchiveSystemWorkflows,
-			quotas.NewDynamicRateLimiter(config.ArchiveRequestRPS.AsFloat64()),
-			quotas.NewDynamicRateLimiter(func() float64 {
-				return permember.PerMember(
-					service.History,
-					float64(config.ArchiveInlineHistoryGlobalRPS()),
-					float64(config.ArchiveInlineHistoryRPS()),
-					shard.GetService().GetMembershipResolver(),
-				)
-			}),
-			quotas.NewDynamicRateLimiter(func() float64 {
-				return permember.PerMember(
-					service.History,
-					float64(config.ArchiveInlineVisibilityGlobalRPS()),
-					float64(config.ArchiveInlineVisibilityRPS()),
-					shard.GetService().GetMembershipResolver(),
-				)
-			}),
-			shard.GetService().GetArchiverProvider(),
-			config.AllowArchivingIncompleteHistory,
-		),
 		workflowResetter: reset.NewWorkflowResetter(
 			shard,
 			executionCache,
 			logger,
 		),
-		publicClient:           publicClient,
 		matchingClient:         matching,
 		rawMatchingClient:      rawMatchingClient,
-		queueTaskProcessor:     queueTaskProcessor,
 		clientChecker:          client.NewVersionChecker(),
 		failoverMarkerNotifier: failoverMarkerNotifier,
 		replicationHydrator:    replicationHydrator,
@@ -246,8 +205,8 @@ func NewEngineWithShardContext(
 		replicationTaskStore: replicationTaskStore,
 		replicationMetricsEmitter: replication.NewMetricsEmitter(
 			shard.GetShardID(), shard, replicationReader, shard.GetMetricsClient()),
-		wfIDCache:          wfIDCache,
 		updateWithActionFn: workflow.UpdateWithAction,
+		queueProcessors:    make(map[persistence.HistoryTaskCategory]queue.Processor),
 	}
 	historyEngImpl.decisionHandler = decision.NewHandler(
 		shard,
@@ -261,25 +220,13 @@ func NewEngineWithShardContext(
 	)
 	openExecutionCheck := invariant.NewConcreteExecutionExists(pRetry, shard.GetDomainCache())
 
-	historyEngImpl.txProcessor = queueProcessorFactory.NewTransferQueueProcessor(
-		shard,
-		historyEngImpl,
-		queueTaskProcessor,
-		executionCache,
-		historyEngImpl.workflowResetter,
-		historyEngImpl.archivalClient,
-		openExecutionCheck,
-		historyEngImpl.wfIDCache,
-	)
-
-	historyEngImpl.timerProcessor = queueProcessorFactory.NewTimerQueueProcessor(
-		shard,
-		historyEngImpl,
-		queueTaskProcessor,
-		executionCache,
-		historyEngImpl.archivalClient,
-		openExecutionCheck,
-	)
+	for _, factory := range queueFactories {
+		historyEngImpl.queueProcessors[factory.Category()] = factory.CreateQueue(
+			shard,
+			executionCache,
+			openExecutionCheck,
+		)
+	}
 
 	historyEngImpl.eventsReapplier = ndc.NewEventsReapplier(shard.GetMetricsClient(), logger)
 
@@ -360,8 +307,9 @@ func (e *historyEngineImpl) Start() {
 	e.logger.Info("History engine state changed", tag.LifeCycleStarting)
 	defer e.logger.Info("History engine state changed", tag.LifeCycleStarted)
 
-	e.txProcessor.Start()
-	e.timerProcessor.Start()
+	for _, processor := range e.queueProcessors {
+		processor.Start()
+	}
 	e.replicationDLQHandler.Start()
 	e.replicationMetricsEmitter.Start()
 
@@ -386,8 +334,9 @@ func (e *historyEngineImpl) Stop() {
 	e.logger.Info("History engine state changed", tag.LifeCycleStopping)
 	defer e.logger.Info("History engine state changed", tag.LifeCycleStopped)
 
-	e.txProcessor.Stop()
-	e.timerProcessor.Stop()
+	for _, processor := range e.queueProcessors {
+		processor.Stop()
+	}
 	e.replicationDLQHandler.Stop()
 	e.replicationMetricsEmitter.Stop()
 
@@ -420,8 +369,9 @@ func (e *historyEngineImpl) SyncShardStatus(ctx context.Context, request *types.
 	// 2. notify the timer gate in the timer queue standby processor
 	// 3. notify the transfer (essentially a no op, just put it here so it looks symmetric)
 	e.shard.SetCurrentTime(clusterName, now)
-	e.txProcessor.NotifyNewTask(clusterName, &hcommon.NotifyTaskInfo{Tasks: []persistence.Task{}})
-	e.timerProcessor.NotifyNewTask(clusterName, &hcommon.NotifyTaskInfo{Tasks: []persistence.Task{}})
+	for _, processor := range e.queueProcessors {
+		processor.NotifyNewTask(clusterName, &hcommon.NotifyTaskInfo{Tasks: []persistence.Task{}})
+	}
 	return nil
 }
 

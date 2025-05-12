@@ -127,8 +127,9 @@ func (e *historyEngineImpl) domainChangeCB(nextDomains []*cache.DomainCacheEntry
 		e.logger.Info("Domain Failover Start.", tag.WorkflowDomainIDs(failoverDomainIDs))
 
 		// Failover queues are not created for active-active domains. Will revisit after new queue framework implementation.
-		e.txProcessor.FailoverDomain(failoverDomainIDs)
-		e.timerProcessor.FailoverDomain(failoverDomainIDs)
+		for _, processor := range e.queueProcessors {
+			processor.FailoverDomain(failoverDomainIDs)
+		}
 
 		e.notifyQueues()
 	}
@@ -159,8 +160,18 @@ func (e *historyEngineImpl) notifyQueues() {
 	// its length > 0 and has correct timestamp, to trigger a db scan
 	fakeDecisionTask := []persistence.Task{&persistence.DecisionTask{}}
 	fakeDecisionTimeoutTask := []persistence.Task{&persistence.DecisionTimeoutTask{TaskData: persistence.TaskData{VisibilityTimestamp: now}}}
-	e.txProcessor.NotifyNewTask(e.currentClusterName, &hcommon.NotifyTaskInfo{Tasks: fakeDecisionTask})
-	e.timerProcessor.NotifyNewTask(e.currentClusterName, &hcommon.NotifyTaskInfo{Tasks: fakeDecisionTimeoutTask})
+	transferProcessor, ok := e.queueProcessors[persistence.HistoryTaskCategoryTransfer]
+	if !ok {
+		e.logger.Error("transfer processor not found")
+		return
+	}
+	transferProcessor.NotifyNewTask(e.currentClusterName, &hcommon.NotifyTaskInfo{Tasks: fakeDecisionTask})
+	timerProcessor, ok := e.queueProcessors[persistence.HistoryTaskCategoryTimer]
+	if !ok {
+		e.logger.Error("timer processor not found")
+		return
+	}
+	timerProcessor.NotifyNewTask(e.currentClusterName, &hcommon.NotifyTaskInfo{Tasks: fakeDecisionTimeoutTask})
 }
 
 func (e *historyEngineImpl) generateGracefulFailoverTasksForDomainUpdateCallback(shardNotificationVersion int64, nextDomains []*cache.DomainCacheEntry) []*persistence.FailoverMarkerTask {
@@ -204,14 +215,16 @@ func (e *historyEngineImpl) generateGracefulFailoverTasksForDomainUpdateCallback
 
 func (e *historyEngineImpl) lockTaskProcessingForDomainUpdate() {
 	e.logger.Debug("Locking processing for domain update")
-	e.txProcessor.LockTaskProcessing()
-	e.timerProcessor.LockTaskProcessing()
+	for _, processor := range e.queueProcessors {
+		processor.LockTaskProcessing()
+	}
 }
 
 func (e *historyEngineImpl) unlockProcessingForDomainUpdate() {
 	e.logger.Debug("Unlocking processing for failover")
-	e.txProcessor.UnlockTaskProcessing()
-	e.timerProcessor.UnlockTaskProcessing()
+	for _, processor := range e.queueProcessors {
+		processor.UnlockTaskProcessing()
+	}
 }
 
 func (e *historyEngineImpl) failoverPredicate(shardNotificationVersion int64, nextDomain *cache.DomainCacheEntry, action func()) {

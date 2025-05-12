@@ -28,11 +28,14 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/quotas"
 	"github.com/uber/cadence/common/quotas/global/algorithm"
+	"github.com/uber/cadence/common/quotas/permember"
 	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/service/history/config"
 	"github.com/uber/cadence/service/history/events"
+	"github.com/uber/cadence/service/worker/archiver"
 )
 
 // Resource is the interface which expose common history resources
@@ -40,6 +43,7 @@ type Resource interface {
 	resource.Resource
 	GetEventCache() events.Cache
 	GetRatelimiterAlgorithm() algorithm.RequestWeighted
+	GetArchiverClient() archiver.Client
 }
 
 type resourceImpl struct {
@@ -48,6 +52,7 @@ type resourceImpl struct {
 	resource.Resource
 	eventCache         events.Cache
 	ratelimitAlgorithm algorithm.RequestWeighted
+	archiverClient     archiver.Client
 }
 
 // Start starts all resources
@@ -86,6 +91,10 @@ func (h *resourceImpl) GetEventCache() events.Cache {
 }
 func (h *resourceImpl) GetRatelimiterAlgorithm() algorithm.RequestWeighted {
 	return h.ratelimitAlgorithm
+}
+
+func (h *resourceImpl) GetArchiverClient() archiver.Client {
+	return h.archiverClient
 }
 
 // New create a new resource containing common history dependencies
@@ -147,10 +156,36 @@ func New(
 		return nil, fmt.Errorf("invalid ratelimit algorithm config: %w", err)
 	}
 
+	archivalClient := archiver.NewClient(
+		params.MetricsClient,
+		params.Logger,
+		params.PublicClient,
+		config.NumArchiveSystemWorkflows,
+		quotas.NewDynamicRateLimiter(config.ArchiveRequestRPS.AsFloat64()),
+		quotas.NewDynamicRateLimiter(func() float64 {
+			return permember.PerMember(
+				service.History,
+				float64(config.ArchiveInlineHistoryGlobalRPS()),
+				float64(config.ArchiveInlineHistoryRPS()),
+				params.MembershipResolver,
+			)
+		}),
+		quotas.NewDynamicRateLimiter(func() float64 {
+			return permember.PerMember(
+				service.History,
+				float64(config.ArchiveInlineVisibilityGlobalRPS()),
+				float64(config.ArchiveInlineVisibilityRPS()),
+				params.MembershipResolver,
+			)
+		}),
+		params.ArchiverProvider,
+		config.AllowArchivingIncompleteHistory,
+	)
 	historyResource = &resourceImpl{
 		Resource:           serviceResource,
 		eventCache:         eventCache,
 		ratelimitAlgorithm: ratelimitAlgorithm,
+		archiverClient:     archivalClient,
 	}
 	return
 }

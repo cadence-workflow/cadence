@@ -83,6 +83,7 @@ type (
 		failoverCoordinator     failover.Coordinator
 		workflowIDCache         workflowcache.WFCache
 		ratelimitAggregator     algorithm.RequestWeighted
+		queueFactories          []queue.Factory
 	}
 )
 
@@ -157,6 +158,18 @@ func (h *handlerImpl) Start() {
 	h.queueTaskProcessor = task.NewRateLimitedProcessor(taskProcessor, taskRateLimiter)
 	h.queueTaskProcessor.Start()
 
+	h.queueFactories = []queue.Factory{
+		queue.NewTransferQueueFactory(
+			h.queueTaskProcessor,
+			h.GetArchiverClient(),
+			h.workflowIDCache,
+		),
+		queue.NewTimerQueueFactory(
+			h.queueTaskProcessor,
+			h.GetArchiverClient(),
+		),
+	}
+
 	h.historyEventNotifier = events.NewNotifier(h.GetTimeSource(), h.GetMetricsClient(), h.config.GetShardID)
 	// events notifier must starts before controller
 	h.historyEventNotifier.Start()
@@ -216,15 +229,12 @@ func (h *handlerImpl) CreateEngine(
 		shardContext,
 		h.GetVisibilityManager(),
 		h.GetMatchingClient(),
-		h.GetSDKClient(),
 		h.historyEventNotifier,
 		h.config,
 		h.replicationTaskFetchers,
 		h.GetMatchingRawClient(),
-		h.queueTaskProcessor,
 		h.failoverCoordinator,
-		h.workflowIDCache,
-		queue.NewProcessorFactory(),
+		h.queueFactories,
 	)
 }
 
