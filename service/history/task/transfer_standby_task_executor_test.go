@@ -532,6 +532,7 @@ func (s *transferStandbyTaskExecutorSuite) TestProcessCancelExecution_Pending() 
 
 	s.mockShard.SetCurrentTime(s.clusterName, now.Add(s.fetchHistoryDuration))
 	s.mockNDCHistoryResender.EXPECT().SendSingleWorkflowHistory(
+		s.clusterName,
 		transferTask.GetDomainID(),
 		transferTask.GetWorkflowID(),
 		transferTask.GetRunID(),
@@ -643,6 +644,7 @@ func (s *transferStandbyTaskExecutorSuite) TestProcessSignalExecution_Pending() 
 
 	s.mockShard.SetCurrentTime(s.clusterName, now.Add(s.fetchHistoryDuration))
 	s.mockNDCHistoryResender.EXPECT().SendSingleWorkflowHistory(
+		s.clusterName,
 		transferTask.GetDomainID(),
 		transferTask.GetWorkflowID(),
 		transferTask.GetRunID(),
@@ -753,6 +755,7 @@ func (s *transferStandbyTaskExecutorSuite) TestProcessStartChildExecution_Pendin
 
 	s.mockShard.SetCurrentTime(s.clusterName, now.Add(s.fetchHistoryDuration))
 	s.mockNDCHistoryResender.EXPECT().SendSingleWorkflowHistory(
+		s.clusterName,
 		transferTask.GetDomainID(),
 		transferTask.GetWorkflowID(),
 		transferTask.GetRunID(),

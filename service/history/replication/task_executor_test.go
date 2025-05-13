@@ -51,6 +51,7 @@ type (
 		*require.Assertions
 		controller *gomock.Controller
 
+		sourceCluster      string
 		mockShard          *shard.TestContext
 		mockEngine         *engine.MockEngine
 		historyClient      *historyClient.MockClient
@@ -94,6 +95,7 @@ func (s *taskExecutorSuite) SetupTest() {
 		s.config,
 	)
 
+	s.sourceCluster = "source-cluster"
 	s.mockDomainCache = s.mockShard.Resource.DomainCache
 	s.mockClientBean = s.mockShard.Resource.ClientBean
 	s.adminClient = s.mockShard.Resource.RemoteAdminClient
@@ -103,6 +105,7 @@ func (s *taskExecutorSuite) SetupTest() {
 	s.historyClient = s.mockShard.Resource.HistoryClient
 
 	s.taskHandler = NewTaskExecutor(
+		s.sourceCluster,
 		s.mockShard,
 		s.mockDomainCache,
 		s.nDCHistoryResender,
@@ -217,6 +220,7 @@ func (s *taskExecutorSuite) TestProcessTask_SyncActivityReplicationTask_SameShar
 		EndEventVersion:   common.Ptr(int64(102)),
 	}).Times(1)
 	s.nDCHistoryResender.EXPECT().SendSingleWorkflowHistory(
+		s.sourceCluster,
 		"test-domain-id",
 		"test-wf-id",
 		"test-run-id",
@@ -258,6 +262,7 @@ func (s *taskExecutorSuite) TestProcessTask_SyncActivityReplicationTask_SameShar
 		EndEventVersion:   common.Ptr(int64(102)),
 	}).Times(1)
 	s.nDCHistoryResender.EXPECT().SendSingleWorkflowHistory(
+		s.sourceCluster,
 		"test-domain-id",
 		"test-wf-id",
 		"test-run-id",
@@ -299,6 +304,7 @@ func (s *taskExecutorSuite) TestProcessTask_SyncActivityReplicationTask_SameShar
 	}
 	s.mockEngine.EXPECT().SyncActivity(gomock.Any(), request).Return(retryErr).Times(1)
 	s.nDCHistoryResender.EXPECT().SendSingleWorkflowHistory(
+		s.sourceCluster,
 		"test-domain-id",
 		"test-wf-id",
 		"test-run-id",
@@ -368,6 +374,7 @@ func (s *taskExecutorSuite) TestProcessTask_HistoryV2ReplicationTask_SameShardID
 	}
 	s.mockEngine.EXPECT().ReplicateEventsV2(gomock.Any(), request).Return(retryErr).Times(1)
 	s.nDCHistoryResender.EXPECT().SendSingleWorkflowHistory(
+		s.sourceCluster,
 		"test-domain-id",
 		"test-wf-id",
 		"test-run-id",
@@ -412,6 +419,7 @@ func (s *taskExecutorSuite) TestProcessTask_HistoryV2ReplicationTask_SameShardID
 	}
 	s.mockEngine.EXPECT().ReplicateEventsV2(gomock.Any(), request).Return(retryErr).Times(1)
 	s.nDCHistoryResender.EXPECT().SendSingleWorkflowHistory(
+		s.sourceCluster,
 		"test-domain-id",
 		"test-wf-id",
 		"test-run-id",
@@ -455,6 +463,7 @@ func (s *taskExecutorSuite) TestProcessTask_HistoryV2ReplicationTask_SameShardID
 	}
 	s.mockEngine.EXPECT().ReplicateEventsV2(gomock.Any(), request).Return(retryErr).Times(1)
 	s.nDCHistoryResender.EXPECT().SendSingleWorkflowHistory(
+		s.sourceCluster,
 		"test-domain-id",
 		"test-wf-id",
 		"test-run-id",

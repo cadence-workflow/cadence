@@ -28,7 +28,7 @@ import (
 	"fmt"
 	"time"
 
-	adminClient "github.com/uber/cadence/client/admin"
+	"github.com/uber/cadence/client"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/collection"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
@@ -59,6 +59,7 @@ type (
 	HistoryResender interface {
 		// SendSingleWorkflowHistory sends multiple run IDs's history events to remote
 		SendSingleWorkflowHistory(
+			remoteCluster string,
 			domainID string,
 			workflowID string,
 			runID string,
@@ -72,7 +73,7 @@ type (
 	// HistoryResenderImpl is the implementation of NDCHistoryResender
 	HistoryResenderImpl struct {
 		domainCache           cache.DomainCache
-		adminClient           adminClient.Client
+		clientBean            client.Bean
 		historyReplicationFn  nDCHistoryReplicationFn
 		rereplicationTimeout  dynamicproperties.DurationPropertyFnWithDomainIDFilter
 		currentExecutionCheck invariant.Invariant
@@ -88,7 +89,7 @@ type (
 // NewHistoryResender create a new NDCHistoryResenderImpl
 func NewHistoryResender(
 	domainCache cache.DomainCache,
-	adminClient adminClient.Client,
+	clientBean client.Bean,
 	historyReplicationFn nDCHistoryReplicationFn,
 	rereplicationTimeout dynamicproperties.DurationPropertyFnWithDomainIDFilter,
 	currentExecutionCheck invariant.Invariant,
@@ -97,7 +98,7 @@ func NewHistoryResender(
 
 	return &HistoryResenderImpl{
 		domainCache:           domainCache,
-		adminClient:           adminClient,
+		clientBean:            clientBean,
 		historyReplicationFn:  historyReplicationFn,
 		rereplicationTimeout:  rereplicationTimeout,
 		currentExecutionCheck: currentExecutionCheck,
@@ -107,6 +108,7 @@ func NewHistoryResender(
 
 // SendSingleWorkflowHistory sends one run IDs's history events to remote
 func (n *HistoryResenderImpl) SendSingleWorkflowHistory(
+	remoteCluster string,
 	domainID string,
 	workflowID string,
 	runID string,
@@ -133,6 +135,7 @@ func (n *HistoryResenderImpl) SendSingleWorkflowHistory(
 
 	historyIterator := collection.NewPagingIterator(n.getPaginationFn(
 		ctx,
+		remoteCluster,
 		domainName,
 		workflowID,
 		runID,
@@ -176,6 +179,7 @@ func (n *HistoryResenderImpl) SendSingleWorkflowHistory(
 
 func (n *HistoryResenderImpl) getPaginationFn(
 	ctx context.Context,
+	remoteCluster string,
 	domainName string,
 	workflowID string,
 	runID string,
@@ -189,6 +193,7 @@ func (n *HistoryResenderImpl) getPaginationFn(
 
 		response, err := n.getHistory(
 			ctx,
+			remoteCluster,
 			domainName,
 			workflowID,
 			runID,
@@ -248,6 +253,7 @@ func (n *HistoryResenderImpl) sendReplicationRawRequest(
 
 func (n *HistoryResenderImpl) getHistory(
 	ctx context.Context,
+	remoteCluster string,
 	domainName string,
 	workflowID string,
 	runID string,
@@ -261,7 +267,11 @@ func (n *HistoryResenderImpl) getHistory(
 
 	ctx, cancel := context.WithTimeout(ctx, resendContextTimeout)
 	defer cancel()
-	response, err := n.adminClient.GetWorkflowExecutionRawHistoryV2(ctx, &types.GetWorkflowExecutionRawHistoryV2Request{
+	adminClient, err := n.clientBean.GetRemoteAdminClient(remoteCluster)
+	if err != nil {
+		return nil, err
+	}
+	response, err := adminClient.GetWorkflowExecutionRawHistoryV2(ctx, &types.GetWorkflowExecutionRawHistoryV2Request{
 		Domain: domainName,
 		Execution: &types.WorkflowExecution{
 			WorkflowID: workflowID,

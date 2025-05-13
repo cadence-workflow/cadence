@@ -503,6 +503,7 @@ func (t *timerStandbyTaskExecutor) fetchHistoryFromRemote(
 		// note history resender doesn't take in a context parameter, there's a separate dynamicconfig for
 		// controlling the timeout for resending history.
 		err = t.historyResender.SendSingleWorkflowHistory(
+			t.clusterName,
 			taskInfo.GetDomainID(),
 			taskInfo.GetWorkflowID(),
 			taskInfo.GetRunID(),

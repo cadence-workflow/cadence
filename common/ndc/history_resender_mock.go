@@ -40,15 +40,15 @@ func (m *MockHistoryResender) EXPECT() *MockHistoryResenderMockRecorder {
 }
 
 // SendSingleWorkflowHistory mocks base method.
-func (m *MockHistoryResender) SendSingleWorkflowHistory(domainID, workflowID, runID string, startEventID, startEventVersion, endEventID, endEventVersion *int64) error {
+func (m *MockHistoryResender) SendSingleWorkflowHistory(remoteCluster, domainID, workflowID, runID string, startEventID, startEventVersion, endEventID, endEventVersion *int64) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SendSingleWorkflowHistory", domainID, workflowID, runID, startEventID, startEventVersion, endEventID, endEventVersion)
+	ret := m.ctrl.Call(m, "SendSingleWorkflowHistory", remoteCluster, domainID, workflowID, runID, startEventID, startEventVersion, endEventID, endEventVersion)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // SendSingleWorkflowHistory indicates an expected call of SendSingleWorkflowHistory.
-func (mr *MockHistoryResenderMockRecorder) SendSingleWorkflowHistory(domainID, workflowID, runID, startEventID, startEventVersion, endEventID, endEventVersion any) *gomock.Call {
+func (mr *MockHistoryResenderMockRecorder) SendSingleWorkflowHistory(remoteCluster, domainID, workflowID, runID, startEventID, startEventVersion, endEventID, endEventVersion any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendSingleWorkflowHistory", reflect.TypeOf((*MockHistoryResender)(nil).SendSingleWorkflowHistory), domainID, workflowID, runID, startEventID, startEventVersion, endEventID, endEventVersion)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendSingleWorkflowHistory", reflect.TypeOf((*MockHistoryResender)(nil).SendSingleWorkflowHistory), remoteCluster, domainID, workflowID, runID, startEventID, startEventVersion, endEventID, endEventVersion)
 }

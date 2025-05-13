@@ -179,6 +179,7 @@ func (s *timerStandbyTaskExecutorSuite) TestProcessUserTimerTimeout_Pending() {
 
 	s.mockShard.SetCurrentTime(s.clusterName, s.timeSource.Now().Add(s.fetchHistoryDuration))
 	s.mockNDCHistoryResender.EXPECT().SendSingleWorkflowHistory(
+		s.clusterName,
 		timerTask.GetDomainID(),
 		timerTask.GetWorkflowID(),
 		timerTask.GetRunID(),
@@ -296,6 +297,7 @@ func (s *timerStandbyTaskExecutorSuite) TestProcessActivityTimeout_Pending() {
 
 	s.mockShard.SetCurrentTime(s.clusterName, s.timeSource.Now().Add(s.fetchHistoryDuration))
 	s.mockNDCHistoryResender.EXPECT().SendSingleWorkflowHistory(
+		s.clusterName,
 		timerTask.GetDomainID(),
 		timerTask.GetWorkflowID(),
 		timerTask.GetRunID(),
@@ -520,6 +522,7 @@ func (s *timerStandbyTaskExecutorSuite) TestProcessDecisionTimeout_Pending() {
 
 	s.mockShard.SetCurrentTime(s.clusterName, s.timeSource.Now().Add(s.fetchHistoryDuration))
 	s.mockNDCHistoryResender.EXPECT().SendSingleWorkflowHistory(
+		s.clusterName,
 		timerTask.GetDomainID(),
 		timerTask.GetWorkflowID(),
 		timerTask.GetRunID(),
@@ -624,6 +627,7 @@ func (s *timerStandbyTaskExecutorSuite) TestProcessWorkflowBackoffTimer_Pending(
 
 	s.mockShard.SetCurrentTime(s.clusterName, time.Now().Add(s.fetchHistoryDuration))
 	s.mockNDCHistoryResender.EXPECT().SendSingleWorkflowHistory(
+		s.clusterName,
 		timerTask.GetDomainID(),
 		timerTask.GetWorkflowID(),
 		timerTask.GetRunID(),
@@ -699,6 +703,7 @@ func (s *timerStandbyTaskExecutorSuite) TestProcessWorkflowTimeout_Pending() {
 
 	s.mockShard.SetCurrentTime(s.clusterName, s.timeSource.Now().Add(s.fetchHistoryDuration))
 	s.mockNDCHistoryResender.EXPECT().SendSingleWorkflowHistory(
+		s.clusterName,
 		timerTask.GetDomainID(),
 		timerTask.GetWorkflowID(),
 		timerTask.GetRunID(),
