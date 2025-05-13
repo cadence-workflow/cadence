@@ -23,10 +23,10 @@ package cadence
 import (
 	"testing"
 
-	"github.com/uber/cadence/common/service/cadence"
-
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+
+	"github.com/uber/cadence/common/service/cadence"
 )
 
 type CadenceSuite struct {

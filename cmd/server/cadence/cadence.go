@@ -26,12 +26,13 @@ import (
 	"os"
 	"strings"
 
-	"github.com/uber/cadence/common/service/cadence"
+	"github.com/urfave/cli/v2"
 
 	"github.com/uber/cadence/common/client"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/service"
-	"github.com/urfave/cli/v2"
+	"github.com/uber/cadence/common/service/cadence"
+
 	_ "go.uber.org/automaxprocs" // defines automaxpocs for dockerized usage.
 )
 

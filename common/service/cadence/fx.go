@@ -26,8 +26,6 @@ import (
 	"context"
 	"fmt"
 
-	fxutil "github.com/uber/cadence/common/util/fx"
-
 	"go.uber.org/fx"
 
 	"github.com/uber/cadence/common"
@@ -43,6 +41,7 @@ import (
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql"
 	"github.com/uber/cadence/common/rpc/rpcfx"
 	"github.com/uber/cadence/common/service"
+	fxutil "github.com/uber/cadence/common/util/fx"
 	shardDistributorCfg "github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/leader/leaderstore"
 	"github.com/uber/cadence/service/sharddistributor/sharddistributorfx"
