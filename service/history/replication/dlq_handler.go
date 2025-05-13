@@ -232,9 +232,9 @@ func (r *dlqHandlerImpl) readMessagesWithAckLevel(
 		return nil, nil, nil, err
 	}
 
-	remoteAdminClient := r.shard.GetService().GetClientBean().GetRemoteAdminClient(sourceCluster)
-	if remoteAdminClient == nil {
-		return nil, nil, nil, errInvalidCluster
+	remoteAdminClient, err := r.shard.GetService().GetClientBean().GetRemoteAdminClient(sourceCluster)
+	if err != nil {
+		return nil, nil, nil, err
 	}
 
 	taskInfo := make([]*types.ReplicationTaskInfo, 0, len(resp.Tasks))

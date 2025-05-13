@@ -191,7 +191,11 @@ func BatchActivity(ctx context.Context, batchParams BatchParams) (HeartBeatDetai
 		if currentCluster != batchParams.ReplicateParams.SourceCluster {
 			return HeartBeatDetails{}, cadence.NewCustomError(_nonRetriableReason, fmt.Sprintf("the activity must run in the source cluster, current cluster is %s", currentCluster))
 		}
-		adminClient = batcher.clientBean.GetRemoteAdminClient(batchParams.ReplicateParams.TargetCluster)
+		var err error
+		adminClient, err = batcher.clientBean.GetRemoteAdminClient(batchParams.ReplicateParams.TargetCluster)
+		if err != nil {
+			return HeartBeatDetails{}, cadence.NewCustomError(_nonRetriableReason, err.Error())
+		}
 	}
 
 	domainResp, err := client.DescribeDomain(ctx, &types.DescribeDomainRequest{

@@ -3100,7 +3100,10 @@ func (wh *WorkflowHandler) checkOngoingFailover(
 
 	g := &errgroup.Group{}
 	for clusterName := range enabledClusters {
-		frontendClient := wh.GetRemoteFrontendClient(clusterName)
+		frontendClient, err := wh.GetRemoteFrontendClient(clusterName)
+		if err != nil {
+			return &types.BadRequestError{Message: err.Error()}
+		}
 		g.Go(func() (e error) {
 			defer func() { log.CapturePanic(recover(), wh.GetLogger(), &e) }()
 

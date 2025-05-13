@@ -1424,10 +1424,10 @@ func (c *contextImpl) ReapplyEvents(
 	// The active cluster of the domain is differ from the current cluster
 	// Use frontend client to route this request to the active cluster
 	// Reapplication only happens in active cluster
-	sourceCluster := clientBean.GetRemoteAdminClient(activeCluster)
-	if sourceCluster == nil {
+	sourceCluster, err := clientBean.GetRemoteAdminClient(activeCluster)
+	if err != nil {
 		return &types.InternalServiceError{
-			Message: fmt.Sprintf("cannot find cluster config %v to do reapply", activeCluster),
+			Message: err.Error(),
 		}
 	}
 	return sourceCluster.ReapplyEvents(

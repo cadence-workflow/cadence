@@ -268,8 +268,9 @@ func TestTaskFetchers(t *testing.T) {
 	logger := testlogger.New(t)
 	cfg := config.NewForTest()
 
-	mockBean.EXPECT().GetRemoteAdminClient(cluster.TestAlternativeClusterName).Return(mockAdminClient)
-	fetchers := NewTaskFetchers(logger, cfg, cluster.TestActiveClusterMetadata, mockBean)
+	mockBean.EXPECT().GetRemoteAdminClient(cluster.TestAlternativeClusterName).Return(mockAdminClient, nil)
+	fetchers, err := NewTaskFetchers(logger, cfg, cluster.TestActiveClusterMetadata, mockBean)
+	assert.NoError(t, err)
 	assert.NotNil(t, fetchers)
 	assert.Len(t, fetchers.GetFetchers(), len(cluster.TestActiveClusterMetadata.GetRemoteClusterInfo()))
 

@@ -99,11 +99,14 @@ func NewTaskFetchers(
 	config *config.Config,
 	clusterMetadata cluster.Metadata,
 	clientBean client.Bean,
-) TaskFetchers {
+) (TaskFetchers, error) {
 	currentCluster := clusterMetadata.GetCurrentClusterName()
 	var fetchers []TaskFetcher
 	for clusterName := range clusterMetadata.GetRemoteClusterInfo() {
-		remoteFrontendClient := clientBean.GetRemoteAdminClient(clusterName)
+		remoteFrontendClient, err := clientBean.GetRemoteAdminClient(clusterName)
+		if err != nil {
+			return nil, err
+		}
 		fetcher := newReplicationTaskFetcher(
 			logger,
 			clusterName,
@@ -118,7 +121,7 @@ func NewTaskFetchers(
 		fetchers: fetchers,
 		status:   common.DaemonStatusInitialized,
 		logger:   logger,
-	}
+	}, nil
 }
 
 // Start starts the fetchers

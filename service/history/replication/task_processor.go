@@ -606,7 +606,10 @@ func (p *taskProcessorImpl) triggerDataInconsistencyScan(replicationTask *types.
 	if err != nil {
 		return err
 	}
-	client := p.shard.GetService().GetClientBean().GetRemoteFrontendClient(clusterName)
+	client, err := p.shard.GetService().GetClientBean().GetRemoteFrontendClient(clusterName)
+	if err != nil {
+		return err
+	}
 	fixExecution := entity.Execution{
 		DomainID:   domainID,
 		WorkflowID: workflowID,

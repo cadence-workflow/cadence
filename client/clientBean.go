@@ -46,9 +46,9 @@ type (
 		GetMatchingClient(domainIDToName DomainIDToNameFunc) (matching.Client, error)
 		GetFrontendClient() frontend.Client
 		GetShardDistributorClient() sharddistributor.Client
-		GetRemoteAdminClient(cluster string) admin.Client
+		GetRemoteAdminClient(cluster string) (admin.Client, error)
 		SetRemoteAdminClient(cluster string, client admin.Client)
-		GetRemoteFrontendClient(cluster string) frontend.Client
+		GetRemoteFrontendClient(cluster string) (frontend.Client, error)
 	}
 
 	clientBeanImpl struct {
@@ -138,16 +138,12 @@ func (h *clientBeanImpl) GetShardDistributorClient() sharddistributor.Client {
 	return h.shardDistributorClient
 }
 
-func (h *clientBeanImpl) GetRemoteAdminClient(cluster string) admin.Client {
+func (h *clientBeanImpl) GetRemoteAdminClient(cluster string) (admin.Client, error) {
 	client, ok := h.remoteAdminClients[cluster]
 	if !ok {
-		panic(fmt.Sprintf(
-			"Unknown cluster name: %v with given cluster client map: %v.",
-			cluster,
-			h.remoteAdminClients,
-		))
+		return nil, fmt.Errorf("unknown cluster name: %v with given cluster client map: %v", cluster, h.remoteAdminClients)
 	}
-	return client
+	return client, nil
 }
 
 func (h *clientBeanImpl) SetRemoteAdminClient(
@@ -158,16 +154,12 @@ func (h *clientBeanImpl) SetRemoteAdminClient(
 	h.remoteAdminClients[cluster] = client
 }
 
-func (h *clientBeanImpl) GetRemoteFrontendClient(cluster string) frontend.Client {
+func (h *clientBeanImpl) GetRemoteFrontendClient(cluster string) (frontend.Client, error) {
 	client, ok := h.remoteFrontendClients[cluster]
 	if !ok {
-		panic(fmt.Sprintf(
-			"Unknown cluster name: %v with given cluster client map: %v.",
-			cluster,
-			h.remoteFrontendClients,
-		))
+		return nil, fmt.Errorf("unknown cluster name: %v with given cluster client map: %v", cluster, h.remoteFrontendClients)
 	}
-	return client
+	return client, nil
 }
 
 func (h *clientBeanImpl) lazyInitMatchingClient(domainIDToName DomainIDToNameFunc) (matching.Client, error) {

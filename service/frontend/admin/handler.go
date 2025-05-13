@@ -1293,9 +1293,13 @@ func (adh *adminHandlerImpl) ResendReplicationTasks(
 	if request == nil {
 		return adh.error(validate.ErrRequestNotSet, scope)
 	}
+	remoteAdminClient, err := adh.GetRemoteAdminClient(request.GetRemoteCluster())
+	if err != nil {
+		return adh.error(&types.BadRequestError{Message: err.Error()}, scope)
+	}
 	resender := ndc.NewHistoryResender(
 		adh.GetDomainCache(),
-		adh.GetRemoteAdminClient(request.GetRemoteCluster()),
+		remoteAdminClient,
 		func(ctx context.Context, request *types.ReplicateEventsV2Request) error {
 			return adh.GetHistoryClient().ReplicateEventsV2(ctx, request)
 		},

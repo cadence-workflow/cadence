@@ -97,8 +97,8 @@ type Resource interface {
 	GetHistoryRawClient() history.Client
 	GetHistoryClient() history.Client
 	GetRatelimiterAggregatorsClient() qrpc.Client
-	GetRemoteAdminClient(cluster string) admin.Client
-	GetRemoteFrontendClient(cluster string) frontend.Client
+	GetRemoteAdminClient(cluster string) (admin.Client, error)
+	GetRemoteFrontendClient(cluster string) (frontend.Client, error)
 	GetClientBean() client.Bean
 
 	// persistence clients

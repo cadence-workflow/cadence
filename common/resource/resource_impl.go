@@ -606,7 +606,7 @@ func (h *Impl) GetRatelimiterAggregatorsClient() qrpc.Client {
 // GetRemoteAdminClient return remote admin client for given cluster name
 func (h *Impl) GetRemoteAdminClient(
 	cluster string,
-) admin.Client {
+) (admin.Client, error) {
 
 	return h.clientBean.GetRemoteAdminClient(cluster)
 }
@@ -614,7 +614,7 @@ func (h *Impl) GetRemoteAdminClient(
 // GetRemoteFrontendClient return remote frontend client for given cluster name
 func (h *Impl) GetRemoteFrontendClient(
 	cluster string,
-) frontend.Client {
+) (frontend.Client, error) {
 
 	return h.clientBean.GetRemoteFrontendClient(cluster)
 }

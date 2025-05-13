@@ -141,8 +141,8 @@ func NewTest(
 	clientBean.EXPECT().GetFrontendClient().Return(frontendClient).AnyTimes()
 	clientBean.EXPECT().GetMatchingClient(gomock.Any()).Return(matchingClient, nil).AnyTimes()
 	clientBean.EXPECT().GetHistoryClient().Return(historyClient).AnyTimes()
-	clientBean.EXPECT().GetRemoteAdminClient(gomock.Any()).Return(remoteAdminClient).AnyTimes()
-	clientBean.EXPECT().GetRemoteFrontendClient(gomock.Any()).Return(remoteFrontendClient).AnyTimes()
+	clientBean.EXPECT().GetRemoteAdminClient(gomock.Any()).Return(remoteAdminClient, nil).AnyTimes()
+	clientBean.EXPECT().GetRemoteFrontendClient(gomock.Any()).Return(remoteFrontendClient, nil).AnyTimes()
 
 	metadataMgr := &mocks.MetadataManager{}
 	taskMgr := &mocks.TaskManager{}
@@ -360,17 +360,17 @@ func (s *Test) GetHistoryClient() history.Client {
 // GetRemoteAdminClient for testing
 func (s *Test) GetRemoteAdminClient(
 	cluster string,
-) admin.Client {
+) (admin.Client, error) {
 
-	return s.RemoteAdminClient
+	return s.RemoteAdminClient, nil
 }
 
 // GetRemoteFrontendClient for testing
 func (s *Test) GetRemoteFrontendClient(
 	cluster string,
-) frontend.Client {
+) (frontend.Client, error) {
 
-	return s.RemoteFrontendClient
+	return s.RemoteFrontendClient, nil
 }
 
 // GetClientBean for testing

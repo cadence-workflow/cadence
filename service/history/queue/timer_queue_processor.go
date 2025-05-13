@@ -108,9 +108,14 @@ func NewTimerQueueProcessor(
 	standbyQueueProcessors := make(map[string]*timerQueueProcessorBase)
 	standbyQueueTimerGates := make(map[string]clock.EventTimerGate)
 	for clusterName := range shard.GetClusterMetadata().GetRemoteClusterInfo() {
+		// TODO: refactor ndc resender to use client.Bean and dynamically get the client
+		remoteAdminClient, err := shard.GetService().GetClientBean().GetRemoteAdminClient(clusterName)
+		if err != nil {
+			logger.Fatal("Failed to get remote admin client for cluster", tag.Error(err))
+		}
 		historyResender := ndc.NewHistoryResender(
 			shard.GetDomainCache(),
-			shard.GetService().GetClientBean().GetRemoteAdminClient(clusterName),
+			remoteAdminClient,
 			func(ctx context.Context, request *types.ReplicateEventsV2Request) error {
 				return shard.GetEngine().ReplicateEventsV2(ctx, request)
 			},

@@ -255,9 +255,13 @@ func NewEngineWithShardContext(
 		return historyRetryableClient.ReplicateEventsV2(ctx, request)
 	}
 	for _, replicationTaskFetcher := range replicationTaskFetchers.GetFetchers() {
+		// TODO: refactor ndc resender to use client.Bean and dynamically get the client
 		sourceCluster := replicationTaskFetcher.GetSourceCluster()
 		// Intentionally use the raw client to create its own retry policy
-		adminClient := shard.GetService().GetClientBean().GetRemoteAdminClient(sourceCluster)
+		adminClient, err := shard.GetService().GetClientBean().GetRemoteAdminClient(sourceCluster)
+		if err != nil {
+			logger.Fatal("Failed to get remote admin client for cluster", tag.Error(err))
+		}
 		adminRetryableClient := retryable.NewAdminClient(
 			adminClient,
 			common.CreateReplicationServiceBusyRetryPolicy(),

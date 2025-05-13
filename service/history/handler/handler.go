@@ -112,16 +112,19 @@ func NewHandler(
 
 // Start starts the handler
 func (h *handlerImpl) Start() {
-	h.replicationTaskFetchers = replication.NewTaskFetchers(
+	var err error
+	h.replicationTaskFetchers, err = replication.NewTaskFetchers(
 		h.GetLogger(),
 		h.config,
 		h.GetClusterMetadata(),
 		h.GetClientBean(),
 	)
+	if err != nil {
+		h.GetLogger().Fatal("Creating replication task fetchers failed", tag.Error(err))
+	}
 
 	h.replicationTaskFetchers.Start()
 
-	var err error
 	taskPriorityAssigner := task.NewPriorityAssigner(
 		h.GetClusterMetadata().GetCurrentClusterName(),
 		h.GetDomainCache(),
