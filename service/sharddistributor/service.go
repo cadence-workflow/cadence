@@ -27,7 +27,6 @@ import (
 	"go.uber.org/yarpc"
 
 	"github.com/uber/cadence/common"
-	commonConfig "github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
@@ -49,10 +48,9 @@ type Service struct {
 	metricsClient metrics.Client
 	dispatcher    *yarpc.Dispatcher
 
-	handler          handler.Handler
-	config           *config.Config
-	numHistoryShards int
-	peerProvider     membership.PeerProvider
+	handler      handler.Handler
+	config       *config.Config
+	peerProvider membership.PeerProvider
 
 	matchingRing membership.SingleProvider
 	historyRing  membership.SingleProvider
@@ -70,7 +68,6 @@ type ServiceParams struct {
 	MetricsClient     metrics.Client
 	RPCFactory        rpc.Factory
 	DynamicCollection *dynamicconfig.Collection
-	Config            commonConfig.Config
 
 	Lifecycle fx.Lifecycle
 
@@ -90,13 +87,11 @@ func FXService(params ServiceParams) *Service {
 	svc := &Service{
 		config: serviceConfig,
 
-		logger:           logger,
-		metricsClient:    params.MetricsClient,
-		dispatcher:       dispatcher,
-		numHistoryShards: params.Config.Persistence.NumHistoryShards,
-
-		matchingRing: params.MembershipRings[service.Matching],
-		historyRing:  params.MembershipRings[service.History],
+		logger:        logger,
+		metricsClient: params.MetricsClient,
+		dispatcher:    dispatcher,
+		matchingRing:  params.MembershipRings[service.Matching],
+		historyRing:   params.MembershipRings[service.History],
 	}
 
 	rawHandler := handler.NewHandler(logger, params.MetricsClient, svc.matchingRing, svc.historyRing)
@@ -152,12 +147,11 @@ func NewService(
 	grpcHandler.Register(dispatcher)
 
 	return &Service{
-		config:           serviceConfig,
-		numHistoryShards: params.PersistenceConfig.NumHistoryShards,
-		logger:           logger,
-		metricsClient:    params.MetricsClient,
-		dispatcher:       dispatcher,
-		handler:          meteredHandler,
+		config:        serviceConfig,
+		logger:        logger,
+		metricsClient: params.MetricsClient,
+		dispatcher:    dispatcher,
+		handler:       meteredHandler,
 
 		matchingRing: matchingRing,
 		historyRing:  historyRing,
