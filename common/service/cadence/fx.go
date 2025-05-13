@@ -26,6 +26,8 @@ import (
 	"context"
 	"fmt"
 
+	fxutil "github.com/uber/cadence/common/util/fx"
+
 	"go.uber.org/fx"
 
 	"github.com/uber/cadence/common"
@@ -48,19 +50,21 @@ import (
 	"github.com/uber/cadence/tools/sql"
 )
 
-var _commonModule = fx.Options(
+// CommonModule is a set of common dependencies for cadence server.
+var CommonModule = fx.Options(
 	config.Module,
 	dynamicconfigfx.Module,
 	logfx.Module,
 	metricsfx.Module,
-	clockfx.Module)
+	clockfx.Module,
+)
 
 // Module provides a cadence server initialization with root components.
 // AppParams allows to provide optional/overrides for implementation specific dependencies.
 func Module(serviceName string) fx.Option {
 	if serviceName == service.ShortName(service.ShardDistributor) {
 		return fx.Options(
-			fx.Supply(serviceContext{
+			fx.Supply(ServiceContext{
 				Name:     serviceName,
 				FullName: service.FullName(serviceName),
 			}),
@@ -76,7 +80,7 @@ func Module(serviceName string) fx.Option {
 			sharddistributorfx.Module)
 	}
 	return fx.Options(
-		fx.Supply(serviceContext{
+		fx.Supply(ServiceContext{
 			Name:     serviceName,
 			FullName: service.FullName(serviceName),
 		}),
@@ -86,6 +90,7 @@ func Module(serviceName string) fx.Option {
 	)
 }
 
+// AppParams is a set of parameters for creating a App instance.
 type AppParams struct {
 	fx.In
 
@@ -146,9 +151,33 @@ func (a *App) verifySchema(ctx context.Context) error {
 	return nil
 }
 
-type serviceContext struct {
+// ServiceContext is a set of parameters that configures service name within the cadence server.
+type ServiceContext struct {
 	fx.Out
 
 	Name     string `name:"service"`
 	FullName string `name:"service-full-name"`
+}
+
+// AppContext is a set of parameters that configures config, dynamic config components
+type AppContext struct {
+	fx.Out
+
+	CfgContext config.Context
+	ConfigDir  string `name:"config-dir"`
+	RootDir    string `name:"root-dir"`
+	HostName   string `name:"hostname"`
+}
+
+// Run starts multiple cadence services in parallel and waits for them to finish.
+func Run(services []string, ctx AppContext) error {
+	return fxutil.RunServices(services, func(serviceName string) fxutil.App {
+		return fx.New(
+			fx.Module(serviceName,
+				CommonModule,
+				fx.Supply(ctx),
+				Module(serviceName),
+			),
+		)
+	})
 }

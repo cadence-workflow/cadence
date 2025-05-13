@@ -40,8 +40,8 @@ import (
 )
 
 func TestFxDependencies(t *testing.T) {
-	err := fx.ValidateApp(_commonModule,
-		fx.Supply(appContext{
+	err := fx.ValidateApp(CommonModule,
+		fx.Supply(AppContext{
 			CfgContext: config.Context{
 				Environment: "",
 				Zone:        "",
@@ -54,8 +54,8 @@ func TestFxDependencies(t *testing.T) {
 }
 
 func TestFxDependenciesForShardDistributor(t *testing.T) {
-	err := fx.ValidateApp(_commonModule,
-		fx.Supply(appContext{
+	err := fx.ValidateApp(CommonModule,
+		fx.Supply(AppContext{
 			CfgContext: config.Context{
 				Environment: "",
 				Zone:        "",
@@ -73,8 +73,8 @@ func TestShardDistributorStartStop(t *testing.T) {
 
 	wd, err := os.Getwd()
 	require.NoError(t, err)
-	app := fxtest.New(t, _commonModule,
-		fx.Supply(appContext{
+	app := fxtest.New(t, CommonModule,
+		fx.Supply(AppContext{
 			CfgContext: config.Context{
 				Environment: "development",
 				Zone:        "",

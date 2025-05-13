@@ -21,23 +21,17 @@
 package cadence
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	stdLog "log"
 	"os"
-	"path/filepath"
 	"strings"
-	"sync"
 
-	"github.com/urfave/cli/v2"
-	"go.uber.org/fx"
-	"go.uber.org/multierr"
+	"github.com/uber/cadence/common/service/cadence"
 
 	"github.com/uber/cadence/common/client"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/service"
-
+	"github.com/urfave/cli/v2"
 	_ "go.uber.org/automaxprocs" // defines automaxpocs for dockerized usage.
 )
 
@@ -117,7 +111,7 @@ func BuildCLI(releaseVersion string, gitRevision string) *cli.App {
 					return fmt.Errorf("get hostname: %w", err)
 				}
 
-				appCtx := appContext{
+				appCtx := cadence.AppContext{
 					CfgContext: config.Context{
 						Environment: getEnvironment(c),
 						Zone:        getZone(c),
@@ -129,89 +123,12 @@ func BuildCLI(releaseVersion string, gitRevision string) *cli.App {
 
 				services := getServices(c)
 
-				return runServices(
-					services,
-					func(serviceName string) fxAppInterface {
-						return fx.New(
-							fx.Module(serviceName,
-								_commonModule,
-								fx.Provide(
-									func() appContext {
-										return appCtx
-									},
-								),
-								Module(serviceName),
-							),
-						)
-					},
-				)
+				return cadence.Run(services, appCtx)
 			},
 		},
 	}
 
 	return app
-}
-
-func runServices(services []string, appBuilder func(serviceName string) fxAppInterface) error {
-	stoppedWg := &sync.WaitGroup{}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	errChan := make(chan error, len(services))
-
-	for _, serv := range services {
-		stoppedWg.Add(1)
-		go func(s string) {
-			defer stoppedWg.Done()
-			fxApp := appBuilder(s)
-
-			//  If any of the start hooks return an error, Start short-circuits, calls Stop, and returns the inciting error.
-			if err := fxApp.Start(ctx); err != nil {
-				// If any of the apps fails to start, immediately cancel the context so others will also stop.
-				cancel()
-				errChan <- fmt.Errorf("service %s start: %w", s, err)
-				return
-			}
-
-			select {
-			// Block until FX receives a shutdown signal
-			case <-fxApp.Done():
-			}
-
-			// Stop the application
-			err := fxApp.Stop(ctx)
-			if err != nil {
-				errChan <- fmt.Errorf("service %s stop: %w", s, err)
-			}
-		}(serv)
-	}
-	go func() {
-		stoppedWg.Wait()
-		// After stoppedWg unblocked all services are stopped to we no longer wait for errors.
-		close(errChan)
-	}()
-
-	var resErrors error
-	for err := range errChan {
-		// skip canceled errors, since they are caused by context cancelation and only focus on actual errors.
-		if err != nil && !errors.Is(err, context.Canceled) {
-			resErrors = multierr.Append(resErrors, err)
-		}
-	}
-	if resErrors != nil {
-		return resErrors
-	}
-	return nil
-}
-
-type appContext struct {
-	fx.Out
-
-	CfgContext config.Context
-	ConfigDir  string `name:"config-dir"`
-	RootDir    string `name:"root-dir"`
-	HostName   string `name:"hostname"`
 }
 
 func getEnvironment(c *cli.Context) string {
@@ -242,7 +159,7 @@ func getServices(c *cli.Context) []string {
 }
 
 func getConfigDir(c *cli.Context) string {
-	return constructPathIfNeed(getRootDir(c), c.String("config"))
+	return cadence.ConstructPathIfNeed(getRootDir(c), c.String("config"))
 }
 
 func getRootDir(c *cli.Context) string {
@@ -255,19 +172,4 @@ func getRootDir(c *cli.Context) string {
 		return cwd
 	}
 	return dirpath
-}
-
-// constructPathIfNeed would append the dir as the root dir
-// when the file wasn't absolute path.
-func constructPathIfNeed(dir string, file string) string {
-	if !filepath.IsAbs(file) {
-		return dir + "/" + file
-	}
-	return file
-}
-
-type fxAppInterface interface {
-	Start(context.Context) error
-	Stop(context.Context) error
-	Done() <-chan os.Signal
 }
