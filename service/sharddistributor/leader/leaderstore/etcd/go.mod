@@ -1,14 +1,17 @@
 module github.com/uber/cadence/service/sharddistributor/leader/leaderstore/etcd
 
-go 1.23
+go 1.23.0
+
+toolchain go1.23.4
 
 replace github.com/uber/cadence => ../../../../..
 
 require (
 	github.com/stretchr/testify v1.10.0
 	github.com/uber/cadence v0.0.0-00010101000000-000000000000
-	go.etcd.io/etcd/client/v3 v3.5.21
+	go.etcd.io/etcd/client/v3 v3.5.5
 	go.uber.org/fx v1.23.0
+	gopkg.in/yaml.v2 v2.4.0
 )
 
 require (
@@ -56,7 +59,7 @@ require (
 	github.com/uber-go/tally v3.3.15+incompatible // indirect
 	github.com/uber/ringpop-go v0.8.5 // indirect
 	github.com/uber/tchannel-go v1.22.2 // indirect
-	go.etcd.io/etcd/api/v3 v3.5.21 // indirect
+	go.etcd.io/etcd/api/v3 v3.5.5 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.5.21 // indirect
 	go.uber.org/atomic v1.10.0 // indirect
 	go.uber.org/cadence v0.19.0 // indirect
@@ -71,7 +74,7 @@ require (
 	golang.org/x/exp/typeparams v0.0.0-20220218215828-6cf2b201936e // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
 	golang.org/x/mod v0.18.0 // indirect
-	golang.org/x/net v0.38.0 // indirect
+	golang.org/x/net v0.37.0 // indirect
 	golang.org/x/sync v0.12.0 // indirect
 	golang.org/x/sys v0.31.0 // indirect
 	golang.org/x/text v0.23.0 // indirect
@@ -83,7 +86,6 @@ require (
 	google.golang.org/grpc v1.59.0 // indirect
 	google.golang.org/protobuf v1.33.0 // indirect
 	gopkg.in/validator.v2 v2.0.0-20180514200540-135c24b11c19 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	honnef.co/go/tools v0.3.2 // indirect
 )
