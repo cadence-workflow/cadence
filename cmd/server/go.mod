@@ -41,7 +41,7 @@ require (
 	github.com/pborman/uuid v0.0.0-20180906182336-adf5a7427709 // indirect
 	github.com/robfig/cron v1.2.0 // indirect
 	github.com/sirupsen/logrus v1.9.0 // indirect
-	github.com/startreedata/pinot-client-go v0.2.0 // latest release supports pinot v0.12.0 which is also internal version
+	github.com/startreedata/pinot-client-go v0.2.0 // indirect; latest release supports pinot v0.12.0 which is also internal version
 	github.com/stretchr/testify v1.10.0
 	github.com/uber-go/tally v3.3.15+incompatible // indirect
 	github.com/uber/cadence-idl v0.0.0-20250511103706-e5b4197e2aef
@@ -51,10 +51,10 @@ require (
 	github.com/xdg/scram v0.0.0-20180814205039-7eeb5667e42c // indirect
 	github.com/xwb1989/sqlparser v0.0.0-20180606152119-120387863bf2 // indirect
 	go.uber.org/atomic v1.10.0 // indirect
-	go.uber.org/cadence v0.19.0
+	go.uber.org/cadence v0.19.0 // indirect
 	go.uber.org/config v1.4.0 // indirect
-	go.uber.org/fx v1.23.0
-	go.uber.org/multierr v1.10.0
+	go.uber.org/fx v1.23.0 // indirect
+	go.uber.org/multierr v1.10.0 // indirect
 	go.uber.org/thriftrw v1.29.2 // indirect
 	go.uber.org/yarpc v1.70.3 // indirect
 	go.uber.org/zap v1.26.0 // indirect
@@ -71,9 +71,8 @@ require (
 require (
 	github.com/uber/cadence v0.0.0-00010101000000-000000000000
 	github.com/uber/cadence/common/archiver/gcloud v0.0.0-00010101000000-000000000000
-	github.com/uber/cadence/service/sharddistributor/leader/leaderstore/etcd v0.0.0-00010101000000-000000000000
+	github.com/uber/cadence/service/sharddistributor/leader/leaderstore/etcd v0.0.0-20250513110204-f707e82b9c62
 	go.uber.org/automaxprocs v1.6.0
-	go.uber.org/mock v0.5.0
 )
 
 require (
@@ -82,13 +81,11 @@ require (
 	github.com/fatih/color v1.13.0 // indirect
 	github.com/mattn/go-colorable v0.1.9 // indirect
 	github.com/mattn/go-isatty v0.0.14 // indirect
-	github.com/ncruces/go-sqlite3 v0.22.0 // indirect
-	github.com/ncruces/julianday v1.0.0 // indirect
-	github.com/tetratelabs/wazero v1.8.2 // indirect
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
 	go.etcd.io/etcd/api/v3 v3.5.21 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.5.21 // indirect
 	go.etcd.io/etcd/client/v3 v3.5.21 // indirect
+	go.uber.org/mock v0.5.0 // indirect
 )
 
 require (

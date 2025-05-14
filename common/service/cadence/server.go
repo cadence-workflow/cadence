@@ -22,6 +22,7 @@ package cadence
 
 import (
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"github.com/startreedata/pinot-client-go/pinot"
@@ -425,4 +426,13 @@ func getFromDynamicConfig(params resource.Params, dc *dynamicconfig.Collection) 
 		}
 		return res
 	}
+}
+
+// ConstructPathIfNeed would append the dir as the root dir
+// when the file wasn't absolute path.
+func ConstructPathIfNeed(dir string, file string) string {
+	if !filepath.IsAbs(file) {
+		return dir + "/" + file
+	}
+	return file
 }
