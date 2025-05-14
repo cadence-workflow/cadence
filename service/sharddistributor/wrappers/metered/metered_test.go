@@ -63,6 +63,7 @@ func TestMetricsHandler_GetShardOwner(t *testing.T) {
 		{
 			name: "Failure",
 			setupMocks: func(logger *log.MockLogger) {
+				logger.On("Helper").Return(logger)
 				logger.On(
 					"Error",
 					"Internal service error",
@@ -238,6 +239,7 @@ func TestHandleErr(t *testing.T) {
 			testScope := tally.NewTestScope("test", nil)
 			metricsClient := metrics.NewClient(testScope, metrics.ShardDistributor)
 			mockLogger := log.NewMockLogger(t)
+			mockLogger.On("Helper").Return(mockLogger)
 			handler := NewMetricsHandler(nil, mockLogger, metricsClient).(*metricsHandler)
 
 			tt.setupMocks(mockLogger)
