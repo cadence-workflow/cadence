@@ -67,10 +67,12 @@ func (reqCtx *handlerContext) handleErr(err error) error {
 		return nil
 	}
 
+	logger := reqCtx.logger.Helper()
+
 	switch {
 	case errors.As(err, new(*types.InternalServiceError)):
 		reqCtx.scope.IncCounter(metrics.CadenceFailuresPerTaskList)
-		reqCtx.logger.Error("Internal service error", tag.Error(err))
+		logger.Error("Internal service error", tag.Error(err))
 		return err
 	case errors.As(err, new(*types.BadRequestError)):
 		reqCtx.scope.IncCounter(metrics.CadenceErrBadRequestPerTaskListCounter)
@@ -107,7 +109,7 @@ func (reqCtx *handlerContext) handleErr(err error) error {
 		return err
 	default:
 		reqCtx.scope.IncCounter(metrics.CadenceFailuresPerTaskList)
-		reqCtx.logger.Error("Uncategorized error", tag.Error(err))
+		logger.Error("Uncategorized error", tag.Error(err))
 		return &types.InternalServiceError{Message: err.Error()}
 	}
 }

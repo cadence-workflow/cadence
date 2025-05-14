@@ -65,7 +65,7 @@ func TestOAuthSuite(t *testing.T) {
 }
 
 func (s *oauthSuite) SetupTest() {
-	s.logger = &log.MockLogger{}
+	s.logger = log.NewMockLogger(s.T())
 	s.cfg = config.OAuthAuthorizer{
 		Enable: true,
 		JwtCredentials: &config.JwtCredentials{
@@ -119,11 +119,6 @@ func (s *oauthSuite) SetupTest() {
 	s.controller = gomock.NewController(s.T())
 	s.domainCache = cache.NewMockDomainCache(s.controller)
 	s.ctx = ctx
-}
-
-func (s *oauthSuite) TearDownTest() {
-	s.logger.AssertExpectations(s.T())
-	s.controller.Finish()
 }
 
 func (s *oauthSuite) TestCorrectPayload() {

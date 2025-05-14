@@ -103,7 +103,7 @@ func TestEmitLargeWorkflowShardIDStats(t *testing.T) {
 			mockShard := shard.NewMockContext(mockCtrl)
 			metricScope := tally.NewTestScope("test", make(map[string]string))
 			mockMetricsClient := metrics.NewClient(metricScope, metrics.History)
-			mockLogger := &log.MockLogger{}
+			mockLogger := log.NewMockLogger(t)
 			stats := &persistence.ExecutionStats{
 				HistorySize: 1024 * 1024 * 3, // 3 MB, setting it above the threshold for test
 			}

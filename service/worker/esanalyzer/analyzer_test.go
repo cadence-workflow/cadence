@@ -126,7 +126,7 @@ func (s *esanalyzerWorkflowTestSuite) SetupTest() {
 	s.resource = resource.NewTest(s.T(), s.controller, metrics.Worker)
 	s.mockAdminClient = admin.NewMockClient(s.controller)
 	s.clientBean = client.NewMockBean(s.controller)
-	s.logger = &log.MockLogger{}
+	s.logger = log.NewMockLogger(s.T())
 	s.mockMetricClient = &mocks.Client{}
 	s.scopedMetricClient = &mocks.Scope{}
 	s.mockESClient = &esMocks.GenericClient{}

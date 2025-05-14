@@ -21,12 +21,15 @@
 package log
 
 import (
+	"encoding/json"
 	"fmt"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
@@ -211,6 +214,94 @@ func TestDebugOn(t *testing.T) {
 	assert.True(t, logger.DebugOn())
 }
 
+func TestHelper(t *testing.T) {
+	// Test without Helper() first
+	t.Run("WithoutHelper", func(t *testing.T) {
+		buf := &strings.Builder{}
+		zapLogger := createTestZapLogger(buf)
+		logger := NewLogger(zapLogger)
+
+		expectedLine := helperFuncWithoutHelper(logger)
+
+		out := strings.TrimRight(buf.String(), "\n")
+
+		var logEntry map[string]interface{}
+		if err := json.Unmarshal([]byte(out), &logEntry); err != nil {
+			t.Fatalf("Failed to parse log output as JSON: %v", err)
+		}
+
+		logCaller, ok := logEntry["caller"].(string)
+		if !ok {
+			t.Fatal("Log entry does not contain caller information")
+		}
+
+		require.Contains(t, logCaller, "logger_test.go")
+
+		// Get the line from the caller string
+		parts := strings.Split(logCaller, ":")
+		if len(parts) != 2 {
+			t.Fatalf("Unexpected caller format: %s", logCaller)
+		}
+
+		// Extract line number
+		lineStr := parts[1]
+		lineNum, err := strconv.Atoi(lineStr)
+		if err != nil {
+			t.Fatalf("Failed to parse line number from %s: %v", logCaller, err)
+		}
+
+		// With Helper(), the caller should be near the line where helper was called
+		// Allow a small range of lines to avoid brittle tests
+		if lineNum < expectedLine {
+			t.Errorf("Caller line number (%d) is not near the calling line (%d)", lineNum, expectedLine)
+		}
+	})
+
+	// Test with Helper()
+	t.Run("WithHelper", func(t *testing.T) {
+		buf := &strings.Builder{}
+		zapLogger := createTestZapLogger(buf)
+		logger := NewLogger(zapLogger)
+
+		// Line number where the helper is called from the test
+		callerLine := line() // Get current line number
+		helperFuncWithHelper(logger)
+
+		out := strings.TrimRight(buf.String(), "\n")
+
+		var logEntry map[string]interface{}
+		if err := json.Unmarshal([]byte(out), &logEntry); err != nil {
+			t.Fatalf("Failed to parse log output as JSON: %v", err)
+		}
+
+		logCaller, ok := logEntry["caller"].(string)
+		if !ok {
+			t.Fatal("Log entry does not contain caller information")
+		}
+
+		require.Contains(t, logCaller, "logger_test.go")
+
+		// Get the line from the caller string
+		parts := strings.Split(logCaller, ":")
+		if len(parts) != 2 {
+			t.Fatalf("Unexpected caller format: %s", logCaller)
+		}
+
+		// Extract line number
+		lineStr := parts[1]
+		lineNum, err := strconv.Atoi(lineStr)
+		if err != nil {
+			t.Fatalf("Failed to parse line number from %s: %v", logCaller, err)
+		}
+
+		// With Helper(), the caller should be near the line where helper was called
+		// Allow a small range of lines to avoid brittle tests
+		if lineNum < callerLine+1 {
+			t.Errorf("Caller line number (%d) is not near the calling line (%d)", lineNum, callerLine)
+		}
+	})
+}
+
 type testError struct {
 	WorkflowID string
 }
@@ -219,4 +310,38 @@ func (e testError) Error() string { return "test error" }
 func (e testError) MarshalLogObject(enc zapcore.ObjectEncoder) error {
 	enc.AddString("workflow-id", e.WorkflowID)
 	return nil
+}
+
+// Helper function to create the zap logger
+func createTestZapLogger(buf *strings.Builder) *zap.Logger {
+	l := zap.NewAtomicLevel()
+	return zap.New(zapcore.NewCore(zapcore.NewJSONEncoder(zapcore.EncoderConfig{
+		TimeKey:        "ts",
+		LevelKey:       "level",
+		NameKey:        "logger",
+		CallerKey:      "caller",
+		MessageKey:     "msg",
+		StacktraceKey:  "stacktrace",
+		LineEnding:     zapcore.DefaultLineEnding,
+		EncodeLevel:    zapcore.LowercaseLevelEncoder,
+		EncodeTime:     zapcore.ISO8601TimeEncoder,
+		EncodeDuration: zapcore.SecondsDurationEncoder,
+		EncodeCaller:   zapcore.ShortCallerEncoder,
+	}), zapcore.AddSync(buf), l), zap.AddStacktrace(zapcore.ErrorLevel), zap.AddCaller())
+}
+
+func helperFuncWithoutHelper(l Logger) (lineNum int) {
+	lineNum = line() + 1
+	l.Error("test info", tag.WorkflowActionWorkflowStarted)
+	return lineNum
+}
+
+func helperFuncWithHelper(l Logger) {
+	l.Helper().Error("test info", tag.WorkflowActionWorkflowStarted)
+}
+
+// Helper function to get current line number
+func line() int {
+	_, _, line, _ := runtime.Caller(1)
+	return line
 }

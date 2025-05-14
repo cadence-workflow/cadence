@@ -1688,8 +1688,7 @@ func TestCheckEventBlobSizeLimit(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			testScope := tally.NewTestScope("test", nil)
 			metricsClient := metrics.NewClient(testScope, metrics.History)
-			logger := &log.MockLogger{}
-			defer logger.AssertExpectations(t)
+			logger := log.NewMockLogger(t)
 
 			if c.prepareLogger != nil {
 				c.prepareLogger(logger)

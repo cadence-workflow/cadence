@@ -77,7 +77,7 @@ func (s *transferQueueValidatorSuite) SetupTest() {
 		},
 		config.NewForTest(),
 	)
-	s.mockLogger = &log.MockLogger{}
+	s.mockLogger = log.NewMockLogger(s.T())
 	s.mockMetricScope = &mocks.Scope{}
 
 	s.processor = &transferQueueProcessorBase{
@@ -107,7 +107,6 @@ func (s *transferQueueValidatorSuite) SetupTest() {
 
 func (s *transferQueueValidatorSuite) TearDownTest() {
 	s.controller.Finish()
-	s.mockLogger.AssertExpectations(s.T())
 	s.mockMetricScope.AssertExpectations(s.T())
 }
 

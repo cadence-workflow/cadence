@@ -131,3 +131,12 @@ func (tl *throttledLogger) rateLimit(f func()) {
 		f()
 	}
 }
+
+func (tl *throttledLogger) Helper() Logger {
+	result := &throttledLogger{
+		rps:     atomic.LoadInt32(&tl.rps),
+		limiter: tl.limiter,
+		log:     tl.log.Helper(),
+	}
+	return result
+}

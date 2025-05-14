@@ -83,7 +83,7 @@ func TestMetricsHandler_GetShardOwner(t *testing.T) {
 
 			mockHandler.EXPECT().GetShardOwner(gomock.Any(), request).Return(response, tt.error)
 
-			mockLogger := &log.MockLogger{}
+			mockLogger := log.NewMockLogger(t)
 			mockLogger.On("WithTags", []tag.Tag{tag.ShardNamespace("test-namespace")}).Return(mockLogger)
 
 			handler := NewMetricsHandler(mockHandler, mockLogger, metricsClient).(*metricsHandler)
@@ -156,7 +156,7 @@ func TestPassThroughMethods(t *testing.T) {
 			mockHandler := handler.NewMockHandler(ctrl)
 
 			// We expect _no_ log calls
-			mockLogger := &log.MockLogger{}
+			mockLogger := log.NewMockLogger(t)
 
 			handler := NewMetricsHandler(mockHandler, mockLogger, metricsClient).(*metricsHandler)
 
@@ -237,7 +237,7 @@ func TestHandleErr(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			testScope := tally.NewTestScope("test", nil)
 			metricsClient := metrics.NewClient(testScope, metrics.ShardDistributor)
-			mockLogger := &log.MockLogger{}
+			mockLogger := log.NewMockLogger(t)
 			handler := NewMetricsHandler(nil, mockLogger, metricsClient).(*metricsHandler)
 
 			tt.setupMocks(mockLogger)

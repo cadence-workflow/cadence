@@ -673,7 +673,7 @@ func (s *domainCacheSuite) TestStart_Stop() {
 }
 
 func (s *domainCacheSuite) TestStart_Error() {
-	mockLogger := &log.MockLogger{}
+	mockLogger := log.NewMockLogger(s.T())
 	s.domainCache.logger = mockLogger
 
 	s.Equal(domainCacheInitialized, s.domainCache.status)
