@@ -723,7 +723,7 @@ func (d *nosqlExecutionStore) getImmediateHistoryTasks(
 ) (*persistence.GetHistoryTasksResponse, error) {
 	switch request.TaskCategory.ID() {
 	case persistence.HistoryTaskCategoryIDTransfer:
-		tasks, nextPageToken, err := d.db.SelectTransferTasksOrderByTaskID(ctx, d.shardID, request.PageSize, request.NextPageToken, request.InclusiveMinTaskKey.TaskID, request.ExclusiveMaxTaskKey.TaskID)
+		tasks, nextPageToken, err := d.db.SelectTransferTasksOrderByTaskID(ctx, d.shardID, request.PageSize, request.NextPageToken, request.InclusiveMinTaskKey.GetTaskID(), request.ExclusiveMaxTaskKey.GetTaskID())
 		if err != nil {
 			return nil, convertCommonErrors(d.db, "GetImmediateHistoryTasks", err)
 		}
@@ -749,7 +749,7 @@ func (d *nosqlExecutionStore) getImmediateHistoryTasks(
 			NextPageToken: nextPageToken,
 		}, nil
 	case persistence.HistoryTaskCategoryIDReplication:
-		tasks, nextPageToken, err := d.db.SelectReplicationTasksOrderByTaskID(ctx, d.shardID, request.PageSize, request.NextPageToken, request.InclusiveMinTaskKey.TaskID, request.ExclusiveMaxTaskKey.TaskID)
+		tasks, nextPageToken, err := d.db.SelectReplicationTasksOrderByTaskID(ctx, d.shardID, request.PageSize, request.NextPageToken, request.InclusiveMinTaskKey.GetTaskID(), request.ExclusiveMaxTaskKey.GetTaskID())
 		if err != nil {
 			return nil, convertCommonErrors(d.db, "GetImmediateHistoryTasks", err)
 		}
@@ -785,7 +785,7 @@ func (d *nosqlExecutionStore) getScheduledHistoryTasks(
 ) (*persistence.GetHistoryTasksResponse, error) {
 	switch request.TaskCategory.ID() {
 	case persistence.HistoryTaskCategoryIDTimer:
-		timers, nextPageToken, err := d.db.SelectTimerTasksOrderByVisibilityTime(ctx, d.shardID, request.PageSize, request.NextPageToken, request.InclusiveMinTaskKey.ScheduledTime, request.ExclusiveMaxTaskKey.ScheduledTime)
+		timers, nextPageToken, err := d.db.SelectTimerTasksOrderByVisibilityTime(ctx, d.shardID, request.PageSize, request.NextPageToken, request.InclusiveMinTaskKey.GetScheduledTime(), request.ExclusiveMaxTaskKey.GetScheduledTime())
 		if err != nil {
 			return nil, convertCommonErrors(d.db, "GetScheduledHistoryTasks", err)
 		}
@@ -836,7 +836,7 @@ func (d *nosqlExecutionStore) completeScheduledHistoryTask(
 ) error {
 	switch request.TaskCategory.ID() {
 	case persistence.HistoryTaskCategoryIDTimer:
-		err := d.db.DeleteTimerTask(ctx, d.shardID, request.TaskKey.TaskID, request.TaskKey.ScheduledTime)
+		err := d.db.DeleteTimerTask(ctx, d.shardID, request.TaskKey.GetTaskID(), request.TaskKey.GetScheduledTime())
 		if err != nil {
 			return convertCommonErrors(d.db, "CompleteScheduledHistoryTask", err)
 		}
@@ -852,13 +852,13 @@ func (d *nosqlExecutionStore) completeImmediateHistoryTask(
 ) error {
 	switch request.TaskCategory.ID() {
 	case persistence.HistoryTaskCategoryIDTransfer:
-		err := d.db.DeleteTransferTask(ctx, d.shardID, request.TaskKey.TaskID)
+		err := d.db.DeleteTransferTask(ctx, d.shardID, request.TaskKey.GetTaskID())
 		if err != nil {
 			return convertCommonErrors(d.db, "CompleteImmediateHistoryTask", err)
 		}
 		return nil
 	case persistence.HistoryTaskCategoryIDReplication:
-		err := d.db.DeleteReplicationTask(ctx, d.shardID, request.TaskKey.TaskID)
+		err := d.db.DeleteReplicationTask(ctx, d.shardID, request.TaskKey.GetTaskID())
 		if err != nil {
 			return convertCommonErrors(d.db, "CompleteImmediateHistoryTask", err)
 		}
@@ -888,7 +888,7 @@ func (d *nosqlExecutionStore) rangeCompleteScheduledHistoryTask(
 ) (*persistence.RangeCompleteHistoryTaskResponse, error) {
 	switch request.TaskCategory.ID() {
 	case persistence.HistoryTaskCategoryIDTimer:
-		err := d.db.RangeDeleteTimerTasks(ctx, d.shardID, request.InclusiveMinTaskKey.ScheduledTime, request.ExclusiveMaxTaskKey.ScheduledTime)
+		err := d.db.RangeDeleteTimerTasks(ctx, d.shardID, request.InclusiveMinTaskKey.GetScheduledTime(), request.ExclusiveMaxTaskKey.GetScheduledTime())
 		if err != nil {
 			return nil, convertCommonErrors(d.db, "RangeCompleteTimerTask", err)
 		}
@@ -904,12 +904,12 @@ func (d *nosqlExecutionStore) rangeCompleteImmediateHistoryTask(
 ) (*persistence.RangeCompleteHistoryTaskResponse, error) {
 	switch request.TaskCategory.ID() {
 	case persistence.HistoryTaskCategoryIDTransfer:
-		err := d.db.RangeDeleteTransferTasks(ctx, d.shardID, request.InclusiveMinTaskKey.TaskID, request.ExclusiveMaxTaskKey.TaskID)
+		err := d.db.RangeDeleteTransferTasks(ctx, d.shardID, request.InclusiveMinTaskKey.GetTaskID(), request.ExclusiveMaxTaskKey.GetTaskID())
 		if err != nil {
 			return nil, convertCommonErrors(d.db, "RangeCompleteTransferTask", err)
 		}
 	case persistence.HistoryTaskCategoryIDReplication:
-		err := d.db.RangeDeleteReplicationTasks(ctx, d.shardID, request.ExclusiveMaxTaskKey.TaskID)
+		err := d.db.RangeDeleteReplicationTasks(ctx, d.shardID, request.ExclusiveMaxTaskKey.GetTaskID())
 		if err != nil {
 			return nil, convertCommonErrors(d.db, "RangeCompleteReplicationTask", err)
 		}

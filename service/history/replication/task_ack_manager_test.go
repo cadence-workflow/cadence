@@ -127,7 +127,7 @@ func TestTaskAckManager_GetTasks(t *testing.T) {
 			name: "main flow - no replication tasks",
 			ackLevels: &fakeAckLevelStore{
 				readLevel: 200,
-				remote:    map[string]persistence.HistoryTaskKey{testClusterA: {TaskID: 2}},
+				remote:    map[string]persistence.HistoryTaskKey{testClusterA: persistence.NewImmediateTaskKey(2)},
 			},
 			domains:        fakeDomainCache{testDomainID: testDomain},
 			reader:         fakeTaskReader{},
@@ -147,7 +147,7 @@ func TestTaskAckManager_GetTasks(t *testing.T) {
 			name: "main flow - continues on recoverable error",
 			ackLevels: &fakeAckLevelStore{
 				readLevel: 200,
-				remote:    map[string]persistence.HistoryTaskKey{testClusterA: {TaskID: 2}},
+				remote:    map[string]persistence.HistoryTaskKey{testClusterA: persistence.NewImmediateTaskKey(2)},
 			},
 			domains: fakeDomainCache{testDomainID: testDomain},
 			reader:  fakeTaskReader{&testTask11, &testTask12, &testTask13, &testTask14},
@@ -172,7 +172,7 @@ func TestTaskAckManager_GetTasks(t *testing.T) {
 			name: "main flow - stops at non recoverable error",
 			ackLevels: &fakeAckLevelStore{
 				readLevel: 200,
-				remote:    map[string]persistence.HistoryTaskKey{testClusterA: {TaskID: 2}},
+				remote:    map[string]persistence.HistoryTaskKey{testClusterA: persistence.NewImmediateTaskKey(2)},
 			},
 			domains: fakeDomainCache{testDomainID: testDomain},
 			reader:  fakeTaskReader{&testTask11, &testTask12, &testTask13, &testTask14},
@@ -197,7 +197,7 @@ func TestTaskAckManager_GetTasks(t *testing.T) {
 			name: "main flow - stops at second task, batch size is 2",
 			ackLevels: &fakeAckLevelStore{
 				readLevel: 200,
-				remote:    map[string]persistence.HistoryTaskKey{testClusterA: {TaskID: 2}},
+				remote:    map[string]persistence.HistoryTaskKey{testClusterA: persistence.NewImmediateTaskKey(2)},
 			},
 			domains: fakeDomainCache{testDomainID: testDomain},
 			reader:  fakeTaskReader{&testTask11, &testTask12, &testTask13, &testTask14},
@@ -222,7 +222,7 @@ func TestTaskAckManager_GetTasks(t *testing.T) {
 			name: "main flow - stops at a message exceeded max response size",
 			ackLevels: &fakeAckLevelStore{
 				readLevel: 200,
-				remote:    map[string]persistence.HistoryTaskKey{testClusterA: {TaskID: 2}},
+				remote:    map[string]persistence.HistoryTaskKey{testClusterA: persistence.NewImmediateTaskKey(2)},
 			},
 			domains: fakeDomainCache{testDomainID: testDomain},
 			reader:  fakeTaskReader{&testTask11, &testTask12, &testTask13, &testTask14},
@@ -253,7 +253,7 @@ func TestTaskAckManager_GetTasks(t *testing.T) {
 			name: "main flow - fail at a message exceeded max response size",
 			ackLevels: &fakeAckLevelStore{
 				readLevel: 200,
-				remote:    map[string]persistence.HistoryTaskKey{testClusterA: {TaskID: 2}},
+				remote:    map[string]persistence.HistoryTaskKey{testClusterA: persistence.NewImmediateTaskKey(2)},
 			},
 			domains: fakeDomainCache{testDomainID: testDomain},
 			reader:  fakeTaskReader{&testTask11, &testTask12, &testTask13, &testTask14},
@@ -277,7 +277,7 @@ func TestTaskAckManager_GetTasks(t *testing.T) {
 			name: "skips tasks for domains non belonging to polling cluster",
 			ackLevels: &fakeAckLevelStore{
 				readLevel: 200,
-				remote:    map[string]persistence.HistoryTaskKey{testClusterA: {TaskID: 2}},
+				remote:    map[string]persistence.HistoryTaskKey{testClusterA: persistence.NewImmediateTaskKey(2)},
 			},
 			domains:        fakeDomainCache{testDomainID: testDomain},
 			reader:         fakeTaskReader{&testTask11},
@@ -297,7 +297,7 @@ func TestTaskAckManager_GetTasks(t *testing.T) {
 			name: "uses remote ack level for first fetch (empty task ID)",
 			ackLevels: &fakeAckLevelStore{
 				readLevel: 200,
-				remote:    map[string]persistence.HistoryTaskKey{testClusterA: {TaskID: 12}},
+				remote:    map[string]persistence.HistoryTaskKey{testClusterA: persistence.NewImmediateTaskKey(12)},
 			},
 			domains:        fakeDomainCache{testDomainID: testDomain},
 			reader:         fakeTaskReader{&testTask11, &testTask12},
@@ -317,7 +317,7 @@ func TestTaskAckManager_GetTasks(t *testing.T) {
 			name: "failed to read replication tasks - return error",
 			ackLevels: &fakeAckLevelStore{
 				readLevel: 200,
-				remote:    map[string]persistence.HistoryTaskKey{testClusterA: {TaskID: 2}},
+				remote:    map[string]persistence.HistoryTaskKey{testClusterA: persistence.NewImmediateTaskKey(2)},
 			},
 			reader:         (fakeTaskReader)(nil),
 			pollingCluster: testClusterA,
@@ -330,7 +330,7 @@ func TestTaskAckManager_GetTasks(t *testing.T) {
 			name: "failed to get domain - stops",
 			ackLevels: &fakeAckLevelStore{
 				readLevel: 200,
-				remote:    map[string]persistence.HistoryTaskKey{testClusterA: {TaskID: 2}},
+				remote:    map[string]persistence.HistoryTaskKey{testClusterA: persistence.NewImmediateTaskKey(2)},
 			},
 			domains:        fakeDomainCache{},
 			reader:         fakeTaskReader{&testTask11},
@@ -349,7 +349,7 @@ func TestTaskAckManager_GetTasks(t *testing.T) {
 			name: "failed to update ack level - no error, return response anyway",
 			ackLevels: &fakeAckLevelStore{
 				readLevel: 200,
-				remote:    map[string]persistence.HistoryTaskKey{testClusterA: {TaskID: 2}},
+				remote:    map[string]persistence.HistoryTaskKey{testClusterA: persistence.NewImmediateTaskKey(2)},
 				updateErr: errors.New("error update ack level"),
 			},
 			domains:        fakeDomainCache{testDomainID: testDomain},
@@ -392,7 +392,7 @@ func TestTaskAckManager_GetTasks(t *testing.T) {
 			}
 
 			if tt.expectAckLevel != 0 {
-				assert.Equal(t, tt.expectAckLevel, tt.ackLevels.remote[tt.pollingCluster].TaskID)
+				assert.Equal(t, tt.expectAckLevel, tt.ackLevels.remote[tt.pollingCluster].GetTaskID())
 			}
 		})
 	}
@@ -405,9 +405,7 @@ type fakeAckLevelStore struct {
 }
 
 func (s *fakeAckLevelStore) UpdateIfNeededAndGetQueueMaxReadLevel(category persistence.HistoryTaskCategory, cluster string) persistence.HistoryTaskKey {
-	return persistence.HistoryTaskKey{
-		TaskID: s.readLevel,
-	}
+	return persistence.NewImmediateTaskKey(s.readLevel)
 }
 func (s *fakeAckLevelStore) GetQueueClusterAckLevel(category persistence.HistoryTaskCategory, cluster string) persistence.HistoryTaskKey {
 	return s.remote[cluster]

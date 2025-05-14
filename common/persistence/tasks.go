@@ -51,8 +51,8 @@ type Task interface {
 
 type (
 	HistoryTaskKey struct {
-		ScheduledTime time.Time
-		TaskID        int64
+		scheduledTime time.Time
+		taskID        int64
 	}
 
 	WorkflowIdentifier struct {
@@ -254,7 +254,31 @@ var (
 	_ Task = (*HistoryReplicationTask)(nil)
 	_ Task = (*SyncActivityTask)(nil)
 	_ Task = (*FailoverMarkerTask)(nil)
+
+	immediateTaskKeyScheduleTime = time.Unix(0, 0).UTC()
 )
+
+func NewImmediateTaskKey(taskID int64) HistoryTaskKey {
+	return HistoryTaskKey{
+		scheduledTime: immediateTaskKeyScheduleTime,
+		taskID:        taskID,
+	}
+}
+
+func NewHistoryTaskKey(scheduledTime time.Time, taskID int64) HistoryTaskKey {
+	return HistoryTaskKey{
+		scheduledTime: scheduledTime,
+		taskID:        taskID,
+	}
+}
+
+func (a HistoryTaskKey) GetTaskID() int64 {
+	return a.taskID
+}
+
+func (a HistoryTaskKey) GetScheduledTime() time.Time {
+	return a.scheduledTime
+}
 
 func (a *WorkflowIdentifier) GetDomainID() string {
 	return a.DomainID

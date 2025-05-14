@@ -60,13 +60,11 @@ func newTimerQueueActiveProcessor(
 	}
 
 	updateMaxReadLevel := func() task.Key {
-		return newTimerTaskKey(shard.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryTimer, clusterName).ScheduledTime, 0)
+		return newTimerTaskKey(shard.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryTimer, clusterName).GetScheduledTime(), 0)
 	}
 
 	updateClusterAckLevel := func(ackLevel task.Key) error {
-		return shard.UpdateQueueClusterAckLevel(persistence.HistoryTaskCategoryTimer, clusterName, persistence.HistoryTaskKey{
-			ScheduledTime: ackLevel.(timerTaskKey).visibilityTimestamp,
-		})
+		return shard.UpdateQueueClusterAckLevel(persistence.HistoryTaskCategoryTimer, clusterName, persistence.NewHistoryTaskKey(ackLevel.(timerTaskKey).visibilityTimestamp, 0))
 	}
 
 	updateProcessingQueueStates := func(states []ProcessingQueueState) error {

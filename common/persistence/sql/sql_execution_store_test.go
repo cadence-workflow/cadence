@@ -2614,8 +2614,8 @@ func TestRangeCompleteHistoryTask(t *testing.T) {
 			name: "success - scheduled timer task",
 			request: &persistence.RangeCompleteHistoryTaskRequest{
 				TaskCategory:        persistence.HistoryTaskCategoryTimer,
-				InclusiveMinTaskKey: persistence.HistoryTaskKey{ScheduledTime: time.Unix(0, 0)},
-				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{ScheduledTime: time.Unix(0, 0).Add(time.Minute)},
+				InclusiveMinTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0), 0),
+				ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0).Add(time.Minute), 0),
 				PageSize:            1000,
 			},
 			setupMock: func(mockDB *sqlplugin.MockDB) {
@@ -2632,8 +2632,8 @@ func TestRangeCompleteHistoryTask(t *testing.T) {
 			name: "success - immediate transfer task",
 			request: &persistence.RangeCompleteHistoryTaskRequest{
 				TaskCategory:        persistence.HistoryTaskCategoryTransfer,
-				InclusiveMinTaskKey: persistence.HistoryTaskKey{TaskID: 100},
-				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{TaskID: 200},
+				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100),
+				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
 				PageSize:            1000,
 			},
 			setupMock: func(mockDB *sqlplugin.MockDB) {
@@ -2650,8 +2650,8 @@ func TestRangeCompleteHistoryTask(t *testing.T) {
 			name: "success - immediate replication task",
 			request: &persistence.RangeCompleteHistoryTaskRequest{
 				TaskCategory:        persistence.HistoryTaskCategoryReplication,
-				InclusiveMinTaskKey: persistence.HistoryTaskKey{TaskID: 100}, // this is ignored by replication task
-				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{TaskID: 200},
+				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100), // this is ignored by replication task
+				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
 				PageSize:            1000,
 			},
 			setupMock: func(mockDB *sqlplugin.MockDB) {
@@ -2675,8 +2675,8 @@ func TestRangeCompleteHistoryTask(t *testing.T) {
 			name: "database error on timer task",
 			request: &persistence.RangeCompleteHistoryTaskRequest{
 				TaskCategory:        persistence.HistoryTaskCategoryTimer,
-				InclusiveMinTaskKey: persistence.HistoryTaskKey{ScheduledTime: time.Unix(0, 0)},
-				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{ScheduledTime: time.Unix(0, 0).Add(time.Minute)},
+				InclusiveMinTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0), 0),
+				ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0).Add(time.Minute), 0),
 				PageSize:            1000,
 			},
 			setupMock: func(mockDB *sqlplugin.MockDB) {
@@ -2694,8 +2694,8 @@ func TestRangeCompleteHistoryTask(t *testing.T) {
 			name: "database error on transfer task",
 			request: &persistence.RangeCompleteHistoryTaskRequest{
 				TaskCategory:        persistence.HistoryTaskCategoryTransfer,
-				InclusiveMinTaskKey: persistence.HistoryTaskKey{TaskID: 100},
-				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{TaskID: 200},
+				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100),
+				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
 				PageSize:            1000,
 			},
 			setupMock: func(mockDB *sqlplugin.MockDB) {
@@ -2713,8 +2713,8 @@ func TestRangeCompleteHistoryTask(t *testing.T) {
 			name: "database error on replication task",
 			request: &persistence.RangeCompleteHistoryTaskRequest{
 				TaskCategory:        persistence.HistoryTaskCategoryReplication,
-				InclusiveMinTaskKey: persistence.HistoryTaskKey{TaskID: 100},
-				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{TaskID: 200},
+				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100),
+				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
 				PageSize:            1000,
 			},
 			setupMock: func(mockDB *sqlplugin.MockDB) {
@@ -2731,8 +2731,8 @@ func TestRangeCompleteHistoryTask(t *testing.T) {
 			name: "sql result error on timer task",
 			request: &persistence.RangeCompleteHistoryTaskRequest{
 				TaskCategory:        persistence.HistoryTaskCategoryTimer,
-				InclusiveMinTaskKey: persistence.HistoryTaskKey{ScheduledTime: time.Unix(0, 0)},
-				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{ScheduledTime: time.Unix(0, 0).Add(time.Minute)},
+				InclusiveMinTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0), 0),
+				ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0).Add(time.Minute), 0),
 				PageSize:            1000,
 			},
 			setupMock: func(mockDB *sqlplugin.MockDB) {
@@ -2750,8 +2750,8 @@ func TestRangeCompleteHistoryTask(t *testing.T) {
 			name: "sql result error on transfer task",
 			request: &persistence.RangeCompleteHistoryTaskRequest{
 				TaskCategory:        persistence.HistoryTaskCategoryTransfer,
-				InclusiveMinTaskKey: persistence.HistoryTaskKey{TaskID: 100},
-				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{TaskID: 200},
+				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100),
+				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
 				PageSize:            1000,
 			},
 			setupMock: func(mockDB *sqlplugin.MockDB) {
@@ -2769,8 +2769,8 @@ func TestRangeCompleteHistoryTask(t *testing.T) {
 			name: "sql result error on replication task",
 			request: &persistence.RangeCompleteHistoryTaskRequest{
 				TaskCategory:        persistence.HistoryTaskCategoryReplication,
-				InclusiveMinTaskKey: persistence.HistoryTaskKey{TaskID: 100},
-				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{TaskID: 200},
+				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100),
+				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
 				PageSize:            1000,
 			},
 			setupMock: func(mockDB *sqlplugin.MockDB) {
@@ -2822,8 +2822,8 @@ func TestGetHistoryTasks_SQL(t *testing.T) {
 			name: "success - get immediate transfer tasks",
 			request: &persistence.GetHistoryTasksRequest{
 				TaskCategory:        persistence.HistoryTaskCategoryTransfer,
-				InclusiveMinTaskKey: persistence.HistoryTaskKey{TaskID: 100},
-				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{TaskID: 200},
+				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100),
+				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
 				PageSize:            10,
 				NextPageToken:       serializePageToken(101),
 			},
@@ -2860,8 +2860,8 @@ func TestGetHistoryTasks_SQL(t *testing.T) {
 			name: "success - get scheduled timer tasks",
 			request: &persistence.GetHistoryTasksRequest{
 				TaskCategory:        persistence.HistoryTaskCategoryTimer,
-				InclusiveMinTaskKey: persistence.HistoryTaskKey{ScheduledTime: time.Unix(0, 0).UTC()},
-				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{ScheduledTime: time.Unix(0, 0).Add(time.Minute).UTC()},
+				InclusiveMinTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0).UTC(), 0),
+				ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0).Add(time.Minute).UTC(), 0),
 				PageSize:            1,
 				NextPageToken: func() []byte {
 					ti := &timerTaskPageToken{TaskID: 10, Timestamp: time.Unix(0, 1).UTC()}
@@ -2921,8 +2921,8 @@ func TestGetHistoryTasks_SQL(t *testing.T) {
 			name: "success - get immediate replication tasks",
 			request: &persistence.GetHistoryTasksRequest{
 				TaskCategory:        persistence.HistoryTaskCategoryReplication,
-				InclusiveMinTaskKey: persistence.HistoryTaskKey{TaskID: 100},
-				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{TaskID: 200},
+				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100),
+				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
 				PageSize:            10,
 				NextPageToken:       serializePageToken(101),
 			},
@@ -3040,7 +3040,7 @@ func TestCompleteHistoryTask(t *testing.T) {
 			name: "success - complete scheduled timer task",
 			request: &persistence.CompleteHistoryTaskRequest{
 				TaskCategory: persistence.HistoryTaskCategoryTimer,
-				TaskKey:      persistence.HistoryTaskKey{TaskID: 1, ScheduledTime: time.Unix(10, 10)},
+				TaskKey:      persistence.NewHistoryTaskKey(time.Unix(10, 10), 1),
 			},
 			setupMock: func(mockDB any) {
 				mock := mockDB.(*sqlplugin.MockDB)
@@ -3056,7 +3056,7 @@ func TestCompleteHistoryTask(t *testing.T) {
 			name: "success - complete immediate transfer task",
 			request: &persistence.CompleteHistoryTaskRequest{
 				TaskCategory: persistence.HistoryTaskCategoryTransfer,
-				TaskKey:      persistence.HistoryTaskKey{TaskID: 2},
+				TaskKey:      persistence.NewImmediateTaskKey(2),
 			},
 			setupMock: func(mockDB any) {
 				mock := mockDB.(*sqlplugin.MockDB)
@@ -3071,7 +3071,7 @@ func TestCompleteHistoryTask(t *testing.T) {
 			name: "success - complete immediate replication task",
 			request: &persistence.CompleteHistoryTaskRequest{
 				TaskCategory: persistence.HistoryTaskCategoryReplication,
-				TaskKey:      persistence.HistoryTaskKey{TaskID: 3},
+				TaskKey:      persistence.NewImmediateTaskKey(3),
 			},
 			setupMock: func(mockDB any) {
 				mock := mockDB.(*sqlplugin.MockDB)
@@ -3094,7 +3094,7 @@ func TestCompleteHistoryTask(t *testing.T) {
 			name: "delete timer task error",
 			request: &persistence.CompleteHistoryTaskRequest{
 				TaskCategory: persistence.HistoryTaskCategoryTimer,
-				TaskKey:      persistence.HistoryTaskKey{TaskID: 1, ScheduledTime: time.Unix(10, 10)},
+				TaskKey:      persistence.NewHistoryTaskKey(time.Unix(10, 10), 1),
 			},
 			setupMock: func(mockDB any) {
 				mock := mockDB.(*sqlplugin.MockDB)
@@ -3111,7 +3111,7 @@ func TestCompleteHistoryTask(t *testing.T) {
 			name: "delete transfer task error",
 			request: &persistence.CompleteHistoryTaskRequest{
 				TaskCategory: persistence.HistoryTaskCategoryTransfer,
-				TaskKey:      persistence.HistoryTaskKey{TaskID: 2},
+				TaskKey:      persistence.NewImmediateTaskKey(2),
 			},
 			setupMock: func(mockDB any) {
 				mock := mockDB.(*sqlplugin.MockDB)
@@ -3127,7 +3127,7 @@ func TestCompleteHistoryTask(t *testing.T) {
 			name: "delete replication task error",
 			request: &persistence.CompleteHistoryTaskRequest{
 				TaskCategory: persistence.HistoryTaskCategoryReplication,
-				TaskKey:      persistence.HistoryTaskKey{TaskID: 3},
+				TaskKey:      persistence.NewImmediateTaskKey(3),
 			},
 			setupMock: func(mockDB any) {
 				mock := mockDB.(*sqlplugin.MockDB)

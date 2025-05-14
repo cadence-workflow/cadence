@@ -753,24 +753,17 @@ func (h *handlerImpl) RemoveTask(
 	case commonconstants.TaskTypeTransfer:
 		return executionMgr.CompleteHistoryTask(ctx, &persistence.CompleteHistoryTaskRequest{
 			TaskCategory: persistence.HistoryTaskCategoryTransfer,
-			TaskKey: persistence.HistoryTaskKey{
-				TaskID: request.GetTaskID(),
-			},
+			TaskKey:      persistence.NewImmediateTaskKey(request.GetTaskID()),
 		})
 	case commonconstants.TaskTypeTimer:
 		return executionMgr.CompleteHistoryTask(ctx, &persistence.CompleteHistoryTaskRequest{
 			TaskCategory: persistence.HistoryTaskCategoryTimer,
-			TaskKey: persistence.HistoryTaskKey{
-				ScheduledTime: time.Unix(0, request.GetVisibilityTimestamp()),
-				TaskID:        request.GetTaskID(),
-			},
+			TaskKey:      persistence.NewHistoryTaskKey(time.Unix(0, request.GetVisibilityTimestamp()), request.GetTaskID()),
 		})
 	case commonconstants.TaskTypeReplication:
 		return executionMgr.CompleteHistoryTask(ctx, &persistence.CompleteHistoryTaskRequest{
 			TaskCategory: persistence.HistoryTaskCategoryReplication,
-			TaskKey: persistence.HistoryTaskKey{
-				TaskID: request.GetTaskID(),
-			},
+			TaskKey:      persistence.NewImmediateTaskKey(request.GetTaskID()),
 		})
 	default:
 		return constants.ErrInvalidTaskType

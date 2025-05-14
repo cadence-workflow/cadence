@@ -928,14 +928,14 @@ func Test_loadTransferProcessingQueueStates(t *testing.T) {
 			enableLoadQueueStates: true,
 			clusterName:           constants.TestClusterMetadata.GetCurrentClusterName(),
 			taskID: func(testContext *shard.TestContext) int64 {
-				return testContext.GetQueueClusterAckLevel(persistence.HistoryTaskCategoryTransfer, constants.TestClusterMetadata.GetCurrentClusterName()).TaskID
+				return testContext.GetQueueClusterAckLevel(persistence.HistoryTaskCategoryTransfer, constants.TestClusterMetadata.GetCurrentClusterName()).GetTaskID()
 			},
 		},
 		"load queue states false": {
 			enableLoadQueueStates: false,
 			clusterName:           "standby",
 			taskID: func(testContext *shard.TestContext) int64 {
-				return testContext.GetQueueClusterAckLevel(persistence.HistoryTaskCategoryTransfer, "standby").TaskID
+				return testContext.GetQueueClusterAckLevel(persistence.HistoryTaskCategoryTransfer, "standby").GetTaskID()
 			},
 		},
 	}

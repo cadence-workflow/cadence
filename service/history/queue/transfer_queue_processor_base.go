@@ -529,14 +529,10 @@ func (t *transferQueueProcessorBase) readTasks(
 	op := func() error {
 		var err error
 		response, err = t.shard.GetExecutionManager().GetHistoryTasks(context.Background(), &persistence.GetHistoryTasksRequest{
-			TaskCategory: persistence.HistoryTaskCategoryTransfer,
-			InclusiveMinTaskKey: persistence.HistoryTaskKey{
-				TaskID: readLevel.(transferTaskKey).taskID + 1,
-			},
-			ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
-				TaskID: maxReadLevel.(transferTaskKey).taskID + 1,
-			},
-			PageSize: t.options.BatchSize(),
+			TaskCategory:        persistence.HistoryTaskCategoryTransfer,
+			InclusiveMinTaskKey: persistence.NewImmediateTaskKey(readLevel.(transferTaskKey).taskID + 1),
+			ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(maxReadLevel.(transferTaskKey).taskID + 1),
+			PageSize:            t.options.BatchSize(),
 		})
 		return err
 	}

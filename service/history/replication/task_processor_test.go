@@ -542,11 +542,9 @@ func (s *taskProcessorSuite) TestCleanupReplicationTaskLoop() {
 	req := &persistence.RangeCompleteHistoryTaskRequest{
 		// this is min ack level of remote clusters. there's only one remote cluster in this test "standby".
 		// its replication ack level is set to 350 in SetupTest(), and since the max key is exclusive, set the task id to 351
-		TaskCategory: persistence.HistoryTaskCategoryReplication,
-		ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
-			TaskID: 351,
-		},
-		PageSize: 50, // this comes from test config
+		TaskCategory:        persistence.HistoryTaskCategoryReplication,
+		ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(351),
+		PageSize:            50, // this comes from test config
 	}
 	s.executionManager.On("RangeCompleteHistoryTask", mock.Anything, req).Return(&persistence.RangeCompleteHistoryTaskResponse{
 		TasksCompleted: 50, // if this number equals to page size the loop continues

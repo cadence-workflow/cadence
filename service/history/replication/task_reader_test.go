@@ -62,14 +62,10 @@ func TestTaskReader(t *testing.T) {
 			maxReadLevel: 100,
 			prepareExecutions: func(m *persistence.MockExecutionManager) {
 				m.EXPECT().GetHistoryTasks(gomock.Any(), &persistence.GetHistoryTasksRequest{
-					TaskCategory: persistence.HistoryTaskCategoryReplication,
-					InclusiveMinTaskKey: persistence.HistoryTaskKey{
-						TaskID: 51,
-					},
-					ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
-						TaskID: 101,
-					},
-					PageSize: testBatchSize,
+					TaskCategory:        persistence.HistoryTaskCategoryReplication,
+					InclusiveMinTaskKey: persistence.NewImmediateTaskKey(51),
+					ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(101),
+					PageSize:            testBatchSize,
 				}).Return(&persistence.GetHistoryTasksResponse{Tasks: testReplicationTasks}, nil)
 			},
 			expectResponse: testReplicationTasks,

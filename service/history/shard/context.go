@@ -231,9 +231,7 @@ func (s *contextImpl) UpdateIfNeededAndGetQueueMaxReadLevel(category persistence
 func (s *contextImpl) getImmediateTaskMaxReadLevel() persistence.HistoryTaskKey {
 	s.RLock()
 	defer s.RUnlock()
-	return persistence.HistoryTaskKey{
-		TaskID: s.immediateTaskMaxReadLevel,
-	}
+	return persistence.NewImmediateTaskKey(s.immediateTaskMaxReadLevel)
 }
 
 func (s *contextImpl) updateScheduledTaskMaxReadLevel(cluster string) persistence.HistoryTaskKey {
@@ -249,9 +247,7 @@ func (s *contextImpl) updateScheduledTaskMaxReadLevel(cluster string) persistenc
 	if newMaxReadLevel.After(s.scheduledTaskMaxReadLevelMap[cluster]) {
 		s.scheduledTaskMaxReadLevelMap[cluster] = newMaxReadLevel
 	}
-	return persistence.HistoryTaskKey{
-		ScheduledTime: s.scheduledTaskMaxReadLevelMap[cluster],
-	}
+	return persistence.NewHistoryTaskKey(s.scheduledTaskMaxReadLevelMap[cluster], 0)
 }
 
 func (s *contextImpl) GetQueueAckLevel(category persistence.HistoryTaskCategory) persistence.HistoryTaskKey {
@@ -264,17 +260,11 @@ func (s *contextImpl) GetQueueAckLevel(category persistence.HistoryTaskCategory)
 func (s *contextImpl) getQueueAckLevelLocked(category persistence.HistoryTaskCategory) persistence.HistoryTaskKey {
 	switch category {
 	case persistence.HistoryTaskCategoryTransfer:
-		return persistence.HistoryTaskKey{
-			TaskID: s.shardInfo.TransferAckLevel,
-		}
+		return persistence.NewImmediateTaskKey(s.shardInfo.TransferAckLevel)
 	case persistence.HistoryTaskCategoryTimer:
-		return persistence.HistoryTaskKey{
-			ScheduledTime: s.shardInfo.TimerAckLevel,
-		}
+		return persistence.NewHistoryTaskKey(s.shardInfo.TimerAckLevel, 0)
 	case persistence.HistoryTaskCategoryReplication:
-		return persistence.HistoryTaskKey{
-			TaskID: s.shardInfo.ReplicationAckLevel,
-		}
+		return persistence.NewImmediateTaskKey(s.shardInfo.ReplicationAckLevel)
 	default:
 		return persistence.HistoryTaskKey{}
 	}
@@ -286,19 +276,19 @@ func (s *contextImpl) UpdateQueueAckLevel(category persistence.HistoryTaskCatego
 
 	switch category {
 	case persistence.HistoryTaskCategoryTransfer:
-		s.shardInfo.TransferAckLevel = ackLevel.TaskID
+		s.shardInfo.TransferAckLevel = ackLevel.GetTaskID()
 		// for forward compatibility
 		s.shardInfo.QueueStates[int32(persistence.HistoryTaskCategoryIDTransfer)] = &types.QueueState{
-			ExclusiveMaxReadLevel: &types.TaskKey{TaskID: ackLevel.TaskID + 1},
+			ExclusiveMaxReadLevel: &types.TaskKey{TaskID: ackLevel.GetTaskID() + 1},
 		}
 	case persistence.HistoryTaskCategoryTimer:
-		s.shardInfo.TimerAckLevel = ackLevel.ScheduledTime
+		s.shardInfo.TimerAckLevel = ackLevel.GetScheduledTime()
 		// for forward compatibility
 		s.shardInfo.QueueStates[int32(persistence.HistoryTaskCategoryIDTimer)] = &types.QueueState{
-			ExclusiveMaxReadLevel: &types.TaskKey{ScheduledTimeNano: ackLevel.ScheduledTime.UnixNano()},
+			ExclusiveMaxReadLevel: &types.TaskKey{ScheduledTimeNano: ackLevel.GetScheduledTime().UnixNano()},
 		}
 	case persistence.HistoryTaskCategoryReplication:
-		s.shardInfo.ReplicationAckLevel = ackLevel.TaskID
+		s.shardInfo.ReplicationAckLevel = ackLevel.GetTaskID()
 	default:
 		return fmt.Errorf("unknown history task category: %v", category)
 	}
@@ -314,38 +304,26 @@ func (s *contextImpl) GetQueueClusterAckLevel(category persistence.HistoryTaskCa
 	case persistence.HistoryTaskCategoryTransfer:
 		// if we can find corresponding ack level
 		if ackLevel, ok := s.shardInfo.ClusterTransferAckLevel[cluster]; ok {
-			return persistence.HistoryTaskKey{
-				TaskID: ackLevel,
-			}
+			return persistence.NewImmediateTaskKey(ackLevel)
 		}
 		// otherwise, default to existing ack level, which belongs to local cluster
 		// this can happen if you add more cluster
-		return persistence.HistoryTaskKey{
-			TaskID: s.shardInfo.TransferAckLevel,
-		}
+		return persistence.NewImmediateTaskKey(s.shardInfo.TransferAckLevel)
 	case persistence.HistoryTaskCategoryTimer:
 		// if we can find corresponding ack level
 		if ackLevel, ok := s.shardInfo.ClusterTimerAckLevel[cluster]; ok {
-			return persistence.HistoryTaskKey{
-				ScheduledTime: ackLevel,
-			}
+			return persistence.NewHistoryTaskKey(ackLevel, 0)
 		}
 		// otherwise, default to existing ack level, which belongs to local cluster
 		// this can happen if you add more cluster
-		return persistence.HistoryTaskKey{
-			ScheduledTime: s.shardInfo.TimerAckLevel,
-		}
+		return persistence.NewHistoryTaskKey(s.shardInfo.TimerAckLevel, 0)
 	case persistence.HistoryTaskCategoryReplication:
 		// if we can find corresponding replication level
 		if replicationLevel, ok := s.shardInfo.ClusterReplicationLevel[cluster]; ok {
-			return persistence.HistoryTaskKey{
-				TaskID: replicationLevel,
-			}
+			return persistence.NewImmediateTaskKey(replicationLevel)
 		}
 		// New cluster always starts from -1
-		return persistence.HistoryTaskKey{
-			TaskID: -1,
-		}
+		return persistence.NewImmediateTaskKey(-1)
 	default:
 		return persistence.HistoryTaskKey{}
 	}
@@ -357,11 +335,11 @@ func (s *contextImpl) UpdateQueueClusterAckLevel(category persistence.HistoryTas
 
 	switch category {
 	case persistence.HistoryTaskCategoryTransfer:
-		s.shardInfo.ClusterTransferAckLevel[cluster] = ackLevel.TaskID
+		s.shardInfo.ClusterTransferAckLevel[cluster] = ackLevel.GetTaskID()
 	case persistence.HistoryTaskCategoryTimer:
-		s.shardInfo.ClusterTimerAckLevel[cluster] = ackLevel.ScheduledTime
+		s.shardInfo.ClusterTimerAckLevel[cluster] = ackLevel.GetScheduledTime()
 	case persistence.HistoryTaskCategoryReplication:
-		s.shardInfo.ClusterReplicationLevel[cluster] = ackLevel.TaskID
+		s.shardInfo.ClusterReplicationLevel[cluster] = ackLevel.GetTaskID()
 	default:
 		return fmt.Errorf("unknown history task category: %v", category)
 	}

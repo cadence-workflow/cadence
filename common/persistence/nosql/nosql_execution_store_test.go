@@ -1294,8 +1294,8 @@ func TestRangeCompleteHistoryTask(t *testing.T) {
 			name: "success - scheduled timer task",
 			request: &persistence.RangeCompleteHistoryTaskRequest{
 				TaskCategory:        persistence.HistoryTaskCategoryTimer,
-				InclusiveMinTaskKey: persistence.HistoryTaskKey{ScheduledTime: time.Unix(0, 0)},
-				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{ScheduledTime: time.Unix(0, 0).Add(time.Minute)},
+				InclusiveMinTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0), 0),
+				ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0).Add(time.Minute), 0),
 			},
 			setupMock: func(mockDB *nosqlplugin.MockDB) {
 				mockDB.EXPECT().RangeDeleteTimerTasks(ctx, shardID, time.Unix(0, 0), time.Unix(0, 0).Add(time.Minute)).Return(nil)
@@ -1306,8 +1306,8 @@ func TestRangeCompleteHistoryTask(t *testing.T) {
 			name: "success - immediate transfer task",
 			request: &persistence.RangeCompleteHistoryTaskRequest{
 				TaskCategory:        persistence.HistoryTaskCategoryTransfer,
-				InclusiveMinTaskKey: persistence.HistoryTaskKey{TaskID: 100},
-				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{TaskID: 200},
+				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100),
+				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
 			},
 			setupMock: func(mockDB *nosqlplugin.MockDB) {
 				mockDB.EXPECT().RangeDeleteTransferTasks(ctx, shardID, int64(100), int64(200)).Return(nil)
@@ -1318,8 +1318,8 @@ func TestRangeCompleteHistoryTask(t *testing.T) {
 			name: "success - immediate replication task",
 			request: &persistence.RangeCompleteHistoryTaskRequest{
 				TaskCategory:        persistence.HistoryTaskCategoryReplication,
-				InclusiveMinTaskKey: persistence.HistoryTaskKey{TaskID: 100}, // this is ignored by replication task
-				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{TaskID: 200},
+				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100), // this is ignored by replication task
+				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
 			},
 			setupMock: func(mockDB *nosqlplugin.MockDB) {
 				mockDB.EXPECT().RangeDeleteReplicationTasks(ctx, shardID, int64(200)).Return(nil)
@@ -1338,8 +1338,8 @@ func TestRangeCompleteHistoryTask(t *testing.T) {
 			name: "database error on timer task",
 			request: &persistence.RangeCompleteHistoryTaskRequest{
 				TaskCategory:        persistence.HistoryTaskCategoryTimer,
-				InclusiveMinTaskKey: persistence.HistoryTaskKey{ScheduledTime: time.Unix(0, 0)},
-				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{ScheduledTime: time.Unix(0, 0).Add(time.Minute)},
+				InclusiveMinTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0), 0),
+				ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0).Add(time.Minute), 0),
 			},
 			setupMock: func(mockDB *nosqlplugin.MockDB) {
 				mockDB.EXPECT().RangeDeleteTimerTasks(ctx, shardID, time.Unix(0, 0), time.Unix(0, 0).Add(time.Minute)).Return(errors.New("db error"))
@@ -1351,8 +1351,8 @@ func TestRangeCompleteHistoryTask(t *testing.T) {
 			name: "database error on transfer task",
 			request: &persistence.RangeCompleteHistoryTaskRequest{
 				TaskCategory:        persistence.HistoryTaskCategoryTransfer,
-				InclusiveMinTaskKey: persistence.HistoryTaskKey{TaskID: 100},
-				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{TaskID: 200},
+				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100),
+				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
 			},
 			setupMock: func(mockDB *nosqlplugin.MockDB) {
 				mockDB.EXPECT().RangeDeleteTransferTasks(ctx, shardID, int64(100), int64(200)).Return(errors.New("db error"))
@@ -1364,8 +1364,8 @@ func TestRangeCompleteHistoryTask(t *testing.T) {
 			name: "database error on replication task",
 			request: &persistence.RangeCompleteHistoryTaskRequest{
 				TaskCategory:        persistence.HistoryTaskCategoryReplication,
-				InclusiveMinTaskKey: persistence.HistoryTaskKey{TaskID: 100},
-				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{TaskID: 200},
+				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100),
+				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
 			},
 			setupMock: func(mockDB *nosqlplugin.MockDB) {
 				mockDB.EXPECT().RangeDeleteReplicationTasks(ctx, shardID, int64(200)).Return(errors.New("db error"))
@@ -1411,8 +1411,8 @@ func TestGetHistoryTasks(t *testing.T) {
 			name: "success - get immediate transfer tasks",
 			request: &persistence.GetHistoryTasksRequest{
 				TaskCategory:        persistence.HistoryTaskCategoryTransfer,
-				InclusiveMinTaskKey: persistence.HistoryTaskKey{TaskID: 100},
-				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{TaskID: 200},
+				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100),
+				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
 				PageSize:            10,
 				NextPageToken:       []byte("next-page-token"),
 			},
@@ -1456,8 +1456,8 @@ func TestGetHistoryTasks(t *testing.T) {
 			name: "success - get immediate transfer tasks from data blob",
 			request: &persistence.GetHistoryTasksRequest{
 				TaskCategory:        persistence.HistoryTaskCategoryTransfer,
-				InclusiveMinTaskKey: persistence.HistoryTaskKey{TaskID: 100},
-				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{TaskID: 200},
+				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100),
+				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
 				PageSize:            10,
 				NextPageToken:       []byte("next-page-token"),
 			},
@@ -1506,8 +1506,8 @@ func TestGetHistoryTasks(t *testing.T) {
 			name: "success - get scheduled timer tasks",
 			request: &persistence.GetHistoryTasksRequest{
 				TaskCategory:        persistence.HistoryTaskCategoryTimer,
-				InclusiveMinTaskKey: persistence.HistoryTaskKey{ScheduledTime: time.Unix(0, 0)},
-				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{ScheduledTime: time.Unix(0, 0).Add(time.Minute)},
+				InclusiveMinTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0), 0),
+				ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0).Add(time.Minute), 0),
 				PageSize:            10,
 				NextPageToken:       []byte("next-page-token"),
 			},
@@ -1549,8 +1549,8 @@ func TestGetHistoryTasks(t *testing.T) {
 			name: "success - get scheduled timer tasks from data blob",
 			request: &persistence.GetHistoryTasksRequest{
 				TaskCategory:        persistence.HistoryTaskCategoryTimer,
-				InclusiveMinTaskKey: persistence.HistoryTaskKey{ScheduledTime: time.Unix(0, 0)},
-				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{ScheduledTime: time.Unix(0, 0).Add(time.Minute)},
+				InclusiveMinTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0), 0),
+				ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0).Add(time.Minute), 0),
 				PageSize:            10,
 				NextPageToken:       []byte("next-page-token"),
 			},
@@ -1596,8 +1596,8 @@ func TestGetHistoryTasks(t *testing.T) {
 			name: "success - get immediate replication tasks",
 			request: &persistence.GetHistoryTasksRequest{
 				TaskCategory:        persistence.HistoryTaskCategoryReplication,
-				InclusiveMinTaskKey: persistence.HistoryTaskKey{TaskID: 100},
-				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{TaskID: 200},
+				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100),
+				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
 				PageSize:            10,
 				NextPageToken:       []byte("next-page-token"),
 			},
@@ -1646,8 +1646,8 @@ func TestGetHistoryTasks(t *testing.T) {
 			name: "success - get immediate replication tasks from data blob",
 			request: &persistence.GetHistoryTasksRequest{
 				TaskCategory:        persistence.HistoryTaskCategoryReplication,
-				InclusiveMinTaskKey: persistence.HistoryTaskKey{TaskID: 100},
-				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{TaskID: 200},
+				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100),
+				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
 				PageSize:            10,
 				NextPageToken:       []byte("next-page-token"),
 			},
@@ -1779,7 +1779,7 @@ func TestCompleteHistoryTask(t *testing.T) {
 			name: "success - complete scheduled timer task",
 			request: &persistence.CompleteHistoryTaskRequest{
 				TaskCategory: persistence.HistoryTaskCategoryTimer,
-				TaskKey:      persistence.HistoryTaskKey{TaskID: 1, ScheduledTime: time.Unix(10, 10)},
+				TaskKey:      persistence.NewHistoryTaskKey(time.Unix(10, 10), 1),
 			},
 			setupMock: func(mockDB *nosqlplugin.MockDB) {
 				mockDB.EXPECT().DeleteTimerTask(ctx, shardID, int64(1), time.Unix(10, 10)).Return(nil)
@@ -1790,7 +1790,7 @@ func TestCompleteHistoryTask(t *testing.T) {
 			name: "success - complete immediate transfer task",
 			request: &persistence.CompleteHistoryTaskRequest{
 				TaskCategory: persistence.HistoryTaskCategoryTransfer,
-				TaskKey:      persistence.HistoryTaskKey{TaskID: 2},
+				TaskKey:      persistence.NewImmediateTaskKey(2),
 			},
 			setupMock: func(mockDB *nosqlplugin.MockDB) {
 				mockDB.EXPECT().DeleteTransferTask(ctx, shardID, int64(2)).Return(nil)
@@ -1801,7 +1801,7 @@ func TestCompleteHistoryTask(t *testing.T) {
 			name: "success - complete immediate replication task",
 			request: &persistence.CompleteHistoryTaskRequest{
 				TaskCategory: persistence.HistoryTaskCategoryReplication,
-				TaskKey:      persistence.HistoryTaskKey{TaskID: 3},
+				TaskKey:      persistence.NewImmediateTaskKey(3),
 			},
 			setupMock: func(mockDB *nosqlplugin.MockDB) {
 				mockDB.EXPECT().DeleteReplicationTask(ctx, shardID, int64(3)).Return(nil)
@@ -1820,7 +1820,7 @@ func TestCompleteHistoryTask(t *testing.T) {
 			name: "delete timer task error",
 			request: &persistence.CompleteHistoryTaskRequest{
 				TaskCategory: persistence.HistoryTaskCategoryTimer,
-				TaskKey:      persistence.HistoryTaskKey{TaskID: 1, ScheduledTime: time.Unix(10, 10)},
+				TaskKey:      persistence.NewHistoryTaskKey(time.Unix(10, 10), 1),
 			},
 			setupMock: func(mockDB *nosqlplugin.MockDB) {
 				mockDB.EXPECT().DeleteTimerTask(ctx, shardID, int64(1), time.Unix(10, 10)).Return(errors.New("db error"))
@@ -1832,7 +1832,7 @@ func TestCompleteHistoryTask(t *testing.T) {
 			name: "delete transfer task error",
 			request: &persistence.CompleteHistoryTaskRequest{
 				TaskCategory: persistence.HistoryTaskCategoryTransfer,
-				TaskKey:      persistence.HistoryTaskKey{TaskID: 2},
+				TaskKey:      persistence.NewImmediateTaskKey(2),
 			},
 			setupMock: func(mockDB *nosqlplugin.MockDB) {
 				mockDB.EXPECT().DeleteTransferTask(ctx, shardID, int64(2)).Return(errors.New("db error"))
@@ -1844,7 +1844,7 @@ func TestCompleteHistoryTask(t *testing.T) {
 			name: "delete replication task error",
 			request: &persistence.CompleteHistoryTaskRequest{
 				TaskCategory: persistence.HistoryTaskCategoryReplication,
-				TaskKey:      persistence.HistoryTaskKey{TaskID: 3},
+				TaskKey:      persistence.NewImmediateTaskKey(3),
 			},
 			setupMock: func(mockDB *nosqlplugin.MockDB) {
 				mockDB.EXPECT().DeleteReplicationTask(ctx, shardID, int64(3)).Return(errors.New("db error"))

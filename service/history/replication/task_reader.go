@@ -51,14 +51,10 @@ func (r *TaskReader) Read(ctx context.Context, readLevel int64, maxReadLevel int
 	}
 
 	response, err := r.executionManager.GetHistoryTasks(ctx, &persistence.GetHistoryTasksRequest{
-		TaskCategory: persistence.HistoryTaskCategoryReplication,
-		InclusiveMinTaskKey: persistence.HistoryTaskKey{
-			TaskID: readLevel + 1,
-		},
-		ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
-			TaskID: maxReadLevel + 1,
-		},
-		PageSize: batchSize,
+		TaskCategory:        persistence.HistoryTaskCategoryReplication,
+		InclusiveMinTaskKey: persistence.NewImmediateTaskKey(readLevel + 1),
+		ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(maxReadLevel + 1),
+		PageSize:            batchSize,
 	})
 	if err != nil {
 		return nil, false, err

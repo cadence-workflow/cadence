@@ -265,15 +265,11 @@ func (cl *dbLoadCloser) Load() ([]*persistence.TimerTaskInfo, error) {
 	for isFirstIteration || len(token) != 0 {
 		isFirstIteration = false
 		req := persistence.GetHistoryTasksRequest{
-			TaskCategory: persistence.HistoryTaskCategoryTimer,
-			InclusiveMinTaskKey: persistence.HistoryTaskKey{
-				ScheduledTime: st,
-			},
-			ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
-				ScheduledTime: et,
-			},
-			PageSize:      batchSize,
-			NextPageToken: token,
+			TaskCategory:        persistence.HistoryTaskCategoryTimer,
+			InclusiveMinTaskKey: persistence.NewHistoryTaskKey(st, 0),
+			ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(et, 0),
+			PageSize:            batchSize,
+			NextPageToken:       token,
 		}
 
 		resp := &persistence.GetHistoryTasksResponse{}

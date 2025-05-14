@@ -156,7 +156,7 @@ func NewTransferQueueProcessor(
 		logger:                 logger,
 		status:                 common.DaemonStatusInitialized,
 		shutdownChan:           make(chan struct{}),
-		ackLevel:               shard.GetQueueAckLevel(persistence.HistoryTaskCategoryTransfer).TaskID,
+		ackLevel:               shard.GetQueueAckLevel(persistence.HistoryTaskCategoryTransfer).GetTaskID(),
 		taskAllocator:          taskAllocator,
 		activeTaskExecutor:     activeTaskExecutor,
 		activeQueueProcessor:   activeQueueProcessor,
@@ -251,10 +251,10 @@ func (t *transferQueueProcessor) FailoverDomain(domainIDs map[string]struct{}) {
 		return
 	}
 
-	minLevel := t.shard.GetQueueClusterAckLevel(persistence.HistoryTaskCategoryTransfer, t.currentClusterName).TaskID
+	minLevel := t.shard.GetQueueClusterAckLevel(persistence.HistoryTaskCategoryTransfer, t.currentClusterName).GetTaskID()
 	standbyClusterName := t.currentClusterName
 	for clusterName := range t.shard.GetClusterMetadata().GetEnabledClusterInfo() {
-		ackLevel := t.shard.GetQueueClusterAckLevel(persistence.HistoryTaskCategoryTransfer, clusterName).TaskID
+		ackLevel := t.shard.GetQueueClusterAckLevel(persistence.HistoryTaskCategoryTransfer, clusterName).GetTaskID()
 		if ackLevel < minLevel {
 			minLevel = ackLevel
 			standbyClusterName = clusterName
@@ -451,7 +451,7 @@ func (t *transferQueueProcessor) completeTransfer() error {
 	}
 
 	for _, failoverInfo := range t.shard.GetAllFailoverLevels(persistence.HistoryTaskCategoryTransfer) {
-		failoverLevel := newTransferTaskKey(failoverInfo.MinLevel.TaskID)
+		failoverLevel := newTransferTaskKey(failoverInfo.MinLevel.GetTaskID())
 		if newAckLevel == nil {
 			newAckLevel = failoverLevel
 		} else {
@@ -479,14 +479,10 @@ func (t *transferQueueProcessor) completeTransfer() error {
 		// so we need to adjust the taskID, for example, if the original range is (1, 10],
 		// the new range should be [2, 11), so we add 1 to both the min and max taskID
 		resp, err := t.shard.GetExecutionManager().RangeCompleteHistoryTask(context.Background(), &persistence.RangeCompleteHistoryTaskRequest{
-			TaskCategory: persistence.HistoryTaskCategoryTransfer,
-			InclusiveMinTaskKey: persistence.HistoryTaskKey{
-				TaskID: t.ackLevel + 1,
-			},
-			ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
-				TaskID: newAckLevelTaskID + 1,
-			},
-			PageSize: pageSize,
+			TaskCategory:        persistence.HistoryTaskCategoryTransfer,
+			InclusiveMinTaskKey: persistence.NewImmediateTaskKey(t.ackLevel + 1),
+			ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(newAckLevelTaskID + 1),
+			PageSize:            pageSize,
 		})
 		if err != nil {
 			return err
@@ -498,9 +494,7 @@ func (t *transferQueueProcessor) completeTransfer() error {
 
 	t.ackLevel = newAckLevelTaskID
 
-	return t.shard.UpdateQueueAckLevel(persistence.HistoryTaskCategoryTransfer, persistence.HistoryTaskKey{
-		TaskID: newAckLevelTaskID,
-	})
+	return t.shard.UpdateQueueAckLevel(persistence.HistoryTaskCategoryTransfer, persistence.NewImmediateTaskKey(newAckLevelTaskID))
 }
 
 func newTransferQueueActiveProcessor(
@@ -528,14 +522,12 @@ func newTransferQueueActiveProcessor(
 	}
 
 	updateMaxReadLevel := func() task.Key {
-		return newTransferTaskKey(shard.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryTransfer, currentClusterName).TaskID)
+		return newTransferTaskKey(shard.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryTransfer, currentClusterName).GetTaskID())
 	}
 
 	updateClusterAckLevel := func(ackLevel task.Key) error {
 		taskID := ackLevel.(transferTaskKey).taskID
-		return shard.UpdateQueueClusterAckLevel(persistence.HistoryTaskCategoryTransfer, currentClusterName, persistence.HistoryTaskKey{
-			TaskID: taskID,
-		})
+		return shard.UpdateQueueClusterAckLevel(persistence.HistoryTaskCategoryTransfer, currentClusterName, persistence.NewImmediateTaskKey(taskID))
 	}
 
 	updateProcessingQueueStates := func(states []ProcessingQueueState) error {
@@ -606,14 +598,12 @@ func newTransferQueueStandbyProcessor(
 	}
 
 	updateMaxReadLevel := func() task.Key {
-		return newTransferTaskKey(shard.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryTransfer, clusterName).TaskID)
+		return newTransferTaskKey(shard.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryTransfer, clusterName).GetTaskID())
 	}
 
 	updateClusterAckLevel := func(ackLevel task.Key) error {
 		taskID := ackLevel.(transferTaskKey).taskID
-		return shard.UpdateQueueClusterAckLevel(persistence.HistoryTaskCategoryTransfer, clusterName, persistence.HistoryTaskKey{
-			TaskID: taskID,
-		})
+		return shard.UpdateQueueClusterAckLevel(persistence.HistoryTaskCategoryTransfer, clusterName, persistence.NewImmediateTaskKey(taskID))
 	}
 
 	updateProcessingQueueStates := func(states []ProcessingQueueState) error {
@@ -684,17 +674,11 @@ func newTransferQueueFailoverProcessor(
 			persistence.HistoryTaskCategoryTransfer,
 			failoverUUID,
 			persistence.FailoverLevel{
-				StartTime: shardContext.GetTimeSource().Now(),
-				MinLevel: persistence.HistoryTaskKey{
-					TaskID: minLevel,
-				},
-				CurrentLevel: persistence.HistoryTaskKey{
-					TaskID: taskID,
-				},
-				MaxLevel: persistence.HistoryTaskKey{
-					TaskID: maxLevel,
-				},
-				DomainIDs: domainIDs,
+				StartTime:    shardContext.GetTimeSource().Now(),
+				MinLevel:     persistence.NewImmediateTaskKey(minLevel),
+				CurrentLevel: persistence.NewImmediateTaskKey(taskID),
+				MaxLevel:     persistence.NewImmediateTaskKey(maxLevel),
+				DomainIDs:    domainIDs,
 			},
 		)
 	}
@@ -737,7 +721,7 @@ func loadTransferProcessingQueueStates(
 	options *queueProcessorOptions,
 	logger log.Logger,
 ) []ProcessingQueueState {
-	ackLevel := shard.GetQueueClusterAckLevel(persistence.HistoryTaskCategoryTransfer, clusterName).TaskID
+	ackLevel := shard.GetQueueClusterAckLevel(persistence.HistoryTaskCategoryTransfer, clusterName).GetTaskID()
 	if options.EnableLoadQueueStates() {
 		pStates := shard.GetTransferProcessingQueueStates(clusterName)
 		if validateProcessingQueueStates(pStates, ackLevel) {

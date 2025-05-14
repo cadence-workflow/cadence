@@ -81,17 +81,11 @@ func newTimerQueueFailoverProcessor(
 			persistence.HistoryTaskCategoryTimer,
 			failoverUUID,
 			persistence.FailoverLevel{
-				StartTime: failoverStartTime,
-				MinLevel: persistence.HistoryTaskKey{
-					ScheduledTime: minLevel,
-				},
-				CurrentLevel: persistence.HistoryTaskKey{
-					ScheduledTime: ackLevel.(timerTaskKey).visibilityTimestamp,
-				},
-				MaxLevel: persistence.HistoryTaskKey{
-					ScheduledTime: maxLevel,
-				},
-				DomainIDs: domainIDs,
+				StartTime:    failoverStartTime,
+				MinLevel:     persistence.NewHistoryTaskKey(minLevel, 0),
+				CurrentLevel: persistence.NewHistoryTaskKey(ackLevel.(timerTaskKey).visibilityTimestamp, 0),
+				MaxLevel:     persistence.NewHistoryTaskKey(maxLevel, 0),
+				DomainIDs:    domainIDs,
 			},
 		)
 	}

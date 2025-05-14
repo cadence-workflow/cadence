@@ -512,15 +512,11 @@ func (t *timerQueueProcessorBase) readLookAheadTask(lookAheadStartLevel task.Key
 
 func (t *timerQueueProcessorBase) getTimerTasks(readLevel, maxReadLevel task.Key, nextPageToken []byte, batchSize int) (*persistence.GetHistoryTasksResponse, error) {
 	request := &persistence.GetHistoryTasksRequest{
-		TaskCategory: persistence.HistoryTaskCategoryTimer,
-		InclusiveMinTaskKey: persistence.HistoryTaskKey{
-			ScheduledTime: readLevel.(timerTaskKey).visibilityTimestamp,
-		},
-		ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
-			ScheduledTime: maxReadLevel.(timerTaskKey).visibilityTimestamp,
-		},
-		PageSize:      batchSize,
-		NextPageToken: nextPageToken,
+		TaskCategory:        persistence.HistoryTaskCategoryTimer,
+		InclusiveMinTaskKey: persistence.NewHistoryTaskKey(readLevel.(timerTaskKey).visibilityTimestamp, 0),
+		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maxReadLevel.(timerTaskKey).visibilityTimestamp, 0),
+		PageSize:            batchSize,
+		NextPageToken:       nextPageToken,
 	}
 	var err error
 	var response *persistence.GetHistoryTasksResponse

@@ -161,7 +161,7 @@ func (m *MetricsEmitterImpl) emitMetrics() {
 
 func (m *MetricsEmitterImpl) determineReplicationLatency(remoteClusterName string) (time.Duration, error) {
 	logger := m.logger.WithTags(tag.RemoteCluster(remoteClusterName))
-	lastReadTaskID := m.shardData.GetQueueClusterAckLevel(persistence.HistoryTaskCategoryReplication, remoteClusterName).TaskID
+	lastReadTaskID := m.shardData.GetQueueClusterAckLevel(persistence.HistoryTaskCategoryReplication, remoteClusterName).GetTaskID()
 
 	tasks, _, err := m.reader.Read(m.ctx, lastReadTaskID, lastReadTaskID+1, 1)
 	if err != nil {
