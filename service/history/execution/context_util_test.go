@@ -39,6 +39,10 @@ import (
 	"github.com/uber/cadence/service/history/shard"
 )
 
+const (
+	_testDomain = "testDomain"
+)
+
 func createTestConfig() *config.Config {
 	return &config.Config{
 		EnableShardIDMetrics:                  dynamicproperties.GetBoolPropertyFn(true),
@@ -54,44 +58,95 @@ func createTestConfig() *config.Config {
 
 func TestEmitLargeWorkflowShardIDStats(t *testing.T) {
 	tests := []struct {
-		name                 string
-		blobSize             int64
-		oldHistoryCount      int64
-		oldHistorySize       int64
-		newHistoryCount      int64
-		enableShardIDMetrics bool
-		expectLogging        bool
-		expectMetrics        bool
+		name               string
+		blobSize           int64
+		oldHistoryCount    int64
+		oldHistorySize     int64
+		newHistoryCount    int64
+		shardConfig        *config.Config
+		stats              *persistence.ExecutionStats
+		loggerExpectations func(logger *log.MockLogger)
+		assertMetrics      func(t *testing.T, snapshot tally.Snapshot)
 	}{
 		{
-			name:                 "Blob size exceeds threshold",
-			blobSize:             1024 * 1024 * 10, // 10 MB
-			oldHistoryCount:      1000,
-			oldHistorySize:       1024 * 500, // 0.5 MB
-			newHistoryCount:      2000,
-			enableShardIDMetrics: true,
-			expectLogging:        true,
-			expectMetrics:        true,
+			name:            "Blob size exceeds threshold",
+			blobSize:        1024 * 1024 * 10, // 10 MB
+			oldHistoryCount: 1000,
+			oldHistorySize:  1024 * 500, // 0.5 MB
+			newHistoryCount: 100,
+			stats: &persistence.ExecutionStats{
+				HistorySize: 0,
+			},
+			shardConfig: createTestConfig(),
+			loggerExpectations: func(logger *log.MockLogger) {
+				logger.On("SampleInfo", "Workflow writing a large blob", 100, mock.Anything)
+			},
+			assertMetrics: func(t *testing.T, snapshot tally.Snapshot) {
+				countersSnapshot := snapshot.Counters()
+
+				require.Contains(t, countersSnapshot, "test.large_history_blob_count+domain=testDomain,operation=LargeExecutionBlobShard,shard_id=1")
+
+				assert.Equal(t, int64(1), countersSnapshot["test.large_history_blob_count+domain=testDomain,operation=LargeExecutionBlobShard,shard_id=1"].Value())
+			},
 		},
 		{
-			name:                 "History count and size within threshold",
-			blobSize:             1024 * 500, // 0.5 MB
-			oldHistoryCount:      500,
-			oldHistorySize:       1024 * 1024, // 1 MB
-			newHistoryCount:      800,
-			enableShardIDMetrics: true,
-			expectLogging:        false,
-			expectMetrics:        false,
+			name:            "History old size and old count already exceeds threshold",
+			blobSize:        1024 * 1024 * 10, // 10 MB
+			oldHistoryCount: 1500,
+			oldHistorySize:  1024 * 1024 * 2, // 0.5 MB
+			newHistoryCount: 2000,
+			stats: &persistence.ExecutionStats{
+				HistorySize: 1024 * 1024 * 3,
+			},
+			shardConfig: createTestConfig(),
+			loggerExpectations: func(logger *log.MockLogger) {
+				logger.On("SampleInfo", "Workflow writing a large blob", 100, mock.Anything)
+			},
+			assertMetrics: func(t *testing.T, snapshot tally.Snapshot) {
+				countersSnapshot := snapshot.Counters()
+
+				require.NotContains(t, countersSnapshot, "test.large_history_event_count+domain=testDomain,operation=LargeExecutionCountShard,shard_id=1")
+				require.NotContains(t, countersSnapshot, "test.large_history_size_count+domain=testDomain,operation=LargeExecutionSizeShard,shard_id=1")
+			},
 		},
 		{
-			name:                 "Metrics disabled",
-			blobSize:             1024 * 1024 * 10, // 10 MB
-			oldHistoryCount:      1000,
-			oldHistorySize:       1024 * 1024 * 2, // 2 MB
-			newHistoryCount:      2000,
-			enableShardIDMetrics: false,
-			expectLogging:        false,
-			expectMetrics:        false,
+			name:            "History old size and old count already exceeds threshold",
+			blobSize:        1024 * 1024 * 10, // 10 MB
+			oldHistoryCount: 1500,
+			oldHistorySize:  1024 * 1024 * 2, // 0.5 MB
+			newHistoryCount: 2000,
+			stats: &persistence.ExecutionStats{
+				HistorySize: 1024 * 1024 * 3,
+			},
+			shardConfig: createTestConfig(),
+			loggerExpectations: func(logger *log.MockLogger) {
+				logger.On("SampleInfo", "Workflow writing a large blob", 100, mock.Anything)
+			},
+			assertMetrics: func(t *testing.T, snapshot tally.Snapshot) {
+				countersSnapshot := snapshot.Counters()
+
+				require.NotContains(t, countersSnapshot, "test.large_history_event_count+domain=testDomain,operation=LargeExecutionCountShard,shard_id=1")
+				require.NotContains(t, countersSnapshot, "test.large_history_size_count+domain=testDomain,operation=LargeExecutionSizeShard,shard_id=1")
+			},
+		},
+		{
+			name:            "History count and size within threshold",
+			blobSize:        1024 * 500, // 0.5 MB
+			oldHistoryCount: 500,
+			oldHistorySize:  1024 * 1024, // 1 MB
+			newHistoryCount: 800,
+			stats:           &persistence.ExecutionStats{},
+			shardConfig:     createTestConfig(),
+		},
+		{
+			name:            "Metrics disabled",
+			blobSize:        1024 * 1024 * 10, // 10 MB
+			oldHistoryCount: 1000,
+			oldHistorySize:  1024 * 1024 * 2, // 2 MB
+			newHistoryCount: 2000,
+			shardConfig: &config.Config{
+				EnableShardIDMetrics: dynamicproperties.GetBoolPropertyFn(false),
+			},
 		},
 	}
 
@@ -104,42 +159,26 @@ func TestEmitLargeWorkflowShardIDStats(t *testing.T) {
 			metricScope := tally.NewTestScope("test", make(map[string]string))
 			mockMetricsClient := metrics.NewClient(metricScope, metrics.History)
 			mockLogger := log.NewMockLogger(t)
-			stats := &persistence.ExecutionStats{
-				HistorySize: 1024 * 1024 * 3, // 3 MB, setting it above the threshold for test
-			}
 			mockDomainCache := cache.NewMockDomainCache(mockCtrl)
 			context := &contextImpl{
 				shard:         mockShard,
 				metricsClient: mockMetricsClient,
 				logger:        mockLogger,
-				stats:         stats,
+				stats:         tc.stats,
 			}
 			mockShard.EXPECT().GetShardID().Return(1).AnyTimes()
 			mockShard.EXPECT().GetDomainCache().Return(mockDomainCache).AnyTimes()
-			mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("testDomain", nil).AnyTimes()
-			mockShard.EXPECT().GetConfig().Return(createTestConfig()).AnyTimes()
-			mockLogger.On("SampleInfo", mock.Anything, mock.Anything, mock.Anything).Return().Once()
-			mockLogger.On("Warn", mock.Anything, mock.Anything, mock.Anything).Return().Maybe()
+			mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return(_testDomain, nil).AnyTimes()
+			mockShard.EXPECT().GetConfig().Return(tc.shardConfig).AnyTimes()
 
-			if tc.expectLogging {
-				mockLogger.On("Info", mock.Anything, mock.Anything).Return().Once()
-			}
-			if tc.expectMetrics {
-				mockLogger.On("Error", mock.Anything, mock.Anything).Return().Once()
+			if tc.loggerExpectations != nil {
+				tc.loggerExpectations(mockLogger)
 			}
 
 			context.emitLargeWorkflowShardIDStats(tc.blobSize, tc.oldHistoryCount, tc.oldHistorySize, tc.newHistoryCount)
 
-			if tc.expectMetrics {
-				countersSnapshot := metricScope.Snapshot().Counters()
-
-				require.Contains(t, countersSnapshot, "test.large_history_blob_count+domain=testDomain,operation=LargeExecutionBlobShard,shard_id=1")
-				require.Contains(t, countersSnapshot, "test.large_history_event_count+domain=testDomain,operation=LargeExecutionCountShard,shard_id=1")
-				require.Contains(t, countersSnapshot, "test.large_history_size_count+domain=testDomain,operation=LargeExecutionSizeShard,shard_id=1")
-
-				assert.Equal(t, int64(1), countersSnapshot["test.large_history_blob_count+domain=testDomain,operation=LargeExecutionBlobShard,shard_id=1"].Value())
-				assert.Equal(t, int64(1), countersSnapshot["test.large_history_event_count+domain=testDomain,operation=LargeExecutionCountShard,shard_id=1"].Value())
-				assert.Equal(t, int64(1), countersSnapshot["test.large_history_size_count+domain=testDomain,operation=LargeExecutionSizeShard,shard_id=1"].Value())
+			if tc.assertMetrics != nil {
+				tc.assertMetrics(t, metricScope.Snapshot())
 			}
 		})
 	}

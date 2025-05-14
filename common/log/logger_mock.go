@@ -4,6 +4,7 @@ package log
 
 import (
 	mock "github.com/stretchr/testify/mock"
+
 	tag "github.com/uber/cadence/common/log/tag"
 )
 
