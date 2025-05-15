@@ -79,7 +79,7 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: cadence
 
   etcd:
-    image: bitnami/etcd:3.5.21
+    image: bitnami/etcd:3.5.5
     restart: always
     networks:
       services-network:

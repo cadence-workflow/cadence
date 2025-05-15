@@ -86,9 +86,9 @@ require (
 	github.com/ncruces/julianday v1.0.0 // indirect
 	github.com/tetratelabs/wazero v1.8.2 // indirect
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
-	go.etcd.io/etcd/api/v3 v3.5.21 // indirect
-	go.etcd.io/etcd/client/pkg/v3 v3.5.21 // indirect
-	go.etcd.io/etcd/client/v3 v3.5.21 // indirect
+	go.etcd.io/etcd/api/v3 v3.5.5 // indirect
+	go.etcd.io/etcd/client/pkg/v3 v3.5.5 // indirect
+	go.etcd.io/etcd/client/v3 v3.5.5 // indirect
 )
 
 require (

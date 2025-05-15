@@ -11,6 +11,7 @@ require (
 	github.com/uber/cadence v0.0.0-00010101000000-000000000000
 	go.etcd.io/etcd/client/v3 v3.5.5
 	go.uber.org/fx v1.23.0
+	gopkg.in/yaml.v2 v2.4.0
 )
 
 require (
@@ -59,7 +60,7 @@ require (
 	github.com/uber/ringpop-go v0.8.5 // indirect
 	github.com/uber/tchannel-go v1.22.2 // indirect
 	go.etcd.io/etcd/api/v3 v3.5.5 // indirect
-	go.etcd.io/etcd/client/pkg/v3 v3.5.21 // indirect
+	go.etcd.io/etcd/client/pkg/v3 v3.5.5 // indirect
 	go.uber.org/atomic v1.10.0 // indirect
 	go.uber.org/cadence v0.19.0 // indirect
 	go.uber.org/config v1.4.0 // indirect
@@ -85,7 +86,6 @@ require (
 	google.golang.org/grpc v1.59.0 // indirect
 	google.golang.org/protobuf v1.33.0 // indirect
 	gopkg.in/validator.v2 v2.0.0-20180514200540-135c24b11c19 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	honnef.co/go/tools v0.3.2 // indirect
 )
