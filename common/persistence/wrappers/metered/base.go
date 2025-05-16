@@ -42,8 +42,8 @@ type base struct {
 	enableShardIDMetrics          dynamicproperties.BoolPropertyFn
 }
 
-func (p *base) updateErrorMetricPerDomain(scope int, err error, scopeWithDomainTag metrics.Scope) {
-	logger := p.logger.Helper()
+func (p *base) updateErrorMetricPerDomain(scope int, err error, scopeWithDomainTag metrics.Scope, logger log.Logger) {
+	logger = logger.Helper()
 
 	switch {
 	case errors.As(err, new(*types.DomainAlreadyExistsError)):
@@ -80,8 +80,8 @@ func (p *base) updateErrorMetricPerDomain(scope int, err error, scopeWithDomainT
 	}
 }
 
-func (p *base) updateErrorMetric(scope int, err error, metricsScope metrics.Scope) {
-	logger := p.logger.Helper()
+func (p *base) updateErrorMetric(scope int, err error, metricsScope metrics.Scope, logger log.Logger) {
+	logger = logger.Helper()
 
 	switch {
 	case errors.As(err, new(*types.DomainAlreadyExistsError)):
@@ -137,11 +137,13 @@ func (p *base) call(scope int, op func() error, tags ...metrics.Tag) error {
 	if p.enableLatencyHistogramMetrics {
 		metricsScope.RecordHistogramDuration(metrics.PersistenceLatencyHistogram, duration)
 	}
+
+	logger := p.logger.Helper()
 	if err != nil {
 		if len(tags) > 0 {
-			p.updateErrorMetricPerDomain(scope, err, metricsScope)
+			p.updateErrorMetricPerDomain(scope, err, metricsScope, logger)
 		} else {
-			p.updateErrorMetric(scope, err, metricsScope)
+			p.updateErrorMetric(scope, err, metricsScope, logger)
 		}
 	}
 	return err
