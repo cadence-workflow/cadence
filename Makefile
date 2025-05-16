@@ -373,10 +373,19 @@ $(BUILD)/proto-lint: $(PROTO_FILES) $(STABLE_BIN)/$(BUF_VERSION_BIN) | $(BUILD)
 # lints that go modules are as expected, e.g. parent does not import submodule.
 # tool builds that need to be in sync with the parent are partially checked through go_mod_build_tool, but should probably be checked here too
 $(BUILD)/gomod-lint: go.mod internal/tools/go.mod common/archiver/gcloud/go.mod | $(BUILD)
-	$Q # this is likely impossible as it'd be a cycle
-	$Q if grep github.com/uber/cadence/common/archiver/gcloud go.mod; then echo "gcloud submodule cannot be imported by main module" >&2; exit 1; fi
-	$Q # intentionally kept separate so the server does not include tool-only dependencies
-	$Q if grep github.com/uber/cadence/internal go.mod; then echo "internal module cannot be imported by main module" >&2; exit 1; fi
+	$Q echo "checking for direct submodule dependencies in root go.mod..."
+	$Q ( \
+		MAIN_MODULE=$$(grep "^module " go.mod | awk '{print $$2}'); \
+		SUBMODULES=$$(find . -type f -name "go.mod" -not -path "./go.mod" -not -path "./idls/*" -exec dirname {} \; | sed 's|^\./||'); \
+		for submodule in $$SUBMODULES; do \
+			submodule_path="$$MAIN_MODULE/$$submodule"; \
+			if grep -q "^require.*$$submodule_path" go.mod; then \
+				echo "ERROR: Root go.mod directly depends on submodule: $$submodule_path" >&2; \
+				exit 1; \
+			fi; \
+			echo "✓ No direct dependency on $$submodule"; \
+		done; \
+	)
 	$Q touch $@
 
 # note that LINT_SRC is fairly fake as a prerequisite.
