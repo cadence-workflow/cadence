@@ -81,6 +81,8 @@ func (p *base) updateErrorMetricPerDomain(scope int, err error, scopeWithDomainT
 }
 
 func (p *base) updateErrorMetric(scope int, err error, metricsScope metrics.Scope) {
+	logger := p.logger.Helper()
+
 	switch {
 	case errors.As(err, new(*types.DomainAlreadyExistsError)):
 		metricsScope.IncCounter(metrics.PersistenceErrDomainAlreadyExistsCounter)
@@ -109,9 +111,9 @@ func (p *base) updateErrorMetric(scope int, err error, metricsScope metrics.Scop
 	case errors.As(err, new(*persistence.DBUnavailableError)):
 		metricsScope.IncCounter(metrics.PersistenceErrDBUnavailableCounter)
 		metricsScope.IncCounter(metrics.PersistenceFailures)
-		p.logger.Error("DBUnavailable Error:", tag.Error(err), tag.MetricScope(scope))
+		logger.Error("DBUnavailable Error:", tag.Error(err), tag.MetricScope(scope))
 	default:
-		p.logger.Error("Operation failed with internal error.", tag.Error(err), tag.MetricScope(scope))
+		logger.Error("Operation failed with internal error.", tag.Error(err), tag.MetricScope(scope))
 		metricsScope.IncCounter(metrics.PersistenceFailures)
 	}
 }
