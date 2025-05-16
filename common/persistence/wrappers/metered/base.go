@@ -161,7 +161,7 @@ func (p *base) callWithoutDomainTag(scope int, op func() error, tags ...metrics.
 		metricsScope.RecordHistogramDuration(metrics.PersistenceLatencyHistogram, duration)
 	}
 	if err != nil {
-		p.updateErrorMetric(scope, err, metricsScope)
+		p.updateErrorMetric(scope, err, metricsScope, p.logger.Helper())
 	}
 	return err
 }
@@ -187,7 +187,7 @@ func (p *base) callWithDomainAndShardScope(scope int, op func() error, domainTag
 		domainMetricsScope.RecordHistogramDuration(metrics.PersistenceLatencyHistogram, duration)
 	}
 	if err != nil {
-		p.updateErrorMetricPerDomain(scope, err, domainMetricsScope)
+		p.updateErrorMetricPerDomain(scope, err, domainMetricsScope, p.logger.Helper())
 	}
 	return err
 }
