@@ -43,6 +43,8 @@ type base struct {
 }
 
 func (p *base) updateErrorMetricPerDomain(scope int, err error, scopeWithDomainTag metrics.Scope) {
+	logger := p.logger.Helper()
+
 	switch {
 	case errors.As(err, new(*types.DomainAlreadyExistsError)):
 		scopeWithDomainTag.IncCounter(metrics.PersistenceErrDomainAlreadyExistsCounterPerDomain)
@@ -71,9 +73,9 @@ func (p *base) updateErrorMetricPerDomain(scope int, err error, scopeWithDomainT
 	case errors.As(err, new(*persistence.DBUnavailableError)):
 		scopeWithDomainTag.IncCounter(metrics.PersistenceErrDBUnavailableCounterPerDomain)
 		scopeWithDomainTag.IncCounter(metrics.PersistenceFailuresPerDomain)
-		p.logger.Error("DBUnavailable Error:", tag.Error(err), tag.MetricScope(scope))
+		logger.Error("DBUnavailable Error:", tag.Error(err), tag.MetricScope(scope))
 	default:
-		p.logger.Error("Operation failed with internal error.", tag.Error(err), tag.MetricScope(scope))
+		logger.Error("Operation failed with internal error.", tag.Error(err), tag.MetricScope(scope))
 		scopeWithDomainTag.IncCounter(metrics.PersistenceFailuresPerDomain)
 	}
 }
