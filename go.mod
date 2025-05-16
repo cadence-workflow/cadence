@@ -6,7 +6,7 @@ toolchain go1.23.4
 
 replace (
 	github.com/uber/cadence/common/archiver/gcloud => ./common/archiver/gcloud
-	github.com/uber/cadence/service/sharddistributor/leader/leaderstore/etcd => ./service/sharddistributor/leader/leaderstore/etc
+	github.com/uber/cadence/service/sharddistributor/leader/leaderstore/etcd => ./service/sharddistributor/leader/leaderstore/etcd
 )
 
 require (
