@@ -4,6 +4,11 @@ go 1.23
 
 toolchain go1.23.4
 
+replace (
+	github.com/uber/cadence/common/archiver/gcloud => ./common/archiver/gcloud
+	github.com/uber/cadence/service/sharddistributor/leader/leaderstore/etcd => ./service/sharddistributor/leader/leaderstore/etc
+)
+
 require (
 	github.com/MicahParks/keyfunc/v2 v2.1.0
 	github.com/Shopify/sarama v1.33.0
