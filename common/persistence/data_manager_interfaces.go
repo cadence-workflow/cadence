@@ -181,15 +181,15 @@ type HistoryTaskCategory struct {
 	categoryName string
 }
 
-func (c *HistoryTaskCategory) Type() int {
+func (c HistoryTaskCategory) Type() int {
 	return c.categoryType
 }
 
-func (c *HistoryTaskCategory) ID() int {
+func (c HistoryTaskCategory) ID() int {
 	return c.categoryID
 }
 
-func (c *HistoryTaskCategory) Name() string {
+func (c HistoryTaskCategory) Name() string {
 	return c.categoryName
 }
 

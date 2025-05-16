@@ -199,6 +199,20 @@ func (mr *MockTaskMockRecorder) GetTaskID() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskID", reflect.TypeOf((*MockTask)(nil).GetTaskID))
 }
 
+// GetTaskKey mocks base method.
+func (m *MockTask) GetTaskKey() persistence.HistoryTaskKey {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTaskKey")
+	ret0, _ := ret[0].(persistence.HistoryTaskKey)
+	return ret0
+}
+
+// GetTaskKey indicates an expected call of GetTaskKey.
+func (mr *MockTaskMockRecorder) GetTaskKey() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskKey", reflect.TypeOf((*MockTask)(nil).GetTaskKey))
+}
+
 // GetTaskType mocks base method.
 func (m *MockTask) GetTaskType() int {
 	m.ctrl.T.Helper()
@@ -605,6 +619,20 @@ func (m *MockCrossClusterTask) GetTaskID() int64 {
 func (mr *MockCrossClusterTaskMockRecorder) GetTaskID() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskID", reflect.TypeOf((*MockCrossClusterTask)(nil).GetTaskID))
+}
+
+// GetTaskKey mocks base method.
+func (m *MockCrossClusterTask) GetTaskKey() persistence.HistoryTaskKey {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTaskKey")
+	ret0, _ := ret[0].(persistence.HistoryTaskKey)
+	return ret0
+}
+
+// GetTaskKey indicates an expected call of GetTaskKey.
+func (mr *MockCrossClusterTaskMockRecorder) GetTaskKey() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskKey", reflect.TypeOf((*MockCrossClusterTask)(nil).GetTaskKey))
 }
 
 // GetTaskType mocks base method.

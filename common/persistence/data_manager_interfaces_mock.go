@@ -113,6 +113,20 @@ func (mr *MockTaskMockRecorder) GetTaskID() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskID", reflect.TypeOf((*MockTask)(nil).GetTaskID))
 }
 
+// GetTaskKey mocks base method.
+func (m *MockTask) GetTaskKey() HistoryTaskKey {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTaskKey")
+	ret0, _ := ret[0].(HistoryTaskKey)
+	return ret0
+}
+
+// GetTaskKey indicates an expected call of GetTaskKey.
+func (mr *MockTaskMockRecorder) GetTaskKey() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskKey", reflect.TypeOf((*MockTask)(nil).GetTaskKey))
+}
+
 // GetTaskType mocks base method.
 func (m *MockTask) GetTaskType() int {
 	m.ctrl.T.Helper()

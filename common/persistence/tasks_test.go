@@ -119,6 +119,12 @@ func TestTaskCommonMethods(t *testing.T) {
 		newTime := timeNow.Add(time.Second)
 		task.SetVisibilityTimestamp(newTime)
 		assert.Equal(t, newTime, task.GetVisibilityTimestamp())
+
+		if task.GetTaskCategory().Type() == HistoryTaskCategoryTypeImmediate {
+			assert.Equal(t, NewImmediateTaskKey(task.GetTaskID()), task.GetTaskKey())
+		} else {
+			assert.Equal(t, NewHistoryTaskKey(task.GetVisibilityTimestamp(), task.GetTaskID()), task.GetTaskKey())
+		}
 	}
 }
 
@@ -171,4 +177,18 @@ func TestTimerTaskMapping(t *testing.T) {
 			assert.Equal(t, task, task2)
 		}
 	}
+}
+
+func TestHistoryTaskKeyComparison(t *testing.T) {
+	now := time.Now()
+	key1 := NewHistoryTaskKey(now, 1)
+	key2 := NewHistoryTaskKey(now, 2)
+	key3 := NewHistoryTaskKey(now.Add(time.Second), 1)
+
+	assert.Equal(t, 0, key1.Compare(key1))
+	assert.Equal(t, -1, key1.Compare(key2))
+	assert.Equal(t, 1, key2.Compare(key1))
+
+	assert.Equal(t, -1, key2.Compare(key3))
+	assert.Equal(t, 1, key3.Compare(key2))
 }
