@@ -3,6 +3,7 @@ package election
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -134,7 +135,7 @@ func TestElector_Run_Resign(t *testing.T) {
 		assert.False(t, <-leaderChan)
 	})
 
-	t.Run("onResign error", func(t *testing.T) {
+	t.Run("onResign_error", func(t *testing.T) {
 		// Set onResign to return an error
 		onResignCalled := false
 		resignErr := errors.New("resign error")
@@ -145,6 +146,7 @@ func TestElector_Run_Resign(t *testing.T) {
 
 		leaderChan, p := prepareRun(t, nil, onResign)
 		defer p.cancel()
+		p.election.EXPECT().Resign(gomock.Any()).Return(nil)
 		// We should be blocked on the timer.
 		p.timeSource.BlockUntil(1)
 
@@ -153,6 +155,35 @@ func TestElector_Run_Resign(t *testing.T) {
 		p.timeSource.BlockUntil(1)
 		assert.False(t, <-leaderChan)
 		assert.True(t, onResignCalled, "OnResign callback should have been called")
+
+		p.cancel()
+		// Wait briefly for goroutines to clean up
+		time.Sleep(10 * time.Millisecond)
+	})
+	t.Run("OnResign_and_resign_error", func(t *testing.T) {
+		// Set onResign to return an error
+		onResignCalled := false
+		resignErr := errors.New("resign error")
+		onResign := func(ctx context.Context) error {
+			onResignCalled = true
+			return resignErr
+		}
+
+		leaderChan, p := prepareRun(t, nil, onResign)
+		defer p.cancel()
+		p.election.EXPECT().Resign(gomock.Any()).Return(fmt.Errorf("failed to resign"))
+		// We should be blocked on the timer.
+		p.timeSource.BlockUntil(1)
+
+		// The resign function on election should not be called if onResign returns an error
+		p.timeSource.Advance(_testLeaderPeriod + 1)
+		p.timeSource.BlockUntil(1)
+		assert.False(t, <-leaderChan)
+		assert.True(t, onResignCalled, "OnResign callback should have been called")
+
+		p.cancel()
+		// Wait briefly for goroutines to clean up
+		time.Sleep(10 * time.Millisecond)
 	})
 }
 
@@ -262,6 +293,10 @@ func TestOnLeader_Error(t *testing.T) {
 		hostname: _testHost,
 	}
 
+	// Create a cancelable context for the test
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel() // Ensure context is canceled at the end of the test
+
 	// Make onLeader return an error
 	onLeaderErr := errors.New("leader error")
 	onLeader := func(ctx context.Context) error {
@@ -277,10 +312,15 @@ func TestOnLeader_Error(t *testing.T) {
 
 	// Run the test
 	leaderCh := make(chan bool, 1)
-	err := el.runElection(context.Background(), leaderCh, onLeader, func(ctx context.Context) error { return nil })
+	err := el.runElection(ctx, leaderCh, onLeader, func(ctx context.Context) error { return nil })
 
 	// Error should contain our onLeader error
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "onLeader")
 	assert.Contains(t, err.Error(), "leader error")
+
+	cancel()
+
+	// Wait briefly for goroutines to clean up
+	time.Sleep(10 * time.Millisecond)
 }
