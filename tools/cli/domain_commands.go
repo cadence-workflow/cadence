@@ -21,10 +21,12 @@
 package cli
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -301,6 +303,70 @@ func (d *domainCLIImpl) UpdateDomain(c *cli.Context) error {
 		return commoncli.Problem("Operation UpdateDomain failed.", err)
 	}
 	fmt.Printf("Domain %s successfully updated.\n", domainName)
+	return nil
+}
+
+func (d *domainCLIImpl) DeleteDomain(c *cli.Context) error {
+	domainName, err := getRequiredOption(c, FlagDomain)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
+	securityToken, err := getRequiredOption(c, FlagSecurityToken)
+	if err != nil {
+		return commoncli.Problem("Required flag not provided: ", err)
+	}
+
+	ctx, cancel, err := newContext(c)
+	defer cancel()
+	if err != nil {
+		return commoncli.Problem("Error in creating context: ", err)
+	}
+
+	// First describe the domain to show its details
+	describeRequest := &types.DescribeDomainRequest{
+		Name: &domainName,
+	}
+	resp, err := d.describeDomain(ctx, describeRequest)
+	if err != nil {
+		if _, ok := err.(*types.EntityNotExistsError); !ok {
+			return commoncli.Problem("Operation DescribeDomain failed.", err)
+		}
+		return commoncli.Problem(fmt.Sprintf("Domain %s does not exist.", domainName), err)
+	}
+
+	if err := Render(c, newDomainRow(resp), RenderOptions{
+		DefaultTemplate: templateDomain,
+		Color:           true,
+		Border:          true,
+		PrintDateTime:   true,
+	}); err != nil {
+		return fmt.Errorf("failed to render domain details: %w", err)
+	}
+
+	fmt.Print("Do you want to delete this domain? \n")
+	reader := bufio.NewReader(os.Stdin)
+	for {
+		fmt.Print("Please confirm[Yes/No]:")
+		text, err := reader.ReadString('\n')
+		if err != nil {
+			return commoncli.Problem("Failed to get confirmation for domain deletion", err)
+		}
+		if strings.EqualFold(strings.TrimSpace(text), "yes") {
+			break
+		} else {
+			fmt.Println("Domain deletion cancelled")
+			return nil
+		}
+	}
+
+	err = d.deleteDomain(ctx, &types.DeleteDomainRequest{
+		Name:          domainName,
+		SecurityToken: securityToken,
+	})
+	if err != nil {
+		return commoncli.Problem("Operation Delete domain failed.", err)
+	}
+	fmt.Printf("Domain %s successfully deleted.\n", domainName)
 	return nil
 }
 
@@ -751,6 +817,18 @@ func (d *domainCLIImpl) updateDomain(
 	}
 
 	return d.domainHandler.UpdateDomain(ctx, request)
+}
+
+func (d *domainCLIImpl) deleteDomain(
+	ctx context.Context,
+	request *types.DeleteDomainRequest,
+) error {
+
+	if d.frontendClient != nil {
+		return d.frontendClient.DeleteDomain(ctx, request)
+	}
+
+	return d.domainHandler.DeleteDomain(ctx, request)
 }
 
 func (d *domainCLIImpl) describeDomain(

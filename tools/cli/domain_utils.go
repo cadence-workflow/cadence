@@ -197,6 +197,14 @@ var (
 		},
 	}
 
+	deleteDomainFlags = []cli.Flag{
+		&cli.StringFlag{
+			Name:    FlagSecurityToken,
+			Aliases: []string{"st"},
+			Usage:   "Optional token for security check",
+		},
+	}
+
 	deprecateDomainFlags = []cli.Flag{
 		&cli.StringFlag{
 			Name:    FlagSecurityToken,
@@ -255,6 +263,11 @@ var (
 
 	adminUpdateDomainFlags = append(
 		updateDomainFlags,
+		adminDomainCommonFlags...,
+	)
+
+	adminDeleteDomainFlags = append(
+		deleteDomainFlags,
 		adminDomainCommonFlags...,
 	)
 
