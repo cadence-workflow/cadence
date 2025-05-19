@@ -119,6 +119,7 @@ func TestDescribeCluster(t *testing.T) {
 			mockSetup: func(authorizer *authorization.MockAuthorizer, adminHandler *admin.MockHandler, mockResource *resource.MockResource) {
 				authorizer.EXPECT().Authorize(gomock.Any(), gomock.Any()).Return(authorization.Result{Decision: authorization.DecisionAllow}, nil)
 				adminHandler.EXPECT().DescribeCluster(gomock.Any()).Return(&types.DescribeClusterResponse{}, nil)
+				mockResource.EXPECT().GetLogger().Return(log.NewNoop())
 			},
 			wantErr: nil,
 		},
@@ -126,6 +127,7 @@ func TestDescribeCluster(t *testing.T) {
 			name: "Error case - unauthorized",
 			mockSetup: func(authorizer *authorization.MockAuthorizer, adminHandler *admin.MockHandler, mockResource *resource.MockResource) {
 				authorizer.EXPECT().Authorize(gomock.Any(), gomock.Any()).Return(authorization.Result{Decision: authorization.DecisionDeny}, nil)
+				mockResource.EXPECT().GetLogger().Return(log.NewNoop())
 			},
 			wantErr: errUnauthorized,
 		},
@@ -133,6 +135,7 @@ func TestDescribeCluster(t *testing.T) {
 			name: "Error case - authorization error",
 			mockSetup: func(authorizer *authorization.MockAuthorizer, adminHandler *admin.MockHandler, mockResource *resource.MockResource) {
 				authorizer.EXPECT().Authorize(gomock.Any(), gomock.Any()).Return(authorization.Result{}, someErr)
+				mockResource.EXPECT().GetLogger().Return(log.NewNoop())
 			},
 			wantErr: someErr,
 		},
