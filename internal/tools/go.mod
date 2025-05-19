@@ -8,6 +8,7 @@ require (
 	github.com/daixiang0/gci v0.12.0
 	github.com/dmarkham/enumer v1.5.8
 	github.com/gogo/protobuf v1.3.2
+	github.com/gordonklaus/ineffassign v0.0.0-20210914165742-4cc7213b9bc8
 	github.com/hexdigest/gowrap v1.2.5
 	github.com/mgechev/revive v1.3.2
 	github.com/vektra/mockery/v2 v2.32.0
@@ -16,6 +17,9 @@ require (
 	go.uber.org/yarpc v1.70.3
 	golang.org/x/tools v0.22.0
 )
+
+// current impl of https://github.com/gordonklaus/ineffassign/pull/94
+replace github.com/gordonklaus/ineffassign => github.com/Groxx/ineffassign v0.0.0-20250519232014-e2b8df18e126
 
 require (
 	4d63.com/gochecknoglobals v0.1.0 // indirect
@@ -127,7 +131,6 @@ require (
 	github.com/google/wire v0.5.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.2.3 // indirect
 	github.com/googleapis/gax-go/v2 v2.7.1 // indirect
-	github.com/gordonklaus/ineffassign v0.0.0-20210914165742-4cc7213b9bc8 // indirect
 	github.com/goreleaser/chglog v0.4.2 // indirect
 	github.com/goreleaser/fileglob v1.3.0 // indirect
 	github.com/goreleaser/goreleaser v0.169.0 // indirect

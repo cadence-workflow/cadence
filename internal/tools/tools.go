@@ -43,6 +43,8 @@ import (
 	_ "go.uber.org/yarpc/encoding/protobuf/protoc-gen-yarpc-go"
 	// yarpc plugin for thriftrw code gen
 	_ "go.uber.org/yarpc/encoding/thrift/thriftrw-plugin-yarpc"
+	// fast and quite reasonable "assignment is not used" checker, catches stuff errcheck misses
+	_ "github.com/gordonklaus/ineffassign"
 	// removes unused imports and formats
 	_ "golang.org/x/tools/cmd/goimports"
 )

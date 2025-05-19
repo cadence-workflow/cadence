@@ -202,6 +202,9 @@ $(BIN)/goimports: internal/tools/go.mod go.work
 $(BIN)/gowrap: go.mod go.work
 	$(call go_build_tool,github.com/hexdigest/gowrap/cmd/gowrap)
 
+$(BIN)/ineffassign: go.mod go.work
+	$(call go_build_tool,github.com/gordonklaus/ineffassign)
+
 $(BIN)/revive: internal/tools/go.mod go.work
 	$(call go_build_tool,github.com/mgechev/revive)
 
@@ -390,10 +393,11 @@ $(BUILD)/gomod-lint: go.mod internal/tools/go.mod common/archiver/gcloud/go.mod 
 
 # note that LINT_SRC is fairly fake as a prerequisite.
 # it's a coarse "you probably don't need to re-lint" filter, nothing more.
-$(BUILD)/code-lint: $(LINT_SRC) $(BIN)/revive | $(BUILD)
+$(BUILD)/code-lint: $(LINT_SRC) $(BIN)/revive $(BIN)/ineffassign | $(BUILD)
 	$Q echo "lint..."
 	$Q # non-optional vet checks.  unfortunately these are not currently included in `go test`'s default behavior.
 	$Q go vet -copylocks ./... ./common/archiver/gcloud/...
+	$Q $(BIN)/ineffassign -generated ./...
 	$Q $(BIN)/revive -config revive.toml -exclude './vendor/...' -exclude './.gen/...' -formatter stylish ./...
 	$Q # look for go files with "//comments", and ignore "//go:build"-style directives ("grep -n" shows "file:line: //go:build" so the regex is a bit complex)
 	$Q bad="$$(find . -type f -name '*.go' -not -path './idls/*' | xargs grep -n -E '^\s*//\S' | grep -E -v '^[^:]+:[^:]+:\s*//[a-z]+:[a-z]+' || true)"; \

@@ -146,6 +146,8 @@ github.com/Djarvur/go-err113 v0.0.0-20210108212216-aea10b59be24/go.mod h1:4UJr5H
 github.com/GaijinEntertainment/go-exhaustruct/v2 v2.1.0 h1:LAPPhJ4KR5Z8aKVZF5S48csJkxL5RMKmE/98fMs1u5M=
 github.com/GaijinEntertainment/go-exhaustruct/v2 v2.1.0/go.mod h1:LGOGuvEgCfCQsy3JF2tRmpGDpzA53iZfyGEWSPwQ6/4=
 github.com/GoogleCloudPlatform/cloudsql-proxy v1.22.0/go.mod h1:mAm5O/zik2RFmcpigNjg6nMotDL8ZXJaxKzgGVcSMFA=
+github.com/Groxx/ineffassign v0.0.0-20250519232014-e2b8df18e126 h1:ADziSjjZqF//C73do6Q0/reTyGYJop0hOWegf9aI1Bw=
+github.com/Groxx/ineffassign v0.0.0-20250519232014-e2b8df18e126/go.mod h1:Qcp2HIAYhR7mNUVSIxZww3Guk4it82ghYcEXIAk+QT0=
 github.com/Masterminds/goutils v1.1.0/go.mod h1:8cTjp+g8YejhMuvIA5y2vz3BpJxksy863GQaJW2MFNU=
 github.com/Masterminds/goutils v1.1.1 h1:5nUrii3FMTL5diU80unEVvNevw1nH4+ZV4DSLVJLSYI=
 github.com/Masterminds/goutils v1.1.1/go.mod h1:8cTjp+g8YejhMuvIA5y2vz3BpJxksy863GQaJW2MFNU=
@@ -601,9 +603,6 @@ github.com/googleapis/google-cloud-go-testing v0.0.0-20200911160855-bcd43fbb19e8
 github.com/gookit/color v1.5.0/go.mod h1:43aQb+Zerm/BWh2GnrgOQm7ffz7tvQXEKV6BFMl7wAo=
 github.com/gopherjs/gopherjs v0.0.0-20181017120253-0766667cb4d1 h1:EGx4pi6eqNxGaHF6qqu48+N2wcFQ5qg5FXgOdqsJ5d8=
 github.com/gopherjs/gopherjs v0.0.0-20181017120253-0766667cb4d1/go.mod h1:wJfORRmW1u3UXTncJ5qlYoELFm8eSnnEO6hX4iZ3EWY=
-github.com/gordonklaus/ineffassign v0.0.0-20200309095847-7953dde2c7bf/go.mod h1:cuNKsD1zp2v6XfE/orVX2QE1LC+i254ceGcVeDT3pTU=
-github.com/gordonklaus/ineffassign v0.0.0-20210914165742-4cc7213b9bc8 h1:PVRE9d4AQKmbelZ7emNig1+NT27DUmKZn5qXxfio54U=
-github.com/gordonklaus/ineffassign v0.0.0-20210914165742-4cc7213b9bc8/go.mod h1:Qcp2HIAYhR7mNUVSIxZww3Guk4it82ghYcEXIAk+QT0=
 github.com/goreleaser/chglog v0.1.2/go.mod h1:tTZsFuSZK4epDXfjMkxzcGbrIOXprf0JFp47BjIr3B8=
 github.com/goreleaser/chglog v0.4.2 h1:afmbT1d7lX/q+GF8wv3a1Dofs2j/Y9YkiCpGemWR6mI=
 github.com/goreleaser/chglog v0.4.2/go.mod h1:u/F03un4hMCQrp65qSWCkkC6T+G7YLKZ+AM2mITE47s=
