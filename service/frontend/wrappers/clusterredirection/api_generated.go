@@ -74,9 +74,9 @@ func (handler *clusterRedirectionHandler) CountWorkflowExecutions(ctx context.Co
 		case targetDC == handler.currentClusterName:
 			cp2, err = handler.frontendHandler.CountWorkflowExecutions(ctx, cp1)
 		default:
-			remoteClient, err := handler.GetRemoteFrontendClient(targetDC)
-			if err != nil {
-				return err
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
 			}
 			cp2, err = remoteClient.CountWorkflowExecutions(ctx, cp1, handler.callOptions...)
 		}
@@ -116,9 +116,9 @@ func (handler *clusterRedirectionHandler) DescribeTaskList(ctx context.Context, 
 		case targetDC == handler.currentClusterName:
 			dp2, err = handler.frontendHandler.DescribeTaskList(ctx, dp1)
 		default:
-			remoteClient, err := handler.GetRemoteFrontendClient(targetDC)
-			if err != nil {
-				return err
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
 			}
 			dp2, err = remoteClient.DescribeTaskList(ctx, dp1, handler.callOptions...)
 		}
@@ -152,9 +152,9 @@ func (handler *clusterRedirectionHandler) DescribeWorkflowExecution(ctx context.
 		case targetDC == handler.currentClusterName:
 			dp2, err = handler.frontendHandler.DescribeWorkflowExecution(ctx, dp1)
 		default:
-			remoteClient, err := handler.GetRemoteFrontendClient(targetDC)
-			if err != nil {
-				return err
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
 			}
 			dp2, err = remoteClient.DescribeWorkflowExecution(ctx, dp1, handler.callOptions...)
 		}
@@ -194,9 +194,9 @@ func (handler *clusterRedirectionHandler) GetTaskListsByDomain(ctx context.Conte
 		case targetDC == handler.currentClusterName:
 			gp2, err = handler.frontendHandler.GetTaskListsByDomain(ctx, gp1)
 		default:
-			remoteClient, err := handler.GetRemoteFrontendClient(targetDC)
-			if err != nil {
-				return err
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
 			}
 			gp2, err = remoteClient.GetTaskListsByDomain(ctx, gp1, handler.callOptions...)
 		}
@@ -230,9 +230,9 @@ func (handler *clusterRedirectionHandler) GetWorkflowExecutionHistory(ctx contex
 		case targetDC == handler.currentClusterName:
 			gp2, err = handler.frontendHandler.GetWorkflowExecutionHistory(ctx, gp1)
 		default:
-			remoteClient, err := handler.GetRemoteFrontendClient(targetDC)
-			if err != nil {
-				return err
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
 			}
 			gp2, err = remoteClient.GetWorkflowExecutionHistory(ctx, gp1, handler.callOptions...)
 		}
@@ -264,9 +264,9 @@ func (handler *clusterRedirectionHandler) ListArchivedWorkflowExecutions(ctx con
 		case targetDC == handler.currentClusterName:
 			lp2, err = handler.frontendHandler.ListArchivedWorkflowExecutions(ctx, lp1)
 		default:
-			remoteClient, err := handler.GetRemoteFrontendClient(targetDC)
-			if err != nil {
-				return err
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
 			}
 			lp2, err = remoteClient.ListArchivedWorkflowExecutions(ctx, lp1, handler.callOptions...)
 		}
@@ -294,9 +294,9 @@ func (handler *clusterRedirectionHandler) ListClosedWorkflowExecutions(ctx conte
 		case targetDC == handler.currentClusterName:
 			lp2, err = handler.frontendHandler.ListClosedWorkflowExecutions(ctx, lp1)
 		default:
-			remoteClient, err := handler.GetRemoteFrontendClient(targetDC)
-			if err != nil {
-				return err
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
 			}
 			lp2, err = remoteClient.ListClosedWorkflowExecutions(ctx, lp1, handler.callOptions...)
 		}
@@ -328,9 +328,9 @@ func (handler *clusterRedirectionHandler) ListOpenWorkflowExecutions(ctx context
 		case targetDC == handler.currentClusterName:
 			lp2, err = handler.frontendHandler.ListOpenWorkflowExecutions(ctx, lp1)
 		default:
-			remoteClient, err := handler.GetRemoteFrontendClient(targetDC)
-			if err != nil {
-				return err
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
 			}
 			lp2, err = remoteClient.ListOpenWorkflowExecutions(ctx, lp1, handler.callOptions...)
 		}
@@ -358,9 +358,9 @@ func (handler *clusterRedirectionHandler) ListTaskListPartitions(ctx context.Con
 		case targetDC == handler.currentClusterName:
 			lp2, err = handler.frontendHandler.ListTaskListPartitions(ctx, lp1)
 		default:
-			remoteClient, err := handler.GetRemoteFrontendClient(targetDC)
-			if err != nil {
-				return err
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
 			}
 			lp2, err = remoteClient.ListTaskListPartitions(ctx, lp1, handler.callOptions...)
 		}
@@ -388,9 +388,9 @@ func (handler *clusterRedirectionHandler) ListWorkflowExecutions(ctx context.Con
 		case targetDC == handler.currentClusterName:
 			lp2, err = handler.frontendHandler.ListWorkflowExecutions(ctx, lp1)
 		default:
-			remoteClient, err := handler.GetRemoteFrontendClient(targetDC)
-			if err != nil {
-				return err
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
 			}
 			lp2, err = remoteClient.ListWorkflowExecutions(ctx, lp1, handler.callOptions...)
 		}
@@ -418,9 +418,9 @@ func (handler *clusterRedirectionHandler) PollForActivityTask(ctx context.Contex
 		case targetDC == handler.currentClusterName:
 			pp2, err = handler.frontendHandler.PollForActivityTask(ctx, pp1)
 		default:
-			remoteClient, err := handler.GetRemoteFrontendClient(targetDC)
-			if err != nil {
-				return err
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
 			}
 			pp2, err = remoteClient.PollForActivityTask(ctx, pp1, handler.callOptions...)
 		}
@@ -448,9 +448,9 @@ func (handler *clusterRedirectionHandler) PollForDecisionTask(ctx context.Contex
 		case targetDC == handler.currentClusterName:
 			pp2, err = handler.frontendHandler.PollForDecisionTask(ctx, pp1)
 		default:
-			remoteClient, err := handler.GetRemoteFrontendClient(targetDC)
-			if err != nil {
-				return err
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
 			}
 			pp2, err = remoteClient.PollForDecisionTask(ctx, pp1, handler.callOptions...)
 		}
@@ -484,9 +484,9 @@ func (handler *clusterRedirectionHandler) QueryWorkflow(ctx context.Context, qp1
 		case targetDC == handler.currentClusterName:
 			qp2, err = handler.frontendHandler.QueryWorkflow(ctx, qp1)
 		default:
-			remoteClient, err := handler.GetRemoteFrontendClient(targetDC)
-			if err != nil {
-				return err
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
 			}
 			qp2, err = remoteClient.QueryWorkflow(ctx, qp1, handler.callOptions...)
 		}
@@ -520,9 +520,9 @@ func (handler *clusterRedirectionHandler) RecordActivityTaskHeartbeat(ctx contex
 		case targetDC == handler.currentClusterName:
 			rp2, err = handler.frontendHandler.RecordActivityTaskHeartbeat(ctx, rp1)
 		default:
-			remoteClient, err := handler.GetRemoteFrontendClient(targetDC)
-			if err != nil {
-				return err
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
 			}
 			rp2, err = remoteClient.RecordActivityTaskHeartbeat(ctx, rp1, handler.callOptions...)
 		}
@@ -550,9 +550,9 @@ func (handler *clusterRedirectionHandler) RecordActivityTaskHeartbeatByID(ctx co
 		case targetDC == handler.currentClusterName:
 			rp2, err = handler.frontendHandler.RecordActivityTaskHeartbeatByID(ctx, rp1)
 		default:
-			remoteClient, err := handler.GetRemoteFrontendClient(targetDC)
-			if err != nil {
-				return err
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
 			}
 			rp2, err = remoteClient.RecordActivityTaskHeartbeatByID(ctx, rp1, handler.callOptions...)
 		}
@@ -580,9 +580,9 @@ func (handler *clusterRedirectionHandler) RefreshWorkflowTasks(ctx context.Conte
 		case targetDC == handler.currentClusterName:
 			err = handler.frontendHandler.RefreshWorkflowTasks(ctx, rp1)
 		default:
-			remoteClient, err := handler.GetRemoteFrontendClient(targetDC)
-			if err != nil {
-				return err
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
 			}
 			err = remoteClient.RefreshWorkflowTasks(ctx, rp1, handler.callOptions...)
 		}
@@ -614,9 +614,9 @@ func (handler *clusterRedirectionHandler) RequestCancelWorkflowExecution(ctx con
 		case targetDC == handler.currentClusterName:
 			err = handler.frontendHandler.RequestCancelWorkflowExecution(ctx, rp1)
 		default:
-			remoteClient, err := handler.GetRemoteFrontendClient(targetDC)
-			if err != nil {
-				return err
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
 			}
 			err = remoteClient.RequestCancelWorkflowExecution(ctx, rp1, handler.callOptions...)
 		}
@@ -644,9 +644,9 @@ func (handler *clusterRedirectionHandler) ResetStickyTaskList(ctx context.Contex
 		case targetDC == handler.currentClusterName:
 			rp2, err = handler.frontendHandler.ResetStickyTaskList(ctx, rp1)
 		default:
-			remoteClient, err := handler.GetRemoteFrontendClient(targetDC)
-			if err != nil {
-				return err
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
 			}
 			rp2, err = remoteClient.ResetStickyTaskList(ctx, rp1, handler.callOptions...)
 		}
@@ -674,9 +674,9 @@ func (handler *clusterRedirectionHandler) ResetWorkflowExecution(ctx context.Con
 		case targetDC == handler.currentClusterName:
 			rp2, err = handler.frontendHandler.ResetWorkflowExecution(ctx, rp1)
 		default:
-			remoteClient, err := handler.GetRemoteFrontendClient(targetDC)
-			if err != nil {
-				return err
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
 			}
 			rp2, err = remoteClient.ResetWorkflowExecution(ctx, rp1, handler.callOptions...)
 		}
@@ -710,9 +710,9 @@ func (handler *clusterRedirectionHandler) RespondActivityTaskCanceled(ctx contex
 		case targetDC == handler.currentClusterName:
 			err = handler.frontendHandler.RespondActivityTaskCanceled(ctx, rp1)
 		default:
-			remoteClient, err := handler.GetRemoteFrontendClient(targetDC)
-			if err != nil {
-				return err
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
 			}
 			err = remoteClient.RespondActivityTaskCanceled(ctx, rp1, handler.callOptions...)
 		}
@@ -740,9 +740,9 @@ func (handler *clusterRedirectionHandler) RespondActivityTaskCanceledByID(ctx co
 		case targetDC == handler.currentClusterName:
 			err = handler.frontendHandler.RespondActivityTaskCanceledByID(ctx, rp1)
 		default:
-			remoteClient, err := handler.GetRemoteFrontendClient(targetDC)
-			if err != nil {
-				return err
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
 			}
 			err = remoteClient.RespondActivityTaskCanceledByID(ctx, rp1, handler.callOptions...)
 		}
@@ -776,9 +776,9 @@ func (handler *clusterRedirectionHandler) RespondActivityTaskCompleted(ctx conte
 		case targetDC == handler.currentClusterName:
 			err = handler.frontendHandler.RespondActivityTaskCompleted(ctx, rp1)
 		default:
-			remoteClient, err := handler.GetRemoteFrontendClient(targetDC)
-			if err != nil {
-				return err
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
 			}
 			err = remoteClient.RespondActivityTaskCompleted(ctx, rp1, handler.callOptions...)
 		}
@@ -806,9 +806,9 @@ func (handler *clusterRedirectionHandler) RespondActivityTaskCompletedByID(ctx c
 		case targetDC == handler.currentClusterName:
 			err = handler.frontendHandler.RespondActivityTaskCompletedByID(ctx, rp1)
 		default:
-			remoteClient, err := handler.GetRemoteFrontendClient(targetDC)
-			if err != nil {
-				return err
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
 			}
 			err = remoteClient.RespondActivityTaskCompletedByID(ctx, rp1, handler.callOptions...)
 		}
@@ -842,9 +842,9 @@ func (handler *clusterRedirectionHandler) RespondActivityTaskFailed(ctx context.
 		case targetDC == handler.currentClusterName:
 			err = handler.frontendHandler.RespondActivityTaskFailed(ctx, rp1)
 		default:
-			remoteClient, err := handler.GetRemoteFrontendClient(targetDC)
-			if err != nil {
-				return err
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
 			}
 			err = remoteClient.RespondActivityTaskFailed(ctx, rp1, handler.callOptions...)
 		}
@@ -872,9 +872,9 @@ func (handler *clusterRedirectionHandler) RespondActivityTaskFailedByID(ctx cont
 		case targetDC == handler.currentClusterName:
 			err = handler.frontendHandler.RespondActivityTaskFailedByID(ctx, rp1)
 		default:
-			remoteClient, err := handler.GetRemoteFrontendClient(targetDC)
-			if err != nil {
-				return err
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
 			}
 			err = remoteClient.RespondActivityTaskFailedByID(ctx, rp1, handler.callOptions...)
 		}
@@ -908,9 +908,9 @@ func (handler *clusterRedirectionHandler) RespondDecisionTaskCompleted(ctx conte
 		case targetDC == handler.currentClusterName:
 			rp2, err = handler.frontendHandler.RespondDecisionTaskCompleted(ctx, rp1)
 		default:
-			remoteClient, err := handler.GetRemoteFrontendClient(targetDC)
-			if err != nil {
-				return err
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
 			}
 			rp2, err = remoteClient.RespondDecisionTaskCompleted(ctx, rp1, handler.callOptions...)
 		}
@@ -944,9 +944,9 @@ func (handler *clusterRedirectionHandler) RespondDecisionTaskFailed(ctx context.
 		case targetDC == handler.currentClusterName:
 			err = handler.frontendHandler.RespondDecisionTaskFailed(ctx, rp1)
 		default:
-			remoteClient, err := handler.GetRemoteFrontendClient(targetDC)
-			if err != nil {
-				return err
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
 			}
 			err = remoteClient.RespondDecisionTaskFailed(ctx, rp1, handler.callOptions...)
 		}
@@ -980,9 +980,9 @@ func (handler *clusterRedirectionHandler) RespondQueryTaskCompleted(ctx context.
 		case targetDC == handler.currentClusterName:
 			err = handler.frontendHandler.RespondQueryTaskCompleted(ctx, rp1)
 		default:
-			remoteClient, err := handler.GetRemoteFrontendClient(targetDC)
-			if err != nil {
-				return err
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
 			}
 			err = remoteClient.RespondQueryTaskCompleted(ctx, rp1, handler.callOptions...)
 		}
@@ -1010,9 +1010,9 @@ func (handler *clusterRedirectionHandler) RestartWorkflowExecution(ctx context.C
 		case targetDC == handler.currentClusterName:
 			rp2, err = handler.frontendHandler.RestartWorkflowExecution(ctx, rp1)
 		default:
-			remoteClient, err := handler.GetRemoteFrontendClient(targetDC)
-			if err != nil {
-				return err
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
 			}
 			rp2, err = remoteClient.RestartWorkflowExecution(ctx, rp1, handler.callOptions...)
 		}
@@ -1040,9 +1040,9 @@ func (handler *clusterRedirectionHandler) ScanWorkflowExecutions(ctx context.Con
 		case targetDC == handler.currentClusterName:
 			lp2, err = handler.frontendHandler.ScanWorkflowExecutions(ctx, lp1)
 		default:
-			remoteClient, err := handler.GetRemoteFrontendClient(targetDC)
-			if err != nil {
-				return err
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
 			}
 			lp2, err = remoteClient.ScanWorkflowExecutions(ctx, lp1, handler.callOptions...)
 		}
@@ -1070,9 +1070,9 @@ func (handler *clusterRedirectionHandler) SignalWithStartWorkflowExecution(ctx c
 		case targetDC == handler.currentClusterName:
 			sp2, err = handler.frontendHandler.SignalWithStartWorkflowExecution(ctx, sp1)
 		default:
-			remoteClient, err := handler.GetRemoteFrontendClient(targetDC)
-			if err != nil {
-				return err
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
 			}
 			sp2, err = remoteClient.SignalWithStartWorkflowExecution(ctx, sp1, handler.callOptions...)
 		}
@@ -1100,9 +1100,9 @@ func (handler *clusterRedirectionHandler) SignalWithStartWorkflowExecutionAsync(
 		case targetDC == handler.currentClusterName:
 			sp2, err = handler.frontendHandler.SignalWithStartWorkflowExecutionAsync(ctx, sp1)
 		default:
-			remoteClient, err := handler.GetRemoteFrontendClient(targetDC)
-			if err != nil {
-				return err
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
 			}
 			sp2, err = remoteClient.SignalWithStartWorkflowExecutionAsync(ctx, sp1, handler.callOptions...)
 		}
@@ -1130,9 +1130,9 @@ func (handler *clusterRedirectionHandler) SignalWorkflowExecution(ctx context.Co
 		case targetDC == handler.currentClusterName:
 			err = handler.frontendHandler.SignalWorkflowExecution(ctx, sp1)
 		default:
-			remoteClient, err := handler.GetRemoteFrontendClient(targetDC)
-			if err != nil {
-				return err
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
 			}
 			err = remoteClient.SignalWorkflowExecution(ctx, sp1, handler.callOptions...)
 		}
@@ -1160,9 +1160,9 @@ func (handler *clusterRedirectionHandler) StartWorkflowExecution(ctx context.Con
 		case targetDC == handler.currentClusterName:
 			sp2, err = handler.frontendHandler.StartWorkflowExecution(ctx, sp1)
 		default:
-			remoteClient, err := handler.GetRemoteFrontendClient(targetDC)
-			if err != nil {
-				return err
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
 			}
 			sp2, err = remoteClient.StartWorkflowExecution(ctx, sp1, handler.callOptions...)
 		}
@@ -1190,9 +1190,9 @@ func (handler *clusterRedirectionHandler) StartWorkflowExecutionAsync(ctx contex
 		case targetDC == handler.currentClusterName:
 			sp2, err = handler.frontendHandler.StartWorkflowExecutionAsync(ctx, sp1)
 		default:
-			remoteClient, err := handler.GetRemoteFrontendClient(targetDC)
-			if err != nil {
-				return err
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
 			}
 			sp2, err = remoteClient.StartWorkflowExecutionAsync(ctx, sp1, handler.callOptions...)
 		}
@@ -1220,9 +1220,9 @@ func (handler *clusterRedirectionHandler) TerminateWorkflowExecution(ctx context
 		case targetDC == handler.currentClusterName:
 			err = handler.frontendHandler.TerminateWorkflowExecution(ctx, tp1)
 		default:
-			remoteClient, err := handler.GetRemoteFrontendClient(targetDC)
-			if err != nil {
-				return err
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
 			}
 			err = remoteClient.TerminateWorkflowExecution(ctx, tp1, handler.callOptions...)
 		}

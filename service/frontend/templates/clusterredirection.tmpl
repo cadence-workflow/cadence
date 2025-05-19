@@ -112,9 +112,9 @@ func (handler *clusterRedirectionHandler) {{$method.Declaration}} {
 		case targetDC == handler.currentClusterName:
 			{{$method.ResultsNames}} = handler.frontendHandler.{{$method.Call}}
 		default:
-			remoteClient, err := handler.GetRemoteFrontendClient(targetDC)
-			if err != nil {
-				return err
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
 			}
 			{{$method.ResultsNames}} = remoteClient.{{$method.Name}}({{$method.Params.Pass}}, handler.callOptions...)
 		}

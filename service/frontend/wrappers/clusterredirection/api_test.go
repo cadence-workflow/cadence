@@ -31,12 +31,14 @@ import (
 
 	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/client"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/domain"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/frontend/api"
@@ -933,4 +935,33 @@ func (s *clusterRedirectionHandlerSuite) TestGetTaskListsByDomain() {
 	s.mockRemoteFrontendClient.EXPECT().GetTaskListsByDomain(gomock.Any(), req, s.handler.callOptions).Return(&types.GetTaskListsByDomainResponse{}, nil).Times(1)
 	err = callFn(s.alternativeClusterName)
 	s.Nil(err)
+}
+
+func (s *clusterRedirectionHandlerSuite) TestGetTaskListsByDomainError() {
+	s.handler.redirectionPolicy = newSelectedOrAllAPIsForwardingPolicy(
+		s.currentClusterName,
+		s.config,
+		s.mockResource.GetDomainCache(),
+		true,
+		selectedAPIsForwardingRedirectionPolicyAPIAllowlistV2,
+		"",
+		s.mockResource.GetLogger(),
+	)
+	req := &types.GetTaskListsByDomainRequest{
+		Domain: s.domainName,
+	}
+	domainEntry := cache.NewGlobalDomainCacheEntryForTest(
+		&persistence.DomainInfo{Name: "domain_name"},
+		nil,
+		&persistence.DomainReplicationConfig{
+			ActiveClusterName: s.alternativeClusterName,
+		},
+		1,
+	)
+	s.mockResource.DomainCache.EXPECT().GetDomain(gomock.Any()).Return(domainEntry, nil).Times(1)
+	s.mockRemoteFrontendClient.EXPECT().GetTaskListsByDomain(gomock.Any(), req, s.handler.callOptions).Return(nil, &types.InternalServiceError{Message: "test error"}).Times(1)
+	resp, err := s.handler.GetTaskListsByDomain(context.Background(), req)
+	s.Error(err)
+	// the resp is initialized to nil, since inner function is not called
+	s.Nil(resp)
 }
