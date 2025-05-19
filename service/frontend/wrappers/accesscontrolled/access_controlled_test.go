@@ -31,11 +31,23 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/authorization"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/metrics/mocks"
+	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/frontend/admin"
 )
+
+var errFromRecoveredPanic = errors.New("simulated panic error")
+
+type fakeResource struct {
+	logger log.Logger
+}
+
+func (r *fakeResource) GetLogger() log.Logger {
+	return r.logger
+}
 
 func TestIsAuthorized(t *testing.T) {
 	testCases := []struct {
@@ -99,12 +111,12 @@ func TestDescribeCluster(t *testing.T) {
 	someErr := errors.New("some random err")
 	testCases := []struct {
 		name      string
-		mockSetup func(*authorization.MockAuthorizer, *admin.MockHandler)
+		mockSetup func(*authorization.MockAuthorizer, *admin.MockHandler, *resource.MockResource)
 		wantErr   error
 	}{
 		{
 			name: "Success case",
-			mockSetup: func(authorizer *authorization.MockAuthorizer, adminHandler *admin.MockHandler) {
+			mockSetup: func(authorizer *authorization.MockAuthorizer, adminHandler *admin.MockHandler, mockResource *resource.MockResource) {
 				authorizer.EXPECT().Authorize(gomock.Any(), gomock.Any()).Return(authorization.Result{Decision: authorization.DecisionAllow}, nil)
 				adminHandler.EXPECT().DescribeCluster(gomock.Any()).Return(&types.DescribeClusterResponse{}, nil)
 			},
@@ -112,17 +124,30 @@ func TestDescribeCluster(t *testing.T) {
 		},
 		{
 			name: "Error case - unauthorized",
-			mockSetup: func(authorizer *authorization.MockAuthorizer, adminHandler *admin.MockHandler) {
+			mockSetup: func(authorizer *authorization.MockAuthorizer, adminHandler *admin.MockHandler, mockResource *resource.MockResource) {
 				authorizer.EXPECT().Authorize(gomock.Any(), gomock.Any()).Return(authorization.Result{Decision: authorization.DecisionDeny}, nil)
 			},
 			wantErr: errUnauthorized,
 		},
 		{
 			name: "Error case - authorization error",
-			mockSetup: func(authorizer *authorization.MockAuthorizer, adminHandler *admin.MockHandler) {
+			mockSetup: func(authorizer *authorization.MockAuthorizer, adminHandler *admin.MockHandler, mockResource *resource.MockResource) {
 				authorizer.EXPECT().Authorize(gomock.Any(), gomock.Any()).Return(authorization.Result{}, someErr)
 			},
 			wantErr: someErr,
+		},
+		{
+			name: "Panic case - handler panics",
+			mockSetup: func(authorizer *authorization.MockAuthorizer, adminHandler *admin.MockHandler, mockResource *resource.MockResource) {
+				authorizer.EXPECT().Authorize(gomock.Any(), gomock.Any()).
+					Return(authorization.Result{Decision: authorization.DecisionAllow}, nil)
+				mockResource.EXPECT().GetLogger().Return(log.NewNoop())
+				adminHandler.EXPECT().DescribeCluster(gomock.Any()).
+					DoAndReturn(func(context.Context) (*types.DescribeClusterResponse, error) {
+						panic(errFromRecoveredPanic)
+					})
+			},
+			wantErr: errFromRecoveredPanic,
 		},
 	}
 
@@ -132,9 +157,14 @@ func TestDescribeCluster(t *testing.T) {
 
 			mockAuthorizer := authorization.NewMockAuthorizer(controller)
 			mockAdminHandler := admin.NewMockHandler(controller)
-			tc.mockSetup(mockAuthorizer, mockAdminHandler)
+			mockResource := resource.NewMockResource(controller)
+			tc.mockSetup(mockAuthorizer, mockAdminHandler, mockResource)
 
-			handler := &adminHandler{authorizer: mockAuthorizer, handler: mockAdminHandler}
+			handler := &adminHandler{
+				authorizer: mockAuthorizer,
+				handler:    mockAdminHandler,
+				Resource:   mockResource,
+			}
 			_, err := handler.DescribeCluster(context.Background())
 			if tc.wantErr != nil {
 				assert.Error(t, err)

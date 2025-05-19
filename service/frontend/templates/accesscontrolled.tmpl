@@ -81,6 +81,11 @@ func New{{$Decorator}}(handler {{$.Interface.Type}}, resource resource.Resource,
 
 {{range $method := .Interface.Methods}}
 func (a *{{$decorator}}) {{$method.Declaration}} {
+	{{- if eq $method.Name "DescribeCluster" }}
+	defer func() {
+		log.CapturePanic(recover(), a.GetLogger(), &err)
+	}()
+	{{- end }}
 {{- if or (eq $method.Name "Start") (eq $method.Name "Stop")}}
 	a.handler.{{$method.Call}}
 }
@@ -139,7 +144,12 @@ func (a *{{$decorator}}) {{$method.Declaration}} {
 		{{- end}}
 	}
 	{{- end}}
+	{{- if eq $method.Name "DescribeCluster" }}
+	{{- /* assign return values before returning */}}
+	dp1, err = a.handler.{{$method.Call}}
+	return dp1, err
+	{{- else }}
 	return a.handler.{{$method.Call}}
-}
+	{{- end }}}
 {{- end}}
 {{end}}

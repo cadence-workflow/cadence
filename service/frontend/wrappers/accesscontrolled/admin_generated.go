@@ -9,6 +9,7 @@ import (
 
 	"github.com/uber/cadence/common/authorization"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/types"
@@ -103,6 +104,9 @@ func (a *adminHandler) DeleteWorkflow(ctx context.Context, ap1 *types.AdminDelet
 }
 
 func (a *adminHandler) DescribeCluster(ctx context.Context) (dp1 *types.DescribeClusterResponse, err error) {
+	defer func() {
+		log.CapturePanic(recover(), a.GetLogger(), &err)
+	}()
 	attr := &authorization.Attributes{
 		APIName:    "DescribeCluster",
 		Permission: authorization.PermissionRead,
@@ -114,7 +118,8 @@ func (a *adminHandler) DescribeCluster(ctx context.Context) (dp1 *types.Describe
 	if !isAuthorized {
 		return nil, errUnauthorized
 	}
-	return a.handler.DescribeCluster(ctx)
+	dp1, err = a.handler.DescribeCluster(ctx)
+	return dp1, err
 }
 
 func (a *adminHandler) DescribeHistoryHost(ctx context.Context, dp1 *types.DescribeHistoryHostRequest) (dp2 *types.DescribeHistoryHostResponse, err error) {
