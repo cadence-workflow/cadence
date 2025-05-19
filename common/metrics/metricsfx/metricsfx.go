@@ -33,8 +33,15 @@ import (
 )
 
 // Module provides metrics client for fx application.
-var Module = fx.Module("metricfx",
+var Module = fx.Module("metricsfx",
 	fx.Provide(buildClient))
+
+// ModuleForExternalScope provides metrics client for fx application when tally.Scope is created outside.
+var ModuleForExternalScope = fx.Module("metricsfx",
+	fx.Provide(func(params serviceIdxParams) metrics.ServiceIdx {
+		return service.GetMetricsServiceIdx(params.ServiceFullName, params.Logger)
+	}),
+	fx.Provide(buildClientFromTally))
 
 type clientParams struct {
 	fx.In
@@ -42,12 +49,20 @@ type clientParams struct {
 	Logger          log.Logger
 	ServiceFullName string `name:"service-full-name"`
 	SvcCfg          config.Service
-	Scope           tally.Scope `optional:"true"` // maybe filled outside
 }
 
 func buildClient(params clientParams) metrics.Client {
-	if params.Scope == nil {
-		params.Scope = params.SvcCfg.Metrics.NewScope(params.Logger, params.ServiceFullName)
-	}
-	return metrics.NewClient(params.Scope, service.GetMetricsServiceIdx(params.ServiceFullName, params.Logger))
+	scope := params.SvcCfg.Metrics.NewScope(params.Logger, params.ServiceFullName)
+	return buildClientFromTally(scope, service.GetMetricsServiceIdx(params.ServiceFullName, params.Logger))
+}
+
+type serviceIdxParams struct {
+	fx.In
+
+	Logger          log.Logger
+	ServiceFullName string `name:"service-full-name"`
+}
+
+func buildClientFromTally(scope tally.Scope, serviceID metrics.ServiceIdx) metrics.Client {
+	return metrics.NewClient(scope, serviceID)
 }
