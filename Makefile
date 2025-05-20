@@ -69,8 +69,6 @@ $(BUILD)/proto-lint:
 $(BUILD)/gomod-lint:
 $(BUILD)/goversion-lint:
 $(BUILD)/fmt: $(BUILD)/codegen # formatting must occur only after all other go-file-modifications are done
-# $(BUILD)/copyright 
-# $(BUILD)/copyright: $(BUILD)/codegen # must add copyright to generated code, sometimes needs re-formatting
 $(BUILD)/codegen: $(BUILD)/thrift $(BUILD)/protoc
 $(BUILD)/thrift: $(BUILD)/go_mod_check
 $(BUILD)/protoc: $(BUILD)/go_mod_check
@@ -250,10 +248,6 @@ $(BUILD)/go_mod_check: $(ALL_GOMODS) internal/tools/go.mod go.work
 	$Q # generated == used is occasionally important for gomock / mock libs in general.  this is not a definite problem if violated though.
 	$Q ./scripts/check-gomod-version.sh github.com/golang/mock/gomock $(if $(verbose),-v)
 	$Q touch $@
-
-# copyright header checker/writer.  only requires stdlib, so no other dependencies are needed.
-# $(BIN)/copyright: cmd/tools/copyright/licensegen.go
-# 	$Q go build -o $@ ./cmd/tools/copyright/licensegen.go
 
 # https://docs.buf.build/
 # changing BUF_VERSION will automatically download and use the specified version.
@@ -436,19 +430,6 @@ $(BUILD)/goversion-lint: go.work Dockerfile docker/buildkite/Dockerfile
 	$Q ./scripts/check-go-toolchain.sh $(GOWORK_TOOLCHAIN)
 	$Q touch $@
 
-# fmt and copyright are mutually cyclic with their inputs, so if a copyright header is modified:
-# - copyright -> makes changes
-# - fmt sees changes -> makes changes
-# - now copyright thinks it needs to run again (but does nothing)
-# - which means fmt needs to run again (but does nothing)
-# and now after two passes it's finally stable, because they stopped making changes.
-#
-# this is not fatal, we can just run 2x.
-# to be fancier though, we can detect when *both* are run, and re-touch the book-keeping files to prevent the second run.
-# this STRICTLY REQUIRES that `copyright` and `fmt` are mutually stable, and that copyright runs before fmt.
-# if either changes, this will need to change.
-MAYBE_TOUCH_COPYRIGHT=
-
 # use FRESH_ALL_SRC so it won't miss any generated files produced earlier.
 $(BUILD)/fmt: $(ALL_SRC) $(BIN)/goimports $(BIN)/gci | $(BUILD)
 	$Q echo "removing unused imports..."
@@ -457,12 +438,6 @@ $(BUILD)/fmt: $(ALL_SRC) $(BIN)/goimports $(BIN)/gci | $(BUILD)
 	$Q echo "grouping imports..."
 	$Q $(BIN)/gci write --section standard --section 'Prefix(github.com/uber/cadence/)' --section default --section blank $(FRESH_ALL_SRC)
 	$Q touch $@
-# 	$Q $(MAYBE_TOUCH_COPYRIGHT)
-
-# $(BUILD)/copyright: $(ALL_SRC) $(BIN)/copyright | $(BUILD)
-# 	$(BIN)/copyright --verifyOnly
-# 	$Q $(eval MAYBE_TOUCH_COPYRIGHT=touch $@)
-# 	$Q touch $@
 
 # ====================================
 # developer-oriented targets
@@ -479,7 +454,7 @@ $Q rm -f $(addprefix $(BUILD)/,$(1))
 $Q +$(MAKE) --no-print-directory $(addprefix $(BUILD)/,$(1))
 endef
 
-.PHONY: lint fmt copyright pr
+.PHONY: lint fmt pr
 
 # useful to actually re-run to get output again.
 # reuse the intermediates for simplicity and consistency.
@@ -488,11 +463,6 @@ lint: ## (Re)run the linter
 
 # intentionally not re-making, it's a bit slow and it's clear when it's unnecessary
 fmt: $(BUILD)/fmt ## Run `gofmt` / organize imports / etc
-
-# not identical to the intermediate target, but does provide the same codegen (or more).
-# copyright: $(BIN)/copyright | $(BUILD) ## Update copyright headers
-# 	$(BIN)/copyright
-# 	$Q touch $(BUILD)/copyright
 
 define make_quietly
 $Q echo "make $1..."
@@ -505,7 +475,6 @@ pr: ## Redo all codegen and basic checks, to ensure your PR will be able to run 
 	$Q $(if $(verbose),$(MAKE) go-generate,$(call make_quietly,go-generate))
 	$Q $(if $(verbose),$(MAKE) fmt,$(call make_quietly,fmt))
 	$Q $(if $(verbose),$(MAKE) lint,$(call make_quietly,lint))
-# 	$Q $(if $(verbose),$(MAKE) copyright,$(call make_quietly,copyright))
 
 # ====================================
 # binaries to build
@@ -569,8 +538,6 @@ go-generate: $(BIN)/mockgen $(BIN)/enumer $(BIN)/mockery  $(BIN)/gowrap ## Run `
 	$Q # add our bins to PATH so `go generate` can find them
 	$Q $(BIN_PATH) go generate $(if $(verbose),-v) ./...
 	$Q $(MAKE) --no-print-directory fmt
-# 	$Q echo "updating copyright headers"
-# 	$Q $(MAKE) --no-print-directory copyright
 
 release: ## Re-generate generated code and run tests
 	$(MAKE) --no-print-directory go-generate
