@@ -379,7 +379,7 @@ $(BUILD)/gomod-lint: go.mod internal/tools/go.mod common/archiver/gcloud/go.mod 
 		SUBMODULES=$$(find . -type f -name "go.mod" -not -path "./go.mod" -not -path "./idls/*" -exec dirname {} \; | sed 's|^\./||'); \
 		for submodule in $$SUBMODULES; do \
 			submodule_path="$$MAIN_MODULE/$$submodule"; \
-			if grep -q "^require.*$$submodule_path" go.mod; then \
+			if grep -q "$$submodule_path" go.mod; then \
 				echo "ERROR: Root go.mod directly depends on submodule: $$submodule_path" >&2; \
 				exit 1; \
 			fi; \
