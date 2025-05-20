@@ -11,6 +11,13 @@ MAKEFLAGS += --no-builtin-rules
 # as otherwise you will ignore all errors.
 SHELL = /bin/bash -e -u -o pipefail
 
+# helper for $(foreach...) mostly, to allow each shell command to be run separately
+# by placing them on their own lines.
+define NEWLINE
+
+
+endef
+
 default: help
 
 # ###########################################
@@ -144,6 +151,34 @@ ALL_SRC := $(FRESH_ALL_SRC)
 # as lint ignores generated code, it can use the cached copy in all cases
 LINT_SRC := $(filter-out %_test.go ./.gen/%, $(ALL_SRC))
 
+# a list of relative paths of go modules, e.g.: ./go.mod ./cmd/server/go.mod
+# this excludes ./internal/(tools) as "internal" modules cannot be imported,
+# and all tools-module dependencies are quite "special" and not normal code.
+ALL_GOMODS := $(shell \
+	find . \
+	\( \
+		-path './vendor/*' \
+		-o -path './idls/*' \
+		-o -path './.build/*' \
+		-o -path './.bin/*' \
+		-o -path './.git/*' \
+		-o -path './internal/*' \
+	\) \
+	-prune \
+	-o -name 'go.mod' \
+	-type f \
+	-print \
+)
+# converts "./cmd/server/go.mod" to "cmd/server" and removes the top level one
+SUBMOD_DIRS := $(patsubst ./%/go.mod,%,$(filter-out ./go.mod,$(ALL_GOMODS)))
+# converts "./go.mod ./cmd/server/go.mod" to "./... ./cmd/server/..."
+# which are all valid go module targets for stuff like `go vet ./... etc`.
+# sort just makes sure ./... comes first because that's usually the most
+# useful to build first.
+ALL_GOMOD_PATTERNS := $(sort $(patsubst %/go.mod,%/...,$(ALL_GOMODS)))
+MAIN_MODULE := $(shell grep "^module " go.mod | awk '{print $$2}')
+SUBMOD_IMPORTS := $(addprefix $(MAIN_MODULE)/,$(SUBMOD_DIRS))
+
 # ====================================
 # $(BIN) targets
 # ====================================
@@ -211,7 +246,7 @@ $(BIN)/protoc-gen-gogofast: go.mod go.work | $(BIN)
 $(BIN)/protoc-gen-yarpc-go: go.mod go.work | $(BIN)
 	$(call go_mod_build_tool,go.uber.org/yarpc/encoding/protobuf/protoc-gen-yarpc-go)
 
-$(BUILD)/go_mod_check: go.mod internal/tools/go.mod go.work
+$(BUILD)/go_mod_check: $(ALL_GOMODS) internal/tools/go.mod go.work
 	$Q # generated == used is occasionally important for gomock / mock libs in general.  this is not a definite problem if violated though.
 	$Q ./scripts/check-gomod-version.sh github.com/golang/mock/gomock $(if $(verbose),-v)
 	$Q touch $@
@@ -372,19 +407,10 @@ $(BUILD)/proto-lint: $(PROTO_FILES) $(STABLE_BIN)/$(BUF_VERSION_BIN) | $(BUILD)
 
 # lints that go modules are as expected, e.g. parent does not import submodule.
 # tool builds that need to be in sync with the parent are partially checked through go_mod_build_tool, but should probably be checked here too
-$(BUILD)/gomod-lint: go.mod internal/tools/go.mod common/archiver/gcloud/go.mod | $(BUILD)
+$(BUILD)/gomod-lint: go.mod | $(BUILD)
 	$Q echo "checking for direct submodule dependencies in root go.mod..."
-	$Q ( \
-		MAIN_MODULE=$$(grep "^module " go.mod | awk '{print $$2}'); \
-		SUBMODULES=$$(find . -type f -name "go.mod" -not -path "./go.mod" -not -path "./idls/*" -exec dirname {} \; | sed 's|^\./||'); \
-		for submodule in $$SUBMODULES; do \
-			submodule_path="$$MAIN_MODULE/$$submodule"; \
-			if grep -q "^require.*$$submodule_path" go.mod; then \
-				echo "ERROR: Root go.mod directly depends on submodule: $$submodule_path" >&2; \
-				exit 1; \
-			fi; \
-			echo "✓ No direct dependency on $$submodule"; \
-		done; \
+	$(foreach submod,$(SUBMOD_IMPORTS),\
+		$Q ! grep -q "$(submod)" go.mod || (echo "ERROR: Root go.mod directly depends on submodule: $(submod)" >&2; exit 1) $(NEWLINE)\
 	)
 	$Q touch $@
 
@@ -393,8 +419,8 @@ $(BUILD)/gomod-lint: go.mod internal/tools/go.mod common/archiver/gcloud/go.mod 
 $(BUILD)/code-lint: $(LINT_SRC) $(BIN)/revive | $(BUILD)
 	$Q echo "lint..."
 	$Q # non-optional vet checks.  unfortunately these are not currently included in `go test`'s default behavior.
-	$Q go vet -copylocks ./... ./common/archiver/gcloud/...
-	$Q $(BIN)/revive -config revive.toml -exclude './vendor/...' -exclude './.gen/...' -formatter stylish ./...
+	$Q go vet -copylocks $(ALL_GOMOD_PATTERNS)
+	$Q $(BIN)/revive -config revive.toml -exclude './vendor/...' -exclude './.gen/...' -formatter stylish $(ALL_GOMOD_PATTERNS)
 	$Q # look for go files with "//comments", and ignore "//go:build"-style directives ("grep -n" shows "file:line: //go:build" so the regex is a bit complex)
 	$Q bad="$$(find . -type f -name '*.go' -not -path './idls/*' | xargs grep -n -E '^\s*//\S' | grep -E -v '^[^:]+:[^:]+:\s*//[a-z]+:[a-z]+' || true)"; \
 		if [ -n "$$bad" ]; then \
@@ -552,21 +578,26 @@ release: ## Re-generate generated code and run tests
 
 build: ## `go build` all packages and tests (a quick compile check only, skips all other steps)
 	$Q echo 'Building all packages and submodules...'
-	$Q go build ./...
-	$Q cd common/archiver/gcloud; go build ./...
-	$Q cd cmd/server; go build ./...
+	$(foreach tgt,$(ALL_GOMOD_PATTERNS),\
+		$Q go build $(tgt) $(NEWLINE)\
+	)
 	$Q # "tests" by building and then running `true`, and hides test-success output
 	$Q echo 'Building all tests (~5x slower)...'
 	$Q # intentionally not -race due to !race build tags
-	$Q go test -exec /usr/bin/true ./... >/dev/null
-	$Q cd common/archiver/gcloud; go test -exec /usr/bin/true ./... >/dev/null
-	$Q cd cmd/server; go test -exec /usr/bin/true ./... >/dev/null
+	$(foreach tgt,$(ALL_GOMOD_PATTERNS),\
+		$Q go test -exec /usr/bin/true $(tgt) >/dev/null $(NEWLINE)\
+	)
+
+define tidy_submodule
+$Q cd $(1); go mod tidy || (echo "failed to tidy $(1), try manually copying go.mod contents into $(1)/go.mod and rerunning" >&2; exit 1)
+endef
 
 tidy: ## `go mod tidy` all packages
-	$Q # tidy in dependency order
+	$Q # tidy in dependency order, so causes are clearer
 	$Q go mod tidy
-	$Q cd common/archiver/gcloud; go mod tidy || (echo "failed to tidy gcloud plugin, try manually copying go.mod contents into common/archiver/gcloud/go.mod and rerunning" >&2; exit 1)
-	$Q cd cmd/server; go mod tidy || (echo "failed to tidy main server module, try manually copying go.mod and common/archiver/gcloud/go.mod contents into cmd/server/go.mod and rerunning" >&2; exit 1)
+	$(call tidy_submodule,common/archiver/gcloud)
+	$(call tidy_submodule,service/sharddistributor/leader/leaderstore/etcd)
+	$(call tidy_submodule,cmd/server)
 
 clean: ## Clean build products
 	rm -f $(BINS)
