@@ -560,11 +560,10 @@ $Q cd $(1); go mod tidy || (echo "failed to tidy $(1), try manually copying go.m
 endef
 
 tidy: ## `go mod tidy` all packages
-	$Q # tidy in dependency order, so causes are clearer
 	$Q go mod tidy
-	$(call tidy_submodule,common/archiver/gcloud)
-	$(call tidy_submodule,service/sharddistributor/leader/leaderstore/etcd)
-	$(call tidy_submodule,cmd/server)
+	$(foreach submod,$(SUBMOD_DIRS) internal/tools,\
+		$(call tidy_submodule,$(submod)) $(NEWLINE)\
+	)
 
 clean: ## Clean build products
 	rm -f $(BINS)
