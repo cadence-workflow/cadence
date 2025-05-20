@@ -11,6 +11,13 @@ MAKEFLAGS += --no-builtin-rules
 # as otherwise you will ignore all errors.
 SHELL = /bin/bash -e -u -o pipefail
 
+# helper for $(foreach...) mostly, to allow each shell command to be run separately
+# by placing them on their own lines.
+define NEWLINE
+
+
+endef
+
 default: help
 
 # ###########################################
@@ -62,8 +69,6 @@ $(BUILD)/proto-lint:
 $(BUILD)/gomod-lint:
 $(BUILD)/goversion-lint:
 $(BUILD)/fmt: $(BUILD)/codegen # formatting must occur only after all other go-file-modifications are done
-# $(BUILD)/copyright 
-# $(BUILD)/copyright: $(BUILD)/codegen # must add copyright to generated code, sometimes needs re-formatting
 $(BUILD)/codegen: $(BUILD)/thrift $(BUILD)/protoc
 $(BUILD)/thrift: $(BUILD)/go_mod_check
 $(BUILD)/protoc: $(BUILD)/go_mod_check
@@ -144,6 +149,34 @@ ALL_SRC := $(FRESH_ALL_SRC)
 # as lint ignores generated code, it can use the cached copy in all cases
 LINT_SRC := $(filter-out %_test.go ./.gen/%, $(ALL_SRC))
 
+# a list of relative paths of go modules, e.g.: ./go.mod ./cmd/server/go.mod
+# this excludes ./internal/(tools) as "internal" modules cannot be imported,
+# and all tools-module dependencies are quite "special" and not normal code.
+ALL_GOMODS := $(shell \
+	find . \
+	\( \
+		-path './vendor/*' \
+		-o -path './idls/*' \
+		-o -path './.build/*' \
+		-o -path './.bin/*' \
+		-o -path './.git/*' \
+		-o -path './internal/*' \
+	\) \
+	-prune \
+	-o -name 'go.mod' \
+	-type f \
+	-print \
+)
+# converts "./cmd/server/go.mod" to "cmd/server" and removes the top level one
+SUBMOD_DIRS := $(patsubst ./%/go.mod,%,$(filter-out ./go.mod,$(ALL_GOMODS)))
+# converts "./go.mod ./cmd/server/go.mod" to "./... ./cmd/server/..."
+# which are all valid go module targets for stuff like `go vet ./... etc`.
+# sort just makes sure ./... comes first because that's usually the most
+# useful to build first.
+ALL_GOMOD_PATTERNS := $(sort $(patsubst %/go.mod,%/...,$(ALL_GOMODS)))
+MAIN_MODULE := $(shell grep "^module " go.mod | awk '{print $$2}')
+SUBMOD_IMPORTS := $(addprefix $(MAIN_MODULE)/,$(SUBMOD_DIRS))
+
 # ====================================
 # $(BIN) targets
 # ====================================
@@ -211,14 +244,10 @@ $(BIN)/protoc-gen-gogofast: go.mod go.work | $(BIN)
 $(BIN)/protoc-gen-yarpc-go: go.mod go.work | $(BIN)
 	$(call go_mod_build_tool,go.uber.org/yarpc/encoding/protobuf/protoc-gen-yarpc-go)
 
-$(BUILD)/go_mod_check: go.mod internal/tools/go.mod go.work
+$(BUILD)/go_mod_check: $(ALL_GOMODS) internal/tools/go.mod go.work
 	$Q # generated == used is occasionally important for gomock / mock libs in general.  this is not a definite problem if violated though.
 	$Q ./scripts/check-gomod-version.sh github.com/golang/mock/gomock $(if $(verbose),-v)
 	$Q touch $@
-
-# copyright header checker/writer.  only requires stdlib, so no other dependencies are needed.
-# $(BIN)/copyright: cmd/tools/copyright/licensegen.go
-# 	$Q go build -o $@ ./cmd/tools/copyright/licensegen.go
 
 # https://docs.buf.build/
 # changing BUF_VERSION will automatically download and use the specified version.
@@ -372,19 +401,10 @@ $(BUILD)/proto-lint: $(PROTO_FILES) $(STABLE_BIN)/$(BUF_VERSION_BIN) | $(BUILD)
 
 # lints that go modules are as expected, e.g. parent does not import submodule.
 # tool builds that need to be in sync with the parent are partially checked through go_mod_build_tool, but should probably be checked here too
-$(BUILD)/gomod-lint: go.mod internal/tools/go.mod common/archiver/gcloud/go.mod | $(BUILD)
+$(BUILD)/gomod-lint: go.mod | $(BUILD)
 	$Q echo "checking for direct submodule dependencies in root go.mod..."
-	$Q ( \
-		MAIN_MODULE=$$(grep "^module " go.mod | awk '{print $$2}'); \
-		SUBMODULES=$$(find . -type f -name "go.mod" -not -path "./go.mod" -not -path "./idls/*" -exec dirname {} \; | sed 's|^\./||'); \
-		for submodule in $$SUBMODULES; do \
-			submodule_path="$$MAIN_MODULE/$$submodule"; \
-			if grep -q "^require.*$$submodule_path" go.mod; then \
-				echo "ERROR: Root go.mod directly depends on submodule: $$submodule_path" >&2; \
-				exit 1; \
-			fi; \
-			echo "✓ No direct dependency on $$submodule"; \
-		done; \
+	$(foreach submod,$(SUBMOD_IMPORTS),\
+		$Q ! grep -q "$(submod)" go.mod || (echo "ERROR: Root go.mod directly depends on submodule: $(submod)" >&2; exit 1) $(NEWLINE)\
 	)
 	$Q touch $@
 
@@ -393,8 +413,8 @@ $(BUILD)/gomod-lint: go.mod internal/tools/go.mod common/archiver/gcloud/go.mod 
 $(BUILD)/code-lint: $(LINT_SRC) $(BIN)/revive | $(BUILD)
 	$Q echo "lint..."
 	$Q # non-optional vet checks.  unfortunately these are not currently included in `go test`'s default behavior.
-	$Q go vet -copylocks ./... ./common/archiver/gcloud/...
-	$Q $(BIN)/revive -config revive.toml -exclude './vendor/...' -exclude './.gen/...' -formatter stylish ./...
+	$Q go vet -copylocks $(ALL_GOMOD_PATTERNS)
+	$Q $(BIN)/revive -config revive.toml -exclude './vendor/...' -exclude './.gen/...' -formatter stylish $(ALL_GOMOD_PATTERNS)
 	$Q # look for go files with "//comments", and ignore "//go:build"-style directives ("grep -n" shows "file:line: //go:build" so the regex is a bit complex)
 	$Q bad="$$(find . -type f -name '*.go' -not -path './idls/*' | xargs grep -n -E '^\s*//\S' | grep -E -v '^[^:]+:[^:]+:\s*//[a-z]+:[a-z]+' || true)"; \
 		if [ -n "$$bad" ]; then \
@@ -410,19 +430,6 @@ $(BUILD)/goversion-lint: go.work Dockerfile docker/buildkite/Dockerfile
 	$Q ./scripts/check-go-toolchain.sh $(GOWORK_TOOLCHAIN)
 	$Q touch $@
 
-# fmt and copyright are mutually cyclic with their inputs, so if a copyright header is modified:
-# - copyright -> makes changes
-# - fmt sees changes -> makes changes
-# - now copyright thinks it needs to run again (but does nothing)
-# - which means fmt needs to run again (but does nothing)
-# and now after two passes it's finally stable, because they stopped making changes.
-#
-# this is not fatal, we can just run 2x.
-# to be fancier though, we can detect when *both* are run, and re-touch the book-keeping files to prevent the second run.
-# this STRICTLY REQUIRES that `copyright` and `fmt` are mutually stable, and that copyright runs before fmt.
-# if either changes, this will need to change.
-MAYBE_TOUCH_COPYRIGHT=
-
 # use FRESH_ALL_SRC so it won't miss any generated files produced earlier.
 $(BUILD)/fmt: $(ALL_SRC) $(BIN)/goimports $(BIN)/gci | $(BUILD)
 	$Q echo "removing unused imports..."
@@ -431,12 +438,6 @@ $(BUILD)/fmt: $(ALL_SRC) $(BIN)/goimports $(BIN)/gci | $(BUILD)
 	$Q echo "grouping imports..."
 	$Q $(BIN)/gci write --section standard --section 'Prefix(github.com/uber/cadence/)' --section default --section blank $(FRESH_ALL_SRC)
 	$Q touch $@
-# 	$Q $(MAYBE_TOUCH_COPYRIGHT)
-
-# $(BUILD)/copyright: $(ALL_SRC) $(BIN)/copyright | $(BUILD)
-# 	$(BIN)/copyright --verifyOnly
-# 	$Q $(eval MAYBE_TOUCH_COPYRIGHT=touch $@)
-# 	$Q touch $@
 
 # ====================================
 # developer-oriented targets
@@ -453,7 +454,7 @@ $Q rm -f $(addprefix $(BUILD)/,$(1))
 $Q +$(MAKE) --no-print-directory $(addprefix $(BUILD)/,$(1))
 endef
 
-.PHONY: lint fmt copyright pr
+.PHONY: lint fmt pr
 
 # useful to actually re-run to get output again.
 # reuse the intermediates for simplicity and consistency.
@@ -462,11 +463,6 @@ lint: ## (Re)run the linter
 
 # intentionally not re-making, it's a bit slow and it's clear when it's unnecessary
 fmt: $(BUILD)/fmt ## Run `gofmt` / organize imports / etc
-
-# not identical to the intermediate target, but does provide the same codegen (or more).
-# copyright: $(BIN)/copyright | $(BUILD) ## Update copyright headers
-# 	$(BIN)/copyright
-# 	$Q touch $(BUILD)/copyright
 
 define make_quietly
 $Q echo "make $1..."
@@ -479,7 +475,6 @@ pr: ## Redo all codegen and basic checks, to ensure your PR will be able to run 
 	$Q $(if $(verbose),$(MAKE) go-generate,$(call make_quietly,go-generate))
 	$Q $(if $(verbose),$(MAKE) fmt,$(call make_quietly,fmt))
 	$Q $(if $(verbose),$(MAKE) lint,$(call make_quietly,lint))
-# 	$Q $(if $(verbose),$(MAKE) copyright,$(call make_quietly,copyright))
 
 # ====================================
 # binaries to build
@@ -543,8 +538,6 @@ go-generate: $(BIN)/mockgen $(BIN)/enumer $(BIN)/mockery  $(BIN)/gowrap ## Run `
 	$Q # add our bins to PATH so `go generate` can find them
 	$Q $(BIN_PATH) go generate $(if $(verbose),-v) ./...
 	$Q $(MAKE) --no-print-directory fmt
-# 	$Q echo "updating copyright headers"
-# 	$Q $(MAKE) --no-print-directory copyright
 
 release: ## Re-generate generated code and run tests
 	$(MAKE) --no-print-directory go-generate
@@ -552,21 +545,25 @@ release: ## Re-generate generated code and run tests
 
 build: ## `go build` all packages and tests (a quick compile check only, skips all other steps)
 	$Q echo 'Building all packages and submodules...'
-	$Q go build ./...
-	$Q cd common/archiver/gcloud; go build ./...
-	$Q cd cmd/server; go build ./...
+	$(foreach tgt,$(ALL_GOMOD_PATTERNS),\
+		$Q go build $(tgt) $(NEWLINE)\
+	)
 	$Q # "tests" by building and then running `true`, and hides test-success output
 	$Q echo 'Building all tests (~5x slower)...'
 	$Q # intentionally not -race due to !race build tags
-	$Q go test -exec /usr/bin/true ./... >/dev/null
-	$Q cd common/archiver/gcloud; go test -exec /usr/bin/true ./... >/dev/null
-	$Q cd cmd/server; go test -exec /usr/bin/true ./... >/dev/null
+	$(foreach tgt,$(ALL_GOMOD_PATTERNS),\
+		$Q go test -exec /usr/bin/true $(tgt) >/dev/null $(NEWLINE)\
+	)
+
+define tidy_submodule
+$Q cd $(1); go mod tidy || (echo "failed to tidy $(1), try manually copying go.mod contents into $(1)/go.mod and rerunning" >&2; exit 1)
+endef
 
 tidy: ## `go mod tidy` all packages
-	$Q # tidy in dependency order
 	$Q go mod tidy
-	$Q cd common/archiver/gcloud; go mod tidy || (echo "failed to tidy gcloud plugin, try manually copying go.mod contents into common/archiver/gcloud/go.mod and rerunning" >&2; exit 1)
-	$Q cd cmd/server; go mod tidy || (echo "failed to tidy main server module, try manually copying go.mod and common/archiver/gcloud/go.mod contents into cmd/server/go.mod and rerunning" >&2; exit 1)
+	$(foreach submod,$(SUBMOD_DIRS) internal/tools,\
+		$(call tidy_submodule,$(submod)) $(NEWLINE)\
+	)
 
 clean: ## Clean build products
 	rm -f $(BINS)
