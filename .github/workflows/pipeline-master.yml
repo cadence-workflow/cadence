@@ -7,8 +7,13 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      - name: Checkout
-        run: echo "Place holder text"
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: true # ensures git submodules are intialized and updated
+
+      - name: Check IDL submodule status
+        run: make .idl-status # validate git submodule is pointing to master
 
   golang-unit-test:
     name: Golang unit test
@@ -101,4 +106,3 @@ jobs:
       - name: Checkout
         run: echo "Place holder text"
 
-  
