@@ -118,18 +118,19 @@ func TestDomainInfo(t *testing.T) {
 		FailoverNotificationVersion: int64(rand.Intn(1000)),
 		FailoverVersion:             int64(rand.Intn(1000)),
 		ActiveClusterName:           "ActiveClusterName",
-		ActiveClusters: &types.ActiveClusters{
-			ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-				"region1": {
-					ActiveClusterName: "cluster1",
-					FailoverVersion:   int64(rand.Intn(1000)),
-				},
-				"region2": {
-					ActiveClusterName: "cluster2",
-					FailoverVersion:   int64(rand.Intn(1000)),
-				},
-			},
-		},
+		// TODO(active-active): Define these fields in follow up PR
+		// ActiveClusters: &types.ActiveClusters{
+		// 	ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+		// 		"region1": {
+		// 			ActiveClusterName: "cluster1",
+		// 			FailoverVersion:   int64(rand.Intn(1000)),
+		// 		},
+		// 		"region2": {
+		// 			ActiveClusterName: "cluster2",
+		// 			FailoverVersion:   int64(rand.Intn(1000)),
+		// 		},
+		// 	},
+		// },
 		Clusters:                 []string{"cluster_a", "cluster_b"},
 		Data:                     map[string]string{"key_1": "value_1", "key_2": "value_2"},
 		BadBinaries:              []byte("BadBinaries"),
@@ -156,6 +157,7 @@ func TestDomainInfo(t *testing.T) {
 	assert.Equal(t, expected.FailoverNotificationVersion, actual.FailoverNotificationVersion)
 	assert.Equal(t, expected.ActiveClusterName, actual.ActiveClusterName)
 	assert.Equal(t, expected.Clusters, actual.Clusters)
+	assert.Equal(t, expected.ActiveClusters, actual.ActiveClusters)
 	assert.Equal(t, expected.Data, actual.Data)
 	assert.Equal(t, expected.BadBinaries, actual.BadBinaries)
 	assert.Equal(t, expected.BadBinariesEncoding, actual.BadBinariesEncoding)
