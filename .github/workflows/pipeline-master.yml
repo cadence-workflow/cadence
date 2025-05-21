@@ -3,3 +3,8 @@ on:
   # for manual trigger
   workflow_dispatch:
 jobs:
+  hello-world:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Say Hello
+        run: echo "Hello, GitHub Actions!"
