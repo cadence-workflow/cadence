@@ -1,0 +1,86 @@
+services:
+  cassandra:
+    image: cassandra:4.1.1
+    environment:
+      - "MAX_HEAP_SIZE=256M"
+      - "HEAP_NEWSIZE=128M"
+    ports:
+      - "9042:9042"
+    networks:
+      services-network:
+        aliases:
+          - cassandra
+    healthcheck:
+      test: ["CMD", "cqlsh", "-u cassandra", "-p cassandra" ,"-e describe keyspaces"]
+      interval: 15s
+      timeout: 30s
+      retries: 10
+  prometheus:
+    image: prom/prometheus:v3.0.1
+    volumes:
+      - ./prometheus:/etc/prometheus
+    command:
+      - '--config.file=/etc/prometheus/matching_simulation_prometheus.yml'
+    ports:
+      - '9090:9090'
+    networks:
+      services-network:
+        aliases:
+          - prometheus
+  grafana:
+    image: grafana/grafana:11.4.0
+    volumes:
+      - ./grafana:/etc/grafana
+    user: "1000"
+    depends_on:
+      - prometheus
+    ports:
+      - '3000:3000'
+    networks:
+      services-network:
+        aliases:
+          - grafana
+  history-simulator:
+    build:
+      context: ../../
+      dockerfile: ./docker/buildkite/Dockerfile
+    command:
+      - /bin/sh
+      - -e
+      - -c
+      - >
+        go test -timeout 180s
+        -run ^TestHistorySimulation.*$
+        -count 1
+        -v
+        github.com/uber/cadence/simulation/history
+        | tee test.log
+    environment:
+      - "CASSANDRA_HOST=cassandra"
+      - "CASSANDRA=1"
+      - "CASSANDRA_SEEDS=cassandra"
+    depends_on:
+      prometheus:
+        condition: service_started
+      grafana:
+        condition: service_started
+      cassandra:
+        condition: service_healthy
+    ports: # expose prometheus ports so they can be scraped
+      - '8306:8306'
+      - '8307:8307'
+      - '8308:8308'
+      - '8309:8309'
+    volumes:
+      - ../../:/cadence
+      - /cadence/.build/ # ensure we don't mount the build directory
+      - /cadence/.bin/ # ensure we don't mount the bin directory
+    networks:
+      services-network:
+        aliases:
+          - cadence
+
+networks:
+  services-network:
+    name: services-network
+    driver: bridge

@@ -47,6 +47,7 @@ import (
 	"github.com/uber/cadence/service/history/engine"
 	"github.com/uber/cadence/service/history/events"
 	"github.com/uber/cadence/service/history/resource"
+	"github.com/uber/cadence/service/history/simulation"
 )
 
 type (
@@ -685,6 +686,7 @@ func (s *contextImpl) CreateWorkflowExecution(
 	case nil:
 		// Update MaxReadLevel if write to DB succeeds
 		s.updateMaxReadLevelLocked(immediateTaskMaxReadLevel)
+		s.logCreateWorkflowExecutionEvents(request)
 		return response, nil
 	case *types.WorkflowExecutionAlreadyStartedError,
 		*persistence.WorkflowExecutionAlreadyStartedError,
@@ -789,6 +791,7 @@ func (s *contextImpl) UpdateWorkflowExecution(
 	case nil:
 		// Update MaxReadLevel if write to DB succeeds
 		s.updateMaxReadLevelLocked(immediateTaskMaxReadLevel)
+		s.logUpdateWorkflowExecutionEvents(request)
 		return resp, nil
 	case *persistence.ConditionFailedError,
 		*persistence.DuplicateRequestError,
@@ -897,6 +900,7 @@ func (s *contextImpl) ConflictResolveWorkflowExecution(
 	case nil:
 		// Update MaxReadLevel if write to DB succeeds
 		s.updateMaxReadLevelLocked(immediateTaskMaxReadLevel)
+		s.logConflictResolveWorkflowExecutionEvents(request)
 		return resp, nil
 	case *persistence.ConditionFailedError,
 		*types.ServiceBusyError:
@@ -1616,4 +1620,75 @@ func acquireShard(
 	}
 
 	return context, nil
+}
+
+func (s *contextImpl) getEventsFromWorkflowSnapshot(snapshot *persistence.WorkflowSnapshot) []simulation.E {
+	if snapshot == nil {
+		return nil
+	}
+	var events []simulation.E
+	for category, tasks := range snapshot.TasksByCategory {
+		for _, task := range tasks {
+			events = append(events, simulation.E{
+				EventName:  simulation.EventNameCreateHistoryTask,
+				Host:       s.config.HostName,
+				ShardID:    s.shardID,
+				DomainID:   task.GetDomainID(),
+				WorkflowID: task.GetWorkflowID(),
+				RunID:      task.GetRunID(),
+				Payload: map[string]any{
+					"task_category": category.Name(),
+					"task_type":     task.GetTaskType(),
+					"task_key":      task.GetTaskKey(),
+				},
+			})
+		}
+	}
+	return events
+}
+
+func (s *contextImpl) getEventsFromWorkflowMutation(mutation *persistence.WorkflowMutation) []simulation.E {
+	if mutation == nil {
+		return nil
+	}
+	var events []simulation.E
+	for category, tasks := range mutation.TasksByCategory {
+		for _, task := range tasks {
+			events = append(events, simulation.E{
+				EventName:  simulation.EventNameCreateHistoryTask,
+				Host:       s.config.HostName,
+				ShardID:    s.shardID,
+				DomainID:   task.GetDomainID(),
+				WorkflowID: task.GetWorkflowID(),
+				RunID:      task.GetRunID(),
+				Payload: map[string]any{
+					"task_category": category.Name(),
+					"task_type":     task.GetTaskType(),
+					"task_key":      task.GetTaskKey(),
+				},
+			})
+		}
+	}
+	return events
+}
+
+func (s *contextImpl) logCreateWorkflowExecutionEvents(request *persistence.CreateWorkflowExecutionRequest) {
+	events := s.getEventsFromWorkflowSnapshot(&request.NewWorkflowSnapshot)
+	simulation.LogEvents(events...)
+}
+
+func (s *contextImpl) logUpdateWorkflowExecutionEvents(request *persistence.UpdateWorkflowExecutionRequest) {
+	events := s.getEventsFromWorkflowMutation(&request.UpdateWorkflowMutation)
+	simulation.LogEvents(events...)
+	events = s.getEventsFromWorkflowSnapshot(request.NewWorkflowSnapshot)
+	simulation.LogEvents(events...)
+}
+
+func (s *contextImpl) logConflictResolveWorkflowExecutionEvents(request *persistence.ConflictResolveWorkflowExecutionRequest) {
+	events := s.getEventsFromWorkflowMutation(request.CurrentWorkflowMutation)
+	simulation.LogEvents(events...)
+	events = s.getEventsFromWorkflowSnapshot(&request.ResetWorkflowSnapshot)
+	simulation.LogEvents(events...)
+	events = s.getEventsFromWorkflowSnapshot(request.NewWorkflowSnapshot)
+	simulation.LogEvents(events...)
 }
