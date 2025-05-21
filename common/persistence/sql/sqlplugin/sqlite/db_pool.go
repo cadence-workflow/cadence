@@ -6,13 +6,13 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-// SQLite database takes exclusive access to the database file during write operation.
-// If another process tries to do another write operation, it returns the error database to be locked.
-// To be sure that only database connection is created per one database file within the running process,
-// we use dbPool to keep track of the database connections and reuse them.
-// Each time when a new db connection creation is called, it will increment dbPoolCounter and returns already stored sql.DB
-// from dbPool. If the connection is requested to be closed, it will decrement dbPoolCounter.
-// When the counter reaches 0, it will close the database connection, as there are no more references to it.
+// SQLite database takes exclusive access to the database file during write operations.
+// If another process attempts to perform a write operation, it receives a "database is locked" error.
+// To ensure only one database connection is created per database file within the running process,
+// we use dbPool to track and reuse database connections.
+// When a new database connection is requested, it increments dbPoolCounter and returns the existing sql.DB
+// from dbPool. When a connection is requested to be closed, it decrements dbPoolCounter.
+// Once the counter reaches 0, the database connection is closed as there are no more references to it.
 // Reference: https://github.com/mattn/go-sqlite3/issues/274#issuecomment-232942571
 var (
 	dbPool        = make(map[string]*sqlx.DB)
