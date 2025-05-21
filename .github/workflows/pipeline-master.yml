@@ -1,9 +1,6 @@
 name: Pipeline Master
-on:
-  push:
-    branches:
-      - mandychen/migrate-buildkite-to-github-actions
-  workflow_dispatch:
+on: push
+
 jobs:
   hello-world:
     runs-on: ubuntu-latest
