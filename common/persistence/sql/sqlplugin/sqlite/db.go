@@ -49,25 +49,27 @@ var (
 type DB struct {
 	*mysql.DB
 
-	converter   mysql.DataConverter
-	driver      sqldriver.Driver
-	originalDBs []*sqlx.DB
-	numDBShards int
+	converter    mysql.DataConverter
+	driver       sqldriver.Driver
+	originalDBs  []*sqlx.DB
+	numDBShards  int
+	databaseName string
 }
 
 // NewDB returns an instance of DB, which contains a new created mysql.DB with sqlite specific methods
-func NewDB(xdbs []*sqlx.DB, tx *sqlx.Tx, dbShardID int, numDBShards int, dataConverter mysql.DataConverter) (*DB, error) {
+func NewDB(xdbs []*sqlx.DB, tx *sqlx.Tx, dbShardID int, numDBShards int, dataConverter mysql.DataConverter, databaseName string) (*DB, error) {
 	driver, err := sqldriver.NewDriver(xdbs, tx, dbShardID)
 	if err != nil {
 		return nil, err
 	}
 
 	return &DB{
-		DB:          mysql.NewDBWithDriver(xdbs, driver, numDBShards, dataConverter),
-		driver:      driver,
-		originalDBs: xdbs,
-		numDBShards: numDBShards,
-		converter:   dataConverter,
+		DB:           mysql.NewDBWithDriver(xdbs, driver, numDBShards, dataConverter),
+		driver:       driver,
+		originalDBs:  xdbs,
+		numDBShards:  numDBShards,
+		converter:    dataConverter,
+		databaseName: databaseName,
 	}, nil
 }
 
@@ -83,5 +85,13 @@ func (mdb *DB) BeginTx(ctx context.Context, dbShardID int) (sqlplugin.Tx, error)
 		return nil, err
 	}
 
-	return NewDB(mdb.originalDBs, xtx, dbShardID, mdb.numDBShards, mdb.converter)
+	return NewDB(mdb.originalDBs, xtx, dbShardID, mdb.numDBShards, mdb.converter, mdb.databaseName)
+}
+
+func (mdb *DB) Close() error {
+	if mdb.databaseName == "" {
+		return mdb.DB.Close()
+	}
+
+	return closePolledDBConn(mdb.databaseName, mdb.DB.Close)
 }

@@ -26,7 +26,6 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/iancoleman/strcase"
@@ -71,27 +70,26 @@ func (p *plugin) createDB(cfg *config.SQL) (*DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewDB(conns, nil, sqlplugin.DbShardUndefined, cfg.NumShards, newConverter())
+	return NewDB(conns, nil, sqlplugin.DbShardUndefined, cfg.NumShards, newConverter(), cfg.DatabaseName)
 }
 
 // createSingleDBConn creates a single database connection for sqlite
 // Plugin respects the following arguments MaxConns, MaxIdleConns, MaxConnLifetime
 // Other arguments are used and described in buildDSN function
 func (p *plugin) createSingleDBConn(cfg *config.SQL) (*sqlx.DB, error) {
-	var db *sqlx.DB
-	var err error
-
-	for i := 0; i < 10; i++ {
-		db, err = sqlx.Connect("sqlite3", buildDSN(cfg))
-		if err == nil {
-			break
-		}
-		fmt.Println("waiting for sqlite to be ready, retrying in 1 second", err.Error())
-		time.Sleep(time.Second)
+	if cfg.DatabaseName == "" {
+		return p.createDBConn(cfg)
 	}
 
+	return createPolledDBConn(cfg.DatabaseName, func() (*sqlx.DB, error) {
+		return p.createDBConn(cfg)
+	})
+}
+
+func (p *plugin) createDBConn(cfg *config.SQL) (*sqlx.DB, error) {
+	db, err := sqlx.Connect("sqlite3", buildDSN(cfg))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create database connection: %v", err)
 	}
 
 	if cfg.MaxConns > 0 {
