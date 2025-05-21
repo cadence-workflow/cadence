@@ -1,6 +1,8 @@
 name: Pipeline Master
 on:
-  # for manual trigger
+  push:
+    branches:
+      - mandychen/migrate-buildkite-to-github-actions
   workflow_dispatch:
 jobs:
   hello-world:
