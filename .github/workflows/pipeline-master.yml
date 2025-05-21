@@ -2,8 +2,103 @@ name: Pipeline Master
 on: push
 
 jobs:
-  hello-world:
+  idl-submodule-points-to-master:
+    name: IDL submodule points to master
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        run: echo "Place holder text"
+
+  golang-unit-test:
+    name: Golang unit test
     runs-on: ubuntu-latest
     steps:
-      - name: Say Hello
-        run: echo "Hello, GitHub Actions!"
+      - name: Checkout
+        run: echo "Place holder text"
+
+  golangci-lint-validate-code-is-clean:
+    name: Golangci lint validate code is clean
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        run: echo "Place holder text"
+
+  golang-integration-test-with-cassandra:
+    name: Golang integration test with cassandra
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        run: echo "Place holder text"
+
+  golang-integration-test-with-cassandra-and-elasticsearch-v7:
+    name: Golang integration test with cassandra and elasticsearch v7
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        run: echo "Place holder text"
+
+  golang-integration-test-with-cassandra-and-pinot:
+    name: Golang integration test with cassandra and pinot
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        run: echo "Place holder text"
+
+  golang-integration-test-with-cassandra-with-opensearch-v2:
+    name: Golang integration test with cassandra with opensearch v2
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        run: echo "Place holder text"
+
+  golang-integration-ndc-test-with-cassandra:
+    name: Golang integration ndc test with cassandra
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        run: echo "Place holder text"
+
+  golang-integration-test-with-mysql:
+    name: Golang integration test with mysql
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        run: echo "Place holder text"
+
+  golang-integration-ndc-test-with-mysql:
+    name: Golang integration ndc test with mysql
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        run: echo "Place holder text"
+
+  golang-integration-test-with-postgres:
+    name: Golang integration test with postgres
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        run: echo "Place holder text"
+
+  golang-integration-test-with-sqlite:
+    name: Golang integration test with sqlite
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        run: echo "Place holder text"
+
+  golang-integration-ndc-test-with-postgres:
+    name: Golang integration ndc test with postgres
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        run: echo "Place holder text"
+
+  golang-async-wf-integration-test-with-kafka:
+    name: Golang async wf integration test with kafka
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        run: echo "Place holder text"
+
+  
