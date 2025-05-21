@@ -36,3 +36,7 @@ worker*.log
 /cadence-bench
 /cadence-cassandra-tool
 /cadence-sql-tool
+
+# SQLite databases
+cadence.db*
+cadence_visibility.db*

@@ -333,7 +333,7 @@ type (
 		// Required if not useMultipleDatabases
 		ConnectAddr string `yaml:"connectAddr"`
 		// ConnectProtocol is the protocol that goes with the ConnectAddr ex - tcp, unix
-		ConnectProtocol string `yaml:"connectProtocol" validate:"nonzero"`
+		ConnectProtocol string `yaml:"connectProtocol"`
 		// ConnectAttributes is a set of key-value attributes to be sent as part of connect data_source_name url
 		ConnectAttributes map[string]string `yaml:"connectAttributes"`
 		// MaxConns the max number of connections to this datastore

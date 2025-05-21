@@ -568,9 +568,10 @@ tidy: ## `go mod tidy` all packages
 	$Q cd common/archiver/gcloud; go mod tidy || (echo "failed to tidy gcloud plugin, try manually copying go.mod contents into common/archiver/gcloud/go.mod and rerunning" >&2; exit 1)
 	$Q cd cmd/server; go mod tidy || (echo "failed to tidy main server module, try manually copying go.mod and common/archiver/gcloud/go.mod contents into cmd/server/go.mod and rerunning" >&2; exit 1)
 
-clean: ## Clean build products
+clean: ## Clean build products and SQLite database
 	rm -f $(BINS)
 	rm -Rf $(BUILD)
+	rm *.db
 	$(if \
 		$(wildcard $(STABLE_BIN)/*), \
 		$(warning usually-stable build tools still exist, delete the $(STABLE_BIN) folder to rebuild them),)
@@ -768,6 +769,12 @@ install-schema-postgres: cadence-sql-tool
 	./cadence-sql-tool -p 5432 -u postgres -pw cadence --pl postgres create --db cadence_visibility
 	./cadence-sql-tool -p 5432 -u postgres -pw cadence --pl postgres --db cadence_visibility setup-schema -v 0.0
 	./cadence-sql-tool -p 5432 -u postgres -pw cadence --pl postgres --db cadence_visibility update-schema -d ./schema/postgres/visibility/versioned
+
+install-schema-sqlite: cadence-sql-tool
+	./cadence-sql-tool -pl sqlite --db cadence.db setup -v 0.0
+	./cadence-sql-tool -pl sqlite --db cadence.db update-schema -d ./schema/sqlite/cadence/versioned
+	./cadence-sql-tool -pl sqlite --db cadence_visibility.db setup -v 0.0
+	./cadence-sql-tool -pl sqlite --db cadence_visibility.db update-schema -d ./schema/sqlite/visibility/versioned
 
 install-schema-es-v7:
 	curl -X PUT "http://127.0.0.1:9200/_template/cadence-visibility-template" -H 'Content-Type: application/json' -d @./schema/elasticsearch/v7/visibility/index_template.json

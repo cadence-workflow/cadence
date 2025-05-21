@@ -23,8 +23,10 @@
 package sqlite
 
 import (
+	"fmt"
 	"os"
 	"path"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/iancoleman/strcase"
@@ -43,7 +45,8 @@ const (
 
 // SQLite plugin provides an sql persistence storage implementation for sqlite database
 // Mostly the implementation reuses the mysql implementation
-// The plugin supports only in-memory sqlite database for now
+// If DatabaseName is not provided, then sqlite will use in-memory database,
+// otherwise it will use the file as the database
 type plugin struct{}
 
 var _ sqlplugin.Plugin = (*plugin)(nil)
@@ -75,7 +78,18 @@ func (p *plugin) createDB(cfg *config.SQL) (*DB, error) {
 // Plugin respects the following arguments MaxConns, MaxIdleConns, MaxConnLifetime
 // Other arguments are used and described in buildDSN function
 func (p *plugin) createSingleDBConn(cfg *config.SQL) (*sqlx.DB, error) {
-	db, err := sqlx.Connect("sqlite3", buildDSN(cfg))
+	var db *sqlx.DB
+	var err error
+
+	for i := 0; i < 10; i++ {
+		db, err = sqlx.Connect("sqlite3", buildDSN(cfg))
+		if err == nil {
+			break
+		}
+		fmt.Println("waiting for sqlite to be ready, retrying in 1 second", err.Error())
+		time.Sleep(time.Second)
+	}
+
 	if err != nil {
 		return nil, err
 	}

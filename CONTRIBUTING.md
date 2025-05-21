@@ -62,7 +62,7 @@ If running into any compiling issue
 >3. Check if this document is outdated by comparing with the building steps in [Dockerfile](https://github.com/cadence-workflow/cadence/blob/master/Dockerfile)
 
 ### 2. Setup Dependency
-NOTE: you may skip this section if you have installed the dependencies in any other ways, for example, using homebrew.
+NOTE: you may skip this section if you want to use SQLite or you have installed the dependencies in any other ways, for example, using homebrew.
 
 Cadence's core data model can be running with different persistence storages, including Cassandra,MySQL and Postgres.
 Please refer to [persistence documentation](https://github.com/cadence-workflow/cadence/blob/master/docs/persistence.md) if you want to learn more.
@@ -92,6 +92,7 @@ Also use `docker-compose -f ./docker/dev/cassandra.yml down` to stop and clean u
 ### 3. Schema installation
 Based on the above dependency setup, you also need to install the schemas.
 
+* If you use SQLite then run `make install-schema-sqlite` to install SQLite schemas
 * If you use `cassandra.yml` then run `make install-schema` to install Cassandra schemas
 * If you use `cassandra-esv7-kafka.yml` then run `make install-schema && make install-schema-es-v7` to install Cassandra & ElasticSearch schemas
 * If you use `cassandra-opensearch-kafka.yml` then run `make install-schema && make install-schema-es-opensearch` to install Cassandra & OpenSearch schemas
@@ -114,6 +115,7 @@ Once you have done all above, try running the local binaries:
 
 Then you will be able to run a basic local Cadence server for development.
 
+  * If you use SQLite, then run `./cadence server start --zone sqlite start`, which load , which will load `config/development.yaml` + `config/development_sqlite.yaml` as config
   * If you use `cassandra.yml`, then run `./cadence-server start`, which will load `config/development.yaml` as config
   * If you use `mysql.yml` then run `./cadence-server --zone mysql start`, which will load `config/development.yaml` + `config/development_mysql.yaml` as config
   * If you use `postgres.yml` then run `./cadence-server --zone postgres start` , which will load `config/development.yaml` + `config/development_postgres.yaml` as config
