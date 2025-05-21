@@ -1,0 +1,5 @@
+name: Pipeline Master
+on:
+  # for manual trigger
+  workflow_dispatch:
+jobs:
