@@ -1754,7 +1754,7 @@ func (s *workflowHandlerSuite) TestGetHistory() {
 
 	wh := s.getWorkflowHandler(s.newConfig(dc.NewInMemoryClient()))
 
-	scope := metrics.NoopScope(metrics.Frontend)
+	scope := metrics.NoopScope
 	history, token, err := wh.getHistory(context.Background(), scope, domainID, domainName, we, firstEventID, nextEventID, 0, []byte{}, nil, branchToken)
 	s.NoError(err)
 	s.NotNil(history)

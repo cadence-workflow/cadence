@@ -38,7 +38,7 @@ func TestExample(t *testing.T) {
 	persister := &InMemoryPersister{}
 
 	logger := testlogger.New(t)
-	scope := metrics.NoopScope(0)
+	scope := metrics.NoopScope
 	cl, err := New(
 		logger,
 		scope,

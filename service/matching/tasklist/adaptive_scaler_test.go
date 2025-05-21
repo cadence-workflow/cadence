@@ -61,7 +61,7 @@ type mockAdaptiveScalerDeps struct {
 func setupMocksForAdaptiveScaler(t *testing.T, taskListID *Identifier) (*adaptiveScalerImpl, *mockAdaptiveScalerDeps) {
 	ctrl := gomock.NewController(t)
 	logger := testlogger.New(t)
-	scope := metrics.NoopScope(metrics.Matching)
+	scope := metrics.NoopScope
 	mockManager := NewMockManager(ctrl)
 	mockQPSTracker := stats.NewMockQPSTracker(ctrl)
 	mockTimeSource := clock.NewMockedTimeSourceAt(time.Now())

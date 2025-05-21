@@ -141,7 +141,7 @@ func newHashringTestData(t *testing.T) *hashringTestData {
 		td.mockPeerProvider,
 		td.mockTimeSource,
 		logger,
-		metrics.NoopScope(0),
+		metrics.NoopScope,
 	)
 
 	return &td

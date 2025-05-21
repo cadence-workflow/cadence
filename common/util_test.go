@@ -550,7 +550,7 @@ func TestAwaitWaitGroup(t *testing.T) {
 func TestIsValidIDLength(t *testing.T) {
 	var (
 		// test setup
-		scope = metrics.NoopScope(0)
+		scope = metrics.NoopScope
 
 		// arguments
 		metricCounter      = 0

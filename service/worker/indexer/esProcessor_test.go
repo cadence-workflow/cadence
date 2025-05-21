@@ -55,7 +55,7 @@ var (
 	testIndex     = "test-index"
 	testType      = elasticsearch.GetESDocType()
 	testID        = "test-doc-id"
-	testStopWatch = metrics.NoopScope(metrics.ESProcessorScope).StartTimer(metrics.ESProcessorProcessMsgLatency)
+	testStopWatch = metrics.NoopScope.StartTimer(metrics.ESProcessorProcessMsgLatency)
 	testScope     = metrics.ESProcessorScope
 	testMetric    = metrics.ESProcessorProcessMsgLatency
 )

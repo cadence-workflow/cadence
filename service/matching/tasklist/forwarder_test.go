@@ -67,7 +67,7 @@ func (t *ForwarderTestSuite) SetupTest() {
 	id, err := NewIdentifier("fwdr", "tl0", persistence.TaskListTypeDecision)
 	t.NoError(err)
 	t.taskList = id
-	t.fwdr = newForwarder(t.cfg, t.taskList, types.TaskListKindNormal, t.client, metrics.NoopScope(metrics.Matching)).(*forwarderImpl)
+	t.fwdr = newForwarder(t.cfg, t.taskList, types.TaskListKindNormal, t.client, metrics.NoopScope).(*forwarderImpl)
 }
 
 func (t *ForwarderTestSuite) TearDownTest() {

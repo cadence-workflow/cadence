@@ -183,7 +183,7 @@ func New(opts *Options) Cache {
 	}
 
 	if cache.metricsScope == nil {
-		cache.metricsScope = metrics.NoopScope(1)
+		cache.metricsScope = metrics.NoopScope
 	}
 
 	if opts.IsSizeBased == nil {

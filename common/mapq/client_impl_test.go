@@ -68,7 +68,7 @@ func TestNew(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			logger := testlogger.New(t)
-			scope := metrics.NoopScope(0)
+			scope := metrics.NoopScope
 			cl, err := New(logger, scope, tc.opts...)
 			if (err != nil) != tc.wantErr {
 				t.Errorf("New() error: %v, wantErr: %v", err, tc.wantErr)
@@ -98,7 +98,7 @@ func TestStartStop(t *testing.T) {
 		WithConsumerFactory(consumerFactory),
 	}
 	logger := testlogger.New(t)
-	scope := metrics.NoopScope(0)
+	scope := metrics.NoopScope
 	cl, err := New(logger, scope, opts...)
 	if err != nil {
 		t.Fatalf("New() error: %v", err)
@@ -119,7 +119,7 @@ func TestAck(t *testing.T) {
 		WithConsumerFactory(consumerFactory),
 	}
 	logger := testlogger.New(t)
-	scope := metrics.NoopScope(0)
+	scope := metrics.NoopScope
 	cl, err := New(logger, scope, opts...)
 	if err != nil {
 		t.Fatalf("New() error: %v", err)
@@ -145,7 +145,7 @@ func TestNack(t *testing.T) {
 		WithConsumerFactory(consumerFactory),
 	}
 	logger := testlogger.New(t)
-	scope := metrics.NoopScope(0)
+	scope := metrics.NoopScope
 	cl, err := New(logger, scope, opts...)
 	if err != nil {
 		t.Fatalf("New() error: %v", err)

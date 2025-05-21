@@ -26,6 +26,12 @@ import (
 	"github.com/uber-go/tally"
 )
 
+var (
+	NoopClient    = &noopClientImpl{}
+	NoopScope     = &noopScopeImpl{}
+	NoopStopwatch = tally.NewStopwatch(time.Now(), &nopStopwatchRecorder{})
+)
+
 type nopStopwatchRecorder struct{}
 
 // RecordStopwatch is a nop impl for replay mode
@@ -45,7 +51,7 @@ func (n noopClientImpl) AddCounter(scope int, counter int, delta int64) {
 }
 
 func (n noopClientImpl) StartTimer(scope int, timer int) tally.Stopwatch {
-	return NopStopwatch()
+	return NoopStopwatch
 }
 
 func (n noopClientImpl) RecordTimer(scope int, timer int, d time.Duration) {
@@ -58,10 +64,38 @@ func (n noopClientImpl) UpdateGauge(scope int, gauge int, value float64) {
 }
 
 func (n noopClientImpl) Scope(scope int, tags ...Tag) Scope {
-	return NoopScope(Common)
+	return NoopScope
 }
 
 // NewNoopMetricsClient initialize new no-op metrics client
 func NewNoopMetricsClient() Client {
 	return &noopClientImpl{}
+}
+
+type noopScopeImpl struct{}
+
+func (n *noopScopeImpl) IncCounter(counter int) {
+}
+
+func (n *noopScopeImpl) AddCounter(counter int, delta int64) {
+}
+
+func (n *noopScopeImpl) StartTimer(timer int) Stopwatch {
+	return NewTestStopwatch()
+}
+
+func (n *noopScopeImpl) RecordTimer(timer int, d time.Duration) {
+}
+
+func (n *noopScopeImpl) RecordHistogramDuration(timer int, d time.Duration) {
+}
+
+func (n *noopScopeImpl) RecordHistogramValue(timer int, value float64) {
+}
+
+func (n *noopScopeImpl) UpdateGauge(gauge int, value float64) {
+}
+
+func (n *noopScopeImpl) Tagged(tags ...Tag) Scope {
+	return n
 }

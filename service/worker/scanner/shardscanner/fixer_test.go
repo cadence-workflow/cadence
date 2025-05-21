@@ -122,7 +122,7 @@ func (s *FixerSuite) TestFix_Failure_NonFirstError() {
 		progressReportFn: func() {},
 		domainCache:      domainCache,
 		allowDomain:      dynamicproperties.GetBoolPropertyFnFilteredByDomain(true),
-		scope:            metrics.NoopScope(metrics.Worker),
+		scope:            metrics.NoopScope,
 	}
 	result := fixer.Fix()
 	s.Equal(FixReport{
@@ -174,7 +174,7 @@ func (s *FixerSuite) TestFix_Failure_SkippedWriterError() {
 		progressReportFn: func() {},
 		domainCache:      domainCache,
 		allowDomain:      dynamicproperties.GetBoolPropertyFnFilteredByDomain(true),
-		scope:            metrics.NoopScope(metrics.Worker),
+		scope:            metrics.NoopScope,
 	}
 	result := fixer.Fix()
 	s.Equal(FixReport{
@@ -225,7 +225,7 @@ func (s *FixerSuite) TestFix_Failure_FailedWriterError() {
 		progressReportFn: func() {},
 		domainCache:      domainCache,
 		allowDomain:      dynamicproperties.GetBoolPropertyFnFilteredByDomain(true),
-		scope:            metrics.NoopScope(metrics.Worker),
+		scope:            metrics.NoopScope,
 	}
 	result := fixer.Fix()
 	s.Equal(FixReport{
@@ -276,7 +276,7 @@ func (s *FixerSuite) TestFix_Failure_FixedWriterError() {
 		progressReportFn: func() {},
 		domainCache:      domainCache,
 		allowDomain:      dynamicproperties.GetBoolPropertyFnFilteredByDomain(true),
-		scope:            metrics.NoopScope(metrics.Worker),
+		scope:            metrics.NoopScope,
 	}
 	result := fixer.Fix()
 	s.Equal(FixReport{
@@ -717,7 +717,7 @@ func (s *FixerSuite) TestFix_Success() {
 		progressReportFn: func() {},
 		domainCache:      domainCache,
 		allowDomain:      allowDomain,
-		scope:            metrics.NoopScope(metrics.Worker),
+		scope:            metrics.NoopScope,
 	}
 	result := fixer.Fix()
 	s.Equal(FixReport{

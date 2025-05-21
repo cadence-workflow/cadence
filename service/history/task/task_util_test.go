@@ -558,7 +558,7 @@ func Test_loadMutableState(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			w := execution.NewMockContext(ctrl)
 			m := execution.NewMockMutableState(ctrl)
-			metricsScope := metrics.NoopScope(metrics.History)
+			metricsScope := metrics.NoopScope
 			l := log.NewNoop()
 
 			tc.setupMock(w, m)

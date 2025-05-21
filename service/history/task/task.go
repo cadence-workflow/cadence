@@ -115,7 +115,7 @@ func NewHistoryTask(
 		state:              ctask.TaskStatePending,
 		priority:           noPriority,
 		queueType:          queueType,
-		scope:              metrics.NoopScope(metrics.History),
+		scope:              metrics.NoopScope,
 		logger:             logger,
 		eventLogger:        eventLogger,
 		attempt:            0,

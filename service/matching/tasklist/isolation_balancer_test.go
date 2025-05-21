@@ -1270,7 +1270,7 @@ func TestAdjustWritePartitions(t *testing.T) {
 			dynamicClient := dynamicconfig.NewInMemoryClient()
 			tcConfig := isolationConfig(t, dynamicClient, tc.groupsPerPartition)
 			mockTime := clock.NewMockedTimeSource()
-			balancer := newIsolationBalancer(mockTime, metrics.NoopScope(metrics.Matching), tcConfig)
+			balancer := newIsolationBalancer(mockTime, metrics.NoopScope, tcConfig)
 			var prevMetrics *aggregatePartitionMetrics
 			var prevPartitions map[int]*types.TaskListPartition
 			for i, cycle := range cycles {

@@ -57,7 +57,7 @@ func createTestTaskCompleter(controller *gomock.Controller, taskType int) *taskC
 		historyService:  mockHistoryService,
 		taskListID:      &Identifier{domainID: constants.TestDomainID, taskType: taskType},
 		clusterMetadata: cluster.GetTestClusterMetadata(true),
-		scope:           metrics.NoopScope(1),
+		scope:           metrics.NoopScope,
 		logger:          log.NewNoop(),
 	}
 	tc := newTaskCompleter(tlMgr, retryPolicy)

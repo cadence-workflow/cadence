@@ -86,12 +86,12 @@ func (t *MatcherTestSuite) SetupTest() {
 	}
 	t.cfg = tlCfg
 	t.isolationGroups = []string{"dca1", "dca2"}
-	t.fwdr = newForwarder(&t.cfg.ForwarderConfig, t.taskList, types.TaskListKindNormal, t.client, metrics.NoopScope(metrics.Matching))
-	t.matcher = newTaskMatcher(tlCfg, t.fwdr, metrics.NoopScope(metrics.Matching), []string{"dca1", "dca2"}, log.NewNoop(), t.taskList, types.TaskListKindNormal, func(cfg *config.TaskListConfig) int { return tlCfg.NumReadPartitions() }).(*taskMatcherImpl)
+	t.fwdr = newForwarder(&t.cfg.ForwarderConfig, t.taskList, types.TaskListKindNormal, t.client, metrics.NoopScope)
+	t.matcher = newTaskMatcher(tlCfg, t.fwdr, metrics.NoopScope, []string{"dca1", "dca2"}, log.NewNoop(), t.taskList, types.TaskListKindNormal, func(cfg *config.TaskListConfig) int { return tlCfg.NumReadPartitions() }).(*taskMatcherImpl)
 
 	rootTaskList := NewTestTaskListID(t.T(), t.taskList.GetDomainID(), t.taskList.Parent(20), persistence.TaskListTypeDecision)
 	rootTasklistCfg := newTaskListConfig(rootTaskList, cfg, testDomainName)
-	t.rootMatcher = newTaskMatcher(rootTasklistCfg, nil, metrics.NoopScope(metrics.Matching), []string{"dca1", "dca2"}, log.NewNoop(), t.taskList, types.TaskListKindNormal, func(cfg *config.TaskListConfig) int { return tlCfg.NumReadPartitions() }).(*taskMatcherImpl)
+	t.rootMatcher = newTaskMatcher(rootTasklistCfg, nil, metrics.NoopScope, []string{"dca1", "dca2"}, log.NewNoop(), t.taskList, types.TaskListKindNormal, func(cfg *config.TaskListConfig) int { return tlCfg.NumReadPartitions() }).(*taskMatcherImpl)
 }
 
 func (t *MatcherTestSuite) TearDownTest() {
