@@ -47,7 +47,7 @@ jobs:
         run: ./scripts/github_actions/gen_coverage_metadata.sh .build/coverage/metadata.txt
 
       # to delete
-      - name: DEBUG: Verify files before Docker Compose run
+      - name: Verify files before Docker Compose run
         run: |
           echo "Listing contents of .build/coverage/ BEFORE Docker Compose run:"
           ls -al .build/coverage/ || echo ".build/coverage/ not found or empty BEFORE Docker Compose."
@@ -66,7 +66,7 @@ jobs:
         working-directory: .
 
         # to delete
-      - name: DEBUG: Verify files AFTER Docker Compose run (before upload)
+      - name: Verify files AFTER Docker Compose run (before upload)
         run: |
           echo "Listing contents of .build/coverage/ AFTER Docker Compose run:"
           ls -al .build/coverage/ || echo ".build/coverage/ not found or empty AFTER Docker Compose."
