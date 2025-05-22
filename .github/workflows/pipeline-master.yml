@@ -20,7 +20,6 @@ jobs:
   golang-unit-test:
     name: Golang unit test
     runs-on: ubuntu-latest
-
     needs: idl-submodule-points-to-master # buildkite is sequential so we will follow that here
     
     steps:
@@ -52,7 +51,7 @@ jobs:
         run: docker compose -f docker/github_actions/docker-compose.yml run unit-test # TODO: delete docker/buildkite
         working-directory: . # what path above is relative to 
 
-      - name: Artifact paths # lets you download reports from the runs
+      - name: Upload coverage artifacts # lets you download reports from the runs
         uses: actions/upload-artifact@v4
         with:
           name: go-unit-test-coverage
@@ -60,10 +59,10 @@ jobs:
             .build/coverage/*.out
             .build/coverage/metadata.txt
 
+
   golangci-lint-validate-code-is-clean:
     name: Golangci lint validate code is clean
     runs-on: ubuntu-latest
-
     needs: golang-unit-test
 
     steps:
@@ -84,80 +83,202 @@ jobs:
         run: docker compose -f docker/github_actions/docker-compose.yml run coverage-report
         working-directory: .
 
+
   golang-integration-test-with-cassandra:
     name: Golang integration test with cassandra
     runs-on: ubuntu-latest
+    needs: golangci-lint-validate-code-is-clean
+
     steps:
       - name: Checkout
-        run: echo "Place holder text"
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Setup Go environment
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.4'
+
+      - name: Run integration profile for Cassandra
+        run: make cover_integration_profile
+
+      - name: Run Docker Compose Integration Test Service (Cassandra)
+        run: docker compose -f docker/github_actions/docker-compose.yml run integration-test-cassandra
+        working-directory: .
+
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-cassandra-integration-coverage
+          path: .build/coverage/*.out
+
 
   golang-integration-test-with-cassandra-and-elasticsearch-v7:
     name: Golang integration test with cassandra and elasticsearch v7
     runs-on: ubuntu-latest
+    needs: golang-integration-test-with-cassandra
+
     steps:
       - name: Checkout
-        run: echo "Place holder text"
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Setup Go environment
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.4'
+
 
   golang-integration-test-with-cassandra-and-pinot:
     name: Golang integration test with cassandra and pinot
     runs-on: ubuntu-latest
+    needs: golang-integration-test-with-cassandra-and-elasticsearch-v7
+
     steps:
       - name: Checkout
-        run: echo "Place holder text"
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Setup Go environment
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.4'
+
 
   golang-integration-test-with-cassandra-with-opensearch-v2:
     name: Golang integration test with cassandra with opensearch v2
     runs-on: ubuntu-latest
+    needs: golang-integration-test-with-cassandra-and-pinot
+
     steps:
       - name: Checkout
-        run: echo "Place holder text"
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Setup Go environment
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.4'
+
 
   golang-integration-ndc-test-with-cassandra:
     name: Golang integration ndc test with cassandra
     runs-on: ubuntu-latest
+    needs: golang-integration-test-with-cassandra-with-opensearch-v2
+
     steps:
       - name: Checkout
-        run: echo "Place holder text"
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Setup Go environment
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.4'
+
 
   golang-integration-test-with-mysql:
     name: Golang integration test with mysql
     runs-on: ubuntu-latest
+    needs: golang-integration-ndc-test-with-cassandra
+
     steps:
       - name: Checkout
-        run: echo "Place holder text"
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Setup Go environment
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.4'
+          
 
   golang-integration-ndc-test-with-mysql:
     name: Golang integration ndc test with mysql
     runs-on: ubuntu-latest
+    needs: golang-integration-test-with-mysql
+
     steps:
       - name: Checkout
-        run: echo "Place holder text"
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Setup Go environment
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.4'
+
 
   golang-integration-test-with-postgres:
     name: Golang integration test with postgres
     runs-on: ubuntu-latest
+    needs: golang-integration-ndc-test-with-mysql
+
     steps:
       - name: Checkout
-        run: echo "Place holder text"
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Setup Go environment
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.4'
+             
 
   golang-integration-test-with-sqlite:
     name: Golang integration test with sqlite
     runs-on: ubuntu-latest
+    needs: golang-integration-test-with-postgres
+
     steps:
       - name: Checkout
-        run: echo "Place holder text"
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Setup Go environment
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.4'
+
 
   golang-integration-ndc-test-with-postgres:
     name: Golang integration ndc test with postgres
     runs-on: ubuntu-latest
+    needs: golang-integration-test-with-sqlite
+
     steps:
       - name: Checkout
-        run: echo "Place holder text"
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Setup Go environment
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.4'
+
 
   golang-async-wf-integration-test-with-kafka:
     name: Golang async wf integration test with kafka
     runs-on: ubuntu-latest
+    needs: golang-integration-ndc-test-with-postgres
+
     steps:
       - name: Checkout
-        run: echo "Place holder text"
+        uses: actions/checkout@v4
+        with:
+          submodules: true
 
+      - name: Setup Go environment
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.4'
