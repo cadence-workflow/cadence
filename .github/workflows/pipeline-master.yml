@@ -38,7 +38,12 @@ jobs:
         run: make .just-build
 
       - name: Run tests with coverage
-        run: make cover_profile
+        uses: nick-fields/retry@v3 # this is like indeterminate? different tests fail each time and sometimes dont fail at all
+        with:
+          max_attempts: 2
+          timeout_minutes: 30
+          command: |
+            make cover_profile
       
       - name: Generate coverage metadata
         run: ./scripts/github_actions/gen_coverage_metadata.sh .build/coverage/metadata.txt # TODO: delete scripts/buildkite folder 
