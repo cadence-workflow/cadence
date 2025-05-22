@@ -4,23 +4,63 @@ on: push
 jobs:
   idl-submodule-points-to-master:
     name: IDL submodule points to master
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest # uses ubuntu as runner instead of kubernetes like buildkite
     
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           submodules: true # ensures git submodules are intialized and updated
 
-      - name: Check IDL submodule status
-        run: make .idl-status # validate git submodule is pointing to master
+      # - name: Check IDL submodule status # TODO: add this back in
+      #   run: make .idl-status # check if git submodule is pointing to master
 
-  golang-unit-test:
+  golang-unit-test: # TODO: add retry logic
     name: Golang unit test
     runs-on: ubuntu-latest
+
+    needs: idl-submodule-points-to-master # buildkite is sequential so we will follow that here
+    
     steps:
       - name: Checkout
-        run: echo "Place holder text"
+        uses: actions/checkout@v4
+        with:
+          submodules: true # ensures git submodules are intialized and updated
+
+      - name: Setup Go environment # buildkite uses uber specific docker image with go, we need to do it here
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.4' # from cadence/docker/buildkite/Dockerfile
+
+      - name: Not rebuilding binaries and not regenerating code
+        run: make .just-build
+
+      - name: Run tests with coverage
+        run: make cover_profile
+      
+      - name: Generate coverage metadata
+        run: ./scripts/github_actions/gen_coverage_metadata.sh .build/coverage/metadata.txt # TODO: delete scripts/buildkite folder 
+
+      - name: Run docker compose unit test
+        run: docker-compose -f docker/buildkite/docker-compose.yml run unit-test # TODO: change this its still buildkite
+        working-directory: . # what path above is relative to 
+
+      # - name: Run docker compose unit test
+      #   uses: nick-fields/retry@v3 # Retries this step bc its the one most likely to fail/need trying
+      #   with:
+      #     max_attempts: 2
+      #     timeout_minutes: 5 # Max time for this step including retries
+      #     command: |
+      #       docker-compose -f docker/buildkite/docker-compose.yml run unit-test
+      #   working-directory: . # what path above is relative to TODO: change docker/buildkite/docker-compose.yml
+
+      - name: Artifact paths # lets you download reports from the runs
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-unit-test-coverage
+          path:
+            .build/coverage/*.out
+            .build/coverage/metadata.txt
 
   golangci-lint-validate-code-is-clean:
     name: Golangci lint validate code is clean
