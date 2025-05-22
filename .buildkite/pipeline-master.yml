@@ -256,10 +256,6 @@ steps:
   - label: ":golang: integration test with sqlite"
     artifact_paths:
       - ".build/coverage/*.out"
-    # sqlite persistence storage is still in development
-    # so persistence tests should not fail the build
-    # but we still want to run them
-    soft_fail: true
     retry:
       automatic:
         limit: 1
