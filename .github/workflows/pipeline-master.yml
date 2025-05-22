@@ -44,7 +44,7 @@ jobs:
         run: ./scripts/github_actions/gen_coverage_metadata.sh .build/coverage/metadata.txt # TODO: delete scripts/buildkite folder 
 
       - name: Run docker compose unit test
-        run: docker-compose -f docker/buildkite/docker-compose.yml run unit-test # TODO: change this its still buildkite
+        run: docker compose -f docker/buildkite/docker-compose.yml run unit-test # TODO: change this its still buildkite
         working-directory: . # what path above is relative to 
 
       # - name: Run docker compose unit test
