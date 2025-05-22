@@ -93,5 +93,5 @@ func (mdb *DB) Close() error {
 		return mdb.DB.Close()
 	}
 
-	return closePolledDBConn(mdb.databaseName, mdb.DB.Close)
+	return closeSharedDBConn(mdb.databaseName, mdb.DB.Close)
 }

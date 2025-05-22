@@ -20,8 +20,8 @@ var (
 	dbPoolMx      sync.Mutex
 )
 
-// createPolledDBConn creates a new database connection in the dbPool if it doesn't exist.
-func createPolledDBConn(databaseName string, createDBConnFn func() (*sqlx.DB, error)) (*sqlx.DB, error) {
+// createSharedDBConn creates a new database connection in the dbPool if it doesn't exist.
+func createSharedDBConn(databaseName string, createDBConnFn func() (*sqlx.DB, error)) (*sqlx.DB, error) {
 	dbPoolMx.Lock()
 	defer dbPoolMx.Unlock()
 
@@ -41,8 +41,8 @@ func createPolledDBConn(databaseName string, createDBConnFn func() (*sqlx.DB, er
 	return db, nil
 }
 
-// createPolledDBConn closes the database connection in the dbPool if it exists.
-func closePolledDBConn(databaseName string, closeFn func() error) error {
+// closeSharedDBConn closes the database connection in the dbPool if it exists.
+func closeSharedDBConn(databaseName string, closeDBConnFn func() error) error {
 	dbPoolMx.Lock()
 	defer dbPoolMx.Unlock()
 
@@ -53,5 +53,5 @@ func closePolledDBConn(databaseName string, closeFn func() error) error {
 
 	delete(dbPool, databaseName)
 	delete(dbPoolCounter, databaseName)
-	return closeFn()
+	return closeDBConnFn()
 }

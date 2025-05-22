@@ -81,7 +81,7 @@ func (p *plugin) createSingleDBConn(cfg *config.SQL) (*sqlx.DB, error) {
 		return p.createDBConn(cfg)
 	}
 
-	return createPolledDBConn(cfg.DatabaseName, func() (*sqlx.DB, error) {
+	return createSharedDBConn(cfg.DatabaseName, func() (*sqlx.DB, error) {
 		return p.createDBConn(cfg)
 	})
 }
