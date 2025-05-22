@@ -40,8 +40,8 @@ jobs:
       - name: Run tests with coverage
         uses: nick-fields/retry@v3 # this is like indeterminate? different tests fail each time and sometimes dont fail at all
         with:
-          max_attempts: 2
-          timeout_minutes: 30
+          max_attempts: 2 # same amount of retries as buildkite pipeline
+          timeout_minutes: 30 # TODO: change it to something better
           command: |
             make cover_profile
       
@@ -49,17 +49,8 @@ jobs:
         run: ./scripts/github_actions/gen_coverage_metadata.sh .build/coverage/metadata.txt # TODO: delete scripts/buildkite folder 
 
       - name: Run docker compose unit test
-        run: docker compose -f docker/buildkite/docker-compose.yml run unit-test # TODO: change this its still buildkite
+        run: docker compose -f docker/github_actions/docker-compose.yml run unit-test # TODO: change this its still buildkite
         working-directory: . # what path above is relative to 
-
-      # - name: Run docker compose unit test
-      #   uses: nick-fields/retry@v3 # Retries this step bc its the one most likely to fail/need trying
-      #   with:
-      #     max_attempts: 2
-      #     timeout_minutes: 30 # Max time including retries
-      #     command: |
-      #       docker-compose -f docker/buildkite/docker-compose.yml run unit-test
-      #   working-directory: . # what path above is relative to TODO: change docker/buildkite/docker-compose.yml
 
       - name: Artifact paths # lets you download reports from the runs
         uses: actions/upload-artifact@v4
