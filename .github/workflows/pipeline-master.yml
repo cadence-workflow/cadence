@@ -25,7 +25,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: true # ensures git submodules are intialized and updated
+          submodules: true
 
       - name: Setup Go environment # buildkite uses uber specific docker image with go, we need to do it here
         uses: actions/setup-go@v5
@@ -38,7 +38,7 @@ jobs:
       - name: Run tests with coverage
         uses: nick-fields/retry@v3 # TODO: figure out why this is like indeterminate? different tests fail each time and sometimes dont fail at all
         with:
-          max_attempts: 2 # same amount of retries as buildkite pipeline
+          max_attempts: 2
           timeout_minutes: 10
           command: |
             make cover_profile
@@ -46,9 +46,38 @@ jobs:
       - name: Generate coverage metadata
         run: ./scripts/github_actions/gen_coverage_metadata.sh .build/coverage/metadata.txt
 
+      # to delete
+      - name: DEBUG: Verify files before Docker Compose run
+        run: |
+          echo "Listing contents of .build/coverage/ BEFORE Docker Compose run:"
+          ls -al .build/coverage/ || echo ".build/coverage/ not found or empty BEFORE Docker Compose."
+          echo "---"
+          echo "Contents of expected .out file (e.g., .build/coverage/unit_cover.out):"
+          cat .build/coverage/unit_cover.out || echo "Unit cover file not found or empty BEFORE Docker Compose."
+          echo "---"
+          echo "Contents of metadata.txt:"
+          cat .build/coverage/metadata.txt || echo "Metadata file not found or empty BEFORE Docker Compose."
+          echo "---"
+        continue-on-error: true
+
+      # DO NOT DELETE
       - name: Run docker compose unit test
         run: docker compose -f docker/github_actions/docker-compose.yml run unit-test
         working-directory: .
+
+        # to delete
+      - name: DEBUG: Verify files AFTER Docker Compose run (before upload)
+        run: |
+          echo "Listing contents of .build/coverage/ AFTER Docker Compose run:"
+          ls -al .build/coverage/ || echo ".build/coverage/ not found or empty AFTER Docker Compose."
+          echo "---"
+          echo "Contents of expected .out file (e.g., .build/coverage/unit_cover.out):"
+          cat .build/coverage/unit_cover.out || echo "Unit cover file not found or empty AFTER Docker Compose."
+          echo "---"
+          echo "Contents of metadata.txt:"
+          cat .build/coverage/metadata.txt || echo "Metadata file not found or empty AFTER Docker Compose."
+          echo "---"
+        continue-on-error: true
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
