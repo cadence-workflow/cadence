@@ -163,7 +163,7 @@ jobs:
         run: make .just-build
 
       - name: Run pinot integration test
-        run: go test -timeout 600s -run ^TestPinotIntegrationSuite -tags pinotintegration -count 1 -v github.com/uber/cadence/host
+        run: go test -timeout 600s -run ^TestPinotIntegrationSuite -tags pinotintegration -count 1 -v -coverprofile=.build/coverage/pinot_coverage.out github.com/uber/cadence/host
 
       - name: Run docker compose integration test cassandra and pinot
         run: docker compose -f docker/github_actions/docker-compose-pinot.yml run integration-test-cassandra-pinot
@@ -406,15 +406,10 @@ jobs:
       - name: Run make .just-build
         run: make .just-build
 
-      - name: Run docker compose up integration-test-async-wf
-        run: docker compose -f docker/github_actions/docker-compose.yml up -d integration-test-async-wf
-        working-directory: .
-
       - name: Run async wf integration test
-        run: docker compose -f docker/github_actions/docker-compose.yml exec integration-test-async-wf go test -timeout 60s -run ^TestAsyncWFIntegrationSuite -tags asyncwfintegration -count 1 -v github.com/uber/cadence/host
+        run: go test -timeout 60s -run ^TestAsyncWFIntegrationSuite -tags asyncwfintegration -count 1 -v github.com/uber/cadence/host
         working-directory: .
 
-      - name: Clean up docker compose services # buildkite automatically does this, so we do this manually where docker compose up is used
-        if: always()
-        run: docker compose -f docker/github_actions/docker-compose.yml down -v
+      - name: Run docker integration test async wf
+        run: docker compose -f docker/github_actions/docker-compose.yml run integration-test-async-wf
         working-directory: .
