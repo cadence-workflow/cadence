@@ -1,0 +1,187 @@
+services:
+  cassandra:
+    image: cassandra:4.1.1
+    ports:
+      - "9042:9042"
+    environment:
+      - "MAX_HEAP_SIZE=256M"
+      - "HEAP_NEWSIZE=128M"
+    networks:
+      services-network:
+        aliases:
+          - cassandra
+    healthcheck:
+      test: ["CMD", "cqlsh", "-u cassandra", "-p cassandra" ,"-e describe keyspaces"]
+      interval: 15s
+      timeout: 30s
+      retries: 10
+  prometheus:
+    image: prom/prometheus:latest
+    networks:
+      services-network:
+        aliases:
+          - prometheus
+    volumes:
+      - ./prometheus:/etc/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    ports:
+      - '9090:9090'
+
+  kafka:
+    image: docker.io/bitnami/kafka:3.7
+    restart: unless-stopped
+    container_name: "kafka"
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,OUTSIDE:PLAINTEXT
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9093,OUTSIDE://:9092
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9093,OUTSIDE://kafka:9092
+      - KAFKA_CFG_BROKER_ID=0
+      - ALLOW_PLAINTEXT_LISTENER=yes
+      # Topic settings
+      - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
+    depends_on:
+      - zookeeper
+    networks:
+      services-network:
+        aliases:
+          - kafka
+
+  # will be deleted later when we get rid of ES usages
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch-oss:7.9.3
+    # version here must be the same as the one in testdata/integration_pinot_cluster
+    ports:
+      - "9200:9200"
+    networks:
+      services-network:
+        aliases:
+          - elasticsearch
+    environment:
+      - discovery.type=single-node
+
+  zookeeper:
+    image: zookeeper:3.5.8
+    restart: always
+    hostname: zookeeper
+    container_name: zookeeper
+    ports:
+      - '2181:2181'
+    environment:
+      - ZOOKEEPER_CLIENT_PORT=2181
+      - ZOOKEEPER_TICK_TIME=2000
+    networks:
+      services-network:
+        aliases:
+          - zookeeper
+  # Needs a new pinot version to run the new json match query
+  pinot-controller:
+    image: apachepinot/pinot:latest
+    command: "StartController -zkAddress zookeeper:2181 -controllerPort 9001"
+    container_name: pinot-controller
+    restart: unless-stopped
+    ports:
+      - "9001:9001"
+    environment:
+      JAVA_OPTS: "-Dplugins.dir=/opt/pinot/plugins -Xms1G -Xmx4G -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -Xloggc:gc-pinot-controller.log"
+    depends_on:
+      - zookeeper
+    networks:
+      services-network:
+        aliases:
+          - pinot-controller
+  pinot-broker:
+    image: apachepinot/pinot:latest
+    command: "StartBroker -zkAddress zookeeper:2181"
+    restart: unless-stopped
+    container_name: "pinot-broker"
+    ports:
+      - "8099:8099"
+    environment:
+      JAVA_OPTS: "-Dplugins.dir=/opt/pinot/plugins -Xms4G -Xmx4G -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -Xloggc:gc-pinot-broker.log"
+    depends_on:
+      - pinot-controller
+    networks:
+      services-network:
+        aliases:
+          - pinot-broker
+  pinot-server:
+    image: apachepinot/pinot:latest
+    command: "StartServer -zkAddress zookeeper:2181"
+    restart: unless-stopped
+    container_name: "pinot-server"
+    ports:
+      - "8098:8098"
+    environment:
+      JAVA_OPTS: "-Dplugins.dir=/opt/pinot/plugins -Xms4G -Xmx16G -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -Xloggc:gc-pinot-server.log"
+    depends_on:
+      - pinot-broker
+    networks:
+      services-network:
+        aliases:
+          - pinot-server
+
+  pinot-admin:
+    image: apachepinot/pinot:latest
+    container_name: pinot-admin
+    depends_on:
+      - pinot-controller
+      - pinot-broker
+      - pinot-server
+    entrypoint: ["/bin/sh", "-c", "cp /schema/pinot/create_pinot_table.sh /opt/pinot/create_pinot_table.sh && chmod +x /opt/pinot/create_pinot_table.sh && /opt/pinot/create_pinot_table.sh"]
+    volumes:
+      - ../../schema:/schema  # Ensure the schema files and script are available in the container
+    networks:
+      services-network:
+        aliases:
+          - pinot-server
+
+  integration-test-cassandra-pinot:
+    build:
+      context: ../../
+      dockerfile: ./docker/github_actions/Dockerfile
+    environment:
+      - "CASSANDRA=1"
+      - "CASSANDRA_SEEDS=cassandra"
+      - "ES_SEEDS=elasticsearch"
+      - "TEST_TAG=pinotintegration"
+      - "ES_VERSION=v7"
+      - "KAFKA_SEEDS=kafka"
+      - "PINOT_SEEDS=pinot-broker"
+      - GITHUB_TOKEN
+      - GITHUB_RUN_ID
+      - GITHUB_RUN_NUMBER
+    depends_on:
+      cassandra:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_started
+      kafka:
+        condition: service_started
+      pinot-controller:
+        condition: service_started
+      pinot-broker:
+        condition: service_started
+      pinot-server:
+        condition: service_started
+      pinot-admin:
+        condition: service_started
+    volumes:
+      - ../../:/cadence
+    networks:
+      services-network:
+        aliases:
+          - integration-test
+
+networks:
+  services-network:
+    enable_ipv6: true
+    ipam:
+      config:
+        - subnet: 2001:0DB8::/112
+    name: services-network
+    driver: bridge
