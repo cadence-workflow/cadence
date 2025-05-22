@@ -1,6 +1,7 @@
 name: Pipeline Master
 on: 
   push:
+  workflow_dispatch: # TODO: remove this
 
 jobs:
   idl-submodule-points-to-master:
@@ -36,12 +37,15 @@ jobs:
         run: make .just-build
 
       - name: Run tests with coverage
-        uses: nick-fields/retry@v3 # TODO: figure out why this is like indeterminate? different tests fail each time and sometimes dont fail at all
-        with:
-          max_attempts: 2 # same amount of retries as buildkite pipeline
-          timeout_minutes: 10 # TODO: change it to something better
-          command: |
-            make cover_profile
+        run: make cover_profile
+
+      # - name: Run tests with coverage
+      #   uses: nick-fields/retry@v3 # TODO: figure out why this is like indeterminate? different tests fail each time and sometimes dont fail at all
+      #   with:
+      #     max_attempts: 2 # same amount of retries as buildkite pipeline
+      #     timeout_minutes: 10 # TODO: change it to something better
+      #     command: |
+      #       make cover_profile
       
       - name: Generate coverage metadata
         run: ./scripts/github_actions/gen_coverage_metadata.sh .build/coverage/metadata.txt # TODO: delete scripts/buildkite folder 
