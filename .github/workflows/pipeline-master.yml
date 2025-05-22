@@ -46,38 +46,10 @@ jobs:
       - name: Generate coverage metadata
         run: ./scripts/github_actions/gen_coverage_metadata.sh .build/coverage/metadata.txt
 
-      # to delete
-      - name: Verify files before Docker Compose run
-        run: |
-          echo "Listing contents of .build/coverage/ BEFORE Docker Compose run:"
-          ls -al .build/coverage/ || echo ".build/coverage/ not found or empty BEFORE Docker Compose."
-          echo "---"
-          echo "Contents of expected .out file (e.g., .build/coverage/unit_cover.out):"
-          cat .build/coverage/unit_cover.out || echo "Unit cover file not found or empty BEFORE Docker Compose."
-          echo "---"
-          echo "Contents of metadata.txt:"
-          cat .build/coverage/metadata.txt || echo "Metadata file not found or empty BEFORE Docker Compose."
-          echo "---"
-        continue-on-error: true
-
       # DO NOT DELETE
       - name: Run docker compose unit test
         run: docker compose -f docker/github_actions/docker-compose.yml run unit-test
         working-directory: .
-
-        # to delete
-      - name: Verify files AFTER Docker Compose run (before upload)
-        run: |
-          echo "Listing contents of .build/coverage/ AFTER Docker Compose run:"
-          ls -al .build/coverage/ || echo ".build/coverage/ not found or empty AFTER Docker Compose."
-          echo "---"
-          echo "Contents of expected .out file (e.g., .build/coverage/unit_cover.out):"
-          cat .build/coverage/unit_cover.out || echo "Unit cover file not found or empty AFTER Docker Compose."
-          echo "---"
-          echo "Contents of metadata.txt:"
-          cat .build/coverage/metadata.txt || echo "Metadata file not found or empty AFTER Docker Compose."
-          echo "---"
-        continue-on-error: true
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
@@ -191,8 +163,11 @@ jobs:
       - name: Run .just-build
         run: make .just-build
 
+      - name: Make the directory for the pinot coverage file
+        run: mkdir -p .build/coverage
+
       - name: Run pinot integration test
-        run: go test -timeout 600s -run ^TestPinotIntegrationSuite -tags pinotintegration -count 1 -v -coverprofile=.build/coverage/*.out github.com/uber/cadence/host
+        run: go test -timeout 600s -run ^TestPinotIntegrationSuite -tags pinotintegration -count 1 -v -coverprofile=.build/coverage/pinot.out github.com/uber/cadence/host
 
       - name: Run docker compose integration test cassandra and pinot
         run: docker compose -f docker/github_actions/docker-compose-pinot.yml run integration-test-cassandra-pinot
