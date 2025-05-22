@@ -1,5 +1,7 @@
 name: Pipeline Master
-on: push
+on: 
+  push:
+  workflow_dispatch: # TODO: remove this (allows manual runs)
 
 jobs:
   idl-submodule-points-to-master:
@@ -49,7 +51,7 @@ jobs:
       #   uses: nick-fields/retry@v3 # Retries this step bc its the one most likely to fail/need trying
       #   with:
       #     max_attempts: 2
-      #     timeout_minutes: 5 # Max time for this step including retries
+      #     timeout_minutes: 30 # Max time including retries
       #     command: |
       #       docker-compose -f docker/buildkite/docker-compose.yml run unit-test
       #   working-directory: . # what path above is relative to TODO: change docker/buildkite/docker-compose.yml
