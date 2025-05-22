@@ -1,7 +1,6 @@
 name: Pipeline Master
 on: 
   push:
-  workflow_dispatch: # TODO: remove this (allows manual runs)
 
 jobs:
   idl-submodule-points-to-master:
@@ -40,7 +39,7 @@ jobs:
         uses: nick-fields/retry@v3 # TODO: figure out why this is like indeterminate? different tests fail each time and sometimes dont fail at all
         with:
           max_attempts: 2 # same amount of retries as buildkite pipeline
-          timeout_minutes: 30 # TODO: change it to something better
+          timeout_minutes: 10 # TODO: change it to something better
           command: |
             make cover_profile
       
@@ -49,9 +48,9 @@ jobs:
 
       - name: Run docker compose unit test
         run: docker compose -f docker/github_actions/docker-compose.yml run unit-test # TODO: delete docker/buildkite
-        working-directory: . # what path above is relative to 
+        working-directory: .
 
-      - name: Upload coverage artifacts # lets you download reports from the runs
+      - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
         with:
           name: go-unit-test-coverage
@@ -167,7 +166,6 @@ jobs:
         run: go test -timeout 600s -run ^TestPinotIntegrationSuite -tags pinotintegration -count 1 -v github.com/uber/cadence/host
 
       - name: Run docker compose integration test cassandra and pinot
-
         run: docker compose -f docker/github_actions/docker-compose-pinot.yml run integration-test-cassandra-pinot
         working-directory: .
 
@@ -181,7 +179,7 @@ jobs:
   golang-integration-test-with-cassandra-with-opensearch-v2:
     name: Golang integration test with cassandra with opensearch v2
     runs-on: ubuntu-latest
-    # needs: golang-integration-test-with-cassandra-and-pinot
+    needs: golang-integration-test-with-cassandra-and-pinot
 
     steps:
       - name: Checkout
@@ -193,12 +191,25 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.23.4'
+
+      - name: Run integration profile for cassandra and opensearch v2
+        run: make cover_integration_profile
+
+      - name: Run docker compose integration test cassandra and opensearch v2
+        run: docker compose -f docker/github_actions/docker-compose-opensearch2.yml run integration-test-cassandra
+        working-directory: .
+
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-cassandra-and-opensearch-v2-integration-coverage
+          path: .build/coverage/*.out
 
 
   golang-integration-ndc-test-with-cassandra:
     name: Golang integration ndc test with cassandra
     runs-on: ubuntu-latest
-    # needs: golang-integration-test-with-cassandra-with-opensearch-v2
+    needs: golang-integration-test-with-cassandra-with-opensearch-v2
 
     steps:
       - name: Checkout
@@ -210,12 +221,25 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.23.4'
+
+      - name: Run ndc profile for cassandra
+        run: make cover_ndc_profile
+
+      - name: Run docker ndc integration test cassandra
+        run: docker compose -f docker/github_actions/docker-compose.yml run integration-test-ndc-cassandra
+        working-directory: .
+
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-cassandra-ndc-integration-coverage
+          path: .build/coverage/*.out
 
 
   golang-integration-test-with-mysql:
     name: Golang integration test with mysql
     runs-on: ubuntu-latest
-    # needs: golang-integration-ndc-test-with-cassandra
+    needs: golang-integration-ndc-test-with-cassandra
 
     steps:
       - name: Checkout
@@ -227,12 +251,25 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.23.4'
+
+      - name: Run integration profile for mysql
+        run: make cover_integration_profile
+
+      - name: Run docker compose integration test cassandra
+        run: docker compose -f docker/github_actions/docker-compose.yml run integration-test-mysql
+        working-directory: .
+
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-mysql-integration-coverage
+          path: .build/coverage/*.out
           
 
   golang-integration-ndc-test-with-mysql:
     name: Golang integration ndc test with mysql
     runs-on: ubuntu-latest
-    # needs: golang-integration-test-with-mysql
+    needs: golang-integration-test-with-mysql
 
     steps:
       - name: Checkout
@@ -244,12 +281,25 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.23.4'
+
+      - name: Run ndc profile for mysql
+        run: make cover_ndc_profile
+
+      - name: Run docker ndc integration test mysql
+        run: docker compose -f docker/github_actions/docker-compose.yml run integration-test-ndc-mysql
+        working-directory: .
+
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-mysql-ndc-integration-coverage
+          path: .build/coverage/*.out
 
 
   golang-integration-test-with-postgres:
     name: Golang integration test with postgres
     runs-on: ubuntu-latest
-    # needs: golang-integration-ndc-test-with-mysql
+    needs: golang-integration-ndc-test-with-mysql
 
     steps:
       - name: Checkout
@@ -261,12 +311,26 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.23.4'
+
+      - name: Run integration profile for postgres
+        run: make cover_integration_profile
+
+      - name: Run docker compose integration test postgres
+        run: docker compose -f docker/github_actions/docker-compose.yml run integration-test-postgres
+        working-directory: .
+
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-postgres-integration-coverage
+          path: .build/coverage/*.out
              
 
   golang-integration-test-with-sqlite:
     name: Golang integration test with sqlite
     runs-on: ubuntu-latest
-    # needs: golang-integration-test-with-postgres
+    needs: golang-integration-test-with-postgres
+    continue-on-error: true
 
     steps:
       - name: Checkout
@@ -278,12 +342,25 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.23.4'
+
+      - name: Run integration profile for sqlite
+        run: make cover_integration_profile
+
+      - name: Run docker compose integration test sqlite
+        run: docker compose -f docker/github_actions/docker-compose.yml run integration-test-sqlite
+        working-directory: .
+
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-sqlite-integration-coverage
+          path: .build/coverage/*.out
 
 
   golang-integration-ndc-test-with-postgres:
     name: Golang integration ndc test with postgres
     runs-on: ubuntu-latest
-    # needs: golang-integration-test-with-sqlite
+    needs: golang-integration-test-with-sqlite
 
     steps:
       - name: Checkout
@@ -295,12 +372,25 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.23.4'
+
+      - name: Run ndc profile for postgres
+        run: make cover_ndc_profile
+
+      - name: Run docker compose ndc test postgres
+        run: docker compose -f docker/github_actions/docker-compose.yml run integration-test-ndc-postgres
+        working-directory: .
+
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-postgres-ndc-integration-coverage
+          path: .build/coverage/*.out
 
 
   golang-async-wf-integration-test-with-kafka:
     name: Golang async wf integration test with kafka
     runs-on: ubuntu-latest
-    # needs: golang-integration-ndc-test-with-postgres
+    needs: golang-integration-ndc-test-with-postgres
 
     steps:
       - name: Checkout
@@ -312,3 +402,19 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.23.4'
+
+      - name: Run make .just-build
+        run: make .just-build
+
+      - name: Run docker compose up integration-test-async-wf
+        run: docker compose -f docker/github_actions/docker-compose.yml up -d integration-test-async-wf
+        working-directory: .
+
+      - name: Run async wf integration test
+        run: docker compose -f docker/github_actions/docker-compose.yml exec integration-test-async-wf go test -timeout 60s -run ^TestAsyncWFIntegrationSuite -tags asyncwfintegration -count 1 -v github.com/uber/cadence/host
+        working-directory: .
+
+      - name: Clean up docker compose services # buildkite automatically does this, so we do this manually where docker compose up is used
+        if: always()
+        run: docker compose -f docker/github_actions/docker-compose.yml down -v
+        working-directory: .
