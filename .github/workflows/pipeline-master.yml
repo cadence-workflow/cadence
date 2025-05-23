@@ -32,34 +32,40 @@ jobs:
         with:
           go-version: '1.23.4' # from cadence/docker/buildkite/Dockerfile
 
-      # - name: Not rebuilding binaries and not regenerating code
-      #   run: make .just-build
+      - name: Not rebuilding binaries and not regenerating code
+        run: make .just-build
 
       - name: Run tests with coverage
         uses: nick-fields/retry@v3 # TODO: figure out why this is like indeterminate? different tests fail each time and sometimes dont fail at all
         with:
           max_attempts: 2
           timeout_minutes: 10
-          command: |-
-            # ensure that we are not rebuilding binaries and not regenerating code
-            make .just-build
-            # run tests with coverage
+          command: |
             make cover_profile
-            ./scripts/github_actions/gen_coverage_metadata.sh .build/coverage/metadata.txt
       
-      # - name: Generate coverage metadata
-      #   run: ./scripts/github_actions/gen_coverage_metadata.sh .build/coverage/metadata.txt
+      - name: Generate coverage metadata
+        run: ./scripts/github_actions/gen_coverage_metadata.sh .build/coverage/metadata.txt
 
       - name: Run docker compose unit test
         run: docker compose -f docker/github_actions/docker-compose.yml run unit-test
         working-directory: .
 
+      - name: Debug before upload
+        run: |
+          echo "Current directory: $(pwd)"
+          echo "Checking if files exist:"
+          test -f .build/coverage/unit_cover.out && echo "unit_cover.out exists" || echo "unit_cover.out missing"
+          test -f .build/coverage/metadata.txt && echo "metadata.txt exists" || echo "metadata.txt missing"
+          echo "File permissions:"
+          ls -l .build/coverage/
+
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
         with:
           name: go-unit-test-coverage
-          path:
-            .build/coverage/*.out .build/coverage/metadata.txt
+          path: |
+            .build/coverage/*.out
+            .build/coverage/metadata.txt
 
 
   golangci-lint-validate-code-is-clean:
