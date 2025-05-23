@@ -32,19 +32,23 @@ jobs:
         with:
           go-version: '1.23.4' # from cadence/docker/buildkite/Dockerfile
 
-      - name: Not rebuilding binaries and not regenerating code
-        run: make .just-build
+      # - name: Not rebuilding binaries and not regenerating code
+      #   run: make .just-build
 
       - name: Run tests with coverage
         uses: nick-fields/retry@v3 # TODO: figure out why this is like indeterminate? different tests fail each time and sometimes dont fail at all
         with:
           max_attempts: 2
           timeout_minutes: 10
-          command: |
+          command: |-
+            # ensure that we are not rebuilding binaries and not regenerating code
+            make .just-build
+            # run tests with coverage
             make cover_profile
+            ./scripts/github_actions/gen_coverage_metadata.sh .build/coverage/metadata.txt
       
-      - name: Generate coverage metadata
-        run: ./scripts/github_actions/gen_coverage_metadata.sh .build/coverage/metadata.txt
+      # - name: Generate coverage metadata
+      #   run: ./scripts/github_actions/gen_coverage_metadata.sh .build/coverage/metadata.txt
 
       - name: Run docker compose unit test
         run: docker compose -f docker/github_actions/docker-compose.yml run unit-test
