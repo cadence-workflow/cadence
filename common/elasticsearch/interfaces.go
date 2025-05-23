@@ -37,6 +37,7 @@ import (
 	v7 "github.com/uber/cadence/common/elasticsearch/client/v7"
 	"github.com/uber/cadence/common/elasticsearch/query"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/tag"
 	p "github.com/uber/cadence/common/persistence"
 )
 
@@ -73,11 +74,11 @@ func NewGenericClient(
 
 	switch connectConfig.Version {
 	case "v6":
-		esClient, err = v6.NewV6Client(connectConfig, logger, tlsClient, signingAWSClient)
+		esClient, err = v6.NewV6Client(connectConfig, logger.WithTags(tag.Dynamic("component", "elasticsearch-v6-client")), tlsClient, signingAWSClient)
 	case "v7":
-		esClient, err = v7.NewV7Client(connectConfig, logger, tlsClient, signingAWSClient)
+		esClient, err = v7.NewV7Client(connectConfig, logger.WithTags(tag.Dynamic("component", "elasticsearch-v7-client")), tlsClient, signingAWSClient)
 	case "os2":
-		esClient, err = os2.NewClient(connectConfig, logger, tlsClient)
+		esClient, err = os2.NewClient(connectConfig, logger.WithTags(tag.Dynamic("component", "opensearch-client")), tlsClient)
 	default:
 		return nil, fmt.Errorf("not supported ElasticSearch version: %v", connectConfig.Version)
 	}
