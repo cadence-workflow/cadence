@@ -46,6 +46,7 @@ type ReplicationSimulationOperation string
 
 const (
 	ReplicationSimulationOperationStartWorkflow        ReplicationSimulationOperation = "start_workflow"
+	ReplicationSimulationOperationResetWorkflow        ReplicationSimulationOperation = "reset_workflow"
 	ReplicationSimulationOperationChangeActiveClusters ReplicationSimulationOperation = "change_active_clusters"
 	ReplicationSimulationOperationValidate             ReplicationSimulationOperation = "validate"
 )
@@ -80,6 +81,9 @@ type Operation struct {
 	WorkflowID                           string        `yaml:"workflowID"`
 	WorkflowExecutionStartToCloseTimeout time.Duration `yaml:"workflowExecutionStartToCloseTimeout"`
 	WorkflowDuration                     time.Duration `yaml:"workflowDuration"`
+	ActivityCount                        int           `yaml:"activityCount"`
+
+	EventID int64 `yaml:"eventID"`
 
 	Domain            string   `yaml:"domain"`
 	NewActiveClusters []string `yaml:"newActiveClusters"`
@@ -92,6 +96,7 @@ type Validation struct {
 	Status                      string `yaml:"status"`
 	StartedByWorkersInCluster   string `yaml:"startedByWorkersInCluster"`
 	CompletedByWorkersInCluster string `yaml:"completedByWorkersInCluster"`
+	Error                       string `yaml:"error"`
 }
 
 type Cluster struct {

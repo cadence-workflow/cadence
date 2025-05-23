@@ -21,7 +21,7 @@ operations:
   - op: start_workflow
     at: 0s
     workflowType: timer-activity-loop-workflow
-    workflowID: wf1
+    workflowID: timer-activity-loop-workflow1
     cluster: cluster0
     domain: test-domain
     workflowExecutionStartToCloseTimeout: 65s
@@ -35,7 +35,7 @@ operations:
 
   - op: validate
     at: 41s # with the current workflow implementation, it's possible that the workflow may finish right after the 40s mark
-    workflowID: wf1
+    workflowID: timer-activity-loop-workflow1
     cluster: cluster1
     domain: test-domain
     want:

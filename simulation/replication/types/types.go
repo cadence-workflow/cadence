@@ -34,7 +34,8 @@ const (
 )
 
 type WorkflowInput struct {
-	Duration time.Duration
+	Duration      time.Duration
+	ActivityCount int
 }
 
 type WorkflowOutput struct {

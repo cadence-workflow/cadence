@@ -89,6 +89,8 @@ func TestReplicationSimulation(t *testing.T) {
 		switch op.Type {
 		case simTypes.ReplicationSimulationOperationStartWorkflow:
 			err = startWorkflow(t, op, simCfg)
+		case simTypes.ReplicationSimulationOperationResetWorkflow:
+			err = resetWorkflow(t, op, simCfg)
 		case simTypes.ReplicationSimulationOperationChangeActiveClusters:
 			err = changeActiveClusters(t, op, simCfg)
 		case simTypes.ReplicationSimulationOperationValidate:
@@ -137,7 +139,7 @@ func startWorkflow(
 			TaskList:                            &types.TaskList{Name: simTypes.TasklistName},
 			ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(int32((op.WorkflowExecutionStartToCloseTimeout).Seconds())),
 			TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(5),
-			Input:                               mustJSON(t, &simTypes.WorkflowInput{Duration: op.WorkflowDuration}),
+			Input:                               mustJSON(t, &simTypes.WorkflowInput{Duration: op.WorkflowDuration, ActivityCount: op.ActivityCount}),
 		})
 
 	if err != nil {
@@ -145,6 +147,63 @@ func startWorkflow(
 	}
 
 	simTypes.Logf(t, "Started workflow: %s on domain: %s on cluster: %s. RunID: %s", op.WorkflowID, op.Domain, op.Cluster, resp.GetRunID())
+
+	return nil
+}
+
+func resetWorkflow(
+	t *testing.T,
+	op *simTypes.Operation,
+	simCfg *simTypes.ReplicationSimulationConfig,
+) error {
+	t.Helper()
+
+	simTypes.Logf(t, "Resetting workflow: %s on domain %s on cluster: %s", op.WorkflowID, op.Domain, op.Cluster)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	resp, err := simCfg.MustGetFrontendClient(t, op.Cluster).DescribeWorkflowExecution(ctx,
+		&types.DescribeWorkflowExecutionRequest{
+			Domain: op.Domain,
+			Execution: &types.WorkflowExecution{
+				WorkflowID: op.WorkflowID,
+			},
+		})
+
+	if err != nil {
+		return fmt.Errorf("failed to describe workflow %s: %w", op.WorkflowID, err)
+	}
+
+	simTypes.Logf(t, "DescribeWorkflowExecution workflowID: %s on domain: %s on cluster: %s. RunID: %s", op.WorkflowID, op.Domain, op.Cluster, resp.GetWorkflowExecutionInfo().Execution.RunID)
+
+	resetResp, err := simCfg.MustGetFrontendClient(t, op.Cluster).ResetWorkflowExecution(ctx,
+		&types.ResetWorkflowExecutionRequest{
+			Domain: op.Domain,
+			WorkflowExecution: &types.WorkflowExecution{
+				WorkflowID: op.WorkflowID,
+				RunID:      resp.GetWorkflowExecutionInfo().Execution.RunID,
+			},
+			Reason:                "resetting workflow",
+			DecisionFinishEventID: op.EventID,
+		})
+
+	if err != nil {
+		if op.Want.Error != "" {
+			if strings.Contains(err.Error(), op.Want.Error) {
+				simTypes.Logf(t, "Expected error: %s", op.Want.Error)
+				return nil
+			}
+			return fmt.Errorf("expected error: %s, but got: %s", op.Want.Error, err.Error())
+		}
+		simTypes.Logf(t, err.Error())
+		return err
+	}
+
+	if op.Want.Error != "" {
+		return fmt.Errorf("expected error: %s, but got nil", op.Want.Error)
+	}
+
+	simTypes.Logf(t, "Reset workflowID: %s on domain: %s on cluster: %s. RunID: %s", op.WorkflowID, op.Domain, op.Cluster, resetResp.GetRunID())
 
 	return nil
 }
@@ -214,9 +273,42 @@ func validate(
 		return err
 	}
 
-	// Validate workflow completed
-	if resp.GetWorkflowExecutionInfo().GetCloseStatus() != types.WorkflowExecutionCloseStatusCompleted || resp.GetWorkflowExecutionInfo().GetCloseTime() == 0 {
-		return fmt.Errorf("workflow %s not completed. status: %s, close time: %v", op.WorkflowID, resp.GetWorkflowExecutionInfo().GetCloseStatus(), time.Unix(0, resp.GetWorkflowExecutionInfo().GetCloseTime()))
+	switch op.Want.Status {
+	case "completed":
+		// Validate workflow completed
+		if resp.GetWorkflowExecutionInfo().GetCloseStatus() != types.WorkflowExecutionCloseStatusCompleted || resp.GetWorkflowExecutionInfo().GetCloseTime() == 0 {
+			return fmt.Errorf("workflow %s not completed. status: %s, close time: %v", op.WorkflowID, resp.GetWorkflowExecutionInfo().GetCloseStatus(), time.Unix(0, resp.GetWorkflowExecutionInfo().GetCloseTime()))
+		}
+	case "failed":
+		// Validate workflow failed
+		if resp.GetWorkflowExecutionInfo().GetCloseStatus() != types.WorkflowExecutionCloseStatusFailed || resp.GetWorkflowExecutionInfo().GetCloseTime() == 0 {
+			return fmt.Errorf("workflow %s not failed. status: %s, close time: %v", op.WorkflowID, resp.GetWorkflowExecutionInfo().GetCloseStatus(), time.Unix(0, resp.GetWorkflowExecutionInfo().GetCloseTime()))
+		}
+	case "canceled":
+		// Validate workflow canceled
+		if resp.GetWorkflowExecutionInfo().GetCloseStatus() != types.WorkflowExecutionCloseStatusCanceled || resp.GetWorkflowExecutionInfo().GetCloseTime() == 0 {
+			return fmt.Errorf("workflow %s not canceled. status: %s, close time: %v", op.WorkflowID, resp.GetWorkflowExecutionInfo().GetCloseStatus(), time.Unix(0, resp.GetWorkflowExecutionInfo().GetCloseTime()))
+		}
+	case "terminated":
+		// Validate workflow terminated
+		if resp.GetWorkflowExecutionInfo().GetCloseStatus() != types.WorkflowExecutionCloseStatusTerminated || resp.GetWorkflowExecutionInfo().GetCloseTime() == 0 {
+			return fmt.Errorf("workflow %s not terminated. status: %s, close time: %v", op.WorkflowID, resp.GetWorkflowExecutionInfo().GetCloseStatus(), time.Unix(0, resp.GetWorkflowExecutionInfo().GetCloseTime()))
+		}
+	case "continued-as-new":
+		// Validate workflow continued as new
+		if resp.GetWorkflowExecutionInfo().GetCloseStatus() != types.WorkflowExecutionCloseStatusContinuedAsNew || resp.GetWorkflowExecutionInfo().GetCloseTime() == 0 {
+			return fmt.Errorf("workflow %s not continued as new. status: %s, close time: %v", op.WorkflowID, resp.GetWorkflowExecutionInfo().GetCloseStatus(), time.Unix(0, resp.GetWorkflowExecutionInfo().GetCloseTime()))
+		}
+	case "timed-out":
+		// Validate workflow timed out
+		if resp.GetWorkflowExecutionInfo().GetCloseStatus() != types.WorkflowExecutionCloseStatusTimedOut || resp.GetWorkflowExecutionInfo().GetCloseTime() == 0 {
+			return fmt.Errorf("workflow %s not timed out. status: %s, close time: %v", op.WorkflowID, resp.GetWorkflowExecutionInfo().GetCloseStatus(), time.Unix(0, resp.GetWorkflowExecutionInfo().GetCloseTime()))
+		}
+	default:
+		// Validate workflow is running
+		if resp.GetWorkflowExecutionInfo().GetCloseTime() != 0 {
+			return fmt.Errorf("workflow %s not running. status: %s, close time: %v", op.WorkflowID, resp.GetWorkflowExecutionInfo().GetCloseStatus(), time.Unix(0, resp.GetWorkflowExecutionInfo().GetCloseTime()))
+		}
 	}
 
 	simTypes.Logf(t, "Validated workflow: %s on cluster: %s. Status: %s, CloseTime: %v", op.WorkflowID, op.Cluster, resp.GetWorkflowExecutionInfo().GetCloseStatus(), time.Unix(0, resp.GetWorkflowExecutionInfo().GetCloseTime()))

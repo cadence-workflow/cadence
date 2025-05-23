@@ -229,7 +229,7 @@ services:
       - -e
       - -c
       - >
-        go test -timeout 180s
+        go test -timeout 240s
         -run ^TestReplicationSimulation.*$
         -count 1
         -v
