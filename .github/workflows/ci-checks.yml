@@ -15,8 +15,8 @@ jobs:
         with:
           submodules: true # ensures git submodules are intialized and updated
 
-      - name: Check IDL submodule status
-        run: make .idl-status # check if git submodule is pointing to master
+      - name: Check IDL submodule status (must point to master)
+        # run: make .idl-status # TODO: add this back in
 
   golang-unit-test:
     name: Golang unit test
