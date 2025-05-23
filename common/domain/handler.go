@@ -257,6 +257,7 @@ func (d *handlerImpl) RegisterDomain(
 	if err != nil {
 		return err
 	}
+
 	replicationConfig := &persistence.DomainReplicationConfig{
 		ActiveClusterName: activeClusterName,
 		Clusters:          clusters,
@@ -1236,7 +1237,10 @@ func (d *handlerImpl) updateReplicationConfig(
 		config.ActiveClusterName = *updateRequest.ActiveClusterName
 	}
 
-	// TODO(active-active): handle active-active case here which would be updateRequest.ActiveClusters != nil.
+	if updateRequest.ActiveClusters != nil {
+		config.ActiveClusters = updateRequest.ActiveClusters
+		config.ActiveClustersEncoding = constants.EncodingTypeThriftRW
+	}
 
 	return config, clusterUpdated, activeClusterUpdated, nil
 }

@@ -43,6 +43,21 @@ func (m *MockPayloadSerializer) EXPECT() *MockPayloadSerializerMockRecorder {
 	return m.recorder
 }
 
+// DeserializeActiveClusters mocks base method.
+func (m *MockPayloadSerializer) DeserializeActiveClusters(data *DataBlob) (*types.ActiveClusters, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeserializeActiveClusters", data)
+	ret0, _ := ret[0].(*types.ActiveClusters)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeserializeActiveClusters indicates an expected call of DeserializeActiveClusters.
+func (mr *MockPayloadSerializerMockRecorder) DeserializeActiveClusters(data any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeserializeActiveClusters", reflect.TypeOf((*MockPayloadSerializer)(nil).DeserializeActiveClusters), data)
+}
+
 // DeserializeAsyncWorkflowsConfig mocks base method.
 func (m *MockPayloadSerializer) DeserializeAsyncWorkflowsConfig(data *DataBlob) (*types.AsyncWorkflowConfiguration, error) {
 	m.ctrl.T.Helper()
@@ -221,6 +236,21 @@ func (m *MockPayloadSerializer) DeserializeVisibilityMemo(data *DataBlob) (*type
 func (mr *MockPayloadSerializerMockRecorder) DeserializeVisibilityMemo(data any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeserializeVisibilityMemo", reflect.TypeOf((*MockPayloadSerializer)(nil).DeserializeVisibilityMemo), data)
+}
+
+// SerializeActiveClusters mocks base method.
+func (m *MockPayloadSerializer) SerializeActiveClusters(activeClusters *types.ActiveClusters, encodingType constants.EncodingType) (*DataBlob, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SerializeActiveClusters", activeClusters, encodingType)
+	ret0, _ := ret[0].(*DataBlob)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SerializeActiveClusters indicates an expected call of SerializeActiveClusters.
+func (mr *MockPayloadSerializerMockRecorder) SerializeActiveClusters(activeClusters, encodingType any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SerializeActiveClusters", reflect.TypeOf((*MockPayloadSerializer)(nil).SerializeActiveClusters), activeClusters, encodingType)
 }
 
 // SerializeAsyncWorkflowsConfig mocks base method.

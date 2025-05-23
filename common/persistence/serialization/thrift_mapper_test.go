@@ -105,43 +105,32 @@ func TestShardInfo(t *testing.T) {
 
 func TestDomainInfo(t *testing.T) {
 	expected := &DomainInfo{
-		Name:                        "domain_name",
-		Description:                 "description",
-		Owner:                       "owner",
-		Status:                      int32(rand.Intn(1000)),
-		Retention:                   time.Duration(int64(rand.Intn(1000))),
-		EmitMetric:                  true,
-		ArchivalBucket:              "archival_bucket",
-		ArchivalStatus:              int16(rand.Intn(1000)),
-		ConfigVersion:               int64(rand.Intn(1000)),
-		NotificationVersion:         int64(rand.Intn(1000)),
-		FailoverNotificationVersion: int64(rand.Intn(1000)),
-		FailoverVersion:             int64(rand.Intn(1000)),
-		ActiveClusterName:           "ActiveClusterName",
-		// TODO(active-active): Define these fields in follow up PR
-		// ActiveClusters: &types.ActiveClusters{
-		// 	ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-		// 		"region1": {
-		// 			ActiveClusterName: "cluster1",
-		// 			FailoverVersion:   int64(rand.Intn(1000)),
-		// 		},
-		// 		"region2": {
-		// 			ActiveClusterName: "cluster2",
-		// 			FailoverVersion:   int64(rand.Intn(1000)),
-		// 		},
-		// 	},
-		// },
-		Clusters:                 []string{"cluster_a", "cluster_b"},
-		Data:                     map[string]string{"key_1": "value_1", "key_2": "value_2"},
-		BadBinaries:              []byte("BadBinaries"),
-		BadBinariesEncoding:      "BadBinariesEncoding",
-		HistoryArchivalStatus:    int16(rand.Intn(1000)),
-		HistoryArchivalURI:       "HistoryArchivalURI",
-		VisibilityArchivalStatus: int16(rand.Intn(1000)),
-		VisibilityArchivalURI:    "VisibilityArchivalURI",
-		FailoverEndTimestamp:     common.TimePtr(time.Now()),
-		PreviousFailoverVersion:  int64(rand.Intn(1000)),
-		LastUpdatedTimestamp:     time.Now(),
+		Name:                         "domain_name",
+		Description:                  "description",
+		Owner:                        "owner",
+		Status:                       int32(rand.Intn(1000)),
+		Retention:                    time.Duration(int64(rand.Intn(1000))),
+		EmitMetric:                   true,
+		ArchivalBucket:               "archival_bucket",
+		ArchivalStatus:               int16(rand.Intn(1000)),
+		ConfigVersion:                int64(rand.Intn(1000)),
+		NotificationVersion:          int64(rand.Intn(1000)),
+		FailoverNotificationVersion:  int64(rand.Intn(1000)),
+		FailoverVersion:              int64(rand.Intn(1000)),
+		ActiveClusterName:            "ActiveClusterName",
+		ActiveClustersConfig:         []byte("activeClustersConfig"),
+		ActiveClustersConfigEncoding: "activeClustersConfigEncoding",
+		Clusters:                     []string{"cluster_a", "cluster_b"},
+		Data:                         map[string]string{"key_1": "value_1", "key_2": "value_2"},
+		BadBinaries:                  []byte("BadBinaries"),
+		BadBinariesEncoding:          "BadBinariesEncoding",
+		HistoryArchivalStatus:        int16(rand.Intn(1000)),
+		HistoryArchivalURI:           "HistoryArchivalURI",
+		VisibilityArchivalStatus:     int16(rand.Intn(1000)),
+		VisibilityArchivalURI:        "VisibilityArchivalURI",
+		FailoverEndTimestamp:         common.TimePtr(time.Now()),
+		PreviousFailoverVersion:      int64(rand.Intn(1000)),
+		LastUpdatedTimestamp:         time.Now(),
 	}
 	actual := domainInfoFromThrift(domainInfoToThrift(expected))
 	assert.Equal(t, expected.Name, actual.Name)
@@ -157,7 +146,7 @@ func TestDomainInfo(t *testing.T) {
 	assert.Equal(t, expected.FailoverNotificationVersion, actual.FailoverNotificationVersion)
 	assert.Equal(t, expected.ActiveClusterName, actual.ActiveClusterName)
 	assert.Equal(t, expected.Clusters, actual.Clusters)
-	assert.Equal(t, expected.ActiveClusters, actual.ActiveClusters)
+	assert.Equal(t, expected.ActiveClustersConfig, actual.ActiveClustersConfig)
 	assert.Equal(t, expected.Data, actual.Data)
 	assert.Equal(t, expected.BadBinaries, actual.BadBinaries)
 	assert.Equal(t, expected.BadBinariesEncoding, actual.BadBinariesEncoding)

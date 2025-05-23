@@ -315,7 +315,9 @@ CREATE TYPE cluster_replication_config (
 
 CREATE TYPE domain_replication_config (
   active_cluster_name text,
-  clusters            list<frozen<cluster_replication_config>>
+  clusters            list<frozen<cluster_replication_config>>,
+  active_clusters_config blob,
+  active_clusters_config_encoding text,
 );
 
 CREATE TYPE serialized_event_batch (

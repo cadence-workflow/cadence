@@ -88,6 +88,10 @@ type (
 		// serialize/deserialize checksum
 		SerializeChecksum(sum checksum.Checksum, encodingType constants.EncodingType) (*DataBlob, error)
 		DeserializeChecksum(data *DataBlob) (checksum.Checksum, error)
+
+		// serialize/deserialize active clusters config
+		SerializeActiveClusters(activeClusters *types.ActiveClusters, encodingType constants.EncodingType) (*DataBlob, error)
+		DeserializeActiveClusters(data *DataBlob) (*types.ActiveClusters, error)
 	}
 
 	// CadenceSerializationError is an error type for cadence serialization
@@ -329,6 +333,26 @@ func (t *serializerImpl) DeserializeChecksum(data *DataBlob) (checksum.Checksum,
 	return sum, err
 }
 
+func (t *serializerImpl) SerializeActiveClusters(activeClusters *types.ActiveClusters, encodingType constants.EncodingType) (*DataBlob, error) {
+	if activeClusters == nil {
+		return nil, nil
+	}
+	return t.serialize(activeClusters, encodingType)
+}
+
+func (t *serializerImpl) DeserializeActiveClusters(data *DataBlob) (*types.ActiveClusters, error) {
+	if data == nil {
+		return nil, nil
+	}
+
+	var activeClusters types.ActiveClusters
+	if len(data.Data) == 0 {
+		return &activeClusters, nil
+	}
+	err := t.deserialize(data, &activeClusters)
+	return &activeClusters, err
+}
+
 func (t *serializerImpl) serialize(input interface{}, encodingType constants.EncodingType) (*DataBlob, error) {
 	if input == nil {
 		return nil, nil
@@ -378,6 +402,8 @@ func (t *serializerImpl) thriftrwEncode(input interface{}) ([]byte, error) {
 		return t.thriftrwEncoder.Encode(thrift.FromIsolationGroupConfig(input))
 	case *types.AsyncWorkflowConfiguration:
 		return t.thriftrwEncoder.Encode(thrift.FromDomainAsyncWorkflowConfiguraton(input))
+	case *types.ActiveClusters:
+		return t.thriftrwEncoder.Encode(thrift.FromActiveClusters(input))
 	default:
 		return nil, nil
 	}
@@ -485,6 +511,13 @@ func (t *serializerImpl) thriftrwDecode(data []byte, target interface{}) error {
 			return err
 		}
 		*target = *thrift.ToDomainAsyncWorkflowConfiguraton(&thriftTarget)
+		return nil
+	case *types.ActiveClusters:
+		thriftTarget := workflow.ActiveClusters{}
+		if err := t.thriftrwEncoder.Decode(data, &thriftTarget); err != nil {
+			return err
+		}
+		*target = *thrift.ToActiveClusters(&thriftTarget)
 		return nil
 	default:
 		return nil

@@ -276,14 +276,6 @@ func (d *DomainInfo) GetActiveClusterName() (o string) {
 	return
 }
 
-// GetActiveClusters internal sql blob getter
-func (d *DomainInfo) GetActiveClusters() (o *types.ActiveClusters) {
-	if d != nil {
-		return d.ActiveClusters
-	}
-	return
-}
-
 // GetClusters internal sql blob getter
 func (d *DomainInfo) GetClusters() (o []string) {
 	if d != nil {

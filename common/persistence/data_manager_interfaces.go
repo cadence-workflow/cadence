@@ -1160,6 +1160,9 @@ type (
 		// ActiveClustersConfig is only applicable for active-active domains.
 		// If this is set, ActiveClusterName is ignored.
 		ActiveClusters *types.ActiveClusters
+
+		// ActiveClustersEncoding is the encoding type of ActiveClustersConfig
+		ActiveClustersEncoding constants.EncodingType
 	}
 
 	// ClusterReplicationConfig describes the cross DC cluster replication configuration

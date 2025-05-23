@@ -64,10 +64,14 @@ func (m *domainManagerImpl) CreateDomain(
 	if err != nil {
 		return nil, err
 	}
+	rc, err := m.toInternalDomainReplicationConfig(request.ReplicationConfig)
+	if err != nil {
+		return nil, err
+	}
 	return m.persistence.CreateDomain(ctx, &InternalCreateDomainRequest{
 		Info:              request.Info,
 		Config:            &dc,
-		ReplicationConfig: request.ReplicationConfig,
+		ReplicationConfig: &rc,
 		IsGlobalDomain:    request.IsGlobalDomain,
 		ConfigVersion:     request.ConfigVersion,
 		FailoverVersion:   request.FailoverVersion,
@@ -90,10 +94,15 @@ func (m *domainManagerImpl) GetDomain(
 		return nil, err
 	}
 
+	rc, err := m.fromInternalDomainReplicationConfig(internalResp.ReplicationConfig)
+	if err != nil {
+		return nil, err
+	}
+
 	resp := &GetDomainResponse{
 		Info:                        internalResp.Info,
 		Config:                      &dc,
-		ReplicationConfig:           internalResp.ReplicationConfig,
+		ReplicationConfig:           &rc,
 		IsGlobalDomain:              internalResp.IsGlobalDomain,
 		ConfigVersion:               internalResp.ConfigVersion,
 		FailoverVersion:             internalResp.FailoverVersion,
@@ -116,10 +125,14 @@ func (m *domainManagerImpl) UpdateDomain(
 	if err != nil {
 		return err
 	}
+	rc, err := m.toInternalDomainReplicationConfig(request.ReplicationConfig)
+	if err != nil {
+		return err
+	}
 	internalReq := &InternalUpdateDomainRequest{
 		Info:                        request.Info,
 		Config:                      &dc,
-		ReplicationConfig:           request.ReplicationConfig,
+		ReplicationConfig:           &rc,
 		ConfigVersion:               request.ConfigVersion,
 		FailoverVersion:             request.FailoverVersion,
 		FailoverNotificationVersion: request.FailoverNotificationVersion,
@@ -161,10 +174,14 @@ func (m *domainManagerImpl) ListDomains(
 		if err != nil {
 			return nil, err
 		}
+		rc, err := m.fromInternalDomainReplicationConfig(d.ReplicationConfig)
+		if err != nil {
+			return nil, err
+		}
 		currResp := &GetDomainResponse{
 			Info:                        d.Info,
 			Config:                      &dc,
-			ReplicationConfig:           d.ReplicationConfig,
+			ReplicationConfig:           &rc,
 			IsGlobalDomain:              d.IsGlobalDomain,
 			ConfigVersion:               d.ConfigVersion,
 			FailoverVersion:             d.FailoverVersion,
@@ -216,6 +233,21 @@ func (m *domainManagerImpl) toInternalDomainConfig(c *DomainConfig) (InternalDom
 	}, nil
 }
 
+func (m *domainManagerImpl) toInternalDomainReplicationConfig(rc *DomainReplicationConfig) (InternalDomainReplicationConfig, error) {
+	if rc == nil {
+		return InternalDomainReplicationConfig{}, nil
+	}
+	activeClustersConfig, err := m.serializer.SerializeActiveClusters(rc.ActiveClusters, constants.EncodingTypeThriftRW)
+	if err != nil {
+		return InternalDomainReplicationConfig{}, err
+	}
+	return InternalDomainReplicationConfig{
+		Clusters:             rc.Clusters,
+		ActiveClusterName:    rc.ActiveClusterName,
+		ActiveClustersConfig: activeClustersConfig,
+	}, nil
+}
+
 func (m *domainManagerImpl) fromInternalDomainConfig(ic *InternalDomainConfig) (DomainConfig, error) {
 	if ic == nil {
 		return DomainConfig{}, nil
@@ -254,6 +286,22 @@ func (m *domainManagerImpl) fromInternalDomainConfig(ic *InternalDomainConfig) (
 		BadBinaries:              *badBinaries,
 		IsolationGroups:          isolationGroups,
 		AsyncWorkflowConfig:      asyncWFCfg,
+	}, nil
+}
+
+func (m *domainManagerImpl) fromInternalDomainReplicationConfig(ic *InternalDomainReplicationConfig) (DomainReplicationConfig, error) {
+	if ic == nil {
+		return DomainReplicationConfig{}, nil
+	}
+
+	activeClusters, err := m.serializer.DeserializeActiveClusters(ic.ActiveClustersConfig)
+	if err != nil {
+		return DomainReplicationConfig{}, err
+	}
+	return DomainReplicationConfig{
+		Clusters:          ic.Clusters,
+		ActiveClusterName: ic.ActiveClusterName,
+		ActiveClusters:    activeClusters,
 	}, nil
 }
 

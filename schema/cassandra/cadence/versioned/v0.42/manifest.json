@@ -1,0 +1,8 @@
+{
+  "CurrVersion": "0.42",
+  "MinCompatibleVersion": "0.42",
+  "Description": "Adding active_clusters_config and active_clusters_config_encoding column to domain_replication_config type",
+  "SchemaUpdateCqlFiles": [
+    "domain_active_clusters_config.cql"
+  ]
+}
