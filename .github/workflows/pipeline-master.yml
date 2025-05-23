@@ -42,9 +42,6 @@ jobs:
           timeout_minutes: 10
           command: |
             make cover_profile
-
-      - name: Make the directory for the unit coverage file
-        run: mkdir -p .build/coverage
       
       - name: Generate coverage metadata
         run: ./scripts/github_actions/gen_coverage_metadata.sh .build/coverage/metadata.txt
@@ -58,8 +55,7 @@ jobs:
         with:
           name: go-unit-test-coverage
           path:
-            .build/coverage/*.out
-            .build/coverage/metadata.txt
+            .build/coverage/*.out .build/coverage/metadata.txt
 
 
   golangci-lint-validate-code-is-clean:
