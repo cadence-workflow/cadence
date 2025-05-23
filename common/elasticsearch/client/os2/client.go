@@ -34,11 +34,13 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/opensearch-project/opensearch-go/v2"
 	osapi "github.com/opensearch-project/opensearch-go/v2/opensearchapi"
+	"github.com/opensearch-project/opensearch-go/v2/opensearchtransport"
 	requestsigner "github.com/opensearch-project/opensearch-go/v2/signer/aws"
 
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/elasticsearch/client"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -88,7 +90,31 @@ type (
 		Sort   []interface{}   `json:"sort,omitempty"`    // sort information
 		Source json.RawMessage `json:"_source,omitempty"` // stored document source
 	}
+
+	convertLogger struct {
+		logger log.Logger
+	}
 )
+
+var _ opensearchtransport.Logger = (*convertLogger)(nil)
+
+func (c convertLogger) LogRoundTrip(request *http.Request, h *http.Response, err error, t time.Time, duration time.Duration) error {
+	// req and resp bodies must not be touched because we have not enabled them, and doing so might affect the request
+	if err != nil {
+		c.logger.Error(
+			"opensearch request failed",
+			tag.Error(err),
+			tag.Dynamic("request_uri", request.RequestURI),
+			tag.Dynamic("request_method", request.Method),
+			tag.Dynamic("response_code", h.StatusCode),
+			tag.Duration(duration),
+		)
+	}
+	return nil
+}
+
+func (c convertLogger) RequestBodyEnabled() bool  { return false }
+func (c convertLogger) ResponseBodyEnabled() bool { return false }
 
 // NewClient returns a new implementation of GenericClient
 func NewClient(
@@ -101,6 +127,7 @@ func NewClient(
 		Addresses:    []string{connectConfig.URL.String()},
 		MaxRetries:   5,
 		RetryBackoff: func(i int) time.Duration { return time.Duration(i) * 100 * time.Millisecond },
+		Logger:       &convertLogger{logger: logger},
 	}
 
 	if len(connectConfig.CustomHeaders) > 0 {

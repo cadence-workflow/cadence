@@ -31,6 +31,7 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/elasticsearch/client"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -40,7 +41,14 @@ type (
 		client *elastic.Client
 		logger log.Logger
 	}
+	convertlogger func(msg string, tags ...tag.Tag)
 )
+
+var _ elastic.Logger = (convertlogger)(nil)
+
+func (c convertlogger) Printf(format string, v ...interface{}) {
+	c(fmt.Sprintf(format, v...))
+}
 
 // NewV7Client returns a new implementation of GenericClient
 func NewV7Client(
@@ -53,6 +61,8 @@ func NewV7Client(
 		elastic.SetURL(connectConfig.URL.String()),
 		elastic.SetRetrier(elastic.NewBackoffRetrier(elastic.NewExponentialBackoff(128*time.Millisecond, 513*time.Millisecond))),
 		elastic.SetDecoder(&elastic.NumberDecoder{}), // critical to ensure decode of int64 won't lose precise
+		// elastic.SetInfoLog(convertlogger(logger.Info)), // logs start/stop of components, and every successful request's code and timing.  probably too noisy.
+		elastic.SetErrorLog(convertlogger(logger.Error)), // logs errors when they occur, sounds likely not noisy
 	}
 	if connectConfig.DisableSniff {
 		clientOptFuncs = append(clientOptFuncs, elastic.SetSniff(false))
