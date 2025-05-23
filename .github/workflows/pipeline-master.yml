@@ -35,6 +35,9 @@ jobs:
       - name: Not rebuilding binaries and not regenerating code
         run: make .just-build
 
+      - name: Make the directory for the unit coverage file
+        run: mkdir -p .build/coverage
+
       - name: Run tests with coverage
         uses: nick-fields/retry@v3 # TODO: figure out why this is like indeterminate? different tests fail each time and sometimes dont fail at all
         with:
@@ -46,7 +49,6 @@ jobs:
       - name: Generate coverage metadata
         run: ./scripts/github_actions/gen_coverage_metadata.sh .build/coverage/metadata.txt
 
-      # DO NOT DELETE
       - name: Run docker compose unit test
         run: docker compose -f docker/github_actions/docker-compose.yml run unit-test
         working-directory: .
