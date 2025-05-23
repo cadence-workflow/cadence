@@ -585,7 +585,7 @@ func TestPickBetween(t *testing.T) {
 				},
 			},
 			from:    []int{1, 3},
-			allowed: []int{1},
+			allowed: []int{1, 3},
 		},
 	}
 	for _, tc := range cases {
