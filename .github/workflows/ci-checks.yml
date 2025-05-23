@@ -1,6 +1,7 @@
-name: Pipeline Master
+name: CI Checks
 on: 
   push:
+  pull_request:
 
 jobs:
   idl-submodule-points-to-master:
