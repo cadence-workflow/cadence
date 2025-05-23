@@ -19,7 +19,7 @@ jobs:
   golang-unit-test:
     name: Golang unit test
     runs-on: ubuntu-latest
-    needs: idl-submodule-points-to-master # buildkite is sequential so we will follow that here
+    needs: idl-submodule-points-to-master
     
     steps:
       - name: Checkout
@@ -27,16 +27,16 @@ jobs:
         with:
           submodules: true
 
-      - name: Setup Go environment # buildkite uses uber specific docker image with go, we need to do it here
+      - name: Setup Go environment
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23.4' # from cadence/docker/buildkite/Dockerfile
+          go-version: '1.23.4' # version from cadence/docker/buildkite/Dockerfile
 
       - name: Not rebuilding binaries and not regenerating code
         run: make .just-build
 
       - name: Run tests with coverage
-        uses: nick-fields/retry@v3 # TODO: figure out why this is like indeterminate? different tests fail each time and sometimes dont fail at all
+        uses: nick-fields/retry@v3
         with:
           max_attempts: 2
           timeout_minutes: 10
@@ -146,7 +146,7 @@ jobs:
   golang-integration-test-with-cassandra-and-pinot:
     name: Golang integration test with cassandra and pinot
     runs-on: ubuntu-latest
-    needs: golang-integration-test-with-cassandra-and-elasticsearch-v7
+    needs: golang-integration-test-with-cassandra
 
     steps:
       - name: Checkout
@@ -182,7 +182,7 @@ jobs:
   golang-integration-test-with-cassandra-with-opensearch-v2:
     name: Golang integration test with cassandra with opensearch v2
     runs-on: ubuntu-latest
-    needs: golang-integration-test-with-cassandra-and-pinot
+    needs: golang-integration-test-with-cassandra
 
     steps:
       - name: Checkout
@@ -212,7 +212,7 @@ jobs:
   golang-integration-ndc-test-with-cassandra:
     name: Golang integration ndc test with cassandra
     runs-on: ubuntu-latest
-    needs: golang-integration-test-with-cassandra-with-opensearch-v2
+    needs: golang-integration-test-with-cassandra
 
     steps:
       - name: Checkout
@@ -242,7 +242,7 @@ jobs:
   golang-integration-test-with-mysql:
     name: Golang integration test with mysql
     runs-on: ubuntu-latest
-    needs: golang-integration-ndc-test-with-cassandra
+    needs: golangci-lint-validate-code-is-clean
 
     steps:
       - name: Checkout
@@ -302,7 +302,7 @@ jobs:
   golang-integration-test-with-postgres:
     name: Golang integration test with postgres
     runs-on: ubuntu-latest
-    needs: golang-integration-ndc-test-with-mysql
+    needs: golangci-lint-validate-code-is-clean
 
     steps:
       - name: Checkout
@@ -332,7 +332,7 @@ jobs:
   golang-integration-test-with-sqlite:
     name: Golang integration test with sqlite
     runs-on: ubuntu-latest
-    needs: golang-integration-test-with-postgres
+    needs: golangci-lint-validate-code-is-clean
     continue-on-error: true
 
     steps:
@@ -363,7 +363,7 @@ jobs:
   golang-integration-ndc-test-with-postgres:
     name: Golang integration ndc test with postgres
     runs-on: ubuntu-latest
-    needs: golang-integration-test-with-sqlite
+    needs: golang-integration-test-with-postgres
 
     steps:
       - name: Checkout
@@ -393,7 +393,7 @@ jobs:
   golang-async-wf-integration-test-with-kafka:
     name: Golang async wf integration test with kafka
     runs-on: ubuntu-latest
-    needs: golang-integration-ndc-test-with-postgres
+    needs: golangci-lint-validate-code-is-clean
 
     steps:
       - name: Checkout
