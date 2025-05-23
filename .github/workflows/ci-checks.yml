@@ -5,6 +5,7 @@ on:
 
 jobs:
   idl-submodule-points-to-master:
+    if: github.event_name == 'push'
     name: IDL submodule points to master
     runs-on: ubuntu-latest # uses ubuntu as runner instead of kubernetes like buildkite
     
@@ -14,8 +15,8 @@ jobs:
         with:
           submodules: true # ensures git submodules are intialized and updated
 
-      # - name: Check IDL submodule status # TODO: add this back in
-      #   run: make .idl-status # check if git submodule is pointing to master
+      - name: Check IDL submodule status
+        run: make .idl-status # check if git submodule is pointing to master
 
   golang-unit-test:
     name: Golang unit test
