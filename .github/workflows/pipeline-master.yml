@@ -50,15 +50,6 @@ jobs:
         run: docker compose -f docker/github_actions/docker-compose.yml run unit-test
         working-directory: .
 
-      - name: Debug before upload
-        run: |
-          echo "Current directory: $(pwd)"
-          echo "Checking if files exist:"
-          test -f .build/coverage/unit_cover.out && echo "unit_cover.out exists" || echo "unit_cover.out missing"
-          test -f .build/coverage/metadata.txt && echo "metadata.txt exists" || echo "metadata.txt missing"
-          echo "File permissions:"
-          ls -l .build/coverage/
-
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
         with:
