@@ -72,13 +72,17 @@ func NewGenericClient(
 	var esClient esc.Client
 	var err error
 
+	// this logger is only used for client-internal purposes, e.g. request errors, which are generally lack detailed context.
+	// it is currently (unfortunately) shared between both queries and bulk-updates.
+	clientLogger := logger.WithTags(tag.ComponentESVisibilityClient)
+
 	switch connectConfig.Version {
 	case "v6":
-		esClient, err = v6.NewV6Client(connectConfig, logger.WithTags(tag.Dynamic("component", "elasticsearch-v6-client")), tlsClient, signingAWSClient)
+		esClient, err = v6.NewV6Client(connectConfig, clientLogger, tlsClient, signingAWSClient)
 	case "v7":
-		esClient, err = v7.NewV7Client(connectConfig, logger.WithTags(tag.Dynamic("component", "elasticsearch-v7-client")), tlsClient, signingAWSClient)
+		esClient, err = v7.NewV7Client(connectConfig, clientLogger, tlsClient, signingAWSClient)
 	case "os2":
-		esClient, err = os2.NewClient(connectConfig, logger.WithTags(tag.Dynamic("component", "opensearch-client")), tlsClient)
+		esClient, err = os2.NewClient(connectConfig, clientLogger, tlsClient)
 	default:
 		return nil, fmt.Errorf("not supported ElasticSearch version: %v", connectConfig.Version)
 	}

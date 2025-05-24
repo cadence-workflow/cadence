@@ -121,6 +121,7 @@ var (
 	ComponentIndexer                          = component("indexer")
 	ComponentIndexerProcessor                 = component("indexer-processor")
 	ComponentIndexerESProcessor               = component("indexer-es-processor")
+	ComponentESVisibilityClient               = component("visibility-client") // used for client-internal logs, e.g. request errors
 	ComponentESVisibilityManager              = component("es-visibility-manager")
 	ComponentArchiver                         = component("archiver")
 	ComponentBatcher                          = component("batcher")
