@@ -101,6 +101,8 @@ var _ opensearchtransport.Logger = (*convertLogger)(nil)
 func (c convertLogger) LogRoundTrip(request *http.Request, h *http.Response, err error, t time.Time, duration time.Duration) error {
 	// req and resp bodies must not be touched because we have not enabled them, and doing so might affect the request
 	if err != nil {
+		// possible future enhancement: bulk failures are MUCH more relevant than query failures like timeouts.
+		// this can probably be figured out by checking the request URL, if the volume proves too high.
 		c.logger.Error(
 			"opensearch request failed",
 			tag.Error(err),
