@@ -100,18 +100,11 @@ var _ opensearchtransport.Logger = (*convertLogger)(nil)
 
 func (c convertLogger) LogRoundTrip(request *http.Request, h *http.Response, err error, t time.Time, duration time.Duration) error {
 	// req and resp bodies must not be touched because we have not enabled them, and doing so might affect the request
-	if err == nil {
-		c.logger.Info("opensearch request complete",
-			tag.Dynamic("request_uri", request.RequestURI),
-			tag.Dynamic("request_method", request.Method),
-			tag.Dynamic("response_code", h.StatusCode),
-			tag.Duration(duration),
-		)
-	} else {
+	if err != nil {
 		c.logger.Error(
 			"opensearch request failed",
 			tag.Error(err),
-			tag.Dynamic("request_uri", request.RequestURI),
+			tag.Dynamic("request_uri", request.URL.String()),
 			tag.Dynamic("request_method", request.Method),
 			tag.Dynamic("response_code", h.StatusCode),
 			tag.Duration(duration),
