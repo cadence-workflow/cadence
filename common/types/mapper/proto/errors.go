@@ -21,8 +21,6 @@
 package proto
 
 import (
-	"errors"
-
 	apiv1 "github.com/uber/cadence-idl/go/proto/api/v1"
 	"go.uber.org/yarpc/encoding/protobuf"
 	"go.uber.org/yarpc/yarpcerrors"
@@ -237,8 +235,6 @@ func ToError(err error) error {
 				Message: status.Message(),
 			}
 		}
-	case yarpcerrors.CodeUnknown:
-		return errors.New(status.Message())
 	}
 
 	// If error does not match anything, return raw yarpc status error
