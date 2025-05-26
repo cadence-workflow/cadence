@@ -112,6 +112,7 @@ SAFETY FEATURES:
     - Prevents creating versions that already exist for any module
     - Verifies builds and runs tests before creating tags
     - Requires clean git working directory
+    - Enforces releases only from master branch
 
 EOF
 }
@@ -404,12 +405,11 @@ create_module_release() {
         return 1
     fi
 
-    log_info "Running go build to verify unbuildable code in module $module_path"
+    log_info "Running go build to verify unbuildable code in module $module_name"
     if ! go build ./... >/dev/null 2>&1; then
         log_error "Failed to build module: $new_tag"
         return 1
     fi
-
 
     # Create and push tag
     cd "$REPO_ROOT"
@@ -452,7 +452,15 @@ main() {
     if [[ "$DRY_RUN" != true ]] && ! git diff-index --quiet HEAD --; then
         log_error "Working directory is not clean. Please commit or stash changes."
         log_error "Use --dry-run to see what would be done without requiring clean state."
-#        exit 1
+        exit 1
+    fig
+
+    # Ensure we're on master branch
+    local current_branch=$(git rev-parse --abbrev-ref HEAD)
+    if [[ "$current_branch" != "master" ]]; then
+        log_error "Must be on master branch to create releases. Current branch: $current_branch"
+        log_error "Please switch to master branch: git checkout master"
+        exit 1
     fi
 
     # Find all modules
