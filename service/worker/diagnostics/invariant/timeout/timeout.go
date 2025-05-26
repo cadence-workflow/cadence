@@ -54,7 +54,7 @@ func NewInvariant(p Params) invariant.Invariant {
 func (t *timeout) Check(ctx context.Context, params invariant.InvariantCheckInput) ([]invariant.InvariantCheckResult, error) {
 	result := make([]invariant.InvariantCheckResult, 0)
 	events := params.WorkflowExecutionHistory.GetHistory().GetEvents()
-	issueID := 1
+	issueID := 0
 	for _, event := range events {
 		if event.WorkflowExecutionTimedOutEventAttributes != nil {
 			timeoutLimit := getWorkflowExecutionConfiguredTimeout(events)

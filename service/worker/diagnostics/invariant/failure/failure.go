@@ -43,7 +43,7 @@ func NewInvariant() Failure {
 func (f *failure) Check(ctx context.Context, params invariant.InvariantCheckInput) ([]invariant.InvariantCheckResult, error) {
 	result := make([]invariant.InvariantCheckResult, 0)
 	events := params.WorkflowExecutionHistory.GetHistory().GetEvents()
-	issueID := 1
+	issueID := 0
 	for _, event := range events {
 		if event.GetWorkflowExecutionFailedEventAttributes() != nil && event.WorkflowExecutionFailedEventAttributes.Reason != nil {
 			attr := event.WorkflowExecutionFailedEventAttributes

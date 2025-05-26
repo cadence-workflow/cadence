@@ -63,7 +63,7 @@ func Test__Check(t *testing.T) {
 			testData: wfTimeoutHistory(),
 			expectedResult: []invariant.InvariantCheckResult{
 				{
-					IssueID:       1,
+					IssueID:       0,
 					InvariantType: TimeoutTypeExecution.String(),
 					Reason:        "START_TO_CLOSE",
 					Metadata:      wfTimeoutDataInBytes(t),
@@ -76,7 +76,7 @@ func Test__Check(t *testing.T) {
 			testData: childWfTimeoutHistory(),
 			expectedResult: []invariant.InvariantCheckResult{
 				{
-					IssueID:       1,
+					IssueID:       0,
 					InvariantType: TimeoutTypeChildWorkflow.String(),
 					Reason:        "START_TO_CLOSE",
 					Metadata:      childWfTimeoutDataInBytes(t),
@@ -89,13 +89,13 @@ func Test__Check(t *testing.T) {
 			testData: activityTimeoutHistory(),
 			expectedResult: []invariant.InvariantCheckResult{
 				{
-					IssueID:       1,
+					IssueID:       0,
 					InvariantType: TimeoutTypeActivity.String(),
 					Reason:        "SCHEDULE_TO_START",
 					Metadata:      activityScheduleToStartTimeoutDataInBytes(t),
 				},
 				{
-					IssueID:       2,
+					IssueID:       1,
 					InvariantType: TimeoutTypeActivity.String(),
 					Reason:        "HEARTBEAT",
 					Metadata:      activityHeartBeatTimeoutDataInBytes(t),
@@ -108,13 +108,13 @@ func Test__Check(t *testing.T) {
 			testData: decisionTimeoutHistory(),
 			expectedResult: []invariant.InvariantCheckResult{
 				{
-					IssueID:       1,
+					IssueID:       0,
 					InvariantType: TimeoutTypeDecision.String(),
 					Reason:        "START_TO_CLOSE",
 					Metadata:      decisionTimeoutMetadataInBytes,
 				},
 				{
-					IssueID:       2,
+					IssueID:       1,
 					InvariantType: TimeoutTypeDecision.String(),
 					Reason:        "workflow reset - New run ID: new run ID",
 					Metadata:      decisionTimeoutMetadataInBytes,
@@ -414,7 +414,7 @@ func Test__RootCause(t *testing.T) {
 			name: "workflow execution timeout without pollers",
 			input: []invariant.InvariantCheckResult{
 				{
-					IssueID:       1,
+					IssueID:       0,
 					InvariantType: TimeoutTypeExecution.String(),
 					Reason:        "START_TO_CLOSE",
 					Metadata:      wfTimeoutDataInBytes(t),
@@ -430,7 +430,7 @@ func Test__RootCause(t *testing.T) {
 			},
 			expectedResult: []invariant.InvariantRootCauseResult{
 				{
-					IssueID:   1,
+					IssueID:   0,
 					RootCause: invariant.RootCauseTypeMissingPollers,
 					Metadata:  pollersMetadataInBytes,
 				},
@@ -441,7 +441,7 @@ func Test__RootCause(t *testing.T) {
 			name: "workflow execution timeout with pollers",
 			input: []invariant.InvariantCheckResult{
 				{
-					IssueID:       1,
+					IssueID:       0,
 					InvariantType: TimeoutTypeExecution.String(),
 					Reason:        "START_TO_CLOSE",
 					Metadata:      wfTimeoutDataInBytes(t),
@@ -461,7 +461,7 @@ func Test__RootCause(t *testing.T) {
 			},
 			expectedResult: []invariant.InvariantRootCauseResult{
 				{
-					IssueID:   1,
+					IssueID:   0,
 					RootCause: invariant.RootCauseTypePollersStatus,
 					Metadata:  pollersMetadataInBytes,
 				},
@@ -472,7 +472,7 @@ func Test__RootCause(t *testing.T) {
 			name: "activity timeout and heart beating not enabled",
 			input: []invariant.InvariantCheckResult{
 				{
-					IssueID:       1,
+					IssueID:       0,
 					InvariantType: TimeoutTypeActivity.String(),
 					Reason:        "START_TO_CLOSE",
 					Metadata:      activityStartToCloseTimeoutDataInBytes(t),
@@ -492,12 +492,12 @@ func Test__RootCause(t *testing.T) {
 			},
 			expectedResult: []invariant.InvariantRootCauseResult{
 				{
-					IssueID:   1,
+					IssueID:   0,
 					RootCause: invariant.RootCauseTypePollersStatus,
 					Metadata:  pollersMetadataInBytes,
 				},
 				{
-					IssueID:   1,
+					IssueID:   0,
 					RootCause: invariant.RootCauseTypeNoHeartBeatTimeoutNoRetryPolicy,
 					Metadata:  heartBeatingMetadataInBytes,
 				},
@@ -508,7 +508,7 @@ func Test__RootCause(t *testing.T) {
 			name: "activity schedule to start timeout",
 			input: []invariant.InvariantCheckResult{
 				{
-					IssueID:       1,
+					IssueID:       0,
 					InvariantType: TimeoutTypeActivity.String(),
 					Reason:        "SCHEDULE_TO_START",
 					Metadata:      activityScheduleToStartTimeoutDataInBytes(t),
@@ -528,7 +528,7 @@ func Test__RootCause(t *testing.T) {
 			},
 			expectedResult: []invariant.InvariantRootCauseResult{
 				{
-					IssueID:   1,
+					IssueID:   0,
 					RootCause: invariant.RootCauseTypePollersStatus,
 					Metadata:  pollersMetadataInBytes,
 				},
@@ -539,7 +539,7 @@ func Test__RootCause(t *testing.T) {
 			name: "activity timeout and heart beating enabled with retry policy",
 			input: []invariant.InvariantCheckResult{
 				{
-					IssueID:       1,
+					IssueID:       0,
 					InvariantType: TimeoutTypeActivity.String(),
 					Reason:        "START_TO_CLOSE",
 					Metadata:      activityHeartBeatTimeoutDataWithRetryPolicyInBytes(t),
@@ -559,12 +559,12 @@ func Test__RootCause(t *testing.T) {
 			},
 			expectedResult: []invariant.InvariantRootCauseResult{
 				{
-					IssueID:   1,
+					IssueID:   0,
 					RootCause: invariant.RootCauseTypePollersStatus,
 					Metadata:  pollersMetadataInBytes,
 				},
 				{
-					IssueID:   1,
+					IssueID:   0,
 					RootCause: invariant.RootCauseTypeHeartBeatingEnabledMissingHeartbeat,
 					Metadata:  heartBeatingMetadataWithRetryPolicyInBytes,
 				},
@@ -575,7 +575,7 @@ func Test__RootCause(t *testing.T) {
 			name: "activity timeout and heart beating enabled without retry policy",
 			input: []invariant.InvariantCheckResult{
 				{
-					IssueID:       1,
+					IssueID:       0,
 					InvariantType: TimeoutTypeActivity.String(),
 					Reason:        "START_TO_CLOSE",
 					Metadata:      activityHeartBeatTimeoutDataInBytes(t),
@@ -595,12 +595,12 @@ func Test__RootCause(t *testing.T) {
 			},
 			expectedResult: []invariant.InvariantRootCauseResult{
 				{
-					IssueID:   1,
+					IssueID:   0,
 					RootCause: invariant.RootCauseTypePollersStatus,
 					Metadata:  pollersMetadataInBytes,
 				},
 				{
-					IssueID:   1,
+					IssueID:   0,
 					RootCause: invariant.RootCauseTypeHeartBeatingEnabledWithoutRetryPolicy,
 					Metadata:  heartBeatingMetadataInBytes,
 				},

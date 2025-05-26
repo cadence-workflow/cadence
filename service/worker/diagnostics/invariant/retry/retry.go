@@ -43,7 +43,7 @@ func NewInvariant() Retry {
 func (r *retry) Check(ctx context.Context, params invariant.InvariantCheckInput) ([]invariant.InvariantCheckResult, error) {
 	result := make([]invariant.InvariantCheckResult, 0)
 	events := params.WorkflowExecutionHistory.GetHistory().GetEvents()
-	issueID := 1
+	issueID := 0
 	lastEvent := fetchContinuedAsNewEvent(events)
 	startedEvent := fetchWfStartedEvent(events)
 	if lastEvent != nil && startedEvent != nil && startedEvent.RetryPolicy != nil {
