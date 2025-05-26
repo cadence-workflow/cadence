@@ -103,7 +103,7 @@ func Test__Check(t *testing.T) {
 					Metadata:      invalidExpIntervalMetadataInBytes,
 				},
 				{
-					IssueID:       3,
+					IssueID:       2,
 					InvariantType: ActivityHeartbeatIssue.String(),
 					Reason:        HeartBeatTimeoutEqualToStartToCloseTimeout.String(),
 					Metadata:      invalidHBMetadataInBytes,
