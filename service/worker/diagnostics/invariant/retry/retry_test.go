@@ -62,6 +62,11 @@ func Test__Check(t *testing.T) {
 	}
 	invalidExpIntervalMetadataInBytes, err := json.Marshal(invalidExpIntervalMetadata)
 	require.NoError(t, err)
+	invalidHBMetadata := RetryMetadata{
+		EventID: 6,
+	}
+	invalidHBMetadataInBytes, err := json.Marshal(invalidHBMetadata)
+	require.NoError(t, err)
 	testCases := []struct {
 		name           string
 		testData       *types.GetWorkflowExecutionHistoryResponse
@@ -96,6 +101,12 @@ func Test__Check(t *testing.T) {
 					InvariantType: WorkflowRetryIssue.String(),
 					Reason:        RetryPolicyValidationExpInterval.String(),
 					Metadata:      invalidExpIntervalMetadataInBytes,
+				},
+				{
+					IssueID:       3,
+					InvariantType: ActivityHeartbeatIssue.String(),
+					Reason:        HeartBeatTimeoutEqualToStartToCloseTimeout.String(),
+					Metadata:      invalidHBMetadataInBytes,
 				},
 			},
 			err: nil,
@@ -138,6 +149,7 @@ func retriedWfHistory() *types.GetWorkflowExecutionHistoryResponse {
 }
 
 func invalidRetryPolicyWfHistory() *types.GetWorkflowExecutionHistoryResponse {
+	timeout := int32(5)
 	return &types.GetWorkflowExecutionHistoryResponse{
 		History: &types.History{
 			Events: []*types.HistoryEvent{
@@ -153,6 +165,8 @@ func invalidRetryPolicyWfHistory() *types.GetWorkflowExecutionHistoryResponse {
 				{
 					ID: 5,
 					ActivityTaskScheduledEventAttributes: &types.ActivityTaskScheduledEventAttributes{
+						HeartbeatTimeoutSeconds:    common.Int32Ptr(timeout),
+						StartToCloseTimeoutSeconds: common.Int32Ptr(timeout * 2),
 						RetryPolicy: &types.RetryPolicy{
 							InitialIntervalInSeconds: 1,
 							MaximumAttempts:          1,
@@ -162,7 +176,9 @@ func invalidRetryPolicyWfHistory() *types.GetWorkflowExecutionHistoryResponse {
 				{
 					ID: 6,
 					ActivityTaskScheduledEventAttributes: &types.ActivityTaskScheduledEventAttributes{
-						RetryPolicy: nil,
+						HeartbeatTimeoutSeconds:    common.Int32Ptr(timeout),
+						StartToCloseTimeoutSeconds: common.Int32Ptr(timeout),
+						RetryPolicy:                nil,
 					},
 				},
 			},

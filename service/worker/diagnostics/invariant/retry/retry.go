@@ -87,6 +87,17 @@ func (r *retry) Check(ctx context.Context, params invariant.InvariantCheckInput)
 				})
 				issueID++
 			}
+			if attr.GetStartToCloseTimeoutSeconds() <= attr.GetHeartbeatTimeoutSeconds() {
+				result = append(result, invariant.InvariantCheckResult{
+					IssueID:       issueID,
+					InvariantType: ActivityHeartbeatIssue.String(),
+					Reason:        HeartBeatTimeoutEqualToStartToCloseTimeout.String(),
+					Metadata: invariant.MarshalData(RetryMetadata{
+						EventID: event.ID,
+					}),
+				})
+				issueID++
+			}
 		}
 	}
 

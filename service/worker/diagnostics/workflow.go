@@ -349,7 +349,7 @@ func retrieveFailureRootCause(rootCause []invariant.InvariantRootCauseResult) ([
 func retrieveRetryIssues(issues []invariant.InvariantCheckResult) ([]*retryIssuesResult, error) {
 	result := make([]*retryIssuesResult, 0)
 	for _, issue := range issues {
-		if issue.InvariantType == retry.WorkflowRetryIssue.String() || issue.InvariantType == retry.WorkflowRetryInfo.String() || issue.InvariantType == retry.ActivityRetryIssue.String() {
+		if issueRetryRelated(issue) {
 			var data retry.RetryMetadata
 			err := json.Unmarshal(issue.Metadata, &data)
 			if err != nil {
@@ -381,6 +381,15 @@ func rootCauseHeartBeatRelated(rootCause invariant.RootCause) bool {
 func rootCausePollersRelated(rootCause invariant.RootCause) bool {
 	for _, rc := range []invariant.RootCause{invariant.RootCauseTypePollersStatus, invariant.RootCauseTypeMissingPollers} {
 		if rc == rootCause {
+			return true
+		}
+	}
+	return false
+}
+
+func issueRetryRelated(issue invariant.InvariantCheckResult) bool {
+	for _, i := range []string{retry.WorkflowRetryIssue.String(), retry.WorkflowRetryInfo.String(), retry.ActivityRetryIssue.String(), retry.ActivityHeartbeatIssue.String()} {
+		if issue.InvariantType == i {
 			return true
 		}
 	}
