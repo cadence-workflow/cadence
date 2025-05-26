@@ -155,8 +155,10 @@ func testWorkflowExecutionHistoryResponse() *types.GetWorkflowExecutionHistoryRe
 				{
 					ID: 2,
 					ActivityTaskScheduledEventAttributes: &types.ActivityTaskScheduledEventAttributes{
-						ActivityID:   "101",
-						ActivityType: &types.ActivityType{Name: "test-activity"},
+						ActivityID:                 "101",
+						ActivityType:               &types.ActivityType{Name: "test-activity"},
+						StartToCloseTimeoutSeconds: common.Int32Ptr(int32(10)),
+						HeartbeatTimeoutSeconds:    common.Int32Ptr(int32(5)),
 						RetryPolicy: &types.RetryPolicy{
 							InitialIntervalInSeconds: 1,
 							MaximumAttempts:          1,
