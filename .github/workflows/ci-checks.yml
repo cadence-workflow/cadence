@@ -64,8 +64,7 @@ jobs:
           max_attempts: 2
           timeout_minutes: 25
           command: |
-            docker compose -f docker/github_actions/docker-compose.yml run unit-test
-        working-directory: .
+            cd . && docker compose -f docker/github_actions/docker-compose.yml run unit-test
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
@@ -106,8 +105,7 @@ jobs:
           max_attempts: 2
           timeout_minutes: 25
           command: |
-            docker compose -f docker/github_actions/docker-compose.yml run coverage-report
-        working-directory: .
+            cd . && docker compose -f docker/github_actions/docker-compose.yml run coverage-report
 
 
   golang-integration-test-with-cassandra:
@@ -140,8 +138,7 @@ jobs:
           max_attempts: 2
           timeout_minutes: 25
           command: |
-            docker compose -f docker/github_actions/docker-compose.yml run integration-test-cassandra
-        working-directory: .
+            cd . && docker compose -f docker/github_actions/docker-compose.yml run integration-test-cassandra
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
@@ -180,8 +177,7 @@ jobs:
           max_attempts: 2
           timeout_minutes: 25
           command: |
-            docker compose -f docker/github_actions/docker-compose-es7.yml run integration-test-cassandra
-        working-directory: .
+            cd . && docker compose -f docker/github_actions/docker-compose-es7.yml run integration-test-cassandra
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
@@ -236,8 +232,7 @@ jobs:
           max_attempts: 2
           timeout_minutes: 25
           command: |
-            docker compose -f docker/github_actions/docker-compose-pinot.yml run integration-test-cassandra-pinot
-        working-directory: .
+            cd . && docker compose -f docker/github_actions/docker-compose-pinot.yml run integration-test-cassandra-pinot
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
@@ -276,8 +271,7 @@ jobs:
           max_attempts: 2
           timeout_minutes: 25
           command: |
-            docker compose -f docker/github_actions/docker-compose-opensearch2.yml run integration-test-cassandra
-        working-directory: .
+            cd . && docker compose -f docker/github_actions/docker-compose-opensearch2.yml run integration-test-cassandra
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
@@ -316,8 +310,7 @@ jobs:
           max_attempts: 2
           timeout_minutes: 25
           command: |
-            docker compose -f docker/github_actions/docker-compose.yml run integration-test-ndc-cassandra
-        working-directory: .
+            cd . && docker compose -f docker/github_actions/docker-compose.yml run integration-test-ndc-cassandra
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
@@ -356,8 +349,7 @@ jobs:
           max_attempts: 2
           timeout_minutes: 25
           command: |
-            docker compose -f docker/github_actions/docker-compose.yml run integration-test-mysql
-        working-directory: .
+            cd . && docker compose -f docker/github_actions/docker-compose.yml run integration-test-mysql
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
@@ -396,8 +388,7 @@ jobs:
           max_attempts: 2
           timeout_minutes: 25
           command: |
-            docker compose -f docker/github_actions/docker-compose.yml run integration-test-ndc-mysql
-        working-directory: .
+            cd . && docker compose -f docker/github_actions/docker-compose.yml run integration-test-ndc-mysql
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
@@ -436,8 +427,7 @@ jobs:
           max_attempts: 2
           timeout_minutes: 25
           command: |
-            docker compose -f docker/github_actions/docker-compose.yml run integration-test-postgres
-        working-directory: .
+            cd . && docker compose -f docker/github_actions/docker-compose.yml run integration-test-postgres
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
@@ -477,8 +467,7 @@ jobs:
           max_attempts: 2
           timeout_minutes: 25
           command: |
-            docker compose -f docker/github_actions/docker-compose.yml run integration-test-sqlite
-        working-directory: .
+            cd . && docker compose -f docker/github_actions/docker-compose.yml run integration-test-sqlite
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
@@ -517,8 +506,7 @@ jobs:
           max_attempts: 2
           timeout_minutes: 25
           command: |
-            docker compose -f docker/github_actions/docker-compose.yml run integration-test-ndc-postgres
-        working-directory: .
+            cd . && docker compose -f docker/github_actions/docker-compose.yml run integration-test-ndc-postgres
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
@@ -557,8 +545,7 @@ jobs:
           max_attempts: 2
           timeout_minutes: 25
           command: |
-            go test -timeout 60s -run ^TestAsyncWFIntegrationSuite -tags asyncwfintegration -count 1 -v github.com/uber/cadence/host
-        working-directory: .
+            cd . && go test -timeout 60s -run ^TestAsyncWFIntegrationSuite -tags asyncwfintegration -count 1 -v github.com/uber/cadence/host
 
       - name: Run docker integration test async wf
         uses: nick-fields/retry@v3
@@ -566,5 +553,4 @@ jobs:
           max_attempts: 2
           timeout_minutes: 25
           command: |
-            docker compose -f docker/github_actions/docker-compose.yml run integration-test-async-wf
-        working-directory: .
+            cd . && docker compose -f docker/github_actions/docker-compose.yml run integration-test-async-wf
