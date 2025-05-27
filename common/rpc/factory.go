@@ -202,7 +202,7 @@ func (d *FactoryImpl) Start(peerLister PeerLister) error {
 }
 
 func (d *FactoryImpl) Stop() error {
-	d.startOnce.Do(func() {
+	d.stopOnce.Do(func() {
 		d.logger.Info("stopping rpc factory")
 
 		for _, svc := range servicesToTalkP2P {
