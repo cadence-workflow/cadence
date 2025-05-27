@@ -54,6 +54,5 @@ func buildRingpopProvider(params Params) (membership.PeerProvider, error) {
 	if err != nil {
 		return nil, err
 	}
-	params.Lifecycle.Append(fx.StartStopHook(provider.Start, provider.Stop))
 	return provider, nil
 }

@@ -25,6 +25,8 @@ package ringpopfx
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+	"github.com/uber/tchannel-go"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxtest"
 	"go.uber.org/mock/gomock"
@@ -32,6 +34,8 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
+	"github.com/uber/cadence/common/membership"
+	"github.com/uber/cadence/common/peerprovider/ringpopprovider"
 	"github.com/uber/cadence/common/rpc"
 )
 
@@ -41,15 +45,24 @@ func TestFxApp(t *testing.T) {
 			func() testSetupParams {
 				ctrl := gomock.NewController(t)
 				factory := rpc.NewMockFactory(ctrl)
-				factory.EXPECT().GetTChannel().Return(nil)
+				tch, err := tchannel.NewChannel("test-ringpop", nil)
+				require.NoError(t, err)
+				factory.EXPECT().GetTChannel().Return(tch)
 
 				return testSetupParams{
 					Service:    "test",
 					Logger:     testlogger.New(t),
 					RPCFactory: factory,
+					Config: config.Config{
+						Ringpop: ringpopprovider.Config{
+							Name:           "test-ringpop",
+							BootstrapMode:  ringpopprovider.BootstrapModeHosts,
+							BootstrapHosts: []string{"127.0.0.1:7933", "127.0.0.1:7934", "127.0.0.1:7935"},
+						},
+					},
 				}
 			}),
-		Module,
+		Module, fx.Invoke(func(provider membership.PeerProvider) {}),
 	)
 	app.RequireStart().RequireStop()
 }
@@ -57,7 +70,7 @@ func TestFxApp(t *testing.T) {
 type testSetupParams struct {
 	fx.Out
 
-	Service       string `name:"service"`
+	Service       string `name:"service-full-name"`
 	Config        config.Config
 	ServiceConfig config.Service
 	Logger        log.Logger
