@@ -32,6 +32,10 @@ type E struct {
 	Payload   map[string]any
 }
 
+func Enabled() bool {
+	return enabled
+}
+
 func LogEvents(events ...E) {
 	if !enabled {
 		return

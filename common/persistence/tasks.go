@@ -23,6 +23,7 @@
 package persistence
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"time"
@@ -301,6 +302,13 @@ func (a HistoryTaskKey) Compare(b HistoryTaskKey) int {
 		return 1
 	}
 	return 0
+}
+
+func (a HistoryTaskKey) MarshalJSON() ([]byte, error) {
+	return json.Marshal(map[string]interface{}{
+		"scheduledTime": a.scheduledTime.UTC(),
+		"taskID":        a.taskID,
+	})
 }
 
 func MinHistoryTaskKey(a, b HistoryTaskKey) HistoryTaskKey {

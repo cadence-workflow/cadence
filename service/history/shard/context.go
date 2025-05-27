@@ -1673,11 +1673,17 @@ func (s *contextImpl) getEventsFromWorkflowMutation(mutation *persistence.Workfl
 }
 
 func (s *contextImpl) logCreateWorkflowExecutionEvents(request *persistence.CreateWorkflowExecutionRequest) {
+	if !simulation.Enabled() {
+		return
+	}
 	events := s.getEventsFromWorkflowSnapshot(&request.NewWorkflowSnapshot)
 	simulation.LogEvents(events...)
 }
 
 func (s *contextImpl) logUpdateWorkflowExecutionEvents(request *persistence.UpdateWorkflowExecutionRequest) {
+	if !simulation.Enabled() {
+		return
+	}
 	events := s.getEventsFromWorkflowMutation(&request.UpdateWorkflowMutation)
 	simulation.LogEvents(events...)
 	events = s.getEventsFromWorkflowSnapshot(request.NewWorkflowSnapshot)
@@ -1685,6 +1691,9 @@ func (s *contextImpl) logUpdateWorkflowExecutionEvents(request *persistence.Upda
 }
 
 func (s *contextImpl) logConflictResolveWorkflowExecutionEvents(request *persistence.ConflictResolveWorkflowExecutionRequest) {
+	if !simulation.Enabled() {
+		return
+	}
 	events := s.getEventsFromWorkflowMutation(request.CurrentWorkflowMutation)
 	simulation.LogEvents(events...)
 	events = s.getEventsFromWorkflowSnapshot(&request.ResetWorkflowSnapshot)

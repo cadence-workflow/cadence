@@ -20,7 +20,7 @@ services:
     volumes:
       - ./prometheus:/etc/prometheus
     command:
-      - '--config.file=/etc/prometheus/matching_simulation_prometheus.yml'
+      - '--config.file=/etc/prometheus/history_simulation_prometheus.yml'
     ports:
       - '9090:9090'
     networks:
@@ -56,6 +56,7 @@ services:
         github.com/uber/cadence/simulation/history
         | tee test.log
     environment:
+      - "HISTORY_LOG_EVENTS=true"
       - "CASSANDRA_HOST=cassandra"
       - "CASSANDRA=1"
       - "CASSANDRA_SEEDS=cassandra"
