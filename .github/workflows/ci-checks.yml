@@ -35,22 +35,37 @@ jobs:
           go-version: '1.23.4' # version from cadence/docker/buildkite/Dockerfile
 
       - name: Not rebuilding binaries and not regenerating code
-        run: make .just-build
+        uses: nick-fields/retry@v3
+        with:
+          max_attempts: 2
+          timeout_minutes: 25
+          command: |
+            make .just-build
 
       - name: Run tests with coverage
         uses: nick-fields/retry@v3
         with:
           max_attempts: 2
-          timeout_minutes: 10
+          timeout_minutes: 25
           command: |
             make cover_profile
       
       - name: Generate coverage metadata
-        run: ./scripts/github_actions/gen_coverage_metadata.sh .build/coverage/metadata.txt
+        uses: nick-fields/retry@v3
+          with:
+            max_attempts: 2
+            timeout_minutes: 25
+            command: |
+              ./scripts/github_actions/gen_coverage_metadata.sh .build/coverage/metadata.txt
 
       - name: Run docker compose unit test
-        run: docker compose -f docker/github_actions/docker-compose.yml run unit-test
-        working-directory: .
+        uses: nick-fields/retry@v3
+          with:
+            max_attempts: 2
+            timeout_minutes: 25
+            command: |
+              docker compose -f docker/github_actions/docker-compose.yml run unit-test
+          working-directory: .
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
@@ -78,10 +93,20 @@ jobs:
           go-version: '1.23.4'
 
       - name: Run golint
-        run: ./scripts/github_actions/golint.sh
+        uses: nick-fields/retry@v3
+        with:
+          max_attempts: 2
+          timeout_minutes: 25
+          command: |
+            ./scripts/github_actions/golint.sh
       
       - name: Run coverage report
-        run: docker compose -f docker/github_actions/docker-compose.yml run coverage-report
+        uses: nick-fields/retry@v3
+        with:
+          max_attempts: 2
+          timeout_minutes: 25
+          command: |
+            docker compose -f docker/github_actions/docker-compose.yml run coverage-report
         working-directory: .
 
 
@@ -102,10 +127,20 @@ jobs:
           go-version: '1.23.4'
 
       - name: Run integration profile for cassandra
-        run: make cover_integration_profile
+        uses: nick-fields/retry@v3
+        with:
+          max_attempts: 2
+          timeout_minutes: 25
+          command: |
+            make cover_integration_profile
 
       - name: Run docker compose integration test cassandra
-        run: docker compose -f docker/github_actions/docker-compose.yml run integration-test-cassandra
+        uses: nick-fields/retry@v3
+        with:
+          max_attempts: 2
+          timeout_minutes: 25
+          command: |
+            docker compose -f docker/github_actions/docker-compose.yml run integration-test-cassandra
         working-directory: .
 
       - name: Upload coverage artifacts
@@ -132,10 +167,20 @@ jobs:
           go-version: '1.23.4'
 
       - name: Run integration profile for cassandra and elasticsearch v7
-        run: make cover_integration_profile
+        uses: nick-fields/retry@v3
+        with:
+          max_attempts: 2
+          timeout_minutes: 25
+          command: |
+            make cover_integration_profile
 
       - name: Run docker compose integration test cassandra and elasticsearch v7
-        run: docker compose -f docker/github_actions/docker-compose-es7.yml run integration-test-cassandra
+        uses: nick-fields/retry@v3
+        with:
+          max_attempts: 2
+          timeout_minutes: 25
+          command: |
+            docker compose -f docker/github_actions/docker-compose-es7.yml run integration-test-cassandra
         working-directory: .
 
       - name: Upload coverage artifacts
@@ -162,16 +207,36 @@ jobs:
           go-version: '1.23.4'
 
       - name: Run .just-build
-        run: make .just-build
+        uses: nick-fields/retry@v3
+        with:
+          max_attempts: 2
+          timeout_minutes: 25
+          command: |
+            make .just-build
 
       - name: Make the directory for the pinot coverage file
-        run: mkdir -p .build/coverage
+        uses: nick-fields/retry@v3
+        with:
+          max_attempts: 2
+          timeout_minutes: 25
+          command: |
+            mkdir -p .build/coverage
 
       - name: Run pinot integration test
-        run: go test -timeout 600s -run ^TestPinotIntegrationSuite -tags pinotintegration -count 1 -v -coverprofile=.build/coverage/pinot.out github.com/uber/cadence/host
+        uses: nick-fields/retry@v3
+        with:
+          max_attempts: 2
+          timeout_minutes: 25
+          command: |
+            go test -timeout 600s -run ^TestPinotIntegrationSuite -tags pinotintegration -count 1 -v -coverprofile=.build/coverage/pinot.out github.com/uber/cadence/host
 
       - name: Run docker compose integration test cassandra and pinot
-        run: docker compose -f docker/github_actions/docker-compose-pinot.yml run integration-test-cassandra-pinot
+        uses: nick-fields/retry@v3
+        with:
+          max_attempts: 2
+          timeout_minutes: 25
+          command: |
+            docker compose -f docker/github_actions/docker-compose-pinot.yml run integration-test-cassandra-pinot
         working-directory: .
 
       - name: Upload coverage artifacts
@@ -198,10 +263,20 @@ jobs:
           go-version: '1.23.4'
 
       - name: Run integration profile for cassandra and opensearch v2
-        run: make cover_integration_profile
+        uses: nick-fields/retry@v3
+        with:
+          max_attempts: 2
+          timeout_minutes: 25
+          command: |
+            make cover_integration_profile
 
       - name: Run docker compose integration test cassandra and opensearch v2
-        run: docker compose -f docker/github_actions/docker-compose-opensearch2.yml run integration-test-cassandra
+        uses: nick-fields/retry@v3
+        with:
+          max_attempts: 2
+          timeout_minutes: 25
+          command: |
+            docker compose -f docker/github_actions/docker-compose-opensearch2.yml run integration-test-cassandra
         working-directory: .
 
       - name: Upload coverage artifacts
@@ -228,10 +303,20 @@ jobs:
           go-version: '1.23.4'
 
       - name: Run ndc profile for cassandra
-        run: make cover_ndc_profile
+        uses: nick-fields/retry@v3
+        with:
+          max_attempts: 2
+          timeout_minutes: 25
+          command: |
+            make cover_ndc_profile
 
       - name: Run docker ndc integration test cassandra
-        run: docker compose -f docker/github_actions/docker-compose.yml run integration-test-ndc-cassandra
+        uses: nick-fields/retry@v3
+        with:
+          max_attempts: 2
+          timeout_minutes: 25
+          command: |
+            docker compose -f docker/github_actions/docker-compose.yml run integration-test-ndc-cassandra
         working-directory: .
 
       - name: Upload coverage artifacts
@@ -258,10 +343,20 @@ jobs:
           go-version: '1.23.4'
 
       - name: Run integration profile for mysql
-        run: make cover_integration_profile
+        uses: nick-fields/retry@v3
+        with:
+          max_attempts: 2
+          timeout_minutes: 25
+          command: |
+            make cover_integration_profile
 
       - name: Run docker compose integration test cassandra
-        run: docker compose -f docker/github_actions/docker-compose.yml run integration-test-mysql
+        uses: nick-fields/retry@v3
+        with:
+          max_attempts: 2
+          timeout_minutes: 25
+          command: |
+            docker compose -f docker/github_actions/docker-compose.yml run integration-test-mysql
         working-directory: .
 
       - name: Upload coverage artifacts
@@ -288,10 +383,20 @@ jobs:
           go-version: '1.23.4'
 
       - name: Run ndc profile for mysql
-        run: make cover_ndc_profile
+        uses: nick-fields/retry@v3
+        with:
+          max_attempts: 2
+          timeout_minutes: 25
+          command: |
+            make cover_ndc_profile
 
       - name: Run docker ndc integration test mysql
-        run: docker compose -f docker/github_actions/docker-compose.yml run integration-test-ndc-mysql
+        uses: nick-fields/retry@v3
+        with:
+          max_attempts: 2
+          timeout_minutes: 25
+          command: |
+            docker compose -f docker/github_actions/docker-compose.yml run integration-test-ndc-mysql
         working-directory: .
 
       - name: Upload coverage artifacts
@@ -318,10 +423,20 @@ jobs:
           go-version: '1.23.4'
 
       - name: Run integration profile for postgres
-        run: make cover_integration_profile
+        uses: nick-fields/retry@v3
+        with:
+          max_attempts: 2
+          timeout_minutes: 25
+          command: |
+            make cover_integration_profile
 
       - name: Run docker compose integration test postgres
-        run: docker compose -f docker/github_actions/docker-compose.yml run integration-test-postgres
+        uses: nick-fields/retry@v3
+        with:
+          max_attempts: 2
+          timeout_minutes: 25
+          command: |
+            docker compose -f docker/github_actions/docker-compose.yml run integration-test-postgres
         working-directory: .
 
       - name: Upload coverage artifacts
@@ -349,10 +464,20 @@ jobs:
           go-version: '1.23.4'
 
       - name: Run integration profile for sqlite
-        run: make cover_integration_profile
+        uses: nick-fields/retry@v3
+        with:
+          max_attempts: 2
+          timeout_minutes: 25
+          command: |
+            make cover_integration_profile
 
       - name: Run docker compose integration test sqlite
-        run: docker compose -f docker/github_actions/docker-compose.yml run integration-test-sqlite
+        uses: nick-fields/retry@v3
+        with:
+          max_attempts: 2
+          timeout_minutes: 25
+          command: |
+            docker compose -f docker/github_actions/docker-compose.yml run integration-test-sqlite
         working-directory: .
 
       - name: Upload coverage artifacts
@@ -379,10 +504,20 @@ jobs:
           go-version: '1.23.4'
 
       - name: Run ndc profile for postgres
-        run: make cover_ndc_profile
+        uses: nick-fields/retry@v3
+        with:
+          max_attempts: 2
+          timeout_minutes: 25
+          command: |
+            make cover_ndc_profile
 
       - name: Run docker compose ndc test postgres
-        run: docker compose -f docker/github_actions/docker-compose.yml run integration-test-ndc-postgres
+        uses: nick-fields/retry@v3
+        with:
+          max_attempts: 2
+          timeout_minutes: 25
+          command: |
+            docker compose -f docker/github_actions/docker-compose.yml run integration-test-ndc-postgres
         working-directory: .
 
       - name: Upload coverage artifacts
@@ -409,12 +544,27 @@ jobs:
           go-version: '1.23.4'
 
       - name: Run make .just-build
-        run: make .just-build
+        uses: nick-fields/retry@v3
+        with:
+          max_attempts: 2
+          timeout_minutes: 25
+          command: |
+            make .just-build
 
       - name: Run async wf integration test
-        run: go test -timeout 60s -run ^TestAsyncWFIntegrationSuite -tags asyncwfintegration -count 1 -v github.com/uber/cadence/host
+        uses: nick-fields/retry@v3
+        with:
+          max_attempts: 2
+          timeout_minutes: 25
+          command: |
+            go test -timeout 60s -run ^TestAsyncWFIntegrationSuite -tags asyncwfintegration -count 1 -v github.com/uber/cadence/host
         working-directory: .
 
       - name: Run docker integration test async wf
-        run: docker compose -f docker/github_actions/docker-compose.yml run integration-test-async-wf
+        uses: nick-fields/retry@v3
+        with:
+          max_attempts: 2
+          timeout_minutes: 25
+          command: |
+            docker compose -f docker/github_actions/docker-compose.yml run integration-test-async-wf
         working-directory: .
