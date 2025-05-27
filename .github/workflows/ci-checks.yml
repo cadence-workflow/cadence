@@ -89,11 +89,7 @@ jobs:
 
       - name: Run golint
         uses: nick-fields/retry@v3
-        with:
-          max_attempts: 2
-          timeout_minutes: 25
-          command: |
-            ./scripts/github_actions/golint.sh
+        run: ./scripts/github_actions/golint.sh
       
       - name: Run coverage report
         run: docker compose -f docker/github_actions/docker-compose.yml run coverage-report
