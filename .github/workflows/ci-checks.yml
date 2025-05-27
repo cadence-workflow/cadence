@@ -59,12 +59,8 @@ jobs:
             ./scripts/github_actions/gen_coverage_metadata.sh .build/coverage/metadata.txt
 
       - name: Run docker compose unit test
-        uses: nick-fields/retry@v3
-        with:
-          max_attempts: 2
-          timeout_minutes: 25
-          command: |
-            cd . && docker compose -f docker/github_actions/docker-compose.yml run unit-test
+        run: docker compose -f docker/github_actions/docker-compose.yml run unit-test
+        working-directory: .
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
@@ -100,12 +96,8 @@ jobs:
             ./scripts/github_actions/golint.sh
       
       - name: Run coverage report
-        uses: nick-fields/retry@v3
-        with:
-          max_attempts: 2
-          timeout_minutes: 25
-          command: |
-            cd . && docker compose -f docker/github_actions/docker-compose.yml run coverage-report
+        run: docker compose -f docker/github_actions/docker-compose.yml run coverage-report
+        working-directory: .
 
 
   golang-integration-test-with-cassandra:
@@ -133,12 +125,8 @@ jobs:
             make cover_integration_profile
 
       - name: Run docker compose integration test cassandra
-        uses: nick-fields/retry@v3
-        with:
-          max_attempts: 2
-          timeout_minutes: 25
-          command: |
-            cd . && docker compose -f docker/github_actions/docker-compose.yml run integration-test-cassandra
+        run: docker compose -f docker/github_actions/docker-compose.yml run integration-test-cassandra
+        working-directory: .
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
@@ -172,12 +160,8 @@ jobs:
             make cover_integration_profile
 
       - name: Run docker compose integration test cassandra and elasticsearch v7
-        uses: nick-fields/retry@v3
-        with:
-          max_attempts: 2
-          timeout_minutes: 25
-          command: |
-            cd . && docker compose -f docker/github_actions/docker-compose-es7.yml run integration-test-cassandra
+        run: docker compose -f docker/github_actions/docker-compose-es7.yml run integration-test-cassandra
+        working-directory: .
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
@@ -227,12 +211,8 @@ jobs:
             go test -timeout 600s -run ^TestPinotIntegrationSuite -tags pinotintegration -count 1 -v -coverprofile=.build/coverage/pinot.out github.com/uber/cadence/host
 
       - name: Run docker compose integration test cassandra and pinot
-        uses: nick-fields/retry@v3
-        with:
-          max_attempts: 2
-          timeout_minutes: 25
-          command: |
-            cd . && docker compose -f docker/github_actions/docker-compose-pinot.yml run integration-test-cassandra-pinot
+        run: docker compose -f docker/github_actions/docker-compose-pinot.yml run integration-test-cassandra-pinot
+        working-directory: .
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
@@ -266,12 +246,8 @@ jobs:
             make cover_integration_profile
 
       - name: Run docker compose integration test cassandra and opensearch v2
-        uses: nick-fields/retry@v3
-        with:
-          max_attempts: 2
-          timeout_minutes: 25
-          command: |
-            cd . && docker compose -f docker/github_actions/docker-compose-opensearch2.yml run integration-test-cassandra
+        run: docker compose -f docker/github_actions/docker-compose-opensearch2.yml run integration-test-cassandra
+        working-directory: .
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
@@ -305,12 +281,8 @@ jobs:
             make cover_ndc_profile
 
       - name: Run docker ndc integration test cassandra
-        uses: nick-fields/retry@v3
-        with:
-          max_attempts: 2
-          timeout_minutes: 25
-          command: |
-            cd . && docker compose -f docker/github_actions/docker-compose.yml run integration-test-ndc-cassandra
+        run: docker compose -f docker/github_actions/docker-compose.yml run integration-test-ndc-cassandra
+        working-directory: .
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
@@ -343,13 +315,9 @@ jobs:
           command: |
             make cover_integration_profile
 
-      - name: Run docker compose integration test cassandra
-        uses: nick-fields/retry@v3
-        with:
-          max_attempts: 2
-          timeout_minutes: 25
-          command: |
-            cd . && docker compose -f docker/github_actions/docker-compose.yml run integration-test-mysql
+      - name: Run docker compose integration test mysql
+        run: docker compose -f docker/github_actions/docker-compose.yml run integration-test-mysql
+        working-directory: .
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
@@ -383,12 +351,8 @@ jobs:
             make cover_ndc_profile
 
       - name: Run docker ndc integration test mysql
-        uses: nick-fields/retry@v3
-        with:
-          max_attempts: 2
-          timeout_minutes: 25
-          command: |
-            cd . && docker compose -f docker/github_actions/docker-compose.yml run integration-test-ndc-mysql
+        run: docker compose -f docker/github_actions/docker-compose.yml run integration-test-ndc-mysql
+        working-directory: .
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
@@ -422,12 +386,8 @@ jobs:
             make cover_integration_profile
 
       - name: Run docker compose integration test postgres
-        uses: nick-fields/retry@v3
-        with:
-          max_attempts: 2
-          timeout_minutes: 25
-          command: |
-            cd . && docker compose -f docker/github_actions/docker-compose.yml run integration-test-postgres
+        run: docker compose -f docker/github_actions/docker-compose.yml run integration-test-postgres
+        working-directory: .
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
@@ -462,12 +422,8 @@ jobs:
             make cover_integration_profile
 
       - name: Run docker compose integration test sqlite
-        uses: nick-fields/retry@v3
-        with:
-          max_attempts: 2
-          timeout_minutes: 25
-          command: |
-            cd . && docker compose -f docker/github_actions/docker-compose.yml run integration-test-sqlite
+        run: docker compose -f docker/github_actions/docker-compose.yml run integration-test-sqlite
+        working-directory: .
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
@@ -501,12 +457,8 @@ jobs:
             make cover_ndc_profile
 
       - name: Run docker compose ndc test postgres
-        uses: nick-fields/retry@v3
-        with:
-          max_attempts: 2
-          timeout_minutes: 25
-          command: |
-            cd . && docker compose -f docker/github_actions/docker-compose.yml run integration-test-ndc-postgres
+        run: docker compose -f docker/github_actions/docker-compose.yml run integration-test-ndc-postgres
+        working-directory: .
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
@@ -540,17 +492,9 @@ jobs:
             make .just-build
 
       - name: Run async wf integration test
-        uses: nick-fields/retry@v3
-        with:
-          max_attempts: 2
-          timeout_minutes: 25
-          command: |
-            cd . && go test -timeout 60s -run ^TestAsyncWFIntegrationSuite -tags asyncwfintegration -count 1 -v github.com/uber/cadence/host
+        run: go test -timeout 60s -run ^TestAsyncWFIntegrationSuite -tags asyncwfintegration -count 1 -v github.com/uber/cadence/host
+        working-directory: .
 
       - name: Run docker integration test async wf
-        uses: nick-fields/retry@v3
-        with:
-          max_attempts: 2
-          timeout_minutes: 25
-          command: |
-            cd . && docker compose -f docker/github_actions/docker-compose.yml run integration-test-async-wf
+        run: docker compose -f docker/github_actions/docker-compose.yml run integration-test-async-wf
+        working-directory: .
