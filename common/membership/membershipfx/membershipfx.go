@@ -31,6 +31,7 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/rpc"
 	"github.com/uber/cadence/common/service"
 )
 
@@ -41,6 +42,7 @@ type buildMembershipParams struct {
 	fx.In
 
 	Clock         clock.TimeSource
+	RPCFactory    rpc.Factory
 	PeerProvider  membership.PeerProvider
 	Logger        log.Logger
 	MetricsClient metrics.Client
@@ -70,10 +72,25 @@ func buildMembership(params buildMembershipParams) (buildMembershipResult, error
 		return buildMembershipResult{}, fmt.Errorf("create resolver: %w", err)
 	}
 
-	params.Lifecycle.Append(fx.StartStopHook(resolver.Start, resolver.Stop))
+	params.Lifecycle.Append(fx.StartStopHook(startResolver(resolver, params.RPCFactory), resolver.Stop))
 
 	return buildMembershipResult{
 		Rings:    rings,
 		Resolver: resolver,
 	}, nil
+}
+
+func startResolver(resolver membership.Resolver, rpcFactory rpc.Factory) func() error {
+	return func() error {
+		err := rpcFactory.Start(resolver)
+		if err != nil {
+			return fmt.Errorf("start rpc factory: %w", err)
+		}
+		err = rpcFactory.GetDispatcher().Start()
+		if err != nil {
+			return fmt.Errorf("start rpc factory dispatcher: %w", err)
+		}
+		resolver.Start()
+		return nil
+	}
 }
