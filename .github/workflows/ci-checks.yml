@@ -52,20 +52,20 @@ jobs:
       
       - name: Generate coverage metadata
         uses: nick-fields/retry@v3
-          with:
-            max_attempts: 2
-            timeout_minutes: 25
-            command: |
-              ./scripts/github_actions/gen_coverage_metadata.sh .build/coverage/metadata.txt
+        with:
+          max_attempts: 2
+          timeout_minutes: 25
+          command: |
+            ./scripts/github_actions/gen_coverage_metadata.sh .build/coverage/metadata.txt
 
       - name: Run docker compose unit test
         uses: nick-fields/retry@v3
-          with:
-            max_attempts: 2
-            timeout_minutes: 25
-            command: |
-              docker compose -f docker/github_actions/docker-compose.yml run unit-test
-          working-directory: .
+        with:
+          max_attempts: 2
+          timeout_minutes: 25
+          command: |
+            docker compose -f docker/github_actions/docker-compose.yml run unit-test
+        working-directory: .
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
