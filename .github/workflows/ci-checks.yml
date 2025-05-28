@@ -478,7 +478,7 @@ jobs:
     if: github.event_name == 'push'
     name: Golang async wf integration test with kafka
     runs-on: ubuntu-latest
-    needs: golangci-lint-validate-code-is-clean
+    # needs: golangci-lint-validate-code-is-clean
 
     steps:
       - name: Checkout
