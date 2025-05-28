@@ -192,3 +192,73 @@ func testWorkflowExecutionHistoryResponse() *types.GetWorkflowExecutionHistoryRe
 		},
 	}
 }
+
+func Test__identifyIssuesWithPaginatedHistory(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockClientBean := client.NewMockBean(ctrl)
+	mockFrontendClient := frontend.NewMockClient(ctrl)
+
+	partialWFHistoryResponse := &types.GetWorkflowExecutionHistoryResponse{
+		History: &types.History{
+			Events: []*types.HistoryEvent{
+				{
+					ID: 1,
+					WorkflowExecutionStartedEventAttributes: &types.WorkflowExecutionStartedEventAttributes{
+						RetryPolicy: &types.RetryPolicy{
+							InitialIntervalInSeconds: 1,
+							MaximumAttempts:          2,
+						},
+						Attempt: 0,
+					},
+				},
+			},
+		},
+		NextPageToken: []byte("next-page-token"),
+	}
+	remainingWFHistoryResponse := &types.GetWorkflowExecutionHistoryResponse{
+		History: &types.History{
+			Events: []*types.HistoryEvent{
+				{
+					WorkflowExecutionContinuedAsNewEventAttributes: &types.WorkflowExecutionContinuedAsNewEventAttributes{
+						FailureReason:                common.StringPtr("cadenceInternal:Timeout START_TO_CLOSE"),
+						DecisionTaskCompletedEventID: 10,
+					},
+				},
+			},
+		},
+	}
+
+	mockClientBean.EXPECT().GetFrontendClient().Return(mockFrontendClient).AnyTimes()
+	mockFrontendClient.EXPECT().GetWorkflowExecutionHistory(gomock.Any(), gomock.Any()).Return(partialWFHistoryResponse, nil)
+	mockFrontendClient.EXPECT().GetWorkflowExecutionHistory(gomock.Any(), gomock.Any()).Return(remainingWFHistoryResponse, nil)
+
+	retryMetadata := retry.RetryMetadata{
+		EventID: 1,
+		RetryPolicy: &types.RetryPolicy{
+			InitialIntervalInSeconds: 1,
+			MaximumAttempts:          2,
+		},
+	}
+	retryMetadataInBytes, err := json.Marshal(retryMetadata)
+	require.NoError(t, err)
+	expectedResult := []invariant.InvariantCheckResult{
+		{
+			IssueID:       0,
+			InvariantType: retry.WorkflowRetryInfo.String(),
+			Reason:        "The failure is caused by a timeout during the execution",
+			Metadata:      retryMetadataInBytes,
+		},
+	}
+
+	dwtest := &dw{
+		clientBean: mockClientBean,
+		invariants: []invariant.Invariant{retry.NewInvariant()},
+	}
+
+	result, err := dwtest.identifyIssues(context.Background(), identifyIssuesParams{Execution: &types.WorkflowExecution{
+		WorkflowID: "123",
+		RunID:      "abc",
+	}})
+	require.NoError(t, err)
+	require.Equal(t, expectedResult, result)
+}

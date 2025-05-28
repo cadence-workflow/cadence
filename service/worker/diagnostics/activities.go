@@ -24,6 +24,8 @@ package diagnostics
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/messaging"
@@ -47,19 +49,19 @@ type identifyIssuesParams struct {
 func (w *dw) identifyIssues(ctx context.Context, info identifyIssuesParams) ([]invariant.InvariantCheckResult, error) {
 	result := make([]invariant.InvariantCheckResult, 0)
 
-	frontendClient := w.clientBean.GetFrontendClient()
-	history, err := frontendClient.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
-		Domain:    info.Domain,
-		Execution: info.Execution,
-	})
+	history, err := w.getHistory(ctx, info.Execution, info.Domain)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, inv := range w.invariants {
 		issues, err := inv.Check(ctx, invariant.InvariantCheckInput{
-			WorkflowExecutionHistory: history,
-			Domain:                   info.Domain,
+			WorkflowExecutionHistory: &types.GetWorkflowExecutionHistoryResponse{
+				History: &types.History{
+					Events: history,
+				},
+			},
+			Domain: info.Domain,
 		})
 		if err != nil {
 			return nil, err
@@ -68,6 +70,41 @@ func (w *dw) identifyIssues(ctx context.Context, info identifyIssuesParams) ([]i
 	}
 
 	return result, nil
+}
+
+func (w *dw) getHistory(ctx context.Context, execution *types.WorkflowExecution, domain string) ([]*types.HistoryEvent, error) {
+	frontendClient := w.clientBean.GetFrontendClient()
+	var nextPageToken []byte
+	var history []*types.HistoryEvent
+	for {
+		ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		response, err := frontendClient.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
+			Domain:                 domain,
+			Execution:              execution,
+			MaximumPageSize:        1000,
+			NextPageToken:          nextPageToken,
+			WaitForNewEvent:        false,
+			HistoryEventFilterType: types.HistoryEventFilterTypeAllEvent.Ptr(),
+			SkipArchival:           true,
+		})
+		cancel()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get history: %w", err)
+		}
+
+		for _, event := range response.GetHistory().GetEvents() {
+			if event != nil {
+				history = append(history, event)
+			}
+		}
+
+		if response.NextPageToken == nil {
+			return history, nil
+		}
+
+		nextPageToken = response.NextPageToken
+		time.Sleep(10 * time.Millisecond)
+	}
 }
 
 type rootCauseIssuesParams struct {
