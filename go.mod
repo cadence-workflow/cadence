@@ -70,6 +70,7 @@ require (
 )
 
 require (
+	github.com/Masterminds/semver/v3 v3.3.1
 	github.com/flynn/go-shlex v0.0.0-20150515145356-3f9db97f8568
 	github.com/google/gofuzz v1.0.0
 	github.com/mark3labs/mcp-go v0.18.0

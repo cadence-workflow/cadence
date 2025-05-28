@@ -532,6 +532,12 @@ cadence-bench: $(BINS_DEPEND_ON)
 	$Q echo "compiling cadence-bench with OS: $(GOOS), ARCH: $(GOARCH)"
 	$Q ./scripts/build-with-ldflags.sh -o $@ cmd/bench/main.go
 
+
+BINS  += cadence-releaser
+cadence-releaser: $(BINS_DEPEND_ON)
+	$Q echo "compiling cadence-releaser with OS: $(GOOS), ARCH: $(GOARCH)"
+	$Q ./scripts/build-with-ldflags.sh -o $@ cmd/tools/releaser/releaser.go
+
 .PHONY: go-generate bins tools release clean
 
 bins: $(BINS) ## Build all binaries, and any fast codegen needed (does not refresh wrappers or mocks)
