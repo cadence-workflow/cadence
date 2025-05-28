@@ -491,21 +491,15 @@ jobs:
         with:
           go-version: '1.23.4'
 
-      - name: Run make .just-build
+      - name: Run make .just-build, start cassandra, and run async wf integration test
         uses: nick-fields/retry@v3
         with:
           max_attempts: 2
           timeout_minutes: 25
           command: |
             make .just-build
-
-      - name: Start Cassandra
-        run: docker compose -f docker/github_actions/docker-compose.yml up -d cassandra
-        working-directory: .
-
-      - name: Run async wf integration test
-        run: CASSANDRA=1 go test -timeout 60s -run ^TestAsyncWFIntegrationSuite -tags asyncwfintegration -count 1 -v github.com/uber/cadence/host
-        working-directory: .
+            docker compose -f docker/github_actions/docker-compose.yml up -d cassandra
+            CASSANDRA=1 go test -timeout 60s -run ^TestAsyncWFIntegrationSuite -tags asyncwfintegration -count 1 -v github.com/uber/cadence/host
 
       - name: Run docker integration test async wf
         run: docker compose -f docker/github_actions/docker-compose.yml run integration-test-async-wf
