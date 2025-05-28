@@ -313,10 +313,12 @@ func (h *apiHandler) PollForActivityTask(ctx context.Context, pp1 *types.PollFor
 	tags := []tag.Tag{tag.WorkflowHandlerName("PollForActivityTask")}
 	tags = append(tags, toPollForActivityTaskRequestTags(pp1)...)
 	scope := common.NewPerTaskListScope(pp1.Domain, pp1.TaskList.GetName(), pp1.TaskList.GetKind(), h.metricsClient, metrics.FrontendPollForActivityTaskScope).Tagged(metrics.GetContextTags(ctx)...)
-	scope.IncCounter(metrics.CadenceRequestsPerTaskList)
+	scope.IncCounter(metrics.CadenceRequestsPerTaskListWithoutRollup)
 	sw := scope.StartTimer(metrics.CadenceLatencyPerTaskList)
 	defer sw.Stop()
-	swPerDomain := h.metricsClient.Scope(metrics.FrontendPollForActivityTaskScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(pp1.GetDomain()))...).StartTimer(metrics.CadenceLatency)
+	scopePerDomain := h.metricsClient.Scope(metrics.FrontendPollForActivityTaskScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(pp1.GetDomain()))...)
+	scopePerDomain.IncCounter(metrics.CadenceRequests)
+	swPerDomain := scopePerDomain.StartTimer(metrics.CadenceLatency)
 	defer swPerDomain.Stop()
 	logger := h.logger.WithTags(tags...)
 
@@ -331,10 +333,12 @@ func (h *apiHandler) PollForDecisionTask(ctx context.Context, pp1 *types.PollFor
 	tags := []tag.Tag{tag.WorkflowHandlerName("PollForDecisionTask")}
 	tags = append(tags, toPollForDecisionTaskRequestTags(pp1)...)
 	scope := common.NewPerTaskListScope(pp1.Domain, pp1.TaskList.GetName(), pp1.TaskList.GetKind(), h.metricsClient, metrics.FrontendPollForDecisionTaskScope).Tagged(metrics.GetContextTags(ctx)...)
-	scope.IncCounter(metrics.CadenceRequestsPerTaskList)
+	scope.IncCounter(metrics.CadenceRequestsPerTaskListWithoutRollup)
 	sw := scope.StartTimer(metrics.CadenceLatencyPerTaskList)
 	defer sw.Stop()
-	swPerDomain := h.metricsClient.Scope(metrics.FrontendPollForDecisionTaskScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(pp1.GetDomain()))...).StartTimer(metrics.CadenceLatency)
+	scopePerDomain := h.metricsClient.Scope(metrics.FrontendPollForDecisionTaskScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(pp1.GetDomain()))...)
+	scopePerDomain.IncCounter(metrics.CadenceRequests)
+	swPerDomain := scopePerDomain.StartTimer(metrics.CadenceLatency)
 	defer swPerDomain.Stop()
 	logger := h.logger.WithTags(tags...)
 

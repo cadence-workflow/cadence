@@ -84,10 +84,12 @@ func (h *{{$decorator}}) {{$method.Declaration}} {
 	{{- end}}
 	{{- if has $method.Name $pollerAPIs}}
 	scope := common.NewPerTaskListScope({{(index $method.Params 1).Name}}.Domain, {{(index $method.Params 1).Name}}.TaskList.GetName(), {{(index $method.Params 1).Name}}.TaskList.GetKind(), h.metricsClient, {{$scope}}).Tagged(metrics.GetContextTags(ctx)...)
-	scope.IncCounter(metrics.CadenceRequestsPerTaskList)
+	scope.IncCounter(metrics.CadenceRequestsPerTaskListWithoutRollup)
 	sw := scope.StartTimer(metrics.CadenceLatencyPerTaskList)
 	defer sw.Stop()
-	swPerDomain := h.metricsClient.Scope({{$scope}}).Tagged(append(metrics.GetContextTags(ctx), {{$domainMetricTag}})...).StartTimer(metrics.CadenceLatency)
+	scopePerDomain := h.metricsClient.Scope({{$scope}}).Tagged(append(metrics.GetContextTags(ctx), {{$domainMetricTag}})...)
+	scopePerDomain.IncCounter(metrics.CadenceRequests)
+	swPerDomain := scopePerDomain.StartTimer(metrics.CadenceLatency)
 	defer swPerDomain.Stop()
 	{{- else}}
 	scope := h.metricsClient.Scope({{$scope}}).Tagged(append(metrics.GetContextTags(ctx), {{$domainMetricTag}})...)

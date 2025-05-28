@@ -2260,6 +2260,7 @@ const (
 
 	// common metrics that are emitted per task list
 	CadenceRequestsPerTaskList
+	CadenceRequestsPerTaskListWithoutRollup
 	CadenceFailuresPerTaskList
 	CadenceLatencyPerTaskList
 	CadenceErrBadRequestPerTaskListCounter
@@ -2972,6 +2973,9 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		// per task list common metrics
 		CadenceRequestsPerTaskList: {
 			metricName: "cadence_requests_per_tl", metricRollupName: "cadence_requests", metricType: Counter,
+		},
+		CadenceRequestsPerTaskListWithoutRollup: {
+			metricName: "cadence_requests_per_tl", metricType: Counter,
 		},
 		CadenceFailuresPerTaskList: {
 			metricName: "cadence_errors_per_tl", metricRollupName: "cadence_errors", metricType: Counter,
