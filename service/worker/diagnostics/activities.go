@@ -49,19 +49,15 @@ type identifyIssuesParams struct {
 func (w *dw) identifyIssues(ctx context.Context, info identifyIssuesParams) ([]invariant.InvariantCheckResult, error) {
 	result := make([]invariant.InvariantCheckResult, 0)
 
-	history, err := w.getHistory(ctx, info.Execution, info.Domain)
+	history, err := w.getWorkflowExecutionHistory(ctx, info.Execution, info.Domain)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, inv := range w.invariants {
 		issues, err := inv.Check(ctx, invariant.InvariantCheckInput{
-			WorkflowExecutionHistory: &types.GetWorkflowExecutionHistoryResponse{
-				History: &types.History{
-					Events: history,
-				},
-			},
-			Domain: info.Domain,
+			WorkflowExecutionHistory: history,
+			Domain:                   info.Domain,
 		})
 		if err != nil {
 			return nil, err
@@ -72,12 +68,16 @@ func (w *dw) identifyIssues(ctx context.Context, info identifyIssuesParams) ([]i
 	return result, nil
 }
 
-func (w *dw) getHistory(ctx context.Context, execution *types.WorkflowExecution, domain string) ([]*types.HistoryEvent, error) {
+func (w *dw) getWorkflowExecutionHistory(ctx context.Context, execution *types.WorkflowExecution, domain string) (*types.GetWorkflowExecutionHistoryResponse, error) {
 	frontendClient := w.clientBean.GetFrontendClient()
 	var nextPageToken []byte
 	var history []*types.HistoryEvent
+
+	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
+	defer cancel()
+
 	for {
-		ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+
 		response, err := frontendClient.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
 			Domain:                 domain,
 			Execution:              execution,
@@ -87,7 +87,6 @@ func (w *dw) getHistory(ctx context.Context, execution *types.WorkflowExecution,
 			HistoryEventFilterType: types.HistoryEventFilterTypeAllEvent.Ptr(),
 			SkipArchival:           true,
 		})
-		cancel()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get history: %w", err)
 		}
@@ -99,7 +98,10 @@ func (w *dw) getHistory(ctx context.Context, execution *types.WorkflowExecution,
 		}
 
 		if response.NextPageToken == nil {
-			return history, nil
+			return &types.GetWorkflowExecutionHistoryResponse{
+				History: &types.History{
+					Events: history,
+				}}, nil
 		}
 
 		nextPageToken = response.NextPageToken

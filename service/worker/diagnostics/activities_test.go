@@ -197,7 +197,11 @@ func Test__identifyIssuesWithPaginatedHistory(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockClientBean := client.NewMockBean(ctrl)
 	mockFrontendClient := frontend.NewMockClient(ctrl)
-
+	token := []byte("next-page-token")
+	testExecution := &types.WorkflowExecution{
+		WorkflowID: "123",
+		RunID:      "abc",
+	}
 	partialWFHistoryResponse := &types.GetWorkflowExecutionHistoryResponse{
 		History: &types.History{
 			Events: []*types.HistoryEvent{
@@ -213,7 +217,7 @@ func Test__identifyIssuesWithPaginatedHistory(t *testing.T) {
 				},
 			},
 		},
-		NextPageToken: []byte("next-page-token"),
+		NextPageToken: token,
 	}
 	remainingWFHistoryResponse := &types.GetWorkflowExecutionHistoryResponse{
 		History: &types.History{
@@ -229,8 +233,22 @@ func Test__identifyIssuesWithPaginatedHistory(t *testing.T) {
 	}
 
 	mockClientBean.EXPECT().GetFrontendClient().Return(mockFrontendClient).AnyTimes()
-	mockFrontendClient.EXPECT().GetWorkflowExecutionHistory(gomock.Any(), gomock.Any()).Return(partialWFHistoryResponse, nil)
-	mockFrontendClient.EXPECT().GetWorkflowExecutionHistory(gomock.Any(), gomock.Any()).Return(remainingWFHistoryResponse, nil)
+	firstCall := mockFrontendClient.EXPECT().GetWorkflowExecutionHistory(gomock.Any(), &types.GetWorkflowExecutionHistoryRequest{
+		Execution:              testExecution,
+		MaximumPageSize:        1000,
+		NextPageToken:          nil,
+		WaitForNewEvent:        false,
+		HistoryEventFilterType: types.HistoryEventFilterTypeAllEvent.Ptr(),
+		SkipArchival:           true,
+	}).Return(partialWFHistoryResponse, nil)
+	mockFrontendClient.EXPECT().GetWorkflowExecutionHistory(gomock.Any(), &types.GetWorkflowExecutionHistoryRequest{
+		Execution:              testExecution,
+		MaximumPageSize:        1000,
+		NextPageToken:          token,
+		WaitForNewEvent:        false,
+		HistoryEventFilterType: types.HistoryEventFilterTypeAllEvent.Ptr(),
+		SkipArchival:           true,
+	}).Return(remainingWFHistoryResponse, nil).After(firstCall)
 
 	retryMetadata := retry.RetryMetadata{
 		EventID: 1,
@@ -255,10 +273,7 @@ func Test__identifyIssuesWithPaginatedHistory(t *testing.T) {
 		invariants: []invariant.Invariant{retry.NewInvariant()},
 	}
 
-	result, err := dwtest.identifyIssues(context.Background(), identifyIssuesParams{Execution: &types.WorkflowExecution{
-		WorkflowID: "123",
-		RunID:      "abc",
-	}})
+	result, err := dwtest.identifyIssues(context.Background(), identifyIssuesParams{Execution: testExecution})
 	require.NoError(t, err)
 	require.Equal(t, expectedResult, result)
 }
