@@ -491,15 +491,37 @@ jobs:
         with:
           go-version: '1.23.4'
 
-      - name: Run make .just-build, start cassandra, and run async wf integration test
+      - name: Run make .just-build
         uses: nick-fields/retry@v3
         with:
           max_attempts: 2
           timeout_minutes: 25
           command: |
             make .just-build
-            docker compose -f docker/github_actions/docker-compose.yml up -d cassandra
-            CASSANDRA=1 go test -timeout 60s -run ^TestAsyncWFIntegrationSuite -tags asyncwfintegration -count 1 -v github.com/uber/cadence/host
+
+      - name: Run async wf integration test
+        run: |
+          # Start Cassandra
+          docker compose -f docker/github_actions/docker-compose.yml up -d cassandra
+          
+          # Wait for Cassandra to be fully ready
+          echo "Waiting for Cassandra to be fully ready"
+          for i in {1..30}; do
+            if docker compose -f docker/github_actions/docker-compose.yml exec cassandra cqlsh -e "SELECT now() FROM system.local" > /dev/null 2>&1; then
+              echo "Cassandra is ready"
+              break
+            fi
+            if [ $i -eq 30 ]; then
+              echo "Cassandra failed to start within timeout"
+              exit 1
+            fi
+            echo "Waiting for Cassandra to be ready attempt $i"
+            sleep 2
+          done
+          
+          # Run the test
+          CASSANDRA=1 go test -timeout 60s -run ^TestAsyncWFIntegrationSuite -tags asyncwfintegration -count 1 -v github.com/uber/cadence/host
+        working-directory: .
 
       - name: Run docker integration test async wf
         run: docker compose -f docker/github_actions/docker-compose.yml run integration-test-async-wf
