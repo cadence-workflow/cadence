@@ -499,14 +499,13 @@ jobs:
           command: |
             make .just-build
 
-      - name: Start Cassandra
-        run: docker compose -f docker/github_actions/docker-compose.yml up -d cassandra
-        working-directory: .
+      # - name: Start Cassandra
+      #   run: docker compose -f docker/github_actions/docker-compose.yml up -d cassandra
+      #   working-directory: .
 
       - name: Run async wf integration test
-        run: eval $(docker compose -f docker/github_actions/docker-compose.yml config --format env integration-test-async-wf) go test -timeout 60s -run ^TestAsyncWFIntegrationSuite -tags asyncwfintegration -count 1 -v github.com/uber/cadence/host
-        working-directory: .
+        run: docker compose -f docker/github_actions/docker-compose.yml run integration-test-async-wf go test -timeout 60s -run ^TestAsyncWFIntegrationSuite -tags asyncwfintegration -count 1 -v github.com/uber/cadence/host
 
-      - name: Run docker integration test async wf
-        run: docker compose -f docker/github_actions/docker-compose.yml run integration-test-async-wf
-        working-directory: .
+      # - name: Run docker integration test async wf
+      #   run: docker compose -f docker/github_actions/docker-compose.yml run integration-test-async-wf
+      #   working-directory: .
