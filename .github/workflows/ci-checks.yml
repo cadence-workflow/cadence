@@ -520,7 +520,7 @@ jobs:
           done
           
           # Run the test
-          CASSANDRA=1 go test -timeout 60s -run ^TestAsyncWFIntegrationSuite -tags asyncwfintegration -count 1 -v github.com/uber/cadence/host
+          CASSANDRA=1 CASSANDRA_SEEDS=cassandra go test -timeout 60s -run ^TestAsyncWFIntegrationSuite -tags asyncwfintegration -count 1 -v github.com/uber/cadence/host
         working-directory: .
 
       - name: Run docker integration test async wf
