@@ -130,7 +130,7 @@ func runRelease(c *cli.Context) error {
 	// Parse and validate CLI arguments first
 	cfg := &release.Config{
 		ExcludedDirs:   []string{"cmd", "internal/tools", "idls"},
-		RequiredBranch: "release-script",
+		RequiredBranch: "master",
 		Version:        c.String("set-version"),
 		VersionType:    c.String("type"),
 		Prerelease:     c.Bool("prerelease"),
