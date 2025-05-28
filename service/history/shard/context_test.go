@@ -377,19 +377,17 @@ func (s *contextTestSuite) TestTimerMaxReadLevel() {
 	s.mockResource.TimeSource = clock.NewMockedTimeSource()
 
 	// get current cluster's level
-	gotLevel := s.context.UpdateTimerMaxReadLevel(cluster.TestCurrentClusterName)
-	wantLevel := s.mockResource.TimeSource.Now().Add(s.context.config.TimerProcessorMaxTimeShift()).Truncate(time.Millisecond)
+	gotLevel := s.context.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryTimer, cluster.TestCurrentClusterName)
+	wantLevel := persistence.NewHistoryTaskKey(s.mockResource.TimeSource.Now().Add(s.context.config.TimerProcessorMaxTimeShift()).Truncate(persistence.DBTimestampMinPrecision), 0)
 	s.Equal(wantLevel, gotLevel)
-	s.Equal(wantLevel, s.context.GetTimerMaxReadLevel(cluster.TestCurrentClusterName))
 
 	// get remote cluster's level
 	remoteCluster := "remote-cluster"
 	now := time.Now()
 	s.context.SetCurrentTime(remoteCluster, now)
-	gotLevel = s.context.UpdateTimerMaxReadLevel(remoteCluster)
-	wantLevel = now.Add(s.context.config.TimerProcessorMaxTimeShift()).Truncate(time.Millisecond)
+	gotLevel = s.context.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryTimer, remoteCluster)
+	wantLevel = persistence.NewHistoryTaskKey(now.Add(s.context.config.TimerProcessorMaxTimeShift()).Truncate(persistence.DBTimestampMinPrecision), 0)
 	s.Equal(wantLevel, gotLevel)
-	s.Equal(wantLevel, s.context.GetTimerMaxReadLevel(remoteCluster))
 }
 
 func (s *contextTestSuite) TestGenerateTransferTaskID() {

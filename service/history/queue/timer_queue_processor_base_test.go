@@ -201,7 +201,7 @@ func (s *timerQueueProcessorBaseSuite) TestGetTimerTasks_NoMore() {
 }
 
 func (s *timerQueueProcessorBaseSuite) TestReadLookAheadTask() {
-	shardMaxReadLevel := s.mockShard.UpdateTimerMaxReadLevel(s.clusterName)
+	shardMaxReadLevel := s.mockShard.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryTimer, s.clusterName).GetScheduledTime()
 	readLevel := newTimerTaskKey(shardMaxReadLevel, 0)
 	maxReadLevel := newTimerTaskKey(shardMaxReadLevel.Add(10*time.Second), 0)
 

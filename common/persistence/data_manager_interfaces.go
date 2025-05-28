@@ -66,6 +66,8 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
+const DBTimestampMinPrecision = time.Millisecond
+
 // Domain status
 const (
 	DomainStatusRegistered = iota

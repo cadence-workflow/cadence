@@ -244,7 +244,7 @@ func (s *contextImpl) updateScheduledTaskMaxReadLevel(cluster string) persistenc
 		currentTime = s.remoteClusterCurrentTime[cluster]
 	}
 
-	newMaxReadLevel := currentTime.Add(s.config.TimerProcessorMaxTimeShift()).Truncate(time.Millisecond)
+	newMaxReadLevel := currentTime.Add(s.config.TimerProcessorMaxTimeShift()).Truncate(persistence.DBTimestampMinPrecision)
 	if newMaxReadLevel.After(s.scheduledTaskMaxReadLevelMap[cluster]) {
 		s.scheduledTaskMaxReadLevelMap[cluster] = newMaxReadLevel
 	}
@@ -604,26 +604,6 @@ func (s *contextImpl) UpdateDomainNotificationVersion(domainNotificationVersion 
 
 	s.shardInfo.DomainNotificationVersion = domainNotificationVersion
 	return s.updateShardInfoLocked()
-}
-
-func (s *contextImpl) GetTimerMaxReadLevel(cluster string) time.Time {
-	s.RLock()
-	defer s.RUnlock()
-
-	return s.scheduledTaskMaxReadLevelMap[cluster]
-}
-
-func (s *contextImpl) UpdateTimerMaxReadLevel(cluster string) time.Time {
-	s.Lock()
-	defer s.Unlock()
-
-	currentTime := s.GetTimeSource().Now()
-	if cluster != "" && cluster != s.GetClusterMetadata().GetCurrentClusterName() {
-		currentTime = s.remoteClusterCurrentTime[cluster]
-	}
-
-	s.scheduledTaskMaxReadLevelMap[cluster] = currentTime.Add(s.config.TimerProcessorMaxTimeShift()).Truncate(time.Millisecond)
-	return s.scheduledTaskMaxReadLevelMap[cluster]
 }
 
 func (s *contextImpl) GetWorkflowExecution(
@@ -1319,7 +1299,7 @@ func (s *contextImpl) allocateTimerIDsLocked(
 	// assign IDs for the timer tasks. They need to be assigned under shard lock.
 	cluster := s.GetClusterMetadata().GetCurrentClusterName()
 	for _, task := range timerTasks {
-		ts := task.GetVisibilityTimestamp()
+		ts := task.GetVisibilityTimestamp().Truncate(persistence.DBTimestampMinPrecision)
 		if task.GetVersion() != constants.EmptyVersion {
 			// cannot use version to determine the corresponding cluster for timer task
 			// this is because during failover, timer task should be created as active
@@ -1347,8 +1327,9 @@ func (s *contextImpl) allocateTimerIDsLocked(
 				tag.CursorTimestamp(readCursorTS),
 				tag.ClusterName(cluster),
 				tag.ValueShardAllocateTimerBeforeRead)
-			task.SetVisibilityTimestamp(s.scheduledTaskMaxReadLevelMap[cluster].Add(time.Millisecond))
+			ts = readCursorTS.Add(persistence.DBTimestampMinPrecision)
 		}
+		task.SetVisibilityTimestamp(ts)
 
 		seqNum, err := s.generateTaskIDLocked()
 		if err != nil {
@@ -1577,7 +1558,7 @@ func acquireShard(
 			scheduledTaskMaxReadLevelMap[clusterName] = shardInfo.TimerAckLevel
 		}
 
-		scheduledTaskMaxReadLevelMap[clusterName] = scheduledTaskMaxReadLevelMap[clusterName].Truncate(time.Millisecond)
+		scheduledTaskMaxReadLevelMap[clusterName] = scheduledTaskMaxReadLevelMap[clusterName].Truncate(persistence.DBTimestampMinPrecision)
 	}
 
 	executionMgr, err := shardItem.GetExecutionManager(shardItem.shardID)
