@@ -303,10 +303,9 @@ func (rm *Manager) CalculateNewVersion(currentVersionStr string) (string, error)
 			// Extract base version from current prerelease
 			baseVersionStr := fmt.Sprintf("v%d.%d.%d", currentVersion.Major(), currentVersion.Minor(), currentVersion.Patch())
 			return rm.GetNextPrereleaseVersion(baseVersionStr)
-		} else {
-			// Make first prerelease of current version
-			return rm.GetNextPrereleaseVersion(currentVersionStr)
 		}
+		// Make first prerelease of current version
+		return rm.GetNextPrereleaseVersion(currentVersionStr)
 	}
 
 	// Increment based on type
