@@ -39,6 +39,9 @@ const (
 	linkToFailuresRunbook = "https://cadenceworkflow.io/docs/workflow-troubleshooting/activity-failures/"
 	linkToRetriesRunbook  = "https://cadenceworkflow.io/docs/workflow-troubleshooting/retries"
 	WfDiagnosticsAppName  = "workflow-diagnostics"
+
+	_maxPageSize    = 1000            // current maximum page size for fetching workflow history
+	_contextTimeout = 1 * time.Minute // timeout to fetch the whole execution history
 )
 
 type identifyIssuesParams struct {
@@ -73,7 +76,7 @@ func (w *dw) getWorkflowExecutionHistory(ctx context.Context, execution *types.W
 	var nextPageToken []byte
 	var history []*types.HistoryEvent
 
-	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, _contextTimeout)
 	defer cancel()
 
 	for {
@@ -81,7 +84,7 @@ func (w *dw) getWorkflowExecutionHistory(ctx context.Context, execution *types.W
 		response, err := frontendClient.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
 			Domain:                 domain,
 			Execution:              execution,
-			MaximumPageSize:        1000,
+			MaximumPageSize:        _maxPageSize,
 			NextPageToken:          nextPageToken,
 			WaitForNewEvent:        false,
 			HistoryEventFilterType: types.HistoryEventFilterTypeAllEvent.Ptr(),
@@ -105,7 +108,7 @@ func (w *dw) getWorkflowExecutionHistory(ctx context.Context, execution *types.W
 		}
 
 		nextPageToken = response.NextPageToken
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(10 * time.Millisecond) // to prevent hitting rate limits
 	}
 }
 
