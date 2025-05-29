@@ -446,7 +446,6 @@ func TestManager_ValidateEnvironment(t *testing.T) {
 		config          *Config
 		currentBranch   string
 		branchError     error
-		workingDirClean bool
 		workingDirError error
 		expectError     bool
 	}{
@@ -456,8 +455,7 @@ func TestManager_ValidateEnvironment(t *testing.T) {
 				RequiredBranch: "main",
 				DryRun:         false,
 			},
-			currentBranch:   "main",
-			workingDirClean: true,
+			currentBranch: "main",
 		},
 		{
 			name: "wrong branch",
@@ -468,29 +466,10 @@ func TestManager_ValidateEnvironment(t *testing.T) {
 			expectError:   true,
 		},
 		{
-			name: "dirty working directory",
-			config: &Config{
-				RequiredBranch: "main",
-				DryRun:         false,
-			},
-			currentBranch:   "main",
-			workingDirClean: false,
-			expectError:     true,
-		},
-		{
-			name: "dry run skips working dir check",
-			config: &Config{
-				RequiredBranch: "main",
-				DryRun:         true,
-			},
-			currentBranch: "main",
-		},
-		{
 			name: "no required branch",
 			config: &Config{
 				DryRun: false,
 			},
-			workingDirClean: true,
 		},
 	}
 
@@ -500,12 +479,6 @@ func TestManager_ValidateEnvironment(t *testing.T) {
 
 			if tt.config.RequiredBranch != "" {
 				mockGit.EXPECT().GetCurrentBranch().Return(tt.currentBranch, tt.branchError)
-			}
-
-			if !tt.config.DryRun && tt.config.RequiredBranch != "" && tt.currentBranch == tt.config.RequiredBranch {
-				mockGit.EXPECT().IsWorkingDirClean().Return(tt.workingDirClean, tt.workingDirError)
-			} else if !tt.config.DryRun && tt.config.RequiredBranch == "" {
-				mockGit.EXPECT().IsWorkingDirClean().Return(tt.workingDirClean, tt.workingDirError)
 			}
 
 			err := manager.ValidateEnvironment()
@@ -698,7 +671,6 @@ func TestCadenceWorkflowCycle(t *testing.T) {
 	// Step 1: Start with v1.2.0, create first prerelease
 	mockGit.EXPECT().GetTags().Return([]string{"v1.2.0", "workflows/v1.2.0"}, nil).AnyTimes()
 	mockGit.EXPECT().GetCurrentBranch().Return("main", nil)
-	mockGit.EXPECT().IsWorkingDirClean().Return(true, nil)
 
 	// Find modules
 	foundModules, err := manager.FindModules()
@@ -776,7 +748,6 @@ func TestManager_Run_Success(t *testing.T) {
 
 	// Setup expectations for full run
 	mockGit.EXPECT().GetCurrentBranch().Return("main", nil)
-	mockGit.EXPECT().IsWorkingDirClean().Return(true, nil)
 
 	goModFiles := []string{"/repo/go.mod"}
 	mockFS.EXPECT().FindGoModFiles("/repo").Return(goModFiles, nil)
