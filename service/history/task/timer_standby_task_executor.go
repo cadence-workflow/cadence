@@ -48,8 +48,9 @@ type (
 	timerStandbyTaskExecutor struct {
 		*timerTaskExecutorBase
 
-		clusterName     string
-		historyResender ndc.HistoryResender
+		clusterName            string
+		historyResender        ndc.HistoryResender
+		getRemoteClusterNameFn func(context.Context, persistence.Task) (string, error)
 	}
 )
 
@@ -75,6 +76,9 @@ func NewTimerStandbyTaskExecutor(
 		),
 		clusterName:     clusterName,
 		historyResender: historyResender,
+		getRemoteClusterNameFn: func(ctx context.Context, taskInfo persistence.Task) (string, error) {
+			return getRemoteClusterName(ctx, clusterName, shard.GetDomainCache(), shard.GetActiveClusterManager(), taskInfo)
+		},
 	}
 }
 
@@ -496,7 +500,7 @@ func (t *timerStandbyTaskExecutor) processTimer(
 }
 
 func (t *timerStandbyTaskExecutor) fetchHistoryFromRemote(
-	_ context.Context,
+	ctx context.Context,
 	taskInfo persistence.Task,
 	postActionInfo interface{},
 	_ log.Logger,
@@ -512,12 +516,15 @@ func (t *timerStandbyTaskExecutor) fetchHistoryFromRemote(
 	stopwatch := t.metricsClient.StartTimer(metrics.HistoryRereplicationByTimerTaskScope, metrics.CadenceClientLatency)
 	defer stopwatch.Stop()
 
-	var err error
+	remoteClusterName, err := t.getRemoteClusterNameFn(ctx, taskInfo)
+	if err != nil {
+		return err
+	}
 	if resendInfo.lastEventID != nil && resendInfo.lastEventVersion != nil {
 		// note history resender doesn't take in a context parameter, there's a separate dynamicconfig for
 		// controlling the timeout for resending history.
 		err = t.historyResender.SendSingleWorkflowHistory(
-			t.clusterName,
+			remoteClusterName,
 			taskInfo.GetDomainID(),
 			taskInfo.GetWorkflowID(),
 			taskInfo.GetRunID(),
@@ -538,7 +545,7 @@ func (t *timerStandbyTaskExecutor) fetchHistoryFromRemote(
 			tag.WorkflowDomainID(taskInfo.GetDomainID()),
 			tag.WorkflowID(taskInfo.GetWorkflowID()),
 			tag.WorkflowRunID(taskInfo.GetRunID()),
-			tag.SourceCluster(t.clusterName),
+			tag.SourceCluster(remoteClusterName),
 			tag.Error(err),
 		)
 	} else if t.logger.DebugOn() {
@@ -548,7 +555,7 @@ func (t *timerStandbyTaskExecutor) fetchHistoryFromRemote(
 			tag.WorkflowDomainID(taskInfo.GetDomainID()),
 			tag.TaskID(taskInfo.GetTaskID()),
 			tag.TaskType(int(taskInfo.GetTaskType())),
-			tag.SourceCluster(t.clusterName),
+			tag.SourceCluster(remoteClusterName),
 		)
 	}
 
