@@ -17,7 +17,6 @@ import (
 // Git defines git operations for testing
 type Git interface {
 	GetCurrentBranch() (string, error)
-	IsWorkingDirClean() (bool, error)
 	GetTags() ([]string, error)
 	CreateTag(tag string) error
 	PushTag(tag string) error
@@ -371,19 +370,6 @@ func (rm *Manager) ValidateEnvironment() error {
 			return fmt.Errorf("must be on %s branch, currently on: %s", rm.config.RequiredBranch, branch)
 		}
 		rm.logger.Info("Branch validation passed", zap.String("branch", branch))
-	}
-
-	// Check working directory (skip in dry-run)
-	if !rm.config.DryRun {
-		clean, err := rm.git.IsWorkingDirClean()
-		if err != nil {
-			return fmt.Errorf("failed to check working directory: %w", err)
-		}
-
-		if !clean {
-			return fmt.Errorf("working directory is not clean. Please commit or stash changes")
-		}
-		rm.logger.Info("Working directory is clean")
 	}
 
 	return nil

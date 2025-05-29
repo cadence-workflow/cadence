@@ -30,15 +30,6 @@ func (g *Client) GetCurrentBranch() (string, error) {
 	return branch, nil
 }
 
-func (g *Client) IsWorkingDirClean() (bool, error) {
-	g.logger.Debug("Checking if working directory is clean")
-	cmd := exec.Command("git", "diff-index", "--quiet", "HEAD", "--")
-	err := cmd.Run()
-	isClean := err == nil
-	g.logger.Debug("Working directory status", zap.Bool("clean", isClean))
-	return isClean, nil
-}
-
 func (g *Client) GetTags() ([]string, error) {
 	g.logger.Debug("Fetching git tags")
 	cmd := exec.Command("git", "tag", "-l")

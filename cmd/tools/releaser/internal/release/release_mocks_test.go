@@ -98,21 +98,6 @@ func (mr *MockGitMockRecorder) GetTags() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTags", reflect.TypeOf((*MockGit)(nil).GetTags))
 }
 
-// IsWorkingDirClean mocks base method.
-func (m *MockGit) IsWorkingDirClean() (bool, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IsWorkingDirClean")
-	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// IsWorkingDirClean indicates an expected call of IsWorkingDirClean.
-func (mr *MockGitMockRecorder) IsWorkingDirClean() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsWorkingDirClean", reflect.TypeOf((*MockGit)(nil).IsWorkingDirClean))
-}
-
 // PushTag mocks base method.
 func (m *MockGit) PushTag(tag string) error {
 	m.ctrl.T.Helper()
