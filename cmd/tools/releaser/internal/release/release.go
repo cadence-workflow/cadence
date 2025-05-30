@@ -40,28 +40,25 @@ var (
 
 // Config holds the release configuration
 type Config struct {
-	RepoRoot       string
-	Prerelease     bool
-	Version        string
-	VersionType    string
-	ExcludedDirs   []string
-	RequiredBranch string
-	Verbose        bool
-
-	// Interactive mode settings
+	RepoRoot          string
+	ExcludedDirs      []string
+	RequiredBranch    string
+	Verbose           bool
+	Command           string // The subcommand being executed
 	SkipConfirmations bool
+	ManualVersion     string // Manual version override
 }
 
 // Manager handles the release process
 type Manager struct {
-	config      *Config
+	config      Config
 	git         Git
 	fs          FS
 	interaction UserInteraction
 	tagCache    *TagCache
 }
 
-func NewReleaseManager(config *Config, git Git, fs FS, interaction UserInteraction) *Manager {
+func NewReleaseManager(config Config, git Git, fs FS, interaction UserInteraction) *Manager {
 	return &Manager{
 		config:      config,
 		git:         git,
@@ -70,27 +67,281 @@ func NewReleaseManager(config *Config, git Git, fs FS, interaction UserInteracti
 	}
 }
 
-// Run runs the manager flow.
-func (rm *Manager) Run(ctx context.Context) error {
-	fmt.Printf("Starting release process with arguments\nversion %s, type %s, prerelease %T\n", rm.config.Version, rm.config.VersionType, rm.config.Prerelease)
+func (rm *Manager) RunRelease(ctx context.Context) error {
+	return rm.executeCommand(ctx, rm.calculateReleaseVersion, rm.validateReleaseCommand)
+}
 
-	// Get known releases ONCE at the start and use it for all subsequent operations
+func (rm *Manager) RunPatch(ctx context.Context) error {
+	return rm.executeCommand(ctx, rm.calculatePatchVersion, rm.validateMinorMajorCommand)
+}
+
+func (rm *Manager) RunMinor(ctx context.Context) error {
+	return rm.executeCommand(ctx, rm.calculateMinorVersion, rm.validateMinorMajorCommand)
+}
+
+func (rm *Manager) RunMajor(ctx context.Context) error {
+	return rm.executeCommand(ctx, rm.calculateMajorVersion, rm.validateMinorMajorCommand)
+}
+
+func (rm *Manager) RunPrerelease(ctx context.Context) error {
+	return rm.executeCommand(ctx, rm.calculatePrereleaseVersion, nil)
+}
+
+// Generic command execution flow
+func (rm *Manager) executeCommand(
+	ctx context.Context,
+	calculateVersion func(string) (string, error),
+	validate func(string) error,
+) error {
+	// Initialize tag cache
 	if err := rm.GetKnownReleases(ctx); err != nil {
 		return err
 	}
 
-	// Two-mode operation: if no version specified, show current state
-	if rm.config.Version == "" && rm.config.VersionType == "" && !rm.config.Prerelease {
-		return rm.ShowCurrentState(ctx)
+	// Get current version
+	currentVersion := rm.GetCurrentGlobalVersion()
+	rm.logDebug("Current version: %s", currentVersion)
+
+	var targetVersion string
+	var err error
+
+	// Check for manual version override
+	if rm.config.ManualVersion != "" {
+		rm.logDebug("Using manual version override: %s", rm.config.ManualVersion)
+		targetVersion, err = rm.processManualVersion(rm.config.ManualVersion)
+		if err != nil {
+			return err
+		}
+	} else {
+		// Run validation if provided (only for automatic version calculation)
+		if validate != nil {
+			if err := validate(currentVersion); err != nil {
+				return err
+			}
+		}
+
+		// Calculate target version automatically
+		targetVersion, err = calculateVersion(currentVersion)
+		if err != nil {
+			return err
+		}
 	}
 
-	// Calculate target version first
-	currentVersion := rm.GetCurrentGlobalVersion()
-	targetVersion, err := rm.calculateNewVersion(currentVersion)
+	fmt.Printf("Version transition: %s → %s\n", currentVersion, targetVersion)
+
+	return rm.executeRelease(ctx, targetVersion)
+}
+
+// Version calculation methods for each subcommand
+func (rm *Manager) calculateReleaseVersion(currentVersionStr string) (string, error) {
+	rm.logDebug("Calculating release version from: %s", currentVersionStr)
+
+	currentVersion, err := semver.NewVersion(currentVersionStr)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse current version %s: %w", currentVersionStr, err)
+	}
+
+	// Remove prerelease suffix
+	releaseVersion := fmt.Sprintf("v%d.%d.%d",
+		currentVersion.Major(),
+		currentVersion.Minor(),
+		currentVersion.Patch())
+
+	return releaseVersion, nil
+}
+
+// Generic version calculation that creates a closure for different version types
+func (rm *Manager) calculateVersionIncrement(versionType string) func(string) (string, error) {
+	return func(currentVersionStr string) (string, error) {
+		rm.logDebug("Calculating %s version from: %s", versionType, currentVersionStr)
+
+		// First, get the base version (remove prerelease if present)
+		baseVersion := rm.getBaseVersion(currentVersionStr)
+
+		// Increment version
+		newVersion, err := IncrementVersion(baseVersion, versionType)
+		if err != nil {
+			return "", err
+		}
+
+		// Create first prerelease
+		return rm.GetNextPrereleaseVersion(newVersion)
+	}
+}
+
+// Update the existing methods to use the generic function
+func (rm *Manager) calculateMinorVersion(currentVersionStr string) (string, error) {
+	return rm.calculateVersionIncrement("minor")(currentVersionStr)
+}
+
+func (rm *Manager) calculateMajorVersion(currentVersionStr string) (string, error) {
+	return rm.calculateVersionIncrement("major")(currentVersionStr)
+}
+
+func (rm *Manager) calculatePatchVersion(currentVersionStr string) (string, error) {
+	return rm.calculateVersionIncrement("patch")(currentVersionStr)
+}
+
+func (rm *Manager) calculatePrereleaseVersion(currentVersionStr string) (string, error) {
+	rm.logDebug("Calculating prerelease version from: %s", currentVersionStr)
+
+	currentVersion, err := semver.NewVersion(currentVersionStr)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse current version %s: %w", currentVersionStr, err)
+	}
+
+	baseVersionStr := fmt.Sprintf("v%d.%d.%d",
+		currentVersion.Major(),
+		currentVersion.Minor(),
+		currentVersion.Patch())
+
+	return rm.GetNextPrereleaseVersion(baseVersionStr)
+}
+
+// Validation methods
+func (rm *Manager) validateReleaseCommand(currentVersion string) error {
+	if !strings.Contains(currentVersion, "-prerelease") {
+		return fmt.Errorf("release command requires existing prerelease version, current: %s", currentVersion)
+	}
+	return nil
+}
+
+func (rm *Manager) validateMinorMajorCommand(currentVersion string) error {
+	if strings.Contains(currentVersion, "-prerelease") {
+		return fmt.Errorf("minor/major commands should be run from stable versions, current: %s (consider using 'release' first)", currentVersion)
+	}
+	return nil
+}
+
+// Helper method to get base version (remove prerelease suffix)
+func (rm *Manager) getBaseVersion(versionStr string) string {
+	version, err := semver.NewVersion(versionStr)
+	if err != nil {
+		return versionStr
+	}
+
+	return fmt.Sprintf("v%d.%d.%d", version.Major(), version.Minor(), version.Patch())
+}
+
+// processManualVersion validates and normalizes manual version input
+func (rm *Manager) processManualVersion(manualVersion string) (string, error) {
+	// Normalize the version (ensure v prefix, validate semver)
+	normalizedVersion, err := NormalizeVersion(manualVersion)
+	if err != nil {
+		return "", fmt.Errorf("invalid manual version format: %w", err)
+	}
+
+	rm.logDebug("Manual version normalized: %s → %s", manualVersion, normalizedVersion)
+	return normalizedVersion, nil
+}
+
+// Execute the actual release
+func (rm *Manager) executeRelease(ctx context.Context, targetVersion string) error {
+	// Assess state
+	state, err := rm.AssessCurrentState(ctx)
 	if err != nil {
 		return err
 	}
-	return rm.InteractiveRelease(ctx, targetVersion)
+
+	// Plan actions
+	actions, warnings := rm.planReleaseActions(state, targetVersion)
+
+	// Handle warnings and get confirmation to continue
+	if err = rm.handleWarningsAndConfirmations(ctx, warnings); err != nil {
+		return err
+	}
+
+	// Check for version conflicts and handle them
+	conflictInfo, conflictErr := rm.CheckVersionExists(targetVersion, state.Modules)
+	finalActions := actions
+
+	if conflictErr != nil {
+		fmt.Printf("❌ Version conflict detected:\n")
+		fmt.Printf("   Existing tags: %v\n", conflictInfo.ExistingTags)
+		fmt.Printf("   Tags to create: %v\n", conflictInfo.MissingTags)
+
+		if len(conflictInfo.MissingTags) == 0 {
+			return fmt.Errorf("all tags already exist for version %s", targetVersion)
+		}
+
+		if !rm.config.SkipConfirmations {
+			confirmed, err := rm.interaction.ConfirmWithDefault(ctx,
+				fmt.Sprintf("Continue and create only missing tags (%d remaining)?", len(conflictInfo.MissingTags)),
+				false)
+			if err != nil || !confirmed {
+				return fmt.Errorf("operation cancelled due to version conflict")
+			}
+		}
+
+		// Filter actions to only include missing tags
+		finalActions = rm.filterActionsForMissingTags(actions, conflictInfo.MissingTags)
+		fmt.Printf("✓ Will skip existing tags and create only: %v\n", conflictInfo.MissingTags)
+	}
+
+	// Show planned actions (filtered if there were conflicts)
+	rm.ShowPlannedActions(finalActions)
+
+	// Confirm tag creation
+	if !rm.config.SkipConfirmations {
+		tagCount := len(finalActions) / 2 // Each tag has create + push action
+		message := fmt.Sprintf("Create %d tags?", tagCount)
+		if conflictErr != nil {
+			message = fmt.Sprintf("Create %d missing tags (skipping %d existing)?", len(conflictInfo.MissingTags), len(conflictInfo.ExistingTags))
+		}
+
+		confirmed, err := rm.interaction.Confirm(ctx, message)
+		if err != nil || !confirmed {
+			if ctx.Err() != nil {
+				return nil
+			}
+			return fmt.Errorf("tag creation cancelled")
+		}
+	}
+
+	// Create tags (only missing ones if there were conflicts)
+	if err = rm.executeTagCreation(ctx, finalActions); err != nil {
+		return err
+	}
+
+	// Confirm tag pushing
+	if !rm.config.SkipConfirmations {
+		pushCount := 0
+		for _, action := range finalActions {
+			if action.Type == ActionPushTags {
+				pushCount++
+			}
+		}
+
+		message := fmt.Sprintf("Push %d tags?", pushCount)
+		confirmed, err := rm.interaction.Confirm(ctx, message)
+		if err != nil || !confirmed {
+			if ctx.Err() != nil {
+				return nil
+			}
+			fmt.Printf("Tags created locally but not pushed\n")
+			if conflictErr != nil {
+				fmt.Printf("Created: %v\n", conflictInfo.MissingTags)
+				fmt.Printf("Skipped: %v\n", conflictInfo.ExistingTags)
+			}
+			return nil
+		}
+	}
+
+	// Push tags
+	if err = rm.executeTagPushing(ctx, finalActions); err != nil {
+		return fmt.Errorf("push tags: %w", err)
+	}
+
+	// Success message
+	if conflictErr != nil {
+		fmt.Printf("✓ Release %s completed successfully\n", targetVersion)
+		fmt.Printf("  Created: %v\n", conflictInfo.MissingTags)
+		fmt.Printf("  Skipped: %v (already existed)\n", conflictInfo.ExistingTags)
+	} else {
+		fmt.Printf("✓ Release %s completed successfully\n", targetVersion)
+	}
+
+	return nil
 }
 
 // GetKnownReleases fetches and parses all tags once
@@ -227,11 +478,6 @@ func (rm *Manager) GetNextPrereleaseVersion(baseVersionStr string) (string, erro
 	sort.Ints(prereleaseNumbers)
 	nextNum := prereleaseNumbers[len(prereleaseNumbers)-1] + 1
 
-	// Check for single-digit format
-	if nextNum < 10 {
-		return "", fmt.Errorf("latest prerelease uses 1-digit format. Only 2-digit format supported, base (%s), number (%d)", cleanBaseStr, nextNum)
-	}
-
 	if nextNum > 99 {
 		return "", fmt.Errorf("maximum prerelease number (99) exceeded, base (%s)", cleanBaseStr)
 	}
@@ -239,8 +485,11 @@ func (rm *Manager) GetNextPrereleaseVersion(baseVersionStr string) (string, erro
 	return fmt.Sprintf("%s-prerelease%02d", cleanBaseStr, nextNum), nil
 }
 
-func (rm *Manager) CheckVersionExists(version string, modules []Module) error {
-	var existingTags []string
+func (rm *Manager) CheckVersionExists(version string, modules []Module) (VersionConflictInfo, error) {
+	conflictInfo := VersionConflictInfo{
+		ExistingTags: make([]string, 0),
+		MissingTags:  make([]string, 0),
+	}
 
 	for _, module := range modules {
 		expectedTag := version
@@ -248,19 +497,25 @@ func (rm *Manager) CheckVersionExists(version string, modules []Module) error {
 			expectedTag = module.Path + "/" + version
 		}
 
+		exists := false
 		for _, tag := range rm.tagCache.AllTags {
 			if tag.Raw == expectedTag {
-				existingTags = append(existingTags, expectedTag)
+				conflictInfo.ExistingTags = append(conflictInfo.ExistingTags, expectedTag)
+				exists = true
 				break
 			}
 		}
+
+		if !exists {
+			conflictInfo.MissingTags = append(conflictInfo.MissingTags, expectedTag)
+		}
 	}
 
-	if len(existingTags) > 0 {
-		return fmt.Errorf("version already exists for modules: %v", existingTags)
+	if len(conflictInfo.ExistingTags) > 0 {
+		return conflictInfo, fmt.Errorf("some tags already exist: %v", conflictInfo.ExistingTags)
 	}
 
-	return nil
+	return conflictInfo, nil
 }
 
 // AssessCurrentState gathers repository state (assumes cache is already populated)
@@ -283,71 +538,46 @@ func (rm *Manager) AssessCurrentState(ctx context.Context) (*State, error) {
 	return state, nil
 }
 
-// ShowCurrentState displays current release state without version argument
+// ShowCurrentState displays current release state
 func (rm *Manager) ShowCurrentState(ctx context.Context) error {
+	// Initialize tag cache
+	if err := rm.GetKnownReleases(ctx); err != nil {
+		return err
+	}
+
 	state, err := rm.AssessCurrentState(ctx)
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("Current Repository State\nbranch: %s\nglobal_version: %s\n", state.CurrentBranch, state.CurrentVersion)
+	fmt.Printf("Repository Release Status\n")
+	fmt.Printf("========================\n")
+	fmt.Printf("Branch: %s\n", state.CurrentBranch)
+	fmt.Printf("Global Version: %s\n", state.CurrentVersion)
+	fmt.Printf("\n")
 
-	fmt.Println("Modules and their current versions:")
+	fmt.Printf("Modules and Versions:\n")
 	for _, module := range state.Modules {
 		moduleName := module.Path
 		if moduleName == "" {
 			moduleName = "root"
 		}
-		fmt.Printf("%s - %s\n", moduleName, module.Version)
+		fmt.Printf("  %-20s %s\n", moduleName, module.Version)
 	}
 
-	return nil
-}
-
-// InteractiveRelease performs interactive release with confirmations
-func (rm *Manager) InteractiveRelease(ctx context.Context, targetVersion string) error {
-	// 1. Assess state (assumes cache is already populated)
-	state, err := rm.AssessCurrentState(ctx)
-	if err != nil {
-		return err
+	// Show what commands are available
+	fmt.Printf("\nAvailable Commands:\n")
+	if strings.Contains(state.CurrentVersion, "-prerelease") {
+		fmt.Printf("  releaser prerelease              # Increment prerelease number\n")
+		fmt.Printf("  releaser release                 # Promote to final release\n")
+		fmt.Printf("  releaser release -s v1.4.0       # Override with specific version\n")
+	} else {
+		fmt.Printf("  releaser minor                   # Start new minor version cycle\n")
+		fmt.Printf("  releaser major                   # Start new major version cycle\n")
+		fmt.Printf("  releaser patch                   # Start new patch version cycle\n")
+		fmt.Printf("  releaser minor -s v1.4.0-prerelease01  # Override with specific version\n")
 	}
 
-	actions, warnings := rm.planReleaseActions(state, targetVersion)
-
-	if err = rm.handleWarningsAndConfirmations(ctx, warnings); err != nil {
-		return err
-	}
-
-	rm.ShowPlannedActions(actions)
-
-	if !rm.config.SkipConfirmations {
-		confirmed, err := rm.interaction.Confirm(ctx, "Create tags?")
-		if err != nil || !confirmed {
-			if ctx.Err() != nil {
-				return nil
-			}
-			return fmt.Errorf("tag creation cancelled")
-		}
-	}
-
-	if err = rm.executeTagCreation(ctx, actions); err != nil {
-		return err
-	}
-
-	if !rm.config.SkipConfirmations {
-		confirmed, err := rm.interaction.Confirm(ctx, "Push tags?")
-		if err != nil || !confirmed {
-			if ctx.Err() != nil {
-				return nil
-			}
-			fmt.Println("Tags created locally but not pushed")
-			return nil
-		}
-	}
-	if err = rm.executeTagPushing(ctx, actions); err != nil {
-		return fmt.Errorf("push tags: %w", err)
-	}
-	fmt.Println("Release completed successfully")
 	return nil
 }
 
@@ -358,7 +588,7 @@ func (rm *Manager) ShowPlannedActions(actions []Action) {
 		return
 	}
 
-	fmt.Println("Planned Release Actions")
+	fmt.Println("\nPlanned Release Actions:")
 
 	// Group actions by type for better readability
 	createActions := make([]Action, 0)
@@ -372,16 +602,20 @@ func (rm *Manager) ShowPlannedActions(actions []Action) {
 			pushActions = append(pushActions, action)
 		}
 	}
-	fmt.Println()
-	for _, action := range createActions {
-		fmt.Printf("git tag %s\n", action.Target)
-	}
-	fmt.Println()
-	for _, action := range pushActions {
-		fmt.Printf("git push origin %s\n", action.Target)
+
+	if len(createActions) > 0 {
+		fmt.Println("\nCreate Tags:")
+		for _, action := range createActions {
+			fmt.Printf("  git tag %s\n", action.Target)
+		}
 	}
 
-	return
+	if len(pushActions) > 0 {
+		fmt.Println("\nPush Tags:")
+		for _, action := range pushActions {
+			fmt.Printf("  git push origin %s\n", action.Target)
+		}
+	}
 }
 
 func (rm *Manager) planReleaseActions(state *State, targetVersion string) ([]Action, []Warning) {
@@ -422,15 +656,27 @@ func (rm *Manager) validateWithWarnings(state *State, targetVersion string) []Wa
 		})
 	}
 
-	// Existing tags -> warning
-	if err := rm.CheckVersionExists(targetVersion, state.Modules); err != nil {
-		warnings = append(warnings, Warning{
-			Type:    ExistingTags,
-			Message: fmt.Sprintf("these tags already exist: %v", err),
-		})
+	return warnings
+}
+
+// filterActionsForMissingTags filters actions to only include missing tags
+func (rm *Manager) filterActionsForMissingTags(actions []Action, missingTags []string) []Action {
+	var filteredActions []Action
+
+	// Create a set of missing tags for quick lookup
+	missingTagSet := make(map[string]bool)
+	for _, tag := range missingTags {
+		missingTagSet[tag] = true
 	}
 
-	return warnings
+	// Filter actions to only include missing tags
+	for _, action := range actions {
+		if missingTagSet[action.Target] {
+			filteredActions = append(filteredActions, action)
+		}
+	}
+
+	return filteredActions
 }
 
 // getLatestVersionForModule returns the latest version for a given module path
@@ -464,10 +710,10 @@ func (rm *Manager) getLatestVersionForModule(modulePath string) string {
 
 func (rm *Manager) handleWarningsAndConfirmations(ctx context.Context, warnings []Warning) error {
 	for _, warning := range warnings {
-		fmt.Println(warning.Message)
+		fmt.Printf("⚠️  %s\n", warning.Message)
 
 		if rm.config.SkipConfirmations {
-			return nil
+			continue
 		}
 
 		confirmed, err := rm.interaction.ConfirmWithDefault(ctx, "Continue?", false)
@@ -488,7 +734,7 @@ func (rm *Manager) executeTagCreation(ctx context.Context, actions []Action) err
 			if err := rm.git.CreateTag(ctx, action.Target); err != nil {
 				return fmt.Errorf("failed to create tag %s: %w", action.Target, err)
 			}
-			fmt.Printf("Created tag %s\n", action.Target)
+			fmt.Printf("✓ Created tag %s\n", action.Target)
 		}
 	}
 	return nil
@@ -501,63 +747,10 @@ func (rm *Manager) executeTagPushing(ctx context.Context, actions []Action) erro
 			if err := rm.git.PushTag(ctx, action.Target); err != nil {
 				return fmt.Errorf("failed to push tag %s: %w", action.Target, err)
 			}
-			fmt.Printf("Pushed tag %s\n", action.Target)
+			fmt.Printf("✓ Pushed tag %s\n", action.Target)
 		}
 	}
 	return nil
-}
-
-// CalculateNewVersion returns new version
-func (rm *Manager) calculateNewVersion(currentVersionStr string) (string, error) {
-	rm.logDebug("Calculating new version\n current:%s\ntype:%s\nprerelease:%t\n", currentVersionStr, rm.config.VersionType, rm.config.Prerelease)
-
-	if rm.config.Version != "" {
-		// Explicit version specified
-		newVersion, err := NormalizeVersion(rm.config.Version)
-		if err != nil {
-			return "", fmt.Errorf("invalid version format: %w", err)
-		}
-
-		// Check if we need to add prerelease suffix
-		parsedVersion, err := semver.NewVersion(newVersion)
-		if err != nil {
-			return "", fmt.Errorf("failed to parse new version: %w", err)
-		}
-
-		if rm.config.Prerelease && parsedVersion.Prerelease() == "" {
-			return rm.GetNextPrereleaseVersion(newVersion)
-		}
-
-		return newVersion, nil
-	}
-
-	if rm.config.VersionType == "prerelease-only" {
-		// Just increment prerelease number
-		currentVersion, err := semver.NewVersion(currentVersionStr)
-		if err != nil {
-			return "", fmt.Errorf("failed to parse current version: %w", err)
-		}
-
-		if currentVersion.Prerelease() != "" {
-			// Extract base version from current prerelease
-			baseVersionStr := fmt.Sprintf("v%d.%d.%d", currentVersion.Major(), currentVersion.Minor(), currentVersion.Patch())
-			return rm.GetNextPrereleaseVersion(baseVersionStr)
-		}
-		// Make first prerelease of current version
-		return rm.GetNextPrereleaseVersion(currentVersionStr)
-	}
-
-	// Increment based on type
-	newVersion, err := IncrementVersion(currentVersionStr, rm.config.VersionType)
-	if err != nil {
-		return "", err
-	}
-
-	if rm.config.Prerelease {
-		return rm.GetNextPrereleaseVersion(newVersion)
-	}
-
-	return newVersion, nil
 }
 
 // NormalizeVersion ensures version has 'v' prefix and is valid semver
@@ -567,12 +760,12 @@ func NormalizeVersion(v string) (string, error) {
 	}
 
 	// Parse with Masterminds/semver to validate
-	_, err := semver.NewVersion(v)
+	semVer, err := semver.NewVersion(v)
 	if err != nil {
 		return "", fmt.Errorf("invalid semantic version: %s", v)
 	}
 
-	return v, nil
+	return "v" + semVer.String(), nil
 }
 
 // IncrementVersion increments a version based on type
@@ -662,6 +855,6 @@ func (rm *Manager) getTagName(module Module, version string) string {
 
 func (rm *Manager) logDebug(msg string, args ...interface{}) {
 	if rm.config.Verbose {
-		fmt.Printf("%s\n", fmt.Sprintf(msg, args...))
+		fmt.Printf("DEBUG: %s\n", fmt.Sprintf(msg, args...))
 	}
 }

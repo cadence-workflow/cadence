@@ -35,6 +35,12 @@ type TagCache struct {
 	HighestVersion  *semver.Version        // Cached highest version
 }
 
+// VersionConflictInfo holds information about version conflicts
+type VersionConflictInfo struct {
+	ExistingTags []string // Tags that already exist
+	MissingTags  []string // Tags that need to be created
+}
+
 // WarningType represents different types of warnings
 type WarningType int
 

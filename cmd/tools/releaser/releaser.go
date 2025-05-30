@@ -14,55 +14,86 @@ import (
 	"github.com/uber/cadence/cmd/tools/releaser/internal/release"
 )
 
-// CLI handling - CLI creates fx.App
 func main() {
 	cliApp := &cli.App{
-		Name:    "release",
-		Usage:   "Create releases for all Go modules in the repository with unified versioning",
-		Version: "1.0.0",
+		Name:    "releaser",
+		Usage:   "Cadence workflow release management tool",
+		Version: "0.1.0",
 		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:    "type",
-				Aliases: []string{"t"},
-				Usage:   "Version bump type: major, minor, patch",
+			&cli.BoolFlag{
+				Name:    "verbose",
+				Aliases: []string{"i"},
+				Usage:   "Enable verbose output",
+			},
+			&cli.BoolFlag{
+				Name:  "yes",
+				Usage: "Skip confirmation prompts",
 			},
 			&cli.StringFlag{
 				Name:    "set-version",
 				Aliases: []string{"s"},
-				Usage:   "Specific version to set for all modules (overrides --type)",
-			},
-			&cli.BoolFlag{
-				Name:    "prerelease",
-				Aliases: []string{"p"},
-				Usage:   "Create prerelease versions (adds -prereleaseNN suffix). Can be used alone to increment prerelease number only",
-			},
-			&cli.BoolFlag{
-				Name:    "dry-run",
-				Aliases: []string{"d"},
-				Usage:   "Show what would be done without making changes",
-				Value:   true,
-			},
-			&cli.BoolFlag{
-				Name:    "verbose",
-				Aliases: []string{"i"},
+				Usage:   "Override automatic version calculation with specific version",
 			},
 		},
-		Action: runRelease,
 		Commands: []*cli.Command{
 			{
-				Name:  "examples",
-				Usage: "Show usage examples",
-				Action: func(c *cli.Context) error {
-					showExamples()
-					return nil
-				},
+				Name:   "release",
+				Usage:  "Promote latest prerelease to final release",
+				Action: releaseCommand,
+				Description: `Converts the current prerelease version to a final release.
+Example: v1.2.3-prerelease01 → v1.2.3
+
+This command requires that the current version is a prerelease.`,
+			},
+			{
+				Name:   "minor",
+				Usage:  "Start new minor version development cycle",
+				Action: minorCommand,
+				Description: `Increments the minor version and creates the first prerelease.
+Example: v1.2.3 → v1.3.0-prerelease01
+
+Use this when starting development of new features.`,
+			},
+			{
+				Name:   "major",
+				Usage:  "Start new major version development cycle",
+				Action: majorCommand,
+				Description: `Increments the major version and creates the first prerelease.
+Example: v1.2.3 → v2.0.0-prerelease01
+
+Use this when introducing breaking changes.`,
+			},
+			{
+				Name:   "patch",
+				Usage:  "Start new patch version development cycle",
+				Action: patchCommand,
+				Description: `Increments the patch version and creates the first prerelease.
+Example: v1.2.3 → v1.2.4-prerelease01
+
+Use this when starting hotfix or patch development.`,
+			},
+			{
+				Name:   "prerelease",
+				Usage:  "Increment prerelease number",
+				Action: prereleaseCommand,
+				Description: `Increments the prerelease number for iterative development.
+Example: v1.2.3-prerelease01 → v1.2.3-prerelease02
+
+Use this during active development within a version cycle.`,
+			},
+			{
+				Name:   "status",
+				Usage:  "Show current repository release status",
+				Action: statusCommand,
+				Description: `Displays current branch, version, and module information.
+Use this to understand the current state before making releases.`,
 			},
 		},
 		CustomAppHelpTemplate: `NAME:
    {{.Name}} - {{.Usage}}
 
 USAGE:
-   {{.HelpName}} [global options]
+   {{.HelpName}} [global options] command [command options]
 
 VERSION:
    {{.Version}}
@@ -71,40 +102,37 @@ GLOBAL OPTIONS:
    {{range .VisibleFlags}}{{.}}
    {{end}}
 
+COMMANDS:
+{{range .Commands}}{{if not .HideHelp}}   {{join .Names ", "}}{{ "\t\t"}}{{.Usage}}{{ "\n" }}{{end}}{{end}}
+
 EXAMPLES:
-   {{.HelpName}} --type patch                        # Bump patch version for all modules
-   {{.HelpName}} --type minor --prerelease           # Bump minor version with prerelease suffix
-   {{.HelpName}} --set-version v1.2.3               # Set v1.2.3 for all modules
-   {{.HelpName}} --set-version v1.2.3 --prerelease  # Set v1.2.3-prerelease01 for all modules
-   {{.HelpName}} --prerelease                       # Just increment prerelease number (no version bump)
-   {{.HelpName}} --type major --dry-run              # Show what would happen with major bump
+   # Check current status
+   {{.HelpName}} status
 
-PRERELEASE WORKFLOWS:
-   # Start prerelease cycle for v1.2.4
-   {{.HelpName}} --type patch --prerelease           # Creates v1.2.4-prerelease01
-   
-   # Continue prerelease iterations (no version bump)
-   {{.HelpName}} --prerelease                       # Creates v1.2.4-prerelease02
-   {{.HelpName}} --prerelease                       # Creates v1.2.4-prerelease03
-   
-   # Final release
-   {{.HelpName}} --set-version v1.2.4               # Creates v1.2.4 (removes prerelease suffix)
+   # Development workflow
+   {{.HelpName}} minor           # Start new minor version: v1.2.3 → v1.3.0-prerelease01
+   {{.HelpName}} major           # Start new major version: v1.2.3 → v2.0.0-prerelease01
+   {{.HelpName}} patch           # Start new patch version: v1.2.3 → v1.2.4-prerelease01
+   {{.HelpName}} prerelease      # Iterate: v1.3.0-prerelease01 → v1.3.0-prerelease02
+   {{.HelpName}} release         # Finalize: v1.3.0-prerelease03 → v1.3.0
 
-PRERELEASE FORMAT:
-   Prereleases use STRICT 2-digit numbering (01-99) for proper alphabetical sorting:
-   v1.2.3-prerelease01, v1.2.3-prerelease02, ..., v1.2.3-prerelease99
-   
-   LEGACY SUPPORT: Historical 1-digit prerelease tags are ignored unless they are
-   the latest prerelease for a specific version.
+   # Major version workflow  
+   {{.HelpName}} major           # Start major version: v1.3.0 → v2.0.0-prerelease01
+   {{.HelpName}} prerelease      # Iterate: v2.0.0-prerelease01 → v2.0.0-prerelease02
+   {{.HelpName}} release         # Finalize: v2.0.0-prerelease02 → v2.0.0
+
+   # Manual version override
+   {{.HelpName}} release --set-version v1.4.0    # Override automatic calculation
 
 SAFETY FEATURES:
-   - Prevents creating versions that already exist for any module
-   - Verifies builds and runs tests before creating tags
+   - Validates current version state before operations
    - Requires clean git working directory
    - Enforces releases only from master branch
+   - Prevents creating duplicate versions
+   - Builds and tests before creating tags
+   - Interactive confirmations for all operations
 
-COMMANDS:
-   {{range .Commands}}{{if not .HideHelp}}   {{join .Names ", "}}{{ "\t"}}{{.Usage}}{{ "\n" }}{{end}}{{end}}
+Use --yes to skip confirmation prompts for automation.
 `,
 	}
 
@@ -117,53 +145,39 @@ COMMANDS:
 	}
 }
 
-func runRelease(c *cli.Context) error {
-	// Parse and validate CLI arguments first
-	cfg := &release.Config{
-		ExcludedDirs:   []string{"cmd", "internal/tools", "idls"},
-		RequiredBranch: "master",
-		Version:        c.String("set-version"),
-		VersionType:    c.String("type"),
-		Prerelease:     c.Bool("prerelease"),
-		Verbose:        c.Bool("verbose"),
-	}
-
-	if cfg.Version != "" && cfg.VersionType != "" {
-		return cli.Exit("Cannot specify both --set-version and --type", 1)
-	}
-
-	validTypes := map[string]bool{"major": true, "minor": true, "patch": true}
-	if cfg.VersionType != "" && !validTypes[cfg.VersionType] {
-		return cli.Exit("Version type must be one of: major, minor, patch", 1)
-	}
-
-	// If only --prerelease is specified, set special mode
-	if cfg.Version == "" && cfg.VersionType == "" && cfg.Prerelease {
-		cfg.VersionType = "prerelease-only"
-	}
-
-	// Validate version format if provided
-	if cfg.Version != "" {
-		if _, err := release.NormalizeVersion(cfg.Version); err != nil {
-			return cli.Exit(fmt.Sprintf("Invalid version format: %v", err), 1)
-		}
+func createManager(c *cli.Context, command string) (*release.Manager, error) {
+	cfg := release.Config{
+		ExcludedDirs:      []string{"cmd", "internal/tools", "idls"},
+		RequiredBranch:    "master",
+		Verbose:           c.Bool("verbose"),
+		Command:           command,
+		SkipConfirmations: c.Bool("yes"),
+		ManualVersion:     c.String("set-version"),
 	}
 
 	gitClient := git.NewGitClient(cfg.Verbose)
-
 	repo := fs.NewFileSystemClient(cfg.Verbose)
+	interaction := console.NewManager(os.Stdout, os.Stdin)
 
-	manager := release.NewReleaseManager(cfg, gitClient, repo, console.NewManager(os.Stdout, os.Stdin))
+	manager := release.NewReleaseManager(cfg, gitClient, repo, interaction)
 
 	// Get repo root and update cfg
 	repoRoot, err := gitClient.GetRepoRoot(c.Context)
 	if err != nil {
-		return cli.Exit(fmt.Sprintf("Failed to get repository root: %v", err), 1)
+		return nil, fmt.Errorf("failed to get repository root: %w", err)
 	}
 	cfg.RepoRoot = repoRoot
 
-	// Run the release process
-	if err := manager.Run(c.Context); err != nil {
+	return manager, nil
+}
+
+func releaseCommand(c *cli.Context) error {
+	manager, err := createManager(c, "release")
+	if err != nil {
+		return cli.Exit(err.Error(), 1)
+	}
+
+	if err := manager.RunRelease(c.Context); err != nil {
 		if c.Context.Err() != nil {
 			return nil
 		}
@@ -173,47 +187,82 @@ func runRelease(c *cli.Context) error {
 	return nil
 }
 
-func showExamples() {
-	fmt.Print(`DETAILED EXAMPLES:
+func minorCommand(c *cli.Context) error {
+	manager, err := createManager(c, "minor")
+	if err != nil {
+		return cli.Exit(err.Error(), 1)
+	}
 
-Basic Version Bumps:
-   release --type patch                        # v1.2.3 → v1.2.4
-   release --type minor                        # v1.2.3 → v1.3.0  
-   release --type major                        # v1.2.3 → v2.0.0
+	if err := manager.RunMinor(c.Context); err != nil {
+		if c.Context.Err() != nil {
+			return nil
+		}
+		return cli.Exit(err.Error(), 1)
+	}
 
-Prerelease Workflows:
-   release --type patch --prerelease           # v1.2.3 → v1.2.4-prerelease01
-   release --prerelease                       # v1.2.4-prerelease01 → v1.2.4-prerelease02
-   release --prerelease                       # v1.2.4-prerelease02 → v1.2.4-prerelease03
-   release --set-version v1.2.4               # v1.2.4-prerelease03 → v1.2.4 (final)
+	return nil
+}
 
-Explicit Versions:
-   release --set-version v2.0.0               # Set exactly v2.0.0
-   release --set-version v2.0.0 --prerelease  # Set v2.0.0-prerelease01
+func majorCommand(c *cli.Context) error {
+	manager, err := createManager(c, "major")
+	if err != nil {
+		return cli.Exit(err.Error(), 1)
+	}
 
-Testing Changes:
-   release --type minor --dry-run              # See what would happen without changes
-   release --prerelease --dry-run              # Preview next prerelease
+	if err := manager.RunMajor(c.Context); err != nil {
+		if c.Context.Err() != nil {
+			return nil
+		}
+		return cli.Exit(err.Error(), 1)
+	}
 
-TYPICAL CADENCE WORKFLOW DEVELOPMENT CYCLE:
+	return nil
+}
 
-1. Start new feature development:
-   release --type minor --prerelease           # v1.3.0-prerelease01
+func patchCommand(c *cli.Context) error {
+	manager, err := createManager(c, "patch")
+	if err != nil {
+		return cli.Exit(err.Error(), 1)
+	}
 
-2. Iterate during development:
-   release --prerelease                       # v1.3.0-prerelease02
-   release --prerelease                       # v1.3.0-prerelease03
-   # ... test Cadence workflows
+	if err := manager.RunPatch(c.Context); err != nil {
+		if c.Context.Err() != nil {
+			return nil
+		}
+		return cli.Exit(err.Error(), 1)
+	}
 
-3. Release candidate:
-   release --prerelease                       # v1.3.0-prerelease04
-   # ... final testing
+	return nil
+}
 
-4. Production release:
-   release --set-version v1.3.0               # v1.3.0 (final)
+func prereleaseCommand(c *cli.Context) error {
+	manager, err := createManager(c, "prerelease")
+	if err != nil {
+		return cli.Exit(err.Error(), 1)
+	}
 
-5. Hotfix if needed:
-   release --type patch                       # v1.3.1
+	if err := manager.RunPrerelease(c.Context); err != nil {
+		if c.Context.Err() != nil {
+			return nil
+		}
+		return cli.Exit(err.Error(), 1)
+	}
 
-`)
+	return nil
+}
+
+func statusCommand(c *cli.Context) error {
+	manager, err := createManager(c, "status")
+	if err != nil {
+		return cli.Exit(err.Error(), 1)
+	}
+
+	if err := manager.ShowCurrentState(c.Context); err != nil {
+		if c.Context.Err() != nil {
+			return nil
+		}
+		return cli.Exit(err.Error(), 1)
+	}
+
+	return nil
 }
