@@ -22,10 +22,13 @@ package task
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/activecluster"
+	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
@@ -190,4 +193,36 @@ func getStandbyPostActionFn(
 	// task start time + StandbyTaskMissingEventsResendDelay <= now
 	logger.Debug("getStandbyPostActionFn returning discardTaskStandbyPostActionFn because task start time + StandbyTaskMissingEventsResendDelay <= now", tags...)
 	return discardTaskStandbyPostActionFn
+}
+
+func getRemoteClusterName(
+	ctx context.Context,
+	currentCluster string,
+	domainCache cache.DomainCache,
+	activeClusterMgr activecluster.Manager,
+	taskInfo persistence.Task,
+) (string, error) {
+	domainEntry, err := domainCache.GetDomainByID(taskInfo.GetDomainID())
+	if err != nil {
+		return "", err
+	}
+
+	if domainEntry.GetReplicationConfig().IsActiveActive() {
+		resp, err := activeClusterMgr.LookupWorkflow(ctx, taskInfo.GetDomainID(), taskInfo.GetWorkflowID(), taskInfo.GetRunID())
+		if err != nil {
+			return "", err
+		}
+		if resp.ClusterName == currentCluster {
+			// domain has turned active, retry the task
+			return "", errors.New("domain becomes active when processing task as standby")
+		}
+		return resp.ClusterName, nil
+	}
+
+	remoteClusterName := domainEntry.GetReplicationConfig().ActiveClusterName
+	if remoteClusterName == currentCluster {
+		// domain has turned active, retry the task
+		return "", errors.New("domain becomes active when processing task as standby")
+	}
+	return remoteClusterName, nil
 }

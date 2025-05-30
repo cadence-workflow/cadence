@@ -158,6 +158,9 @@ func (s *transferStandbyTaskExecutorSuite) SetupTest() {
 		s.clusterName,
 		config,
 	).(*transferStandbyTaskExecutor)
+	s.transferStandbyTaskExecutor.getRemoteClusterNameFn = func(ctx context.Context, taskInfo persistence.Task) (string, error) {
+		return s.clusterName, nil
+	}
 }
 
 func (s *transferStandbyTaskExecutorSuite) TearDownTest() {

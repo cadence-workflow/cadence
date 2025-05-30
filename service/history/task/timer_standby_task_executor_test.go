@@ -22,6 +22,7 @@
 package task
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -144,6 +145,9 @@ func (s *timerStandbyTaskExecutorSuite) SetupTest() {
 		s.clusterName,
 		config,
 	).(*timerStandbyTaskExecutor)
+	s.timerStandbyTaskExecutor.getRemoteClusterNameFn = func(ctx context.Context, taskInfo persistence.Task) (string, error) {
+		return s.clusterName, nil
+	}
 }
 
 func (s *timerStandbyTaskExecutorSuite) TearDownTest() {
