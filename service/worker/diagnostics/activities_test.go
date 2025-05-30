@@ -192,3 +192,88 @@ func testWorkflowExecutionHistoryResponse() *types.GetWorkflowExecutionHistoryRe
 		},
 	}
 }
+
+func Test__identifyIssuesWithPaginatedHistory(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockClientBean := client.NewMockBean(ctrl)
+	mockFrontendClient := frontend.NewMockClient(ctrl)
+	token := []byte("next-page-token")
+	testExecution := &types.WorkflowExecution{
+		WorkflowID: "123",
+		RunID:      "abc",
+	}
+	partialWFHistoryResponse := &types.GetWorkflowExecutionHistoryResponse{
+		History: &types.History{
+			Events: []*types.HistoryEvent{
+				{
+					ID: 1,
+					WorkflowExecutionStartedEventAttributes: &types.WorkflowExecutionStartedEventAttributes{
+						RetryPolicy: &types.RetryPolicy{
+							InitialIntervalInSeconds: 1,
+							MaximumAttempts:          2,
+						},
+						Attempt: 0,
+					},
+				},
+			},
+		},
+		NextPageToken: token,
+	}
+	remainingWFHistoryResponse := &types.GetWorkflowExecutionHistoryResponse{
+		History: &types.History{
+			Events: []*types.HistoryEvent{
+				{
+					WorkflowExecutionContinuedAsNewEventAttributes: &types.WorkflowExecutionContinuedAsNewEventAttributes{
+						FailureReason:                common.StringPtr("cadenceInternal:Timeout START_TO_CLOSE"),
+						DecisionTaskCompletedEventID: 10,
+					},
+				},
+			},
+		},
+	}
+
+	mockClientBean.EXPECT().GetFrontendClient().Return(mockFrontendClient).AnyTimes()
+	firstCall := mockFrontendClient.EXPECT().GetWorkflowExecutionHistory(gomock.Any(), &types.GetWorkflowExecutionHistoryRequest{
+		Execution:              testExecution,
+		MaximumPageSize:        1000,
+		NextPageToken:          nil,
+		WaitForNewEvent:        false,
+		HistoryEventFilterType: types.HistoryEventFilterTypeAllEvent.Ptr(),
+		SkipArchival:           true,
+	}).Return(partialWFHistoryResponse, nil)
+	mockFrontendClient.EXPECT().GetWorkflowExecutionHistory(gomock.Any(), &types.GetWorkflowExecutionHistoryRequest{
+		Execution:              testExecution,
+		MaximumPageSize:        1000,
+		NextPageToken:          token,
+		WaitForNewEvent:        false,
+		HistoryEventFilterType: types.HistoryEventFilterTypeAllEvent.Ptr(),
+		SkipArchival:           true,
+	}).Return(remainingWFHistoryResponse, nil).After(firstCall)
+
+	retryMetadata := retry.RetryMetadata{
+		EventID: 1,
+		RetryPolicy: &types.RetryPolicy{
+			InitialIntervalInSeconds: 1,
+			MaximumAttempts:          2,
+		},
+	}
+	retryMetadataInBytes, err := json.Marshal(retryMetadata)
+	require.NoError(t, err)
+	expectedResult := []invariant.InvariantCheckResult{
+		{
+			IssueID:       0,
+			InvariantType: retry.WorkflowRetryInfo.String(),
+			Reason:        "The failure is caused by a timeout during the execution",
+			Metadata:      retryMetadataInBytes,
+		},
+	}
+
+	dwtest := &dw{
+		clientBean: mockClientBean,
+		invariants: []invariant.Invariant{retry.NewInvariant()},
+	}
+
+	result, err := dwtest.identifyIssues(context.Background(), identifyIssuesParams{Execution: testExecution})
+	require.NoError(t, err)
+	require.Equal(t, expectedResult, result)
+}
