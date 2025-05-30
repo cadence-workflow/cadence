@@ -7,29 +7,12 @@ import (
 	"os/signal"
 
 	"github.com/urfave/cli/v2"
-	"go.uber.org/zap"
 
+	"github.com/uber/cadence/cmd/tools/releaser/internal/console"
 	"github.com/uber/cadence/cmd/tools/releaser/internal/fs"
 	"github.com/uber/cadence/cmd/tools/releaser/internal/git"
 	"github.com/uber/cadence/cmd/tools/releaser/internal/release"
 )
-
-// ReleaseApp represents the main application
-type ReleaseApp struct {
-	rm     *release.Manager
-	logger *zap.Logger
-}
-
-func NewReleaseApp(rm *release.Manager, logger *zap.Logger) *ReleaseApp {
-	return &ReleaseApp{
-		rm:     rm,
-		logger: logger,
-	}
-}
-
-func (app *ReleaseApp) Run(ctx context.Context) error {
-	return app.rm.Run(ctx)
-}
 
 // CLI handling - CLI creates fx.App
 func main() {
@@ -58,6 +41,10 @@ func main() {
 				Aliases: []string{"d"},
 				Usage:   "Show what would be done without making changes",
 				Value:   true,
+			},
+			&cli.BoolFlag{
+				Name:    "verbose",
+				Aliases: []string{"i"},
 			},
 		},
 		Action: runRelease,
@@ -138,12 +125,7 @@ func runRelease(c *cli.Context) error {
 		Version:        c.String("set-version"),
 		VersionType:    c.String("type"),
 		Prerelease:     c.Bool("prerelease"),
-		DryRun:         c.Bool("dry-run"),
-	}
-
-	// Validate arguments
-	if cfg.Version == "" && cfg.VersionType == "" && !cfg.Prerelease {
-		return cli.Exit("Either --set-version, --type, or --prerelease (alone) must be specified", 1)
+		Verbose:        c.Bool("verbose"),
 	}
 
 	if cfg.Version != "" && cfg.VersionType != "" {
@@ -167,20 +149,11 @@ func runRelease(c *cli.Context) error {
 		}
 	}
 
-	zapc := zap.NewProductionConfig()
-	zapc.Encoding = "console"
-	logger, err := zapc.Build()
-	if err != nil {
-		return cli.Exit(fmt.Sprintf("build zap logger: %s", err), 1)
-	}
+	gitClient := git.NewGitClient(cfg.Verbose)
 
-	gitClient := git.NewGitClient(logger)
+	repo := fs.NewFileSystemClient(cfg.Verbose)
 
-	repo := fs.NewFileSystemClient(logger)
-
-	manager := release.NewReleaseManager(cfg, gitClient, repo, logger)
-
-	app := NewReleaseApp(manager, logger)
+	manager := release.NewReleaseManager(cfg, gitClient, repo, console.NewManager(os.Stdout, os.Stdin))
 
 	// Get repo root and update cfg
 	repoRoot, err := gitClient.GetRepoRoot(c.Context)
@@ -190,7 +163,10 @@ func runRelease(c *cli.Context) error {
 	cfg.RepoRoot = repoRoot
 
 	// Run the release process
-	if err := app.Run(c.Context); err != nil {
+	if err := manager.Run(c.Context); err != nil {
+		if c.Context.Err() != nil {
+			return nil
+		}
 		return cli.Exit(err.Error(), 1)
 	}
 

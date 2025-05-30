@@ -6,22 +6,21 @@ import (
 	"os"
 	"path/filepath"
 
-	"go.uber.org/zap"
 	"golang.org/x/mod/modfile"
 )
 
 // Client implements Interface
 type Client struct {
-	logger *zap.Logger
+	verbose bool
 }
 
-func NewFileSystemClient(logger *zap.Logger) *Client {
-	return &Client{logger: logger}
+func NewFileSystemClient(verbose bool) *Client {
+	return &Client{verbose: verbose}
 }
 
 // FindGoModFiles reads go.work file and returns module directories
 func (f *Client) FindGoModFiles(ctx context.Context, root string) ([]string, error) {
-	f.logger.Debug("Finding modules from go.work file", zap.String("root", root))
+	f.logDebug("Finding modules from go.work file")
 
 	workFilePath := filepath.Join(root, "go.work")
 	modules, err := f.parseGoWorkFile(workFilePath, root)
@@ -29,7 +28,7 @@ func (f *Client) FindGoModFiles(ctx context.Context, root string) ([]string, err
 		return nil, fmt.Errorf("failed to parse go.work file: %w", err)
 	}
 
-	f.logger.Debug("Found modules from go.work", zap.Int("count", len(modules)))
+	f.logDebug("Found modules from go.work: %v", modules)
 	return modules, nil
 }
 
@@ -45,10 +44,9 @@ func (f *Client) parseGoWorkFile(workFilePath, root string) ([]string, error) {
 		return nil, fmt.Errorf("failed to parse go.work file: %w", err)
 	}
 
-	var modules []string
+	modules := make([]string, 0, len(workFile.Use))
 	for _, use := range workFile.Use {
-		absPath := f.resolveModulePath(use.Path, root)
-		modules = append(modules, absPath)
+		modules = append(modules, use.Path)
 	}
 
 	return modules, nil
@@ -61,4 +59,10 @@ func (f *Client) resolveModulePath(modulePath, root string) string {
 	}
 
 	return filepath.Join(root, modulePath)
+}
+
+func (f *Client) logDebug(msg string, args ...interface{}) {
+	if f.verbose {
+		fmt.Printf("%s\n", fmt.Sprintf(msg, args...))
+	}
 }

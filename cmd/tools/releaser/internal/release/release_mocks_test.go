@@ -151,3 +151,57 @@ func (mr *MockFSMockRecorder) FindGoModFiles(ctx, root any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindGoModFiles", reflect.TypeOf((*MockFS)(nil).FindGoModFiles), ctx, root)
 }
+
+// MockUserInteraction is a mock of UserInteraction interface.
+type MockUserInteraction struct {
+	ctrl     *gomock.Controller
+	recorder *MockUserInteractionMockRecorder
+	isgomock struct{}
+}
+
+// MockUserInteractionMockRecorder is the mock recorder for MockUserInteraction.
+type MockUserInteractionMockRecorder struct {
+	mock *MockUserInteraction
+}
+
+// NewMockUserInteraction creates a new mock instance.
+func NewMockUserInteraction(ctrl *gomock.Controller) *MockUserInteraction {
+	mock := &MockUserInteraction{ctrl: ctrl}
+	mock.recorder = &MockUserInteractionMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockUserInteraction) EXPECT() *MockUserInteractionMockRecorder {
+	return m.recorder
+}
+
+// Confirm mocks base method.
+func (m *MockUserInteraction) Confirm(ctx context.Context, message string) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Confirm", ctx, message)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Confirm indicates an expected call of Confirm.
+func (mr *MockUserInteractionMockRecorder) Confirm(ctx, message any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Confirm", reflect.TypeOf((*MockUserInteraction)(nil).Confirm), ctx, message)
+}
+
+// ConfirmWithDefault mocks base method.
+func (m *MockUserInteraction) ConfirmWithDefault(ctx context.Context, message string, defaultValue bool) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ConfirmWithDefault", ctx, message, defaultValue)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ConfirmWithDefault indicates an expected call of ConfirmWithDefault.
+func (mr *MockUserInteractionMockRecorder) ConfirmWithDefault(ctx, message, defaultValue any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConfirmWithDefault", reflect.TypeOf((*MockUserInteraction)(nil).ConfirmWithDefault), ctx, message, defaultValue)
+}
