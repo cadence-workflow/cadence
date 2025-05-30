@@ -1,11 +1,13 @@
 package fs
 
 import (
+	"context"
+	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 
 	"go.uber.org/zap"
+	"golang.org/x/mod/modfile"
 )
 
 // Client implements Interface
@@ -17,47 +19,46 @@ func NewFileSystemClient(logger *zap.Logger) *Client {
 	return &Client{logger: logger}
 }
 
-func (f *Client) FindGoModFiles(root string) ([]string, error) {
-	f.logger.Debug("Finding go.mod files", zap.String("root", root))
-	var goModFiles []string
+// FindGoModFiles reads go.work file and returns module directories
+func (f *Client) FindGoModFiles(ctx context.Context, root string) ([]string, error) {
+	f.logger.Debug("Finding modules from go.work file", zap.String("root", root))
 
-	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
+	workFilePath := filepath.Join(root, "go.work")
+	modules, err := f.parseGoWorkFile(workFilePath, root)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse go.work file: %w", err)
+	}
 
-		if info.Name() == "go.mod" {
-			goModFiles = append(goModFiles, filepath.Dir(path))
-		}
-		return nil
-	})
-
-	f.logger.Debug("Found go.mod files", zap.Int("count", len(goModFiles)))
-	return goModFiles, err
+	f.logger.Debug("Found modules from go.work", zap.Int("count", len(modules)))
+	return modules, nil
 }
 
-func (f *Client) ModTidy(dir string) error {
-	f.logger.Debug("Running go mod tidy", zap.String("dir", dir))
-	cmd := exec.Command("go", "mod", "tidy")
-	cmd.Dir = dir
-	cmd.Stdout = nil
-	cmd.Stderr = nil
-	err := cmd.Run()
+// parseGoWorkFile parses the go.work file using the official modfile package
+func (f *Client) parseGoWorkFile(workFilePath, root string) ([]string, error) {
+	workFileData, err := os.ReadFile(workFilePath)
 	if err != nil {
-		f.logger.Error("go mod tidy failed", zap.String("dir", dir), zap.Error(err))
+		return nil, fmt.Errorf("failed to read go.work file: %w", err)
 	}
-	return err
+
+	workFile, err := modfile.ParseWork(workFilePath, workFileData, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse go.work file: %w", err)
+	}
+
+	var modules []string
+	for _, use := range workFile.Use {
+		absPath := f.resolveModulePath(use.Path, root)
+		modules = append(modules, absPath)
+	}
+
+	return modules, nil
 }
 
-func (f *Client) Build(dir string) error {
-	f.logger.Debug("Building Go module", zap.String("dir", dir))
-	cmd := exec.Command("go", "build", "./...")
-	cmd.Dir = dir
-	cmd.Stdout = nil
-	cmd.Stderr = nil
-	err := cmd.Run()
-	if err != nil {
-		f.logger.Error("go build failed", zap.String("dir", dir), zap.Error(err))
+// resolveModulePath converts relative path to absolute path
+func (f *Client) resolveModulePath(modulePath, root string) string {
+	if filepath.IsAbs(modulePath) {
+		return modulePath
 	}
-	return err
+
+	return filepath.Join(root, modulePath)
 }
