@@ -1,6 +1,7 @@
 package release
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"regexp"
@@ -16,18 +17,16 @@ import (
 
 // Git defines git operations for testing
 type Git interface {
-	GetCurrentBranch() (string, error)
-	GetTags() ([]string, error)
-	CreateTag(tag string) error
-	PushTag(tag string) error
-	GetRepoRoot() (string, error)
+	GetCurrentBranch(ctx context.Context) (string, error)
+	GetTags(ctx context.Context) ([]string, error)
+	CreateTag(ctx context.Context, tag string) error
+	PushTag(ctx context.Context, tag string) error
+	GetRepoRoot(ctx context.Context) (string, error)
 }
 
 // FS defines filesystem operations for testing
 type FS interface {
-	FindGoModFiles(root string) ([]string, error)
-	ModTidy(dir string) error
-	Build(dir string) error
+	FindGoModFiles(ctx context.Context, root string) ([]string, error)
 }
 
 // Config holds the release configuration
@@ -97,9 +96,9 @@ func IncrementVersion(currentVersionStr, versionType string) (string, error) {
 }
 
 // FindModules discovers all Go modules in the repository
-func (rm *Manager) FindModules() ([]Module, error) {
+func (rm *Manager) FindModules(ctx context.Context) ([]Module, error) {
 	rm.logger.Info("Discovering Go modules", zap.String("root", rm.config.RepoRoot))
-	goModPaths, err := rm.fs.FindGoModFiles(rm.config.RepoRoot)
+	goModPaths, err := rm.fs.FindGoModFiles(ctx, rm.config.RepoRoot)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find go.mod files: %w", err)
 	}
@@ -153,9 +152,9 @@ func (rm *Manager) shouldExcludeModule(relPath string) bool {
 }
 
 // GetCurrentGlobalVersion finds the highest version across all modules
-func (rm *Manager) GetCurrentGlobalVersion() (string, error) {
+func (rm *Manager) GetCurrentGlobalVersion(ctx context.Context) (string, error) {
 	rm.logger.Info("Determining current global version")
-	tags, err := rm.git.GetTags()
+	tags, err := rm.git.GetTags(ctx)
 	if err != nil {
 		return "", fmt.Errorf("failed to get git tags: %w", err)
 	}
@@ -192,7 +191,7 @@ func (rm *Manager) GetCurrentGlobalVersion() (string, error) {
 }
 
 // GetNextPrereleaseVersion generates the next prerelease version
-func (rm *Manager) GetNextPrereleaseVersion(baseVersionStr string) (string, error) {
+func (rm *Manager) GetNextPrereleaseVersion(ctx context.Context, baseVersionStr string) (string, error) {
 	rm.logger.Info("Calculating next prerelease version", zap.String("base", baseVersionStr))
 
 	// Parse base version and ensure it doesn't have prerelease suffix
@@ -204,7 +203,7 @@ func (rm *Manager) GetNextPrereleaseVersion(baseVersionStr string) (string, erro
 	// Create clean base version without prerelease
 	cleanBaseStr := fmt.Sprintf("v%d.%d.%d", baseVersion.Major(), baseVersion.Minor(), baseVersion.Patch())
 
-	tags, err := rm.git.GetTags()
+	tags, err := rm.git.GetTags(ctx)
 	if err != nil {
 		return "", fmt.Errorf("failed to get git tags: %w", err)
 	}
@@ -265,7 +264,7 @@ func (rm *Manager) GetNextPrereleaseVersion(baseVersionStr string) (string, erro
 }
 
 // CalculateNewVersion determines the new version based on configuration
-func (rm *Manager) CalculateNewVersion(currentVersionStr string) (string, error) {
+func (rm *Manager) CalculateNewVersion(ctx context.Context, currentVersionStr string) (string, error) {
 	rm.logger.Info("Calculating new version",
 		zap.String("current", currentVersionStr),
 		zap.String("type", rm.config.VersionType),
@@ -285,7 +284,7 @@ func (rm *Manager) CalculateNewVersion(currentVersionStr string) (string, error)
 		}
 
 		if rm.config.Prerelease && parsedVersion.Prerelease() == "" {
-			return rm.GetNextPrereleaseVersion(newVersion)
+			return rm.GetNextPrereleaseVersion(ctx, newVersion)
 		}
 
 		return newVersion, nil
@@ -301,10 +300,10 @@ func (rm *Manager) CalculateNewVersion(currentVersionStr string) (string, error)
 		if currentVersion.Prerelease() != "" {
 			// Extract base version from current prerelease
 			baseVersionStr := fmt.Sprintf("v%d.%d.%d", currentVersion.Major(), currentVersion.Minor(), currentVersion.Patch())
-			return rm.GetNextPrereleaseVersion(baseVersionStr)
+			return rm.GetNextPrereleaseVersion(ctx, baseVersionStr)
 		}
 		// Make first prerelease of current version
-		return rm.GetNextPrereleaseVersion(currentVersionStr)
+		return rm.GetNextPrereleaseVersion(ctx, currentVersionStr)
 	}
 
 	// Increment based on type
@@ -314,16 +313,16 @@ func (rm *Manager) CalculateNewVersion(currentVersionStr string) (string, error)
 	}
 
 	if rm.config.Prerelease {
-		return rm.GetNextPrereleaseVersion(newVersion)
+		return rm.GetNextPrereleaseVersion(ctx, newVersion)
 	}
 
 	return newVersion, nil
 }
 
 // CheckVersionExists verifies that the version doesn't already exist
-func (rm *Manager) CheckVersionExists(version string, modules []Module) error {
+func (rm *Manager) CheckVersionExists(ctx context.Context, version string, modules []Module) error {
 	rm.logger.Info("Checking if version already exists", zap.String("version", version))
-	tags, err := rm.git.GetTags()
+	tags, err := rm.git.GetTags(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get git tags: %w", err)
 	}
@@ -356,12 +355,12 @@ func (rm *Manager) CheckVersionExists(version string, modules []Module) error {
 }
 
 // ValidateEnvironment checks that we're in the right state to release
-func (rm *Manager) ValidateEnvironment() error {
+func (rm *Manager) ValidateEnvironment(ctx context.Context) error {
 	rm.logger.Info("Validating environment for release")
 
 	// Check branch
 	if rm.config.RequiredBranch != "" {
-		branch, err := rm.git.GetCurrentBranch()
+		branch, err := rm.git.GetCurrentBranch(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to get current branch: %w", err)
 		}
@@ -376,7 +375,7 @@ func (rm *Manager) ValidateEnvironment() error {
 }
 
 // CreateRelease creates releases for all modules
-func (rm *Manager) CreateRelease(modules []Module, version string) error {
+func (rm *Manager) CreateRelease(ctx context.Context, modules []Module, version string) error {
 	rm.logger.Info("Starting release creation",
 		zap.String("version", version),
 		zap.Int("modules", len(modules)))
@@ -386,7 +385,7 @@ func (rm *Manager) CreateRelease(modules []Module, version string) error {
 	var failedModules []string
 
 	for _, module := range modules {
-		if err := rm.createModuleRelease(module, version); err != nil {
+		if err := rm.createModuleRelease(ctx, module, version); err != nil {
 			failedModules = append(failedModules, module.RelativePath)
 			rm.logger.Info(rm.getTagName(module, version), zap.Error(err))
 		}
@@ -401,27 +400,18 @@ func (rm *Manager) CreateRelease(modules []Module, version string) error {
 }
 
 // createModuleRelease creates a release for a single module
-func (rm *Manager) createModuleRelease(module Module, version string) error {
+func (rm *Manager) createModuleRelease(ctx context.Context, module Module, version string) error {
 	tagName := rm.getTagName(module, version)
 	rm.logger.Info("Creating module release",
 		zap.String("module", module.RelativePath),
 		zap.String("tag", tagName))
 
-	// Build and test module
-	if err := rm.fs.ModTidy(module.Path); err != nil {
-		return fmt.Errorf("mod tidy failed: %w", err)
-	}
-
-	if err := rm.fs.Build(module.Path); err != nil {
-		return fmt.Errorf("build failed: %w", err)
-	}
-
 	// Create and push tag
-	if err := rm.git.CreateTag(tagName); err != nil {
+	if err := rm.git.CreateTag(ctx, tagName); err != nil {
 		return fmt.Errorf("failed to create tag: %w", err)
 	}
 
-	if err := rm.git.PushTag(tagName); err != nil {
+	if err := rm.git.PushTag(ctx, tagName); err != nil {
 		return fmt.Errorf("failed to push tag: %w", err)
 	}
 
@@ -438,7 +428,7 @@ func (rm *Manager) getTagName(module Module, version string) string {
 }
 
 // Run executes the release process
-func (rm *Manager) Run() error {
+func (rm *Manager) Run(ctx context.Context) error {
 	rm.logger.Info("Starting release process",
 		zap.String("version", rm.config.Version),
 		zap.String("type", rm.config.VersionType),
@@ -450,12 +440,12 @@ func (rm *Manager) Run() error {
 	}
 
 	// Validate environment
-	if err := rm.ValidateEnvironment(); err != nil {
+	if err := rm.ValidateEnvironment(ctx); err != nil {
 		return err
 	}
 
 	// Find modules
-	modules, err := rm.FindModules()
+	modules, err := rm.FindModules(ctx)
 	if err != nil {
 		return err
 	}
@@ -465,19 +455,19 @@ func (rm *Manager) Run() error {
 	}
 
 	// Get current version
-	currentVersion, err := rm.GetCurrentGlobalVersion()
+	currentVersion, err := rm.GetCurrentGlobalVersion(ctx)
 	if err != nil {
 		return err
 	}
 
 	// Calculate new version
-	newVersion, err := rm.CalculateNewVersion(currentVersion)
+	newVersion, err := rm.CalculateNewVersion(ctx, currentVersion)
 	if err != nil {
 		return err
 	}
 
 	// Check if version already exists
-	if err := rm.CheckVersionExists(newVersion, modules); err != nil {
+	if err := rm.CheckVersionExists(ctx, newVersion, modules); err != nil {
 		return err
 	}
 
@@ -494,7 +484,7 @@ func (rm *Manager) Run() error {
 	}
 
 	// Create releases
-	if err := rm.CreateRelease(modules, newVersion); err != nil {
+	if err := rm.CreateRelease(ctx, modules, newVersion); err != nil {
 		return err
 	}
 

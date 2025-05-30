@@ -1,16 +1,17 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"os/signal"
 
 	"github.com/urfave/cli/v2"
 	"go.uber.org/zap"
 
-	fs2 "github.com/uber/cadence/cmd/tools/releaser/internal/fs"
-	git2 "github.com/uber/cadence/cmd/tools/releaser/internal/git"
+	"github.com/uber/cadence/cmd/tools/releaser/internal/fs"
+	"github.com/uber/cadence/cmd/tools/releaser/internal/git"
 	"github.com/uber/cadence/cmd/tools/releaser/internal/release"
-	"github.com/uber/cadence/common/config"
 )
 
 // ReleaseApp represents the main application
@@ -26,8 +27,8 @@ func NewReleaseApp(rm *release.Manager, logger *zap.Logger) *ReleaseApp {
 	}
 }
 
-func (app *ReleaseApp) Run() error {
-	return app.rm.Run()
+func (app *ReleaseApp) Run(ctx context.Context) error {
+	return app.rm.Run(ctx)
 }
 
 // CLI handling - CLI creates fx.App
@@ -120,8 +121,11 @@ COMMANDS:
 `,
 	}
 
-	if err := cliApp.Run(os.Args); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+
+	if err := cliApp.RunContext(ctx, os.Args); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 }
@@ -163,29 +167,30 @@ func runRelease(c *cli.Context) error {
 		}
 	}
 
-	loggerCfg := &config.Logger{Encoding: "console"}
-	logger, err := loggerCfg.NewZapLogger()
+	zapc := zap.NewProductionConfig()
+	zapc.Encoding = "console"
+	logger, err := zapc.Build()
 	if err != nil {
-		return fmt.Errorf("cannot create zap logger: %v", err)
+		return cli.Exit(fmt.Sprintf("build zap logger: %s", err), 1)
 	}
 
-	gitClient := git2.NewGitClient(logger)
+	gitClient := git.NewGitClient(logger)
 
-	repo := fs2.NewFileSystemClient(logger)
+	repo := fs.NewFileSystemClient(logger)
 
 	manager := release.NewReleaseManager(cfg, gitClient, repo, logger)
 
 	app := NewReleaseApp(manager, logger)
 
 	// Get repo root and update cfg
-	repoRoot, err := gitClient.GetRepoRoot()
+	repoRoot, err := gitClient.GetRepoRoot(c.Context)
 	if err != nil {
 		return cli.Exit(fmt.Sprintf("Failed to get repository root: %v", err), 1)
 	}
 	cfg.RepoRoot = repoRoot
 
 	// Run the release process
-	if err := app.Run(); err != nil {
+	if err := app.Run(c.Context); err != nil {
 		return cli.Exit(err.Error(), 1)
 	}
 

@@ -1,6 +1,7 @@
 package release
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"testing"
@@ -169,12 +170,12 @@ func TestManager_FindModules(t *testing.T) {
 			manager, _, mockFS := createTestManager(t, config)
 
 			if tt.expectError {
-				mockFS.EXPECT().FindGoModFiles("/repo").Return(nil, fmt.Errorf("fs error"))
+				mockFS.EXPECT().FindGoModFiles(gomock.Any(), "/repo").Return(nil, fmt.Errorf("fs error"))
 			} else {
-				mockFS.EXPECT().FindGoModFiles("/repo").Return(tt.goModFiles, nil)
+				mockFS.EXPECT().FindGoModFiles(gomock.Any(), "/repo").Return(tt.goModFiles, nil)
 			}
 
-			modules, err := manager.FindModules()
+			modules, err := manager.FindModules(context.Background())
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -245,12 +246,12 @@ func TestManager_GetCurrentGlobalVersion(t *testing.T) {
 			manager, mockGit, _ := createTestManager(t, config)
 
 			if tt.expectError {
-				mockGit.EXPECT().GetTags().Return(nil, fmt.Errorf("git error"))
+				mockGit.EXPECT().GetTags(gomock.Any()).Return(nil, fmt.Errorf("git error"))
 			} else {
-				mockGit.EXPECT().GetTags().Return(tt.tags, nil)
+				mockGit.EXPECT().GetTags(gomock.Any()).Return(tt.tags, nil)
 			}
 
-			version, err := manager.GetCurrentGlobalVersion()
+			version, err := manager.GetCurrentGlobalVersion(context.Background())
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -326,9 +327,9 @@ func TestManager_GetNextPrereleaseVersion(t *testing.T) {
 
 			manager := NewReleaseManager(config, mockGit, mockFS, logger)
 
-			mockGit.EXPECT().GetTags().Return(tt.existingTags, nil).AnyTimes()
+			mockGit.EXPECT().GetTags(gomock.Any()).Return(tt.existingTags, nil).AnyTimes()
 
-			version, err := manager.GetNextPrereleaseVersion(tt.baseVersion)
+			version, err := manager.GetNextPrereleaseVersion(context.Background(), tt.baseVersion)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -424,10 +425,10 @@ func TestManager_CalculateNewVersion(t *testing.T) {
 			manager := NewReleaseManager(tt.config, mockGit, mockFS, logger)
 
 			if tt.config.Prerelease || tt.config.VersionType == "prerelease-only" {
-				mockGit.EXPECT().GetTags().Return(tt.existingTags, nil).AnyTimes()
+				mockGit.EXPECT().GetTags(gomock.Any()).Return(tt.existingTags, nil).AnyTimes()
 			}
 
-			version, err := manager.CalculateNewVersion(tt.current)
+			version, err := manager.CalculateNewVersion(context.Background(), tt.current)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -478,10 +479,10 @@ func TestManager_ValidateEnvironment(t *testing.T) {
 			manager, mockGit, _ := createTestManager(t, tt.config)
 
 			if tt.config.RequiredBranch != "" {
-				mockGit.EXPECT().GetCurrentBranch().Return(tt.currentBranch, tt.branchError)
+				mockGit.EXPECT().GetCurrentBranch(gomock.Any()).Return(tt.currentBranch, tt.branchError)
 			}
 
-			err := manager.ValidateEnvironment()
+			err := manager.ValidateEnvironment(context.Background())
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -535,9 +536,9 @@ func TestManager_CheckVersionExists(t *testing.T) {
 			config := &Config{RepoRoot: "/repo"}
 			manager, mockGit, _ := createTestManager(t, config)
 
-			mockGit.EXPECT().GetTags().Return(tt.existingTags, nil)
+			mockGit.EXPECT().GetTags(gomock.Any()).Return(tt.existingTags, nil)
 
-			err := manager.CheckVersionExists(tt.version, tt.modules)
+			err := manager.CheckVersionExists(context.Background(), tt.version, tt.modules)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -555,8 +556,6 @@ func TestManager_CreateRelease(t *testing.T) {
 		modules     []Module
 		version     string
 		expectError bool
-		modTidyErr  bool
-		buildErr    bool
 		tagErr      bool
 		pushErr     bool
 	}{
@@ -567,24 +566,6 @@ func TestManager_CreateRelease(t *testing.T) {
 				{Path: "/repo/service1", RelativePath: "service1"},
 			},
 			version: "v1.2.4",
-		},
-		{
-			name: "mod tidy failure",
-			modules: []Module{
-				{Path: "/repo", RelativePath: ""},
-			},
-			version:     "v1.2.4",
-			modTidyErr:  true,
-			expectError: true,
-		},
-		{
-			name: "build failure",
-			modules: []Module{
-				{Path: "/repo", RelativePath: ""},
-			},
-			version:     "v1.2.4",
-			buildErr:    true,
-			expectError: true,
 		},
 		{
 			name: "tag creation failure",
@@ -609,7 +590,7 @@ func TestManager_CreateRelease(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			config := &Config{RepoRoot: "/repo"}
-			manager, mockGit, mockFS := createTestManager(t, config)
+			manager, mockGit, _ := createTestManager(t, config)
 
 			for _, module := range tt.modules {
 				expectedTag := tt.version
@@ -617,32 +598,20 @@ func TestManager_CreateRelease(t *testing.T) {
 					expectedTag = module.RelativePath + "/" + tt.version
 				}
 
-				if tt.modTidyErr {
-					mockFS.EXPECT().ModTidy(module.Path).Return(fmt.Errorf("mod tidy error"))
+				if tt.tagErr {
+					mockGit.EXPECT().CreateTag(gomock.Any(), expectedTag).Return(fmt.Errorf("tag error"))
 				} else {
-					mockFS.EXPECT().ModTidy(module.Path).Return(nil)
+					mockGit.EXPECT().CreateTag(gomock.Any(), expectedTag).Return(nil)
 
-					if tt.buildErr {
-						mockFS.EXPECT().Build(module.Path).Return(fmt.Errorf("build error"))
+					if tt.pushErr {
+						mockGit.EXPECT().PushTag(gomock.Any(), expectedTag).Return(fmt.Errorf("push error"))
 					} else {
-						mockFS.EXPECT().Build(module.Path).Return(nil)
-
-						if tt.tagErr {
-							mockGit.EXPECT().CreateTag(expectedTag).Return(fmt.Errorf("tag error"))
-						} else {
-							mockGit.EXPECT().CreateTag(expectedTag).Return(nil)
-
-							if tt.pushErr {
-								mockGit.EXPECT().PushTag(expectedTag).Return(fmt.Errorf("push error"))
-							} else {
-								mockGit.EXPECT().PushTag(expectedTag).Return(nil)
-							}
-						}
+						mockGit.EXPECT().PushTag(gomock.Any(), expectedTag).Return(nil)
 					}
 				}
 			}
 
-			err := manager.CreateRelease(tt.modules, tt.version)
+			err := manager.CreateRelease(context.Background(), tt.modules, tt.version)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -664,35 +633,37 @@ func TestCadenceWorkflowCycle(t *testing.T) {
 
 	manager, mockGit, mockFS := createTestManager(t, config)
 
+	ctx := context.Background()
+
 	// Setup mock expectations for the workflow cycle
 	goModFiles := []string{"/repo/go.mod", "/repo/workflows/go.mod"}
-	mockFS.EXPECT().FindGoModFiles("/repo").Return(goModFiles, nil)
+	mockFS.EXPECT().FindGoModFiles(gomock.Any(), "/repo").Return(goModFiles, nil)
 
 	// Step 1: Start with v1.2.0, create first prerelease
-	mockGit.EXPECT().GetTags().Return([]string{"v1.2.0", "workflows/v1.2.0"}, nil).AnyTimes()
-	mockGit.EXPECT().GetCurrentBranch().Return("main", nil)
+	mockGit.EXPECT().GetTags(gomock.Any()).Return([]string{"v1.2.0", "workflows/v1.2.0"}, nil).AnyTimes()
+	mockGit.EXPECT().GetCurrentBranch(gomock.Any()).Return("main", nil)
 
 	// Find modules
-	foundModules, err := manager.FindModules()
+	foundModules, err := manager.FindModules(ctx)
 	require.NoError(t, err)
 	assert.Len(t, foundModules, 2)
 
 	// Get current version
-	currentVersion, err := manager.GetCurrentGlobalVersion()
+	currentVersion, err := manager.GetCurrentGlobalVersion(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, "v1.2.0", currentVersion)
 
 	// Calculate new version (v1.3.0-prerelease01)
-	newVersion, err := manager.CalculateNewVersion(currentVersion)
+	newVersion, err := manager.CalculateNewVersion(ctx, currentVersion)
 	require.NoError(t, err)
 	assert.Equal(t, "v1.3.0-prerelease01", newVersion)
 
 	// Validate environment
-	err = manager.ValidateEnvironment()
+	err = manager.ValidateEnvironment(ctx)
 	require.NoError(t, err)
 
 	// Check version doesn't exist
-	err = manager.CheckVersionExists(newVersion, foundModules)
+	err = manager.CheckVersionExists(ctx, newVersion, foundModules)
 	require.NoError(t, err)
 
 	t.Logf("Cadence workflow cycle test completed: %s -> %s", currentVersion, newVersion)
@@ -723,15 +694,15 @@ func TestManager_Run_DryRun(t *testing.T) {
 	manager, mockGit, mockFS := createTestManager(t, config)
 
 	// Setup expectations
-	mockGit.EXPECT().GetCurrentBranch().Return("main", nil)
+	mockGit.EXPECT().GetCurrentBranch(gomock.Any()).Return("main", nil)
 	// No working dir check in dry run
 
 	goModFiles := []string{"/repo/go.mod"}
-	mockFS.EXPECT().FindGoModFiles("/repo").Return(goModFiles, nil)
+	mockFS.EXPECT().FindGoModFiles(gomock.Any(), "/repo").Return(goModFiles, nil)
 
-	mockGit.EXPECT().GetTags().Return([]string{"v1.2.3"}, nil).AnyTimes()
+	mockGit.EXPECT().GetTags(gomock.Any()).Return([]string{"v1.2.3"}, nil).AnyTimes()
 
-	err := manager.Run()
+	err := manager.Run(context.Background())
 	assert.NoError(t, err)
 }
 
@@ -747,21 +718,19 @@ func TestManager_Run_Success(t *testing.T) {
 	manager, mockGit, mockFS := createTestManager(t, config)
 
 	// Setup expectations for full run
-	mockGit.EXPECT().GetCurrentBranch().Return("main", nil)
+	mockGit.EXPECT().GetCurrentBranch(gomock.Any()).Return("main", nil)
 
 	goModFiles := []string{"/repo/go.mod"}
-	mockFS.EXPECT().FindGoModFiles("/repo").Return(goModFiles, nil)
+	mockFS.EXPECT().FindGoModFiles(gomock.Any(), "/repo").Return(goModFiles, nil)
 
-	mockGit.EXPECT().GetTags().Return([]string{"v1.2.3"}, nil)
-	mockGit.EXPECT().GetTags().Return([]string{"v1.2.3"}, nil)
+	mockGit.EXPECT().GetTags(gomock.Any()).Return([]string{"v1.2.3"}, nil)
+	mockGit.EXPECT().GetTags(gomock.Any()).Return([]string{"v1.2.3"}, nil)
 
 	// Release creation expectations
-	mockFS.EXPECT().ModTidy("/repo/go.mod").Return(nil)
-	mockFS.EXPECT().Build("/repo/go.mod").Return(nil)
-	mockGit.EXPECT().CreateTag("go.mod/v1.2.4").Return(nil)
-	mockGit.EXPECT().PushTag("go.mod/v1.2.4").Return(nil)
+	mockGit.EXPECT().CreateTag(gomock.Any(), "go.mod/v1.2.4").Return(nil)
+	mockGit.EXPECT().PushTag(gomock.Any(), "go.mod/v1.2.4").Return(nil)
 
-	err := manager.Run()
+	err := manager.Run(context.Background())
 	assert.NoError(t, err)
 }
 
@@ -772,9 +741,9 @@ func TestManager_GetNextPrereleaseVersion_MaxNumber(t *testing.T) {
 
 	// Setup tags with prerelease99
 	existingTags := []string{"v1.2.3-prerelease99"}
-	mockGit.EXPECT().GetTags().Return(existingTags, nil)
+	mockGit.EXPECT().GetTags(gomock.Any()).Return(existingTags, nil)
 
-	version, err := manager.GetNextPrereleaseVersion("v1.2.3")
+	version, err := manager.GetNextPrereleaseVersion(context.Background(), "v1.2.3")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "maximum prerelease number (99) exceeded")
 	assert.Empty(t, version)

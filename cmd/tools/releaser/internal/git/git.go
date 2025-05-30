@@ -2,6 +2,7 @@ package git
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -18,9 +19,9 @@ func NewGitClient(logger *zap.Logger) *Client {
 	return &Client{logger: logger}
 }
 
-func (g *Client) GetCurrentBranch() (string, error) {
+func (g *Client) GetCurrentBranch(ctx context.Context) (string, error) {
 	g.logger.Debug("Getting current git branch")
-	cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
+	cmd := exec.CommandContext(ctx, "git", "rev-parse", "--abbrev-ref", "HEAD")
 	output, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("get current branch: %w", err)
@@ -30,9 +31,9 @@ func (g *Client) GetCurrentBranch() (string, error) {
 	return branch, nil
 }
 
-func (g *Client) GetTags() ([]string, error) {
+func (g *Client) GetTags(ctx context.Context) ([]string, error) {
 	g.logger.Debug("Fetching git tags")
-	cmd := exec.Command("git", "tag", "-l")
+	cmd := exec.CommandContext(ctx, "git", "tag", "-l")
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("get git tags: %w", err)
@@ -49,9 +50,9 @@ func (g *Client) GetTags() ([]string, error) {
 	return tags, scanner.Err()
 }
 
-func (g *Client) CreateTag(tag string) error {
+func (g *Client) CreateTag(ctx context.Context, tag string) error {
 	g.logger.Info("Creating git tag", zap.String("tag", tag))
-	cmd := exec.Command("git", "tag", tag)
+	cmd := exec.CommandContext(ctx, "git", "tag", tag)
 	err := cmd.Run()
 	if err != nil {
 		return fmt.Errorf("create tag %s: %w", tag, err)
@@ -59,9 +60,9 @@ func (g *Client) CreateTag(tag string) error {
 	return err
 }
 
-func (g *Client) PushTag(tag string) error {
+func (g *Client) PushTag(ctx context.Context, tag string) error {
 	g.logger.Info("Pushing git tag", zap.String("tag", tag))
-	cmd := exec.Command("git", "push", "origin", tag)
+	cmd := exec.CommandContext(ctx, "git", "push", "origin", tag)
 	err := cmd.Run()
 	if err != nil {
 		return fmt.Errorf("push tag %s: %w", tag, err)
@@ -69,9 +70,9 @@ func (g *Client) PushTag(tag string) error {
 	return err
 }
 
-func (g *Client) GetRepoRoot() (string, error) {
+func (g *Client) GetRepoRoot(ctx context.Context) (string, error) {
 	g.logger.Debug("Getting repository root")
-	cmd := exec.Command("git", "rev-parse", "--show-toplevel")
+	cmd := exec.CommandContext(ctx, "git", "rev-parse", "--show-toplevel")
 	output, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("get repository root: %w", err)

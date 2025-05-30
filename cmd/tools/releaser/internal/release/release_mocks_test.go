@@ -10,6 +10,7 @@
 package release
 
 import (
+	context "context"
 	reflect "reflect"
 
 	gomock "go.uber.org/mock/gomock"
@@ -40,76 +41,76 @@ func (m *MockGit) EXPECT() *MockGitMockRecorder {
 }
 
 // CreateTag mocks base method.
-func (m *MockGit) CreateTag(tag string) error {
+func (m *MockGit) CreateTag(ctx context.Context, tag string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateTag", tag)
+	ret := m.ctrl.Call(m, "CreateTag", ctx, tag)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // CreateTag indicates an expected call of CreateTag.
-func (mr *MockGitMockRecorder) CreateTag(tag any) *gomock.Call {
+func (mr *MockGitMockRecorder) CreateTag(ctx, tag any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateTag", reflect.TypeOf((*MockGit)(nil).CreateTag), tag)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateTag", reflect.TypeOf((*MockGit)(nil).CreateTag), ctx, tag)
 }
 
 // GetCurrentBranch mocks base method.
-func (m *MockGit) GetCurrentBranch() (string, error) {
+func (m *MockGit) GetCurrentBranch(ctx context.Context) (string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetCurrentBranch")
+	ret := m.ctrl.Call(m, "GetCurrentBranch", ctx)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetCurrentBranch indicates an expected call of GetCurrentBranch.
-func (mr *MockGitMockRecorder) GetCurrentBranch() *gomock.Call {
+func (mr *MockGitMockRecorder) GetCurrentBranch(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCurrentBranch", reflect.TypeOf((*MockGit)(nil).GetCurrentBranch))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCurrentBranch", reflect.TypeOf((*MockGit)(nil).GetCurrentBranch), ctx)
 }
 
 // GetRepoRoot mocks base method.
-func (m *MockGit) GetRepoRoot() (string, error) {
+func (m *MockGit) GetRepoRoot(ctx context.Context) (string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetRepoRoot")
+	ret := m.ctrl.Call(m, "GetRepoRoot", ctx)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetRepoRoot indicates an expected call of GetRepoRoot.
-func (mr *MockGitMockRecorder) GetRepoRoot() *gomock.Call {
+func (mr *MockGitMockRecorder) GetRepoRoot(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRepoRoot", reflect.TypeOf((*MockGit)(nil).GetRepoRoot))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRepoRoot", reflect.TypeOf((*MockGit)(nil).GetRepoRoot), ctx)
 }
 
 // GetTags mocks base method.
-func (m *MockGit) GetTags() ([]string, error) {
+func (m *MockGit) GetTags(ctx context.Context) ([]string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTags")
+	ret := m.ctrl.Call(m, "GetTags", ctx)
 	ret0, _ := ret[0].([]string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetTags indicates an expected call of GetTags.
-func (mr *MockGitMockRecorder) GetTags() *gomock.Call {
+func (mr *MockGitMockRecorder) GetTags(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTags", reflect.TypeOf((*MockGit)(nil).GetTags))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTags", reflect.TypeOf((*MockGit)(nil).GetTags), ctx)
 }
 
 // PushTag mocks base method.
-func (m *MockGit) PushTag(tag string) error {
+func (m *MockGit) PushTag(ctx context.Context, tag string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PushTag", tag)
+	ret := m.ctrl.Call(m, "PushTag", ctx, tag)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // PushTag indicates an expected call of PushTag.
-func (mr *MockGitMockRecorder) PushTag(tag any) *gomock.Call {
+func (mr *MockGitMockRecorder) PushTag(ctx, tag any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PushTag", reflect.TypeOf((*MockGit)(nil).PushTag), tag)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PushTag", reflect.TypeOf((*MockGit)(nil).PushTag), ctx, tag)
 }
 
 // MockFS is a mock of FS interface.
@@ -136,45 +137,17 @@ func (m *MockFS) EXPECT() *MockFSMockRecorder {
 	return m.recorder
 }
 
-// Build mocks base method.
-func (m *MockFS) Build(dir string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Build", dir)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Build indicates an expected call of Build.
-func (mr *MockFSMockRecorder) Build(dir any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Build", reflect.TypeOf((*MockFS)(nil).Build), dir)
-}
-
 // FindGoModFiles mocks base method.
-func (m *MockFS) FindGoModFiles(root string) ([]string, error) {
+func (m *MockFS) FindGoModFiles(ctx context.Context, root string) ([]string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindGoModFiles", root)
+	ret := m.ctrl.Call(m, "FindGoModFiles", ctx, root)
 	ret0, _ := ret[0].([]string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FindGoModFiles indicates an expected call of FindGoModFiles.
-func (mr *MockFSMockRecorder) FindGoModFiles(root any) *gomock.Call {
+func (mr *MockFSMockRecorder) FindGoModFiles(ctx, root any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindGoModFiles", reflect.TypeOf((*MockFS)(nil).FindGoModFiles), root)
-}
-
-// ModTidy mocks base method.
-func (m *MockFS) ModTidy(dir string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ModTidy", dir)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// ModTidy indicates an expected call of ModTidy.
-func (mr *MockFSMockRecorder) ModTidy(dir any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ModTidy", reflect.TypeOf((*MockFS)(nil).ModTidy), dir)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindGoModFiles", reflect.TypeOf((*MockFS)(nil).FindGoModFiles), ctx, root)
 }
