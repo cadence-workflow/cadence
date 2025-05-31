@@ -121,6 +121,9 @@ jobs:
           timeout_minutes: 25
           command: |
             make cover_integration_profile
+      
+      - name: Start required services
+        run: docker compose -f docker/github_actions/docker-compose.yml up -d cassandra kafka elasticsearch
 
       - name: Run docker compose integration test cassandra
         run: docker compose -f docker/github_actions/docker-compose.yml run integration-test-cassandra
