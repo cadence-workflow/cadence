@@ -108,7 +108,6 @@ func (w *dw) getWorkflowExecutionHistory(ctx context.Context, execution *types.W
 		}
 
 		nextPageToken = response.NextPageToken
-		time.Sleep(10 * time.Millisecond) // to prevent hitting rate limits
 	}
 }
 
