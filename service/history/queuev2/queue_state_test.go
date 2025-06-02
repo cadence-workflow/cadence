@@ -92,27 +92,11 @@ func TestVirtualSliceState_TrySplitByTaskKey(t *testing.T) {
 		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 10), 100),
 	}, split2.Range)
 
-	split1, split2, ok = state.TrySplitByTaskKey(persistence.NewHistoryTaskKey(time.Unix(0, 10), 100))
-	assert.True(t, ok)
-	assert.Equal(t, Range{
-		InclusiveMinTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 1), 0),
-		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 10), 100),
-	}, split1.Range)
-	assert.Equal(t, Range{
-		InclusiveMinTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 10), 100),
-		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 10), 100),
-	}, split2.Range)
+	_, _, ok = state.TrySplitByTaskKey(persistence.NewHistoryTaskKey(time.Unix(0, 10), 100))
+	assert.False(t, ok)
 
-	split1, split2, ok = state.TrySplitByTaskKey(persistence.NewHistoryTaskKey(time.Unix(0, 1), 0))
-	assert.True(t, ok)
-	assert.Equal(t, Range{
-		InclusiveMinTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 1), 0),
-		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 1), 0),
-	}, split1.Range)
-	assert.Equal(t, Range{
-		InclusiveMinTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 1), 0),
-		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 10), 100),
-	}, split2.Range)
+	_, _, ok = state.TrySplitByTaskKey(persistence.NewHistoryTaskKey(time.Unix(0, 1), 0))
+	assert.False(t, ok)
 
 	_, _, ok = state.TrySplitByTaskKey(persistence.NewHistoryTaskKey(time.Unix(0, 11), 100))
 	assert.False(t, ok)

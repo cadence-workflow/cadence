@@ -55,6 +55,20 @@ func (mr *MockPredicateMockRecorder) Check(task any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Check", reflect.TypeOf((*MockPredicate)(nil).Check), task)
 }
 
+// Equals mocks base method.
+func (m *MockPredicate) Equals(other Predicate) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Equals", other)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Equals indicates an expected call of Equals.
+func (mr *MockPredicateMockRecorder) Equals(other any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Equals", reflect.TypeOf((*MockPredicate)(nil).Equals), other)
+}
+
 // IsEmpty mocks base method.
 func (m *MockPredicate) IsEmpty() bool {
 	m.ctrl.T.Helper()

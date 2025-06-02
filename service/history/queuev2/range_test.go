@@ -179,9 +179,9 @@ func TestRange_CanSplitByTaskKey(t *testing.T) {
 		InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
 		ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
 	}
-	assert.True(t, r.CanSplitByTaskKey(persistence.NewImmediateTaskKey(1)))
 	assert.True(t, r.CanSplitByTaskKey(persistence.NewImmediateTaskKey(5)))
-	assert.True(t, r.CanSplitByTaskKey(persistence.NewImmediateTaskKey(10)))
+	assert.False(t, r.CanSplitByTaskKey(persistence.NewImmediateTaskKey(1)))
+	assert.False(t, r.CanSplitByTaskKey(persistence.NewImmediateTaskKey(10)))
 	assert.False(t, r.CanSplitByTaskKey(persistence.NewImmediateTaskKey(0)))
 	assert.False(t, r.CanSplitByTaskKey(persistence.NewImmediateTaskKey(11)))
 
@@ -189,9 +189,9 @@ func TestRange_CanSplitByTaskKey(t *testing.T) {
 		InclusiveMinTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 1), 0),
 		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 10), 100),
 	}
-	assert.True(t, r.CanSplitByTaskKey(persistence.NewHistoryTaskKey(time.Unix(0, 1), 0)))
 	assert.True(t, r.CanSplitByTaskKey(persistence.NewHistoryTaskKey(time.Unix(0, 5), 100)))
-	assert.True(t, r.CanSplitByTaskKey(persistence.NewHistoryTaskKey(time.Unix(0, 10), 100)))
+	assert.False(t, r.CanSplitByTaskKey(persistence.NewHistoryTaskKey(time.Unix(0, 1), 0)))
+	assert.False(t, r.CanSplitByTaskKey(persistence.NewHistoryTaskKey(time.Unix(0, 10), 100)))
 	assert.False(t, r.CanSplitByTaskKey(persistence.NewHistoryTaskKey(time.Unix(0, 0), 0)))
 	assert.False(t, r.CanSplitByTaskKey(persistence.NewHistoryTaskKey(time.Unix(0, 10), 101)))
 }

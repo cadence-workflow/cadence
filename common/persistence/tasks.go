@@ -53,7 +53,7 @@ type Task interface {
 }
 
 var (
-	MaxHistoryTaskKey = HistoryTaskKey{
+	MaximumHistoryTaskKey = HistoryTaskKey{
 		scheduledTime: time.Unix(0, math.MaxInt64),
 		taskID:        math.MaxInt64,
 	}
@@ -311,8 +311,28 @@ func (a HistoryTaskKey) MarshalJSON() ([]byte, error) {
 	})
 }
 
+func (a HistoryTaskKey) Next() HistoryTaskKey {
+	if a.taskID == math.MaxInt64 {
+		return HistoryTaskKey{
+			scheduledTime: a.scheduledTime.Add(time.Nanosecond),
+			taskID:        0,
+		}
+	}
+	return HistoryTaskKey{
+		scheduledTime: a.scheduledTime,
+		taskID:        a.taskID + 1,
+	}
+}
+
 func MinHistoryTaskKey(a, b HistoryTaskKey) HistoryTaskKey {
 	if a.Compare(b) < 0 {
+		return a
+	}
+	return b
+}
+
+func MaxHistoryTaskKey(a, b HistoryTaskKey) HistoryTaskKey {
+	if a.Compare(b) > 0 {
 		return a
 	}
 	return b

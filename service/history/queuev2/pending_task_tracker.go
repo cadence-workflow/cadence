@@ -20,6 +20,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+//go:generate mockgen -package $GOPACKAGE -destination pending_task_tracker_mock.go github.com/uber/cadence/service/history/queuev2 PendingTaskTracker
 package queuev2
 
 import (
@@ -35,7 +36,7 @@ type (
 		AddTask(task.Task)
 		// PruneAckedTasks prunes the acked tasks from the pending task tracker.
 		PruneAckedTasks()
-		// GetMinimumTaskKey returns the minimum task key in the pending task tracker, if there are no pending tasks, it returns MaxHistoryTaskKey.
+		// GetMinimumTaskKey returns the minimum task key in the pending task tracker, if there are no pending tasks, it returns MaximumHistoryTaskKey.
 		GetMinimumTaskKey() (persistence.HistoryTaskKey, bool)
 		// GetTasks returns all the tasks in the pending task tracker, the result should be read-only.
 		GetTasks() map[persistence.HistoryTaskKey]task.Task
@@ -65,7 +66,7 @@ func (t *pendingTaskTrackerImpl) AddTask(task task.Task) {
 
 func (t *pendingTaskTrackerImpl) GetMinimumTaskKey() (persistence.HistoryTaskKey, bool) {
 	if len(t.taskMap) == 0 {
-		return persistence.MaxHistoryTaskKey, false
+		return persistence.MaximumHistoryTaskKey, false
 	}
 	return t.minTaskKey, true
 }
@@ -75,7 +76,7 @@ func (t *pendingTaskTrackerImpl) GetTasks() map[persistence.HistoryTaskKey]task.
 }
 
 func (t *pendingTaskTrackerImpl) PruneAckedTasks() {
-	minTaskKey := persistence.MaxHistoryTaskKey
+	minTaskKey := persistence.MaximumHistoryTaskKey
 	for key, task := range t.taskMap {
 		if task.State() == ctask.TaskStateAcked {
 			delete(t.taskMap, key)

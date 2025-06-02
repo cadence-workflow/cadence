@@ -47,7 +47,6 @@ func (r *Range) CanMerge(other Range) bool {
 	return r.InclusiveMinTaskKey.Compare(other.ExclusiveMaxTaskKey) <= 0 && r.ExclusiveMaxTaskKey.Compare(other.InclusiveMinTaskKey) >= 0
 }
 
-// TODO: review this to figure out whether we should allow exclusive max task key
 func (r *Range) CanSplitByTaskKey(taskKey persistence.HistoryTaskKey) bool {
-	return r.Contains(taskKey) || r.ExclusiveMaxTaskKey.Compare(taskKey) == 0
+	return taskKey.Compare(r.InclusiveMinTaskKey) > 0 && taskKey.Compare(r.ExclusiveMaxTaskKey) < 0
 }

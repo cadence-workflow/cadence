@@ -33,6 +33,8 @@ type (
 		IsEmpty() bool
 		// Check returns true if the task satisfies the predicate
 		Check(task persistence.Task) bool
+		// Equals returns true if the predicate is the same as the other predicate
+		Equals(other Predicate) bool
 	}
 
 	universalPredicate struct{}
@@ -48,4 +50,9 @@ func (p *universalPredicate) IsEmpty() bool {
 
 func (p *universalPredicate) Check(task persistence.Task) bool {
 	return true
+}
+
+func (p *universalPredicate) Equals(other Predicate) bool {
+	_, ok := other.(*universalPredicate)
+	return ok
 }

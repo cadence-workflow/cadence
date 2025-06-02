@@ -25,7 +25,7 @@ func TestPendingTaskTracker(t *testing.T) {
 		{
 			name:          "empty tracker",
 			setupTasks:    func(ctrl *gomock.Controller) []*task.MockTask { return []*task.MockTask{} },
-			wantMinKey:    persistence.MaxHistoryTaskKey,
+			wantMinKey:    persistence.MaximumHistoryTaskKey,
 			wantHasMinKey: false,
 			wantTaskCount: 0,
 		},
@@ -98,7 +98,7 @@ func TestPendingTaskTracker(t *testing.T) {
 				return []*task.MockTask{task1, task2}
 			},
 			pruneAcked:    true,
-			wantMinKey:    persistence.MaxHistoryTaskKey,
+			wantMinKey:    persistence.MaximumHistoryTaskKey,
 			wantHasMinKey: false,
 			wantTaskCount: 0,
 		},
