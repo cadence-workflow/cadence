@@ -184,8 +184,13 @@ func printErr(err error, to io.Writer) (writeErr error) {
 func Problem(msg string, err error) error {
 	if err != nil && strings.Contains(err.Error(), "Request unauthorized") {
 		msg = fmt.Sprintf("%s. Ensure the domain and cluster are correct.", msg)
+		errorHelp()
 	}
 	return &printableErr{msg, err}
+}
+
+func errorHelp () {
+	//to be overridden
 }
 
 type printableErr struct {
