@@ -233,13 +233,13 @@ func NewContext(
 			return appendHistoryV2EventsWithRetry(ctx, shard, common.CreatePersistenceRetryPolicy(), domainID, workflowExecution, request)
 		},
 		getWorkflowExecutionFn: func(ctx context.Context, request *persistence.GetWorkflowExecutionRequest) (*persistence.GetWorkflowExecutionResponse, error) {
-			return getWorkflowExecutionWithRetry(ctx, shard, logger, common.CreatePersistenceRetryPolicy(), request)
+			return getWorkflowExecutionWithRetry(ctx, shard, logger.Helper(), common.CreatePersistenceRetryPolicy(), request)
 		},
 		createWorkflowExecutionFn: func(ctx context.Context, request *persistence.CreateWorkflowExecutionRequest) (*persistence.CreateWorkflowExecutionResponse, error) {
-			return createWorkflowExecutionWithRetry(ctx, shard, logger, common.CreatePersistenceRetryPolicy(), request)
+			return createWorkflowExecutionWithRetry(ctx, shard, logger.Helper(), common.CreatePersistenceRetryPolicy(), request)
 		},
 		updateWorkflowExecutionFn: func(ctx context.Context, request *persistence.UpdateWorkflowExecutionRequest) (*persistence.UpdateWorkflowExecutionResponse, error) {
-			return updateWorkflowExecutionWithRetry(ctx, shard, logger, common.CreatePersistenceRetryPolicy(), request)
+			return updateWorkflowExecutionWithRetry(ctx, shard, logger.Helper(), common.CreatePersistenceRetryPolicy(), request)
 		},
 		notifyTasksFromWorkflowSnapshotFn: func(snapshot *persistence.WorkflowSnapshot, blobs events.PersistedBlobs, persistentError bool) {
 			notifyTasksFromWorkflowSnapshot(shard.GetEngine(), snapshot, blobs, persistentError)
@@ -254,7 +254,7 @@ func NewContext(
 			emitWorkflowHistoryStats(shard.GetMetricsClient(), domainName, historySize, eventCount)
 		},
 		emitWorkflowCompletionStatsFn: func(domainName, workflowType, workflowID, runID, taskList string, event *types.HistoryEvent) {
-			emitWorkflowCompletionStats(shard.GetMetricsClient(), logger, domainName, workflowType, workflowID, runID, taskList, event)
+			emitWorkflowCompletionStats(shard.GetMetricsClient(), logger.Helper(), domainName, workflowType, workflowID, runID, taskList, event)
 		},
 		emitWorkflowExecutionStatsFn: func(domainName string, stats *persistence.MutableStateStats, historySize int64) {
 			emitWorkflowExecutionStats(shard.GetMetricsClient(), domainName, stats, historySize)
@@ -1170,6 +1170,7 @@ func createWorkflowExecutionWithRetry(
 	retryPolicy backoff.RetryPolicy,
 	request *persistence.CreateWorkflowExecutionRequest,
 ) (*persistence.CreateWorkflowExecutionResponse, error) {
+	logger = logger.Helper()
 
 	var resp *persistence.CreateWorkflowExecutionResponse
 	op := func(ctx context.Context) error {
@@ -1216,6 +1217,8 @@ func getWorkflowExecutionWithRetry(
 	retryPolicy backoff.RetryPolicy,
 	request *persistence.GetWorkflowExecutionRequest,
 ) (*persistence.GetWorkflowExecutionResponse, error) {
+	logger.Helper()
+
 	var resp *persistence.GetWorkflowExecutionResponse
 	op := func(ctx context.Context) error {
 		var err error
@@ -1253,6 +1256,7 @@ func updateWorkflowExecutionWithRetry(
 	retryPolicy backoff.RetryPolicy,
 	request *persistence.UpdateWorkflowExecutionRequest,
 ) (*persistence.UpdateWorkflowExecutionResponse, error) {
+	logger.Helper()
 
 	var resp *persistence.UpdateWorkflowExecutionResponse
 	op := func(ctx context.Context) error {

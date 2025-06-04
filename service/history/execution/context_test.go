@@ -3042,6 +3042,7 @@ func TestGetWorkflowExecutionWithRetry(t *testing.T) {
 			mockCtrl := gomock.NewController(t)
 			mockShard := shard.NewMockContext(mockCtrl)
 			mockLogger := new(log.MockLogger)
+			mockLogger.On("Helper").Return(mockLogger)
 			timeSource := clock.NewMockedTimeSource()
 			mockShard.EXPECT().GetTimeSource().Return(timeSource).AnyTimes()
 			policy := backoff.NewExponentialRetryPolicy(time.Millisecond)
