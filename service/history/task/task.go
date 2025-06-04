@@ -152,6 +152,8 @@ func (t *taskImpl) Execute() error {
 }
 
 func (t *taskImpl) HandleErr(err error) (retErr error) {
+	logger := t.logger.Helper()
+
 	defer func() {
 		if retErr != nil {
 			logEvent(t.eventLogger, "Failed to handle error", retErr)
@@ -162,7 +164,7 @@ func (t *taskImpl) HandleErr(err error) (retErr error) {
 			t.attempt++
 			if t.attempt > t.criticalRetryCount() {
 				t.scope.RecordTimer(metrics.TaskAttemptTimerPerDomain, time.Duration(t.attempt))
-				t.logger.Error("Critical error processing task, retrying.",
+				logger.Error("Critical error processing task, retrying.",
 					tag.Error(err),
 					tag.OperationCritical,
 					tag.TaskType(t.GetTaskType()),
@@ -188,7 +190,7 @@ func (t *taskImpl) HandleErr(err error) (retErr error) {
 		err == execution.ErrMissingWorkflowStartEvent &&
 		t.shard.GetConfig().EnableDropStuckTaskByDomainID(t.GetDomainID()) { // use domainID here to avoid accessing domainCache
 		t.scope.IncCounter(metrics.TransferTaskMissingEventCounterPerDomain)
-		t.logger.Error("Drop close execution transfer task due to corrupted workflow history", tag.Error(err), tag.LifeCycleProcessingFailed)
+		logger.Error("Drop close execution transfer task due to corrupted workflow history", tag.Error(err), tag.LifeCycleProcessingFailed)
 		return nil
 	}
 
@@ -256,7 +258,7 @@ func (t *taskImpl) HandleErr(err error) (retErr error) {
 	t.scope.IncCounter(metrics.TaskFailuresPerDomain)
 
 	if _, ok := err.(*persistence.CurrentWorkflowConditionFailedError); ok {
-		t.logger.Error("More than 2 workflow are running.", tag.Error(err), tag.LifeCycleProcessingFailed)
+		logger.Error("More than 2 workflow are running.", tag.Error(err), tag.LifeCycleProcessingFailed)
 		return nil
 	}
 
@@ -267,7 +269,7 @@ func (t *taskImpl) HandleErr(err error) (retErr error) {
 		return nil
 	}
 
-	t.logger.Error("Fail to process task", tag.Error(err), tag.LifeCycleProcessingFailed)
+	logger.Error("Fail to process task", tag.Error(err), tag.LifeCycleProcessingFailed)
 	return err
 }
 
