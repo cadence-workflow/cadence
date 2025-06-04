@@ -1517,9 +1517,10 @@ func (adh *adminHandlerImpl) startRequestProfile(ctx context.Context, scope int)
 }
 
 func (adh *adminHandlerImpl) error(err error, scope metrics.Scope) error {
+	logger := adh.GetLogger().Helper()
 	switch err.(type) {
 	case *types.InternalServiceError:
-		adh.GetLogger().Error("Internal service error", tag.Error(err))
+		logger.Error("Internal service error", tag.Error(err))
 		scope.IncCounter(metrics.CadenceFailures)
 		return err
 	case *types.BadRequestError:
@@ -1531,7 +1532,7 @@ func (adh *adminHandlerImpl) error(err error, scope metrics.Scope) error {
 	case *types.EntityNotExistsError:
 		return err
 	default:
-		adh.GetLogger().Error("Uncategorized error", tag.Error(err))
+		logger.Error("Uncategorized error", tag.Error(err))
 		scope.IncCounter(metrics.CadenceFailures)
 		return &types.InternalServiceError{Message: err.Error()}
 	}

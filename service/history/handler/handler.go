@@ -2137,6 +2137,7 @@ func (h *handlerImpl) updateErrorMetric(
 	runID string,
 	err error,
 ) {
+	logger := h.GetLogger().Helper()
 
 	var yarpcE *yarpcerrors.Status
 
@@ -2203,7 +2204,7 @@ func (h *handlerImpl) updateErrorMetric(
 
 	} else if errors.As(err, &internalServiceError) {
 		scope.IncCounter(metrics.CadenceFailures)
-		h.GetLogger().Error("Internal service error",
+		logger.Error("Internal service error",
 			tag.Error(err),
 			tag.WorkflowID(workflowID),
 			tag.WorkflowRunID(runID),
@@ -2212,7 +2213,7 @@ func (h *handlerImpl) updateErrorMetric(
 	} else {
 		// Default / unknown error fallback
 		scope.IncCounter(metrics.CadenceFailures)
-		h.GetLogger().Error("Uncategorized error",
+		logger.Error("Uncategorized error",
 			tag.Error(err),
 			tag.WorkflowID(workflowID),
 			tag.WorkflowRunID(runID),
