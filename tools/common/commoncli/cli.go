@@ -182,14 +182,17 @@ func printErr(err error, to io.Writer) (writeErr error) {
 //	  ErrorDetails:
 //	    more nested errors
 func Problem(msg string, err error) error {
-	if err != nil && strings.Contains(err.Error(), "Request unauthorized") {
+	if err != nil && (strings.Contains(err.Error(), "Request unauthorized") || strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "not permitted") ) {
 		msg = fmt.Sprintf("%s. Ensure the domain and cluster are correct.", msg)
-		errorHelp()
+		command := os.Getenv("CADENCE_CLI_COMMAND")
+        environment := os.Getenv("CADENCE_CLI_ENV")
+        domain := os.Getenv("CADENCE_CLI_DOMAIN")
+		errorHelp(command, environment, domain)
 	}
 	return &printableErr{msg, err}
 }
 
-func errorHelp () {
+func errorHelp(command, environment, domain string) {
 	//to be overridden
 }
 
