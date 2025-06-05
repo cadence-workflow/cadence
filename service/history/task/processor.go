@@ -193,8 +193,10 @@ func (p *processorImpl) Submit(task Task) error {
 		return err
 	}
 	if p.shouldUseNewScheduler() {
+		p.metricsClient.IncCounter(metrics.HistoryTaskSchedulerMigrationScope, metrics.TaskRequestsNewScheduler)
 		return p.newScheduler.Submit(task)
 	}
+	p.metricsClient.IncCounter(metrics.HistoryTaskSchedulerMigrationScope, metrics.TaskRequestsOldScheduler)
 	return p.scheduler.Submit(task)
 }
 
@@ -203,8 +205,10 @@ func (p *processorImpl) TrySubmit(task Task) (bool, error) {
 		return false, err
 	}
 	if p.shouldUseNewScheduler() {
+		p.metricsClient.IncCounter(metrics.HistoryTaskSchedulerMigrationScope, metrics.TaskRequestsNewScheduler)
 		return p.newScheduler.TrySubmit(task)
 	}
+	p.metricsClient.IncCounter(metrics.HistoryTaskSchedulerMigrationScope, metrics.TaskRequestsOldScheduler)
 	return p.scheduler.TrySubmit(task)
 }
 

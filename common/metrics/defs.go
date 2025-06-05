@@ -1329,6 +1329,8 @@ const (
 	HistoryWorkflowCacheScope
 	// HistoryFlushBufferedEventsScope is the scope used by history when flushing buffered events
 	HistoryFlushBufferedEventsScope
+	// HistoryTaskSchedulerMigrationScope is the scope used by history task scheduler migration
+	HistoryTaskSchedulerMigrationScope
 
 	NumHistoryScopes
 )
@@ -2030,6 +2032,7 @@ var ScopeDefs = map[ServiceIdx]map[int]scopeDefinition{
 		HistoryExecutionCacheScope:                                      {operation: "HistoryExecutionCache"},
 		HistoryWorkflowCacheScope:                                       {operation: "HistoryWorkflowCache"},
 		HistoryFlushBufferedEventsScope:                                 {operation: "HistoryFlushBufferedEvents"},
+		HistoryTaskSchedulerMigrationScope:                              {operation: "HistoryTaskSchedulerMigration"},
 	},
 	// Matching Scope Names
 	Matching: {
@@ -2356,6 +2359,8 @@ const (
 	TaskProcessingLatency
 	TaskQueueLatency
 	ScheduleToStartHistoryQueueLatencyPerTaskList
+	TaskRequestsOldScheduler
+	TaskRequestsNewScheduler
 
 	TaskRequestsPerDomain
 	TaskLatencyPerDomain
@@ -3103,6 +3108,8 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		TaskProcessingLatency:    {metricName: "task_latency_processing", metricType: Timer},
 		TaskQueueLatency:         {metricName: "task_latency_queue", metricType: Timer},
 		ScheduleToStartHistoryQueueLatencyPerTaskList: {metricName: "schedule_to_start_history_queue_latency_per_tl", metricType: Timer},
+		TaskRequestsOldScheduler:                      {metricName: "task_requests_old_scheduler", metricType: Counter},
+		TaskRequestsNewScheduler:                      {metricName: "task_requests_new_scheduler", metricType: Counter},
 
 		// per domain task metrics
 
