@@ -114,16 +114,22 @@ jobs:
         with:
           go-version: '1.23.4'
 
-      - name: Run integration profile for cassandra
-        uses: nick-fields/retry@v3
-        with:
-          max_attempts: 2
-          timeout_minutes: 25
-          command: |
-            make cover_integration_profile
-      
       - name: Start required services
-        run: docker compose -f docker/github_actions/docker-compose.yml up -d cassandra kafka elasticsearch
+        run: |
+          docker compose -f docker/github_actions/docker-compose.yml up -d cassandra kafka elasticsearch
+          echo "Waiting for services to be healthy..."
+          timeout 300 bash -c 'until docker compose -f docker/github_actions/docker-compose.yml ps | grep -q "healthy"; do sleep 5; done'
+
+      - name: Check service status and logs
+        run: |
+          echo "Checking service status..."
+          docker compose -f docker/github_actions/docker-compose.yml ps
+          echo "Checking Cassandra logs..."
+          docker compose -f docker/github_actions/docker-compose.yml logs cassandra
+          echo "Checking Kafka logs..."
+          docker compose -f docker/github_actions/docker-compose.yml logs kafka
+          echo "Checking Elasticsearch logs..."
+          docker compose -f docker/github_actions/docker-compose.yml logs elasticsearch
 
       - name: Run docker compose integration test cassandra
         run: docker compose -f docker/github_actions/docker-compose.yml run integration-test-cassandra

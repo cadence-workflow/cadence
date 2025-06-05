@@ -9,7 +9,7 @@ services:
         aliases:
           - cassandra
     healthcheck:
-      test: [ "CMD", "cqlsh", "-u cassandra", "-p cassandra" ,"-e describe keyspaces" ]
+      test: [ "CMD", "cqlsh", "-e describe keyspaces" ]
       interval: 15s
       timeout: 30s
       retries: 10
@@ -57,6 +57,11 @@ services:
       services-network:
         aliases:
           - kafka
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list"]
+      interval: 15s
+      timeout: 30s
+      retries: 10
 
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch-oss:6.8.22
@@ -66,6 +71,11 @@ services:
           - elasticsearch
     environment:
       - discovery.type=single-node
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"\\|\"status\":\"yellow\"'"]
+      interval: 15s
+      timeout: 30s
+      retries: 10
 
   mongo:
     image: mongo:5
