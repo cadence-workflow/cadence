@@ -9,7 +9,7 @@ services:
         aliases:
           - cassandra
     healthcheck:
-      test: [ "CMD", "cqlsh", "-e describe keyspaces" ]
+      test: [ "CMD", "cqlsh", "-u cassandra", "-p cassandra" ,"-e describe keyspaces" ]
       interval: 15s
       timeout: 30s
       retries: 10

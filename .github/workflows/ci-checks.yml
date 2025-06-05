@@ -101,7 +101,7 @@ jobs:
     if: github.event_name == 'push'
     name: Golang integration test with cassandra
     runs-on: ubuntu-latest
-    needs: golangci-lint-validate-code-is-clean
+    # needs: golangci-lint-validate-code-is-clean
 
     steps:
       - name: Checkout
