@@ -339,7 +339,7 @@ func (e *mutableStateBuilder) Load(
 	e.pendingSignalInfoIDs = state.SignalInfos
 	e.pendingSignalRequestedIDs = state.SignalRequestedIDs
 	e.executionInfo = state.ExecutionInfo
-	e.bufferedEvents = state.BufferedEvents
+	e.bufferedEvents = e.reorderAndFilterDuplicateEvents(state.BufferedEvents, "load")
 
 	e.currentVersion = constants.EmptyVersion
 	e.hasBufferedEventsInDB = len(e.bufferedEvents) > 0
@@ -485,64 +485,31 @@ func (e *mutableStateBuilder) FlushBufferedEvents() error {
 		}
 	}
 
-	// Sometimes we see buffered events are out of order when read back from database.  This is mostly not an issue
-	// except in the Activity case where ActivityStarted and ActivityCompleted gets out of order.  The following code
-	// is added to reorder buffered events to guarantee all activity completion events will always be processed at the end.
-	var reorderedEvents []*types.HistoryEvent
-	reorderFunc := func(bufferedEvents []*types.HistoryEvent) {
-		for _, event := range bufferedEvents {
-			switch event.GetEventType() {
-			case types.EventTypeActivityTaskCompleted,
-				types.EventTypeActivityTaskFailed,
-				types.EventTypeActivityTaskCanceled,
-				types.EventTypeActivityTaskTimedOut:
-				reorderedEvents = append(reorderedEvents, event)
-			case types.EventTypeChildWorkflowExecutionCompleted,
-				types.EventTypeChildWorkflowExecutionFailed,
-				types.EventTypeChildWorkflowExecutionCanceled,
-				types.EventTypeChildWorkflowExecutionTimedOut,
-				types.EventTypeChildWorkflowExecutionTerminated:
-				reorderedEvents = append(reorderedEvents, event)
-			default:
-				newCommittedEvents = append(newCommittedEvents, event)
-			}
-		}
-	}
-
-	e.logDuplicatedActivityEvents(newBufferedEvents, "newBufferedEvents")
-
 	// no decision in-flight, flush all buffered events to committed bucket
 	if !e.HasInFlightDecision() {
-		// adding logs to help identify duplicate activity task events
-		// duplicated activity events can cause DecisionTaskFailed events with cause UNHANDLED_DECISION
-		// and cause workflow to be stuck in decision task failed state
-		// this can be removed after the root cause is identified and fixed
-		// TODO: remove this after the root cause is identified and fixed or add deduplication
-		e.logDuplicatedActivityEvents(e.bufferedEvents, "bufferedEvents")
-		e.logDuplicatedActivityEvents(e.updateBufferedEvents, "updateBufferedEvents")
+		var allBufferedEvents []*types.HistoryEvent
 
 		// flush persisted buffered events
 		if len(e.bufferedEvents) > 0 {
-			reorderFunc(e.bufferedEvents)
+			allBufferedEvents = append(allBufferedEvents, e.bufferedEvents...)
 			e.bufferedEvents = nil
 		}
 		if e.hasBufferedEventsInDB {
 			e.clearBufferedEvents = true
 		}
-
 		// flush pending buffered events
-		reorderFunc(e.updateBufferedEvents)
-		// clear pending buffered events
+		allBufferedEvents = append(allBufferedEvents, e.updateBufferedEvents...)
 		e.updateBufferedEvents = nil
 
-		e.logDuplicatedActivityEvents(reorderedEvents, "reorderedEvents")
+		// Resolve issues with persistence duplicating or reordering buffered events
+		reorderedEvents := e.reorderAndFilterDuplicateEvents(allBufferedEvents, "flush")
 
 		// Put back all the reordered buffer events at the end
 		if len(reorderedEvents) > 0 {
 			newCommittedEvents = append(newCommittedEvents, reorderedEvents...)
 		}
 
-		// flush new buffered events that were not saved to persistence yet
+		// flush new buffered events
 		newCommittedEvents = append(newCommittedEvents, newBufferedEvents...)
 		newBufferedEvents = nil
 	}
@@ -2317,7 +2284,7 @@ func (e *mutableStateBuilder) logDataInconsistency() {
 		tag.WorkflowRunID(runID),
 	)
 }
-func (e *mutableStateBuilder) logDuplicatedActivityEvents(events []*types.HistoryEvent, duplicationSource string) {
+func (e *mutableStateBuilder) reorderAndFilterDuplicateEvents(events []*types.HistoryEvent, source string) []*types.HistoryEvent {
 	type activityTaskUniqueEventParams struct {
 		eventType        types.EventType
 		scheduledEventID int64
@@ -2327,7 +2294,7 @@ func (e *mutableStateBuilder) logDuplicatedActivityEvents(events []*types.Histor
 
 	activityTaskUniqueEvents := make(map[activityTaskUniqueEventParams]struct{})
 
-	checkActivityTaskEventUniqueness := func(event *types.HistoryEvent) {
+	checkActivityTaskEventUniqueness := func(event *types.HistoryEvent) bool {
 		var uniqueEventParams activityTaskUniqueEventParams
 
 		var scheduledEventID int64
@@ -2369,7 +2336,7 @@ func (e *mutableStateBuilder) logDuplicatedActivityEvents(events []*types.Histor
 				startedEventID:   event.ActivityTaskTimedOutEventAttributes.StartedEventID,
 			}
 		default:
-			return
+			return true
 		}
 
 		if _, ok := activityTaskUniqueEvents[uniqueEventParams]; ok {
@@ -2379,18 +2346,44 @@ func (e *mutableStateBuilder) logDuplicatedActivityEvents(events []*types.Histor
 				tag.WorkflowRunID(e.GetExecutionInfo().RunID),
 				tag.WorkflowScheduleID(scheduledEventID),
 				tag.WorkflowEventType(event.GetEventType().String()),
-				tag.Dynamic("duplication-source", duplicationSource),
+				tag.Dynamic("duplication-source", source),
 			)
 
 			e.metricsClient.IncCounter(metrics.HistoryFlushBufferedEventsScope, metrics.DuplicateActivityTaskEventCounter)
-		} else {
-			activityTaskUniqueEvents[uniqueEventParams] = struct{}{}
+			return false
 		}
+		activityTaskUniqueEvents[uniqueEventParams] = struct{}{}
+		return true
 	}
 
+	var headEvents []*types.HistoryEvent
+	var tailEvents []*types.HistoryEvent
+
+	// Sometimes we see buffered events are out of order when read back from database.  This is mostly not an issue
+	// except in the Activity case where ActivityStarted and ActivityCompleted gets out of order.  The following code
+	// is added to reorder buffered events to guarantee all activity completion events will always be processed at the end.
 	for _, event := range events {
-		checkActivityTaskEventUniqueness(event)
+		// We sometimes see duplicate events
+		if unique := checkActivityTaskEventUniqueness(event); !unique {
+			continue
+		}
+		switch event.GetEventType() {
+		case types.EventTypeActivityTaskCompleted,
+			types.EventTypeActivityTaskFailed,
+			types.EventTypeActivityTaskCanceled,
+			types.EventTypeActivityTaskTimedOut:
+			tailEvents = append(tailEvents, event)
+		case types.EventTypeChildWorkflowExecutionCompleted,
+			types.EventTypeChildWorkflowExecutionFailed,
+			types.EventTypeChildWorkflowExecutionCanceled,
+			types.EventTypeChildWorkflowExecutionTimedOut,
+			types.EventTypeChildWorkflowExecutionTerminated:
+			tailEvents = append(tailEvents, event)
+		default:
+			headEvents = append(headEvents, event)
+		}
 	}
+	return append(headEvents, tailEvents...)
 }
 
 func mergeMapOfByteArray(
