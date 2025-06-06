@@ -1,5 +1,6 @@
 import (
 	"context"
+	"strings"
 
 	"go.uber.org/yarpc"
     "github.com/uber/cadence/common/constants"
@@ -28,19 +29,28 @@ func New{{$Decorator}}(client {{.Interface.Type}}, metricsClient metrics.Client)
 {{range $method := .Interface.Methods}}
 func (c *{{$decorator}}) {{$method.Declaration}} {
     {{- $scopeName:=printf "metrics.%sClient%sScope" $clientName $method.Name }}
-	c.metricsClient.IncCounter({{$scopeName}}, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext({{(index $method.Params 0).Name}})
+
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope({{$scopeName}})
+	} else {
+		scope = c.metricsClient.Scope({{$scopeName}}, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
 
     {{- if eq $clientName "Matching" }}
-    c.emitForwardedFromStats({{$scopeName}}, {{(index $method.Params 1).Name}})
+    c.emitForwardedFromStats(scope, {{(index $method.Params 1).Name}})
     {{ end }}
 
-	sw := c.metricsClient.StartTimer({{$scopeName}}, metrics.CadenceClientLatency)
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	{{$method.ResultsNames}} = c.client.{{$method.Call}}
 	sw.Stop()
 
 	if err != nil {
-        c.metricsClient.IncCounter({{$scopeName}}, metrics.CadenceClientFailures)
-    }
+		scope.IncCounter(metrics.CadenceClientFailures)
+	}
 	return {{$method.ResultsNames}}
 }
 {{end}}
@@ -51,7 +61,7 @@ type forwardedRequest interface {
     GetTaskList() *types.TaskList
 }
 
-func (c *{{$decorator}}) emitForwardedFromStats(scope int, req any) {
+func (c *{{$decorator}}) emitForwardedFromStats(scope metrics.Scope, req any) {
     p, ok := req.(forwardedRequest)
     if !ok || p.GetTaskList() == nil {
         return
@@ -62,12 +72,12 @@ func (c *{{$decorator}}) emitForwardedFromStats(scope int, req any) {
 
     isChildPartition := strings.HasPrefix(taskList.GetName(), constants.ReservedTaskListPrefix)
     if forwardedFrom != ""{
-        c.metricsClient.IncCounter(scope, metrics.MatchingClientForwardedCounter)
+        scope.IncCounter(metrics.MatchingClientForwardedCounter)
         return
     }
 
     if isChildPartition {
-        c.metricsClient.IncCounter(scope, metrics.MatchingClientInvalidTaskListName)
+        scope.IncCounter(metrics.MatchingClientInvalidTaskListName)
     }
     return
 }
