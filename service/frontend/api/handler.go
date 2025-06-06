@@ -1767,7 +1767,7 @@ func (wh *WorkflowHandler) validateStartWorkflowExecutionRequest(ctx context.Con
 
 		// Request using start/end time zero value, which will get us an exact answer (i.e. its not in the
 		// middle of a minute)
-		backoffSeconds, err := backoff.GetBackoffForNextScheduleInSeconds(cron, time.Time{}, time.Time{}, jitter)
+		backoffSeconds, err := backoff.GetBackoffForNextScheduleInSeconds(cron, time.Time{}, time.Time{}, jitter, startRequest.GetCronOverlapPolicy())
 		if err != nil {
 			return err
 		}

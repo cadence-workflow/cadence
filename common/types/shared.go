@@ -6654,6 +6654,7 @@ type StartWorkflowExecutionRequest struct {
 	DelayStartSeconds                   *int32                 `json:"delayStartSeconds,omitempty"`
 	JitterStartSeconds                  *int32                 `json:"jitterStartSeconds,omitempty"`
 	FirstRunAtTimeStamp                 *int64                 `json:"firstRunAtTimeStamp,omitempty"`
+	CronOverlapPolicy                   *CronOverlapPolicy     `json:"cronOverlapPolicy,omitempty"`
 }
 
 // GetDomain is an internal getter (TBD...)
@@ -6732,6 +6733,14 @@ func (v *StartWorkflowExecutionRequest) GetWorkflowIDReusePolicy() (o WorkflowID
 func (v *StartWorkflowExecutionRequest) GetCronSchedule() (o string) {
 	if v != nil {
 		return v.CronSchedule
+	}
+	return
+}
+
+// GetCronOverlapPolicy is an internal getter (TBD...)
+func (v *StartWorkflowExecutionRequest) GetCronOverlapPolicy() (o CronOverlapPolicy) {
+	if v != nil && v.CronOverlapPolicy != nil {
+		return *v.CronOverlapPolicy
 	}
 	return
 }
@@ -8699,4 +8708,27 @@ type Any struct {
 type AutoConfigHint struct {
 	EnableAutoConfig   bool  `json:"enableAutoConfig"`
 	PollerWaitTimeInMs int64 `json:"pollerWaitTimeInMs"`
+}
+
+type CronOverlapPolicy int32
+
+const (
+	CronOverlapPolicySkip CronOverlapPolicy = iota
+	CronOverlapPolicyBufferOne
+)
+
+func (v CronOverlapPolicy) String() string {
+	switch v {
+	case CronOverlapPolicySkip:
+		return "SKIP"
+	case CronOverlapPolicyBufferOne:
+		return "BUFFERONE"
+	default:
+		return "UNKNOWN"
+	}
+}
+
+// Ptr is a helper function for getting pointer to CronOverlapPolicy
+func (v CronOverlapPolicy) Ptr() *CronOverlapPolicy {
+	return &v
 }
