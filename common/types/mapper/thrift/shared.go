@@ -914,6 +914,7 @@ func FromContinueAsNewWorkflowExecutionDecisionAttributes(t *types.ContinueAsNew
 		Memo:                                FromMemo(t.Memo),
 		SearchAttributes:                    FromSearchAttributes(t.SearchAttributes),
 		JitterStartSeconds:                  t.JitterStartSeconds,
+		ActiveClusterSelectionPolicy:        FromActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
 	}
 }
 
@@ -939,6 +940,7 @@ func ToContinueAsNewWorkflowExecutionDecisionAttributes(t *shared.ContinueAsNewW
 		Memo:                                ToMemo(t.Memo),
 		SearchAttributes:                    ToSearchAttributes(t.SearchAttributes),
 		JitterStartSeconds:                  t.JitterStartSeconds,
+		ActiveClusterSelectionPolicy:        ToActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
 	}
 }
 
@@ -6620,6 +6622,7 @@ func FromWorkflowExecutionStartedEventAttributes(t *types.WorkflowExecutionStart
 		Header:                              FromHeader(t.Header),
 		PartitionConfig:                     t.PartitionConfig,
 		RequestId:                           &t.RequestID,
+		ActiveClusterSelectionPolicy:        FromActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
 	}
 }
 
@@ -6658,7 +6661,62 @@ func ToWorkflowExecutionStartedEventAttributes(t *shared.WorkflowExecutionStarte
 		Header:                              ToHeader(t.Header),
 		PartitionConfig:                     t.PartitionConfig,
 		RequestID:                           t.GetRequestId(),
+		ActiveClusterSelectionPolicy:        ToActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
 	}
+}
+
+func FromActiveClusterSelectionPolicy(t *types.ActiveClusterSelectionPolicy) *shared.ActiveClusterSelectionPolicy {
+	if t == nil {
+		return nil
+	}
+	return &shared.ActiveClusterSelectionPolicy{
+		Strategy:           FromActiveClusterSelectionStrategy(t.ActiveClusterSelectionStrategy),
+		ExternalEntityType: &t.ExternalEntityType,
+		ExternalEntityKey:  &t.ExternalEntityKey,
+		StickyRegion:       &t.StickyRegion,
+	}
+}
+
+func ToActiveClusterSelectionPolicy(t *shared.ActiveClusterSelectionPolicy) *types.ActiveClusterSelectionPolicy {
+	if t == nil {
+		return nil
+	}
+	return &types.ActiveClusterSelectionPolicy{
+		ActiveClusterSelectionStrategy: ToActiveClusterSelectionStrategy(t.Strategy),
+		ExternalEntityType:             *t.ExternalEntityType,
+		ExternalEntityKey:              *t.ExternalEntityKey,
+		StickyRegion:                   *t.StickyRegion,
+	}
+}
+
+func FromActiveClusterSelectionStrategy(t types.ActiveClusterSelectionStrategy) *shared.ActiveClusterSelectionStrategy {
+	switch t {
+	case types.ActiveClusterSelectionStrategyInvalid:
+		v := shared.ActiveClusterSelectionStrategyInvalid
+		return &v
+	case types.ActiveClusterSelectionStrategyRegionSticky:
+		v := shared.ActiveClusterSelectionStrategyRegionSticky
+		return &v
+	case types.ActiveClusterSelectionStrategyExternalEntity:
+		v := shared.ActiveClusterSelectionStrategyExternalEntity
+		return &v
+	}
+	panic("unexpected enum value")
+}
+
+func ToActiveClusterSelectionStrategy(t *shared.ActiveClusterSelectionStrategy) types.ActiveClusterSelectionStrategy {
+	if t == nil {
+		return types.ActiveClusterSelectionStrategyInvalid
+	}
+	switch *t {
+	case shared.ActiveClusterSelectionStrategyInvalid:
+		return types.ActiveClusterSelectionStrategyInvalid
+	case shared.ActiveClusterSelectionStrategyRegionSticky:
+		return types.ActiveClusterSelectionStrategyRegionSticky
+	case shared.ActiveClusterSelectionStrategyExternalEntity:
+		return types.ActiveClusterSelectionStrategyExternalEntity
+	}
+	panic("unexpected enum value")
 }
 
 // FromWorkflowExecutionTerminatedEventAttributes converts internal WorkflowExecutionTerminatedEventAttributes type to thrift

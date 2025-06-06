@@ -664,6 +664,10 @@ func (m *executionManagerImpl) SerializeWorkflowMutation(
 	if err != nil {
 		return nil, err
 	}
+	serializedActiveClusterSelectionPolicy, err := m.serializer.SerializeActiveClusterSelectionPolicy(input.ActiveClusterSelectionPolicy, encoding)
+	if err != nil {
+		return nil, err
+	}
 
 	return &InternalWorkflowMutation{
 		ExecutionInfo:    serializedExecutionInfo,
@@ -688,7 +692,8 @@ func (m *executionManagerImpl) SerializeWorkflowMutation(
 
 		TasksByCategory: input.TasksByCategory,
 
-		WorkflowRequests: input.WorkflowRequests,
+		WorkflowRequests:             input.WorkflowRequests,
+		ActiveClusterSelectionPolicy: serializedActiveClusterSelectionPolicy,
 
 		Condition:    input.Condition,
 		Checksum:     input.Checksum,
@@ -735,6 +740,10 @@ func (m *executionManagerImpl) SerializeWorkflowSnapshot(
 	if err != nil {
 		return nil, err
 	}
+	serializedActiveClusterSelectionPolicy, err := m.serializer.SerializeActiveClusterSelectionPolicy(input.ActiveClusterSelectionPolicy, encoding)
+	if err != nil {
+		return nil, err
+	}
 
 	return &InternalWorkflowSnapshot{
 		ExecutionInfo:    serializedExecutionInfo,
@@ -751,7 +760,8 @@ func (m *executionManagerImpl) SerializeWorkflowSnapshot(
 
 		TasksByCategory: input.TasksByCategory,
 
-		WorkflowRequests: input.WorkflowRequests,
+		WorkflowRequests:             input.WorkflowRequests,
+		ActiveClusterSelectionPolicy: serializedActiveClusterSelectionPolicy,
 
 		Condition:    input.Condition,
 		Checksum:     input.Checksum,

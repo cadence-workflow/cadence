@@ -84,7 +84,7 @@ func TestNotifyChangeCallbacks(t *testing.T) {
 
 	entityChangeEventsCh := make(chan ChangeType)
 	externalEntityProvider.EXPECT().ChangeEvents().Return(entityChangeEventsCh).AnyTimes()
-	externalEntityProvider.EXPECT().SupportedSource().Return("test-source").AnyTimes()
+	externalEntityProvider.EXPECT().SupportedType().Return("test-type").AnyTimes()
 
 	mgr, err := NewManager(domainIDToDomainFn, clusterMetadata, metricsCl, logger, []ExternalEntityProvider{externalEntityProvider}, WithTimeSource(timeSrc))
 	assert.NoError(t, err)
@@ -459,7 +459,7 @@ func TestFailoverVersionOfNewWorkflow(t *testing.T) {
 					},
 				},
 			},
-			expectedError: "external entity provider for source \"city\" not found",
+			expectedError: "external entity provider for type \"city\" not found",
 		},
 		{
 			name: "active-active domain, start request has external entity headers. successfully get failover version from external entity",
@@ -484,7 +484,7 @@ func TestFailoverVersionOfNewWorkflow(t *testing.T) {
 			},
 			externalEntityProviders: func(ctrl *gomock.Controller) []ExternalEntityProvider {
 				externalEntityProvider := NewMockExternalEntityProvider(ctrl)
-				externalEntityProvider.EXPECT().SupportedSource().Return("city").AnyTimes()
+				externalEntityProvider.EXPECT().SupportedType().Return("city").AnyTimes()
 				externalEntityProvider.EXPECT().GetExternalEntity(gomock.Any(), "seattle").Return(&ExternalEntity{
 					FailoverVersion: 7,
 				}, nil)
@@ -606,7 +606,7 @@ func TestLookupWorkflow(t *testing.T) {
 	tests := []struct {
 		name                            string
 		externalEntityProviders         func(ctrl *gomock.Controller) []ExternalEntityProvider
-		getWorkflowActivenessMetadataFn func(ctx context.Context, domainID, wfID, rID string) (*WorkflowActivenessMetadata, error)
+		getWorkflowActivenessMetadataFn func(ctx context.Context, domainID, wfID, rID string) (*types.ActiveClusterSelectionPolicy, error)
 		activeClusterCfg                *types.ActiveClusters
 		expectedResult                  *LookupResult
 		expectedError                   string
@@ -633,7 +633,7 @@ func TestLookupWorkflow(t *testing.T) {
 					},
 				},
 			},
-			getWorkflowActivenessMetadataFn: func(ctx context.Context, domainID, wfID, rID string) (*WorkflowActivenessMetadata, error) {
+			getWorkflowActivenessMetadataFn: func(ctx context.Context, domainID, wfID, rID string) (*types.ActiveClusterSelectionPolicy, error) {
 				return nil, errors.New("failed to fetch workflow activeness metadata")
 			},
 			expectedError: "failed to fetch workflow activeness metadata",
@@ -652,7 +652,7 @@ func TestLookupWorkflow(t *testing.T) {
 					},
 				},
 			},
-			getWorkflowActivenessMetadataFn: func(ctx context.Context, domainID, wfID, rID string) (*WorkflowActivenessMetadata, error) {
+			getWorkflowActivenessMetadataFn: func(ctx context.Context, domainID, wfID, rID string) (*types.ActiveClusterSelectionPolicy, error) {
 				return nil, &types.EntityNotExistsError{}
 			},
 			expectedResult: &LookupResult{
@@ -674,10 +674,10 @@ func TestLookupWorkflow(t *testing.T) {
 					},
 				},
 			},
-			getWorkflowActivenessMetadataFn: func(ctx context.Context, domainID, wfID, rID string) (*WorkflowActivenessMetadata, error) {
-				return &WorkflowActivenessMetadata{
-					Type:   WorkflowActivenessTypeRegionSticky,
-					Region: "us-east",
+			getWorkflowActivenessMetadataFn: func(ctx context.Context, domainID, wfID, rID string) (*types.ActiveClusterSelectionPolicy, error) {
+				return &types.ActiveClusterSelectionPolicy{
+					ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky,
+					StickyRegion:                   "us-east",
 				}, nil
 			},
 			expectedResult: &LookupResult{
@@ -700,17 +700,17 @@ func TestLookupWorkflow(t *testing.T) {
 					},
 				},
 			},
-			getWorkflowActivenessMetadataFn: func(ctx context.Context, domainID, wfID, rID string) (*WorkflowActivenessMetadata, error) {
-				return &WorkflowActivenessMetadata{
-					Type:         WorkflowActivenessTypeExternalEntity,
-					EntitySource: "city",
-					EntityKey:    "houston",
+			getWorkflowActivenessMetadataFn: func(ctx context.Context, domainID, wfID, rID string) (*types.ActiveClusterSelectionPolicy, error) {
+				return &types.ActiveClusterSelectionPolicy{
+					ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyExternalEntity,
+					ExternalEntityType:             "city",
+					ExternalEntityKey:              "boston",
 				}, nil
 			},
 			externalEntityProviders: func(ctrl *gomock.Controller) []ExternalEntityProvider {
 				externalEntityProvider := NewMockExternalEntityProvider(ctrl)
-				externalEntityProvider.EXPECT().SupportedSource().Return("city").AnyTimes()
-				externalEntityProvider.EXPECT().GetExternalEntity(gomock.Any(), "houston").Return(&ExternalEntity{
+				externalEntityProvider.EXPECT().SupportedType().Return("city").AnyTimes()
+				externalEntityProvider.EXPECT().GetExternalEntity(gomock.Any(), "boston").Return(&ExternalEntity{
 					Region:          "us-east",
 					FailoverVersion: 102,
 				}, nil)

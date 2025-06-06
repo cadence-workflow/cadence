@@ -182,8 +182,6 @@ func (e *historyEngineImpl) startWorkflowHelper(
 	}
 	wfContext := execution.NewContext(domainID, workflowExecution, e.shard, e.executionManager, e.logger)
 
-	// TODO(active-active): Mutable state should handle recording RowType=ActivenessMetadata for active-active domains.
-	// This applies to both new workflows and continue-as-new ones.
 	newWorkflow, newWorkflowEventsSeq, err := curMutableState.CloseTransactionAsSnapshot(
 		e.timeSource.Now(),
 		execution.TransactionPolicyActive,
@@ -837,6 +835,7 @@ func (e *historyEngineImpl) createMutableState(
 		return nil, err
 	}
 
+	// TODO(active-active): Write unit tests to cover this
 	if domainEntry.GetReplicationConfig().IsActiveActive() {
 		v, err := e.shard.GetActiveClusterManager().FailoverVersionOfNewWorkflow(ctx, startRequest)
 		if err != nil {

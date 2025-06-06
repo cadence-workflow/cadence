@@ -41,14 +41,15 @@ import (
 
 func TestInsertWorkflowExecutionWithTasks(t *testing.T) {
 	tests := []struct {
-		name                  string
-		workflowRequest       *nosqlplugin.WorkflowRequestsWriteRequest
-		request               *nosqlplugin.CurrentWorkflowWriteRequest
-		execution             *nosqlplugin.WorkflowExecutionRequest
-		tasksByCategory       map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask
-		shardCondition        *nosqlplugin.ShardCondition
-		mapExecuteBatchCASErr error
-		wantErr               bool
+		name                            string
+		workflowRequest                 *nosqlplugin.WorkflowRequestsWriteRequest
+		request                         *nosqlplugin.CurrentWorkflowWriteRequest
+		execution                       *nosqlplugin.WorkflowExecutionRequest
+		tasksByCategory                 map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask
+		activeClusterSelectionPolicyRow *nosqlplugin.ActiveClusterSelectionPolicyRow
+		shardCondition                  *nosqlplugin.ShardCondition
+		mapExecuteBatchCASErr           error
+		wantErr                         bool
 	}{
 		{
 			name: "success",
@@ -59,6 +60,26 @@ func TestInsertWorkflowExecutionWithTasks(t *testing.T) {
 				ShardID: 1,
 			},
 			execution: testdata.WFExecRequest(),
+		},
+		{
+			name: "success with active cluster selection policy row",
+			request: &nosqlplugin.CurrentWorkflowWriteRequest{
+				WriteMode: nosqlplugin.CurrentWorkflowWriteModeNoop,
+			},
+			shardCondition: &nosqlplugin.ShardCondition{
+				ShardID: 1,
+			},
+			execution: testdata.WFExecRequest(),
+			activeClusterSelectionPolicyRow: &nosqlplugin.ActiveClusterSelectionPolicyRow{
+				ShardID:    1,
+				DomainID:   "test-domain-id",
+				WorkflowID: "test-workflow-id",
+				RunID:      "test-run-id",
+				Policy: &persistence.DataBlob{
+					Data:     []byte("test-policy"),
+					Encoding: constants.EncodingTypeThriftRW,
+				},
+			},
 		},
 		{
 			name: "insertOrUpsertWorkflowRequestRow step fails",
@@ -140,6 +161,7 @@ func TestInsertWorkflowExecutionWithTasks(t *testing.T) {
 				tc.request,
 				tc.execution,
 				tc.tasksByCategory,
+				tc.activeClusterSelectionPolicyRow,
 				tc.shardCondition,
 			)
 

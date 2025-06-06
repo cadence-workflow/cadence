@@ -43,6 +43,21 @@ func (m *MockPayloadSerializer) EXPECT() *MockPayloadSerializerMockRecorder {
 	return m.recorder
 }
 
+// DeserializeActiveClusterSelectionPolicy mocks base method.
+func (m *MockPayloadSerializer) DeserializeActiveClusterSelectionPolicy(data *DataBlob) (*types.ActiveClusterSelectionPolicy, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeserializeActiveClusterSelectionPolicy", data)
+	ret0, _ := ret[0].(*types.ActiveClusterSelectionPolicy)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeserializeActiveClusterSelectionPolicy indicates an expected call of DeserializeActiveClusterSelectionPolicy.
+func (mr *MockPayloadSerializerMockRecorder) DeserializeActiveClusterSelectionPolicy(data any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeserializeActiveClusterSelectionPolicy", reflect.TypeOf((*MockPayloadSerializer)(nil).DeserializeActiveClusterSelectionPolicy), data)
+}
+
 // DeserializeActiveClusters mocks base method.
 func (m *MockPayloadSerializer) DeserializeActiveClusters(data *DataBlob) (*types.ActiveClusters, error) {
 	m.ctrl.T.Helper()
@@ -236,6 +251,21 @@ func (m *MockPayloadSerializer) DeserializeVisibilityMemo(data *DataBlob) (*type
 func (mr *MockPayloadSerializerMockRecorder) DeserializeVisibilityMemo(data any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeserializeVisibilityMemo", reflect.TypeOf((*MockPayloadSerializer)(nil).DeserializeVisibilityMemo), data)
+}
+
+// SerializeActiveClusterSelectionPolicy mocks base method.
+func (m *MockPayloadSerializer) SerializeActiveClusterSelectionPolicy(policy *types.ActiveClusterSelectionPolicy, encodingType constants.EncodingType) (*DataBlob, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SerializeActiveClusterSelectionPolicy", policy, encodingType)
+	ret0, _ := ret[0].(*DataBlob)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SerializeActiveClusterSelectionPolicy indicates an expected call of SerializeActiveClusterSelectionPolicy.
+func (mr *MockPayloadSerializerMockRecorder) SerializeActiveClusterSelectionPolicy(policy, encodingType any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SerializeActiveClusterSelectionPolicy", reflect.TypeOf((*MockPayloadSerializer)(nil).SerializeActiveClusterSelectionPolicy), policy, encodingType)
 }
 
 // SerializeActiveClusters mocks base method.

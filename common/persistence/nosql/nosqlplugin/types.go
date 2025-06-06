@@ -151,6 +151,14 @@ type (
 		WriteMode WorkflowRequestWriteMode
 	}
 
+	ActiveClusterSelectionPolicyRow struct {
+		ShardID    int
+		DomainID   string
+		WorkflowID string
+		RunID      string
+		Policy     *persistence.DataBlob
+	}
+
 	// TasksFilter is for filtering tasks
 	TasksFilter struct {
 		TaskListFilter

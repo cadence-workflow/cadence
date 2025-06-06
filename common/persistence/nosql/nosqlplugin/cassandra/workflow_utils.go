@@ -1434,6 +1434,7 @@ func createWorkflowExecution(
 	execution.StartTimestamp = convertToCassandraTimestamp(execution.StartTimestamp)
 	execution.LastUpdatedTimestamp = convertToCassandraTimestamp(execution.LastUpdatedTimestamp)
 
+	// TODO(active-active): add active cluster selection policy to the query
 	batch.Query(templateCreateWorkflowExecutionWithVersionHistoriesQuery,
 		shardID,
 		domainID,
@@ -1550,6 +1551,30 @@ func fromRequestRowType(rowType int) (persistence.WorkflowRequestType, error) {
 	default:
 		return persistence.WorkflowRequestType(0), fmt.Errorf("unknown request row type %v", rowType)
 	}
+}
+
+func insertWorkflowActiveClusterSelectionPolicyRow(
+	batch gocql.Batch,
+	activeClusterSelectionPolicyRow *nosqlplugin.ActiveClusterSelectionPolicyRow,
+	timeStamp time.Time,
+) error {
+	if activeClusterSelectionPolicyRow == nil {
+		return nil
+	}
+
+	batch.Query(templateInsertWorkflowActiveClusterSelectionPolicyRowQuery,
+		activeClusterSelectionPolicyRow.ShardID,
+		rowTypeWorkflowActiveClusterSelectionPolicy,
+		activeClusterSelectionPolicyRow.DomainID,
+		activeClusterSelectionPolicyRow.WorkflowID,
+		activeClusterSelectionPolicyRow.RunID,
+		defaultVisibilityTimestamp,
+		rowTypeWorkflowActiveClusterSelectionVersion,
+		timeStamp,
+		activeClusterSelectionPolicyRow.Policy.Data,
+		activeClusterSelectionPolicyRow.Policy.GetEncodingString(),
+	)
+	return nil
 }
 
 func insertOrUpsertWorkflowRequestRow(

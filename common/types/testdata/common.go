@@ -477,4 +477,10 @@ var (
 		},
 		ExclusiveMaxReadLevel: &TaskKey,
 	}
+	ActiveClusterSelectionPolicy = types.ActiveClusterSelectionPolicy{
+		ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky,
+		StickyRegion:                   "region1",
+		ExternalEntityType:             "externalEntityType1",
+		ExternalEntityKey:              "externalEntityKey1",
+	}
 )

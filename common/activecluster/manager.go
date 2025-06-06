@@ -64,7 +64,7 @@ type managerImpl struct {
 	changeCallbacks             map[int]func(ChangeType)
 
 	// define some internal helper functions as member variables to be mocked in tests
-	getWorkflowActivenessMetadataFn func(ctx context.Context, domainID, wfID, rID string) (*WorkflowActivenessMetadata, error)
+	getWorkflowActivenessMetadataFn func(ctx context.Context, domainID, wfID, rID string) (*types.ActiveClusterSelectionPolicy, error)
 }
 
 type ManagerOption func(*managerImpl)
@@ -103,10 +103,10 @@ func NewManager(
 	}
 
 	for _, provider := range externalEntityProviders {
-		if _, ok := m.externalEntityProviders[provider.SupportedSource()]; ok {
-			return nil, fmt.Errorf("external entity provider for source %s already registered", provider.SupportedSource())
+		if _, ok := m.externalEntityProviders[provider.SupportedType()]; ok {
+			return nil, fmt.Errorf("external entity provider for type %s already registered", provider.SupportedType())
 		}
-		m.externalEntityProviders[provider.SupportedSource()] = provider
+		m.externalEntityProviders[provider.SupportedType()] = provider
 	}
 
 	m.getWorkflowActivenessMetadataFn = m.getWorkflowActivenessMetadata
@@ -133,7 +133,7 @@ func (m *managerImpl) Stop() {
 
 func (m *managerImpl) listenForExternalEntityChanges(provider ExternalEntityProvider) {
 	defer m.wg.Done()
-	logger := m.logger.WithTags(tag.Dynamic("entity-source", provider.SupportedSource()))
+	logger := m.logger.WithTags(tag.Dynamic("entity-type", provider.SupportedType()))
 	logger.Info("Listening for external entity changes")
 
 	for {
@@ -195,11 +195,11 @@ func (m *managerImpl) FailoverVersionOfNewWorkflow(ctx context.Context, req *typ
 		return 0, errors.New("start request is nil")
 	}
 
-	entitySource, entityKey, ok := m.getExternalEntitySourceAndKeyFromHeaders(req.StartRequest.Header)
+	entityType, entityKey, ok := m.getExternalEntitySourceAndKeyFromHeaders(req.StartRequest.Header)
 
 	// If external entity headers are provided, return failover version of the external entity
 	if ok {
-		externalEntity, err := m.getExternalEntity(ctx, entitySource, entityKey)
+		externalEntity, err := m.getExternalEntity(ctx, entityType, entityKey)
 		if err != nil {
 			return 0, err
 		}
@@ -247,12 +247,12 @@ func (m *managerImpl) LookupWorkflow(ctx context.Context, domainID, wfID, rID st
 	}
 
 	region := ""
-	if activenessMetadata.Type == WorkflowActivenessTypeRegionSticky {
+	if activenessMetadata.ActiveClusterSelectionStrategy == types.ActiveClusterSelectionStrategyRegionSticky {
 		// Case 2.a: workflow is region sticky
-		region = activenessMetadata.Region
-	} else if activenessMetadata.Type == WorkflowActivenessTypeExternalEntity {
+		region = activenessMetadata.StickyRegion
+	} else if activenessMetadata.ActiveClusterSelectionStrategy == types.ActiveClusterSelectionStrategyExternalEntity {
 		// Case 2.b: workflow has external entity
-		externalEntity, err := m.getExternalEntity(ctx, activenessMetadata.EntitySource, activenessMetadata.EntityKey)
+		externalEntity, err := m.getExternalEntity(ctx, activenessMetadata.ExternalEntityType, activenessMetadata.ExternalEntityKey)
 		if err != nil {
 			return nil, err
 		}
@@ -338,10 +338,19 @@ func (m *managerImpl) UnregisterChangeCallback(shardID int) {
 	delete(m.changeCallbacks, shardID)
 }
 
-func (m *managerImpl) getExternalEntity(ctx context.Context, entitySource, entityKey string) (*ExternalEntity, error) {
-	provider, ok := m.externalEntityProviders[entitySource]
+func (m *managerImpl) SupportedExternalEntityType(entityType string) bool {
+	_, ok := m.externalEntityProviders[entityType]
+	return ok
+}
+
+func (m *managerImpl) CurrentRegion() string {
+	return m.clusterMetadata.GetCurrentRegion()
+}
+
+func (m *managerImpl) getExternalEntity(ctx context.Context, entityType, entityKey string) (*ExternalEntity, error) {
+	provider, ok := m.externalEntityProviders[entityType]
 	if !ok {
-		return nil, fmt.Errorf("external entity provider for source %q not found", entitySource)
+		return nil, fmt.Errorf("external entity provider for type %q not found", entityType)
 	}
 
 	return provider.GetExternalEntity(ctx, entityKey)
@@ -365,7 +374,8 @@ func (m *managerImpl) getExternalEntitySourceAndKeyFromHeaders(header *types.Hea
 	return string(entityType), string(entityKey), true
 }
 
-func (m *managerImpl) getWorkflowActivenessMetadata(ctx context.Context, domainID, wfID, rID string) (*WorkflowActivenessMetadata, error) {
+func (m *managerImpl) getWorkflowActivenessMetadata(ctx context.Context, domainID, wfID, rID string) (*types.ActiveClusterSelectionPolicy, error) {
 	// TODO(active-active): Fetch ActivenessMetadata from persistence
+	// Implement this in this PR
 	return nil, errors.New("not implemented")
 }

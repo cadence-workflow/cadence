@@ -57,8 +57,13 @@ func NewHistoryBuilderFromEvents(history []*types.HistoryEvent, msBuilder Mutabl
 // AddWorkflowExecutionStartedEvent adds WorkflowExecutionStarted event to history
 // originalRunID is the runID when the WorkflowExecutionStarted event is written
 // firstRunID is the very first runID along the chain of ContinueAsNew and Reset
-func (b *HistoryBuilder) AddWorkflowExecutionStartedEvent(startRequest *types.HistoryStartWorkflowExecutionRequest,
-	previousExecution *persistence.WorkflowExecutionInfo, firstRunID string, originalRunID string, firstScheduledTime time.Time) *types.HistoryEvent {
+func (b *HistoryBuilder) AddWorkflowExecutionStartedEvent(
+	startRequest *types.HistoryStartWorkflowExecutionRequest,
+	previousExecution *persistence.WorkflowExecutionInfo,
+	firstRunID string,
+	originalRunID string,
+	firstScheduledTime time.Time,
+) *types.HistoryEvent {
 
 	var prevRunID string
 	var resetPoints *types.ResetPoints
@@ -102,6 +107,7 @@ func (b *HistoryBuilder) AddWorkflowExecutionStartedEvent(startRequest *types.Hi
 		JitterStartSeconds:                  request.JitterStartSeconds,
 		PartitionConfig:                     startRequest.PartitionConfig,
 		RequestID:                           request.RequestID,
+		ActiveClusterSelectionPolicy:        request.ActiveClusterSelectionPolicy,
 	}
 	if parentInfo := startRequest.ParentExecutionInfo; parentInfo != nil {
 		attributes.ParentWorkflowDomainID = &parentInfo.DomainUUID

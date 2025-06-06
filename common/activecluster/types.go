@@ -75,6 +75,12 @@ type Manager interface {
 
 	// UnregisterChangeCallback unregisters a callback that will be called for change events.
 	UnregisterChangeCallback(shardID int)
+
+	// SupportedExternalEntityType returns true if the external entity type is supported.
+	SupportedExternalEntityType(entityType string) bool
+
+	// CurrentRegion returns the current region.
+	CurrentRegion() string
 }
 
 type LookupResult struct {
@@ -89,29 +95,6 @@ const (
 	ChangeTypeEntityMap ChangeType = "ChangeTypeEntityMap"
 )
 
-type WorkflowActivenessMetadata struct {
-	Type WorkflowActivenessType
-
-	// Region is the origin region of the workflow.
-	// It's set for region sticky workflows.
-	Region string
-
-	// EntityKey is the key of the external entity associated with the workflow.
-	// It's set for workflows with external entity associations.
-	EntityKey string
-
-	// EntitySource is the source of the external entity.
-	// It's set for workflows with external entity associations.
-	EntitySource string
-}
-
-type WorkflowActivenessType string
-
-const (
-	WorkflowActivenessTypeRegionSticky   WorkflowActivenessType = "RegionSticky"
-	WorkflowActivenessTypeExternalEntity WorkflowActivenessType = "ExternalEntity"
-)
-
 type ExternalEntity struct {
 	Source          string
 	Key             string
@@ -120,9 +103,9 @@ type ExternalEntity struct {
 }
 
 type ExternalEntityProvider interface {
-	SupportedSource() string
+	SupportedType() string
 	ChangeEvents() <-chan ChangeType
-	GetExternalEntity(ctx context.Context, entitySKey string) (*ExternalEntity, error)
+	GetExternalEntity(ctx context.Context, entityKey string) (*ExternalEntity, error)
 }
 
 type RegionNotFoundForDomainError struct {

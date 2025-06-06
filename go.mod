@@ -163,5 +163,7 @@ require (
 // ringpop-go and tchannel-go depends on older version of thrift, yarpc brings up newer version
 replace github.com/apache/thrift => github.com/apache/thrift v0.0.0-20161221203622-b2a4d4ae21c7
 
+replace github.com/uber/cadence-idl => ./idls
+
 // DO NOT USE as it misses mysql/config store fix
 retract v1.2.3

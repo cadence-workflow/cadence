@@ -223,6 +223,8 @@ If you make changes in the idls submodule and want to test them locally, you can
 
 ```replace github.com/uber/cadence-idl => ./idls```
 
+Or alternatively, push your idl changes to a branch in your own fork of idl repo and pull that specific commit to idl submodule. Then apply the go.mod change mentioned above.
+
 ## Pull Requests
 After all the preparation you are about to write code and make a Pull Request for the issue.
 

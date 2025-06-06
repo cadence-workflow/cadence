@@ -415,6 +415,7 @@ type (
 			currentWorkflowRequest *CurrentWorkflowWriteRequest,
 			execution *WorkflowExecutionRequest,
 			tasksByCategory map[persistence.HistoryTaskCategory][]*HistoryMigrationTask,
+			activeClusterSelectionPolicyRow *ActiveClusterSelectionPolicyRow,
 			shardCondition *ShardCondition,
 		) error
 

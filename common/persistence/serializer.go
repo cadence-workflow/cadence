@@ -92,6 +92,10 @@ type (
 		// serialize/deserialize active clusters config
 		SerializeActiveClusters(activeClusters *types.ActiveClusters, encodingType constants.EncodingType) (*DataBlob, error)
 		DeserializeActiveClusters(data *DataBlob) (*types.ActiveClusters, error)
+
+		// serialize/deserialize active cluster selection policy
+		SerializeActiveClusterSelectionPolicy(policy *types.ActiveClusterSelectionPolicy, encodingType constants.EncodingType) (*DataBlob, error)
+		DeserializeActiveClusterSelectionPolicy(data *DataBlob) (*types.ActiveClusterSelectionPolicy, error)
 	}
 
 	// CadenceSerializationError is an error type for cadence serialization
@@ -353,6 +357,23 @@ func (t *serializerImpl) DeserializeActiveClusters(data *DataBlob) (*types.Activ
 	return &activeClusters, err
 }
 
+func (t *serializerImpl) SerializeActiveClusterSelectionPolicy(policy *types.ActiveClusterSelectionPolicy, encodingType constants.EncodingType) (*DataBlob, error) {
+	if policy == nil {
+		return nil, nil
+	}
+	return t.serialize(policy, encodingType)
+}
+
+func (t *serializerImpl) DeserializeActiveClusterSelectionPolicy(data *DataBlob) (*types.ActiveClusterSelectionPolicy, error) {
+	if data == nil {
+		return nil, nil
+	}
+
+	var policy types.ActiveClusterSelectionPolicy
+	err := t.deserialize(data, &policy)
+	return &policy, err
+}
+
 func (t *serializerImpl) serialize(input interface{}, encodingType constants.EncodingType) (*DataBlob, error) {
 	if input == nil {
 		return nil, nil
@@ -404,6 +425,8 @@ func (t *serializerImpl) thriftrwEncode(input interface{}) ([]byte, error) {
 		return t.thriftrwEncoder.Encode(thrift.FromDomainAsyncWorkflowConfiguraton(input))
 	case *types.ActiveClusters:
 		return t.thriftrwEncoder.Encode(thrift.FromActiveClusters(input))
+	case *types.ActiveClusterSelectionPolicy:
+		return t.thriftrwEncoder.Encode(thrift.FromActiveClusterSelectionPolicy(input))
 	default:
 		return nil, nil
 	}
@@ -518,6 +541,13 @@ func (t *serializerImpl) thriftrwDecode(data []byte, target interface{}) error {
 			return err
 		}
 		*target = *thrift.ToActiveClusters(&thriftTarget)
+		return nil
+	case *types.ActiveClusterSelectionPolicy:
+		thriftTarget := workflow.ActiveClusterSelectionPolicy{}
+		if err := t.thriftrwEncoder.Decode(data, &thriftTarget); err != nil {
+			return err
+		}
+		*target = *thrift.ToActiveClusterSelectionPolicy(&thriftTarget)
 		return nil
 	default:
 		return nil

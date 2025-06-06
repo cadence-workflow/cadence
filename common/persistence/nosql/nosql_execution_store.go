@@ -107,22 +107,25 @@ func (d *nosqlExecutionStore) CreateWorkflowExecution(
 	}
 
 	workflowRequests := d.prepareWorkflowRequestRows(domainID, workflowID, runID, newWorkflow.WorkflowRequests, nil)
+	workflowRequestsWriteRequest := &nosqlplugin.WorkflowRequestsWriteRequest{
+		Rows:      workflowRequests,
+		WriteMode: workflowRequestWriteMode,
+	}
+
+	activeClusterSelectionPolicyRow := d.prepareActiveClusterSelectionPolicyRow(domainID, workflowID, runID, newWorkflow.ActiveClusterSelectionPolicy)
 
 	shardCondition := &nosqlplugin.ShardCondition{
 		ShardID: d.shardID,
 		RangeID: request.RangeID,
 	}
 
-	workflowRequestsWriteRequest := &nosqlplugin.WorkflowRequestsWriteRequest{
-		Rows:      workflowRequests,
-		WriteMode: workflowRequestWriteMode,
-	}
-
 	err = d.db.InsertWorkflowExecutionWithTasks(
 		ctx,
 		workflowRequestsWriteRequest,
-		currentWorkflowWriteReq, workflowExecutionWriteReq,
+		currentWorkflowWriteReq,
+		workflowExecutionWriteReq,
 		tasksByCategory,
+		activeClusterSelectionPolicyRow,
 		shardCondition,
 	)
 	if err != nil {

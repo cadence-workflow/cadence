@@ -55,30 +55,30 @@ func (mr *MockExternalEntityProviderMockRecorder) ChangeEvents() *gomock.Call {
 }
 
 // GetExternalEntity mocks base method.
-func (m *MockExternalEntityProvider) GetExternalEntity(ctx context.Context, entitySKey string) (*ExternalEntity, error) {
+func (m *MockExternalEntityProvider) GetExternalEntity(ctx context.Context, entityKey string) (*ExternalEntity, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetExternalEntity", ctx, entitySKey)
+	ret := m.ctrl.Call(m, "GetExternalEntity", ctx, entityKey)
 	ret0, _ := ret[0].(*ExternalEntity)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetExternalEntity indicates an expected call of GetExternalEntity.
-func (mr *MockExternalEntityProviderMockRecorder) GetExternalEntity(ctx, entitySKey any) *gomock.Call {
+func (mr *MockExternalEntityProviderMockRecorder) GetExternalEntity(ctx, entityKey any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExternalEntity", reflect.TypeOf((*MockExternalEntityProvider)(nil).GetExternalEntity), ctx, entitySKey)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExternalEntity", reflect.TypeOf((*MockExternalEntityProvider)(nil).GetExternalEntity), ctx, entityKey)
 }
 
-// SupportedSource mocks base method.
-func (m *MockExternalEntityProvider) SupportedSource() string {
+// SupportedType mocks base method.
+func (m *MockExternalEntityProvider) SupportedType() string {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SupportedSource")
+	ret := m.ctrl.Call(m, "SupportedType")
 	ret0, _ := ret[0].(string)
 	return ret0
 }
 
-// SupportedSource indicates an expected call of SupportedSource.
-func (mr *MockExternalEntityProviderMockRecorder) SupportedSource() *gomock.Call {
+// SupportedType indicates an expected call of SupportedType.
+func (mr *MockExternalEntityProviderMockRecorder) SupportedType() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SupportedSource", reflect.TypeOf((*MockExternalEntityProvider)(nil).SupportedSource))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SupportedType", reflect.TypeOf((*MockExternalEntityProvider)(nil).SupportedType))
 }

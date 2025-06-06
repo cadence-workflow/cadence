@@ -238,6 +238,19 @@ func TestSerializers(t *testing.T) {
 				return serializer.DeserializeActiveClusters(data)
 			},
 		},
+		{
+			name: "active cluster selection policy",
+			payloads: map[string]any{
+				"nil":    (*types.ActiveClusterSelectionPolicy)(nil),
+				"normal": generateActiveClusterSelectionPolicy(),
+			},
+			serializeFn: func(payload any, encoding constants.EncodingType) (*DataBlob, error) {
+				return serializer.SerializeActiveClusterSelectionPolicy(payload.(*types.ActiveClusterSelectionPolicy), encoding)
+			},
+			deserializeFn: func(data *DataBlob) (any, error) {
+				return serializer.DeserializeActiveClusterSelectionPolicy(data)
+			},
+		},
 	}
 
 	// generate runnable test cases here so actual test body is not 3 level nested
@@ -522,5 +535,14 @@ func generateActiveClusters() *types.ActiveClusters {
 				FailoverVersion:   3,
 			},
 		},
+	}
+}
+
+func generateActiveClusterSelectionPolicy() *types.ActiveClusterSelectionPolicy {
+	return &types.ActiveClusterSelectionPolicy{
+		ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky,
+		StickyRegion:                   "region1",
+		ExternalEntityType:             "externalEntityType1",
+		ExternalEntityKey:              "externalEntityKey1",
 	}
 }

@@ -57,6 +57,20 @@ func (mr *MockManagerMockRecorder) ClusterNameForFailoverVersion(failoverVersion
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClusterNameForFailoverVersion", reflect.TypeOf((*MockManager)(nil).ClusterNameForFailoverVersion), failoverVersion, domainID)
 }
 
+// CurrentRegion mocks base method.
+func (m *MockManager) CurrentRegion() string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CurrentRegion")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// CurrentRegion indicates an expected call of CurrentRegion.
+func (mr *MockManagerMockRecorder) CurrentRegion() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CurrentRegion", reflect.TypeOf((*MockManager)(nil).CurrentRegion))
+}
+
 // FailoverVersionOfNewWorkflow mocks base method.
 func (m *MockManager) FailoverVersionOfNewWorkflow(ctx context.Context, req *types.HistoryStartWorkflowExecutionRequest) (int64, error) {
 	m.ctrl.T.Helper()
@@ -121,6 +135,20 @@ func (m *MockManager) Stop() {
 func (mr *MockManagerMockRecorder) Stop() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockManager)(nil).Stop))
+}
+
+// SupportedExternalEntityType mocks base method.
+func (m *MockManager) SupportedExternalEntityType(entityType string) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SupportedExternalEntityType", entityType)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// SupportedExternalEntityType indicates an expected call of SupportedExternalEntityType.
+func (mr *MockManagerMockRecorder) SupportedExternalEntityType(entityType any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SupportedExternalEntityType", reflect.TypeOf((*MockManager)(nil).SupportedExternalEntityType), entityType)
 }
 
 // UnregisterChangeCallback mocks base method.
