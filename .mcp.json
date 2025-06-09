@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "shared-server": {
+      "type": "stdio",
+      "command": "/Users/jayne.srinivas/cadence",
+      "args": [],
+      "env": {}
+    }
+  }
+}
