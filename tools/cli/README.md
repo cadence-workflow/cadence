@@ -30,10 +30,6 @@ The Cadence CLI includes a natural language interface that allows you to ask que
 
 ## Setup Requirements
 
-### 0. Prerequisites
-
-Follow the Prerequisite steps listed in the link: https://engwiki.uberinternal.com/display/CODE/Claude+Code
-
 ### 1. Install Claude
 
 Install the Claude CLI tool from Anthropic. The CLI will automatically detect Claude in these locations:
