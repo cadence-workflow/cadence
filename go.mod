@@ -42,7 +42,7 @@ require (
 	github.com/startreedata/pinot-client-go v0.2.0 // latest release supports pinot v0.12.0 which is also internal version
 	github.com/stretchr/testify v1.9.0
 	github.com/uber-go/tally v3.3.15+incompatible
-	github.com/uber/cadence-idl v0.0.0-20250521225400-08210635c303
+	github.com/uber/cadence-idl v0.0.0-20250611195003-65a2b63c543d
 	github.com/uber/ringpop-go v0.8.5
 	github.com/uber/tchannel-go v1.22.2
 	github.com/urfave/cli/v2 v2.27.4
@@ -162,8 +162,6 @@ require (
 
 // ringpop-go and tchannel-go depends on older version of thrift, yarpc brings up newer version
 replace github.com/apache/thrift => github.com/apache/thrift v0.0.0-20161221203622-b2a4d4ae21c7
-
-replace github.com/uber/cadence-idl => ./idls
 
 // DO NOT USE as it misses mysql/config store fix
 retract v1.2.3

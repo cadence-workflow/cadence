@@ -6691,9 +6691,6 @@ func ToActiveClusterSelectionPolicy(t *shared.ActiveClusterSelectionPolicy) *typ
 
 func FromActiveClusterSelectionStrategy(t types.ActiveClusterSelectionStrategy) *shared.ActiveClusterSelectionStrategy {
 	switch t {
-	case types.ActiveClusterSelectionStrategyInvalid:
-		v := shared.ActiveClusterSelectionStrategyInvalid
-		return &v
 	case types.ActiveClusterSelectionStrategyRegionSticky:
 		v := shared.ActiveClusterSelectionStrategyRegionSticky
 		return &v
@@ -6709,8 +6706,6 @@ func ToActiveClusterSelectionStrategy(t *shared.ActiveClusterSelectionStrategy) 
 		return types.ActiveClusterSelectionStrategyInvalid
 	}
 	switch *t {
-	case shared.ActiveClusterSelectionStrategyInvalid:
-		return types.ActiveClusterSelectionStrategyInvalid
 	case shared.ActiveClusterSelectionStrategyRegionSticky:
 		return types.ActiveClusterSelectionStrategyRegionSticky
 	case shared.ActiveClusterSelectionStrategyExternalEntity:
