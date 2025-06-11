@@ -32,6 +32,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"github.com/uber-go/tally"
 	"go.uber.org/fx/fxtest"
 	"go.uber.org/mock/gomock"
 
@@ -42,6 +43,7 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/log/testlogger"
+	"github.com/uber/cadence/common/metrics"
 	pt "github.com/uber/cadence/common/persistence/persistence-tests"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin/sqlite"
 	"github.com/uber/cadence/common/resource"
@@ -108,7 +110,7 @@ func (s *ServerSuite) TestServerStartup() {
 		})
 
 	for _, svc := range services {
-		server := newServer(svc, cfg, logger, dynamicconfig.NewNopClient())
+		server := newServer(svc, cfg, logger, dynamicconfig.NewNopClient(), tally.NoopScope, metrics.NewNoopMetricsClient())
 		daemons = append(daemons, server)
 		server.Start()
 	}
