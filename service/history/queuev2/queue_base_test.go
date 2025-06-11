@@ -59,7 +59,7 @@ func TestQueueBase_ProcessNewTasks(t *testing.T) {
 					persistence.HistoryTaskCategoryTransfer,
 					cluster.TestCurrentClusterName,
 				).Return(persistence.NewImmediateTaskKey(200))
-				mockVirtualQueueManager.EXPECT().AddNewVirtualSlice(gomock.Any()).DoAndReturn(func(s VirtualSlice) {
+				mockVirtualQueueManager.EXPECT().AddNewVirtualSliceToRootQueue(gomock.Any()).DoAndReturn(func(s VirtualSlice) {
 					assert.Equal(t, s.GetState().Range.InclusiveMinTaskKey, persistence.NewImmediateTaskKey(100))
 					assert.Equal(t, s.GetState().Range.ExclusiveMaxTaskKey, persistence.NewImmediateTaskKey(201))
 				})
@@ -96,7 +96,7 @@ func TestQueueBase_ProcessNewTasks(t *testing.T) {
 					persistence.HistoryTaskCategoryTimer,
 					cluster.TestCurrentClusterName,
 				).Return(persistence.NewHistoryTaskKey(time.Unix(201, 0), 201))
-				mockVirtualQueueManager.EXPECT().AddNewVirtualSlice(gomock.Any()).DoAndReturn(func(s VirtualSlice) {
+				mockVirtualQueueManager.EXPECT().AddNewVirtualSliceToRootQueue(gomock.Any()).DoAndReturn(func(s VirtualSlice) {
 					assert.Equal(t, s.GetState().Range.InclusiveMinTaskKey, persistence.NewHistoryTaskKey(time.Unix(100, 0), 100))
 					assert.Equal(t, s.GetState().Range.ExclusiveMaxTaskKey, persistence.NewHistoryTaskKey(time.Unix(201, 0), 201))
 				})

@@ -529,7 +529,7 @@ func TestVirtualQueueManager_AddNewVirtualSlice(t *testing.T) {
 			}
 
 			// Execute test
-			manager.AddNewVirtualSlice(mockSlice)
+			manager.AddNewVirtualSliceToRootQueue(mockSlice)
 
 			// Verify results
 			tt.verifyQueues(t, manager.virtualQueues)

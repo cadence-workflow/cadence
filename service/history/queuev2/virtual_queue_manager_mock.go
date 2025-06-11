@@ -39,16 +39,16 @@ func (m *MockVirtualQueueManager) EXPECT() *MockVirtualQueueManagerMockRecorder 
 	return m.recorder
 }
 
-// AddNewVirtualSlice mocks base method.
-func (m *MockVirtualQueueManager) AddNewVirtualSlice(arg0 VirtualSlice) {
+// AddNewVirtualSliceToRootQueue mocks base method.
+func (m *MockVirtualQueueManager) AddNewVirtualSliceToRootQueue(arg0 VirtualSlice) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "AddNewVirtualSlice", arg0)
+	m.ctrl.Call(m, "AddNewVirtualSliceToRootQueue", arg0)
 }
 
-// AddNewVirtualSlice indicates an expected call of AddNewVirtualSlice.
-func (mr *MockVirtualQueueManagerMockRecorder) AddNewVirtualSlice(arg0 any) *gomock.Call {
+// AddNewVirtualSliceToRootQueue indicates an expected call of AddNewVirtualSliceToRootQueue.
+func (mr *MockVirtualQueueManagerMockRecorder) AddNewVirtualSliceToRootQueue(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddNewVirtualSlice", reflect.TypeOf((*MockVirtualQueueManager)(nil).AddNewVirtualSlice), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddNewVirtualSliceToRootQueue", reflect.TypeOf((*MockVirtualQueueManager)(nil).AddNewVirtualSliceToRootQueue), arg0)
 }
 
 // GetState mocks base method.

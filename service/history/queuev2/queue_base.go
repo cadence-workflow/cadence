@@ -217,7 +217,7 @@ func (q *queueBase) processNewTasks() {
 
 	newVirtualSlice := NewVirtualSlice(newVirtualSliceState, q.taskInitializer, q.queueReader, NewPendingTaskTracker())
 
-	q.virtualQueueManager.AddNewVirtualSlice(newVirtualSlice)
+	q.virtualQueueManager.AddNewVirtualSliceToRootQueue(newVirtualSlice)
 }
 
 func (q *queueBase) processPollTimer() {

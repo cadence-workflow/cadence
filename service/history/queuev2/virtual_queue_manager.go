@@ -42,7 +42,9 @@ type (
 		common.Daemon
 		GetState() map[int64][]VirtualSliceState
 		UpdateAndGetState() map[int64][]VirtualSliceState
-		AddNewVirtualSlice(VirtualSlice)
+		// Add a new virtual slice to the root queue. This is used when new tasks are generated and max read level is updated.
+		// By default, all new tasks belong to the root queue, so we need to add a new virtual slice to the root queue.
+		AddNewVirtualSliceToRootQueue(VirtualSlice)
 	}
 
 	virtualQueueManagerImpl struct {
@@ -153,7 +155,7 @@ func (m *virtualQueueManagerImpl) UpdateAndGetState() map[int64][]VirtualSliceSt
 	return virtualQueueStates
 }
 
-func (m *virtualQueueManagerImpl) AddNewVirtualSlice(s VirtualSlice) {
+func (m *virtualQueueManagerImpl) AddNewVirtualSliceToRootQueue(s VirtualSlice) {
 	m.RLock()
 	if vq, ok := m.virtualQueues[rootQueueID]; ok {
 		m.RUnlock()
