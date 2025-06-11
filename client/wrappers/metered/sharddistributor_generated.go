@@ -29,14 +29,23 @@ func NewShardDistributorClient(client sharddistributor.Client, metricsClient met
 }
 
 func (c *sharddistributorClient) GetShardOwner(ctx context.Context, gp1 *types.GetShardOwnerRequest, p1 ...yarpc.CallOption) (gp2 *types.GetShardOwnerResponse, err error) {
-	c.metricsClient.IncCounter(metrics.ShardDistributorClientGetShardOwnerScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.ShardDistributorClientGetShardOwnerScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.ShardDistributorClientGetShardOwnerScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.ShardDistributorClientGetShardOwnerScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	gp2, err = c.client.GetShardOwner(ctx, gp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.ShardDistributorClientGetShardOwnerScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return gp2, err
 }

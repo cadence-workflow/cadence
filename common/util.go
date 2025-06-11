@@ -528,7 +528,7 @@ func CreateHistoryStartWorkflowRequest(
 			delayedStartTime := now.Add(time.Second * time.Duration(delayStartSeconds))
 			var err error
 			firstDecisionTaskBackoffSeconds, err = backoff.GetBackoffForNextScheduleInSeconds(
-				startRequest.GetCronSchedule(), delayedStartTime, delayedStartTime, jitterStartSeconds)
+				startRequest.GetCronSchedule(), delayedStartTime, delayedStartTime, jitterStartSeconds, startRequest.GetCronOverlapPolicy())
 			if err != nil {
 				return nil, err
 			}

@@ -146,6 +146,7 @@ func CopyWorkflowExecutionInfo(t *testing.T, sourceInfo *persistence.WorkflowExe
 		NonRetriableErrors:                 sourceInfo.NonRetriableErrors,
 		BranchToken:                        sourceInfo.BranchToken,
 		ExpirationSeconds:                  sourceInfo.ExpirationSeconds,
+		CronOverlapPolicy:                  sourceInfo.CronOverlapPolicy,
 	}
 }
 

@@ -681,6 +681,7 @@ func FromContinueAsNewWorkflowExecutionDecisionAttributes(t *types.ContinueAsNew
 		Memo:                         FromMemo(t.Memo),
 		SearchAttributes:             FromSearchAttributes(t.SearchAttributes),
 		JitterStart:                  secondsToDuration(t.JitterStartSeconds),
+		CronOverlapPolicy:            FromCronOverlapPolicy(t.CronOverlapPolicy),
 	}
 }
 
@@ -705,6 +706,7 @@ func ToContinueAsNewWorkflowExecutionDecisionAttributes(t *apiv1.ContinueAsNewWo
 		Memo:                                ToMemo(t.Memo),
 		SearchAttributes:                    ToSearchAttributes(t.SearchAttributes),
 		JitterStartSeconds:                  durationToSeconds(t.JitterStart),
+		CronOverlapPolicy:                   ToCronOverlapPolicy(t.CronOverlapPolicy),
 	}
 }
 
@@ -3463,6 +3465,7 @@ func FromSignalWithStartWorkflowExecutionRequest(t *types.SignalWithStartWorkflo
 			DelayStart:                   secondsToDuration(t.DelayStartSeconds),
 			JitterStart:                  secondsToDuration(t.JitterStartSeconds),
 			FirstRunAt:                   unixNanoToTime(t.FirstRunAtTimestamp),
+			CronOverlapPolicy:            FromCronOverlapPolicy(t.CronOverlapPolicy),
 		},
 		SignalName:  t.SignalName,
 		SignalInput: FromPayload(t.SignalInput),
@@ -3496,6 +3499,7 @@ func ToSignalWithStartWorkflowExecutionRequest(t *apiv1.SignalWithStartWorkflowE
 		DelayStartSeconds:                   durationToSeconds(t.StartRequest.DelayStart),
 		JitterStartSeconds:                  durationToSeconds(t.StartRequest.JitterStart),
 		FirstRunAtTimestamp:                 timeToUnixNano(t.StartRequest.FirstRunAt),
+		CronOverlapPolicy:                   ToCronOverlapPolicy(t.StartRequest.CronOverlapPolicy),
 	}
 }
 
@@ -3567,6 +3571,7 @@ func FromStartChildWorkflowExecutionDecisionAttributes(t *types.StartChildWorkfl
 		Header:                       FromHeader(t.Header),
 		Memo:                         FromMemo(t.Memo),
 		SearchAttributes:             FromSearchAttributes(t.SearchAttributes),
+		CronOverlapPolicy:            FromCronOverlapPolicy(t.CronOverlapPolicy),
 	}
 }
 
@@ -3590,6 +3595,7 @@ func ToStartChildWorkflowExecutionDecisionAttributes(t *apiv1.StartChildWorkflow
 		Header:                              ToHeader(t.Header),
 		Memo:                                ToMemo(t.Memo),
 		SearchAttributes:                    ToSearchAttributes(t.SearchAttributes),
+		CronOverlapPolicy:                   ToCronOverlapPolicy(t.CronOverlapPolicy),
 	}
 }
 
@@ -3647,6 +3653,7 @@ func FromStartChildWorkflowExecutionInitiatedEventAttributes(t *types.StartChild
 		DelayStart:                   secondsToDuration(t.DelayStartSeconds),
 		JitterStart:                  secondsToDuration(t.JitterStartSeconds),
 		FirstRunAt:                   unixNanoToTime(t.FirstRunAtTimestamp),
+		CronOverlapPolicy:            FromCronOverlapPolicy(t.CronOverlapPolicy),
 	}
 }
 
@@ -3674,6 +3681,7 @@ func ToStartChildWorkflowExecutionInitiatedEventAttributes(t *apiv1.StartChildWo
 		DelayStartSeconds:                   durationToSeconds(t.DelayStart),
 		JitterStartSeconds:                  durationToSeconds(t.JitterStart),
 		FirstRunAtTimestamp:                 timeToUnixNano(t.FirstRunAt),
+		CronOverlapPolicy:                   ToCronOverlapPolicy(t.CronOverlapPolicy),
 	}
 }
 
@@ -3824,6 +3832,7 @@ func FromStartWorkflowExecutionRequest(t *types.StartWorkflowExecutionRequest) *
 		DelayStart:                   secondsToDuration(t.DelayStartSeconds),
 		JitterStart:                  secondsToDuration(t.JitterStartSeconds),
 		FirstRunAt:                   unixNanoToTime(t.FirstRunAtTimeStamp),
+		CronOverlapPolicy:            FromCronOverlapPolicy(t.CronOverlapPolicy),
 	}
 }
 
@@ -3850,6 +3859,7 @@ func ToStartWorkflowExecutionRequest(t *apiv1.StartWorkflowExecutionRequest) *ty
 		DelayStartSeconds:                   durationToSeconds(t.DelayStart),
 		JitterStartSeconds:                  durationToSeconds(t.JitterStart),
 		FirstRunAtTimeStamp:                 timeToUnixNano(t.FirstRunAt),
+		CronOverlapPolicy:                   ToCronOverlapPolicy(t.CronOverlapPolicy),
 	}
 }
 
@@ -4893,6 +4903,7 @@ func FromWorkflowExecutionInfo(t *types.WorkflowExecutionInfo) *apiv1.WorkflowEx
 		TaskList:            t.TaskList,
 		PartitionConfig:     t.PartitionConfig,
 		IsCron:              t.IsCron,
+		CronOverlapPolicy:   FromCronOverlapPolicy(t.CronOverlapPolicy),
 	}
 }
 
@@ -4918,6 +4929,7 @@ func ToWorkflowExecutionInfo(t *apiv1.WorkflowExecutionInfo) *types.WorkflowExec
 		TaskList:          t.TaskList,
 		PartitionConfig:   t.PartitionConfig,
 		IsCron:            t.IsCron,
+		CronOverlapPolicy: ToCronOverlapPolicy(t.CronOverlapPolicy),
 	}
 }
 
@@ -4976,6 +4988,7 @@ func FromWorkflowExecutionStartedEventAttributes(t *types.WorkflowExecutionStart
 		Header:                       FromHeader(t.Header),
 		PartitionConfig:              t.PartitionConfig,
 		RequestId:                    t.RequestID,
+		CronOverlapPolicy:            FromCronOverlapPolicy(t.CronOverlapPolicy),
 	}
 }
 
@@ -5013,6 +5026,7 @@ func ToWorkflowExecutionStartedEventAttributes(t *apiv1.WorkflowExecutionStarted
 		Header:                              ToHeader(t.Header),
 		PartitionConfig:                     t.PartitionConfig,
 		RequestID:                           t.RequestId,
+		CronOverlapPolicy:                   ToCronOverlapPolicy(t.CronOverlapPolicy),
 	}
 }
 
@@ -6277,4 +6291,29 @@ func ToAutoConfigHint(t *apiv1.AutoConfigHint) *types.AutoConfigHint {
 		PollerWaitTimeInMs: t.PollerWaitTimeInMs,
 		EnableAutoConfig:   t.EnableAutoConfig,
 	}
+}
+
+func FromCronOverlapPolicy(p *types.CronOverlapPolicy) apiv1.CronOverlapPolicy {
+	if p == nil {
+		return apiv1.CronOverlapPolicy_CRON_OVERLAP_POLICY_INVALID
+	}
+	switch *p {
+	case types.CronOverlapPolicyBufferOne:
+		return apiv1.CronOverlapPolicy_CRON_OVERLAP_POLICY_BUFFER_ONE
+	case types.CronOverlapPolicySkipped:
+		return apiv1.CronOverlapPolicy_CRON_OVERLAP_POLICY_SKIPPED
+	}
+	return apiv1.CronOverlapPolicy_CRON_OVERLAP_POLICY_INVALID
+}
+
+func ToCronOverlapPolicy(p apiv1.CronOverlapPolicy) *types.CronOverlapPolicy {
+	switch p {
+	case apiv1.CronOverlapPolicy_CRON_OVERLAP_POLICY_BUFFER_ONE:
+		return types.CronOverlapPolicyBufferOne.Ptr()
+	case apiv1.CronOverlapPolicy_CRON_OVERLAP_POLICY_SKIPPED:
+		return types.CronOverlapPolicySkipped.Ptr()
+	case apiv1.CronOverlapPolicy_CRON_OVERLAP_POLICY_INVALID:
+		return nil
+	}
+	return nil
 }

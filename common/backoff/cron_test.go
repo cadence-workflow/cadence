@@ -29,6 +29,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/uber/cadence/common/types"
 )
 
 func TestCron(t *testing.T) {
@@ -65,7 +67,7 @@ func TestCron(t *testing.T) {
 				require.ErrorContains(t, err, "Invalid CronSchedule")
 			} else {
 				require.NoError(t, err)
-				backoff, err := GetBackoffForNextSchedule(sched, start, end, 0)
+				backoff, err := GetBackoffForNextSchedule(sched, start, end, 0, types.CronOverlapPolicySkipped)
 				require.NoError(t, err)
 				assert.Equal(t, tt.result, backoff, "The cron spec is %s and the expected result is %s", tt.cron, tt.result)
 			}
@@ -110,7 +112,7 @@ func TestCronWithJitterStart(t *testing.T) {
 			if tt.expectedResultSeconds != NoBackoff {
 				assert.NoError(t, err)
 			}
-			backoff, err := GetBackoffForNextSchedule(sched, start, end, tt.jitterStartSeconds)
+			backoff, err := GetBackoffForNextSchedule(sched, start, end, tt.jitterStartSeconds, types.CronOverlapPolicySkipped)
 			require.NoError(t, err)
 			fmt.Printf("Backoff time for test %d = %v\n", idx, backoff)
 			delta := time.Duration(tt.jitterStartSeconds) * time.Second
@@ -128,7 +130,7 @@ func TestCronWithJitterStart(t *testing.T) {
 			for i := 1; i < caseCount; i++ {
 				startTime := expectedResultTime
 
-				backoff, err := GetBackoffForNextSchedule(sched, startTime, startTime, tt.jitterStartSeconds)
+				backoff, err := GetBackoffForNextSchedule(sched, startTime, startTime, tt.jitterStartSeconds, types.CronOverlapPolicySkipped)
 				require.NoError(t, err)
 				expectedResultTime := startTime.Add(tt.expectedResultSeconds2)
 				backoffTime := startTime.Add(backoff)
@@ -153,6 +155,98 @@ func TestCronWithJitterStart(t *testing.T) {
 				t.Fatalf("Jittered when we weren't supposed to? Test specs = %v\n", tt)
 			}
 
+		})
+	}
+}
+
+func TestCronWithoutBufferOneCronWorkflow(t *testing.T) {
+	var bufferOneCronWorkflowTests = []struct {
+		startTime       string
+		closeTime       string
+		expectedBackoff time.Duration
+		description     string
+	}{
+		{
+			startTime:       "2018-12-17T10:00:00+00:00",
+			closeTime:       "2018-12-17T11:00:00+00:00",
+			expectedBackoff: time.Hour * 23,
+			description:     "Next schedule is next day at 10:00",
+		},
+		{
+			startTime:       "2018-12-17T10:00:00+00:00",
+			closeTime:       "2018-12-18T10:45:00+00:00",
+			expectedBackoff: time.Hour*23 + time.Minute*15,
+			description:     "Skip that run and schedule at next possible time",
+		},
+	}
+
+	for idx, tt := range bufferOneCronWorkflowTests {
+		t.Run(fmt.Sprintf("%d_%s", idx, tt.description), func(t *testing.T) {
+			start, err := time.Parse(time.RFC3339, tt.startTime)
+			require.NoError(t, err)
+			close, err := time.Parse(time.RFC3339, tt.closeTime)
+			require.NoError(t, err)
+
+			sched, err := ValidateSchedule("0 10 * * *")
+			require.NoError(t, err)
+
+			backoff, err := GetBackoffForNextSchedule(sched, start, close, 0, types.CronOverlapPolicySkipped)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedBackoff, backoff,
+				"Test case %d failed: %s\nStart: %s\nClose: %s",
+				idx, tt.description, tt.startTime, tt.closeTime)
+		})
+	}
+}
+
+func TestCronWithBufferOneCronWorkflow(t *testing.T) {
+	var bufferOneCronWorkflowTests = []struct {
+		startTime       string
+		closeTime       string
+		expectedBackoff time.Duration
+		description     string
+	}{
+		{
+			startTime:       "2018-12-17T10:00:00+00:00",
+			closeTime:       "2018-12-17T11:00:00+00:00",
+			expectedBackoff: time.Hour * 23,
+			description:     "Next schedule is next day at 10:00",
+		},
+		{
+			startTime:       "2018-12-17T10:00:00+00:00",
+			closeTime:       "2018-12-18T10:45:00+00:00",
+			expectedBackoff: 0,
+			description:     "Start immediately after previous close time",
+		},
+		{
+			startTime:       "2018-12-17T10:00:00+00:00",
+			closeTime:       "2018-12-17T10:30:00+00:00",
+			expectedBackoff: time.Hour*23 + time.Minute*30,
+			description:     "Close time is after schedule time",
+		},
+		{
+			startTime:       "2018-12-17T10:00:00+00:00",
+			closeTime:       "2018-12-30T10:45:00+00:00",
+			expectedBackoff: 0,
+			description:     "Start immediately after previous close time even if previous one skipped multiple runs",
+		},
+	}
+
+	for idx, tt := range bufferOneCronWorkflowTests {
+		t.Run(fmt.Sprintf("%d_%s", idx, tt.description), func(t *testing.T) {
+			start, err := time.Parse(time.RFC3339, tt.startTime)
+			require.NoError(t, err)
+			close, err := time.Parse(time.RFC3339, tt.closeTime)
+			require.NoError(t, err)
+
+			sched, err := ValidateSchedule("0 10 * * *")
+			require.NoError(t, err)
+
+			backoff, err := GetBackoffForNextSchedule(sched, start, close, 0, types.CronOverlapPolicyBufferOne)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedBackoff, backoff,
+				"Test case %d failed: %s\nStart: %s\nClose: %s",
+				idx, tt.description, tt.startTime, tt.closeTime)
 		})
 	}
 }

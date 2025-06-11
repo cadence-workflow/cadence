@@ -1491,6 +1491,7 @@ func (s *ExecutionManagerSuite) TestGetWorkflow() {
 				MaximumAttempts:             rand.Int31(),
 				NonRetriableErrors:          []string{"badRequestError", "accessDeniedError"},
 				CronSchedule:                "* * * * *",
+				CronOverlapPolicy:           types.CronOverlapPolicySkipped,
 				ExpirationSeconds:           rand.Int31(),
 				AutoResetPoints:             &testResetPoints,
 				SearchAttributes:            testSearchAttr,
@@ -1553,6 +1554,7 @@ func (s *ExecutionManagerSuite) TestGetWorkflow() {
 	s.Equal(createReq.NewWorkflowSnapshot.ExecutionInfo.ExpirationSeconds, info.ExpirationSeconds)
 	s.EqualTimes(createReq.NewWorkflowSnapshot.ExecutionInfo.ExpirationTime, info.ExpirationTime)
 	s.Equal(createReq.NewWorkflowSnapshot.ExecutionInfo.CronSchedule, info.CronSchedule)
+	s.Equal(createReq.NewWorkflowSnapshot.ExecutionInfo.CronOverlapPolicy, info.CronOverlapPolicy)
 	s.Equal(createReq.NewWorkflowSnapshot.ExecutionInfo.NonRetriableErrors, info.NonRetriableErrors)
 	s.Equal(testResetPoints, *info.AutoResetPoints)
 	s.Equal(createReq.NewWorkflowSnapshot.ExecutionStats.HistorySize, state.ExecutionStats.HistorySize)

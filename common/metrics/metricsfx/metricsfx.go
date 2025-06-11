@@ -51,9 +51,19 @@ type clientParams struct {
 	SvcCfg          config.Service
 }
 
-func buildClient(params clientParams) metrics.Client {
+type clientResult struct {
+	fx.Out
+
+	Scope  tally.Scope
+	Client metrics.Client
+}
+
+func buildClient(params clientParams) clientResult {
 	scope := params.SvcCfg.Metrics.NewScope(params.Logger, params.ServiceFullName)
-	return buildClientFromTally(scope, service.GetMetricsServiceIdx(params.ServiceFullName, params.Logger))
+	return clientResult{
+		Scope:  scope,
+		Client: buildClientFromTally(scope, service.GetMetricsServiceIdx(params.ServiceFullName, params.Logger)),
+	}
 }
 
 type serviceIdxParams struct {

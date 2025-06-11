@@ -49,7 +49,8 @@ func ToPersistenceVirtualQueueState(state []VirtualSliceState) *types.VirtualQue
 
 func FromPersistenceVirtualSliceState(state *types.VirtualSliceState) VirtualSliceState {
 	return VirtualSliceState{
-		Range: FromPersistenceTaskRange(state.TaskRange),
+		Range:     FromPersistenceTaskRange(state.TaskRange),
+		Predicate: NewUniversalPredicate(),
 		// Predicate: FromPersistencePredicate(state.Predicate),
 	}
 }
@@ -76,7 +77,7 @@ func ToPersistenceTaskRange(r Range) *types.TaskRange {
 }
 
 func FromPersistenceTaskKey(key *types.TaskKey) persistence.HistoryTaskKey {
-	return persistence.NewHistoryTaskKey(time.Unix(0, key.ScheduledTimeNano), key.TaskID)
+	return persistence.NewHistoryTaskKey(time.Unix(0, key.ScheduledTimeNano).UTC(), key.TaskID)
 }
 
 func ToPersistenceTaskKey(key persistence.HistoryTaskKey) *types.TaskKey {

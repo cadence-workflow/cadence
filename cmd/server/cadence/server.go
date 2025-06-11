@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/startreedata/pinot-client-go/pinot"
+	"github.com/uber-go/tally"
 	apiv1 "github.com/uber/cadence-idl/go/proto/api/v1"
 	"go.uber.org/cadence/.gen/go/cadence/workflowserviceclient"
 	"go.uber.org/cadence/compatibility"
@@ -78,18 +79,22 @@ type (
 		doneC            chan struct{}
 		daemon           common.Daemon
 		dynamicCfgClient dynamicconfig.Client
+		scope            tally.Scope
+		metricsClient    metrics.Client
 	}
 )
 
 // newServer returns a new instance of a daemon
 // that represents a cadence service
-func newServer(service string, cfg config.Config, logger log.Logger, dynamicCfgClient dynamicconfig.Client) common.Daemon {
+func newServer(service string, cfg config.Config, logger log.Logger, dynamicCfgClient dynamicconfig.Client, scope tally.Scope, metricsClient metrics.Client) common.Daemon {
 	return &server{
 		cfg:              cfg,
 		name:             service,
 		doneC:            make(chan struct{}),
 		logger:           logger,
 		dynamicCfgClient: dynamicCfgClient,
+		scope:            scope,
+		metricsClient:    metricsClient,
 	}
 }
 
@@ -137,8 +142,8 @@ func (s *server) startService() common.Daemon {
 		dynamicproperties.ClusterNameFilter(clusterGroupMetadata.CurrentClusterName),
 	)
 
-	params.MetricScope = svcCfg.Metrics.NewScope(params.Logger, params.Name)
-	params.MetricsClient = metrics.NewClient(params.MetricScope, service.GetMetricsServiceIdx(params.Name, params.Logger))
+	params.MetricScope = s.scope
+	params.MetricsClient = s.metricsClient
 
 	rpcParams, err := rpc.NewParams(params.Name, &s.cfg, dc, params.Logger, params.MetricsClient)
 	if err != nil {

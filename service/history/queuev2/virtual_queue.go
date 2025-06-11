@@ -20,6 +20,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+//go:generate mockgen -package $GOPACKAGE -destination virtual_queue_mock.go github.com/uber/cadence/service/history/queuev2 VirtualQueue
 package queuev2
 
 import (

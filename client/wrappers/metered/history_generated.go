@@ -29,573 +29,969 @@ func NewHistoryClient(client history.Client, metricsClient metrics.Client) histo
 }
 
 func (c *historyClient) CloseShard(ctx context.Context, cp1 *types.CloseShardRequest, p1 ...yarpc.CallOption) (err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientCloseShardScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientCloseShardScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientCloseShardScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientCloseShardScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	err = c.client.CloseShard(ctx, cp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientCloseShardScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return err
 }
 
 func (c *historyClient) CountDLQMessages(ctx context.Context, cp1 *types.CountDLQMessagesRequest, p1 ...yarpc.CallOption) (hp1 *types.HistoryCountDLQMessagesResponse, err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientCountDLQMessagesScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientCountDLQMessagesScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientCountDLQMessagesScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientCountDLQMessagesScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	hp1, err = c.client.CountDLQMessages(ctx, cp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientCountDLQMessagesScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return hp1, err
 }
 
 func (c *historyClient) DescribeHistoryHost(ctx context.Context, dp1 *types.DescribeHistoryHostRequest, p1 ...yarpc.CallOption) (dp2 *types.DescribeHistoryHostResponse, err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientDescribeHistoryHostScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientDescribeHistoryHostScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientDescribeHistoryHostScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientDescribeHistoryHostScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	dp2, err = c.client.DescribeHistoryHost(ctx, dp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientDescribeHistoryHostScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return dp2, err
 }
 
 func (c *historyClient) DescribeMutableState(ctx context.Context, dp1 *types.DescribeMutableStateRequest, p1 ...yarpc.CallOption) (dp2 *types.DescribeMutableStateResponse, err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientDescribeMutableStateScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientDescribeMutableStateScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientDescribeMutableStateScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientDescribeMutableStateScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	dp2, err = c.client.DescribeMutableState(ctx, dp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientDescribeMutableStateScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return dp2, err
 }
 
 func (c *historyClient) DescribeQueue(ctx context.Context, dp1 *types.DescribeQueueRequest, p1 ...yarpc.CallOption) (dp2 *types.DescribeQueueResponse, err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientDescribeQueueScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientDescribeQueueScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientDescribeQueueScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientDescribeQueueScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	dp2, err = c.client.DescribeQueue(ctx, dp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientDescribeQueueScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return dp2, err
 }
 
 func (c *historyClient) DescribeWorkflowExecution(ctx context.Context, hp1 *types.HistoryDescribeWorkflowExecutionRequest, p1 ...yarpc.CallOption) (dp1 *types.DescribeWorkflowExecutionResponse, err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientDescribeWorkflowExecutionScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientDescribeWorkflowExecutionScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientDescribeWorkflowExecutionScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientDescribeWorkflowExecutionScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	dp1, err = c.client.DescribeWorkflowExecution(ctx, hp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientDescribeWorkflowExecutionScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return dp1, err
 }
 
 func (c *historyClient) GetCrossClusterTasks(ctx context.Context, gp1 *types.GetCrossClusterTasksRequest, p1 ...yarpc.CallOption) (gp2 *types.GetCrossClusterTasksResponse, err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientGetCrossClusterTasksScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientGetCrossClusterTasksScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientGetCrossClusterTasksScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientGetCrossClusterTasksScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	gp2, err = c.client.GetCrossClusterTasks(ctx, gp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientGetCrossClusterTasksScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return gp2, err
 }
 
 func (c *historyClient) GetDLQReplicationMessages(ctx context.Context, gp1 *types.GetDLQReplicationMessagesRequest, p1 ...yarpc.CallOption) (gp2 *types.GetDLQReplicationMessagesResponse, err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientGetDLQReplicationMessagesScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientGetDLQReplicationMessagesScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientGetDLQReplicationMessagesScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientGetDLQReplicationMessagesScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	gp2, err = c.client.GetDLQReplicationMessages(ctx, gp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientGetDLQReplicationMessagesScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return gp2, err
 }
 
 func (c *historyClient) GetFailoverInfo(ctx context.Context, gp1 *types.GetFailoverInfoRequest, p1 ...yarpc.CallOption) (gp2 *types.GetFailoverInfoResponse, err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientGetFailoverInfoScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientGetFailoverInfoScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientGetFailoverInfoScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientGetFailoverInfoScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	gp2, err = c.client.GetFailoverInfo(ctx, gp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientGetFailoverInfoScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return gp2, err
 }
 
 func (c *historyClient) GetMutableState(ctx context.Context, gp1 *types.GetMutableStateRequest, p1 ...yarpc.CallOption) (gp2 *types.GetMutableStateResponse, err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientGetMutableStateScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientGetMutableStateScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientGetMutableStateScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientGetMutableStateScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	gp2, err = c.client.GetMutableState(ctx, gp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientGetMutableStateScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return gp2, err
 }
 
 func (c *historyClient) GetReplicationMessages(ctx context.Context, gp1 *types.GetReplicationMessagesRequest, p1 ...yarpc.CallOption) (gp2 *types.GetReplicationMessagesResponse, err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientGetReplicationMessagesScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientGetReplicationMessagesScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientGetReplicationMessagesScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientGetReplicationMessagesScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	gp2, err = c.client.GetReplicationMessages(ctx, gp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientGetReplicationMessagesScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return gp2, err
 }
 
 func (c *historyClient) MergeDLQMessages(ctx context.Context, mp1 *types.MergeDLQMessagesRequest, p1 ...yarpc.CallOption) (mp2 *types.MergeDLQMessagesResponse, err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientMergeDLQMessagesScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientMergeDLQMessagesScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientMergeDLQMessagesScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientMergeDLQMessagesScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	mp2, err = c.client.MergeDLQMessages(ctx, mp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientMergeDLQMessagesScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return mp2, err
 }
 
 func (c *historyClient) NotifyFailoverMarkers(ctx context.Context, np1 *types.NotifyFailoverMarkersRequest, p1 ...yarpc.CallOption) (err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientNotifyFailoverMarkersScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientNotifyFailoverMarkersScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientNotifyFailoverMarkersScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientNotifyFailoverMarkersScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	err = c.client.NotifyFailoverMarkers(ctx, np1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientNotifyFailoverMarkersScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return err
 }
 
 func (c *historyClient) PollMutableState(ctx context.Context, pp1 *types.PollMutableStateRequest, p1 ...yarpc.CallOption) (pp2 *types.PollMutableStateResponse, err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientPollMutableStateScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientPollMutableStateScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientPollMutableStateScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientPollMutableStateScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	pp2, err = c.client.PollMutableState(ctx, pp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientPollMutableStateScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return pp2, err
 }
 
 func (c *historyClient) PurgeDLQMessages(ctx context.Context, pp1 *types.PurgeDLQMessagesRequest, p1 ...yarpc.CallOption) (err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientPurgeDLQMessagesScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientPurgeDLQMessagesScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientPurgeDLQMessagesScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientPurgeDLQMessagesScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	err = c.client.PurgeDLQMessages(ctx, pp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientPurgeDLQMessagesScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return err
 }
 
 func (c *historyClient) QueryWorkflow(ctx context.Context, hp1 *types.HistoryQueryWorkflowRequest, p1 ...yarpc.CallOption) (hp2 *types.HistoryQueryWorkflowResponse, err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientQueryWorkflowScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientQueryWorkflowScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientQueryWorkflowScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientQueryWorkflowScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	hp2, err = c.client.QueryWorkflow(ctx, hp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientQueryWorkflowScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return hp2, err
 }
 
 func (c *historyClient) RatelimitUpdate(ctx context.Context, request *types.RatelimitUpdateRequest, opts ...yarpc.CallOption) (rp1 *types.RatelimitUpdateResponse, err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientRatelimitUpdateScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientRatelimitUpdateScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientRatelimitUpdateScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientRatelimitUpdateScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	rp1, err = c.client.RatelimitUpdate(ctx, request, opts...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientRatelimitUpdateScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return rp1, err
 }
 
 func (c *historyClient) ReadDLQMessages(ctx context.Context, rp1 *types.ReadDLQMessagesRequest, p1 ...yarpc.CallOption) (rp2 *types.ReadDLQMessagesResponse, err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientReadDLQMessagesScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientReadDLQMessagesScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientReadDLQMessagesScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientReadDLQMessagesScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	rp2, err = c.client.ReadDLQMessages(ctx, rp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientReadDLQMessagesScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return rp2, err
 }
 
 func (c *historyClient) ReapplyEvents(ctx context.Context, hp1 *types.HistoryReapplyEventsRequest, p1 ...yarpc.CallOption) (err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientReapplyEventsScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientReapplyEventsScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientReapplyEventsScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientReapplyEventsScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	err = c.client.ReapplyEvents(ctx, hp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientReapplyEventsScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return err
 }
 
 func (c *historyClient) RecordActivityTaskHeartbeat(ctx context.Context, hp1 *types.HistoryRecordActivityTaskHeartbeatRequest, p1 ...yarpc.CallOption) (rp1 *types.RecordActivityTaskHeartbeatResponse, err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientRecordActivityTaskHeartbeatScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientRecordActivityTaskHeartbeatScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientRecordActivityTaskHeartbeatScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientRecordActivityTaskHeartbeatScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	rp1, err = c.client.RecordActivityTaskHeartbeat(ctx, hp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientRecordActivityTaskHeartbeatScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return rp1, err
 }
 
 func (c *historyClient) RecordActivityTaskStarted(ctx context.Context, rp1 *types.RecordActivityTaskStartedRequest, p1 ...yarpc.CallOption) (rp2 *types.RecordActivityTaskStartedResponse, err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientRecordActivityTaskStartedScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientRecordActivityTaskStartedScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientRecordActivityTaskStartedScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientRecordActivityTaskStartedScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	rp2, err = c.client.RecordActivityTaskStarted(ctx, rp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientRecordActivityTaskStartedScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return rp2, err
 }
 
 func (c *historyClient) RecordChildExecutionCompleted(ctx context.Context, rp1 *types.RecordChildExecutionCompletedRequest, p1 ...yarpc.CallOption) (err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientRecordChildExecutionCompletedScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientRecordChildExecutionCompletedScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientRecordChildExecutionCompletedScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientRecordChildExecutionCompletedScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	err = c.client.RecordChildExecutionCompleted(ctx, rp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientRecordChildExecutionCompletedScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return err
 }
 
 func (c *historyClient) RecordDecisionTaskStarted(ctx context.Context, rp1 *types.RecordDecisionTaskStartedRequest, p1 ...yarpc.CallOption) (rp2 *types.RecordDecisionTaskStartedResponse, err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientRecordDecisionTaskStartedScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientRecordDecisionTaskStartedScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientRecordDecisionTaskStartedScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientRecordDecisionTaskStartedScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	rp2, err = c.client.RecordDecisionTaskStarted(ctx, rp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientRecordDecisionTaskStartedScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return rp2, err
 }
 
 func (c *historyClient) RefreshWorkflowTasks(ctx context.Context, hp1 *types.HistoryRefreshWorkflowTasksRequest, p1 ...yarpc.CallOption) (err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientRefreshWorkflowTasksScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientRefreshWorkflowTasksScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientRefreshWorkflowTasksScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientRefreshWorkflowTasksScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	err = c.client.RefreshWorkflowTasks(ctx, hp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientRefreshWorkflowTasksScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return err
 }
 
 func (c *historyClient) RemoveSignalMutableState(ctx context.Context, rp1 *types.RemoveSignalMutableStateRequest, p1 ...yarpc.CallOption) (err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientRemoveSignalMutableStateScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientRemoveSignalMutableStateScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientRemoveSignalMutableStateScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientRemoveSignalMutableStateScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	err = c.client.RemoveSignalMutableState(ctx, rp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientRemoveSignalMutableStateScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return err
 }
 
 func (c *historyClient) RemoveTask(ctx context.Context, rp1 *types.RemoveTaskRequest, p1 ...yarpc.CallOption) (err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientRemoveTaskScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientRemoveTaskScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientRemoveTaskScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientRemoveTaskScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	err = c.client.RemoveTask(ctx, rp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientRemoveTaskScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return err
 }
 
 func (c *historyClient) ReplicateEventsV2(ctx context.Context, rp1 *types.ReplicateEventsV2Request, p1 ...yarpc.CallOption) (err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientReplicateEventsV2Scope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientReplicateEventsV2Scope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientReplicateEventsV2Scope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientReplicateEventsV2Scope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	err = c.client.ReplicateEventsV2(ctx, rp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientReplicateEventsV2Scope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return err
 }
 
 func (c *historyClient) RequestCancelWorkflowExecution(ctx context.Context, hp1 *types.HistoryRequestCancelWorkflowExecutionRequest, p1 ...yarpc.CallOption) (err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientRequestCancelWorkflowExecutionScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientRequestCancelWorkflowExecutionScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientRequestCancelWorkflowExecutionScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientRequestCancelWorkflowExecutionScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	err = c.client.RequestCancelWorkflowExecution(ctx, hp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientRequestCancelWorkflowExecutionScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return err
 }
 
 func (c *historyClient) ResetQueue(ctx context.Context, rp1 *types.ResetQueueRequest, p1 ...yarpc.CallOption) (err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientResetQueueScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientResetQueueScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientResetQueueScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientResetQueueScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	err = c.client.ResetQueue(ctx, rp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientResetQueueScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return err
 }
 
 func (c *historyClient) ResetStickyTaskList(ctx context.Context, hp1 *types.HistoryResetStickyTaskListRequest, p1 ...yarpc.CallOption) (hp2 *types.HistoryResetStickyTaskListResponse, err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientResetStickyTaskListScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientResetStickyTaskListScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientResetStickyTaskListScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientResetStickyTaskListScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	hp2, err = c.client.ResetStickyTaskList(ctx, hp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientResetStickyTaskListScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return hp2, err
 }
 
 func (c *historyClient) ResetWorkflowExecution(ctx context.Context, hp1 *types.HistoryResetWorkflowExecutionRequest, p1 ...yarpc.CallOption) (rp1 *types.ResetWorkflowExecutionResponse, err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientResetWorkflowExecutionScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientResetWorkflowExecutionScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientResetWorkflowExecutionScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientResetWorkflowExecutionScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	rp1, err = c.client.ResetWorkflowExecution(ctx, hp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientResetWorkflowExecutionScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return rp1, err
 }
 
 func (c *historyClient) RespondActivityTaskCanceled(ctx context.Context, hp1 *types.HistoryRespondActivityTaskCanceledRequest, p1 ...yarpc.CallOption) (err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientRespondActivityTaskCanceledScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientRespondActivityTaskCanceledScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientRespondActivityTaskCanceledScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientRespondActivityTaskCanceledScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	err = c.client.RespondActivityTaskCanceled(ctx, hp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientRespondActivityTaskCanceledScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return err
 }
 
 func (c *historyClient) RespondActivityTaskCompleted(ctx context.Context, hp1 *types.HistoryRespondActivityTaskCompletedRequest, p1 ...yarpc.CallOption) (err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientRespondActivityTaskCompletedScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientRespondActivityTaskCompletedScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientRespondActivityTaskCompletedScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientRespondActivityTaskCompletedScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	err = c.client.RespondActivityTaskCompleted(ctx, hp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientRespondActivityTaskCompletedScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return err
 }
 
 func (c *historyClient) RespondActivityTaskFailed(ctx context.Context, hp1 *types.HistoryRespondActivityTaskFailedRequest, p1 ...yarpc.CallOption) (err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientRespondActivityTaskFailedScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientRespondActivityTaskFailedScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientRespondActivityTaskFailedScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientRespondActivityTaskFailedScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	err = c.client.RespondActivityTaskFailed(ctx, hp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientRespondActivityTaskFailedScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return err
 }
 
 func (c *historyClient) RespondCrossClusterTasksCompleted(ctx context.Context, rp1 *types.RespondCrossClusterTasksCompletedRequest, p1 ...yarpc.CallOption) (rp2 *types.RespondCrossClusterTasksCompletedResponse, err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientRespondCrossClusterTasksCompletedScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientRespondCrossClusterTasksCompletedScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientRespondCrossClusterTasksCompletedScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientRespondCrossClusterTasksCompletedScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	rp2, err = c.client.RespondCrossClusterTasksCompleted(ctx, rp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientRespondCrossClusterTasksCompletedScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return rp2, err
 }
 
 func (c *historyClient) RespondDecisionTaskCompleted(ctx context.Context, hp1 *types.HistoryRespondDecisionTaskCompletedRequest, p1 ...yarpc.CallOption) (hp2 *types.HistoryRespondDecisionTaskCompletedResponse, err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientRespondDecisionTaskCompletedScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientRespondDecisionTaskCompletedScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientRespondDecisionTaskCompletedScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientRespondDecisionTaskCompletedScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	hp2, err = c.client.RespondDecisionTaskCompleted(ctx, hp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientRespondDecisionTaskCompletedScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return hp2, err
 }
 
 func (c *historyClient) RespondDecisionTaskFailed(ctx context.Context, hp1 *types.HistoryRespondDecisionTaskFailedRequest, p1 ...yarpc.CallOption) (err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientRespondDecisionTaskFailedScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientRespondDecisionTaskFailedScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientRespondDecisionTaskFailedScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientRespondDecisionTaskFailedScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	err = c.client.RespondDecisionTaskFailed(ctx, hp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientRespondDecisionTaskFailedScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return err
 }
 
 func (c *historyClient) ScheduleDecisionTask(ctx context.Context, sp1 *types.ScheduleDecisionTaskRequest, p1 ...yarpc.CallOption) (err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientScheduleDecisionTaskScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientScheduleDecisionTaskScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientScheduleDecisionTaskScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientScheduleDecisionTaskScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	err = c.client.ScheduleDecisionTask(ctx, sp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientScheduleDecisionTaskScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return err
 }
 
 func (c *historyClient) SignalWithStartWorkflowExecution(ctx context.Context, hp1 *types.HistorySignalWithStartWorkflowExecutionRequest, p1 ...yarpc.CallOption) (sp1 *types.StartWorkflowExecutionResponse, err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientSignalWithStartWorkflowExecutionScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientSignalWithStartWorkflowExecutionScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientSignalWithStartWorkflowExecutionScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientSignalWithStartWorkflowExecutionScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	sp1, err = c.client.SignalWithStartWorkflowExecution(ctx, hp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientSignalWithStartWorkflowExecutionScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return sp1, err
 }
 
 func (c *historyClient) SignalWorkflowExecution(ctx context.Context, hp1 *types.HistorySignalWorkflowExecutionRequest, p1 ...yarpc.CallOption) (err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientSignalWorkflowExecutionScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientSignalWorkflowExecutionScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientSignalWorkflowExecutionScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientSignalWorkflowExecutionScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	err = c.client.SignalWorkflowExecution(ctx, hp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientSignalWorkflowExecutionScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return err
 }
 
 func (c *historyClient) StartWorkflowExecution(ctx context.Context, hp1 *types.HistoryStartWorkflowExecutionRequest, p1 ...yarpc.CallOption) (sp1 *types.StartWorkflowExecutionResponse, err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientStartWorkflowExecutionScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientStartWorkflowExecutionScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientStartWorkflowExecutionScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientStartWorkflowExecutionScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	sp1, err = c.client.StartWorkflowExecution(ctx, hp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientStartWorkflowExecutionScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return sp1, err
 }
 
 func (c *historyClient) SyncActivity(ctx context.Context, sp1 *types.SyncActivityRequest, p1 ...yarpc.CallOption) (err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientSyncActivityScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientSyncActivityScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientSyncActivityScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientSyncActivityScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	err = c.client.SyncActivity(ctx, sp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientSyncActivityScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return err
 }
 
 func (c *historyClient) SyncShardStatus(ctx context.Context, sp1 *types.SyncShardStatusRequest, p1 ...yarpc.CallOption) (err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientSyncShardStatusScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientSyncShardStatusScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientSyncShardStatusScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientSyncShardStatusScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	err = c.client.SyncShardStatus(ctx, sp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientSyncShardStatusScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return err
 }
 
 func (c *historyClient) TerminateWorkflowExecution(ctx context.Context, hp1 *types.HistoryTerminateWorkflowExecutionRequest, p1 ...yarpc.CallOption) (err error) {
-	c.metricsClient.IncCounter(metrics.HistoryClientTerminateWorkflowExecutionScope, metrics.CadenceClientRequests)
+	retryCount := getRetryCountFromContext(ctx)
 
-	sw := c.metricsClient.StartTimer(metrics.HistoryClientTerminateWorkflowExecutionScope, metrics.CadenceClientLatency)
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.HistoryClientTerminateWorkflowExecutionScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.HistoryClientTerminateWorkflowExecutionScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	err = c.client.TerminateWorkflowExecution(ctx, hp1, p1...)
 	sw.Stop()
 
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryClientTerminateWorkflowExecutionScope, metrics.CadenceClientFailures)
+		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return err
 }
