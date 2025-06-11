@@ -23,6 +23,7 @@
 package queuev2
 
 import (
+	"context"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -34,18 +35,24 @@ import (
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	hcommon "github.com/uber/cadence/service/history/common"
+	"github.com/uber/cadence/service/history/queue"
 	"github.com/uber/cadence/service/history/shard"
 	"github.com/uber/cadence/service/history/task"
 )
 
 type (
 	scheduledQueue struct {
-		*queueBase
+		base *queueBase
 
 		timerGate    clock.TimerGate
 		newTimerCh   chan struct{}
 		nextTimeLock sync.RWMutex
 		nextTime     time.Time
+
+		status     int32
+		shutdownWG sync.WaitGroup
+		ctx        context.Context
+		cancel     func()
 	}
 )
 
@@ -59,8 +66,9 @@ func NewScheduledQueue(
 	metricsScope metrics.Scope,
 	options *Options,
 ) Queue {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &scheduledQueue{
-		queueBase: newQueueBase(
+		base: newQueueBase(
 			shard,
 			taskProcessor,
 			logger,
@@ -72,6 +80,9 @@ func NewScheduledQueue(
 		),
 		timerGate:  clock.NewTimerGate(shard.GetTimeSource()),
 		newTimerCh: make(chan struct{}, 1),
+		ctx:        ctx,
+		cancel:     cancel,
+		status:     common.DaemonStatusInitialized,
 	}
 }
 
@@ -80,10 +91,10 @@ func (q *scheduledQueue) Start() {
 		return
 	}
 
-	q.logger.Info("History queue state changed", tag.LifeCycleStarting)
-	defer q.logger.Info("History queue state changed", tag.LifeCycleStarted)
+	q.base.logger.Info("History queue state changed", tag.LifeCycleStarting)
+	defer q.base.logger.Info("History queue state changed", tag.LifeCycleStarted)
 
-	q.queueBase.Start()
+	q.base.Start()
 
 	q.shutdownWG.Add(1)
 	go q.processEventLoop()
@@ -96,13 +107,33 @@ func (q *scheduledQueue) Stop() {
 		return
 	}
 
-	q.logger.Info("History queue state changed", tag.LifeCycleStopping)
-	defer q.logger.Info("History queue state changed", tag.LifeCycleStopped)
+	q.base.logger.Info("History queue state changed", tag.LifeCycleStopping)
+	defer q.base.logger.Info("History queue state changed", tag.LifeCycleStopped)
 
 	q.cancel()
 	q.timerGate.Stop()
 	q.shutdownWG.Wait()
-	q.queueBase.Stop()
+	q.base.Stop()
+}
+
+func (q *scheduledQueue) Category() persistence.HistoryTaskCategory {
+	return q.base.Category()
+}
+
+func (q *scheduledQueue) FailoverDomain(domainIDs map[string]struct{}) {
+	q.base.FailoverDomain(domainIDs)
+}
+
+func (q *scheduledQueue) HandleAction(ctx context.Context, clusterName string, action *queue.Action) (*queue.ActionResult, error) {
+	return q.base.HandleAction(ctx, clusterName, action)
+}
+
+func (q *scheduledQueue) LockTaskProcessing() {
+	q.base.LockTaskProcessing()
+}
+
+func (q *scheduledQueue) UnlockTaskProcessing() {
+	q.base.UnlockTaskProcessing()
 }
 
 func (q *scheduledQueue) NotifyNewTask(clusterName string, info *hcommon.NotifyTaskInfo) {
@@ -151,32 +182,24 @@ func (q *scheduledQueue) processEventLoop() {
 		case <-q.newTimerCh:
 			q.processNextTime()
 		case <-q.timerGate.Chan():
-			q.processNewTasks()
-		case <-q.pollTimer.Chan():
-			q.processPollTimer()
-		case <-q.updateQueueStateTimer.Chan():
-			q.updateQueueState()
+			q.base.processNewTasks()
+			q.lookAheadTask()
+		case <-q.base.pollTimer.Chan():
+			q.base.processPollTimer()
+			q.lookAheadTask()
+		case <-q.base.updateQueueStateTimer.Chan():
+			q.base.updateQueueState(q.ctx)
 		case <-q.ctx.Done():
 			return
 		}
 	}
 }
 
-func (q *scheduledQueue) processNewTasks() {
-	q.queueBase.processNewTasks()
-	q.lookAheadTask()
-}
-
-func (q *scheduledQueue) processPollTimer() {
-	q.queueBase.processPollTimer()
-	q.lookAheadTask()
-}
-
 func (q *scheduledQueue) lookAheadTask() {
-	lookAheadMinTime := q.newVirtualSliceState.Range.InclusiveMinTaskKey.GetScheduledTime()
-	lookAheadMaxTime := lookAheadMinTime.Add(q.options.MaxPollInterval())
+	lookAheadMinTime := q.base.newVirtualSliceState.Range.InclusiveMinTaskKey.GetScheduledTime()
+	lookAheadMaxTime := lookAheadMinTime.Add(q.base.options.MaxPollInterval())
 
-	resp, err := q.queueReader.GetTask(q.ctx, &GetTaskRequest{
+	resp, err := q.base.queueReader.GetTask(q.ctx, &GetTaskRequest{
 		Progress: &GetTaskProgress{
 			Range: Range{
 				InclusiveMinTaskKey: persistence.NewHistoryTaskKey(lookAheadMinTime, 0),
@@ -189,7 +212,7 @@ func (q *scheduledQueue) lookAheadTask() {
 	})
 	if err != nil {
 		q.timerGate.Update(lookAheadMinTime)
-		q.logger.Error("Failed to look ahead task", tag.Error(err))
+		q.base.logger.Error("Failed to look ahead task", tag.Error(err))
 		return
 	}
 

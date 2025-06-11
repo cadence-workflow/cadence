@@ -1,6 +1,7 @@
 package queuev2
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -376,7 +377,7 @@ func TestQueueBase_UpdateQueueState(t *testing.T) {
 			}
 
 			// Execute
-			queueBase.updateQueueState()
+			queueBase.updateQueueState(context.Background())
 
 			// Verify
 			if !tt.expectError {

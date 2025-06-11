@@ -24,10 +24,8 @@ package queuev2
 
 import (
 	"context"
-	"sync"
 	"time"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
@@ -70,10 +68,6 @@ type (
 		timeSource      clock.TimeSource
 		taskInitializer task.Initializer
 
-		status                int32
-		shutdownWG            sync.WaitGroup
-		ctx                   context.Context
-		cancel                func()
 		redispatcher          task.Redispatcher
 		queueReader           QueueReader
 		pollTimer             clock.Timer
@@ -148,7 +142,6 @@ func newQueueBase(
 		},
 		queueState.VirtualQueueStates,
 	)
-	ctx, cancel := context.WithCancel(context.Background())
 	return &queueBase{
 		shard:               shard,
 		taskProcessor:       taskProcessor,
@@ -160,10 +153,6 @@ func newQueueBase(
 		timeSource:          timeSource,
 		taskInitializer:     taskInitializer,
 		redispatcher:        redispatcher,
-		ctx:                 ctx,
-		cancel:              cancel,
-		status:              common.DaemonStatusInitialized,
-		shutdownWG:          sync.WaitGroup{},
 		queueReader:         queueReader,
 		exclusiveAckLevel:   exclusiveAckLevel,
 		virtualQueueManager: virtualQueueManager,
@@ -242,7 +231,7 @@ func (q *queueBase) processPollTimer() {
 	))
 }
 
-func (q *queueBase) updateQueueState() {
+func (q *queueBase) updateQueueState(ctx context.Context) {
 	queueState := &QueueState{
 		VirtualQueueStates:    q.virtualQueueManager.UpdateAndGetState(),
 		ExclusiveMaxReadLevel: q.newVirtualSliceState.Range.InclusiveMinTaskKey,
@@ -258,7 +247,7 @@ func (q *queueBase) updateQueueState() {
 		}
 		for {
 			pageSize := q.options.DeleteBatchSize()
-			resp, err := q.shard.GetExecutionManager().RangeCompleteHistoryTask(q.ctx, &persistence.RangeCompleteHistoryTaskRequest{
+			resp, err := q.shard.GetExecutionManager().RangeCompleteHistoryTask(ctx, &persistence.RangeCompleteHistoryTaskRequest{
 				TaskCategory:        q.category,
 				InclusiveMinTaskKey: inclusiveMinTaskKey,
 				ExclusiveMaxTaskKey: exclusiveMaxTaskKey,

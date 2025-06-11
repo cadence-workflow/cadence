@@ -217,7 +217,7 @@ func TestScheduledQueue_LookAheadTask(t *testing.T) {
 			now := mockTimeSource.Now()
 			// Create scheduled queue directly
 			queue := &scheduledQueue{
-				queueBase: &queueBase{
+				base: &queueBase{
 					logger:       mockLogger,
 					metricsScope: mockMetricsScope,
 					category:     persistence.HistoryTaskCategoryTimer,

@@ -23,6 +23,8 @@
 package queuev2
 
 import (
+	"context"
+	"sync"
 	"sync/atomic"
 
 	"github.com/uber/cadence/common"
@@ -31,14 +33,20 @@ import (
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	hcommon "github.com/uber/cadence/service/history/common"
+	"github.com/uber/cadence/service/history/queue"
 	"github.com/uber/cadence/service/history/shard"
 	"github.com/uber/cadence/service/history/task"
 )
 
 type (
 	immediateQueue struct {
-		*queueBase
+		base     *queueBase
 		notifyCh chan struct{}
+
+		status     int32
+		shutdownWG sync.WaitGroup
+		ctx        context.Context
+		cancel     func()
 	}
 )
 
@@ -52,8 +60,9 @@ func NewImmediateQueue(
 	metricsScope metrics.Scope,
 	options *Options,
 ) Queue {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &immediateQueue{
-		queueBase: newQueueBase(
+		base: newQueueBase(
 			shard,
 			taskProcessor,
 			logger,
@@ -64,6 +73,8 @@ func NewImmediateQueue(
 			options,
 		),
 		notifyCh: make(chan struct{}, 1),
+		ctx:      ctx,
+		cancel:   cancel,
 	}
 }
 
@@ -72,10 +83,10 @@ func (q *immediateQueue) Start() {
 		return
 	}
 
-	q.logger.Info("History queue state changed", tag.LifeCycleStarting)
-	defer q.logger.Info("History queue state changed", tag.LifeCycleStarted)
+	q.base.logger.Info("History queue state changed", tag.LifeCycleStarting)
+	defer q.base.logger.Info("History queue state changed", tag.LifeCycleStarted)
 
-	q.queueBase.Start()
+	q.base.Start()
 
 	q.shutdownWG.Add(1)
 	go q.processEventLoop()
@@ -88,13 +99,33 @@ func (q *immediateQueue) Stop() {
 		return
 	}
 
-	q.logger.Info("History queue state changed", tag.LifeCycleStopping)
-	defer q.logger.Info("History queue state changed", tag.LifeCycleStopped)
+	q.base.logger.Info("History queue state changed", tag.LifeCycleStopping)
+	defer q.base.logger.Info("History queue state changed", tag.LifeCycleStopped)
 
 	q.cancel()
 	q.shutdownWG.Wait()
 
-	q.queueBase.Stop()
+	q.base.Stop()
+}
+
+func (q *immediateQueue) Category() persistence.HistoryTaskCategory {
+	return q.base.Category()
+}
+
+func (q *immediateQueue) FailoverDomain(domainIDs map[string]struct{}) {
+	q.base.FailoverDomain(domainIDs)
+}
+
+func (q *immediateQueue) HandleAction(ctx context.Context, clusterName string, action *queue.Action) (*queue.ActionResult, error) {
+	return q.base.HandleAction(ctx, clusterName, action)
+}
+
+func (q *immediateQueue) UnlockTaskProcessing() {
+	q.base.UnlockTaskProcessing()
+}
+
+func (q *immediateQueue) LockTaskProcessing() {
+	q.base.LockTaskProcessing()
 }
 
 func (q *immediateQueue) NotifyNewTask(clusterName string, info *hcommon.NotifyTaskInfo) {
@@ -118,11 +149,11 @@ func (q *immediateQueue) processEventLoop() {
 	for {
 		select {
 		case <-q.notifyCh:
-			q.processNewTasks()
-		case <-q.pollTimer.Chan():
-			q.processPollTimer()
-		case <-q.updateQueueStateTimer.Chan():
-			q.updateQueueState()
+			q.base.processNewTasks()
+		case <-q.base.pollTimer.Chan():
+			q.base.processPollTimer()
+		case <-q.base.updateQueueStateTimer.Chan():
+			q.base.updateQueueState(q.ctx)
 		case <-q.ctx.Done():
 			return
 		}
