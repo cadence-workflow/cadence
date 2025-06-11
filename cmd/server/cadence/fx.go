@@ -26,6 +26,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/uber-go/tally"
 	"go.uber.org/fx"
 
 	"github.com/uber/cadence/common"
@@ -36,6 +37,7 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/logfx"
 	"github.com/uber/cadence/common/membership/membershipfx"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/metrics/metricsfx"
 	"github.com/uber/cadence/common/peerprovider/ringpopprovider/ringpopfx"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql"
@@ -95,6 +97,8 @@ type AppParams struct {
 	Logger        log.Logger
 	LifeCycle     fx.Lifecycle
 	DynamicConfig dynamicconfig.Client
+	Scope         tally.Scope
+	MetricsClient metrics.Client
 }
 
 // NewApp created a new Application from pre initalized config and logger.
@@ -104,6 +108,8 @@ func NewApp(params AppParams) *App {
 		logger:        params.Logger,
 		service:       params.Service,
 		dynamicConfig: params.DynamicConfig,
+		scope:         params.Scope,
+		metricsClient: params.MetricsClient,
 	}
 
 	params.LifeCycle.Append(fx.StartHook(app.verifySchema))
@@ -118,13 +124,15 @@ type App struct {
 	rootDir       string
 	logger        log.Logger
 	dynamicConfig dynamicconfig.Client
+	scope         tally.Scope
+	metricsClient metrics.Client
 
 	daemon  common.Daemon
 	service string
 }
 
 func (a *App) Start(_ context.Context) error {
-	a.daemon = newServer(a.service, a.cfg, a.logger, a.dynamicConfig)
+	a.daemon = newServer(a.service, a.cfg, a.logger, a.dynamicConfig, a.scope, a.metricsClient)
 	a.daemon.Start()
 	return nil
 }
