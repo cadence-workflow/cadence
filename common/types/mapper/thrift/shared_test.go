@@ -3512,8 +3512,8 @@ func TestQueueStateConversion(t *testing.T) {
 func TestActiveClusterSelectionPolicyConversion(t *testing.T) {
 	testCases := []*types.ActiveClusterSelectionPolicy{
 		nil,
-		&types.ActiveClusterSelectionPolicy{},
-		&testdata.ActiveClusterSelectionPolicy,
+		&testdata.ActiveClusterSelectionPolicyExternalEntity,
+		&testdata.ActiveClusterSelectionPolicyRegionSticky,
 	}
 
 	for _, original := range testCases {
@@ -3521,4 +3521,5 @@ func TestActiveClusterSelectionPolicyConversion(t *testing.T) {
 		roundTripObj := ToActiveClusterSelectionPolicy(thriftObj)
 		assert.Equal(t, original, roundTripObj)
 	}
+
 }

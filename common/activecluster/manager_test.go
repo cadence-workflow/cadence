@@ -676,7 +676,7 @@ func TestLookupWorkflow(t *testing.T) {
 			},
 			getWorkflowActivenessMetadataFn: func(ctx context.Context, domainID, wfID, rID string) (*types.ActiveClusterSelectionPolicy, error) {
 				return &types.ActiveClusterSelectionPolicy{
-					ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky,
+					ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
 					StickyRegion:                   "us-east",
 				}, nil
 			},
@@ -702,7 +702,7 @@ func TestLookupWorkflow(t *testing.T) {
 			},
 			getWorkflowActivenessMetadataFn: func(ctx context.Context, domainID, wfID, rID string) (*types.ActiveClusterSelectionPolicy, error) {
 				return &types.ActiveClusterSelectionPolicy{
-					ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyExternalEntity,
+					ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyExternalEntity.Ptr(),
 					ExternalEntityType:             "city",
 					ExternalEntityKey:              "boston",
 				}, nil

@@ -540,7 +540,7 @@ func generateActiveClusters() *types.ActiveClusters {
 
 func generateActiveClusterSelectionPolicy() *types.ActiveClusterSelectionPolicy {
 	return &types.ActiveClusterSelectionPolicy{
-		ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky,
+		ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
 		StickyRegion:                   "region1",
 		ExternalEntityType:             "externalEntityType1",
 		ExternalEntityKey:              "externalEntityKey1",

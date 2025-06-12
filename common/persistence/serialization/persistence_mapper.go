@@ -101,6 +101,12 @@ func ToInternalWorkflowExecutionInfo(info *WorkflowExecutionInfo) *persistence.I
 		result.AutoResetPoints = persistence.NewDataBlob(info.AutoResetPoints,
 			constants.EncodingType(info.GetAutoResetPointsEncoding()))
 	}
+
+	if info.ActiveClusterSelectionPolicy != nil {
+		result.ActiveClusterSelectionPolicy = persistence.NewDataBlob(info.ActiveClusterSelectionPolicy,
+			constants.EncodingType(info.GetActiveClusterSelectionPolicyEncoding()))
+	}
+
 	return result
 }
 
@@ -176,5 +182,11 @@ func FromInternalWorkflowExecutionInfo(executionInfo *persistence.InternalWorkfl
 		info.CancelRequested = true
 		info.CancelRequestID = executionInfo.CancelRequestID
 	}
+
+	if executionInfo.ActiveClusterSelectionPolicy != nil {
+		info.ActiveClusterSelectionPolicy = executionInfo.ActiveClusterSelectionPolicy.Data
+		info.ActiveClusterSelectionPolicyEncoding = string(executionInfo.ActiveClusterSelectionPolicy.Encoding)
+	}
+
 	return info
 }

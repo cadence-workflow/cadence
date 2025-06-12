@@ -478,9 +478,12 @@ var (
 		},
 		ExclusiveMaxReadLevel: &TaskKey,
 	}
-	ActiveClusterSelectionPolicy = types.ActiveClusterSelectionPolicy{
-		ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky,
+	ActiveClusterSelectionPolicyRegionSticky = types.ActiveClusterSelectionPolicy{
+		ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
 		StickyRegion:                   "region1",
+	}
+	ActiveClusterSelectionPolicyExternalEntity = types.ActiveClusterSelectionPolicy{
+		ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyExternalEntity.Ptr(),
 		ExternalEntityType:             "externalEntityType1",
 		ExternalEntityKey:              "externalEntityKey1",
 	}

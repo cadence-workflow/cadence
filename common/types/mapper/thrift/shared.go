@@ -5173,6 +5173,7 @@ func FromSignalWithStartWorkflowExecutionRequest(t *types.SignalWithStartWorkflo
 		Header:                              FromHeader(t.Header),
 		FirstRunAtTimestamp:                 t.FirstRunAtTimestamp,
 		CronOverlapPolicy:                   FromCronOverlapPolicy(t.CronOverlapPolicy),
+		ActiveClusterSelectionPolicy:        FromActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
 	}
 }
 
@@ -5202,6 +5203,7 @@ func ToSignalWithStartWorkflowExecutionRequest(t *shared.SignalWithStartWorkflow
 		Header:                              ToHeader(t.Header),
 		FirstRunAtTimestamp:                 t.FirstRunAtTimestamp,
 		CronOverlapPolicy:                   ToCronOverlapPolicy(t.CronOverlapPolicy),
+		ActiveClusterSelectionPolicy:        ToActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
 	}
 }
 
@@ -5259,6 +5261,7 @@ func FromStartChildWorkflowExecutionDecisionAttributes(t *types.StartChildWorkfl
 		Memo:                                FromMemo(t.Memo),
 		SearchAttributes:                    FromSearchAttributes(t.SearchAttributes),
 		CronOverlapPolicy:                   FromCronOverlapPolicy(t.CronOverlapPolicy),
+		ActiveClusterSelectionPolicy:        FromActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
 	}
 }
 
@@ -5284,6 +5287,7 @@ func ToStartChildWorkflowExecutionDecisionAttributes(t *shared.StartChildWorkflo
 		Memo:                                ToMemo(t.Memo),
 		SearchAttributes:                    ToSearchAttributes(t.SearchAttributes),
 		CronOverlapPolicy:                   ToCronOverlapPolicy(t.CronOverlapPolicy),
+		ActiveClusterSelectionPolicy:        ToActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
 	}
 }
 
@@ -5345,6 +5349,7 @@ func FromStartChildWorkflowExecutionInitiatedEventAttributes(t *types.StartChild
 		JitterStartSeconds:                  t.JitterStartSeconds,
 		FirstRunAtTimestamp:                 t.FirstRunAtTimestamp,
 		CronOverlapPolicy:                   FromCronOverlapPolicy(t.CronOverlapPolicy),
+		ActiveClusterSelectionPolicy:        FromActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
 	}
 }
 
@@ -5374,6 +5379,7 @@ func ToStartChildWorkflowExecutionInitiatedEventAttributes(t *shared.StartChildW
 		JitterStartSeconds:                  t.JitterStartSeconds,
 		FirstRunAtTimestamp:                 t.FirstRunAtTimestamp,
 		CronOverlapPolicy:                   ToCronOverlapPolicy(t.CronOverlapPolicy),
+		ActiveClusterSelectionPolicy:        ToActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
 	}
 }
 
@@ -5510,6 +5516,7 @@ func FromStartWorkflowExecutionRequest(t *types.StartWorkflowExecutionRequest) *
 		JitterStartSeconds:                  t.JitterStartSeconds,
 		FirstRunAtTimestamp:                 t.FirstRunAtTimeStamp,
 		CronOverlapPolicy:                   FromCronOverlapPolicy(t.CronOverlapPolicy),
+		ActiveClusterSelectionPolicy:        FromActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
 	}
 }
 
@@ -5538,6 +5545,7 @@ func ToStartWorkflowExecutionRequest(t *shared.StartWorkflowExecutionRequest) *t
 		JitterStartSeconds:                  t.JitterStartSeconds,
 		FirstRunAtTimeStamp:                 t.FirstRunAtTimestamp,
 		CronOverlapPolicy:                   ToCronOverlapPolicy(t.CronOverlapPolicy),
+		ActiveClusterSelectionPolicy:        ToActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
 	}
 }
 
@@ -6542,6 +6550,8 @@ func FromWorkflowExecutionInfo(t *types.WorkflowExecutionInfo) *shared.WorkflowE
 		UpdateTime:        t.UpdateTime,
 		PartitionConfig:   t.PartitionConfig,
 		CronOverlapPolicy: FromCronOverlapPolicy(t.CronOverlapPolicy),
+		// TODO(active-active): why is this field not available??
+		// ActiveClusterSelectionPolicy: FromActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
 	}
 }
 
@@ -6570,6 +6580,8 @@ func ToWorkflowExecutionInfo(t *shared.WorkflowExecutionInfo) *types.WorkflowExe
 		UpdateTime:        t.UpdateTime,
 		PartitionConfig:   t.PartitionConfig,
 		CronOverlapPolicy: ToCronOverlapPolicy(t.CronOverlapPolicy),
+		// TODO(active-active): why is this field not available??
+		// ActiveClusterSelectionPolicy: ToActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
 	}
 }
 
@@ -6703,27 +6715,28 @@ func ToActiveClusterSelectionPolicy(t *shared.ActiveClusterSelectionPolicy) *typ
 	}
 }
 
-func FromActiveClusterSelectionStrategy(t types.ActiveClusterSelectionStrategy) *shared.ActiveClusterSelectionStrategy {
-	switch t {
+func FromActiveClusterSelectionStrategy(t *types.ActiveClusterSelectionStrategy) *shared.ActiveClusterSelectionStrategy {
+	if t == nil {
+		return nil
+	}
+	switch *t {
 	case types.ActiveClusterSelectionStrategyRegionSticky:
-		v := shared.ActiveClusterSelectionStrategyRegionSticky
-		return &v
+		return shared.ActiveClusterSelectionStrategyRegionSticky.Ptr()
 	case types.ActiveClusterSelectionStrategyExternalEntity:
-		v := shared.ActiveClusterSelectionStrategyExternalEntity
-		return &v
+		return shared.ActiveClusterSelectionStrategyExternalEntity.Ptr()
 	}
 	panic("unexpected enum value")
 }
 
-func ToActiveClusterSelectionStrategy(t *shared.ActiveClusterSelectionStrategy) types.ActiveClusterSelectionStrategy {
+func ToActiveClusterSelectionStrategy(t *shared.ActiveClusterSelectionStrategy) *types.ActiveClusterSelectionStrategy {
 	if t == nil {
-		return types.ActiveClusterSelectionStrategyInvalid
+		return nil
 	}
 	switch *t {
 	case shared.ActiveClusterSelectionStrategyRegionSticky:
-		return types.ActiveClusterSelectionStrategyRegionSticky
+		return types.ActiveClusterSelectionStrategyRegionSticky.Ptr()
 	case shared.ActiveClusterSelectionStrategyExternalEntity:
-		return types.ActiveClusterSelectionStrategyExternalEntity
+		return types.ActiveClusterSelectionStrategyExternalEntity.Ptr()
 	}
 	panic("unexpected enum value")
 }

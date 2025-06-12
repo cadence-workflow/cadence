@@ -43,6 +43,8 @@ func parseWorkflowExecutionInfo(result map[string]interface{}) *persistence.Inte
 	var completionEventEncoding constants.EncodingType
 	var autoResetPoints []byte
 	var autoResetPointsEncoding constants.EncodingType
+	var activeClusterSelectionPolicy []byte
+	var activeClusterSelectionPolicyEncoding constants.EncodingType
 
 	for k, v := range result {
 		switch k {
@@ -176,10 +178,15 @@ func parseWorkflowExecutionInfo(result map[string]interface{}) *persistence.Inte
 			info.Memo = v.(map[string][]byte)
 		case "partition_config":
 			info.PartitionConfig = v.(map[string]string)
+		case "active_cluster_selection_policy":
+			activeClusterSelectionPolicy = v.([]byte)
+		case "active_cluster_selection_policy_encoding":
+			activeClusterSelectionPolicyEncoding = constants.EncodingType(v.(string))
 		}
 	}
 	info.CompletionEvent = persistence.NewDataBlob(completionEventData, completionEventEncoding)
 	info.AutoResetPoints = persistence.NewDataBlob(autoResetPoints, autoResetPointsEncoding)
+	info.ActiveClusterSelectionPolicy = persistence.NewDataBlob(activeClusterSelectionPolicy, activeClusterSelectionPolicyEncoding)
 	return info
 }
 

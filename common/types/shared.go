@@ -2121,13 +2121,12 @@ func (v *ActiveClusters) DeepCopy() *ActiveClusters {
 type ActiveClusterSelectionStrategy int32
 
 const (
-	ActiveClusterSelectionStrategyInvalid ActiveClusterSelectionStrategy = iota
-	ActiveClusterSelectionStrategyRegionSticky
+	ActiveClusterSelectionStrategyRegionSticky ActiveClusterSelectionStrategy = iota
 	ActiveClusterSelectionStrategyExternalEntity
 )
 
 type ActiveClusterSelectionPolicy struct {
-	ActiveClusterSelectionStrategy ActiveClusterSelectionStrategy `json:"activeClusterSelectionStrategy,omitempty"`
+	ActiveClusterSelectionStrategy *ActiveClusterSelectionStrategy `json:"activeClusterSelectionStrategy,omitempty"`
 
 	StickyRegion string `json:"stickyRegion,omitempty"`
 
@@ -2135,10 +2134,19 @@ type ActiveClusterSelectionPolicy struct {
 	ExternalEntityKey  string `json:"externalEntityKey,omitempty"`
 }
 
+func (p *ActiveClusterSelectionPolicy) GetStrategy() ActiveClusterSelectionStrategy {
+	if p == nil || p.ActiveClusterSelectionStrategy == nil {
+		return ActiveClusterSelectionStrategyRegionSticky
+	}
+	return *p.ActiveClusterSelectionStrategy
+}
+
+func (e ActiveClusterSelectionStrategy) Ptr() *ActiveClusterSelectionStrategy {
+	return &e
+}
+
 func (e ActiveClusterSelectionStrategy) String() string {
 	switch e {
-	case ActiveClusterSelectionStrategyInvalid:
-		return "INVALID"
 	case ActiveClusterSelectionStrategyRegionSticky:
 		return "REGION_STICKY"
 	case ActiveClusterSelectionStrategyExternalEntity:
@@ -2159,9 +2167,6 @@ func (e *ActiveClusterSelectionStrategy) UnmarshalText(value []byte) error {
 		return nil
 	case "EXTERNAL_ENTITY":
 		*e = ActiveClusterSelectionStrategyExternalEntity
-		return nil
-	case "INVALID":
-		*e = ActiveClusterSelectionStrategyInvalid
 		return nil
 	default:
 		val, err := strconv.ParseInt(s, 10, 32)
@@ -6220,28 +6225,29 @@ func (v *SignalExternalWorkflowExecutionInitiatedEventAttributes) ByteSize() uin
 
 // SignalWithStartWorkflowExecutionRequest is an internal type (TBD...)
 type SignalWithStartWorkflowExecutionRequest struct {
-	Domain                              string                 `json:"domain,omitempty"`
-	WorkflowID                          string                 `json:"workflowId,omitempty"`
-	WorkflowType                        *WorkflowType          `json:"workflowType,omitempty"`
-	TaskList                            *TaskList              `json:"taskList,omitempty"`
-	Input                               []byte                 `json:"-"` // Filtering PII
-	ExecutionStartToCloseTimeoutSeconds *int32                 `json:"executionStartToCloseTimeoutSeconds,omitempty"`
-	TaskStartToCloseTimeoutSeconds      *int32                 `json:"taskStartToCloseTimeoutSeconds,omitempty"`
-	Identity                            string                 `json:"identity,omitempty"`
-	RequestID                           string                 `json:"requestId,omitempty"`
-	WorkflowIDReusePolicy               *WorkflowIDReusePolicy `json:"workflowIdReusePolicy,omitempty"`
-	SignalName                          string                 `json:"signalName,omitempty"`
-	SignalInput                         []byte                 `json:"-"` // Filtering PII
-	Control                             []byte                 `json:"control,omitempty"`
-	RetryPolicy                         *RetryPolicy           `json:"retryPolicy,omitempty"`
-	CronSchedule                        string                 `json:"cronSchedule,omitempty"`
-	Memo                                *Memo                  `json:"-"` // Filtering PII
-	SearchAttributes                    *SearchAttributes      `json:"-"` // Filtering PII
-	Header                              *Header                `json:"header,omitempty"`
-	DelayStartSeconds                   *int32                 `json:"delayStartSeconds,omitempty"`
-	JitterStartSeconds                  *int32                 `json:"jitterStartSeconds,omitempty"`
-	FirstRunAtTimestamp                 *int64                 `json:"firstRunAtTimestamp,omitempty"`
-	CronOverlapPolicy                   *CronOverlapPolicy     `json:"cronOverlapPolicy,omitempty"`
+	Domain                              string                        `json:"domain,omitempty"`
+	WorkflowID                          string                        `json:"workflowId,omitempty"`
+	WorkflowType                        *WorkflowType                 `json:"workflowType,omitempty"`
+	TaskList                            *TaskList                     `json:"taskList,omitempty"`
+	Input                               []byte                        `json:"-"` // Filtering PII
+	ExecutionStartToCloseTimeoutSeconds *int32                        `json:"executionStartToCloseTimeoutSeconds,omitempty"`
+	TaskStartToCloseTimeoutSeconds      *int32                        `json:"taskStartToCloseTimeoutSeconds,omitempty"`
+	Identity                            string                        `json:"identity,omitempty"`
+	RequestID                           string                        `json:"requestId,omitempty"`
+	WorkflowIDReusePolicy               *WorkflowIDReusePolicy        `json:"workflowIdReusePolicy,omitempty"`
+	SignalName                          string                        `json:"signalName,omitempty"`
+	SignalInput                         []byte                        `json:"-"` // Filtering PII
+	Control                             []byte                        `json:"control,omitempty"`
+	RetryPolicy                         *RetryPolicy                  `json:"retryPolicy,omitempty"`
+	CronSchedule                        string                        `json:"cronSchedule,omitempty"`
+	Memo                                *Memo                         `json:"-"` // Filtering PII
+	SearchAttributes                    *SearchAttributes             `json:"-"` // Filtering PII
+	Header                              *Header                       `json:"header,omitempty"`
+	DelayStartSeconds                   *int32                        `json:"delayStartSeconds,omitempty"`
+	JitterStartSeconds                  *int32                        `json:"jitterStartSeconds,omitempty"`
+	FirstRunAtTimestamp                 *int64                        `json:"firstRunAtTimestamp,omitempty"`
+	CronOverlapPolicy                   *CronOverlapPolicy            `json:"cronOverlapPolicy,omitempty"`
+	ActiveClusterSelectionPolicy        *ActiveClusterSelectionPolicy `json:"activeClusterSelectionPolicy,omitempty"`
 }
 
 // GetDomain is an internal getter (TBD...)
@@ -6410,22 +6416,23 @@ func (v *SignalWorkflowExecutionRequest) GetRequestID() (o string) {
 
 // StartChildWorkflowExecutionDecisionAttributes is an internal type (TBD...)
 type StartChildWorkflowExecutionDecisionAttributes struct {
-	Domain                              string                 `json:"domain,omitempty"`
-	WorkflowID                          string                 `json:"workflowId,omitempty"`
-	WorkflowType                        *WorkflowType          `json:"workflowType,omitempty"`
-	TaskList                            *TaskList              `json:"taskList,omitempty"`
-	Input                               []byte                 `json:"input,omitempty"`
-	ExecutionStartToCloseTimeoutSeconds *int32                 `json:"executionStartToCloseTimeoutSeconds,omitempty"`
-	TaskStartToCloseTimeoutSeconds      *int32                 `json:"taskStartToCloseTimeoutSeconds,omitempty"`
-	ParentClosePolicy                   *ParentClosePolicy     `json:"parentClosePolicy,omitempty"`
-	Control                             []byte                 `json:"control,omitempty"`
-	WorkflowIDReusePolicy               *WorkflowIDReusePolicy `json:"workflowIdReusePolicy,omitempty"`
-	RetryPolicy                         *RetryPolicy           `json:"retryPolicy,omitempty"`
-	CronSchedule                        string                 `json:"cronSchedule,omitempty"`
-	Header                              *Header                `json:"header,omitempty"`
-	Memo                                *Memo                  `json:"memo,omitempty"`
-	SearchAttributes                    *SearchAttributes      `json:"searchAttributes,omitempty"`
-	CronOverlapPolicy                   *CronOverlapPolicy     `json:"cronOverlapPolicy,omitempty"`
+	Domain                              string                        `json:"domain,omitempty"`
+	WorkflowID                          string                        `json:"workflowId,omitempty"`
+	WorkflowType                        *WorkflowType                 `json:"workflowType,omitempty"`
+	TaskList                            *TaskList                     `json:"taskList,omitempty"`
+	Input                               []byte                        `json:"input,omitempty"`
+	ExecutionStartToCloseTimeoutSeconds *int32                        `json:"executionStartToCloseTimeoutSeconds,omitempty"`
+	TaskStartToCloseTimeoutSeconds      *int32                        `json:"taskStartToCloseTimeoutSeconds,omitempty"`
+	ParentClosePolicy                   *ParentClosePolicy            `json:"parentClosePolicy,omitempty"`
+	Control                             []byte                        `json:"control,omitempty"`
+	WorkflowIDReusePolicy               *WorkflowIDReusePolicy        `json:"workflowIdReusePolicy,omitempty"`
+	RetryPolicy                         *RetryPolicy                  `json:"retryPolicy,omitempty"`
+	CronSchedule                        string                        `json:"cronSchedule,omitempty"`
+	Header                              *Header                       `json:"header,omitempty"`
+	Memo                                *Memo                         `json:"memo,omitempty"`
+	SearchAttributes                    *SearchAttributes             `json:"searchAttributes,omitempty"`
+	CronOverlapPolicy                   *CronOverlapPolicy            `json:"cronOverlapPolicy,omitempty"`
+	ActiveClusterSelectionPolicy        *ActiveClusterSelectionPolicy `json:"activeClusterSelectionPolicy,omitempty"`
 }
 
 // GetDomain is an internal getter (TBD...)
@@ -6510,26 +6517,27 @@ func (v *StartChildWorkflowExecutionFailedEventAttributes) ByteSize() uint64 {
 
 // StartChildWorkflowExecutionInitiatedEventAttributes is an internal type (TBD...)
 type StartChildWorkflowExecutionInitiatedEventAttributes struct {
-	Domain                              string                 `json:"domain,omitempty"`
-	WorkflowID                          string                 `json:"workflowId,omitempty"`
-	WorkflowType                        *WorkflowType          `json:"workflowType,omitempty"`
-	TaskList                            *TaskList              `json:"taskList,omitempty"`
-	Input                               []byte                 `json:"input,omitempty"`
-	ExecutionStartToCloseTimeoutSeconds *int32                 `json:"executionStartToCloseTimeoutSeconds,omitempty"`
-	TaskStartToCloseTimeoutSeconds      *int32                 `json:"taskStartToCloseTimeoutSeconds,omitempty"`
-	ParentClosePolicy                   *ParentClosePolicy     `json:"parentClosePolicy,omitempty"`
-	Control                             []byte                 `json:"control,omitempty"`
-	DecisionTaskCompletedEventID        int64                  `json:"decisionTaskCompletedEventId,omitempty"`
-	WorkflowIDReusePolicy               *WorkflowIDReusePolicy `json:"workflowIdReusePolicy,omitempty"`
-	RetryPolicy                         *RetryPolicy           `json:"retryPolicy,omitempty"`
-	CronSchedule                        string                 `json:"cronSchedule,omitempty"`
-	Header                              *Header                `json:"header,omitempty"`
-	Memo                                *Memo                  `json:"memo,omitempty"`
-	SearchAttributes                    *SearchAttributes      `json:"searchAttributes,omitempty"`
-	DelayStartSeconds                   *int32                 `json:"delayStartSeconds,omitempty"`
-	JitterStartSeconds                  *int32                 `json:"jitterStartSeconds,omitempty"`
-	FirstRunAtTimestamp                 *int64                 `json:"firstRunAtTimestamp,omitempty"`
-	CronOverlapPolicy                   *CronOverlapPolicy     `json:"cronOverlapPolicy,omitempty"`
+	Domain                              string                        `json:"domain,omitempty"`
+	WorkflowID                          string                        `json:"workflowId,omitempty"`
+	WorkflowType                        *WorkflowType                 `json:"workflowType,omitempty"`
+	TaskList                            *TaskList                     `json:"taskList,omitempty"`
+	Input                               []byte                        `json:"input,omitempty"`
+	ExecutionStartToCloseTimeoutSeconds *int32                        `json:"executionStartToCloseTimeoutSeconds,omitempty"`
+	TaskStartToCloseTimeoutSeconds      *int32                        `json:"taskStartToCloseTimeoutSeconds,omitempty"`
+	ParentClosePolicy                   *ParentClosePolicy            `json:"parentClosePolicy,omitempty"`
+	Control                             []byte                        `json:"control,omitempty"`
+	DecisionTaskCompletedEventID        int64                         `json:"decisionTaskCompletedEventId,omitempty"`
+	WorkflowIDReusePolicy               *WorkflowIDReusePolicy        `json:"workflowIdReusePolicy,omitempty"`
+	RetryPolicy                         *RetryPolicy                  `json:"retryPolicy,omitempty"`
+	CronSchedule                        string                        `json:"cronSchedule,omitempty"`
+	Header                              *Header                       `json:"header,omitempty"`
+	Memo                                *Memo                         `json:"memo,omitempty"`
+	SearchAttributes                    *SearchAttributes             `json:"searchAttributes,omitempty"`
+	DelayStartSeconds                   *int32                        `json:"delayStartSeconds,omitempty"`
+	JitterStartSeconds                  *int32                        `json:"jitterStartSeconds,omitempty"`
+	FirstRunAtTimestamp                 *int64                        `json:"firstRunAtTimestamp,omitempty"`
+	CronOverlapPolicy                   *CronOverlapPolicy            `json:"cronOverlapPolicy,omitempty"`
+	ActiveClusterSelectionPolicy        *ActiveClusterSelectionPolicy `json:"activeClusterSelectionPolicy,omitempty"`
 }
 
 // GetDomain is an internal getter (TBD...)
@@ -7727,25 +7735,26 @@ func (v *WorkflowExecutionFilter) GetWorkflowID() (o string) {
 
 // WorkflowExecutionInfo is an internal type (TBD...)
 type WorkflowExecutionInfo struct {
-	Execution         *WorkflowExecution            `json:"execution,omitempty"`
-	Type              *WorkflowType                 `json:"type,omitempty"`
-	StartTime         *int64                        `json:"startTime,omitempty"`
-	CloseTime         *int64                        `json:"closeTime,omitempty"`
-	CloseStatus       *WorkflowExecutionCloseStatus `json:"closeStatus,omitempty"`
-	HistoryLength     int64                         `json:"historyLength,omitempty"` // should be history count
-	ParentDomainID    *string                       `json:"parentDomainId,omitempty"`
-	ParentDomain      *string                       `json:"parentDomain,omitempty"`
-	ParentExecution   *WorkflowExecution            `json:"parentExecution,omitempty"`
-	ParentInitiatedID *int64                        `json:"parentInitiatedId,omitempty"`
-	ExecutionTime     *int64                        `json:"executionTime,omitempty"`
-	Memo              *Memo                         `json:"memo,omitempty"`
-	SearchAttributes  *SearchAttributes             `json:"searchAttributes,omitempty"`
-	AutoResetPoints   *ResetPoints                  `json:"autoResetPoints,omitempty"`
-	TaskList          string                        `json:"taskList,omitempty"`
-	IsCron            bool                          `json:"isCron,omitempty"`
-	UpdateTime        *int64                        `json:"updateTime,omitempty"`
-	PartitionConfig   map[string]string             `json:"partitionConfig,omitempty"`
-	CronOverlapPolicy *CronOverlapPolicy            `json:"cronOverlapPolicy,omitempty"`
+	Execution                    *WorkflowExecution            `json:"execution,omitempty"`
+	Type                         *WorkflowType                 `json:"type,omitempty"`
+	StartTime                    *int64                        `json:"startTime,omitempty"`
+	CloseTime                    *int64                        `json:"closeTime,omitempty"`
+	CloseStatus                  *WorkflowExecutionCloseStatus `json:"closeStatus,omitempty"`
+	HistoryLength                int64                         `json:"historyLength,omitempty"` // should be history count
+	ParentDomainID               *string                       `json:"parentDomainId,omitempty"`
+	ParentDomain                 *string                       `json:"parentDomain,omitempty"`
+	ParentExecution              *WorkflowExecution            `json:"parentExecution,omitempty"`
+	ParentInitiatedID            *int64                        `json:"parentInitiatedId,omitempty"`
+	ExecutionTime                *int64                        `json:"executionTime,omitempty"`
+	Memo                         *Memo                         `json:"memo,omitempty"`
+	SearchAttributes             *SearchAttributes             `json:"searchAttributes,omitempty"`
+	AutoResetPoints              *ResetPoints                  `json:"autoResetPoints,omitempty"`
+	TaskList                     string                        `json:"taskList,omitempty"`
+	IsCron                       bool                          `json:"isCron,omitempty"`
+	UpdateTime                   *int64                        `json:"updateTime,omitempty"`
+	PartitionConfig              map[string]string             `json:"partitionConfig,omitempty"`
+	CronOverlapPolicy            *CronOverlapPolicy            `json:"cronOverlapPolicy,omitempty"`
+	ActiveClusterSelectionPolicy *ActiveClusterSelectionPolicy `json:"activeClusterSelectionPolicy,omitempty"`
 }
 
 // GetExecution is an internal getter (TBD...)

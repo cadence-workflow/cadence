@@ -532,6 +532,14 @@ func (w *WorkflowExecutionInfo) GetVersionHistoriesEncoding() (o string) {
 	return
 }
 
+// GetActiveClusterSelectionPolicyEncoding internal sql blob getter
+func (w *WorkflowExecutionInfo) GetActiveClusterSelectionPolicyEncoding() (o string) {
+	if w != nil {
+		return w.ActiveClusterSelectionPolicyEncoding
+	}
+	return
+}
+
 // GetInitiatedID internal sql blob getter
 func (w *WorkflowExecutionInfo) GetInitiatedID() (o int64) {
 	if w != nil {

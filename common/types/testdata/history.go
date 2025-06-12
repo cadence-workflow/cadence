@@ -276,7 +276,7 @@ var (
 		Header:                              &Header,
 		PartitionConfig:                     PartitionConfig,
 		RequestID:                           RequestID,
-		ActiveClusterSelectionPolicy:        &ActiveClusterSelectionPolicy,
+		ActiveClusterSelectionPolicy:        &ActiveClusterSelectionPolicyExternalEntity,
 		CronOverlapPolicy:                   &CronOverlapPolicy,
 	}
 	WorkflowExecutionCompletedEventAttributes = types.WorkflowExecutionCompletedEventAttributes{

@@ -231,6 +231,7 @@ func TestExecutionManager_GetWorkflowExecution(t *testing.T) {
 	mockedSerializer.EXPECT().DeserializeEvent(wfCompletionEvent).Return(wfCompletionEventData, nil).Times(1)
 	mockedSerializer.EXPECT().DeserializeResetPoints(gomock.Any()).Return(&types.ResetPoints{}, nil).Times(1)
 	mockedSerializer.EXPECT().DeserializeChecksum(gomock.Any()).Return(checksum.Checksum{}, nil).Times(1)
+	mockedSerializer.EXPECT().DeserializeActiveClusterSelectionPolicy(gomock.Any()).Return(nil, nil).Times(1)
 
 	res, err := manager.GetWorkflowExecution(context.Background(), request)
 	assert.NoError(t, err)
@@ -299,6 +300,9 @@ func TestExecutionManager_UpdateWorkflowExecution(t *testing.T) {
 	mockedSerializer.EXPECT().SerializeEvent(childWorkflowStartedEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 	mockedSerializer.EXPECT().SerializeResetPoints(generateResetPoints(), constants.EncodingTypeThriftRW).Return(expectedInfo.ExecutionInfo.AutoResetPoints, nil).Times(2)
 
+	// active cluster selection policy field exists on execution info and also as a separate row on mutation & snapshot
+	mockedSerializer.EXPECT().SerializeActiveClusterSelectionPolicy(nil, constants.EncodingTypeThriftRW).Return(nil, nil).Times(4)
+
 	request := &UpdateWorkflowExecutionRequest{
 		RangeID:                1,
 		Mode:                   UpdateWorkflowModeBypassCurrent,
@@ -344,6 +348,7 @@ func TestExecutionManager_UpdateWorkflowExecution(t *testing.T) {
 	assert.Equal(t, stats, res.MutableStateUpdateSessionStats)
 }
 
+// TODO(active-active): update test mocks to include active cluster selection policy serialization
 func TestSerializeWorkflowSnapshot(t *testing.T) {
 	for _, tc := range []struct {
 		name         string

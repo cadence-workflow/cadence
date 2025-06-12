@@ -142,6 +142,11 @@ func (m *executionManagerImpl) DeserializeExecutionInfo(
 		return nil, nil, err
 	}
 
+	activeClusterSelectionPolicy, err := m.serializer.DeserializeActiveClusterSelectionPolicy(info.ActiveClusterSelectionPolicy)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	newInfo := &WorkflowExecutionInfo{
 		CompletionEvent: completionEvent,
 
@@ -201,6 +206,7 @@ func (m *executionManagerImpl) DeserializeExecutionInfo(
 		SearchAttributes:                   info.SearchAttributes,
 		Memo:                               info.Memo,
 		PartitionConfig:                    info.PartitionConfig,
+		ActiveClusterSelectionPolicy:       activeClusterSelectionPolicy,
 	}
 	newStats := &ExecutionStats{
 		HistorySize: info.HistorySize,
@@ -474,6 +480,11 @@ func (m *executionManagerImpl) SerializeExecutionInfo(
 		return nil, err
 	}
 
+	activeClusterSelectionPolicy, err := m.serializer.SerializeActiveClusterSelectionPolicy(info.ActiveClusterSelectionPolicy, encoding)
+	if err != nil {
+		return nil, err
+	}
+
 	return &InternalWorkflowExecutionInfo{
 		DomainID:                           info.DomainID,
 		WorkflowID:                         info.WorkflowID,
@@ -531,6 +542,7 @@ func (m *executionManagerImpl) SerializeExecutionInfo(
 		Memo:                               info.Memo,
 		SearchAttributes:                   info.SearchAttributes,
 		PartitionConfig:                    info.PartitionConfig,
+		ActiveClusterSelectionPolicy:       activeClusterSelectionPolicy,
 
 		// attributes which are not related to mutable state
 		HistorySize: stats.HistorySize,

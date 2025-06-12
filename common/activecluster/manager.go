@@ -247,10 +247,10 @@ func (m *managerImpl) LookupWorkflow(ctx context.Context, domainID, wfID, rID st
 	}
 
 	region := ""
-	if activenessMetadata.ActiveClusterSelectionStrategy == types.ActiveClusterSelectionStrategyRegionSticky {
+	if activenessMetadata.GetStrategy() == types.ActiveClusterSelectionStrategyRegionSticky {
 		// Case 2.a: workflow is region sticky
 		region = activenessMetadata.StickyRegion
-	} else if activenessMetadata.ActiveClusterSelectionStrategy == types.ActiveClusterSelectionStrategyExternalEntity {
+	} else if activenessMetadata.GetStrategy() == types.ActiveClusterSelectionStrategyExternalEntity {
 		// Case 2.b: workflow has external entity
 		externalEntity, err := m.getExternalEntity(ctx, activenessMetadata.ExternalEntityType, activenessMetadata.ExternalEntityKey)
 		if err != nil {

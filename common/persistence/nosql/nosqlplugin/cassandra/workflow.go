@@ -198,7 +198,6 @@ func (db *cdb) SelectWorkflowExecution(ctx context.Context, shardID int, domainI
 	}
 
 	state := &nosqlplugin.WorkflowExecution{}
-	// TODO(active-active): parse active cluster selection policy from execution info
 	info := parseWorkflowExecutionInfo(result["execution"].(map[string]interface{}))
 	state.ExecutionInfo = info
 	state.VersionHistories = persistence.NewDataBlob(result["version_histories"].([]byte), constants.EncodingType(result["version_histories_encoding"].(string)))

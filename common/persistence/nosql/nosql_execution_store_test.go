@@ -43,7 +43,6 @@ import (
 	"github.com/uber/cadence/service/history/constants"
 )
 
-// TODO(active-active): add tests for active cluster selection policy row
 func TestCreateWorkflowExecution(t *testing.T) {
 	ctx := context.Background()
 

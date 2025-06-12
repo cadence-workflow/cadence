@@ -304,7 +304,7 @@ func (e *mutableStateBuilder) getActiveClusterSelectionPolicy(attr *types.Workfl
 	}
 
 	policy := attr.ActiveClusterSelectionPolicy
-	if policy.ActiveClusterSelectionStrategy == types.ActiveClusterSelectionStrategyExternalEntity {
+	if policy.GetStrategy() == types.ActiveClusterSelectionStrategyExternalEntity {
 		if !e.shard.GetActiveClusterManager().SupportedExternalEntityType(policy.ExternalEntityType) {
 			return nil, fmt.Errorf("external entity type %s is not supported", policy.ExternalEntityType)
 		}
@@ -313,7 +313,7 @@ func (e *mutableStateBuilder) getActiveClusterSelectionPolicy(attr *types.Workfl
 
 	// default to region sticky policy if it is not external entity policy
 	return &types.ActiveClusterSelectionPolicy{
-		ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky,
+		ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
 		StickyRegion:                   e.shard.GetActiveClusterManager().CurrentRegion(),
 	}, nil
 }

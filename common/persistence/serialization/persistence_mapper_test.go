@@ -90,6 +90,7 @@ func TestInternalWorkflowExecutionInfo(t *testing.T) {
 		HistorySize:                        int64(rand.Intn(1000)),
 		PartitionConfig:                    map[string]string{"zone": "dca1"},
 		IsCron:                             true,
+		ActiveClusterSelectionPolicy:       persistence.NewDataBlob([]byte("ActiveClusterSelectionPolicy"), constants.EncodingTypeJSON),
 	}
 	actual := ToInternalWorkflowExecutionInfo(FromInternalWorkflowExecutionInfo(expected))
 	assert.Equal(t, expected.ParentDomainID, actual.ParentDomainID)
@@ -146,4 +147,5 @@ func TestInternalWorkflowExecutionInfo(t *testing.T) {
 	assert.Equal(t, expected.HistorySize, actual.HistorySize)
 	assert.Equal(t, expected.PartitionConfig, actual.PartitionConfig)
 	assert.Equal(t, expected.IsCron, actual.IsCron)
+	assert.Equal(t, expected.ActiveClusterSelectionPolicy, actual.ActiveClusterSelectionPolicy)
 }

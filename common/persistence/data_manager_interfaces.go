@@ -415,6 +415,8 @@ type (
 		IsCron            bool
 		CronOverlapPolicy types.CronOverlapPolicy
 		ExpirationSeconds int32 // TODO: is this field useful?
+
+		ActiveClusterSelectionPolicy *types.ActiveClusterSelectionPolicy
 	}
 
 	// ExecutionStats is the statistics about workflow execution
