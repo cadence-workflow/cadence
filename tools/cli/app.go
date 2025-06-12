@@ -241,6 +241,8 @@ func NewCliApp(cf ClientFactory, opts ...CLIAppOptions) *cli.App {
 			Usage:       "Operate cadence cluster",
 			Subcommands: newClusterCommands(),
 		},
+		//claude-code interface
+		newNaturalLanguageCommand(),
 	}
 	app.CommandNotFound = func(context *cli.Context, command string) {
 		output := getDeps(context).Output()

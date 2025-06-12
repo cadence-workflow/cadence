@@ -53,7 +53,7 @@ import (
 func RestartWorkflow(c *cli.Context) error {
 	wfClient, err := getWorkflowClient(c)
 	if err != nil {
-		return err
+		return commoncli.Problem("Unable to Get Workflow Client: ", err)
 	}
 
 	domain, err := getRequiredOption(c, FlagDomain)
@@ -93,7 +93,7 @@ func RestartWorkflow(c *cli.Context) error {
 func DiagnoseWorkflow(c *cli.Context) error {
 	wfClient, err := getWorkflowClient(c)
 	if err != nil {
-		return err
+		return commoncli.Problem("Unable to Get Workflow Client: ", err)
 	}
 
 	domain, err := getRequiredOption(c, FlagDomain)
@@ -160,7 +160,7 @@ func ShowHistoryWithWID(c *cli.Context) error {
 func showHistoryHelper(c *cli.Context, wid, rid string) error {
 	wfClient, err := getWorkflowClient(c)
 	if err != nil {
-		return err
+		return commoncli.Problem("Unable to Get Workflow Client: ", err)
 	}
 
 	domain, err := getRequiredOption(c, FlagDomain)
@@ -252,7 +252,7 @@ func showHistoryHelper(c *cli.Context, wid, rid string) error {
 	// finally append activities with retry
 	frontendClient, err := getDeps(c).ServerFrontendClient(c)
 	if err != nil {
-		return err
+		return commoncli.Problem("Unable to Get Frontend Client Dependencies: ", err)
 	}
 	resp, err := frontendClient.DescribeWorkflowExecution(ctx, &types.DescribeWorkflowExecutionRequest{
 		Domain: domain,
@@ -294,12 +294,12 @@ func RunWorkflow(c *cli.Context) error {
 func startWorkflowHelper(c *cli.Context, shouldPrintProgress bool) error {
 	serviceClient, err := getDeps(c).ServerFrontendClient(c)
 	if err != nil {
-		return err
+		return commoncli.Problem("Unable to Get Frontend Client Dependencies: ", err)
 	}
 
 	startRequest, err := constructStartWorkflowRequest(c)
 	if err != nil {
-		return err
+		return commoncli.Problem("Unable to Create Start Workflow Request: ", err)
 	}
 	domain := startRequest.GetDomain()
 	wid := startRequest.GetWorkflowID()
@@ -564,7 +564,7 @@ func printWorkflowProgress(c *cli.Context, domain, wid, rid string) error {
 
 	wfClient, err := getWorkflowClient(c)
 	if err != nil {
-		return err
+		return commoncli.Problem("Unable to Get Workflow Client: ", err)
 	}
 	timeElapse := 1
 	isTimeElapseExist := false
@@ -637,7 +637,7 @@ func printWorkflowProgress(c *cli.Context, domain, wid, rid string) error {
 func TerminateWorkflow(c *cli.Context) error {
 	wfClient, err := getWorkflowClient(c)
 	if err != nil {
-		return err
+		return commoncli.Problem("Unable to Get Workflow Client: ", err)
 	}
 
 	domain, err := getRequiredOption(c, FlagDomain)
@@ -680,7 +680,7 @@ func TerminateWorkflow(c *cli.Context) error {
 func CancelWorkflow(c *cli.Context) error {
 	wfClient, err := getWorkflowClient(c)
 	if err != nil {
-		return err
+		return commoncli.Problem("Unable to Get Workflow Client: ", err)
 	}
 	domain, err := getRequiredOption(c, FlagDomain)
 	if err != nil {
@@ -723,7 +723,7 @@ func CancelWorkflow(c *cli.Context) error {
 func SignalWorkflow(c *cli.Context) error {
 	serviceClient, err := getDeps(c).ServerFrontendClient(c)
 	if err != nil {
-		return err
+		return commoncli.Problem("Unable to Get Frontend Client Dependencies: ", err)
 	}
 
 	domain, err := getRequiredOption(c, FlagDomain)
@@ -774,12 +774,12 @@ func SignalWorkflow(c *cli.Context) error {
 func SignalWithStartWorkflowExecution(c *cli.Context) error {
 	serviceClient, err := getDeps(c).ServerFrontendClient(c)
 	if err != nil {
-		return err
+		return commoncli.Problem("Unable to Get Frontend Client Dependencies: ", err)
 	}
 
 	signalWithStartRequest, err := constructSignalWithStartWorkflowRequest(c)
 	if err != nil {
-		return err
+		return commoncli.Problem("Unable to Create Signal with Start Workflow Request: ", err)
 	}
 
 	tcCtx, cancel, err := newContext(c)
@@ -799,7 +799,7 @@ func SignalWithStartWorkflowExecution(c *cli.Context) error {
 func constructSignalWithStartWorkflowRequest(c *cli.Context) (*types.SignalWithStartWorkflowExecutionRequest, error) {
 	startRequest, err := constructStartWorkflowRequest(c)
 	if err != nil {
-		return nil, err
+		return nil, commoncli.Problem("Unable to Create Start Workflow Request: ", err)
 	}
 	signalname, err := getRequiredOption(c, FlagName)
 	if err != nil {
@@ -859,7 +859,7 @@ func QueryWorkflowUsingQueryTypes(c *cli.Context) error {
 func queryWorkflowHelper(c *cli.Context, queryType string) error {
 	serviceClient, err := getDeps(c).ServerFrontendClient(c)
 	if err != nil {
-		return err
+		return commoncli.Problem("Unable to Get Frontend Client Dependencies: ", err)
 	}
 
 	domain, err := getRequiredOption(c, FlagDomain)
@@ -936,11 +936,11 @@ func queryWorkflowHelper(c *cli.Context, queryType string) error {
 func ListWorkflow(c *cli.Context) error {
 	listWF, err := listWorkflows(c)
 	if err != nil {
-		return err
+		return commoncli.Problem("Unable to List Workflows: ", err)
 	}
 	listExcludedWF, err := filterExcludedWorkflows(c, listWF)
 	if err != nil {
-		return err
+		return commoncli.Problem("Unable to Filter Excluded Workflows: ", err)
 	}
 	return displayPagedWorkflows(c, listExcludedWF, !c.Bool(FlagMore))
 }
@@ -949,11 +949,11 @@ func ListWorkflow(c *cli.Context) error {
 func ListAllWorkflow(c *cli.Context) error {
 	listWF, err := listWorkflows(c)
 	if err != nil {
-		return err
+		return commoncli.Problem("Unable to List Workflows: ", err)
 	}
 	listExcludedWF, err := filterExcludedWorkflows(c, listWF)
 	if err != nil {
-		return err
+		return commoncli.Problem("Unable to Filter Excluded Workflows: ", err)
 	}
 	return displayAllWorkflows(c, listExcludedWF)
 }
@@ -963,7 +963,7 @@ func ListAllWorkflow(c *cli.Context) error {
 func ScanAllWorkflow(c *cli.Context) error {
 	pagefn, err := scanWorkflows(c)
 	if err != nil {
-		return err
+		return commoncli.Problem("Unable to Scan Workflows: ", err)
 	}
 	return displayAllWorkflows(c, pagefn)
 }
@@ -977,7 +977,7 @@ func isQueryOpen(query string) bool {
 func CountWorkflow(c *cli.Context) error {
 	wfClient, err := getWorkflowClient(c)
 	if err != nil {
-		return err
+		return commoncli.Problem("Unable to Get Workflow Client: ", err)
 	}
 
 	domain, err := getRequiredOption(c, FlagDomain)
@@ -1009,7 +1009,7 @@ func ListArchivedWorkflow(c *cli.Context) error {
 	printAll := c.Bool(FlagAll)
 	pagefn, err := listArchivedWorkflows(c)
 	if err != nil {
-		return err
+		return commoncli.Problem("Unable to List Archived Workflows: ", err)
 	}
 	if printAll {
 		return displayAllWorkflows(c, pagefn)
@@ -1045,7 +1045,7 @@ func DescribeWorkflowWithID(c *cli.Context) error {
 func describeWorkflowHelper(c *cli.Context, wid, rid string) error {
 	frontendClient, err := getDeps(c).ServerFrontendClient(c)
 	if err != nil {
-		return err
+		return commoncli.Problem("Unable to Get Frontend Client Dependencies: ", err)
 	}
 	domain, err := getRequiredOption(c, FlagDomain)
 	if err != nil {
@@ -1280,7 +1280,7 @@ func convertSearchAttributesToMapOfInterface(searchAttributes *types.SearchAttri
 func getAllWorkflowIDsByQuery(c *cli.Context, query string) (map[string]bool, error) {
 	wfClient, err := getWorkflowClient(c)
 	if err != nil {
-		return nil, err
+		return nil, commoncli.Problem("Unable to Get Workflow Client: ", err)
 	}
 	pageSize := 1000
 	var nextPageToken []byte
@@ -1288,7 +1288,7 @@ func getAllWorkflowIDsByQuery(c *cli.Context, query string) (map[string]bool, er
 	for {
 		info, nextPageToken, err := scanWorkflowExecutions(wfClient, pageSize, nextPageToken, query, c)
 		if err != nil {
-			return nil, err
+			return nil, commoncli.Problem("Unable to Scan Workflow Executions: ", err)
 		}
 		for _, we := range info {
 			wid := we.Execution.GetWorkflowID()
@@ -1394,7 +1394,7 @@ func getAllWorkflows(getWorkflowPage getWorkflowPageFn) ([]*types.WorkflowExecut
 	for {
 		page, nextPageToken, err = getWorkflowPage(nextPageToken)
 		if err != nil {
-			return nil, err
+			return nil, commoncli.Problem("Unable to Get Workflow Client: ", err)
 		}
 		all = append(all, page...)
 		if len(nextPageToken) == 0 {
@@ -1411,7 +1411,7 @@ func filterExcludedWorkflows(c *cli.Context, getWorkflowPage getWorkflowPageFn) 
 		excludeQuery := c.String(FlagExcludeWorkflowIDByQuery)
 		excludeWIDs, err = getAllWorkflowIDsByQuery(c, excludeQuery)
 		if err != nil {
-			return nil, err
+			return nil, commoncli.Problem("Unable to Get All Workflow IDs By Query: ", err)
 		}
 		fmt.Printf("found %d workflowIDs to exclude\n", len(excludeWIDs))
 	}
@@ -1419,7 +1419,7 @@ func filterExcludedWorkflows(c *cli.Context, getWorkflowPage getWorkflowPageFn) 
 	return func(nextPageToken []byte) ([]*types.WorkflowExecutionInfo, []byte, error) {
 		page, nextPageToken, err := getWorkflowPage(nextPageToken)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, commoncli.Problem("Unable to Get Workflow Page: ", err)
 		}
 		filtered := make([]*types.WorkflowExecutionInfo, 0, len(page))
 		for _, workflow := range page {
@@ -1441,7 +1441,7 @@ func displayPagedWorkflows(c *cli.Context, getWorkflowPage getWorkflowPageFn, fi
 	for {
 		page, nextPageToken, err = getWorkflowPage(nextPageToken)
 		if err != nil {
-			return err
+			return commoncli.Problem("Unable to Get Workflow Page: ", err)
 		}
 
 		if err := displayWorkflows(c, page); err != nil {
@@ -1464,7 +1464,7 @@ func displayPagedWorkflows(c *cli.Context, getWorkflowPage getWorkflowPageFn, fi
 func displayAllWorkflows(c *cli.Context, getWorkflowsPage getWorkflowPageFn) error {
 	wfs, err := getAllWorkflows(getWorkflowsPage)
 	if err != nil {
-		return err
+		return commoncli.Problem("Unable to Get All Workflows: ", err)
 	}
 	return displayWorkflows(c, wfs)
 }
@@ -1484,7 +1484,7 @@ func displayWorkflows(c *cli.Context, workflows []*types.WorkflowExecutionInfo) 
 	for _, workflow := range workflows {
 		row, err := newWorkflowRow(workflow)
 		if err != nil {
-			return err
+			return commoncli.Problem("Unable to Create Workflow Row: ", err)
 		}
 		table = append(table, row)
 	}
@@ -1581,7 +1581,7 @@ func listClosedWorkflow(client frontend.Client, pageSize int, earliestTime, late
 func listWorkflows(c *cli.Context) (getWorkflowPageFn, error) {
 	wfClient, err := getWorkflowClient(c)
 	if err != nil {
-		return nil, err
+		return nil, commoncli.Problem("Unable to Get Workflow Client: ", err)
 	}
 
 	domain, err := getRequiredOption(c, FlagDomain)
@@ -1653,7 +1653,7 @@ func listWorkflows(c *cli.Context) (getWorkflowPageFn, error) {
 func listArchivedWorkflows(c *cli.Context) (getWorkflowPageFn, error) {
 	wfClient, err := getWorkflowClient(c)
 	if err != nil {
-		return nil, err
+		return nil, commoncli.Problem("Unable to Get Workflow Client: ", err)
 	}
 
 	domain, err := getRequiredOption(c, FlagDomain)
@@ -1697,7 +1697,7 @@ func listArchivedWorkflows(c *cli.Context) (getWorkflowPageFn, error) {
 func scanWorkflows(c *cli.Context) (getWorkflowPageFn, error) {
 	wfClient, err := getWorkflowClient(c)
 	if err != nil {
-		return nil, err
+		return nil, commoncli.Problem("Unable to Get Workflow Client: ", err)
 	}
 	listQuery := c.String(FlagListQuery)
 	pageSize := c.Int(FlagPageSize)
@@ -1822,7 +1822,7 @@ func ResetWorkflow(c *cli.Context) error {
 
 	frontendClient, err := getDeps(c).ServerFrontendClient(c)
 	if err != nil {
-		return err
+		return commoncli.Problem("Unable to Get Frontend Client Dependencies: ", err)
 	}
 	rid := c.String(FlagRunID)
 	if rid == "" {
@@ -1973,7 +1973,7 @@ func ResetInBatch(c *cli.Context) error {
 		var err error
 		excludeWIDs, err = getAllWorkflowIDsByQuery(c, excludeQuery)
 		if err != nil {
-			return err
+			return commoncli.Problem("Unable to Get All Workflow IDs By Query: ", err)
 		}
 	}
 
@@ -2018,7 +2018,7 @@ func ResetInBatch(c *cli.Context) error {
 	} else {
 		wfClient, err := getWorkflowClient(c)
 		if err != nil {
-			return err
+			return commoncli.Problem("Unable to Get Workflow Client: ", err)
 		}
 		pageSize := 1000
 		var nextPageToken []byte
@@ -2026,7 +2026,7 @@ func ResetInBatch(c *cli.Context) error {
 		for {
 			result, nextPageToken, err = scanWorkflowExecutions(wfClient, pageSize, nextPageToken, query, c)
 			if err != nil {
-				return err
+				return commoncli.Problem("Unable to Scan Workflow Executions: ", err)
 			}
 			for _, we := range result {
 				wid := we.Execution.GetWorkflowID()
@@ -2098,7 +2098,7 @@ func doReset(c *cli.Context, domain, wid, rid string, params batchResetParamsTyp
 
 	frontendClient, err := getDeps(c).ServerFrontendClient(c)
 	if err != nil {
-		return err
+		return commoncli.Problem("Unable to Get Frontend Client Dependencies: ", err)
 	}
 	resp, err := frontendClient.DescribeWorkflowExecution(ctx, &types.DescribeWorkflowExecutionRequest{
 		Domain: domain,
@@ -2235,24 +2235,24 @@ func getResetEventIDByType(
 	case resetTypeLastDecisionCompleted:
 		decisionFinishID, err = getLastDecisionTaskByType(ctx, domain, wid, rid, frontendClient, types.EventTypeDecisionTaskCompleted, decisionOffset)
 		if err != nil {
-			return
+			return "", 0, commoncli.Problem("Unable to Get Last Decision Task By Type: ", err)
 		}
 	case resetTypeLastContinuedAsNew:
 		// this reset type may change the base runID
 		resetBaseRunID, decisionFinishID, err = getLastContinueAsNewID(ctx, domain, wid, rid, frontendClient)
 		if err != nil {
-			return
+			return "", 0, commoncli.Problem("Unable to Get Last Continue As New ID: ", err)
 		}
 	case resetTypeFirstDecisionCompleted:
 		decisionFinishID, err = getFirstDecisionTaskByType(ctx, domain, wid, rid, frontendClient, types.EventTypeDecisionTaskCompleted)
 		if err != nil {
-			return
+			return "", 0, commoncli.Problem("Unable to Get First Decision Task By Type: ", err)
 		}
 	case resetTypeBadBinary:
 		binCheckSum := c.String(FlagResetBadBinaryChecksum)
 		decisionFinishID, err = getBadDecisionCompletedID(ctx, domain, wid, rid, binCheckSum, frontendClient)
 		if err != nil {
-			return
+			return "", 0, commoncli.Problem("Unable to Get Bad Decision Completed ID: ", err)
 		}
 	case resetTypeDecisionCompletedTime:
 		earliestTime, err := parseTime(c.String(FlagEarliestTime), 0)
@@ -2266,14 +2266,14 @@ func getResetEventIDByType(
 	case resetTypeFirstDecisionScheduled:
 		decisionFinishID, err = getFirstDecisionTaskByType(ctx, domain, wid, rid, frontendClient, types.EventTypeDecisionTaskScheduled)
 		if err != nil {
-			return
+			return "", 0, commoncli.Problem("Unable to Get First Decision Task By Type: ", err)
 		}
 		// decisionFinishID is exclusive in reset API
 		decisionFinishID++
 	case resetTypeLastDecisionScheduled:
 		decisionFinishID, err = getLastDecisionTaskByType(ctx, domain, wid, rid, frontendClient, types.EventTypeDecisionTaskScheduled, decisionOffset)
 		if err != nil {
-			return
+			return "", 0, commoncli.Problem("Unable to Get Last Decision Task By Type: ", err)
 		}
 		// decisionFinishID is exclusive in reset API
 		decisionFinishID++
@@ -2332,7 +2332,7 @@ func getCurrentRunID(ctx context.Context, domain, wid string, frontendClient fro
 		},
 	})
 	if err != nil {
-		return "", err
+		return "", commoncli.Problem("Unable to Get Description of Workflow Execution: ", err)
 	}
 	return resp.WorkflowExecutionInfo.Execution.GetRunID(), nil
 }
@@ -2502,7 +2502,7 @@ func CompleteActivity(c *cli.Context) error {
 
 	frontendClient, err := getDeps(c).ServerFrontendClient(c)
 	if err != nil {
-		return err
+		return commoncli.Problem("Unable to Get Frontend Client Dependencies: ", err)
 	}
 	err = frontendClient.RespondActivityTaskCompletedByID(ctx, &types.RespondActivityTaskCompletedByIDRequest{
 		Domain:     domain,
@@ -2556,7 +2556,7 @@ func FailActivity(c *cli.Context) error {
 	}
 	frontendClient, err := getDeps(c).ServerFrontendClient(c)
 	if err != nil {
-		return err
+		return commoncli.Problem("Unable to Get Frontend Client Dependencies: ", err)
 	}
 	err = frontendClient.RespondActivityTaskFailedByID(ctx, &types.RespondActivityTaskFailedByIDRequest{
 		Domain:     domain,

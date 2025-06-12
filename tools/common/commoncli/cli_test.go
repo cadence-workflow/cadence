@@ -28,10 +28,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/fatih/color"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/uber/cadence/common/types"
 )
+
+func init() {
+	color.NoColor = true
+}
 
 func TestPrintErr(t *testing.T) {
 	run := func(t *testing.T, err error) string {
