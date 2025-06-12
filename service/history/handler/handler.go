@@ -55,6 +55,7 @@ import (
 	"github.com/uber/cadence/service/history/failover"
 	"github.com/uber/cadence/service/history/lookup"
 	"github.com/uber/cadence/service/history/queue"
+	"github.com/uber/cadence/service/history/queuev2"
 	"github.com/uber/cadence/service/history/replication"
 	"github.com/uber/cadence/service/history/resource"
 	"github.com/uber/cadence/service/history/shard"
@@ -162,12 +163,12 @@ func (h *handlerImpl) Start() {
 	h.queueTaskProcessor.Start()
 
 	h.queueFactories = []queue.Factory{
-		queue.NewTransferQueueFactory(
+		queuev2.NewTransferQueueFactory(
 			h.queueTaskProcessor,
 			h.GetArchiverClient(),
 			h.workflowIDCache,
 		),
-		queue.NewTimerQueueFactory(
+		queuev2.NewTimerQueueFactory(
 			h.queueTaskProcessor,
 			h.GetArchiverClient(),
 		),

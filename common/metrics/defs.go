@@ -1143,6 +1143,8 @@ const (
 	TaskPriorityAssignerScope
 	// TransferQueueProcessorScope is the scope used by all metric emitted by transfer queue processor
 	TransferQueueProcessorScope
+	// TransferQueueProcessorV2Scope is the scope used by all metric emitted by transfer queue processor
+	TransferQueueProcessorV2Scope
 	// TransferActiveQueueProcessorScope is the scope used by all metric emitted by transfer queue processor
 	TransferActiveQueueProcessorScope
 	// TransferStandbyQueueProcessorScope is the scope used by all metric emitted by transfer queue processor
@@ -1197,6 +1199,8 @@ const (
 	TransferStandbyTaskApplyParentClosePolicyScope
 	// TimerQueueProcessorScope is the scope used by all metric emitted by timer queue processor
 	TimerQueueProcessorScope
+	// TimerQueueProcessorV2Scope is the scope used by all metric emitted by timer queue processor
+	TimerQueueProcessorV2Scope
 	// TimerActiveQueueProcessorScope is the scope used by all metric emitted by timer queue processor
 	TimerActiveQueueProcessorScope
 	// TimerQueueProcessorScope is the scope used by all metric emitted by timer queue processor
@@ -1942,6 +1946,7 @@ var ScopeDefs = map[ServiceIdx]map[int]scopeDefinition{
 		HistoryRatelimitUpdateScope:                                     {operation: "RatelimitUpdate"},
 		TaskPriorityAssignerScope:                                       {operation: "TaskPriorityAssigner"},
 		TransferQueueProcessorScope:                                     {operation: "TransferQueueProcessor"},
+		TransferQueueProcessorV2Scope:                                   {operation: "TransferQueueProcessorV2"},
 		TransferActiveQueueProcessorScope:                               {operation: "TransferActiveQueueProcessor"},
 		TransferStandbyQueueProcessorScope:                              {operation: "TransferStandbyQueueProcessor"},
 		TransferActiveTaskActivityScope:                                 {operation: "TransferActiveTaskActivity"},
@@ -1969,6 +1974,7 @@ var ScopeDefs = map[ServiceIdx]map[int]scopeDefinition{
 		TransferStandbyTaskRecordChildExecutionCompletedScope:           {operation: "TransferStandbyTaskRecordChildExecutionCompleted"},
 		TransferStandbyTaskApplyParentClosePolicyScope:                  {operation: "TransferStandbyTaskApplyParentClosePolicy"},
 		TimerQueueProcessorScope:                                        {operation: "TimerQueueProcessor"},
+		TimerQueueProcessorV2Scope:                                      {operation: "TimerQueueProcessorV2"},
 		TimerActiveQueueProcessorScope:                                  {operation: "TimerActiveQueueProcessor"},
 		TimerStandbyQueueProcessorScope:                                 {operation: "TimerStandbyQueueProcessor"},
 		TimerActiveTaskActivityTimeoutScope:                             {operation: "TimerActiveTaskActivityTimeout"},

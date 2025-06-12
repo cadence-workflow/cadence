@@ -204,6 +204,15 @@ func (s *configSuite) TestGetBoolPropertyFilteredByTaskListInfo() {
 	s.Equal(true, value(domain, taskList, taskType))
 }
 
+func (s *configSuite) TestGetBoolPropertyFilteredByShardID() {
+	key := dynamicproperties.TestGetBoolPropertyFilteredByShardIDKey
+	shardID := 1
+	value := s.cln.GetBoolPropertyFilteredByShardID(key)
+	s.Equal(key.DefaultBool(), value(shardID))
+	s.client.SetValue(key, true)
+	s.Equal(true, value(shardID))
+}
+
 func (s *configSuite) TestGetDurationProperty() {
 	key := dynamicproperties.TestGetDurationPropertyKey
 	value := s.cln.GetDurationProperty(key)

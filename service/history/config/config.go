@@ -147,6 +147,7 @@ type Config struct {
 	TimerProcessorHistoryArchivalSizeLimit            dynamicproperties.IntPropertyFn
 	TimerProcessorArchivalTimeLimit                   dynamicproperties.DurationPropertyFn
 	DisableTimerFailoverQueue                         dynamicproperties.BoolPropertyFn
+	EnableTimerQueueV2                                dynamicproperties.BoolPropertyFnWithShardIDFilter
 
 	// TransferQueueProcessor settings
 	TransferTaskBatchSize                                dynamicproperties.IntPropertyFn
@@ -167,6 +168,8 @@ type Config struct {
 	TransferProcessorValidationInterval                  dynamicproperties.DurationPropertyFn
 	TransferProcessorVisibilityArchivalTimeLimit         dynamicproperties.DurationPropertyFn
 	DisableTransferFailoverQueue                         dynamicproperties.BoolPropertyFn
+	EnableTransferQueueV2                                dynamicproperties.BoolPropertyFnWithShardIDFilter
+
 	// ReplicatorQueueProcessor settings
 	ReplicatorTaskDeleteBatchSize          dynamicproperties.IntPropertyFn
 	ReplicatorReadTaskMaxRetryCount        dynamicproperties.IntPropertyFn
@@ -434,6 +437,7 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		TimerProcessorHistoryArchivalSizeLimit:               dc.GetIntProperty(dynamicproperties.TimerProcessorHistoryArchivalSizeLimit),
 		TimerProcessorArchivalTimeLimit:                      dc.GetDurationProperty(dynamicproperties.TimerProcessorArchivalTimeLimit),
 		DisableTimerFailoverQueue:                            dc.GetBoolProperty(dynamicproperties.DisableTimerFailoverQueue),
+		EnableTimerQueueV2:                                   dc.GetBoolPropertyFilteredByShardID(dynamicproperties.EnableTimerQueueV2),
 		TransferTaskBatchSize:                                dc.GetIntProperty(dynamicproperties.TransferTaskBatchSize),
 		TransferTaskDeleteBatchSize:                          dc.GetIntProperty(dynamicproperties.TransferTaskDeleteBatchSize),
 		TransferProcessorFailoverMaxStartJitterInterval:      dc.GetDurationProperty(dynamicproperties.TransferProcessorFailoverMaxStartJitterInterval),
@@ -452,6 +456,7 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		TransferProcessorValidationInterval:                  dc.GetDurationProperty(dynamicproperties.TransferProcessorValidationInterval),
 		TransferProcessorVisibilityArchivalTimeLimit:         dc.GetDurationProperty(dynamicproperties.TransferProcessorVisibilityArchivalTimeLimit),
 		DisableTransferFailoverQueue:                         dc.GetBoolProperty(dynamicproperties.DisableTransferFailoverQueue),
+		EnableTransferQueueV2:                                dc.GetBoolPropertyFilteredByShardID(dynamicproperties.EnableTransferQueueV2),
 
 		ReplicatorTaskDeleteBatchSize:          dc.GetIntProperty(dynamicproperties.ReplicatorTaskDeleteBatchSize),
 		ReplicatorReadTaskMaxRetryCount:        dc.GetIntProperty(dynamicproperties.ReplicatorReadTaskMaxRetryCount),

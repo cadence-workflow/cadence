@@ -268,6 +268,8 @@ func TestNewConfig(t *testing.T) {
 		"ExecutionCacheMaxByteSize":                            {dynamicproperties.ExecutionCacheMaxByteSize, 98},
 		"DisableTransferFailoverQueue":                         {dynamicproperties.DisableTransferFailoverQueue, true},
 		"DisableTimerFailoverQueue":                            {dynamicproperties.DisableTimerFailoverQueue, true},
+		"EnableTransferQueueV2":                                {dynamicproperties.EnableTransferQueueV2, true},
+		"EnableTimerQueueV2":                                   {dynamicproperties.EnableTimerQueueV2, true},
 	}
 	client := dynamicconfig.NewInMemoryClient()
 	for fieldName, expected := range fields {
@@ -355,6 +357,8 @@ func getValue(f *reflect.Value) interface{} {
 			return fn("domain", "workflowID")
 		case dynamicproperties.MapPropertyFnWithDomainFilter:
 			return fn("domain")
+		case dynamicproperties.BoolPropertyFnWithShardIDFilter:
+			return fn(0)
 		case func() []string:
 			return fn()
 		default:
