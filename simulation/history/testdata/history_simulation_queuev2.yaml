@@ -1,0 +1,17 @@
+enablearchival: false
+clusterno: 0
+messagingclientconfig:
+  usemock: true
+historyconfig:
+  numhistoryshards: 4
+  numhistoryhosts: 1
+  simulationconfig:
+    enabletransferqueuev2: true
+    enabletimerqueuev2: true
+matchingconfig:
+  nummatchinghosts: 1
+workerconfig:
+  enableasyncwfconsumer: false
+  enablearchiver: false
+  enablereplicator: false
+  enableindexer: false
