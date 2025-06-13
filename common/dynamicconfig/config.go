@@ -196,6 +196,22 @@ func (c *Collection) GetIntPropertyFilteredByShardID(key dynamicproperties.IntKe
 	}
 }
 
+// GetBoolPropertyFilteredByShardID gets property with shardID as filter and asserts that it's a bool
+func (c *Collection) GetBoolPropertyFilteredByShardID(key dynamicproperties.BoolKey) dynamicproperties.BoolPropertyFnWithShardIDFilter {
+	return func(shardID int) bool {
+		filters := c.toFilterMap(dynamicproperties.ShardIDFilter(shardID))
+		val, err := c.client.GetBoolValue(
+			key,
+			filters,
+		)
+		if err != nil {
+			c.logError(key, filters, err)
+			return key.DefaultBool()
+		}
+		return val
+	}
+}
+
 // GetFloat64Property gets property and asserts that it's a float64
 func (c *Collection) GetFloat64Property(key dynamicproperties.FloatKey) dynamicproperties.FloatPropertyFn {
 	return func(opts ...dynamicproperties.FilterOption) float64 {

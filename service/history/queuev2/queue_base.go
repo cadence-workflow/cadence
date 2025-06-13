@@ -269,6 +269,11 @@ func (q *queueBase) updateQueueState(ctx context.Context) {
 	if err != nil {
 		q.logger.Error("Failed to update queue state", tag.Error(err))
 	}
+
+	q.updateQueueStateTimer.Reset(backoff.JitDuration(
+		q.options.UpdateAckInterval(),
+		q.options.UpdateAckIntervalJitterCoefficient(),
+	))
 }
 
 func getExclusiveAckLevelFromQueueState(state *QueueState) persistence.HistoryTaskKey {

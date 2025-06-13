@@ -1525,6 +1525,7 @@ const (
 	TestGetBoolPropertyFilteredByTaskListInfoKey
 	TestGetBoolPropertyFilteredByDomainKey
 	TestGetBoolPropertyFilteredByDomainIDAndWorkflowIDKey
+	TestGetBoolPropertyFilteredByShardIDKey
 
 	// key for common & admin
 
@@ -2101,6 +2102,9 @@ const (
 
 	DisableTransferFailoverQueue
 	DisableTimerFailoverQueue
+
+	EnableTransferQueueV2
+	EnableTimerQueueV2
 
 	// LastBoolKey must be the last one in this const group
 	LastBoolKey
@@ -4030,6 +4034,12 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		DefaultValue: false,
 		Filters:      nil,
 	},
+	TestGetBoolPropertyFilteredByShardIDKey: {
+		KeyName:      "testGetBoolPropertyFilteredByShardIDKey",
+		Description:  "",
+		DefaultValue: false,
+		Filters:      []Filter{ShardID},
+	},
 	EnableVisibilitySampling: {
 		KeyName:      "system.enableVisibilitySampling",
 		Description:  "EnableVisibilitySampling is key for enable visibility sampling for basic(DB based) visibility",
@@ -4573,6 +4583,18 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "history.disableTimerFailoverQueue",
 		Description:  "DisableTimerFailoverQueue is to disable timer failover queue",
 		DefaultValue: false,
+	},
+	EnableTransferQueueV2: {
+		KeyName:      "history.enableTransferQueueV2",
+		Description:  "EnableTransferQueueV2 is to enable transfer queue v2",
+		Filters:      []Filter{ShardID},
+		DefaultValue: true,
+	},
+	EnableTimerQueueV2: {
+		KeyName:      "history.enableTimerQueueV2",
+		Description:  "EnableTimerQueueV2 is to enable timer queue v2",
+		Filters:      []Filter{ShardID},
+		DefaultValue: true,
 	},
 }
 
