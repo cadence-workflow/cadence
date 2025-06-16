@@ -95,11 +95,11 @@ CREATE TYPE workflow_execution (
   auto_reset_points_encoding       text, -- encoding for auto_reset_points_data
   search_attributes                map<text, blob>,
   memo                             map<text, blob>,
-  partition_config                 map<text, text>
-
-  -- TODO(active-active): add active cluster selection policy in follow up PR
-  -- active_cluster_selection_policy blob,
-  -- active_cluster_selection_policy_encoding text,
+  partition_config                 map<text, text>,
+  cron_overlap_policy              int, -- enum CronOverlapPolicy {Skip, BufferOne}
+  task_list_kind                   int, -- enum TaskListKind {Normal, Sticky, Ephemeral},
+  active_cluster_selection_policy blob, -- active cluster selection policy applicable to active-active domains
+  active_cluster_selection_policy_encoding text, -- encoding for active_cluster_selection_policy
 );
 
 -- Replication information for each cluster
@@ -203,6 +203,7 @@ CREATE TYPE activity_info (
   last_worker_identity      text, -- Worker that returns the last failure reason
   last_failure_details      blob,
   event_data_encoding       text, -- Protocol used for history serialization
+  task_list_kind            int, -- enum TaskListKind {Normal, Sticky, Ephemeral},
 );
 
 -- User timer details
