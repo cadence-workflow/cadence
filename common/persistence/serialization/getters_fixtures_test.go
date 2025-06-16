@@ -34,6 +34,7 @@ var (
 
 var expectedNil = map[string]map[string]any{
 	"*serialization.WorkflowExecutionInfo": {
+		"GetActiveClusterSelectionPolicyEncoding": string(""),
 		"GetAutoResetPoints":                      []uint8(nil),
 		"GetAutoResetPointsEncoding":              "",
 		"GetCancelRequestID":                      "",
@@ -47,6 +48,7 @@ var expectedNil = map[string]map[string]any{
 		"GetCreateRequestID":                      "",
 		"GetCompletionEventBatchID":               int64(0),
 		"GetCronSchedule":                         "",
+		"GetCronOverlapPolicy":                    int32(0),
 		"GetDecisionAttempt":                      int64(0),
 		"GetDecisionOriginalScheduledTimestamp":   zeroUnix,
 		"GetDecisionRequestID":                    "",
@@ -97,7 +99,6 @@ var expectedNil = map[string]map[string]any{
 		"GetWorkflowTypeName":                     "",
 		"GetChecksum":                             []uint8(nil),
 		"GetChecksumEncoding":                     "",
-		"GetActiveClusterSelectionPolicyEncoding": "",
 	},
 	"*serialization.TransferTaskInfo": {
 		"GetDomainID":                []uint8(nil),
@@ -276,6 +277,7 @@ var expectedNil = map[string]map[string]any{
 
 var expectedEmpty = map[string]map[string]any{
 	"*serialization.WorkflowExecutionInfo": {
+		"GetActiveClusterSelectionPolicyEncoding": string(""),
 		"GetAutoResetPoints":                      []uint8(nil),
 		"GetAutoResetPointsEncoding":              "",
 		"GetCancelRequestID":                      "",
@@ -289,6 +291,7 @@ var expectedEmpty = map[string]map[string]any{
 		"GetCreateRequestID":                      "",
 		"GetCompletionEventBatchID":               int64(0),
 		"GetCronSchedule":                         "",
+		"GetCronOverlapPolicy":                    int32(0),
 		"GetDecisionAttempt":                      int64(0),
 		"GetDecisionOriginalScheduledTimestamp":   time.Time{},
 		"GetDecisionRequestID":                    "",
@@ -339,7 +342,6 @@ var expectedEmpty = map[string]map[string]any{
 		"GetWorkflowTypeName":                     "",
 		"GetChecksum":                             []uint8(nil),
 		"GetChecksumEncoding":                     "",
-		"GetActiveClusterSelectionPolicyEncoding": "",
 	},
 	"*serialization.TransferTaskInfo": {
 		"GetDomainID":                []uint8(nil),
@@ -531,6 +533,7 @@ var expectedNonEmpty = map[string]map[string]any{
 		"GetCreateRequestID":                    "",
 		"GetCompletionEventBatchID":             int64(2),
 		"GetCronSchedule":                       "",
+		"GetCronOverlapPolicy":                  int32(0),
 		"GetDecisionAttempt":                    int64(0),
 		"GetDecisionOriginalScheduledTimestamp": time.Time{},
 		"GetDecisionRequestID":                  "",

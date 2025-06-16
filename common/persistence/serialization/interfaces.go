@@ -157,6 +157,7 @@ type (
 		RetryNonRetryableErrors              []string
 		HasRetryPolicy                       bool
 		CronSchedule                         string
+		CronOverlapPolicy                    types.CronOverlapPolicy
 		EventStoreVersion                    int32
 		EventBranchToken                     []byte
 		SignalCount                          int64

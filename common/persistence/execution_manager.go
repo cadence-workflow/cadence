@@ -201,6 +201,7 @@ func (m *executionManagerImpl) DeserializeExecutionInfo(
 		NonRetriableErrors:                 info.NonRetriableErrors,
 		BranchToken:                        info.BranchToken,
 		CronSchedule:                       info.CronSchedule,
+		CronOverlapPolicy:                  info.CronOverlapPolicy,
 		ExpirationSeconds:                  int32(info.ExpirationInterval.Seconds()),
 		AutoResetPoints:                    autoResetPoints,
 		SearchAttributes:                   info.SearchAttributes,
@@ -543,6 +544,7 @@ func (m *executionManagerImpl) SerializeExecutionInfo(
 		SearchAttributes:                   info.SearchAttributes,
 		PartitionConfig:                    info.PartitionConfig,
 		ActiveClusterSelectionPolicy:       activeClusterSelectionPolicy,
+		CronOverlapPolicy:                  info.CronOverlapPolicy,
 
 		// attributes which are not related to mutable state
 		HistorySize: stats.HistorySize,

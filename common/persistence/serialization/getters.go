@@ -492,6 +492,14 @@ func (w *WorkflowExecutionInfo) GetCronSchedule() (o string) {
 	return
 }
 
+// GetCronOverlapPolicy internal sql blob getter
+func (w *WorkflowExecutionInfo) GetCronOverlapPolicy() (o int32) {
+	if w != nil {
+		return int32(w.CronOverlapPolicy)
+	}
+	return
+}
+
 // GetClientLibraryVersion internal sql blob getter
 func (w *WorkflowExecutionInfo) GetClientLibraryVersion() (o string) {
 	if w != nil {

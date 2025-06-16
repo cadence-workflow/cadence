@@ -253,6 +253,7 @@ func TestWorkflowExecutionInfo(t *testing.T) {
 		RetryNonRetryableErrors:            []string{"RetryNonRetryableErrors"},
 		HasRetryPolicy:                     true,
 		CronSchedule:                       "CronSchedule",
+		CronOverlapPolicy:                  types.CronOverlapPolicySkipped,
 		EventStoreVersion:                  int32(rand.Intn(1000)),
 		EventBranchToken:                   []byte("EventBranchToken"),
 		SignalCount:                        int64(rand.Intn(1000)),
@@ -333,6 +334,7 @@ func TestWorkflowExecutionInfo(t *testing.T) {
 	assert.Equal(t, expected.PartitionConfig, actual.PartitionConfig)
 	assert.Equal(t, expected.Checksum, actual.Checksum)
 	assert.Equal(t, expected.ChecksumEncoding, actual.ChecksumEncoding)
+	assert.Equal(t, expected.CronOverlapPolicy, actual.CronOverlapPolicy)
 	assert.Nil(t, workflowExecutionInfoFromThrift(nil))
 	assert.Nil(t, workflowExecutionInfoToThrift(nil))
 }

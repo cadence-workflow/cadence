@@ -25,6 +25,7 @@ package serialization
 import (
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
+	"github.com/uber/cadence/common/types"
 )
 
 func ToInternalWorkflowExecutionInfo(info *WorkflowExecutionInfo) *persistence.InternalWorkflowExecutionInfo {
@@ -75,6 +76,7 @@ func ToInternalWorkflowExecutionInfo(info *WorkflowExecutionInfo) *persistence.I
 		FirstExecutionRunID:                info.FirstExecutionRunID.String(),
 		PartitionConfig:                    info.PartitionConfig,
 		IsCron:                             info.IsCron,
+		CronOverlapPolicy:                  types.CronOverlapPolicy(info.GetCronOverlapPolicy()),
 	}
 	if info.ParentDomainID != nil {
 		result.ParentDomainID = info.ParentDomainID.String()
@@ -164,6 +166,7 @@ func FromInternalWorkflowExecutionInfo(executionInfo *persistence.InternalWorkfl
 		FirstExecutionRunID:                MustParseUUID(executionInfo.FirstExecutionRunID),
 		PartitionConfig:                    executionInfo.PartitionConfig,
 		IsCron:                             executionInfo.IsCron,
+		CronOverlapPolicy:                  executionInfo.CronOverlapPolicy,
 	}
 
 	if executionInfo.CompletionEvent != nil {
