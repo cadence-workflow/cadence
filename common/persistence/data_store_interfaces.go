@@ -461,8 +461,7 @@ type (
 
 		TasksByCategory map[HistoryTaskCategory][]Task
 
-		WorkflowRequests             []*WorkflowRequest
-		ActiveClusterSelectionPolicy *DataBlob
+		WorkflowRequests []*WorkflowRequest
 
 		Condition int64
 
@@ -486,8 +485,7 @@ type (
 
 		TasksByCategory map[HistoryTaskCategory][]Task
 
-		WorkflowRequests             []*WorkflowRequest
-		ActiveClusterSelectionPolicy *DataBlob
+		WorkflowRequests []*WorkflowRequest
 
 		Condition int64
 

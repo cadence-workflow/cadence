@@ -376,6 +376,5 @@ func (m *managerImpl) getExternalEntitySourceAndKeyFromHeaders(header *types.Hea
 
 func (m *managerImpl) getWorkflowActivenessMetadata(ctx context.Context, domainID, wfID, rID string) (*types.ActiveClusterSelectionPolicy, error) {
 	// TODO(active-active): Fetch ActivenessMetadata from persistence
-	// Implement this in this PR
 	return nil, errors.New("not implemented")
 }

@@ -112,7 +112,7 @@ func (d *nosqlExecutionStore) CreateWorkflowExecution(
 		WriteMode: workflowRequestWriteMode,
 	}
 
-	activeClusterSelectionPolicyRow := d.prepareActiveClusterSelectionPolicyRow(domainID, workflowID, runID, newWorkflow.ActiveClusterSelectionPolicy)
+	activeClusterSelectionPolicyRow := d.prepareActiveClusterSelectionPolicyRow(domainID, workflowID, runID, executionInfo.ActiveClusterSelectionPolicy)
 
 	shardCondition := &nosqlplugin.ShardCondition{
 		ShardID: d.shardID,

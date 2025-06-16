@@ -231,7 +231,9 @@ func TestExecutionManager_GetWorkflowExecution(t *testing.T) {
 	mockedSerializer.EXPECT().DeserializeEvent(wfCompletionEvent).Return(wfCompletionEventData, nil).Times(1)
 	mockedSerializer.EXPECT().DeserializeResetPoints(gomock.Any()).Return(&types.ResetPoints{}, nil).Times(1)
 	mockedSerializer.EXPECT().DeserializeChecksum(gomock.Any()).Return(checksum.Checksum{}, nil).Times(1)
-	mockedSerializer.EXPECT().DeserializeActiveClusterSelectionPolicy(gomock.Any()).Return(nil, nil).Times(1)
+
+	activeClusterSelPlcyData := sampleActiveClusterSelectionPolicyData()
+	mockedSerializer.EXPECT().DeserializeActiveClusterSelectionPolicy(activeClusterSelPlcyData).Return(generateActiveClusterSelectionPolicy(), nil).Times(1)
 
 	res, err := manager.GetWorkflowExecution(context.Background(), request)
 	assert.NoError(t, err)
@@ -299,9 +301,7 @@ func TestExecutionManager_UpdateWorkflowExecution(t *testing.T) {
 	mockedSerializer.EXPECT().SerializeEvent(childWorkflowScheduledEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 	mockedSerializer.EXPECT().SerializeEvent(childWorkflowStartedEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 	mockedSerializer.EXPECT().SerializeResetPoints(generateResetPoints(), constants.EncodingTypeThriftRW).Return(expectedInfo.ExecutionInfo.AutoResetPoints, nil).Times(2)
-
-	// active cluster selection policy field exists on execution info and also as a separate row on mutation & snapshot
-	mockedSerializer.EXPECT().SerializeActiveClusterSelectionPolicy(nil, constants.EncodingTypeThriftRW).Return(nil, nil).Times(4)
+	mockedSerializer.EXPECT().SerializeActiveClusterSelectionPolicy(generateActiveClusterSelectionPolicy(), constants.EncodingTypeThriftRW).Return(sampleActiveClusterSelectionPolicyData(), nil).Times(2)
 
 	request := &UpdateWorkflowExecutionRequest{
 		RangeID:                1,
@@ -348,7 +348,6 @@ func TestExecutionManager_UpdateWorkflowExecution(t *testing.T) {
 	assert.Equal(t, stats, res.MutableStateUpdateSessionStats)
 }
 
-// TODO(active-active): update test mocks to include active cluster selection policy serialization
 func TestSerializeWorkflowSnapshot(t *testing.T) {
 	for _, tc := range []struct {
 		name         string
@@ -367,6 +366,7 @@ func TestSerializeWorkflowSnapshot(t *testing.T) {
 				mockedSerializer.EXPECT().SerializeEvent(childWorkflowScheduledEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeEvent(childWorkflowStartedEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeChecksum(gomock.Any(), gomock.Any()).Return(sampleCheckSumData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeActiveClusterSelectionPolicy(generateActiveClusterSelectionPolicy(), constants.EncodingTypeThriftRW).Return(sampleActiveClusterSelectionPolicyData(), nil).Times(1)
 			},
 			input: sampleWorkflowSnapshot(),
 			checkRes: func(t *testing.T, res *InternalWorkflowSnapshot, err error) {
@@ -419,6 +419,7 @@ func TestSerializeWorkflowSnapshot(t *testing.T) {
 				mockedSerializer.EXPECT().SerializeEvent(gomock.Any(), gomock.Any()).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeResetPoints(gomock.Any(), gomock.Any()).Return(NewDataBlob([]byte("test-reset-points"), constants.EncodingTypeThriftRW), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeVersionHistories(gomock.Any(), gomock.Any()).Return(nil, assert.AnError).Times(1)
+				mockedSerializer.EXPECT().SerializeActiveClusterSelectionPolicy(generateActiveClusterSelectionPolicy(), constants.EncodingTypeThriftRW).Return(sampleActiveClusterSelectionPolicyData(), nil).Times(1)
 			},
 			input: sampleWorkflowSnapshot(),
 			checkRes: func(t *testing.T, res *InternalWorkflowSnapshot, err error) {
@@ -432,6 +433,7 @@ func TestSerializeWorkflowSnapshot(t *testing.T) {
 				mockedSerializer.EXPECT().SerializeResetPoints(gomock.Any(), gomock.Any()).Return(sampleResetPointsData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeVersionHistories(gomock.Any(), gomock.Any()).Return(sampleTestCheckSumData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeEvent(activityScheduledEvent(), constants.EncodingTypeThriftRW).Return(nil, assert.AnError).Times(1)
+				mockedSerializer.EXPECT().SerializeActiveClusterSelectionPolicy(generateActiveClusterSelectionPolicy(), constants.EncodingTypeThriftRW).Return(sampleActiveClusterSelectionPolicyData(), nil).Times(1)
 			},
 			input: sampleWorkflowSnapshot(),
 			checkRes: func(t *testing.T, res *InternalWorkflowSnapshot, err error) {
@@ -446,13 +448,13 @@ func TestSerializeWorkflowSnapshot(t *testing.T) {
 				mockedSerializer.EXPECT().SerializeVersionHistories(gomock.Any(), gomock.Any()).Return(sampleTestCheckSumData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeEvent(activityScheduledEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeEvent(activityStartedEvent(), constants.EncodingTypeThriftRW).Return(nil, assert.AnError).Times(1)
+				mockedSerializer.EXPECT().SerializeActiveClusterSelectionPolicy(generateActiveClusterSelectionPolicy(), constants.EncodingTypeThriftRW).Return(sampleActiveClusterSelectionPolicyData(), nil).Times(1)
 			},
 			input: sampleWorkflowSnapshot(),
 			checkRes: func(t *testing.T, res *InternalWorkflowSnapshot, err error) {
 				assert.ErrorIs(t, err, assert.AnError)
 			},
 		},
-
 		{
 			name: "serialize child workflow scheduled event error",
 			prepareMocks: func(mockedSerializer *MockPayloadSerializer) {
@@ -462,6 +464,7 @@ func TestSerializeWorkflowSnapshot(t *testing.T) {
 				mockedSerializer.EXPECT().SerializeEvent(activityScheduledEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeEvent(activityStartedEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeEvent(childWorkflowScheduledEvent(), constants.EncodingTypeThriftRW).Return(nil, assert.AnError).Times(1)
+				mockedSerializer.EXPECT().SerializeActiveClusterSelectionPolicy(generateActiveClusterSelectionPolicy(), constants.EncodingTypeThriftRW).Return(sampleActiveClusterSelectionPolicyData(), nil).Times(1)
 			},
 			input: sampleWorkflowSnapshot(),
 			checkRes: func(t *testing.T, res *InternalWorkflowSnapshot, err error) {
@@ -478,6 +481,7 @@ func TestSerializeWorkflowSnapshot(t *testing.T) {
 				mockedSerializer.EXPECT().SerializeEvent(activityStartedEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeEvent(childWorkflowScheduledEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeEvent(childWorkflowStartedEvent(), constants.EncodingTypeThriftRW).Return(nil, assert.AnError).Times(1)
+				mockedSerializer.EXPECT().SerializeActiveClusterSelectionPolicy(generateActiveClusterSelectionPolicy(), constants.EncodingTypeThriftRW).Return(sampleActiveClusterSelectionPolicyData(), nil).Times(1)
 			},
 			input: sampleWorkflowSnapshot(),
 			checkRes: func(t *testing.T, res *InternalWorkflowSnapshot, err error) {
@@ -769,7 +773,7 @@ func TestListConcreteExecutions(t *testing.T) {
 						},
 					},
 				}, nil)
-
+				mockedSerializer.EXPECT().DeserializeActiveClusterSelectionPolicy(internalResponse.Executions[0].ExecutionInfo.ActiveClusterSelectionPolicy).Return(generateActiveClusterSelectionPolicy(), nil)
 				mockedSerializer.EXPECT().DeserializeVersionHistories(internalResponse.Executions[0].VersionHistories).Return(&types.VersionHistories{
 					CurrentVersionHistoryIndex: 1,
 					Histories: []*types.VersionHistory{
@@ -924,6 +928,7 @@ func TestCreateWorkflowExecution(t *testing.T) {
 				mockedSerializer.EXPECT().SerializeEvent(childWorkflowScheduledEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeEvent(childWorkflowStartedEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeChecksum(gomock.Any(), gomock.Any()).Return(sampleCheckSumData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeActiveClusterSelectionPolicy(generateActiveClusterSelectionPolicy(), constants.EncodingTypeThriftRW).Return(sampleActiveClusterSelectionPolicyData(), nil).Times(1)
 			},
 			checkRes: func(t *testing.T, response *CreateWorkflowExecutionResponse, err error) {
 				assert.Equal(t, &CreateWorkflowExecutionResponse{
@@ -953,6 +958,7 @@ func TestCreateWorkflowExecution(t *testing.T) {
 				mockedSerializer.EXPECT().SerializeEvent(childWorkflowScheduledEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeEvent(childWorkflowStartedEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeChecksum(gomock.Any(), gomock.Any()).Return(sampleCheckSumData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeActiveClusterSelectionPolicy(generateActiveClusterSelectionPolicy(), constants.EncodingTypeThriftRW).Return(sampleActiveClusterSelectionPolicyData(), nil).Times(1)
 
 				// Persistence call will fail
 				mockedStore.EXPECT().CreateWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil, assert.AnError)
@@ -1036,6 +1042,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 				mockedSerializer.EXPECT().SerializeEvent(childWorkflowScheduledEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeEvent(childWorkflowStartedEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeChecksum(gomock.Any(), gomock.Any()).Return(sampleCheckSumData(), nil).Times(1)
+				mockedSerializer.EXPECT().SerializeActiveClusterSelectionPolicy(generateActiveClusterSelectionPolicy(), constants.EncodingTypeThriftRW).Return(sampleActiveClusterSelectionPolicyData(), nil).Times(1)
 			},
 			checkRes: func(t *testing.T, response *ConflictResolveWorkflowExecutionResponse, err error) {
 				assert.NoError(t, err)
@@ -1110,6 +1117,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 				mockedSerializer.EXPECT().SerializeEvent(childWorkflowScheduledEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeEvent(childWorkflowStartedEvent(), constants.EncodingTypeThriftRW).Return(sampleEventData(), nil).Times(1)
 				mockedSerializer.EXPECT().SerializeChecksum(gomock.Any(), gomock.Any()).Return(sampleCheckSumData(), nil).Times(2)
+				mockedSerializer.EXPECT().SerializeActiveClusterSelectionPolicy(generateActiveClusterSelectionPolicy(), constants.EncodingTypeThriftRW).Return(sampleActiveClusterSelectionPolicyData(), nil).Times(2)
 			},
 			checkRes: func(t *testing.T, response *ConflictResolveWorkflowExecutionResponse, err error) {
 				assert.NoError(t, err)
@@ -1239,6 +1247,7 @@ func sampleInternalWorkflowExecutionInfo() *InternalWorkflowExecutionInfo {
 		CompletionEvent:                    sampleEventData(),
 		AutoResetPoints:                    sampleResetPointsData(),
 		HistorySize:                        1024,
+		ActiveClusterSelectionPolicy:       sampleActiveClusterSelectionPolicyData(),
 	}
 }
 
@@ -1256,6 +1265,7 @@ func sampleWorkflowExecutionInfo() *WorkflowExecutionInfo {
 		NextEventID:                        10,
 		CompletionEvent:                    completionEvent(),
 		AutoResetPoints:                    generateResetPoints(),
+		ActiveClusterSelectionPolicy:       generateActiveClusterSelectionPolicy(),
 	}
 }
 
@@ -1371,6 +1381,7 @@ func sampleWorkflowSnapshot() *WorkflowSnapshot {
 				TaskStatus: 2,
 			},
 		},
+		ActiveClusterSelectionPolicy: generateActiveClusterSelectionPolicy(),
 	}
 }
 
@@ -1485,6 +1496,10 @@ func sampleResetPointsData() *DataBlob {
 
 func sampleCheckSumData() *DataBlob {
 	return NewDataBlob([]byte("test-checksum"), constants.EncodingTypeThriftRW)
+}
+
+func sampleActiveClusterSelectionPolicyData() *DataBlob {
+	return NewDataBlob([]byte("test-active-cluster-selection-policy"), constants.EncodingTypeThriftRW)
 }
 
 func sampleInternalChildExecutionInfo(initEventID, startedEventID int64) *InternalChildExecutionInfo {
