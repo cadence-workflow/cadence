@@ -3,11 +3,13 @@ package queuev2
 import (
 	"container/list"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
@@ -47,11 +49,14 @@ func TestVirtualQueueImpl_GetState(t *testing.T) {
 		Predicate: NewUniversalPredicate(),
 	})
 
+	mockTimeSource := clock.NewMockedTimeSource()
+
 	queue := NewVirtualQueue(
 		mockProcessor,
 		mockRedispatcher,
 		mockLogger,
 		mockMetricsScope,
+		mockTimeSource,
 		mockVirtualSlices,
 		&VirtualQueueOptions{
 			PageSize: mockPageSize,
@@ -110,11 +115,14 @@ func TestVirtualQueueImpl_UpdateAndGetState(t *testing.T) {
 		Predicate: NewUniversalPredicate(),
 	})
 
+	mockTimeSource := clock.NewMockedTimeSource()
+
 	queue := NewVirtualQueue(
 		mockProcessor,
 		mockRedispatcher,
 		mockLogger,
 		mockMetricsScope,
+		mockTimeSource,
 		mockVirtualSlices,
 		&VirtualQueueOptions{
 			PageSize: mockPageSize,
@@ -301,6 +309,7 @@ func TestVirtualQueue_MergeSlices(t *testing.T) {
 			mockRedispatcher := task.NewMockRedispatcher(ctrl)
 			mockLogger := testlogger.New(t)
 			mockMetricsScope := metrics.NoopScope
+			mockTimeSource := clock.NewMockedTimeSource()
 
 			existingSlices, incomingSlices := tt.setupMocks(ctrl)
 
@@ -309,6 +318,7 @@ func TestVirtualQueue_MergeSlices(t *testing.T) {
 				mockRedispatcher,
 				mockLogger,
 				mockMetricsScope,
+				mockTimeSource,
 				existingSlices,
 				&VirtualQueueOptions{
 					PageSize: dynamicproperties.GetIntPropertyFn(10),
@@ -534,6 +544,7 @@ func TestVirtualQueue_LoadAndSubmitTasks(t *testing.T) {
 	mockLogger := testlogger.New(t)
 	mockMetricsScope := metrics.NoopScope
 	mockPageSize := dynamicproperties.GetIntPropertyFn(10)
+	mockTimeSource := clock.NewMockedTimeSource()
 
 	mockVirtualSlice1 := NewMockVirtualSlice(ctrl)
 	mockVirtualSlice2 := NewMockVirtualSlice(ctrl)
@@ -544,14 +555,20 @@ func TestVirtualQueue_LoadAndSubmitTasks(t *testing.T) {
 	}
 
 	mockTask1 := task.NewMockTask(ctrl)
+	mockTask1.EXPECT().GetTaskKey().Return(persistence.NewHistoryTaskKey(mockTimeSource.Now().Add(time.Second*-1), 1))
 	mockTask2 := task.NewMockTask(ctrl)
+	mockTask2.EXPECT().GetTaskKey().Return(persistence.NewHistoryTaskKey(mockTimeSource.Now().Add(time.Second*1), 2))
 	mockTask3 := task.NewMockTask(ctrl)
+	mockTask3.EXPECT().GetTaskKey().Return(persistence.NewHistoryTaskKey(mockTimeSource.Now().Add(time.Second*-1), 1))
 
 	mockVirtualSlice1.EXPECT().GetTasks(gomock.Any(), 10).Return([]task.Task{mockTask1, mockTask2}, nil)
 	mockVirtualSlice1.EXPECT().HasMoreTasks().Return(false)
+	mockVirtualSlice2.EXPECT().GetTasks(gomock.Any(), 10).Return([]task.Task{mockTask3}, nil)
+	mockVirtualSlice2.EXPECT().HasMoreTasks().Return(false)
+	mockProcessor.EXPECT().TrySubmit(mockTask3).Return(false, nil)
 
 	mockProcessor.EXPECT().TrySubmit(mockTask1).Return(true, nil)
-	mockProcessor.EXPECT().TrySubmit(mockTask2).Return(true, nil)
+	mockRedispatcher.EXPECT().RedispatchTask(mockTask2, mockTimeSource.Now().Add(time.Second*1))
 	mockRedispatcher.EXPECT().AddTask(mockTask3)
 
 	queue := NewVirtualQueue(
@@ -559,6 +576,7 @@ func TestVirtualQueue_LoadAndSubmitTasks(t *testing.T) {
 		mockRedispatcher,
 		mockLogger,
 		mockMetricsScope,
+		mockTimeSource,
 		mockVirtualSlices,
 		&VirtualQueueOptions{
 			PageSize: mockPageSize,
@@ -567,9 +585,6 @@ func TestVirtualQueue_LoadAndSubmitTasks(t *testing.T) {
 
 	queue.loadAndSubmitTasks()
 
-	mockVirtualSlice2.EXPECT().GetTasks(gomock.Any(), 10).Return([]task.Task{mockTask3}, nil)
-	mockVirtualSlice2.EXPECT().HasMoreTasks().Return(false)
-	mockProcessor.EXPECT().TrySubmit(mockTask3).Return(false, nil)
 	queue.loadAndSubmitTasks()
 
 	assert.Nil(t, queue.sliceToRead)
@@ -584,6 +599,7 @@ func TestVirtualQueue_LifeCycle(t *testing.T) {
 	mockLogger := testlogger.New(t)
 	mockMetricsScope := metrics.NoopScope
 	mockPageSize := dynamicproperties.GetIntPropertyFn(10)
+	mockTimeSource := clock.NewMockedTimeSource()
 
 	mockVirtualSlice1 := NewMockVirtualSlice(ctrl)
 
@@ -599,6 +615,7 @@ func TestVirtualQueue_LifeCycle(t *testing.T) {
 		mockRedispatcher,
 		mockLogger,
 		mockMetricsScope,
+		mockTimeSource,
 		mockVirtualSlices,
 		&VirtualQueueOptions{
 			PageSize: mockPageSize,

@@ -1146,6 +1146,18 @@ func (mr *MockRedispatcherMockRecorder) Redispatch(targetSize any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Redispatch", reflect.TypeOf((*MockRedispatcher)(nil).Redispatch), targetSize)
 }
 
+// RedispatchTask mocks base method.
+func (m *MockRedispatcher) RedispatchTask(arg0 Task, arg1 time.Time) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "RedispatchTask", arg0, arg1)
+}
+
+// RedispatchTask indicates an expected call of RedispatchTask.
+func (mr *MockRedispatcherMockRecorder) RedispatchTask(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RedispatchTask", reflect.TypeOf((*MockRedispatcher)(nil).RedispatchTask), arg0, arg1)
+}
+
 // Size mocks base method.
 func (m *MockRedispatcher) Size() int {
 	m.ctrl.T.Helper()

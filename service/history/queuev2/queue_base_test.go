@@ -361,18 +361,21 @@ func TestQueueBase_UpdateQueueState(t *testing.T) {
 			mockShard, mockTaskProcessor, mockTimeSource, mockVirtualQueueManager := tt.setupMocks(ctrl)
 
 			queueBase := &queueBase{
-				shard:                mockShard,
-				taskProcessor:        mockTaskProcessor,
-				metricsClient:        metrics.NoopClient,
-				metricsScope:         metrics.NoopScope,
-				logger:               testlogger.New(t),
-				category:             tt.category,
-				timeSource:           mockTimeSource,
-				virtualQueueManager:  mockVirtualQueueManager,
-				exclusiveAckLevel:    tt.initialExclusiveAckLevel,
-				newVirtualSliceState: tt.initialVirtualSliceState,
+				shard:                 mockShard,
+				taskProcessor:         mockTaskProcessor,
+				metricsClient:         metrics.NoopClient,
+				metricsScope:          metrics.NoopScope,
+				logger:                testlogger.New(t),
+				category:              tt.category,
+				timeSource:            mockTimeSource,
+				virtualQueueManager:   mockVirtualQueueManager,
+				exclusiveAckLevel:     tt.initialExclusiveAckLevel,
+				newVirtualSliceState:  tt.initialVirtualSliceState,
+				updateQueueStateTimer: mockTimeSource.NewTimer(time.Second * 10),
 				options: &Options{
-					DeleteBatchSize: dynamicproperties.GetIntPropertyFn(100),
+					DeleteBatchSize:                    dynamicproperties.GetIntPropertyFn(100),
+					UpdateAckInterval:                  dynamicproperties.GetDurationPropertyFn(time.Second * 10),
+					UpdateAckIntervalJitterCoefficient: dynamicproperties.GetFloatPropertyFn(0.1),
 				},
 			}
 

@@ -28,6 +28,7 @@ import (
 	"sync/atomic"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/service/history/task"
@@ -54,6 +55,7 @@ type (
 		queueReader     QueueReader
 		logger          log.Logger
 		metricsScope    metrics.Scope
+		timeSource      clock.TimeSource
 		options         *VirtualQueueOptions
 
 		sync.RWMutex
@@ -70,6 +72,7 @@ func NewVirtualQueueManager(
 	queueReader QueueReader,
 	logger log.Logger,
 	metricsScope metrics.Scope,
+	timeSource clock.TimeSource,
 	options *VirtualQueueOptions,
 	virtualQueueStates map[int64][]VirtualSliceState,
 ) VirtualQueueManager {
@@ -79,7 +82,7 @@ func NewVirtualQueueManager(
 		for i, state := range states {
 			virtualSlices[i] = NewVirtualSlice(state, taskInitializer, queueReader, NewPendingTaskTracker())
 		}
-		virtualQueues[queueID] = NewVirtualQueue(processor, redispatcher, logger, metricsScope, virtualSlices, options)
+		virtualQueues[queueID] = NewVirtualQueue(processor, redispatcher, logger, metricsScope, timeSource, virtualSlices, options)
 	}
 	return &virtualQueueManagerImpl{
 		processor:       processor,
@@ -88,11 +91,12 @@ func NewVirtualQueueManager(
 		redispatcher:    redispatcher,
 		logger:          logger,
 		metricsScope:    metricsScope,
+		timeSource:      timeSource,
 		options:         options,
 		status:          common.DaemonStatusInitialized,
 		virtualQueues:   virtualQueues,
 		createVirtualQueueFn: func(s VirtualSlice) VirtualQueue {
-			return NewVirtualQueue(processor, redispatcher, logger, metricsScope, []VirtualSlice{s}, options)
+			return NewVirtualQueue(processor, redispatcher, logger, metricsScope, timeSource, []VirtualSlice{s}, options)
 		},
 	}
 }

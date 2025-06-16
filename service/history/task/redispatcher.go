@@ -146,6 +146,20 @@ func (r *redispatcherImpl) AddTask(task Task) {
 	r.timerGate.Update(t)
 }
 
+func (r *redispatcherImpl) RedispatchTask(task Task, t time.Time) {
+	priority := task.Priority()
+
+	r.Lock()
+	pq := r.getOrCreatePQLocked(priority)
+	pq.Add(redispatchTask{
+		task:           task,
+		redispatchTime: t,
+	})
+	r.Unlock()
+
+	r.timerGate.Update(t)
+}
+
 // TODO: review this method, it doesn't seem to redispatch the tasks immediately
 func (r *redispatcherImpl) Redispatch(targetSize int) {
 	doneCh := make(chan struct{})

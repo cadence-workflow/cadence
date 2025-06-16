@@ -137,6 +137,7 @@ func newQueueBase(
 		queueReader,
 		logger,
 		metricsScope,
+		timeSource,
 		&VirtualQueueOptions{
 			PageSize: options.PageSize,
 		},

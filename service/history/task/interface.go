@@ -23,6 +23,8 @@
 package task
 
 import (
+	"time"
+
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/future"
 	"github.com/uber/cadence/common/metrics"
@@ -87,6 +89,7 @@ type (
 	Redispatcher interface {
 		common.Daemon
 		AddTask(Task)
+		RedispatchTask(Task, time.Time)
 		Redispatch(targetSize int)
 		Size() int
 	}
