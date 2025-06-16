@@ -543,8 +543,8 @@ func (m *executionManagerImpl) SerializeExecutionInfo(
 		Memo:                               info.Memo,
 		SearchAttributes:                   info.SearchAttributes,
 		PartitionConfig:                    info.PartitionConfig,
-		ActiveClusterSelectionPolicy:       activeClusterSelectionPolicy,
 		CronOverlapPolicy:                  info.CronOverlapPolicy,
+		ActiveClusterSelectionPolicy:       activeClusterSelectionPolicy,
 
 		// attributes which are not related to mutable state
 		HistorySize: stats.HistorySize,

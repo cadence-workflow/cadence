@@ -147,6 +147,7 @@ func CopyWorkflowExecutionInfo(t *testing.T, sourceInfo *persistence.WorkflowExe
 		BranchToken:                        sourceInfo.BranchToken,
 		ExpirationSeconds:                  sourceInfo.ExpirationSeconds,
 		CronOverlapPolicy:                  sourceInfo.CronOverlapPolicy,
+		ActiveClusterSelectionPolicy:       sourceInfo.ActiveClusterSelectionPolicy,
 	}
 }
 

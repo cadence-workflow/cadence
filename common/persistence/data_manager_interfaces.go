@@ -871,8 +871,7 @@ type (
 
 		TasksByCategory map[HistoryTaskCategory][]Task
 
-		WorkflowRequests             []*WorkflowRequest
-		ActiveClusterSelectionPolicy *types.ActiveClusterSelectionPolicy
+		WorkflowRequests []*WorkflowRequest
 
 		Condition int64
 		Checksum  checksum.Checksum
@@ -893,8 +892,7 @@ type (
 
 		TasksByCategory map[HistoryTaskCategory][]Task
 
-		WorkflowRequests             []*WorkflowRequest
-		ActiveClusterSelectionPolicy *types.ActiveClusterSelectionPolicy
+		WorkflowRequests []*WorkflowRequest
 
 		Condition int64
 		Checksum  checksum.Checksum

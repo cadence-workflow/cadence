@@ -199,7 +199,7 @@ func (e *mutableStateBuilder) ReplicateWorkflowExecutionStartedEvent(
 	if err != nil {
 		return err
 	}
-	e.activeClusterSelectionPolicy = activeClusterSelectionPolicy
+	e.executionInfo.ActiveClusterSelectionPolicy = activeClusterSelectionPolicy
 
 	e.insertWorkflowRequest(persistence.WorkflowRequest{
 		RequestID:   requestID,

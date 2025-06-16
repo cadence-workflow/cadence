@@ -151,8 +151,6 @@ type (
 
 		workflowRequests map[persistence.WorkflowRequest]struct{}
 
-		activeClusterSelectionPolicy *types.ActiveClusterSelectionPolicy
-
 		// do not rely on this, this is only updated on
 		// Load() and closeTransactionXXX methods. So when
 		// a transaction is in progress, this value will be
@@ -1494,8 +1492,7 @@ func (e *mutableStateBuilder) CloseTransactionAsMutation(
 			persistence.HistoryTaskCategoryTimer:       e.insertTimerTasks,
 		},
 
-		WorkflowRequests:             convertWorkflowRequests(e.workflowRequests),
-		ActiveClusterSelectionPolicy: e.activeClusterSelectionPolicy,
+		WorkflowRequests: convertWorkflowRequests(e.workflowRequests),
 
 		Condition: e.nextEventIDInDB,
 		Checksum:  checksum,
@@ -1576,8 +1573,7 @@ func (e *mutableStateBuilder) CloseTransactionAsSnapshot(
 			persistence.HistoryTaskCategoryTimer:       e.insertTimerTasks,
 		},
 
-		WorkflowRequests:             convertWorkflowRequests(e.workflowRequests),
-		ActiveClusterSelectionPolicy: e.activeClusterSelectionPolicy,
+		WorkflowRequests: convertWorkflowRequests(e.workflowRequests),
 
 		Condition: e.nextEventIDInDB,
 		Checksum:  checksum,

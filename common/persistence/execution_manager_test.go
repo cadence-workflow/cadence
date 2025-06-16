@@ -1381,7 +1381,6 @@ func sampleWorkflowSnapshot() *WorkflowSnapshot {
 				TaskStatus: 2,
 			},
 		},
-		ActiveClusterSelectionPolicy: generateActiveClusterSelectionPolicy(),
 	}
 }
 
