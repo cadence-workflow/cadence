@@ -312,6 +312,7 @@ func (e *mutableStateBuilder) getActiveClusterSelectionPolicy(attr *types.Workfl
 	}
 
 	// default to region sticky policy if it is not external entity policy
+	// always replace the user provided region with the current region
 	return &types.ActiveClusterSelectionPolicy{
 		ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
 		StickyRegion:                   e.shard.GetActiveClusterManager().CurrentRegion(),

@@ -96,6 +96,10 @@ CREATE TYPE workflow_execution (
   search_attributes                map<text, blob>,
   memo                             map<text, blob>,
   partition_config                 map<text, text>
+
+  -- TODO(active-active): add active cluster selection policy in follow up PR
+  -- active_cluster_selection_policy blob,
+  -- active_cluster_selection_policy_encoding text,
 );
 
 -- Replication information for each cluster

@@ -75,6 +75,32 @@ var (
 		TestVersion,
 	)
 
+	TestActiveActiveDomainEntry = cache.NewGlobalDomainCacheEntryForTest(
+		&persistence.DomainInfo{ID: TestDomainID, Name: TestDomainName},
+		&persistence.DomainConfig{
+			Retention:                1,
+			VisibilityArchivalStatus: types.ArchivalStatusEnabled,
+			VisibilityArchivalURI:    "test:///visibility/archival",
+		},
+		&persistence.DomainReplicationConfig{
+			Clusters: []*persistence.ClusterReplicationConfig{
+				{ClusterName: cluster.TestCurrentClusterName},
+				{ClusterName: cluster.TestAlternativeClusterName},
+			},
+			ActiveClusters: &types.ActiveClusters{
+				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+					"region1": {
+						ActiveClusterName: cluster.TestCurrentClusterName,
+					},
+					"region2": {
+						ActiveClusterName: cluster.TestAlternativeClusterName,
+					},
+				},
+			},
+		},
+		TestVersion,
+	)
+
 	// TestRateLimitedDomainEntry is the global domain cache entry for test
 	TestRateLimitedDomainEntry = cache.NewGlobalDomainCacheEntryForTest(
 		&persistence.DomainInfo{ID: TestRateLimitedDomainID, Name: TestRateLimitedDomainName},

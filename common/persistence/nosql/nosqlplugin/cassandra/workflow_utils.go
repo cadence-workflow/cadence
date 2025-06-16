@@ -1558,7 +1558,7 @@ func insertWorkflowActiveClusterSelectionPolicyRow(
 	activeClusterSelectionPolicyRow *nosqlplugin.ActiveClusterSelectionPolicyRow,
 	timeStamp time.Time,
 ) error {
-	if activeClusterSelectionPolicyRow == nil {
+	if activeClusterSelectionPolicyRow == nil || activeClusterSelectionPolicyRow.Policy == nil {
 		return nil
 	}
 
