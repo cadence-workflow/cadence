@@ -21,29 +21,12 @@
 package host
 
 import (
-	"bytes"
-	"encoding/binary"
-	"encoding/json"
-	"errors"
 	"flag"
-	"fmt"
-	"math"
-	"sort"
-	"strconv"
 	"testing"
-	"time"
 
-	"github.com/pborman/uuid"
-	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
-	"github.com/uber/cadence/common/log/tag"
-	"github.com/uber/cadence/common/types"
-	"github.com/uber/cadence/service/history/engine/engineimpl"
-	"github.com/uber/cadence/service/history/execution"
-	"github.com/uber/cadence/service/matching/tasklist"
 )
 
 func TestIntegrationQueueV2Suite(t *testing.T) {
