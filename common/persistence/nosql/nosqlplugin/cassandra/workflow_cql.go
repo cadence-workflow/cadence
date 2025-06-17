@@ -82,7 +82,9 @@ const (
 		`expiration_seconds: ?, ` +
 		`search_attributes: ?, ` +
 		`memo: ?, ` +
-		`partition_config: ? ` +
+		`partition_config: ?, ` +
+		`active_cluster_selection_policy: ?, ` +
+		`active_cluster_selection_policy_encoding: ?` +
 		`}`
 
 	templateTransferTaskType = `{` +

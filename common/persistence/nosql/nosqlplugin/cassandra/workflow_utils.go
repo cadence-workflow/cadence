@@ -1402,6 +1402,8 @@ func updateWorkflowExecution(
 		execution.SearchAttributes,
 		execution.Memo,
 		execution.PartitionConfig,
+		execution.ActiveClusterSelectionPolicy.GetData(),
+		execution.ActiveClusterSelectionPolicy.GetEncodingString(),
 		execution.NextEventID,
 		execution.VersionHistories.Data,
 		execution.VersionHistories.GetEncodingString(),
@@ -1434,7 +1436,6 @@ func createWorkflowExecution(
 	execution.StartTimestamp = convertToCassandraTimestamp(execution.StartTimestamp)
 	execution.LastUpdatedTimestamp = convertToCassandraTimestamp(execution.LastUpdatedTimestamp)
 
-	// TODO(active-active): add active cluster selection policy to the query
 	batch.Query(templateCreateWorkflowExecutionWithVersionHistoriesQuery,
 		shardID,
 		domainID,
@@ -1501,6 +1502,8 @@ func createWorkflowExecution(
 		execution.SearchAttributes,
 		execution.Memo,
 		execution.PartitionConfig,
+		execution.ActiveClusterSelectionPolicy.GetData(),
+		execution.ActiveClusterSelectionPolicy.GetEncodingString(),
 		execution.NextEventID,
 		defaultVisibilityTimestamp,
 		rowTypeExecutionTaskID,
