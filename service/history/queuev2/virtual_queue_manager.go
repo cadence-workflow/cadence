@@ -31,6 +31,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/quotas"
 	"github.com/uber/cadence/service/history/task"
 )
 
@@ -49,14 +50,15 @@ type (
 	}
 
 	virtualQueueManagerImpl struct {
-		processor       task.Processor
-		taskInitializer task.Initializer
-		redispatcher    task.Redispatcher
-		queueReader     QueueReader
-		logger          log.Logger
-		metricsScope    metrics.Scope
-		timeSource      clock.TimeSource
-		options         *VirtualQueueOptions
+		processor           task.Processor
+		taskInitializer     task.Initializer
+		redispatcher        task.Redispatcher
+		queueReader         QueueReader
+		logger              log.Logger
+		metricsScope        metrics.Scope
+		timeSource          clock.TimeSource
+		taskLoadRateLimiter quotas.Limiter
+		options             *VirtualQueueOptions
 
 		sync.RWMutex
 		status               int32
@@ -73,6 +75,7 @@ func NewVirtualQueueManager(
 	logger log.Logger,
 	metricsScope metrics.Scope,
 	timeSource clock.TimeSource,
+	taskLoadRateLimiter quotas.Limiter,
 	options *VirtualQueueOptions,
 	virtualQueueStates map[int64][]VirtualSliceState,
 ) VirtualQueueManager {
@@ -82,21 +85,22 @@ func NewVirtualQueueManager(
 		for i, state := range states {
 			virtualSlices[i] = NewVirtualSlice(state, taskInitializer, queueReader, NewPendingTaskTracker())
 		}
-		virtualQueues[queueID] = NewVirtualQueue(processor, redispatcher, logger, metricsScope, timeSource, virtualSlices, options)
+		virtualQueues[queueID] = NewVirtualQueue(processor, redispatcher, logger, metricsScope, timeSource, taskLoadRateLimiter, virtualSlices, options)
 	}
 	return &virtualQueueManagerImpl{
-		processor:       processor,
-		taskInitializer: taskInitializer,
-		queueReader:     queueReader,
-		redispatcher:    redispatcher,
-		logger:          logger,
-		metricsScope:    metricsScope,
-		timeSource:      timeSource,
-		options:         options,
-		status:          common.DaemonStatusInitialized,
-		virtualQueues:   virtualQueues,
+		processor:           processor,
+		taskInitializer:     taskInitializer,
+		queueReader:         queueReader,
+		redispatcher:        redispatcher,
+		logger:              logger,
+		metricsScope:        metricsScope,
+		timeSource:          timeSource,
+		taskLoadRateLimiter: taskLoadRateLimiter,
+		options:             options,
+		status:              common.DaemonStatusInitialized,
+		virtualQueues:       virtualQueues,
 		createVirtualQueueFn: func(s VirtualSlice) VirtualQueue {
-			return NewVirtualQueue(processor, redispatcher, logger, metricsScope, timeSource, []VirtualSlice{s}, options)
+			return NewVirtualQueue(processor, redispatcher, logger, metricsScope, timeSource, taskLoadRateLimiter, []VirtualSlice{s}, options)
 		},
 	}
 }

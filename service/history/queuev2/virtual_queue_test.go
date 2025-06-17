@@ -14,6 +14,7 @@ import (
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
+	"github.com/uber/cadence/common/quotas"
 	"github.com/uber/cadence/service/history/task"
 )
 
@@ -50,6 +51,7 @@ func TestVirtualQueueImpl_GetState(t *testing.T) {
 	})
 
 	mockTimeSource := clock.NewMockedTimeSource()
+	mockRateLimiter := quotas.NewMockLimiter(ctrl)
 
 	queue := NewVirtualQueue(
 		mockProcessor,
@@ -57,6 +59,7 @@ func TestVirtualQueueImpl_GetState(t *testing.T) {
 		mockLogger,
 		mockMetricsScope,
 		mockTimeSource,
+		mockRateLimiter,
 		mockVirtualSlices,
 		&VirtualQueueOptions{
 			PageSize: mockPageSize,
@@ -116,6 +119,7 @@ func TestVirtualQueueImpl_UpdateAndGetState(t *testing.T) {
 	})
 
 	mockTimeSource := clock.NewMockedTimeSource()
+	mockRateLimiter := quotas.NewMockLimiter(ctrl)
 
 	queue := NewVirtualQueue(
 		mockProcessor,
@@ -123,6 +127,7 @@ func TestVirtualQueueImpl_UpdateAndGetState(t *testing.T) {
 		mockLogger,
 		mockMetricsScope,
 		mockTimeSource,
+		mockRateLimiter,
 		mockVirtualSlices,
 		&VirtualQueueOptions{
 			PageSize: mockPageSize,
@@ -310,6 +315,7 @@ func TestVirtualQueue_MergeSlices(t *testing.T) {
 			mockLogger := testlogger.New(t)
 			mockMetricsScope := metrics.NoopScope
 			mockTimeSource := clock.NewMockedTimeSource()
+			mockRateLimiter := quotas.NewMockLimiter(ctrl)
 
 			existingSlices, incomingSlices := tt.setupMocks(ctrl)
 
@@ -319,6 +325,7 @@ func TestVirtualQueue_MergeSlices(t *testing.T) {
 				mockLogger,
 				mockMetricsScope,
 				mockTimeSource,
+				mockRateLimiter,
 				existingSlices,
 				&VirtualQueueOptions{
 					PageSize: dynamicproperties.GetIntPropertyFn(10),
@@ -545,6 +552,8 @@ func TestVirtualQueue_LoadAndSubmitTasks(t *testing.T) {
 	mockMetricsScope := metrics.NoopScope
 	mockPageSize := dynamicproperties.GetIntPropertyFn(10)
 	mockTimeSource := clock.NewMockedTimeSource()
+	mockRateLimiter := quotas.NewMockLimiter(ctrl)
+	mockRateLimiter.EXPECT().Wait(gomock.Any()).Return(nil).AnyTimes()
 
 	mockVirtualSlice1 := NewMockVirtualSlice(ctrl)
 	mockVirtualSlice2 := NewMockVirtualSlice(ctrl)
@@ -577,6 +586,7 @@ func TestVirtualQueue_LoadAndSubmitTasks(t *testing.T) {
 		mockLogger,
 		mockMetricsScope,
 		mockTimeSource,
+		mockRateLimiter,
 		mockVirtualSlices,
 		&VirtualQueueOptions{
 			PageSize: mockPageSize,
@@ -600,6 +610,8 @@ func TestVirtualQueue_LifeCycle(t *testing.T) {
 	mockMetricsScope := metrics.NoopScope
 	mockPageSize := dynamicproperties.GetIntPropertyFn(10)
 	mockTimeSource := clock.NewMockedTimeSource()
+	mockRateLimiter := quotas.NewMockLimiter(ctrl)
+	mockRateLimiter.EXPECT().Wait(gomock.Any()).Return(nil).AnyTimes()
 
 	mockVirtualSlice1 := NewMockVirtualSlice(ctrl)
 
@@ -616,6 +628,7 @@ func TestVirtualQueue_LifeCycle(t *testing.T) {
 		mockLogger,
 		mockMetricsScope,
 		mockTimeSource,
+		mockRateLimiter,
 		mockVirtualSlices,
 		&VirtualQueueOptions{
 			PageSize: mockPageSize,

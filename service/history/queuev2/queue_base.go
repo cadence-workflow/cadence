@@ -33,6 +33,7 @@ import (
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
+	"github.com/uber/cadence/common/quotas"
 	"github.com/uber/cadence/service/history/queue"
 	"github.com/uber/cadence/service/history/shard"
 	"github.com/uber/cadence/service/history/task"
@@ -138,6 +139,7 @@ func newQueueBase(
 		logger,
 		metricsScope,
 		timeSource,
+		quotas.NewDynamicRateLimiter(options.MaxPollRPS.AsFloat64()),
 		&VirtualQueueOptions{
 			PageSize: options.PageSize,
 		},
@@ -233,6 +235,7 @@ func (q *queueBase) processPollTimer() {
 }
 
 func (q *queueBase) updateQueueState(ctx context.Context) {
+	q.metricsScope.IncCounter(metrics.AckLevelUpdateCounter)
 	queueState := &QueueState{
 		VirtualQueueStates:    q.virtualQueueManager.UpdateAndGetState(),
 		ExclusiveMaxReadLevel: q.newVirtualSliceState.Range.InclusiveMinTaskKey,
@@ -269,6 +272,7 @@ func (q *queueBase) updateQueueState(ctx context.Context) {
 	err := q.shard.UpdateQueueState(q.category, ToPersistenceQueueState(queueState))
 	if err != nil {
 		q.logger.Error("Failed to update queue state", tag.Error(err))
+		q.metricsScope.IncCounter(metrics.AckLevelUpdateFailedCounter)
 	}
 
 	q.updateQueueStateTimer.Reset(backoff.JitDuration(
