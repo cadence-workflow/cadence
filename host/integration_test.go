@@ -28,6 +28,7 @@ import (
 	"flag"
 	"fmt"
 	"math"
+	"os"
 	"sort"
 	"strconv"
 	"testing"
@@ -38,6 +39,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/engine/engineimpl"
@@ -52,6 +54,14 @@ func TestIntegrationSuite(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
+	if os.Getenv("ENABLE_QUEUE_V2") == "true" {
+		if clusterConfig.HistoryDynamicConfigOverrides == nil {
+			clusterConfig.HistoryDynamicConfigOverrides = make(map[dynamicproperties.Key]interface{})
+		}
+		clusterConfig.HistoryDynamicConfigOverrides[dynamicproperties.EnableTimerQueueV2] = true
+		clusterConfig.HistoryDynamicConfigOverrides[dynamicproperties.EnableTransferQueueV2] = true
+	}
+
 	testCluster := NewPersistenceTestCluster(t, clusterConfig)
 
 	s := new(IntegrationSuite)

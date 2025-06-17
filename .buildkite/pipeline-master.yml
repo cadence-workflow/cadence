@@ -110,6 +110,26 @@ steps:
           run: integration-test-cassandra
           config: docker/buildkite/docker-compose.yml
 
+  - label: ":golang: integration test with cassandra running history queue v2"
+    artifact_paths:
+      - ".build/coverage/*.out"
+    retry:
+      automatic:
+        limit: 1
+    plugins:
+      - kubernetes:
+          <<: *kubernetes
+          podSpec:
+            <<: *podSpec
+            containers:
+              - <<: *commandContainer
+                command:
+                  - |-
+                    make cover_integration_profile
+      - docker-compose#v3.0.0:
+          run: integration-test-cassandra-queue-v2
+          config: docker/buildkite/docker-compose.yml
+
   - label: ":golang: integration test with cassandra with ElasticSearch V7"
     artifact_paths:
       - ".build/coverage/*.out"
