@@ -4588,13 +4588,13 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "history.enableTransferQueueV2",
 		Description:  "EnableTransferQueueV2 is to enable transfer queue v2",
 		Filters:      []Filter{ShardID},
-		DefaultValue: true,
+		DefaultValue: false,
 	},
 	EnableTimerQueueV2: {
 		KeyName:      "history.enableTimerQueueV2",
 		Description:  "EnableTimerQueueV2 is to enable timer queue v2",
 		Filters:      []Filter{ShardID},
-		DefaultValue: true,
+		DefaultValue: false,
 	},
 }
 
