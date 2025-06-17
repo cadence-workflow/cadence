@@ -6357,7 +6357,7 @@ func FromActiveClusterSelectionPolicy(p *types.ActiveClusterSelectionPolicy) *ap
 			},
 		}
 	}
-	return nil
+	panic("unexpected enum value")
 }
 
 func ToActiveClusterSelectionPolicy(p *apiv1.ActiveClusterSelectionPolicy) *types.ActiveClusterSelectionPolicy {
@@ -6377,5 +6377,5 @@ func ToActiveClusterSelectionPolicy(p *apiv1.ActiveClusterSelectionPolicy) *type
 			ExternalEntityKey:              p.StrategyConfig.(*apiv1.ActiveClusterSelectionPolicy_ActiveClusterExternalEntityConfig).ActiveClusterExternalEntityConfig.ExternalEntityKey,
 		}
 	}
-	return nil
+	panic("unexpected enum value")
 }
