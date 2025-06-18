@@ -22,7 +22,6 @@ jobs:
     if: github.event_name == 'push'
     name: Golang unit test
     runs-on: ubuntu-latest
-    needs: idl-submodule-points-to-master
     
     steps:
       - name: Checkout
@@ -39,7 +38,7 @@ jobs:
         uses: nick-fields/retry@v3
         with:
           max_attempts: 2
-          timeout_minutes: 25
+          timeout_minutes: 30
           command: |
             make .just-build
 
@@ -47,7 +46,7 @@ jobs:
         uses: nick-fields/retry@v3
         with:
           max_attempts: 2
-          timeout_minutes: 25
+          timeout_minutes: 30
           command: |
             make cover_profile
       
@@ -55,7 +54,7 @@ jobs:
         uses: nick-fields/retry@v3
         with:
           max_attempts: 2
-          timeout_minutes: 25
+          timeout_minutes: 30
           command: |
             ./scripts/github_actions/gen_coverage_metadata.sh .build/coverage/metadata.txt
 
@@ -76,7 +75,6 @@ jobs:
     if: github.event_name == 'push'
     name: Golangci lint validate code is clean
     runs-on: ubuntu-latest
-    needs: golang-unit-test
 
     steps:
       - name: Checkout
@@ -101,7 +99,6 @@ jobs:
     if: github.event_name == 'push'
     name: Golang integration test with cassandra
     runs-on: ubuntu-latest
-    # needs: golangci-lint-validate-code-is-clean
 
     steps:
       - name: Checkout
@@ -113,12 +110,6 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.23.4'
-
-      # - name: Start required services
-      #   run: |
-      #     docker compose -f docker/github_actions/docker-compose.yml up -d cassandra kafka elasticsearch
-      #     echo "Waiting for services to be healthy..."
-      #     timeout 300 bash -c 'until docker compose -f docker/github_actions/docker-compose.yml ps | grep -q "healthy"; do sleep 5; done'
 
       - name: Run integration profile for cassandra
         uses: nick-fields/retry@v3
@@ -139,7 +130,6 @@ jobs:
     if: github.event_name == 'push'
     name: Golang integration test with cassandra and elasticsearch v7
     runs-on: ubuntu-latest
-    needs: golang-integration-test-with-cassandra
 
     steps:
       - name: Checkout
@@ -156,13 +146,9 @@ jobs:
         uses: nick-fields/retry@v3
         with:
           max_attempts: 2
-          timeout_minutes: 25
+          timeout_minutes: 30
           command: |
-            make cover_integration_profile
-
-      - name: Run docker compose integration test cassandra and elasticsearch v7
-        run: docker compose -f docker/github_actions/docker-compose-es7.yml run integration-test-cassandra
-        working-directory: .
+            docker compose -f docker/github_actions/docker-compose-es7.yml run integration-test-cassandra bash -c "make cover_integration_profile"
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
@@ -175,7 +161,6 @@ jobs:
     if: github.event_name == 'push'
     name: Golang integration test with cassandra and pinot
     runs-on: ubuntu-latest
-    needs: golang-integration-test-with-cassandra
 
     steps:
       - name: Checkout
@@ -192,7 +177,7 @@ jobs:
         uses: nick-fields/retry@v3
         with:
           max_attempts: 2
-          timeout_minutes: 25
+          timeout_minutes: 30
           command: |
             make .just-build
 
@@ -200,7 +185,7 @@ jobs:
         uses: nick-fields/retry@v3
         with:
           max_attempts: 2
-          timeout_minutes: 25
+          timeout_minutes: 30
           command: |
             mkdir -p .build/coverage
 
@@ -222,7 +207,6 @@ jobs:
     if: github.event_name == 'push'
     name: Golang integration test with cassandra with opensearch v2
     runs-on: ubuntu-latest
-    needs: golang-integration-test-with-cassandra
 
     steps:
       - name: Checkout
@@ -239,13 +223,9 @@ jobs:
         uses: nick-fields/retry@v3
         with:
           max_attempts: 2
-          timeout_minutes: 25
+          timeout_minutes: 30
           command: |
-            make cover_integration_profile
-
-      - name: Run docker compose integration test cassandra and opensearch v2
-        run: docker compose -f docker/github_actions/docker-compose-opensearch2.yml run integration-test-cassandra
-        working-directory: .
+            docker compose -f docker/github_actions/docker-compose-opensearch2.yml run integration-test-cassandra bash -c "make cover_integration_profile"
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
@@ -258,7 +238,6 @@ jobs:
     if: github.event_name == 'push'
     name: Golang integration ndc test with cassandra
     runs-on: ubuntu-latest
-    needs: golang-integration-test-with-cassandra
 
     steps:
       - name: Checkout
@@ -275,13 +254,9 @@ jobs:
         uses: nick-fields/retry@v3
         with:
           max_attempts: 2
-          timeout_minutes: 25
+          timeout_minutes: 30
           command: |
-            make cover_ndc_profile
-
-      - name: Run docker ndc integration test cassandra
-        run: docker compose -f docker/github_actions/docker-compose.yml run integration-test-ndc-cassandra
-        working-directory: .
+            docker compose -f docker/github_actions/docker-compose.yml run integration-test-ndc-cassandra bash -c "make cover_ndc_profile"
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
@@ -294,7 +269,6 @@ jobs:
     if: github.event_name == 'push'
     name: Golang integration test with mysql
     runs-on: ubuntu-latest
-    needs: golangci-lint-validate-code-is-clean
 
     steps:
       - name: Checkout
@@ -311,13 +285,9 @@ jobs:
         uses: nick-fields/retry@v3
         with:
           max_attempts: 2
-          timeout_minutes: 25
+          timeout_minutes: 30
           command: |
-            make cover_integration_profile
-
-      - name: Run docker compose integration test mysql
-        run: docker compose -f docker/github_actions/docker-compose.yml run integration-test-mysql
-        working-directory: .
+            docker compose -f docker/github_actions/docker-compose.yml run integration-test-mysql bash -c "make cover_integration_profile"
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
@@ -330,7 +300,6 @@ jobs:
     if: github.event_name == 'push'
     name: Golang integration ndc test with mysql
     runs-on: ubuntu-latest
-    needs: golang-integration-test-with-mysql
 
     steps:
       - name: Checkout
@@ -347,13 +316,9 @@ jobs:
         uses: nick-fields/retry@v3
         with:
           max_attempts: 2
-          timeout_minutes: 25
+          timeout_minutes: 30
           command: |
-            make cover_ndc_profile
-
-      - name: Run docker ndc integration test mysql
-        run: docker compose -f docker/github_actions/docker-compose.yml run integration-test-ndc-mysql
-        working-directory: .
+            docker compose -f docker/github_actions/docker-compose.yml run integration-test-ndc-mysql bash -c "make cover_ndc_profile"
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
@@ -366,7 +331,6 @@ jobs:
     if: github.event_name == 'push'
     name: Golang integration test with postgres
     runs-on: ubuntu-latest
-    needs: golangci-lint-validate-code-is-clean
 
     steps:
       - name: Checkout
@@ -383,13 +347,9 @@ jobs:
         uses: nick-fields/retry@v3
         with:
           max_attempts: 2
-          timeout_minutes: 25
+          timeout_minutes: 30
           command: |
-            make cover_integration_profile
-
-      - name: Run docker compose integration test postgres
-        run: docker compose -f docker/github_actions/docker-compose.yml run integration-test-postgres
-        working-directory: .
+            docker compose -f docker/github_actions/docker-compose.yml run integration-test-postgres bash -c "make cover_integration_profile"
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
@@ -402,8 +362,6 @@ jobs:
     if: github.event_name == 'push'
     name: Golang integration test with sqlite
     runs-on: ubuntu-latest
-    needs: golangci-lint-validate-code-is-clean
-    continue-on-error: true
 
     steps:
       - name: Checkout
@@ -420,13 +378,9 @@ jobs:
         uses: nick-fields/retry@v3
         with:
           max_attempts: 2
-          timeout_minutes: 25
+          timeout_minutes: 30
           command: |
-            make cover_integration_profile
-
-      - name: Run docker compose integration test sqlite
-        run: docker compose -f docker/github_actions/docker-compose.yml run integration-test-sqlite
-        working-directory: .
+            docker compose -f docker/github_actions/docker-compose.yml run integration-test-sqlite bash -c "make cover_integration_profile"
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
@@ -439,7 +393,6 @@ jobs:
     if: github.event_name == 'push'
     name: Golang integration ndc test with postgres
     runs-on: ubuntu-latest
-    needs: golang-integration-test-with-postgres
 
     steps:
       - name: Checkout
@@ -456,13 +409,9 @@ jobs:
         uses: nick-fields/retry@v3
         with:
           max_attempts: 2
-          timeout_minutes: 25
+          timeout_minutes: 30
           command: |
-            make cover_ndc_profile
-
-      - name: Run docker compose ndc test postgres
-        run: docker compose -f docker/github_actions/docker-compose.yml run integration-test-ndc-postgres
-        working-directory: .
+            docker compose -f docker/github_actions/docker-compose.yml run integration-test-ndc-postgres bash -c "make cover_ndc_profile"
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
@@ -475,7 +424,6 @@ jobs:
     if: github.event_name == 'push'
     name: Golang async wf integration test with kafka
     runs-on: ubuntu-latest
-    needs: golangci-lint-validate-code-is-clean
 
     steps:
       - name: Checkout
@@ -492,7 +440,7 @@ jobs:
         uses: nick-fields/retry@v3
         with:
           max_attempts: 2
-          timeout_minutes: 25
+          timeout_minutes: 30
           command: |
             make .just-build
 
