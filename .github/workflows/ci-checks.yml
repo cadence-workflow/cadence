@@ -143,17 +143,17 @@ jobs:
         run: docker compose -f docker/github_actions/docker-compose.yml run integration-test-cassandra cat /cadence/host/testdata/integration_test_cluster.yaml
         working-directory: .
 
-      - name: Run integration profile for cassandra
-        uses: nick-fields/retry@v3
-        with:
-          max_attempts: 2
-          timeout_minutes: 25
-          command: |
-            make cover_integration_profile
+      # - name: Run integration profile for cassandra
+      #   uses: nick-fields/retry@v3
+      #   with:
+      #     max_attempts: 2
+      #     timeout_minutes: 25
+      #     command: |
+      #       make cover_integration_profile
 
       - name: Run docker compose integration test cassandra
-        run: docker compose -f docker/github_actions/docker-compose.yml run integration-test-cassandra
-        working-directory: .
+        run: |
+          docker compose -f docker/github_actions/docker-compose.yml run integration-test-cassandra bash -c "make cover_integration_profile"
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
