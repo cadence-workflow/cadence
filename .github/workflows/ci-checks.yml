@@ -155,7 +155,7 @@ jobs:
           max_attempts: 2
           timeout_minutes: 30
           command: |
-            docker compose -f docker/github_actions/docker-compose-pinot.yml run integration-test-cassandra-pinot bash -c "make .just-build && go test -timeout 600s -run ^TestPinotIntegrationSuite -tags pinotintegration -count 1 -v -coverprofile=.build/coverage/pinot.out github.com/uber/cadence/host"
+            docker compose -f docker/github_actions/docker-compose-pinot.yml run integration-test-cassandra-pinot bash -c "mkdir -p .build/coverage && make .just-build && go test -timeout 600s -run ^TestPinotIntegrationSuite -tags pinotintegration -count 1 -v -coverprofile=.build/coverage/pinot.out github.com/uber/cadence/host"
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
