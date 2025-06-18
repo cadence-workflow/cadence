@@ -190,7 +190,7 @@ jobs:
             mkdir -p .build/coverage
 
       - name: Start required services
-        run: docker compose -f docker/github_actions/docker-compose-pinot.yml up -d cassandra pinot-broker kafka
+        run: docker compose -f docker/github_actions/docker-compose-pinot.yml up -d --remove-orphans cassandra pinot-broker kafka
 
       - name: Run docker compose integration test cassandra and pinot # runs in docker compose so has right env vars
         run: docker compose -f docker/github_actions/docker-compose-pinot.yml run integration-test-cassandra-pinot go test -timeout 600s -run ^TestPinotIntegrationSuite -tags pinotintegration -count 1 -v -coverprofile=.build/coverage/pinot.out github.com/uber/cadence/host
@@ -201,6 +201,10 @@ jobs:
         with:
           name: go-cassandra-pinot-integration-coverage
           path: .build/coverage/*.out
+
+      - name: Cleanup containers
+        if: always()
+        run: docker compose -f docker/github_actions/docker-compose-pinot.yml down --remove-orphans
 
 
   golang-integration-test-with-cassandra-with-opensearch-v2:
