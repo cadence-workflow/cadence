@@ -35,6 +35,7 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/quotas"
 	"github.com/uber/cadence/service/history/task"
 )
 
@@ -51,12 +52,13 @@ type (
 	}
 
 	virtualQueueImpl struct {
-		options      *VirtualQueueOptions
-		processor    task.Processor
-		redispatcher task.Redispatcher
-		logger       log.Logger
-		metricsScope metrics.Scope
-		timeSource   clock.TimeSource
+		options             *VirtualQueueOptions
+		processor           task.Processor
+		redispatcher        task.Redispatcher
+		logger              log.Logger
+		metricsScope        metrics.Scope
+		timeSource          clock.TimeSource
+		taskLoadRateLimiter quotas.Limiter
 
 		sync.RWMutex
 		status        int32
@@ -75,6 +77,7 @@ func NewVirtualQueue(
 	logger log.Logger,
 	metricsScope metrics.Scope,
 	timeSource clock.TimeSource,
+	taskLoadRateLimiter quotas.Limiter,
 	virtualSlices []VirtualSlice,
 	options *VirtualQueueOptions,
 ) VirtualQueue {
@@ -86,12 +89,13 @@ func NewVirtualQueue(
 	}
 
 	return &virtualQueueImpl{
-		options:      options,
-		processor:    processor,
-		redispatcher: redispatcher,
-		logger:       logger,
-		metricsScope: metricsScope,
-		timeSource:   timeSource,
+		options:             options,
+		processor:           processor,
+		redispatcher:        redispatcher,
+		logger:              logger,
+		metricsScope:        metricsScope,
+		timeSource:          timeSource,
+		taskLoadRateLimiter: taskLoadRateLimiter,
 
 		status:        common.DaemonStatusInitialized,
 		ctx:           ctx,
@@ -210,6 +214,14 @@ func (q *virtualQueueImpl) run() {
 }
 
 func (q *virtualQueueImpl) loadAndSubmitTasks() {
+	if err := q.taskLoadRateLimiter.Wait(q.ctx); err != nil {
+		if q.ctx.Err() != nil {
+			return
+		}
+		// this should never happen, but we log it for debugging purposes
+		q.logger.Error("Virtual queue failed to wait for rate limiter", tag.Error(err))
+	}
+
 	q.RLock()
 	defer q.RUnlock()
 
@@ -229,6 +241,7 @@ func (q *virtualQueueImpl) loadAndSubmitTasks() {
 	now := q.timeSource.Now()
 	for _, task := range tasks {
 		scheduledTime := task.GetTaskKey().GetScheduledTime()
+		// if the scheduled time is in the future, we need to redispatch the task
 		if now.Before(scheduledTime) {
 			q.redispatcher.RedispatchTask(task, scheduledTime)
 			continue
@@ -244,6 +257,7 @@ func (q *virtualQueueImpl) loadAndSubmitTasks() {
 			}
 		}
 		if !submitted {
+			q.metricsScope.IncCounter(metrics.ProcessingQueueThrottledCounter)
 			q.redispatcher.AddTask(task)
 		}
 	}

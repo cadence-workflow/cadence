@@ -75,6 +75,7 @@ func TestScheduledQueue_LifeCycle(t *testing.T) {
 		MaxPollIntervalJitterCoefficient:   dynamicproperties.GetFloatPropertyFn(0.1),
 		UpdateAckInterval:                  dynamicproperties.GetDurationPropertyFn(time.Second * 10),
 		UpdateAckIntervalJitterCoefficient: dynamicproperties.GetFloatPropertyFn(0.1),
+		MaxPollRPS:                         dynamicproperties.GetIntPropertyFn(100),
 	}
 
 	queue := NewScheduledQueue(

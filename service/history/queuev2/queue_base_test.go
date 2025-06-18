@@ -456,6 +456,7 @@ func TestNewQueueBase(t *testing.T) {
 		&Options{
 			DeleteBatchSize:    dynamicproperties.GetIntPropertyFn(100),
 			RedispatchInterval: dynamicproperties.GetDurationPropertyFn(time.Second * 10),
+			MaxPollRPS:         dynamicproperties.GetIntPropertyFn(100),
 		},
 	)
 
