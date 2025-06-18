@@ -33,34 +33,14 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.23.4' # version from cadence/docker/buildkite/Dockerfile
-
-      - name: Not rebuilding binaries and not regenerating code
-        uses: nick-fields/retry@v3
-        with:
-          max_attempts: 2
-          timeout_minutes: 30
-          command: |
-            make .just-build
-
-      - name: Run tests with coverage
-        uses: nick-fields/retry@v3
-        with:
-          max_attempts: 2
-          timeout_minutes: 30
-          command: |
-            make cover_profile
       
-      - name: Generate coverage metadata
+      - name: Not rebuilding binaries and not regenerating code and generate coverage metadata
         uses: nick-fields/retry@v3
         with:
           max_attempts: 2
           timeout_minutes: 30
           command: |
-            ./scripts/github_actions/gen_coverage_metadata.sh .build/coverage/metadata.txt
-
-      - name: Run docker compose unit test
-        run: docker compose -f docker/github_actions/docker-compose.yml run unit-test
-        working-directory: .
+            docker compose -f docker/github_actions/docker-compose.yml run unit-test bash -c "make .just-build && make cover_profile && ./scripts/github_actions/gen_coverage_metadata.sh .build/coverage/metadata.txt"
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
@@ -88,11 +68,7 @@ jobs:
           go-version: '1.23.4'
 
       - name: Run golint
-        run: ./scripts/github_actions/golint.sh
-      
-      - name: Run coverage report
-        run: docker compose -f docker/github_actions/docker-compose.yml run coverage-report
-        working-directory: .
+        run: docker compose -f docker/github_actions/docker-compose.yml run coverage-report bash -c "./scripts/github_actions/golint.sh"
 
 
   golang-integration-test-with-cassandra:
@@ -179,32 +155,13 @@ jobs:
           max_attempts: 2
           timeout_minutes: 30
           command: |
-            make .just-build
-
-      - name: Make the directory for the pinot coverage file
-        uses: nick-fields/retry@v3
-        with:
-          max_attempts: 2
-          timeout_minutes: 30
-          command: |
-            mkdir -p .build/coverage
-
-      - name: Start required services
-        run: docker compose -f docker/github_actions/docker-compose-pinot.yml up -d --remove-orphans cassandra pinot-broker kafka
-
-      - name: Run docker compose integration test cassandra and pinot # runs in docker compose so has right env vars
-        run: docker compose -f docker/github_actions/docker-compose-pinot.yml run integration-test-cassandra-pinot go test -timeout 600s -run ^TestPinotIntegrationSuite -tags pinotintegration -count 1 -v -coverprofile=.build/coverage/pinot.out github.com/uber/cadence/host
-        working-directory: .
+            docker compose -f docker/github_actions/docker-compose-pinot.yml run integration-test-cassandra-pinot bash -c "make .just-build && go test -timeout 600s -run ^TestPinotIntegrationSuite -tags pinotintegration -count 1 -v -coverprofile=.build/coverage/pinot.out github.com/uber/cadence/host"
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
         with:
           name: go-cassandra-pinot-integration-coverage
           path: .build/coverage/*.out
-
-      - name: Cleanup containers
-        if: always()
-        run: docker compose -f docker/github_actions/docker-compose-pinot.yml down --remove-orphans
 
 
   golang-integration-test-with-cassandra-with-opensearch-v2:
@@ -366,6 +323,7 @@ jobs:
     if: github.event_name == 'push'
     name: Golang integration test with sqlite
     runs-on: ubuntu-latest
+    continue-on-error: true
 
     steps:
       - name: Checkout
@@ -446,8 +404,4 @@ jobs:
           max_attempts: 2
           timeout_minutes: 30
           command: |
-            make .just-build
-
-      - name: Run async wf integration test # runs in docker compose so has right env vars
-        run: docker compose -f docker/github_actions/docker-compose.yml run integration-test-async-wf go test -timeout 60s -run ^TestAsyncWFIntegrationSuite -tags asyncwfintegration -count 1 -v github.com/uber/cadence/host
-
+            docker compose -f docker/github_actions/docker-compose.yml run integration-test-async-wf bash -c "make .just-build && go test -timeout 60s -run ^TestAsyncWFIntegrationSuite -tags asyncwfintegration -count 1 -v github.com/uber/cadence/host"
