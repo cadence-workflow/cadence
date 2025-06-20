@@ -84,7 +84,7 @@ jobs:
           go-version: '1.23.4'
 
       - name: Run integration profile for cassandra (PR)
-        if: github.event_name == 'pull-request'
+        if: github.event_name == 'pull_request'
         uses: nick-fields/retry@v3
         with:
           max_attempts: 2
@@ -124,7 +124,7 @@ jobs:
           go-version: '1.23.4'
 
       - name: Run integration profile for cassandra and elasticsearch v7 (PR)
-        if: github.event_name == 'pull-request'
+        if: github.event_name == 'pull_request'
         uses: nick-fields/retry@v3
         with:
           max_attempts: 2
@@ -194,7 +194,7 @@ jobs:
           go-version: '1.23.4'
 
       - name: Run integration profile for cassandra and opensearch v2 (PR)
-        if: github.event_name == 'pull-request'
+        if: github.event_name == 'pull_request'
         uses: nick-fields/retry@v3
         with:
           max_attempts: 2
@@ -234,7 +234,7 @@ jobs:
           go-version: '1.23.4'
 
       - name: Run ndc profile for cassandra (PR)
-        if: github.event_name == 'pull-request'
+        if: github.event_name == 'pull_request'
         uses: nick-fields/retry@v3
         with:
           max_attempts: 2
@@ -274,7 +274,7 @@ jobs:
           go-version: '1.23.4'
 
       - name: Run integration profile for mysql (PR)
-        if: github.event_name == 'pull-request'
+        if: github.event_name == 'pull_request'
         uses: nick-fields/retry@v3
         with:
           max_attempts: 2
@@ -314,7 +314,7 @@ jobs:
           go-version: '1.23.4'
 
       - name: Run ndc profile for mysql (PR)
-        if: github.event_name == 'pull-request'
+        if: github.event_name == 'pull_request'
         uses: nick-fields/retry@v3
         with:
           max_attempts: 2
@@ -354,7 +354,7 @@ jobs:
           go-version: '1.23.4'
 
       - name: Run integration profile for postgres (PR)
-        if: github.event_name == 'pull-request'
+        if: github.event_name == 'pull_request'
         uses: nick-fields/retry@v3
         with:
           max_attempts: 2
@@ -395,7 +395,7 @@ jobs:
           go-version: '1.23.4'
 
       - name: Run integration profile for sqlite (PR)
-        if: github.event_name == 'pull-request'
+        if: github.event_name == 'pull_request'
         uses: nick-fields/retry@v3
         with:
           max_attempts: 2
@@ -435,7 +435,7 @@ jobs:
           go-version: '1.23.4'
 
       - name: Run ndc profile for postgres (PR)
-        if: github.event_name == 'pull-request'
+        if: github.event_name == 'pull_request'
         uses: nick-fields/retry@v3
         with:
           max_attempts: 2
@@ -483,7 +483,7 @@ jobs:
             docker compose -f docker/github_actions/docker-compose.yml run integration-test-async-wf bash -c "make .just-build && go test -timeout 60s -run ^TestAsyncWFIntegrationSuite -tags asyncwfintegration -count 1 -v github.com/uber/cadence/host"
 
   golang-integration-test-with-etcd:
-    if: github.event_name == 'pull-request'
+    if: github.event_name == 'pull_request'
     name: Golang integration test with etcd
     runs-on: ubuntu-latest
 
