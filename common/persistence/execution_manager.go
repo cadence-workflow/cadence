@@ -909,6 +909,21 @@ func (m *executionManagerImpl) CreateFailoverMarkerTasks(
 	return m.persistence.CreateFailoverMarkerTasks(ctx, request)
 }
 
+func (m *executionManagerImpl) GetActiveClusterSelectionPolicy(
+	ctx context.Context,
+	domainID, wfID, rID string,
+) (*types.ActiveClusterSelectionPolicy, error) {
+	blob, err := m.persistence.GetActiveClusterSelectionPolicy(ctx, domainID, wfID, rID)
+	if err != nil {
+		return nil, err
+	}
+	policy, err := m.serializer.DeserializeActiveClusterSelectionPolicy(blob)
+	if err != nil {
+		return nil, err
+	}
+	return policy, nil
+}
+
 func (m *executionManagerImpl) Close() {
 	m.persistence.Close()
 }

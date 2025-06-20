@@ -30,6 +30,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
@@ -48,22 +49,20 @@ const (
 type DomainIDToDomainFn func(id string) (*cache.DomainCacheEntry, error)
 
 type managerImpl struct {
-	domainIDToDomainFn      DomainIDToDomainFn
-	clusterMetadata         cluster.Metadata
-	metricsCl               metrics.Client
-	logger                  log.Logger
-	ctx                     context.Context
-	cancel                  context.CancelFunc
-	wg                      sync.WaitGroup
-	externalEntityProviders map[string]ExternalEntityProvider
-	timeSrc                 clock.TimeSource
-
+	domainIDToDomainFn          DomainIDToDomainFn
+	clusterMetadata             cluster.Metadata
+	metricsCl                   metrics.Client
+	logger                      log.Logger
+	ctx                         context.Context
+	cancel                      context.CancelFunc
+	wg                          sync.WaitGroup
+	externalEntityProviders     map[string]ExternalEntityProvider
+	executionManagerProvider    ExecutionManagerProvider
+	timeSrc                     clock.TimeSource
+	numShards                   int
 	shouldNotifyChangeCallbacks int32
 	changeCallbacksLock         sync.Mutex
 	changeCallbacks             map[int]func(ChangeType)
-
-	// define some internal helper functions as member variables to be mocked in tests
-	getWorkflowActivenessMetadataFn func(ctx context.Context, domainID, wfID, rID string) (*types.ActiveClusterSelectionPolicy, error)
 }
 
 type ManagerOption func(*managerImpl)
@@ -82,19 +81,23 @@ func NewManager(
 	metricsCl metrics.Client,
 	logger log.Logger,
 	externalEntityProviders []ExternalEntityProvider,
+	executionManagerProvider ExecutionManagerProvider,
+	numShards int,
 	opts ...ManagerOption,
 ) (Manager, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	m := &managerImpl{
-		domainIDToDomainFn:      domainIDToDomainFn,
-		clusterMetadata:         clusterMetadata,
-		metricsCl:               metricsCl,
-		logger:                  logger.WithTags(tag.ComponentActiveClusterManager),
-		ctx:                     ctx,
-		cancel:                  cancel,
-		changeCallbacks:         make(map[int]func(ChangeType)),
-		externalEntityProviders: make(map[string]ExternalEntityProvider),
-		timeSrc:                 clock.NewRealTimeSource(),
+		domainIDToDomainFn:       domainIDToDomainFn,
+		clusterMetadata:          clusterMetadata,
+		metricsCl:                metricsCl,
+		logger:                   logger.WithTags(tag.ComponentActiveClusterManager),
+		ctx:                      ctx,
+		cancel:                   cancel,
+		changeCallbacks:          make(map[int]func(ChangeType)),
+		externalEntityProviders:  make(map[string]ExternalEntityProvider),
+		timeSrc:                  clock.NewRealTimeSource(),
+		executionManagerProvider: executionManagerProvider,
+		numShards:                numShards,
 	}
 
 	for _, opt := range opts {
@@ -108,7 +111,6 @@ func NewManager(
 		m.externalEntityProviders[provider.SupportedType()] = provider
 	}
 
-	m.getWorkflowActivenessMetadataFn = m.getWorkflowActivenessMetadata
 	return m, nil
 }
 
@@ -196,7 +198,7 @@ func (m *managerImpl) FailoverVersionOfNewWorkflow(ctx context.Context, req *typ
 
 	plcy := req.StartRequest.ActiveClusterSelectionPolicy
 	// region sticky policy
-	if plcy == nil || plcy.GetStrategy() == types.ActiveClusterSelectionStrategyRegionSticky {
+	if plcy.GetStrategy() == types.ActiveClusterSelectionStrategyRegionSticky {
 		// use current region for nil policy, otherwise use sticky region from policy
 		region := m.clusterMetadata.GetCurrentRegion()
 		if plcy != nil {
@@ -238,7 +240,7 @@ func (m *managerImpl) LookupWorkflow(ctx context.Context, domainID, wfID, rID st
 		}, nil
 	}
 
-	activenessMetadata, err := m.getWorkflowActivenessMetadataFn(ctx, domainID, wfID, rID)
+	plcy, err := m.getClusterSelectionPolicy(ctx, domainID, wfID, rID)
 	if err != nil {
 		var notExistsErr *types.EntityNotExistsError
 		if errors.As(err, &notExistsErr) {
@@ -253,12 +255,12 @@ func (m *managerImpl) LookupWorkflow(ctx context.Context, domainID, wfID, rID st
 	}
 
 	region := ""
-	if activenessMetadata.GetStrategy() == types.ActiveClusterSelectionStrategyRegionSticky {
+	if plcy.GetStrategy() == types.ActiveClusterSelectionStrategyRegionSticky {
 		// Case 2.a: workflow is region sticky
-		region = activenessMetadata.StickyRegion
-	} else if activenessMetadata.GetStrategy() == types.ActiveClusterSelectionStrategyExternalEntity {
+		region = plcy.StickyRegion
+	} else if plcy.GetStrategy() == types.ActiveClusterSelectionStrategyExternalEntity {
 		// Case 2.b: workflow has external entity
-		externalEntity, err := m.getExternalEntity(ctx, activenessMetadata.ExternalEntityType, activenessMetadata.ExternalEntityKey)
+		externalEntity, err := m.getExternalEntity(ctx, plcy.ExternalEntityType, plcy.ExternalEntityKey)
 		if err != nil {
 			return nil, err
 		}
@@ -362,7 +364,17 @@ func (m *managerImpl) getExternalEntity(ctx context.Context, entityType, entityK
 	return provider.GetExternalEntity(ctx, entityKey)
 }
 
-func (m *managerImpl) getWorkflowActivenessMetadata(ctx context.Context, domainID, wfID, rID string) (*types.ActiveClusterSelectionPolicy, error) {
-	// TODO(active-active): Fetch ActivenessMetadata from persistence
-	return nil, errors.New("not implemented")
+func (m *managerImpl) getClusterSelectionPolicy(ctx context.Context, domainID, wfID, rID string) (*types.ActiveClusterSelectionPolicy, error) {
+	shardID := common.WorkflowIDToHistoryShard(wfID, m.numShards)
+	executionManager, err := m.executionManagerProvider.GetExecutionManager(shardID)
+	if err != nil {
+		return nil, err
+	}
+
+	plcy, err := executionManager.GetActiveClusterSelectionPolicy(ctx, domainID, wfID, rID)
+	if err != nil {
+		return nil, err
+	}
+
+	return plcy, nil
 }

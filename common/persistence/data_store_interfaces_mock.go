@@ -151,6 +151,21 @@ func (mr *MockExecutionStoreMockRecorder) DeleteWorkflowExecution(ctx, request a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkflowExecution", reflect.TypeOf((*MockExecutionStore)(nil).DeleteWorkflowExecution), ctx, request)
 }
 
+// GetActiveClusterSelectionPolicy mocks base method.
+func (m *MockExecutionStore) GetActiveClusterSelectionPolicy(ctx context.Context, domainID, wfID, rID string) (*DataBlob, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetActiveClusterSelectionPolicy", ctx, domainID, wfID, rID)
+	ret0, _ := ret[0].(*DataBlob)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetActiveClusterSelectionPolicy indicates an expected call of GetActiveClusterSelectionPolicy.
+func (mr *MockExecutionStoreMockRecorder) GetActiveClusterSelectionPolicy(ctx, domainID, wfID, rID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveClusterSelectionPolicy", reflect.TypeOf((*MockExecutionStore)(nil).GetActiveClusterSelectionPolicy), ctx, domainID, wfID, rID)
+}
+
 // GetCurrentExecution mocks base method.
 func (m *MockExecutionStore) GetCurrentExecution(ctx context.Context, request *GetCurrentExecutionRequest) (*GetCurrentExecutionResponse, error) {
 	m.ctrl.T.Helper()

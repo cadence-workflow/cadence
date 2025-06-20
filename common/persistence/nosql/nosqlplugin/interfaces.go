@@ -503,6 +503,9 @@ type (
 		DeleteReplicationDLQTask(ctx context.Context, shardID int, sourceCluster string, taskID int64) error
 		// delete a range of replication DLQ tasks
 		RangeDeleteReplicationDLQTasks(ctx context.Context, shardID int, sourceCluster string, inclusiveBeginTaskID, exclusiveEndTaskID int64) error
+
+		// select the active cluster selection policy
+		SelectActiveClusterSelectionPolicy(ctx context.Context, shardID int, domainID, wfID, rID string) (*ActiveClusterSelectionPolicyRow, error)
 	}
 
 	/***

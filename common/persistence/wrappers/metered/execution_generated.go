@@ -13,6 +13,7 @@ import (
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
+	"github.com/uber/cadence/common/types"
 )
 
 // meteredExecutionManager implements persistence.ExecutionManager interface instrumented with rate limiter.
@@ -213,6 +214,31 @@ func (c *meteredExecutionManager) DeleteWorkflowExecution(ctx context.Context, r
 	}
 
 	err = c.callWithoutDomainTag(metrics.PersistenceDeleteWorkflowExecutionScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
+
+	return
+}
+
+func (c *meteredExecutionManager) GetActiveClusterSelectionPolicy(ctx context.Context, domainID string, wfID string, rID string) (ap1 *types.ActiveClusterSelectionPolicy, err error) {
+	op := func() error {
+		ap1, err = c.wrapped.GetActiveClusterSelectionPolicy(ctx, domainID, wfID, rID)
+		c.emptyMetric("ExecutionManager.GetActiveClusterSelectionPolicy", domainID, ap1, err)
+		return err
+	}
+
+	retryCount := getRetryCountFromContext(ctx)
+	if domainName, hasDomainName := getDomainNameFromRequest(domainID); hasDomainName {
+		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(domainID)...)
+		c.logger.SampleInfo("Persistence GetActiveClusterSelectionPolicy called", c.sampleLoggingRate(), logTags...)
+		if c.enableShardIDMetrics() {
+			err = c.callWithDomainAndShardScope(metrics.PersistenceGetActiveClusterSelectionPolicyScope, op, metrics.DomainTag(domainName),
+				metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
+		} else {
+			err = c.call(metrics.PersistenceGetActiveClusterSelectionPolicyScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
+		}
+		return
+	}
+
+	err = c.callWithoutDomainTag(metrics.PersistenceGetActiveClusterSelectionPolicyScope, op, append(getCustomMetricTags(domainID), metrics.IsRetryTag(retryCount > 0))...)
 
 	return
 }

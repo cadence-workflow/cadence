@@ -27,11 +27,13 @@ import (
 	"fmt"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
 
 //go:generate mockgen -package $GOPACKAGE -destination manager_mock.go -self_package github.com/uber/cadence/common/activecluster github.com/uber/cadence/common/activecluster Manager
 //go:generate mockgen -package $GOPACKAGE -destination external_entity_provider_mock.go -self_package github.com/uber/cadence/common/activecluster github.com/uber/cadence/common/activecluster ExternalEntityProvider
+//go:generate mockgen -package $GOPACKAGE -destination execution_manager_provider_mock.go -self_package github.com/uber/cadence/common/activecluster github.com/uber/cadence/common/activecluster ExecutionManagerProvider
 
 // Manager is the interface for active cluster manager.
 // It is used to lookup region, active cluster, cluster name and failover version etc.
@@ -106,6 +108,10 @@ type ExternalEntityProvider interface {
 	SupportedType() string
 	ChangeEvents() <-chan ChangeType
 	GetExternalEntity(ctx context.Context, entityKey string) (*ExternalEntity, error)
+}
+
+type ExecutionManagerProvider interface {
+	GetExecutionManager(shardID int) (persistence.ExecutionManager, error)
 }
 
 type RegionNotFoundForDomainError struct {

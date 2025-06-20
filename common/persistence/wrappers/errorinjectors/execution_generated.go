@@ -9,6 +9,7 @@ import (
 
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
+	"github.com/uber/cadence/common/types"
 )
 
 // injectorExecutionManager implements persistence.ExecutionManager interface instrumented with error injection.
@@ -135,6 +136,21 @@ func (c *injectorExecutionManager) DeleteWorkflowExecution(ctx context.Context, 
 
 	if fakeErr != nil {
 		logErr(c.logger, "ExecutionManager.DeleteWorkflowExecution", fakeErr, forwardCall, err)
+		err = fakeErr
+		return
+	}
+	return
+}
+
+func (c *injectorExecutionManager) GetActiveClusterSelectionPolicy(ctx context.Context, domainID string, wfID string, rID string) (ap1 *types.ActiveClusterSelectionPolicy, err error) {
+	fakeErr := generateFakeError(c.errorRate)
+	var forwardCall bool
+	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
+		ap1, err = c.wrapped.GetActiveClusterSelectionPolicy(ctx, domainID, wfID, rID)
+	}
+
+	if fakeErr != nil {
+		logErr(c.logger, "ExecutionManager.GetActiveClusterSelectionPolicy", fakeErr, forwardCall, err)
 		err = fakeErr
 		return
 	}
