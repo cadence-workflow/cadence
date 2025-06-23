@@ -35,6 +35,7 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/quotas"
 	"github.com/uber/cadence/service/history/task"
 )
@@ -240,6 +241,11 @@ func (q *virtualQueueImpl) loadAndSubmitTasks() {
 
 	now := q.timeSource.Now()
 	for _, task := range tasks {
+		if persistence.IsTaskCorrupted(task) {
+			q.logger.Error("Virtual queue encountered a corrupted task", tag.Dynamic("task", task))
+			continue
+		}
+
 		scheduledTime := task.GetTaskKey().GetScheduledTime()
 		// if the scheduled time is in the future, we need to redispatch the task
 		if now.Before(scheduledTime) {

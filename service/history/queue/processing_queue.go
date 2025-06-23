@@ -28,6 +28,7 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/persistence"
 	t "github.com/uber/cadence/common/task"
 	"github.com/uber/cadence/service/history/task"
 )
@@ -191,12 +192,17 @@ func (q *processingQueueImpl) AddTasks(tasks map[task.Key]task.Task, newReadLeve
 			continue
 		}
 
+		if persistence.IsTaskCorrupted(task) {
+			q.logger.Error("Processing queue encountered a corrupted task", tag.Dynamic("task", task))
+			continue
+		}
+
 		if !taskBelongsToProcessQueue(q.state, key, task) {
 			errMsg := "Processing queue encountered a task doesn't belong to its scope"
 			q.logger.Error(errMsg, tag.Error(
-				fmt.Errorf("processing queue state: %+v, task: %+v", q.state, key),
+				fmt.Errorf("processing queue state: %+v, key: %+v, task: %+v", q.state, key, task),
 			))
-			panic(errMsg)
+			continue
 		}
 
 		q.outstandingTasks[key] = task

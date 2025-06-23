@@ -268,6 +268,15 @@ var (
 	immediateTaskKeyScheduleTime = time.Unix(0, 0).UTC()
 )
 
+func IsTaskCorrupted(task Task) bool {
+	switch task.(type) {
+	case *FailoverMarkerTask:
+		return task.GetDomainID() == ""
+	default:
+		return task.GetDomainID() == "" || task.GetWorkflowID() == "" || task.GetRunID() == ""
+	}
+}
+
 func NewImmediateTaskKey(taskID int64) HistoryTaskKey {
 	return HistoryTaskKey{
 		scheduledTime: immediateTaskKeyScheduleTime,

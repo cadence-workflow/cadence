@@ -564,10 +564,19 @@ func TestVirtualQueue_LoadAndSubmitTasks(t *testing.T) {
 	}
 
 	mockTask1 := task.NewMockTask(ctrl)
+	mockTask1.EXPECT().GetDomainID().Return("some random domainID")
+	mockTask1.EXPECT().GetWorkflowID().Return("some random workflowID")
+	mockTask1.EXPECT().GetRunID().Return("some random runID")
 	mockTask1.EXPECT().GetTaskKey().Return(persistence.NewHistoryTaskKey(mockTimeSource.Now().Add(time.Second*-1), 1))
 	mockTask2 := task.NewMockTask(ctrl)
+	mockTask2.EXPECT().GetDomainID().Return("some random domainID")
+	mockTask2.EXPECT().GetWorkflowID().Return("some random workflowID")
+	mockTask2.EXPECT().GetRunID().Return("some random runID")
 	mockTask2.EXPECT().GetTaskKey().Return(persistence.NewHistoryTaskKey(mockTimeSource.Now().Add(time.Second*1), 2))
 	mockTask3 := task.NewMockTask(ctrl)
+	mockTask3.EXPECT().GetDomainID().Return("some random domainID")
+	mockTask3.EXPECT().GetWorkflowID().Return("some random workflowID")
+	mockTask3.EXPECT().GetRunID().Return("some random runID")
 	mockTask3.EXPECT().GetTaskKey().Return(persistence.NewHistoryTaskKey(mockTimeSource.Now().Add(time.Second*-1), 1))
 
 	mockVirtualSlice1.EXPECT().GetTasks(gomock.Any(), 10).Return([]task.Task{mockTask1, mockTask2}, nil)
