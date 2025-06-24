@@ -268,6 +268,7 @@ func (c *OS2) Scroll(ctx context.Context, index, body, scrollID string) (*client
 	var scrollResp *osapi.ScrollGetResp
 	var searchResp *osapi.SearchResp
 	var err error
+	// handle scroll id get call
 	if len(scrollID) != 0 {
 		scrollResp, err = c.client.Scroll.Get(ctx, osapi.ScrollGetReq{
 			ScrollID: scrollID,
@@ -280,11 +281,7 @@ func (c *OS2) Scroll(ctx context.Context, index, body, scrollID string) (*client
 			return nil, fmt.Errorf("opensearch Scroll get error: %w", err)
 		}
 
-		if searchResp == nil || searchResp.Hits.Hits == nil {
-			return nil,
-		}
-
-		return &client.Response{
+		resp := &client.Response{
 			TookInMillis: int64(scrollResp.Took),
 			TotalHits:    int64(scrollResp.Hits.Total.Value),
 			Hits: &client.SearchHits{
@@ -294,7 +291,12 @@ func (c *OS2) Scroll(ctx context.Context, index, body, scrollID string) (*client
 				Hits: osHitsToSearchHits(searchResp.Hits.Hits),
 			},
 			ScrollID: *scrollResp.ScrollID,
-		}, nil
+		}
+		// no more hits
+		if searchResp == nil || searchResp.Hits.Hits == nil || len(searchResp.Hits.Hits) == 0 {
+			return resp, io.EOF
+		}
+		return resp, nil
 	}
 
 	// when scrollID is not passed, it is normal search request
