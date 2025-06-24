@@ -6657,6 +6657,36 @@ type DiagnoseWorkflowExecutionRequest struct {
 	Identity          string             `json:"identity,omitempty"`
 }
 
+// for starting domain diagnosis workflow
+type StartDomainDiagnosisWorkflowRequest struct {
+	Domain        string            `json:"domain,omitempty"`
+	DiagnosisType string            `json:"diagnosisType,omitempty"`
+	Parameters    map[string]string `json:"parameters,omitempty"`
+	Identity      string            `json:"identity,omitempty"`
+}
+
+// for starting domain diagnosis workflow response
+type StartDomainDiagnosisWorkflowResponse struct {
+	WorkflowID string `json:"workflowId,omitempty"`
+	RunID      string `json:"runId,omitempty"`
+}
+
+// for fetching domain diagnosis activity
+type FetchDomainDiagnosisActivityRequest struct {
+	Domain     string `json:"domain,omitempty"`
+	WorkflowID string `json:"workflowId,omitempty"`
+	RunID      string `json:"runId,omitempty"`
+	Identity   string `json:"identity,omitempty"`
+}
+
+// for fetching domain diagnosis activity response
+type FetchDomainDiagnosisActivityResponse struct {
+	Status   string                 `json:"status,omitempty"`
+	Progress int32                  `json:"progress,omitempty"`
+	Results  map[string]interface{} `json:"results,omitempty"`
+	Error    string                 `json:"error,omitempty"`
+}
+
 // GetDomain returns the domain
 func (v *DiagnoseWorkflowExecutionRequest) GetDomain() (o string) {
 	if v != nil {
