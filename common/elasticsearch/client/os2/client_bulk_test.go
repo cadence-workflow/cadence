@@ -27,10 +27,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/opensearch-project/opensearch-go/v4/opensearchapi"
 	"io"
 	"testing"
 
+	"github.com/opensearch-project/opensearch-go/v4/opensearchapi"
 	"github.com/opensearch-project/opensearch-go/v4/opensearchutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"

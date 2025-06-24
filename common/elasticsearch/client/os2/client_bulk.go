@@ -26,9 +26,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"github.com/opensearch-project/opensearch-go/v4/opensearchapi"
 	"io"
 
+	"github.com/opensearch-project/opensearch-go/v4/opensearchapi"
 	"github.com/opensearch-project/opensearch-go/v4/opensearchutil"
 
 	"github.com/uber/cadence/common/elasticsearch/bulk"
