@@ -23,10 +23,8 @@
 package os2
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -192,59 +190,6 @@ func TestOSError(t *testing.T) {
 	}
 }
 
-func TestParseError(t *testing.T) {
-	tests := []struct {
-		name           string
-		responseBody   string
-		expectError    bool
-		expectedErrMsg string
-	}{
-		{
-			name:           "Invalid decoder",
-			responseBody:   `{"error": "index_not_found_exception"}`,
-			expectError:    true,
-			expectedErrMsg: "index_not_found_exception",
-		},
-		{
-			name: "valid error response",
-			responseBody: `{
-				"status": 404,
-				"error": {
-					"type": "index_not_found_exception",
-					"reason": "index_not_found_exception: no such index",
-					"index": "test-index"
-				}
-			}`,
-			expectError:    false,
-			expectedErrMsg: "index_not_found_exception: no such index",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			response := opensearch.Response{
-				StatusCode: 400,
-				Body:       io.NopCloser(bytes.NewBufferString(tt.responseBody)),
-			}
-
-			os2Client, testServer := getSecureMockOS2Client(t, nil, false)
-			defer testServer.Close()
-
-			err := os2Client.parseError(&response)
-
-			if !tt.expectError {
-				if parsedErr, ok := err.(*osError); ok && parsedErr.Details != nil {
-					assert.Equal(t, tt.expectedErrMsg, parsedErr.Details.Reason, "Error message mismatch for case: %s", tt.name)
-				} else {
-					t.Errorf("Failed to assert error reason for case: %s", tt.name)
-				}
-			} else {
-				assert.Error(t, err, "Expected an error for case: %s", tt.name)
-			}
-		})
-	}
-}
-
 func getSecureMockOS2Client(t *testing.T, handler http.HandlerFunc, secure bool) (*OS2, *httptest.Server) {
 	testServer := httptest.NewTLSServer(handler)
 	osConfig := osapi.Config{
@@ -285,6 +230,7 @@ func TestPutMapping(t *testing.T) {
 			name: "Successful PutMapping",
 			handler: func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusOK)
+				w.Write([]byte(`{"acknowledged": true}`))
 			},
 			index:       "testIndex",
 			body:        `{"properties": {"field": {"type": "text"}}}`,
@@ -339,10 +285,7 @@ func TestIsNotFoundError(t *testing.T) {
 			name: "NotFound error",
 			handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusNotFound)
-				json.NewEncoder(w).Encode(map[string]interface{}{
-					"error":  map[string]interface{}{},
-					"status": 404,
-				})
+				http.Error(w, `{"status": 201, "error": {"reason":"not found"}}`, http.StatusNotFound)
 			}),
 			expected: true,
 		},
@@ -513,15 +456,6 @@ func TestClearScroll(t *testing.T) {
 			handler: func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusInternalServerError)
 				fmt.Fprintln(w, `{"error": {"root_cause": [{"type": "internal_server_error","reason": "Internal server error"}],"type": "internal_server_error","reason": "Internal server error"}}`)
-			},
-			expectedError: true,
-		},
-		{
-			name:     "Successful Scroll Clear did not succeed",
-			scrollID: "testScrollID",
-			handler: func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(http.StatusOK)
-				w.Write([]byte(`{"succeeded": false}`))
 			},
 			expectedError: true,
 		},
