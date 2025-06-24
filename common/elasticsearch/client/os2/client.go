@@ -230,9 +230,8 @@ func (c *OS2) CreateIndex(ctx context.Context, index string) error {
 	_, err := c.client.Indices.Create(ctx, req)
 
 	if err != nil {
-		return fmt.Errorf("OpenSearch CreateIndex: %w", err)
+		return err
 	}
-
 	return nil
 }
 
@@ -251,14 +250,11 @@ func (c *OS2) Count(ctx context.Context, index, query string) (int64, error) {
 }
 
 func (c *OS2) ClearScroll(ctx context.Context, scrollID string) error {
-	resp, err := c.client.Scroll.Delete(ctx, osapi.ScrollDeleteReq{
+	_, err := c.client.Scroll.Delete(ctx, osapi.ScrollDeleteReq{
 		ScrollIDs: []string{scrollID},
 	})
 	if err != nil {
 		return fmt.Errorf("OpenSearch ClearScroll: %w", err)
-	}
-	if !resp.Succeeded {
-		return c.parseError(resp.Inspect().Response)
 	}
 	return nil
 }
@@ -288,12 +284,12 @@ func (c *OS2) Scroll(ctx context.Context, index, body, scrollID string) (*client
 				TotalHits: &client.TotalHits{
 					Value: int64(scrollResp.Hits.Total.Value),
 				},
-				Hits: osHitsToSearchHits(searchResp.Hits.Hits),
+				Hits: osHitsToSearchHits(scrollResp.Hits.Hits),
 			},
 			ScrollID: *scrollResp.ScrollID,
 		}
 		// no more hits
-		if searchResp == nil || searchResp.Hits.Hits == nil || len(searchResp.Hits.Hits) == 0 {
+		if scrollResp == nil || scrollResp.Hits.Hits == nil || len(scrollResp.Hits.Hits) == 0 {
 			return resp, io.EOF
 		}
 		return resp, nil
@@ -379,15 +375,6 @@ func (c *OS2) Search(ctx context.Context, index, body string) (*client.Response,
 
 func (e *osError) Error() string {
 	return fmt.Sprintf("Status code: %d, Type: %s, Reason: %s", e.Status, e.Details.Type, e.Details.Reason)
-}
-
-func (c *OS2) parseError(response *opensearch.Response) error {
-	var e osError
-	if err := c.decoder.Decode(response.Body, &e); err != nil {
-		return err
-	}
-
-	return &e
 }
 
 func osHitsToSearchHits(osSearchHits []osapi.SearchHit) []*client.SearchHit {
