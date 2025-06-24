@@ -27,10 +27,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/opensearch-project/opensearch-go/v4/opensearchapi"
 	"io"
 	"testing"
 
-	"github.com/opensearch-project/opensearch-go/v2/opensearchutil"
+	"github.com/opensearch-project/opensearch-go/v4/opensearchutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
@@ -152,7 +153,6 @@ func TestProcessCallback(t *testing.T) {
 		Client:        osClient.client,
 		FlushInterval: 1,
 		NumWorkers:    1,
-		Decoder:       &NumberDecoder{},
 	})
 	bulkProcessor := &bulkProcessor{
 		processor: processor,
@@ -162,7 +162,7 @@ func TestProcessCallback(t *testing.T) {
 
 	callBackRequest := bulk.NewBulkIndexRequest().ID("test-id").Index("test-index").Doc(map[string]interface{}{"field": "value"})
 	req := opensearchutil.BulkIndexerItem{Index: "test-index", DocumentID: "test-id"}
-	res := opensearchutil.BulkIndexerResponseItem{Index: "test-index", DocumentID: "test-id", Status: 200}
+	res := opensearchapi.BulkRespItem{Index: "test-index", ID: "test-id", Status: 200}
 
 	tests := []struct {
 		name        string
@@ -224,7 +224,7 @@ func TestUnmarshalFromReader(t *testing.T) {
 	}{
 		{
 			name:      "normal",
-			input:     `{"status":"ok"}`,
+			input:     `{"status":200}`,
 			expectErr: false,
 		},
 	}
@@ -234,7 +234,7 @@ func TestUnmarshalFromReader(t *testing.T) {
 			decoder := &NumberDecoder{}
 			reader := createReaderFromString(tc.input)
 
-			var response opensearchutil.BulkIndexerResponse
+			var response opensearchapi.BulkRespItem
 			err := decoder.UnmarshalFromReader(reader, &response)
 			if tc.expectErr {
 				assert.Error(t, err)
@@ -254,7 +254,7 @@ func TestDecode(t *testing.T) {
 	}{
 		{
 			name:      "normal",
-			input:     `{"status":"ok"}`,
+			input:     `{"status":200}`,
 			expectErr: false,
 		},
 	}
@@ -264,7 +264,7 @@ func TestDecode(t *testing.T) {
 			decoder := &NumberDecoder{}
 			reader := createReaderFromString(tc.input)
 
-			var response opensearchutil.BulkIndexerResponse
+			var response opensearchapi.BulkRespItem
 			err := decoder.Decode(reader, &response)
 			if tc.expectErr {
 				assert.Error(t, err)

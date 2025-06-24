@@ -26,9 +26,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/opensearch-project/opensearch-go/v4/opensearchapi"
 	"io"
 
-	"github.com/opensearch-project/opensearch-go/v2/opensearchutil"
+	"github.com/opensearch-project/opensearch-go/v4/opensearchutil"
 
 	"github.com/uber/cadence/common/elasticsearch/bulk"
 	"github.com/uber/cadence/common/log"
@@ -105,11 +106,11 @@ func (v *bulkProcessor) Add(request *bulk.GenericBulkableAddRequest) {
 
 	}
 
-	req.OnFailure = func(ctx context.Context, item opensearchutil.BulkIndexerItem, res opensearchutil.BulkIndexerResponseItem, err error) {
+	req.OnFailure = func(ctx context.Context, item opensearchutil.BulkIndexerItem, res opensearchapi.BulkRespItem, err error) {
 		v.processCallback(0, callBackRequest, req, res, false, err)
 	}
 
-	req.OnSuccess = func(ctx context.Context, item opensearchutil.BulkIndexerItem, res opensearchutil.BulkIndexerResponseItem) {
+	req.OnSuccess = func(ctx context.Context, item opensearchutil.BulkIndexerItem, res opensearchapi.BulkRespItem) {
 		v.processCallback(0, callBackRequest, req, res, true, nil)
 	}
 	if err := v.processor.Add(context.Background(), req); err != nil {
@@ -118,15 +119,15 @@ func (v *bulkProcessor) Add(request *bulk.GenericBulkableAddRequest) {
 }
 
 // processCallback processes both success and failure scenarios.
-func (v *bulkProcessor) processCallback(index int64, callBackRequest bulk.GenericBulkableRequest, req opensearchutil.BulkIndexerItem, res opensearchutil.BulkIndexerResponseItem, onSuccess bool, err error) {
+func (v *bulkProcessor) processCallback(index int64, callBackRequest bulk.GenericBulkableRequest, req opensearchutil.BulkIndexerItem, res opensearchapi.BulkRespItem, onSuccess bool, err error) {
 	v.before(0, metricsRequest)
 
 	gr := []bulk.GenericBulkableRequest{callBackRequest}
 
 	it := bulk.GenericBulkResponseItem{
 		Index:   res.Index,
-		ID:      res.DocumentID,
-		Version: res.Version,
+		ID:      res.ID,
+		Version: int64(res.Version),
 		Status:  res.Status,
 		Error:   res.Error,
 	}
@@ -144,7 +145,7 @@ func (v *bulkProcessor) processCallback(index int64, callBackRequest bulk.Generi
 	} else {
 		gbr := bulk.GenericBulkResponse{
 			Took:   0,
-			Errors: res.Error.Type != "" || res.Status > 201,
+			Errors: res.Error != nil && (res.Error.Type != "" || res.Status > 201),
 			Items: []map[string]*bulk.GenericBulkResponseItem{
 				{req.Action: &it},
 			},
@@ -169,7 +170,6 @@ func (c *OS2) RunBulkProcessor(_ context.Context, parameters *bulk.BulkProcessor
 		Client:        c.client,
 		FlushInterval: parameters.FlushInterval,
 		NumWorkers:    parameters.NumOfWorkers,
-		Decoder:       &NumberDecoder{},
 	})
 
 	if err != nil {
@@ -188,7 +188,7 @@ func (c *OS2) RunBulkProcessor(_ context.Context, parameters *bulk.BulkProcessor
 // the Go standard library to decode JSON data.
 type NumberDecoder struct{}
 
-func (u *NumberDecoder) UnmarshalFromReader(reader io.Reader, response *opensearchutil.BulkIndexerResponse) error {
+func (u *NumberDecoder) UnmarshalFromReader(reader io.Reader, response *opensearchapi.BulkRespItem) error {
 	dec := json.NewDecoder(reader)
 	dec.UseNumber()
 	return dec.Decode(response)
