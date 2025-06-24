@@ -243,6 +243,8 @@ func (q *virtualQueueImpl) loadAndSubmitTasks() {
 	for _, task := range tasks {
 		if persistence.IsTaskCorrupted(task) {
 			q.logger.Error("Virtual queue encountered a corrupted task", tag.Dynamic("task", task))
+			q.metricsScope.IncCounter(metrics.CorruptedHistoryTaskCounter)
+			task.Ack()
 			continue
 		}
 

@@ -428,6 +428,12 @@ func (t *transferQueueProcessorBase) processQueueCollections() {
 				continue
 			}
 
+			if persistence.IsTaskCorrupted(taskInfo) {
+				t.logger.Error("Processing queue encountered a corrupted task", tag.Dynamic("task", taskInfo))
+				t.metricsScope.IncCounter(metrics.CorruptedHistoryTaskCounter)
+				continue
+			}
+
 			task := t.taskInitializer(taskInfo)
 			tasks[newTransferTaskKey(taskInfo.GetTaskID())] = task
 			submitted, err := t.submitTask(task)

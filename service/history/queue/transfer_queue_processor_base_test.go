@@ -354,7 +354,9 @@ func (s *transferQueueProcessorBaseSuite) TestProcessQueueCollections_WithNextPa
 	taskInfos := []persistence.Task{
 		&persistence.DecisionTask{
 			WorkflowIdentifier: persistence.WorkflowIdentifier{
-				DomainID: "testDomain1",
+				DomainID:   "testDomain1",
+				WorkflowID: "testWorkflowID",
+				RunID:      "testRunID",
 			},
 			TaskData: persistence.TaskData{
 				TaskID: 500,

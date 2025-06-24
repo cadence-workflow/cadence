@@ -2407,6 +2407,7 @@ const (
 	ProcessingQueueSelectedDomainSplitCounter
 	ProcessingQueueRandomSplitCounter
 	ProcessingQueueThrottledCounter
+	CorruptedHistoryTaskCounter
 
 	QueueValidatorLostTaskCounter
 	QueueValidatorDropTaskCounter
@@ -3157,6 +3158,7 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		ProcessingQueueSelectedDomainSplitCounter:                    {metricName: "processing_queue_selected_domain_split_counter", metricType: Counter},
 		ProcessingQueueRandomSplitCounter:                            {metricName: "processing_queue_random_split_counter", metricType: Counter},
 		ProcessingQueueThrottledCounter:                              {metricName: "processing_queue_throttled_counter", metricType: Counter},
+		CorruptedHistoryTaskCounter:                                  {metricName: "corrupted_history_task_counter", metricType: Counter},
 		QueueValidatorLostTaskCounter:                                {metricName: "queue_validator_lost_task_counter", metricType: Counter},
 		QueueValidatorDropTaskCounter:                                {metricName: "queue_validator_drop_task_counter", metricType: Counter},
 		QueueValidatorInvalidLoadCounter:                             {metricName: "queue_validator_invalid_load_counter", metricType: Counter},

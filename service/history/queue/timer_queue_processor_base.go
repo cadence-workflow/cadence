@@ -305,6 +305,12 @@ func (t *timerQueueProcessorBase) processQueueCollections(levels map[int]struct{
 				continue
 			}
 
+			if persistence.IsTaskCorrupted(taskInfo) {
+				t.logger.Error("Processing queue encountered a corrupted task", tag.Dynamic("task", taskInfo))
+				t.metricsScope.IncCounter(metrics.CorruptedHistoryTaskCounter)
+				continue
+			}
+
 			task := t.taskInitializer(taskInfo)
 			tasks[newTimerTaskKey(taskInfo.GetVisibilityTimestamp(), taskInfo.GetTaskID())] = task
 			submitted, err := t.submitTask(task)
