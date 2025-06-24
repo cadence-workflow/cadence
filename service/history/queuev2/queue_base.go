@@ -71,6 +71,7 @@ type (
 
 		redispatcher          task.Redispatcher
 		queueReader           QueueReader
+		monitor               Monitor
 		pollTimer             clock.Timer
 		updateQueueStateTimer clock.Timer
 		lastPollTime          time.Time
@@ -131,6 +132,7 @@ func newQueueBase(
 		shard,
 		category,
 	)
+	monitor := NewMonitor(category)
 	virtualQueueManager := NewVirtualQueueManager(
 		taskProcessor,
 		redispatcher,
@@ -140,6 +142,7 @@ func newQueueBase(
 		metricsScope,
 		timeSource,
 		quotas.NewDynamicRateLimiter(options.MaxPollRPS.AsFloat64()),
+		monitor,
 		&VirtualQueueOptions{
 			PageSize: options.PageSize,
 		},
@@ -157,6 +160,7 @@ func newQueueBase(
 		taskInitializer:     taskInitializer,
 		redispatcher:        redispatcher,
 		queueReader:         queueReader,
+		monitor:             monitor,
 		exclusiveAckLevel:   exclusiveAckLevel,
 		virtualQueueManager: virtualQueueManager,
 		newVirtualSliceState: VirtualSliceState{
@@ -241,6 +245,18 @@ func (q *queueBase) updateQueueState(ctx context.Context) {
 		ExclusiveMaxReadLevel: q.newVirtualSliceState.Range.InclusiveMinTaskKey,
 	}
 	newExclusiveAckLevel := getExclusiveAckLevelFromQueueState(queueState)
+
+	// for backward compatibility, we record the timer metrics in shard info scope
+	pendingTaskCount := q.monitor.GetTotalPendingTaskCount()
+	if q.category == persistence.HistoryTaskCategoryTransfer {
+		q.metricsClient.RecordTimer(metrics.ShardInfoScope, metrics.ShardInfoTransferActivePendingTasksTimer, time.Duration(pendingTaskCount))
+	} else if q.category == persistence.HistoryTaskCategoryTimer {
+		q.metricsClient.RecordTimer(metrics.ShardInfoScope, metrics.ShardInfoTimerActivePendingTasksTimer, time.Duration(pendingTaskCount))
+	}
+
+	// we emit the metrics in the queue scope and experiment with gauge metrics
+	// TODO: review the metrics and remove this comment or change the metric from gauge to histogram
+	q.metricsScope.UpdateGauge(metrics.PendingTaskGauge, float64(pendingTaskCount))
 
 	if newExclusiveAckLevel.Compare(q.exclusiveAckLevel) > 0 {
 		inclusiveMinTaskKey := q.exclusiveAckLevel

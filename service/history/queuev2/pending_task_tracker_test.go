@@ -127,7 +127,7 @@ func TestPendingTaskTracker(t *testing.T) {
 
 			// Test GetTasks
 			tasks := tracker.GetTasks()
-			assert.Equal(t, tt.wantTaskCount, len(tasks))
+			assert.Equal(t, tt.wantTaskCount, tracker.GetPendingTaskCount())
 
 			// Verify all tasks are in the map
 			for _, task := range inputTasks {

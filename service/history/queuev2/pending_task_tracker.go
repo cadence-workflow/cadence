@@ -40,6 +40,8 @@ type (
 		GetMinimumTaskKey() (persistence.HistoryTaskKey, bool)
 		// GetTasks returns all the tasks in the pending task tracker, the result should be read-only.
 		GetTasks() map[persistence.HistoryTaskKey]task.Task
+		// GetPendingTaskCount returns the number of pending tasks in the pending task tracker.
+		GetPendingTaskCount() int
 	}
 
 	pendingTaskTrackerImpl struct {
@@ -88,4 +90,8 @@ func (t *pendingTaskTrackerImpl) PruneAckedTasks() {
 		}
 	}
 	t.minTaskKey = minTaskKey
+}
+
+func (t *pendingTaskTrackerImpl) GetPendingTaskCount() int {
+	return len(t.taskMap)
 }

@@ -368,6 +368,7 @@ func TestQueueBase_UpdateQueueState(t *testing.T) {
 				logger:                testlogger.New(t),
 				category:              tt.category,
 				timeSource:            mockTimeSource,
+				monitor:               NewMonitor(tt.category),
 				virtualQueueManager:   mockVirtualQueueManager,
 				exclusiveAckLevel:     tt.initialExclusiveAckLevel,
 				newVirtualSliceState:  tt.initialVirtualSliceState,

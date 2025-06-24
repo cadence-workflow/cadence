@@ -58,6 +58,7 @@ type (
 		metricsScope        metrics.Scope
 		timeSource          clock.TimeSource
 		taskLoadRateLimiter quotas.Limiter
+		monitor             Monitor
 		options             *VirtualQueueOptions
 
 		sync.RWMutex
@@ -76,6 +77,7 @@ func NewVirtualQueueManager(
 	metricsScope metrics.Scope,
 	timeSource clock.TimeSource,
 	taskLoadRateLimiter quotas.Limiter,
+	monitor Monitor,
 	options *VirtualQueueOptions,
 	virtualQueueStates map[int64][]VirtualSliceState,
 ) VirtualQueueManager {
@@ -85,7 +87,7 @@ func NewVirtualQueueManager(
 		for i, state := range states {
 			virtualSlices[i] = NewVirtualSlice(state, taskInitializer, queueReader, NewPendingTaskTracker())
 		}
-		virtualQueues[queueID] = NewVirtualQueue(processor, redispatcher, logger, metricsScope, timeSource, taskLoadRateLimiter, virtualSlices, options)
+		virtualQueues[queueID] = NewVirtualQueue(processor, redispatcher, logger, metricsScope, timeSource, taskLoadRateLimiter, monitor, virtualSlices, options)
 	}
 	return &virtualQueueManagerImpl{
 		processor:           processor,
@@ -96,11 +98,12 @@ func NewVirtualQueueManager(
 		metricsScope:        metricsScope,
 		timeSource:          timeSource,
 		taskLoadRateLimiter: taskLoadRateLimiter,
+		monitor:             monitor,
 		options:             options,
 		status:              common.DaemonStatusInitialized,
 		virtualQueues:       virtualQueues,
 		createVirtualQueueFn: func(s VirtualSlice) VirtualQueue {
-			return NewVirtualQueue(processor, redispatcher, logger, metricsScope, timeSource, taskLoadRateLimiter, []VirtualSlice{s}, options)
+			return NewVirtualQueue(processor, redispatcher, logger, metricsScope, timeSource, taskLoadRateLimiter, monitor, []VirtualSlice{s}, options)
 		},
 	}
 }

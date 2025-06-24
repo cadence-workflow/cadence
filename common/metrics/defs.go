@@ -2370,6 +2370,7 @@ const (
 	ScheduleToStartHistoryQueueLatencyPerTaskList
 	TaskRequestsOldScheduler
 	TaskRequestsNewScheduler
+	PendingTaskGauge
 
 	TaskRequestsPerDomain
 	TaskLatencyPerDomain
@@ -3120,6 +3121,7 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		ScheduleToStartHistoryQueueLatencyPerTaskList: {metricName: "schedule_to_start_history_queue_latency_per_tl", metricType: Timer},
 		TaskRequestsOldScheduler:                      {metricName: "task_requests_old_scheduler", metricType: Counter},
 		TaskRequestsNewScheduler:                      {metricName: "task_requests_new_scheduler", metricType: Counter},
+		PendingTaskGauge:                              {metricName: "pending_task_gauge", metricType: Gauge},
 
 		// per domain task metrics
 

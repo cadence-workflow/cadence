@@ -52,6 +52,7 @@ func TestVirtualQueueImpl_GetState(t *testing.T) {
 
 	mockTimeSource := clock.NewMockedTimeSource()
 	mockRateLimiter := quotas.NewMockLimiter(ctrl)
+	mockMonitor := NewMockMonitor(ctrl)
 
 	queue := NewVirtualQueue(
 		mockProcessor,
@@ -60,6 +61,7 @@ func TestVirtualQueueImpl_GetState(t *testing.T) {
 		mockMetricsScope,
 		mockTimeSource,
 		mockRateLimiter,
+		mockMonitor,
 		mockVirtualSlices,
 		&VirtualQueueOptions{
 			PageSize: mockPageSize,
@@ -97,6 +99,7 @@ func TestVirtualQueueImpl_UpdateAndGetState(t *testing.T) {
 
 	mockVirtualSlice1 := NewMockVirtualSlice(ctrl)
 	mockVirtualSlice2 := NewMockVirtualSlice(ctrl)
+	mockMonitor := NewMockMonitor(ctrl)
 
 	mockVirtualSlices := []VirtualSlice{
 		mockVirtualSlice1,
@@ -110,6 +113,9 @@ func TestVirtualQueueImpl_UpdateAndGetState(t *testing.T) {
 		},
 		Predicate: NewUniversalPredicate(),
 	})
+	mockVirtualSlice1.EXPECT().GetPendingTaskCount().Return(1)
+	mockMonitor.EXPECT().SetSlicePendingTaskCount(mockVirtualSlice1, 1)
+
 	mockVirtualSlice2.EXPECT().UpdateAndGetState().Return(VirtualSliceState{
 		Range: Range{
 			InclusiveMinTaskKey: persistence.NewImmediateTaskKey(11),
@@ -117,6 +123,7 @@ func TestVirtualQueueImpl_UpdateAndGetState(t *testing.T) {
 		},
 		Predicate: NewUniversalPredicate(),
 	})
+	mockMonitor.EXPECT().RemoveSlice(mockVirtualSlice2)
 
 	mockTimeSource := clock.NewMockedTimeSource()
 	mockRateLimiter := quotas.NewMockLimiter(ctrl)
@@ -128,6 +135,7 @@ func TestVirtualQueueImpl_UpdateAndGetState(t *testing.T) {
 		mockMetricsScope,
 		mockTimeSource,
 		mockRateLimiter,
+		mockMonitor,
 		mockVirtualSlices,
 		&VirtualQueueOptions{
 			PageSize: mockPageSize,
@@ -150,15 +158,16 @@ func TestVirtualQueueImpl_UpdateAndGetState(t *testing.T) {
 func TestVirtualQueue_MergeSlices(t *testing.T) {
 	tests := []struct {
 		name           string
-		setupMocks     func(ctrl *gomock.Controller) ([]VirtualSlice, []VirtualSlice)
+		setupMocks     func(ctrl *gomock.Controller) ([]VirtualSlice, []VirtualSlice, Monitor)
 		expectedStates []VirtualSliceState
 	}{
 		{
 			name: "Merge non-overlapping slices",
-			setupMocks: func(ctrl *gomock.Controller) ([]VirtualSlice, []VirtualSlice) {
+			setupMocks: func(ctrl *gomock.Controller) ([]VirtualSlice, []VirtualSlice, Monitor) {
 				existingSlice := NewMockVirtualSlice(ctrl)
 				existingSlice2 := NewMockVirtualSlice(ctrl)
 				incomingSlice := NewMockVirtualSlice(ctrl)
+				monitor := NewMockMonitor(ctrl)
 
 				existingSlice.EXPECT().GetState().Return(VirtualSliceState{
 					Range: Range{
@@ -169,6 +178,8 @@ func TestVirtualQueue_MergeSlices(t *testing.T) {
 				}).AnyTimes()
 				existingSlice.EXPECT().HasMoreTasks().Return(true)
 				existingSlice.EXPECT().TryMergeWithVirtualSlice(incomingSlice).Return([]VirtualSlice{}, false)
+				existingSlice.EXPECT().GetPendingTaskCount().Return(1)
+				monitor.EXPECT().SetSlicePendingTaskCount(existingSlice, 1)
 
 				incomingSlice.EXPECT().GetState().Return(VirtualSliceState{
 					Range: Range{
@@ -178,6 +189,8 @@ func TestVirtualQueue_MergeSlices(t *testing.T) {
 					Predicate: NewUniversalPredicate(),
 				}).AnyTimes()
 				incomingSlice.EXPECT().TryMergeWithVirtualSlice(existingSlice2).Return([]VirtualSlice{}, false)
+				incomingSlice.EXPECT().GetPendingTaskCount().Return(2)
+				monitor.EXPECT().SetSlicePendingTaskCount(incomingSlice, 2)
 
 				existingSlice2.EXPECT().GetState().Return(VirtualSliceState{
 					Range: Range{
@@ -186,8 +199,10 @@ func TestVirtualQueue_MergeSlices(t *testing.T) {
 					},
 					Predicate: NewUniversalPredicate(),
 				}).AnyTimes()
+				existingSlice2.EXPECT().GetPendingTaskCount().Return(3)
+				monitor.EXPECT().SetSlicePendingTaskCount(existingSlice2, 3)
 
-				return []VirtualSlice{existingSlice, existingSlice2}, []VirtualSlice{incomingSlice}
+				return []VirtualSlice{existingSlice, existingSlice2}, []VirtualSlice{incomingSlice}, monitor
 			},
 			expectedStates: []VirtualSliceState{
 				{
@@ -215,12 +230,13 @@ func TestVirtualQueue_MergeSlices(t *testing.T) {
 		},
 		{
 			name: "Merge overlapping slices",
-			setupMocks: func(ctrl *gomock.Controller) ([]VirtualSlice, []VirtualSlice) {
+			setupMocks: func(ctrl *gomock.Controller) ([]VirtualSlice, []VirtualSlice, Monitor) {
 				existingSlice := NewMockVirtualSlice(ctrl)
 				existingSlice2 := NewMockVirtualSlice(ctrl)
 				incomingSlice := NewMockVirtualSlice(ctrl)
 				mergedSlice := NewMockVirtualSlice(ctrl)
 				mergedSlice2 := NewMockVirtualSlice(ctrl)
+				monitor := NewMockMonitor(ctrl)
 
 				existingSlice.EXPECT().GetState().Return(VirtualSliceState{
 					Range: Range{
@@ -230,6 +246,10 @@ func TestVirtualQueue_MergeSlices(t *testing.T) {
 					Predicate: NewUniversalPredicate(),
 				}).AnyTimes()
 				existingSlice.EXPECT().TryMergeWithVirtualSlice(gomock.Any()).Return([]VirtualSlice{mergedSlice}, true)
+				existingSlice.EXPECT().GetPendingTaskCount().Return(1)
+				monitor.EXPECT().SetSlicePendingTaskCount(existingSlice, 1)
+				mergedSlice.EXPECT().GetPendingTaskCount().Return(1)
+				monitor.EXPECT().SetSlicePendingTaskCount(mergedSlice, 1)
 
 				incomingSlice.EXPECT().GetState().Return(VirtualSliceState{
 					Range: Range{
@@ -247,6 +267,8 @@ func TestVirtualQueue_MergeSlices(t *testing.T) {
 					Predicate: NewUniversalPredicate(),
 				}).AnyTimes()
 				mergedSlice.EXPECT().TryMergeWithVirtualSlice(existingSlice2).Return([]VirtualSlice{mergedSlice2}, true)
+				mergedSlice2.EXPECT().GetPendingTaskCount().Return(2)
+				monitor.EXPECT().SetSlicePendingTaskCount(mergedSlice2, 2)
 
 				existingSlice2.EXPECT().GetState().Return(VirtualSliceState{
 					Range: Range{
@@ -265,7 +287,12 @@ func TestVirtualQueue_MergeSlices(t *testing.T) {
 				}).AnyTimes()
 				mergedSlice2.EXPECT().HasMoreTasks().Return(true).AnyTimes()
 
-				return []VirtualSlice{existingSlice, existingSlice2}, []VirtualSlice{incomingSlice}
+				monitor.EXPECT().RemoveSlice(existingSlice)
+				monitor.EXPECT().RemoveSlice(incomingSlice)
+				monitor.EXPECT().RemoveSlice(existingSlice2)
+				monitor.EXPECT().RemoveSlice(mergedSlice)
+
+				return []VirtualSlice{existingSlice, existingSlice2}, []VirtualSlice{incomingSlice}, monitor
 			},
 			expectedStates: []VirtualSliceState{
 				{
@@ -279,8 +306,9 @@ func TestVirtualQueue_MergeSlices(t *testing.T) {
 		},
 		{
 			name: "Merge empty queue with new slices",
-			setupMocks: func(ctrl *gomock.Controller) ([]VirtualSlice, []VirtualSlice) {
+			setupMocks: func(ctrl *gomock.Controller) ([]VirtualSlice, []VirtualSlice, Monitor) {
 				incomingSlice := NewMockVirtualSlice(ctrl)
+				monitor := NewMockMonitor(ctrl)
 
 				incomingSlice.EXPECT().GetState().Return(VirtualSliceState{
 					Range: Range{
@@ -289,9 +317,11 @@ func TestVirtualQueue_MergeSlices(t *testing.T) {
 					},
 					Predicate: NewUniversalPredicate(),
 				}).AnyTimes()
+				incomingSlice.EXPECT().GetPendingTaskCount().Return(1)
+				monitor.EXPECT().SetSlicePendingTaskCount(incomingSlice, 1)
 				incomingSlice.EXPECT().HasMoreTasks().Return(true).AnyTimes()
 
-				return []VirtualSlice{}, []VirtualSlice{incomingSlice}
+				return []VirtualSlice{}, []VirtualSlice{incomingSlice}, monitor
 			},
 			expectedStates: []VirtualSliceState{
 				{
@@ -317,7 +347,7 @@ func TestVirtualQueue_MergeSlices(t *testing.T) {
 			mockTimeSource := clock.NewMockedTimeSource()
 			mockRateLimiter := quotas.NewMockLimiter(ctrl)
 
-			existingSlices, incomingSlices := tt.setupMocks(ctrl)
+			existingSlices, incomingSlices, monitor := tt.setupMocks(ctrl)
 
 			queue := NewVirtualQueue(
 				mockProcessor,
@@ -326,6 +356,7 @@ func TestVirtualQueue_MergeSlices(t *testing.T) {
 				mockMetricsScope,
 				mockTimeSource,
 				mockRateLimiter,
+				monitor,
 				existingSlices,
 				&VirtualQueueOptions{
 					PageSize: dynamicproperties.GetIntPropertyFn(10),
@@ -343,14 +374,15 @@ func TestVirtualQueue_MergeSlices(t *testing.T) {
 func TestAppendOrMergeSlice(t *testing.T) {
 	tests := []struct {
 		name           string
-		setupMocks     func(ctrl *gomock.Controller) (VirtualSlice, VirtualSlice)
+		setupMocks     func(ctrl *gomock.Controller) (VirtualSlice, VirtualSlice, Monitor)
 		expectedStates []VirtualSliceState
 	}{
 		{
 			name: "Append when no merge possible",
-			setupMocks: func(ctrl *gomock.Controller) (VirtualSlice, VirtualSlice) {
+			setupMocks: func(ctrl *gomock.Controller) (VirtualSlice, VirtualSlice, Monitor) {
 				existingSlice := NewMockVirtualSlice(ctrl)
 				incomingSlice := NewMockVirtualSlice(ctrl)
+				monitor := NewMockMonitor(ctrl)
 
 				existingSlice.EXPECT().GetState().Return(VirtualSliceState{
 					Range: Range{
@@ -369,7 +401,10 @@ func TestAppendOrMergeSlice(t *testing.T) {
 					Predicate: NewUniversalPredicate(),
 				}).AnyTimes()
 
-				return existingSlice, incomingSlice
+				incomingSlice.EXPECT().GetPendingTaskCount().Return(2)
+				monitor.EXPECT().SetSlicePendingTaskCount(incomingSlice, 2)
+
+				return existingSlice, incomingSlice, monitor
 			},
 			expectedStates: []VirtualSliceState{
 				{
@@ -390,10 +425,11 @@ func TestAppendOrMergeSlice(t *testing.T) {
 		},
 		{
 			name: "Merge when slices overlap",
-			setupMocks: func(ctrl *gomock.Controller) (VirtualSlice, VirtualSlice) {
+			setupMocks: func(ctrl *gomock.Controller) (VirtualSlice, VirtualSlice, Monitor) {
 				existingSlice := NewMockVirtualSlice(ctrl)
 				incomingSlice := NewMockVirtualSlice(ctrl)
 				mergedSlice := NewMockVirtualSlice(ctrl)
+				monitor := NewMockMonitor(ctrl)
 
 				existingSlice.EXPECT().GetState().Return(VirtualSliceState{
 					Range: Range{
@@ -420,7 +456,12 @@ func TestAppendOrMergeSlice(t *testing.T) {
 					Predicate: NewUniversalPredicate(),
 				}).AnyTimes()
 
-				return existingSlice, incomingSlice
+				monitor.EXPECT().RemoveSlice(existingSlice)
+				monitor.EXPECT().RemoveSlice(incomingSlice)
+				mergedSlice.EXPECT().GetPendingTaskCount().Return(1)
+				monitor.EXPECT().SetSlicePendingTaskCount(mergedSlice, 1)
+
+				return existingSlice, incomingSlice, monitor
 			},
 			expectedStates: []VirtualSliceState{
 				{
@@ -434,8 +475,9 @@ func TestAppendOrMergeSlice(t *testing.T) {
 		},
 		{
 			name: "Append to empty list",
-			setupMocks: func(ctrl *gomock.Controller) (VirtualSlice, VirtualSlice) {
+			setupMocks: func(ctrl *gomock.Controller) (VirtualSlice, VirtualSlice, Monitor) {
 				incomingSlice := NewMockVirtualSlice(ctrl)
+				monitor := NewMockMonitor(ctrl)
 
 				incomingSlice.EXPECT().GetState().Return(VirtualSliceState{
 					Range: Range{
@@ -444,8 +486,10 @@ func TestAppendOrMergeSlice(t *testing.T) {
 					},
 					Predicate: NewUniversalPredicate(),
 				}).AnyTimes()
+				incomingSlice.EXPECT().GetPendingTaskCount().Return(10)
+				monitor.EXPECT().SetSlicePendingTaskCount(incomingSlice, 10)
 
-				return nil, incomingSlice
+				return nil, incomingSlice, monitor
 			},
 			expectedStates: []VirtualSliceState{
 				{
@@ -459,11 +503,12 @@ func TestAppendOrMergeSlice(t *testing.T) {
 		},
 		{
 			name: "Merge with multiple resulting slices",
-			setupMocks: func(ctrl *gomock.Controller) (VirtualSlice, VirtualSlice) {
+			setupMocks: func(ctrl *gomock.Controller) (VirtualSlice, VirtualSlice, Monitor) {
 				existingSlice := NewMockVirtualSlice(ctrl)
 				incomingSlice := NewMockVirtualSlice(ctrl)
 				mergedSlice1 := NewMockVirtualSlice(ctrl)
 				mergedSlice2 := NewMockVirtualSlice(ctrl)
+				monitor := NewMockMonitor(ctrl)
 
 				existingSlice.EXPECT().GetState().Return(VirtualSliceState{
 					Range: Range{
@@ -498,7 +543,14 @@ func TestAppendOrMergeSlice(t *testing.T) {
 					Predicate: NewUniversalPredicate(),
 				}).AnyTimes()
 
-				return existingSlice, incomingSlice
+				monitor.EXPECT().RemoveSlice(existingSlice)
+				monitor.EXPECT().RemoveSlice(incomingSlice)
+				mergedSlice1.EXPECT().GetPendingTaskCount().Return(1)
+				monitor.EXPECT().SetSlicePendingTaskCount(mergedSlice1, 1)
+				mergedSlice2.EXPECT().GetPendingTaskCount().Return(2)
+				monitor.EXPECT().SetSlicePendingTaskCount(mergedSlice2, 2)
+
+				return existingSlice, incomingSlice, monitor
 			},
 			expectedStates: []VirtualSliceState{
 				{
@@ -523,14 +575,19 @@ func TestAppendOrMergeSlice(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 
-			existingSlice, incomingSlice := tt.setupMocks(ctrl)
+			existingSlice, incomingSlice, monitor := tt.setupMocks(ctrl)
 			slices := list.New()
 
 			if existingSlice != nil {
 				slices.PushBack(existingSlice)
 			}
 
-			appendOrMergeSlice(slices, incomingSlice)
+			virtualQueue := &virtualQueueImpl{
+				virtualSlices: slices,
+				monitor:       monitor,
+			}
+
+			virtualQueue.appendOrMergeSlice(slices, incomingSlice)
 
 			// Convert list to slice of states for comparison
 			var states []VirtualSliceState
@@ -554,6 +611,7 @@ func TestVirtualQueue_LoadAndSubmitTasks(t *testing.T) {
 	mockTimeSource := clock.NewMockedTimeSource()
 	mockRateLimiter := quotas.NewMockLimiter(ctrl)
 	mockRateLimiter.EXPECT().Wait(gomock.Any()).Return(nil).AnyTimes()
+	mockMonitor := NewMockMonitor(ctrl)
 
 	mockVirtualSlice1 := NewMockVirtualSlice(ctrl)
 	mockVirtualSlice2 := NewMockVirtualSlice(ctrl)
@@ -580,9 +638,13 @@ func TestVirtualQueue_LoadAndSubmitTasks(t *testing.T) {
 	mockTask3.EXPECT().GetTaskKey().Return(persistence.NewHistoryTaskKey(mockTimeSource.Now().Add(time.Second*-1), 1))
 
 	mockVirtualSlice1.EXPECT().GetTasks(gomock.Any(), 10).Return([]task.Task{mockTask1, mockTask2}, nil)
+	mockVirtualSlice1.EXPECT().GetPendingTaskCount().Return(2)
+	mockMonitor.EXPECT().SetSlicePendingTaskCount(mockVirtualSlice1, 2)
 	mockVirtualSlice1.EXPECT().HasMoreTasks().Return(false)
 	mockVirtualSlice2.EXPECT().GetTasks(gomock.Any(), 10).Return([]task.Task{mockTask3}, nil)
 	mockVirtualSlice2.EXPECT().HasMoreTasks().Return(false)
+	mockVirtualSlice2.EXPECT().GetPendingTaskCount().Return(1)
+	mockMonitor.EXPECT().SetSlicePendingTaskCount(mockVirtualSlice2, 1)
 	mockProcessor.EXPECT().TrySubmit(mockTask3).Return(false, nil)
 
 	mockProcessor.EXPECT().TrySubmit(mockTask1).Return(true, nil)
@@ -596,6 +658,7 @@ func TestVirtualQueue_LoadAndSubmitTasks(t *testing.T) {
 		mockMetricsScope,
 		mockTimeSource,
 		mockRateLimiter,
+		mockMonitor,
 		mockVirtualSlices,
 		&VirtualQueueOptions{
 			PageSize: mockPageSize,
@@ -621,7 +684,7 @@ func TestVirtualQueue_LifeCycle(t *testing.T) {
 	mockTimeSource := clock.NewMockedTimeSource()
 	mockRateLimiter := quotas.NewMockLimiter(ctrl)
 	mockRateLimiter.EXPECT().Wait(gomock.Any()).Return(nil).AnyTimes()
-
+	mockMonitor := NewMockMonitor(ctrl)
 	mockVirtualSlice1 := NewMockVirtualSlice(ctrl)
 
 	mockVirtualSlices := []VirtualSlice{
@@ -630,6 +693,8 @@ func TestVirtualQueue_LifeCycle(t *testing.T) {
 
 	mockVirtualSlice1.EXPECT().GetTasks(gomock.Any(), 10).Return([]task.Task{}, nil).AnyTimes()
 	mockVirtualSlice1.EXPECT().HasMoreTasks().Return(false).AnyTimes()
+	mockVirtualSlice1.EXPECT().GetPendingTaskCount().Return(0).AnyTimes()
+	mockMonitor.EXPECT().SetSlicePendingTaskCount(mockVirtualSlice1, 0).AnyTimes()
 
 	queue := NewVirtualQueue(
 		mockProcessor,
@@ -638,6 +703,7 @@ func TestVirtualQueue_LifeCycle(t *testing.T) {
 		mockMetricsScope,
 		mockTimeSource,
 		mockRateLimiter,
+		mockMonitor,
 		mockVirtualSlices,
 		&VirtualQueueOptions{
 			PageSize: mockPageSize,
