@@ -34,8 +34,8 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/opensearch-project/opensearch-go/v2"
-	osapi "github.com/opensearch-project/opensearch-go/v2/opensearchapi"
+	"github.com/opensearch-project/opensearch-go/v4"
+	osapi "github.com/opensearch-project/opensearch-go/v4/opensearchapi"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/uber/cadence/common/config"
@@ -222,7 +222,7 @@ func TestParseError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			response := osapi.Response{
+			response := opensearch.Response{
 				StatusCode: 400,
 				Body:       io.NopCloser(bytes.NewBufferString(tt.responseBody)),
 			}
@@ -247,19 +247,20 @@ func TestParseError(t *testing.T) {
 
 func getSecureMockOS2Client(t *testing.T, handler http.HandlerFunc, secure bool) (*OS2, *httptest.Server) {
 	testServer := httptest.NewTLSServer(handler)
-	osConfig := opensearch.Config{
-		Addresses: []string{testServer.URL},
+	osConfig := osapi.Config{
+		Client: opensearch.Config{
+			Addresses: []string{testServer.URL},
+		},
 	}
-
 	if secure {
-		osConfig.Transport = &http.Transport{
+		osConfig.Client.Transport = &http.Transport{
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: true,
 			},
 		}
 	}
 
-	client, err := opensearch.NewClient(osConfig)
+	client, err := osapi.NewClient(osConfig)
 	if err != nil {
 		t.Fatalf("Failed to create open search client: %v", err)
 	}
@@ -270,35 +271,6 @@ func getSecureMockOS2Client(t *testing.T, handler http.HandlerFunc, secure bool)
 	}
 	assert.NoError(t, err)
 	return mockClient, testServer
-}
-
-func TestCloseBody(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Test response body"))
-	}))
-	defer server.Close()
-
-	resp, err := http.Get(server.URL)
-	if err != nil {
-		t.Fatalf("Failed to make request to test server: %v", err)
-	}
-
-	osResponse := &osapi.Response{
-		StatusCode: resp.StatusCode,
-		Body:       resp.Body,
-		Header:     resp.Header,
-	}
-
-	// Assert that the response body is open before calling closeBody
-	_, err = osResponse.Body.Read(make([]byte, 1))
-	assert.NoError(t, err, "Expected response body to be open before calling closeBody")
-
-	closeBody(osResponse)
-
-	// Attempt to read from the body again should result in an error because it's closed
-	_, err = osResponse.Body.Read(make([]byte, 1))
-	assert.Error(t, err, "Expected response body to be closed after calling closeBody")
 }
 
 func TestPutMapping(t *testing.T) {
@@ -352,7 +324,7 @@ func TestPutMappingError(t *testing.T) {
 
 	os2Client, testServer := getSecureMockOS2Client(t, http.HandlerFunc(handler), true)
 	defer testServer.Close()
-	os2Client.client.Transport = &MockTransport{}
+	os2Client.client.Client.Transport = &MockTransport{}
 	err := os2Client.PutMapping(context.Background(), "testIndex", `{"properties": {"field": {"type": "text"}}}`)
 	assert.Error(t, err)
 }
@@ -531,7 +503,7 @@ func TestClearScroll(t *testing.T) {
 			scrollID: "testScrollID",
 			handler: func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusOK)
-				fmt.Fprintln(w, `{}`)
+				w.Write([]byte(`{"succeeded": true}`))
 			},
 			expectedError: false,
 		},
@@ -541,6 +513,15 @@ func TestClearScroll(t *testing.T) {
 			handler: func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusInternalServerError)
 				fmt.Fprintln(w, `{"error": {"root_cause": [{"type": "internal_server_error","reason": "Internal server error"}],"type": "internal_server_error","reason": "Internal server error"}}`)
+			},
+			expectedError: true,
+		},
+		{
+			name:     "Successful Scroll Clear did not succeed",
+			scrollID: "testScrollID",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte(`{"succeeded": false}`))
 			},
 			expectedError: true,
 		},
