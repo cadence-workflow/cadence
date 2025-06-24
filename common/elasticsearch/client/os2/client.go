@@ -307,7 +307,7 @@ func (c *OS2) Scroll(ctx context.Context, index, body, scrollID string) (*client
 		return nil, fmt.Errorf("opensearch scroll search error: %w", err)
 	}
 
-	var aggRes map[string]json.RawMessage = nil
+	var aggRes map[string]json.RawMessage
 	if searchResp.Aggregations != nil {
 		err := json.Unmarshal(searchResp.Aggregations, &aggRes)
 		if err != nil {
@@ -347,7 +347,7 @@ func (c *OS2) Search(ctx context.Context, index, body string) (*client.Response,
 	}
 
 	var sortVal []any
-	var aggRes map[string]json.RawMessage = nil
+	var aggRes map[string]json.RawMessage
 	if resp.Aggregations != nil {
 		err := json.Unmarshal(resp.Aggregations, &aggRes)
 		if err != nil {
