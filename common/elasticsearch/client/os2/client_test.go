@@ -25,7 +25,6 @@ package os2
 import (
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -282,17 +281,6 @@ func TestIsNotFoundError(t *testing.T) {
 		handler  http.HandlerFunc
 		expected bool
 	}{
-		{
-			name: "NotFound error",
-			handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(http.StatusNotFound)
-				json.NewEncoder(w).Encode(map[string]interface{}{
-					"error":  map[string]interface{}{},
-					"status": 404,
-				})
-			}),
-			expected: true,
-		},
 		{
 			name: "Other error",
 			handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

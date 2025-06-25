@@ -43,13 +43,12 @@ type (
 func newOS2Client(url string) (*os2Client, error) {
 
 	osClient, err := osapi.NewClient(osapi.Config{
-		opensearch.Config{
+		Client: opensearch.Config{
 			Addresses:    []string{url},
 			MaxRetries:   5,
 			RetryBackoff: func(i int) time.Duration { return time.Duration(i) * 100 * time.Millisecond },
 		},
-	},
-	)
+	})
 
 	return &os2Client{
 		client: osClient,
@@ -81,7 +80,9 @@ func (os2 *os2Client) CreateIndex(t *testing.T, indexName string) {
 	ctx, cancel := createContext()
 	defer cancel()
 	resp, err := os2.client.Indices.Exists(ctx, existsReq)
-	require.NoError(t, err)
+	if resp.StatusCode != http.StatusNotFound {
+		require.NoError(t, err)
+	}
 
 	if resp.StatusCode == http.StatusOK {
 		deleteReq := osapi.IndicesDeleteReq{
@@ -135,22 +136,43 @@ func (os2 *os2Client) PutMaxResultWindow(t *testing.T, indexName string, maxResu
 }
 
 func (os2 *os2Client) GetMaxResultWindow(t *testing.T, indexName string) (string, error) {
-
 	req := &osapi.SettingsGetReq{
 		Indices: []string{indexName},
 	}
 
 	ctx, cancel := createContext()
 	defer cancel()
+
 	res, err := os2.client.Indices.Settings.Get(ctx, req)
 	require.NoError(t, err)
 
-	if indexSettings, ok := res.Indices[indexName]; ok {
-		var settingsData map[string]interface{}
-		err = json.Unmarshal(indexSettings.Settings, &settingsData)
-		require.NoError(t, err)
-		return settingsData["max_result_window"].(string), nil
+	indexSettings, ok := res.Indices[indexName]
+	if !ok {
+		return "", fmt.Errorf("no settings for index %q", indexName)
 	}
 
-	return "", fmt.Errorf("no settings for index %q", indexName)
+	var settingsData map[string]interface{}
+	err = json.Unmarshal(indexSettings.Settings, &settingsData)
+	require.NoError(t, err)
+
+	// Navigate into settings.index.max_result_window
+	indexObj, ok := settingsData["index"].(map[string]interface{})
+	if !ok {
+		return "", fmt.Errorf("missing or invalid 'index' section")
+	}
+
+	raw, ok := indexObj["max_result_window"]
+	if !ok || raw == nil {
+		return "", fmt.Errorf("max_result_window not found in index settings")
+	}
+
+	// Handle both string and numeric values
+	switch v := raw.(type) {
+	case string:
+		return v, nil
+	case float64:
+		return fmt.Sprintf("%.0f", v), nil
+	default:
+		return "", fmt.Errorf("unexpected type for max_result_window: %T", v)
+	}
 }
