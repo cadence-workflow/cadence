@@ -47,6 +47,8 @@ func newOS2Client(url string) (*os2Client, error) {
 			Addresses:    []string{url},
 			MaxRetries:   5,
 			RetryBackoff: func(i int) time.Duration { return time.Duration(i) * 100 * time.Millisecond },
+			Username:     "admin",
+			Password:     "DevTestInitial123!", // Admin password from docker setup. Required for >= OSv2.12
 		},
 	})
 
