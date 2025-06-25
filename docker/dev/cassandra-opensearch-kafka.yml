@@ -12,6 +12,7 @@ services:
     environment:
       - discovery.type=single-node
       - OPENSEARCH_SECURITY_SSL_HTTP_ENABLED=false
+      - "DISABLE_SECURITY_PLUGIN=true"
       - cluster.name=opensearch-cluster
       - bootstrap.memory_lock=true
       - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
