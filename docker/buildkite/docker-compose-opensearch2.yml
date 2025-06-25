@@ -40,6 +40,10 @@ services:
 
   elasticsearch:
     image: opensearchproject/opensearch:2.13.0
+    networks:
+      services-network:
+        aliases:
+          - elasticsearch
     environment:
       - discovery.type=single-node
       - OPENSEARCH_SECURITY_SSL_HTTP_ENABLED=false
