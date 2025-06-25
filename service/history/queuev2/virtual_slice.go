@@ -37,6 +37,7 @@ type (
 		HasMoreTasks() bool
 		UpdateAndGetState() VirtualSliceState
 		GetPendingTaskCount() int
+		Clear()
 
 		TrySplitByTaskKey(persistence.HistoryTaskKey) (VirtualSlice, VirtualSlice, bool)
 		TryMergeWithVirtualSlice(VirtualSlice) ([]VirtualSlice, bool)
@@ -84,6 +85,18 @@ func (s *virtualSliceImpl) GetState() VirtualSliceState {
 
 func (s *virtualSliceImpl) GetPendingTaskCount() int {
 	return s.pendingTaskTracker.GetPendingTaskCount()
+}
+
+func (s *virtualSliceImpl) Clear() {
+	s.UpdateAndGetState()
+	s.pendingTaskTracker.Clear()
+	s.progress = []*GetTaskProgress{
+		{
+			Range:         s.state.Range,
+			NextPageToken: nil,
+			NextTaskKey:   s.state.Range.InclusiveMinTaskKey,
+		},
+	}
 }
 
 func (s *virtualSliceImpl) GetTasks(ctx context.Context, pageSize int) ([]task.Task, error) {

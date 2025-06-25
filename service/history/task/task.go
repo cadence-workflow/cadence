@@ -130,6 +130,10 @@ func NewHistoryTask(
 }
 
 func (t *taskImpl) Execute() error {
+	if t.State() != ctask.TaskStatePending {
+		return nil
+	}
+
 	var err error
 	t.shouldProcessTask, err = t.taskFilter(t.Task)
 	if err != nil {
@@ -262,18 +266,23 @@ func (t *taskImpl) HandleErr(err error) (retErr error) {
 		return nil
 	}
 
-	if t.GetAttempt() > stickyTaskMaxRetryCount && common.IsStickyTaskConditionError(err) {
+	attempt := t.GetAttempt()
+	if attempt > stickyTaskMaxRetryCount && common.IsStickyTaskConditionError(err) {
 		// sticky task could end up into endless loop in rare cases and
 		// cause worker to keep getting decision timeout unless restart.
 		// return nil here to break the endless loop
 		return nil
 	}
 
-	logger.Error("Fail to process task", tag.Error(err), tag.LifeCycleProcessingFailed)
+	logger.Error("Fail to process task", tag.Error(err), tag.LifeCycleProcessingFailed, tag.AttemptCount(attempt))
 	return err
 }
 
 func (t *taskImpl) RetryErr(err error) bool {
+	if t.State() != ctask.TaskStatePending {
+		return false
+	}
+
 	var errShardClosed *shard.ErrShardClosed
 	if errors.As(err, &errShardClosed) || err == errWorkflowBusy || isRedispatchErr(err) || err == ErrTaskPendingActive || common.IsContextTimeoutError(err) {
 		return false
@@ -287,6 +296,10 @@ func (t *taskImpl) Ack() {
 
 	t.Lock()
 	defer t.Unlock()
+
+	if t.state != ctask.TaskStatePending {
+		return
+	}
 
 	t.state = ctask.TaskStateAcked
 	if t.shouldProcessTask {
@@ -303,11 +316,11 @@ func (t *taskImpl) Ack() {
 }
 
 func (t *taskImpl) Nack() {
-	logEvent(t.eventLogger, "Nacked task")
+	if t.State() != ctask.TaskStatePending {
+		return
+	}
 
-	t.Lock()
-	t.state = ctask.TaskStateNacked
-	t.Unlock()
+	logEvent(t.eventLogger, "Nacked task")
 
 	if t.shouldResubmitOnNack() {
 		if submitted, _ := t.taskProcessor.TrySubmit(t); submitted {
@@ -316,6 +329,15 @@ func (t *taskImpl) Nack() {
 	}
 
 	t.redispatchFn(t)
+}
+
+func (t *taskImpl) Cancel() {
+	t.Lock()
+	defer t.Unlock()
+
+	if t.state == ctask.TaskStatePending {
+		t.state = ctask.TaskStateCanceled
+	}
 }
 
 func (t *taskImpl) State() ctask.State {

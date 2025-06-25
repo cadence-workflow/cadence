@@ -54,6 +54,18 @@ func (mr *MockPendingTaskTrackerMockRecorder) AddTask(arg0 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddTask", reflect.TypeOf((*MockPendingTaskTracker)(nil).AddTask), arg0)
 }
 
+// Clear mocks base method.
+func (m *MockPendingTaskTracker) Clear() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Clear")
+}
+
+// Clear indicates an expected call of Clear.
+func (mr *MockPendingTaskTrackerMockRecorder) Clear() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Clear", reflect.TypeOf((*MockPendingTaskTracker)(nil).Clear))
+}
+
 // GetMinimumTaskKey mocks base method.
 func (m *MockPendingTaskTracker) GetMinimumTaskKey() (persistence.HistoryTaskKey, bool) {
 	m.ctrl.T.Helper()

@@ -694,6 +694,7 @@ func TestVirtualQueue_LifeCycle(t *testing.T) {
 	mockVirtualSlice1.EXPECT().GetTasks(gomock.Any(), 10).Return([]task.Task{}, nil).AnyTimes()
 	mockVirtualSlice1.EXPECT().HasMoreTasks().Return(false).AnyTimes()
 	mockVirtualSlice1.EXPECT().GetPendingTaskCount().Return(0).AnyTimes()
+	mockVirtualSlice1.EXPECT().Clear().Times(1)
 	mockMonitor.EXPECT().SetSlicePendingTaskCount(mockVirtualSlice1, 0).AnyTimes()
 
 	queue := NewVirtualQueue(

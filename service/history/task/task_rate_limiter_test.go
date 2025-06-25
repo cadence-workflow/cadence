@@ -71,13 +71,26 @@ func (s *noopTask) RetryErr(err error) bool {
 func (s *noopTask) Ack() {
 	s.Lock()
 	defer s.Unlock()
+	if s.state != ctask.TaskStatePending {
+		return
+	}
 	s.state = ctask.TaskStateAcked
 }
 
 func (s *noopTask) Nack() {
 	s.Lock()
 	defer s.Unlock()
-	s.state = ctask.TaskStateNacked
+	if s.state != ctask.TaskStatePending {
+		return
+	}
+}
+
+func (s *noopTask) Cancel() {
+	s.Lock()
+	defer s.Unlock()
+	if s.state == ctask.TaskStatePending {
+		s.state = ctask.TaskStateCanceled
+	}
 }
 
 func (s *noopTask) State() ctask.State {

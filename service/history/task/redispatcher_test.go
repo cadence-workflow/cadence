@@ -36,6 +36,7 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
+	ctask "github.com/uber/cadence/common/task"
 )
 
 type (
@@ -106,6 +107,7 @@ func (s *redispatcherSuite) TestRedispatch_ProcessorShutDown() {
 		mockTask := NewMockTask(s.controller)
 		mockTask.EXPECT().Priority().Return(rand.Intn(5)).AnyTimes()
 		mockTask.EXPECT().GetAttempt().Return(0).Times(1)
+		mockTask.EXPECT().State().Return(ctask.TaskStatePending).MaxTimes(1)
 		s.redispatcher.AddTask(mockTask)
 	}
 
@@ -127,6 +129,7 @@ func (s *redispatcherSuite) TestRedispatch_WithTargetSize() {
 		mockTask := NewMockTask(s.controller)
 		mockTask.EXPECT().Priority().Return(rand.Intn(5)).AnyTimes()
 		mockTask.EXPECT().GetAttempt().Return(0).Times(1)
+		mockTask.EXPECT().State().Return(ctask.TaskStatePending).MaxTimes(1)
 		s.redispatcher.AddTask(mockTask)
 	}
 
@@ -134,6 +137,7 @@ func (s *redispatcherSuite) TestRedispatch_WithTargetSize() {
 		mockTask := NewMockTask(s.controller)
 		mockTask.EXPECT().Priority().Return(rand.Intn(5)).AnyTimes()
 		mockTask.EXPECT().GetAttempt().Return(1000).Times(1) // make sure these tasks are not dispatched
+		mockTask.EXPECT().State().Return(ctask.TaskStatePending).MaxTimes(1)
 		s.redispatcher.AddTask(mockTask)
 	}
 
@@ -164,6 +168,7 @@ func (s *redispatcherSuite) TestRedispatch_Backoff() {
 		mockTask := NewMockTask(s.controller)
 		mockTask.EXPECT().Priority().Return(rand.Intn(5)).AnyTimes()
 		mockTask.EXPECT().GetAttempt().Return(attempt).Times(1)
+		mockTask.EXPECT().State().Return(ctask.TaskStatePending).MaxTimes(1)
 		s.redispatcher.AddTask(mockTask)
 		s.mockProcessor.EXPECT().TrySubmit(NewMockTaskMatcher(mockTask)).Return(true, nil).MaxTimes(1)
 	}
@@ -194,6 +199,7 @@ func (s *redispatcherSuite) TestRedispatch_Random() {
 		mockTask := NewMockTask(s.controller)
 		mockTask.EXPECT().Priority().Return(rand.Intn(5)).AnyTimes()
 		mockTask.EXPECT().GetAttempt().Return(attempt).Times(1)
+		mockTask.EXPECT().State().Return(ctask.TaskStatePending).MaxTimes(1)
 		s.redispatcher.AddTask(mockTask)
 		s.mockProcessor.EXPECT().TrySubmit(NewMockTaskMatcher(mockTask)).Return(submitted, nil).MaxTimes(1)
 	}

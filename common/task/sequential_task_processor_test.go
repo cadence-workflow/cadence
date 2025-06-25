@@ -288,6 +288,9 @@ func (t *testSequentialTaskImpl) Nack() {
 	t.waitgroup.Done()
 }
 
+func (t *testSequentialTaskImpl) Cancel() {
+}
+
 func (t *testSequentialTaskImpl) NumNcked() int {
 	t.lock.Lock()
 	defer t.lock.Unlock()

@@ -131,6 +131,13 @@ func (q *virtualQueueImpl) Stop() {
 	q.cancel()
 	q.wg.Wait()
 
+	q.RLock()
+	defer q.RUnlock()
+	for e := q.virtualSlices.Front(); e != nil; e = e.Next() {
+		slice := e.Value.(VirtualSlice)
+		slice.Clear()
+	}
+
 	q.logger.Info("Virtual queue state changed", tag.LifeCycleStopped)
 }
 

@@ -258,7 +258,7 @@ func (s *processingQueueSuite) TestUpdateAckLevel_WithPendingTasks() {
 	taskStates := []t.State{
 		t.TaskStateAcked,
 		t.TaskStateAcked,
-		t.TaskStateNacked,
+		t.TaskStatePending,
 		t.TaskStateAcked,
 		t.TaskStatePending,
 	}
