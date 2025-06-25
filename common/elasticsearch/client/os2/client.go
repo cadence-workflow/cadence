@@ -346,8 +346,10 @@ func (c *OS2) Search(ctx context.Context, index, body string) (*client.Response,
 		return nil, fmt.Errorf("OpenSearch Search: %w", err)
 	}
 
-	var sortVal []any
+	var sort []interface{}
 	var aggRes map[string]json.RawMessage
+	var totalHits int64
+
 	if resp.Aggregations != nil {
 		err := json.Unmarshal(resp.Aggregations, &aggRes)
 		if err != nil {
@@ -356,20 +358,21 @@ func (c *OS2) Search(ctx context.Context, index, body string) (*client.Response,
 	}
 
 	searchHits := osHitsToSearchHits(resp.Hits.Hits)
-	for _, sh := range searchHits {
-		sortVal = sh.Sort
+	if len(searchHits) > 0 {
+		totalHits = int64(resp.Hits.Total.Value)
+		for _, sh := range searchHits {
+			sort = sh.Sort
+		}
 	}
+
 	return &client.Response{
 		TookInMillis: int64(resp.Took),
-		TotalHits:    int64(resp.Hits.Total.Value),
+		TotalHits:    totalHits,
 		Hits: &client.SearchHits{
-			TotalHits: &client.TotalHits{
-				Value: int64(resp.Hits.Total.Value),
-			},
 			Hits: searchHits,
 		},
 		Aggregations: aggRes,
-		Sort:         sortVal,
+		Sort:         sort,
 	}, nil
 }
 
@@ -385,9 +388,6 @@ func osHitsToSearchHits(osSearchHits []osapi.SearchHit) []*client.SearchHit {
 	}
 	for _, h := range osSearchHits {
 		hits = append(hits, &client.SearchHit{
-			Index:  h.Index,
-			ID:     h.ID,
-			Sort:   h.Sort,
 			Source: h.Source,
 		},
 		)
