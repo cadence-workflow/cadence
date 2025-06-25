@@ -105,8 +105,6 @@ const (
 	TaskStatePending State = iota + 1
 	// TaskStateAcked is the state for a task if it has been successfully completed
 	TaskStateAcked
-	// TaskStateNacked is the state for a task if it has been unsuccessfully completed
-	TaskStateNacked
 	// TaskStateCanceled is the state for a task if it has been canceled
 	TaskStateCanceled
 )

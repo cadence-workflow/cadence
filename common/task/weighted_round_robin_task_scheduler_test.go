@@ -333,7 +333,7 @@ func testSchedulerContract(
 			defer taskStatusLock.Unlock()
 
 			s.Equal(TaskStatePending, taskStatus[mockTask])
-			taskStatus[mockTask] = TaskStateNacked
+			taskStatus[mockTask] = State(-1) // set it to whatever state that is not TaskStatePending
 			taskWG.Done()
 		}).MaxTimes(1)
 		tasks = append(tasks, mockTask)

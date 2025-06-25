@@ -258,10 +258,6 @@ func (t *testSequentialTaskImpl) State() State {
 		return TaskStateAcked
 	}
 
-	if t.nacked > 0 {
-		return TaskStateNacked
-	}
-
 	return TaskStatePending
 }
 
