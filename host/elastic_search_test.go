@@ -463,7 +463,6 @@ func (s *ElasticSearchIntegrationSuite) TestListWorkflow_OrQuery() {
 
 // To test last page search trigger max window size error
 func (s *ElasticSearchIntegrationSuite) TestListWorkflow_MaxWindowSize() {
-
 	id := "es-integration-list-workflow-max-window-size-test"
 	wt := "es-integration-list-workflow-max-window-size-test-type"
 	tl := "es-integration-list-workflow-max-window-size-test-tasklist"
@@ -510,7 +509,6 @@ func (s *ElasticSearchIntegrationSuite) TestListWorkflow_MaxWindowSize() {
 	defer cancel()
 	resp, err := s.Engine.ListWorkflowExecutions(ctx, listRequest)
 	s.Nil(err)
-
 	s.True(len(resp.GetExecutions()) == 0)
 	s.True(len(resp.GetNextPageToken()) == 0)
 }
@@ -719,7 +717,6 @@ func (s *ElasticSearchIntegrationSuite) testListWorkflowHelper(numOfWorkflows, p
 		}
 		cancel()
 		s.Nil(err)
-
 		if len(resp.GetExecutions()) == numOfWorkflows-pageSize {
 			inIf = true
 			openExecutions = resp.GetExecutions()
