@@ -1176,3 +1176,8 @@ func ShardDistributorResult(addr string) Tag {
 func PeerHostname(hostname string) Tag {
 	return newStringTag("peer-hostname", hostname)
 }
+
+// PendingTaskCount returns a tag for pending task count
+func PendingTaskCount(count int) Tag {
+	return newInt("pending-task-count", count)
+}

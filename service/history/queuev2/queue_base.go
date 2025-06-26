@@ -41,21 +41,21 @@ import (
 
 type (
 	Options struct {
-		PageSize                           dynamicproperties.IntPropertyFn
-		DeleteBatchSize                    dynamicproperties.IntPropertyFn
-		MaxPollRPS                         dynamicproperties.IntPropertyFn
-		MaxPollInterval                    dynamicproperties.DurationPropertyFn
-		MaxPollIntervalJitterCoefficient   dynamicproperties.FloatPropertyFn
-		UpdateAckInterval                  dynamicproperties.DurationPropertyFn
-		UpdateAckIntervalJitterCoefficient dynamicproperties.FloatPropertyFn
-		RedispatchInterval                 dynamicproperties.DurationPropertyFn
-		MaxRedispatchQueueSize             dynamicproperties.IntPropertyFn
-
-		EnableValidator                      dynamicproperties.BoolPropertyFn
-		ValidationInterval                   dynamicproperties.DurationPropertyFn
+		PageSize                             dynamicproperties.IntPropertyFn
+		DeleteBatchSize                      dynamicproperties.IntPropertyFn
+		MaxPollRPS                           dynamicproperties.IntPropertyFn
+		MaxPollInterval                      dynamicproperties.DurationPropertyFn
+		MaxPollIntervalJitterCoefficient     dynamicproperties.FloatPropertyFn
+		UpdateAckInterval                    dynamicproperties.DurationPropertyFn
+		UpdateAckIntervalJitterCoefficient   dynamicproperties.FloatPropertyFn
+		RedispatchInterval                   dynamicproperties.DurationPropertyFn
+		MaxPendingTasksCount                 dynamicproperties.IntPropertyFn
 		PollBackoffInterval                  dynamicproperties.DurationPropertyFn
 		PollBackoffIntervalJitterCoefficient dynamicproperties.FloatPropertyFn
-		MaxStartJitterInterval               dynamicproperties.DurationPropertyFn
+
+		EnableValidator        dynamicproperties.BoolPropertyFn
+		ValidationInterval     dynamicproperties.DurationPropertyFn
+		MaxStartJitterInterval dynamicproperties.DurationPropertyFn
 	}
 
 	queueBase struct {
@@ -144,7 +144,10 @@ func newQueueBase(
 		quotas.NewDynamicRateLimiter(options.MaxPollRPS.AsFloat64()),
 		monitor,
 		&VirtualQueueOptions{
-			PageSize: options.PageSize,
+			PageSize:                             options.PageSize,
+			MaxPendingTasksCount:                 options.MaxPendingTasksCount,
+			PollBackoffInterval:                  options.PollBackoffInterval,
+			PollBackoffIntervalJitterCoefficient: options.PollBackoffIntervalJitterCoefficient,
 		},
 		queueState.VirtualQueueStates,
 	)

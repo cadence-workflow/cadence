@@ -49,7 +49,10 @@ type (
 	}
 
 	VirtualQueueOptions struct {
-		PageSize dynamicproperties.IntPropertyFn
+		PageSize                             dynamicproperties.IntPropertyFn
+		MaxPendingTasksCount                 dynamicproperties.IntPropertyFn
+		PollBackoffInterval                  dynamicproperties.DurationPropertyFn
+		PollBackoffIntervalJitterCoefficient dynamicproperties.FloatPropertyFn
 	}
 
 	virtualQueueImpl struct {
@@ -63,13 +66,14 @@ type (
 		monitor             Monitor
 
 		sync.RWMutex
-		status        int32
-		wg            sync.WaitGroup
-		ctx           context.Context
-		cancel        func()
-		notifyCh      chan struct{}
-		virtualSlices *list.List
-		sliceToRead   *list.Element
+		status          int32
+		wg              sync.WaitGroup
+		ctx             context.Context
+		cancel          func()
+		notifyCh        chan struct{}
+		pauseController PauseController
+		virtualSlices   *list.List
+		sliceToRead     *list.Element
 	}
 )
 
@@ -101,12 +105,13 @@ func NewVirtualQueue(
 		taskLoadRateLimiter: taskLoadRateLimiter,
 		monitor:             monitor,
 
-		status:        common.DaemonStatusInitialized,
-		ctx:           ctx,
-		cancel:        cancel,
-		notifyCh:      make(chan struct{}, 1),
-		virtualSlices: sliceList,
-		sliceToRead:   sliceList.Front(),
+		status:          common.DaemonStatusInitialized,
+		ctx:             ctx,
+		cancel:          cancel,
+		notifyCh:        make(chan struct{}, 1),
+		pauseController: NewPauseController(timeSource),
+		virtualSlices:   sliceList,
+		sliceToRead:     sliceList.Front(),
 	}
 }
 
@@ -115,6 +120,7 @@ func (q *virtualQueueImpl) Start() {
 		return
 	}
 
+	q.pauseController.Subscribe("virtual-queue", q.notifyCh)
 	q.wg.Add(1)
 	go q.run()
 
@@ -127,6 +133,9 @@ func (q *virtualQueueImpl) Stop() {
 	if !atomic.CompareAndSwapInt32(&q.status, common.DaemonStatusStarted, common.DaemonStatusStopped) {
 		return
 	}
+
+	q.pauseController.Unsubscribe("virtual-queue")
+	q.pauseController.Stop()
 
 	q.cancel()
 	q.wg.Wait()
@@ -235,14 +244,22 @@ func (q *virtualQueueImpl) loadAndSubmitTasks() {
 		q.logger.Error("Virtual queue failed to wait for rate limiter", tag.Error(err))
 	}
 
-	q.RLock()
-	defer q.RUnlock()
+	q.Lock()
+	defer q.Unlock()
 
 	if q.sliceToRead == nil {
 		return
 	}
 
-	// TODO: do not load task if there are too many pending tasks
+	pendingTaskCount := q.monitor.GetTotalPendingTaskCount()
+	if pendingTaskCount > q.options.MaxPendingTasksCount() {
+		q.logger.Warn("Too many pending tasks, pause loading tasks for a while", tag.PendingTaskCount(pendingTaskCount))
+		q.pauseController.Pause(q.options.PollBackoffInterval())
+	}
+
+	if q.pauseController.IsPaused() {
+		return
+	}
 
 	sliceToRead := q.sliceToRead.Value.(VirtualSlice)
 	tasks, err := sliceToRead.GetTasks(q.ctx, q.options.PageSize())
