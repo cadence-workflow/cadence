@@ -357,13 +357,13 @@ func (c *OS2) Search(ctx context.Context, index, body string) (*client.Response,
 		}
 	}
 
-	searchHits := osHitsToSearchHits(resp.Hits.Hits)
-	if len(searchHits) > 0 {
+	if len(resp.Hits.Hits) > 0 {
 		totalHits = int64(resp.Hits.Total.Value)
-		for _, sh := range searchHits {
+		for _, sh := range resp.Hits.Hits {
 			sort = sh.Sort
 		}
 	}
+	searchHits := osHitsToSearchHits(resp.Hits.Hits)
 
 	return &client.Response{
 		TookInMillis: int64(resp.Took),
@@ -389,7 +389,6 @@ func osHitsToSearchHits(osSearchHits []osapi.SearchHit) []*client.SearchHit {
 	for _, h := range osSearchHits {
 		hits = append(hits, &client.SearchHit{
 			Source: h.Source,
-			Sort:   h.Sort,
 		},
 		)
 	}
