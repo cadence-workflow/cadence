@@ -87,7 +87,7 @@ type (
 	searchHit struct {
 		Index  string          `json:"_index,omitempty"`  // index name
 		ID     string          `json:"_id,omitempty"`     // external or internal
-		Sort   []interface{}   `json:"sort,omitempty"`    // sort information
+		Sort   []any           `json:"sort,omitempty"`    // sort information
 		Source json.RawMessage `json:"_source,omitempty"` // stored document source
 	}
 
@@ -264,85 +264,73 @@ func (c *OS2) Scroll(ctx context.Context, index, body, scrollID string) (*client
 
 	var scrollResp *osapi.ScrollGetResp
 	var searchResp *osapi.SearchResp
-	var err error
+	var osResponse response
+	var searchErr error
 	// handle scroll id get call
 	if len(scrollID) != 0 {
-		scrollResp, err = c.client.Scroll.Get(ctx, osapi.ScrollGetReq{
+		scrollResp, searchErr = c.client.Scroll.Get(ctx, osapi.ScrollGetReq{
 			ScrollID: scrollID,
 			Params: osapi.ScrollGetParams{
 				Scroll: time.Minute,
 				// do not set scroll ID here as it will be added to the params and scroll ID can be excessively long
 			},
 		})
+		bodyBytes, err := io.ReadAll(scrollResp.Inspect().Response.Body)
 		if err != nil {
-			return nil, fmt.Errorf("opensearch Scroll get error: %w", err)
+			return nil, fmt.Errorf("failed to read search response body")
 		}
-
-		scrollHits, err := c.osHitsToSearchHits(scrollResp.Hits.Hits)
-		if err != nil {
-			return nil, fmt.Errorf("decoding Opensearch result to Response: %w", err)
+		if err := c.decoder.Decode(bytes.NewReader(bodyBytes), &osResponse); err != nil {
+			return nil, fmt.Errorf("decoding OpenSearch scroll response to Response: %w", err)
 		}
-		resp := &client.Response{
-			TookInMillis: int64(scrollResp.Took),
-			TotalHits:    int64(scrollResp.Hits.Total.Value),
-			Hits: &client.SearchHits{
-				TotalHits: &client.TotalHits{
-					Value: int64(scrollResp.Hits.Total.Value),
-				},
-				Hits: scrollHits,
+	} else {
+		// when scrollID is not passed, it is normal search request
+		searchResp, searchErr = c.client.Search(ctx, &osapi.SearchReq{
+			Indices: []string{index},
+			Body:    strings.NewReader(body),
+			Params: osapi.SearchParams{
+				Scroll: time.Minute,
 			},
-			ScrollID: *scrollResp.ScrollID,
-		}
-		// no more hits
-		if scrollResp == nil || scrollResp.Hits.Hits == nil || len(scrollResp.Hits.Hits) == 0 {
-			return resp, io.EOF
-		}
-		return resp, nil
-	}
-
-	// when scrollID is not passed, it is normal search request
-	searchResp, err = c.client.Search(ctx, &osapi.SearchReq{
-		Indices: []string{index},
-		Body:    strings.NewReader(body),
-		Params: osapi.SearchParams{
-			Scroll: time.Minute,
-		},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("opensearch scroll search error: %w", err)
-	}
-
-	var aggRes map[string]json.RawMessage
-	if searchResp.Aggregations != nil {
-		err := json.Unmarshal(searchResp.Aggregations, &aggRes)
+		})
+		bodyBytes, err := io.ReadAll(searchResp.Inspect().Response.Body)
 		if err != nil {
-			return nil, fmt.Errorf("failed to unmarshal searchResp.Aggregations: %w", err)
+			return nil, fmt.Errorf("failed to read search response body")
+		}
+		if err := c.decoder.Decode(bytes.NewReader(bodyBytes), &osResponse); err != nil {
+			return nil, fmt.Errorf("decoding OpenSearch scroll response to Response: %w", err)
 		}
 	}
 
-	searchHits, err := c.osHitsToSearchHits(searchResp.Hits.Hits)
-	if err != nil {
-		return nil, fmt.Errorf("decoding Opensearch result to Response: %w", err)
+	if searchErr != nil {
+		return nil, fmt.Errorf("opensearch scroll search error: %w", searchErr)
 	}
 
-	resp := &client.Response{
-		TookInMillis: int64(searchResp.Took),
-		TotalHits:    int64(searchResp.Hits.Total.Value),
-		Hits: &client.SearchHits{
-			TotalHits: &client.TotalHits{
-				Value: int64(searchResp.Hits.Total.Value),
-			},
-			Hits: searchHits,
-		},
-		Aggregations: aggRes,
-		ScrollID:     *searchResp.ScrollID,
+	var totalHits int64
+	var hits []*client.SearchHit
+	// no more hits
+	if osResponse.Hits == nil || len(osResponse.Hits.Hits) == 0 {
+		return &client.Response{
+			ScrollID:     osResponse.ScrollID,
+			TookInMillis: osResponse.TookInMillis,
+			Hits:         &client.SearchHits{Hits: hits},
+		}, io.EOF
 	}
 
-	if searchResp.Hits.Hits == nil || len(searchResp.Hits.Hits) == 0 {
-		return resp, io.EOF
+	for _, h := range osResponse.Hits.Hits {
+		hits = append(hits, &client.SearchHit{Source: h.Source})
 	}
 
-	return resp, nil
+	if osResponse.Hits.TotalHits != nil {
+		totalHits = osResponse.Hits.TotalHits.Value
+	}
+
+	return &client.Response{
+		TookInMillis: osResponse.TookInMillis,
+		TotalHits:    totalHits,
+		Hits:         &client.SearchHits{Hits: hits},
+		Aggregations: osResponse.Aggregations,
+		ScrollID:     osResponse.ScrollID,
+	}, nil
+
 }
 
 func (c *OS2) Search(ctx context.Context, index, body string) (*client.Response, error) {
@@ -356,61 +344,35 @@ func (c *OS2) Search(ctx context.Context, index, body string) (*client.Response,
 		return nil, fmt.Errorf("OpenSearch Search: %w", err)
 	}
 
-	var sort []interface{}
-	var aggRes map[string]json.RawMessage
-	var totalHits int64
-
-	if resp.Aggregations != nil {
-		err := json.Unmarshal(resp.Aggregations, &aggRes)
-		if err != nil {
-			return nil, fmt.Errorf("failed to unmarshal resp.Aggregations during opensearch Search: %w", err)
-		}
+	if resp.Inspect().Response == nil {
+		return nil, fmt.Errorf("OpenSearch search response nil")
 	}
-
-	searchHits, err := c.osHitsToSearchHits(resp.Hits.Hits)
-	if err != nil {
+	var osResponse response
+	bodyBytes, err := io.ReadAll(resp.Inspect().Response.Body)
+	if err := c.decoder.Decode(bytes.NewReader(bodyBytes), &osResponse); err != nil {
 		return nil, fmt.Errorf("decoding Opensearch result to Response: %w", err)
 	}
+	var hits []*client.SearchHit
+	var sort []interface{}
+	var totalHits int64
 
-	if len(resp.Hits.Hits) > 0 {
-		totalHits = int64(resp.Hits.Total.Value)
-		for _, sh := range searchHits {
-			sort = sh.Sort
+	if osResponse.Hits != nil && osResponse.Hits.TotalHits != nil {
+		totalHits = osResponse.Hits.TotalHits.Value
+		for _, h := range osResponse.Hits.Hits {
+			sort = h.Sort
+			hits = append(hits, &client.SearchHit{Source: h.Source})
 		}
 	}
 
 	return &client.Response{
-		TookInMillis: int64(resp.Took),
+		TookInMillis: osResponse.TookInMillis,
 		TotalHits:    totalHits,
-		Hits: &client.SearchHits{
-			Hits: searchHits,
-		},
-		Aggregations: aggRes,
+		Hits:         &client.SearchHits{Hits: hits},
+		Aggregations: osResponse.Aggregations,
 		Sort:         sort,
 	}, nil
 }
 
 func (e *osError) Error() string {
 	return fmt.Sprintf("Status code: %d, Type: %s, Reason: %s", e.Status, e.Details.Type, e.Details.Reason)
-}
-
-func (c *OS2) osHitsToSearchHits(osSearchHits []osapi.SearchHit) ([]*client.SearchHit, error) {
-
-	var hits []*client.SearchHit
-	if len(osSearchHits) == 0 {
-		return hits, nil
-	}
-	for _, h := range osSearchHits {
-		jsonBytes, err := json.Marshal(h)
-		if err != nil {
-			return nil, fmt.Errorf("marshal osapi client failed : %w", err)
-		}
-		var sh searchHit
-		err = c.decoder.Decode(bytes.NewReader(jsonBytes), &sh)
-		if err != nil {
-			return nil, fmt.Errorf("decode from osapi search hit to client search hit failed : %w", err)
-		}
-		hits = append(hits, &client.SearchHit{Source: sh.Source, Sort: sh.Sort})
-	}
-	return hits, nil
 }
