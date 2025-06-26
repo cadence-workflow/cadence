@@ -87,13 +87,10 @@ func (c *ESClient) SearchByQuery(ctx context.Context, request *SearchByQueryRequ
 	if err != nil {
 		return nil, err
 	}
-	c.Logger.Info(fmt.Sprintf("[Debug][SearchByQuery] next page token : %+v", token))
-	c.Logger.Info(fmt.Sprintf("[Debug][SearchByQuery] sending search request : %+v", request))
 	searchResult, err := c.Client.Search(ctx, request.Index, request.Query)
 	if err != nil {
 		return nil, err
 	}
-	c.Logger.Info(fmt.Sprintf("[Debug][SearchByQuery] Received search result : %+v", searchResult))
 	return c.getListWorkflowExecutionsResponse(searchResult, token, request.PageSize, request.MaxResultWindow, request.Filter)
 }
 

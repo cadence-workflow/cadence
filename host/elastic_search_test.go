@@ -327,11 +327,7 @@ func (s *ElasticSearchIntegrationSuite) TestListWorkflow_PageToken() {
 	numOfWorkflows := defaultTestValueOfESIndexMaxResultWindow - 1 // == 4
 	pageSize := 3
 
-	s.Logger.Info("[Debug][TestListWorkflow_PageToken] Start of test")
-
 	s.testListWorkflowHelper(numOfWorkflows, pageSize, request, id, wt, false)
-
-	s.Logger.Info("[Debug][TestListWorkflow_PageToken] End of test")
 }
 
 func (s *ElasticSearchIntegrationSuite) TestListWorkflow_SearchAfter() {
@@ -468,8 +464,6 @@ func (s *ElasticSearchIntegrationSuite) TestListWorkflow_OrQuery() {
 // To test last page search trigger max window size error
 func (s *ElasticSearchIntegrationSuite) TestListWorkflow_MaxWindowSize() {
 
-	s.Logger.Info("[Debug][TestListWorkflow_MaxWindowSize] Start of test")
-
 	id := "es-integration-list-workflow-max-window-size-test"
 	wt := "es-integration-list-workflow-max-window-size-test-type"
 	tl := "es-integration-list-workflow-max-window-size-test-tasklist"
@@ -510,47 +504,12 @@ func (s *ElasticSearchIntegrationSuite) TestListWorkflow_MaxWindowSize() {
 	s.NotNil(listResp)
 	s.True(len(listResp.GetNextPageToken()) != 0)
 
-	// Add debug logging for first page
-	s.Logger.Info("[Debug][TestListWorkflow_MaxWindowSize] First page results",
-		tag.Dynamic("executions_count", fmt.Sprintf("%d", len(listResp.GetExecutions()))),
-		tag.Dynamic("next_page_token_length", fmt.Sprintf("%d", len(listResp.GetNextPageToken()))))
-
-	// Log all executions from first page to see what we're getting
-	s.Logger.Info(" [Debug][TestListWorkflow_MaxWindowSize] First page executions:")
-	for i, exec := range listResp.GetExecutions() {
-		s.Logger.Info("[Debug][TestListWorkflow_MaxWindowSize] Execution",
-			tag.Dynamic("index", fmt.Sprintf("%d", i)),
-			tag.WorkflowID(exec.GetExecution().GetWorkflowID()),
-			tag.WorkflowRunID(exec.GetExecution().GetRunID()),
-			tag.Dynamic("workflow_type", exec.GetType().GetName()),
-			tag.Dynamic("workflow_start_time", exec.GetStartTime()))
-	}
-
 	// the last request
 	listRequest.NextPageToken = listResp.GetNextPageToken()
 	ctx, cancel := createContext()
 	defer cancel()
 	resp, err := s.Engine.ListWorkflowExecutions(ctx, listRequest)
 	s.Nil(err)
-
-	// Add debug logging
-	s.Logger.Info("[Debug][TestListWorkflow_MaxWindowSize] Second page results",
-		tag.Dynamic("executions_count", fmt.Sprintf("%d", len(resp.GetExecutions()))),
-		tag.Dynamic("next_page_token_length", fmt.Sprintf("%d", len(resp.GetNextPageToken()))))
-
-	if len(resp.GetExecutions()) > 0 {
-		s.Logger.Info("Unexpected executions found on second page:")
-		for i, exec := range resp.GetExecutions() {
-			s.Logger.Info("[Debug][TestListWorkflow_MaxWindowSize] Execution",
-				tag.Dynamic("index", fmt.Sprintf("%d", i)),
-				tag.WorkflowID(exec.GetExecution().GetWorkflowID()),
-				tag.WorkflowRunID(exec.GetExecution().GetRunID()),
-				tag.Dynamic("workflow_type", exec.GetType().GetName()))
-			tag.Dynamic("workflow_start_time", exec.GetStartTime())
-		}
-	}
-
-	s.Logger.Info("[Debug][TestListWorkflow_MaxWindowSize] end of test")
 
 	s.True(len(resp.GetExecutions()) == 0)
 	s.True(len(resp.GetNextPageToken()) == 0)
@@ -745,21 +704,6 @@ func (s *ElasticSearchIntegrationSuite) testListWorkflowHelper(numOfWorkflows, p
 	s.NotNil(nextPageToken)
 	s.True(len(nextPageToken) > 0)
 
-	// debug logs
-	s.Logger.Info("[Debug][TestListWorkflow_PageToken] First page results",
-		tag.Dynamic("executions_count", fmt.Sprintf("%d", len(openExecutions))),
-		tag.Dynamic("next_page_token_length", fmt.Sprintf("%d", len(nextPageToken))))
-	// Log all executions from first page to see what we're getting
-	s.Logger.Info(" [Debug][TestListWorkflow_PageToken] First page executions: ")
-	for i, exec := range openExecutions {
-		s.Logger.Info("[Debug][TestListWorkflow_PageToken] Execution",
-			tag.Dynamic("index", fmt.Sprintf("%d", i)),
-			tag.WorkflowID(exec.GetExecution().GetWorkflowID()),
-			tag.WorkflowRunID(exec.GetExecution().GetRunID()),
-			tag.Dynamic("workflow_type", exec.GetType().GetName()),
-			tag.Dynamic("workflow_start_time", exec.GetStartTime()))
-	}
-
 	// test last page
 	listRequest.NextPageToken = nextPageToken
 	inIf := false
@@ -775,24 +719,6 @@ func (s *ElasticSearchIntegrationSuite) testListWorkflowHelper(numOfWorkflows, p
 		}
 		cancel()
 		s.Nil(err)
-
-		// Add debug logging
-		s.Logger.Info("[Debug][TestListWorkflow_PageToken] Second page results",
-			tag.Dynamic("executions_count", fmt.Sprintf("%d", len(resp.GetExecutions()))),
-			tag.Dynamic("next_page_token_length", fmt.Sprintf("%d", len(resp.GetNextPageToken()))))
-
-		if len(resp.GetExecutions()) > 0 {
-			s.Logger.Info("[Debug][TestListWorkflow_PageToken] Unexpected executions found on second page:")
-			for i, exec := range resp.GetExecutions() {
-				s.Logger.Info("[Debug][TestListWorkflow_PageToken] Execution",
-					tag.Dynamic("index", fmt.Sprintf("%d", i)),
-					tag.WorkflowID(exec.GetExecution().GetWorkflowID()),
-					tag.WorkflowRunID(exec.GetExecution().GetRunID()),
-					tag.Dynamic("workflow_type", exec.GetType().GetName()),
-					tag.Dynamic("workflow_start_time", exec.GetStartTime()))
-
-			}
-		}
 
 		if len(resp.GetExecutions()) == numOfWorkflows-pageSize {
 			inIf = true

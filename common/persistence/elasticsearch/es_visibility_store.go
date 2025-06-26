@@ -413,20 +413,15 @@ func (v *esVisibilityStore) ListWorkflowExecutions(
 
 	checkPageSize(request)
 
-	v.logger.Info(fmt.Sprintf("[Debug][ListWorkflowExecutions] getting next page token request : %+v", request))
 	token, err := es.GetNextPageToken(request.NextPageToken)
 	if err != nil {
 		return nil, err
 	}
 
-	v.logger.Info(fmt.Sprintf("[Debug][ListWorkflowExecutions] next page token value : %+v", token))
-
 	queryDSL, err := v.getESQueryDSL(request, token)
 	if err != nil {
 		return nil, &types.BadRequestError{Message: fmt.Sprintf("Error when parse query: %v", err)}
 	}
-
-	v.logger.Info(fmt.Sprintf("[Debug][ListWorkflowExecutions] query DSL value : %s", queryDSL))
 
 	resp, err := v.esClient.SearchByQuery(ctx, &es.SearchByQueryRequest{
 		Index:           v.index,
@@ -442,7 +437,6 @@ func (v *esVisibilityStore) ListWorkflowExecutions(
 		}
 	}
 
-	v.logger.Info(fmt.Sprintf("[Debug][ListWorkflowExecutions] search by query response : %+v", resp))
 	return resp, nil
 }
 
