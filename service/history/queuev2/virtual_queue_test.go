@@ -64,7 +64,10 @@ func TestVirtualQueueImpl_GetState(t *testing.T) {
 		mockMonitor,
 		mockVirtualSlices,
 		&VirtualQueueOptions{
-			PageSize: mockPageSize,
+			PageSize:                             mockPageSize,
+			MaxPendingTasksCount:                 dynamicproperties.GetIntPropertyFn(100),
+			PollBackoffInterval:                  dynamicproperties.GetDurationPropertyFn(time.Second * 10),
+			PollBackoffIntervalJitterCoefficient: dynamicproperties.GetFloatPropertyFn(0.0),
 		},
 	)
 
@@ -138,7 +141,10 @@ func TestVirtualQueueImpl_UpdateAndGetState(t *testing.T) {
 		mockMonitor,
 		mockVirtualSlices,
 		&VirtualQueueOptions{
-			PageSize: mockPageSize,
+			PageSize:                             mockPageSize,
+			MaxPendingTasksCount:                 dynamicproperties.GetIntPropertyFn(100),
+			PollBackoffInterval:                  dynamicproperties.GetDurationPropertyFn(time.Second * 10),
+			PollBackoffIntervalJitterCoefficient: dynamicproperties.GetFloatPropertyFn(0.0),
 		},
 	)
 
@@ -359,7 +365,10 @@ func TestVirtualQueue_MergeSlices(t *testing.T) {
 				monitor,
 				existingSlices,
 				&VirtualQueueOptions{
-					PageSize: dynamicproperties.GetIntPropertyFn(10),
+					PageSize:                             dynamicproperties.GetIntPropertyFn(10),
+					MaxPendingTasksCount:                 dynamicproperties.GetIntPropertyFn(100),
+					PollBackoffInterval:                  dynamicproperties.GetDurationPropertyFn(time.Second * 10),
+					PollBackoffIntervalJitterCoefficient: dynamicproperties.GetFloatPropertyFn(0.0),
 				},
 			)
 
@@ -612,6 +621,7 @@ func TestVirtualQueue_LoadAndSubmitTasks(t *testing.T) {
 	mockRateLimiter := quotas.NewMockLimiter(ctrl)
 	mockRateLimiter.EXPECT().Wait(gomock.Any()).Return(nil).AnyTimes()
 	mockMonitor := NewMockMonitor(ctrl)
+	mockPauseController := NewMockPauseController(ctrl)
 
 	mockVirtualSlice1 := NewMockVirtualSlice(ctrl)
 	mockVirtualSlice2 := NewMockVirtualSlice(ctrl)
@@ -637,10 +647,15 @@ func TestVirtualQueue_LoadAndSubmitTasks(t *testing.T) {
 	mockTask3.EXPECT().GetRunID().Return("some random runID")
 	mockTask3.EXPECT().GetTaskKey().Return(persistence.NewHistoryTaskKey(mockTimeSource.Now().Add(time.Second*-1), 1))
 
+	mockMonitor.EXPECT().GetTotalPendingTaskCount().Return(0)
+	mockPauseController.EXPECT().IsPaused().Return(false)
 	mockVirtualSlice1.EXPECT().GetTasks(gomock.Any(), 10).Return([]task.Task{mockTask1, mockTask2}, nil)
 	mockVirtualSlice1.EXPECT().GetPendingTaskCount().Return(2)
 	mockMonitor.EXPECT().SetSlicePendingTaskCount(mockVirtualSlice1, 2)
 	mockVirtualSlice1.EXPECT().HasMoreTasks().Return(false)
+
+	mockMonitor.EXPECT().GetTotalPendingTaskCount().Return(0)
+	mockPauseController.EXPECT().IsPaused().Return(false)
 	mockVirtualSlice2.EXPECT().GetTasks(gomock.Any(), 10).Return([]task.Task{mockTask3}, nil)
 	mockVirtualSlice2.EXPECT().HasMoreTasks().Return(false)
 	mockVirtualSlice2.EXPECT().GetPendingTaskCount().Return(1)
@@ -661,9 +676,14 @@ func TestVirtualQueue_LoadAndSubmitTasks(t *testing.T) {
 		mockMonitor,
 		mockVirtualSlices,
 		&VirtualQueueOptions{
-			PageSize: mockPageSize,
+			PageSize:                             mockPageSize,
+			MaxPendingTasksCount:                 dynamicproperties.GetIntPropertyFn(100),
+			PollBackoffInterval:                  dynamicproperties.GetDurationPropertyFn(time.Second * 10),
+			PollBackoffIntervalJitterCoefficient: dynamicproperties.GetFloatPropertyFn(0.0),
 		},
 	).(*virtualQueueImpl)
+
+	queue.pauseController = mockPauseController
 
 	queue.loadAndSubmitTasks()
 
@@ -685,17 +705,24 @@ func TestVirtualQueue_LifeCycle(t *testing.T) {
 	mockRateLimiter := quotas.NewMockLimiter(ctrl)
 	mockRateLimiter.EXPECT().Wait(gomock.Any()).Return(nil).AnyTimes()
 	mockMonitor := NewMockMonitor(ctrl)
+	mockPauseController := NewMockPauseController(ctrl)
 	mockVirtualSlice1 := NewMockVirtualSlice(ctrl)
 
 	mockVirtualSlices := []VirtualSlice{
 		mockVirtualSlice1,
 	}
 
-	mockVirtualSlice1.EXPECT().GetTasks(gomock.Any(), 10).Return([]task.Task{}, nil).AnyTimes()
-	mockVirtualSlice1.EXPECT().HasMoreTasks().Return(false).AnyTimes()
-	mockVirtualSlice1.EXPECT().GetPendingTaskCount().Return(0).AnyTimes()
+	mockVirtualSlice1.EXPECT().GetTasks(gomock.Any(), 10).Return([]task.Task{}, nil).MaxTimes(1)
+	mockVirtualSlice1.EXPECT().HasMoreTasks().Return(false).MaxTimes(1)
+	mockVirtualSlice1.EXPECT().GetPendingTaskCount().Return(0).MaxTimes(1)
 	mockVirtualSlice1.EXPECT().Clear().Times(1)
-	mockMonitor.EXPECT().SetSlicePendingTaskCount(mockVirtualSlice1, 0).AnyTimes()
+	mockMonitor.EXPECT().SetSlicePendingTaskCount(mockVirtualSlice1, 0).MaxTimes(1)
+	mockMonitor.EXPECT().GetTotalPendingTaskCount().Return(0).MaxTimes(1)
+
+	mockPauseController.EXPECT().Subscribe(gomock.Any(), gomock.Any()).Times(1)
+	mockPauseController.EXPECT().IsPaused().Return(false).AnyTimes()
+	mockPauseController.EXPECT().Unsubscribe(gomock.Any()).Times(1)
+	mockPauseController.EXPECT().Stop().Times(1)
 
 	queue := NewVirtualQueue(
 		mockProcessor,
@@ -707,10 +734,76 @@ func TestVirtualQueue_LifeCycle(t *testing.T) {
 		mockMonitor,
 		mockVirtualSlices,
 		&VirtualQueueOptions{
-			PageSize: mockPageSize,
+			PageSize:                             mockPageSize,
+			MaxPendingTasksCount:                 dynamicproperties.GetIntPropertyFn(100),
+			PollBackoffInterval:                  dynamicproperties.GetDurationPropertyFn(time.Second * 10),
+			PollBackoffIntervalJitterCoefficient: dynamicproperties.GetFloatPropertyFn(0.0),
 		},
 	).(*virtualQueueImpl)
 
+	queue.pauseController = mockPauseController
+
 	queue.Start()
+	queue.Stop()
+}
+
+func TestVirtualQueue_LifeCycle_Pause(t *testing.T) {
+	defer goleak.VerifyNone(t)
+	ctrl := gomock.NewController(t)
+
+	mockProcessor := task.NewMockProcessor(ctrl)
+	mockRedispatcher := task.NewMockRedispatcher(ctrl)
+	mockLogger := testlogger.New(t)
+	mockMetricsScope := metrics.NoopScope
+	mockPageSize := dynamicproperties.GetIntPropertyFn(10)
+	mockTimeSource := clock.NewMockedTimeSource()
+	mockRateLimiter := quotas.NewMockLimiter(ctrl)
+	mockRateLimiter.EXPECT().Wait(gomock.Any()).Return(nil).AnyTimes()
+	mockMonitor := NewMockMonitor(ctrl)
+	mockVirtualSlice1 := NewMockVirtualSlice(ctrl)
+
+	mockVirtualSlices := []VirtualSlice{
+		mockVirtualSlice1,
+	}
+
+	queue := NewVirtualQueue(
+		mockProcessor,
+		mockRedispatcher,
+		mockLogger,
+		mockMetricsScope,
+		mockTimeSource,
+		mockRateLimiter,
+		mockMonitor,
+		mockVirtualSlices,
+		&VirtualQueueOptions{
+			PageSize:                             mockPageSize,
+			MaxPendingTasksCount:                 dynamicproperties.GetIntPropertyFn(100),
+			PollBackoffInterval:                  dynamicproperties.GetDurationPropertyFn(time.Second * 10),
+			PollBackoffIntervalJitterCoefficient: dynamicproperties.GetFloatPropertyFn(0.0),
+		},
+	).(*virtualQueueImpl)
+
+	mockVirtualSlice1.EXPECT().Clear().Times(1)
+
+	// first time we call loadAndSubmitTasks, we should pause, so set the total pending task count to be larger than MaxPendingTasksCount
+	mockMonitor.EXPECT().GetTotalPendingTaskCount().Return(101).Times(1)
+
+	// then we should resume from pause and load the tasks
+	// to simplify the test, we just assume that there is no more tasks to load
+	mockMonitor.EXPECT().GetTotalPendingTaskCount().Return(0).Times(1)
+	mockVirtualSlice1.EXPECT().GetTasks(gomock.Any(), 10).Return([]task.Task{}, nil).Times(1)
+	mockMonitor.EXPECT().SetSlicePendingTaskCount(mockVirtualSlice1, 0).Times(1)
+	mockVirtualSlice1.EXPECT().HasMoreTasks().Return(false).Times(1)
+	mockVirtualSlice1.EXPECT().GetPendingTaskCount().Return(0).Times(1)
+
+	queue.Start()
+
+	// wait for the pause controller to resume
+	mockTimeSource.BlockUntil(1)
+	mockTimeSource.Advance(time.Second * 10)
+
+	// sleep for a while and yield the control to the background goroutine loading tasks from virtual slices
+	time.Sleep(time.Millisecond * 100)
+
 	queue.Stop()
 }

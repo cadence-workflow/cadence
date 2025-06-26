@@ -148,7 +148,7 @@ func (f *timerQueueFactory) createQueuev2(
 			MaxPollIntervalJitterCoefficient:     config.TimerProcessorMaxPollIntervalJitterCoefficient,
 			UpdateAckInterval:                    config.TimerProcessorUpdateAckInterval,
 			UpdateAckIntervalJitterCoefficient:   config.TimerProcessorUpdateAckIntervalJitterCoefficient,
-			MaxRedispatchQueueSize:               config.TimerProcessorMaxRedispatchQueueSize,
+			MaxPendingTasksCount:                 config.QueueMaxPendingTaskCount,
 			PollBackoffInterval:                  config.QueueProcessorPollBackoffInterval,
 			PollBackoffIntervalJitterCoefficient: config.QueueProcessorPollBackoffIntervalJitterCoefficient,
 			MaxStartJitterInterval:               dynamicproperties.GetDurationPropertyFn(0),
