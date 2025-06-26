@@ -43,17 +43,17 @@ import (
 type Manager interface {
 	common.Daemon
 
-	// FailoverVersionOfNewWorkflow returns failover version of given new workflow.
+	// LookupNewWorkflow returns active cluster, region and failover version of given new workflow.
 	//  1. If domain is local:
-	//     	Returns domain entry's failover version.
+	//     	Returns info from domain entry.
 	//  2. If domain is active-passive global:
-	//     	Returns domain entry's failover version.
+	//     	Returns info from domain entry.
 	//  3. If domain is active-active global:
-	//     	3.1. if workflow is region sticky, returns failover version of current cluster.
-	//     	3.2. if workflow has external entity, returns failover version of corresponding row in EntityActiveRegion lookup table.
+	//     	3.1. if workflow is region sticky, returns current cluster and its 	failover version.
+	//     	3.2. if workflow has external entity, returns region, cluster name and failover version of corresponding row in EntityActiveRegion lookup table.
 	LookupNewWorkflow(ctx context.Context, domainID string, policy *types.ActiveClusterSelectionPolicy) (*LookupResult, error)
 
-	// LookupWorkflow returns active cluster, region and failover version of given workflow.
+	// LookupWorkflow returns active cluster, region and failover version of given existing workflow.
 	// Returns the info from domain entry for local and active-passive domains
 	//
 	// Active-active domain logic:
