@@ -518,7 +518,8 @@ func (s *ElasticSearchIntegrationSuite) TestListWorkflow_MaxWindowSize() {
 			tag.Dynamic("index", fmt.Sprintf("%d", i)),
 			tag.WorkflowID(exec.GetExecution().GetWorkflowID()),
 			tag.WorkflowRunID(exec.GetExecution().GetRunID()),
-			tag.Dynamic("workflow_type", exec.GetType().GetName()))
+			tag.Dynamic("workflow_type", exec.GetType().GetName()),
+			tag.Dynamic("workflow_start_time", exec.GetStartTime()))
 	}
 
 	// the last request
@@ -541,6 +542,7 @@ func (s *ElasticSearchIntegrationSuite) TestListWorkflow_MaxWindowSize() {
 				tag.WorkflowID(exec.GetExecution().GetWorkflowID()),
 				tag.WorkflowRunID(exec.GetExecution().GetRunID()),
 				tag.Dynamic("workflow_type", exec.GetType().GetName()))
+			tag.Dynamic("workflow_start_time", exec.GetStartTime())
 		}
 	}
 
