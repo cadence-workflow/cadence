@@ -25,6 +25,7 @@ package os2
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -483,7 +484,7 @@ func TestSearch(t *testing.T) {
 			index: "testIndex",
 			body:  `{"query": {"match_all": {}}}`,
 			handler: func(w http.ResponseWriter, r *http.Request) {
-				fmt.Fprintln(w, `{"took": 10, "hits": {"total": {"value": 2}, "hits": [{"_source": {"field": "value"}}, {"_source": {"field": "another value"}}]}}`)
+				fmt.Fprintln(w, `{"took": 10, "hits": {"total": {"value": 2}, "hits": [{"_source": {"field": "value"}, "sort": [1750950124525781262, "test sort val"]}, {"_source": {"field": "another value"}, "sort": [1750950124525781269, "test sort val 2"]}]}}`)
 			},
 			expectedError: false,
 			expectedHits:  2,
@@ -514,6 +515,7 @@ func TestSearch(t *testing.T) {
 				assert.NoError(t, err)
 				assert.NotNil(t, resp)
 				assert.Len(t, resp.Hits.Hits, tc.expectedHits)
+				assert.Equal(t, resp.Sort[0], json.Number("1750950124525781269"))
 			}
 		})
 	}
