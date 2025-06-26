@@ -124,7 +124,7 @@ func (os2 *os2Client) DeleteIndex(t *testing.T, indexName string) {
 func (os2 *os2Client) PutMaxResultWindow(t *testing.T, indexName string, maxResultWindow int) error {
 
 	req := osapi.SettingsPutReq{
-		Body:    strings.NewReader(fmt.Sprintf(`{"max_result_window" : %d}`, maxResultWindow)),
+		Body:    strings.NewReader(fmt.Sprintf(`{"index": {"max_result_window": %d}}`, maxResultWindow)),
 		Indices: []string{indexName},
 	}
 
