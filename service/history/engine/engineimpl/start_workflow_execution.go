@@ -836,11 +836,11 @@ func (e *historyEngineImpl) createMutableState(
 	}
 
 	if domainEntry.GetReplicationConfig().IsActiveActive() {
-		v, err := e.shard.GetActiveClusterManager().FailoverVersionOfNewWorkflow(ctx, startRequest)
+		res, err := e.shard.GetActiveClusterManager().LookupNewWorkflow(ctx, domainEntry.GetInfo().ID, startRequest.StartRequest.ActiveClusterSelectionPolicy)
 		if err != nil {
 			return nil, err
 		}
-		newMutableState.UpdateCurrentVersion(v, true)
+		newMutableState.UpdateCurrentVersion(res.FailoverVersion, true)
 	}
 
 	return newMutableState, nil
