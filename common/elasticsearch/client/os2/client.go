@@ -383,12 +383,13 @@ func (e *osError) Error() string {
 func osHitsToSearchHits(osSearchHits []osapi.SearchHit) []*client.SearchHit {
 
 	var hits []*client.SearchHit
-	if osSearchHits == nil || len(osSearchHits) == 0 {
+	if len(osSearchHits) == 0 {
 		return hits
 	}
 	for _, h := range osSearchHits {
 		hits = append(hits, &client.SearchHit{
 			Source: h.Source,
+			Sort:   h.Sort,
 		},
 		)
 	}

@@ -463,6 +463,9 @@ func (s *ElasticSearchIntegrationSuite) TestListWorkflow_OrQuery() {
 
 // To test last page search trigger max window size error
 func (s *ElasticSearchIntegrationSuite) TestListWorkflow_MaxWindowSize() {
+
+	s.Logger.Info("[Debug][TestListWorkflow_MaxWindowSize] Start of test")
+
 	id := "es-integration-list-workflow-max-window-size-test"
 	wt := "es-integration-list-workflow-max-window-size-test-type"
 	tl := "es-integration-list-workflow-max-window-size-test-tasklist"
@@ -503,12 +506,46 @@ func (s *ElasticSearchIntegrationSuite) TestListWorkflow_MaxWindowSize() {
 	s.NotNil(listResp)
 	s.True(len(listResp.GetNextPageToken()) != 0)
 
+	// Add debug logging for first page
+	s.Logger.Info("[Debug][TestListWorkflow_MaxWindowSize] First page results",
+		tag.Dynamic("executions_count", fmt.Sprintf("%d", len(listResp.GetExecutions()))),
+		tag.Dynamic("next_page_token_length", fmt.Sprintf("%d", len(listResp.GetNextPageToken()))))
+
+	// Log all executions from first page to see what we're getting
+	s.Logger.Info(" [Debug][TestListWorkflow_MaxWindowSize] First page executions:")
+	for i, exec := range listResp.GetExecutions() {
+		s.Logger.Info("[Debug][TestListWorkflow_MaxWindowSize] Execution",
+			tag.Dynamic("index", fmt.Sprintf("%d", i)),
+			tag.WorkflowID(exec.GetExecution().GetWorkflowID()),
+			tag.WorkflowRunID(exec.GetExecution().GetRunID()),
+			tag.Dynamic("workflow_type", exec.GetType().GetName()))
+	}
+
 	// the last request
 	listRequest.NextPageToken = listResp.GetNextPageToken()
 	ctx, cancel := createContext()
 	defer cancel()
 	resp, err := s.Engine.ListWorkflowExecutions(ctx, listRequest)
 	s.Nil(err)
+
+	// Add debug logging
+	s.Logger.Info("[Debug][TestListWorkflow_MaxWindowSize] Second page results",
+		tag.Dynamic("executions_count", fmt.Sprintf("%d", len(resp.GetExecutions()))),
+		tag.Dynamic("next_page_token_length", fmt.Sprintf("%d", len(resp.GetNextPageToken()))))
+
+	if len(resp.GetExecutions()) > 0 {
+		s.Logger.Info("Unexpected executions found on second page:")
+		for i, exec := range resp.GetExecutions() {
+			s.Logger.Info("[Debug][TestListWorkflow_MaxWindowSize] Execution",
+				tag.Dynamic("index", fmt.Sprintf("%d", i)),
+				tag.WorkflowID(exec.GetExecution().GetWorkflowID()),
+				tag.WorkflowRunID(exec.GetExecution().GetRunID()),
+				tag.Dynamic("workflow_type", exec.GetType().GetName()))
+		}
+	}
+
+	s.Logger.Info("[Debug][TestListWorkflow_MaxWindowSize] end of test")
+
 	s.True(len(resp.GetExecutions()) == 0)
 	s.True(len(resp.GetNextPageToken()) == 0)
 }
