@@ -214,7 +214,7 @@ func (m *managerImpl) LookupNewWorkflow(ctx context.Context, domainID string, po
 		return nil, fmt.Errorf("unsupported active cluster selection strategy: %s", policy.GetStrategy())
 	}
 
-	// look up cluster name for failover version of the external entity
+	// find cluster name & failover version of the external entity
 	externalEntity, err := m.getExternalEntity(ctx, policy.ExternalEntityType, policy.ExternalEntityKey)
 	if err != nil {
 		return nil, err
