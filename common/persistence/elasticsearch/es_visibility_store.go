@@ -436,7 +436,6 @@ func (v *esVisibilityStore) ListWorkflowExecutions(
 			Message: fmt.Sprintf("ListWorkflowExecutions failed, %v", err),
 		}
 	}
-
 	return resp, nil
 }
 
