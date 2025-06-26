@@ -177,53 +177,58 @@ func (m *managerImpl) notifyChangeCallbacksPeriodically() {
 	}
 }
 
-func (m *managerImpl) FailoverVersionOfNewWorkflow(ctx context.Context, req *types.HistoryStartWorkflowExecutionRequest) (int64, error) {
-	if req == nil {
-		return 0, errors.New("request is nil")
-	}
-
-	d, err := m.domainIDToDomainFn(req.DomainUUID)
+func (m *managerImpl) LookupNewWorkflow(ctx context.Context, domainID string, policy *types.ActiveClusterSelectionPolicy) (*LookupResult, error) {
+	d, err := m.domainIDToDomainFn(domainID)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 
 	if !d.GetReplicationConfig().IsActiveActive() {
 		// Not an active-active domain. return failover version of the domain entry
-		return d.GetFailoverVersion(), nil
+		return &LookupResult{
+			ClusterName:     d.GetReplicationConfig().ActiveClusterName,
+			FailoverVersion: d.GetFailoverVersion(),
+		}, nil
 	}
 
-	if req.StartRequest == nil {
-		return 0, errors.New("start request is nil")
-	}
-
-	plcy := req.StartRequest.ActiveClusterSelectionPolicy
 	// region sticky policy
-	if plcy.GetStrategy() == types.ActiveClusterSelectionStrategyRegionSticky {
+	if policy.GetStrategy() == types.ActiveClusterSelectionStrategyRegionSticky {
 		// use current region for nil policy, otherwise use sticky region from policy
 		region := m.clusterMetadata.GetCurrentRegion()
-		if plcy != nil {
-			region = plcy.StickyRegion
+		if policy != nil {
+			region = policy.StickyRegion
 		}
 
 		cluster, ok := d.GetReplicationConfig().ActiveClusters.ActiveClustersByRegion[region]
 		if !ok {
-			return 0, newRegionNotFoundForDomainError(region, req.DomainUUID)
+			return nil, newRegionNotFoundForDomainError(region, domainID)
 		}
 
-		return cluster.FailoverVersion, nil
+		return &LookupResult{
+			ClusterName:     cluster.ActiveClusterName,
+			FailoverVersion: cluster.FailoverVersion,
+		}, nil
 	}
 
-	if plcy.GetStrategy() != types.ActiveClusterSelectionStrategyExternalEntity {
-		return 0, fmt.Errorf("unsupported active cluster selection strategy: %s", plcy.GetStrategy())
+	if policy.GetStrategy() != types.ActiveClusterSelectionStrategyExternalEntity {
+		return nil, fmt.Errorf("unsupported active cluster selection strategy: %s", policy.GetStrategy())
 	}
 
-	// Return failover version of the external entity
-	externalEntity, err := m.getExternalEntity(ctx, plcy.ExternalEntityType, plcy.ExternalEntityKey)
+	// look up cluster name for failover version of the external entity
+	externalEntity, err := m.getExternalEntity(ctx, policy.ExternalEntityType, policy.ExternalEntityKey)
 	if err != nil {
-		return 0, err
+		return nil, err
+	}
+	cluster, err := m.ClusterNameForFailoverVersion(externalEntity.FailoverVersion, domainID)
+	if err != nil {
+		return nil, err
 	}
 
-	return externalEntity.FailoverVersion, nil
+	return &LookupResult{
+		Region:          externalEntity.Region,
+		ClusterName:     cluster,
+		FailoverVersion: externalEntity.FailoverVersion,
+	}, nil
 }
 
 func (m *managerImpl) LookupWorkflow(ctx context.Context, domainID, wfID, rID string) (*LookupResult, error) {

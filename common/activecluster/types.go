@@ -51,7 +51,7 @@ type Manager interface {
 	//  3. If domain is active-active global:
 	//     	3.1. if workflow is region sticky, returns failover version of current cluster.
 	//     	3.2. if workflow has external entity, returns failover version of corresponding row in EntityActiveRegion lookup table.
-	FailoverVersionOfNewWorkflow(ctx context.Context, req *types.HistoryStartWorkflowExecutionRequest) (int64, error)
+	LookupNewWorkflow(ctx context.Context, domainID string, policy *types.ActiveClusterSelectionPolicy) (*LookupResult, error)
 
 	// LookupWorkflow returns active cluster, region and failover version of given workflow.
 	// Returns the info from domain entry for local and active-passive domains

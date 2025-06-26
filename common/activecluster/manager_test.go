@@ -29,6 +29,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
@@ -424,7 +425,7 @@ func TestClusterNameForFailoverVersion(t *testing.T) {
 	}
 }
 
-func TestFailoverVersionOfNewWorkflow(t *testing.T) {
+func TestLookupNewWorkflow(t *testing.T) {
 	metricsCl := metrics.NewNoopMetricsClient()
 	logger := log.NewNoop()
 	clusterMetadata := cluster.NewMetadata(
@@ -457,52 +458,26 @@ func TestFailoverVersionOfNewWorkflow(t *testing.T) {
 
 	tests := []struct {
 		name                    string
-		req                     *types.HistoryStartWorkflowExecutionRequest
+		policy                  *types.ActiveClusterSelectionPolicy
 		externalEntityProviders func(ctrl *gomock.Controller) []ExternalEntityProvider
 		activeClusterCfg        *types.ActiveClusters
-		expectedFailoverVersion int64
+		expectedResult          *LookupResult
 		expectedError           string
 	}{
 		{
-			name:          "start request nil",
-			req:           nil,
-			expectedError: "request is nil",
-		},
-		{
-			name: "not active-active domain, returns failover version of the domain",
-			req: &types.HistoryStartWorkflowExecutionRequest{
-				DomainUUID: "test-domain-id",
+			name:             "not active-active domain, returns failover version of the domain",
+			activeClusterCfg: nil, // not active-active domain
+			expectedResult: &LookupResult{
+				ClusterName:     "cluster0",
+				FailoverVersion: 1,
 			},
-			activeClusterCfg:        nil, // not active-active domain
-			expectedFailoverVersion: 1,
-		},
-		{
-			name: "active-active domain, start request nil",
-			req: &types.HistoryStartWorkflowExecutionRequest{
-				DomainUUID:   "test-domain-id",
-				StartRequest: nil,
-			},
-			activeClusterCfg: &types.ActiveClusters{
-				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-					"us-west": {
-						ActiveClusterName: "cluster0",
-						FailoverVersion:   1,
-					},
-				},
-			},
-			expectedError: "start request is nil",
 		},
 		{
 			name: "active-active domain, policy has external entity but corresponding provider is missing",
-			req: &types.HistoryStartWorkflowExecutionRequest{
-				DomainUUID: "test-domain-id",
-				StartRequest: &types.StartWorkflowExecutionRequest{
-					ActiveClusterSelectionPolicy: &types.ActiveClusterSelectionPolicy{
-						ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyExternalEntity.Ptr(),
-						ExternalEntityType:             "city",
-						ExternalEntityKey:              "seattle",
-					},
-				},
+			policy: &types.ActiveClusterSelectionPolicy{
+				ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyExternalEntity.Ptr(),
+				ExternalEntityType:             "city",
+				ExternalEntityKey:              "seattle",
 			},
 			activeClusterCfg: &types.ActiveClusters{
 				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
@@ -516,15 +491,10 @@ func TestFailoverVersionOfNewWorkflow(t *testing.T) {
 		},
 		{
 			name: "active-active domain, policy has external entity. successfully get failover version from external entity",
-			req: &types.HistoryStartWorkflowExecutionRequest{
-				DomainUUID: "test-domain-id",
-				StartRequest: &types.StartWorkflowExecutionRequest{
-					ActiveClusterSelectionPolicy: &types.ActiveClusterSelectionPolicy{
-						ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyExternalEntity.Ptr(),
-						ExternalEntityType:             "city",
-						ExternalEntityKey:              "seattle",
-					},
-				},
+			policy: &types.ActiveClusterSelectionPolicy{
+				ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyExternalEntity.Ptr(),
+				ExternalEntityType:             "city",
+				ExternalEntityKey:              "seattle",
 			},
 			activeClusterCfg: &types.ActiveClusters{
 				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
@@ -538,20 +508,18 @@ func TestFailoverVersionOfNewWorkflow(t *testing.T) {
 				externalEntityProvider := NewMockExternalEntityProvider(ctrl)
 				externalEntityProvider.EXPECT().SupportedType().Return("city").AnyTimes()
 				externalEntityProvider.EXPECT().GetExternalEntity(gomock.Any(), "seattle").Return(&ExternalEntity{
-					FailoverVersion: 7,
+					FailoverVersion: 101,
 				}, nil)
 				return []ExternalEntityProvider{externalEntityProvider}
 			},
-			expectedFailoverVersion: 7,
+			expectedResult: &LookupResult{
+				ClusterName:     "cluster0",
+				FailoverVersion: 101,
+			},
 		},
 		{
-			name: "active-active domain, policy is nil. returns failover version of the active cluster in current region",
-			req: &types.HistoryStartWorkflowExecutionRequest{
-				DomainUUID: "test-domain-id",
-				StartRequest: &types.StartWorkflowExecutionRequest{
-					ActiveClusterSelectionPolicy: nil,
-				},
-			},
+			name:   "active-active domain, policy is nil. returns failover version of the active cluster in current region",
+			policy: nil,
 			activeClusterCfg: &types.ActiveClusters{
 				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
 					"us-west": {
@@ -564,18 +532,16 @@ func TestFailoverVersionOfNewWorkflow(t *testing.T) {
 					},
 				},
 			},
-			expectedFailoverVersion: 20, // failover version of cluster0 in RegionToClusterMap
+			expectedResult: &LookupResult{
+				ClusterName:     "cluster0",
+				FailoverVersion: 20, // failover version of cluster0 in RegionToClusterMap
+			},
 		},
 		{
 			name: "active-active domain, policy is region sticky but region is missing in domain's active cluster config",
-			req: &types.HistoryStartWorkflowExecutionRequest{
-				DomainUUID: "test-domain-id",
-				StartRequest: &types.StartWorkflowExecutionRequest{
-					ActiveClusterSelectionPolicy: &types.ActiveClusterSelectionPolicy{
-						ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
-						StickyRegion:                   "us-west",
-					},
-				},
+			policy: &types.ActiveClusterSelectionPolicy{
+				ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
+				StickyRegion:                   "us-west",
 			},
 			activeClusterCfg: &types.ActiveClusters{
 				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
@@ -590,14 +556,9 @@ func TestFailoverVersionOfNewWorkflow(t *testing.T) {
 		},
 		{
 			name: "active-active domain, policy is region sticky. returns failover version of the active cluster in sticky region",
-			req: &types.HistoryStartWorkflowExecutionRequest{
-				DomainUUID: "test-domain-id",
-				StartRequest: &types.StartWorkflowExecutionRequest{
-					ActiveClusterSelectionPolicy: &types.ActiveClusterSelectionPolicy{
-						ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
-						StickyRegion:                   "us-west",
-					},
-				},
+			policy: &types.ActiveClusterSelectionPolicy{
+				ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
+				StickyRegion:                   "us-west",
 			},
 			activeClusterCfg: &types.ActiveClusters{
 				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
@@ -611,7 +572,10 @@ func TestFailoverVersionOfNewWorkflow(t *testing.T) {
 					},
 				},
 			},
-			expectedFailoverVersion: 20, // failover version of cluster0 in RegionToClusterMap
+			expectedResult: &LookupResult{
+				ClusterName:     "cluster0",
+				FailoverVersion: 20, // failover version of cluster0 in RegionToClusterMap
+			},
 		},
 	}
 
@@ -639,14 +603,15 @@ func TestFailoverVersionOfNewWorkflow(t *testing.T) {
 			)
 			assert.NoError(t, err)
 
-			result, err := mgr.FailoverVersionOfNewWorkflow(context.Background(), tc.req)
+			result, err := mgr.LookupNewWorkflow(context.Background(), "test-domain-id", tc.policy)
 			if tc.expectedError != "" {
 				assert.EqualError(t, err, tc.expectedError)
 			} else {
 				assert.NoError(t, err)
 			}
-			if result != tc.expectedFailoverVersion {
-				t.Fatalf("expected failover version %v, got %v", tc.expectedFailoverVersion, result)
+
+			if diff := cmp.Diff(tc.expectedResult, result); diff != "" {
+				t.Fatalf("expected result mismatch: %v", diff)
 			}
 		})
 	}
