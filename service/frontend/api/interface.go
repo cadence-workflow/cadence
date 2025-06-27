@@ -31,7 +31,7 @@ package api
 
 import (
 	"context"
-
+    "go.uber.org/yarpc"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -84,5 +84,7 @@ type (
 		StartWorkflowExecutionAsync(context.Context, *types.StartWorkflowExecutionAsyncRequest) (*types.StartWorkflowExecutionAsyncResponse, error)
 		TerminateWorkflowExecution(context.Context, *types.TerminateWorkflowExecutionRequest) error
 		UpdateDomain(context.Context, *types.UpdateDomainRequest) (*types.UpdateDomainResponse, error)
+		StartDomainDiagnosisWorkflow(context.Context, *types.StartDomainDiagnosisWorkflowRequest, ...yarpc.CallOption) (*types.StartDomainDiagnosisWorkflowResponse, error)
+		FetchDomainDiagnosisActivity(context.Context, *types.FetchDomainDiagnosisActivityRequest, ...yarpc.CallOption) (*types.FetchDomainDiagnosisActivityResponse, error)
 	}
 )
