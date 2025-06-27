@@ -20,7 +20,6 @@ dockerFileSuffix="${4:-}"
 testName="test-$testCase-$timestamp"
 resultFolder="replication-simulator-output"
 mkdir -p "$resultFolder"
-eventLogsFile="$resultFolder/$testName-events.json"
 testSummaryFile="$resultFolder/$testName-summary.txt"
 
 # Prune everything and rebuild images unless rerun is specified
@@ -62,10 +61,7 @@ SCENARIO=$testCase DOCKERFILE_SUFFIX=$dockerFileSuffix docker compose \
   run \
   -e REPLICATION_SIMULATION_CONFIG=$testCfg \
   --rm --remove-orphans --service-ports --use-aliases \
-  replication-simulator \
-  | grep -a --line-buffered "Replication New Event" \
-  | sed "s/Replication New Event: //" \
-  | jq . > "$eventLogsFile"
+  replication-simulator
 
 
 echo "---- Simulation Summary ----"
