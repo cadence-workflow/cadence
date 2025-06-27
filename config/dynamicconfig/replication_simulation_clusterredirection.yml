@@ -1,0 +1,16 @@
+# This file is used as dynamicconfig override for "default" replication simulation scenario configured via host/testdata/replication_simulation_default.yaml
+system.writeVisibilityStoreName:
+  - value: "db"
+system.readVisibilityStoreName:
+  - value: "db"
+history.replicatorTaskBatchSize:
+  - value: 25
+    constraints: {}
+frontend.failoverCoolDown:
+  - value: 5s
+history.ReplicationTaskProcessorStartWait: # default is 5s. repl task processor sleeps this much before processing received messages.
+  - value: 10ms
+history.EnableConsistentQueryByDomain:
+  - value: true
+history.EnableConsistentQuery:
+  - value: true

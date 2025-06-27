@@ -46,7 +46,7 @@ services:
   cadence-cluster0:
     build:
       context: ../../
-      dockerfile: ./Dockerfile
+      dockerfile: ./Dockerfile${DOCKERFILE_SUFFIX}
       args:
         TARGET: auto-setup
     command:
@@ -93,7 +93,7 @@ services:
   cadence-cluster1:
     build:
       context: ../../
-      dockerfile: ./Dockerfile
+      dockerfile: ./Dockerfile${DOCKERFILE_SUFFIX}
       args:
         TARGET: auto-setup
     command:
@@ -157,7 +157,7 @@ services:
   cadence-worker0:
     build:
       context: ../../
-      dockerfile: ./docker/buildkite/Dockerfile
+      dockerfile: ./docker/buildkite/Dockerfile${DOCKERFILE_SUFFIX}
     working_dir: /cadence/simulation/replication/worker/cmd
     command:
       - /bin/sh
@@ -190,7 +190,7 @@ services:
   cadence-worker1:
     build:
       context: ../../
-      dockerfile: ./docker/buildkite/Dockerfile
+      dockerfile: ./docker/buildkite/Dockerfile${DOCKERFILE_SUFFIX}
     working_dir: /cadence/simulation/replication/worker/cmd
     command:
       - /bin/sh
@@ -223,7 +223,7 @@ services:
   replication-simulator:
     build:
       context: ../../
-      dockerfile: ./docker/buildkite/Dockerfile
+      dockerfile: ./docker/buildkite/Dockerfile${DOCKERFILE_SUFFIX}
     command:
       - /bin/sh
       - -e

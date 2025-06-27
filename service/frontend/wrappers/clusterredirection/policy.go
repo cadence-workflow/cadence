@@ -273,6 +273,7 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) withRedirect(
 ) error {
 	targetDC, enableDomainNotActiveForwarding := policy.getTargetClusterAndIsDomainNotActiveAutoForwarding(ctx, domainEntry, apiName, requestedConsistencyLevel)
 
+	policy.logger.Debugf("Calling API %q on target cluster:%q for domain:%q", apiName, targetDC, domainEntry.GetInfo().Name)
 	err := call(targetDC)
 
 	targetDC, ok := policy.isDomainNotActiveError(err)

@@ -37,6 +37,7 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"reflect"
 	"sort"
 	"strings"
 	"testing"
@@ -95,6 +96,10 @@ func TestReplicationSimulation(t *testing.T) {
 			err = changeActiveClusters(t, op, simCfg)
 		case simTypes.ReplicationSimulationOperationValidate:
 			err = validate(t, op, simCfg)
+		case simTypes.ReplicationSimulationOperationQueryWorkflow:
+			err = queryWorkflow(t, op, simCfg)
+		case simTypes.ReplicationSimulationOperationSignalWithStartWorkflow:
+			err = signalWithStartWorkflow(t, op, simCfg)
 		default:
 			require.Failf(t, "unknown operation type", "operation type: %s", op.Type)
 		}
@@ -140,6 +145,7 @@ func startWorkflow(
 			ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(int32((op.WorkflowExecutionStartToCloseTimeout).Seconds())),
 			TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(5),
 			Input:                               mustJSON(t, &simTypes.WorkflowInput{Duration: op.WorkflowDuration, ActivityCount: op.ActivityCount}),
+			WorkflowIDReusePolicy:               types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
 		})
 
 	if err != nil {
@@ -267,6 +273,78 @@ func changeActiveClusters(
 
 		simTypes.Logf(t, "Failed over from %+v to %+v", descResp.ReplicationConfiguration.ActiveClusters, ac)
 	}
+	return nil
+}
+
+func queryWorkflow(t *testing.T, op *simTypes.Operation, simCfg *simTypes.ReplicationSimulationConfig) error {
+	t.Helper()
+
+	simTypes.Logf(t, "Querying workflow: %s on domain %s on cluster: %s", op.WorkflowID, op.Domain, op.Cluster)
+
+	frontendCl := simCfg.MustGetFrontendClient(t, op.Cluster)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	consistencyLevel := types.QueryConsistencyLevelEventual.Ptr()
+	if op.ConsistencyLevel == "strong" {
+		consistencyLevel = types.QueryConsistencyLevelStrong.Ptr()
+	}
+
+	queryResp, err := frontendCl.QueryWorkflow(ctx, &types.QueryWorkflowRequest{
+		Domain: op.Domain,
+		Execution: &types.WorkflowExecution{
+			WorkflowID: op.WorkflowID,
+		},
+		Query: &types.WorkflowQuery{
+			QueryType: op.Query,
+		},
+		QueryConsistencyLevel: consistencyLevel,
+	})
+	if err != nil {
+		return err
+	}
+
+	got := mustParseJSON(t, queryResp.GetQueryResult())
+	want := op.Want.QueryResult
+	if !reflect.DeepEqual(want, got) {
+		return fmt.Errorf("query result mismatch. want: %v (type: %T), got: %v (type: %T)", want, want, got, got)
+	}
+
+	simTypes.Logf(t, "Query workflow: %s on domain: %s on cluster: %s. Query result: %v", op.WorkflowID, op.Domain, op.Cluster, got)
+
+	return nil
+}
+
+func signalWithStartWorkflow(
+	t *testing.T,
+	op *simTypes.Operation,
+	simCfg *simTypes.ReplicationSimulationConfig,
+) error {
+	t.Helper()
+	simTypes.Logf(t, "SignalWithStart workflow: %s on domain %s on cluster: %s", op.WorkflowID, op.Domain, op.Cluster)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	frontendCl := simCfg.MustGetFrontendClient(t, op.Cluster)
+
+	signalResp, err := frontendCl.SignalWithStartWorkflowExecution(ctx, &types.SignalWithStartWorkflowExecutionRequest{
+		RequestID:                           uuid.New(),
+		Domain:                              op.Domain,
+		WorkflowID:                          op.WorkflowID,
+		WorkflowIDReusePolicy:               types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
+		WorkflowType:                        &types.WorkflowType{Name: op.WorkflowType},
+		SignalName:                          op.SignalName,
+		SignalInput:                         mustJSON(t, op.SignalInput),
+		TaskList:                            &types.TaskList{Name: simTypes.TasklistName},
+		ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(int32((op.WorkflowExecutionStartToCloseTimeout).Seconds())),
+		TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(5),
+		Input:                               mustJSON(t, &simTypes.WorkflowInput{Duration: op.WorkflowDuration, ActivityCount: op.ActivityCount}),
+	})
+	if err != nil {
+		return err
+	}
+
+	simTypes.Logf(t, "SignalWithStart workflow: %s on domain %s on cluster: %s. RunID: %s", op.WorkflowID, op.Domain, op.Cluster, signalResp.GetRunID())
 	return nil
 }
 
@@ -431,6 +509,13 @@ func getAllHistory(t *testing.T, simCfg *simTypes.ReplicationSimulationConfig, c
 		nextPageToken = response.NextPageToken
 		time.Sleep(10 * time.Millisecond) // sleep to avoid throttling
 	}
+}
+
+func mustParseJSON(t *testing.T, v []byte) any {
+	var result interface{}
+	err := json.Unmarshal(v, &result)
+	require.NoError(t, err, "failed to unmarshal from json")
+	return result
 }
 
 func mustJSON(t *testing.T, v interface{}) []byte {

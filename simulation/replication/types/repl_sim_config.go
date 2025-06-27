@@ -35,7 +35,6 @@ import (
 	"go.uber.org/yarpc/transport/grpc"
 	"gopkg.in/yaml.v2"
 
-	"github.com/uber/cadence/.gen/go/shared"
 	"github.com/uber/cadence/client/admin"
 	"github.com/uber/cadence/client/frontend"
 	grpcClient "github.com/uber/cadence/client/wrappers/grpc"
@@ -45,10 +44,12 @@ import (
 type ReplicationSimulationOperation string
 
 const (
-	ReplicationSimulationOperationStartWorkflow        ReplicationSimulationOperation = "start_workflow"
-	ReplicationSimulationOperationResetWorkflow        ReplicationSimulationOperation = "reset_workflow"
-	ReplicationSimulationOperationChangeActiveClusters ReplicationSimulationOperation = "change_active_clusters"
-	ReplicationSimulationOperationValidate             ReplicationSimulationOperation = "validate"
+	ReplicationSimulationOperationStartWorkflow           ReplicationSimulationOperation = "start_workflow"
+	ReplicationSimulationOperationResetWorkflow           ReplicationSimulationOperation = "reset_workflow"
+	ReplicationSimulationOperationChangeActiveClusters    ReplicationSimulationOperation = "change_active_clusters"
+	ReplicationSimulationOperationValidate                ReplicationSimulationOperation = "validate"
+	ReplicationSimulationOperationQueryWorkflow           ReplicationSimulationOperation = "query_workflow"
+	ReplicationSimulationOperationSignalWithStartWorkflow ReplicationSimulationOperation = "signal_with_start_workflow"
 )
 
 type ReplicationSimulationConfig struct {
@@ -80,6 +81,12 @@ type Operation struct {
 	WorkflowDuration                     time.Duration `yaml:"workflowDuration"`
 	ActivityCount                        int           `yaml:"activityCount"`
 
+	Query            string `yaml:"query"`
+	ConsistencyLevel string `yaml:"consistencyLevel"`
+
+	SignalName  string `yaml:"signalName"`
+	SignalInput any    `yaml:"signalInput"`
+
 	EventID int64 `yaml:"eventID"`
 
 	Domain                    string            `yaml:"domain"`
@@ -95,6 +102,7 @@ type Validation struct {
 	StartedByWorkersInCluster   string `yaml:"startedByWorkersInCluster"`
 	CompletedByWorkersInCluster string `yaml:"completedByWorkersInCluster"`
 	Error                       string `yaml:"error"`
+	QueryResult                 any    `yaml:"queryResult"`
 }
 
 type Cluster struct {
@@ -194,7 +202,7 @@ func (s *ReplicationSimulationConfig) MustRegisterDomain(t *testing.T, domainNam
 	err := s.MustGetFrontendClient(t, s.PrimaryCluster).RegisterDomain(ctx, req)
 
 	if err != nil {
-		if _, ok := err.(*shared.DomainAlreadyExistsError); !ok {
+		if _, ok := err.(*types.DomainAlreadyExistsError); !ok {
 			require.NoError(t, err, "failed to register domain")
 		} else {
 			Logf(t, "Domains already exists: %s", domainName)
