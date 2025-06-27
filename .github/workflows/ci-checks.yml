@@ -107,6 +107,45 @@ jobs:
           name: go-cassandra-integration-coverage
           path: .build/coverage/*.out
 
+  golang-integration-test-with-cassandra-running-history-queue-v2:
+    name: Golang integration test with running history queue v2
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Setup Go environment
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.4'
+
+      - name: Run integration profile for cassandra running history queue v2 (PR)
+        if: github.event_name == 'pull_request'
+        uses: nick-fields/retry@v3
+        with:
+          max_attempts: 2
+          timeout_minutes: 30
+          command: |
+            docker compose -f docker/github_actions/docker-compose.yml run integration-test-cassandra-queue-v2 bash -c "make .just-build && make cover_integration_profile"
+
+      - name: Run integration profile for cassandra running history queue v2 (push)
+        if: github.event_name == 'push'
+        uses: nick-fields/retry@v3
+        with:
+          max_attempts: 2
+          timeout_minutes: 30
+          command: |
+            docker compose -f docker/github_actions/docker-compose.yml run integration-test-cassandra-queue-v2 bash -c "make cover_integration_profile"
+
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-cassandra-running-history-queue-v2-integration-coverage
+          path: .build/coverage/*.out
+
 
   golang-integration-test-with-cassandra-and-elasticsearch-v7:
     name: Golang integration test with cassandra and elasticsearch v7
@@ -381,7 +420,6 @@ jobs:
   golang-integration-test-with-sqlite:
     name: Golang integration test with sqlite
     runs-on: ubuntu-latest
-    continue-on-error: true
 
     steps:
       - name: Checkout
@@ -394,17 +432,7 @@ jobs:
         with:
           go-version: '1.23.4'
 
-      - name: Run integration profile for sqlite (PR)
-        if: github.event_name == 'pull_request'
-        uses: nick-fields/retry@v3
-        with:
-          max_attempts: 2
-          timeout_minutes: 30
-          command: |
-            docker compose -f docker/github_actions/docker-compose.yml run integration-test-sqlite bash -c "make .just-build && make cover_integration_profile"
-
-      - name: Run integration profile for sqlite (push)
-        if: github.event_name == 'push'
+      - name: Run integration profile for sqlite
         uses: nick-fields/retry@v3
         with:
           max_attempts: 2
