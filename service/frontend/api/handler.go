@@ -1835,7 +1835,7 @@ func (wh *WorkflowHandler) GetWorkflowExecutionHistory(
 	}
 
 	domainName := getRequest.GetDomain()
-	wfExecution := getRequest.GetExecution()
+	wfExecution := getRequest.GetWorkflowExecution()
 
 	if domainName == "" {
 		return nil, validate.ErrDomainNotSet
@@ -3135,7 +3135,7 @@ func (wh *WorkflowHandler) checkOngoingFailover(
 }
 
 func (wh *WorkflowHandler) historyArchived(ctx context.Context, request *types.GetWorkflowExecutionHistoryRequest, domainID string) bool {
-	if request.GetExecution() == nil || request.GetExecution().GetRunID() == "" {
+	if request.GetWorkflowExecution() == nil || request.GetWorkflowExecution().GetRunID() == "" {
 		return false
 	}
 	getMutableStateRequest := &types.GetMutableStateRequest{
@@ -3184,8 +3184,8 @@ func (wh *WorkflowHandler) getArchivedHistory(
 
 	resp, err := historyArchiver.Get(ctx, URI, &archiver.GetHistoryRequest{
 		DomainID:      domainID,
-		WorkflowID:    request.GetExecution().GetWorkflowID(),
-		RunID:         request.GetExecution().GetRunID(),
+		WorkflowID:    request.GetWorkflowExecution().GetWorkflowID(),
+		RunID:         request.GetWorkflowExecution().GetRunID(),
 		NextPageToken: request.GetNextPageToken(),
 		PageSize:      int(request.GetMaximumPageSize()),
 	})

@@ -164,8 +164,8 @@ func toGetTaskListsByDomainRequestTags(req *types.GetTaskListsByDomainRequest) [
 func toGetWorkflowExecutionHistoryRequestTags(req *types.GetWorkflowExecutionHistoryRequest) []tag.Tag {
 	return []tag.Tag{
 		tag.WorkflowDomainName(req.GetDomain()),
-		tag.WorkflowID(req.GetExecution().GetWorkflowID()),
-		tag.WorkflowRunID(req.GetExecution().GetRunID()),
+		tag.WorkflowID(req.GetWorkflowExecution().GetWorkflowID()),
+		tag.WorkflowRunID(req.GetWorkflowExecution().GetRunID()),
 	}
 }
 

@@ -2736,7 +2736,7 @@ func (v *GetWorkflowExecutionHistoryRequest) GetDomain() (o string) {
 }
 
 // GetExecution is an internal getter (TBD...)
-func (v *GetWorkflowExecutionHistoryRequest) GetExecution() (o *WorkflowExecution) {
+func (v *GetWorkflowExecutionHistoryRequest) GetWorkflowExecution() (o *WorkflowExecution) {
 	if v != nil && v.Execution != nil {
 		return v.Execution
 	}

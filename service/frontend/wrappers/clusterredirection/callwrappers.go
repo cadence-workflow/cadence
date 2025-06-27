@@ -25,6 +25,7 @@ package clusterredirection
 import (
 	"time"
 
+	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -46,17 +47,14 @@ func (handler *clusterRedirectionHandler) afterCall(
 	recovered interface{},
 	scope metrics.Scope,
 	startTime time.Time,
-	domainName string,
-	domainID string,
+	domainEntry *cache.DomainCacheEntry,
 	cluster string,
 	retError *error,
 ) {
 	var extraTags []tag.Tag
-	if domainName != "" {
-		extraTags = append(extraTags, tag.WorkflowDomainName(domainName))
-	}
-	if domainID != "" {
-		extraTags = append(extraTags, tag.WorkflowDomainID(domainID))
+	if domainEntry != nil {
+		extraTags = append(extraTags, tag.WorkflowDomainName(domainEntry.GetInfo().Name))
+		extraTags = append(extraTags, tag.WorkflowDomainID(domainEntry.GetInfo().ID))
 	}
 	log.CapturePanic(recovered, handler.GetLogger().WithTags(extraTags...), retError)
 
@@ -66,12 +64,4 @@ func (handler *clusterRedirectionHandler) afterCall(
 	if *retError != nil {
 		scope.IncCounter(metrics.CadenceDcRedirectionClientFailures)
 	}
-}
-
-// noopdomainIDGetter is a domainIDGetter that always returns empty string.
-// it is used for extraction of domainID from domainIDGetter in case of token extraction failure.
-type noopdomainIDGetter struct{}
-
-func (noopdomainIDGetter) GetDomainID() string {
-	return ""
 }
