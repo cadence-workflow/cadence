@@ -17,7 +17,7 @@ domains:
     activeClusterName: cluster0
 
 operations:
-  # Start wf1 in cluster0 will be handled by cluster0
+  # Start wf1 in cluster1 will be handled by cluster0 (active cluster)
   - op: start_workflow
     at: 0s
     workflowType: query-workflow
