@@ -25,3 +25,9 @@ jobs:
           timeout_minutes: 30
           command: |
             ./simulation/replication/run.sh clusterredirection
+
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          path: |
+            ./test.log
