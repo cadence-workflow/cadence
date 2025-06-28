@@ -79,6 +79,7 @@ const (
 		`event_store_version: ?, ` +
 		`branch_token: ?, ` +
 		`cron_schedule: ?, ` +
+		`cron_overlap_policy: ?, ` +
 		`expiration_seconds: ?, ` +
 		`search_attributes: ?, ` +
 		`memo: ?, ` +

@@ -822,6 +822,7 @@ func constructSignalWithStartWorkflowRequest(c *cli.Context) (*types.SignalWithS
 		WorkflowIDReusePolicy:               startRequest.WorkflowIDReusePolicy,
 		RetryPolicy:                         startRequest.RetryPolicy,
 		CronSchedule:                        startRequest.CronSchedule,
+		CronOverlapPolicy:                   startRequest.CronOverlapPolicy,
 		Memo:                                startRequest.Memo,
 		SearchAttributes:                    startRequest.SearchAttributes,
 		Header:                              startRequest.Header,
