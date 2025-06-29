@@ -200,7 +200,9 @@ func NewClient(
 }
 
 func (c *OS2) IsNotFoundError(err error) bool {
-	var clientErr *osError
+
+	fmt.Printf("received error struct : %+v\n", err)
+	var clientErr *opensearch.StructError
 	if errors.As(err, &clientErr) {
 		return clientErr.Status == http.StatusNotFound
 	}
