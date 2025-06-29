@@ -265,6 +265,7 @@ func (c *OS2) Scroll(ctx context.Context, index, body, scrollID string) (*client
 	var scrollResp *osapi.ScrollGetResp
 	var searchResp *osapi.SearchResp
 	var osResponse response
+	var respBody io.ReadCloser
 	var searchErr error
 	// handle scroll id get call
 	if len(scrollID) != 0 {
@@ -275,13 +276,14 @@ func (c *OS2) Scroll(ctx context.Context, index, body, scrollID string) (*client
 				// do not set scroll ID here as it will be added to the params and scroll ID can be excessively long
 			},
 		})
-		bodyBytes, err := io.ReadAll(scrollResp.Inspect().Response.Body)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read search response body")
+		if searchErr != nil {
+			return nil, fmt.Errorf("opensearch scroll search error: %w", searchErr)
 		}
-		if err := c.decoder.Decode(bytes.NewReader(bodyBytes), &osResponse); err != nil {
-			return nil, fmt.Errorf("decoding OpenSearch scroll response to Response: %w", err)
+		if scrollResp.Inspect().Response == nil {
+			return nil, fmt.Errorf("OpenSearch scroll search response nil")
 		}
+		respBody = scrollResp.Inspect().Response.Body
+
 	} else {
 		// when scrollID is not passed, it is normal search request
 		searchResp, searchErr = c.client.Search(ctx, &osapi.SearchReq{
@@ -291,17 +293,21 @@ func (c *OS2) Scroll(ctx context.Context, index, body, scrollID string) (*client
 				Scroll: time.Minute,
 			},
 		})
-		bodyBytes, err := io.ReadAll(searchResp.Inspect().Response.Body)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read search response body")
+		if searchErr != nil {
+			return nil, fmt.Errorf("opensearch scroll search error: %w", searchErr)
 		}
-		if err := c.decoder.Decode(bytes.NewReader(bodyBytes), &osResponse); err != nil {
-			return nil, fmt.Errorf("decoding OpenSearch scroll response to Response: %w", err)
+		if searchResp.Inspect().Response == nil {
+			return nil, fmt.Errorf("OpenSearch scroll search response nil")
 		}
+		respBody = searchResp.Inspect().Response.Body
 	}
 
-	if searchErr != nil {
-		return nil, fmt.Errorf("opensearch scroll search error: %w", searchErr)
+	bodyBytes, err := io.ReadAll(respBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read scroll search response body: %w", err)
+	}
+	if err := c.decoder.Decode(bytes.NewReader(bodyBytes), &osResponse); err != nil && !errors.Is(err, io.EOF) {
+		return nil, fmt.Errorf("decoding OpenSearch scroll response to Response: %w", err)
 	}
 
 	var totalHits int64
@@ -341,15 +347,17 @@ func (c *OS2) Search(ctx context.Context, index, body string) (*client.Response,
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("OpenSearch Search: %w", err)
+		return nil, fmt.Errorf("OpenSearch Search error: %w", err)
 	}
-
 	if resp.Inspect().Response == nil {
 		return nil, fmt.Errorf("OpenSearch search response nil")
 	}
 	var osResponse response
 	bodyBytes, err := io.ReadAll(resp.Inspect().Response.Body)
-	if err := c.decoder.Decode(bytes.NewReader(bodyBytes), &osResponse); err != nil {
+	if err != nil {
+		return nil, fmt.Errorf("failed to read OpenSearch scroll search response body: %w", err)
+	}
+	if err := c.decoder.Decode(bytes.NewReader(bodyBytes), &osResponse); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("decoding Opensearch result to Response: %w", err)
 	}
 	var hits []*client.SearchHit
