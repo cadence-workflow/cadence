@@ -289,6 +289,19 @@ func TestIsNotFoundError(t *testing.T) {
 			}),
 			expected: false,
 		},
+		{
+			name: "NotFound error",
+			handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusNotFound)
+				json.NewEncoder(w).Encode(map[string]interface{}{
+					"error": map[string]interface{}{
+						"type": "index_not_found_exception",
+					},
+					"status": 404,
+				})
+			}),
+			expected: true,
+		},
 	}
 
 	for _, tc := range testCases {
