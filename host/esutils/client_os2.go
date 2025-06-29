@@ -72,7 +72,7 @@ func (os2 *os2Client) PutIndexTemplate(t *testing.T, templateConfigFile, templat
 	defer cancel()
 	resp, err := os2.client.IndexTemplate.Create(ctx, req)
 	require.NoError(t, err)
-	require.True(t, resp.Acknowledged, fmt.Sprintf("OS2 put index template unacknowledged: %s", resp.Inspect().Response.Body))
+	require.Truef(t, resp.Acknowledged, "OS2 put index template unacknowledged: %s", resp.Inspect().Response.Body)
 }
 
 func (os2 *os2Client) CreateIndex(t *testing.T, indexName string) {
@@ -94,7 +94,7 @@ func (os2 *os2Client) CreateIndex(t *testing.T, indexName string) {
 		defer cancel()
 		resp, err := os2.client.Indices.Delete(ctx, deleteReq)
 		require.Nil(t, err)
-		require.True(t, resp.Acknowledged, fmt.Sprintf("OS2 delete index unacknowledged: %s", resp.Inspect().Response.Body))
+		require.Truef(t, resp.Acknowledged, "OS2 delete index unacknowledged: %s", resp.Inspect().Response.Body)
 	}
 
 	resp.Body.Close()
@@ -107,7 +107,7 @@ func (os2 *os2Client) CreateIndex(t *testing.T, indexName string) {
 	defer cancel()
 	createResp, err := os2.client.Indices.Create(ctx, createReq)
 	require.NoError(t, err)
-	require.True(t, createResp.Acknowledged, fmt.Sprintf("OS2 create index unacknowledged: %s", createResp.Inspect().Response.Body))
+	require.Truef(t, createResp.Acknowledged, "OS2 create index unacknowledged: %s", createResp.Inspect().Response.Body)
 }
 
 func (os2 *os2Client) DeleteIndex(t *testing.T, indexName string) {
@@ -132,7 +132,7 @@ func (os2 *os2Client) PutMaxResultWindow(t *testing.T, indexName string, maxResu
 	defer cancel()
 	resp, err := os2.client.Indices.Settings.Put(ctx, req)
 	require.NoError(t, err)
-	require.True(t, resp.Acknowledged, fmt.Sprintf("OS2 put index settings unacknowledged: %s", resp.Inspect().Response.Body))
+	require.Truef(t, resp.Acknowledged, "OS2 put index settings unacknowledged: %s", resp.Inspect().Response.Body)
 
 	return nil
 }
@@ -153,28 +153,17 @@ func (os2 *os2Client) GetMaxResultWindow(t *testing.T, indexName string) (string
 		return "", fmt.Errorf("no settings for index %q", indexName)
 	}
 
-	var settingsData map[string]interface{}
-	err = json.Unmarshal(indexSettings.Settings, &settingsData)
+	type indexSettingsData struct {
+		Index struct {
+			Window any `json:"max_result_window"`
+		} `json:"index"`
+	}
+	var out indexSettingsData
+	err = json.Unmarshal(indexSettings.Settings, &out)
 	require.NoError(t, err)
 
-	// Navigate into settings.index.max_result_window
-	indexObj, ok := settingsData["index"].(map[string]interface{})
-	if !ok {
-		return "", fmt.Errorf("missing or invalid 'index' section")
+	if out.Index.Window == nil {
+		return "", fmt.Errorf("no max_result_window value found in index settings")
 	}
-
-	raw, ok := indexObj["max_result_window"]
-	if !ok || raw == nil {
-		return "", fmt.Errorf("max_result_window not found in index settings")
-	}
-
-	// Handle both string and numeric values
-	switch v := raw.(type) {
-	case string:
-		return v, nil
-	case float64:
-		return fmt.Sprintf("%.0f", v), nil
-	default:
-		return "", fmt.Errorf("unexpected type for max_result_window: %T", v)
-	}
+	return out.Index.Window.(string), nil
 }

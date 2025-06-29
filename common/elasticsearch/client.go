@@ -91,6 +91,7 @@ func (c *ESClient) SearchByQuery(ctx context.Context, request *SearchByQueryRequ
 	if err != nil {
 		return nil, err
 	}
+
 	return c.getListWorkflowExecutionsResponse(searchResult, token, request.PageSize, request.MaxResultWindow, request.Filter)
 }
 
