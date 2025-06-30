@@ -28,6 +28,7 @@ import (
 
 	"github.com/uber-go/tally"
 	"go.uber.org/fx"
+	"go.uber.org/zap"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock/clockfx"
@@ -36,6 +37,7 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig/dynamicconfigfx"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/logfx"
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/membership/membershipfx"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/metrics/metricsfx"
@@ -68,6 +70,10 @@ func Module(serviceName string) fx.Option {
 			}),
 			fx.Provide(func(cfg config.Config) shardDistributorCfg.LeaderElection {
 				return shardDistributorCfg.GetLeaderElectionFromExternal(cfg.LeaderElection)
+			}),
+			// Decorate both logger so all components use proper service name.
+			fx.Decorate(func(z *zap.Logger, l log.Logger) (*zap.Logger, log.Logger) {
+				return z.With(zap.String("service", service.ShardDistributor)), l.WithTags(tag.Service(service.ShardDistributor))
 			}),
 			leaderstore.StoreModule("etcd"),
 

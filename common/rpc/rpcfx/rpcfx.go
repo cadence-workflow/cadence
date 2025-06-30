@@ -26,6 +26,7 @@ import (
 	"fmt"
 
 	"go.uber.org/fx"
+	"go.uber.org/yarpc/api/transport"
 
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
@@ -61,16 +62,23 @@ func paramsBuilder(p paramsBuilderParams) (rpc.Params, error) {
 type factoryParams struct {
 	fx.In
 
-	Logger    log.Logger
-	RPCParams rpc.Params
+	Logger     log.Logger
+	RPCParams  rpc.Params
+	Procedures []transport.Procedure `group:"cadence-rpcfx"`
 
 	Lifecycle fx.Lifecycle
 }
 
 func buildFactory(p factoryParams) rpc.Factory {
 	res := rpc.NewFactory(p.Logger, p.RPCParams)
-	p.Lifecycle.Append(fx.StopHook(rpcStopper(res)))
+	p.Lifecycle.Append(fx.StartStopHook(startDispatcher(res), rpcStopper(res)))
 	return res
+}
+
+func startDispatcher(f rpc.Factory) func() error {
+	return func() error {
+		return f.GetDispatcher().Start()
+	}
 }
 
 func rpcStopper(factory rpc.Factory) func() error {

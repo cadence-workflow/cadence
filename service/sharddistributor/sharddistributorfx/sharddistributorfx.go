@@ -25,14 +25,52 @@ package sharddistributorfx
 import (
 	"go.uber.org/fx"
 
-	"github.com/uber/cadence/service/sharddistributor"
+	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/membership"
+	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/rpc"
+	"github.com/uber/cadence/common/service"
+	"github.com/uber/cadence/service/sharddistributor/handler"
 	"github.com/uber/cadence/service/sharddistributor/leader/election"
 	"github.com/uber/cadence/service/sharddistributor/leader/namespace"
 	"github.com/uber/cadence/service/sharddistributor/leader/process"
+	"github.com/uber/cadence/service/sharddistributor/wrappers/grpc"
+	"github.com/uber/cadence/service/sharddistributor/wrappers/metered"
 )
 
 var Module = fx.Module("sharddistributor",
 	namespace.Module,
 	election.Module,
 	process.Module,
-	fx.Provide(sharddistributor.FXService), fx.Invoke(func(*sharddistributor.Service) {}))
+	fx.Invoke(registerHandlers))
+
+type registerHandlersParams struct {
+	fx.In
+
+	Logger            log.Logger
+	MetricsClient     metrics.Client
+	RPCFactory        rpc.Factory
+	DynamicCollection *dynamicconfig.Collection
+
+	MembershipRings map[string]membership.SingleProvider
+
+	Lifecycle fx.Lifecycle
+}
+
+func registerHandlers(params registerHandlersParams) error {
+	dispatcher := params.RPCFactory.GetDispatcher()
+
+	matchingRing := params.MembershipRings[service.Matching]
+	historyRing := params.MembershipRings[service.History]
+
+	rawHandler := handler.NewHandler(params.Logger, params.MetricsClient, matchingRing, historyRing)
+	wrappedHandler := metered.NewMetricsHandler(rawHandler, params.Logger, params.MetricsClient)
+
+	grpcHandler := grpc.NewGRPCHandler(wrappedHandler)
+	grpcHandler.Register(dispatcher)
+
+	params.Lifecycle.Append(fx.StartStopHook(wrappedHandler.Start, wrappedHandler.Stop))
+
+	return nil
+}

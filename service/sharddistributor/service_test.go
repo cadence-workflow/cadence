@@ -30,18 +30,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
-	"go.uber.org/fx/fxtest"
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/yarpc"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/config"
-	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log/testlogger"
-	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/rpc"
@@ -85,37 +80,4 @@ func TestLegacyServiceStartStop(t *testing.T) {
 	service.Stop()
 	success := common.AwaitWaitGroup(&doneWG, time.Second)
 	assert.True(t, success)
-}
-
-func TestFxServiceStartStop(t *testing.T) {
-	defer goleak.VerifyNone(t)
-
-	testDispatcher := yarpc.NewDispatcher(yarpc.Config{Name: "test"})
-	ctrl := gomock.NewController(t)
-	app := fxtest.New(t,
-		testlogger.Module(t),
-		fx.Provide(
-			func() config.Config { return config.Config{} },
-			func() metrics.Client { return metrics.NewNoopMetricsClient() },
-			func() rpc.Factory {
-				factory := rpc.NewMockFactory(ctrl)
-				factory.EXPECT().GetDispatcher().Return(testDispatcher)
-				return factory
-			},
-			func() *dynamicconfig.Collection {
-				return &dynamicconfig.Collection{}
-			},
-			func() hostResult { return hostResult{} },
-			func() map[string]membership.SingleProvider { return make(map[string]membership.SingleProvider) },
-		),
-		fx.Provide(FXService), fx.Invoke(func(*Service) {}))
-	app.RequireStart().RequireStop()
-	// API should be registered inside dispatcher.
-	assert.True(t, len(testDispatcher.Introspect().Procedures) > 1)
-}
-
-type hostResult struct {
-	fx.Out
-
-	HostName string `name:"hostname"`
 }
