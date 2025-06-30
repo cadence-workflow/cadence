@@ -206,7 +206,6 @@ func (c *OS2) IsNotFoundError(err error) bool {
 	if errors.As(err, &clientErr) {
 		return clientErr.Status == http.StatusNotFound
 	}
-
 	return false
 }
 
