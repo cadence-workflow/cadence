@@ -32,7 +32,7 @@ jobs:
         with:
           go-version: '1.23.4' # version from cadence/docker/buildkite/Dockerfile
       
-      - name: Not rebuilding binaries and not regenerating code and generate coverage metadata
+      - name: Run unit test
         uses: nick-fields/retry@v3
         with:
           max_attempts: 2
@@ -83,23 +83,13 @@ jobs:
         with:
           go-version: '1.23.4'
 
-      - name: Run integration profile for cassandra (PR)
-        if: github.event_name == 'pull_request'
+      - name: Run integration profile for cassandra
         uses: nick-fields/retry@v3
         with:
           max_attempts: 2
           timeout_minutes: 30
           command: |
             docker compose -f docker/github_actions/docker-compose.yml run integration-test-cassandra bash -c "make .just-build && make cover_integration_profile"
-
-      - name: Run integration profile for cassandra (push)
-        if: github.event_name == 'push'
-        uses: nick-fields/retry@v3
-        with:
-          max_attempts: 2
-          timeout_minutes: 30
-          command: |
-            docker compose -f docker/github_actions/docker-compose.yml run integration-test-cassandra bash -c "make cover_integration_profile"
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
@@ -122,23 +112,13 @@ jobs:
         with:
           go-version: '1.23.4'
 
-      - name: Run integration profile for cassandra running history queue v2 (PR)
-        if: github.event_name == 'pull_request'
+      - name: Run integration profile for cassandra running history queue v2
         uses: nick-fields/retry@v3
         with:
           max_attempts: 2
           timeout_minutes: 30
           command: |
             docker compose -f docker/github_actions/docker-compose.yml run integration-test-cassandra-queue-v2 bash -c "make .just-build && make cover_integration_profile"
-
-      - name: Run integration profile for cassandra running history queue v2 (push)
-        if: github.event_name == 'push'
-        uses: nick-fields/retry@v3
-        with:
-          max_attempts: 2
-          timeout_minutes: 30
-          command: |
-            docker compose -f docker/github_actions/docker-compose.yml run integration-test-cassandra-queue-v2 bash -c "make cover_integration_profile"
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
@@ -162,23 +142,13 @@ jobs:
         with:
           go-version: '1.23.4'
 
-      - name: Run integration profile for cassandra and elasticsearch v7 (PR)
-        if: github.event_name == 'pull_request'
+      - name: Run integration profile for cassandra and elasticsearch v7
         uses: nick-fields/retry@v3
         with:
           max_attempts: 2
           timeout_minutes: 30
           command: |
             docker compose -f docker/github_actions/docker-compose-es7.yml run integration-test-cassandra bash -c "make .just-build && make cover_integration_profile"
-
-      - name: Run integration profile for cassandra and elasticsearch v7 (push)
-        if: github.event_name == 'push'
-        uses: nick-fields/retry@v3
-        with:
-          max_attempts: 2
-          timeout_minutes: 30
-          command: |
-            docker compose -f docker/github_actions/docker-compose-es7.yml run integration-test-cassandra bash -c "make cover_integration_profile"
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
@@ -232,23 +202,13 @@ jobs:
         with:
           go-version: '1.23.4'
 
-      - name: Run integration profile for cassandra and opensearch v2 (PR)
-        if: github.event_name == 'pull_request'
+      - name: Run integration profile for cassandra and opensearch v2
         uses: nick-fields/retry@v3
         with:
           max_attempts: 2
           timeout_minutes: 30
           command: |
             docker compose -f docker/github_actions/docker-compose-opensearch2.yml run integration-test-cassandra bash -c "make .just-build && make cover_integration_profile"
-
-      - name: Run integration profile for cassandra and opensearch v2 (push)
-        if: github.event_name == 'push'
-        uses: nick-fields/retry@v3
-        with:
-          max_attempts: 2
-          timeout_minutes: 30
-          command: |
-            docker compose -f docker/github_actions/docker-compose-opensearch2.yml run integration-test-cassandra bash -c "make cover_integration_profile"
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
@@ -272,23 +232,13 @@ jobs:
         with:
           go-version: '1.23.4'
 
-      - name: Run ndc profile for cassandra (PR)
-        if: github.event_name == 'pull_request'
+      - name: Run ndc profile for cassandra
         uses: nick-fields/retry@v3
         with:
           max_attempts: 2
           timeout_minutes: 30
           command: |
             docker compose -f docker/github_actions/docker-compose.yml run integration-test-ndc-cassandra bash -c "make .just-build && make cover_ndc_profile"
-
-      - name: Run ndc profile for cassandra (push)
-        if: github.event_name == 'push'
-        uses: nick-fields/retry@v3
-        with:
-          max_attempts: 2
-          timeout_minutes: 30
-          command: |
-            docker compose -f docker/github_actions/docker-compose.yml run integration-test-ndc-cassandra bash -c "make cover_ndc_profile"
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
@@ -312,23 +262,13 @@ jobs:
         with:
           go-version: '1.23.4'
 
-      - name: Run integration profile for mysql (PR)
-        if: github.event_name == 'pull_request'
+      - name: Run integration profile for mysql
         uses: nick-fields/retry@v3
         with:
           max_attempts: 2
           timeout_minutes: 30
           command: |
             docker compose -f docker/github_actions/docker-compose.yml run integration-test-mysql bash -c "make .just-build && make cover_integration_profile"
-
-      - name: Run integration profile for mysql (push)
-        if: github.event_name == 'push'
-        uses: nick-fields/retry@v3
-        with:
-          max_attempts: 2
-          timeout_minutes: 30
-          command: |
-            docker compose -f docker/github_actions/docker-compose.yml run integration-test-mysql bash -c "make cover_integration_profile"
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
@@ -352,8 +292,7 @@ jobs:
         with:
           go-version: '1.23.4'
 
-      - name: Run ndc profile for mysql (PR)
-        if: github.event_name == 'pull_request'
+      - name: Run ndc profile for mysql
         uses: nick-fields/retry@v3
         with:
           max_attempts: 2
@@ -361,15 +300,6 @@ jobs:
           command: |
             docker compose -f docker/github_actions/docker-compose.yml run integration-test-ndc-mysql bash -c "make .just-build && make cover_ndc_profile"
       
-      - name: Run ndc profile for mysql (push)
-        if: github.event_name == 'push'
-        uses: nick-fields/retry@v3
-        with:
-          max_attempts: 2
-          timeout_minutes: 30
-          command: |
-            docker compose -f docker/github_actions/docker-compose.yml run integration-test-ndc-mysql bash -c "make cover_ndc_profile"
-
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -392,23 +322,13 @@ jobs:
         with:
           go-version: '1.23.4'
 
-      - name: Run integration profile for postgres (PR)
-        if: github.event_name == 'pull_request'
+      - name: Run integration profile for postgres
         uses: nick-fields/retry@v3
         with:
           max_attempts: 2
           timeout_minutes: 30
           command: |
             docker compose -f docker/github_actions/docker-compose.yml run integration-test-postgres bash -c "make .just-build && make cover_integration_profile"
-
-      - name: Run integration profile for postgres (push)
-        if: github.event_name == 'push'
-        uses: nick-fields/retry@v3
-        with:
-          max_attempts: 2
-          timeout_minutes: 30
-          command: |
-            docker compose -f docker/github_actions/docker-compose.yml run integration-test-postgres bash -c "make cover_integration_profile"
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
@@ -462,23 +382,13 @@ jobs:
         with:
           go-version: '1.23.4'
 
-      - name: Run ndc profile for postgres (PR)
-        if: github.event_name == 'pull_request'
+      - name: Run ndc profile for postgres
         uses: nick-fields/retry@v3
         with:
           max_attempts: 2
           timeout_minutes: 30
           command: |
             docker compose -f docker/github_actions/docker-compose.yml run integration-test-ndc-postgres bash -c "make .just-build && make cover_ndc_profile"
-
-      - name: Run ndc profile for postgres (push)
-        if: github.event_name == 'push'
-        uses: nick-fields/retry@v3
-        with:
-          max_attempts: 2
-          timeout_minutes: 30
-          command: |
-            docker compose -f docker/github_actions/docker-compose.yml run integration-test-ndc-postgres bash -c "make cover_ndc_profile"
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
