@@ -2871,7 +2871,7 @@ func (s *IntegrationSuite) TestDecisionTaskFailed() {
 	s.Equal(types.EventTypeWorkflowExecutionCompleted, workflowCompletedEvent.GetEventType())
 }
 
-func (s *IntegrationSuite) TestDescribeTaskList() {
+func (s *IntegrationSuite) TestGetPollerHistory() {
 	WorkflowID := "integration-get-poller-history"
 	workflowTypeName := "integration-get-poller-history-type"
 	tasklistName := "integration-get-poller-history-tasklist"

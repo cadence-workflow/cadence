@@ -1233,6 +1233,7 @@ func FromDescribeTaskListResponse(t *types.DescribeTaskListResponse) *apiv1.Desc
 		Pollers:         FromPollerInfoArray(t.Pollers),
 		TaskListStatus:  FromTaskListStatus(t.TaskListStatus),
 		PartitionConfig: FromAPITaskListPartitionConfig(t.PartitionConfig),
+		TaskList:        FromTaskList(t.TaskList),
 	}
 }
 
@@ -1244,6 +1245,7 @@ func ToDescribeTaskListResponse(t *apiv1.DescribeTaskListResponse) *types.Descri
 		Pollers:         ToPollerInfoArray(t.Pollers),
 		TaskListStatus:  ToTaskListStatus(t.TaskListStatus),
 		PartitionConfig: ToAPITaskListPartitionConfig(t.PartitionConfig),
+		TaskList:        ToTaskList(t.TaskList),
 	}
 }
 
@@ -4062,6 +4064,7 @@ func FromTaskListStatus(t *types.TaskListStatus) *apiv1.TaskListStatus {
 		TaskIdBlock:           FromTaskIDBlock(t.TaskIDBlock),
 		IsolationGroupMetrics: FromIsolationGroupMetricsMap(t.IsolationGroupMetrics),
 		NewTasksPerSecond:     t.NewTasksPerSecond,
+		Empty:                 t.Empty,
 	}
 }
 
@@ -4077,6 +4080,7 @@ func ToTaskListStatus(t *apiv1.TaskListStatus) *types.TaskListStatus {
 		TaskIDBlock:           ToTaskIDBlock(t.TaskIdBlock),
 		IsolationGroupMetrics: ToIsolationGroupMetricsMap(t.IsolationGroupMetrics),
 		NewTasksPerSecond:     t.NewTasksPerSecond,
+		Empty:                 t.Empty,
 	}
 }
 

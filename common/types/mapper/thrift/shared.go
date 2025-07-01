@@ -1788,6 +1788,7 @@ func FromDescribeTaskListResponse(t *types.DescribeTaskListResponse) *shared.Des
 	return &shared.DescribeTaskListResponse{
 		Pollers:        FromPollerInfoArray(t.Pollers),
 		TaskListStatus: FromTaskListStatus(t.TaskListStatus),
+		TaskList:       FromTaskList(t.TaskList),
 	}
 }
 
@@ -1799,6 +1800,7 @@ func ToDescribeTaskListResponse(t *shared.DescribeTaskListResponse) *types.Descr
 	return &types.DescribeTaskListResponse{
 		Pollers:        ToPollerInfoArray(t.Pollers),
 		TaskListStatus: ToTaskListStatus(t.TaskListStatus),
+		TaskList:       ToTaskList(t.TaskList),
 	}
 }
 
@@ -5754,6 +5756,7 @@ func FromTaskListStatus(t *types.TaskListStatus) *shared.TaskListStatus {
 		TaskIDBlock:           FromTaskIDBlock(t.TaskIDBlock),
 		IsolationGroupMetrics: FromIsolationGroupMetricsMap(t.IsolationGroupMetrics),
 		NewTasksPerSecond:     &t.NewTasksPerSecond,
+		Empty:                 &t.Empty,
 	}
 }
 
@@ -5770,6 +5773,7 @@ func ToTaskListStatus(t *shared.TaskListStatus) *types.TaskListStatus {
 		TaskIDBlock:           ToTaskIDBlock(t.TaskIDBlock),
 		IsolationGroupMetrics: ToIsolationGroupMetricsMap(t.GetIsolationGroupMetrics()),
 		NewTasksPerSecond:     t.GetNewTasksPerSecond(),
+		Empty:                 t.GetEmpty(),
 	}
 }
 

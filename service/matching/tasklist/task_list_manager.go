@@ -728,7 +728,13 @@ func (c *taskListManagerImpl) CancelPoller(pollerID string) {
 // pollers which polled this tasklist in last few minutes and status of tasklist's ackManager
 // (readLevel, ackLevel, backlogCountHint and taskIDBlock).
 func (c *taskListManagerImpl) DescribeTaskList(includeTaskListStatus bool) *types.DescribeTaskListResponse {
-	response := &types.DescribeTaskListResponse{Pollers: c.GetAllPollerInfo()}
+	response := &types.DescribeTaskListResponse{
+		Pollers: c.GetAllPollerInfo(),
+		TaskList: &types.TaskList{
+			Name: c.taskListID.GetName(),
+			Kind: &c.taskListKind,
+		},
+	}
 	response.PartitionConfig = c.TaskListPartitionConfig()
 	if !includeTaskListStatus {
 		return response
@@ -755,6 +761,7 @@ func (c *taskListManagerImpl) DescribeTaskList(includeTaskListStatus bool) *type
 		},
 		IsolationGroupMetrics: isolationGroupMetrics,
 		NewTasksPerSecond:     c.qpsTracker.QPS(),
+		Empty:                 c.taskAckManager.GetAckLevel() == c.taskWriter.GetMaxReadLevel(),
 	}
 
 	return response
