@@ -99,7 +99,7 @@ func setupMocksForTaskListManager(t *testing.T, taskListID *Identifier, taskList
 		deps.mockMatchingClient,
 		func(Manager) {},
 		taskListID,
-		&taskListKind,
+		taskListKind,
 		config,
 		deps.mockTimeSource,
 		deps.mockTimeSource.Now(),
@@ -239,7 +239,6 @@ func createTestTaskListManagerWithConfig(t *testing.T, logger log.Logger, contro
 	if err != nil {
 		panic(err)
 	}
-	tlKind := types.TaskListKindNormal
 	tlMgr, err := NewManager(
 		mockDomainCache,
 		logger,
@@ -250,7 +249,7 @@ func createTestTaskListManagerWithConfig(t *testing.T, logger log.Logger, contro
 		nil,
 		func(Manager) {},
 		tlID,
-		&tlKind,
+		types.TaskListKindNormal,
 		cfg,
 		timeSource,
 		timeSource.Now(),
@@ -878,7 +877,7 @@ func TestTaskListManagerGetTaskBatch(t *testing.T) {
 		nil,
 		func(Manager) {},
 		taskListID,
-		types.TaskListKindNormal.Ptr(),
+		types.TaskListKindNormal,
 		cfg,
 		timeSource,
 		timeSource.Now(),
@@ -949,7 +948,7 @@ func TestTaskListManagerGetTaskBatch(t *testing.T) {
 		nil,
 		func(Manager) {},
 		taskListID,
-		types.TaskListKindNormal.Ptr(),
+		types.TaskListKindNormal,
 		cfg,
 		timeSource,
 		timeSource.Now(),
@@ -1008,7 +1007,7 @@ func TestTaskListReaderPumpAdvancesAckLevelAfterEmptyReads(t *testing.T) {
 		nil,
 		func(Manager) {},
 		taskListID,
-		types.TaskListKindNormal.Ptr(),
+		types.TaskListKindNormal,
 		cfg,
 		timeSource,
 		timeSource.Now(),
@@ -1155,7 +1154,7 @@ func TestTaskExpiryAndCompletion(t *testing.T) {
 				nil,
 				func(Manager) {},
 				taskListID,
-				types.TaskListKindNormal.Ptr(),
+				types.TaskListKindNormal,
 				cfg,
 				timeSource,
 				timeSource.Now(),

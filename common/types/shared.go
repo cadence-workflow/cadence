@@ -6928,6 +6928,8 @@ func (e TaskListKind) String() string {
 		return "NORMAL"
 	case 1:
 		return "STICKY"
+	case 2:
+		return "EPHEMERAL"
 	}
 	return fmt.Sprintf("TaskListKind(%d)", w)
 }
@@ -6940,6 +6942,9 @@ func (e *TaskListKind) UnmarshalText(value []byte) error {
 		return nil
 	case "STICKY":
 		*e = TaskListKindSticky
+		return nil
+	case "EPHEMERAL":
+		*e = TaskListKindEphemeral
 		return nil
 	default:
 		val, err := strconv.ParseInt(s, 10, 32)
@@ -6961,6 +6966,8 @@ const (
 	TaskListKindNormal TaskListKind = iota
 	// TaskListKindSticky is an option for TaskListKind
 	TaskListKindSticky
+	// TaskListKindEphemeral is an option for TaskListKind
+	TaskListKindEphemeral
 )
 
 // TaskListMetadata is an internal type (TBD...)

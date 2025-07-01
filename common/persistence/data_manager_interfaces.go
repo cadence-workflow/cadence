@@ -174,6 +174,7 @@ const (
 const (
 	TaskListKindNormal = iota
 	TaskListKindSticky
+	TaskListKindEphemeral
 )
 
 // HistoryTaskCategory represents various categories of history tasks
@@ -2197,6 +2198,19 @@ func HasMoreRowsToDelete(rowsDeleted, batchSize int) bool {
 		return false
 	}
 	return true
+}
+
+func TaskListKindHasTTL(taskListKind int) bool {
+	switch taskListKind {
+	case TaskListKindEphemeral:
+		return true
+	case TaskListKindSticky:
+		return true
+	case TaskListKindNormal:
+		return false
+	default:
+		return false
+	}
 }
 
 func (e *WorkflowExecutionInfo) CopyMemo() map[string][]byte {

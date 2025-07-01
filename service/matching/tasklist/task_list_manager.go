@@ -150,7 +150,7 @@ func NewManager(
 	matchingClient matching.Client,
 	closeCallback func(Manager),
 	taskList *Identifier,
-	taskListKind *types.TaskListKind,
+	taskListKind types.TaskListKind,
 	cfg *config.Config,
 	timeSource clock.TimeSource,
 	createTime time.Time,
@@ -163,14 +163,9 @@ func NewManager(
 
 	taskListConfig := newTaskListConfig(taskList, cfg, domainName)
 
-	if taskListKind == nil {
-		normalTaskListKind := types.TaskListKindNormal
-		taskListKind = &normalTaskListKind
-	}
-
-	scope := common.NewPerTaskListScope(domainName, taskList.GetName(), *taskListKind, metricsClient, metrics.MatchingTaskListMgrScope).
+	scope := common.NewPerTaskListScope(domainName, taskList.GetName(), taskListKind, metricsClient, metrics.MatchingTaskListMgrScope).
 		Tagged(getTaskListTypeTag(taskList.GetType()))
-	db := newTaskListDB(taskManager, taskList.GetDomainID(), domainName, taskList.GetName(), taskList.GetType(), int(*taskListKind), logger)
+	db := newTaskListDB(taskManager, taskList.GetDomainID(), domainName, taskList.GetName(), taskList.GetType(), int(taskListKind), logger)
 
 	tlMgr := &taskListManagerImpl{
 		createTime:      createTime,
@@ -179,7 +174,7 @@ func NewManager(
 		clusterMetadata: clusterMetadata,
 		isolationState:  isolationState,
 		taskListID:      taskList,
-		taskListKind:    *taskListKind,
+		taskListKind:    taskListKind,
 		logger:          logger.WithTags(tag.WorkflowDomainName(domainName), tag.WorkflowTaskListName(taskList.GetName()), tag.WorkflowTaskListType(taskList.GetType())),
 		db:              db,
 		taskAckManager:  messaging.NewAckManager(logger),
@@ -210,13 +205,13 @@ func NewManager(
 
 	baseEvent := event.E{
 		TaskListName: taskList.GetName(),
-		TaskListKind: taskListKind,
+		TaskListKind: &taskListKind,
 		TaskListType: taskList.GetType(),
 	}
 
 	tlMgr.qpsTracker = stats.NewEmaFixedWindowQPSTracker(timeSource, 0.5, taskListConfig.QPSTrackerInterval(), baseEvent)
-	if taskList.IsRoot() && *taskListKind == types.TaskListKindNormal {
-		adaptiveScalerScope := common.NewPerTaskListScope(domainName, taskList.GetName(), *taskListKind, metricsClient, metrics.MatchingAdaptiveScalerScope).
+	if taskList.IsRoot() && taskListKind == types.TaskListKindNormal {
+		adaptiveScalerScope := common.NewPerTaskListScope(domainName, taskList.GetName(), taskListKind, metricsClient, metrics.MatchingAdaptiveScalerScope).
 			Tagged(getTaskListTypeTag(taskList.GetType()))
 		tlMgr.adaptiveScaler = NewAdaptiveScaler(taskList, tlMgr, taskListConfig, timeSource, tlMgr.logger, adaptiveScalerScope, matchingClient, baseEvent)
 	}
@@ -225,8 +220,8 @@ func NewManager(
 		isolationGroups = cfg.AllIsolationGroups()
 	}
 	var fwdr Forwarder
-	if tlMgr.isFowardingAllowed(taskList, *taskListKind) {
-		fwdr = newForwarder(&taskListConfig.ForwarderConfig, taskList, *taskListKind, matchingClient, scope)
+	if tlMgr.isFowardingAllowed(taskList, taskListKind) {
+		fwdr = newForwarder(&taskListConfig.ForwarderConfig, taskList, taskListKind, matchingClient, scope)
 	}
 	numReadPartitionsFn := func(cfg *config.TaskListConfig) int {
 		if cfg.EnableGetNumberOfPartitionsFromCache() {
@@ -239,7 +234,7 @@ func NewManager(
 		}
 		return cfg.NumReadPartitions()
 	}
-	tlMgr.matcher = newTaskMatcher(taskListConfig, fwdr, tlMgr.scope, isolationGroups, tlMgr.logger, taskList, *taskListKind, numReadPartitionsFn).(*taskMatcherImpl)
+	tlMgr.matcher = newTaskMatcher(taskListConfig, fwdr, tlMgr.scope, isolationGroups, tlMgr.logger, taskList, taskListKind, numReadPartitionsFn).(*taskMatcherImpl)
 	tlMgr.taskWriter = newTaskWriter(tlMgr)
 	tlMgr.taskReader = newTaskReader(tlMgr, isolationGroups)
 	tlMgr.taskCompleter = newTaskCompleter(tlMgr, historyServiceOperationRetryPolicy)

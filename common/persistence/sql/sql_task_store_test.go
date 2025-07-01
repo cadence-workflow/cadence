@@ -158,7 +158,7 @@ func TestLeaseTaskList(t *testing.T) {
 						Data:         []byte(`tl`),
 						DataEncoding: "tl",
 					},
-					TTL: stickyTasksListsTTL,
+					TTL: taskListTTL,
 				}).Return(nil, nil)
 				mockParser.EXPECT().TaskListInfoFromBlob([]byte(`tl`), "tl").Return(&serialization.TaskListInfo{
 					AckLevel:        0,
@@ -188,7 +188,7 @@ func TestLeaseTaskList(t *testing.T) {
 						Data:         []byte(`tl`),
 						DataEncoding: "tl",
 					},
-					TTL: stickyTasksListsTTL,
+					TTL: taskListTTL,
 				}).Return(&sqlResult{rowsAffected: 1}, nil)
 				mockTx.EXPECT().Commit().Return(nil)
 			},
@@ -200,6 +200,87 @@ func TestLeaseTaskList(t *testing.T) {
 					RangeID:  1,
 					AckLevel: 0,
 					Kind:     persistence.TaskListKindSticky,
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "Success case - first lease - ephemeral",
+			req: &persistence.LeaseTaskListRequest{
+				DomainID:     "c9488dc7-20b2-44c3-b2e4-bfea5af62ac0",
+				TaskList:     "tl",
+				TaskType:     0,
+				TaskListKind: persistence.TaskListKindEphemeral,
+				RangeID:      0,
+			},
+			mockSetup: func(mockDB *sqlplugin.MockDB, mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
+				mockDB.EXPECT().GetTotalNumDBShards().Return(1)
+				mockDB.EXPECT().SelectFromTaskLists(gomock.Any(), &sqlplugin.TaskListsFilter{
+					ShardID:  0,
+					DomainID: serialization.UUIDPtr(serialization.MustParseUUID("c9488dc7-20b2-44c3-b2e4-bfea5af62ac0")),
+					Name:     common.StringPtr("tl"),
+					TaskType: common.Int64Ptr(0),
+				}).Return(nil, sql.ErrNoRows)
+				mockParser.EXPECT().TaskListInfoToBlob(gomock.Any()).DoAndReturn(func(info *serialization.TaskListInfo) (persistence.DataBlob, error) {
+					assert.Equal(t, int16(persistence.TaskListKindEphemeral), info.Kind)
+					assert.Equal(t, int64(0), info.AckLevel)
+					return persistence.DataBlob{
+						Data:     []byte(`tl`),
+						Encoding: constants.EncodingType("tl"),
+					}, nil
+				})
+				mockDB.EXPECT().SupportsTTL().Return(true)
+				mockDB.EXPECT().InsertIntoTaskListsWithTTL(gomock.Any(), &sqlplugin.TaskListsRowWithTTL{
+					TaskListsRow: sqlplugin.TaskListsRow{
+						ShardID:      0,
+						DomainID:     serialization.MustParseUUID("c9488dc7-20b2-44c3-b2e4-bfea5af62ac0"),
+						Name:         "tl",
+						TaskType:     0,
+						Data:         []byte(`tl`),
+						DataEncoding: "tl",
+					},
+					TTL: taskListTTL,
+				}).Return(nil, nil)
+				mockParser.EXPECT().TaskListInfoFromBlob([]byte(`tl`), "tl").Return(&serialization.TaskListInfo{
+					AckLevel:        0,
+					Kind:            int16(persistence.TaskListKindEphemeral),
+					ExpiryTimestamp: time.Unix(0, 0),
+					LastUpdated:     time.Unix(0, 1),
+				}, nil)
+				mockDB.EXPECT().BeginTx(gomock.Any(), 0).Return(mockTx, nil)
+				mockTx.EXPECT().LockTaskLists(gomock.Any(), &sqlplugin.TaskListsFilter{
+					ShardID:  0,
+					DomainID: serialization.UUIDPtr(serialization.MustParseUUID("c9488dc7-20b2-44c3-b2e4-bfea5af62ac0")),
+					Name:     common.StringPtr("tl"),
+					TaskType: common.Int64Ptr(0),
+				}).Return(int64(0), nil)
+				mockParser.EXPECT().TaskListInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
+					Data:     []byte(`tl`),
+					Encoding: constants.EncodingType("tl"),
+				}, nil)
+				mockDB.EXPECT().SupportsTTL().Return(true)
+				mockTx.EXPECT().UpdateTaskListsWithTTL(gomock.Any(), &sqlplugin.TaskListsRowWithTTL{
+					TaskListsRow: sqlplugin.TaskListsRow{
+						ShardID:      0,
+						DomainID:     serialization.MustParseUUID("c9488dc7-20b2-44c3-b2e4-bfea5af62ac0"),
+						Name:         "tl",
+						TaskType:     0,
+						RangeID:      1,
+						Data:         []byte(`tl`),
+						DataEncoding: "tl",
+					},
+					TTL: taskListTTL,
+				}).Return(&sqlResult{rowsAffected: 1}, nil)
+				mockTx.EXPECT().Commit().Return(nil)
+			},
+			want: &persistence.LeaseTaskListResponse{
+				TaskListInfo: &persistence.TaskListInfo{
+					DomainID: "c9488dc7-20b2-44c3-b2e4-bfea5af62ac0",
+					Name:     "tl",
+					TaskType: 0,
+					RangeID:  1,
+					AckLevel: 0,
+					Kind:     persistence.TaskListKindEphemeral,
 				},
 			},
 			wantErr: false,
@@ -275,7 +356,7 @@ func TestLeaseTaskList(t *testing.T) {
 						Data:         []byte(`tl`),
 						DataEncoding: "tl",
 					},
-					TTL: stickyTasksListsTTL,
+					TTL: taskListTTL,
 				}).Return(&sqlResult{rowsAffected: 1}, nil)
 				mockTx.EXPECT().Commit().Return(nil)
 			},
@@ -376,7 +457,7 @@ func TestLeaseTaskList(t *testing.T) {
 						Data:         []byte(`tl`),
 						DataEncoding: "tl",
 					},
-					TTL: stickyTasksListsTTL,
+					TTL: taskListTTL,
 				}).Return(nil, nil)
 			},
 			wantErr: true,
@@ -416,7 +497,7 @@ func TestLeaseTaskList(t *testing.T) {
 						Data:         []byte(`tl`),
 						DataEncoding: "tl",
 					},
-					TTL: stickyTasksListsTTL,
+					TTL: taskListTTL,
 				}).Return(nil, nil)
 				mockParser.EXPECT().TaskListInfoFromBlob([]byte(`tl`), "tl").Return(&serialization.TaskListInfo{
 					AckLevel:        0,
@@ -468,7 +549,7 @@ func TestLeaseTaskList(t *testing.T) {
 						Data:         []byte(`tl`),
 						DataEncoding: "tl",
 					},
-					TTL: stickyTasksListsTTL,
+					TTL: taskListTTL,
 				}).Return(nil, nil)
 				mockParser.EXPECT().TaskListInfoFromBlob([]byte(`tl`), "tl").Return(&serialization.TaskListInfo{
 					AckLevel:        0,
@@ -499,7 +580,7 @@ func TestLeaseTaskList(t *testing.T) {
 						Data:         []byte(`tl`),
 						DataEncoding: "tl",
 					},
-					TTL: stickyTasksListsTTL,
+					TTL: taskListTTL,
 				}).Return(nil, err)
 				mockDB.EXPECT().IsNotFoundError(err).Return(true)
 				mockTx.EXPECT().Rollback().Return(nil)
@@ -766,7 +847,50 @@ func TestUpdateTaskList(t *testing.T) {
 						Data:         []byte(`tl`),
 						DataEncoding: "tl",
 					},
-					TTL: stickyTasksListsTTL,
+					TTL: taskListTTL,
+				}).Return(&sqlResult{rowsAffected: 1}, nil)
+				mockTx.EXPECT().Commit().Return(nil)
+			},
+			want:    &persistence.UpdateTaskListResponse{},
+			wantErr: false,
+		},
+		{
+			name: "Success case - ephemeral",
+			req: &persistence.UpdateTaskListRequest{
+				TaskListInfo: &persistence.TaskListInfo{
+					DomainID: "c9488dc7-20b2-44c3-b2e4-bfea5af62ac0",
+					Name:     "tl",
+					TaskType: 0,
+					RangeID:  1,
+					AckLevel: 0,
+					Kind:     persistence.TaskListKindEphemeral,
+				},
+			},
+			mockSetup: func(mockDB *sqlplugin.MockDB, mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
+				mockDB.EXPECT().GetTotalNumDBShards().Return(1)
+				mockParser.EXPECT().TaskListInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
+					Data:     []byte(`tl`),
+					Encoding: constants.EncodingType("tl"),
+				}, nil)
+				mockDB.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(mockTx, nil)
+				mockTx.EXPECT().LockTaskLists(gomock.Any(), &sqlplugin.TaskListsFilter{
+					ShardID:  0,
+					DomainID: serialization.UUIDPtr(serialization.MustParseUUID("c9488dc7-20b2-44c3-b2e4-bfea5af62ac0")),
+					Name:     common.StringPtr("tl"),
+					TaskType: common.Int64Ptr(0),
+				}).Return(int64(1), nil)
+				mockDB.EXPECT().SupportsTTL().Return(true)
+				mockTx.EXPECT().UpdateTaskListsWithTTL(gomock.Any(), &sqlplugin.TaskListsRowWithTTL{
+					TaskListsRow: sqlplugin.TaskListsRow{
+						ShardID:      0,
+						DomainID:     serialization.MustParseUUID("c9488dc7-20b2-44c3-b2e4-bfea5af62ac0"),
+						Name:         "tl",
+						TaskType:     0,
+						RangeID:      1,
+						Data:         []byte(`tl`),
+						DataEncoding: "tl",
+					},
+					TTL: taskListTTL,
 				}).Return(&sqlResult{rowsAffected: 1}, nil)
 				mockTx.EXPECT().Commit().Return(nil)
 			},

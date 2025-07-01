@@ -464,6 +464,40 @@ func (s *MatchingPersistenceSuite) TestLeaseAndUpdateTaskListSticky() {
 	s.NoError(err)
 }
 
+func (s *MatchingPersistenceSuite) TestLeaseAndUpdateTaskListEphemeral() {
+	domainID := uuid.New()
+	taskList := "aaaaaaa"
+
+	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
+	defer cancel()
+
+	response, err := s.TaskMgr.LeaseTaskList(ctx, &p.LeaseTaskListRequest{
+		DomainID:     domainID,
+		TaskList:     taskList,
+		TaskType:     p.TaskListTypeDecision,
+		TaskListKind: p.TaskListKindEphemeral,
+	})
+	s.NoError(err)
+	tli := response.TaskListInfo
+	s.EqualValues(1, tli.RangeID)
+	s.EqualValues(0, tli.AckLevel)
+	s.EqualValues(p.TaskListKindEphemeral, tli.Kind)
+	s.Nil(tli.AdaptivePartitionConfig)
+
+	taskListInfo := &p.TaskListInfo{
+		DomainID: domainID,
+		Name:     taskList,
+		TaskType: p.TaskListTypeDecision,
+		RangeID:  tli.RangeID,
+		AckLevel: 0,
+		Kind:     p.TaskListKindEphemeral,
+	}
+	_, err = s.TaskMgr.UpdateTaskList(ctx, &p.UpdateTaskListRequest{
+		TaskListInfo: taskListInfo,
+	})
+	s.NoError(err)
+}
+
 func (s *MatchingPersistenceSuite) deleteAllTaskList() {
 	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
 	defer cancel()

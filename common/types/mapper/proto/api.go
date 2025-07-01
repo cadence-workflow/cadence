@@ -3998,6 +3998,8 @@ func FromTaskListKind(t *types.TaskListKind) apiv1.TaskListKind {
 		return apiv1.TaskListKind_TASK_LIST_KIND_NORMAL
 	case types.TaskListKindSticky:
 		return apiv1.TaskListKind_TASK_LIST_KIND_STICKY
+	case types.TaskListKindEphemeral:
+		return apiv1.TaskListKind_TASK_LIST_KIND_EPHEMERAL
 	}
 	panic("unexpected enum value")
 }
@@ -4010,6 +4012,8 @@ func ToTaskListKind(t apiv1.TaskListKind) *types.TaskListKind {
 		return types.TaskListKindNormal.Ptr()
 	case apiv1.TaskListKind_TASK_LIST_KIND_STICKY:
 		return types.TaskListKindSticky.Ptr()
+	case apiv1.TaskListKind_TASK_LIST_KIND_EPHEMERAL:
+		return types.TaskListKindEphemeral.Ptr()
 	}
 	panic("unexpected enum value")
 }
