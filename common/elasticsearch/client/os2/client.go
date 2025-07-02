@@ -206,6 +206,7 @@ func NewClient(
 		fmt.Printf("got client error: \n%v\n", spew.Sdump(clientErr))
 	}
 	fmt.Printf("got response: \n%v\n", spew.Sdump(res))
+	fmt.Printf("got response body: \n%v\n", res.Inspect().Response.String())
 	fmt.Println("____________________________________________________________")
 
 	return &OS2{
