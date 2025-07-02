@@ -43,7 +43,7 @@ services:
   history-simulator:
     build:
       context: ../../
-      dockerfile: ./docker/buildkite/Dockerfile
+      dockerfile: ./docker/buildkite/Dockerfile${DOCKERFILE_SUFFIX}
     command:
       - /bin/sh
       - -e
