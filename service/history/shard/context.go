@@ -1465,8 +1465,10 @@ func (s *contextImpl) ValidateAndUpdateFailoverMarkers() ([]*types.FailoverMarke
 	}
 
 	if len(completedFailoverMarkers) == 0 {
+		// take a shallow copy of pending failover markers to avoid race condition on s.shardInfo
+		markers := s.shardInfo.PendingFailoverMarkers
 		s.RUnlock()
-		return s.shardInfo.PendingFailoverMarkers, nil
+		return markers, nil
 	}
 	s.RUnlock()
 
