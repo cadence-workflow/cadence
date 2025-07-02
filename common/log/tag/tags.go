@@ -1181,3 +1181,8 @@ func PeerHostname(hostname string) Tag {
 func PendingTaskCount(count int) Tag {
 	return newInt("pending-task-count", count)
 }
+
+// VirtualQueueID returns a tag for virtual queue id
+func VirtualQueueID(id int64) Tag {
+	return newInt64("virtual-queue-id", id)
+}

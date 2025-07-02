@@ -389,6 +389,23 @@ func TestVirtualQueueManager_UpdateAndGetState(t *testing.T) {
 				mocks[2].EXPECT().Stop()
 			},
 		},
+		{
+			name: "empty root queue is not removed",
+			initialStates: map[int64][]VirtualSliceState{
+				0: {
+					{
+						Range: Range{
+							InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+							ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+						},
+					},
+				},
+			},
+			expectedStates: map[int64][]VirtualSliceState{},
+			setupMockQueues: func(mocks map[int64]*MockVirtualQueue) {
+				mocks[0].EXPECT().UpdateAndGetState().Return([]VirtualSliceState{})
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -521,7 +538,7 @@ func TestVirtualQueueManager_AddNewVirtualSlice(t *testing.T) {
 				},
 				status:        common.DaemonStatusInitialized,
 				virtualQueues: virtualQueues,
-				createVirtualQueueFn: func(s VirtualSlice) VirtualQueue {
+				createVirtualQueueFn: func(s VirtualSlice, queueID int64) VirtualQueue {
 					vq := NewMockVirtualQueue(ctrl)
 					vq.EXPECT().Start()
 					return vq

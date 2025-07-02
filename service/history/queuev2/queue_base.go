@@ -219,7 +219,6 @@ func (q *queueBase) processNewTasks() {
 
 	newVirtualSliceState, remainingVirtualSliceState, ok := q.newVirtualSliceState.TrySplitByTaskKey(newExclusiveMaxTaskKey)
 	if !ok {
-		q.logger.Warn("Failed to split new virtual slice", tag.Value(newExclusiveMaxTaskKey), tag.Value(q.newVirtualSliceState))
 		return
 	}
 	q.newVirtualSliceState = remainingVirtualSliceState
