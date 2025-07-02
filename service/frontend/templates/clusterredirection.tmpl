@@ -14,8 +14,8 @@ import (
 
 {{$nonForwardingAPIs := list "Health" "DeprecateDomain" "DeleteDomain" "DescribeDomain" "ListDomains" "RegisterDomain" "UpdateDomain" "GetSearchAttributes" "GetClusterInfo" "DiagnoseWorkflowExecution"}}
 {{$domainIDAPIs := list "RecordActivityTaskHeartbeat" "RespondActivityTaskCanceled" "RespondActivityTaskCompleted" "RespondActivityTaskFailed" "RespondDecisionTaskCompleted" "RespondDecisionTaskFailed" "RespondQueryTaskCompleted"}}
-{{$forwardableWFAPIs := list "DescribeWorkflowExecutionRequest" "GetWorkflowExecutionHistory" "QueryWorkflowRequest" "RequestCancelWorkflowExecution" "ResetWorkflowExecution" "RestartWorkflowExecution" "SignalWithStartWorkflowExecution" "SignalWithStartWorkflowExecutionAsync" "SignalWorkflowExecution" "StartWorkflowExecution" "StartWorkflowExecutionAsync" "TerminateWorkflowExecution" }}
 {{$startWFAPIs := list "StartWorkflowExecution" "StartWorkflowExecutionAsync" "SignalWithStartWorkflowExecution" "SignalWithStartWorkflowExecutionAsync"}}
+{{$nonstartWFAPIs := list "DescribeWorkflowExecutionRequest" "GetWorkflowExecutionHistory" "QueryWorkflowRequest" "RequestCancelWorkflowExecution" "ResetWorkflowExecution" "RestartWorkflowExecution" "SignalWorkflowExecution" "TerminateWorkflowExecution" }}
 {{$queryTaskTokenAPIs := list "RespondQueryTaskCompleted"}}
 {{$readAPIsWithStrongConsistency := list "QueryWorkflow" "DescribeWorkflowExecution" "GetWorkflowExecutionHistory"}}
 
@@ -111,7 +111,7 @@ func (handler *clusterRedirectionHandler) {{$method.Declaration}} {
 	var workflowExecution *types.WorkflowExecution
 	{{- if has $method.Name $startWFAPIs}}
 	actClSelPolicyForNewWF = {{(index $method.Params 1).Name}}.ActiveClusterSelectionPolicy
-	{{- else if has $method.Name $forwardableWFAPIs}}
+	{{- else if has $method.Name $nonstartWFAPIs}}
 	workflowExecution = {{(index $method.Params 1).Name}}.GetWorkflowExecution()
 	{{- end}}
 
