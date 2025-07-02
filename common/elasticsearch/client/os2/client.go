@@ -199,14 +199,14 @@ func NewClient(
 		Indices: []string{"nonexistent"},
 		Body: strings.NewReader(`{"properties":{"type":"text"}}`),
 	})
-	fmt.Println("============================================================")
+	fmt.Println("____________________________________________________________")
 	fmt.Printf("got error (%T): %v\n", err, err) // should be a notfound
 	var clientErr *opensearch.StructError
 	if errors.As(err, &clientErr) {
 		fmt.Printf("got client error: \n%v\n", spew.Sdump(clientErr))
 	}
 	fmt.Printf("got response: \n%v\n", spew.Sdump(res))
-	fmt.Println("============================================================")
+	fmt.Println("____________________________________________________________")
 
 	return &OS2{
 		client:  osClient,
