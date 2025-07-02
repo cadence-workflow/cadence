@@ -182,6 +182,8 @@ func parseWorkflowExecutionInfo(result map[string]interface{}) *persistence.Inte
 			activeClusterSelectionPolicy = v.([]byte)
 		case "active_cluster_selection_policy_encoding":
 			activeClusterSelectionPolicyEncoding = constants.EncodingType(v.(string))
+		case "cron_overlap_policy":
+			info.CronOverlapPolicy = types.CronOverlapPolicy(int32(v.(int)))
 		}
 	}
 	info.CompletionEvent = persistence.NewDataBlob(completionEventData, completionEventEncoding)

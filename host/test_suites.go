@@ -75,6 +75,11 @@ type (
 		*IntegrationBase
 	}
 
+	TaskListIntegrationSuite struct {
+		*require.Assertions
+		*IntegrationBase
+	}
+
 	TaskListIsolationIntegrationSuite struct {
 		*require.Assertions
 		*IntegrationBase

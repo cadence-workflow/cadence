@@ -67,14 +67,17 @@ func TestScheduledQueue_LifeCycle(t *testing.T) {
 	mockShard.EXPECT().UpdateQueueState(persistence.HistoryTaskCategoryTimer, gomock.Any()).Return(nil).AnyTimes()
 
 	options := &Options{
-		DeleteBatchSize:                    dynamicproperties.GetIntPropertyFn(100),
-		RedispatchInterval:                 dynamicproperties.GetDurationPropertyFn(time.Second * 10),
-		PageSize:                           dynamicproperties.GetIntPropertyFn(100),
-		PollBackoffInterval:                dynamicproperties.GetDurationPropertyFn(time.Second * 10),
-		MaxPollInterval:                    dynamicproperties.GetDurationPropertyFn(time.Second * 10),
-		MaxPollIntervalJitterCoefficient:   dynamicproperties.GetFloatPropertyFn(0.1),
-		UpdateAckInterval:                  dynamicproperties.GetDurationPropertyFn(time.Second * 10),
-		UpdateAckIntervalJitterCoefficient: dynamicproperties.GetFloatPropertyFn(0.1),
+		DeleteBatchSize:                      dynamicproperties.GetIntPropertyFn(100),
+		RedispatchInterval:                   dynamicproperties.GetDurationPropertyFn(time.Second * 10),
+		PageSize:                             dynamicproperties.GetIntPropertyFn(100),
+		PollBackoffInterval:                  dynamicproperties.GetDurationPropertyFn(time.Second * 10),
+		MaxPollInterval:                      dynamicproperties.GetDurationPropertyFn(time.Second * 10),
+		MaxPollIntervalJitterCoefficient:     dynamicproperties.GetFloatPropertyFn(0.1),
+		UpdateAckInterval:                    dynamicproperties.GetDurationPropertyFn(time.Second * 10),
+		UpdateAckIntervalJitterCoefficient:   dynamicproperties.GetFloatPropertyFn(0.1),
+		MaxPollRPS:                           dynamicproperties.GetIntPropertyFn(100),
+		MaxPendingTasksCount:                 dynamicproperties.GetIntPropertyFn(100),
+		PollBackoffIntervalJitterCoefficient: dynamicproperties.GetFloatPropertyFn(0.0),
 	}
 
 	queue := NewScheduledQueue(

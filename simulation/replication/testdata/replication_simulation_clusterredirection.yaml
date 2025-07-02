@@ -1,0 +1,120 @@
+# This file is a replication simulation scenario spec.
+# It is parsed into ReplicationSimulationConfig struct.
+# Replication simulation for this file can be run via ./simulation/replication/run.sh clusterredirection
+# Dynamic config overrides can be set via config/dynamicconfig/replication_simulation_clusterredirection.yml
+clusters:
+  cluster0:
+    grpcEndpoint: "cadence-cluster0:7833"
+  cluster1:
+    grpcEndpoint: "cadence-cluster1:7833"
+
+# primaryCluster is where domain data is written to and replicates to others. e.g. domain registration
+primaryCluster: "cluster0"
+
+
+domains:
+  test-domain:
+    activeClusterName: cluster0
+
+operations:
+  # Start wf1 in cluster1 will be handled by cluster0 (active cluster)
+  - op: start_workflow
+    at: 0s
+    workflowType: query-workflow
+    workflowID: wf1
+    cluster: cluster1
+    domain: test-domain
+    workflowExecutionStartToCloseTimeout: 30s
+    workflowDuration: 20s
+
+  # Query the wf1 in cluster0 and expect cluster0 worker handles query
+  - op: query_workflow
+    at: 10s
+    workflowID: wf1
+    cluster: cluster0
+    domain: test-domain
+    query: cluster-name
+    consistencyLevel: eventual
+    want:
+      queryResult: cluster0
+
+  # Query the wf1 in cluster1 with eventual consistency and expect cluster1 worker handles query
+  - op: query_workflow
+    at: 10s
+    workflowID: wf1
+    cluster: cluster1
+    domain: test-domain
+    query: cluster-name
+    consistencyLevel: eventual
+    want:
+      queryResult: cluster1
+
+  # Query the wf1 in cluster1 with strong consistency and expect cluster0 (active cluster) worker handles query
+  - op: query_workflow
+    at: 10s
+    workflowID: wf1
+    cluster: cluster1
+    domain: test-domain
+    query: cluster-name
+    consistencyLevel: strong
+    want:
+      queryResult: cluster0
+
+  # Validate wf1 completed in cluster0
+  - op: validate
+    at: 25s
+    workflowID: wf1
+    cluster: cluster0
+    domain: test-domain
+    want:
+      status: completed
+      startedByWorkersInCluster: cluster0
+      completedByWorkersInCluster: cluster0
+
+  # SignalWithStart wf2 in cluster1, will be handled by cluster0 (active cluster)
+  - op: signal_with_start_workflow
+    at: 30s
+    workflowType: query-workflow
+    workflowID: wf2
+    cluster: cluster1
+    domain: test-domain
+    signalName: custom-signal
+    signalInput: "x"
+    workflowExecutionStartToCloseTimeout: 30s
+    workflowDuration: 20s
+
+  # SignalWithStart wf2 in cluster1 again and signal will be forwarded to cluster0 (active cluster) and wf2 will be started in cluster0
+  - op: signal_with_start_workflow
+    at: 31s
+    workflowType: query-workflow
+    workflowID: wf2
+    cluster: cluster1
+    domain: test-domain
+    signalName: custom-signal
+    signalInput: "y"
+    workflowExecutionStartToCloseTimeout: 30s
+    workflowDuration: 20s
+
+
+  # Query wf2 in cluster1 with strong consistency and expect cluster0 (active cluster) worker handles query
+  # Should return signal count = 2
+  - op: query_workflow
+    at: 40s
+    workflowID: wf2
+    cluster: cluster1
+    domain: test-domain
+    query: signal-count
+    consistencyLevel: strong
+    want:
+      queryResult: 2.0 # query result unmarshalled to float64 so we need to use float64 here for comparison to work
+
+  # Validate wf2 completed in cluster0
+  - op: validate
+    at: 60s
+    workflowID: wf2
+    cluster: cluster0
+    domain: test-domain
+    want:
+      status: completed
+      startedByWorkersInCluster: cluster0
+      completedByWorkersInCluster: cluster0

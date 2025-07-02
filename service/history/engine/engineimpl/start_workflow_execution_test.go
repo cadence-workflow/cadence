@@ -438,13 +438,15 @@ func TestCreateMutableState(t *testing.T) {
 					},
 				}),
 			mockFn: func(ac *activecluster.MockManager) {
-				ac.EXPECT().FailoverVersionOfNewWorkflow(gomock.Any(), gomock.Any()).
-					Return(int64(125), nil)
+				ac.EXPECT().LookupNewWorkflow(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&activecluster.LookupResult{
+						FailoverVersion: 125,
+					}, nil)
 			},
 			wantVersion: 125,
 		},
 		{
-			name: "failed to create mutable state for active-active domain. FailoverVersionOfNewWorkflow failed",
+			name: "failed to create mutable state for active-active domain. LookupNewWorkflow failed",
 			domainEntry: getDomainCacheEntry(
 				-1, /* doesn't matter for active-active domain */
 				&types.ActiveClusters{
@@ -460,8 +462,8 @@ func TestCreateMutableState(t *testing.T) {
 					},
 				}),
 			mockFn: func(ac *activecluster.MockManager) {
-				ac.EXPECT().FailoverVersionOfNewWorkflow(gomock.Any(), gomock.Any()).
-					Return(int64(125), errors.New("some error"))
+				ac.EXPECT().LookupNewWorkflow(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, errors.New("some error"))
 			},
 			wantErr: true,
 		},
@@ -482,7 +484,9 @@ func TestCreateMutableState(t *testing.T) {
 				context.Background(),
 				tc.domainEntry,
 				"rid",
-				&types.HistoryStartWorkflowExecutionRequest{},
+				&types.HistoryStartWorkflowExecutionRequest{
+					StartRequest: &types.StartWorkflowExecutionRequest{},
+				},
 			)
 			if tc.wantErr {
 				assert.Error(t, err)
@@ -504,7 +508,9 @@ func TestCreateMutableState(t *testing.T) {
 func getDomainCacheEntry(domainFailoverVersion int64, cfg *types.ActiveClusters) *cache.DomainCacheEntry {
 	// only thing we care in domain cache entry is the active clusters config
 	return cache.NewDomainCacheEntryForTest(
-		nil,
+		&persistence.DomainInfo{
+			ID: "domain-id",
+		},
 		nil,
 		true,
 		&persistence.DomainReplicationConfig{

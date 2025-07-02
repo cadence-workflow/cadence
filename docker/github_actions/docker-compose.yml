@@ -1,0 +1,388 @@
+services:
+  cassandra:
+    image: cassandra:4.1.1
+    environment:
+      - "MAX_HEAP_SIZE=256M"
+      - "HEAP_NEWSIZE=128M"
+    networks:
+      services-network:
+        aliases:
+          - cassandra
+    healthcheck:
+      test: [ "CMD", "cqlsh", "-u cassandra", "-p cassandra" ,"-e describe keyspaces" ]
+      interval: 15s
+      timeout: 30s
+      retries: 10
+
+  mysql:
+    image: mysql:8.0
+    environment:
+      - "MYSQL_ROOT_PASSWORD=cadence"
+    networks:
+      services-network:
+        aliases:
+          - mysql
+
+  postgres:
+    image: postgres:17.4
+    environment:
+      POSTGRES_PASSWORD: cadence
+    ports:
+      - "5432:5432"
+    networks:
+      services-network:
+        aliases:
+          - postgres
+
+  kafka:
+    image: docker.io/bitnami/kafka:3.7
+    hostname: kafka
+    container_name: kafka
+    ports:
+      - "9092:9092"
+    environment:
+      # KRaft settings
+      - "KAFKA_CFG_NODE_ID=0"
+      - "KAFKA_CFG_PROCESS_ROLES=controller,broker"
+      - "KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=0@kafka:9093"
+      # Listeners
+      - "KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093"
+      - "KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092"
+      - "KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+      - "KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER"
+      - "KAFKA_CFG_INTER_BROKER_LISTENER_NAME=PLAINTEXT"
+      # Topic settings
+      - "KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true"
+    networks:
+      services-network:
+        aliases:
+          - kafka
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list"]
+      interval: 15s
+      timeout: 30s
+      retries: 10
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch-oss:6.8.22
+    networks:
+      services-network:
+        aliases:
+          - elasticsearch
+    environment:
+      - discovery.type=single-node
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"\\|\"status\":\"yellow\"'"]
+      interval: 15s
+      timeout: 30s
+      retries: 10
+
+  mongo:
+    image: mongo:5
+    restart: always
+    networks:
+      services-network:
+        aliases:
+          - mongo
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: cadence
+
+  etcd:
+    image: bitnami/etcd:3.5.5
+    restart: always
+    networks:
+      services-network:
+        aliases:
+          - etcd
+    environment:
+      ALLOW_NONE_AUTHENTICATION: "yes"
+      ETCD_ADVERTISE_CLIENT_URLS: "http://etcd:2379"
+
+  unit-test:
+    build:
+      context: ../../
+      dockerfile: ./docker/github_actions/Dockerfile
+    environment:
+      - GITHUB_TOKEN # BUILDKITE_AGENT_ACCESS_TOKEN
+      - GITHUB_RUN_ID # BUILDKITE_JOB_ID and BUILDKITE_BUILD_ID
+      - GITHUB_RUN_NUMBER # BUILDKITE_BUILD_NUMBER
+    volumes:
+      - ../../:/cadence
+    networks:
+      services-network:
+        aliases:
+          - unit-test
+
+  integration-test-cassandra:
+    build:
+      context: ../../
+      dockerfile: ./docker/github_actions/Dockerfile
+    environment:
+      - "CASSANDRA=1"
+      - "CASSANDRA_SEEDS=cassandra"
+      - "ES_SEEDS=elasticsearch"
+      - "KAFKA_SEEDS=kafka"
+      - "TEST_TAG=esintegration"
+      - GITHUB_TOKEN
+      - GITHUB_RUN_ID
+      - GITHUB_RUN_NUMBER
+    depends_on:
+      cassandra:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_started
+      kafka:
+        condition: service_started
+    volumes:
+      - ../../:/cadence
+    networks:
+      services-network:
+        aliases:
+          - integration-test
+
+  integration-test-cassandra-queue-v2:
+    build:
+      context: ../../
+      dockerfile: ./docker/buildkite/Dockerfile
+    environment:
+      - "CASSANDRA=1"
+      - "CASSANDRA_SEEDS=cassandra"
+      - "ES_SEEDS=elasticsearch"
+      - "KAFKA_SEEDS=kafka"
+      - "TEST_TAG=esintegration"
+      - "ENABLE_QUEUE_V2=true"
+      - GITHUB_TOKEN
+      - GITHUB_RUN_ID
+      - GITHUB_RUN_NUMBER
+    depends_on:
+      cassandra:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_started
+      kafka:
+        condition: service_started
+    volumes:
+      - ../../:/cadence
+    networks:
+      services-network:
+        aliases:
+          - integration-test
+
+  integration-test-mysql:
+    build:
+      context: ../../
+      dockerfile: ./docker/github_actions/Dockerfile
+    environment:
+      - "MYSQL=1"
+      - "MYSQL_SEEDS=mysql"
+      - "ES_SEEDS=elasticsearch"
+      - "KAFKA_SEEDS=kafka"
+      - "PERSISTENCE_TYPE=sql"
+      - "PERSISTENCE_PLUGIN=mysql"
+      - "TEST_TAG=esintegration"
+      - GITHUB_TOKEN
+      - GITHUB_RUN_ID
+      - GITHUB_RUN_NUMBER
+    depends_on:
+      - mysql
+      - elasticsearch
+      - kafka
+    volumes:
+      - ../../:/cadence
+    networks:
+      services-network:
+        aliases:
+          - integration-test
+
+  integration-test-postgres:
+    build:
+      context: ../../
+      dockerfile: ./docker/github_actions/Dockerfile
+    environment:
+      - "POSTGRES=1"
+      - "POSTGRES_SEEDS=postgres"
+      - "PERSISTENCE_PLUGIN=postgres"
+      - "ES_SEEDS=elasticsearch"
+      - "KAFKA_SEEDS=kafka"
+      - "PERSISTENCE_TYPE=sql"
+      - "TEST_TAG=esintegration"
+      - GITHUB_TOKEN
+      - GITHUB_RUN_ID
+      - GITHUB_RUN_NUMBER
+    depends_on:
+      - postgres
+      - elasticsearch
+      - kafka
+    volumes:
+      - ../../:/cadence
+    networks:
+      services-network:
+        aliases:
+          - integration-test
+
+  integration-test-sqlite:
+    build:
+      context: ../../
+      dockerfile: ./docker/github_actions/Dockerfile
+    environment:
+      - "PERSISTENCE_PLUGIN=sqlite"
+      - "PERSISTENCE_TYPE=sql"
+      - GITHUB_TOKEN
+      - GITHUB_RUN_ID
+      - GITHUB_RUN_NUMBER
+    volumes:
+      - ../../:/cadence
+    networks:
+      services-network:
+        aliases:
+          - integration-test
+
+  integration-test-ndc-cassandra:
+    build:
+      context: ../../
+      dockerfile: ./docker/github_actions/Dockerfile
+    environment:
+      - "CASSANDRA=1"
+      - "CASSANDRA_SEEDS=cassandra"
+      - "ES_SEEDS=elasticsearch"
+      - "KAFKA_SEEDS=kafka"
+      - "TEST_TAG=esintegration"
+      - GITHUB_TOKEN
+      - GITHUB_RUN_ID
+      - GITHUB_RUN_NUMBER
+    depends_on:
+      cassandra:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_started
+      kafka:
+        condition: service_started
+    volumes:
+      - ../../:/cadence
+    networks:
+      services-network:
+        aliases:
+          - integration-test-ndc
+
+  integration-test-ndc-mysql:
+    build:
+      context: ../../
+      dockerfile: ./docker/github_actions/Dockerfile
+    environment:
+      - "MYSQL=1"
+      - "MYSQL_SEEDS=mysql"
+      - "ES_SEEDS=elasticsearch"
+      - "KAFKA_SEEDS=kafka"
+      - "PERSISTENCE_TYPE=sql"
+      - "PERSISTENCE_PLUGIN=mysql"
+      - "TEST_TAG=esintegration"
+      - GITHUB_TOKEN
+      - GITHUB_RUN_ID
+      - GITHUB_RUN_NUMBER
+    depends_on:
+      - mysql
+      - elasticsearch
+      - kafka
+    volumes:
+      - ../../:/cadence
+    networks:
+      services-network:
+        aliases:
+          - integration-test-ndc
+
+  integration-test-ndc-postgres:
+    build:
+      context: ../../
+      dockerfile: ./docker/github_actions/Dockerfile
+    environment:
+      - "POSTGRES=1"
+      - "POSTGRES_SEEDS=postgres"
+      - "ES_SEEDS=elasticsearch"
+      - "KAFKA_SEEDS=kafka"
+      - "PERSISTENCE_TYPE=sql"
+      - "PERSISTENCE_PLUGIN=postgres"
+      - "TEST_TAG=esintegration"
+      - GITHUB_TOKEN
+      - GITHUB_RUN_ID
+      - GITHUB_RUN_NUMBER
+    depends_on:
+      - postgres
+      - elasticsearch
+      - kafka
+    volumes:
+      - ../../:/cadence
+    networks:
+      services-network:
+        aliases:
+          - integration-test-ndc
+
+  integration-test-async-wf:
+    build:
+      context: ../../
+      dockerfile: ./docker/github_actions/Dockerfile
+    environment:
+      - "ASYNC_WF_KAFKA_QUEUE_TOPIC=async-wf-topic1"
+      - "CASSANDRA=1"
+      - "CASSANDRA_SEEDS=cassandra"
+      - "ES_SEEDS=elasticsearch"
+      - "KAFKA_SEEDS=kafka"
+      - "KAFKA_PORT=9092"
+      - GITHUB_TOKEN
+      - GITHUB_RUN_ID
+      - GITHUB_RUN_NUMBER
+    depends_on:
+      cassandra:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    volumes:
+      - ../../:/cadence
+    networks:
+      services-network:
+        aliases:
+          - integration-test-async-wf
+
+  integration-test-with-etcd:
+    build:
+      context: ../../
+      dockerfile: ./docker/github_actions/Dockerfile
+    environment:
+      - "ETCD=1"
+      - "ETCD_ENDPOINTS=http://etcd:2379"
+      - GITHUB_TOKEN
+      - GITHUB_RUN_ID
+      - GITHUB_RUN_NUMBER
+    depends_on:
+      etcd:
+        condition: service_started
+    volumes:
+      - ../../:/cadence
+    networks:
+      services-network:
+        aliases:
+          - integration-test-with-etcd
+
+  coverage-report:
+    build:
+      context: ../../
+      dockerfile: ./docker/github_actions/Dockerfile
+    environment:
+      - CI
+      - GITHUB_TOKEN
+      - GITHUB_RUN_ID
+      - GITHUB_RUN_NUMBER
+      - GITHUB_BRANCH
+      - GITHUB_RUN_URL
+      - GITHUB_REPO
+      - GITHUB_RUN_CREATOR
+      - GITHUB_RUN_CREATOR_EMAIL
+      - GITHUB_RUN_CREATOR_TEAMS
+      - GITHUB_PULL_REQUEST_REPO
+    volumes:
+      - ../../:/cadence
+
+networks:
+  services-network:
+    name: services-network
+    driver: bridge

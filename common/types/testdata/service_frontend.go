@@ -375,6 +375,7 @@ var (
 		Control:                             Control,
 		RetryPolicy:                         &RetryPolicy,
 		CronSchedule:                        CronSchedule,
+		CronOverlapPolicy:                   &CronOverlapPolicy,
 		Memo:                                &Memo,
 		SearchAttributes:                    &SearchAttributes,
 		Header:                              &Header,
@@ -445,6 +446,7 @@ var (
 		Pollers:         PollerInfoArray,
 		TaskListStatus:  &TaskListStatus,
 		PartitionConfig: &TaskListPartitionConfig,
+		TaskList:        &TaskList,
 	}
 	ListTaskListPartitionsRequest = types.ListTaskListPartitionsRequest{
 		Domain:   DomainName,

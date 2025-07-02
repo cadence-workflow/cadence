@@ -27,11 +27,13 @@ import (
 	"fmt"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
 
 //go:generate mockgen -package $GOPACKAGE -destination manager_mock.go -self_package github.com/uber/cadence/common/activecluster github.com/uber/cadence/common/activecluster Manager
 //go:generate mockgen -package $GOPACKAGE -destination external_entity_provider_mock.go -self_package github.com/uber/cadence/common/activecluster github.com/uber/cadence/common/activecluster ExternalEntityProvider
+//go:generate mockgen -package $GOPACKAGE -destination execution_manager_provider_mock.go -self_package github.com/uber/cadence/common/activecluster github.com/uber/cadence/common/activecluster ExecutionManagerProvider
 
 // Manager is the interface for active cluster manager.
 // It is used to lookup region, active cluster, cluster name and failover version etc.
@@ -41,17 +43,17 @@ import (
 type Manager interface {
 	common.Daemon
 
-	// FailoverVersionOfNewWorkflow returns failover version of given new workflow.
+	// LookupNewWorkflow returns active cluster, region and failover version of given new workflow.
 	//  1. If domain is local:
-	//     	Returns domain entry's failover version.
+	//     	Returns info from domain entry.
 	//  2. If domain is active-passive global:
-	//     	Returns domain entry's failover version.
+	//     	Returns info from domain entry.
 	//  3. If domain is active-active global:
-	//     	3.1. if workflow is region sticky, returns failover version of current cluster.
-	//     	3.2. if workflow has external entity, returns failover version of corresponding row in EntityActiveRegion lookup table.
-	FailoverVersionOfNewWorkflow(ctx context.Context, req *types.HistoryStartWorkflowExecutionRequest) (int64, error)
+	//     	3.1. if workflow is region sticky, returns current cluster and its 	failover version.
+	//     	3.2. if workflow has external entity, returns region, cluster name and failover version of corresponding row in EntityActiveRegion lookup table.
+	LookupNewWorkflow(ctx context.Context, domainID string, policy *types.ActiveClusterSelectionPolicy) (*LookupResult, error)
 
-	// LookupWorkflow returns active cluster, region and failover version of given workflow.
+	// LookupWorkflow returns active cluster, region and failover version of given existing workflow.
 	// Returns the info from domain entry for local and active-passive domains
 	//
 	// Active-active domain logic:
@@ -106,6 +108,10 @@ type ExternalEntityProvider interface {
 	SupportedType() string
 	ChangeEvents() <-chan ChangeType
 	GetExternalEntity(ctx context.Context, entityKey string) (*ExternalEntity, error)
+}
+
+type ExecutionManagerProvider interface {
+	GetExecutionManager(shardID int) (persistence.ExecutionManager, error)
 }
 
 type RegionNotFoundForDomainError struct {

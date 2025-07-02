@@ -91,6 +91,7 @@ var (
 	MatchingDescribeTaskListResponse = types.DescribeTaskListResponse{
 		Pollers:        PollerInfoArray,
 		TaskListStatus: &TaskListStatus,
+		TaskList:       &TaskList,
 	}
 	MatchingListTaskListPartitionsRequest = types.MatchingListTaskListPartitionsRequest{
 		Domain:   DomainName,

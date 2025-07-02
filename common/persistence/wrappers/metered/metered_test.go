@@ -275,6 +275,7 @@ func prepareMockForTest(t *testing.T, input interface{}, expectedErr error) {
 		mocked.EXPECT().CompleteHistoryTask(gomock.Any(), gomock.Any()).Return(expectedErr).Times(1)
 		mocked.EXPECT().RangeCompleteHistoryTask(gomock.Any(), gomock.Any()).Return(&persistence.RangeCompleteHistoryTaskResponse{}, expectedErr).Times(1)
 		mocked.EXPECT().RangeDeleteReplicationTaskFromDLQ(gomock.Any(), gomock.Any()).Return(&persistence.RangeDeleteReplicationTaskFromDLQResponse{}, expectedErr).Times(1)
+		mocked.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(&types.ActiveClusterSelectionPolicy{}, expectedErr).Times(1)
 	default:
 		t.Errorf("unsupported type %v", reflect.TypeOf(input))
 		t.FailNow()

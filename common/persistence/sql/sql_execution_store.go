@@ -1416,3 +1416,12 @@ func (m *sqlExecutionStore) rangeCompleteImmediateHistoryTask(
 		return nil, &types.BadRequestError{Message: fmt.Sprintf("Unknown task category: %v", request.TaskCategory.ID())}
 	}
 }
+
+func (m *sqlExecutionStore) GetActiveClusterSelectionPolicy(
+	ctx context.Context,
+	domainID, wfID, rID string,
+) (*p.DataBlob, error) {
+	// TODO(active-active): Active cluster selection policy for SQL stores is not yet implemented
+	// It requires creating a new table in the database to store the active cluster selection policy
+	return nil, &types.InternalServiceError{Message: "Not yet implemented"}
+}

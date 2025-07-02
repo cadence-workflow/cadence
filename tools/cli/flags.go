@@ -222,6 +222,7 @@ const (
 	FlagSearchAttribute                = "search_attr"
 	FlagNumReadPartitions              = "num_read_partitions"
 	FlagNumWritePartitions             = "num_write_partitions"
+	FlagCronOverlapPolicy              = "cron_overlap_policy"
 
 	FlagClustersUsage = "Clusters (example: --clusters clusterA,clusterB or --cl clusterA --cl clusterB)"
 )
@@ -339,6 +340,12 @@ func getFlagsForStart() []cli.Flag {
 				"\t│ │ │ │ ┌───────────── day of the week (0 - 6) (Sunday to Saturday) \n" +
 				"\t│ │ │ │ │ \n" +
 				"\t* * * * *",
+		},
+		&cli.IntFlag{
+			Name:    FlagCronOverlapPolicy,
+			Aliases: []string{"cop"},
+			Usage: "Optional cron overlap policy for the workflow when a cron run overlaps with next scheduled run. " +
+				"Available options: 0: Skip running if cron run overlaps, 1: Start new run immediately if previous run overlaps and completes",
 		},
 		&cli.IntFlag{
 			Name:    FlagWorkflowIDReusePolicy,

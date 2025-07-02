@@ -247,6 +247,7 @@ var (
 			},
 		},
 		NewTasksPerSecond: 10,
+		Empty:             true,
 	}
 	TaskIDBlock = types.TaskIDBlock{
 		StartID: 551,

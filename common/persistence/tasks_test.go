@@ -192,3 +192,351 @@ func TestHistoryTaskKeyComparison(t *testing.T) {
 	assert.Equal(t, -1, key2.Compare(key3))
 	assert.Equal(t, 1, key3.Compare(key2))
 }
+
+func TestIsTaskCorrupted(t *testing.T) {
+	timeNow := time.Now()
+
+	tests := []struct {
+		name     string
+		task     Task
+		expected bool
+	}{
+		{
+			name: "Valid ActivityTask",
+			task: &ActivityTask{
+				WorkflowIdentifier: WorkflowIdentifier{
+					DomainID:   "test-domain",
+					WorkflowID: "test-workflow",
+					RunID:      "test-run",
+				},
+				TaskData: TaskData{
+					Version:             1,
+					TaskID:              1,
+					VisibilityTimestamp: timeNow,
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "Valid DecisionTask",
+			task: &DecisionTask{
+				WorkflowIdentifier: WorkflowIdentifier{
+					DomainID:   "test-domain",
+					WorkflowID: "test-workflow",
+					RunID:      "test-run",
+				},
+				TaskData: TaskData{
+					Version:             1,
+					TaskID:              1,
+					VisibilityTimestamp: timeNow,
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "Valid TimerTask",
+			task: &UserTimerTask{
+				WorkflowIdentifier: WorkflowIdentifier{
+					DomainID:   "test-domain",
+					WorkflowID: "test-workflow",
+					RunID:      "test-run",
+				},
+				TaskData: TaskData{
+					Version:             1,
+					TaskID:              1,
+					VisibilityTimestamp: timeNow,
+				},
+				EventID: 123,
+			},
+			expected: false,
+		},
+		{
+			name: "Valid ReplicationTask",
+			task: &HistoryReplicationTask{
+				WorkflowIdentifier: WorkflowIdentifier{
+					DomainID:   "test-domain",
+					WorkflowID: "test-workflow",
+					RunID:      "test-run",
+				},
+				TaskData: TaskData{
+					Version:             1,
+					TaskID:              1,
+					VisibilityTimestamp: timeNow,
+				},
+				FirstEventID: 1,
+				NextEventID:  10,
+			},
+			expected: false,
+		},
+		{
+			name: "Task with empty DomainID",
+			task: &ActivityTask{
+				WorkflowIdentifier: WorkflowIdentifier{
+					DomainID:   "",
+					WorkflowID: "test-workflow",
+					RunID:      "test-run",
+				},
+				TaskData: TaskData{
+					Version:             1,
+					TaskID:              1,
+					VisibilityTimestamp: timeNow,
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "Task with empty WorkflowID",
+			task: &DecisionTask{
+				WorkflowIdentifier: WorkflowIdentifier{
+					DomainID:   "test-domain",
+					WorkflowID: "",
+					RunID:      "test-run",
+				},
+				TaskData: TaskData{
+					Version:             1,
+					TaskID:              1,
+					VisibilityTimestamp: timeNow,
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "Task with empty RunID",
+			task: &UserTimerTask{
+				WorkflowIdentifier: WorkflowIdentifier{
+					DomainID:   "test-domain",
+					WorkflowID: "test-workflow",
+					RunID:      "",
+				},
+				TaskData: TaskData{
+					Version:             1,
+					TaskID:              1,
+					VisibilityTimestamp: timeNow,
+				},
+				EventID: 123,
+			},
+			expected: true,
+		},
+		{
+			name: "Task with all empty identifiers",
+			task: &ActivityTimeoutTask{
+				WorkflowIdentifier: WorkflowIdentifier{
+					DomainID:   "",
+					WorkflowID: "",
+					RunID:      "",
+				},
+				TaskData: TaskData{
+					Version:             1,
+					TaskID:              1,
+					VisibilityTimestamp: timeNow,
+				},
+				TimeoutType: 1,
+				EventID:     123,
+				Attempt:     1,
+			},
+			expected: true,
+		},
+		{
+			name: "Task with whitespace-only identifiers",
+			task: &WorkflowTimeoutTask{
+				WorkflowIdentifier: WorkflowIdentifier{
+					DomainID:   "   ",
+					WorkflowID: "test-workflow",
+					RunID:      "test-run",
+				},
+				TaskData: TaskData{
+					Version:             1,
+					TaskID:              1,
+					VisibilityTimestamp: timeNow,
+				},
+			},
+			expected: false, // Whitespace is not empty string
+		},
+		{
+			name: "FailoverMarkerTask with empty DomainID",
+			task: &FailoverMarkerTask{
+				TaskData: TaskData{
+					Version:             1,
+					TaskID:              1,
+					VisibilityTimestamp: timeNow,
+				},
+				DomainID: "",
+			},
+			expected: true,
+		},
+		{
+			name: "FailoverMarkerTask with valid DomainID",
+			task: &FailoverMarkerTask{
+				TaskData: TaskData{
+					Version:             1,
+					TaskID:              1,
+					VisibilityTimestamp: timeNow,
+				},
+				DomainID: "test-domain",
+			},
+			expected: false, // FailoverMarkerTask only has DomainID, WorkflowID and RunID are empty by design
+		},
+		{
+			name: "Task with mixed empty and non-empty identifiers",
+			task: &CancelExecutionTask{
+				WorkflowIdentifier: WorkflowIdentifier{
+					DomainID:   "test-domain",
+					WorkflowID: "",
+					RunID:      "test-run",
+				},
+				TaskData: TaskData{
+					Version:             1,
+					TaskID:              1,
+					VisibilityTimestamp: timeNow,
+				},
+				TargetDomainID:          "target-domain",
+				TargetWorkflowID:        "target-workflow",
+				TargetRunID:             "target-run",
+				TargetChildWorkflowOnly: false,
+				InitiatedID:             123,
+			},
+			expected: true,
+		},
+		{
+			name: "Task with very long identifiers",
+			task: &SignalExecutionTask{
+				WorkflowIdentifier: WorkflowIdentifier{
+					DomainID:   "very-long-domain-id-that-exceeds-normal-length",
+					WorkflowID: "very-long-workflow-id-that-exceeds-normal-length",
+					RunID:      "very-long-run-id-that-exceeds-normal-length",
+				},
+				TaskData: TaskData{
+					Version:             1,
+					TaskID:              1,
+					VisibilityTimestamp: timeNow,
+				},
+				TargetDomainID:          "target-domain",
+				TargetWorkflowID:        "target-workflow",
+				TargetRunID:             "target-run",
+				TargetChildWorkflowOnly: false,
+				InitiatedID:             123,
+			},
+			expected: false,
+		},
+		{
+			name: "Task with special characters in identifiers",
+			task: &StartChildExecutionTask{
+				WorkflowIdentifier: WorkflowIdentifier{
+					DomainID:   "domain-with-special-chars-!@#$%^&*()",
+					WorkflowID: "workflow-with-special-chars-!@#$%^&*()",
+					RunID:      "run-with-special-chars-!@#$%^&*()",
+				},
+				TaskData: TaskData{
+					Version:             1,
+					TaskID:              1,
+					VisibilityTimestamp: timeNow,
+				},
+				TargetDomainID:   "target-domain",
+				TargetWorkflowID: "target-workflow",
+				InitiatedID:      123,
+			},
+			expected: false,
+		},
+		{
+			name: "Task with unicode characters in identifiers",
+			task: &RecordWorkflowStartedTask{
+				WorkflowIdentifier: WorkflowIdentifier{
+					DomainID:   "domain-with-unicode-测试",
+					WorkflowID: "workflow-with-unicode-测试",
+					RunID:      "run-with-unicode-测试",
+				},
+				TaskData: TaskData{
+					Version:             1,
+					TaskID:              1,
+					VisibilityTimestamp: timeNow,
+				},
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := IsTaskCorrupted(tt.task)
+			assert.Equal(t, tt.expected, result, "IsTaskCorrupted() = %v, want %v", result, tt.expected)
+		})
+	}
+}
+
+func TestIsTaskCorruptedWithAllTaskTypes(t *testing.T) {
+	timeNow := time.Now()
+	validIdentifier := WorkflowIdentifier{
+		DomainID:   "test-domain",
+		WorkflowID: "test-workflow",
+		RunID:      "test-run",
+	}
+	emptyIdentifier := WorkflowIdentifier{
+		DomainID:   "",
+		WorkflowID: "",
+		RunID:      "",
+	}
+
+	// Test all task types with valid identifiers
+	validTasks := []Task{
+		&ActivityTask{WorkflowIdentifier: validIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&DecisionTask{WorkflowIdentifier: validIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&RecordWorkflowStartedTask{WorkflowIdentifier: validIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&ResetWorkflowTask{WorkflowIdentifier: validIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&CloseExecutionTask{WorkflowIdentifier: validIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&DeleteHistoryEventTask{WorkflowIdentifier: validIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&DecisionTimeoutTask{WorkflowIdentifier: validIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&WorkflowTimeoutTask{WorkflowIdentifier: validIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&CancelExecutionTask{WorkflowIdentifier: validIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&SignalExecutionTask{WorkflowIdentifier: validIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&RecordChildExecutionCompletedTask{WorkflowIdentifier: validIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&UpsertWorkflowSearchAttributesTask{WorkflowIdentifier: validIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&StartChildExecutionTask{WorkflowIdentifier: validIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&RecordWorkflowClosedTask{WorkflowIdentifier: validIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&ActivityTimeoutTask{WorkflowIdentifier: validIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&UserTimerTask{WorkflowIdentifier: validIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&ActivityRetryTimerTask{WorkflowIdentifier: validIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&WorkflowBackoffTimerTask{WorkflowIdentifier: validIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&HistoryReplicationTask{WorkflowIdentifier: validIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&SyncActivityTask{WorkflowIdentifier: validIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&FailoverMarkerTask{TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}, DomainID: "test-domain"},
+	}
+
+	// Test all task types with empty identifiers
+	corruptedTasks := []Task{
+		&ActivityTask{WorkflowIdentifier: emptyIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&DecisionTask{WorkflowIdentifier: emptyIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&RecordWorkflowStartedTask{WorkflowIdentifier: emptyIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&ResetWorkflowTask{WorkflowIdentifier: emptyIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&CloseExecutionTask{WorkflowIdentifier: emptyIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&DeleteHistoryEventTask{WorkflowIdentifier: emptyIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&DecisionTimeoutTask{WorkflowIdentifier: emptyIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&WorkflowTimeoutTask{WorkflowIdentifier: emptyIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&CancelExecutionTask{WorkflowIdentifier: emptyIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&SignalExecutionTask{WorkflowIdentifier: emptyIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&RecordChildExecutionCompletedTask{WorkflowIdentifier: emptyIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&UpsertWorkflowSearchAttributesTask{WorkflowIdentifier: emptyIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&StartChildExecutionTask{WorkflowIdentifier: emptyIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&RecordWorkflowClosedTask{WorkflowIdentifier: emptyIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&ActivityTimeoutTask{WorkflowIdentifier: emptyIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&UserTimerTask{WorkflowIdentifier: emptyIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&ActivityRetryTimerTask{WorkflowIdentifier: emptyIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&WorkflowBackoffTimerTask{WorkflowIdentifier: emptyIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&HistoryReplicationTask{WorkflowIdentifier: emptyIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&SyncActivityTask{WorkflowIdentifier: emptyIdentifier, TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}},
+		&FailoverMarkerTask{TaskData: TaskData{Version: 1, TaskID: 1, VisibilityTimestamp: timeNow}, DomainID: ""},
+	}
+
+	t.Run("All task types with valid identifiers should not be corrupted", func(t *testing.T) {
+		for i, task := range validTasks {
+			result := IsTaskCorrupted(task)
+			assert.False(t, result, "Task type %T at index %d should not be corrupted", task, i)
+		}
+	})
+
+	t.Run("All task types with empty identifiers should be corrupted", func(t *testing.T) {
+		for i, task := range corruptedTasks {
+			result := IsTaskCorrupted(task)
+			assert.True(t, result, "Task type %T at index %d should be corrupted", task, i)
+		}
+	})
+}

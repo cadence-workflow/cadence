@@ -73,6 +73,18 @@ func (mr *MockTaskMockRecorder) ByteSize() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ByteSize", reflect.TypeOf((*MockTask)(nil).ByteSize))
 }
 
+// Cancel mocks base method.
+func (m *MockTask) Cancel() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Cancel")
+}
+
+// Cancel indicates an expected call of Cancel.
+func (mr *MockTaskMockRecorder) Cancel() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Cancel", reflect.TypeOf((*MockTask)(nil).Cancel))
+}
+
 // Execute mocks base method.
 func (m *MockTask) Execute() error {
 	m.ctrl.T.Helper()
@@ -478,6 +490,18 @@ func (m *MockCrossClusterTask) ByteSize() uint64 {
 func (mr *MockCrossClusterTaskMockRecorder) ByteSize() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ByteSize", reflect.TypeOf((*MockCrossClusterTask)(nil).ByteSize))
+}
+
+// Cancel mocks base method.
+func (m *MockCrossClusterTask) Cancel() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Cancel")
+}
+
+// Cancel indicates an expected call of Cancel.
+func (mr *MockCrossClusterTaskMockRecorder) Cancel() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Cancel", reflect.TypeOf((*MockCrossClusterTask)(nil).Cancel))
 }
 
 // Execute mocks base method.

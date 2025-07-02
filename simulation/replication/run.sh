@@ -5,7 +5,9 @@
 # Dynamic configs are located at config/dynamicconfig/replication_simulation_${scenario}.yml
 # The output of the simulation is saved in replication-simulator-output/ folder
 
-# Usage: ./scripts/run_replication_simulator.sh <scenario>
+# Usage: ./simulation/replication/run.sh <scenario>
+# Example command that runs default scenario with a custom dockerfile:
+#   ./simulation/replication/run.sh default "" "" ".local"
 
 set -eo pipefail
 
@@ -14,23 +16,23 @@ testCfg="testdata/replication_simulation_$testCase.yaml"
 now="$(date '+%Y-%m-%d-%H-%M-%S')"
 rerun="${2:-}"
 timestamp="${3:-$now}"
+dockerFileSuffix="${4:-}"
 testName="test-$testCase-$timestamp"
 resultFolder="replication-simulator-output"
 mkdir -p "$resultFolder"
-eventLogsFile="$resultFolder/$testName-events.json"
 testSummaryFile="$resultFolder/$testName-summary.txt"
 
 # Prune everything and rebuild images unless rerun is specified
 if [ "$rerun" != "rerun" ]; then
   echo "Removing some of the previous containers (if exists) to start fresh"
-  SCENARIO=$testCase docker-compose -f docker/buildkite/docker-compose-local-replication-simulation.yml \
+  SCENARIO=$testCase DOCKERFILE_SUFFIX=$dockerFileSuffix docker compose -f docker/buildkite/docker-compose-local-replication-simulation.yml \
     down cassandra cadence-cluster0 cadence-cluster1 cadence-worker0 cadence-worker1 replication-simulator
 
   echo "Each simulation run creates multiple new giant container images. Running docker system prune to avoid disk space issues"
   docker system prune -f
 
   echo "Building test images"
-  SCENARIO=$testCase docker-compose -f docker/buildkite/docker-compose-local-replication-simulation.yml \
+  SCENARIO=$testCase DOCKERFILE_SUFFIX=$dockerFileSuffix docker compose -f docker/buildkite/docker-compose-local-replication-simulation.yml \
     build cadence-cluster0 cadence-cluster1 cadence-worker0 cadence-worker1 replication-simulator
 fi
 
@@ -51,16 +53,15 @@ function check_test_failure()
 
 trap check_test_failure EXIT
 
-echo "Running the scenario $testCase"
-SCENARIO=$testCase docker-compose \
+echo "Running the scenario '$testCase' with dockerfile suffix: '$dockerFileSuffix'"
+echo "Test name: $testName"
+
+SCENARIO=$testCase DOCKERFILE_SUFFIX=$dockerFileSuffix docker compose \
   -f docker/buildkite/docker-compose-local-replication-simulation.yml \
   run \
   -e REPLICATION_SIMULATION_CONFIG=$testCfg \
   --rm --remove-orphans --service-ports --use-aliases \
-  replication-simulator \
-  | grep -a --line-buffered "Replication New Event" \
-  | sed "s/Replication New Event: //" \
-  | jq . > "$eventLogsFile"
+  replication-simulator
 
 
 echo "---- Simulation Summary ----"

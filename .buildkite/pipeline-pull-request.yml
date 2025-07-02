@@ -369,3 +369,5 @@ steps:
       - docker-compose#v3.0.0:
           run: integration-test-with-etcd
           config: docker/buildkite/docker-compose.yml
+
+# TODO(bk-cleanup): Remove this file after fully migrated to github actions

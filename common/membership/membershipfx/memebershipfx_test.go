@@ -28,7 +28,6 @@ import (
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxtest"
 	"go.uber.org/mock/gomock"
-	"go.uber.org/yarpc"
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
@@ -53,9 +52,6 @@ func TestFxStartStop(t *testing.T) {
 		}
 		factory := rpc.NewMockFactory(ctrl)
 		factory.EXPECT().Start(gomock.Any()).Return(nil)
-		factory.EXPECT().GetDispatcher().Return(yarpc.NewDispatcher(yarpc.Config{
-			Name: "membership_test",
-		}))
 		return appParams{
 			Clock:         clock.NewMockedTimeSource(),
 			PeerProvider:  provider,

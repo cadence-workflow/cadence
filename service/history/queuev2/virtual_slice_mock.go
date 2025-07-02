@@ -43,6 +43,32 @@ func (m *MockVirtualSlice) EXPECT() *MockVirtualSliceMockRecorder {
 	return m.recorder
 }
 
+// Clear mocks base method.
+func (m *MockVirtualSlice) Clear() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Clear")
+}
+
+// Clear indicates an expected call of Clear.
+func (mr *MockVirtualSliceMockRecorder) Clear() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Clear", reflect.TypeOf((*MockVirtualSlice)(nil).Clear))
+}
+
+// GetPendingTaskCount mocks base method.
+func (m *MockVirtualSlice) GetPendingTaskCount() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPendingTaskCount")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// GetPendingTaskCount indicates an expected call of GetPendingTaskCount.
+func (mr *MockVirtualSliceMockRecorder) GetPendingTaskCount() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPendingTaskCount", reflect.TypeOf((*MockVirtualSlice)(nil).GetPendingTaskCount))
+}
+
 // GetState mocks base method.
 func (m *MockVirtualSlice) GetState() VirtualSliceState {
 	m.ctrl.T.Helper()

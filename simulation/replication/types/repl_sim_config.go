@@ -35,7 +35,6 @@ import (
 	"go.uber.org/yarpc/transport/grpc"
 	"gopkg.in/yaml.v2"
 
-	"github.com/uber/cadence/.gen/go/shared"
 	"github.com/uber/cadence/client/admin"
 	"github.com/uber/cadence/client/frontend"
 	grpcClient "github.com/uber/cadence/client/wrappers/grpc"
@@ -45,10 +44,12 @@ import (
 type ReplicationSimulationOperation string
 
 const (
-	ReplicationSimulationOperationStartWorkflow        ReplicationSimulationOperation = "start_workflow"
-	ReplicationSimulationOperationResetWorkflow        ReplicationSimulationOperation = "reset_workflow"
-	ReplicationSimulationOperationChangeActiveClusters ReplicationSimulationOperation = "change_active_clusters"
-	ReplicationSimulationOperationValidate             ReplicationSimulationOperation = "validate"
+	ReplicationSimulationOperationStartWorkflow           ReplicationSimulationOperation = "start_workflow"
+	ReplicationSimulationOperationResetWorkflow           ReplicationSimulationOperation = "reset_workflow"
+	ReplicationSimulationOperationChangeActiveClusters    ReplicationSimulationOperation = "change_active_clusters"
+	ReplicationSimulationOperationValidate                ReplicationSimulationOperation = "validate"
+	ReplicationSimulationOperationQueryWorkflow           ReplicationSimulationOperation = "query_workflow"
+	ReplicationSimulationOperationSignalWithStartWorkflow ReplicationSimulationOperation = "signal_with_start_workflow"
 )
 
 type ReplicationSimulationConfig struct {
@@ -64,12 +65,9 @@ type ReplicationSimulationConfig struct {
 }
 
 type ReplicationDomainConfig struct {
-	Name string `yaml:"name"`
+	ActiveClusterName string `yaml:"activeClusterName"`
 
-	// ActiveClusters is the list of clusters that the test domain is active in
-	// If one cluster is specified, the test domain will be regular active-passive global domain.
-	// If multiple clusters are specified, the test domain will be active-active global domain.
-	ActiveClusters []string `yaml:"activeClusters"`
+	ActiveClustersByRegion map[string]string `yaml:"activeClustersByRegion"`
 }
 
 type Operation struct {
@@ -83,11 +81,18 @@ type Operation struct {
 	WorkflowDuration                     time.Duration `yaml:"workflowDuration"`
 	ActivityCount                        int           `yaml:"activityCount"`
 
+	Query            string `yaml:"query"`
+	ConsistencyLevel string `yaml:"consistencyLevel"`
+
+	SignalName  string `yaml:"signalName"`
+	SignalInput any    `yaml:"signalInput"`
+
 	EventID int64 `yaml:"eventID"`
 
-	Domain            string   `yaml:"domain"`
-	NewActiveClusters []string `yaml:"newActiveClusters"`
-	FailoverTimeout   *int32   `yaml:"failoverTimeoutSec"`
+	Domain                    string            `yaml:"domain"`
+	NewActiveCluster          string            `yaml:"newActiveCluster"`
+	NewActiveClustersByRegion map[string]string `yaml:"newActiveClustersByRegion"`
+	FailoverTimeout           *int32            `yaml:"failoverTimeoutSec"`
 
 	Want Validation `yaml:"want"`
 }
@@ -97,6 +102,7 @@ type Validation struct {
 	StartedByWorkersInCluster   string `yaml:"startedByWorkersInCluster"`
 	CompletedByWorkersInCluster string `yaml:"completedByWorkersInCluster"`
 	Error                       string `yaml:"error"`
+	QueryResult                 any    `yaml:"queryResult"`
 }
 
 type Cluster struct {
@@ -164,11 +170,12 @@ func (s *ReplicationSimulationConfig) MustInitClientsFor(t *testing.T, clusterNa
 }
 
 func (s *ReplicationSimulationConfig) IsActiveActiveDomain(domainName string) bool {
-	return len(s.Domains[domainName].ActiveClusters) > 1
+	return len(s.Domains[domainName].ActiveClustersByRegion) > 0
 }
 
-func (s *ReplicationSimulationConfig) MustRegisterDomain(t *testing.T, domainName string) {
+func (s *ReplicationSimulationConfig) MustRegisterDomain(t *testing.T, domainName string, domainCfg ReplicationDomainConfig) {
 	Logf(t, "Registering domain: %s", domainName)
+
 	var clusters []*types.ClusterReplicationConfiguration
 	for name := range s.Clusters {
 		clusters = append(clusters, &types.ClusterReplicationConfiguration{
@@ -177,18 +184,25 @@ func (s *ReplicationSimulationConfig) MustRegisterDomain(t *testing.T, domainNam
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	err := s.MustGetFrontendClient(t, s.PrimaryCluster).RegisterDomain(ctx, &types.RegisterDomainRequest{
+	req := &types.RegisterDomainRequest{
 		Name:                                   domainName,
 		Clusters:                               clusters,
 		WorkflowExecutionRetentionPeriodInDays: 1,
 		IsGlobalDomain:                         true,
-		ActiveClusterName:                      s.PrimaryCluster,
-		// TODO: Once API is updated to support ActiveClusterNames, update this
-		// ActiveClusterNames:                      s.DomainActiveClusters,
-	})
+	}
+
+	if len(domainCfg.ActiveClusterName) > 0 {
+		req.ActiveClusterName = domainCfg.ActiveClusterName
+	} else if len(domainCfg.ActiveClustersByRegion) > 0 {
+		req.ActiveClustersByRegion = domainCfg.ActiveClustersByRegion
+	} else {
+		require.Fail(t, "activeClusterName or activeClustersByRegion is required but missing for domain %s", domainName)
+	}
+
+	err := s.MustGetFrontendClient(t, s.PrimaryCluster).RegisterDomain(ctx, req)
 
 	if err != nil {
-		if _, ok := err.(*shared.DomainAlreadyExistsError); !ok {
+		if _, ok := err.(*types.DomainAlreadyExistsError); !ok {
 			require.NoError(t, err, "failed to register domain")
 		} else {
 			Logf(t, "Domains already exists: %s", domainName)

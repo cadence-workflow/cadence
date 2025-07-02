@@ -963,6 +963,7 @@ const (
 	// Default value: 2 // 3 levels, start from 0
 	// Allowed filters: N/A
 	QueueProcessorSplitMaxLevel
+	QueueMaxPendingTaskCount
 	// TimerTaskBatchSize is batch size for timer processor to process tasks
 	// KeyName: history.timerTaskBatchSize
 	// Value type: Int
@@ -3528,6 +3529,11 @@ var IntKeys = map[IntKey]DynamicInt{
 		KeyName:      "history.queueProcessorSplitMaxLevel",
 		Description:  "QueueProcessorSplitMaxLevel is the max processing queue level",
 		DefaultValue: 2, // 3 levels, start from 0
+	},
+	QueueMaxPendingTaskCount: {
+		KeyName:      "history.queueMaxPendingTaskCount",
+		Description:  "QueueMaxPendingTaskCount is the max number of pending tasks in the queue",
+		DefaultValue: 10000,
 	},
 	TimerTaskBatchSize: {
 		KeyName:      "history.timerTaskBatchSize",

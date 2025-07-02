@@ -250,6 +250,8 @@ func executionManagerTags(op string) *tag.Tag {
 		return &tag.StoreOperationCompleteTimerTask
 	case "ExecutionManager.CreateFailoverMarkerTasks":
 		return &tag.StoreOperationCreateFailoverMarkerTasks
+	case "ExecutionManager.GetActiveClusterSelectionPolicy":
+		return &tag.StoreOperationGetActiveClusterSelectionPolicy
 	}
 	return nil
 }

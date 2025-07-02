@@ -921,3 +921,25 @@ func (d *nosqlExecutionStore) rangeCompleteImmediateHistoryTask(
 	}
 	return &persistence.RangeCompleteHistoryTaskResponse{TasksCompleted: persistence.UnknownNumRowsAffected}, nil
 }
+
+func (d *nosqlExecutionStore) GetActiveClusterSelectionPolicy(
+	ctx context.Context,
+	domainID, wfID, rID string,
+) (*persistence.DataBlob, error) {
+	row, err := d.db.SelectActiveClusterSelectionPolicy(ctx, d.shardID, domainID, wfID, rID)
+	if err != nil {
+		if d.db.IsNotFoundError(err) {
+			return nil, &types.EntityNotExistsError{
+				Message: fmt.Sprintf("Active cluster selection policy not found.  DomainId: %v, WorkflowId: %v, RunId: %v", domainID, wfID, rID),
+			}
+		}
+
+		return nil, convertCommonErrors(d.db, "GetActiveClusterSelectionPolicy", err)
+	}
+
+	if row == nil {
+		return nil, nil
+	}
+
+	return row.Policy, nil
+}

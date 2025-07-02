@@ -515,6 +515,8 @@ func (s *workflowSuite) newTestActiveClusterManager(clusterMetadata cluster.Meta
 		nil,
 		testlogger.New(s.T()),
 		nil,
+		nil,
+		0,
 	)
 	if err != nil {
 		s.T().Fatalf("failed to create active cluster manager, error: %v", err)

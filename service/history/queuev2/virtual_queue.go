@@ -35,6 +35,8 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/persistence"
+	"github.com/uber/cadence/common/quotas"
 	"github.com/uber/cadence/service/history/task"
 )
 
@@ -47,25 +49,31 @@ type (
 	}
 
 	VirtualQueueOptions struct {
-		PageSize dynamicproperties.IntPropertyFn
+		PageSize                             dynamicproperties.IntPropertyFn
+		MaxPendingTasksCount                 dynamicproperties.IntPropertyFn
+		PollBackoffInterval                  dynamicproperties.DurationPropertyFn
+		PollBackoffIntervalJitterCoefficient dynamicproperties.FloatPropertyFn
 	}
 
 	virtualQueueImpl struct {
-		options      *VirtualQueueOptions
-		processor    task.Processor
-		redispatcher task.Redispatcher
-		logger       log.Logger
-		metricsScope metrics.Scope
-		timeSource   clock.TimeSource
+		options             *VirtualQueueOptions
+		processor           task.Processor
+		redispatcher        task.Redispatcher
+		logger              log.Logger
+		metricsScope        metrics.Scope
+		timeSource          clock.TimeSource
+		taskLoadRateLimiter quotas.Limiter
+		monitor             Monitor
 
 		sync.RWMutex
-		status        int32
-		wg            sync.WaitGroup
-		ctx           context.Context
-		cancel        func()
-		notifyCh      chan struct{}
-		virtualSlices *list.List
-		sliceToRead   *list.Element
+		status          int32
+		wg              sync.WaitGroup
+		ctx             context.Context
+		cancel          func()
+		notifyCh        chan struct{}
+		pauseController PauseController
+		virtualSlices   *list.List
+		sliceToRead     *list.Element
 	}
 )
 
@@ -75,6 +83,8 @@ func NewVirtualQueue(
 	logger log.Logger,
 	metricsScope metrics.Scope,
 	timeSource clock.TimeSource,
+	taskLoadRateLimiter quotas.Limiter,
+	monitor Monitor,
 	virtualSlices []VirtualSlice,
 	options *VirtualQueueOptions,
 ) VirtualQueue {
@@ -86,19 +96,22 @@ func NewVirtualQueue(
 	}
 
 	return &virtualQueueImpl{
-		options:      options,
-		processor:    processor,
-		redispatcher: redispatcher,
-		logger:       logger,
-		metricsScope: metricsScope,
-		timeSource:   timeSource,
+		options:             options,
+		processor:           processor,
+		redispatcher:        redispatcher,
+		logger:              logger,
+		metricsScope:        metricsScope,
+		timeSource:          timeSource,
+		taskLoadRateLimiter: taskLoadRateLimiter,
+		monitor:             monitor,
 
-		status:        common.DaemonStatusInitialized,
-		ctx:           ctx,
-		cancel:        cancel,
-		notifyCh:      make(chan struct{}, 1),
-		virtualSlices: sliceList,
-		sliceToRead:   sliceList.Front(),
+		status:          common.DaemonStatusInitialized,
+		ctx:             ctx,
+		cancel:          cancel,
+		notifyCh:        make(chan struct{}, 1),
+		pauseController: NewPauseController(timeSource),
+		virtualSlices:   sliceList,
+		sliceToRead:     sliceList.Front(),
 	}
 }
 
@@ -107,6 +120,7 @@ func (q *virtualQueueImpl) Start() {
 		return
 	}
 
+	q.pauseController.Subscribe("virtual-queue", q.notifyCh)
 	q.wg.Add(1)
 	go q.run()
 
@@ -120,8 +134,18 @@ func (q *virtualQueueImpl) Stop() {
 		return
 	}
 
+	q.pauseController.Unsubscribe("virtual-queue")
+	q.pauseController.Stop()
+
 	q.cancel()
 	q.wg.Wait()
+
+	q.RLock()
+	defer q.RUnlock()
+	for e := q.virtualSlices.Front(); e != nil; e = e.Next() {
+		slice := e.Value.(VirtualSlice)
+		slice.Clear()
+	}
 
 	q.logger.Info("Virtual queue state changed", tag.LifeCycleStopped)
 }
@@ -149,8 +173,10 @@ func (q *virtualQueueImpl) UpdateAndGetState() []VirtualSliceState {
 		state := slice.UpdateAndGetState()
 		if state.IsEmpty() {
 			q.virtualSlices.Remove(e)
+			q.monitor.RemoveSlice(slice)
 		} else {
 			states = append(states, state)
+			q.monitor.SetSlicePendingTaskCount(slice, slice.GetPendingTaskCount())
 		}
 	}
 	return states
@@ -170,18 +196,18 @@ func (q *virtualQueueImpl) MergeSlices(incomingSlices ...VirtualSlice) {
 		incomingSlice := incomingSlices[incomingSliceIdx]
 
 		if currentSlice.GetState().Range.InclusiveMinTaskKey.Compare(incomingSlice.GetState().Range.InclusiveMinTaskKey) < 0 {
-			appendOrMergeSlice(mergedSlices, currentSlice)
+			q.appendOrMergeSlice(mergedSlices, currentSlice)
 			currentSliceElement = currentSliceElement.Next()
 		} else {
-			appendOrMergeSlice(mergedSlices, incomingSlice)
+			q.appendOrMergeSlice(mergedSlices, incomingSlice)
 			incomingSliceIdx++
 		}
 	}
 	for ; currentSliceElement != nil; currentSliceElement = currentSliceElement.Next() {
-		appendOrMergeSlice(mergedSlices, currentSliceElement.Value.(VirtualSlice))
+		q.appendOrMergeSlice(mergedSlices, currentSliceElement.Value.(VirtualSlice))
 	}
 	for _, slice := range incomingSlices[incomingSliceIdx:] {
-		appendOrMergeSlice(mergedSlices, slice)
+		q.appendOrMergeSlice(mergedSlices, slice)
 	}
 
 	q.virtualSlices.Init()
@@ -210,14 +236,30 @@ func (q *virtualQueueImpl) run() {
 }
 
 func (q *virtualQueueImpl) loadAndSubmitTasks() {
-	q.RLock()
-	defer q.RUnlock()
+	if err := q.taskLoadRateLimiter.Wait(q.ctx); err != nil {
+		if q.ctx.Err() != nil {
+			return
+		}
+		// this should never happen, but we log it for debugging purposes
+		q.logger.Error("Virtual queue failed to wait for rate limiter", tag.Error(err))
+	}
+
+	q.Lock()
+	defer q.Unlock()
 
 	if q.sliceToRead == nil {
 		return
 	}
 
-	// TODO: do not load task if there are too many pending tasks
+	pendingTaskCount := q.monitor.GetTotalPendingTaskCount()
+	if pendingTaskCount > q.options.MaxPendingTasksCount() {
+		q.logger.Warn("Too many pending tasks, pause loading tasks for a while", tag.PendingTaskCount(pendingTaskCount))
+		q.pauseController.Pause(q.options.PollBackoffInterval())
+	}
+
+	if q.pauseController.IsPaused() {
+		return
+	}
 
 	sliceToRead := q.sliceToRead.Value.(VirtualSlice)
 	tasks, err := sliceToRead.GetTasks(q.ctx, q.options.PageSize())
@@ -226,9 +268,19 @@ func (q *virtualQueueImpl) loadAndSubmitTasks() {
 		return
 	}
 
+	q.monitor.SetSlicePendingTaskCount(sliceToRead, sliceToRead.GetPendingTaskCount())
+
 	now := q.timeSource.Now()
 	for _, task := range tasks {
+		if persistence.IsTaskCorrupted(task) {
+			q.logger.Error("Virtual queue encountered a corrupted task", tag.Dynamic("task", task))
+			q.metricsScope.IncCounter(metrics.CorruptedHistoryTaskCounter)
+			task.Ack()
+			continue
+		}
+
 		scheduledTime := task.GetTaskKey().GetScheduledTime()
+		// if the scheduled time is in the future, we need to redispatch the task
 		if now.Before(scheduledTime) {
 			q.redispatcher.RedispatchTask(task, scheduledTime)
 			continue
@@ -244,6 +296,7 @@ func (q *virtualQueueImpl) loadAndSubmitTasks() {
 			}
 		}
 		if !submitted {
+			q.metricsScope.IncCounter(metrics.ProcessingQueueThrottledCounter)
 			q.redispatcher.AddTask(task)
 		}
 	}
@@ -273,9 +326,10 @@ func (q *virtualQueueImpl) resetNextReadSliceLocked() {
 	}
 }
 
-func appendOrMergeSlice(slices *list.List, incomingSlice VirtualSlice) {
+func (q *virtualQueueImpl) appendOrMergeSlice(slices *list.List, incomingSlice VirtualSlice) {
 	if slices.Len() == 0 {
 		slices.PushBack(incomingSlice)
+		q.monitor.SetSlicePendingTaskCount(incomingSlice, incomingSlice.GetPendingTaskCount())
 		return
 	}
 
@@ -284,11 +338,15 @@ func appendOrMergeSlice(slices *list.List, incomingSlice VirtualSlice) {
 	mergedSlices, merged := lastSlice.TryMergeWithVirtualSlice(incomingSlice)
 	if !merged {
 		slices.PushBack(incomingSlice)
+		q.monitor.SetSlicePendingTaskCount(incomingSlice, incomingSlice.GetPendingTaskCount())
 		return
 	}
 
 	slices.Remove(lastElement)
+	q.monitor.RemoveSlice(lastSlice)
+	q.monitor.RemoveSlice(incomingSlice) // incomingSlice may already be tracked by the monitor, so we need to remove it if it's tracked
 	for _, mergedSlice := range mergedSlices {
 		slices.PushBack(mergedSlice)
+		q.monitor.SetSlicePendingTaskCount(mergedSlice, mergedSlice.GetPendingTaskCount())
 	}
 }

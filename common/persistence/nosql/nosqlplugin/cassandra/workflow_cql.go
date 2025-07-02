@@ -79,6 +79,7 @@ const (
 		`event_store_version: ?, ` +
 		`branch_token: ?, ` +
 		`cron_schedule: ?, ` +
+		`cron_overlap_policy: ?, ` +
 		`expiration_seconds: ?, ` +
 		`search_attributes: ?, ` +
 		`memo: ?, ` +
@@ -251,6 +252,16 @@ const (
 	templateInsertWorkflowActiveClusterSelectionPolicyRowQuery = `INSERT INTO executions (` +
 		`shard_id, type, domain_id, workflow_id, run_id, visibility_ts, task_id, created_time, data, data_encoding) ` +
 		`VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?) IF NOT EXISTS`
+
+	templateGetActiveClusterSelectionPolicyQuery = `SELECT data, data_encoding ` +
+		`FROM executions ` +
+		`WHERE shard_id = ? ` +
+		`and type = ? ` +
+		`and domain_id = ? ` +
+		`and workflow_id = ? ` +
+		`and run_id = ? ` +
+		`and visibility_ts = ? ` +
+		`and task_id = ?`
 
 	templateGetLatestWorkflowRequestQuery = `SELECT current_run_id ` +
 		`FROM executions ` +

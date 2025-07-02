@@ -1,0 +1,82 @@
+services:
+  cassandra:
+    image: cassandra:4.1.1
+    environment:
+      - "MAX_HEAP_SIZE=256M"
+      - "HEAP_NEWSIZE=128M"
+    networks:
+      services-network:
+        aliases:
+          - cassandra
+    healthcheck:
+      test: ["CMD", "cqlsh", "-u cassandra", "-p cassandra" ,"-e describe keyspaces"]
+      interval: 15s
+      timeout: 30s
+      retries: 10
+
+  kafka:
+    image: docker.io/bitnami/kafka:3.7
+    hostname: kafka
+    container_name: kafka
+    ports:
+      - "9092:9092"
+    environment:
+      # KRaft settings
+      - "KAFKA_CFG_NODE_ID=0"
+      - "KAFKA_CFG_PROCESS_ROLES=controller,broker"
+      - "KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=0@kafka:9093"
+      # Listeners
+      - "KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093"
+      - "KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092"
+      - "KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+      - "KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER"
+      - "KAFKA_CFG_INTER_BROKER_LISTENER_NAME=PLAINTEXT"
+      # Topic settings
+      - "KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true"
+    networks:
+      services-network:
+        aliases:
+          - kafka
+
+  elasticsearch:
+    image: opensearchproject/opensearch:2.5.0
+    networks:
+      services-network:
+        aliases:
+          - elasticsearch
+    environment:
+      - discovery.type=single-node
+      - "DISABLE_SECURITY_PLUGIN=true"
+
+  integration-test-cassandra:
+    build:
+      context: ../../
+      dockerfile: ./docker/github_actions/Dockerfile
+    environment:
+      - "CASSANDRA=1"
+      - "CASSANDRA_SEEDS=cassandra"
+      - "ES_SEEDS=elasticsearch"
+      - "KAFKA_SEEDS=kafka"
+      - "TEST_TAG=esintegration"
+      - "ES_VERSION=os2"
+      - GITHUB_TOKEN
+      - GITHUB_RUN_ID
+      - GITHUB_RUN_NUMBER
+    depends_on:
+      cassandra:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_started
+      kafka:
+        condition: service_started
+    volumes:
+      - ../../:/cadence
+    networks:
+      services-network:
+        aliases:
+          - integration-test
+
+networks:
+  services-network:
+    name: services-network
+    driver: bridge

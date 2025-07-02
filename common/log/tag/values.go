@@ -235,6 +235,7 @@ var (
 	StoreOperationGetHistoryTasks                   = storeOperation("get-history-tasks")
 	StoreOperationCompleteHistoryTask               = storeOperation("complete-history-task")
 	StoreOperationRangeCompleteHistoryTask          = storeOperation("range-complete-history-task")
+	StoreOperationGetActiveClusterSelectionPolicy   = storeOperation("get-active-cluster-selection-policy")
 
 	StoreOperationCreateTasks           = storeOperation("create-tasks")
 	StoreOperationGetTasks              = storeOperation("get-tasks")

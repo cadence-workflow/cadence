@@ -38,7 +38,7 @@ import (
 )
 
 func (h *apiHandler) handleErr(err error, scope metrics.Scope, logger log.Logger) error {
-	logger.Helper()
+	logger = logger.Helper()
 
 	// attempt to extract hostname if possible
 	hostname, err := commonerrors.ExtractPeerHostname(err)

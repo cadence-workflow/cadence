@@ -1804,6 +1804,7 @@ type DescribeTaskListResponse struct {
 	Pollers         []*PollerInfo            `json:"pollers,omitempty"`
 	TaskListStatus  *TaskListStatus          `json:"taskListStatus,omitempty"`
 	PartitionConfig *TaskListPartitionConfig `json:"partitionConfig,omitempty"`
+	TaskList        *TaskList                `json:"taskList,omitempty"`
 }
 
 // GetPollers is an internal getter (TBD...)
@@ -7003,6 +7004,7 @@ type TaskListStatus struct {
 	TaskIDBlock           *TaskIDBlock                      `json:"taskIDBlock,omitempty"`
 	IsolationGroupMetrics map[string]*IsolationGroupMetrics `json:"isolationGroupMetrics,omitempty"`
 	NewTasksPerSecond     float64                           `json:"newTasksPerSecond,omitempty"`
+	Empty                 bool                              `json:"empty,omitempty"`
 }
 
 // GetBacklogCountHint is an internal getter (TBD...)

@@ -9,3 +9,5 @@ then
 else
     cat .buildkite/pipeline-pull-request.yml
 fi
+
+# TODO(bk-cleanup): Remove this file after fully migrated to github actions

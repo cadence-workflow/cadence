@@ -38,7 +38,7 @@ import (
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
-	t "github.com/uber/cadence/common/task"
+	ctask "github.com/uber/cadence/common/task"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/config"
 	"github.com/uber/cadence/service/history/constants"
@@ -254,19 +254,37 @@ func (s *taskSuite) TestHandleErr_UnknownErr() {
 	s.Equal(err, taskBase.HandleErr(err))
 }
 
+func (s *taskSuite) TestTaskCancel() {
+	taskBase := s.newTestTask(func(task persistence.Task) (bool, error) {
+		return true, nil
+	}, nil)
+
+	taskBase.Cancel()
+	s.Equal(ctask.TaskStateCanceled, taskBase.State())
+
+	s.NoError(taskBase.Execute())
+
+	taskBase.Ack()
+	s.Equal(ctask.TaskStateCanceled, taskBase.State())
+
+	taskBase.Nack()
+	s.Equal(ctask.TaskStateCanceled, taskBase.State())
+
+	s.False(taskBase.RetryErr(errors.New("some random error")))
+}
+
 func (s *taskSuite) TestTaskState() {
 	taskBase := s.newTestTask(func(task persistence.Task) (bool, error) {
 		return true, nil
 	}, nil)
 
-	s.Equal(t.TaskStatePending, taskBase.State())
+	s.Equal(ctask.TaskStatePending, taskBase.State())
 
 	taskBase.Ack()
-	s.Equal(t.TaskStateAcked, taskBase.State())
+	s.Equal(ctask.TaskStateAcked, taskBase.State())
 
-	s.mockTaskProcessor.EXPECT().TrySubmit(taskBase).Return(true, nil).Times(1)
 	taskBase.Nack()
-	s.Equal(t.TaskStateNacked, taskBase.State())
+	s.Equal(ctask.TaskStateAcked, taskBase.State())
 }
 
 func (s *taskSuite) TestTaskPriority() {
@@ -292,7 +310,7 @@ func (s *taskSuite) TestTaskNack_ResubmitSucceeded() {
 	s.mockTaskProcessor.EXPECT().TrySubmit(task).Return(true, nil).Times(1)
 
 	task.Nack()
-	s.Equal(t.TaskStateNacked, task.State())
+	s.Equal(ctask.TaskStatePending, task.State())
 }
 
 func (s *taskSuite) TestTaskNack_ResubmitFailed() {
@@ -309,7 +327,7 @@ func (s *taskSuite) TestTaskNack_ResubmitFailed() {
 	s.mockTaskRedispatcher.EXPECT().AddTask(task).Times(1)
 
 	task.Nack()
-	s.Equal(t.TaskStateNacked, task.State())
+	s.Equal(ctask.TaskStatePending, task.State())
 }
 
 func (s *taskSuite) TestHandleErr_ErrMaxAttempts() {

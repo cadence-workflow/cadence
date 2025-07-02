@@ -305,6 +305,8 @@ const (
 	PersistenceUpdateDynamicConfigScope
 	// PersistenceShardRequestCountScope tracks number of persistence calls made to each shard
 	PersistenceShardRequestCountScope
+	// PersistenceGetActiveClusterSelectionPolicyScope tracks GetActiveClusterSelectionPolicy calls made by service to persistence layer
+	PersistenceGetActiveClusterSelectionPolicyScope
 
 	// ResolverHostNotFoundScope is a simple low level error indicating a lookup failed in the membership resolver
 	ResolverHostNotFoundScope
@@ -1528,6 +1530,7 @@ var ScopeDefs = map[ServiceIdx]map[int]scopeDefinition{
 		PersistenceFetchDynamicConfigScope:                       {operation: "FetchDynamicConfig"},
 		PersistenceUpdateDynamicConfigScope:                      {operation: "UpdateDynamicConfig"},
 		PersistenceShardRequestCountScope:                        {operation: "ShardIdPersistenceRequest"},
+		PersistenceGetActiveClusterSelectionPolicyScope:          {operation: "GetActiveClusterSelectionPolicy"},
 		ResolverHostNotFoundScope:                                {operation: "ResolverHostNotFound"},
 
 		ClusterMetadataArchivalConfigScope: {operation: "ArchivalConfig"},
@@ -2367,6 +2370,7 @@ const (
 	ScheduleToStartHistoryQueueLatencyPerTaskList
 	TaskRequestsOldScheduler
 	TaskRequestsNewScheduler
+	PendingTaskGauge
 
 	TaskRequestsPerDomain
 	TaskLatencyPerDomain
@@ -2404,6 +2408,7 @@ const (
 	ProcessingQueueSelectedDomainSplitCounter
 	ProcessingQueueRandomSplitCounter
 	ProcessingQueueThrottledCounter
+	CorruptedHistoryTaskCounter
 
 	QueueValidatorLostTaskCounter
 	QueueValidatorDropTaskCounter
@@ -3116,6 +3121,7 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		ScheduleToStartHistoryQueueLatencyPerTaskList: {metricName: "schedule_to_start_history_queue_latency_per_tl", metricType: Timer},
 		TaskRequestsOldScheduler:                      {metricName: "task_requests_old_scheduler", metricType: Counter},
 		TaskRequestsNewScheduler:                      {metricName: "task_requests_new_scheduler", metricType: Counter},
+		PendingTaskGauge:                              {metricName: "pending_task_gauge", metricType: Gauge},
 
 		// per domain task metrics
 
@@ -3154,6 +3160,7 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		ProcessingQueueSelectedDomainSplitCounter:                    {metricName: "processing_queue_selected_domain_split_counter", metricType: Counter},
 		ProcessingQueueRandomSplitCounter:                            {metricName: "processing_queue_random_split_counter", metricType: Counter},
 		ProcessingQueueThrottledCounter:                              {metricName: "processing_queue_throttled_counter", metricType: Counter},
+		CorruptedHistoryTaskCounter:                                  {metricName: "corrupted_history_task_counter", metricType: Counter},
 		QueueValidatorLostTaskCounter:                                {metricName: "queue_validator_lost_task_counter", metricType: Counter},
 		QueueValidatorDropTaskCounter:                                {metricName: "queue_validator_drop_task_counter", metricType: Counter},
 		QueueValidatorInvalidLoadCounter:                             {metricName: "queue_validator_invalid_load_counter", metricType: Counter},

@@ -240,6 +240,8 @@ func New(
 		params.MetricsClient,
 		logger,
 		externalEntityProviders,
+		persistenceBean,
+		numShards,
 		activecluster.WithTimeSource(params.TimeSource),
 	)
 	if err != nil {

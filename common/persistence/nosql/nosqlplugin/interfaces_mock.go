@@ -728,6 +728,21 @@ func (mr *MockDBMockRecorder) RangeDeleteTransferTasks(ctx, shardID, inclusiveBe
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteTransferTasks", reflect.TypeOf((*MockDB)(nil).RangeDeleteTransferTasks), ctx, shardID, inclusiveBeginTaskID, exclusiveEndTaskID)
 }
 
+// SelectActiveClusterSelectionPolicy mocks base method.
+func (m *MockDB) SelectActiveClusterSelectionPolicy(ctx context.Context, shardID int, domainID, wfID, rID string) (*ActiveClusterSelectionPolicyRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectActiveClusterSelectionPolicy", ctx, shardID, domainID, wfID, rID)
+	ret0, _ := ret[0].(*ActiveClusterSelectionPolicyRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectActiveClusterSelectionPolicy indicates an expected call of SelectActiveClusterSelectionPolicy.
+func (mr *MockDBMockRecorder) SelectActiveClusterSelectionPolicy(ctx, shardID, domainID, wfID, rID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectActiveClusterSelectionPolicy", reflect.TypeOf((*MockDB)(nil).SelectActiveClusterSelectionPolicy), ctx, shardID, domainID, wfID, rID)
+}
+
 // SelectAllCurrentWorkflows mocks base method.
 func (m *MockDB) SelectAllCurrentWorkflows(ctx context.Context, shardID int, pageToken []byte, pageSize int) ([]*persistence.CurrentWorkflowExecution, []byte, error) {
 	m.ctrl.T.Helper()
@@ -1742,6 +1757,21 @@ func (m *MocktableCRUD) RangeDeleteTransferTasks(ctx context.Context, shardID in
 func (mr *MocktableCRUDMockRecorder) RangeDeleteTransferTasks(ctx, shardID, inclusiveBeginTaskID, exclusiveEndTaskID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteTransferTasks", reflect.TypeOf((*MocktableCRUD)(nil).RangeDeleteTransferTasks), ctx, shardID, inclusiveBeginTaskID, exclusiveEndTaskID)
+}
+
+// SelectActiveClusterSelectionPolicy mocks base method.
+func (m *MocktableCRUD) SelectActiveClusterSelectionPolicy(ctx context.Context, shardID int, domainID, wfID, rID string) (*ActiveClusterSelectionPolicyRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectActiveClusterSelectionPolicy", ctx, shardID, domainID, wfID, rID)
+	ret0, _ := ret[0].(*ActiveClusterSelectionPolicyRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectActiveClusterSelectionPolicy indicates an expected call of SelectActiveClusterSelectionPolicy.
+func (mr *MocktableCRUDMockRecorder) SelectActiveClusterSelectionPolicy(ctx, shardID, domainID, wfID, rID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectActiveClusterSelectionPolicy", reflect.TypeOf((*MocktableCRUD)(nil).SelectActiveClusterSelectionPolicy), ctx, shardID, domainID, wfID, rID)
 }
 
 // SelectAllCurrentWorkflows mocks base method.
@@ -3295,6 +3325,21 @@ func (m *MockWorkflowCRUD) RangeDeleteTransferTasks(ctx context.Context, shardID
 func (mr *MockWorkflowCRUDMockRecorder) RangeDeleteTransferTasks(ctx, shardID, inclusiveBeginTaskID, exclusiveEndTaskID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteTransferTasks", reflect.TypeOf((*MockWorkflowCRUD)(nil).RangeDeleteTransferTasks), ctx, shardID, inclusiveBeginTaskID, exclusiveEndTaskID)
+}
+
+// SelectActiveClusterSelectionPolicy mocks base method.
+func (m *MockWorkflowCRUD) SelectActiveClusterSelectionPolicy(ctx context.Context, shardID int, domainID, wfID, rID string) (*ActiveClusterSelectionPolicyRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectActiveClusterSelectionPolicy", ctx, shardID, domainID, wfID, rID)
+	ret0, _ := ret[0].(*ActiveClusterSelectionPolicyRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectActiveClusterSelectionPolicy indicates an expected call of SelectActiveClusterSelectionPolicy.
+func (mr *MockWorkflowCRUDMockRecorder) SelectActiveClusterSelectionPolicy(ctx, shardID, domainID, wfID, rID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectActiveClusterSelectionPolicy", reflect.TypeOf((*MockWorkflowCRUD)(nil).SelectActiveClusterSelectionPolicy), ctx, shardID, domainID, wfID, rID)
 }
 
 // SelectAllCurrentWorkflows mocks base method.

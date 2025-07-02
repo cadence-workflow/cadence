@@ -14,13 +14,9 @@ primaryCluster: "cluster0"
 
 domains:
   test-domain:
-    name: test-domain
-    activeClusters:
-    - cluster0
+    activeClusterName: cluster0
   test-domain-2:
-    name: test-domain-2
-    activeClusters:
-    - cluster1
+    activeClusterName: cluster0
 
 operations:
   - op: start_workflow
@@ -44,7 +40,7 @@ operations:
   - op: change_active_clusters # failover from cluster0 to cluster1
     at: 20s
     domain: test-domain
-    newActiveClusters: ["cluster1"]
+    newActiveCluster: cluster1
     # failoverTimeoutSec: 5 # unset means force failover. setting it means graceful failover request
 
   - op: validate

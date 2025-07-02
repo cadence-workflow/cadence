@@ -9,6 +9,7 @@ import (
 
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/quotas"
+	"github.com/uber/cadence/common/types"
 )
 
 // ratelimitedExecutionManager implements persistence.ExecutionManager interface instrumented with rate limiter.
@@ -87,6 +88,14 @@ func (c *ratelimitedExecutionManager) DeleteWorkflowExecution(ctx context.Contex
 		return
 	}
 	return c.wrapped.DeleteWorkflowExecution(ctx, request)
+}
+
+func (c *ratelimitedExecutionManager) GetActiveClusterSelectionPolicy(ctx context.Context, domainID string, wfID string, rID string) (ap1 *types.ActiveClusterSelectionPolicy, err error) {
+	if ok := c.rateLimiter.Allow(); !ok {
+		err = ErrPersistenceLimitExceeded
+		return
+	}
+	return c.wrapped.GetActiveClusterSelectionPolicy(ctx, domainID, wfID, rID)
 }
 
 func (c *ratelimitedExecutionManager) GetCurrentExecution(ctx context.Context, request *persistence.GetCurrentExecutionRequest) (gp1 *persistence.GetCurrentExecutionResponse, err error) {

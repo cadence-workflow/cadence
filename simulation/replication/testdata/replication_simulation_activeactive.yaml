@@ -13,29 +13,41 @@ primaryCluster: "cluster0"
 
 domains:
   test-domain-aa:
-    name: test-domain-aa
-    activeClusters:
-    - cluster0
-    - cluster1
+    activeClustersByRegion:
+      region0: cluster0
+      region1: cluster1
 
 operations:
+  # start workflow in cluster0
   - op: start_workflow
     at: 0s
-    workflowType: timer-activity-loop-workflow
     workflowID: wf1
+    workflowType: timer-activity-loop-workflow
     cluster: cluster0
     domain: test-domain-aa
-    workflowExecutionStartToCloseTimeout: 90s
-    workflowDuration: 60s
+    workflowExecutionStartToCloseTimeout: 65s
+    workflowDuration: 35s
 
+  # start workflow in cluster1
   - op: start_workflow
     at: 0s
     workflowID: wf2
+    workflowType: timer-activity-loop-workflow
     cluster: cluster1
     domain: test-domain-aa
-    workflowExecutionStartToCloseTimeout: 90s
-    workflowDuration: 60s
+    workflowExecutionStartToCloseTimeout: 65s
+    workflowDuration: 35s
 
+  # TODO: uncomment this
+  # # failover from cluster0 to cluster1
+  # - op: change_active_clusters
+  #   at: 20s
+  #   domain: test-domain-aa
+  #   newActiveClustersByRegion:
+  #     region0: cluster1 # this is changed from cluster0 to cluster1
+  #     region1: cluster1
+
+  # validate that wf1 is started in cluster0 and completed in cluster1
   - op: validate
     at: 70s
     workflowID: wf1
@@ -44,8 +56,9 @@ operations:
     want:
       status: completed
       startedByWorkersInCluster: cluster0
-      completedByWorkersInCluster: cluster1 # it should complete in cluster1 because of fake logic in activecluster/manager.go
+      completedByWorkersInCluster: cluster0 # TODO: change this to cluster1
 
+  # validate that wf2 is started and completed in cluster1
   - op: validate
     at: 70s
     workflowID: wf2

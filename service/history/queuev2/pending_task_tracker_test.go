@@ -18,6 +18,7 @@ func TestPendingTaskTracker(t *testing.T) {
 		name          string
 		setupTasks    func(ctrl *gomock.Controller) []*task.MockTask
 		pruneAcked    bool
+		clear         bool
 		wantMinKey    persistence.HistoryTaskKey
 		wantHasMinKey bool
 		wantTaskCount int
@@ -102,6 +103,31 @@ func TestPendingTaskTracker(t *testing.T) {
 			wantHasMinKey: false,
 			wantTaskCount: 0,
 		},
+		{
+			name: "clear all tasks",
+			setupTasks: func(ctrl *gomock.Controller) []*task.MockTask {
+				task1 := task.NewMockTask(ctrl)
+				task1.EXPECT().GetTaskKey().Return(persistence.NewHistoryTaskKey(testTime, 1)).AnyTimes()
+				task1.EXPECT().Cancel().AnyTimes()
+				task1.EXPECT().State().Return(ctask.TaskStateCanceled).Times(1)
+
+				task2 := task.NewMockTask(ctrl)
+				task2.EXPECT().GetTaskKey().Return(persistence.NewHistoryTaskKey(testTime, 2)).AnyTimes()
+				task2.EXPECT().Cancel().AnyTimes()
+				task2.EXPECT().State().Return(ctask.TaskStateCanceled).Times(1)
+
+				task3 := task.NewMockTask(ctrl)
+				task3.EXPECT().GetTaskKey().Return(persistence.NewHistoryTaskKey(testTime, 3)).AnyTimes()
+				task3.EXPECT().Cancel().AnyTimes()
+				task3.EXPECT().State().Return(ctask.TaskStateCanceled).Times(1)
+
+				return []*task.MockTask{task1, task2, task3}
+			},
+			clear:         true,
+			wantMinKey:    persistence.MaximumHistoryTaskKey,
+			wantHasMinKey: false,
+			wantTaskCount: 0,
+		},
 	}
 
 	for _, tt := range tests {
@@ -120,6 +146,11 @@ func TestPendingTaskTracker(t *testing.T) {
 				tracker.PruneAckedTasks()
 			}
 
+			// Clear all tasks if needed
+			if tt.clear {
+				tracker.Clear()
+			}
+
 			// Test GetMinimumTaskKey
 			gotMinKey, gotHasMinKey := tracker.GetMinimumTaskKey()
 			assert.Equal(t, tt.wantMinKey, gotMinKey)
@@ -127,11 +158,16 @@ func TestPendingTaskTracker(t *testing.T) {
 
 			// Test GetTasks
 			tasks := tracker.GetTasks()
-			assert.Equal(t, tt.wantTaskCount, len(tasks))
+			assert.Equal(t, tt.wantTaskCount, tracker.GetPendingTaskCount())
 
 			// Verify all tasks are in the map
 			for _, task := range inputTasks {
-				if tt.pruneAcked && task.State() == ctask.TaskStateAcked {
+				if tt.clear {
+					// After clear, no tasks should be in the map
+					_, exists := tasks[task.GetTaskKey()]
+					assert.False(t, exists, "After clear, no task should be in the map")
+					assert.Equal(t, ctask.TaskStateCanceled, task.State())
+				} else if tt.pruneAcked && task.State() == ctask.TaskStateAcked {
 					_, exists := tasks[task.GetTaskKey()]
 					assert.False(t, exists, "Acked task should not be in the map")
 				} else {

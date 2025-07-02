@@ -271,6 +271,7 @@ func TestDescribeTaskList(t *testing.T) {
 		StartID: startedID,
 		EndID:   int64(defaultRangeSize),
 	}
+
 	cases := []struct {
 		name           string
 		includeStatus  bool
@@ -318,6 +319,7 @@ func TestDescribeTaskList(t *testing.T) {
 					"datacenterA": {},
 					"datacenterB": {},
 				},
+				Empty: true,
 			},
 		},
 		{
@@ -342,6 +344,7 @@ func TestDescribeTaskList(t *testing.T) {
 					"datacenterA": {},
 					"datacenterB": {},
 				},
+				Empty: false,
 			},
 		},
 		{
@@ -376,12 +379,14 @@ func TestDescribeTaskList(t *testing.T) {
 						NewTasksPerSecond: 25.0,
 					},
 				},
+				Empty: true,
 			},
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			expectedTl := &types.TaskList{Name: "tl", Kind: types.TaskListKindNormal.Ptr()}
 			controller := gomock.NewController(t)
 			logger := testlogger.New(t)
 			tlm := createTestTaskListManager(t, logger, controller)
@@ -402,6 +407,7 @@ func TestDescribeTaskList(t *testing.T) {
 				tc.allowance(controller, tlm)
 			}
 			result := tlm.DescribeTaskList(tc.includeStatus)
+			assert.Equal(t, expectedTl, result.TaskList)
 			assert.Equal(t, tc.expectedStatus, result.TaskListStatus)
 			assert.Equal(t, tc.expectedConfig, result.PartitionConfig)
 			assert.ElementsMatch(t, expectedPollers, result.Pollers)
