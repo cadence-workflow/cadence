@@ -33,6 +33,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/opensearch-project/opensearch-go/v4"
 	osapi "github.com/opensearch-project/opensearch-go/v4/opensearchapi"
 	"github.com/opensearch-project/opensearch-go/v4/opensearchtransport"
@@ -191,6 +192,20 @@ func NewClient(
 	if resp.IsError() {
 		return nil, fmt.Errorf("OpenSearch client received error on ping: %s", resp)
 	}
+
+	// exploring in CI
+	res, err := osClient.Index(ctx, osapi.IndexReq{
+		Index: "asdf",
+		DocumentID: "nonexistent",
+	})
+	fmt.Println("============================================================")
+	fmt.Printf("got error (%T): %v\n", err, err) // should be a notfound
+	var clientErr *opensearch.StructError
+	if errors.As(err, &clientErr) {
+		fmt.Printf("got client error: \n%v\n", spew.Sdump(clientErr))
+	}
+	fmt.Printf("got response: \n%v\n", spew.Sdump(res))
+	fmt.Println("============================================================")
 
 	return &OS2{
 		client:  osClient,
