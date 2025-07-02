@@ -26,7 +26,6 @@ import (
 	"fmt"
 
 	"go.uber.org/fx"
-	"go.uber.org/yarpc/api/transport"
 
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
@@ -62,9 +61,8 @@ func paramsBuilder(p paramsBuilderParams) (rpc.Params, error) {
 type factoryParams struct {
 	fx.In
 
-	Logger     log.Logger
-	RPCParams  rpc.Params
-	Procedures []transport.Procedure `group:"cadence-rpcfx"`
+	Logger    log.Logger
+	RPCParams rpc.Params
 
 	Lifecycle fx.Lifecycle
 }
