@@ -206,6 +206,9 @@ func NewClient(
 		fmt.Printf("got client error: \n%v\n", spew.Sdump(clientErr))
 	}
 	fmt.Printf("got response: \n%v\n", spew.Sdump(res))
+	fmt.Printf("body type: %T\n", res.Inspect().Response.Body)
+	dat, err := io.ReadAll(res.Inspect().Response.Body)
+	fmt.Printf("body ReadAll: \n%s\n%v\n", dat, err)
 	fmt.Printf("got response body: \n%v\n", res.Inspect().Response.String())
 	fmt.Println("____________________________________________________________")
 
