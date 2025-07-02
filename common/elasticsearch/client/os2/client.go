@@ -194,9 +194,10 @@ func NewClient(
 	}
 
 	// exploring in CI
-	res, err := osClient.Index(ctx, osapi.IndexReq{
-		Index: "asdf",
-		DocumentID: "nonexistent",
+
+	res, err := osClient.Indices.Mapping.Put(ctx, osapi.MappingPutReq{
+		Indices: []string{"nonexistent"},
+		Body: strings.NewReader(`{"properties":{"type":"text"}}`),
 	})
 	fmt.Println("============================================================")
 	fmt.Printf("got error (%T): %v\n", err, err) // should be a notfound
