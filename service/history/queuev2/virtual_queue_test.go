@@ -636,6 +636,7 @@ func TestVirtualQueue_LoadAndSubmitTasks(t *testing.T) {
 	mockTask1.EXPECT().GetWorkflowID().Return("some random workflowID")
 	mockTask1.EXPECT().GetRunID().Return("some random runID")
 	mockTask1.EXPECT().GetTaskKey().Return(persistence.NewHistoryTaskKey(mockTimeSource.Now().Add(time.Second*-1), 1))
+	mockTask1.EXPECT().GetVisibilityTimestamp().Return(mockTimeSource.Now().Add(time.Second * -1))
 	mockTask2 := task.NewMockTask(ctrl)
 	mockTask2.EXPECT().GetDomainID().Return("some random domainID")
 	mockTask2.EXPECT().GetWorkflowID().Return("some random workflowID")
@@ -646,6 +647,7 @@ func TestVirtualQueue_LoadAndSubmitTasks(t *testing.T) {
 	mockTask3.EXPECT().GetWorkflowID().Return("some random workflowID")
 	mockTask3.EXPECT().GetRunID().Return("some random runID")
 	mockTask3.EXPECT().GetTaskKey().Return(persistence.NewHistoryTaskKey(mockTimeSource.Now().Add(time.Second*-1), 1))
+	mockTask3.EXPECT().GetVisibilityTimestamp().Return(mockTimeSource.Now().Add(time.Second * -1))
 
 	mockMonitor.EXPECT().GetTotalPendingTaskCount().Return(0)
 	mockPauseController.EXPECT().IsPaused().Return(false)

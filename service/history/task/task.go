@@ -133,6 +133,10 @@ func (t *taskImpl) Execute() error {
 	if t.State() != ctask.TaskStatePending {
 		return nil
 	}
+	if t.GetAttempt() == 0 {
+		// domain level metrics for the duration between task being submitted to task scheduler and being executed
+		t.scope.RecordHistogramDuration(metrics.TaskScheduleLatencyPerDomain, time.Since(t.submitTime))
+	}
 
 	var err error
 	t.shouldProcessTask, err = t.taskFilter(t.Task)
