@@ -80,7 +80,12 @@ func (e *historyEngineImpl) startWorkflowHelper(
 	if err != nil {
 		return nil, err
 	}
-	e.overrideStartWorkflowExecutionRequest(domainEntry, request, metricsScope)
+	e.overrideTaskStartToCloseTimeoutSeconds(domainEntry, request, metricsScope)
+
+	err = e.overrideActiveClusterSelectionPolicy(domainEntry, request)
+	if err != nil {
+		return nil, err
+	}
 
 	workflowID := request.GetWorkflowID()
 	domainID := domainEntry.GetInfo().ID
@@ -574,14 +579,13 @@ func (e *historyEngineImpl) validateStartWorkflowExecutionRequest(request *types
 	return common.ValidateRetryPolicy(request.RetryPolicy)
 }
 
-func (e *historyEngineImpl) overrideStartWorkflowExecutionRequest(
+func (e *historyEngineImpl) overrideTaskStartToCloseTimeoutSeconds(
 	domainEntry *cache.DomainCacheEntry,
 	request *types.StartWorkflowExecutionRequest,
 	metricsScope int,
 ) {
 	domainName := domainEntry.GetInfo().Name
 	maxDecisionStartToCloseTimeoutSeconds := int32(e.config.MaxDecisionStartToCloseSeconds(domainName))
-
 	taskStartToCloseTimeoutSecs := request.GetTaskStartToCloseTimeoutSeconds()
 	taskStartToCloseTimeoutSecs = min(taskStartToCloseTimeoutSecs, maxDecisionStartToCloseTimeoutSeconds)
 	taskStartToCloseTimeoutSecs = min(taskStartToCloseTimeoutSecs, request.GetExecutionStartToCloseTimeoutSeconds())
@@ -592,6 +596,56 @@ func (e *historyEngineImpl) overrideStartWorkflowExecutionRequest(
 			metricsScope,
 			metrics.DomainTag(domainName),
 		).IncCounter(metrics.DecisionStartToCloseTimeoutOverrideCount)
+	}
+}
+
+func (e *historyEngineImpl) overrideActiveClusterSelectionPolicy(
+	domainEntry *cache.DomainCacheEntry,
+	request *types.StartWorkflowExecutionRequest,
+) error {
+	activeClusterSelectionPolicy, err := e.getActiveClusterSelectionPolicy(domainEntry, request.ActiveClusterSelectionPolicy)
+	if err != nil {
+		return err
+	}
+	request.ActiveClusterSelectionPolicy = activeClusterSelectionPolicy
+	return nil
+}
+
+// TODO(active-active): remove logs after testing
+func (e *historyEngineImpl) getActiveClusterSelectionPolicy(
+	domainEntry *cache.DomainCacheEntry,
+	policy *types.ActiveClusterSelectionPolicy,
+) (*types.ActiveClusterSelectionPolicy, error) {
+
+	if !domainEntry.GetReplicationConfig().IsActiveActive() {
+		e.logger.Debugf("getActiveClusterSelectionPolicy: domain is not active-active. returning nil")
+		return nil, nil
+	}
+
+	if policy == nil {
+		e.logger.Debugf("getActiveClusterSelectionPolicy: returning region sticky policy with current region %s", e.shard.GetActiveClusterManager().CurrentRegion())
+		return &types.ActiveClusterSelectionPolicy{
+			ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
+			StickyRegion:                   e.shard.GetActiveClusterManager().CurrentRegion(),
+		}, nil
+	}
+
+	switch policy.GetStrategy() {
+	case types.ActiveClusterSelectionStrategyExternalEntity:
+		if !e.shard.GetActiveClusterManager().SupportedExternalEntityType(policy.ExternalEntityType) {
+			e.logger.Debugf("getActiveClusterSelectionPolicy: external entity type %s is not supported", policy.ExternalEntityType)
+			return nil, fmt.Errorf("external entity type %s is not supported", policy.ExternalEntityType)
+		}
+		e.logger.Debugf("getActiveClusterSelectionPolicy: returning external entity policy %s with key %s", policy.ExternalEntityType, policy.ExternalEntityKey)
+		return policy, nil
+	case types.ActiveClusterSelectionStrategyRegionSticky:
+		// override sticky region with current region
+		policy.StickyRegion = e.shard.GetActiveClusterManager().CurrentRegion()
+		e.logger.Debugf("getActiveClusterSelectionPolicy: overriding sticky region %s with current region %s", policy.StickyRegion, e.shard.GetActiveClusterManager().CurrentRegion())
+		return policy, nil
+	default:
+		e.logger.Debugf("getActiveClusterSelectionPolicy: unsupported strategy %s", policy.GetStrategy())
+		return nil, fmt.Errorf("unsupported active cluster selection strategy %s", policy.GetStrategy().String())
 	}
 }
 

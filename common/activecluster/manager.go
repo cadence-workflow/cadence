@@ -239,6 +239,12 @@ func (m *managerImpl) LookupWorkflow(ctx context.Context, domainID, wfID, rID st
 
 	if !d.GetReplicationConfig().IsActiveActive() {
 		// Not an active-active domain. return ActiveClusterName from domain entry
+		m.logger.Debug("LookupWorkflow: not an active-active domain. returning ActiveClusterName from domain entry",
+			tag.WorkflowDomainID(domainID),
+			tag.WorkflowID(wfID),
+			tag.WorkflowRunID(rID),
+			tag.ActiveClusterName(d.GetReplicationConfig().ActiveClusterName),
+		)
 		return &LookupResult{
 			ClusterName:     d.GetReplicationConfig().ActiveClusterName,
 			FailoverVersion: d.GetFailoverVersion(),
@@ -250,6 +256,12 @@ func (m *managerImpl) LookupWorkflow(ctx context.Context, domainID, wfID, rID st
 		var notExistsErr *types.EntityNotExistsError
 		if errors.As(err, &notExistsErr) {
 			// Case 1.b: domain migrated from active-passive to active-active case
+			m.logger.Debug("LookupWorkflow: domain migrated from active-passive to active-active case. returning ActiveClusterName from domain entry",
+				tag.WorkflowDomainID(domainID),
+				tag.WorkflowID(wfID),
+				tag.WorkflowRunID(rID),
+				tag.ActiveClusterName(d.GetReplicationConfig().ActiveClusterName),
+			)
 			return &LookupResult{
 				ClusterName:     d.GetReplicationConfig().ActiveClusterName,
 				FailoverVersion: d.GetFailoverVersion(),
@@ -259,11 +271,7 @@ func (m *managerImpl) LookupWorkflow(ctx context.Context, domainID, wfID, rID st
 		return nil, err
 	}
 
-	region := ""
-	if plcy.GetStrategy() == types.ActiveClusterSelectionStrategyRegionSticky {
-		// Case 2.a: workflow is region sticky
-		region = plcy.StickyRegion
-	} else if plcy.GetStrategy() == types.ActiveClusterSelectionStrategyExternalEntity {
+	if plcy.GetStrategy() == types.ActiveClusterSelectionStrategyExternalEntity {
 		// Case 2.b: workflow has external entity
 		externalEntity, err := m.getExternalEntity(ctx, plcy.ExternalEntityType, plcy.ExternalEntityKey)
 		if err != nil {
@@ -275,6 +283,15 @@ func (m *managerImpl) LookupWorkflow(ctx context.Context, domainID, wfID, rID st
 			return nil, err
 		}
 
+		m.logger.Debug("LookupWorkflow: workflow has external entity. returning region, cluster name and failover version",
+			tag.WorkflowDomainID(domainID),
+			tag.WorkflowID(wfID),
+			tag.WorkflowRunID(rID),
+			tag.WorkflowExternalEntityType(plcy.ExternalEntityType),
+			tag.WorkflowExternalEntityKey(plcy.ExternalEntityKey),
+			tag.Region(externalEntity.Region),
+			tag.ActiveClusterName(cluster),
+		)
 		return &LookupResult{
 			Region:          externalEntity.Region,
 			ClusterName:     cluster,
@@ -282,11 +299,23 @@ func (m *managerImpl) LookupWorkflow(ctx context.Context, domainID, wfID, rID st
 		}, nil
 	}
 
+	if plcy.GetStrategy() != types.ActiveClusterSelectionStrategyRegionSticky {
+		return nil, fmt.Errorf("unsupported active cluster selection strategy: %s", plcy.GetStrategy())
+	}
+
+	region := plcy.StickyRegion
 	cluster, ok := d.GetReplicationConfig().ActiveClusters.ActiveClustersByRegion[region]
 	if !ok {
 		return nil, newRegionNotFoundForDomainError(region, domainID)
 	}
 
+	m.logger.Debug("LookupWorkflow: workflow is region sticky. returning region, cluster name and failover version",
+		tag.WorkflowDomainID(domainID),
+		tag.WorkflowID(wfID),
+		tag.WorkflowRunID(rID),
+		tag.Region(region),
+		tag.ActiveClusterName(cluster.ActiveClusterName),
+	)
 	return &LookupResult{
 		Region:          region,
 		ClusterName:     cluster.ActiveClusterName,

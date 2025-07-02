@@ -605,6 +605,9 @@ func (m *executionManagerImpl) CreateWorkflowExecution(
 
 	encoding := constants.EncodingTypeThriftRW
 
+	// TODO(active-active): remove this log after testing
+	m.logger.Debugf("executionManagerImpl CreateWorkflowExecution WFID: %s, Active cluster selection policy: %v", request.NewWorkflowSnapshot.ExecutionInfo.WorkflowID, request.NewWorkflowSnapshot.ExecutionInfo.ActiveClusterSelectionPolicy)
+
 	serializedNewWorkflowSnapshot, err := m.SerializeWorkflowSnapshot(&request.NewWorkflowSnapshot, encoding)
 	if err != nil {
 		return nil, err
