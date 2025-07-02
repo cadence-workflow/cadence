@@ -45,23 +45,32 @@ type DynamicRateLimiter struct {
 	ttl            time.Duration
 	lastUpdateTime atomic.Pointer[time.Time]
 	minBurst       int
+	burstMultiplier float64
 }
 
 type DynamicRateLimiterOpts struct {
 	TTL        time.Duration
 	MinBurst   int
+	BurstMultiplier float64
 	TimeSource clock.TimeSource
 }
 
 var _defaultOpts = DynamicRateLimiterOpts{
 	TTL:        _ttl,
 	MinBurst:   _minBurst,
+	BurstMultiplier: 1,
 	TimeSource: clock.NewRealTimeSource(),
 }
 
 // NewDynamicRateLimiter returns a rate limiter which handles dynamic config
 func NewDynamicRateLimiter(rps RPSFunc) Limiter {
 	return NewDynamicRateLimiterWithOpts(rps, _defaultOpts)
+}
+
+func NewBurstyDynamicRateLimiter(rps RPSFunc, multiplier float64) Limiter {
+	opts := _defaultOpts
+	opts.BurstMultiplier = multiplier
+	return NewDynamicRateLimiterWithOpts(rps, opts)
 }
 
 func NewDynamicRateLimiterWithOpts(rps RPSFunc, opts DynamicRateLimiterOpts) Limiter {
@@ -74,6 +83,7 @@ func NewDynamicRateLimiterWithOpts(rps RPSFunc, opts DynamicRateLimiterOpts) Lim
 		timeSource: ts,
 		ttl:        opts.TTL,
 		minBurst:   opts.MinBurst,
+		burstMultiplier: opts.BurstMultiplier,
 	}
 	now := res.timeSource.Now()
 	res.lastUpdateTime.Store(&now)
@@ -116,7 +126,7 @@ func (d *DynamicRateLimiter) maybeRefreshRps() {
 
 func (d *DynamicRateLimiter) getLimitAndBurst() (rate.Limit, int) {
 	rps := d.rps()
-	burst := max(int(math.Ceil(rps)), d.minBurst)
+	burst := max(int(math.Ceil(rps)*d.burstMultiplier), d.minBurst)
 	// If we have 0 rps we have to zero out the burst to immediately cut off new permits
 	if rps == 0 {
 		burst = 0
