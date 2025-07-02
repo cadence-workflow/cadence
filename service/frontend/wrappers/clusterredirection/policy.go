@@ -81,6 +81,13 @@ const (
 type (
 	// ClusterRedirectionPolicy is a DC redirection policy interface
 	ClusterRedirectionPolicy interface {
+		// Redirect redirects applicable API calls to active cluster based on given parameters and configured forwarding policy.
+		// domainEntry (required): domain cache entry
+		// workflowExecution (optional): workflow execution (only used for existing workflow API calls on active-active domains)
+		// actClSelPolicyForNewWF (optional): active cluster selection policy for new workflow (only used for new workflow API calls on active-active domains)
+		// apiName (required): API name
+		// requestedConsistencyLevel (required): requested consistency level
+		// call (required): function to call the API on the target cluster
 		Redirect(
 			ctx context.Context,
 			domainEntry *cache.DomainCacheEntry,
@@ -260,20 +267,24 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) withRedirect(
 	policy.logger.Debugf("Calling API %q on target cluster:%q for domain:%q", apiName, targetDC, domainEntry.GetInfo().Name)
 	err := call(targetDC)
 
-	targetDC, ok := policy.isDomainNotActiveError(err)
+	targetDC, ok := policy.isDomainNotActiveError(domainEntry, err)
 	if !ok || !enableDomainNotActiveForwarding {
 		return err
 	}
 	return call(targetDC)
 }
 
-func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) isDomainNotActiveError(err error) (string, bool) {
+func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) isDomainNotActiveError(domainEntry *cache.DomainCacheEntry, err error) (string, bool) {
 	domainNotActiveErr, ok := err.(*types.DomainNotActiveError)
 	if !ok {
 		return "", false
 	}
 
 	// TODO(active-active): handle active-active domain not active error which has multiple other active clusters
+	if domainEntry.GetReplicationConfig().IsActiveActive() {
+		return "", false
+	}
+
 	return domainNotActiveErr.ActiveCluster, true
 }
 
