@@ -1,13 +1,16 @@
 name: CI Checks
-on: 
+on:
   push:
   pull_request:
+
+env:
+  V: "1" # verbose output in tests
 
 jobs:
   idl-submodule-points-to-master:
     name: IDL submodule points to master
     runs-on: ubuntu-latest # uses ubuntu as runner instead of kubernetes like buildkite
-    
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -21,7 +24,7 @@ jobs:
   golang-unit-test:
     name: Golang unit test
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,7 +36,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.23.4' # version from cadence/docker/buildkite/Dockerfile
-      
+
       - name: Run unit test
         uses: nick-fields/retry@v3
         with:
@@ -284,7 +287,7 @@ jobs:
         with:
           name: go-mysql-integration-coverage
           path: .build/coverage/*.out
-          
+
 
   golang-integration-ndc-test-with-mysql:
     name: Golang integration ndc test with mysql
@@ -309,7 +312,7 @@ jobs:
           timeout_minutes: 30
           command: |
             docker compose -f docker/github_actions/docker-compose.yml run integration-test-ndc-mysql bash -c "make .just-build && make cover_ndc_profile"
-      
+
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -346,7 +349,7 @@ jobs:
         with:
           name: go-postgres-integration-coverage
           path: .build/coverage/*.out
-             
+
 
   golang-integration-test-with-sqlite:
     name: Golang integration test with sqlite
