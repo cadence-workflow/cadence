@@ -212,7 +212,7 @@ func TestScheduledQueue_LookAheadTask(t *testing.T) {
 				PageSize:                           dynamicproperties.GetIntPropertyFn(100),
 				PollBackoffInterval:                dynamicproperties.GetDurationPropertyFn(time.Second * 10),
 				MaxPollInterval:                    dynamicproperties.GetDurationPropertyFn(time.Second * 10),
-				MaxPollIntervalJitterCoefficient:   dynamicproperties.GetFloatPropertyFn(0.1),
+				MaxPollIntervalJitterCoefficient:   dynamicproperties.GetFloatPropertyFn(0.0),
 				UpdateAckInterval:                  dynamicproperties.GetDurationPropertyFn(time.Second * 10),
 				UpdateAckIntervalJitterCoefficient: dynamicproperties.GetFloatPropertyFn(0.1),
 			}
