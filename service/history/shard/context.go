@@ -1451,7 +1451,13 @@ func (s *contextImpl) AddingPendingFailoverMarker(
 func (s *contextImpl) ValidateAndUpdateFailoverMarkers() ([]*types.FailoverMarkerAttributes, error) {
 
 	completedFailoverMarkers := make(map[*types.FailoverMarkerAttributes]struct{})
+	var pendingMarkers []*types.FailoverMarkerAttributes
+
 	s.RLock()
+	// Get a copy of pending markers while holding read lock
+	pendingMarkers = make([]*types.FailoverMarkerAttributes, len(s.shardInfo.PendingFailoverMarkers))
+	copy(pendingMarkers, s.shardInfo.PendingFailoverMarkers)
+
 	for _, marker := range s.shardInfo.PendingFailoverMarkers {
 		domainEntry, err := s.GetDomainCache().GetDomainByID(marker.GetDomainID())
 		if err != nil {
@@ -1463,26 +1469,28 @@ func (s *contextImpl) ValidateAndUpdateFailoverMarkers() ([]*types.FailoverMarke
 			completedFailoverMarkers[marker] = struct{}{}
 		}
 	}
+	s.RUnlock()
 
 	if len(completedFailoverMarkers) == 0 {
-		// take a shallow copy of pending failover markers to avoid race condition on s.shardInfo
-		markers := s.shardInfo.PendingFailoverMarkers
-		s.RUnlock()
-		return markers, nil
+		// No markers to clean up, return the copy
+		return pendingMarkers, nil
 	}
-	s.RUnlock()
 
 	// clean up all pending failover tasks
 	s.Lock()
 	defer s.Unlock()
 
-	for idx, marker := range s.shardInfo.PendingFailoverMarkers {
-		if _, ok := completedFailoverMarkers[marker]; ok {
-			s.shardInfo.PendingFailoverMarkers[idx] = s.shardInfo.PendingFailoverMarkers[len(s.shardInfo.PendingFailoverMarkers)-1]
-			s.shardInfo.PendingFailoverMarkers[len(s.shardInfo.PendingFailoverMarkers)-1] = nil
-			s.shardInfo.PendingFailoverMarkers = s.shardInfo.PendingFailoverMarkers[:len(s.shardInfo.PendingFailoverMarkers)-1]
+	// Re-read the current state since it might have changed
+	currentPendingMarkers := s.shardInfo.PendingFailoverMarkers
+	remainingMarkers := make([]*types.FailoverMarkerAttributes, 0, len(currentPendingMarkers))
+
+	for _, marker := range currentPendingMarkers {
+		if _, ok := completedFailoverMarkers[marker]; !ok {
+			remainingMarkers = append(remainingMarkers, marker)
 		}
 	}
+
+	s.shardInfo.PendingFailoverMarkers = remainingMarkers
 	if err := s.updateShardInfoLocked(); err != nil {
 		return nil, err
 	}
