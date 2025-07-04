@@ -72,9 +72,7 @@ type (
 		redispatcher          task.Redispatcher
 		queueReader           QueueReader
 		monitor               Monitor
-		pollTimer             clock.Timer
 		updateQueueStateTimer clock.Timer
-		lastPollTime          time.Time
 		virtualQueueManager   VirtualQueueManager
 		exclusiveAckLevel     persistence.HistoryTaskKey
 
@@ -180,10 +178,6 @@ func (q *queueBase) Start() {
 	q.redispatcher.Start()
 	q.virtualQueueManager.Start()
 
-	q.pollTimer = q.timeSource.NewTimer(backoff.JitDuration(
-		q.options.MaxPollInterval(),
-		q.options.MaxPollIntervalJitterCoefficient(),
-	))
 	q.updateQueueStateTimer = q.timeSource.NewTimer(backoff.JitDuration(
 		q.options.UpdateAckInterval(),
 		q.options.UpdateAckIntervalJitterCoefficient(),
@@ -192,7 +186,6 @@ func (q *queueBase) Start() {
 
 func (q *queueBase) Stop() {
 	q.updateQueueStateTimer.Stop()
-	q.pollTimer.Stop()
 	q.virtualQueueManager.Stop()
 	q.redispatcher.Stop()
 }
@@ -222,22 +215,10 @@ func (q *queueBase) processNewTasks() {
 		return
 	}
 	q.newVirtualSliceState = remainingVirtualSliceState
-	q.lastPollTime = q.timeSource.Now()
 
 	newVirtualSlice := NewVirtualSlice(newVirtualSliceState, q.taskInitializer, q.queueReader, NewPendingTaskTracker())
 
 	q.virtualQueueManager.AddNewVirtualSliceToRootQueue(newVirtualSlice)
-}
-
-func (q *queueBase) processPollTimer() {
-	if q.lastPollTime.Add(q.options.PollBackoffInterval()).Before(q.timeSource.Now()) {
-		q.processNewTasks()
-	}
-
-	q.pollTimer.Reset(backoff.JitDuration(
-		q.options.MaxPollInterval(),
-		q.options.MaxPollIntervalJitterCoefficient(),
-	))
 }
 
 func (q *queueBase) updateQueueState(ctx context.Context) {

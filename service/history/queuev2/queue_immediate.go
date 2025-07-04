@@ -26,8 +26,11 @@ import (
 	"context"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/backoff"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -43,10 +46,12 @@ type (
 		base     *queueBase
 		notifyCh chan struct{}
 
-		status     int32
-		shutdownWG sync.WaitGroup
-		ctx        context.Context
-		cancel     func()
+		status       int32
+		shutdownWG   sync.WaitGroup
+		ctx          context.Context
+		cancel       func()
+		pollTimer    clock.Timer
+		lastPollTime time.Time
 	}
 )
 
@@ -143,15 +148,37 @@ func (q *immediateQueue) notify() {
 	}
 }
 
+func (q *immediateQueue) processPollTimer() {
+	// NOTE: ideally when new tasks are written to the queue, a notification should be sent to the notifyCh,
+	// thus this periodic poll is not needed, but we keep it for now to provide a fallback mechanism in case
+	// there is a bug in the notification mechanism
+	if q.lastPollTime.Add(q.base.options.PollBackoffInterval()).Before(q.base.timeSource.Now()) {
+		q.base.logger.Info("processing new tasks because poll timer fired")
+		q.base.processNewTasks()
+		q.lastPollTime = q.base.timeSource.Now()
+	}
+
+	q.pollTimer.Reset(backoff.JitDuration(
+		q.base.options.MaxPollInterval(),
+		q.base.options.MaxPollIntervalJitterCoefficient(),
+	))
+}
+
 func (q *immediateQueue) processEventLoop() {
 	defer q.shutdownWG.Done()
 
+	q.pollTimer = q.base.timeSource.NewTimer(backoff.JitDuration(
+		q.base.options.MaxPollInterval(),
+		q.base.options.MaxPollIntervalJitterCoefficient(),
+	))
+	defer q.pollTimer.Stop()
 	for {
 		select {
 		case <-q.notifyCh:
 			q.base.processNewTasks()
-		case <-q.base.pollTimer.Chan():
-			q.base.processPollTimer()
+			q.lastPollTime = q.base.timeSource.Now()
+		case <-q.pollTimer.Chan():
+			q.processPollTimer()
 		case <-q.base.updateQueueStateTimer.Chan():
 			q.base.updateQueueState(q.ctx)
 		case <-q.ctx.Done():
