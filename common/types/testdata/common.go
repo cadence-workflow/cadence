@@ -386,6 +386,7 @@ var (
 		TaskList:          TaskListName,
 		PartitionConfig:   PartitionConfig,
 		IsCron:            true,
+		CronOverlapPolicy: &CronOverlapPolicy,
 	}
 	WorkflowExecutionInfoArray = []*types.WorkflowExecutionInfo{&WorkflowExecutionInfo}
 

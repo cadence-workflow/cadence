@@ -709,6 +709,7 @@ func (b *HistoryBuilder) AddStartChildWorkflowExecutionInitiatedEvent(
 		Memo:                                attributes.Memo,
 		SearchAttributes:                    attributes.SearchAttributes,
 		ParentClosePolicy:                   attributes.GetParentClosePolicy().Ptr(),
+		CronOverlapPolicy:                   attributes.CronOverlapPolicy,
 	}
 
 	return b.addEventToHistory(event)
