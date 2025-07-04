@@ -22,7 +22,6 @@ package esutils
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -30,29 +29,31 @@ import (
 	"testing"
 	"time"
 
-	"github.com/opensearch-project/opensearch-go/v2"
-	"github.com/opensearch-project/opensearch-go/v2/opensearchapi"
+	"github.com/opensearch-project/opensearch-go/v4"
+	osapi "github.com/opensearch-project/opensearch-go/v4/opensearchapi"
 	"github.com/stretchr/testify/require"
 )
 
 type (
 	os2Client struct {
-		client *opensearch.Client
+		client *osapi.Client
 	}
 )
 
 func newOS2Client(url string) (*os2Client, error) {
 
-	esClient, err := opensearch.NewClient(
-		opensearch.Config{
+	osClient, err := osapi.NewClient(osapi.Config{
+		Client: opensearch.Config{
 			Addresses:    []string{url},
 			MaxRetries:   5,
 			RetryBackoff: func(i int) time.Duration { return time.Duration(i) * 100 * time.Millisecond },
+			Username:     "admin",
+			Password:     "DevTestInitial123!", // Admin password from docker setup. Required for >= OSv2.12
 		},
-	)
+	})
 
 	return &os2Client{
-		client: esClient,
+		client: osClient,
 	}, err
 }
 
@@ -62,108 +63,107 @@ func (os2 *os2Client) PutIndexTemplate(t *testing.T, templateConfigFile, templat
 	template, err := os.Open(templateConfigFile)
 	require.NoError(t, err)
 
-	req := opensearchapi.IndicesPutIndexTemplateRequest{
-		Body: template,
-		Name: templateName,
+	req := osapi.IndexTemplateCreateReq{
+		Body:          template,
+		IndexTemplate: templateName,
 	}
 
 	ctx, cancel := createContext()
 	defer cancel()
-	resp, err := req.Do(ctx, os2.client)
+	resp, err := os2.client.IndexTemplate.Create(ctx, req)
 	require.NoError(t, err)
-	require.False(t, resp.IsError(), fmt.Sprintf("OS2 error: %s", resp.String()))
-	resp.Body.Close()
-
+	require.Truef(t, resp.Acknowledged, "OS2 put index template unacknowledged: %s", resp.Inspect().Response.Body)
 }
 
 func (os2 *os2Client) CreateIndex(t *testing.T, indexName string) {
-	existsReq := opensearchapi.IndicesExistsRequest{
-		Index: []string{indexName},
+	existsReq := osapi.IndicesExistsReq{
+		Indices: []string{indexName},
 	}
 	ctx, cancel := createContext()
 	defer cancel()
-	resp, err := existsReq.Do(ctx, os2.client)
-	require.NoError(t, err)
+	resp, err := os2.client.Indices.Exists(ctx, existsReq)
+	if resp.StatusCode != http.StatusNotFound {
+		require.NoError(t, err)
+	}
 
 	if resp.StatusCode == http.StatusOK {
-		deleteReq := opensearchapi.IndicesDeleteRequest{
-			Index: []string{indexName},
+		deleteReq := osapi.IndicesDeleteReq{
+			Indices: []string{indexName},
 		}
 		ctx, cancel := createContext()
 		defer cancel()
-		resp, err := deleteReq.Do(ctx, os2.client)
+		resp, err := os2.client.Indices.Delete(ctx, deleteReq)
 		require.Nil(t, err)
-		require.False(t, resp.IsError(), fmt.Sprintf("OS2 error: %s", resp.String()))
+		require.Truef(t, resp.Acknowledged, "OS2 delete index unacknowledged: %s", resp.Inspect().Response.Body)
 	}
 
 	resp.Body.Close()
 
-	createReq := opensearchapi.IndicesCreateRequest{
+	createReq := osapi.IndicesCreateReq{
 		Index: indexName,
 	}
 
 	ctx, cancel = createContext()
 	defer cancel()
-	resp, err = createReq.Do(ctx, os2.client)
+	createResp, err := os2.client.Indices.Create(ctx, createReq)
 	require.NoError(t, err)
-	require.False(t, resp.IsError(), fmt.Sprintf("OS2 error: %s", resp.String()))
-	resp.Body.Close()
+	require.Truef(t, createResp.Acknowledged, "OS2 create index unacknowledged: %s", createResp.Inspect().Response.Body)
 }
 
 func (os2 *os2Client) DeleteIndex(t *testing.T, indexName string) {
-	deleteReq := opensearchapi.IndicesDeleteRequest{
-		Index: []string{indexName},
+	deleteReq := osapi.IndicesDeleteReq{
+		Indices: []string{indexName},
 	}
 	ctx, cancel := createContext()
 	defer cancel()
-	resp, err := deleteReq.Do(ctx, os2.client)
+	resp, err := os2.client.Indices.Delete(ctx, deleteReq)
 	require.NoError(t, err)
-	require.False(t, resp.IsError(), fmt.Sprintf("OS2 error: %s", resp.String()))
-	resp.Body.Close()
-
+	require.True(t, resp.Acknowledged, fmt.Sprintf("OS2 delete index unacknowledged: %s", resp.Inspect().Response.Body))
 }
 
 func (os2 *os2Client) PutMaxResultWindow(t *testing.T, indexName string, maxResultWindow int) error {
 
-	req := opensearchapi.IndicesPutSettingsRequest{
-		Body:  strings.NewReader(fmt.Sprintf(`{"max_result_window" : %d}`, maxResultWindow)),
-		Index: []string{indexName},
+	req := osapi.SettingsPutReq{
+		Body:    strings.NewReader(fmt.Sprintf(`{"index": {"max_result_window": %d}}`, maxResultWindow)),
+		Indices: []string{indexName},
 	}
 
 	ctx, cancel := createContext()
 	defer cancel()
-	res, err := req.Do(ctx, os2.client)
+	resp, err := os2.client.Indices.Settings.Put(ctx, req)
 	require.NoError(t, err)
-
-	res.Body.Close()
+	require.Truef(t, resp.Acknowledged, "OS2 put index settings unacknowledged: %s", resp.Inspect().Response.Body)
 
 	return nil
 }
 
 func (os2 *os2Client) GetMaxResultWindow(t *testing.T, indexName string) (string, error) {
-
-	req := opensearchapi.IndicesGetSettingsRequest{
-		Index: []string{indexName},
+	req := &osapi.SettingsGetReq{
+		Indices: []string{indexName},
 	}
 
 	ctx, cancel := createContext()
 	defer cancel()
-	res, err := req.Do(ctx, os2.client)
-	require.NoError(t, err)
-	defer res.Body.Close()
 
-	if res.IsError() {
-		return "", errors.New(res.String())
-	}
-
-	var data map[string]map[string]interface{}
-	err = json.NewDecoder(res.Body).Decode(&data)
+	res, err := os2.client.Indices.Settings.Get(ctx, req)
 	require.NoError(t, err)
 
-	if info, ok := data[indexName]["settings"].(map[string]interface{}); ok {
-		return info["index"].(map[string]interface{})["max_result_window"].(string), nil
+	indexSettings, ok := res.Indices[indexName]
+	if !ok {
+		return "", fmt.Errorf("no settings for index %q", indexName)
 	}
 
-	return "", fmt.Errorf("no settings for index %q", indexName)
+	type indexSettingsData struct {
+		Index struct {
+			Window any `json:"max_result_window"`
+		} `json:"index"`
+	}
+	var out indexSettingsData
+	err = json.Unmarshal(indexSettings.Settings, &out)
+	require.NoError(t, err)
 
+	if out.Index.Window == nil {
+		return "", fmt.Errorf("no max_result_window value found in index settings")
+	}
+	return out.Index.Window.(string), nil
 }
