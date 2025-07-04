@@ -2387,6 +2387,8 @@ const (
 	TaskLimitExceededCounterPerDomain
 	TaskProcessingLatencyPerDomain
 	TaskQueueLatencyPerDomain
+	TaskScheduleLatencyPerDomain
+	TaskEnqueueToFetchLatency
 	TransferTaskMissingEventCounterPerDomain
 	ReplicationTasksAppliedPerDomain
 	WorkflowTerminateCounterPerDomain
@@ -3140,6 +3142,8 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		TaskLimitExceededCounterPerDomain:        {metricName: "task_errors_limit_exceeded_counter_per_domain", metricRollupName: "task_errors_limit_exceeded_counter", metricType: Counter},
 		TaskProcessingLatencyPerDomain:           {metricName: "task_latency_processing_per_domain", metricRollupName: "task_latency_processing", metricType: Timer},
 		TaskQueueLatencyPerDomain:                {metricName: "task_latency_queue_per_domain", metricRollupName: "task_latency_queue", metricType: Timer},
+		TaskScheduleLatencyPerDomain:             {metricName: "task_latency_schedule_per_domain", metricRollupName: "task_latency_schedule", metricType: Histogram, buckets: HistoryTaskLatencyBuckets},
+		TaskEnqueueToFetchLatency:                {metricName: "task_latency_enqueue_to_fetch", metricType: Histogram, buckets: HistoryTaskLatencyBuckets},
 		TransferTaskMissingEventCounterPerDomain: {metricName: "transfer_task_missing_event_counter_per_domain", metricRollupName: "transfer_task_missing_event_counter", metricType: Counter},
 		ReplicationTasksAppliedPerDomain:         {metricName: "replication_tasks_applied_per_domain", metricType: Counter},
 		WorkflowTerminateCounterPerDomain:        {metricName: "workflow_terminate_counter_per_domain", metricRollupName: "workflow_terminate_counter", metricType: Counter},
@@ -3651,6 +3655,27 @@ var (
 		120 * time.Hour,
 		144 * time.Hour,
 		168 * time.Hour, // one week
+	})
+
+	HistoryTaskLatencyBuckets = tally.DurationBuckets([]time.Duration{
+		1 * time.Millisecond,
+		5 * time.Millisecond,
+		10 * time.Millisecond,
+		20 * time.Millisecond,
+		50 * time.Millisecond,
+		100 * time.Millisecond,
+		200 * time.Millisecond,
+		250 * time.Millisecond,
+		500 * time.Millisecond,
+		1 * time.Second,
+		2 * time.Second,
+		5 * time.Second,
+		10 * time.Second,
+		30 * time.Second,
+		1 * time.Minute,
+		5 * time.Minute,
+		10 * time.Minute,
+		1 * time.Hour,
 	})
 )
 
