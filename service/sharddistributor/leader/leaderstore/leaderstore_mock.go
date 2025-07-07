@@ -121,6 +121,20 @@ func (mr *MockElectionMockRecorder) Done() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Done", reflect.TypeOf((*MockElection)(nil).Done))
 }
 
+// ElectedContext mocks base method.
+func (m *MockElection) ElectedContext(ctx context.Context) context.Context {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ElectedContext", ctx)
+	ret0, _ := ret[0].(context.Context)
+	return ret0
+}
+
+// ElectedContext indicates an expected call of ElectedContext.
+func (mr *MockElectionMockRecorder) ElectedContext(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ElectedContext", reflect.TypeOf((*MockElection)(nil).ElectedContext), ctx)
+}
+
 // Resign mocks base method.
 func (m *MockElection) Resign(ctx context.Context) error {
 	m.ctrl.T.Helper()

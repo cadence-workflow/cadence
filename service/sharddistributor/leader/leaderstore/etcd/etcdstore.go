@@ -13,6 +13,12 @@ import (
 	"github.com/uber/cadence/service/sharddistributor/leader/leaderstore"
 )
 
+type leaderContextKey string
+
+const (
+	_leaderContextKey = leaderContextKey("leader")
+)
+
 func init() {
 	leaderstore.RegisterStore("etcd", fx.Provide(NewStore))
 }
@@ -110,4 +116,16 @@ func (e *election) Campaign(ctx context.Context, host string) error {
 
 func (e *election) Done() <-chan struct{} {
 	return e.session.Done()
+}
+
+func (e *election) ElectedContext(ctx context.Context) context.Context {
+	return context.WithValue(ctx, _leaderContextKey, leaderContext{
+		leaderKey: e.election.Key(),
+		revision:  e.election.Rev(),
+	})
+}
+
+type leaderContext struct {
+	leaderKey string
+	revision  int64
 }

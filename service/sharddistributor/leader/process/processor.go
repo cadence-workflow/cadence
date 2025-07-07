@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"go.uber.org/fx"
 
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -98,15 +100,14 @@ func (p *namespaceProcessor) Terminate(ctx context.Context) error {
 
 	p.logger.Info("Stopping")
 
-	if p.cancel != nil {
-		p.cancel()
-		p.cancel = nil
-	}
+	p.cancel()
 
 	p.running = false
 
 	// Ensure that the process has stopped.
-	p.wg.Wait()
+	// We do the best effort and give up after 5 seconds.
+	// It should be safe, since all operations are guarded by the elected context which will fail writes to etcd in case of leadership change.
+	common.AwaitWaitGroup(&p.wg, 5*time.Second)
 
 	return nil
 }

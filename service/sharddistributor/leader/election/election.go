@@ -175,7 +175,7 @@ func (e *elector) runElection(ctx context.Context, leaderCh chan<- bool, OnLeade
 		return fmt.Errorf("failed to campaign: %w", err)
 	}
 
-	err = OnLeader(ctx)
+	err = OnLeader(election.ElectedContext(ctx))
 	if err != nil {
 		return fmt.Errorf("onLeader: %w", err)
 	}

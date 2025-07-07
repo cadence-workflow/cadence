@@ -25,6 +25,11 @@ type Election interface {
 	Done() <-chan struct{}
 	// Cleanup stops internal processes and releases keys.
 	Cleanup(ctx context.Context) error
+
+	// ElectedContext creates a context for a leader elected process. This can help to guard changes for leader elected logic.
+	// F.e. to guard regular shard assignments if the leader has changed during the assignment process.
+	// The guards itself should be defined inside the leaderstore. F.e. in etcd we can store leaderKey and leader revision to ensure that leader has not changed since election started.
+	ElectedContext(ctx context.Context) context.Context
 }
 
 // StoreImpl could be used to build an implementation in the registry.

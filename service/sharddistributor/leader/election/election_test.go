@@ -39,6 +39,7 @@ func TestElector_Run(t *testing.T) {
 	election := leaderstore.NewMockElection(ctrl)
 	election.EXPECT().Campaign(gomock.Any(), _testHost).Return(nil)
 	election.EXPECT().Done().Return(make(chan struct{}))
+	election.EXPECT().ElectedContext(gomock.Any()).Return(context.Background())
 
 	finished := make(chan struct{})
 	// once test is done cleanup will be called
@@ -229,6 +230,7 @@ func prepareRun(t *testing.T, onLeader, onResign ProcessFunc) (<-chan bool, runP
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
+	election.EXPECT().ElectedContext(gomock.Any()).Return(ctx)
 
 	// Default callbacks
 	if onLeader == nil {
@@ -275,6 +277,7 @@ func TestOnLeader_Error(t *testing.T) {
 	election.EXPECT().Campaign(gomock.Any(), _testHost).Return(nil)
 	// Expect resignation after onLeader failure
 	election.EXPECT().Resign(gomock.Any()).Return(nil)
+	election.EXPECT().ElectedContext(gomock.Any()).Return(context.Background())
 
 	store := leaderstore.NewMockStore(ctrl)
 	store.EXPECT().CreateElection(gomock.Any(), _testNamespace).Return(election, nil)

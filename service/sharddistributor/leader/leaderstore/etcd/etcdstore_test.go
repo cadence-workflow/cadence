@@ -87,6 +87,11 @@ func TestCampaign(t *testing.T) {
 	err = election.Campaign(ctx, host)
 	require.NoError(t, err)
 
+	electedCtx := election.ElectedContext(ctx)
+	val := electedCtx.Value(_leaderContextKey)
+	assert.NotNil(t, val)
+	assert.IsType(t, leaderContext{}, val)
+
 	// Verify leadership was obtained by checking the key in etcd
 	// First create a client to connect to etcd
 	client, err := clientv3.New(clientv3.Config{
