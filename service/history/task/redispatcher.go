@@ -247,6 +247,9 @@ func (r *redispatcherImpl) redispatchTasks(notification redispatchNotification) 
 				pq.Remove()
 				continue
 			}
+			if item.task.GetAttempt() == 0 {
+				item.task.SetInitialSubmitTime(now)
+			}
 			submitted, err := r.taskProcessor.TrySubmit(item.task)
 			if err != nil {
 				if r.isStopped() {

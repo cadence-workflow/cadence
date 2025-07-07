@@ -43,6 +43,7 @@ type (
 		GetShard() shard.Context
 		GetAttempt() int
 		GetInfo() persistence.Task
+		SetInitialSubmitTime(time.Time)
 	}
 
 	// CrossClusterTask is the interface for processing cross cluster task in the source cluster

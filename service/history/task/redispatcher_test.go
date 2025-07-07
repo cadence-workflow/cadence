@@ -107,6 +107,8 @@ func (s *redispatcherSuite) TestRedispatch_ProcessorShutDown() {
 		mockTask := NewMockTask(s.controller)
 		mockTask.EXPECT().Priority().Return(rand.Intn(5)).AnyTimes()
 		mockTask.EXPECT().GetAttempt().Return(0).Times(1)
+		mockTask.EXPECT().GetAttempt().Return(0).MaxTimes(1)
+		mockTask.EXPECT().SetInitialSubmitTime(gomock.Any()).MaxTimes(1)
 		mockTask.EXPECT().State().Return(ctask.TaskStatePending).MaxTimes(1)
 		s.redispatcher.AddTask(mockTask)
 	}
@@ -128,7 +130,8 @@ func (s *redispatcherSuite) TestRedispatch_WithTargetSize() {
 	for ; i < numTasks+defaultBufferSize-targetSize; i++ {
 		mockTask := NewMockTask(s.controller)
 		mockTask.EXPECT().Priority().Return(rand.Intn(5)).AnyTimes()
-		mockTask.EXPECT().GetAttempt().Return(0).Times(1)
+		mockTask.EXPECT().GetAttempt().Return(0).Times(2)
+		mockTask.EXPECT().SetInitialSubmitTime(gomock.Any()).Times(1)
 		mockTask.EXPECT().State().Return(ctask.TaskStatePending).MaxTimes(1)
 		s.redispatcher.AddTask(mockTask)
 	}
@@ -167,7 +170,12 @@ func (s *redispatcherSuite) TestRedispatch_Backoff() {
 
 		mockTask := NewMockTask(s.controller)
 		mockTask.EXPECT().Priority().Return(rand.Intn(5)).AnyTimes()
-		mockTask.EXPECT().GetAttempt().Return(attempt).Times(1)
+		if attempt == 0 {
+			mockTask.EXPECT().GetAttempt().Return(attempt).Times(2)
+			mockTask.EXPECT().SetInitialSubmitTime(gomock.Any()).Times(1)
+		} else {
+			mockTask.EXPECT().GetAttempt().Return(attempt).Times(1)
+		}
 		mockTask.EXPECT().State().Return(ctask.TaskStatePending).MaxTimes(1)
 		s.redispatcher.AddTask(mockTask)
 		s.mockProcessor.EXPECT().TrySubmit(NewMockTaskMatcher(mockTask)).Return(true, nil).MaxTimes(1)
@@ -198,7 +206,12 @@ func (s *redispatcherSuite) TestRedispatch_Random() {
 
 		mockTask := NewMockTask(s.controller)
 		mockTask.EXPECT().Priority().Return(rand.Intn(5)).AnyTimes()
-		mockTask.EXPECT().GetAttempt().Return(attempt).Times(1)
+		if attempt == 0 {
+			mockTask.EXPECT().GetAttempt().Return(attempt).Times(2)
+			mockTask.EXPECT().SetInitialSubmitTime(gomock.Any()).Times(1)
+		} else {
+			mockTask.EXPECT().GetAttempt().Return(attempt).Times(1)
+		}
 		mockTask.EXPECT().State().Return(ctask.TaskStatePending).MaxTimes(1)
 		s.redispatcher.AddTask(mockTask)
 		s.mockProcessor.EXPECT().TrySubmit(NewMockTaskMatcher(mockTask)).Return(submitted, nil).MaxTimes(1)

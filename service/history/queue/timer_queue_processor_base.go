@@ -300,6 +300,7 @@ func (t *timerQueueProcessorBase) processQueueCollections(levels map[int]struct{
 		tasks := make(map[task.Key]task.Task)
 		taskChFull := false
 		submittedCount := 0
+		now := t.shard.GetTimeSource().Now()
 		for _, taskInfo := range resp.timerTasks {
 			if !domainFilter.Filter(taskInfo.GetDomainID()) {
 				continue
@@ -313,6 +314,8 @@ func (t *timerQueueProcessorBase) processQueueCollections(levels map[int]struct{
 
 			task := t.taskInitializer(taskInfo)
 			tasks[newTimerTaskKey(taskInfo.GetVisibilityTimestamp(), taskInfo.GetTaskID())] = task
+			// shard level metrics for the duration between a task being written to a queue and being fetched from it
+			t.metricsScope.RecordHistogramDuration(metrics.TaskEnqueueToFetchLatency, now.Sub(taskInfo.GetVisibilityTimestamp()))
 			submitted, err := t.submitTask(task)
 			if err != nil {
 				// only err here is due to the fact that processor has been shutdown

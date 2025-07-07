@@ -335,6 +335,18 @@ func (mr *MockTaskMockRecorder) RetryErr(err any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RetryErr", reflect.TypeOf((*MockTask)(nil).RetryErr), err)
 }
 
+// SetInitialSubmitTime mocks base method.
+func (m *MockTask) SetInitialSubmitTime(arg0 time.Time) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetInitialSubmitTime", arg0)
+}
+
+// SetInitialSubmitTime indicates an expected call of SetInitialSubmitTime.
+func (mr *MockTaskMockRecorder) SetInitialSubmitTime(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetInitialSubmitTime", reflect.TypeOf((*MockTask)(nil).SetInitialSubmitTime), arg0)
+}
+
 // SetPriority mocks base method.
 func (m *MockTask) SetPriority(arg0 int) {
 	m.ctrl.T.Helper()
@@ -809,6 +821,18 @@ func (m *MockCrossClusterTask) RetryErr(err error) bool {
 func (mr *MockCrossClusterTaskMockRecorder) RetryErr(err any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RetryErr", reflect.TypeOf((*MockCrossClusterTask)(nil).RetryErr), err)
+}
+
+// SetInitialSubmitTime mocks base method.
+func (m *MockCrossClusterTask) SetInitialSubmitTime(arg0 time.Time) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetInitialSubmitTime", arg0)
+}
+
+// SetInitialSubmitTime indicates an expected call of SetInitialSubmitTime.
+func (mr *MockCrossClusterTaskMockRecorder) SetInitialSubmitTime(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetInitialSubmitTime", reflect.TypeOf((*MockCrossClusterTask)(nil).SetInitialSubmitTime), arg0)
 }
 
 // SetPriority mocks base method.

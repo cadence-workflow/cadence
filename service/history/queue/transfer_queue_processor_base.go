@@ -422,6 +422,7 @@ func (t *transferQueueProcessorBase) processQueueCollections() {
 
 		tasks := make(map[task.Key]task.Task)
 		taskChFull := false
+		now := t.shard.GetTimeSource().Now()
 		for _, taskInfo := range transferTaskInfos {
 			if !domainFilter.Filter(taskInfo.GetDomainID()) {
 				t.logger.Debug("transfer task filtered", tag.TaskID(taskInfo.GetTaskID()))
@@ -436,6 +437,7 @@ func (t *transferQueueProcessorBase) processQueueCollections() {
 
 			task := t.taskInitializer(taskInfo)
 			tasks[newTransferTaskKey(taskInfo.GetTaskID())] = task
+			t.metricsScope.RecordHistogramDuration(metrics.TaskEnqueueToFetchLatency, now.Sub(taskInfo.GetVisibilityTimestamp()))
 			submitted, err := t.submitTask(task)
 			if err != nil {
 				// only err here is due to the fact that processor has been shutdown
