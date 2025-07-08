@@ -35,7 +35,6 @@ import (
 	"github.com/uber/cadence/common/client"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
-	ce "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -382,11 +381,8 @@ func (e *historyEngineImpl) newDomainNotActiveError(
 	if err != nil {
 		clusterName = "_unknown_"
 	}
-	return ce.NewDomainNotActiveError(
-		domainEntry.GetInfo().Name,
-		e.clusterMetadata.GetCurrentClusterName(),
-		clusterName,
-	)
+
+	return domainEntry.NewDomainNotActiveError(clusterName)
 }
 
 func (e *historyEngineImpl) checkForHistoryCorruptions(ctx context.Context, mutableState execution.MutableState) (bool, error) {

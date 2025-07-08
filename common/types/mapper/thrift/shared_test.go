@@ -1305,6 +1305,8 @@ func TestDomainNotActiveErrorConversion(t *testing.T) {
 		nil,
 		{},
 		{Message: "test-message"},
+		{Message: "test-message", DomainName: "test-domain", CurrentCluster: "test-current-cluster", ActiveCluster: "test-active-cluster"},
+		{Message: "test-message", DomainName: "test-domain", CurrentCluster: "test-current-cluster", ActiveClusters: []string{"test-active-cluster-1", "test-active-cluster-2"}},
 	}
 
 	for _, original := range testCases {

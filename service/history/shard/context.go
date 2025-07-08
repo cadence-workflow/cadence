@@ -169,6 +169,7 @@ const (
 	logWarnTimerLevelDiff       = time.Duration(30 * time.Minute)
 	historySizeLogThreshold     = 10 * 1024 * 1024
 	minContextTimeout           = 1 * time.Second
+	activeClusterLookupTimeout  = 1 * time.Second
 )
 
 func (s *contextImpl) GetShardID() int {
@@ -1308,7 +1309,9 @@ func (s *contextImpl) allocateTimerIDsLocked(
 
 			// if domain is active-active, lookup the workflow to determine the corresponding cluster
 			if domainEntry.GetReplicationConfig().IsActiveActive() {
-				lookupRes, err := s.GetActiveClusterManager().LookupWorkflow(context.Background(), task.GetDomainID(), task.GetWorkflowID(), task.GetRunID())
+				ctx, cancel := context.WithTimeout(context.Background(), activeClusterLookupTimeout)
+				lookupRes, err := s.GetActiveClusterManager().LookupWorkflow(ctx, task.GetDomainID(), task.GetWorkflowID(), task.GetRunID())
+				cancel()
 				if err != nil {
 					return err
 				}

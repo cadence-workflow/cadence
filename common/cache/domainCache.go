@@ -24,6 +24,7 @@ package cache
 
 import (
 	"context"
+	"fmt"
 	"hash/fnv"
 	"sort"
 	"strconv"
@@ -37,7 +38,6 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/constants"
-	"github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -148,6 +148,9 @@ type (
 		failoverEndTime             *int64
 		notificationVersion         int64
 		initialized                 bool
+
+		// list of active clusters for active-active domains. initialized from replication config.
+		activeClusters []string
 	}
 )
 
@@ -266,7 +269,6 @@ func NewDomainCacheEntryForTest(
 	previousFailoverVersion int64,
 	notificationVersion int64,
 ) *DomainCacheEntry {
-
 	return &DomainCacheEntry{
 		info:                        info,
 		config:                      config,
@@ -277,6 +279,7 @@ func NewDomainCacheEntryForTest(
 		failoverNotificationVersion: failoverNotificationVersion,
 		previousFailoverVersion:     previousFailoverVersion,
 		notificationVersion:         notificationVersion,
+		activeClusters:              getActiveClusters(repConfig),
 	}
 }
 
@@ -581,6 +584,7 @@ func (c *DefaultDomainCache) updateIDToDomainCache(
 	entry.failoverEndTime = record.failoverEndTime
 	entry.notificationVersion = record.notificationVersion
 	entry.initialized = record.initialized
+	entry.activeClusters = record.activeClusters
 	return triggerCallback, entry.duplicate(), nil
 }
 
@@ -711,6 +715,7 @@ func (c *DefaultDomainCache) buildEntryFromRecord(
 		failoverEndTime:             record.FailoverEndTime,
 		notificationVersion:         record.NotificationVersion,
 		initialized:                 true,
+		activeClusters:              getActiveClusters(record.ReplicationConfig),
 	}
 }
 
@@ -757,6 +762,7 @@ func (entry *DomainCacheEntry) duplicate() *DomainCacheEntry {
 		result.replicationConfig.Clusters = append(result.replicationConfig.Clusters, &c)
 	}
 	result.replicationConfig.ActiveClusters = entry.replicationConfig.ActiveClusters.DeepCopy()
+	result.activeClusters = entry.activeClusters
 	result.configVersion = entry.configVersion
 	result.failoverVersion = entry.failoverVersion
 	result.isGlobalDomain = entry.isGlobalDomain
@@ -765,6 +771,7 @@ func (entry *DomainCacheEntry) duplicate() *DomainCacheEntry {
 	result.failoverEndTime = entry.failoverEndTime
 	result.notificationVersion = entry.notificationVersion
 	result.initialized = entry.initialized
+	result.activeClusters = entry.activeClusters
 	return result
 }
 
@@ -818,6 +825,54 @@ func (entry *DomainCacheEntry) GetFailoverEndTime() *int64 {
 	return entry.failoverEndTime
 }
 
+// GetActiveClusters return the active clusters for active-active domains
+func (entry *DomainCacheEntry) GetActiveClusters() []string {
+	return entry.activeClusters
+}
+
+// NewDomainNotActiveError return a domain not active error
+func (entry *DomainCacheEntry) NewDomainNotActiveError(currentCluster string) *types.DomainNotActiveError {
+	if entry.GetReplicationConfig().IsActiveActive() {
+		return &types.DomainNotActiveError{
+			Message: fmt.Sprintf(
+				"Domain: %s is active in cluster(s): %v, while current cluster %s is a standby cluster.",
+				entry.GetInfo().Name,
+				entry.activeClusters,
+				currentCluster,
+			),
+			DomainName:     entry.GetInfo().Name,
+			CurrentCluster: currentCluster,
+			ActiveClusters: entry.activeClusters,
+		}
+	}
+
+	return &types.DomainNotActiveError{
+		Message: fmt.Sprintf(
+			"Domain: %s is active in cluster: %s, while current cluster %s is a standby cluster.",
+			entry.GetInfo().Name,
+			entry.GetReplicationConfig().ActiveClusterName,
+			currentCluster,
+		),
+		DomainName:     entry.GetInfo().Name,
+		CurrentCluster: currentCluster,
+		ActiveCluster:  entry.GetReplicationConfig().ActiveClusterName,
+	}
+}
+
+// NewDomainPendingActiveError return a domain not active error
+func (entry *DomainCacheEntry) NewDomainPendingActiveError(currentCluster string) *types.DomainNotActiveError {
+	return &types.DomainNotActiveError{
+		Message: fmt.Sprintf(
+			"Domain: %s is pending active in cluster: %s.",
+			entry.GetInfo().Name,
+			currentCluster,
+		),
+		DomainName:     entry.GetInfo().Name,
+		CurrentCluster: currentCluster,
+		ActiveCluster:  currentCluster,
+	}
+}
+
 // IsActive return whether the domain is active, i.e. non global domain or global domain which active cluster is the current cluster
 // If domain is not active, it also returns an error
 func (entry *DomainCacheEntry) IsActiveIn(currentCluster string) (bool, error) {
@@ -826,26 +881,23 @@ func (entry *DomainCacheEntry) IsActiveIn(currentCluster string) (bool, error) {
 		return true, nil
 	}
 
-	domainName := entry.GetInfo().Name
 	if entry.IsDomainPendingActive() {
-		return false, errors.NewDomainPendingActiveError(domainName, currentCluster)
+		return false, entry.NewDomainPendingActiveError(currentCluster)
 	}
 
 	if entry.GetReplicationConfig().IsActiveActive() {
-		var activeClusters []string
 		for _, cl := range entry.GetReplicationConfig().ActiveClusters.ActiveClustersByRegion {
 			if cl.ActiveClusterName == currentCluster {
 				return true, nil
 			}
-			activeClusters = append(activeClusters, cl.ActiveClusterName)
 		}
 
-		return false, errors.NewDomainNotActiveError(domainName, currentCluster, activeClusters...)
+		return false, entry.NewDomainNotActiveError(currentCluster)
 	}
 
 	activeCluster := entry.GetReplicationConfig().ActiveClusterName
 	if currentCluster != activeCluster {
-		return false, errors.NewDomainNotActiveError(domainName, currentCluster, activeCluster)
+		return false, entry.NewDomainNotActiveError(currentCluster)
 	}
 
 	return true, nil
@@ -986,4 +1038,16 @@ func (entry *DomainCacheEntry) IsDeprecatedOrDeleted() bool {
 		return true
 	}
 	return false
+}
+
+func getActiveClusters(replicationConfig *persistence.DomainReplicationConfig) []string {
+	if !replicationConfig.IsActiveActive() {
+		return nil
+	}
+	activeClusters := make([]string, 0, len(replicationConfig.ActiveClusters.ActiveClustersByRegion))
+	for _, cl := range replicationConfig.ActiveClusters.ActiveClustersByRegion {
+		activeClusters = append(activeClusters, cl.ActiveClusterName)
+	}
+	sort.Strings(activeClusters)
+	return activeClusters
 }

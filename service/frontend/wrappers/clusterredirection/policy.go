@@ -267,20 +267,26 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) withRedirect(
 	policy.logger.Debugf("Calling API %q on target cluster:%q for domain:%q", apiName, targetDC, domainEntry.GetInfo().Name)
 	err := call(targetDC)
 
-	targetDC, ok := policy.isDomainNotActiveError(domainEntry, err)
+	newTargetDC, ok := policy.isDomainNotActiveError(domainEntry, err)
 	if !ok || !enableDomainNotActiveForwarding {
 		return err
 	}
-	return call(targetDC)
+
+	// TODO(active-active): emit a metric here including apiName, targetDC and newTargetDC tags to see how often this happens.
+	policy.logger.Debugf("Calling API %q on new target cluster:%q for domain:%q", apiName, newTargetDC, domainEntry.GetInfo().Name)
+	return call(newTargetDC)
 }
 
+// isDomainNotActiveError is called when the API call returns a domain not active error by the target cluster.
+// This can only happen if there was a failover during the API call.
+// To preserve existing behavior, If the domain is active-passive, return the new target cluster to forward to.
+// If the domain is active-active, skip this extra attempt and let the caller handle the error.
 func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) isDomainNotActiveError(domainEntry *cache.DomainCacheEntry, err error) (string, bool) {
 	domainNotActiveErr, ok := err.(*types.DomainNotActiveError)
 	if !ok {
 		return "", false
 	}
 
-	// TODO(active-active): handle active-active domain not active error which has multiple other active clusters
 	if domainEntry.GetReplicationConfig().IsActiveActive() {
 		return "", false
 	}

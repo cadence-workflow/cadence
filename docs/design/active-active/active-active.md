@@ -455,3 +455,7 @@ Conflict resolution mechanism should take care of this by terminating one of the
 - **External entity cardinality:** All cadence frontend and history services will have to make quick decisions on which cluster a workflow is active in. This requires caching all the domain data (already done for active-passive domains) and also caching the new entity region lookup table. This cache should be manageable in terms of memory usage so there will be a limit to the number of entities. Actual limit is going to be configurable based on available memory but ideally it should be in the order of thousands.
 
 - **Graceful failover:** Graceful failover is not supported for active-active domains. It is not a mode that is frequently used for active-passive domains either.
+
+## Defining a new external entity type
+
+// TODO(active-active): define external entity providers as plugins. See resource_impl.go

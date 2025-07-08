@@ -330,11 +330,10 @@ func Test_IsActiveIn(t *testing.T) {
 			currentCluster: "A",
 			activeCluster:  "B",
 			expectedErr: &types.DomainNotActiveError{
-				Message:        "Domain: test-domain is active in cluster(s): [B] (and potentially more), while current cluster A is a standby cluster.",
+				Message:        "Domain: test-domain is active in cluster: B, while current cluster A is a standby cluster.",
 				DomainName:     "test-domain",
 				CurrentCluster: "A",
 				ActiveCluster:  "B",
-				ActiveClusters: []string{"B"},
 			},
 		},
 		{
@@ -360,10 +359,9 @@ func Test_IsActiveIn(t *testing.T) {
 				},
 			},
 			expectedErr: &types.DomainNotActiveError{
-				Message:        "Domain: test-domain is active in cluster(s): [A B] (and potentially more), while current cluster C is a standby cluster.",
+				Message:        "Domain: test-domain is active in cluster(s): [A B], while current cluster C is a standby cluster.",
 				DomainName:     "test-domain",
 				CurrentCluster: "C",
-				ActiveCluster:  "",
 				ActiveClusters: []string{"A", "B"},
 			},
 		},
@@ -1173,11 +1171,10 @@ func Test_GetActiveDomainByID(t *testing.T) {
 			domainID:     passiveDomainUUID,
 			expectDomain: passiveDomain,
 			expectedErr: &types.DomainNotActiveError{
-				Message:        "Domain: passive is active in cluster(s): [B] (and potentially more), while current cluster A is a standby cluster.",
+				Message:        "Domain: passive is active in cluster: B, while current cluster A is a standby cluster.",
 				DomainName:     "passive",
 				CurrentCluster: "A",
 				ActiveCluster:  "B",
-				ActiveClusters: []string{"B"},
 			},
 		},
 	}
@@ -1213,4 +1210,98 @@ func Test_WithTimeSource(t *testing.T) {
 func Test_NewLocalDomainCacheEntryForTest(t *testing.T) {
 	domain := NewLocalDomainCacheEntryForTest(&persistence.DomainInfo{Name: "test-domain"}, nil, "targetCluster")
 	assert.False(t, domain.IsGlobalDomain())
+}
+
+func Test_NewDomainNotActiveError(t *testing.T) {
+	tests := []struct {
+		msg         string
+		domain      *DomainCacheEntry
+		expectedErr *types.DomainNotActiveError
+	}{
+		{
+			msg:    "local domain",
+			domain: NewLocalDomainCacheEntryForTest(&persistence.DomainInfo{Name: "test-domain"}, nil, "targetCluster"),
+			expectedErr: &types.DomainNotActiveError{
+				Message:        "Domain: test-domain is active in cluster: targetCluster, while current cluster currentCluster is a standby cluster.",
+				DomainName:     "test-domain",
+				CurrentCluster: "currentCluster",
+				ActiveCluster:  "targetCluster",
+			},
+		},
+		{
+			msg: "active-active domain",
+			domain: NewDomainCacheEntryForTest(
+				&persistence.DomainInfo{Name: "test-domain"},
+				nil,
+				true,
+				&persistence.DomainReplicationConfig{
+					ActiveClusterName: "targetCluster",
+					ActiveClusters: &types.ActiveClusters{ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+						"region1": {
+							ActiveClusterName: "cluster1",
+						},
+						"region2": {
+							ActiveClusterName: "cluster2",
+						},
+					}},
+				},
+				0,
+				nil,
+				0,
+				0,
+				0,
+			),
+			expectedErr: &types.DomainNotActiveError{
+				Message:        "Domain: test-domain is active in cluster(s): [cluster1 cluster2], while current cluster currentCluster is a standby cluster.",
+				DomainName:     "test-domain",
+				CurrentCluster: "currentCluster",
+				ActiveClusters: []string{"cluster1", "cluster2"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.msg, func(t *testing.T) {
+			err := tt.domain.NewDomainNotActiveError("currentCluster")
+			assert.Equal(t, tt.expectedErr, err)
+		})
+	}
+}
+
+func Test_getActiveClusters(t *testing.T) {
+	tests := []struct {
+		msg                    string
+		replicationConfig      *persistence.DomainReplicationConfig
+		expectedActiveClusters []string
+	}{
+		{
+			msg: "active-passive domain",
+			replicationConfig: &persistence.DomainReplicationConfig{
+				ActiveClusterName: "active",
+			},
+			expectedActiveClusters: nil,
+		},
+		{
+			msg: "active-active domain",
+			replicationConfig: &persistence.DomainReplicationConfig{
+				ActiveClusterName: "active",
+				ActiveClusters: &types.ActiveClusters{ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+					"region1": {
+						ActiveClusterName: "cluster1",
+					},
+					"region2": {
+						ActiveClusterName: "cluster2",
+					},
+				}},
+			},
+			expectedActiveClusters: []string{"cluster1", "cluster2"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.msg, func(t *testing.T) {
+			activeClusters := getActiveClusters(tt.replicationConfig)
+			assert.Equal(t, tt.expectedActiveClusters, activeClusters)
+		})
+	}
 }
