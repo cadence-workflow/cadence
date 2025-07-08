@@ -144,7 +144,7 @@ services:
   integration-test-cassandra-queue-v2:
     build:
       context: ../../
-      dockerfile: ./docker/buildkite/Dockerfile
+      dockerfile: ./docker/github_actions/Dockerfile
     environment:
       - "CASSANDRA=1"
       - "CASSANDRA_SEEDS=cassandra"
