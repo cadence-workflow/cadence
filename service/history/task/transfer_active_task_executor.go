@@ -111,7 +111,7 @@ func NewTransferActiveTaskExecutor(
 	}
 }
 
-func (t *transferActiveTaskExecutor) Execute(task Task) (metrics.Scope, error) {
+func (t *transferActiveTaskExecutor) Execute(task Task) (ExecuteResponse, error) {
 	simulation.LogEvents(simulation.E{
 		EventName:  simulation.EventNameExecuteHistoryTask,
 		Host:       t.shard.GetConfig().HostName,
@@ -126,34 +126,38 @@ func (t *transferActiveTaskExecutor) Execute(task Task) (metrics.Scope, error) {
 		},
 	})
 	scope := getOrCreateDomainTaggedScope(t.shard, GetTransferTaskMetricsScope(task.GetTaskType(), true), task.GetDomainID(), t.logger)
+	executeResponse := ExecuteResponse{
+		Scope:        scope,
+		IsActiveTask: true,
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), taskDefaultTimeout)
 	defer cancel()
 
 	switch transferTask := task.GetInfo().(type) {
 	case *persistence.ActivityTask:
-		return scope, t.processActivityTask(ctx, transferTask)
+		return executeResponse, t.processActivityTask(ctx, transferTask)
 	case *persistence.DecisionTask:
-		return scope, t.processDecisionTask(ctx, transferTask)
+		return executeResponse, t.processDecisionTask(ctx, transferTask)
 	case *persistence.CloseExecutionTask:
-		return scope, t.processCloseExecution(ctx, transferTask)
+		return executeResponse, t.processCloseExecution(ctx, transferTask)
 	case *persistence.RecordWorkflowClosedTask:
-		return scope, t.processRecordWorkflowClosed(ctx, transferTask)
+		return executeResponse, t.processRecordWorkflowClosed(ctx, transferTask)
 	case *persistence.RecordChildExecutionCompletedTask:
-		return scope, t.processRecordChildExecutionCompleted(ctx, transferTask)
+		return executeResponse, t.processRecordChildExecutionCompleted(ctx, transferTask)
 	case *persistence.CancelExecutionTask:
-		return scope, t.processCancelExecution(ctx, transferTask)
+		return executeResponse, t.processCancelExecution(ctx, transferTask)
 	case *persistence.SignalExecutionTask:
-		return scope, t.processSignalExecution(ctx, transferTask)
+		return executeResponse, t.processSignalExecution(ctx, transferTask)
 	case *persistence.StartChildExecutionTask:
-		return scope, t.processStartChildExecution(ctx, transferTask)
+		return executeResponse, t.processStartChildExecution(ctx, transferTask)
 	case *persistence.RecordWorkflowStartedTask:
-		return scope, t.processRecordWorkflowStarted(ctx, transferTask)
+		return executeResponse, t.processRecordWorkflowStarted(ctx, transferTask)
 	case *persistence.ResetWorkflowTask:
-		return scope, t.processResetWorkflow(ctx, transferTask)
+		return executeResponse, t.processResetWorkflow(ctx, transferTask)
 	case *persistence.UpsertWorkflowSearchAttributesTask:
-		return scope, t.processUpsertWorkflowSearchAttributes(ctx, transferTask)
+		return executeResponse, t.processUpsertWorkflowSearchAttributes(ctx, transferTask)
 	default:
-		return scope, errUnknownTransferTask
+		return executeResponse, errUnknownTransferTask
 	}
 }
 

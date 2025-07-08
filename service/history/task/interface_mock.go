@@ -16,7 +16,6 @@ import (
 	gomock "go.uber.org/mock/gomock"
 
 	future "github.com/uber/cadence/common/future"
-	metrics "github.com/uber/cadence/common/metrics"
 	persistence "github.com/uber/cadence/common/persistence"
 	task "github.com/uber/cadence/common/task"
 	types "github.com/uber/cadence/common/types"
@@ -1005,10 +1004,10 @@ func (m *MockExecutor) EXPECT() *MockExecutorMockRecorder {
 }
 
 // Execute mocks base method.
-func (m *MockExecutor) Execute(task Task) (metrics.Scope, error) {
+func (m *MockExecutor) Execute(task Task) (ExecuteResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Execute", task)
-	ret0, _ := ret[0].(metrics.Scope)
+	ret0, _ := ret[0].(ExecuteResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

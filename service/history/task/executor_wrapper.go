@@ -29,7 +29,6 @@ import (
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
-	"github.com/uber/cadence/common/metrics"
 )
 
 type (
@@ -66,7 +65,7 @@ func (e *executorWrapper) Stop() {
 	e.standbyExecutor.Stop()
 }
 
-func (e *executorWrapper) Execute(task Task) (metrics.Scope, error) {
+func (e *executorWrapper) Execute(task Task) (ExecuteResponse, error) {
 	if e.isActiveTask(task) {
 		return e.activeExecutor.Execute(task)
 	}

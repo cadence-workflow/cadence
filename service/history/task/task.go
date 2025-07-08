@@ -68,19 +68,20 @@ type (
 		sync.Mutex
 		persistence.Task
 
-		shard              shard.Context
-		state              ctask.State
-		priority           int
-		attempt            int
-		timeSource         clock.TimeSource
-		initialSubmitTime  time.Time
-		logger             log.Logger
-		eventLogger        eventLogger
-		scope              metrics.Scope // initialized when processing task to make the initialization parallel
-		taskExecutor       Executor
-		taskProcessor      Processor
-		redispatchFn       func(task Task)
-		criticalRetryCount dynamicproperties.IntPropertyFn
+		shard                    shard.Context
+		state                    ctask.State
+		priority                 int
+		attempt                  int
+		timeSource               clock.TimeSource
+		initialSubmitTime        time.Time
+		logger                   log.Logger
+		eventLogger              eventLogger
+		scope                    metrics.Scope // initialized when processing task to make the initialization parallel
+		taskExecutor             Executor
+		taskProcessor            Processor
+		redispatchFn             func(task Task)
+		criticalRetryCount       dynamicproperties.IntPropertyFn
+		isPreviousExecutorActive bool
 
 		// TODO: following three fields should be removed after new task lifecycle is implemented
 		taskFilter        Filter
@@ -155,8 +156,19 @@ func (t *taskImpl) Execute() error {
 		t.scope.IncCounter(metrics.TaskRequestsPerDomain)
 		t.scope.RecordTimer(metrics.TaskProcessingLatencyPerDomain, time.Since(executionStartTime))
 	}()
-	t.scope, err = t.taskExecutor.Execute(t)
+	executeResponse, err := t.taskExecutor.Execute(t)
+	t.scope = executeResponse.Scope
+	if t.isPreviousExecutorActive != executeResponse.IsActiveTask {
+		t.resetAttempt()
+	}
+	t.isPreviousExecutorActive = executeResponse.IsActiveTask
 	return err
+}
+
+func (t *taskImpl) resetAttempt() {
+	t.Lock()
+	defer t.Unlock()
+	t.attempt = 0
 }
 
 func (t *taskImpl) HandleErr(err error) (retErr error) {

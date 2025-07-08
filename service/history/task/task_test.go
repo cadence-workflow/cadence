@@ -111,7 +111,10 @@ func (s *taskSuite) TestExecute_ExecutionErr() {
 	}, nil)
 
 	executionErr := errors.New("some random error")
-	s.mockTaskExecutor.EXPECT().Execute(task).Return(metrics.NoopScope, executionErr).Times(1)
+	s.mockTaskExecutor.EXPECT().Execute(task).Return(ExecuteResponse{
+		Scope:        metrics.NoopScope,
+		IsActiveTask: true,
+	}, executionErr).Times(1)
 
 	err := task.Execute()
 	s.Equal(executionErr, err)
@@ -122,7 +125,10 @@ func (s *taskSuite) TestExecute_Success() {
 		return true, nil
 	}, nil)
 
-	s.mockTaskExecutor.EXPECT().Execute(task).Return(metrics.NoopScope, nil).Times(1)
+	s.mockTaskExecutor.EXPECT().Execute(task).Return(ExecuteResponse{
+		Scope:        metrics.NoopScope,
+		IsActiveTask: true,
+	}, nil).Times(1)
 
 	err := task.Execute()
 	s.NoError(err)

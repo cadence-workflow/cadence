@@ -82,7 +82,7 @@ func NewTimerStandbyTaskExecutor(
 	}
 }
 
-func (t *timerStandbyTaskExecutor) Execute(task Task) (metrics.Scope, error) {
+func (t *timerStandbyTaskExecutor) Execute(task Task) (ExecuteResponse, error) {
 	simulation.LogEvents(simulation.E{
 		EventName:  simulation.EventNameExecuteHistoryTask,
 		Host:       t.shard.GetConfig().HostName,
@@ -97,38 +97,42 @@ func (t *timerStandbyTaskExecutor) Execute(task Task) (metrics.Scope, error) {
 		},
 	})
 	scope := getOrCreateDomainTaggedScope(t.shard, GetTimerTaskMetricScope(task.GetTaskType(), false), task.GetDomainID(), t.logger)
+	executeResponse := ExecuteResponse{
+		Scope:        scope,
+		IsActiveTask: false,
+	}
 	switch timerTask := task.GetInfo().(type) {
 	case *persistence.UserTimerTask:
 		ctx, cancel := context.WithTimeout(t.ctx, taskDefaultTimeout)
 		defer cancel()
-		return scope, t.executeUserTimerTimeoutTask(ctx, timerTask)
+		return executeResponse, t.executeUserTimerTimeoutTask(ctx, timerTask)
 	case *persistence.ActivityTimeoutTask:
 		ctx, cancel := context.WithTimeout(t.ctx, taskDefaultTimeout)
 		defer cancel()
-		return scope, t.executeActivityTimeoutTask(ctx, timerTask)
+		return executeResponse, t.executeActivityTimeoutTask(ctx, timerTask)
 	case *persistence.DecisionTimeoutTask:
 		ctx, cancel := context.WithTimeout(t.ctx, taskDefaultTimeout)
 		defer cancel()
-		return scope, t.executeDecisionTimeoutTask(ctx, timerTask)
+		return executeResponse, t.executeDecisionTimeoutTask(ctx, timerTask)
 	case *persistence.WorkflowTimeoutTask:
 		ctx, cancel := context.WithTimeout(t.ctx, taskDefaultTimeout)
 		defer cancel()
-		return scope, t.executeWorkflowTimeoutTask(ctx, timerTask)
+		return executeResponse, t.executeWorkflowTimeoutTask(ctx, timerTask)
 	case *persistence.ActivityRetryTimerTask:
 		// retry backoff timer should not get created on passive cluster
 		// TODO: add error logs
-		return scope, nil
+		return executeResponse, nil
 	case *persistence.WorkflowBackoffTimerTask:
 		ctx, cancel := context.WithTimeout(t.ctx, taskDefaultTimeout)
 		defer cancel()
-		return scope, t.executeWorkflowBackoffTimerTask(ctx, timerTask)
+		return executeResponse, t.executeWorkflowBackoffTimerTask(ctx, timerTask)
 	case *persistence.DeleteHistoryEventTask:
 		// special timeout for delete history event
 		deleteHistoryEventContext, deleteHistoryEventCancel := context.WithTimeout(t.ctx, time.Duration(t.config.DeleteHistoryEventContextTimeout())*time.Second)
 		defer deleteHistoryEventCancel()
-		return scope, t.executeDeleteHistoryEventTask(deleteHistoryEventContext, timerTask)
+		return executeResponse, t.executeDeleteHistoryEventTask(deleteHistoryEventContext, timerTask)
 	default:
-		return scope, errUnknownTimerTask
+		return executeResponse, errUnknownTimerTask
 	}
 }
 
