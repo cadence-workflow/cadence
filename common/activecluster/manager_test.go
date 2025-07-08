@@ -848,6 +848,91 @@ func TestLookupWorkflow(t *testing.T) {
 	}
 }
 
+func TestClusterToRedirect(t *testing.T) {
+	metricsCl := metrics.NewNoopMetricsClient()
+	logger := log.NewNoop()
+	currentClusterName := "cluster1"
+	clusterMetadata := cluster.NewMetadata(
+		config.ClusterGroupMetadata{
+			ClusterGroup: map[string]config.ClusterInformation{
+				"cluster0": {
+					InitialFailoverVersion: 1,
+					Region:                 "us-west",
+				},
+				"cluster1": {
+					InitialFailoverVersion: 3,
+					Region:                 "us-west",
+				},
+				"cluster2": {
+					InitialFailoverVersion: 5,
+					Region:                 "us-east",
+				},
+				"cluster3": {
+					InitialFailoverVersion: 7,
+					Region:                 "us-east",
+				},
+			},
+			Regions: map[string]config.RegionInformation{
+				"us-west": {
+					InitialFailoverVersion: 0,
+				},
+				"us-east": {
+					InitialFailoverVersion: 2,
+				},
+			},
+			FailoverVersionIncrement: 100,
+			CurrentClusterName:       currentClusterName,
+		},
+		func(d string) bool { return false },
+		metricsCl,
+		logger,
+	)
+
+	tests := []struct {
+		name            string
+		activeClusters  []string
+		expectedCluster string
+		expectedOk      bool
+	}{
+		{
+			name:            "empty active clusters list",
+			activeClusters:  []string{},
+			expectedCluster: "",
+			expectedOk:      false,
+		},
+		{
+			name:            "current cluster is in active clusters",
+			activeClusters:  []string{"cluster0", "cluster1", "cluster2", "cluster3"},
+			expectedCluster: currentClusterName,
+			expectedOk:      true,
+		},
+		{
+			name:            "current cluster is not in active clusters, first one returned",
+			activeClusters:  []string{"cluster0", "cluster2", "cluster3"},
+			expectedCluster: "cluster0",
+			expectedOk:      true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			domainIDToDomainFn := func(id string) (*cache.DomainCacheEntry, error) {
+				return getDomainCacheEntry(nil), nil
+			}
+			timeSrc := clock.NewMockedTimeSource()
+			mgr, err := NewManager(domainIDToDomainFn, clusterMetadata, metricsCl, logger, nil, nil, numShards, WithTimeSource(timeSrc))
+			if err != nil {
+				t.Fatalf("failed to create manager: %v", err)
+				return
+			}
+
+			cluster, ok := mgr.ClusterToRedirect(tc.activeClusters)
+			assert.Equal(t, tc.expectedCluster, cluster)
+			assert.Equal(t, tc.expectedOk, ok)
+		})
+	}
+}
+
 func getDomainCacheEntry(cfg *types.ActiveClusters) *cache.DomainCacheEntry {
 	// only thing we care in domain cache entry is the active clusters config
 	return cache.NewDomainCacheEntryForTest(

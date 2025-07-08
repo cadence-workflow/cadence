@@ -272,7 +272,13 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) withRedirect(
 		return err
 	}
 
-	// TODO(active-active): emit a metric here including apiName, targetDC and newTargetDC tags to see how often this happens.
+	// TODO(active-active): emit a metric here including apiName, targetDC and newTargetDC tags
+
+	if newTargetDC == targetDC {
+		policy.logger.Debugf("No need to redirect to new target cluster:%q for domain:%q", newTargetDC, domainEntry.GetInfo().Name)
+		return err
+	}
+
 	policy.logger.Debugf("Calling API %q on new target cluster:%q for domain:%q", apiName, newTargetDC, domainEntry.GetInfo().Name)
 	return call(newTargetDC)
 }
@@ -288,7 +294,7 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) isDomainNotActiveErr
 	}
 
 	if domainEntry.GetReplicationConfig().IsActiveActive() {
-		return "", false
+		return policy.activeClusterManager.ClusterToRedirect(domainNotActiveErr.ActiveClusters)
 	}
 
 	return domainNotActiveErr.ActiveCluster, true

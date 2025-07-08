@@ -26,6 +26,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -387,6 +388,31 @@ func (m *managerImpl) SupportedExternalEntityType(entityType string) bool {
 
 func (m *managerImpl) CurrentRegion() string {
 	return m.clusterMetadata.GetCurrentRegion()
+}
+
+func (m *managerImpl) ClusterToRedirect(clusters []string) (string, bool) {
+	if len(clusters) == 0 {
+		return "", false
+	}
+
+	currentCluster := m.clusterMetadata.GetCurrentClusterName()
+	if slices.Contains(clusters, currentCluster) {
+		return currentCluster, true // case 1
+	}
+
+	currentRegion := m.clusterMetadata.GetCurrentRegion()
+	allClusters := m.clusterMetadata.GetAllClusterInfo()
+	for _, cluster := range clusters {
+		clusterInfo, ok := allClusters[cluster]
+		if !ok {
+			continue
+		}
+		if clusterInfo.Region == currentRegion {
+			return cluster, true // case 2
+		}
+	}
+
+	return clusters[0], false // case 3
 }
 
 func (m *managerImpl) getExternalEntity(ctx context.Context, entityType, entityKey string) (*ExternalEntity, error) {
