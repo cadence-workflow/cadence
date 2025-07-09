@@ -1309,6 +1309,8 @@ func (s *contextImpl) allocateTimerIDsLocked(
 
 			// if domain is active-active, lookup the workflow to determine the corresponding cluster
 			if domainEntry.GetReplicationConfig().IsActiveActive() {
+				// TODO(active-active): create a contextImpl.ctx which is tied to the shard context lifecycle
+				// and use it here instead of creating a background context
 				ctx, cancel := context.WithTimeout(context.Background(), activeClusterLookupTimeout)
 				lookupRes, err := s.GetActiveClusterManager().LookupWorkflow(ctx, task.GetDomainID(), task.GetWorkflowID(), task.GetRunID())
 				cancel()
