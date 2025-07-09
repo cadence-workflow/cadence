@@ -57,21 +57,6 @@ func (mr *MockManagerMockRecorder) ClusterNameForFailoverVersion(failoverVersion
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClusterNameForFailoverVersion", reflect.TypeOf((*MockManager)(nil).ClusterNameForFailoverVersion), failoverVersion, domainID)
 }
 
-// ClusterToRedirect mocks base method.
-func (m *MockManager) ClusterToRedirect(activeClusters []string) (string, bool) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ClusterToRedirect", activeClusters)
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(bool)
-	return ret0, ret1
-}
-
-// ClusterToRedirect indicates an expected call of ClusterToRedirect.
-func (mr *MockManagerMockRecorder) ClusterToRedirect(activeClusters any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClusterToRedirect", reflect.TypeOf((*MockManager)(nil).ClusterToRedirect), activeClusters)
-}
-
 // CurrentRegion mocks base method.
 func (m *MockManager) CurrentRegion() string {
 	m.ctrl.T.Helper()

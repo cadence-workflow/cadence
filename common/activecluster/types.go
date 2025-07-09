@@ -83,15 +83,6 @@ type Manager interface {
 
 	// CurrentRegion returns the current region.
 	CurrentRegion() string
-
-	// ClusterToRedirect returns the one of the given clusters to redirect to.
-	// 1. if the current cluster is in the clusters list, return the current cluster
-	// 2. if another cluster in current region is in the clusters list, return that one
-	// 3. otherwise pick the first cluster from the clusters list
-	//
-	// This logic can be optimized further by assigning priorities/weights to clusters
-	// or potentially re-fetching domain config from the primary cluster again and doing a deterministic selection.
-	ClusterToRedirect(activeClusters []string) (string, bool)
 }
 
 type LookupResult struct {
