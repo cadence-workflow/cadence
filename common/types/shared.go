@@ -7758,7 +7758,7 @@ type WorkflowExecutionInfo struct {
 	Memo                         *Memo                         `json:"memo,omitempty"`
 	SearchAttributes             *SearchAttributes             `json:"searchAttributes,omitempty"`
 	AutoResetPoints              *ResetPoints                  `json:"autoResetPoints,omitempty"`
-	TaskList                     string                        `json:"taskList,omitempty"`
+	TaskList                     *TaskList                     `json:"taskList,omitempty"`
 	IsCron                       bool                          `json:"isCron,omitempty"`
 	UpdateTime                   *int64                        `json:"updateTime,omitempty"`
 	PartitionConfig              map[string]string             `json:"partitionConfig,omitempty"`

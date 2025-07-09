@@ -75,6 +75,10 @@ func (e *historyEngineImpl) DescribeWorkflowExecution(
 				WorkflowID: executionInfo.WorkflowID,
 				RunID:      executionInfo.RunID,
 			},
+			TaskList: &types.TaskList{
+				Name: executionInfo.TaskList,
+				Kind: executionInfo.TaskListKind.Ptr(),
+			},
 			Type:             &types.WorkflowType{Name: executionInfo.WorkflowTypeName},
 			StartTime:        common.Int64Ptr(executionInfo.StartTimestamp.UnixNano()),
 			HistoryLength:    mutableState.GetNextEventID() - constants.FirstEventID,

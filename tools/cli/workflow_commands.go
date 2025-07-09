@@ -1361,7 +1361,7 @@ func newWorkflowRow(workflow *types.WorkflowExecutionInfo) (WorkflowRow, error) 
 		WorkflowType:     workflow.Type.GetName(),
 		WorkflowID:       workflow.Execution.GetWorkflowID(),
 		RunID:            workflow.Execution.GetRunID(),
-		TaskList:         workflow.TaskList,
+		TaskList:         workflow.TaskList.GetName(),
 		IsCron:           workflow.IsCron,
 		StartTime:        time.Unix(0, workflow.GetStartTime()),
 		ExecutionTime:    time.Unix(0, workflow.GetExecutionTime()),

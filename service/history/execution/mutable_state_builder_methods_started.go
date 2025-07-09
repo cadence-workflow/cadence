@@ -207,6 +207,7 @@ func (e *mutableStateBuilder) ReplicateWorkflowExecutionStartedEvent(
 		e.executionInfo.FirstExecutionRunID = execution.GetRunID()
 	}
 	e.executionInfo.TaskList = event.TaskList.GetName()
+	e.executionInfo.TaskListKind = event.TaskList.GetKind()
 	e.executionInfo.WorkflowTypeName = event.WorkflowType.GetName()
 	e.executionInfo.WorkflowTimeout = event.GetExecutionStartToCloseTimeoutSeconds()
 	e.executionInfo.DecisionStartToCloseTimeout = event.GetTaskStartToCloseTimeoutSeconds()

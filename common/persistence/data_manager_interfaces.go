@@ -367,6 +367,7 @@ type (
 		CompletionEventBatchID             int64
 		CompletionEvent                    *types.HistoryEvent
 		TaskList                           string
+		TaskListKind                       types.TaskListKind
 		WorkflowTypeName                   string
 		WorkflowTimeout                    int32
 		DecisionStartToCloseTimeout        int32

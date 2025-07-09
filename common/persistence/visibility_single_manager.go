@@ -400,7 +400,7 @@ func (v *visibilityManagerImpl) convertVisibilityWorkflowExecutionInfo(execution
 		ExecutionTime:    common.Int64Ptr(execution.ExecutionTime.UnixNano()),
 		Memo:             memo,
 		SearchAttributes: searchAttributes,
-		TaskList:         execution.TaskList,
+		TaskList:         &types.TaskList{Name: execution.TaskList},
 		IsCron:           execution.IsCron,
 	}
 

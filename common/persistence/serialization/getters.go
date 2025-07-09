@@ -436,6 +436,13 @@ func (w *WorkflowExecutionInfo) GetTaskList() (o string) {
 	return
 }
 
+func (w *WorkflowExecutionInfo) GetTaskListKind() (o types.TaskListKind) {
+	if w != nil {
+		return w.TaskListKind
+	}
+	return
+}
+
 // GetIsCron internal sql blob getter
 func (w *WorkflowExecutionInfo) GetIsCron() (o bool) {
 	if w != nil {
