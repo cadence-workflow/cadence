@@ -2055,7 +2055,7 @@ func (e *mutableStateBuilder) closeTransactionWithPolicyCheck(
 
 	if activeCluster != currentCluster {
 		e.logger.Debugf("closeTransactionWithPolicyCheck activeCluster != currentCluster, activeCluster=%v, currentCluster=%v, e.GetCurrentVersion()=%v", activeCluster, currentCluster, e.GetCurrentVersion())
-		return e.domainEntry.NewDomainNotActiveError(currentCluster)
+		return e.domainEntry.NewDomainNotActiveError(currentCluster, activeCluster)
 	}
 	return nil
 }

@@ -96,7 +96,7 @@ func (tc *taskCompleterImpl) CompleteTaskIfStarted(ctx context.Context, task *In
 			return fmt.Errorf("unable to fetch domain from cache: %w", err)
 		}
 
-		if isActive, _ := domainEntry.IsActiveIn(tc.clusterMetadata.GetCurrentClusterName()); isActive {
+		if domainEntry.IsActiveIn(tc.clusterMetadata.GetCurrentClusterName()) {
 			return errDomainIsActive
 		}
 

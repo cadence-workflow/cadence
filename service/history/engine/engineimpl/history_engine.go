@@ -377,12 +377,12 @@ func (e *historyEngineImpl) newDomainNotActiveError(
 	domainEntry *cache.DomainCacheEntry,
 	failoverVersion int64,
 ) error {
-	clusterName, err := e.shard.GetActiveClusterManager().ClusterNameForFailoverVersion(failoverVersion, domainEntry.GetInfo().ID)
+	activeClusterName, err := e.shard.GetActiveClusterManager().ClusterNameForFailoverVersion(failoverVersion, domainEntry.GetInfo().ID)
 	if err != nil {
-		clusterName = "_unknown_"
+		activeClusterName = "_unknown_"
 	}
 
-	return domainEntry.NewDomainNotActiveError(clusterName)
+	return domainEntry.NewDomainNotActiveError(e.currentClusterName, activeClusterName)
 }
 
 func (e *historyEngineImpl) checkForHistoryCorruptions(ctx context.Context, mutableState execution.MutableState) (bool, error) {

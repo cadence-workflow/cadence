@@ -105,8 +105,8 @@ func (e *executorWrapper) isActiveTask(
 		return true
 	}
 
-	if isActive, err := entry.IsActiveIn(e.currentClusterName); err != nil || !isActive {
-		e.logger.Debug("Process task as standby.", tag.WorkflowDomainID(domainID), tag.Error(err), tag.Value(task.GetInfo()), tag.ClusterName(e.currentClusterName))
+	if !entry.IsActiveIn(e.currentClusterName) {
+		e.logger.Debug("Process task as standby.", tag.WorkflowDomainID(domainID), tag.Value(task.GetInfo()), tag.ClusterName(e.currentClusterName))
 		return false
 	}
 

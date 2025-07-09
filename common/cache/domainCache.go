@@ -831,17 +831,21 @@ func (entry *DomainCacheEntry) GetActiveClusters() []string {
 }
 
 // NewDomainNotActiveError return a domain not active error
-func (entry *DomainCacheEntry) NewDomainNotActiveError(currentCluster string) *types.DomainNotActiveError {
+// currentCluster is the current cluster
+// activeCluster is the active cluster which is either domain's active cluster or it's inferred from workflow task version
+func (entry *DomainCacheEntry) NewDomainNotActiveError(currentCluster, activeCluster string) *types.DomainNotActiveError {
 	if entry.GetReplicationConfig().IsActiveActive() {
 		return &types.DomainNotActiveError{
 			Message: fmt.Sprintf(
-				"Domain: %s is active in cluster(s): %v, while current cluster %s is a standby cluster.",
+				"Domain: %s is active in cluster(s): %v, while current cluster %s is a standby cluster. Operation active cluster: %s",
 				entry.GetInfo().Name,
 				entry.activeClusters,
 				currentCluster,
+				activeCluster,
 			),
 			DomainName:     entry.GetInfo().Name,
 			CurrentCluster: currentCluster,
+			ActiveCluster:  activeCluster,
 			ActiveClusters: entry.activeClusters,
 		}
 	}
@@ -850,57 +854,45 @@ func (entry *DomainCacheEntry) NewDomainNotActiveError(currentCluster string) *t
 		Message: fmt.Sprintf(
 			"Domain: %s is active in cluster: %s, while current cluster %s is a standby cluster.",
 			entry.GetInfo().Name,
-			entry.GetReplicationConfig().ActiveClusterName,
+			activeCluster,
 			currentCluster,
 		),
 		DomainName:     entry.GetInfo().Name,
 		CurrentCluster: currentCluster,
-		ActiveCluster:  entry.GetReplicationConfig().ActiveClusterName,
+		ActiveCluster:  activeCluster,
 	}
 }
 
-// NewDomainPendingActiveError return a domain not active error
-func (entry *DomainCacheEntry) NewDomainPendingActiveError(currentCluster string) *types.DomainNotActiveError {
-	return &types.DomainNotActiveError{
-		Message: fmt.Sprintf(
-			"Domain: %s is pending active in cluster: %s.",
-			entry.GetInfo().Name,
-			currentCluster,
-		),
-		DomainName:     entry.GetInfo().Name,
-		CurrentCluster: currentCluster,
-		ActiveCluster:  currentCluster,
-	}
-}
-
-// IsActive return whether the domain is active, i.e. non global domain or global domain which active cluster is the current cluster
-// If domain is not active, it also returns an error
-func (entry *DomainCacheEntry) IsActiveIn(currentCluster string) (bool, error) {
+// IsActive return whether the domain is active in the current cluster,
+// - for local domain, it is always active
+// - for active-passive domain, it is active if it is not pending active and active cluster is the current cluster
+// - for active-active domain, it is active if the current cluster is in the active clusters list
+func (entry *DomainCacheEntry) IsActiveIn(currentCluster string) bool {
 	if !entry.IsGlobalDomain() {
 		// domain is not a global domain, meaning domain is always "active" within each cluster
-		return true, nil
+		return true
 	}
 
 	if entry.IsDomainPendingActive() {
-		return false, entry.NewDomainPendingActiveError(currentCluster)
+		return false
 	}
 
 	if entry.GetReplicationConfig().IsActiveActive() {
 		for _, cl := range entry.GetReplicationConfig().ActiveClusters.ActiveClustersByRegion {
 			if cl.ActiveClusterName == currentCluster {
-				return true, nil
+				return true
 			}
 		}
 
-		return false, entry.NewDomainNotActiveError(currentCluster)
+		return false
 	}
 
 	activeCluster := entry.GetReplicationConfig().ActiveClusterName
 	if currentCluster != activeCluster {
-		return false, entry.NewDomainNotActiveError(currentCluster)
+		return false
 	}
 
-	return true, nil
+	return true
 }
 
 // IsDomainPendingActive returns whether the domain is in pending active state
@@ -1023,10 +1015,11 @@ func GetActiveDomainByID(cache DomainCache, currentCluster string, domainID stri
 		return nil, err
 	}
 
-	if _, err = domain.IsActiveIn(currentCluster); err != nil {
-		// TODO: currently reapply events API will check if returned domainEntry is nil or not
-		// when there's an error.
-		return domain, err
+	if !domain.IsActiveIn(currentCluster) {
+		// return the domain record as well as the not-active-error because some callers check
+		// whether the domain is pending active or not
+		// it's not a good design, but we need to keep it for backward compatibility
+		return domain, domain.NewDomainNotActiveError(currentCluster, domain.GetReplicationConfig().ActiveClusterName)
 	}
 
 	return domain, nil

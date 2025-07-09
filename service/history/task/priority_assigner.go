@@ -146,7 +146,7 @@ func (a *priorityAssignerImpl) getDomainInfo(domainID string) (string, bool, err
 	}
 
 	if domainEntry.GetReplicationConfig().IsActiveActive() {
-		active, _ := domainEntry.IsActiveIn(a.currentClusterName)
+		active := domainEntry.IsActiveIn(a.currentClusterName)
 		return domainEntry.GetInfo().Name, active, nil
 	}
 
