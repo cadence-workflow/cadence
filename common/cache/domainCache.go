@@ -825,11 +825,6 @@ func (entry *DomainCacheEntry) GetFailoverEndTime() *int64 {
 	return entry.failoverEndTime
 }
 
-// GetActiveClusters return the active clusters for active-active domains
-func (entry *DomainCacheEntry) GetActiveClusters() []string {
-	return entry.activeClusters
-}
-
 // NewDomainNotActiveError return a domain not active error
 // currentCluster is the current cluster
 // activeCluster is the active cluster which is either domain's active cluster or it's inferred from workflow task version
