@@ -51,6 +51,14 @@ services:
       - "HISTORY_ARCHIVAL_DIR_MODE=0040000"
       - "DOMAIN_DEFAULTS_HISTORY_ARCHIVAL_STATUS=enabled"
       - "DOMAIN_DEFAULTS_HISTORY_ARCHIVAL_URI=file:///etc/cadence/archival/history"
+      - "VISIBILITY_ARCHIVAL_STATUS=enabled"
+      - "VISIBILITY_ARCHIVAL_ENABLE_READ=true"
+      - "VISIBILITY_ARCHIVAL_FILE_MODE=0100644"
+      - "VISIBILITY_ARCHIVAL_DIR_MODE=0040000"
+      - "DOMAIN_DEFAULTS_VISIBILITY_ARCHIVAL_STATUS=enabled"
+      - "DOMAIN_DEFAULTS_VISIBILITY_ARCHIVAL_URI=file:///etc/cadence/archival/visibility"
+    volumes:
+      - ./archival:/etc/cadence/archival
     depends_on:
       cassandra:
         condition: service_healthy
