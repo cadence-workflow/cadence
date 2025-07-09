@@ -3285,7 +3285,6 @@ func (wh *WorkflowHandler) normalizeVersionedErrors(ctx context.Context, err err
 	}
 }
 func constructRestartWorkflowRequest(w *types.WorkflowExecutionStartedEventAttributes, domain string, identity string, workflowID string) *types.StartWorkflowExecutionRequest {
-
 	startRequest := &types.StartWorkflowExecutionRequest{
 		RequestID:  uuid.New().String(),
 		Domain:     domain,
@@ -3295,6 +3294,7 @@ func constructRestartWorkflowRequest(w *types.WorkflowExecutionStartedEventAttri
 		},
 		TaskList: &types.TaskList{
 			Name: w.TaskList.Name,
+			Kind: w.TaskList.Kind,
 		},
 		Input:                               w.Input,
 		ExecutionStartToCloseTimeoutSeconds: w.ExecutionStartToCloseTimeoutSeconds,

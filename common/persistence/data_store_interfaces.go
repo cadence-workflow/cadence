@@ -273,6 +273,7 @@ type (
 		CompletionEventBatchID             int64
 		CompletionEvent                    *DataBlob
 		TaskList                           string
+		TaskListKind                       types.TaskListKind
 		WorkflowTypeName                   string
 		WorkflowTimeout                    time.Duration
 		DecisionStartToCloseTimeout        time.Duration

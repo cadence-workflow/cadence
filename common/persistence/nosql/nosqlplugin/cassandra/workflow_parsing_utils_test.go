@@ -33,6 +33,7 @@ import (
 	"github.com/uber/cadence/common/checksum"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
+	"github.com/uber/cadence/common/types"
 )
 
 type mockUUID struct {
@@ -70,6 +71,7 @@ func Test_parseWorkflowExecutionInfo(t *testing.T) {
 				"initiated_id":                             int64(1),
 				"completion_event_batch_id":                int64(2),
 				"task_list":                                "task_list",
+				"task_list_kind":                           2,
 				"workflow_type_name":                       "workflow_type_name",
 				"workflow_timeout":                         10,
 				"decision_task_timeout":                    5,
@@ -130,6 +132,7 @@ func Test_parseWorkflowExecutionInfo(t *testing.T) {
 				InitiatedID:                        int64(1),
 				CompletionEventBatchID:             int64(2),
 				TaskList:                           "task_list",
+				TaskListKind:                       types.TaskListKindEphemeral,
 				WorkflowTypeName:                   "workflow_type_name",
 				WorkflowTimeout:                    common.SecondsToDuration(int64(10)),
 				DecisionStartToCloseTimeout:        common.SecondsToDuration(int64(5)),

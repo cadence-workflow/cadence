@@ -827,10 +827,62 @@ func TestParentExecutionInfoFields(t *testing.T) {
 	assert.Equal(t, testdata.ParentExecutionInfo.InitiatedID, *ToParentInitiatedID(info))
 }
 func TestWorkflowExecutionInfo(t *testing.T) {
-	for _, item := range []*types.WorkflowExecutionInfo{nil, {}, &testdata.WorkflowExecutionInfo, &testdata.CronWorkflowExecutionInfo} {
+	for _, item := range []*types.WorkflowExecutionInfo{nil, {}, &testdata.WorkflowExecutionInfo, &testdata.CronWorkflowExecutionInfo, &testdata.WorkflowExecutionInfoEphemeral} {
 		assert.Equal(t, item, ToWorkflowExecutionInfo(FromWorkflowExecutionInfo(item)))
 	}
 }
+
+func TestWorkflowExecutionInfo_MigrateTaskList(t *testing.T) {
+	tlName := "foo"
+	otherName := "bar"
+	cases := []struct {
+		name string
+		in   *apiv1.WorkflowExecutionInfo
+		out  *types.WorkflowExecutionInfo
+	}{
+		{
+			name: "nil",
+			in:   &apiv1.WorkflowExecutionInfo{},
+			out: &types.WorkflowExecutionInfo{
+				TaskList: nil,
+			},
+		},
+		{
+			name: "name only",
+			in: &apiv1.WorkflowExecutionInfo{
+				TaskList: tlName,
+			},
+			out: &types.WorkflowExecutionInfo{
+				TaskList: &types.TaskList{Name: tlName, Kind: types.TaskListKindNormal.Ptr()},
+			},
+		},
+		{
+			name: "tl only",
+			in: &apiv1.WorkflowExecutionInfo{
+				TaskListInfo: &apiv1.TaskList{Name: tlName, Kind: apiv1.TaskListKind_TASK_LIST_KIND_NORMAL},
+			},
+			out: &types.WorkflowExecutionInfo{
+				TaskList: &types.TaskList{Name: tlName, Kind: types.TaskListKindNormal.Ptr()},
+			},
+		},
+		{
+			name: "both",
+			in: &apiv1.WorkflowExecutionInfo{
+				TaskList:     otherName,
+				TaskListInfo: &apiv1.TaskList{Name: tlName, Kind: apiv1.TaskListKind_TASK_LIST_KIND_NORMAL},
+			},
+			out: &types.WorkflowExecutionInfo{
+				TaskList: &types.TaskList{Name: tlName, Kind: types.TaskListKindNormal.Ptr()},
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.out, ToWorkflowExecutionInfo(tc.in))
+		})
+	}
+}
+
 func TestWorkflowExecutionSignaledEventAttributes(t *testing.T) {
 	for _, item := range []*types.WorkflowExecutionSignaledEventAttributes{nil, {}, &testdata.WorkflowExecutionSignaledEventAttributes} {
 		assert.Equal(t, item, ToWorkflowExecutionSignaledEventAttributes(FromWorkflowExecutionSignaledEventAttributes(item)))

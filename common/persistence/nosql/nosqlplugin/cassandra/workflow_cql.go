@@ -35,6 +35,7 @@ const (
 		`completion_event: ?, ` +
 		`completion_event_data_encoding: ?, ` +
 		`task_list: ?, ` +
+		`task_list_kind: ?, ` +
 		`workflow_type_name: ?, ` +
 		`workflow_timeout: ?, ` +
 		`decision_task_timeout: ?, ` +

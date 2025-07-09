@@ -217,6 +217,7 @@ func TestWorkflowExecutionInfo(t *testing.T) {
 		CompletionEvent:                    []byte("CompletionEvent"),
 		CompletionEventEncoding:            "CompletionEventEncoding",
 		TaskList:                           "TaskList",
+		TaskListKind:                       types.TaskListKindNormal,
 		WorkflowTypeName:                   "WorkflowTypeName",
 		WorkflowTimeout:                    time.Minute * time.Duration(rand.Intn(10)),
 		DecisionTaskTimeout:                time.Minute * time.Duration(rand.Intn(10)),
@@ -228,17 +229,17 @@ func TestWorkflowExecutionInfo(t *testing.T) {
 		LastEventTaskID:                    int64(rand.Intn(1000)),
 		LastFirstEventID:                   int64(rand.Intn(1000)),
 		LastProcessedEvent:                 int64(rand.Intn(1000)),
-		StartTimestamp:                     time.Now(),
-		LastUpdatedTimestamp:               time.Now(),
+		StartTimestamp:                     time.UnixMilli(1752018142820),
+		LastUpdatedTimestamp:               time.UnixMilli(1752018142821),
 		DecisionVersion:                    int64(rand.Intn(1000)),
 		DecisionScheduleID:                 int64(rand.Intn(1000)),
 		DecisionStartedID:                  int64(rand.Intn(1000)),
 		DecisionTimeout:                    time.Minute * time.Duration(rand.Intn(10)),
 		DecisionAttempt:                    int64(rand.Intn(1000)),
-		DecisionStartedTimestamp:           time.Now(),
-		DecisionScheduledTimestamp:         time.Now(),
+		DecisionStartedTimestamp:           time.UnixMilli(1752018142822),
+		DecisionScheduledTimestamp:         time.UnixMilli(1752018142823),
 		CancelRequested:                    true,
-		DecisionOriginalScheduledTimestamp: time.Now(),
+		DecisionOriginalScheduledTimestamp: time.UnixMilli(1752018142824),
 		CreateRequestID:                    "CreateRequestID",
 		DecisionRequestID:                  "DecisionRequestID",
 		CancelRequestID:                    "CancelRequestID",
@@ -250,7 +251,7 @@ func TestWorkflowExecutionInfo(t *testing.T) {
 		RetryMaximumAttempts:               int32(rand.Intn(1000)),
 		RetryExpiration:                    time.Minute * time.Duration(rand.Intn(10)),
 		RetryBackoffCoefficient:            rand.Float64() * 1000,
-		RetryExpirationTimestamp:           time.Now(),
+		RetryExpirationTimestamp:           time.UnixMilli(1752018142825),
 		RetryNonRetryableErrors:            []string{"RetryNonRetryableErrors"},
 		HasRetryPolicy:                     true,
 		CronSchedule:                       "CronSchedule",
@@ -272,70 +273,10 @@ func TestWorkflowExecutionInfo(t *testing.T) {
 		PartitionConfig:                    map[string]string{"zone": "dca1"},
 		Checksum:                           []byte("Checksum"),
 		ChecksumEncoding:                   "ChecksumEncoding",
+		IsCron:                             true,
 	}
 	actual := workflowExecutionInfoFromThrift(workflowExecutionInfoToThrift(expected))
-	assert.Equal(t, expected.ParentDomainID, actual.ParentDomainID)
-	assert.Equal(t, expected.ParentWorkflowID, actual.ParentWorkflowID)
-	assert.Equal(t, expected.ParentRunID, actual.ParentRunID)
-	assert.Equal(t, expected.InitiatedID, actual.InitiatedID)
-	assert.Equal(t, expected.CompletionEventBatchID, actual.CompletionEventBatchID)
-	assert.Equal(t, expected.CompletionEvent, actual.CompletionEvent)
-	assert.Equal(t, expected.CompletionEventEncoding, actual.CompletionEventEncoding)
-	assert.Equal(t, expected.TaskList, actual.TaskList)
-	assert.Equal(t, expected.WorkflowTypeName, actual.WorkflowTypeName)
-	assert.True(t, (expected.WorkflowTimeout-actual.WorkflowTimeout) < time.Second)
-	assert.True(t, (expected.DecisionTaskTimeout-actual.DecisionTaskTimeout) < time.Second)
-	assert.Equal(t, expected.ExecutionContext, actual.ExecutionContext)
-	assert.Equal(t, expected.State, actual.State)
-	assert.Equal(t, expected.CloseStatus, actual.CloseStatus)
-	assert.Equal(t, expected.StartVersion, actual.StartVersion)
-	assert.Equal(t, expected.LastWriteEventID, actual.LastWriteEventID)
-	assert.Equal(t, expected.LastEventTaskID, actual.LastEventTaskID)
-	assert.Equal(t, expected.LastFirstEventID, actual.LastFirstEventID)
-	assert.Equal(t, expected.LastProcessedEvent, actual.LastProcessedEvent)
-	assert.Equal(t, expected.StartTimestamp.Sub(actual.StartTimestamp), time.Duration(0))
-	assert.Equal(t, expected.LastUpdatedTimestamp.Sub(actual.LastUpdatedTimestamp), time.Duration(0))
-	assert.Equal(t, expected.DecisionVersion, actual.DecisionVersion)
-	assert.Equal(t, expected.DecisionScheduleID, actual.DecisionScheduleID)
-	assert.Equal(t, expected.DecisionStartedID, actual.DecisionStartedID)
-	assert.True(t, (expected.DecisionTimeout-actual.DecisionTimeout) < time.Second)
-	assert.Equal(t, expected.DecisionAttempt, actual.DecisionAttempt)
-	assert.Equal(t, expected.DecisionStartedTimestamp.Sub(actual.DecisionStartedTimestamp), time.Duration(0))
-	assert.Equal(t, expected.DecisionScheduledTimestamp.Sub(actual.DecisionScheduledTimestamp), time.Duration(0))
-	assert.Equal(t, expected.DecisionOriginalScheduledTimestamp.Sub(actual.DecisionOriginalScheduledTimestamp), time.Duration(0))
-	assert.Equal(t, expected.CancelRequested, actual.CancelRequested)
-	assert.Equal(t, expected.DecisionRequestID, actual.DecisionRequestID)
-	assert.Equal(t, expected.CancelRequestID, actual.CancelRequestID)
-	assert.Equal(t, expected.StickyTaskList, actual.StickyTaskList)
-	assert.Equal(t, expected.RetryAttempt, actual.RetryAttempt)
-	assert.Equal(t, expected.RetryMaximumAttempts, actual.RetryMaximumAttempts)
-	assert.Equal(t, expected.RetryBackoffCoefficient, actual.RetryBackoffCoefficient)
-	assert.Equal(t, expected.RetryNonRetryableErrors, actual.RetryNonRetryableErrors)
-	assert.Equal(t, expected.HasRetryPolicy, actual.HasRetryPolicy)
-	assert.Equal(t, expected.CronSchedule, actual.CronSchedule)
-	assert.Equal(t, expected.EventStoreVersion, actual.EventStoreVersion)
-	assert.Equal(t, expected.EventBranchToken, actual.EventBranchToken)
-	assert.Equal(t, expected.SignalCount, actual.SignalCount)
-	assert.Equal(t, expected.HistorySize, actual.HistorySize)
-	assert.Equal(t, expected.ClientLibraryVersion, actual.ClientLibraryVersion)
-	assert.Equal(t, expected.ClientFeatureVersion, actual.ClientFeatureVersion)
-	assert.Equal(t, expected.ClientImpl, actual.ClientImpl)
-	assert.Equal(t, expected.AutoResetPoints, actual.AutoResetPoints)
-	assert.Equal(t, expected.AutoResetPointsEncoding, actual.AutoResetPointsEncoding)
-	assert.Equal(t, expected.SearchAttributes, actual.SearchAttributes)
-	assert.Equal(t, expected.Memo, actual.Memo)
-	assert.Equal(t, expected.VersionHistories, actual.VersionHistories)
-	assert.Equal(t, expected.VersionHistoriesEncoding, actual.VersionHistoriesEncoding)
-	assert.Equal(t, expected.RetryExpirationTimestamp.Sub(actual.RetryExpirationTimestamp), time.Duration(0))
-	assert.True(t, (expected.StickyScheduleToStartTimeout-actual.StickyScheduleToStartTimeout) < time.Second)
-	assert.True(t, (expected.RetryInitialInterval-actual.RetryInitialInterval) < time.Second)
-	assert.True(t, (expected.RetryMaximumInterval-actual.RetryMaximumInterval) < time.Second)
-	assert.True(t, (expected.RetryExpiration-actual.RetryExpiration) < time.Second)
-	assert.Equal(t, expected.FirstExecutionRunID, actual.FirstExecutionRunID)
-	assert.Equal(t, expected.PartitionConfig, actual.PartitionConfig)
-	assert.Equal(t, expected.Checksum, actual.Checksum)
-	assert.Equal(t, expected.ChecksumEncoding, actual.ChecksumEncoding)
-	assert.Equal(t, expected.CronOverlapPolicy, actual.CronOverlapPolicy)
+	assert.Equal(t, expected, actual)
 	assert.Nil(t, workflowExecutionInfoFromThrift(nil))
 	assert.Nil(t, workflowExecutionInfoToThrift(nil))
 }
