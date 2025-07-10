@@ -22,8 +22,8 @@ package clusterredirection
 
 import (
 	"context"
+	"errors"
 	"fmt"
-
 	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
@@ -267,7 +267,8 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) withRedirect(
 	policy.logger.Debugf("Calling API %q on target cluster:%q for domain:%q", apiName, targetDC, domainEntry.GetInfo().Name)
 	err := call(targetDC)
 
-	domainNotActiveErr, ok := err.(*types.DomainNotActiveError)
+	var domainNotActiveErr *types.DomainNotActiveError
+	ok := errors.As(err, &domainNotActiveErr)
 	if !ok || !enableDomainNotActiveForwarding {
 		return err
 	}

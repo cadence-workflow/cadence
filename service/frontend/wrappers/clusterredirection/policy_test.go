@@ -407,6 +407,52 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) TestGetTargetDataCenter_G
 	s.Equal(2*len(selectedAPIsForwardingRedirectionPolicyAPIAllowlist), alternativeClustercallCount)
 }
 
+func (s *selectedAPIsForwardingRedirectionPolicySuite) TestGetTargetDataCenter_GlobalDomain_Forwarding_ToSameCluster_Skipped() {
+	domainEntry := s.setupGlobalDomainWithTwoReplicationCluster(true, false)
+
+	callFn := func(targetCluster string) error {
+		switch targetCluster {
+		case s.alternativeClusterName:
+			return &types.DomainNotActiveError{ // this shouldn't happen but if it does, we should skip the redirect
+				CurrentCluster: s.alternativeClusterName,
+				ActiveCluster:  s.alternativeClusterName,
+			}
+		default:
+			panic(fmt.Sprintf("unknown cluster name %v", targetCluster))
+		}
+	}
+
+	for apiName := range selectedAPIsForwardingRedirectionPolicyAPIAllowlist {
+		err := s.policy.Redirect(context.Background(), domainEntry, nil, nil, apiName, types.QueryConsistencyLevelEventual, callFn)
+		var domainNotActiveErr *types.DomainNotActiveError
+		s.ErrorAs(err, &domainNotActiveErr)
+		s.Equal(s.alternativeClusterName, domainNotActiveErr.ActiveCluster)
+	}
+}
+
+func (s *selectedAPIsForwardingRedirectionPolicySuite) TestGetTargetDataCenter_GlobalDomain_Forwarding_EmptyClusster_Skipped() {
+	domainEntry := s.setupGlobalDomainWithTwoReplicationCluster(true, false)
+
+	callFn := func(targetCluster string) error {
+		switch targetCluster {
+		case s.alternativeClusterName:
+			return &types.DomainNotActiveError{ // this shouldn't happen but if it does, we should skip the redirect
+				CurrentCluster: s.alternativeClusterName,
+				ActiveCluster:  "",
+			}
+		default:
+			panic(fmt.Sprintf("unknown cluster name %v", targetCluster))
+		}
+	}
+
+	for apiName := range selectedAPIsForwardingRedirectionPolicyAPIAllowlist {
+		err := s.policy.Redirect(context.Background(), domainEntry, nil, nil, apiName, types.QueryConsistencyLevelEventual, callFn)
+		var domainNotActiveErr *types.DomainNotActiveError
+		s.ErrorAs(err, &domainNotActiveErr)
+		s.Equal("", domainNotActiveErr.ActiveCluster)
+	}
+}
+
 func (s *selectedAPIsForwardingRedirectionPolicySuite) TestGetTargetDataCenter_GlobalDomain_Forwarding_DeprecatedDomain() {
 	domainEntry := s.setupGlobalDeprecatedDomainWithTwoReplicationCluster(true, false)
 
