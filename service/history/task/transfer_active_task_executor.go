@@ -845,13 +845,6 @@ func (t *transferActiveTaskExecutor) processStartChildExecution(
 		mutableState.GetExecutionInfo().PartitionConfig,
 	)
 	if err != nil {
-		t.logger.Error("Failed to start child workflow execution",
-			tag.WorkflowDomainID(task.DomainID),
-			tag.WorkflowID(task.WorkflowID),
-			tag.WorkflowRunID(task.RunID),
-			tag.TargetWorkflowDomainID(task.TargetDomainID),
-			tag.TargetWorkflowID(attributes.WorkflowID),
-			tag.Error(err))
 
 		// Check to see if the error is non-transient, in which case add StartChildWorkflowExecutionFailed
 		// event and complete transfer task by setting the err = nil
@@ -860,7 +853,22 @@ func (t *transferActiveTaskExecutor) processStartChildExecution(
 		// but we probably need to introduce a new error type for DomainNotExists,
 		// for now when getting an EntityNotExists error, we can't tell if it's domain or workflow.
 		case *types.WorkflowExecutionAlreadyStartedError:
+			t.logger.Info("workflow has already started",
+				tag.WorkflowDomainID(task.DomainID),
+				tag.WorkflowID(task.WorkflowID),
+				tag.WorkflowRunID(task.RunID),
+				tag.TargetWorkflowDomainID(task.TargetDomainID),
+				tag.TargetWorkflowID(attributes.WorkflowID),
+			)
 			err = recordStartChildExecutionFailed(ctx, t.logger, task, wfContext, attributes, t.shard.GetTimeSource().Now())
+		default:
+			t.logger.Error("Failed to start child workflow execution",
+				tag.WorkflowDomainID(task.DomainID),
+				tag.WorkflowID(task.WorkflowID),
+				tag.WorkflowRunID(task.RunID),
+				tag.TargetWorkflowDomainID(task.TargetDomainID),
+				tag.TargetWorkflowID(attributes.WorkflowID),
+				tag.Error(err))
 		}
 		return err
 	}

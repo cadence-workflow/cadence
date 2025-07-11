@@ -23,6 +23,7 @@ package engineimpl
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"go.uber.org/yarpc/yarpcerrors"
@@ -317,12 +318,21 @@ func (e *historyEngineImpl) queryDirectlyThroughMatching(
 	matchingResp, err := e.matchingClient.QueryWorkflow(ctx, nonStickyMatchingRequest)
 	nonStickyStopWatch.Stop()
 	if err != nil {
-		e.logger.Error("query directly though matching on non-sticky failed",
-			tag.WorkflowDomainName(queryRequest.GetDomain()),
-			tag.WorkflowID(queryRequest.Execution.GetWorkflowID()),
-			tag.WorkflowRunID(queryRequest.Execution.GetRunID()),
-			tag.WorkflowQueryType(queryRequest.Query.GetQueryType()),
-			tag.Error(err))
+		if strings.Contains(err.Error(), "unknown queryType") {
+			e.logger.Info("user calls for unsupported query type",
+				tag.WorkflowDomainName(queryRequest.GetDomain()),
+				tag.WorkflowID(queryRequest.Execution.GetWorkflowID()),
+				tag.WorkflowRunID(queryRequest.Execution.GetRunID()),
+				tag.WorkflowQueryType(queryRequest.Query.GetQueryType()),
+				tag.Error(err))
+		} else {
+			e.logger.Error("query directly though matching on non-sticky failed",
+				tag.WorkflowDomainName(queryRequest.GetDomain()),
+				tag.WorkflowID(queryRequest.Execution.GetWorkflowID()),
+				tag.WorkflowRunID(queryRequest.Execution.GetRunID()),
+				tag.WorkflowQueryType(queryRequest.Query.GetQueryType()),
+				tag.Error(err))
+		}
 		return nil, err
 	}
 	scope.IncCounter(metrics.DirectQueryDispatchNonStickySuccessCount)
