@@ -39,7 +39,7 @@ func TestFxServiceStartStop(t *testing.T) {
 			},
 			fx.Annotated{Target: func() string { return "testHost" }, Name: "hostname"},
 			func() store.Elector {
-				return store.NewMockStore(ctrl)
+				return store.NewMockElector(ctrl)
 			},
 			func() map[string]membership.SingleProvider { return make(map[string]membership.SingleProvider) },
 			func() config.LeaderElection {
