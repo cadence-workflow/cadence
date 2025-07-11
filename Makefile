@@ -404,7 +404,7 @@ $(BUILD)/code-lint: $(LINT_SRC) $(BIN)/revive | $(BUILD)
 		fi
 	$Q touch $@
 
-$(BUILD)/goversion-lint: go.work Dockerfile docker/github_actions/Dockerfile
+$(BUILD)/goversion-lint: go.work Dockerfile docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
 	$Q echo "checking go version..."
 	$Q # intentionally using go.work toolchain, as GOTOOLCHAIN is user-overridable
 	$Q ./scripts/check-go-toolchain.sh $(GOWORK_TOOLCHAIN)

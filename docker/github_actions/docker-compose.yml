@@ -102,7 +102,7 @@ services:
   unit-test:
     build:
       context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile
+      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
     environment:
       - GITHUB_TOKEN
       - GITHUB_RUN_ID
@@ -117,7 +117,7 @@ services:
   integration-test-cassandra:
     build:
       context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile
+      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
     environment:
       - "CASSANDRA=1"
       - "CASSANDRA_SEEDS=cassandra"
@@ -144,7 +144,7 @@ services:
   integration-test-cassandra-queue-v2:
     build:
       context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile
+      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
     environment:
       - "CASSANDRA=1"
       - "CASSANDRA_SEEDS=cassandra"
@@ -172,7 +172,7 @@ services:
   integration-test-mysql:
     build:
       context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile
+      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
     environment:
       - "MYSQL=1"
       - "MYSQL_SEEDS=mysql"
@@ -198,7 +198,7 @@ services:
   integration-test-postgres:
     build:
       context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile
+      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
     environment:
       - "POSTGRES=1"
       - "POSTGRES_SEEDS=postgres"
@@ -224,7 +224,7 @@ services:
   integration-test-sqlite:
     build:
       context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile
+      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
     environment:
       - "PERSISTENCE_PLUGIN=sqlite"
       - "PERSISTENCE_TYPE=sql"
@@ -241,7 +241,7 @@ services:
   integration-test-ndc-cassandra:
     build:
       context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile
+      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
     environment:
       - "CASSANDRA=1"
       - "CASSANDRA_SEEDS=cassandra"
@@ -268,7 +268,7 @@ services:
   integration-test-ndc-mysql:
     build:
       context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile
+      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
     environment:
       - "MYSQL=1"
       - "MYSQL_SEEDS=mysql"
@@ -294,7 +294,7 @@ services:
   integration-test-ndc-postgres:
     build:
       context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile
+      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
     environment:
       - "POSTGRES=1"
       - "POSTGRES_SEEDS=postgres"
@@ -320,7 +320,7 @@ services:
   integration-test-async-wf:
     build:
       context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile
+      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
     environment:
       - "ASYNC_WF_KAFKA_QUEUE_TOPIC=async-wf-topic1"
       - "CASSANDRA=1"
@@ -346,7 +346,7 @@ services:
   integration-test-with-etcd:
     build:
       context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile
+      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
     environment:
       - "ETCD=1"
       - "ETCD_ENDPOINTS=http://etcd:2379"
@@ -366,7 +366,7 @@ services:
   coverage-report:
     build:
       context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile
+      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
     environment:
       - CI
       - GITHUB_TOKEN

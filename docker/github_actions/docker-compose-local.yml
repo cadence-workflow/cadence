@@ -91,7 +91,7 @@ services:
   unit-test:
     build:
       context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile
+      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
     command: sh -c "make .just-build && make cover_profile"
     volumes:
       - ../../:/cadence
@@ -105,7 +105,7 @@ services:
   integration-test-cassandra:
     build:
       context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile
+      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
     command: make cover_integration_profile
     environment:
       - "CASSANDRA_HOST=cassandra"
@@ -133,7 +133,7 @@ services:
   integration-test-mysql:
     build:
       context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile
+      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
     command: make cover_integration_profile
     environment:
       - "MYSQL=1"
@@ -159,7 +159,7 @@ services:
   integration-test-postgres:
     build:
       context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile
+      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
     command: make cover_integration_profile
     environment:
       - "POSTGRES=1"
@@ -185,7 +185,7 @@ services:
   integration-test-v2:
     build:
       context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile
+      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
     command: make cover_integration_profile EVENTSV2=true
     environment:
       - "CASSANDRA_HOST=cassandra"
@@ -213,7 +213,7 @@ services:
   integration-test-ndc-cassandra:
     build:
       context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile
+      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
     command: make cover_ndc_profile
     environment:
       - "CASSANDRA_HOST=cassandra"
@@ -241,7 +241,7 @@ services:
   integration-test-ndc-mysql:
     build:
       context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile
+      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
     command: make cover_ndc_profile
     environment:
       - "MYSQL=1"

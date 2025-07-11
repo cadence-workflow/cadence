@@ -54,7 +54,7 @@ services:
   integration-test-cassandra:
     build:
       context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile
+      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
     command:
       - /bin/sh
       - -e
