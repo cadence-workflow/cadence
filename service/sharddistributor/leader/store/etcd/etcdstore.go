@@ -80,8 +80,6 @@ func (ls *Store) CreateElection(ctx context.Context, namespace string) (el store
 	}
 
 	namespacePrefix := fmt.Sprintf("%s/%s", ls.electionConfig.Prefix, namespace)
-
-	// Create election
 	electionKey := fmt.Sprintf("%s/leader", namespacePrefix)
 	etcdElection := concurrency.NewElection(session, electionKey)
 
