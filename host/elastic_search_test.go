@@ -503,12 +503,44 @@ func (s *ElasticSearchIntegrationSuite) TestListWorkflow_MaxWindowSize() {
 	s.NotNil(listResp)
 	s.True(len(listResp.GetNextPageToken()) != 0)
 
+	// Add debug logging for first page
+	s.Logger.Info("First page results",
+		tag.Dynamic("executions_count", fmt.Sprintf("%d", len(listResp.GetExecutions()))),
+		tag.Dynamic("next_page_token_length", fmt.Sprintf("%d", len(listResp.GetNextPageToken()))))
+
+	// Log all executions from first page to see what we're getting
+	s.Logger.Info("First page executions:")
+	for i, exec := range listResp.GetExecutions() {
+		s.Logger.Info("Execution",
+			tag.Dynamic("index", fmt.Sprintf("%d", i)),
+			tag.WorkflowID(exec.GetExecution().GetWorkflowID()),
+			tag.WorkflowRunID(exec.GetExecution().GetRunID()),
+			tag.Dynamic("workflow_type", exec.GetType().GetName()))
+	}
+
 	// the last request
 	listRequest.NextPageToken = listResp.GetNextPageToken()
 	ctx, cancel := createContext()
 	defer cancel()
 	resp, err := s.Engine.ListWorkflowExecutions(ctx, listRequest)
 	s.Nil(err)
+
+	// Add debug logging
+	s.Logger.Info("Second page results",
+		tag.Dynamic("executions_count", fmt.Sprintf("%d", len(resp.GetExecutions()))),
+		tag.Dynamic("next_page_token_length", fmt.Sprintf("%d", len(resp.GetNextPageToken()))))
+
+	if len(resp.GetExecutions()) > 0 {
+		s.Logger.Info("Unexpected executions found on second page:")
+		for i, exec := range resp.GetExecutions() {
+			s.Logger.Info("Execution",
+				tag.Dynamic("index", fmt.Sprintf("%d", i)),
+				tag.WorkflowID(exec.GetExecution().GetWorkflowID()),
+				tag.WorkflowRunID(exec.GetExecution().GetRunID()),
+				tag.Dynamic("workflow_type", exec.GetType().GetName()))
+		}
+	}
+
 	s.True(len(resp.GetExecutions()) == 0)
 	s.True(len(resp.GetNextPageToken()) == 0)
 }
