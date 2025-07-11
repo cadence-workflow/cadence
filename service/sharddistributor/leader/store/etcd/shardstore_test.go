@@ -1,0 +1,373 @@
+package etcd
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"strconv"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	clientv3 "go.etcd.io/etcd/client/v3"
+
+	"github.com/uber/cadence/service/sharddistributor/leader/store"
+)
+
+// TestShardStoreGetStateEmpty tests GetState with no data
+func TestShardStoreGetStateEmpty(t *testing.T) {
+	tc := setupETCDCluster(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	namespace := "test-empty"
+	election, err := tc.store.CreateElection(ctx, namespace)
+	require.NoError(t, err)
+	defer election.Cleanup(ctx)
+
+	err = election.Campaign(ctx, "test-host")
+	require.NoError(t, err)
+
+	shardStore, err := election.ShardStore(ctx)
+	require.NoError(t, err)
+
+	heartbeats, assignments, err := shardStore.GetState(ctx)
+	require.NoError(t, err)
+	assert.Empty(t, heartbeats)
+	assert.Empty(t, assignments)
+}
+
+// TestShardStoreRoundTrip tests complete write and read cycle
+func TestShardStoreRoundTrip(t *testing.T) {
+	tc := setupETCDCluster(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	namespace := "test-roundtrip"
+	election, err := tc.store.CreateElection(ctx, namespace)
+	require.NoError(t, err)
+	defer election.Cleanup(ctx)
+
+	err = election.Campaign(ctx, "test-host")
+	require.NoError(t, err)
+
+	shardStore, err := election.ShardStore(ctx)
+	require.NoError(t, err)
+
+	client, err := clientv3.New(clientv3.Config{
+		Endpoints:   tc.endpoints,
+		DialTimeout: 5 * time.Second,
+	})
+	require.NoError(t, err)
+	defer client.Close()
+
+	// Create test data manually to ensure we know the exact paths
+	executorID := "executor-1"
+	now := time.Now().Unix()
+
+	// The actual path construction: /election/{testName}/{namespace}/executors/{executorID}/{keyType}
+	basePath := fmt.Sprintf("/election/%s/%s/executors/%s", t.Name(), namespace, executorID)
+
+	// Set heartbeat and state
+	_, err = client.Put(ctx, basePath+"/heartbeat", strconv.FormatInt(now, 10))
+	require.NoError(t, err)
+	_, err = client.Put(ctx, basePath+"/state", "ACTIVE")
+	require.NoError(t, err)
+
+	// Set reported shards
+	reportedShards := map[string]store.ShardState{
+		"shard-1": {Status: "running", LastUpdated: now},
+	}
+	reportedJSON, _ := json.Marshal(reportedShards)
+	_, err = client.Put(ctx, basePath+"/reported_shards", string(reportedJSON))
+	require.NoError(t, err)
+
+	// Test GetState can read the data
+	heartbeats, assignments, err := shardStore.GetState(ctx)
+	require.NoError(t, err)
+
+	// Verify heartbeat data
+	require.Len(t, heartbeats, 1)
+	heartbeat := heartbeats[executorID]
+	assert.Equal(t, executorID, heartbeat.ExecutorID)
+	assert.Equal(t, now, heartbeat.LastHeartbeat)
+	assert.Equal(t, store.ExecutorStateActive, heartbeat.State)
+
+	// Verify assignment data (should have reported shards)
+	require.Len(t, assignments, 1)
+	assignment := assignments[executorID]
+	assert.Equal(t, executorID, assignment.ExecutorID)
+	assert.Equal(t, reportedShards, assignment.ReportedShards)
+
+	// Test AssignShards
+	assignedShards := map[string]store.ShardAssignment{
+		"shard-1": {ShardID: "shard-1", AssignedAt: now, Priority: 1},
+		"shard-2": {ShardID: "shard-2", AssignedAt: now, Priority: 2},
+	}
+
+	newState := map[string]store.AssignedState{
+		executorID: {
+			ExecutorID:     executorID,
+			AssignedShards: assignedShards,
+			ReportedShards: reportedShards,
+		},
+	}
+
+	err = shardStore.AssignShards(ctx, newState)
+	require.NoError(t, err)
+
+	// Read back and verify the assignment was written
+	_, assignments, err = shardStore.GetState(ctx)
+	require.NoError(t, err)
+
+	assignment = assignments[executorID]
+	assert.Len(t, assignment.AssignedShards, 2)
+	assert.Equal(t, assignedShards, assignment.AssignedShards)
+}
+
+// TestShardStoreMultipleExecutors tests handling multiple executors
+func TestShardStoreMultipleExecutors(t *testing.T) {
+	tc := setupETCDCluster(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	namespace := "test-multiple"
+	election, err := tc.store.CreateElection(ctx, namespace)
+	require.NoError(t, err)
+	defer election.Cleanup(ctx)
+
+	err = election.Campaign(ctx, "test-host")
+	require.NoError(t, err)
+
+	shardStore, err := election.ShardStore(ctx)
+	require.NoError(t, err)
+
+	client, err := clientv3.New(clientv3.Config{
+		Endpoints:   tc.endpoints,
+		DialTimeout: 5 * time.Second,
+	})
+	require.NoError(t, err)
+	defer client.Close()
+
+	// Create data for 3 executors
+	executors := []string{"executor-1", "executor-2", "executor-3"}
+	states := []store.ExecutorState{store.ExecutorStateActive, store.ExecutorStateDraining, store.ExecutorStateStopped}
+
+	for i, executorID := range executors {
+		basePath := fmt.Sprintf("/election/%s/%s/executors/%s", t.Name(), namespace, executorID)
+		timestamp := time.Now().Unix() + int64(i)
+
+		_, err = client.Put(ctx, basePath+"/heartbeat", strconv.FormatInt(timestamp, 10))
+		require.NoError(t, err)
+		_, err = client.Put(ctx, basePath+"/state", string(states[i]))
+		require.NoError(t, err)
+
+		// Set empty shard maps
+		emptyShards, _ := json.Marshal(map[string]store.ShardState{})
+		_, err = client.Put(ctx, basePath+"/reported_shards", string(emptyShards))
+		require.NoError(t, err)
+
+		emptyAssignments, _ := json.Marshal(map[string]store.ShardAssignment{})
+		_, err = client.Put(ctx, basePath+"/assigned_shards", string(emptyAssignments))
+		require.NoError(t, err)
+	}
+
+	// Test GetState
+	heartbeats, assignments, err := shardStore.GetState(ctx)
+	require.NoError(t, err)
+
+	assert.Len(t, heartbeats, 3)
+	assert.Len(t, assignments, 3)
+
+	for i, executorID := range executors {
+		heartbeat := heartbeats[executorID]
+		assert.Equal(t, states[i], heartbeat.State)
+
+		assignment := assignments[executorID]
+		assert.Equal(t, executorID, assignment.ExecutorID)
+	}
+}
+
+// TestShardStoreAssignShards tests shard assignment functionality
+func TestShardStoreAssignShards(t *testing.T) {
+	tc := setupETCDCluster(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	namespace := "test-assign"
+	election, err := tc.store.CreateElection(ctx, namespace)
+	require.NoError(t, err)
+	defer election.Cleanup(ctx)
+
+	err = election.Campaign(ctx, "test-host")
+	require.NoError(t, err)
+
+	shardStore, err := election.ShardStore(ctx)
+	require.NoError(t, err)
+
+	// Assign shards to multiple executors
+	now := time.Now().Unix()
+	newState := map[string]store.AssignedState{
+		"executor-1": {
+			ExecutorID: "executor-1",
+			AssignedShards: map[string]store.ShardAssignment{
+				"shard-1": {ShardID: "shard-1", AssignedAt: now, Priority: 1},
+			},
+			ReportedShards: make(map[string]store.ShardState),
+		},
+		"executor-2": {
+			ExecutorID: "executor-2",
+			AssignedShards: map[string]store.ShardAssignment{
+				"shard-2": {ShardID: "shard-2", AssignedAt: now, Priority: 1},
+			},
+			ReportedShards: make(map[string]store.ShardState),
+		},
+	}
+
+	err = shardStore.AssignShards(ctx, newState)
+	require.NoError(t, err)
+
+	// Verify assignments were written
+	_, assignments, err := shardStore.GetState(ctx)
+	require.NoError(t, err)
+
+	assert.Len(t, assignments, 2)
+	assert.Contains(t, assignments["executor-1"].AssignedShards, "shard-1")
+	assert.Contains(t, assignments["executor-2"].AssignedShards, "shard-2")
+}
+
+// TestShardStoreLeadershipChange tests assignment failure when leadership changes
+func TestShardStoreLeadershipChange(t *testing.T) {
+	tc := setupETCDCluster(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	namespace := "test-leadership"
+	election1, err := tc.store.CreateElection(ctx, namespace)
+	require.NoError(t, err)
+	defer election1.Cleanup(ctx)
+
+	err = election1.Campaign(ctx, "test-host-1")
+	require.NoError(t, err)
+
+	shardStore1, err := election1.ShardStore(ctx)
+	require.NoError(t, err)
+
+	// Create second election and change leadership
+	election2, err := tc.store.CreateElection(ctx, namespace)
+	require.NoError(t, err)
+	defer election2.Cleanup(ctx)
+
+	err = election1.Resign(ctx)
+	require.NoError(t, err)
+
+	err = election2.Campaign(ctx, "test-host-2")
+	require.NoError(t, err)
+
+	// Try to assign shards with old shard store (should fail)
+	newState := map[string]store.AssignedState{
+		"executor-1": {
+			ExecutorID:     "executor-1",
+			AssignedShards: map[string]store.ShardAssignment{},
+			ReportedShards: make(map[string]store.ShardState),
+		},
+	}
+
+	err = shardStore1.AssignShards(ctx, newState)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "leadership may have changed")
+}
+
+// TestShardStoreMalformedJSON tests handling of malformed JSON
+func TestShardStoreMalformedJSON(t *testing.T) {
+	tc := setupETCDCluster(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	namespace := "test-malformed"
+	election, err := tc.store.CreateElection(ctx, namespace)
+	require.NoError(t, err)
+	defer election.Cleanup(ctx)
+
+	err = election.Campaign(ctx, "test-host")
+	require.NoError(t, err)
+
+	shardStore, err := election.ShardStore(ctx)
+	require.NoError(t, err)
+
+	client, err := clientv3.New(clientv3.Config{
+		Endpoints:   tc.endpoints,
+		DialTimeout: 5 * time.Second,
+	})
+	require.NoError(t, err)
+	defer client.Close()
+
+	// Set up malformed JSON
+	executorID := "executor-1"
+	basePath := fmt.Sprintf("/election/%s/%s/executors/%s", t.Name(), namespace, executorID)
+
+	_, err = client.Put(ctx, basePath+"/heartbeat", "1234567890")
+	require.NoError(t, err)
+	_, err = client.Put(ctx, basePath+"/state", "ACTIVE")
+	require.NoError(t, err)
+	_, err = client.Put(ctx, basePath+"/reported_shards", "{invalid json")
+	require.NoError(t, err)
+
+	// Should return error for malformed JSON
+	_, _, err = shardStore.GetState(ctx)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to unmarshal reported shards")
+}
+
+// TestShardStoreInvalidHeartbeat tests handling of invalid heartbeat values
+func TestShardStoreInvalidHeartbeat(t *testing.T) {
+	tc := setupETCDCluster(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	namespace := "test-invalid-heartbeat"
+	election, err := tc.store.CreateElection(ctx, namespace)
+	require.NoError(t, err)
+	defer election.Cleanup(ctx)
+
+	err = election.Campaign(ctx, "test-host")
+	require.NoError(t, err)
+
+	shardStore, err := election.ShardStore(ctx)
+	require.NoError(t, err)
+
+	client, err := clientv3.New(clientv3.Config{
+		Endpoints:   tc.endpoints,
+		DialTimeout: 5 * time.Second,
+	})
+	require.NoError(t, err)
+	defer client.Close()
+
+	executorID := "executor-1"
+	basePath := fmt.Sprintf("/election/%s/%s/executors/%s", t.Name(), namespace, executorID)
+
+	// Set invalid heartbeat (non-numeric)
+	_, err = client.Put(ctx, basePath+"/heartbeat", "not-a-number")
+	require.NoError(t, err)
+	_, err = client.Put(ctx, basePath+"/state", "ACTIVE")
+	require.NoError(t, err)
+
+	// Set valid shard maps
+	emptyShards, _ := json.Marshal(map[string]store.ShardState{})
+	_, err = client.Put(ctx, basePath+"/reported_shards", string(emptyShards))
+	require.NoError(t, err)
+
+	emptyAssignments, _ := json.Marshal(map[string]store.ShardAssignment{})
+	_, err = client.Put(ctx, basePath+"/assigned_shards", string(emptyAssignments))
+	require.NoError(t, err)
+
+	// Should handle invalid heartbeat gracefully
+	heartbeats, _, err := shardStore.GetState(ctx)
+	require.NoError(t, err)
+
+	require.Len(t, heartbeats, 1)
+	heartbeat := heartbeats[executorID]
+	assert.Equal(t, store.ExecutorStateActive, heartbeat.State)
+	assert.Greater(t, heartbeat.LastHeartbeat, int64(0)) // Should be set to current time
+}

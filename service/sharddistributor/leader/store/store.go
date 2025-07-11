@@ -35,10 +35,6 @@ type ShardStore interface {
 	AssignShards(ctx context.Context, newState map[string]AssignedState) error
 }
 
-type HeartbeatState struct{}
-
-type AssignedState struct{}
-
 // Impl could be used to build an implementation in the registry.
 // We use registry based approach to avoid introduction of global etcd dependency.
 type Impl fx.Option

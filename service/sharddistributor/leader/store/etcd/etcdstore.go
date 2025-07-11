@@ -79,17 +79,20 @@ func (ls *Store) CreateElection(ctx context.Context, namespace string) (el store
 		return nil, fmt.Errorf("failed to create session: %w", err)
 	}
 
+	namespacePrefix := fmt.Sprintf("%s/%s", ls.electionConfig.Prefix, namespace)
+
 	// Create election
-	electionKey := fmt.Sprintf("/%s/%s", ls.electionConfig.Prefix, namespace)
+	electionKey := fmt.Sprintf("%s/leader", namespacePrefix)
 	etcdElection := concurrency.NewElection(session, electionKey)
 
-	return &election{election: etcdElection, session: session}, nil
+	return &election{election: etcdElection, session: session, prefix: namespacePrefix}, nil
 }
 
 // election is a wrapper around etcd.concurrency.Election to abstract implementation from etcd types.
 type election struct {
 	session  *concurrency.Session
 	election *concurrency.Election
+	prefix   string
 }
 
 func (e *election) Resign(ctx context.Context) error {
@@ -113,6 +116,10 @@ func (e *election) Done() <-chan struct{} {
 }
 
 func (e *election) ShardStore(ctx context.Context) (store.ShardStore, error) {
-	//TODO implement me
-	panic("implement me")
+	return &shardStore{
+		session:   e.session,
+		leaderKey: e.election.Key(),
+		leaderRev: e.election.Rev(),
+		prefix:    e.prefix,
+	}, nil
 }
