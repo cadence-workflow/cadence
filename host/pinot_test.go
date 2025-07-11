@@ -25,13 +25,13 @@
 To run locally with docker containers:
 
 1. Stop the previous run if any
-	docker compose -f docker/buildkite/docker-compose-local-pinot.yml down
+	docker compose -f docker/github_actions/docker-compose-local-pinot.yml down
 
 2. Build the integration-test-async-wf image
-	docker compose -f docker/buildkite/docker-compose-local-pinot.yml build integration-test-cassandra-pinot
+	docker compose -f docker/github_actions/docker-compose-local-pinot.yml build integration-test-cassandra-pinot
 
 3. Run the test in the docker container
-	docker compose -f docker/buildkite/docker-compose-local-pinot.yml run --rm integration-test-cassandra-pinot
+	docker compose -f docker/github_actions/docker-compose-local-pinot.yml run --rm integration-test-cassandra-pinot
 
 To run locally natively (without docker),
 1. make sure kafka and pinot is running,

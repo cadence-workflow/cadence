@@ -143,7 +143,7 @@ services:
   integration-test-cassandra-pinot:
     build:
       context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile
+      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
     environment:
       - "CASSANDRA=1"
       - "CASSANDRA_SEEDS=cassandra"
@@ -152,9 +152,6 @@ services:
       - "ES_VERSION=v7"
       - "KAFKA_SEEDS=kafka"
       - "PINOT_SEEDS=pinot-broker"
-      - GITHUB_TOKEN
-      - GITHUB_RUN_ID
-      - GITHUB_RUN_NUMBER
     depends_on:
       cassandra:
         condition: service_healthy

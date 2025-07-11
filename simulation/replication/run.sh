@@ -25,14 +25,14 @@ testSummaryFile="$resultFolder/$testName-summary.txt"
 # Prune everything and rebuild images unless rerun is specified
 if [ "$rerun" != "rerun" ]; then
   echo "Removing some of the previous containers (if exists) to start fresh"
-  SCENARIO=$testCase DOCKERFILE_SUFFIX=$dockerFileSuffix docker compose -f docker/buildkite/docker-compose-local-replication-simulation.yml \
+  SCENARIO=$testCase DOCKERFILE_SUFFIX=$dockerFileSuffix docker compose -f docker/github_actions/docker-compose-local-replication-simulation.yml \
     down cassandra cadence-cluster0 cadence-cluster1 cadence-worker0 cadence-worker1 replication-simulator
 
   echo "Each simulation run creates multiple new giant container images. Running docker system prune to avoid disk space issues"
   docker system prune -f
 
   echo "Building test images"
-  SCENARIO=$testCase DOCKERFILE_SUFFIX=$dockerFileSuffix docker compose -f docker/buildkite/docker-compose-local-replication-simulation.yml \
+  SCENARIO=$testCase DOCKERFILE_SUFFIX=$dockerFileSuffix docker compose -f docker/github_actions/docker-compose-local-replication-simulation.yml \
     build cadence-cluster0 cadence-cluster1 cadence-worker0 cadence-worker1 replication-simulator
 fi
 
@@ -57,7 +57,7 @@ echo "Running the scenario '$testCase' with dockerfile suffix: '$dockerFileSuffi
 echo "Test name: $testName"
 
 SCENARIO=$testCase DOCKERFILE_SUFFIX=$dockerFileSuffix docker compose \
-  -f docker/buildkite/docker-compose-local-replication-simulation.yml \
+  -f docker/github_actions/docker-compose-local-replication-simulation.yml \
   run \
   -e REPLICATION_SIMULATION_CONFIG=$testCfg \
   --rm --remove-orphans --service-ports --use-aliases \

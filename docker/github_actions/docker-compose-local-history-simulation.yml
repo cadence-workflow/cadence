@@ -4,8 +4,8 @@ services:
     environment:
       - "MAX_HEAP_SIZE=256M"
       - "HEAP_NEWSIZE=128M"
-    expose:
-      - "9042"
+    ports:
+      - "9042:9042"
     networks:
       services-network:
         aliases:
@@ -20,7 +20,7 @@ services:
     volumes:
       - ./prometheus:/etc/prometheus
     command:
-      - '--config.file=/etc/prometheus/matching_simulation_prometheus.yml'
+      - '--config.file=/etc/prometheus/history_simulation_prometheus.yml'
     ports:
       - '9090:9090'
     networks:
@@ -40,24 +40,23 @@ services:
       services-network:
         aliases:
           - grafana
-
-  matching-simulator:
+  history-simulator:
     build:
       context: ../../
-      dockerfile: ./docker/buildkite/Dockerfile${DOCKERFILE_SUFFIX}
+      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
     command:
       - /bin/sh
       - -e
       - -c
       - >
         go test -timeout 180s
-        -run ^TestMatchingSimulation.*$
+        -run ^TestHistorySimulation.*$
         -count 1
         -v
-        github.com/uber/cadence/simulation/matching
+        github.com/uber/cadence/simulation/history
         | tee test.log
     environment:
-      - "MATCHING_LOG_EVENTS=true"
+      - "HISTORY_LOG_EVENTS=true"
       - "CASSANDRA_HOST=cassandra"
       - "CASSANDRA=1"
       - "CASSANDRA_SEEDS=cassandra"

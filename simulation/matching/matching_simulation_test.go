@@ -296,7 +296,7 @@ func (s *MatchingSimulationSuite) TestMatchingSimulation() {
 	}
 
 	// Let it run until all tasks have been polled.
-	// There's a test timeout configured in docker/buildkite/docker-compose-local-matching-simulation.yml that you
+	// There's a test timeout configured in docker/github_actions/docker-compose-local-matching-simulation.yml that you
 	// can change if your test case needs more time
 	s.log("Waiting until all tasks are received")
 	tasksToReceive.Wait()
