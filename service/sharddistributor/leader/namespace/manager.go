@@ -11,7 +11,6 @@ import (
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/leader/election"
-	"github.com/uber/cadence/service/sharddistributor/leader/process"
 )
 
 // Module provides namespace manager component for an fx app.
@@ -21,19 +20,17 @@ var Module = fx.Module(
 )
 
 type Manager struct {
-	cfg              config.LeaderElection
-	logger           log.Logger
-	electionFactory  election.Factory
-	processorFactory process.Factory
-	namespaces       map[string]*namespaceHandler
-	ctx              context.Context
-	cancel           context.CancelFunc
+	cfg             config.LeaderElection
+	logger          log.Logger
+	electionFactory election.Factory
+	namespaces      map[string]*namespaceHandler
+	ctx             context.Context
+	cancel          context.CancelFunc
 }
 
 type namespaceHandler struct {
 	logger       log.Logger
 	elector      election.Elector
-	processor    process.Processor
 	cancel       context.CancelFunc
 	namespaceCfg config.Namespace
 	cleanupWg    sync.WaitGroup
@@ -42,11 +39,10 @@ type namespaceHandler struct {
 type ManagerParams struct {
 	fx.In
 
-	Cfg              config.LeaderElection
-	Logger           log.Logger
-	ElectionFactory  election.Factory
-	ProcessorFactory process.Factory
-	Lifecycle        fx.Lifecycle
+	Cfg             config.LeaderElection
+	Logger          log.Logger
+	ElectionFactory election.Factory
+	Lifecycle       fx.Lifecycle
 }
 
 // NewManager creates a new namespace manager
@@ -56,11 +52,10 @@ func NewManager(p ManagerParams) *Manager {
 	}
 
 	manager := &Manager{
-		cfg:              p.Cfg,
-		logger:           p.Logger.WithTags(tag.ComponentNamespaceManager),
-		electionFactory:  p.ElectionFactory,
-		processorFactory: p.ProcessorFactory,
-		namespaces:       make(map[string]*namespaceHandler),
+		cfg:             p.Cfg,
+		logger:          p.Logger.WithTags(tag.ComponentNamespaceManager),
+		electionFactory: p.ElectionFactory,
+		namespaces:      make(map[string]*namespaceHandler),
 	}
 
 	p.Lifecycle.Append(fx.StartStopHook(manager.Start, manager.Stop))
@@ -117,9 +112,8 @@ func (m *Manager) handleNamespace(namespace string) error {
 	}
 
 	handler := &namespaceHandler{
-		logger:    m.logger.WithTags(tag.ShardNamespace(namespace)),
-		elector:   elector,
-		processor: m.processorFactory.CreateProcessor(namespace),
+		logger:  m.logger.WithTags(tag.ShardNamespace(namespace)),
+		elector: elector,
 	}
 	// cancel cancels the context and ensures that electionRunner is stopped.
 	handler.cancel = func() {
@@ -141,7 +135,7 @@ func (handler *namespaceHandler) runElection(ctx context.Context) {
 
 	handler.logger.Info("Starting election for namespace")
 
-	leaderCh := handler.elector.Run(ctx, handler.processor.Run, handler.processor.Terminate)
+	leaderCh := handler.elector.Run(ctx)
 
 	for {
 		select {

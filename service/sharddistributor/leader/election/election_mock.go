@@ -41,17 +41,17 @@ func (m *MockElector) EXPECT() *MockElectorMockRecorder {
 }
 
 // Run mocks base method.
-func (m *MockElector) Run(ctx context.Context, OnLeader, OnResign ProcessFunc) <-chan bool {
+func (m *MockElector) Run(ctx context.Context) <-chan bool {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Run", ctx, OnLeader, OnResign)
+	ret := m.ctrl.Call(m, "Run", ctx)
 	ret0, _ := ret[0].(<-chan bool)
 	return ret0
 }
 
 // Run indicates an expected call of Run.
-func (mr *MockElectorMockRecorder) Run(ctx, OnLeader, OnResign any) *gomock.Call {
+func (mr *MockElectorMockRecorder) Run(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockElector)(nil).Run), ctx, OnLeader, OnResign)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockElector)(nil).Run), ctx)
 }
 
 // MockFactory is a mock of Factory interface.

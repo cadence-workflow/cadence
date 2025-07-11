@@ -10,14 +10,14 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/uber/cadence/service/sharddistributor/config"
-	"github.com/uber/cadence/service/sharddistributor/leader/leaderstore"
+	"github.com/uber/cadence/service/sharddistributor/leader/store"
 )
 
 func init() {
-	leaderstore.RegisterStore("etcd", fx.Provide(NewStore))
+	store.Register("etcd", fx.Provide(NewStore))
 }
 
-type LeaderStore struct {
+type Store struct {
 	client         *clientv3.Client
 	electionConfig etcdCfg
 }
@@ -39,7 +39,7 @@ type etcdCfg struct {
 }
 
 // NewStore creates a new leaderstore backed by ETCD.
-func NewStore(p StoreParams) (leaderstore.Store, error) {
+func NewStore(p StoreParams) (store.Elector, error) {
 	if !p.Cfg.Enabled {
 		return nil, nil
 	}
@@ -64,13 +64,13 @@ func NewStore(p StoreParams) (leaderstore.Store, error) {
 
 	p.Lifecycle.Append(fx.StopHook(etcdClient.Close))
 
-	return &LeaderStore{
+	return &Store{
 		client:         etcdClient,
 		electionConfig: out,
 	}, nil
 }
 
-func (ls *LeaderStore) CreateElection(ctx context.Context, namespace string) (el leaderstore.Election, err error) {
+func (ls *Store) CreateElection(ctx context.Context, namespace string) (el store.Election, err error) {
 	// Create a new session for election
 	session, err := concurrency.NewSession(ls.client,
 		concurrency.WithTTL(int(ls.electionConfig.ElectionTTL.Seconds())),
@@ -110,4 +110,9 @@ func (e *election) Campaign(ctx context.Context, host string) error {
 
 func (e *election) Done() <-chan struct{} {
 	return e.session.Done()
+}
+
+func (e *election) ShardStore(ctx context.Context) (store.ShardStore, error) {
+	//TODO implement me
+	panic("implement me")
 }
