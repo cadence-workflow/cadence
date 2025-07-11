@@ -59,9 +59,6 @@ services:
       - "KAFKA_SEEDS=kafka"
       - "TEST_TAG=esintegration"
       - "ES_VERSION=os2"
-      - GITHUB_TOKEN
-      - GITHUB_RUN_ID
-      - GITHUB_RUN_NUMBER
     depends_on:
       cassandra:
         condition: service_healthy

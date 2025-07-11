@@ -103,10 +103,6 @@ services:
     build:
       context: ../../
       dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
-    environment:
-      - GITHUB_TOKEN
-      - GITHUB_RUN_ID
-      - GITHUB_RUN_NUMBER
     volumes:
       - ../../:/cadence
     networks:
@@ -124,9 +120,6 @@ services:
       - "ES_SEEDS=elasticsearch"
       - "KAFKA_SEEDS=kafka"
       - "TEST_TAG=esintegration"
-      - GITHUB_TOKEN
-      - GITHUB_RUN_ID
-      - GITHUB_RUN_NUMBER
     depends_on:
       cassandra:
         condition: service_healthy
@@ -152,9 +145,6 @@ services:
       - "KAFKA_SEEDS=kafka"
       - "TEST_TAG=esintegration"
       - "ENABLE_QUEUE_V2=true"
-      - GITHUB_TOKEN
-      - GITHUB_RUN_ID
-      - GITHUB_RUN_NUMBER
     depends_on:
       cassandra:
         condition: service_healthy
@@ -181,9 +171,6 @@ services:
       - "PERSISTENCE_TYPE=sql"
       - "PERSISTENCE_PLUGIN=mysql"
       - "TEST_TAG=esintegration"
-      - GITHUB_TOKEN
-      - GITHUB_RUN_ID
-      - GITHUB_RUN_NUMBER
     depends_on:
       - mysql
       - elasticsearch
@@ -207,9 +194,6 @@ services:
       - "KAFKA_SEEDS=kafka"
       - "PERSISTENCE_TYPE=sql"
       - "TEST_TAG=esintegration"
-      - GITHUB_TOKEN
-      - GITHUB_RUN_ID
-      - GITHUB_RUN_NUMBER
     depends_on:
       - postgres
       - elasticsearch
@@ -228,9 +212,6 @@ services:
     environment:
       - "PERSISTENCE_PLUGIN=sqlite"
       - "PERSISTENCE_TYPE=sql"
-      - GITHUB_TOKEN
-      - GITHUB_RUN_ID
-      - GITHUB_RUN_NUMBER
     volumes:
       - ../../:/cadence
     networks:
@@ -248,9 +229,6 @@ services:
       - "ES_SEEDS=elasticsearch"
       - "KAFKA_SEEDS=kafka"
       - "TEST_TAG=esintegration"
-      - GITHUB_TOKEN
-      - GITHUB_RUN_ID
-      - GITHUB_RUN_NUMBER
     depends_on:
       cassandra:
         condition: service_healthy
@@ -277,9 +255,6 @@ services:
       - "PERSISTENCE_TYPE=sql"
       - "PERSISTENCE_PLUGIN=mysql"
       - "TEST_TAG=esintegration"
-      - GITHUB_TOKEN
-      - GITHUB_RUN_ID
-      - GITHUB_RUN_NUMBER
     depends_on:
       - mysql
       - elasticsearch
@@ -303,9 +278,6 @@ services:
       - "PERSISTENCE_TYPE=sql"
       - "PERSISTENCE_PLUGIN=postgres"
       - "TEST_TAG=esintegration"
-      - GITHUB_TOKEN
-      - GITHUB_RUN_ID
-      - GITHUB_RUN_NUMBER
     depends_on:
       - postgres
       - elasticsearch
@@ -328,9 +300,6 @@ services:
       - "ES_SEEDS=elasticsearch"
       - "KAFKA_SEEDS=kafka"
       - "KAFKA_PORT=9092"
-      - GITHUB_TOKEN
-      - GITHUB_RUN_ID
-      - GITHUB_RUN_NUMBER
     depends_on:
       cassandra:
         condition: service_healthy
@@ -350,9 +319,6 @@ services:
     environment:
       - "ETCD=1"
       - "ETCD_ENDPOINTS=http://etcd:2379"
-      - GITHUB_TOKEN
-      - GITHUB_RUN_ID
-      - GITHUB_RUN_NUMBER
     depends_on:
       etcd:
         condition: service_started
@@ -369,9 +335,6 @@ services:
       dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
     environment:
       - CI
-      - GITHUB_TOKEN
-      - GITHUB_RUN_ID
-      - GITHUB_RUN_NUMBER
       - GITHUB_BRANCH
       - GITHUB_RUN_URL
       - GITHUB_REPO
