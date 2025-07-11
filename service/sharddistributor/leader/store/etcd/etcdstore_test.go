@@ -39,7 +39,7 @@ import (
 
 	"github.com/uber/cadence/common/config"
 	shardDistributorCfg "github.com/uber/cadence/service/sharddistributor/config"
-	"github.com/uber/cadence/service/sharddistributor/leader/leaderstore"
+	"github.com/uber/cadence/service/sharddistributor/leader/store"
 	"github.com/uber/cadence/testflags"
 )
 
@@ -232,7 +232,7 @@ func TestSessionDone(t *testing.T) {
 type testCluster struct {
 	ctx         context.Context
 	cancel      context.CancelFunc
-	store       leaderstore.Store
+	store       store.Elector
 	storeConfig etcdCfg
 	endpoints   []string
 }

@@ -1,4 +1,4 @@
-package leaderstore
+package store
 
 import (
 	"context"
@@ -7,11 +7,11 @@ import (
 	"go.uber.org/fx"
 )
 
-//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination=leaderstore_mock.go Store,Election
+//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination=store_mock.go Elector,Election
 
-// Store is an interface that provides a way to establish a session for election.
+// Elector is an interface that provides a way to establish a session for election.
 // It establishes connection and a session and provides Election to run for leader.
-type Store interface {
+type Elector interface {
 	CreateElection(ctx context.Context, namespace string) (Election, error)
 }
 
@@ -25,24 +25,36 @@ type Election interface {
 	Done() <-chan struct{}
 	// Cleanup stops internal processes and releases keys.
 	Cleanup(ctx context.Context) error
+	// ShardStore exposes a storage for the shard information.
+	// It could be separated into a different storage or be a part of the leader store.
+	ShardStore(ctx context.Context) (ShardStore, error)
 }
 
-// StoreImpl could be used to build an implementation in the registry.
+type ShardStore interface {
+	GetState(ctx context.Context) (map[string]HeartbeatState, map[string]AssignedState, error)
+	AssignShards(ctx context.Context, newState map[string]AssignedState) error
+}
+
+type HeartbeatState struct{}
+
+type AssignedState struct{}
+
+// Impl could be used to build an implementation in the registry.
 // We use registry based approach to avoid introduction of global etcd dependency.
-type StoreImpl fx.Option
+type Impl fx.Option
 
 var (
-	storeRegistry = make(map[string]StoreImpl)
+	storeRegistry = make(map[string]Impl)
 )
 
-// RegisterStore registers store implementation in the registry.
-func RegisterStore(name string, factory StoreImpl) {
+// Register registers store implementation in the registry.
+func Register(name string, factory Impl) {
 	storeRegistry[name] = factory
 }
 
-// StoreModule returns registered a leader store fx.Option from the configuration.
+// Module returns registered a leader store fx.Option from the configuration.
 // This can introduce extra dependency requirements to the fx application.
-func StoreModule(name string) fx.Option {
+func Module(name string) fx.Option {
 	factory, ok := storeRegistry[name]
 	if !ok {
 		panic(fmt.Sprintf("no leader store registered with name %s", name))
