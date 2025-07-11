@@ -135,6 +135,21 @@ func (mr *MockElectionMockRecorder) Resign(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Resign", reflect.TypeOf((*MockElection)(nil).Resign), ctx)
 }
 
+// ShardStore mocks base method.
+func (m *MockElection) ShardStore(ctx context.Context) (ShardStore, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ShardStore", ctx)
+	ret0, _ := ret[0].(ShardStore)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ShardStore indicates an expected call of ShardStore.
+func (mr *MockElectionMockRecorder) ShardStore(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ShardStore", reflect.TypeOf((*MockElection)(nil).ShardStore), ctx)
+}
+
 // MockShardStore is a mock of ShardStore interface.
 type MockShardStore struct {
 	ctrl     *gomock.Controller
@@ -187,57 +202,4 @@ func (m *MockShardStore) GetState(ctx context.Context) (map[string]HeartbeatStat
 func (mr *MockShardStoreMockRecorder) GetState(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetState", reflect.TypeOf((*MockShardStore)(nil).GetState), ctx)
-}
-
-// MockHearbeatStore is a mock of HearbeatStore interface.
-type MockHearbeatStore struct {
-	ctrl     *gomock.Controller
-	recorder *MockHearbeatStoreMockRecorder
-	isgomock struct{}
-}
-
-// MockHearbeatStoreMockRecorder is the mock recorder for MockHearbeatStore.
-type MockHearbeatStoreMockRecorder struct {
-	mock *MockHearbeatStore
-}
-
-// NewMockHearbeatStore creates a new mock instance.
-func NewMockHearbeatStore(ctrl *gomock.Controller) *MockHearbeatStore {
-	mock := &MockHearbeatStore{ctrl: ctrl}
-	mock.recorder = &MockHearbeatStoreMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockHearbeatStore) EXPECT() *MockHearbeatStoreMockRecorder {
-	return m.recorder
-}
-
-// GetAssignedShards mocks base method.
-func (m *MockHearbeatStore) GetAssignedShards(ctx context.Context, executorID string) (AssignedState, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAssignedShards", ctx, executorID)
-	ret0, _ := ret[0].(AssignedState)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetAssignedShards indicates an expected call of GetAssignedShards.
-func (mr *MockHearbeatStoreMockRecorder) GetAssignedShards(ctx, executorID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAssignedShards", reflect.TypeOf((*MockHearbeatStore)(nil).GetAssignedShards), ctx, executorID)
-}
-
-// ReportHeartbeat mocks base method.
-func (m *MockHearbeatStore) ReportHeartbeat(ctx context.Context, state HeartbeatState) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReportHeartbeat", ctx, state)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// ReportHeartbeat indicates an expected call of ReportHeartbeat.
-func (mr *MockHearbeatStoreMockRecorder) ReportHeartbeat(ctx, state any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReportHeartbeat", reflect.TypeOf((*MockHearbeatStore)(nil).ReportHeartbeat), ctx, state)
 }

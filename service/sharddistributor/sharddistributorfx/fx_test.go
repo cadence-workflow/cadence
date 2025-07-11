@@ -17,6 +17,7 @@ import (
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/rpc"
 	"github.com/uber/cadence/service/sharddistributor/config"
+	"github.com/uber/cadence/service/sharddistributor/leader/store"
 )
 
 func TestFxServiceStartStop(t *testing.T) {
@@ -38,7 +39,7 @@ func TestFxServiceStartStop(t *testing.T) {
 			},
 			fx.Annotated{Target: func() string { return "testHost" }, Name: "hostname"},
 			func() store.Elector {
-				return store.NewMockStore(ctrl)
+				return store.NewMockElector(ctrl)
 			},
 			func() map[string]membership.SingleProvider { return make(map[string]membership.SingleProvider) },
 			func() config.LeaderElection {
