@@ -44,71 +44,41 @@ func (s *shardStore) GetState(ctx context.Context) (map[string]store.HeartbeatSt
 			continue // Skip invalid keys
 		}
 
+		// Ensure heartbeat and assigned states exist for the executor
+		if _, ok := heartbeatStates[executorID]; !ok {
+			heartbeatStates[executorID] = store.HeartbeatState{ExecutorID: executorID}
+		}
+		if _, ok := assignedStates[executorID]; !ok {
+			assignedStates[executorID] = store.AssignedState{
+				ExecutorID:     executorID,
+				ReportedShards: make(map[string]store.ShardState),
+				AssignedShards: make(map[string]store.ShardAssignment),
+			}
+		}
+
+		heartbeat := heartbeatStates[executorID]
+		assigned := assignedStates[executorID]
+
 		switch keyType {
 		case "heartbeat":
 			timestamp, err := strconv.ParseInt(value, 10, 64)
 			if err != nil {
-				// If parse fails, use current time
-				timestamp = time.Now().Unix()
-			}
-
-			// Get or update existing heartbeat state
-			heartbeat, exists := heartbeatStates[executorID]
-			if !exists {
-				heartbeat = store.HeartbeatState{ExecutorID: executorID}
+				timestamp = 0
 			}
 			heartbeat.LastHeartbeat = timestamp
-			heartbeatStates[executorID] = heartbeat
-
 		case "state":
-			state := store.ExecutorState(value)
-
-			// Get or update existing heartbeat state
-			heartbeat, exists := heartbeatStates[executorID]
-			if !exists {
-				heartbeat = store.HeartbeatState{ExecutorID: executorID}
-			}
-			heartbeat.State = state
-			heartbeatStates[executorID] = heartbeat
-
+			heartbeat.State = store.ExecutorState(value)
 		case "reported_shards":
-			// Get or create assigned state entry
-			assigned, exists := assignedStates[executorID]
-			if !exists {
-				assigned = store.AssignedState{
-					ExecutorID:     executorID,
-					ReportedShards: make(map[string]store.ShardState),
-					AssignedShards: make(map[string]store.ShardAssignment),
-				}
-			}
-
-			// Parse reported shards map
-			var reportedShards map[string]store.ShardState
-			if err := json.Unmarshal(kv.Value, &reportedShards); err != nil {
+			if err := json.Unmarshal(kv.Value, &assigned.ReportedShards); err != nil {
 				return nil, nil, fmt.Errorf("failed to unmarshal reported shards for executor %s: %w", executorID, err)
 			}
-			assigned.ReportedShards = reportedShards
-			assignedStates[executorID] = assigned
-
 		case "assigned_shards":
-			// Get or create assigned state entry
-			assigned, exists := assignedStates[executorID]
-			if !exists {
-				assigned = store.AssignedState{
-					ExecutorID:     executorID,
-					ReportedShards: make(map[string]store.ShardState),
-					AssignedShards: make(map[string]store.ShardAssignment),
-				}
-			}
-
-			// Parse assigned shards map
-			var assignedShards map[string]store.ShardAssignment
-			if err := json.Unmarshal(kv.Value, &assignedShards); err != nil {
+			if err := json.Unmarshal(kv.Value, &assigned.AssignedShards); err != nil {
 				return nil, nil, fmt.Errorf("failed to unmarshal assigned shards for executor %s: %w", executorID, err)
 			}
-			assigned.AssignedShards = assignedShards
-			assignedStates[executorID] = assigned
 		}
+		heartbeatStates[executorID] = heartbeat
+		assignedStates[executorID] = assigned
 	}
 
 	return heartbeatStates, assignedStates, nil

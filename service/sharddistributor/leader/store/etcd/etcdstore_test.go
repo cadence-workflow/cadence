@@ -97,7 +97,7 @@ func TestCampaign(t *testing.T) {
 	defer client.Close()
 
 	// Get the key and verify it exists
-	key := "/test-election/" + namespace
+	key := fmt.Sprintf("%s/%s/leader", tc.storeConfig.Prefix, namespace)
 	resp, err := client.Get(ctx, key)
 	require.NoError(t, err)
 	require.NotEqual(t, 0, resp.Count, "Leader key should exist")

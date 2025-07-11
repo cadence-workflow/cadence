@@ -3,7 +3,6 @@ package etcd
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"strconv"
 	"testing"
 	"time"
@@ -52,7 +51,7 @@ func TestShardStoreRoundTrip(t *testing.T) {
 	err = election.Campaign(ctx, "test-host")
 	require.NoError(t, err)
 
-	shardStore, err := election.ShardStore(ctx)
+	storage, err := election.ShardStore(ctx)
 	require.NoError(t, err)
 
 	client, err := clientv3.New(clientv3.Config{
@@ -66,13 +65,12 @@ func TestShardStoreRoundTrip(t *testing.T) {
 	executorID := "executor-1"
 	now := time.Now().Unix()
 
-	// The actual path construction: /election/{testName}/{namespace}/executors/{executorID}/{keyType}
-	basePath := fmt.Sprintf("/election/%s/%s/executors/%s", t.Name(), namespace, executorID)
+	etcdShardStore := storage.(*shardStore)
 
 	// Set heartbeat and state
-	_, err = client.Put(ctx, basePath+"/heartbeat", strconv.FormatInt(now, 10))
+	_, err = client.Put(ctx, etcdShardStore.buildExecutorKey(executorID, "heartbeat"), strconv.FormatInt(now, 10))
 	require.NoError(t, err)
-	_, err = client.Put(ctx, basePath+"/state", "ACTIVE")
+	_, err = client.Put(ctx, etcdShardStore.buildExecutorKey(executorID, "state"), "ACTIVE")
 	require.NoError(t, err)
 
 	// Set reported shards
@@ -80,11 +78,11 @@ func TestShardStoreRoundTrip(t *testing.T) {
 		"shard-1": {Status: "running", LastUpdated: now},
 	}
 	reportedJSON, _ := json.Marshal(reportedShards)
-	_, err = client.Put(ctx, basePath+"/reported_shards", string(reportedJSON))
+	_, err = client.Put(ctx, etcdShardStore.buildExecutorKey(executorID, "reported_shards"), string(reportedJSON))
 	require.NoError(t, err)
 
 	// Test GetState can read the data
-	heartbeats, assignments, err := shardStore.GetState(ctx)
+	heartbeats, assignments, err := storage.GetState(ctx)
 	require.NoError(t, err)
 
 	// Verify heartbeat data
@@ -114,11 +112,11 @@ func TestShardStoreRoundTrip(t *testing.T) {
 		},
 	}
 
-	err = shardStore.AssignShards(ctx, newState)
+	err = storage.AssignShards(ctx, newState)
 	require.NoError(t, err)
 
 	// Read back and verify the assignment was written
-	_, assignments, err = shardStore.GetState(ctx)
+	_, assignments, err = storage.GetState(ctx)
 	require.NoError(t, err)
 
 	assignment = assignments[executorID]
@@ -140,8 +138,10 @@ func TestShardStoreMultipleExecutors(t *testing.T) {
 	err = election.Campaign(ctx, "test-host")
 	require.NoError(t, err)
 
-	shardStore, err := election.ShardStore(ctx)
+	storage, err := election.ShardStore(ctx)
 	require.NoError(t, err)
+
+	etcdShardStore := storage.(*shardStore)
 
 	client, err := clientv3.New(clientv3.Config{
 		Endpoints:   tc.endpoints,
@@ -155,26 +155,25 @@ func TestShardStoreMultipleExecutors(t *testing.T) {
 	states := []store.ExecutorState{store.ExecutorStateActive, store.ExecutorStateDraining, store.ExecutorStateStopped}
 
 	for i, executorID := range executors {
-		basePath := fmt.Sprintf("/election/%s/%s/executors/%s", t.Name(), namespace, executorID)
 		timestamp := time.Now().Unix() + int64(i)
 
-		_, err = client.Put(ctx, basePath+"/heartbeat", strconv.FormatInt(timestamp, 10))
+		_, err = client.Put(ctx, etcdShardStore.buildExecutorKey(executorID, "heartbeat"), strconv.FormatInt(timestamp, 10))
 		require.NoError(t, err)
-		_, err = client.Put(ctx, basePath+"/state", string(states[i]))
+		_, err = client.Put(ctx, etcdShardStore.buildExecutorKey(executorID, "state"), string(states[i]))
 		require.NoError(t, err)
 
 		// Set empty shard maps
 		emptyShards, _ := json.Marshal(map[string]store.ShardState{})
-		_, err = client.Put(ctx, basePath+"/reported_shards", string(emptyShards))
+		_, err = client.Put(ctx, etcdShardStore.buildExecutorKey(executorID, "reported_shards"), string(emptyShards))
 		require.NoError(t, err)
 
 		emptyAssignments, _ := json.Marshal(map[string]store.ShardAssignment{})
-		_, err = client.Put(ctx, basePath+"/assigned_shards", string(emptyAssignments))
+		_, err = client.Put(ctx, etcdShardStore.buildExecutorKey(executorID, "assigned_shards"), string(emptyAssignments))
 		require.NoError(t, err)
 	}
 
 	// Test GetState
-	heartbeats, assignments, err := shardStore.GetState(ctx)
+	heartbeats, assignments, err := storage.GetState(ctx)
 	require.NoError(t, err)
 
 	assert.Len(t, heartbeats, 3)
@@ -203,7 +202,7 @@ func TestShardStoreAssignShards(t *testing.T) {
 	err = election.Campaign(ctx, "test-host")
 	require.NoError(t, err)
 
-	shardStore, err := election.ShardStore(ctx)
+	storage, err := election.ShardStore(ctx)
 	require.NoError(t, err)
 
 	// Assign shards to multiple executors
@@ -225,11 +224,11 @@ func TestShardStoreAssignShards(t *testing.T) {
 		},
 	}
 
-	err = shardStore.AssignShards(ctx, newState)
+	err = storage.AssignShards(ctx, newState)
 	require.NoError(t, err)
 
 	// Verify assignments were written
-	_, assignments, err := shardStore.GetState(ctx)
+	_, assignments, err := storage.GetState(ctx)
 	require.NoError(t, err)
 
 	assert.Len(t, assignments, 2)
@@ -293,8 +292,10 @@ func TestShardStoreMalformedJSON(t *testing.T) {
 	err = election.Campaign(ctx, "test-host")
 	require.NoError(t, err)
 
-	shardStore, err := election.ShardStore(ctx)
+	storage, err := election.ShardStore(ctx)
 	require.NoError(t, err)
+
+	etcdShardStore := storage.(*shardStore)
 
 	client, err := clientv3.New(clientv3.Config{
 		Endpoints:   tc.endpoints,
@@ -305,17 +306,16 @@ func TestShardStoreMalformedJSON(t *testing.T) {
 
 	// Set up malformed JSON
 	executorID := "executor-1"
-	basePath := fmt.Sprintf("/election/%s/%s/executors/%s", t.Name(), namespace, executorID)
 
-	_, err = client.Put(ctx, basePath+"/heartbeat", "1234567890")
+	_, err = client.Put(ctx, etcdShardStore.buildExecutorKey(executorID, "heartbeat"), "1234567890")
 	require.NoError(t, err)
-	_, err = client.Put(ctx, basePath+"/state", "ACTIVE")
+	_, err = client.Put(ctx, etcdShardStore.buildExecutorKey(executorID, "state"), "ACTIVE")
 	require.NoError(t, err)
-	_, err = client.Put(ctx, basePath+"/reported_shards", "{invalid json")
+	_, err = client.Put(ctx, etcdShardStore.buildExecutorKey(executorID, "reported_shards"), "{invalid json")
 	require.NoError(t, err)
 
 	// Should return error for malformed JSON
-	_, _, err = shardStore.GetState(ctx)
+	_, _, err = storage.GetState(ctx)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to unmarshal reported shards")
 }
@@ -334,8 +334,10 @@ func TestShardStoreInvalidHeartbeat(t *testing.T) {
 	err = election.Campaign(ctx, "test-host")
 	require.NoError(t, err)
 
-	shardStore, err := election.ShardStore(ctx)
+	storage, err := election.ShardStore(ctx)
 	require.NoError(t, err)
+
+	etcdShardStore := storage.(*shardStore)
 
 	client, err := clientv3.New(clientv3.Config{
 		Endpoints:   tc.endpoints,
@@ -345,25 +347,24 @@ func TestShardStoreInvalidHeartbeat(t *testing.T) {
 	defer client.Close()
 
 	executorID := "executor-1"
-	basePath := fmt.Sprintf("/election/%s/%s/executors/%s", t.Name(), namespace, executorID)
 
 	// Set invalid heartbeat (non-numeric)
-	_, err = client.Put(ctx, basePath+"/heartbeat", "not-a-number")
+	_, err = client.Put(ctx, etcdShardStore.buildExecutorKey(executorID, "heartbeat"), "not-a-number")
 	require.NoError(t, err)
-	_, err = client.Put(ctx, basePath+"/state", "ACTIVE")
+	_, err = client.Put(ctx, etcdShardStore.buildExecutorKey(executorID, "state"), "ACTIVE")
 	require.NoError(t, err)
 
 	// Set valid shard maps
 	emptyShards, _ := json.Marshal(map[string]store.ShardState{})
-	_, err = client.Put(ctx, basePath+"/reported_shards", string(emptyShards))
+	_, err = client.Put(ctx, etcdShardStore.buildExecutorKey(executorID, "reported_shards"), string(emptyShards))
 	require.NoError(t, err)
 
 	emptyAssignments, _ := json.Marshal(map[string]store.ShardAssignment{})
-	_, err = client.Put(ctx, basePath+"/assigned_shards", string(emptyAssignments))
+	_, err = client.Put(ctx, etcdShardStore.buildExecutorKey(executorID, "assigned_shards"), string(emptyAssignments))
 	require.NoError(t, err)
 
 	// Should handle invalid heartbeat gracefully
-	heartbeats, _, err := shardStore.GetState(ctx)
+	heartbeats, _, err := storage.GetState(ctx)
 	require.NoError(t, err)
 
 	require.Len(t, heartbeats, 1)
