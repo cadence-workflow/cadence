@@ -104,9 +104,9 @@ services:
       context: ../../
       dockerfile: ./docker/github_actions/Dockerfile
     environment:
-      - GITHUB_TOKEN # BUILDKITE_AGENT_ACCESS_TOKEN
-      - GITHUB_RUN_ID # BUILDKITE_JOB_ID and BUILDKITE_BUILD_ID
-      - GITHUB_RUN_NUMBER # BUILDKITE_BUILD_NUMBER
+      - GITHUB_TOKEN
+      - GITHUB_RUN_ID
+      - GITHUB_RUN_NUMBER
     volumes:
       - ../../:/cadence
     networks:

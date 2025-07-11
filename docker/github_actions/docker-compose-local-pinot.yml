@@ -78,7 +78,7 @@ services:
       services-network:
         aliases:
           - zookeeper
-  # Needs a new pinot version to run the new json match query
+
   pinot-controller:
     image: apachepinot/pinot:latest
     command: "StartController -zkAddress zookeeper:2181 -controllerPort 9001"
@@ -143,7 +143,24 @@ services:
   integration-test-cassandra-pinot:
     build:
       context: ../../
-      dockerfile: ./docker/buildkite/Dockerfile
+      dockerfile: ./docker/github_actions/Dockerfile
+    command:
+      - /bin/sh
+      - -e
+      - -c
+      - >
+        go test -timeout 600s
+        -run ^TestPinotIntegrationSuite$
+        -tags pinotintegration
+        -count 1
+        -v
+        github.com/uber/cadence/host
+        | tee test.log
+    ports:
+      - "7933:7933"
+      - "7934:7934"
+      - "7935:7935"
+      - "7939:7939"
     environment:
       - "CASSANDRA=1"
       - "CASSANDRA_SEEDS=cassandra"
@@ -152,10 +169,9 @@ services:
       - "ES_VERSION=v7"
       - "KAFKA_SEEDS=kafka"
       - "PINOT_SEEDS=pinot-broker"
-      - BUILDKITE_AGENT_ACCESS_TOKEN
-      - BUILDKITE_JOB_ID
-      - BUILDKITE_BUILD_ID
-      - BUILDKITE_BUILD_NUMBER
+      - GITHUB_TOKEN
+      - GITHUB_RUN_ID
+      - GITHUB_RUN_NUMBER
     depends_on:
       cassandra:
         condition: service_healthy

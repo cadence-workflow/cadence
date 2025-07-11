@@ -4,6 +4,8 @@ services:
     environment:
       - "MAX_HEAP_SIZE=256M"
       - "HEAP_NEWSIZE=128M"
+    ports:
+      - "9042:9042"
     networks:
       services-network:
         aliases:
@@ -40,6 +42,8 @@ services:
 
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch-oss:7.9.3
+    ports:
+      - "9200:9200"
     networks:
       services-network:
         aliases:
@@ -50,7 +54,18 @@ services:
   integration-test-cassandra:
     build:
       context: ../../
-      dockerfile: ./docker/buildkite/Dockerfile
+      dockerfile: ./docker/github_actions/Dockerfile
+    command:
+      - /bin/sh
+      - -e
+      - -c
+      - |
+        make cover_integration_profile
+    ports:
+      - "7933:7933"
+      - "7934:7934"
+      - "7935:7935"
+      - "7939:7939"
     environment:
       - "CASSANDRA=1"
       - "CASSANDRA_SEEDS=cassandra"
@@ -58,10 +73,6 @@ services:
       - "KAFKA_SEEDS=kafka"
       - "TEST_TAG=esintegration"
       - "ES_VERSION=v7"
-      - BUILDKITE_AGENT_ACCESS_TOKEN
-      - BUILDKITE_JOB_ID
-      - BUILDKITE_BUILD_ID
-      - BUILDKITE_BUILD_NUMBER
     depends_on:
       cassandra:
         condition: service_healthy
