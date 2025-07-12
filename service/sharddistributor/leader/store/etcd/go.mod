@@ -1,4 +1,4 @@
-module github.com/uber/cadence/service/sharddistributor/leader/leaderstore/etcd
+module github.com/uber/cadence/service/sharddistributor/leader/store/etcd
 
 go 1.23.0
 

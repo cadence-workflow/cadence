@@ -39,7 +39,7 @@ import (
 
 	"github.com/uber/cadence/common/config"
 	shardDistributorCfg "github.com/uber/cadence/service/sharddistributor/config"
-	"github.com/uber/cadence/service/sharddistributor/leader/leaderstore"
+	"github.com/uber/cadence/service/sharddistributor/leader/store"
 	"github.com/uber/cadence/testflags"
 )
 
@@ -97,7 +97,7 @@ func TestCampaign(t *testing.T) {
 	defer client.Close()
 
 	// Get the key and verify it exists
-	key := "/test-election/" + namespace
+	key := fmt.Sprintf("%s/%s/leader", tc.storeConfig.Prefix, namespace)
 	resp, err := client.Get(ctx, key)
 	require.NoError(t, err)
 	require.NotEqual(t, 0, resp.Count, "Leader key should exist")
@@ -232,7 +232,7 @@ func TestSessionDone(t *testing.T) {
 type testCluster struct {
 	ctx         context.Context
 	cancel      context.CancelFunc
-	store       leaderstore.Store
+	store       store.Elector
 	storeConfig etcdCfg
 	endpoints   []string
 }
@@ -268,8 +268,11 @@ func setupETCDCluster(t *testing.T) *testCluster {
 	store, err := NewStore(storeParams)
 	require.NoError(t, err)
 
+	ctx, cancel := context.WithCancel(context.Background())
+
 	return &testCluster{
-		ctx:         context.Background(), // TODO: In 1.24 it could be t.Context()
+		ctx:         ctx,
+		cancel:      cancel,
 		store:       store,
 		storeConfig: testConfig,
 		endpoints:   endpoints,
