@@ -31,8 +31,13 @@ type Election interface {
 }
 
 type ShardStore interface {
-	GetState(ctx context.Context) (map[string]HeartbeatState, map[string]AssignedState, error)
+	GetState(ctx context.Context) (map[string]HeartbeatState, map[string]AssignedState, int64, error)
 	AssignShards(ctx context.Context, newState map[string]AssignedState) error
+	// Subscribe returns a channel that signals when a state change occurs.
+	// The channel sends an empty struct for notification. The caller should then
+	// use GetState to fetch the latest data. The channel closes when the context
+	// is canceled or an unrecoverable error occurs.
+	Subscribe(ctx context.Context) (<-chan int64, error)
 }
 
 // Impl could be used to build an implementation in the registry.

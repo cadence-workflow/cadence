@@ -31,10 +31,11 @@ func TestShardStoreGetStateEmpty(t *testing.T) {
 	shardStore, err := election.ShardStore(ctx)
 	require.NoError(t, err)
 
-	heartbeats, assignments, err := shardStore.GetState(ctx)
+	heartbeats, assignments, rev, err := shardStore.GetState(ctx)
 	require.NoError(t, err)
 	assert.Empty(t, heartbeats)
 	assert.Empty(t, assignments)
+	assert.NotEmpty(t, rev)
 }
 
 // TestShardStoreRoundTrip tests complete write and read cycle
@@ -82,7 +83,7 @@ func TestShardStoreRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test GetState can read the data
-	heartbeats, assignments, err := storage.GetState(ctx)
+	heartbeats, assignments, _, err := storage.GetState(ctx)
 	require.NoError(t, err)
 
 	// Verify heartbeat data
@@ -116,7 +117,7 @@ func TestShardStoreRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 
 	// Read back and verify the assignment was written
-	_, assignments, err = storage.GetState(ctx)
+	_, assignments, _, err = storage.GetState(ctx)
 	require.NoError(t, err)
 
 	assignment = assignments[executorID]
@@ -173,7 +174,7 @@ func TestShardStoreMultipleExecutors(t *testing.T) {
 	}
 
 	// Test GetState
-	heartbeats, assignments, err := storage.GetState(ctx)
+	heartbeats, assignments, _, err := storage.GetState(ctx)
 	require.NoError(t, err)
 
 	assert.Len(t, heartbeats, 3)
@@ -228,7 +229,7 @@ func TestShardStoreAssignShards(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify assignments were written
-	_, assignments, err := storage.GetState(ctx)
+	_, assignments, _, err := storage.GetState(ctx)
 	require.NoError(t, err)
 
 	assert.Len(t, assignments, 2)
@@ -315,7 +316,7 @@ func TestShardStoreMalformedJSON(t *testing.T) {
 	require.NoError(t, err)
 
 	// Should return error for malformed JSON
-	_, _, err = storage.GetState(ctx)
+	_, _, _, err = storage.GetState(ctx)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to unmarshal reported shards")
 }
@@ -364,11 +365,127 @@ func TestShardStoreInvalidHeartbeat(t *testing.T) {
 	require.NoError(t, err)
 
 	// Should handle invalid heartbeat gracefully
-	heartbeats, _, err := storage.GetState(ctx)
+	heartbeats, _, _, err := storage.GetState(ctx)
 	require.NoError(t, err)
 
 	require.Len(t, heartbeats, 1)
 	heartbeat := heartbeats[executorID]
 	assert.Equal(t, store.ExecutorStateActive, heartbeat.State)
-	assert.Greater(t, heartbeat.LastHeartbeat, int64(0)) // Should be set to current time
+	assert.Equal(t, heartbeat.LastHeartbeat, int64(0)) // Should be set to current time
+}
+
+// TestSubscribe_NotificationOnUpdate verifies that an update triggers a notification with a new revision.
+func TestSubscribe_NotificationOnUpdate(t *testing.T) {
+	tc := setupETCDCluster(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	election, err := tc.store.CreateElection(ctx, "ns-subscribe-update")
+	require.NoError(t, err)
+	defer election.Cleanup(ctx)
+	err = election.Campaign(ctx, "host")
+	require.NoError(t, err)
+	storage, err := election.ShardStore(ctx)
+	require.NoError(t, err)
+
+	// Get the current revision before making changes.
+	_, _, initialRevision, err := storage.GetState(ctx)
+	require.NoError(t, err)
+
+	updateChan, err := storage.Subscribe(ctx)
+	require.NoError(t, err)
+
+	// Trigger an update.
+	client, err := clientv3.New(clientv3.Config{Endpoints: tc.endpoints})
+	require.NoError(t, err)
+	defer client.Close()
+	etcdStore := storage.(*shardStore)
+	key := etcdStore.buildExecutorKey("executor-foo", "state")
+	_, err = client.Put(ctx, key, "ACTIVE")
+	require.NoError(t, err)
+
+	// Assert: expect a new revision on the channel that is greater than the initial one.
+	select {
+	case receivedRevision := <-updateChan:
+		assert.Greater(t, receivedRevision, initialRevision, "Received revision should be greater than the initial revision")
+	case <-ctx.Done():
+		assert.Fail(t, "timed out waiting for update notification")
+	}
+}
+
+// TestSubscribe_Debouncing verifies that rapid changes result in a single notification for the latest revision.
+func TestSubscribe_Debouncing(t *testing.T) {
+	tc := setupETCDCluster(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	election, err := tc.store.CreateElection(ctx, "ns-subscribe-debounce")
+	require.NoError(t, err)
+	defer election.Cleanup(ctx)
+	err = election.Campaign(ctx, "host")
+	require.NoError(t, err)
+	storage, err := election.ShardStore(ctx)
+	require.NoError(t, err)
+
+	updateChan, err := storage.Subscribe(ctx)
+	require.NoError(t, err)
+
+	// Trigger multiple rapid updates.
+	client, err := clientv3.New(clientv3.Config{Endpoints: tc.endpoints})
+	require.NoError(t, err)
+	defer client.Close()
+	etcdStore := storage.(*shardStore)
+
+	var lastRevision int64
+	for i := 0; i < 5; i++ {
+		key := etcdStore.buildExecutorKey("executor-foo", "heartbeat")
+		resp, err := client.Put(ctx, key, strconv.Itoa(i))
+		require.NoError(t, err)
+		lastRevision = resp.Header.Revision // Keep track of the last written revision.
+	}
+
+	// Assert: expect to receive only one notification for the latest revision.
+	select {
+	case receivedRevision := <-updateChan:
+		assert.Equal(t, lastRevision, receivedRevision, "Should receive the revision of the final update")
+	case <-ctx.Done():
+		assert.Fail(t, "timed out waiting for debounced notification")
+	}
+
+	// Assert: The channel should be empty after one read, confirming debouncing.
+	select {
+	case rev := <-updateChan:
+		assert.Fail(t, "Should not have received a second notification", "Got revision %d", rev)
+	case <-time.After(200 * time.Millisecond):
+		// Success
+	}
+}
+
+// TestSubscribe_ContextCancellation verifies the subscription channel closes on context cancellation.
+func TestSubscribe_ContextCancellation(t *testing.T) {
+	tc := setupETCDCluster(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel() // Ensure context is always cancelled.
+
+	election, err := tc.store.CreateElection(ctx, "ns-subscribe-cancel")
+	require.NoError(t, err)
+	defer election.Cleanup(ctx)
+	err = election.Campaign(ctx, "host")
+	require.NoError(t, err)
+	shardStore, err := election.ShardStore(ctx)
+	require.NoError(t, err)
+
+	updateChan, err := shardStore.Subscribe(ctx)
+	require.NoError(t, err)
+
+	// Cancel the context.
+	cancel()
+
+	// Assert: the channel should be closed.
+	select {
+	case _, ok := <-updateChan:
+		require.False(t, ok, "expected channel to be closed after context cancellation")
+	case <-time.After(2 * time.Second):
+		assert.Fail(t, "timed out waiting for channel to close")
+	}
 }

@@ -21,7 +21,7 @@ type shardStore struct {
 	leaderRev int64
 }
 
-func (s *shardStore) GetState(ctx context.Context) (map[string]store.HeartbeatState, map[string]store.AssignedState, error) {
+func (s *shardStore) GetState(ctx context.Context) (map[string]store.HeartbeatState, map[string]store.AssignedState, int64, error) {
 	client := s.session.Client()
 
 	heartbeatStates := make(map[string]store.HeartbeatState)
@@ -31,7 +31,7 @@ func (s *shardStore) GetState(ctx context.Context) (map[string]store.HeartbeatSt
 	executorPrefix := s.buildExecutorPrefix()
 	resp, err := client.Get(ctx, executorPrefix, clientv3.WithPrefix())
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get executor data from etcd: %w", err)
+		return nil, nil, 0, fmt.Errorf("failed to get executor data from etcd: %w", err)
 	}
 
 	// Process all keys and values
@@ -70,18 +70,18 @@ func (s *shardStore) GetState(ctx context.Context) (map[string]store.HeartbeatSt
 			heartbeat.State = store.ExecutorState(value)
 		case "reported_shards":
 			if err := json.Unmarshal(kv.Value, &assigned.ReportedShards); err != nil {
-				return nil, nil, fmt.Errorf("failed to unmarshal reported shards for executor %s: %w", executorID, err)
+				return nil, nil, 0, fmt.Errorf("failed to unmarshal reported shards for executor %s: %w", executorID, err)
 			}
 		case "assigned_shards":
 			if err := json.Unmarshal(kv.Value, &assigned.AssignedShards); err != nil {
-				return nil, nil, fmt.Errorf("failed to unmarshal assigned shards for executor %s: %w", executorID, err)
+				return nil, nil, 0, fmt.Errorf("failed to unmarshal assigned shards for executor %s: %w", executorID, err)
 			}
 		}
 		heartbeatStates[executorID] = heartbeat
 		assignedStates[executorID] = assigned
 	}
 
-	return heartbeatStates, assignedStates, nil
+	return heartbeatStates, assignedStates, resp.Header.Revision, nil
 }
 
 func (s *shardStore) AssignShards(ctx context.Context, newState map[string]store.AssignedState) error {
@@ -123,6 +123,47 @@ func (s *shardStore) AssignShards(ctx context.Context, newState map[string]store
 	}
 
 	return nil
+}
+
+// Subscribe creates a watch on the executor prefix and returns a channel that
+// receives the revision number of any change.
+func (s *shardStore) Subscribe(ctx context.Context) (<-chan int64, error) {
+	client := s.session.Client()
+	// Use a buffered channel of size 1. This allows us to debounce multiple
+	// rapid changes into a single notification for the latest revision.
+	revisionChan := make(chan int64, 1)
+
+	watchPrefix := s.buildExecutorPrefix()
+
+	go func() {
+		defer close(revisionChan)
+
+		// Create a watch channel. When the context is canceled, etcd will
+		// close this channel, and the for...range loop will terminate.
+		watchChan := client.Watch(ctx, watchPrefix, clientv3.WithPrefix())
+
+		for watchResp := range watchChan {
+			if err := watchResp.Err(); err != nil {
+				// An unrecoverable error occurred (e.g., watcher is cleared by the server).
+				// The consumer will see the channel close and should handle it.
+				return
+			}
+
+			// A change was detected. Send the revision of the change event.
+			// This is a non-blocking send. If the channel is already full,
+			// it means the consumer hasn't processed the last notification.
+			// We drain the old revision and send the new, higher one.
+			select {
+			case revisionChan <- watchResp.Header.Revision:
+			default:
+				// Channel was full. Drain the old value and send the new one.
+				<-revisionChan
+				revisionChan <- watchResp.Header.Revision
+			}
+		}
+	}()
+
+	return revisionChan, nil
 }
 
 // buildExecutorPrefix returns the etcd prefix for all executors in this namespace

@@ -268,8 +268,11 @@ func setupETCDCluster(t *testing.T) *testCluster {
 	store, err := NewStore(storeParams)
 	require.NoError(t, err)
 
+	ctx, cancel := context.WithCancel(context.Background())
+
 	return &testCluster{
-		ctx:         context.Background(), // TODO: In 1.24 it could be t.Context()
+		ctx:         ctx,
+		cancel:      cancel,
 		store:       store,
 		storeConfig: testConfig,
 		endpoints:   endpoints,
