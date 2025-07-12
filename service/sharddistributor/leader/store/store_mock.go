@@ -189,17 +189,33 @@ func (mr *MockShardStoreMockRecorder) AssignShards(ctx, newState any) *gomock.Ca
 }
 
 // GetState mocks base method.
-func (m *MockShardStore) GetState(ctx context.Context) (map[string]HeartbeatState, map[string]AssignedState, error) {
+func (m *MockShardStore) GetState(ctx context.Context) (map[string]HeartbeatState, map[string]AssignedState, int64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetState", ctx)
 	ret0, _ := ret[0].(map[string]HeartbeatState)
 	ret1, _ := ret[1].(map[string]AssignedState)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
+	ret2, _ := ret[2].(int64)
+	ret3, _ := ret[3].(error)
+	return ret0, ret1, ret2, ret3
 }
 
 // GetState indicates an expected call of GetState.
 func (mr *MockShardStoreMockRecorder) GetState(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetState", reflect.TypeOf((*MockShardStore)(nil).GetState), ctx)
+}
+
+// Subscribe mocks base method.
+func (m *MockShardStore) Subscribe(ctx context.Context) (<-chan int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Subscribe", ctx)
+	ret0, _ := ret[0].(<-chan int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Subscribe indicates an expected call of Subscribe.
+func (mr *MockShardStoreMockRecorder) Subscribe(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Subscribe", reflect.TypeOf((*MockShardStore)(nil).Subscribe), ctx)
 }
