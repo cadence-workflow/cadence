@@ -31,12 +31,12 @@ type Election interface {
 }
 
 type ShardStore interface {
+	// GetState returns the state of the namespace and a global revision for filtering events coming from the subscribe call.
 	GetState(ctx context.Context) (map[string]HeartbeatState, map[string]AssignedState, int64, error)
+	// AssignShards pushes new shard assignments to the storage. The state will be consumed by executors during the heartbeats.
 	AssignShards(ctx context.Context, newState map[string]AssignedState) error
 	// Subscribe returns a channel that signals when a state change occurs.
-	// The channel sends an empty struct for notification. The caller should then
-	// use GetState to fetch the latest data. The channel closes when the context
-	// is canceled or an unrecoverable error occurs.
+	// The channel sends a latest revision for notification.
 	Subscribe(ctx context.Context) (<-chan int64, error)
 }
 
