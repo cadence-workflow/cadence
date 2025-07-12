@@ -56,7 +56,7 @@ func TestCreateElection(t *testing.T) {
 	tc := setupETCDCluster(t)
 
 	timeout := 5 * time.Second
-	ctx, cancel := context.WithTimeout(tc.ctx, timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	namespace := "test-namespace"
@@ -65,7 +65,7 @@ func TestCreateElection(t *testing.T) {
 	require.NotNil(t, elect)
 
 	// Clean up
-	err = elect.Cleanup(tc.ctx)
+	err = elect.Cleanup(ctx)
 	require.NoError(t, err)
 }
 
@@ -230,8 +230,6 @@ func TestSessionDone(t *testing.T) {
 
 // testCluster represents a test etcd cluster with its resources
 type testCluster struct {
-	ctx         context.Context
-	cancel      context.CancelFunc
 	store       store.Elector
 	storeConfig etcdCfg
 	endpoints   []string
@@ -268,11 +266,7 @@ func setupETCDCluster(t *testing.T) *testCluster {
 	store, err := NewStore(storeParams)
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithCancel(context.Background())
-
 	return &testCluster{
-		ctx:         ctx,
-		cancel:      cancel,
 		store:       store,
 		storeConfig: testConfig,
 		endpoints:   endpoints,
