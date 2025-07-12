@@ -129,8 +129,7 @@ func (s *shardStore) AssignShards(ctx context.Context, newState map[string]store
 // receives the revision number of any change.
 func (s *shardStore) Subscribe(ctx context.Context) (<-chan int64, error) {
 	client := s.session.Client()
-	// Use a buffered channel of size 1. This allows us to debounce multiple
-	// rapid changes into a single notification for the latest revision.
+	// Use a buffered channel of size 1.
 	revisionChan := make(chan int64, 1)
 
 	watchPrefix := s.buildExecutorPrefix()
@@ -138,28 +137,23 @@ func (s *shardStore) Subscribe(ctx context.Context) (<-chan int64, error) {
 	go func() {
 		defer close(revisionChan)
 
-		// Create a watch channel. When the context is canceled, etcd will
-		// close this channel, and the for...range loop will terminate.
 		watchChan := client.Watch(ctx, watchPrefix, clientv3.WithPrefix())
 
 		for watchResp := range watchChan {
 			if err := watchResp.Err(); err != nil {
-				// An unrecoverable error occurred (e.g., watcher is cleared by the server).
-				// The consumer will see the channel close and should handle it.
 				return
 			}
 
-			// A change was detected. Send the revision of the change event.
-			// This is a non-blocking send. If the channel is already full,
-			// it means the consumer hasn't processed the last notification.
-			// We drain the old revision and send the new, higher one.
+			// 1. Non-blocking drain: If there's an old revision in the channel, discard it.
+			// This ensures we are always working with an empty buffer slot.
 			select {
-			case revisionChan <- watchResp.Header.Revision:
+			case <-revisionChan:
 			default:
-				// Channel was full. Drain the old value and send the new one.
-				<-revisionChan
-				revisionChan <- watchResp.Header.Revision
 			}
+
+			// 2. Non-blocking send: Send the latest revision. Because we just drained,
+			// this will always succeed without blocking.
+			revisionChan <- watchResp.Header.Revision
 		}
 	}()
 
