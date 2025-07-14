@@ -97,7 +97,6 @@ func (f *electionFactory) CreateElector(ctx context.Context, namespace string) (
 }
 
 // Run starts the leader election process it returns a channel that will return the value if the current instance becomes the leader or resigns from leadership.
-// OnLeader will be called once leadership is acquired. OnResign will be called once leadership is lost.
 func (e *elector) Run(ctx context.Context) <-chan bool {
 	leaderCh := make(chan bool, 1)
 

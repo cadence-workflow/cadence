@@ -39,8 +39,8 @@ func (s *shardStore) GetState(ctx context.Context) (map[string]store.HeartbeatSt
 		key := string(kv.Key)
 		value := string(kv.Value)
 
-		executorID, keyType := s.parseExecutorKey(key)
-		if executorID == "" {
+		executorID, keyType, keyErr := s.parseExecutorKey(key)
+		if keyErr != nil {
 			continue // Skip invalid keys
 		}
 
@@ -170,10 +170,10 @@ func (s *shardStore) buildExecutorPrefix() string {
 //
 //	/prefix/namespaces/my-ns/executors/executor-1/heartbeat -> ("executor-1", "heartbeat")
 //	/prefix/namespaces/my-ns/executors/executor-2/state -> ("executor-2", "state")
-func (s *shardStore) parseExecutorKey(key string) (executorID, keyType string) {
+func (s *shardStore) parseExecutorKey(key string) (executorID, keyType string, err error) {
 	prefix := s.buildExecutorPrefix()
 	if !strings.HasPrefix(key, prefix) {
-		return "", ""
+		return "", "", fmt.Errorf("unexpected key: %s", key)
 	}
 
 	// Remove prefix: {namespace-prefix}/executors/
@@ -182,10 +182,10 @@ func (s *shardStore) parseExecutorKey(key string) (executorID, keyType string) {
 	// Split by / to get [executorID, keyType]
 	parts := strings.Split(remainder, "/")
 	if len(parts) != 2 {
-		return "", ""
+		return "", "", fmt.Errorf("unexpected key: %s", key)
 	}
 
-	return parts[0], parts[1]
+	return parts[0], parts[1], nil
 }
 
 // buildExecutorKey constructs an etcd key for an executor
