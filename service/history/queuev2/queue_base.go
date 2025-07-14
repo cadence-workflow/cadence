@@ -204,7 +204,7 @@ func (q *queueBase) LockTaskProcessing() {}
 
 func (q *queueBase) UnlockTaskProcessing() {}
 
-func (q *queueBase) processNewTasks() {
+func (q *queueBase) processNewTasks() bool {
 	newExclusiveMaxTaskKey := q.shard.UpdateIfNeededAndGetQueueMaxReadLevel(q.category, q.shard.GetClusterMetadata().GetCurrentClusterName())
 	if q.category.Type() == persistence.HistoryTaskCategoryTypeImmediate {
 		newExclusiveMaxTaskKey = persistence.NewImmediateTaskKey(newExclusiveMaxTaskKey.GetTaskID() + 1)
@@ -212,13 +212,14 @@ func (q *queueBase) processNewTasks() {
 
 	newVirtualSliceState, remainingVirtualSliceState, ok := q.newVirtualSliceState.TrySplitByTaskKey(newExclusiveMaxTaskKey)
 	if !ok {
-		return
+		return false
 	}
 	q.newVirtualSliceState = remainingVirtualSliceState
 
 	newVirtualSlice := NewVirtualSlice(newVirtualSliceState, q.taskInitializer, q.queueReader, NewPendingTaskTracker())
 
 	q.virtualQueueManager.AddNewVirtualSliceToRootQueue(newVirtualSlice)
+	return true
 }
 
 func (q *queueBase) updateQueueState(ctx context.Context) {
