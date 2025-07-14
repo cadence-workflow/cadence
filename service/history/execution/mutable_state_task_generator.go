@@ -181,13 +181,10 @@ func (r *mutableStateTaskGeneratorImpl) GenerateWorkflowCloseTasks(
 	}
 
 	closeTimestamp := time.Unix(0, closeEvent.GetTimestamp())
-	// TODO: uncomment before merge
-	// retentionDuration := (time.Duration(retentionInDays) * time.Hour * 24)
-	// if workflowDeletionTaskJitterRange > 1 {
-	// 	retentionDuration += time.Duration(rand.Intn(workflowDeletionTaskJitterRange*60)) * time.Second
-	// }
-	retentionDuration := time.Minute * 10
-	r.logger.Debugf("Using retentionDuration: %v instead of retentionInDays:%v", retentionDuration, retentionInDays)
+	retentionDuration := (time.Duration(retentionInDays) * time.Hour * 24)
+	if workflowDeletionTaskJitterRange > 1 {
+		retentionDuration += time.Duration(rand.Intn(workflowDeletionTaskJitterRange*60)) * time.Second
+	}
 
 	r.logger.Debug("GenerateWorkflowCloseTasks",
 		tag.WorkflowID(executionInfo.WorkflowID),
