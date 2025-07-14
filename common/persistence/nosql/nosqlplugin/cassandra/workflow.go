@@ -774,7 +774,7 @@ func (db *cdb) SelectActiveClusterSelectionPolicy(ctx context.Context, shardID i
 }
 
 func (db *cdb) DeleteActiveClusterSelectionPolicy(ctx context.Context, shardID int, domainID, workflowID, runID string) error {
-	query := db.session.Query(templateDeleteWorkflowActiveClusterSelectionPolicyQuery,
+	query := db.session.Query(templateDeleteActiveClusterSelectionPolicyQuery,
 		shardID,
 		rowTypeWorkflowActiveClusterSelectionPolicy,
 		domainID,

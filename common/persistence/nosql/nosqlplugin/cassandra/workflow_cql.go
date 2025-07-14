@@ -593,14 +593,14 @@ const (
 		`and visibility_ts = ? ` +
 		`and task_id = ? `
 
-	templateDeleteWorkflowActiveClusterSelectionPolicyQuery = `DELETE FROM executions ` +
+	templateDeleteActiveClusterSelectionPolicyQuery = `DELETE FROM executions ` +
 		`WHERE shard_id = ? ` +
 		`and type = ? ` +
 		`and domain_id = ? ` +
 		`and workflow_id = ? ` +
 		`and run_id = ? ` +
 		`and visibility_ts = ? ` +
-		`and task_id = ? `
+		`and task_id = ?`
 
 	templateGetTransferTasksQuery = `SELECT task_id, transfer, data, data_encoding ` +
 		`FROM executions ` +
