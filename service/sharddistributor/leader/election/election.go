@@ -36,7 +36,7 @@ type Elector interface {
 
 // Factory creates elector instances
 type Factory interface {
-	CreateElector(ctx context.Context, namespace string) (Elector, error)
+	CreateElector(ctx context.Context, namespaceCfg config.Namespace) (Elector, error)
 }
 
 type electionFactory struct {
@@ -51,7 +51,7 @@ type electionFactory struct {
 
 type elector struct {
 	hostname       string
-	namespace      string
+	namespace      config.Namespace
 	store          store.Elector
 	logger         log.Logger
 	cfg            config.Election
@@ -84,11 +84,11 @@ func NewElectionFactory(p FactoryParams) Factory {
 }
 
 // CreateElector creates a new elector for the given namespace
-func (f *electionFactory) CreateElector(ctx context.Context, namespace string) (Elector, error) {
+func (f *electionFactory) CreateElector(ctx context.Context, namespaceCfg config.Namespace) (Elector, error) {
 	return &elector{
-		namespace:      namespace,
+		namespace:      namespaceCfg,
 		store:          f.store,
-		logger:         f.logger.WithTags(tag.ComponentLeaderElection, tag.ShardNamespace(namespace)),
+		logger:         f.logger.WithTags(tag.ComponentLeaderElection, tag.ShardNamespace(namespaceCfg.Name)),
 		cfg:            f.cfg,
 		clock:          f.clock,
 		hostname:       f.hostname,
@@ -155,14 +155,15 @@ func (e *elector) runElection(ctx context.Context, leaderCh chan<- bool) (err er
 		return fmt.Errorf("context cancelled during pre-campaign delay: %w", ctx.Err())
 	}
 
-	leaderProcess := e.processFactory.CreateProcessor(e.namespace)
-
-	election, err := e.store.CreateElection(ctx, e.namespace)
+	election, err := e.store.CreateElection(ctx, e.namespace.Name)
 	if err != nil {
 		return fmt.Errorf("create session: %w", err)
 	}
+
+	var leaderProcess process.Processor
+
 	defer func() {
-		resignErr := e.resign(election, leaderProcess.Terminate)
+		resignErr := e.resign(election, leaderProcess)
 		if resignErr != nil {
 			if err == nil {
 				err = resignErr
@@ -181,6 +182,13 @@ func (e *elector) runElection(ctx context.Context, leaderCh chan<- bool) (err er
 	if err := election.Campaign(ctx, e.hostname); err != nil {
 		return fmt.Errorf("failed to campaign: %w", err)
 	}
+
+	shardStore, err := election.ShardStore(ctx)
+	if err != nil {
+		return fmt.Errorf("shard store init: %w", err)
+	}
+
+	leaderProcess = e.processFactory.CreateProcessor(e.namespace, shardStore)
 
 	err = leaderProcess.Run(ctx)
 	if err != nil {
@@ -214,12 +222,16 @@ func (e *elector) runElection(ctx context.Context, leaderCh chan<- bool) (err er
 	}
 }
 
-func (e *elector) resign(election store.Election, onResign ProcessFunc) error {
+func (e *elector) resign(election store.Election, processor process.Processor) error {
 	ctx, cancel := e.clock.ContextWithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	// First try to call onResign
-	resignErr := onResign(ctx)
+	var resignErr error
+
+	if processor != nil {
+		// First try to call onResign
+		resignErr = processor.Terminate(ctx)
+	}
 
 	// Then try to resign leadership, regardless of whether onResign succeeded
 	resignElectionErr := election.Resign(ctx)

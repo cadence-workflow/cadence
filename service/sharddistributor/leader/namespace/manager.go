@@ -68,7 +68,7 @@ func (m *Manager) Start(ctx context.Context) error {
 	m.ctx, m.cancel = context.WithCancel(context.Background())
 
 	for _, ns := range m.cfg.Namespaces {
-		if err := m.handleNamespace(ns.Name); err != nil {
+		if err := m.handleNamespace(ns); err != nil {
 			return err
 		}
 	}
@@ -95,24 +95,24 @@ func (m *Manager) Stop(ctx context.Context) error {
 }
 
 // handleNamespace sets up leadership election for a namespace
-func (m *Manager) handleNamespace(namespace string) error {
-	if _, exists := m.namespaces[namespace]; exists {
-		return fmt.Errorf("namespace %s already running", namespace)
+func (m *Manager) handleNamespace(namespaceCfg config.Namespace) error {
+	if _, exists := m.namespaces[namespaceCfg.Name]; exists {
+		return fmt.Errorf("namespace %s already running", namespaceCfg.Name)
 	}
 
-	m.logger.Info("Setting up namespace handler", tag.ShardNamespace(namespace))
+	m.logger.Info("Setting up namespace handler", tag.ShardNamespace(namespaceCfg.Name))
 
 	ctx, cancel := context.WithCancel(m.ctx)
 
 	// Create elector for this namespace
-	elector, err := m.electionFactory.CreateElector(ctx, namespace)
+	elector, err := m.electionFactory.CreateElector(ctx, namespaceCfg)
 	if err != nil {
 		cancel()
 		return err
 	}
 
 	handler := &namespaceHandler{
-		logger:  m.logger.WithTags(tag.ShardNamespace(namespace)),
+		logger:  m.logger.WithTags(tag.ShardNamespace(namespaceCfg.Name)),
 		elector: elector,
 	}
 	// cancel cancels the context and ensures that electionRunner is stopped.
@@ -121,7 +121,7 @@ func (m *Manager) handleNamespace(namespace string) error {
 		handler.cleanupWg.Wait()
 	}
 
-	m.namespaces[namespace] = handler
+	m.namespaces[namespaceCfg.Name] = handler
 	handler.cleanupWg.Add(1)
 	// Start leadership election
 	go handler.runElection(ctx)

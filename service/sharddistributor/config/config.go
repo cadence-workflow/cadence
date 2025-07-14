@@ -62,8 +62,10 @@ type (
 
 	Namespace struct {
 		Name string `yaml:"name"`
-		Type string `yaml:"type"` // TODO: this should be and ENUM of fixed/ephemeral
+		Type string `yaml:"type"` // The field is a string since it is shared between global config and also monorepo configs.
 		Mode string `yaml:"mode"` // TODO: this should be an ENUM with possible modes: enabled, read_only, proxy, disabled
+		// ShardNum is defined for fixed namespace.
+		ShardNum int64 `yaml:"shardNum"`
 	}
 
 	Election struct {
@@ -75,6 +77,11 @@ type (
 	LeaderProcess struct {
 		Period time.Duration `yaml:"period"`
 	}
+)
+
+const (
+	NamespaceTypeFixed     = "fixed"
+	NamespaceTypeEphemeral = "ephemeral"
 )
 
 // NewConfig returns new service config with default values

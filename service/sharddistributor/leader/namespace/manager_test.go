@@ -122,7 +122,7 @@ func TestStartManagerWithElectorError(t *testing.T) {
 	}
 
 	expectedErr := errors.New("elector creation failed")
-	electionFactory.EXPECT().CreateElector(gomock.Any(), "test-namespace").Return(nil, expectedErr)
+	electionFactory.EXPECT().CreateElector(gomock.Any(), config.Namespace{Name: "test-namespace"}).Return(nil, expectedErr)
 
 	manager := &Manager{
 		cfg:             cfg,
@@ -202,7 +202,7 @@ func TestHandleNamespaceAlreadyExists(t *testing.T) {
 	}
 
 	// Test
-	err := manager.handleNamespace("test-namespace")
+	err := manager.handleNamespace(config.Namespace{Name: "test-namespace"})
 
 	// Assert
 	assert.ErrorContains(t, err, "namespace test-namespace already running")

@@ -641,6 +641,8 @@ type (
 		Name string `yaml:"name"`
 		Type string `yaml:"type"`
 		Mode string `yaml:"mode"`
+		// ShardNum is defined for fixed namespace.
+		ShardNum int64 `yaml:"shardNum"`
 	}
 
 	Election struct {

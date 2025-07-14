@@ -7,7 +7,7 @@ import (
 	"go.uber.org/fx"
 )
 
-//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination=store_mock.go Elector,Election
+//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination=store_mock.go Elector,Election,ShardStore
 
 // Elector is an interface that provides a way to establish a session for election.
 // It establishes connection and a session and provides Election to run for leader.
