@@ -66,6 +66,14 @@ func (c *ratelimitedExecutionManager) CreateWorkflowExecution(ctx context.Contex
 	return c.wrapped.CreateWorkflowExecution(ctx, request)
 }
 
+func (c *ratelimitedExecutionManager) DeleteActiveClusterSelectionPolicy(ctx context.Context, domainID string, workflowID string, runID string) (err error) {
+	if ok := c.rateLimiter.Allow(); !ok {
+		err = ErrPersistenceLimitExceeded
+		return
+	}
+	return c.wrapped.DeleteActiveClusterSelectionPolicy(ctx, domainID, workflowID, runID)
+}
+
 func (c *ratelimitedExecutionManager) DeleteCurrentWorkflowExecution(ctx context.Context, request *persistence.DeleteCurrentWorkflowExecutionRequest) (err error) {
 	if ok := c.rateLimiter.Allow(); !ok {
 		err = ErrPersistenceLimitExceeded

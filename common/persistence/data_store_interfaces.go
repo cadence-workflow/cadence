@@ -129,6 +129,7 @@ type (
 
 		// Active cluster selection policy related methods
 		GetActiveClusterSelectionPolicy(ctx context.Context, domainID, wfID, rID string) (*DataBlob, error)
+		DeleteActiveClusterSelectionPolicy(ctx context.Context, domainID, wfID, rID string) error
 	}
 
 	// HistoryStore is to manager workflow history events

@@ -772,3 +772,17 @@ func (db *cdb) SelectActiveClusterSelectionPolicy(ctx context.Context, shardID i
 		Policy:     persistence.NewDataBlob(result["data"].([]byte), constants.EncodingType(result["data_encoding"].(string))),
 	}, nil
 }
+
+func (db *cdb) DeleteActiveClusterSelectionPolicy(ctx context.Context, shardID int, domainID, workflowID, runID string) error {
+	query := db.session.Query(templateDeleteWorkflowActiveClusterSelectionPolicyQuery,
+		shardID,
+		rowTypeWorkflowActiveClusterSelectionPolicy,
+		domainID,
+		workflowID,
+		runID,
+		defaultVisibilityTimestamp,
+		rowTypeWorkflowActiveClusterSelectionVersion,
+	).WithContext(ctx)
+
+	return db.executeWithConsistencyAll(query)
+}
