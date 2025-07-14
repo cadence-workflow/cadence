@@ -1,5 +1,5 @@
 # Cadence
-[![Build Status](https://github.com/cadence-workflow/cadence/actions)](https://github.com/cadence-workflow/cadence/actions)
+[![Build Status](https://github.com/cadence-workflow/cadence/actions/workflows/ci-checks.yml/badge.svg)](https://github.com/cadence-workflow/cadence/actions/workflows/ci-checks.yml)
 [![Coverage](https://codecov.io/gh/cadence-workflow/cadence/graph/badge.svg?token=7SD244ImNF)](https://codecov.io/gh/cadence-workflow/cadence)
 [![Slack Status](https://img.shields.io/badge/slack-join_chat-white.svg?logo=slack&style=social)](http://t.uber.com/cadence-slack)
 [![Github release](https://img.shields.io/github/v/release/cadence-workflow/cadence.svg)](https://github.com/cadence-workflow/cadence/releases)
