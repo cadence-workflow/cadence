@@ -188,6 +188,20 @@ func (mr *MockShardStoreMockRecorder) AssignShards(ctx, newState any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AssignShards", reflect.TypeOf((*MockShardStore)(nil).AssignShards), ctx, newState)
 }
 
+// DeleteExecutor mocks base method.
+func (m *MockShardStore) DeleteExecutor(ctx context.Context, executorID string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteExecutor", ctx, executorID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteExecutor indicates an expected call of DeleteExecutor.
+func (mr *MockShardStoreMockRecorder) DeleteExecutor(ctx, executorID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteExecutor", reflect.TypeOf((*MockShardStore)(nil).DeleteExecutor), ctx, executorID)
+}
+
 // GetState mocks base method.
 func (m *MockShardStore) GetState(ctx context.Context) (map[string]HeartbeatState, map[string]AssignedState, int64, error) {
 	m.ctrl.T.Helper()

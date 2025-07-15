@@ -1164,6 +1164,14 @@ func ShardNamespace(name string) Tag {
 	return newStringTag("shard-namespace", name)
 }
 
+func ShardExecutor(ID string) Tag {
+	return newStringTag("shard-executor", ID)
+}
+
+func ShardExecutors(executorIDs []string) Tag {
+	return newStringsTag("shard-executors", executorIDs)
+}
+
 func ElectionDelay(t time.Duration) Tag {
 	return newDurationTag("election-delay", t)
 }

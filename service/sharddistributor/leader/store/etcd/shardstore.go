@@ -185,6 +185,21 @@ func (s *shardStore) Subscribe(ctx context.Context) (<-chan int64, error) {
 	return revisionChan, nil
 }
 
+// DeleteExecutor removes all keys associated with a specific executor.
+func (s *shardStore) DeleteExecutor(ctx context.Context, executorID string) error {
+	client := s.session.Client()
+
+	// The prefix for a single executor, e.g., /.../executors/executor-1/
+	executorPrefix := fmt.Sprintf("%s%s/", s.buildExecutorPrefix(), executorID)
+
+	// Delete all keys under this prefix.
+	_, err := client.Delete(ctx, executorPrefix, clientv3.WithPrefix())
+	if err != nil {
+		return fmt.Errorf("failed to delete executor %s from etcd: %w", executorID, err)
+	}
+	return nil
+}
+
 // buildExecutorPrefix returns the etcd prefix for all executors in this namespace
 func (s *shardStore) buildExecutorPrefix() string {
 	return fmt.Sprintf("%s/executors/", s.prefix)

@@ -118,36 +118,53 @@ func (p *namespaceProcessor) Terminate(ctx context.Context) error {
 	return nil
 }
 
-// runProcess executes the actual processing logic
+// runProcess launches and manages the independent processing loops.
 func (p *namespaceProcessor) runProcess(ctx context.Context) {
 	defer p.wg.Done()
 
-	// TODO: this should be dynamic config.
+	var loopWg sync.WaitGroup
+	loopWg.Add(2) // We have two loops to manage.
+
+	// Launch the rebalancing process in its own goroutine.
+	go func() {
+		defer loopWg.Done()
+		p.runRebalancingLoop(ctx)
+	}()
+
+	// Launch the heartbeat cleanup process in its own goroutine.
+	go func() {
+		defer loopWg.Done()
+		p.runCleanupLoop(ctx)
+	}()
+
+	// Wait for both loops to exit.
+	loopWg.Wait()
+}
+
+// runRebalancingLoop handles shard assignment and redistribution.
+func (p *namespaceProcessor) runRebalancingLoop(ctx context.Context) {
 	ticker := p.timeSource.NewTicker(p.cfg.Period)
 	defer ticker.Stop()
 
 	// Perform an initial rebalance on startup.
 	p.rebalanceShards(ctx)
 
-	// Subscribe to state changes from the store.
 	updateChan, err := p.shardStore.Subscribe(ctx)
 	if err != nil {
-		p.logger.Error("Failed to subscribe to state changes, stopping process.", tag.Error(err))
+		p.logger.Error("Failed to subscribe to state changes, stopping rebalancing loop.", tag.Error(err))
 		return
 	}
 
 	for {
 		select {
 		case <-ctx.Done():
-			p.logger.Info("Process cancelled")
+			p.logger.Info("Rebalancing loop cancelled.")
 			return
 		case latestRevision, ok := <-updateChan:
 			if !ok {
-				p.logger.Info("Update channel closed, stopping process.")
+				p.logger.Info("Update channel closed, stopping rebalancing loop.")
 				return
 			}
-			// If the incoming notification's revision is not newer than what we've
-			// already successfully processed, we can safely ignore this trigger.
 			if latestRevision <= p.lastAppliedRevision {
 				continue
 			}
@@ -156,6 +173,56 @@ func (p *namespaceProcessor) runProcess(ctx context.Context) {
 		case <-ticker.Chan():
 			p.logger.Info("Periodic reconciliation triggered, rebalancing.")
 			p.rebalanceShards(ctx)
+		}
+	}
+}
+
+// runCleanupLoop periodically removes stale executors.
+func (p *namespaceProcessor) runCleanupLoop(ctx context.Context) {
+	ticker := p.timeSource.NewTicker(p.cfg.HeartbeatTTL)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			p.logger.Info("Cleanup loop cancelled.")
+			return
+		case <-ticker.Chan():
+			p.logger.Info("Periodic heartbeat cleanup triggered.")
+			p.cleanupStaleExecutors(ctx)
+		}
+	}
+}
+
+// cleanupStaleExecutors removes executors who have not reported a heartbeat recently.
+func (p *namespaceProcessor) cleanupStaleExecutors(ctx context.Context) {
+	// 1. Get the current heartbeat states. We don't need assignments for this operation.
+	heartbeatStates, _, _, err := p.shardStore.GetState(ctx)
+	if err != nil {
+		p.logger.Error("Failed to get state for heartbeat cleanup", tag.Error(err))
+		return
+	}
+
+	// 2. Identify expired executors.
+	var expiredExecutors []string
+	now := p.timeSource.Now().Unix()
+	heartbeatTTL := int64(p.cfg.HeartbeatTTL.Seconds())
+
+	for executorID, state := range heartbeatStates {
+		if (now - state.LastHeartbeat) > heartbeatTTL {
+			expiredExecutors = append(expiredExecutors, executorID)
+		}
+	}
+
+	if len(expiredExecutors) == 0 {
+		return // Nothing to do.
+	}
+
+	p.logger.Info("Removing stale executor", tag.ShardExecutors(expiredExecutors))
+	// 3. Remove the stale executors from the store.
+	for _, executorID := range expiredExecutors {
+		if err := p.shardStore.DeleteExecutor(ctx, executorID); err != nil {
+			p.logger.Error("Failed to delete stale executor", tag.Error(err), tag.ShardExecutor(executorID))
 		}
 	}
 }
