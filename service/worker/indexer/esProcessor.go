@@ -155,8 +155,7 @@ func (p *ESProcessorImpl) bulkAfterAction(id int64, requests []bulk.GenericBulka
 							tag.ESResponseStatus(err.Status), tag.ESRequest(request.String()),
 							tag.WorkflowID(wid),
 							tag.WorkflowRunID(rid),
-							tag.WorkflowDomainID(domainID),
-							tag.Dynamic("conflict_count", counter))
+							tag.WorkflowDomainID(domainID))
 					}
 					p.ackKafkaMsg(key)
 					continue
