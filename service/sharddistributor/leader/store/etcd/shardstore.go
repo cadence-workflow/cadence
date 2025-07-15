@@ -144,16 +144,41 @@ func (s *shardStore) Subscribe(ctx context.Context) (<-chan int64, error) {
 				return
 			}
 
-			// 1. Non-blocking drain: If there's an old revision in the channel, discard it.
-			// This ensures we are always working with an empty buffer slot.
-			select {
-			case <-revisionChan:
-			default:
+			isSignificantChange := false
+			for _, event := range watchResp.Events {
+				// 1. A deletion is always a significant event (e.g., executor removed).
+				if !event.IsCreate() && !event.IsModify() {
+					isSignificantChange = true
+					break
+				}
+
+				// 2. Parse the key to determine what was changed.
+				_, keyType, err := s.parseExecutorKey(string(event.Kv.Key))
+				if err != nil {
+					// If the key can't be parsed, assume it's an unrelated key
+					// and skip it without causing a notification.
+					continue
+				}
+
+				// 3. A change to any key other than "heartbeat" or "assigned_shards" is significant.
+				if keyType != "heartbeat" && keyType != "assigned_shards" {
+					isSignificantChange = true
+					break // Found a significant change, no need to check other events.
+				}
 			}
 
-			// 2. Non-blocking send: Send the latest revision. Because we just drained,
-			// this will always succeed without blocking.
-			revisionChan <- watchResp.Header.Revision
+			if isSignificantChange {
+				// 1. Non-blocking drain: If there's an old revision in the channel, discard it.
+				// This ensures we are always working with an empty buffer slot.
+				select {
+				case <-revisionChan:
+				default:
+				}
+
+				// 2. Non-blocking send: Send the latest revision. Because we just drained,
+				// this will always succeed without blocking.
+				revisionChan <- watchResp.Header.Revision
+			}
 		}
 	}()
 

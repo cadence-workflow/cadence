@@ -116,9 +116,9 @@ func TestRebalance_ExecutorLeaves(t *testing.T) {
 
 	// Shard IDs are now 0-9.
 	assignments := map[string]store.AssignedState{
-		"executor-1": {AssignedShards: map[string]store.ShardAssignment{"0": {}, "1": {}, "2": {}}},
-		"executor-2": {AssignedShards: map[string]store.ShardAssignment{"3": {}, "4": {}, "5": {}}},
-		"executor-3": {AssignedShards: map[string]store.ShardAssignment{"6": {}, "7": {}, "8": {}, "9": {}}},
+		"executor-1": {AssignedShards: map[string]store.ShardAssignment{"1": {}, "2": {}, "3": {}}},
+		"executor-2": {AssignedShards: map[string]store.ShardAssignment{"4": {}, "5": {}, "6": {}}},
+		"executor-3": {AssignedShards: map[string]store.ShardAssignment{"7": {}, "8": {}, "9": {}, "10": {}}},
 	}
 
 	mockStore.EXPECT().GetState(gomock.Any()).Return(heartbeats, assignments, int64(100), nil)

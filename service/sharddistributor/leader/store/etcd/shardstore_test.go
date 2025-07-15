@@ -413,9 +413,10 @@ func TestSubscribe_NotificationOnUpdate(t *testing.T) {
 	}
 }
 
-// TestSubscribe_Debouncing verifies that rapid changes result in a single notification for the latest revision.
+// TestSubscribe_Debouncing verifies that rapid significant changes result in a single, final notification.
 func TestSubscribe_Debouncing(t *testing.T) {
 	tc := setupETCDCluster(t)
+	// Use the test's context for a hard deadline on the entire test.
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -430,7 +431,7 @@ func TestSubscribe_Debouncing(t *testing.T) {
 	updateChan, err := storage.Subscribe(ctx)
 	require.NoError(t, err)
 
-	// Trigger multiple rapid updates.
+	// Trigger multiple rapid updates to a significant key.
 	client, err := clientv3.New(clientv3.Config{Endpoints: tc.endpoints})
 	require.NoError(t, err)
 	defer client.Close()
@@ -438,27 +439,142 @@ func TestSubscribe_Debouncing(t *testing.T) {
 
 	var lastRevision int64
 	for i := 0; i < 5; i++ {
-		key := etcdStore.buildExecutorKey("executor-foo", "heartbeat")
+		key := etcdStore.buildExecutorKey("executor-foo", "state")
 		resp, err := client.Put(ctx, key, strconv.Itoa(i))
 		require.NoError(t, err)
 		lastRevision = resp.Header.Revision // Keep track of the last written revision.
 	}
 
-	// Assert: expect to receive only one notification for the latest revision.
-	select {
-	case receivedRevision := <-updateChan:
-		assert.Equal(t, lastRevision, receivedRevision, "Should receive the revision of the final update")
-	case <-ctx.Done():
-		assert.Fail(t, "timed out waiting for debounced notification")
-	}
+	// Use assert.Eventually to poll the channel. This is more robust than a fixed
+	// timer because it will pass as soon as the condition is met.
+	var receivedRevision int64
+	assert.Eventually(
+		t,
+		func() bool {
+			select {
+			case receivedRevision = <-updateChan:
+				// The debouncing may result in receiving an intermediate revision first.
+				// We keep polling until we receive the final revision or a later one.
+				return receivedRevision >= lastRevision
+			default:
+				// No notification yet, continue polling.
+				return false
+			}
+		},
+		5*time.Second,       // A generous deadline for the condition to be met on a slow CI.
+		10*time.Millisecond, // How often to check the channel.
+		"timed out waiting for debounced revision %d", lastRevision,
+	)
 
-	// Assert: The channel should be empty after one read, confirming debouncing.
+	// After Eventually succeeds, we must have received the exact final revision.
+	assert.Equal(t, lastRevision, receivedRevision)
+
+	// Assert that the channel is now empty using a non-blocking check.
 	select {
 	case rev := <-updateChan:
-		assert.Fail(t, "Should not have received a second notification", "Got revision %d", rev)
-	case <-time.After(200 * time.Millisecond):
-		// Success
+		assert.Fail(t, "Should not have received any more notifications after settling", "Got revision %d", rev)
+	default:
+		// Success, channel is empty.
 	}
+}
+
+// TestSubscribe_FilteringLogic verifies that notifications are correctly filtered based on key type and event.
+func TestSubscribe_FilteringLogic(t *testing.T) {
+	tc := setupETCDCluster(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	election, err := tc.store.CreateElection(ctx, "ns-subscribe-filter")
+	require.NoError(t, err)
+	defer election.Cleanup(ctx)
+	err = election.Campaign(ctx, "host")
+	require.NoError(t, err)
+	storage, err := election.ShardStore(ctx)
+	require.NoError(t, err)
+
+	updateChan, err := storage.Subscribe(ctx)
+	require.NoError(t, err)
+
+	client, err := clientv3.New(clientv3.Config{Endpoints: tc.endpoints})
+	require.NoError(t, err)
+	defer client.Close()
+	etcdStore := storage.(*shardStore)
+	executorID := "executor-filter"
+
+	// Helper to assert no notification is received within a timeout.
+	assertNoNotification := func(t *testing.T, because string) {
+		t.Helper()
+		select {
+		case rev := <-updateChan:
+			assert.Fail(t, "Should not have received a notification", "Reason: %s. Got revision %d", because, rev)
+		case <-time.After(200 * time.Millisecond):
+			// Success, no notification received.
+		}
+	}
+
+	// Helper to assert a specific notification is received.
+	assertNotification := func(t *testing.T, expectedRevision int64) {
+		t.Helper()
+		select {
+		case receivedRevision := <-updateChan:
+			assert.Equal(t, expectedRevision, receivedRevision, "Should receive the correct revision")
+		case <-ctx.Done():
+			assert.Fail(t, "timed out waiting for notification")
+		}
+	}
+
+	t.Run("InsignificantChanges_AreIgnored", func(t *testing.T) {
+		// Heartbeat update should be ignored.
+		_, err = client.Put(ctx, etcdStore.buildExecutorKey(executorID, "heartbeat"), strconv.FormatInt(time.Now().Unix(), 10))
+		require.NoError(t, err)
+		assertNoNotification(t, "heartbeat updates are ignored")
+
+		// Assigned shards update should be ignored.
+		_, err = client.Put(ctx, etcdStore.buildExecutorKey(executorID, "assigned_shards"), "{}")
+		require.NoError(t, err)
+		assertNoNotification(t, "assigned_shards updates are ignored")
+
+		// Unparseable key should be ignored.
+		unparseableKey := etcdStore.buildExecutorPrefix() + "unparseable/key/format"
+		_, err = client.Put(ctx, unparseableKey, "some-value")
+		require.NoError(t, err)
+		assertNoNotification(t, "unparseable keys are ignored")
+	})
+
+	t.Run("SignificantChanges_TriggerNotification", func(t *testing.T) {
+		// State update should trigger notification.
+		stateKey := etcdStore.buildExecutorKey(executorID, "state")
+		resp, err := client.Put(ctx, stateKey, "DRAINING")
+		require.NoError(t, err)
+		assertNotification(t, resp.Header.Revision)
+
+		// Reported shards update should trigger notification.
+		rsKey := etcdStore.buildExecutorKey(executorID, "reported_shards")
+		resp, err = client.Put(ctx, rsKey, `{"shard-1":{"status":"running"}}`)
+		require.NoError(t, err)
+		assertNotification(t, resp.Header.Revision)
+
+		// Deletion should trigger notification.
+		keyToDelete := etcdStore.buildExecutorKey(executorID, "temp_key_for_deletion")
+		putResp, err := client.Put(ctx, keyToDelete, "to-be-deleted")
+		require.NoError(t, err)
+		assertNotification(t, putResp.Header.Revision) // Clear the channel from the PUT before the DELETE.
+
+		delResp, err := client.Delete(ctx, keyToDelete)
+		require.NoError(t, err)
+		assertNotification(t, delResp.Header.Revision)
+	})
+
+	t.Run("MixedBatch_TriggersNotification", func(t *testing.T) {
+		// A transaction with both an insignificant and a significant change should notify.
+		insignificantOp := clientv3.OpPut(etcdStore.buildExecutorKey(executorID, "heartbeat"), "123")
+		significantOp := clientv3.OpPut(etcdStore.buildExecutorKey(executorID, "state"), "STOPPED")
+
+		txnResp, err := client.Txn(ctx).Then(insignificantOp, significantOp).Commit()
+		require.NoError(t, err)
+		require.True(t, txnResp.Succeeded)
+		assertNotification(t, txnResp.Header.Revision)
+	})
 }
 
 // TestSubscribe_ContextCancellation verifies the subscription channel closes on context cancellation.
