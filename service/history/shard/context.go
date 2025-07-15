@@ -1301,7 +1301,9 @@ func (s *contextImpl) allocateTimerIDsLocked(
 	cluster := s.GetClusterMetadata().GetCurrentClusterName()
 	for _, task := range timerTasks {
 		ts := task.GetVisibilityTimestamp().Truncate(persistence.DBTimestampMinPrecision)
-		if task.GetVersion() != constants.EmptyVersion {
+		// always use current cluster's max read level for queue v2, and this is safe for rollback,
+		// because if we go back to queue v1, the standby queue and active queue will start from the same ack level to read tasks
+		if task.GetVersion() != constants.EmptyVersion && !s.GetConfig().EnableTimerQueueV2(s.shardID) {
 			// cannot use version to determine the corresponding cluster for timer task
 			// this is because during failover, timer task should be created as active
 			// or otherwise, failover + active processing logic may not pick up the task.
@@ -1559,6 +1561,7 @@ func acquireShard(
 
 	// initialize the cluster current time to be the same as ack level
 	remoteClusterCurrentTime := make(map[string]time.Time)
+	// TODO: get this information from QueueState once TimerAckLevel field is deprecated
 	scheduledTaskMaxReadLevelMap := make(map[string]time.Time)
 	for clusterName := range shardItem.GetClusterMetadata().GetEnabledClusterInfo() {
 		if clusterName != shardItem.GetClusterMetadata().GetCurrentClusterName() {
