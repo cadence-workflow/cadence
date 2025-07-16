@@ -3589,6 +3589,9 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		ShardDistributorErrNamespaceNotFound:            {metricName: "shard_distributor_err_namespace_not_found", metricType: Counter},
 		ShardDistributorAssignLoopShardRebalanceLatency: {metricName: "shard_distrubutor_shard_assign_latency", metricType: Histogram},
 		ShardDistributorAssignLoopNumRebalancedShards:   {metricName: "shard_distributor_shard_assign_reassigned_shards", metricType: Gauge},
+		ShardDistributorAssignLoopAttempts:              {metricName: "shard_distrubutor_shard_assign_attempt", metricType: Counter},
+		ShardDistributorAssignLoopSuccess:               {metricName: "shard_distrubutor_shard_assign_success", metricType: Counter},
+		ShardDistributorAssignLoopFail:                  {metricName: "shard_distrubutor_shard_assign_fail", metricType: Counter},
 	},
 }
 
