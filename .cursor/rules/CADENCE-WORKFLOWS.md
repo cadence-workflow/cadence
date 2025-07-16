@@ -1,4 +1,4 @@
-When Implementing Cadence Workflows, follow these guidelines:
+When Implementing Cadence Workflows in Golang, follow these Guidelines:
 
 ## Avoid Iterating over Go's native map to prevent non-determinism during replays.
 
