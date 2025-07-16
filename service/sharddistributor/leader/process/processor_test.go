@@ -280,8 +280,6 @@ func TestCleanup_NoStaleExecutors(t *testing.T) {
 	}
 
 	mockStore.EXPECT().GetState(gomock.Any()).Return(heartbeats, nil, int64(201), nil)
-	// Expect that DeleteExecutors is never called.
-	mockStore.EXPECT().DeleteExecutors(gomock.Any(), gomock.Any()).Times(0)
 
 	// Act
 	processor.(*namespaceProcessor).cleanupStaleExecutors(context.Background())
