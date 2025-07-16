@@ -3,7 +3,7 @@ description:
 globs: 
 alwaysApply: false
 ---
-# Cadence Workflow Rules for Golang
+# Implement Cadence Workflow Rules for Golang
 
 Follow these rules to ensure deterministic, reliable, and maintainable Cadence workflows in Go.
 
