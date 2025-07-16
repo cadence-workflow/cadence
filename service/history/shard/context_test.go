@@ -1148,3 +1148,127 @@ func TestShardClosedGuard(t *testing.T) {
 		})
 	}
 }
+
+func (s *contextTestSuite) TestAllocateTimerIDsLocked() {
+	s.mockResource.TimeSource = clock.NewMockedTimeSourceAt(time.Now())
+	testTimeNow := s.mockResource.TimeSource.Now()
+	testVisibilityTime := testTimeNow.Add(-time.Hour).Truncate(persistence.DBTimestampMinPrecision)
+	testReadCursorTime := testTimeNow.Add(time.Minute).Truncate(persistence.DBTimestampMinPrecision)
+	testFutureTime := testTimeNow.Add(30 * time.Minute).Truncate(persistence.DBTimestampMinPrecision)
+
+	domainInfo := &persistence.DomainInfo{
+		ID:   testDomainID,
+		Name: testDomain,
+	}
+
+	tests := []struct {
+		name             string
+		setupContext     func(*contextImpl)
+		setupMocks       func()
+		domainEntry      *cache.DomainCacheEntry
+		workflowID       string
+		timerTasks       []persistence.Task
+		expectError      bool
+		expectedErrorMsg string
+		validateResults  func(*testing.T, *contextImpl, []persistence.Task)
+	}{
+		{
+			name: "Queue V2 enabled - simple case",
+			setupContext: func(ctx *contextImpl) {
+				ctx.config.EnableTimerQueueV2 = func(shardID int) bool { return true }
+				ctx.scheduledTaskMaxReadLevelMap[cluster.TestCurrentClusterName] = testReadCursorTime
+			},
+			domainEntry: cache.NewLocalDomainCacheEntryForTest(domainInfo, &persistence.DomainConfig{}, cluster.TestCurrentClusterName),
+			workflowID:  testWorkflowID,
+			timerTasks: []persistence.Task{
+				&persistence.UserTimerTask{
+					TaskData: persistence.TaskData{
+						VisibilityTimestamp: testFutureTime,
+					},
+				},
+			},
+			expectError: false,
+			validateResults: func(t *testing.T, ctx *contextImpl, tasks []persistence.Task) {
+				require.Len(t, tasks, 1)
+				// Task should keep its future timestamp
+				assert.Equal(t, testFutureTime, tasks[0].GetVisibilityTimestamp())
+			},
+		},
+		{
+			name: "Task timestamp before read cursor - should adjust timestamp",
+			setupContext: func(ctx *contextImpl) {
+				ctx.config.EnableTimerQueueV2 = func(shardID int) bool { return true }
+				ctx.scheduledTaskMaxReadLevelMap[cluster.TestCurrentClusterName] = testReadCursorTime
+				ctx.logger = testlogger.New(s.T())
+			},
+			domainEntry: cache.NewLocalDomainCacheEntryForTest(domainInfo, &persistence.DomainConfig{}, cluster.TestCurrentClusterName),
+			workflowID:  testWorkflowID,
+			timerTasks: []persistence.Task{
+				&persistence.UserTimerTask{
+					TaskData: persistence.TaskData{
+						VisibilityTimestamp: testVisibilityTime,
+					},
+				},
+			},
+			expectError: false,
+			validateResults: func(t *testing.T, ctx *contextImpl, tasks []persistence.Task) {
+				require.Len(t, tasks, 1)
+				// Timestamp should have been adjusted to read cursor + precision
+				expectedTime := testReadCursorTime.Add(persistence.DBTimestampMinPrecision)
+				assert.Equal(t, expectedTime, tasks[0].GetVisibilityTimestamp())
+			},
+		},
+		{
+			name: "Task timestamp before current time - should use current time as base",
+			setupContext: func(ctx *contextImpl) {
+				ctx.config.EnableTimerQueueV2 = func(shardID int) bool { return true }
+				// Set read cursor to past time
+				ctx.scheduledTaskMaxReadLevelMap[cluster.TestCurrentClusterName] = testTimeNow.Add(-2 * time.Hour)
+			},
+			domainEntry: cache.NewLocalDomainCacheEntryForTest(domainInfo, &persistence.DomainConfig{}, cluster.TestCurrentClusterName),
+			workflowID:  testWorkflowID,
+			timerTasks: []persistence.Task{
+				&persistence.UserTimerTask{
+					TaskData: persistence.TaskData{
+						VisibilityTimestamp: testVisibilityTime,
+					},
+				},
+			},
+			expectError: false,
+			validateResults: func(t *testing.T, ctx *contextImpl, tasks []persistence.Task) {
+				require.Len(t, tasks, 1)
+				// Should use current time as base for adjustment
+				expectedTime := testTimeNow.Truncate(persistence.DBTimestampMinPrecision).Add(persistence.DBTimestampMinPrecision)
+				assert.Equal(t, expectedTime, tasks[0].GetVisibilityTimestamp())
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		s.Run(tt.name, func() {
+			// Reset context to clean state
+			context := s.newContext()
+
+			// Apply test-specific setup
+			if tt.setupContext != nil {
+				tt.setupContext(context)
+			}
+
+			// Execute the method under test
+			err := context.allocateTimerIDsLocked(tt.domainEntry, tt.workflowID, tt.timerTasks)
+
+			// Validate results
+			if tt.expectError {
+				s.Error(err)
+				if tt.expectedErrorMsg != "" {
+					s.Contains(err.Error(), tt.expectedErrorMsg)
+				}
+			} else {
+				s.NoError(err)
+				if tt.validateResults != nil {
+					tt.validateResults(s.T(), context, tt.timerTasks)
+				}
+			}
+		})
+	}
+}
