@@ -1425,17 +1425,19 @@ func (s *contextTestSuite) TestAllocateTimerIDsLocked_WhenDomainIsActiveActiveUs
 }
 
 func (s *contextTestSuite) TestAllocateTimerIDsLocked_WhenTaskTimestampBeforeReadCursorAdjustsTimestamp() {
+	s.mockResource.TimeSource = clock.NewMockedTimeSourceAt(time.Now())
+	testTimeNow := s.mockResource.TimeSource.Now()
 	domainCacheEntry := s.setupAllocateTimerIDsTest()
 
 	// Set up scheduled task max read level map with read cursor ahead of task timestamp
 	// Use the actual current cluster name from cluster metadata
 	currentCluster := s.context.GetClusterMetadata().GetCurrentClusterName()
-	readCursor := time.Date(2025, 1, 1, 13, 0, 0, 0, time.UTC)
+	readCursor := testTimeNow.Add(time.Second)
 	s.context.scheduledTaskMaxReadLevelMap[currentCluster] = readCursor
 
 	task := s.createMockTimerTask(createMockTimerTaskParams{
 		Version:    constants.EmptyVersion,
-		Timestamp:  time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC), // before read cursor
+		Timestamp:  readCursor.Add(-time.Second), // before read cursor
 		DomainID:   testDomainID,
 		WorkflowID: testWorkflowID,
 		RunID:      "test-run-id",
@@ -1451,6 +1453,41 @@ func (s *contextTestSuite) TestAllocateTimerIDsLocked_WhenTaskTimestampBeforeRea
 
 	// Verify it's the expected adjusted time (readCursor + DBTimestampMinPrecision)
 	expectedTime := readCursor.Add(persistence.DBTimestampMinPrecision)
+	actualTime := task.GetVisibilityTimestamp()
+	s.Equal(expectedTime.Truncate(persistence.DBTimestampMinPrecision),
+		actualTime.Truncate(persistence.DBTimestampMinPrecision),
+		"Adjusted timestamp should match expected adjusted time")
+}
+
+func (s *contextTestSuite) TestAllocateTimerIDsLocked_WhenTaskTimestampBeforeNow() {
+	s.mockResource.TimeSource = clock.NewMockedTimeSourceAt(time.Now())
+	testTimeNow := s.mockResource.TimeSource.Now()
+	domainCacheEntry := s.setupAllocateTimerIDsTest()
+
+	// Set up scheduled task max read level map with read cursor ahead of task timestamp
+	// Use the actual current cluster name from cluster metadata
+	currentCluster := s.context.GetClusterMetadata().GetCurrentClusterName()
+	readCursor := testTimeNow.Add(-2 * time.Second) // read cursor is in the past
+	s.context.scheduledTaskMaxReadLevelMap[currentCluster] = readCursor
+
+	task := s.createMockTimerTask(createMockTimerTaskParams{
+		Version:    constants.EmptyVersion,
+		Timestamp:  readCursor.Add(-time.Second), // before now but after read cursor
+		DomainID:   testDomainID,
+		WorkflowID: testWorkflowID,
+		RunID:      "test-run-id",
+	})
+
+	err := s.context.allocateTimerIDsLocked(domainCacheEntry, testWorkflowID, []persistence.Task{task})
+
+	s.NoError(err)
+
+	// Verify timestamp was adjusted to be after read cursor
+	s.True(task.GetVisibilityTimestamp().After(readCursor),
+		"Task timestamp should be adjusted to be after read cursor")
+
+	// Verify it's the expected adjusted time (readCursor + DBTimestampMinPrecision)
+	expectedTime := testTimeNow.Add(persistence.DBTimestampMinPrecision)
 	actualTime := task.GetVisibilityTimestamp()
 	s.Equal(expectedTime.Truncate(persistence.DBTimestampMinPrecision),
 		actualTime.Truncate(persistence.DBTimestampMinPrecision),
