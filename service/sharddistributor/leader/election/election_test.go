@@ -116,13 +116,19 @@ func TestElector_Run_Resign(t *testing.T) {
 		p.election.EXPECT().Resign(gomock.Any()).Return(nil)
 		p.cancel()
 		assert.False(t, <-leaderChan)
+		// Wait for the goroutine to exit
+		for range leaderChan {
+		}
 	})
 	t.Run("session_expired", func(t *testing.T) {
 		leaderChan, p := prepareRun(t, nil, nil)
 		p.election.EXPECT().Resign(gomock.Any()).Return(nil)
-		defer p.cancel()
 		close(p.electionCh)
 		assert.False(t, <-leaderChan)
+		p.cancel()
+		// Wait for the goroutine to exit
+		for range leaderChan {
+		}
 	})
 	t.Run("leader_resign", func(t *testing.T) {
 		// Verify onResign is called before resignation
@@ -131,7 +137,7 @@ func TestElector_Run_Resign(t *testing.T) {
 			onResignCalled = true
 			return nil
 		})
-		defer p.cancel()
+
 		// We should be blocked on the timer.
 		p.timeSource.BlockUntil(1)
 
@@ -143,6 +149,10 @@ func TestElector_Run_Resign(t *testing.T) {
 		p.timeSource.Advance(_testLeaderPeriod + 1)
 		p.timeSource.BlockUntil(1)
 		assert.False(t, <-leaderChan)
+		p.cancel()
+		// Wait for the goroutine to exit
+		for range leaderChan {
+		}
 	})
 
 	t.Run("onResign_error", func(t *testing.T) {
@@ -155,7 +165,6 @@ func TestElector_Run_Resign(t *testing.T) {
 		}
 
 		leaderChan, p := prepareRun(t, nil, onResign)
-		defer p.cancel()
 		p.election.EXPECT().Resign(gomock.Any()).Return(nil)
 		// We should be blocked on the timer.
 		p.timeSource.BlockUntil(1)
@@ -167,8 +176,9 @@ func TestElector_Run_Resign(t *testing.T) {
 		assert.True(t, onResignCalled, "OnResign callback should have been called")
 
 		p.cancel()
-		// Wait briefly for goroutines to clean up
-		time.Sleep(10 * time.Millisecond)
+		// Wait for the goroutine to exit
+		for range leaderChan {
+		}
 	})
 	t.Run("OnResign_and_resign_error", func(t *testing.T) {
 		// Set onResign to return an error
@@ -180,7 +190,6 @@ func TestElector_Run_Resign(t *testing.T) {
 		}
 
 		leaderChan, p := prepareRun(t, nil, onResign)
-		defer p.cancel()
 		p.election.EXPECT().Resign(gomock.Any()).Return(fmt.Errorf("failed to resign"))
 		// We should be blocked on the timer.
 		p.timeSource.BlockUntil(1)
@@ -192,8 +201,9 @@ func TestElector_Run_Resign(t *testing.T) {
 		assert.True(t, onResignCalled, "OnResign callback should have been called")
 
 		p.cancel()
-		// Wait briefly for goroutines to clean up
-		time.Sleep(10 * time.Millisecond)
+		// Wait for the goroutine to exit
+		for range leaderChan {
+		}
 	})
 }
 
@@ -207,6 +217,7 @@ type runParams struct {
 	onResign   ProcessFunc
 }
 
+// prepareRun now accepts a logger instance
 func prepareRun(t *testing.T, onLeader, onResign ProcessFunc) (<-chan bool, runParams) {
 	ctrl := gomock.NewController(t)
 	logger := testlogger.New(t)
@@ -343,8 +354,6 @@ func TestOnLeader_Error(t *testing.T) {
 	assert.Contains(t, err.Error(), "onLeader")
 	assert.Contains(t, err.Error(), "leader error")
 
-	cancel()
-
-	// Wait briefly for goroutines to clean up
-	time.Sleep(10 * time.Millisecond)
+	// No need to explicitly cancel as the context has a timeout
+	// and we are not testing the main Run loop here, just runElection.
 }
