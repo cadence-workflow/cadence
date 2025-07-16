@@ -218,12 +218,10 @@ func (p *namespaceProcessor) cleanupStaleExecutors(ctx context.Context) {
 		return // Nothing to do.
 	}
 
-	p.logger.Info("Removing stale executor", tag.ShardExecutors(expiredExecutors))
-	// 3. Remove the stale executors from the store.
-	for _, executorID := range expiredExecutors {
-		if err := p.shardStore.DeleteExecutor(ctx, executorID); err != nil {
-			p.logger.Error("Failed to delete stale executor", tag.Error(err), tag.ShardExecutor(executorID))
-		}
+	// 3. Remove all stale executors from the store in a single transaction.
+	p.logger.Info("Removing stale executors", tag.ShardExecutors(expiredExecutors))
+	if err := p.shardStore.DeleteExecutors(ctx, expiredExecutors); err != nil {
+		p.logger.Error("Failed to delete stale executors", tag.Error(err))
 	}
 }
 

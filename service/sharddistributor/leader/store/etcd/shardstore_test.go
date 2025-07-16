@@ -606,15 +606,15 @@ func TestSubscribe_ContextCancellation(t *testing.T) {
 	}
 }
 
-// TestDeleteExecutor verifies that all data for a specific executor is removed.
-func TestDeleteExecutor(t *testing.T) {
+// TestDeleteExecutors verifies that all data for specific executors is removed in a batch.
+func TestDeleteExecutors(t *testing.T) {
 	// Arrange
 	tc := setupETCDCluster(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	// --- Become leader to get a valid shard store ---
-	namespace := "test-delete-executor"
+	namespace := "test-delete-executors"
 	election, err := tc.store.CreateElection(ctx, namespace)
 	require.NoError(t, err)
 	defer election.Cleanup(ctx)
@@ -624,7 +624,7 @@ func TestDeleteExecutor(t *testing.T) {
 	require.NoError(t, err)
 	etcdShardStore := storage.(*shardStore)
 
-	// --- Manually create state for two executors in etcd ---
+	// --- Manually create state for three executors in etcd ---
 	client, err := clientv3.New(clientv3.Config{
 		Endpoints:   tc.endpoints,
 		DialTimeout: 5 * time.Second,
@@ -632,39 +632,44 @@ func TestDeleteExecutor(t *testing.T) {
 	require.NoError(t, err)
 	defer client.Close()
 
-	executorToDelete := "executor-to-delete"
+	executorsToDelete := []string{"executor-to-delete-1", "executor-to-delete-2"}
 	executorToKeep := "executor-to-keep"
 
-	// Put data for the executor that will be deleted
-	_, err = client.Put(ctx, etcdShardStore.buildExecutorKey(executorToDelete, "heartbeat"), "123")
-	require.NoError(t, err)
-	_, err = client.Put(ctx, etcdShardStore.buildExecutorKey(executorToDelete, "state"), "ACTIVE")
-	require.NoError(t, err)
+	// Put data for the executors that will be deleted
+	for _, executorID := range executorsToDelete {
+		_, err = client.Put(ctx, etcdShardStore.buildExecutorKey(executorID, "heartbeat"), "123")
+		require.NoError(t, err)
+		_, err = client.Put(ctx, etcdShardStore.buildExecutorKey(executorID, "state"), "ACTIVE")
+		require.NoError(t, err)
+	}
 
 	// Put data for the executor that should remain
 	_, err = client.Put(ctx, etcdShardStore.buildExecutorKey(executorToKeep, "heartbeat"), "456")
 	require.NoError(t, err)
 
 	// Act
-	err = storage.DeleteExecutor(ctx, executorToDelete)
+	err = storage.DeleteExecutors(ctx, executorsToDelete)
 	require.NoError(t, err)
 
 	// Assert
-	// --- Verify that the target executor's data is gone ---
-	deletedPrefix := etcdShardStore.buildExecutorKey(executorToDelete, "") // Gets the prefix for the executor
-	getResp, err := client.Get(ctx, deletedPrefix, clientv3.WithPrefix())
-	require.NoError(t, err)
-	assert.Equal(t, int64(0), getResp.Count, "No keys should exist for the deleted executor")
+	// --- Verify that the target executors' data is gone ---
+	for _, executorID := range executorsToDelete {
+		deletedPrefix := etcdShardStore.buildExecutorKey(executorID, "") // Gets the prefix for the executor
+		getResp, err := client.Get(ctx, deletedPrefix, clientv3.WithPrefix())
+		require.NoError(t, err)
+		assert.Equal(t, int64(0), getResp.Count, "No keys should exist for deleted executor %s", executorID)
+	}
 
 	// --- Verify that the other executor's data remains ---
 	keptPrefix := etcdShardStore.buildExecutorKey(executorToKeep, "")
-	getResp, err = client.Get(ctx, keptPrefix, clientv3.WithPrefix())
+	getResp, err := client.Get(ctx, keptPrefix, clientv3.WithPrefix())
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), getResp.Count, "Data for the other executor should still exist")
 
 	// --- Verify GetState reflects the deletion ---
 	heartbeats, _, _, err := storage.GetState(ctx)
 	require.NoError(t, err)
-	assert.NotContains(t, heartbeats, executorToDelete, "GetState should not return the deleted executor")
+	assert.NotContains(t, heartbeats, executorsToDelete[0], "GetState should not return the first deleted executor")
+	assert.NotContains(t, heartbeats, executorsToDelete[1], "GetState should not return the second deleted executor")
 	assert.Contains(t, heartbeats, executorToKeep, "GetState should still return the executor that was kept")
 }

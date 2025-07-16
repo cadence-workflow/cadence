@@ -38,8 +38,8 @@ type ShardStore interface {
 	// Subscribe returns a channel that signals when a state change occurs.
 	// The channel sends a latest revision for notification.
 	Subscribe(ctx context.Context) (<-chan int64, error)
-	// DeleteExecutor removes all keys associated with a given executorID.
-	DeleteExecutor(ctx context.Context, executorID string) error
+	// DeleteExecutors removes all keys associated with a given executorIDs.
+	DeleteExecutors(ctx context.Context, executorID []string) error
 }
 
 // Impl could be used to build an implementation in the registry.

@@ -185,17 +185,35 @@ func (s *shardStore) Subscribe(ctx context.Context) (<-chan int64, error) {
 	return revisionChan, nil
 }
 
-// DeleteExecutor removes all keys associated with a specific executor.
-func (s *shardStore) DeleteExecutor(ctx context.Context, executorID string) error {
+// DeleteExecutors removes all keys associated with the given executorIDs in a single transaction.
+func (s *shardStore) DeleteExecutors(ctx context.Context, executorIDs []string) error {
+	if len(executorIDs) == 0 {
+		return nil
+	}
 	client := s.session.Client()
 
-	// The prefix for a single executor, e.g., /.../executors/executor-1/
-	executorPrefix := fmt.Sprintf("%s%s/", s.buildExecutorPrefix(), executorID)
+	ops := make([]clientv3.Op, 0, len(executorIDs))
+	for _, executorID := range executorIDs {
+		// The prefix for a single executor, e.g., /.../executors/executor-1/
+		executorPrefix := fmt.Sprintf("%s%s/", s.buildExecutorPrefix(), executorID)
+		ops = append(ops, clientv3.OpDelete(executorPrefix, clientv3.WithPrefix()))
+	}
 
-	// Delete all keys under this prefix.
-	_, err := client.Delete(ctx, executorPrefix, clientv3.WithPrefix())
-	if err != nil {
-		return fmt.Errorf("failed to delete executor %s from etcd: %w", executorID, err)
+	// Execute with leader key revision check to ensure we're still the leader
+	if len(ops) > 0 {
+		// Create transaction with condition that leader key revision hasn't changed
+		txn := client.Txn(ctx).
+			If(clientv3.Compare(clientv3.ModRevision(s.leaderKey), "=", s.leaderRev)).
+			Then(ops...)
+
+		txnResp, err := txn.Commit()
+		if err != nil {
+			return fmt.Errorf("failed to commit shard assignments: %w", err)
+		}
+
+		if !txnResp.Succeeded {
+			return fmt.Errorf("transaction failed: leadership may have changed (leader key revision mismatch)")
+		}
 	}
 	return nil
 }

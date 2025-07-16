@@ -188,18 +188,18 @@ func (mr *MockShardStoreMockRecorder) AssignShards(ctx, newState any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AssignShards", reflect.TypeOf((*MockShardStore)(nil).AssignShards), ctx, newState)
 }
 
-// DeleteExecutor mocks base method.
-func (m *MockShardStore) DeleteExecutor(ctx context.Context, executorID string) error {
+// DeleteExecutors mocks base method.
+func (m *MockShardStore) DeleteExecutors(ctx context.Context, executorID []string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteExecutor", ctx, executorID)
+	ret := m.ctrl.Call(m, "DeleteExecutors", ctx, executorID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// DeleteExecutor indicates an expected call of DeleteExecutor.
-func (mr *MockShardStoreMockRecorder) DeleteExecutor(ctx, executorID any) *gomock.Call {
+// DeleteExecutors indicates an expected call of DeleteExecutors.
+func (mr *MockShardStoreMockRecorder) DeleteExecutors(ctx, executorID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteExecutor", reflect.TypeOf((*MockShardStore)(nil).DeleteExecutor), ctx, executorID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteExecutors", reflect.TypeOf((*MockShardStore)(nil).DeleteExecutors), ctx, executorID)
 }
 
 // GetState mocks base method.

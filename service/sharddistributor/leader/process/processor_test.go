@@ -242,10 +242,13 @@ func TestCleanup_RemovesStaleExecutors(t *testing.T) {
 
 	mockStore.EXPECT().GetState(gomock.Any()).Return(heartbeats, nil, int64(200), nil)
 
-	// Expect DeleteExecutor to be called for the two stale executors.
-	mockStore.EXPECT().DeleteExecutor(gomock.Any(), "executor-stale").Return(nil).Times(1)
-	mockStore.EXPECT().DeleteExecutor(gomock.Any(), "executor-very-stale").Return(nil).Times(1)
-	// We do NOT expect a call for "executor-active".
+	// Expect DeleteExecutors to be called once with a slice of the two stale executors.
+	mockStore.EXPECT().DeleteExecutors(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, executorIDs []string) error {
+			assert.ElementsMatch(t, []string{"executor-stale", "executor-very-stale"}, executorIDs)
+			return nil
+		},
+	).Times(1)
 
 	// Act
 	// We call the internal cleanupStaleExecutors method directly for this unit test.
@@ -277,8 +280,8 @@ func TestCleanup_NoStaleExecutors(t *testing.T) {
 	}
 
 	mockStore.EXPECT().GetState(gomock.Any()).Return(heartbeats, nil, int64(201), nil)
-	// Expect that DeleteExecutor is never called.
-	mockStore.EXPECT().DeleteExecutor(gomock.Any(), gomock.Any()).Times(0)
+	// Expect that DeleteExecutors is never called.
+	mockStore.EXPECT().DeleteExecutors(gomock.Any(), gomock.Any()).Times(0)
 
 	// Act
 	processor.(*namespaceProcessor).cleanupStaleExecutors(context.Background())
