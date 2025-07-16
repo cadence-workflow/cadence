@@ -217,7 +217,6 @@ type runParams struct {
 	onResign   ProcessFunc
 }
 
-// prepareRun now accepts a logger instance
 func prepareRun(t *testing.T, onLeader, onResign ProcessFunc) (<-chan bool, runParams) {
 	ctrl := gomock.NewController(t)
 	logger := testlogger.New(t)
@@ -353,7 +352,4 @@ func TestOnLeader_Error(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "onLeader")
 	assert.Contains(t, err.Error(), "leader error")
-
-	// No need to explicitly cancel as the context has a timeout
-	// and we are not testing the main Run loop here, just runElection.
 }
