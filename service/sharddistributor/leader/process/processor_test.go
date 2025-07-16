@@ -12,6 +12,7 @@ import (
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log/testlogger"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/leader/store"
 )
@@ -31,12 +32,19 @@ var (
 	}
 )
 
+func TestNewProcessorFactory_DefaultConfiguration(t *testing.T) {
+	factory := NewProcessorFactory(testlogger.New(t), metrics.NewNoopMetricsClient(), clock.NewRealTimeSource(), config.LeaderElection{})
+	unwrappedFactory := factory.(*processorFactory)
+	assert.Equal(t, _defaultPeriod, unwrappedFactory.cfg.Period)
+	assert.Equal(t, _deatulHearbeatTTL, unwrappedFactory.cfg.HeartbeatTTL)
+}
+
 // TestLifecycle verifies the Run and Terminate methods.
 func TestLifecycle(t *testing.T) {
 	// Arrange
 	ctrl := gomock.NewController(t)
 	mockStore := store.NewMockShardStore(ctrl)
-	factory := NewProcessorFactory(testlogger.New(t), clock.NewRealTimeSource(), _testLeaderElectionCfg)
+	factory := NewProcessorFactory(testlogger.New(t), metrics.NewNoopMetricsClient(), clock.NewRealTimeSource(), _testLeaderElectionCfg)
 	processor := factory.CreateProcessor(_testNamespaceCfg, mockStore)
 
 	// Mock dependencies for the run loop.
@@ -62,7 +70,7 @@ func TestRebalance_InitialAssignment(t *testing.T) {
 	// Arrange
 	ctrl := gomock.NewController(t)
 	mockStore := store.NewMockShardStore(ctrl)
-	factory := NewProcessorFactory(testlogger.New(t), clock.NewRealTimeSource(), _testLeaderElectionCfg)
+	factory := NewProcessorFactory(testlogger.New(t), metrics.NewNoopMetricsClient(), clock.NewRealTimeSource(), _testLeaderElectionCfg)
 	processor := factory.CreateProcessor(_testNamespaceCfg, mockStore)
 
 	executors := []string{"executor-1", "executor-2"}
@@ -106,7 +114,7 @@ func TestRebalance_ExecutorLeaves(t *testing.T) {
 	// Arrange
 	ctrl := gomock.NewController(t)
 	mockStore := store.NewMockShardStore(ctrl)
-	factory := NewProcessorFactory(testlogger.New(t), clock.NewRealTimeSource(), _testLeaderElectionCfg)
+	factory := NewProcessorFactory(testlogger.New(t), metrics.NewNoopMetricsClient(), clock.NewRealTimeSource(), _testLeaderElectionCfg)
 	processor := factory.CreateProcessor(_testNamespaceCfg, mockStore)
 
 	heartbeats := map[string]store.HeartbeatState{
@@ -150,7 +158,7 @@ func TestRebalance_StaleRevision(t *testing.T) {
 	// Arrange
 	ctrl := gomock.NewController(t)
 	mockStore := store.NewMockShardStore(ctrl)
-	factory := NewProcessorFactory(testlogger.New(t), clock.NewRealTimeSource(), _testLeaderElectionCfg)
+	factory := NewProcessorFactory(testlogger.New(t), metrics.NewNoopMetricsClient(), clock.NewRealTimeSource(), _testLeaderElectionCfg)
 	processor := factory.CreateProcessor(_testNamespaceCfg, mockStore).(*namespaceProcessor)
 
 	// Set the processor's last applied revision to 100.
@@ -170,7 +178,7 @@ func TestRebalance_AssignShardsFailure(t *testing.T) {
 	// Arrange
 	ctrl := gomock.NewController(t)
 	mockStore := store.NewMockShardStore(ctrl)
-	factory := NewProcessorFactory(testlogger.New(t), clock.NewRealTimeSource(), _testLeaderElectionCfg)
+	factory := NewProcessorFactory(testlogger.New(t), metrics.NewNoopMetricsClient(), clock.NewRealTimeSource(), _testLeaderElectionCfg)
 	processor := factory.CreateProcessor(_testNamespaceCfg, mockStore).(*namespaceProcessor)
 
 	// Start with no revision applied.
@@ -196,7 +204,7 @@ func TestRebalance_NoActiveExecutors(t *testing.T) {
 	// Arrange
 	ctrl := gomock.NewController(t)
 	mockStore := store.NewMockShardStore(ctrl)
-	factory := NewProcessorFactory(testlogger.New(t), clock.NewRealTimeSource(), _testLeaderElectionCfg)
+	factory := NewProcessorFactory(testlogger.New(t), metrics.NewNoopMetricsClient(), clock.NewRealTimeSource(), _testLeaderElectionCfg)
 	processor := factory.CreateProcessor(_testNamespaceCfg, mockStore).(*namespaceProcessor)
 
 	// Mock GetState to return executors that are not active.
@@ -230,7 +238,7 @@ func TestCleanup_RemovesStaleExecutors(t *testing.T) {
 		},
 	}
 
-	factory := NewProcessorFactory(testlogger.New(t), mockClock, cfg)
+	factory := NewProcessorFactory(testlogger.New(t), metrics.NewNoopMetricsClient(), mockClock, cfg)
 	processor := factory.CreateProcessor(_testNamespaceCfg, mockStore)
 
 	// Setup state with one active, one stale, and one very stale executor.
@@ -270,7 +278,7 @@ func TestCleanup_NoStaleExecutors(t *testing.T) {
 		},
 	}
 
-	factory := NewProcessorFactory(testlogger.New(t), mockClock, cfg)
+	factory := NewProcessorFactory(testlogger.New(t), metrics.NewNoopMetricsClient(), mockClock, cfg)
 	processor := factory.CreateProcessor(_testNamespaceCfg, mockStore)
 
 	// Setup state where all executors have recent heartbeats.

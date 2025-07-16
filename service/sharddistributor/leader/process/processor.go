@@ -7,12 +7,14 @@ import (
 	"sort"
 	"strconv"
 	"sync"
+	"time"
 
 	"go.uber.org/fx"
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/leader/store"
 )
@@ -36,15 +38,22 @@ type Factory interface {
 	CreateProcessor(cfg config.Namespace, shardStore store.ShardStore) Processor
 }
 
+const (
+	_defaultPeriod     = time.Second
+	_deatulHearbeatTTL = 10 * time.Second
+)
+
 type processorFactory struct {
-	logger     log.Logger
-	timeSource clock.TimeSource
-	cfg        config.LeaderProcess
+	logger        log.Logger
+	timeSource    clock.TimeSource
+	cfg           config.LeaderProcess
+	metricsClient metrics.Client
 }
 
 type namespaceProcessor struct {
 	namespaceCfg        config.Namespace
 	logger              log.Logger
+	metricsClient       metrics.Client
 	timeSource          clock.TimeSource
 	running             bool
 	cancel              context.CancelFunc
@@ -57,24 +66,34 @@ type namespaceProcessor struct {
 // NewProcessorFactory creates a new processor factory
 func NewProcessorFactory(
 	logger log.Logger,
+	metricsClient metrics.Client,
 	timeSource clock.TimeSource,
 	cfg config.LeaderElection,
 ) Factory {
+	if cfg.Process.Period == 0 {
+		cfg.Process.Period = _defaultPeriod
+	}
+	if cfg.Process.HeartbeatTTL == 0 {
+		cfg.Process.HeartbeatTTL = _deatulHearbeatTTL
+	}
+
 	return &processorFactory{
-		logger:     logger,
-		timeSource: timeSource,
-		cfg:        cfg.Process,
+		logger:        logger,
+		timeSource:    timeSource,
+		cfg:           cfg.Process,
+		metricsClient: metricsClient,
 	}
 }
 
 // CreateProcessor creates a new processor for the given namespace
 func (f *processorFactory) CreateProcessor(cfg config.Namespace, shardStore store.ShardStore) Processor {
 	return &namespaceProcessor{
-		namespaceCfg: cfg,
-		logger:       f.logger.WithTags(tag.ComponentLeaderProcessor, tag.ShardNamespace(cfg.Name)),
-		timeSource:   f.timeSource,
-		cfg:          f.cfg,
-		shardStore:   shardStore,
+		namespaceCfg:  cfg,
+		logger:        f.logger.WithTags(tag.ComponentLeaderProcessor, tag.ShardNamespace(cfg.Name)),
+		timeSource:    f.timeSource,
+		cfg:           f.cfg,
+		shardStore:    shardStore,
+		metricsClient: f.metricsClient,
 	}
 }
 
@@ -147,7 +166,10 @@ func (p *namespaceProcessor) runRebalancingLoop(ctx context.Context) {
 	defer ticker.Stop()
 
 	// Perform an initial rebalance on startup.
-	p.rebalanceShards(ctx)
+	err := p.rebalanceShards(ctx)
+	if err != nil {
+		p.logger.Error("initial rebalance failed", tag.Error(err))
+	}
 
 	updateChan, err := p.shardStore.Subscribe(ctx)
 	if err != nil {
@@ -169,10 +191,13 @@ func (p *namespaceProcessor) runRebalancingLoop(ctx context.Context) {
 				continue
 			}
 			p.logger.Info("State change detected, triggering rebalance.")
-			p.rebalanceShards(ctx)
+			err = p.rebalanceShards(ctx)
 		case <-ticker.Chan():
 			p.logger.Info("Periodic reconciliation triggered, rebalancing.")
-			p.rebalanceShards(ctx)
+			err = p.rebalanceShards(ctx)
+		}
+		if err != nil {
+			p.logger.Error("rebalance failed", tag.Error(err))
 		}
 	}
 }
@@ -226,17 +251,31 @@ func (p *namespaceProcessor) cleanupStaleExecutors(ctx context.Context) {
 }
 
 // rebalanceShards is the core logic for distributing shards among active executors.
-func (p *namespaceProcessor) rebalanceShards(ctx context.Context) {
+func (p *namespaceProcessor) rebalanceShards(ctx context.Context) (err error) {
+	metricsLoopScope := p.metricsClient.Scope(metrics.ShardDistributorAssignLoopScope)
+	metricsLoopScope.AddCounter(metrics.ShardDistributorAssignLoopAttempts, 1)
+	defer func() {
+		if err != nil {
+			metricsLoopScope.AddCounter(metrics.ShardDistributorAssignLoopFail, 1)
+		} else {
+			metricsLoopScope.AddCounter(metrics.ShardDistributorAssignLoopSuccess, 1)
+		}
+	}()
+
+	start := p.timeSource.Now()
+	defer func() {
+		metricsLoopScope.RecordHistogramDuration(metrics.ShardDistributorAssignLoopShardRebalanceLatency, p.timeSource.Now().Sub(start))
+	}()
+
 	// 1. Get the current state from the store.
 	heartbeatStates, assignedStates, readRevision, err := p.shardStore.GetState(ctx)
 	if err != nil {
-		p.logger.Error("Failed to get latest state from store", tag.Error(err))
-		return
+		return fmt.Errorf("get state: %w", err)
 	}
 
 	// If the state we just read isn't newer than the one we last applied, stop.
 	if readRevision <= p.lastAppliedRevision {
-		return
+		return nil
 	}
 
 	// 2. Identify active executors.
@@ -249,7 +288,7 @@ func (p *namespaceProcessor) rebalanceShards(ctx context.Context) {
 
 	if len(activeExecutors) == 0 {
 		p.logger.Warn("No active executors found. Cannot assign shards.")
-		return
+		return nil
 	}
 
 	// ensure activeExecutor order is fixed.
@@ -291,6 +330,12 @@ func (p *namespaceProcessor) rebalanceShards(ctx context.Context) {
 		shardsToReassign[shardID] = struct{}{}
 	}
 
+	metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignLoopNumRebalancedShards, float64(len(shardsToReassign)))
+
+	if len(shardsToReassign) == 0 {
+		return nil
+	}
+
 	// 5. Rebalance: Distribute the shards needing reassignment.
 	// This is a simple round-robin distribution. More complex strategies could be used.
 	i := rand.Intn(len(activeExecutors)) // Randomize the starting executor index
@@ -318,12 +363,13 @@ func (p *namespaceProcessor) rebalanceShards(ctx context.Context) {
 	p.logger.Info("Applying new shard distribution.")
 	err = p.shardStore.AssignShards(ctx, newState)
 	if err != nil {
-		p.logger.Error("Failed to apply new shard assignments", tag.Error(err))
 		// Do not update the revision, so we can retry on the next trigger.
-		return
+		return fmt.Errorf("assign shards: %w", err)
 	}
 
 	p.lastAppliedRevision = readRevision
+
+	return nil
 }
 
 func getShards(cfg config.Namespace) []int64 {

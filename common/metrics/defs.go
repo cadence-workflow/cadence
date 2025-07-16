@@ -1434,6 +1434,7 @@ const (
 const (
 	// ShardDistributorGetShardOwnerScope tracks GetShardOwner API calls received by service
 	ShardDistributorGetShardOwnerScope = iota + NumCommonScopes
+	ShardDistributorAssignLoopScope
 
 	NumShardDistributorScopes
 )
@@ -2094,6 +2095,7 @@ var ScopeDefs = map[ServiceIdx]map[int]scopeDefinition{
 	},
 	ShardDistributor: {
 		ShardDistributorGetShardOwnerScope: {operation: "GetShardOwner"},
+		ShardDistributorAssignLoopScope:    {operation: "ShardAssignLoop"},
 	},
 }
 
@@ -2837,6 +2839,13 @@ const (
 	ShardDistributorLatency
 	ShardDistributorErrContextTimeoutCounter
 	ShardDistributorErrNamespaceNotFound
+
+	ShardDistributorAssignLoopNumRebalancedShards
+	ShardDistributorAssignLoopShardRebalanceLatency
+	ShardDistributorAssignLoopAttempts
+	ShardDistributorAssignLoopSuccess
+	ShardDistributorAssignLoopFail
+
 	NumShardDistributorMetrics
 )
 
@@ -3573,11 +3582,13 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		DiagnosticsWorkflowExecutionLatency:           {metricName: "diagnostics_workflow_execution_latency", metricType: Timer},
 	},
 	ShardDistributor: {
-		ShardDistributorRequests:                 {metricName: "shard_distributor_requests", metricType: Counter},
-		ShardDistributorErrContextTimeoutCounter: {metricName: "shard_distributor_err_context_timeout", metricType: Counter},
-		ShardDistributorFailures:                 {metricName: "shard_distributor_failures", metricType: Counter},
-		ShardDistributorLatency:                  {metricName: "shard_distributor_latency", metricType: Timer},
-		ShardDistributorErrNamespaceNotFound:     {metricName: "shard_distributor_err_namespace_not_found", metricType: Counter},
+		ShardDistributorRequests:                        {metricName: "shard_distributor_requests", metricType: Counter},
+		ShardDistributorErrContextTimeoutCounter:        {metricName: "shard_distributor_err_context_timeout", metricType: Counter},
+		ShardDistributorFailures:                        {metricName: "shard_distributor_failures", metricType: Counter},
+		ShardDistributorLatency:                         {metricName: "shard_distributor_latency", metricType: Timer},
+		ShardDistributorErrNamespaceNotFound:            {metricName: "shard_distributor_err_namespace_not_found", metricType: Counter},
+		ShardDistributorAssignLoopShardRebalanceLatency: {metricName: "shard_distrubutor_shard_assign_latency", metricType: Histogram},
+		ShardDistributorAssignLoopNumRebalancedShards:   {metricName: "shard_distributor_shard_assign_reassigned_shards", metricType: Gauge},
 	},
 }
 
