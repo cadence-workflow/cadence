@@ -29,6 +29,7 @@ jobs:
       - name: Upload test logs
         uses: actions/upload-artifact@v4
         with:
+          name: cluster-redirection-test.log
           path: ./test.log
 
   active-active:
@@ -56,4 +57,5 @@ jobs:
       - name: Upload test logs
         uses: actions/upload-artifact@v4
         with:
+          name: active-active-test.log
           path: ./test.log
