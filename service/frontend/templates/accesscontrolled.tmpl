@@ -48,7 +48,7 @@ import (
 
 {{$nonDomainAuthAPIs := list "RegisterDomain" "DescribeDomain" "UpdateDomain" "DeprecateDomain" "DeleteDomain" "ListDomains" "GetSearchAttributes" "GetClusterInfo" "RecordActivityTaskHeartbeat" "RespondActivityTaskCanceled" "RespondActivityTaskCompleted" "RespondActivityTaskFailed" "RespondDecisionTaskCompleted" "RespondDecisionTaskFailed" "RespondQueryTaskCompleted"}}
 {{$taskListAuthAPIs := list "PollForActivityTask" "PollForDecisionTask"}}
-{{$workflowTypeAuthAPIs := list "SignalWithStartWorkflowExecution" "StartWorkflowExecution" "TerminateWorkflowExecution" "DescribeWorkflowExecution" "GetWorkflowExecutionHistory" "QueryWorkflow" "RequestCancelWorkflowExecution" "ResetWorkflowExecution" "RestartWorkflowExecution" "SignalWithStartWorkflowExecutionAsync" "SignalWorkflowExecution" "StartWorkflowExecutionAsync"}}
+{{$workflowTypeAuthAPIs := list "SignalWithStartWorkflowExecution" "StartWorkflowExecution" "SignalWithStartWorkflowExecutionAsync" "StartWorkflowExecutionAsync"}}
 
 {{$interfaceName := .Interface.Name}}
 {{$interfaceType := .Interface.Type}}
