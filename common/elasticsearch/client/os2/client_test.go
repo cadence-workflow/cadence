@@ -164,33 +164,6 @@ func TestCreateIndex(t *testing.T) {
 	}
 }
 
-func TestOSError(t *testing.T) {
-	tests := []struct {
-		name          string
-		givenError    osError
-		expectedError string
-	}{
-		{
-			name: "document missing error",
-			givenError: osError{
-				Status: 404,
-				Details: &errorDetails{
-					Type:   "document_missing_exception",
-					Reason: "document missing [doc-id]",
-				},
-			},
-			expectedError: "Status code: 404, Type: document_missing_exception, Reason: document missing [doc-id]",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			actualError := tt.givenError.Error()
-			assert.Equal(t, tt.expectedError, actualError, "The formatted error message did not match the expected value")
-		})
-	}
-}
-
 func getSecureMockOS2Client(t *testing.T, handler http.HandlerFunc, secure bool) (*OS2, *httptest.Server) {
 	testServer := httptest.NewTLSServer(handler)
 	osConfig := osapi.Config{

@@ -52,11 +52,6 @@ type (
 		decoder *NumberDecoder
 	}
 
-	osError struct {
-		Status  int           `json:"status"`
-		Details *errorDetails `json:"error,omitempty"`
-	}
-
 	errorDetails struct {
 		Type   string `json:"type"`
 		Reason string `json:"reason"`
@@ -201,7 +196,6 @@ func NewClient(
 
 func (c *OS2) IsNotFoundError(err error) bool {
 
-	fmt.Printf("received error struct : %+v\n", err)
 	var clientErr *opensearch.StructError
 	if errors.As(err, &clientErr) {
 		return clientErr.Status == http.StatusNotFound
@@ -380,8 +374,4 @@ func (c *OS2) Search(ctx context.Context, index, body string) (*client.Response,
 		Aggregations: osResponse.Aggregations,
 		Sort:         sort,
 	}, nil
-}
-
-func (e *osError) Error() string {
-	return fmt.Sprintf("Status code: %d, Type: %s, Reason: %s", e.Status, e.Details.Type, e.Details.Reason)
 }
