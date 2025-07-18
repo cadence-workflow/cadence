@@ -307,11 +307,7 @@ func (t *transferActiveTaskExecutor) processDecisionTask(
 		err = t.pushDecision(ctx, task, taskList, decisionTimeout, mutableState.GetExecutionInfo().PartitionConfig)
 	}
 	if err == nil {
-		tlKind := types.TaskListKindNormal
-		if taskList.Kind != nil {
-			tlKind = *taskList.Kind
-		}
-		scope := common.NewPerTaskListScope(domainName, taskList.Name, tlKind, t.metricsClient, metrics.TransferActiveTaskDecisionScope)
+		scope := common.NewPerTaskListScope(domainName, taskList.Name, taskList.GetKind(), t.metricsClient, metrics.TransferActiveTaskDecisionScope)
 		scope.RecordTimer(metrics.ScheduleToStartHistoryQueueLatencyPerTaskList, time.Since(task.GetVisibilityTimestamp()))
 	}
 	return err

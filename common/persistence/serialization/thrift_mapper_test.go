@@ -281,6 +281,81 @@ func TestWorkflowExecutionInfo(t *testing.T) {
 	assert.Nil(t, workflowExecutionInfoToThrift(nil))
 }
 
+func TestWorkflowExecutionInfo_NoTaskListKind(t *testing.T) {
+	expected := &WorkflowExecutionInfo{
+		ParentDomainID:                     UUID(uuid.New()),
+		ParentWorkflowID:                   "ParentWorkflowID",
+		ParentRunID:                        UUID(uuid.New()),
+		InitiatedID:                        int64(rand.Intn(1000)),
+		CompletionEventBatchID:             common.Int64Ptr(int64(rand.Intn(1000))),
+		CompletionEvent:                    []byte("CompletionEvent"),
+		CompletionEventEncoding:            "CompletionEventEncoding",
+		TaskList:                           "TaskList",
+		TaskListKind:                       types.TaskListKindNormal,
+		WorkflowTypeName:                   "WorkflowTypeName",
+		WorkflowTimeout:                    time.Minute * time.Duration(rand.Intn(10)),
+		DecisionTaskTimeout:                time.Minute * time.Duration(rand.Intn(10)),
+		ExecutionContext:                   []byte("ExecutionContext"),
+		State:                              int32(rand.Intn(1000)),
+		CloseStatus:                        int32(rand.Intn(1000)),
+		StartVersion:                       int64(rand.Intn(1000)),
+		LastWriteEventID:                   common.Int64Ptr(int64(rand.Intn(1000))),
+		LastEventTaskID:                    int64(rand.Intn(1000)),
+		LastFirstEventID:                   int64(rand.Intn(1000)),
+		LastProcessedEvent:                 int64(rand.Intn(1000)),
+		StartTimestamp:                     time.UnixMilli(1752018142820),
+		LastUpdatedTimestamp:               time.UnixMilli(1752018142821),
+		DecisionVersion:                    int64(rand.Intn(1000)),
+		DecisionScheduleID:                 int64(rand.Intn(1000)),
+		DecisionStartedID:                  int64(rand.Intn(1000)),
+		DecisionTimeout:                    time.Minute * time.Duration(rand.Intn(10)),
+		DecisionAttempt:                    int64(rand.Intn(1000)),
+		DecisionStartedTimestamp:           time.UnixMilli(1752018142822),
+		DecisionScheduledTimestamp:         time.UnixMilli(1752018142823),
+		CancelRequested:                    true,
+		DecisionOriginalScheduledTimestamp: time.UnixMilli(1752018142824),
+		CreateRequestID:                    "CreateRequestID",
+		DecisionRequestID:                  "DecisionRequestID",
+		CancelRequestID:                    "CancelRequestID",
+		StickyTaskList:                     "StickyTaskList",
+		StickyScheduleToStartTimeout:       time.Minute * time.Duration(rand.Intn(10)),
+		RetryAttempt:                       int64(rand.Intn(1000)),
+		RetryInitialInterval:               time.Minute * time.Duration(rand.Intn(10)),
+		RetryMaximumInterval:               time.Minute * time.Duration(rand.Intn(10)),
+		RetryMaximumAttempts:               int32(rand.Intn(1000)),
+		RetryExpiration:                    time.Minute * time.Duration(rand.Intn(10)),
+		RetryBackoffCoefficient:            rand.Float64() * 1000,
+		RetryExpirationTimestamp:           time.UnixMilli(1752018142825),
+		RetryNonRetryableErrors:            []string{"RetryNonRetryableErrors"},
+		HasRetryPolicy:                     true,
+		CronSchedule:                       "CronSchedule",
+		CronOverlapPolicy:                  types.CronOverlapPolicySkipped,
+		EventStoreVersion:                  int32(rand.Intn(1000)),
+		EventBranchToken:                   []byte("EventBranchToken"),
+		SignalCount:                        int64(rand.Intn(1000)),
+		HistorySize:                        int64(rand.Intn(1000)),
+		ClientLibraryVersion:               "ClientLibraryVersion",
+		ClientFeatureVersion:               "ClientFeatureVersion",
+		ClientImpl:                         "ClientImpl",
+		AutoResetPoints:                    []byte("AutoResetPoints"),
+		AutoResetPointsEncoding:            "AutoResetPointsEncoding",
+		SearchAttributes:                   map[string][]byte{"key_1": []byte("SearchAttributes")},
+		Memo:                               map[string][]byte{"key_1": []byte("Memo")},
+		VersionHistories:                   []byte("VersionHistories"),
+		VersionHistoriesEncoding:           "VersionHistoriesEncoding",
+		FirstExecutionRunID:                UUID(uuid.New()),
+		PartitionConfig:                    map[string]string{"zone": "dca1"},
+		Checksum:                           []byte("Checksum"),
+		ChecksumEncoding:                   "ChecksumEncoding",
+		IsCron:                             true,
+	}
+	thriftVersion := workflowExecutionInfoToThrift(expected)
+	// Nil should come back as NORMAL, the default value
+	thriftVersion.TaskListKind = nil
+	actual := workflowExecutionInfoFromThrift(thriftVersion)
+	assert.Equal(t, expected, actual)
+}
+
 func TestActivityInfo(t *testing.T) {
 	expected := &ActivityInfo{
 		Version:                  int64(rand.Intn(1000)),
