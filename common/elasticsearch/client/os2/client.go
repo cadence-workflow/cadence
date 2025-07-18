@@ -21,6 +21,7 @@
 package os2
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -32,29 +33,23 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/opensearch-project/opensearch-go/v2"
-	osapi "github.com/opensearch-project/opensearch-go/v2/opensearchapi"
-	"github.com/opensearch-project/opensearch-go/v2/opensearchtransport"
-	requestsigner "github.com/opensearch-project/opensearch-go/v2/signer/aws"
+	"github.com/opensearch-project/opensearch-go/v4"
+	osapi "github.com/opensearch-project/opensearch-go/v4/opensearchapi"
+	"github.com/opensearch-project/opensearch-go/v4/opensearchtransport"
+	requestsigner "github.com/opensearch-project/opensearch-go/v4/signer/aws"
 
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/elasticsearch/client"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
-	"github.com/uber/cadence/common/types"
 )
 
 type (
 	// OS2 implements Client
 	OS2 struct {
-		client  *opensearch.Client
+		client  *osapi.Client
 		logger  log.Logger
 		decoder *NumberDecoder
-	}
-
-	osError struct {
-		Status  int           `json:"status"`
-		Details *errorDetails `json:"error,omitempty"`
 	}
 
 	errorDetails struct {
@@ -87,7 +82,7 @@ type (
 	searchHit struct {
 		Index  string          `json:"_index,omitempty"`  // index name
 		ID     string          `json:"_id,omitempty"`     // external or internal
-		Sort   []interface{}   `json:"sort,omitempty"`    // sort information
+		Sort   []any           `json:"sort,omitempty"`    // sort information
 		Source json.RawMessage `json:"_source,omitempty"` // stored document source
 	}
 
@@ -125,24 +120,26 @@ func NewClient(
 	tlsClient *http.Client,
 ) (*OS2, error) {
 
-	osconfig := opensearch.Config{
-		Addresses:    []string{connectConfig.URL.String()},
-		MaxRetries:   5,
-		RetryBackoff: func(i int) time.Duration { return time.Duration(i) * 100 * time.Millisecond },
-		Logger:       &convertLogger{logger: logger},
+	osconfig := osapi.Config{
+		Client: opensearch.Config{
+			Addresses:    []string{connectConfig.URL.String()},
+			MaxRetries:   5,
+			RetryBackoff: func(i int) time.Duration { return time.Duration(i) * 100 * time.Millisecond },
+			Logger:       &convertLogger{logger: logger},
+		},
 	}
 
 	if len(connectConfig.CustomHeaders) > 0 {
-		osconfig.Header = http.Header{}
+		osconfig.Client.Header = http.Header{}
 
 		for key, value := range connectConfig.CustomHeaders {
-			osconfig.Header.Set(key, value)
+			osconfig.Client.Header.Set(key, value)
 		}
 	}
 
 	// DiscoverNodesOnStart is false by default. Turn it on only when disable sniff is set to False in ES config
 	if !connectConfig.DisableSniff {
-		osconfig.DiscoverNodesOnStart = true
+		osconfig.Client.DiscoverNodesOnStart = true
 	}
 
 	if connectConfig.AWSSigning.Enable {
@@ -163,22 +160,24 @@ func NewClient(
 			return nil, fmt.Errorf("creating aws signer: %w", err)
 		}
 
-		osconfig.Signer = signer
+		osconfig.Client.Signer = signer
 	}
 
 	if tlsClient != nil {
-		osconfig.Transport = tlsClient.Transport
+		osconfig.Client.Transport = tlsClient.Transport
 		logger.Info("Using TLS client")
 	}
 
-	osClient, err := opensearch.NewClient(osconfig)
+	osClient, err := osapi.NewClient(osconfig)
 
 	if err != nil {
 		return nil, fmt.Errorf("creating OpenSearch client: %w", err)
 	}
 
 	// initial health check
-	resp, err := osClient.Ping()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	resp, err := osClient.Ping(ctx, nil /*PingReq*/)
 
 	if err != nil {
 		return nil, fmt.Errorf("OpenSearch client unable to ping: %w", err)
@@ -196,133 +195,117 @@ func NewClient(
 }
 
 func (c *OS2) IsNotFoundError(err error) bool {
-	var clientErr *osError
+
+	var clientErr *opensearch.StructError
 	if errors.As(err, &clientErr) {
 		return clientErr.Status == http.StatusNotFound
 	}
-
 	return false
 }
 
 func (c *OS2) PutMapping(ctx context.Context, index, body string) error {
 
-	req := osapi.IndicesPutMappingRequest{
-		Index: []string{index},
-		Body:  strings.NewReader(body),
+	req := osapi.MappingPutReq{
+		Indices: []string{index},
+		Body:    strings.NewReader(body),
 	}
 
-	resp, err := req.Do(ctx, c.client)
+	_, err := c.client.Indices.Mapping.Put(ctx, req)
 	if err != nil {
 		return fmt.Errorf("OpenSearch PutMapping: %w", err)
-	}
-
-	defer closeBody(resp)
-
-	if resp.IsError() {
-		return c.parseError(resp)
 	}
 
 	return nil
 }
 
 func (c *OS2) CreateIndex(ctx context.Context, index string) error {
-	req := osapi.IndicesCreateRequest{
+	req := osapi.IndicesCreateReq{
 		Index: index,
 	}
 
-	resp, err := req.Do(ctx, c.client)
+	_, err := c.client.Indices.Create(ctx, req)
 
 	if err != nil {
-		return fmt.Errorf("OpenSearch CreateIndex: %w", err)
+		return err
 	}
-
-	defer closeBody(resp)
-
-	if resp.IsError() {
-		return c.parseError(resp)
-	}
-
 	return nil
 }
 
 func (c *OS2) Count(ctx context.Context, index, query string) (int64, error) {
 
-	resp, err := c.client.Count(c.client.Count.WithIndex(index), c.client.Count.WithBody(strings.NewReader(query)))
-
+	req := &osapi.IndicesCountReq{
+		Indices: []string{index},
+		Body:    strings.NewReader(query),
+	}
+	resp, err := c.client.Indices.Count(ctx, req)
 	if err != nil {
 		return 0, fmt.Errorf("OpenSearch Count: %w", err)
 	}
 
-	defer closeBody(resp)
-	if resp.IsError() {
-		return 0, c.parseError(resp)
-	}
-
-	type CountResponse struct {
-		Count int64 `json:"count"`
-	}
-
-	count := &CountResponse{}
-	if err := c.decoder.Decode(resp.Body, count); err != nil {
-		return 0, fmt.Errorf("decoding Opensearch Count result to int64: %w", err)
-	}
-
-	return count.Count, nil
+	return int64(resp.Count), nil
 }
 
 func (c *OS2) ClearScroll(ctx context.Context, scrollID string) error {
-	resp, err := c.client.ClearScroll(
-		c.client.ClearScroll.WithContext(ctx),
-		c.client.ClearScroll.WithScrollID(scrollID))
-
+	_, err := c.client.Scroll.Delete(ctx, osapi.ScrollDeleteReq{
+		ScrollIDs: []string{scrollID},
+	})
 	if err != nil {
 		return fmt.Errorf("OpenSearch ClearScroll: %w", err)
 	}
-
-	defer closeBody(resp)
-	if resp.IsError() {
-		return c.parseError(resp)
-	}
-
 	return nil
 }
 
 func (c *OS2) Scroll(ctx context.Context, index, body, scrollID string) (*client.Response, error) {
 
-	var resp *osapi.Response
-	var err error
+	var scrollResp *osapi.ScrollGetResp
+	var searchResp *osapi.SearchResp
+	var osResponse response
+	var respBody io.ReadCloser
+	var searchErr error
+	// handle scroll id get call
 	if len(scrollID) != 0 {
-		resp, err = c.client.Scroll(
-			c.client.Scroll.WithScrollID(scrollID),
-			c.client.Scroll.WithScroll(time.Minute),
-			c.client.Scroll.WithContext(ctx),
-		)
+		scrollResp, searchErr = c.client.Scroll.Get(ctx, osapi.ScrollGetReq{
+			ScrollID: scrollID,
+			Params: osapi.ScrollGetParams{
+				Scroll: time.Minute,
+				// do not set scroll ID here as it will be added to the params and scroll ID can be excessively long
+			},
+		})
+		if searchErr != nil {
+			return nil, fmt.Errorf("opensearch scroll search error: %w", searchErr)
+		}
+		if scrollResp.Inspect().Response == nil {
+			return nil, fmt.Errorf("OpenSearch scroll search response nil")
+		}
+		respBody = scrollResp.Inspect().Response.Body
+
 	} else {
 		// when scrollID is not passed, it is normal search request
-		resp, err = c.client.Search(
-			c.client.Search.WithIndex(index),
-			c.client.Search.WithBody(strings.NewReader(body)),
-			c.client.Search.WithScroll(time.Minute),
-			c.client.Search.WithContext(ctx),
-		)
+		searchResp, searchErr = c.client.Search(ctx, &osapi.SearchReq{
+			Indices: []string{index},
+			Body:    strings.NewReader(body),
+			Params: osapi.SearchParams{
+				Scroll: time.Minute,
+			},
+		})
+		if searchErr != nil {
+			return nil, fmt.Errorf("opensearch scroll search error: %w", searchErr)
+		}
+		if searchResp.Inspect().Response == nil {
+			return nil, fmt.Errorf("OpenSearch scroll search response nil")
+		}
+		respBody = searchResp.Inspect().Response.Body
 	}
 
+	bodyBytes, err := io.ReadAll(respBody)
 	if err != nil {
-		return nil, fmt.Errorf("OpenSearch Scroll: %w", err)
+		return nil, fmt.Errorf("failed to read scroll search response body: %w", err)
+	}
+	if err := c.decoder.Decode(bytes.NewReader(bodyBytes), &osResponse); err != nil && !errors.Is(err, io.EOF) {
+		return nil, fmt.Errorf("decoding OpenSearch scroll response to Response: %w", err)
 	}
 
-	defer closeBody(resp)
-
-	if resp.IsError() {
-		return nil, c.parseError(resp)
-	}
-
-	var osResponse response
 	var totalHits int64
-
-	if err := c.decoder.Decode(resp.Body, &osResponse); err != nil {
-		return nil, fmt.Errorf("decoding OpenSearch result to Response: %w", err)
-	}
 	var hits []*client.SearchHit
 	// no more hits
 	if osResponse.Hits == nil || len(osResponse.Hits.Hits) == 0 {
@@ -352,28 +335,26 @@ func (c *OS2) Scroll(ctx context.Context, index, body, scrollID string) (*client
 }
 
 func (c *OS2) Search(ctx context.Context, index, body string) (*client.Response, error) {
-	resp, err := c.client.Search(
-		c.client.Search.WithContext(ctx),
-		c.client.Search.WithIndex(index),
-		c.client.Search.WithBody(strings.NewReader(body)),
-	)
+
+	resp, err := c.client.Search(ctx, &osapi.SearchReq{
+		Indices: []string{index},
+		Body:    strings.NewReader(body),
+	})
 
 	if err != nil {
-		return nil, fmt.Errorf("OpenSearch Search: %w", err)
+		return nil, fmt.Errorf("OpenSearch Search error: %w", err)
 	}
-
-	defer closeBody(resp)
-	if resp.IsError() {
-		return nil, types.InternalServiceError{
-			Message: fmt.Sprintf("OpenSearch Search Error: %v", c.parseError(resp)),
-		}
+	if resp.Inspect().Response == nil {
+		return nil, fmt.Errorf("OpenSearch search response nil")
 	}
-
 	var osResponse response
-	if err := c.decoder.Decode(resp.Body, &osResponse); err != nil {
+	bodyBytes, err := io.ReadAll(resp.Inspect().Response.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read OpenSearch scroll search response body: %w", err)
+	}
+	if err := c.decoder.Decode(bytes.NewReader(bodyBytes), &osResponse); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("decoding Opensearch result to Response: %w", err)
 	}
-
 	var hits []*client.SearchHit
 	var sort []interface{}
 	var totalHits int64
@@ -393,23 +374,4 @@ func (c *OS2) Search(ctx context.Context, index, body string) (*client.Response,
 		Aggregations: osResponse.Aggregations,
 		Sort:         sort,
 	}, nil
-}
-
-func (e *osError) Error() string {
-	return fmt.Sprintf("Status code: %d, Type: %s, Reason: %s", e.Status, e.Details.Type, e.Details.Reason)
-}
-
-func (c *OS2) parseError(response *osapi.Response) error {
-	var e osError
-	if err := c.decoder.Decode(response.Body, &e); err != nil {
-		return err
-	}
-
-	return &e
-}
-
-func closeBody(response *osapi.Response) {
-	if response != nil && response.Body != nil {
-		response.Body.Close()
-	}
 }
