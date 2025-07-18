@@ -18,21 +18,18 @@ var _ sharddistributorexecutor.Client = (*sharddistributorexecutorClient)(nil)
 
 // sharddistributorexecutorClient implements the sharddistributorexecutor.Client interface instrumented with timeouts
 type sharddistributorexecutorClient struct {
-	client          sharddistributorexecutor.Client
-	longPollTimeout time.Duration
-	timeout         time.Duration
+	client  sharddistributorexecutor.Client
+	timeout time.Duration
 }
 
 // NewShardDistributorExecutorClient creates a new sharddistributorexecutorClient instance
 func NewShardDistributorExecutorClient(
 	client sharddistributorexecutor.Client,
-	longPollTimeout time.Duration,
 	timeout time.Duration,
 ) sharddistributorexecutor.Client {
 	return &sharddistributorexecutorClient{
-		client:          client,
-		longPollTimeout: longPollTimeout,
-		timeout:         timeout,
+		client:  client,
+		timeout: timeout,
 	}
 }
 
