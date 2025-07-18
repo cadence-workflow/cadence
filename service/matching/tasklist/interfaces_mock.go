@@ -419,20 +419,6 @@ func (mr *MockTaskMatcherMockRecorder) PollForQuery(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PollForQuery", reflect.TypeOf((*MockTaskMatcher)(nil).PollForQuery), ctx)
 }
 
-// Rate mocks base method.
-func (m *MockTaskMatcher) Rate() float64 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Rate")
-	ret0, _ := ret[0].(float64)
-	return ret0
-}
-
-// Rate indicates an expected call of Rate.
-func (mr *MockTaskMatcherMockRecorder) Rate() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Rate", reflect.TypeOf((*MockTaskMatcher)(nil).Rate))
-}
-
 // RefreshCancelContext mocks base method.
 func (m *MockTaskMatcher) RefreshCancelContext() {
 	m.ctrl.T.Helper()
@@ -443,18 +429,6 @@ func (m *MockTaskMatcher) RefreshCancelContext() {
 func (mr *MockTaskMatcherMockRecorder) RefreshCancelContext() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RefreshCancelContext", reflect.TypeOf((*MockTaskMatcher)(nil).RefreshCancelContext))
-}
-
-// UpdateRatelimit mocks base method.
-func (m *MockTaskMatcher) UpdateRatelimit(rps *float64) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "UpdateRatelimit", rps)
-}
-
-// UpdateRatelimit indicates an expected call of UpdateRatelimit.
-func (mr *MockTaskMatcherMockRecorder) UpdateRatelimit(rps any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateRatelimit", reflect.TypeOf((*MockTaskMatcher)(nil).UpdateRatelimit), rps)
 }
 
 // MockForwarder is a mock of Forwarder interface.

@@ -39,7 +39,6 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/uber/cadence/client/matching"
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/constants"
@@ -87,11 +86,11 @@ func (t *MatcherTestSuite) SetupTest() {
 	t.cfg = tlCfg
 	t.isolationGroups = []string{"dca1", "dca2"}
 	t.fwdr = newForwarder(&t.cfg.ForwarderConfig, t.taskList, types.TaskListKindNormal, t.client, metrics.NoopScope)
-	t.matcher = newTaskMatcher(tlCfg, t.fwdr, metrics.NoopScope, []string{"dca1", "dca2"}, log.NewNoop(), t.taskList, types.TaskListKindNormal, func(cfg *config.TaskListConfig) int { return tlCfg.NumReadPartitions() }).(*taskMatcherImpl)
+	t.matcher = newTaskMatcher(tlCfg, t.fwdr, metrics.NoopScope, []string{"dca1", "dca2"}, log.NewNoop(), t.taskList, types.TaskListKindNormal, clock.NewRatelimiter(rate.Limit(100), 100)).(*taskMatcherImpl)
 
 	rootTaskList := NewTestTaskListID(t.T(), t.taskList.GetDomainID(), t.taskList.Parent(20), persistence.TaskListTypeDecision)
 	rootTasklistCfg := newTaskListConfig(rootTaskList, cfg, testDomainName)
-	t.rootMatcher = newTaskMatcher(rootTasklistCfg, nil, metrics.NoopScope, []string{"dca1", "dca2"}, log.NewNoop(), t.taskList, types.TaskListKindNormal, func(cfg *config.TaskListConfig) int { return tlCfg.NumReadPartitions() }).(*taskMatcherImpl)
+	t.rootMatcher = newTaskMatcher(rootTasklistCfg, nil, metrics.NoopScope, []string{"dca1", "dca2"}, log.NewNoop(), t.taskList, types.TaskListKindNormal, clock.NewRatelimiter(rate.Limit(100), 100)).(*taskMatcherImpl)
 }
 
 func (t *MatcherTestSuite) TearDownTest() {
@@ -654,8 +653,7 @@ func (t *MatcherTestSuite) TestIsolationPollFailure() {
 }
 
 func (t *MatcherTestSuite) TestOffer_RateLimited() {
-	t.matcher.UpdateRatelimit(common.Float64Ptr(0))
-
+	t.matcher.limiter = clock.NewRatelimiter(0, 0)
 	task := newInternalTask(t.newTaskInfo(), nil, types.TaskSourceHistory, "", false, nil, "")
 
 	ctx := context.Background()
@@ -888,46 +886,6 @@ func (t *MatcherTestSuite) TestOfferQuery_ContextExpired() {
 
 	t.ErrorIs(err, context.Canceled)
 	t.Nil(retTask)
-}
-
-func (t *MatcherTestSuite) TestUpdateRatelimit_RateGreaterThanNumberOfPartitions() {
-	t.matcher.config.NumReadPartitions = func() int { return 10 }
-
-	t.matcher.UpdateRatelimit(common.Float64Ptr(100))
-
-	t.Equal(rate.Limit(10), t.matcher.limiter.Limit())
-}
-
-func (t *MatcherTestSuite) TestUpdateRatelimit_RateLessThanOrEqualToNumberOfPartitions() {
-	t.matcher.config.NumReadPartitions = func() int { return 9 }
-
-	t.matcher.UpdateRatelimit(common.Float64Ptr(5))
-
-	t.Equal(rate.Limit(5), t.matcher.limiter.Limit())
-}
-
-func (t *MatcherTestSuite) TestUpdateRatelimit_NilRps() {
-	rateLimit := t.matcher.limiter.Limit()
-
-	t.matcher.UpdateRatelimit(nil)
-
-	t.Equal(rateLimit, t.matcher.limiter.Limit())
-}
-
-func (t *MatcherTestSuite) TestRate() {
-	t.Equal(float64(t.matcher.limiter.Limit()), t.matcher.Rate())
-}
-
-func (t *MatcherTestSuite) TestMustOffer_RateLimited() {
-	t.matcher.UpdateRatelimit(common.Float64Ptr(0))
-
-	task := newInternalTask(t.newTaskInfo(), nil, types.TaskSourceHistory, "", false, nil, "")
-
-	ctx := context.Background()
-
-	err := t.matcher.MustOffer(ctx, task)
-
-	t.ErrorIs(err, ErrTasklistThrottled)
 }
 
 func (t *MatcherTestSuite) TestMustOffer_ContextExpiredFirstAttempt() {

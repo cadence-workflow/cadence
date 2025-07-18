@@ -106,6 +106,7 @@ type (
 		taskGC          *taskGC
 		taskAckManager  messaging.AckManager // tracks ackLevel for delivered messages
 		matcher         TaskMatcher          // for matching a task producer with a poller
+		limiter         *taskListLimiter
 		clusterMetadata cluster.Metadata
 		domainCache     cache.DomainCache
 		isolationState  isolationgroup.State
@@ -223,8 +224,8 @@ func NewManager(
 	if tlMgr.isFowardingAllowed(taskList, taskListKind) {
 		fwdr = newForwarder(&taskListConfig.ForwarderConfig, taskList, taskListKind, matchingClient, scope)
 	}
-	numReadPartitionsFn := func(cfg *config.TaskListConfig) int {
-		if cfg.EnableGetNumberOfPartitionsFromCache() {
+	numReadPartitionsFn := func() int {
+		if taskListConfig.EnableGetNumberOfPartitionsFromCache() {
 			partitionConfig := tlMgr.TaskListPartitionConfig()
 			r := 1
 			if partitionConfig != nil {
@@ -232,9 +233,10 @@ func NewManager(
 			}
 			return r
 		}
-		return cfg.NumReadPartitions()
+		return taskListConfig.NumReadPartitions()
 	}
-	tlMgr.matcher = newTaskMatcher(taskListConfig, fwdr, tlMgr.scope, isolationGroups, tlMgr.logger, taskList, taskListKind, numReadPartitionsFn).(*taskMatcherImpl)
+	tlMgr.limiter = newTaskListLimiter(timeSource, tlMgr.scope, taskListConfig, numReadPartitionsFn)
+	tlMgr.matcher = newTaskMatcher(taskListConfig, fwdr, tlMgr.scope, isolationGroups, tlMgr.logger, taskList, taskListKind, tlMgr.limiter).(*taskMatcherImpl)
 	tlMgr.taskWriter = newTaskWriter(tlMgr)
 	tlMgr.taskReader = newTaskReader(tlMgr, isolationGroups)
 	tlMgr.taskCompleter = newTaskCompleter(tlMgr, historyServiceOperationRetryPolicy)
@@ -673,6 +675,7 @@ func (c *taskListManagerImpl) getTask(ctx context.Context, maxDispatchPerSecond 
 	rps := c.config.TaskDispatchRPS
 	if maxDispatchPerSecond != nil {
 		rps = *maxDispatchPerSecond
+		c.limiter.ReportLimit(rps)
 	}
 	c.pollers.StartPoll(pollerID, cancel, &poller.Info{
 		Identity:       identity,
@@ -685,13 +688,6 @@ func (c *taskListManagerImpl) getTask(ctx context.Context, maxDispatchPerSecond 
 	if err != nil {
 		return nil, fmt.Errorf("unable to fetch domain from cache: %w", err)
 	}
-
-	// the desired global rate limit for the task list comes from the
-	// poller, which lives inside the client side worker. There is
-	// one rateLimiter for this entire task list and as we get polls,
-	// we update the ratelimiter rps if it has changed from the last
-	// value. Last poller wins if different pollers provide different values
-	c.matcher.UpdateRatelimit(maxDispatchPerSecond)
 
 	if !domainEntry.IsActiveIn(c.clusterMetadata.GetCurrentClusterName()) {
 		return c.matcher.PollForQuery(childCtx)
@@ -749,7 +745,7 @@ func (c *taskListManagerImpl) DescribeTaskList(includeTaskListStatus bool) *type
 		ReadLevel:        c.taskAckManager.GetReadLevel(),
 		AckLevel:         c.taskAckManager.GetAckLevel(),
 		BacklogCountHint: c.taskAckManager.GetBacklogCount(),
-		RatePerSecond:    c.matcher.Rate(),
+		RatePerSecond:    float64(c.limiter.Limit()),
 		TaskIDBlock: &types.TaskIDBlock{
 			StartID: idBlock.start,
 			EndID:   idBlock.end,
