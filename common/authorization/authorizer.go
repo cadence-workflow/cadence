@@ -50,6 +50,8 @@ const (
 	PermissionWrite
 	// PermissionAdmin means the user can read+write on the domain level APIs
 	PermissionAdmin
+	// PermissionProcess means the user can process via the task execution related APIs
+	PermissionProcess
 )
 
 type (
