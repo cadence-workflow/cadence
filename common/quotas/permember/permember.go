@@ -62,20 +62,37 @@ func NewPerMemberDynamicRateLimiterFactory(
 	}
 }
 
+func NewPerMemberBurstyDynamicRateLimiterFactory(
+	service string,
+	globalRPS dynamicproperties.IntPropertyFnWithDomainFilter,
+	instanceRPS dynamicproperties.IntPropertyFnWithDomainFilter,
+	resolver membership.Resolver,
+	burstMultiplier float64,
+) quotas.LimiterFactory {
+	return perMemberFactory{
+		service:     service,
+		globalRPS:   globalRPS,
+		instanceRPS: instanceRPS,
+		resolver:    resolver,
+		burstMultiplier: burstMultiplier,
+	}
+}
+
 type perMemberFactory struct {
 	service     string
 	globalRPS   dynamicproperties.IntPropertyFnWithDomainFilter
 	instanceRPS dynamicproperties.IntPropertyFnWithDomainFilter
 	resolver    membership.Resolver
+	burstMultiplier float64
 }
 
 func (f perMemberFactory) GetLimiter(domain string) quotas.Limiter {
-	return quotas.NewDynamicRateLimiter(func() float64 {
+	return quotas.NewBurstyDynamicRateLimiter(func() float64 {
 		return PerMember(
 			f.service,
 			float64(f.globalRPS(domain)),
 			float64(f.instanceRPS(domain)),
 			f.resolver,
 		)
-	})
+	}, f.burstMultiplier)
 }
