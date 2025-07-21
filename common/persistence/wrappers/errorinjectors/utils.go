@@ -252,8 +252,6 @@ func executionManagerTags(op string) *tag.Tag {
 		return &tag.StoreOperationCreateFailoverMarkerTasks
 	case "ExecutionManager.GetActiveClusterSelectionPolicy":
 		return &tag.StoreOperationGetActiveClusterSelectionPolicy
-	case "ExecutionManager.DeleteActiveClusterSelectionPolicy":
-		return &tag.StoreOperationDeleteActiveClusterSelectionPolicy
 	}
 	return nil
 }

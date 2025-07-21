@@ -75,20 +75,15 @@ func (e *historyEngineImpl) DescribeWorkflowExecution(
 				WorkflowID: executionInfo.WorkflowID,
 				RunID:      executionInfo.RunID,
 			},
-			TaskList: &types.TaskList{
-				Name: executionInfo.TaskList,
-				Kind: executionInfo.TaskListKind.Ptr(),
-			},
-			Type:              &types.WorkflowType{Name: executionInfo.WorkflowTypeName},
-			StartTime:         common.Int64Ptr(executionInfo.StartTimestamp.UnixNano()),
-			HistoryLength:     mutableState.GetNextEventID() - constants.FirstEventID,
-			AutoResetPoints:   executionInfo.AutoResetPoints,
-			Memo:              &types.Memo{Fields: executionInfo.CopyMemo()},
-			IsCron:            len(executionInfo.CronSchedule) > 0,
-			UpdateTime:        common.Int64Ptr(executionInfo.LastUpdatedTimestamp.UnixNano()),
-			SearchAttributes:  &types.SearchAttributes{IndexedFields: executionInfo.CopySearchAttributes()},
-			PartitionConfig:   executionInfo.CopyPartitionConfig(),
-			CronOverlapPolicy: &executionInfo.CronOverlapPolicy,
+			Type:             &types.WorkflowType{Name: executionInfo.WorkflowTypeName},
+			StartTime:        common.Int64Ptr(executionInfo.StartTimestamp.UnixNano()),
+			HistoryLength:    mutableState.GetNextEventID() - constants.FirstEventID,
+			AutoResetPoints:  executionInfo.AutoResetPoints,
+			Memo:             &types.Memo{Fields: executionInfo.CopyMemo()},
+			IsCron:           len(executionInfo.CronSchedule) > 0,
+			UpdateTime:       common.Int64Ptr(executionInfo.LastUpdatedTimestamp.UnixNano()),
+			SearchAttributes: &types.SearchAttributes{IndexedFields: executionInfo.CopySearchAttributes()},
+			PartitionConfig:  executionInfo.CopyPartitionConfig(),
 		},
 	}
 
@@ -156,9 +151,7 @@ func (e *historyEngineImpl) DescribeWorkflowExecution(
 			}
 			if ai.HasRetryPolicy {
 				p.Attempt = ai.Attempt
-				if !ai.ExpirationTime.IsZero() {
-					p.ExpirationTimestamp = common.Int64Ptr(ai.ExpirationTime.UnixNano())
-				}
+				p.ExpirationTimestamp = common.Int64Ptr(ai.ExpirationTime.UnixNano())
 				if ai.MaximumAttempts != 0 {
 					p.MaximumAttempts = ai.MaximumAttempts
 				}

@@ -5658,13 +5658,6 @@ func FromTaskList(t *types.TaskList) *shared.TaskList {
 	}
 }
 
-func MigrateTaskList(name string, t *shared.TaskList) *types.TaskList {
-	if t == nil && name != "" {
-		return &types.TaskList{Name: name, Kind: types.TaskListKindNormal.Ptr()}
-	}
-	return ToTaskList(t)
-}
-
 // ToTaskList converts thrift TaskList type to internal
 func ToTaskList(t *shared.TaskList) *types.TaskList {
 	if t == nil {
@@ -6541,10 +6534,6 @@ func FromWorkflowExecutionInfo(t *types.WorkflowExecutionInfo) *shared.WorkflowE
 	if t == nil {
 		return nil
 	}
-	tlName := ""
-	if t.TaskList != nil {
-		tlName = t.TaskList.Name
-	}
 	return &shared.WorkflowExecutionInfo{
 		Execution:                    FromWorkflowExecution(t.Execution),
 		Type:                         FromWorkflowType(t.Type),
@@ -6560,8 +6549,7 @@ func FromWorkflowExecutionInfo(t *types.WorkflowExecutionInfo) *shared.WorkflowE
 		Memo:                         FromMemo(t.Memo),
 		SearchAttributes:             FromSearchAttributes(t.SearchAttributes),
 		AutoResetPoints:              FromResetPoints(t.AutoResetPoints),
-		TaskList:                     &tlName,
-		TaskListInfo:                 FromTaskList(t.TaskList),
+		TaskList:                     &t.TaskList,
 		IsCron:                       &t.IsCron,
 		UpdateTime:                   t.UpdateTime,
 		PartitionConfig:              t.PartitionConfig,
@@ -6590,7 +6578,7 @@ func ToWorkflowExecutionInfo(t *shared.WorkflowExecutionInfo) *types.WorkflowExe
 		Memo:                         ToMemo(t.Memo),
 		SearchAttributes:             ToSearchAttributes(t.SearchAttributes),
 		AutoResetPoints:              ToResetPoints(t.AutoResetPoints),
-		TaskList:                     MigrateTaskList(t.GetTaskList(), t.TaskListInfo),
+		TaskList:                     t.GetTaskList(),
 		IsCron:                       t.GetIsCron(),
 		UpdateTime:                   t.UpdateTime,
 		PartitionConfig:              t.PartitionConfig,

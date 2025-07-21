@@ -57,7 +57,7 @@ type (
 			baseLastEventID int64,
 			baseLastEventVersion int64,
 			targetWorkflowIdentifier definition.WorkflowIdentifier,
-			targetBranchFn func() ([]byte, error),
+			targetBranchToken []byte,
 			requestID string,
 		) (MutableState, int64, error)
 	}
@@ -107,7 +107,7 @@ func (r *stateRebuilderImpl) Rebuild(
 	baseLastEventID int64,
 	baseLastEventVersion int64,
 	targetWorkflowIdentifier definition.WorkflowIdentifier,
-	targetBranchFn func() ([]byte, error),
+	targetBranchToken []byte,
 	requestID string,
 ) (MutableState, int64, error) {
 
@@ -152,6 +152,9 @@ func (r *stateRebuilderImpl) Rebuild(
 		}
 	}
 
+	if err := rebuiltMutableState.SetCurrentBranchToken(targetBranchToken); err != nil {
+		return nil, 0, err
+	}
 	rebuildVersionHistories := rebuiltMutableState.GetVersionHistories()
 	if rebuildVersionHistories != nil {
 		currentVersionHistory, err := rebuildVersionHistories.GetCurrentVersionHistory()
@@ -176,15 +179,6 @@ func (r *stateRebuilderImpl) Rebuild(
 				lastItem.Version,
 			)}
 		}
-	}
-
-	targetBranchToken, err := targetBranchFn()
-	if err != nil {
-		return nil, 0, err
-	}
-
-	if err := rebuiltMutableState.SetCurrentBranchToken(targetBranchToken); err != nil {
-		return nil, 0, err
 	}
 
 	// close rebuilt mutable state transaction clearing all generated tasks, workflow requests, etc.

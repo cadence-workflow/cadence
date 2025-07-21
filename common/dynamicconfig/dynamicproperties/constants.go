@@ -2412,12 +2412,6 @@ const (
 	// Default value: 0
 	// Allowed filters: N/A
 	FrontendShutdownDrainDuration
-	// FrontendWarmupDuration is the duration before a frontend host reports its status as healthy
-	// KeyName: frontend.warmupDuration
-	// Value type: Duration
-	// Default value: 30s
-	// Allowed filters: N/A
-	FrontendWarmupDuration
 	// FrontendFailoverCoolDown is duration between two domain failvoers
 	// KeyName: frontend.failoverCoolDown
 	// Value type: Duration
@@ -4883,11 +4877,6 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		KeyName:      "frontend.shutdownDrainDuration",
 		Description:  "FrontendShutdownDrainDuration is the duration of traffic drain during shutdown",
 		DefaultValue: 0,
-	},
-	FrontendWarmupDuration: {
-		KeyName:      "frontend.warmupDuration",
-		Description:  "FrontendWarmupDuration is the duration before a frontend host reports its status as healthy",
-		DefaultValue: 30 * time.Second,
 	},
 	FrontendFailoverCoolDown: {
 		KeyName:      "frontend.failoverCoolDown",

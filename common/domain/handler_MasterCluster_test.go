@@ -827,23 +827,12 @@ func (s *domainHandlerGlobalDomainEnabledPrimaryClusterSuite) TestUpdateGetDomai
 	s.Nil(err)
 
 	var failoverHistory []FailoverEvent
-	failoverHistory = append(failoverHistory, FailoverEvent{
-		EventTime:    s.handler.timeSource.Now(),
-		FromCluster:  prevActiveClusterName,
-		ToCluster:    nextActiveClusterName,
-		FailoverType: constants.FailoverType(constants.FailoverTypeForce).String(),
-	})
+	failoverHistory = append(failoverHistory, FailoverEvent{EventTime: s.handler.timeSource.Now(), FromCluster: prevActiveClusterName, ToCluster: nextActiveClusterName, FailoverType: constants.FailoverType(constants.FailoverTypeForce).String()})
 	failoverHistoryJSON, _ := json.Marshal(failoverHistory)
 	data[constants.DomainDataKeyForFailoverHistory] = string(failoverHistoryJSON)
 
-	fnTest := func(
-		info *types.DomainInfo,
-		config *types.DomainConfiguration,
-		replicationConfig *types.DomainReplicationConfiguration,
-		isGlobalDomain bool,
-		failoverVersion int64) {
-
-		s.T().Helper()
+	fnTest := func(info *types.DomainInfo, config *types.DomainConfiguration,
+		replicationConfig *types.DomainReplicationConfiguration, isGlobalDomain bool, failoverVersion int64) {
 		s.NotEmpty(info.GetUUID())
 		info.UUID = ""
 		s.Equal(&types.DomainInfo{

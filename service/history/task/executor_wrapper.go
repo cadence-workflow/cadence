@@ -29,6 +29,7 @@ import (
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/metrics"
 )
 
 type (
@@ -65,7 +66,7 @@ func (e *executorWrapper) Stop() {
 	e.standbyExecutor.Stop()
 }
 
-func (e *executorWrapper) Execute(task Task) (ExecuteResponse, error) {
+func (e *executorWrapper) Execute(task Task) (metrics.Scope, error) {
 	if e.isActiveTask(task) {
 		return e.activeExecutor.Execute(task)
 	}
@@ -105,8 +106,8 @@ func (e *executorWrapper) isActiveTask(
 		return true
 	}
 
-	if !entry.IsActiveIn(e.currentClusterName) {
-		e.logger.Debug("Process task as standby.", tag.WorkflowDomainID(domainID), tag.Value(task.GetInfo()), tag.ClusterName(e.currentClusterName))
+	if isActive, err := entry.IsActiveIn(e.currentClusterName); err != nil || !isActive {
+		e.logger.Debug("Process task as standby.", tag.WorkflowDomainID(domainID), tag.Error(err), tag.Value(task.GetInfo()), tag.ClusterName(e.currentClusterName))
 		return false
 	}
 

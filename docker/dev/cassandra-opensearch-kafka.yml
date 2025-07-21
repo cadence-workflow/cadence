@@ -1,3 +1,4 @@
+version: '3'
 services:
   cassandra:
     image: cassandra:4.1.1
@@ -11,7 +12,6 @@ services:
     environment:
       - discovery.type=single-node
       - OPENSEARCH_SECURITY_SSL_HTTP_ENABLED=false
-      - "DISABLE_SECURITY_PLUGIN=true"
       - cluster.name=opensearch-cluster
       - bootstrap.memory_lock=true
       - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
@@ -27,7 +27,7 @@ services:
     expose:
       - "5601" # Expose port 5601 for web access to OpenSearch Dashboards
     environment:
-      OPENSEARCH_HOSTS: '["http://opensearch:9200"]' # Define the OpenSearch nodes that OpenSearch Dashboards will query
+      OPENSEARCH_HOSTS: '["https://opensearch:9200"]' # Define the OpenSearch nodes that OpenSearch Dashboards will query
   kafka:
     image: docker.io/bitnami/kafka:3.7
     hostname: kafka
@@ -47,8 +47,3 @@ services:
       - "KAFKA_CFG_INTER_BROKER_LISTENER_NAME=PLAINTEXT"
       # Topic settings
       - "KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true"
-
-networks:
-  services-network:
-    name: services-network
-    driver: bridge

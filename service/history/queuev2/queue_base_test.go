@@ -164,6 +164,7 @@ func TestQueueBase_ProcessNewTasks(t *testing.T) {
 
 			// Verify
 			if !tt.expectError {
+				assert.NotNil(t, queueBase.lastPollTime)
 				assert.Equal(t, queueBase.newVirtualSliceState, tt.expectedNewVirtualSliceState)
 			}
 		})

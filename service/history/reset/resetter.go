@@ -320,6 +320,18 @@ func (r *workflowResetterImpl) replayResetWorkflow(
 	resetRequestID string,
 ) (execution.Workflow, error) {
 
+	resetBranchToken, err := r.forkAndGenerateBranchToken(
+		ctx,
+		domainID,
+		workflowID,
+		baseBranchToken,
+		baseRebuildLastEventID+1,
+		resetRunID,
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	resetContext := execution.NewContext(
 		domainID,
 		types.WorkflowExecution{
@@ -330,19 +342,6 @@ func (r *workflowResetterImpl) replayResetWorkflow(
 		r.shard.GetExecutionManager(),
 		r.logger,
 	)
-
-	resetBranchTokenFn := func() ([]byte, error) {
-		resetBranchToken, err := r.forkAndGenerateBranchToken(
-			ctx,
-			domainID,
-			workflowID,
-			baseBranchToken,
-			baseRebuildLastEventID+1,
-			resetRunID,
-		)
-		return resetBranchToken, err
-	}
-
 	resetMutableState, resetHistorySize, err := r.newStateRebuilder().Rebuild(
 		ctx,
 		r.shard.GetTimeSource().Now(),
@@ -359,7 +358,7 @@ func (r *workflowResetterImpl) replayResetWorkflow(
 			workflowID,
 			resetRunID,
 		),
-		resetBranchTokenFn,
+		resetBranchToken,
 		resetRequestID,
 	)
 	if err != nil {

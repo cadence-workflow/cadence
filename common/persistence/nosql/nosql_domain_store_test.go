@@ -83,20 +83,6 @@ func testFixtureDomainReplicationConfig() *persistence.InternalDomainReplication
 				ClusterName: "cluster-2",
 			},
 		},
-	}
-}
-
-func testFixtureDomainReplicationConfigActiveActive() *persistence.InternalDomainReplicationConfig {
-	return &persistence.InternalDomainReplicationConfig{
-		ActiveClusterName: "",
-		Clusters: []*persistence.ClusterReplicationConfig{
-			{
-				ClusterName: "cluster-1",
-			},
-			{
-				ClusterName: "cluster-2",
-			},
-		},
 		ActiveClustersConfig: &persistence.DataBlob{
 			Encoding: constants.EncodingTypeThriftRW,
 			Data:     []byte("active-clusters-config"),
@@ -353,37 +339,6 @@ func TestGetDomain(t *testing.T) {
 				Info:                        testFixtureDomainInfo(),
 				Config:                      testFixtureInternalDomainConfig(),
 				ReplicationConfig:           testFixtureDomainReplicationConfig(),
-				ConfigVersion:               1,
-				FailoverVersion:             2,
-				FailoverNotificationVersion: 3,
-				PreviousFailoverVersion:     4,
-				NotificationVersion:         5,
-				FailoverEndTime:             common.Ptr(time.Unix(2, 3)),
-				LastUpdatedTime:             time.Unix(1, 2),
-			},
-		},
-		{
-			name: "success by name - active-active domain",
-			setupMock: func(dbMock *nosqlplugin.MockDB) {
-				dbMock.EXPECT().SelectDomain(gomock.Any(), nil, common.Ptr("test-domain")).Return(&nosqlplugin.DomainRow{
-					Info:                        testFixtureDomainInfo(),
-					Config:                      testFixtureInternalDomainConfig(),
-					ReplicationConfig:           testFixtureDomainReplicationConfigActiveActive(),
-					ConfigVersion:               1,
-					FailoverVersion:             2,
-					FailoverNotificationVersion: 3,
-					PreviousFailoverVersion:     4,
-					NotificationVersion:         5,
-					FailoverEndTime:             common.Ptr(time.Unix(2, 3)),
-					LastUpdatedTime:             time.Unix(1, 2),
-				}, nil).Times(1)
-			},
-			request:     &persistence.GetDomainRequest{Name: "test-domain"},
-			expectError: false,
-			expected: &persistence.InternalGetDomainResponse{
-				Info:                        testFixtureDomainInfo(),
-				Config:                      testFixtureInternalDomainConfig(),
-				ReplicationConfig:           testFixtureDomainReplicationConfigActiveActive(),
 				ConfigVersion:               1,
 				FailoverVersion:             2,
 				FailoverNotificationVersion: 3,

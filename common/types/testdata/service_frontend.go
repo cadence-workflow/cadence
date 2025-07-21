@@ -337,7 +337,6 @@ var (
 		WorkflowIDReusePolicy:               &WorkflowIDReusePolicy,
 		RetryPolicy:                         &RetryPolicy,
 		CronSchedule:                        CronSchedule,
-		CronOverlapPolicy:                   &CronOverlapPolicy,
 		Memo:                                &Memo,
 		SearchAttributes:                    &SearchAttributes,
 		Header:                              &Header,

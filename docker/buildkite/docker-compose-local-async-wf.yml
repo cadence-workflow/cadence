@@ -1,0 +1,86 @@
+services:
+  cassandra:
+    image: cassandra:4.1.1
+    ports:
+      - "9042:9042"
+    networks:
+      services-network:
+        aliases:
+          - cassandra
+    environment:
+      - "MAX_HEAP_SIZE=256M"
+      - "HEAP_NEWSIZE=128M"
+    healthcheck:
+      test: ["CMD", "cqlsh", "-u cassandra", "-p cassandra" ,"-e describe keyspaces"]
+      interval: 15s
+      timeout: 30s
+      retries: 10
+
+  kafka:
+    image: docker.io/bitnami/kafka:3.7
+    hostname: kafka
+    container_name: kafka
+    ports:
+      - "9092:9092"
+    environment:
+      # KRaft settings
+      - "KAFKA_CFG_NODE_ID=0"
+      - "KAFKA_CFG_PROCESS_ROLES=controller,broker"
+      - "KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=0@kafka:9093"
+      # Listeners
+      - "KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093"
+      - "KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092"
+      - "KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+      - "KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER"
+      - "KAFKA_CFG_INTER_BROKER_LISTENER_NAME=PLAINTEXT"
+      # Topic settings
+      - "KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true"
+    networks:
+      services-network:
+        aliases:
+          - kafka
+
+  integration-test-async-wf:
+    build:
+      context: ../../
+      dockerfile: ./docker/buildkite/Dockerfile
+    command:
+      - /bin/sh
+      - -e
+      - -c
+      - >
+        go test -timeout 60s
+        -run ^TestAsyncWFIntegrationSuite$
+        -tags asyncwfintegration
+        -count 1
+        -v
+        github.com/uber/cadence/host
+        | tee test.log
+    ports:
+      - "7933:7933"
+      - "7934:7934"
+      - "7935:7935"
+      - "7939:7939"
+    environment:
+      - "ASYNC_WF_KAFKA_QUEUE_TOPIC=async-wf-topic1"
+      - "CASSANDRA=1"
+      - "CASSANDRA_SEEDS=cassandra"
+      - "ES_SEEDS=elasticsearch"
+      - "KAFKA_SEEDS=kafka"
+      - "KAFKA_PORT=9092"
+    depends_on:
+      cassandra:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    volumes:
+      - ../../:/cadence
+    networks:
+      services-network:
+        aliases:
+          - integration-test
+
+networks:
+  services-network:
+    name: services-network
+    driver: bridge

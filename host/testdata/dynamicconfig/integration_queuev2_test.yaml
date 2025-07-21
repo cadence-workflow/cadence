@@ -4,6 +4,3 @@ history.enableTimerQueueV2:
 history.enableTransferQueueV2:
 - value: true
   constraints: {}
-frontend.warmupDuration:
-- value: "1s"
-  constraints: {}

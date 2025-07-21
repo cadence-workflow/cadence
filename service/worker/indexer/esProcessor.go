@@ -24,7 +24,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"time"
 
 	"github.com/uber/cadence/.gen/go/indexer"
@@ -149,14 +148,11 @@ func (p *ESProcessorImpl) bulkAfterAction(id int64, requests []bulk.GenericBulka
 				// 409 means means the document's version does not match (or if the document has been updated or deleted by another process)
 				// this can happen during the data migration, the doc was deleted in the old index but not exists in the new index
 				if err.Status == 409 {
-					// Sample version conflict logs to reduce spam (log every 100th conflict)
-					if rand.Intn(100) == 0 {
-						p.logger.Info("Request encountered a version conflict. Acknowledging to prevent retry.",
-							tag.ESResponseStatus(err.Status), tag.ESRequest(request.String()),
-							tag.WorkflowID(wid),
-							tag.WorkflowRunID(rid),
-							tag.WorkflowDomainID(domainID))
-					}
+					p.logger.Info("Request encountered a version conflict. Acknowledging to prevent retry.",
+						tag.ESResponseStatus(err.Status), tag.ESRequest(request.String()),
+						tag.WorkflowID(wid),
+						tag.WorkflowRunID(rid),
+						tag.WorkflowDomainID(domainID))
 					p.ackKafkaMsg(key)
 					continue
 				} else if err.Status == 404 {

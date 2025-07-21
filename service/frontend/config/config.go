@@ -61,7 +61,6 @@ type Config struct {
 	EnableQueryAttributeValidation    dynamicproperties.BoolPropertyFn
 	DisallowQuery                     dynamicproperties.BoolPropertyFnWithDomainFilter
 	ShutdownDrainDuration             dynamicproperties.DurationPropertyFn
-	WarmupDuration                    dynamicproperties.DurationPropertyFn
 	Lockdown                          dynamicproperties.BoolPropertyFnWithDomainFilter
 
 	// global ratelimiter config, uses GlobalDomain*RPS for RPS configuration
@@ -167,7 +166,6 @@ func NewConfig(dc *dynamicconfig.Collection, numHistoryShards int, isAdvancedVis
 		BlobSizeLimitWarn:                           dc.GetIntPropertyFilteredByDomain(dynamicproperties.BlobSizeLimitWarn),
 		ThrottledLogRPS:                             dc.GetIntProperty(dynamicproperties.FrontendThrottledLogRPS),
 		ShutdownDrainDuration:                       dc.GetDurationProperty(dynamicproperties.FrontendShutdownDrainDuration),
-		WarmupDuration:                              dc.GetDurationProperty(dynamicproperties.FrontendWarmupDuration),
 		EnableDomainNotActiveAutoForwarding:         dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableDomainNotActiveAutoForwarding),
 		EnableGracefulFailover:                      dc.GetBoolProperty(dynamicproperties.EnableGracefulFailover),
 		DomainFailoverRefreshInterval:               dc.GetDurationProperty(dynamicproperties.DomainFailoverRefreshInterval),

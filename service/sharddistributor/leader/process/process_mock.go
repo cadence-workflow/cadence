@@ -14,9 +14,6 @@ import (
 	reflect "reflect"
 
 	gomock "go.uber.org/mock/gomock"
-
-	config "github.com/uber/cadence/service/sharddistributor/config"
-	store "github.com/uber/cadence/service/sharddistributor/leader/store"
 )
 
 // MockProcessor is a mock of Processor interface.
@@ -96,15 +93,15 @@ func (m *MockFactory) EXPECT() *MockFactoryMockRecorder {
 }
 
 // CreateProcessor mocks base method.
-func (m *MockFactory) CreateProcessor(cfg config.Namespace, shardStore store.ShardStore) Processor {
+func (m *MockFactory) CreateProcessor(namespace string) Processor {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateProcessor", cfg, shardStore)
+	ret := m.ctrl.Call(m, "CreateProcessor", namespace)
 	ret0, _ := ret[0].(Processor)
 	return ret0
 }
 
 // CreateProcessor indicates an expected call of CreateProcessor.
-func (mr *MockFactoryMockRecorder) CreateProcessor(cfg, shardStore any) *gomock.Call {
+func (mr *MockFactoryMockRecorder) CreateProcessor(namespace any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateProcessor", reflect.TypeOf((*MockFactory)(nil).CreateProcessor), cfg, shardStore)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateProcessor", reflect.TypeOf((*MockFactory)(nil).CreateProcessor), namespace)
 }

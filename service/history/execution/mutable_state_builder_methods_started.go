@@ -207,7 +207,6 @@ func (e *mutableStateBuilder) ReplicateWorkflowExecutionStartedEvent(
 		e.executionInfo.FirstExecutionRunID = execution.GetRunID()
 	}
 	e.executionInfo.TaskList = event.TaskList.GetName()
-	e.executionInfo.TaskListKind = event.TaskList.GetKind()
 	e.executionInfo.WorkflowTypeName = event.WorkflowType.GetName()
 	e.executionInfo.WorkflowTimeout = event.GetExecutionStartToCloseTimeoutSeconds()
 	e.executionInfo.DecisionStartToCloseTimeout = event.GetTaskStartToCloseTimeoutSeconds()
@@ -229,9 +228,6 @@ func (e *mutableStateBuilder) ReplicateWorkflowExecutionStartedEvent(
 	e.executionInfo.DecisionTimeout = 0
 
 	e.executionInfo.CronSchedule = event.GetCronSchedule()
-	if event.CronOverlapPolicy != nil {
-		e.executionInfo.CronOverlapPolicy = *event.CronOverlapPolicy
-	}
 
 	if parentDomainID != nil {
 		e.executionInfo.ParentDomainID = *parentDomainID

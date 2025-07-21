@@ -111,7 +111,7 @@ func NewTransferActiveTaskExecutor(
 	}
 }
 
-func (t *transferActiveTaskExecutor) Execute(task Task) (ExecuteResponse, error) {
+func (t *transferActiveTaskExecutor) Execute(task Task) (metrics.Scope, error) {
 	simulation.LogEvents(simulation.E{
 		EventName:  simulation.EventNameExecuteHistoryTask,
 		Host:       t.shard.GetConfig().HostName,
@@ -126,38 +126,34 @@ func (t *transferActiveTaskExecutor) Execute(task Task) (ExecuteResponse, error)
 		},
 	})
 	scope := getOrCreateDomainTaggedScope(t.shard, GetTransferTaskMetricsScope(task.GetTaskType(), true), task.GetDomainID(), t.logger)
-	executeResponse := ExecuteResponse{
-		Scope:        scope,
-		IsActiveTask: true,
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), taskDefaultTimeout)
 	defer cancel()
 
 	switch transferTask := task.GetInfo().(type) {
 	case *persistence.ActivityTask:
-		return executeResponse, t.processActivityTask(ctx, transferTask)
+		return scope, t.processActivityTask(ctx, transferTask)
 	case *persistence.DecisionTask:
-		return executeResponse, t.processDecisionTask(ctx, transferTask)
+		return scope, t.processDecisionTask(ctx, transferTask)
 	case *persistence.CloseExecutionTask:
-		return executeResponse, t.processCloseExecution(ctx, transferTask)
+		return scope, t.processCloseExecution(ctx, transferTask)
 	case *persistence.RecordWorkflowClosedTask:
-		return executeResponse, t.processRecordWorkflowClosed(ctx, transferTask)
+		return scope, t.processRecordWorkflowClosed(ctx, transferTask)
 	case *persistence.RecordChildExecutionCompletedTask:
-		return executeResponse, t.processRecordChildExecutionCompleted(ctx, transferTask)
+		return scope, t.processRecordChildExecutionCompleted(ctx, transferTask)
 	case *persistence.CancelExecutionTask:
-		return executeResponse, t.processCancelExecution(ctx, transferTask)
+		return scope, t.processCancelExecution(ctx, transferTask)
 	case *persistence.SignalExecutionTask:
-		return executeResponse, t.processSignalExecution(ctx, transferTask)
+		return scope, t.processSignalExecution(ctx, transferTask)
 	case *persistence.StartChildExecutionTask:
-		return executeResponse, t.processStartChildExecution(ctx, transferTask)
+		return scope, t.processStartChildExecution(ctx, transferTask)
 	case *persistence.RecordWorkflowStartedTask:
-		return executeResponse, t.processRecordWorkflowStarted(ctx, transferTask)
+		return scope, t.processRecordWorkflowStarted(ctx, transferTask)
 	case *persistence.ResetWorkflowTask:
-		return executeResponse, t.processResetWorkflow(ctx, transferTask)
+		return scope, t.processResetWorkflow(ctx, transferTask)
 	case *persistence.UpsertWorkflowSearchAttributesTask:
-		return executeResponse, t.processUpsertWorkflowSearchAttributes(ctx, transferTask)
+		return scope, t.processUpsertWorkflowSearchAttributes(ctx, transferTask)
 	default:
-		return executeResponse, errUnknownTransferTask
+		return scope, errUnknownTransferTask
 	}
 }
 
@@ -307,7 +303,11 @@ func (t *transferActiveTaskExecutor) processDecisionTask(
 		err = t.pushDecision(ctx, task, taskList, decisionTimeout, mutableState.GetExecutionInfo().PartitionConfig)
 	}
 	if err == nil {
-		scope := common.NewPerTaskListScope(domainName, taskList.Name, taskList.GetKind(), t.metricsClient, metrics.TransferActiveTaskDecisionScope)
+		tlKind := types.TaskListKindNormal
+		if taskList.Kind != nil {
+			tlKind = *taskList.Kind
+		}
+		scope := common.NewPerTaskListScope(domainName, taskList.Name, tlKind, t.metricsClient, metrics.TransferActiveTaskDecisionScope)
 		scope.RecordTimer(metrics.ScheduleToStartHistoryQueueLatencyPerTaskList, time.Since(task.GetVisibilityTimestamp()))
 	}
 	return err
@@ -845,6 +845,13 @@ func (t *transferActiveTaskExecutor) processStartChildExecution(
 		mutableState.GetExecutionInfo().PartitionConfig,
 	)
 	if err != nil {
+		t.logger.Error("Failed to start child workflow execution",
+			tag.WorkflowDomainID(task.DomainID),
+			tag.WorkflowID(task.WorkflowID),
+			tag.WorkflowRunID(task.RunID),
+			tag.TargetWorkflowDomainID(task.TargetDomainID),
+			tag.TargetWorkflowID(attributes.WorkflowID),
+			tag.Error(err))
 
 		// Check to see if the error is non-transient, in which case add StartChildWorkflowExecutionFailed
 		// event and complete transfer task by setting the err = nil
@@ -853,22 +860,7 @@ func (t *transferActiveTaskExecutor) processStartChildExecution(
 		// but we probably need to introduce a new error type for DomainNotExists,
 		// for now when getting an EntityNotExists error, we can't tell if it's domain or workflow.
 		case *types.WorkflowExecutionAlreadyStartedError:
-			t.logger.Info("workflow has already started",
-				tag.WorkflowDomainID(task.DomainID),
-				tag.WorkflowID(task.WorkflowID),
-				tag.WorkflowRunID(task.RunID),
-				tag.TargetWorkflowDomainID(task.TargetDomainID),
-				tag.TargetWorkflowID(attributes.WorkflowID),
-			)
 			err = recordStartChildExecutionFailed(ctx, t.logger, task, wfContext, attributes, t.shard.GetTimeSource().Now())
-		default:
-			t.logger.Error("Failed to start child workflow execution",
-				tag.WorkflowDomainID(task.DomainID),
-				tag.WorkflowID(task.WorkflowID),
-				tag.WorkflowRunID(task.RunID),
-				tag.TargetWorkflowDomainID(task.TargetDomainID),
-				tag.TargetWorkflowID(attributes.WorkflowID),
-				tag.Error(err))
 		}
 		return err
 	}

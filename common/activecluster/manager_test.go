@@ -95,7 +95,7 @@ func TestStartStop(t *testing.T) {
 			defer goleak.VerifyNone(t)
 			ctrl := gomock.NewController(t)
 			domainIDToDomainFn := func(id string) (*cache.DomainCacheEntry, error) {
-				return getDomainCacheEntry(nil, false), nil
+				return getDomainCacheEntry(nil), nil
 			}
 
 			metricsCl := metrics.NewNoopMetricsClient()
@@ -122,7 +122,7 @@ func TestStartStop(t *testing.T) {
 func TestNotifyChangeCallbacks(t *testing.T) {
 	defer goleak.VerifyNone(t)
 	domainIDToDomainFn := func(id string) (*cache.DomainCacheEntry, error) {
-		return getDomainCacheEntry(nil, false), nil
+		return getDomainCacheEntry(nil), nil
 	}
 
 	metricsCl := metrics.NewNoopMetricsClient()
@@ -398,7 +398,7 @@ func TestClusterNameForFailoverVersion(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			domainIDToDomainFn := func(id string) (*cache.DomainCacheEntry, error) {
-				return getDomainCacheEntry(tc.activeClusterCfg, false), nil
+				return getDomainCacheEntry(tc.activeClusterCfg), nil
 			}
 
 			metricsCl := metrics.NewNoopMetricsClient()
@@ -469,7 +469,7 @@ func TestLookupNewWorkflow(t *testing.T) {
 			activeClusterCfg: nil, // not active-active domain
 			expectedResult: &LookupResult{
 				ClusterName:     "cluster0",
-				FailoverVersion: 201,
+				FailoverVersion: 1,
 			},
 		},
 		{
@@ -582,7 +582,7 @@ func TestLookupNewWorkflow(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			domainIDToDomainFn := func(id string) (*cache.DomainCacheEntry, error) {
-				return getDomainCacheEntry(tc.activeClusterCfg, false), nil
+				return getDomainCacheEntry(tc.activeClusterCfg), nil
 			}
 
 			timeSrc := clock.NewMockedTimeSource()
@@ -654,7 +654,6 @@ func TestLookupWorkflow(t *testing.T) {
 		getClusterSelectionPolicyFn func(ctx context.Context, domainID, wfID, rID string) (*types.ActiveClusterSelectionPolicy, error)
 		mockFn                      func(em *persistence.MockExecutionManager)
 		activeClusterCfg            *types.ActiveClusters
-		migratedFromActivePassive   bool
 		expectedResult              *LookupResult
 		expectedError               string
 	}{
@@ -663,7 +662,7 @@ func TestLookupWorkflow(t *testing.T) {
 			activeClusterCfg: nil,
 			expectedResult: &LookupResult{
 				ClusterName:     "cluster0",
-				FailoverVersion: 201,
+				FailoverVersion: 1,
 			},
 		},
 		{
@@ -687,8 +686,7 @@ func TestLookupWorkflow(t *testing.T) {
 			expectedError: "failed to fetch workflow activeness metadata",
 		},
 		{
-			name:                      "domain is migrated from active-passive to active-active, activeness metadata not-found. falls back to domain's active cluster name and failover version",
-			migratedFromActivePassive: true,
+			name: "domain is active-active, activeness metadata not-found which means region sticky",
 			activeClusterCfg: &types.ActiveClusters{
 				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
 					"us-west": {
@@ -707,31 +705,7 @@ func TestLookupWorkflow(t *testing.T) {
 			},
 			expectedResult: &LookupResult{
 				ClusterName:     "cluster0",
-				FailoverVersion: 201,
-			},
-		},
-		{
-			name: "domain is active-active and NOT migrated from active-passive, activeness metadata not-found. return cluster name and failover version of current region",
-			activeClusterCfg: &types.ActiveClusters{
-				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-					"us-west": {
-						ActiveClusterName: "cluster0",
-						FailoverVersion:   101,
-					},
-					"us-east": {
-						ActiveClusterName: "cluster1",
-						FailoverVersion:   3,
-					},
-				},
-			},
-			mockFn: func(em *persistence.MockExecutionManager) {
-				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(nil, &types.EntityNotExistsError{})
-			},
-			expectedResult: &LookupResult{
-				ClusterName:     "cluster0",
-				FailoverVersion: 101,
-				Region:          "us-west",
+				FailoverVersion: 1,
 			},
 		},
 		{
@@ -755,7 +729,6 @@ func TestLookupWorkflow(t *testing.T) {
 			expectedResult: &LookupResult{
 				ClusterName:     "cluster0",
 				FailoverVersion: 1,
-				Region:          "us-west",
 			},
 		},
 		{
@@ -827,7 +800,7 @@ func TestLookupWorkflow(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			domainIDToDomainFn := func(id string) (*cache.DomainCacheEntry, error) {
-				return getDomainCacheEntry(tc.activeClusterCfg, tc.migratedFromActivePassive), nil
+				return getDomainCacheEntry(tc.activeClusterCfg), nil
 			}
 
 			timeSrc := clock.NewMockedTimeSource()
@@ -875,22 +848,17 @@ func TestLookupWorkflow(t *testing.T) {
 	}
 }
 
-func getDomainCacheEntry(cfg *types.ActiveClusters, migratedFromActivePassive bool) *cache.DomainCacheEntry {
+func getDomainCacheEntry(cfg *types.ActiveClusters) *cache.DomainCacheEntry {
 	// only thing we care in domain cache entry is the active clusters config
-	// for domains migrated from active-passive to active-active, we set the failover version to 201
-	activeClusterName := ""
-	if migratedFromActivePassive || cfg == nil {
-		activeClusterName = "cluster0"
-	}
 	return cache.NewDomainCacheEntryForTest(
 		nil,
 		nil,
 		true,
 		&persistence.DomainReplicationConfig{
 			ActiveClusters:    cfg,
-			ActiveClusterName: activeClusterName,
+			ActiveClusterName: "cluster0",
 		},
-		201,
+		1,
 		nil,
 		1,
 		1,

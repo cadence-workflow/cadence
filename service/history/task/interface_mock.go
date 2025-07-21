@@ -16,6 +16,7 @@ import (
 	gomock "go.uber.org/mock/gomock"
 
 	future "github.com/uber/cadence/common/future"
+	metrics "github.com/uber/cadence/common/metrics"
 	persistence "github.com/uber/cadence/common/persistence"
 	task "github.com/uber/cadence/common/task"
 	types "github.com/uber/cadence/common/types"
@@ -332,18 +333,6 @@ func (m *MockTask) RetryErr(err error) bool {
 func (mr *MockTaskMockRecorder) RetryErr(err any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RetryErr", reflect.TypeOf((*MockTask)(nil).RetryErr), err)
-}
-
-// SetInitialSubmitTime mocks base method.
-func (m *MockTask) SetInitialSubmitTime(arg0 time.Time) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetInitialSubmitTime", arg0)
-}
-
-// SetInitialSubmitTime indicates an expected call of SetInitialSubmitTime.
-func (mr *MockTaskMockRecorder) SetInitialSubmitTime(arg0 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetInitialSubmitTime", reflect.TypeOf((*MockTask)(nil).SetInitialSubmitTime), arg0)
 }
 
 // SetPriority mocks base method.
@@ -822,18 +811,6 @@ func (mr *MockCrossClusterTaskMockRecorder) RetryErr(err any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RetryErr", reflect.TypeOf((*MockCrossClusterTask)(nil).RetryErr), err)
 }
 
-// SetInitialSubmitTime mocks base method.
-func (m *MockCrossClusterTask) SetInitialSubmitTime(arg0 time.Time) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetInitialSubmitTime", arg0)
-}
-
-// SetInitialSubmitTime indicates an expected call of SetInitialSubmitTime.
-func (mr *MockCrossClusterTaskMockRecorder) SetInitialSubmitTime(arg0 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetInitialSubmitTime", reflect.TypeOf((*MockCrossClusterTask)(nil).SetInitialSubmitTime), arg0)
-}
-
 // SetPriority mocks base method.
 func (m *MockCrossClusterTask) SetPriority(arg0 int) {
 	m.ctrl.T.Helper()
@@ -1004,10 +981,10 @@ func (m *MockExecutor) EXPECT() *MockExecutorMockRecorder {
 }
 
 // Execute mocks base method.
-func (m *MockExecutor) Execute(task Task) (ExecuteResponse, error) {
+func (m *MockExecutor) Execute(task Task) (metrics.Scope, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Execute", task)
-	ret0, _ := ret[0].(ExecuteResponse)
+	ret0, _ := ret[0].(metrics.Scope)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

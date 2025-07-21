@@ -14,6 +14,7 @@ import (
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/leader/election"
+	"github.com/uber/cadence/service/sharddistributor/leader/process"
 )
 
 func TestNewManager(t *testing.T) {
@@ -21,6 +22,7 @@ func TestNewManager(t *testing.T) {
 	logger := testlogger.New(t)
 	ctrl := gomock.NewController(t)
 	electionFactory := election.NewMockFactory(ctrl)
+	processorFactory := process.NewMockFactory(ctrl)
 
 	cfg := config.LeaderElection{
 		Enabled: true,
@@ -31,10 +33,11 @@ func TestNewManager(t *testing.T) {
 
 	// Test
 	manager := NewManager(ManagerParams{
-		Cfg:             cfg,
-		Logger:          logger,
-		ElectionFactory: electionFactory,
-		Lifecycle:       fxtest.NewLifecycle(t),
+		Cfg:              cfg,
+		Logger:           logger,
+		ElectionFactory:  electionFactory,
+		ProcessorFactory: processorFactory,
+		Lifecycle:        fxtest.NewLifecycle(t),
 	})
 
 	// Assert
@@ -48,6 +51,7 @@ func TestNewManagerNotEnabled(t *testing.T) {
 	logger := testlogger.New(t)
 	ctrl := gomock.NewController(t)
 	electionFactory := election.NewMockFactory(ctrl)
+	processorFactory := process.NewMockFactory(ctrl)
 
 	cfg := config.LeaderElection{
 		Enabled: false,
@@ -58,10 +62,11 @@ func TestNewManagerNotEnabled(t *testing.T) {
 
 	// Test
 	manager := NewManager(ManagerParams{
-		Cfg:             cfg,
-		Logger:          logger,
-		ElectionFactory: electionFactory,
-		Lifecycle:       fxtest.NewLifecycle(t),
+		Cfg:              cfg,
+		Logger:           logger,
+		ElectionFactory:  electionFactory,
+		ProcessorFactory: processorFactory,
+		Lifecycle:        fxtest.NewLifecycle(t),
 	})
 
 	// Assert
@@ -77,8 +82,12 @@ func TestStartManager(t *testing.T) {
 
 	electionFactory.EXPECT().CreateElector(gomock.Any(), gomock.Any()).Return(elector, nil)
 
+	processorFactory := process.NewMockFactory(ctrl)
+	processor := process.NewMockProcessor(ctrl)
+	processorFactory.EXPECT().CreateProcessor("test-namespace").Return(processor)
+
 	leaderCh := make(chan bool)
-	elector.EXPECT().Run(gomock.Any()).Return((<-chan bool)(leaderCh))
+	elector.EXPECT().Run(gomock.Any(), gomock.Any(), gomock.Any()).Return((<-chan bool)(leaderCh))
 
 	cfg := config.LeaderElection{
 		Enabled: true,
@@ -88,10 +97,11 @@ func TestStartManager(t *testing.T) {
 	}
 
 	manager := &Manager{
-		cfg:             cfg,
-		logger:          logger,
-		electionFactory: electionFactory,
-		namespaces:      make(map[string]*namespaceHandler),
+		cfg:              cfg,
+		logger:           logger,
+		electionFactory:  electionFactory,
+		processorFactory: processorFactory,
+		namespaces:       make(map[string]*namespaceHandler),
 	}
 
 	// Test
@@ -113,6 +123,7 @@ func TestStartManagerWithElectorError(t *testing.T) {
 	logger := testlogger.New(t)
 	ctrl := gomock.NewController(t)
 	electionFactory := election.NewMockFactory(ctrl)
+	processorFactory := process.NewMockFactory(ctrl)
 
 	cfg := config.LeaderElection{
 		Enabled: true,
@@ -122,13 +133,14 @@ func TestStartManagerWithElectorError(t *testing.T) {
 	}
 
 	expectedErr := errors.New("elector creation failed")
-	electionFactory.EXPECT().CreateElector(gomock.Any(), config.Namespace{Name: "test-namespace"}).Return(nil, expectedErr)
+	electionFactory.EXPECT().CreateElector(gomock.Any(), "test-namespace").Return(nil, expectedErr)
 
 	manager := &Manager{
-		cfg:             cfg,
-		logger:          logger,
-		electionFactory: electionFactory,
-		namespaces:      make(map[string]*namespaceHandler),
+		cfg:              cfg,
+		logger:           logger,
+		electionFactory:  electionFactory,
+		processorFactory: processorFactory,
+		namespaces:       make(map[string]*namespaceHandler),
 	}
 
 	// Test
@@ -149,8 +161,12 @@ func TestStopManager(t *testing.T) {
 
 	electionFactory.EXPECT().CreateElector(gomock.Any(), gomock.Any()).Return(elector, nil)
 
+	processorFactory := process.NewMockFactory(ctrl)
+	processor := process.NewMockProcessor(ctrl)
+	processorFactory.EXPECT().CreateProcessor("test-namespace").Return(processor)
+
 	leaderCh := make(chan bool)
-	elector.EXPECT().Run(gomock.Any()).Return((<-chan bool)(leaderCh))
+	elector.EXPECT().Run(gomock.Any(), gomock.Any(), gomock.Any()).Return((<-chan bool)(leaderCh))
 
 	cfg := config.LeaderElection{
 		Enabled: true,
@@ -160,10 +176,11 @@ func TestStopManager(t *testing.T) {
 	}
 
 	manager := &Manager{
-		cfg:             cfg,
-		logger:          logger,
-		electionFactory: electionFactory,
-		namespaces:      make(map[string]*namespaceHandler),
+		cfg:              cfg,
+		logger:           logger,
+		electionFactory:  electionFactory,
+		processorFactory: processorFactory,
+		namespaces:       make(map[string]*namespaceHandler),
 	}
 
 	// Start the manager first
@@ -185,12 +202,15 @@ func TestHandleNamespaceAlreadyExists(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	electionFactory := election.NewMockFactory(ctrl)
 	mockElector := election.NewMockElector(ctrl)
+	processorFactory := process.NewMockFactory(ctrl)
+	mockProcessor := process.NewMockProcessor(ctrl)
 
 	manager := &Manager{
-		cfg:             config.LeaderElection{},
-		logger:          logger,
-		electionFactory: electionFactory,
-		namespaces:      make(map[string]*namespaceHandler),
+		cfg:              config.LeaderElection{},
+		logger:           logger,
+		electionFactory:  electionFactory,
+		processorFactory: processorFactory,
+		namespaces:       make(map[string]*namespaceHandler),
 	}
 
 	// Set context
@@ -198,11 +218,12 @@ func TestHandleNamespaceAlreadyExists(t *testing.T) {
 
 	// Add existing namespace handler
 	manager.namespaces["test-namespace"] = &namespaceHandler{
-		elector: mockElector,
+		elector:   mockElector,
+		processor: mockProcessor,
 	}
 
 	// Test
-	err := manager.handleNamespace(config.Namespace{Name: "test-namespace"})
+	err := manager.handleNamespace("test-namespace")
 
 	// Assert
 	assert.ErrorContains(t, err, "namespace test-namespace already running")
@@ -217,8 +238,12 @@ func TestRunElection(t *testing.T) {
 
 	electionFactory.EXPECT().CreateElector(gomock.Any(), gomock.Any()).Return(elector, nil)
 
+	processorFactory := process.NewMockFactory(ctrl)
+	processor := process.NewMockProcessor(ctrl)
+	processorFactory.EXPECT().CreateProcessor("test-namespace").Return(processor)
+
 	leaderCh := make(chan bool)
-	elector.EXPECT().Run(gomock.Any()).Return((<-chan bool)(leaderCh))
+	elector.EXPECT().Run(gomock.Any(), gomock.Any(), gomock.Any()).Return((<-chan bool)(leaderCh))
 
 	cfg := config.LeaderElection{
 		Enabled: true,
@@ -228,10 +253,11 @@ func TestRunElection(t *testing.T) {
 	}
 
 	manager := &Manager{
-		cfg:             cfg,
-		logger:          logger,
-		electionFactory: electionFactory,
-		namespaces:      make(map[string]*namespaceHandler),
+		cfg:              cfg,
+		logger:           logger,
+		electionFactory:  electionFactory,
+		processorFactory: processorFactory,
+		namespaces:       make(map[string]*namespaceHandler),
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())

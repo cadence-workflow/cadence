@@ -23,13 +23,11 @@ package ndc
 import (
 	ctx "context"
 	"testing"
-	"time"
 
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
-	"golang.org/x/net/context"
 
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/log"
@@ -159,15 +157,9 @@ func (s *conflictResolverSuite) TestRebuild() {
 		lastEventID1,
 		version,
 		workflowIdentifier,
-		gomock.Any(),
+		branchToken1,
 		requestID,
-	).DoAndReturn(func(ctx context.Context, now time.Time, baseWorkflowIdentifier definition.WorkflowIdentifier, baseBranchToken []byte, baseRebuildLastEventID int64, baseRebuildLastEventVersion int64, targetWorkflowIdentifier definition.WorkflowIdentifier, targetBranchFn func() ([]byte, error), requestID string) (execution.MutableState, int64, error) {
-		targetBranchToken, err := targetBranchFn()
-		s.NoError(err)
-		s.Equal(branchToken1, targetBranchToken)
-
-		return mockRebuildMutableState, historySize, nil
-	}).Times(1)
+	).Return(mockRebuildMutableState, historySize, nil).Times(1)
 
 	s.mockContext.EXPECT().Clear().Times(1)
 	s.mockContext.EXPECT().SetHistorySize(historySize).Times(1)
@@ -258,15 +250,9 @@ func (s *conflictResolverSuite) TestPrepareMutableState_Rebuild() {
 		lastEventID1,
 		version,
 		workflowIdentifier,
+		branchToken1,
 		gomock.Any(),
-		gomock.Any(),
-	).DoAndReturn(func(ctx context.Context, now time.Time, baseWorkflowIdentifier definition.WorkflowIdentifier, baseBranchToken []byte, baseRebuildLastEventID int64, baseRebuildLastEventVersion int64, targetWorkflowIdentifier definition.WorkflowIdentifier, targetBranchFn func() ([]byte, error), requestID string) (execution.MutableState, int64, error) {
-		targetBranchToken, err := targetBranchFn()
-		s.NoError(err)
-		s.Equal(branchToken1, targetBranchToken)
-
-		return mockRebuildMutableState, historySize, nil
-	}).Times(1)
+	).Return(mockRebuildMutableState, historySize, nil).Times(1)
 
 	s.mockContext.EXPECT().Clear().Times(1)
 	s.mockContext.EXPECT().SetHistorySize(int64(historySize)).Times(1)

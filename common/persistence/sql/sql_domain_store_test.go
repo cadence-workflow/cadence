@@ -137,49 +137,6 @@ func TestListDomains(t *testing.T) {
 					},
 				}, nil)
 				mockParser.EXPECT().DomainInfoFromBlob([]byte(`aaaa`), string(constants.EncodingTypeThriftRW)).
-					Return(&serialization.DomainInfo{}, nil)
-			},
-			want: &persistence.InternalListDomainsResponse{
-				Domains: []*persistence.InternalGetDomainResponse{
-					{
-						Info: &persistence.DomainInfo{
-							ID:   "9a3dc7e2-1e67-41aa-8eaf-6d6e27f7e47c",
-							Name: "test",
-						},
-						Config: &persistence.InternalDomainConfig{},
-						ReplicationConfig: &persistence.InternalDomainReplicationConfig{
-							ActiveClusterName: "active",
-							Clusters: []*persistence.ClusterReplicationConfig{
-								{ClusterName: "active"},
-							},
-						},
-					},
-				},
-				NextPageToken: serialization.MustParseUUID("9a3dc7e2-1e67-41aa-8eaf-6d6e27f7e47c"),
-			},
-			wantErr: false,
-		},
-		{
-			name:              "Success case active-active domain",
-			activeClusterName: "active",
-			req: &persistence.ListDomainsRequest{
-				NextPageToken: []byte(`7a3dc7e2-1e67-41aa-8eaf-6d6e27f7e47c`),
-				PageSize:      1,
-			},
-			mockSetup: func(mockDB *sqlplugin.MockDB, mockParser *serialization.MockParser) {
-				uuid := serialization.UUID(`7a3dc7e2-1e67-41aa-8eaf-6d6e27f7e47c`)
-				mockDB.EXPECT().SelectFromDomain(gomock.Any(), &sqlplugin.DomainFilter{
-					GreaterThanID: &uuid,
-					PageSize:      common.IntPtr(1),
-				}).Return([]sqlplugin.DomainRow{
-					{
-						ID:           serialization.MustParseUUID("9a3dc7e2-1e67-41aa-8eaf-6d6e27f7e47c"),
-						Name:         "test",
-						Data:         []byte(`aaaa`),
-						DataEncoding: string(constants.EncodingTypeThriftRW),
-					},
-				}, nil)
-				mockParser.EXPECT().DomainInfoFromBlob([]byte(`aaaa`), string(constants.EncodingTypeThriftRW)).
 					Return(&serialization.DomainInfo{
 						ActiveClustersConfig:         []byte(`active-clusters-config`),
 						ActiveClustersConfigEncoding: string(constants.EncodingTypeThriftRW),
@@ -194,7 +151,7 @@ func TestListDomains(t *testing.T) {
 						},
 						Config: &persistence.InternalDomainConfig{},
 						ReplicationConfig: &persistence.InternalDomainReplicationConfig{
-							ActiveClusterName: "",
+							ActiveClusterName: "active",
 							Clusters: []*persistence.ClusterReplicationConfig{
 								{ClusterName: "active"},
 							},
@@ -323,43 +280,6 @@ func TestGetDomain(t *testing.T) {
 					},
 				}, nil)
 				mockParser.EXPECT().DomainInfoFromBlob([]byte(`aaaa`), string(constants.EncodingTypeThriftRW)).
-					Return(&serialization.DomainInfo{}, nil)
-			},
-			want: &persistence.InternalGetDomainResponse{
-				Info: &persistence.DomainInfo{
-					ID:   "9a3dc7e2-1e67-41aa-8eaf-6d6e27f7e47c",
-					Name: "test",
-				},
-				Config: &persistence.InternalDomainConfig{},
-				ReplicationConfig: &persistence.InternalDomainReplicationConfig{
-					ActiveClusterName: "active",
-					Clusters: []*persistence.ClusterReplicationConfig{
-						{
-							ClusterName: "active",
-						},
-					},
-				},
-			},
-			wantErr: false,
-		},
-		{
-			name:              "Success case - active-active domain - get domain by name",
-			activeClusterName: "active",
-			req: &persistence.GetDomainRequest{
-				Name: "test",
-			},
-			mockSetup: func(mockDB *sqlplugin.MockDB, mockParser *serialization.MockParser) {
-				mockDB.EXPECT().SelectFromDomain(gomock.Any(), &sqlplugin.DomainFilter{
-					Name: common.StringPtr("test"),
-				}).Return([]sqlplugin.DomainRow{
-					{
-						ID:           serialization.MustParseUUID("9a3dc7e2-1e67-41aa-8eaf-6d6e27f7e47c"),
-						Name:         "test",
-						Data:         []byte(`aaaa`),
-						DataEncoding: string(constants.EncodingTypeThriftRW),
-					},
-				}, nil)
-				mockParser.EXPECT().DomainInfoFromBlob([]byte(`aaaa`), string(constants.EncodingTypeThriftRW)).
 					Return(&serialization.DomainInfo{
 						ActiveClustersConfig:         []byte(`active-clusters-config`),
 						ActiveClustersConfigEncoding: string(constants.EncodingTypeThriftRW),
@@ -372,7 +292,7 @@ func TestGetDomain(t *testing.T) {
 				},
 				Config: &persistence.InternalDomainConfig{},
 				ReplicationConfig: &persistence.InternalDomainReplicationConfig{
-					ActiveClusterName: "",
+					ActiveClusterName: "active",
 					Clusters: []*persistence.ClusterReplicationConfig{
 						{
 							ClusterName: "active",

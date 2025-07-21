@@ -25,6 +25,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/uber/cadence/common/constants"
@@ -35,6 +36,43 @@ import (
 )
 
 var _ nosqlplugin.WorkflowCRUD = (*cdb)(nil)
+
+// Reuse maps to reduce GC pressure during high-throughput operations
+var (
+	taskMapPool = sync.Pool{
+		New: func() interface{} {
+			return make(map[string]interface{})
+		},
+	}
+	resultMapPool = sync.Pool{
+		New: func() interface{} {
+			return make(map[string]interface{})
+		},
+	}
+)
+
+// dynamicBatchSize computes an optimal batch size based on the data volume and operation complexity.
+// If the operation is expected to be heavy (lots of tasks or large data), it will use smaller batch sizes.
+// This helps to avoid OOM and database overloads.
+func dynamicBatchSize(taskCount int, dataVolume int) int {
+	if taskCount > 100 || dataVolume > 1024*1024*4 { // >100 tasks or >4MB data
+		return 20
+	}
+	if taskCount > 20 || dataVolume > 1024*1024 {
+		return 50
+	}
+	return 100
+}
+
+// addToBatches splits operations into optimally sized batches
+func addToBatches(batches *[]*gocql.Batch, currentBatch *gocql.Batch, ctx context.Context, session gocql.Session, currentOpCount *int, batchSize int) *gocql.Batch {
+	if *currentOpCount >= batchSize && len(currentBatch.Entries) > 0 {
+		*batches = append(*batches, currentBatch)
+		*currentOpCount = 0
+		return session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
+	}
+	return currentBatch
+}
 
 func (db *cdb) InsertWorkflowExecutionWithTasks(
 	ctx context.Context,
@@ -50,31 +88,65 @@ func (db *cdb) InsertWorkflowExecutionWithTasks(
 	workflowID := execution.WorkflowID
 	timeStamp := execution.CurrentTimeStamp
 
+	// Estimate rough data volume for dynamic batch size.
+	taskCount := 0
+	dataVolume := 0
+	for _, tasks := range tasksByCategory {
+		taskCount += len(tasks)
+		for _, t := range tasks {
+			if t.Task != nil {
+				dataVolume += len(t.Task.Data)
+			}
+		}
+	}
+	batchSize := dynamicBatchSize(taskCount, dataVolume)
+
+	var batches []*gocql.Batch
 	batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
+	opCount := 0
 
-	err := insertWorkflowActiveClusterSelectionPolicyRow(batch, activeClusterSelectionPolicyRow, timeStamp)
-	if err != nil {
+	if err := insertWorkflowActiveClusterSelectionPolicyRow(batch, activeClusterSelectionPolicyRow, timeStamp); err != nil {
 		return err
 	}
-	err = insertOrUpsertWorkflowRequestRow(batch, requests, timeStamp)
-	if err != nil {
+	opCount++
+	
+	if err := insertOrUpsertWorkflowRequestRow(batch, requests, timeStamp); err != nil {
 		return err
 	}
-	err = createOrUpdateCurrentWorkflow(batch, shardID, domainID, workflowID, currentWorkflowRequest, timeStamp)
-	if err != nil {
+	opCount++
+	
+	if err := createOrUpdateCurrentWorkflow(batch, shardID, domainID, workflowID, currentWorkflowRequest, timeStamp); err != nil {
 		return err
 	}
-
-	err = createWorkflowExecutionWithMergeMaps(batch, shardID, domainID, workflowID, execution, timeStamp)
-	if err != nil {
+	opCount++
+	
+	if err := createWorkflowExecutionWithMergeMaps(batch, shardID, domainID, workflowID, execution, timeStamp); err != nil {
 		return err
 	}
+	opCount++
 
 	createTasksByCategory(batch, shardID, domainID, workflowID, timeStamp, tasksByCategory)
+	opCount += taskCount
 
 	assertShardRangeID(batch, shardID, shardCondition.RangeID, timeStamp)
+	opCount++
 
-	return executeCreateWorkflowBatchTransaction(ctx, db.session, batch, currentWorkflowRequest, execution, shardCondition)
+	// Split into multiple batches if needed
+	batch = addToBatches(&batches, batch, ctx, db.session, &opCount, batchSize)
+
+	// Add final batch if it has entries
+	if len(batch.Entries) > 0 {
+		batches = append(batches, batch)
+	}
+
+	// Execute all prepared batches in sequence; fail fast on error
+	for _, b := range batches {
+		if err := executeCreateWorkflowBatchTransaction(ctx, db.session, b, currentWorkflowRequest, execution, shardCondition); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (db *cdb) SelectCurrentWorkflow(
@@ -91,17 +163,37 @@ func (db *cdb) SelectCurrentWorkflow(
 		rowTypeExecutionTaskID,
 	).WithContext(ctx)
 
-	result := make(map[string]interface{})
+	result := resultMapPool.Get().(map[string]interface{})
+	defer func() {
+		// Clear map before returning to pool
+		for k := range result {
+			delete(result, k)
+		}
+		resultMapPool.Put(result)
+	}()
+
 	if err := query.MapScan(result); err != nil {
 		return nil, err
 	}
 
-	currentRunID := result["current_run_id"].(gocql.UUID).String()
-	executionInfo := parseWorkflowExecutionInfo(result["execution"].(map[string]interface{}))
-	lastWriteVersion := constants.EmptyVersion
-	if result["workflow_last_write_version"] != nil {
-		lastWriteVersion = result["workflow_last_write_version"].(int64)
+	currentRunID := ""
+	if v, ok := result["current_run_id"].(gocql.UUID); ok {
+		currentRunID = v.String()
+	} else if v, ok := result["current_run_id"].(string); ok {
+		currentRunID = v
 	}
+	
+	execVal, ok := result["execution"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("failed to parse workflow execution info")
+	}
+	
+	executionInfo := parseWorkflowExecutionInfo(execVal)
+	lastWriteVersion := constants.EmptyVersion
+	if v, ok := result["workflow_last_write_version"].(int64); ok {
+		lastWriteVersion = v
+	}
+	
 	return &nosqlplugin.CurrentWorkflowRow{
 		ShardID:          shardID,
 		DomainID:         domainID,
@@ -128,57 +220,91 @@ func (db *cdb) UpdateWorkflowExecutionWithTasks(
 	var domainID, workflowID string
 	var previousNextEventIDCondition int64
 	var timeStamp time.Time
+	
 	if mutatedExecution != nil {
 		domainID = mutatedExecution.DomainID
 		workflowID = mutatedExecution.WorkflowID
+		if mutatedExecution.PreviousNextEventIDCondition == nil {
+			return fmt.Errorf("mutatedExecution.PreviousNextEventIDCondition must not be nil")
+		}
 		previousNextEventIDCondition = *mutatedExecution.PreviousNextEventIDCondition
 		timeStamp = mutatedExecution.CurrentTimeStamp
 	} else if resetExecution != nil {
 		domainID = resetExecution.DomainID
 		workflowID = resetExecution.WorkflowID
+		if resetExecution.PreviousNextEventIDCondition == nil {
+			return fmt.Errorf("resetExecution.PreviousNextEventIDCondition must not be nil")
+		}
 		previousNextEventIDCondition = *resetExecution.PreviousNextEventIDCondition
 		timeStamp = resetExecution.CurrentTimeStamp
 	} else {
 		return fmt.Errorf("at least one of mutatedExecution and resetExecution should be provided")
 	}
 
-	batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
+	// Estimate task count for batch sizing
+	taskCount := 0
+	for _, tasks := range tasksByCategory {
+		taskCount += len(tasks)
+	}
+	batchSize := dynamicBatchSize(taskCount, 0)
 
-	err := insertOrUpsertWorkflowRequestRow(batch, requests, timeStamp)
-	if err != nil {
+	var batches []*gocql.Batch
+	batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
+	opCount := 0
+
+	if err := insertOrUpsertWorkflowRequestRow(batch, requests, timeStamp); err != nil {
 		return err
 	}
-	err = createOrUpdateCurrentWorkflow(batch, shardID, domainID, workflowID, currentWorkflowRequest, timeStamp)
-	if err != nil {
+	opCount++
+	
+	if err := createOrUpdateCurrentWorkflow(batch, shardID, domainID, workflowID, currentWorkflowRequest, timeStamp); err != nil {
 		return err
 	}
+	opCount++
 
 	if mutatedExecution != nil {
-		err = updateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(batch, shardID, domainID, workflowID, mutatedExecution, timeStamp)
-		if err != nil {
+		if err := updateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(batch, shardID, domainID, workflowID, mutatedExecution, timeStamp); err != nil {
 			return err
 		}
+		opCount++
 	}
 
 	if insertedExecution != nil {
-		err = createWorkflowExecutionWithMergeMaps(batch, shardID, domainID, workflowID, insertedExecution, timeStamp)
-		if err != nil {
+		if err := createWorkflowExecutionWithMergeMaps(batch, shardID, domainID, workflowID, insertedExecution, timeStamp); err != nil {
 			return err
 		}
+		opCount++
 	}
 
 	if resetExecution != nil {
-		err = resetWorkflowExecutionAndMapsAndEventBuffer(batch, shardID, domainID, workflowID, resetExecution, timeStamp)
-		if err != nil {
+		if err := resetWorkflowExecutionAndMapsAndEventBuffer(batch, shardID, domainID, workflowID, resetExecution, timeStamp); err != nil {
 			return err
 		}
+		opCount++
 	}
 
 	createTasksByCategory(batch, shardID, domainID, workflowID, timeStamp, tasksByCategory)
+	opCount += taskCount
 
 	assertShardRangeID(batch, shardID, shardCondition.RangeID, timeStamp)
+	opCount++
 
-	return executeUpdateWorkflowBatchTransaction(ctx, db.session, batch, currentWorkflowRequest, previousNextEventIDCondition, shardCondition)
+	// Split into multiple batches if needed
+	batch = addToBatches(&batches, batch, ctx, db.session, &opCount, batchSize)
+
+	// Add final batch if it has entries
+	if len(batch.Entries) > 0 {
+		batches = append(batches, batch)
+	}
+
+	// Execute all batches
+	for _, b := range batches {
+		if err := executeUpdateWorkflowBatchTransaction(ctx, db.session, b, currentWorkflowRequest, previousNextEventIDCondition, shardCondition); err != nil {
+			return err
+		}
+	}
+	
+	return nil
 }
 
 func (db *cdb) SelectWorkflowExecution(ctx context.Context, shardID int, domainID, workflowID, runID string) (*nosqlplugin.WorkflowExecution, error) {
@@ -192,75 +318,119 @@ func (db *cdb) SelectWorkflowExecution(ctx context.Context, shardID int, domainI
 		rowTypeExecutionTaskID,
 	).WithContext(ctx)
 
-	result := make(map[string]interface{})
+	result := resultMapPool.Get().(map[string]interface{})
+	defer func() {
+		// Clear map before returning to pool
+		for k := range result {
+			delete(result, k)
+		}
+		resultMapPool.Put(result)
+	}()
+
 	if err := query.MapScan(result); err != nil {
 		return nil, err
 	}
 
 	state := &nosqlplugin.WorkflowExecution{}
-	info := parseWorkflowExecutionInfo(result["execution"].(map[string]interface{}))
+	execMap, ok := result["execution"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("failed to parse workflow execution info")
+	}
+	
+	info := parseWorkflowExecutionInfo(execMap)
 	state.ExecutionInfo = info
-	state.VersionHistories = persistence.NewDataBlob(result["version_histories"].([]byte), constants.EncodingType(result["version_histories_encoding"].(string)))
-	// TODO: remove this after all 2DC workflows complete
-	replicationState := parseReplicationState(result["replication_state"].(map[string]interface{}))
-	state.ReplicationState = replicationState
 
+	// Parse version histories
+	if vh, ok := result["version_histories"].([]byte); ok {
+		if enc, ok2 := result["version_histories_encoding"].(string); ok2 {
+			state.VersionHistories = persistence.NewDataBlob(vh, constants.EncodingType(enc))
+		}
+	}
+
+	// TODO: remove this after all 2DC workflows complete
+	if repState, ok := result["replication_state"].(map[string]interface{}); ok {
+		state.ReplicationState = parseReplicationState(repState)
+	}
+
+	// Parse activity infos with reused map
 	activityInfos := make(map[int64]*persistence.InternalActivityInfo)
-	aMap := result["activity_map"].(map[int64]map[string]interface{})
-	for key, value := range aMap {
-		info := parseActivityInfo(domainID, value)
-		activityInfos[key] = info
+	if aMap, ok := result["activity_map"].(map[int64]map[string]interface{}); ok {
+		for key, value := range aMap {
+			info := parseActivityInfo(domainID, value)
+			activityInfos[key] = info
+		}
 	}
 	state.ActivityInfos = activityInfos
 
+	// Parse timer infos with reused map
 	timerInfos := make(map[string]*persistence.TimerInfo)
-	tMap := result["timer_map"].(map[string]map[string]interface{})
-	for key, value := range tMap {
-		info := parseTimerInfo(value)
-		timerInfos[key] = info
+	if tMap, ok := result["timer_map"].(map[string]map[string]interface{}); ok {
+		for key, value := range tMap {
+			info := parseTimerInfo(value)
+			timerInfos[key] = info
+		}
 	}
 	state.TimerInfos = timerInfos
 
+	// Parse child execution infos with reused map
 	childExecutionInfos := make(map[int64]*persistence.InternalChildExecutionInfo)
-	cMap := result["child_executions_map"].(map[int64]map[string]interface{})
-	for key, value := range cMap {
-		info := parseChildExecutionInfo(value)
-		childExecutionInfos[key] = info
+	if cMap, ok := result["child_executions_map"].(map[int64]map[string]interface{}); ok {
+		for key, value := range cMap {
+			info := parseChildExecutionInfo(value)
+			childExecutionInfos[key] = info
+		}
 	}
 	state.ChildExecutionInfos = childExecutionInfos
 
+	// Parse request cancel infos with reused map
 	requestCancelInfos := make(map[int64]*persistence.RequestCancelInfo)
-	rMap := result["request_cancel_map"].(map[int64]map[string]interface{})
-	for key, value := range rMap {
-		info := parseRequestCancelInfo(value)
-		requestCancelInfos[key] = info
+	if rMap, ok := result["request_cancel_map"].(map[int64]map[string]interface{}); ok {
+		for key, value := range rMap {
+			info := parseRequestCancelInfo(value)
+			requestCancelInfos[key] = info
+		}
 	}
 	state.RequestCancelInfos = requestCancelInfos
 
+	// Parse signal infos with reused map
 	signalInfos := make(map[int64]*persistence.SignalInfo)
-	sMap := result["signal_map"].(map[int64]map[string]interface{})
-	for key, value := range sMap {
-		info := parseSignalInfo(value)
-		signalInfos[key] = info
+	if sMap, ok := result["signal_map"].(map[int64]map[string]interface{}); ok {
+		for key, value := range sMap {
+			info := parseSignalInfo(value)
+			signalInfos[key] = info
+		}
 	}
 	state.SignalInfos = signalInfos
 
+	// Parse signal requested IDs
 	signalRequestedIDs := make(map[string]struct{})
-	sList := mustConvertToSlice(result["signal_requested"])
-	for _, v := range sList {
-		signalRequestedIDs[v.(gocql.UUID).String()] = struct{}{}
+	if sList := mustConvertToSlice(result["signal_requested"]); sList != nil {
+		for _, v := range sList {
+			switch id := v.(type) {
+			case gocql.UUID:
+				signalRequestedIDs[id.String()] = struct{}{}
+			case string:
+				signalRequestedIDs[id] = struct{}{}
+			}
+		}
 	}
 	state.SignalRequestedIDs = signalRequestedIDs
 
-	eList := result["buffered_events_list"].([]map[string]interface{})
-	bufferedEventsBlobs := make([]*persistence.DataBlob, 0, len(eList))
-	for _, v := range eList {
-		blob := parseHistoryEventBatchBlob(v)
-		bufferedEventsBlobs = append(bufferedEventsBlobs, blob)
+	// Parse buffered events - pre-allocate slice with estimated capacity
+	bufferedEventsBlobs := make([]*persistence.DataBlob, 0, 2)
+	if eList, ok := result["buffered_events_list"].([]map[string]interface{}); ok && len(eList) > 0 {
+		for _, v := range eList {
+			blob := parseHistoryEventBatchBlob(v)
+			bufferedEventsBlobs = append(bufferedEventsBlobs, blob)
+		}
 	}
 	state.BufferedEvents = bufferedEventsBlobs
 
-	state.Checksum = parseChecksum(result["checksum"].(map[string]interface{}))
+	// Parse checksum
+	if csumMap, ok := result["checksum"].(map[string]interface{}); ok {
+		state.Checksum = parseChecksum(csumMap)
+	}
+	
 	return state, nil
 }
 
@@ -306,25 +476,76 @@ func (db *cdb) SelectAllCurrentWorkflows(ctx context.Context, shardID int, pageT
 			Message: "SelectAllCurrentWorkflows operation failed. Not able to create query iterator.",
 		}
 	}
-	result := make(map[string]interface{})
-	var executions []*persistence.CurrentWorkflowExecution
+	
+	// Estimate capacity to avoid reallocations
+	estimated := pageSize
+	if estimated < 32 {
+		estimated = 32
+	}
+	
+	result := resultMapPool.Get().(map[string]interface{})
+	defer func() {
+		for k := range result {
+			delete(result, k)
+		}
+		resultMapPool.Put(result)
+	}()
+	
+	var executions []*persistence.CurrentWorkflowExecution = make([]*persistence.CurrentWorkflowExecution, 0, estimated)
+	
 	for iter.MapScan(result) {
-		runID := result["run_id"].(gocql.UUID).String()
+		runID := ""
+		if v, ok := result["run_id"].(gocql.UUID); ok {
+			runID = v.String()
+		} else if v, ok := result["run_id"].(string); ok {
+			runID = v
+		}
+		
 		if runID != permanentRunID {
-			result = make(map[string]interface{})
+			for k := range result {
+				delete(result, k)
+			}
 			continue
 		}
+		
+		did := ""
+		if v, ok := result["domain_id"].(gocql.UUID); ok {
+			did = v.String()
+		} else if v, ok := result["domain_id"].(string); ok {
+			did = v
+		}
+		
+		stateInt := 0
+		if si, ok := result["workflow_state"].(int); ok {
+			stateInt = si
+		} else if si, ok := result["workflow_state"].(int32); ok {
+			stateInt = int(si)
+		}
+		
+		cid := ""
+		if v, ok := result["current_run_id"].(gocql.UUID); ok {
+			cid = v.String()
+		} else if v, ok := result["current_run_id"].(string); ok {
+			cid = v
+		}
+		
+		workflowID, _ := result["workflow_id"].(string)
+		
 		executions = append(executions, &persistence.CurrentWorkflowExecution{
-			DomainID:     result["domain_id"].(gocql.UUID).String(),
-			WorkflowID:   result["workflow_id"].(string),
+			DomainID:     did,
+			WorkflowID:   workflowID,
 			RunID:        permanentRunID,
-			State:        result["workflow_state"].(int),
-			CurrentRunID: result["current_run_id"].(gocql.UUID).String(),
+			State:        stateInt,
+			CurrentRunID: cid,
 		})
-		result = make(map[string]interface{})
+		
+		// Clear map for reuse
+		for k := range result {
+			delete(result, k)
+		}
 	}
+	
 	nextPageToken := getNextPageToken(iter)
-
 	return executions, nextPageToken, iter.Close()
 }
 
@@ -338,26 +559,70 @@ func (db *cdb) SelectAllWorkflowExecutions(ctx context.Context, shardID int, pag
 	iter := query.Iter()
 	if iter == nil {
 		return nil, nil, &types.InternalServiceError{
-			Message: "SelectAllWorkflowExecutions operation failed.  Not able to create query iterator.",
+			Message: "SelectAllWorkflowExecutions operation failed. Not able to create query iterator.",
 		}
 	}
 
-	result := make(map[string]interface{})
-	var executions []*persistence.InternalListConcreteExecutionsEntity
+	// Estimate capacity to avoid reallocations
+	estimated := pageSize
+	if estimated < 32 {
+		estimated = 32
+	}
+	
+	result := resultMapPool.Get().(map[string]interface{})
+	defer func() {
+		for k := range result {
+			delete(result, k)
+		}
+		resultMapPool.Put(result)
+	}()
+	
+	var executions []*persistence.InternalListConcreteExecutionsEntity = make([]*persistence.InternalListConcreteExecutionsEntity, 0, estimated)
+	
 	for iter.MapScan(result) {
-		runID := result["run_id"].(gocql.UUID).String()
+		runID := ""
+		if v, ok := result["run_id"].(gocql.UUID); ok {
+			runID = v.String()
+		} else if v, ok := result["run_id"].(string); ok {
+			runID = v
+		}
+		
 		if runID == permanentRunID {
-			result = make(map[string]interface{})
+			for k := range result {
+				delete(result, k)
+			}
 			continue
 		}
-		executions = append(executions, &persistence.InternalListConcreteExecutionsEntity{
-			ExecutionInfo:    parseWorkflowExecutionInfo(result["execution"].(map[string]interface{})),
-			VersionHistories: persistence.NewDataBlob(result["version_histories"].([]byte), constants.EncodingType(result["version_histories_encoding"].(string))),
-		})
-		result = make(map[string]interface{})
+		
+		execMap, ok := result["execution"].(map[string]interface{})
+		if !ok {
+			for k := range result {
+				delete(result, k)
+			}
+			continue
+		}
+		
+		vh, ok := result["version_histories"].([]byte)
+		enc, ok2 := result["version_histories_encoding"].(string)
+		
+		entity := &persistence.InternalListConcreteExecutionsEntity{
+			ExecutionInfo:    parseWorkflowExecutionInfo(execMap),
+			VersionHistories: persistence.NewDataBlob(nil, ""),
+		}
+		
+		if ok && ok2 {
+			entity.VersionHistories = persistence.NewDataBlob(vh, constants.EncodingType(enc))
+		}
+		
+		executions = append(executions, entity)
+		
+		// Clear map for reuse
+		for k := range result {
+			delete(result, k)
+		}
 	}
+	
 	nextPageToken := getNextPageToken(iter)
-
 	return executions, nextPageToken, iter.Close()
 }
 
@@ -372,19 +637,25 @@ func (db *cdb) IsWorkflowExecutionExists(ctx context.Context, shardID int, domai
 		rowTypeExecutionTaskID,
 	).WithContext(ctx)
 
-	result := make(map[string]interface{})
+	result := resultMapPool.Get().(map[string]interface{})
+	defer func() {
+		for k := range result {
+			delete(result, k)
+		}
+		resultMapPool.Put(result)
+	}()
+	
 	if err := query.MapScan(result); err != nil {
 		if db.client.IsNotFoundError(err) {
 			return false, nil
 		}
-
 		return false, err
 	}
+	
 	return true, nil
 }
 
 func (db *cdb) SelectTransferTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*nosqlplugin.HistoryMigrationTask, []byte, error) {
-	// Reading transfer tasks need to be quorum level consistent, otherwise we could loose task
 	query := db.session.Query(templateGetTransferTasksQuery,
 		shardID,
 		rowTypeTransferTask,
@@ -399,32 +670,56 @@ func (db *cdb) SelectTransferTasksOrderByTaskID(ctx context.Context, shardID, pa
 	iter := query.Iter()
 	if iter == nil {
 		return nil, nil, &types.InternalServiceError{
-			Message: "SelectTransferTasksOrderByTaskID operation failed.  Not able to create query iterator.",
+			Message: "SelectTransferTasksOrderByTaskID operation failed. Not able to create query iterator.",
 		}
 	}
 
-	var tasks []*nosqlplugin.HistoryMigrationTask
-	task := make(map[string]interface{})
+	// Estimate capacity to avoid reallocations
+	estimated := pageSize
+	if estimated < 32 {
+		estimated = 32
+	}
+	
+	var tasks []*nosqlplugin.HistoryMigrationTask = make([]*nosqlplugin.HistoryMigrationTask, 0, estimated)
+	task := taskMapPool.Get().(map[string]interface{})
+	
+	defer func() {
+		// Clear and return to pool
+		for k := range task {
+			delete(task, k)
+		}
+		taskMapPool.Put(task)
+	}()
+	
 	for iter.MapScan(task) {
-		t := parseTransferTaskInfo(task["transfer"].(map[string]interface{}))
-		taskID := task["task_id"].(int64)
-		data := task["data"].([]byte)
-		encoding := task["data_encoding"].(string)
+		transferMap, ok := task["transfer"].(map[string]interface{})
+		if !ok {
+			for k := range task {
+				delete(task, k)
+			}
+			continue
+		}
+		
+		t := parseTransferTaskInfo(transferMap)
+		taskID, _ := task["task_id"].(int64)
+		data, _ := task["data"].([]byte)
+		encoding, _ := task["data_encoding"].(string)
 		taskBlob := persistence.NewDataBlob(data, constants.EncodingType(encoding))
-
-		// Reset task map to get it ready for next scan
-		task = make(map[string]interface{})
 
 		tasks = append(tasks, &nosqlplugin.HistoryMigrationTask{
 			Transfer: t,
 			Task:     taskBlob,
 			TaskID:   taskID,
 		})
+		
+		// Clear map for reuse
+		for k := range task {
+			delete(task, k)
+		}
 	}
+	
 	nextPageToken := getNextPageToken(iter)
-
-	err := iter.Close()
-	return tasks, nextPageToken, err
+	return tasks, nextPageToken, iter.Close()
 }
 
 func (db *cdb) DeleteTransferTask(ctx context.Context, shardID int, taskID int64) error {
@@ -457,7 +752,6 @@ func (db *cdb) RangeDeleteTransferTasks(ctx context.Context, shardID int, exclus
 }
 
 func (db *cdb) SelectTimerTasksOrderByVisibilityTime(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTime, exclusiveMaxTime time.Time) ([]*nosqlplugin.HistoryMigrationTask, []byte, error) {
-	// Reading timer tasks need to be quorum level consistent, otherwise we could loose task
 	minTimestamp := persistence.UnixNanoToDBTimestamp(inclusiveMinTime.UnixNano())
 	maxTimestamp := persistence.UnixNanoToDBTimestamp(exclusiveMaxTime.UnixNano())
 	query := db.session.Query(templateGetTimerTasksQuery,
@@ -473,22 +767,42 @@ func (db *cdb) SelectTimerTasksOrderByVisibilityTime(ctx context.Context, shardI
 	iter := query.Iter()
 	if iter == nil {
 		return nil, nil, &types.InternalServiceError{
-			Message: "SelectTimerTasksOrderByVisibilityTime operation failed.  Not able to create query iterator.",
+			Message: "SelectTimerTasksOrderByVisibilityTime operation failed. Not able to create query iterator.",
 		}
 	}
 
-	var timers []*nosqlplugin.HistoryMigrationTask
-	task := make(map[string]interface{})
+	// Estimate capacity to avoid reallocations
+	estimated := pageSize
+	if estimated < 32 {
+		estimated = 32
+	}
+	
+	var timers []*nosqlplugin.HistoryMigrationTask = make([]*nosqlplugin.HistoryMigrationTask, 0, estimated)
+	task := taskMapPool.Get().(map[string]interface{})
+	
+	defer func() {
+		// Clear and return to pool
+		for k := range task {
+			delete(task, k)
+		}
+		taskMapPool.Put(task)
+	}()
+	
 	for iter.MapScan(task) {
-		t := parseTimerTaskInfo(task["timer"].(map[string]interface{}))
-		taskID := task["task_id"].(int64)
-		scheduledTime := task["visibility_ts"].(time.Time)
-		data := task["data"].([]byte)
-		encoding := task["data_encoding"].(string)
+		timerMap, ok := task["timer"].(map[string]interface{})
+		if !ok {
+			for k := range task {
+				delete(task, k)
+			}
+			continue
+		}
+		
+		t := parseTimerTaskInfo(timerMap)
+		taskID, _ := task["task_id"].(int64)
+		scheduledTime, _ := task["visibility_ts"].(time.Time)
+		data, _ := task["data"].([]byte)
+		encoding, _ := task["data_encoding"].(string)
 		taskBlob := persistence.NewDataBlob(data, constants.EncodingType(encoding))
-
-		// Reset task map to get it ready for next scan
-		task = make(map[string]interface{})
 
 		timers = append(timers, &nosqlplugin.HistoryMigrationTask{
 			Timer:         t,
@@ -496,11 +810,15 @@ func (db *cdb) SelectTimerTasksOrderByVisibilityTime(ctx context.Context, shardI
 			TaskID:        taskID,
 			ScheduledTime: scheduledTime,
 		})
+		
+		// Clear map for reuse
+		for k := range task {
+			delete(task, k)
+		}
 	}
+	
 	nextPageToken := getNextPageToken(iter)
-
-	err := iter.Close()
-	return timers, nextPageToken, err
+	return timers, nextPageToken, iter.Close()
 }
 
 func (db *cdb) DeleteTimerTask(ctx context.Context, shardID int, taskID int64, visibilityTimestamp time.Time) error {
@@ -535,7 +853,6 @@ func (db *cdb) RangeDeleteTimerTasks(ctx context.Context, shardID int, inclusive
 }
 
 func (db *cdb) SelectReplicationTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*nosqlplugin.HistoryMigrationTask, []byte, error) {
-	// Reading replication tasks need to be quorum level consistent, otherwise we could loose task
 	query := db.session.Query(templateGetReplicationTasksQuery,
 		shardID,
 		rowTypeReplicationTask,
@@ -546,6 +863,7 @@ func (db *cdb) SelectReplicationTasksOrderByTaskID(ctx context.Context, shardID,
 		inclusiveMinTaskID,
 		exclusiveMaxTaskID,
 	).PageSize(pageSize).PageState(pageToken).WithContext(ctx)
+	
 	return populateGetReplicationTasks(query)
 }
 
@@ -592,7 +910,6 @@ func (db *cdb) DeleteCrossClusterTask(ctx context.Context, shardID int, targetCl
 }
 
 func (db *cdb) InsertReplicationDLQTask(ctx context.Context, shardID int, sourceCluster string, replicationTask *nosqlplugin.HistoryMigrationTask) error {
-	// Use source cluster name as the workflow id for replication dlq
 	task := replicationTask.Replication
 	taskBlob, taskEncoding := persistence.FromDataBlob(replicationTask.Task)
 	query := db.session.Query(templateCreateReplicationTaskQuery,
@@ -626,7 +943,6 @@ func (db *cdb) InsertReplicationDLQTask(ctx context.Context, shardID int, source
 }
 
 func (db *cdb) SelectReplicationDLQTasksOrderByTaskID(ctx context.Context, shardID int, sourceCluster string, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*nosqlplugin.HistoryMigrationTask, []byte, error) {
-	// Reading replication tasks need to be quorum level consistent, otherwise we could loose task
 	query := db.session.Query(templateGetReplicationTasksQuery,
 		shardID,
 		rowTypeDLQ,
@@ -642,7 +958,6 @@ func (db *cdb) SelectReplicationDLQTasksOrderByTaskID(ctx context.Context, shard
 }
 
 func (db *cdb) SelectReplicationDLQTasksCount(ctx context.Context, shardID int, sourceCluster string) (int64, error) {
-	// Reading replication tasks need to be quorum level consistent, otherwise we could loose task
 	query := db.session.Query(templateGetDLQSizeQuery,
 		shardID,
 		rowTypeDLQ,
@@ -651,12 +966,23 @@ func (db *cdb) SelectReplicationDLQTasksCount(ctx context.Context, shardID int, 
 		rowTypeDLQRunID,
 	).WithContext(ctx)
 
-	result := make(map[string]interface{})
+	result := resultMapPool.Get().(map[string]interface{})
+	defer func() {
+		for k := range result {
+			delete(result, k)
+		}
+		resultMapPool.Put(result)
+	}()
+	
 	if err := query.MapScan(result); err != nil {
 		return -1, err
 	}
 
-	queueSize := result["count"].(int64)
+	queueSize, ok := result["count"].(int64)
+	if !ok {
+		return -1, fmt.Errorf("failed to read queue count from result")
+	}
+	
 	return queueSize, nil
 }
 
@@ -695,52 +1021,83 @@ func (db *cdb) InsertReplicationTask(ctx context.Context, tasks []*nosqlplugin.H
 	}
 
 	shardID := shardCondition.ShardID
-	batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
+
+	// Dynamically batch replication tasks
+	batchSize := dynamicBatchSize(len(tasks), 0)
+	var batches []*gocql.Batch
+
+	batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(context.Background())
 	timeStamp := tasks[0].Replication.CurrentTimeStamp
+	count := 0
+	
 	for _, task := range tasks {
 		createReplicationTasks(batch, shardID, task.Replication.DomainID, task.Replication.WorkflowID, []*nosqlplugin.HistoryMigrationTask{task}, timeStamp)
+		count++
+		
+		if count >= batchSize {
+			assertShardRangeID(batch, shardID, shardCondition.RangeID, timeStamp)
+			batches = append(batches, batch)
+			batch = db.session.NewBatch(gocql.LoggedBatch).WithContext(context.Background())
+			count = 0
+		}
+	}
+	
+	if count > 0 && len(batch.Entries) > 0 {
+		assertShardRangeID(batch, shardID, shardCondition.RangeID, timeStamp)
+		batches = append(batches, batch)
 	}
 
-	assertShardRangeID(batch, shardID, shardCondition.RangeID, timeStamp)
-
-	previous := make(map[string]interface{})
-	applied, iter, err := db.session.MapExecuteBatchCAS(batch, previous)
+	// Reuse the same map for all batch executions to reduce allocations
+	previous := resultMapPool.Get().(map[string]interface{})
 	defer func() {
-		if iter != nil {
-			_ = iter.Close()
+		// Clear and return to pool
+		for k := range previous {
+			delete(previous, k)
 		}
+		resultMapPool.Put(previous)
 	}()
-	if err != nil {
-		return err
-	}
-
-	if !applied {
-		rowType, ok := previous["type"].(int)
-		if !ok {
-			// This should never happen, as all our rows have the type field.
-			panic("Encounter row type not found")
+	
+	for _, b := range batches {
+		// Clear map before each use
+		for k := range previous {
+			delete(previous, k)
 		}
-		if rowType == rowTypeShard {
-			if actualRangeID, ok := previous["range_id"].(int64); ok && actualRangeID != shardCondition.RangeID {
-				// CreateWorkflowExecution failed because rangeID was modified
-				return &nosqlplugin.ShardOperationConditionFailure{
-					RangeID: actualRangeID,
+		
+		applied, iter, err := db.session.MapExecuteBatchCAS(b, previous)
+		if iter != nil {
+			defer iter.Close()
+		}
+		
+		if err != nil {
+			return err
+		}
+		
+		if !applied {
+			rowType, ok := previous["type"].(int)
+			if !ok {
+				panic("Encounter row type not found")
+			}
+			
+			if rowType == rowTypeShard {
+				if actualRangeID, ok := previous["range_id"].(int64); ok && actualRangeID != shardCondition.RangeID {
+					return &nosqlplugin.ShardOperationConditionFailure{
+						RangeID: actualRangeID,
+					}
 				}
 			}
-		}
-
-		// At this point we only know that the write was not applied.
-		// It's much safer to return ShardOperationConditionFailure(which will become ShardOwnershipLostError later) as the default to force the application to reload
-		// shard to recover from such errors
-		var columns []string
-		for k, v := range previous {
-			columns = append(columns, fmt.Sprintf("%s=%v", k, v))
-		}
-		return &nosqlplugin.ShardOperationConditionFailure{
-			RangeID: -1,
-			Details: strings.Join(columns, ","),
+			
+			var columns []string
+			for k, v := range previous {
+				columns = append(columns, fmt.Sprintf("%s=%v", k, v))
+			}
+			
+			return &nosqlplugin.ShardOperationConditionFailure{
+				RangeID: -1,
+				Details: strings.Join(columns, ","),
+			}
 		}
 	}
+	
 	return nil
 }
 
@@ -755,34 +1112,29 @@ func (db *cdb) SelectActiveClusterSelectionPolicy(ctx context.Context, shardID i
 		rowTypeWorkflowActiveClusterSelectionVersion,
 	).WithContext(ctx)
 
-	result := make(map[string]interface{})
+	result := resultMapPool.Get().(map[string]interface{})
+	defer func() {
+		for k := range result {
+			delete(result, k)
+		}
+		resultMapPool.Put(result)
+	}()
+	
 	if err := query.MapScan(result); err != nil {
 		if db.client.IsNotFoundError(err) {
 			return nil, nil
 		}
-
 		return nil, err
 	}
 
+	policyData, _ := result["data"].([]byte)
+	dataEncoding, _ := result["data_encoding"].(string)
+	
 	return &nosqlplugin.ActiveClusterSelectionPolicyRow{
 		ShardID:    shardID,
 		DomainID:   domainID,
 		WorkflowID: wfID,
 		RunID:      rID,
-		Policy:     persistence.NewDataBlob(result["data"].([]byte), constants.EncodingType(result["data_encoding"].(string))),
+		Policy:     persistence.NewDataBlob(policyData, constants.EncodingType(dataEncoding)),
 	}, nil
-}
-
-func (db *cdb) DeleteActiveClusterSelectionPolicy(ctx context.Context, shardID int, domainID, workflowID, runID string) error {
-	query := db.session.Query(templateDeleteActiveClusterSelectionPolicyQuery,
-		shardID,
-		rowTypeWorkflowActiveClusterSelectionPolicy,
-		domainID,
-		workflowID,
-		runID,
-		defaultVisibilityTimestamp,
-		rowTypeWorkflowActiveClusterSelectionVersion,
-	).WithContext(ctx)
-
-	return db.executeWithConsistencyAll(query)
 }

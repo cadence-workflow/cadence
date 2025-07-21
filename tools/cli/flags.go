@@ -125,10 +125,8 @@ const (
 	FlagQueryConsistencyLevel          = "query_consistency_level"
 	FlagShowDetail                     = "show_detail"
 	FlagActiveClusterName              = "active_cluster"
-	FlagActiveClustersByRegion         = "active_clusters_by_region"
 	FlagClusters                       = "clusters"
-	FlagIsGlobalDomain                 = "global_domain"        // active-passive domain
-	FlagIsActiveActiveDomain           = "active_active_domain" // active-active domain
+	FlagIsGlobalDomain                 = "global_domain"
 	FlagDomainData                     = "domain_data"
 	FlagEventID                        = "event_id"
 	FlagActivityID                     = "activity_id"

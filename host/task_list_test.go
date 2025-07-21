@@ -122,7 +122,7 @@ func (s *TaskListIntegrationSuite) TestDescribeTaskList_Status() {
 	s.Equal(initialStatus, response.TaskListStatus)
 
 	// 1. After a task has been added but not yet completed
-	runID := s.startWorkflow(types.TaskListKindNormal).RunID
+	runID := s.startWorkflow().RunID
 	response = s.describeUntil(func(response *types.DescribeTaskListResponse) bool {
 		return response.TaskListStatus.BacklogCountHint == 1
 	})
@@ -141,23 +141,6 @@ func (s *TaskListIntegrationSuite) TestDescribeTaskList_Status() {
 	response.TaskListStatus.IsolationGroupMetrics = nil
 	response.TaskListStatus.NewTasksPerSecond = 0
 	s.Equal(completedStatus, response.TaskListStatus)
-}
-
-func (s *TaskListIntegrationSuite) TestEphemeralTaskList() {
-	runID := s.startWorkflow(types.TaskListKindEphemeral).RunID
-
-	response := s.describeWorkflow(runID)
-	s.Equal(types.TaskListKindEphemeral, response.WorkflowExecutionInfo.TaskList.GetKind())
-
-	firstEvent := s.getStartedEvent(runID)
-	s.Equal(types.TaskListKindEphemeral, firstEvent.TaskList.GetKind())
-
-	// Finish the workflow, although it doesn't dispatch its tasks as Ephemeral yet
-	poller := s.createPoller("result")
-	cancelPoller := poller.PollAndProcessDecisions()
-	defer cancelPoller()
-	_, err := s.getWorkflowResult(runID)
-	s.NoError(err, "failed to get workflow result")
 }
 
 func (s *TaskListIntegrationSuite) createPoller(identity string) *TaskPoller {
@@ -181,7 +164,7 @@ func (s *TaskListIntegrationSuite) createPoller(identity string) *TaskPoller {
 	}
 }
 
-func (s *TaskListIntegrationSuite) startWorkflow(tlKind types.TaskListKind) *types.StartWorkflowExecutionResponse {
+func (s *TaskListIntegrationSuite) startWorkflow() *types.StartWorkflowExecutionResponse {
 	identity := "test"
 
 	request := &types.StartWorkflowExecutionRequest{
@@ -193,7 +176,7 @@ func (s *TaskListIntegrationSuite) startWorkflow(tlKind types.TaskListKind) *typ
 		},
 		TaskList: &types.TaskList{
 			Name: tl,
-			Kind: tlKind.Ptr(),
+			Kind: types.TaskListKindNormal.Ptr(),
 		},
 		Input:                               nil,
 		ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(10),
@@ -205,22 +188,6 @@ func (s *TaskListIntegrationSuite) startWorkflow(tlKind types.TaskListKind) *typ
 	ctx, cancel := createContext()
 	defer cancel()
 	result, err := s.Engine.StartWorkflowExecution(ctx, request)
-	s.Nil(err)
-
-	return result
-}
-
-func (s *TaskListIntegrationSuite) describeWorkflow(runID string) *types.DescribeWorkflowExecutionResponse {
-	request := &types.DescribeWorkflowExecutionRequest{
-		Domain: s.DomainName,
-		Execution: &types.WorkflowExecution{
-			WorkflowID: s.T().Name(),
-			RunID:      runID,
-		},
-	}
-	ctx, cancel := createContext()
-	defer cancel()
-	result, err := s.Engine.DescribeWorkflowExecution(ctx, request)
 	s.Nil(err)
 
 	return result
@@ -272,29 +239,6 @@ func (s *TaskListIntegrationSuite) describeTaskList() *types.DescribeTaskListRes
 	return result
 }
 
-func (s *TaskListIntegrationSuite) getStartedEvent(runID string) *types.WorkflowExecutionStartedEventAttributes {
-	ctx, cancel := createContext()
-	defer cancel()
-	historyResponse, err := s.Engine.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
-		Domain: s.DomainName,
-		Execution: &types.WorkflowExecution{
-			WorkflowID: s.T().Name(),
-			RunID:      runID,
-		},
-		HistoryEventFilterType: types.HistoryEventFilterTypeAllEvent.Ptr(),
-	})
-	s.NoError(err, "failed to get workflow history")
-
-	history := historyResponse.History
-
-	firstEvent := history.Events[0]
-	if *firstEvent.EventType != types.EventTypeWorkflowExecutionStarted {
-		s.FailNow("expected first event to be WorkflowExecutionStarted")
-	}
-
-	return firstEvent.WorkflowExecutionStartedEventAttributes
-}
-
 func (s *TaskListIntegrationSuite) getWorkflowResult(runID string) (string, error) {
 	ctx, cancel := createContext()
 	defer cancel()
@@ -318,4 +262,5 @@ func (s *TaskListIntegrationSuite) getWorkflowResult(runID string) (string, erro
 	}
 
 	return string(lastEvent.WorkflowExecutionCompletedEventAttributes.Result), nil
+
 }

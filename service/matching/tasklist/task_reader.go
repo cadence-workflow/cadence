@@ -387,7 +387,7 @@ func (tr *taskReader) newDispatchContext(isolationGroup string, isolationDuratio
 			// we don't know if the domain is active in the current cluster, assume it is active and set the timeout
 			return context.WithTimeout(tr.cancelCtx, timeout)
 		}
-		if domainEntry.IsActiveIn(tr.clusterMetadata.GetCurrentClusterName()) {
+		if _, err := domainEntry.IsActiveIn(tr.clusterMetadata.GetCurrentClusterName()); err == nil {
 			// if the domain is active in the current cluster, set the timeout
 			return context.WithTimeout(tr.cancelCtx, timeout)
 		}

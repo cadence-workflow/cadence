@@ -549,7 +549,7 @@ func (c *taskListManagerImpl) AddTask(ctx context.Context, params AddTaskParams)
 
 		isForwarded := params.ForwardedFrom != ""
 
-		if !domainEntry.IsActiveIn(c.clusterMetadata.GetCurrentClusterName()) {
+		if _, err := domainEntry.IsActiveIn(c.clusterMetadata.GetCurrentClusterName()); err != nil {
 			// standby task, only persist when task is not forwarded from child partition
 			syncMatch = false
 			if isForwarded {
@@ -603,7 +603,7 @@ func (c *taskListManagerImpl) DispatchTask(ctx context.Context, task *InternalTa
 		return fmt.Errorf("unable to fetch domain from cache: %w", err)
 	}
 
-	if domainEntry.IsActiveIn(c.clusterMetadata.GetCurrentClusterName()) {
+	if isActive, _ := domainEntry.IsActiveIn(c.clusterMetadata.GetCurrentClusterName()); isActive {
 		return c.matcher.MustOffer(ctx, task)
 	}
 
@@ -693,7 +693,7 @@ func (c *taskListManagerImpl) getTask(ctx context.Context, maxDispatchPerSecond 
 	// value. Last poller wins if different pollers provide different values
 	c.matcher.UpdateRatelimit(maxDispatchPerSecond)
 
-	if !domainEntry.IsActiveIn(c.clusterMetadata.GetCurrentClusterName()) {
+	if _, err := domainEntry.IsActiveIn(c.clusterMetadata.GetCurrentClusterName()); err != nil {
 		return c.matcher.PollForQuery(childCtx)
 	}
 

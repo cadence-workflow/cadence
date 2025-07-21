@@ -27,7 +27,6 @@ import (
 	"errors"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -124,9 +123,6 @@ func (s *noopTask) GetAttempt() int {
 
 func (s *noopTask) GetInfo() persistence.Task {
 	return s.Task
-}
-
-func (s *noopTask) SetInitialSubmitTime(submitTime time.Time) {
 }
 
 type taskRateLimiterMockDeps struct {

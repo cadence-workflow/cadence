@@ -43,7 +43,6 @@ type (
 		GetShard() shard.Context
 		GetAttempt() int
 		GetInfo() persistence.Task
-		SetInitialSubmitTime(time.Time)
 	}
 
 	// CrossClusterTask is the interface for processing cross cluster task in the source cluster
@@ -63,7 +62,7 @@ type (
 
 	// Executor contains the execution logic for Task
 	Executor interface {
-		Execute(task Task) (ExecuteResponse, error)
+		Execute(task Task) (metrics.Scope, error)
 		Stop()
 	}
 
@@ -109,11 +108,6 @@ type (
 
 	// QueueType is the type of task queue
 	QueueType int
-
-	ExecuteResponse struct {
-		Scope        metrics.Scope
-		IsActiveTask bool
-	}
 )
 
 const (

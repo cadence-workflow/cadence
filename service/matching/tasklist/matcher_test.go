@@ -770,18 +770,17 @@ func (t *MatcherTestSuite) TestOfferOrTimeout_SyncMatchTimedOut() {
 
 	t.disableRemoteForwarding()
 
-	task := newInternalTask(t.newTaskInfo(), nil, types.TaskSourceHistory, "", true, nil, "")
-
 	wait := ensureAsyncReady(time.Second, func(ctx context.Context) {
-		time.Sleep(time.Millisecond * 100)
 		task, err := t.matcher.Poll(ctx, "")
 		if err == nil {
 			task.Finish(nil)
 		}
 	})
 
+	task := newInternalTask(t.newTaskInfo(), nil, types.TaskSourceHistory, "", true, nil, "")
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
-	defer cancel()
+	cancel()
 	matched, err := t.matcher.OfferOrTimeout(ctx, time.Now(), task)
 	wait()
 

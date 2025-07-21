@@ -524,17 +524,6 @@ func (d *nosqlExecutionStore) DeleteCurrentWorkflowExecution(
 	return nil
 }
 
-func (d *nosqlExecutionStore) DeleteActiveClusterSelectionPolicy(
-	ctx context.Context,
-	domainID, workflowID, runID string,
-) error {
-	err := d.db.DeleteActiveClusterSelectionPolicy(ctx, d.shardID, domainID, workflowID, runID)
-	if err != nil {
-		return convertCommonErrors(d.db, "DeleteActiveClusterSelectionPolicy", err)
-	}
-	return nil
-}
-
 func (d *nosqlExecutionStore) GetCurrentExecution(
 	ctx context.Context,
 	request *persistence.GetCurrentExecutionRequest,

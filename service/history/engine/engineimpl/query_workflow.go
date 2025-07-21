@@ -23,7 +23,6 @@ package engineimpl
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"go.uber.org/yarpc/yarpcerrors"
@@ -132,7 +131,7 @@ func (e *historyEngineImpl) QueryWorkflow(
 	// 2. the workflow is not running, whenever a workflow is not running dispatching query directly is consistent
 	// 3. the client requested eventual consistency, in this case there are no consistency requirements so dispatching directly through matching is safe
 	// 4. if there is no pending or started decision it means no events came before query arrived, so its safe to dispatch directly
-	isActive := de.IsActiveIn(e.clusterMetadata.GetCurrentClusterName())
+	isActive, _ := de.IsActiveIn(e.clusterMetadata.GetCurrentClusterName())
 	safeToDispatchDirectly := !isActive ||
 		!mutableState.IsWorkflowExecutionRunning() ||
 		req.GetQueryConsistencyLevel() == types.QueryConsistencyLevelEventual ||
@@ -223,7 +222,7 @@ func (e *historyEngineImpl) queryDirectlyThroughMatching(
 		return nil, err
 	}
 	supportsStickyQuery := e.clientChecker.SupportsStickyQuery(msResp.GetClientImpl(), msResp.GetClientFeatureVersion()) == nil
-	domainIsActive := de.IsActiveIn(e.clusterMetadata.GetCurrentClusterName())
+	domainIsActive, _ := de.IsActiveIn(e.clusterMetadata.GetCurrentClusterName())
 	if msResp.GetIsStickyTaskListEnabled() &&
 		len(msResp.GetStickyTaskList().GetName()) != 0 &&
 		supportsStickyQuery &&
@@ -318,21 +317,12 @@ func (e *historyEngineImpl) queryDirectlyThroughMatching(
 	matchingResp, err := e.matchingClient.QueryWorkflow(ctx, nonStickyMatchingRequest)
 	nonStickyStopWatch.Stop()
 	if err != nil {
-		if strings.Contains(err.Error(), "unknown queryType") {
-			e.logger.Info("user calls for unsupported query type",
-				tag.WorkflowDomainName(queryRequest.GetDomain()),
-				tag.WorkflowID(queryRequest.Execution.GetWorkflowID()),
-				tag.WorkflowRunID(queryRequest.Execution.GetRunID()),
-				tag.WorkflowQueryType(queryRequest.Query.GetQueryType()),
-				tag.Error(err))
-		} else {
-			e.logger.Error("query directly though matching on non-sticky failed",
-				tag.WorkflowDomainName(queryRequest.GetDomain()),
-				tag.WorkflowID(queryRequest.Execution.GetWorkflowID()),
-				tag.WorkflowRunID(queryRequest.Execution.GetRunID()),
-				tag.WorkflowQueryType(queryRequest.Query.GetQueryType()),
-				tag.Error(err))
-		}
+		e.logger.Error("query directly though matching on non-sticky failed",
+			tag.WorkflowDomainName(queryRequest.GetDomain()),
+			tag.WorkflowID(queryRequest.Execution.GetWorkflowID()),
+			tag.WorkflowRunID(queryRequest.Execution.GetRunID()),
+			tag.WorkflowQueryType(queryRequest.Query.GetQueryType()),
+			tag.Error(err))
 		return nil, err
 	}
 	scope.IncCounter(metrics.DirectQueryDispatchNonStickySuccessCount)

@@ -113,7 +113,7 @@ func TestPostgresSQLVisibilityPersistenceSuite(t *testing.T) {
 	suite.Run(t, s)
 }
 
-// TODO flaky test
+// TODO flaky test in buildkite
 // https://github.com/uber/cadence/issues/2877
 /*
 FAIL: TestPostgresSQLQueuePersistence/TestDomainReplicationQueue (0.26s)

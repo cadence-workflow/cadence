@@ -140,7 +140,6 @@ func TestGettersForInfos(t *testing.T) {
 			CompletionEvent:         []byte("completionEvent"),
 			CompletionEventEncoding: "completionEventEncoding",
 			TaskList:                "taskList",
-			TaskListKind:            types.TaskListKindEphemeral,
 			WorkflowTypeName:        "workflowTypeName",
 			WorkflowTimeout:         3,
 			DecisionTimeout:         4,

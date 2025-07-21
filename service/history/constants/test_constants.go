@@ -46,8 +46,6 @@ var (
 	TestRunID = "0d00698f-08e1-4d36-a3e2-3bf109f5d2d6"
 	// TestRequestID is the request ID for test
 	TestRequestID = "143b22cd-dfac-4d59-9398-893f89d89df6"
-	// CronSkip
-	CronSkip = types.CronOverlapPolicySkipped
 
 	// TestClusterMetadata is the cluster metadata for test
 	TestClusterMetadata = cluster.GetTestClusterMetadata(true)

@@ -38,6 +38,15 @@ operations:
     workflowExecutionStartToCloseTimeout: 65s
     workflowDuration: 35s
 
+  # TODO: uncomment this
+  # # failover from cluster0 to cluster1
+  # - op: change_active_clusters
+  #   at: 20s
+  #   domain: test-domain-aa
+  #   newActiveClustersByRegion:
+  #     region0: cluster1 # this is changed from cluster0 to cluster1
+  #     region1: cluster1
+
   # validate that wf1 is started in cluster0 and completed in cluster1
   - op: validate
     at: 70s
@@ -47,7 +56,7 @@ operations:
     want:
       status: completed
       startedByWorkersInCluster: cluster0
-      completedByWorkersInCluster: cluster0
+      completedByWorkersInCluster: cluster0 # TODO: change this to cluster1
 
   # validate that wf2 is started and completed in cluster1
   - op: validate

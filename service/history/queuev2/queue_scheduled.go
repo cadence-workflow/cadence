@@ -29,7 +29,6 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common"
-	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -185,6 +184,9 @@ func (q *scheduledQueue) processEventLoop() {
 		case <-q.timerGate.Chan():
 			q.base.processNewTasks()
 			q.lookAheadTask()
+		case <-q.base.pollTimer.Chan():
+			q.base.processPollTimer()
+			q.lookAheadTask()
 		case <-q.base.updateQueueStateTimer.Chan():
 			q.base.updateQueueState(q.ctx)
 		case <-q.ctx.Done():
@@ -195,10 +197,7 @@ func (q *scheduledQueue) processEventLoop() {
 
 func (q *scheduledQueue) lookAheadTask() {
 	lookAheadMinTime := q.base.newVirtualSliceState.Range.InclusiveMinTaskKey.GetScheduledTime()
-	lookAheadMaxTime := lookAheadMinTime.Add(backoff.JitDuration(
-		q.base.options.MaxPollInterval(),
-		q.base.options.MaxPollIntervalJitterCoefficient(),
-	))
+	lookAheadMaxTime := lookAheadMinTime.Add(q.base.options.MaxPollInterval())
 
 	resp, err := q.base.queueReader.GetTask(q.ctx, &GetTaskRequest{
 		Progress: &GetTaskProgress{

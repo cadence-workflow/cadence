@@ -21,6 +21,8 @@
 package history
 
 import (
+	"context"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -29,6 +31,7 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/dynamicconfig/quotas"
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/metrics"
 	commonResource "github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/service/history/config"
@@ -40,20 +43,29 @@ import (
 	"github.com/uber/cadence/service/history/wrappers/thrift"
 )
 
+// Default values if not provided by dynamic config
 const (
-	workflowIDCacheTTL      = 1 * time.Second
-	workflowIDCacheMaxCount = 10_000
+	defaultWorkflowIDCacheTTL      = 1 * time.Second
+	defaultWorkflowIDCacheMaxCount = 10_000
+	
+	// Shutdown constants
+	shutdownPropagationTime  = 300 * time.Millisecond  // Reduced from 400ms
+	shutdownGracePeriod      = 1 * time.Second         // Reduced from 2s
+	shutdownParallelism      = 4                       // Number of parallel shutdown operations
 )
 
 // Service represents the cadence-history service
 type Service struct {
 	resource.Resource
 
-	status  int32
-	handler handler.Handler
-	stopC   chan struct{}
-	params  *commonResource.Params
-	config  *config.Config
+	status       int32
+	handler      handler.Handler
+	stopC        chan struct{}
+	params       *commonResource.Params
+	config       *config.Config
+	shutdownCtx  context.Context
+	shutdownFunc context.CancelFunc
+	shutdownWG   sync.WaitGroup
 }
 
 // NewService builds a new cadence-history service
@@ -80,12 +92,16 @@ func NewService(
 		return nil, err
 	}
 
+	ctx, cancelFunc := context.WithCancel(context.Background())
+
 	return &Service{
-		Resource: serviceResource,
-		status:   common.DaemonStatusInitialized,
-		stopC:    make(chan struct{}),
-		params:   params,
-		config:   serviceConfig,
+		Resource:     serviceResource,
+		status:       common.DaemonStatusInitialized,
+		stopC:        make(chan struct{}),
+		params:       params,
+		config:       serviceConfig,
+		shutdownCtx:  ctx,
+		shutdownFunc: cancelFunc,
 	}, nil
 }
 
@@ -96,37 +112,61 @@ func (s *Service) Start() {
 	}
 
 	logger := s.GetLogger()
+	metricsClient := s.GetMetricsClient()
 	logger.Info("elastic search config", tag.ESConfig(s.params.ESConfig))
 	logger.Info("history starting")
 
+	// Start tracking service startup time
+	startTime := time.Now()
+	defer func() {
+		metricsClient.Timer(metrics.ServiceStartupTimeScope, time.Since(startTime))
+	}()
+
+	// Use dynamic config with fallback to defaults
+	cacheTTL := defaultWorkflowIDCacheTTL
+	if s.config.WorkflowCacheTTL != nil {
+		cacheTTL = s.config.WorkflowCacheTTL()
+	}
+	
+	cacheMaxSize := defaultWorkflowIDCacheMaxCount
+	if s.config.WorkflowCacheMaxSize != nil {
+		cacheMaxSize = s.config.WorkflowCacheMaxSize()
+	}
+
+	// Create workflow ID cache with adaptive sizing based on host load
 	wfIDCache := workflowcache.New(workflowcache.Params{
-		TTL:                    workflowIDCacheTTL,
+		TTL:                    cacheTTL,
 		ExternalLimiterFactory: quotas.NewSimpleDynamicRateLimiterFactory(s.config.WorkflowIDExternalRPS),
 		InternalLimiterFactory: quotas.NewSimpleDynamicRateLimiterFactory(s.config.WorkflowIDInternalRPS),
-		MaxCount:               workflowIDCacheMaxCount,
+		MaxCount:               cacheMaxSize,
 		DomainCache:            s.Resource.GetDomainCache(),
-		Logger:                 s.Resource.GetLogger(),
-		MetricsClient:          s.Resource.GetMetricsClient(),
+		Logger:                 logger.WithTags(tag.ComponentCache),
+		MetricsClient:          metricsClient,
+		LoadMonitor:            s.Resource.GetHostInfoProvider(), // For adaptive caching based on host load
 	})
 
 	rawHandler := handler.NewHandler(s.Resource, s.config, wfIDCache)
+	
+	// Apply rate limiting wrapper
 	s.handler = ratelimited.NewHistoryHandler(
 		rawHandler,
 		wfIDCache,
-		s.Resource.GetLogger(),
+		logger.WithTags(tag.ComponentRateLimiter),
 	)
 
+	// Register both Thrift and gRPC handlers
 	thriftHandler := thrift.NewThriftHandler(s.handler)
 	thriftHandler.Register(s.GetDispatcher())
 
 	grpcHandler := grpc.NewGRPCHandler(s.handler)
 	grpcHandler.Register(s.GetDispatcher())
 
-	// must start resource first
+	// Must start resource first
 	s.Resource.Start()
 	s.handler.Start()
 
-	logger.Info("history started")
+	metricsClient.IncCounter(metrics.HistoryServiceScope, metrics.ServiceStartedCount)
+	logger.Info("history started", tag.Address(s.params.HostName))
 
 	<-s.stopC
 }
@@ -137,35 +177,96 @@ func (s *Service) Stop() {
 		return
 	}
 
-	// initiate graceful shutdown :
-	// 1. remove self from the membership ring
-	// 2. wait for other members to discover we are going down
-	// 3. stop acquiring new shards (periodically or based on other membership changes)
-	// 4. wait for shard ownership to transfer (and inflight requests to drain) while still accepting new requests
-	// 5. Reject all requests arriving at rpc handler to avoid taking on more work except for RespondXXXCompleted and
-	//    RecordXXStarted APIs - for these APIs, most of the work is already one and rejecting at last stage is
-	//    probably not that desirable. If the shard is closed, these requests will fail anyways.
-	// 6. wait for grace period
-	// 7. force stop the whole world and return
+	// Create a context with timeout for coordinating shutdown
+	shutdownTimeout := s.config.ShutdownDrainDuration()
+	ctx, cancel := context.WithTimeout(s.shutdownCtx, shutdownTimeout)
+	defer cancel()
 
-	const gossipPropagationDelay = 400 * time.Millisecond
-	const gracePeriod = 2 * time.Second
+	logger := s.GetLogger()
+	metricsClient := s.GetMetricsClient()
+	
+	// Track shutdown time metrics
+	shutdownStartTime := time.Now()
+	defer func() {
+		metricsClient.Timer(metrics.ServiceShutdownTimeScope, time.Since(shutdownStartTime))
+	}()
 
-	remainingTime := s.config.ShutdownDrainDuration()
+	// Calculate total allocated shutdown time
+	totalTime := shutdownTimeout
+	remainingTime := totalTime
 
-	s.GetLogger().Info("ShutdownHandler: Evicting self from membership ring")
-	s.GetMembershipResolver().EvictSelf()
+	// Step 1: Signal beginning of shutdown via context cancellation
+	s.shutdownFunc()
+	logger.Info("ShutdownHandler: Initiated shutdown sequence", 
+		tag.TotalShutdownTime(totalTime),
+		tag.RemainingTime(remainingTime))
 
-	s.GetLogger().Info("ShutdownHandler: Waiting for others to discover I am unhealthy")
-	remainingTime = common.SleepWithMinDuration(gossipPropagationDelay, remainingTime)
-
-	remainingTime = s.handler.PrepareToStop(remainingTime)
-	_ = common.SleepWithMinDuration(gracePeriod, remainingTime)
-
+	// Step 2: Remove from membership ring and wait for propagation (in parallel with initial preparation)
+	s.shutdownWG.Add(1)
+	go func() {
+		defer s.shutdownWG.Done()
+		logger.Info("ShutdownHandler: Evicting self from membership ring")
+		s.GetMembershipResolver().EvictSelf()
+	}()
+	
+	// Step 3: Begin preparing handler to stop (can start before membership fully propagated)
+	s.shutdownWG.Add(1)
+	go func() {
+		defer s.shutdownWG.Done()
+		logger.Info("ShutdownHandler: Preparing handler to stop incoming requests")
+		s.handler.PrepareToStop(remainingTime / 2) // Allocate half the remaining time
+	}()
+	
+	// Wait for both operations to complete
+	waitCh := make(chan struct{})
+	go func() {
+		s.shutdownWG.Wait()
+		close(waitCh)
+	}()
+	
+	// Wait for completion or timeout
+	select {
+	case <-waitCh:
+		// Both operations completed successfully
+	case <-time.After(shutdownPropagationTime):
+		logger.Warn("ShutdownHandler: Parallel shutdown operations timed out, continuing with shutdown")
+	}
+	
+	// Recalculate remaining time
+	elapsedTime := time.Since(shutdownStartTime)
+	if elapsedTime > totalTime {
+		remainingTime = 0
+	} else {
+		remainingTime = totalTime - elapsedTime
+	}
+	
+	// Step 4: Final preparations with a reduced grace period
+	minGracePeriod := common.MinDuration(shutdownGracePeriod, remainingTime/4)
+	logger.Info("ShutdownHandler: Waiting grace period before final shutdown", 
+		tag.RemainingTime(remainingTime),
+		tag.GracePeriod(minGracePeriod))
+		
+	// Check if we still have time for the grace period
+	select {
+	case <-time.After(minGracePeriod):
+		// Grace period completed
+	case <-ctx.Done():
+		logger.Warn("ShutdownHandler: Shutdown timeout reached, forcing immediate shutdown")
+	}
+	
+	// Signal to stop the service main loop and complete shutdown
 	close(s.stopC)
-
+	
+	// Step 5: Perform final shutdown in the correct order
+	logger.Info("ShutdownHandler: Stopping handler")
 	s.handler.Stop()
+	
+	logger.Info("ShutdownHandler: Stopping resources")
 	s.Resource.Stop()
 
-	s.GetLogger().Info("history stopped")
+	metricsClient.IncCounter(metrics.HistoryServiceScope, metrics.ServiceStoppedCount)
+	elapsedTime = time.Since(shutdownStartTime)
+	logger.Info("History service shutdown complete", 
+		tag.ShutdownDuration(elapsedTime),
+		tag.Address(s.params.HostName))
 }

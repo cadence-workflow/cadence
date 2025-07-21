@@ -209,14 +209,6 @@ func historyTreeInfoFromThrift(info *sqlblobs.HistoryTreeInfo) *HistoryTreeInfo 
 	}
 }
 
-func taskListKindFromThrift(kind *shared.TaskListKind) types.TaskListKind {
-	res := thrift.ToTaskListKind(kind)
-	if res == nil {
-		return types.TaskListKindNormal
-	}
-	return *res
-}
-
 func workflowExecutionInfoToThrift(info *WorkflowExecutionInfo) *sqlblobs.WorkflowExecutionInfo {
 	if info == nil {
 		return nil
@@ -230,7 +222,6 @@ func workflowExecutionInfoToThrift(info *WorkflowExecutionInfo) *sqlblobs.Workfl
 		CompletionEvent:                         info.CompletionEvent,
 		CompletionEventEncoding:                 &info.CompletionEventEncoding,
 		TaskList:                                &info.TaskList,
-		TaskListKind:                            thrift.FromTaskListKind(&info.TaskListKind),
 		WorkflowTypeName:                        &info.WorkflowTypeName,
 		WorkflowTimeoutSeconds:                  durationToSecondsInt32Ptr(info.WorkflowTimeout),
 		DecisionTaskTimeoutSeconds:              durationToSecondsInt32Ptr(info.DecisionTaskTimeout),
@@ -304,7 +295,6 @@ func workflowExecutionInfoFromThrift(info *sqlblobs.WorkflowExecutionInfo) *Work
 		CompletionEvent:                      info.CompletionEvent,
 		CompletionEventEncoding:              info.GetCompletionEventEncoding(),
 		TaskList:                             info.GetTaskList(),
-		TaskListKind:                         taskListKindFromThrift(info.TaskListKind),
 		WorkflowTypeName:                     info.GetWorkflowTypeName(),
 		WorkflowTimeout:                      common.SecondsToDuration(int64(info.GetWorkflowTimeoutSeconds())),
 		DecisionTaskTimeout:                  common.SecondsToDuration(int64(info.GetDecisionTaskTimeoutSeconds())),

@@ -97,21 +97,6 @@ func (c *injectorExecutionManager) CreateWorkflowExecution(ctx context.Context, 
 	return
 }
 
-func (c *injectorExecutionManager) DeleteActiveClusterSelectionPolicy(ctx context.Context, domainID string, workflowID string, runID string) (err error) {
-	fakeErr := generateFakeError(c.errorRate)
-	var forwardCall bool
-	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
-		err = c.wrapped.DeleteActiveClusterSelectionPolicy(ctx, domainID, workflowID, runID)
-	}
-
-	if fakeErr != nil {
-		logErr(c.logger, "ExecutionManager.DeleteActiveClusterSelectionPolicy", fakeErr, forwardCall, err)
-		err = fakeErr
-		return
-	}
-	return
-}
-
 func (c *injectorExecutionManager) DeleteCurrentWorkflowExecution(ctx context.Context, request *persistence.DeleteCurrentWorkflowExecutionRequest) (err error) {
 	fakeErr := generateFakeError(c.errorRate)
 	var forwardCall bool

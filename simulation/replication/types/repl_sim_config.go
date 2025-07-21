@@ -44,13 +44,12 @@ import (
 type ReplicationSimulationOperation string
 
 const (
-	ReplicationSimulationOperationStartWorkflow               ReplicationSimulationOperation = "start_workflow"
-	ReplicationSimulationOperationResetWorkflow               ReplicationSimulationOperation = "reset_workflow"
-	ReplicationSimulationOperationChangeActiveClusters        ReplicationSimulationOperation = "change_active_clusters"
-	ReplicationSimulationOperationValidate                    ReplicationSimulationOperation = "validate"
-	ReplicationSimulationOperationQueryWorkflow               ReplicationSimulationOperation = "query_workflow"
-	ReplicationSimulationOperationSignalWithStartWorkflow     ReplicationSimulationOperation = "signal_with_start_workflow"
-	ReplicationSimulationOperationMigrateDomainToActiveActive ReplicationSimulationOperation = "migrate_domain_to_active_active"
+	ReplicationSimulationOperationStartWorkflow           ReplicationSimulationOperation = "start_workflow"
+	ReplicationSimulationOperationResetWorkflow           ReplicationSimulationOperation = "reset_workflow"
+	ReplicationSimulationOperationChangeActiveClusters    ReplicationSimulationOperation = "change_active_clusters"
+	ReplicationSimulationOperationValidate                ReplicationSimulationOperation = "validate"
+	ReplicationSimulationOperationQueryWorkflow           ReplicationSimulationOperation = "query_workflow"
+	ReplicationSimulationOperationSignalWithStartWorkflow ReplicationSimulationOperation = "signal_with_start_workflow"
 )
 
 type ReplicationSimulationConfig struct {

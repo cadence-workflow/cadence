@@ -641,8 +641,6 @@ type (
 		Name string `yaml:"name"`
 		Type string `yaml:"type"`
 		Mode string `yaml:"mode"`
-		// ShardNum is defined for fixed namespace.
-		ShardNum int64 `yaml:"shardNum"`
 	}
 
 	Election struct {
@@ -652,8 +650,7 @@ type (
 	}
 
 	LeaderProcess struct {
-		Period       time.Duration `yaml:"period"`
-		HeartbeatTTL time.Duration `yaml:"heartbeatTTL"`
+		Period time.Duration `yaml:"period"`
 	}
 )
 

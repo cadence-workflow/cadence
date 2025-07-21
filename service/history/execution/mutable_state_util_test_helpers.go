@@ -101,7 +101,6 @@ func CopyWorkflowExecutionInfo(t *testing.T, sourceInfo *persistence.WorkflowExe
 		CompletionEventBatchID:             sourceInfo.CompletionEventBatchID,
 		CompletionEvent:                    sourceInfo.CompletionEvent,
 		TaskList:                           sourceInfo.TaskList,
-		TaskListKind:                       sourceInfo.TaskListKind,
 		StickyTaskList:                     sourceInfo.StickyTaskList,
 		StickyScheduleToStartTimeout:       sourceInfo.StickyScheduleToStartTimeout,
 		WorkflowTypeName:                   sourceInfo.WorkflowTypeName,

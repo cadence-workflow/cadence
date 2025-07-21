@@ -345,7 +345,7 @@ $(BUILD)/protoc: $(PROTO_FILES) $(STABLE_BIN)/$(PROTOC_VERSION_BIN) $(BIN)/proto
 		--yarpc-go_out=$(PROTO_OUT) \
 		$$(find $(PROTO_DIR) -name '*.proto');\
 	)
-	$Q # This directory exists for local/github_actions but not for docker builds.
+	$Q # This directory exists for local/buildkite but not for docker builds.
 	$Q if [ -d "$(PROTO_OUT)/uber/cadence" ]; then \
 		cp -R $(PROTO_OUT)/uber/cadence/* $(PROTO_OUT)/; \
 		rm -r $(PROTO_OUT)/uber; \
@@ -404,7 +404,7 @@ $(BUILD)/code-lint: $(LINT_SRC) $(BIN)/revive | $(BUILD)
 		fi
 	$Q touch $@
 
-$(BUILD)/goversion-lint: go.work Dockerfile docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
+$(BUILD)/goversion-lint: go.work Dockerfile docker/buildkite/Dockerfile
 	$Q echo "checking go version..."
 	$Q # intentionally using go.work toolchain, as GOTOOLCHAIN is user-overridable
 	$Q ./scripts/check-go-toolchain.sh $(GOWORK_TOOLCHAIN)
@@ -531,12 +531,6 @@ BINS += cadence-bench
 cadence-bench: $(BINS_DEPEND_ON)
 	$Q echo "compiling cadence-bench with OS: $(GOOS), ARCH: $(GOARCH)"
 	$Q ./scripts/build-with-ldflags.sh -o $@ cmd/bench/main.go
-
-
-BINS  += cadence-releaser
-cadence-releaser: $(BINS_DEPEND_ON)
-	$Q echo "compiling cadence-releaser with OS: $(GOOS), ARCH: $(GOARCH)"
-	$Q ./scripts/build-with-ldflags.sh -o $@ cmd/tools/releaser/releaser.go
 
 .PHONY: go-generate bins tools release clean
 

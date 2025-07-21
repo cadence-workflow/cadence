@@ -119,7 +119,6 @@ type (
 		CompletionEvent                      []byte
 		CompletionEventEncoding              string
 		TaskList                             string
-		TaskListKind                         types.TaskListKind
 		IsCron                               bool
 		WorkflowTypeName                     string
 		WorkflowTimeout                      time.Duration

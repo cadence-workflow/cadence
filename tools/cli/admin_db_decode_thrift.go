@@ -68,7 +68,6 @@ var decodingTypes = map[string]func() codec.ThriftObject{
 	"sqlblobs.TimerTaskInfo":            func() codec.ThriftObject { return &sqlblobs.TimerTaskInfo{} },
 	"sqlblobs.ReplicationTaskInfo":      func() codec.ThriftObject { return &sqlblobs.ReplicationTaskInfo{} },
 	"shared.AsyncWorkflowConfiguration": func() codec.ThriftObject { return &shared.AsyncWorkflowConfiguration{} },
-	"shared.ActiveClusters":             func() codec.ThriftObject { return &shared.ActiveClusters{} },
 }
 
 type decodeError struct {

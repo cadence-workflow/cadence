@@ -8,7 +8,7 @@ require (
 	github.com/MicahParks/keyfunc/v2 v2.1.0
 	github.com/Shopify/sarama v1.33.0
 	github.com/VividCortex/mysqlerr v1.0.0
-	github.com/aws/aws-sdk-go v1.54.12
+	github.com/aws/aws-sdk-go v1.44.180
 	github.com/cactus/go-statsd-client/statsd v0.0.0-20191106001114-12b4e2b38748
 	github.com/cch123/elasticsql v0.0.0-20190321073543-a1a440758eb9
 	github.com/dave/dst v0.26.2
@@ -33,6 +33,7 @@ require (
 	github.com/olekukonko/tablewriter v0.0.4
 	github.com/olivere/elastic v6.2.37+incompatible
 	github.com/olivere/elastic/v7 v7.0.21
+	github.com/opensearch-project/opensearch-go/v2 v2.2.0
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/otiai10/copy v1.1.1
 	github.com/pborman/uuid v0.0.0-20180906182336-adf5a7427709
@@ -69,18 +70,17 @@ require (
 )
 
 require (
-	github.com/Masterminds/semver/v3 v3.3.1
 	github.com/flynn/go-shlex v0.0.0-20150515145356-3f9db97f8568
 	github.com/google/gofuzz v1.0.0
 	github.com/mark3labs/mcp-go v0.18.0
 	github.com/ncruces/go-sqlite3 v0.22.0
-	github.com/opensearch-project/opensearch-go/v4 v4.1.0
 	go.uber.org/mock v0.5.0
 )
 
 require (
 	github.com/ncruces/julianday v1.0.0 // indirect
 	github.com/tetratelabs/wazero v1.8.2 // indirect
+	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 )
@@ -150,7 +150,7 @@ require (
 	golang.org/x/crypto v0.32.0 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20220218215828-6cf2b201936e // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
-	golang.org/x/mod v0.18.0
+	golang.org/x/mod v0.18.0 // indirect
 	golang.org/x/sys v0.29.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20231030173426-d783a09b4405 // indirect

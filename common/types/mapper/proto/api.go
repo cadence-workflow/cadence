@@ -3969,13 +3969,6 @@ func ToTaskIDBlock(t *apiv1.TaskIDBlock) *types.TaskIDBlock {
 	}
 }
 
-func MigrateTaskList(name string, t *apiv1.TaskList) *types.TaskList {
-	if t == nil && name != "" {
-		return &types.TaskList{Name: name, Kind: types.TaskListKindNormal.Ptr()}
-	}
-	return ToTaskList(t)
-}
-
 func FromTaskList(t *types.TaskList) *apiv1.TaskList {
 	if t == nil {
 		return nil
@@ -4913,10 +4906,6 @@ func FromWorkflowExecutionInfo(t *types.WorkflowExecutionInfo) *apiv1.WorkflowEx
 	if t == nil {
 		return nil
 	}
-	tlName := ""
-	if t.TaskList != nil {
-		tlName = t.TaskList.Name
-	}
 	return &apiv1.WorkflowExecutionInfo{
 		WorkflowExecution:            FromWorkflowExecution(t.Execution),
 		Type:                         FromWorkflowType(t.Type),
@@ -4929,8 +4918,7 @@ func FromWorkflowExecutionInfo(t *types.WorkflowExecutionInfo) *apiv1.WorkflowEx
 		Memo:                         FromMemo(t.Memo),
 		SearchAttributes:             FromSearchAttributes(t.SearchAttributes),
 		AutoResetPoints:              FromResetPoints(t.AutoResetPoints),
-		TaskList:                     tlName,
-		TaskListInfo:                 FromTaskList(t.TaskList),
+		TaskList:                     t.TaskList,
 		PartitionConfig:              t.PartitionConfig,
 		IsCron:                       t.IsCron,
 		CronOverlapPolicy:            FromCronOverlapPolicy(t.CronOverlapPolicy),
@@ -4957,7 +4945,7 @@ func ToWorkflowExecutionInfo(t *apiv1.WorkflowExecutionInfo) *types.WorkflowExec
 		Memo:                         ToMemo(t.Memo),
 		SearchAttributes:             ToSearchAttributes(t.SearchAttributes),
 		AutoResetPoints:              ToResetPoints(t.AutoResetPoints),
-		TaskList:                     MigrateTaskList(t.TaskList, t.TaskListInfo),
+		TaskList:                     t.TaskList,
 		PartitionConfig:              t.PartitionConfig,
 		IsCron:                       t.IsCron,
 		CronOverlapPolicy:            ToCronOverlapPolicy(t.CronOverlapPolicy),

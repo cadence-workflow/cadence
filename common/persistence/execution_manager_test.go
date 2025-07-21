@@ -1199,122 +1199,6 @@ func TestCreateFailoverMarkerTasks(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestGetActiveClusterSelectionPolicy(t *testing.T) {
-	ctx := context.Background()
-	domainID := "domainID"
-	workflowID := "workflowID"
-	runID := "runID"
-
-	tests := []struct {
-		name         string
-		prepareMocks func(*MockExecutionStore, *MockPayloadSerializer)
-		want         *types.ActiveClusterSelectionPolicy
-		wantErr      error
-	}{
-		{
-			name: "success",
-			prepareMocks: func(mockedStore *MockExecutionStore, mockedSerializer *MockPayloadSerializer) {
-				data := sampleActiveClusterSelectionPolicyData()
-				mockedStore.EXPECT().GetActiveClusterSelectionPolicy(ctx, domainID, workflowID, runID).
-					Return(data, nil)
-				mockedSerializer.EXPECT().DeserializeActiveClusterSelectionPolicy(data).Return(sampleActiveClusterSelectionPolicy(), nil)
-			},
-			want: sampleActiveClusterSelectionPolicy(),
-		},
-		{
-			name: "store error",
-			prepareMocks: func(mockedStore *MockExecutionStore, mockedSerializer *MockPayloadSerializer) {
-				mockedStore.EXPECT().GetActiveClusterSelectionPolicy(ctx, domainID, workflowID, runID).
-					Return(nil, assert.AnError)
-			},
-			wantErr: assert.AnError,
-		},
-		{
-			name: "store returned nil",
-			prepareMocks: func(mockedStore *MockExecutionStore, mockedSerializer *MockPayloadSerializer) {
-				mockedStore.EXPECT().GetActiveClusterSelectionPolicy(ctx, domainID, workflowID, runID).
-					Return(nil, nil)
-			},
-			wantErr: &types.EntityNotExistsError{
-				Message: "active cluster selection policy not found",
-			},
-		},
-		{
-			name: "deserialize error",
-			prepareMocks: func(mockedStore *MockExecutionStore, mockedSerializer *MockPayloadSerializer) {
-				data := sampleActiveClusterSelectionPolicyData()
-				mockedStore.EXPECT().GetActiveClusterSelectionPolicy(ctx, domainID, workflowID, runID).
-					Return(data, nil)
-				mockedSerializer.EXPECT().DeserializeActiveClusterSelectionPolicy(data).Return(nil, assert.AnError)
-			},
-			wantErr: assert.AnError,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			mockedStore := NewMockExecutionStore(ctrl)
-			mockedSerializer := NewMockPayloadSerializer(ctrl)
-			manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer)
-
-			test.prepareMocks(mockedStore, mockedSerializer)
-
-			policy, err := manager.GetActiveClusterSelectionPolicy(ctx, domainID, workflowID, runID)
-			if test.wantErr != nil {
-				assert.EqualError(t, err, test.wantErr.Error())
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, test.want, policy)
-			}
-		})
-	}
-}
-
-func TestDeleteActiveClusterSelectionPolicy(t *testing.T) {
-	ctx := context.Background()
-	domainID := "domainID"
-	workflowID := "workflowID"
-	runID := "runID"
-
-	tests := []struct {
-		name         string
-		prepareMocks func(*MockExecutionStore)
-		wantErr      error
-	}{
-		{
-			name: "success",
-			prepareMocks: func(mockedStore *MockExecutionStore) {
-				mockedStore.EXPECT().DeleteActiveClusterSelectionPolicy(ctx, domainID, workflowID, runID).Return(nil)
-			},
-		},
-		{
-			name: "store error",
-			prepareMocks: func(mockedStore *MockExecutionStore) {
-				mockedStore.EXPECT().DeleteActiveClusterSelectionPolicy(ctx, domainID, workflowID, runID).Return(assert.AnError)
-			},
-			wantErr: assert.AnError,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			mockedStore := NewMockExecutionStore(ctrl)
-			manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), nil)
-
-			test.prepareMocks(mockedStore)
-
-			err := manager.DeleteActiveClusterSelectionPolicy(ctx, domainID, workflowID, runID)
-			if test.wantErr != nil {
-				assert.EqualError(t, err, test.wantErr.Error())
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
-
 func sampleInternalActivityInfo(name string) *InternalActivityInfo {
 	return &InternalActivityInfo{
 		Version:        1,
@@ -1615,13 +1499,6 @@ func sampleCheckSumData() *DataBlob {
 
 func sampleActiveClusterSelectionPolicyData() *DataBlob {
 	return NewDataBlob([]byte("test-active-cluster-selection-policy"), constants.EncodingTypeThriftRW)
-}
-
-func sampleActiveClusterSelectionPolicy() *types.ActiveClusterSelectionPolicy {
-	return &types.ActiveClusterSelectionPolicy{
-		ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
-		StickyRegion:                   "region-1",
-	}
 }
 
 func sampleInternalChildExecutionInfo(initEventID, startedEventID int64) *InternalChildExecutionInfo {

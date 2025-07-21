@@ -26,15 +26,15 @@ To run locally:
 
 1. Stop the previous run if any
 
-	docker compose -f docker/github_actions/docker-compose-local-async-wf.yml down
+	docker compose -f docker/buildkite/docker-compose-local-async-wf.yml down
 
 2. Build the integration-test-async-wf image
 
-	docker compose -f docker/github_actions/docker-compose-local-async-wf.yml build integration-test-async-wf
+	docker compose -f docker/buildkite/docker-compose-local-async-wf.yml build integration-test-async-wf
 
 3. Run the test in the docker container
 
-	docker compose -f docker/github_actions/docker-compose-local-async-wf.yml run --rm integration-test-async-wf
+	docker compose -f docker/buildkite/docker-compose-local-async-wf.yml run --rm integration-test-async-wf
 
 4. Full test run logs can be found at test.log file
 */

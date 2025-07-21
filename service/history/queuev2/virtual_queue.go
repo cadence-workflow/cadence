@@ -285,9 +285,7 @@ func (q *virtualQueueImpl) loadAndSubmitTasks() {
 			q.redispatcher.RedispatchTask(task, scheduledTime)
 			continue
 		}
-		// shard level metrics for the duration between a task being written to a queue and being fetched from it
-		q.metricsScope.RecordHistogramDuration(metrics.TaskEnqueueToFetchLatency, now.Sub(task.GetVisibilityTimestamp()))
-		task.SetInitialSubmitTime(now)
+
 		submitted, err := q.processor.TrySubmit(task)
 		if err != nil {
 			select {

@@ -68,20 +68,19 @@ type (
 		sync.Mutex
 		persistence.Task
 
-		shard                    shard.Context
-		state                    ctask.State
-		priority                 int
-		attempt                  int
-		timeSource               clock.TimeSource
-		initialSubmitTime        time.Time
-		logger                   log.Logger
-		eventLogger              eventLogger
-		scope                    metrics.Scope // initialized when processing task to make the initialization parallel
-		taskExecutor             Executor
-		taskProcessor            Processor
-		redispatchFn             func(task Task)
-		criticalRetryCount       dynamicproperties.IntPropertyFn
-		isPreviousExecutorActive bool
+		shard              shard.Context
+		state              ctask.State
+		priority           int
+		attempt            int
+		timeSource         clock.TimeSource
+		submitTime         time.Time
+		logger             log.Logger
+		eventLogger        eventLogger
+		scope              metrics.Scope // initialized when processing task to make the initialization parallel
+		taskExecutor       Executor
+		taskProcessor      Processor
+		redispatchFn       func(task Task)
+		criticalRetryCount dynamicproperties.IntPropertyFn
 
 		// TODO: following three fields should be removed after new task lifecycle is implemented
 		taskFilter        Filter
@@ -120,7 +119,7 @@ func NewHistoryTask(
 		logger:             logger,
 		eventLogger:        eventLogger,
 		attempt:            0,
-		initialSubmitTime:  timeSource.Now(),
+		submitTime:         timeSource.Now(),
 		timeSource:         timeSource,
 		criticalRetryCount: criticalRetryCount,
 		redispatchFn:       redispatchFn,
@@ -134,7 +133,7 @@ func (t *taskImpl) Execute() error {
 	if t.State() != ctask.TaskStatePending {
 		return nil
 	}
-	scheduleLatency := t.timeSource.Now().Sub(t.initialSubmitTime)
+
 	var err error
 	t.shouldProcessTask, err = t.taskFilter(t.Task)
 	if err != nil {
@@ -152,23 +151,8 @@ func (t *taskImpl) Execute() error {
 		t.scope.IncCounter(metrics.TaskRequestsPerDomain)
 		t.scope.RecordTimer(metrics.TaskProcessingLatencyPerDomain, time.Since(executionStartTime))
 	}()
-	executeResponse, err := t.taskExecutor.Execute(t)
-	t.scope = executeResponse.Scope
-	if t.GetAttempt() == 0 {
-		// domain level metrics for the duration between task being submitted to task scheduler and being executed
-		t.scope.RecordHistogramDuration(metrics.TaskScheduleLatencyPerDomain, scheduleLatency)
-	}
-	if t.isPreviousExecutorActive != executeResponse.IsActiveTask {
-		t.resetAttempt()
-	}
-	t.isPreviousExecutorActive = executeResponse.IsActiveTask
+	t.scope, err = t.taskExecutor.Execute(t)
 	return err
-}
-
-func (t *taskImpl) resetAttempt() {
-	t.Lock()
-	defer t.Unlock()
-	t.attempt = 0
 }
 
 func (t *taskImpl) HandleErr(err error) (retErr error) {
@@ -266,7 +250,7 @@ func (t *taskImpl) HandleErr(err error) (retErr error) {
 	// the domain cache refeshed and then updated here.
 	var e *types.DomainNotActiveError
 	if errors.As(err, &e) || errors.Is(err, types.DomainNotActiveError{}) {
-		if t.timeSource.Now().Sub(t.initialSubmitTime) > 5*cache.DomainCacheRefreshInterval {
+		if t.timeSource.Now().Sub(t.submitTime) > 5*cache.DomainCacheRefreshInterval {
 			t.scope.IncCounter(metrics.TaskNotActiveCounterPerDomain)
 			// If the domain is *still* not active, drop after a while.
 			return nil
@@ -320,7 +304,7 @@ func (t *taskImpl) Ack() {
 	t.state = ctask.TaskStateAcked
 	if t.shouldProcessTask {
 		t.scope.RecordTimer(metrics.TaskAttemptTimerPerDomain, time.Duration(t.attempt))
-		t.scope.RecordTimer(metrics.TaskLatencyPerDomain, time.Since(t.initialSubmitTime))
+		t.scope.RecordTimer(metrics.TaskLatencyPerDomain, time.Since(t.submitTime))
 		t.scope.RecordTimer(metrics.TaskQueueLatencyPerDomain, time.Since(t.GetVisibilityTimestamp()))
 
 	}
@@ -394,13 +378,6 @@ func (t *taskImpl) GetInfo() persistence.Task {
 
 func (t *taskImpl) GetQueueType() QueueType {
 	return t.queueType
-}
-
-func (t *taskImpl) SetInitialSubmitTime(submitTime time.Time) {
-	t.Lock()
-	defer t.Unlock()
-
-	t.initialSubmitTime = submitTime
 }
 
 func (t *taskImpl) shouldResubmitOnNack() bool {

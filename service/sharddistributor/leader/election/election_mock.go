@@ -14,8 +14,6 @@ import (
 	reflect "reflect"
 
 	gomock "go.uber.org/mock/gomock"
-
-	config "github.com/uber/cadence/service/sharddistributor/config"
 )
 
 // MockElector is a mock of Elector interface.
@@ -43,17 +41,17 @@ func (m *MockElector) EXPECT() *MockElectorMockRecorder {
 }
 
 // Run mocks base method.
-func (m *MockElector) Run(ctx context.Context) <-chan bool {
+func (m *MockElector) Run(ctx context.Context, OnLeader, OnResign ProcessFunc) <-chan bool {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Run", ctx)
+	ret := m.ctrl.Call(m, "Run", ctx, OnLeader, OnResign)
 	ret0, _ := ret[0].(<-chan bool)
 	return ret0
 }
 
 // Run indicates an expected call of Run.
-func (mr *MockElectorMockRecorder) Run(ctx any) *gomock.Call {
+func (mr *MockElectorMockRecorder) Run(ctx, OnLeader, OnResign any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockElector)(nil).Run), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockElector)(nil).Run), ctx, OnLeader, OnResign)
 }
 
 // MockFactory is a mock of Factory interface.
@@ -81,16 +79,16 @@ func (m *MockFactory) EXPECT() *MockFactoryMockRecorder {
 }
 
 // CreateElector mocks base method.
-func (m *MockFactory) CreateElector(ctx context.Context, namespaceCfg config.Namespace) (Elector, error) {
+func (m *MockFactory) CreateElector(ctx context.Context, namespace string) (Elector, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateElector", ctx, namespaceCfg)
+	ret := m.ctrl.Call(m, "CreateElector", ctx, namespace)
 	ret0, _ := ret[0].(Elector)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateElector indicates an expected call of CreateElector.
-func (mr *MockFactoryMockRecorder) CreateElector(ctx, namespaceCfg any) *gomock.Call {
+func (mr *MockFactoryMockRecorder) CreateElector(ctx, namespace any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateElector", reflect.TypeOf((*MockFactory)(nil).CreateElector), ctx, namespaceCfg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateElector", reflect.TypeOf((*MockFactory)(nil).CreateElector), ctx, namespace)
 }

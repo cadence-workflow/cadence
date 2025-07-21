@@ -15,16 +15,12 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/service/sharddistributor/config"
-	"github.com/uber/cadence/service/sharddistributor/leader/process"
-	"github.com/uber/cadence/service/sharddistributor/leader/store"
+	"github.com/uber/cadence/service/sharddistributor/leader/leaderstore"
 )
 
 const (
-	_testHost = "localhost"
-)
-
-var (
-	_testNamespace = config.Namespace{Name: "test-namespace"}
+	_testHost      = "localhost"
+	_testNamespace = "test-namespace"
 )
 
 var (
@@ -40,7 +36,7 @@ func TestElector_Run(t *testing.T) {
 	logger := testlogger.New(t)
 	timeSource := clock.NewMockedTimeSource()
 
-	election := store.NewMockElection(ctrl)
+	election := leaderstore.NewMockElection(ctrl)
 	election.EXPECT().Campaign(gomock.Any(), _testHost).Return(nil)
 	election.EXPECT().Done().Return(make(chan struct{}))
 
@@ -50,14 +46,9 @@ func TestElector_Run(t *testing.T) {
 		close(finished)
 		return nil
 	})
-	election.EXPECT().ShardStore(gomock.Any()).Return(nil, nil)
 
-	leaderStore := store.NewMockElector(ctrl)
-	leaderStore.EXPECT().CreateElection(gomock.Any(), _testNamespace.Name).Return(election, nil)
-
-	processFactory := process.NewMockFactory(ctrl)
-	processRunner := process.NewMockProcessor(ctrl)
-	processFactory.EXPECT().CreateProcessor(_testNamespace, nil).Return(processRunner)
+	store := leaderstore.NewMockStore(ctrl)
+	store.EXPECT().CreateElection(gomock.Any(), _testNamespace).Return(election, nil)
 
 	factory := NewElectionFactory(FactoryParams{
 		HostName: _testHost,
@@ -68,10 +59,9 @@ func TestElector_Run(t *testing.T) {
 				FailedElectionCooldown: _testFailedElectionCooldown,
 			},
 		},
-		Store:          leaderStore,
-		Logger:         logger,
-		Clock:          timeSource,
-		ProcessFactory: processFactory,
+		Store:  store,
+		Logger: logger,
+		Clock:  timeSource,
 	})
 
 	el, err := factory.CreateElector(context.Background(), _testNamespace)
@@ -84,15 +74,15 @@ func TestElector_Run(t *testing.T) {
 	onLeaderCalled := false
 	onResignCalled := false
 
-	processRunner.EXPECT().Run(gomock.Any()).DoAndReturn(func(_ context.Context) error {
+	onLeader := func(ctx context.Context) error {
 		onLeaderCalled = true
 		return nil
-	})
+	}
 
-	processRunner.EXPECT().Terminate(gomock.Any()).DoAndReturn(func(ctx context.Context) error {
+	onResign := func(ctx context.Context) error {
 		onResignCalled = true
 		return nil
-	})
+	}
 
 	go func() {
 		// Wait until run will stop on timer
@@ -101,7 +91,7 @@ func TestElector_Run(t *testing.T) {
 		timeSource.Advance(_testMaxRandomDelay)
 	}()
 
-	leaderChan := el.Run(ctx)
+	leaderChan := el.Run(ctx, onLeader, onResign)
 	assert.True(t, <-leaderChan)
 	assert.True(t, onLeaderCalled, "OnLeader callback should have been called")
 	assert.False(t, onResignCalled, "OnResign callback should not have been called")
@@ -116,19 +106,13 @@ func TestElector_Run_Resign(t *testing.T) {
 		p.election.EXPECT().Resign(gomock.Any()).Return(nil)
 		p.cancel()
 		assert.False(t, <-leaderChan)
-		// Wait for the goroutine to exit
-		for range leaderChan {
-		}
 	})
 	t.Run("session_expired", func(t *testing.T) {
 		leaderChan, p := prepareRun(t, nil, nil)
 		p.election.EXPECT().Resign(gomock.Any()).Return(nil)
+		defer p.cancel()
 		close(p.electionCh)
 		assert.False(t, <-leaderChan)
-		p.cancel()
-		// Wait for the goroutine to exit
-		for range leaderChan {
-		}
 	})
 	t.Run("leader_resign", func(t *testing.T) {
 		// Verify onResign is called before resignation
@@ -137,7 +121,7 @@ func TestElector_Run_Resign(t *testing.T) {
 			onResignCalled = true
 			return nil
 		})
-
+		defer p.cancel()
 		// We should be blocked on the timer.
 		p.timeSource.BlockUntil(1)
 
@@ -149,10 +133,6 @@ func TestElector_Run_Resign(t *testing.T) {
 		p.timeSource.Advance(_testLeaderPeriod + 1)
 		p.timeSource.BlockUntil(1)
 		assert.False(t, <-leaderChan)
-		p.cancel()
-		// Wait for the goroutine to exit
-		for range leaderChan {
-		}
 	})
 
 	t.Run("onResign_error", func(t *testing.T) {
@@ -165,6 +145,7 @@ func TestElector_Run_Resign(t *testing.T) {
 		}
 
 		leaderChan, p := prepareRun(t, nil, onResign)
+		defer p.cancel()
 		p.election.EXPECT().Resign(gomock.Any()).Return(nil)
 		// We should be blocked on the timer.
 		p.timeSource.BlockUntil(1)
@@ -176,9 +157,8 @@ func TestElector_Run_Resign(t *testing.T) {
 		assert.True(t, onResignCalled, "OnResign callback should have been called")
 
 		p.cancel()
-		// Wait for the goroutine to exit
-		for range leaderChan {
-		}
+		// Wait briefly for goroutines to clean up
+		time.Sleep(10 * time.Millisecond)
 	})
 	t.Run("OnResign_and_resign_error", func(t *testing.T) {
 		// Set onResign to return an error
@@ -190,6 +170,7 @@ func TestElector_Run_Resign(t *testing.T) {
 		}
 
 		leaderChan, p := prepareRun(t, nil, onResign)
+		defer p.cancel()
 		p.election.EXPECT().Resign(gomock.Any()).Return(fmt.Errorf("failed to resign"))
 		// We should be blocked on the timer.
 		p.timeSource.BlockUntil(1)
@@ -201,9 +182,8 @@ func TestElector_Run_Resign(t *testing.T) {
 		assert.True(t, onResignCalled, "OnResign callback should have been called")
 
 		p.cancel()
-		// Wait for the goroutine to exit
-		for range leaderChan {
-		}
+		// Wait briefly for goroutines to clean up
+		time.Sleep(10 * time.Millisecond)
 	})
 }
 
@@ -212,7 +192,7 @@ type runParams struct {
 	cancel     context.CancelFunc
 	timeSource clock.MockedTimeSource
 	electionCh chan struct{}
-	election   *store.MockElection
+	election   *leaderstore.MockElection
 	onLeader   ProcessFunc
 	onResign   ProcessFunc
 }
@@ -224,17 +204,12 @@ func prepareRun(t *testing.T, onLeader, onResign ProcessFunc) (<-chan bool, runP
 
 	electionCh := make(chan struct{})
 
-	election := store.NewMockElection(ctrl)
+	election := leaderstore.NewMockElection(ctrl)
 	election.EXPECT().Campaign(gomock.Any(), _testHost).Return(nil)
 	election.EXPECT().Done().Return(electionCh)
-	election.EXPECT().ShardStore(gomock.Any()).Return(nil, nil)
 
-	leaderStore := store.NewMockElector(ctrl)
-	leaderStore.EXPECT().CreateElection(gomock.Any(), _testNamespace.Name).Return(election, nil)
-
-	processFactory := process.NewMockFactory(ctrl)
-	processRunner := process.NewMockProcessor(ctrl)
-	processFactory.EXPECT().CreateProcessor(_testNamespace, nil).Return(processRunner)
+	store := leaderstore.NewMockStore(ctrl)
+	store.EXPECT().CreateElection(gomock.Any(), _testNamespace).Return(election, nil)
 
 	factory := NewElectionFactory(FactoryParams{
 		HostName: _testHost,
@@ -245,10 +220,9 @@ func prepareRun(t *testing.T, onLeader, onResign ProcessFunc) (<-chan bool, runP
 				FailedElectionCooldown: _testFailedElectionCooldown,
 			},
 		},
-		Store:          leaderStore,
-		Logger:         logger,
-		Clock:          timeSource,
-		ProcessFactory: processFactory,
+		Store:  store,
+		Logger: logger,
+		Clock:  timeSource,
 	})
 
 	elector, err := factory.CreateElector(context.Background(), _testNamespace)
@@ -269,9 +243,6 @@ func prepareRun(t *testing.T, onLeader, onResign ProcessFunc) (<-chan bool, runP
 		}
 	}
 
-	processRunner.EXPECT().Run(gomock.Any()).DoAndReturn(onLeader)
-	processRunner.EXPECT().Terminate(gomock.Any()).DoAndReturn(onResign)
-
 	go func() {
 		// Wait until run will stop on timer
 		timeSource.BlockUntil(1)
@@ -279,7 +250,7 @@ func prepareRun(t *testing.T, onLeader, onResign ProcessFunc) (<-chan bool, runP
 		timeSource.Advance(_testMaxRandomDelay)
 	}()
 
-	leaderChan := elector.Run(ctx)
+	leaderChan := elector.Run(ctx, onLeader, onResign)
 	assert.True(t, <-leaderChan)
 
 	return leaderChan, runParams{
@@ -300,32 +271,26 @@ func TestOnLeader_Error(t *testing.T) {
 	logger := testlogger.New(t)
 	timeSource := clock.NewMockedTimeSource()
 
-	election := store.NewMockElection(ctrl)
+	election := leaderstore.NewMockElection(ctrl)
 	election.EXPECT().Campaign(gomock.Any(), _testHost).Return(nil)
 	// Expect resignation after onLeader failure
 	election.EXPECT().Resign(gomock.Any()).Return(nil)
-	election.EXPECT().ShardStore(gomock.Any()).Return(nil, nil)
 
-	leaderStore := store.NewMockElector(ctrl)
-	leaderStore.EXPECT().CreateElection(gomock.Any(), _testNamespace.Name).Return(election, nil)
-
-	processFactory := process.NewMockFactory(ctrl)
-	processRunner := process.NewMockProcessor(ctrl)
-	processFactory.EXPECT().CreateProcessor(_testNamespace, nil).Return(processRunner)
+	store := leaderstore.NewMockStore(ctrl)
+	store.EXPECT().CreateElection(gomock.Any(), _testNamespace).Return(election, nil)
 
 	// Create elector directly for test control
 	el := &elector{
 		namespace: _testNamespace,
-		store:     leaderStore,
+		store:     store,
 		logger:    logger,
 		cfg: config.Election{
 			LeaderPeriod:           _testLeaderPeriod,
 			MaxRandomDelay:         _testMaxRandomDelay,
 			FailedElectionCooldown: _testFailedElectionCooldown,
 		},
-		clock:          timeSource,
-		hostname:       _testHost,
-		processFactory: processFactory,
+		clock:    timeSource,
+		hostname: _testHost,
 	}
 
 	// Create a cancelable context for the test
@@ -334,8 +299,9 @@ func TestOnLeader_Error(t *testing.T) {
 
 	// Make onLeader return an error
 	onLeaderErr := errors.New("leader error")
-	processRunner.EXPECT().Run(gomock.Any()).Return(onLeaderErr)
-	processRunner.EXPECT().Terminate(gomock.Any()).Return(nil)
+	onLeader := func(ctx context.Context) error {
+		return onLeaderErr
+	}
 
 	go func() {
 		// Wait until run will stop on timer
@@ -346,10 +312,15 @@ func TestOnLeader_Error(t *testing.T) {
 
 	// Run the test
 	leaderCh := make(chan bool, 1)
-	err := el.runElection(ctx, leaderCh)
+	err := el.runElection(ctx, leaderCh, onLeader, func(ctx context.Context) error { return nil })
 
 	// Error should contain our onLeader error
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "onLeader")
 	assert.Contains(t, err.Error(), "leader error")
+
+	cancel()
+
+	// Wait briefly for goroutines to clean up
+	time.Sleep(10 * time.Millisecond)
 }

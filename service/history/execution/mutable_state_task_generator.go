@@ -692,7 +692,7 @@ func getTargetCluster(
 		return "", false, err
 	}
 
-	isActive := domainEntry.IsActiveIn(clusterMetadata.GetCurrentClusterName())
+	isActive, _ := domainEntry.IsActiveIn(clusterMetadata.GetCurrentClusterName())
 	if !isActive {
 		// treat pending active as active
 		isActive = domainEntry.IsDomainPendingActive()

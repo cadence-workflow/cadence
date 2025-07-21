@@ -367,41 +367,6 @@ There's no change in the failover version to cluster mapping in entity failovers
 However, new task versions of workflows belonging to "seattle" entity will be 3 from now on and therefore they will be active in cluster3.
 
 
-**4. Active-passive to active-active migration:**
-
-When an active-passive domain is migrated to active-active,
-- The domain record will have the `ActiveClusters` field set
-- The existing `ActiveClusterName` field will be left as is.
-- The failover version of the domain will be incremented. Even though this is not used for task versions for active-active domains, it's incremented to indicate there was a change in replication config.
-
-
-Before migration:
-```
-ActiveClusterName: cluster0,
-FailoverVersion: 0
-```
-
-After migration:
-```
-ActiveClusterName: cluster0,
-FailoverVersion: 100,
-ActiveClusters:  {
-    RegionToClusterMap: {
-        us-west: {
-            ActiveClusterName: cluster0,
-            FailoverVersion: 0,
-        },
-        us-east: {
-            ActiveClusterName: cluster3,
-            FailoverVersion: 6,
-        },
-    },
-}
-```
-
-
-
-
 ### API Call Forwarding
 
 Cadence frontend proxies some API calls to the active cluster of the domain. Currently, this request to cluster lookup is done by checking the failover version of the active-passive domain.
@@ -490,7 +455,3 @@ Conflict resolution mechanism should take care of this by terminating one of the
 - **External entity cardinality:** All cadence frontend and history services will have to make quick decisions on which cluster a workflow is active in. This requires caching all the domain data (already done for active-passive domains) and also caching the new entity region lookup table. This cache should be manageable in terms of memory usage so there will be a limit to the number of entities. Actual limit is going to be configurable based on available memory but ideally it should be in the order of thousands.
 
 - **Graceful failover:** Graceful failover is not supported for active-active domains. It is not a mode that is frequently used for active-passive domains either.
-
-## Defining a new external entity type
-
-// TODO(active-active): define external entity providers as plugins. See resource_impl.go

@@ -151,7 +151,3 @@ func (db *ddb) RangeDeleteReplicationDLQTasks(ctx context.Context, shardID int, 
 func (db *ddb) SelectActiveClusterSelectionPolicy(ctx context.Context, shardID int, domainID, wfID, rID string) (*nosqlplugin.ActiveClusterSelectionPolicyRow, error) {
 	panic("TODO")
 }
-
-func (db *ddb) DeleteActiveClusterSelectionPolicy(ctx context.Context, shardID int, domainID, wfID, rID string) error {
-	panic("TODO")
-}

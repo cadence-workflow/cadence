@@ -32,7 +32,6 @@ func ToInternalWorkflowExecutionInfo(info *WorkflowExecutionInfo) *persistence.I
 	result := &persistence.InternalWorkflowExecutionInfo{
 		CompletionEventBatchID:             constants.EmptyEventID,
 		TaskList:                           info.GetTaskList(),
-		TaskListKind:                       info.GetTaskListKind(),
 		WorkflowTypeName:                   info.GetWorkflowTypeName(),
 		WorkflowTimeout:                    info.GetWorkflowTimeout(),
 		DecisionStartToCloseTimeout:        info.GetDecisionTaskTimeout(),
@@ -116,7 +115,6 @@ func ToInternalWorkflowExecutionInfo(info *WorkflowExecutionInfo) *persistence.I
 func FromInternalWorkflowExecutionInfo(executionInfo *persistence.InternalWorkflowExecutionInfo) *WorkflowExecutionInfo {
 	info := &WorkflowExecutionInfo{
 		TaskList:                             executionInfo.TaskList,
-		TaskListKind:                         executionInfo.TaskListKind,
 		WorkflowTypeName:                     executionInfo.WorkflowTypeName,
 		WorkflowTimeout:                      executionInfo.WorkflowTimeout,
 		DecisionTaskTimeout:                  executionInfo.DecisionStartToCloseTimeout,
