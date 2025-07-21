@@ -55,34 +55,26 @@ func NewTestContext(
 ) *TestContext {
 	resource := resource.NewTest(t, ctrl, metrics.History)
 	eventsCache := events.NewMockCache(ctrl)
-	if shardInfo.TransferProcessingQueueStates == nil {
-		shardInfo.TransferProcessingQueueStates = &types.ProcessingQueueStates{
-			StatesByCluster: make(map[string][]*types.ProcessingQueueState),
-		}
-	}
-	if shardInfo.TimerProcessingQueueStates == nil {
-		shardInfo.TimerProcessingQueueStates = &types.ProcessingQueueStates{
-			StatesByCluster: make(map[string][]*types.ProcessingQueueState),
-		}
-	}
+	shardInfo = shardInfo.ToNilSafeCopy()
 	shardInfo.ClusterTransferAckLevel = map[string]int64{resource.ClusterMetadata.GetCurrentClusterName(): 3, "standby": 2}
 
 	shard := &contextImpl{
-		Resource:                  resource,
-		shardID:                   shardInfo.ShardID,
-		rangeID:                   shardInfo.RangeID,
-		shardInfo:                 shardInfo,
-		executionManager:          resource.ExecutionMgr,
-		config:                    config,
-		logger:                    resource.GetLogger(),
-		throttledLogger:           resource.GetThrottledLogger(),
-		transferSequenceNumber:    1,
-		transferMaxReadLevel:      0,
-		maxTransferSequenceNumber: 100000,
-		timerMaxReadLevelMap:      make(map[string]time.Time),
-		transferFailoverLevels:    make(map[string]TransferFailoverLevel),
-		remoteClusterCurrentTime:  make(map[string]time.Time),
-		eventsCache:               eventsCache,
+		Resource:                     resource,
+		shardID:                      shardInfo.ShardID,
+		rangeID:                      shardInfo.RangeID,
+		shardInfo:                    shardInfo,
+		executionManager:             resource.ExecutionMgr,
+		activeClusterManager:         resource.ActiveClusterMgr,
+		config:                       config,
+		logger:                       resource.GetLogger(),
+		throttledLogger:              resource.GetThrottledLogger(),
+		taskSequenceNumber:           1,
+		immediateTaskMaxReadLevel:    0,
+		maxTaskSequenceNumber:        100000,
+		scheduledTaskMaxReadLevelMap: make(map[string]time.Time),
+		failoverLevels:               make(map[persistence.HistoryTaskCategory]map[string]persistence.FailoverLevel),
+		remoteClusterCurrentTime:     make(map[string]time.Time),
+		eventsCache:                  eventsCache,
 	}
 	return &TestContext{
 		contextImpl:     shard,

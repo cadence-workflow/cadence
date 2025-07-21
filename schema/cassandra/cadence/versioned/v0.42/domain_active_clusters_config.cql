@@ -1,0 +1,2 @@
+ALTER TYPE domain_replication_config ADD active_clusters_config blob;
+ALTER TYPE domain_replication_config ADD active_clusters_config_encoding text;

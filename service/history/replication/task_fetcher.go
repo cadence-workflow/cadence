@@ -54,7 +54,7 @@ type (
 
 		GetSourceCluster() string
 		GetRequestChan() chan<- *request
-		GetRateLimiter() *quotas.DynamicRateLimiter
+		GetRateLimiter() quotas.Limiter
 	}
 
 	// TaskFetchers is a group of fetchers, one per source DC.
@@ -72,7 +72,7 @@ type (
 		config         *config.Config
 		logger         log.Logger
 		remotePeer     admin.Client
-		rateLimiter    *quotas.DynamicRateLimiter
+		rateLimiter    quotas.Limiter
 		timeSource     clock.TimeSource
 		requestChan    chan *request
 		ctx            context.Context
@@ -99,11 +99,14 @@ func NewTaskFetchers(
 	config *config.Config,
 	clusterMetadata cluster.Metadata,
 	clientBean client.Bean,
-) TaskFetchers {
+) (TaskFetchers, error) {
 	currentCluster := clusterMetadata.GetCurrentClusterName()
 	var fetchers []TaskFetcher
 	for clusterName := range clusterMetadata.GetRemoteClusterInfo() {
-		remoteFrontendClient := clientBean.GetRemoteAdminClient(clusterName)
+		remoteFrontendClient, err := clientBean.GetRemoteAdminClient(clusterName)
+		if err != nil {
+			return nil, err
+		}
 		fetcher := newReplicationTaskFetcher(
 			logger,
 			clusterName,
@@ -118,7 +121,7 @@ func NewTaskFetchers(
 		fetchers: fetchers,
 		status:   common.DaemonStatusInitialized,
 		logger:   logger,
-	}
+	}, nil
 }
 
 // Start starts the fetchers
@@ -313,6 +316,6 @@ func (f *taskFetcherImpl) GetRequestChan() chan<- *request {
 }
 
 // GetRateLimiter returns the host level rate limiter for the fetcher
-func (f *taskFetcherImpl) GetRateLimiter() *quotas.DynamicRateLimiter {
+func (f *taskFetcherImpl) GetRateLimiter() quotas.Limiter {
 	return f.rateLimiter
 }

@@ -1,0 +1,18 @@
+persistence:
+  defaultStore: sqlite-default
+  visibilityStore: sqlite-visibility
+  datastores:
+    sqlite-default:
+      sql:
+        pluginName: "sqlite"
+        maxConns: 20
+        maxIdleConns: 20
+        maxConnLifetime: "1h"
+        databaseName: "cadence.db"
+    sqlite-visibility:
+      sql:
+        pluginName: "sqlite"
+        maxConns: 20
+        maxIdleConns: 20
+        maxConnLifetime: "1h"
+        databaseName: "cadence_visibility.db"

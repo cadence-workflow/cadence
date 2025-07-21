@@ -24,12 +24,14 @@ package matching
 
 import (
 	"context"
+	stdErrors "errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/yarpc"
 
+	"github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
@@ -40,6 +42,15 @@ const (
 	_testTaskList   = "test-tasklist"
 	_testPartition  = "test-partition"
 )
+
+type testCase struct {
+	name          string
+	op            func(Client) (any, error)
+	mock          func(*MockPeerResolver, *MockLoadBalancer, *MockClient, *MockPartitionConfigProvider)
+	want          any
+	wantError     bool
+	validateError func(*testing.T, error)
+}
 
 func TestNewClient(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -148,11 +159,12 @@ func TestClient_withoutResponse(t *testing.T) {
 
 func TestClient_withResponse(t *testing.T) {
 	tests := []struct {
-		name      string
-		op        func(Client) (any, error)
-		mock      func(*MockPeerResolver, *MockLoadBalancer, *MockClient, *MockPartitionConfigProvider)
-		want      any
-		wantError bool
+		name          string
+		op            func(Client) (any, error)
+		mock          func(*MockPeerResolver, *MockLoadBalancer, *MockClient, *MockPartitionConfigProvider)
+		want          any
+		wantError     bool
+		validateError func(*testing.T, error)
 	}{
 		{
 			name: "AddActivityTask",
@@ -260,10 +272,18 @@ func TestClient_withResponse(t *testing.T) {
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
 				balancer.EXPECT().PickReadPartition(persistence.TaskListTypeActivity, testMatchingPollForActivityTaskRequest(), "").Return(_testPartition)
 				p.EXPECT().FromTaskList(_testPartition).Return("peer0", nil)
-				c.EXPECT().PollForActivityTask(gomock.Any(), gomock.Any(), []yarpc.CallOption{yarpc.WithShardKey("peer0")}).Return(nil, assert.AnError)
+				c.EXPECT().PollForActivityTask(gomock.Any(), gomock.Any(), []yarpc.CallOption{yarpc.WithShardKey("peer0")}).Return(nil, &types.InternalServiceError{Message: "test error"})
 			},
 			want:      nil,
 			wantError: true,
+			validateError: func(t *testing.T, err error) {
+				var peerErr *errors.PeerHostnameError
+				assert.True(t, stdErrors.As(err, &peerErr))
+				assert.Equal(t, "peer0", peerErr.PeerHostname)
+				var internalErr *types.InternalServiceError
+				assert.True(t, stdErrors.As(peerErr.WrappedError, &internalErr))
+				assert.Equal(t, "test error", internalErr.Message)
+			},
 		},
 		{
 			name: "PollForDecisionTask",
@@ -299,10 +319,18 @@ func TestClient_withResponse(t *testing.T) {
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
 				balancer.EXPECT().PickReadPartition(persistence.TaskListTypeDecision, testMatchingPollForDecisionTaskRequest(), "").Return(_testPartition)
 				p.EXPECT().FromTaskList(_testPartition).Return("peer0", nil)
-				c.EXPECT().PollForDecisionTask(gomock.Any(), gomock.Any(), []yarpc.CallOption{yarpc.WithShardKey("peer0")}).Return(nil, assert.AnError)
+				c.EXPECT().PollForDecisionTask(gomock.Any(), gomock.Any(), []yarpc.CallOption{yarpc.WithShardKey("peer0")}).Return(nil, &types.InternalServiceError{Message: "test error"})
 			},
 			want:      nil,
 			wantError: true,
+			validateError: func(t *testing.T, err error) {
+				var peerErr *errors.PeerHostnameError
+				assert.True(t, stdErrors.As(err, &peerErr))
+				assert.Equal(t, "peer0", peerErr.PeerHostname)
+				var internalErr *types.InternalServiceError
+				assert.True(t, stdErrors.As(peerErr.WrappedError, &internalErr))
+				assert.Equal(t, "test error", internalErr.Message)
+			},
 		},
 		{
 			name: "QueryWorkflow",
@@ -312,9 +340,10 @@ func TestClient_withResponse(t *testing.T) {
 			mock: func(p *MockPeerResolver, balancer *MockLoadBalancer, c *MockClient, mp *MockPartitionConfigProvider) {
 				balancer.EXPECT().PickReadPartition(persistence.TaskListTypeDecision, testMatchingQueryWorkflowRequest(), "").Return(_testPartition)
 				p.EXPECT().FromTaskList(_testPartition).Return("peer0", nil)
-				c.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any(), []yarpc.CallOption{yarpc.WithShardKey("peer0")}).Return(&types.QueryWorkflowResponse{}, nil)
+				c.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any(), []yarpc.CallOption{yarpc.WithShardKey("peer0")}).Return(&types.MatchingQueryWorkflowResponse{}, nil)
+				mp.EXPECT().UpdatePartitionConfig(_testDomainUUID, types.TaskList{Name: _testTaskList}, persistence.TaskListTypeDecision, nil)
 			},
-			want: &types.QueryWorkflowResponse{},
+			want: &types.MatchingQueryWorkflowResponse{},
 		},
 		{
 			name: "QueryWorkflow - Error in resolving peer",
@@ -521,6 +550,9 @@ func TestClient_withResponse(t *testing.T) {
 			if tt.wantError {
 				assert.Error(t, err)
 				assert.Nil(t, res)
+				if tt.validateError != nil {
+					tt.validateError(t, err)
+				}
 			} else {
 				assert.NoError(t, err)
 				assert.Equal(t, tt.want, res)

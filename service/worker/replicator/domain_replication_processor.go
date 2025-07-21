@@ -176,13 +176,13 @@ func (p *domainReplicationProcessor) fetchDomainReplicationTasks() {
 
 	for taskIndex := range response.Messages.ReplicationTasks {
 		task := response.Messages.ReplicationTasks[taskIndex]
-		err := p.throttleRetry.Do(p.ctx, func() error {
+		err := p.throttleRetry.Do(p.ctx, func(ctx context.Context) error {
 			return p.handleDomainReplicationTask(task)
 		})
 
 		if err != nil {
 			p.logger.Error("Failed to apply domain replication tasks", tag.Error(err))
-			dlqErr := p.throttleRetry.Do(context.Background(), func() error {
+			dlqErr := p.throttleRetry.Do(context.Background(), func(ctx context.Context) error {
 				return p.putDomainReplicationTaskToDLQ(task)
 			})
 			if dlqErr != nil {

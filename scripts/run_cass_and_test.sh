@@ -4,16 +4,16 @@ set -eo pipefail
 
 function finish {
   echo "shut down containers"
-  docker-compose -f docker/docker-compose.yml down;
+  docker compose -f docker/docker-compose.yml down;
 }
 trap finish EXIT
 
 # shut down containers
-docker-compose -f docker/docker-compose.yml down;
+docker compose -f docker/docker-compose.yml down;
 
 # run cassandra & cadence container
 # we need cadence here because it handles db setup
-docker-compose -f docker/docker-compose.yml up -d cassandra cadence;
+docker compose -f docker/docker-compose.yml up -d cassandra cadence;
 
 status=""
 while [[ "$status" != "running" ]]; do

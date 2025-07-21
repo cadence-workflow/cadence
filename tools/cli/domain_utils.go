@@ -73,6 +73,11 @@ var (
 			Usage:   "Active cluster name",
 		},
 		&cli.StringSliceFlag{
+			Name:    FlagActiveClustersByRegion,
+			Aliases: []string{"acbr"},
+			Usage:   "Active clusters by region in the format 'region1:cluster1,region2:cluster2'",
+		},
+		&cli.StringSliceFlag{
 			Name:    FlagClusters,
 			Aliases: []string{"cl"},
 			Usage:   FlagClustersUsage,
@@ -82,6 +87,12 @@ var (
 			Aliases: []string{"gd"},
 			Usage:   "Flag to indicate whether domain is a global domain. Default to true. Local domain is now legacy.",
 			Value:   "true",
+		},
+		&cli.StringFlag{
+			Name:    FlagIsActiveActiveDomain,
+			Aliases: []string{"aad"},
+			Usage:   "Flag to indicate whether domain is an active-active domain. Default to false.",
+			Value:   "false",
 		},
 		&cli.GenericFlag{
 			Name:    FlagDomainData,
@@ -136,6 +147,11 @@ var (
 			Name:    FlagActiveClusterName,
 			Aliases: []string{"ac"},
 			Usage:   "Active cluster name",
+		},
+		&cli.StringSliceFlag{
+			Name:    FlagActiveClustersByRegion,
+			Aliases: []string{"acbr"},
+			Usage:   "Active clusters by region in the format 'region1:cluster1,region2:cluster2'",
 		},
 		&cli.StringSliceFlag{
 			Name:    FlagClusters,
@@ -197,6 +213,14 @@ var (
 		},
 	}
 
+	deleteDomainFlags = []cli.Flag{
+		&cli.StringFlag{
+			Name:    FlagSecurityToken,
+			Aliases: []string{"st"},
+			Usage:   "Optional token for security check",
+		},
+	}
+
 	deprecateDomainFlags = []cli.Flag{
 		&cli.StringFlag{
 			Name:    FlagSecurityToken,
@@ -255,6 +279,11 @@ var (
 
 	adminUpdateDomainFlags = append(
 		updateDomainFlags,
+		adminDomainCommonFlags...,
+	)
+
+	adminDeleteDomainFlags = append(
+		deleteDomainFlags,
 		adminDomainCommonFlags...,
 	)
 
@@ -364,13 +393,9 @@ func initializeLogger(
 }
 
 func initializeClusterMetadata(serviceConfig *config.Config, metrics metrics.Client, logger log.Logger) cluster.Metadata {
-
 	clusterGroupMetadata := serviceConfig.ClusterGroupMetadata
 	return cluster.NewMetadata(
-		clusterGroupMetadata.FailoverVersionIncrement,
-		clusterGroupMetadata.PrimaryClusterName,
-		clusterGroupMetadata.CurrentClusterName,
-		clusterGroupMetadata.ClusterGroup,
+		*clusterGroupMetadata,
 		func(d string) bool { return false },
 		metrics,
 		logger,

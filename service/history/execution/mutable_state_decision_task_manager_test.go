@@ -119,7 +119,7 @@ func TestReplicateDecisionTaskScheduledEvent(t *testing.T) {
 				assert.Equal(t, attempt, info.Attempt)
 				assert.Equal(t, scheduleTimestamp, info.ScheduledTimestamp)
 				assert.Equal(t, originalScheduledTimestamp, info.OriginalScheduledTimestamp)
-				assert.Equal(t, 1, observedLogs.FilterMessage(fmt.Sprintf(
+				assert.Equal(t, 1, observedLogs.FilterMessageSnippet(fmt.Sprintf(
 					"Decision Updated: {Schedule: %v, Started: %v, ID: %v, Timeout: %v, Attempt: %v, Timestamp: %v}",
 					scheduleID,
 					commonconstants.EmptyEventID,
@@ -161,7 +161,7 @@ func TestReplicateDecisionTaskScheduledEvent(t *testing.T) {
 			assertions: func(t *testing.T, info *DecisionInfo, err error, observedLogs *observer.ObservedLogs) {
 				assert.ErrorContains(t, err, "some error")
 				assert.Nil(t, info)
-				assert.Equal(t, 1, observedLogs.FilterMessage(fmt.Sprintf(
+				assert.Equal(t, 1, observedLogs.FilterMessageSnippet(fmt.Sprintf(
 					"Decision Updated: {Schedule: %v, Started: %v, ID: %v, Timeout: %v, Attempt: %v, Timestamp: %v}",
 					scheduleID,
 					commonconstants.EmptyEventID,
@@ -211,7 +211,7 @@ func TestReplicateTransientDecisionTaskScheduled(t *testing.T) {
 			},
 			assertions: func(t *testing.T, err error, observedLogs *observer.ObservedLogs) {
 				require.NoError(t, err)
-				assert.Equal(t, 1, observedLogs.FilterMessage(fmt.Sprintf(
+				assert.Equal(t, 1, observedLogs.FilterMessageSnippet(fmt.Sprintf(
 					"Decision Updated: {Schedule: %v, Started: %v, ID: %v, Timeout: %v, Attempt: %v, Timestamp: %v}",
 					0, commonconstants.EmptyEventID, commonconstants.EmptyUUID, 0, 1, 0)).Len())
 			},
@@ -416,7 +416,7 @@ func TestReplicateDecisionTaskStartedEvent(t *testing.T) {
 		result, err := m.ReplicateDecisionTaskStartedEvent(decision, version, scheduleID, startedID, requestID, timeStamp)
 		require.NoError(t, err)
 		require.NotNil(t, result)
-		assert.Equal(t, 1, observedLogs.FilterMessage(fmt.Sprintf(
+		assert.Equal(t, 1, observedLogs.FilterMessageSnippet(fmt.Sprintf(
 			"Decision Updated: {Schedule: %v, Started: %v, ID: %v, Timeout: %v, Attempt: %v, Timestamp: %v}",
 			scheduleID, startedID, requestID, 0, m.msb.executionInfo.Attempt, timeStamp)).Len())
 		assert.Equal(t, version, result.Version)

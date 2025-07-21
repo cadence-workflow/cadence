@@ -44,6 +44,7 @@ type (
 
 	taskExecutorImpl struct {
 		currentCluster  string
+		sourceCluster   string
 		shard           shard.Context
 		domainCache     cache.DomainCache
 		historyResender ndc.HistoryResender
@@ -59,6 +60,7 @@ var _ TaskExecutor = (*taskExecutorImpl)(nil)
 // NewTaskExecutor creates an replication task executor
 // The executor uses by 1) DLQ replication task handler 2) history replication task processor
 func NewTaskExecutor(
+	sourceCluster string,
 	shard shard.Context,
 	domainCache cache.DomainCache,
 	historyResender ndc.HistoryResender,
@@ -68,6 +70,7 @@ func NewTaskExecutor(
 ) TaskExecutor {
 	return &taskExecutorImpl{
 		currentCluster:  shard.GetClusterMetadata().GetCurrentClusterName(),
+		sourceCluster:   sourceCluster,
 		shard:           shard,
 		domainCache:     domainCache,
 		historyResender: historyResender,
@@ -159,6 +162,7 @@ func (e *taskExecutorImpl) handleActivityTask(
 	defer stopwatch.Stop()
 
 	resendErr := e.historyResender.SendSingleWorkflowHistory(
+		e.sourceCluster,
 		retryErr.GetDomainID(),
 		retryErr.GetWorkflowID(),
 		retryErr.GetRunID(),
@@ -242,6 +246,7 @@ func (e *taskExecutorImpl) handleHistoryReplicationTaskV2(
 	defer resendStopWatch.Stop()
 
 	resendErr := e.historyResender.SendSingleWorkflowHistory(
+		e.sourceCluster,
 		retryErr.GetDomainID(),
 		retryErr.GetWorkflowID(),
 		retryErr.GetRunID(),

@@ -78,6 +78,7 @@ func (e *mutableStateBuilder) addWorkflowExecutionStartedEventForContinueAsNew(
 		Memo:                                attributes.Memo,
 		SearchAttributes:                    attributes.SearchAttributes,
 		JitterStartSeconds:                  attributes.JitterStartSeconds,
+		ActiveClusterSelectionPolicy:        attributes.ActiveClusterSelectionPolicy,
 	}
 
 	req := &types.HistoryStartWorkflowExecutionRequest{
@@ -192,6 +193,7 @@ func (e *mutableStateBuilder) ReplicateWorkflowExecutionStartedEvent(
 		requestID = event.GetRequestID()
 	}
 	e.executionInfo.CreateRequestID = requestID
+
 	e.insertWorkflowRequest(persistence.WorkflowRequest{
 		RequestID:   requestID,
 		Version:     startEvent.Version,
@@ -205,6 +207,7 @@ func (e *mutableStateBuilder) ReplicateWorkflowExecutionStartedEvent(
 		e.executionInfo.FirstExecutionRunID = execution.GetRunID()
 	}
 	e.executionInfo.TaskList = event.TaskList.GetName()
+	e.executionInfo.TaskListKind = event.TaskList.GetKind()
 	e.executionInfo.WorkflowTypeName = event.WorkflowType.GetName()
 	e.executionInfo.WorkflowTimeout = event.GetExecutionStartToCloseTimeoutSeconds()
 	e.executionInfo.DecisionStartToCloseTimeout = event.GetTaskStartToCloseTimeoutSeconds()
@@ -226,6 +229,9 @@ func (e *mutableStateBuilder) ReplicateWorkflowExecutionStartedEvent(
 	e.executionInfo.DecisionTimeout = 0
 
 	e.executionInfo.CronSchedule = event.GetCronSchedule()
+	if event.CronOverlapPolicy != nil {
+		e.executionInfo.CronOverlapPolicy = *event.CronOverlapPolicy
+	}
 
 	if parentDomainID != nil {
 		e.executionInfo.ParentDomainID = *parentDomainID
@@ -268,6 +274,7 @@ func (e *mutableStateBuilder) ReplicateWorkflowExecutionStartedEvent(
 		e.executionInfo.SearchAttributes = event.SearchAttributes.GetIndexedFields()
 	}
 	e.executionInfo.PartitionConfig = event.PartitionConfig
+	e.executionInfo.ActiveClusterSelectionPolicy = event.ActiveClusterSelectionPolicy
 
 	e.writeEventToCache(startEvent)
 

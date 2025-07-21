@@ -39,12 +39,15 @@ import (
 )
 
 func TestReplicationTaskResetEvent(t *testing.T) {
-	clusterMetadata := cluster.GetTestClusterMetadata(true)
-	historySerializer := persistence.NewPayloadSerializer()
 	taskStartTime := time.Now()
 	domainID := uuid.New()
 	workflowID := uuid.New()
 	runID := uuid.New()
+	logger := testlogger.New(t)
+	clusterMetadata := cluster.GetTestClusterMetadata(true)
+	activeClusterManager := newActiveClusterManager(t, clusterMetadata, domainID, logger)
+
+	historySerializer := persistence.NewPayloadSerializer()
 	versionHistoryItems := []*types.VersionHistoryItem{}
 	versionHistoryItems = append(versionHistoryItems, persistence.NewVersionHistoryItem(3, 0).ToInternalType())
 
@@ -76,7 +79,7 @@ func TestReplicationTaskResetEvent(t *testing.T) {
 		NewRunEvents:        nil,
 	}
 
-	task, err := newReplicationTask(clusterMetadata, historySerializer, taskStartTime, testlogger.New(t), request)
+	task, err := newReplicationTask(activeClusterManager, historySerializer, taskStartTime, logger, request)
 	require.NoError(t, err)
 	assert.True(t, task.isWorkflowReset())
 }
@@ -254,8 +257,13 @@ func TestNewReplicationTask(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			replicator := createTestHistoryReplicator(t)
-			_, err := newReplicationTask(replicator.clusterMetadata,
+			domainID := ""
+			if test.request != nil {
+				domainID = test.request.DomainUUID
+			}
+			replicator := createTestHistoryReplicator(t, domainID)
+			_, err := newReplicationTask(
+				replicator.shard.GetActiveClusterManager(),
 				replicator.historySerializer,
 				time.Now(),
 				replicator.logger,

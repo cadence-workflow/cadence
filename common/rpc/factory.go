@@ -52,6 +52,8 @@ var (
 
 // Factory is an implementation of rpc.Factory interface
 type FactoryImpl struct {
+	startOnce      sync.Once
+	stopOnce       sync.Once
 	maxMessageSize int
 	channel        tchannel.Channel
 	dispatcher     *yarpc.Dispatcher
@@ -65,7 +67,7 @@ type FactoryImpl struct {
 }
 
 // NewFactory builds a new rpc.Factory
-func NewFactory(logger log.Logger, p Params) *FactoryImpl {
+func NewFactory(logger log.Logger, p Params) Factory {
 	logger = logger.WithTags(tag.ComponentRPCFactory)
 
 	inbounds := yarpc.Inbounds{}
@@ -169,7 +171,7 @@ func (d *FactoryImpl) GetDispatcher() *yarpc.Dispatcher {
 	return d.dispatcher
 }
 
-// GetChannel returns Tchannel Channel used by Ringpop
+// GetTChannel GetChannel returns Tchannel Channel used by Ringpop
 func (d *FactoryImpl) GetTChannel() tchannel.Channel {
 	return d.channel
 }
@@ -182,33 +184,38 @@ func (d *FactoryImpl) GetMaxMessageSize() int {
 }
 
 func (d *FactoryImpl) Start(peerLister PeerLister) error {
-	d.peerLister = peerLister
-	// subscribe to membership changes for history and matching. This is needed to update the peers for rpc
-	for _, svc := range servicesToTalkP2P {
-		ch := make(chan *membership.ChangedEvent, 1)
-		if err := d.peerLister.Subscribe(svc, factoryComponentName, ch); err != nil {
-			return fmt.Errorf("rpc factory failed to subscribe to membership updates for svc: %v, err: %v", svc, err)
+	var err error
+	d.startOnce.Do(func() {
+		d.peerLister = peerLister
+		// subscribe to membership changes for history and matching. This is needed to update the peers for rpc
+		for _, svc := range servicesToTalkP2P {
+			ch := make(chan *membership.ChangedEvent, 1)
+			if err = d.peerLister.Subscribe(svc, factoryComponentName, ch); err != nil {
+				err = fmt.Errorf("rpc factory failed to subscribe to membership updates for svc: %v, err: %w", svc, err)
+				return
+			}
+			d.wg.Add(1)
+			go d.listenMembershipChanges(svc, ch)
 		}
-		d.wg.Add(1)
-		go d.listenMembershipChanges(svc, ch)
-	}
-
-	return nil
+	})
+	return err
 }
 
 func (d *FactoryImpl) Stop() error {
-	d.logger.Info("stopping rpc factory")
+	d.stopOnce.Do(func() {
+		d.logger.Info("stopping rpc factory")
 
-	for _, svc := range servicesToTalkP2P {
-		if err := d.peerLister.Unsubscribe(svc, factoryComponentName); err != nil {
-			d.logger.Error("rpc factory failed to unsubscribe from membership updates", tag.Error(err), tag.Service(svc))
+		for _, svc := range servicesToTalkP2P {
+			if err := d.peerLister.Unsubscribe(svc, factoryComponentName); err != nil {
+				d.logger.Error("rpc factory failed to unsubscribe from membership updates", tag.Error(err), tag.Service(svc))
+			}
 		}
-	}
 
-	d.cancelFn()
-	d.wg.Wait()
+		d.cancelFn()
+		d.wg.Wait()
 
-	d.logger.Info("stopped rpc factory")
+		d.logger.Info("stopped rpc factory")
+	})
 	return nil
 }
 

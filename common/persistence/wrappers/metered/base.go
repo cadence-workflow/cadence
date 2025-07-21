@@ -23,6 +23,7 @@
 package metered
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -34,6 +35,10 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
+type retryCountKeyType string
+
+const retryCountKey = retryCountKeyType("retryCount")
+
 type base struct {
 	metricClient                  metrics.Client
 	logger                        log.Logger
@@ -42,7 +47,9 @@ type base struct {
 	enableShardIDMetrics          dynamicproperties.BoolPropertyFn
 }
 
-func (p *base) updateErrorMetricPerDomain(scope int, err error, scopeWithDomainTag metrics.Scope) {
+func (p *base) updateErrorMetricPerDomain(scope int, err error, scopeWithDomainTag metrics.Scope, logger log.Logger) {
+	logger = logger.Helper()
+
 	switch {
 	case errors.As(err, new(*types.DomainAlreadyExistsError)):
 		scopeWithDomainTag.IncCounter(metrics.PersistenceErrDomainAlreadyExistsCounterPerDomain)
@@ -71,14 +78,16 @@ func (p *base) updateErrorMetricPerDomain(scope int, err error, scopeWithDomainT
 	case errors.As(err, new(*persistence.DBUnavailableError)):
 		scopeWithDomainTag.IncCounter(metrics.PersistenceErrDBUnavailableCounterPerDomain)
 		scopeWithDomainTag.IncCounter(metrics.PersistenceFailuresPerDomain)
-		p.logger.Error("DBUnavailable Error:", tag.Error(err), tag.MetricScope(scope))
+		logger.Error("DBUnavailable Error:", tag.Error(err), tag.MetricScope(scope))
 	default:
-		p.logger.Error("Operation failed with internal error.", tag.Error(err), tag.MetricScope(scope))
+		logger.Error("Operation failed with internal error.", tag.Error(err), tag.MetricScope(scope))
 		scopeWithDomainTag.IncCounter(metrics.PersistenceFailuresPerDomain)
 	}
 }
 
-func (p *base) updateErrorMetric(scope int, err error, metricsScope metrics.Scope) {
+func (p *base) updateErrorMetric(scope int, err error, metricsScope metrics.Scope, logger log.Logger) {
+	logger = logger.Helper()
+
 	switch {
 	case errors.As(err, new(*types.DomainAlreadyExistsError)):
 		metricsScope.IncCounter(metrics.PersistenceErrDomainAlreadyExistsCounter)
@@ -107,9 +116,9 @@ func (p *base) updateErrorMetric(scope int, err error, metricsScope metrics.Scop
 	case errors.As(err, new(*persistence.DBUnavailableError)):
 		metricsScope.IncCounter(metrics.PersistenceErrDBUnavailableCounter)
 		metricsScope.IncCounter(metrics.PersistenceFailures)
-		p.logger.Error("DBUnavailable Error:", tag.Error(err), tag.MetricScope(scope))
+		logger.Error("DBUnavailable Error:", tag.Error(err), tag.MetricScope(scope))
 	default:
-		p.logger.Error("Operation failed with internal error.", tag.Error(err), tag.MetricScope(scope))
+		logger.Error("Operation failed with internal error.", tag.Error(err), tag.MetricScope(scope))
 		metricsScope.IncCounter(metrics.PersistenceFailures)
 	}
 }
@@ -133,11 +142,13 @@ func (p *base) call(scope int, op func() error, tags ...metrics.Tag) error {
 	if p.enableLatencyHistogramMetrics {
 		metricsScope.RecordHistogramDuration(metrics.PersistenceLatencyHistogram, duration)
 	}
+
+	logger := p.logger.Helper()
 	if err != nil {
 		if len(tags) > 0 {
-			p.updateErrorMetricPerDomain(scope, err, metricsScope)
+			p.updateErrorMetricPerDomain(scope, err, metricsScope, logger)
 		} else {
-			p.updateErrorMetric(scope, err, metricsScope)
+			p.updateErrorMetric(scope, err, metricsScope, logger)
 		}
 	}
 	return err
@@ -155,14 +166,14 @@ func (p *base) callWithoutDomainTag(scope int, op func() error, tags ...metrics.
 		metricsScope.RecordHistogramDuration(metrics.PersistenceLatencyHistogram, duration)
 	}
 	if err != nil {
-		p.updateErrorMetric(scope, err, metricsScope)
+		p.updateErrorMetric(scope, err, metricsScope, p.logger.Helper())
 	}
 	return err
 }
 
-func (p *base) callWithDomainAndShardScope(scope int, op func() error, domainTag metrics.Tag, shardIDTag metrics.Tag) error {
-	domainMetricsScope := p.metricClient.Scope(scope, domainTag)
-	shardOperationsMetricsScope := p.metricClient.Scope(scope, shardIDTag)
+func (p *base) callWithDomainAndShardScope(scope int, op func() error, domainTag metrics.Tag, shardIDTag metrics.Tag, additionalTags ...metrics.Tag) error {
+	domainMetricsScope := p.metricClient.Scope(scope, append([]metrics.Tag{domainTag}, additionalTags...)...)
+	shardOperationsMetricsScope := p.metricClient.Scope(scope, append([]metrics.Tag{shardIDTag}, additionalTags...)...)
 	shardOverallMetricsScope := p.metricClient.Scope(metrics.PersistenceShardRequestCountScope, shardIDTag)
 
 	domainMetricsScope.IncCounter(metrics.PersistenceRequestsPerDomain)
@@ -181,7 +192,7 @@ func (p *base) callWithDomainAndShardScope(scope int, op func() error, domainTag
 		domainMetricsScope.RecordHistogramDuration(metrics.PersistenceLatencyHistogram, duration)
 	}
 	if err != nil {
-		p.updateErrorMetricPerDomain(scope, err, domainMetricsScope)
+		p.updateErrorMetricPerDomain(scope, err, domainMetricsScope, p.logger.Helper())
 	}
 	return err
 }
@@ -331,4 +342,11 @@ func getCustomMetricTags(req any) (res []metrics.Tag) {
 		res = d.MetricTags()
 	}
 	return res
+}
+
+func getRetryCountFromContext(ctx context.Context) int {
+	if retryCount, ok := ctx.Value(retryCountKey).(int); ok {
+		return retryCount
+	}
+	return 0
 }

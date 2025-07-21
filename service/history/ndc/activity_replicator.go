@@ -196,6 +196,12 @@ func (r *activityReplicatorImpl) SyncActivity(
 		updateMode = persistence.UpdateWorkflowModeBypassCurrent
 	}
 
+	r.logger.Debugf("SyncActivity calling UpdateWorkflowExecutionWithNew for wfID %s, updateMode %v, current policy %v, new policy %v",
+		workflowExecution.GetWorkflowID(),
+		updateMode,
+		execution.TransactionPolicyPassive,
+		nil,
+	)
 	return context.UpdateWorkflowExecutionWithNew(
 		ctx,
 		now,

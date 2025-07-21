@@ -49,7 +49,7 @@ func (s *RetrySuite) SetupTest() {
 
 func (s *RetrySuite) TestRetrySuccess() {
 	i := 0
-	op := func() error {
+	op := func(ctx context.Context) error {
 		i++
 
 		if i == 5 {
@@ -75,7 +75,7 @@ func (s *RetrySuite) TestRetrySuccess() {
 
 func (s *RetrySuite) TestRetryFailed() {
 	i := 0
-	op := func() error {
+	op := func(ctx context.Context) error {
 		i++
 
 		if i == 7 {
@@ -102,7 +102,7 @@ func (s *RetrySuite) TestRetryFailedReturnPreviousError() {
 	i := 0
 
 	the5thError := fmt.Errorf("this is the error of the 5th attempt(4th retry attempt)")
-	op := func() error {
+	op := func(ctx context.Context) error {
 		i++
 		if i == 5 {
 			return the5thError
@@ -133,7 +133,7 @@ func (s *RetrySuite) TestRetryFailedReturnPreviousError() {
 
 func (s *RetrySuite) TestIsRetryableSuccess() {
 	i := 0
-	op := func() error {
+	op := func(ctx context.Context) error {
 		i++
 
 		if i == 5 {
@@ -167,7 +167,7 @@ func (s *RetrySuite) TestIsRetryableSuccess() {
 
 func (s *RetrySuite) TestIsRetryableFailure() {
 	i := 0
-	op := func() error {
+	op := func(ctx context.Context) error {
 		i++
 
 		if i == 5 {
@@ -193,7 +193,7 @@ func (s *RetrySuite) TestIsRetryableFailure() {
 
 func (s *RetrySuite) TestRetryExpired() {
 	i := 0
-	op := func() error {
+	op := func(ctx context.Context) error {
 		i++
 		time.Sleep(time.Second)
 		return &someError{}
@@ -217,7 +217,7 @@ func (s *RetrySuite) TestRetryExpired() {
 func (s *RetrySuite) TestRetryExpiredReturnPreviousError() {
 	i := 0
 	prevErr := fmt.Errorf("previousError")
-	op := func() error {
+	op := func(ctx context.Context) error {
 		i++
 		if i == 1 {
 			return prevErr
@@ -244,7 +244,7 @@ func (s *RetrySuite) TestRetryExpiredReturnPreviousError() {
 func (s *RetrySuite) TestRetryThrottled() {
 	i := 0
 	throttleErr := fmt.Errorf("throttled")
-	op := func() error {
+	op := func(ctx context.Context) error {
 		i++
 		if i == 1 {
 			return throttleErr
@@ -313,6 +313,31 @@ func (s *RetrySuite) TestConcurrentRetrier() {
 		fmt.Printf("Duration: %d\n", val)
 		s.Equal(done, val)
 	}
+}
+
+func (s *RetrySuite) TestRetryCountInContext() {
+	retryCounts := make([]int, 0)
+	op := func(ctx context.Context) error {
+		retryCount := ctx.Value(retryCountKey).(int)
+		retryCounts = append(retryCounts, retryCount)
+		if retryCount == 2 {
+			return nil
+		}
+		return &someError{}
+	}
+
+	policy := NewExponentialRetryPolicy(1 * time.Millisecond)
+	policy.SetMaximumInterval(5 * time.Millisecond)
+	policy.SetMaximumAttempts(10)
+
+	throttleRetry := NewThrottleRetry(
+		WithRetryPolicy(policy),
+		WithRetryableError(func(_ error) bool { return true }),
+	)
+
+	err := throttleRetry.Do(context.Background(), op)
+	s.NoError(err)
+	s.Equal([]int{0, 1, 2}, retryCounts)
 }
 
 func (e *someError) Error() string {

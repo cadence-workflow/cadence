@@ -86,6 +86,7 @@ func TestNewConfig(t *testing.T) {
 		"BlobSizeLimitWarn":                           {dynamicproperties.BlobSizeLimitWarn, 30},
 		"ThrottledLogRPS":                             {dynamicproperties.FrontendThrottledLogRPS, 31},
 		"ShutdownDrainDuration":                       {dynamicproperties.FrontendShutdownDrainDuration, time.Duration(32)},
+		"WarmupDuration":                              {dynamicproperties.FrontendWarmupDuration, time.Duration(40)},
 		"EnableDomainNotActiveAutoForwarding":         {dynamicproperties.EnableDomainNotActiveAutoForwarding, true},
 		"EnableGracefulFailover":                      {dynamicproperties.EnableGracefulFailover, false},
 		"DomainFailoverRefreshInterval":               {dynamicproperties.DomainFailoverRefreshInterval, time.Duration(33)},
@@ -116,9 +117,10 @@ func TestNewConfig(t *testing.T) {
 		"FailoverHistoryMaxSize": {dynamicproperties.FrontendFailoverHistoryMaxSize, 44},
 	}
 	client := dynamicconfig.NewInMemoryClient()
-	dc := dynamicconfig.NewCollection(client, testlogger.New(t))
+	logger := testlogger.New(t)
+	dc := dynamicconfig.NewCollection(client, logger)
 
-	config := NewConfig(dc, 1001, true, "hostname")
+	config := NewConfig(dc, 1001, true, "hostname", logger)
 
 	assertFieldsMatch(t, *config, client, fields)
 	assertFieldsMatch(t, config.DomainConfig, client, domainFields)

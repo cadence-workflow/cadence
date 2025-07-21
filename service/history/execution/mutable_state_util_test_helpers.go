@@ -101,6 +101,7 @@ func CopyWorkflowExecutionInfo(t *testing.T, sourceInfo *persistence.WorkflowExe
 		CompletionEventBatchID:             sourceInfo.CompletionEventBatchID,
 		CompletionEvent:                    sourceInfo.CompletionEvent,
 		TaskList:                           sourceInfo.TaskList,
+		TaskListKind:                       sourceInfo.TaskListKind,
 		StickyTaskList:                     sourceInfo.StickyTaskList,
 		StickyScheduleToStartTimeout:       sourceInfo.StickyScheduleToStartTimeout,
 		WorkflowTypeName:                   sourceInfo.WorkflowTypeName,
@@ -146,6 +147,8 @@ func CopyWorkflowExecutionInfo(t *testing.T, sourceInfo *persistence.WorkflowExe
 		NonRetriableErrors:                 sourceInfo.NonRetriableErrors,
 		BranchToken:                        sourceInfo.BranchToken,
 		ExpirationSeconds:                  sourceInfo.ExpirationSeconds,
+		CronOverlapPolicy:                  sourceInfo.CronOverlapPolicy,
+		ActiveClusterSelectionPolicy:       sourceInfo.ActiveClusterSelectionPolicy,
 	}
 }
 

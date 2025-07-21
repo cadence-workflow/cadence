@@ -49,13 +49,15 @@ var defaultSampleFn = func(i int) bool { return rand.Intn(i) == 0 }
 // NewLogger returns a new logger
 func NewLogger(zapLogger *zap.Logger, opts ...Option) Logger {
 	impl := &loggerImpl{
-		zapLogger:     zapLogger,
+		// Skip wrapped logger from the stack trace so that zap logs will point to the caller.
+		zapLogger:     zapLogger.WithOptions(zap.AddCallerSkip(1)),
 		skip:          skipForDefaultLogger,
 		sampleLocalFn: defaultSampleFn,
 	}
 	for _, opt := range opts {
 		opt(impl)
 	}
+
 	return impl
 }
 
@@ -98,23 +100,21 @@ func setDefaultMsg(msg string) string {
 }
 
 func (lg *loggerImpl) Debugf(msg string, args ...any) {
-	ce := lg.zapLogger.Check(zap.DebugLevel, setDefaultMsg(fmt.Sprintf(msg, args...)))
-	if ce == nil {
+	if !lg.DebugOn() {
 		return
 	}
 
 	fields := lg.buildFieldsWithCallat(nil)
-	ce.Write(fields...)
+	lg.zapLogger.Debug(setDefaultMsg(fmt.Sprintf(msg, args...)), fields...)
 }
 
 func (lg *loggerImpl) Debug(msg string, tags ...tag.Tag) {
-	ce := lg.zapLogger.Check(zap.DebugLevel, setDefaultMsg(msg))
-	if ce == nil {
+	if !lg.DebugOn() {
 		return
 	}
 
 	fields := lg.buildFieldsWithCallat(tags)
-	ce.Write(fields...)
+	lg.zapLogger.Debug(msg, fields...)
 }
 
 func (lg *loggerImpl) Info(msg string, tags ...tag.Tag) {
@@ -151,10 +151,24 @@ func (lg *loggerImpl) WithTags(tags ...tag.Tag) Logger {
 	}
 }
 
+// DebugOn checks if debug level is on.
+func (lg *loggerImpl) DebugOn() bool {
+	return lg.zapLogger.Check(zap.DebugLevel, "test") != nil
+}
+
 func (lg *loggerImpl) SampleInfo(msg string, sampleRate int, tags ...tag.Tag) {
 	if lg.sampleLocalFn(sampleRate) {
 		msg = setDefaultMsg(msg)
 		fields := lg.buildFieldsWithCallat(tags)
 		lg.zapLogger.Info(msg, fields...)
+	}
+}
+
+func (lg *loggerImpl) Helper() Logger {
+	return &loggerImpl{
+		// AddCallerSkip increments the value so we don't need to track previous level.
+		zapLogger:     lg.zapLogger.WithOptions(zap.AddCallerSkip(1)),
+		skip:          lg.skip,
+		sampleLocalFn: lg.sampleLocalFn,
 	}
 }

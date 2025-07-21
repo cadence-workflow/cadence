@@ -1354,6 +1354,7 @@ func updateWorkflowExecution(
 		execution.CompletionEvent.Data,
 		execution.CompletionEvent.GetEncodingString(),
 		execution.TaskList,
+		int32(execution.TaskListKind),
 		execution.WorkflowTypeName,
 		int32(execution.WorkflowTimeout.Seconds()),
 		int32(execution.DecisionStartToCloseTimeout.Seconds()),
@@ -1398,10 +1399,13 @@ func updateWorkflowExecution(
 		persistence.EventStoreVersion,
 		execution.BranchToken,
 		execution.CronSchedule,
+		int32(execution.CronOverlapPolicy),
 		int32(execution.ExpirationInterval.Seconds()),
 		execution.SearchAttributes,
 		execution.Memo,
 		execution.PartitionConfig,
+		execution.ActiveClusterSelectionPolicy.GetData(),
+		execution.ActiveClusterSelectionPolicy.GetEncodingString(),
 		execution.NextEventID,
 		execution.VersionHistories.Data,
 		execution.VersionHistories.GetEncodingString(),
@@ -1452,6 +1456,7 @@ func createWorkflowExecution(
 		execution.CompletionEvent.Data,
 		execution.CompletionEvent.GetEncodingString(),
 		execution.TaskList,
+		int32(execution.TaskListKind),
 		execution.WorkflowTypeName,
 		int32(execution.WorkflowTimeout.Seconds()),
 		int32(execution.DecisionStartToCloseTimeout.Seconds()),
@@ -1496,10 +1501,13 @@ func createWorkflowExecution(
 		persistence.EventStoreVersion,
 		execution.BranchToken,
 		execution.CronSchedule,
+		int32(execution.CronOverlapPolicy),
 		int32(execution.ExpirationInterval.Seconds()),
 		execution.SearchAttributes,
 		execution.Memo,
 		execution.PartitionConfig,
+		execution.ActiveClusterSelectionPolicy.GetData(),
+		execution.ActiveClusterSelectionPolicy.GetEncodingString(),
 		execution.NextEventID,
 		defaultVisibilityTimestamp,
 		rowTypeExecutionTaskID,
@@ -1550,6 +1558,30 @@ func fromRequestRowType(rowType int) (persistence.WorkflowRequestType, error) {
 	default:
 		return persistence.WorkflowRequestType(0), fmt.Errorf("unknown request row type %v", rowType)
 	}
+}
+
+func insertWorkflowActiveClusterSelectionPolicyRow(
+	batch gocql.Batch,
+	activeClusterSelectionPolicyRow *nosqlplugin.ActiveClusterSelectionPolicyRow,
+	timeStamp time.Time,
+) error {
+	if activeClusterSelectionPolicyRow == nil || activeClusterSelectionPolicyRow.Policy == nil {
+		return nil
+	}
+
+	batch.Query(templateInsertWorkflowActiveClusterSelectionPolicyRowQuery,
+		activeClusterSelectionPolicyRow.ShardID,
+		rowTypeWorkflowActiveClusterSelectionPolicy,
+		activeClusterSelectionPolicyRow.DomainID,
+		activeClusterSelectionPolicyRow.WorkflowID,
+		activeClusterSelectionPolicyRow.RunID,
+		defaultVisibilityTimestamp,
+		rowTypeWorkflowActiveClusterSelectionVersion,
+		timeStamp,
+		activeClusterSelectionPolicyRow.Policy.Data,
+		activeClusterSelectionPolicyRow.Policy.GetEncodingString(),
+	)
+	return nil
 }
 
 func insertOrUpsertWorkflowRequestRow(

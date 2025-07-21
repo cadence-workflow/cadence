@@ -52,6 +52,7 @@ type (
 		ValidateRegisterDomainRequest(context.Context, *types.RegisterDomainRequest) error
 		ValidateDescribeDomainRequest(context.Context, *types.DescribeDomainRequest) error
 		ValidateUpdateDomainRequest(context.Context, *types.UpdateDomainRequest) error
+		ValidateDeleteDomainRequest(context.Context, *types.DeleteDomainRequest) error
 		ValidateDeprecateDomainRequest(context.Context, *types.DeprecateDomainRequest) error
 	}
 
@@ -342,6 +343,16 @@ func (v *requestValidatorImpl) ValidateUpdateDomainRequest(ctx context.Context, 
 		}
 	}
 	return nil
+}
+
+func (v *requestValidatorImpl) ValidateDeleteDomainRequest(ctx context.Context, deleteRequest *types.DeleteDomainRequest) error {
+	if deleteRequest == nil {
+		return validate.ErrRequestNotSet
+	}
+	if deleteRequest.GetName() == "" {
+		return validate.ErrDomainNotSet
+	}
+	return validate.CheckPermission(v.config, deleteRequest.SecurityToken)
 }
 
 func (v *requestValidatorImpl) ValidateDeprecateDomainRequest(ctx context.Context, deprecateRequest *types.DeprecateDomainRequest) error {

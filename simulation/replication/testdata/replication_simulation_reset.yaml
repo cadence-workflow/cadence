@@ -1,0 +1,107 @@
+# This file is a replication simulation scenario spec.
+# It is parsed into ReplicationSimulationConfig struct.
+# Replication simulation for this file can be run via ./simulation/replication/run.sh reset
+# Dynamic config overrides can be set via config/dynamicconfig/replication_simulation_reset.yml
+clusters:
+  cluster0:
+    grpcEndpoint: "cadence-cluster0:7833"
+  cluster1:
+    grpcEndpoint: "cadence-cluster1:7833"
+
+# primaryCluster is where domain data is written to and replicates to others. e.g. domain registration
+primaryCluster: "cluster0"
+
+
+domains:
+  test-domain:
+    activeClusterName: cluster0
+  test-domain-2:
+    activeClusterName: cluster0
+
+operations:
+  - op: start_workflow
+    at: 0s
+    workflowType: activity-loop-workflow
+    workflowID: activity-loop-workflow1
+    activityCount: 45
+    cluster: cluster0
+    domain: test-domain
+    workflowExecutionStartToCloseTimeout: 60s
+
+  - op: start_workflow
+    at: 0s
+    workflowType: activity-loop-workflow
+    workflowID: activity-loop-workflow1
+    activityCount: 45
+    cluster: cluster0
+    domain: test-domain-2
+    workflowExecutionStartToCloseTimeout: 60s
+
+  - op: change_active_clusters # failover from cluster0 to cluster1
+    at: 20s
+    domain: test-domain
+    newActiveCluster: cluster1
+    # failoverTimeoutSec: 5 # unset means force failover. setting it means graceful failover request
+
+  - op: validate
+    at: 62s
+    workflowID: activity-loop-workflow1
+    cluster: cluster0
+    domain: test-domain-2
+    want:
+      status: timed-out
+      startedByWorkersInCluster: cluster0
+      completedByWorkersInCluster: cluster0
+
+  - op: validate
+    at: 62s
+    workflowID: activity-loop-workflow1
+    cluster: cluster1
+    domain: test-domain
+    want:
+      status: timed-out
+      startedByWorkersInCluster: cluster0
+      completedByWorkersInCluster: cluster1
+
+  - op: reset_workflow
+    at: 65s
+    workflowID: activity-loop-workflow1
+    cluster: cluster0
+    domain: test-domain-2
+    eventID: 94
+
+  - op: reset_workflow
+    at: 65s
+    workflowID: activity-loop-workflow1
+    cluster: cluster1
+    domain: test-domain
+    eventID: 94
+    want:
+      error: "workflow is not resettable"
+
+  - op: validate
+    at: 127s
+    workflowID: activity-loop-workflow1
+    cluster: cluster0
+    domain: test-domain-2
+    want:
+      status: timed-out
+      startedByWorkersInCluster: cluster0
+      completedByWorkersInCluster: cluster0
+
+  - op: reset_workflow
+    at: 130s
+    workflowID: activity-loop-workflow1
+    cluster: cluster0
+    domain: test-domain-2
+    eventID: 205
+
+  - op: validate
+    at: 192s
+    workflowID: activity-loop-workflow1
+    cluster: cluster0
+    domain: test-domain-2
+    want:
+      status: completed
+      startedByWorkersInCluster: cluster0
+      completedByWorkersInCluster: cluster0

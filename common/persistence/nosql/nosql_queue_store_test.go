@@ -33,6 +33,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 )
@@ -61,7 +62,7 @@ func newQueueStoreTestData(t *testing.T) *queueStoreTestData {
 
 func (td *queueStoreTestData) newQueueStore() (persistence.Queue, error) {
 	cfg := getValidShardedNoSQLConfig()
-	return newNoSQLQueueStore(cfg, log.NewNoop(), testQueueType, nil)
+	return newNoSQLQueueStore(cfg, log.NewNoop(), metrics.NewNoopMetricsClient(), testQueueType, nil)
 }
 
 func (td *queueStoreTestData) createValidQueueStore(t *testing.T) persistence.Queue {

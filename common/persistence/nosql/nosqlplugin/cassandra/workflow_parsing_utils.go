@@ -43,6 +43,8 @@ func parseWorkflowExecutionInfo(result map[string]interface{}) *persistence.Inte
 	var completionEventEncoding constants.EncodingType
 	var autoResetPoints []byte
 	var autoResetPointsEncoding constants.EncodingType
+	var activeClusterSelectionPolicy []byte
+	var activeClusterSelectionPolicyEncoding constants.EncodingType
 
 	for k, v := range result {
 		switch k {
@@ -86,6 +88,8 @@ func parseWorkflowExecutionInfo(result map[string]interface{}) *persistence.Inte
 			autoResetPointsEncoding = constants.EncodingType(v.(string))
 		case "task_list":
 			info.TaskList = v.(string)
+		case "task_list_kind":
+			info.TaskListKind = types.TaskListKind(int32(v.(int)))
 		case "workflow_type_name":
 			info.WorkflowTypeName = v.(string)
 		case "workflow_timeout":
@@ -176,10 +180,17 @@ func parseWorkflowExecutionInfo(result map[string]interface{}) *persistence.Inte
 			info.Memo = v.(map[string][]byte)
 		case "partition_config":
 			info.PartitionConfig = v.(map[string]string)
+		case "active_cluster_selection_policy":
+			activeClusterSelectionPolicy = v.([]byte)
+		case "active_cluster_selection_policy_encoding":
+			activeClusterSelectionPolicyEncoding = constants.EncodingType(v.(string))
+		case "cron_overlap_policy":
+			info.CronOverlapPolicy = types.CronOverlapPolicy(int32(v.(int)))
 		}
 	}
 	info.CompletionEvent = persistence.NewDataBlob(completionEventData, completionEventEncoding)
 	info.AutoResetPoints = persistence.NewDataBlob(autoResetPoints, autoResetPointsEncoding)
+	info.ActiveClusterSelectionPolicy = persistence.NewDataBlob(activeClusterSelectionPolicy, activeClusterSelectionPolicyEncoding)
 	return info
 }
 

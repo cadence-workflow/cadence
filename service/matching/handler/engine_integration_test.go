@@ -41,6 +41,7 @@ import (
 
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
@@ -77,6 +78,7 @@ type (
 		mockTimeSource       clock.MockedTimeSource
 		logger               log.Logger
 		handlerContext       *handlerContext
+		mockActiveClusterMgr activecluster.MockManager
 		sync.Mutex
 	}
 )
@@ -129,6 +131,8 @@ func (s *matchingEngineSuite) SetupTest() {
 	s.mockDomainCache.EXPECT().GetDomainByID(gomock.Any()).Return(cache.CreateDomainCacheEntry(matchingTestDomainName), nil).AnyTimes()
 	s.mockDomainCache.EXPECT().GetDomain(gomock.Any()).Return(cache.CreateDomainCacheEntry(matchingTestDomainName), nil).AnyTimes()
 	s.mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return(matchingTestDomainName, nil).AnyTimes()
+	s.mockDomainCache.EXPECT().RegisterDomainChangeCallback(service.Matching, gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
+	s.mockDomainCache.EXPECT().UnregisterDomainChangeCallback(service.Matching).AnyTimes()
 	s.mockMembershipResolver = membership.NewMockResolver(s.controller)
 	s.mockMembershipResolver.EXPECT().Lookup(gomock.Any(), gomock.Any()).Return(membership.HostInfo{}, nil).AnyTimes()
 	s.mockMembershipResolver.EXPECT().WhoAmI().Return(membership.HostInfo{}, nil).AnyTimes()
@@ -151,6 +155,7 @@ func (s *matchingEngineSuite) SetupTest() {
 		metrics.MatchingTaskListMgrScope,
 		testlogger.New(s.Suite.T()),
 	)
+	s.mockActiveClusterMgr = *activecluster.NewMockManager(s.controller)
 
 	s.matchingEngine = s.newMatchingEngine(defaultTestConfig(), s.taskManager)
 	s.matchingEngine.Start()
@@ -209,7 +214,7 @@ func (s *matchingEngineSuite) TestOnlyUnloadMatchingInstance() {
 		"makeToast",
 		persistence.TaskListTypeActivity)
 	tlKind := types.TaskListKindNormal
-	tlm, err := s.matchingEngine.getTaskListManager(taskListID, &tlKind)
+	tlm, err := s.matchingEngine.getTaskListManager(taskListID, tlKind)
 	s.Require().NoError(err)
 
 	tlm2, err := tasklist.NewManager(
@@ -222,7 +227,7 @@ func (s *matchingEngineSuite) TestOnlyUnloadMatchingInstance() {
 		s.matchingEngine.matchingClient,
 		s.matchingEngine.removeTaskListManager,
 		taskListID, // same taskListID as above
-		&tlKind,
+		tlKind,
 		s.matchingEngine.config,
 		s.matchingEngine.timeSource,
 		s.matchingEngine.timeSource.Now(),
@@ -232,7 +237,7 @@ func (s *matchingEngineSuite) TestOnlyUnloadMatchingInstance() {
 	// try to unload a different tlm instance with the same taskListID
 	s.matchingEngine.unloadTaskList(tlm2)
 
-	got, err := s.matchingEngine.getTaskListManager(taskListID, &tlKind)
+	got, err := s.matchingEngine.getTaskListManager(taskListID, tlKind)
 	s.Require().NoError(err)
 	s.Require().Same(tlm, got,
 		"Unload call with non-matching taskListManager should not cause unload")
@@ -240,7 +245,7 @@ func (s *matchingEngineSuite) TestOnlyUnloadMatchingInstance() {
 	// this time unload the right tlm
 	s.matchingEngine.unloadTaskList(tlm)
 
-	got, err = s.matchingEngine.getTaskListManager(taskListID, &tlKind)
+	got, err = s.matchingEngine.getTaskListManager(taskListID, tlKind)
 	s.Require().NoError(err)
 	s.Require().NotSame(tlm, got,
 		"Unload call with matching incarnation should have caused unload")
@@ -490,7 +495,7 @@ func (s *matchingEngineSuite) TestQueryWorkflow() {
 	})
 	wg.Wait()
 	s.NoError(err)
-	s.Equal(&types.QueryWorkflowResponse{
+	s.Equal(&types.MatchingQueryWorkflowResponse{
 		QueryResult: []byte(`result`),
 	}, resp)
 }
@@ -905,7 +910,7 @@ func (s *matchingEngineSuite) ConcurrentAddAndPollTasks(taskType int, workerCoun
 	expectedRange := getExpectedRange(initialRangeID, persisted, rangeSize)
 	// Due to conflicts some ids are skipped and more real ranges are used.
 	s.True(expectedRange <= s.taskManager.GetRangeID(testParam.TaskListID))
-	mgr, err := s.matchingEngine.getTaskListManager(testParam.TaskListID, &tlKind)
+	mgr, err := s.matchingEngine.getTaskListManager(testParam.TaskListID, tlKind)
 	s.NoError(err)
 	// stop the tasklist manager to force the acked tasks to be deleted
 	mgr.Stop()
@@ -1086,7 +1091,7 @@ func (s *matchingEngineSuite) TestAddTaskAfterStartFailure() {
 	s.NoError(err)
 	s.EqualValues(1, s.taskManager.GetTaskCount(tlID))
 
-	tlMgr, err := s.matchingEngine.getTaskListManager(tlID, &tlKind)
+	tlMgr, err := s.matchingEngine.getTaskListManager(tlID, tlKind)
 	s.NoError(err)
 	ctx, err := tlMgr.GetTask(context.Background(), nil)
 	s.NoError(err)
@@ -1193,7 +1198,7 @@ func (s *matchingEngineSuite) DrainBacklogNoPollersIsolationGroup(taskType int) 
 	s.taskManager.SetRangeID(testParam.TaskListID, initialRangeID)
 	s.matchingEngine.config.RangeSize = rangeSize // override to low number for the test
 	s.matchingEngine.config.ReadRangeSize = dynamicproperties.GetIntPropertyFn(rangeSize / 2)
-	_, err := s.matchingEngine.getTaskListManager(testParam.TaskListID, testParam.TaskList.Kind)
+	_, err := s.matchingEngine.getTaskListManager(testParam.TaskListID, testParam.TaskList.GetKind())
 	s.NoError(err)
 	// advance the time a bit more than warmup time of new tasklist after the creation of tasklist manager, which is 1 minute
 	s.mockTimeSource.Advance(time.Minute)

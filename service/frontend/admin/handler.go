@@ -1087,12 +1087,12 @@ func (adh *adminHandlerImpl) ReadDLQMessages(
 
 	var tasks []*types.ReplicationTask
 	var token []byte
-	var op func() error
+	var op func(ctx context.Context) error
 	switch request.GetType() {
 	case types.DLQTypeReplication:
 		return adh.GetHistoryClient().ReadDLQMessages(ctx, request)
 	case types.DLQTypeDomain:
-		op = func() error {
+		op = func(ctx context.Context) error {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
@@ -1142,12 +1142,12 @@ func (adh *adminHandlerImpl) PurgeDLQMessages(
 		request.InclusiveEndMessageID = common.Ptr(constants.InclusiveEndMessageID)
 	}
 
-	var op func() error
+	var op func(ctx context.Context) error
 	switch request.GetType() {
 	case types.DLQTypeReplication:
 		return adh.GetHistoryClient().PurgeDLQMessages(ctx, request)
 	case types.DLQTypeDomain:
-		op = func() error {
+		op = func(ctx context.Context) error {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
@@ -1217,13 +1217,13 @@ func (adh *adminHandlerImpl) MergeDLQMessages(
 	}
 
 	var token []byte
-	var op func() error
+	var op func(ctx context.Context) error
 	switch request.GetType() {
 	case types.DLQTypeReplication:
 		return adh.GetHistoryClient().MergeDLQMessages(ctx, request)
 	case types.DLQTypeDomain:
 
-		op = func() error {
+		op = func(ctx context.Context) error {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
@@ -1295,7 +1295,7 @@ func (adh *adminHandlerImpl) ResendReplicationTasks(
 	}
 	resender := ndc.NewHistoryResender(
 		adh.GetDomainCache(),
-		adh.GetRemoteAdminClient(request.GetRemoteCluster()),
+		adh.GetClientBean(),
 		func(ctx context.Context, request *types.ReplicateEventsV2Request) error {
 			return adh.GetHistoryClient().ReplicateEventsV2(ctx, request)
 		},
@@ -1304,6 +1304,7 @@ func (adh *adminHandlerImpl) ResendReplicationTasks(
 		adh.GetLogger(),
 	)
 	return resender.SendSingleWorkflowHistory(
+		request.GetRemoteCluster(),
 		request.DomainID,
 		request.GetWorkflowID(),
 		request.GetRunID(),
@@ -1516,9 +1517,10 @@ func (adh *adminHandlerImpl) startRequestProfile(ctx context.Context, scope int)
 }
 
 func (adh *adminHandlerImpl) error(err error, scope metrics.Scope) error {
+	logger := adh.GetLogger().Helper()
 	switch err.(type) {
 	case *types.InternalServiceError:
-		adh.GetLogger().Error("Internal service error", tag.Error(err))
+		logger.Error("Internal service error", tag.Error(err))
 		scope.IncCounter(metrics.CadenceFailures)
 		return err
 	case *types.BadRequestError:
@@ -1530,7 +1532,7 @@ func (adh *adminHandlerImpl) error(err error, scope metrics.Scope) error {
 	case *types.EntityNotExistsError:
 		return err
 	default:
-		adh.GetLogger().Error("Uncategorized error", tag.Error(err))
+		logger.Error("Uncategorized error", tag.Error(err))
 		scope.IncCounter(metrics.CadenceFailures)
 		return &types.InternalServiceError{Message: err.Error()}
 	}

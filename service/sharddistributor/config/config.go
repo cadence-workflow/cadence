@@ -23,6 +23,9 @@
 package config
 
 import (
+	"time"
+
+	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 )
@@ -37,6 +40,49 @@ type (
 		// hostname info
 		HostName string
 	}
+
+	StaticConfig struct {
+		// LeaderElection is the configuration for leader election mechanism that is used by Shard distributor to handle shard distribution per namespace.
+		LeaderElection LeaderElection `yaml:"leaderElection"`
+	}
+
+	// LeaderElection is a configuration for leader election running.
+	LeaderElection struct {
+		Enabled    bool          `yaml:"enabled"`
+		Store      LeaderStore   `yaml:"leaderStore"`
+		Election   Election      `yaml:"election"`
+		Namespaces []Namespace   `yaml:"namespaces"`
+		Process    LeaderProcess `yaml:"process"`
+	}
+
+	// LeaderStore provides a config for leader election.
+	LeaderStore struct {
+		StorageParams *config.YamlNode `yaml:"storageParams"`
+	}
+
+	Namespace struct {
+		Name string `yaml:"name"`
+		Type string `yaml:"type"` // The field is a string since it is shared between global config Supported values: fixed|ephemeral.
+		Mode string `yaml:"mode"` // TODO: this should be an ENUM with possible modes: enabled, read_only, proxy, disabled
+		// ShardNum is defined for fixed namespace.
+		ShardNum int64 `yaml:"shardNum"`
+	}
+
+	Election struct {
+		LeaderPeriod           time.Duration `yaml:"leaderPeriod"`           // Time to hold leadership before resigning
+		MaxRandomDelay         time.Duration `yaml:"maxRandomDelay"`         // Maximum random delay before campaigning
+		FailedElectionCooldown time.Duration `yaml:"failedElectionCooldown"` // wait between election attempts with unhandled errors
+	}
+
+	LeaderProcess struct {
+		Period       time.Duration `yaml:"period"`
+		HeartbeatTTL time.Duration `yaml:"heartbeatTTL"`
+	}
+)
+
+const (
+	NamespaceTypeFixed     = "fixed"
+	NamespaceTypeEphemeral = "ephemeral"
 )
 
 // NewConfig returns new service config with default values
@@ -46,5 +92,22 @@ func NewConfig(dc *dynamicconfig.Collection, hostName string) *Config {
 		PersistenceGlobalMaxQPS: dc.GetIntProperty(dynamicproperties.ShardManagerPersistenceGlobalMaxQPS),
 		ThrottledLogRPS:         dc.GetIntProperty(dynamicproperties.ShardManagerThrottledLogRPS),
 		HostName:                hostName,
+	}
+}
+
+// GetLeaderElectionFromExternal converts other configs to an internal one.
+func GetLeaderElectionFromExternal(in config.LeaderElection) LeaderElection {
+
+	namespaces := make([]Namespace, 0, len(in.Namespaces))
+	for _, namespace := range in.Namespaces {
+		namespaces = append(namespaces, Namespace(namespace))
+	}
+
+	return LeaderElection{
+		Enabled:    in.Enabled,
+		Store:      LeaderStore(in.Store),
+		Election:   Election(in.Election),
+		Namespaces: namespaces,
+		Process:    LeaderProcess(in.Process),
 	}
 }

@@ -24,6 +24,7 @@ import (
 	"github.com/uber/cadence/common/domain"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/log"
 )
 
 // Config represents configuration for cadence-frontend service
@@ -60,6 +61,7 @@ type Config struct {
 	EnableQueryAttributeValidation    dynamicproperties.BoolPropertyFn
 	DisallowQuery                     dynamicproperties.BoolPropertyFnWithDomainFilter
 	ShutdownDrainDuration             dynamicproperties.DurationPropertyFn
+	WarmupDuration                    dynamicproperties.DurationPropertyFn
 	Lockdown                          dynamicproperties.BoolPropertyFnWithDomainFilter
 
 	// global ratelimiter config, uses GlobalDomain*RPS for RPS configuration
@@ -120,7 +122,8 @@ type Config struct {
 }
 
 // NewConfig returns new service config with default values
-func NewConfig(dc *dynamicconfig.Collection, numHistoryShards int, isAdvancedVisConfigExist bool, hostName string) *Config {
+func NewConfig(dc *dynamicconfig.Collection, numHistoryShards int, isAdvancedVisConfigExist bool, hostName string, logger log.Logger) *Config {
+	logger.Debugf("Creating new frontend config for host %s, numHistoryShards: %d, isAdvancedVisConfigExist: %t", hostName, numHistoryShards, isAdvancedVisConfigExist)
 	return &Config{
 		NumHistoryShards:                            numHistoryShards,
 		IsAdvancedVisConfigExist:                    isAdvancedVisConfigExist,
@@ -164,6 +167,7 @@ func NewConfig(dc *dynamicconfig.Collection, numHistoryShards int, isAdvancedVis
 		BlobSizeLimitWarn:                           dc.GetIntPropertyFilteredByDomain(dynamicproperties.BlobSizeLimitWarn),
 		ThrottledLogRPS:                             dc.GetIntProperty(dynamicproperties.FrontendThrottledLogRPS),
 		ShutdownDrainDuration:                       dc.GetDurationProperty(dynamicproperties.FrontendShutdownDrainDuration),
+		WarmupDuration:                              dc.GetDurationProperty(dynamicproperties.FrontendWarmupDuration),
 		EnableDomainNotActiveAutoForwarding:         dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableDomainNotActiveAutoForwarding),
 		EnableGracefulFailover:                      dc.GetBoolProperty(dynamicproperties.EnableGracefulFailover),
 		DomainFailoverRefreshInterval:               dc.GetDurationProperty(dynamicproperties.DomainFailoverRefreshInterval),

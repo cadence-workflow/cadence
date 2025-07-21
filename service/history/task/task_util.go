@@ -327,6 +327,35 @@ func getWorkflowExecution(
 	}
 }
 
+func shouldPushToMatching(
+	ctx context.Context,
+	shard shard.Context,
+	taskInfo persistence.Task,
+) (bool, error) {
+	domainEntry, err := shard.GetDomainCache().GetDomainByID(taskInfo.GetDomainID())
+	if err != nil {
+		return false, err
+	}
+
+	if !domainEntry.GetReplicationConfig().IsActiveActive() {
+		// Preserve the behavior of active-standby and local domains. Always push to matching
+		return true, nil
+	}
+
+	// For active-active domains, only push to matching if the workflow is active in current cluster
+	// We may revisit this logic in the future. Current idea is to not pollute tasklists with passive workflows of active-active domains
+	// because they would cause head-of-line blocking in the tasklist. Passive task completion logic doesn't apply to active-active domains.
+	lookupRes, err := shard.GetActiveClusterManager().LookupWorkflow(ctx, taskInfo.GetDomainID(), taskInfo.GetWorkflowID(), taskInfo.GetRunID())
+	if err != nil {
+		return false, err
+	}
+	if lookupRes.ClusterName != shard.GetClusterMetadata().GetCurrentClusterName() {
+		return false, nil
+	}
+
+	return true, nil
+}
+
 // NewMockTaskMatcher creates a gomock matcher for mock Task
 func NewMockTaskMatcher(mockTask *MockTask) gomock.Matcher {
 	return &mockTaskMatcher{

@@ -32,6 +32,7 @@ import (
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/archiver"
 	"github.com/uber/cadence/common/archiver/provider"
 	"github.com/uber/cadence/common/asyncworkflow/queue"
@@ -74,6 +75,7 @@ type Resource interface {
 
 	GetDomainCache() cache.DomainCache
 	GetDomainMetricsScopeCache() cache.DomainMetricsScopeCache
+	GetActiveClusterManager() activecluster.Manager
 	GetTimeSource() clock.TimeSource
 	GetPayloadSerializer() persistence.PayloadSerializer
 	GetMetricsClient() metrics.Client
@@ -95,8 +97,8 @@ type Resource interface {
 	GetHistoryRawClient() history.Client
 	GetHistoryClient() history.Client
 	GetRatelimiterAggregatorsClient() qrpc.Client
-	GetRemoteAdminClient(cluster string) admin.Client
-	GetRemoteFrontendClient(cluster string) frontend.Client
+	GetRemoteAdminClient(cluster string) (admin.Client, error)
+	GetRemoteFrontendClient(cluster string) (frontend.Client, error)
 	GetClientBean() client.Bean
 
 	// persistence clients

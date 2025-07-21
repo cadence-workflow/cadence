@@ -22,6 +22,8 @@ package log
 
 import "github.com/uber/cadence/common/log/tag"
 
+//go:generate mockery --name Logger --quiet --output . --structname MockLogger --inpackage --inpackage-suffix --filename logger_mock.go --unroll-variadic=False
+
 // Logger is our abstraction for logging
 // Usage examples:
 //
@@ -47,6 +49,9 @@ type Logger interface {
 	Fatal(msg string, tags ...tag.Tag)
 	WithTags(tags ...tag.Tag) Logger
 	SampleInfo(msg string, sampleRate int, tags ...tag.Tag)
+	DebugOn() bool
+	// Helper returns a logger that will skip one more level in stack trace. This is helpful for layered architecture, when you want to point to a business logic error, instead of pointing to the wrapped generated level.
+	Helper() Logger
 }
 
 type noop struct{}
@@ -66,3 +71,7 @@ func (n *noop) SampleInfo(msg string, sampleRate int, tags ...tag.Tag) {}
 func (n *noop) WithTags(tags ...tag.Tag) Logger {
 	return n
 }
+func (n *noop) DebugOn() bool {
+	return true
+}
+func (n *noop) Helper() Logger { return &noop{} }

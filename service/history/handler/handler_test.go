@@ -1218,9 +1218,7 @@ func (s *handlerSuite) TestRemoveTask() {
 			mockFn: func() {
 				s.mockResource.ExecutionMgr.On("CompleteHistoryTask", mock.Anything, &persistence.CompleteHistoryTaskRequest{
 					TaskCategory: persistence.HistoryTaskCategoryTransfer,
-					TaskKey: persistence.HistoryTaskKey{
-						TaskID: int64(1),
-					},
+					TaskKey:      persistence.NewImmediateTaskKey(1),
 				}).Return(nil).Once()
 			},
 		},
@@ -1235,10 +1233,7 @@ func (s *handlerSuite) TestRemoveTask() {
 			mockFn: func() {
 				s.mockResource.ExecutionMgr.On("CompleteHistoryTask", mock.Anything, &persistence.CompleteHistoryTaskRequest{
 					TaskCategory: persistence.HistoryTaskCategoryTimer,
-					TaskKey: persistence.HistoryTaskKey{
-						ScheduledTime: time.Unix(0, int64(now.UnixNano())),
-						TaskID:        int64(1),
-					},
+					TaskKey:      persistence.NewHistoryTaskKey(time.Unix(0, int64(now.UnixNano())), 1),
 				}).Return(nil).Once()
 			},
 		},
@@ -1252,9 +1247,7 @@ func (s *handlerSuite) TestRemoveTask() {
 			mockFn: func() {
 				s.mockResource.ExecutionMgr.On("CompleteHistoryTask", mock.Anything, &persistence.CompleteHistoryTaskRequest{
 					TaskCategory: persistence.HistoryTaskCategoryReplication,
-					TaskKey: persistence.HistoryTaskKey{
-						TaskID: int64(1),
-					},
+					TaskKey:      persistence.NewImmediateTaskKey(1),
 				}).Return(nil).Once()
 			},
 		},

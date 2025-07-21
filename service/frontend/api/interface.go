@@ -40,6 +40,7 @@ type (
 	Handler interface {
 		Health(context.Context) (*types.HealthStatus, error)
 		CountWorkflowExecutions(context.Context, *types.CountWorkflowExecutionsRequest) (*types.CountWorkflowExecutionsResponse, error)
+		DeleteDomain(context.Context, *types.DeleteDomainRequest) error
 		DeprecateDomain(context.Context, *types.DeprecateDomainRequest) error
 		DescribeDomain(context.Context, *types.DescribeDomainRequest) (*types.DescribeDomainResponse, error)
 		DescribeTaskList(context.Context, *types.DescribeTaskListRequest) (*types.DescribeTaskListResponse, error)

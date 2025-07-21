@@ -23,10 +23,15 @@ package sharddistributor
 import (
 	"sync/atomic"
 
+	"go.uber.org/yarpc"
+
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/membership"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/service/sharddistributor/config"
@@ -35,31 +40,36 @@ import (
 	"github.com/uber/cadence/service/sharddistributor/wrappers/metered"
 )
 
-// Service represents the shard distributor service
+// Service represents the shard distributor service for legacy resource based initialization.
+// DEPRECATED: use fx and sharddistributorfx to avoid creating start/stopper.
 type Service struct {
-	resource.Resource
+	logger        log.Logger
+	metricsClient metrics.Client
+	dispatcher    *yarpc.Dispatcher
 
-	status           int32
-	handler          handler.Handler
-	stopC            chan struct{}
-	config           *config.Config
-	numHistoryShards int
-	peerProvider     membership.PeerProvider
+	handler      handler.Handler
+	config       *config.Config
+	peerProvider membership.PeerProvider
 
-	matchingRing *membership.Ring
-	historyRing  *membership.Ring
+	matchingRing membership.SingleProvider
+	historyRing  membership.SingleProvider
+
+	stopC    chan struct{}
+	status   int32
+	resource resource.Resource
 }
 
-// NewService builds a new task manager service
+// NewService is an adapter for legacy initialization without fx.
 func NewService(
 	params *resource.Params,
 	factory resource.ResourceFactory,
-) (resource.Resource, error) {
+) (*Service, error) {
+	logger := params.Logger.WithTags(tag.Service("shard-distributor"))
 
 	serviceConfig := config.NewConfig(
 		dynamicconfig.NewCollection(
 			params.DynamicConfig,
-			params.Logger,
+			logger,
 			dynamicproperties.ClusterNameFilter(params.ClusterMetadata.GetCurrentClusterName()),
 		),
 		params.HostName,
@@ -83,43 +93,53 @@ func NewService(
 	matchingRing := params.HashRings[service.Matching]
 	historyRing := params.HashRings[service.History]
 
+	rawHandler := handler.NewHandler(logger, params.MetricsClient, matchingRing, historyRing)
+	meteredHandler := metered.NewMetricsHandler(rawHandler, logger, params.MetricsClient)
+
+	dispatcher := params.RPCFactory.GetDispatcher()
+
+	grpcHandler := grpc.NewGRPCHandler(meteredHandler)
+	grpcHandler.Register(dispatcher)
+
 	return &Service{
-		Resource:         serviceResource,
-		status:           common.DaemonStatusInitialized,
-		config:           serviceConfig,
-		stopC:            make(chan struct{}),
-		numHistoryShards: params.PersistenceConfig.NumHistoryShards,
+		config:        serviceConfig,
+		logger:        logger,
+		metricsClient: params.MetricsClient,
+		dispatcher:    dispatcher,
+		handler:       meteredHandler,
 
 		matchingRing: matchingRing,
 		historyRing:  historyRing,
+
+		// legacy components
+		resource: serviceResource,
+		stopC:    make(chan struct{}),
+		status:   common.DaemonStatusInitialized,
 	}, nil
 }
 
-// Start starts the service
+// Start legacy mode fx stops the component and ensures order/wait time between dependent components.
 func (s *Service) Start() {
 	if !atomic.CompareAndSwapInt32(&s.status, common.DaemonStatusInitialized, common.DaemonStatusStarted) {
 		return
 	}
 
-	logger := s.GetLogger()
-	logger.Info("shard distributor starting")
+	s.logger.Info("starting")
 
-	rawHandler := handler.NewHandler(s.GetLogger(), s.GetMetricsClient(), s.matchingRing, s.historyRing)
-	meteredHandler := metered.NewMetricsHandler(rawHandler, s.GetLogger(), s.GetMetricsClient())
+	s.resource.Start()
 
-	s.handler = meteredHandler
+	if s.handler != nil {
+		s.handler.Start()
+	}
 
-	grpcHandler := grpc.NewGRPCHandler(s.handler)
-	grpcHandler.Register(s.GetDispatcher())
-
-	s.Resource.Start()
-	s.handler.Start()
-
-	logger.Info("shard distributor started")
+	s.logger.Info("started")
 
 	<-s.stopC
+
+	return
 }
 
+// Stop legacy mode, fx stops the component and ensures order/wait time between dependent components.
 func (s *Service) Stop() {
 	if !atomic.CompareAndSwapInt32(&s.status, common.DaemonStatusStarted, common.DaemonStatusStopped) {
 		return
@@ -128,7 +148,8 @@ func (s *Service) Stop() {
 	close(s.stopC)
 
 	s.handler.Stop()
-	s.Resource.Stop()
 
-	s.GetLogger().Info("shard distributor stopped")
+	s.resource.Stop()
+
+	s.logger.Info("stopped")
 }

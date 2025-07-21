@@ -23,6 +23,7 @@ package engineimpl
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/uber/cadence/common"
@@ -56,7 +57,18 @@ func (e *historyEngineImpl) GetReplicationMessages(
 	replicationMessages.SyncShardStatus = &types.SyncShardStatus{
 		Timestamp: common.Int64Ptr(e.timeSource.Now().UnixNano()),
 	}
-	e.logger.Debug("Successfully fetched replication messages.", tag.Counter(len(replicationMessages.ReplicationTasks)))
+	e.logger.Debug("Successfully fetched replication messages.", tag.Counter(len(replicationMessages.ReplicationTasks)), tag.ClusterName(pollingCluster))
+
+	if e.logger.DebugOn() {
+		for _, task := range replicationMessages.ReplicationTasks {
+			data, err := json.Marshal(task)
+			if err != nil {
+				e.logger.Error("Failed to marshal replication task.", tag.Error(err))
+				continue
+			}
+			e.logger.Debugf("Replication task: %s", string(data))
+		}
+	}
 	return replicationMessages, nil
 }
 

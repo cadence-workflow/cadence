@@ -25,7 +25,6 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
-	"github.com/uber/cadence/service/history/engine"
 	"github.com/uber/cadence/service/history/shard"
 	"github.com/uber/cadence/service/history/task"
 )
@@ -33,7 +32,6 @@ import (
 func newTimerQueueActiveProcessor(
 	clusterName string,
 	shard shard.Context,
-	historyEngine engine.Engine,
 	taskProcessor task.Processor,
 	taskAllocator TaskAllocator,
 	taskExecutor task.Executor,
@@ -49,19 +47,24 @@ func newTimerQueueActiveProcessor(
 			return false, errUnexpectedQueueTask
 		}
 		if notRegistered, err := isDomainNotRegistered(shard, timer.GetDomainID()); notRegistered && err == nil {
+			// Allow deletion tasks for deprecated domains
+			if timer.GetTaskType() == persistence.TaskTypeDeleteHistoryEvent {
+				return true, nil
+			}
+
 			logger.Info("Domain is not in registered status, skip task in active timer queue.", tag.WorkflowDomainID(timer.GetDomainID()), tag.Value(timer))
 			return false, nil
 		}
 
-		return taskAllocator.VerifyActiveTask(timer.GetDomainID(), timer)
+		return taskAllocator.VerifyActiveTask(timer.GetDomainID(), timer.GetWorkflowID(), timer.GetRunID(), timer)
 	}
 
 	updateMaxReadLevel := func() task.Key {
-		return newTimerTaskKey(shard.UpdateTimerMaxReadLevel(clusterName), 0)
+		return newTimerTaskKey(shard.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryTimer, clusterName).GetScheduledTime(), 0)
 	}
 
 	updateClusterAckLevel := func(ackLevel task.Key) error {
-		return shard.UpdateTimerClusterAckLevel(clusterName, ackLevel.(timerTaskKey).visibilityTimestamp)
+		return shard.UpdateQueueClusterAckLevel(persistence.HistoryTaskCategoryTimer, clusterName, persistence.NewHistoryTaskKey(ackLevel.(timerTaskKey).visibilityTimestamp, 0))
 	}
 
 	updateProcessingQueueStates := func(states []ProcessingQueueState) error {

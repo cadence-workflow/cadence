@@ -66,6 +66,7 @@ func TestConstructStartWorkflowRequest(t *testing.T) {
 	set.Int(DelayStartSeconds, 5, DelayStartSeconds)
 	set.Int(JitterStartSeconds, 2, JitterStartSeconds)
 	set.String("first_run_at_time", "2024-07-24T12:00:00Z", "first-run-at-time")
+	set.Int("cron_overlap_policy", 0, "cron_overlap_policy")
 
 	c := cli.NewContext(nil, set, nil)
 	// inject context with span
@@ -92,7 +93,7 @@ func TestConstructStartWorkflowRequest(t *testing.T) {
 	assert.NoError(t, c.Set(DelayStartSeconds, "5"))
 	assert.NoError(t, c.Set(JitterStartSeconds, "2"))
 	assert.NoError(t, c.Set("first_run_at_time", "2024-07-24T12:00:00Z"))
-
+	assert.NoError(t, c.Set("cron_overlap_policy", "0"))
 	request, err := constructStartWorkflowRequest(c)
 	assert.NoError(t, err)
 	assert.NotNil(t, request)
@@ -111,6 +112,7 @@ func TestConstructStartWorkflowRequest(t *testing.T) {
 	firstRunAt, err := time.Parse(time.RFC3339, "2024-07-24T12:00:00Z")
 	assert.NoError(t, err)
 	assert.Equal(t, firstRunAt.UnixNano(), *request.FirstRunAtTimeStamp)
+	assert.Equal(t, types.CronOverlapPolicySkipped, *request.CronOverlapPolicy)
 }
 
 func Test_PrintAutoResetPoints(t *testing.T) {

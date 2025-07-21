@@ -34,6 +34,7 @@ var (
 		EmitMetric:                             common.BoolPtr(DomainEmitMetric),
 		Clusters:                               ClusterReplicationConfigurationArray,
 		ActiveClusterName:                      ClusterName1,
+		ActiveClustersByRegion:                 map[string]string{Region1: ClusterName1, Region2: ClusterName2},
 		Data:                                   DomainData,
 		SecurityToken:                          SecurityToken,
 		IsGlobalDomain:                         true,
@@ -75,10 +76,23 @@ var (
 		VisibilityArchivalStatus:               &ArchivalStatus,
 		VisibilityArchivalURI:                  common.StringPtr(VisibilityArchivalURI),
 		ActiveClusterName:                      common.StringPtr(ClusterName1),
+		ActiveClusters:                         &ActiveClusters,
 		Clusters:                               ClusterReplicationConfigurationArray,
 		SecurityToken:                          SecurityToken,
 		DeleteBadBinary:                        common.StringPtr(DeleteBadBinary),
 		FailoverTimeoutInSeconds:               &Duration1,
+	}
+	ActiveClusters = types.ActiveClusters{
+		ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+			Region1: {
+				ActiveClusterName: ClusterName1,
+				FailoverVersion:   FailoverVersion1,
+			},
+			Region2: {
+				ActiveClusterName: ClusterName2,
+				FailoverVersion:   FailoverVersion2,
+			},
+		},
 	}
 	UpdateDomainResponse = types.UpdateDomainResponse{
 		DomainInfo:               &DomainInfo,
@@ -86,6 +100,10 @@ var (
 		ReplicationConfiguration: &DomainReplicationConfiguration,
 		FailoverVersion:          FailoverVersion1,
 		IsGlobalDomain:           true,
+	}
+	DeleteDomainRequest = types.DeleteDomainRequest{
+		Name:          DomainName,
+		SecurityToken: SecurityToken,
 	}
 	DeprecateDomainRequest = types.DeprecateDomainRequest{
 		Name:          DomainName,
@@ -319,10 +337,12 @@ var (
 		WorkflowIDReusePolicy:               &WorkflowIDReusePolicy,
 		RetryPolicy:                         &RetryPolicy,
 		CronSchedule:                        CronSchedule,
+		CronOverlapPolicy:                   &CronOverlapPolicy,
 		Memo:                                &Memo,
 		SearchAttributes:                    &SearchAttributes,
 		Header:                              &Header,
 		FirstRunAtTimeStamp:                 &Timestamp1,
+		ActiveClusterSelectionPolicy:        &ActiveClusterSelectionPolicyExternalEntity,
 	}
 	StartWorkflowExecutionResponse = types.StartWorkflowExecutionResponse{
 		RunID: RunID,
@@ -356,10 +376,12 @@ var (
 		Control:                             Control,
 		RetryPolicy:                         &RetryPolicy,
 		CronSchedule:                        CronSchedule,
+		CronOverlapPolicy:                   &CronOverlapPolicy,
 		Memo:                                &Memo,
 		SearchAttributes:                    &SearchAttributes,
 		Header:                              &Header,
 		FirstRunAtTimestamp:                 &Timestamp1,
+		ActiveClusterSelectionPolicy:        &ActiveClusterSelectionPolicyRegionSticky,
 	}
 	SignalWithStartWorkflowExecutionAsyncRequest = types.SignalWithStartWorkflowExecutionAsyncRequest{
 		SignalWithStartWorkflowExecutionRequest: &SignalWithStartWorkflowExecutionRequest,
@@ -426,6 +448,7 @@ var (
 		Pollers:         PollerInfoArray,
 		TaskListStatus:  &TaskListStatus,
 		PartitionConfig: &TaskListPartitionConfig,
+		TaskList:        &TaskList,
 	}
 	ListTaskListPartitionsRequest = types.ListTaskListPartitionsRequest{
 		Domain:   DomainName,

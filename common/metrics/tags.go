@@ -40,6 +40,7 @@ const (
 	sourceCluster             = "source_cluster"
 	targetCluster             = "target_cluster"
 	activeCluster             = "active_cluster"
+	isActiveActiveDomain      = "is_active_active_domain"
 	taskList                  = "tasklist"
 	taskListType              = "tasklistType"
 	taskListRootPartition     = "tasklist_root_partition"
@@ -68,6 +69,7 @@ const (
 	leakCause                 = "leak_cause"
 	topic                     = "topic"
 	mode                      = "mode"
+	isRetry                   = "is_retry"
 
 	// limiter-side tags
 	globalRatelimitKey            = "global_ratelimit_key"
@@ -157,6 +159,11 @@ func TargetClusterTag(value string) Tag {
 // ActiveClusterTag returns a new active cluster type tag.
 func ActiveClusterTag(value string) Tag {
 	return metricWithUnknown(activeCluster, value)
+}
+
+// IsActiveActiveDomainTag returns a new is active active domain tag.
+func IsActiveActiveDomainTag(value bool) Tag {
+	return simpleMetric{key: isActiveActiveDomain, value: strconv.FormatBool(value)}
 }
 
 // TaskListTag returns a new task list tag.
@@ -288,11 +295,7 @@ func GlobalRatelimiterTypeTag(value string) Tag {
 }
 
 func GlobalRatelimiterIsPrimary(isPrimary bool) Tag {
-	value := "false"
-	if isPrimary {
-		value = "true"
-	}
-	return simpleMetric{key: globalRatelimitIsPrimary, value: value}
+	return simpleMetric{key: globalRatelimitIsPrimary, value: strconv.FormatBool(isPrimary)}
 }
 
 // GlobalRatelimiterCollectionName is a namespacing tag to uniquely identify metrics
@@ -323,11 +326,7 @@ func IsolationLeakCause(cause string) Tag {
 
 // IsolationEnabledTag returns whether isolation is enabled
 func IsolationEnabledTag(enabled bool) Tag {
-	v := "false"
-	if enabled {
-		v = "true"
-	}
-	return simpleMetric{key: isolationEnabled, value: v}
+	return simpleMetric{key: isolationEnabled, value: strconv.FormatBool(enabled)}
 }
 
 func TopicTag(value string) Tag {
@@ -336,6 +335,11 @@ func TopicTag(value string) Tag {
 
 func ModeTag(value string) Tag {
 	return metricWithUnknown(mode, value)
+}
+
+// IsRetryTag returns a new is_retry tag.
+func IsRetryTag(retry bool) Tag {
+	return simpleMetric{key: isRetry, value: strconv.FormatBool(retry)}
 }
 
 func NamespaceTag(namespace string) Tag {

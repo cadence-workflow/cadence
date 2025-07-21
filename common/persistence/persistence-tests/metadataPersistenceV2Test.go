@@ -991,6 +991,80 @@ func (m *MetadataPersistenceSuiteV2) TestUpdateDomain() {
 	m.Equal(lastUpdateTime, resp6.LastUpdatedTime)
 	m.Equal(isolationGroups1, resp6.Config.IsolationGroups)
 	m.Equal(asyncWFCfg1, resp6.Config.AsyncWorkflowConfig)
+
+	// make it active-active domain
+	notificationVersion++
+	lastUpdateTime++
+	activeClusters := &types.ActiveClusters{
+		ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+			"region1": {
+				ActiveClusterName: updateClusters[0].ClusterName,
+			},
+			"region2": {
+				ActiveClusterName: updateClusters[1].ClusterName,
+			},
+		},
+	}
+	err7 := m.UpdateDomain(
+		ctx,
+		&p.DomainInfo{
+			ID:          resp2.Info.ID,
+			Name:        resp2.Info.Name,
+			Status:      updatedStatus,
+			Description: updatedDescription,
+			OwnerEmail:  updatedOwner,
+			Data:        updatedData,
+		},
+		&p.DomainConfig{
+			Retention:                updatedRetention,
+			EmitMetric:               updatedEmitMetric,
+			HistoryArchivalStatus:    updatedHistoryArchivalStatus,
+			HistoryArchivalURI:       updatedHistoryArchivalURI,
+			VisibilityArchivalStatus: updatedVisibilityArchivalStatus,
+			VisibilityArchivalURI:    updatedVisibilityArchivalURI,
+			BadBinaries:              testBinaries,
+			IsolationGroups:          isolationGroups1,
+			AsyncWorkflowConfig:      asyncWFCfg1,
+		},
+		&p.DomainReplicationConfig{
+			ActiveClusterName: updateClusterActive,
+			Clusters:          updateClusters,
+			ActiveClusters:    activeClusters,
+		},
+		updateConfigVersion,
+		updateFailoverVersion,
+		updateFailoverNotificationVersion,
+		updatePreviousFailoverVersion,
+		nil,
+		notificationVersion,
+		lastUpdateTime,
+	)
+	m.NoError(err7)
+
+	resp7, err7 := m.GetDomain(ctx, "", name)
+	m.T().Logf("resp7: %+v", resp7)
+	m.T().Logf("resp7.Info: %+v. even after setting status", *resp7.Info)
+	m.NoError(err7)
+	m.NotNil(resp7)
+	m.Equal(id, resp7.Info.ID)
+	m.Equal(name, resp7.Info.Name)
+	m.Equal(isGlobalDomain, resp7.IsGlobalDomain)
+	m.Equal(updatedStatus, resp7.Info.Status)
+	m.Equal(isolationGroups1, resp7.Config.IsolationGroups)
+	m.Equal(asyncWFCfg1, resp7.Config.AsyncWorkflowConfig)
+	m.Equal(updateClusterActive, resp7.ReplicationConfig.ActiveClusterName)
+	m.Equal(activeClusters.ActiveClustersByRegion, resp7.ReplicationConfig.ActiveClusters.ActiveClustersByRegion)
+	m.Equal(len(updateClusters), len(resp7.ReplicationConfig.Clusters))
+	for index := range clusters {
+		m.Equal(updateClusters[index], resp7.ReplicationConfig.Clusters[index])
+	}
+	m.Equal(notificationVersion, resp7.NotificationVersion)
+	m.Equal(lastUpdateTime, resp7.LastUpdatedTime)
+	m.Equal(updateFailoverVersion, resp7.FailoverVersion)
+	m.Equal(updateFailoverNotificationVersion, resp7.FailoverNotificationVersion)
+	m.Equal(updatePreviousFailoverVersion, resp7.PreviousFailoverVersion)
+	m.Nil(resp7.FailoverEndTime)
+	m.Equal(updateConfigVersion, resp7.ConfigVersion)
 }
 
 // TestDeleteDomain test

@@ -227,6 +227,7 @@ func (s *taskFetcherSuite) TestLifecycle() {
 
 	// process the existing replication requests and return service busy error
 	s.Equal(0, fetchAndDistributeTasksFnCall)
+	mockTimeSource.BlockUntil(1)
 	mockTimeSource.Advance(s.config.ReplicationTaskFetcherAggregationInterval())
 	_, open = <-fetchAndDistributeTasksSyncChan[0] // block until fetchAndDistributeTasksFn is called
 	s.False(open)
@@ -238,18 +239,21 @@ func (s *taskFetcherSuite) TestLifecycle() {
 	s.False(open)
 
 	// process the existing replication requests and return non-service busy error
+	mockTimeSource.BlockUntil(1)
 	mockTimeSource.Advance(s.config.ReplicationTaskFetcherServiceBusyWait())
 	_, open = <-fetchAndDistributeTasksSyncChan[1] // block until fetchAndDistributeTasksFn is called
 	s.False(open)
 	s.Equal(2, fetchAndDistributeTasksFnCall)
 
 	// process the existing replication requests and return success
+	mockTimeSource.BlockUntil(1)
 	mockTimeSource.Advance(s.config.ReplicationTaskFetcherErrorRetryWait())
 	_, open = <-fetchAndDistributeTasksSyncChan[2] // block until fetchAndDistributeTasksFn is called
 	s.False(open)
 	s.Equal(3, fetchAndDistributeTasksFnCall)
 
 	// process empty requests and return success
+	mockTimeSource.BlockUntil(1)
 	mockTimeSource.Advance(s.config.ReplicationTaskFetcherAggregationInterval())
 	_, open = <-fetchAndDistributeTasksSyncChan[3] // block until fetchAndDistributeTasksFn is called
 	s.False(open)
@@ -264,8 +268,9 @@ func TestTaskFetchers(t *testing.T) {
 	logger := testlogger.New(t)
 	cfg := config.NewForTest()
 
-	mockBean.EXPECT().GetRemoteAdminClient(cluster.TestAlternativeClusterName).Return(mockAdminClient)
-	fetchers := NewTaskFetchers(logger, cfg, cluster.TestActiveClusterMetadata, mockBean)
+	mockBean.EXPECT().GetRemoteAdminClient(cluster.TestAlternativeClusterName).Return(mockAdminClient, nil)
+	fetchers, err := NewTaskFetchers(logger, cfg, cluster.TestActiveClusterMetadata, mockBean)
+	assert.NoError(t, err)
 	assert.NotNil(t, fetchers)
 	assert.Len(t, fetchers.GetFetchers(), len(cluster.TestActiveClusterMetadata.GetRemoteClusterInfo()))
 

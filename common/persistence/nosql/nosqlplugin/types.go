@@ -151,6 +151,14 @@ type (
 		WriteMode WorkflowRequestWriteMode
 	}
 
+	ActiveClusterSelectionPolicyRow struct {
+		ShardID    int
+		DomainID   string
+		WorkflowID string
+		RunID      string
+		Policy     *persistence.DataBlob
+	}
+
 	// TasksFilter is for filtering tasks
 	TasksFilter struct {
 		TaskListFilter
@@ -212,7 +220,11 @@ type (
 
 	// ShardRow is the same as persistence.InternalShardInfo
 	// Separate them later when there is a need.
-	ShardRow = persistence.InternalShardInfo
+	ShardRow struct {
+		*persistence.InternalShardInfo
+		Data         []byte
+		DataEncoding string
+	}
 
 	// ConflictedShardRow contains the partial information about a shard returned when a conditional write fails
 	ConflictedShardRow struct {
@@ -227,7 +239,7 @@ type (
 	DomainRow struct {
 		Info                        *persistence.DomainInfo
 		Config                      *persistence.InternalDomainConfig
-		ReplicationConfig           *persistence.DomainReplicationConfig
+		ReplicationConfig           *persistence.InternalDomainReplicationConfig
 		ConfigVersion               int64
 		FailoverVersion             int64
 		FailoverNotificationVersion int64

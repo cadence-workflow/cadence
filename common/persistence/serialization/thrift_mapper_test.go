@@ -30,6 +30,7 @@ import (
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/uber/cadence/.gen/go/shared"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/types"
 )
@@ -53,6 +54,29 @@ func TestShardInfo(t *testing.T) {
 		TransferProcessingQueueStatesEncoding: "TransferProcessingQueueStatesEncoding",
 		TimerProcessingQueueStates:            []byte("TimerProcessingQueueStates"),
 		TimerProcessingQueueStatesEncoding:    "TimerProcessingQueueStatesEncoding",
+		QueueStates: map[int32]*types.QueueState{
+			0: &types.QueueState{
+				VirtualQueueStates: map[int64]*types.VirtualQueueState{
+					0: {
+						VirtualSliceStates: []*types.VirtualSliceState{
+							{
+								TaskRange: &types.TaskRange{
+									InclusiveMin: &types.TaskKey{
+										TaskID: 1000,
+									},
+									ExclusiveMax: &types.TaskKey{
+										TaskID: 2000,
+									},
+								},
+							},
+						},
+					},
+				},
+				ExclusiveMaxReadLevel: &types.TaskKey{
+					TaskID: 1000,
+				},
+			},
+		},
 	}
 	actual := shardInfoFromThrift(shardInfoToThrift(expected))
 	assert.Equal(t, expected.StolenSinceRenew, actual.StolenSinceRenew)
@@ -82,30 +106,32 @@ func TestShardInfo(t *testing.T) {
 
 func TestDomainInfo(t *testing.T) {
 	expected := &DomainInfo{
-		Name:                        "domain_name",
-		Description:                 "description",
-		Owner:                       "owner",
-		Status:                      int32(rand.Intn(1000)),
-		Retention:                   time.Duration(int64(rand.Intn(1000))),
-		EmitMetric:                  true,
-		ArchivalBucket:              "archival_bucket",
-		ArchivalStatus:              int16(rand.Intn(1000)),
-		ConfigVersion:               int64(rand.Intn(1000)),
-		NotificationVersion:         int64(rand.Intn(1000)),
-		FailoverNotificationVersion: int64(rand.Intn(1000)),
-		FailoverVersion:             int64(rand.Intn(1000)),
-		ActiveClusterName:           "ActiveClusterName",
-		Clusters:                    []string{"cluster_a", "cluster_b"},
-		Data:                        map[string]string{"key_1": "value_1", "key_2": "value_2"},
-		BadBinaries:                 []byte("BadBinaries"),
-		BadBinariesEncoding:         "BadBinariesEncoding",
-		HistoryArchivalStatus:       int16(rand.Intn(1000)),
-		HistoryArchivalURI:          "HistoryArchivalURI",
-		VisibilityArchivalStatus:    int16(rand.Intn(1000)),
-		VisibilityArchivalURI:       "VisibilityArchivalURI",
-		FailoverEndTimestamp:        common.TimePtr(time.Now()),
-		PreviousFailoverVersion:     int64(rand.Intn(1000)),
-		LastUpdatedTimestamp:        time.Now(),
+		Name:                         "domain_name",
+		Description:                  "description",
+		Owner:                        "owner",
+		Status:                       int32(rand.Intn(1000)),
+		Retention:                    time.Duration(int64(rand.Intn(1000))),
+		EmitMetric:                   true,
+		ArchivalBucket:               "archival_bucket",
+		ArchivalStatus:               int16(rand.Intn(1000)),
+		ConfigVersion:                int64(rand.Intn(1000)),
+		NotificationVersion:          int64(rand.Intn(1000)),
+		FailoverNotificationVersion:  int64(rand.Intn(1000)),
+		FailoverVersion:              int64(rand.Intn(1000)),
+		ActiveClusterName:            "ActiveClusterName",
+		ActiveClustersConfig:         []byte("activeClustersConfig"),
+		ActiveClustersConfigEncoding: "activeClustersConfigEncoding",
+		Clusters:                     []string{"cluster_a", "cluster_b"},
+		Data:                         map[string]string{"key_1": "value_1", "key_2": "value_2"},
+		BadBinaries:                  []byte("BadBinaries"),
+		BadBinariesEncoding:          "BadBinariesEncoding",
+		HistoryArchivalStatus:        int16(rand.Intn(1000)),
+		HistoryArchivalURI:           "HistoryArchivalURI",
+		VisibilityArchivalStatus:     int16(rand.Intn(1000)),
+		VisibilityArchivalURI:        "VisibilityArchivalURI",
+		FailoverEndTimestamp:         common.TimePtr(time.Now()),
+		PreviousFailoverVersion:      int64(rand.Intn(1000)),
+		LastUpdatedTimestamp:         time.Now(),
 	}
 	actual := domainInfoFromThrift(domainInfoToThrift(expected))
 	assert.Equal(t, expected.Name, actual.Name)
@@ -121,6 +147,8 @@ func TestDomainInfo(t *testing.T) {
 	assert.Equal(t, expected.FailoverNotificationVersion, actual.FailoverNotificationVersion)
 	assert.Equal(t, expected.ActiveClusterName, actual.ActiveClusterName)
 	assert.Equal(t, expected.Clusters, actual.Clusters)
+	assert.Equal(t, expected.ActiveClustersConfig, actual.ActiveClustersConfig)
+	assert.Equal(t, expected.ActiveClustersConfigEncoding, actual.ActiveClustersConfigEncoding)
 	assert.Equal(t, expected.Data, actual.Data)
 	assert.Equal(t, expected.BadBinaries, actual.BadBinaries)
 	assert.Equal(t, expected.BadBinariesEncoding, actual.BadBinariesEncoding)
@@ -189,6 +217,7 @@ func TestWorkflowExecutionInfo(t *testing.T) {
 		CompletionEvent:                    []byte("CompletionEvent"),
 		CompletionEventEncoding:            "CompletionEventEncoding",
 		TaskList:                           "TaskList",
+		TaskListKind:                       types.TaskListKindNormal,
 		WorkflowTypeName:                   "WorkflowTypeName",
 		WorkflowTimeout:                    time.Minute * time.Duration(rand.Intn(10)),
 		DecisionTaskTimeout:                time.Minute * time.Duration(rand.Intn(10)),
@@ -200,17 +229,17 @@ func TestWorkflowExecutionInfo(t *testing.T) {
 		LastEventTaskID:                    int64(rand.Intn(1000)),
 		LastFirstEventID:                   int64(rand.Intn(1000)),
 		LastProcessedEvent:                 int64(rand.Intn(1000)),
-		StartTimestamp:                     time.Now(),
-		LastUpdatedTimestamp:               time.Now(),
+		StartTimestamp:                     time.UnixMilli(1752018142820),
+		LastUpdatedTimestamp:               time.UnixMilli(1752018142821),
 		DecisionVersion:                    int64(rand.Intn(1000)),
 		DecisionScheduleID:                 int64(rand.Intn(1000)),
 		DecisionStartedID:                  int64(rand.Intn(1000)),
 		DecisionTimeout:                    time.Minute * time.Duration(rand.Intn(10)),
 		DecisionAttempt:                    int64(rand.Intn(1000)),
-		DecisionStartedTimestamp:           time.Now(),
-		DecisionScheduledTimestamp:         time.Now(),
+		DecisionStartedTimestamp:           time.UnixMilli(1752018142822),
+		DecisionScheduledTimestamp:         time.UnixMilli(1752018142823),
 		CancelRequested:                    true,
-		DecisionOriginalScheduledTimestamp: time.Now(),
+		DecisionOriginalScheduledTimestamp: time.UnixMilli(1752018142824),
 		CreateRequestID:                    "CreateRequestID",
 		DecisionRequestID:                  "DecisionRequestID",
 		CancelRequestID:                    "CancelRequestID",
@@ -222,10 +251,11 @@ func TestWorkflowExecutionInfo(t *testing.T) {
 		RetryMaximumAttempts:               int32(rand.Intn(1000)),
 		RetryExpiration:                    time.Minute * time.Duration(rand.Intn(10)),
 		RetryBackoffCoefficient:            rand.Float64() * 1000,
-		RetryExpirationTimestamp:           time.Now(),
+		RetryExpirationTimestamp:           time.UnixMilli(1752018142825),
 		RetryNonRetryableErrors:            []string{"RetryNonRetryableErrors"},
 		HasRetryPolicy:                     true,
 		CronSchedule:                       "CronSchedule",
+		CronOverlapPolicy:                  types.CronOverlapPolicySkipped,
 		EventStoreVersion:                  int32(rand.Intn(1000)),
 		EventBranchToken:                   []byte("EventBranchToken"),
 		SignalCount:                        int64(rand.Intn(1000)),
@@ -243,71 +273,87 @@ func TestWorkflowExecutionInfo(t *testing.T) {
 		PartitionConfig:                    map[string]string{"zone": "dca1"},
 		Checksum:                           []byte("Checksum"),
 		ChecksumEncoding:                   "ChecksumEncoding",
+		IsCron:                             true,
 	}
 	actual := workflowExecutionInfoFromThrift(workflowExecutionInfoToThrift(expected))
-	assert.Equal(t, expected.ParentDomainID, actual.ParentDomainID)
-	assert.Equal(t, expected.ParentWorkflowID, actual.ParentWorkflowID)
-	assert.Equal(t, expected.ParentRunID, actual.ParentRunID)
-	assert.Equal(t, expected.InitiatedID, actual.InitiatedID)
-	assert.Equal(t, expected.CompletionEventBatchID, actual.CompletionEventBatchID)
-	assert.Equal(t, expected.CompletionEvent, actual.CompletionEvent)
-	assert.Equal(t, expected.CompletionEventEncoding, actual.CompletionEventEncoding)
-	assert.Equal(t, expected.TaskList, actual.TaskList)
-	assert.Equal(t, expected.WorkflowTypeName, actual.WorkflowTypeName)
-	assert.True(t, (expected.WorkflowTimeout-actual.WorkflowTimeout) < time.Second)
-	assert.True(t, (expected.DecisionTaskTimeout-actual.DecisionTaskTimeout) < time.Second)
-	assert.Equal(t, expected.ExecutionContext, actual.ExecutionContext)
-	assert.Equal(t, expected.State, actual.State)
-	assert.Equal(t, expected.CloseStatus, actual.CloseStatus)
-	assert.Equal(t, expected.StartVersion, actual.StartVersion)
-	assert.Equal(t, expected.LastWriteEventID, actual.LastWriteEventID)
-	assert.Equal(t, expected.LastEventTaskID, actual.LastEventTaskID)
-	assert.Equal(t, expected.LastFirstEventID, actual.LastFirstEventID)
-	assert.Equal(t, expected.LastProcessedEvent, actual.LastProcessedEvent)
-	assert.Equal(t, expected.StartTimestamp.Sub(actual.StartTimestamp), time.Duration(0))
-	assert.Equal(t, expected.LastUpdatedTimestamp.Sub(actual.LastUpdatedTimestamp), time.Duration(0))
-	assert.Equal(t, expected.DecisionVersion, actual.DecisionVersion)
-	assert.Equal(t, expected.DecisionScheduleID, actual.DecisionScheduleID)
-	assert.Equal(t, expected.DecisionStartedID, actual.DecisionStartedID)
-	assert.True(t, (expected.DecisionTimeout-actual.DecisionTimeout) < time.Second)
-	assert.Equal(t, expected.DecisionAttempt, actual.DecisionAttempt)
-	assert.Equal(t, expected.DecisionStartedTimestamp.Sub(actual.DecisionStartedTimestamp), time.Duration(0))
-	assert.Equal(t, expected.DecisionScheduledTimestamp.Sub(actual.DecisionScheduledTimestamp), time.Duration(0))
-	assert.Equal(t, expected.DecisionOriginalScheduledTimestamp.Sub(actual.DecisionOriginalScheduledTimestamp), time.Duration(0))
-	assert.Equal(t, expected.CancelRequested, actual.CancelRequested)
-	assert.Equal(t, expected.DecisionRequestID, actual.DecisionRequestID)
-	assert.Equal(t, expected.CancelRequestID, actual.CancelRequestID)
-	assert.Equal(t, expected.StickyTaskList, actual.StickyTaskList)
-	assert.Equal(t, expected.RetryAttempt, actual.RetryAttempt)
-	assert.Equal(t, expected.RetryMaximumAttempts, actual.RetryMaximumAttempts)
-	assert.Equal(t, expected.RetryBackoffCoefficient, actual.RetryBackoffCoefficient)
-	assert.Equal(t, expected.RetryNonRetryableErrors, actual.RetryNonRetryableErrors)
-	assert.Equal(t, expected.HasRetryPolicy, actual.HasRetryPolicy)
-	assert.Equal(t, expected.CronSchedule, actual.CronSchedule)
-	assert.Equal(t, expected.EventStoreVersion, actual.EventStoreVersion)
-	assert.Equal(t, expected.EventBranchToken, actual.EventBranchToken)
-	assert.Equal(t, expected.SignalCount, actual.SignalCount)
-	assert.Equal(t, expected.HistorySize, actual.HistorySize)
-	assert.Equal(t, expected.ClientLibraryVersion, actual.ClientLibraryVersion)
-	assert.Equal(t, expected.ClientFeatureVersion, actual.ClientFeatureVersion)
-	assert.Equal(t, expected.ClientImpl, actual.ClientImpl)
-	assert.Equal(t, expected.AutoResetPoints, actual.AutoResetPoints)
-	assert.Equal(t, expected.AutoResetPointsEncoding, actual.AutoResetPointsEncoding)
-	assert.Equal(t, expected.SearchAttributes, actual.SearchAttributes)
-	assert.Equal(t, expected.Memo, actual.Memo)
-	assert.Equal(t, expected.VersionHistories, actual.VersionHistories)
-	assert.Equal(t, expected.VersionHistoriesEncoding, actual.VersionHistoriesEncoding)
-	assert.Equal(t, expected.RetryExpirationTimestamp.Sub(actual.RetryExpirationTimestamp), time.Duration(0))
-	assert.True(t, (expected.StickyScheduleToStartTimeout-actual.StickyScheduleToStartTimeout) < time.Second)
-	assert.True(t, (expected.RetryInitialInterval-actual.RetryInitialInterval) < time.Second)
-	assert.True(t, (expected.RetryMaximumInterval-actual.RetryMaximumInterval) < time.Second)
-	assert.True(t, (expected.RetryExpiration-actual.RetryExpiration) < time.Second)
-	assert.Equal(t, expected.FirstExecutionRunID, actual.FirstExecutionRunID)
-	assert.Equal(t, expected.PartitionConfig, actual.PartitionConfig)
-	assert.Equal(t, expected.Checksum, actual.Checksum)
-	assert.Equal(t, expected.ChecksumEncoding, actual.ChecksumEncoding)
+	assert.Equal(t, expected, actual)
 	assert.Nil(t, workflowExecutionInfoFromThrift(nil))
 	assert.Nil(t, workflowExecutionInfoToThrift(nil))
+}
+
+func TestWorkflowExecutionInfo_NoTaskListKind(t *testing.T) {
+	expected := &WorkflowExecutionInfo{
+		ParentDomainID:                     UUID(uuid.New()),
+		ParentWorkflowID:                   "ParentWorkflowID",
+		ParentRunID:                        UUID(uuid.New()),
+		InitiatedID:                        int64(rand.Intn(1000)),
+		CompletionEventBatchID:             common.Int64Ptr(int64(rand.Intn(1000))),
+		CompletionEvent:                    []byte("CompletionEvent"),
+		CompletionEventEncoding:            "CompletionEventEncoding",
+		TaskList:                           "TaskList",
+		TaskListKind:                       types.TaskListKindNormal,
+		WorkflowTypeName:                   "WorkflowTypeName",
+		WorkflowTimeout:                    time.Minute * time.Duration(rand.Intn(10)),
+		DecisionTaskTimeout:                time.Minute * time.Duration(rand.Intn(10)),
+		ExecutionContext:                   []byte("ExecutionContext"),
+		State:                              int32(rand.Intn(1000)),
+		CloseStatus:                        int32(rand.Intn(1000)),
+		StartVersion:                       int64(rand.Intn(1000)),
+		LastWriteEventID:                   common.Int64Ptr(int64(rand.Intn(1000))),
+		LastEventTaskID:                    int64(rand.Intn(1000)),
+		LastFirstEventID:                   int64(rand.Intn(1000)),
+		LastProcessedEvent:                 int64(rand.Intn(1000)),
+		StartTimestamp:                     time.UnixMilli(1752018142820),
+		LastUpdatedTimestamp:               time.UnixMilli(1752018142821),
+		DecisionVersion:                    int64(rand.Intn(1000)),
+		DecisionScheduleID:                 int64(rand.Intn(1000)),
+		DecisionStartedID:                  int64(rand.Intn(1000)),
+		DecisionTimeout:                    time.Minute * time.Duration(rand.Intn(10)),
+		DecisionAttempt:                    int64(rand.Intn(1000)),
+		DecisionStartedTimestamp:           time.UnixMilli(1752018142822),
+		DecisionScheduledTimestamp:         time.UnixMilli(1752018142823),
+		CancelRequested:                    true,
+		DecisionOriginalScheduledTimestamp: time.UnixMilli(1752018142824),
+		CreateRequestID:                    "CreateRequestID",
+		DecisionRequestID:                  "DecisionRequestID",
+		CancelRequestID:                    "CancelRequestID",
+		StickyTaskList:                     "StickyTaskList",
+		StickyScheduleToStartTimeout:       time.Minute * time.Duration(rand.Intn(10)),
+		RetryAttempt:                       int64(rand.Intn(1000)),
+		RetryInitialInterval:               time.Minute * time.Duration(rand.Intn(10)),
+		RetryMaximumInterval:               time.Minute * time.Duration(rand.Intn(10)),
+		RetryMaximumAttempts:               int32(rand.Intn(1000)),
+		RetryExpiration:                    time.Minute * time.Duration(rand.Intn(10)),
+		RetryBackoffCoefficient:            rand.Float64() * 1000,
+		RetryExpirationTimestamp:           time.UnixMilli(1752018142825),
+		RetryNonRetryableErrors:            []string{"RetryNonRetryableErrors"},
+		HasRetryPolicy:                     true,
+		CronSchedule:                       "CronSchedule",
+		CronOverlapPolicy:                  types.CronOverlapPolicySkipped,
+		EventStoreVersion:                  int32(rand.Intn(1000)),
+		EventBranchToken:                   []byte("EventBranchToken"),
+		SignalCount:                        int64(rand.Intn(1000)),
+		HistorySize:                        int64(rand.Intn(1000)),
+		ClientLibraryVersion:               "ClientLibraryVersion",
+		ClientFeatureVersion:               "ClientFeatureVersion",
+		ClientImpl:                         "ClientImpl",
+		AutoResetPoints:                    []byte("AutoResetPoints"),
+		AutoResetPointsEncoding:            "AutoResetPointsEncoding",
+		SearchAttributes:                   map[string][]byte{"key_1": []byte("SearchAttributes")},
+		Memo:                               map[string][]byte{"key_1": []byte("Memo")},
+		VersionHistories:                   []byte("VersionHistories"),
+		VersionHistoriesEncoding:           "VersionHistoriesEncoding",
+		FirstExecutionRunID:                UUID(uuid.New()),
+		PartitionConfig:                    map[string]string{"zone": "dca1"},
+		Checksum:                           []byte("Checksum"),
+		ChecksumEncoding:                   "ChecksumEncoding",
+		IsCron:                             true,
+	}
+	thriftVersion := workflowExecutionInfoToThrift(expected)
+	// Nil should come back as NORMAL, the default value
+	thriftVersion.TaskListKind = nil
+	actual := workflowExecutionInfoFromThrift(thriftVersion)
+	assert.Equal(t, expected, actual)
 }
 
 func TestActivityInfo(t *testing.T) {
@@ -567,4 +613,18 @@ func TestReplicationTaskInfo(t *testing.T) {
 	assert.Equal(t, expected, actual)
 	assert.Nil(t, replicationTaskInfoFromThrift(nil))
 	assert.Nil(t, replicationTaskInfoToThrift(nil))
+}
+
+func TestCronOverlapPolicyFromThrift(t *testing.T) {
+	cases := []struct {
+		thrift *shared.CronOverlapPolicy
+		actual types.CronOverlapPolicy
+	}{
+		{nil, types.CronOverlapPolicySkipped},
+		{shared.CronOverlapPolicyBufferone.Ptr(), types.CronOverlapPolicyBufferOne},
+		{shared.CronOverlapPolicySkipped.Ptr(), types.CronOverlapPolicySkipped},
+	}
+	for _, c := range cases {
+		assert.Equal(t, c.actual, cronOverlapPolicyFromThrift(c.thrift))
+	}
 }

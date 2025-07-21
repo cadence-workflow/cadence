@@ -44,9 +44,14 @@ func (e *historyEngineImpl) NotifyNewTransferTasks(info *hcommon.NotifyTaskInfo)
 	}
 
 	task := info.Tasks[0]
-	clusterName, err := e.clusterMetadata.ClusterNameForFailoverVersion(task.GetVersion())
+	clusterName, err := e.shard.GetActiveClusterManager().ClusterNameForFailoverVersion(task.GetVersion(), info.ExecutionInfo.DomainID)
 	if err == nil {
-		e.txProcessor.NotifyNewTask(clusterName, info)
+		transferProcessor, ok := e.queueProcessors[persistence.HistoryTaskCategoryTransfer]
+		if !ok {
+			e.logger.Error("transfer processor not found", tag.Error(err))
+			return
+		}
+		transferProcessor.NotifyNewTask(clusterName, info)
 	}
 }
 
@@ -56,9 +61,14 @@ func (e *historyEngineImpl) NotifyNewTimerTasks(info *hcommon.NotifyTaskInfo) {
 	}
 
 	task := info.Tasks[0]
-	clusterName, err := e.clusterMetadata.ClusterNameForFailoverVersion(task.GetVersion())
+	clusterName, err := e.shard.GetActiveClusterManager().ClusterNameForFailoverVersion(task.GetVersion(), info.ExecutionInfo.DomainID)
 	if err == nil {
-		e.timerProcessor.NotifyNewTask(clusterName, info)
+		timerProcessor, ok := e.queueProcessors[persistence.HistoryTaskCategoryTimer]
+		if !ok {
+			e.logger.Error("timer processor not found", tag.Error(err))
+			return
+		}
+		timerProcessor.NotifyNewTask(clusterName, info)
 	}
 }
 

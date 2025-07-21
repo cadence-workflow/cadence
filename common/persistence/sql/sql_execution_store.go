@@ -1007,8 +1007,8 @@ func (m *sqlExecutionStore) CreateFailoverMarkerTasks(
 }
 
 type timerTaskPageToken struct {
-	TaskID    int64
-	Timestamp time.Time
+	TaskID    int64     `json:"TaskID"`    // CAUTION: JSON format is used in replication, this should not be changed without great care
+	Timestamp time.Time `json:"Timestamp"` // CAUTION: JSON format is used in replication, this should not be changed without great care
 }
 
 func (t *timerTaskPageToken) serialize() ([]byte, error) {
@@ -1142,7 +1142,7 @@ func (m *sqlExecutionStore) getImmediateHistoryTasks(
 ) (*p.GetHistoryTasksResponse, error) {
 	switch request.TaskCategory.ID() {
 	case p.HistoryTaskCategoryIDTransfer:
-		inclusiveMinTaskID := request.InclusiveMinTaskKey.TaskID
+		inclusiveMinTaskID := request.InclusiveMinTaskKey.GetTaskID()
 		if len(request.NextPageToken) > 0 {
 			var err error
 			inclusiveMinTaskID, err = deserializePageToken(request.NextPageToken)
@@ -1153,7 +1153,7 @@ func (m *sqlExecutionStore) getImmediateHistoryTasks(
 		rows, err := m.db.SelectFromTransferTasks(ctx, &sqlplugin.TransferTasksFilter{
 			ShardID:            m.shardID,
 			InclusiveMinTaskID: inclusiveMinTaskID,
-			ExclusiveMaxTaskID: request.ExclusiveMaxTaskKey.TaskID,
+			ExclusiveMaxTaskID: request.ExclusiveMaxTaskKey.GetTaskID(),
 			PageSize:           request.PageSize,
 		})
 		if err != nil {
@@ -1173,14 +1173,14 @@ func (m *sqlExecutionStore) getImmediateHistoryTasks(
 		resp := &p.GetHistoryTasksResponse{Tasks: tasks}
 		if len(rows) > 0 {
 			nextTaskID := rows[len(rows)-1].TaskID + 1
-			if nextTaskID < request.ExclusiveMaxTaskKey.TaskID {
+			if nextTaskID < request.ExclusiveMaxTaskKey.GetTaskID() {
 				resp.NextPageToken = serializePageToken(nextTaskID)
 			}
 		}
 		return resp, nil
 	case p.HistoryTaskCategoryIDReplication:
-		inclusiveMinTaskID := request.InclusiveMinTaskKey.TaskID
-		exclusiveMaxTaskID := request.ExclusiveMaxTaskKey.TaskID
+		inclusiveMinTaskID := request.InclusiveMinTaskKey.GetTaskID()
+		exclusiveMaxTaskID := request.ExclusiveMaxTaskKey.GetTaskID()
 		if len(request.NextPageToken) > 0 {
 			var err error
 			inclusiveMinTaskID, err = deserializePageToken(request.NextPageToken)
@@ -1213,7 +1213,7 @@ func (m *sqlExecutionStore) getImmediateHistoryTasks(
 		resp := &p.GetHistoryTasksResponse{Tasks: tasks}
 		if len(rows) > 0 {
 			nextTaskID := rows[len(rows)-1].TaskID + 1
-			if nextTaskID < request.ExclusiveMaxTaskKey.TaskID {
+			if nextTaskID < request.ExclusiveMaxTaskKey.GetTaskID() {
 				resp.NextPageToken = serializePageToken(nextTaskID)
 			}
 		}
@@ -1229,7 +1229,7 @@ func (m *sqlExecutionStore) getScheduledHistoryTasks(
 ) (*p.GetHistoryTasksResponse, error) {
 	switch request.TaskCategory.ID() {
 	case p.HistoryTaskCategoryIDTimer:
-		pageToken := &timerTaskPageToken{TaskID: math.MinInt64, Timestamp: request.InclusiveMinTaskKey.ScheduledTime}
+		pageToken := &timerTaskPageToken{TaskID: math.MinInt64, Timestamp: request.InclusiveMinTaskKey.GetScheduledTime()}
 		if len(request.NextPageToken) > 0 {
 			if err := pageToken.deserialize(request.NextPageToken); err != nil {
 				return nil, &types.InternalServiceError{
@@ -1241,7 +1241,7 @@ func (m *sqlExecutionStore) getScheduledHistoryTasks(
 			ShardID:                m.shardID,
 			MinVisibilityTimestamp: pageToken.Timestamp,
 			TaskID:                 pageToken.TaskID,
-			MaxVisibilityTimestamp: request.ExclusiveMaxTaskKey.ScheduledTime,
+			MaxVisibilityTimestamp: request.ExclusiveMaxTaskKey.GetScheduledTime(),
 			PageSize:               request.PageSize + 1,
 		})
 		if err != nil {
@@ -1302,8 +1302,8 @@ func (m *sqlExecutionStore) completeScheduledHistoryTask(
 	case p.HistoryTaskCategoryIDTimer:
 		if _, err := m.db.DeleteFromTimerTasks(ctx, &sqlplugin.TimerTasksFilter{
 			ShardID:             m.shardID,
-			VisibilityTimestamp: request.TaskKey.ScheduledTime,
-			TaskID:              request.TaskKey.TaskID,
+			VisibilityTimestamp: request.TaskKey.GetScheduledTime(),
+			TaskID:              request.TaskKey.GetTaskID(),
 		}); err != nil {
 			return convertCommonErrors(m.db, "CompleteScheduledHistoryTask", "", err)
 		}
@@ -1321,7 +1321,7 @@ func (m *sqlExecutionStore) completeImmediateHistoryTask(
 	case p.HistoryTaskCategoryIDTransfer:
 		if _, err := m.db.DeleteFromTransferTasks(ctx, &sqlplugin.TransferTasksFilter{
 			ShardID: m.shardID,
-			TaskID:  request.TaskKey.TaskID,
+			TaskID:  request.TaskKey.GetTaskID(),
 		}); err != nil {
 			return convertCommonErrors(m.db, "CompleteImmediateHistoryTask", "", err)
 		}
@@ -1329,7 +1329,7 @@ func (m *sqlExecutionStore) completeImmediateHistoryTask(
 	case p.HistoryTaskCategoryIDReplication:
 		if _, err := m.db.DeleteFromReplicationTasks(ctx, &sqlplugin.ReplicationTasksFilter{
 			ShardID: m.shardID,
-			TaskID:  request.TaskKey.TaskID,
+			TaskID:  request.TaskKey.GetTaskID(),
 		}); err != nil {
 			return convertCommonErrors(m.db, "CompleteImmediateHistoryTask", "", err)
 		}
@@ -1361,8 +1361,8 @@ func (m *sqlExecutionStore) rangeCompleteScheduledHistoryTask(
 	case p.HistoryTaskCategoryIDTimer:
 		result, err := m.db.RangeDeleteFromTimerTasks(ctx, &sqlplugin.TimerTasksFilter{
 			ShardID:                m.shardID,
-			MinVisibilityTimestamp: request.InclusiveMinTaskKey.ScheduledTime,
-			MaxVisibilityTimestamp: request.ExclusiveMaxTaskKey.ScheduledTime,
+			MinVisibilityTimestamp: request.InclusiveMinTaskKey.GetScheduledTime(),
+			MaxVisibilityTimestamp: request.ExclusiveMaxTaskKey.GetScheduledTime(),
 			PageSize:               request.PageSize,
 		})
 		if err != nil {
@@ -1386,8 +1386,8 @@ func (m *sqlExecutionStore) rangeCompleteImmediateHistoryTask(
 	case p.HistoryTaskCategoryIDTransfer:
 		result, err := m.db.RangeDeleteFromTransferTasks(ctx, &sqlplugin.TransferTasksFilter{
 			ShardID:            m.shardID,
-			InclusiveMinTaskID: request.InclusiveMinTaskKey.TaskID,
-			ExclusiveMaxTaskID: request.ExclusiveMaxTaskKey.TaskID,
+			InclusiveMinTaskID: request.InclusiveMinTaskKey.GetTaskID(),
+			ExclusiveMaxTaskID: request.ExclusiveMaxTaskKey.GetTaskID(),
 			PageSize:           request.PageSize,
 		})
 		if err != nil {
@@ -1401,7 +1401,7 @@ func (m *sqlExecutionStore) rangeCompleteImmediateHistoryTask(
 	case p.HistoryTaskCategoryIDReplication:
 		result, err := m.db.RangeDeleteFromReplicationTasks(ctx, &sqlplugin.ReplicationTasksFilter{
 			ShardID:            m.shardID,
-			ExclusiveMaxTaskID: request.ExclusiveMaxTaskKey.TaskID,
+			ExclusiveMaxTaskID: request.ExclusiveMaxTaskKey.GetTaskID(),
 			PageSize:           request.PageSize,
 		})
 		if err != nil {
@@ -1415,4 +1415,22 @@ func (m *sqlExecutionStore) rangeCompleteImmediateHistoryTask(
 	default:
 		return nil, &types.BadRequestError{Message: fmt.Sprintf("Unknown task category: %v", request.TaskCategory.ID())}
 	}
+}
+
+func (m *sqlExecutionStore) GetActiveClusterSelectionPolicy(
+	ctx context.Context,
+	domainID, wfID, rID string,
+) (*p.DataBlob, error) {
+	// TODO(active-active): Active cluster selection policy for SQL stores is not yet implemented
+	// It requires creating a new table in the database to store the active cluster selection policy
+	return nil, &types.InternalServiceError{Message: "Not yet implemented"}
+}
+
+func (m *sqlExecutionStore) DeleteActiveClusterSelectionPolicy(
+	ctx context.Context,
+	domainID, wfID, rID string,
+) error {
+	// TODO(active-active): Active cluster selection policy for SQL stores is not yet implemented
+	// It requires creating a new table in the database to store the active cluster selection policy
+	return nil
 }

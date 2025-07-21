@@ -120,15 +120,11 @@ func (s *timerQueueProcessorBaseSuite) TestGetTimerTasks_More() {
 	batchSize := 10
 
 	request := &persistence.GetHistoryTasksRequest{
-		TaskCategory: persistence.HistoryTaskCategoryTimer,
-		InclusiveMinTaskKey: persistence.HistoryTaskKey{
-			ScheduledTime: readLevel.(timerTaskKey).visibilityTimestamp,
-		},
-		ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
-			ScheduledTime: maxReadLevel.(timerTaskKey).visibilityTimestamp,
-		},
-		PageSize:      batchSize,
-		NextPageToken: []byte("some random input next page token"),
+		TaskCategory:        persistence.HistoryTaskCategoryTimer,
+		InclusiveMinTaskKey: persistence.NewHistoryTaskKey(readLevel.(timerTaskKey).visibilityTimestamp, 0),
+		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maxReadLevel.(timerTaskKey).visibilityTimestamp, 0),
+		PageSize:            batchSize,
+		NextPageToken:       []byte("some random input next page token"),
 	}
 
 	response := &persistence.GetHistoryTasksResponse{
@@ -167,15 +163,11 @@ func (s *timerQueueProcessorBaseSuite) TestGetTimerTasks_NoMore() {
 	batchSize := 10
 
 	request := &persistence.GetHistoryTasksRequest{
-		TaskCategory: persistence.HistoryTaskCategoryTimer,
-		InclusiveMinTaskKey: persistence.HistoryTaskKey{
-			ScheduledTime: readLevel.(timerTaskKey).visibilityTimestamp,
-		},
-		ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
-			ScheduledTime: maxReadLevel.(timerTaskKey).visibilityTimestamp,
-		},
-		PageSize:      batchSize,
-		NextPageToken: nil,
+		TaskCategory:        persistence.HistoryTaskCategoryTimer,
+		InclusiveMinTaskKey: persistence.NewHistoryTaskKey(readLevel.(timerTaskKey).visibilityTimestamp, 0),
+		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maxReadLevel.(timerTaskKey).visibilityTimestamp, 0),
+		PageSize:            batchSize,
+		NextPageToken:       nil,
 	}
 
 	response := &persistence.GetHistoryTasksResponse{
@@ -209,20 +201,16 @@ func (s *timerQueueProcessorBaseSuite) TestGetTimerTasks_NoMore() {
 }
 
 func (s *timerQueueProcessorBaseSuite) TestReadLookAheadTask() {
-	shardMaxReadLevel := s.mockShard.UpdateTimerMaxReadLevel(s.clusterName)
+	shardMaxReadLevel := s.mockShard.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryTimer, s.clusterName).GetScheduledTime()
 	readLevel := newTimerTaskKey(shardMaxReadLevel, 0)
 	maxReadLevel := newTimerTaskKey(shardMaxReadLevel.Add(10*time.Second), 0)
 
 	request := &persistence.GetHistoryTasksRequest{
-		TaskCategory: persistence.HistoryTaskCategoryTimer,
-		InclusiveMinTaskKey: persistence.HistoryTaskKey{
-			ScheduledTime: readLevel.(timerTaskKey).visibilityTimestamp,
-		},
-		ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
-			ScheduledTime: maxReadLevel.(timerTaskKey).visibilityTimestamp,
-		},
-		PageSize:      1,
-		NextPageToken: nil,
+		TaskCategory:        persistence.HistoryTaskCategoryTimer,
+		InclusiveMinTaskKey: persistence.NewHistoryTaskKey(readLevel.(timerTaskKey).visibilityTimestamp, 0),
+		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maxReadLevel.(timerTaskKey).visibilityTimestamp, 0),
+		PageSize:            1,
+		NextPageToken:       nil,
 	}
 
 	response := &persistence.GetHistoryTasksResponse{
@@ -259,27 +247,19 @@ func (s *timerQueueProcessorBaseSuite) TestReadAndFilterTasks_NoLookAhead_NoNext
 	maxReadLevel := newTimerTaskKey(time.Now().Add(1*time.Second), 0)
 
 	request := &persistence.GetHistoryTasksRequest{
-		TaskCategory: persistence.HistoryTaskCategoryTimer,
-		InclusiveMinTaskKey: persistence.HistoryTaskKey{
-			ScheduledTime: readLevel.(timerTaskKey).visibilityTimestamp,
-		},
-		ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
-			ScheduledTime: maxReadLevel.(timerTaskKey).visibilityTimestamp,
-		},
-		PageSize:      s.mockShard.GetConfig().TimerTaskBatchSize(),
-		NextPageToken: []byte("some random input next page token"),
+		TaskCategory:        persistence.HistoryTaskCategoryTimer,
+		InclusiveMinTaskKey: persistence.NewHistoryTaskKey(readLevel.(timerTaskKey).visibilityTimestamp, 0),
+		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maxReadLevel.(timerTaskKey).visibilityTimestamp, 0),
+		PageSize:            s.mockShard.GetConfig().TimerTaskBatchSize(),
+		NextPageToken:       []byte("some random input next page token"),
 	}
 
 	lookAheadRequest := &persistence.GetHistoryTasksRequest{
-		TaskCategory: persistence.HistoryTaskCategoryTimer,
-		InclusiveMinTaskKey: persistence.HistoryTaskKey{
-			ScheduledTime: maxReadLevel.(timerTaskKey).visibilityTimestamp,
-		},
-		ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
-			ScheduledTime: maximumTimerTaskKey.(timerTaskKey).visibilityTimestamp,
-		},
-		PageSize:      1,
-		NextPageToken: nil,
+		TaskCategory:        persistence.HistoryTaskCategoryTimer,
+		InclusiveMinTaskKey: persistence.NewHistoryTaskKey(maxReadLevel.(timerTaskKey).visibilityTimestamp, 0),
+		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maximumTimerTaskKey.(timerTaskKey).visibilityTimestamp, 0),
+		PageSize:            1,
+		NextPageToken:       nil,
 	}
 
 	response := &persistence.GetHistoryTasksResponse{
@@ -319,15 +299,11 @@ func (s *timerQueueProcessorBaseSuite) TestReadAndFilterTasks_NoLookAhead_HasNex
 	maxReadLevel := newTimerTaskKey(time.Now().Add(1*time.Second), 0)
 
 	request := &persistence.GetHistoryTasksRequest{
-		TaskCategory: persistence.HistoryTaskCategoryTimer,
-		InclusiveMinTaskKey: persistence.HistoryTaskKey{
-			ScheduledTime: readLevel.(timerTaskKey).visibilityTimestamp,
-		},
-		ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
-			ScheduledTime: maxReadLevel.(timerTaskKey).visibilityTimestamp,
-		},
-		PageSize:      s.mockShard.GetConfig().TimerTaskBatchSize(),
-		NextPageToken: []byte("some random input next page token"),
+		TaskCategory:        persistence.HistoryTaskCategoryTimer,
+		InclusiveMinTaskKey: persistence.NewHistoryTaskKey(readLevel.(timerTaskKey).visibilityTimestamp, 0),
+		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maxReadLevel.(timerTaskKey).visibilityTimestamp, 0),
+		PageSize:            s.mockShard.GetConfig().TimerTaskBatchSize(),
+		NextPageToken:       []byte("some random input next page token"),
 	}
 
 	response := &persistence.GetHistoryTasksResponse{
@@ -366,15 +342,11 @@ func (s *timerQueueProcessorBaseSuite) TestReadAndFilterTasks_HasLookAhead_NoNex
 	maxReadLevel := newTimerTaskKey(time.Now().Add(1*time.Second), 0)
 
 	request := &persistence.GetHistoryTasksRequest{
-		TaskCategory: persistence.HistoryTaskCategoryTimer,
-		InclusiveMinTaskKey: persistence.HistoryTaskKey{
-			ScheduledTime: readLevel.(timerTaskKey).visibilityTimestamp,
-		},
-		ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
-			ScheduledTime: maxReadLevel.(timerTaskKey).visibilityTimestamp,
-		},
-		PageSize:      s.mockShard.GetConfig().TimerTaskBatchSize(),
-		NextPageToken: []byte("some random input next page token"),
+		TaskCategory:        persistence.HistoryTaskCategoryTimer,
+		InclusiveMinTaskKey: persistence.NewHistoryTaskKey(readLevel.(timerTaskKey).visibilityTimestamp, 0),
+		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maxReadLevel.(timerTaskKey).visibilityTimestamp, 0),
+		PageSize:            s.mockShard.GetConfig().TimerTaskBatchSize(),
+		NextPageToken:       []byte("some random input next page token"),
 	}
 
 	response := &persistence.GetHistoryTasksResponse{
@@ -422,15 +394,11 @@ func (s *timerQueueProcessorBaseSuite) TestReadAndFilterTasks_HasLookAhead_HasNe
 	maxReadLevel := newTimerTaskKey(time.Now().Add(1*time.Second), 0)
 
 	request := &persistence.GetHistoryTasksRequest{
-		TaskCategory: persistence.HistoryTaskCategoryTimer,
-		InclusiveMinTaskKey: persistence.HistoryTaskKey{
-			ScheduledTime: readLevel.(timerTaskKey).visibilityTimestamp,
-		},
-		ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
-			ScheduledTime: maxReadLevel.(timerTaskKey).visibilityTimestamp,
-		},
-		PageSize:      s.mockShard.GetConfig().TimerTaskBatchSize(),
-		NextPageToken: []byte("some random input next page token"),
+		TaskCategory:        persistence.HistoryTaskCategoryTimer,
+		InclusiveMinTaskKey: persistence.NewHistoryTaskKey(readLevel.(timerTaskKey).visibilityTimestamp, 0),
+		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maxReadLevel.(timerTaskKey).visibilityTimestamp, 0),
+		PageSize:            s.mockShard.GetConfig().TimerTaskBatchSize(),
+		NextPageToken:       []byte("some random input next page token"),
 	}
 
 	response := &persistence.GetHistoryTasksResponse{
@@ -478,27 +446,19 @@ func (s *timerQueueProcessorBaseSuite) TestReadAndFilterTasks_LookAheadFailed_No
 	maxReadLevel := newTimerTaskKey(time.Now().Add(1*time.Second), 0)
 
 	request := &persistence.GetHistoryTasksRequest{
-		TaskCategory: persistence.HistoryTaskCategoryTimer,
-		InclusiveMinTaskKey: persistence.HistoryTaskKey{
-			ScheduledTime: readLevel.(timerTaskKey).visibilityTimestamp,
-		},
-		ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
-			ScheduledTime: maxReadLevel.(timerTaskKey).visibilityTimestamp,
-		},
-		PageSize:      s.mockShard.GetConfig().TimerTaskBatchSize(),
-		NextPageToken: []byte("some random input next page token"),
+		TaskCategory:        persistence.HistoryTaskCategoryTimer,
+		InclusiveMinTaskKey: persistence.NewHistoryTaskKey(readLevel.(timerTaskKey).visibilityTimestamp, 0),
+		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maxReadLevel.(timerTaskKey).visibilityTimestamp, 0),
+		PageSize:            s.mockShard.GetConfig().TimerTaskBatchSize(),
+		NextPageToken:       []byte("some random input next page token"),
 	}
 
 	lookAheadRequest := &persistence.GetHistoryTasksRequest{
-		TaskCategory: persistence.HistoryTaskCategoryTimer,
-		InclusiveMinTaskKey: persistence.HistoryTaskKey{
-			ScheduledTime: maxReadLevel.(timerTaskKey).visibilityTimestamp,
-		},
-		ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
-			ScheduledTime: maximumTimerTaskKey.(timerTaskKey).visibilityTimestamp,
-		},
-		PageSize:      1,
-		NextPageToken: nil,
+		TaskCategory:        persistence.HistoryTaskCategoryTimer,
+		InclusiveMinTaskKey: persistence.NewHistoryTaskKey(maxReadLevel.(timerTaskKey).visibilityTimestamp, 0),
+		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maximumTimerTaskKey.(timerTaskKey).visibilityTimestamp, 0),
+		PageSize:            1,
+		NextPageToken:       nil,
 	}
 
 	response := &persistence.GetHistoryTasksResponse{
@@ -535,7 +495,7 @@ func (s *timerQueueProcessorBaseSuite) TestReadAndFilterTasks_LookAheadFailed_No
 
 	mockExecutionMgr := s.mockShard.Resource.ExecutionMgr
 	mockExecutionMgr.On("GetHistoryTasks", mock.Anything, request).Return(response, nil).Once()
-	mockExecutionMgr.On("GetHistoryTasks", mock.Anything, lookAheadRequest).Return(nil, errors.New("some random error")).Times(s.mockShard.GetConfig().TimerProcessorGetFailureRetryCount())
+	mockExecutionMgr.On("GetHistoryTasks", mock.Anything, lookAheadRequest).Return(nil, errors.New("some random error")).Times(0)
 
 	timerQueueProcessBase, done := s.newTestTimerQueueProcessorBase(nil, nil, nil, nil, nil)
 	defer done()
@@ -659,15 +619,11 @@ func (s *timerQueueProcessorBaseSuite) TestProcessBatch_HasNextPage() {
 	}
 
 	request := &persistence.GetHistoryTasksRequest{
-		TaskCategory: persistence.HistoryTaskCategoryTimer,
-		InclusiveMinTaskKey: persistence.HistoryTaskKey{
-			ScheduledTime: ackLevel.(timerTaskKey).visibilityTimestamp,
-		},
-		ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
-			ScheduledTime: shardMaxReadLevel.(timerTaskKey).visibilityTimestamp,
-		},
-		PageSize:      s.mockShard.GetConfig().TimerTaskBatchSize(),
-		NextPageToken: nil,
+		TaskCategory:        persistence.HistoryTaskCategoryTimer,
+		InclusiveMinTaskKey: persistence.NewHistoryTaskKey(ackLevel.(timerTaskKey).visibilityTimestamp, 0),
+		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(shardMaxReadLevel.(timerTaskKey).visibilityTimestamp, 0),
+		PageSize:            s.mockShard.GetConfig().TimerTaskBatchSize(),
+		NextPageToken:       nil,
 	}
 
 	response := &persistence.GetHistoryTasksResponse{
@@ -758,15 +714,11 @@ func (s *timerQueueProcessorBaseSuite) TestProcessBatch_NoNextPage_HasLookAhead(
 
 	requestNextPageToken := []byte("some random input next page token")
 	request := &persistence.GetHistoryTasksRequest{
-		TaskCategory: persistence.HistoryTaskCategoryTimer,
-		InclusiveMinTaskKey: persistence.HistoryTaskKey{
-			ScheduledTime: ackLevel.(timerTaskKey).visibilityTimestamp,
-		},
-		ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
-			ScheduledTime: shardMaxReadLevel.(timerTaskKey).visibilityTimestamp,
-		},
-		PageSize:      s.mockShard.GetConfig().TimerTaskBatchSize(),
-		NextPageToken: requestNextPageToken,
+		TaskCategory:        persistence.HistoryTaskCategoryTimer,
+		InclusiveMinTaskKey: persistence.NewHistoryTaskKey(ackLevel.(timerTaskKey).visibilityTimestamp, 0),
+		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(shardMaxReadLevel.(timerTaskKey).visibilityTimestamp, 0),
+		PageSize:            s.mockShard.GetConfig().TimerTaskBatchSize(),
+		NextPageToken:       requestNextPageToken,
 	}
 
 	lookAheadTaskTimestamp := now.Add(50 * time.Millisecond)
@@ -858,27 +810,19 @@ func (s *timerQueueProcessorBaseSuite) TestProcessBatch_NoNextPage_NoLookAhead()
 
 	requestNextPageToken := []byte("some random input next page token")
 	request := &persistence.GetHistoryTasksRequest{
-		TaskCategory: persistence.HistoryTaskCategoryTimer,
-		InclusiveMinTaskKey: persistence.HistoryTaskKey{
-			ScheduledTime: ackLevel.(timerTaskKey).visibilityTimestamp,
-		},
-		ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
-			ScheduledTime: shardMaxReadLevel.(timerTaskKey).visibilityTimestamp,
-		},
-		PageSize:      s.mockShard.GetConfig().TimerTaskBatchSize(),
-		NextPageToken: requestNextPageToken,
+		TaskCategory:        persistence.HistoryTaskCategoryTimer,
+		InclusiveMinTaskKey: persistence.NewHistoryTaskKey(ackLevel.(timerTaskKey).visibilityTimestamp, 0),
+		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(shardMaxReadLevel.(timerTaskKey).visibilityTimestamp, 0),
+		PageSize:            s.mockShard.GetConfig().TimerTaskBatchSize(),
+		NextPageToken:       requestNextPageToken,
 	}
 
 	lookAheadRequest := &persistence.GetHistoryTasksRequest{
-		TaskCategory: persistence.HistoryTaskCategoryTimer,
-		InclusiveMinTaskKey: persistence.HistoryTaskKey{
-			ScheduledTime: shardMaxReadLevel.(timerTaskKey).visibilityTimestamp,
-		},
-		ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
-			ScheduledTime: maximumTimerTaskKey.(timerTaskKey).visibilityTimestamp,
-		},
-		PageSize:      1,
-		NextPageToken: nil,
+		TaskCategory:        persistence.HistoryTaskCategoryTimer,
+		InclusiveMinTaskKey: persistence.NewHistoryTaskKey(shardMaxReadLevel.(timerTaskKey).visibilityTimestamp, 0),
+		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maximumTimerTaskKey.(timerTaskKey).visibilityTimestamp, 0),
+		PageSize:            1,
+		NextPageToken:       nil,
 	}
 
 	response := &persistence.GetHistoryTasksResponse{

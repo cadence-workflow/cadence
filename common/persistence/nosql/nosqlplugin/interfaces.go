@@ -415,6 +415,7 @@ type (
 			currentWorkflowRequest *CurrentWorkflowWriteRequest,
 			execution *WorkflowExecutionRequest,
 			tasksByCategory map[persistence.HistoryTaskCategory][]*HistoryMigrationTask,
+			activeClusterSelectionPolicyRow *ActiveClusterSelectionPolicyRow,
 			shardCondition *ShardCondition,
 		) error
 
@@ -502,6 +503,11 @@ type (
 		DeleteReplicationDLQTask(ctx context.Context, shardID int, sourceCluster string, taskID int64) error
 		// delete a range of replication DLQ tasks
 		RangeDeleteReplicationDLQTasks(ctx context.Context, shardID int, sourceCluster string, inclusiveBeginTaskID, exclusiveEndTaskID int64) error
+
+		// select the active cluster selection policy
+		SelectActiveClusterSelectionPolicy(ctx context.Context, shardID int, domainID, wfID, rID string) (*ActiveClusterSelectionPolicyRow, error)
+		// delete the active cluster selection policy row
+		DeleteActiveClusterSelectionPolicy(ctx context.Context, shardID int, domainID, workflowID, runID string) error
 	}
 
 	/***

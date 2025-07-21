@@ -31,9 +31,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
+	"github.com/uber/cadence/common/persistence/serialization"
+	"github.com/uber/cadence/common/types"
 )
 
 func testFixtureInternalShardInfo() *persistence.InternalShardInfo {
@@ -76,35 +80,52 @@ func testFixtureInternalShardInfo() *persistence.InternalShardInfo {
 			Encoding: "base64",
 			Data:     []byte("pending-failover-markers"),
 		},
+		QueueStates: map[int32]*types.QueueState{
+			0: &types.QueueState{
+				VirtualQueueStates: map[int64]*types.VirtualQueueState{
+					0: {},
+				},
+			},
+		},
 	}
 }
 
-func setUpMocksForShardStore(t *testing.T) (*nosqlShardStore, *nosqlplugin.MockDB, *MockshardedNosqlStore, *gomock.Controller) {
+func setUpMocksForShardStore(t *testing.T) (*nosqlShardStore, *nosqlplugin.MockDB, *MockshardedNosqlStore, *serialization.MockParser, *gomock.Controller) {
 	ctrl := gomock.NewController(t)
 	dbMock := nosqlplugin.NewMockDB(ctrl)
 	storeShardMock := NewMockshardedNosqlStore(ctrl)
+	mockParser := serialization.NewMockParser(ctrl)
 
 	shardStore := &nosqlShardStore{
 		shardedNosqlStore:  storeShardMock,
 		currentClusterName: "test-cluster",
+		parser:             mockParser,
 	}
 
-	return shardStore, dbMock, storeShardMock, ctrl
+	return shardStore, dbMock, storeShardMock, mockParser, ctrl
 }
 
 func TestCreateShard(t *testing.T) {
 	testCases := []struct {
 		name          string
-		setupMock     func(*nosqlplugin.MockDB, *MockshardedNosqlStore)
+		setupMock     func(*nosqlplugin.MockDB, *MockshardedNosqlStore, *serialization.MockParser)
 		request       *persistence.InternalCreateShardRequest
 		expectError   bool
 		expectedError string
 	}{
 		{
 			name: "success",
-			setupMock: func(dbMock *nosqlplugin.MockDB, storeShardMock *MockshardedNosqlStore) {
+			setupMock: func(dbMock *nosqlplugin.MockDB, storeShardMock *MockshardedNosqlStore, mockParser *serialization.MockParser) {
 				storeShardMock.EXPECT().GetStoreShardByHistoryShard(1).Return(&nosqlStore{db: dbMock}, nil).Times(1)
-				dbMock.EXPECT().InsertShard(gomock.Any(), testFixtureInternalShardInfo()).Return(nil).Times(1)
+				mockParser.EXPECT().ShardInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
+					Encoding: "base64",
+					Data:     []byte("shard-info"),
+				}, nil).Times(1)
+				dbMock.EXPECT().InsertShard(gomock.Any(), &nosqlplugin.ShardRow{
+					InternalShardInfo: testFixtureInternalShardInfo(),
+					Data:              []byte("shard-info"),
+					DataEncoding:      "base64",
+				}).Return(nil).Times(1)
 			},
 			request: &persistence.InternalCreateShardRequest{
 				ShardInfo: testFixtureInternalShardInfo(),
@@ -113,8 +134,12 @@ func TestCreateShard(t *testing.T) {
 		},
 		{
 			name: "shard already exists error",
-			setupMock: func(dbMock *nosqlplugin.MockDB, storeShardMock *MockshardedNosqlStore) {
+			setupMock: func(dbMock *nosqlplugin.MockDB, storeShardMock *MockshardedNosqlStore, mockParser *serialization.MockParser) {
 				storeShardMock.EXPECT().GetStoreShardByHistoryShard(1).Return(&nosqlStore{db: dbMock}, nil).Times(1)
+				mockParser.EXPECT().ShardInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
+					Encoding: "base64",
+					Data:     []byte("shard-info"),
+				}, nil).Times(1)
 				dbMock.EXPECT().InsertShard(gomock.Any(), gomock.Any()).Return(&nosqlplugin.ShardOperationConditionFailure{
 					RangeID: 200,
 					Details: "rangeID mismatch",
@@ -131,8 +156,12 @@ func TestCreateShard(t *testing.T) {
 		},
 		{
 			name: "generic db error",
-			setupMock: func(dbMock *nosqlplugin.MockDB, storeShardMock *MockshardedNosqlStore) {
+			setupMock: func(dbMock *nosqlplugin.MockDB, storeShardMock *MockshardedNosqlStore, mockParser *serialization.MockParser) {
 				storeShardMock.EXPECT().GetStoreShardByHistoryShard(1).Return(&nosqlStore{db: dbMock}, nil).Times(1)
+				mockParser.EXPECT().ShardInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
+					Encoding: "base64",
+					Data:     []byte("shard-info"),
+				}, nil).Times(1)
 				dbMock.EXPECT().InsertShard(gomock.Any(), gomock.Any()).Return(errors.New("db error")).Times(1)
 				dbMock.EXPECT().IsNotFoundError(gomock.Any()).Return(true).Times(1)
 			},
@@ -150,11 +179,11 @@ func TestCreateShard(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup mocks for each test case individually
-			shardStore, dbMock, storeShardMock, ctrl := setUpMocksForShardStore(t)
+			shardStore, dbMock, storeShardMock, mockParser, ctrl := setUpMocksForShardStore(t)
 			defer ctrl.Finish()
 
 			// Setup test-specific mock behavior
-			tc.setupMock(dbMock, storeShardMock)
+			tc.setupMock(dbMock, storeShardMock, mockParser)
 
 			// Execute the method under test
 			err := shardStore.CreateShard(context.Background(), tc.request)
@@ -173,7 +202,7 @@ func TestCreateShard(t *testing.T) {
 func TestGetShard(t *testing.T) {
 	testCases := []struct {
 		name          string
-		setupMock     func(*nosqlplugin.MockDB, *MockshardedNosqlStore)
+		setupMock     func(*nosqlplugin.MockDB, *MockshardedNosqlStore, *serialization.MockParser)
 		request       *persistence.InternalGetShardRequest
 		expectError   bool
 		expected      *persistence.InternalGetShardResponse
@@ -181,22 +210,120 @@ func TestGetShard(t *testing.T) {
 	}{
 		{
 			name: "success - no update",
-			setupMock: func(dbMock *nosqlplugin.MockDB, storeShardMock *MockshardedNosqlStore) {
-				storeShardMock.EXPECT().GetStoreShardByHistoryShard(1).Return(&nosqlStore{db: dbMock}, nil).Times(1)
-				dbMock.EXPECT().SelectShard(gomock.Any(), 1, "test-cluster").Return(int64(101), testFixtureInternalShardInfo(), nil).Times(1)
+			setupMock: func(dbMock *nosqlplugin.MockDB, storeShardMock *MockshardedNosqlStore, mockParser *serialization.MockParser) {
+				storeShardMock.EXPECT().GetStoreShardByHistoryShard(1).Return(&nosqlStore{db: dbMock, dc: &persistence.DynamicConfiguration{
+					ReadNoSQLShardFromDataBlob: dynamicproperties.GetBoolPropertyFn(true),
+				}}, nil).Times(1)
+				shardInfo := testFixtureInternalShardInfo()
+				dbMock.EXPECT().SelectShard(gomock.Any(), 1, "test-cluster").Return(int64(101), &nosqlplugin.ShardRow{
+					InternalShardInfo: shardInfo,
+					Data:              []byte("shard-info"),
+					DataEncoding:      "base64",
+				}, nil).Times(1)
+				storeShardMock.EXPECT().GetMetricsClient().Return(metrics.NewNoopMetricsClient()).Times(1)
+				mockParser.EXPECT().ShardInfoFromBlob(gomock.Any(), gomock.Any()).Return(&serialization.ShardInfo{
+					Owner:               "test-owner",
+					StolenSinceRenew:    1,
+					UpdatedAt:           time.Unix(100000, 0),
+					ReplicationAckLevel: 100,
+					TransferAckLevel:    50,
+					TimerAckLevel:       time.Unix(100000, 0),
+					ClusterTransferAckLevel: map[string]int64{
+						"cluster-1": 60,
+						"cluster-2": 70,
+					},
+					ClusterTimerAckLevel: map[string]time.Time{
+						"cluster-1": time.Unix(100000, 0),
+						"cluster-2": time.Unix(100000, 0),
+					},
+					TransferProcessingQueueStates:         []byte("transfer-processing-states"),
+					TransferProcessingQueueStatesEncoding: "base64",
+					TimerProcessingQueueStates:            []byte("timer-processing-states"),
+					TimerProcessingQueueStatesEncoding:    "base64",
+					ClusterReplicationLevel: map[string]int64{
+						"cluster-1": 200,
+						"cluster-2": 250,
+					},
+					DomainNotificationVersion:      102,
+					PendingFailoverMarkers:         []byte("pending-failover-markers"),
+					PendingFailoverMarkersEncoding: "base64",
+					ReplicationDlqAckLevel: map[string]int64{
+						"cluster-1": 10,
+						"cluster-2": 15,
+					},
+					QueueStates: map[int32]*types.QueueState{
+						0: &types.QueueState{
+							VirtualQueueStates: map[int64]*types.VirtualQueueState{
+								0: {},
+							},
+						},
+					},
+				}, nil).Times(1)
 			},
 			request:     &persistence.InternalGetShardRequest{ShardID: 1},
 			expectError: false,
 			expected: &persistence.InternalGetShardResponse{
-				ShardInfo: testFixtureInternalShardInfo(),
+				ShardInfo: &persistence.InternalShardInfo{
+					ShardID:             1,
+					RangeID:             101,
+					Owner:               "test-owner",
+					StolenSinceRenew:    1,
+					UpdatedAt:           time.Unix(100000, 0),
+					ReplicationAckLevel: 100,
+					TransferAckLevel:    50,
+					TimerAckLevel:       time.Unix(100000, 0),
+					ClusterTransferAckLevel: map[string]int64{
+						"cluster-1": 60,
+						"cluster-2": 70,
+					},
+					ClusterTimerAckLevel: map[string]time.Time{
+						"cluster-1": time.Unix(100000, 0),
+						"cluster-2": time.Unix(100000, 0),
+					},
+					TransferProcessingQueueStates: &persistence.DataBlob{
+						Encoding: "base64",
+						Data:     []byte("transfer-processing-states"),
+					},
+					TimerProcessingQueueStates: &persistence.DataBlob{
+						Encoding: "base64",
+						Data:     []byte("timer-processing-states"),
+					},
+					ClusterReplicationLevel: map[string]int64{
+						"cluster-1": 200,
+						"cluster-2": 250,
+					},
+					DomainNotificationVersion: 102,
+					PendingFailoverMarkers: &persistence.DataBlob{
+						Encoding: "base64",
+						Data:     []byte("pending-failover-markers"),
+					},
+					ReplicationDLQAckLevel: map[string]int64{
+						"cluster-1": 10,
+						"cluster-2": 15,
+					},
+					QueueStates: map[int32]*types.QueueState{
+						0: &types.QueueState{
+							VirtualQueueStates: map[int64]*types.VirtualQueueState{
+								0: {},
+							},
+						},
+					},
+				},
 			},
 		},
 		{
 			name: "success - fix shard",
-			setupMock: func(dbMock *nosqlplugin.MockDB, storeShardMock *MockshardedNosqlStore) {
-				storeShardMock.EXPECT().GetStoreShardByHistoryShard(1).Return(&nosqlStore{db: dbMock}, nil).Times(2)
+			setupMock: func(dbMock *nosqlplugin.MockDB, storeShardMock *MockshardedNosqlStore, mockParser *serialization.MockParser) {
+				storeShardMock.EXPECT().GetStoreShardByHistoryShard(1).Return(&nosqlStore{db: dbMock, dc: &persistence.DynamicConfiguration{
+					ReadNoSQLShardFromDataBlob: dynamicproperties.GetBoolPropertyFn(false),
+				}}, nil).Times(2)
 				storeShardMock.EXPECT().GetLogger().Return(log.NewNoop()).Times(1)
-				dbMock.EXPECT().SelectShard(gomock.Any(), 1, "test-cluster").Return(int64(100), testFixtureInternalShardInfo(), nil).Times(1)
+				storeShardMock.EXPECT().GetMetricsClient().Return(metrics.NewNoopMetricsClient()).Times(1)
+				dbMock.EXPECT().SelectShard(gomock.Any(), 1, "test-cluster").Return(int64(100), &nosqlplugin.ShardRow{
+					InternalShardInfo: testFixtureInternalShardInfo(),
+					Data:              []byte("shard-info"),
+					DataEncoding:      "base64",
+				}, nil).Times(1)
 				dbMock.EXPECT().UpdateRangeID(gomock.Any(), 1, int64(101), int64(100)).Return(nil).Times(1)
 			},
 			request:     &persistence.InternalGetShardRequest{ShardID: 1},
@@ -207,10 +334,16 @@ func TestGetShard(t *testing.T) {
 		},
 		{
 			name: "error fixing shard - shard ownership lost error",
-			setupMock: func(dbMock *nosqlplugin.MockDB, storeShardMock *MockshardedNosqlStore) {
-				storeShardMock.EXPECT().GetStoreShardByHistoryShard(1).Return(&nosqlStore{db: dbMock}, nil).Times(2)
+			setupMock: func(dbMock *nosqlplugin.MockDB, storeShardMock *MockshardedNosqlStore, mockParser *serialization.MockParser) {
+				storeShardMock.EXPECT().GetStoreShardByHistoryShard(1).Return(&nosqlStore{db: dbMock, dc: &persistence.DynamicConfiguration{
+					ReadNoSQLShardFromDataBlob: dynamicproperties.GetBoolPropertyFn(false),
+				}}, nil).Times(2)
 				storeShardMock.EXPECT().GetLogger().Return(log.NewNoop()).Times(1)
-				dbMock.EXPECT().SelectShard(gomock.Any(), 1, "test-cluster").Return(int64(100), testFixtureInternalShardInfo(), nil).Times(1)
+				dbMock.EXPECT().SelectShard(gomock.Any(), 1, "test-cluster").Return(int64(100), &nosqlplugin.ShardRow{
+					InternalShardInfo: testFixtureInternalShardInfo(),
+					Data:              []byte("shard-info"),
+					DataEncoding:      "base64",
+				}, nil).Times(1)
 				dbMock.EXPECT().UpdateRangeID(gomock.Any(), 1, int64(101), int64(100)).Return(&nosqlplugin.ShardOperationConditionFailure{
 					RangeID: 200,
 					Details: "rangeID mismatch",
@@ -222,10 +355,16 @@ func TestGetShard(t *testing.T) {
 		},
 		{
 			name: "error fixing shard - generic db error",
-			setupMock: func(dbMock *nosqlplugin.MockDB, storeShardMock *MockshardedNosqlStore) {
-				storeShardMock.EXPECT().GetStoreShardByHistoryShard(1).Return(&nosqlStore{db: dbMock}, nil).Times(2)
+			setupMock: func(dbMock *nosqlplugin.MockDB, storeShardMock *MockshardedNosqlStore, mockParser *serialization.MockParser) {
+				storeShardMock.EXPECT().GetStoreShardByHistoryShard(1).Return(&nosqlStore{db: dbMock, dc: &persistence.DynamicConfiguration{
+					ReadNoSQLShardFromDataBlob: dynamicproperties.GetBoolPropertyFn(false),
+				}}, nil).Times(2)
 				storeShardMock.EXPECT().GetLogger().Return(log.NewNoop()).Times(1)
-				dbMock.EXPECT().SelectShard(gomock.Any(), 1, "test-cluster").Return(int64(100), testFixtureInternalShardInfo(), nil).Times(1)
+				dbMock.EXPECT().SelectShard(gomock.Any(), 1, "test-cluster").Return(int64(100), &nosqlplugin.ShardRow{
+					InternalShardInfo: testFixtureInternalShardInfo(),
+					Data:              []byte("shard-info"),
+					DataEncoding:      "base64",
+				}, nil).Times(1)
 				dbMock.EXPECT().UpdateRangeID(gomock.Any(), 1, int64(101), int64(100)).Return(errors.New("db error")).Times(1)
 				dbMock.EXPECT().IsNotFoundError(gomock.Any()).Return(true).Times(1)
 			},
@@ -235,7 +374,7 @@ func TestGetShard(t *testing.T) {
 		},
 		{
 			name: "shard not found error",
-			setupMock: func(dbMock *nosqlplugin.MockDB, storeShardMock *MockshardedNosqlStore) {
+			setupMock: func(dbMock *nosqlplugin.MockDB, storeShardMock *MockshardedNosqlStore, mockParser *serialization.MockParser) {
 				storeShardMock.EXPECT().GetStoreShardByHistoryShard(1).Return(&nosqlStore{db: dbMock}, nil).Times(1)
 				dbMock.EXPECT().SelectShard(gomock.Any(), 1, "test-cluster").Return(int64(0), nil, errors.New("not found")).Times(1)
 				dbMock.EXPECT().IsNotFoundError(errors.New("not found")).Return(true).Times(1)
@@ -246,7 +385,7 @@ func TestGetShard(t *testing.T) {
 		},
 		{
 			name: "generic db error",
-			setupMock: func(dbMock *nosqlplugin.MockDB, storeShardMock *MockshardedNosqlStore) {
+			setupMock: func(dbMock *nosqlplugin.MockDB, storeShardMock *MockshardedNosqlStore, mockParser *serialization.MockParser) {
 				storeShardMock.EXPECT().GetStoreShardByHistoryShard(1).Return(&nosqlStore{db: dbMock}, nil).Times(1)
 				dbMock.EXPECT().SelectShard(gomock.Any(), 1, "test-cluster").Return(int64(0), nil, errors.New("db error")).Times(1)
 				dbMock.EXPECT().IsNotFoundError(gomock.Any()).Return(false).Times(1)
@@ -261,11 +400,11 @@ func TestGetShard(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup mocks for each test case individually
-			shardStore, dbMock, storeShardMock, ctrl := setUpMocksForShardStore(t)
+			shardStore, dbMock, storeShardMock, mockParser, ctrl := setUpMocksForShardStore(t)
 			defer ctrl.Finish()
 
 			// Setup test-specific mock behavior
-			tc.setupMock(dbMock, storeShardMock)
+			tc.setupMock(dbMock, storeShardMock, mockParser)
 
 			// Execute the method under test
 			resp, err := shardStore.GetShard(context.Background(), tc.request)
@@ -285,16 +424,24 @@ func TestGetShard(t *testing.T) {
 func TestUpdateShard(t *testing.T) {
 	testCases := []struct {
 		name          string
-		setupMock     func(*nosqlplugin.MockDB, *MockshardedNosqlStore)
+		setupMock     func(*nosqlplugin.MockDB, *MockshardedNosqlStore, *serialization.MockParser)
 		request       *persistence.InternalUpdateShardRequest
 		expectError   bool
 		expectedError string
 	}{
 		{
 			name: "success",
-			setupMock: func(dbMock *nosqlplugin.MockDB, storeShardMock *MockshardedNosqlStore) {
+			setupMock: func(dbMock *nosqlplugin.MockDB, storeShardMock *MockshardedNosqlStore, mockParser *serialization.MockParser) {
 				storeShardMock.EXPECT().GetStoreShardByHistoryShard(1).Return(&nosqlStore{db: dbMock}, nil).Times(1)
-				dbMock.EXPECT().UpdateShard(gomock.Any(), testFixtureInternalShardInfo(), int64(100)).Return(nil).Times(1)
+				mockParser.EXPECT().ShardInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
+					Encoding: "base64",
+					Data:     []byte("shard-info"),
+				}, nil).Times(1)
+				dbMock.EXPECT().UpdateShard(gomock.Any(), &nosqlplugin.ShardRow{
+					InternalShardInfo: testFixtureInternalShardInfo(),
+					Data:              []byte("shard-info"),
+					DataEncoding:      "base64",
+				}, int64(100)).Return(nil).Times(1)
 			},
 			request: &persistence.InternalUpdateShardRequest{
 				ShardInfo:       testFixtureInternalShardInfo(),
@@ -304,8 +451,12 @@ func TestUpdateShard(t *testing.T) {
 		},
 		{
 			name: "shard ownership lost error",
-			setupMock: func(dbMock *nosqlplugin.MockDB, storeShardMock *MockshardedNosqlStore) {
+			setupMock: func(dbMock *nosqlplugin.MockDB, storeShardMock *MockshardedNosqlStore, mockParser *serialization.MockParser) {
 				storeShardMock.EXPECT().GetStoreShardByHistoryShard(1).Return(&nosqlStore{db: dbMock}, nil).Times(1)
+				mockParser.EXPECT().ShardInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
+					Encoding: "base64",
+					Data:     []byte("shard-info"),
+				}, nil).Times(1)
 				dbMock.EXPECT().UpdateShard(gomock.Any(), gomock.Any(), int64(100)).Return(&nosqlplugin.ShardOperationConditionFailure{
 					RangeID: 200,
 					Details: "rangeID mismatch",
@@ -323,9 +474,13 @@ func TestUpdateShard(t *testing.T) {
 		},
 		{
 			name: "generic db error",
-			setupMock: func(dbMock *nosqlplugin.MockDB, storeShardMock *MockshardedNosqlStore) {
+			setupMock: func(dbMock *nosqlplugin.MockDB, storeShardMock *MockshardedNosqlStore, mockParser *serialization.MockParser) {
 				storeShardMock.EXPECT().GetStoreShardByHistoryShard(1).Return(&nosqlStore{db: dbMock}, nil).Times(1)
 				dbMock.EXPECT().UpdateShard(gomock.Any(), gomock.Any(), int64(100)).Return(errors.New("db error")).Times(1)
+				mockParser.EXPECT().ShardInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
+					Encoding: "base64",
+					Data:     []byte("shard-info"),
+				}, nil).Times(1)
 				dbMock.EXPECT().IsNotFoundError(gomock.Any()).Return(true).Times(1)
 			},
 			request: &persistence.InternalUpdateShardRequest{
@@ -343,11 +498,11 @@ func TestUpdateShard(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup mocks for each test case individually
-			shardStore, dbMock, storeShardMock, ctrl := setUpMocksForShardStore(t)
+			shardStore, dbMock, storeShardMock, mockParser, ctrl := setUpMocksForShardStore(t)
 			defer ctrl.Finish()
 
 			// Setup test-specific mock behavior
-			tc.setupMock(dbMock, storeShardMock)
+			tc.setupMock(dbMock, storeShardMock, mockParser)
 
 			// Execute the method under test
 			err := shardStore.UpdateShard(context.Background(), tc.request)
@@ -366,7 +521,7 @@ func TestUpdateShard(t *testing.T) {
 func TestUpdateRangeID(t *testing.T) {
 	testCases := []struct {
 		name            string
-		setupMock       func(*nosqlplugin.MockDB, *MockshardedNosqlStore)
+		setupMock       func(*nosqlplugin.MockDB, *MockshardedNosqlStore, *serialization.MockParser)
 		shardID         int
 		rangeID         int64
 		previousRangeID int64
@@ -375,7 +530,7 @@ func TestUpdateRangeID(t *testing.T) {
 	}{
 		{
 			name: "success",
-			setupMock: func(dbMock *nosqlplugin.MockDB, storeShardMock *MockshardedNosqlStore) {
+			setupMock: func(dbMock *nosqlplugin.MockDB, storeShardMock *MockshardedNosqlStore, mockParser *serialization.MockParser) {
 				storeShardMock.EXPECT().GetStoreShardByHistoryShard(1).Return(&nosqlStore{db: dbMock}, nil).Times(1)
 				dbMock.EXPECT().UpdateRangeID(gomock.Any(), 1, int64(100), int64(99)).Return(nil).Times(1)
 			},
@@ -386,7 +541,7 @@ func TestUpdateRangeID(t *testing.T) {
 		},
 		{
 			name: "shard ownership lost error",
-			setupMock: func(dbMock *nosqlplugin.MockDB, storeShardMock *MockshardedNosqlStore) {
+			setupMock: func(dbMock *nosqlplugin.MockDB, storeShardMock *MockshardedNosqlStore, mockParser *serialization.MockParser) {
 				storeShardMock.EXPECT().GetStoreShardByHistoryShard(1).Return(&nosqlStore{db: dbMock}, nil).Times(1)
 				dbMock.EXPECT().UpdateRangeID(gomock.Any(), 1, int64(100), int64(99)).Return(&nosqlplugin.ShardOperationConditionFailure{
 					RangeID: 200,
@@ -401,7 +556,7 @@ func TestUpdateRangeID(t *testing.T) {
 		},
 		{
 			name: "generic db error",
-			setupMock: func(dbMock *nosqlplugin.MockDB, storeShardMock *MockshardedNosqlStore) {
+			setupMock: func(dbMock *nosqlplugin.MockDB, storeShardMock *MockshardedNosqlStore, mockParser *serialization.MockParser) {
 				storeShardMock.EXPECT().GetStoreShardByHistoryShard(1).Return(&nosqlStore{db: dbMock}, nil).Times(1)
 				dbMock.EXPECT().UpdateRangeID(gomock.Any(), 1, int64(100), int64(99)).Return(errors.New("db error")).Times(1)
 				dbMock.EXPECT().IsNotFoundError(gomock.Any()).Return(true).Times(1)
@@ -417,11 +572,11 @@ func TestUpdateRangeID(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup mocks for each test case individually
-			shardStore, dbMock, storeShardMock, ctrl := setUpMocksForShardStore(t)
+			shardStore, dbMock, storeShardMock, mockParser, ctrl := setUpMocksForShardStore(t)
 			defer ctrl.Finish()
 
 			// Setup test-specific mock behavior
-			tc.setupMock(dbMock, storeShardMock)
+			tc.setupMock(dbMock, storeShardMock, mockParser)
 
 			// Execute the method under test
 			err := shardStore.updateRangeID(context.Background(), tc.shardID, tc.rangeID, tc.previousRangeID)

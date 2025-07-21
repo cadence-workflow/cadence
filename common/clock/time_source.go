@@ -21,6 +21,7 @@
 package clock
 
 import (
+	"context"
 	"time"
 
 	"github.com/jonboulle/clockwork"
@@ -32,11 +33,14 @@ type (
 	TimeSource interface {
 		After(d time.Duration) <-chan time.Time
 		Sleep(d time.Duration)
+		SleepWithContext(ctx context.Context, d time.Duration) error
 		Now() time.Time
 		Since(t time.Time) time.Duration
 		NewTicker(d time.Duration) Ticker
 		NewTimer(d time.Duration) Timer
 		AfterFunc(d time.Duration, f func()) Timer
+		ContextWithTimeout(context.Context, time.Duration) (context.Context, context.CancelFunc)
+		ContextWithDeadline(context.Context, time.Time) (context.Context, context.CancelFunc)
 	}
 
 	// Ticker provides an interface which can be used instead of directly using
@@ -65,7 +69,7 @@ type (
 
 	// fakeClock serves fake controlled time
 	fakeClock struct {
-		clockwork.FakeClock
+		*clockwork.FakeClock
 	}
 
 	// MockedTimeSource provides an interface for a clock which can be manually advanced
@@ -89,23 +93,11 @@ type (
 	}
 )
 
-var _ TimeSource = (*clock)(nil)
-var _ TimeSource = (*fakeClock)(nil)
-var _ MockedTimeSource = (*fakeClock)(nil)
-
 // NewRealTimeSource returns a time source that servers
 // real wall clock time
 func NewRealTimeSource() TimeSource {
 	return &clock{
 		Clock: clockwork.NewRealClock(),
-	}
-}
-
-// NewMockedTimeSource returns a time source that servers
-// fake controlled time
-func NewMockedTimeSource() MockedTimeSource {
-	return &fakeClock{
-		FakeClock: clockwork.NewFakeClock(),
 	}
 }
 
@@ -115,6 +107,14 @@ func NewMockedTimeSourceAt(t time.Time) MockedTimeSource {
 	return &fakeClock{
 		FakeClock: clockwork.NewFakeClockAt(t),
 	}
+}
+
+func (r *clock) ContextWithTimeout(ctx context.Context, d time.Duration) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(ctx, d)
+}
+
+func (r *clock) ContextWithDeadline(ctx context.Context, t time.Time) (context.Context, context.CancelFunc) {
+	return context.WithDeadline(ctx, t)
 }
 
 func (r *clock) NewTicker(d time.Duration) Ticker {
@@ -129,6 +129,23 @@ func (r *clock) AfterFunc(d time.Duration, f func()) Timer {
 	return r.Clock.AfterFunc(d, f)
 }
 
+func (r *clock) SleepWithContext(ctx context.Context, duration time.Duration) error {
+	select {
+	case <-r.After(duration):
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// NewMockedTimeSource returns a time source that servers
+// fake controlled time
+func NewMockedTimeSource() MockedTimeSource {
+	return &fakeClock{
+		FakeClock: clockwork.NewFakeClock(),
+	}
+}
+
 func (c *fakeClock) NewTicker(d time.Duration) Ticker {
 	return c.FakeClock.NewTicker(d)
 }
@@ -139,4 +156,21 @@ func (c *fakeClock) NewTimer(d time.Duration) Timer {
 
 func (c *fakeClock) AfterFunc(d time.Duration, f func()) Timer {
 	return c.FakeClock.AfterFunc(d, f)
+}
+
+func (c *fakeClock) ContextWithTimeout(ctx context.Context, duration time.Duration) (context.Context, context.CancelFunc) {
+	return clockwork.WithTimeout(ctx, c.FakeClock, duration)
+}
+
+func (c *fakeClock) ContextWithDeadline(ctx context.Context, deadline time.Time) (context.Context, context.CancelFunc) {
+	return clockwork.WithDeadline(ctx, c.FakeClock, deadline)
+}
+
+func (c *fakeClock) SleepWithContext(ctx context.Context, duration time.Duration) error {
+	select {
+	case <-c.After(duration):
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }

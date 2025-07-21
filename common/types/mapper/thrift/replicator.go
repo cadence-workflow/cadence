@@ -69,6 +69,9 @@ func FromDomainOperation(t *types.DomainOperation) *replicator.DomainOperation {
 	case types.DomainOperationUpdate:
 		v := replicator.DomainOperationUpdate
 		return &v
+	case types.DomainOperationDelete:
+		v := replicator.DomainOperationDelete
+		return &v
 	}
 	panic("unexpected enum value")
 }
@@ -84,6 +87,9 @@ func ToDomainOperation(t *replicator.DomainOperation) *types.DomainOperation {
 		return &v
 	case replicator.DomainOperationUpdate:
 		v := types.DomainOperationUpdate
+		return &v
+	case replicator.DomainOperationDelete:
+		v := types.DomainOperationDelete
 		return &v
 	}
 	panic("unexpected enum value")

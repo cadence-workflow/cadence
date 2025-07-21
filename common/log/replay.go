@@ -108,9 +108,21 @@ func (r *replayLogger) SampleInfo(msg string, sampleRate int, tags ...tag.Tag) {
 	}
 }
 
+func (r *replayLogger) DebugOn() bool {
+	return r.logger.DebugOn()
+}
+
 func (r *replayLogger) WithTags(tags ...tag.Tag) Logger {
 	return &replayLogger{
 		logger:            r.logger.WithTags(tags...),
+		ctx:               r.ctx,
+		enableLogInReplay: r.enableLogInReplay,
+	}
+}
+
+func (r *replayLogger) Helper() Logger {
+	return &replayLogger{
+		logger:            r.logger.Helper(),
 		ctx:               r.ctx,
 		enableLogInReplay: r.enableLogInReplay,
 	}

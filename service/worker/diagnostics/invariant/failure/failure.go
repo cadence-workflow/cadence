@@ -43,6 +43,7 @@ func NewInvariant() Failure {
 func (f *failure) Check(ctx context.Context, params invariant.InvariantCheckInput) ([]invariant.InvariantCheckResult, error) {
 	result := make([]invariant.InvariantCheckResult, 0)
 	events := params.WorkflowExecutionHistory.GetHistory().GetEvents()
+	issueID := 0
 	for _, event := range events {
 		if event.GetWorkflowExecutionFailedEventAttributes() != nil && event.WorkflowExecutionFailedEventAttributes.Reason != nil {
 			attr := event.WorkflowExecutionFailedEventAttributes
@@ -50,16 +51,20 @@ func (f *failure) Check(ctx context.Context, params invariant.InvariantCheckInpu
 			identity := fetchIdentity(attr, events)
 			if *reason == common.FailureReasonDecisionBlobSizeExceedsLimit {
 				result = append(result, invariant.InvariantCheckResult{
+					IssueID:       issueID,
 					InvariantType: DecisionCausedFailure.String(),
 					Reason:        DecisionBlobSizeLimit.String(),
-					Metadata:      invariant.MarshalData(FailureMetadata{Identity: identity}),
+					Metadata:      invariant.MarshalData(FailureIssuesMetadata{Identity: identity}),
 				})
+				issueID++
 			} else {
 				result = append(result, invariant.InvariantCheckResult{
+					IssueID:       issueID,
 					InvariantType: WorkflowFailed.String(),
 					Reason:        ErrorTypeFromReason(*reason).String(),
-					Metadata:      invariant.MarshalData(FailureMetadata{Identity: identity}),
+					Metadata:      invariant.MarshalData(FailureIssuesMetadata{Identity: identity}),
 				})
+				issueID++
 			}
 
 		}
@@ -69,37 +74,43 @@ func (f *failure) Check(ctx context.Context, params invariant.InvariantCheckInpu
 			scheduled := fetchScheduledEvent(attr, events)
 			if *reason == common.FailureReasonHeartbeatExceedsLimit {
 				result = append(result, invariant.InvariantCheckResult{
+					IssueID:       issueID,
 					InvariantType: ActivityFailed.String(),
 					Reason:        HeartBeatBlobSizeLimit.String(),
-					Metadata: invariant.MarshalData(FailureMetadata{
+					Metadata: invariant.MarshalData(FailureIssuesMetadata{
 						Identity:            attr.Identity,
 						ActivityType:        scheduled.ActivityType.GetName(),
 						ActivityScheduledID: attr.ScheduledEventID,
 						ActivityStartedID:   attr.StartedEventID,
 					}),
 				})
+				issueID++
 			} else if *reason == common.FailureReasonCompleteResultExceedsLimit {
 				result = append(result, invariant.InvariantCheckResult{
+					IssueID:       issueID,
 					InvariantType: ActivityFailed.String(),
 					Reason:        ActivityOutputBlobSizeLimit.String(),
-					Metadata: invariant.MarshalData(FailureMetadata{
+					Metadata: invariant.MarshalData(FailureIssuesMetadata{
 						Identity:            attr.Identity,
 						ActivityType:        scheduled.ActivityType.GetName(),
 						ActivityScheduledID: attr.ScheduledEventID,
 						ActivityStartedID:   attr.StartedEventID,
 					}),
 				})
+				issueID++
 			} else {
 				result = append(result, invariant.InvariantCheckResult{
+					IssueID:       issueID,
 					InvariantType: ActivityFailed.String(),
 					Reason:        ErrorTypeFromReason(*reason).String(),
-					Metadata: invariant.MarshalData(FailureMetadata{
+					Metadata: invariant.MarshalData(FailureIssuesMetadata{
 						Identity:            attr.Identity,
 						ActivityType:        scheduled.ActivityType.GetName(),
 						ActivityScheduledID: attr.ScheduledEventID,
 						ActivityStartedID:   attr.StartedEventID,
 					}),
 				})
+				issueID++
 			}
 
 		}
@@ -144,16 +155,19 @@ func (f *failure) RootCause(ctx context.Context, params invariant.InvariantRootC
 		switch issue.Reason {
 		case GenericError.String():
 			result = append(result, invariant.InvariantRootCauseResult{
+				IssueID:   issue.IssueID,
 				RootCause: invariant.RootCauseTypeServiceSideIssue,
 				Metadata:  issue.Metadata,
 			})
 		case PanicError.String():
 			result = append(result, invariant.InvariantRootCauseResult{
+				IssueID:   issue.IssueID,
 				RootCause: invariant.RootCauseTypeServiceSidePanic,
 				Metadata:  issue.Metadata,
 			})
 		case CustomError.String():
 			result = append(result, invariant.InvariantRootCauseResult{
+				IssueID:   issue.IssueID,
 				RootCause: invariant.RootCauseTypeServiceSideCustomError,
 				Metadata:  issue.Metadata,
 			})

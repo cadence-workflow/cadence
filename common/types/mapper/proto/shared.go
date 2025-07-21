@@ -496,6 +496,8 @@ func FromDomainOperation(t *types.DomainOperation) adminv1.DomainOperation {
 		return adminv1.DomainOperation_DOMAIN_OPERATION_CREATE
 	case types.DomainOperationUpdate:
 		return adminv1.DomainOperation_DOMAIN_OPERATION_UPDATE
+	case types.DomainOperationDelete:
+		return adminv1.DomainOperation_DOMAIN_OPERATION_DELETE
 	}
 	panic("unexpected enum value")
 }
@@ -508,6 +510,8 @@ func ToDomainOperation(t adminv1.DomainOperation) *types.DomainOperation {
 		return types.DomainOperationCreate.Ptr()
 	case adminv1.DomainOperation_DOMAIN_OPERATION_UPDATE:
 		return types.DomainOperationUpdate.Ptr()
+	case adminv1.DomainOperation_DOMAIN_OPERATION_DELETE:
+		return types.DomainOperationDelete.Ptr()
 	}
 	panic("unexpected enum value")
 }

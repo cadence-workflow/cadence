@@ -257,7 +257,7 @@ getTasksPumpLoop:
 
 func (tr *taskReader) getTaskBatchWithRange(readLevel int64, maxReadLevel int64) ([]*persistence.TaskInfo, error) {
 	var response *persistence.GetTasksResponse
-	op := func() (err error) {
+	op := func(ctx context.Context) (err error) {
 		response, err = tr.db.GetTasks(readLevel, maxReadLevel, tr.config.GetTasksBatchSize())
 		return
 	}
@@ -359,7 +359,7 @@ func (tr *taskReader) completeTask(task *persistence.TaskInfo, err error) {
 		// again the underlying reason for failing to start will be resolved.
 		// Note that RecordTaskStarted only fails after retrying for a long time, so a single task will not be
 		// re-written to persistence frequently.
-		op := func() error {
+		op := func(ctx context.Context) error {
 			_, err := tr.taskWriter.appendTask(task)
 			return err
 		}
@@ -387,7 +387,7 @@ func (tr *taskReader) newDispatchContext(isolationGroup string, isolationDuratio
 			// we don't know if the domain is active in the current cluster, assume it is active and set the timeout
 			return context.WithTimeout(tr.cancelCtx, timeout)
 		}
-		if _, err := domainEntry.IsActiveIn(tr.clusterMetadata.GetCurrentClusterName()); err == nil {
+		if domainEntry.IsActiveIn(tr.clusterMetadata.GetCurrentClusterName()) {
 			// if the domain is active in the current cluster, set the timeout
 			return context.WithTimeout(tr.cancelCtx, timeout)
 		}

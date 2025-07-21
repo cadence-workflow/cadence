@@ -50,6 +50,7 @@ import (
 {{$ratelimitTypeMap = set $ratelimitTypeMap "SignalWithStartWorkflowExecutionAsync" "ratelimitTypeAsync"}}
 
 {{$ratelimitTypeMap = set $ratelimitTypeMap "Health" "ratelimitTypeNoop"}}
+{{$ratelimitTypeMap = set $ratelimitTypeMap "DeleteDomain" "ratelimitTypeNoop"}}
 {{$ratelimitTypeMap = set $ratelimitTypeMap "DeprecateDomain" "ratelimitTypeNoop"}}
 {{$ratelimitTypeMap = set $ratelimitTypeMap "DescribeDomain" "ratelimitTypeNoop"}}
 {{$ratelimitTypeMap = set $ratelimitTypeMap "GetClusterInfo" "ratelimitTypeNoop"}}

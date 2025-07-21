@@ -26,6 +26,7 @@ package execution
 
 import (
 	"fmt"
+	"runtime/debug"
 	"time"
 
 	"github.com/uber/cadence/common"
@@ -739,15 +740,18 @@ func (m *mutableStateDecisionTaskManagerImpl) UpdateDecision(
 
 	// NOTE: do not update tasklist in execution info
 
-	m.msb.logger.Debug(fmt.Sprintf(
-		"Decision Updated: {Schedule: %v, Started: %v, ID: %v, Timeout: %v, Attempt: %v, Timestamp: %v}",
-		decision.ScheduleID,
-		decision.StartedID,
-		decision.RequestID,
-		decision.DecisionTimeout,
-		decision.Attempt,
-		decision.StartedTimestamp,
-	))
+	if m.msb.logger.DebugOn() {
+		m.msb.logger.Debugf(
+			"Decision Updated: {Schedule: %v, Started: %v, ID: %v, Timeout: %v, Attempt: %v, Timestamp: %v}, Stacktrace: %v",
+			decision.ScheduleID,
+			decision.StartedID,
+			decision.RequestID,
+			decision.DecisionTimeout,
+			decision.Attempt,
+			decision.StartedTimestamp,
+			debug.Stack(),
+		)
+	}
 }
 
 func (m *mutableStateDecisionTaskManagerImpl) HasPendingDecision() bool {

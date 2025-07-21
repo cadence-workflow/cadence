@@ -31,6 +31,8 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
@@ -84,6 +86,7 @@ type (
 	}
 
 	mutableStateTaskGeneratorImpl struct {
+		logger          log.Logger
 		clusterMetadata cluster.Metadata
 		domainCache     cache.DomainCache
 
@@ -102,16 +105,17 @@ var _ MutableStateTaskGenerator = (*mutableStateTaskGeneratorImpl)(nil)
 
 // NewMutableStateTaskGenerator creates a new task generator for mutable state
 func NewMutableStateTaskGenerator(
+	logger log.Logger,
 	clusterMetadata cluster.Metadata,
 	domainCache cache.DomainCache,
 	mutableState MutableState,
 ) MutableStateTaskGenerator {
 
 	return &mutableStateTaskGeneratorImpl{
+		logger:          logger,
 		clusterMetadata: clusterMetadata,
 		domainCache:     domainCache,
-
-		mutableState: mutableState,
+		mutableState:    mutableState,
 	}
 }
 
@@ -182,6 +186,12 @@ func (r *mutableStateTaskGeneratorImpl) GenerateWorkflowCloseTasks(
 		retentionDuration += time.Duration(rand.Intn(workflowDeletionTaskJitterRange*60)) * time.Second
 	}
 
+	r.logger.Debug("GenerateWorkflowCloseTasks",
+		tag.WorkflowID(executionInfo.WorkflowID),
+		tag.WorkflowRunID(executionInfo.RunID),
+		tag.WorkflowDomainID(executionInfo.DomainID),
+		tag.Timestamp(closeTimestamp),
+	)
 	r.mutableState.AddTimerTasks(&persistence.DeleteHistoryEventTask{
 		WorkflowIdentifier: persistence.WorkflowIdentifier{
 			DomainID:   executionInfo.DomainID,
@@ -461,14 +471,10 @@ func (r *mutableStateTaskGeneratorImpl) GenerateChildWorkflowTasks(
 	if childWorkflowInfo.DomainID == "" {
 		targetDomainID = msbDomainID
 	}
-	// This was formerly supported with the cross cluster feature
-	// but is no longer. So erroring out explicitly here
-	if targetDomainID != msbDomainID {
-		return &types.BadRequestError{
-			Message: fmt.Sprintf("there would appear to be a bug: The child workflow is trying to use domain %s but it's running in domain %s. Cross-cluster child workflows are not supported",
-				childWorkflowInfo.DomainID, msbDomainID),
-		}
 
+	err := r.validateChildWorkflowParameters(msbDomainID, targetDomainID)
+	if err != nil {
+		return err
 	}
 
 	executionInfo := r.mutableState.GetExecutionInfo()
@@ -647,6 +653,35 @@ func (r *mutableStateTaskGeneratorImpl) getTargetDomainID(
 	return r.mutableState.GetExecutionInfo().DomainID, nil
 }
 
+func (r *mutableStateTaskGeneratorImpl) validateChildWorkflowParameters(msbDomainID string, targetDomainID string) error {
+	// standard case
+	if msbDomainID == targetDomainID {
+		return nil
+	}
+
+	thisDomain := r.mutableState.GetDomainEntry()
+	targetDomain, err := r.domainCache.GetDomainByID(targetDomainID)
+	if err != nil {
+		return fmt.Errorf("cannot get target domain for child workflow: %w", err)
+	}
+
+	// Generally, cross-domain calls are not allowed for launching child workflows in global domains due to
+	// the fact that we have removed cross-cluster calls (due to their overhead and limited use).
+	//
+	// There is a limited exception for local domains, which do not suffer from this problem can be
+	// handled as an exception where the transfer task may be picked up by another domain in-cluster
+	// without risk of the child workflow may end up in a different cluster.
+	if thisDomain.IsGlobalDomain() || targetDomain.IsGlobalDomain() {
+		return &types.BadRequestError{
+			Message: fmt.Sprintf("The child workflow is "+
+				"trying to use domain %s but it's running in domain %s. "+
+				"Cross-cluster and cross domain child workflows are not supported for global domains",
+				targetDomainID, msbDomainID),
+		}
+	}
+	return nil
+}
+
 func getTargetCluster(
 	domainID string,
 	domainCache cache.DomainCache,
@@ -657,7 +692,7 @@ func getTargetCluster(
 		return "", false, err
 	}
 
-	isActive, _ := domainEntry.IsActiveIn(clusterMetadata.GetCurrentClusterName())
+	isActive := domainEntry.IsActiveIn(clusterMetadata.GetCurrentClusterName())
 	if !isActive {
 		// treat pending active as active
 		isActive = domainEntry.IsDomainPendingActive()

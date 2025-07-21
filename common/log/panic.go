@@ -43,7 +43,9 @@ func CapturePanic(errPanic interface{}, logger Logger, retError *error) {
 
 		st := string(debug.Stack())
 
-		logger.Error("Panic is captured", tag.SysStackTrace(st), tag.Error(err))
+		// This function is called in deferred block and is all over the place.
+		// We want the log to point to the line of panic, not this line, or stack of the defer function.
+		logger.Helper().Helper().Error("Panic is captured", tag.SysStackTrace(st), tag.Error(err))
 
 		if retError != nil {
 			*retError = err

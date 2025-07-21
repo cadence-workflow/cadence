@@ -30,15 +30,15 @@ func (c *noOpDomainCache) GetAllDomain() map[string]*DomainCacheEntry {
 }
 
 func (c *noOpDomainCache) RegisterDomainChangeCallback(
-	shard int,
-	initialNotificationVersion int64,
+	id string,
+	catchUpFn CatchUpFn,
 	prepareCallback PrepareCallbackFn,
 	callback CallbackFn,
 ) {
 }
 
 func (c *noOpDomainCache) UnregisterDomainChangeCallback(
-	shard int,
+	id string,
 ) {
 }
 

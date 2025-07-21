@@ -150,6 +150,7 @@ func (m *shardManager) toInternalShardInfo(shardInfo *ShardInfo) (*InternalShard
 		ClusterReplicationLevel:       shardInfo.ClusterReplicationLevel,
 		DomainNotificationVersion:     shardInfo.DomainNotificationVersion,
 		PendingFailoverMarkers:        pendingFailoverMarker,
+		QueueStates:                   shardInfo.QueueStates,
 	}, nil
 }
 
@@ -187,5 +188,6 @@ func (m *shardManager) fromInternalShardInfo(internalShardInfo *InternalShardInf
 		ClusterReplicationLevel:       internalShardInfo.ClusterReplicationLevel,
 		DomainNotificationVersion:     internalShardInfo.DomainNotificationVersion,
 		PendingFailoverMarkers:        pendingFailoverMarker,
+		QueueStates:                   internalShardInfo.QueueStates,
 	}, nil
 }

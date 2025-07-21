@@ -23,7 +23,9 @@ package engineimpl
 
 import (
 	"context"
+	"sort"
 
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log/tag"
@@ -53,18 +55,59 @@ func (e *historyEngineImpl) registerDomainFailoverCallback() {
 	//		failover min / max task levels calculated & updated to shard (using shard lock) -> failover start
 	// above 2 guarantees that failover start is after persistence of the task.
 
+	initialNotificationVersion := e.shard.GetDomainNotificationVersion()
+
+	catchUpFn := func(domainCache cache.DomainCache, prepareCallback cache.PrepareCallbackFn, callback cache.CallbackFn) {
+		// this section is trying to make the shard catch up with domain changes
+		domains := cache.DomainCacheEntries{}
+		for _, domain := range domainCache.GetAllDomain() {
+			domains = append(domains, domain)
+		}
+		// we must notify the change in an ordered fashion
+		// since history shard has to update the shard info
+		// with the domain change version.
+		sort.Sort(domains)
+
+		var updatedEntries []*cache.DomainCacheEntry
+		for _, domain := range domains {
+			if domain.GetNotificationVersion() >= initialNotificationVersion {
+				updatedEntries = append(updatedEntries, domain)
+			}
+		}
+		if len(updatedEntries) > 0 {
+			prepareCallback()
+			callback(updatedEntries)
+		}
+	}
+
 	// first set the failover callback
 	e.shard.GetDomainCache().RegisterDomainChangeCallback(
-		e.shard.GetShardID(),
-		e.shard.GetDomainNotificationVersion(),
-		e.lockProcessingForFailover,
+		createShardNameFromShardID(e.shard.GetShardID()),
+		catchUpFn,
+		e.lockTaskProcessingForDomainUpdate,
 		e.domainChangeCB,
 	)
+
+	// Register to active-active domain and external entity mapping changes
+	e.shard.GetActiveClusterManager().RegisterChangeCallback(
+		e.shard.GetShardID(),
+		e.activeActiveEntityMapChangeCB,
+	)
+}
+
+func (e *historyEngineImpl) activeActiveEntityMapChangeCB(changeType activecluster.ChangeType) {
+	if changeType != activecluster.ChangeTypeEntityMap {
+		return
+	}
+
+	e.logger.Info("Active cluster manager change callback received. will notify queues", tag.ActiveClusterChangeType(string(changeType)))
+
+	e.notifyQueues()
 }
 
 func (e *historyEngineImpl) domainChangeCB(nextDomains []*cache.DomainCacheEntry) {
 	defer func() {
-		e.unlockProcessingForFailover()
+		e.unlockProcessingForDomainUpdate()
 	}()
 
 	if len(nextDomains) == 0 {
@@ -83,16 +126,12 @@ func (e *historyEngineImpl) domainChangeCB(nextDomains []*cache.DomainCacheEntry
 	if len(failoverDomainIDs) > 0 {
 		e.logger.Info("Domain Failover Start.", tag.WorkflowDomainIDs(failoverDomainIDs))
 
-		e.txProcessor.FailoverDomain(failoverDomainIDs)
-		e.timerProcessor.FailoverDomain(failoverDomainIDs)
+		// Failover queues are not created for active-active domains. Will revisit after new queue framework implementation.
+		for _, processor := range e.queueProcessors {
+			processor.FailoverDomain(failoverDomainIDs)
+		}
 
-		now := e.shard.GetTimeSource().Now()
-		// the fake tasks will not be actually used, we just need to make sure
-		// its length > 0 and has correct timestamp, to trigger a db scan
-		fakeDecisionTask := []persistence.Task{&persistence.DecisionTask{}}
-		fakeDecisionTimeoutTask := []persistence.Task{&persistence.DecisionTimeoutTask{TaskData: persistence.TaskData{VisibilityTimestamp: now}}}
-		e.txProcessor.NotifyNewTask(e.currentClusterName, &hcommon.NotifyTaskInfo{Tasks: fakeDecisionTask})
-		e.timerProcessor.NotifyNewTask(e.currentClusterName, &hcommon.NotifyTaskInfo{Tasks: fakeDecisionTimeoutTask})
+		e.notifyQueues()
 	}
 
 	failoverMarkerTasks := e.generateGracefulFailoverTasksForDomainUpdateCallback(shardNotificationVersion, nextDomains)
@@ -115,12 +154,37 @@ func (e *historyEngineImpl) domainChangeCB(nextDomains []*cache.DomainCacheEntry
 	e.shard.UpdateDomainNotificationVersion(nextDomains[len(nextDomains)-1].GetNotificationVersion() + 1)
 }
 
-func (e *historyEngineImpl) generateGracefulFailoverTasksForDomainUpdateCallback(shardNotificationVersion int64, nextDomains []*cache.DomainCacheEntry) []*persistence.FailoverMarkerTask {
+func (e *historyEngineImpl) notifyQueues() {
+	now := e.shard.GetTimeSource().Now()
+	// the fake tasks will not be actually used, we just need to make sure
+	// its length > 0 and has correct timestamp, to trigger a db scan
+	fakeDecisionTask := []persistence.Task{&persistence.DecisionTask{}}
+	fakeDecisionTimeoutTask := []persistence.Task{&persistence.DecisionTimeoutTask{TaskData: persistence.TaskData{VisibilityTimestamp: now}}}
+	transferProcessor, ok := e.queueProcessors[persistence.HistoryTaskCategoryTransfer]
+	if !ok {
+		e.logger.Error("transfer processor not found")
+		return
+	}
+	transferProcessor.NotifyNewTask(e.currentClusterName, &hcommon.NotifyTaskInfo{Tasks: fakeDecisionTask})
+	timerProcessor, ok := e.queueProcessors[persistence.HistoryTaskCategoryTimer]
+	if !ok {
+		e.logger.Error("timer processor not found")
+		return
+	}
+	timerProcessor.NotifyNewTask(e.currentClusterName, &hcommon.NotifyTaskInfo{Tasks: fakeDecisionTimeoutTask})
+}
 
+func (e *historyEngineImpl) generateGracefulFailoverTasksForDomainUpdateCallback(shardNotificationVersion int64, nextDomains []*cache.DomainCacheEntry) []*persistence.FailoverMarkerTask {
 	// handle graceful failover on active to passive
 	// make sure task processor failover the domain before inserting the failover marker
 	failoverMarkerTasks := []*persistence.FailoverMarkerTask{}
 	for _, nextDomain := range nextDomains {
+		if nextDomain.GetReplicationConfig().IsActiveActive() {
+			// Currently it's unclear whether graceful failover is working for active-passive domains. We don't use it in practice.
+			// Don't try to make it work for active-active domains until we determine we need it.
+			// We may potentially retire existing graceful failover implementation and provide "sync replication" instead.
+			continue
+		}
 		domainFailoverNotificationVersion := nextDomain.GetFailoverNotificationVersion()
 		domainActiveCluster := nextDomain.GetReplicationConfig().ActiveClusterName
 		previousFailoverVersion := nextDomain.GetPreviousFailoverVersion()
@@ -149,16 +213,18 @@ func (e *historyEngineImpl) generateGracefulFailoverTasksForDomainUpdateCallback
 	return failoverMarkerTasks
 }
 
-func (e *historyEngineImpl) lockProcessingForFailover() {
-	e.logger.Debug("locking processing for failover")
-	e.txProcessor.LockTaskProcessing()
-	e.timerProcessor.LockTaskProcessing()
+func (e *historyEngineImpl) lockTaskProcessingForDomainUpdate() {
+	e.logger.Debug("Locking processing for domain update")
+	for _, processor := range e.queueProcessors {
+		processor.LockTaskProcessing()
+	}
 }
 
-func (e *historyEngineImpl) unlockProcessingForFailover() {
-	e.logger.Debug("unlocking processing for failover")
-	e.txProcessor.UnlockTaskProcessing()
-	e.timerProcessor.UnlockTaskProcessing()
+func (e *historyEngineImpl) unlockProcessingForDomainUpdate() {
+	e.logger.Debug("Unlocking processing for failover")
+	for _, processor := range e.queueProcessors {
+		processor.UnlockTaskProcessing()
+	}
 }
 
 func (e *historyEngineImpl) failoverPredicate(shardNotificationVersion int64, nextDomain *cache.DomainCacheEntry, action func()) {
@@ -166,6 +232,7 @@ func (e *historyEngineImpl) failoverPredicate(shardNotificationVersion int64, ne
 	domainActiveCluster := nextDomain.GetReplicationConfig().ActiveClusterName
 
 	if nextDomain.IsGlobalDomain() &&
+		!nextDomain.GetReplicationConfig().IsActiveActive() &&
 		domainFailoverNotificationVersion >= shardNotificationVersion &&
 		domainActiveCluster == e.currentClusterName {
 		action()

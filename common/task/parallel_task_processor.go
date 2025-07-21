@@ -162,7 +162,7 @@ func (p *parallelTaskProcessorImpl) executeTask(task Task, shutdownCh chan struc
 		}
 	}()
 
-	op := func() error {
+	op := func(ctx context.Context) error {
 		if err := task.Execute(); err != nil {
 			return task.HandleErr(err)
 		}

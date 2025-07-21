@@ -88,6 +88,21 @@ func newDomainCommands() []*cli.Command {
 			},
 		},
 		{
+			Name:    "delete",
+			Aliases: []string{"del"},
+			Usage:   "Delete existing workflow domain",
+			Flags:   deleteDomainFlags,
+			Action: func(c *cli.Context) error {
+				err := checkNoAdditionalArgsPassed(c)
+				if err != nil {
+					return err
+				}
+				return withDomainClient(c, false, func(dc *domainCLIImpl) error {
+					return dc.DeleteDomain(c)
+				})
+			},
+		},
+		{
 			Name:    "deprecate",
 			Aliases: []string{"dep"},
 			Usage:   "Deprecate existing workflow domain",

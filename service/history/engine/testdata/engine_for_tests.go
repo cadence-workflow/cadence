@@ -23,10 +23,8 @@ package testdata
 import (
 	"testing"
 
-	oldgomock "github.com/golang/mock/gomock" // client library cannot change from old gomock
+	// client library cannot change from old gomock
 	"github.com/stretchr/testify/mock"
-	"go.uber.org/cadence/.gen/go/cadence/workflowserviceclient"
-	"go.uber.org/cadence/.gen/go/cadence/workflowservicetest"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/client/matching"
@@ -41,8 +39,6 @@ import (
 	"github.com/uber/cadence/service/history/queue"
 	"github.com/uber/cadence/service/history/replication"
 	"github.com/uber/cadence/service/history/shard"
-	"github.com/uber/cadence/service/history/task"
-	"github.com/uber/cadence/service/history/workflowcache"
 )
 
 type EngineForTest struct {
@@ -56,15 +52,12 @@ type NewEngineFn func(
 	shard shard.Context,
 	visibilityMgr persistence.VisibilityManager,
 	matching matching.Client,
-	publicClient workflowserviceclient.Interface,
 	historyEventNotifier events.Notifier,
 	config *config.Config,
 	replicationTaskFetchers replication.TaskFetchers,
 	rawMatchingClient matching.Client,
-	queueTaskProcessor task.Processor,
 	failoverCoordinator failover.Coordinator,
-	wfIDCache workflowcache.WFCache,
-	queueProcessorFactory queue.ProcessorFactory,
+	queueFactories []queue.Factory,
 ) engine.Engine
 
 func NewEngineForTest(t *testing.T, newEngineFn NewEngineFn) *EngineForTest {
@@ -88,6 +81,13 @@ func NewEngineForTest(t *testing.T, newEngineFn NewEngineFn) *EngineForTest {
 	domainCache.EXPECT().GetDomainID(constants.TestDomainName).Return(constants.TestDomainID, nil).AnyTimes()
 	domainCache.EXPECT().RegisterDomainChangeCallback(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 	domainCache.EXPECT().UnregisterDomainChangeCallback(gomock.Any()).Times(1)
+
+	activeClusterMgr := shardCtx.Resource.ActiveClusterMgr
+	activeClusterMgr.EXPECT().RegisterChangeCallback(gomock.Any(), gomock.Any()).AnyTimes()
+
+	activeClusterMgr.EXPECT().ClusterNameForFailoverVersion(gomock.Any(), gomock.Any()).DoAndReturn(func(version int64, domainID string) (string, error) {
+		return shardCtx.GetClusterMetadata().ClusterNameForFailoverVersion(version)
+	}).AnyTimes()
 
 	executionMgr := shardCtx.Resource.ExecutionMgr
 	// RangeCompleteReplicationTask is called by taskProcessorImpl's background loop
@@ -116,10 +116,6 @@ func NewEngineForTest(t *testing.T, newEngineFn NewEngineFn) *EngineForTest {
 		},
 	)
 
-	// client library is still using the old deprecated gomock, as changing it would be a rather large breaking change.
-	// not really an issue, just use a separate controller for it - it'll still require everything via t.Cleanup.
-	mockWFServiceClient := workflowservicetest.NewMockClient(oldgomock.NewController(t))
-
 	replicatonTaskFetchers := replication.NewMockTaskFetchers(controller)
 	replicationTaskFetcher := replication.NewMockTaskFetcher(controller)
 	// TODO: this should probably return another cluster name, not current
@@ -128,43 +124,36 @@ func NewEngineForTest(t *testing.T, newEngineFn NewEngineFn) *EngineForTest {
 	replicationTaskFetcher.EXPECT().GetRequestChan().Return(nil).AnyTimes()
 	replicatonTaskFetchers.EXPECT().GetFetchers().Return([]replication.TaskFetcher{replicationTaskFetcher}).AnyTimes()
 
-	queueTaskProcessor := task.NewMockProcessor(controller)
-
 	failoverCoordinator := failover.NewMockCoordinator(controller)
-	wfIDCache := workflowcache.NewMockWFCache(controller)
 
-	queueProcessorFactory := queue.NewMockProcessorFactory(controller)
+	timerQueueFactory := queue.NewMockFactory(controller)
+	timerQueueFactory.EXPECT().Category().Return(persistence.HistoryTaskCategoryTimer).AnyTimes()
 	timerQProcessor := queue.NewMockProcessor(controller)
 	timerQProcessor.EXPECT().Start().Return().Times(1)
 	timerQProcessor.EXPECT().NotifyNewTask(gomock.Any(), gomock.Any()).Return().AnyTimes()
 	timerQProcessor.EXPECT().Stop().Return().Times(1)
-	queueProcessorFactory.EXPECT().
-		NewTimerQueueProcessor(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(timerQProcessor).
-		Times(1)
+	timerQueueFactory.EXPECT().CreateQueue(gomock.Any(), gomock.Any(), gomock.Any()).Return(timerQProcessor).Times(1)
 
+	transferQueueFactory := queue.NewMockFactory(controller)
+	transferQueueFactory.EXPECT().Category().Return(persistence.HistoryTaskCategoryTransfer).AnyTimes()
 	transferQProcessor := queue.NewMockProcessor(controller)
 	transferQProcessor.EXPECT().Start().Return().Times(1)
 	transferQProcessor.EXPECT().NotifyNewTask(gomock.Any(), gomock.Any()).Return().AnyTimes()
 	transferQProcessor.EXPECT().Stop().Return().Times(1)
-	queueProcessorFactory.EXPECT().
-		NewTransferQueueProcessor(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(transferQProcessor).
-		Times(1)
+	transferQueueFactory.EXPECT().CreateQueue(gomock.Any(), gomock.Any(), gomock.Any()).Return(transferQProcessor).Times(1)
+
+	queueFactories := []queue.Factory{timerQueueFactory, transferQueueFactory}
 
 	engine := newEngineFn(
 		shardCtx,
 		shardCtx.Resource.VisibilityMgr,
 		shardCtx.Resource.MatchingClient,
-		mockWFServiceClient,
 		historyEventNotifier,
 		historyCfg,
 		replicatonTaskFetchers,
 		shardCtx.Resource.MatchingClient,
-		queueTaskProcessor,
 		failoverCoordinator,
-		wfIDCache,
-		queueProcessorFactory,
+		queueFactories,
 	)
 
 	shardCtx.SetEngine(engine)

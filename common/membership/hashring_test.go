@@ -141,7 +141,7 @@ func newHashringTestData(t *testing.T) *hashringTestData {
 		td.mockPeerProvider,
 		td.mockTimeSource,
 		logger,
-		metrics.NoopScope(0),
+		metrics.NoopScope,
 	)
 
 	return &td
@@ -188,7 +188,7 @@ func TestFailingToSubscribeIsFatal(t *testing.T) {
 	td := newHashringTestData(t)
 
 	// we need to intercept logger calls, use mock
-	mockLogger := &log.MockLogger{}
+	mockLogger := log.NewMockLogger(t)
 	td.hashRing.logger = mockLogger
 
 	mockLogger.On("Fatal", mock.Anything, mock.Anything).Run(
@@ -197,6 +197,8 @@ func TestFailingToSubscribeIsFatal(t *testing.T) {
 			runtime.Goexit()
 		},
 	).Times(1)
+
+	mockLogger.On("Info", mock.Anything, mock.Anything).Times(2)
 
 	td.mockPeerProvider.EXPECT().
 		Subscribe(gomock.Any(), gomock.Any()).
@@ -211,7 +213,6 @@ func TestFailingToSubscribeIsFatal(t *testing.T) {
 	}()
 
 	require.True(t, common.AwaitWaitGroup(&wg, maxTestDuration), "must be finished - failed to subscribe")
-	require.True(t, mockLogger.AssertExpectations(t), "log.Fatal must be called")
 }
 
 func TestHandleUpdatesNeverBlocks(t *testing.T) {

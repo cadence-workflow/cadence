@@ -57,18 +57,17 @@ type (
 			baseLastEventID int64,
 			baseLastEventVersion int64,
 			targetWorkflowIdentifier definition.WorkflowIdentifier,
-			targetBranchToken []byte,
+			targetBranchFn func() ([]byte, error),
 			requestID string,
 		) (MutableState, int64, error)
 	}
 
 	stateRebuilderImpl struct {
-		shard           shard.Context
-		domainCache     cache.DomainCache
-		clusterMetadata cluster.Metadata
-		historyV2Mgr    persistence.HistoryManager
-		taskRefresher   MutableStateTaskRefresher
-
+		shard              shard.Context
+		domainCache        cache.DomainCache
+		clusterMetadata    cluster.Metadata
+		historyV2Mgr       persistence.HistoryManager
+		taskRefresher      MutableStateTaskRefresher
 		rebuiltHistorySize int64
 		logger             log.Logger
 	}
@@ -93,6 +92,7 @@ func NewStateRebuilder(
 			shard.GetDomainCache(),
 			shard.GetEventsCache(),
 			shard.GetShardID(),
+			logger,
 		),
 		rebuiltHistorySize: 0,
 		logger:             logger,
@@ -107,7 +107,7 @@ func (r *stateRebuilderImpl) Rebuild(
 	baseLastEventID int64,
 	baseLastEventVersion int64,
 	targetWorkflowIdentifier definition.WorkflowIdentifier,
-	targetBranchToken []byte,
+	targetBranchFn func() ([]byte, error),
 	requestID string,
 ) (MutableState, int64, error) {
 
@@ -152,9 +152,6 @@ func (r *stateRebuilderImpl) Rebuild(
 		}
 	}
 
-	if err := rebuiltMutableState.SetCurrentBranchToken(targetBranchToken); err != nil {
-		return nil, 0, err
-	}
 	rebuildVersionHistories := rebuiltMutableState.GetVersionHistories()
 	if rebuildVersionHistories != nil {
 		currentVersionHistory, err := rebuildVersionHistories.GetCurrentVersionHistory()
@@ -179,6 +176,15 @@ func (r *stateRebuilderImpl) Rebuild(
 				lastItem.Version,
 			)}
 		}
+	}
+
+	targetBranchToken, err := targetBranchFn()
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if err := rebuiltMutableState.SetCurrentBranchToken(targetBranchToken); err != nil {
+		return nil, 0, err
 	}
 
 	// close rebuilt mutable state transaction clearing all generated tasks, workflow requests, etc.

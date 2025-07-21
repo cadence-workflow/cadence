@@ -21,6 +21,7 @@
 package quotas
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -34,27 +35,7 @@ import (
 const (
 	defaultRps    = 2000
 	defaultDomain = "test"
-	_minBurst     = 10000
 )
-
-func TestNewRateLimiter(t *testing.T) {
-	t.Parallel()
-	maxDispatch := 0.01
-	rl := NewRateLimiter(&maxDispatch, time.Second, _minBurst)
-	limiter := rl.goRateLimiter.Load().(clock.Ratelimiter)
-	assert.Equal(t, _minBurst, limiter.Burst())
-	assert.Equal(t, maxDispatch, float64(limiter.Limit()))
-}
-
-func TestSimpleRatelimiter(t *testing.T) {
-	// largely for coverage, as this is a test-helper that is used in other packages
-	l := NewSimpleRateLimiter(t, 5)
-	assert.Equal(t, rate.Limit(5), l.Limit())
-	assert.True(t, l.Allow(), "should allow one request through")
-	updated := 3.0 // must be lower than current value or it will not update
-	l.UpdateMaxDispatch(&updated)
-	assert.Equal(t, rate.Limit(3), l.Limit(), "should have immediately updated to new lower value")
-}
 
 func TestMultiStageRateLimiterBlockedByDomainRps(t *testing.T) {
 	t.Parallel()
@@ -107,14 +88,6 @@ func TestMultiStageRateLimitingMultipleDomains(t *testing.T) {
 	check(" after refill")
 }
 
-func BenchmarkRateLimiter(b *testing.B) {
-	rps := float64(defaultRps)
-	limiter := NewRateLimiter(&rps, 2*time.Minute, defaultRps)
-	for n := 0; n < b.N; n++ {
-		limiter.Allow()
-	}
-}
-
 func BenchmarkMultiStageRateLimiter(b *testing.B) {
 	policy := newFixedRpsMultiStageRateLimiter(b, defaultRps, defaultRps)
 	for n := 0; n < b.N; n++ {
@@ -149,6 +122,122 @@ func BenchmarkMultiStageRateLimiter1000Domains(b *testing.B) {
 	}
 }
 
+func TestDynamicRateLimiter_RepeatedCalls(t *testing.T) {
+	ttl := time.Second
+	mockTime := clock.NewMockedTimeSource()
+	// Use the number of times the function has been called as a counter and ensure that we make no extra calls
+	rps := 0
+	rpsFunc := func() float64 {
+		res := rps
+		rps = rps + 1
+		return float64(res)
+	}
+	limiter := NewDynamicRateLimiterWithOpts(rpsFunc, DynamicRateLimiterOpts{
+		TTL:        time.Second,
+		MinBurst:   0,
+		TimeSource: mockTime,
+	})
+	assert.Equal(t, limiter.Limit(), rate.Limit(0))
+	assert.Equal(t, limiter.Limit(), rate.Limit(0))
+	mockTime.Advance(ttl - 1)
+	assert.Equal(t, limiter.Limit(), rate.Limit(0))
+	mockTime.Advance(time.Nanosecond)
+	assert.Equal(t, limiter.Limit(), rate.Limit(1))
+	assert.Equal(t, limiter.Limit(), rate.Limit(1))
+	// Offset the time from the TTL and ensure it's still respected
+	mockTime.Advance(1500 * time.Millisecond)
+	assert.Equal(t, limiter.Limit(), rate.Limit(2))
+	mockTime.Advance(time.Second - 1)
+	assert.Equal(t, limiter.Limit(), rate.Limit(2))
+	mockTime.Advance(time.Nanosecond)
+	assert.Equal(t, limiter.Limit(), rate.Limit(3))
+}
+
+func TestDynamicRateLimiter_Allow(t *testing.T) {
+	mockTime := clock.NewMockedTimeSource()
+	rps := 0
+	limiter := NewDynamicRateLimiterWithOpts(func() float64 {
+		return float64(rps)
+	}, DynamicRateLimiterOpts{
+		TTL:        time.Second,
+		MinBurst:   1,
+		TimeSource: mockTime,
+	})
+	assert.Equal(t, false, limiter.Allow())
+	rps = 1
+	assert.Equal(t, false, limiter.Allow())
+	mockTime.Advance(time.Second)
+	assert.Equal(t, true, limiter.Allow())
+}
+
+func TestDynamicRateLimiter_Limit(t *testing.T) {
+	mockTime := clock.NewMockedTimeSource()
+	rps := 0
+	limiter := NewDynamicRateLimiterWithOpts(func() float64 {
+		return float64(rps)
+	}, DynamicRateLimiterOpts{
+		TTL:        time.Second,
+		MinBurst:   1,
+		TimeSource: mockTime,
+	})
+	assert.Equal(t, rate.Limit(0), limiter.Limit())
+	rps = 1
+	assert.Equal(t, rate.Limit(0), limiter.Limit())
+	mockTime.Advance(time.Second)
+	assert.Equal(t, rate.Limit(1), limiter.Limit())
+}
+
+func TestDynamicRateLimiter_Reserve(t *testing.T) {
+	mockTime := clock.NewMockedTimeSource()
+	rps := 0
+	limiter := NewDynamicRateLimiterWithOpts(func() float64 {
+		return float64(rps)
+	}, DynamicRateLimiterOpts{
+		TTL:        time.Second,
+		MinBurst:   1,
+		TimeSource: mockTime,
+	})
+
+	res := limiter.Reserve()
+	assert.Equal(t, false, res.Allow())
+	res.Used(false)
+
+	rps = 1
+	res = limiter.Reserve()
+	assert.Equal(t, false, res.Allow())
+	res.Used(false)
+
+	mockTime.Advance(time.Second)
+	res = limiter.Reserve()
+	assert.Equal(t, true, res.Allow())
+	res.Used(true)
+}
+
+func TestDynamicRateLimiter_Wait(t *testing.T) {
+	ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
+	t.Cleanup(cancelFunc)
+	mockTime := clock.NewMockedTimeSource()
+	rps := 0
+	limiter := NewDynamicRateLimiterWithOpts(func() float64 {
+		return float64(rps)
+	}, DynamicRateLimiterOpts{
+		TTL:        time.Second,
+		MinBurst:   1,
+		TimeSource: mockTime,
+	})
+
+	err := limiter.Wait(ctx)
+	assert.ErrorIs(t, err, clock.ErrCannotWait)
+
+	rps = 1
+	err = limiter.Wait(ctx)
+	assert.ErrorIs(t, err, clock.ErrCannotWait)
+
+	mockTime.Advance(time.Second)
+	err = limiter.Wait(ctx)
+	assert.NoError(t, err)
+}
+
 func newFixedRpsMultiStageRateLimiter(t testing.TB, globalRps float64, domainRps int) Policy {
 	return NewMultiStageRateLimiter(
 		NewDynamicRateLimiter(func() float64 {
@@ -179,5 +268,5 @@ type stubLimiterFactory struct {
 }
 
 func (s *stubLimiterFactory) GetLimiter(domain string) Limiter {
-	return NewSimpleRateLimiter(s.t, s.rps)
+	return clock.NewRatelimiter(rate.Limit(s.rps), s.rps)
 }

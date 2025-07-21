@@ -26,6 +26,7 @@ import (
 	"testing"
 	"unsafe"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -65,6 +66,54 @@ func TestDataBlobDeepCopy(t *testing.T) {
 			assert.Equal(t, tc.input, got)
 			if tc.input != nil && tc.input.Data != nil && identicalByteArray(tc.input.Data, got.Data) {
 				t.Error("expected DeepCopy to return a new data slice")
+			}
+		})
+	}
+}
+
+func TestActiveClustersConfigDeepCopy(t *testing.T) {
+	normalConfig := &ActiveClusters{
+		ActiveClustersByRegion: map[string]ActiveClusterInfo{
+			"us-east-1": {
+				ActiveClusterName: "us-east-1-cluster",
+				FailoverVersion:   1,
+			},
+			"us-east-2": {
+				ActiveClusterName: "us-east-2-cluster",
+				FailoverVersion:   2,
+			},
+		},
+	}
+
+	tests := []struct {
+		name   string
+		input  *ActiveClusters
+		expect *ActiveClusters
+	}{
+		{
+			name:   "nil case",
+			input:  nil,
+			expect: nil,
+		},
+		{
+			name:  "empty case",
+			input: &ActiveClusters{},
+			expect: &ActiveClusters{
+				ActiveClustersByRegion: map[string]ActiveClusterInfo{},
+			},
+		},
+		{
+			name:   "normal case",
+			input:  normalConfig,
+			expect: normalConfig,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			deepCopy := tc.input.DeepCopy()
+			if diff := cmp.Diff(tc.expect, deepCopy); diff != "" {
+				t.Errorf("DeepCopy() mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}

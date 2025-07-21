@@ -50,6 +50,10 @@ type (
 		GetPartitionConfig(domainID string, taskList types.TaskList, taskListType int) *types.TaskListPartitionConfig
 		// UpdatePartitionConfig updates the partition configuration for a task list
 		UpdatePartitionConfig(domainID string, taskList types.TaskList, taskListType int, config *types.TaskListPartitionConfig)
+		// GetMetricsClient returns the metrics client
+		GetMetricsClient() metrics.Client
+		// GetLogger returns the logger
+		GetLogger() log.Logger
 	}
 
 	syncedTaskListPartitionConfig struct {
@@ -99,7 +103,9 @@ func NewPartitionConfigProvider(
 			Pin:             false,
 			MaxCount:        3000,
 			ActivelyEvict:   false,
-		}, logger),
+			MetricsScope:    metricsClient.Scope(metrics.PartitionConfigProviderScope),
+			Logger:          logger,
+		}),
 	}
 }
 
@@ -181,6 +187,14 @@ func (p *partitionConfigProviderImpl) UpdatePartitionConfig(domainID string, tas
 		r := len(c.ReadPartitions)
 		p.logger.Info("tasklist partition config updated", tag.WorkflowDomainID(domainID), tag.WorkflowTaskListName(taskList.Name), tag.WorkflowTaskListType(taskListType), tag.Dynamic("read-partition", r), tag.Dynamic("write-partition", w), tag.Dynamic("config-version", config.Version))
 	}
+}
+
+func (p *partitionConfigProviderImpl) GetMetricsClient() metrics.Client {
+	return p.metricsClient
+}
+
+func (p *partitionConfigProviderImpl) GetLogger() log.Logger {
+	return p.logger
 }
 
 func (p *partitionConfigProviderImpl) getCachedPartitionConfig(domainID string, taskList types.TaskList, taskListType int) *syncedTaskListPartitionConfig {

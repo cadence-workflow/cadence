@@ -144,10 +144,10 @@ func (h *TimerInvalid) Fix(
 
 	req := persistence.CompleteHistoryTaskRequest{
 		TaskCategory: persistence.HistoryTaskCategoryTimer,
-		TaskKey: persistence.HistoryTaskKey{
-			ScheduledTime: timer.VisibilityTimestamp,
-			TaskID:        timer.TaskID,
-		},
+		TaskKey: persistence.NewHistoryTaskKey(
+			timer.VisibilityTimestamp,
+			timer.TaskID,
+		),
 	}
 
 	if err := h.pr.CompleteHistoryTask(ctx, &req); err != nil {

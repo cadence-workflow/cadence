@@ -101,7 +101,7 @@ func NewHashring(
 		shutdownCh:   make(chan struct{}),
 		refreshChan:  make(chan struct{}, 1),
 		timeSource:   timeSource,
-		logger:       logger,
+		logger:       logger.WithTags(tag.ComponentHashring),
 		scope:        scope,
 	}
 
@@ -125,6 +125,10 @@ func (r *Ring) Start() {
 	) {
 		return
 	}
+
+	r.logger.Info("Starting hashring", tag.ComponentHashring)
+	defer r.logger.Info("Started hashring", tag.ComponentHashring)
+
 	if err := r.peerProvider.Subscribe(r.service, r.handleUpdates); err != nil {
 		r.logger.Fatal("subscribing to peer provider", tag.Error(err))
 	}
@@ -146,6 +150,9 @@ func (r *Ring) Stop() {
 	) {
 		return
 	}
+
+	r.logger.Info("Stopping hashring", tag.ComponentHashring)
+	defer r.logger.Info("Stopped hashring", tag.ComponentHashring)
 
 	r.peerProvider.Stop()
 	r.value.Store(emptyHashring())
@@ -291,6 +298,8 @@ func (r *Ring) Refresh() error {
 
 	r.emitHashIdentifier()
 	r.notifySubscribers(diff)
+
+	r.logger.Info("notified subscribers", tag.Service(r.service))
 
 	return nil
 }

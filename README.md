@@ -1,5 +1,5 @@
 # Cadence
-[![Build Status](https://badge.buildkite.com/159887afd42000f11126f85237317d4090de97b26c287ebc40.svg?theme=github&branch=master)](https://buildkite.com/uberopensource/cadence-server)
+[![Build Status](https://github.com/cadence-workflow/cadence/actions/workflows/ci-checks.yml/badge.svg)](https://github.com/cadence-workflow/cadence/actions/workflows/ci-checks.yml)
 [![Coverage](https://codecov.io/gh/cadence-workflow/cadence/graph/badge.svg?token=7SD244ImNF)](https://codecov.io/gh/cadence-workflow/cadence)
 [![Slack Status](https://img.shields.io/badge/slack-join_chat-white.svg?logo=slack&style=social)](http://t.uber.com/cadence-slack)
 [![Github release](https://img.shields.io/github/v/release/cadence-workflow/cadence.svg)](https://github.com/cadence-workflow/cadence/releases)
@@ -17,7 +17,7 @@ Once you have Cadence backend and worker(s) running, you can trigger workflows b
 1. Start cadence backend components locally
 
 ```
-docker-compose -f docker/docker-compose.yml up
+docker compose -f docker/docker-compose.yml up
 ```
 
 2. Run the Samples
@@ -113,4 +113,4 @@ Visit [cadenceworkflow.io](https://cadenceworkflow.io) to learn more about Caden
 
 ## License
 
-MIT License, please see [LICENSE](https://github.com/cadence-workflow/cadence/blob/master/LICENSE) for details.
+Apache 2.0 License, please see [LICENSE](https://github.com/cadence-workflow/cadence/blob/master/LICENSE) for details.

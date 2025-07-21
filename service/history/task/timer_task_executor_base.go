@@ -101,7 +101,7 @@ func (t *timerTaskExecutorBase) executeDeleteHistoryEventTask(
 		return err
 	}
 	if mutableState == nil {
-		t.logger.Warn("could not load mutable state while attempting to clean up workflow",
+		t.logger.Debug("could not load mutable state while attempting to clean up workflow",
 			tag.WorkflowID(task.WorkflowID),
 			tag.WorkflowRunID(task.RunID),
 			tag.WorkflowDomainID(task.DomainID),
@@ -162,6 +162,10 @@ func (t *timerTaskExecutorBase) deleteWorkflow(
 	}
 
 	if err := t.deleteCurrentWorkflowExecution(ctx, task); err != nil {
+		return err
+	}
+
+	if err := t.deleteActiveClusterSelectionPolicy(ctx, task); err != nil {
 		return err
 	}
 
@@ -233,6 +237,10 @@ func (t *timerTaskExecutorBase) archiveWorkflow(
 		return err
 	}
 
+	if err := t.deleteActiveClusterSelectionPolicy(ctx, task); err != nil {
+		return err
+	}
+
 	if err := t.deleteCurrentWorkflowExecution(ctx, task); err != nil {
 		return err
 	}
@@ -253,7 +261,7 @@ func (t *timerTaskExecutorBase) deleteWorkflowExecution(
 	if err != nil {
 		return err
 	}
-	op := func() error {
+	op := func(ctx context.Context) error {
 		return t.shard.GetExecutionManager().DeleteWorkflowExecution(ctx, &persistence.DeleteWorkflowExecutionRequest{
 			DomainID:   task.DomainID,
 			WorkflowID: task.WorkflowID,
@@ -272,7 +280,7 @@ func (t *timerTaskExecutorBase) deleteCurrentWorkflowExecution(
 	if err != nil {
 		return err
 	}
-	op := func() error {
+	op := func(ctx context.Context) error {
 		return t.shard.GetExecutionManager().DeleteCurrentWorkflowExecution(ctx, &persistence.DeleteCurrentWorkflowExecutionRequest{
 			DomainID:   task.DomainID,
 			WorkflowID: task.WorkflowID,
@@ -283,13 +291,23 @@ func (t *timerTaskExecutorBase) deleteCurrentWorkflowExecution(
 	return t.throttleRetry.Do(ctx, op)
 }
 
+func (t *timerTaskExecutorBase) deleteActiveClusterSelectionPolicy(
+	ctx context.Context,
+	task *persistence.DeleteHistoryEventTask,
+) error {
+	op := func(ctx context.Context) error {
+		return t.shard.GetExecutionManager().DeleteActiveClusterSelectionPolicy(ctx, task.DomainID, task.WorkflowID, task.RunID)
+	}
+	return t.throttleRetry.Do(ctx, op)
+}
+
 func (t *timerTaskExecutorBase) deleteWorkflowHistory(
 	ctx context.Context,
 	task *persistence.DeleteHistoryEventTask,
 	msBuilder execution.MutableState,
 ) error {
 
-	op := func() error {
+	op := func(ctx context.Context) error {
 		branchToken, err := msBuilder.GetCurrentBranchToken()
 		if err != nil {
 			return err
@@ -317,7 +335,7 @@ func (t *timerTaskExecutorBase) deleteWorkflowVisibility(
 	if errorDomainName != nil {
 		return errorDomainName
 	}
-	op := func() error {
+	op := func(ctx context.Context) error {
 		request := &persistence.VisibilityDeleteWorkflowExecutionRequest{
 			DomainID:   task.DomainID,
 			Domain:     domain,

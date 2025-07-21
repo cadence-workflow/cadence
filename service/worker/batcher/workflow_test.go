@@ -77,7 +77,7 @@ func (s *workflowSuite) SetupTest() {
 
 	mockResource.RemoteAdminClient.EXPECT().ResendReplicationTasks(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
-	ctx := context.WithValue(context.Background(), batcherContextKey, batcher)
+	ctx := context.WithValue(context.Background(), BatcherContextKey, batcher)
 	workerOpts := worker.Options{
 		MetricsScope:              tally.TestScope(nil),
 		BackgroundActivityContext: ctx,

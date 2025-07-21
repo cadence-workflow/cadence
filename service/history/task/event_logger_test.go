@@ -50,17 +50,13 @@ func TestEventLoggerSuite(t *testing.T) {
 func (s *eventLoggerSuite) SetupTest() {
 	s.Assertions = require.New(s.T())
 
-	s.mockLogger = &log.MockLogger{}
+	s.mockLogger = log.NewMockLogger(s.T())
 
 	s.eventLogger = newEventLogger(
 		s.mockLogger,
 		clock.NewRealTimeSource(),
 		defaultTaskEventLoggerSize,
 	).(*eventLoggerImpl)
-}
-
-func (s *eventLoggerSuite) TearDownTest() {
-	s.mockLogger.AssertExpectations(s.T())
 }
 
 func (s *eventLoggerSuite) TestAddEvent() {

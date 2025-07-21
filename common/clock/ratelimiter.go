@@ -70,6 +70,8 @@ type (
 		SetBurst(newBurst int)
 		// SetLimit sets the Limit value
 		SetLimit(newLimit rate.Limit)
+
+		SetLimitAndBurst(newLimit rate.Limit, newBurst int)
 		// Tokens returns the number of immediately-allowable events when called.
 		// Values >= 1 will lead to Allow returning true.
 		//
@@ -205,7 +207,7 @@ func NewRatelimiter(lim rate.Limit, burst int) Ratelimiter {
 	}
 }
 
-func NewMockRatelimiter(ts TimeSource, lim rate.Limit, burst int) Ratelimiter {
+func NewRateLimiterWithTimeSource(ts TimeSource, lim rate.Limit, burst int) Ratelimiter {
 	return &ratelimiter{
 		timesource: ts,
 		limiter:    rate.NewLimiter(lim, burst),
@@ -336,6 +338,14 @@ func (r *ratelimiter) SetLimit(newLimit rate.Limit) {
 	// time-advancing call fills with the full values (starting from 0 time, like
 	// the underlying limiter does).
 	r.limiter.SetLimitAt(r.latestNow, newLimit)
+}
+
+func (r *ratelimiter) SetLimitAndBurst(newLimit rate.Limit, newBurst int) {
+	r.mut.Lock()
+	defer r.mut.Unlock()
+	// See SetLimit and SetBurst for more information
+	r.limiter.SetLimitAt(r.latestNow, newLimit)
+	r.limiter.SetBurstAt(r.latestNow, newBurst)
 }
 
 func (r *ratelimiter) Tokens() float64 {

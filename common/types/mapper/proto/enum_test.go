@@ -330,6 +330,7 @@ func TestTaskListKind(t *testing.T) {
 		nil,
 		types.TaskListKindNormal.Ptr(),
 		types.TaskListKindSticky.Ptr(),
+		types.TaskListKindEphemeral.Ptr(),
 	} {
 		assert.Equal(t, item, ToTaskListKind(FromTaskListKind(item)))
 	}

@@ -117,7 +117,7 @@ func newTransferQueueProcessorBase(
 	transferQueueProcessorBase := &transferQueueProcessorBase{
 		processorBase: processorBase,
 		taskInitializer: func(taskInfo persistence.Task) task.Task {
-			return task.NewTransferTask(
+			return task.NewHistoryTask(
 				shard,
 				taskInfo,
 				queueType,
@@ -184,7 +184,6 @@ func (t *transferQueueProcessorBase) Stop() {
 	}
 
 	t.logger.Info("Transfer queue processor state changed", tag.LifeCycleStopping)
-	defer t.logger.Info("Transfer queue processor state changed", tag.LifeCycleStopped)
 
 	close(t.shutdownCh)
 	if t.startJitterTimer != nil {
@@ -204,6 +203,7 @@ func (t *transferQueueProcessorBase) Stop() {
 	}
 
 	t.redispatcher.Stop()
+	t.logger.Info("Transfer queue processor state changed", tag.LifeCycleStopped)
 }
 
 func (t *transferQueueProcessorBase) notifyNewTask(info *hcommon.NotifyTaskInfo) {
@@ -422,14 +422,22 @@ func (t *transferQueueProcessorBase) processQueueCollections() {
 
 		tasks := make(map[task.Key]task.Task)
 		taskChFull := false
+		now := t.shard.GetTimeSource().Now()
 		for _, taskInfo := range transferTaskInfos {
 			if !domainFilter.Filter(taskInfo.GetDomainID()) {
 				t.logger.Debug("transfer task filtered", tag.TaskID(taskInfo.GetTaskID()))
 				continue
 			}
 
+			if persistence.IsTaskCorrupted(taskInfo) {
+				t.logger.Error("Processing queue encountered a corrupted task", tag.Dynamic("task", taskInfo))
+				t.metricsScope.IncCounter(metrics.CorruptedHistoryTaskCounter)
+				continue
+			}
+
 			task := t.taskInitializer(taskInfo)
 			tasks[newTransferTaskKey(taskInfo.GetTaskID())] = task
+			t.metricsScope.RecordHistogramDuration(metrics.TaskEnqueueToFetchLatency, now.Sub(taskInfo.GetVisibilityTimestamp()))
 			submitted, err := t.submitTask(task)
 			if err != nil {
 				// only err here is due to the fact that processor has been shutdown
@@ -526,17 +534,13 @@ func (t *transferQueueProcessorBase) readTasks(
 ) ([]persistence.Task, bool, error) {
 
 	var response *persistence.GetHistoryTasksResponse
-	op := func() error {
+	op := func(ctx context.Context) error {
 		var err error
-		response, err = t.shard.GetExecutionManager().GetHistoryTasks(context.Background(), &persistence.GetHistoryTasksRequest{
-			TaskCategory: persistence.HistoryTaskCategoryTransfer,
-			InclusiveMinTaskKey: persistence.HistoryTaskKey{
-				TaskID: readLevel.(transferTaskKey).taskID + 1,
-			},
-			ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
-				TaskID: maxReadLevel.(transferTaskKey).taskID + 1,
-			},
-			PageSize: t.options.BatchSize(),
+		response, err = t.shard.GetExecutionManager().GetHistoryTasks(ctx, &persistence.GetHistoryTasksRequest{
+			TaskCategory:        persistence.HistoryTaskCategoryTransfer,
+			InclusiveMinTaskKey: persistence.NewImmediateTaskKey(readLevel.(transferTaskKey).taskID + 1),
+			ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(maxReadLevel.(transferTaskKey).taskID + 1),
+			PageSize:            t.options.BatchSize(),
 		})
 		return err
 	}

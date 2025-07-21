@@ -50,7 +50,9 @@ const (
 
 	templateDomainReplicationConfigType = `{` +
 		`active_cluster_name: ?, ` +
-		`clusters: ? ` +
+		`clusters: ?, ` +
+		`active_clusters_config: ?, ` +
+		`active_clusters_config_encoding: ?` +
 		`}`
 
 	templateCreateDomainQuery = `INSERT INTO domains (` +
@@ -75,6 +77,7 @@ const (
 		`config.visibility_archival_status, config.visibility_archival_uri, ` +
 		`config.bad_binaries, config.bad_binaries_encoding, ` +
 		`replication_config.active_cluster_name, replication_config.clusters, ` +
+		`replication_config.active_clusters_config, replication_config.active_clusters_config_encoding, ` +
 		`config.isolation_groups,` +
 		`config.isolation_groups_encoding,` +
 		`config.async_workflow_config,` +
@@ -129,6 +132,7 @@ const (
 		`config.isolation_groups, config.isolation_groups_encoding, ` +
 		`config.async_workflow_config, config.async_workflow_config_encoding, ` +
 		`replication_config.active_cluster_name, replication_config.clusters, ` +
+		`replication_config.active_clusters_config, replication_config.active_clusters_config_encoding, ` +
 		`is_global_domain, ` +
 		`config_version, ` +
 		`failover_version, ` +

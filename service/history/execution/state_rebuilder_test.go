@@ -32,6 +32,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/collection"
@@ -52,14 +53,14 @@ type (
 		suite.Suite
 		*require.Assertions
 
-		controller        *gomock.Controller
-		mockShard         *shard.TestContext
-		mockEventsCache   *events.MockCache
-		mockTaskRefresher *MockMutableStateTaskRefresher
-		mockDomainCache   *cache.MockDomainCache
-
-		mockHistoryV2Mgr *mocks.HistoryV2Manager
-		logger           log.Logger
+		controller               *gomock.Controller
+		mockShard                *shard.TestContext
+		mockEventsCache          *events.MockCache
+		mockTaskRefresher        *MockMutableStateTaskRefresher
+		mockDomainCache          *cache.MockDomainCache
+		mockActiveClusterManager *activecluster.MockManager
+		mockHistoryV2Mgr         *mocks.HistoryV2Manager
+		logger                   log.Logger
 
 		domainID   string
 		workflowID string
@@ -101,7 +102,8 @@ func (s *stateRebuilderSuite) SetupTest() {
 	s.workflowID = "some random workflow ID"
 	s.runID = uuid.New()
 	s.nDCStateRebuilder = NewStateRebuilder(
-		s.mockShard, s.logger,
+		s.mockShard,
+		s.logger,
 	).(*stateRebuilderImpl)
 	s.nDCStateRebuilder.taskRefresher = s.mockTaskRefresher
 }
@@ -314,6 +316,10 @@ func (s *stateRebuilderSuite) TestRebuild() {
 	), nil).AnyTimes()
 	s.mockTaskRefresher.EXPECT().RefreshTasks(gomock.Any(), now, gomock.Any()).Return(nil).Times(1)
 
+	targetBranchTokenFn := func() ([]byte, error) {
+		return targetBranchToken, nil
+	}
+
 	rebuildMutableState, rebuiltHistorySize, err := s.nDCStateRebuilder.Rebuild(
 		context.Background(),
 		now,
@@ -322,7 +328,7 @@ func (s *stateRebuilderSuite) TestRebuild() {
 		lastEventID,
 		version,
 		definition.NewWorkflowIdentifier(targetDomainID, targetWorkflowID, targetRunID),
-		targetBranchToken,
+		targetBranchTokenFn,
 		requestID,
 	)
 	s.NoError(err)
@@ -371,6 +377,10 @@ func (s *stateRebuilderSuite) TestInvalidStateHandling() {
 		1234,
 	), nil).AnyTimes()
 
+	targetBranchTokenFn := func() ([]byte, error) {
+		return targetBranchToken, nil
+	}
+
 	s.nDCStateRebuilder.Rebuild(
 		context.Background(),
 		now,
@@ -379,7 +389,7 @@ func (s *stateRebuilderSuite) TestInvalidStateHandling() {
 		lastEventID,
 		version,
 		definition.NewWorkflowIdentifier(targetDomainID, targetWorkflowID, targetRunID),
-		targetBranchToken,
+		targetBranchTokenFn,
 		requestID,
 	)
 }

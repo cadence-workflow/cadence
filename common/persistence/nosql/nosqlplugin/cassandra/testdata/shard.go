@@ -31,21 +31,25 @@ import (
 
 func NewShardRow(ts time.Time) *nosqlplugin.ShardRow {
 	return &nosqlplugin.ShardRow{
-		ShardID:                       15,
-		Owner:                         "owner",
-		RangeID:                       1000,
-		ReplicationAckLevel:           2000,
-		TransferAckLevel:              3000,
-		TimerAckLevel:                 ts.Add(-time.Hour),
-		ClusterTransferAckLevel:       map[string]int64{"cluster2": 4000},
-		ClusterTimerAckLevel:          map[string]time.Time{"cluster2": ts.Add(-2 * time.Hour)},
-		DomainNotificationVersion:     3,
-		ClusterReplicationLevel:       map[string]int64{"cluster2": 5000},
-		ReplicationDLQAckLevel:        map[string]int64{"cluster2": 10},
-		PendingFailoverMarkers:        &persistence.DataBlob{Encoding: "thriftrw", Data: []byte("failovermarkers")},
-		TransferProcessingQueueStates: &persistence.DataBlob{Encoding: "thriftrw", Data: []byte("transferqueue")},
-		TimerProcessingQueueStates:    &persistence.DataBlob{Encoding: "thriftrw", Data: []byte("timerqueue")},
-		CurrentTimestamp:              ts,
+		InternalShardInfo: &persistence.InternalShardInfo{
+			ShardID:                       15,
+			Owner:                         "owner",
+			RangeID:                       1000,
+			ReplicationAckLevel:           2000,
+			TransferAckLevel:              3000,
+			TimerAckLevel:                 ts.Add(-time.Hour),
+			ClusterTransferAckLevel:       map[string]int64{"cluster2": 4000},
+			ClusterTimerAckLevel:          map[string]time.Time{"cluster2": ts.Add(-2 * time.Hour)},
+			DomainNotificationVersion:     3,
+			ClusterReplicationLevel:       map[string]int64{"cluster2": 5000},
+			ReplicationDLQAckLevel:        map[string]int64{"cluster2": 10},
+			PendingFailoverMarkers:        &persistence.DataBlob{Encoding: "thriftrw", Data: []byte("failovermarkers")},
+			TransferProcessingQueueStates: &persistence.DataBlob{Encoding: "thriftrw", Data: []byte("transferqueue")},
+			TimerProcessingQueueStates:    &persistence.DataBlob{Encoding: "thriftrw", Data: []byte("timerqueue")},
+			CurrentTimestamp:              ts,
+		},
+		Data:         []byte("sharddata"),
+		DataEncoding: "thriftrw",
 	}
 }
 

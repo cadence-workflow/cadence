@@ -82,11 +82,15 @@ func NewReplicator(
 func (r *Replicator) Start() error {
 	currentClusterName := r.clusterMetadata.GetCurrentClusterName()
 	for clusterName := range r.clusterMetadata.GetRemoteClusterInfo() {
+		adminClient, err := r.clientBean.GetRemoteAdminClient(clusterName)
+		if err != nil {
+			return err
+		}
 		processor := newDomainReplicationProcessor(
 			clusterName,
 			currentClusterName,
 			r.logger.WithTags(tag.ComponentReplicationTaskProcessor, tag.SourceCluster(clusterName)),
-			r.clientBean.GetRemoteAdminClient(clusterName),
+			adminClient,
 			r.metricsClient,
 			r.domainReplicationTaskExecutor,
 			r.hostInfo,

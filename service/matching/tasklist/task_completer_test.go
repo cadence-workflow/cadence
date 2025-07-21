@@ -57,7 +57,7 @@ func createTestTaskCompleter(controller *gomock.Controller, taskType int) *taskC
 		historyService:  mockHistoryService,
 		taskListID:      &Identifier{domainID: constants.TestDomainID, taskType: taskType},
 		clusterMetadata: cluster.GetTestClusterMetadata(true),
-		scope:           metrics.NoopScope(1),
+		scope:           metrics.NoopScope,
 		logger:          log.NewNoop(),
 	}
 	tc := newTaskCompleter(tlMgr, retryPolicy)
@@ -132,7 +132,7 @@ func TestCompleteTaskIfStarted(t *testing.T) {
 			},
 			setupMock: func(req *types.HistoryDescribeWorkflowExecutionRequest, mockDomainCache *cache.MockDomainCache, mockHistoryService *history.MockClient, timeSource clock.MockedTimeSource) {
 				mockDomainCache.EXPECT().GetDomainByID(constants.TestDomainID).Return(constants.TestGlobalStandbyDomainEntry, nil).Times(retryPolicyMaxAttempts + 1)
-				mockHistoryService.EXPECT().DescribeWorkflowExecution(ctx, req).Return(nil, errors.New("error-describing-workflow-execution")).Times(retryPolicyMaxAttempts + 1)
+				mockHistoryService.EXPECT().DescribeWorkflowExecution(gomock.Any(), req).Return(nil, errors.New("error-describing-workflow-execution")).Times(retryPolicyMaxAttempts + 1)
 			},
 			isTaskComplete: false,
 			err:            errors.New("error-describing-workflow-execution"),
@@ -155,7 +155,7 @@ func TestCompleteTaskIfStarted(t *testing.T) {
 			setupMock: func(req *types.HistoryDescribeWorkflowExecutionRequest, mockDomainCache *cache.MockDomainCache, mockHistoryService *history.MockClient, timeSource clock.MockedTimeSource) {
 				mockDomainCache.EXPECT().GetDomainByID(constants.TestDomainID).Return(constants.TestGlobalStandbyDomainEntry, nil).Times(retryPolicyMaxAttempts + 1)
 				resp := &types.DescribeWorkflowExecutionResponse{}
-				mockHistoryService.EXPECT().DescribeWorkflowExecution(ctx, req).Return(resp, nil).Times(retryPolicyMaxAttempts + 1)
+				mockHistoryService.EXPECT().DescribeWorkflowExecution(gomock.Any(), req).Return(resp, nil).Times(retryPolicyMaxAttempts + 1)
 			},
 			isTaskComplete: false,
 			err:            errWorkflowExecutionInfoIsNil,
@@ -180,7 +180,7 @@ func TestCompleteTaskIfStarted(t *testing.T) {
 				resp := &types.DescribeWorkflowExecutionResponse{
 					WorkflowExecutionInfo: &types.WorkflowExecutionInfo{},
 				}
-				mockHistoryService.EXPECT().DescribeWorkflowExecution(ctx, req).Return(resp, nil).Times(retryPolicyMaxAttempts + 1)
+				mockHistoryService.EXPECT().DescribeWorkflowExecution(gomock.Any(), req).Return(resp, nil).Times(retryPolicyMaxAttempts + 1)
 			},
 			taskType:       999,
 			isTaskComplete: false,
@@ -211,7 +211,7 @@ func TestCompleteTaskIfStarted(t *testing.T) {
 						State:      types.PendingDecisionStateScheduled.Ptr(),
 					},
 				}
-				mockHistoryService.EXPECT().DescribeWorkflowExecution(ctx, req).Return(resp, nil).Times(retryPolicyMaxAttempts + 1)
+				mockHistoryService.EXPECT().DescribeWorkflowExecution(gomock.Any(), req).Return(resp, nil).Times(retryPolicyMaxAttempts + 1)
 			},
 			taskType:       persistence.TaskListTypeDecision,
 			isTaskComplete: false,
@@ -242,7 +242,7 @@ func TestCompleteTaskIfStarted(t *testing.T) {
 						State:      types.PendingDecisionStateScheduled.Ptr(),
 					},
 				}
-				mockHistoryService.EXPECT().DescribeWorkflowExecution(ctx, req).Return(resp, nil).Times(retryPolicyMaxAttempts + 1)
+				mockHistoryService.EXPECT().DescribeWorkflowExecution(gomock.Any(), req).Return(resp, nil).Times(retryPolicyMaxAttempts + 1)
 			},
 			taskType:       persistence.TaskListTypeDecision,
 			isTaskComplete: false,
@@ -275,7 +275,7 @@ func TestCompleteTaskIfStarted(t *testing.T) {
 						},
 					},
 				}
-				mockHistoryService.EXPECT().DescribeWorkflowExecution(ctx, req).Return(resp, nil).Times(retryPolicyMaxAttempts + 1)
+				mockHistoryService.EXPECT().DescribeWorkflowExecution(gomock.Any(), req).Return(resp, nil).Times(retryPolicyMaxAttempts + 1)
 			},
 			taskType:       persistence.TaskListTypeActivity,
 			isTaskComplete: false,
@@ -298,7 +298,7 @@ func TestCompleteTaskIfStarted(t *testing.T) {
 			},
 			setupMock: func(req *types.HistoryDescribeWorkflowExecutionRequest, mockDomainCache *cache.MockDomainCache, mockHistoryService *history.MockClient, timeSource clock.MockedTimeSource) {
 				mockDomainCache.EXPECT().GetDomainByID(constants.TestDomainID).Return(constants.TestGlobalStandbyDomainEntry, nil).Times(retryPolicyMaxAttempts + 1)
-				mockHistoryService.EXPECT().DescribeWorkflowExecution(ctx, req).Return(nil, &types.EntityNotExistsError{}).Times(retryPolicyMaxAttempts + 1)
+				mockHistoryService.EXPECT().DescribeWorkflowExecution(gomock.Any(), req).Return(nil, &types.EntityNotExistsError{}).Times(retryPolicyMaxAttempts + 1)
 			},
 			isTaskComplete: false,
 			err:            errWaitTimeNotReachedForEntityNotExists,
@@ -320,7 +320,7 @@ func TestCompleteTaskIfStarted(t *testing.T) {
 			},
 			setupMock: func(req *types.HistoryDescribeWorkflowExecutionRequest, mockDomainCache *cache.MockDomainCache, mockHistoryService *history.MockClient, timeSource clock.MockedTimeSource) {
 				mockDomainCache.EXPECT().GetDomainByID(constants.TestDomainID).Return(constants.TestGlobalStandbyDomainEntry, nil).Times(1)
-				mockHistoryService.EXPECT().DescribeWorkflowExecution(ctx, req).Return(nil, &types.EntityNotExistsError{}).Times(1)
+				mockHistoryService.EXPECT().DescribeWorkflowExecution(gomock.Any(), req).Return(nil, &types.EntityNotExistsError{}).Times(1)
 				timeSource.Advance(time.Hour*24 + time.Second)
 			},
 			isTaskComplete: true,
@@ -349,7 +349,7 @@ func TestCompleteTaskIfStarted(t *testing.T) {
 						CloseStatus: types.WorkflowExecutionCloseStatusCompleted.Ptr(),
 					},
 				}
-				mockHistoryService.EXPECT().DescribeWorkflowExecution(ctx, req).Return(resp, nil).Times(1)
+				mockHistoryService.EXPECT().DescribeWorkflowExecution(gomock.Any(), req).Return(resp, nil).Times(1)
 			},
 			taskType:       persistence.TaskListTypeDecision,
 			isTaskComplete: true,
@@ -376,7 +376,7 @@ func TestCompleteTaskIfStarted(t *testing.T) {
 				resp := &types.DescribeWorkflowExecutionResponse{
 					WorkflowExecutionInfo: &types.WorkflowExecutionInfo{},
 				}
-				mockHistoryService.EXPECT().DescribeWorkflowExecution(ctx, req).Return(resp, nil).Times(1)
+				mockHistoryService.EXPECT().DescribeWorkflowExecution(gomock.Any(), req).Return(resp, nil).Times(1)
 			},
 			taskType:       persistence.TaskListTypeDecision,
 			isTaskComplete: true,
@@ -406,7 +406,7 @@ func TestCompleteTaskIfStarted(t *testing.T) {
 						ScheduleID: 3,
 					},
 				}
-				mockHistoryService.EXPECT().DescribeWorkflowExecution(ctx, req).Return(resp, nil).Times(1)
+				mockHistoryService.EXPECT().DescribeWorkflowExecution(gomock.Any(), req).Return(resp, nil).Times(1)
 			},
 			taskType:       persistence.TaskListTypeDecision,
 			isTaskComplete: true,
@@ -437,7 +437,7 @@ func TestCompleteTaskIfStarted(t *testing.T) {
 						State:      types.PendingDecisionStateStarted.Ptr(),
 					},
 				}
-				mockHistoryService.EXPECT().DescribeWorkflowExecution(ctx, req).Return(resp, nil).Times(1)
+				mockHistoryService.EXPECT().DescribeWorkflowExecution(gomock.Any(), req).Return(resp, nil).Times(1)
 			},
 			taskType:       persistence.TaskListTypeDecision,
 			isTaskComplete: true,
@@ -474,7 +474,7 @@ func TestCompleteTaskIfStarted(t *testing.T) {
 						},
 					},
 				}
-				mockHistoryService.EXPECT().DescribeWorkflowExecution(ctx, req).Return(resp, nil).Times(1)
+				mockHistoryService.EXPECT().DescribeWorkflowExecution(gomock.Any(), req).Return(resp, nil).Times(1)
 			},
 			taskType:       persistence.TaskListTypeActivity,
 			isTaskComplete: true,
@@ -507,7 +507,7 @@ func TestCompleteTaskIfStarted(t *testing.T) {
 						},
 					},
 				}
-				mockHistoryService.EXPECT().DescribeWorkflowExecution(ctx, req).Return(resp, nil).Times(1)
+				mockHistoryService.EXPECT().DescribeWorkflowExecution(gomock.Any(), req).Return(resp, nil).Times(1)
 			},
 			taskType:       persistence.TaskListTypeActivity,
 			isTaskComplete: true,

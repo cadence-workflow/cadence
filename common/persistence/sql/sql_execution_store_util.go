@@ -411,6 +411,8 @@ func applyWorkflowSnapshotTxAsNew(
 	workflowID := executionInfo.WorkflowID
 	runID := serialization.MustParseUUID(executionInfo.RunID)
 
+	// TODO(active-active): store active cluster selection policy row. It requires a new table in sql DB schemas.
+
 	if err := createExecution(
 		ctx,
 		tx,

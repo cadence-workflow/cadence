@@ -65,6 +65,8 @@ func (db *cdb) InsertShard(ctx context.Context, row *nosqlplugin.ShardRow) error
 		row.ReplicationDLQAckLevel,
 		markerData,
 		markerEncoding,
+		row.Data,
+		row.DataEncoding,
 		row.RangeID,
 	).WithContext(ctx)
 
@@ -113,14 +115,22 @@ func (db *cdb) SelectShard(ctx context.Context, shardID int, currentClusterName 
 	rangeID := result["range_id"].(int64)
 	shard := result["shard"].(map[string]interface{})
 	shardInfoRangeID := shard["range_id"].(int64)
-	return rangeID, convertToShardInfo(currentClusterName, shardInfoRangeID, shard), nil
+	info := convertToShardInfo(currentClusterName, shardInfoRangeID, shard)
+	data, _ := result["data"].([]byte)
+	dataEncoding, _ := result["data_encoding"].(string)
+	shardRow := &nosqlplugin.ShardRow{
+		InternalShardInfo: info,
+		Data:              data,
+		DataEncoding:      dataEncoding,
+	}
+	return rangeID, shardRow, nil
 }
 
 func convertToShardInfo(
 	currentCluster string,
 	rangeID int64,
 	shard map[string]interface{},
-) *nosqlplugin.ShardRow {
+) *persistence.InternalShardInfo {
 
 	var pendingFailoverMarkersRawData []byte
 	var pendingFailoverMarkersEncoding string
@@ -259,6 +269,8 @@ func (db *cdb) UpdateShard(ctx context.Context, row *nosqlplugin.ShardRow, previ
 		row.ReplicationDLQAckLevel,
 		markerData,
 		markerEncoding,
+		row.Data,
+		row.DataEncoding,
 		row.RangeID,
 		row.ShardID,
 		rowTypeShard,

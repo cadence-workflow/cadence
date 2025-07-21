@@ -21,8 +21,6 @@
 package proto
 
 import (
-	"errors"
-
 	apiv1 "github.com/uber/cadence-idl/go/proto/api/v1"
 	"go.uber.org/yarpc/encoding/protobuf"
 	"go.uber.org/yarpc/yarpcerrors"
@@ -116,6 +114,7 @@ func ToError(err error) error {
 				Message:        status.Message(),
 				CurrentCluster: details.CurrentCluster,
 				ActiveCluster:  details.ActiveCluster,
+				ActiveClusters: details.ActiveClusters,
 			}
 		case *apiv1.WorkflowExecutionAlreadyCompletedError:
 			return &types.WorkflowExecutionAlreadyCompletedError{
@@ -210,6 +209,7 @@ func ToError(err error) error {
 				DomainName:     details.Domain,
 				CurrentCluster: details.CurrentCluster,
 				ActiveCluster:  details.ActiveCluster,
+				ActiveClusters: details.ActiveClusters,
 			}
 		}
 	case yarpcerrors.CodeResourceExhausted:
@@ -235,8 +235,6 @@ func ToError(err error) error {
 				Message: status.Message(),
 			}
 		}
-	case yarpcerrors.CodeUnknown:
-		return errors.New(status.Message())
 	}
 
 	// If error does not match anything, return raw yarpc status error
@@ -264,6 +262,7 @@ func fromEntityNotExistsError(e *types.EntityNotExistsError) error {
 	return protobuf.NewError(yarpcerrors.CodeNotFound, e.Message, protobuf.WithErrorDetails(&apiv1.EntityNotExistsError{
 		CurrentCluster: e.CurrentCluster,
 		ActiveCluster:  e.ActiveCluster,
+		ActiveClusters: e.ActiveClusters,
 	}))
 }
 
@@ -346,6 +345,7 @@ func fromDomainNotActive(e *types.DomainNotActiveError) error {
 		Domain:         e.DomainName,
 		CurrentCluster: e.CurrentCluster,
 		ActiveCluster:  e.ActiveCluster,
+		ActiveClusters: e.ActiveClusters,
 	}))
 }
 

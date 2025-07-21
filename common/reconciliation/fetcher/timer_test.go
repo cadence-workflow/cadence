@@ -90,15 +90,11 @@ func TestGetUserTimers(t *testing.T) {
 
 				mockRetryer.EXPECT().
 					GetHistoryTasks(gomock.Any(), &persistence.GetHistoryTasksRequest{
-						TaskCategory: persistence.HistoryTaskCategoryTimer,
-						InclusiveMinTaskKey: persistence.HistoryTaskKey{
-							ScheduledTime: minTimestamp,
-						},
-						ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
-							ScheduledTime: maxTimestamp,
-						},
-						PageSize:      pageSize,
-						NextPageToken: nil,
+						TaskCategory:        persistence.HistoryTaskCategoryTimer,
+						InclusiveMinTaskKey: persistence.NewHistoryTaskKey(minTimestamp, 0),
+						ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maxTimestamp, 0),
+						PageSize:            pageSize,
+						NextPageToken:       nil,
 					}).
 					Return(&persistence.GetHistoryTasksResponse{
 						Tasks:         timerTasks,
@@ -131,15 +127,11 @@ func TestGetUserTimers(t *testing.T) {
 
 				mockRetryer.EXPECT().
 					GetHistoryTasks(gomock.Any(), &persistence.GetHistoryTasksRequest{
-						TaskCategory: persistence.HistoryTaskCategoryTimer,
-						InclusiveMinTaskKey: persistence.HistoryTaskKey{
-							ScheduledTime: minTimestamp,
-						},
-						ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
-							ScheduledTime: maxTimestamp,
-						},
-						PageSize:      pageSize,
-						NextPageToken: nonNilToken,
+						TaskCategory:        persistence.HistoryTaskCategoryTimer,
+						InclusiveMinTaskKey: persistence.NewHistoryTaskKey(minTimestamp, 0),
+						ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maxTimestamp, 0),
+						PageSize:            pageSize,
+						NextPageToken:       nonNilToken,
 					}).
 					Return(&persistence.GetHistoryTasksResponse{
 						Tasks:         nil,
@@ -174,15 +166,11 @@ func TestGetUserTimers(t *testing.T) {
 
 				mockRetryer.EXPECT().
 					GetHistoryTasks(gomock.Any(), &persistence.GetHistoryTasksRequest{
-						TaskCategory: persistence.HistoryTaskCategoryTimer,
-						InclusiveMinTaskKey: persistence.HistoryTaskKey{
-							ScheduledTime: minTimestamp,
-						},
-						ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
-							ScheduledTime: maxTimestamp,
-						},
-						PageSize:      pageSize,
-						NextPageToken: nil,
+						TaskCategory:        persistence.HistoryTaskCategoryTimer,
+						InclusiveMinTaskKey: persistence.NewHistoryTaskKey(minTimestamp, 0),
+						ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maxTimestamp, 0),
+						PageSize:            pageSize,
+						NextPageToken:       nil,
 					}).
 					Return(&persistence.GetHistoryTasksResponse{
 						Tasks:         []persistence.Task{invalidTimer},

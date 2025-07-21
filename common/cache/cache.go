@@ -28,6 +28,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 )
 
@@ -96,9 +97,15 @@ type Options struct {
 	TimeSource clock.TimeSource
 
 	// IsSizeBased is an optional flag to indicate if the cache is size based
-	// If set to true, the cache will evict items based on item size instead of count
+	// It's default is false, but if set to true, the cache will evict items based on item size instead of count
 	// But the item HAS to be able to cast as a Sizeable interface otherwise the cache will fail
-	IsSizeBased bool
+	IsSizeBased dynamicproperties.BoolPropertyFn
+
+	// MetricsScope is used to emit metrics for internals of the cache
+	MetricsScope metrics.Scope
+
+	// Logger is used to emit logs for internals of the cache
+	Logger log.Logger
 
 	// Deprecated: GetCacheItemSizeFunc is a function called upon adding the item to update the cache size.
 	// It returns 0 by default, assuming the cache is just count based

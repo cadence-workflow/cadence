@@ -55,6 +55,7 @@ import (
 	"github.com/uber/cadence/service/history/failover"
 	"github.com/uber/cadence/service/history/lookup"
 	"github.com/uber/cadence/service/history/queue"
+	"github.com/uber/cadence/service/history/queuev2"
 	"github.com/uber/cadence/service/history/replication"
 	"github.com/uber/cadence/service/history/resource"
 	"github.com/uber/cadence/service/history/shard"
@@ -82,8 +83,8 @@ type (
 		queueTaskProcessor      task.Processor
 		failoverCoordinator     failover.Coordinator
 		workflowIDCache         workflowcache.WFCache
-		queueProcessorFactory   queue.ProcessorFactory
 		ratelimitAggregator     algorithm.RequestWeighted
+		queueFactories          []queue.Factory
 	}
 )
 
@@ -112,16 +113,19 @@ func NewHandler(
 
 // Start starts the handler
 func (h *handlerImpl) Start() {
-	h.replicationTaskFetchers = replication.NewTaskFetchers(
+	var err error
+	h.replicationTaskFetchers, err = replication.NewTaskFetchers(
 		h.GetLogger(),
 		h.config,
 		h.GetClusterMetadata(),
 		h.GetClientBean(),
 	)
+	if err != nil {
+		h.GetLogger().Fatal("Creating replication task fetchers failed", tag.Error(err))
+	}
 
 	h.replicationTaskFetchers.Start()
 
-	var err error
 	taskPriorityAssigner := task.NewPriorityAssigner(
 		h.GetClusterMetadata().GetCurrentClusterName(),
 		h.GetDomainCache(),
@@ -157,6 +161,18 @@ func (h *handlerImpl) Start() {
 	)
 	h.queueTaskProcessor = task.NewRateLimitedProcessor(taskProcessor, taskRateLimiter)
 	h.queueTaskProcessor.Start()
+
+	h.queueFactories = []queue.Factory{
+		queuev2.NewTransferQueueFactory(
+			h.queueTaskProcessor,
+			h.GetArchiverClient(),
+			h.workflowIDCache,
+		),
+		queuev2.NewTimerQueueFactory(
+			h.queueTaskProcessor,
+			h.GetArchiverClient(),
+		),
+	}
 
 	h.historyEventNotifier = events.NewNotifier(h.GetTimeSource(), h.GetMetricsClient(), h.config.GetShardID)
 	// events notifier must starts before controller
@@ -217,15 +233,12 @@ func (h *handlerImpl) CreateEngine(
 		shardContext,
 		h.GetVisibilityManager(),
 		h.GetMatchingClient(),
-		h.GetSDKClient(),
 		h.historyEventNotifier,
 		h.config,
 		h.replicationTaskFetchers,
 		h.GetMatchingRawClient(),
-		h.queueTaskProcessor,
 		h.failoverCoordinator,
-		h.workflowIDCache,
-		queue.NewProcessorFactory(),
+		h.queueFactories,
 	)
 }
 
@@ -741,24 +754,17 @@ func (h *handlerImpl) RemoveTask(
 	case commonconstants.TaskTypeTransfer:
 		return executionMgr.CompleteHistoryTask(ctx, &persistence.CompleteHistoryTaskRequest{
 			TaskCategory: persistence.HistoryTaskCategoryTransfer,
-			TaskKey: persistence.HistoryTaskKey{
-				TaskID: request.GetTaskID(),
-			},
+			TaskKey:      persistence.NewImmediateTaskKey(request.GetTaskID()),
 		})
 	case commonconstants.TaskTypeTimer:
 		return executionMgr.CompleteHistoryTask(ctx, &persistence.CompleteHistoryTaskRequest{
 			TaskCategory: persistence.HistoryTaskCategoryTimer,
-			TaskKey: persistence.HistoryTaskKey{
-				ScheduledTime: time.Unix(0, request.GetVisibilityTimestamp()),
-				TaskID:        request.GetTaskID(),
-			},
+			TaskKey:      persistence.NewHistoryTaskKey(time.Unix(0, request.GetVisibilityTimestamp()), request.GetTaskID()),
 		})
 	case commonconstants.TaskTypeReplication:
 		return executionMgr.CompleteHistoryTask(ctx, &persistence.CompleteHistoryTaskRequest{
 			TaskCategory: persistence.HistoryTaskCategoryReplication,
-			TaskKey: persistence.HistoryTaskKey{
-				TaskID: request.GetTaskID(),
-			},
+			TaskKey:      persistence.NewImmediateTaskKey(request.GetTaskID()),
 		})
 	default:
 		return constants.ErrInvalidTaskType
@@ -2132,6 +2138,7 @@ func (h *handlerImpl) updateErrorMetric(
 	runID string,
 	err error,
 ) {
+	logger := h.GetLogger().Helper()
 
 	var yarpcE *yarpcerrors.Status
 
@@ -2198,7 +2205,7 @@ func (h *handlerImpl) updateErrorMetric(
 
 	} else if errors.As(err, &internalServiceError) {
 		scope.IncCounter(metrics.CadenceFailures)
-		h.GetLogger().Error("Internal service error",
+		logger.Error("Internal service error",
 			tag.Error(err),
 			tag.WorkflowID(workflowID),
 			tag.WorkflowRunID(runID),
@@ -2207,7 +2214,7 @@ func (h *handlerImpl) updateErrorMetric(
 	} else {
 		// Default / unknown error fallback
 		scope.IncCounter(metrics.CadenceFailures)
-		h.GetLogger().Error("Uncategorized error",
+		logger.Error("Uncategorized error",
 			tag.Error(err),
 			tag.WorkflowID(workflowID),
 			tag.WorkflowRunID(runID),

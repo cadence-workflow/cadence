@@ -33,6 +33,7 @@ import (
 
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 	"github.com/uber/cadence/common/types"
@@ -50,7 +51,7 @@ const (
 func TestNewNoSQLVisibilityStore(t *testing.T) {
 	cfg := getValidShardedNoSQLConfig()
 
-	store, err := newNoSQLVisibilityStore(false, cfg, log.NewNoop(), nil)
+	store, err := newNoSQLVisibilityStore(false, cfg, log.NewNoop(), metrics.NewNoopMetricsClient(), nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, store)
 }

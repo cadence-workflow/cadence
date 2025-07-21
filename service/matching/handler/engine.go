@@ -79,26 +79,25 @@ type (
 	}
 
 	matchingEngineImpl struct {
-		shutdownCompletion   *sync.WaitGroup
-		shutdown             chan struct{}
-		taskManager          persistence.TaskManager
-		clusterMetadata      cluster.Metadata
-		historyService       history.Client
-		matchingClient       matching.Client
-		tokenSerializer      common.TaskTokenSerializer
-		logger               log.Logger
-		metricsClient        metrics.Client
-		taskListsLock        sync.RWMutex                             // locks mutation of taskLists
-		taskLists            map[tasklist.Identifier]tasklist.Manager // Convert to LRU cache
-		config               *config.Config
-		lockableQueryTaskMap lockableQueryTaskMap
-		domainCache          cache.DomainCache
-		versionChecker       client.VersionChecker
-		membershipResolver   membership.Resolver
-		isolationState       isolationgroup.State
-		timeSource           clock.TimeSource
-
-		waitForQueryResultFn func(hCtx *handlerContext, isStrongConsistencyQuery bool, queryResultCh <-chan *queryResult) (*types.QueryWorkflowResponse, error)
+		shutdownCompletion          *sync.WaitGroup
+		shutdown                    chan struct{}
+		taskManager                 persistence.TaskManager
+		clusterMetadata             cluster.Metadata
+		historyService              history.Client
+		matchingClient              matching.Client
+		tokenSerializer             common.TaskTokenSerializer
+		logger                      log.Logger
+		metricsClient               metrics.Client
+		taskListsLock               sync.RWMutex                             // locks mutation of taskLists
+		taskLists                   map[tasklist.Identifier]tasklist.Manager // Convert to LRU cache
+		config                      *config.Config
+		lockableQueryTaskMap        lockableQueryTaskMap
+		domainCache                 cache.DomainCache
+		versionChecker              client.VersionChecker
+		membershipResolver          membership.Resolver
+		isolationState              isolationgroup.State
+		timeSource                  clock.TimeSource
+		failoverNotificationVersion int64
 	}
 
 	// HistoryInfo consists of two integer regarding the history size and history count
@@ -160,11 +159,11 @@ func NewEngine(
 	e.shutdownCompletion.Add(1)
 	go e.subscribeToMembershipChanges()
 
-	e.waitForQueryResultFn = e.waitForQueryResult
 	return e
 }
 
 func (e *matchingEngineImpl) Start() {
+	e.registerDomainFailoverCallback()
 }
 
 func (e *matchingEngineImpl) Stop() {
@@ -173,6 +172,7 @@ func (e *matchingEngineImpl) Stop() {
 	for _, l := range e.getTaskLists(math.MaxInt32) {
 		l.Stop()
 	}
+	e.unregisterDomainFailoverCallback()
 	e.shutdownCompletion.Wait()
 }
 
@@ -202,7 +202,7 @@ func (e *matchingEngineImpl) String() string {
 
 // Returns taskListManager for a task list. If not already cached gets new range from DB and
 // if successful creates one.
-func (e *matchingEngineImpl) getTaskListManager(taskList *tasklist.Identifier, taskListKind *types.TaskListKind) (tasklist.Manager, error) {
+func (e *matchingEngineImpl) getTaskListManager(taskList *tasklist.Identifier, taskListKind types.TaskListKind) (tasklist.Manager, error) {
 	// The first check is an optimization so almost all requests will have a task list manager
 	// and return avoiding the write lock
 	e.taskListsLock.RLock()
@@ -268,7 +268,7 @@ func (e *matchingEngineImpl) getTaskListManager(taskList *tasklist.Identifier, t
 	logger.Info("Task list manager state changed", tag.LifeCycleStarted)
 	event.Log(event.E{
 		TaskListName: taskList.GetName(),
-		TaskListKind: taskListKind,
+		TaskListKind: &taskListKind,
 		TaskListType: taskList.GetType(),
 		TaskInfo: persistence.TaskInfo{
 			DomainID: taskList.GetDomainID(),
@@ -279,11 +279,11 @@ func (e *matchingEngineImpl) getTaskListManager(taskList *tasklist.Identifier, t
 	return mgr, nil
 }
 
-func (e *matchingEngineImpl) getTaskListByDomainLocked(domainID string) *types.GetTaskListsByDomainResponse {
+func (e *matchingEngineImpl) getTaskListByDomainLocked(domainID string, taskListKind types.TaskListKind) *types.GetTaskListsByDomainResponse {
 	decisionTaskListMap := make(map[string]*types.DescribeTaskListResponse)
 	activityTaskListMap := make(map[string]*types.DescribeTaskListResponse)
 	for tl, tlm := range e.taskLists {
-		if tl.GetDomainID() == domainID && tlm.GetTaskListKind() == types.TaskListKindNormal {
+		if tl.GetDomainID() == domainID && tlm.GetTaskListKind() == taskListKind {
 			if types.TaskListType(tl.GetType()) == types.TaskListTypeDecision {
 				decisionTaskListMap[tl.GetRoot()] = tlm.DescribeTaskList(false)
 			} else {
@@ -327,12 +327,12 @@ func (e *matchingEngineImpl) AddDecisionTask(
 	startT := time.Now()
 	domainID := request.GetDomainUUID()
 	taskListName := request.GetTaskList().GetName()
-	taskListKind := request.GetTaskList().Kind
+	taskListKind := request.GetTaskList().GetKind()
 	taskListType := persistence.TaskListTypeDecision
 
 	event.Log(event.E{
 		TaskListName: taskListName,
-		TaskListKind: taskListKind,
+		TaskListKind: &taskListKind,
 		TaskListType: taskListType,
 		TaskInfo: persistence.TaskInfo{
 			DomainID:        domainID,
@@ -383,7 +383,7 @@ func (e *matchingEngineImpl) AddDecisionTask(
 		return nil, err
 	}
 
-	if taskListKind != nil && *taskListKind == types.TaskListKindSticky {
+	if taskListKind == types.TaskListKindSticky {
 		// check if the sticky worker is still available, if not, fail this request early
 		if !tlMgr.HasPollerAfter(e.timeSource.Now().Add(-_stickyPollerUnavailableWindow)) {
 			return nil, _stickyPollerUnavailableError
@@ -424,7 +424,7 @@ func (e *matchingEngineImpl) AddActivityTask(
 	startT := time.Now()
 	domainID := request.GetDomainUUID()
 	taskListName := request.GetTaskList().GetName()
-	taskListKind := request.GetTaskList().Kind
+	taskListKind := request.GetTaskList().GetKind()
 	taskListType := persistence.TaskListTypeActivity
 
 	e.emitInfoOrDebugLog(
@@ -451,7 +451,7 @@ func (e *matchingEngineImpl) AddActivityTask(
 	}
 
 	// Only emit traffic metrics if the tasklist is not sticky and is not forwarded
-	if int32(request.GetTaskList().GetKind()) == 0 && request.ForwardedFrom == "" {
+	if request.GetTaskList().GetKind() == types.TaskListKindNormal && request.ForwardedFrom == "" {
 		e.metricsClient.Scope(metrics.MatchingAddTaskScope).Tagged(metrics.DomainTag(domainName),
 			metrics.TaskListTag(taskListName), metrics.TaskListTypeTag("activity_task"),
 			metrics.MatchingHostTag(e.config.HostName)).IncCounter(metrics.CadenceTasklistRequests)
@@ -501,14 +501,14 @@ func (e *matchingEngineImpl) PollForDecisionTask(
 	pollerID := req.GetPollerID()
 	request := req.PollRequest
 	taskListName := request.GetTaskList().GetName()
-	taskListKind := request.GetTaskList().Kind
+	taskListKind := request.GetTaskList().GetKind()
 	e.logger.Debug("Received PollForDecisionTask for taskList",
 		tag.WorkflowTaskListName(taskListName),
 		tag.WorkflowDomainID(domainID),
 	)
 	event.Log(event.E{
 		TaskListName: taskListName,
-		TaskListKind: taskListKind,
+		TaskListKind: &taskListKind,
 		TaskListType: persistence.TaskListTypeDecision,
 		TaskInfo: persistence.TaskInfo{
 			DomainID: domainID,
@@ -538,7 +538,7 @@ pollLoop:
 		pollerCtx = tasklist.ContextWithIsolationGroup(pollerCtx, req.GetIsolationGroup())
 		tlMgr, err := e.getTaskListManager(taskListID, taskListKind)
 		if err != nil {
-			return nil, fmt.Errorf("couldn't load tasklist namanger: %w", err)
+			return nil, fmt.Errorf("couldn't load tasklist manager: %w", err)
 		}
 		startT := time.Now() // Record the start time
 		task, err := tlMgr.GetTask(pollerCtx, nil)
@@ -552,7 +552,7 @@ pollLoop:
 				)
 				event.Log(event.E{
 					TaskListName: taskListName,
-					TaskListKind: taskListKind,
+					TaskListKind: &taskListKind,
 					TaskListType: persistence.TaskListTypeDecision,
 					TaskInfo: persistence.TaskInfo{
 						DomainID: domainID,
@@ -579,7 +579,7 @@ pollLoop:
 		if task.IsStarted() {
 			event.Log(event.E{
 				TaskListName: taskListName,
-				TaskListKind: taskListKind,
+				TaskListKind: &taskListKind,
 				TaskListType: persistence.TaskListTypeDecision,
 				TaskInfo:     task.Info(),
 				EventName:    "PollForDecisionTask returning already started task",
@@ -670,7 +670,7 @@ pollLoop:
 		task.Finish(nil)
 		event.Log(event.E{
 			TaskListName: taskListName,
-			TaskListKind: taskListKind,
+			TaskListKind: &taskListKind,
 			TaskListType: persistence.TaskListTypeDecision,
 			TaskInfo:     task.Info(),
 			EventName:    "PollForDecisionTask returning task",
@@ -724,10 +724,10 @@ pollLoop:
 		pollerCtx := tasklist.ContextWithPollerID(hCtx.Context, pollerID)
 		pollerCtx = tasklist.ContextWithIdentity(pollerCtx, request.GetIdentity())
 		pollerCtx = tasklist.ContextWithIsolationGroup(pollerCtx, req.GetIsolationGroup())
-		taskListKind := request.TaskList.Kind
+		taskListKind := request.TaskList.GetKind()
 		tlMgr, err := e.getTaskListManager(taskListID, taskListKind)
 		if err != nil {
-			return nil, fmt.Errorf("couldn't load tasklist namanger: %w", err)
+			return nil, fmt.Errorf("couldn't load tasklist manager: %w", err)
 		}
 		startT := time.Now() // Record the start time
 		task, err := tlMgr.GetTask(pollerCtx, maxDispatch)
@@ -849,10 +849,10 @@ func (e *matchingEngineImpl) createSyncMatchPollForActivityTaskResponse(
 func (e *matchingEngineImpl) QueryWorkflow(
 	hCtx *handlerContext,
 	queryRequest *types.MatchingQueryWorkflowRequest,
-) (*types.QueryWorkflowResponse, error) {
+) (*types.MatchingQueryWorkflowResponse, error) {
 	domainID := queryRequest.GetDomainUUID()
 	taskListName := queryRequest.GetTaskList().GetName()
-	taskListKind := queryRequest.GetTaskList().Kind
+	taskListKind := queryRequest.GetTaskList().GetKind()
 	taskListID, err := tasklist.NewIdentifier(domainID, taskListName, persistence.TaskListTypeDecision)
 	if err != nil {
 		return nil, err
@@ -863,7 +863,7 @@ func (e *matchingEngineImpl) QueryWorkflow(
 		return nil, err
 	}
 
-	if taskListKind != nil && *taskListKind == types.TaskListKindSticky {
+	if taskListKind == types.TaskListKindSticky {
 		// check if the sticky worker is still available, if not, fail this request early
 		if !tlMgr.HasPollerAfter(e.timeSource.Now().Add(-_stickyPollerUnavailableWindow)) {
 			return nil, _stickyPollerUnavailableError
@@ -871,23 +871,32 @@ func (e *matchingEngineImpl) QueryWorkflow(
 	}
 
 	taskID := uuid.New()
-	resp, err := tlMgr.DispatchQueryTask(hCtx.Context, taskID, queryRequest)
+	queryResultCh := make(chan *queryResult, 1)
+	e.lockableQueryTaskMap.put(taskID, queryResultCh)
+	defer e.lockableQueryTaskMap.delete(taskID)
 
+	resp, err := tlMgr.DispatchQueryTask(hCtx.Context, taskID, queryRequest)
 	// if get response or error it means that query task was handled by forwarding to another matching host
 	// this remote host's result can be returned directly
-	if resp != nil || err != nil {
-		return resp, err
+	if err != nil {
+		return nil, err
+	}
+	if resp != nil {
+		resp.PartitionConfig = tlMgr.TaskListPartitionConfig()
+		return resp, nil
 	}
 
 	// if get here it means that dispatch of query task has occurred locally
 	// must wait on result channel to get query result
-	queryResultCh := make(chan *queryResult, 1)
-	e.lockableQueryTaskMap.put(taskID, queryResultCh)
-	defer e.lockableQueryTaskMap.delete(taskID)
-	return e.waitForQueryResultFn(hCtx, queryRequest.GetQueryRequest().GetQueryConsistencyLevel() == types.QueryConsistencyLevelStrong, queryResultCh)
+	resp, err = e.waitForQueryResult(hCtx, queryRequest.GetQueryRequest().GetQueryConsistencyLevel() == types.QueryConsistencyLevelStrong, queryResultCh)
+	if err != nil {
+		return nil, err
+	}
+	resp.PartitionConfig = tlMgr.TaskListPartitionConfig()
+	return resp, nil
 }
 
-func (e *matchingEngineImpl) waitForQueryResult(hCtx *handlerContext, isStrongConsistencyQuery bool, queryResultCh <-chan *queryResult) (*types.QueryWorkflowResponse, error) {
+func (e *matchingEngineImpl) waitForQueryResult(hCtx *handlerContext, isStrongConsistencyQuery bool, queryResultCh <-chan *queryResult) (*types.MatchingQueryWorkflowResponse, error) {
 	select {
 	case result := <-queryResultCh:
 		if result.internalError != nil {
@@ -904,7 +913,7 @@ func (e *matchingEngineImpl) waitForQueryResult(hCtx *handlerContext, isStrongCo
 		}
 		switch workerResponse.GetCompletedRequest().GetCompletedType() {
 		case types.QueryTaskCompletedTypeCompleted:
-			return &types.QueryWorkflowResponse{QueryResult: workerResponse.GetCompletedRequest().GetQueryResult()}, nil
+			return &types.MatchingQueryWorkflowResponse{QueryResult: workerResponse.GetCompletedRequest().GetQueryResult()}, nil
 		case types.QueryTaskCompletedTypeFailed:
 			return nil, &types.QueryFailedError{Message: workerResponse.GetCompletedRequest().GetErrorMessage()}
 		default:
@@ -939,7 +948,7 @@ func (e *matchingEngineImpl) CancelOutstandingPoll(
 	domainID := request.GetDomainUUID()
 	taskListType := int(request.GetTaskListType())
 	taskListName := request.GetTaskList().GetName()
-	taskListKind := request.GetTaskList().Kind
+	taskListKind := request.GetTaskList().GetKind()
 	pollerID := request.GetPollerID()
 
 	taskListID, err := tasklist.NewIdentifier(domainID, taskListName, taskListType)
@@ -966,7 +975,7 @@ func (e *matchingEngineImpl) DescribeTaskList(
 		taskListType = persistence.TaskListTypeActivity
 	}
 	taskListName := request.GetDescRequest().GetTaskList().GetName()
-	taskListKind := request.GetDescRequest().GetTaskList().Kind
+	taskListKind := request.GetDescRequest().GetTaskList().GetKind()
 
 	taskListID, err := tasklist.NewIdentifier(domainID, taskListName, taskListType)
 	if err != nil {
@@ -1036,7 +1045,7 @@ func (e *matchingEngineImpl) GetTaskListsByDomain(
 
 	e.taskListsLock.RLock()
 	defer e.taskListsLock.RUnlock()
-	return e.getTaskListByDomainLocked(domainID), nil
+	return e.getTaskListByDomainLocked(domainID, types.TaskListKindNormal), nil
 }
 
 func (e *matchingEngineImpl) UpdateTaskListPartitionConfig(
@@ -1070,7 +1079,7 @@ func (e *matchingEngineImpl) UpdateTaskListPartitionConfig(
 	if !taskListID.IsRoot() {
 		return nil, &types.BadRequestError{Message: "Only root partition's partition config can be updated."}
 	}
-	tlMgr, err := e.getTaskListManager(taskListID, &taskListKind)
+	tlMgr, err := e.getTaskListManager(taskListID, taskListKind)
 	if err != nil {
 		return nil, err
 	}
@@ -1102,7 +1111,7 @@ func (e *matchingEngineImpl) RefreshTaskListPartitionConfig(
 	if taskListID.IsRoot() && request.PartitionConfig != nil {
 		return nil, &types.BadRequestError{Message: "PartitionConfig must be nil for root partition."}
 	}
-	tlMgr, err := e.getTaskListManager(taskListID, &taskListKind)
+	tlMgr, err := e.getTaskListManager(taskListID, taskListKind)
 	if err != nil {
 		return nil, err
 	}
@@ -1274,7 +1283,7 @@ func (e *matchingEngineImpl) recordDecisionTaskStarted(
 		PollRequest:       pollReq,
 	}
 	var resp *types.RecordDecisionTaskStartedResponse
-	op := func() error {
+	op := func(ctx context.Context) error {
 		var err error
 		resp, err = e.historyService.RecordDecisionTaskStarted(ctx, request)
 		return err
@@ -1301,7 +1310,7 @@ func (e *matchingEngineImpl) recordActivityTaskStarted(
 		PollRequest:       pollReq,
 	}
 	var resp *types.RecordActivityTaskStartedResponse
-	op := func() error {
+	op := func(ctx context.Context) error {
 		var err error
 		resp, err = e.historyService.RecordActivityTaskStarted(ctx, request)
 		return err
@@ -1419,6 +1428,89 @@ func (e *matchingEngineImpl) isShuttingDown() bool {
 	}
 }
 
+func (e *matchingEngineImpl) domainChangeCallback(nextDomains []*cache.DomainCacheEntry) {
+	newFailoverNotificationVersion := e.failoverNotificationVersion
+
+	for _, domain := range nextDomains {
+		if domain.GetFailoverNotificationVersion() > newFailoverNotificationVersion {
+			newFailoverNotificationVersion = domain.GetFailoverNotificationVersion()
+		}
+
+		if !isDomainEligibleToDisconnectPollers(domain, e.failoverNotificationVersion) {
+			continue
+		}
+
+		taskListNormal := types.TaskListKindNormal
+
+		e.taskListsLock.RLock()
+		resp := e.getTaskListByDomainLocked(domain.GetInfo().ID, taskListNormal)
+		e.taskListsLock.RUnlock()
+
+		for taskListName := range resp.DecisionTaskListMap {
+			e.disconnectTaskListPollersAfterDomainFailover(taskListName, domain, persistence.TaskListTypeDecision, taskListNormal)
+		}
+
+		for taskListName := range resp.ActivityTaskListMap {
+			e.disconnectTaskListPollersAfterDomainFailover(taskListName, domain, persistence.TaskListTypeActivity, taskListNormal)
+		}
+
+		taskListSticky := types.TaskListKindSticky
+
+		e.taskListsLock.RLock()
+		resp = e.getTaskListByDomainLocked(domain.GetInfo().ID, taskListSticky)
+		e.taskListsLock.RUnlock()
+
+		for taskListName := range resp.DecisionTaskListMap {
+			e.disconnectTaskListPollersAfterDomainFailover(taskListName, domain, persistence.TaskListTypeDecision, taskListSticky)
+		}
+	}
+	e.failoverNotificationVersion = newFailoverNotificationVersion
+}
+
+func (e *matchingEngineImpl) registerDomainFailoverCallback() {
+	catchUpFn := func(domainCache cache.DomainCache, _ cache.PrepareCallbackFn, _ cache.CallbackFn) {
+		for _, domain := range domainCache.GetAllDomain() {
+			if domain.GetFailoverNotificationVersion() > e.failoverNotificationVersion {
+				e.failoverNotificationVersion = domain.GetFailoverNotificationVersion()
+			}
+		}
+	}
+
+	e.domainCache.RegisterDomainChangeCallback(
+		service.Matching,
+		catchUpFn,
+		func() {},
+		e.domainChangeCallback)
+}
+
+func (e *matchingEngineImpl) unregisterDomainFailoverCallback() {
+	e.domainCache.UnregisterDomainChangeCallback(service.Matching)
+}
+
+func (e *matchingEngineImpl) disconnectTaskListPollersAfterDomainFailover(taskListName string, domain *cache.DomainCacheEntry, taskType int, taskListKind types.TaskListKind) {
+	taskList, err := tasklist.NewIdentifier(domain.GetInfo().ID, taskListName, taskType)
+	if err != nil {
+		return
+	}
+	tlMgr, err := e.getTaskListManager(taskList, taskListKind)
+	if err != nil {
+		e.logger.Error("Couldn't load tasklist manager", tag.Error(err))
+		return
+	}
+
+	err = tlMgr.ReleaseBlockedPollers()
+	if err != nil {
+		e.logger.Error("Couldn't disconnect tasklist pollers after domain failover",
+			tag.Error(err),
+			tag.WorkflowDomainID(domain.GetInfo().ID),
+			tag.WorkflowDomainName(domain.GetInfo().Name),
+			tag.WorkflowTaskListName(taskListName),
+			tag.WorkflowTaskListType(taskType),
+		)
+		return
+	}
+}
+
 func (m *lockableQueryTaskMap) put(key string, value chan *queryResult) {
 	m.Lock()
 	defer m.Unlock()
@@ -1444,4 +1536,11 @@ func isMatchingRetryableError(err error) bool {
 		return false
 	}
 	return true
+}
+
+func isDomainEligibleToDisconnectPollers(domain *cache.DomainCacheEntry, currentVersion int64) bool {
+	return domain.IsGlobalDomain() &&
+		domain.GetReplicationConfig() != nil &&
+		!domain.GetReplicationConfig().IsActiveActive() &&
+		domain.GetFailoverNotificationVersion() > currentVersion
 }

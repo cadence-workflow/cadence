@@ -106,6 +106,7 @@ func (s *diagnosticsWorkflowTestSuite) TestWorkflow() {
 	s.NoError(err)
 	issues := []invariant.InvariantCheckResult{
 		{
+			IssueID:       1,
 			InvariantType: timeout.TimeoutTypeExecution.String(),
 			Reason:        "START_TO_CLOSE",
 			Metadata:      workflowTimeoutDataInBytes,
@@ -113,9 +114,12 @@ func (s *diagnosticsWorkflowTestSuite) TestWorkflow() {
 	}
 	timeoutIssues := []*timeoutIssuesResult{
 		{
-			InvariantType:    timeout.TimeoutTypeExecution.String(),
-			Reason:           "START_TO_CLOSE",
-			ExecutionTimeout: &workflowTimeoutData,
+			IssueID:       1,
+			InvariantType: timeout.TimeoutTypeExecution.String(),
+			Reason:        "START_TO_CLOSE",
+			Metadata: &timeout.TimeoutIssuesMetadata{
+				ExecutionTimeout: &workflowTimeoutData,
+			},
 		},
 	}
 	taskListBacklog := int64(10)
@@ -123,16 +127,19 @@ func (s *diagnosticsWorkflowTestSuite) TestWorkflow() {
 	s.NoError(err)
 	rootCause := []invariant.InvariantRootCauseResult{
 		{
+			IssueID:   1,
 			RootCause: invariant.RootCauseTypePollersStatus,
 			Metadata:  pollersMetadataInBytes,
 		},
 	}
 	timeoutRootCause := []*timeoutRootCauseResult{
 		{
-			RootCauseType:   invariant.RootCauseTypePollersStatus.String(),
-			PollersMetadata: &timeout.PollersMetadata{TaskListName: "test", TaskListBacklog: taskListBacklog},
-		},
-	}
+			IssueID:       1,
+			RootCauseType: invariant.RootCauseTypePollersStatus.String(),
+			Metadata: &timeout.TimeoutRootcauseMetadata{
+				PollersMetadata: &timeout.PollersMetadata{TaskListName: "test", TaskListBacklog: taskListBacklog},
+			},
+		}}
 	s.workflowEnv.OnActivity(identifyIssuesActivity, mock.Anything, mock.Anything).Return(issues, nil)
 	s.workflowEnv.OnActivity(rootCauseIssuesActivity, mock.Anything, mock.Anything).Return(rootCause, nil)
 	s.workflowEnv.OnActivity(emitUsageLogsActivity, mock.Anything, mock.Anything).Return(nil)
@@ -225,21 +232,25 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveTimeoutIssues() {
 	s.NoError(err)
 	issues := []invariant.InvariantCheckResult{
 		{
+			IssueID:       1,
 			InvariantType: timeout.TimeoutTypeExecution.String(),
 			Reason:        "START_TO_CLOSE",
 			Metadata:      workflowTimeoutDataInBytes,
 		},
 		{
+			IssueID:       2,
 			InvariantType: timeout.TimeoutTypeActivity.String(),
 			Reason:        "START_TO_CLOSE",
 			Metadata:      activityTimeoutDataInBytes,
 		},
 		{
+			IssueID:       3,
 			InvariantType: timeout.TimeoutTypeDecision.String(),
 			Reason:        "START_TO_CLOSE",
 			Metadata:      descTimeoutDataInBytes,
 		},
 		{
+			IssueID:       4,
 			InvariantType: timeout.TimeoutTypeChildWorkflow.String(),
 			Reason:        "START_TO_CLOSE",
 			Metadata:      childWorkflowTimeoutDataInBytes,
@@ -247,29 +258,41 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveTimeoutIssues() {
 	}
 	timeoutIssues := []*timeoutIssuesResult{
 		{
-			InvariantType:    timeout.TimeoutTypeExecution.String(),
-			Reason:           "START_TO_CLOSE",
-			ExecutionTimeout: &workflowTimeoutData,
+			IssueID:       1,
+			InvariantType: timeout.TimeoutTypeExecution.String(),
+			Reason:        "START_TO_CLOSE",
+			Metadata: &timeout.TimeoutIssuesMetadata{
+				ExecutionTimeout: &workflowTimeoutData,
+			},
 		},
 		{
-			InvariantType:   timeout.TimeoutTypeActivity.String(),
-			Reason:          "START_TO_CLOSE",
-			ActivityTimeout: &activityTimeoutData,
+			IssueID:       2,
+			InvariantType: timeout.TimeoutTypeActivity.String(),
+			Reason:        "START_TO_CLOSE",
+			Metadata: &timeout.TimeoutIssuesMetadata{
+				ActivityTimeout: &activityTimeoutData,
+			},
 		},
 		{
-			InvariantType:   timeout.TimeoutTypeDecision.String(),
-			Reason:          "START_TO_CLOSE",
-			DecisionTimeout: &descTimeoutData,
+			IssueID:       3,
+			InvariantType: timeout.TimeoutTypeDecision.String(),
+			Reason:        "START_TO_CLOSE",
+			Metadata: &timeout.TimeoutIssuesMetadata{
+				DecisionTimeout: &descTimeoutData,
+			},
 		},
 		{
-			InvariantType:  timeout.TimeoutTypeChildWorkflow.String(),
-			Reason:         "START_TO_CLOSE",
-			ChildWfTimeout: &childWorkflowTimeoutData,
+			IssueID:       4,
+			InvariantType: timeout.TimeoutTypeChildWorkflow.String(),
+			Reason:        "START_TO_CLOSE",
+			Metadata: &timeout.TimeoutIssuesMetadata{
+				ChildWfTimeout: &childWorkflowTimeoutData,
+			},
 		},
 	}
 	result, err := retrieveTimeoutIssues(issues)
 	s.NoError(err)
-	s.Equal(timeoutIssues, result)
+	s.ElementsMatch(timeoutIssues, result)
 }
 
 func (s *diagnosticsWorkflowTestSuite) Test__retrieveTimeoutRootCause() {
@@ -280,31 +303,39 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveTimeoutRootCause() {
 	s.NoError(err)
 	rootCause := []invariant.InvariantRootCauseResult{
 		{
+			IssueID:   1,
 			RootCause: invariant.RootCauseTypePollersStatus,
 			Metadata:  pollersMetadataInBytes,
 		},
 		{
+			IssueID:   2,
 			RootCause: invariant.RootCauseTypeNoHeartBeatTimeoutNoRetryPolicy,
 			Metadata:  heartBeatingMetadataInBytes,
 		},
 	}
 	timeoutRootCause := []*timeoutRootCauseResult{
 		{
-			RootCauseType:   invariant.RootCauseTypePollersStatus.String(),
-			PollersMetadata: &timeout.PollersMetadata{TaskListBacklog: taskListBacklog},
+			IssueID:       1,
+			RootCauseType: invariant.RootCauseTypePollersStatus.String(),
+			Metadata: &timeout.TimeoutRootcauseMetadata{
+				PollersMetadata: &timeout.PollersMetadata{TaskListBacklog: taskListBacklog},
+			},
 		},
 		{
-			RootCauseType:        invariant.RootCauseTypeNoHeartBeatTimeoutNoRetryPolicy.String(),
-			HeartBeatingMetadata: &timeout.HeartbeatingMetadata{TimeElapsed: 5 * time.Second},
+			IssueID:       2,
+			RootCauseType: invariant.RootCauseTypeNoHeartBeatTimeoutNoRetryPolicy.String(),
+			Metadata: &timeout.TimeoutRootcauseMetadata{
+				HeartBeatingMetadata: &timeout.HeartbeatingMetadata{TimeElapsed: 5 * time.Second},
+			},
 		},
 	}
 	result, err := retrieveTimeoutRootCause(rootCause)
 	s.NoError(err)
-	s.Equal(timeoutRootCause, result)
+	s.ElementsMatch(timeoutRootCause, result)
 }
 
 func (s *diagnosticsWorkflowTestSuite) Test__retrieveFailureIssues() {
-	actMetadata := failure.FailureMetadata{
+	actMetadata := failure.FailureIssuesMetadata{
 		Identity:            "localhost",
 		ActivityScheduledID: 1,
 		ActivityStartedID:   2,
@@ -313,6 +344,7 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveFailureIssues() {
 	s.NoError(err)
 	issues := []invariant.InvariantCheckResult{
 		{
+			IssueID:       1,
 			InvariantType: failure.ActivityFailed.String(),
 			Reason:        failure.CustomError.String(),
 			Metadata:      actMetadataInBytes,
@@ -320,6 +352,7 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveFailureIssues() {
 	}
 	failureIssues := []*failureIssuesResult{
 		{
+			IssueID:       1,
 			InvariantType: failure.ActivityFailed.String(),
 			Reason:        failure.CustomError.String(),
 			Metadata:      &actMetadata,
@@ -327,7 +360,7 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveFailureIssues() {
 	}
 	result, err := retrieveFailureIssues(issues)
 	s.NoError(err)
-	s.Equal(failureIssues, result)
+	s.ElementsMatch(failureIssues, result)
 }
 
 func (s *diagnosticsWorkflowTestSuite) Test__retrieveFailureRootCause() {
@@ -338,28 +371,34 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveFailureRootCause() {
 	s.NoError(err)
 	rootCause := []invariant.InvariantRootCauseResult{
 		{
+			IssueID:   1,
 			RootCause: invariant.RootCauseTypeServiceSideIssue,
 		},
 		{
+			IssueID:   2,
 			RootCause: invariant.RootCauseTypeBlobSizeLimit,
 			Metadata:  blobSizeMetadataInBytes,
 		},
 	}
 	failureRootCause := []*failureRootCauseResult{
 		{
+			IssueID:       1,
 			RootCauseType: invariant.RootCauseTypeServiceSideIssue.String(),
 		},
 		{
+			IssueID:       2,
 			RootCauseType: invariant.RootCauseTypeBlobSizeLimit.String(),
-			BlobSizeMetadata: &failure.BlobSizeMetadata{
-				BlobSizeWarnLimit:  5,
-				BlobSizeErrorLimit: 10,
+			Metadata: &failure.FailureRootcauseMetadata{
+				BlobSizeMetadata: &failure.BlobSizeMetadata{
+					BlobSizeWarnLimit:  5,
+					BlobSizeErrorLimit: 10,
+				},
 			},
 		},
 	}
 	result, err := retrieveFailureRootCause(rootCause)
 	s.NoError(err)
-	s.Equal(failureRootCause, result)
+	s.ElementsMatch(failureRootCause, result)
 }
 
 func (s *diagnosticsWorkflowTestSuite) Test__retrieveRetryIssues() {
@@ -373,11 +412,13 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveRetryIssues() {
 	s.NoError(err)
 	issues := []invariant.InvariantCheckResult{
 		{
+			IssueID:       1,
 			InvariantType: retry.ActivityRetryIssue.String(),
 			Reason:        retry.RetryPolicyValidationMaxAttempts.String(),
 			Metadata:      retryMetadataInBytes,
 		},
 		{
+			IssueID:       2,
 			InvariantType: retry.WorkflowRetryIssue.String(),
 			Reason:        retry.RetryPolicyValidationMaxAttempts.String(),
 			Metadata:      retryMetadataInBytes,
@@ -385,11 +426,13 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveRetryIssues() {
 	}
 	retryIssues := []*retryIssuesResult{
 		{
+			IssueID:       1,
 			InvariantType: retry.ActivityRetryIssue.String(),
 			Reason:        retry.RetryPolicyValidationMaxAttempts.String(),
 			Metadata:      retryMetadata,
 		},
 		{
+			IssueID:       2,
 			InvariantType: retry.WorkflowRetryIssue.String(),
 			Reason:        retry.RetryPolicyValidationMaxAttempts.String(),
 			Metadata:      retryMetadata,
@@ -397,5 +440,5 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveRetryIssues() {
 	}
 	result, err := retrieveRetryIssues(issues)
 	s.NoError(err)
-	s.Equal(retryIssues, result)
+	s.ElementsMatch(retryIssues, result)
 }

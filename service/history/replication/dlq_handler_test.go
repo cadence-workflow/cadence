@@ -282,7 +282,7 @@ func (s *dlqHandlerSuite) TestReadMessages_OK() {
 		NextPageToken:     pageToken,
 	}).Return(resp, nil).Times(1)
 
-	s.mockClientBean.EXPECT().GetRemoteAdminClient(s.sourceCluster).Return(s.adminClient).AnyTimes()
+	s.mockClientBean.EXPECT().GetRemoteAdminClient(s.sourceCluster).Return(s.adminClient, nil).AnyTimes()
 	s.adminClient.EXPECT().
 		GetDLQReplicationMessages(ctx, gomock.Any()).
 		Return(&types.GetDLQReplicationMessagesResponse{}, nil)
@@ -383,12 +383,12 @@ func (s *dlqHandlerSuite) TestReadMessagesWithAckLevel_InvalidCluster() {
 	s.executionManager.On("GetReplicationTasksFromDLQ", mock.Anything, mock.Anything).Return(nil, nil).Times(1)
 
 	s.mockShard.Resource.ClientBean = client.NewMockBean(s.controller)
-	s.mockShard.Resource.ClientBean.EXPECT().GetRemoteAdminClient("invalidCluster").Return(nil).Times(1)
+	s.mockShard.Resource.ClientBean.EXPECT().GetRemoteAdminClient("invalidCluster").Return(nil, errors.New("invalidCluster")).Times(1)
 
 	_, _, _, err := s.messageHandler.readMessagesWithAckLevel(context.Background(), "invalidCluster", 123, 12, []byte("token"))
 
 	s.Error(err)
-	s.Equal(errInvalidCluster, err)
+	s.ErrorContains(err, "invalidCluster")
 }
 
 func (s *dlqHandlerSuite) TestReadMessagesWithAckLevel_GetDLQReplicationMessagesFailed() {
@@ -499,7 +499,7 @@ func (s *dlqHandlerSuite) TestMergeMessages_OK() {
 		NextPageToken:     pageToken,
 	}).Return(resp, nil).Times(1)
 
-	s.mockClientBean.EXPECT().GetRemoteAdminClient(s.sourceCluster).Return(s.adminClient).AnyTimes()
+	s.mockClientBean.EXPECT().GetRemoteAdminClient(s.sourceCluster).Return(s.adminClient, nil).AnyTimes()
 	replicationTask := &types.ReplicationTask{
 		TaskType:     types.ReplicationTaskTypeHistory.Ptr(),
 		SourceTaskID: 1,

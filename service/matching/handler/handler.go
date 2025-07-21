@@ -89,6 +89,7 @@ func NewHandler(
 
 // Start starts the handler
 func (h *handlerImpl) Start() {
+	h.engine.Start()
 	h.startWG.Done()
 }
 
@@ -260,7 +261,7 @@ func (h *handlerImpl) PollForDecisionTask(
 func (h *handlerImpl) QueryWorkflow(
 	ctx context.Context,
 	request *types.MatchingQueryWorkflowRequest,
-) (resp *types.QueryWorkflowResponse, retError error) {
+) (resp *types.MatchingQueryWorkflowResponse, retError error) {
 	defer func() { log.CapturePanic(recover(), h.logger, &retError) }()
 
 	domainName := h.domainName(request.GetDomainUUID())

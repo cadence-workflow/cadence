@@ -31,6 +31,7 @@ import (
 
 // InvariantCheckResult is the result from the invariant check
 type InvariantCheckResult struct {
+	IssueID       int
 	InvariantType string
 	Reason        string
 	Metadata      []byte
@@ -38,6 +39,7 @@ type InvariantCheckResult struct {
 
 // InvariantRootCauseResult is the root cause for the issues identified in the invariant check
 type InvariantRootCauseResult struct {
+	IssueID   int
 	RootCause RootCause
 	Metadata  []byte
 }

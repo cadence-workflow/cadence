@@ -243,7 +243,10 @@ func signalRemoteCluster(
 	numWorkflows int,
 ) error {
 	for cluster, executions := range remoteExecutions {
-		remoteClient := clientBean.GetRemoteFrontendClient(cluster)
+		remoteClient, err := clientBean.GetRemoteFrontendClient(cluster)
+		if err != nil {
+			return err
+		}
 		signalCtx, cancel := context.WithTimeout(ctx, signalTimeout)
 		signalValue := Request{
 			ParentExecution: parentExecution,

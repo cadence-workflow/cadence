@@ -142,6 +142,11 @@ func (m *executionManagerImpl) DeserializeExecutionInfo(
 		return nil, nil, err
 	}
 
+	activeClusterSelectionPolicy, err := m.serializer.DeserializeActiveClusterSelectionPolicy(info.ActiveClusterSelectionPolicy)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	newInfo := &WorkflowExecutionInfo{
 		CompletionEvent: completionEvent,
 
@@ -155,6 +160,7 @@ func (m *executionManagerImpl) DeserializeExecutionInfo(
 		InitiatedID:                        info.InitiatedID,
 		CompletionEventBatchID:             info.CompletionEventBatchID,
 		TaskList:                           info.TaskList,
+		TaskListKind:                       info.TaskListKind,
 		IsCron:                             len(info.CronSchedule) > 0,
 		WorkflowTypeName:                   info.WorkflowTypeName,
 		WorkflowTimeout:                    int32(info.WorkflowTimeout.Seconds()),
@@ -196,11 +202,13 @@ func (m *executionManagerImpl) DeserializeExecutionInfo(
 		NonRetriableErrors:                 info.NonRetriableErrors,
 		BranchToken:                        info.BranchToken,
 		CronSchedule:                       info.CronSchedule,
+		CronOverlapPolicy:                  info.CronOverlapPolicy,
 		ExpirationSeconds:                  int32(info.ExpirationInterval.Seconds()),
 		AutoResetPoints:                    autoResetPoints,
 		SearchAttributes:                   info.SearchAttributes,
 		Memo:                               info.Memo,
 		PartitionConfig:                    info.PartitionConfig,
+		ActiveClusterSelectionPolicy:       activeClusterSelectionPolicy,
 	}
 	newStats := &ExecutionStats{
 		HistorySize: info.HistorySize,
@@ -474,6 +482,11 @@ func (m *executionManagerImpl) SerializeExecutionInfo(
 		return nil, err
 	}
 
+	activeClusterSelectionPolicy, err := m.serializer.SerializeActiveClusterSelectionPolicy(info.ActiveClusterSelectionPolicy, encoding)
+	if err != nil {
+		return nil, err
+	}
+
 	return &InternalWorkflowExecutionInfo{
 		DomainID:                           info.DomainID,
 		WorkflowID:                         info.WorkflowID,
@@ -486,6 +499,7 @@ func (m *executionManagerImpl) SerializeExecutionInfo(
 		CompletionEventBatchID:             info.CompletionEventBatchID,
 		CompletionEvent:                    completionEvent,
 		TaskList:                           info.TaskList,
+		TaskListKind:                       info.TaskListKind,
 		WorkflowTypeName:                   info.WorkflowTypeName,
 		WorkflowTimeout:                    common.SecondsToDuration(int64(info.WorkflowTimeout)),
 		DecisionStartToCloseTimeout:        common.SecondsToDuration(int64(info.DecisionStartToCloseTimeout)),
@@ -531,6 +545,8 @@ func (m *executionManagerImpl) SerializeExecutionInfo(
 		Memo:                               info.Memo,
 		SearchAttributes:                   info.SearchAttributes,
 		PartitionConfig:                    info.PartitionConfig,
+		CronOverlapPolicy:                  info.CronOverlapPolicy,
+		ActiveClusterSelectionPolicy:       activeClusterSelectionPolicy,
 
 		// attributes which are not related to mutable state
 		HistorySize: stats.HistorySize,
@@ -893,6 +909,33 @@ func (m *executionManagerImpl) CreateFailoverMarkerTasks(
 ) error {
 	request.CurrentTimeStamp = m.timeSrc.Now()
 	return m.persistence.CreateFailoverMarkerTasks(ctx, request)
+}
+
+func (m *executionManagerImpl) GetActiveClusterSelectionPolicy(
+	ctx context.Context,
+	domainID, wfID, rID string,
+) (*types.ActiveClusterSelectionPolicy, error) {
+	blob, err := m.persistence.GetActiveClusterSelectionPolicy(ctx, domainID, wfID, rID)
+	if err != nil {
+		return nil, err
+	}
+	if blob == nil {
+		return nil, &types.EntityNotExistsError{
+			Message: "active cluster selection policy not found",
+		}
+	}
+	policy, err := m.serializer.DeserializeActiveClusterSelectionPolicy(blob)
+	if err != nil {
+		return nil, err
+	}
+	return policy, nil
+}
+
+func (m *executionManagerImpl) DeleteActiveClusterSelectionPolicy(
+	ctx context.Context,
+	domainID, workflowID, runID string,
+) error {
+	return m.persistence.DeleteActiveClusterSelectionPolicy(ctx, domainID, workflowID, runID)
 }
 
 func (m *executionManagerImpl) Close() {

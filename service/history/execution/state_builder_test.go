@@ -52,8 +52,7 @@ type (
 		mockEventsCache  *events.MockCache
 		mockDomainCache  *cache.MockDomainCache
 		mockMutableState *MockMutableState
-
-		logger log.Logger
+		logger           log.Logger
 
 		sourceCluster string
 		stateBuilder  *stateBuilderImpl
@@ -97,6 +96,7 @@ func (s *stateBuilderSuite) SetupTest() {
 	s.logger = s.mockShard.GetLogger()
 
 	s.mockMutableState.EXPECT().GetVersionHistories().Return(persistence.NewVersionHistories(&persistence.VersionHistory{})).AnyTimes()
+
 	s.stateBuilder = NewStateBuilder(
 		s.mockShard,
 		s.logger,
@@ -181,7 +181,7 @@ func (s *stateBuilderSuite) TestApplyEvents_EventTypeWorkflowExecutionStarted_Wi
 
 	now := time.Now()
 	evenType := types.EventTypeWorkflowExecutionStarted
-	next, err := backoff.GetBackoffForNextSchedule(parsedSchedule, now, now, 0)
+	next, err := backoff.GetBackoffForNextSchedule(parsedSchedule, now, now, 0, types.CronOverlapPolicySkipped)
 	require.NoError(s.T(), err)
 	startWorkflowAttribute := &types.WorkflowExecutionStartedEventAttributes{
 		ParentWorkflowDomainID: common.StringPtr(constants.TestDomainID),

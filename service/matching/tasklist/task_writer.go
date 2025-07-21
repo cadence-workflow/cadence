@@ -183,7 +183,7 @@ func (w *taskWriter) allocTaskIDBlock(prevBlockEnd int64) (taskIDBlock, error) {
 
 func (w *taskWriter) renewLeaseWithRetry() (taskListState, error) {
 	var newState taskListState
-	op := func() (err error) {
+	op := func(ctx context.Context) (err error) {
 		newState, err = w.db.RenewLease()
 		return
 	}

@@ -30,6 +30,7 @@ import (
 
 	. "github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 )
 
@@ -152,7 +153,7 @@ func (s *shardedNosqlStoreTestSuite) TestStoreSelectionForHistoryShard() {
 func (s *shardedNosqlStoreTestSuite) newShardedStoreForTest() *shardedNosqlStoreImpl {
 	cfg := getValidShardedNoSQLConfig()
 	logger := log.NewNoop()
-	storeInterface, err := newShardedNosqlStore(cfg, logger, nil)
+	storeInterface, err := newShardedNosqlStore(cfg, logger, metrics.NewNoopMetricsClient(), nil)
 	s.NoError(err)
 	s.Equal("shardedNosql", storeInterface.GetName())
 	s.Equal(logger, storeInterface.GetLogger())

@@ -24,6 +24,7 @@ package cluster
 
 import (
 	"fmt"
+	"sort"
 	"testing"
 	"testing/quick"
 
@@ -37,7 +38,6 @@ import (
 )
 
 func TestMetadataBehaviour(t *testing.T) {
-
 	const clusterName1 = "c1"
 	const initialFailoverVersionC1 = 0
 	const clusterName2 = "c2"
@@ -784,8 +784,63 @@ func TestClusterNameForFailoverVersion(t *testing.T) {
 	}
 }
 
-func TestServerResolution(t *testing.T) {
+func TestRegionForFailoverVersion(t *testing.T) {
+	metadata := NewMetadata(
+		config.ClusterGroupMetadata{
+			ClusterGroup: map[string]config.ClusterInformation{
+				"cluster0": {
+					InitialFailoverVersion: 1,
+					Region:                 "us-west",
+				},
+				"cluster1": {
+					InitialFailoverVersion: 3,
+					Region:                 "us-east",
+				},
+			},
+			Regions: map[string]config.RegionInformation{
+				"us-west": {
+					InitialFailoverVersion: 0,
+				},
+				"us-east": {
+					InitialFailoverVersion: 2,
+				},
+			},
+			FailoverVersionIncrement: 100,
+			CurrentClusterName:       "cluster0",
+		},
+		func(d string) bool { return false },
+		metrics.NewNoopMetricsClient(),
+		log.NewNoop(),
+	)
 
+	tests := []struct {
+		name            string
+		failoverVersion int64
+		expectedRegion  string
+		expectedErr     string
+	}{
+		{"empty version", -24, "us-west", ""},
+		{"exact version of us-west region", 0, "us-west", ""},
+		{"increment version of us-west region", 200, "us-west", ""},
+		{"exact version of us-east region", 2, "us-east", ""},
+		{"increment version of us-east region", 202, "us-east", ""},
+		{"not a region version", 1, "", "failed to resolve failover version to a region: could not resolve failover version to region: 1"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			region, err := metadata.RegionForFailoverVersion(test.failoverVersion)
+			if test.expectedErr == "" {
+				assert.NoError(t, err)
+				assert.Equal(t, test.expectedRegion, region)
+			} else {
+				assert.EqualError(t, err, test.expectedErr)
+			}
+		})
+	}
+}
+
+func TestServerResolution(t *testing.T) {
 	const clusterName1 = "c1"
 	const initialFailoverVersionC1 = 0
 	const clusterName2 = "c2"
@@ -835,7 +890,6 @@ func TestServerResolution(t *testing.T) {
 // in an unmigrated state, the old implementation for getting versions and the new
 // one are equal
 func TestNoChangesInUnmigratedState(t *testing.T) {
-
 	const clusterName1 = "c1"
 	const initialFailoverVersionC1 = 0
 	const clusterName2 = "c2"
@@ -893,7 +947,6 @@ func TestNoChangesInUnmigratedState(t *testing.T) {
 // in an unmigrated state, the old implementation for getting versions and the new
 // one are equal
 func TestFailoverVersionResolution(t *testing.T) {
-
 	const clusterName1 = "c1"
 	const initialFailoverVersionC1 = 0
 	var newFailoverVersionC1 = int64(1)
@@ -945,4 +998,70 @@ func TestFailoverVersionResolution(t *testing.T) {
 			assert.Equal(t, td.expectedOut, out)
 		})
 	}
+}
+
+func TestGetters(t *testing.T) {
+	m := NewMetadata(
+		config.ClusterGroupMetadata{
+			ClusterGroup: map[string]config.ClusterInformation{
+				"cluster0": {
+					InitialFailoverVersion: 1,
+					Region:                 "us-west",
+					Enabled:                true,
+				},
+				"cluster1": {
+					InitialFailoverVersion: 3,
+					Region:                 "us-east",
+					Enabled:                true,
+				},
+				"cluster2": {
+					InitialFailoverVersion: 5,
+					Region:                 "us-east",
+					Enabled:                false,
+				},
+			},
+			Regions: map[string]config.RegionInformation{
+				"us-west": {
+					InitialFailoverVersion: 0,
+				},
+				"us-east": {
+					InitialFailoverVersion: 2,
+				},
+			},
+			FailoverVersionIncrement: 100,
+			CurrentClusterName:       "cluster0",
+			PrimaryClusterName:       "cluster0",
+		},
+		func(d string) bool { return false },
+		metrics.NewNoopMetricsClient(),
+		log.NewNoop(),
+	)
+
+	assert.True(t, m.IsPrimaryCluster())
+	assert.Equal(t, "cluster0", m.GetCurrentClusterName())
+	assert.Equal(t, "us-west", m.GetCurrentRegion())
+
+	// do existence checks
+	assert.Equal(t, []string{"cluster0", "cluster1", "cluster2"}, keysOfClusterInfoMap(m.GetAllClusterInfo()))
+	assert.Equal(t, []string{"cluster0", "cluster1"}, keysOfClusterInfoMap(m.GetEnabledClusterInfo()))
+	assert.Equal(t, []string{"cluster1"}, keysOfClusterInfoMap(m.GetRemoteClusterInfo()))
+	assert.Equal(t, []string{"us-east", "us-west"}, keysOfRegionInfoMap(m.GetAllRegionInfo()))
+}
+
+func keysOfRegionInfoMap(m map[string]config.RegionInformation) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func keysOfClusterInfoMap(m map[string]config.ClusterInformation) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }

@@ -36,6 +36,7 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql"
 	"github.com/uber/cadence/common/persistence/sql"
@@ -82,9 +83,11 @@ type cacheEntry struct {
 }
 
 // NewConfigStoreClient creates a config store client
-func NewConfigStoreClient(clientCfg *csc.ClientConfig,
+func NewConfigStoreClient(
+	clientCfg *csc.ClientConfig,
 	persistenceCfg *config.Persistence,
 	logger log.Logger,
+	metricsClient metrics.Client,
 	configType persistence.ConfigType,
 ) (Client, error) {
 	if persistenceCfg == nil {
@@ -101,7 +104,7 @@ func NewConfigStoreClient(clientCfg *csc.ClientConfig,
 		clientCfg = defaultConfigValues
 	}
 
-	client, err := newConfigStoreClient(clientCfg, &ds, logger, configType)
+	client, err := newConfigStoreClient(clientCfg, &ds, logger, metricsClient, configType)
 	if err != nil {
 		return nil, err
 	}
@@ -116,15 +119,16 @@ func newConfigStoreClient(
 	clientCfg *csc.ClientConfig,
 	ds *config.DataStore,
 	logger log.Logger,
+	metricsClient metrics.Client,
 	configType persistence.ConfigType,
 ) (*configStoreClient, error) {
 	var store persistence.ConfigStore
 	var err error
 	switch {
 	case ds.ShardedNoSQL != nil:
-		store, err = nosql.NewNoSQLConfigStore(*ds.ShardedNoSQL, logger, nil)
+		store, err = nosql.NewNoSQLConfigStore(*ds.ShardedNoSQL, logger, metricsClient, nil)
 	case ds.NoSQL != nil:
-		store, err = nosql.NewNoSQLConfigStore(*ds.NoSQL.ConvertToShardedNoSQLConfig(), logger, nil)
+		store, err = nosql.NewNoSQLConfigStore(*ds.NoSQL.ConvertToShardedNoSQLConfig(), logger, metricsClient, nil)
 	case ds.SQL != nil:
 		var db sqlplugin.DB
 		db, err = sql.NewSQLDB(ds.SQL)

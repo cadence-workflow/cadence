@@ -200,53 +200,84 @@ var describeDomainResponseServer = &types.DescribeDomainResponse{
 	},
 }
 
+// This is used to mock the domain deletion confirmation
+func (s *cliAppSuite) mockStdinInput(input string) func() {
+	oldStdin := os.Stdin
+	r, w, err := os.Pipe()
+	s.Require().NoError(err)
+	os.Stdin = r
+
+	go func() {
+		_, wrErr := w.Write([]byte(input + "\n"))
+		s.Require().NoError(wrErr)
+		err = w.Close()
+		s.Require().NoError(err)
+	}()
+
+	return func() {
+		os.Stdin = oldStdin
+		r.Close()
+	}
+}
+
+func (s *cliAppSuite) TestDomainDelete() {
+	resp := describeDomainResponseServer
+	s.serverFrontendClient.EXPECT().DescribeDomain(gomock.Any(), gomock.Any()).Return(resp, nil)
+	s.serverFrontendClient.EXPECT().DeleteDomain(gomock.Any(), gomock.Any()).Return(nil)
+
+	defer s.mockStdinInput("Yes")()
+	err := s.app.Run([]string{"", "--do", domainName, "domain", "delete", "--st", "test-token"})
+	s.Nil(err)
+}
+
+func (s *cliAppSuite) TestDomainDelete_DomainNotExist() {
+	s.serverFrontendClient.EXPECT().DescribeDomain(gomock.Any(), gomock.Any()).Return(nil, &types.EntityNotExistsError{})
+	s.Error(s.app.Run([]string{"", "--do", domainName, "domain", "delete", "--st", "test-token"}))
+}
+
+func (s *cliAppSuite) TestDomainDelete_Failed() {
+	resp := describeDomainResponseServer
+	s.serverFrontendClient.EXPECT().DescribeDomain(gomock.Any(), gomock.Any()).Return(resp, nil)
+	s.serverFrontendClient.EXPECT().DeleteDomain(gomock.Any(), gomock.Any()).Return(&types.BadRequestError{"mock error"})
+
+	defer s.mockStdinInput("Yes")()
+	s.Error(s.app.Run([]string{"", "--do", domainName, "domain", "delete", "--st", "test-token"}))
+}
+
+func (s *cliAppSuite) TestDomainDelete_Cancelled() {
+	resp := describeDomainResponseServer
+	s.serverFrontendClient.EXPECT().DescribeDomain(gomock.Any(), gomock.Any()).Return(resp, nil)
+
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	defer func() {
+		os.Stdout = oldStdout
+	}()
+
+	defer s.mockStdinInput("No")()
+	err := s.app.Run([]string{"", "--do", domainName, "domain", "delete", "--st", "test-token"})
+	s.Nil(err)
+
+	w.Close()
+	var stdoutBuf bytes.Buffer
+	io.Copy(&stdoutBuf, r)
+
+	s.Contains(stdoutBuf.String(), "Domain deletion cancelled")
+}
+
 func (s *cliAppSuite) TestDomainDeprecate() {
-	s.serverFrontendClient.EXPECT().ListClosedWorkflowExecutions(gomock.Any(), gomock.Any()).Return(&types.ListClosedWorkflowExecutionsResponse{}, nil)
-	s.serverFrontendClient.EXPECT().ListOpenWorkflowExecutions(gomock.Any(), gomock.Any()).Return(&types.ListOpenWorkflowExecutionsResponse{}, nil)
-	s.serverFrontendClient.EXPECT().DeprecateDomain(gomock.Any(), gomock.Any()).Return(nil)
-	err := s.app.Run([]string{"", "--do", domainName, "domain", "deprecate"})
+	s.serverFrontendClient.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).Return(&types.StartWorkflowExecutionResponse{
+		RunID: "run-id-example",
+	}, nil)
+	err := s.app.Run([]string{"", "--do", domainName, "domain", "deprecate", "--st", "secretToken"})
 	s.Nil(err)
 }
 
-func (s *cliAppSuite) TestDomainDeprecate_DomainNotExist() {
-	s.serverFrontendClient.EXPECT().ListClosedWorkflowExecutions(gomock.Any(), gomock.Any()).Return(&types.ListClosedWorkflowExecutionsResponse{}, nil)
-	s.serverFrontendClient.EXPECT().ListOpenWorkflowExecutions(gomock.Any(), gomock.Any()).Return(&types.ListOpenWorkflowExecutionsResponse{}, nil)
-	s.serverFrontendClient.EXPECT().DeprecateDomain(gomock.Any(), gomock.Any()).Return(&types.EntityNotExistsError{})
-	s.Error(s.app.Run([]string{"", "--do", domainName, "domain", "deprecate"}))
-}
-
-func (s *cliAppSuite) TestDomainDeprecate_Failed() {
-	s.serverFrontendClient.EXPECT().ListClosedWorkflowExecutions(gomock.Any(), gomock.Any()).Return(&types.ListClosedWorkflowExecutionsResponse{}, nil)
-	s.serverFrontendClient.EXPECT().ListOpenWorkflowExecutions(gomock.Any(), gomock.Any()).Return(&types.ListOpenWorkflowExecutionsResponse{}, nil)
-	s.serverFrontendClient.EXPECT().DeprecateDomain(gomock.Any(), gomock.Any()).Return(&types.BadRequestError{"faked error"})
-	s.Error(s.app.Run([]string{"", "--do", domainName, "domain", "deprecate"}))
-}
-
-func (s *cliAppSuite) TestDomainDeprecate_ClosedWorkflowsExist() {
-	s.serverFrontendClient.EXPECT().ListClosedWorkflowExecutions(gomock.Any(), gomock.Any()).Return(listClosedWorkflowExecutionsResponse, nil)
-	s.Error(s.app.Run([]string{"", "--do", domainName, "domain", "deprecate"}))
-}
-
-func (s *cliAppSuite) TestDomainDeprecate_OpenWorkflowsExist() {
-	s.serverFrontendClient.EXPECT().ListClosedWorkflowExecutions(gomock.Any(), gomock.Any()).Return(&types.ListClosedWorkflowExecutionsResponse{}, nil)
-	s.serverFrontendClient.EXPECT().ListOpenWorkflowExecutions(gomock.Any(), gomock.Any()).Return(listOpenWorkflowExecutionsResponse, nil)
-	s.Error(s.app.Run([]string{"", "--do", domainName, "domain", "deprecate"}))
-}
-
-func (s *cliAppSuite) TestDomainDeprecate_Force() {
-	s.serverFrontendClient.EXPECT().DeprecateDomain(gomock.Any(), gomock.Any()).Return(nil)
-	err := s.app.Run([]string{"", "--do", domainName, "domain", "deprecate", "--force"})
-	s.Nil(err)
-}
-
-func (s *cliAppSuite) TestDomainDeprecate_DomainNotExist_Force() {
-	s.serverFrontendClient.EXPECT().DeprecateDomain(gomock.Any(), gomock.Any()).Return(&types.EntityNotExistsError{})
-	s.Error(s.app.Run([]string{"", "--do", domainName, "domain", "deprecate", "--force"}))
-}
-
-func (s *cliAppSuite) TestDomainDeprecate_Failed_Force() {
-	s.serverFrontendClient.EXPECT().DeprecateDomain(gomock.Any(), gomock.Any()).Return(&types.BadRequestError{"faked error"})
-	s.Error(s.app.Run([]string{"", "--do", domainName, "domain", "deprecate", "--force"}))
+func (s *cliAppSuite) TestDomainDeprecate_FailedToStartDeprecationWorkflow() {
+	s.serverFrontendClient.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil, &types.BadRequestError{"mock error"})
+	s.Error(s.app.Run([]string{"", "--do", domainName, "domain", "deprecate", "--st", "secretToken"}))
 }
 
 func (s *cliAppSuite) TestDomainDescribe() {

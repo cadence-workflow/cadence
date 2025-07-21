@@ -38,5 +38,8 @@ func (g GRPCHandler) Register(dispatcher *yarpc.Dispatcher) {
 
 func (g GRPCHandler) Health(ctx context.Context, _ *apiv1.HealthRequest) (*apiv1.HealthResponse, error) {
 	response, err := g.h.Health(ctx)
+	if err != nil {
+		return nil, err
+	}
 	return proto.FromHealthResponse(response), proto.FromError(err)
 }

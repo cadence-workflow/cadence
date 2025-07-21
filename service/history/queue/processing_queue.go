@@ -194,9 +194,9 @@ func (q *processingQueueImpl) AddTasks(tasks map[task.Key]task.Task, newReadLeve
 		if !taskBelongsToProcessQueue(q.state, key, task) {
 			errMsg := "Processing queue encountered a task doesn't belong to its scope"
 			q.logger.Error(errMsg, tag.Error(
-				fmt.Errorf("processing queue state: %+v, task: %+v", q.state, key),
+				fmt.Errorf("processing queue state: %+v, key: %+v, task: %+v", q.state, key, task),
 			))
-			panic(errMsg)
+			continue
 		}
 
 		q.outstandingTasks[key] = task

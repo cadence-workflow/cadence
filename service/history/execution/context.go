@@ -233,13 +233,13 @@ func NewContext(
 			return appendHistoryV2EventsWithRetry(ctx, shard, common.CreatePersistenceRetryPolicy(), domainID, workflowExecution, request)
 		},
 		getWorkflowExecutionFn: func(ctx context.Context, request *persistence.GetWorkflowExecutionRequest) (*persistence.GetWorkflowExecutionResponse, error) {
-			return getWorkflowExecutionWithRetry(ctx, shard, logger, common.CreatePersistenceRetryPolicy(), request)
+			return getWorkflowExecutionWithRetry(ctx, shard, logger.Helper(), common.CreatePersistenceRetryPolicy(), request)
 		},
 		createWorkflowExecutionFn: func(ctx context.Context, request *persistence.CreateWorkflowExecutionRequest) (*persistence.CreateWorkflowExecutionResponse, error) {
-			return createWorkflowExecutionWithRetry(ctx, shard, logger, common.CreatePersistenceRetryPolicy(), request)
+			return createWorkflowExecutionWithRetry(ctx, shard, logger.Helper(), common.CreatePersistenceRetryPolicy(), request)
 		},
 		updateWorkflowExecutionFn: func(ctx context.Context, request *persistence.UpdateWorkflowExecutionRequest) (*persistence.UpdateWorkflowExecutionResponse, error) {
-			return updateWorkflowExecutionWithRetry(ctx, shard, logger, common.CreatePersistenceRetryPolicy(), request)
+			return updateWorkflowExecutionWithRetry(ctx, shard, logger.Helper(), common.CreatePersistenceRetryPolicy(), request)
 		},
 		notifyTasksFromWorkflowSnapshotFn: func(snapshot *persistence.WorkflowSnapshot, blobs events.PersistedBlobs, persistentError bool) {
 			notifyTasksFromWorkflowSnapshot(shard.GetEngine(), snapshot, blobs, persistentError)
@@ -254,7 +254,7 @@ func NewContext(
 			emitWorkflowHistoryStats(shard.GetMetricsClient(), domainName, historySize, eventCount)
 		},
 		emitWorkflowCompletionStatsFn: func(domainName, workflowType, workflowID, runID, taskList string, event *types.HistoryEvent) {
-			emitWorkflowCompletionStats(shard.GetMetricsClient(), logger, domainName, workflowType, workflowID, runID, taskList, event)
+			emitWorkflowCompletionStats(shard.GetMetricsClient(), logger.Helper(), domainName, workflowType, workflowID, runID, taskList, event)
 		},
 		emitWorkflowExecutionStatsFn: func(domainName string, stats *persistence.MutableStateStats, historySize int64) {
 			emitWorkflowExecutionStats(shard.GetMetricsClient(), domainName, stats, historySize)
@@ -367,7 +367,7 @@ func (c *contextImpl) LoadWorkflowExecutionWithTaskVersion(
 				return nil, err
 			}
 			c.mutableState = c.createMutableStateFn(c.shard, c.logger, domainEntry)
-			err = c.mutableState.Load(response.State)
+			err = c.mutableState.Load(ctx, response.State)
 			if err == nil {
 				break
 			} else if !isChecksumError(err) {
@@ -387,17 +387,18 @@ func (c *contextImpl) LoadWorkflowExecutionWithTaskVersion(
 		// finally emit execution and session stats
 		c.emitWorkflowExecutionStatsFn(domainEntry.GetInfo().Name, response.MutableStateStats, c.stats.HistorySize)
 	}
-	flushBeforeReady, err := c.mutableState.StartTransaction(domainEntry, incomingVersion)
+	flushBeforeReady, err := c.mutableState.StartTransaction(ctx, domainEntry, incomingVersion)
 	if err != nil {
 		return nil, err
 	}
 	if !flushBeforeReady {
 		return c.mutableState, nil
 	}
+	c.logger.Debug("LoadWorkflowExecutionWithTaskVersion calling UpdateWorkflowExecutionAsActive", tag.WorkflowID(c.workflowExecution.GetWorkflowID()))
 	if err = c.UpdateWorkflowExecutionAsActive(ctx, c.shard.GetTimeSource().Now()); err != nil {
 		return nil, err
 	}
-	flushBeforeReady, err = c.mutableState.StartTransaction(domainEntry, incomingVersion)
+	flushBeforeReady, err = c.mutableState.StartTransaction(ctx, domainEntry, incomingVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -567,6 +568,7 @@ func (c *contextImpl) ConflictResolveWorkflowExecution(
 				currentContext.Clear()
 			}
 		}()
+		c.logger.Debug("ConflictResolveWorkflowExecution calling CloseTransactionAsMutation", tag.WorkflowID(c.workflowExecution.GetWorkflowID()), tag.Dynamic("policy", *currentTransactionPolicy))
 		currentWorkflow, currentWorkflowEventsSeq, err = currentMutableState.CloseTransactionAsMutation(now, *currentTransactionPolicy)
 		if err != nil {
 			return err
@@ -654,6 +656,11 @@ func (c *contextImpl) UpdateWorkflowExecutionAsActive(
 	ctx context.Context,
 	now time.Time,
 ) error {
+	c.logger.Debug("UpdateWorkflowExecutionAsActive calling UpdateWorkflowExecutionWithNew",
+		tag.WorkflowID(c.workflowExecution.GetWorkflowID()),
+		tag.Dynamic("current policy", TransactionPolicyPassive),
+		tag.Dynamic("new policy", nil),
+	)
 	return c.updateWorkflowExecutionWithNewFn(ctx, now, persistence.UpdateWorkflowModeUpdateCurrent, nil, nil, TransactionPolicyActive, nil, persistence.CreateWorkflowRequestModeNew)
 }
 
@@ -663,6 +670,11 @@ func (c *contextImpl) UpdateWorkflowExecutionWithNewAsActive(
 	newContext Context,
 	newMutableState MutableState,
 ) error {
+	c.logger.Debug("UpdateWorkflowExecutionWithNewAsActive calling UpdateWorkflowExecutionWithNew",
+		tag.WorkflowID(c.workflowExecution.GetWorkflowID()),
+		tag.Dynamic("current policy", TransactionPolicyPassive),
+		tag.Dynamic("new policy", TransactionPolicyActive),
+	)
 	return c.updateWorkflowExecutionWithNewFn(ctx, now, persistence.UpdateWorkflowModeUpdateCurrent, newContext, newMutableState, TransactionPolicyActive, TransactionPolicyActive.Ptr(), persistence.CreateWorkflowRequestModeNew)
 }
 
@@ -670,6 +682,11 @@ func (c *contextImpl) UpdateWorkflowExecutionAsPassive(
 	ctx context.Context,
 	now time.Time,
 ) error {
+	c.logger.Debug("UpdateWorkflowExecutionAsPassive calling UpdateWorkflowExecutionWithNew",
+		tag.WorkflowID(c.workflowExecution.GetWorkflowID()),
+		tag.Dynamic("current policy", TransactionPolicyPassive),
+		tag.Dynamic("new policy", nil),
+	)
 	return c.updateWorkflowExecutionWithNewFn(ctx, now, persistence.UpdateWorkflowModeUpdateCurrent, nil, nil, TransactionPolicyPassive, nil, persistence.CreateWorkflowRequestModeReplicated)
 }
 
@@ -679,6 +696,11 @@ func (c *contextImpl) UpdateWorkflowExecutionWithNewAsPassive(
 	newContext Context,
 	newMutableState MutableState,
 ) error {
+	c.logger.Debug("UpdateWorkflowExecutionWithNewAsPassive calling UpdateWorkflowExecutionWithNew",
+		tag.WorkflowID(c.workflowExecution.GetWorkflowID()),
+		tag.Dynamic("current policy", TransactionPolicyPassive),
+		tag.Dynamic("new policy", TransactionPolicyPassive),
+	)
 	return c.updateWorkflowExecutionWithNewFn(ctx, now, persistence.UpdateWorkflowModeUpdateCurrent, newContext, newMutableState, TransactionPolicyPassive, TransactionPolicyPassive.Ptr(), persistence.CreateWorkflowRequestModeReplicated)
 }
 
@@ -692,6 +714,7 @@ func (c *contextImpl) UpdateWorkflowExecutionTasks(
 		}
 	}()
 
+	c.logger.Debug("UpdateWorkflowExecutionTask calling CloseTransactionAsMutation", tag.WorkflowID(c.workflowExecution.GetWorkflowID()))
 	currentWorkflow, currentWorkflowEventsSeq, err := c.mutableState.CloseTransactionAsMutation(now, TransactionPolicyPassive)
 	if err != nil {
 		return err
@@ -749,6 +772,8 @@ func (c *contextImpl) UpdateWorkflowExecutionWithNew(
 			c.Clear()
 		}
 	}()
+
+	c.logger.Debug("UpdateWorkflowExecutionWithNew calling CloseTransactionAsMutation", tag.WorkflowID(c.workflowExecution.GetWorkflowID()), tag.Dynamic("policy", currentWorkflowTransactionPolicy))
 
 	currentWorkflow, currentWorkflowEventsSeq, err := c.mutableState.CloseTransactionAsMutation(now, currentWorkflowTransactionPolicy)
 	if err != nil {
@@ -1125,7 +1150,7 @@ func appendHistoryV2EventsWithRetry(
 ) (*persistence.AppendHistoryNodesResponse, error) {
 
 	var resp *persistence.AppendHistoryNodesResponse
-	op := func() error {
+	op := func(ctx context.Context) error {
 		var err error
 		resp, err = shardContext.AppendHistoryV2Events(ctx, request, domainID, execution)
 		return err
@@ -1145,9 +1170,10 @@ func createWorkflowExecutionWithRetry(
 	retryPolicy backoff.RetryPolicy,
 	request *persistence.CreateWorkflowExecutionRequest,
 ) (*persistence.CreateWorkflowExecutionResponse, error) {
+	logger = logger.Helper()
 
 	var resp *persistence.CreateWorkflowExecutionResponse
-	op := func() error {
+	op := func(ctx context.Context) error {
 		var err error
 		resp, err = shardContext.CreateWorkflowExecution(ctx, request)
 		return err
@@ -1191,8 +1217,10 @@ func getWorkflowExecutionWithRetry(
 	retryPolicy backoff.RetryPolicy,
 	request *persistence.GetWorkflowExecutionRequest,
 ) (*persistence.GetWorkflowExecutionResponse, error) {
+	logger.Helper()
+
 	var resp *persistence.GetWorkflowExecutionResponse
-	op := func() error {
+	op := func(ctx context.Context) error {
 		var err error
 		resp, err = shardContext.GetWorkflowExecution(ctx, request)
 		return err
@@ -1228,9 +1256,10 @@ func updateWorkflowExecutionWithRetry(
 	retryPolicy backoff.RetryPolicy,
 	request *persistence.UpdateWorkflowExecutionRequest,
 ) (*persistence.UpdateWorkflowExecutionResponse, error) {
+	logger.Helper()
 
 	var resp *persistence.UpdateWorkflowExecutionResponse
-	op := func() error {
+	op := func(ctx context.Context) error {
 		var err error
 		resp, err = shardContext.UpdateWorkflowExecution(ctx, request)
 		return err
@@ -1361,6 +1390,16 @@ func (c *contextImpl) ReapplyEvents(
 	defer cancel()
 
 	activeCluster := domainEntry.GetReplicationConfig().ActiveClusterName
+
+	// TODO(active-active): Write unit tests to cover this
+	if domainEntry.GetReplicationConfig().IsActiveActive() {
+		lookupRes, err := c.shard.GetActiveClusterManager().LookupWorkflow(ctx, domainID, workflowID, runID)
+		if err != nil {
+			return err
+		}
+		activeCluster = lookupRes.ClusterName
+	}
+
 	if activeCluster == c.shard.GetClusterMetadata().GetCurrentClusterName() {
 		return c.shard.GetEngine().ReapplyEvents(
 			ctx,
@@ -1391,10 +1430,10 @@ func (c *contextImpl) ReapplyEvents(
 	// The active cluster of the domain is differ from the current cluster
 	// Use frontend client to route this request to the active cluster
 	// Reapplication only happens in active cluster
-	sourceCluster := clientBean.GetRemoteAdminClient(activeCluster)
-	if sourceCluster == nil {
+	sourceCluster, err := clientBean.GetRemoteAdminClient(activeCluster)
+	if err != nil {
 		return &types.InternalServiceError{
-			Message: fmt.Sprintf("cannot find cluster config %v to do reapply", activeCluster),
+			Message: err.Error(),
 		}
 	}
 	return sourceCluster.ReapplyEvents(

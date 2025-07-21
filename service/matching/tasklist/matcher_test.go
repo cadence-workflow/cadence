@@ -41,13 +41,13 @@ import (
 	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/metrics/mocks"
 	"github.com/uber/cadence/common/persistence"
-	"github.com/uber/cadence/common/quotas"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/matching/config"
 )
@@ -74,6 +74,7 @@ func (t *MatcherTestSuite) SetupTest() {
 	t.controller = gomock.NewController(t.T())
 	t.client = matching.NewMockClient(t.controller)
 	cfg := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", func() []string { return nil })
+	cfg.TaskDispatchRPSTTL = 0
 	t.taskList = NewTestTaskListID(t.T(), uuid.New(), constants.ReservedTaskListPrefix+"tl0/1", persistence.TaskListTypeDecision)
 	tlCfg := newTaskListConfig(t.taskList, cfg, testDomainName)
 
@@ -85,12 +86,12 @@ func (t *MatcherTestSuite) SetupTest() {
 	}
 	t.cfg = tlCfg
 	t.isolationGroups = []string{"dca1", "dca2"}
-	t.fwdr = newForwarder(&t.cfg.ForwarderConfig, t.taskList, types.TaskListKindNormal, t.client, []string{"dca1", "dca2"}, metrics.NoopScope(metrics.Matching))
-	t.matcher = newTaskMatcher(tlCfg, t.fwdr, metrics.NoopScope(metrics.Matching), []string{"dca1", "dca2"}, log.NewNoop(), t.taskList, types.TaskListKindNormal, func(cfg *config.TaskListConfig) int { return tlCfg.NumReadPartitions() }).(*taskMatcherImpl)
+	t.fwdr = newForwarder(&t.cfg.ForwarderConfig, t.taskList, types.TaskListKindNormal, t.client, metrics.NoopScope)
+	t.matcher = newTaskMatcher(tlCfg, t.fwdr, metrics.NoopScope, []string{"dca1", "dca2"}, log.NewNoop(), t.taskList, types.TaskListKindNormal, func(cfg *config.TaskListConfig) int { return tlCfg.NumReadPartitions() }).(*taskMatcherImpl)
 
 	rootTaskList := NewTestTaskListID(t.T(), t.taskList.GetDomainID(), t.taskList.Parent(20), persistence.TaskListTypeDecision)
 	rootTasklistCfg := newTaskListConfig(rootTaskList, cfg, testDomainName)
-	t.rootMatcher = newTaskMatcher(rootTasklistCfg, nil, metrics.NoopScope(metrics.Matching), []string{"dca1", "dca2"}, log.NewNoop(), t.taskList, types.TaskListKindNormal, func(cfg *config.TaskListConfig) int { return tlCfg.NumReadPartitions() }).(*taskMatcherImpl)
+	t.rootMatcher = newTaskMatcher(rootTasklistCfg, nil, metrics.NoopScope, []string{"dca1", "dca2"}, log.NewNoop(), t.taskList, types.TaskListKindNormal, func(cfg *config.TaskListConfig) int { return tlCfg.NumReadPartitions() }).(*taskMatcherImpl)
 }
 
 func (t *MatcherTestSuite) TearDownTest() {
@@ -98,7 +99,7 @@ func (t *MatcherTestSuite) TearDownTest() {
 }
 
 func (t *MatcherTestSuite) TestLocalSyncMatch() {
-	t.disableRemoteForwarding("")
+	t.disableRemoteForwarding()
 
 	wait := ensureAsyncReady(time.Second, func(ctx context.Context) {
 		task, err := t.matcher.Poll(ctx, "")
@@ -119,7 +120,7 @@ func (t *MatcherTestSuite) TestLocalSyncMatch() {
 func (t *MatcherTestSuite) TestIsolationLocalSyncMatch() {
 	const isolationGroup = "dca1"
 
-	t.disableRemoteForwarding(isolationGroup)
+	t.disableRemoteForwarding()
 
 	wait := ensureAsyncReady(time.Second, func(ctx context.Context) {
 		task, err := t.matcher.Poll(ctx, isolationGroup)
@@ -254,7 +255,7 @@ func (t *MatcherTestSuite) TestRateLimitHandling() {
 func (t *MatcherTestSuite) TestIsolationSyncMatchFailure() {
 	const isolationGroup = "dca2"
 
-	t.disableRemoteForwarding(isolationGroup)
+	t.disableRemoteForwarding()
 
 	wait := ensureAsyncReady(time.Second, func(ctx context.Context) {
 		task, err := t.matcher.Poll(ctx, isolationGroup)
@@ -272,7 +273,7 @@ func (t *MatcherTestSuite) TestIsolationSyncMatchFailure() {
 }
 
 func (t *MatcherTestSuite) TestQueryLocalSyncMatch() {
-	t.disableRemoteForwarding("")
+	t.disableRemoteForwarding()
 
 	wait := ensureAsyncReady(time.Second, func(ctx context.Context) {
 		task, err := t.matcher.PollForQuery(ctx)
@@ -327,7 +328,7 @@ func (t *MatcherTestSuite) TestQueryRemoteSyncMatch() {
 			ready()
 			t.rootMatcher.OfferQuery(ctx, task)
 		},
-	).Return(&types.QueryWorkflowResponse{QueryResult: []byte("answer")}, nil)
+	).Return(&types.MatchingQueryWorkflowResponse{QueryResult: []byte("answer")}, nil)
 
 	result, err := t.matcher.OfferQuery(ctx, task)
 	cancel()
@@ -342,7 +343,7 @@ func (t *MatcherTestSuite) TestQueryRemoteSyncMatch() {
 }
 
 func (t *MatcherTestSuite) TestQueryRemoteSyncMatchError() {
-	<-t.fwdr.PollReqTokenC("")
+	<-t.fwdr.PollReqTokenC()
 
 	matched := false
 	ready, wait := ensureAsyncAfterReady(time.Second, func(ctx context.Context) {
@@ -374,7 +375,7 @@ func (t *MatcherTestSuite) TestQueryRemoteSyncMatchError() {
 }
 
 func (t *MatcherTestSuite) TestMustOfferLocalMatch() {
-	t.disableRemoteForwarding("")
+	t.disableRemoteForwarding()
 
 	wait := ensureAsyncReady(time.Second, func(ctx context.Context) {
 		task, err := t.matcher.Poll(ctx, "")
@@ -393,10 +394,7 @@ func (t *MatcherTestSuite) TestMustOfferLocalMatch() {
 
 func (t *MatcherTestSuite) TestIsolationMustOfferLocalMatch() {
 	// force disable remote forwarding
-	for i := 0; i < len(t.isolationGroups)+1; i++ {
-		<-t.fwdr.AddReqTokenC()
-	}
-	<-t.fwdr.PollReqTokenC("dca1")
+	t.disableRemoteForwarding()
 
 	wait := ensureAsyncReady(time.Second, func(ctx context.Context) {
 		task, err := t.matcher.Poll(ctx, "dca1")
@@ -567,19 +565,35 @@ func (t *MatcherTestSuite) TestIsolationMustOfferRemoteMatch() {
 
 func (t *MatcherTestSuite) TestPollersDisconnectedAfterDisconnectBlockedPollers() {
 	defer goleak.VerifyNone(t.T())
-	t.disableRemoteForwarding("")
+	t.disableRemoteForwarding()
 	t.matcher.DisconnectBlockedPollers()
 
-	longPollingCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	longPollingCtx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
 	task, err := t.matcher.Poll(longPollingCtx, "")
 	t.ErrorIs(err, ErrNoTasks, "closed matcher should result in no tasks")
 	t.Nil(task)
+	t.NoError(longPollingCtx.Err(), "the parent context was not cancelled, the child context was cancelled")
+}
+
+func (t *MatcherTestSuite) TestPollersConnectedAfterDisconnectBlockedPollersSetCancelContext() {
+	defer goleak.VerifyNone(t.T())
+	t.disableRemoteForwarding()
+	t.matcher.DisconnectBlockedPollers()
+	t.matcher.RefreshCancelContext()
+
+	longPollingCtx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+
+	task, err := t.matcher.Poll(longPollingCtx, "")
+	t.ErrorIs(err, ErrNoTasks, "no tasks to be matched to poller")
+	t.Nil(task)
+	t.ErrorIs(longPollingCtx.Err(), context.DeadlineExceeded, "the child context wasn't cancelled, the parent context timed out")
 }
 
 func (t *MatcherTestSuite) TestRemotePoll() {
-	pollToken := <-t.fwdr.PollReqTokenC("")
+	pollToken := <-t.fwdr.PollReqTokenC()
 
 	var req *types.MatchingPollForDecisionTaskRequest
 	t.client.EXPECT().PollForDecisionTask(gomock.Any(), gomock.Any()).DoAndReturn(
@@ -590,7 +604,7 @@ func (t *MatcherTestSuite) TestRemotePoll() {
 	)
 
 	ready, wait := ensureAsyncAfterReady(0, func(_ context.Context) {
-		pollToken.release("")
+		pollToken.release()
 	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -605,7 +619,7 @@ func (t *MatcherTestSuite) TestRemotePoll() {
 }
 
 func (t *MatcherTestSuite) TestRemotePollForQuery() {
-	pollToken := <-t.fwdr.PollReqTokenC("")
+	pollToken := <-t.fwdr.PollReqTokenC()
 
 	var req *types.MatchingPollForDecisionTaskRequest
 	t.client.EXPECT().PollForDecisionTask(gomock.Any(), gomock.Any()).DoAndReturn(
@@ -616,7 +630,7 @@ func (t *MatcherTestSuite) TestRemotePollForQuery() {
 	)
 
 	ready, wait := ensureAsyncAfterReady(0, func(_ context.Context) {
-		pollToken.release("")
+		pollToken.release()
 	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -631,6 +645,7 @@ func (t *MatcherTestSuite) TestRemotePollForQuery() {
 }
 
 func (t *MatcherTestSuite) TestIsolationPollFailure() {
+	t.disableRemoteForwarding()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	task, err := t.matcher.Poll(ctx, "invalid-group")
 	cancel()
@@ -663,7 +678,7 @@ func (t *MatcherTestSuite) TestOffer_NoTimeoutSyncMatchedNoError() {
 		}
 	})
 
-	t.disableRemoteForwarding("")
+	t.disableRemoteForwarding()
 
 	task := newInternalTask(t.newTaskInfo(), nil, types.TaskSourceHistory, "", true, nil, "")
 
@@ -688,7 +703,7 @@ func (t *MatcherTestSuite) TestOffer_NoTimeoutSyncMatchedError() {
 		}
 	})
 
-	t.disableRemoteForwarding("")
+	t.disableRemoteForwarding()
 
 	task := newInternalTask(t.newTaskInfo(), nil, types.TaskSourceHistory, "", true, nil, "")
 	task.ResponseC <- errShutdown
@@ -714,7 +729,7 @@ func (t *MatcherTestSuite) TestOffer_NoTimeoutAsyncMatchedNoError() {
 		}
 	})
 
-	t.disableRemoteForwarding("")
+	t.disableRemoteForwarding()
 
 	task := newInternalTask(t.newTaskInfo(), nil, types.TaskSourceHistory, "", false, nil, "")
 
@@ -737,7 +752,7 @@ func (t *MatcherTestSuite) TestOffer_AsyncMatchedNoError() {
 		}
 	})
 
-	t.disableRemoteForwarding("")
+	t.disableRemoteForwarding()
 
 	task := newInternalTask(t.newTaskInfo(), nil, types.TaskSourceHistory, "", false, nil, "")
 
@@ -753,19 +768,20 @@ func (t *MatcherTestSuite) TestOffer_AsyncMatchedNoError() {
 func (t *MatcherTestSuite) TestOfferOrTimeout_SyncMatchTimedOut() {
 	defer goleak.VerifyNone(t.T())
 
-	t.disableRemoteForwarding("")
+	t.disableRemoteForwarding()
+
+	task := newInternalTask(t.newTaskInfo(), nil, types.TaskSourceHistory, "", true, nil, "")
 
 	wait := ensureAsyncReady(time.Second, func(ctx context.Context) {
+		time.Sleep(time.Millisecond * 100)
 		task, err := t.matcher.Poll(ctx, "")
 		if err == nil {
 			task.Finish(nil)
 		}
 	})
 
-	task := newInternalTask(t.newTaskInfo(), nil, types.TaskSourceHistory, "", true, nil, "")
-
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
-	cancel()
+	defer cancel()
 	matched, err := t.matcher.OfferOrTimeout(ctx, time.Now(), task)
 	wait()
 
@@ -776,7 +792,7 @@ func (t *MatcherTestSuite) TestOfferOrTimeout_SyncMatchTimedOut() {
 func (t *MatcherTestSuite) TestOfferOrTimeout_AsyncMatchNotMatched() {
 	defer goleak.VerifyNone(t.T())
 
-	t.disableRemoteForwarding("")
+	t.disableRemoteForwarding()
 
 	wait := ensureAsyncReady(time.Second, func(ctx context.Context) {
 		task, err := t.matcher.Poll(ctx, "")
@@ -799,7 +815,7 @@ func (t *MatcherTestSuite) TestOfferOrTimeout_AsyncMatchNotMatched() {
 func (t *MatcherTestSuite) TestOfferOrTimeout_AsyncMatchMatched() {
 	defer goleak.VerifyNone(t.T())
 
-	t.disableRemoteForwarding("")
+	t.disableRemoteForwarding()
 
 	wait := ensureAsyncReady(time.Second, func(ctx context.Context) {
 		task, err := t.matcher.Poll(ctx, "")
@@ -820,7 +836,7 @@ func (t *MatcherTestSuite) TestOfferOrTimeout_AsyncMatchMatched() {
 }
 
 func (t *MatcherTestSuite) TestOfferOrTimeout_TimedOut() {
-	t.disableRemoteForwarding("")
+	t.disableRemoteForwarding()
 
 	task := newInternalTask(t.newTaskInfo(), nil, types.TaskSourceHistory, "", false, &types.ActivityTaskDispatchInfo{}, "")
 
@@ -947,7 +963,7 @@ func (t *MatcherTestSuite) TestMustOffer_LocalMatchAfterChildCtxExpired() {
 	mockForwarder := NewMockForwarder(t.controller)
 	t.matcher.fwdr = mockForwarder
 
-	t.disableRemoteForwarding("")
+	t.disableRemoteForwarding()
 
 	mockForwarder.EXPECT().AddReqTokenC().AnyTimes()
 
@@ -1013,26 +1029,25 @@ func (t *MatcherTestSuite) TestMustOffer_ContextExpiredAfterForwardError() {
 		ch: make(chan *ForwarderReqToken, 1),
 	}
 
-	fn := func() <-chan *ForwarderReqToken {
-		c := make(chan *ForwarderReqToken, 1)
-		c <- forwardToken
-		return c
-	}
+	// Have 1 token ready and waiting
+	c := make(chan *ForwarderReqToken, 1)
+	c <- forwardToken
 
 	task := newInternalTask(t.newTaskInfo(), nil, types.TaskSourceHistory, "", false, nil, "")
 
-	mockForwarder.EXPECT().AddReqTokenC().Return(fn()).Times(1)
+	mockForwarder.EXPECT().AddReqTokenC().Return(c).Times(1)
 	mockForwarder.EXPECT().ForwardTask(gomock.Any(), task).Return(ErrNoParent).Times(1)
 
 	go func() {
+		// Wait for the token to be returned
 		<-forwardToken.ch
 		// using cancel here to simulate the context being expired
 		cancel()
 	}()
 
 	err := t.matcher.MustOffer(ctx, task)
-
-	t.Error(err)
+	t.ErrorIs(err, context.Canceled)
+	t.ErrorContains(err, "failed to offer task:")
 }
 
 func (t *MatcherTestSuite) Test_pollOrForward_PollIsolatedTask() {
@@ -1041,14 +1056,14 @@ func (t *MatcherTestSuite) Test_pollOrForward_PollIsolatedTask() {
 	isolationGroup := "dca1"
 	isolatedTaskC := make(chan *InternalTask, 1)
 
-	t.disableRemoteForwarding("")
+	t.disableRemoteForwarding()
 
 	mockForwarder := NewMockForwarder(t.controller)
 	t.matcher.fwdr = mockForwarder
 
 	// Mock the fwdrPollReqTokenC method to return a controlled channel
 	mockTokenC := make(chan *ForwarderReqToken)
-	mockForwarder.EXPECT().PollReqTokenC(isolationGroup).Return(mockTokenC).AnyTimes()
+	mockForwarder.EXPECT().PollReqTokenC().Return(mockTokenC).AnyTimes()
 
 	// Test pollOrForward for isolated task - poll
 	isolatedTask := newInternalTask(t.newTaskInfo(), nil, types.TaskSourceHistory, "", true, nil, isolationGroup)
@@ -1064,14 +1079,14 @@ func (t *MatcherTestSuite) Test_pollOrForward_PollTask() {
 	startT := time.Now()
 	taskC := make(chan *InternalTask, 1)
 
-	t.disableRemoteForwarding("")
+	t.disableRemoteForwarding()
 
 	mockForwarder := NewMockForwarder(t.controller)
 	t.matcher.fwdr = mockForwarder
 
 	// Mock the fwdrPollReqTokenC method to return a controlled channel
 	mockTokenC := make(chan *ForwarderReqToken)
-	mockForwarder.EXPECT().PollReqTokenC("").Return(mockTokenC).AnyTimes()
+	mockForwarder.EXPECT().PollReqTokenC().Return(mockTokenC).AnyTimes()
 
 	// Test pollOrForward for regular task - poll
 	task := newInternalTask(t.newTaskInfo(), nil, types.TaskSourceHistory, "", true, nil, "")
@@ -1091,7 +1106,7 @@ func (t *MatcherTestSuite) Test_pollOrForward_PollQueryTask() {
 
 	// Mock the fwdrPollReqTokenC method to return a controlled channel
 	mockTokenC := make(chan *ForwarderReqToken)
-	mockForwarder.EXPECT().PollReqTokenC("").Return(mockTokenC).AnyTimes()
+	mockForwarder.EXPECT().PollReqTokenC().Return(mockTokenC).AnyTimes()
 
 	// Test pollOrForward for query task - poll
 	queryTask := newInternalQueryTask(uuid.New(), &types.MatchingQueryWorkflowRequest{})
@@ -1113,10 +1128,10 @@ func (t *MatcherTestSuite) Test_pollOrForward_ForwardTask() {
 	// Mock the fwdrPollReqTokenC method to return a controlled channel
 	mockTokenC := make(chan *ForwarderReqToken, 1)
 	forwardToken := &ForwarderReqToken{
-		isolatedCh: map[string]chan *ForwarderReqToken{isolationGroup: make(chan *ForwarderReqToken, 1)},
+		ch: make(chan *ForwarderReqToken, 1),
 	}
 	mockTokenC <- forwardToken
-	mockForwarder.EXPECT().PollReqTokenC(isolationGroup).Return(mockTokenC).AnyTimes()
+	mockForwarder.EXPECT().PollReqTokenC().Return(mockTokenC).AnyTimes()
 
 	task := newInternalTask(t.newTaskInfo(), nil, types.TaskSourceHistory, "", true, nil, "")
 	mockForwarder.EXPECT().ForwardPoll(ctx).Return(task, nil).Times(1)
@@ -1139,10 +1154,10 @@ func (t *MatcherTestSuite) Test_pollOrForward_ForwardTaskThenPoll() {
 	// Mock the fwdrPollReqTokenC method to return a controlled channel
 	mockTokenC := make(chan *ForwarderReqToken, 1)
 	forwardToken := &ForwarderReqToken{
-		isolatedCh: map[string]chan *ForwarderReqToken{isolationGroup: make(chan *ForwarderReqToken, 1)},
+		ch: make(chan *ForwarderReqToken, 1),
 	}
 	mockTokenC <- forwardToken
-	mockForwarder.EXPECT().PollReqTokenC(isolationGroup).Return(mockTokenC).AnyTimes()
+	mockForwarder.EXPECT().PollReqTokenC().Return(mockTokenC).AnyTimes()
 
 	task := newInternalTask(t.newTaskInfo(), nil, types.TaskSourceHistory, "", true, nil, "")
 	mockForwarder.EXPECT().ForwardPoll(ctx).Return(nil, ErrNoParent).Times(1)
@@ -1151,7 +1166,7 @@ func (t *MatcherTestSuite) Test_pollOrForward_ForwardTaskThenPoll() {
 	// It's not a race condition because the PollReqTokenC is mocked and does not use the isolatedCh
 	go func() {
 		select {
-		case <-forwardToken.isolatedCh[isolationGroup]:
+		case <-forwardToken.ch:
 			taskC <- task
 		}
 	}()
@@ -1270,15 +1285,13 @@ func (t *MatcherTestSuite) Test_pollNonBlocking_NoTasks() {
 
 func (t *MatcherTestSuite) Test_fwdrPollReqTokenC() {
 	t.matcher.fwdr = nil
-	t.Equal(noopForwarderTokenC, t.matcher.fwdrPollReqTokenC(""))
+	t.Equal(noopForwarderTokenC, t.matcher.fwdrPollReqTokenC())
 }
 
-func (t *MatcherTestSuite) disableRemoteForwarding(isolationGroup string) {
+func (t *MatcherTestSuite) disableRemoteForwarding() {
 	// force disable remote forwarding
-	for i := 0; i < len(t.isolationGroups)+1; i++ {
-		<-t.fwdr.AddReqTokenC()
-	}
-	<-t.fwdr.PollReqTokenC(isolationGroup)
+	<-t.fwdr.AddReqTokenC()
+	<-t.fwdr.PollReqTokenC()
 }
 
 func (t *MatcherTestSuite) newDomainCache() cache.DomainCache {
@@ -1454,7 +1467,7 @@ func TestRatelimitBehavior(t *testing.T) {
 			t.Run("current", func(t *testing.T) {
 				t.Parallel()
 				perSecond := float64(time.Second / granularity)
-				limiter := quotas.NewRateLimiter(&perSecond, time.Minute, int(perSecond))
+				limiter := clock.NewRatelimiter(rate.Limit(perSecond), int(perSecond))
 				check(t, limiter.Allow, func(ctx context.Context) (*rate.Reservation, error) {
 					return nil, (&taskMatcherImpl{limiter: limiter}).ratelimit(ctx)
 				})
@@ -1553,7 +1566,7 @@ func TestRatelimitBehavior(t *testing.T) {
 			t.Run("new code stops quickly and returns unused tokens", func(t *testing.T) {
 				t.Parallel()
 				perSecond := float64(time.Second / granularity)
-				limit := quotas.NewRateLimiter(&perSecond, time.Minute, int(perSecond))
+				limit := clock.NewRatelimiter(rate.Limit(perSecond), int(perSecond))
 				for limit.Allow() {
 					// drain tokens to start
 				}
@@ -1641,7 +1654,7 @@ func ensureAsyncReady(ctxTimeout time.Duration, cb func(ctx context.Context)) (w
 }
 
 func (t *MatcherTestSuite) Test_LocalSyncMatch_AutoConfigHint() {
-	t.disableRemoteForwarding("")
+	t.disableRemoteForwarding()
 
 	wait := ensureAsyncReady(time.Second, func(ctx context.Context) {
 		task, err := t.matcher.Poll(ctx, "")

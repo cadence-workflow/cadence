@@ -112,6 +112,10 @@ func (tl *throttledLogger) SampleInfo(msg string, sampleRate int, tags ...tag.Ta
 	}
 }
 
+func (tl *throttledLogger) DebugOn() bool {
+	return tl.log.DebugOn()
+}
+
 // Return a logger with the specified key-value pairs set, to be included in a subsequent normal logging call
 func (tl *throttledLogger) WithTags(tags ...tag.Tag) Logger {
 	result := &throttledLogger{
@@ -126,4 +130,13 @@ func (tl *throttledLogger) rateLimit(f func()) {
 	if ok := tl.limiter.Allow(); ok {
 		f()
 	}
+}
+
+func (tl *throttledLogger) Helper() Logger {
+	result := &throttledLogger{
+		rps:     atomic.LoadInt32(&tl.rps),
+		limiter: tl.limiter,
+		log:     tl.log.Helper(),
+	}
+	return result
 }

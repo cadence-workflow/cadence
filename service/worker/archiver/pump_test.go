@@ -59,12 +59,11 @@ func (s *pumpSuite) SetupSuite() {
 func (s *pumpSuite) SetupTest() {
 	pumpTestMetrics = &mmocks.Client{}
 	pumpTestMetrics.On("StartTimer", mock.Anything, mock.Anything).Return(metrics.NopStopwatch()).Once()
-	pumpTestLogger = &log.MockLogger{}
+	pumpTestLogger = log.NewMockLogger(s.T())
 }
 
 func (s *pumpSuite) TearDownTest() {
 	pumpTestMetrics.AssertExpectations(s.T())
-	pumpTestLogger.AssertExpectations(s.T())
 }
 
 func (s *pumpSuite) TestPumpRun_CarryoverLargerThanLimit() {

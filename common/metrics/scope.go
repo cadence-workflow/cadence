@@ -47,15 +47,6 @@ func newMetricsScope(
 	}
 }
 
-// NoopScope returns a noop scope of metrics
-func NoopScope(serviceIdx ServiceIdx) Scope {
-	return &metricsScope{
-		scope:     tally.NoopScope,
-		rootScope: tally.NoopScope,
-		defs:      getMetricDefs(serviceIdx),
-	}
-}
-
 func (m *metricsScope) IncCounter(id int) {
 	m.AddCounter(id, 1)
 }

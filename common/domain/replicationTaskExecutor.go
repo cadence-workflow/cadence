@@ -24,6 +24,7 @@ package domain
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/uber/cadence/common/clock"
@@ -99,6 +100,8 @@ func (h *domainReplicationTaskExecutorImpl) Execute(task *types.DomainTaskAttrib
 		return h.handleDomainCreationReplicationTask(ctx, task)
 	case types.DomainOperationUpdate:
 		return h.handleDomainUpdateReplicationTask(ctx, task)
+	case types.DomainOperationDelete:
+		return h.handleDomainDeleteReplicationTask(ctx, task)
 	default:
 		return ErrInvalidDomainOperation
 	}
@@ -132,6 +135,7 @@ func (h *domainReplicationTaskExecutorImpl) handleDomainCreationReplicationTask(
 		ReplicationConfig: &persistence.DomainReplicationConfig{
 			ActiveClusterName: task.ReplicationConfig.GetActiveClusterName(),
 			Clusters:          h.convertClusterReplicationConfigFromThrift(task.ReplicationConfig.Clusters),
+			ActiveClusters:    task.ReplicationConfig.GetActiveClusters(),
 		},
 		IsGlobalDomain:  true, // local domain will not be replicated
 		ConfigVersion:   task.GetConfigVersion(),
@@ -258,9 +262,14 @@ func (h *domainReplicationTaskExecutorImpl) handleDomainUpdateReplicationTask(ct
 		request.ReplicationConfig.Clusters = h.convertClusterReplicationConfigFromThrift(task.ReplicationConfig.Clusters)
 		request.ConfigVersion = task.GetConfigVersion()
 	}
+
+	// TODO(active-active): Domain's failover version has to be updated for the below case.
+	// However active-active domains don't need that field at all. We still increment it in domain handler whenever ActiveClusters change.
+	// Find another mechanism to indicate ActiveClusters changed and don't touch domain's top level failover version for active-active domains.
 	if resp.FailoverVersion < task.GetFailoverVersion() {
 		recordUpdated = true
 		request.ReplicationConfig.ActiveClusterName = task.ReplicationConfig.GetActiveClusterName()
+		request.ReplicationConfig.ActiveClusters = task.ReplicationConfig.GetActiveClusters()
 		request.FailoverVersion = task.GetFailoverVersion()
 		request.FailoverNotificationVersion = notificationVersion
 		request.PreviousFailoverVersion = task.GetPreviousFailoverVersion()
@@ -271,6 +280,26 @@ func (h *domainReplicationTaskExecutorImpl) handleDomainUpdateReplicationTask(ct
 	}
 
 	return h.domainManager.UpdateDomain(ctx, request)
+}
+
+// handleDomainDeleteReplicationTask handles the domain delete replication task
+func (h *domainReplicationTaskExecutorImpl) handleDomainDeleteReplicationTask(ctx context.Context, task *types.DomainTaskAttributes) error {
+	request := &persistence.DeleteDomainByNameRequest{
+		Name: task.Info.GetName(),
+	}
+
+	err := h.domainManager.DeleteDomainByName(ctx, request)
+	if err != nil {
+		_, err := h.domainManager.GetDomain(ctx, &persistence.GetDomainRequest{
+			Name: task.Info.GetName(),
+		})
+
+		var entityNotExistsError *types.EntityNotExistsError
+		if errors.As(err, &entityNotExistsError) {
+			return nil
+		}
+	}
+	return err
 }
 
 func (h *domainReplicationTaskExecutorImpl) validateDomainReplicationTask(task *types.DomainTaskAttributes) error {

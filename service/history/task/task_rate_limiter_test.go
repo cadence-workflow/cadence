@@ -27,6 +27,7 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -71,13 +72,26 @@ func (s *noopTask) RetryErr(err error) bool {
 func (s *noopTask) Ack() {
 	s.Lock()
 	defer s.Unlock()
+	if s.state != ctask.TaskStatePending {
+		return
+	}
 	s.state = ctask.TaskStateAcked
 }
 
 func (s *noopTask) Nack() {
 	s.Lock()
 	defer s.Unlock()
-	s.state = ctask.TaskStateNacked
+	if s.state != ctask.TaskStatePending {
+		return
+	}
+}
+
+func (s *noopTask) Cancel() {
+	s.Lock()
+	defer s.Unlock()
+	if s.state == ctask.TaskStatePending {
+		s.state = ctask.TaskStateCanceled
+	}
 }
 
 func (s *noopTask) State() ctask.State {
@@ -110,6 +124,9 @@ func (s *noopTask) GetAttempt() int {
 
 func (s *noopTask) GetInfo() persistence.Task {
 	return s.Task
+}
+
+func (s *noopTask) SetInitialSubmitTime(submitTime time.Time) {
 }
 
 type taskRateLimiterMockDeps struct {
@@ -168,10 +185,6 @@ func TestRateLimiterRPS(t *testing.T) {
 
 	l := r.limiters.For("test-domain").Limit()
 	assert.Equal(t, 50, int(l))
-
-	require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.TaskSchedulerGlobalDomainRPS, 200))
-	l = r.limiters.For("test-domain").Limit()
-	assert.Equal(t, 100, int(l))
 }
 
 func TestRateLimiterAllow(t *testing.T) {

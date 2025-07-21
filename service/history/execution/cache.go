@@ -116,9 +116,13 @@ func NewCache(shard shard.Context) Cache {
 	opts.TTL = config.HistoryCacheTTL()
 	opts.Pin = true
 	opts.MaxCount = config.HistoryCacheMaxSize()
+	opts.MetricsScope = shard.GetMetricsClient().Scope(metrics.HistoryExecutionCacheScope).Tagged(metrics.ShardIDTag(shard.GetShardID()))
+	opts.Logger = shard.GetLogger().WithTags(tag.ComponentHistoryCache)
+	opts.IsSizeBased = config.EnableSizeBasedHistoryExecutionCache
+	opts.MaxSize = config.ExecutionCacheMaxByteSize
 
 	return &cacheImpl{
-		Cache:            cache.New(opts, shard.GetLogger().WithTags(tag.ComponentHistoryCache)),
+		Cache:            cache.New(opts),
 		shard:            shard,
 		executionManager: shard.GetExecutionManager(),
 		logger:           shard.GetLogger().WithTags(tag.ComponentHistoryCache),
@@ -357,7 +361,7 @@ func (c *cacheImpl) getCurrentExecutionWithRetry(
 	defer sw.Stop()
 
 	var response *persistence.GetCurrentExecutionResponse
-	op := func() error {
+	op := func(ctx context.Context) error {
 		var err error
 		response, err = c.executionManager.GetCurrentExecution(ctx, request)
 

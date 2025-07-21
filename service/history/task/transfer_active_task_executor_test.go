@@ -191,14 +191,6 @@ func (s *transferActiveTaskExecutorSuite) TearDownTest() {
 	s.mockParentClosePolicyClient.AssertExpectations(s.T())
 }
 
-func (s *transferActiveTaskExecutorSuite) TestExecute_ShouldNotProcessTask() {
-	transferTask := s.newTransferTaskFromInfo(&persistence.ActivityTask{})
-
-	err := s.transferActiveTaskExecutor.Execute(transferTask, false)
-
-	s.NoError(err)
-}
-
 func (s *transferActiveTaskExecutorSuite) TestProcessActivityTask_Success() {
 
 	workflowExecution, mutableState, decisionCompletionID, err := test.SetupWorkflowWithCompletedDecision(s.T(), s.mockShard, s.domainID)
@@ -234,7 +226,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessActivityTask_Success() {
 	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(&persistence.GetWorkflowExecutionResponse{State: persistenceMutableState}, nil)
 	s.mockMatchingClient.EXPECT().AddActivityTask(gomock.Any(), createAddActivityTaskRequest(transferTask, ai, mutableState.GetExecutionInfo().PartitionConfig)).Return(&types.AddActivityTaskResponse{}, nil).Times(1)
 	s.mockWFCache.EXPECT().AllowInternal(constants.TestDomainID, constants.TestWorkflowID).Return(true).Times(1)
-	err = s.transferActiveTaskExecutor.Execute(transferTask, true)
+	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
 	s.Nil(err)
 }
 
@@ -292,23 +284,23 @@ func (s *transferActiveTaskExecutorSuite) TestProcessActivityTask_Ratelimits() {
 
 	// RPS still below allowed value so the task can be executed
 	s.mockWFCache.EXPECT().AllowInternal(constants.TestRateLimitedDomainID, constants.TestWorkflowID).Return(true).Times(1)
-	err = s.transferActiveTaskExecutor.Execute(transferTaskInRatelimitedDomain, true)
+	_, err = s.transferActiveTaskExecutor.Execute(transferTaskInRatelimitedDomain)
 	s.Nil(err)
 
 	// RPS more than allowed limit so the task cannot be executed
 	s.mockWFCache.EXPECT().AllowInternal(constants.TestRateLimitedDomainID, constants.TestWorkflowID).Return(false).Times(1)
-	err = s.transferActiveTaskExecutor.Execute(transferTaskInRatelimitedDomain, true)
+	_, err = s.transferActiveTaskExecutor.Execute(transferTaskInRatelimitedDomain)
 	s.Error(err)
 	s.Equal("workflow is being rate limited for making too many requests", err.Error())
 
 	// RPS still below allowed value so the task can be executed
 	s.mockWFCache.EXPECT().AllowInternal(constants.TestDomainID, constants.TestWorkflowID).Return(true).Times(1)
-	err = s.transferActiveTaskExecutor.Execute(transferTask, true)
+	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
 	s.Nil(err)
 
 	// RPS more than allowed limit so the task cannot be executed
 	s.mockWFCache.EXPECT().AllowInternal(constants.TestDomainID, constants.TestWorkflowID).Return(false).Times(1)
-	err = s.transferActiveTaskExecutor.Execute(transferTask, true)
+	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
 	s.Error(err)
 	s.Equal("workflow is being rate limited for making too many requests", err.Error())
 }
@@ -351,7 +343,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessActivityTask_Duplication() 
 	s.NoError(err)
 	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(&persistence.GetWorkflowExecutionResponse{State: persistenceMutableState}, nil)
 
-	err = s.transferActiveTaskExecutor.Execute(transferTask, true)
+	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
 	s.Nil(err)
 }
 
@@ -382,7 +374,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessDecisionTask_FirstDecision(
 	s.mockWFCache.EXPECT().AllowInternal(constants.TestDomainID, constants.TestWorkflowID).Return(true).Times(1)
 	s.mockMatchingClient.EXPECT().AddDecisionTask(gomock.Any(), createAddDecisionTaskRequest(transferTask, mutableState)).Return(&types.AddDecisionTaskResponse{}, nil).Times(1)
 
-	err = s.transferActiveTaskExecutor.Execute(transferTask, true)
+	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
 	s.Nil(err)
 }
 
@@ -414,7 +406,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessDecisionTask_NonFirstDecisi
 	s.mockWFCache.EXPECT().AllowInternal(constants.TestDomainID, constants.TestWorkflowID).Return(true).Times(1)
 	s.mockMatchingClient.EXPECT().AddDecisionTask(gomock.Any(), createAddDecisionTaskRequest(transferTask, mutableState)).Return(&types.AddDecisionTaskResponse{}, nil).Times(1)
 
-	err = s.transferActiveTaskExecutor.Execute(transferTask, true)
+	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
 	s.Nil(err)
 }
 
@@ -464,23 +456,23 @@ func (s *transferActiveTaskExecutorSuite) TestProcessDecisionTask_Ratelimits() {
 
 	// RPS still below allowed value so the task can be executed
 	s.mockWFCache.EXPECT().AllowInternal(constants.TestRateLimitedDomainID, constants.TestWorkflowID).Return(true).Times(1)
-	err = s.transferActiveTaskExecutor.Execute(rateLimitedTransferTask, true)
+	_, err = s.transferActiveTaskExecutor.Execute(rateLimitedTransferTask)
 	s.Nil(err)
 
 	// RPS more than allowed limit so the task cannot be executed
 	s.mockWFCache.EXPECT().AllowInternal(constants.TestRateLimitedDomainID, constants.TestWorkflowID).Return(false).Times(1)
-	err = s.transferActiveTaskExecutor.Execute(rateLimitedTransferTask, true)
+	_, err = s.transferActiveTaskExecutor.Execute(rateLimitedTransferTask)
 	s.Error(err)
 	s.Equal("workflow is being rate limited for making too many requests", err.Error())
 
 	// RPS still below allowed value so the task can be executed
 	s.mockWFCache.EXPECT().AllowInternal(constants.TestDomainID, constants.TestWorkflowID).Return(true).Times(1)
-	err = s.transferActiveTaskExecutor.Execute(transferTask, true)
+	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
 	s.Nil(err)
 
 	// RPS more than allowed limit so the task cannot be executed
 	s.mockWFCache.EXPECT().AllowInternal(constants.TestDomainID, constants.TestWorkflowID).Return(false).Times(1)
-	err = s.transferActiveTaskExecutor.Execute(transferTask, true)
+	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
 	s.Error(err)
 	s.Equal("workflow is being rate limited for making too many requests", err.Error())
 }
@@ -518,7 +510,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessDecisionTask_Sticky_NonFirs
 	s.mockWFCache.EXPECT().AllowInternal(constants.TestDomainID, constants.TestWorkflowID).Return(true).Times(1)
 	s.mockMatchingClient.EXPECT().AddDecisionTask(gomock.Any(), createAddDecisionTaskRequest(transferTask, mutableState)).Return(&types.AddDecisionTaskResponse{}, nil).Times(1)
 
-	err = s.transferActiveTaskExecutor.Execute(transferTask, true)
+	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
 	s.Nil(err)
 }
 
@@ -555,7 +547,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessDecisionTask_DecisionNotSti
 	s.mockWFCache.EXPECT().AllowInternal(constants.TestDomainID, constants.TestWorkflowID).Return(true).Times(1)
 	s.mockMatchingClient.EXPECT().AddDecisionTask(gomock.Any(), createAddDecisionTaskRequest(transferTask, mutableState)).Return(&types.AddDecisionTaskResponse{}, nil).Times(1)
 
-	err = s.transferActiveTaskExecutor.Execute(transferTask, true)
+	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
 	s.Nil(err)
 }
 
@@ -582,7 +574,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessDecisionTask_Duplication() 
 	s.NoError(err)
 	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(&persistence.GetWorkflowExecutionResponse{State: persistenceMutableState}, nil)
 
-	err = s.transferActiveTaskExecutor.Execute(transferTask, true)
+	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
 	s.Nil(err)
 }
 
@@ -631,7 +623,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessDecisionTask_StickyWorkerUn
 		s.mockMatchingClient.EXPECT().AddDecisionTask(gomock.Any(), gomock.Eq(&modifiedRequest)).Return(&types.AddDecisionTaskResponse{}, nil).Times(1),
 	)
 
-	err = s.transferActiveTaskExecutor.Execute(transferTask, true)
+	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
 	s.NoError(err)
 }
 
@@ -718,7 +710,7 @@ func (s *transferActiveTaskExecutorSuite) testProcessCloseExecutionWithParent(
 
 	setupMockFn(mutableState, workflowExecution, parentExecution)
 
-	err = s.transferActiveTaskExecutor.Execute(transferTask, true)
+	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
 	if failRecordChild {
 		s.Equal(&types.DomainNotActiveError{}, err)
 	} else {
@@ -767,7 +759,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessCloseExecution_NoParent() {
 		}
 	}
 
-	err = s.transferActiveTaskExecutor.Execute(transferTask, true)
+	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
 	s.Nil(err)
 }
 
@@ -912,7 +904,7 @@ func (s *transferActiveTaskExecutorSuite) testProcessCloseExecutionNoParentHasFe
 	s.mockArchivalMetadata.On("GetVisibilityConfig").Return(archiver.NewDisabledArchvialConfig())
 	setupMockFn()
 
-	err = s.transferActiveTaskExecutor.Execute(transferTask, true)
+	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
 	s.Equal(expectedErr, err)
 }
 
@@ -984,7 +976,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessCloseExecution_NoParent_Has
 		},
 	)).Return(nil).Times(1)
 
-	err = s.transferActiveTaskExecutor.Execute(transferTask, true)
+	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
 	s.Nil(err)
 }
 
@@ -1028,7 +1020,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessCloseExecution_NoParent_Has
 	s.mockVisibilityMgr.On("RecordWorkflowExecutionClosed", mock.Anything, mock.Anything).Return(nil).Once()
 	s.mockArchivalMetadata.On("GetVisibilityConfig").Return(archiver.NewDisabledArchvialConfig())
 
-	err = s.transferActiveTaskExecutor.Execute(transferTask, true)
+	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
 	s.Nil(err)
 }
 
@@ -1152,7 +1144,7 @@ func (s *transferActiveTaskExecutorSuite) testProcessCancelExecutionWithError(
 
 	setupMockFn(mutableState, workflowExecution, targetExecution, event, transferTask, rci)
 
-	err = s.transferActiveTaskExecutor.Execute(transferTask, true)
+	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
 	s.Equal(expectedErr, err)
 }
 
@@ -1200,7 +1192,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessCancelExecution_WorkflowCan
 	}
 	setupMockFn(mutableState, workflowExecution, workflowExecution, event, transferTask, rci)
 
-	err = s.transferActiveTaskExecutor.Execute(transferTask, true)
+	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
 	s.NoError(err)
 }
 
@@ -1355,7 +1347,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessSignalExecution_WorkflowSig
 
 	setupMockFn(mutableState, workflowExecution, workflowExecution, event, transferTask, signalInfo)
 
-	err = s.transferActiveTaskExecutor.Execute(transferTask, true)
+	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
 	s.NoError(err)
 }
 
@@ -1425,7 +1417,7 @@ func (s *transferActiveTaskExecutorSuite) testProcessSignalExecutionWithErrorAnd
 
 	setupMockFn(mutableState, workflowExecution, targetExecution, event, transferTask, signalInfo)
 
-	err = s.transferActiveTaskExecutor.Execute(transferTask, true)
+	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
 	s.Equal(expectedErr, err)
 
 	assert.Equal(s.T(), len(expectedLogs), observedLogs.Len(), "expected %v logs, but got %v logs", len(expectedLogs), observedLogs.Len())
@@ -1720,7 +1712,7 @@ func (s *transferActiveTaskExecutorSuite) testProcessStartChildExecutionWithErro
 
 	setupMockFn(mutableState, workflowExecution, childExecution, event, transferTask, ci)
 
-	err = s.transferActiveTaskExecutor.Execute(transferTask, true)
+	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
 	s.Equal(expectedErr, err)
 }
 
@@ -1765,7 +1757,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessRecordWorkflowStartedTask()
 			false),
 	).Once().Return(nil)
 
-	err = s.transferActiveTaskExecutor.Execute(transferTask, true)
+	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
 	s.Nil(err)
 }
 
@@ -1818,7 +1810,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessRecordWorkflowStartedTaskWi
 			true),
 	).Once().Return(nil)
 
-	err = s.transferActiveTaskExecutor.Execute(transferTask, true)
+	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
 	s.Nil(err)
 }
 
@@ -1853,7 +1845,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessUpsertWorkflowSearchAttribu
 			false),
 	).Once().Return(nil)
 
-	err = s.transferActiveTaskExecutor.Execute(transferTask, true)
+	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
 	s.Nil(err)
 }
 
@@ -1895,7 +1887,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessUpsertWorkflowSearchAttribu
 			true),
 	).Once().Return(nil)
 
-	err = s.transferActiveTaskExecutor.Execute(transferTask, true)
+	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
 	s.Nil(err)
 }
 
@@ -1919,7 +1911,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessResetWorkflow_ResetPointNil
 	s.NoError(err)
 	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(&persistence.GetWorkflowExecutionResponse{State: persistenceMutableState}, nil)
 
-	err = s.transferActiveTaskExecutor.Execute(transferTask, true)
+	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
 	s.Nil(err)
 }
 
@@ -1947,7 +1939,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessResetWorkflow_WorkflowNotRu
 	s.mockExecutionMgr.On("GetCurrentExecution", mock.Anything, &persistence.GetCurrentExecutionRequest{DomainID: s.domainID, WorkflowID: workflowExecution.GetWorkflowID(), DomainName: s.domainName}).
 		Return(&persistence.GetCurrentExecutionResponse{RunID: "runID"}, nil)
 
-	err = s.transferActiveTaskExecutor.Execute(transferTask, true)
+	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
 	s.Nil(err)
 }
 
@@ -2043,7 +2035,7 @@ func (s *transferActiveTaskExecutorSuite) testProcessResetWorkflowWithError(same
 		nil,
 		false).Return(resetError).Times(1)
 
-	err = s.transferActiveTaskExecutor.Execute(transferTask, true)
+	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
 
 	if returnErr != nil {
 		s.Equal(returnErr, err)
@@ -2070,7 +2062,7 @@ func (s *transferActiveTaskExecutorSuite) TestCopySearchAttributes() {
 func (s *transferActiveTaskExecutorSuite) newTransferTaskFromInfo(
 	task persistence.Task,
 ) Task {
-	return NewTransferTask(s.mockShard, task, QueueTypeActiveTransfer, s.logger, nil, nil, nil, nil, nil)
+	return NewHistoryTask(s.mockShard, task, QueueTypeActiveTransfer, s.logger, nil, nil, nil, nil, nil)
 }
 
 func createAddActivityTaskRequest(

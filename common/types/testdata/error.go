@@ -60,11 +60,13 @@ var (
 		DomainName:     DomainName,
 		CurrentCluster: ClusterName1,
 		ActiveCluster:  ClusterName2,
+		ActiveClusters: []string{ClusterName2},
 	}
 	EntityNotExistsError = types.EntityNotExistsError{
 		Message:        ErrorMessage,
 		CurrentCluster: ClusterName1,
 		ActiveCluster:  ClusterName2,
+		ActiveClusters: []string{ClusterName2},
 	}
 	WorkflowExecutionAlreadyCompletedError = types.WorkflowExecutionAlreadyCompletedError{
 		Message: ErrorMessage,

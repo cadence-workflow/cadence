@@ -21,6 +21,7 @@
 package cache
 
 import (
+	"context"
 	"sync"
 	"testing"
 	"time"
@@ -295,9 +296,9 @@ func Test_IsActiveIn(t *testing.T) {
 		isGlobalDomain   bool
 		currentCluster   string
 		activeCluster    string
+		activeClusters   *types.ActiveClusters
 		failoverDeadline *int64
 		expectIsActive   bool
-		expectedErr      error
 	}{
 		{
 			msg:            "local domain",
@@ -308,7 +309,7 @@ func Test_IsActiveIn(t *testing.T) {
 			msg:              "global pending active domain",
 			isGlobalDomain:   true,
 			failoverDeadline: common.Int64Ptr(time.Now().Unix()),
-			expectedErr:      &types.DomainNotActiveError{Message: "Domain: test-domain is pending active in cluster: .", DomainName: "test-domain", CurrentCluster: "", ActiveCluster: ""},
+			expectIsActive:   false,
 		},
 		{
 			msg:            "global domain on active cluster",
@@ -322,7 +323,31 @@ func Test_IsActiveIn(t *testing.T) {
 			isGlobalDomain: true,
 			currentCluster: "A",
 			activeCluster:  "B",
-			expectedErr:    &types.DomainNotActiveError{Message: "Domain: test-domain is active in cluster: B, while current cluster A is a standby cluster.", DomainName: "test-domain", CurrentCluster: "A", ActiveCluster: "B"},
+			expectIsActive: false,
+		},
+		{
+			msg:            "active-active domain on active cluster",
+			isGlobalDomain: true,
+			currentCluster: "A",
+			activeClusters: &types.ActiveClusters{
+				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+					"region0": {ActiveClusterName: "A"},
+					"region1": {ActiveClusterName: "B"},
+				},
+			},
+			expectIsActive: true,
+		},
+		{
+			msg:            "active-active domain on passive cluster",
+			isGlobalDomain: true,
+			currentCluster: "C",
+			activeClusters: &types.ActiveClusters{
+				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+					"region0": {ActiveClusterName: "A"},
+					"region1": {ActiveClusterName: "B"},
+				},
+			},
+			expectIsActive: false,
 		},
 	}
 	for _, tt := range tests {
@@ -331,7 +356,10 @@ func Test_IsActiveIn(t *testing.T) {
 				&persistence.DomainInfo{Name: "test-domain"},
 				nil,
 				tt.isGlobalDomain,
-				&persistence.DomainReplicationConfig{ActiveClusterName: tt.activeCluster},
+				&persistence.DomainReplicationConfig{
+					ActiveClusterName: tt.activeCluster,
+					ActiveClusters:    tt.activeClusters,
+				},
 				0,
 				tt.failoverDeadline,
 				0,
@@ -339,91 +367,33 @@ func Test_IsActiveIn(t *testing.T) {
 				0,
 			)
 
-			isActive, err := domain.IsActiveIn(tt.currentCluster)
-
+			isActive := domain.IsActiveIn(tt.currentCluster)
 			assert.Equal(t, tt.expectIsActive, isActive)
-			assert.Equal(t, tt.expectedErr, err)
 		})
 	}
 }
 
 func (s *domainCacheSuite) TestRegisterCallback_CatchUp() {
-	domainNotificationVersion := int64(0)
-	domainRecord1 := &persistence.GetDomainResponse{
-		Info: &persistence.DomainInfo{ID: uuid.New(), Name: "some random domain name", Data: make(map[string]string)},
-		Config: &persistence.DomainConfig{
-			Retention: 1,
-			BadBinaries: types.BadBinaries{
-				Binaries: map[string]*types.BadBinaryInfo{},
-			}},
-		ReplicationConfig: &persistence.DomainReplicationConfig{
-			ActiveClusterName: cluster.TestCurrentClusterName,
-			Clusters: []*persistence.ClusterReplicationConfig{
-				{ClusterName: cluster.TestCurrentClusterName},
-				{ClusterName: cluster.TestAlternativeClusterName},
-			},
-		},
-		ConfigVersion:               10,
-		FailoverVersion:             11,
-		FailoverNotificationVersion: 0,
-		NotificationVersion:         domainNotificationVersion,
-	}
-	entry1 := s.buildEntryFromRecord(domainRecord1)
-	domainNotificationVersion++
-
-	domainRecord2 := &persistence.GetDomainResponse{
-		Info: &persistence.DomainInfo{ID: uuid.New(), Name: "another random domain name", Data: make(map[string]string)},
-		Config: &persistence.DomainConfig{
-			Retention: 2,
-			BadBinaries: types.BadBinaries{
-				Binaries: map[string]*types.BadBinaryInfo{},
-			}},
-		ReplicationConfig: &persistence.DomainReplicationConfig{
-			ActiveClusterName: cluster.TestAlternativeClusterName,
-			Clusters: []*persistence.ClusterReplicationConfig{
-				{ClusterName: cluster.TestCurrentClusterName},
-				{ClusterName: cluster.TestAlternativeClusterName},
-			},
-		},
-		ConfigVersion:               20,
-		FailoverVersion:             21,
-		FailoverNotificationVersion: 0,
-		NotificationVersion:         domainNotificationVersion,
-	}
-	entry2 := s.buildEntryFromRecord(domainRecord2)
-	domainNotificationVersion++
-
-	s.metadataMgr.On("GetMetadata", mock.Anything).Return(&persistence.GetMetadataResponse{NotificationVersion: domainNotificationVersion}, nil).Once()
-	s.metadataMgr.On("ListDomains", mock.Anything, &persistence.ListDomainsRequest{
-		PageSize:      domainCacheRefreshPageSize,
-		NextPageToken: nil,
-	}).Return(&persistence.ListDomainsResponse{
-		Domains:       []*persistence.GetDomainResponse{domainRecord1, domainRecord2},
-		NextPageToken: nil,
-	}, nil).Once()
-
-	// load domains
-	s.Nil(s.domainCache.refreshDomains())
-
-	prepareCallbacckInvoked := false
+	prepareCallbackInvoked := false
+	callBackInvoked := false
 	entriesNotification := []*DomainCacheEntry{}
-	// we are not testing catching up, so make this really large
-	currentDomainNotificationVersion := int64(0)
+
 	s.domainCache.RegisterDomainChangeCallback(
-		0,
-		currentDomainNotificationVersion,
+		"0",
+		func(_ DomainCache, prepareCallback PrepareCallbackFn, callback CallbackFn) {
+			prepareCallback()
+			callback(entriesNotification)
+		},
 		func() {
-			prepareCallbacckInvoked = true
+			prepareCallbackInvoked = true
 		},
 		func(nextDomains []*DomainCacheEntry) {
-			s.Equal(2, len(nextDomains))
-			entriesNotification = nextDomains
+			callBackInvoked = true
 		},
 	)
 
-	// the order matters here, should be ordered by notification version
-	s.True(prepareCallbacckInvoked)
-	s.Equal([]*DomainCacheEntry{entry1, entry2}, entriesNotification)
+	s.True(prepareCallbackInvoked)
+	s.True(callBackInvoked)
 }
 
 func (s *domainCacheSuite) TestUpdateCache_TriggerCallBack() {
@@ -518,21 +488,19 @@ func (s *domainCacheSuite) TestUpdateCache_TriggerCallBack() {
 	entry1New := s.buildEntryFromRecord(domainRecord1New)
 	domainNotificationVersion++
 
-	prepareCallbacckInvoked := false
+	prepareCallbackInvoked := false
 	entriesNew := []*DomainCacheEntry{}
-	// we are not testing catching up, so make this really large
-	currentDomainNotificationVersion := int64(9999999)
 	s.domainCache.RegisterDomainChangeCallback(
-		0,
-		currentDomainNotificationVersion,
+		"0",
+		func(domainCache DomainCache, prepareCallback PrepareCallbackFn, callback CallbackFn) {},
 		func() {
-			prepareCallbacckInvoked = true
+			prepareCallbackInvoked = true
 		},
 		func(nextDomains []*DomainCacheEntry) {
 			entriesNew = nextDomains
 		},
 	)
-	s.False(prepareCallbacckInvoked)
+	s.False(prepareCallbackInvoked)
 	s.Empty(entriesNew)
 
 	s.metadataMgr.On("GetMetadata", mock.Anything).Return(&persistence.GetMetadataResponse{NotificationVersion: domainNotificationVersion}, nil).Once()
@@ -551,7 +519,7 @@ func (s *domainCacheSuite) TestUpdateCache_TriggerCallBack() {
 	// the record 1 got updated later, thus a higher notification version.
 	// making sure notifying from lower to higher version helps the shard to keep track the
 	// domain change events
-	s.True(prepareCallbacckInvoked)
+	s.True(prepareCallbackInvoked)
 	s.Equal([]*DomainCacheEntry{entry2New, entry1New}, entriesNew)
 }
 
@@ -684,7 +652,7 @@ func (s *domainCacheSuite) TestStart_Stop() {
 }
 
 func (s *domainCacheSuite) TestStart_Error() {
-	mockLogger := &log.MockLogger{}
+	mockLogger := log.NewMockLogger(s.T())
 	s.domainCache.logger = mockLogger
 
 	s.Equal(domainCacheInitialized, s.domainCache.status)
@@ -696,14 +664,14 @@ func (s *domainCacheSuite) TestStart_Error() {
 }
 
 func (s *domainCacheSuite) TestUnregisterDomainChangeCallback() {
-	s.domainCache.prepareCallbacks = map[int]PrepareCallbackFn{
-		1: func() {},
+	s.domainCache.prepareCallbacks = map[string]PrepareCallbackFn{
+		"1": func() {},
 	}
-	s.domainCache.callbacks = map[int]CallbackFn{
-		1: func([]*DomainCacheEntry) {},
+	s.domainCache.callbacks = map[string]CallbackFn{
+		"1": func([]*DomainCacheEntry) {},
 	}
 
-	s.domainCache.UnregisterDomainChangeCallback(1)
+	s.domainCache.UnregisterDomainChangeCallback("1")
 	s.Empty(s.domainCache.prepareCallbacks)
 	s.Empty(s.domainCache.callbacks)
 }
@@ -914,8 +882,9 @@ func (s *domainCacheSuite) Test_refreshDomainsLocked_IntervalTooShort() {
 	s.domainCache.timeSource = mockedTimeSource
 
 	s.domainCache.lastRefreshTime = mockedTimeSource.Now()
+	ctx := context.Background()
 
-	err := s.domainCache.refreshDomainsLocked()
+	err := s.domainCache.refreshDomainsLocked(ctx)
 	s.NoError(err)
 }
 
@@ -1145,8 +1114,18 @@ func Test_GetActiveDomainByID(t *testing.T) {
 	activeDomainUUID := uuid.New()
 	passiveDomainUUID := uuid.New()
 
-	activeDomain := NewGlobalDomainCacheEntryForTest(&persistence.DomainInfo{ID: activeDomainUUID, Name: "active"}, nil, &persistence.DomainReplicationConfig{ActiveClusterName: "A"}, 0)
-	passiveDomain := NewGlobalDomainCacheEntryForTest(&persistence.DomainInfo{ID: passiveDomainUUID, Name: "passive"}, nil, &persistence.DomainReplicationConfig{ActiveClusterName: "B"}, 0)
+	activeDomain := NewGlobalDomainCacheEntryForTest(
+		&persistence.DomainInfo{ID: activeDomainUUID, Name: "active"},
+		nil,
+		&persistence.DomainReplicationConfig{ActiveClusterName: "A"},
+		0,
+	)
+	passiveDomain := NewGlobalDomainCacheEntryForTest(
+		&persistence.DomainInfo{ID: passiveDomainUUID, Name: "passive"},
+		nil,
+		&persistence.DomainReplicationConfig{ActiveClusterName: "B"},
+		0,
+	)
 
 	tests := []struct {
 		msg          string
@@ -1173,7 +1152,12 @@ func Test_GetActiveDomainByID(t *testing.T) {
 			msg:          "passive domain",
 			domainID:     passiveDomainUUID,
 			expectDomain: passiveDomain,
-			expectedErr:  &types.DomainNotActiveError{Message: "Domain: passive is active in cluster: B, while current cluster A is a standby cluster.", DomainName: "passive", CurrentCluster: "A", ActiveCluster: "B"},
+			expectedErr: &types.DomainNotActiveError{
+				Message:        "Domain: passive is active in cluster: B, while current cluster A is a standby cluster.",
+				DomainName:     "passive",
+				CurrentCluster: "A",
+				ActiveCluster:  "B",
+			},
 		},
 	}
 
@@ -1208,4 +1192,104 @@ func Test_WithTimeSource(t *testing.T) {
 func Test_NewLocalDomainCacheEntryForTest(t *testing.T) {
 	domain := NewLocalDomainCacheEntryForTest(&persistence.DomainInfo{Name: "test-domain"}, nil, "targetCluster")
 	assert.False(t, domain.IsGlobalDomain())
+}
+
+func Test_NewDomainNotActiveError(t *testing.T) {
+	tests := []struct {
+		msg            string
+		domain         *DomainCacheEntry
+		currentCluster string
+		activeCluster  string
+		expectedErr    *types.DomainNotActiveError
+	}{
+		{
+			msg:            "local domain",
+			domain:         NewLocalDomainCacheEntryForTest(&persistence.DomainInfo{Name: "test-domain"}, nil, "targetCluster"),
+			currentCluster: "currentCluster",
+			activeCluster:  "targetCluster",
+			expectedErr: &types.DomainNotActiveError{
+				Message:        "Domain: test-domain is active in cluster: targetCluster, while current cluster currentCluster is a standby cluster.",
+				DomainName:     "test-domain",
+				CurrentCluster: "currentCluster",
+				ActiveCluster:  "targetCluster",
+			},
+		},
+		{
+			msg:            "active-active domain",
+			currentCluster: "cluster1",
+			activeCluster:  "cluster2",
+			domain: NewDomainCacheEntryForTest(
+				&persistence.DomainInfo{Name: "test-domain"},
+				nil,
+				true,
+				&persistence.DomainReplicationConfig{
+					ActiveClusters: &types.ActiveClusters{ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+						"region1": {
+							ActiveClusterName: "cluster1",
+						},
+						"region2": {
+							ActiveClusterName: "cluster2",
+						},
+					}},
+				},
+				0,
+				nil,
+				0,
+				0,
+				0,
+			),
+			expectedErr: &types.DomainNotActiveError{
+				Message:        "Domain: test-domain is active in cluster(s): [cluster1 cluster2], while current cluster cluster1 is a standby cluster. Operation active cluster: cluster2",
+				DomainName:     "test-domain",
+				CurrentCluster: "cluster1",
+				ActiveClusters: []string{"cluster1", "cluster2"},
+				ActiveCluster:  "cluster2",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.msg, func(t *testing.T) {
+			err := tt.domain.NewDomainNotActiveError(tt.currentCluster, tt.activeCluster)
+			assert.Equal(t, tt.expectedErr, err)
+		})
+	}
+}
+
+func Test_getActiveClusters(t *testing.T) {
+	tests := []struct {
+		msg                    string
+		replicationConfig      *persistence.DomainReplicationConfig
+		expectedActiveClusters []string
+	}{
+		{
+			msg: "active-passive domain",
+			replicationConfig: &persistence.DomainReplicationConfig{
+				ActiveClusterName: "active",
+			},
+			expectedActiveClusters: nil,
+		},
+		{
+			msg: "active-active domain",
+			replicationConfig: &persistence.DomainReplicationConfig{
+				ActiveClusterName: "active",
+				ActiveClusters: &types.ActiveClusters{ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+					"region1": {
+						ActiveClusterName: "cluster1",
+					},
+					"region2": {
+						ActiveClusterName: "cluster2",
+					},
+				}},
+			},
+			expectedActiveClusters: []string{"cluster1", "cluster2"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.msg, func(t *testing.T) {
+			activeClusters := getActiveClusters(tt.replicationConfig)
+			assert.Equal(t, tt.expectedActiveClusters, activeClusters)
+		})
+	}
 }

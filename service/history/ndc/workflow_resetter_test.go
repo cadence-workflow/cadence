@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
+	"golang.org/x/net/context"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/definition"
@@ -143,7 +144,7 @@ func (s *workflowResetterSuite) TestResetWorkflow_NoError() {
 	incomingVersion := baseVersion + 3
 
 	rebuiltHistorySize := int64(9999)
-	newBranchToken := []byte("other random branch token")
+	resetBranchToken := []byte("other random branch token")
 	domainName := "test-domainName"
 
 	s.mockBaseMutableState.EXPECT().GetVersionHistories().Return(versionHistories).AnyTimes()
@@ -180,9 +181,16 @@ func (s *workflowResetterSuite) TestResetWorkflow_NoError() {
 			s.workflowID,
 			s.newRunID,
 		),
-		newBranchToken,
 		gomock.Any(),
-	).Return(s.mockRebuiltMutableState, rebuiltHistorySize, nil).Times(1)
+		gomock.Any(),
+	).DoAndReturn(func(ctx context.Context, now time.Time, baseWorkflowIdentifier definition.WorkflowIdentifier, baseBranchToken []byte, baseRebuildLastEventID int64, baseRebuildLastEventVersion int64, targetWorkflowIdentifier definition.WorkflowIdentifier, targetBranchFn func() ([]byte, error), requestID string) (execution.MutableState, int64, error) {
+		targetBranchToken, err := targetBranchFn()
+		s.NoError(err)
+		s.Equal(resetBranchToken, targetBranchToken)
+
+		return s.mockRebuiltMutableState, rebuiltHistorySize, nil
+	}).Times(1)
+
 	s.mockShard.Resource.DomainCache.EXPECT().GetDomainName(gomock.Any()).Return(domainName, nil).AnyTimes()
 	s.mockHistoryV2Mgr.On("ForkHistoryBranch", mock.Anything, &persistence.ForkHistoryBranchRequest{
 		ForkBranchToken: branchToken,
@@ -190,7 +198,7 @@ func (s *workflowResetterSuite) TestResetWorkflow_NoError() {
 		Info:            persistence.BuildHistoryGarbageCleanupInfo(s.domainID, s.workflowID, s.newRunID),
 		ShardID:         common.IntPtr(s.mockShard.GetShardID()),
 		DomainName:      domainName,
-	}).Return(&persistence.ForkHistoryBranchResponse{NewBranchToken: newBranchToken}, nil).Times(1)
+	}).Return(&persistence.ForkHistoryBranchResponse{NewBranchToken: resetBranchToken}, nil).Times(1)
 
 	rebuiltMutableState, err := s.workflowResetter.ResetWorkflow(
 		ctx,

@@ -98,6 +98,9 @@ type BoolPropertyFnWithDomainIDAndWorkflowIDFilter func(domainID string, workflo
 // BoolPropertyFnWithTaskListInfoFilters is a wrapper to get bool property from dynamic config with three filters: domain, taskList, taskType
 type BoolPropertyFnWithTaskListInfoFilters func(domain string, taskList string, taskType int) bool
 
+// BoolPropertyFnWithShardIDFilter is a wrapper to get bool property from dynamic config with shardID as filter
+type BoolPropertyFnWithShardIDFilter func(shardID int) bool
+
 // IntPropertyFnWithWorkflowTypeFilter is a wrapper to get int property from dynamic config with domain as filter
 type IntPropertyFnWithWorkflowTypeFilter func(domainName string, workflowType string) int
 

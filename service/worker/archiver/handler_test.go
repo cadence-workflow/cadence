@@ -62,13 +62,12 @@ func (s *handlerSuite) SetupSuite() {
 func (s *handlerSuite) SetupTest() {
 	handlerTestMetrics = &mmocks.Client{}
 	handlerTestMetrics.On("StartTimer", mock.Anything, mock.Anything).Return(metrics.NopStopwatch())
-	handlerTestLogger = &log.MockLogger{}
+	handlerTestLogger = log.NewMockLogger(s.T())
 	handlerTestLogger.On("WithTags", mock.Anything).Return(handlerTestLogger)
 }
 
 func (s *handlerSuite) TearDownTest() {
 	handlerTestMetrics.AssertExpectations(s.T())
-	handlerTestLogger.AssertExpectations(s.T())
 }
 
 func (s *handlerSuite) TestHandleHistoryRequest_UploadFails_NonRetryableError() {

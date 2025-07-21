@@ -397,10 +397,9 @@ func getClient(ctx context.Context) frontend.Client {
 	return feClient
 }
 
-func getRemoteClient(ctx context.Context, clusterName string) frontend.Client {
+func getRemoteClient(ctx context.Context, clusterName string) (frontend.Client, error) {
 	manager := ctx.Value(failoverManagerContextKey).(*FailoverManager)
-	feClient := manager.clientBean.GetRemoteFrontendClient(clusterName)
-	return feClient
+	return manager.clientBean.GetRemoteFrontendClient(clusterName)
 }
 
 func getAllDomains(ctx context.Context, targetDomains []string) ([]*types.DescribeDomainResponse, error) {
@@ -488,7 +487,10 @@ func cleanupChannel(channel workflow.Channel) {
 }
 
 func validateTaskListPollerInfo(ctx context.Context, targetCluster string, domain string) error {
-	remoteFrontendClient := getRemoteClient(ctx, targetCluster)
+	remoteFrontendClient, err := getRemoteClient(ctx, targetCluster)
+	if err != nil {
+		return err
+	}
 	frontendClient := getClient(ctx)
 	localTaskListResponse, err := frontendClient.GetTaskListsByDomain(ctx, &types.GetTaskListsByDomainRequest{Domain: domain})
 	if err != nil {

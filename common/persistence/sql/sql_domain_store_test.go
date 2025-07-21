@@ -136,7 +136,8 @@ func TestListDomains(t *testing.T) {
 						DataEncoding: string(constants.EncodingTypeThriftRW),
 					},
 				}, nil)
-				mockParser.EXPECT().DomainInfoFromBlob([]byte(`aaaa`), string(constants.EncodingTypeThriftRW)).Return(&serialization.DomainInfo{}, nil)
+				mockParser.EXPECT().DomainInfoFromBlob([]byte(`aaaa`), string(constants.EncodingTypeThriftRW)).
+					Return(&serialization.DomainInfo{}, nil)
 			},
 			want: &persistence.InternalListDomainsResponse{
 				Domains: []*persistence.InternalGetDomainResponse{
@@ -146,12 +147,60 @@ func TestListDomains(t *testing.T) {
 							Name: "test",
 						},
 						Config: &persistence.InternalDomainConfig{},
-						ReplicationConfig: &persistence.DomainReplicationConfig{
+						ReplicationConfig: &persistence.InternalDomainReplicationConfig{
 							ActiveClusterName: "active",
 							Clusters: []*persistence.ClusterReplicationConfig{
-								&persistence.ClusterReplicationConfig{
-									ClusterName: "active",
-								},
+								{ClusterName: "active"},
+							},
+						},
+					},
+				},
+				NextPageToken: serialization.MustParseUUID("9a3dc7e2-1e67-41aa-8eaf-6d6e27f7e47c"),
+			},
+			wantErr: false,
+		},
+		{
+			name:              "Success case active-active domain",
+			activeClusterName: "active",
+			req: &persistence.ListDomainsRequest{
+				NextPageToken: []byte(`7a3dc7e2-1e67-41aa-8eaf-6d6e27f7e47c`),
+				PageSize:      1,
+			},
+			mockSetup: func(mockDB *sqlplugin.MockDB, mockParser *serialization.MockParser) {
+				uuid := serialization.UUID(`7a3dc7e2-1e67-41aa-8eaf-6d6e27f7e47c`)
+				mockDB.EXPECT().SelectFromDomain(gomock.Any(), &sqlplugin.DomainFilter{
+					GreaterThanID: &uuid,
+					PageSize:      common.IntPtr(1),
+				}).Return([]sqlplugin.DomainRow{
+					{
+						ID:           serialization.MustParseUUID("9a3dc7e2-1e67-41aa-8eaf-6d6e27f7e47c"),
+						Name:         "test",
+						Data:         []byte(`aaaa`),
+						DataEncoding: string(constants.EncodingTypeThriftRW),
+					},
+				}, nil)
+				mockParser.EXPECT().DomainInfoFromBlob([]byte(`aaaa`), string(constants.EncodingTypeThriftRW)).
+					Return(&serialization.DomainInfo{
+						ActiveClustersConfig:         []byte(`active-clusters-config`),
+						ActiveClustersConfigEncoding: string(constants.EncodingTypeThriftRW),
+					}, nil)
+			},
+			want: &persistence.InternalListDomainsResponse{
+				Domains: []*persistence.InternalGetDomainResponse{
+					{
+						Info: &persistence.DomainInfo{
+							ID:   "9a3dc7e2-1e67-41aa-8eaf-6d6e27f7e47c",
+							Name: "test",
+						},
+						Config: &persistence.InternalDomainConfig{},
+						ReplicationConfig: &persistence.InternalDomainReplicationConfig{
+							ActiveClusterName: "",
+							Clusters: []*persistence.ClusterReplicationConfig{
+								{ClusterName: "active"},
+							},
+							ActiveClustersConfig: &persistence.DataBlob{
+								Data:     []byte(`active-clusters-config`),
+								Encoding: constants.EncodingTypeThriftRW,
 							},
 						},
 					},
@@ -273,7 +322,8 @@ func TestGetDomain(t *testing.T) {
 						DataEncoding: string(constants.EncodingTypeThriftRW),
 					},
 				}, nil)
-				mockParser.EXPECT().DomainInfoFromBlob([]byte(`aaaa`), string(constants.EncodingTypeThriftRW)).Return(&serialization.DomainInfo{}, nil)
+				mockParser.EXPECT().DomainInfoFromBlob([]byte(`aaaa`), string(constants.EncodingTypeThriftRW)).
+					Return(&serialization.DomainInfo{}, nil)
 			},
 			want: &persistence.InternalGetDomainResponse{
 				Info: &persistence.DomainInfo{
@@ -281,12 +331,56 @@ func TestGetDomain(t *testing.T) {
 					Name: "test",
 				},
 				Config: &persistence.InternalDomainConfig{},
-				ReplicationConfig: &persistence.DomainReplicationConfig{
+				ReplicationConfig: &persistence.InternalDomainReplicationConfig{
 					ActiveClusterName: "active",
 					Clusters: []*persistence.ClusterReplicationConfig{
-						&persistence.ClusterReplicationConfig{
+						{
 							ClusterName: "active",
 						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name:              "Success case - active-active domain - get domain by name",
+			activeClusterName: "active",
+			req: &persistence.GetDomainRequest{
+				Name: "test",
+			},
+			mockSetup: func(mockDB *sqlplugin.MockDB, mockParser *serialization.MockParser) {
+				mockDB.EXPECT().SelectFromDomain(gomock.Any(), &sqlplugin.DomainFilter{
+					Name: common.StringPtr("test"),
+				}).Return([]sqlplugin.DomainRow{
+					{
+						ID:           serialization.MustParseUUID("9a3dc7e2-1e67-41aa-8eaf-6d6e27f7e47c"),
+						Name:         "test",
+						Data:         []byte(`aaaa`),
+						DataEncoding: string(constants.EncodingTypeThriftRW),
+					},
+				}, nil)
+				mockParser.EXPECT().DomainInfoFromBlob([]byte(`aaaa`), string(constants.EncodingTypeThriftRW)).
+					Return(&serialization.DomainInfo{
+						ActiveClustersConfig:         []byte(`active-clusters-config`),
+						ActiveClustersConfigEncoding: string(constants.EncodingTypeThriftRW),
+					}, nil)
+			},
+			want: &persistence.InternalGetDomainResponse{
+				Info: &persistence.DomainInfo{
+					ID:   "9a3dc7e2-1e67-41aa-8eaf-6d6e27f7e47c",
+					Name: "test",
+				},
+				Config: &persistence.InternalDomainConfig{},
+				ReplicationConfig: &persistence.InternalDomainReplicationConfig{
+					ActiveClusterName: "",
+					Clusters: []*persistence.ClusterReplicationConfig{
+						{
+							ClusterName: "active",
+						},
+					},
+					ActiveClustersConfig: &persistence.DataBlob{
+						Data:     []byte(`active-clusters-config`),
+						Encoding: constants.EncodingTypeThriftRW,
 					},
 				},
 			},
@@ -318,10 +412,10 @@ func TestGetDomain(t *testing.T) {
 					Name: "test",
 				},
 				Config: &persistence.InternalDomainConfig{},
-				ReplicationConfig: &persistence.DomainReplicationConfig{
+				ReplicationConfig: &persistence.InternalDomainReplicationConfig{
 					ActiveClusterName: "active",
 					Clusters: []*persistence.ClusterReplicationConfig{
-						&persistence.ClusterReplicationConfig{
+						{
 							ClusterName: "active",
 						},
 					},
@@ -471,11 +565,16 @@ func TestCreateDomain(t *testing.T) {
 					BadBinaries:              nil,
 					IsolationGroups:          nil,
 				},
-				ReplicationConfig: &persistence.DomainReplicationConfig{
+				ReplicationConfig: &persistence.InternalDomainReplicationConfig{
 					ActiveClusterName: "active",
-					Clusters: []*persistence.ClusterReplicationConfig{{
-						ClusterName: "active",
+					Clusters: []*persistence.ClusterReplicationConfig{
+						{
+							ClusterName: "active",
+						},
 					},
+					ActiveClustersConfig: &persistence.DataBlob{
+						Data:     []byte(`active-clusters-config`),
+						Encoding: constants.EncodingTypeThriftRW,
 					},
 				},
 				ConfigVersion:   1,
@@ -485,24 +584,26 @@ func TestCreateDomain(t *testing.T) {
 			mockSetup: func(mockDB *sqlplugin.MockDB, mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
 				mockDB.EXPECT().SelectFromDomainMetadata(gomock.Any()).Return(&sqlplugin.DomainMetadataRow{NotificationVersion: 2}, nil)
 				mockParser.EXPECT().DomainInfoToBlob(&serialization.DomainInfo{
-					Name:                        "test",
-					Status:                      1,
-					Description:                 "n/a",
-					Owner:                       "abc@xyz.com",
-					Data:                        map[string]string{"k": "v"},
-					Retention:                   time.Hour * 24,
-					EmitMetric:                  true,
-					HistoryArchivalStatus:       int16(types.ArchivalStatusEnabled),
-					HistoryArchivalURI:          "http://a.b",
-					VisibilityArchivalStatus:    int16(types.ArchivalStatusEnabled),
-					VisibilityArchivalURI:       "http://x.y",
-					ActiveClusterName:           "active",
-					Clusters:                    []string{"active"},
-					ConfigVersion:               1,
-					FailoverVersion:             3,
-					NotificationVersion:         2,
-					FailoverNotificationVersion: persistence.InitialFailoverNotificationVersion,
-					PreviousFailoverVersion:     constants.InitialPreviousFailoverVersion,
+					Name:                         "test",
+					Status:                       1,
+					Description:                  "n/a",
+					Owner:                        "abc@xyz.com",
+					Data:                         map[string]string{"k": "v"},
+					Retention:                    time.Hour * 24,
+					EmitMetric:                   true,
+					HistoryArchivalStatus:        int16(types.ArchivalStatusEnabled),
+					HistoryArchivalURI:           "http://a.b",
+					VisibilityArchivalStatus:     int16(types.ArchivalStatusEnabled),
+					VisibilityArchivalURI:        "http://x.y",
+					ActiveClusterName:            "active",
+					Clusters:                     []string{"active"},
+					ConfigVersion:                1,
+					FailoverVersion:              3,
+					NotificationVersion:          2,
+					FailoverNotificationVersion:  persistence.InitialFailoverNotificationVersion,
+					PreviousFailoverVersion:      constants.InitialPreviousFailoverVersion,
+					ActiveClustersConfig:         []byte(`active-clusters-config`),
+					ActiveClustersConfigEncoding: string(constants.EncodingTypeThriftRW),
 				}).Return(persistence.DataBlob{Data: []byte(`aaaa`), Encoding: constants.EncodingTypeThriftRW}, nil)
 				mockDB.EXPECT().BeginTx(gomock.Any(), sqlplugin.DbDefaultShard).Return(mockTx, nil)
 				mockTx.EXPECT().InsertIntoDomain(gomock.Any(), &sqlplugin.DomainRow{
@@ -539,7 +640,7 @@ func TestCreateDomain(t *testing.T) {
 					Name: "test",
 				},
 				Config:            &persistence.InternalDomainConfig{},
-				ReplicationConfig: &persistence.DomainReplicationConfig{},
+				ReplicationConfig: &persistence.InternalDomainReplicationConfig{},
 			},
 			mockSetup: func(mockDB *sqlplugin.MockDB, mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
 				mockDB.EXPECT().SelectFromDomainMetadata(gomock.Any()).Return(&sqlplugin.DomainMetadataRow{NotificationVersion: 2}, nil)
@@ -556,7 +657,7 @@ func TestCreateDomain(t *testing.T) {
 					Name: "test",
 				},
 				Config:            &persistence.InternalDomainConfig{},
-				ReplicationConfig: &persistence.DomainReplicationConfig{},
+				ReplicationConfig: &persistence.InternalDomainReplicationConfig{},
 			},
 			mockSetup: func(mockDB *sqlplugin.MockDB, mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
 				mockDB.EXPECT().SelectFromDomainMetadata(gomock.Any()).Return(&sqlplugin.DomainMetadataRow{NotificationVersion: 2}, nil)
@@ -579,7 +680,7 @@ func TestCreateDomain(t *testing.T) {
 					Name: "test",
 				},
 				Config:            &persistence.InternalDomainConfig{},
-				ReplicationConfig: &persistence.DomainReplicationConfig{},
+				ReplicationConfig: &persistence.InternalDomainReplicationConfig{},
 				ConfigVersion:     1,
 				FailoverVersion:   3,
 				IsGlobalDomain:    true,
@@ -608,7 +709,7 @@ func TestCreateDomain(t *testing.T) {
 					Name: "test",
 				},
 				Config:            &persistence.InternalDomainConfig{},
-				ReplicationConfig: &persistence.DomainReplicationConfig{},
+				ReplicationConfig: &persistence.InternalDomainReplicationConfig{},
 			},
 			mockSetup: func(mockDB *sqlplugin.MockDB, mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
 				mockDB.EXPECT().SelectFromDomainMetadata(gomock.Any()).Return(&sqlplugin.DomainMetadataRow{NotificationVersion: 2}, nil)
@@ -631,7 +732,7 @@ func TestCreateDomain(t *testing.T) {
 					Name: "test",
 				},
 				Config:            &persistence.InternalDomainConfig{},
-				ReplicationConfig: &persistence.DomainReplicationConfig{},
+				ReplicationConfig: &persistence.InternalDomainReplicationConfig{},
 			},
 			mockSetup: func(mockDB *sqlplugin.MockDB, mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
 				mockDB.EXPECT().SelectFromDomainMetadata(gomock.Any()).Return(&sqlplugin.DomainMetadataRow{NotificationVersion: 2}, nil)
@@ -707,11 +808,16 @@ func TestUpdateDomain(t *testing.T) {
 					BadBinaries:              nil,
 					IsolationGroups:          nil,
 				},
-				ReplicationConfig: &persistence.DomainReplicationConfig{
+				ReplicationConfig: &persistence.InternalDomainReplicationConfig{
 					ActiveClusterName: "active",
-					Clusters: []*persistence.ClusterReplicationConfig{{
-						ClusterName: "active",
+					Clusters: []*persistence.ClusterReplicationConfig{
+						{
+							ClusterName: "active",
+						},
 					},
+					ActiveClustersConfig: &persistence.DataBlob{
+						Data:     []byte(`active-clusters-config`),
+						Encoding: constants.EncodingTypeThriftRW,
 					},
 				},
 				ConfigVersion:               1,
@@ -722,23 +828,25 @@ func TestUpdateDomain(t *testing.T) {
 			},
 			mockSetup: func(mockDB *sqlplugin.MockDB, mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
 				mockParser.EXPECT().DomainInfoToBlob(&serialization.DomainInfo{
-					Status:                      1,
-					Description:                 "n/a",
-					Owner:                       "abc@xyz.com",
-					Data:                        map[string]string{"k": "v"},
-					Retention:                   time.Hour * 24,
-					EmitMetric:                  true,
-					HistoryArchivalStatus:       int16(types.ArchivalStatusEnabled),
-					HistoryArchivalURI:          "http://a.b",
-					VisibilityArchivalStatus:    int16(types.ArchivalStatusEnabled),
-					VisibilityArchivalURI:       "http://x.y",
-					ActiveClusterName:           "active",
-					Clusters:                    []string{"active"},
-					ConfigVersion:               1,
-					FailoverVersion:             3,
-					NotificationVersion:         2,
-					FailoverNotificationVersion: 4,
-					PreviousFailoverVersion:     5,
+					Status:                       1,
+					Description:                  "n/a",
+					Owner:                        "abc@xyz.com",
+					Data:                         map[string]string{"k": "v"},
+					Retention:                    time.Hour * 24,
+					EmitMetric:                   true,
+					HistoryArchivalStatus:        int16(types.ArchivalStatusEnabled),
+					HistoryArchivalURI:           "http://a.b",
+					VisibilityArchivalStatus:     int16(types.ArchivalStatusEnabled),
+					VisibilityArchivalURI:        "http://x.y",
+					ActiveClusterName:            "active",
+					Clusters:                     []string{"active"},
+					ConfigVersion:                1,
+					FailoverVersion:              3,
+					NotificationVersion:          2,
+					FailoverNotificationVersion:  4,
+					PreviousFailoverVersion:      5,
+					ActiveClustersConfig:         []byte(`active-clusters-config`),
+					ActiveClustersConfigEncoding: string(constants.EncodingTypeThriftRW),
 				}).Return(persistence.DataBlob{Data: []byte(`aaaa`), Encoding: constants.EncodingTypeThriftRW}, nil)
 				mockDB.EXPECT().BeginTx(gomock.Any(), sqlplugin.DbDefaultShard).Return(mockTx, nil)
 				mockTx.EXPECT().UpdateDomain(gomock.Any(), &sqlplugin.DomainRow{
@@ -762,7 +870,7 @@ func TestUpdateDomain(t *testing.T) {
 					Name: "test",
 				},
 				Config:            &persistence.InternalDomainConfig{},
-				ReplicationConfig: &persistence.DomainReplicationConfig{},
+				ReplicationConfig: &persistence.InternalDomainReplicationConfig{},
 			},
 			mockSetup: func(mockDB *sqlplugin.MockDB, mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
 				mockParser.EXPECT().DomainInfoToBlob(gomock.Any()).Return(persistence.DataBlob{}, errors.New("some error"))
@@ -778,7 +886,7 @@ func TestUpdateDomain(t *testing.T) {
 					Name: "test",
 				},
 				Config:            &persistence.InternalDomainConfig{},
-				ReplicationConfig: &persistence.DomainReplicationConfig{},
+				ReplicationConfig: &persistence.InternalDomainReplicationConfig{},
 			},
 			mockSetup: func(mockDB *sqlplugin.MockDB, mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
 				mockParser.EXPECT().DomainInfoToBlob(gomock.Any()).Return(persistence.DataBlob{Data: []byte(`aaaa`), Encoding: constants.EncodingTypeThriftRW}, nil)
@@ -804,7 +912,7 @@ func TestUpdateDomain(t *testing.T) {
 					Name: "test",
 				},
 				Config:            &persistence.InternalDomainConfig{},
-				ReplicationConfig: &persistence.DomainReplicationConfig{},
+				ReplicationConfig: &persistence.InternalDomainReplicationConfig{},
 			},
 			mockSetup: func(mockDB *sqlplugin.MockDB, mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
 				mockParser.EXPECT().DomainInfoToBlob(gomock.Any()).Return(persistence.DataBlob{Data: []byte(`aaaa`), Encoding: constants.EncodingTypeThriftRW}, nil)
@@ -831,7 +939,7 @@ func TestUpdateDomain(t *testing.T) {
 					Name: "test",
 				},
 				Config:              &persistence.InternalDomainConfig{},
-				ReplicationConfig:   &persistence.DomainReplicationConfig{},
+				ReplicationConfig:   &persistence.InternalDomainReplicationConfig{},
 				NotificationVersion: 2,
 			},
 			mockSetup: func(mockDB *sqlplugin.MockDB, mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {

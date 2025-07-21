@@ -28,6 +28,7 @@ import (
 	"flag"
 	"fmt"
 	"math"
+	"os"
 	"sort"
 	"strconv"
 	"testing"
@@ -48,10 +49,15 @@ import (
 func TestIntegrationSuite(t *testing.T) {
 	flag.Parse()
 
-	clusterConfig, err := GetTestClusterConfig("testdata/integration_test_cluster.yaml")
+	configPath := "testdata/integration_test_cluster.yaml"
+	if os.Getenv("ENABLE_QUEUE_V2") == "true" {
+		configPath = "testdata/integration_queuev2_cluster.yaml"
+	}
+	clusterConfig, err := GetTestClusterConfig(configPath)
 	if err != nil {
 		panic(err)
 	}
+
 	testCluster := NewPersistenceTestCluster(t, clusterConfig)
 
 	s := new(IntegrationSuite)
@@ -1882,6 +1888,7 @@ func (s *IntegrationSuite) TestDescribeWorkflowExecution() {
 		ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(100),
 		TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(1),
 		Identity:                            identity,
+		CronOverlapPolicy:                   types.CronOverlapPolicySkipped.Ptr(),
 	}
 
 	ctx, cancel := createContext()
@@ -1941,6 +1948,7 @@ func (s *IntegrationSuite) TestDescribeWorkflowExecution() {
 						ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(200),
 						TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(2),
 						Control:                             nil,
+						CronOverlapPolicy:                   types.CronOverlapPolicySkipped.Ptr(),
 					},
 				},
 			}, nil
@@ -1997,6 +2005,8 @@ func (s *IntegrationSuite) TestDescribeWorkflowExecution() {
 	s.Equal(s.DomainName, dweResponse.PendingChildren[0].GetDomain())
 	s.Equal(childID, dweResponse.PendingChildren[0].GetWorkflowID())
 	s.Equal(childType, dweResponse.PendingChildren[0].GetWorkflowTypeName())
+	s.Equal(types.CronOverlapPolicySkipped, *dweResponse.WorkflowExecutionInfo.CronOverlapPolicy)
+	s.Equal(false, dweResponse.WorkflowExecutionInfo.IsCron)
 
 	// process activity task
 	err = poller.PollAndProcessActivityTask(false)
@@ -2861,7 +2871,7 @@ func (s *IntegrationSuite) TestDecisionTaskFailed() {
 	s.Equal(types.EventTypeWorkflowExecutionCompleted, workflowCompletedEvent.GetEventType())
 }
 
-func (s *IntegrationSuite) TestDescribeTaskList() {
+func (s *IntegrationSuite) TestGetPollerHistory() {
 	WorkflowID := "integration-get-poller-history"
 	workflowTypeName := "integration-get-poller-history-type"
 	tasklistName := "integration-get-poller-history-tasklist"

@@ -77,7 +77,7 @@ func (s *transferQueueValidatorSuite) SetupTest() {
 		},
 		config.NewForTest(),
 	)
-	s.mockLogger = &log.MockLogger{}
+	s.mockLogger = log.NewMockLogger(s.T())
 	s.mockMetricScope = &mocks.Scope{}
 
 	s.processor = &transferQueueProcessorBase{
@@ -107,7 +107,6 @@ func (s *transferQueueValidatorSuite) SetupTest() {
 
 func (s *transferQueueValidatorSuite) TearDownTest() {
 	s.controller.Finish()
-	s.mockLogger.AssertExpectations(s.T())
 	s.mockMetricScope.AssertExpectations(s.T())
 }
 
@@ -170,7 +169,7 @@ func (s *transferQueueValidatorSuite) TestAckTasks_NoTaskLost() {
 
 	loadedTasks := make(map[task.Key]task.Task, len(pendingTasks))
 	for _, pendingTask := range pendingTasks[:len(pendingTasks)-1] {
-		loadedTasks[newTransferTaskKey(pendingTask.GetTaskID())] = task.NewTransferTask(
+		loadedTasks[newTransferTaskKey(pendingTask.GetTaskID())] = task.NewHistoryTask(
 			s.mockShard,
 			&persistence.DecisionTask{
 				TaskData: persistence.TaskData{
@@ -203,7 +202,7 @@ func (s *transferQueueValidatorSuite) TestAckTasks_TaskLost() {
 
 	loadedTasks := make(map[task.Key]task.Task, len(pendingTasks))
 	for _, pendingTask := range pendingTasks[1:] {
-		loadedTasks[newTransferTaskKey(pendingTask.GetTaskID())] = task.NewTransferTask(
+		loadedTasks[newTransferTaskKey(pendingTask.GetTaskID())] = task.NewHistoryTask(
 			s.mockShard,
 			&persistence.DecisionTask{
 				TaskData: persistence.TaskData{

@@ -33,8 +33,11 @@ import (
 	"github.com/stretchr/testify/suite"
 	"github.com/uber-go/tally"
 	"go.uber.org/mock/gomock"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/checksum"
@@ -46,6 +49,7 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/testing/testdatagen"
@@ -350,12 +354,20 @@ func (s *mutableStateSuite) TestReorderEvents() {
 		BufferedEvents: bufferedEvents,
 	}
 
-	s.msBuilder.Load(dbState)
-	s.Equal(types.EventTypeActivityTaskCompleted, s.msBuilder.bufferedEvents[0].GetEventType())
-	s.Equal(types.EventTypeActivityTaskStarted, s.msBuilder.bufferedEvents[1].GetEventType())
-
-	err := s.msBuilder.FlushBufferedEvents()
+	err := s.msBuilder.Load(context.Background(), dbState)
 	s.Nil(err)
+
+	s.Equal(types.EventTypeActivityTaskStarted, s.msBuilder.bufferedEvents[0].GetEventType())
+	s.Equal(int64(-123), s.msBuilder.bufferedEvents[0].ID)
+	s.Equal(int64(5), s.msBuilder.bufferedEvents[0].ActivityTaskStartedEventAttributes.GetScheduledEventID())
+	s.Equal(types.EventTypeActivityTaskCompleted, s.msBuilder.bufferedEvents[1].GetEventType())
+	s.Equal(int64(-123), s.msBuilder.bufferedEvents[1].ID)
+	s.Equal(int64(-123), s.msBuilder.bufferedEvents[1].ActivityTaskCompletedEventAttributes.GetStartedEventID())
+	s.Equal(int64(5), s.msBuilder.bufferedEvents[1].ActivityTaskCompletedEventAttributes.GetScheduledEventID())
+
+	err = s.msBuilder.FlushBufferedEvents()
+	s.Nil(err)
+
 	s.Equal(types.EventTypeActivityTaskStarted, s.msBuilder.hBuilder.history[0].GetEventType())
 	s.Equal(int64(8), s.msBuilder.hBuilder.history[0].ID)
 	s.Equal(int64(5), s.msBuilder.hBuilder.history[0].ActivityTaskStartedEventAttributes.GetScheduledEventID())
@@ -413,7 +425,7 @@ func (s *mutableStateSuite) TestChecksum() {
 
 			// create mutable state and verify checksum is generated on close
 			loadErrors = loadErrorsFunc()
-			s.msBuilder.Load(dbState)
+			s.msBuilder.Load(context.Background(), dbState)
 			s.Equal(loadErrors, loadErrorsFunc()) // no errors expected
 			s.EqualValues(dbState.Checksum, s.msBuilder.checksum)
 			s.msBuilder.domainEntry = s.newDomainCacheEntry()
@@ -426,7 +438,7 @@ func (s *mutableStateSuite) TestChecksum() {
 
 			// verify checksum is verified on Load
 			dbState.Checksum = csum
-			err = s.msBuilder.Load(dbState)
+			err = s.msBuilder.Load(context.Background(), dbState)
 			s.NoError(err)
 			s.Equal(loadErrors, loadErrorsFunc())
 
@@ -438,7 +450,7 @@ func (s *mutableStateSuite) TestChecksum() {
 
 			// modify checksum and verify Load fails
 			dbState.Checksum.Value[0]++
-			err = s.msBuilder.Load(dbState)
+			err = s.msBuilder.Load(context.Background(), dbState)
 			s.Error(err)
 			s.Equal(loadErrors+1, loadErrorsFunc())
 			s.EqualValues(dbState.Checksum, s.msBuilder.checksum)
@@ -448,7 +460,7 @@ func (s *mutableStateSuite) TestChecksum() {
 			s.mockShard.GetConfig().MutableStateChecksumInvalidateBefore = func(...dynamicproperties.FilterOption) float64 {
 				return float64((s.msBuilder.executionInfo.LastUpdatedTimestamp.UnixNano() / int64(time.Second)) + 1)
 			}
-			err = s.msBuilder.Load(dbState)
+			err = s.msBuilder.Load(context.Background(), dbState)
 			s.NoError(err)
 			s.Equal(loadErrors, loadErrorsFunc())
 			s.EqualValues(checksum.Checksum{}, s.msBuilder.checksum)
@@ -848,7 +860,7 @@ func (s *mutableStateSuite) prepareTransientDecisionCompletionFirstBatchReplicat
 func (s *mutableStateSuite) TestLoad_BackwardsCompatibility() {
 	mutableState := s.buildWorkflowMutableState()
 
-	s.msBuilder.Load(mutableState)
+	s.msBuilder.Load(context.Background(), mutableState)
 
 	s.Equal(constants.TestDomainID, s.msBuilder.pendingChildExecutionInfoIDs[81].DomainID)
 }
@@ -856,7 +868,7 @@ func (s *mutableStateSuite) TestLoad_BackwardsCompatibility() {
 func (s *mutableStateSuite) TestUpdateCurrentVersion_WorkflowOpen() {
 	mutableState := s.buildWorkflowMutableState()
 
-	s.msBuilder.Load(mutableState)
+	s.msBuilder.Load(context.Background(), mutableState)
 	s.Equal(commonconstants.EmptyVersion, s.msBuilder.GetCurrentVersion())
 
 	version := int64(2000)
@@ -869,7 +881,7 @@ func (s *mutableStateSuite) TestUpdateCurrentVersion_WorkflowClosed() {
 	mutableState.ExecutionInfo.State = persistence.WorkflowStateCompleted
 	mutableState.ExecutionInfo.CloseStatus = persistence.WorkflowCloseStatusCompleted
 
-	s.msBuilder.Load(mutableState)
+	s.msBuilder.Load(context.Background(), mutableState)
 	s.Equal(commonconstants.EmptyVersion, s.msBuilder.GetCurrentVersion())
 
 	versionHistory, err := mutableState.VersionHistories.GetCurrentVersionHistory()
@@ -1939,10 +1951,14 @@ func TestMutableStateBuilder_CopyToPersistence_roundtrip(t *testing.T) {
 		shardContext.EXPECT().GetTimeSource().Return(clock.NewMockedTimeSource())
 		shardContext.EXPECT().GetMetricsClient().Return(metrics.NewNoopMetricsClient())
 		shardContext.EXPECT().GetDomainCache().Return(mockDomainCache).AnyTimes()
+		shardContext.EXPECT().GetLogger().Return(testlogger.New(t)).AnyTimes()
+
+		activeClusterManager := activecluster.NewMockManager(ctrl)
+		shardContext.EXPECT().GetActiveClusterManager().Return(activeClusterManager).AnyTimes()
 
 		msb := newMutableStateBuilder(shardContext, log.NewNoop(), constants.TestGlobalDomainEntry)
 
-		msb.Load(execution)
+		msb.Load(context.Background(), execution)
 
 		out := msb.CopyToPersistence()
 
@@ -1965,7 +1981,6 @@ func TestMutableStateBuilder_CopyToPersistence_roundtrip(t *testing.T) {
 }
 
 func TestMutableStateBuilder_closeTransactionHandleWorkflowReset(t *testing.T) {
-
 	t1 := time.Unix(123, 0)
 	now := time.Unix(500, 0)
 
@@ -2137,6 +2152,7 @@ func TestMutableStateBuilder_closeTransactionHandleWorkflowReset(t *testing.T) {
 			mockCache := events.NewMockCache(ctrl)
 			mockDomainCache := cache.NewMockDomainCache(ctrl)
 
+			shardContext.EXPECT().GetLogger().Return(testlogger.New(t)).AnyTimes()
 			td.shardContextExpectations(mockCache, shardContext, mockDomainCache)
 
 			nowClock := clock.NewMockedTimeSourceAt(now)
@@ -2154,12 +2170,10 @@ func TestMutableStateBuilder_closeTransactionHandleWorkflowReset(t *testing.T) {
 }
 
 func TestMutableStateBuilder_GetVersionHistoriesStart(t *testing.T) {
-
 	tests := map[string]struct {
 		mutableStateBuilderStartingState func(m *mutableStateBuilder)
-
-		expectedVersion int64
-		expectedErr     error
+		expectedVersion                  int64
+		expectedErr                      error
 	}{
 		"A mutable state with version history": {
 			mutableStateBuilderStartingState: func(m *mutableStateBuilder) {
@@ -2248,6 +2262,8 @@ func TestMutableStateBuilder_GetVersionHistoriesStart(t *testing.T) {
 			ctrl := gomock.NewController(t)
 
 			shardContext := shard.NewMockContext(ctrl)
+			shardContext.EXPECT().GetLogger().Return(testlogger.New(t)).AnyTimes()
+
 			mockCache := events.NewMockCache(ctrl)
 			mockDomainCache := cache.NewMockDomainCache(ctrl)
 
@@ -2461,6 +2477,7 @@ func TestGetCronRetryBackoffDuration(t *testing.T) {
 			ctrl := gomock.NewController(t)
 
 			shardContext := shard.NewMockContext(ctrl)
+			shardContext.EXPECT().GetLogger().Return(testlogger.New(t)).AnyTimes()
 			mockCache := events.NewMockCache(ctrl)
 			mockDomainCache := cache.NewMockDomainCache(ctrl)
 
@@ -2549,10 +2566,41 @@ func TestStartTransactionHandleFailover(t *testing.T) {
 
 	for name, td := range tests {
 		t.Run(name, func(t *testing.T) {
-
 			ctrl := gomock.NewController(t)
 
+			clusterMetadata := cluster.NewMetadata(
+				commonConfig.ClusterGroupMetadata{
+					FailoverVersionIncrement: 10,
+					PrimaryClusterName:       "cluster0",
+					CurrentClusterName:       "cluster0",
+					ClusterGroup: map[string]commonConfig.ClusterInformation{
+						"cluster0": {
+							Enabled:                true,
+							InitialFailoverVersion: 1,
+						},
+						"cluster1": {
+							Enabled:                true,
+							InitialFailoverVersion: 0,
+						},
+						"cluster2": {
+							Enabled:                true,
+							InitialFailoverVersion: 2,
+						},
+					},
+				},
+				func(string) bool { return false },
+				metrics.NewNoopMetricsClient(),
+				log.NewNoop(),
+			)
+
 			shardContext := shardCtx.NewMockContext(ctrl)
+			shardContext.EXPECT().GetLogger().Return(testlogger.New(t)).AnyTimes()
+
+			activeClusterManager := activecluster.NewMockManager(ctrl)
+			activeClusterManager.EXPECT().ClusterNameForFailoverVersion(gomock.Any(), gomock.Any()).DoAndReturn(func(version int64, domainID string) (string, error) {
+				return clusterMetadata.ClusterNameForFailoverVersion(version)
+			}).AnyTimes()
+			shardContext.EXPECT().GetActiveClusterManager().Return(activeClusterManager).AnyTimes()
 
 			decisionManager := NewMockmutableStateDecisionTaskManager(ctrl)
 			td.decisionManagerAffordance(decisionManager)
@@ -2566,29 +2614,6 @@ func TestStartTransactionHandleFailover(t *testing.T) {
 				EnableReplicationTaskGeneration:       func(_ string, _ string) bool { return true },
 				HostName:                              "test-host",
 			}).Times(1)
-
-			clusterMetadata := cluster.NewMetadata(
-				10,
-				"cluster0",
-				"cluster0",
-				map[string]commonConfig.ClusterInformation{
-					"cluster0": commonConfig.ClusterInformation{
-						Enabled:                true,
-						InitialFailoverVersion: 1,
-					},
-					"cluster1": commonConfig.ClusterInformation{
-						Enabled:                true,
-						InitialFailoverVersion: 0,
-					},
-					"cluster2": commonConfig.ClusterInformation{
-						Enabled:                true,
-						InitialFailoverVersion: 2,
-					},
-				},
-				func(string) bool { return false },
-				metrics.NewNoopMetricsClient(),
-				log.NewNoop(),
-			)
 
 			domainEntry := cache.NewDomainCacheEntryForTest(&persistence.DomainInfo{
 				ID:   "domain-id",
@@ -2647,6 +2672,7 @@ func TestStartTransactionHandleFailover(t *testing.T) {
 					NextEventID:            0,
 					LastProcessedEvent:     0,
 				},
+				logger: testlogger.New(t),
 			}
 
 			msb.hBuilder = NewHistoryBuilder(&msb)
@@ -2664,7 +2690,7 @@ func TestStartTransactionHandleFailover(t *testing.T) {
 
 func TestSimpleGetters(t *testing.T) {
 
-	msb := createMSB()
+	msb := createMSB(t)
 	assert.Equal(t, msb.versionHistories, msb.GetVersionHistories())
 
 	branchToken, err := msb.GetCurrentBranchToken()
@@ -2751,13 +2777,14 @@ func TestMutableState_IsCurrentWorkflowGuaranteed(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			msb := mutableStateBuilder{
 				stateInDB: td.state,
+				logger:    testlogger.New(t),
 			}
 			assert.Equal(t, td.expected, msb.IsCurrentWorkflowGuaranteed())
 		})
 	}
 }
 
-func createMSB() mutableStateBuilder {
+func createMSB(t *testing.T) mutableStateBuilder {
 
 	sampleDomain := cache.NewDomainCacheEntryForTest(&persistence.DomainInfo{ID: "domain-id", Name: "domain"}, &persistence.DomainConfig{}, true, nil, 0, nil, 0, 0, 0)
 
@@ -2877,6 +2904,7 @@ func createMSB() mutableStateBuilder {
 		checksum:         checksum.Checksum{},
 		executionStats:   &persistence.ExecutionStats{HistorySize: 403},
 		queryRegistry:    query.NewRegistry(),
+		logger:           testlogger.New(t),
 	}
 }
 
@@ -3119,7 +3147,7 @@ func TestAssignTaskIDToTransientHistoryEvents(t *testing.T) {
 			},
 			taskID: 123,
 			shardContextExpectations: func(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache) {
-				shardContext.EXPECT().GenerateTransferTaskIDs(1).Return([]int64{123}, nil).Times(1)
+				shardContext.EXPECT().GenerateTaskIDs(1).Return([]int64{123}, nil).Times(1)
 			},
 			expectedEvents: []*types.HistoryEvent{
 				{
@@ -3144,7 +3172,7 @@ func TestAssignTaskIDToTransientHistoryEvents(t *testing.T) {
 			},
 			taskID: 456,
 			shardContextExpectations: func(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache) {
-				shardContext.EXPECT().GenerateTransferTaskIDs(2).Return([]int64{123, 124}, nil).Times(1)
+				shardContext.EXPECT().GenerateTaskIDs(2).Return([]int64{123, 124}, nil).Times(1)
 			},
 			expectedEvents: []*types.HistoryEvent{
 				{
@@ -3176,7 +3204,7 @@ func TestAssignTaskIDToTransientHistoryEvents(t *testing.T) {
 			},
 			taskID: 456,
 			shardContextExpectations: func(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache) {
-				shardContext.EXPECT().GenerateTransferTaskIDs(1).Return(nil, assert.AnError).Times(1)
+				shardContext.EXPECT().GenerateTaskIDs(1).Return(nil, assert.AnError).Times(1)
 			},
 			expectedEvents: []*types.HistoryEvent{
 				{
@@ -3195,6 +3223,7 @@ func TestAssignTaskIDToTransientHistoryEvents(t *testing.T) {
 			ctrl := gomock.NewController(t)
 
 			shardContext := shard.NewMockContext(ctrl)
+			shardContext.EXPECT().GetLogger().Return(testlogger.New(t)).AnyTimes()
 			mockCache := events.NewMockCache(ctrl)
 			mockDomainCache := cache.NewMockDomainCache(ctrl)
 
@@ -3231,7 +3260,7 @@ func TestAssignTaskIDToHistoryEvents(t *testing.T) {
 			},
 			taskID: 123,
 			shardContextExpectations: func(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache) {
-				shardContext.EXPECT().GenerateTransferTaskIDs(1).Return([]int64{123}, nil).Times(1)
+				shardContext.EXPECT().GenerateTaskIDs(1).Return([]int64{123}, nil).Times(1)
 			},
 			expectedEvents: []*types.HistoryEvent{
 				{
@@ -3256,7 +3285,7 @@ func TestAssignTaskIDToHistoryEvents(t *testing.T) {
 			},
 			taskID: 456,
 			shardContextExpectations: func(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache) {
-				shardContext.EXPECT().GenerateTransferTaskIDs(2).Return([]int64{123, 124}, nil).Times(1)
+				shardContext.EXPECT().GenerateTaskIDs(2).Return([]int64{123, 124}, nil).Times(1)
 			},
 			expectedEvents: []*types.HistoryEvent{
 				{
@@ -3288,7 +3317,7 @@ func TestAssignTaskIDToHistoryEvents(t *testing.T) {
 			},
 			taskID: 456,
 			shardContextExpectations: func(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache) {
-				shardContext.EXPECT().GenerateTransferTaskIDs(1).Return(nil, assert.AnError).Times(1)
+				shardContext.EXPECT().GenerateTaskIDs(1).Return(nil, assert.AnError).Times(1)
 			},
 			expectedEvents: []*types.HistoryEvent{
 				{
@@ -3307,6 +3336,7 @@ func TestAssignTaskIDToHistoryEvents(t *testing.T) {
 			ctrl := gomock.NewController(t)
 
 			shardContext := shard.NewMockContext(ctrl)
+			shardContext.EXPECT().GetLogger().Return(testlogger.New(t)).AnyTimes()
 			mockCache := events.NewMockCache(ctrl)
 			mockDomainCache := cache.NewMockDomainCache(ctrl)
 
@@ -3386,6 +3416,7 @@ func TestAddUpsertWorkflowSearchAttributesEvent(t *testing.T) {
 			ctrl := gomock.NewController(t)
 
 			shardContext := shard.NewMockContext(ctrl)
+			shardContext.EXPECT().GetLogger().Return(testlogger.New(t)).AnyTimes()
 			mockCache := events.NewMockCache(ctrl)
 			mockDomainCache := cache.NewMockDomainCache(ctrl)
 
@@ -3512,7 +3543,7 @@ func TestCloseTransactionAsMutation(t *testing.T) {
 					MaximumBufferedEventsBatch:            func(...dynamicproperties.FilterOption) int { return 100 },
 				}).Times(3)
 
-				shardContext.EXPECT().GenerateTransferTaskIDs(1).Return([]int64{123}, nil).Times(1)
+				shardContext.EXPECT().GenerateTaskIDs(1).Return([]int64{123}, nil).Times(1)
 				shardContext.EXPECT().GetDomainCache().Return(mockDomainCache).Times(1)
 				mockDomainCache.EXPECT().GetDomainByID("some-domain-id").Return(mockDomain, nil)
 
@@ -3585,6 +3616,11 @@ func TestCloseTransactionAsMutation(t *testing.T) {
 			ctrl := gomock.NewController(t)
 
 			shardContext := shard.NewMockContext(ctrl)
+			shardContext.EXPECT().GetLogger().Return(testlogger.New(t)).AnyTimes()
+
+			activeClusterManager := activecluster.NewMockManager(ctrl)
+			shardContext.EXPECT().GetActiveClusterManager().Return(activeClusterManager).AnyTimes()
+
 			mockCache := events.NewMockCache(ctrl)
 			mockDomainCache := cache.NewMockDomainCache(ctrl)
 
@@ -3592,10 +3628,249 @@ func TestCloseTransactionAsMutation(t *testing.T) {
 			td.mutableStateSetup(ms)
 			td.shardContextExpectations(mockCache, shardContext, mockDomainCache)
 
+			activeClusterManager.EXPECT().ClusterNameForFailoverVersion(gomock.Any(), gomock.Any()).DoAndReturn(func(version int64, domainID string) (string, error) {
+				return cluster.TestActiveClusterMetadata.GetCurrentClusterName(), nil
+			}).AnyTimes()
+
 			mutation, workflowEvents, err := ms.CloseTransactionAsMutation(now, td.transactionPolicy)
 			assert.Equal(t, td.expectedMutation, mutation)
 			assert.Equal(t, td.expectedEvent, workflowEvents)
 			assert.Equal(t, td.expectedErr, err)
+		})
+	}
+}
+
+func Test__reorderAndFilterDuplicateEvents(t *testing.T) {
+	testCases := []struct {
+		name        string
+		buildEvents func(msb *mutableStateBuilder) ([]*types.HistoryEvent, []*types.HistoryEvent)
+		assertions  func(*testing.T, *observer.ObservedLogs)
+	}{
+		{
+			name: "no duplicates",
+			buildEvents: func(msb *mutableStateBuilder) ([]*types.HistoryEvent, []*types.HistoryEvent) {
+				event1 := msb.CreateNewHistoryEvent(types.EventTypeActivityTaskStarted)
+				event1.ActivityTaskStartedEventAttributes = &types.ActivityTaskStartedEventAttributes{
+					ScheduledEventID: 1,
+					Attempt:          1,
+				}
+				event2 := msb.CreateNewHistoryEvent(types.EventTypeActivityTaskCompleted)
+				event2.ActivityTaskCompletedEventAttributes = &types.ActivityTaskCompletedEventAttributes{
+					ScheduledEventID: 1,
+				}
+
+				return []*types.HistoryEvent{event1, event2}, []*types.HistoryEvent{event1, event2}
+			},
+			assertions: func(t *testing.T, logs *observer.ObservedLogs) {
+				assert.Equal(t, 0, logs.FilterMessage("Duplicate activity task event found").Len())
+			},
+		},
+		{
+			name: "started event duplicated",
+			buildEvents: func(msb *mutableStateBuilder) ([]*types.HistoryEvent, []*types.HistoryEvent) {
+				event1 := msb.CreateNewHistoryEvent(types.EventTypeActivityTaskStarted)
+				event1.ActivityTaskStartedEventAttributes = &types.ActivityTaskStartedEventAttributes{
+					ScheduledEventID: 1,
+					Attempt:          1,
+				}
+				event2 := msb.CreateNewHistoryEvent(types.EventTypeActivityTaskStarted)
+				event2.ActivityTaskStartedEventAttributes = &types.ActivityTaskStartedEventAttributes{
+					ScheduledEventID: 1,
+					Attempt:          1,
+				}
+
+				return []*types.HistoryEvent{event1, event2}, []*types.HistoryEvent{event1}
+			},
+			assertions: func(t *testing.T, logs *observer.ObservedLogs) {
+				assert.Equal(t, 1, logs.FilterMessage("Duplicate activity task event found").Len())
+			},
+		},
+		{
+			name: "completed event duplicated",
+			buildEvents: func(msb *mutableStateBuilder) ([]*types.HistoryEvent, []*types.HistoryEvent) {
+				event1 := msb.CreateNewHistoryEvent(types.EventTypeActivityTaskCompleted)
+				event1.ActivityTaskCompletedEventAttributes = &types.ActivityTaskCompletedEventAttributes{
+					ScheduledEventID: 1,
+				}
+				event2 := msb.CreateNewHistoryEvent(types.EventTypeActivityTaskCompleted)
+				event2.ActivityTaskCompletedEventAttributes = &types.ActivityTaskCompletedEventAttributes{
+					ScheduledEventID: 1,
+				}
+
+				return []*types.HistoryEvent{event1, event2}, []*types.HistoryEvent{event1}
+			},
+			assertions: func(t *testing.T, logs *observer.ObservedLogs) {
+				assert.Equal(t, 1, logs.FilterMessage("Duplicate activity task event found").Len())
+			},
+		},
+		{
+			name: "canceled event duplicated",
+			buildEvents: func(msb *mutableStateBuilder) ([]*types.HistoryEvent, []*types.HistoryEvent) {
+				event1 := msb.CreateNewHistoryEvent(types.EventTypeActivityTaskCanceled)
+				event1.ActivityTaskCanceledEventAttributes = &types.ActivityTaskCanceledEventAttributes{
+					ScheduledEventID: 1,
+				}
+				event2 := msb.CreateNewHistoryEvent(types.EventTypeActivityTaskCanceled)
+				event2.ActivityTaskCanceledEventAttributes = &types.ActivityTaskCanceledEventAttributes{
+					ScheduledEventID: 1,
+				}
+
+				return []*types.HistoryEvent{event1, event2}, []*types.HistoryEvent{event1}
+			},
+			assertions: func(t *testing.T, logs *observer.ObservedLogs) {
+				assert.Equal(t, 1, logs.FilterMessage("Duplicate activity task event found").Len())
+			},
+		},
+		{
+			name: "failed event duplicated",
+			buildEvents: func(msb *mutableStateBuilder) ([]*types.HistoryEvent, []*types.HistoryEvent) {
+				event1 := msb.CreateNewHistoryEvent(types.EventTypeActivityTaskFailed)
+				event1.ActivityTaskFailedEventAttributes = &types.ActivityTaskFailedEventAttributes{
+					ScheduledEventID: 1,
+				}
+				event2 := msb.CreateNewHistoryEvent(types.EventTypeActivityTaskFailed)
+				event2.ActivityTaskFailedEventAttributes = &types.ActivityTaskFailedEventAttributes{
+					ScheduledEventID: 1,
+				}
+
+				return []*types.HistoryEvent{event1, event2}, []*types.HistoryEvent{event1}
+			},
+			assertions: func(t *testing.T, logs *observer.ObservedLogs) {
+				assert.Equal(t, 1, logs.FilterMessage("Duplicate activity task event found").Len())
+			},
+		},
+		{
+			name: "timed out event duplicated",
+			buildEvents: func(msb *mutableStateBuilder) ([]*types.HistoryEvent, []*types.HistoryEvent) {
+				event1 := msb.CreateNewHistoryEvent(types.EventTypeActivityTaskTimedOut)
+				event1.ActivityTaskTimedOutEventAttributes = &types.ActivityTaskTimedOutEventAttributes{
+					ScheduledEventID: 1,
+				}
+				event2 := msb.CreateNewHistoryEvent(types.EventTypeActivityTaskTimedOut)
+				event2.ActivityTaskTimedOutEventAttributes = &types.ActivityTaskTimedOutEventAttributes{
+					ScheduledEventID: 1,
+				}
+
+				return []*types.HistoryEvent{event1, event2}, []*types.HistoryEvent{event1}
+			},
+			assertions: func(t *testing.T, logs *observer.ObservedLogs) {
+				assert.Equal(t, 1, logs.FilterMessage("Duplicate activity task event found").Len())
+			},
+		},
+		{
+			name: "reorder events",
+			buildEvents: func(msb *mutableStateBuilder) ([]*types.HistoryEvent, []*types.HistoryEvent) {
+				event1 := msb.CreateNewHistoryEvent(types.EventTypeActivityTaskStarted)
+				event1.ActivityTaskStartedEventAttributes = &types.ActivityTaskStartedEventAttributes{
+					ScheduledEventID: 1,
+					Attempt:          1,
+				}
+				event2 := msb.CreateNewHistoryEvent(types.EventTypeActivityTaskTimedOut)
+				event2.ActivityTaskTimedOutEventAttributes = &types.ActivityTaskTimedOutEventAttributes{
+					ScheduledEventID: 1,
+				}
+
+				return []*types.HistoryEvent{event2, event1}, []*types.HistoryEvent{event1, event2}
+			},
+		},
+		{
+			name: "reorder all event types",
+			buildEvents: func(msb *mutableStateBuilder) ([]*types.HistoryEvent, []*types.HistoryEvent) {
+				event1 := msb.CreateNewHistoryEvent(types.EventTypeActivityTaskStarted)
+				event1.ActivityTaskStartedEventAttributes = &types.ActivityTaskStartedEventAttributes{
+					ScheduledEventID: 1,
+					Attempt:          1,
+				}
+				event2 := msb.CreateNewHistoryEvent(types.EventTypeActivityTaskCompleted)
+				event2.ActivityTaskCompletedEventAttributes = &types.ActivityTaskCompletedEventAttributes{
+					ScheduledEventID: 1,
+				}
+				event3 := msb.CreateNewHistoryEvent(types.EventTypeActivityTaskFailed)
+				event3.ActivityTaskFailedEventAttributes = &types.ActivityTaskFailedEventAttributes{
+					ScheduledEventID: 1,
+				}
+				event4 := msb.CreateNewHistoryEvent(types.EventTypeActivityTaskCanceled)
+				event4.ActivityTaskCanceledEventAttributes = &types.ActivityTaskCanceledEventAttributes{
+					ScheduledEventID: 1,
+				}
+				event5 := msb.CreateNewHistoryEvent(types.EventTypeActivityTaskTimedOut)
+				event5.ActivityTaskTimedOutEventAttributes = &types.ActivityTaskTimedOutEventAttributes{
+					ScheduledEventID: 1,
+				}
+				event6 := msb.CreateNewHistoryEvent(types.EventTypeChildWorkflowExecutionCompleted)
+				event6.ChildWorkflowExecutionCompletedEventAttributes = &types.ChildWorkflowExecutionCompletedEventAttributes{
+					StartedEventID: 1,
+				}
+				event7 := msb.CreateNewHistoryEvent(types.EventTypeChildWorkflowExecutionFailed)
+				event7.ChildWorkflowExecutionFailedEventAttributes = &types.ChildWorkflowExecutionFailedEventAttributes{
+					StartedEventID: 1,
+				}
+				event8 := msb.CreateNewHistoryEvent(types.EventTypeChildWorkflowExecutionCanceled)
+				event8.ChildWorkflowExecutionCanceledEventAttributes = &types.ChildWorkflowExecutionCanceledEventAttributes{
+					StartedEventID: 1,
+				}
+				event9 := msb.CreateNewHistoryEvent(types.EventTypeChildWorkflowExecutionTimedOut)
+				event9.ChildWorkflowExecutionTimedOutEventAttributes = &types.ChildWorkflowExecutionTimedOutEventAttributes{
+					StartedEventID: 1,
+				}
+				event10 := msb.CreateNewHistoryEvent(types.EventTypeChildWorkflowExecutionTerminated)
+				event10.ChildWorkflowExecutionTerminatedEventAttributes = &types.ChildWorkflowExecutionTerminatedEventAttributes{
+					StartedEventID: 1,
+				}
+
+				return []*types.HistoryEvent{event2, event3, event4, event5, event6, event7, event8, event9, event10, event1}, []*types.HistoryEvent{event1, event2, event3, event4, event5, event6, event7, event8, event9, event10}
+			},
+		},
+		{
+			name: "reorder and remove duplicate events",
+			buildEvents: func(msb *mutableStateBuilder) ([]*types.HistoryEvent, []*types.HistoryEvent) {
+				event1 := msb.CreateNewHistoryEvent(types.EventTypeActivityTaskStarted)
+				event1.ActivityTaskStartedEventAttributes = &types.ActivityTaskStartedEventAttributes{
+					ScheduledEventID: 1,
+					Attempt:          1,
+				}
+				event2 := msb.CreateNewHistoryEvent(types.EventTypeActivityTaskTimedOut)
+				event2.ActivityTaskTimedOutEventAttributes = &types.ActivityTaskTimedOutEventAttributes{
+					ScheduledEventID: 1,
+				}
+				event3 := msb.CreateNewHistoryEvent(types.EventTypeActivityTaskTimedOut)
+				event3.ActivityTaskTimedOutEventAttributes = &types.ActivityTaskTimedOutEventAttributes{
+					ScheduledEventID: 1,
+				}
+
+				return []*types.HistoryEvent{event2, event1, event3}, []*types.HistoryEvent{event1, event2}
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			core, observedLogs := observer.New(zap.WarnLevel)
+
+			mockCache := events.NewMockCache(ctrl)
+			shardContext := shard.NewMockContext(ctrl)
+			shardContext.EXPECT().GetLogger().Return(testlogger.New(t)).AnyTimes()
+			mockDomainCache := cache.NewMockDomainCache(ctrl)
+
+			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache)
+
+			msb.logger = log.NewLogger(zap.New(core))
+
+			msb.executionInfo.DomainID = "some-domain-id"
+			msb.executionInfo.WorkflowID = "some-workflow-id"
+			msb.executionInfo.RunID = "some-run-id"
+
+			allEvents, nonDuplicate := tc.buildEvents(msb)
+
+			result := msb.reorderAndFilterDuplicateEvents(allEvents, "test")
+
+			assert.Equal(t, nonDuplicate, result)
+			if tc.assertions != nil {
+				tc.assertions(t, observedLogs)
+			}
 		})
 	}
 }

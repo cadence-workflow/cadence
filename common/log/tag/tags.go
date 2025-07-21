@@ -47,9 +47,19 @@ func ClusterName(clusterName string) Tag {
 	return newStringTag("cluster-name", clusterName)
 }
 
+// Region returns tag for Region
+func Region(region string) Tag {
+	return newStringTag("region", region)
+}
+
 // ActiveClusterName returns tag for ActiveClusterName.
 func ActiveClusterName(activeClusterName string) Tag {
 	return newStringTag("active-cluster-name", activeClusterName)
+}
+
+// ActiveClusterChangeType returns tag for ActiveClusterChangeType.
+func ActiveClusterChangeType(changeType string) Tag {
+	return newStringTag("active-active-change-type", changeType)
 }
 
 // Timestamp returns tag for Timestamp
@@ -224,6 +234,10 @@ func WorkflowTerminationReason(reason string) Tag {
 	return newStringTag("wf-termination-reason", reason)
 }
 
+func Duration(duration time.Duration) Tag {
+	return newDurationTag("duration", duration)
+}
+
 // domain related
 
 // WorkflowDomainID returns tag for WorkflowDomainID
@@ -286,6 +300,14 @@ func WorkflowNextEventID(nextEventID int64) Tag {
 // WorkflowResetNextEventID returns tag for WorkflowResetNextEventID
 func WorkflowResetNextEventID(resetNextEventID int64) Tag {
 	return newInt64("wf-reset-next-event-id", resetNextEventID)
+}
+
+func WorkflowExternalEntityType(externalEntityType string) Tag {
+	return newStringTag("wf-external-entity-type", externalEntityType)
+}
+
+func WorkflowExternalEntityKey(externalEntityKey string) Tag {
+	return newStringTag("wf-external-entity-key", externalEntityKey)
 }
 
 // history tree
@@ -1062,6 +1084,10 @@ func AsyncWFQueueID(queueID string) Tag {
 	return newStringTag("async-wf-queue-id", queueID)
 }
 
+func AsyncWFRequestType(requestType string) Tag {
+	return newStringTag("async-wf-request-type", requestType)
+}
+
 func GlobalRatelimiterKey(globalKey string) Tag {
 	return newStringTag("global-ratelimit-key", globalKey)
 }
@@ -1088,6 +1114,18 @@ func NumReadPartitions(n int) Tag {
 
 func NumWritePartitions(n int) Tag {
 	return newInt("num-write-partitions", n)
+}
+
+func ReadChanged(b bool) Tag {
+	return newBoolTag("read-changed", b)
+}
+
+func WriteChanged(b bool) Tag {
+	return newBoolTag("write-changed", b)
+}
+
+func IsolationChanged(b bool) Tag {
+	return newBoolTag("isolation-changed", b)
 }
 
 func CurrentNumReadPartitions(n int) Tag {
@@ -1126,8 +1164,20 @@ func ActivityTaskState(state int32) Tag {
 	return newInt32("activity-task-state", state)
 }
 
-func Namespace(name string) Tag {
-	return newStringTag("namespace", name)
+func ShardNamespace(name string) Tag {
+	return newStringTag("shard-namespace", name)
+}
+
+func ShardExecutor(ID string) Tag {
+	return newStringTag("shard-executor", ID)
+}
+
+func ShardExecutors(executorIDs []string) Tag {
+	return newStringsTag("shard-executors", executorIDs)
+}
+
+func ElectionDelay(t time.Duration) Tag {
+	return newDurationTag("election-delay", t)
 }
 
 func WorkflowContextLockLatency(duration time.Duration) Tag {
@@ -1145,4 +1195,19 @@ func HashRingResult(addr string) Tag {
 
 func ShardDistributorResult(addr string) Tag {
 	return newStringTag("shard-distributor-result", addr)
+}
+
+// PeerHostname returns a tag for peer hostname
+func PeerHostname(hostname string) Tag {
+	return newStringTag("peer-hostname", hostname)
+}
+
+// PendingTaskCount returns a tag for pending task count
+func PendingTaskCount(count int) Tag {
+	return newInt("pending-task-count", count)
+}
+
+// VirtualQueueID returns a tag for virtual queue id
+func VirtualQueueID(id int64) Tag {
+	return newInt64("virtual-queue-id", id)
 }

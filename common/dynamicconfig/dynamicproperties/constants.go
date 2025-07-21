@@ -820,6 +820,12 @@ const (
 	MatchingReadRangeSize
 
 	MatchingPartitionUpscaleRPS
+	// MatchingIsolationGroupsPerPartition is the target number of isolation groups to assign to each partition
+	// KeyName: matching.isolationGroupsPerPartition
+	// Value type: Int
+	// Default value: 2
+	// Allowed filters: DomainName,TasklistName,TasklistType
+	MatchingIsolationGroupsPerPartition
 
 	// key for history
 
@@ -865,6 +871,12 @@ const (
 	// Default value: 512
 	// Allowed filters: N/A
 	HistoryCacheMaxSize
+	// ExecutionCacheMaxByteSize is the max byte size of history cache
+	// KeyName: history.executionCacheMaxByteSize
+	// Value type: Int
+	// Default value: 0
+	// Allowed filters: N/A
+	ExecutionCacheMaxByteSize
 	// EventsCacheInitialCount is initial count of events cache
 	// KeyName: history.eventsCacheInitialSize
 	// Value type: Int
@@ -951,6 +963,7 @@ const (
 	// Default value: 2 // 3 levels, start from 0
 	// Allowed filters: N/A
 	QueueProcessorSplitMaxLevel
+	QueueMaxPendingTaskCount
 	// TimerTaskBatchSize is batch size for timer processor to process tasks
 	// KeyName: history.timerTaskBatchSize
 	// Value type: Int
@@ -1513,6 +1526,7 @@ const (
 	TestGetBoolPropertyFilteredByTaskListInfoKey
 	TestGetBoolPropertyFilteredByDomainKey
 	TestGetBoolPropertyFilteredByDomainIDAndWorkflowIDKey
+	TestGetBoolPropertyFilteredByShardIDKey
 
 	// key for common & admin
 
@@ -1659,6 +1673,7 @@ const (
 
 	MatchingEnableGetNumberOfPartitionsFromCache
 	MatchingEnableAdaptiveScaler
+	MatchingEnablePartitionEmptyCheck
 
 	// key for history
 
@@ -2000,7 +2015,7 @@ const (
 	// Default value: false
 	Lockdown
 
-	// PendingActivityValidationEnabled is feature flag if pending activity count validation is enabled
+	// EnablePendingActivityValidation is feature flag if pending activity count validation is enabled
 	// KeyName: limit.pendingActivityCount.enabled
 	// Value type: bool
 	// Default value: false
@@ -2015,6 +2030,13 @@ const (
 	// Value type: bool
 	// Default value: false
 	EnableTasklistIsolation
+
+	// EnablePartitionIsolationGroupAssignment enables assigning isolation groups to individual TaskList partitions
+	// KeyName: matching.enablePartitionIsolationGroupAssignment
+	// Value type: bool
+	// Default value: false
+	// Allowed filters: DomainName,TasklistName,TasklistType
+	EnablePartitionIsolationGroupAssignment
 
 	// EnableShardIDMetrics turns on or off shardId metrics
 	// KeyName: system.enableShardIDMetrics
@@ -2061,6 +2083,24 @@ const (
 
 	EnableNoSQLHistoryTaskDualWriteMode
 	ReadNoSQLHistoryTaskFromDataBlob
+	ReadNoSQLShardFromDataBlob
+	// EnableSizeBasedHistoryExecutionCache is the feature flag to enable size based cache for execution cache
+	// KeyName: history.enableSizeBasedHistoryExecutionCache
+	// Value type: Bool
+	// Default value: false
+	EnableSizeBasedHistoryExecutionCache
+
+	// EnableSizeBasedHistoryEventCache is the feature flag to enable size based cache for event cache
+	// KeyName: history.enableSizeBasedHistoryEventCache
+	// Value type: Bool
+	// Default value: false
+	EnableSizeBasedHistoryEventCache
+
+	DisableTransferFailoverQueue
+	DisableTimerFailoverQueue
+
+	EnableTransferQueueV2
+	EnableTimerQueueV2
 
 	// LastBoolKey must be the last one in this const group
 	LastBoolKey
@@ -2347,8 +2387,8 @@ const (
 	// - "shard_distributor-shadow-hash_ring" means that the shards are distrubuted using the shard distributor, but shadowed by the hash ring
 	//
 	// KeyName: matching.shardDistributionMode
-	// Value type: string enum: "hash-ring" or "shard-distributor"
-	// Default value: "hash-ring"
+	// Value type: string enum: "hash_ring" or "shard_distributor"
+	// Default value: "hash_ring"
 	MatchingShardDistributionMode
 
 	// LastStringKey must be the last one in this const group
@@ -2372,6 +2412,12 @@ const (
 	// Default value: 0
 	// Allowed filters: N/A
 	FrontendShutdownDrainDuration
+	// FrontendWarmupDuration is the duration before a frontend host reports its status as healthy
+	// KeyName: frontend.warmupDuration
+	// Value type: Duration
+	// Default value: 30s
+	// Allowed filters: N/A
+	FrontendWarmupDuration
 	// FrontendFailoverCoolDown is duration between two domain failvoers
 	// KeyName: frontend.failoverCoolDown
 	// Value type: Duration
@@ -2432,6 +2478,31 @@ const (
 	MatchingPartitionDownscaleSustainedDuration
 	MatchingAdaptiveScalerUpdateInterval
 	MatchingQPSTrackerInterval
+
+	// MatchingIsolationGroupUpscaleSustainedDuration is the sustained period to wait before upscaling the number of partitions an isolation group is assigned to
+	// KeyName: matching.isolationGroupUpscaleSustainedDuration
+	// Value type: Duration
+	// Default value: 1m
+	// Allowed filters: DomainName,TasklistName,TasklistType
+	MatchingIsolationGroupUpscaleSustainedDuration
+	// MatchingIsolationGroupDownscaleSustainedDuration is the sustained period to wait before downscaling the number of partitions an isolation group is assigned to
+	// KeyName: matching.isolationGroupDownscaleSustainedDuration
+	// Value type: Duration
+	// Default value: 2m
+	// Allowed filters: DomainName,TasklistName,TasklistType
+	MatchingIsolationGroupDownscaleSustainedDuration
+	// MatchingIsolationGroupHasPollersSustainedDuration is the sustained period to wait before considering an isolation group as an active and assigning partitions to it
+	// KeyName: matching.isolationGroupHasPollersSustainedDuration
+	// Value type: Duration
+	// Default value: 1m
+	// Allowed filters: DomainName,TasklistName,TasklistType
+	MatchingIsolationGroupHasPollersSustainedDuration
+	// MatchingIsolationGroupNoPollersSustainedDuration is the sustained period to wait before considering an isolation group as inactive and unassigning all partitions from it
+	// KeyName: matching.isolationGroupNoPollersSustainedDuration
+	// Value type: Duration
+	// Default value: 1m
+	// Allowed filters: DomainName,TasklistName,TasklistType
+	MatchingIsolationGroupNoPollersSustainedDuration
 
 	// HistoryLongPollExpirationInterval is the long poll expiration interval in the history service
 	// KeyName: history.longPollExpirationInterval
@@ -2795,14 +2866,14 @@ const (
 	// TaskIsolationDuration is the time period for which we attempt to respect tasklist isolation before allowing any poller to process the task
 	// KeyName: matching.taskIsolationDuration
 	// Value type: Duration
-	// Default value: 0
+	// Default value: 200ms
 	// Allowed filters: domainName, taskListName, taskListType
 	TaskIsolationDuration
 
 	// TaskIsolationPollerWindow is the time period for which pollers are remembered when deciding whether to skip tasklist isolation due to unpolled isolation groups.
 	// KeyName: matching.taskIsolationPollerWindow
 	// Value type: Duration
-	// Default value: 10s
+	// Default value: 2s
 	// Allowed filters: domainName, taskListName, taskListType
 	TaskIsolationPollerWindow
 
@@ -3337,6 +3408,12 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "MatchingPartitionUpscaleRPS is the threshold of adding tasks RPS per partition to trigger upscale",
 		DefaultValue: 200,
 	},
+	MatchingIsolationGroupsPerPartition: {
+		KeyName:      "matching.isolationGroupsPerPartition",
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
+		Description:  "MatchingIsolationGroupsPerPartition is the target number of isolation groups to assign to each partition",
+		DefaultValue: 2,
+	},
 	HistoryRPS: {
 		KeyName:      "history.rps",
 		Description:  "HistoryRPS is request rate per second for each history host",
@@ -3373,6 +3450,11 @@ var IntKeys = map[IntKey]DynamicInt{
 		KeyName:      "history.cacheMaxSize",
 		Description:  "HistoryCacheMaxSize is max size of history cache",
 		DefaultValue: 512,
+	},
+	ExecutionCacheMaxByteSize: {
+		KeyName:      "history.executionCacheMaxByteSize",
+		Description:  "ExecutionCacheMaxByteSize is max size of execution cache in bytes",
+		DefaultValue: 0,
 	},
 	EventsCacheInitialCount: {
 		KeyName:      "history.eventsCacheInitialSize",
@@ -3454,6 +3536,11 @@ var IntKeys = map[IntKey]DynamicInt{
 		KeyName:      "history.queueProcessorSplitMaxLevel",
 		Description:  "QueueProcessorSplitMaxLevel is the max processing queue level",
 		DefaultValue: 2, // 3 levels, start from 0
+	},
+	QueueMaxPendingTaskCount: {
+		KeyName:      "history.queueMaxPendingTaskCount",
+		Description:  "QueueMaxPendingTaskCount is the max number of pending tasks in the queue",
+		DefaultValue: 10000,
 	},
 	TimerTaskBatchSize: {
 		KeyName:      "history.timerTaskBatchSize",
@@ -3954,6 +4041,12 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		DefaultValue: false,
 		Filters:      nil,
 	},
+	TestGetBoolPropertyFilteredByShardIDKey: {
+		KeyName:      "testGetBoolPropertyFilteredByShardIDKey",
+		Description:  "",
+		DefaultValue: false,
+		Filters:      []Filter{ShardID},
+	},
 	EnableVisibilitySampling: {
 		KeyName:      "system.enableVisibilitySampling",
 		Description:  "EnableVisibilitySampling is key for enable visibility sampling for basic(DB based) visibility",
@@ -4089,6 +4182,12 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "matching.enableAdaptiveScaler",
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
 		Description:  "MatchingEnableAdaptiveScaler is to enable adaptive task list scaling",
+		DefaultValue: false,
+	},
+	MatchingEnablePartitionEmptyCheck: {
+		KeyName:      "matching.enablePartitionEmptyCheck",
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
+		Description:  "MatchingEnablePartitionEmptyCheck enables using TaskListStatus.empty to check if a partition is empty",
 		DefaultValue: false,
 	},
 	EventsCacheGlobalEnable: {
@@ -4452,6 +4551,12 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "MatchingEnableClientAutoConfig is to enable auto config on worker side",
 		DefaultValue: false,
 	},
+	EnablePartitionIsolationGroupAssignment: {
+		KeyName:      "matching.enablePartitionIsolationGroupAssignment",
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
+		Description:  "EnablePartitionIsolationGroupAssignment enables assigning isolation groups to individual TaskList partitions",
+		DefaultValue: false,
+	},
 	EnableNoSQLHistoryTaskDualWriteMode: {
 		KeyName:      "history.enableNoSQLHistoryTaskDualWrite",
 		Description:  "EnableHistoryTaskDualWrite is to enable dual write of history events",
@@ -4460,6 +4565,43 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	ReadNoSQLHistoryTaskFromDataBlob: {
 		KeyName:      "history.readNoSQLHistoryTaskFromDataBlob",
 		Description:  "ReadNoSQLHistoryTaskFromDataBlob is to read history tasks from data blob",
+		DefaultValue: false,
+	},
+	ReadNoSQLShardFromDataBlob: {
+		KeyName:      "history.readNoSQLShardFromDataBlob",
+		Description:  "ReadNoSQLShardFromDataBlob is to read shards from data blob",
+		DefaultValue: false,
+	},
+	EnableSizeBasedHistoryExecutionCache: {
+		KeyName:      "history.enableSizeBasedHistoryExecutionCache",
+		Description:  "EnableSizeBasedHistoryExecutionCache is to enable size based history execution cache",
+		DefaultValue: false,
+	},
+	EnableSizeBasedHistoryEventCache: {
+		KeyName:      "history.enableSizeBasedHistoryEventCache",
+		Description:  "EnableSizeBasedHistoryEventCache is to enable size based history event cache",
+		DefaultValue: false,
+	},
+	DisableTransferFailoverQueue: {
+		KeyName:      "history.disableTransferFailoverQueue",
+		Description:  "DisableTransferFailoverQueue is to disable transfer failover queue",
+		DefaultValue: false,
+	},
+	DisableTimerFailoverQueue: {
+		KeyName:      "history.disableTimerFailoverQueue",
+		Description:  "DisableTimerFailoverQueue is to disable timer failover queue",
+		DefaultValue: false,
+	},
+	EnableTransferQueueV2: {
+		KeyName:      "history.enableTransferQueueV2",
+		Description:  "EnableTransferQueueV2 is to enable transfer queue v2",
+		Filters:      []Filter{ShardID},
+		DefaultValue: false,
+	},
+	EnableTimerQueueV2: {
+		KeyName:      "history.enableTimerQueueV2",
+		Description:  "EnableTimerQueueV2 is to enable timer queue v2",
+		Filters:      []Filter{ShardID},
 		DefaultValue: false,
 	},
 }
@@ -4699,7 +4841,7 @@ var StringKeys = map[StringKey]DynamicString{
 	MatchingShardDistributionMode: {
 		KeyName:      "matching.shardDistributionMode",
 		Description:  "MatchingShardDistributionMode defines which shard distribution mode should be used",
-		DefaultValue: "hash-ring",
+		DefaultValue: "hash_ring",
 	},
 }
 
@@ -4741,6 +4883,11 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		KeyName:      "frontend.shutdownDrainDuration",
 		Description:  "FrontendShutdownDrainDuration is the duration of traffic drain during shutdown",
 		DefaultValue: 0,
+	},
+	FrontendWarmupDuration: {
+		KeyName:      "frontend.warmupDuration",
+		Description:  "FrontendWarmupDuration is the duration before a frontend host reports its status as healthy",
+		DefaultValue: 30 * time.Second,
 	},
 	FrontendFailoverCoolDown: {
 		KeyName:      "frontend.failoverCoolDown",
@@ -4804,6 +4951,30 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
 		Description:  "MatchingPartitionDownscaleSustainedDuration is the sustained period to wait before downscaling the number of partitions",
 		DefaultValue: 2 * time.Minute,
+	},
+	MatchingIsolationGroupUpscaleSustainedDuration: {
+		KeyName:      "matching.isolationGroupUpscaleSustainedDuration",
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
+		Description:  "MatchingIsolationGroupUpscaleSustainedDuration is the sustained period to wait before upscaling the number of partitions an isolation group is assigned to",
+		DefaultValue: time.Minute,
+	},
+	MatchingIsolationGroupDownscaleSustainedDuration: {
+		KeyName:      "matching.isolationGroupDownscaleSustainedDuration",
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
+		Description:  "MatchingIsolationGroupDownscaleSustainedDuration is the sustained period to wait before downscaling the number of partitions an isolation group is assigned to",
+		DefaultValue: 2 * time.Minute,
+	},
+	MatchingIsolationGroupHasPollersSustainedDuration: {
+		KeyName:      "matching.isolationGroupHasPollersSustainedDuration",
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
+		Description:  "MatchingIsolationGroupHasPollersSustainedDuration is the sustained period to wait before considering an isolation group as an active and assigning partitions to it",
+		DefaultValue: time.Minute,
+	},
+	MatchingIsolationGroupNoPollersSustainedDuration: {
+		KeyName:      "matching.isolationGroupNoPollersSustainedDuration",
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
+		Description:  "MatchingIsolationGroupNoPollersSustainedDuration is the sustained period to wait before considering an isolation group as inactive and unassigning all partitions from it",
+		DefaultValue: time.Minute,
 	},
 	MatchingAdaptiveScalerUpdateInterval: {
 		KeyName:      "matching.adaptiveScalerUpdateInterval",
@@ -5134,13 +5305,13 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		KeyName:      "matching.taskIsolationDuration",
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
 		Description:  "TaskIsolationDuration is the time period for which we attempt to respect tasklist isolation before allowing any poller to process the task",
-		DefaultValue: 0,
+		DefaultValue: time.Millisecond * 200,
 	},
 	TaskIsolationPollerWindow: {
 		KeyName:      "matching.taskIsolationPollerWindow",
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
 		Description:  "TaskIsolationDuration is the time period for which we attempt to respect tasklist isolation before allowing any poller to process the task",
-		DefaultValue: time.Second * 10,
+		DefaultValue: time.Second * 2,
 	},
 }
 

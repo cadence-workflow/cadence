@@ -312,7 +312,7 @@ func (h *historyArchiver) validateURI(URI archiver.URI) (err error) {
 
 func getNextHistoryBlob(ctx context.Context, historyIterator archiver.HistoryIterator) (*archiver.HistoryBlob, error) {
 	historyBlob, err := historyIterator.Next()
-	op := func() error {
+	op := func(ctx context.Context) error {
 		historyBlob, err = historyIterator.Next()
 		return err
 	}

@@ -192,10 +192,10 @@ func (h *consumerHandlerImpl) completeMessage(message *messageImpl, isAck bool) 
 	defer h.RUnlock()
 
 	if !isAck {
-		op := func() error {
+		op := func(ctx context.Context) error {
 			// NOTE: current KafkaProducer is not taking use the this context, because saramaProducer doesn't support it
 			// https://github.com/Shopify/sarama/issues/1849
-			ctx, cancel := context.WithTimeout(context.Background(), dlqPublishTimeout)
+			ctx, cancel := context.WithTimeout(ctx, dlqPublishTimeout)
 			err := h.dlqProducer.Publish(ctx, message.saramaMsg)
 			cancel()
 			return err

@@ -53,14 +53,15 @@ func New{{.Interface.Name}}(
 
             {{ if gt (len $method.Params) 1 -}}
                 {{ $reqName := (index $method.Params 1).Name }}
+                retryCount := getRetryCountFromContext(ctx)
                 if domainName, hasDomainName := getDomainNameFromRequest({{$reqName}}); hasDomainName {
                     logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags({{$reqName}})...)
                     c.logger.SampleInfo("Persistence {{$methodName}} called", c.sampleLoggingRate(), logTags...)
                 	if c.enableShardIDMetrics() {
                 	    err = c.callWithDomainAndShardScope({{$scopeName}}, op, metrics.DomainTag(domainName),
-                	    metrics.ShardIDTag(c.GetShardID()))
+                	    metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
                 	} else {
-                		err = c.call({{$scopeName}}, op, metrics.DomainTag(domainName))
+                		err = c.call({{$scopeName}}, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
                 	}
                 	return
                 }
@@ -69,7 +70,7 @@ func New{{.Interface.Name}}(
              {{$extraTags := ""}}
              {{ if gt (len $method.Params) 1 -}}
                   {{ $reqName := (index $method.Params 1).Name }}
-                  {{ $extraTags = printf ", getCustomMetricTags(%s)..." $reqName }}
+                  {{ $extraTags = printf ", append(getCustomMetricTags(%s), metrics.IsRetryTag(retryCount > 0))..." $reqName }}
              {{ end -}}
 
 	        err = c.callWithoutDomainTag({{$scopeName}}, op{{$extraTags}})

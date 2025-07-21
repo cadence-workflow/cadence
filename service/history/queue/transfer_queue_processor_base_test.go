@@ -139,14 +139,10 @@ func (s *transferQueueProcessorBaseSuite) TestProcessQueueCollections_NoNextPage
 	}
 	mockExecutionManager := s.mockShard.Resource.ExecutionMgr
 	mockExecutionManager.On("GetHistoryTasks", mock.Anything, &persistence.GetHistoryTasksRequest{
-		TaskCategory: persistence.HistoryTaskCategoryTransfer,
-		InclusiveMinTaskKey: persistence.HistoryTaskKey{
-			TaskID: ackLevel.(transferTaskKey).taskID + 1,
-		},
-		ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
-			TaskID: maxLevel.(transferTaskKey).taskID + 1,
-		},
-		PageSize: s.mockShard.GetConfig().TransferTaskBatchSize(),
+		TaskCategory:        persistence.HistoryTaskCategoryTransfer,
+		InclusiveMinTaskKey: persistence.NewImmediateTaskKey(ackLevel.(transferTaskKey).taskID + 1),
+		ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(maxLevel.(transferTaskKey).taskID + 1),
+		PageSize:            s.mockShard.GetConfig().TransferTaskBatchSize(),
 	}).Return(&persistence.GetHistoryTasksResponse{
 		Tasks:         taskInfos,
 		NextPageToken: nil,
@@ -220,14 +216,10 @@ func (s *transferQueueProcessorBaseSuite) TestProcessQueueCollections_NoNextPage
 	}
 	mockExecutionManager := s.mockShard.Resource.ExecutionMgr
 	mockExecutionManager.On("GetHistoryTasks", mock.Anything, &persistence.GetHistoryTasksRequest{
-		TaskCategory: persistence.HistoryTaskCategoryTransfer,
-		InclusiveMinTaskKey: persistence.HistoryTaskKey{
-			TaskID: ackLevel.(transferTaskKey).taskID + 1,
-		},
-		ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
-			TaskID: shardMaxLevel.(transferTaskKey).taskID + 1,
-		},
-		PageSize: s.mockShard.GetConfig().TransferTaskBatchSize(),
+		TaskCategory:        persistence.HistoryTaskCategoryTransfer,
+		InclusiveMinTaskKey: persistence.NewImmediateTaskKey(ackLevel.(transferTaskKey).taskID + 1),
+		ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(shardMaxLevel.(transferTaskKey).taskID + 1),
+		PageSize:            s.mockShard.GetConfig().TransferTaskBatchSize(),
 	}).Return(&persistence.GetHistoryTasksResponse{
 		Tasks:         taskInfos,
 		NextPageToken: nil,
@@ -311,14 +303,10 @@ func (s *transferQueueProcessorBaseSuite) TestProcessQueueCollections_WithNextPa
 	}
 	mockExecutionManager := s.mockShard.Resource.ExecutionMgr
 	mockExecutionManager.On("GetHistoryTasks", mock.Anything, &persistence.GetHistoryTasksRequest{
-		TaskCategory: persistence.HistoryTaskCategoryTransfer,
-		InclusiveMinTaskKey: persistence.HistoryTaskKey{
-			TaskID: ackLevel.(transferTaskKey).taskID + 1,
-		},
-		ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
-			TaskID: maxLevel.(transferTaskKey).taskID + 1,
-		},
-		PageSize: s.mockShard.GetConfig().TransferTaskBatchSize(),
+		TaskCategory:        persistence.HistoryTaskCategoryTransfer,
+		InclusiveMinTaskKey: persistence.NewImmediateTaskKey(ackLevel.(transferTaskKey).taskID + 1),
+		ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(maxLevel.(transferTaskKey).taskID + 1),
+		PageSize:            s.mockShard.GetConfig().TransferTaskBatchSize(),
 	}).Return(&persistence.GetHistoryTasksResponse{
 		Tasks:         taskInfos,
 		NextPageToken: []byte{1, 2, 3},
@@ -366,7 +354,9 @@ func (s *transferQueueProcessorBaseSuite) TestProcessQueueCollections_WithNextPa
 	taskInfos := []persistence.Task{
 		&persistence.DecisionTask{
 			WorkflowIdentifier: persistence.WorkflowIdentifier{
-				DomainID: "testDomain1",
+				DomainID:   "testDomain1",
+				WorkflowID: "testWorkflowID",
+				RunID:      "testRunID",
 			},
 			TaskData: persistence.TaskData{
 				TaskID: 500,
@@ -375,14 +365,10 @@ func (s *transferQueueProcessorBaseSuite) TestProcessQueueCollections_WithNextPa
 	}
 	mockExecutionManager := s.mockShard.Resource.ExecutionMgr
 	mockExecutionManager.On("GetHistoryTasks", mock.Anything, &persistence.GetHistoryTasksRequest{
-		TaskCategory: persistence.HistoryTaskCategoryTransfer,
-		InclusiveMinTaskKey: persistence.HistoryTaskKey{
-			TaskID: ackLevel.(transferTaskKey).taskID + 1,
-		},
-		ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
-			TaskID: maxLevel.(transferTaskKey).taskID + 1,
-		},
-		PageSize: s.mockShard.GetConfig().TransferTaskBatchSize(),
+		TaskCategory:        persistence.HistoryTaskCategoryTransfer,
+		InclusiveMinTaskKey: persistence.NewImmediateTaskKey(ackLevel.(transferTaskKey).taskID + 1),
+		ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(maxLevel.(transferTaskKey).taskID + 1),
+		PageSize:            s.mockShard.GetConfig().TransferTaskBatchSize(),
 	}).Return(&persistence.GetHistoryTasksResponse{
 		Tasks:         taskInfos,
 		NextPageToken: []byte{1, 2, 3},
@@ -441,14 +427,10 @@ func (s *transferQueueProcessorBaseSuite) TestReadTasks_NoNextPage() {
 		NextPageToken: nil,
 	}
 	mockExecutionManager.On("GetHistoryTasks", mock.Anything, &persistence.GetHistoryTasksRequest{
-		TaskCategory: persistence.HistoryTaskCategoryTransfer,
-		InclusiveMinTaskKey: persistence.HistoryTaskKey{
-			TaskID: readLevel.(transferTaskKey).taskID + 1,
-		},
-		ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
-			TaskID: maxReadLevel.(transferTaskKey).taskID + 1,
-		},
-		PageSize: s.mockShard.GetConfig().TransferTaskBatchSize(),
+		TaskCategory:        persistence.HistoryTaskCategoryTransfer,
+		InclusiveMinTaskKey: persistence.NewImmediateTaskKey(readLevel.(transferTaskKey).taskID + 1),
+		ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(maxReadLevel.(transferTaskKey).taskID + 1),
+		PageSize:            s.mockShard.GetConfig().TransferTaskBatchSize(),
 	}).Return(getTransferTaskResponse, nil).Once()
 
 	processorBase := s.newTestTransferQueueProcessorBase(
@@ -475,14 +457,10 @@ func (s *transferQueueProcessorBaseSuite) TestReadTasks_WithNextPage() {
 		NextPageToken: []byte{1, 2, 3},
 	}
 	mockExecutionManager.On("GetHistoryTasks", mock.Anything, &persistence.GetHistoryTasksRequest{
-		TaskCategory: persistence.HistoryTaskCategoryTransfer,
-		InclusiveMinTaskKey: persistence.HistoryTaskKey{
-			TaskID: readLevel.(transferTaskKey).taskID + 1,
-		},
-		ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
-			TaskID: maxReadLevel.(transferTaskKey).taskID + 1,
-		},
-		PageSize: s.mockShard.GetConfig().TransferTaskBatchSize(),
+		TaskCategory:        persistence.HistoryTaskCategoryTransfer,
+		InclusiveMinTaskKey: persistence.NewImmediateTaskKey(readLevel.(transferTaskKey).taskID + 1),
+		ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(maxReadLevel.(transferTaskKey).taskID + 1),
+		PageSize:            s.mockShard.GetConfig().TransferTaskBatchSize(),
 	}).Return(getTransferTaskResponse, nil).Once()
 
 	processorBase := s.newTestTransferQueueProcessorBase(

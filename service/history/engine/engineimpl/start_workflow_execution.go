@@ -80,7 +80,12 @@ func (e *historyEngineImpl) startWorkflowHelper(
 	if err != nil {
 		return nil, err
 	}
-	e.overrideStartWorkflowExecutionRequest(domainEntry, request, metricsScope)
+	e.overrideTaskStartToCloseTimeoutSeconds(domainEntry, request, metricsScope)
+
+	err = e.overrideActiveClusterSelectionPolicy(domainEntry, request)
+	if err != nil {
+		return nil, err
+	}
 
 	workflowID := request.GetWorkflowID()
 	domainID := domainEntry.GetInfo().ID
@@ -108,7 +113,7 @@ func (e *historyEngineImpl) startWorkflowHelper(
 		WorkflowID: workflowID,
 		RunID:      uuid.New(),
 	}
-	curMutableState, err := e.createMutableState(domainEntry, workflowExecution.GetRunID())
+	curMutableState, err := e.createMutableState(ctx, domainEntry, workflowExecution.GetRunID(), startRequest)
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +133,7 @@ func (e *historyEngineImpl) startWorkflowHelper(
 		}
 		if prevLastWriteVersion > curMutableState.GetCurrentVersion() {
 			return nil, e.newDomainNotActiveError(
-				domainEntry.GetInfo().Name,
+				domainEntry,
 				prevLastWriteVersion,
 			)
 		}
@@ -246,7 +251,7 @@ func (e *historyEngineImpl) startWorkflowHelper(
 
 		if curMutableState.GetCurrentVersion() < t.LastWriteVersion {
 			return nil, e.newDomainNotActiveError(
-				domainEntry.GetInfo().Name,
+				domainEntry,
 				t.LastWriteVersion,
 			)
 		}
@@ -426,6 +431,9 @@ func (e *historyEngineImpl) SignalWithStartWorkflowExecution(
 
 			// We apply the update to execution using optimistic concurrency.  If it fails due to a conflict then reload
 			// the history and try the operation again.
+			e.logger.Debugf("SignalWithStartWorkflowExecution calling UpdateWorkflowExecutionAsActive for wfID %s",
+				workflowExecution.GetWorkflowID(),
+			)
 			if err := wfContext.UpdateWorkflowExecutionAsActive(ctx, e.shard.GetTimeSource().Now()); err != nil {
 				if t, ok := persistence.AsDuplicateRequestError(err); ok {
 					if t.RequestType == persistence.WorkflowRequestTypeSignal {
@@ -571,14 +579,13 @@ func (e *historyEngineImpl) validateStartWorkflowExecutionRequest(request *types
 	return common.ValidateRetryPolicy(request.RetryPolicy)
 }
 
-func (e *historyEngineImpl) overrideStartWorkflowExecutionRequest(
+func (e *historyEngineImpl) overrideTaskStartToCloseTimeoutSeconds(
 	domainEntry *cache.DomainCacheEntry,
 	request *types.StartWorkflowExecutionRequest,
 	metricsScope int,
 ) {
 	domainName := domainEntry.GetInfo().Name
 	maxDecisionStartToCloseTimeoutSeconds := int32(e.config.MaxDecisionStartToCloseSeconds(domainName))
-
 	taskStartToCloseTimeoutSecs := request.GetTaskStartToCloseTimeoutSeconds()
 	taskStartToCloseTimeoutSecs = min(taskStartToCloseTimeoutSecs, maxDecisionStartToCloseTimeoutSeconds)
 	taskStartToCloseTimeoutSecs = min(taskStartToCloseTimeoutSecs, request.GetExecutionStartToCloseTimeoutSeconds())
@@ -589,6 +596,49 @@ func (e *historyEngineImpl) overrideStartWorkflowExecutionRequest(
 			metricsScope,
 			metrics.DomainTag(domainName),
 		).IncCounter(metrics.DecisionStartToCloseTimeoutOverrideCount)
+	}
+}
+
+func (e *historyEngineImpl) overrideActiveClusterSelectionPolicy(
+	domainEntry *cache.DomainCacheEntry,
+	request *types.StartWorkflowExecutionRequest,
+) error {
+	activeClusterSelectionPolicy, err := e.getActiveClusterSelectionPolicy(domainEntry, request.ActiveClusterSelectionPolicy)
+	if err != nil {
+		return err
+	}
+	request.ActiveClusterSelectionPolicy = activeClusterSelectionPolicy
+	return nil
+}
+
+func (e *historyEngineImpl) getActiveClusterSelectionPolicy(
+	domainEntry *cache.DomainCacheEntry,
+	policy *types.ActiveClusterSelectionPolicy,
+) (*types.ActiveClusterSelectionPolicy, error) {
+
+	if !domainEntry.GetReplicationConfig().IsActiveActive() {
+		return nil, nil
+	}
+
+	if policy == nil {
+		return &types.ActiveClusterSelectionPolicy{
+			ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
+			StickyRegion:                   e.shard.GetActiveClusterManager().CurrentRegion(),
+		}, nil
+	}
+
+	switch policy.GetStrategy() {
+	case types.ActiveClusterSelectionStrategyExternalEntity:
+		if !e.shard.GetActiveClusterManager().SupportedExternalEntityType(policy.ExternalEntityType) {
+			return nil, fmt.Errorf("external entity type %s is not supported", policy.ExternalEntityType)
+		}
+		return policy, nil
+	case types.ActiveClusterSelectionStrategyRegionSticky:
+		// override sticky region with current region
+		policy.StickyRegion = e.shard.GetActiveClusterManager().CurrentRegion()
+		return policy, nil
+	default:
+		return nil, fmt.Errorf("unsupported active cluster selection strategy %s", policy.GetStrategy().String())
 	}
 }
 
@@ -632,7 +682,7 @@ UpdateWorkflowLoop:
 		}
 
 		// new mutable state
-		newMutableState, err := e.createMutableState(domainEntry, workflowExecution.GetRunID())
+		newMutableState, err := e.createMutableState(ctx, domainEntry, workflowExecution.GetRunID(), startRequest)
 		if err != nil {
 			return nil, err
 		}
@@ -815,7 +865,12 @@ func (e *historyEngineImpl) newChildContext(
 	return context.WithTimeout(context.Background(), ctxTimeout)
 }
 
-func (e *historyEngineImpl) createMutableState(domainEntry *cache.DomainCacheEntry, runID string) (execution.MutableState, error) {
+func (e *historyEngineImpl) createMutableState(
+	ctx context.Context,
+	domainEntry *cache.DomainCacheEntry,
+	runID string,
+	startRequest *types.HistoryStartWorkflowExecutionRequest,
+) (execution.MutableState, error) {
 
 	newMutableState := execution.NewMutableStateBuilderWithVersionHistories(
 		e.shard,
@@ -825,6 +880,14 @@ func (e *historyEngineImpl) createMutableState(domainEntry *cache.DomainCacheEnt
 
 	if err := newMutableState.SetHistoryTree(runID); err != nil {
 		return nil, err
+	}
+
+	if domainEntry.GetReplicationConfig().IsActiveActive() {
+		res, err := e.shard.GetActiveClusterManager().LookupNewWorkflow(ctx, domainEntry.GetInfo().ID, startRequest.StartRequest.ActiveClusterSelectionPolicy)
+		if err != nil {
+			return nil, err
+		}
+		newMutableState.UpdateCurrentVersion(res.FailoverVersion, true)
 	}
 
 	return newMutableState, nil

@@ -39,6 +39,7 @@ import (
 // Client is the interface exposed by frontend service client
 type Client interface {
 	CountWorkflowExecutions(context.Context, *types.CountWorkflowExecutionsRequest, ...yarpc.CallOption) (*types.CountWorkflowExecutionsResponse, error)
+	DeleteDomain(context.Context, *types.DeleteDomainRequest, ...yarpc.CallOption) error
 	DeprecateDomain(context.Context, *types.DeprecateDomainRequest, ...yarpc.CallOption) error
 	DescribeDomain(context.Context, *types.DescribeDomainRequest, ...yarpc.CallOption) (*types.DescribeDomainResponse, error)
 	DescribeTaskList(context.Context, *types.DescribeTaskListRequest, ...yarpc.CallOption) (*types.DescribeTaskListResponse, error)

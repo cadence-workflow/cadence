@@ -36,6 +36,7 @@ import (
 	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/archiver"
 	"github.com/uber/cadence/common/archiver/provider"
 	"github.com/uber/cadence/common/asyncworkflow/queue"
@@ -68,6 +69,7 @@ type (
 
 		DomainCache             *cache.MockDomainCache
 		DomainMetricsScopeCache cache.DomainMetricsScopeCache
+		ActiveClusterMgr        *activecluster.MockManager
 		DomainReplicationQueue  *domain.MockReplicationQueue
 		TimeSource              clock.TimeSource
 		PayloadSerializer       persistence.PayloadSerializer
@@ -139,8 +141,8 @@ func NewTest(
 	clientBean.EXPECT().GetFrontendClient().Return(frontendClient).AnyTimes()
 	clientBean.EXPECT().GetMatchingClient(gomock.Any()).Return(matchingClient, nil).AnyTimes()
 	clientBean.EXPECT().GetHistoryClient().Return(historyClient).AnyTimes()
-	clientBean.EXPECT().GetRemoteAdminClient(gomock.Any()).Return(remoteAdminClient).AnyTimes()
-	clientBean.EXPECT().GetRemoteFrontendClient(gomock.Any()).Return(remoteFrontendClient).AnyTimes()
+	clientBean.EXPECT().GetRemoteAdminClient(gomock.Any()).Return(remoteAdminClient, nil).AnyTimes()
+	clientBean.EXPECT().GetRemoteFrontendClient(gomock.Any()).Return(remoteFrontendClient, nil).AnyTimes()
 
 	metadataMgr := &mocks.MetadataManager{}
 	taskMgr := &mocks.TaskManager{}
@@ -166,6 +168,11 @@ func NewTest(
 
 	asyncWorkflowQueueProvider := queue.NewMockProvider(controller)
 
+	activeClusterMgr := activecluster.NewMockManager(controller)
+	activeClusterMgr.EXPECT().ClusterNameForFailoverVersion(gomock.Any(), gomock.Any()).DoAndReturn(func(version int64, domainID string) (string, error) {
+		return cluster.TestActiveClusterMetadata.ClusterNameForFailoverVersion(version)
+	}).AnyTimes()
+
 	return &Test{
 		MetricsScope: scope,
 
@@ -177,6 +184,7 @@ func NewTest(
 		DomainCache:             cache.NewMockDomainCache(controller),
 		DomainMetricsScopeCache: cache.NewDomainMetricsScopeCache(),
 		DomainReplicationQueue:  domainReplicationQueue,
+		ActiveClusterMgr:        activeClusterMgr,
 		TimeSource:              clock.NewRealTimeSource(),
 		PayloadSerializer:       persistence.NewPayloadSerializer(),
 		MetricsClient:           metrics.NewClient(scope, serviceMetricsIndex),
@@ -261,6 +269,10 @@ func (s *Test) GetDomainMetricsScopeCache() cache.DomainMetricsScopeCache {
 func (s *Test) GetDomainReplicationQueue() domain.ReplicationQueue {
 	// user should implement this method for test
 	return s.DomainReplicationQueue
+}
+
+func (s *Test) GetActiveClusterManager() activecluster.Manager {
+	return s.ActiveClusterMgr
 }
 
 // GetTimeSource for testing
@@ -348,17 +360,17 @@ func (s *Test) GetHistoryClient() history.Client {
 // GetRemoteAdminClient for testing
 func (s *Test) GetRemoteAdminClient(
 	cluster string,
-) admin.Client {
+) (admin.Client, error) {
 
-	return s.RemoteAdminClient
+	return s.RemoteAdminClient, nil
 }
 
 // GetRemoteFrontendClient for testing
 func (s *Test) GetRemoteFrontendClient(
 	cluster string,
-) frontend.Client {
+) (frontend.Client, error) {
 
-	return s.RemoteFrontendClient
+	return s.RemoteFrontendClient, nil
 }
 
 // GetClientBean for testing

@@ -61,6 +61,16 @@ func NewDB(xdbs []*sqlx.DB, tx *sqlx.Tx, dbShardID int, numDBShards int, convert
 	return db, nil
 }
 
+// NewDBWithDriver returns an instance of DB with the given driver
+func NewDBWithDriver(originalDBs []*sqlx.DB, driver sqldriver.Driver, numDBShards int, converter DataConverter) *DB {
+	return &DB{
+		converter:   converter,
+		originalDBs: originalDBs,
+		driver:      driver,
+		numDBShards: numDBShards,
+	}
+}
+
 func (mdb *DB) GetTotalNumDBShards() int {
 	return mdb.numDBShards
 }

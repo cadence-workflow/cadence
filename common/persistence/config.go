@@ -34,6 +34,7 @@ type (
 		EnableShardIDMetrics                     dynamicproperties.BoolPropertyFn
 		EnableHistoryTaskDualWriteMode           dynamicproperties.BoolPropertyFn
 		ReadNoSQLHistoryTaskFromDataBlob         dynamicproperties.BoolPropertyFn
+		ReadNoSQLShardFromDataBlob               dynamicproperties.BoolPropertyFn
 	}
 )
 
@@ -46,5 +47,6 @@ func NewDynamicConfiguration(dc *dynamicconfig.Collection) *DynamicConfiguration
 		EnableShardIDMetrics:                     dc.GetBoolProperty(dynamicproperties.EnableShardIDMetrics),
 		EnableHistoryTaskDualWriteMode:           dc.GetBoolProperty(dynamicproperties.EnableNoSQLHistoryTaskDualWriteMode),
 		ReadNoSQLHistoryTaskFromDataBlob:         dc.GetBoolProperty(dynamicproperties.ReadNoSQLHistoryTaskFromDataBlob),
+		ReadNoSQLShardFromDataBlob:               dc.GetBoolProperty(dynamicproperties.ReadNoSQLShardFromDataBlob),
 	}
 }

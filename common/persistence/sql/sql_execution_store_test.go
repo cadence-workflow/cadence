@@ -1985,69 +1985,71 @@ func TestGetWorkflowExecution(t *testing.T) {
 					},
 				}, nil)
 				parser.EXPECT().WorkflowExecutionInfoFromBlob(gomock.Any(), gomock.Any()).Return(&serialization.WorkflowExecutionInfo{
-					ParentDomainID:                     serialization.MustParseUUID("ff9c8a3f-0e4f-4d3e-a4d2-6f5f8f3f7d9d"),
-					ParentWorkflowID:                   "test-parent-workflow-id",
-					ParentRunID:                        serialization.MustParseUUID("ee8d7b6e-876c-4b1e-9b6e-5e3e3c6b6b3f"),
-					InitiatedID:                        101,
-					CompletionEventBatchID:             common.Int64Ptr(11),
-					CompletionEvent:                    []byte("test completion event"),
-					CompletionEventEncoding:            "json",
-					TaskList:                           "test-task-list",
-					IsCron:                             true,
-					WorkflowTypeName:                   "test-workflow-type",
-					WorkflowTimeout:                    time.Duration(101),
-					DecisionTaskTimeout:                time.Duration(102),
-					ExecutionContext:                   []byte("test execution context"),
-					State:                              persistence.WorkflowStateCompleted,
-					CloseStatus:                        persistence.WorkflowCloseStatusCompleted,
-					StartVersion:                       111,
-					LastWriteEventID:                   common.Int64Ptr(11),
-					LastEventTaskID:                    12,
-					LastFirstEventID:                   13,
-					LastProcessedEvent:                 14,
-					StartTimestamp:                     time.Unix(11, 12),
-					LastUpdatedTimestamp:               time.Unix(13, 14),
-					DecisionVersion:                    101,
-					DecisionScheduleID:                 102,
-					DecisionStartedID:                  103,
-					DecisionTimeout:                    time.Duration(104),
-					DecisionAttempt:                    105,
-					DecisionStartedTimestamp:           time.Unix(15, 16),
-					DecisionScheduledTimestamp:         time.Unix(17, 18),
-					CancelRequested:                    true,
-					DecisionOriginalScheduledTimestamp: time.Unix(19, 20),
-					CreateRequestID:                    "test-create-request-id",
-					DecisionRequestID:                  "test-decision-request-id",
-					CancelRequestID:                    "test-cancel-request-id",
-					StickyTaskList:                     "test-sticky-task-list",
-					StickyScheduleToStartTimeout:       time.Duration(106),
-					RetryAttempt:                       107,
-					RetryInitialInterval:               time.Duration(108),
-					RetryMaximumInterval:               time.Duration(109),
-					RetryMaximumAttempts:               110,
-					RetryExpiration:                    time.Duration(111),
-					RetryBackoffCoefficient:            111,
-					RetryExpirationTimestamp:           time.Unix(23, 24),
-					RetryNonRetryableErrors:            []string{"error1", "error2"},
-					HasRetryPolicy:                     true,
-					CronSchedule:                       "test-cron-schedule",
-					EventStoreVersion:                  112,
-					EventBranchToken:                   []byte("test-event-branch-token"),
-					SignalCount:                        113,
-					HistorySize:                        114,
-					ClientLibraryVersion:               "test-client-library-version",
-					ClientFeatureVersion:               "test-client-feature-version",
-					ClientImpl:                         "test-client-impl",
-					AutoResetPoints:                    []byte("test-auto-reset-points"),
-					AutoResetPointsEncoding:            "json",
-					SearchAttributes:                   map[string][]byte{"test-key": []byte("test-value")},
-					Memo:                               map[string][]byte{"test-key": []byte("test-value")},
-					VersionHistories:                   []byte("test-version-histories"),
-					VersionHistoriesEncoding:           "json",
-					FirstExecutionRunID:                serialization.MustParseUUID("ee8d7b6e-876c-4b1e-9b6e-5e3e3c6b6b3f"),
-					PartitionConfig:                    map[string]string{"test-key": "test-value"},
-					Checksum:                           []byte("test-checksum"),
-					ChecksumEncoding:                   "test-checksum-encoding",
+					ParentDomainID:                       serialization.MustParseUUID("ff9c8a3f-0e4f-4d3e-a4d2-6f5f8f3f7d9d"),
+					ParentWorkflowID:                     "test-parent-workflow-id",
+					ParentRunID:                          serialization.MustParseUUID("ee8d7b6e-876c-4b1e-9b6e-5e3e3c6b6b3f"),
+					InitiatedID:                          101,
+					CompletionEventBatchID:               common.Int64Ptr(11),
+					CompletionEvent:                      []byte("test completion event"),
+					CompletionEventEncoding:              "json",
+					TaskList:                             "test-task-list",
+					IsCron:                               true,
+					WorkflowTypeName:                     "test-workflow-type",
+					WorkflowTimeout:                      time.Duration(101),
+					DecisionTaskTimeout:                  time.Duration(102),
+					ExecutionContext:                     []byte("test execution context"),
+					State:                                persistence.WorkflowStateCompleted,
+					CloseStatus:                          persistence.WorkflowCloseStatusCompleted,
+					StartVersion:                         111,
+					LastWriteEventID:                     common.Int64Ptr(11),
+					LastEventTaskID:                      12,
+					LastFirstEventID:                     13,
+					LastProcessedEvent:                   14,
+					StartTimestamp:                       time.Unix(11, 12),
+					LastUpdatedTimestamp:                 time.Unix(13, 14),
+					DecisionVersion:                      101,
+					DecisionScheduleID:                   102,
+					DecisionStartedID:                    103,
+					DecisionTimeout:                      time.Duration(104),
+					DecisionAttempt:                      105,
+					DecisionStartedTimestamp:             time.Unix(15, 16),
+					DecisionScheduledTimestamp:           time.Unix(17, 18),
+					CancelRequested:                      true,
+					DecisionOriginalScheduledTimestamp:   time.Unix(19, 20),
+					CreateRequestID:                      "test-create-request-id",
+					DecisionRequestID:                    "test-decision-request-id",
+					CancelRequestID:                      "test-cancel-request-id",
+					StickyTaskList:                       "test-sticky-task-list",
+					StickyScheduleToStartTimeout:         time.Duration(106),
+					RetryAttempt:                         107,
+					RetryInitialInterval:                 time.Duration(108),
+					RetryMaximumInterval:                 time.Duration(109),
+					RetryMaximumAttempts:                 110,
+					RetryExpiration:                      time.Duration(111),
+					RetryBackoffCoefficient:              111,
+					RetryExpirationTimestamp:             time.Unix(23, 24),
+					RetryNonRetryableErrors:              []string{"error1", "error2"},
+					HasRetryPolicy:                       true,
+					CronSchedule:                         "test-cron-schedule",
+					EventStoreVersion:                    112,
+					EventBranchToken:                     []byte("test-event-branch-token"),
+					SignalCount:                          113,
+					HistorySize:                          114,
+					ClientLibraryVersion:                 "test-client-library-version",
+					ClientFeatureVersion:                 "test-client-feature-version",
+					ClientImpl:                           "test-client-impl",
+					AutoResetPoints:                      []byte("test-auto-reset-points"),
+					AutoResetPointsEncoding:              "json",
+					SearchAttributes:                     map[string][]byte{"test-key": []byte("test-value")},
+					Memo:                                 map[string][]byte{"test-key": []byte("test-value")},
+					VersionHistories:                     []byte("test-version-histories"),
+					VersionHistoriesEncoding:             "json",
+					FirstExecutionRunID:                  serialization.MustParseUUID("ee8d7b6e-876c-4b1e-9b6e-5e3e3c6b6b3f"),
+					PartitionConfig:                      map[string]string{"test-key": "test-value"},
+					Checksum:                             []byte("test-checksum"),
+					ChecksumEncoding:                     "test-checksum-encoding",
+					ActiveClusterSelectionPolicy:         []byte("ActiveClusterSelectionPolicy"),
+					ActiveClusterSelectionPolicyEncoding: "json",
 				}, nil)
 				parser.EXPECT().ActivityInfoFromBlob(gomock.Any(), gomock.Any()).Return(&serialization.ActivityInfo{
 					Version:                  101,
@@ -2181,6 +2183,7 @@ func TestGetWorkflowExecution(t *testing.T) {
 						SearchAttributes:                   map[string][]byte{"test-key": []byte("test-value")},
 						Memo:                               map[string][]byte{"test-key": []byte("test-value")},
 						ExpirationInterval:                 time.Duration(111),
+						ActiveClusterSelectionPolicy:       persistence.NewDataBlob([]byte("ActiveClusterSelectionPolicy"), constants.EncodingTypeJSON),
 					},
 					VersionHistories: persistence.NewDataBlob([]byte("test-version-histories"), constants.EncodingTypeJSON),
 					ReplicationState: &persistence.ReplicationState{
@@ -2614,8 +2617,8 @@ func TestRangeCompleteHistoryTask(t *testing.T) {
 			name: "success - scheduled timer task",
 			request: &persistence.RangeCompleteHistoryTaskRequest{
 				TaskCategory:        persistence.HistoryTaskCategoryTimer,
-				InclusiveMinTaskKey: persistence.HistoryTaskKey{ScheduledTime: time.Unix(0, 0)},
-				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{ScheduledTime: time.Unix(0, 0).Add(time.Minute)},
+				InclusiveMinTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0), 0),
+				ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0).Add(time.Minute), 0),
 				PageSize:            1000,
 			},
 			setupMock: func(mockDB *sqlplugin.MockDB) {
@@ -2632,8 +2635,8 @@ func TestRangeCompleteHistoryTask(t *testing.T) {
 			name: "success - immediate transfer task",
 			request: &persistence.RangeCompleteHistoryTaskRequest{
 				TaskCategory:        persistence.HistoryTaskCategoryTransfer,
-				InclusiveMinTaskKey: persistence.HistoryTaskKey{TaskID: 100},
-				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{TaskID: 200},
+				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100),
+				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
 				PageSize:            1000,
 			},
 			setupMock: func(mockDB *sqlplugin.MockDB) {
@@ -2650,8 +2653,8 @@ func TestRangeCompleteHistoryTask(t *testing.T) {
 			name: "success - immediate replication task",
 			request: &persistence.RangeCompleteHistoryTaskRequest{
 				TaskCategory:        persistence.HistoryTaskCategoryReplication,
-				InclusiveMinTaskKey: persistence.HistoryTaskKey{TaskID: 100}, // this is ignored by replication task
-				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{TaskID: 200},
+				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100), // this is ignored by replication task
+				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
 				PageSize:            1000,
 			},
 			setupMock: func(mockDB *sqlplugin.MockDB) {
@@ -2675,8 +2678,8 @@ func TestRangeCompleteHistoryTask(t *testing.T) {
 			name: "database error on timer task",
 			request: &persistence.RangeCompleteHistoryTaskRequest{
 				TaskCategory:        persistence.HistoryTaskCategoryTimer,
-				InclusiveMinTaskKey: persistence.HistoryTaskKey{ScheduledTime: time.Unix(0, 0)},
-				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{ScheduledTime: time.Unix(0, 0).Add(time.Minute)},
+				InclusiveMinTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0), 0),
+				ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0).Add(time.Minute), 0),
 				PageSize:            1000,
 			},
 			setupMock: func(mockDB *sqlplugin.MockDB) {
@@ -2694,8 +2697,8 @@ func TestRangeCompleteHistoryTask(t *testing.T) {
 			name: "database error on transfer task",
 			request: &persistence.RangeCompleteHistoryTaskRequest{
 				TaskCategory:        persistence.HistoryTaskCategoryTransfer,
-				InclusiveMinTaskKey: persistence.HistoryTaskKey{TaskID: 100},
-				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{TaskID: 200},
+				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100),
+				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
 				PageSize:            1000,
 			},
 			setupMock: func(mockDB *sqlplugin.MockDB) {
@@ -2713,8 +2716,8 @@ func TestRangeCompleteHistoryTask(t *testing.T) {
 			name: "database error on replication task",
 			request: &persistence.RangeCompleteHistoryTaskRequest{
 				TaskCategory:        persistence.HistoryTaskCategoryReplication,
-				InclusiveMinTaskKey: persistence.HistoryTaskKey{TaskID: 100},
-				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{TaskID: 200},
+				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100),
+				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
 				PageSize:            1000,
 			},
 			setupMock: func(mockDB *sqlplugin.MockDB) {
@@ -2731,8 +2734,8 @@ func TestRangeCompleteHistoryTask(t *testing.T) {
 			name: "sql result error on timer task",
 			request: &persistence.RangeCompleteHistoryTaskRequest{
 				TaskCategory:        persistence.HistoryTaskCategoryTimer,
-				InclusiveMinTaskKey: persistence.HistoryTaskKey{ScheduledTime: time.Unix(0, 0)},
-				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{ScheduledTime: time.Unix(0, 0).Add(time.Minute)},
+				InclusiveMinTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0), 0),
+				ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0).Add(time.Minute), 0),
 				PageSize:            1000,
 			},
 			setupMock: func(mockDB *sqlplugin.MockDB) {
@@ -2750,8 +2753,8 @@ func TestRangeCompleteHistoryTask(t *testing.T) {
 			name: "sql result error on transfer task",
 			request: &persistence.RangeCompleteHistoryTaskRequest{
 				TaskCategory:        persistence.HistoryTaskCategoryTransfer,
-				InclusiveMinTaskKey: persistence.HistoryTaskKey{TaskID: 100},
-				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{TaskID: 200},
+				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100),
+				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
 				PageSize:            1000,
 			},
 			setupMock: func(mockDB *sqlplugin.MockDB) {
@@ -2769,8 +2772,8 @@ func TestRangeCompleteHistoryTask(t *testing.T) {
 			name: "sql result error on replication task",
 			request: &persistence.RangeCompleteHistoryTaskRequest{
 				TaskCategory:        persistence.HistoryTaskCategoryReplication,
-				InclusiveMinTaskKey: persistence.HistoryTaskKey{TaskID: 100},
-				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{TaskID: 200},
+				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100),
+				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
 				PageSize:            1000,
 			},
 			setupMock: func(mockDB *sqlplugin.MockDB) {
@@ -2822,8 +2825,8 @@ func TestGetHistoryTasks_SQL(t *testing.T) {
 			name: "success - get immediate transfer tasks",
 			request: &persistence.GetHistoryTasksRequest{
 				TaskCategory:        persistence.HistoryTaskCategoryTransfer,
-				InclusiveMinTaskKey: persistence.HistoryTaskKey{TaskID: 100},
-				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{TaskID: 200},
+				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100),
+				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
 				PageSize:            10,
 				NextPageToken:       serializePageToken(101),
 			},
@@ -2860,8 +2863,8 @@ func TestGetHistoryTasks_SQL(t *testing.T) {
 			name: "success - get scheduled timer tasks",
 			request: &persistence.GetHistoryTasksRequest{
 				TaskCategory:        persistence.HistoryTaskCategoryTimer,
-				InclusiveMinTaskKey: persistence.HistoryTaskKey{ScheduledTime: time.Unix(0, 0).UTC()},
-				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{ScheduledTime: time.Unix(0, 0).Add(time.Minute).UTC()},
+				InclusiveMinTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0).UTC(), 0),
+				ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0).Add(time.Minute).UTC(), 0),
 				PageSize:            1,
 				NextPageToken: func() []byte {
 					ti := &timerTaskPageToken{TaskID: 10, Timestamp: time.Unix(0, 1).UTC()}
@@ -2911,7 +2914,7 @@ func TestGetHistoryTasks_SQL(t *testing.T) {
 				},
 			},
 			expectedNextPageToken: func() []byte {
-				ti := &timerTaskPageToken{TaskID: 101, Timestamp: time.Unix(1, 1).UTC()}
+				ti := &timerTaskPageToken{TaskID: 101, Timestamp: time.Unix(1, 1)}
 				token, err := ti.serialize()
 				require.NoError(t, err, "failed to serialize timer page token")
 				return token
@@ -2921,8 +2924,8 @@ func TestGetHistoryTasks_SQL(t *testing.T) {
 			name: "success - get immediate replication tasks",
 			request: &persistence.GetHistoryTasksRequest{
 				TaskCategory:        persistence.HistoryTaskCategoryReplication,
-				InclusiveMinTaskKey: persistence.HistoryTaskKey{TaskID: 100},
-				ExclusiveMaxTaskKey: persistence.HistoryTaskKey{TaskID: 200},
+				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100),
+				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
 				PageSize:            10,
 				NextPageToken:       serializePageToken(101),
 			},
@@ -3040,7 +3043,7 @@ func TestCompleteHistoryTask(t *testing.T) {
 			name: "success - complete scheduled timer task",
 			request: &persistence.CompleteHistoryTaskRequest{
 				TaskCategory: persistence.HistoryTaskCategoryTimer,
-				TaskKey:      persistence.HistoryTaskKey{TaskID: 1, ScheduledTime: time.Unix(10, 10)},
+				TaskKey:      persistence.NewHistoryTaskKey(time.Unix(10, 10), 1),
 			},
 			setupMock: func(mockDB any) {
 				mock := mockDB.(*sqlplugin.MockDB)
@@ -3056,7 +3059,7 @@ func TestCompleteHistoryTask(t *testing.T) {
 			name: "success - complete immediate transfer task",
 			request: &persistence.CompleteHistoryTaskRequest{
 				TaskCategory: persistence.HistoryTaskCategoryTransfer,
-				TaskKey:      persistence.HistoryTaskKey{TaskID: 2},
+				TaskKey:      persistence.NewImmediateTaskKey(2),
 			},
 			setupMock: func(mockDB any) {
 				mock := mockDB.(*sqlplugin.MockDB)
@@ -3071,7 +3074,7 @@ func TestCompleteHistoryTask(t *testing.T) {
 			name: "success - complete immediate replication task",
 			request: &persistence.CompleteHistoryTaskRequest{
 				TaskCategory: persistence.HistoryTaskCategoryReplication,
-				TaskKey:      persistence.HistoryTaskKey{TaskID: 3},
+				TaskKey:      persistence.NewImmediateTaskKey(3),
 			},
 			setupMock: func(mockDB any) {
 				mock := mockDB.(*sqlplugin.MockDB)
@@ -3094,7 +3097,7 @@ func TestCompleteHistoryTask(t *testing.T) {
 			name: "delete timer task error",
 			request: &persistence.CompleteHistoryTaskRequest{
 				TaskCategory: persistence.HistoryTaskCategoryTimer,
-				TaskKey:      persistence.HistoryTaskKey{TaskID: 1, ScheduledTime: time.Unix(10, 10)},
+				TaskKey:      persistence.NewHistoryTaskKey(time.Unix(10, 10), 1),
 			},
 			setupMock: func(mockDB any) {
 				mock := mockDB.(*sqlplugin.MockDB)
@@ -3111,7 +3114,7 @@ func TestCompleteHistoryTask(t *testing.T) {
 			name: "delete transfer task error",
 			request: &persistence.CompleteHistoryTaskRequest{
 				TaskCategory: persistence.HistoryTaskCategoryTransfer,
-				TaskKey:      persistence.HistoryTaskKey{TaskID: 2},
+				TaskKey:      persistence.NewImmediateTaskKey(2),
 			},
 			setupMock: func(mockDB any) {
 				mock := mockDB.(*sqlplugin.MockDB)
@@ -3127,7 +3130,7 @@ func TestCompleteHistoryTask(t *testing.T) {
 			name: "delete replication task error",
 			request: &persistence.CompleteHistoryTaskRequest{
 				TaskCategory: persistence.HistoryTaskCategoryReplication,
-				TaskKey:      persistence.HistoryTaskKey{TaskID: 3},
+				TaskKey:      persistence.NewImmediateTaskKey(3),
 			},
 			setupMock: func(mockDB any) {
 				mock := mockDB.(*sqlplugin.MockDB)

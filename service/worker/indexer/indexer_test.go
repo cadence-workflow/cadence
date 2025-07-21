@@ -116,7 +116,7 @@ func TestIndexerStart(t *testing.T) {
 		esIndexName:         "test-index",
 		consumer:            mockConsumer,
 		logger:              log.NewNoop(),
-		scope:               metrics.NoopScope(metrics.IndexProcessorScope),
+		scope:               metrics.NoopScope,
 		shutdownCh:          make(chan struct{}),
 		visibilityProcessor: mockvisibiltyProcessor,
 		msgEncoder:          defaultEncoder,
@@ -149,7 +149,7 @@ func TestIndexerStart_ConsumerError(t *testing.T) {
 		esIndexName:         "test-index",
 		consumer:            mockConsumer,
 		logger:              log.NewNoop(),
-		scope:               metrics.NoopScope(metrics.IndexProcessorScope),
+		scope:               metrics.NoopScope,
 		shutdownCh:          make(chan struct{}),
 		visibilityProcessor: mockvisibiltyProcessor,
 		msgEncoder:          defaultEncoder,
@@ -184,7 +184,7 @@ func TestIndexerStop(t *testing.T) {
 		esIndexName:         "test-index",
 		consumer:            mockConsumer,
 		logger:              log.NewNoop(),
-		scope:               metrics.NoopScope(metrics.IndexProcessorScope),
+		scope:               metrics.NoopScope,
 		shutdownCh:          make(chan struct{}),
 		visibilityProcessor: mockVisibilityProcessor,
 		msgEncoder:          defaultEncoder,
@@ -309,7 +309,7 @@ func TestDumpFieldsToMap(t *testing.T) {
 			ValidSearchAttributes:          dynamicproperties.GetMapPropertyFn(map[string]interface{}{}),
 		},
 		logger: log.NewNoop(),
-		scope:  metrics.NoopScope(metrics.Worker),
+		scope:  metrics.NoopScope,
 	}
 
 	stringPtr := "string"

@@ -91,8 +91,11 @@ func TestDomainOperation_String(t *testing.T) {
 	domainOp = DomainOperationUpdate
 	assert.Equal(t, "Update", domainOp.String())
 
-	domainOp = 2
-	assert.Equal(t, "DomainOperation(2)", domainOp.String())
+	domainOp = DomainOperationDelete
+	assert.Equal(t, "Delete", domainOp.String())
+
+	domainOp = 3
+	assert.Equal(t, "DomainOperation(3)", domainOp.String())
 }
 
 func TestDomainOperation_UnmarshalText(t *testing.T) {

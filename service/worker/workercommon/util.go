@@ -53,7 +53,7 @@ func StartWorkflowWithRetry(
 		backoff.WithRetryPolicy(policy),
 		backoff.WithRetryableError(func(_ error) bool { return true }),
 	)
-	err := throttleRetry.Do(context.Background(), func() error {
+	err := throttleRetry.Do(context.Background(), func(ctx context.Context) error {
 		return startWorkflow(sdkClient)
 	})
 	if err != nil {

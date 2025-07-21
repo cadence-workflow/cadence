@@ -26,11 +26,17 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/isolationgroup"
+	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/types"
 )
+
+var testDomain = "domainID"
 
 func TestIsolationPickWritePartition(t *testing.T) {
 	tl := "tl"
@@ -51,27 +57,6 @@ func TestIsolationPickWritePartition(t *testing.T) {
 				},
 			},
 			allowed: []string{tl},
-		},
-		{
-			name:  "single partition - allowed",
-			group: "a",
-			config: &types.TaskListPartitionConfig{
-				WritePartitions: map[int]*types.TaskListPartition{
-					0: {[]string{"a"}},
-				},
-			},
-			allowed: []string{tl},
-		},
-		{
-			name:  "single partition - not allowed",
-			group: "a",
-			config: &types.TaskListPartitionConfig{
-				WritePartitions: map[int]*types.TaskListPartition{
-					0: {[]string{"b"}},
-				},
-			},
-			shouldFallback: true,
-			allowed:        []string{"fallback"},
 		},
 		{
 			name:  "single partition - isolation disabled",
@@ -108,6 +93,18 @@ func TestIsolationPickWritePartition(t *testing.T) {
 			allowed: []string{tl, getPartitionTaskListName(tl, 1)},
 		},
 		{
+			name:  "multiple partitions - no match",
+			group: "c",
+			config: &types.TaskListPartitionConfig{
+				WritePartitions: map[int]*types.TaskListPartition{
+					0: {[]string{"a"}},
+					1: {[]string{"b"}},
+				},
+			},
+			shouldFallback: true,
+			allowed:        []string{"fallback"},
+		},
+		{
 			name: "fallback - no group",
 			config: &types.TaskListPartitionConfig{
 				WritePartitions: map[int]*types.TaskListPartition{
@@ -123,7 +120,7 @@ func TestIsolationPickWritePartition(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			lb, fallback := createWithMocks(t, !tc.disableIsolation, tc.config)
 			req := &types.AddDecisionTaskRequest{
-				DomainUUID: "domainId",
+				DomainUUID: testDomain,
 				TaskList: &types.TaskList{
 					Name: tl,
 					Kind: types.TaskListKindSticky.Ptr(),
@@ -150,8 +147,8 @@ func TestIsolationPickReadPartition(t *testing.T) {
 		group            string
 		config           *types.TaskListPartitionConfig
 		disableIsolation bool
-		shouldFallback   bool
-		allowed          []string
+		allowance        func(balancer *MockWeightedLoadBalancer)
+		expected         string
 	}{
 		{
 			name:  "single partition",
@@ -161,28 +158,7 @@ func TestIsolationPickReadPartition(t *testing.T) {
 					0: {},
 				},
 			},
-			allowed: []string{tl},
-		},
-		{
-			name:  "single partition - allowed",
-			group: "a",
-			config: &types.TaskListPartitionConfig{
-				ReadPartitions: map[int]*types.TaskListPartition{
-					0: {[]string{"a"}},
-				},
-			},
-			allowed: []string{tl},
-		},
-		{
-			name:  "single partition - not allowed",
-			group: "a",
-			config: &types.TaskListPartitionConfig{
-				ReadPartitions: map[int]*types.TaskListPartition{
-					0: {[]string{"b"}},
-				},
-			},
-			shouldFallback: true,
-			allowed:        []string{"fallback"},
+			expected: tl,
 		},
 		{
 			name:  "single partition - isolation disabled",
@@ -193,8 +169,10 @@ func TestIsolationPickReadPartition(t *testing.T) {
 				},
 			},
 			disableIsolation: true,
-			shouldFallback:   true,
-			allowed:          []string{"fallback"},
+			allowance: func(balancer *MockWeightedLoadBalancer) {
+				balancer.EXPECT().PickReadPartition(gomock.Any(), gomock.Any(), gomock.Any()).Return("fallback")
+			},
+			expected: "fallback",
 		},
 		{
 			name:  "multiple partitions - single option",
@@ -205,7 +183,7 @@ func TestIsolationPickReadPartition(t *testing.T) {
 					1: {[]string{"b"}},
 				},
 			},
-			allowed: []string{getPartitionTaskListName(tl, 1)},
+			expected: getPartitionTaskListName(tl, 1),
 		},
 		{
 			name:  "multiple partitions - multiple options",
@@ -214,9 +192,27 @@ func TestIsolationPickReadPartition(t *testing.T) {
 				ReadPartitions: map[int]*types.TaskListPartition{
 					0: {[]string{"a"}},
 					1: {[]string{"a"}},
+					2: {[]string{"b"}},
 				},
 			},
-			allowed: []string{tl, getPartitionTaskListName(tl, 1)},
+			allowance: func(balancer *MockWeightedLoadBalancer) {
+				balancer.EXPECT().PickBetween(testDomain, tl, 0, []int{0, 1}).Return(1)
+			},
+			expected: getPartitionTaskListName(tl, 1),
+		},
+		{
+			name:  "multiple partitions - no matching",
+			group: "c",
+			config: &types.TaskListPartitionConfig{
+				ReadPartitions: map[int]*types.TaskListPartition{
+					0: {[]string{"a"}},
+					1: {[]string{"b"}},
+				},
+			},
+			allowance: func(balancer *MockWeightedLoadBalancer) {
+				balancer.EXPECT().PickReadPartition(gomock.Any(), gomock.Any(), gomock.Any()).Return("fallback")
+			},
+			expected: "fallback",
 		},
 		{
 			name: "fallback - no group",
@@ -226,25 +222,27 @@ func TestIsolationPickReadPartition(t *testing.T) {
 					1: {[]string{"b"}},
 				},
 			},
-			shouldFallback: true,
-			allowed:        []string{"fallback"},
+			allowance: func(balancer *MockWeightedLoadBalancer) {
+				balancer.EXPECT().PickReadPartition(gomock.Any(), gomock.Any(), gomock.Any()).Return("fallback")
+			},
+			expected: "fallback",
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			lb, fallback := createWithMocks(t, !tc.disableIsolation, tc.config)
 			req := &types.MatchingQueryWorkflowRequest{
-				DomainUUID: "domainId",
+				DomainUUID: testDomain,
 				TaskList: &types.TaskList{
 					Name: tl,
 					Kind: types.TaskListKindSticky.Ptr(),
 				},
 			}
-			if tc.shouldFallback {
-				fallback.EXPECT().PickReadPartition(int(types.TaskListTypeDecision), req, tc.group).Return("fallback").Times(1)
+			if tc.allowance != nil {
+				tc.allowance(fallback)
 			}
-			p := lb.PickReadPartition(0, req, tc.group)
-			assert.Contains(t, tc.allowed, p)
+			actual := lb.PickReadPartition(0, req, tc.group)
+			assert.Equal(t, tc.expected, actual)
 		})
 	}
 }
@@ -339,20 +337,17 @@ func TestIsolationGetPartitionsForGroup(t *testing.T) {
 	}
 }
 
-func createWithMocks(t *testing.T, isolationEnabled bool, config *types.TaskListPartitionConfig) (*isolationLoadBalancer, *MockLoadBalancer) {
+func createWithMocks(t *testing.T, isolationEnabled bool, config *types.TaskListPartitionConfig) (*isolationLoadBalancer, *MockWeightedLoadBalancer) {
 	ctrl := gomock.NewController(t)
-	fallback := NewMockLoadBalancer(ctrl)
+	fallback := NewMockWeightedLoadBalancer(ctrl)
 	cfg := NewMockPartitionConfigProvider(ctrl)
 	cfg.EXPECT().GetPartitionConfig(gomock.Any(), gomock.Any(), gomock.Any()).Return(config).AnyTimes()
+	dynamicClient := dynamicconfig.NewInMemoryClient()
+	require.NoError(t, dynamicClient.UpdateValue(dynamicproperties.EnablePartitionIsolationGroupAssignment, isolationEnabled))
+	dc := dynamicconfig.NewCollection(dynamicClient, testlogger.New(t))
+	lb := NewIsolationLoadBalancer(fallback, cfg, func(s string) (string, error) {
+		return s, nil
+	}, dc).(*isolationLoadBalancer)
 
-	return &isolationLoadBalancer{
-		provider: cfg,
-		fallback: fallback,
-		domainIDToName: func(s string) (string, error) {
-			return s, nil
-		},
-		isolationEnabled: func(s string) bool {
-			return isolationEnabled
-		},
-	}, fallback
+	return lb, fallback
 }

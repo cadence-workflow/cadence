@@ -22,7 +22,15 @@
 
 package sqlite
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
+)
+
+const (
+	listTablesQuery = "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+)
 
 // CreateDatabase is not supported by sqlite
 // each sqlite file is a database
@@ -34,4 +42,11 @@ func (mdb *DB) CreateDatabase(name string) error {
 // each sqlite file is a database
 func (mdb *DB) DropDatabase(name string) error {
 	return errors.New("sqlite doesn't support dropping database")
+}
+
+// ListTables returns a list of tables in this database
+func (mdb *DB) ListTables(_ string) ([]string, error) {
+	var tables []string
+	err := mdb.driver.SelectForSchemaQuery(sqlplugin.DbShardUndefined, &tables, listTablesQuery)
+	return tables, err
 }

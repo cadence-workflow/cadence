@@ -39,6 +39,7 @@ import (
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/persistence/sql/sqlplugin/sqlite"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/environment"
 	"github.com/uber/cadence/host/esutils"
@@ -63,6 +64,10 @@ type ElasticSearchIntegrationSuite struct {
 
 func TestElasticsearchIntegrationSuite(t *testing.T) {
 	flag.Parse()
+
+	if TestFlags.SQLPluginName == sqlite.PluginName {
+		t.Skipf("SQLite plugin is not supported for integration test with ES, skipping %v", t.Name())
+	}
 
 	clusterConfig, err := GetTestClusterConfig("testdata/integration_elasticsearch_" + environment.GetESVersion() + "_cluster.yaml")
 	if err != nil {

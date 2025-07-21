@@ -279,8 +279,59 @@ func TestIsolationGroupFromDomainBlobConversion(t *testing.T) {
 }
 
 func TestWorkflowExecutionInfoConversion(t *testing.T) {
-	for _, item := range []*types.WorkflowExecutionInfo{nil, {}, &testdata.WorkflowExecutionInfo, &testdata.CronWorkflowExecutionInfo} {
+	for _, item := range []*types.WorkflowExecutionInfo{nil, {}, &testdata.WorkflowExecutionInfo, &testdata.CronWorkflowExecutionInfo, &testdata.WorkflowExecutionInfoEphemeral} {
 		assert.Equal(t, item, ToWorkflowExecutionInfo(FromWorkflowExecutionInfo(item)))
+	}
+}
+
+func TestWorkflowExecutionInfo_MigrateTaskList(t *testing.T) {
+	tlName := "foo"
+	otherName := "bar"
+	cases := []struct {
+		name string
+		in   *shared.WorkflowExecutionInfo
+		out  *types.WorkflowExecutionInfo
+	}{
+		{
+			name: "nil",
+			in:   &shared.WorkflowExecutionInfo{},
+			out: &types.WorkflowExecutionInfo{
+				TaskList: nil,
+			},
+		},
+		{
+			name: "name only",
+			in: &shared.WorkflowExecutionInfo{
+				TaskList: &tlName,
+			},
+			out: &types.WorkflowExecutionInfo{
+				TaskList: &types.TaskList{Name: tlName, Kind: types.TaskListKindNormal.Ptr()},
+			},
+		},
+		{
+			name: "tl only",
+			in: &shared.WorkflowExecutionInfo{
+				TaskListInfo: &shared.TaskList{Name: &tlName, Kind: shared.TaskListKindNormal.Ptr()},
+			},
+			out: &types.WorkflowExecutionInfo{
+				TaskList: &types.TaskList{Name: tlName, Kind: types.TaskListKindNormal.Ptr()},
+			},
+		},
+		{
+			name: "both",
+			in: &shared.WorkflowExecutionInfo{
+				TaskList:     &otherName,
+				TaskListInfo: &shared.TaskList{Name: &tlName, Kind: shared.TaskListKindNormal.Ptr()},
+			},
+			out: &types.WorkflowExecutionInfo{
+				TaskList: &types.TaskList{Name: tlName, Kind: types.TaskListKindNormal.Ptr()},
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.out, ToWorkflowExecutionInfo(tc.in))
+		})
 	}
 }
 
@@ -952,6 +1003,20 @@ func TestDecisionTypeConversion(t *testing.T) {
 	}
 }
 
+func TestDeleteDomainRequestConversion(t *testing.T) {
+	testCases := []*types.DeleteDomainRequest{
+		nil,
+		{},
+		&testdata.DeleteDomainRequest,
+	}
+
+	for _, original := range testCases {
+		thriftObj := FromDeleteDomainRequest(original)
+		roundTripObj := ToDeleteDomainRequest(thriftObj)
+		assert.Equal(t, original, roundTripObj)
+	}
+}
+
 func TestDeprecateDomainRequestConversion(t *testing.T) {
 	testCases := []*types.DeprecateDomainRequest{
 		nil,
@@ -1240,6 +1305,8 @@ func TestDomainNotActiveErrorConversion(t *testing.T) {
 		nil,
 		{},
 		{Message: "test-message"},
+		{Message: "test-message", DomainName: "test-domain", CurrentCluster: "test-current-cluster", ActiveCluster: "test-active-cluster"},
+		{Message: "test-message", DomainName: "test-domain", CurrentCluster: "test-current-cluster", ActiveClusters: []string{"test-active-cluster-1", "test-active-cluster-2"}},
 	}
 
 	for _, original := range testCases {
@@ -3423,4 +3490,89 @@ func TestAny(t *testing.T) {
 			return "filled data"
 		})
 	})
+}
+
+func TestTaskKeyConversion(t *testing.T) {
+	testCases := []*types.TaskKey{
+		nil,
+		&types.TaskKey{},
+		&testdata.TaskKey,
+	}
+
+	for _, original := range testCases {
+		thriftObj := FromTaskKey(original)
+		roundTripObj := ToTaskKey(thriftObj)
+		assert.Equal(t, original, roundTripObj)
+	}
+}
+
+func TestTaskRangeConversion(t *testing.T) {
+	testCases := []*types.TaskRange{
+		nil,
+		&types.TaskRange{},
+		&testdata.TaskRange,
+	}
+
+	for _, original := range testCases {
+		thriftObj := FromTaskRange(original)
+		roundTripObj := ToTaskRange(thriftObj)
+		assert.Equal(t, original, roundTripObj)
+	}
+}
+
+func TestVirtualSliceStateConversion(t *testing.T) {
+	testCases := []*types.VirtualSliceState{
+		nil,
+		&types.VirtualSliceState{},
+		&testdata.VirtualSliceState,
+	}
+
+	for _, original := range testCases {
+		thriftObj := FromVirtualSliceState(original)
+		roundTripObj := ToVirtualSliceState(thriftObj)
+		assert.Equal(t, original, roundTripObj)
+	}
+}
+
+func TestVirtualQueueStateConversion(t *testing.T) {
+	testCases := []*types.VirtualQueueState{
+		nil,
+		&types.VirtualQueueState{},
+		&testdata.VirtualQueueState,
+	}
+
+	for _, original := range testCases {
+		thriftObj := FromVirtualQueueState(original)
+		roundTripObj := ToVirtualQueueState(thriftObj)
+		assert.Equal(t, original, roundTripObj)
+	}
+}
+
+func TestQueueStateConversion(t *testing.T) {
+	testCases := []*types.QueueState{
+		nil,
+		&types.QueueState{},
+		&testdata.QueueState,
+	}
+
+	for _, original := range testCases {
+		thriftObj := FromQueueState(original)
+		roundTripObj := ToQueueState(thriftObj)
+		assert.Equal(t, original, roundTripObj)
+	}
+}
+
+func TestActiveClusterSelectionPolicyConversion(t *testing.T) {
+	testCases := []*types.ActiveClusterSelectionPolicy{
+		nil,
+		&testdata.ActiveClusterSelectionPolicyExternalEntity,
+		&testdata.ActiveClusterSelectionPolicyRegionSticky,
+	}
+
+	for _, original := range testCases {
+		thriftObj := FromActiveClusterSelectionPolicy(original)
+		roundTripObj := ToActiveClusterSelectionPolicy(thriftObj)
+		assert.Equal(t, original, roundTripObj)
+	}
+
 }

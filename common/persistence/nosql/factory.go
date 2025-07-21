@@ -25,6 +25,7 @@ import (
 
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/serialization"
 )
@@ -36,8 +37,10 @@ type (
 		cfg              config.ShardedNoSQL
 		clusterName      string
 		logger           log.Logger
+		metricsClient    metrics.Client
 		execStoreFactory *executionStoreFactory
 		dc               *persistence.DynamicConfiguration
+		parser           serialization.Parser
 		taskSerializer   serialization.TaskSerializer
 	}
 
@@ -50,34 +53,36 @@ type (
 
 // NewFactory returns an instance of a factory object which can be used to create
 // datastores that are backed by cassandra
-func NewFactory(cfg config.ShardedNoSQL, clusterName string, logger log.Logger, taskSerializer serialization.TaskSerializer, dc *persistence.DynamicConfiguration) *Factory {
+func NewFactory(cfg config.ShardedNoSQL, clusterName string, logger log.Logger, metricsClient metrics.Client, taskSerializer serialization.TaskSerializer, parser serialization.Parser, dc *persistence.DynamicConfiguration) *Factory {
 	return &Factory{
 		cfg:            cfg,
 		clusterName:    clusterName,
 		logger:         logger,
+		metricsClient:  metricsClient,
 		taskSerializer: taskSerializer,
 		dc:             dc,
+		parser:         parser,
 	}
 }
 
 // NewTaskStore returns a new task store
 func (f *Factory) NewTaskStore() (persistence.TaskStore, error) {
-	return newNoSQLTaskStore(f.cfg, f.logger, f.dc)
+	return newNoSQLTaskStore(f.cfg, f.logger, f.metricsClient, f.dc)
 }
 
 // NewShardStore returns a new shard store
 func (f *Factory) NewShardStore() (persistence.ShardStore, error) {
-	return newNoSQLShardStore(f.cfg, f.clusterName, f.logger, f.dc)
+	return newNoSQLShardStore(f.cfg, f.clusterName, f.logger, f.metricsClient, f.dc, f.parser)
 }
 
 // NewHistoryStore returns a new history store
 func (f *Factory) NewHistoryStore() (persistence.HistoryStore, error) {
-	return newNoSQLHistoryStore(f.cfg, f.logger, f.dc)
+	return newNoSQLHistoryStore(f.cfg, f.logger, f.metricsClient, f.dc)
 }
 
 // NewDomainStore returns a metadata store that understands only v2
 func (f *Factory) NewDomainStore() (persistence.DomainStore, error) {
-	return newNoSQLDomainStore(f.cfg, f.clusterName, f.logger, f.dc)
+	return newNoSQLDomainStore(f.cfg, f.clusterName, f.logger, f.metricsClient, f.dc)
 }
 
 // NewExecutionStore returns an ExecutionStore for a given shardID
@@ -91,17 +96,17 @@ func (f *Factory) NewExecutionStore(shardID int) (persistence.ExecutionStore, er
 
 // NewVisibilityStore returns a visibility store
 func (f *Factory) NewVisibilityStore(sortByCloseTime bool) (persistence.VisibilityStore, error) {
-	return newNoSQLVisibilityStore(sortByCloseTime, f.cfg, f.logger, f.dc)
+	return newNoSQLVisibilityStore(sortByCloseTime, f.cfg, f.logger, f.metricsClient, f.dc)
 }
 
 // NewQueue returns a new queue backed by cassandra
 func (f *Factory) NewQueue(queueType persistence.QueueType) (persistence.Queue, error) {
-	return newNoSQLQueueStore(f.cfg, f.logger, queueType, f.dc)
+	return newNoSQLQueueStore(f.cfg, f.logger, f.metricsClient, queueType, f.dc)
 }
 
 // NewConfigStore returns a new config store
 func (f *Factory) NewConfigStore() (persistence.ConfigStore, error) {
-	return NewNoSQLConfigStore(f.cfg, f.logger, f.dc)
+	return NewNoSQLConfigStore(f.cfg, f.logger, f.metricsClient, f.dc)
 }
 
 // Close closes the factory
@@ -126,7 +131,7 @@ func (f *Factory) executionStoreFactory() (*executionStoreFactory, error) {
 		return f.execStoreFactory, nil
 	}
 
-	factory, err := newExecutionStoreFactory(f.cfg, f.logger, f.taskSerializer, f.dc)
+	factory, err := newExecutionStoreFactory(f.cfg, f.logger, f.metricsClient, f.taskSerializer, f.dc)
 	if err != nil {
 		return nil, err
 	}
@@ -138,10 +143,11 @@ func (f *Factory) executionStoreFactory() (*executionStoreFactory, error) {
 func newExecutionStoreFactory(
 	cfg config.ShardedNoSQL,
 	logger log.Logger,
+	metricsClient metrics.Client,
 	taskSerializer serialization.TaskSerializer,
 	dc *persistence.DynamicConfiguration,
 ) (*executionStoreFactory, error) {
-	s, err := newShardedNosqlStore(cfg, logger, dc)
+	s, err := newShardedNosqlStore(cfg, logger, metricsClient, dc)
 	if err != nil {
 		return nil, err
 	}

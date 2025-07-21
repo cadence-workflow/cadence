@@ -33,6 +33,7 @@ import (
 	"go.uber.org/yarpc/yarpcerrors"
 
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/log/testlogger"
@@ -109,6 +110,18 @@ func TestHandleErr_InternalServiceError(t *testing.T) {
 
 	assert.NotNil(t, err)
 	assert.Contains(t, err.Error(), "cadence internal error")
+}
+
+func TestHandleErr_ClientConnectionClosingError(t *testing.T) {
+	logger := testlogger.New(t)
+	testScope := tally.NewTestScope("test", nil)
+	metricsClient := metrics.NewClient(testScope, metrics.Frontend)
+	handler := &apiHandler{}
+
+	err := handler.handleErr(errors.New(constants.GRPCConnectionClosingError), metricsClient.Scope(0), logger)
+
+	assert.NotNil(t, err)
+	assert.Contains(t, err.Error(), constants.GRPCConnectionClosingError)
 }
 
 func TestHandleErr_UncategorizedError(t *testing.T) {

@@ -91,6 +91,7 @@ var (
 	MatchingDescribeTaskListResponse = types.DescribeTaskListResponse{
 		Pollers:        PollerInfoArray,
 		TaskListStatus: &TaskListStatus,
+		TaskList:       &TaskList,
 	}
 	MatchingListTaskListPartitionsRequest = types.MatchingListTaskListPartitionsRequest{
 		Domain:   DomainName,
@@ -163,9 +164,10 @@ var (
 		QueryRequest:  &QueryWorkflowRequest,
 		ForwardedFrom: ForwardedFrom,
 	}
-	MatchingQueryWorkflowResponse = types.QueryWorkflowResponse{
-		QueryResult:   Payload1,
-		QueryRejected: &QueryRejected,
+	MatchingQueryWorkflowResponse = types.MatchingQueryWorkflowResponse{
+		QueryResult:     Payload1,
+		QueryRejected:   &QueryRejected,
+		PartitionConfig: &TaskListPartitionConfig,
 	}
 	MatchingRespondQueryTaskCompletedRequest = types.MatchingRespondQueryTaskCompletedRequest{
 		DomainUUID:       DomainID,

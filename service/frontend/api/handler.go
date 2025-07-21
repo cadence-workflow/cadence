@@ -42,6 +42,7 @@ import (
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/domain"
 	"github.com/uber/cadence/common/elasticsearch/validator"
+	"github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -153,10 +154,7 @@ func NewWorkflowHandler(
 
 // Start starts the handler
 func (wh *WorkflowHandler) Start() {
-	// TODO: Get warmup duration from config. Even better, run proactive checks such as probing downstream connections.
-	const warmUpDuration = 30 * time.Second
-
-	warmupTimer := time.NewTimer(warmUpDuration)
+	warmupTimer := time.NewTimer(wh.config.WarmupDuration())
 	go func() {
 		<-warmupTimer.C
 		wh.GetLogger().Warn("Service warmup duration has elapsed.")
@@ -340,7 +338,7 @@ func (wh *WorkflowHandler) PollForActivityTask(
 	}
 	pollerID := uuid.New().String()
 	var matchingResp *types.MatchingPollForActivityTaskResponse
-	op := func() error {
+	op := func(ctx context.Context) error {
 		matchingResp, err = wh.GetMatchingClient().PollForActivityTask(ctx, &types.MatchingPollForActivityTaskRequest{
 			DomainUUID:     domainID,
 			PollerID:       pollerID,
@@ -360,10 +358,12 @@ func (wh *WorkflowHandler) PollForActivityTask(
 			if ok {
 				ctxTimeout = ctxDeadline.Sub(callTime).String()
 			}
+			peerHostname, origErr := errors.ExtractPeerHostname(err)
 			wh.GetLogger().Error("PollForActivityTask failed.",
 				tag.WorkflowTaskListName(pollRequest.GetTaskList().GetName()),
 				tag.Value(ctxTimeout),
-				tag.Error(err))
+				tag.Error(origErr),
+				tag.PeerHostname(peerHostname))
 			return nil, err
 		}
 		// Must be cancellation error.  Doesn't matter what we return here.  Client already went away.
@@ -479,7 +479,7 @@ func (wh *WorkflowHandler) PollForDecisionTask(
 
 	pollerID := uuid.New().String()
 	var matchingResp *types.MatchingPollForDecisionTaskResponse
-	op := func() error {
+	op := func(ctx context.Context) error {
 		matchingResp, err = wh.GetMatchingClient().PollForDecisionTask(ctx, &types.MatchingPollForDecisionTaskRequest{
 			DomainUUID:     domainID,
 			PollerID:       pollerID,
@@ -499,10 +499,12 @@ func (wh *WorkflowHandler) PollForDecisionTask(
 			if ok {
 				ctxTimeout = ctxDeadline.Sub(callTime).String()
 			}
+			peerHostname, origErr := errors.ExtractPeerHostname(err)
 			wh.GetLogger().Error("PollForDecisionTask failed.",
 				tag.WorkflowTaskListName(pollRequest.GetTaskList().GetName()),
 				tag.Value(ctxTimeout),
-				tag.Error(err))
+				tag.Error(origErr),
+				tag.PeerHostname(peerHostname))
 			return nil, err
 		}
 
@@ -1762,7 +1764,7 @@ func (wh *WorkflowHandler) validateStartWorkflowExecutionRequest(ctx context.Con
 
 		// Request using start/end time zero value, which will get us an exact answer (i.e. its not in the
 		// middle of a minute)
-		backoffSeconds, err := backoff.GetBackoffForNextScheduleInSeconds(cron, time.Time{}, time.Time{}, jitter)
+		backoffSeconds, err := backoff.GetBackoffForNextScheduleInSeconds(cron, time.Time{}, time.Time{}, jitter, startRequest.GetCronOverlapPolicy())
 		if err != nil {
 			return err
 		}
@@ -1830,7 +1832,7 @@ func (wh *WorkflowHandler) GetWorkflowExecutionHistory(
 	}
 
 	domainName := getRequest.GetDomain()
-	wfExecution := getRequest.GetExecution()
+	wfExecution := getRequest.GetWorkflowExecution()
 
 	if domainName == "" {
 		return nil, validate.ErrDomainNotSet
@@ -3095,7 +3097,10 @@ func (wh *WorkflowHandler) checkOngoingFailover(
 
 	g := &errgroup.Group{}
 	for clusterName := range enabledClusters {
-		frontendClient := wh.GetRemoteFrontendClient(clusterName)
+		frontendClient, err := wh.GetRemoteFrontendClient(clusterName)
+		if err != nil {
+			return &types.BadRequestError{Message: err.Error()}
+		}
 		g.Go(func() (e error) {
 			defer func() { log.CapturePanic(recover(), wh.GetLogger(), &e) }()
 
@@ -3127,7 +3132,7 @@ func (wh *WorkflowHandler) checkOngoingFailover(
 }
 
 func (wh *WorkflowHandler) historyArchived(ctx context.Context, request *types.GetWorkflowExecutionHistoryRequest, domainID string) bool {
-	if request.GetExecution() == nil || request.GetExecution().GetRunID() == "" {
+	if request.GetWorkflowExecution() == nil || request.GetWorkflowExecution().GetRunID() == "" {
 		return false
 	}
 	getMutableStateRequest := &types.GetMutableStateRequest{
@@ -3176,8 +3181,8 @@ func (wh *WorkflowHandler) getArchivedHistory(
 
 	resp, err := historyArchiver.Get(ctx, URI, &archiver.GetHistoryRequest{
 		DomainID:      domainID,
-		WorkflowID:    request.GetExecution().GetWorkflowID(),
-		RunID:         request.GetExecution().GetRunID(),
+		WorkflowID:    request.GetWorkflowExecution().GetWorkflowID(),
+		RunID:         request.GetWorkflowExecution().GetRunID(),
 		NextPageToken: request.GetNextPageToken(),
 		PageSize:      int(request.GetMaximumPageSize()),
 	})
@@ -3280,7 +3285,6 @@ func (wh *WorkflowHandler) normalizeVersionedErrors(ctx context.Context, err err
 	}
 }
 func constructRestartWorkflowRequest(w *types.WorkflowExecutionStartedEventAttributes, domain string, identity string, workflowID string) *types.StartWorkflowExecutionRequest {
-
 	startRequest := &types.StartWorkflowExecutionRequest{
 		RequestID:  uuid.New().String(),
 		Domain:     domain,
@@ -3290,6 +3294,7 @@ func constructRestartWorkflowRequest(w *types.WorkflowExecutionStartedEventAttri
 		},
 		TaskList: &types.TaskList{
 			Name: w.TaskList.Name,
+			Kind: w.TaskList.Kind,
 		},
 		Input:                               w.Input,
 		ExecutionStartToCloseTimeoutSeconds: w.ExecutionStartToCloseTimeoutSeconds,

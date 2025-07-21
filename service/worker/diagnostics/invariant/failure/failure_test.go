@@ -39,12 +39,12 @@ const (
 )
 
 func Test__Check(t *testing.T) {
-	metadata := FailureMetadata{
+	metadata := FailureIssuesMetadata{
 		Identity: "localhost",
 	}
 	metadataInBytes, err := json.Marshal(metadata)
 	require.NoError(t, err)
-	actMetadata := FailureMetadata{
+	actMetadata := FailureIssuesMetadata{
 		Identity:            "localhost",
 		ActivityType:        "test-activity",
 		ActivityScheduledID: 1,
@@ -63,21 +63,25 @@ func Test__Check(t *testing.T) {
 			testData: failedWfHistory(),
 			expectedResult: []invariant.InvariantCheckResult{
 				{
+					IssueID:       0,
 					InvariantType: ActivityFailed.String(),
 					Reason:        GenericError.String(),
 					Metadata:      actMetadataInBytes,
 				},
 				{
+					IssueID:       1,
 					InvariantType: ActivityFailed.String(),
 					Reason:        PanicError.String(),
 					Metadata:      actMetadataInBytes,
 				},
 				{
+					IssueID:       2,
 					InvariantType: ActivityFailed.String(),
 					Reason:        CustomError.String(),
 					Metadata:      actMetadataInBytes,
 				},
 				{
+					IssueID:       3,
 					InvariantType: WorkflowFailed.String(),
 					Reason:        TimeoutError.String(),
 					Metadata:      metadataInBytes,
@@ -90,11 +94,13 @@ func Test__Check(t *testing.T) {
 			testData: blobSizeLimitExceededHistory(),
 			expectedResult: []invariant.InvariantCheckResult{
 				{
+					IssueID:       0,
 					InvariantType: ActivityFailed.String(),
 					Reason:        ActivityOutputBlobSizeLimit.String(),
 					Metadata:      actMetadataInBytes,
 				},
 				{
+					IssueID:       1,
 					InvariantType: DecisionCausedFailure.String(),
 					Reason:        DecisionBlobSizeLimit.String(),
 					Metadata:      metadataInBytes,
@@ -224,7 +230,7 @@ func blobSizeLimitExceededHistory() *types.GetWorkflowExecutionHistoryResponse {
 }
 
 func Test__RootCause(t *testing.T) {
-	metadata := FailureMetadata{
+	metadata := FailureIssuesMetadata{
 		Identity: "localhost",
 	}
 	metadataInBytes, err := json.Marshal(metadata)
@@ -239,11 +245,13 @@ func Test__RootCause(t *testing.T) {
 			name: "customer side known failure",
 			input: []invariant.InvariantCheckResult{
 				{
+					IssueID:       0,
 					InvariantType: ActivityFailed.String(),
 					Reason:        CustomError.String(),
 					Metadata:      metadataInBytes,
 				}},
 			expectedResult: []invariant.InvariantRootCauseResult{{
+				IssueID:   0,
 				RootCause: invariant.RootCauseTypeServiceSideCustomError,
 				Metadata:  metadataInBytes,
 			}},
@@ -253,11 +261,13 @@ func Test__RootCause(t *testing.T) {
 			name: "customer side error",
 			input: []invariant.InvariantCheckResult{
 				{
+					IssueID:       0,
 					InvariantType: ActivityFailed.String(),
 					Reason:        GenericError.String(),
 					Metadata:      metadataInBytes,
 				}},
 			expectedResult: []invariant.InvariantRootCauseResult{{
+				IssueID:   0,
 				RootCause: invariant.RootCauseTypeServiceSideIssue,
 				Metadata:  metadataInBytes,
 			}},
@@ -267,11 +277,13 @@ func Test__RootCause(t *testing.T) {
 			name: "customer side panic",
 			input: []invariant.InvariantCheckResult{
 				{
+					IssueID:       0,
 					InvariantType: ActivityFailed.String(),
 					Reason:        PanicError.String(),
 					Metadata:      metadataInBytes,
 				}},
 			expectedResult: []invariant.InvariantRootCauseResult{{
+				IssueID:   0,
 				RootCause: invariant.RootCauseTypeServiceSidePanic,
 				Metadata:  metadataInBytes,
 			}},

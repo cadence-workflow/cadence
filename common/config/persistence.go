@@ -107,7 +107,8 @@ func (c *Persistence) Validate() error {
 			return fmt.Errorf("persistence config: datastore %v: must provide exactly one type of config, but provided %d", st, configCount)
 		}
 		if ds.SQL != nil {
-			if ds.SQL.UseMultipleDatabases {
+			switch {
+			case ds.SQL.UseMultipleDatabases:
 				if !useAdvancedVisibilityOnly {
 					return fmt.Errorf("sql persistence config: multipleSQLDatabases can only be used with advanced visibility only")
 				}
@@ -134,7 +135,9 @@ func (c *Persistence) Validate() error {
 						return fmt.Errorf("sql multipleDatabasesConfig persistence config: connectAddr can not be empty")
 					}
 				}
-			} else {
+
+			// SQLite plugin doesn't require ConnectAddr and DatabaseName
+			case ds.SQL.PluginName != "sqlite":
 				if ds.SQL.DatabaseName == "" {
 					return fmt.Errorf("sql persistence config: databaseName can not be empty")
 				}

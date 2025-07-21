@@ -176,7 +176,7 @@ func (db *cdb) InsertQueueMetadata(ctx context.Context, row nosqlplugin.QueueMet
 	// NOTE: Must pass nils to be compatible with ScyllaDB's LWT behavior
 	// "Scylla always returns the old version of the row, regardless of whether the condition is true or not."
 	// See also https://docs.scylladb.com/kb/lwt-differences/
-	_, err := query.ScanCAS(nil, nil, nil)
+	_, err := query.ScanCAS(nil, nil, nil, nil, nil)
 	if err != nil {
 		return err
 	}
@@ -203,7 +203,7 @@ func (db *cdb) UpdateQueueMetadataCas(
 	// NOTE: Must pass nils to be compatible with ScyllaDB's LWT behavior
 	// "Scylla always returns the old version of the row, regardless of whether the condition is true or not."
 	// See also https://docs.scylladb.com/kb/lwt-differences/
-	applied, err := query.ScanCAS(nil, nil, nil, nil)
+	applied, err := query.ScanCAS(nil, nil, nil, nil, nil)
 	if err != nil {
 		return err
 	}

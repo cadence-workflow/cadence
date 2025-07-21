@@ -22,10 +22,13 @@ package task
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/activecluster"
+	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
@@ -37,14 +40,14 @@ type (
 	standbyActionFn     func(context.Context, execution.Context, execution.MutableState) (interface{}, error)
 	standbyPostActionFn func(context.Context, persistence.Task, interface{}, log.Logger) error
 
-	standbyCurrentTimeFn func() time.Time
+	standbyCurrentTimeFn func(persistence.Task) (time.Time, error)
 )
 
 func standbyTaskPostActionNoOp(
 	ctx context.Context,
 	taskInfo persistence.Task,
 	postActionInfo interface{},
-	_ log.Logger,
+	logger log.Logger,
 ) error {
 
 	if postActionInfo == nil {
@@ -52,6 +55,14 @@ func standbyTaskPostActionNoOp(
 	}
 
 	// return error so task processing logic will retry
+	logger.Debug("standbyTaskPostActionNoOp return redispatch error so task processing logic will retry",
+		tag.WorkflowID(taskInfo.GetWorkflowID()),
+		tag.WorkflowRunID(taskInfo.GetRunID()),
+		tag.WorkflowDomainID(taskInfo.GetDomainID()),
+		tag.TaskID(taskInfo.GetTaskID()),
+		tag.TaskType(taskInfo.GetTaskType()),
+		tag.FailoverVersion(taskInfo.GetVersion()),
+		tag.Timestamp(taskInfo.GetVisibilityTimestamp()))
 	return &redispatchError{Reason: fmt.Sprintf("post action is %T", postActionInfo)}
 }
 
@@ -143,6 +154,7 @@ func getHistoryResendInfo(
 }
 
 func getStandbyPostActionFn(
+	logger log.Logger,
 	taskInfo persistence.Task,
 	standbyNow standbyCurrentTimeFn,
 	standbyTaskMissingEventsResendDelay time.Duration,
@@ -151,22 +163,71 @@ func getStandbyPostActionFn(
 	discardTaskStandbyPostActionFn standbyPostActionFn,
 ) standbyPostActionFn {
 
-	// this is for task retry, use machine time
-	now := standbyNow()
 	taskTime := taskInfo.GetVisibilityTimestamp()
 	resendTime := taskTime.Add(standbyTaskMissingEventsResendDelay)
 	discardTime := taskTime.Add(standbyTaskMissingEventsDiscardDelay)
 
+	tags := []tag.Tag{
+		tag.WorkflowID(taskInfo.GetWorkflowID()),
+		tag.WorkflowRunID(taskInfo.GetRunID()),
+		tag.WorkflowDomainID(taskInfo.GetDomainID()),
+		tag.TaskID(taskInfo.GetTaskID()),
+		tag.TaskType(int(taskInfo.GetTaskType())),
+		tag.Timestamp(taskInfo.GetVisibilityTimestamp()),
+	}
+
+	now, err := standbyNow(taskInfo)
+	if err != nil {
+		tags = append(tags, tag.Error(err))
+		logger.Error("getStandbyPostActionFn error getting current time, fallback to standbyTaskPostActionNoOp", tags...)
+		return standbyTaskPostActionNoOp
+	}
+
 	// now < task start time + StandbyTaskMissingEventsResendDelay
 	if now.Before(resendTime) {
+		logger.Debug("getStandbyPostActionFn returning standbyTaskPostActionNoOp because now < task start time + StandbyTaskMissingEventsResendDelay", tags...)
 		return standbyTaskPostActionNoOp
 	}
 
 	// task start time + StandbyTaskMissingEventsResendDelay <= now < task start time + StandbyTaskMissingEventsResendDelay
 	if now.Before(discardTime) {
+		logger.Debug("getStandbyPostActionFn returning fetchHistoryStandbyPostActionFn because task start time + StandbyTaskMissingEventsResendDelay <= now < task start time + StandbyTaskMissingEventsResendDelay", tags...)
 		return fetchHistoryStandbyPostActionFn
 	}
 
 	// task start time + StandbyTaskMissingEventsResendDelay <= now
+	logger.Debug("getStandbyPostActionFn returning discardTaskStandbyPostActionFn because task start time + StandbyTaskMissingEventsResendDelay <= now", tags...)
 	return discardTaskStandbyPostActionFn
+}
+
+func getRemoteClusterName(
+	ctx context.Context,
+	currentCluster string,
+	domainCache cache.DomainCache,
+	activeClusterMgr activecluster.Manager,
+	taskInfo persistence.Task,
+) (string, error) {
+	domainEntry, err := domainCache.GetDomainByID(taskInfo.GetDomainID())
+	if err != nil {
+		return "", err
+	}
+
+	if domainEntry.GetReplicationConfig().IsActiveActive() {
+		resp, err := activeClusterMgr.LookupWorkflow(ctx, taskInfo.GetDomainID(), taskInfo.GetWorkflowID(), taskInfo.GetRunID())
+		if err != nil {
+			return "", err
+		}
+		if resp.ClusterName == currentCluster {
+			// domain has turned active, retry the task
+			return "", errors.New("domain becomes active when processing task as standby")
+		}
+		return resp.ClusterName, nil
+	}
+
+	remoteClusterName := domainEntry.GetReplicationConfig().ActiveClusterName
+	if remoteClusterName == currentCluster {
+		// domain has turned active, retry the task
+		return "", errors.New("domain becomes active when processing task as standby")
+	}
+	return remoteClusterName, nil
 }

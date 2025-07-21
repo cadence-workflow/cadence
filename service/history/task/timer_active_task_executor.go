@@ -37,6 +37,7 @@ import (
 	"github.com/uber/cadence/service/history/config"
 	"github.com/uber/cadence/service/history/execution"
 	"github.com/uber/cadence/service/history/shard"
+	"github.com/uber/cadence/service/history/simulation"
 	"github.com/uber/cadence/service/worker/archiver"
 )
 
@@ -76,44 +77,56 @@ func NewTimerActiveTaskExecutor(
 	}
 }
 
-func (t *timerActiveTaskExecutor) Execute(
-	task Task,
-	shouldProcessTask bool,
-) error {
-	if !shouldProcessTask {
-		return nil
+func (t *timerActiveTaskExecutor) Execute(task Task) (ExecuteResponse, error) {
+	simulation.LogEvents(simulation.E{
+		EventName:  simulation.EventNameExecuteHistoryTask,
+		Host:       t.shard.GetConfig().HostName,
+		ShardID:    t.shard.GetShardID(),
+		DomainID:   task.GetDomainID(),
+		WorkflowID: task.GetWorkflowID(),
+		RunID:      task.GetRunID(),
+		Payload: map[string]any{
+			"task_category": persistence.HistoryTaskCategoryTimer.Name(),
+			"task_type":     task.GetTaskType(),
+			"task_key":      task.GetTaskKey(),
+		},
+	})
+	scope := getOrCreateDomainTaggedScope(t.shard, GetTimerTaskMetricScope(task.GetTaskType(), true), task.GetDomainID(), t.logger)
+	executeResponse := ExecuteResponse{
+		Scope:        scope,
+		IsActiveTask: true,
 	}
 	switch timerTask := task.GetInfo().(type) {
 	case *persistence.UserTimerTask:
 		ctx, cancel := context.WithTimeout(t.ctx, taskDefaultTimeout)
 		defer cancel()
-		return t.executeUserTimerTimeoutTask(ctx, timerTask)
+		return executeResponse, t.executeUserTimerTimeoutTask(ctx, timerTask)
 	case *persistence.ActivityTimeoutTask:
 		ctx, cancel := context.WithTimeout(t.ctx, taskDefaultTimeout)
 		defer cancel()
-		return t.executeActivityTimeoutTask(ctx, timerTask)
+		return executeResponse, t.executeActivityTimeoutTask(ctx, timerTask)
 	case *persistence.DecisionTimeoutTask:
 		ctx, cancel := context.WithTimeout(t.ctx, taskDefaultTimeout)
 		defer cancel()
-		return t.executeDecisionTimeoutTask(ctx, timerTask)
+		return executeResponse, t.executeDecisionTimeoutTask(ctx, timerTask)
 	case *persistence.WorkflowTimeoutTask:
 		ctx, cancel := context.WithTimeout(t.ctx, taskDefaultTimeout)
 		defer cancel()
-		return t.executeWorkflowTimeoutTask(ctx, timerTask)
+		return executeResponse, t.executeWorkflowTimeoutTask(ctx, timerTask)
 	case *persistence.ActivityRetryTimerTask:
 		ctx, cancel := context.WithTimeout(t.ctx, taskDefaultTimeout)
 		defer cancel()
-		return t.executeActivityRetryTimerTask(ctx, timerTask)
+		return executeResponse, t.executeActivityRetryTimerTask(ctx, timerTask)
 	case *persistence.WorkflowBackoffTimerTask:
 		ctx, cancel := context.WithTimeout(t.ctx, taskDefaultTimeout)
 		defer cancel()
-		return t.executeWorkflowBackoffTimerTask(ctx, timerTask)
+		return executeResponse, t.executeWorkflowBackoffTimerTask(ctx, timerTask)
 	case *persistence.DeleteHistoryEventTask:
 		ctx, cancel := context.WithTimeout(t.ctx, time.Duration(t.config.DeleteHistoryEventContextTimeout())*time.Second)
 		defer cancel()
-		return t.executeDeleteHistoryEventTask(ctx, timerTask)
+		return executeResponse, t.executeDeleteHistoryEventTask(ctx, timerTask)
 	default:
-		return errUnknownTimerTask
+		return executeResponse, errUnknownTimerTask
 	}
 }
 
@@ -672,6 +685,14 @@ func (t *timerActiveTaskExecutor) executeActivityRetryTimerTask(
 
 	release(nil) // release earlier as we don't need the lock anymore
 
+	shouldPush, err := shouldPushToMatching(ctx, t.shard, task)
+	if err != nil {
+		return err
+	}
+	if !shouldPush {
+		return nil
+	}
+
 	_, err = t.shard.GetService().GetMatchingClient().AddActivityTask(ctx, &types.AddActivityTaskRequest{
 		DomainUUID:                    targetDomainID,
 		SourceDomainUUID:              domainID,
@@ -766,6 +787,8 @@ func (t *timerActiveTaskExecutor) executeWorkflowTimeoutTask(
 		Memo:                                startAttributes.Memo,
 		SearchAttributes:                    startAttributes.SearchAttributes,
 		JitterStartSeconds:                  startAttributes.JitterStartSeconds,
+		CronOverlapPolicy:                   startAttributes.CronOverlapPolicy,
+		ActiveClusterSelectionPolicy:        startAttributes.ActiveClusterSelectionPolicy,
 	}
 	newMutableState, err := retryWorkflow(
 		ctx,
@@ -813,6 +836,9 @@ func (t *timerActiveTaskExecutor) updateWorkflowExecution(
 	}
 
 	now := t.shard.GetTimeSource().Now()
+	t.logger.Debugf("timerActiveTaskExecutor.updateWorkflowExecution calling UpdateWorkflowExecutionAsActive for wfID %s",
+		mutableState.GetExecutionInfo().WorkflowID,
+	)
 	err = wfContext.UpdateWorkflowExecutionAsActive(ctx, now)
 	if err != nil {
 		// if is shard ownership error, the shard context will stop the entire history engine

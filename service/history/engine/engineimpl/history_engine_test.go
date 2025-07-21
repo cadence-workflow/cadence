@@ -25,6 +25,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -48,6 +49,7 @@ import (
 	"github.com/uber/cadence/common/cluster"
 	commonconstants "github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/mocks"
@@ -146,6 +148,10 @@ func (s *engineSuite) SetupTest() {
 	s.mockDomainCache.EXPECT().GetDomain(constants.TestDomainName).Return(constants.TestLocalDomainEntry, nil).AnyTimes()
 	s.mockDomainCache.EXPECT().GetDomainID(constants.TestDomainName).Return(constants.TestDomainID, nil).AnyTimes()
 
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().ClusterNameForFailoverVersion(gomock.Any(), gomock.Any()).DoAndReturn(func(version int64, domainID string) (string, error) {
+		return s.mockShard.GetClusterMetadata().ClusterNameForFailoverVersion(version)
+	}).AnyTimes()
+
 	historyEventNotifier := events.NewNotifier(
 		clock.NewRealTimeSource(),
 		s.mockShard.Resource.MetricsClient,
@@ -167,11 +173,13 @@ func (s *engineSuite) SetupTest() {
 		tokenSerializer:      common.NewJSONTaskTokenSerializer(),
 		historyEventNotifier: historyEventNotifier,
 		config:               config.NewForTest(),
-		txProcessor:          s.mockTxProcessor,
-		timerProcessor:       s.mockTimerProcessor,
-		clientChecker:        cc.NewVersionChecker(),
-		eventsReapplier:      s.mockEventsReapplier,
-		workflowResetter:     s.mockWorkflowResetter,
+		queueProcessors: map[persistence.HistoryTaskCategory]queue.Processor{
+			persistence.HistoryTaskCategoryTransfer: s.mockTxProcessor,
+			persistence.HistoryTaskCategoryTimer:    s.mockTimerProcessor,
+		},
+		clientChecker:    cc.NewVersionChecker(),
+		eventsReapplier:  s.mockEventsReapplier,
+		workflowResetter: s.mockWorkflowResetter,
 	}
 	s.mockShard.SetEngine(h)
 	h.decisionHandler = decision.NewHandler(s.mockShard, h.executionCache, h.tokenSerializer)
@@ -694,7 +702,7 @@ func (s *engineSuite) TestQueryWorkflow_DirectlyThroughMatching() {
 	ms := execution.CreatePersistenceMutableState(s.T(), msBuilder)
 	gweResponse := &persistence.GetWorkflowExecutionResponse{State: ms}
 	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(gweResponse, nil).Once()
-	s.mockMatchingClient.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).Return(&types.QueryWorkflowResponse{QueryResult: []byte{1, 2, 3}}, nil)
+	s.mockMatchingClient.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).Return(&types.MatchingQueryWorkflowResponse{QueryResult: []byte{1, 2, 3}}, nil)
 	s.mockHistoryEngine.matchingClient = s.mockMatchingClient
 	request := &types.HistoryQueryWorkflowRequest{
 		DomainUUID: constants.TestDomainID,
@@ -915,7 +923,7 @@ func (s *engineSuite) TestQueryWorkflow_DecisionTaskDispatch_Unblocked() {
 	ms := execution.CreatePersistenceMutableState(s.T(), msBuilder)
 	gweResponse := &persistence.GetWorkflowExecutionResponse{State: ms}
 	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(gweResponse, nil).Once()
-	s.mockMatchingClient.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).Return(&types.QueryWorkflowResponse{QueryResult: []byte{1, 2, 3}}, nil)
+	s.mockMatchingClient.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).Return(&types.MatchingQueryWorkflowResponse{QueryResult: []byte{1, 2, 3}}, nil)
 	s.mockHistoryEngine.matchingClient = s.mockMatchingClient
 	waitGroup := &sync.WaitGroup{}
 	waitGroup.Add(1)
@@ -5443,41 +5451,15 @@ func TestRecordChildExecutionCompleted(t *testing.T) {
 					WorkflowID: "wid1",
 					RunID:      "312b2440-2859-4e50-a59f-d92a300a072d",
 				},
-				StartedID: 11,
 			},
 			mockSetup: func(ms *execution.MockMutableState) {
 				ms.EXPECT().IsWorkflowExecutionRunning().Return(true)
 				ms.EXPECT().GetChildExecutionInfo(int64(10)).Return(&persistence.ChildExecutionInfo{StartedID: commonconstants.EmptyEventID}, true)
-				ms.EXPECT().GetNextEventID().Return(int64(11)).Times(2)
+				ms.EXPECT().GetNextEventID().Return(int64(11)).Times(1)
 			},
 			wantErr: true,
 			assertErr: func(t *testing.T, err error) {
 				assert.Equal(t, workflow.ErrStaleState, err)
-			},
-		},
-		{
-			name: "pending child execution not started",
-			request: &types.RecordChildExecutionCompletedRequest{
-				DomainUUID:  "58f7998e-9c00-4827-bbd3-6a891b3ca0ca",
-				InitiatedID: 10,
-				WorkflowExecution: &types.WorkflowExecution{
-					WorkflowID: "wid",
-					RunID:      "4353ddce-ca34-4c78-9785-dc0b83af4bbc",
-				},
-				CompletedExecution: &types.WorkflowExecution{
-					WorkflowID: "wid1",
-					RunID:      "312b2440-2859-4e50-a59f-d92a300a072d",
-				},
-				StartedID: 11,
-			},
-			mockSetup: func(ms *execution.MockMutableState) {
-				ms.EXPECT().IsWorkflowExecutionRunning().Return(true)
-				ms.EXPECT().GetChildExecutionInfo(int64(10)).Return(&persistence.ChildExecutionInfo{StartedID: commonconstants.EmptyEventID}, true)
-				ms.EXPECT().GetNextEventID().Return(int64(12)).Times(1)
-			},
-			wantErr: true,
-			assertErr: func(t *testing.T, err error) {
-				assert.Equal(t, &types.EntityNotExistsError{Message: "Pending child execution not started."}, err)
 			},
 		},
 		{
@@ -5553,7 +5535,7 @@ func TestRecordChildExecutionCompleted(t *testing.T) {
 				timeSource:      mockShard.GetTimeSource(),
 				metricsClient:   metrics.NewClient(tally.NoopScope, metrics.History),
 				logger:          mockShard.GetLogger(),
-				updateWithActionFn: func(_ context.Context, _ execution.Cache, _ string, _ types.WorkflowExecution, _ bool, _ time.Time, actionFn func(wfContext execution.Context, mutableState execution.MutableState) error) error {
+				updateWithActionFn: func(_ context.Context, _ log.Logger, _ execution.Cache, _ string, _ types.WorkflowExecution, _ bool, _ time.Time, actionFn func(wfContext execution.Context, mutableState execution.MutableState) error) error {
 					return actionFn(nil, ms)
 				},
 			}
@@ -5566,4 +5548,10 @@ func TestRecordChildExecutionCompleted(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_createShardNameFromShardID(t *testing.T) {
+	shardID := 1
+	shardName := createShardNameFromShardID(shardID)
+	assert.Equal(t, fmt.Sprintf("history-engine-%d", shardID), shardName)
 }

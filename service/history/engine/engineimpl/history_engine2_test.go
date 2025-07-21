@@ -36,6 +36,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	commonconstants "github.com/uber/cadence/common/constants"
@@ -71,10 +72,11 @@ type (
 		mockEventsCache    *events.MockCache
 		mockDomainCache    *cache.MockDomainCache
 
-		historyEngine    *historyEngineImpl
-		mockExecutionMgr *mocks.ExecutionManager
-		mockHistoryV2Mgr *mocks.HistoryV2Manager
-		mockShardManager *mocks.ShardManager
+		historyEngine        *historyEngineImpl
+		mockExecutionMgr     *mocks.ExecutionManager
+		mockHistoryV2Mgr     *mocks.HistoryV2Manager
+		mockShardManager     *mocks.ShardManager
+		mockActiveClusterMgr *activecluster.MockManager
 
 		config *config.Config
 		logger log.Logger
@@ -119,12 +121,17 @@ func (s *engine2Suite) SetupTest() {
 	s.mockHistoryV2Mgr = s.mockShard.Resource.HistoryMgr
 	s.mockShardManager = s.mockShard.Resource.ShardMgr
 	s.mockEventsCache = s.mockShard.MockEventsCache
+	s.mockActiveClusterMgr = s.mockShard.Resource.ActiveClusterMgr
 	testDomainEntry := cache.NewLocalDomainCacheEntryForTest(
 		&p.DomainInfo{ID: constants.TestDomainID}, &p.DomainConfig{}, "",
 	)
 	s.mockDomainCache.EXPECT().GetDomainByID(gomock.Any()).Return(testDomainEntry, nil).AnyTimes()
 	s.mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return(constants.TestDomainID, nil).AnyTimes()
 	s.mockEventsCache.EXPECT().PutEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
+
+	s.mockShard.Resource.ActiveClusterMgr.EXPECT().ClusterNameForFailoverVersion(gomock.Any(), gomock.Any()).DoAndReturn(func(version int64, domainID string) (string, error) {
+		return s.mockShard.GetClusterMetadata().ClusterNameForFailoverVersion(version)
+	}).AnyTimes()
 
 	s.logger = s.mockShard.GetLogger()
 
@@ -143,8 +150,10 @@ func (s *engine2Suite) SetupTest() {
 		config:               s.config,
 		timeSource:           s.mockShard.GetTimeSource(),
 		historyEventNotifier: events.NewNotifier(clock.NewRealTimeSource(), metrics.NewClient(tally.NoopScope, metrics.History), func(string) int { return 0 }),
-		txProcessor:          s.mockTxProcessor,
-		timerProcessor:       s.mockTimerProcessor,
+		queueProcessors: map[p.HistoryTaskCategory]queue.Processor{
+			p.HistoryTaskCategoryTransfer: s.mockTxProcessor,
+			p.HistoryTaskCategoryTimer:    s.mockTimerProcessor,
+		},
 	}
 	s.mockShard.SetEngine(h)
 	h.decisionHandler = decision.NewHandler(s.mockShard, h.executionCache, h.tokenSerializer)
@@ -1145,8 +1154,11 @@ func (s *engine2Suite) TestRequestCancelWorkflowExecutionFail() {
 	s.IsType(&types.WorkflowExecutionAlreadyCompletedError{}, err)
 }
 
-func (s *engine2Suite) createExecutionStartedState(we types.WorkflowExecution, tl, identity string,
-	startDecision bool) execution.MutableState {
+func (s *engine2Suite) createExecutionStartedState(
+	we types.WorkflowExecution,
+	tl, identity string,
+	startDecision bool,
+) execution.MutableState {
 	msBuilder := execution.NewMutableStateBuilderWithEventV2(
 		s.historyEngine.shard,
 		s.logger,

@@ -23,70 +23,61 @@
 package sharddistributor
 
 import (
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/yarpc"
 
 	"github.com/uber/cadence/common"
-	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/log/testlogger"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/resource"
+	"github.com/uber/cadence/common/rpc"
 )
 
-func TestNewService(t *testing.T) {
+func TestLegacyServiceStartStop(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	testDispatcher := yarpc.NewDispatcher(yarpc.Config{Name: "test"})
 	ctrl := gomock.NewController(t)
+	factory := rpc.NewMockFactory(ctrl)
+	factory.EXPECT().GetDispatcher().Return(testDispatcher)
+
+	params := &resource.Params{
+		Logger:        testlogger.New(t),
+		MetricsClient: metrics.NewNoopMetricsClient(),
+		RPCFactory:    factory,
+		TimeSource:    clock.NewRealTimeSource(),
+	}
+
 	resourceMock := resource.NewMockResource(ctrl)
+	resourceMock.EXPECT().Start()
+	resourceMock.EXPECT().Stop()
 	factoryMock := resource.NewMockResourceFactory(ctrl)
 	factoryMock.EXPECT().NewResource(gomock.Any(), gomock.Any(), gomock.Any()).Return(resourceMock, nil).AnyTimes()
 
-	service, err := NewService(&resource.Params{}, factoryMock)
-	assert.NoError(t, err)
-	assert.NotNil(t, service)
-}
+	service, err := NewService(params, factoryMock)
+	require.NoError(t, err)
 
-func TestServiceStartStop(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	doneWG := sync.WaitGroup{}
+	doneWG.Add(1)
 
-	ctrl := gomock.NewController(t)
+	go func() {
+		defer doneWG.Done()
+		service.Start()
+	}()
 
-	testDispatcher := yarpc.NewDispatcher(yarpc.Config{Name: "test"})
-
-	resourceMock := resource.NewMockResource(ctrl)
-	resourceMock.EXPECT().GetLogger().Return(log.NewNoop()).AnyTimes()
-	resourceMock.EXPECT().GetMembershipResolver().Return(nil).AnyTimes()
-	resourceMock.EXPECT().GetMetricsClient().Return(nil).AnyTimes()
-	resourceMock.EXPECT().GetDispatcher().Return(testDispatcher).AnyTimes()
-	resourceMock.EXPECT().Start().Return()
-	resourceMock.EXPECT().Stop().Return()
-
-	service := &Service{
-		Resource: resourceMock,
-		status:   common.DaemonStatusInitialized,
-		stopC:    make(chan struct{}),
-	}
-
-	go service.Start()
-
-	time.Sleep(100 * time.Millisecond) // The code assumes the service is started when calling Stop
-	assert.Equal(t, int32(common.DaemonStatusStarted), atomic.LoadInt32(&service.status))
+	time.Sleep(time.Millisecond) // The code assumes the service is started when calling Stop
+	assert.Equal(t, common.DaemonStatusStarted, atomic.LoadInt32(&service.status))
 
 	service.Stop()
-	assert.Equal(t, int32(common.DaemonStatusStopped), atomic.LoadInt32(&service.status))
-}
-
-func TestStartAndStopDoesNotChangeStatusWhenAlreadyStopped(t *testing.T) {
-
-	service := &Service{
-		status: common.DaemonStatusStopped,
-	}
-
-	service.Start()
-	assert.Equal(t, int32(common.DaemonStatusStopped), atomic.LoadInt32(&service.status))
-
-	service.Stop()
-	assert.Equal(t, int32(common.DaemonStatusStopped), atomic.LoadInt32(&service.status))
+	success := common.AwaitWaitGroup(&doneWG, time.Second)
+	assert.True(t, success)
 }

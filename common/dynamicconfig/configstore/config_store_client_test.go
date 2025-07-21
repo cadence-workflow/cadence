@@ -36,6 +36,7 @@ import (
 	c "github.com/uber/cadence/common/dynamicconfig/configstore/config"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/metrics"
 	p "github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
@@ -318,7 +319,7 @@ func (s *configStoreClientSuite) SetupTest() {
 				DefaultShard: config.NonShardedStoreName,
 				Connections:  connections,
 			},
-		}, log.NewNoop(), p.DynamicConfig)
+		}, log.NewNoop(), metrics.NewNoopMetricsClient(), p.DynamicConfig)
 	s.Require().NoError(err)
 
 	s.mockManager = p.NewMockConfigStoreManager(s.mockController)
@@ -984,7 +985,7 @@ func (s *configStoreClientSuite) TestValidateKeyDataBlobPair() {
 }
 
 func (s *configStoreClientSuite) TestNewConfigStoreClient_NilPersistenceConfig() {
-	_, err := NewConfigStoreClient(&c.ClientConfig{}, nil, log.NewNoop(), p.DynamicConfig)
+	_, err := NewConfigStoreClient(&c.ClientConfig{}, nil, log.NewNoop(), metrics.NewNoopMetricsClient(), p.DynamicConfig)
 	s.Require().Error(err, "should fail when persistence config is nil")
 	s.Require().EqualError(err, "persistence cfg is nil")
 }
@@ -993,7 +994,7 @@ func (s *configStoreClientSuite) TestNewConfigStoreClient_MissingDefaultPersiste
 	persistenceCfg := &config.Persistence{
 		DataStores: map[string]config.DataStore{},
 	}
-	_, err := NewConfigStoreClient(&c.ClientConfig{}, persistenceCfg, log.NewNoop(), p.DynamicConfig)
+	_, err := NewConfigStoreClient(&c.ClientConfig{}, persistenceCfg, log.NewNoop(), metrics.NewNoopMetricsClient(), p.DynamicConfig)
 	s.Require().Error(err, "should fail when default persistence config is missing")
 	s.Require().EqualError(err, "default persistence config missing")
 }
@@ -1009,7 +1010,7 @@ func (s *configStoreClientSuite) TestNewConfigStoreClient_InvalidClientConfig() 
 		PollInterval: time.Millisecond,
 	}
 	logger := log.NewNoop()
-	_, err := NewConfigStoreClient(clientCfg, persistenceCfg, logger, p.DynamicConfig)
+	_, err := NewConfigStoreClient(clientCfg, persistenceCfg, logger, metrics.NewNoopMetricsClient(), p.DynamicConfig)
 	s.Require().Error(err, "should fail when client config is invalid")
 }
 

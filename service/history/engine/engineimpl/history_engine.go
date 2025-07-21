@@ -24,27 +24,23 @@ package engineimpl
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
-
-	"go.uber.org/cadence/.gen/go/cadence/workflowserviceclient"
 
 	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/client/wrappers/retryable"
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/client"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
-	ce "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	cndc "github.com/uber/cadence/common/ndc"
 	"github.com/uber/cadence/common/persistence"
-	"github.com/uber/cadence/common/quotas"
-	"github.com/uber/cadence/common/quotas/permember"
 	"github.com/uber/cadence/common/reconciliation/invariant"
-	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/types/mapper/proto"
 	hcommon "github.com/uber/cadence/service/history/common"
@@ -59,10 +55,8 @@ import (
 	"github.com/uber/cadence/service/history/replication"
 	"github.com/uber/cadence/service/history/reset"
 	"github.com/uber/cadence/service/history/shard"
-	"github.com/uber/cadence/service/history/task"
 	"github.com/uber/cadence/service/history/workflow"
-	"github.com/uber/cadence/service/history/workflowcache"
-	warchiver "github.com/uber/cadence/service/worker/archiver"
+	"github.com/uber/cadence/service/worker/archiver"
 )
 
 const (
@@ -90,8 +84,7 @@ type historyEngineImpl struct {
 	historyV2Mgr              persistence.HistoryManager
 	executionManager          persistence.ExecutionManager
 	visibilityMgr             persistence.VisibilityManager
-	txProcessor               queue.Processor
-	timerProcessor            queue.Processor
+	queueProcessors           map[persistence.HistoryTaskCategory]queue.Processor
 	nDCReplicator             ndc.HistoryReplicator
 	nDCActivityReplicator     ndc.ActivityReplicator
 	historyEventNotifier      events.Notifier
@@ -100,25 +93,32 @@ type historyEngineImpl struct {
 	metricsClient             metrics.Client
 	logger                    log.Logger
 	throttledLogger           log.Logger
+	activeClusterManager      activecluster.Manager
 	config                    *config.Config
-	archivalClient            warchiver.Client
+	archivalClient            archiver.Client
 	workflowResetter          reset.WorkflowResetter
-	queueTaskProcessor        task.Processor
 	replicationTaskProcessors []replication.TaskProcessor
 	replicationAckManager     replication.TaskAckManager
 	replicationTaskStore      *replication.TaskStore
 	replicationHydrator       replication.TaskHydrator
 	replicationMetricsEmitter *replication.MetricsEmitterImpl
-	publicClient              workflowserviceclient.Interface
 	eventsReapplier           ndc.EventsReapplier
 	matchingClient            matching.Client
 	rawMatchingClient         matching.Client
 	clientChecker             client.VersionChecker
 	replicationDLQHandler     replication.DLQHandler
 	failoverMarkerNotifier    failover.MarkerNotifier
-	wfIDCache                 workflowcache.WFCache
 
-	updateWithActionFn func(context.Context, execution.Cache, string, types.WorkflowExecution, bool, time.Time, func(wfContext execution.Context, mutableState execution.MutableState) error) error
+	updateWithActionFn func(
+		context.Context,
+		log.Logger,
+		execution.Cache,
+		string,
+		types.WorkflowExecution,
+		bool,
+		time.Time,
+		func(wfContext execution.Context, mutableState execution.MutableState) error,
+	) error
 }
 
 var (
@@ -137,15 +137,12 @@ func NewEngineWithShardContext(
 	shard shard.Context,
 	visibilityMgr persistence.VisibilityManager,
 	matching matching.Client,
-	publicClient workflowserviceclient.Interface,
 	historyEventNotifier events.Notifier,
 	config *config.Config,
 	replicationTaskFetchers replication.TaskFetchers,
 	rawMatchingClient matching.Client,
-	queueTaskProcessor task.Processor,
 	failoverCoordinator failover.Coordinator,
-	wfIDCache workflowcache.WFCache,
-	queueProcessorFactory queue.ProcessorFactory,
+	queueFactories []queue.Factory,
 ) engine.Engine {
 	currentClusterName := shard.GetService().GetClusterMetadata().GetCurrentClusterName()
 
@@ -178,43 +175,17 @@ func NewEngineWithShardContext(
 		executionCache:       executionCache,
 		logger:               logger.WithTags(tag.ComponentHistoryEngine),
 		throttledLogger:      shard.GetThrottledLogger().WithTags(tag.ComponentHistoryEngine),
+		activeClusterManager: shard.GetActiveClusterManager(),
 		metricsClient:        shard.GetMetricsClient(),
 		historyEventNotifier: historyEventNotifier,
 		config:               config,
-		archivalClient: warchiver.NewClient(
-			shard.GetMetricsClient(),
-			logger,
-			publicClient,
-			shard.GetConfig().NumArchiveSystemWorkflows,
-			quotas.NewDynamicRateLimiter(config.ArchiveRequestRPS.AsFloat64()),
-			quotas.NewDynamicRateLimiter(func() float64 {
-				return permember.PerMember(
-					service.History,
-					float64(config.ArchiveInlineHistoryGlobalRPS()),
-					float64(config.ArchiveInlineHistoryRPS()),
-					shard.GetService().GetMembershipResolver(),
-				)
-			}),
-			quotas.NewDynamicRateLimiter(func() float64 {
-				return permember.PerMember(
-					service.History,
-					float64(config.ArchiveInlineVisibilityGlobalRPS()),
-					float64(config.ArchiveInlineVisibilityRPS()),
-					shard.GetService().GetMembershipResolver(),
-				)
-			}),
-			shard.GetService().GetArchiverProvider(),
-			config.AllowArchivingIncompleteHistory,
-		),
 		workflowResetter: reset.NewWorkflowResetter(
 			shard,
 			executionCache,
 			logger,
 		),
-		publicClient:           publicClient,
 		matchingClient:         matching,
 		rawMatchingClient:      rawMatchingClient,
-		queueTaskProcessor:     queueTaskProcessor,
 		clientChecker:          client.NewVersionChecker(),
 		failoverMarkerNotifier: failoverMarkerNotifier,
 		replicationHydrator:    replicationHydrator,
@@ -233,8 +204,8 @@ func NewEngineWithShardContext(
 		replicationTaskStore: replicationTaskStore,
 		replicationMetricsEmitter: replication.NewMetricsEmitter(
 			shard.GetShardID(), shard, replicationReader, shard.GetMetricsClient()),
-		wfIDCache:          wfIDCache,
 		updateWithActionFn: workflow.UpdateWithAction,
+		queueProcessors:    make(map[persistence.HistoryTaskCategory]queue.Processor),
 	}
 	historyEngImpl.decisionHandler = decision.NewHandler(
 		shard,
@@ -248,25 +219,13 @@ func NewEngineWithShardContext(
 	)
 	openExecutionCheck := invariant.NewConcreteExecutionExists(pRetry, shard.GetDomainCache())
 
-	historyEngImpl.txProcessor = queueProcessorFactory.NewTransferQueueProcessor(
-		shard,
-		historyEngImpl,
-		queueTaskProcessor,
-		executionCache,
-		historyEngImpl.workflowResetter,
-		historyEngImpl.archivalClient,
-		openExecutionCheck,
-		historyEngImpl.wfIDCache,
-	)
-
-	historyEngImpl.timerProcessor = queueProcessorFactory.NewTimerQueueProcessor(
-		shard,
-		historyEngImpl,
-		queueTaskProcessor,
-		executionCache,
-		historyEngImpl.archivalClient,
-		openExecutionCheck,
-	)
+	for _, factory := range queueFactories {
+		historyEngImpl.queueProcessors[factory.Category()] = factory.CreateQueue(
+			shard,
+			executionCache,
+			openExecutionCheck,
+		)
+	}
 
 	historyEngImpl.eventsReapplier = ndc.NewEventsReapplier(shard.GetMetricsClient(), logger)
 
@@ -296,22 +255,16 @@ func NewEngineWithShardContext(
 	}
 	for _, replicationTaskFetcher := range replicationTaskFetchers.GetFetchers() {
 		sourceCluster := replicationTaskFetcher.GetSourceCluster()
-		// Intentionally use the raw client to create its own retry policy
-		adminClient := shard.GetService().GetClientBean().GetRemoteAdminClient(sourceCluster)
-		adminRetryableClient := retryable.NewAdminClient(
-			adminClient,
-			common.CreateReplicationServiceBusyRetryPolicy(),
-			common.IsServiceBusyError,
-		)
 		historyResender := cndc.NewHistoryResender(
 			shard.GetDomainCache(),
-			adminRetryableClient,
+			shard.GetService().GetClientBean(),
 			resendFunc,
 			nil,
 			openExecutionCheck,
 			shard.GetLogger().WithTags(tag.ComponentReplicatorQueue, tag.ActiveClusterName(sourceCluster)),
 		)
 		replicationTaskExecutor := replication.NewTaskExecutor(
+			sourceCluster,
 			shard,
 			shard.GetDomainCache(),
 			historyResender,
@@ -328,6 +281,7 @@ func NewEngineWithShardContext(
 			shard.GetMetricsClient(),
 			replicationTaskFetcher,
 			replicationTaskExecutor,
+			shard.GetTimeSource(),
 		)
 		replicationTaskProcessors = append(replicationTaskProcessors, replicationTaskProcessor)
 	}
@@ -346,8 +300,9 @@ func (e *historyEngineImpl) Start() {
 	e.logger.Info("History engine state changed", tag.LifeCycleStarting)
 	defer e.logger.Info("History engine state changed", tag.LifeCycleStarted)
 
-	e.txProcessor.Start()
-	e.timerProcessor.Start()
+	for _, processor := range e.queueProcessors {
+		processor.Start()
+	}
 	e.replicationDLQHandler.Start()
 	e.replicationMetricsEmitter.Start()
 
@@ -372,8 +327,9 @@ func (e *historyEngineImpl) Stop() {
 	e.logger.Info("History engine state changed", tag.LifeCycleStopping)
 	defer e.logger.Info("History engine state changed", tag.LifeCycleStopped)
 
-	e.txProcessor.Stop()
-	e.timerProcessor.Stop()
+	for _, processor := range e.queueProcessors {
+		processor.Stop()
+	}
 	e.replicationDLQHandler.Stop()
 	e.replicationMetricsEmitter.Stop()
 
@@ -384,7 +340,7 @@ func (e *historyEngineImpl) Stop() {
 	e.failoverMarkerNotifier.Stop()
 
 	// unset the failover callback
-	e.shard.GetDomainCache().UnregisterDomainChangeCallback(e.shard.GetShardID())
+	e.shard.GetDomainCache().UnregisterDomainChangeCallback(createShardNameFromShardID(e.shard.GetShardID()))
 }
 
 // ScheduleDecisionTask schedules a decision if no outstanding decision found
@@ -406,8 +362,9 @@ func (e *historyEngineImpl) SyncShardStatus(ctx context.Context, request *types.
 	// 2. notify the timer gate in the timer queue standby processor
 	// 3. notify the transfer (essentially a no op, just put it here so it looks symmetric)
 	e.shard.SetCurrentTime(clusterName, now)
-	e.txProcessor.NotifyNewTask(clusterName, &hcommon.NotifyTaskInfo{Tasks: []persistence.Task{}})
-	e.timerProcessor.NotifyNewTask(clusterName, &hcommon.NotifyTaskInfo{Tasks: []persistence.Task{}})
+	for _, processor := range e.queueProcessors {
+		processor.NotifyNewTask(clusterName, &hcommon.NotifyTaskInfo{Tasks: []persistence.Task{}})
+	}
 	return nil
 }
 
@@ -417,19 +374,15 @@ func (e *historyEngineImpl) SyncActivity(ctx context.Context, request *types.Syn
 }
 
 func (e *historyEngineImpl) newDomainNotActiveError(
-	domainName string,
+	domainEntry *cache.DomainCacheEntry,
 	failoverVersion int64,
 ) error {
-	clusterMetadata := e.shard.GetService().GetClusterMetadata()
-	clusterName, err := clusterMetadata.ClusterNameForFailoverVersion(failoverVersion)
+	activeClusterName, err := e.shard.GetActiveClusterManager().ClusterNameForFailoverVersion(failoverVersion, domainEntry.GetInfo().ID)
 	if err != nil {
-		clusterName = "_unknown_"
+		activeClusterName = "_unknown_"
 	}
-	return ce.NewDomainNotActiveError(
-		domainName,
-		clusterMetadata.GetCurrentClusterName(),
-		clusterName,
-	)
+
+	return domainEntry.NewDomainNotActiveError(e.currentClusterName, activeClusterName)
 }
 
 func (e *historyEngineImpl) checkForHistoryCorruptions(ctx context.Context, mutableState execution.MutableState) (bool, error) {
@@ -474,4 +427,8 @@ func getScheduleID(activityID string, mutableState execution.MutableState) (int6
 
 func (e *historyEngineImpl) getActiveDomainByID(id string) (*cache.DomainCacheEntry, error) {
 	return cache.GetActiveDomainByID(e.shard.GetDomainCache(), e.clusterMetadata.GetCurrentClusterName(), id)
+}
+
+func createShardNameFromShardID(shardID int) string {
+	return fmt.Sprintf("history-engine-%d", shardID)
 }

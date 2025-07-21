@@ -84,8 +84,8 @@ func TestShadowed(t *testing.T) {
 				if test.shadow {
 					shadowBurst = 1
 				}
-				primary := NewCountedLimiter(clock.NewMockRatelimiter(ts, rate.Every(time.Second), primaryBurst))
-				shadow := NewCountedLimiter(clock.NewMockRatelimiter(ts, rate.Every(time.Second), shadowBurst))
+				primary := NewCountedLimiter(clock.NewRateLimiterWithTimeSource(ts, rate.Every(time.Second), primaryBurst))
+				shadow := NewCountedLimiter(clock.NewRateLimiterWithTimeSource(ts, rate.Every(time.Second), shadowBurst))
 				s := NewShadowedLimiter(primary, shadow)
 
 				assert.Equalf(t, test.allowed, s.Allow(), "should match primary behavior: %v", test.allowed)
@@ -101,8 +101,8 @@ func TestShadowed(t *testing.T) {
 				if test.shadow {
 					shadowBurst = 1
 				}
-				primary := NewCountedLimiter(clock.NewMockRatelimiter(ts, rate.Every(time.Second), primaryBurst))
-				shadow := NewCountedLimiter(clock.NewMockRatelimiter(ts, rate.Every(time.Second), shadowBurst))
+				primary := NewCountedLimiter(clock.NewRateLimiterWithTimeSource(ts, rate.Every(time.Second), primaryBurst))
+				shadow := NewCountedLimiter(clock.NewRateLimiterWithTimeSource(ts, rate.Every(time.Second), shadowBurst))
 				s := NewShadowedLimiter(primary, shadow)
 
 				res := s.Reserve()
@@ -162,8 +162,8 @@ func TestShadowed(t *testing.T) {
 		t.Run("only returns primary behavior", func(t *testing.T) {
 			t.Run("allowed", func(t *testing.T) {
 				ts := clock.NewMockedTimeSource()
-				primary := NewCountedLimiter(clock.NewMockRatelimiter(ts, 1, 1)) // allows an event
-				shadow := NewCountedLimiter(clock.NewMockRatelimiter(ts, 0, 0))  // always rejects
+				primary := NewCountedLimiter(clock.NewRateLimiterWithTimeSource(ts, 1, 1)) // allows an event
+				shadow := NewCountedLimiter(clock.NewRateLimiterWithTimeSource(ts, 0, 0))  // always rejects
 				s := NewShadowedLimiter(primary, shadow)
 				res := s.Reserve()
 				res.Used(res.Allow())
@@ -174,8 +174,8 @@ func TestShadowed(t *testing.T) {
 			})
 			t.Run("rejected", func(t *testing.T) {
 				ts := clock.NewMockedTimeSource()
-				primary := NewCountedLimiter(clock.NewMockRatelimiter(ts, 0, 0)) // always rejects
-				shadow := NewCountedLimiter(clock.NewMockRatelimiter(ts, 1, 1))  // allow an event
+				primary := NewCountedLimiter(clock.NewRateLimiterWithTimeSource(ts, 0, 0)) // always rejects
+				shadow := NewCountedLimiter(clock.NewRateLimiterWithTimeSource(ts, 1, 1))  // allow an event
 				s := NewShadowedLimiter(primary, shadow)
 				res := s.Reserve()
 				res.Used(res.Allow())
@@ -189,7 +189,7 @@ func TestShadowed(t *testing.T) {
 		})
 	})
 	t.Run("limit", func(t *testing.T) {
-		l := NewShadowedLimiter(&allowlimiter{}, quotas.NewSimpleRateLimiter(t, 0))
+		l := NewShadowedLimiter(&allowlimiter{}, clock.NewRatelimiter(rate.Limit(0), 1))
 		assert.Equal(t, rate.Inf, l.Limit(), "should return the primary limit, not shadowed")
 	})
 }

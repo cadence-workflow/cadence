@@ -28,24 +28,25 @@ import (
 
 const (
 	DefaultTestCase = "testdata/replication_simulation_default.yaml"
-	DomainName      = "test-domain"
 	TasklistName    = "test-tasklist"
-	WorkflowName    = "test-workflow"
-	ActivityName    = "test-activity"
 
 	TimerInterval = 5 * time.Second
 )
 
 type WorkflowInput struct {
-	Duration time.Duration
+	Duration      time.Duration
+	ActivityCount int
 }
 
 type WorkflowOutput struct {
 	Count int
 }
 
-func WorkerIdentityFor(clusterName string) string {
-	return fmt.Sprintf("worker-%s", clusterName)
+func WorkerIdentityFor(clusterName string, domainName string) string {
+	if domainName == "" {
+		return fmt.Sprintf("worker-%s", clusterName)
+	}
+	return fmt.Sprintf("worker-%s-%s", domainName, clusterName)
 }
 
 func Logf(t *testing.T, msg string, args ...interface{}) {

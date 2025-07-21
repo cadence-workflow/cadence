@@ -448,6 +448,10 @@ func constructStartWorkflowRequest(c *cli.Context) (*types.StartWorkflowExecutio
 		startRequest.FirstRunAtTimeStamp = common.Int64Ptr(t.UnixNano())
 	}
 
+	if c.IsSet(FlagCronOverlapPolicy) {
+		startRequest.CronOverlapPolicy = types.CronOverlapPolicy(c.Int(FlagCronOverlapPolicy)).Ptr()
+	}
+
 	headerFields, err := processHeader(c)
 	if err != nil {
 		return nil, fmt.Errorf("error when process header: %w", err)
@@ -822,6 +826,7 @@ func constructSignalWithStartWorkflowRequest(c *cli.Context) (*types.SignalWithS
 		WorkflowIDReusePolicy:               startRequest.WorkflowIDReusePolicy,
 		RetryPolicy:                         startRequest.RetryPolicy,
 		CronSchedule:                        startRequest.CronSchedule,
+		CronOverlapPolicy:                   startRequest.CronOverlapPolicy,
 		Memo:                                startRequest.Memo,
 		SearchAttributes:                    startRequest.SearchAttributes,
 		Header:                              startRequest.Header,
@@ -1125,18 +1130,19 @@ type describeWorkflowExecutionResponse struct {
 
 // workflowExecutionInfo has same fields as types.WorkflowExecutionInfo, but has datetime instead of raw time
 type workflowExecutionInfo struct {
-	Execution        *types.WorkflowExecution
-	Type             *types.WorkflowType
-	StartTime        *string // change from *int64
-	CloseTime        *string // change from *int64
-	CloseStatus      *types.WorkflowExecutionCloseStatus
-	HistoryLength    int64
-	ParentDomainID   *string
-	ParentExecution  *types.WorkflowExecution
-	Memo             *types.Memo
-	SearchAttributes map[string]interface{}
-	AutoResetPoints  *types.ResetPoints
-	PartitionConfig  map[string]string
+	Execution         *types.WorkflowExecution
+	Type              *types.WorkflowType
+	StartTime         *string // change from *int64
+	CloseTime         *string // change from *int64
+	CloseStatus       *types.WorkflowExecutionCloseStatus
+	HistoryLength     int64
+	ParentDomainID    *string
+	ParentExecution   *types.WorkflowExecution
+	Memo              *types.Memo
+	SearchAttributes  map[string]interface{}
+	AutoResetPoints   *types.ResetPoints
+	PartitionConfig   map[string]string
+	CronOverlapPolicy *types.CronOverlapPolicy
 }
 
 // pendingActivityInfo has same fields as types.PendingActivityInfo, but different field type for better display
@@ -1175,18 +1181,19 @@ func convertDescribeWorkflowExecutionResponse(resp *types.DescribeWorkflowExecut
 		return nil, fmt.Errorf("error converting search attributes: %w", err)
 	}
 	executionInfo := workflowExecutionInfo{
-		Execution:        info.Execution,
-		Type:             info.Type,
-		StartTime:        common.StringPtr(timestampToString(info.GetStartTime(), false)),
-		CloseTime:        common.StringPtr(timestampToString(info.GetCloseTime(), false)),
-		CloseStatus:      info.CloseStatus,
-		HistoryLength:    info.HistoryLength,
-		ParentDomainID:   info.ParentDomainID,
-		ParentExecution:  info.ParentExecution,
-		Memo:             info.Memo,
-		SearchAttributes: searchattributes,
-		AutoResetPoints:  info.AutoResetPoints,
-		PartitionConfig:  info.PartitionConfig,
+		Execution:         info.Execution,
+		Type:              info.Type,
+		StartTime:         common.StringPtr(timestampToString(info.GetStartTime(), false)),
+		CloseTime:         common.StringPtr(timestampToString(info.GetCloseTime(), false)),
+		CloseStatus:       info.CloseStatus,
+		HistoryLength:     info.HistoryLength,
+		ParentDomainID:    info.ParentDomainID,
+		ParentExecution:   info.ParentExecution,
+		Memo:              info.Memo,
+		SearchAttributes:  searchattributes,
+		AutoResetPoints:   info.AutoResetPoints,
+		PartitionConfig:   info.PartitionConfig,
+		CronOverlapPolicy: info.CronOverlapPolicy,
 	}
 
 	var pendingActs []*pendingActivityInfo
@@ -1356,7 +1363,7 @@ func newWorkflowRow(workflow *types.WorkflowExecutionInfo) (WorkflowRow, error) 
 		WorkflowType:     workflow.Type.GetName(),
 		WorkflowID:       workflow.Execution.GetWorkflowID(),
 		RunID:            workflow.Execution.GetRunID(),
-		TaskList:         workflow.TaskList,
+		TaskList:         workflow.TaskList.GetName(),
 		IsCron:           workflow.IsCron,
 		StartTime:        time.Unix(0, workflow.GetStartTime()),
 		ExecutionTime:    time.Unix(0, workflow.GetExecutionTime()),

@@ -45,3 +45,6 @@ pinotconfig:
   table: "cadence_visibility_pinot"
   migration:
     enabled: true
+dynamicclientconfig:
+  filepath: "testdata/dynamicconfig/integration_test.yaml"
+  pollInterval: "10s"

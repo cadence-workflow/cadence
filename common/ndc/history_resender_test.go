@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/client"
 	"github.com/uber/cadence/client/admin"
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/common"
@@ -51,6 +52,7 @@ type (
 
 		controller        *gomock.Controller
 		mockDomainCache   *cache.MockDomainCache
+		mockClientBean    *client.MockBean
 		mockAdminClient   *admin.MockClient
 		mockHistoryClient *history.MockClient
 
@@ -76,7 +78,7 @@ func (s *historyResenderSuite) SetupTest() {
 	s.mockAdminClient = admin.NewMockClient(s.controller)
 	s.mockHistoryClient = history.NewMockClient(s.controller)
 	s.mockDomainCache = cache.NewMockDomainCache(s.controller)
-
+	s.mockClientBean = client.NewMockBean(s.controller)
 	s.logger = testlogger.New(s.Suite.T())
 
 	s.domainID = uuid.New()
@@ -99,7 +101,7 @@ func (s *historyResenderSuite) SetupTest() {
 
 	s.rereplicator = NewHistoryResender(
 		s.mockDomainCache,
-		s.mockAdminClient,
+		s.mockClientBean,
 		func(ctx context.Context, request *types.ReplicateEventsV2Request) error {
 			return s.mockHistoryClient.ReplicateEventsV2(ctx, request)
 		},
@@ -114,6 +116,7 @@ func (s *historyResenderSuite) TearDownTest() {
 }
 
 func (s *historyResenderSuite) TestSendSingleWorkflowHistory() {
+	remoteCluster := "remote-cluster"
 	workflowID := "some random workflow ID"
 	runID := uuid.New()
 	startEventID := int64(123)
@@ -142,6 +145,7 @@ func (s *historyResenderSuite) TestSendSingleWorkflowHistory() {
 		},
 	}
 
+	s.mockClientBean.EXPECT().GetRemoteAdminClient(remoteCluster).Return(s.mockAdminClient, nil).Times(2)
 	s.mockAdminClient.EXPECT().GetWorkflowExecutionRawHistoryV2(
 		gomock.Any(),
 		&types.GetWorkflowExecutionRawHistoryV2Request{
@@ -195,6 +199,7 @@ func (s *historyResenderSuite) TestSendSingleWorkflowHistory() {
 		}).Return(nil).Times(2)
 
 	err := s.rereplicator.SendSingleWorkflowHistory(
+		remoteCluster,
 		s.domainID,
 		workflowID,
 		runID,
@@ -293,6 +298,7 @@ func (s *historyResenderSuite) TestSendReplicationRawRequest_Err() {
 }
 
 func (s *historyResenderSuite) TestGetHistory() {
+	remoteCluster := "remote-cluster"
 	workflowID := "some random workflow ID"
 	runID := uuid.New()
 	startEventID := int64(123)
@@ -311,6 +317,7 @@ func (s *historyResenderSuite) TestGetHistory() {
 		}},
 		NextPageToken: nextTokenOut,
 	}
+	s.mockClientBean.EXPECT().GetRemoteAdminClient(remoteCluster).Return(s.mockAdminClient, nil).Times(1)
 	s.mockAdminClient.EXPECT().GetWorkflowExecutionRawHistoryV2(gomock.Any(), &types.GetWorkflowExecutionRawHistoryV2Request{
 		Domain: s.domainName,
 		Execution: &types.WorkflowExecution{
@@ -327,6 +334,7 @@ func (s *historyResenderSuite) TestGetHistory() {
 
 	out, err := s.rereplicator.getHistory(
 		context.Background(),
+		remoteCluster,
 		s.domainName,
 		workflowID,
 		runID,
@@ -348,7 +356,7 @@ func (s *historyResenderSuite) TestCurrentExecutionCheck() {
 	invariantMock := invariant.NewMockInvariant(s.controller)
 	s.rereplicator = NewHistoryResender(
 		s.mockDomainCache,
-		s.mockAdminClient,
+		s.mockClientBean,
 		func(ctx context.Context, request *types.ReplicateEventsV2Request) error {
 			return s.mockHistoryClient.ReplicateEventsV2(ctx, request)
 		},

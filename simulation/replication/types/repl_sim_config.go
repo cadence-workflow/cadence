@@ -44,17 +44,31 @@ import (
 type ReplicationSimulationOperation string
 
 const (
-	ReplicationSimulationOperationStartWorkflow ReplicationSimulationOperation = "start_workflow"
-	ReplicationSimulationOperationFailover      ReplicationSimulationOperation = "failover"
-	ReplicationSimulationOperationValidate      ReplicationSimulationOperation = "validate"
+	ReplicationSimulationOperationStartWorkflow               ReplicationSimulationOperation = "start_workflow"
+	ReplicationSimulationOperationResetWorkflow               ReplicationSimulationOperation = "reset_workflow"
+	ReplicationSimulationOperationChangeActiveClusters        ReplicationSimulationOperation = "change_active_clusters"
+	ReplicationSimulationOperationValidate                    ReplicationSimulationOperation = "validate"
+	ReplicationSimulationOperationQueryWorkflow               ReplicationSimulationOperation = "query_workflow"
+	ReplicationSimulationOperationSignalWithStartWorkflow     ReplicationSimulationOperation = "signal_with_start_workflow"
+	ReplicationSimulationOperationMigrateDomainToActiveActive ReplicationSimulationOperation = "migrate_domain_to_active_active"
 )
 
 type ReplicationSimulationConfig struct {
+	// Clusters is the map of all clusters
 	Clusters map[string]*Cluster `yaml:"clusters"`
 
+	// PrimaryCluster is used for domain registration
 	PrimaryCluster string `yaml:"primaryCluster"`
 
+	Domains map[string]ReplicationDomainConfig `yaml:"domains"`
+
 	Operations []*Operation `yaml:"operations"`
+}
+
+type ReplicationDomainConfig struct {
+	ActiveClusterName string `yaml:"activeClusterName"`
+
+	ActiveClustersByRegion map[string]string `yaml:"activeClustersByRegion"`
 }
 
 type Operation struct {
@@ -62,11 +76,24 @@ type Operation struct {
 	At      time.Duration                  `yaml:"at"`
 	Cluster string                         `yaml:"cluster"`
 
-	WorkflowID       string        `yaml:"workflowID"`
-	WorkflowDuration time.Duration `yaml:"workflowDuration"`
+	WorkflowType                         string        `yaml:"workflowType"`
+	WorkflowID                           string        `yaml:"workflowID"`
+	WorkflowExecutionStartToCloseTimeout time.Duration `yaml:"workflowExecutionStartToCloseTimeout"`
+	WorkflowDuration                     time.Duration `yaml:"workflowDuration"`
+	ActivityCount                        int           `yaml:"activityCount"`
 
-	NewActiveCluster   string `yaml:"newActiveCluster"`
-	FailovertimeoutSec *int32 `yaml:"failoverTimeoutSec"`
+	Query            string `yaml:"query"`
+	ConsistencyLevel string `yaml:"consistencyLevel"`
+
+	SignalName  string `yaml:"signalName"`
+	SignalInput any    `yaml:"signalInput"`
+
+	EventID int64 `yaml:"eventID"`
+
+	Domain                    string            `yaml:"domain"`
+	NewActiveCluster          string            `yaml:"newActiveCluster"`
+	NewActiveClustersByRegion map[string]string `yaml:"newActiveClustersByRegion"`
+	FailoverTimeout           *int32            `yaml:"failoverTimeoutSec"`
 
 	Want Validation `yaml:"want"`
 }
@@ -75,6 +102,8 @@ type Validation struct {
 	Status                      string `yaml:"status"`
 	StartedByWorkersInCluster   string `yaml:"startedByWorkersInCluster"`
 	CompletedByWorkersInCluster string `yaml:"completedByWorkersInCluster"`
+	Error                       string `yaml:"error"`
+	QueryResult                 any    `yaml:"queryResult"`
 }
 
 type Cluster struct {
@@ -100,6 +129,7 @@ func LoadConfig() (*ReplicationSimulationConfig, error) {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
+	fmt.Printf("Loaded config from path: %s\n", path)
 	return &cfg, nil
 }
 
@@ -140,8 +170,13 @@ func (s *ReplicationSimulationConfig) MustInitClientsFor(t *testing.T, clusterNa
 	Logf(t, "Initialized clients for cluster %s", clusterName)
 }
 
-func (s *ReplicationSimulationConfig) MustRegisterDomain(t *testing.T) {
-	Logf(t, "Registering domain: %s", DomainName)
+func (s *ReplicationSimulationConfig) IsActiveActiveDomain(domainName string) bool {
+	return len(s.Domains[domainName].ActiveClustersByRegion) > 0
+}
+
+func (s *ReplicationSimulationConfig) MustRegisterDomain(t *testing.T, domainName string, domainCfg ReplicationDomainConfig) {
+	Logf(t, "Registering domain: %s", domainName)
+
 	var clusters []*types.ClusterReplicationConfiguration
 	for name := range s.Clusters {
 		clusters = append(clusters, &types.ClusterReplicationConfiguration{
@@ -150,13 +185,31 @@ func (s *ReplicationSimulationConfig) MustRegisterDomain(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	err := s.MustGetFrontendClient(t, s.PrimaryCluster).RegisterDomain(ctx, &types.RegisterDomainRequest{
-		Name:                                   DomainName,
+	req := &types.RegisterDomainRequest{
+		Name:                                   domainName,
 		Clusters:                               clusters,
 		WorkflowExecutionRetentionPeriodInDays: 1,
-		ActiveClusterName:                      s.PrimaryCluster,
 		IsGlobalDomain:                         true,
-	})
-	require.NoError(t, err, "failed to register domain")
-	Logf(t, "Registered domain: %s", DomainName)
+	}
+
+	if len(domainCfg.ActiveClusterName) > 0 {
+		req.ActiveClusterName = domainCfg.ActiveClusterName
+	} else if len(domainCfg.ActiveClustersByRegion) > 0 {
+		req.ActiveClustersByRegion = domainCfg.ActiveClustersByRegion
+	} else {
+		require.Fail(t, "activeClusterName or activeClustersByRegion is required but missing for domain %s", domainName)
+	}
+
+	err := s.MustGetFrontendClient(t, s.PrimaryCluster).RegisterDomain(ctx, req)
+
+	if err != nil {
+		if _, ok := err.(*types.DomainAlreadyExistsError); !ok {
+			require.NoError(t, err, "failed to register domain")
+		} else {
+			Logf(t, "Domains already exists: %s", domainName)
+		}
+		return
+	}
+
+	Logf(t, "Registered domain: %s", domainName)
 }

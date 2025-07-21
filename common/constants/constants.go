@@ -316,3 +316,6 @@ func GetTaskPriority(
 ) int {
 	return class | subClass
 }
+
+// GRPCConnectionClosingError is the error message returned when a gRPC client connection is closing
+const GRPCConnectionClosingError = "grpc: the client connection is closing"

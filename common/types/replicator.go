@@ -93,6 +93,8 @@ func (e DomainOperation) String() string {
 		return "Create"
 	case 1:
 		return "Update"
+	case 2:
+		return "Delete"
 	}
 	return fmt.Sprintf("DomainOperation(%d)", w)
 }
@@ -105,6 +107,9 @@ func (e *DomainOperation) UnmarshalText(value []byte) error {
 		return nil
 	case "UPDATE":
 		*e = DomainOperationUpdate
+		return nil
+	case "DELETE":
+		*e = DomainOperationDelete
 		return nil
 	default:
 		val, err := strconv.ParseInt(s, 10, 32)
@@ -126,6 +131,8 @@ const (
 	DomainOperationCreate DomainOperation = iota
 	// DomainOperationUpdate is an option for DomainOperation
 	DomainOperationUpdate
+	// DomainOperationDelete is an option for DomainOperation
+	DomainOperationDelete
 )
 
 // DomainTaskAttributes is an internal type (TBD...)

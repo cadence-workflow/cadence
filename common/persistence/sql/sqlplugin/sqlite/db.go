@@ -27,6 +27,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
+	"github.com/uber/cadence/common/persistence/sql/sqldriver"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin/mysql"
 
@@ -47,15 +48,29 @@ var (
 // sqlplugin.ErrorChecker is customized for sqlite
 type DB struct {
 	*mysql.DB
+
+	converter    mysql.DataConverter
+	driver       sqldriver.Driver
+	originalDBs  []*sqlx.DB
+	numDBShards  int
+	databaseName string
 }
 
 // NewDB returns an instance of DB, which contains a new created mysql.DB with sqlite specific methods
-func NewDB(xdbs []*sqlx.DB, tx *sqlx.Tx, dbShardID int, numDBShards int) (*DB, error) {
-	mysqlDB, err := mysql.NewDB(xdbs, tx, dbShardID, numDBShards, newConverter())
+func NewDB(xdbs []*sqlx.DB, tx *sqlx.Tx, dbShardID int, numDBShards int, dataConverter mysql.DataConverter, databaseName string) (*DB, error) {
+	driver, err := sqldriver.NewDriver(xdbs, tx, dbShardID)
 	if err != nil {
 		return nil, err
 	}
-	return &DB{DB: mysqlDB}, nil
+
+	return &DB{
+		DB:           mysql.NewDBWithDriver(xdbs, driver, numDBShards, dataConverter),
+		driver:       driver,
+		originalDBs:  xdbs,
+		numDBShards:  numDBShards,
+		converter:    dataConverter,
+		databaseName: databaseName,
+	}, nil
 }
 
 // PluginName returns the name of the plugin
@@ -63,12 +78,20 @@ func (mdb *DB) PluginName() string {
 	return PluginName
 }
 
-// BeginTX starts a new transaction and returns a new Tx
-func (mdb *DB) BeginTX(ctx context.Context, dbShardID int) (sqlplugin.Tx, error) {
-	mysqlTX, err := mdb.DB.BeginTx(ctx, dbShardID)
+// BeginTx starts a new transaction and returns a new Tx
+func (mdb *DB) BeginTx(ctx context.Context, dbShardID int) (sqlplugin.Tx, error) {
+	xtx, err := mdb.driver.BeginTxx(ctx, dbShardID, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	return &DB{DB: mysqlTX.(*mysql.DB)}, nil
+	return NewDB(mdb.originalDBs, xtx, dbShardID, mdb.numDBShards, mdb.converter, mdb.databaseName)
+}
+
+func (mdb *DB) Close() error {
+	if mdb.databaseName == "" {
+		return mdb.DB.Close()
+	}
+
+	return closeSharedDBConn(mdb.databaseName, mdb.DB.Close)
 }

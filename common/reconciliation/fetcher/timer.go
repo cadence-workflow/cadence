@@ -50,14 +50,10 @@ func getUserTimers(
 ) pagination.FetchFn {
 	return func(ctx context.Context, token pagination.PageToken) (pagination.Page, error) {
 		req := &persistence.GetHistoryTasksRequest{
-			TaskCategory: persistence.HistoryTaskCategoryTimer,
-			InclusiveMinTaskKey: persistence.HistoryTaskKey{
-				ScheduledTime: minTimestamp,
-			},
-			ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
-				ScheduledTime: maxTimestamp,
-			},
-			PageSize: pageSize,
+			TaskCategory:        persistence.HistoryTaskCategoryTimer,
+			InclusiveMinTaskKey: persistence.NewHistoryTaskKey(minTimestamp, 0),
+			ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maxTimestamp, 0),
+			PageSize:            pageSize,
 		}
 		if token != nil {
 			req.NextPageToken = token.([]byte)

@@ -341,6 +341,7 @@ func TestCreatePersistenceMutableState(t *testing.T) {
 	mockShardContext.EXPECT().GetTimeSource().Return(clock.NewMockedTimeSource())
 	mockShardContext.EXPECT().GetMetricsClient().Return(metrics.NewClient(tally.NoopScope, metrics.History))
 	mockShardContext.EXPECT().GetDomainCache().Return(mockDomainCache)
+	mockShardContext.EXPECT().GetLogger().Return(logger).AnyTimes()
 
 	builder := newMutableStateBuilder(mockShardContext, logger, constants.TestLocalDomainEntry)
 	builder.pendingActivityInfoIDs[0] = &persistence.ActivityInfo{}

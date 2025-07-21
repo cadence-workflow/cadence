@@ -55,7 +55,7 @@ func setuptest(t *testing.T) (*Batcher, *resource.Test) {
 	mockResource.SDKClient.EXPECT().PollForActivityTask(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(&shared.PollForActivityTaskResponse{}, nil).AnyTimes()
 	sdkClient := mockResource.GetSDKClient()
 	mockClientBean.EXPECT().GetFrontendClient().Return(mockResource.FrontendClient).AnyTimes()
-	mockClientBean.EXPECT().GetRemoteAdminClient(gomock.Any()).Return(mockResource.RemoteAdminClient).AnyTimes()
+	mockClientBean.EXPECT().GetRemoteAdminClient(gomock.Any()).Return(mockResource.RemoteAdminClient, nil).AnyTimes()
 
 	return New(&BootstrapParams{
 		Logger:        testlogger.New(t),
@@ -64,12 +64,14 @@ func setuptest(t *testing.T) (*Batcher, *resource.Test) {
 		TallyScope:    tally.TestScope(nil),
 		Config: Config{
 			ClusterMetadata: cluster.NewMetadata(
-				12,
-				"test-primary-cluster",
-				"test-primary-cluster",
-				map[string]config.ClusterInformation{
-					"test-primary-cluster":   {},
-					"test-secondary-cluster": {},
+				config.ClusterGroupMetadata{
+					FailoverVersionIncrement: 12,
+					PrimaryClusterName:       "test-primary-cluster",
+					CurrentClusterName:       "test-primary-cluster",
+					ClusterGroup: map[string]config.ClusterInformation{
+						"test-primary-cluster":   {},
+						"test-secondary-cluster": {},
+					},
 				},
 				nil,
 				metrics.NewClient(tally.NoopScope, metrics.Worker),

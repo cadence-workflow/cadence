@@ -24,6 +24,8 @@ import (
 	"math"
 	"math/rand"
 	"time"
+
+	"github.com/uber/cadence/common/clock"
 )
 
 const (
@@ -50,11 +52,6 @@ type (
 		Reset()
 	}
 
-	// Clock used by ExponentialRetryPolicy implementation to get the current time.  Mainly used for unit testing
-	Clock interface {
-		Now() time.Time
-	}
-
 	// ExponentialRetryPolicy provides the implementation for retry policy using a coefficient to compute the next delay.
 	// Formula used to compute the next delay is: initialInterval * math.Pow(backoffCoefficient, currentAttempt)
 	ExponentialRetryPolicy struct {
@@ -74,18 +71,13 @@ type (
 		policies []*ExponentialRetryPolicy
 	}
 
-	systemClock struct{}
-
 	retrierImpl struct {
 		policy         RetryPolicy
-		clock          Clock
+		clock          clock.TimeSource
 		currentAttempt int
 		startTime      time.Time
 	}
 )
-
-// SystemClock implements Clock interface that uses time.Now().
-var SystemClock = systemClock{}
 
 // NewExponentialRetryPolicy returns an instance of ExponentialRetryPolicy using the provided initialInterval
 func NewExponentialRetryPolicy(initialInterval time.Duration) *ExponentialRetryPolicy {
@@ -114,7 +106,7 @@ func NewMultiPhasesRetryPolicy(policies ...*ExponentialRetryPolicy) *MultiPhases
 }
 
 // NewRetrier is used for creating a new instance of Retrier
-func NewRetrier(policy RetryPolicy, clock Clock) Retrier {
+func NewRetrier(policy RetryPolicy, clock clock.TimeSource) Retrier {
 	if policy == nil {
 		panic("Retry policy cannot be nil.")
 	}
@@ -213,11 +205,6 @@ func (tp MultiPhasesRetryPolicy) ComputeNextDelay(elapsedTime time.Duration, num
 		previousStageRetryCount += policy.maximumAttempts
 	}
 	return done
-}
-
-// Now returns the current time using the system clock
-func (t systemClock) Now() time.Time {
-	return time.Now()
 }
 
 // Reset will set the Retrier into initial state

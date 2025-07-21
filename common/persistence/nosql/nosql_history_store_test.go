@@ -36,6 +36,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 	"github.com/uber/cadence/common/types"
@@ -100,7 +101,7 @@ func TestNewNoSQLHistoryStore(t *testing.T) {
 	registerCassandraMock(t)
 	cfg := getValidShardedNoSQLConfig()
 
-	store, err := newNoSQLHistoryStore(cfg, log.NewNoop(), nil)
+	store, err := newNoSQLHistoryStore(cfg, log.NewNoop(), metrics.NewNoopMetricsClient(), nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, store)
 }

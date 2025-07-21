@@ -102,6 +102,12 @@ func TestThriftDecodeHelper(t *testing.T) {
 			encoding:  "hex",
 			wantObjFn: generateTestTimerInfo,
 		},
+		{
+			desc:      "Active clusters config",
+			input:     "590d000a0b0c0000000200000007726567696f6e300b000a00000008636c7573746572310a001400000000000000020000000007726567696f6e310b000a00000008636c7573746572310a001400000000000000000000",
+			encoding:  "hex",
+			wantObjFn: generateTestActiveClustersConfig,
+		},
 	}
 
 	for _, tc := range tests {
@@ -243,5 +249,21 @@ func generateTestTimerInfo(t *testing.T) codec.ThriftObject {
 		StartedID:       common.Int64Ptr(1),
 		ExpiryTimeNanos: common.Int64Ptr(1000),
 		TaskID:          common.Int64Ptr(5),
+	}
+}
+
+func generateTestActiveClustersConfig(t *testing.T) codec.ThriftObject {
+	t.Helper()
+	return &shared.ActiveClusters{
+		ActiveClustersByRegion: map[string]*shared.ActiveClusterInfo{
+			"region0": {
+				ActiveClusterName: common.StringPtr("cluster1"),
+				FailoverVersion:   common.Int64Ptr(2),
+			},
+			"region1": {
+				ActiveClusterName: common.StringPtr("cluster1"),
+				FailoverVersion:   common.Int64Ptr(0),
+			},
+		},
 	}
 }

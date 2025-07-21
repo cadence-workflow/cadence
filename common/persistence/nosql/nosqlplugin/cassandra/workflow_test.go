@@ -41,14 +41,15 @@ import (
 
 func TestInsertWorkflowExecutionWithTasks(t *testing.T) {
 	tests := []struct {
-		name                  string
-		workflowRequest       *nosqlplugin.WorkflowRequestsWriteRequest
-		request               *nosqlplugin.CurrentWorkflowWriteRequest
-		execution             *nosqlplugin.WorkflowExecutionRequest
-		tasksByCategory       map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask
-		shardCondition        *nosqlplugin.ShardCondition
-		mapExecuteBatchCASErr error
-		wantErr               bool
+		name                            string
+		workflowRequest                 *nosqlplugin.WorkflowRequestsWriteRequest
+		request                         *nosqlplugin.CurrentWorkflowWriteRequest
+		execution                       *nosqlplugin.WorkflowExecutionRequest
+		tasksByCategory                 map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask
+		activeClusterSelectionPolicyRow *nosqlplugin.ActiveClusterSelectionPolicyRow
+		shardCondition                  *nosqlplugin.ShardCondition
+		mapExecuteBatchCASErr           error
+		wantErr                         bool
 	}{
 		{
 			name: "success",
@@ -59,6 +60,26 @@ func TestInsertWorkflowExecutionWithTasks(t *testing.T) {
 				ShardID: 1,
 			},
 			execution: testdata.WFExecRequest(),
+		},
+		{
+			name: "success with active cluster selection policy row",
+			request: &nosqlplugin.CurrentWorkflowWriteRequest{
+				WriteMode: nosqlplugin.CurrentWorkflowWriteModeNoop,
+			},
+			shardCondition: &nosqlplugin.ShardCondition{
+				ShardID: 1,
+			},
+			execution: testdata.WFExecRequest(),
+			activeClusterSelectionPolicyRow: &nosqlplugin.ActiveClusterSelectionPolicyRow{
+				ShardID:    1,
+				DomainID:   "test-domain-id",
+				WorkflowID: "test-workflow-id",
+				RunID:      "test-run-id",
+				Policy: &persistence.DataBlob{
+					Data:     []byte("test-policy"),
+					Encoding: constants.EncodingTypeThriftRW,
+				},
+			},
 		},
 		{
 			name: "insertOrUpsertWorkflowRequestRow step fails",
@@ -140,6 +161,7 @@ func TestInsertWorkflowExecutionWithTasks(t *testing.T) {
 				tc.request,
 				tc.execution,
 				tc.tasksByCategory,
+				tc.activeClusterSelectionPolicyRow,
 				tc.shardCondition,
 			)
 
@@ -2370,6 +2392,186 @@ func TestInsertReplicationTask(t *testing.T) {
 
 			if len(tc.tasks)+1 != len(session.batches[0].queries) {
 				t.Errorf("got %v batches, want %v", len(session.batches), len(tc.tasks))
+			}
+		})
+	}
+}
+
+func TestSelectActiveClusterSelectionPolicy(t *testing.T) {
+	tests := []struct {
+		name       string
+		shardID    int
+		domainID   string
+		wfID       string
+		rID        string
+		session    *fakeSession
+		mockFn     func(cl *gocql.MockClient)
+		wantQuery  string
+		wantPolicy *nosqlplugin.ActiveClusterSelectionPolicyRow
+		wantErr    bool
+	}{
+		{
+			name:     "success",
+			shardID:  1,
+			domainID: "domain1",
+			wfID:     "wfid1",
+			rID:      "r1",
+			session: &fakeSession{
+				query: &fakeQuery{
+					mapScan: map[string]interface{}{
+						"data":          []byte("data1"),
+						"data_encoding": "thriftrw",
+					},
+				},
+			},
+			wantQuery: `SELECT data, data_encoding FROM executions WHERE ` +
+				`shard_id = 1 and type = 11 and domain_id = domain1 and ` +
+				`workflow_id = wfid1 and run_id = r1 and visibility_ts = 946684800000 and task_id = -1001`,
+			wantPolicy: &nosqlplugin.ActiveClusterSelectionPolicyRow{
+				Policy:     persistence.NewDataBlob([]byte("data1"), constants.EncodingTypeThriftRW),
+				ShardID:    1,
+				DomainID:   "domain1",
+				WorkflowID: "wfid1",
+				RunID:      "r1",
+			},
+		},
+		{
+			name:     "not found - returns nil",
+			shardID:  1,
+			domainID: "domain2",
+			wfID:     "wfid2",
+			rID:      "r2",
+			session: &fakeSession{
+				query: &fakeQuery{
+					mapScan: map[string]interface{}{},
+					err:     errors.New("not found"),
+				},
+			},
+			wantQuery: `SELECT data, data_encoding FROM executions WHERE ` +
+				`shard_id = 1 and type = 11 and domain_id = domain2 and ` +
+				`workflow_id = wfid2 and run_id = r2 and visibility_ts = 946684800000 and task_id = -1001`,
+			mockFn: func(cl *gocql.MockClient) {
+				cl.EXPECT().IsNotFoundError(errors.New("not found")).Return(true).Times(1)
+			},
+			wantPolicy: nil,
+			wantErr:    false,
+		},
+		{
+			name:     "query failed",
+			shardID:  1,
+			domainID: "domain3",
+			wfID:     "wfid3",
+			rID:      "r3",
+			session: &fakeSession{
+				query: &fakeQuery{
+					mapScan: map[string]interface{}{},
+					err:     errors.New("failed"),
+				},
+			},
+			wantQuery: `SELECT data, data_encoding FROM executions WHERE ` +
+				`shard_id = 1 and type = 11 and domain_id = domain3 and ` +
+				`workflow_id = wfid3 and run_id = r3 and visibility_ts = 946684800000 and task_id = -1001`,
+			mockFn: func(cl *gocql.MockClient) {
+				cl.EXPECT().IsNotFoundError(errors.New("failed")).Return(false).Times(1)
+			},
+			wantPolicy: nil,
+			wantErr:    true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			logger := testlogger.New(t)
+			cl := gocql.NewMockClient(ctrl)
+
+			db := newCassandraDBFromSession(nil, tc.session, logger, nil, dbWithClient(cl))
+
+			if tc.mockFn != nil {
+				tc.mockFn(cl)
+			}
+
+			policy, err := db.SelectActiveClusterSelectionPolicy(context.Background(), tc.shardID, tc.domainID, tc.wfID, tc.rID)
+
+			if (err != nil) != tc.wantErr {
+				t.Errorf("SelectActiveClusterSelectionPolicy() error: %v, wantErr: %v", err, tc.wantErr)
+			}
+
+			if err != nil {
+				return
+			}
+
+			if diff := cmp.Diff(tc.wantPolicy, policy); diff != "" {
+				t.Fatalf("Policy mismatch (-want +got):\n%s", diff)
+			}
+
+			if diff := cmp.Diff(tc.wantQuery, tc.session.queries[0]); diff != "" {
+				t.Fatalf("Query mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestDeleteActiveClusterSelectionPolicy(t *testing.T) {
+	tests := []struct {
+		name      string
+		shardID   int
+		domainID  string
+		wfID      string
+		rID       string
+		session   *fakeSession
+		wantQuery string
+		wantErr   bool
+	}{
+		{
+			name:     "success",
+			shardID:  1,
+			domainID: "domain1",
+			wfID:     "wfid1",
+			rID:      "r1",
+			session: &fakeSession{
+				query: &fakeQuery{
+					mapScan: map[string]interface{}{},
+				},
+			},
+			wantQuery: `DELETE FROM executions WHERE ` +
+				`shard_id = 1 and type = 11 and domain_id = domain1 and ` +
+				`workflow_id = wfid1 and run_id = r1 and visibility_ts = 946684800000 and task_id = -1001`,
+			wantErr: false,
+		},
+		{
+			name:     "query failed",
+			shardID:  1,
+			domainID: "domain2",
+			wfID:     "wfid2",
+			rID:      "r2",
+			session: &fakeSession{
+				query: &fakeQuery{
+					mapScan: map[string]interface{}{},
+					err:     errors.New("failed"),
+				},
+			},
+			wantQuery: `DELETE FROM executions WHERE ` +
+				`shard_id = 1 and type = 11 and domain_id = domain2 and ` +
+				`workflow_id = wfid2 and run_id = r2 and visibility_ts = 946684800000 and task_id = -1001`,
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			logger := testlogger.New(t)
+			cl := gocql.NewMockClient(ctrl)
+			db := newCassandraDBFromSession(nil, tc.session, logger, nil, dbWithClient(cl))
+			err := db.DeleteActiveClusterSelectionPolicy(context.Background(), tc.shardID, tc.domainID, tc.wfID, tc.rID)
+
+			if (err != nil) != tc.wantErr {
+				t.Errorf("DeleteActiveClusterSelectionPolicy() error: %v, wantErr: %v", err, tc.wantErr)
+			}
+
+			if diff := cmp.Diff(tc.wantQuery, tc.session.queries[0]); diff != "" {
+				t.Fatalf("Query mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}

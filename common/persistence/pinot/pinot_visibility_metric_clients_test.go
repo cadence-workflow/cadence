@@ -46,7 +46,7 @@ import (
 )
 
 var (
-	testStopwatch = metrics.NoopScope(metrics.PinotRecordWorkflowExecutionStartedScope).StartTimer(metrics.PinotLatency)
+	testStopwatch = metrics.NoopScope.StartTimer(metrics.PinotLatency)
 )
 
 func TestMetricClientRecordWorkflowExecutionStarted(t *testing.T) {

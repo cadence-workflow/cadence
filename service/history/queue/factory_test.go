@@ -30,14 +30,13 @@ import (
 	"github.com/uber/cadence/common/reconciliation/invariant"
 	"github.com/uber/cadence/service/history/config"
 	"github.com/uber/cadence/service/history/execution"
-	"github.com/uber/cadence/service/history/reset"
 	"github.com/uber/cadence/service/history/shard"
 	"github.com/uber/cadence/service/history/task"
 	"github.com/uber/cadence/service/history/workflowcache"
 	"github.com/uber/cadence/service/worker/archiver"
 )
 
-func TestNewTransferQueueProcessor(t *testing.T) {
+func TestTransferQueueFactory(t *testing.T) {
 	defer goleak.VerifyNone(t)
 	ctrl := gomock.NewController(t)
 	mockShard := shard.NewTestContext(
@@ -50,20 +49,20 @@ func TestNewTransferQueueProcessor(t *testing.T) {
 	defer mockShard.Finish(t)
 
 	mockProcessor := task.NewMockProcessor(ctrl)
-	mockResetter := reset.NewMockWorkflowResetter(ctrl)
 	mockArchiver := &archiver.ClientMock{}
 	mockInvariant := invariant.NewMockInvariant(ctrl)
 	mockWorkflowCache := workflowcache.NewMockWFCache(ctrl)
 
-	f := NewProcessorFactory()
-	processor := f.NewTransferQueueProcessor(mockShard, mockShard.GetEngine(), mockProcessor, execution.NewCache(mockShard), mockResetter, mockArchiver, mockInvariant, mockWorkflowCache)
+	f := NewTransferQueueFactory(mockProcessor, mockArchiver, mockWorkflowCache)
+
+	processor := f.CreateQueue(mockShard, execution.NewCache(mockShard), mockInvariant)
 
 	if processor == nil {
 		t.Error("NewTransferQueueProcessor returned nil")
 	}
 }
 
-func TestNewTimerQueueProcessor(t *testing.T) {
+func TestTimerQueueFactory(t *testing.T) {
 	defer goleak.VerifyNone(t)
 	ctrl := gomock.NewController(t)
 	mockShard := shard.NewTestContext(
@@ -79,14 +78,8 @@ func TestNewTimerQueueProcessor(t *testing.T) {
 	mockArchiver := &archiver.ClientMock{}
 	mockInvariant := invariant.NewMockInvariant(ctrl)
 
-	f := NewProcessorFactory()
-	processor := f.NewTimerQueueProcessor(
-		mockShard,
-		mockShard.GetEngine(),
-		mockProcessor,
-		execution.NewCache(mockShard),
-		mockArchiver,
-		mockInvariant)
+	f := NewTimerQueueFactory(mockProcessor, mockArchiver)
+	processor := f.CreateQueue(mockShard, execution.NewCache(mockShard), mockInvariant)
 
 	if processor == nil {
 		t.Error("NewTimerQueueProcessor returned nil")

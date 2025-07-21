@@ -53,7 +53,7 @@ func TestPublish(t *testing.T) {
 					Once()
 				metricsScope.On("IncCounter", metrics.CadenceClientRequests).Once()
 
-				sw := metrics.NoopScope(metrics.MessagingClientPublishScope).StartTimer(-1)
+				sw := metrics.NoopScope.StartTimer(-1)
 				metricsScope.On("StartTimer", metrics.CadenceClientLatency).Return(sw).Once()
 				return metricsClient
 			},
@@ -74,7 +74,7 @@ func TestPublish(t *testing.T) {
 				metricsScope.On("IncCounter", metrics.CadenceClientRequests).Once()
 				metricsScope.On("IncCounter", metrics.CadenceClientFailures).Once()
 
-				sw := metrics.NoopScope(metrics.MessagingClientPublishScope).StartTimer(-1)
+				sw := metrics.NoopScope.StartTimer(-1)
 				metricsScope.On("StartTimer", metrics.CadenceClientLatency).Return(sw).Once()
 				return metricsClient
 			},

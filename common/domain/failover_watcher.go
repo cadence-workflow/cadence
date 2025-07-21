@@ -207,8 +207,8 @@ func CleanPendingActiveState(
 			FailoverEndTime:             nil,
 			NotificationVersion:         metadata.NotificationVersion,
 		}
-		op := func() error {
-			return domainManager.UpdateDomain(context.Background(), updateReq)
+		op := func(ctx context.Context) error {
+			return domainManager.UpdateDomain(ctx, updateReq)
 		}
 		throttleRetry := backoff.NewThrottleRetry(
 			backoff.WithRetryPolicy(policy),

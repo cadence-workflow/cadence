@@ -34,6 +34,10 @@ const (
 	TestAlternativeClusterInitialFailoverVersion = int64(1)
 	// TestDisabledClusterInitialFailoverVersion is initial failover version for disabled cluster
 	TestDisabledClusterInitialFailoverVersion = int64(2)
+	// TestRegion1InitialFailoverVersion is initial failover version for region1
+	TestRegion1InitialFailoverVersion = int64(3)
+	// TestRegion2InitialFailoverVersion is initial failover version for region2
+	TestRegion2InitialFailoverVersion = int64(4)
 	// TestFailoverVersionIncrement is failover version increment used for test
 	TestFailoverVersionIncrement = int64(10)
 	// TestCurrentClusterName is current cluster used for test
@@ -42,6 +46,10 @@ const (
 	TestAlternativeClusterName = "standby"
 	// TestDisabledClusterName is disabled cluster used for test
 	TestDisabledClusterName = "disabled"
+	// TestRegion1 is region1 used for test
+	TestRegion1 = "region1"
+	// TestRegion2 is region2 used for test
+	TestRegion2 = "region2"
 	// TestCurrentClusterFrontendAddress is the ip port address of current cluster
 	TestCurrentClusterFrontendAddress = "127.0.0.1:7104"
 	// TestAlternativeClusterFrontendAddress is the ip port address of alternative cluster
@@ -51,6 +59,14 @@ const (
 )
 
 var (
+	TestRegions = map[string]config.RegionInformation{
+		TestRegion1: {
+			InitialFailoverVersion: TestRegion1InitialFailoverVersion,
+		},
+		TestRegion2: {
+			InitialFailoverVersion: TestRegion2InitialFailoverVersion,
+		},
+	}
 	// TestAllClusterNames is the all cluster names used for test
 	TestAllClusterNames = []string{TestCurrentClusterName, TestAlternativeClusterName}
 	// TestAllClusterInfo is the same as above, just convenient for test mocking
@@ -61,6 +77,7 @@ var (
 			RPCName:                service.Frontend,
 			RPCAddress:             TestCurrentClusterFrontendAddress,
 			RPCTransport:           TestClusterXDCTransport,
+			Region:                 "region1",
 		},
 		TestAlternativeClusterName: {
 			Enabled:                true,
@@ -68,10 +85,12 @@ var (
 			RPCName:                service.Frontend,
 			RPCAddress:             TestAlternativeClusterFrontendAddress,
 			RPCTransport:           TestClusterXDCTransport,
+			Region:                 "region2",
 		},
 		TestDisabledClusterName: {
 			Enabled:                false,
 			InitialFailoverVersion: TestDisabledClusterInitialFailoverVersion,
+			Region:                 "region1",
 		},
 	}
 
@@ -90,10 +109,12 @@ var (
 
 	// TestActiveClusterMetadata is metadata for an active cluster
 	TestActiveClusterMetadata = NewMetadata(
-		TestFailoverVersionIncrement,
-		TestCurrentClusterName,
-		TestCurrentClusterName,
-		TestAllClusterInfo,
+		config.ClusterGroupMetadata{
+			FailoverVersionIncrement: TestFailoverVersionIncrement,
+			PrimaryClusterName:       TestCurrentClusterName,
+			CurrentClusterName:       TestCurrentClusterName,
+			ClusterGroup:             TestAllClusterInfo,
+		},
 		func(d string) bool { return false },
 		commonMetrics.NewNoopMetricsClient(),
 		log.NewNoop(),
@@ -101,10 +122,12 @@ var (
 
 	// TestPassiveClusterMetadata is metadata for a passive cluster
 	TestPassiveClusterMetadata = NewMetadata(
-		TestFailoverVersionIncrement,
-		TestCurrentClusterName,
-		TestAlternativeClusterName,
-		TestAllClusterInfo,
+		config.ClusterGroupMetadata{
+			FailoverVersionIncrement: TestFailoverVersionIncrement,
+			PrimaryClusterName:       TestCurrentClusterName,
+			CurrentClusterName:       TestAlternativeClusterName,
+			ClusterGroup:             TestAllClusterInfo,
+		},
 		func(d string) bool { return false },
 		commonMetrics.NewNoopMetricsClient(),
 		log.NewNoop(),
@@ -119,10 +142,13 @@ func GetTestClusterMetadata(isPrimaryCluster bool) Metadata {
 	}
 
 	return NewMetadata(
-		TestFailoverVersionIncrement,
-		primaryClusterName,
-		TestCurrentClusterName,
-		TestAllClusterInfo,
+		config.ClusterGroupMetadata{
+			FailoverVersionIncrement: TestFailoverVersionIncrement,
+			PrimaryClusterName:       primaryClusterName,
+			CurrentClusterName:       TestCurrentClusterName,
+			ClusterGroup:             TestAllClusterInfo,
+			Regions:                  TestRegions,
+		},
 		func(d string) bool { return false },
 		commonMetrics.NewNoopMetricsClient(),
 		log.NewNoop(),

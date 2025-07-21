@@ -11,4 +11,4 @@ metrics:
   statsd: ~
   prometheus:
     timerType: "histogram"
-    listenAddress: "127.0.0.1:8004"
+    listenAddress: "127.0.0.1:8005"

@@ -40,7 +40,7 @@ import (
 )
 
 const (
-	tl = "integration-task-list-isolation-tl"
+	isolationTl = "integration-task-list-isolation-tl"
 )
 
 func TestTaskListIsolationSuite(t *testing.T) {
@@ -49,7 +49,7 @@ func TestTaskListIsolationSuite(t *testing.T) {
 	var isolationGroups = []any{
 		"a", "b", "c",
 	}
-	clusterConfig, err := GetTestClusterConfig("testdata/task_list_isolation_test_cluster.yaml")
+	clusterConfig, err := GetTestClusterConfig("testdata/task_list_test_cluster.yaml")
 	if err != nil {
 		panic(err)
 	}
@@ -136,7 +136,7 @@ func (s *TaskListIsolationIntegrationSuite) createPoller(group string) *TaskPoll
 	return &TaskPoller{
 		Engine:   s.Engine,
 		Domain:   s.DomainName,
-		TaskList: &types.TaskList{Name: tl, Kind: types.TaskListKindNormal.Ptr()},
+		TaskList: &types.TaskList{Name: isolationTl, Kind: types.TaskListKindNormal.Ptr()},
 		Identity: group,
 		DecisionHandler: func(execution *types.WorkflowExecution, wt *types.WorkflowType, previousStartedEventID, startedEventID int64, history *types.History) ([]byte, []*types.Decision, error) {
 			// Complete the workflow with the group name
@@ -164,7 +164,7 @@ func (s *TaskListIsolationIntegrationSuite) startWorkflow(group string) *types.S
 			Name: "integration-task-list-isolation-type",
 		},
 		TaskList: &types.TaskList{
-			Name: tl,
+			Name: isolationTl,
 			Kind: types.TaskListKindNormal.Ptr(),
 		},
 		Input:                               nil,

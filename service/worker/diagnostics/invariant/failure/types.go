@@ -50,7 +50,7 @@ func (f FailureType) String() string {
 	return string(f)
 }
 
-type FailureMetadata struct {
+type FailureIssuesMetadata struct {
 	Identity            string
 	ActivityType        string
 	ActivityScheduledID int64
@@ -61,4 +61,8 @@ type FailureMetadata struct {
 type BlobSizeMetadata struct {
 	BlobSizeWarnLimit  int32
 	BlobSizeErrorLimit int32
+}
+
+type FailureRootcauseMetadata struct {
+	BlobSizeMetadata *BlobSizeMetadata
 }

@@ -59,27 +59,40 @@ func GetBackoffForNextSchedule(
 	startTime time.Time,
 	closeTime time.Time,
 	jitterStartSeconds int32,
+	cronOverlapPolicy types.CronOverlapPolicy,
 ) (time.Duration, error) {
 	startUTCTime := startTime.In(time.UTC)
 	closeUTCTime := closeTime.In(time.UTC)
 	nextScheduleTime := sched.Next(startUTCTime)
+	roundedInterval := time.Duration(0)
 	if nextScheduleTime.IsZero() {
 		// this should only occur for bad specs, e.g. impossible dates like Feb 30,
 		// which should be prevented from being saved by the valid check.
 		return NoBackoff, fmt.Errorf("invalid CronSchedule, no next firing time found")
 	}
 
-	// Calculate the next schedule start time which is nearest to the close time
-	for nextScheduleTime.Before(closeUTCTime) {
-		nextScheduleTime = sched.Next(nextScheduleTime)
-		if nextScheduleTime.IsZero() {
-			// this should only occur for bad specs, e.g. impossible dates like Feb 30,
-			// which should be prevented from being saved by the valid check.
-			return NoBackoff, fmt.Errorf("invalid CronSchedule, no next firing time found")
+	if nextScheduleTime.Before(closeUTCTime) {
+		// Cron overlap policy only applies if there were runs skipped
+		switch cronOverlapPolicy {
+		case types.CronOverlapPolicySkipped:
+			for nextScheduleTime.Before(closeUTCTime) {
+				nextScheduleTime = sched.Next(nextScheduleTime)
+				if nextScheduleTime.IsZero() {
+					// this should only occur for bad specs, e.g. impossible dates like Feb 30,
+					// which should be prevented from being saved by the valid check.
+					return NoBackoff, fmt.Errorf("invalid CronSchedule, no next firing time found")
+				}
+			}
+			backoffInterval := nextScheduleTime.Sub(closeUTCTime)
+			roundedInterval = time.Second * time.Duration(math.Ceil(backoffInterval.Seconds()))
+		case types.CronOverlapPolicyBufferOne:
+			// we want to start the next run as soon as possible, so we don't need to buffer
+			roundedInterval = time.Duration(0)
 		}
+	} else {
+		backoffInterval := nextScheduleTime.Sub(closeUTCTime)
+		roundedInterval = time.Second * time.Duration(math.Ceil(backoffInterval.Seconds()))
 	}
-	backoffInterval := nextScheduleTime.Sub(closeUTCTime)
-	roundedInterval := time.Second * time.Duration(math.Ceil(backoffInterval.Seconds()))
 
 	var jitter time.Duration
 	if jitterStartSeconds > 0 {
@@ -96,12 +109,13 @@ func GetBackoffForNextScheduleInSeconds(
 	startTime time.Time,
 	closeTime time.Time,
 	jitterStartSeconds int32,
+	overlapPolicy types.CronOverlapPolicy,
 ) (int32, error) {
 	sched, err := ValidateSchedule(cronSchedule)
 	if err != nil {
 		return 0, err
 	}
-	backoffDuration, err := GetBackoffForNextSchedule(sched, startTime, closeTime, jitterStartSeconds)
+	backoffDuration, err := GetBackoffForNextSchedule(sched, startTime, closeTime, jitterStartSeconds, overlapPolicy)
 	if err != nil {
 		return 0, err
 	}

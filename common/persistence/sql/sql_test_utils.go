@@ -107,6 +107,7 @@ func (s *testCluster) Config() config.Persistence {
 		},
 		TransactionSizeLimit: dynamicproperties.GetIntPropertyFn(constants.DefaultTransactionSizeLimit),
 		ErrorInjectionRate:   dynamicproperties.GetFloatPropertyFn(0),
+		NumHistoryShards:     s.cfg.NumShards,
 	}
 }
 
@@ -117,6 +118,11 @@ func (s *testCluster) TearDownTestDatabase() {
 
 // createDatabase from PersistenceTestCluster interface
 func (s *testCluster) createDatabase() {
+	if s.cfg.PluginName == "sqlite" {
+		// sqlite doesn't support creating database
+		return
+	}
+
 	cfg2 := s.cfg
 	// NOTE need to connect with empty name to create new database
 	cfg2.DatabaseName = ""
@@ -130,6 +136,7 @@ func (s *testCluster) createDatabase() {
 			panic(err)
 		}
 	}()
+
 	err = db.CreateDatabase(s.cfg.DatabaseName)
 	if err != nil {
 		panic(err)
@@ -138,6 +145,11 @@ func (s *testCluster) createDatabase() {
 
 // dropDatabase from PersistenceTestCluster interface
 func (s *testCluster) dropDatabase() {
+	if s.cfg.PluginName == "sqlite" {
+		// sqlite doesn't support dropping database
+		return
+	}
+
 	cfg2 := s.cfg
 	// NOTE need to connect with empty name to drop the database
 	cfg2.DatabaseName = ""
@@ -180,8 +192,8 @@ func getCadencePackageDir() (string, error) {
 	if err != nil {
 		panic(err)
 	}
-	cadenceIndex := strings.LastIndex(cadencePackageDir, "/cadence/")
-	cadencePackageDir = cadencePackageDir[:cadenceIndex+len("/cadence/")]
+	cadenceIndex := strings.LastIndex(cadencePackageDir, "cadence/")
+	cadencePackageDir = cadencePackageDir[:cadenceIndex+len("cadence/")]
 	return cadencePackageDir, err
 }
 

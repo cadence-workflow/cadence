@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination loadbalancer_mock.go -package matching github.com/uber/cadence/client/matching LoadBalancer
+//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination loadbalancer_mock.go -package matching github.com/uber/cadence/client/matching LoadBalancer,WeightedLoadBalancer
 
 package matching
 
@@ -75,6 +75,10 @@ type (
 			partition string,
 			info *types.LoadBalancerHints,
 		)
+	}
+	WeightedLoadBalancer interface {
+		LoadBalancer
+		PickBetween(domainID, taskListName string, taskListType int, partitions []int) int
 	}
 
 	defaultLoadBalancer struct {

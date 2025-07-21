@@ -27,6 +27,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -46,6 +47,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	simTypes "github.com/uber/cadence/simulation/replication/types"
+	"github.com/uber/cadence/simulation/replication/workflows"
 )
 
 var (
@@ -79,7 +81,7 @@ func main() {
 	}
 
 	dispatcher := yarpc.NewDispatcher(yarpc.Config{
-		Name: simTypes.WorkerIdentityFor(*clusterName),
+		Name: simTypes.WorkerIdentityFor(*clusterName, ""),
 		Outbounds: yarpc.Outbounds{
 			"cadence-frontend": {Unary: grpc.NewTransport().NewSingleOutbound(cluster.GRPCEndpoint)},
 		},
@@ -100,60 +102,92 @@ func main() {
 	)
 
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		if atomic.LoadInt32(&ready) == 1 {
+		if atomic.LoadInt32(&ready) == int32(len(simCfg.Domains)) {
 			w.WriteHeader(http.StatusOK)
 		} else {
 			w.WriteHeader(http.StatusServiceUnavailable)
 		}
 	})
 	go http.ListenAndServe(":6060", nil)
-	waitUntilDomainReady(logger, cadenceClient)
 
-	workerOptions := worker.Options{
-		Identity:     simTypes.WorkerIdentityFor(*clusterName),
-		Logger:       logger,
-		MetricsScope: tally.NewTestScope(simTypes.TasklistName, map[string]string{"cluster": *clusterName}),
+	wg := sync.WaitGroup{}
+	for domainName := range simCfg.Domains {
+		domainName := domainName
+		wg.Add(1)
+
+		go func() {
+			waitUntilDomainReady(logger, cadenceClient, domainName)
+			wg.Done()
+		}()
 	}
+	wg.Wait()
 
-	w := worker.New(
-		cadenceClient,
-		simTypes.DomainName,
-		simTypes.TasklistName,
-		workerOptions,
-	)
-
-	w.RegisterWorkflowWithOptions(TestWorkflow, workflow.RegisterOptions{Name: simTypes.WorkflowName})
-	w.RegisterActivityWithOptions(TestActivity, activity.RegisterOptions{Name: simTypes.ActivityName})
-
-	err = w.Start()
-	if err != nil {
-		logger.Fatal("Failed to start worker", zap.Error(err))
-	}
-	defer w.Stop()
-	logger.Info("Started worker", zap.String("cluster", *clusterName), zap.String("endpoint", cluster.GRPCEndpoint))
-
+	// Create a channel to receive termination signals
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	logger.Info("Waiting for SIGINT or SIGTERM")
+
+	// Create a slice to hold the started workers
+	var workers []worker.Worker
+
+	for domainName := range simCfg.Domains {
+		workerOptions := worker.Options{
+			Identity:     simTypes.WorkerIdentityFor(*clusterName, domainName),
+			Logger:       logger,
+			MetricsScope: tally.NewTestScope(simTypes.TasklistName, map[string]string{"cluster": *clusterName}),
+		}
+
+		w := worker.New(
+			cadenceClient,
+			domainName,
+			simTypes.TasklistName,
+			workerOptions,
+		)
+
+		for name, wf := range workflows.Workflows(*clusterName) {
+			w.RegisterWorkflowWithOptions(wf, workflow.RegisterOptions{Name: name})
+		}
+
+		for name, act := range workflows.Activities {
+			w.RegisterActivityWithOptions(act, activity.RegisterOptions{Name: name})
+		}
+
+		err := w.Start()
+		if err != nil {
+			logger.Fatal("Failed to start worker", zap.Error(err))
+		}
+		workers = append(workers, w) // Add the worker to the slice
+
+		fmt.Printf("Started worker for domain: %s\n", domainName)
+		logger.Info("Started worker", zap.String("cluster", *clusterName), zap.String("endpoint", cluster.GRPCEndpoint))
+	}
+
+	logger.Info("All workers started. Waiting for SIGINT or SIGTERM")
 	sig := <-sigs
 	logger.Sugar().Infof("Received signal: %v so terminating", sig)
+
+	// Stop each worker gracefully
+	logger.Info("Stopping workers...")
+	for _, w := range workers {
+		w.Stop()
+		logger.Info("Stopped worker")
+	}
 }
 
-func waitUntilDomainReady(logger *zap.Logger, client workflowserviceclient.Interface) {
+func waitUntilDomainReady(logger *zap.Logger, client workflowserviceclient.Interface, domainName string) {
 	for {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		_, err := client.DescribeDomain(ctx, &shared.DescribeDomainRequest{
-			Name: common.StringPtr(simTypes.DomainName),
+			Name: common.StringPtr(domainName),
 		})
 
 		cancel()
 		if err == nil {
-			logger.Info("Domain is ready", zap.String("domain", simTypes.DomainName))
-			atomic.StoreInt32(&ready, 1)
+			logger.Info("Domains is ready", zap.String("domain", domainName))
+			atomic.AddInt32(&ready, 1)
 			return
 		}
 
-		logger.Info("Domain not ready", zap.String("domain", simTypes.DomainName), zap.Error(err))
+		logger.Info("Domains not ready", zap.String("domain", domainName), zap.Error(err))
 		time.Sleep(2 * time.Second)
 	}
 }

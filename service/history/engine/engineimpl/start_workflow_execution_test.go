@@ -27,10 +27,12 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -402,6 +404,243 @@ func TestSignalWithStartWorkflowExecution(t *testing.T) {
 				assert.NoError(t, err)
 				assert.NotNil(t, response)
 			}
+		})
+	}
+}
+
+func TestCreateMutableState(t *testing.T) {
+	tests := []struct {
+		name        string
+		domainEntry *cache.DomainCacheEntry
+		mockFn      func(ac *activecluster.MockManager)
+		wantErr     bool
+		wantVersion int64
+	}{
+		{
+			name:        "create mutable state successfully, active-passive domain's failover version is used as version",
+			domainEntry: getDomainCacheEntry(35, nil),
+			wantVersion: 35,
+		},
+		{
+			name: "create mutable state successfully, active-active domain. failover version is looked up from active cluster manager",
+			domainEntry: getDomainCacheEntry(
+				-1, /* doesn't matter for active-active domain */
+				&types.ActiveClusters{
+					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+						"us-west": {
+							ActiveClusterName: "cluster1",
+							FailoverVersion:   0,
+						},
+						"us-east": {
+							ActiveClusterName: "cluster2",
+							FailoverVersion:   2,
+						},
+					},
+				}),
+			mockFn: func(ac *activecluster.MockManager) {
+				ac.EXPECT().LookupNewWorkflow(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&activecluster.LookupResult{
+						FailoverVersion: 125,
+					}, nil)
+			},
+			wantVersion: 125,
+		},
+		{
+			name: "failed to create mutable state for active-active domain. LookupNewWorkflow failed",
+			domainEntry: getDomainCacheEntry(
+				-1, /* doesn't matter for active-active domain */
+				&types.ActiveClusters{
+					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+						"us-west": {
+							ActiveClusterName: "cluster1",
+							FailoverVersion:   0,
+						},
+						"us-east": {
+							ActiveClusterName: "cluster2",
+							FailoverVersion:   2,
+						},
+					},
+				}),
+			mockFn: func(ac *activecluster.MockManager) {
+				ac.EXPECT().LookupNewWorkflow(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, errors.New("some error"))
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			eft := testdata.NewEngineForTest(t, NewEngineWithShardContext)
+			eft.Engine.Start()
+			defer eft.Engine.Stop()
+			engine := eft.Engine.(*historyEngineImpl)
+
+			if tc.mockFn != nil {
+				tc.mockFn(eft.ShardCtx.Resource.ActiveClusterMgr)
+			}
+
+			mutableState, err := engine.createMutableState(
+				context.Background(),
+				tc.domainEntry,
+				"rid",
+				&types.HistoryStartWorkflowExecutionRequest{
+					StartRequest: &types.StartWorkflowExecutionRequest{},
+				},
+			)
+			if tc.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, mutableState)
+			}
+
+			if err != nil {
+				return
+			}
+
+			gotVer := mutableState.GetCurrentVersion()
+			assert.Equal(t, tc.wantVersion, gotVer)
+		})
+	}
+}
+
+func getDomainCacheEntry(domainFailoverVersion int64, cfg *types.ActiveClusters) *cache.DomainCacheEntry {
+	// only thing we care in domain cache entry is the active clusters config
+	return cache.NewDomainCacheEntryForTest(
+		&persistence.DomainInfo{
+			ID: "domain-id",
+		},
+		nil,
+		true,
+		&persistence.DomainReplicationConfig{
+			ActiveClusters:    cfg,
+			ActiveClusterName: "cluster0",
+		},
+		domainFailoverVersion,
+		nil,
+		1,
+		1,
+		1,
+	)
+}
+
+func TestOverrideActiveClusterSelectionPolicy(t *testing.T) {
+	invalidStrategy := types.ActiveClusterSelectionStrategy(-1) // not supported
+
+	tests := []struct {
+		name        string
+		domainEntry *cache.DomainCacheEntry
+		request     *types.StartWorkflowExecutionRequest
+		mockFn      func(acm *activecluster.MockManager)
+		want        *types.ActiveClusterSelectionPolicy
+		wantErr     bool
+	}{
+		{
+			name:        "local domain - override policy with nil",
+			domainEntry: constants.TestLocalDomainEntry,
+			request: &types.StartWorkflowExecutionRequest{
+				ActiveClusterSelectionPolicy: &types.ActiveClusterSelectionPolicy{
+					ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
+					StickyRegion:                   "region1",
+				},
+			},
+			want: nil,
+		},
+		{
+			name:        "active-passive domain - override policy with nil",
+			domainEntry: constants.TestGlobalDomainEntry,
+			request: &types.StartWorkflowExecutionRequest{
+				ActiveClusterSelectionPolicy: &types.ActiveClusterSelectionPolicy{
+					ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
+					StickyRegion:                   "region1",
+				},
+			},
+			want: nil,
+		},
+		{
+			name:        "active-active domain - region sticky policy overriden with current region",
+			domainEntry: constants.TestActiveActiveDomainEntry,
+			request: &types.StartWorkflowExecutionRequest{
+				ActiveClusterSelectionPolicy: &types.ActiveClusterSelectionPolicy{
+					ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
+					StickyRegion:                   "user-provided-region-to-be-replaced",
+				},
+			},
+			mockFn: func(acm *activecluster.MockManager) {
+				acm.EXPECT().CurrentRegion().Return("region1").AnyTimes()
+			},
+			want: &types.ActiveClusterSelectionPolicy{
+				ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
+				StickyRegion:                   "region1",
+			},
+		},
+		{
+			name:        "active-active domain - attributes with external entity policy but entity type not supported",
+			domainEntry: constants.TestActiveActiveDomainEntry,
+			request: &types.StartWorkflowExecutionRequest{
+				ActiveClusterSelectionPolicy: &types.ActiveClusterSelectionPolicy{
+					ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyExternalEntity.Ptr(),
+					ExternalEntityType:             "city", // not supported
+				},
+			},
+			mockFn: func(acm *activecluster.MockManager) {
+				acm.EXPECT().SupportedExternalEntityType(gomock.Any()).Return(false)
+			},
+			wantErr: true,
+		},
+		{
+			name:        "active-active domain - attributes with external entity policy",
+			domainEntry: constants.TestActiveActiveDomainEntry,
+			request: &types.StartWorkflowExecutionRequest{
+				ActiveClusterSelectionPolicy: &types.ActiveClusterSelectionPolicy{
+					ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyExternalEntity.Ptr(),
+					ExternalEntityType:             "city",
+					ExternalEntityKey:              "city-1",
+				},
+			},
+			mockFn: func(acm *activecluster.MockManager) {
+				acm.EXPECT().SupportedExternalEntityType(gomock.Any()).Return(true)
+			},
+			want: &types.ActiveClusterSelectionPolicy{
+				ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyExternalEntity.Ptr(),
+				ExternalEntityType:             "city",
+				ExternalEntityKey:              "city-1",
+			},
+		},
+		{
+			name:        "active-active domain - not supported strategy",
+			domainEntry: constants.TestActiveActiveDomainEntry,
+			request: &types.StartWorkflowExecutionRequest{
+				ActiveClusterSelectionPolicy: &types.ActiveClusterSelectionPolicy{
+					ActiveClusterSelectionStrategy: &invalidStrategy,
+				},
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			eft := testdata.NewEngineForTest(t, NewEngineWithShardContext)
+			eft.Engine.Start()
+			defer eft.Engine.Stop()
+
+			if test.mockFn != nil {
+				test.mockFn(eft.ShardCtx.Resource.ActiveClusterMgr)
+			}
+
+			eng := eft.Engine.(*historyEngineImpl)
+			err := eng.overrideActiveClusterSelectionPolicy(test.domainEntry, test.request)
+			if test.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+			if err != nil {
+				return
+			}
+			assert.Equal(t, test.want, test.request.ActiveClusterSelectionPolicy)
 		})
 	}
 }

@@ -61,7 +61,7 @@ type (
 
 		MetricScope        tally.Scope
 		MembershipResolver membership.Resolver
-		HashRings          map[string]*membership.Ring
+		HashRings          map[string]membership.SingleProvider
 		RPCFactory         rpc.Factory
 		PProfInitializer   common.PProfInitializer
 		PersistenceConfig  config.Persistence

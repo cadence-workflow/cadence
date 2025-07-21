@@ -28,6 +28,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 	"github.com/uber/cadence/common/types"
@@ -46,10 +47,11 @@ type nosqlQueueStore struct {
 func newNoSQLQueueStore(
 	cfg config.ShardedNoSQL,
 	logger log.Logger,
+	metricsClient metrics.Client,
 	queueType persistence.QueueType,
 	dc *persistence.DynamicConfiguration,
 ) (persistence.Queue, error) {
-	shardedStore, err := newShardedNosqlStore(cfg, logger, dc)
+	shardedStore, err := newShardedNosqlStore(cfg, logger, metricsClient, dc)
 	if err != nil {
 		return nil, err
 	}

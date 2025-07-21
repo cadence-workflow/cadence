@@ -52,10 +52,13 @@ func TestFromUnknownErrorMapsToUnknownError(t *testing.T) {
 	protobufErr := FromError(err)
 	assert.True(t, yarpcerrors.IsUnknown(protobufErr))
 
-	assert.Equal(t, err, ToError(protobufErr))
+	clientErr := ToError(protobufErr)
+
+	assert.True(t, yarpcerrors.IsUnknown(clientErr))
+	assert.ErrorContains(t, clientErr, err.Error())
 }
 
-func TestToUnknownErrorMapsToItself(t *testing.T) {
+func TestToDeadlineExceededMapsToItself(t *testing.T) {
 	timeout := yarpcerrors.DeadlineExceededErrorf("timeout")
 	assert.Equal(t, timeout, ToError(timeout))
 }

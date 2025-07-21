@@ -49,7 +49,7 @@ func (e *historyEngineImpl) RecordChildExecutionCompleted(
 		RunID:      completionRequest.WorkflowExecution.GetRunID(),
 	}
 
-	return e.updateWithActionFn(ctx, e.executionCache, domainID, workflowExecution, true, e.timeSource.Now(),
+	return e.updateWithActionFn(ctx, e.logger, e.executionCache, domainID, workflowExecution, true, e.timeSource.Now(),
 		func(wfContext execution.Context, mutableState execution.MutableState) error {
 			if !mutableState.IsWorkflowExecutionRunning() {
 				return workflow.ErrNotExists
@@ -75,22 +75,24 @@ func (e *historyEngineImpl) RecordChildExecutionCompleted(
 					)
 					return workflow.ErrStaleState
 				}
+				// This can happen if the child execution is already completed, so it's deleted from mutable state
+				// We must return a non-retryable error to avoid infinite retries
 				return &types.EntityNotExistsError{Message: "Pending child execution not found."}
 			}
 			if ci.StartedID == constants.EmptyEventID {
-				if startedID >= mutableState.GetNextEventID() {
-					e.metricsClient.IncCounter(metrics.HistoryRecordChildExecutionCompletedScope, metrics.StaleMutableStateCounter)
-					e.logger.Error("Encounter stale mutable state in RecordChildExecutionCompleted",
-						tag.WorkflowDomainName(domainEntry.GetInfo().Name),
-						tag.WorkflowID(workflowExecution.GetWorkflowID()),
-						tag.WorkflowRunID(workflowExecution.GetRunID()),
-						tag.WorkflowInitiatedID(initiatedID),
-						tag.WorkflowStartedID(startedID),
-						tag.WorkflowNextEventID(mutableState.GetNextEventID()),
-					)
-					return workflow.ErrStaleState
-				}
-				return &types.EntityNotExistsError{Message: "Pending child execution not started."}
+				// This means that the child execution is initiated but not started in the view of the parent workflow,
+				// but it receives a notification on child workflow completion.
+				// This can happen if the parent workflow data is stale (due to shard movement), some bad guy is spoiling our API, or there is a bug.
+				e.metricsClient.IncCounter(metrics.HistoryRecordChildExecutionCompletedScope, metrics.StaleMutableStateCounter)
+				e.logger.Error("Encounter stale mutable state in RecordChildExecutionCompleted",
+					tag.WorkflowDomainName(domainEntry.GetInfo().Name),
+					tag.WorkflowID(workflowExecution.GetWorkflowID()),
+					tag.WorkflowRunID(workflowExecution.GetRunID()),
+					tag.WorkflowInitiatedID(initiatedID),
+					tag.WorkflowStartedID(startedID),
+					tag.WorkflowNextEventID(mutableState.GetNextEventID()),
+				)
+				return workflow.ErrStaleState
 			}
 			if ci.StartedWorkflowID != completedExecution.GetWorkflowID() {
 				return &types.EntityNotExistsError{Message: "Pending child execution workflowID mismatch."}

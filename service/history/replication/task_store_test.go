@@ -150,11 +150,17 @@ func createTestTaskStore(t *testing.T, domains domainCache, hydrator taskHydrato
 		ReplicatorReadTaskMaxRetryCount: dynamicproperties.GetIntPropertyFn(1),
 	}
 
-	clusterMetadata := cluster.NewMetadata(0, testClusterC, testClusterC, map[string]config.ClusterInformation{
-		testClusterA: {Enabled: true},
-		testClusterB: {Enabled: true},
-		testClusterC: {Enabled: true},
-	},
+	clusterMetadata := cluster.NewMetadata(
+		config.ClusterGroupMetadata{
+			FailoverVersionIncrement: 0,
+			PrimaryClusterName:       testClusterC,
+			CurrentClusterName:       testClusterC,
+			ClusterGroup: map[string]config.ClusterInformation{
+				testClusterA: {Enabled: true},
+				testClusterB: {Enabled: true},
+				testClusterC: {Enabled: true},
+			},
+		},
 		func(d string) bool { return false },
 		metrics.NewNoopMetricsClient(),
 		testlogger.New(t),

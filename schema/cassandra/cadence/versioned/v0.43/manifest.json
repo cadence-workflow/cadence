@@ -1,0 +1,8 @@
+{
+  "CurrVersion": "0.43",
+  "MinCompatibleVersion": "0.43",
+  "Description": "Adding new fields to workflow_execution and activity_info types to support following features: cron overlap policy, active-active domain, ephemeral task list",
+  "SchemaUpdateCqlFiles": [
+    "workflow_execution_new_fields.cql"
+  ]
+}

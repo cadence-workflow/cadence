@@ -35,6 +35,9 @@ const (
 	ClusterName1 = "ClusterName1"
 	ClusterName2 = "ClusterName2"
 
+	Region1 = "Region1"
+	Region2 = "Region2"
+
 	BadBinaryReason   = "BadBinaryReason"
 	BadBinaryOperator = "BadBinaryOperator"
 
@@ -100,6 +103,18 @@ var (
 	DomainReplicationConfiguration = types.DomainReplicationConfiguration{
 		ActiveClusterName: ClusterName1,
 		Clusters:          ClusterReplicationConfigurationArray,
+		ActiveClusters: &types.ActiveClusters{
+			ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+				Region1: {
+					ActiveClusterName: ClusterName1,
+					FailoverVersion:   FailoverVersion1,
+				},
+				Region2: {
+					ActiveClusterName: ClusterName2,
+					FailoverVersion:   FailoverVersion2,
+				},
+			},
+		},
 	}
 	ClusterReplicationConfiguration = types.ClusterReplicationConfiguration{
 		ClusterName: ClusterName1,

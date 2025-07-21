@@ -24,6 +24,7 @@ package main
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -57,6 +58,14 @@ func main() {
 			mcp.Description("gRPC endpoint of the cadence domain"),
 		),
 	), domainRRHandler)
+
+	s.AddTool(mcp.NewTool("payload_decoder",
+		mcp.WithDescription("Decode a payload that is encoded by hex or base64. The payload is from Cadence database."),
+		mcp.WithString("payload",
+			mcp.Required(),
+			mcp.Description("The payload to decode"),
+		),
+	), payloadDecoderHandler)
 
 	debugLog("Cadence MCP started")
 
@@ -98,7 +107,7 @@ func domainRRHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.Cal
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		debugLog("Error checking domain resilience: %v, %s\n", err, string(output))
-		return mcp.NewToolResultText("Error checking domain resilience: " + err.Error() + "\n" + string(output)), nil
+		return mcp.NewToolResultError("Error checking domain resilience: " + err.Error() + "\n" + string(output)), nil
 	}
 
 	// parse the output of the cadence CLI
@@ -109,6 +118,41 @@ func domainRRHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.Cal
 	}
 
 	return mcp.NewToolResultText("No, this domain is not resilient to regional outages. Consider making it a global domain."), nil
+}
+
+func payloadDecoderHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	payload, ok := request.Params.Arguments["payload"].(string)
+	if !ok {
+		return nil, errors.New("payload must be a string")
+	}
+
+	// check if the payload is encoded by hex or base64
+	enc := "base64"
+	if isHexEncoded(payload) {
+		enc = "hex"
+	}
+
+	debugLog("Decoding payload with %s encoding\n", enc)
+
+	// invoke cadence CLI to decode the payload
+	cmd := exec.Command("docker", "run", "-t", "--rm", "--network", "host", "ubercadence/cli:master",
+		"admin", "db", "decode_thrift",
+		"--input", payload,
+		"--encoding", enc)
+
+	// run the cmd and capture both stdout and stderr
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		debugLog("Error decoding payload: %v, %s\n", err, string(output))
+		return mcp.NewToolResultError("Error decoding payload: " + err.Error() + "\n" + string(output)), nil
+	}
+
+	return mcp.NewToolResultText(string(output)), nil
+}
+
+func isHexEncoded(payload string) bool {
+	_, err := hex.DecodeString(strings.TrimPrefix(payload, "0x"))
+	return err == nil
 }
 
 func debugLog(format string, args ...interface{}) {

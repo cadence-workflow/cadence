@@ -37,6 +37,7 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"reflect"
 	"sort"
 	"strings"
 	"testing"
@@ -67,7 +68,11 @@ func TestReplicationSimulation(t *testing.T) {
 		simCfg.MustInitClientsFor(t, clusterName)
 	}
 
-	simCfg.MustRegisterDomain(t)
+	simTypes.Logf(t, "Registering domains")
+	for domainName, domainCfg := range simCfg.Domains {
+		simTypes.Logf(t, "Domain: %s", domainName)
+		simCfg.MustRegisterDomain(t, domainName, domainCfg)
+	}
 
 	// wait for domain data to be replicated and workers to start.
 	waitUntilWorkersReady(t)
@@ -85,10 +90,18 @@ func TestReplicationSimulation(t *testing.T) {
 		switch op.Type {
 		case simTypes.ReplicationSimulationOperationStartWorkflow:
 			err = startWorkflow(t, op, simCfg)
-		case simTypes.ReplicationSimulationOperationFailover:
-			err = failover(t, op, simCfg)
+		case simTypes.ReplicationSimulationOperationResetWorkflow:
+			err = resetWorkflow(t, op, simCfg)
+		case simTypes.ReplicationSimulationOperationChangeActiveClusters:
+			err = changeActiveClusters(t, op, simCfg)
 		case simTypes.ReplicationSimulationOperationValidate:
 			err = validate(t, op, simCfg)
+		case simTypes.ReplicationSimulationOperationQueryWorkflow:
+			err = queryWorkflow(t, op, simCfg)
+		case simTypes.ReplicationSimulationOperationSignalWithStartWorkflow:
+			err = signalWithStartWorkflow(t, op, simCfg)
+		case simTypes.ReplicationSimulationOperationMigrateDomainToActiveActive:
+			err = migrateDomainToActiveActive(t, op, simCfg)
 		default:
 			require.Failf(t, "unknown operation type", "operation type: %s", op.Type)
 		}
@@ -101,7 +114,7 @@ func TestReplicationSimulation(t *testing.T) {
 	// Print the test summary.
 	// Don't change the start/end line format as it is used by scripts to parse the summary info
 	executionTime := time.Since(startTime)
-	testSummary := []string{}
+	var testSummary []string
 	testSummary = append(testSummary, "Simulation Summary:")
 	testSummary = append(testSummary, fmt.Sprintf("Simulation Duration: %v", executionTime))
 	testSummary = append(testSummary, "End of Simulation Summary")
@@ -115,67 +128,255 @@ func startWorkflow(
 ) error {
 	t.Helper()
 
-	simTypes.Logf(t, "Starting workflow: %s on cluster: %s", op.WorkflowID, op.Cluster)
+	simTypes.Logf(t, "Starting workflow: %s on domain %s on cluster: %s", op.WorkflowID, op.Domain, op.Cluster)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
+
+	if op.WorkflowExecutionStartToCloseTimeout == 0 || op.WorkflowExecutionStartToCloseTimeout < op.WorkflowDuration {
+		return fmt.Errorf("workflow execution start to close timeout must be specified and should be greater than workflow duration")
+	}
+
 	resp, err := simCfg.MustGetFrontendClient(t, op.Cluster).StartWorkflowExecution(ctx,
 		&types.StartWorkflowExecutionRequest{
 			RequestID:                           uuid.New(),
-			Domain:                              simTypes.DomainName,
+			Domain:                              op.Domain,
 			WorkflowID:                          op.WorkflowID,
-			WorkflowType:                        &types.WorkflowType{Name: simTypes.WorkflowName},
+			WorkflowType:                        &types.WorkflowType{Name: op.WorkflowType},
 			TaskList:                            &types.TaskList{Name: simTypes.TasklistName},
-			ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(int32((op.WorkflowDuration + 30*time.Second).Seconds())),
+			ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(int32((op.WorkflowExecutionStartToCloseTimeout).Seconds())),
 			TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(5),
-			Input:                               mustJSON(t, &simTypes.WorkflowInput{Duration: op.WorkflowDuration}),
+			Input:                               mustJSON(t, &simTypes.WorkflowInput{Duration: op.WorkflowDuration, ActivityCount: op.ActivityCount}),
+			WorkflowIDReusePolicy:               types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
 		})
 
 	if err != nil {
 		return err
 	}
 
-	simTypes.Logf(t, "Started workflow: %s on cluster: %s. RunID: %s", op.WorkflowID, op.Cluster, resp.GetRunID())
+	simTypes.Logf(t, "Started workflow: %s on domain: %s on cluster: %s. RunID: %s", op.WorkflowID, op.Domain, op.Cluster, resp.GetRunID())
 
 	return nil
 }
 
-func failover(
+func resetWorkflow(
 	t *testing.T,
 	op *simTypes.Operation,
 	simCfg *simTypes.ReplicationSimulationConfig,
 ) error {
 	t.Helper()
 
-	simTypes.Logf(t, "Failing over to cluster: %s", op.NewActiveCluster)
+	simTypes.Logf(t, "Resetting workflow: %s on domain %s on cluster: %s", op.WorkflowID, op.Domain, op.Cluster)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	resp, err := simCfg.MustGetFrontendClient(t, op.Cluster).DescribeWorkflowExecution(ctx,
+		&types.DescribeWorkflowExecutionRequest{
+			Domain: op.Domain,
+			Execution: &types.WorkflowExecution{
+				WorkflowID: op.WorkflowID,
+			},
+		})
+
+	if err != nil {
+		return fmt.Errorf("failed to describe workflow %s: %w", op.WorkflowID, err)
+	}
+
+	simTypes.Logf(t, "DescribeWorkflowExecution workflowID: %s on domain: %s on cluster: %s. RunID: %s", op.WorkflowID, op.Domain, op.Cluster, resp.GetWorkflowExecutionInfo().Execution.RunID)
+
+	resetResp, err := simCfg.MustGetFrontendClient(t, op.Cluster).ResetWorkflowExecution(ctx,
+		&types.ResetWorkflowExecutionRequest{
+			Domain: op.Domain,
+			WorkflowExecution: &types.WorkflowExecution{
+				WorkflowID: op.WorkflowID,
+				RunID:      resp.GetWorkflowExecutionInfo().Execution.RunID,
+			},
+			Reason:                "resetting workflow",
+			DecisionFinishEventID: op.EventID,
+		})
+
+	if err != nil {
+		if op.Want.Error != "" {
+			if strings.Contains(err.Error(), op.Want.Error) {
+				simTypes.Logf(t, "Expected error: %s", op.Want.Error)
+				return nil
+			}
+			return fmt.Errorf("expected error: %s, but got: %s", op.Want.Error, err.Error())
+		}
+		simTypes.Logf(t, err.Error())
+		return err
+	}
+
+	if op.Want.Error != "" {
+		return fmt.Errorf("expected error: %s, but got nil", op.Want.Error)
+	}
+
+	simTypes.Logf(t, "Reset workflowID: %s on domain: %s on cluster: %s. RunID: %s", op.WorkflowID, op.Domain, op.Cluster, resetResp.GetRunID())
+
+	return nil
+}
+
+func changeActiveClusters(
+	t *testing.T,
+	op *simTypes.Operation,
+	simCfg *simTypes.ReplicationSimulationConfig,
+) error {
+	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	descResp, err := simCfg.MustGetFrontendClient(t, simCfg.PrimaryCluster).DescribeDomain(ctx, &types.DescribeDomainRequest{Name: common.StringPtr(simTypes.DomainName)})
+	descResp, err := simCfg.MustGetFrontendClient(t, simCfg.PrimaryCluster).DescribeDomain(ctx, &types.DescribeDomainRequest{Name: common.StringPtr(op.Domain)})
 	if err != nil {
-		return fmt.Errorf("failed to describe domain %s: %w", simTypes.DomainName, err)
+		return fmt.Errorf("failed to describe domain %s: %w", op.Domain, err)
 	}
 
-	fromCluster := descResp.ReplicationConfiguration.ActiveClusterName
-	toCluster := op.NewActiveCluster
+	if !simCfg.IsActiveActiveDomain(op.Domain) {
+		fromCluster := descResp.ReplicationConfiguration.ActiveClusterName
+		toCluster := op.NewActiveCluster
+		simTypes.Logf(t, "Changing active clusters for domain %s from %s to %s", op.Domain, fromCluster, toCluster)
 
-	if fromCluster == toCluster {
-		return fmt.Errorf("domain %s is already active in cluster %s so cannot perform failover", simTypes.DomainName, toCluster)
+		ctx, cancel = context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		_, err = simCfg.MustGetFrontendClient(t, simCfg.PrimaryCluster).UpdateDomain(ctx,
+			&types.UpdateDomainRequest{
+				Name:                     op.Domain,
+				ActiveClusterName:        &toCluster,
+				FailoverTimeoutInSeconds: op.FailoverTimeout,
+			})
+		if err != nil {
+			return fmt.Errorf("failed to update ActiveClusterName, err: %w", err)
+		}
+
+		simTypes.Logf(t, "Failed over from %s to %s", fromCluster, toCluster)
+	} else {
+
+		ctx, cancel = context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		activeClustersByRegion := make(map[string]types.ActiveClusterInfo)
+		for region, cluster := range op.NewActiveClustersByRegion {
+			activeClustersByRegion[region] = types.ActiveClusterInfo{
+				ActiveClusterName: cluster,
+				FailoverVersion:   -1, // doesn't matter. API handler will override it
+			}
+		}
+		ac := &types.ActiveClusters{
+			ActiveClustersByRegion: activeClustersByRegion,
+		}
+		simTypes.Logf(t, "Changing active clusters by region for domain %s from %+v to %+v", op.Domain, descResp.ReplicationConfiguration.ActiveClusters, ac)
+		_, err = simCfg.MustGetFrontendClient(t, simCfg.PrimaryCluster).UpdateDomain(ctx,
+			&types.UpdateDomainRequest{
+				Name:           op.Domain,
+				ActiveClusters: ac,
+			})
+		if err != nil {
+			return fmt.Errorf("failed to update ActiveClusters, err: %w", err)
+		}
+
+		simTypes.Logf(t, "Failed over from %+v to %+v", descResp.ReplicationConfiguration.ActiveClusters, ac)
 	}
+	return nil
+}
 
-	ctx, cancel = context.WithTimeout(context.Background(), 2*time.Second)
+func migrateDomainToActiveActive(t *testing.T, op *simTypes.Operation, simCfg *simTypes.ReplicationSimulationConfig) error {
+	t.Helper()
+
+	simTypes.Logf(t, "Migrating domain %s to active-active", op.Domain)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	_, err = simCfg.MustGetFrontendClient(t, simCfg.PrimaryCluster).UpdateDomain(ctx,
-		&types.UpdateDomainRequest{
-			Name:                     simTypes.DomainName,
-			ActiveClusterName:        &toCluster,
-			FailoverTimeoutInSeconds: op.FailovertimeoutSec,
-		})
+
+	frontendCl := simCfg.MustGetFrontendClient(t, simCfg.PrimaryCluster)
+	ac := &types.ActiveClusters{
+		ActiveClustersByRegion: make(map[string]types.ActiveClusterInfo),
+	}
+	for region, cluster := range op.NewActiveClustersByRegion {
+		ac.ActiveClustersByRegion[region] = types.ActiveClusterInfo{
+			ActiveClusterName: cluster,
+			FailoverVersion:   -1, // doesn't matter. API handler will override it
+		}
+	}
+	_, err := frontendCl.UpdateDomain(ctx, &types.UpdateDomainRequest{
+		Name:           op.Domain,
+		ActiveClusters: ac,
+	})
 	if err != nil {
-		return fmt.Errorf("failed to update ActiveClusterName, err: %w", err)
+		return fmt.Errorf("failed to update domain %s to active-active: %w", op.Domain, err)
 	}
 
-	simTypes.Logf(t, "Failed over from %s to %s", fromCluster, toCluster)
+	simTypes.Logf(t, "Migrated domain %s to active-active", op.Domain)
+	return nil
+}
+
+func queryWorkflow(t *testing.T, op *simTypes.Operation, simCfg *simTypes.ReplicationSimulationConfig) error {
+	t.Helper()
+
+	simTypes.Logf(t, "Querying workflow: %s on domain %s on cluster: %s", op.WorkflowID, op.Domain, op.Cluster)
+
+	frontendCl := simCfg.MustGetFrontendClient(t, op.Cluster)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	consistencyLevel := types.QueryConsistencyLevelEventual.Ptr()
+	if op.ConsistencyLevel == "strong" {
+		consistencyLevel = types.QueryConsistencyLevelStrong.Ptr()
+	}
+
+	queryResp, err := frontendCl.QueryWorkflow(ctx, &types.QueryWorkflowRequest{
+		Domain: op.Domain,
+		Execution: &types.WorkflowExecution{
+			WorkflowID: op.WorkflowID,
+		},
+		Query: &types.WorkflowQuery{
+			QueryType: op.Query,
+		},
+		QueryConsistencyLevel: consistencyLevel,
+	})
+	if err != nil {
+		return err
+	}
+
+	got := mustParseJSON(t, queryResp.GetQueryResult())
+	want := op.Want.QueryResult
+	if !reflect.DeepEqual(want, got) {
+		return fmt.Errorf("query result mismatch. want: %v (type: %T), got: %v (type: %T)", want, want, got, got)
+	}
+
+	simTypes.Logf(t, "Query workflow: %s on domain: %s on cluster: %s. Query result: %v", op.WorkflowID, op.Domain, op.Cluster, got)
+
+	return nil
+}
+
+func signalWithStartWorkflow(
+	t *testing.T,
+	op *simTypes.Operation,
+	simCfg *simTypes.ReplicationSimulationConfig,
+) error {
+	t.Helper()
+	simTypes.Logf(t, "SignalWithStart workflow: %s on domain %s on cluster: %s", op.WorkflowID, op.Domain, op.Cluster)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	frontendCl := simCfg.MustGetFrontendClient(t, op.Cluster)
+
+	signalResp, err := frontendCl.SignalWithStartWorkflowExecution(ctx, &types.SignalWithStartWorkflowExecutionRequest{
+		RequestID:                           uuid.New(),
+		Domain:                              op.Domain,
+		WorkflowID:                          op.WorkflowID,
+		WorkflowIDReusePolicy:               types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
+		WorkflowType:                        &types.WorkflowType{Name: op.WorkflowType},
+		SignalName:                          op.SignalName,
+		SignalInput:                         mustJSON(t, op.SignalInput),
+		TaskList:                            &types.TaskList{Name: simTypes.TasklistName},
+		ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(int32((op.WorkflowExecutionStartToCloseTimeout).Seconds())),
+		TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(5),
+		Input:                               mustJSON(t, &simTypes.WorkflowInput{Duration: op.WorkflowDuration, ActivityCount: op.ActivityCount}),
+	})
+	if err != nil {
+		return err
+	}
+
+	simTypes.Logf(t, "SignalWithStart workflow: %s on domain %s on cluster: %s. RunID: %s", op.WorkflowID, op.Domain, op.Cluster, signalResp.GetRunID())
 	return nil
 }
 
@@ -195,7 +396,7 @@ func validate(
 	defer cancel()
 	resp, err := simCfg.MustGetFrontendClient(t, op.Cluster).DescribeWorkflowExecution(ctx,
 		&types.DescribeWorkflowExecutionRequest{
-			Domain: simTypes.DomainName,
+			Domain: op.Domain,
 			Execution: &types.WorkflowExecution{
 				WorkflowID: op.WorkflowID,
 			},
@@ -204,16 +405,49 @@ func validate(
 		return err
 	}
 
-	// Validate workflow completed
-	if resp.GetWorkflowExecutionInfo().GetCloseStatus() != types.WorkflowExecutionCloseStatusCompleted || resp.GetWorkflowExecutionInfo().GetCloseTime() == 0 {
-		return fmt.Errorf("workflow %s not completed. status: %s, close time: %v", op.WorkflowID, resp.GetWorkflowExecutionInfo().GetCloseStatus(), time.Unix(0, resp.GetWorkflowExecutionInfo().GetCloseTime()))
+	switch op.Want.Status {
+	case "completed":
+		// Validate workflow completed
+		if resp.GetWorkflowExecutionInfo().GetCloseStatus() != types.WorkflowExecutionCloseStatusCompleted || resp.GetWorkflowExecutionInfo().GetCloseTime() == 0 {
+			return fmt.Errorf("workflow %s not completed. status: %s, close time: %v", op.WorkflowID, resp.GetWorkflowExecutionInfo().GetCloseStatus(), time.Unix(0, resp.GetWorkflowExecutionInfo().GetCloseTime()))
+		}
+	case "failed":
+		// Validate workflow failed
+		if resp.GetWorkflowExecutionInfo().GetCloseStatus() != types.WorkflowExecutionCloseStatusFailed || resp.GetWorkflowExecutionInfo().GetCloseTime() == 0 {
+			return fmt.Errorf("workflow %s not failed. status: %s, close time: %v", op.WorkflowID, resp.GetWorkflowExecutionInfo().GetCloseStatus(), time.Unix(0, resp.GetWorkflowExecutionInfo().GetCloseTime()))
+		}
+	case "canceled":
+		// Validate workflow canceled
+		if resp.GetWorkflowExecutionInfo().GetCloseStatus() != types.WorkflowExecutionCloseStatusCanceled || resp.GetWorkflowExecutionInfo().GetCloseTime() == 0 {
+			return fmt.Errorf("workflow %s not canceled. status: %s, close time: %v", op.WorkflowID, resp.GetWorkflowExecutionInfo().GetCloseStatus(), time.Unix(0, resp.GetWorkflowExecutionInfo().GetCloseTime()))
+		}
+	case "terminated":
+		// Validate workflow terminated
+		if resp.GetWorkflowExecutionInfo().GetCloseStatus() != types.WorkflowExecutionCloseStatusTerminated || resp.GetWorkflowExecutionInfo().GetCloseTime() == 0 {
+			return fmt.Errorf("workflow %s not terminated. status: %s, close time: %v", op.WorkflowID, resp.GetWorkflowExecutionInfo().GetCloseStatus(), time.Unix(0, resp.GetWorkflowExecutionInfo().GetCloseTime()))
+		}
+	case "continued-as-new":
+		// Validate workflow continued as new
+		if resp.GetWorkflowExecutionInfo().GetCloseStatus() != types.WorkflowExecutionCloseStatusContinuedAsNew || resp.GetWorkflowExecutionInfo().GetCloseTime() == 0 {
+			return fmt.Errorf("workflow %s not continued as new. status: %s, close time: %v", op.WorkflowID, resp.GetWorkflowExecutionInfo().GetCloseStatus(), time.Unix(0, resp.GetWorkflowExecutionInfo().GetCloseTime()))
+		}
+	case "timed-out":
+		// Validate workflow timed out
+		if resp.GetWorkflowExecutionInfo().GetCloseStatus() != types.WorkflowExecutionCloseStatusTimedOut || resp.GetWorkflowExecutionInfo().GetCloseTime() == 0 {
+			return fmt.Errorf("workflow %s not timed out. status: %s, close time: %v", op.WorkflowID, resp.GetWorkflowExecutionInfo().GetCloseStatus(), time.Unix(0, resp.GetWorkflowExecutionInfo().GetCloseTime()))
+		}
+	default:
+		// Validate workflow is running
+		if resp.GetWorkflowExecutionInfo().GetCloseTime() != 0 {
+			return fmt.Errorf("workflow %s not running. status: %s, close time: %v", op.WorkflowID, resp.GetWorkflowExecutionInfo().GetCloseStatus(), time.Unix(0, resp.GetWorkflowExecutionInfo().GetCloseTime()))
+		}
 	}
 
 	simTypes.Logf(t, "Validated workflow: %s on cluster: %s. Status: %s, CloseTime: %v", op.WorkflowID, op.Cluster, resp.GetWorkflowExecutionInfo().GetCloseStatus(), time.Unix(0, resp.GetWorkflowExecutionInfo().GetCloseTime()))
 
 	// Get history to validate the worker identity that started and completed the workflow
 	// Some workflows start in cluster0 and complete in cluster1. This is to validate that
-	history, err := getAllHistory(t, simCfg, op.Cluster, op.WorkflowID)
+	history, err := getAllHistory(t, simCfg, op.Cluster, op.Domain, op.WorkflowID)
 	if err != nil {
 		return err
 	}
@@ -226,8 +460,8 @@ func validate(
 	if err != nil {
 		return err
 	}
-	if op.Want.StartedByWorkersInCluster != "" && startedWorker != simTypes.WorkerIdentityFor(op.Want.StartedByWorkersInCluster) {
-		return fmt.Errorf("workflow %s started by worker %s, expected %s", op.WorkflowID, startedWorker, simTypes.WorkerIdentityFor(op.Want.StartedByWorkersInCluster))
+	if op.Want.StartedByWorkersInCluster != "" && startedWorker != simTypes.WorkerIdentityFor(op.Want.StartedByWorkersInCluster, op.Domain) {
+		return fmt.Errorf("workflow %s started by worker %s, expected %s", op.WorkflowID, startedWorker, simTypes.WorkerIdentityFor(op.Want.StartedByWorkersInCluster, op.Domain))
 	}
 
 	completedWorker, err := lastDecisionTaskWorker(history)
@@ -235,8 +469,8 @@ func validate(
 		return err
 	}
 
-	if op.Want.CompletedByWorkersInCluster != "" && completedWorker != simTypes.WorkerIdentityFor(op.Want.CompletedByWorkersInCluster) {
-		return fmt.Errorf("workflow %s completed by worker %s, expected %s", op.WorkflowID, completedWorker, simTypes.WorkerIdentityFor(op.Want.CompletedByWorkersInCluster))
+	if op.Want.CompletedByWorkersInCluster != "" && completedWorker != simTypes.WorkerIdentityFor(op.Want.CompletedByWorkersInCluster, op.Domain) {
+		return fmt.Errorf("workflow %s completed by worker %s, expected %s", op.WorkflowID, completedWorker, simTypes.WorkerIdentityFor(op.Want.CompletedByWorkersInCluster, op.Domain))
 	}
 
 	return nil
@@ -272,14 +506,14 @@ func waitForOpTime(t *testing.T, op *simTypes.Operation, startTime time.Time) {
 	simTypes.Logf(t, "Operation time (t + %ds) reached: %v", int(op.At.Seconds()), startTime.Add(op.At))
 }
 
-func getAllHistory(t *testing.T, simCfg *simTypes.ReplicationSimulationConfig, clusterName, wfID string) ([]types.HistoryEvent, error) {
+func getAllHistory(t *testing.T, simCfg *simTypes.ReplicationSimulationConfig, clusterName, domainName, wfID string) ([]types.HistoryEvent, error) {
 	frontendCl := simCfg.MustGetFrontendClient(t, clusterName)
 	var nextPageToken []byte
 	var history []types.HistoryEvent
 	for {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		response, err := frontendCl.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
-			Domain: simTypes.DomainName,
+			Domain: domainName,
 			Execution: &types.WorkflowExecution{
 				WorkflowID: wfID,
 			},
@@ -307,6 +541,13 @@ func getAllHistory(t *testing.T, simCfg *simTypes.ReplicationSimulationConfig, c
 		nextPageToken = response.NextPageToken
 		time.Sleep(10 * time.Millisecond) // sleep to avoid throttling
 	}
+}
+
+func mustParseJSON(t *testing.T, v []byte) any {
+	var result interface{}
+	err := json.Unmarshal(v, &result)
+	require.NoError(t, err, "failed to unmarshal from json")
+	return result
 }
 
 func mustJSON(t *testing.T, v interface{}) []byte {

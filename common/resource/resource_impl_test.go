@@ -79,10 +79,20 @@ func TestStartStop(t *testing.T) {
 	pprof.EXPECT().Start().Return(nil).Times(1)
 
 	// rpc mocks
-	clusterMetadata := cluster.NewMetadata(1, "primary-cluster", "primary-cluster", map[string]config.ClusterInformation{
-		"primary-cluster":   {InitialFailoverVersion: 1, Enabled: true, RPCTransport: "tchannel", RPCAddress: "localhost:0"},
-		"secondary-cluster": {InitialFailoverVersion: 1, Enabled: true, RPCTransport: "tchannel", RPCAddress: "localhost:0"},
-	}, nil, metricsCl, logger)
+	clusterMetadata := cluster.NewMetadata(
+		config.ClusterGroupMetadata{
+			FailoverVersionIncrement: 1,
+			PrimaryClusterName:       "primary-cluster",
+			CurrentClusterName:       "primary-cluster",
+			ClusterGroup: map[string]config.ClusterInformation{
+				"primary-cluster":   {InitialFailoverVersion: 1, Enabled: true, RPCTransport: "tchannel", RPCAddress: "localhost:0"},
+				"secondary-cluster": {InitialFailoverVersion: 1, Enabled: true, RPCTransport: "tchannel", RPCAddress: "localhost:0"},
+			},
+		},
+		func(d string) bool { return false },
+		metricsCl,
+		logger,
+	)
 	directOutboundPCF := rpc.NewDirectPeerChooserFactory(serviceName, logger, metricsCl)
 	directConnRetainFn := func(opts ...dynamicproperties.FilterOption) bool { return false }
 	pcf := rpc.NewMockPeerChooserFactory(ctrl)
@@ -201,7 +211,6 @@ func TestStartStop(t *testing.T) {
 	// validations
 	assert.Equal(t, serviceName, i.GetServiceName())
 	assert.Equal(t, selfHostInfo, i.GetHostInfo())
-	assert.Equal(t, params.ClusterMetadata, i.GetClusterMetadata())
 	gotDomain, err := i.GetDomainCache().GetDomainByID("test-domain-id")
 	assert.NoError(t, err)
 	assert.Equal(t, domain.Info, gotDomain.GetInfo())
@@ -223,8 +232,12 @@ func TestStartStop(t *testing.T) {
 	assert.NotNil(t, i.GetHistoryRawClient())
 	assert.NotNil(t, i.GetHistoryClient())
 	assert.NotNil(t, i.GetRatelimiterAggregatorsClient())
-	assert.NotNil(t, i.GetRemoteAdminClient("secondary-cluster"))
-	assert.NotNil(t, i.GetRemoteFrontendClient("secondary-cluster"))
+	adminClient, err := i.GetRemoteAdminClient("secondary-cluster")
+	assert.NoError(t, err)
+	assert.NotNil(t, adminClient)
+	frontendClient, err := i.GetRemoteFrontendClient("secondary-cluster")
+	assert.NoError(t, err)
+	assert.NotNil(t, frontendClient)
 	assert.NotNil(t, i.GetClientBean())
 	assert.Equal(t, domainMgr, i.GetDomainManager())
 	assert.Equal(t, taskMgr, i.GetTaskManager())

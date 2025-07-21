@@ -156,6 +156,7 @@ func NewTestBaseWithNoSQL(t *testing.T, options *TestBaseOptions) *TestBase {
 		EnableShardIDMetrics:                     dynamicproperties.GetBoolPropertyFn(true),
 		EnableHistoryTaskDualWriteMode:           dynamicproperties.GetBoolPropertyFn(true),
 		ReadNoSQLHistoryTaskFromDataBlob:         dynamicproperties.GetBoolPropertyFn(false),
+		ReadNoSQLShardFromDataBlob:               dynamicproperties.GetBoolPropertyFn(false),
 	}
 	params := TestBaseParams{
 		DefaultTestCluster:    testCluster,
@@ -185,6 +186,8 @@ func NewTestBaseWithSQL(t *testing.T, options *TestBaseOptions) *TestBase {
 		PersistenceSampleLoggingRate:             dynamicproperties.GetIntPropertyFn(100),
 		EnableShardIDMetrics:                     dynamicproperties.GetBoolPropertyFn(true),
 		EnableHistoryTaskDualWriteMode:           dynamicproperties.GetBoolPropertyFn(true),
+		ReadNoSQLHistoryTaskFromDataBlob:         dynamicproperties.GetBoolPropertyFn(false),
+		ReadNoSQLShardFromDataBlob:               dynamicproperties.GetBoolPropertyFn(false),
 	}
 	params := TestBaseParams{
 		DefaultTestCluster:    testCluster,
@@ -1440,15 +1443,11 @@ func (s *TestBase) GetTransferTasks(ctx context.Context, batchSize int, getAll b
 Loop:
 	for {
 		response, err := s.ExecutionManager.GetHistoryTasks(ctx, &persistence.GetHistoryTasksRequest{
-			TaskCategory: persistence.HistoryTaskCategoryTransfer,
-			InclusiveMinTaskKey: persistence.HistoryTaskKey{
-				TaskID: 0,
-			},
-			ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
-				TaskID: math.MaxInt64,
-			},
-			PageSize:      batchSize,
-			NextPageToken: token,
+			TaskCategory:        persistence.HistoryTaskCategoryTransfer,
+			InclusiveMinTaskKey: persistence.NewImmediateTaskKey(0),
+			ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(math.MaxInt64),
+			PageSize:            batchSize,
+			NextPageToken:       token,
 		})
 		if err != nil {
 			return nil, err
@@ -1477,15 +1476,11 @@ func (s *TestBase) GetReplicationTasks(ctx context.Context, batchSize int, getAl
 Loop:
 	for {
 		response, err := s.ExecutionManager.GetHistoryTasks(ctx, &persistence.GetHistoryTasksRequest{
-			TaskCategory: persistence.HistoryTaskCategoryReplication,
-			InclusiveMinTaskKey: persistence.HistoryTaskKey{
-				TaskID: 0,
-			},
-			ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
-				TaskID: math.MaxInt64,
-			},
-			PageSize:      batchSize,
-			NextPageToken: token,
+			TaskCategory:        persistence.HistoryTaskCategoryReplication,
+			InclusiveMinTaskKey: persistence.NewImmediateTaskKey(0),
+			ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(math.MaxInt64),
+			PageSize:            batchSize,
+			NextPageToken:       token,
 		})
 		if err != nil {
 			return nil, err
@@ -1505,11 +1500,9 @@ Loop:
 func (s *TestBase) RangeCompleteReplicationTask(ctx context.Context, exclusiveEndTaskID int64) error {
 	for {
 		resp, err := s.ExecutionManager.RangeCompleteHistoryTask(ctx, &persistence.RangeCompleteHistoryTaskRequest{
-			TaskCategory: persistence.HistoryTaskCategoryReplication,
-			ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
-				TaskID: exclusiveEndTaskID,
-			},
-			PageSize: 1,
+			TaskCategory:        persistence.HistoryTaskCategoryReplication,
+			ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(exclusiveEndTaskID),
+			PageSize:            1,
 		})
 		if err != nil {
 			return err
@@ -1610,9 +1603,7 @@ func (s *TestBase) CompleteTransferTask(ctx context.Context, taskID int64) error
 
 	return s.ExecutionManager.CompleteHistoryTask(ctx, &persistence.CompleteHistoryTaskRequest{
 		TaskCategory: persistence.HistoryTaskCategoryTransfer,
-		TaskKey: persistence.HistoryTaskKey{
-			TaskID: taskID,
-		},
+		TaskKey:      persistence.NewImmediateTaskKey(taskID),
 	})
 }
 
@@ -1620,14 +1611,10 @@ func (s *TestBase) CompleteTransferTask(ctx context.Context, taskID int64) error
 func (s *TestBase) RangeCompleteTransferTask(ctx context.Context, inclusiveBeginTaskID int64, exclusiveEndTaskID int64) error {
 	for {
 		resp, err := s.ExecutionManager.RangeCompleteHistoryTask(ctx, &persistence.RangeCompleteHistoryTaskRequest{
-			TaskCategory: persistence.HistoryTaskCategoryTransfer,
-			InclusiveMinTaskKey: persistence.HistoryTaskKey{
-				TaskID: inclusiveBeginTaskID,
-			},
-			ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
-				TaskID: exclusiveEndTaskID,
-			},
-			PageSize: 1,
+			TaskCategory:        persistence.HistoryTaskCategoryTransfer,
+			InclusiveMinTaskKey: persistence.NewImmediateTaskKey(inclusiveBeginTaskID),
+			ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(exclusiveEndTaskID),
+			PageSize:            1,
 		})
 		if err != nil {
 			return err
@@ -1654,9 +1641,7 @@ func (s *TestBase) CompleteReplicationTask(ctx context.Context, taskID int64) er
 
 	return s.ExecutionManager.CompleteHistoryTask(ctx, &persistence.CompleteHistoryTaskRequest{
 		TaskCategory: persistence.HistoryTaskCategoryReplication,
-		TaskKey: persistence.HistoryTaskKey{
-			TaskID: taskID,
-		},
+		TaskKey:      persistence.NewImmediateTaskKey(taskID),
 	})
 }
 
@@ -1668,15 +1653,11 @@ func (s *TestBase) GetTimerIndexTasks(ctx context.Context, batchSize int, getAll
 Loop:
 	for {
 		response, err := s.ExecutionManager.GetHistoryTasks(ctx, &persistence.GetHistoryTasksRequest{
-			TaskCategory: persistence.HistoryTaskCategoryTimer,
-			InclusiveMinTaskKey: persistence.HistoryTaskKey{
-				ScheduledTime: time.Time{},
-			},
-			ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
-				ScheduledTime: time.Unix(0, math.MaxInt64),
-			},
-			PageSize:      batchSize,
-			NextPageToken: token,
+			TaskCategory:        persistence.HistoryTaskCategoryTimer,
+			InclusiveMinTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0), 0),
+			ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, math.MaxInt64), 0),
+			PageSize:            batchSize,
+			NextPageToken:       token,
 		})
 		if err != nil {
 			return nil, err
@@ -1696,10 +1677,7 @@ Loop:
 func (s *TestBase) CompleteTimerTask(ctx context.Context, ts time.Time, taskID int64) error {
 	return s.ExecutionManager.CompleteHistoryTask(ctx, &persistence.CompleteHistoryTaskRequest{
 		TaskCategory: persistence.HistoryTaskCategoryTimer,
-		TaskKey: persistence.HistoryTaskKey{
-			ScheduledTime: ts,
-			TaskID:        taskID,
-		},
+		TaskKey:      persistence.NewHistoryTaskKey(ts, taskID),
 	})
 }
 
@@ -1707,14 +1685,10 @@ func (s *TestBase) CompleteTimerTask(ctx context.Context, ts time.Time, taskID i
 func (s *TestBase) RangeCompleteTimerTask(ctx context.Context, inclusiveBeginTimestamp time.Time, exclusiveEndTimestamp time.Time) error {
 	for {
 		resp, err := s.ExecutionManager.RangeCompleteHistoryTask(ctx, &persistence.RangeCompleteHistoryTaskRequest{
-			TaskCategory: persistence.HistoryTaskCategoryTimer,
-			InclusiveMinTaskKey: persistence.HistoryTaskKey{
-				ScheduledTime: inclusiveBeginTimestamp,
-			},
-			ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
-				ScheduledTime: exclusiveEndTimestamp,
-			},
-			PageSize: 1,
+			TaskCategory:        persistence.HistoryTaskCategoryTimer,
+			InclusiveMinTaskKey: persistence.NewHistoryTaskKey(inclusiveBeginTimestamp, 0),
+			ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(exclusiveEndTimestamp, 0),
+			PageSize:            1,
 		})
 
 		if err != nil {
@@ -1962,7 +1936,7 @@ func (s *TestBase) Publish(
 			return persistence.IsTransientError(e) || isMessageIDConflictError(e)
 		}),
 	)
-	return throttleRetry.Do(ctx, func() error {
+	return throttleRetry.Do(ctx, func(ctx context.Context) error {
 		return s.DomainReplicationQueueMgr.EnqueueMessage(ctx, messagePayload)
 	})
 }
@@ -2015,7 +1989,7 @@ func (s *TestBase) PublishToDomainDLQ(
 			return persistence.IsTransientError(e) || isMessageIDConflictError(e)
 		}),
 	)
-	return throttleRetry.Do(ctx, func() error {
+	return throttleRetry.Do(ctx, func(ctx context.Context) error {
 		return s.DomainReplicationQueueMgr.EnqueueMessageToDLQ(ctx, messagePayload)
 	})
 }

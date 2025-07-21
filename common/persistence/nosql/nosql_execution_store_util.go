@@ -94,6 +94,20 @@ func (d *nosqlExecutionStore) prepareWorkflowRequestRows(
 	return requestRowsToAppend
 }
 
+func (d *nosqlExecutionStore) prepareActiveClusterSelectionPolicyRow(domainID, workflowID, runID string, activeClusterSelectionPolicy *persistence.DataBlob) *nosqlplugin.ActiveClusterSelectionPolicyRow {
+	if activeClusterSelectionPolicy == nil {
+		return nil
+	}
+
+	return &nosqlplugin.ActiveClusterSelectionPolicyRow{
+		ShardID:    d.shardID,
+		DomainID:   domainID,
+		WorkflowID: workflowID,
+		RunID:      runID,
+		Policy:     activeClusterSelectionPolicy,
+	}
+}
+
 func (d *nosqlExecutionStore) prepareResetWorkflowExecutionRequestWithMapsAndEventBuffer(resetWorkflow *persistence.InternalWorkflowSnapshot, currentTimeStamp time.Time) (*nosqlplugin.WorkflowExecutionRequest, error) {
 	executionInfo := resetWorkflow.ExecutionInfo
 	lastWriteVersion := resetWorkflow.LastWriteVersion

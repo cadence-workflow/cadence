@@ -35,6 +35,7 @@ import (
 	"github.com/uber/cadence/service/history/config"
 	"github.com/uber/cadence/service/history/execution"
 	"github.com/uber/cadence/service/history/shard"
+	"github.com/uber/cadence/service/history/simulation"
 	"github.com/uber/cadence/service/worker/archiver"
 )
 
@@ -42,8 +43,9 @@ type (
 	transferStandbyTaskExecutor struct {
 		*transferTaskExecutorBase
 
-		clusterName     string
-		historyResender ndc.HistoryResender
+		clusterName            string
+		historyResender        ndc.HistoryResender
+		getRemoteClusterNameFn func(context.Context, persistence.Task) (string, error)
 	}
 )
 
@@ -67,52 +69,66 @@ func NewTransferStandbyTaskExecutor(
 		),
 		clusterName:     clusterName,
 		historyResender: historyResender,
+		getRemoteClusterNameFn: func(ctx context.Context, taskInfo persistence.Task) (string, error) {
+			return getRemoteClusterName(ctx, clusterName, shard.GetDomainCache(), shard.GetActiveClusterManager(), taskInfo)
+		},
 	}
 }
 
-func (t *transferStandbyTaskExecutor) Execute(
-	task Task,
-	shouldProcessTask bool,
-) error {
-	if !shouldProcessTask {
-		return nil
+func (t *transferStandbyTaskExecutor) Execute(task Task) (ExecuteResponse, error) {
+	simulation.LogEvents(simulation.E{
+		EventName:  simulation.EventNameExecuteHistoryTask,
+		Host:       t.shard.GetConfig().HostName,
+		ShardID:    t.shard.GetShardID(),
+		DomainID:   task.GetDomainID(),
+		WorkflowID: task.GetWorkflowID(),
+		RunID:      task.GetRunID(),
+		Payload: map[string]any{
+			"task_category": persistence.HistoryTaskCategoryTransfer.Name(),
+			"task_type":     task.GetTaskType(),
+			"task_key":      task.GetTaskKey(),
+		},
+	})
+	scope := getOrCreateDomainTaggedScope(t.shard, GetTransferTaskMetricsScope(task.GetTaskType(), false), task.GetDomainID(), t.logger)
+	executeResponse := ExecuteResponse{
+		Scope:        scope,
+		IsActiveTask: false,
 	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), taskDefaultTimeout)
 	defer cancel()
 
 	switch transferTask := task.GetInfo().(type) {
 	case *persistence.ActivityTask:
-		return t.processActivityTask(ctx, transferTask)
+		return executeResponse, t.processActivityTask(ctx, transferTask)
 	case *persistence.DecisionTask:
-		return t.processDecisionTask(ctx, transferTask)
+		return executeResponse, t.processDecisionTask(ctx, transferTask)
 	case *persistence.CloseExecutionTask:
-		return t.processCloseExecution(ctx, transferTask)
+		return executeResponse, t.processCloseExecution(ctx, transferTask)
 	case *persistence.RecordWorkflowClosedTask:
-		return t.processCloseExecution(ctx, &persistence.CloseExecutionTask{
+		return executeResponse, t.processCloseExecution(ctx, &persistence.CloseExecutionTask{
 			WorkflowIdentifier: transferTask.WorkflowIdentifier,
 			TaskData:           transferTask.TaskData,
 		})
 	case *persistence.RecordChildExecutionCompletedTask:
 		// no action needed for standby
 		// check the comment in t.processCloseExecution()
-		return nil
+		return executeResponse, nil
 	case *persistence.CancelExecutionTask:
-		return t.processCancelExecution(ctx, transferTask)
+		return executeResponse, t.processCancelExecution(ctx, transferTask)
 	case *persistence.SignalExecutionTask:
-		return t.processSignalExecution(ctx, transferTask)
+		return executeResponse, t.processSignalExecution(ctx, transferTask)
 	case *persistence.StartChildExecutionTask:
-		return t.processStartChildExecution(ctx, transferTask)
+		return executeResponse, t.processStartChildExecution(ctx, transferTask)
 	case *persistence.RecordWorkflowStartedTask:
-		return t.processRecordWorkflowStarted(ctx, transferTask)
+		return executeResponse, t.processRecordWorkflowStarted(ctx, transferTask)
 	case *persistence.ResetWorkflowTask:
 		// no reset needed for standby
 		// TODO: add error logs
-		return nil
+		return executeResponse, nil
 	case *persistence.UpsertWorkflowSearchAttributesTask:
-		return t.processUpsertWorkflowSearchAttributes(ctx, transferTask)
+		return executeResponse, t.processUpsertWorkflowSearchAttributes(ctx, transferTask)
 	default:
-		return errUnknownTransferTask
+		return executeResponse, errUnknownTransferTask
 	}
 }
 
@@ -154,6 +170,7 @@ func (t *transferStandbyTaskExecutor) processActivityTask(
 		transferTask.ScheduleID,
 		actionFn,
 		getStandbyPostActionFn(
+			t.logger,
 			transferTask,
 			t.getCurrentTime,
 			t.config.StandbyTaskMissingEventsResendDelay(),
@@ -210,6 +227,7 @@ func (t *transferStandbyTaskExecutor) processDecisionTask(
 		transferTask.ScheduleID,
 		actionFn,
 		getStandbyPostActionFn(
+			t.logger,
 			transferTask,
 			t.getCurrentTime,
 			t.config.StandbyTaskMissingEventsResendDelay(),
@@ -333,6 +351,7 @@ func (t *transferStandbyTaskExecutor) processCancelExecution(
 		transferTask.InitiatedID,
 		actionFn,
 		getStandbyPostActionFn(
+			t.logger,
 			transferTask,
 			t.getCurrentTime,
 			t.config.StandbyTaskMissingEventsResendDelay(),
@@ -371,6 +390,7 @@ func (t *transferStandbyTaskExecutor) processSignalExecution(
 		transferTask.InitiatedID,
 		actionFn,
 		getStandbyPostActionFn(
+			t.logger,
 			transferTask,
 			t.getCurrentTime,
 			t.config.StandbyTaskMissingEventsResendDelay(),
@@ -413,6 +433,7 @@ func (t *transferStandbyTaskExecutor) processStartChildExecution(
 		transferTask.InitiatedID,
 		actionFn,
 		getStandbyPostActionFn(
+			t.logger,
 			transferTask,
 			t.getCurrentTime,
 			t.config.StandbyTaskMissingEventsResendDelay(),
@@ -635,7 +656,7 @@ func (t *transferStandbyTaskExecutor) pushDecision(
 }
 
 func (t *transferStandbyTaskExecutor) fetchHistoryFromRemote(
-	_ context.Context,
+	ctx context.Context,
 	taskInfo persistence.Task,
 	postActionInfo interface{},
 	_ log.Logger,
@@ -651,11 +672,15 @@ func (t *transferStandbyTaskExecutor) fetchHistoryFromRemote(
 	stopwatch := t.metricsClient.StartTimer(metrics.HistoryRereplicationByTransferTaskScope, metrics.CadenceClientLatency)
 	defer stopwatch.Stop()
 
-	var err error
+	remoteClusterName, err := t.getRemoteClusterNameFn(ctx, taskInfo)
+	if err != nil {
+		return err
+	}
 	if resendInfo.lastEventID != nil && resendInfo.lastEventVersion != nil {
 		// note history resender doesn't take in a context parameter, there's a separate dynamicconfig for
 		// controlling the timeout for resending history.
 		err = t.historyResender.SendSingleWorkflowHistory(
+			remoteClusterName,
 			taskInfo.GetDomainID(),
 			taskInfo.GetWorkflowID(),
 			taskInfo.GetRunID(),
@@ -676,7 +701,7 @@ func (t *transferStandbyTaskExecutor) fetchHistoryFromRemote(
 			tag.WorkflowDomainID(taskInfo.GetDomainID()),
 			tag.WorkflowID(taskInfo.GetWorkflowID()),
 			tag.WorkflowRunID(taskInfo.GetRunID()),
-			tag.SourceCluster(t.clusterName),
+			tag.SourceCluster(remoteClusterName),
 			tag.Error(err),
 		)
 	}
@@ -685,6 +710,8 @@ func (t *transferStandbyTaskExecutor) fetchHistoryFromRemote(
 	return &redispatchError{Reason: "fetchHistoryFromRemote"}
 }
 
-func (t *transferStandbyTaskExecutor) getCurrentTime() time.Time {
-	return t.shard.GetCurrentTime(t.clusterName)
+func (t *transferStandbyTaskExecutor) getCurrentTime(taskInfo persistence.Task) (time.Time, error) {
+	// for standby task, we can always use timesource.Now, because they're supposed to be processed immediately after creation,
+	// this is what're doing for queue v2, for queue v1, I just don't bother to change the behavior
+	return t.shard.GetCurrentTime(t.clusterName), nil
 }

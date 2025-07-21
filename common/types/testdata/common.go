@@ -247,6 +247,7 @@ var (
 			},
 		},
 		NewTasksPerSecond: 10,
+		Empty:             true,
 	}
 	TaskIDBlock = types.TaskIDBlock{
 		StartID: 551,
@@ -363,8 +364,28 @@ var (
 		Memo:              &Memo,
 		SearchAttributes:  &SearchAttributes,
 		AutoResetPoints:   &ResetPoints,
-		TaskList:          TaskListName,
+		TaskList:          &types.TaskList{Name: TaskListName, Kind: types.TaskListKindNormal.Ptr()},
 		PartitionConfig:   PartitionConfig,
+		CronOverlapPolicy: &CronOverlapPolicy,
+	}
+	WorkflowExecutionInfoEphemeral = types.WorkflowExecutionInfo{
+		Execution:         &WorkflowExecution,
+		Type:              &WorkflowType,
+		StartTime:         &Timestamp1,
+		CloseTime:         &Timestamp2,
+		CloseStatus:       &WorkflowExecutionCloseStatus,
+		HistoryLength:     HistoryLength,
+		ParentDomainID:    common.StringPtr(DomainID),
+		ParentDomain:      common.StringPtr(DomainName),
+		ParentExecution:   &WorkflowExecution,
+		ParentInitiatedID: common.Int64Ptr(EventID1),
+		ExecutionTime:     &Timestamp3,
+		Memo:              &Memo,
+		SearchAttributes:  &SearchAttributes,
+		AutoResetPoints:   &ResetPoints,
+		TaskList:          &types.TaskList{Name: TaskListName, Kind: types.TaskListKindEphemeral.Ptr()},
+		PartitionConfig:   PartitionConfig,
+		CronOverlapPolicy: &CronOverlapPolicy,
 	}
 	CronWorkflowExecutionInfo = types.WorkflowExecutionInfo{
 		Execution:         &WorkflowExecution,
@@ -381,9 +402,10 @@ var (
 		Memo:              &Memo,
 		SearchAttributes:  &SearchAttributes,
 		AutoResetPoints:   &ResetPoints,
-		TaskList:          TaskListName,
+		TaskList:          &types.TaskList{Name: TaskListName, Kind: types.TaskListKindNormal.Ptr()},
 		PartitionConfig:   PartitionConfig,
 		IsCron:            true,
+		CronOverlapPolicy: &CronOverlapPolicy,
 	}
 	WorkflowExecutionInfoArray = []*types.WorkflowExecutionInfo{&WorkflowExecutionInfo}
 
@@ -453,4 +475,38 @@ var (
 		EnableAutoConfig:   false,
 		PollerWaitTimeInMs: 10,
 	}
+	TaskKey = types.TaskKey{
+		TaskID:            TaskID,
+		ScheduledTimeNano: Timestamp1,
+	}
+	TaskKey2 = types.TaskKey{
+		TaskID:            TaskID + 1,
+		ScheduledTimeNano: Timestamp2,
+	}
+	TaskRange = types.TaskRange{
+		InclusiveMin: &TaskKey,
+		ExclusiveMax: &TaskKey2,
+	}
+	VirtualSliceState = types.VirtualSliceState{
+		TaskRange: &TaskRange,
+	}
+	VirtualQueueState = types.VirtualQueueState{
+		VirtualSliceStates: []*types.VirtualSliceState{&VirtualSliceState},
+	}
+	QueueState = types.QueueState{
+		VirtualQueueStates: map[int64]*types.VirtualQueueState{
+			0: &VirtualQueueState,
+		},
+		ExclusiveMaxReadLevel: &TaskKey,
+	}
+	ActiveClusterSelectionPolicyRegionSticky = types.ActiveClusterSelectionPolicy{
+		ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
+		StickyRegion:                   "region1",
+	}
+	ActiveClusterSelectionPolicyExternalEntity = types.ActiveClusterSelectionPolicy{
+		ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyExternalEntity.Ptr(),
+		ExternalEntityType:             "externalEntityType1",
+		ExternalEntityKey:              "externalEntityKey1",
+	}
+	CronOverlapPolicy = types.CronOverlapPolicySkipped
 )

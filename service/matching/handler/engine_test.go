@@ -40,6 +40,7 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/matching/config"
@@ -378,13 +379,12 @@ func TestRespondQueryTaskCompleted(t *testing.T) {
 
 func TestQueryWorkflow(t *testing.T) {
 	testCases := []struct {
-		name                 string
-		req                  *types.MatchingQueryWorkflowRequest
-		hCtx                 *handlerContext
-		mockSetup            func(*tasklist.MockManager)
-		waitForQueryResultFn func(hCtx *handlerContext, isStrongConsistencyQuery bool, queryResultCh <-chan *queryResult) (*types.QueryWorkflowResponse, error)
-		wantErr              bool
-		want                 *types.QueryWorkflowResponse
+		name      string
+		req       *types.MatchingQueryWorkflowRequest
+		hCtx      *handlerContext
+		mockSetup func(*tasklist.MockManager, *lockableQueryTaskMap)
+		wantErr   bool
+		want      *types.MatchingQueryWorkflowResponse
 	}{
 		{
 			name: "invalid tasklist name",
@@ -394,7 +394,7 @@ func TestQueryWorkflow(t *testing.T) {
 					Name: "/__cadence_sys/invalid-tasklist-name",
 				},
 			},
-			mockSetup: func(mockManager *tasklist.MockManager) {},
+			mockSetup: func(mockManager *tasklist.MockManager, queryResultMap *lockableQueryTaskMap) {},
 			wantErr:   true,
 		},
 		{
@@ -406,7 +406,7 @@ func TestQueryWorkflow(t *testing.T) {
 					Kind: types.TaskListKindSticky.Ptr(),
 				},
 			},
-			mockSetup: func(mockManager *tasklist.MockManager) {
+			mockSetup: func(mockManager *tasklist.MockManager, queryResultMap *lockableQueryTaskMap) {
 				mockManager.EXPECT().HasPollerAfter(gomock.Any()).Return(false)
 			},
 			wantErr: true,
@@ -422,7 +422,7 @@ func TestQueryWorkflow(t *testing.T) {
 			hCtx: &handlerContext{
 				Context: context.Background(),
 			},
-			mockSetup: func(mockManager *tasklist.MockManager) {
+			mockSetup: func(mockManager *tasklist.MockManager, queryResultMap *lockableQueryTaskMap) {
 				mockManager.EXPECT().DispatchQueryTask(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, errors.New("some error"))
 			},
 			wantErr: true,
@@ -437,22 +437,45 @@ func TestQueryWorkflow(t *testing.T) {
 			},
 			hCtx: &handlerContext{
 				Context: func() context.Context {
-					ctx, cancel := context.WithCancel(context.Background())
-					cancel()
-					return ctx
+					return context.Background()
 				}(),
 			},
-			mockSetup: func(mockManager *tasklist.MockManager) {
-				mockManager.EXPECT().DispatchQueryTask(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil)
-			},
-			waitForQueryResultFn: func(hCtx *handlerContext, isStrongConsistencyQuery bool, queryResultCh <-chan *queryResult) (*types.QueryWorkflowResponse, error) {
-				return &types.QueryWorkflowResponse{
-					QueryResult: []byte("some result"),
-				}, nil
+			mockSetup: func(mockManager *tasklist.MockManager, queryResultMap *lockableQueryTaskMap) {
+				mockManager.EXPECT().DispatchQueryTask(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, taskID string, request *types.MatchingQueryWorkflowRequest) (*types.MatchingQueryWorkflowResponse, error) {
+					queryResChan, ok := queryResultMap.get(taskID)
+					if !ok {
+						return nil, errors.New("cannot find query result channel by taskID")
+					}
+					queryResChan <- &queryResult{workerResponse: &types.MatchingRespondQueryTaskCompletedRequest{
+						TaskID: taskID,
+						CompletedRequest: &types.RespondQueryTaskCompletedRequest{
+							QueryResult: []byte("some result"),
+						},
+					}}
+					return nil, nil
+				})
+				mockManager.EXPECT().TaskListPartitionConfig().Return(&types.TaskListPartitionConfig{
+					Version: 1,
+					ReadPartitions: map[int]*types.TaskListPartition{
+						0: {},
+					},
+					WritePartitions: map[int]*types.TaskListPartition{
+						0: {},
+					},
+				})
 			},
 			wantErr: false,
-			want: &types.QueryWorkflowResponse{
+			want: &types.MatchingQueryWorkflowResponse{
 				QueryResult: []byte("some result"),
+				PartitionConfig: &types.TaskListPartitionConfig{
+					Version: 1,
+					ReadPartitions: map[int]*types.TaskListPartition{
+						0: {},
+					},
+					WritePartitions: map[int]*types.TaskListPartition{
+						0: {},
+					},
+				},
 			},
 		},
 	}
@@ -461,7 +484,6 @@ func TestQueryWorkflow(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			mockCtrl := gomock.NewController(t)
 			mockManager := tasklist.NewMockManager(mockCtrl)
-			tc.mockSetup(mockManager)
 			tasklistID, err := tasklist.NewIdentifier("test-domain-id", "test-tasklist", 0)
 			require.NoError(t, err)
 			engine := &matchingEngineImpl{
@@ -470,8 +492,8 @@ func TestQueryWorkflow(t *testing.T) {
 				},
 				timeSource:           clock.NewRealTimeSource(),
 				lockableQueryTaskMap: lockableQueryTaskMap{queryTaskMap: make(map[string]chan *queryResult)},
-				waitForQueryResultFn: tc.waitForQueryResultFn,
 			}
+			tc.mockSetup(mockManager, &engine.lockableQueryTaskMap)
 			resp, err := engine.QueryWorkflow(tc.hCtx, tc.req)
 			if tc.wantErr {
 				require.Error(t, err)
@@ -490,7 +512,7 @@ func TestWaitForQueryResult(t *testing.T) {
 		mockSetup func(*client.MockVersionChecker)
 		wantErr   bool
 		assertErr func(*testing.T, error)
-		want      *types.QueryWorkflowResponse
+		want      *types.MatchingQueryWorkflowResponse
 	}{
 		{
 			name: "internal error",
@@ -541,7 +563,7 @@ func TestWaitForQueryResult(t *testing.T) {
 				mockVersionChecker.EXPECT().SupportsConsistentQuery("uber-go", "1.0.0").Return(nil)
 			},
 			wantErr: false,
-			want: &types.QueryWorkflowResponse{
+			want: &types.MatchingQueryWorkflowResponse{
 				QueryResult: []byte("some result"),
 			},
 		},
@@ -624,7 +646,11 @@ func TestWaitForQueryResult(t *testing.T) {
 func TestIsShuttingDown(t *testing.T) {
 	wg := sync.WaitGroup{}
 	wg.Add(0)
+	mockDomainCache := cache.NewMockDomainCache(gomock.NewController(t))
+	mockDomainCache.EXPECT().RegisterDomainChangeCallback(service.Matching, gomock.Any(), gomock.Any(), gomock.Any()).Times(1)
+	mockDomainCache.EXPECT().UnregisterDomainChangeCallback(service.Matching).Times(1)
 	e := matchingEngineImpl{
+		domainCache:        mockDomainCache,
 		shutdownCompletion: &wg,
 		shutdown:           make(chan struct{}),
 	}
@@ -1116,4 +1142,254 @@ func TestRefreshTaskListPartitionConfig(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_domainChangeCallback(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	mockDomainCache := cache.NewMockDomainCache(mockCtrl)
+
+	clusters := []string{"cluster0", "cluster1"}
+
+	mockTaskListManagerGlobal1 := tasklist.NewMockManager(mockCtrl)
+	mockTaskListManagerGlobal2 := tasklist.NewMockManager(mockCtrl)
+	mockStickyTaskListManagerGlobal2 := tasklist.NewMockManager(mockCtrl)
+	mockTaskListManagerGlobal3 := tasklist.NewMockManager(mockCtrl)
+	mockStickyTaskListManagerGlobal3 := tasklist.NewMockManager(mockCtrl)
+	mockTaskListManagerLocal1 := tasklist.NewMockManager(mockCtrl)
+	mockTaskListManagerActiveActive1 := tasklist.NewMockManager(mockCtrl)
+
+	tlIdentifierDecisionGlobal1, _ := tasklist.NewIdentifier("global-domain-1-id", "global-domain-1", persistence.TaskListTypeDecision)
+	tlIdentifierActivityGlobal1, _ := tasklist.NewIdentifier("global-domain-1-id", "global-domain-1", persistence.TaskListTypeActivity)
+	tlIdentifierDecisionGlobal2, _ := tasklist.NewIdentifier("global-domain-2-id", "global-domain-2", persistence.TaskListTypeDecision)
+	tlIdentifierActivityGlobal2, _ := tasklist.NewIdentifier("global-domain-2-id", "global-domain-2", persistence.TaskListTypeActivity)
+	tlIdentifierStickyGlobal2, _ := tasklist.NewIdentifier("global-domain-2-id", "sticky-global-domain-2", persistence.TaskListTypeDecision)
+	tlIdentifierActivityGlobal3, _ := tasklist.NewIdentifier("global-domain-3-id", "global-domain-3", persistence.TaskListTypeActivity)
+	tlIdentifierDecisionGlobal3, _ := tasklist.NewIdentifier("global-domain-3-id", "global-domain-3", persistence.TaskListTypeDecision)
+	tlIdentifierStickyGlobal3, _ := tasklist.NewIdentifier("global-domain-3-id", "sticky-global-domain-3", persistence.TaskListTypeDecision)
+	tlIdentifierDecisionLocal1, _ := tasklist.NewIdentifier("local-domain-1-id", "local-domain-1", persistence.TaskListTypeDecision)
+	tlIdentifierActivityLocal1, _ := tasklist.NewIdentifier("local-domain-1-id", "local-domain-1", persistence.TaskListTypeActivity)
+	tlIdentifierDecisionActiveActive1, _ := tasklist.NewIdentifier("active-active-domain-1-id", "active-active-domain-1", persistence.TaskListTypeDecision)
+	tlIdentifierActivityActiveActive1, _ := tasklist.NewIdentifier("active-active-domain-1-id", "active-active-domain-1", persistence.TaskListTypeActivity)
+
+	engine := &matchingEngineImpl{
+		domainCache:                 mockDomainCache,
+		failoverNotificationVersion: 1,
+		config:                      defaultTestConfig(),
+		logger:                      log.NewNoop(),
+		taskLists: map[tasklist.Identifier]tasklist.Manager{
+			*tlIdentifierDecisionGlobal1:       mockTaskListManagerGlobal1,
+			*tlIdentifierActivityGlobal1:       mockTaskListManagerGlobal1,
+			*tlIdentifierDecisionGlobal2:       mockTaskListManagerGlobal2,
+			*tlIdentifierActivityGlobal2:       mockTaskListManagerGlobal2,
+			*tlIdentifierStickyGlobal2:         mockStickyTaskListManagerGlobal2,
+			*tlIdentifierDecisionGlobal3:       mockTaskListManagerGlobal3,
+			*tlIdentifierActivityGlobal3:       mockTaskListManagerGlobal3,
+			*tlIdentifierStickyGlobal3:         mockStickyTaskListManagerGlobal3,
+			*tlIdentifierDecisionLocal1:        mockTaskListManagerLocal1,
+			*tlIdentifierActivityLocal1:        mockTaskListManagerLocal1,
+			*tlIdentifierDecisionActiveActive1: mockTaskListManagerActiveActive1,
+			*tlIdentifierActivityActiveActive1: mockTaskListManagerActiveActive1,
+		},
+	}
+
+	mockTaskListManagerGlobal1.EXPECT().ReleaseBlockedPollers().Times(0)
+	mockTaskListManagerGlobal2.EXPECT().GetTaskListKind().Return(types.TaskListKindNormal).Times(4)
+	mockStickyTaskListManagerGlobal2.EXPECT().GetTaskListKind().Return(types.TaskListKindSticky).Times(2)
+	mockTaskListManagerGlobal2.EXPECT().DescribeTaskList(gomock.Any()).Return(&types.DescribeTaskListResponse{}).Times(2)
+	mockStickyTaskListManagerGlobal2.EXPECT().DescribeTaskList(gomock.Any()).Return(&types.DescribeTaskListResponse{}).Times(1)
+	mockTaskListManagerGlobal2.EXPECT().ReleaseBlockedPollers().Times(2)
+	mockStickyTaskListManagerGlobal2.EXPECT().ReleaseBlockedPollers().Times(1)
+	mockTaskListManagerGlobal3.EXPECT().GetTaskListKind().Return(types.TaskListKindNormal).Times(4)
+	mockStickyTaskListManagerGlobal3.EXPECT().GetTaskListKind().Return(types.TaskListKindSticky).Times(2)
+	mockTaskListManagerGlobal3.EXPECT().DescribeTaskList(gomock.Any()).Return(&types.DescribeTaskListResponse{}).Times(2)
+	mockStickyTaskListManagerGlobal3.EXPECT().DescribeTaskList(gomock.Any()).Return(&types.DescribeTaskListResponse{}).Times(1)
+	mockTaskListManagerGlobal3.EXPECT().ReleaseBlockedPollers().Return(errors.New("some-error")).Times(2)
+	mockStickyTaskListManagerGlobal3.EXPECT().ReleaseBlockedPollers().Return(errors.New("some-error")).Times(1)
+	mockTaskListManagerLocal1.EXPECT().ReleaseBlockedPollers().Times(0)
+	mockTaskListManagerActiveActive1.EXPECT().ReleaseBlockedPollers().Times(0)
+
+	domains := []*cache.DomainCacheEntry{
+		cache.NewDomainCacheEntryForTest(
+			&persistence.DomainInfo{Name: "global-domain-1", ID: "global-domain-1-id"},
+			nil,
+			true,
+			&persistence.DomainReplicationConfig{ActiveClusterName: clusters[0], Clusters: []*persistence.ClusterReplicationConfig{{ClusterName: "cluster0"}, {ClusterName: "cluster1"}}},
+			0,
+			nil,
+			0,
+			0,
+			6,
+		),
+		cache.NewDomainCacheEntryForTest(
+			&persistence.DomainInfo{Name: "global-domain-2", ID: "global-domain-2-id"},
+			nil,
+			true,
+			&persistence.DomainReplicationConfig{ActiveClusterName: clusters[1], Clusters: []*persistence.ClusterReplicationConfig{{ClusterName: "cluster0"}, {ClusterName: "cluster1"}}},
+			0,
+			nil,
+			4,
+			0,
+			4,
+		),
+		cache.NewDomainCacheEntryForTest(
+			&persistence.DomainInfo{Name: "global-domain-3", ID: "global-domain-3-id"},
+			nil,
+			true,
+			&persistence.DomainReplicationConfig{ActiveClusterName: clusters[1], Clusters: []*persistence.ClusterReplicationConfig{{ClusterName: "cluster0"}, {ClusterName: "cluster1"}}},
+			0,
+			nil,
+			5,
+			0,
+			5,
+		),
+		cache.NewDomainCacheEntryForTest(
+			&persistence.DomainInfo{Name: "local-domain-1", ID: "local-domain-1-id"},
+			nil,
+			false,
+			nil,
+			0,
+			nil,
+			0,
+			0,
+			3,
+		),
+		cache.NewDomainCacheEntryForTest(
+			&persistence.DomainInfo{Name: "active-active-domain-1", ID: "active-active-domain-1-id"},
+			nil,
+			true,
+			&persistence.DomainReplicationConfig{ActiveClusters: &types.ActiveClusters{
+				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+					"us-west": {
+						ActiveClusterName: "cluster0",
+						FailoverVersion:   1,
+					},
+				},
+			}},
+			0,
+			nil,
+			0,
+			0,
+			2,
+		),
+	}
+
+	engine.domainChangeCallback(domains)
+
+	assert.Equal(t, int64(5), engine.failoverNotificationVersion)
+}
+
+func Test_registerDomainFailoverCallback(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	mockDomainCache := cache.NewMockDomainCache(ctrl)
+
+	// Capture the registered catchUpFn
+	var registeredCatchUpFn func(cache.DomainCache, cache.PrepareCallbackFn, cache.CallbackFn)
+	mockDomainCache.EXPECT().RegisterDomainChangeCallback(
+		service.Matching, // id of the callback
+		gomock.Any(),     // catchUpFn
+		gomock.Any(),     // lockTaskProcessingForDomainUpdate
+		gomock.Any(),     // domainChangeCB
+	).Do(func(_ string, catchUpFn, _, _ interface{}) {
+		if fn, ok := catchUpFn.(cache.CatchUpFn); ok {
+			registeredCatchUpFn = fn
+		} else {
+			t.Fatalf("Failed to convert catchUpFn to cache.CatchUpFn: got type %T", catchUpFn)
+		}
+	}).Times(1)
+
+	engine := &matchingEngineImpl{
+		domainCache:                 mockDomainCache,
+		failoverNotificationVersion: 0,
+		config:                      defaultTestConfig(),
+		logger:                      log.NewNoop(),
+		taskLists:                   map[tasklist.Identifier]tasklist.Manager{},
+	}
+
+	engine.registerDomainFailoverCallback()
+
+	t.Run("catchUpFn - No failoverNotificationVersion updates", func(t *testing.T) {
+		mockDomainCache.EXPECT().GetAllDomain().Return(map[string]*cache.DomainCacheEntry{
+			"uuid-domain1": cache.NewDomainCacheEntryForTest(
+				&persistence.DomainInfo{ID: "uuid-domain1", Name: "domain1"},
+				nil,
+				true,
+				&persistence.DomainReplicationConfig{ActiveClusterName: "A"},
+				0,
+				nil,
+				0,
+				0,
+				1,
+			),
+			"uuid-domain2": cache.NewDomainCacheEntryForTest(
+				&persistence.DomainInfo{ID: "uuid-domain2", Name: "domain2"},
+				nil,
+				true,
+				&persistence.DomainReplicationConfig{ActiveClusterName: "A"},
+				0,
+				nil,
+				0,
+				0,
+				4,
+			),
+		})
+
+		prepareCalled := false
+		callbackCalled := false
+		prepare := func() { prepareCalled = true }
+		callback := func([]*cache.DomainCacheEntry) { callbackCalled = true }
+
+		if registeredCatchUpFn != nil {
+			registeredCatchUpFn(mockDomainCache, prepare, callback)
+			assert.False(t, prepareCalled, "prepareCallback should not be called")
+			assert.False(t, callbackCalled, "callback should not be called")
+		} else {
+			assert.Fail(t, "catchUpFn was not registered")
+		}
+
+		assert.Equal(t, int64(0), engine.failoverNotificationVersion)
+	})
+
+	t.Run("catchUpFn - No failoverNotificationVersion updates", func(t *testing.T) {
+		mockDomainCache.EXPECT().GetAllDomain().Return(map[string]*cache.DomainCacheEntry{
+			"uuid-domain1": cache.NewDomainCacheEntryForTest(
+				&persistence.DomainInfo{ID: "uuid-domain1", Name: "domain1"},
+				nil,
+				true,
+				&persistence.DomainReplicationConfig{ActiveClusterName: "A"},
+				0,
+				nil,
+				3,
+				0,
+				3,
+			),
+			"uuid-domain2": cache.NewDomainCacheEntryForTest(
+				&persistence.DomainInfo{ID: "uuid-domain2", Name: "domain2"},
+				nil,
+				true,
+				&persistence.DomainReplicationConfig{ActiveClusterName: "A"},
+				0,
+				nil,
+				2,
+				0,
+				4,
+			),
+		})
+
+		prepareCalled := false
+		callbackCalled := false
+		prepare := func() { prepareCalled = true }
+		callback := func([]*cache.DomainCacheEntry) { callbackCalled = true }
+
+		if registeredCatchUpFn != nil {
+			registeredCatchUpFn(mockDomainCache, prepare, callback)
+			assert.False(t, prepareCalled, "prepareCallback should not be called")
+			assert.False(t, callbackCalled, "callback should not be called")
+		} else {
+			assert.Fail(t, "catchUpFn was not registered")
+		}
+
+		assert.Equal(t, int64(3), engine.failoverNotificationVersion)
+	})
+
 }

@@ -13,3 +13,6 @@ workerconfig:
   enablearchiver: false
   enablereplicator: false
   enableindexer: false
+dynamicclientconfig:
+  filepath: "testdata/dynamicconfig/integration_test.yaml"
+  pollInterval: "10s"

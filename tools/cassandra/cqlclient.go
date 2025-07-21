@@ -21,10 +21,12 @@
 package cassandra
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"time"
 
+	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql"
 	"github.com/uber/cadence/tools/common/schema"
@@ -81,6 +83,13 @@ const (
 )
 
 const (
+	// Retry policy constants
+	ClientCreationRetryInitialInterval = time.Second
+	ClientCreationRetryMaximumInterval = 10 * time.Second
+	ClientCreationRetryMaximumAttempts = 3
+)
+
+const (
 	readSchemaVersionCQL        = `SELECT curr_version from schema_version where keyspace_name=?`
 	listTablesCQL               = `SELECT table_name from system_schema.tables where keyspace_name=?`
 	listTypesCQL                = `SELECT type_name from system_schema.types where keyspace_name=?`
@@ -111,25 +120,34 @@ const (
 
 var _ schema.SchemaClient = (*CqlClientImpl)(nil)
 
-// NewCQLClient returns a new instance of CQLClient
 func NewCQLClient(cfg *CQLClientConfig, expectedConsistency gocql.Consistency) (CqlClient, error) {
-	var err error
+	retrier := createClientCreationRetrier()
+	cassClient := gocql.GetRegisteredClient()
+	return NewCQLClientWithRetry(cfg, expectedConsistency, cassClient, retrier)
+}
 
+// NewCQLClient returns a new instance of CQLClient
+func NewCQLClientWithRetry(cfg *CQLClientConfig, expectedConsistency gocql.Consistency, cassClient gocql.Client, retrier *backoff.ThrottleRetry) (CqlClient, error) {
 	cqlClient := new(CqlClientImpl)
 	cqlClient.cfg = cfg
 	cqlClient.nReplicas = cfg.NumReplicas
-	cqlClient.session, err = gocql.GetRegisteredClient().CreateSession(gocql.ClusterConfig{
-		Hosts:                 cfg.Hosts,
-		Port:                  cfg.Port,
-		User:                  cfg.User,
-		Password:              cfg.Password,
-		AllowedAuthenticators: cfg.AllowedAuthenticators,
-		Keyspace:              cfg.Keyspace,
-		TLS:                   cfg.TLS,
-		Timeout:               time.Duration(cfg.Timeout) * time.Second,
-		ConnectTimeout:        time.Duration(cfg.ConnectTimeout) * time.Second,
-		ProtoVersion:          cfg.ProtoVersion,
-		Consistency:           expectedConsistency,
+
+	err := retrier.Do(context.Background(), func(ctx context.Context) error {
+		var err error
+		cqlClient.session, err = cassClient.CreateSession(gocql.ClusterConfig{
+			Hosts:                 cfg.Hosts,
+			Port:                  cfg.Port,
+			User:                  cfg.User,
+			Password:              cfg.Password,
+			AllowedAuthenticators: cfg.AllowedAuthenticators,
+			Keyspace:              cfg.Keyspace,
+			TLS:                   cfg.TLS,
+			Timeout:               time.Duration(cfg.Timeout) * time.Second,
+			ConnectTimeout:        time.Duration(cfg.ConnectTimeout) * time.Second,
+			ProtoVersion:          cfg.ProtoVersion,
+			Consistency:           expectedConsistency,
+		})
+		return err
 	})
 	if err != nil {
 		return nil, err
@@ -289,4 +307,16 @@ func (client *CqlClientImpl) DropAllTablesTypes() error {
 		return err
 	}
 	return nil
+}
+
+func createClientCreationRetrier() *backoff.ThrottleRetry {
+	policy := backoff.NewExponentialRetryPolicy(ClientCreationRetryInitialInterval)
+	policy.SetMaximumInterval(ClientCreationRetryMaximumInterval)
+	policy.SetMaximumAttempts(ClientCreationRetryMaximumAttempts)
+
+	retrier := backoff.NewThrottleRetry(
+		backoff.WithRetryPolicy(policy),
+		backoff.WithRetryableError(func(err error) bool { return true }),
+	)
+	return retrier
 }

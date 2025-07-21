@@ -89,7 +89,7 @@ func New(params *BootstrapParams) *Batcher {
 // Start starts the scanner
 func (s *Batcher) Start() error {
 	// start worker for batch operation workflows
-	ctx := context.WithValue(context.Background(), batcherContextKey, s)
+	ctx := context.WithValue(context.Background(), BatcherContextKey, s)
 	workerOpts := worker.Options{
 		MetricsScope:              s.tallyScope,
 		BackgroundActivityContext: ctx,

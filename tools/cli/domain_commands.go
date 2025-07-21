@@ -21,14 +21,17 @@
 package cli
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/pborman/uuid"
 	"github.com/urfave/cli/v2"
 
 	"github.com/uber/cadence/client/admin"
@@ -38,8 +41,14 @@ import (
 	"github.com/uber/cadence/common/domain"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/worker/domaindeprecation"
 	"github.com/uber/cadence/tools/common/commoncli"
 	"github.com/uber/cadence/tools/common/flag"
+)
+
+const (
+	decisionTimeoutInSeconds    = 5 * 60
+	workflowStartToCloseTimeout = 24 * 30 * 60 * 60 // 30 days
 )
 
 var (
@@ -103,6 +112,16 @@ func (d *domainCLIImpl) RegisterDomain(c *cli.Context) error {
 			return commoncli.Problem(fmt.Sprintf("Option %s format is invalid.", FlagIsGlobalDomain), err)
 		}
 	}
+	isActiveActiveDomain := false
+	if c.IsSet(FlagIsActiveActiveDomain) {
+		isActiveActiveDomain, err = strconv.ParseBool(c.String(FlagIsActiveActiveDomain))
+		if err != nil {
+			return commoncli.Problem(fmt.Sprintf("Option %s format is invalid.", FlagIsActiveActiveDomain), err)
+		}
+
+		// Also set isGlobalDomain to true if it is active-active domain
+		isGlobalDomain = isActiveActiveDomain
+	}
 
 	var domainData *flag.StringMap
 	if c.IsSet(FlagDomainData) {
@@ -117,7 +136,15 @@ func (d *domainCLIImpl) RegisterDomain(c *cli.Context) error {
 
 	activeClusterName := ""
 	if c.IsSet(FlagActiveClusterName) {
+		if isActiveActiveDomain {
+			return commoncli.Problem("Option --active_cluster is not supported for active-active domain. Use --active_clusters_by_region instead.", nil)
+		}
 		activeClusterName = c.String(FlagActiveClusterName)
+	}
+
+	activeClustersByRegion, err := parseActiveClustersByRegion(c, isActiveActiveDomain)
+	if err != nil {
+		return err
 	}
 
 	var clusters []*types.ClusterReplicationConfiguration
@@ -146,6 +173,7 @@ func (d *domainCLIImpl) RegisterDomain(c *cli.Context) error {
 		WorkflowExecutionRetentionPeriodInDays: int32(retentionDays),
 		Clusters:                               clusters,
 		ActiveClusterName:                      activeClusterName,
+		ActiveClustersByRegion:                 activeClustersByRegion,
 		SecurityToken:                          securityToken,
 		HistoryArchivalStatus:                  has,
 		HistoryArchivalURI:                     c.String(FlagHistoryArchivalURI),
@@ -182,7 +210,7 @@ func (d *domainCLIImpl) UpdateDomain(c *cli.Context) error {
 	if err != nil {
 		return commoncli.Problem("Error in creating context: ", err)
 	}
-	if c.IsSet(FlagActiveClusterName) {
+	if c.IsSet(FlagActiveClusterName) { // active-passive domain failover
 		activeCluster := c.String(FlagActiveClusterName)
 		fmt.Printf("Will set active cluster name to: %s, other flag will be omitted.\n", activeCluster)
 
@@ -196,6 +224,25 @@ func (d *domainCLIImpl) UpdateDomain(c *cli.Context) error {
 			Name:                     domainName,
 			ActiveClusterName:        common.StringPtr(activeCluster),
 			FailoverTimeoutInSeconds: failoverTimeout,
+		}
+	} else if c.IsSet(FlagActiveClustersByRegion) { // active-active domain failover
+		activeClustersByRegion, err := parseActiveClustersByRegion(c, true)
+		if err != nil {
+			return err
+		}
+
+		acbr := make(map[string]types.ActiveClusterInfo)
+		for region, cluster := range activeClustersByRegion {
+			acbr[region] = types.ActiveClusterInfo{
+				ActiveClusterName: cluster,
+			}
+		}
+
+		updateRequest = &types.UpdateDomainRequest{
+			Name: domainName,
+			ActiveClusters: &types.ActiveClusters{
+				ActiveClustersByRegion: acbr,
+			},
 		}
 	} else {
 		resp, err := d.describeDomain(ctx, &types.DescribeDomainRequest{
@@ -297,51 +344,120 @@ func (d *domainCLIImpl) UpdateDomain(c *cli.Context) error {
 	return nil
 }
 
-func (d *domainCLIImpl) DeprecateDomain(c *cli.Context) error {
+func (d *domainCLIImpl) DeleteDomain(c *cli.Context) error {
 	domainName, err := getRequiredOption(c, FlagDomain)
 	if err != nil {
 		return commoncli.Problem("Required flag not found: ", err)
 	}
-	securityToken := c.String(FlagSecurityToken)
-	force := c.Bool(FlagForce)
+	securityToken, err := getRequiredOption(c, FlagSecurityToken)
+	if err != nil {
+		return commoncli.Problem("Required flag not provided: ", err)
+	}
 
 	ctx, cancel, err := newContext(c)
 	defer cancel()
 	if err != nil {
 		return commoncli.Problem("Error in creating context: ", err)
 	}
-	if !force {
-		wfc, err := getWorkflowClient(c)
+
+	// First describe the domain to show its details
+	describeRequest := &types.DescribeDomainRequest{
+		Name: &domainName,
+	}
+	resp, err := d.describeDomain(ctx, describeRequest)
+	if err != nil {
+		if _, ok := err.(*types.EntityNotExistsError); !ok {
+			return commoncli.Problem("Operation DescribeDomain failed.", err)
+		}
+		return commoncli.Problem(fmt.Sprintf("Domain %s does not exist.", domainName), err)
+	}
+
+	if err := Render(c, newDomainRow(resp), RenderOptions{
+		DefaultTemplate: templateDomain,
+		Color:           true,
+		Border:          true,
+		PrintDateTime:   true,
+	}); err != nil {
+		return fmt.Errorf("failed to render domain details: %w", err)
+	}
+
+	fmt.Print("Do you want to delete this domain? \n")
+	reader := bufio.NewReader(os.Stdin)
+	for {
+		fmt.Print("Please confirm[Yes/No]:")
+		text, err := reader.ReadString('\n')
 		if err != nil {
-			return err
+			return commoncli.Problem("Failed to get confirmation for domain deletion", err)
 		}
-		// check if there is any workflow in this domain, if exists, do not deprecate
-		wfs, _, err := listClosedWorkflow(wfc, 1, 0, time.Now().UnixNano(), domainName, "", "", workflowStatusNotSet, c)(nil)
-		if err != nil {
-			return commoncli.Problem("Operation DeprecateDomain failed: fail to list closed workflows: ", err)
-		}
-		if len(wfs) > 0 {
-			return commoncli.Problem("Operation DeprecateDomain failed.", errors.New("workflow history not cleared in this domain"))
-		}
-		wfs, _, err = listOpenWorkflow(wfc, 1, 0, time.Now().UnixNano(), domainName, "", "", c)(nil)
-		if err != nil {
-			return commoncli.Problem("Operation DeprecateDomain failed: fail to list open workflows: ", err)
-		}
-		if len(wfs) > 0 {
-			return commoncli.Problem("Operation DeprecateDomain failed.", errors.New("workflow still running in this domain"))
+		if strings.EqualFold(strings.TrimSpace(text), "yes") {
+			break
+		} else {
+			fmt.Println("Domain deletion cancelled")
+			return nil
 		}
 	}
-	err = d.deprecateDomain(ctx, &types.DeprecateDomainRequest{
+
+	err = d.deleteDomain(ctx, &types.DeleteDomainRequest{
 		Name:          domainName,
 		SecurityToken: securityToken,
 	})
 	if err != nil {
-		if _, ok := err.(*types.EntityNotExistsError); !ok {
-			return commoncli.Problem("Operation DeprecateDomain failed.", err)
-		}
-		return commoncli.Problem(fmt.Sprintf("Domain %s does not exist.", domainName), err)
+		return commoncli.Problem("Operation Delete domain failed.", err)
 	}
-	fmt.Printf("Domain %s successfully deprecated.\n", domainName)
+	fmt.Printf("Domain %s successfully deleted.\n", domainName)
+	return nil
+}
+
+func (d *domainCLIImpl) DeprecateDomain(c *cli.Context) error {
+	domainName, err := getRequiredOption(c, FlagDomain)
+	if err != nil {
+		return commoncli.Problem("Required flag not provided: ", err)
+	}
+
+	securityToken := c.String(FlagSecurityToken)
+
+	ctx, cancel, err := newContext(c)
+	defer cancel()
+	if err != nil {
+		return commoncli.Problem("Error in creating context: ", err)
+	}
+
+	frontendClient, err := getDeps(c).ServerFrontendClient(c)
+	if err != nil {
+		return err
+	}
+
+	params := domaindeprecation.DomainDeprecationParams{
+		DomainName:    domainName,
+		SecurityToken: securityToken,
+	}
+	input, err := json.Marshal(params)
+	if err != nil {
+		return commoncli.Problem("Failed to encode domain deprecation parameters", err)
+	}
+
+	workflowID := uuid.NewRandom().String()
+	startRequest := &types.StartWorkflowExecutionRequest{
+		Domain:     constants.SystemLocalDomainName,
+		WorkflowID: fmt.Sprintf("domain-deprecation-%s-%s", domainName, workflowID),
+		WorkflowType: &types.WorkflowType{
+			Name: domaindeprecation.DomainDeprecationWorkflowTypeName,
+		},
+		TaskList: &types.TaskList{
+			Name: domaindeprecation.DomainDeprecationTaskListName,
+		},
+		ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(int32(workflowStartToCloseTimeout)),
+		TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(decisionTimeoutInSeconds),
+		RequestID:                           uuid.New(),
+		Input:                               input,
+	}
+
+	resp, err := frontendClient.StartWorkflowExecution(ctx, startRequest)
+	if err != nil {
+		return commoncli.Problem("Failed to start domain deprecation workflow", err)
+	}
+
+	fmt.Printf("Domain deprecation is in progress. Workflow ID: %s, Run ID: %s\n", startRequest.WorkflowID, resp.GetRunID())
 	return nil
 }
 
@@ -440,6 +556,8 @@ RetentionInDays: {{.RetentionDays}}
 EmitMetrics: {{.EmitMetrics}}
 IsGlobal(XDC)Domain: {{.IsGlobal}}
 ActiveClusterName: {{.ActiveCluster}}
+IsActiveActiveDomain: {{.IsActiveActiveDomain}}
+ActiveClustersByRegion: {{.ActiveClustersByRegion}}
 Clusters: {{if .IsGlobal}}{{.Clusters}}{{else}}N/A, Not a global domain{{end}}
 HistoryArchivalStatus: {{.HistoryArchivalStatus}}{{with .HistoryArchivalURI}}
 HistoryArchivalURI: {{.}}{{end}}
@@ -512,6 +630,12 @@ type FailoverInfoRow struct {
 	PendingShard        []int32   `header:"Pending Shard"`
 }
 
+type ActiveClusterInfoRow struct {
+	Region          string `header:"Region"`
+	ClusterName     string `header:"Cluster Name"`
+	FailoverVersion int64  `header:"Failover Version"`
+}
+
 type DomainRow struct {
 	Name                     string `header:"Name"`
 	UUID                     string `header:"UUID"`
@@ -531,6 +655,8 @@ type DomainRow struct {
 	BadBinaries              []BadBinaryRow
 	FailoverInfo             *FailoverInfoRow
 	LongRunningWorkFlowNum   *int
+	IsActiveActiveDomain     bool
+	ActiveClustersByRegion   []ActiveClusterInfoRow
 }
 
 type DomainMigrationRow struct {
@@ -574,7 +700,24 @@ func newDomainRow(domain *types.DescribeDomainResponse) DomainRow {
 		VisibilityArchivalURI:    domain.Configuration.GetVisibilityArchivalURI(),
 		BadBinaries:              newBadBinaryRows(domain.Configuration.BadBinaries),
 		FailoverInfo:             newFailoverInfoRow(domain.FailoverInfo),
+		IsActiveActiveDomain:     domain.ReplicationConfiguration.GetActiveClusters() != nil,
+		ActiveClustersByRegion:   newActiveClustersByRegion(domain.ReplicationConfiguration.GetActiveClusters()),
 	}
+}
+
+func newActiveClustersByRegion(activeClusters *types.ActiveClusters) []ActiveClusterInfoRow {
+	if activeClusters == nil {
+		return nil
+	}
+	rows := []ActiveClusterInfoRow{}
+	for region, cluster := range activeClusters.GetActiveClustersByRegion() {
+		rows = append(rows, ActiveClusterInfoRow{
+			Region:          region,
+			ClusterName:     cluster.ActiveClusterName,
+			FailoverVersion: cluster.FailoverVersion,
+		})
+	}
+	return rows
 }
 
 func newFailoverInfoRow(info *types.FailoverInfo) *FailoverInfoRow {
@@ -738,16 +881,16 @@ func (d *domainCLIImpl) updateDomain(
 	return d.domainHandler.UpdateDomain(ctx, request)
 }
 
-func (d *domainCLIImpl) deprecateDomain(
+func (d *domainCLIImpl) deleteDomain(
 	ctx context.Context,
-	request *types.DeprecateDomainRequest,
+	request *types.DeleteDomainRequest,
 ) error {
 
 	if d.frontendClient != nil {
-		return d.frontendClient.DeprecateDomain(ctx, request)
+		return d.frontendClient.DeleteDomain(ctx, request)
 	}
 
-	return d.domainHandler.DeprecateDomain(ctx, request)
+	return d.domainHandler.DeleteDomain(ctx, request)
 }
 
 func (d *domainCLIImpl) describeDomain(
@@ -782,4 +925,29 @@ func clustersToStrings(clusters []*types.ClusterReplicationConfiguration) []stri
 		res = append(res, cluster.GetClusterName())
 	}
 	return res
+}
+
+func parseActiveClustersByRegion(c *cli.Context, isActiveActiveDomain bool) (map[string]string, error) {
+	var activeClustersByRegion map[string]string
+	if c.IsSet(FlagActiveClustersByRegion) {
+		if !isActiveActiveDomain {
+			return nil, commoncli.Problem("Option --active_clusters_by_region is only supported for active-active domain. Use --active_cluster instead.", nil)
+		}
+
+		activeClustersByRegion = make(map[string]string)
+		for _, regionCluster := range c.StringSlice(FlagActiveClustersByRegion) {
+			splitted := strings.Split(regionCluster, ":")
+			if len(splitted) != 2 {
+				return nil, commoncli.Problem(fmt.Sprintf("Option --%s format is invalid. Expected format is 'region1:cluster1,region2:cluster2'", FlagActiveClustersByRegion), nil)
+			}
+			region, cluster := strings.TrimSpace(splitted[0]), strings.TrimSpace(splitted[1])
+			activeClustersByRegion[region] = cluster
+		}
+	}
+
+	if isActiveActiveDomain && len(activeClustersByRegion) == 0 {
+		return nil, commoncli.Problem("Option --active_clusters_by_region is required for active-active domain.", nil)
+	}
+
+	return activeClustersByRegion, nil
 }

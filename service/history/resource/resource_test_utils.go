@@ -29,6 +29,7 @@ import (
 	"github.com/uber/cadence/common/quotas/global/algorithm"
 	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/service/history/events"
+	"github.com/uber/cadence/service/worker/archiver"
 )
 
 type (
@@ -37,6 +38,7 @@ type (
 		*resource.Test
 		EventCache           *events.MockCache
 		ratelimiterAlgorithm algorithm.RequestWeighted
+		archiverClient       archiver.Client
 	}
 )
 
@@ -49,8 +51,9 @@ func NewTest(
 	serviceMetricsIndex metrics.ServiceIdx,
 ) *Test {
 	return &Test{
-		Test:       resource.NewTest(t, controller, serviceMetricsIndex),
-		EventCache: events.NewMockCache(controller),
+		Test:           resource.NewTest(t, controller, serviceMetricsIndex),
+		EventCache:     events.NewMockCache(controller),
+		archiverClient: &archiver.ClientMock{},
 	}
 }
 
@@ -61,4 +64,8 @@ func (s *Test) GetEventCache() events.Cache {
 
 func (s *Test) GetRatelimiterAlgorithm() algorithm.RequestWeighted {
 	return s.ratelimiterAlgorithm
+}
+
+func (s *Test) GetArchiverClient() archiver.Client {
+	return s.archiverClient
 }

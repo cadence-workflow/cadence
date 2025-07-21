@@ -52,7 +52,7 @@ func TestStartStop(t *testing.T) {
 
 	tree, err := New(
 		testlogger.New(t),
-		metrics.NoopScope(0),
+		metrics.NoopScope,
 		[]string{"type", "sub-type", "domain"},
 		getTestPolicies(),
 		types.NewMockPersister(ctrl),
@@ -166,7 +166,7 @@ func TestEnqueue(t *testing.T) {
 
 			tree, err := New(
 				testlogger.New(t),
-				metrics.NoopScope(0),
+				metrics.NoopScope,
 				[]string{"type", "sub-type", "domain"},
 				getTestPolicies(),
 				persister,

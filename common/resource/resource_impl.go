@@ -37,6 +37,7 @@ import (
 	"github.com/uber/cadence/client/sharddistributor"
 	"github.com/uber/cadence/client/wrappers/retryable"
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/archiver"
 	"github.com/uber/cadence/common/archiver/provider"
 	"github.com/uber/cadence/common/asyncworkflow/queue"
@@ -93,6 +94,7 @@ type Impl struct {
 
 	domainCache             cache.DomainCache
 	domainMetricsScopeCache cache.DomainMetricsScopeCache
+	activeClusterMgr        activecluster.Manager
 	timeSource              clock.TimeSource
 	payloadSerializer       persistence.PayloadSerializer
 	metricsClient           metrics.Client
@@ -230,6 +232,22 @@ func New(
 		cache.WithTimeSource(params.TimeSource),
 	)
 
+	// TODO(active-active): define external entity providers as plugins
+	var externalEntityProviders []activecluster.ExternalEntityProvider
+	activeClusterMgr, err := activecluster.NewManager(
+		domainCache.GetDomainByID,
+		params.ClusterMetadata,
+		params.MetricsClient,
+		logger,
+		externalEntityProviders,
+		persistenceBean,
+		numShards,
+		activecluster.WithTimeSource(params.TimeSource),
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	domainMetricsScopeCache := cache.NewDomainMetricsScopeCache()
 	domainReplicationQueue := domain.NewReplicationQueue(
 		persistenceBean.GetDomainReplicationQueueManager(),
@@ -338,6 +356,7 @@ func New(
 
 		domainCache:             domainCache,
 		domainMetricsScopeCache: domainMetricsScopeCache,
+		activeClusterMgr:        activeClusterMgr,
 		timeSource:              clock.NewRealTimeSource(),
 		payloadSerializer:       persistence.NewPayloadSerializer(),
 		metricsClient:           params.MetricsClient,
@@ -423,6 +442,7 @@ func (h *Impl) Start() {
 	h.membershipResolver.Start()
 	h.domainCache.Start()
 	h.domainMetricsScopeCache.Start()
+	h.activeClusterMgr.Start()
 
 	hostInfo, err := h.membershipResolver.WhoAmI()
 	if err != nil {
@@ -451,6 +471,7 @@ func (h *Impl) Stop() {
 
 	h.domainCache.Stop()
 	h.domainMetricsScopeCache.Stop()
+	h.activeClusterMgr.Stop()
 	h.membershipResolver.Stop()
 
 	if err := h.dispatcher.Stop(); err != nil {
@@ -491,6 +512,11 @@ func (h *Impl) GetDomainCache() cache.DomainCache {
 // GetDomainMetricsScopeCache return domainMetricsScope cache
 func (h *Impl) GetDomainMetricsScopeCache() cache.DomainMetricsScopeCache {
 	return h.domainMetricsScopeCache
+}
+
+// GetActiveClusterManager return active cluster manager
+func (h *Impl) GetActiveClusterManager() activecluster.Manager {
+	return h.activeClusterMgr
 }
 
 // GetTimeSource return time source
@@ -582,7 +608,7 @@ func (h *Impl) GetRatelimiterAggregatorsClient() qrpc.Client {
 // GetRemoteAdminClient return remote admin client for given cluster name
 func (h *Impl) GetRemoteAdminClient(
 	cluster string,
-) admin.Client {
+) (admin.Client, error) {
 
 	return h.clientBean.GetRemoteAdminClient(cluster)
 }
@@ -590,7 +616,7 @@ func (h *Impl) GetRemoteAdminClient(
 // GetRemoteFrontendClient return remote frontend client for given cluster name
 func (h *Impl) GetRemoteFrontendClient(
 	cluster string,
-) frontend.Client {
+) (frontend.Client, error) {
 
 	return h.clientBean.GetRemoteFrontendClient(cluster)
 }
@@ -691,7 +717,7 @@ func createConfigStoreOrDefault(
 		FetchTimeout:        dc.GetDurationProperty(dynamicproperties.IsolationGroupStateFetchTimeout)(),
 		UpdateTimeout:       dc.GetDurationProperty(dynamicproperties.IsolationGroupStateUpdateTimeout)(),
 	}
-	cfgStoreClient, err := configstore.NewConfigStoreClient(cscConfig, &params.PersistenceConfig, params.Logger, persistence.GlobalIsolationGroupConfig)
+	cfgStoreClient, err := configstore.NewConfigStoreClient(cscConfig, &params.PersistenceConfig, params.Logger, params.MetricsClient, persistence.GlobalIsolationGroupConfig)
 	if err != nil {
 		// not possible to create the client under some persistence configurations, so this is expected
 		params.Logger.Warn("not instantiating Isolation group config store, this feature will not be enabled", tag.Error(err))

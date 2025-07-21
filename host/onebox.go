@@ -129,6 +129,7 @@ type (
 		pinotClient                   pinot.GenericClient
 		asyncWFQueues                 map[string]config.AsyncWorkflowQueueProvider
 		timeSource                    clock.TimeSource
+		dynamicClient                 dynamicconfig.Client
 
 		// dynamicconfig overrides per service
 		frontendDynCfgOverrides map[dynamicproperties.Key]interface{}
@@ -147,6 +148,18 @@ type (
 		NumHistoryHosts        int
 		HistoryCountLimitError int
 		HistoryCountLimitWarn  int
+		SimulationConfig       HistorySimulationConfig
+	}
+
+	HistorySimulationConfig struct {
+		NumWorkflows int
+		// WorkflowDeletionJitterRange defines the duration in minutes for workflow close tasks jittering
+		// defaults to 0 to remove jittering
+		WorkflowDeletionJitterRange int
+		// EnableTransferQueueV2 enables queue v2 framework for transfer queue
+		EnableTransferQueueV2 bool
+		// EnableTimerQueueV2 enables queue v2 framework for timer queue
+		EnableTimerQueueV2 bool
 	}
 
 	MatchingConfig struct {
@@ -293,6 +306,7 @@ type (
 		PinotClient                   pinot.GenericClient
 		AsyncWFQueues                 map[string]config.AsyncWorkflowQueueProvider
 		TimeSource                    clock.TimeSource
+		DynamicClient                 dynamicconfig.Client
 
 		FrontendDynCfgOverrides map[dynamicproperties.Key]interface{}
 		HistoryDynCfgOverrides  map[dynamicproperties.Key]interface{}
@@ -328,6 +342,7 @@ func NewCadence(params *CadenceParams) Cadence {
 		pinotClient:                   params.PinotClient,
 		asyncWFQueues:                 params.AsyncWFQueues,
 		timeSource:                    params.TimeSource,
+		dynamicClient:                 params.DynamicClient,
 		frontendDynCfgOverrides:       params.FrontendDynCfgOverrides,
 		historyDynCfgOverrides:        params.HistoryDynCfgOverrides,
 		matchingDynCfgOverrides:       params.MatchingDynCfgOverrides,
@@ -638,7 +653,7 @@ func (c *cadenceImpl) startFrontend(hosts map[string][]membership.HostInfo, star
 	params.MembershipResolver = newMembershipResolver(params.Name, hosts, c.FrontendHost())
 	params.ClusterMetadata = c.clusterMetadata
 	params.MessagingClient = c.messagingClient
-	params.DynamicConfig = newIntegrationConfigClient(dynamicconfig.NewNopClient(), c.frontendDynCfgOverrides)
+	params.DynamicConfig = newIntegrationConfigClient(c.dynamicClient, c.frontendDynCfgOverrides)
 	params.ArchivalMetadata = c.archiverMetadata
 	params.ArchiverProvider = c.archiverProvider
 	params.ESConfig = c.esConfig
@@ -721,7 +736,7 @@ func (c *cadenceImpl) startHistory(hosts map[string][]membership.HostInfo, start
 		params.MembershipResolver = newMembershipResolver(params.Name, hosts, hostport)
 		params.ClusterMetadata = c.clusterMetadata
 		params.MessagingClient = c.messagingClient
-		integrationClient := newIntegrationConfigClient(dynamicconfig.NewNopClient(), c.historyDynCfgOverrides)
+		integrationClient := newIntegrationConfigClient(c.dynamicClient, c.historyDynCfgOverrides)
 		c.overrideHistoryDynamicConfig(integrationClient)
 		params.DynamicConfig = integrationClient
 		params.PublicClient = newPublicClient(params.RPCFactory.GetDispatcher())
@@ -808,7 +823,7 @@ func (c *cadenceImpl) startMatching(hosts map[string][]membership.HostInfo, star
 		params.RPCFactory = c.newRPCFactory(service.Matching, hostport, params.MetricsClient)
 		params.MembershipResolver = newMembershipResolver(params.Name, hosts, hostport)
 		params.ClusterMetadata = c.clusterMetadata
-		params.DynamicConfig = newIntegrationConfigClient(dynamicconfig.NewNopClient(), c.matchingDynCfgOverrides)
+		params.DynamicConfig = newIntegrationConfigClient(c.dynamicClient, c.matchingDynCfgOverrides)
 		params.ArchivalMetadata = c.archiverMetadata
 		params.ArchiverProvider = c.archiverProvider
 		params.GetIsolationGroups = getFromDynamicConfig(params)
@@ -869,7 +884,7 @@ func (c *cadenceImpl) startWorker(hosts map[string][]membership.HostInfo, startW
 	params.RPCFactory = c.newRPCFactory(service.Worker, c.WorkerServiceHost(), params.MetricsClient)
 	params.MembershipResolver = newMembershipResolver(params.Name, hosts, c.WorkerServiceHost())
 	params.ClusterMetadata = c.clusterMetadata
-	params.DynamicConfig = newIntegrationConfigClient(dynamicconfig.NewNopClient(), c.workerDynCfgOverrides)
+	params.DynamicConfig = newIntegrationConfigClient(c.dynamicClient, c.workerDynCfgOverrides)
 	params.ArchivalMetadata = c.archiverMetadata
 	params.ArchiverProvider = c.archiverProvider
 	params.GetIsolationGroups = getFromDynamicConfig(params)

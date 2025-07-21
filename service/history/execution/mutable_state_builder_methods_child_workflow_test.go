@@ -738,8 +738,9 @@ func loadMutableState(t *testing.T, ctx *shard.TestContext, state *persistence.W
 	ctx.Resource.DomainCache.EXPECT().GetDomainName(constants.TestDomainID).Return(constants.TestDomainName, nil).AnyTimes()
 	m := newMutableStateBuilder(ctx,
 		log.NewNoop(),
-		domain)
-	err := m.Load(state)
+		domain,
+	)
+	err := m.Load(context.Background(), state)
 	assert.NoError(t, err)
 	return m
 }

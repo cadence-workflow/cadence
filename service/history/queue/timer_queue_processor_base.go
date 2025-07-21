@@ -48,6 +48,7 @@ var (
 		time.Unix(0, math.MaxInt64),
 		0,
 	)
+	timerTaskOperationRetryPolicy = common.CreatePersistenceRetryPolicy()
 )
 
 type (
@@ -128,7 +129,7 @@ func newTimerQueueProcessorBase(
 	t := &timerQueueProcessorBase{
 		processorBase: processorBase,
 		taskInitializer: func(taskInfo persistence.Task) task.Task {
-			return task.NewTimerTask(
+			return task.NewHistoryTask(
 				shard,
 				taskInfo,
 				queueType,
@@ -185,7 +186,6 @@ func (t *timerQueueProcessorBase) Stop() {
 	}
 
 	t.logger.Info("Timer queue processor state changed", tag.LifeCycleStopping)
-	defer t.logger.Info("Timer queue processor state changed", tag.LifeCycleStopped)
 
 	t.timerGate.Stop()
 	close(t.shutdownCh)
@@ -200,6 +200,7 @@ func (t *timerQueueProcessorBase) Stop() {
 	}
 
 	t.redispatcher.Stop()
+	t.logger.Info("Timer queue processor state changed", tag.LifeCycleStopped)
 }
 
 func (t *timerQueueProcessorBase) processorPump() {
@@ -299,13 +300,22 @@ func (t *timerQueueProcessorBase) processQueueCollections(levels map[int]struct{
 		tasks := make(map[task.Key]task.Task)
 		taskChFull := false
 		submittedCount := 0
+		now := t.shard.GetTimeSource().Now()
 		for _, taskInfo := range resp.timerTasks {
 			if !domainFilter.Filter(taskInfo.GetDomainID()) {
 				continue
 			}
 
+			if persistence.IsTaskCorrupted(taskInfo) {
+				t.logger.Error("Processing queue encountered a corrupted task", tag.Dynamic("task", taskInfo))
+				t.metricsScope.IncCounter(metrics.CorruptedHistoryTaskCounter)
+				continue
+			}
+
 			task := t.taskInitializer(taskInfo)
 			tasks[newTimerTaskKey(taskInfo.GetVisibilityTimestamp(), taskInfo.GetTaskID())] = task
+			// shard level metrics for the duration between a task being written to a queue and being fetched from it
+			t.metricsScope.RecordHistogramDuration(metrics.TaskEnqueueToFetchLatency, now.Sub(taskInfo.GetVisibilityTimestamp()))
 			submitted, err := t.submitTask(task)
 			if err != nil {
 				// only err here is due to the fact that processor has been shutdown
@@ -512,29 +522,30 @@ func (t *timerQueueProcessorBase) readLookAheadTask(lookAheadStartLevel task.Key
 
 func (t *timerQueueProcessorBase) getTimerTasks(readLevel, maxReadLevel task.Key, nextPageToken []byte, batchSize int) (*persistence.GetHistoryTasksResponse, error) {
 	request := &persistence.GetHistoryTasksRequest{
-		TaskCategory: persistence.HistoryTaskCategoryTimer,
-		InclusiveMinTaskKey: persistence.HistoryTaskKey{
-			ScheduledTime: readLevel.(timerTaskKey).visibilityTimestamp,
-		},
-		ExclusiveMaxTaskKey: persistence.HistoryTaskKey{
-			ScheduledTime: maxReadLevel.(timerTaskKey).visibilityTimestamp,
-		},
-		PageSize:      batchSize,
-		NextPageToken: nextPageToken,
+		TaskCategory:        persistence.HistoryTaskCategoryTimer,
+		InclusiveMinTaskKey: persistence.NewHistoryTaskKey(readLevel.(timerTaskKey).visibilityTimestamp, 0),
+		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maxReadLevel.(timerTaskKey).visibilityTimestamp, 0),
+		PageSize:            batchSize,
+		NextPageToken:       nextPageToken,
 	}
-	var err error
+
 	var response *persistence.GetHistoryTasksResponse
-	retryCount := t.shard.GetConfig().TimerProcessorGetFailureRetryCount()
-	for attempt := 0; attempt < retryCount; attempt++ {
-		response, err = t.shard.GetExecutionManager().GetHistoryTasks(context.Background(), request)
-		if err == nil {
-			return response, nil
-		}
-		backoff := time.Duration(attempt*100) * time.Millisecond
-		t.logger.Debugf("Failed to get timer tasks from execution manager. error: %v, attempt: %d, retryCount: %d, backoff: %v", err, attempt, retryCount, backoff)
-		time.Sleep(backoff)
+	op := func(ctx context.Context) error {
+		var err error
+		response, err = t.shard.GetExecutionManager().GetHistoryTasks(ctx, request)
+		return err
 	}
-	return nil, err
+
+	throttleRetry := backoff.NewThrottleRetry(
+		backoff.WithRetryPolicy(timerTaskOperationRetryPolicy),
+		backoff.WithRetryableError(func(err error) bool { return true }),
+	)
+	err := throttleRetry.Do(context.Background(), op)
+	if err != nil {
+		return nil, err
+	}
+
+	return response, nil
 }
 
 func (t *timerQueueProcessorBase) isProcessNow(expiryTime time.Time) bool {

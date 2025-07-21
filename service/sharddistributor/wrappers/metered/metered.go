@@ -33,12 +33,14 @@ import (
 )
 
 func (h *metricsHandler) handleErr(err error, scope metrics.Scope, logger log.Logger) error {
+	logger = logger.Helper()
 	switch {
 	case errors.As(err, new(*types.InternalServiceError)):
 		scope.IncCounter(metrics.ShardDistributorFailures)
 		logger.Error("Internal service error", tag.Error(err))
 		return err
 	case errors.As(err, new(*types.NamespaceNotFoundError)):
+		logger.Error("ShardNamespace not found", tag.Error(err))
 		scope.IncCounter(metrics.ShardDistributorErrNamespaceNotFound)
 		return err
 	}

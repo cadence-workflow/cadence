@@ -29,14 +29,15 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/cadence/mocks"
+	"golang.org/x/time/rate"
 
 	carchiver "github.com/uber/cadence/common/archiver"
 	"github.com/uber/cadence/common/archiver/provider"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	mmocks "github.com/uber/cadence/common/metrics/mocks"
-	"github.com/uber/cadence/common/quotas"
 )
 
 type clientSuite struct {
@@ -70,9 +71,9 @@ func (s *clientSuite) SetupTest() {
 		log.NewNoop(),
 		nil,
 		dynamicproperties.GetIntPropertyFn(1000),
-		quotas.NewSimpleRateLimiter(s.T(), 1000),
-		quotas.NewSimpleRateLimiter(s.T(), 1),
-		quotas.NewSimpleRateLimiter(s.T(), 1),
+		clock.NewRatelimiter(rate.Limit(1000), 1),
+		clock.NewRatelimiter(rate.Limit(1), 1),
+		clock.NewRatelimiter(rate.Limit(1), 1),
 		s.archiverProvider,
 		dynamicproperties.GetBoolPropertyFn(false),
 	).(*client)

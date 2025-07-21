@@ -126,6 +126,10 @@ type (
 		// Scan related methods
 		ListConcreteExecutions(ctx context.Context, request *ListConcreteExecutionsRequest) (*InternalListConcreteExecutionsResponse, error)
 		ListCurrentExecutions(ctx context.Context, request *ListCurrentExecutionsRequest) (*ListCurrentExecutionsResponse, error)
+
+		// Active cluster selection policy related methods
+		GetActiveClusterSelectionPolicy(ctx context.Context, domainID, wfID, rID string) (*DataBlob, error)
+		DeleteActiveClusterSelectionPolicy(ctx context.Context, domainID, wfID, rID string) error
 	}
 
 	// HistoryStore is to manager workflow history events
@@ -270,6 +274,7 @@ type (
 		CompletionEventBatchID             int64
 		CompletionEvent                    *DataBlob
 		TaskList                           string
+		TaskListKind                       types.TaskListKind
 		WorkflowTypeName                   string
 		WorkflowTimeout                    time.Duration
 		DecisionStartToCloseTimeout        time.Duration
@@ -312,10 +317,13 @@ type (
 		NonRetriableErrors []string
 		BranchToken        []byte
 		CronSchedule       string
+		CronOverlapPolicy  types.CronOverlapPolicy
 		ExpirationInterval time.Duration
 		Memo               map[string][]byte
 		SearchAttributes   map[string][]byte
 		PartitionConfig    map[string]string
+
+		ActiveClusterSelectionPolicy *DataBlob
 
 		// attributes which are not related to mutable state at all
 		HistorySize int64
@@ -795,11 +803,17 @@ type (
 		AsyncWorkflowsConfig     *DataBlob
 	}
 
+	InternalDomainReplicationConfig struct {
+		Clusters             []*ClusterReplicationConfig
+		ActiveClusterName    string
+		ActiveClustersConfig *DataBlob
+	}
+
 	// InternalCreateDomainRequest is used to create the domain
 	InternalCreateDomainRequest struct {
 		Info              *DomainInfo
 		Config            *InternalDomainConfig
-		ReplicationConfig *DomainReplicationConfig
+		ReplicationConfig *InternalDomainReplicationConfig
 		IsGlobalDomain    bool
 		ConfigVersion     int64
 		FailoverVersion   int64
@@ -811,7 +825,7 @@ type (
 	InternalGetDomainResponse struct {
 		Info                        *DomainInfo
 		Config                      *InternalDomainConfig
-		ReplicationConfig           *DomainReplicationConfig
+		ReplicationConfig           *InternalDomainReplicationConfig
 		IsGlobalDomain              bool
 		ConfigVersion               int64
 		FailoverVersion             int64
@@ -826,7 +840,7 @@ type (
 	InternalUpdateDomainRequest struct {
 		Info                        *DomainInfo
 		Config                      *InternalDomainConfig
-		ReplicationConfig           *DomainReplicationConfig
+		ReplicationConfig           *InternalDomainReplicationConfig
 		ConfigVersion               int64
 		FailoverVersion             int64
 		FailoverNotificationVersion int64
@@ -844,22 +858,23 @@ type (
 
 	// InternalShardInfo describes a shard
 	InternalShardInfo struct {
-		ShardID                       int                  `json:"shard_id"`
-		Owner                         string               `json:"owner"`
-		RangeID                       int64                `json:"range_id"`
-		StolenSinceRenew              int                  `json:"stolen_since_renew"`
-		UpdatedAt                     time.Time            `json:"updated_at"`
-		ReplicationAckLevel           int64                `json:"replication_ack_level"`
-		ReplicationDLQAckLevel        map[string]int64     `json:"replication_dlq_ack_level"`
-		TransferAckLevel              int64                `json:"transfer_ack_level"`
-		TimerAckLevel                 time.Time            `json:"timer_ack_level"`
-		ClusterTransferAckLevel       map[string]int64     `json:"cluster_transfer_ack_level"`
-		ClusterTimerAckLevel          map[string]time.Time `json:"cluster_timer_ack_level"`
-		TransferProcessingQueueStates *DataBlob            `json:"transfer_processing_queue_states"`
-		TimerProcessingQueueStates    *DataBlob            `json:"timer_processing_queue_states"`
-		ClusterReplicationLevel       map[string]int64     `json:"cluster_replication_level"`
-		DomainNotificationVersion     int64                `json:"domain_notification_version"`
-		PendingFailoverMarkers        *DataBlob            `json:"pending_failover_markers"`
+		ShardID                       int                         `json:"shard_id"`
+		Owner                         string                      `json:"owner"`
+		RangeID                       int64                       `json:"range_id"`
+		StolenSinceRenew              int                         `json:"stolen_since_renew"`
+		UpdatedAt                     time.Time                   `json:"updated_at"`
+		ReplicationAckLevel           int64                       `json:"replication_ack_level"`
+		ReplicationDLQAckLevel        map[string]int64            `json:"replication_dlq_ack_level"`
+		TransferAckLevel              int64                       `json:"transfer_ack_level"`
+		TimerAckLevel                 time.Time                   `json:"timer_ack_level"`
+		ClusterTransferAckLevel       map[string]int64            `json:"cluster_transfer_ack_level"`
+		ClusterTimerAckLevel          map[string]time.Time        `json:"cluster_timer_ack_level"`
+		TransferProcessingQueueStates *DataBlob                   `json:"transfer_processing_queue_states"`
+		TimerProcessingQueueStates    *DataBlob                   `json:"timer_processing_queue_states"`
+		ClusterReplicationLevel       map[string]int64            `json:"cluster_replication_level"`
+		DomainNotificationVersion     int64                       `json:"domain_notification_version"`
+		PendingFailoverMarkers        *DataBlob                   `json:"pending_failover_markers"`
+		QueueStates                   map[int32]*types.QueueState `json:"queue_states"`
 		CurrentTimestamp              time.Time
 	}
 
