@@ -36,7 +36,6 @@ require (
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/otiai10/copy v1.1.1
 	github.com/pborman/uuid v0.0.0-20180906182336-adf5a7427709
-	github.com/robfig/cron v1.2.0
 	github.com/sirupsen/logrus v1.9.0 // indirect
 	github.com/startreedata/pinot-client-go v0.2.0 // latest release supports pinot v0.12.0 which is also internal version
 	github.com/stretchr/testify v1.9.0
@@ -75,11 +74,13 @@ require (
 	github.com/mark3labs/mcp-go v0.18.0
 	github.com/ncruces/go-sqlite3 v0.22.0
 	github.com/opensearch-project/opensearch-go/v4 v4.1.0
+	github.com/robfig/cron/v3 v3.0.1
 	go.uber.org/mock v0.5.0
 )
 
 require (
 	github.com/ncruces/julianday v1.0.0 // indirect
+	github.com/robfig/cron v1.2.0 // indirect
 	github.com/tetratelabs/wazero v1.8.2 // indirect
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
