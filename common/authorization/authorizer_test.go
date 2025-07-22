@@ -36,6 +36,7 @@ func Test_validatePermission(t *testing.T) {
 
 	readRequestAttr := &Attributes{Permission: PermissionRead}
 	writeRequestAttr := &Attributes{Permission: PermissionWrite}
+	processRequestAttr := &Attributes{Permission: PermissionProcess}
 
 	readWriteDomainData := domainData{
 		constants.DomainDataKeyForReadGroups:  "read1",
@@ -44,6 +45,10 @@ func Test_validatePermission(t *testing.T) {
 
 	readDomainData := domainData{
 		constants.DomainDataKeyForReadGroups: "read1",
+	}
+
+	processDomainData := domainData{
+		constants.DomainDataKeyForProcessGroups: "process1",
 	}
 
 	emptyDomainData := domainData{}
@@ -82,6 +87,20 @@ func Test_validatePermission(t *testing.T) {
 			attributes: writeRequestAttr,
 			data:       readWriteDomainData,
 			wantErr:    assert.Error,
+		},
+		{
+			name:       "Process-only groups should not get access to write groups",
+			claims:     &JWTClaims{Groups: "process1"},
+			attributes: writeRequestAttr,
+			data:       processDomainData,
+			wantErr:    assert.Error,
+		},
+		{
+			name:       "Process-only groups should get access to process groups",
+			claims:     &JWTClaims{Groups: "process1"},
+			attributes: processRequestAttr,
+			data:       processDomainData,
+			wantErr:    assert.NoError,
 		},
 		{
 			name:       "Write-only groups should get access to read groups",

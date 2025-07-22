@@ -88,6 +88,8 @@ func NewPermission(permission string) Permission {
 		return PermissionWrite
 	case "admin":
 		return PermissionAdmin
+	case "process":
+		return PermissionProcess
 	default:
 		return -1
 	}
@@ -144,7 +146,7 @@ func NewFilteredRequestBody(request interface{}) FilteredRequestBody {
 }
 
 func validatePermission(claims *JWTClaims, attributes *Attributes, data domainData) error {
-	if (attributes.Permission < PermissionRead) || (attributes.Permission > PermissionAdmin) {
+	if (attributes.Permission < PermissionRead) || (attributes.Permission > PermissionProcess) {
 		return fmt.Errorf("permission %v is not supported", attributes.Permission)
 	}
 
@@ -157,6 +159,12 @@ func validatePermission(claims *JWTClaims, attributes *Attributes, data domainDa
 
 	if attributes.Permission == PermissionRead {
 		for _, g := range data.Groups(constants.DomainDataKeyForReadGroups) {
+			allowedGroups[g] = true
+		}
+	}
+
+	if attributes.Permission == PermissionProcess {
+		for _, g := range data.Groups(constants.DomainDataKeyForProcessGroups) {
 			allowedGroups[g] = true
 		}
 	}

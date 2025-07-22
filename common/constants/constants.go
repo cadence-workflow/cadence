@@ -182,6 +182,8 @@ const (
 	DomainDataKeyForReadGroups = "READ_GROUPS"
 	// DomainDataKeyForWriteGroups stores which groups have write permission of the domain API
 	DomainDataKeyForWriteGroups = "WRITE_GROUPS"
+	// DomainDataKeyForProcessGroups stores which groups have process permission of the domain API
+	DomainDataKeyForProcessGroups = "PROCESS_GROUPS"
 )
 
 type (
