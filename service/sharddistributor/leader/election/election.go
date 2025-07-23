@@ -14,7 +14,8 @@ import (
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/leader/process"
-	"github.com/uber/cadence/service/sharddistributor/leader/store"
+	leaderStore "github.com/uber/cadence/service/sharddistributor/leader/store"
+	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
 //go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination=election_mock.go Factory,Elector
@@ -42,7 +43,8 @@ type Factory interface {
 type electionFactory struct {
 	hostname       string
 	cfg            config.Election
-	store          store.Elector
+	leaderStore    leaderStore.Elector
+	store          store.Store
 	logger         log.Logger
 	serviceID      string
 	clock          clock.TimeSource
@@ -52,7 +54,8 @@ type electionFactory struct {
 type elector struct {
 	hostname       string
 	namespace      config.Namespace
-	store          store.Elector
+	leaderStore    leaderStore.Elector
+	store          store.Store
 	logger         log.Logger
 	cfg            config.Election
 	leaderStarted  time.Time
@@ -65,16 +68,18 @@ type FactoryParams struct {
 
 	HostName       string `name:"hostname"`
 	Cfg            config.LeaderElection
-	Store          store.Elector
+	LeaderStore    leaderStore.Elector
 	Logger         log.Logger
 	Clock          clock.TimeSource
 	ProcessFactory process.Factory
+	Store          store.Store
 }
 
 // NewElectionFactory creates a new election factory
 func NewElectionFactory(p FactoryParams) Factory {
 	return &electionFactory{
 		cfg:            p.Cfg.Election,
+		leaderStore:    p.LeaderStore,
 		store:          p.Store,
 		logger:         p.Logger,
 		clock:          p.Clock,
@@ -87,6 +92,7 @@ func NewElectionFactory(p FactoryParams) Factory {
 func (f *electionFactory) CreateElector(ctx context.Context, namespaceCfg config.Namespace) (Elector, error) {
 	return &elector{
 		namespace:      namespaceCfg,
+		leaderStore:    f.leaderStore,
 		store:          f.store,
 		logger:         f.logger.WithTags(tag.ComponentLeaderElection, tag.ShardNamespace(namespaceCfg.Name)),
 		cfg:            f.cfg,
@@ -155,7 +161,7 @@ func (e *elector) runElection(ctx context.Context, leaderCh chan<- bool) (err er
 		return fmt.Errorf("context cancelled during pre-campaign delay: %w", ctx.Err())
 	}
 
-	election, err := e.store.CreateElection(ctx, e.namespace.Name)
+	election, err := e.leaderStore.CreateElection(ctx, e.namespace.Name)
 	if err != nil {
 		return fmt.Errorf("create session: %w", err)
 	}
@@ -183,12 +189,7 @@ func (e *elector) runElection(ctx context.Context, leaderCh chan<- bool) (err er
 		return fmt.Errorf("failed to campaign: %w", err)
 	}
 
-	shardStore, err := election.ShardStore(ctx)
-	if err != nil {
-		return fmt.Errorf("shard store init: %w", err)
-	}
-
-	leaderProcess = e.processFactory.CreateProcessor(e.namespace, shardStore)
+	leaderProcess = e.processFactory.CreateProcessor(e.namespace, e.store, election)
 
 	err = leaderProcess.Run(ctx)
 	if err != nil {
@@ -222,7 +223,7 @@ func (e *elector) runElection(ctx context.Context, leaderCh chan<- bool) (err er
 	}
 }
 
-func (e *elector) resign(election store.Election, processor process.Processor) error {
+func (e *elector) resign(election leaderStore.Election, processor process.Processor) error {
 	ctx, cancel := e.clock.ContextWithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 

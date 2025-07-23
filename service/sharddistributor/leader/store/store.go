@@ -9,7 +9,7 @@ import (
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
-//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination=store_mock.go Elector,Election,ShardStore
+//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination=store_mock.go Elector,Election
 
 // Elector is an interface that provides a way to establish a session for election.
 // It establishes connection and a session and provides Election to run for leader.

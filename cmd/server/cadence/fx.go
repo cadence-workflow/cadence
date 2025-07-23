@@ -46,8 +46,9 @@ import (
 	"github.com/uber/cadence/common/rpc/rpcfx"
 	"github.com/uber/cadence/common/service"
 	shardDistributorCfg "github.com/uber/cadence/service/sharddistributor/config"
-	"github.com/uber/cadence/service/sharddistributor/leader/store"
+	leaderStore "github.com/uber/cadence/service/sharddistributor/leader/store"
 	"github.com/uber/cadence/service/sharddistributor/sharddistributorfx"
+	"github.com/uber/cadence/service/sharddistributor/store"
 	"github.com/uber/cadence/tools/cassandra"
 	"github.com/uber/cadence/tools/sql"
 )
@@ -75,6 +76,7 @@ func Module(serviceName string) fx.Option {
 			fx.Decorate(func(z *zap.Logger, l log.Logger) (*zap.Logger, log.Logger) {
 				return z.With(zap.String("service", service.ShardDistributor)), l.WithTags(tag.Service(service.ShardDistributor))
 			}),
+			leaderStore.Module("etcd"),
 			store.Module("etcd"),
 
 			rpcfx.Module,

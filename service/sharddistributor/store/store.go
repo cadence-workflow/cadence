@@ -3,7 +3,11 @@ package store
 import (
 	"context"
 	"fmt"
+
+	"go.uber.org/fx"
 )
+
+//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination=store_mock.go Store
 
 // ErrExecutorNotFound is an error that is returned when queries executor is not registered in the storage.
 var ErrExecutorNotFound = fmt.Errorf("executor not found")
@@ -44,4 +48,27 @@ type ShardStore interface {
 type Store interface {
 	HeartbeatStore
 	ShardStore
+}
+
+// Impl could be used to build an implementation in the registry.
+// We use registry based approach to avoid introduction of global etcd dependency.
+type Impl fx.Option
+
+var (
+	storeRegistry = make(map[string]Impl)
+)
+
+// Register registers store implementation in the registry.
+func Register(name string, factory Impl) {
+	storeRegistry[name] = factory
+}
+
+// Module returns registered a leader store fx.Option from the configuration.
+// This can introduce extra dependency requirements to the fx application.
+func Module(name string) fx.Option {
+	factory, ok := storeRegistry[name]
+	if !ok {
+		panic(fmt.Sprintf("no leader store registered with name %s", name))
+	}
+	return factory
 }
