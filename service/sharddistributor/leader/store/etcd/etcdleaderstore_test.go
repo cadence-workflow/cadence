@@ -259,7 +259,7 @@ func setupETCDCluster(t *testing.T) *testCluster {
 
 	// Create store
 	storeParams := StoreParams{
-		Cfg:       shardDistributorCfg.LeaderElection{Enabled: true, Store: shardDistributorCfg.LeaderStore{StorageParams: createConfig(t, testConfig)}},
+		Cfg:       shardDistributorCfg.LeaderElection{Enabled: true, LeaderStore: shardDistributorCfg.Store{StorageParams: createConfig(t, testConfig)}},
 		Lifecycle: fxtest.NewLifecycle(t),
 	}
 

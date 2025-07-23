@@ -16,7 +16,6 @@ import (
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/service/sharddistributor/config"
-	"github.com/uber/cadence/service/sharddistributor/leader/store"
 )
 
 //go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination=process_mock.go Factory,Processor

@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"go.uber.org/fx"
+
+	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
 //go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination=store_mock.go Elector,Election,ShardStore
@@ -25,21 +27,9 @@ type Election interface {
 	Done() <-chan struct{}
 	// Cleanup stops internal processes and releases keys.
 	Cleanup(ctx context.Context) error
-	// ShardStore exposes a storage for the shard information.
-	// It could be separated into a different storage or be a part of the leader store.
-	ShardStore(ctx context.Context) (ShardStore, error)
-}
-
-type ShardStore interface {
-	// GetState returns the state of the namespace and a global revision for filtering events coming from the subscribe call.
-	GetState(ctx context.Context) (map[string]HeartbeatState, map[string]AssignedState, int64, error)
-	// AssignShards pushes new shard assignments to the storage. The state will be consumed by executors during the heartbeats.
-	AssignShards(ctx context.Context, newState map[string]AssignedState) error
-	// Subscribe returns a channel that signals when a state change occurs.
-	// The channel sends a latest revision for notification.
-	Subscribe(ctx context.Context) (<-chan int64, error)
-	// DeleteExecutors removes all keys associated with a given executorIDs.
-	DeleteExecutors(ctx context.Context, executorID []string) error
+	// Guard returns a transaction guard representing the current leadership term.
+	// This guard can be passed to the generic store to perform leader-protected writes.
+	Guard() store.GuardFunc
 }
 
 // Impl could be used to build an implementation in the registry.

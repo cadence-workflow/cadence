@@ -10,13 +10,13 @@
 package process
 
 import (
-	context "context"
-	reflect "reflect"
+	"context"
+	"reflect"
 
-	gomock "go.uber.org/mock/gomock"
+	"go.uber.org/mock/gomock"
 
-	config "github.com/uber/cadence/service/sharddistributor/config"
-	store "github.com/uber/cadence/service/sharddistributor/leader/store"
+	"github.com/uber/cadence/service/sharddistributor/config"
+	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
 // MockProcessor is a mock of Processor interface.

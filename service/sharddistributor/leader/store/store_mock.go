@@ -10,10 +10,12 @@
 package store
 
 import (
-	context "context"
-	reflect "reflect"
+	"context"
+	"reflect"
 
-	gomock "go.uber.org/mock/gomock"
+	"go.uber.org/mock/gomock"
+
+	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
 // MockElector is a mock of Elector interface.
@@ -136,10 +138,10 @@ func (mr *MockElectionMockRecorder) Resign(ctx any) *gomock.Call {
 }
 
 // ShardStore mocks base method.
-func (m *MockElection) ShardStore(ctx context.Context) (ShardStore, error) {
+func (m *MockElection) ShardStore(ctx context.Context) (store.ShardStore, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ShardStore", ctx)
-	ret0, _ := ret[0].(ShardStore)
+	ret0, _ := ret[0].(store.ShardStore)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -175,7 +177,7 @@ func (m *MockShardStore) EXPECT() *MockShardStoreMockRecorder {
 }
 
 // AssignShards mocks base method.
-func (m *MockShardStore) AssignShards(ctx context.Context, newState map[string]AssignedState) error {
+func (m *MockShardStore) AssignShards(ctx context.Context, newState map[string]store.AssignedState) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AssignShards", ctx, newState)
 	ret0, _ := ret[0].(error)
@@ -203,11 +205,11 @@ func (mr *MockShardStoreMockRecorder) DeleteExecutors(ctx, executorID any) *gomo
 }
 
 // GetState mocks base method.
-func (m *MockShardStore) GetState(ctx context.Context) (map[string]HeartbeatState, map[string]AssignedState, int64, error) {
+func (m *MockShardStore) GetState(ctx context.Context) (map[string]store.HeartbeatState, map[string]store.AssignedState, int64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetState", ctx)
-	ret0, _ := ret[0].(map[string]HeartbeatState)
-	ret1, _ := ret[1].(map[string]AssignedState)
+	ret0, _ := ret[0].(map[string]store.HeartbeatState)
+	ret1, _ := ret[1].(map[string]store.AssignedState)
 	ret2, _ := ret[2].(int64)
 	ret3, _ := ret[3].(error)
 	return ret0, ret1, ret2, ret3
