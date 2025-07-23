@@ -1633,15 +1633,17 @@ func startWorkflowWithRetry(
 		ExecutionStartToCloseTimeoutSeconds: attributes.ExecutionStartToCloseTimeoutSeconds,
 		TaskStartToCloseTimeoutSeconds:      attributes.TaskStartToCloseTimeoutSeconds,
 		// Use the same request ID to dedupe StartWorkflowExecution calls
-		RequestID:             requestID,
-		WorkflowIDReusePolicy: attributes.WorkflowIDReusePolicy,
-		RetryPolicy:           attributes.RetryPolicy,
-		CronSchedule:          attributes.CronSchedule,
-		Memo:                  attributes.Memo,
-		SearchAttributes:      attributes.SearchAttributes,
-		DelayStartSeconds:     attributes.DelayStartSeconds,
-		JitterStartSeconds:    attributes.JitterStartSeconds,
-		FirstRunAtTimeStamp:   attributes.FirstRunAtTimestamp,
+		RequestID:                    requestID,
+		WorkflowIDReusePolicy:        attributes.WorkflowIDReusePolicy,
+		RetryPolicy:                  attributes.RetryPolicy,
+		CronSchedule:                 attributes.CronSchedule,
+		CronOverlapPolicy:            attributes.CronOverlapPolicy,
+		Memo:                         attributes.Memo,
+		SearchAttributes:             attributes.SearchAttributes,
+		DelayStartSeconds:            attributes.DelayStartSeconds,
+		JitterStartSeconds:           attributes.JitterStartSeconds,
+		FirstRunAtTimeStamp:          attributes.FirstRunAtTimestamp,
+		ActiveClusterSelectionPolicy: attributes.ActiveClusterSelectionPolicy,
 	}
 
 	historyStartReq, err := common.CreateHistoryStartWorkflowRequest(task.TargetDomainID, frontendStartReq, timeSource.Now(), partitionConfig)

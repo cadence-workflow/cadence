@@ -30,6 +30,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"golang.org/x/time/rate"
+
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
@@ -84,7 +86,7 @@ type (
 		onFatalErr               func()
 		dispatchTask             func(context.Context, *InternalTask) error
 		getIsolationGroupForTask func(context.Context, *persistence.TaskInfo) (string, time.Duration)
-		ratePerSecond            func() float64
+		rateLimit                func() rate.Limit
 
 		// stopWg is used to wait for all dispatchers to stop.
 		stopWg sync.WaitGroup
@@ -121,7 +123,7 @@ func newTaskReader(tlMgr *taskListManagerImpl, isolationGroups []string) *taskRe
 		onFatalErr:               tlMgr.Stop,
 		dispatchTask:             tlMgr.DispatchTask,
 		getIsolationGroupForTask: tlMgr.getIsolationGroupForTask,
-		ratePerSecond:            tlMgr.matcher.Rate,
+		rateLimit:                tlMgr.limiter.Limit,
 		throttleRetry: backoff.NewThrottleRetry(
 			backoff.WithRetryPolicy(persistenceOperationRetryPolicy),
 			backoff.WithRetryableError(persistence.IsTransientError),
@@ -379,7 +381,7 @@ func (tr *taskReader) completeTask(task *persistence.TaskInfo, err error) {
 }
 
 func (tr *taskReader) newDispatchContext(isolationGroup string, isolationDuration time.Duration) (context.Context, context.CancelFunc) {
-	rps := tr.ratePerSecond()
+	rps := float64(tr.rateLimit())
 	if isolationGroup != "" || rps > 1e-7 { // 1e-7 is a random number chosen to avoid overflow, normally user don't set such a low rps
 		timeout := tr.getDispatchTimeout(rps, isolationDuration)
 		domainEntry, err := tr.domainCache.GetDomainByID(tr.taskListID.GetDomainID())

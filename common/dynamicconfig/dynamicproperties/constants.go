@@ -2285,6 +2285,13 @@ const (
 	// Allowed filters: N/A
 	ShardDistributorErrorInjectionRate
 
+	// ShardDistributorErrorInjectionRate is rate for injecting random error in shard distributor executor client
+	// KeyName: sharddistributorexecutor.errorInjectionRate
+	// Value type: Float64
+	// Default value: 0
+	// Allowed filters: N/A
+	ShardDistributorExecutorErrorInjectionRate
+
 	// LastFloatKey must be the last one in this const group
 	LastFloatKey
 )
@@ -4759,6 +4766,11 @@ var FloatKeys = map[FloatKey]DynamicFloat{
 	ShardDistributorErrorInjectionRate: {
 		KeyName:      "sharddistributor.errorInjectionRate",
 		Description:  "ShardDistributorInjectionRate is rate for injecting random error in shard distributor client",
+		DefaultValue: 0,
+	},
+	ShardDistributorExecutorErrorInjectionRate: {
+		KeyName:      "sharddistributorexecutor.errorInjectionRate",
+		Description:  "ShardDistributorExecutorInjectionRate is rate for injecting random error in shard distributor executor client",
 		DefaultValue: 0,
 	},
 }

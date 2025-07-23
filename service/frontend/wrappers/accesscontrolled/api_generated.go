@@ -308,7 +308,7 @@ func (a *apiHandler) PollForActivityTask(ctx context.Context, pp1 *types.PollFor
 	scope := a.getMetricsScopeWithDomain(metrics.FrontendPollForActivityTaskScope, pp1.GetDomain())
 	attr := &authorization.Attributes{
 		APIName:     "PollForActivityTask",
-		Permission:  authorization.PermissionWrite,
+		Permission:  authorization.PermissionProcess,
 		RequestBody: authorization.NewFilteredRequestBody(pp1),
 		DomainName:  pp1.GetDomain(),
 		TaskList:    pp1.TaskList,
@@ -327,7 +327,7 @@ func (a *apiHandler) PollForDecisionTask(ctx context.Context, pp1 *types.PollFor
 	scope := a.getMetricsScopeWithDomain(metrics.FrontendPollForDecisionTaskScope, pp1.GetDomain())
 	attr := &authorization.Attributes{
 		APIName:     "PollForDecisionTask",
-		Permission:  authorization.PermissionWrite,
+		Permission:  authorization.PermissionProcess,
 		RequestBody: authorization.NewFilteredRequestBody(pp1),
 		DomainName:  pp1.GetDomain(),
 		TaskList:    pp1.TaskList,

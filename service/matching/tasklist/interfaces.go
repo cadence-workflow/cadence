@@ -75,8 +75,6 @@ type (
 		MustOffer(ctx context.Context, task *InternalTask) error
 		Poll(ctx context.Context, isolationGroup string) (*InternalTask, error)
 		PollForQuery(ctx context.Context) (*InternalTask, error)
-		UpdateRatelimit(rps *float64)
-		Rate() float64
 		RefreshCancelContext()
 	}
 

@@ -2706,6 +2706,7 @@ const (
 	TaskLagPerTaskListGauge
 	TaskBacklogPerTaskListGauge
 	TaskCountPerTaskListGauge
+	RateLimitPerTaskListGauge
 	SyncMatchLocalPollLatencyPerTaskList
 	SyncMatchForwardPollLatencyPerTaskList
 	AsyncMatchLocalPollCounterPerTaskList
@@ -3460,6 +3461,7 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		TaskLagPerTaskListGauge:                                 {metricName: "task_lag_per_tl", metricType: Gauge},
 		TaskBacklogPerTaskListGauge:                             {metricName: "task_backlog_per_tl", metricType: Gauge},
 		TaskCountPerTaskListGauge:                               {metricName: "task_count_per_tl", metricType: Gauge},
+		RateLimitPerTaskListGauge:                               {metricName: "rate_limit_per_tl", metricType: Gauge},
 		SyncMatchLocalPollLatencyPerTaskList:                    {metricName: "syncmatch_local_poll_latency_per_tl", metricRollupName: "syncmatch_local_poll_latency"},
 		SyncMatchForwardPollLatencyPerTaskList:                  {metricName: "syncmatch_forward_poll_latency_per_tl", metricRollupName: "syncmatch_forward_poll_latency"},
 		AsyncMatchLocalPollCounterPerTaskList:                   {metricName: "asyncmatch_local_poll_per_tl", metricRollupName: "asyncmatch_local_poll"},

@@ -78,6 +78,7 @@ func (e *mutableStateBuilder) addWorkflowExecutionStartedEventForContinueAsNew(
 		Memo:                                attributes.Memo,
 		SearchAttributes:                    attributes.SearchAttributes,
 		JitterStartSeconds:                  attributes.JitterStartSeconds,
+		CronOverlapPolicy:                   attributes.CronOverlapPolicy,
 		ActiveClusterSelectionPolicy:        attributes.ActiveClusterSelectionPolicy,
 	}
 
@@ -244,6 +245,10 @@ func (e *mutableStateBuilder) ReplicateWorkflowExecutionStartedEvent(
 		e.executionInfo.InitiatedID = event.GetParentInitiatedEventID()
 	} else {
 		e.executionInfo.InitiatedID = constants.EmptyEventID
+	}
+
+	if event.CronOverlapPolicy != nil {
+		e.executionInfo.CronOverlapPolicy = *event.CronOverlapPolicy
 	}
 
 	e.executionInfo.Attempt = event.GetAttempt()

@@ -26,7 +26,7 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/robfig/cron"
+	"github.com/robfig/cron/v3"
 
 	"github.com/uber/cadence/common/types"
 )
