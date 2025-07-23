@@ -37,6 +37,7 @@ import (
 	"github.com/uber/cadence/testflags"
 
 	_ "github.com/uber/cadence/service/sharddistributor/leader/store/etcd" // needed for shard distributor leader election
+	_ "github.com/uber/cadence/service/sharddistributor/store/etcd"        // needed for shard distributor leader election
 )
 
 func TestFxDependencies(t *testing.T) {

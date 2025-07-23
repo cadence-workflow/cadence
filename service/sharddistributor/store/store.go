@@ -68,7 +68,7 @@ func Register(name string, factory Impl) {
 func Module(name string) fx.Option {
 	factory, ok := storeRegistry[name]
 	if !ok {
-		panic(fmt.Sprintf("no leader store registered with name %s", name))
+		panic(fmt.Sprintf("no store registered with name %s", name))
 	}
 	return factory
 }
