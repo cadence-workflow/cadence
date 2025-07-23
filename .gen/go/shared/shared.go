@@ -5820,6 +5820,348 @@ func (v *ActivityType) IsSetName() bool {
 	return v != nil && v.Name != nil
 }
 
+type AndPredicateAttributes struct {
+	Predicates []*Predicate `json:"predicates,omitempty"`
+}
+
+type _List_Predicate_ValueList []*Predicate
+
+func (v _List_Predicate_ValueList) ForEach(f func(wire.Value) error) error {
+	for i, x := range v {
+		if x == nil {
+			return fmt.Errorf("invalid list '[]*Predicate', index [%v]: value is nil", i)
+		}
+		w, err := x.ToWire()
+		if err != nil {
+			return err
+		}
+		err = f(w)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (v _List_Predicate_ValueList) Size() int {
+	return len(v)
+}
+
+func (_List_Predicate_ValueList) ValueType() wire.Type {
+	return wire.TStruct
+}
+
+func (_List_Predicate_ValueList) Close() {}
+
+// ToWire translates a AndPredicateAttributes struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//	  return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//	  return err
+//	}
+func (v *AndPredicateAttributes) ToWire() (wire.Value, error) {
+	var (
+		fields [1]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.Predicates != nil {
+		w, err = wire.NewValueList(_List_Predicate_ValueList(v.Predicates)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 10, Value: w}
+		i++
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+func _Predicate_Read(w wire.Value) (*Predicate, error) {
+	var v Predicate
+	err := v.FromWire(w)
+	return &v, err
+}
+
+func _List_Predicate_Read(l wire.ValueList) ([]*Predicate, error) {
+	if l.ValueType() != wire.TStruct {
+		return nil, nil
+	}
+
+	o := make([]*Predicate, 0, l.Size())
+	err := l.ForEach(func(x wire.Value) error {
+		i, err := _Predicate_Read(x)
+		if err != nil {
+			return err
+		}
+		o = append(o, i)
+		return nil
+	})
+	l.Close()
+	return o, err
+}
+
+// FromWire deserializes a AndPredicateAttributes struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a AndPredicateAttributes struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//	  return nil, err
+//	}
+//
+//	var v AndPredicateAttributes
+//	if err := v.FromWire(x); err != nil {
+//	  return nil, err
+//	}
+//	return &v, nil
+func (v *AndPredicateAttributes) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 10:
+			if field.Value.Type() == wire.TList {
+				v.Predicates, err = _List_Predicate_Read(field.Value.GetList())
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	return nil
+}
+
+func _List_Predicate_Encode(val []*Predicate, sw stream.Writer) error {
+
+	lh := stream.ListHeader{
+		Type:   wire.TStruct,
+		Length: len(val),
+	}
+	if err := sw.WriteListBegin(lh); err != nil {
+		return err
+	}
+
+	for i, v := range val {
+		if v == nil {
+			return fmt.Errorf("invalid list '[]*Predicate', index [%v]: value is nil", i)
+		}
+		if err := v.Encode(sw); err != nil {
+			return err
+		}
+	}
+	return sw.WriteListEnd()
+}
+
+// Encode serializes a AndPredicateAttributes struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a AndPredicateAttributes struct could not be encoded.
+func (v *AndPredicateAttributes) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.Predicates != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 10, Type: wire.TList}); err != nil {
+			return err
+		}
+		if err := _List_Predicate_Encode(v.Predicates, sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	return sw.WriteStructEnd()
+}
+
+func _Predicate_Decode(sr stream.Reader) (*Predicate, error) {
+	var v Predicate
+	err := v.Decode(sr)
+	return &v, err
+}
+
+func _List_Predicate_Decode(sr stream.Reader) ([]*Predicate, error) {
+	lh, err := sr.ReadListBegin()
+	if err != nil {
+		return nil, err
+	}
+
+	if lh.Type != wire.TStruct {
+		for i := 0; i < lh.Length; i++ {
+			if err := sr.Skip(lh.Type); err != nil {
+				return nil, err
+			}
+		}
+		return nil, sr.ReadListEnd()
+	}
+
+	o := make([]*Predicate, 0, lh.Length)
+	for i := 0; i < lh.Length; i++ {
+		v, err := _Predicate_Decode(sr)
+		if err != nil {
+			return nil, err
+		}
+		o = append(o, v)
+	}
+
+	if err = sr.ReadListEnd(); err != nil {
+		return nil, err
+	}
+	return o, err
+}
+
+// Decode deserializes a AndPredicateAttributes struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a AndPredicateAttributes struct could not be generated from the wire
+// representation.
+func (v *AndPredicateAttributes) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 10 && fh.Type == wire.TList:
+			v.Predicates, err = _List_Predicate_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a AndPredicateAttributes
+// struct.
+func (v *AndPredicateAttributes) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [1]string
+	i := 0
+	if v.Predicates != nil {
+		fields[i] = fmt.Sprintf("Predicates: %v", v.Predicates)
+		i++
+	}
+
+	return fmt.Sprintf("AndPredicateAttributes{%v}", strings.Join(fields[:i], ", "))
+}
+
+func _List_Predicate_Equals(lhs, rhs []*Predicate) bool {
+	if len(lhs) != len(rhs) {
+		return false
+	}
+
+	for i, lv := range lhs {
+		rv := rhs[i]
+		if !lv.Equals(rv) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// Equals returns true if all the fields of this AndPredicateAttributes match the
+// provided AndPredicateAttributes.
+//
+// This function performs a deep comparison.
+func (v *AndPredicateAttributes) Equals(rhs *AndPredicateAttributes) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !((v.Predicates == nil && rhs.Predicates == nil) || (v.Predicates != nil && rhs.Predicates != nil && _List_Predicate_Equals(v.Predicates, rhs.Predicates))) {
+		return false
+	}
+
+	return true
+}
+
+type _List_Predicate_Zapper []*Predicate
+
+// MarshalLogArray implements zapcore.ArrayMarshaler, enabling
+// fast logging of _List_Predicate_Zapper.
+func (l _List_Predicate_Zapper) MarshalLogArray(enc zapcore.ArrayEncoder) (err error) {
+	for _, v := range l {
+		err = multierr.Append(err, enc.AppendObject(v))
+	}
+	return err
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of AndPredicateAttributes.
+func (v *AndPredicateAttributes) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.Predicates != nil {
+		err = multierr.Append(err, enc.AddArray("predicates", (_List_Predicate_Zapper)(v.Predicates)))
+	}
+	return err
+}
+
+// GetPredicates returns the value of Predicates if it is set or its
+// zero value if it is unset.
+func (v *AndPredicateAttributes) GetPredicates() (o []*Predicate) {
+	if v != nil && v.Predicates != nil {
+		return v.Predicates
+	}
+
+	return
+}
+
+// IsSetPredicates returns true if Predicates is not nil.
+func (v *AndPredicateAttributes) IsSetPredicates() bool {
+	return v != nil && v.Predicates != nil
+}
+
 // Any is a logical duplicate of google.protobuf.Any.
 //
 // The intent of the type is the same, but it is not intended to be directly
@@ -36328,6 +36670,276 @@ func (v *DomainConfiguration) IsSetAsyncWorkflowConfiguration() bool {
 	return v != nil && v.AsyncWorkflowConfiguration != nil
 }
 
+type DomainIDPredicateAttributes struct {
+	DomainIDs   []string `json:"domainIDs,omitempty"`
+	IsExclusive *bool    `json:"isExclusive,omitempty"`
+}
+
+// ToWire translates a DomainIDPredicateAttributes struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//	  return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//	  return err
+//	}
+func (v *DomainIDPredicateAttributes) ToWire() (wire.Value, error) {
+	var (
+		fields [2]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.DomainIDs != nil {
+		w, err = wire.NewValueList(_List_String_ValueList(v.DomainIDs)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 10, Value: w}
+		i++
+	}
+	if v.IsExclusive != nil {
+		w, err = wire.NewValueBool(*(v.IsExclusive)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 20, Value: w}
+		i++
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+// FromWire deserializes a DomainIDPredicateAttributes struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a DomainIDPredicateAttributes struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//	  return nil, err
+//	}
+//
+//	var v DomainIDPredicateAttributes
+//	if err := v.FromWire(x); err != nil {
+//	  return nil, err
+//	}
+//	return &v, nil
+func (v *DomainIDPredicateAttributes) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 10:
+			if field.Value.Type() == wire.TList {
+				v.DomainIDs, err = _List_String_Read(field.Value.GetList())
+				if err != nil {
+					return err
+				}
+
+			}
+		case 20:
+			if field.Value.Type() == wire.TBool {
+				var x bool
+				x, err = field.Value.GetBool(), error(nil)
+				v.IsExclusive = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	return nil
+}
+
+// Encode serializes a DomainIDPredicateAttributes struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a DomainIDPredicateAttributes struct could not be encoded.
+func (v *DomainIDPredicateAttributes) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.DomainIDs != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 10, Type: wire.TList}); err != nil {
+			return err
+		}
+		if err := _List_String_Encode(v.DomainIDs, sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.IsExclusive != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 20, Type: wire.TBool}); err != nil {
+			return err
+		}
+		if err := sw.WriteBool(*(v.IsExclusive)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	return sw.WriteStructEnd()
+}
+
+// Decode deserializes a DomainIDPredicateAttributes struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a DomainIDPredicateAttributes struct could not be generated from the wire
+// representation.
+func (v *DomainIDPredicateAttributes) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 10 && fh.Type == wire.TList:
+			v.DomainIDs, err = _List_String_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 20 && fh.Type == wire.TBool:
+			var x bool
+			x, err = sr.ReadBool()
+			v.IsExclusive = &x
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a DomainIDPredicateAttributes
+// struct.
+func (v *DomainIDPredicateAttributes) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [2]string
+	i := 0
+	if v.DomainIDs != nil {
+		fields[i] = fmt.Sprintf("DomainIDs: %v", v.DomainIDs)
+		i++
+	}
+	if v.IsExclusive != nil {
+		fields[i] = fmt.Sprintf("IsExclusive: %v", *(v.IsExclusive))
+		i++
+	}
+
+	return fmt.Sprintf("DomainIDPredicateAttributes{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this DomainIDPredicateAttributes match the
+// provided DomainIDPredicateAttributes.
+//
+// This function performs a deep comparison.
+func (v *DomainIDPredicateAttributes) Equals(rhs *DomainIDPredicateAttributes) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !((v.DomainIDs == nil && rhs.DomainIDs == nil) || (v.DomainIDs != nil && rhs.DomainIDs != nil && _List_String_Equals(v.DomainIDs, rhs.DomainIDs))) {
+		return false
+	}
+	if !_Bool_EqualsPtr(v.IsExclusive, rhs.IsExclusive) {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of DomainIDPredicateAttributes.
+func (v *DomainIDPredicateAttributes) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.DomainIDs != nil {
+		err = multierr.Append(err, enc.AddArray("domainIDs", (_List_String_Zapper)(v.DomainIDs)))
+	}
+	if v.IsExclusive != nil {
+		enc.AddBool("isExclusive", *v.IsExclusive)
+	}
+	return err
+}
+
+// GetDomainIDs returns the value of DomainIDs if it is set or its
+// zero value if it is unset.
+func (v *DomainIDPredicateAttributes) GetDomainIDs() (o []string) {
+	if v != nil && v.DomainIDs != nil {
+		return v.DomainIDs
+	}
+
+	return
+}
+
+// IsSetDomainIDs returns true if DomainIDs is not nil.
+func (v *DomainIDPredicateAttributes) IsSetDomainIDs() bool {
+	return v != nil && v.DomainIDs != nil
+}
+
+// GetIsExclusive returns the value of IsExclusive if it is set or its
+// zero value if it is unset.
+func (v *DomainIDPredicateAttributes) GetIsExclusive() (o bool) {
+	if v != nil && v.IsExclusive != nil {
+		return *v.IsExclusive
+	}
+
+	return
+}
+
+// IsSetIsExclusive returns true if IsExclusive is not nil.
+func (v *DomainIDPredicateAttributes) IsSetIsExclusive() bool {
+	return v != nil && v.IsExclusive != nil
+}
+
 type DomainInfo struct {
 	Name        *string           `json:"name,omitempty"`
 	Status      *DomainStatus     `json:"status,omitempty"`
@@ -38011,6 +38623,148 @@ func (v *DomainStatus) UnmarshalJSON(text []byte) error {
 	default:
 		return fmt.Errorf("invalid JSON value %q (%T) to unmarshal into %q", t, t, "DomainStatus")
 	}
+}
+
+type EmptyPredicateAttributes struct {
+}
+
+// ToWire translates a EmptyPredicateAttributes struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//	  return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//	  return err
+//	}
+func (v *EmptyPredicateAttributes) ToWire() (wire.Value, error) {
+	var (
+		fields [0]wire.Field
+		i      int = 0
+	)
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+// FromWire deserializes a EmptyPredicateAttributes struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a EmptyPredicateAttributes struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//	  return nil, err
+//	}
+//
+//	var v EmptyPredicateAttributes
+//	if err := v.FromWire(x); err != nil {
+//	  return nil, err
+//	}
+//	return &v, nil
+func (v *EmptyPredicateAttributes) FromWire(w wire.Value) error {
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		}
+	}
+
+	return nil
+}
+
+// Encode serializes a EmptyPredicateAttributes struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a EmptyPredicateAttributes struct could not be encoded.
+func (v *EmptyPredicateAttributes) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	return sw.WriteStructEnd()
+}
+
+// Decode deserializes a EmptyPredicateAttributes struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a EmptyPredicateAttributes struct could not be generated from the wire
+// representation.
+func (v *EmptyPredicateAttributes) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a EmptyPredicateAttributes
+// struct.
+func (v *EmptyPredicateAttributes) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [0]string
+	i := 0
+
+	return fmt.Sprintf("EmptyPredicateAttributes{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this EmptyPredicateAttributes match the
+// provided EmptyPredicateAttributes.
+//
+// This function performs a deep comparison.
+func (v *EmptyPredicateAttributes) Equals(rhs *EmptyPredicateAttributes) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of EmptyPredicateAttributes.
+func (v *EmptyPredicateAttributes) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	return err
 }
 
 type EncodingType int32
@@ -56996,6 +57750,418 @@ func (v *Memo) IsSetFields() bool {
 	return v != nil && v.Fields != nil
 }
 
+type NotPredicateAttributes struct {
+	Predicate *Predicate `json:"predicate,omitempty"`
+}
+
+// ToWire translates a NotPredicateAttributes struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//	  return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//	  return err
+//	}
+func (v *NotPredicateAttributes) ToWire() (wire.Value, error) {
+	var (
+		fields [1]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.Predicate != nil {
+		w, err = v.Predicate.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 10, Value: w}
+		i++
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+// FromWire deserializes a NotPredicateAttributes struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a NotPredicateAttributes struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//	  return nil, err
+//	}
+//
+//	var v NotPredicateAttributes
+//	if err := v.FromWire(x); err != nil {
+//	  return nil, err
+//	}
+//	return &v, nil
+func (v *NotPredicateAttributes) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 10:
+			if field.Value.Type() == wire.TStruct {
+				v.Predicate, err = _Predicate_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	return nil
+}
+
+// Encode serializes a NotPredicateAttributes struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a NotPredicateAttributes struct could not be encoded.
+func (v *NotPredicateAttributes) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.Predicate != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 10, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.Predicate.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	return sw.WriteStructEnd()
+}
+
+// Decode deserializes a NotPredicateAttributes struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a NotPredicateAttributes struct could not be generated from the wire
+// representation.
+func (v *NotPredicateAttributes) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 10 && fh.Type == wire.TStruct:
+			v.Predicate, err = _Predicate_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a NotPredicateAttributes
+// struct.
+func (v *NotPredicateAttributes) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [1]string
+	i := 0
+	if v.Predicate != nil {
+		fields[i] = fmt.Sprintf("Predicate: %v", v.Predicate)
+		i++
+	}
+
+	return fmt.Sprintf("NotPredicateAttributes{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this NotPredicateAttributes match the
+// provided NotPredicateAttributes.
+//
+// This function performs a deep comparison.
+func (v *NotPredicateAttributes) Equals(rhs *NotPredicateAttributes) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !((v.Predicate == nil && rhs.Predicate == nil) || (v.Predicate != nil && rhs.Predicate != nil && v.Predicate.Equals(rhs.Predicate))) {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of NotPredicateAttributes.
+func (v *NotPredicateAttributes) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.Predicate != nil {
+		err = multierr.Append(err, enc.AddObject("predicate", v.Predicate))
+	}
+	return err
+}
+
+// GetPredicate returns the value of Predicate if it is set or its
+// zero value if it is unset.
+func (v *NotPredicateAttributes) GetPredicate() (o *Predicate) {
+	if v != nil && v.Predicate != nil {
+		return v.Predicate
+	}
+
+	return
+}
+
+// IsSetPredicate returns true if Predicate is not nil.
+func (v *NotPredicateAttributes) IsSetPredicate() bool {
+	return v != nil && v.Predicate != nil
+}
+
+type OrPredicateAttributes struct {
+	Predicates []*Predicate `json:"predicates,omitempty"`
+}
+
+// ToWire translates a OrPredicateAttributes struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//	  return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//	  return err
+//	}
+func (v *OrPredicateAttributes) ToWire() (wire.Value, error) {
+	var (
+		fields [1]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.Predicates != nil {
+		w, err = wire.NewValueList(_List_Predicate_ValueList(v.Predicates)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 10, Value: w}
+		i++
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+// FromWire deserializes a OrPredicateAttributes struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a OrPredicateAttributes struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//	  return nil, err
+//	}
+//
+//	var v OrPredicateAttributes
+//	if err := v.FromWire(x); err != nil {
+//	  return nil, err
+//	}
+//	return &v, nil
+func (v *OrPredicateAttributes) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 10:
+			if field.Value.Type() == wire.TList {
+				v.Predicates, err = _List_Predicate_Read(field.Value.GetList())
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	return nil
+}
+
+// Encode serializes a OrPredicateAttributes struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a OrPredicateAttributes struct could not be encoded.
+func (v *OrPredicateAttributes) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.Predicates != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 10, Type: wire.TList}); err != nil {
+			return err
+		}
+		if err := _List_Predicate_Encode(v.Predicates, sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	return sw.WriteStructEnd()
+}
+
+// Decode deserializes a OrPredicateAttributes struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a OrPredicateAttributes struct could not be generated from the wire
+// representation.
+func (v *OrPredicateAttributes) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 10 && fh.Type == wire.TList:
+			v.Predicates, err = _List_Predicate_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a OrPredicateAttributes
+// struct.
+func (v *OrPredicateAttributes) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [1]string
+	i := 0
+	if v.Predicates != nil {
+		fields[i] = fmt.Sprintf("Predicates: %v", v.Predicates)
+		i++
+	}
+
+	return fmt.Sprintf("OrPredicateAttributes{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this OrPredicateAttributes match the
+// provided OrPredicateAttributes.
+//
+// This function performs a deep comparison.
+func (v *OrPredicateAttributes) Equals(rhs *OrPredicateAttributes) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !((v.Predicates == nil && rhs.Predicates == nil) || (v.Predicates != nil && rhs.Predicates != nil && _List_Predicate_Equals(v.Predicates, rhs.Predicates))) {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of OrPredicateAttributes.
+func (v *OrPredicateAttributes) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.Predicates != nil {
+		err = multierr.Append(err, enc.AddArray("predicates", (_List_Predicate_Zapper)(v.Predicates)))
+	}
+	return err
+}
+
+// GetPredicates returns the value of Predicates if it is set or its
+// zero value if it is unset.
+func (v *OrPredicateAttributes) GetPredicates() (o []*Predicate) {
+	if v != nil && v.Predicates != nil {
+		return v.Predicates
+	}
+
+	return
+}
+
+// IsSetPredicates returns true if Predicates is not nil.
+func (v *OrPredicateAttributes) IsSetPredicates() bool {
+	return v != nil && v.Predicates != nil
+}
+
 type ParentClosePolicy int32
 
 const (
@@ -63541,6 +64707,921 @@ func (v *PollerInfo) GetRatePerSecond() (o float64) {
 // IsSetRatePerSecond returns true if RatePerSecond is not nil.
 func (v *PollerInfo) IsSetRatePerSecond() bool {
 	return v != nil && v.RatePerSecond != nil
+}
+
+type Predicate struct {
+	PredicateType                *PredicateType                `json:"predicateType,omitempty"`
+	UniversalPredicateAttributes *UniversalPredicateAttributes `json:"universalPredicateAttributes,omitempty"`
+	EmptyPredicateAttributes     *EmptyPredicateAttributes     `json:"emptyPredicateAttributes,omitempty"`
+	AndPredicateAttributes       *AndPredicateAttributes       `json:"andPredicateAttributes,omitempty"`
+	OrPredicateAttributes        *OrPredicateAttributes        `json:"orPredicateAttributes,omitempty"`
+	NotPredicateAttributes       *NotPredicateAttributes       `json:"notPredicateAttributes,omitempty"`
+	DomainIDPredicateAttributes  *DomainIDPredicateAttributes  `json:"domainIDPredicateAttributes,omitempty"`
+}
+
+// ToWire translates a Predicate struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//	  return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//	  return err
+//	}
+func (v *Predicate) ToWire() (wire.Value, error) {
+	var (
+		fields [7]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.PredicateType != nil {
+		w, err = v.PredicateType.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 10, Value: w}
+		i++
+	}
+	if v.UniversalPredicateAttributes != nil {
+		w, err = v.UniversalPredicateAttributes.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 20, Value: w}
+		i++
+	}
+	if v.EmptyPredicateAttributes != nil {
+		w, err = v.EmptyPredicateAttributes.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 30, Value: w}
+		i++
+	}
+	if v.AndPredicateAttributes != nil {
+		w, err = v.AndPredicateAttributes.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 40, Value: w}
+		i++
+	}
+	if v.OrPredicateAttributes != nil {
+		w, err = v.OrPredicateAttributes.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 50, Value: w}
+		i++
+	}
+	if v.NotPredicateAttributes != nil {
+		w, err = v.NotPredicateAttributes.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 60, Value: w}
+		i++
+	}
+	if v.DomainIDPredicateAttributes != nil {
+		w, err = v.DomainIDPredicateAttributes.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 70, Value: w}
+		i++
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+func _PredicateType_Read(w wire.Value) (PredicateType, error) {
+	var v PredicateType
+	err := v.FromWire(w)
+	return v, err
+}
+
+func _UniversalPredicateAttributes_Read(w wire.Value) (*UniversalPredicateAttributes, error) {
+	var v UniversalPredicateAttributes
+	err := v.FromWire(w)
+	return &v, err
+}
+
+func _EmptyPredicateAttributes_Read(w wire.Value) (*EmptyPredicateAttributes, error) {
+	var v EmptyPredicateAttributes
+	err := v.FromWire(w)
+	return &v, err
+}
+
+func _AndPredicateAttributes_Read(w wire.Value) (*AndPredicateAttributes, error) {
+	var v AndPredicateAttributes
+	err := v.FromWire(w)
+	return &v, err
+}
+
+func _OrPredicateAttributes_Read(w wire.Value) (*OrPredicateAttributes, error) {
+	var v OrPredicateAttributes
+	err := v.FromWire(w)
+	return &v, err
+}
+
+func _NotPredicateAttributes_Read(w wire.Value) (*NotPredicateAttributes, error) {
+	var v NotPredicateAttributes
+	err := v.FromWire(w)
+	return &v, err
+}
+
+func _DomainIDPredicateAttributes_Read(w wire.Value) (*DomainIDPredicateAttributes, error) {
+	var v DomainIDPredicateAttributes
+	err := v.FromWire(w)
+	return &v, err
+}
+
+// FromWire deserializes a Predicate struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a Predicate struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//	  return nil, err
+//	}
+//
+//	var v Predicate
+//	if err := v.FromWire(x); err != nil {
+//	  return nil, err
+//	}
+//	return &v, nil
+func (v *Predicate) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 10:
+			if field.Value.Type() == wire.TI32 {
+				var x PredicateType
+				x, err = _PredicateType_Read(field.Value)
+				v.PredicateType = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 20:
+			if field.Value.Type() == wire.TStruct {
+				v.UniversalPredicateAttributes, err = _UniversalPredicateAttributes_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 30:
+			if field.Value.Type() == wire.TStruct {
+				v.EmptyPredicateAttributes, err = _EmptyPredicateAttributes_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 40:
+			if field.Value.Type() == wire.TStruct {
+				v.AndPredicateAttributes, err = _AndPredicateAttributes_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 50:
+			if field.Value.Type() == wire.TStruct {
+				v.OrPredicateAttributes, err = _OrPredicateAttributes_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 60:
+			if field.Value.Type() == wire.TStruct {
+				v.NotPredicateAttributes, err = _NotPredicateAttributes_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 70:
+			if field.Value.Type() == wire.TStruct {
+				v.DomainIDPredicateAttributes, err = _DomainIDPredicateAttributes_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	return nil
+}
+
+// Encode serializes a Predicate struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a Predicate struct could not be encoded.
+func (v *Predicate) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.PredicateType != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 10, Type: wire.TI32}); err != nil {
+			return err
+		}
+		if err := v.PredicateType.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.UniversalPredicateAttributes != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 20, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.UniversalPredicateAttributes.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.EmptyPredicateAttributes != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 30, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.EmptyPredicateAttributes.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.AndPredicateAttributes != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 40, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.AndPredicateAttributes.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.OrPredicateAttributes != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 50, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.OrPredicateAttributes.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.NotPredicateAttributes != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 60, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.NotPredicateAttributes.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.DomainIDPredicateAttributes != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 70, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.DomainIDPredicateAttributes.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	return sw.WriteStructEnd()
+}
+
+func _PredicateType_Decode(sr stream.Reader) (PredicateType, error) {
+	var v PredicateType
+	err := v.Decode(sr)
+	return v, err
+}
+
+func _UniversalPredicateAttributes_Decode(sr stream.Reader) (*UniversalPredicateAttributes, error) {
+	var v UniversalPredicateAttributes
+	err := v.Decode(sr)
+	return &v, err
+}
+
+func _EmptyPredicateAttributes_Decode(sr stream.Reader) (*EmptyPredicateAttributes, error) {
+	var v EmptyPredicateAttributes
+	err := v.Decode(sr)
+	return &v, err
+}
+
+func _AndPredicateAttributes_Decode(sr stream.Reader) (*AndPredicateAttributes, error) {
+	var v AndPredicateAttributes
+	err := v.Decode(sr)
+	return &v, err
+}
+
+func _OrPredicateAttributes_Decode(sr stream.Reader) (*OrPredicateAttributes, error) {
+	var v OrPredicateAttributes
+	err := v.Decode(sr)
+	return &v, err
+}
+
+func _NotPredicateAttributes_Decode(sr stream.Reader) (*NotPredicateAttributes, error) {
+	var v NotPredicateAttributes
+	err := v.Decode(sr)
+	return &v, err
+}
+
+func _DomainIDPredicateAttributes_Decode(sr stream.Reader) (*DomainIDPredicateAttributes, error) {
+	var v DomainIDPredicateAttributes
+	err := v.Decode(sr)
+	return &v, err
+}
+
+// Decode deserializes a Predicate struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a Predicate struct could not be generated from the wire
+// representation.
+func (v *Predicate) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 10 && fh.Type == wire.TI32:
+			var x PredicateType
+			x, err = _PredicateType_Decode(sr)
+			v.PredicateType = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 20 && fh.Type == wire.TStruct:
+			v.UniversalPredicateAttributes, err = _UniversalPredicateAttributes_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 30 && fh.Type == wire.TStruct:
+			v.EmptyPredicateAttributes, err = _EmptyPredicateAttributes_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 40 && fh.Type == wire.TStruct:
+			v.AndPredicateAttributes, err = _AndPredicateAttributes_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 50 && fh.Type == wire.TStruct:
+			v.OrPredicateAttributes, err = _OrPredicateAttributes_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 60 && fh.Type == wire.TStruct:
+			v.NotPredicateAttributes, err = _NotPredicateAttributes_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 70 && fh.Type == wire.TStruct:
+			v.DomainIDPredicateAttributes, err = _DomainIDPredicateAttributes_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a Predicate
+// struct.
+func (v *Predicate) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [7]string
+	i := 0
+	if v.PredicateType != nil {
+		fields[i] = fmt.Sprintf("PredicateType: %v", *(v.PredicateType))
+		i++
+	}
+	if v.UniversalPredicateAttributes != nil {
+		fields[i] = fmt.Sprintf("UniversalPredicateAttributes: %v", v.UniversalPredicateAttributes)
+		i++
+	}
+	if v.EmptyPredicateAttributes != nil {
+		fields[i] = fmt.Sprintf("EmptyPredicateAttributes: %v", v.EmptyPredicateAttributes)
+		i++
+	}
+	if v.AndPredicateAttributes != nil {
+		fields[i] = fmt.Sprintf("AndPredicateAttributes: %v", v.AndPredicateAttributes)
+		i++
+	}
+	if v.OrPredicateAttributes != nil {
+		fields[i] = fmt.Sprintf("OrPredicateAttributes: %v", v.OrPredicateAttributes)
+		i++
+	}
+	if v.NotPredicateAttributes != nil {
+		fields[i] = fmt.Sprintf("NotPredicateAttributes: %v", v.NotPredicateAttributes)
+		i++
+	}
+	if v.DomainIDPredicateAttributes != nil {
+		fields[i] = fmt.Sprintf("DomainIDPredicateAttributes: %v", v.DomainIDPredicateAttributes)
+		i++
+	}
+
+	return fmt.Sprintf("Predicate{%v}", strings.Join(fields[:i], ", "))
+}
+
+func _PredicateType_EqualsPtr(lhs, rhs *PredicateType) bool {
+	if lhs != nil && rhs != nil {
+
+		x := *lhs
+		y := *rhs
+		return x.Equals(y)
+	}
+	return lhs == nil && rhs == nil
+}
+
+// Equals returns true if all the fields of this Predicate match the
+// provided Predicate.
+//
+// This function performs a deep comparison.
+func (v *Predicate) Equals(rhs *Predicate) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !_PredicateType_EqualsPtr(v.PredicateType, rhs.PredicateType) {
+		return false
+	}
+	if !((v.UniversalPredicateAttributes == nil && rhs.UniversalPredicateAttributes == nil) || (v.UniversalPredicateAttributes != nil && rhs.UniversalPredicateAttributes != nil && v.UniversalPredicateAttributes.Equals(rhs.UniversalPredicateAttributes))) {
+		return false
+	}
+	if !((v.EmptyPredicateAttributes == nil && rhs.EmptyPredicateAttributes == nil) || (v.EmptyPredicateAttributes != nil && rhs.EmptyPredicateAttributes != nil && v.EmptyPredicateAttributes.Equals(rhs.EmptyPredicateAttributes))) {
+		return false
+	}
+	if !((v.AndPredicateAttributes == nil && rhs.AndPredicateAttributes == nil) || (v.AndPredicateAttributes != nil && rhs.AndPredicateAttributes != nil && v.AndPredicateAttributes.Equals(rhs.AndPredicateAttributes))) {
+		return false
+	}
+	if !((v.OrPredicateAttributes == nil && rhs.OrPredicateAttributes == nil) || (v.OrPredicateAttributes != nil && rhs.OrPredicateAttributes != nil && v.OrPredicateAttributes.Equals(rhs.OrPredicateAttributes))) {
+		return false
+	}
+	if !((v.NotPredicateAttributes == nil && rhs.NotPredicateAttributes == nil) || (v.NotPredicateAttributes != nil && rhs.NotPredicateAttributes != nil && v.NotPredicateAttributes.Equals(rhs.NotPredicateAttributes))) {
+		return false
+	}
+	if !((v.DomainIDPredicateAttributes == nil && rhs.DomainIDPredicateAttributes == nil) || (v.DomainIDPredicateAttributes != nil && rhs.DomainIDPredicateAttributes != nil && v.DomainIDPredicateAttributes.Equals(rhs.DomainIDPredicateAttributes))) {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of Predicate.
+func (v *Predicate) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.PredicateType != nil {
+		err = multierr.Append(err, enc.AddObject("predicateType", *v.PredicateType))
+	}
+	if v.UniversalPredicateAttributes != nil {
+		err = multierr.Append(err, enc.AddObject("universalPredicateAttributes", v.UniversalPredicateAttributes))
+	}
+	if v.EmptyPredicateAttributes != nil {
+		err = multierr.Append(err, enc.AddObject("emptyPredicateAttributes", v.EmptyPredicateAttributes))
+	}
+	if v.AndPredicateAttributes != nil {
+		err = multierr.Append(err, enc.AddObject("andPredicateAttributes", v.AndPredicateAttributes))
+	}
+	if v.OrPredicateAttributes != nil {
+		err = multierr.Append(err, enc.AddObject("orPredicateAttributes", v.OrPredicateAttributes))
+	}
+	if v.NotPredicateAttributes != nil {
+		err = multierr.Append(err, enc.AddObject("notPredicateAttributes", v.NotPredicateAttributes))
+	}
+	if v.DomainIDPredicateAttributes != nil {
+		err = multierr.Append(err, enc.AddObject("domainIDPredicateAttributes", v.DomainIDPredicateAttributes))
+	}
+	return err
+}
+
+// GetPredicateType returns the value of PredicateType if it is set or its
+// zero value if it is unset.
+func (v *Predicate) GetPredicateType() (o PredicateType) {
+	if v != nil && v.PredicateType != nil {
+		return *v.PredicateType
+	}
+
+	return
+}
+
+// IsSetPredicateType returns true if PredicateType is not nil.
+func (v *Predicate) IsSetPredicateType() bool {
+	return v != nil && v.PredicateType != nil
+}
+
+// GetUniversalPredicateAttributes returns the value of UniversalPredicateAttributes if it is set or its
+// zero value if it is unset.
+func (v *Predicate) GetUniversalPredicateAttributes() (o *UniversalPredicateAttributes) {
+	if v != nil && v.UniversalPredicateAttributes != nil {
+		return v.UniversalPredicateAttributes
+	}
+
+	return
+}
+
+// IsSetUniversalPredicateAttributes returns true if UniversalPredicateAttributes is not nil.
+func (v *Predicate) IsSetUniversalPredicateAttributes() bool {
+	return v != nil && v.UniversalPredicateAttributes != nil
+}
+
+// GetEmptyPredicateAttributes returns the value of EmptyPredicateAttributes if it is set or its
+// zero value if it is unset.
+func (v *Predicate) GetEmptyPredicateAttributes() (o *EmptyPredicateAttributes) {
+	if v != nil && v.EmptyPredicateAttributes != nil {
+		return v.EmptyPredicateAttributes
+	}
+
+	return
+}
+
+// IsSetEmptyPredicateAttributes returns true if EmptyPredicateAttributes is not nil.
+func (v *Predicate) IsSetEmptyPredicateAttributes() bool {
+	return v != nil && v.EmptyPredicateAttributes != nil
+}
+
+// GetAndPredicateAttributes returns the value of AndPredicateAttributes if it is set or its
+// zero value if it is unset.
+func (v *Predicate) GetAndPredicateAttributes() (o *AndPredicateAttributes) {
+	if v != nil && v.AndPredicateAttributes != nil {
+		return v.AndPredicateAttributes
+	}
+
+	return
+}
+
+// IsSetAndPredicateAttributes returns true if AndPredicateAttributes is not nil.
+func (v *Predicate) IsSetAndPredicateAttributes() bool {
+	return v != nil && v.AndPredicateAttributes != nil
+}
+
+// GetOrPredicateAttributes returns the value of OrPredicateAttributes if it is set or its
+// zero value if it is unset.
+func (v *Predicate) GetOrPredicateAttributes() (o *OrPredicateAttributes) {
+	if v != nil && v.OrPredicateAttributes != nil {
+		return v.OrPredicateAttributes
+	}
+
+	return
+}
+
+// IsSetOrPredicateAttributes returns true if OrPredicateAttributes is not nil.
+func (v *Predicate) IsSetOrPredicateAttributes() bool {
+	return v != nil && v.OrPredicateAttributes != nil
+}
+
+// GetNotPredicateAttributes returns the value of NotPredicateAttributes if it is set or its
+// zero value if it is unset.
+func (v *Predicate) GetNotPredicateAttributes() (o *NotPredicateAttributes) {
+	if v != nil && v.NotPredicateAttributes != nil {
+		return v.NotPredicateAttributes
+	}
+
+	return
+}
+
+// IsSetNotPredicateAttributes returns true if NotPredicateAttributes is not nil.
+func (v *Predicate) IsSetNotPredicateAttributes() bool {
+	return v != nil && v.NotPredicateAttributes != nil
+}
+
+// GetDomainIDPredicateAttributes returns the value of DomainIDPredicateAttributes if it is set or its
+// zero value if it is unset.
+func (v *Predicate) GetDomainIDPredicateAttributes() (o *DomainIDPredicateAttributes) {
+	if v != nil && v.DomainIDPredicateAttributes != nil {
+		return v.DomainIDPredicateAttributes
+	}
+
+	return
+}
+
+// IsSetDomainIDPredicateAttributes returns true if DomainIDPredicateAttributes is not nil.
+func (v *Predicate) IsSetDomainIDPredicateAttributes() bool {
+	return v != nil && v.DomainIDPredicateAttributes != nil
+}
+
+type PredicateType int32
+
+const (
+	PredicateTypeUniversal PredicateType = 0
+	PredicateTypeEmpty     PredicateType = 1
+	PredicateTypeAnd       PredicateType = 2
+	PredicateTypeOr        PredicateType = 3
+	PredicateTypeNot       PredicateType = 4
+	PredicateTypeDomainID  PredicateType = 5
+)
+
+// PredicateType_Values returns all recognized values of PredicateType.
+func PredicateType_Values() []PredicateType {
+	return []PredicateType{
+		PredicateTypeUniversal,
+		PredicateTypeEmpty,
+		PredicateTypeAnd,
+		PredicateTypeOr,
+		PredicateTypeNot,
+		PredicateTypeDomainID,
+	}
+}
+
+// UnmarshalText tries to decode PredicateType from a byte slice
+// containing its name.
+//
+//	var v PredicateType
+//	err := v.UnmarshalText([]byte("Universal"))
+func (v *PredicateType) UnmarshalText(value []byte) error {
+	switch s := string(value); s {
+	case "Universal":
+		*v = PredicateTypeUniversal
+		return nil
+	case "Empty":
+		*v = PredicateTypeEmpty
+		return nil
+	case "And":
+		*v = PredicateTypeAnd
+		return nil
+	case "Or":
+		*v = PredicateTypeOr
+		return nil
+	case "Not":
+		*v = PredicateTypeNot
+		return nil
+	case "DomainID":
+		*v = PredicateTypeDomainID
+		return nil
+	default:
+		val, err := strconv.ParseInt(s, 10, 32)
+		if err != nil {
+			return fmt.Errorf("unknown enum value %q for %q: %v", s, "PredicateType", err)
+		}
+		*v = PredicateType(val)
+		return nil
+	}
+}
+
+// MarshalText encodes PredicateType to text.
+//
+// If the enum value is recognized, its name is returned.
+// Otherwise, its integer value is returned.
+//
+// This implements the TextMarshaler interface.
+func (v PredicateType) MarshalText() ([]byte, error) {
+	switch int32(v) {
+	case 0:
+		return []byte("Universal"), nil
+	case 1:
+		return []byte("Empty"), nil
+	case 2:
+		return []byte("And"), nil
+	case 3:
+		return []byte("Or"), nil
+	case 4:
+		return []byte("Not"), nil
+	case 5:
+		return []byte("DomainID"), nil
+	}
+	return []byte(strconv.FormatInt(int64(v), 10)), nil
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of PredicateType.
+// Enums are logged as objects, where the value is logged with key "value", and
+// if this value's name is known, the name is logged with key "name".
+func (v PredicateType) MarshalLogObject(enc zapcore.ObjectEncoder) error {
+	enc.AddInt32("value", int32(v))
+	switch int32(v) {
+	case 0:
+		enc.AddString("name", "Universal")
+	case 1:
+		enc.AddString("name", "Empty")
+	case 2:
+		enc.AddString("name", "And")
+	case 3:
+		enc.AddString("name", "Or")
+	case 4:
+		enc.AddString("name", "Not")
+	case 5:
+		enc.AddString("name", "DomainID")
+	}
+	return nil
+}
+
+// Ptr returns a pointer to this enum value.
+func (v PredicateType) Ptr() *PredicateType {
+	return &v
+}
+
+// Encode encodes PredicateType directly to bytes.
+//
+//	sWriter := BinaryStreamer.Writer(writer)
+//
+//	var v PredicateType
+//	return v.Encode(sWriter)
+func (v PredicateType) Encode(sw stream.Writer) error {
+	return sw.WriteInt32(int32(v))
+}
+
+// ToWire translates PredicateType into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// Enums are represented as 32-bit integers over the wire.
+func (v PredicateType) ToWire() (wire.Value, error) {
+	return wire.NewValueI32(int32(v)), nil
+}
+
+// FromWire deserializes PredicateType from its Thrift-level
+// representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TI32)
+//	if err != nil {
+//	  return PredicateType(0), err
+//	}
+//
+//	var v PredicateType
+//	if err := v.FromWire(x); err != nil {
+//	  return PredicateType(0), err
+//	}
+//	return v, nil
+func (v *PredicateType) FromWire(w wire.Value) error {
+	*v = (PredicateType)(w.GetI32())
+	return nil
+}
+
+// Decode reads off the encoded PredicateType directly off of the wire.
+//
+//	sReader := BinaryStreamer.Reader(reader)
+//
+//	var v PredicateType
+//	if err := v.Decode(sReader); err != nil {
+//	  return PredicateType(0), err
+//	}
+//	return v, nil
+func (v *PredicateType) Decode(sr stream.Reader) error {
+	i, err := sr.ReadInt32()
+	if err != nil {
+		return err
+	}
+	*v = (PredicateType)(i)
+	return nil
+}
+
+// String returns a readable string representation of PredicateType.
+func (v PredicateType) String() string {
+	w := int32(v)
+	switch w {
+	case 0:
+		return "Universal"
+	case 1:
+		return "Empty"
+	case 2:
+		return "And"
+	case 3:
+		return "Or"
+	case 4:
+		return "Not"
+	case 5:
+		return "DomainID"
+	}
+	return fmt.Sprintf("PredicateType(%d)", w)
+}
+
+// Equals returns true if this PredicateType value matches the provided
+// value.
+func (v PredicateType) Equals(rhs PredicateType) bool {
+	return v == rhs
+}
+
+// MarshalJSON serializes PredicateType into JSON.
+//
+// If the enum value is recognized, its name is returned.
+// Otherwise, its integer value is returned.
+//
+// This implements json.Marshaler.
+func (v PredicateType) MarshalJSON() ([]byte, error) {
+	switch int32(v) {
+	case 0:
+		return ([]byte)("\"Universal\""), nil
+	case 1:
+		return ([]byte)("\"Empty\""), nil
+	case 2:
+		return ([]byte)("\"And\""), nil
+	case 3:
+		return ([]byte)("\"Or\""), nil
+	case 4:
+		return ([]byte)("\"Not\""), nil
+	case 5:
+		return ([]byte)("\"DomainID\""), nil
+	}
+	return ([]byte)(strconv.FormatInt(int64(v), 10)), nil
+}
+
+// UnmarshalJSON attempts to decode PredicateType from its JSON
+// representation.
+//
+// This implementation supports both, numeric and string inputs. If a
+// string is provided, it must be a known enum name.
+//
+// This implements json.Unmarshaler.
+func (v *PredicateType) UnmarshalJSON(text []byte) error {
+	d := json.NewDecoder(bytes.NewReader(text))
+	d.UseNumber()
+	t, err := d.Token()
+	if err != nil {
+		return err
+	}
+
+	switch w := t.(type) {
+	case json.Number:
+		x, err := w.Int64()
+		if err != nil {
+			return err
+		}
+		if x > math.MaxInt32 {
+			return fmt.Errorf("enum overflow from JSON %q for %q", text, "PredicateType")
+		}
+		if x < math.MinInt32 {
+			return fmt.Errorf("enum underflow from JSON %q for %q", text, "PredicateType")
+		}
+		*v = (PredicateType)(x)
+		return nil
+	case string:
+		return v.UnmarshalText([]byte(w))
+	default:
+		return fmt.Errorf("invalid JSON value %q (%T) to unmarshal into %q", t, t, "PredicateType")
+	}
 }
 
 type QueryConsistencyLevel int32
@@ -99811,6 +101892,148 @@ func (v *TransientDecisionInfo) IsSetStartedEvent() bool {
 	return v != nil && v.StartedEvent != nil
 }
 
+type UniversalPredicateAttributes struct {
+}
+
+// ToWire translates a UniversalPredicateAttributes struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//	  return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//	  return err
+//	}
+func (v *UniversalPredicateAttributes) ToWire() (wire.Value, error) {
+	var (
+		fields [0]wire.Field
+		i      int = 0
+	)
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+// FromWire deserializes a UniversalPredicateAttributes struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a UniversalPredicateAttributes struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//	  return nil, err
+//	}
+//
+//	var v UniversalPredicateAttributes
+//	if err := v.FromWire(x); err != nil {
+//	  return nil, err
+//	}
+//	return &v, nil
+func (v *UniversalPredicateAttributes) FromWire(w wire.Value) error {
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		}
+	}
+
+	return nil
+}
+
+// Encode serializes a UniversalPredicateAttributes struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a UniversalPredicateAttributes struct could not be encoded.
+func (v *UniversalPredicateAttributes) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	return sw.WriteStructEnd()
+}
+
+// Decode deserializes a UniversalPredicateAttributes struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a UniversalPredicateAttributes struct could not be generated from the wire
+// representation.
+func (v *UniversalPredicateAttributes) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a UniversalPredicateAttributes
+// struct.
+func (v *UniversalPredicateAttributes) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [0]string
+	i := 0
+
+	return fmt.Sprintf("UniversalPredicateAttributes{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this UniversalPredicateAttributes match the
+// provided UniversalPredicateAttributes.
+//
+// This function performs a deep comparison.
+func (v *UniversalPredicateAttributes) Equals(rhs *UniversalPredicateAttributes) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of UniversalPredicateAttributes.
+func (v *UniversalPredicateAttributes) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	return err
+}
+
 type UpdateDomainInfo struct {
 	Description *string           `json:"description,omitempty"`
 	OwnerEmail  *string           `json:"ownerEmail,omitempty"`
@@ -103095,6 +105318,7 @@ func (v *VirtualQueueState) IsSetVirtualSliceStates() bool {
 
 type VirtualSliceState struct {
 	TaskRange *TaskRange `json:"taskRange,omitempty"`
+	Predicate *Predicate `json:"predicate,omitempty"`
 }
 
 // ToWire translates a VirtualSliceState struct into a Thrift-level intermediate
@@ -103114,7 +105338,7 @@ type VirtualSliceState struct {
 //	}
 func (v *VirtualSliceState) ToWire() (wire.Value, error) {
 	var (
-		fields [1]wire.Field
+		fields [2]wire.Field
 		i      int = 0
 		w      wire.Value
 		err    error
@@ -103126,6 +105350,14 @@ func (v *VirtualSliceState) ToWire() (wire.Value, error) {
 			return w, err
 		}
 		fields[i] = wire.Field{ID: 10, Value: w}
+		i++
+	}
+	if v.Predicate != nil {
+		w, err = v.Predicate.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 20, Value: w}
 		i++
 	}
 
@@ -103168,6 +105400,14 @@ func (v *VirtualSliceState) FromWire(w wire.Value) error {
 				}
 
 			}
+		case 20:
+			if field.Value.Type() == wire.TStruct {
+				v.Predicate, err = _Predicate_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
 		}
 	}
 
@@ -103188,6 +105428,18 @@ func (v *VirtualSliceState) Encode(sw stream.Writer) error {
 			return err
 		}
 		if err := v.TaskRange.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.Predicate != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 20, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.Predicate.Encode(sw); err != nil {
 			return err
 		}
 		if err := sw.WriteFieldEnd(); err != nil {
@@ -103228,6 +105480,12 @@ func (v *VirtualSliceState) Decode(sr stream.Reader) error {
 				return err
 			}
 
+		case fh.ID == 20 && fh.Type == wire.TStruct:
+			v.Predicate, err = _Predicate_Decode(sr)
+			if err != nil {
+				return err
+			}
+
 		default:
 			if err := sr.Skip(fh.Type); err != nil {
 				return err
@@ -103257,10 +105515,14 @@ func (v *VirtualSliceState) String() string {
 		return "<nil>"
 	}
 
-	var fields [1]string
+	var fields [2]string
 	i := 0
 	if v.TaskRange != nil {
 		fields[i] = fmt.Sprintf("TaskRange: %v", v.TaskRange)
+		i++
+	}
+	if v.Predicate != nil {
+		fields[i] = fmt.Sprintf("Predicate: %v", v.Predicate)
 		i++
 	}
 
@@ -103280,6 +105542,9 @@ func (v *VirtualSliceState) Equals(rhs *VirtualSliceState) bool {
 	if !((v.TaskRange == nil && rhs.TaskRange == nil) || (v.TaskRange != nil && rhs.TaskRange != nil && v.TaskRange.Equals(rhs.TaskRange))) {
 		return false
 	}
+	if !((v.Predicate == nil && rhs.Predicate == nil) || (v.Predicate != nil && rhs.Predicate != nil && v.Predicate.Equals(rhs.Predicate))) {
+		return false
+	}
 
 	return true
 }
@@ -103292,6 +105557,9 @@ func (v *VirtualSliceState) MarshalLogObject(enc zapcore.ObjectEncoder) (err err
 	}
 	if v.TaskRange != nil {
 		err = multierr.Append(err, enc.AddObject("taskRange", v.TaskRange))
+	}
+	if v.Predicate != nil {
+		err = multierr.Append(err, enc.AddObject("predicate", v.Predicate))
 	}
 	return err
 }
@@ -103309,6 +105577,21 @@ func (v *VirtualSliceState) GetTaskRange() (o *TaskRange) {
 // IsSetTaskRange returns true if TaskRange is not nil.
 func (v *VirtualSliceState) IsSetTaskRange() bool {
 	return v != nil && v.TaskRange != nil
+}
+
+// GetPredicate returns the value of Predicate if it is set or its
+// zero value if it is unset.
+func (v *VirtualSliceState) GetPredicate() (o *Predicate) {
+	if v != nil && v.Predicate != nil {
+		return v.Predicate
+	}
+
+	return
+}
+
+// IsSetPredicate returns true if Predicate is not nil.
+func (v *VirtualSliceState) IsSetPredicate() bool {
+	return v != nil && v.Predicate != nil
 }
 
 type WorkerVersionInfo struct {
@@ -113388,8 +115671,8 @@ var ThriftModule = &thriftreflect.ThriftModule{
 	Name:     "shared",
 	Package:  "github.com/uber/cadence/.gen/go/shared",
 	FilePath: "shared.thrift",
-	SHA1:     "7d1bd07d9852aa2bc4d64a498359f4e36b3ee718",
+	SHA1:     "69ddcbcbca7bf3603efab1021ed51eefa124a9c7",
 	Raw:      rawIDL,
 }
 
-const rawIDL = "// Copyright (c) 2017 Uber Technologies, Inc.\n//\n// Permission is hereby granted, free of charge, to any person obtaining a copy\n// of this software and associated documentation files (the \"Software\"), to deal\n// in the Software without restriction, including without limitation the rights\n// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n// copies of the Software, and to permit persons to whom the Software is\n// furnished to do so, subject to the following conditions:\n//\n// The above copyright notice and this permission notice shall be included in\n// all copies or substantial portions of the Software.\n//\n// THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n// THE SOFTWARE.\n\nnamespace java com.uber.cadence\n\nexception BadRequestError {\n  1: required string message\n}\n\nexception InternalServiceError {\n  1: required string message\n}\n\nexception InternalDataInconsistencyError {\n  1: required string message\n}\n\nexception DomainAlreadyExistsError {\n  1: required string message\n}\n\nexception WorkflowExecutionAlreadyStartedError {\n  10: optional string message\n  20: optional string startRequestId\n  30: optional string runId\n}\n\nexception WorkflowExecutionAlreadyCompletedError {\n  1: required string message\n}\n\nexception EntityNotExistsError {\n  1: required string message\n  2: optional string currentCluster\n  3: optional string activeCluster\n  // activeClusters is a list of active clusters for active-active domain\n  4: required list<string> activeClusters\n}\n\nexception ServiceBusyError {\n  1: required string message\n  2: optional string reason\n}\n\nexception CancellationAlreadyRequestedError {\n  1: required string message\n}\n\nexception QueryFailedError {\n  1: required string message\n}\n\nexception DomainNotActiveError {\n  1: required string message\n  2: required string domainName\n  3: required string currentCluster\n  4: required string activeCluster\n  // activeClusters is a list of active clusters for active-active domain\n  5: required list<string> activeClusters\n}\n\nexception LimitExceededError {\n  1: required string message\n}\n\nexception AccessDeniedError {\n  1: required string message\n}\n\nexception RetryTaskV2Error {\n  1: required string message\n  2: optional string domainId\n  3: optional string workflowId\n  4: optional string runId\n  5: optional i64 (js.type = \"Long\") startEventId\n  6: optional i64 (js.type = \"Long\") startEventVersion\n  7: optional i64 (js.type = \"Long\") endEventId\n  8: optional i64 (js.type = \"Long\") endEventVersion\n}\n\nexception ClientVersionNotSupportedError {\n  1: required string featureVersion\n  2: required string clientImpl\n  3: required string supportedVersions\n}\n\nexception FeatureNotEnabledError {\n  1: required string featureFlag\n}\n\nexception CurrentBranchChangedError {\n  10: required string message\n  20: required binary currentBranchToken\n}\n\nexception RemoteSyncMatchedError {\n  10: required string message\n}\n\nexception StickyWorkerUnavailableError {\n  1: required string message\n}\n\nexception TaskListNotOwnedByHostError {\n    1: required string ownedByIdentity\n    2: required string myIdentity\n    3: required string tasklistName\n}\n\nenum WorkflowIdReusePolicy {\n  /*\n   * allow start a workflow execution using the same workflow ID,\n   * when workflow not running, and the last execution close state is in\n   * [terminated, cancelled, timeouted, failed].\n   */\n  AllowDuplicateFailedOnly,\n  /*\n   * allow start a workflow execution using the same workflow ID,\n   * when workflow not running.\n   */\n  AllowDuplicate,\n  /*\n   * do not allow start a workflow execution using the same workflow ID at all\n   */\n  RejectDuplicate,\n  /*\n   * if a workflow is running using the same workflow ID, terminate it and start a new one\n   */\n  TerminateIfRunning,\n}\n\nenum DomainStatus {\n  REGISTERED,\n  DEPRECATED,\n  DELETED,\n}\n\nenum TimeoutType {\n  START_TO_CLOSE,\n  SCHEDULE_TO_START,\n  SCHEDULE_TO_CLOSE,\n  HEARTBEAT,\n}\n\nenum ParentClosePolicy {\n\tABANDON,\n\tREQUEST_CANCEL,\n\tTERMINATE,\n}\n\n\n// whenever this list of decision is changed\n// do change the mutableStateBuilder.go\n// function shouldBufferEvent\n// to make sure wo do the correct event ordering\nenum DecisionType {\n  ScheduleActivityTask,\n  RequestCancelActivityTask,\n  StartTimer,\n  CompleteWorkflowExecution,\n  FailWorkflowExecution,\n  CancelTimer,\n  CancelWorkflowExecution,\n  RequestCancelExternalWorkflowExecution,\n  RecordMarker,\n  ContinueAsNewWorkflowExecution,\n  StartChildWorkflowExecution,\n  SignalExternalWorkflowExecution,\n  UpsertWorkflowSearchAttributes,\n}\n\nenum EventType {\n  WorkflowExecutionStarted,\n  WorkflowExecutionCompleted,\n  WorkflowExecutionFailed,\n  WorkflowExecutionTimedOut,\n  DecisionTaskScheduled,\n  DecisionTaskStarted,\n  DecisionTaskCompleted,\n  DecisionTaskTimedOut\n  DecisionTaskFailed,\n  ActivityTaskScheduled,\n  ActivityTaskStarted,\n  ActivityTaskCompleted,\n  ActivityTaskFailed,\n  ActivityTaskTimedOut,\n  ActivityTaskCancelRequested,\n  RequestCancelActivityTaskFailed,\n  ActivityTaskCanceled,\n  TimerStarted,\n  TimerFired,\n  CancelTimerFailed,\n  TimerCanceled,\n  WorkflowExecutionCancelRequested,\n  WorkflowExecutionCanceled,\n  RequestCancelExternalWorkflowExecutionInitiated,\n  RequestCancelExternalWorkflowExecutionFailed,\n  ExternalWorkflowExecutionCancelRequested,\n  MarkerRecorded,\n  WorkflowExecutionSignaled,\n  WorkflowExecutionTerminated,\n  WorkflowExecutionContinuedAsNew,\n  StartChildWorkflowExecutionInitiated,\n  StartChildWorkflowExecutionFailed,\n  ChildWorkflowExecutionStarted,\n  ChildWorkflowExecutionCompleted,\n  ChildWorkflowExecutionFailed,\n  ChildWorkflowExecutionCanceled,\n  ChildWorkflowExecutionTimedOut,\n  ChildWorkflowExecutionTerminated,\n  SignalExternalWorkflowExecutionInitiated,\n  SignalExternalWorkflowExecutionFailed,\n  ExternalWorkflowExecutionSignaled,\n  UpsertWorkflowSearchAttributes,\n}\n\nenum DecisionTaskFailedCause {\n  UNHANDLED_DECISION,\n  BAD_SCHEDULE_ACTIVITY_ATTRIBUTES,\n  BAD_REQUEST_CANCEL_ACTIVITY_ATTRIBUTES,\n  BAD_START_TIMER_ATTRIBUTES,\n  BAD_CANCEL_TIMER_ATTRIBUTES,\n  BAD_RECORD_MARKER_ATTRIBUTES,\n  BAD_COMPLETE_WORKFLOW_EXECUTION_ATTRIBUTES,\n  BAD_FAIL_WORKFLOW_EXECUTION_ATTRIBUTES,\n  BAD_CANCEL_WORKFLOW_EXECUTION_ATTRIBUTES,\n  BAD_REQUEST_CANCEL_EXTERNAL_WORKFLOW_EXECUTION_ATTRIBUTES,\n  BAD_CONTINUE_AS_NEW_ATTRIBUTES,\n  START_TIMER_DUPLICATE_ID,\n  RESET_STICKY_TASKLIST,\n  WORKFLOW_WORKER_UNHANDLED_FAILURE,\n  BAD_SIGNAL_WORKFLOW_EXECUTION_ATTRIBUTES,\n  BAD_START_CHILD_EXECUTION_ATTRIBUTES,\n  FORCE_CLOSE_DECISION,\n  FAILOVER_CLOSE_DECISION,\n  BAD_SIGNAL_INPUT_SIZE,\n  RESET_WORKFLOW,\n  BAD_BINARY,\n  SCHEDULE_ACTIVITY_DUPLICATE_ID,\n  BAD_SEARCH_ATTRIBUTES,\n}\n\nenum DecisionTaskTimedOutCause {\n  TIMEOUT,\n  RESET,\n}\n\nenum CancelExternalWorkflowExecutionFailedCause {\n  UNKNOWN_EXTERNAL_WORKFLOW_EXECUTION,\n  WORKFLOW_ALREADY_COMPLETED,\n}\n\nenum SignalExternalWorkflowExecutionFailedCause {\n  UNKNOWN_EXTERNAL_WORKFLOW_EXECUTION,\n  WORKFLOW_ALREADY_COMPLETED,\n}\n\nenum ChildWorkflowExecutionFailedCause {\n  WORKFLOW_ALREADY_RUNNING,\n}\n\n// TODO: when migrating to gRPC, add a running / none status,\n//  currently, customer is using null / nil as an indication\n//  that workflow is still running\nenum WorkflowExecutionCloseStatus {\n  COMPLETED,\n  FAILED,\n  CANCELED,\n  TERMINATED,\n  CONTINUED_AS_NEW,\n  TIMED_OUT,\n}\n\nenum QueryTaskCompletedType {\n  COMPLETED,\n  FAILED,\n}\n\nenum QueryResultType {\n  ANSWERED,\n  FAILED,\n}\n\nenum PendingActivityState {\n  SCHEDULED,\n  STARTED,\n  CANCEL_REQUESTED,\n}\n\nenum PendingDecisionState {\n  SCHEDULED,\n  STARTED,\n}\n\nenum HistoryEventFilterType {\n  ALL_EVENT,\n  CLOSE_EVENT,\n}\n\nenum TaskListKind {\n  NORMAL,\n  STICKY,\n  EPHEMERAL,\n}\n\nenum ArchivalStatus {\n  DISABLED,\n  ENABLED,\n}\n\nenum CronOverlapPolicy {\n  SKIPPED,\n  BUFFERONE,\n}\n\nenum IndexedValueType {\n  STRING,\n  KEYWORD,\n  INT,\n  DOUBLE,\n  BOOL,\n  DATETIME,\n}\n\nstruct Header {\n    10: optional map<string, binary> fields\n}\n\nstruct WorkflowType {\n  10: optional string name\n}\n\nstruct ActivityType {\n  10: optional string name\n}\n\nstruct TaskList {\n  10: optional string name\n  20: optional TaskListKind kind\n}\n\nenum EncodingType {\n  ThriftRW,\n  JSON,\n}\n\nenum QueryRejectCondition {\n  // NOT_OPEN indicates that query should be rejected if workflow is not open\n  NOT_OPEN\n  // NOT_COMPLETED_CLEANLY indicates that query should be rejected if workflow did not complete cleanly\n  NOT_COMPLETED_CLEANLY\n}\n\nenum QueryConsistencyLevel {\n  // EVENTUAL indicates that query should be eventually consistent\n  EVENTUAL\n  // STRONG indicates that any events that came before query should be reflected in workflow state before running query\n  STRONG\n}\n\nstruct DataBlob {\n  10: optional EncodingType EncodingType\n  20: optional binary Data\n}\n\nstruct TaskListMetadata {\n  10: optional double maxTasksPerSecond\n}\n\nstruct WorkflowExecution {\n  10: optional string workflowId\n  20: optional string runId\n}\n\nstruct Memo {\n  10: optional map<string,binary> fields\n}\n\nstruct SearchAttributes {\n  10: optional map<string,binary> indexedFields\n}\n\nstruct WorkerVersionInfo {\n  10: optional string impl\n  20: optional string featureVersion\n}\n\nstruct WorkflowExecutionInfo {\n  10: optional WorkflowExecution execution\n  20: optional WorkflowType type\n  30: optional i64 (js.type = \"Long\") startTime\n  40: optional i64 (js.type = \"Long\") closeTime\n  50: optional WorkflowExecutionCloseStatus closeStatus\n  60: optional i64 (js.type = \"Long\") historyLength\n  70: optional string parentDomainId\n  71: optional string parentDomainName\n  72: optional i64 parentInitatedId\n  80: optional WorkflowExecution parentExecution\n  90: optional i64 (js.type = \"Long\") executionTime\n  100: optional Memo memo\n  101: optional SearchAttributes searchAttributes\n  110: optional ResetPoints autoResetPoints\n  120: optional string taskList\n  121: optional TaskList taskListInfo\n  130: optional bool isCron\n  140: optional i64 (js.type = \"Long\") updateTime\n  150: optional map<string, string> partitionConfig\n  160: optional CronOverlapPolicy cronOverlapPolicy\n  170: optional ActiveClusterSelectionPolicy activeClusterSelectionPolicy\n}\n\nstruct WorkflowExecutionConfiguration {\n  10: optional TaskList taskList\n  20: optional i32 executionStartToCloseTimeoutSeconds\n  30: optional i32 taskStartToCloseTimeoutSeconds\n//  40: optional ChildPolicy childPolicy -- Removed but reserve the IDL order number\n}\n\nstruct TransientDecisionInfo {\n  10: optional HistoryEvent scheduledEvent\n  20: optional HistoryEvent startedEvent\n}\n\nstruct ScheduleActivityTaskDecisionAttributes {\n  10: optional string activityId\n  20: optional ActivityType activityType\n  25: optional string domain\n  30: optional TaskList taskList\n  40: optional binary input\n  45: optional i32 scheduleToCloseTimeoutSeconds\n  50: optional i32 scheduleToStartTimeoutSeconds\n  55: optional i32 startToCloseTimeoutSeconds\n  60: optional i32 heartbeatTimeoutSeconds\n  70: optional RetryPolicy retryPolicy\n  80: optional Header header\n  90: optional bool requestLocalDispatch\n}\n\nstruct ActivityLocalDispatchInfo{\n  10: optional string activityId\n  20: optional i64 (js.type = \"Long\") scheduledTimestamp\n  30: optional i64 (js.type = \"Long\") startedTimestamp\n  40: optional i64 (js.type = \"Long\") scheduledTimestampOfThisAttempt\n  50: optional binary taskToken\n}\n\nstruct RequestCancelActivityTaskDecisionAttributes {\n  10: optional string activityId\n}\n\nstruct StartTimerDecisionAttributes {\n  10: optional string timerId\n  20: optional i64 (js.type = \"Long\") startToFireTimeoutSeconds\n}\n\nstruct CompleteWorkflowExecutionDecisionAttributes {\n  10: optional binary result\n}\n\nstruct FailWorkflowExecutionDecisionAttributes {\n  10: optional string reason\n  20: optional binary details\n}\n\nstruct CancelTimerDecisionAttributes {\n  10: optional string timerId\n}\n\nstruct CancelWorkflowExecutionDecisionAttributes {\n  10: optional binary details\n}\n\nstruct RequestCancelExternalWorkflowExecutionDecisionAttributes {\n  10: optional string domain\n  20: optional string workflowId\n  30: optional string runId\n  40: optional binary control\n  50: optional bool childWorkflowOnly\n}\n\nstruct SignalExternalWorkflowExecutionDecisionAttributes {\n  10: optional string domain\n  20: optional WorkflowExecution execution\n  30: optional string signalName\n  40: optional binary input\n  50: optional binary control\n  60: optional bool childWorkflowOnly\n}\n\nstruct UpsertWorkflowSearchAttributesDecisionAttributes {\n  10: optional SearchAttributes searchAttributes\n}\n\nstruct RecordMarkerDecisionAttributes {\n  10: optional string markerName\n  20: optional binary details\n  30: optional Header header\n}\n\nstruct ContinueAsNewWorkflowExecutionDecisionAttributes {\n  10: optional WorkflowType workflowType\n  20: optional TaskList taskList\n  30: optional binary input\n  40: optional i32 executionStartToCloseTimeoutSeconds\n  50: optional i32 taskStartToCloseTimeoutSeconds\n  60: optional i32 backoffStartIntervalInSeconds\n  70: optional RetryPolicy retryPolicy\n  80: optional ContinueAsNewInitiator initiator\n  90: optional string failureReason\n  100: optional binary failureDetails\n  110: optional binary lastCompletionResult\n  120: optional string cronSchedule\n  130: optional Header header\n  140: optional Memo memo\n  150: optional SearchAttributes searchAttributes\n  160: optional i32 jitterStartSeconds\n  170: optional CronOverlapPolicy cronOverlapPolicy\n  180: optional ActiveClusterSelectionPolicy activeClusterSelectionPolicy\n}\n\nstruct StartChildWorkflowExecutionDecisionAttributes {\n  10: optional string domain\n  20: optional string workflowId\n  30: optional WorkflowType workflowType\n  40: optional TaskList taskList\n  50: optional binary input\n  60: optional i32 executionStartToCloseTimeoutSeconds\n  70: optional i32 taskStartToCloseTimeoutSeconds\n//  80: optional ChildPolicy childPolicy -- Removed but reserve the IDL order number\n  81: optional ParentClosePolicy parentClosePolicy\n  90: optional binary control\n  100: optional WorkflowIdReusePolicy workflowIdReusePolicy\n  110: optional RetryPolicy retryPolicy\n  120: optional string cronSchedule\n  130: optional Header header\n  140: optional Memo memo\n  150: optional SearchAttributes searchAttributes\n  160: optional CronOverlapPolicy cronOverlapPolicy\n  170: optional ActiveClusterSelectionPolicy activeClusterSelectionPolicy\n}\n\nstruct Decision {\n  10:  optional DecisionType decisionType\n  20:  optional ScheduleActivityTaskDecisionAttributes scheduleActivityTaskDecisionAttributes\n  25:  optional StartTimerDecisionAttributes startTimerDecisionAttributes\n  30:  optional CompleteWorkflowExecutionDecisionAttributes completeWorkflowExecutionDecisionAttributes\n  35:  optional FailWorkflowExecutionDecisionAttributes failWorkflowExecutionDecisionAttributes\n  40:  optional RequestCancelActivityTaskDecisionAttributes requestCancelActivityTaskDecisionAttributes\n  50:  optional CancelTimerDecisionAttributes cancelTimerDecisionAttributes\n  60:  optional CancelWorkflowExecutionDecisionAttributes cancelWorkflowExecutionDecisionAttributes\n  70:  optional RequestCancelExternalWorkflowExecutionDecisionAttributes requestCancelExternalWorkflowExecutionDecisionAttributes\n  80:  optional RecordMarkerDecisionAttributes recordMarkerDecisionAttributes\n  90:  optional ContinueAsNewWorkflowExecutionDecisionAttributes continueAsNewWorkflowExecutionDecisionAttributes\n  100: optional StartChildWorkflowExecutionDecisionAttributes startChildWorkflowExecutionDecisionAttributes\n  110: optional SignalExternalWorkflowExecutionDecisionAttributes signalExternalWorkflowExecutionDecisionAttributes\n  120: optional UpsertWorkflowSearchAttributesDecisionAttributes upsertWorkflowSearchAttributesDecisionAttributes\n}\n\nstruct WorkflowExecutionStartedEventAttributes {\n  10: optional WorkflowType workflowType\n  12: optional string parentWorkflowDomain\n  14: optional WorkflowExecution parentWorkflowExecution\n  16: optional i64 (js.type = \"Long\") parentInitiatedEventId\n  20: optional TaskList taskList\n  30: optional binary input\n  40: optional i32 executionStartToCloseTimeoutSeconds\n  50: optional i32 taskStartToCloseTimeoutSeconds\n//  52: optional ChildPolicy childPolicy -- Removed but reserve the IDL order number\n  54: optional string continuedExecutionRunId\n  55: optional ContinueAsNewInitiator initiator\n  56: optional string continuedFailureReason\n  57: optional binary continuedFailureDetails\n  58: optional binary lastCompletionResult\n  59: optional string originalExecutionRunId // This is the runID when the WorkflowExecutionStarted event is written\n  60: optional string identity\n  61: optional string firstExecutionRunId // This is the very first runID along the chain of ContinueAsNew and Reset.\n  62: optional i64 (js.type = \"Long\") firstScheduledTimeNano\n  70: optional RetryPolicy retryPolicy\n  80: optional i32 attempt\n  90: optional i64 (js.type = \"Long\") expirationTimestamp\n  100: optional string cronSchedule\n  110: optional i32 firstDecisionTaskBackoffSeconds\n  120: optional Memo memo\n  121: optional SearchAttributes searchAttributes\n  130: optional ResetPoints prevAutoResetPoints\n  140: optional Header header\n  150: optional map<string, string> partitionConfig\n  160: optional string requestId\n  170: optional CronOverlapPolicy cronOverlapPolicy\n  180: optional ActiveClusterSelectionPolicy activeClusterSelectionPolicy\n}\n\nstruct ResetPoints{\n  10: optional list<ResetPointInfo> points\n}\n\n struct ResetPointInfo{\n  10: optional string binaryChecksum\n  20: optional string runId\n  30: optional i64 firstDecisionCompletedId\n  40: optional i64 (js.type = \"Long\") createdTimeNano\n  50: optional i64 (js.type = \"Long\") expiringTimeNano //the time that the run is deleted due to retention\n  60: optional bool resettable                         // false if the resset point has pending childWFs/reqCancels/signalExternals.\n}\n\nstruct WorkflowExecutionCompletedEventAttributes {\n  10: optional binary result\n  20: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n}\n\nstruct WorkflowExecutionFailedEventAttributes {\n  10: optional string reason\n  20: optional binary details\n  30: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n}\n\nstruct WorkflowExecutionTimedOutEventAttributes {\n  10: optional TimeoutType timeoutType\n}\n\nenum ContinueAsNewInitiator {\n  Decider,\n  RetryPolicy,\n  CronSchedule,\n}\n\nstruct WorkflowExecutionContinuedAsNewEventAttributes {\n  10: optional string newExecutionRunId\n  20: optional WorkflowType workflowType\n  30: optional TaskList taskList\n  40: optional binary input\n  50: optional i32 executionStartToCloseTimeoutSeconds\n  60: optional i32 taskStartToCloseTimeoutSeconds\n  70: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  80: optional i32 backoffStartIntervalInSeconds\n  90: optional ContinueAsNewInitiator initiator\n  100: optional string failureReason\n  110: optional binary failureDetails\n  120: optional binary lastCompletionResult\n  130: optional Header header\n  140: optional Memo memo\n  150: optional SearchAttributes searchAttributes\n}\n\nstruct DecisionTaskScheduledEventAttributes {\n  10: optional TaskList taskList\n  20: optional i32 startToCloseTimeoutSeconds\n  30: optional i64 (js.type = \"Long\") attempt\n}\n\nstruct DecisionTaskStartedEventAttributes {\n  10: optional i64 (js.type = \"Long\") scheduledEventId\n  20: optional string identity\n  30: optional string requestId\n}\n\nstruct DecisionTaskCompletedEventAttributes {\n  10: optional binary executionContext\n  20: optional i64 (js.type = \"Long\") scheduledEventId\n  30: optional i64 (js.type = \"Long\") startedEventId\n  40: optional string identity\n  50: optional string binaryChecksum\n}\n\nstruct DecisionTaskTimedOutEventAttributes {\n  10: optional i64 (js.type = \"Long\") scheduledEventId\n  20: optional i64 (js.type = \"Long\") startedEventId\n  30: optional TimeoutType timeoutType\n  // for reset workflow\n  40: optional string baseRunId\n  50: optional string newRunId\n  60: optional i64 (js.type = \"Long\") forkEventVersion\n  70: optional string reason\n  80: optional DecisionTaskTimedOutCause cause\n  90: optional string requestId\n}\n\nstruct DecisionTaskFailedEventAttributes {\n  10: optional i64 (js.type = \"Long\") scheduledEventId\n  20: optional i64 (js.type = \"Long\") startedEventId\n  30: optional DecisionTaskFailedCause cause\n  35: optional binary details\n  40: optional string identity\n  50: optional string reason\n  // for reset workflow\n  60: optional string baseRunId\n  70: optional string newRunId\n  80: optional i64 (js.type = \"Long\") forkEventVersion\n  90: optional string binaryChecksum\n  100: optional string requestId\n}\n\nstruct ActivityTaskScheduledEventAttributes {\n  10: optional string activityId\n  20: optional ActivityType activityType\n  25: optional string domain\n  30: optional TaskList taskList\n  40: optional binary input\n  45: optional i32 scheduleToCloseTimeoutSeconds\n  50: optional i32 scheduleToStartTimeoutSeconds\n  55: optional i32 startToCloseTimeoutSeconds\n  60: optional i32 heartbeatTimeoutSeconds\n  90: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  110: optional RetryPolicy retryPolicy\n  120: optional Header header\n}\n\nstruct ActivityTaskStartedEventAttributes {\n  10: optional i64 (js.type = \"Long\") scheduledEventId\n  20: optional string identity\n  30: optional string requestId\n  40: optional i32 attempt\n  50: optional string lastFailureReason\n  60: optional binary lastFailureDetails\n}\n\nstruct ActivityTaskCompletedEventAttributes {\n  10: optional binary result\n  20: optional i64 (js.type = \"Long\") scheduledEventId\n  30: optional i64 (js.type = \"Long\") startedEventId\n  40: optional string identity\n}\n\nstruct ActivityTaskFailedEventAttributes {\n  10: optional string reason\n  20: optional binary details\n  30: optional i64 (js.type = \"Long\") scheduledEventId\n  40: optional i64 (js.type = \"Long\") startedEventId\n  50: optional string identity\n}\n\nstruct ActivityTaskTimedOutEventAttributes {\n  05: optional binary details\n  10: optional i64 (js.type = \"Long\") scheduledEventId\n  20: optional i64 (js.type = \"Long\") startedEventId\n  30: optional TimeoutType timeoutType\n  // For retry activity, it may have a failure before timeout. It's important to keep those information for debug.\n  // Client can also provide the info for making next decision\n  40: optional string lastFailureReason\n  50: optional binary lastFailureDetails\n}\n\nstruct ActivityTaskCancelRequestedEventAttributes {\n  10: optional string activityId\n  20: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n}\n\nstruct RequestCancelActivityTaskFailedEventAttributes{\n  10: optional string activityId\n  20: optional string cause\n  30: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n}\n\nstruct ActivityTaskCanceledEventAttributes {\n  10: optional binary details\n  20: optional i64 (js.type = \"Long\") latestCancelRequestedEventId\n  30: optional i64 (js.type = \"Long\") scheduledEventId\n  40: optional i64 (js.type = \"Long\") startedEventId\n  50: optional string identity\n}\n\nstruct TimerStartedEventAttributes {\n  10: optional string timerId\n  20: optional i64 (js.type = \"Long\") startToFireTimeoutSeconds\n  30: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n}\n\nstruct TimerFiredEventAttributes {\n  10: optional string timerId\n  20: optional i64 (js.type = \"Long\") startedEventId\n}\n\nstruct TimerCanceledEventAttributes {\n  10: optional string timerId\n  20: optional i64 (js.type = \"Long\") startedEventId\n  30: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  40: optional string identity\n}\n\nstruct CancelTimerFailedEventAttributes {\n  10: optional string timerId\n  20: optional string cause\n  30: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  40: optional string identity\n}\n\nstruct WorkflowExecutionCancelRequestedEventAttributes {\n  10: optional string cause\n  20: optional i64 (js.type = \"Long\") externalInitiatedEventId\n  30: optional WorkflowExecution externalWorkflowExecution\n  40: optional string identity\n  50: optional string requestId\n}\n\nstruct WorkflowExecutionCanceledEventAttributes {\n  10: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  20: optional binary details\n}\n\nstruct MarkerRecordedEventAttributes {\n  10: optional string markerName\n  20: optional binary details\n  30: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  40: optional Header header\n}\n\nstruct WorkflowExecutionSignaledEventAttributes {\n  10: optional string signalName\n  20: optional binary input\n  30: optional string identity\n  40: optional string requestId\n}\n\nstruct WorkflowExecutionTerminatedEventAttributes {\n  10: optional string reason\n  20: optional binary details\n  30: optional string identity\n}\n\nstruct RequestCancelExternalWorkflowExecutionInitiatedEventAttributes {\n  10: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  20: optional string domain\n  30: optional WorkflowExecution workflowExecution\n  40: optional binary control\n  50: optional bool childWorkflowOnly\n}\n\nstruct RequestCancelExternalWorkflowExecutionFailedEventAttributes {\n  10: optional CancelExternalWorkflowExecutionFailedCause cause\n  20: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  30: optional string domain\n  40: optional WorkflowExecution workflowExecution\n  50: optional i64 (js.type = \"Long\") initiatedEventId\n  60: optional binary control\n}\n\nstruct ExternalWorkflowExecutionCancelRequestedEventAttributes {\n  10: optional i64 (js.type = \"Long\") initiatedEventId\n  20: optional string domain\n  30: optional WorkflowExecution workflowExecution\n}\n\nstruct SignalExternalWorkflowExecutionInitiatedEventAttributes {\n  10: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  20: optional string domain\n  30: optional WorkflowExecution workflowExecution\n  40: optional string signalName\n  50: optional binary input\n  60: optional binary control\n  70: optional bool childWorkflowOnly\n}\n\nstruct SignalExternalWorkflowExecutionFailedEventAttributes {\n  10: optional SignalExternalWorkflowExecutionFailedCause cause\n  20: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  30: optional string domain\n  40: optional WorkflowExecution workflowExecution\n  50: optional i64 (js.type = \"Long\") initiatedEventId\n  60: optional binary control\n}\n\nstruct ExternalWorkflowExecutionSignaledEventAttributes {\n  10: optional i64 (js.type = \"Long\") initiatedEventId\n  20: optional string domain\n  30: optional WorkflowExecution workflowExecution\n  40: optional binary control\n}\n\nstruct UpsertWorkflowSearchAttributesEventAttributes {\n  10: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  20: optional SearchAttributes searchAttributes\n}\n\nstruct StartChildWorkflowExecutionInitiatedEventAttributes {\n  10:  optional string domain\n  20:  optional string workflowId\n  30:  optional WorkflowType workflowType\n  40:  optional TaskList taskList\n  50:  optional binary input\n  60:  optional i32 executionStartToCloseTimeoutSeconds\n  70:  optional i32 taskStartToCloseTimeoutSeconds\n//  80:  optional ChildPolicy childPolicy -- Removed but reserve the IDL order number\n  81:  optional ParentClosePolicy parentClosePolicy\n  90:  optional binary control\n  100: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  110: optional WorkflowIdReusePolicy workflowIdReusePolicy\n  120: optional RetryPolicy retryPolicy\n  130: optional string cronSchedule\n  140: optional Header header\n  150: optional Memo memo\n  160: optional SearchAttributes searchAttributes\n  170: optional i32 delayStartSeconds\n  180: optional i32 jitterStartSeconds\n  190: optional i64 (js.type = \"Long\") firstRunAtTimestamp\n  200: optional CronOverlapPolicy cronOverlapPolicy\n  210: optional ActiveClusterSelectionPolicy activeClusterSelectionPolicy\n}\n\nstruct StartChildWorkflowExecutionFailedEventAttributes {\n  10: optional string domain\n  20: optional string workflowId\n  30: optional WorkflowType workflowType\n  40: optional ChildWorkflowExecutionFailedCause cause\n  50: optional binary control\n  60: optional i64 (js.type = \"Long\") initiatedEventId\n  70: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n}\n\nstruct ChildWorkflowExecutionStartedEventAttributes {\n  10: optional string domain\n  20: optional i64 (js.type = \"Long\") initiatedEventId\n  30: optional WorkflowExecution workflowExecution\n  40: optional WorkflowType workflowType\n  50: optional Header header\n}\n\nstruct ChildWorkflowExecutionCompletedEventAttributes {\n  10: optional binary result\n  20: optional string domain\n  30: optional WorkflowExecution workflowExecution\n  40: optional WorkflowType workflowType\n  50: optional i64 (js.type = \"Long\") initiatedEventId\n  60: optional i64 (js.type = \"Long\") startedEventId\n}\n\nstruct ChildWorkflowExecutionFailedEventAttributes {\n  10: optional string reason\n  20: optional binary details\n  30: optional string domain\n  40: optional WorkflowExecution workflowExecution\n  50: optional WorkflowType workflowType\n  60: optional i64 (js.type = \"Long\") initiatedEventId\n  70: optional i64 (js.type = \"Long\") startedEventId\n}\n\nstruct ChildWorkflowExecutionCanceledEventAttributes {\n  10: optional binary details\n  20: optional string domain\n  30: optional WorkflowExecution workflowExecution\n  40: optional WorkflowType workflowType\n  50: optional i64 (js.type = \"Long\") initiatedEventId\n  60: optional i64 (js.type = \"Long\") startedEventId\n}\n\nstruct ChildWorkflowExecutionTimedOutEventAttributes {\n  10: optional TimeoutType timeoutType\n  20: optional string domain\n  30: optional WorkflowExecution workflowExecution\n  40: optional WorkflowType workflowType\n  50: optional i64 (js.type = \"Long\") initiatedEventId\n  60: optional i64 (js.type = \"Long\") startedEventId\n}\n\nstruct ChildWorkflowExecutionTerminatedEventAttributes {\n  10: optional string domain\n  20: optional WorkflowExecution workflowExecution\n  30: optional WorkflowType workflowType\n  40: optional i64 (js.type = \"Long\") initiatedEventId\n  50: optional i64 (js.type = \"Long\") startedEventId\n}\n\nstruct HistoryEvent {\n  10:  optional i64 (js.type = \"Long\") eventId\n  20:  optional i64 (js.type = \"Long\") timestamp\n  30:  optional EventType eventType\n  35:  optional i64 (js.type = \"Long\") version\n  36:  optional i64 (js.type = \"Long\") taskId\n  40:  optional WorkflowExecutionStartedEventAttributes workflowExecutionStartedEventAttributes\n  50:  optional WorkflowExecutionCompletedEventAttributes workflowExecutionCompletedEventAttributes\n  60:  optional WorkflowExecutionFailedEventAttributes workflowExecutionFailedEventAttributes\n  70:  optional WorkflowExecutionTimedOutEventAttributes workflowExecutionTimedOutEventAttributes\n  80:  optional DecisionTaskScheduledEventAttributes decisionTaskScheduledEventAttributes\n  90:  optional DecisionTaskStartedEventAttributes decisionTaskStartedEventAttributes\n  100: optional DecisionTaskCompletedEventAttributes decisionTaskCompletedEventAttributes\n  110: optional DecisionTaskTimedOutEventAttributes decisionTaskTimedOutEventAttributes\n  120: optional DecisionTaskFailedEventAttributes decisionTaskFailedEventAttributes\n  130: optional ActivityTaskScheduledEventAttributes activityTaskScheduledEventAttributes\n  140: optional ActivityTaskStartedEventAttributes activityTaskStartedEventAttributes\n  150: optional ActivityTaskCompletedEventAttributes activityTaskCompletedEventAttributes\n  160: optional ActivityTaskFailedEventAttributes activityTaskFailedEventAttributes\n  170: optional ActivityTaskTimedOutEventAttributes activityTaskTimedOutEventAttributes\n  180: optional TimerStartedEventAttributes timerStartedEventAttributes\n  190: optional TimerFiredEventAttributes timerFiredEventAttributes\n  200: optional ActivityTaskCancelRequestedEventAttributes activityTaskCancelRequestedEventAttributes\n  210: optional RequestCancelActivityTaskFailedEventAttributes requestCancelActivityTaskFailedEventAttributes\n  220: optional ActivityTaskCanceledEventAttributes activityTaskCanceledEventAttributes\n  230: optional TimerCanceledEventAttributes timerCanceledEventAttributes\n  240: optional CancelTimerFailedEventAttributes cancelTimerFailedEventAttributes\n  250: optional MarkerRecordedEventAttributes markerRecordedEventAttributes\n  260: optional WorkflowExecutionSignaledEventAttributes workflowExecutionSignaledEventAttributes\n  270: optional WorkflowExecutionTerminatedEventAttributes workflowExecutionTerminatedEventAttributes\n  280: optional WorkflowExecutionCancelRequestedEventAttributes workflowExecutionCancelRequestedEventAttributes\n  290: optional WorkflowExecutionCanceledEventAttributes workflowExecutionCanceledEventAttributes\n  300: optional RequestCancelExternalWorkflowExecutionInitiatedEventAttributes requestCancelExternalWorkflowExecutionInitiatedEventAttributes\n  310: optional RequestCancelExternalWorkflowExecutionFailedEventAttributes requestCancelExternalWorkflowExecutionFailedEventAttributes\n  320: optional ExternalWorkflowExecutionCancelRequestedEventAttributes externalWorkflowExecutionCancelRequestedEventAttributes\n  330: optional WorkflowExecutionContinuedAsNewEventAttributes workflowExecutionContinuedAsNewEventAttributes\n  340: optional StartChildWorkflowExecutionInitiatedEventAttributes startChildWorkflowExecutionInitiatedEventAttributes\n  350: optional StartChildWorkflowExecutionFailedEventAttributes startChildWorkflowExecutionFailedEventAttributes\n  360: optional ChildWorkflowExecutionStartedEventAttributes childWorkflowExecutionStartedEventAttributes\n  370: optional ChildWorkflowExecutionCompletedEventAttributes childWorkflowExecutionCompletedEventAttributes\n  380: optional ChildWorkflowExecutionFailedEventAttributes childWorkflowExecutionFailedEventAttributes\n  390: optional ChildWorkflowExecutionCanceledEventAttributes childWorkflowExecutionCanceledEventAttributes\n  400: optional ChildWorkflowExecutionTimedOutEventAttributes childWorkflowExecutionTimedOutEventAttributes\n  410: optional ChildWorkflowExecutionTerminatedEventAttributes childWorkflowExecutionTerminatedEventAttributes\n  420: optional SignalExternalWorkflowExecutionInitiatedEventAttributes signalExternalWorkflowExecutionInitiatedEventAttributes\n  430: optional SignalExternalWorkflowExecutionFailedEventAttributes signalExternalWorkflowExecutionFailedEventAttributes\n  440: optional ExternalWorkflowExecutionSignaledEventAttributes externalWorkflowExecutionSignaledEventAttributes\n  450: optional UpsertWorkflowSearchAttributesEventAttributes upsertWorkflowSearchAttributesEventAttributes\n}\n\nstruct History {\n  10: optional list<HistoryEvent> events\n}\n\nstruct WorkflowExecutionFilter {\n  10: optional string workflowId\n  20: optional string runId\n}\n\nstruct WorkflowTypeFilter {\n  10: optional string name\n}\n\nstruct StartTimeFilter {\n  10: optional i64 (js.type = \"Long\") earliestTime\n  20: optional i64 (js.type = \"Long\") latestTime\n}\n\nstruct DomainInfo {\n  10: optional string name\n  20: optional DomainStatus status\n  30: optional string description\n  40: optional string ownerEmail\n  // A key-value map for any customized purpose\n  50: optional map<string,string> data\n  60: optional string uuid\n}\n\nstruct DomainConfiguration {\n  10: optional i32 workflowExecutionRetentionPeriodInDays\n  20: optional bool emitMetric\n  60: optional IsolationGroupConfiguration isolationgroups\n  70: optional BadBinaries badBinaries\n  80: optional ArchivalStatus historyArchivalStatus\n  90: optional string historyArchivalURI\n  100: optional ArchivalStatus visibilityArchivalStatus\n  110: optional string visibilityArchivalURI\n  120: optional AsyncWorkflowConfiguration AsyncWorkflowConfiguration\n}\n\nstruct FailoverInfo {\n    10: optional i64 (js.type = \"Long\") failoverVersion\n    20: optional i64 (js.type = \"Long\") failoverStartTimestamp\n    30: optional i64 (js.type = \"Long\") failoverExpireTimestamp\n    40: optional i32 completedShardCount\n    50: optional list<i32> pendingShards\n}\n\nstruct BadBinaries{\n  10: optional map<string, BadBinaryInfo> binaries\n}\n\nstruct BadBinaryInfo{\n  10: optional string reason\n  20: optional string operator\n  30: optional i64 (js.type = \"Long\") createdTimeNano\n}\n\nstruct UpdateDomainInfo {\n  10: optional string description\n  20: optional string ownerEmail\n  // A key-value map for any customized purpose\n  30: optional map<string,string> data\n}\n\nstruct ClusterReplicationConfiguration {\n 10: optional string clusterName\n}\n\nstruct DomainReplicationConfiguration {\n // activeClusterName is the name of the active cluster for active-passive domain\n 10: optional string activeClusterName\n\n //  clusters is list of all active and passive clusters of domain\n 20: optional list<ClusterReplicationConfiguration> clusters\n\n // activeClusters contains active cluster(s) information for active-active domain\n 30: optional ActiveClusters activeClusters\n}\n\nstruct ActiveClusters {\n  // activeClustersByRegion is a map of region name to active cluster info for active-active domain\n  10: optional map<string, ActiveClusterInfo> activeClustersByRegion\n}\n\n// ActiveClusterInfo contains the configuration of active-active domain's active cluster & failover version for a specific region\nstruct ActiveClusterInfo {\n  10: optional string activeClusterName\n  20: optional i64 (js.type = \"Long\") failoverVersion\n}\n\nstruct RegisterDomainRequest {\n  10: optional string name\n  20: optional string description\n  30: optional string ownerEmail\n  40: optional i32 workflowExecutionRetentionPeriodInDays\n  50: optional bool emitMetric = true\n  60: optional list<ClusterReplicationConfiguration> clusters\n  70: optional string activeClusterName\n  // activeClusters is a map of region name to active cluster name for active-active domain\n  75: optional map<string, string> activeClustersByRegion\n  // A key-value map for any customized purpose\n  80: optional map<string,string> data\n  90: optional string securityToken\n  120: optional bool isGlobalDomain\n  130: optional ArchivalStatus historyArchivalStatus\n  140: optional string historyArchivalURI\n  150: optional ArchivalStatus visibilityArchivalStatus\n  160: optional string visibilityArchivalURI\n}\n\nstruct ListDomainsRequest {\n  10: optional i32 pageSize\n  20: optional binary nextPageToken\n}\n\nstruct ListDomainsResponse {\n  10: optional list<DescribeDomainResponse> domains\n  20: optional binary nextPageToken\n}\n\nstruct DescribeDomainRequest {\n  10: optional string name\n  20: optional string uuid\n}\n\nstruct DescribeDomainResponse {\n  10: optional DomainInfo domainInfo\n  20: optional DomainConfiguration configuration\n  30: optional DomainReplicationConfiguration replicationConfiguration\n  40: optional i64 (js.type = \"Long\") failoverVersion\n  50: optional bool isGlobalDomain\n  60: optional FailoverInfo failoverInfo\n}\n\nstruct UpdateDomainRequest {\n 10: optional string name\n 20: optional UpdateDomainInfo updatedInfo\n 30: optional DomainConfiguration configuration\n 40: optional DomainReplicationConfiguration replicationConfiguration\n 50: optional string securityToken\n 60: optional string deleteBadBinary\n 70: optional i32 failoverTimeoutInSeconds\n}\n\nstruct UpdateDomainResponse {\n  10: optional DomainInfo domainInfo\n  20: optional DomainConfiguration configuration\n  30: optional DomainReplicationConfiguration replicationConfiguration\n  40: optional i64 (js.type = \"Long\") failoverVersion\n  50: optional bool isGlobalDomain\n}\n\nstruct DeprecateDomainRequest {\n 10: optional string name\n 20: optional string securityToken\n}\n\nstruct DeleteDomainRequest {\n 10: optional string name\n 20: optional string securityToken\n}\n\nstruct StartWorkflowExecutionRequest {\n  10: optional string domain\n  20: optional string workflowId\n  30: optional WorkflowType workflowType\n  40: optional TaskList taskList\n  50: optional binary input\n  60: optional i32 executionStartToCloseTimeoutSeconds\n  70: optional i32 taskStartToCloseTimeoutSeconds\n  80: optional string identity\n  90: optional string requestId\n  100: optional WorkflowIdReusePolicy workflowIdReusePolicy\n//  110: optional ChildPolicy childPolicy -- Removed but reserve the IDL order number\n  120: optional RetryPolicy retryPolicy\n  130: optional string cronSchedule\n  140: optional Memo memo\n  141: optional SearchAttributes searchAttributes\n  150: optional Header header\n  160: optional i32 delayStartSeconds\n  170: optional i32 jitterStartSeconds\n  180: optional i64 (js.type = \"Long\") firstRunAtTimestamp\n  190: optional CronOverlapPolicy cronOverlapPolicy\n  200: optional ActiveClusterSelectionPolicy activeClusterSelectionPolicy\n}\n\nstruct StartWorkflowExecutionResponse {\n  10: optional string runId\n}\n\nstruct StartWorkflowExecutionAsyncRequest {\n  10: optional StartWorkflowExecutionRequest request\n}\n\nstruct StartWorkflowExecutionAsyncResponse {\n}\n\nstruct RestartWorkflowExecutionResponse {\n  10: optional string runId\n}\n\nstruct DiagnoseWorkflowExecutionRequest {\n  10: optional string domain\n  20: optional WorkflowExecution workflowExecution\n  30: optional string identity\n}\n\nstruct DiagnoseWorkflowExecutionResponse {\n  10: optional string domain\n  20: optional WorkflowExecution diagnosticWorkflowExecution\n}\n\nstruct PollForDecisionTaskRequest {\n  10: optional string domain\n  20: optional TaskList taskList\n  30: optional string identity\n  40: optional string binaryChecksum\n}\n\nstruct PollForDecisionTaskResponse {\n  10: optional binary taskToken\n  20: optional WorkflowExecution workflowExecution\n  30: optional WorkflowType workflowType\n  40: optional i64 (js.type = \"Long\") previousStartedEventId\n  50: optional i64 (js.type = \"Long\") startedEventId\n  51: optional i64 (js.type = 'Long') attempt\n  54: optional i64 (js.type = \"Long\") backlogCountHint\n  60: optional History history\n  70: optional binary nextPageToken\n  80: optional WorkflowQuery query\n  90: optional TaskList WorkflowExecutionTaskList\n  100: optional i64 (js.type = \"Long\") scheduledTimestamp\n  110: optional i64 (js.type = \"Long\") startedTimestamp\n  120: optional map<string, WorkflowQuery> queries\n  130: optional i64 (js.type = 'Long') nextEventId\n  140: optional i64 (js.type = 'Long') totalHistoryBytes\n  150: optional AutoConfigHint autoConfigHint\n}\n\nstruct StickyExecutionAttributes {\n  10: optional TaskList workerTaskList\n  20: optional i32 scheduleToStartTimeoutSeconds\n}\n\nstruct RespondDecisionTaskCompletedRequest {\n  10: optional binary taskToken\n  20: optional list<Decision> decisions\n  30: optional binary executionContext\n  40: optional string identity\n  50: optional StickyExecutionAttributes stickyAttributes\n  60: optional bool returnNewDecisionTask\n  70: optional bool forceCreateNewDecisionTask\n  80: optional string binaryChecksum\n  90: optional map<string, WorkflowQueryResult> queryResults\n}\n\nstruct RespondDecisionTaskCompletedResponse {\n  10: optional PollForDecisionTaskResponse decisionTask\n  20: optional map<string,ActivityLocalDispatchInfo> activitiesToDispatchLocally\n}\n\nstruct RespondDecisionTaskFailedRequest {\n  10: optional binary taskToken\n  20: optional DecisionTaskFailedCause cause\n  30: optional binary details\n  40: optional string identity\n  50: optional string binaryChecksum\n}\n\nstruct PollForActivityTaskRequest {\n  10: optional string domain\n  20: optional TaskList taskList\n  30: optional string identity\n  40: optional TaskListMetadata taskListMetadata\n}\n\nstruct PollForActivityTaskResponse {\n  10:  optional binary taskToken\n  20:  optional WorkflowExecution workflowExecution\n  30:  optional string activityId\n  40:  optional ActivityType activityType\n  50:  optional binary input\n  70:  optional i64 (js.type = \"Long\") scheduledTimestamp\n  80:  optional i32 scheduleToCloseTimeoutSeconds\n  90:  optional i64 (js.type = \"Long\") startedTimestamp\n  100: optional i32 startToCloseTimeoutSeconds\n  110: optional i32 heartbeatTimeoutSeconds\n  120: optional i32 attempt\n  130: optional i64 (js.type = \"Long\") scheduledTimestampOfThisAttempt\n  140: optional binary heartbeatDetails\n  150: optional WorkflowType workflowType\n  160: optional string workflowDomain\n  170: optional Header header\n  180: optional AutoConfigHint autoConfigHint\n}\n\nstruct RecordActivityTaskHeartbeatRequest {\n  10: optional binary taskToken\n  20: optional binary details\n  30: optional string identity\n}\n\nstruct RecordActivityTaskHeartbeatByIDRequest {\n  10: optional string domain\n  20: optional string workflowID\n  30: optional string runID\n  40: optional string activityID\n  50: optional binary details\n  60: optional string identity\n}\n\nstruct RecordActivityTaskHeartbeatResponse {\n  10: optional bool cancelRequested\n}\n\nstruct RespondActivityTaskCompletedRequest {\n  10: optional binary taskToken\n  20: optional binary result\n  30: optional string identity\n}\n\nstruct RespondActivityTaskFailedRequest {\n  10: optional binary taskToken\n  20: optional string reason\n  30: optional binary details\n  40: optional string identity\n}\n\nstruct RespondActivityTaskCanceledRequest {\n  10: optional binary taskToken\n  20: optional binary details\n  30: optional string identity\n}\n\nstruct RespondActivityTaskCompletedByIDRequest {\n  10: optional string domain\n  20: optional string workflowID\n  30: optional string runID\n  40: optional string activityID\n  50: optional binary result\n  60: optional string identity\n}\n\nstruct RespondActivityTaskFailedByIDRequest {\n  10: optional string domain\n  20: optional string workflowID\n  30: optional string runID\n  40: optional string activityID\n  50: optional string reason\n  60: optional binary details\n  70: optional string identity\n}\n\nstruct RespondActivityTaskCanceledByIDRequest {\n  10: optional string domain\n  20: optional string workflowID\n  30: optional string runID\n  40: optional string activityID\n  50: optional binary details\n  60: optional string identity\n}\n\nstruct RequestCancelWorkflowExecutionRequest {\n  10: optional string domain\n  20: optional WorkflowExecution workflowExecution\n  30: optional string identity\n  40: optional string requestId\n  50: optional string cause\n  60: optional string firstExecutionRunID\n}\n\nstruct GetWorkflowExecutionHistoryRequest {\n  10: optional string domain\n  20: optional WorkflowExecution execution\n  30: optional i32 maximumPageSize\n  40: optional binary nextPageToken\n  50: optional bool waitForNewEvent\n  60: optional HistoryEventFilterType HistoryEventFilterType\n  70: optional bool skipArchival\n  80: optional QueryConsistencyLevel queryConsistencyLevel\n}\n\nstruct GetWorkflowExecutionHistoryResponse {\n  10: optional History history\n  11: optional list<DataBlob> rawHistory\n  20: optional binary nextPageToken\n  30: optional bool archived\n}\n\nstruct SignalWorkflowExecutionRequest {\n  10: optional string domain\n  20: optional WorkflowExecution workflowExecution\n  30: optional string signalName\n  40: optional binary input\n  50: optional string identity\n  60: optional string requestId\n  70: optional binary control\n}\n\nstruct SignalWithStartWorkflowExecutionRequest {\n  10: optional string domain\n  20: optional string workflowId\n  30: optional WorkflowType workflowType\n  40: optional TaskList taskList\n  50: optional binary input\n  60: optional i32 executionStartToCloseTimeoutSeconds\n  70: optional i32 taskStartToCloseTimeoutSeconds\n  80: optional string identity\n  90: optional string requestId\n  100: optional WorkflowIdReusePolicy workflowIdReusePolicy\n  110: optional string signalName\n  120: optional binary signalInput\n  130: optional binary control\n  140: optional RetryPolicy retryPolicy\n  150: optional string cronSchedule\n  160: optional Memo memo\n  161: optional SearchAttributes searchAttributes\n  170: optional Header header\n  180: optional i32 delayStartSeconds\n  190: optional i32 jitterStartSeconds\n  200: optional i64 (js.type = \"Long\") firstRunAtTimestamp\n  210: optional CronOverlapPolicy cronOverlapPolicy\n  220: optional ActiveClusterSelectionPolicy activeClusterSelectionPolicy\n}\n\nstruct SignalWithStartWorkflowExecutionAsyncRequest {\n  10: optional SignalWithStartWorkflowExecutionRequest request\n}\n\nstruct SignalWithStartWorkflowExecutionAsyncResponse {\n}\n\nstruct RestartWorkflowExecutionRequest {\n  10: optional string domain\n  20: optional WorkflowExecution workflowExecution\n  30: optional string reason\n  40: optional string identity\n}\nstruct TerminateWorkflowExecutionRequest {\n  10: optional string domain\n  20: optional WorkflowExecution workflowExecution\n  30: optional string reason\n  40: optional binary details\n  50: optional string identity\n  60: optional string firstExecutionRunID\n}\n\nstruct ResetWorkflowExecutionRequest {\n  10: optional string domain\n  20: optional WorkflowExecution workflowExecution\n  30: optional string reason\n  40: optional i64 (js.type = \"Long\") decisionFinishEventId\n  50: optional string requestId\n  60: optional bool skipSignalReapply\n}\n\nstruct ResetWorkflowExecutionResponse {\n  10: optional string runId\n}\n\nstruct ListOpenWorkflowExecutionsRequest {\n  10: optional string domain\n  20: optional i32 maximumPageSize\n  30: optional binary nextPageToken\n  40: optional StartTimeFilter StartTimeFilter\n  50: optional WorkflowExecutionFilter executionFilter\n  60: optional WorkflowTypeFilter typeFilter\n}\n\nstruct ListOpenWorkflowExecutionsResponse {\n  10: optional list<WorkflowExecutionInfo> executions\n  20: optional binary nextPageToken\n}\n\nstruct ListClosedWorkflowExecutionsRequest {\n  10: optional string domain\n  20: optional i32 maximumPageSize\n  30: optional binary nextPageToken\n  40: optional StartTimeFilter StartTimeFilter\n  50: optional WorkflowExecutionFilter executionFilter\n  60: optional WorkflowTypeFilter typeFilter\n  70: optional WorkflowExecutionCloseStatus statusFilter\n}\n\nstruct ListClosedWorkflowExecutionsResponse {\n  10: optional list<WorkflowExecutionInfo> executions\n  20: optional binary nextPageToken\n}\n\nstruct ListWorkflowExecutionsRequest {\n  10: optional string domain\n  20: optional i32 pageSize\n  30: optional binary nextPageToken\n  40: optional string query\n}\n\nstruct ListWorkflowExecutionsResponse {\n  10: optional list<WorkflowExecutionInfo> executions\n  20: optional binary nextPageToken\n}\n\nstruct ListArchivedWorkflowExecutionsRequest {\n  10: optional string domain\n  20: optional i32 pageSize\n  30: optional binary nextPageToken\n  40: optional string query\n}\n\nstruct ListArchivedWorkflowExecutionsResponse {\n  10: optional list<WorkflowExecutionInfo> executions\n  20: optional binary nextPageToken\n}\n\nstruct CountWorkflowExecutionsRequest {\n  10: optional string domain\n  20: optional string query\n}\n\nstruct CountWorkflowExecutionsResponse {\n  10: optional i64 count\n}\n\nstruct GetSearchAttributesResponse {\n  10: optional map<string, IndexedValueType> keys\n}\n\nstruct QueryWorkflowRequest {\n  10: optional string domain\n  20: optional WorkflowExecution execution\n  30: optional WorkflowQuery query\n  // QueryRejectCondition can used to reject the query if workflow state does not satisify condition\n  40: optional QueryRejectCondition queryRejectCondition\n  50: optional QueryConsistencyLevel queryConsistencyLevel\n}\n\nstruct QueryRejected {\n  10: optional WorkflowExecutionCloseStatus closeStatus\n}\n\nstruct QueryWorkflowResponse {\n  10: optional binary queryResult\n  20: optional QueryRejected queryRejected\n}\n\nstruct WorkflowQuery {\n  10: optional string queryType\n  20: optional binary queryArgs\n}\n\nstruct ResetStickyTaskListRequest {\n  10: optional string domain\n  20: optional WorkflowExecution execution\n}\n\nstruct ResetStickyTaskListResponse {\n    // The reason to keep this response is to allow returning\n    // information in the future.\n}\n\nstruct RespondQueryTaskCompletedRequest {\n  10: optional binary taskToken\n  20: optional QueryTaskCompletedType completedType\n  30: optional binary queryResult\n  40: optional string errorMessage\n  50: optional WorkerVersionInfo workerVersionInfo\n}\n\nstruct WorkflowQueryResult {\n  10: optional QueryResultType resultType\n  20: optional binary answer\n  30: optional string errorMessage\n}\n\nstruct DescribeWorkflowExecutionRequest {\n  10: optional string domain\n  20: optional WorkflowExecution execution\n  30: optional QueryConsistencyLevel queryConsistencyLevel\n}\n\nstruct PendingActivityInfo {\n  10: optional string activityID\n  20: optional ActivityType activityType\n  30: optional PendingActivityState state\n  40: optional binary heartbeatDetails\n  50: optional i64 (js.type = \"Long\") lastHeartbeatTimestamp\n  60: optional i64 (js.type = \"Long\") lastStartedTimestamp\n  70: optional i32 attempt\n  80: optional i32 maximumAttempts\n  90: optional i64 (js.type = \"Long\") scheduledTimestamp\n  100: optional i64 (js.type = \"Long\") expirationTimestamp\n  110: optional string lastFailureReason\n  120: optional string lastWorkerIdentity\n  130: optional binary lastFailureDetails\n  140: optional string startedWorkerIdentity\n  150: optional i64 (js.type = \"Long\") scheduleID\n}\n\nstruct PendingDecisionInfo {\n  10: optional PendingDecisionState state\n  20: optional i64 (js.type = \"Long\") scheduledTimestamp\n  30: optional i64 (js.type = \"Long\") startedTimestamp\n  40: optional i64 attempt\n  50: optional i64 (js.type = \"Long\") originalScheduledTimestamp\n  60: optional i64 (js.type = \"Long\") scheduleID\n}\n\nstruct PendingChildExecutionInfo {\n  1: optional string domain\n  10: optional string workflowID\n  20: optional string runID\n  30: optional string workflowTypName\n  40: optional i64 (js.type = \"Long\") initiatedID\n  50: optional ParentClosePolicy parentClosePolicy\n}\n\nstruct DescribeWorkflowExecutionResponse {\n  10: optional WorkflowExecutionConfiguration executionConfiguration\n  20: optional WorkflowExecutionInfo workflowExecutionInfo\n  30: optional list<PendingActivityInfo> pendingActivities\n  40: optional list<PendingChildExecutionInfo> pendingChildren\n  50: optional PendingDecisionInfo pendingDecision\n}\n\nstruct DescribeTaskListRequest {\n  10: optional string domain\n  20: optional TaskList taskList\n  30: optional TaskListType taskListType\n  40: optional bool includeTaskListStatus\n}\n\nstruct DescribeTaskListResponse {\n  10: optional list<PollerInfo> pollers\n  20: optional TaskListStatus taskListStatus\n  // The TaskList being described\n  30: optional TaskList taskList\n}\n\nstruct GetTaskListsByDomainRequest {\n  10: optional string domainName\n}\n\nstruct GetTaskListsByDomainResponse {\n  10: optional map<string,DescribeTaskListResponse> decisionTaskListMap\n  20: optional map<string,DescribeTaskListResponse> activityTaskListMap\n}\n\nstruct ListTaskListPartitionsRequest {\n  10: optional string domain\n  20: optional TaskList taskList\n}\n\nstruct TaskListPartitionMetadata {\n  10: optional string key\n  20: optional string ownerHostName\n}\n\nstruct ListTaskListPartitionsResponse {\n  10: optional list<TaskListPartitionMetadata> activityTaskListPartitions\n  20: optional list<TaskListPartitionMetadata> decisionTaskListPartitions\n}\n\nstruct IsolationGroupMetrics {\n  10: optional double newTasksPerSecond\n  20: optional i64 (js.type = \"Long\") pollerCount\n}\n\nstruct TaskListStatus {\n  10: optional i64 (js.type = \"Long\") backlogCountHint\n  20: optional i64 (js.type = \"Long\") readLevel\n  30: optional i64 (js.type = \"Long\") ackLevel\n  35: optional double ratePerSecond\n  40: optional TaskIDBlock taskIDBlock\n  50: optional map<string, IsolationGroupMetrics> isolationGroupMetrics\n  60: optional double newTasksPerSecond\n  70: optional bool empty\n}\n\nstruct TaskIDBlock {\n  10: optional i64 (js.type = \"Long\")  startID\n  20: optional i64 (js.type = \"Long\")  endID\n}\n\n//At least one of the parameters needs to be provided\nstruct DescribeHistoryHostRequest {\n  10: optional string               hostAddress //ip:port\n  20: optional i32                  shardIdForHost\n  30: optional WorkflowExecution    executionForHost\n}\n\nstruct RemoveTaskRequest {\n  10: optional i32                      shardID\n  20: optional i32                      type\n  30: optional i64 (js.type = \"Long\")   taskID\n  40: optional i64 (js.type = \"Long\")   visibilityTimestamp\n  50: optional string                   clusterName\n}\n\nstruct CloseShardRequest {\n  10: optional i32               shardID\n}\n\nstruct ResetQueueRequest {\n  10: optional i32    shardID\n  20: optional string clusterName\n  30: optional i32    type\n}\n\nstruct DescribeQueueRequest {\n  10: optional i32    shardID\n  20: optional string clusterName\n  30: optional i32    type\n}\n\nstruct DescribeQueueResponse {\n  10: optional list<string> processingQueueStates\n}\n\nstruct DescribeShardDistributionRequest {\n  10: optional i32 pageSize\n  20: optional i32 pageID\n}\n\nstruct DescribeShardDistributionResponse {\n  10: optional i32              numberOfShards\n\n  // ShardID to Address (ip:port) map\n  20: optional map<i32, string> shards\n}\n\nstruct DescribeHistoryHostResponse{\n  10: optional i32                  numberOfShards\n  20: optional list<i32>            shardIDs\n  30: optional DomainCacheInfo      domainCache\n  40: optional string               shardControllerStatus\n  50: optional string               address\n}\n\nstruct DomainCacheInfo{\n  10: optional i64 numOfItemsInCacheByID\n  20: optional i64 numOfItemsInCacheByName\n}\n\nenum TaskListType {\n  /*\n   * Decision type of tasklist\n   */\n  Decision,\n  /*\n   * Activity type of tasklist\n   */\n  Activity,\n}\n\nstruct PollerInfo {\n  // Unix Nano\n  10: optional i64 (js.type = \"Long\")  lastAccessTime\n  20: optional string identity\n  30: optional double ratePerSecond\n}\n\nstruct RetryPolicy {\n  // Interval of the first retry. If coefficient is 1.0 then it is used for all retries.\n  10: optional i32 initialIntervalInSeconds\n\n  // Coefficient used to calculate the next retry interval.\n  // The next retry interval is previous interval multiplied by the coefficient.\n  // Must be 1 or larger.\n  20: optional double backoffCoefficient\n\n  // Maximum interval between retries. Exponential backoff leads to interval increase.\n  // This value is the cap of the increase. Default is 100x of initial interval.\n  30: optional i32 maximumIntervalInSeconds\n\n  // Maximum number of attempts. When exceeded the retries stop even if not expired yet.\n  // Must be 1 or bigger. Default is unlimited.\n  40: optional i32 maximumAttempts\n\n  // Non-Retriable errors. Will stop retrying if error matches this list.\n  50: optional list<string> nonRetriableErrorReasons\n\n  // Expiration time for the whole retry process.\n  60: optional i32 expirationIntervalInSeconds\n}\n\n// HistoryBranchRange represents a piece of range for a branch.\nstruct HistoryBranchRange{\n  // branchID of original branch forked from\n  10: optional string branchID\n  // beinning node for the range, inclusive\n  20: optional i64 beginNodeID\n  // ending node for the range, exclusive\n  30: optional i64 endNodeID\n}\n\n// For history persistence to serialize/deserialize branch details\nstruct HistoryBranch{\n  10: optional string treeID\n  20: optional string branchID\n  30: optional list<HistoryBranchRange> ancestors\n}\n\n// VersionHistoryItem contains signal eventID and the corresponding version\nstruct VersionHistoryItem{\n  10: optional i64 (js.type = \"Long\") eventID\n  20: optional i64 (js.type = \"Long\") version\n}\n\n// VersionHistory contains the version history of a branch\nstruct VersionHistory{\n  10: optional binary branchToken\n  20: optional list<VersionHistoryItem> items\n}\n\n// VersionHistories contains all version histories from all branches\nstruct VersionHistories{\n  10: optional i32 currentVersionHistoryIndex\n  20: optional list<VersionHistory> histories\n}\n\n// ReapplyEventsRequest is the request for reapply events API\nstruct ReapplyEventsRequest{\n  10: optional string domainName\n  20: optional WorkflowExecution workflowExecution\n  30: optional DataBlob events\n}\n\n// SupportedClientVersions contains the support versions for client library\nstruct SupportedClientVersions{\n  10: optional string goSdk\n  20: optional string javaSdk\n}\n\n// ClusterInfo contains information about cadence cluster\nstruct ClusterInfo{\n  10: optional SupportedClientVersions supportedClientVersions\n}\n\nstruct RefreshWorkflowTasksRequest {\n  10: optional string domain\n  20: optional WorkflowExecution execution\n}\n\nstruct FeatureFlags {\n\t10: optional bool WorkflowExecutionAlreadyCompletedErrorEnabled\n}\n\nenum CrossClusterTaskType {\n  StartChildExecution\n  CancelExecution\n  SignalExecution\n  RecordChildWorkflowExecutionComplete\n  ApplyParentClosePolicy\n}\n\nenum CrossClusterTaskFailedCause {\n  DOMAIN_NOT_ACTIVE\n  DOMAIN_NOT_EXISTS\n  WORKFLOW_ALREADY_RUNNING\n  WORKFLOW_NOT_EXISTS\n  WORKFLOW_ALREADY_COMPLETED\n  UNCATEGORIZED\n}\n\nenum GetTaskFailedCause {\n  SERVICE_BUSY\n  TIMEOUT\n  SHARD_OWNERSHIP_LOST\n  UNCATEGORIZED\n}\n\nstruct CrossClusterTaskInfo {\n  10: optional string domainID\n  20: optional string workflowID\n  30: optional string runID\n  40: optional CrossClusterTaskType taskType\n  50: optional i16 taskState\n  60: optional i64 (js.type = \"Long\") taskID\n  70: optional i64 (js.type = \"Long\") visibilityTimestamp\n}\n\nstruct CrossClusterStartChildExecutionRequestAttributes {\n  10: optional string targetDomainID\n  20: optional string requestID\n  30: optional i64 (js.type = \"Long\") initiatedEventID\n  40: optional StartChildWorkflowExecutionInitiatedEventAttributes initiatedEventAttributes\n  // targetRunID is for scheduling first decision task\n  // targetWorkflowID is available in initiatedEventAttributes\n  50: optional string targetRunID\n  60: optional map<string, string> partitionConfig\n}\n\nstruct CrossClusterStartChildExecutionResponseAttributes {\n  10: optional string runID\n}\n\nstruct CrossClusterCancelExecutionRequestAttributes {\n  10: optional string targetDomainID\n  20: optional string targetWorkflowID\n  30: optional string targetRunID\n  40: optional string requestID\n  50: optional i64 (js.type = \"Long\") initiatedEventID\n  60: optional bool childWorkflowOnly\n}\n\nstruct CrossClusterCancelExecutionResponseAttributes {\n}\n\nstruct CrossClusterSignalExecutionRequestAttributes {\n  10: optional string targetDomainID\n  20: optional string targetWorkflowID\n  30: optional string targetRunID\n  40: optional string requestID\n  50: optional i64 (js.type = \"Long\") initiatedEventID\n  60: optional bool childWorkflowOnly\n  70: optional string signalName\n  80: optional binary signalInput\n  90: optional binary control\n}\n\nstruct CrossClusterSignalExecutionResponseAttributes {\n}\n\nstruct CrossClusterRecordChildWorkflowExecutionCompleteRequestAttributes {\n  10: optional string targetDomainID\n  20: optional string targetWorkflowID\n  30: optional string targetRunID\n  40: optional i64 (js.type = \"Long\") initiatedEventID\n  50: optional HistoryEvent completionEvent\n}\n\nstruct CrossClusterRecordChildWorkflowExecutionCompleteResponseAttributes {\n}\n\nstruct ApplyParentClosePolicyAttributes {\n  10: optional string childDomainID\n  20: optional string childWorkflowID\n  30: optional string childRunID\n  40: optional ParentClosePolicy parentClosePolicy\n}\n\nstruct ApplyParentClosePolicyStatus {\n  10: optional bool completed\n  20: optional CrossClusterTaskFailedCause failedCause\n}\n\nstruct ApplyParentClosePolicyRequest {\n  10: optional ApplyParentClosePolicyAttributes child\n  20: optional ApplyParentClosePolicyStatus status\n}\n\nstruct CrossClusterApplyParentClosePolicyRequestAttributes {\n  10: optional list<ApplyParentClosePolicyRequest> children\n}\n\nstruct ApplyParentClosePolicyResult {\n  10: optional ApplyParentClosePolicyAttributes child\n  20: optional CrossClusterTaskFailedCause failedCause\n}\n\nstruct CrossClusterApplyParentClosePolicyResponseAttributes {\n  10: optional list<ApplyParentClosePolicyResult> childrenStatus\n}\n\nstruct CrossClusterTaskRequest {\n  10: optional CrossClusterTaskInfo taskInfo\n  20: optional CrossClusterStartChildExecutionRequestAttributes startChildExecutionAttributes\n  30: optional CrossClusterCancelExecutionRequestAttributes cancelExecutionAttributes\n  40: optional CrossClusterSignalExecutionRequestAttributes signalExecutionAttributes\n  50: optional CrossClusterRecordChildWorkflowExecutionCompleteRequestAttributes recordChildWorkflowExecutionCompleteAttributes\n  60: optional CrossClusterApplyParentClosePolicyRequestAttributes applyParentClosePolicyAttributes\n}\n\nstruct CrossClusterTaskResponse {\n  10: optional i64 (js.type = \"Long\") taskID\n  20: optional CrossClusterTaskType taskType\n  30: optional i16 taskState\n  40: optional CrossClusterTaskFailedCause failedCause\n  50: optional CrossClusterStartChildExecutionResponseAttributes startChildExecutionAttributes\n  60: optional CrossClusterCancelExecutionResponseAttributes cancelExecutionAttributes\n  70: optional CrossClusterSignalExecutionResponseAttributes signalExecutionAttributes\n  80: optional CrossClusterRecordChildWorkflowExecutionCompleteResponseAttributes recordChildWorkflowExecutionCompleteAttributes\n  90: optional CrossClusterApplyParentClosePolicyResponseAttributes applyParentClosePolicyAttributes\n}\n\nstruct GetCrossClusterTasksRequest {\n  10: optional list<i32> shardIDs\n  20: optional string targetCluster\n}\n\nstruct GetCrossClusterTasksResponse {\n  10: optional map<i32, list<CrossClusterTaskRequest>> tasksByShard\n  20: optional map<i32, GetTaskFailedCause> failedCauseByShard\n}\n\nstruct RespondCrossClusterTasksCompletedRequest {\n  10: optional i32 shardID\n  20: optional string targetCluster\n  30: optional list<CrossClusterTaskResponse> taskResponses\n  40: optional bool fetchNewTasks\n}\n\nstruct RespondCrossClusterTasksCompletedResponse {\n  10: optional list<CrossClusterTaskRequest> tasks\n}\n\nenum IsolationGroupState {\n  INVALID,\n  HEALTHY,\n  DRAINED,\n}\n\nstruct IsolationGroupPartition {\n  10: optional string name\n  20: optional IsolationGroupState state\n}\n\nstruct IsolationGroupConfiguration {\n  10: optional list<IsolationGroupPartition> isolationGroups\n}\n\nstruct AsyncWorkflowConfiguration {\n  10: optional bool enabled\n  // PredefinedQueueName is the name of the predefined queue in cadence server config's asyncWorkflowQueues\n  20: optional string predefinedQueueName\n  // queueType is the type of the queue if predefined_queue_name is not used\n  30: optional string queueType\n  // queueConfig is the configuration for the queue if predefined_queue_name is not used\n  40: optional DataBlob queueConfig\n}\n\n/**\n* Any is a logical duplicate of google.protobuf.Any.\n*\n* The intent of the type is the same, but it is not intended to be directly\n* compatible with google.protobuf.Any or any Thrift equivalent - this blob is\n* RPC-type agnostic by design (as the underlying data may be transported over\n* proto or thrift), and the data-bytes may be in any encoding.\n*\n* This is intentionally different from DataBlob, which supports only a handful\n* of known encodings so it can be interpreted everywhere.  Any supports literally\n* any contents, and needs to be considered opaque until it is given to something\n* that is expecting it.\n*\n* See ValueType to interpret the contents.\n**/\nstruct Any {\n  // Type-string describing value's contents, and intentionally avoiding the\n  // name \"type\" as it is often a special term.\n  // This should usually be a hard-coded string of some kind.\n  10: optional string ValueType\n  // Arbitrarily-encoded bytes, to be deserialized by a runtime implementation.\n  // The contents are described by ValueType.\n  20: optional binary Value\n}\n\nstruct AutoConfigHint {\n  10: optional bool enableAutoConfig\n  20: optional i64 pollerWaitTimeInMs\n}\n\nstruct QueueState {\n  10: optional map<i64, VirtualQueueState> virtualQueueStates\n  20: optional TaskKey exclusiveMaxReadLevel\n}\n\nstruct VirtualQueueState {\n  10: optional list<VirtualSliceState> virtualSliceStates\n}\n\nstruct VirtualSliceState {\n  10: optional TaskRange taskRange\n}\n\nstruct TaskRange {\n  10: optional TaskKey inclusiveMin\n  20: optional TaskKey exclusiveMax\n}\n\nstruct TaskKey {\n  10: optional i64 scheduledTimeNano\n  20: optional i64 taskID\n}\n\nstruct ActiveClusterSelectionPolicy {\n  10: optional ActiveClusterSelectionStrategy strategy\n\n  // sticky_region is the region sticky if strategy is ACTIVE_CLUSTER_SELECTION_STRATEGY_REGION_STICKY\n  // This is the default strategy for active-active domains and region would be set to receiver cluster's region if not specified.\n  20: optional string stickyRegion\n\n  // external_entity_type/external_entity_key is the type/key of the external entity if strategy is ACTIVE_CLUSTER_SELECTION_STRATEGY_EXTERNAL_ENTITY\n  // external entity type must be one of the supported types in active cluster manager. Custom ones can be added by implementing the corresponding interface.\n  30: optional string externalEntityType\n  40: optional string externalEntityKey\n}\n\nenum ActiveClusterSelectionStrategy {\n  REGION_STICKY,\n  EXTERNAL_ENTITY,\n}\n"
+const rawIDL = "// Copyright (c) 2017 Uber Technologies, Inc.\n//\n// Permission is hereby granted, free of charge, to any person obtaining a copy\n// of this software and associated documentation files (the \"Software\"), to deal\n// in the Software without restriction, including without limitation the rights\n// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n// copies of the Software, and to permit persons to whom the Software is\n// furnished to do so, subject to the following conditions:\n//\n// The above copyright notice and this permission notice shall be included in\n// all copies or substantial portions of the Software.\n//\n// THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n// THE SOFTWARE.\n\nnamespace java com.uber.cadence\n\nexception BadRequestError {\n  1: required string message\n}\n\nexception InternalServiceError {\n  1: required string message\n}\n\nexception InternalDataInconsistencyError {\n  1: required string message\n}\n\nexception DomainAlreadyExistsError {\n  1: required string message\n}\n\nexception WorkflowExecutionAlreadyStartedError {\n  10: optional string message\n  20: optional string startRequestId\n  30: optional string runId\n}\n\nexception WorkflowExecutionAlreadyCompletedError {\n  1: required string message\n}\n\nexception EntityNotExistsError {\n  1: required string message\n  2: optional string currentCluster\n  3: optional string activeCluster\n  // activeClusters is a list of active clusters for active-active domain\n  4: required list<string> activeClusters\n}\n\nexception ServiceBusyError {\n  1: required string message\n  2: optional string reason\n}\n\nexception CancellationAlreadyRequestedError {\n  1: required string message\n}\n\nexception QueryFailedError {\n  1: required string message\n}\n\nexception DomainNotActiveError {\n  1: required string message\n  2: required string domainName\n  3: required string currentCluster\n  4: required string activeCluster\n  // activeClusters is a list of active clusters for active-active domain\n  5: required list<string> activeClusters\n}\n\nexception LimitExceededError {\n  1: required string message\n}\n\nexception AccessDeniedError {\n  1: required string message\n}\n\nexception RetryTaskV2Error {\n  1: required string message\n  2: optional string domainId\n  3: optional string workflowId\n  4: optional string runId\n  5: optional i64 (js.type = \"Long\") startEventId\n  6: optional i64 (js.type = \"Long\") startEventVersion\n  7: optional i64 (js.type = \"Long\") endEventId\n  8: optional i64 (js.type = \"Long\") endEventVersion\n}\n\nexception ClientVersionNotSupportedError {\n  1: required string featureVersion\n  2: required string clientImpl\n  3: required string supportedVersions\n}\n\nexception FeatureNotEnabledError {\n  1: required string featureFlag\n}\n\nexception CurrentBranchChangedError {\n  10: required string message\n  20: required binary currentBranchToken\n}\n\nexception RemoteSyncMatchedError {\n  10: required string message\n}\n\nexception StickyWorkerUnavailableError {\n  1: required string message\n}\n\nexception TaskListNotOwnedByHostError {\n    1: required string ownedByIdentity\n    2: required string myIdentity\n    3: required string tasklistName\n}\n\nenum WorkflowIdReusePolicy {\n  /*\n   * allow start a workflow execution using the same workflow ID,\n   * when workflow not running, and the last execution close state is in\n   * [terminated, cancelled, timeouted, failed].\n   */\n  AllowDuplicateFailedOnly,\n  /*\n   * allow start a workflow execution using the same workflow ID,\n   * when workflow not running.\n   */\n  AllowDuplicate,\n  /*\n   * do not allow start a workflow execution using the same workflow ID at all\n   */\n  RejectDuplicate,\n  /*\n   * if a workflow is running using the same workflow ID, terminate it and start a new one\n   */\n  TerminateIfRunning,\n}\n\nenum DomainStatus {\n  REGISTERED,\n  DEPRECATED,\n  DELETED,\n}\n\nenum TimeoutType {\n  START_TO_CLOSE,\n  SCHEDULE_TO_START,\n  SCHEDULE_TO_CLOSE,\n  HEARTBEAT,\n}\n\nenum ParentClosePolicy {\n\tABANDON,\n\tREQUEST_CANCEL,\n\tTERMINATE,\n}\n\n\n// whenever this list of decision is changed\n// do change the mutableStateBuilder.go\n// function shouldBufferEvent\n// to make sure wo do the correct event ordering\nenum DecisionType {\n  ScheduleActivityTask,\n  RequestCancelActivityTask,\n  StartTimer,\n  CompleteWorkflowExecution,\n  FailWorkflowExecution,\n  CancelTimer,\n  CancelWorkflowExecution,\n  RequestCancelExternalWorkflowExecution,\n  RecordMarker,\n  ContinueAsNewWorkflowExecution,\n  StartChildWorkflowExecution,\n  SignalExternalWorkflowExecution,\n  UpsertWorkflowSearchAttributes,\n}\n\nenum EventType {\n  WorkflowExecutionStarted,\n  WorkflowExecutionCompleted,\n  WorkflowExecutionFailed,\n  WorkflowExecutionTimedOut,\n  DecisionTaskScheduled,\n  DecisionTaskStarted,\n  DecisionTaskCompleted,\n  DecisionTaskTimedOut\n  DecisionTaskFailed,\n  ActivityTaskScheduled,\n  ActivityTaskStarted,\n  ActivityTaskCompleted,\n  ActivityTaskFailed,\n  ActivityTaskTimedOut,\n  ActivityTaskCancelRequested,\n  RequestCancelActivityTaskFailed,\n  ActivityTaskCanceled,\n  TimerStarted,\n  TimerFired,\n  CancelTimerFailed,\n  TimerCanceled,\n  WorkflowExecutionCancelRequested,\n  WorkflowExecutionCanceled,\n  RequestCancelExternalWorkflowExecutionInitiated,\n  RequestCancelExternalWorkflowExecutionFailed,\n  ExternalWorkflowExecutionCancelRequested,\n  MarkerRecorded,\n  WorkflowExecutionSignaled,\n  WorkflowExecutionTerminated,\n  WorkflowExecutionContinuedAsNew,\n  StartChildWorkflowExecutionInitiated,\n  StartChildWorkflowExecutionFailed,\n  ChildWorkflowExecutionStarted,\n  ChildWorkflowExecutionCompleted,\n  ChildWorkflowExecutionFailed,\n  ChildWorkflowExecutionCanceled,\n  ChildWorkflowExecutionTimedOut,\n  ChildWorkflowExecutionTerminated,\n  SignalExternalWorkflowExecutionInitiated,\n  SignalExternalWorkflowExecutionFailed,\n  ExternalWorkflowExecutionSignaled,\n  UpsertWorkflowSearchAttributes,\n}\n\nenum DecisionTaskFailedCause {\n  UNHANDLED_DECISION,\n  BAD_SCHEDULE_ACTIVITY_ATTRIBUTES,\n  BAD_REQUEST_CANCEL_ACTIVITY_ATTRIBUTES,\n  BAD_START_TIMER_ATTRIBUTES,\n  BAD_CANCEL_TIMER_ATTRIBUTES,\n  BAD_RECORD_MARKER_ATTRIBUTES,\n  BAD_COMPLETE_WORKFLOW_EXECUTION_ATTRIBUTES,\n  BAD_FAIL_WORKFLOW_EXECUTION_ATTRIBUTES,\n  BAD_CANCEL_WORKFLOW_EXECUTION_ATTRIBUTES,\n  BAD_REQUEST_CANCEL_EXTERNAL_WORKFLOW_EXECUTION_ATTRIBUTES,\n  BAD_CONTINUE_AS_NEW_ATTRIBUTES,\n  START_TIMER_DUPLICATE_ID,\n  RESET_STICKY_TASKLIST,\n  WORKFLOW_WORKER_UNHANDLED_FAILURE,\n  BAD_SIGNAL_WORKFLOW_EXECUTION_ATTRIBUTES,\n  BAD_START_CHILD_EXECUTION_ATTRIBUTES,\n  FORCE_CLOSE_DECISION,\n  FAILOVER_CLOSE_DECISION,\n  BAD_SIGNAL_INPUT_SIZE,\n  RESET_WORKFLOW,\n  BAD_BINARY,\n  SCHEDULE_ACTIVITY_DUPLICATE_ID,\n  BAD_SEARCH_ATTRIBUTES,\n}\n\nenum DecisionTaskTimedOutCause {\n  TIMEOUT,\n  RESET,\n}\n\nenum CancelExternalWorkflowExecutionFailedCause {\n  UNKNOWN_EXTERNAL_WORKFLOW_EXECUTION,\n  WORKFLOW_ALREADY_COMPLETED,\n}\n\nenum SignalExternalWorkflowExecutionFailedCause {\n  UNKNOWN_EXTERNAL_WORKFLOW_EXECUTION,\n  WORKFLOW_ALREADY_COMPLETED,\n}\n\nenum ChildWorkflowExecutionFailedCause {\n  WORKFLOW_ALREADY_RUNNING,\n}\n\n// TODO: when migrating to gRPC, add a running / none status,\n//  currently, customer is using null / nil as an indication\n//  that workflow is still running\nenum WorkflowExecutionCloseStatus {\n  COMPLETED,\n  FAILED,\n  CANCELED,\n  TERMINATED,\n  CONTINUED_AS_NEW,\n  TIMED_OUT,\n}\n\nenum QueryTaskCompletedType {\n  COMPLETED,\n  FAILED,\n}\n\nenum QueryResultType {\n  ANSWERED,\n  FAILED,\n}\n\nenum PendingActivityState {\n  SCHEDULED,\n  STARTED,\n  CANCEL_REQUESTED,\n}\n\nenum PendingDecisionState {\n  SCHEDULED,\n  STARTED,\n}\n\nenum HistoryEventFilterType {\n  ALL_EVENT,\n  CLOSE_EVENT,\n}\n\nenum TaskListKind {\n  NORMAL,\n  STICKY,\n  EPHEMERAL,\n}\n\nenum ArchivalStatus {\n  DISABLED,\n  ENABLED,\n}\n\nenum CronOverlapPolicy {\n  SKIPPED,\n  BUFFERONE,\n}\n\nenum IndexedValueType {\n  STRING,\n  KEYWORD,\n  INT,\n  DOUBLE,\n  BOOL,\n  DATETIME,\n}\n\nstruct Header {\n    10: optional map<string, binary> fields\n}\n\nstruct WorkflowType {\n  10: optional string name\n}\n\nstruct ActivityType {\n  10: optional string name\n}\n\nstruct TaskList {\n  10: optional string name\n  20: optional TaskListKind kind\n}\n\nenum EncodingType {\n  ThriftRW,\n  JSON,\n}\n\nenum QueryRejectCondition {\n  // NOT_OPEN indicates that query should be rejected if workflow is not open\n  NOT_OPEN\n  // NOT_COMPLETED_CLEANLY indicates that query should be rejected if workflow did not complete cleanly\n  NOT_COMPLETED_CLEANLY\n}\n\nenum QueryConsistencyLevel {\n  // EVENTUAL indicates that query should be eventually consistent\n  EVENTUAL\n  // STRONG indicates that any events that came before query should be reflected in workflow state before running query\n  STRONG\n}\n\nstruct DataBlob {\n  10: optional EncodingType EncodingType\n  20: optional binary Data\n}\n\nstruct TaskListMetadata {\n  10: optional double maxTasksPerSecond\n}\n\nstruct WorkflowExecution {\n  10: optional string workflowId\n  20: optional string runId\n}\n\nstruct Memo {\n  10: optional map<string,binary> fields\n}\n\nstruct SearchAttributes {\n  10: optional map<string,binary> indexedFields\n}\n\nstruct WorkerVersionInfo {\n  10: optional string impl\n  20: optional string featureVersion\n}\n\nstruct WorkflowExecutionInfo {\n  10: optional WorkflowExecution execution\n  20: optional WorkflowType type\n  30: optional i64 (js.type = \"Long\") startTime\n  40: optional i64 (js.type = \"Long\") closeTime\n  50: optional WorkflowExecutionCloseStatus closeStatus\n  60: optional i64 (js.type = \"Long\") historyLength\n  70: optional string parentDomainId\n  71: optional string parentDomainName\n  72: optional i64 parentInitatedId\n  80: optional WorkflowExecution parentExecution\n  90: optional i64 (js.type = \"Long\") executionTime\n  100: optional Memo memo\n  101: optional SearchAttributes searchAttributes\n  110: optional ResetPoints autoResetPoints\n  120: optional string taskList\n  121: optional TaskList taskListInfo\n  130: optional bool isCron\n  140: optional i64 (js.type = \"Long\") updateTime\n  150: optional map<string, string> partitionConfig\n  160: optional CronOverlapPolicy cronOverlapPolicy\n  170: optional ActiveClusterSelectionPolicy activeClusterSelectionPolicy\n}\n\nstruct WorkflowExecutionConfiguration {\n  10: optional TaskList taskList\n  20: optional i32 executionStartToCloseTimeoutSeconds\n  30: optional i32 taskStartToCloseTimeoutSeconds\n//  40: optional ChildPolicy childPolicy -- Removed but reserve the IDL order number\n}\n\nstruct TransientDecisionInfo {\n  10: optional HistoryEvent scheduledEvent\n  20: optional HistoryEvent startedEvent\n}\n\nstruct ScheduleActivityTaskDecisionAttributes {\n  10: optional string activityId\n  20: optional ActivityType activityType\n  25: optional string domain\n  30: optional TaskList taskList\n  40: optional binary input\n  45: optional i32 scheduleToCloseTimeoutSeconds\n  50: optional i32 scheduleToStartTimeoutSeconds\n  55: optional i32 startToCloseTimeoutSeconds\n  60: optional i32 heartbeatTimeoutSeconds\n  70: optional RetryPolicy retryPolicy\n  80: optional Header header\n  90: optional bool requestLocalDispatch\n}\n\nstruct ActivityLocalDispatchInfo{\n  10: optional string activityId\n  20: optional i64 (js.type = \"Long\") scheduledTimestamp\n  30: optional i64 (js.type = \"Long\") startedTimestamp\n  40: optional i64 (js.type = \"Long\") scheduledTimestampOfThisAttempt\n  50: optional binary taskToken\n}\n\nstruct RequestCancelActivityTaskDecisionAttributes {\n  10: optional string activityId\n}\n\nstruct StartTimerDecisionAttributes {\n  10: optional string timerId\n  20: optional i64 (js.type = \"Long\") startToFireTimeoutSeconds\n}\n\nstruct CompleteWorkflowExecutionDecisionAttributes {\n  10: optional binary result\n}\n\nstruct FailWorkflowExecutionDecisionAttributes {\n  10: optional string reason\n  20: optional binary details\n}\n\nstruct CancelTimerDecisionAttributes {\n  10: optional string timerId\n}\n\nstruct CancelWorkflowExecutionDecisionAttributes {\n  10: optional binary details\n}\n\nstruct RequestCancelExternalWorkflowExecutionDecisionAttributes {\n  10: optional string domain\n  20: optional string workflowId\n  30: optional string runId\n  40: optional binary control\n  50: optional bool childWorkflowOnly\n}\n\nstruct SignalExternalWorkflowExecutionDecisionAttributes {\n  10: optional string domain\n  20: optional WorkflowExecution execution\n  30: optional string signalName\n  40: optional binary input\n  50: optional binary control\n  60: optional bool childWorkflowOnly\n}\n\nstruct UpsertWorkflowSearchAttributesDecisionAttributes {\n  10: optional SearchAttributes searchAttributes\n}\n\nstruct RecordMarkerDecisionAttributes {\n  10: optional string markerName\n  20: optional binary details\n  30: optional Header header\n}\n\nstruct ContinueAsNewWorkflowExecutionDecisionAttributes {\n  10: optional WorkflowType workflowType\n  20: optional TaskList taskList\n  30: optional binary input\n  40: optional i32 executionStartToCloseTimeoutSeconds\n  50: optional i32 taskStartToCloseTimeoutSeconds\n  60: optional i32 backoffStartIntervalInSeconds\n  70: optional RetryPolicy retryPolicy\n  80: optional ContinueAsNewInitiator initiator\n  90: optional string failureReason\n  100: optional binary failureDetails\n  110: optional binary lastCompletionResult\n  120: optional string cronSchedule\n  130: optional Header header\n  140: optional Memo memo\n  150: optional SearchAttributes searchAttributes\n  160: optional i32 jitterStartSeconds\n  170: optional CronOverlapPolicy cronOverlapPolicy\n  180: optional ActiveClusterSelectionPolicy activeClusterSelectionPolicy\n}\n\nstruct StartChildWorkflowExecutionDecisionAttributes {\n  10: optional string domain\n  20: optional string workflowId\n  30: optional WorkflowType workflowType\n  40: optional TaskList taskList\n  50: optional binary input\n  60: optional i32 executionStartToCloseTimeoutSeconds\n  70: optional i32 taskStartToCloseTimeoutSeconds\n//  80: optional ChildPolicy childPolicy -- Removed but reserve the IDL order number\n  81: optional ParentClosePolicy parentClosePolicy\n  90: optional binary control\n  100: optional WorkflowIdReusePolicy workflowIdReusePolicy\n  110: optional RetryPolicy retryPolicy\n  120: optional string cronSchedule\n  130: optional Header header\n  140: optional Memo memo\n  150: optional SearchAttributes searchAttributes\n  160: optional CronOverlapPolicy cronOverlapPolicy\n  170: optional ActiveClusterSelectionPolicy activeClusterSelectionPolicy\n}\n\nstruct Decision {\n  10:  optional DecisionType decisionType\n  20:  optional ScheduleActivityTaskDecisionAttributes scheduleActivityTaskDecisionAttributes\n  25:  optional StartTimerDecisionAttributes startTimerDecisionAttributes\n  30:  optional CompleteWorkflowExecutionDecisionAttributes completeWorkflowExecutionDecisionAttributes\n  35:  optional FailWorkflowExecutionDecisionAttributes failWorkflowExecutionDecisionAttributes\n  40:  optional RequestCancelActivityTaskDecisionAttributes requestCancelActivityTaskDecisionAttributes\n  50:  optional CancelTimerDecisionAttributes cancelTimerDecisionAttributes\n  60:  optional CancelWorkflowExecutionDecisionAttributes cancelWorkflowExecutionDecisionAttributes\n  70:  optional RequestCancelExternalWorkflowExecutionDecisionAttributes requestCancelExternalWorkflowExecutionDecisionAttributes\n  80:  optional RecordMarkerDecisionAttributes recordMarkerDecisionAttributes\n  90:  optional ContinueAsNewWorkflowExecutionDecisionAttributes continueAsNewWorkflowExecutionDecisionAttributes\n  100: optional StartChildWorkflowExecutionDecisionAttributes startChildWorkflowExecutionDecisionAttributes\n  110: optional SignalExternalWorkflowExecutionDecisionAttributes signalExternalWorkflowExecutionDecisionAttributes\n  120: optional UpsertWorkflowSearchAttributesDecisionAttributes upsertWorkflowSearchAttributesDecisionAttributes\n}\n\nstruct WorkflowExecutionStartedEventAttributes {\n  10: optional WorkflowType workflowType\n  12: optional string parentWorkflowDomain\n  14: optional WorkflowExecution parentWorkflowExecution\n  16: optional i64 (js.type = \"Long\") parentInitiatedEventId\n  20: optional TaskList taskList\n  30: optional binary input\n  40: optional i32 executionStartToCloseTimeoutSeconds\n  50: optional i32 taskStartToCloseTimeoutSeconds\n//  52: optional ChildPolicy childPolicy -- Removed but reserve the IDL order number\n  54: optional string continuedExecutionRunId\n  55: optional ContinueAsNewInitiator initiator\n  56: optional string continuedFailureReason\n  57: optional binary continuedFailureDetails\n  58: optional binary lastCompletionResult\n  59: optional string originalExecutionRunId // This is the runID when the WorkflowExecutionStarted event is written\n  60: optional string identity\n  61: optional string firstExecutionRunId // This is the very first runID along the chain of ContinueAsNew and Reset.\n  62: optional i64 (js.type = \"Long\") firstScheduledTimeNano\n  70: optional RetryPolicy retryPolicy\n  80: optional i32 attempt\n  90: optional i64 (js.type = \"Long\") expirationTimestamp\n  100: optional string cronSchedule\n  110: optional i32 firstDecisionTaskBackoffSeconds\n  120: optional Memo memo\n  121: optional SearchAttributes searchAttributes\n  130: optional ResetPoints prevAutoResetPoints\n  140: optional Header header\n  150: optional map<string, string> partitionConfig\n  160: optional string requestId\n  170: optional CronOverlapPolicy cronOverlapPolicy\n  180: optional ActiveClusterSelectionPolicy activeClusterSelectionPolicy\n}\n\nstruct ResetPoints{\n  10: optional list<ResetPointInfo> points\n}\n\n struct ResetPointInfo{\n  10: optional string binaryChecksum\n  20: optional string runId\n  30: optional i64 firstDecisionCompletedId\n  40: optional i64 (js.type = \"Long\") createdTimeNano\n  50: optional i64 (js.type = \"Long\") expiringTimeNano //the time that the run is deleted due to retention\n  60: optional bool resettable                         // false if the resset point has pending childWFs/reqCancels/signalExternals.\n}\n\nstruct WorkflowExecutionCompletedEventAttributes {\n  10: optional binary result\n  20: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n}\n\nstruct WorkflowExecutionFailedEventAttributes {\n  10: optional string reason\n  20: optional binary details\n  30: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n}\n\nstruct WorkflowExecutionTimedOutEventAttributes {\n  10: optional TimeoutType timeoutType\n}\n\nenum ContinueAsNewInitiator {\n  Decider,\n  RetryPolicy,\n  CronSchedule,\n}\n\nstruct WorkflowExecutionContinuedAsNewEventAttributes {\n  10: optional string newExecutionRunId\n  20: optional WorkflowType workflowType\n  30: optional TaskList taskList\n  40: optional binary input\n  50: optional i32 executionStartToCloseTimeoutSeconds\n  60: optional i32 taskStartToCloseTimeoutSeconds\n  70: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  80: optional i32 backoffStartIntervalInSeconds\n  90: optional ContinueAsNewInitiator initiator\n  100: optional string failureReason\n  110: optional binary failureDetails\n  120: optional binary lastCompletionResult\n  130: optional Header header\n  140: optional Memo memo\n  150: optional SearchAttributes searchAttributes\n}\n\nstruct DecisionTaskScheduledEventAttributes {\n  10: optional TaskList taskList\n  20: optional i32 startToCloseTimeoutSeconds\n  30: optional i64 (js.type = \"Long\") attempt\n}\n\nstruct DecisionTaskStartedEventAttributes {\n  10: optional i64 (js.type = \"Long\") scheduledEventId\n  20: optional string identity\n  30: optional string requestId\n}\n\nstruct DecisionTaskCompletedEventAttributes {\n  10: optional binary executionContext\n  20: optional i64 (js.type = \"Long\") scheduledEventId\n  30: optional i64 (js.type = \"Long\") startedEventId\n  40: optional string identity\n  50: optional string binaryChecksum\n}\n\nstruct DecisionTaskTimedOutEventAttributes {\n  10: optional i64 (js.type = \"Long\") scheduledEventId\n  20: optional i64 (js.type = \"Long\") startedEventId\n  30: optional TimeoutType timeoutType\n  // for reset workflow\n  40: optional string baseRunId\n  50: optional string newRunId\n  60: optional i64 (js.type = \"Long\") forkEventVersion\n  70: optional string reason\n  80: optional DecisionTaskTimedOutCause cause\n  90: optional string requestId\n}\n\nstruct DecisionTaskFailedEventAttributes {\n  10: optional i64 (js.type = \"Long\") scheduledEventId\n  20: optional i64 (js.type = \"Long\") startedEventId\n  30: optional DecisionTaskFailedCause cause\n  35: optional binary details\n  40: optional string identity\n  50: optional string reason\n  // for reset workflow\n  60: optional string baseRunId\n  70: optional string newRunId\n  80: optional i64 (js.type = \"Long\") forkEventVersion\n  90: optional string binaryChecksum\n  100: optional string requestId\n}\n\nstruct ActivityTaskScheduledEventAttributes {\n  10: optional string activityId\n  20: optional ActivityType activityType\n  25: optional string domain\n  30: optional TaskList taskList\n  40: optional binary input\n  45: optional i32 scheduleToCloseTimeoutSeconds\n  50: optional i32 scheduleToStartTimeoutSeconds\n  55: optional i32 startToCloseTimeoutSeconds\n  60: optional i32 heartbeatTimeoutSeconds\n  90: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  110: optional RetryPolicy retryPolicy\n  120: optional Header header\n}\n\nstruct ActivityTaskStartedEventAttributes {\n  10: optional i64 (js.type = \"Long\") scheduledEventId\n  20: optional string identity\n  30: optional string requestId\n  40: optional i32 attempt\n  50: optional string lastFailureReason\n  60: optional binary lastFailureDetails\n}\n\nstruct ActivityTaskCompletedEventAttributes {\n  10: optional binary result\n  20: optional i64 (js.type = \"Long\") scheduledEventId\n  30: optional i64 (js.type = \"Long\") startedEventId\n  40: optional string identity\n}\n\nstruct ActivityTaskFailedEventAttributes {\n  10: optional string reason\n  20: optional binary details\n  30: optional i64 (js.type = \"Long\") scheduledEventId\n  40: optional i64 (js.type = \"Long\") startedEventId\n  50: optional string identity\n}\n\nstruct ActivityTaskTimedOutEventAttributes {\n  05: optional binary details\n  10: optional i64 (js.type = \"Long\") scheduledEventId\n  20: optional i64 (js.type = \"Long\") startedEventId\n  30: optional TimeoutType timeoutType\n  // For retry activity, it may have a failure before timeout. It's important to keep those information for debug.\n  // Client can also provide the info for making next decision\n  40: optional string lastFailureReason\n  50: optional binary lastFailureDetails\n}\n\nstruct ActivityTaskCancelRequestedEventAttributes {\n  10: optional string activityId\n  20: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n}\n\nstruct RequestCancelActivityTaskFailedEventAttributes{\n  10: optional string activityId\n  20: optional string cause\n  30: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n}\n\nstruct ActivityTaskCanceledEventAttributes {\n  10: optional binary details\n  20: optional i64 (js.type = \"Long\") latestCancelRequestedEventId\n  30: optional i64 (js.type = \"Long\") scheduledEventId\n  40: optional i64 (js.type = \"Long\") startedEventId\n  50: optional string identity\n}\n\nstruct TimerStartedEventAttributes {\n  10: optional string timerId\n  20: optional i64 (js.type = \"Long\") startToFireTimeoutSeconds\n  30: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n}\n\nstruct TimerFiredEventAttributes {\n  10: optional string timerId\n  20: optional i64 (js.type = \"Long\") startedEventId\n}\n\nstruct TimerCanceledEventAttributes {\n  10: optional string timerId\n  20: optional i64 (js.type = \"Long\") startedEventId\n  30: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  40: optional string identity\n}\n\nstruct CancelTimerFailedEventAttributes {\n  10: optional string timerId\n  20: optional string cause\n  30: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  40: optional string identity\n}\n\nstruct WorkflowExecutionCancelRequestedEventAttributes {\n  10: optional string cause\n  20: optional i64 (js.type = \"Long\") externalInitiatedEventId\n  30: optional WorkflowExecution externalWorkflowExecution\n  40: optional string identity\n  50: optional string requestId\n}\n\nstruct WorkflowExecutionCanceledEventAttributes {\n  10: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  20: optional binary details\n}\n\nstruct MarkerRecordedEventAttributes {\n  10: optional string markerName\n  20: optional binary details\n  30: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  40: optional Header header\n}\n\nstruct WorkflowExecutionSignaledEventAttributes {\n  10: optional string signalName\n  20: optional binary input\n  30: optional string identity\n  40: optional string requestId\n}\n\nstruct WorkflowExecutionTerminatedEventAttributes {\n  10: optional string reason\n  20: optional binary details\n  30: optional string identity\n}\n\nstruct RequestCancelExternalWorkflowExecutionInitiatedEventAttributes {\n  10: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  20: optional string domain\n  30: optional WorkflowExecution workflowExecution\n  40: optional binary control\n  50: optional bool childWorkflowOnly\n}\n\nstruct RequestCancelExternalWorkflowExecutionFailedEventAttributes {\n  10: optional CancelExternalWorkflowExecutionFailedCause cause\n  20: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  30: optional string domain\n  40: optional WorkflowExecution workflowExecution\n  50: optional i64 (js.type = \"Long\") initiatedEventId\n  60: optional binary control\n}\n\nstruct ExternalWorkflowExecutionCancelRequestedEventAttributes {\n  10: optional i64 (js.type = \"Long\") initiatedEventId\n  20: optional string domain\n  30: optional WorkflowExecution workflowExecution\n}\n\nstruct SignalExternalWorkflowExecutionInitiatedEventAttributes {\n  10: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  20: optional string domain\n  30: optional WorkflowExecution workflowExecution\n  40: optional string signalName\n  50: optional binary input\n  60: optional binary control\n  70: optional bool childWorkflowOnly\n}\n\nstruct SignalExternalWorkflowExecutionFailedEventAttributes {\n  10: optional SignalExternalWorkflowExecutionFailedCause cause\n  20: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  30: optional string domain\n  40: optional WorkflowExecution workflowExecution\n  50: optional i64 (js.type = \"Long\") initiatedEventId\n  60: optional binary control\n}\n\nstruct ExternalWorkflowExecutionSignaledEventAttributes {\n  10: optional i64 (js.type = \"Long\") initiatedEventId\n  20: optional string domain\n  30: optional WorkflowExecution workflowExecution\n  40: optional binary control\n}\n\nstruct UpsertWorkflowSearchAttributesEventAttributes {\n  10: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  20: optional SearchAttributes searchAttributes\n}\n\nstruct StartChildWorkflowExecutionInitiatedEventAttributes {\n  10:  optional string domain\n  20:  optional string workflowId\n  30:  optional WorkflowType workflowType\n  40:  optional TaskList taskList\n  50:  optional binary input\n  60:  optional i32 executionStartToCloseTimeoutSeconds\n  70:  optional i32 taskStartToCloseTimeoutSeconds\n//  80:  optional ChildPolicy childPolicy -- Removed but reserve the IDL order number\n  81:  optional ParentClosePolicy parentClosePolicy\n  90:  optional binary control\n  100: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  110: optional WorkflowIdReusePolicy workflowIdReusePolicy\n  120: optional RetryPolicy retryPolicy\n  130: optional string cronSchedule\n  140: optional Header header\n  150: optional Memo memo\n  160: optional SearchAttributes searchAttributes\n  170: optional i32 delayStartSeconds\n  180: optional i32 jitterStartSeconds\n  190: optional i64 (js.type = \"Long\") firstRunAtTimestamp\n  200: optional CronOverlapPolicy cronOverlapPolicy\n  210: optional ActiveClusterSelectionPolicy activeClusterSelectionPolicy\n}\n\nstruct StartChildWorkflowExecutionFailedEventAttributes {\n  10: optional string domain\n  20: optional string workflowId\n  30: optional WorkflowType workflowType\n  40: optional ChildWorkflowExecutionFailedCause cause\n  50: optional binary control\n  60: optional i64 (js.type = \"Long\") initiatedEventId\n  70: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n}\n\nstruct ChildWorkflowExecutionStartedEventAttributes {\n  10: optional string domain\n  20: optional i64 (js.type = \"Long\") initiatedEventId\n  30: optional WorkflowExecution workflowExecution\n  40: optional WorkflowType workflowType\n  50: optional Header header\n}\n\nstruct ChildWorkflowExecutionCompletedEventAttributes {\n  10: optional binary result\n  20: optional string domain\n  30: optional WorkflowExecution workflowExecution\n  40: optional WorkflowType workflowType\n  50: optional i64 (js.type = \"Long\") initiatedEventId\n  60: optional i64 (js.type = \"Long\") startedEventId\n}\n\nstruct ChildWorkflowExecutionFailedEventAttributes {\n  10: optional string reason\n  20: optional binary details\n  30: optional string domain\n  40: optional WorkflowExecution workflowExecution\n  50: optional WorkflowType workflowType\n  60: optional i64 (js.type = \"Long\") initiatedEventId\n  70: optional i64 (js.type = \"Long\") startedEventId\n}\n\nstruct ChildWorkflowExecutionCanceledEventAttributes {\n  10: optional binary details\n  20: optional string domain\n  30: optional WorkflowExecution workflowExecution\n  40: optional WorkflowType workflowType\n  50: optional i64 (js.type = \"Long\") initiatedEventId\n  60: optional i64 (js.type = \"Long\") startedEventId\n}\n\nstruct ChildWorkflowExecutionTimedOutEventAttributes {\n  10: optional TimeoutType timeoutType\n  20: optional string domain\n  30: optional WorkflowExecution workflowExecution\n  40: optional WorkflowType workflowType\n  50: optional i64 (js.type = \"Long\") initiatedEventId\n  60: optional i64 (js.type = \"Long\") startedEventId\n}\n\nstruct ChildWorkflowExecutionTerminatedEventAttributes {\n  10: optional string domain\n  20: optional WorkflowExecution workflowExecution\n  30: optional WorkflowType workflowType\n  40: optional i64 (js.type = \"Long\") initiatedEventId\n  50: optional i64 (js.type = \"Long\") startedEventId\n}\n\nstruct HistoryEvent {\n  10:  optional i64 (js.type = \"Long\") eventId\n  20:  optional i64 (js.type = \"Long\") timestamp\n  30:  optional EventType eventType\n  35:  optional i64 (js.type = \"Long\") version\n  36:  optional i64 (js.type = \"Long\") taskId\n  40:  optional WorkflowExecutionStartedEventAttributes workflowExecutionStartedEventAttributes\n  50:  optional WorkflowExecutionCompletedEventAttributes workflowExecutionCompletedEventAttributes\n  60:  optional WorkflowExecutionFailedEventAttributes workflowExecutionFailedEventAttributes\n  70:  optional WorkflowExecutionTimedOutEventAttributes workflowExecutionTimedOutEventAttributes\n  80:  optional DecisionTaskScheduledEventAttributes decisionTaskScheduledEventAttributes\n  90:  optional DecisionTaskStartedEventAttributes decisionTaskStartedEventAttributes\n  100: optional DecisionTaskCompletedEventAttributes decisionTaskCompletedEventAttributes\n  110: optional DecisionTaskTimedOutEventAttributes decisionTaskTimedOutEventAttributes\n  120: optional DecisionTaskFailedEventAttributes decisionTaskFailedEventAttributes\n  130: optional ActivityTaskScheduledEventAttributes activityTaskScheduledEventAttributes\n  140: optional ActivityTaskStartedEventAttributes activityTaskStartedEventAttributes\n  150: optional ActivityTaskCompletedEventAttributes activityTaskCompletedEventAttributes\n  160: optional ActivityTaskFailedEventAttributes activityTaskFailedEventAttributes\n  170: optional ActivityTaskTimedOutEventAttributes activityTaskTimedOutEventAttributes\n  180: optional TimerStartedEventAttributes timerStartedEventAttributes\n  190: optional TimerFiredEventAttributes timerFiredEventAttributes\n  200: optional ActivityTaskCancelRequestedEventAttributes activityTaskCancelRequestedEventAttributes\n  210: optional RequestCancelActivityTaskFailedEventAttributes requestCancelActivityTaskFailedEventAttributes\n  220: optional ActivityTaskCanceledEventAttributes activityTaskCanceledEventAttributes\n  230: optional TimerCanceledEventAttributes timerCanceledEventAttributes\n  240: optional CancelTimerFailedEventAttributes cancelTimerFailedEventAttributes\n  250: optional MarkerRecordedEventAttributes markerRecordedEventAttributes\n  260: optional WorkflowExecutionSignaledEventAttributes workflowExecutionSignaledEventAttributes\n  270: optional WorkflowExecutionTerminatedEventAttributes workflowExecutionTerminatedEventAttributes\n  280: optional WorkflowExecutionCancelRequestedEventAttributes workflowExecutionCancelRequestedEventAttributes\n  290: optional WorkflowExecutionCanceledEventAttributes workflowExecutionCanceledEventAttributes\n  300: optional RequestCancelExternalWorkflowExecutionInitiatedEventAttributes requestCancelExternalWorkflowExecutionInitiatedEventAttributes\n  310: optional RequestCancelExternalWorkflowExecutionFailedEventAttributes requestCancelExternalWorkflowExecutionFailedEventAttributes\n  320: optional ExternalWorkflowExecutionCancelRequestedEventAttributes externalWorkflowExecutionCancelRequestedEventAttributes\n  330: optional WorkflowExecutionContinuedAsNewEventAttributes workflowExecutionContinuedAsNewEventAttributes\n  340: optional StartChildWorkflowExecutionInitiatedEventAttributes startChildWorkflowExecutionInitiatedEventAttributes\n  350: optional StartChildWorkflowExecutionFailedEventAttributes startChildWorkflowExecutionFailedEventAttributes\n  360: optional ChildWorkflowExecutionStartedEventAttributes childWorkflowExecutionStartedEventAttributes\n  370: optional ChildWorkflowExecutionCompletedEventAttributes childWorkflowExecutionCompletedEventAttributes\n  380: optional ChildWorkflowExecutionFailedEventAttributes childWorkflowExecutionFailedEventAttributes\n  390: optional ChildWorkflowExecutionCanceledEventAttributes childWorkflowExecutionCanceledEventAttributes\n  400: optional ChildWorkflowExecutionTimedOutEventAttributes childWorkflowExecutionTimedOutEventAttributes\n  410: optional ChildWorkflowExecutionTerminatedEventAttributes childWorkflowExecutionTerminatedEventAttributes\n  420: optional SignalExternalWorkflowExecutionInitiatedEventAttributes signalExternalWorkflowExecutionInitiatedEventAttributes\n  430: optional SignalExternalWorkflowExecutionFailedEventAttributes signalExternalWorkflowExecutionFailedEventAttributes\n  440: optional ExternalWorkflowExecutionSignaledEventAttributes externalWorkflowExecutionSignaledEventAttributes\n  450: optional UpsertWorkflowSearchAttributesEventAttributes upsertWorkflowSearchAttributesEventAttributes\n}\n\nstruct History {\n  10: optional list<HistoryEvent> events\n}\n\nstruct WorkflowExecutionFilter {\n  10: optional string workflowId\n  20: optional string runId\n}\n\nstruct WorkflowTypeFilter {\n  10: optional string name\n}\n\nstruct StartTimeFilter {\n  10: optional i64 (js.type = \"Long\") earliestTime\n  20: optional i64 (js.type = \"Long\") latestTime\n}\n\nstruct DomainInfo {\n  10: optional string name\n  20: optional DomainStatus status\n  30: optional string description\n  40: optional string ownerEmail\n  // A key-value map for any customized purpose\n  50: optional map<string,string> data\n  60: optional string uuid\n}\n\nstruct DomainConfiguration {\n  10: optional i32 workflowExecutionRetentionPeriodInDays\n  20: optional bool emitMetric\n  60: optional IsolationGroupConfiguration isolationgroups\n  70: optional BadBinaries badBinaries\n  80: optional ArchivalStatus historyArchivalStatus\n  90: optional string historyArchivalURI\n  100: optional ArchivalStatus visibilityArchivalStatus\n  110: optional string visibilityArchivalURI\n  120: optional AsyncWorkflowConfiguration AsyncWorkflowConfiguration\n}\n\nstruct FailoverInfo {\n    10: optional i64 (js.type = \"Long\") failoverVersion\n    20: optional i64 (js.type = \"Long\") failoverStartTimestamp\n    30: optional i64 (js.type = \"Long\") failoverExpireTimestamp\n    40: optional i32 completedShardCount\n    50: optional list<i32> pendingShards\n}\n\nstruct BadBinaries{\n  10: optional map<string, BadBinaryInfo> binaries\n}\n\nstruct BadBinaryInfo{\n  10: optional string reason\n  20: optional string operator\n  30: optional i64 (js.type = \"Long\") createdTimeNano\n}\n\nstruct UpdateDomainInfo {\n  10: optional string description\n  20: optional string ownerEmail\n  // A key-value map for any customized purpose\n  30: optional map<string,string> data\n}\n\nstruct ClusterReplicationConfiguration {\n 10: optional string clusterName\n}\n\nstruct DomainReplicationConfiguration {\n // activeClusterName is the name of the active cluster for active-passive domain\n 10: optional string activeClusterName\n\n //  clusters is list of all active and passive clusters of domain\n 20: optional list<ClusterReplicationConfiguration> clusters\n\n // activeClusters contains active cluster(s) information for active-active domain\n 30: optional ActiveClusters activeClusters\n}\n\nstruct ActiveClusters {\n  // activeClustersByRegion is a map of region name to active cluster info for active-active domain\n  10: optional map<string, ActiveClusterInfo> activeClustersByRegion\n}\n\n// ActiveClusterInfo contains the configuration of active-active domain's active cluster & failover version for a specific region\nstruct ActiveClusterInfo {\n  10: optional string activeClusterName\n  20: optional i64 (js.type = \"Long\") failoverVersion\n}\n\nstruct RegisterDomainRequest {\n  10: optional string name\n  20: optional string description\n  30: optional string ownerEmail\n  40: optional i32 workflowExecutionRetentionPeriodInDays\n  50: optional bool emitMetric = true\n  60: optional list<ClusterReplicationConfiguration> clusters\n  70: optional string activeClusterName\n  // activeClusters is a map of region name to active cluster name for active-active domain\n  75: optional map<string, string> activeClustersByRegion\n  // A key-value map for any customized purpose\n  80: optional map<string,string> data\n  90: optional string securityToken\n  120: optional bool isGlobalDomain\n  130: optional ArchivalStatus historyArchivalStatus\n  140: optional string historyArchivalURI\n  150: optional ArchivalStatus visibilityArchivalStatus\n  160: optional string visibilityArchivalURI\n}\n\nstruct ListDomainsRequest {\n  10: optional i32 pageSize\n  20: optional binary nextPageToken\n}\n\nstruct ListDomainsResponse {\n  10: optional list<DescribeDomainResponse> domains\n  20: optional binary nextPageToken\n}\n\nstruct DescribeDomainRequest {\n  10: optional string name\n  20: optional string uuid\n}\n\nstruct DescribeDomainResponse {\n  10: optional DomainInfo domainInfo\n  20: optional DomainConfiguration configuration\n  30: optional DomainReplicationConfiguration replicationConfiguration\n  40: optional i64 (js.type = \"Long\") failoverVersion\n  50: optional bool isGlobalDomain\n  60: optional FailoverInfo failoverInfo\n}\n\nstruct UpdateDomainRequest {\n 10: optional string name\n 20: optional UpdateDomainInfo updatedInfo\n 30: optional DomainConfiguration configuration\n 40: optional DomainReplicationConfiguration replicationConfiguration\n 50: optional string securityToken\n 60: optional string deleteBadBinary\n 70: optional i32 failoverTimeoutInSeconds\n}\n\nstruct UpdateDomainResponse {\n  10: optional DomainInfo domainInfo\n  20: optional DomainConfiguration configuration\n  30: optional DomainReplicationConfiguration replicationConfiguration\n  40: optional i64 (js.type = \"Long\") failoverVersion\n  50: optional bool isGlobalDomain\n}\n\nstruct DeprecateDomainRequest {\n 10: optional string name\n 20: optional string securityToken\n}\n\nstruct DeleteDomainRequest {\n 10: optional string name\n 20: optional string securityToken\n}\n\nstruct StartWorkflowExecutionRequest {\n  10: optional string domain\n  20: optional string workflowId\n  30: optional WorkflowType workflowType\n  40: optional TaskList taskList\n  50: optional binary input\n  60: optional i32 executionStartToCloseTimeoutSeconds\n  70: optional i32 taskStartToCloseTimeoutSeconds\n  80: optional string identity\n  90: optional string requestId\n  100: optional WorkflowIdReusePolicy workflowIdReusePolicy\n//  110: optional ChildPolicy childPolicy -- Removed but reserve the IDL order number\n  120: optional RetryPolicy retryPolicy\n  130: optional string cronSchedule\n  140: optional Memo memo\n  141: optional SearchAttributes searchAttributes\n  150: optional Header header\n  160: optional i32 delayStartSeconds\n  170: optional i32 jitterStartSeconds\n  180: optional i64 (js.type = \"Long\") firstRunAtTimestamp\n  190: optional CronOverlapPolicy cronOverlapPolicy\n  200: optional ActiveClusterSelectionPolicy activeClusterSelectionPolicy\n}\n\nstruct StartWorkflowExecutionResponse {\n  10: optional string runId\n}\n\nstruct StartWorkflowExecutionAsyncRequest {\n  10: optional StartWorkflowExecutionRequest request\n}\n\nstruct StartWorkflowExecutionAsyncResponse {\n}\n\nstruct RestartWorkflowExecutionResponse {\n  10: optional string runId\n}\n\nstruct DiagnoseWorkflowExecutionRequest {\n  10: optional string domain\n  20: optional WorkflowExecution workflowExecution\n  30: optional string identity\n}\n\nstruct DiagnoseWorkflowExecutionResponse {\n  10: optional string domain\n  20: optional WorkflowExecution diagnosticWorkflowExecution\n}\n\nstruct PollForDecisionTaskRequest {\n  10: optional string domain\n  20: optional TaskList taskList\n  30: optional string identity\n  40: optional string binaryChecksum\n}\n\nstruct PollForDecisionTaskResponse {\n  10: optional binary taskToken\n  20: optional WorkflowExecution workflowExecution\n  30: optional WorkflowType workflowType\n  40: optional i64 (js.type = \"Long\") previousStartedEventId\n  50: optional i64 (js.type = \"Long\") startedEventId\n  51: optional i64 (js.type = 'Long') attempt\n  54: optional i64 (js.type = \"Long\") backlogCountHint\n  60: optional History history\n  70: optional binary nextPageToken\n  80: optional WorkflowQuery query\n  90: optional TaskList WorkflowExecutionTaskList\n  100: optional i64 (js.type = \"Long\") scheduledTimestamp\n  110: optional i64 (js.type = \"Long\") startedTimestamp\n  120: optional map<string, WorkflowQuery> queries\n  130: optional i64 (js.type = 'Long') nextEventId\n  140: optional i64 (js.type = 'Long') totalHistoryBytes\n  150: optional AutoConfigHint autoConfigHint\n}\n\nstruct StickyExecutionAttributes {\n  10: optional TaskList workerTaskList\n  20: optional i32 scheduleToStartTimeoutSeconds\n}\n\nstruct RespondDecisionTaskCompletedRequest {\n  10: optional binary taskToken\n  20: optional list<Decision> decisions\n  30: optional binary executionContext\n  40: optional string identity\n  50: optional StickyExecutionAttributes stickyAttributes\n  60: optional bool returnNewDecisionTask\n  70: optional bool forceCreateNewDecisionTask\n  80: optional string binaryChecksum\n  90: optional map<string, WorkflowQueryResult> queryResults\n}\n\nstruct RespondDecisionTaskCompletedResponse {\n  10: optional PollForDecisionTaskResponse decisionTask\n  20: optional map<string,ActivityLocalDispatchInfo> activitiesToDispatchLocally\n}\n\nstruct RespondDecisionTaskFailedRequest {\n  10: optional binary taskToken\n  20: optional DecisionTaskFailedCause cause\n  30: optional binary details\n  40: optional string identity\n  50: optional string binaryChecksum\n}\n\nstruct PollForActivityTaskRequest {\n  10: optional string domain\n  20: optional TaskList taskList\n  30: optional string identity\n  40: optional TaskListMetadata taskListMetadata\n}\n\nstruct PollForActivityTaskResponse {\n  10:  optional binary taskToken\n  20:  optional WorkflowExecution workflowExecution\n  30:  optional string activityId\n  40:  optional ActivityType activityType\n  50:  optional binary input\n  70:  optional i64 (js.type = \"Long\") scheduledTimestamp\n  80:  optional i32 scheduleToCloseTimeoutSeconds\n  90:  optional i64 (js.type = \"Long\") startedTimestamp\n  100: optional i32 startToCloseTimeoutSeconds\n  110: optional i32 heartbeatTimeoutSeconds\n  120: optional i32 attempt\n  130: optional i64 (js.type = \"Long\") scheduledTimestampOfThisAttempt\n  140: optional binary heartbeatDetails\n  150: optional WorkflowType workflowType\n  160: optional string workflowDomain\n  170: optional Header header\n  180: optional AutoConfigHint autoConfigHint\n}\n\nstruct RecordActivityTaskHeartbeatRequest {\n  10: optional binary taskToken\n  20: optional binary details\n  30: optional string identity\n}\n\nstruct RecordActivityTaskHeartbeatByIDRequest {\n  10: optional string domain\n  20: optional string workflowID\n  30: optional string runID\n  40: optional string activityID\n  50: optional binary details\n  60: optional string identity\n}\n\nstruct RecordActivityTaskHeartbeatResponse {\n  10: optional bool cancelRequested\n}\n\nstruct RespondActivityTaskCompletedRequest {\n  10: optional binary taskToken\n  20: optional binary result\n  30: optional string identity\n}\n\nstruct RespondActivityTaskFailedRequest {\n  10: optional binary taskToken\n  20: optional string reason\n  30: optional binary details\n  40: optional string identity\n}\n\nstruct RespondActivityTaskCanceledRequest {\n  10: optional binary taskToken\n  20: optional binary details\n  30: optional string identity\n}\n\nstruct RespondActivityTaskCompletedByIDRequest {\n  10: optional string domain\n  20: optional string workflowID\n  30: optional string runID\n  40: optional string activityID\n  50: optional binary result\n  60: optional string identity\n}\n\nstruct RespondActivityTaskFailedByIDRequest {\n  10: optional string domain\n  20: optional string workflowID\n  30: optional string runID\n  40: optional string activityID\n  50: optional string reason\n  60: optional binary details\n  70: optional string identity\n}\n\nstruct RespondActivityTaskCanceledByIDRequest {\n  10: optional string domain\n  20: optional string workflowID\n  30: optional string runID\n  40: optional string activityID\n  50: optional binary details\n  60: optional string identity\n}\n\nstruct RequestCancelWorkflowExecutionRequest {\n  10: optional string domain\n  20: optional WorkflowExecution workflowExecution\n  30: optional string identity\n  40: optional string requestId\n  50: optional string cause\n  60: optional string firstExecutionRunID\n}\n\nstruct GetWorkflowExecutionHistoryRequest {\n  10: optional string domain\n  20: optional WorkflowExecution execution\n  30: optional i32 maximumPageSize\n  40: optional binary nextPageToken\n  50: optional bool waitForNewEvent\n  60: optional HistoryEventFilterType HistoryEventFilterType\n  70: optional bool skipArchival\n  80: optional QueryConsistencyLevel queryConsistencyLevel\n}\n\nstruct GetWorkflowExecutionHistoryResponse {\n  10: optional History history\n  11: optional list<DataBlob> rawHistory\n  20: optional binary nextPageToken\n  30: optional bool archived\n}\n\nstruct SignalWorkflowExecutionRequest {\n  10: optional string domain\n  20: optional WorkflowExecution workflowExecution\n  30: optional string signalName\n  40: optional binary input\n  50: optional string identity\n  60: optional string requestId\n  70: optional binary control\n}\n\nstruct SignalWithStartWorkflowExecutionRequest {\n  10: optional string domain\n  20: optional string workflowId\n  30: optional WorkflowType workflowType\n  40: optional TaskList taskList\n  50: optional binary input\n  60: optional i32 executionStartToCloseTimeoutSeconds\n  70: optional i32 taskStartToCloseTimeoutSeconds\n  80: optional string identity\n  90: optional string requestId\n  100: optional WorkflowIdReusePolicy workflowIdReusePolicy\n  110: optional string signalName\n  120: optional binary signalInput\n  130: optional binary control\n  140: optional RetryPolicy retryPolicy\n  150: optional string cronSchedule\n  160: optional Memo memo\n  161: optional SearchAttributes searchAttributes\n  170: optional Header header\n  180: optional i32 delayStartSeconds\n  190: optional i32 jitterStartSeconds\n  200: optional i64 (js.type = \"Long\") firstRunAtTimestamp\n  210: optional CronOverlapPolicy cronOverlapPolicy\n  220: optional ActiveClusterSelectionPolicy activeClusterSelectionPolicy\n}\n\nstruct SignalWithStartWorkflowExecutionAsyncRequest {\n  10: optional SignalWithStartWorkflowExecutionRequest request\n}\n\nstruct SignalWithStartWorkflowExecutionAsyncResponse {\n}\n\nstruct RestartWorkflowExecutionRequest {\n  10: optional string domain\n  20: optional WorkflowExecution workflowExecution\n  30: optional string reason\n  40: optional string identity\n}\nstruct TerminateWorkflowExecutionRequest {\n  10: optional string domain\n  20: optional WorkflowExecution workflowExecution\n  30: optional string reason\n  40: optional binary details\n  50: optional string identity\n  60: optional string firstExecutionRunID\n}\n\nstruct ResetWorkflowExecutionRequest {\n  10: optional string domain\n  20: optional WorkflowExecution workflowExecution\n  30: optional string reason\n  40: optional i64 (js.type = \"Long\") decisionFinishEventId\n  50: optional string requestId\n  60: optional bool skipSignalReapply\n}\n\nstruct ResetWorkflowExecutionResponse {\n  10: optional string runId\n}\n\nstruct ListOpenWorkflowExecutionsRequest {\n  10: optional string domain\n  20: optional i32 maximumPageSize\n  30: optional binary nextPageToken\n  40: optional StartTimeFilter StartTimeFilter\n  50: optional WorkflowExecutionFilter executionFilter\n  60: optional WorkflowTypeFilter typeFilter\n}\n\nstruct ListOpenWorkflowExecutionsResponse {\n  10: optional list<WorkflowExecutionInfo> executions\n  20: optional binary nextPageToken\n}\n\nstruct ListClosedWorkflowExecutionsRequest {\n  10: optional string domain\n  20: optional i32 maximumPageSize\n  30: optional binary nextPageToken\n  40: optional StartTimeFilter StartTimeFilter\n  50: optional WorkflowExecutionFilter executionFilter\n  60: optional WorkflowTypeFilter typeFilter\n  70: optional WorkflowExecutionCloseStatus statusFilter\n}\n\nstruct ListClosedWorkflowExecutionsResponse {\n  10: optional list<WorkflowExecutionInfo> executions\n  20: optional binary nextPageToken\n}\n\nstruct ListWorkflowExecutionsRequest {\n  10: optional string domain\n  20: optional i32 pageSize\n  30: optional binary nextPageToken\n  40: optional string query\n}\n\nstruct ListWorkflowExecutionsResponse {\n  10: optional list<WorkflowExecutionInfo> executions\n  20: optional binary nextPageToken\n}\n\nstruct ListArchivedWorkflowExecutionsRequest {\n  10: optional string domain\n  20: optional i32 pageSize\n  30: optional binary nextPageToken\n  40: optional string query\n}\n\nstruct ListArchivedWorkflowExecutionsResponse {\n  10: optional list<WorkflowExecutionInfo> executions\n  20: optional binary nextPageToken\n}\n\nstruct CountWorkflowExecutionsRequest {\n  10: optional string domain\n  20: optional string query\n}\n\nstruct CountWorkflowExecutionsResponse {\n  10: optional i64 count\n}\n\nstruct GetSearchAttributesResponse {\n  10: optional map<string, IndexedValueType> keys\n}\n\nstruct QueryWorkflowRequest {\n  10: optional string domain\n  20: optional WorkflowExecution execution\n  30: optional WorkflowQuery query\n  // QueryRejectCondition can used to reject the query if workflow state does not satisify condition\n  40: optional QueryRejectCondition queryRejectCondition\n  50: optional QueryConsistencyLevel queryConsistencyLevel\n}\n\nstruct QueryRejected {\n  10: optional WorkflowExecutionCloseStatus closeStatus\n}\n\nstruct QueryWorkflowResponse {\n  10: optional binary queryResult\n  20: optional QueryRejected queryRejected\n}\n\nstruct WorkflowQuery {\n  10: optional string queryType\n  20: optional binary queryArgs\n}\n\nstruct ResetStickyTaskListRequest {\n  10: optional string domain\n  20: optional WorkflowExecution execution\n}\n\nstruct ResetStickyTaskListResponse {\n    // The reason to keep this response is to allow returning\n    // information in the future.\n}\n\nstruct RespondQueryTaskCompletedRequest {\n  10: optional binary taskToken\n  20: optional QueryTaskCompletedType completedType\n  30: optional binary queryResult\n  40: optional string errorMessage\n  50: optional WorkerVersionInfo workerVersionInfo\n}\n\nstruct WorkflowQueryResult {\n  10: optional QueryResultType resultType\n  20: optional binary answer\n  30: optional string errorMessage\n}\n\nstruct DescribeWorkflowExecutionRequest {\n  10: optional string domain\n  20: optional WorkflowExecution execution\n  30: optional QueryConsistencyLevel queryConsistencyLevel\n}\n\nstruct PendingActivityInfo {\n  10: optional string activityID\n  20: optional ActivityType activityType\n  30: optional PendingActivityState state\n  40: optional binary heartbeatDetails\n  50: optional i64 (js.type = \"Long\") lastHeartbeatTimestamp\n  60: optional i64 (js.type = \"Long\") lastStartedTimestamp\n  70: optional i32 attempt\n  80: optional i32 maximumAttempts\n  90: optional i64 (js.type = \"Long\") scheduledTimestamp\n  100: optional i64 (js.type = \"Long\") expirationTimestamp\n  110: optional string lastFailureReason\n  120: optional string lastWorkerIdentity\n  130: optional binary lastFailureDetails\n  140: optional string startedWorkerIdentity\n  150: optional i64 (js.type = \"Long\") scheduleID\n}\n\nstruct PendingDecisionInfo {\n  10: optional PendingDecisionState state\n  20: optional i64 (js.type = \"Long\") scheduledTimestamp\n  30: optional i64 (js.type = \"Long\") startedTimestamp\n  40: optional i64 attempt\n  50: optional i64 (js.type = \"Long\") originalScheduledTimestamp\n  60: optional i64 (js.type = \"Long\") scheduleID\n}\n\nstruct PendingChildExecutionInfo {\n  1: optional string domain\n  10: optional string workflowID\n  20: optional string runID\n  30: optional string workflowTypName\n  40: optional i64 (js.type = \"Long\") initiatedID\n  50: optional ParentClosePolicy parentClosePolicy\n}\n\nstruct DescribeWorkflowExecutionResponse {\n  10: optional WorkflowExecutionConfiguration executionConfiguration\n  20: optional WorkflowExecutionInfo workflowExecutionInfo\n  30: optional list<PendingActivityInfo> pendingActivities\n  40: optional list<PendingChildExecutionInfo> pendingChildren\n  50: optional PendingDecisionInfo pendingDecision\n}\n\nstruct DescribeTaskListRequest {\n  10: optional string domain\n  20: optional TaskList taskList\n  30: optional TaskListType taskListType\n  40: optional bool includeTaskListStatus\n}\n\nstruct DescribeTaskListResponse {\n  10: optional list<PollerInfo> pollers\n  20: optional TaskListStatus taskListStatus\n  // The TaskList being described\n  30: optional TaskList taskList\n}\n\nstruct GetTaskListsByDomainRequest {\n  10: optional string domainName\n}\n\nstruct GetTaskListsByDomainResponse {\n  10: optional map<string,DescribeTaskListResponse> decisionTaskListMap\n  20: optional map<string,DescribeTaskListResponse> activityTaskListMap\n}\n\nstruct ListTaskListPartitionsRequest {\n  10: optional string domain\n  20: optional TaskList taskList\n}\n\nstruct TaskListPartitionMetadata {\n  10: optional string key\n  20: optional string ownerHostName\n}\n\nstruct ListTaskListPartitionsResponse {\n  10: optional list<TaskListPartitionMetadata> activityTaskListPartitions\n  20: optional list<TaskListPartitionMetadata> decisionTaskListPartitions\n}\n\nstruct IsolationGroupMetrics {\n  10: optional double newTasksPerSecond\n  20: optional i64 (js.type = \"Long\") pollerCount\n}\n\nstruct TaskListStatus {\n  10: optional i64 (js.type = \"Long\") backlogCountHint\n  20: optional i64 (js.type = \"Long\") readLevel\n  30: optional i64 (js.type = \"Long\") ackLevel\n  35: optional double ratePerSecond\n  40: optional TaskIDBlock taskIDBlock\n  50: optional map<string, IsolationGroupMetrics> isolationGroupMetrics\n  60: optional double newTasksPerSecond\n  70: optional bool empty\n}\n\nstruct TaskIDBlock {\n  10: optional i64 (js.type = \"Long\")  startID\n  20: optional i64 (js.type = \"Long\")  endID\n}\n\n//At least one of the parameters needs to be provided\nstruct DescribeHistoryHostRequest {\n  10: optional string               hostAddress //ip:port\n  20: optional i32                  shardIdForHost\n  30: optional WorkflowExecution    executionForHost\n}\n\nstruct RemoveTaskRequest {\n  10: optional i32                      shardID\n  20: optional i32                      type\n  30: optional i64 (js.type = \"Long\")   taskID\n  40: optional i64 (js.type = \"Long\")   visibilityTimestamp\n  50: optional string                   clusterName\n}\n\nstruct CloseShardRequest {\n  10: optional i32               shardID\n}\n\nstruct ResetQueueRequest {\n  10: optional i32    shardID\n  20: optional string clusterName\n  30: optional i32    type\n}\n\nstruct DescribeQueueRequest {\n  10: optional i32    shardID\n  20: optional string clusterName\n  30: optional i32    type\n}\n\nstruct DescribeQueueResponse {\n  10: optional list<string> processingQueueStates\n}\n\nstruct DescribeShardDistributionRequest {\n  10: optional i32 pageSize\n  20: optional i32 pageID\n}\n\nstruct DescribeShardDistributionResponse {\n  10: optional i32              numberOfShards\n\n  // ShardID to Address (ip:port) map\n  20: optional map<i32, string> shards\n}\n\nstruct DescribeHistoryHostResponse{\n  10: optional i32                  numberOfShards\n  20: optional list<i32>            shardIDs\n  30: optional DomainCacheInfo      domainCache\n  40: optional string               shardControllerStatus\n  50: optional string               address\n}\n\nstruct DomainCacheInfo{\n  10: optional i64 numOfItemsInCacheByID\n  20: optional i64 numOfItemsInCacheByName\n}\n\nenum TaskListType {\n  /*\n   * Decision type of tasklist\n   */\n  Decision,\n  /*\n   * Activity type of tasklist\n   */\n  Activity,\n}\n\nstruct PollerInfo {\n  // Unix Nano\n  10: optional i64 (js.type = \"Long\")  lastAccessTime\n  20: optional string identity\n  30: optional double ratePerSecond\n}\n\nstruct RetryPolicy {\n  // Interval of the first retry. If coefficient is 1.0 then it is used for all retries.\n  10: optional i32 initialIntervalInSeconds\n\n  // Coefficient used to calculate the next retry interval.\n  // The next retry interval is previous interval multiplied by the coefficient.\n  // Must be 1 or larger.\n  20: optional double backoffCoefficient\n\n  // Maximum interval between retries. Exponential backoff leads to interval increase.\n  // This value is the cap of the increase. Default is 100x of initial interval.\n  30: optional i32 maximumIntervalInSeconds\n\n  // Maximum number of attempts. When exceeded the retries stop even if not expired yet.\n  // Must be 1 or bigger. Default is unlimited.\n  40: optional i32 maximumAttempts\n\n  // Non-Retriable errors. Will stop retrying if error matches this list.\n  50: optional list<string> nonRetriableErrorReasons\n\n  // Expiration time for the whole retry process.\n  60: optional i32 expirationIntervalInSeconds\n}\n\n// HistoryBranchRange represents a piece of range for a branch.\nstruct HistoryBranchRange{\n  // branchID of original branch forked from\n  10: optional string branchID\n  // beinning node for the range, inclusive\n  20: optional i64 beginNodeID\n  // ending node for the range, exclusive\n  30: optional i64 endNodeID\n}\n\n// For history persistence to serialize/deserialize branch details\nstruct HistoryBranch{\n  10: optional string treeID\n  20: optional string branchID\n  30: optional list<HistoryBranchRange> ancestors\n}\n\n// VersionHistoryItem contains signal eventID and the corresponding version\nstruct VersionHistoryItem{\n  10: optional i64 (js.type = \"Long\") eventID\n  20: optional i64 (js.type = \"Long\") version\n}\n\n// VersionHistory contains the version history of a branch\nstruct VersionHistory{\n  10: optional binary branchToken\n  20: optional list<VersionHistoryItem> items\n}\n\n// VersionHistories contains all version histories from all branches\nstruct VersionHistories{\n  10: optional i32 currentVersionHistoryIndex\n  20: optional list<VersionHistory> histories\n}\n\n// ReapplyEventsRequest is the request for reapply events API\nstruct ReapplyEventsRequest{\n  10: optional string domainName\n  20: optional WorkflowExecution workflowExecution\n  30: optional DataBlob events\n}\n\n// SupportedClientVersions contains the support versions for client library\nstruct SupportedClientVersions{\n  10: optional string goSdk\n  20: optional string javaSdk\n}\n\n// ClusterInfo contains information about cadence cluster\nstruct ClusterInfo{\n  10: optional SupportedClientVersions supportedClientVersions\n}\n\nstruct RefreshWorkflowTasksRequest {\n  10: optional string domain\n  20: optional WorkflowExecution execution\n}\n\nstruct FeatureFlags {\n\t10: optional bool WorkflowExecutionAlreadyCompletedErrorEnabled\n}\n\nenum CrossClusterTaskType {\n  StartChildExecution\n  CancelExecution\n  SignalExecution\n  RecordChildWorkflowExecutionComplete\n  ApplyParentClosePolicy\n}\n\nenum CrossClusterTaskFailedCause {\n  DOMAIN_NOT_ACTIVE\n  DOMAIN_NOT_EXISTS\n  WORKFLOW_ALREADY_RUNNING\n  WORKFLOW_NOT_EXISTS\n  WORKFLOW_ALREADY_COMPLETED\n  UNCATEGORIZED\n}\n\nenum GetTaskFailedCause {\n  SERVICE_BUSY\n  TIMEOUT\n  SHARD_OWNERSHIP_LOST\n  UNCATEGORIZED\n}\n\nstruct CrossClusterTaskInfo {\n  10: optional string domainID\n  20: optional string workflowID\n  30: optional string runID\n  40: optional CrossClusterTaskType taskType\n  50: optional i16 taskState\n  60: optional i64 (js.type = \"Long\") taskID\n  70: optional i64 (js.type = \"Long\") visibilityTimestamp\n}\n\nstruct CrossClusterStartChildExecutionRequestAttributes {\n  10: optional string targetDomainID\n  20: optional string requestID\n  30: optional i64 (js.type = \"Long\") initiatedEventID\n  40: optional StartChildWorkflowExecutionInitiatedEventAttributes initiatedEventAttributes\n  // targetRunID is for scheduling first decision task\n  // targetWorkflowID is available in initiatedEventAttributes\n  50: optional string targetRunID\n  60: optional map<string, string> partitionConfig\n}\n\nstruct CrossClusterStartChildExecutionResponseAttributes {\n  10: optional string runID\n}\n\nstruct CrossClusterCancelExecutionRequestAttributes {\n  10: optional string targetDomainID\n  20: optional string targetWorkflowID\n  30: optional string targetRunID\n  40: optional string requestID\n  50: optional i64 (js.type = \"Long\") initiatedEventID\n  60: optional bool childWorkflowOnly\n}\n\nstruct CrossClusterCancelExecutionResponseAttributes {\n}\n\nstruct CrossClusterSignalExecutionRequestAttributes {\n  10: optional string targetDomainID\n  20: optional string targetWorkflowID\n  30: optional string targetRunID\n  40: optional string requestID\n  50: optional i64 (js.type = \"Long\") initiatedEventID\n  60: optional bool childWorkflowOnly\n  70: optional string signalName\n  80: optional binary signalInput\n  90: optional binary control\n}\n\nstruct CrossClusterSignalExecutionResponseAttributes {\n}\n\nstruct CrossClusterRecordChildWorkflowExecutionCompleteRequestAttributes {\n  10: optional string targetDomainID\n  20: optional string targetWorkflowID\n  30: optional string targetRunID\n  40: optional i64 (js.type = \"Long\") initiatedEventID\n  50: optional HistoryEvent completionEvent\n}\n\nstruct CrossClusterRecordChildWorkflowExecutionCompleteResponseAttributes {\n}\n\nstruct ApplyParentClosePolicyAttributes {\n  10: optional string childDomainID\n  20: optional string childWorkflowID\n  30: optional string childRunID\n  40: optional ParentClosePolicy parentClosePolicy\n}\n\nstruct ApplyParentClosePolicyStatus {\n  10: optional bool completed\n  20: optional CrossClusterTaskFailedCause failedCause\n}\n\nstruct ApplyParentClosePolicyRequest {\n  10: optional ApplyParentClosePolicyAttributes child\n  20: optional ApplyParentClosePolicyStatus status\n}\n\nstruct CrossClusterApplyParentClosePolicyRequestAttributes {\n  10: optional list<ApplyParentClosePolicyRequest> children\n}\n\nstruct ApplyParentClosePolicyResult {\n  10: optional ApplyParentClosePolicyAttributes child\n  20: optional CrossClusterTaskFailedCause failedCause\n}\n\nstruct CrossClusterApplyParentClosePolicyResponseAttributes {\n  10: optional list<ApplyParentClosePolicyResult> childrenStatus\n}\n\nstruct CrossClusterTaskRequest {\n  10: optional CrossClusterTaskInfo taskInfo\n  20: optional CrossClusterStartChildExecutionRequestAttributes startChildExecutionAttributes\n  30: optional CrossClusterCancelExecutionRequestAttributes cancelExecutionAttributes\n  40: optional CrossClusterSignalExecutionRequestAttributes signalExecutionAttributes\n  50: optional CrossClusterRecordChildWorkflowExecutionCompleteRequestAttributes recordChildWorkflowExecutionCompleteAttributes\n  60: optional CrossClusterApplyParentClosePolicyRequestAttributes applyParentClosePolicyAttributes\n}\n\nstruct CrossClusterTaskResponse {\n  10: optional i64 (js.type = \"Long\") taskID\n  20: optional CrossClusterTaskType taskType\n  30: optional i16 taskState\n  40: optional CrossClusterTaskFailedCause failedCause\n  50: optional CrossClusterStartChildExecutionResponseAttributes startChildExecutionAttributes\n  60: optional CrossClusterCancelExecutionResponseAttributes cancelExecutionAttributes\n  70: optional CrossClusterSignalExecutionResponseAttributes signalExecutionAttributes\n  80: optional CrossClusterRecordChildWorkflowExecutionCompleteResponseAttributes recordChildWorkflowExecutionCompleteAttributes\n  90: optional CrossClusterApplyParentClosePolicyResponseAttributes applyParentClosePolicyAttributes\n}\n\nstruct GetCrossClusterTasksRequest {\n  10: optional list<i32> shardIDs\n  20: optional string targetCluster\n}\n\nstruct GetCrossClusterTasksResponse {\n  10: optional map<i32, list<CrossClusterTaskRequest>> tasksByShard\n  20: optional map<i32, GetTaskFailedCause> failedCauseByShard\n}\n\nstruct RespondCrossClusterTasksCompletedRequest {\n  10: optional i32 shardID\n  20: optional string targetCluster\n  30: optional list<CrossClusterTaskResponse> taskResponses\n  40: optional bool fetchNewTasks\n}\n\nstruct RespondCrossClusterTasksCompletedResponse {\n  10: optional list<CrossClusterTaskRequest> tasks\n}\n\nenum IsolationGroupState {\n  INVALID,\n  HEALTHY,\n  DRAINED,\n}\n\nstruct IsolationGroupPartition {\n  10: optional string name\n  20: optional IsolationGroupState state\n}\n\nstruct IsolationGroupConfiguration {\n  10: optional list<IsolationGroupPartition> isolationGroups\n}\n\nstruct AsyncWorkflowConfiguration {\n  10: optional bool enabled\n  // PredefinedQueueName is the name of the predefined queue in cadence server config's asyncWorkflowQueues\n  20: optional string predefinedQueueName\n  // queueType is the type of the queue if predefined_queue_name is not used\n  30: optional string queueType\n  // queueConfig is the configuration for the queue if predefined_queue_name is not used\n  40: optional DataBlob queueConfig\n}\n\n/**\n* Any is a logical duplicate of google.protobuf.Any.\n*\n* The intent of the type is the same, but it is not intended to be directly\n* compatible with google.protobuf.Any or any Thrift equivalent - this blob is\n* RPC-type agnostic by design (as the underlying data may be transported over\n* proto or thrift), and the data-bytes may be in any encoding.\n*\n* This is intentionally different from DataBlob, which supports only a handful\n* of known encodings so it can be interpreted everywhere.  Any supports literally\n* any contents, and needs to be considered opaque until it is given to something\n* that is expecting it.\n*\n* See ValueType to interpret the contents.\n**/\nstruct Any {\n  // Type-string describing value's contents, and intentionally avoiding the\n  // name \"type\" as it is often a special term.\n  // This should usually be a hard-coded string of some kind.\n  10: optional string ValueType\n  // Arbitrarily-encoded bytes, to be deserialized by a runtime implementation.\n  // The contents are described by ValueType.\n  20: optional binary Value\n}\n\nstruct AutoConfigHint {\n  10: optional bool enableAutoConfig\n  20: optional i64 pollerWaitTimeInMs\n}\n\nstruct QueueState {\n  10: optional map<i64, VirtualQueueState> virtualQueueStates\n  20: optional TaskKey exclusiveMaxReadLevel\n}\n\nstruct VirtualQueueState {\n  10: optional list<VirtualSliceState> virtualSliceStates\n}\n\nstruct VirtualSliceState {\n  10: optional TaskRange taskRange\n  20: optional Predicate predicate\n}\n\nstruct TaskRange {\n  10: optional TaskKey inclusiveMin\n  20: optional TaskKey exclusiveMax\n}\n\nstruct TaskKey {\n  10: optional i64 scheduledTimeNano\n  20: optional i64 taskID\n}\n\nstruct ActiveClusterSelectionPolicy {\n  10: optional ActiveClusterSelectionStrategy strategy\n\n  // sticky_region is the region sticky if strategy is ACTIVE_CLUSTER_SELECTION_STRATEGY_REGION_STICKY\n  // This is the default strategy for active-active domains and region would be set to receiver cluster's region if not specified.\n  20: optional string stickyRegion\n\n  // external_entity_type/external_entity_key is the type/key of the external entity if strategy is ACTIVE_CLUSTER_SELECTION_STRATEGY_EXTERNAL_ENTITY\n  // external entity type must be one of the supported types in active cluster manager. Custom ones can be added by implementing the corresponding interface.\n  30: optional string externalEntityType\n  40: optional string externalEntityKey\n}\n\nenum ActiveClusterSelectionStrategy {\n  REGION_STICKY,\n  EXTERNAL_ENTITY,\n}\n\nenum PredicateType {\n  Universal,\n  Empty,\n  And,\n  Or,\n  Not,\n  DomainID,\n}\n\nstruct UniversalPredicateAttributes {}\n\nstruct EmptyPredicateAttributes {}\n\nstruct AndPredicateAttributes {\n  10: optional list<Predicate> predicates\n}\n\nstruct OrPredicateAttributes {\n  10: optional list<Predicate> predicates\n}\n\nstruct NotPredicateAttributes {\n  10: optional Predicate predicate\n}\n\nstruct DomainIDPredicateAttributes {\n  10: optional list<string> domainIDs\n  20: optional bool isExclusive\n}\n\nstruct Predicate {\n  10: optional PredicateType predicateType\n  20: optional UniversalPredicateAttributes universalPredicateAttributes\n  30: optional EmptyPredicateAttributes emptyPredicateAttributes\n  40: optional AndPredicateAttributes andPredicateAttributes\n  50: optional OrPredicateAttributes orPredicateAttributes\n  60: optional NotPredicateAttributes notPredicateAttributes\n  70: optional DomainIDPredicateAttributes domainIDPredicateAttributes\n}\n"
