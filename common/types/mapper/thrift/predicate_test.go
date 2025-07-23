@@ -27,8 +27,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/uber/cadence/.gen/go/shared"
-	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/types"
 )
 
 func predicateTypeFuzzGenerator(t *types.PredicateType, c fuzz.Continue) {
@@ -38,12 +38,6 @@ func predicateTypeFuzzGenerator(t *types.PredicateType, c fuzz.Continue) {
 	case 1:
 		*t = types.PredicateTypeEmpty
 	case 2:
-		*t = types.PredicateTypeAnd
-	case 3:
-		*t = types.PredicateTypeOr
-	case 4:
-		*t = types.PredicateTypeNot
-	case 5:
 		*t = types.PredicateTypeDomainID
 	default:
 		panic("invalid predicate type")
@@ -57,12 +51,6 @@ func predicateTypeSharedFuzzGenerator(t **shared.PredicateType, c fuzz.Continue)
 	case 1:
 		*t = common.Ptr(shared.PredicateTypeEmpty)
 	case 2:
-		*t = common.Ptr(shared.PredicateTypeAnd)
-	case 3:
-		*t = common.Ptr(shared.PredicateTypeOr)
-	case 4:
-		*t = common.Ptr(shared.PredicateTypeNot)
-	case 5:
 		*t = common.Ptr(shared.PredicateTypeDomainID)
 	default:
 		panic("invalid predicate type")
@@ -78,15 +66,6 @@ func predicateFuzzGenerator(t *types.Predicate, c fuzz.Continue) {
 		t.PredicateType = types.PredicateTypeEmpty
 		c.Fuzz(&t.EmptyPredicateAttributes)
 	case 2:
-		t.PredicateType = types.PredicateTypeAnd
-		c.Fuzz(&t.AndPredicateAttributes)
-	case 3:
-		t.PredicateType = types.PredicateTypeOr
-		c.Fuzz(&t.OrPredicateAttributes)
-	case 4:
-		t.PredicateType = types.PredicateTypeNot
-		c.Fuzz(&t.NotPredicateAttributes)
-	case 5:
 		t.PredicateType = types.PredicateTypeDomainID
 		c.Fuzz(&t.DomainIDPredicateAttributes)
 	default:
@@ -103,15 +82,6 @@ func predicateSharedFuzzGenerator(t *shared.Predicate, c fuzz.Continue) {
 		t.PredicateType = common.Ptr(shared.PredicateTypeEmpty)
 		c.Fuzz(&t.EmptyPredicateAttributes)
 	case 2:
-		t.PredicateType = common.Ptr(shared.PredicateTypeAnd)
-		c.Fuzz(&t.AndPredicateAttributes)
-	case 3:
-		t.PredicateType = common.Ptr(shared.PredicateTypeOr)
-		c.Fuzz(&t.OrPredicateAttributes)
-	case 4:
-		t.PredicateType = common.Ptr(shared.PredicateTypeNot)
-		c.Fuzz(&t.NotPredicateAttributes)
-	case 5:
 		t.PredicateType = common.Ptr(shared.PredicateTypeDomainID)
 		c.Fuzz(&t.DomainIDPredicateAttributes)
 	default:
@@ -234,113 +204,7 @@ func TestFuzzDomainIDPredicateAttributes_Roundtrip_FromShared(t *testing.T) {
 		types := ToDomainIDPredicateAttributes(&original)
 		converted := FromDomainIDPredicateAttributes(types)
 
-		// Note: IsExclusive field handling - shared uses *bool, types uses bool
-		// We need to handle the conversion properly
-		expected := original
-		if original.IsExclusive == nil {
-			// When shared.IsExclusive is nil, types will default to false
-			// and FromDomainIDPredicateAttributes will convert that back to &false
-			falseVal := false
-			expected.IsExclusive = &falseVal
-		}
-
-		assert.Equal(t, expected, *converted, "DomainIDPredicateAttributes roundtrip failed: shared → types → shared")
-	}
-}
-
-func TestFuzzAndPredicateAttributes_Roundtrip_FromTypes(t *testing.T) {
-	f := fuzz.New().NilChance(0.2).Funcs(
-		predicateFuzzGenerator,
-	).MaxDepth(15) // Limit depth to avoid infinite recursion
-	for i := 0; i < 1000; i++ {
-		var original types.AndPredicateAttributes
-		f.Fuzz(&original)
-
-		// types → shared → types
-		shared := FromAndPredicateAttributes(&original)
-		converted := ToAndPredicateAttributes(shared)
-
-		assert.Equal(t, original, *converted, "AndPredicateAttributes roundtrip failed: types → shared → types")
-	}
-}
-
-func TestFuzzAndPredicateAttributes_Roundtrip_FromShared(t *testing.T) {
-	f := fuzz.New().NilChance(0.2).Funcs(
-		predicateSharedFuzzGenerator,
-	).MaxDepth(15) // Limit depth to avoid infinite recursion
-	for i := 0; i < 1000; i++ {
-		var original shared.AndPredicateAttributes
-		f.Fuzz(&original)
-
-		// shared → types → shared
-		types := ToAndPredicateAttributes(&original)
-		converted := FromAndPredicateAttributes(types)
-
-		assert.Equal(t, original, *converted, "AndPredicateAttributes roundtrip failed: shared → types → shared")
-	}
-}
-
-func TestFuzzOrPredicateAttributes_Roundtrip_FromTypes(t *testing.T) {
-	f := fuzz.New().NilChance(0.2).Funcs(
-		predicateFuzzGenerator,
-	).MaxDepth(15) // Limit depth to avoid infinite recursion
-	for i := 0; i < 1000; i++ {
-		var original types.OrPredicateAttributes
-		f.Fuzz(&original)
-
-		// types → shared → types
-		shared := FromOrPredicateAttributes(&original)
-		converted := ToOrPredicateAttributes(shared)
-
-		assert.Equal(t, original, *converted, "OrPredicateAttributes roundtrip failed: types → shared → types")
-	}
-}
-
-func TestFuzzOrPredicateAttributes_Roundtrip_FromShared(t *testing.T) {
-	f := fuzz.New().NilChance(0.2).Funcs(
-		predicateSharedFuzzGenerator,
-	).MaxDepth(15) // Limit depth to avoid infinite recursion
-	for i := 0; i < 1000; i++ {
-		var original shared.OrPredicateAttributes
-		f.Fuzz(&original)
-
-		// shared → types → shared
-		types := ToOrPredicateAttributes(&original)
-		converted := FromOrPredicateAttributes(types)
-
-		assert.Equal(t, original, *converted, "OrPredicateAttributes roundtrip failed: shared → types → shared")
-	}
-}
-
-func TestFuzzNotPredicateAttributes_Roundtrip_FromTypes(t *testing.T) {
-	f := fuzz.New().NilChance(0.2).Funcs(
-		predicateFuzzGenerator,
-	).MaxDepth(15) // Limit depth to avoid infinite recursion
-	for i := 0; i < 1000; i++ {
-		var original types.NotPredicateAttributes
-		f.Fuzz(&original)
-
-		// types → shared → types
-		shared := FromNotPredicateAttributes(&original)
-		converted := ToNotPredicateAttributes(shared)
-
-		assert.Equal(t, original, *converted, "NotPredicateAttributes roundtrip failed: types → shared → types")
-	}
-}
-
-func TestFuzzNotPredicateAttributes_Roundtrip_FromShared(t *testing.T) {
-	f := fuzz.New().NilChance(0.2).Funcs(
-		predicateSharedFuzzGenerator,
-	).MaxDepth(15) // Limit depth to avoid infinite recursion
-	for i := 0; i < 1000; i++ {
-		var original shared.NotPredicateAttributes
-		f.Fuzz(&original)
-
-		// shared → types → shared
-		types := ToNotPredicateAttributes(&original)
-		converted := FromNotPredicateAttributes(types)
-
-		assert.Equal(t, original, *converted, "NotPredicateAttributes roundtrip failed: shared → types → shared")
+		assert.Equal(t, original, *converted, "DomainIDPredicateAttributes roundtrip failed: shared → types → shared")
 	}
 }
 
@@ -376,50 +240,10 @@ func TestFuzzPredicate_Roundtrip_FromShared(t *testing.T) {
 	}
 }
 
-func TestFuzzPredicateList_Roundtrip_FromTypes(t *testing.T) {
-	f := fuzz.New().NilChance(0.2).Funcs(
-		predicateFuzzGenerator,
-	).MaxDepth(15) // Limit depth to avoid infinite recursion
-	for i := 0; i < 1000; i++ {
-		var original []*types.Predicate
-		f.Fuzz(&original)
-
-		// types → shared → types
-		shared := FromPredicateList(original)
-		converted := ToPredicateList(shared)
-
-		assert.Equal(t, original, converted, "PredicateList roundtrip failed: types → shared → types")
-	}
-}
-
-func TestFuzzPredicateList_Roundtrip_FromShared(t *testing.T) {
-	f := fuzz.New().NilChance(0.2).Funcs(
-		predicateSharedFuzzGenerator,
-	).MaxDepth(15) // Limit depth to avoid infinite recursion
-	for i := 0; i < 1000; i++ {
-		var original []*shared.Predicate
-		f.Fuzz(&original)
-
-		// shared → types → shared
-		types := ToPredicateList(original)
-		converted := FromPredicateList(types)
-
-		assert.Equal(t, original, converted, "PredicateList roundtrip failed: shared → types → shared")
-	}
-}
-
 func TestFuzzPredicate_NilHandling(t *testing.T) {
 	// Test nil handling
 	assert.Nil(t, FromPredicate(nil))
 	assert.Nil(t, ToPredicate(nil))
-	assert.Nil(t, FromPredicateList(nil))
-	assert.Nil(t, ToPredicateList(nil))
-	assert.Nil(t, FromAndPredicateAttributes(nil))
-	assert.Nil(t, ToAndPredicateAttributes(nil))
-	assert.Nil(t, FromOrPredicateAttributes(nil))
-	assert.Nil(t, ToOrPredicateAttributes(nil))
-	assert.Nil(t, FromNotPredicateAttributes(nil))
-	assert.Nil(t, ToNotPredicateAttributes(nil))
 	assert.Nil(t, FromDomainIDPredicateAttributes(nil))
 	assert.Nil(t, ToDomainIDPredicateAttributes(nil))
 }
