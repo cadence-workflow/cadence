@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -x
+set -ex
 
 # Default values
 CASSANDRA_SEEDS="${CASSANDRA_SEEDS:-cassandra}"
@@ -28,7 +28,7 @@ wait_for_cassandra() {
     timeout=300  # 5 minutes timeout
     counter=0
     
-    while [ $counter -lt $timeout ]; do
+    while [[ $counter -lt $timeout ]]; do
         if cadence-cassandra-tool --ep $server --u $CASSANDRA_USER --pw $CASSANDRA_PASSWORD --pv $CASSANDRA_PROTO_VERSION create -k test_keyspace --rf 1 2>/dev/null; then
             echo 'cassandra started and ready'
             return 0

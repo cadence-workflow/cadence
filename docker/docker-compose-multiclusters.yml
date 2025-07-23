@@ -13,7 +13,7 @@ services:
       retries: 10
   # Setup schemas for primary and secondary clusters
   cadence-schema-setup:
-    image: ubercadence/server:cdnc-12748
+    image: ubercadence/server:master-auto-setup
     environment:
       - "CASSANDRA_SEEDS=cassandra"
       - "CASSANDRA_USER=cassandra"
