@@ -1993,11 +1993,6 @@ const (
 	// Default value: N/A
 	// TODO: https://github.com/uber/cadence/issues/3861
 	EnableServiceAuthorizationLogOnly
-	// EnableAuthorizationV2 is the key to enable authorization v2 for a domain, only for extension binary:
-	// KeyName: N/A
-	// Default value: N/A
-	// TODO: https://github.com/uber/cadence/issues/3861
-	EnableAuthorizationV2
 	// ESAnalyzerPause defines if we want to dynamically pause the analyzer workflow
 	// KeyName: worker.ESAnalyzerPause
 	// Value type: bool
@@ -2387,7 +2382,12 @@ const (
 	// Default value: "disabled"
 	// Allowed filters: RatelimitKey (on global key, e.g. prefixed by collection name)
 	FrontendGlobalRatelimiterMode
-
+	// EnableAuthorizationV2 is the key to enable authorization v2 for a domain, only for extension binary:
+	// KeyName: system.enableAuthorizationV2
+	// Value type: string ["disabled","shadow","enabled"]
+	// Default value: "disabled"
+	// TODO: https://github.com/uber/cadence/issues/3861
+	EnableAuthorizationV2
 	TasklistLoadBalancerStrategy
 
 	// MatchingShardDistributionMode is the mode of shard distribution for matching, we currently have four modes, we _highly_
@@ -4493,11 +4493,6 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "EnableServiceAuthorizationLogOnly is the key to enable authorization logging for a service, only for extension binary:",
 		DefaultValue: false,
 	},
-	EnableAuthorizationV2: {
-		KeyName:      "system.enableAuthorizationV2",
-		Description:  "EnableAuthorizationV2 is the key to enable authorization v2 for a domain, only for extension binary:",
-		DefaultValue: false,
-	},
 	ESAnalyzerPause: {
 		KeyName:      "worker.ESAnalyzerPause",
 		Description:  "ESAnalyzerPause defines if we want to dynamically pause the analyzer workflow",
@@ -4847,6 +4842,11 @@ var StringKeys = map[StringKey]DynamicString{
 		Description:  "FrontendGlobalRatelimiterMode defines which mode a global key should be in, per key, to make gradual changes to ratelimiter algorithms",
 		DefaultValue: "disabled",
 		Filters:      []Filter{RatelimitKey},
+	},
+	EnableAuthorizationV2: {
+		KeyName:      "system.enableAuthorizationV2",
+		Description:  "EnableAuthorizationV2 is the key to enable authorization v2 for a domain, only for extension binary:",
+		DefaultValue: "disabled", // available options: "disabled","shadow","enabled"
 	},
 	TasklistLoadBalancerStrategy: {
 		KeyName:      "system.tasklistLoadBalancerStrategy",
