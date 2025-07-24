@@ -36,6 +36,7 @@ import (
 	membership "github.com/uber/cadence/common/membership"
 	messaging "github.com/uber/cadence/common/messaging"
 	metrics "github.com/uber/cadence/common/metrics"
+	structured "github.com/uber/cadence/common/metrics/structured"
 	persistence "github.com/uber/cadence/common/persistence"
 	client0 "github.com/uber/cadence/common/persistence/client"
 	rpc "github.com/uber/cadence/common/quotas/global/rpc"
@@ -496,6 +497,20 @@ func (m *MockResource) GetMetricsClient() metrics.Client {
 func (mr *MockResourceMockRecorder) GetMetricsClient() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMetricsClient", reflect.TypeOf((*MockResource)(nil).GetMetricsClient))
+}
+
+// GetMetricsEmitter mocks base method.
+func (m *MockResource) GetMetricsEmitter() structured.Emitter {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMetricsEmitter")
+	ret0, _ := ret[0].(structured.Emitter)
+	return ret0
+}
+
+// GetMetricsEmitter indicates an expected call of GetMetricsEmitter.
+func (mr *MockResourceMockRecorder) GetMetricsEmitter() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMetricsEmitter", reflect.TypeOf((*MockResource)(nil).GetMetricsEmitter))
 }
 
 // GetPayloadSerializer mocks base method.
