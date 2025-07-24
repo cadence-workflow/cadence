@@ -25,22 +25,17 @@ package serialization
 import (
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/golang/snappy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/constants"
-	"github.com/uber/cadence/common/types"
 )
 
 func TestSnappyThriftEncoderRoundTrip(t *testing.T) {
 	encoder := newSnappyThriftEncoder()
 	decoder := newSnappyThriftDecoder()
-
-	now := time.Now().Round(time.Second)
 
 	testCases := []struct {
 		name       string
@@ -50,24 +45,7 @@ func TestSnappyThriftEncoderRoundTrip(t *testing.T) {
 	}{
 		{
 			name: "ShardInfo",
-			data: &ShardInfo{
-				StolenSinceRenew:                      1,
-				UpdatedAt:                             now,
-				ReplicationAckLevel:                   1,
-				TransferAckLevel:                      1,
-				TimerAckLevel:                         now,
-				DomainNotificationVersion:             1,
-				ClusterTransferAckLevel:               map[string]int64{"test": 1},
-				ClusterTimerAckLevel:                  map[string]time.Time{"test": now},
-				TransferProcessingQueueStates:         []byte{1, 2, 3},
-				TimerProcessingQueueStates:            []byte{1, 2, 3},
-				Owner:                                 "owner",
-				ClusterReplicationLevel:               map[string]int64{"test": 1},
-				PendingFailoverMarkers:                []byte{2, 3, 4},
-				PendingFailoverMarkersEncoding:        "",
-				TransferProcessingQueueStatesEncoding: "",
-				TimerProcessingQueueStatesEncoding:    "",
-			},
+			data: shardInfoTestData,
 			encodeFunc: func(data interface{}) ([]byte, error) {
 				return encoder.shardInfoToBlob(data.(*ShardInfo))
 			},
@@ -77,29 +55,7 @@ func TestSnappyThriftEncoderRoundTrip(t *testing.T) {
 		},
 		{
 			name: "DomainInfo",
-			data: &DomainInfo{
-				Name:                        "test",
-				Description:                 "test_desc",
-				Owner:                       "test_owner",
-				Status:                      1,
-				Retention:                   48 * time.Hour,
-				EmitMetric:                  true,
-				ArchivalBucket:              "test_bucket",
-				ArchivalStatus:              1,
-				ConfigVersion:               1,
-				FailoverVersion:             1,
-				NotificationVersion:         1,
-				FailoverNotificationVersion: 1,
-				ActiveClusterName:           "test_active_cluster",
-				Clusters:                    []string{"test_active_cluster", "test_standby_cluster"},
-				Data:                        map[string]string{"test_key": "test_value"},
-				BadBinaries:                 []byte{1, 2, 3},
-				BadBinariesEncoding:         "",
-				HistoryArchivalStatus:       1,
-				HistoryArchivalURI:          "test_history_archival_uri",
-				VisibilityArchivalStatus:    1,
-				VisibilityArchivalURI:       "test_visibility_archival_uri",
-			},
+			data: domainInfoTestData,
 			encodeFunc: func(data interface{}) ([]byte, error) {
 				return encoder.domainInfoToBlob(data.(*DomainInfo))
 			},
@@ -109,18 +65,7 @@ func TestSnappyThriftEncoderRoundTrip(t *testing.T) {
 		},
 		{
 			name: "HistoryTreeInfo",
-			data: &HistoryTreeInfo{
-				CreatedTimestamp: now,
-				Ancestors: []*types.HistoryBranchRange{
-					{
-						BranchID: "test_branch_id1",
-					},
-					{
-						BranchID: "test_branch_id2",
-					},
-				},
-				Info: "test_info",
-			},
+			data: historyTreeInfoTestData,
 			encodeFunc: func(data interface{}) ([]byte, error) {
 				return encoder.historyTreeInfoToBlob(data.(*HistoryTreeInfo))
 			},
@@ -130,68 +75,7 @@ func TestSnappyThriftEncoderRoundTrip(t *testing.T) {
 		},
 		{
 			name: "WorkflowExecutionInfo",
-			data: &WorkflowExecutionInfo{
-				ParentDomainID:                     MustParseUUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8"),
-				ParentWorkflowID:                   "test_parent_workflow_id",
-				ParentRunID:                        MustParseUUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8"),
-				InitiatedID:                        1,
-				CompletionEventBatchID:             common.Int64Ptr(2),
-				CompletionEvent:                    []byte("test_completion_event"),
-				CompletionEventEncoding:            "test_completion_event_encoding",
-				TaskList:                           "test_task_list",
-				WorkflowTypeName:                   "test_workflow_type",
-				WorkflowTimeout:                    10 * time.Second,
-				DecisionTaskTimeout:                5 * time.Second,
-				ExecutionContext:                   []byte("test_execution_context"),
-				State:                              1,
-				CloseStatus:                        1,
-				StartVersion:                       1,
-				LastWriteEventID:                   common.Int64Ptr(3),
-				LastEventTaskID:                    4,
-				LastFirstEventID:                   5,
-				LastProcessedEvent:                 6,
-				StartTimestamp:                     now,
-				LastUpdatedTimestamp:               now,
-				CreateRequestID:                    "test_create_request_id",
-				DecisionVersion:                    7,
-				DecisionScheduleID:                 8,
-				DecisionStartedID:                  9,
-				DecisionRequestID:                  "test_decision_request_id",
-				DecisionTimeout:                    3 * time.Second,
-				DecisionAttempt:                    10,
-				DecisionStartedTimestamp:           now,
-				DecisionScheduledTimestamp:         now,
-				DecisionOriginalScheduledTimestamp: now,
-				CancelRequested:                    true,
-				CancelRequestID:                    "test_cancel_request_id",
-				StickyTaskList:                     "test_sticky_task_list",
-				StickyScheduleToStartTimeout:       2 * time.Second,
-				RetryAttempt:                       11,
-				RetryInitialInterval:               1 * time.Second,
-				RetryMaximumInterval:               30 * time.Second,
-				RetryMaximumAttempts:               3,
-				RetryExpiration:                    time.Hour,
-				RetryBackoffCoefficient:            2.0,
-				RetryExpirationTimestamp:           now,
-				RetryNonRetryableErrors:            []string{"test_error"},
-				HasRetryPolicy:                     true,
-				CronSchedule:                       "test_cron",
-				IsCron:                             true,
-				EventStoreVersion:                  12,
-				EventBranchToken:                   []byte("test_branch_token"),
-				SignalCount:                        13,
-				HistorySize:                        14,
-				ClientLibraryVersion:               "test_client_version",
-				ClientFeatureVersion:               "test_feature_version",
-				ClientImpl:                         "test_client_impl",
-				AutoResetPoints:                    []byte("test_reset_points"),
-				AutoResetPointsEncoding:            "test_reset_points_encoding",
-				SearchAttributes:                   map[string][]byte{"test_key": []byte("test_value")},
-				Memo:                               map[string][]byte{"test_memo": []byte("test_memo_value")},
-				VersionHistories:                   []byte("test_version_histories"),
-				VersionHistoriesEncoding:           "test_version_histories_encoding",
-				FirstExecutionRunID:                MustParseUUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8"),
-			},
+			data: workflowExecutionInfoTestData,
 			encodeFunc: func(data interface{}) ([]byte, error) {
 				return encoder.workflowExecutionInfoToBlob(data.(*WorkflowExecutionInfo))
 			},
@@ -201,39 +85,7 @@ func TestSnappyThriftEncoderRoundTrip(t *testing.T) {
 		},
 		{
 			name: "ActivityInfo",
-			data: &ActivityInfo{
-				Version:                  1,
-				ScheduledEventBatchID:    2,
-				ScheduledEvent:           []byte("test_scheduled_event"),
-				ScheduledEventEncoding:   "test_scheduled_encoding",
-				ScheduledTimestamp:       now,
-				StartedID:                3,
-				StartedEvent:             []byte("test_started_event"),
-				StartedEventEncoding:     "test_started_encoding",
-				StartedTimestamp:         now,
-				ActivityID:               "test_activity_id",
-				RequestID:                "test_request_id",
-				ScheduleToStartTimeout:   5 * time.Second,
-				ScheduleToCloseTimeout:   10 * time.Second,
-				StartToCloseTimeout:      8 * time.Second,
-				HeartbeatTimeout:         3 * time.Second,
-				CancelRequested:          true,
-				CancelRequestID:          4,
-				TimerTaskStatus:          5,
-				Attempt:                  6,
-				TaskList:                 "test_task_list",
-				StartedIdentity:          "test_identity",
-				HasRetryPolicy:           true,
-				RetryInitialInterval:     1 * time.Second,
-				RetryMaximumInterval:     30 * time.Second,
-				RetryMaximumAttempts:     3,
-				RetryExpirationTimestamp: now,
-				RetryBackoffCoefficient:  2.0,
-				RetryNonRetryableErrors:  []string{"test_error"},
-				RetryLastFailureReason:   "test_failure_reason",
-				RetryLastWorkerIdentity:  "test_worker_identity",
-				RetryLastFailureDetails:  []byte("test_failure_details"),
-			},
+			data: activityInfoTestData,
 			encodeFunc: func(data interface{}) ([]byte, error) {
 				return encoder.activityInfoToBlob(data.(*ActivityInfo))
 			},
@@ -243,22 +95,7 @@ func TestSnappyThriftEncoderRoundTrip(t *testing.T) {
 		},
 		{
 			name: "ChildExecutionInfo",
-			data: &ChildExecutionInfo{
-				Version:                1,
-				InitiatedEventBatchID:  2,
-				StartedID:              3,
-				InitiatedEvent:         []byte("test_initiated_event"),
-				InitiatedEventEncoding: "test_initiated_encoding",
-				StartedWorkflowID:      "test_started_workflow_id",
-				StartedRunID:           MustParseUUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8"),
-				StartedEvent:           []byte("test_started_event"),
-				StartedEventEncoding:   "test_started_encoding",
-				CreateRequestID:        "test_create_request_id",
-				DomainID:               "test_domain_id",
-				DomainNameDEPRECATED:   "test_domain_name",
-				WorkflowTypeName:       "test_workflow_type",
-				ParentClosePolicy:      4,
-			},
+			data: childExecutionInfoTestData,
 			encodeFunc: func(data interface{}) ([]byte, error) {
 				return encoder.childExecutionInfoToBlob(data.(*ChildExecutionInfo))
 			},
@@ -268,14 +105,7 @@ func TestSnappyThriftEncoderRoundTrip(t *testing.T) {
 		},
 		{
 			name: "SignalInfo",
-			data: &SignalInfo{
-				Version:               1,
-				InitiatedEventBatchID: 2,
-				RequestID:             "test_request_id",
-				Name:                  "test_signal_name",
-				Input:                 []byte("test_input"),
-				Control:               []byte("test_control"),
-			},
+			data: signalInfoTestData,
 			encodeFunc: func(data interface{}) ([]byte, error) {
 				return encoder.signalInfoToBlob(data.(*SignalInfo))
 			},
@@ -285,11 +115,7 @@ func TestSnappyThriftEncoderRoundTrip(t *testing.T) {
 		},
 		{
 			name: "RequestCancelInfo",
-			data: &RequestCancelInfo{
-				Version:               1,
-				InitiatedEventBatchID: 2,
-				CancelRequestID:       "test_cancel_request_id",
-			},
+			data: requestCancelInfoTestData,
 			encodeFunc: func(data interface{}) ([]byte, error) {
 				return encoder.requestCancelInfoToBlob(data.(*RequestCancelInfo))
 			},
@@ -299,12 +125,7 @@ func TestSnappyThriftEncoderRoundTrip(t *testing.T) {
 		},
 		{
 			name: "TimerInfo",
-			data: &TimerInfo{
-				Version:         1,
-				StartedID:       2,
-				ExpiryTimestamp: now,
-				TaskID:          3,
-			},
+			data: timerInfoTestData,
 			encodeFunc: func(data interface{}) ([]byte, error) {
 				return encoder.timerInfoToBlob(data.(*TimerInfo))
 			},
@@ -314,14 +135,7 @@ func TestSnappyThriftEncoderRoundTrip(t *testing.T) {
 		},
 		{
 			name: "TaskInfo",
-			data: &TaskInfo{
-				WorkflowID:       "test_workflow_id",
-				RunID:            MustParseUUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8"),
-				ScheduleID:       1,
-				ExpiryTimestamp:  now,
-				CreatedTimestamp: now,
-				PartitionConfig:  map[string]string{"test_key": "test_value"},
-			},
+			data: taskInfoTestData,
 			encodeFunc: func(data interface{}) ([]byte, error) {
 				return encoder.taskInfoToBlob(data.(*TaskInfo))
 			},
@@ -331,12 +145,7 @@ func TestSnappyThriftEncoderRoundTrip(t *testing.T) {
 		},
 		{
 			name: "TaskListInfo",
-			data: &TaskListInfo{
-				Kind:            1,
-				AckLevel:        2,
-				ExpiryTimestamp: now,
-				LastUpdated:     now,
-			},
+			data: taskListInfoTestData,
 			encodeFunc: func(data interface{}) ([]byte, error) {
 				return encoder.taskListInfoToBlob(data.(*TaskListInfo))
 			},
@@ -346,21 +155,7 @@ func TestSnappyThriftEncoderRoundTrip(t *testing.T) {
 		},
 		{
 			name: "TransferTaskInfo",
-			data: &TransferTaskInfo{
-				DomainID:                MustParseUUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8"),
-				WorkflowID:              "test_workflow_id",
-				RunID:                   MustParseUUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8"),
-				TaskType:                1,
-				TargetDomainID:          MustParseUUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8"),
-				TargetDomainIDs:         []UUID{MustParseUUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")},
-				TargetWorkflowID:        "test_target_workflow_id",
-				TargetRunID:             MustParseUUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8"),
-				TaskList:                "test_task_list",
-				TargetChildWorkflowOnly: true,
-				ScheduleID:              2,
-				Version:                 3,
-				VisibilityTimestamp:     now,
-			},
+			data: transferTaskInfoTestData,
 			encodeFunc: func(data interface{}) ([]byte, error) {
 				return encoder.transferTaskInfoToBlob(data.(*TransferTaskInfo))
 			},
@@ -370,16 +165,7 @@ func TestSnappyThriftEncoderRoundTrip(t *testing.T) {
 		},
 		{
 			name: "TimerTaskInfo",
-			data: &TimerTaskInfo{
-				DomainID:        MustParseUUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8"),
-				WorkflowID:      "test_workflow_id",
-				RunID:           MustParseUUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8"),
-				TaskType:        1,
-				TimeoutType:     common.Int16Ptr(2),
-				Version:         3,
-				ScheduleAttempt: 4,
-				EventID:         5,
-			},
+			data: timerTaskInfoTestData,
 			encodeFunc: func(data interface{}) ([]byte, error) {
 				return encoder.timerTaskInfoToBlob(data.(*TimerTaskInfo))
 			},
@@ -389,21 +175,7 @@ func TestSnappyThriftEncoderRoundTrip(t *testing.T) {
 		},
 		{
 			name: "ReplicationTaskInfo",
-			data: &ReplicationTaskInfo{
-				DomainID:                MustParseUUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8"),
-				WorkflowID:              "test_workflow_id",
-				RunID:                   MustParseUUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8"),
-				TaskType:                1,
-				Version:                 2,
-				FirstEventID:            3,
-				NextEventID:             4,
-				ScheduledID:             5,
-				EventStoreVersion:       6,
-				NewRunEventStoreVersion: 7,
-				BranchToken:             []byte("test_branch_token"),
-				NewRunBranchToken:       []byte("test_new_run_branch_token"),
-				CreationTimestamp:       now,
-			},
+			data: replicationTaskInfoTestData,
 			encodeFunc: func(data interface{}) ([]byte, error) {
 				return encoder.replicationTaskInfoToBlob(data.(*ReplicationTaskInfo))
 			},
@@ -579,12 +351,7 @@ func TestSnappyThriftRWEncode(t *testing.T) {
 
 	t.Run("Valid thrift object", func(t *testing.T) {
 		// Create a simple thrift struct and encode it
-		shardInfo := &ShardInfo{
-			StolenSinceRenew:    1,
-			UpdatedAt:           time.Now(),
-			ReplicationAckLevel: 2,
-			TransferAckLevel:    3,
-		}
+		shardInfo := shardInfoTestData
 
 		// Convert to thrift format
 		thriftStruct := shardInfoToThrift(shardInfo)
@@ -639,17 +406,7 @@ func TestSnappyThriftEncoderWithParser(t *testing.T) {
 	parser, err := NewParser(constants.EncodingTypeThriftRWSnappy, constants.EncodingTypeThriftRWSnappy)
 	require.NoError(t, err)
 
-	now := time.Now().Round(time.Second)
-
-	testData := &ShardInfo{
-		StolenSinceRenew:          1,
-		UpdatedAt:                 now,
-		ReplicationAckLevel:       2,
-		TransferAckLevel:          3,
-		TimerAckLevel:             now,
-		DomainNotificationVersion: 4,
-		Owner:                     "test_owner",
-	}
+	testData := shardInfoTestData
 
 	// Encode using parser
 	blob, err := parser.ShardInfoToBlob(testData)
