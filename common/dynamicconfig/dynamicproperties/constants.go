@@ -1993,6 +1993,11 @@ const (
 	// Default value: N/A
 	// TODO: https://github.com/uber/cadence/issues/3861
 	EnableServiceAuthorizationLogOnly
+	// EnableAuthorizationV2 is the key to enable authorization v2 for a domain, only for extension binary:
+	// KeyName: N/A
+	// Default value: N/A
+	// TODO: https://github.com/uber/cadence/issues/3861
+	EnableAuthorizationV2
 	// ESAnalyzerPause defines if we want to dynamically pause the analyzer workflow
 	// KeyName: worker.ESAnalyzerPause
 	// Value type: bool
@@ -4486,6 +4491,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	EnableServiceAuthorizationLogOnly: {
 		KeyName:      "system.enableServiceAuthorizationLogOnly",
 		Description:  "EnableServiceAuthorizationLogOnly is the key to enable authorization logging for a service, only for extension binary:",
+		DefaultValue: false,
+	},
+	EnableAuthorizationV2: {
+		KeyName:      "system.enableAuthorizationV2",
+		Description:  "EnableAuthorizationV2 is the key to enable authorization v2 for a domain, only for extension binary:",
 		DefaultValue: false,
 	},
 	ESAnalyzerPause: {
