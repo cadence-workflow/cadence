@@ -344,7 +344,7 @@ func (r *historyReplicatorImpl) applyEvents(
 	defer func() {
 		if rec := recover(); rec != nil {
 			releaseFn(errPanic)
-			stack := make([]byte, 4096)
+			stack := make([]byte, 1<<14) // 16kb
 			n := runtime.Stack(stack, false)
 			stack = stack[:n]
 			if retError == nil {
