@@ -1,6 +1,8 @@
 package queuev2
 
 import (
+	"math/rand"
+	"sort"
 	"testing"
 
 	fuzz "github.com/google/gofuzz"
@@ -31,14 +33,49 @@ func TestConvertTaskRange(t *testing.T) {
 	}
 }
 
-// TODO: remove this once we implement converter for predicates
-// We're creating small PRs for introducing predicates, in the current PR, we only create mappers between common/types and thrift types
-func predicateFuzzGenerator(t **types.Predicate, c fuzz.Continue) {
-	*t = nil
+func predicateFuzzGenerator(t *types.Predicate, c fuzz.Continue) {
+	switch c.Intn(int(types.NumPredicateTypes)) {
+	case 0:
+		t.PredicateType = types.PredicateTypeUniversal
+		c.Fuzz(&t.UniversalPredicateAttributes)
+	case 1:
+		t.PredicateType = types.PredicateTypeEmpty
+		c.Fuzz(&t.EmptyPredicateAttributes)
+	case 2:
+		t.PredicateType = types.PredicateTypeDomainID
+		c.Fuzz(&t.DomainIDPredicateAttributes)
+	default:
+		panic("invalid predicate type")
+	}
+}
+
+func domainIDPredicateAttributesFuzzGenerator(t *types.DomainIDPredicateAttributes, c fuzz.Continue) {
+	const maxCount = 10 // adjust as needed
+	count := rand.Intn(maxCount) + 1
+
+	seen := make(map[string]struct{})
+	t.DomainIDs = make([]string, 0, count)
+
+	for len(t.DomainIDs) < count {
+		var s string
+		c.Fuzz(&s)
+		if s != "" && len(s) >= 3 {
+			if _, exists := seen[s]; !exists {
+				seen[s] = struct{}{}
+				t.DomainIDs = append(t.DomainIDs, s)
+			}
+		}
+	}
+
+	sort.Strings(t.DomainIDs)
+
+	var b bool
+	c.Fuzz(&b)
+	t.IsExclusive = &b
 }
 
 func TestConvertVirtualSliceState(t *testing.T) {
-	f := fuzz.New().NilChance(0).Funcs(predicateFuzzGenerator)
+	f := fuzz.New().NilChance(0).Funcs(predicateFuzzGenerator, domainIDPredicateAttributesFuzzGenerator)
 	for i := 0; i < 1000; i++ {
 		var s types.VirtualSliceState
 		f.Fuzz(&s)
@@ -49,7 +86,7 @@ func TestConvertVirtualSliceState(t *testing.T) {
 }
 
 func TestConvertVirtualQueueState(t *testing.T) {
-	f := fuzz.New().NilChance(0).Funcs(predicateFuzzGenerator)
+	f := fuzz.New().NilChance(0).Funcs(predicateFuzzGenerator, domainIDPredicateAttributesFuzzGenerator)
 	for i := 0; i < 1000; i++ {
 		var s types.VirtualQueueState
 		f.Fuzz(&s)
@@ -60,7 +97,7 @@ func TestConvertVirtualQueueState(t *testing.T) {
 }
 
 func TestConvertQueueState(t *testing.T) {
-	f := fuzz.New().NilChance(0).Funcs(predicateFuzzGenerator)
+	f := fuzz.New().NilChance(0).Funcs(predicateFuzzGenerator, domainIDPredicateAttributesFuzzGenerator)
 	for i := 0; i < 1000; i++ {
 		var s types.QueueState
 		f.Fuzz(&s)

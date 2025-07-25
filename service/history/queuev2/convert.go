@@ -1,7 +1,11 @@
 package queuev2
 
 import (
+	"fmt"
+	"slices"
 	"time"
+
+	"golang.org/x/exp/maps"
 
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -50,15 +54,14 @@ func ToPersistenceVirtualQueueState(state []VirtualSliceState) *types.VirtualQue
 func FromPersistenceVirtualSliceState(state *types.VirtualSliceState) VirtualSliceState {
 	return VirtualSliceState{
 		Range:     FromPersistenceTaskRange(state.TaskRange),
-		Predicate: NewUniversalPredicate(),
-		// Predicate: FromPersistencePredicate(state.Predicate),
+		Predicate: FromPersistencePredicate(state.Predicate),
 	}
 }
 
 func ToPersistenceVirtualSliceState(state VirtualSliceState) *types.VirtualSliceState {
 	return &types.VirtualSliceState{
 		TaskRange: ToPersistenceTaskRange(state.Range),
-		// Predicate: ToPersistencePredicate(state.Predicate),
+		Predicate: ToPersistencePredicate(state.Predicate),
 	}
 }
 
@@ -84,5 +87,36 @@ func ToPersistenceTaskKey(key persistence.HistoryTaskKey) *types.TaskKey {
 	return &types.TaskKey{
 		TaskID:            key.GetTaskID(),
 		ScheduledTimeNano: key.GetScheduledTime().UnixNano(),
+	}
+}
+
+func FromPersistencePredicate(predicate *types.Predicate) Predicate {
+	if predicate == nil {
+		return NewUniversalPredicate()
+	}
+	switch predicate.PredicateType {
+	case types.PredicateTypeUniversal:
+		return NewUniversalPredicate()
+	case types.PredicateTypeEmpty:
+		return NewEmptyPredicate()
+	case types.PredicateTypeDomainID:
+		return NewDomainIDPredicate(predicate.GetDomainIDPredicateAttributes().DomainIDs, predicate.GetDomainIDPredicateAttributes().GetIsExclusive())
+	default:
+		panic(fmt.Sprintf("unknown predicate type: %v", predicate.PredicateType))
+	}
+}
+
+func ToPersistencePredicate(predicate Predicate) *types.Predicate {
+	switch p := predicate.(type) {
+	case *universalPredicate:
+		return &types.Predicate{PredicateType: types.PredicateTypeUniversal, UniversalPredicateAttributes: &types.UniversalPredicateAttributes{}}
+	case *emptyPredicate:
+		return &types.Predicate{PredicateType: types.PredicateTypeEmpty, EmptyPredicateAttributes: &types.EmptyPredicateAttributes{}}
+	case *domainIDPredicate:
+		domainIDs := maps.Keys(p.domainIDs)
+		slices.Sort(domainIDs)
+		return &types.Predicate{PredicateType: types.PredicateTypeDomainID, DomainIDPredicateAttributes: &types.DomainIDPredicateAttributes{DomainIDs: domainIDs, IsExclusive: &p.isExclusive}}
+	default:
+		panic(fmt.Sprintf("unknown predicate type: %T", p))
 	}
 }
