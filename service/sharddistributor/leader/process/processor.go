@@ -35,8 +35,8 @@ type Processor interface {
 
 // Factory creates processor instances
 type Factory interface {
-	// CreateProcessor now accepts the generic store and the election object
-	// which provides the transactional guard.
+	// CreateProcessor creates a new processor, it takes the generic store
+	// and the election object which provides the transactional guard.
 	CreateProcessor(cfg config.Namespace, shardStore store.Store, election store.Election) Processor
 }
 

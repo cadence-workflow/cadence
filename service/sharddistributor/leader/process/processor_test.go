@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/clock"
@@ -18,7 +19,7 @@ import (
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
-type testMocks struct {
+type testDependencies struct {
 	ctrl       *gomock.Controller
 	store      *store.MockStore
 	election   *store.MockElection
@@ -27,10 +28,10 @@ type testMocks struct {
 	cfg        config.Namespace
 }
 
-func setupProcessorTest(t *testing.T) *testMocks {
+func setupProcessorTest(t *testing.T) *testDependencies {
 	ctrl := gomock.NewController(t)
 	mockedClock := clock.NewMockedTimeSource()
-	return &testMocks{
+	return &testDependencies{
 		ctrl:       ctrl,
 		store:      store.NewMockStore(ctrl),
 		election:   store.NewMockElection(ctrl),
@@ -51,6 +52,8 @@ func setupProcessorTest(t *testing.T) *testMocks {
 }
 
 func TestRunAndTerminate(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
 	mocks := setupProcessorTest(t)
 	defer mocks.ctrl.Finish()
 	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election)
