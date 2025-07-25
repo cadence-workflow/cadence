@@ -105,10 +105,11 @@ func GetLeaderElectionFromExternal(in config.LeaderElection) LeaderElection {
 	}
 
 	return LeaderElection{
-		Enabled:    in.Enabled,
-		Store:      Store(in.Store),
-		Election:   Election(in.Election),
-		Namespaces: namespaces,
-		Process:    LeaderProcess(in.Process),
+		Enabled:     in.Enabled,
+		LeaderStore: Store(in.LeaderStore),
+		Store:       Store(in.Store),
+		Election:    Election(in.Election),
+		Namespaces:  namespaces,
+		Process:     LeaderProcess(in.Process),
 	}
 }
