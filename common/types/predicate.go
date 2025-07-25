@@ -47,6 +47,13 @@ func (d *DomainIDPredicateAttributes) Copy() *DomainIDPredicateAttributes {
 	}
 }
 
+func (d *DomainIDPredicateAttributes) GetIsExclusive() bool {
+	if d.IsExclusive == nil {
+		return false
+	}
+	return *d.IsExclusive
+}
+
 type Predicate struct {
 	PredicateType                PredicateType
 	UniversalPredicateAttributes *UniversalPredicateAttributes
@@ -64,4 +71,14 @@ func (p *Predicate) Copy() *Predicate {
 		EmptyPredicateAttributes:     p.EmptyPredicateAttributes.Copy(),
 		DomainIDPredicateAttributes:  p.DomainIDPredicateAttributes.Copy(),
 	}
+}
+
+func (p *Predicate) GetDomainIDPredicateAttributes() *DomainIDPredicateAttributes {
+	if p == nil {
+		return nil
+	}
+	if p.PredicateType != PredicateTypeDomainID {
+		return nil
+	}
+	return p.DomainIDPredicateAttributes
 }
