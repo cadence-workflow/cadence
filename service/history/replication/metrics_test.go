@@ -2,10 +2,12 @@ package replication
 
 import (
 	"fmt"
+	"math"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/uber-go/tally"
 )
 
 func TestHistogramRange(t *testing.T) {
@@ -95,4 +97,67 @@ func TestHistogramRange(t *testing.T) {
 			[4m22.144s 4m45.870059071s 5m11.743509954s 5m39.958708213s 6m10.727600093s 6m44.281314613s 7m20.871899757s 8m0.774215799s]
 			[8m44.288s 9m31.740118143s 10m23.487019909s 11m19.917416427s 12m21.455200187s 13m28.562629228s 14m41.743799517s 16m1.548431602s]
 	*/
+
+	// works, but the precision benefits are basically nonexistent.
+	// so use it for simplifying construction, but there isn't any *need*.
+	moreprecise := makeBuckets(160, func(i int) time.Duration {
+		// exponential func starting at 1ms and growing by 2^1/8 each time, computed uniquely per offset to minimize error.
+		//
+		// this helps significantly with 2ms+, as it achieves exact power-of-2 millisecond values
+		// until you can't notice it any more (too many seconds worth), rather than the simple
+		// compounding "multiply prev by 2^(1/8)":
+		//   curr = time.Duration(float64(curr) * factor)
+		// which yields `1.999994ms` rather than `2ms` and remains bad for all integer-powers after.
+		//
+		// simply resetting on each integer power (i.e. accumulate error 7 times, then reset)
+		// works quite well, but there's no need to make this efficient, and this is simpler.
+		// it only runs a couple of times at process start, not per-metric or anything like that.
+		return time.Duration(float64(time.Millisecond) * math.Pow(2, float64(i)/8))
+	})
+	moreprecise = append(tally.DurationBuckets{0}, moreprecise...)
+	for i := 1; i < len(moreprecise); i += 8 {
+		t.Logf("%v", moreprecise[i:i+8])
+	}
+}
+
+func TestLogHistogramRange(t *testing.T) {
+	t.Log("naive compounding exponential ---")
+	// kinda terrible, e.g.
+	//   [1ms 1.090507ms 1.189206ms 1.296838ms 1.414211ms 1.542208ms 1.681789ms 1.834003ms]
+	//   [1.999994ms 2.181008ms 2.378406ms 2.59367ms 2.828417ms 3.08441ms 3.363572ms 3.668001ms]
+	//   [3.999983ms 4.362012ms 4.756807ms 5.187334ms 5.656827ms 6.168813ms 6.727138ms 7.335996ms]
+	//    ^^^^^^^^ compounding error makes nasty buckets
+	for i := 1; i < len(official1ms100sBuckets); i += 8 {
+		t.Logf("\t%v", official1ms100sBuckets[i:i+8])
+	}
+	t.Log("reset-every-integer-power exponential ---")
+	// better:
+	//   [1ms 1.090507ms 1.189206ms 1.296838ms 1.414211ms 1.542208ms 1.681789ms 1.834003ms]
+	//   [2ms 2.181015ms 2.378413ms 2.593677ms 2.828424ms 3.084418ms 3.363581ms 3.668011ms]
+	//   [4ms 4.36203ms 4.756827ms 5.187356ms 5.656851ms 6.168839ms 6.727166ms 7.336026ms]
+	//    ^^^ much better buckets
+	for i := 1; i < len(default1ms100sBuckets); i += 8 {
+		t.Logf("\t%v", default1ms100sBuckets[i:i+8])
+	}
+	t.Log("reset-every-time exponential ---")
+	// best?
+	//   [1ms 1.090507ms 1.189207ms 1.296839ms 1.414213ms 1.54221ms 1.681792ms 1.834008ms]  // <- rarely, very slightly smaller output (seems never worse?)
+	//   [2ms 2.181015ms 2.378414ms 2.593679ms 2.828427ms 3.084421ms 3.363585ms 3.668016ms]
+	//   [4ms 4.36203ms 4.756828ms 5.187358ms 5.656854ms 6.168843ms 6.727171ms 7.336032ms]
+	//    ^^^ same buckets at start                                                  ^^ sometimes changes these last 2 digits, but we don't care about precision at this level
+	moreprecise := makeBuckets(160, func(i int) time.Duration {
+		return time.Duration(float64(time.Millisecond) * math.Pow(2, float64(i)/8))
+	})
+	moreprecise = append(tally.DurationBuckets{0}, moreprecise...)
+	for i := 1; i < len(moreprecise); i += 8 {
+		t.Logf("\t%v", moreprecise[i:i+8])
+	}
+}
+
+func makeBuckets(num int, factor func(i int) time.Duration) tally.DurationBuckets {
+	all := make([]time.Duration, num)
+	for i := range all {
+		all[i] = factor(i)
+	}
+	return all
 }
