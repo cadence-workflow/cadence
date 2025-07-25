@@ -15,14 +15,13 @@ import (
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/service/sharddistributor/config"
-	leaderStore "github.com/uber/cadence/service/sharddistributor/leader/store"
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
 type testMocks struct {
 	ctrl       *gomock.Controller
 	store      *store.MockStore
-	election   *leaderStore.MockElection
+	election   *store.MockElection
 	timeSource clock.MockedTimeSource
 	factory    Factory
 	cfg        config.Namespace
@@ -34,7 +33,7 @@ func setupProcessorTest(t *testing.T) *testMocks {
 	return &testMocks{
 		ctrl:       ctrl,
 		store:      store.NewMockStore(ctrl),
-		election:   leaderStore.NewMockElection(ctrl),
+		election:   store.NewMockElection(ctrl),
 		timeSource: mockedClock,
 		factory: NewProcessorFactory(
 			testlogger.New(t),

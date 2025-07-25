@@ -17,7 +17,6 @@ import (
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/rpc"
 	"github.com/uber/cadence/service/sharddistributor/config"
-	leaderStore "github.com/uber/cadence/service/sharddistributor/leader/store"
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
@@ -39,8 +38,8 @@ func TestFxServiceStartStop(t *testing.T) {
 				return dynamicconfig.NewNopCollection()
 			},
 			fx.Annotated{Target: func() string { return "testHost" }, Name: "hostname"},
-			func() leaderStore.Elector {
-				return leaderStore.NewMockElector(ctrl)
+			func() store.Elector {
+				return store.NewMockElector(ctrl)
 			},
 			func() store.Store {
 				return store.NewMockStore(ctrl)

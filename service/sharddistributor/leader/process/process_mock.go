@@ -16,8 +16,7 @@ import (
 	gomock "go.uber.org/mock/gomock"
 
 	config "github.com/uber/cadence/service/sharddistributor/config"
-	store "github.com/uber/cadence/service/sharddistributor/leader/store"
-	store0 "github.com/uber/cadence/service/sharddistributor/store"
+	store "github.com/uber/cadence/service/sharddistributor/store"
 )
 
 // MockProcessor is a mock of Processor interface.
@@ -97,7 +96,7 @@ func (m *MockFactory) EXPECT() *MockFactoryMockRecorder {
 }
 
 // CreateProcessor mocks base method.
-func (m *MockFactory) CreateProcessor(cfg config.Namespace, shardStore store0.Store, election store.Election) Processor {
+func (m *MockFactory) CreateProcessor(cfg config.Namespace, shardStore store.Store, election store.Election) Processor {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateProcessor", cfg, shardStore, election)
 	ret0, _ := ret[0].(Processor)

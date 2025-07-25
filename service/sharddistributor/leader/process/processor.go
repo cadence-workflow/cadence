@@ -16,7 +16,6 @@ import (
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/service/sharddistributor/config"
-	leaderstore "github.com/uber/cadence/service/sharddistributor/leader/store"
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
@@ -38,12 +37,12 @@ type Processor interface {
 type Factory interface {
 	// CreateProcessor now accepts the generic store and the election object
 	// which provides the transactional guard.
-	CreateProcessor(cfg config.Namespace, shardStore store.Store, election leaderstore.Election) Processor
+	CreateProcessor(cfg config.Namespace, shardStore store.Store, election store.Election) Processor
 }
 
 const (
-	_defaultPeriod     = time.Second
-	_deatulHearbeatTTL = 10 * time.Second
+	_defaultPeriod      = time.Second
+	_defaultHearbeatTTL = 10 * time.Second
 )
 
 type processorFactory struct {
@@ -63,7 +62,7 @@ type namespaceProcessor struct {
 	cfg                 config.LeaderProcess
 	wg                  sync.WaitGroup
 	shardStore          store.Store
-	election            leaderstore.Election
+	election            store.Election
 	lastAppliedRevision int64
 }
 
@@ -78,7 +77,7 @@ func NewProcessorFactory(
 		cfg.Process.Period = _defaultPeriod
 	}
 	if cfg.Process.HeartbeatTTL == 0 {
-		cfg.Process.HeartbeatTTL = _deatulHearbeatTTL
+		cfg.Process.HeartbeatTTL = _defaultHearbeatTTL
 	}
 
 	return &processorFactory{
@@ -90,7 +89,7 @@ func NewProcessorFactory(
 }
 
 // CreateProcessor creates a new processor for the given namespace
-func (f *processorFactory) CreateProcessor(cfg config.Namespace, shardStore store.Store, election leaderstore.Election) Processor {
+func (f *processorFactory) CreateProcessor(cfg config.Namespace, shardStore store.Store, election store.Election) Processor {
 	return &namespaceProcessor{
 		namespaceCfg:  cfg,
 		logger:        f.logger.WithTags(tag.ComponentLeaderProcessor, tag.ShardNamespace(cfg.Name)),

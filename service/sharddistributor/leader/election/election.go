@@ -14,7 +14,6 @@ import (
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/leader/process"
-	leaderStore "github.com/uber/cadence/service/sharddistributor/leader/store"
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
@@ -43,7 +42,7 @@ type Factory interface {
 type electionFactory struct {
 	hostname       string
 	cfg            config.Election
-	leaderStore    leaderStore.Elector
+	leaderStore    store.Elector
 	store          store.Store
 	logger         log.Logger
 	serviceID      string
@@ -54,7 +53,7 @@ type electionFactory struct {
 type elector struct {
 	hostname       string
 	namespace      config.Namespace
-	leaderStore    leaderStore.Elector
+	leaderStore    store.Elector
 	store          store.Store
 	logger         log.Logger
 	cfg            config.Election
@@ -68,7 +67,7 @@ type FactoryParams struct {
 
 	HostName       string `name:"hostname"`
 	Cfg            config.LeaderElection
-	LeaderStore    leaderStore.Elector
+	LeaderStore    store.Elector
 	Logger         log.Logger
 	Clock          clock.TimeSource
 	ProcessFactory process.Factory
@@ -223,7 +222,7 @@ func (e *elector) runElection(ctx context.Context, leaderCh chan<- bool) (err er
 	}
 }
 
-func (e *elector) resign(election leaderStore.Election, processor process.Processor) error {
+func (e *elector) resign(election store.Election, processor process.Processor) error {
 	ctx, cancel := e.clock.ContextWithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 

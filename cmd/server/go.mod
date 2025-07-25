@@ -15,8 +15,6 @@ replace github.com/uber/cadence/common/archiver/gcloud => ../../common/archiver/
 
 replace github.com/uber/cadence/service/sharddistributor/store/etcd => ../../service/sharddistributor/store/etcd
 
-replace github.com/uber/cadence/service/sharddistributor/leader/store/etcd => ../../service/sharddistributor/leader/store/etcd
-
 require (
 	github.com/Shopify/sarama v1.33.0 // indirect
 	github.com/VividCortex/mysqlerr v1.0.0 // indirect
@@ -72,7 +70,6 @@ require (
 require (
 	github.com/uber/cadence v0.0.0-00010101000000-000000000000
 	github.com/uber/cadence/common/archiver/gcloud v0.0.0-00010101000000-000000000000
-	github.com/uber/cadence/service/sharddistributor/leader/store/etcd v0.0.0-00010101000000-000000000000
 	github.com/uber/cadence/service/sharddistributor/store/etcd v0.0.0-00010101000000-000000000000
 	go.uber.org/automaxprocs v1.6.0
 	go.uber.org/mock v0.5.0

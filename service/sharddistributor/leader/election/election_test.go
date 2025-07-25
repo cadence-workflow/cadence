@@ -16,7 +16,6 @@ import (
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/leader/process"
-	leaderstore "github.com/uber/cadence/service/sharddistributor/leader/store"
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
@@ -41,7 +40,7 @@ func TestElector_Run(t *testing.T) {
 	logger := testlogger.New(t)
 	timeSource := clock.NewMockedTimeSource()
 
-	election := leaderstore.NewMockElection(ctrl)
+	election := store.NewMockElection(ctrl)
 	election.EXPECT().Campaign(gomock.Any(), _testHost).Return(nil)
 	election.EXPECT().Done().Return(make(chan struct{}))
 
@@ -52,7 +51,7 @@ func TestElector_Run(t *testing.T) {
 		return nil
 	})
 
-	leaderStore := leaderstore.NewMockElector(ctrl)
+	leaderStore := store.NewMockElector(ctrl)
 	leaderStore.EXPECT().CreateElection(gomock.Any(), _testNamespace.Name).Return(election, nil)
 
 	shardStore := store.NewMockStore(ctrl)
@@ -215,7 +214,7 @@ type runParams struct {
 	cancel     context.CancelFunc
 	timeSource clock.MockedTimeSource
 	electionCh chan struct{}
-	election   *leaderstore.MockElection
+	election   *store.MockElection
 	onLeader   ProcessFunc
 	onResign   ProcessFunc
 }
@@ -227,11 +226,11 @@ func prepareRun(t *testing.T, onLeader, onResign ProcessFunc) (<-chan bool, runP
 
 	electionCh := make(chan struct{})
 
-	election := leaderstore.NewMockElection(ctrl)
+	election := store.NewMockElection(ctrl)
 	election.EXPECT().Campaign(gomock.Any(), _testHost).Return(nil)
 	election.EXPECT().Done().Return(electionCh)
 
-	leaderStore := leaderstore.NewMockElector(ctrl)
+	leaderStore := store.NewMockElector(ctrl)
 	leaderStore.EXPECT().CreateElection(gomock.Any(), _testNamespace.Name).Return(election, nil)
 
 	shardStore := store.NewMockStore(ctrl)
@@ -305,12 +304,12 @@ func TestOnLeader_Error(t *testing.T) {
 	logger := testlogger.New(t)
 	timeSource := clock.NewMockedTimeSource()
 
-	election := leaderstore.NewMockElection(ctrl)
+	election := store.NewMockElection(ctrl)
 	election.EXPECT().Campaign(gomock.Any(), _testHost).Return(nil)
 	// Expect resignation after onLeader failure
 	election.EXPECT().Resign(gomock.Any()).Return(nil)
 
-	leaderStore := leaderstore.NewMockElector(ctrl)
+	leaderStore := store.NewMockElector(ctrl)
 	leaderStore.EXPECT().CreateElection(gomock.Any(), _testNamespace.Name).Return(election, nil)
 
 	shardStore := store.NewMockStore(ctrl)

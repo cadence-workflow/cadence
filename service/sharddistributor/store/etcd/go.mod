@@ -6,12 +6,9 @@ toolchain go1.23.4
 
 replace github.com/uber/cadence => ../../../..
 
-replace github.com/uber/cadence/service/sharddistributor/leader/store/etcd => ../../leader/store/etcd
-
 require (
 	github.com/stretchr/testify v1.10.0
 	github.com/uber/cadence v0.0.0-00010101000000-000000000000
-	github.com/uber/cadence/service/sharddistributor/leader/store/etcd v0.0.0-00010101000000-000000000000
 	go.etcd.io/etcd/client/v3 v3.5.5
 	go.uber.org/fx v1.23.0
 	gopkg.in/yaml.v2 v2.4.0

@@ -18,7 +18,6 @@ import (
 
 	"github.com/uber/cadence/common/config"
 	shardDistributorCfg "github.com/uber/cadence/service/sharddistributor/config"
-	leaderetcd "github.com/uber/cadence/service/sharddistributor/leader/store/etcd"
 	"github.com/uber/cadence/service/sharddistributor/store"
 	"github.com/uber/cadence/testflags"
 )
@@ -155,7 +154,7 @@ func TestGuardedOperations(t *testing.T) {
 
 	// 1. Create two potential leaders
 	// FIX: Use the correct constructor for the leader elector.
-	elector, err := leaderetcd.NewStore(leaderetcd.StoreParams{Client: tc.client, Cfg: tc.leaderCfg, Lifecycle: tc.lifecycle})
+	elector, err := NewLeaderStore(StoreParams{Client: tc.client, Cfg: tc.leaderCfg, Lifecycle: tc.lifecycle})
 	require.NoError(t, err)
 	election1, err := elector.CreateElection(ctx, namespace)
 	require.NoError(t, err)

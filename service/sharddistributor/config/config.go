@@ -56,7 +56,7 @@ type (
 		Store       Store         `yaml:"store"`
 	}
 
-	// Store provides a config for leader election.
+	// Store is a generic container for any storage configuration that should be parsed by the implementation.
 	Store struct {
 		StorageParams *config.YamlNode `yaml:"storageParams"`
 	}

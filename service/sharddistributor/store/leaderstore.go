@@ -5,11 +5,9 @@ import (
 	"fmt"
 
 	"go.uber.org/fx"
-
-	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
-//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination=store_mock.go Elector,Election
+//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination=leaderstore_mock.go Elector,Election
 
 // Elector is an interface that provides a way to establish a session for election.
 // It establishes connection and a session and provides Election to run for leader.
@@ -29,26 +27,22 @@ type Election interface {
 	Cleanup(ctx context.Context) error
 	// Guard returns a transaction guard representing the current leadership term.
 	// This guard can be passed to the generic store to perform leader-protected writes.
-	Guard() store.GuardFunc
+	Guard() GuardFunc
 }
-
-// Impl could be used to build an implementation in the registry.
-// We use registry based approach to avoid introduction of global etcd dependency.
-type Impl fx.Option
 
 var (
-	storeRegistry = make(map[string]Impl)
+	leaderStoreRegistry = make(map[string]Impl)
 )
 
-// Register registers store implementation in the registry.
-func Register(name string, factory Impl) {
-	storeRegistry[name] = factory
+// RegisterLeaderStore registers store implementation in the registry.
+func RegisterLeaderStore(name string, factory Impl) {
+	leaderStoreRegistry[name] = factory
 }
 
-// Module returns registered a leader store fx.Option from the configuration.
+// LeaderModule returns registered a leader store fx.Option from the configuration.
 // This can introduce extra dependency requirements to the fx application.
-func Module(name string) fx.Option {
-	factory, ok := storeRegistry[name]
+func LeaderModule(name string) fx.Option {
+	factory, ok := leaderStoreRegistry[name]
 	if !ok {
 		panic(fmt.Sprintf("no leader store registered with name %s", name))
 	}

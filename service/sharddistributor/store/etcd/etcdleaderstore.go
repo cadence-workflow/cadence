@@ -10,20 +10,19 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/uber/cadence/service/sharddistributor/config"
-	leaderStore "github.com/uber/cadence/service/sharddistributor/leader/store"
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
 func init() {
-	leaderStore.Register("etcd", fx.Provide(NewStore))
+	store.RegisterLeaderStore("etcd", fx.Provide(NewLeaderStore))
 }
 
-type Store struct {
+type LeaderStore struct {
 	client         *clientv3.Client
 	electionConfig etcdCfg
 }
 
-type StoreParams struct {
+type LeaderStoreParams struct {
 	fx.In
 
 	// Client could be provided externally.
@@ -39,8 +38,8 @@ type etcdCfg struct {
 	ElectionTTL time.Duration `yaml:"electionTTL"`
 }
 
-// NewStore creates a new leaderstore backed by ETCD.
-func NewStore(p StoreParams) (leaderStore.Elector, error) {
+// NewLeaderStore creates a new leaderstore backed by ETCD.
+func NewLeaderStore(p StoreParams) (store.Elector, error) {
 	if !p.Cfg.Enabled {
 		return nil, nil
 	}
@@ -65,13 +64,13 @@ func NewStore(p StoreParams) (leaderStore.Elector, error) {
 
 	p.Lifecycle.Append(fx.StopHook(etcdClient.Close))
 
-	return &Store{
+	return &LeaderStore{
 		client:         etcdClient,
 		electionConfig: out,
 	}, nil
 }
 
-func (ls *Store) CreateElection(ctx context.Context, namespace string) (el leaderStore.Election, err error) {
+func (ls *LeaderStore) CreateElection(ctx context.Context, namespace string) (el store.Election, err error) {
 	// Create a new session for election
 	session, err := concurrency.NewSession(ls.client,
 		concurrency.WithTTL(int(ls.electionConfig.ElectionTTL.Seconds())),
