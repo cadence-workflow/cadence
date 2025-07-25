@@ -39,12 +39,12 @@ import (
 
 	"github.com/uber/cadence/common/config"
 	shardDistributorCfg "github.com/uber/cadence/service/sharddistributor/config"
-	"github.com/uber/cadence/service/sharddistributor/leader/store"
+	"github.com/uber/cadence/service/sharddistributor/store"
 	"github.com/uber/cadence/testflags"
 )
 
 func TestNotEnabledLeaderElection(t *testing.T) {
-	store, err := NewStore(StoreParams{
+	store, err := NewLeaderStore(StoreParams{
 		Cfg: shardDistributorCfg.LeaderElection{Enabled: false},
 	})
 	require.NoError(t, err)
@@ -259,11 +259,11 @@ func setupETCDCluster(t *testing.T) *testCluster {
 
 	// Create store
 	storeParams := StoreParams{
-		Cfg:       shardDistributorCfg.LeaderElection{Enabled: true, Store: shardDistributorCfg.LeaderStore{StorageParams: createConfig(t, testConfig)}},
+		Cfg:       shardDistributorCfg.LeaderElection{Enabled: true, LeaderStore: shardDistributorCfg.Store{StorageParams: createConfig(t, testConfig)}},
 		Lifecycle: fxtest.NewLifecycle(t),
 	}
 
-	store, err := NewStore(storeParams)
+	store, err := NewLeaderStore(storeParams)
 	require.NoError(t, err)
 
 	return &testCluster{

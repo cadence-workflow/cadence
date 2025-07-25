@@ -16,7 +16,7 @@ import (
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/leader/process"
-	"github.com/uber/cadence/service/sharddistributor/leader/store"
+	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
 const (
@@ -50,14 +50,15 @@ func TestElector_Run(t *testing.T) {
 		close(finished)
 		return nil
 	})
-	election.EXPECT().ShardStore(gomock.Any()).Return(nil, nil)
 
 	leaderStore := store.NewMockElector(ctrl)
 	leaderStore.EXPECT().CreateElection(gomock.Any(), _testNamespace.Name).Return(election, nil)
 
+	shardStore := store.NewMockStore(ctrl)
+
 	processFactory := process.NewMockFactory(ctrl)
 	processRunner := process.NewMockProcessor(ctrl)
-	processFactory.EXPECT().CreateProcessor(_testNamespace, nil).Return(processRunner)
+	processFactory.EXPECT().CreateProcessor(_testNamespace, shardStore, election).Return(processRunner)
 
 	factory := NewElectionFactory(FactoryParams{
 		HostName: _testHost,
@@ -68,7 +69,8 @@ func TestElector_Run(t *testing.T) {
 				FailedElectionCooldown: _testFailedElectionCooldown,
 			},
 		},
-		Store:          leaderStore,
+		LeaderStore:    leaderStore,
+		Store:          shardStore,
 		Logger:         logger,
 		Clock:          timeSource,
 		ProcessFactory: processFactory,
@@ -227,14 +229,15 @@ func prepareRun(t *testing.T, onLeader, onResign ProcessFunc) (<-chan bool, runP
 	election := store.NewMockElection(ctrl)
 	election.EXPECT().Campaign(gomock.Any(), _testHost).Return(nil)
 	election.EXPECT().Done().Return(electionCh)
-	election.EXPECT().ShardStore(gomock.Any()).Return(nil, nil)
 
 	leaderStore := store.NewMockElector(ctrl)
 	leaderStore.EXPECT().CreateElection(gomock.Any(), _testNamespace.Name).Return(election, nil)
 
+	shardStore := store.NewMockStore(ctrl)
+
 	processFactory := process.NewMockFactory(ctrl)
 	processRunner := process.NewMockProcessor(ctrl)
-	processFactory.EXPECT().CreateProcessor(_testNamespace, nil).Return(processRunner)
+	processFactory.EXPECT().CreateProcessor(_testNamespace, shardStore, election).Return(processRunner)
 
 	factory := NewElectionFactory(FactoryParams{
 		HostName: _testHost,
@@ -245,7 +248,8 @@ func prepareRun(t *testing.T, onLeader, onResign ProcessFunc) (<-chan bool, runP
 				FailedElectionCooldown: _testFailedElectionCooldown,
 			},
 		},
-		Store:          leaderStore,
+		LeaderStore:    leaderStore,
+		Store:          shardStore,
 		Logger:         logger,
 		Clock:          timeSource,
 		ProcessFactory: processFactory,
@@ -304,20 +308,22 @@ func TestOnLeader_Error(t *testing.T) {
 	election.EXPECT().Campaign(gomock.Any(), _testHost).Return(nil)
 	// Expect resignation after onLeader failure
 	election.EXPECT().Resign(gomock.Any()).Return(nil)
-	election.EXPECT().ShardStore(gomock.Any()).Return(nil, nil)
 
 	leaderStore := store.NewMockElector(ctrl)
 	leaderStore.EXPECT().CreateElection(gomock.Any(), _testNamespace.Name).Return(election, nil)
 
+	shardStore := store.NewMockStore(ctrl)
+
 	processFactory := process.NewMockFactory(ctrl)
 	processRunner := process.NewMockProcessor(ctrl)
-	processFactory.EXPECT().CreateProcessor(_testNamespace, nil).Return(processRunner)
+	processFactory.EXPECT().CreateProcessor(_testNamespace, shardStore, election).Return(processRunner)
 
 	// Create elector directly for test control
 	el := &elector{
-		namespace: _testNamespace,
-		store:     leaderStore,
-		logger:    logger,
+		namespace:   _testNamespace,
+		leaderStore: leaderStore,
+		store:       shardStore,
+		logger:      logger,
 		cfg: config.Election{
 			LeaderPeriod:           _testLeaderPeriod,
 			MaxRandomDelay:         _testMaxRandomDelay,

@@ -16,12 +16,12 @@ import (
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/service/sharddistributor/config"
-	"github.com/uber/cadence/service/sharddistributor/leader/store"
+	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
 //go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination=process_mock.go Factory,Processor
 
-// Module provides processor factor for fx app.
+// Module provides processor factory for fx app.
 var Module = fx.Module(
 	"leader-process",
 	fx.Provide(NewProcessorFactory),
@@ -35,12 +35,14 @@ type Processor interface {
 
 // Factory creates processor instances
 type Factory interface {
-	CreateProcessor(cfg config.Namespace, shardStore store.ShardStore) Processor
+	// CreateProcessor creates a new processor, it takes the generic store
+	// and the election object which provides the transactional guard.
+	CreateProcessor(cfg config.Namespace, shardStore store.Store, election store.Election) Processor
 }
 
 const (
-	_defaultPeriod     = time.Second
-	_deatulHearbeatTTL = 10 * time.Second
+	_defaultPeriod      = time.Second
+	_defaultHearbeatTTL = 10 * time.Second
 )
 
 type processorFactory struct {
@@ -59,7 +61,8 @@ type namespaceProcessor struct {
 	cancel              context.CancelFunc
 	cfg                 config.LeaderProcess
 	wg                  sync.WaitGroup
-	shardStore          store.ShardStore
+	shardStore          store.Store
+	election            store.Election
 	lastAppliedRevision int64
 }
 
@@ -74,7 +77,7 @@ func NewProcessorFactory(
 		cfg.Process.Period = _defaultPeriod
 	}
 	if cfg.Process.HeartbeatTTL == 0 {
-		cfg.Process.HeartbeatTTL = _deatulHearbeatTTL
+		cfg.Process.HeartbeatTTL = _defaultHearbeatTTL
 	}
 
 	return &processorFactory{
@@ -86,13 +89,14 @@ func NewProcessorFactory(
 }
 
 // CreateProcessor creates a new processor for the given namespace
-func (f *processorFactory) CreateProcessor(cfg config.Namespace, shardStore store.ShardStore) Processor {
+func (f *processorFactory) CreateProcessor(cfg config.Namespace, shardStore store.Store, election store.Election) Processor {
 	return &namespaceProcessor{
 		namespaceCfg:  cfg,
 		logger:        f.logger.WithTags(tag.ComponentLeaderProcessor, tag.ShardNamespace(cfg.Name)),
 		timeSource:    f.timeSource,
 		cfg:           f.cfg,
 		shardStore:    shardStore,
+		election:      election, // Store the election object
 		metricsClient: f.metricsClient,
 	}
 }
@@ -171,7 +175,7 @@ func (p *namespaceProcessor) runRebalancingLoop(ctx context.Context) {
 		p.logger.Error("initial rebalance failed", tag.Error(err))
 	}
 
-	updateChan, err := p.shardStore.Subscribe(ctx)
+	updateChan, err := p.shardStore.Subscribe(ctx, p.namespaceCfg.Name)
 	if err != nil {
 		p.logger.Error("Failed to subscribe to state changes, stopping rebalancing loop.", tag.Error(err))
 		return
@@ -221,14 +225,12 @@ func (p *namespaceProcessor) runCleanupLoop(ctx context.Context) {
 
 // cleanupStaleExecutors removes executors who have not reported a heartbeat recently.
 func (p *namespaceProcessor) cleanupStaleExecutors(ctx context.Context) {
-	// 1. Get the current heartbeat states. We don't need assignments for this operation.
-	heartbeatStates, _, _, err := p.shardStore.GetState(ctx)
+	heartbeatStates, _, _, err := p.shardStore.GetState(ctx, p.namespaceCfg.Name)
 	if err != nil {
 		p.logger.Error("Failed to get state for heartbeat cleanup", tag.Error(err))
 		return
 	}
 
-	// 2. Identify expired executors.
 	var expiredExecutors []string
 	now := p.timeSource.Now().Unix()
 	heartbeatTTL := int64(p.cfg.HeartbeatTTL.Seconds())
@@ -243,9 +245,9 @@ func (p *namespaceProcessor) cleanupStaleExecutors(ctx context.Context) {
 		return // Nothing to do.
 	}
 
-	// 3. Remove all stale executors from the store in a single transaction.
 	p.logger.Info("Removing stale executors", tag.ShardExecutors(expiredExecutors))
-	if err := p.shardStore.DeleteExecutors(ctx, expiredExecutors); err != nil {
+	// Use the leader guard for the delete operation.
+	if err := p.shardStore.DeleteExecutors(ctx, p.namespaceCfg.Name, expiredExecutors, p.election.Guard()); err != nil {
 		p.logger.Error("Failed to delete stale executors", tag.Error(err))
 	}
 }
@@ -267,18 +269,15 @@ func (p *namespaceProcessor) rebalanceShards(ctx context.Context) (err error) {
 		metricsLoopScope.RecordHistogramDuration(metrics.ShardDistributorAssignLoopShardRebalanceLatency, p.timeSource.Now().Sub(start))
 	}()
 
-	// 1. Get the current state from the store.
-	heartbeatStates, assignedStates, readRevision, err := p.shardStore.GetState(ctx)
+	heartbeatStates, assignedStates, readRevision, err := p.shardStore.GetState(ctx, p.namespaceCfg.Name)
 	if err != nil {
 		return fmt.Errorf("get state: %w", err)
 	}
 
-	// If the state we just read isn't newer than the one we last applied, stop.
 	if readRevision <= p.lastAppliedRevision {
 		return nil
 	}
 
-	// 2. Identify active executors.
 	var activeExecutors []string
 	for id, state := range heartbeatStates {
 		if state.State == store.ExecutorStateActive {
@@ -291,41 +290,34 @@ func (p *namespaceProcessor) rebalanceShards(ctx context.Context) (err error) {
 		return nil
 	}
 
-	// ensure activeExecutor order is fixed.
 	sort.Strings(activeExecutors)
 
-	// 3. Collect all shards that need to be assigned.
 	allShards := make(map[string]struct{})
 	for _, shardID := range getShards(p.namespaceCfg) {
 		allShards[strconv.FormatInt(shardID, 10)] = struct{}{}
 	}
 
-	// 4. Determine current assignments and find shards needing reassignment.
 	shardsToReassign := make(map[string]struct{})
-	currentAssignments := make(map[string][]string) // executorID -> []shardID
+	currentAssignments := make(map[string][]string)
 
 	for _, executorID := range activeExecutors {
 		currentAssignments[executorID] = []string{}
 	}
 
-	// Check existing assignments.
 	for executorID, state := range assignedStates {
 		isActive := heartbeatStates[executorID].State == store.ExecutorStateActive
 		for shardID := range state.AssignedShards {
 			if _, ok := allShards[shardID]; ok {
 				delete(allShards, shardID)
 				if isActive {
-					// Keep track of assignments for active executors.
 					currentAssignments[executorID] = append(currentAssignments[executorID], shardID)
 				} else {
-					// Shard is on a dead/draining executor, needs reassignment.
 					shardsToReassign[shardID] = struct{}{}
 				}
 			}
 		}
 	}
 
-	// Add any completely unassigned shards to the pool.
 	for shardID := range allShards {
 		shardsToReassign[shardID] = struct{}{}
 	}
@@ -333,37 +325,39 @@ func (p *namespaceProcessor) rebalanceShards(ctx context.Context) (err error) {
 	metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignLoopNumRebalancedShards, float64(len(shardsToReassign)))
 
 	if len(shardsToReassign) == 0 {
+		p.lastAppliedRevision = readRevision
 		return nil
 	}
 
-	// 5. Rebalance: Distribute the shards needing reassignment.
-	// This is a simple round-robin distribution. More complex strategies could be used.
-	i := rand.Intn(len(activeExecutors)) // Randomize the starting executor index
+	i := rand.Intn(len(activeExecutors))
 	for shardID := range shardsToReassign {
 		executorID := activeExecutors[i%len(activeExecutors)]
 		currentAssignments[executorID] = append(currentAssignments[executorID], shardID)
 		i++
 	}
 
-	// 6. Build the new state to be written to the store.
 	newState := make(map[string]store.AssignedState)
 	for executorID, shards := range currentAssignments {
 		assignedShardsMap := make(map[string]store.ShardAssignment)
 		for _, shardID := range shards {
 			assignedShardsMap[shardID] = store.ShardAssignment{ShardID: shardID}
 		}
+		// Preserve reported state if it exists
+		reportedShards := make(map[string]store.ShardState)
+		if existing, ok := assignedStates[executorID]; ok {
+			reportedShards = existing.ReportedShards
+		}
 		newState[executorID] = store.AssignedState{
 			ExecutorID:     executorID,
 			AssignedShards: assignedShardsMap,
-			ReportedShards: assignedStates[executorID].ReportedShards, // Preserve reported state
+			ReportedShards: reportedShards,
 		}
 	}
 
-	// 7. Commit the new state.
 	p.logger.Info("Applying new shard distribution.")
-	err = p.shardStore.AssignShards(ctx, newState)
+	// Use the leader guard for the assign operation.
+	err = p.shardStore.AssignShards(ctx, p.namespaceCfg.Name, newState, p.election.Guard())
 	if err != nil {
-		// Do not update the revision, so we can retry on the next trigger.
 		return fmt.Errorf("assign shards: %w", err)
 	}
 
@@ -382,7 +376,7 @@ func getShards(cfg config.Namespace) []int64 {
 func makeRange(min, max int64) []int64 {
 	a := make([]int64, max-min+1)
 	for i := range a {
-		a[i] = min + int64(i+1)
+		a[i] = min + int64(i)
 	}
 	return a
 }

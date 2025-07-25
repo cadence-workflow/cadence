@@ -48,15 +48,16 @@ type (
 
 	// LeaderElection is a configuration for leader election running.
 	LeaderElection struct {
-		Enabled    bool          `yaml:"enabled"`
-		Store      LeaderStore   `yaml:"leaderStore"`
-		Election   Election      `yaml:"election"`
-		Namespaces []Namespace   `yaml:"namespaces"`
-		Process    LeaderProcess `yaml:"process"`
+		Enabled     bool          `yaml:"enabled"`
+		LeaderStore Store         `yaml:"leaderStore"`
+		Election    Election      `yaml:"election"`
+		Namespaces  []Namespace   `yaml:"namespaces"`
+		Process     LeaderProcess `yaml:"process"`
+		Store       Store         `yaml:"store"`
 	}
 
-	// LeaderStore provides a config for leader election.
-	LeaderStore struct {
+	// Store is a generic container for any storage configuration that should be parsed by the implementation.
+	Store struct {
 		StorageParams *config.YamlNode `yaml:"storageParams"`
 	}
 
@@ -104,10 +105,11 @@ func GetLeaderElectionFromExternal(in config.LeaderElection) LeaderElection {
 	}
 
 	return LeaderElection{
-		Enabled:    in.Enabled,
-		Store:      LeaderStore(in.Store),
-		Election:   Election(in.Election),
-		Namespaces: namespaces,
-		Process:    LeaderProcess(in.Process),
+		Enabled:     in.Enabled,
+		LeaderStore: Store(in.LeaderStore),
+		Store:       Store(in.Store),
+		Election:    Election(in.Election),
+		Namespaces:  namespaces,
+		Process:     LeaderProcess(in.Process),
 	}
 }

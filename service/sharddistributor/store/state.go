@@ -9,9 +9,10 @@ const (
 )
 
 type HeartbeatState struct {
-	ExecutorID    string        `json:"executor_id"`
-	LastHeartbeat int64         `json:"last_heartbeat"` // Unix timestamp
-	State         ExecutorState `json:"state"`
+	ExecutorID     string        `json:"executor_id"`
+	LastHeartbeat  int64         `json:"last_heartbeat"`
+	State          ExecutorState `json:"state"`
+	ReportedShards map[string]ShardState
 }
 
 type ShardState struct {
