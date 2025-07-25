@@ -8436,6 +8436,7 @@ func FromVirtualSliceState(t *types.VirtualSliceState) *shared.VirtualSliceState
 	}
 	return &shared.VirtualSliceState{
 		TaskRange: FromTaskRange(t.TaskRange),
+		Predicate: FromPredicate(t.Predicate),
 	}
 }
 
@@ -8445,6 +8446,7 @@ func ToVirtualSliceState(t *shared.VirtualSliceState) *types.VirtualSliceState {
 	}
 	return &types.VirtualSliceState{
 		TaskRange: ToTaskRange(t.TaskRange),
+		Predicate: ToPredicate(t.Predicate),
 	}
 }
 
