@@ -31,8 +31,14 @@ func TestConvertTaskRange(t *testing.T) {
 	}
 }
 
+// TODO: remove this once we implement converter for predicates
+// We're creating small PRs for introducing predicates, in the current PR, we only create mappers between common/types and thrift types
+func predicateFuzzGenerator(t **types.Predicate, c fuzz.Continue) {
+	*t = nil
+}
+
 func TestConvertVirtualSliceState(t *testing.T) {
-	f := fuzz.New().NilChance(0)
+	f := fuzz.New().NilChance(0).Funcs(predicateFuzzGenerator)
 	for i := 0; i < 1000; i++ {
 		var s types.VirtualSliceState
 		f.Fuzz(&s)
@@ -43,7 +49,7 @@ func TestConvertVirtualSliceState(t *testing.T) {
 }
 
 func TestConvertVirtualQueueState(t *testing.T) {
-	f := fuzz.New().NilChance(0)
+	f := fuzz.New().NilChance(0).Funcs(predicateFuzzGenerator)
 	for i := 0; i < 1000; i++ {
 		var s types.VirtualQueueState
 		f.Fuzz(&s)
@@ -54,7 +60,7 @@ func TestConvertVirtualQueueState(t *testing.T) {
 }
 
 func TestConvertQueueState(t *testing.T) {
-	f := fuzz.New().NilChance(0)
+	f := fuzz.New().NilChance(0).Funcs(predicateFuzzGenerator)
 	for i := 0; i < 1000; i++ {
 		var s types.QueueState
 		f.Fuzz(&s)

@@ -407,8 +407,9 @@ var (
 		FirstExecutionRunID: RunID,
 	}
 	DescribeWorkflowExecutionRequest = types.DescribeWorkflowExecutionRequest{
-		Domain:    DomainName,
-		Execution: &WorkflowExecution,
+		Domain:                DomainName,
+		Execution:             &WorkflowExecution,
+		QueryConsistencyLevel: &QueryConsistencyLevel,
 	}
 	DescribeWorkflowExecutionResponse = types.DescribeWorkflowExecutionResponse{
 		ExecutionConfiguration: &WorkflowExecutionConfiguration,
@@ -470,6 +471,7 @@ var (
 		WaitForNewEvent:        true,
 		HistoryEventFilterType: &HistoryEventFilterType,
 		SkipArchival:           true,
+		QueryConsistencyLevel:  &QueryConsistencyLevel,
 	}
 	GetWorkflowExecutionHistoryResponse = types.GetWorkflowExecutionHistoryResponse{
 		History:       &History,

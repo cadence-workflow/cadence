@@ -2382,7 +2382,12 @@ const (
 	// Default value: "disabled"
 	// Allowed filters: RatelimitKey (on global key, e.g. prefixed by collection name)
 	FrontendGlobalRatelimiterMode
-
+	// EnableAuthorizationV2 is the key to enable authorization v2 for a domain, only for extension binary:
+	// KeyName: system.enableAuthorizationV2
+	// Value type: string ["disabled","shadow","enabled"]
+	// Default value: "disabled"
+	// TODO: https://github.com/uber/cadence/issues/3861
+	EnableAuthorizationV2
 	TasklistLoadBalancerStrategy
 
 	// MatchingShardDistributionMode is the mode of shard distribution for matching, we currently have four modes, we _highly_
@@ -4837,6 +4842,11 @@ var StringKeys = map[StringKey]DynamicString{
 		Description:  "FrontendGlobalRatelimiterMode defines which mode a global key should be in, per key, to make gradual changes to ratelimiter algorithms",
 		DefaultValue: "disabled",
 		Filters:      []Filter{RatelimitKey},
+	},
+	EnableAuthorizationV2: {
+		KeyName:      "system.enableAuthorizationV2",
+		Description:  "EnableAuthorizationV2 is the key to enable authorization v2 for a domain, only for extension binary:",
+		DefaultValue: "disabled", // available options: "disabled","shadow","enabled"
 	},
 	TasklistLoadBalancerStrategy: {
 		KeyName:      "system.tasklistLoadBalancerStrategy",

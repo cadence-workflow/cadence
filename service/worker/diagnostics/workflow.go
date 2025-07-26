@@ -60,7 +60,7 @@ type DiagnosticsWorkflowResult struct {
 type timeoutDiagnostics struct {
 	Issues    []*timeoutIssuesResult
 	RootCause []*timeoutRootCauseResult
-	Runbooks  []string
+	Runbook   string
 }
 
 type timeoutIssuesResult struct {
@@ -79,7 +79,7 @@ type timeoutRootCauseResult struct {
 type failureDiagnostics struct {
 	Issues    []*failureIssuesResult
 	RootCause []*failureRootCauseResult
-	Runbooks  []string
+	Runbook   string
 }
 
 type failureIssuesResult struct {
@@ -96,8 +96,8 @@ type failureRootCauseResult struct {
 }
 
 type retryDiagnostics struct {
-	Issues   []*retryIssuesResult
-	Runbooks []string
+	Issues  []*retryIssuesResult
+	Runbook string
 }
 
 type retryIssuesResult struct {
@@ -158,7 +158,7 @@ func (w *dw) DiagnosticsWorkflow(ctx workflow.Context, params DiagnosticsWorkflo
 		timeoutsResult = &timeoutDiagnostics{
 			Issues:    timeoutIssues,
 			RootCause: timeoutRootCause,
-			Runbooks:  []string{linkToTimeoutsRunbook},
+			Runbook:   linkToTimeoutsRunbook,
 		}
 	}
 
@@ -175,7 +175,7 @@ func (w *dw) DiagnosticsWorkflow(ctx workflow.Context, params DiagnosticsWorkflo
 		failureResult = &failureDiagnostics{
 			Issues:    failureIssues,
 			RootCause: failureRootCause,
-			Runbooks:  []string{linkToFailuresRunbook},
+			Runbook:   linkToFailuresRunbook,
 		}
 	}
 
@@ -186,8 +186,8 @@ func (w *dw) DiagnosticsWorkflow(ctx workflow.Context, params DiagnosticsWorkflo
 
 	if len(retryIssues) > 0 {
 		retryResult = &retryDiagnostics{
-			Issues:   retryIssues,
-			Runbooks: []string{linkToRetriesRunbook},
+			Issues:  retryIssues,
+			Runbook: linkToRetriesRunbook,
 		}
 	}
 

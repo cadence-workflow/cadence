@@ -129,14 +129,8 @@ func TestHeartbeat(t *testing.T) {
 		executorID:             "test-executor-id",
 	}
 
-	executor.managedProcessors.Store("test-shard-id1", &managedProcessor[*MockShardProcessor]{
-		processor: shardProcessorMock1,
-		state:     processorStateStarted,
-	})
-	executor.managedProcessors.Store("test-shard-id2", &managedProcessor[*MockShardProcessor]{
-		processor: shardProcessorMock2,
-		state:     processorStateStarted,
-	})
+	executor.managedProcessors.Store("test-shard-id1", newManagedProcessor(shardProcessorMock1, processorStateStarted))
+	executor.managedProcessors.Store("test-shard-id2", newManagedProcessor(shardProcessorMock2, processorStateStarted))
 
 	// Do the call to heartbeat
 	shardAssignments, err := executor.heartbeat(context.Background())
@@ -166,14 +160,8 @@ func TestHeartBeartLoop_ShardAssignmentChange(t *testing.T) {
 		shardProcessorFactory: shardProcessorFactory,
 	}
 
-	executor.managedProcessors.Store("test-shard-id1", &managedProcessor[*MockShardProcessor]{
-		processor: shardProcessorMock1,
-		state:     processorStateStarted,
-	})
-	executor.managedProcessors.Store("test-shard-id2", &managedProcessor[*MockShardProcessor]{
-		processor: shardProcessorMock2,
-		state:     processorStateStarted,
-	})
+	executor.managedProcessors.Store("test-shard-id1", newManagedProcessor(shardProcessorMock1, processorStateStarted))
+	executor.managedProcessors.Store("test-shard-id2", newManagedProcessor(shardProcessorMock2, processorStateStarted))
 
 	// We expect to get a new assignment with shards 2 and 3 assigned to it
 	newAssignment := map[string]*types.ShardAssignment{

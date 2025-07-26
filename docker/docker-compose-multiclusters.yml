@@ -11,6 +11,26 @@ services:
       interval: 15s
       timeout: 30s
       retries: 10
+  # Setup schemas for primary and secondary clusters
+  cadence-schema-setup:
+    image: ubercadence/server:master-auto-setup
+    environment:
+      - "CASSANDRA_SEEDS=cassandra"
+      - "CASSANDRA_USER=cassandra"
+      - "CASSANDRA_PASSWORD=cassandra"
+      - "CASSANDRA_PROTO_VERSION=4"
+      - "RF=1"
+      - "PRIMARY_KEYSPACE=cadence_primary"
+      - "PRIMARY_VISIBILITY_KEYSPACE=cadence_visibility_primary"
+      - "SECONDARY_KEYSPACE=cadence_secondary"
+      - "SECONDARY_VISIBILITY_KEYSPACE=cadence_visibility_secondary"
+    volumes:
+      - ./setup-multiclusters-schema.sh:/setup-multiclusters-schema.sh
+    command: ["/setup-multiclusters-schema.sh"]
+    restart: "no"
+    depends_on:
+      cassandra:
+        condition: service_healthy
   prometheus:
     image: prom/prometheus:latest
     volumes:
@@ -32,6 +52,7 @@ services:
       - "7939:7939"
       - "7833:7833"
     environment:
+      - "BIND_ON_IP=0.0.0.0"
       - "CASSANDRA_SEEDS=cassandra"
       - "PROMETHEUS_ENDPOINT_0=0.0.0.0:8000"
       - "PROMETHEUS_ENDPOINT_1=0.0.0.0:8001"
@@ -45,9 +66,12 @@ services:
       - "STATSD_MATCHING_PREFIX=cadence-matching-primary"
       - "STATSD_HISTORY_PREFIX=cadence-history-primary"
       - "STATSD_WORKER_PREFIX=cadence-worker-primary"
+      - "CLUSTER_REDIRECT_POLICY=selected-apis-forwarding"
     depends_on:
       cassandra:
         condition: service_healthy
+      cadence-schema-setup:
+        condition: service_completed_successfully
       prometheus:
         condition: service_started
   cadence-secondary:
@@ -63,6 +87,7 @@ services:
       - "7949:7939"
       - "7843:7833"
     environment:
+      - "BIND_ON_IP=0.0.0.0"
       - "CASSANDRA_SEEDS=cassandra"
       - "PROMETHEUS_ENDPOINT_0=0.0.0.0:9001"
       - "PROMETHEUS_ENDPOINT_1=0.0.0.0:9002"
@@ -77,9 +102,12 @@ services:
       - "STATSD_MATCHING_PREFIX=cadence-matching-secondary"
       - "STATSD_HISTORY_PREFIX=cadence-history-secondary"
       - "STATSD_WORKER_PREFIX=cadence-worker-secondary"
+      - "CLUSTER_REDIRECT_POLICY=selected-apis-forwarding"
     depends_on:
       cassandra:
         condition: service_healthy
+      cadence-schema-setup:
+        condition: service_completed_successfully
       prometheus:
         condition: service_started
   cadence-web:
