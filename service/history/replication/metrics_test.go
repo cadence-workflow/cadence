@@ -127,8 +127,9 @@ func TestLogHistogramRange(t *testing.T) {
 	//   [1.999994ms 2.181008ms 2.378406ms 2.59367ms 2.828417ms 3.08441ms 3.363572ms 3.668001ms]
 	//   [3.999983ms 4.362012ms 4.756807ms 5.187334ms 5.656827ms 6.168813ms 6.727138ms 7.335996ms]
 	//    ^^^^^^^^ compounding error makes nasty buckets
-	for i := 1; i < len(official1ms100sBuckets); i += 8 {
-		t.Logf("\t%v", official1ms100sBuckets[i:i+8])
+	t.Logf("\t%v", naive1ms100sBuckets[0:1])
+	for i := 1; i < len(naive1ms100sBuckets); i += 8 {
+		t.Logf("\t%v", naive1ms100sBuckets[i:i+8])
 	}
 	t.Log("reset-every-integer-power exponential ---")
 	// better:
@@ -136,6 +137,7 @@ func TestLogHistogramRange(t *testing.T) {
 	//   [2ms 2.181015ms 2.378413ms 2.593677ms 2.828424ms 3.084418ms 3.363581ms 3.668011ms]
 	//   [4ms 4.36203ms 4.756827ms 5.187356ms 5.656851ms 6.168839ms 6.727166ms 7.336026ms]
 	//    ^^^ much better buckets
+	t.Logf("\t%v", default1ms100sBuckets[0:1])
 	for i := 1; i < len(default1ms100sBuckets); i += 8 {
 		t.Logf("\t%v", default1ms100sBuckets[i:i+8])
 	}
@@ -149,8 +151,30 @@ func TestLogHistogramRange(t *testing.T) {
 		return time.Duration(float64(time.Millisecond) * math.Pow(2, float64(i)/8))
 	})
 	moreprecise = append(tally.DurationBuckets{0}, moreprecise...)
+	t.Logf("\t%v", moreprecise[0:1])
 	for i := 1; i < len(moreprecise); i += 8 {
-		t.Logf("\t%v", moreprecise[i:i+8])
+		t.Logf("\t%v", moreprecise[i:min(i+8, len(moreprecise))])
+	}
+	t.Log("80-bucket half precision ---")
+	halfprecision := makeBuckets(80, func(i int) time.Duration {
+		return time.Duration(float64(time.Millisecond) * math.Pow(2, float64(i)/4))
+	})
+	halfprecision = append(tally.DurationBuckets{0}, halfprecision...)
+	t.Logf("\t%v", halfprecision[0:1])
+	for i := 1; i < len(halfprecision); i += 4 {
+		t.Logf("\t%v", halfprecision[i:min(i+4, len(halfprecision))])
+	}
+	t.Log("half precision with new helper covering 1ms-100s (68 buckets at scale=2) ---")
+	// TODO: yea I like this one best.
+	// I don't think I need the full 160-evenly-multiplying thing, 136 is fine (scale=3).
+	//
+	// this still retains perfect subsetting down to scale=1, and lower allowing
+	// imprecision in the top bucket only, which is probably fine.
+	// TODO: figure out exactly what that looks like and how to handle it, but seems fine.
+	newhalf := makeExponentialBuckets(time.Millisecond, 100*time.Second, 2)
+	t.Logf("\t%v", newhalf[0:1])
+	for i := 1; i < len(newhalf); i += 4 {
+		t.Logf("\t%v", newhalf[i:min(i+4, len(newhalf))])
 	}
 }
 
@@ -161,3 +185,71 @@ func makeBuckets(num int, factor func(i int) time.Duration) tally.DurationBucket
 	}
 	return all
 }
+
+// https://opentelemetry.io/docs/specs/otel/metrics/data-model/#exponential-scale
+// divisorExponent is OTEL's "scale" value, and will be used in a 2^(1/(2^divisorExponent)) calculation.
+// generally this means 0, 1, 2, or 3, which will yield:
+//   - 0: buckets that double in value each time (value = value*2)
+//   - 1: buckets that double in value every 2 buckets (2^n/2)
+//   - 2: buckets that double in value every 4 buckets (2^n/4)
+//   - 3: buckets that double in value every 8 buckets (2^n/8)
+//
+// going over 3 is not recommended, as it will almost always make FAR too many buckets.
+// if the range and scale values given will reach or exceed 1000 buckets, this func will panic to prevent insanity.
+//
+// this will adjust the maximum value to always produce a 2^scale multiple of buckets.
+func makeExponentialBuckets(min, max time.Duration, scale int) tally.DurationBuckets {
+	// start with 0 and min, the rest will be computed off it.
+	// this is equivalent to `min*2^0/(2^scale)` == `min*2^0` == `min*1` == min,
+	// it just simplifies math later.
+	all := []time.Duration{
+		min,
+	}
+	// build up the range
+	for {
+		all = append(all, nextBucket(all, float64(scale)))
+		if all[len(all)-1] >= max {
+			break
+		}
+		if len(all) >= 1000 {
+			panic(fmt.Sprintf(
+				"far too many buckets between %v and %v and a scaling factor of %v == 2^1/%v, "+
+					"choose a smaller range or smaller scale",
+				min, max, scale, int(math.Pow(2, float64(scale)))))
+		}
+	}
+	// number of buckets needed to "fill" a power of 2
+	powerOfTwoWidth := int(math.Pow(2, float64(scale)))
+	for len(all)%powerOfTwoWidth != 0 {
+		all = append(all, nextBucket(all, float64(scale)))
+	}
+	// add a leading 0
+	result := make([]time.Duration, 0, len(all)+1)
+	result = append(result, 0)
+	result = append(result, all...)
+	return result
+}
+
+func nextBucket(all []time.Duration, scale float64) time.Duration {
+	// initial * num * 2^(i/(2^scale))
+	// re-calculating it every time is of course expensive, but it should be done
+	// at process start and never again so it's fine.
+	// this way reduces floating point error, ensuring "clean" multiples at every
+	// power of 2 (and possible others), instead of e.g. "1ms ... 1.9999994ms".
+	return time.Duration(
+		float64(all[0]) *
+			math.Pow(2, float64(len(all))/math.Pow(2, float64(scale))))
+}
+
+/*
+maybe a different tactic?
+- ask for a counter (or gauge or histogram)
+- builder appends tags if desired
+- `Inc(1)` constructs those tags on the fly and increments
+
+makes for a much smaller api each time, and no need to repeat the name/type/can't confuse types.
+
+does not, however, prevent mixing up tags or changing tags...
+we could add a verifier at each name, but we can't do anything when it fails :\
+it would document expectations though.
+*/

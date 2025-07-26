@@ -20,7 +20,7 @@ const defaultScale = 3
 //
 // this is the "official" definition, but it allows floating point inequality to compound,
 // which seems worse.  so I'm going to fake it.
-var official1ms100sBuckets = append(
+var naive1ms100sBuckets = append(
 	tally.DurationBuckets{0},
 	tally.MustMakeExponentialDurationBuckets(
 		time.Millisecond,
