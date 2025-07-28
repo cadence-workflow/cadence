@@ -116,8 +116,8 @@ func TestRebalanceShards_ExecutorRemoved(t *testing.T) {
 	assignments := map[string]store.AssignedState{
 		"exec-2": {
 			AssignedShards: map[string]store.ShardAssignment{
-				"0": {ShardID: "0"},
-				"1": {ShardID: "1"},
+				"0": {Status: store.ShardStateReady},
+				"1": {Status: store.ShardStateReady},
 			},
 		},
 	}
@@ -268,8 +268,8 @@ func TestRebalanceShards_NoShardsToReassign(t *testing.T) {
 	assignments := map[string]store.AssignedState{
 		"exec-1": {
 			AssignedShards: map[string]store.ShardAssignment{
-				"0": {ShardID: "0"},
-				"1": {ShardID: "1"},
+				"0": {Status: store.ShardStateReady},
+				"1": {Status: store.ShardStateReady},
 			},
 		},
 	}
@@ -293,7 +293,7 @@ func TestRebalanceShards_WithUnassignedShards(t *testing.T) {
 	assignments := map[string]store.AssignedState{
 		"exec-1": {
 			AssignedShards: map[string]store.ShardAssignment{
-				"0": {ShardID: "0"},
+				"0": {Status: store.ShardStateReady},
 			},
 		},
 	}
