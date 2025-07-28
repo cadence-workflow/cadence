@@ -32,6 +32,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
@@ -45,24 +46,54 @@ import (
 )
 
 func TestAddContinueAsNewEvent(t *testing.T) {
-
 	firstEventID := int64(15)
 	decisionCompletedEventID := int64(15)
-
-	var (
-		domainID = "5391dbea-5b30-4323-82ca-e1c95339bb3e"
-		ts0      = int64(123450)
-		ts1      = int64(123451)
-		ts2      = int64(123452)
-		ts3      = int64(123453)
-		shardID  = 123
+	domainID := "5391dbea-5b30-4323-82ca-e1c95339bb3e"
+	domainFailoverVersion := int64(1)
+	ts0 := int64(123450)
+	ts1 := int64(123451)
+	ts2 := int64(123452)
+	ts3 := int64(123453)
+	shardID := 123
+	domainEntry := cache.NewDomainCacheEntryForTest(
+		&persistence.DomainInfo{ID: domainID},
+		&persistence.DomainConfig{},
+		true,
+		&persistence.DomainReplicationConfig{},
+		domainFailoverVersion,
+		nil,
+		0,
+		0,
+		0,
+	)
+	domainEntryActiveActive := cache.NewDomainCacheEntryForTest(
+		&persistence.DomainInfo{ID: domainID},
+		&persistence.DomainConfig{},
+		true,
+		&persistence.DomainReplicationConfig{
+			ActiveClusters: &types.ActiveClusters{
+				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+					"region0": {
+						ActiveClusterName: "cluster0",
+					},
+					"region1": {
+						ActiveClusterName: "cluster1",
+					},
+				},
+			},
+		},
+		-1, // failover version is not used for active-active domain
+		nil,
+		0,
+		0,
+		0,
 	)
 
 	// the mutable state builder confusingly both returns a new builder with this fuction
 	// as well as mutating its internal state, making it difficult to test repeatedly, since
 	// the supplied inputs are muted per invocation. Wrapping them in a factor here to allow
 	// for tests to be independent
-	var createStartingExecutionInfo = func() *persistence.WorkflowExecutionInfo {
+	createStartingExecutionInfo := func() *persistence.WorkflowExecutionInfo {
 		return &persistence.WorkflowExecutionInfo{
 			DomainID:                           "5391dbea-5b30-4323-82ca-e1c95339bb3e",
 			WorkflowID:                         "helloworld_b4db8bd0-74b7-4250-ade7-ac72a1efb171",
@@ -104,12 +135,12 @@ func TestAddContinueAsNewEvent(t *testing.T) {
 
 	}
 
-	var createValidStartingHistory = func() []*types.HistoryEvent {
+	createValidStartingHistory := func(version int64) []*types.HistoryEvent {
 		return []*types.HistoryEvent{{
 			ID:        15,
 			Timestamp: common.Ptr(int64(1709872131580456000)),
 			EventType: common.Ptr(types.EventTypeDecisionTaskCompleted),
-			Version:   1,
+			Version:   version,
 			TaskID:    -1234,
 			DecisionTaskCompletedEventAttributes: &types.DecisionTaskCompletedEventAttributes{
 				ScheduledEventID: 13,
@@ -120,11 +151,12 @@ func TestAddContinueAsNewEvent(t *testing.T) {
 		}}
 	}
 
-	var createFetchedHistory = func() *types.HistoryEvent {
+	createFetchedHistory := func(version int64) *types.HistoryEvent {
 		return &types.HistoryEvent{
-			ID: 1, Timestamp: common.Ptr(int64(1709938156435726000)),
+			ID:        1,
+			Timestamp: common.Ptr(int64(1709938156435726000)),
 			EventType: common.Ptr(types.EventTypeWorkflowExecutionStarted),
-			Version:   1,
+			Version:   version,
 			TaskID:    17826364,
 			WorkflowExecutionStartedEventAttributes: &types.WorkflowExecutionStartedEventAttributes{
 				WorkflowType:                        &types.WorkflowType{Name: "helloWorldWorkflow"},
@@ -150,84 +182,89 @@ func TestAddContinueAsNewEvent(t *testing.T) {
 		}
 	}
 
-	expectedEndingReturnExecutionState := &persistence.WorkflowExecutionInfo{
-		DomainID:                           "5391dbea-5b30-4323-82ca-e1c95339bb3e",
-		WorkflowID:                         "helloworld_b4db8bd0-74b7-4250-ade7-ac72a1efb171",
-		RunID:                              "a run id",
-		FirstExecutionRunID:                "5adce5c5-b7b2-4418-9bf0-4207303f6343",
-		InitiatedID:                        -23,
-		TaskList:                           "helloWorldGroup",
-		WorkflowTypeName:                   "helloWorldWorkflow",
-		WorkflowTimeout:                    60,
-		DecisionStartToCloseTimeout:        60,
-		State:                              1,
-		LastFirstEventID:                   1,
-		NextEventID:                        3,
-		LastProcessedEvent:                 -23,
-		StartTimestamp:                     time.Unix(0, ts3),
-		CreateRequestID:                    "4630bf04-5c64-41bf-92d9-576db2d535cb",
-		DecisionVersion:                    1,
-		DecisionScheduleID:                 2,
-		DecisionStartedID:                  -23,
-		DecisionRequestID:                  "emptyUuid",
-		DecisionTimeout:                    60,
-		DecisionScheduledTimestamp:         ts3,
-		DecisionOriginalScheduledTimestamp: ts3,
-		AutoResetPoints: &types.ResetPoints{
-			Points: []*types.ResetPointInfo{{
-				BinaryChecksum:           "6df03bf5110d681667852a8456519536",
-				RunID:                    "5adce5c5-b7b2-4418-9bf0-4207303f6343",
-				FirstDecisionCompletedID: 4,
-				CreatedTimeNano:          common.Ptr(int64(ts1)),
-				ExpiringTimeNano:         common.Ptr(int64(ts3)),
-				Resettable:               true,
-			}},
-		},
-	}
-
-	expectedEndingReturnHistoryState := []*types.HistoryEvent{
-		{
-			ID:        1,
-			Timestamp: common.Ptr(int64(ts3)),
-			EventType: common.Ptr(types.EventTypeWorkflowExecutionStarted),
-			Version:   1,
-			TaskID:    -1234,
-			WorkflowExecutionStartedEventAttributes: &types.WorkflowExecutionStartedEventAttributes{
-				WorkflowType: &types.WorkflowType{
-					Name: "helloWorldWorkflow",
-				},
-				TaskList:                            &types.TaskList{Name: "helloWorldGroup"},
-				Input:                               []uint8{110, 117, 108, 108, 10},
-				ExecutionStartToCloseTimeoutSeconds: common.Ptr(int32(60)),
-				TaskStartToCloseTimeoutSeconds:      common.Ptr(int32(60)),
-				ContinuedExecutionRunID:             "5adce5c5-b7b2-4418-9bf0-4207303f6343",
-				OriginalExecutionRunID:              "a run id",
-				FirstExecutionRunID:                 "5adce5c5-b7b2-4418-9bf0-4207303f6343",
-				PrevAutoResetPoints: &types.ResetPoints{Points: []*types.ResetPointInfo{{
+	expectedEndingReturnExecutionStateFn := func(version int64) *persistence.WorkflowExecutionInfo {
+		return &persistence.WorkflowExecutionInfo{
+			DomainID:                           "5391dbea-5b30-4323-82ca-e1c95339bb3e",
+			WorkflowID:                         "helloworld_b4db8bd0-74b7-4250-ade7-ac72a1efb171",
+			RunID:                              "a run id",
+			FirstExecutionRunID:                "5adce5c5-b7b2-4418-9bf0-4207303f6343",
+			InitiatedID:                        -23,
+			TaskList:                           "helloWorldGroup",
+			WorkflowTypeName:                   "helloWorldWorkflow",
+			WorkflowTimeout:                    60,
+			DecisionStartToCloseTimeout:        60,
+			State:                              1,
+			LastFirstEventID:                   1,
+			NextEventID:                        3,
+			LastProcessedEvent:                 -23,
+			StartTimestamp:                     time.Unix(0, ts3),
+			CreateRequestID:                    "4630bf04-5c64-41bf-92d9-576db2d535cb",
+			DecisionVersion:                    version,
+			DecisionScheduleID:                 2,
+			DecisionStartedID:                  -23,
+			DecisionRequestID:                  "emptyUuid",
+			DecisionTimeout:                    60,
+			DecisionScheduledTimestamp:         ts3,
+			DecisionOriginalScheduledTimestamp: ts3,
+			AutoResetPoints: &types.ResetPoints{
+				Points: []*types.ResetPointInfo{{
 					BinaryChecksum:           "6df03bf5110d681667852a8456519536",
 					RunID:                    "5adce5c5-b7b2-4418-9bf0-4207303f6343",
 					FirstDecisionCompletedID: 4,
 					CreatedTimeNano:          common.Ptr(int64(ts1)),
 					ExpiringTimeNano:         common.Ptr(int64(ts3)),
 					Resettable:               true,
-				}}},
-				Header: nil,
+				}},
 			},
-		},
-		{
-			ID:        2,
-			Timestamp: common.Ptr(int64(ts3)),
-			EventType: common.Ptr(types.EventTypeDecisionTaskScheduled),
-			Version:   1,
-			TaskID:    -1234,
-			DecisionTaskScheduledEventAttributes: &types.DecisionTaskScheduledEventAttributes{
-				TaskList:                   &types.TaskList{Name: "helloWorldGroup"},
-				StartToCloseTimeoutSeconds: common.Ptr(int32(60)),
+		}
+	}
+
+	expectedEndingReturnHistoryStateFn := func(version int64) []*types.HistoryEvent {
+		return []*types.HistoryEvent{
+			{
+				ID:        1,
+				Timestamp: common.Ptr(int64(ts3)),
+				EventType: common.Ptr(types.EventTypeWorkflowExecutionStarted),
+				Version:   version,
+				TaskID:    -1234,
+				WorkflowExecutionStartedEventAttributes: &types.WorkflowExecutionStartedEventAttributes{
+					WorkflowType: &types.WorkflowType{
+						Name: "helloWorldWorkflow",
+					},
+					TaskList:                            &types.TaskList{Name: "helloWorldGroup"},
+					Input:                               []uint8{110, 117, 108, 108, 10},
+					ExecutionStartToCloseTimeoutSeconds: common.Ptr(int32(60)),
+					TaskStartToCloseTimeoutSeconds:      common.Ptr(int32(60)),
+					ContinuedExecutionRunID:             "5adce5c5-b7b2-4418-9bf0-4207303f6343",
+					OriginalExecutionRunID:              "a run id",
+					FirstExecutionRunID:                 "5adce5c5-b7b2-4418-9bf0-4207303f6343",
+					PrevAutoResetPoints: &types.ResetPoints{Points: []*types.ResetPointInfo{{
+						BinaryChecksum:           "6df03bf5110d681667852a8456519536",
+						RunID:                    "5adce5c5-b7b2-4418-9bf0-4207303f6343",
+						FirstDecisionCompletedID: 4,
+						CreatedTimeNano:          common.Ptr(int64(ts1)),
+						ExpiringTimeNano:         common.Ptr(int64(ts3)),
+						Resettable:               true,
+					}}},
+					Header: nil,
+				},
 			},
-		},
+			{
+				ID:        2,
+				Timestamp: common.Ptr(int64(ts3)),
+				EventType: common.Ptr(types.EventTypeDecisionTaskScheduled),
+				Version:   version,
+				TaskID:    -1234,
+				DecisionTaskScheduledEventAttributes: &types.DecisionTaskScheduledEventAttributes{
+					TaskList:                   &types.TaskList{Name: "helloWorldGroup"},
+					StartToCloseTimeoutSeconds: common.Ptr(int32(60)),
+				},
+			},
+		}
 	}
 
 	tests := map[string]struct {
+		domainEntry   *cache.DomainCacheEntry
 		startingState *persistence.WorkflowExecutionInfo
 		// history is a substruct of current state, but because they're both
 		// pointing to each other, they're assembled at the test start
@@ -235,83 +272,72 @@ func TestAddContinueAsNewEvent(t *testing.T) {
 
 		// expectations
 		historyManagerAffordance func(historyManager *persistence.MockHistoryManager)
-		shardManagerAffordance   func(shardContext *shardCtx.MockContext, msb *mutableStateBuilder, domainCache cache.DomainCache)
-		domainCacheAffordance    func(domainCache *cache.MockDomainCache)
 		taskgeneratorAffordance  func(taskGenerator *MockMutableStateTaskGenerator, msb *mutableStateBuilder)
-
-		expectedReturnedState   *persistence.WorkflowExecutionInfo // this is returned
-		expectedReturnedHistory []*types.HistoryEvent
-		expectedErr             error
+		actClMgrAffordance       func(actClMgr *activecluster.MockManager)
+		expectedReturnedState    *persistence.WorkflowExecutionInfo // this is returned
+		expectedReturnedHistory  []*types.HistoryEvent
+		expectedErr              error
 	}{
 		"a continue-as-new event with no errors": {
+			domainEntry:     domainEntry,
 			startingState:   createStartingExecutionInfo(),
-			startingHistory: createValidStartingHistory(),
+			startingHistory: createValidStartingHistory(domainFailoverVersion),
 
 			// when it goes to fetch the starting event
 			historyManagerAffordance: func(historyManager *persistence.MockHistoryManager) {
 				historyManager.EXPECT().ReadHistoryBranch(gomock.Any(), gomock.Any()).Return(&persistence.ReadHistoryBranchResponse{
 					HistoryEvents: []*types.HistoryEvent{
-						createFetchedHistory(),
+						createFetchedHistory(domainFailoverVersion),
 					},
 				}, nil)
-			},
-			shardManagerAffordance: func(shardContext *shardCtx.MockContext, msb *mutableStateBuilder, domainCache cache.DomainCache) {
-				shardContext.EXPECT().GetShardID().Return(123)
-				shardContext.EXPECT().GetClusterMetadata().Return(cluster.Metadata{}).Times(2)
-				shardContext.EXPECT().GetEventsCache().Return(msb.eventsCache)
-				shardContext.EXPECT().GetConfig().Return(msb.config)
-				shardContext.EXPECT().GetTimeSource().Return(msb.timeSource)
-				shardContext.EXPECT().GetMetricsClient().Return(metrics.NewNoopMetricsClient())
-				shardContext.EXPECT().GetDomainCache().Return(domainCache)
-			},
-			domainCacheAffordance: func(domainCache *cache.MockDomainCache) {
-				domainCache.EXPECT().GetDomainName(gomock.Any()).Return("domain", nil)
 			},
 			taskgeneratorAffordance: func(taskGenerator *MockMutableStateTaskGenerator, msb *mutableStateBuilder) {
 				taskGenerator.EXPECT().GenerateWorkflowCloseTasks(gomock.Any(), msb.config.WorkflowDeletionJitterRange("domain"))
 			},
-
-			expectedReturnedState:   expectedEndingReturnExecutionState,
-			expectedReturnedHistory: expectedEndingReturnHistoryState,
+			expectedReturnedState:   expectedEndingReturnExecutionStateFn(1),
+			expectedReturnedHistory: expectedEndingReturnHistoryStateFn(1),
 		},
-
-		"a continue-as-new with failure to get the history event": {
+		"a continue-as-new event with no errors - active-active domain": {
+			domainEntry:     domainEntryActiveActive,
 			startingState:   createStartingExecutionInfo(),
-			startingHistory: createValidStartingHistory(),
-			historyManagerAffordance: func(historyManager *persistence.MockHistoryManager) {
-				historyManager.EXPECT().ReadHistoryBranch(gomock.Any(), gomock.Any()).Return(nil, errors.New("an error"))
+			startingHistory: createValidStartingHistory(1),
+			actClMgrAffordance: func(actClMgr *activecluster.MockManager) {
+				actClMgr.EXPECT().LookupNewWorkflow(gomock.Any(), gomock.Any(), gomock.Any()).Return(&activecluster.LookupResult{
+					FailoverVersion: 2, // this version will be used by new mutable state builder for new tasks
+				}, nil)
 			},
-			shardManagerAffordance: func(shardContext *shardCtx.MockContext, msb *mutableStateBuilder, domainCache cache.DomainCache) {
-				shardContext.EXPECT().GetShardID().Return(123)
-			},
-			domainCacheAffordance: func(domainCache *cache.MockDomainCache) {
-				domainCache.EXPECT().GetDomainName(gomock.Any()).Return("domain", nil)
-			},
-			taskgeneratorAffordance: func(taskGenerator *MockMutableStateTaskGenerator, msb *mutableStateBuilder) {},
-			expectedErr:             errors.New("an error"),
-		},
-
-		"a continue-as-new with errors in replicating": {
-			startingState:   createStartingExecutionInfo(),
-			startingHistory: createValidStartingHistory(),
 			historyManagerAffordance: func(historyManager *persistence.MockHistoryManager) {
 				historyManager.EXPECT().ReadHistoryBranch(gomock.Any(), gomock.Any()).Return(&persistence.ReadHistoryBranchResponse{
 					HistoryEvents: []*types.HistoryEvent{
-						createFetchedHistory(),
+						createFetchedHistory(2),
 					},
 				}, nil)
 			},
-			shardManagerAffordance: func(shardContext *shardCtx.MockContext, msb *mutableStateBuilder, domainCache cache.DomainCache) {
-				shardContext.EXPECT().GetShardID().Return(123)
-				shardContext.EXPECT().GetClusterMetadata().Return(cluster.Metadata{}).Times(2)
-				shardContext.EXPECT().GetEventsCache().Return(msb.eventsCache)
-				shardContext.EXPECT().GetConfig().Return(msb.config)
-				shardContext.EXPECT().GetTimeSource().Return(msb.timeSource)
-				shardContext.EXPECT().GetMetricsClient().Return(metrics.NewNoopMetricsClient())
-				shardContext.EXPECT().GetDomainCache().Return(domainCache)
+			taskgeneratorAffordance: func(taskGenerator *MockMutableStateTaskGenerator, msb *mutableStateBuilder) {
+				taskGenerator.EXPECT().GenerateWorkflowCloseTasks(gomock.Any(), msb.config.WorkflowDeletionJitterRange("domain"))
 			},
-			domainCacheAffordance: func(domainCache *cache.MockDomainCache) {
-				domainCache.EXPECT().GetDomainName(gomock.Any()).Return("domain", nil)
+			expectedReturnedState:   expectedEndingReturnExecutionStateFn(2),
+			expectedReturnedHistory: expectedEndingReturnHistoryStateFn(2),
+		},
+		"a continue-as-new with failure to get the history event": {
+			domainEntry:     domainEntry,
+			startingState:   createStartingExecutionInfo(),
+			startingHistory: createValidStartingHistory(domainFailoverVersion),
+			historyManagerAffordance: func(historyManager *persistence.MockHistoryManager) {
+				historyManager.EXPECT().ReadHistoryBranch(gomock.Any(), gomock.Any()).Return(nil, errors.New("an error"))
+			},
+			expectedErr: errors.New("an error"),
+		},
+		"a continue-as-new with errors in replicating": {
+			domainEntry:     domainEntry,
+			startingState:   createStartingExecutionInfo(),
+			startingHistory: createValidStartingHistory(domainFailoverVersion),
+			historyManagerAffordance: func(historyManager *persistence.MockHistoryManager) {
+				historyManager.EXPECT().ReadHistoryBranch(gomock.Any(), gomock.Any()).Return(&persistence.ReadHistoryBranchResponse{
+					HistoryEvents: []*types.HistoryEvent{
+						createFetchedHistory(domainFailoverVersion),
+					},
+				}, nil)
 			},
 			taskgeneratorAffordance: func(taskGenerator *MockMutableStateTaskGenerator, msb *mutableStateBuilder) {
 				taskGenerator.EXPECT().GenerateWorkflowCloseTasks(gomock.Any(), msb.config.WorkflowDeletionJitterRange("domain")).Return(errors.New("an error"))
@@ -325,24 +351,17 @@ func TestAddContinueAsNewEvent(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			logger := log.NewNoop()
 			msb := &mutableStateBuilder{
-				domainEntry: cache.NewDomainCacheEntryForTest(
-					&persistence.DomainInfo{ID: domainID},
-					&persistence.DomainConfig{},
-					true,
-					&persistence.DomainReplicationConfig{},
-					1,
-					nil,
-					0,
-					0,
-					0,
-				),
-				executionInfo: td.startingState,
-				logger:        logger,
-				config:        config.NewForTest(),
+				domainEntry:    td.domainEntry,
+				executionInfo:  td.startingState,
+				logger:         logger,
+				config:         config.NewForTest(),
+				currentVersion: domainFailoverVersion,
 			}
 
+			actClMgr := activecluster.NewMockManager(ctrl)
 			shardContext := shardCtx.NewMockContext(ctrl)
 			shardContext.EXPECT().GetLogger().Return(logger).AnyTimes()
+			shardContext.EXPECT().GetActiveClusterManager().Return(actClMgr).AnyTimes()
 			historyManager := persistence.NewMockHistoryManager(ctrl)
 			domainCache := cache.NewMockDomainCache(ctrl)
 			taskGenerator := NewMockMutableStateTaskGenerator(ctrl)
@@ -362,10 +381,25 @@ func TestAddContinueAsNewEvent(t *testing.T) {
 			}
 			msb.taskGenerator = taskGenerator
 
-			td.historyManagerAffordance(historyManager)
-			td.domainCacheAffordance(domainCache)
-			td.taskgeneratorAffordance(taskGenerator, msb)
-			td.shardManagerAffordance(shardContext, msb, domainCache)
+			domainCache.EXPECT().GetDomainName(gomock.Any()).Return("domain", nil).AnyTimes()
+
+			shardContext.EXPECT().GetShardID().Return(123).AnyTimes()
+			shardContext.EXPECT().GetClusterMetadata().Return(cluster.Metadata{}).AnyTimes()
+			shardContext.EXPECT().GetEventsCache().Return(msb.eventsCache).AnyTimes()
+			shardContext.EXPECT().GetConfig().Return(msb.config).AnyTimes()
+			shardContext.EXPECT().GetTimeSource().Return(msb.timeSource).AnyTimes()
+			shardContext.EXPECT().GetMetricsClient().Return(metrics.NewNoopMetricsClient()).AnyTimes()
+			shardContext.EXPECT().GetDomainCache().Return(domainCache).AnyTimes()
+
+			if td.historyManagerAffordance != nil {
+				td.historyManagerAffordance(historyManager)
+			}
+			if td.taskgeneratorAffordance != nil {
+				td.taskgeneratorAffordance(taskGenerator, msb)
+			}
+			if td.actClMgrAffordance != nil {
+				td.actClMgrAffordance(actClMgr)
+			}
 
 			_, returnedBuilder, err := msb.AddContinueAsNewEvent(context.Background(),
 				firstEventID,
@@ -390,7 +424,6 @@ func TestAddContinueAsNewEvent(t *testing.T) {
 			resultExecutionInfo := returnedBuilder.GetExecutionInfo()
 
 			assert.Empty(t, cmp.Diff(td.expectedReturnedState, resultExecutionInfo,
-
 				// these are generated nondeterministically, with a plain guid generator
 				// todo(david): make this mockable
 				cmpopts.IgnoreFields(types.WorkflowExecutionStartedEventAttributes{}, "OriginalExecutionRunID"),

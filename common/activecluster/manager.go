@@ -177,7 +177,20 @@ func (m *managerImpl) notifyChangeCallbacksPeriodically() {
 	}
 }
 
-func (m *managerImpl) LookupNewWorkflow(ctx context.Context, domainID string, policy *types.ActiveClusterSelectionPolicy) (*LookupResult, error) {
+func (m *managerImpl) LookupNewWorkflow(ctx context.Context, domainID string, policy *types.ActiveClusterSelectionPolicy) (res *LookupResult, e error) {
+	defer func() {
+		logFn := m.logger.Debug
+		if e != nil {
+			logFn = m.logger.Warn
+		}
+		logFn("LookupNewWorkflow",
+			tag.WorkflowDomainID(domainID),
+			tag.Dynamic("policy", policy),
+			tag.Dynamic("result", res),
+			tag.Error(e),
+		)
+	}()
+
 	d, err := m.domainIDToDomainFn(domainID)
 	if err != nil {
 		return nil, err

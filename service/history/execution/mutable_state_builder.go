@@ -1272,6 +1272,28 @@ func (e *mutableStateBuilder) AddContinueAsNewEvent(
 		e.domainEntry,
 	).(*mutableStateBuilder)
 
+	// New mutable state initializes `currentVersion` to domain's failover version.
+	// This doesn't work for active-active domains.
+	// Set `currentVersion` of the new mutable state builder based on active cluster selection policy
+	// specified on continue-as-new attributes.
+	if e.domainEntry.GetReplicationConfig().IsActiveActive() {
+		res, err := e.shard.GetActiveClusterManager().LookupNewWorkflow(ctx, e.domainEntry.GetInfo().ID, attributes.ActiveClusterSelectionPolicy)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		newStateBuilder.logger.Debug("mutableStateBuilder.AddContinueAsNewEvent created newStateBuilder",
+			tag.WorkflowDomainID(e.domainEntry.GetInfo().ID),
+			tag.WorkflowID(e.executionInfo.WorkflowID),
+			tag.WorkflowRunID(e.executionInfo.RunID),
+			tag.WorkflowRunID(newRunID),
+			tag.CurrentVersion(e.currentVersion),
+			tag.Dynamic("activecluster-sel-policy", attributes.ActiveClusterSelectionPolicy),
+			tag.Dynamic("activecluster-lookup-res", res),
+		)
+		newStateBuilder.UpdateCurrentVersion(res.FailoverVersion, true)
+	}
+
 	if _, err = newStateBuilder.addWorkflowExecutionStartedEventForContinueAsNew(
 		parentInfo,
 		newExecution,
