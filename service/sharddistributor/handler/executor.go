@@ -36,7 +36,7 @@ func (h *executor) Heartbeat(ctx context.Context, request *types.ExecutorHeartbe
 
 	// If the state has changed we need to update heartbeat data.
 	// Otherwise, we want to do it with controlled frequency - at most every _heartbeatRefreshRate.
-	if !needUpdate(request.Status, previousHeartbeat.State) {
+	if previousHeartbeat != nil && !needUpdate(request.Status, previousHeartbeat.State) {
 		lastHeartbeatTime := time.Unix(previousHeartbeat.LastHeartbeat, 0)
 		if now.Sub(lastHeartbeatTime) < _heartbeatRefreshRate {
 			return _convertResponse(assignedShards), nil
@@ -59,6 +59,10 @@ func (h *executor) Heartbeat(ctx context.Context, request *types.ExecutorHeartbe
 
 func _convertResponse(shards *store.AssignedState) *types.ExecutorHeartbeatResponse {
 	res := &types.ExecutorHeartbeatResponse{}
+	if shards == nil {
+		return res
+	}
+	res.ShardAssignments = make(map[string]*types.ShardAssignment, len(shards.AssignedShards))
 	for shardID, state := range shards.AssignedShards {
 		res.ShardAssignments[shardID] = &types.ShardAssignment{Status: _shardStatusReverseMapping[state.Status]}
 	}
@@ -77,7 +81,7 @@ func _convertReportedShards(reports map[string]*types.ShardStatusReport) map[str
 }
 
 func needUpdate(status types.ExecutorStatus, state store.ExecutorState) bool {
-	return _executorStatusMapping[status] == state
+	return _executorStatusMapping[status] != state
 }
 
 var _executorStatusMapping = map[types.ExecutorStatus]store.ExecutorState{
@@ -100,5 +104,4 @@ func init() {
 	for status, state := range _executorStatusMapping {
 		_executorStatusReverseMapping[status] = state
 	}
-
 }
