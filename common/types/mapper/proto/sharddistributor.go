@@ -201,7 +201,7 @@ func FromShardDistributorExecutorHeartbeatResponse(t *types.ExecutorHeartbeatRes
 	}
 }
 
-func ToShardDistributorExecutorHeartbeatResponse(t *sharddistributorv1.HeartbeatResponse) *types.ExecutorHeartbeatResponse {
+func ToShardDistributorHeartbeatResponse(t *sharddistributorv1.HeartbeatResponse) *types.ExecutorHeartbeatResponse {
 	if t == nil {
 		return nil
 	}

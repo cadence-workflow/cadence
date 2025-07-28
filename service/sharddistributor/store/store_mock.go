@@ -40,143 +40,6 @@ func (m *MockTxn) EXPECT() *MockTxnMockRecorder {
 	return m.recorder
 }
 
-// MockHeartbeatStore is a mock of HeartbeatStore interface.
-type MockHeartbeatStore struct {
-	ctrl     *gomock.Controller
-	recorder *MockHeartbeatStoreMockRecorder
-	isgomock struct{}
-}
-
-// MockHeartbeatStoreMockRecorder is the mock recorder for MockHeartbeatStore.
-type MockHeartbeatStoreMockRecorder struct {
-	mock *MockHeartbeatStore
-}
-
-// NewMockHeartbeatStore creates a new mock instance.
-func NewMockHeartbeatStore(ctrl *gomock.Controller) *MockHeartbeatStore {
-	mock := &MockHeartbeatStore{ctrl: ctrl}
-	mock.recorder = &MockHeartbeatStoreMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockHeartbeatStore) EXPECT() *MockHeartbeatStoreMockRecorder {
-	return m.recorder
-}
-
-// GetHeartbeat mocks base method.
-func (m *MockHeartbeatStore) GetHeartbeat(ctx context.Context, namespace, executorID string) (*HeartbeatState, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetHeartbeat", ctx, namespace, executorID)
-	ret0, _ := ret[0].(*HeartbeatState)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetHeartbeat indicates an expected call of GetHeartbeat.
-func (mr *MockHeartbeatStoreMockRecorder) GetHeartbeat(ctx, namespace, executorID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHeartbeat", reflect.TypeOf((*MockHeartbeatStore)(nil).GetHeartbeat), ctx, namespace, executorID)
-}
-
-// RecordHeartbeat mocks base method.
-func (m *MockHeartbeatStore) RecordHeartbeat(ctx context.Context, namespace string, state HeartbeatState) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RecordHeartbeat", ctx, namespace, state)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// RecordHeartbeat indicates an expected call of RecordHeartbeat.
-func (mr *MockHeartbeatStoreMockRecorder) RecordHeartbeat(ctx, namespace, state any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecordHeartbeat", reflect.TypeOf((*MockHeartbeatStore)(nil).RecordHeartbeat), ctx, namespace, state)
-}
-
-// MockShardStore is a mock of ShardStore interface.
-type MockShardStore struct {
-	ctrl     *gomock.Controller
-	recorder *MockShardStoreMockRecorder
-	isgomock struct{}
-}
-
-// MockShardStoreMockRecorder is the mock recorder for MockShardStore.
-type MockShardStoreMockRecorder struct {
-	mock *MockShardStore
-}
-
-// NewMockShardStore creates a new mock instance.
-func NewMockShardStore(ctrl *gomock.Controller) *MockShardStore {
-	mock := &MockShardStore{ctrl: ctrl}
-	mock.recorder = &MockShardStoreMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockShardStore) EXPECT() *MockShardStoreMockRecorder {
-	return m.recorder
-}
-
-// AssignShards mocks base method.
-func (m *MockShardStore) AssignShards(ctx context.Context, namespace string, newState map[string]AssignedState, guard GuardFunc) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AssignShards", ctx, namespace, newState, guard)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// AssignShards indicates an expected call of AssignShards.
-func (mr *MockShardStoreMockRecorder) AssignShards(ctx, namespace, newState, guard any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AssignShards", reflect.TypeOf((*MockShardStore)(nil).AssignShards), ctx, namespace, newState, guard)
-}
-
-// DeleteExecutors mocks base method.
-func (m *MockShardStore) DeleteExecutors(ctx context.Context, namespace string, executorIDs []string, guard GuardFunc) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteExecutors", ctx, namespace, executorIDs, guard)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteExecutors indicates an expected call of DeleteExecutors.
-func (mr *MockShardStoreMockRecorder) DeleteExecutors(ctx, namespace, executorIDs, guard any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteExecutors", reflect.TypeOf((*MockShardStore)(nil).DeleteExecutors), ctx, namespace, executorIDs, guard)
-}
-
-// GetState mocks base method.
-func (m *MockShardStore) GetState(ctx context.Context, namespace string) (map[string]HeartbeatState, map[string]AssignedState, int64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetState", ctx, namespace)
-	ret0, _ := ret[0].(map[string]HeartbeatState)
-	ret1, _ := ret[1].(map[string]AssignedState)
-	ret2, _ := ret[2].(int64)
-	ret3, _ := ret[3].(error)
-	return ret0, ret1, ret2, ret3
-}
-
-// GetState indicates an expected call of GetState.
-func (mr *MockShardStoreMockRecorder) GetState(ctx, namespace any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetState", reflect.TypeOf((*MockShardStore)(nil).GetState), ctx, namespace)
-}
-
-// Subscribe mocks base method.
-func (m *MockShardStore) Subscribe(ctx context.Context, namespace string) (<-chan int64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Subscribe", ctx, namespace)
-	ret0, _ := ret[0].(<-chan int64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Subscribe indicates an expected call of Subscribe.
-func (mr *MockShardStoreMockRecorder) Subscribe(ctx, namespace any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Subscribe", reflect.TypeOf((*MockShardStore)(nil).Subscribe), ctx, namespace)
-}
-
 // MockStore is a mock of Store interface.
 type MockStore struct {
 	ctrl     *gomock.Controller
@@ -230,12 +93,13 @@ func (mr *MockStoreMockRecorder) DeleteExecutors(ctx, namespace, executorIDs, gu
 }
 
 // GetHeartbeat mocks base method.
-func (m *MockStore) GetHeartbeat(ctx context.Context, namespace, executorID string) (*HeartbeatState, error) {
+func (m *MockStore) GetHeartbeat(ctx context.Context, namespace, executorID string) (*HeartbeatState, *AssignedState, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetHeartbeat", ctx, namespace, executorID)
 	ret0, _ := ret[0].(*HeartbeatState)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(*AssignedState)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // GetHeartbeat indicates an expected call of GetHeartbeat.
@@ -262,17 +126,17 @@ func (mr *MockStoreMockRecorder) GetState(ctx, namespace any) *gomock.Call {
 }
 
 // RecordHeartbeat mocks base method.
-func (m *MockStore) RecordHeartbeat(ctx context.Context, namespace string, state HeartbeatState) error {
+func (m *MockStore) RecordHeartbeat(ctx context.Context, namespace, executorID string, state HeartbeatState) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RecordHeartbeat", ctx, namespace, state)
+	ret := m.ctrl.Call(m, "RecordHeartbeat", ctx, namespace, executorID, state)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // RecordHeartbeat indicates an expected call of RecordHeartbeat.
-func (mr *MockStoreMockRecorder) RecordHeartbeat(ctx, namespace, state any) *gomock.Call {
+func (mr *MockStoreMockRecorder) RecordHeartbeat(ctx, namespace, executorID, state any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecordHeartbeat", reflect.TypeOf((*MockStore)(nil).RecordHeartbeat), ctx, namespace, state)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecordHeartbeat", reflect.TypeOf((*MockStore)(nil).RecordHeartbeat), ctx, namespace, executorID, state)
 }
 
 // Subscribe mocks base method.

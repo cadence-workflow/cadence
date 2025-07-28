@@ -96,15 +96,15 @@ func (m *MockFactory) EXPECT() *MockFactoryMockRecorder {
 }
 
 // CreateProcessor mocks base method.
-func (m *MockFactory) CreateProcessor(cfg config.Namespace, shardStore store.Store, election store.Election) Processor {
+func (m *MockFactory) CreateProcessor(cfg config.Namespace, storage store.Store, election store.Election) Processor {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateProcessor", cfg, shardStore, election)
+	ret := m.ctrl.Call(m, "CreateProcessor", cfg, storage, election)
 	ret0, _ := ret[0].(Processor)
 	return ret0
 }
 
 // CreateProcessor indicates an expected call of CreateProcessor.
-func (mr *MockFactoryMockRecorder) CreateProcessor(cfg, shardStore, election any) *gomock.Call {
+func (mr *MockFactoryMockRecorder) CreateProcessor(cfg, storage, election any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateProcessor", reflect.TypeOf((*MockFactory)(nil).CreateProcessor), cfg, shardStore, election)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateProcessor", reflect.TypeOf((*MockFactory)(nil).CreateProcessor), cfg, storage, election)
 }

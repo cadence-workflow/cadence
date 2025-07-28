@@ -26,6 +26,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/membership"
@@ -34,13 +35,17 @@ import (
 	"github.com/uber/cadence/service/sharddistributor/constants"
 )
 
+const (
+	_heartbeatRefreshRate = 2 * time.Second
+)
+
 func NewHandler(
 	logger log.Logger,
 	metricsClient metrics.Client,
 	matchingRing membership.SingleProvider,
 	historyRing membership.SingleProvider,
-) Handler {
-	handler := &handlerImpl{
+) *Impl {
+	handler := &Impl{
 		logger:        logger,
 		metricsClient: metricsClient,
 		matchingRing:  matchingRing,
@@ -52,7 +57,7 @@ func NewHandler(
 	return handler
 }
 
-type handlerImpl struct {
+type Impl struct {
 	logger        log.Logger
 	metricsClient metrics.Client
 	peerProvider  membership.PeerProvider
@@ -62,21 +67,21 @@ type handlerImpl struct {
 	historyRing  membership.SingleProvider
 }
 
-func (h *handlerImpl) Start() {
+func (h *Impl) Start() {
 	h.startWG.Done()
 }
 
-func (h *handlerImpl) Stop() {
+func (h *Impl) Stop() {
 }
 
-func (h *handlerImpl) Health(ctx context.Context) (*types.HealthStatus, error) {
+func (h *Impl) Health(ctx context.Context) (*types.HealthStatus, error) {
 	h.startWG.Wait()
 	h.logger.Debug("Shard Distributor service health check endpoint reached.")
 	hs := &types.HealthStatus{Ok: true, Msg: "shard distributor good"}
 	return hs, nil
 }
 
-func (h *handlerImpl) GetShardOwner(ctx context.Context, request *types.GetShardOwnerRequest) (resp *types.GetShardOwnerResponse, retError error) {
+func (h *Impl) GetShardOwner(ctx context.Context, request *types.GetShardOwnerRequest) (resp *types.GetShardOwnerResponse, retError error) {
 	defer func() { log.CapturePanic(recover(), h.logger, &retError) }()
 
 	var owner string

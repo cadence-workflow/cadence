@@ -72,26 +72,41 @@ func (mr *MockHandlerMockRecorder) Health(arg0 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Health", reflect.TypeOf((*MockHandler)(nil).Health), arg0)
 }
 
-// Start mocks base method.
-func (m *MockHandler) Start() {
+// MockExecutor is a mock of Executor interface.
+type MockExecutor struct {
+	ctrl     *gomock.Controller
+	recorder *MockExecutorMockRecorder
+	isgomock struct{}
+}
+
+// MockExecutorMockRecorder is the mock recorder for MockExecutor.
+type MockExecutorMockRecorder struct {
+	mock *MockExecutor
+}
+
+// NewMockExecutor creates a new mock instance.
+func NewMockExecutor(ctrl *gomock.Controller) *MockExecutor {
+	mock := &MockExecutor{ctrl: ctrl}
+	mock.recorder = &MockExecutorMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockExecutor) EXPECT() *MockExecutorMockRecorder {
+	return m.recorder
+}
+
+// Heartbeat mocks base method.
+func (m *MockExecutor) Heartbeat(arg0 context.Context, arg1 *types.ExecutorHeartbeatRequest) (*types.ExecutorHeartbeatResponse, error) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Start")
+	ret := m.ctrl.Call(m, "Heartbeat", arg0, arg1)
+	ret0, _ := ret[0].(*types.ExecutorHeartbeatResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
-// Start indicates an expected call of Start.
-func (mr *MockHandlerMockRecorder) Start() *gomock.Call {
+// Heartbeat indicates an expected call of Heartbeat.
+func (mr *MockExecutorMockRecorder) Heartbeat(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockHandler)(nil).Start))
-}
-
-// Stop mocks base method.
-func (m *MockHandler) Stop() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Stop")
-}
-
-// Stop indicates an expected call of Stop.
-func (mr *MockHandlerMockRecorder) Stop() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockHandler)(nil).Stop))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Heartbeat", reflect.TypeOf((*MockExecutor)(nil).Heartbeat), arg0, arg1)
 }

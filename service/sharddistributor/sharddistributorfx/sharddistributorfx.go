@@ -25,6 +25,7 @@ package sharddistributorfx
 import (
 	"go.uber.org/fx"
 
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/membership"
@@ -35,6 +36,7 @@ import (
 	"github.com/uber/cadence/service/sharddistributor/leader/election"
 	"github.com/uber/cadence/service/sharddistributor/leader/namespace"
 	"github.com/uber/cadence/service/sharddistributor/leader/process"
+	"github.com/uber/cadence/service/sharddistributor/store"
 	"github.com/uber/cadence/service/sharddistributor/wrappers/grpc"
 	"github.com/uber/cadence/service/sharddistributor/wrappers/metered"
 )
@@ -55,6 +57,9 @@ type registerHandlersParams struct {
 
 	MembershipRings map[string]membership.SingleProvider
 
+	TimeSource clock.TimeSource
+	Store      store.Store
+
 	Lifecycle fx.Lifecycle
 }
 
@@ -67,10 +72,16 @@ func registerHandlers(params registerHandlersParams) error {
 	rawHandler := handler.NewHandler(params.Logger, params.MetricsClient, matchingRing, historyRing)
 	wrappedHandler := metered.NewMetricsHandler(rawHandler, params.Logger, params.MetricsClient)
 
+	executorHandler := handler.NewExecutorHandler(params.Store, params.TimeSource)
+	wrappedExecutor := metered.NewExecutorMetricsExecutor(executorHandler, params.Logger, params.MetricsClient)
+
 	grpcHandler := grpc.NewGRPCHandler(wrappedHandler)
 	grpcHandler.Register(dispatcher)
 
-	params.Lifecycle.Append(fx.StartStopHook(wrappedHandler.Start, wrappedHandler.Stop))
+	executorGRPCHander := grpc.NewExecutorGRPCExecutor(wrappedExecutor)
+	executorGRPCHander.Register(dispatcher)
+
+	params.Lifecycle.Append(fx.StartStopHook(rawHandler.Start, rawHandler.Stop))
 
 	return nil
 }

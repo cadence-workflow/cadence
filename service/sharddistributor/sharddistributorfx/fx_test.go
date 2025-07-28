@@ -57,5 +57,5 @@ func TestFxServiceStartStop(t *testing.T) {
 		Module)
 	app.RequireStart().RequireStop()
 	// API should be registered inside dispatcher.
-	assert.True(t, len(testDispatcher.Introspect().Procedures) > 1)
+	assert.True(t, len(testDispatcher.Introspect().Procedures) > 3)
 }

@@ -29,25 +29,15 @@ func NopGuard() GuardFunc {
 	}
 }
 
-// HeartbeatStore defines the interface for recording executor heartbeats.
-type HeartbeatStore interface {
-	GetHeartbeat(ctx context.Context, namespace string, executorID string) (*HeartbeatState, error)
-	RecordHeartbeat(ctx context.Context, namespace string, state HeartbeatState) error
-}
-
-// ShardStore defines the interface for shard management. Write operations
-// can be protected by an optional transactional guard.
-type ShardStore interface {
+// Store is a composite interface that combines all storage capabilities.
+type Store interface {
 	GetState(ctx context.Context, namespace string) (map[string]HeartbeatState, map[string]AssignedState, int64, error)
 	AssignShards(ctx context.Context, namespace string, newState map[string]AssignedState, guard GuardFunc) error
 	Subscribe(ctx context.Context, namespace string) (<-chan int64, error)
 	DeleteExecutors(ctx context.Context, namespace string, executorIDs []string, guard GuardFunc) error
-}
 
-// Store is a composite interface that combines all storage capabilities.
-type Store interface {
-	HeartbeatStore
-	ShardStore
+	GetHeartbeat(ctx context.Context, namespace string, executorID string) (*HeartbeatState, *AssignedState, error)
+	RecordHeartbeat(ctx context.Context, namespace, executorID string, state HeartbeatState) error
 }
 
 // Impl could be used to build an implementation in the registry.

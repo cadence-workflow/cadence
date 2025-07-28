@@ -44,7 +44,7 @@ func TestGetShardOwner(t *testing.T) {
 	mockMatchingRing := membership.NewMockSingleProvider(ctrl)
 	logger := testlogger.New(t)
 
-	handler := &handlerImpl{
+	handler := &Impl{
 		logger:       logger,
 		historyRing:  mockHistoryRing,
 		matchingRing: mockMatchingRing,

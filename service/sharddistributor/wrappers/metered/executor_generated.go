@@ -14,39 +14,35 @@ import (
 	"github.com/uber/cadence/service/sharddistributor/handler"
 )
 
-type metricsHandler struct {
-	handler       handler.Handler
+type executormetricsExecutor struct {
+	handler       handler.Executor
 	logger        log.Logger
 	metricsClient metrics.Client
 }
 
-func NewMetricsHandler(handler handler.Handler, logger log.Logger, metricsClient metrics.Client) handler.Handler {
-	return &metricsHandler{
+func NewExecutorMetricsExecutor(handler handler.Executor, logger log.Logger, metricsClient metrics.Client) handler.Executor {
+	return &executormetricsExecutor{
 		handler:       handler,
 		logger:        logger,
 		metricsClient: metricsClient,
 	}
 }
 
-func (h *metricsHandler) GetShardOwner(ctx context.Context, gp1 *types.GetShardOwnerRequest) (gp2 *types.GetShardOwnerResponse, err error) {
+func (h *executormetricsExecutor) Heartbeat(ctx context.Context, ep1 *types.ExecutorHeartbeatRequest) (ep2 *types.ExecutorHeartbeatResponse, err error) {
 	defer func() { log.CapturePanic(recover(), h.logger, &err) }()
 
-	scope := h.metricsClient.Scope(metrics.ShardDistributorGetShardOwnerScope)
-	scope = scope.Tagged(metrics.NamespaceTag(gp1.GetNamespace()))
+	scope := h.metricsClient.Scope(metrics.ShardDistributorHeartbeatScope)
+	scope = scope.Tagged(metrics.NamespaceTag(ep1.GetNamespace()))
 	scope.IncCounter(metrics.ShardDistributorRequests)
 	sw := scope.StartTimer(metrics.ShardDistributorLatency)
 	defer sw.Stop()
-	logger := h.logger.WithTags(tag.ShardNamespace(gp1.GetNamespace()))
+	logger := h.logger.WithTags(tag.ShardNamespace(ep1.GetNamespace()))
 
-	gp2, err = h.handler.GetShardOwner(ctx, gp1)
+	ep2, err = h.handler.Heartbeat(ctx, ep1)
 
 	if err != nil {
 		handleErr(err, scope, logger)
 	}
 
-	return gp2, err
-}
-
-func (h *metricsHandler) Health(ctx context.Context) (hp1 *types.HealthStatus, err error) {
-	return h.handler.Health(ctx)
+	return ep2, err
 }

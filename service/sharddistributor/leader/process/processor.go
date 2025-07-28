@@ -37,7 +37,7 @@ type Processor interface {
 type Factory interface {
 	// CreateProcessor creates a new processor, it takes the generic store
 	// and the election object which provides the transactional guard.
-	CreateProcessor(cfg config.Namespace, shardStore store.Store, election store.Election) Processor
+	CreateProcessor(cfg config.Namespace, storage store.Store, election store.Election) Processor
 }
 
 const (
@@ -340,17 +340,10 @@ func (p *namespaceProcessor) rebalanceShards(ctx context.Context) (err error) {
 	for executorID, shards := range currentAssignments {
 		assignedShardsMap := make(map[string]store.ShardAssignment)
 		for _, shardID := range shards {
-			assignedShardsMap[shardID] = store.ShardAssignment{ShardID: shardID}
-		}
-		// Preserve reported state if it exists
-		reportedShards := make(map[string]store.ShardState)
-		if existing, ok := assignedStates[executorID]; ok {
-			reportedShards = existing.ReportedShards
+			assignedShardsMap[shardID] = store.ShardAssignment{Status: store.ShardStateReady}
 		}
 		newState[executorID] = store.AssignedState{
-			ExecutorID:     executorID,
 			AssignedShards: assignedShardsMap,
-			ReportedShards: reportedShards,
 		}
 	}
 

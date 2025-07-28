@@ -85,8 +85,8 @@ func TestRebalanceShards_InitialDistribution(t *testing.T) {
 	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
 
 	state := map[string]store.HeartbeatState{
-		"exec-1": {ExecutorID: "exec-1", State: store.ExecutorStateActive},
-		"exec-2": {ExecutorID: "exec-2", State: store.ExecutorStateActive},
+		"exec-1": {State: store.ExecutorStateActive},
+		"exec-2": {State: store.ExecutorStateActive},
 	}
 	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(state, nil, int64(1), nil)
 	mocks.election.EXPECT().Guard().Return(store.NopGuard())
@@ -110,12 +110,11 @@ func TestRebalanceShards_ExecutorRemoved(t *testing.T) {
 	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
 
 	heartbeats := map[string]store.HeartbeatState{
-		"exec-1": {ExecutorID: "exec-1", State: store.ExecutorStateActive},
-		"exec-2": {ExecutorID: "exec-2", State: store.ExecutorStateDraining},
+		"exec-1": {State: store.ExecutorStateActive},
+		"exec-2": {State: store.ExecutorStateDraining},
 	}
 	assignments := map[string]store.AssignedState{
 		"exec-2": {
-			ExecutorID: "exec-2",
 			AssignedShards: map[string]store.ShardAssignment{
 				"0": {ShardID: "0"},
 				"1": {ShardID: "1"},
@@ -142,7 +141,7 @@ func TestRebalanceShards_NoActiveExecutors(t *testing.T) {
 	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
 
 	state := map[string]store.HeartbeatState{
-		"exec-1": {ExecutorID: "exec-1", State: store.ExecutorStateDraining},
+		"exec-1": {State: store.ExecutorStateDraining},
 	}
 	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(state, nil, int64(1), nil)
 	mocks.store.EXPECT().AssignShards(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
@@ -171,8 +170,8 @@ func TestCleanupStaleExecutors(t *testing.T) {
 	now := mocks.timeSource.Now()
 
 	heartbeats := map[string]store.HeartbeatState{
-		"exec-active": {ExecutorID: "exec-active", LastHeartbeat: now.Unix()},
-		"exec-stale":  {ExecutorID: "exec-stale", LastHeartbeat: now.Add(-2 * time.Second).Unix()},
+		"exec-active": {LastHeartbeat: now.Unix()},
+		"exec-stale":  {LastHeartbeat: now.Add(-2 * time.Second).Unix()},
 	}
 
 	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(heartbeats, nil, int64(1), nil)
@@ -264,11 +263,10 @@ func TestRebalanceShards_NoShardsToReassign(t *testing.T) {
 	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
 
 	heartbeats := map[string]store.HeartbeatState{
-		"exec-1": {ExecutorID: "exec-1", State: store.ExecutorStateActive},
+		"exec-1": {State: store.ExecutorStateActive},
 	}
 	assignments := map[string]store.AssignedState{
 		"exec-1": {
-			ExecutorID: "exec-1",
 			AssignedShards: map[string]store.ShardAssignment{
 				"0": {ShardID: "0"},
 				"1": {ShardID: "1"},
@@ -289,12 +287,11 @@ func TestRebalanceShards_WithUnassignedShards(t *testing.T) {
 	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
 
 	heartbeats := map[string]store.HeartbeatState{
-		"exec-1": {ExecutorID: "exec-1", State: store.ExecutorStateActive},
+		"exec-1": {State: store.ExecutorStateActive},
 	}
 	// Note: shard "1" is missing from assignments
 	assignments := map[string]store.AssignedState{
 		"exec-1": {
-			ExecutorID: "exec-1",
 			AssignedShards: map[string]store.ShardAssignment{
 				"0": {ShardID: "0"},
 			},
