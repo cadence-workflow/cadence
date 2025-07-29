@@ -571,8 +571,11 @@ build: ## `go build` all packages and tests (a quick compile check only, skips a
 tidy: ## `go mod tidy` all packages
 	$Q # tidy in dependency order
 	$Q go mod tidy
-	$Q cd common/archiver/gcloud; go mod tidy || (echo "failed to tidy gcloud plugin, try manually copying go.mod contents into common/archiver/gcloud/go.mod and rerunning" >&2; exit 1)
-	$Q cd cmd/server; go mod tidy || (echo "failed to tidy main server module, try manually copying go.mod and common/archiver/gcloud/go.mod contents into cmd/server/go.mod and rerunning" >&2; exit 1)
+	$Q cd common/archiver/gcloud; go mod tidy || (echo "failed to tidy gcloud plugin" >&2; exit 1)
+	$Q cd service/sharddistributor/store/etcd; go mod tidy || (echo "failed to tidy etcd plugin" >&2; exit 1)
+	$Q cd cmd/server; go mod tidy || (echo "failed to tidy main server module" >&2; exit 1)
+	$Q # pull everything to the newest selected versions for consistency.  this is generally preferred, but is not necessary if we need to diverge.
+	$Q go work sync
 
 clean: ## Clean build products and SQLite database
 	rm -f $(BINS)
