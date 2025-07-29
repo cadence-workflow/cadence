@@ -40,6 +40,7 @@ type (
 		Clear()
 
 		TrySplitByTaskKey(persistence.HistoryTaskKey) (VirtualSlice, VirtualSlice, bool)
+		TrySplitByPredicate(Predicate) (VirtualSlice, VirtualSlice, bool)
 		TryMergeWithVirtualSlice(VirtualSlice) ([]VirtualSlice, bool)
 	}
 
@@ -231,6 +232,44 @@ func (s *virtualSliceImpl) TrySplitByTaskKey(taskKey persistence.HistoryTaskKey)
 	}
 
 	return leftSlice, rightSlice, true
+}
+
+func (s *virtualSliceImpl) TrySplitByPredicate(predicate Predicate) (VirtualSlice, VirtualSlice, bool) {
+	passState, failState, ok := s.state.TrySplitByPredicate(predicate)
+	if !ok {
+		return nil, nil, false
+	}
+	passTracker := NewPendingTaskTracker()
+	failTracker := NewPendingTaskTracker()
+
+	taskMap := s.pendingTaskTracker.GetTasks()
+	for _, task := range taskMap {
+		if passState.Predicate.Check(task) {
+			passTracker.AddTask(task)
+		} else {
+			failTracker.AddTask(task)
+		}
+	}
+
+	passProgress := make([]*GetTaskProgress, len(s.progress))
+	failProgress := make([]*GetTaskProgress, len(s.progress))
+	copy(passProgress, s.progress)
+	copy(failProgress, s.progress)
+	passSlice := &virtualSliceImpl{
+		state:              passState,
+		taskInitializer:    s.taskInitializer,
+		queueReader:        s.queueReader,
+		pendingTaskTracker: passTracker,
+		progress:           passProgress,
+	}
+	failSlice := &virtualSliceImpl{
+		state:              failState,
+		taskInitializer:    s.taskInitializer,
+		queueReader:        s.queueReader,
+		pendingTaskTracker: failTracker,
+		progress:           failProgress,
+	}
+	return passSlice, failSlice, true
 }
 
 func (s *virtualSliceImpl) TryMergeWithVirtualSlice(other VirtualSlice) ([]VirtualSlice, bool) {

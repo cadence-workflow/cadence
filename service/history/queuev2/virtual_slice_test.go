@@ -1566,3 +1566,257 @@ func TestGetTasks(t *testing.T) {
 		})
 	}
 }
+
+func TestVirtualSliceImpl_TrySplitByPredicate(t *testing.T) {
+	tests := []struct {
+		name                  string
+		slice                 *virtualSliceImpl
+		splitPredicate        Predicate
+		expectedLeft          VirtualSliceState
+		expectedRight         VirtualSliceState
+		expectedOk            bool
+		expectedLeftProgress  []*GetTaskProgress
+		expectedRightProgress []*GetTaskProgress
+	}{
+		{
+			name: "Universal predicate should not split",
+			slice: &virtualSliceImpl{
+				state: VirtualSliceState{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+					},
+					Predicate: NewDomainIDPredicate([]string{"domain1", "domain2"}, false),
+				},
+				progress: []*GetTaskProgress{
+					{
+						Range: Range{
+							InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+							ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+						},
+						NextTaskKey: persistence.NewImmediateTaskKey(2),
+					},
+				},
+			},
+			splitPredicate: NewUniversalPredicate(),
+			expectedOk:     false,
+		},
+		{
+			name: "Empty predicate should not split",
+			slice: &virtualSliceImpl{
+				state: VirtualSliceState{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+					},
+					Predicate: NewDomainIDPredicate([]string{"domain1", "domain2"}, false),
+				},
+				progress: []*GetTaskProgress{
+					{
+						Range: Range{
+							InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+							ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+						},
+						NextTaskKey: persistence.NewImmediateTaskKey(2),
+					},
+				},
+			},
+			splitPredicate: NewEmptyPredicate(),
+			expectedOk:     false,
+		},
+		{
+			name: "Identical predicate should not split",
+			slice: &virtualSliceImpl{
+				state: VirtualSliceState{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+					},
+					Predicate: NewDomainIDPredicate([]string{"domain1", "domain2"}, false),
+				},
+				progress: []*GetTaskProgress{
+					{
+						Range: Range{
+							InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+							ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+						},
+						NextTaskKey: persistence.NewImmediateTaskKey(2),
+					},
+				},
+			},
+			splitPredicate: NewDomainIDPredicate([]string{"domain1", "domain2"}, false),
+			expectedOk:     false,
+		},
+		{
+			name: "Different predicate should split successfully",
+			slice: &virtualSliceImpl{
+				state: VirtualSliceState{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+					},
+					Predicate: NewDomainIDPredicate([]string{"domain1", "domain2"}, false),
+				},
+				progress: []*GetTaskProgress{
+					{
+						Range: Range{
+							InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+							ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+						},
+						NextTaskKey: persistence.NewImmediateTaskKey(2),
+					},
+				},
+			},
+			splitPredicate: NewDomainIDPredicate([]string{"domain3"}, false),
+			expectedOk:     true,
+			expectedLeft: VirtualSliceState{
+				Range: Range{
+					InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+					ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+				},
+				Predicate: And(NewDomainIDPredicate([]string{"domain1", "domain2"}, false), NewDomainIDPredicate([]string{"domain3"}, false)),
+			},
+			expectedRight: VirtualSliceState{
+				Range: Range{
+					InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+					ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+				},
+				Predicate: And(NewDomainIDPredicate([]string{"domain1", "domain2"}, false), Not(NewDomainIDPredicate([]string{"domain3"}, false))),
+			},
+			expectedLeftProgress: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+					},
+					NextTaskKey: persistence.NewImmediateTaskKey(2),
+				},
+			},
+			expectedRightProgress: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+					},
+					NextTaskKey: persistence.NewImmediateTaskKey(2),
+				},
+			},
+		},
+		{
+			name: "Split with multiple progress items",
+			slice: &virtualSliceImpl{
+				state: VirtualSliceState{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(100),
+					},
+					Predicate: NewUniversalPredicate(),
+				},
+				progress: []*GetTaskProgress{
+					{
+						Range: Range{
+							InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+							ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(30),
+						},
+						NextTaskKey:   persistence.NewImmediateTaskKey(20),
+						NextPageToken: []byte{1, 2, 3},
+					},
+					{
+						Range: Range{
+							InclusiveMinTaskKey: persistence.NewImmediateTaskKey(30),
+							ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(60),
+						},
+						NextTaskKey:   persistence.NewImmediateTaskKey(40),
+						NextPageToken: []byte{4, 5, 6},
+					},
+				},
+			},
+			splitPredicate: NewDomainIDPredicate([]string{"domain1"}, false),
+			expectedOk:     true,
+			expectedLeft: VirtualSliceState{
+				Range: Range{
+					InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+					ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(100),
+				},
+				Predicate: And(NewUniversalPredicate(), NewDomainIDPredicate([]string{"domain1"}, false)),
+			},
+			expectedRight: VirtualSliceState{
+				Range: Range{
+					InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+					ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(100),
+				},
+				Predicate: And(NewUniversalPredicate(), Not(NewDomainIDPredicate([]string{"domain1"}, false))),
+			},
+			expectedLeftProgress: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(30),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(20),
+					NextPageToken: []byte{1, 2, 3},
+				},
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(30),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(60),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(40),
+					NextPageToken: []byte{4, 5, 6},
+				},
+			},
+			expectedRightProgress: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(30),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(20),
+					NextPageToken: []byte{1, 2, 3},
+				},
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(30),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(60),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(40),
+					NextPageToken: []byte{4, 5, 6},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockQueueReader := NewMockQueueReader(ctrl)
+
+			tt.slice.taskInitializer = func(t persistence.Task) task.Task {
+				mockTask := task.NewMockTask(ctrl)
+				return mockTask
+			}
+			tt.slice.queueReader = mockQueueReader
+			tt.slice.pendingTaskTracker = NewPendingTaskTracker()
+
+			left, right, ok := tt.slice.TrySplitByPredicate(tt.splitPredicate)
+			assert.Equal(t, tt.expectedOk, ok)
+
+			if ok {
+				assert.Equal(t, tt.expectedLeft, left.GetState())
+				assert.Equal(t, tt.expectedRight, right.GetState())
+
+				// Verify progress
+				leftImpl, ok := left.(*virtualSliceImpl)
+				assert.True(t, ok)
+				assert.Equal(t, tt.expectedLeftProgress, leftImpl.progress)
+
+				rightImpl, ok := right.(*virtualSliceImpl)
+				assert.True(t, ok)
+				assert.Equal(t, tt.expectedRightProgress, rightImpl.progress)
+			} else {
+				assert.Nil(t, left)
+				assert.Nil(t, right)
+			}
+		})
+	}
+}
