@@ -610,37 +610,52 @@ func getSQLFromCountRequest(request *p.CountWorkflowExecutionsRequest) string {
 }
 
 func getCustomizedDSLFromSQL(sql string, domainID string) (*fastjson.Value, error) {
+	// Only process LIKE clauses if they exist
+	if strings.Contains(strings.ToLower(sql), " like ") {
+		return processSQLWithLike(sql, domainID)
+	}
+
+	// No LIKE clauses found, use the original elasticsql.Convert
+	return processSQLWithoutLike(sql, domainID)
+}
+
+// processSQLWithLike handles SQL queries that contain LIKE clauses
+func processSQLWithLike(sql string, domainID string) (*fastjson.Value, error) {
 	likeClauses, strippedSQL := extractLikeClauses(sql)
 
 	// Step 1: Convert with elasticsql for the non-LIKE portion
-	var dsl *fastjson.Value
-	if hasRealConditions(strippedSQL) {
-		dslStr, _, err := elasticsql.Convert(strippedSQL)
-		if err != nil {
-			return nil, err
-		}
-		dsl, err = fastjson.Parse(dslStr)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		// Build a minimal query wrapper to attach wildcard clauses
-		dsl = fastjson.MustParse(`{
-			"query": {
-			  "bool": {
-				"must": []
-			  }
-			},
-			"from": 0,
-			"size": 1
-		  }`)
+	dslStr, _, err := elasticsql.Convert(strippedSQL)
+	if err != nil {
+		return nil, err
 	}
-
+	dsl, err := fastjson.Parse(dslStr)
+	if err != nil {
+		return nil, err
+	}
 	// Step 2: Patch wildcard queries back in
 	if err := injectWildcardQueries(dsl, likeClauses); err != nil {
 		return nil, err
 	}
+	dsl = replaceDummyQuery(dsl)
+	return applyStandardProcessing(dsl, domainID)
+}
 
+// processSQLWithoutLike handles SQL queries without LIKE clauses
+func processSQLWithoutLike(sql string, domainID string) (*fastjson.Value, error) {
+	dslStr, _, err := elasticsql.Convert(sql)
+	if err != nil {
+		return nil, err
+	}
+	dsl, err := fastjson.Parse(dslStr)
+	if err != nil {
+		return nil, err
+	}
+
+	return applyStandardProcessing(dsl, domainID)
+}
+
+// applyStandardProcessing applies the standard post-processing steps to the DSL
+func applyStandardProcessing(dsl *fastjson.Value, domainID string) (*fastjson.Value, error) {
 	dslStr := dsl.String()
 	if strings.Contains(dslStr, jsonMissingStartTime) { // isUninitialized
 		dsl = replaceQueryForUninitialized(dsl)
@@ -1036,7 +1051,9 @@ func extractLikeClauses(sql string) ([]likeClause, string) {
 			Pattern: match[2],
 		})
 		// Remove LIKE clause from SQL
-		strippedSQL = strings.Replace(strippedSQL, match[0], "1=1", 1)
+		// Replace LIKE with a dummy expression that elasticsql can parse
+		replacement := fmt.Sprintf(`__dummy_field__ = '__dummy_value__'`)
+		strippedSQL = strings.Replace(strippedSQL, match[0], replacement, 1)
 	}
 	return clauses, strippedSQL
 }
@@ -1087,17 +1104,20 @@ func joinFastjson(arr []*fastjson.Value, sep string) string {
 	return strings.Join(parts, sep)
 }
 
-func hasRealConditions(sql string) bool {
-	sql = strings.ToLower(sql)
+func replaceDummyQuery(dsl *fastjson.Value) *fastjson.Value {
+	// Convert to string to find and remove the dummy query
+	dslStr := dsl.String()
 
-	// Remove SQL keywords and placeholders
-	toRemove := []string{
-		"select", "from", "where", "*", "1=1", "true", "dummy", "dummy_table", "dummy_index",
-	}
-	for _, r := range toRemove {
-		sql = strings.ReplaceAll(sql, r, "")
-	}
+	// Remove the dummy match_phrase query
+	dummyQuery := `{"match_phrase":{"__dummy_field__":{"query":"__dummy_value__"}}}`
+	dslStr = strings.Replace(dslStr, dummyQuery, "", 1)
 
-	sql = strings.TrimSpace(sql)
-	return len(sql) > 0
+	// Clean up any trailing commas or empty arrays
+	dslStr = strings.Replace(dslStr, ",,", ",", -1)
+	dslStr = strings.Replace(dslStr, "[,", "[", -1)
+	dslStr = strings.Replace(dslStr, ",]", "]", -1)
+	dslStr = strings.Replace(dslStr, "[]", "", -1)
+
+	// Parse back to fastjson.Value
+	return fastjson.MustParse(dslStr)
 }
