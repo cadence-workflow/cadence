@@ -45,7 +45,7 @@ func NewHandler(
 	matchingRing membership.SingleProvider,
 	historyRing membership.SingleProvider,
 ) Handler {
-	handler := &impl{
+	handler := &handlerImpl{
 		logger:        logger,
 		metricsClient: metricsClient,
 		matchingRing:  matchingRing,
@@ -57,7 +57,7 @@ func NewHandler(
 	return handler
 }
 
-type impl struct {
+type handlerImpl struct {
 	logger        log.Logger
 	metricsClient metrics.Client
 	peerProvider  membership.PeerProvider
@@ -67,21 +67,21 @@ type impl struct {
 	historyRing  membership.SingleProvider
 }
 
-func (h *impl) Start() {
+func (h *handlerImpl) Start() {
 	h.startWG.Done()
 }
 
-func (h *impl) Stop() {
+func (h *handlerImpl) Stop() {
 }
 
-func (h *impl) Health(ctx context.Context) (*types.HealthStatus, error) {
+func (h *handlerImpl) Health(ctx context.Context) (*types.HealthStatus, error) {
 	h.startWG.Wait()
 	h.logger.Debug("Shard Distributor service health check endpoint reached.")
 	hs := &types.HealthStatus{Ok: true, Msg: "shard distributor good"}
 	return hs, nil
 }
 
-func (h *impl) GetShardOwner(ctx context.Context, request *types.GetShardOwnerRequest) (resp *types.GetShardOwnerResponse, retError error) {
+func (h *handlerImpl) GetShardOwner(ctx context.Context, request *types.GetShardOwnerRequest) (resp *types.GetShardOwnerResponse, retError error) {
 	defer func() { log.CapturePanic(recover(), h.logger, &retError) }()
 
 	var owner string
