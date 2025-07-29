@@ -33,12 +33,12 @@ func TestRecordHeartbeat(t *testing.T) {
 	nowTS := time.Now().Unix()
 
 	namespace := "test-heartbeat-ns"
-	executorID := "executor-1"
+	executorID := "executor-TestRecordHeartbeat"
 	req := store.HeartbeatState{
 		LastHeartbeat: nowTS,
 		Status:        types.ExecutorStatusACTIVE,
 		ReportedShards: map[string]*types.ShardStatusReport{
-			"shard-1": {Status: types.ShardStatusREADY},
+			"shard-TestRecordHeartbeat": {Status: types.ShardStatusREADY},
 		},
 	}
 
@@ -46,9 +46,9 @@ func TestRecordHeartbeat(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify directly in etcd
-	heartbeatKey := tc.store.buildExecutorKey(namespace, executorID, "heartbeat")
-	stateKey := tc.store.buildExecutorKey(namespace, executorID, "state")
-	reportedShardsKey := tc.store.buildExecutorKey(namespace, executorID, "reported_shards")
+	heartbeatKey := tc.store.buildExecutorKey(namespace, executorID, heartbeatKey)
+	stateKey := tc.store.buildExecutorKey(namespace, executorID, statusKey)
+	reportedShardsKey := tc.store.buildExecutorKey(namespace, executorID, reportedShardsKey)
 
 	resp, err := tc.client.Get(ctx, heartbeatKey)
 	require.NoError(t, err)
@@ -68,7 +68,7 @@ func TestRecordHeartbeat(t *testing.T) {
 	err = json.Unmarshal(resp.Kvs[0].Value, &reportedShards)
 	require.NoError(t, err)
 	require.Len(t, reportedShards, 1)
-	assert.Equal(t, types.ShardStatusREADY, reportedShards["shard-1"].Status)
+	assert.Equal(t, types.ShardStatusREADY, reportedShards["shard-TestRecordHeartbeat"].Status)
 }
 
 func TestGetHeartbeat(t *testing.T) {
@@ -123,7 +123,7 @@ func TestGetState(t *testing.T) {
 	defer cancel()
 
 	namespace := "test-getstate-ns"
-	executorID1 := "exec-1"
+	executorID1 := "exec-TestGetState"
 	// Record two heartbeats, one with reported shards
 	require.NoError(t, tc.store.RecordHeartbeat(ctx, namespace, executorID1, store.HeartbeatState{
 		Status: types.ExecutorStatusACTIVE,
@@ -131,7 +131,7 @@ func TestGetState(t *testing.T) {
 			"shard-10": {Status: types.ShardStatusREADY},
 		},
 	}))
-	executorID2 := "exec-2"
+	executorID2 := "exec-TestGetState-2"
 	require.NoError(t, tc.store.RecordHeartbeat(ctx, namespace, executorID2, store.HeartbeatState{Status: types.ExecutorStatusDRAINING}))
 
 	// Assign shards to one executor
@@ -274,7 +274,7 @@ func setupStoreTestCluster(t *testing.T) *storeTestCluster {
 	etcdConfigRaw := map[string]interface{}{
 		"endpoints":   endpoints,
 		"dialTimeout": "5s",
-		"prefix":      fmt.Sprintf("/shard-store/%s", t.Name()),
+		"prefix":      fmt.Sprintf("/test-shard-store/%s", t.Name()),
 		"electionTTL": "5s", // Needed for leader config part
 	}
 
