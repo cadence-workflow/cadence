@@ -176,6 +176,38 @@ func TestLogHistogramRange(t *testing.T) {
 	for i := 1; i < len(newhalf); i += 4 {
 		t.Logf("\t%v", newhalf[i:min(i+4, len(newhalf))])
 	}
+	t.Log("full precision starting at 1s, 160 things ----")
+	// is this good enough for workflow end-to-end time?
+	// result: 267 hours at peak, not enough.  not even two weeks.
+	longrange := makeBuckets(160, func(i int) time.Duration {
+		return time.Duration(float64(time.Second) * math.Pow(2, float64(i)/8))
+	})
+	longrange = append(tally.DurationBuckets{0}, longrange...)
+	t.Logf("\t%v", longrange[0:1])
+	for i := 1; i < len(longrange); i += 8 {
+		t.Logf("\t%v", longrange[i:min(i+8, len(longrange))])
+	}
+	t.Log("half precision starting at 1s, 160 things ----")
+	// maybe this works?
+	// result: yes definitely, max-int reached.  needs to be reduced.
+	longerrange := makeBuckets(160, func(i int) time.Duration {
+		return time.Duration(float64(time.Second) * math.Pow(2, float64(i)/4))
+	})
+	longerrange = append(tally.DurationBuckets{0}, longerrange...)
+	t.Logf("\t%v", longerrange[0:1])
+	for i := 1; i < len(longerrange); i += 4 {
+		t.Logf("\t%v", longerrange[i:min(i+4, len(longerrange))])
+	}
+	t.Log("half precision starting at 1s, ending at 3y ----")
+	// maybe this works?
+	// at half precision this gives us 109 buckets for 3.5y of data, which is pretty reasonable.
+	// most won't touch that full range.
+	betterlongrange := makeExponentialBuckets(time.Second, 3*365*24*time.Hour, 2)
+	t.Logf("\t%v", betterlongrange[0:1])
+	for i := 1; i < len(betterlongrange); i += 4 {
+		t.Logf("\t%v", betterlongrange[i:min(i+4, len(betterlongrange))])
+	}
+	t.Logf("number of buckets needed: %d", len(betterlongrange))
 }
 
 func makeBuckets(num int, factor func(i int) time.Duration) tally.DurationBuckets {
