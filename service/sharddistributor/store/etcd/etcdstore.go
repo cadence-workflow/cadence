@@ -21,9 +21,9 @@ func init() {
 
 const (
 	heartbeatKey      = "heartbeat"
-	stateKey          = "state"
+	statusKey         = "status"
 	reportedShardsKey = "reported_shards"
-	assignedShardsKey = "assigned_shards"
+	assignedStateKey  = "assigned_state"
 )
 
 // Store implements the generic store.Store interface using etcd as the backend.
@@ -80,20 +80,25 @@ func NewStore(p StoreParams) (store.Store, error) {
 // --- HeartbeatStore Implementation ---
 
 func (s *Store) RecordHeartbeat(ctx context.Context, namespace, executorID string, request store.HeartbeatState) error {
-	heartbeatKey := s.buildExecutorKey(namespace, executorID, heartbeatKey)
-	stateKey := s.buildExecutorKey(namespace, executorID, stateKey)
-	reportedShardsKey := s.buildExecutorKey(namespace, executorID, reportedShardsKey)
+	heartbeatETCDKey := s.buildExecutorKey(namespace, executorID, heartbeatKey)
+	stateETCDKey := s.buildExecutorKey(namespace, executorID, statusKey)
+	reportedShardsETCDKey := s.buildExecutorKey(namespace, executorID, reportedShardsKey)
 
 	reportedShardsData, err := json.Marshal(request.ReportedShards)
 	if err != nil {
 		return fmt.Errorf("marshal assinged shards: %w", err)
 	}
 
+	jsonState, err := json.Marshal(request.Status)
+	if err != nil {
+		return fmt.Errorf("marshal assinged shards: %w", err)
+	}
+
 	// Atomically update both the timestamp and the state.
 	_, err = s.client.Txn(ctx).Then(
-		clientv3.OpPut(heartbeatKey, strconv.FormatInt(request.LastHeartbeat, 10)),
-		clientv3.OpPut(stateKey, string(request.State)),
-		clientv3.OpPut(reportedShardsKey, string(reportedShardsData)),
+		clientv3.OpPut(heartbeatETCDKey, strconv.FormatInt(request.LastHeartbeat, 10)),
+		clientv3.OpPut(stateETCDKey, string(jsonState)),
+		clientv3.OpPut(reportedShardsETCDKey, string(reportedShardsData)),
 	).Commit()
 
 	if err != nil {
@@ -135,18 +140,18 @@ func (s *Store) GetHeartbeat(ctx context.Context, namespace string, executorID s
 				return nil, nil, fmt.Errorf("parse heartbeat timestamp: %w", err)
 			}
 			heartbeatState.LastHeartbeat = timestamp
-		case stateKey:
-			heartbeatState.State, err = store.ParseExecutorState(value)
+		case statusKey:
+			err := json.Unmarshal([]byte(value), &heartbeatState.Status)
 			if err != nil {
-				return nil, nil, fmt.Errorf("parse heartbeat state: %w", err)
+				return nil, nil, fmt.Errorf("parse heartbeat state: %w, value %s", err, value)
 			}
 		case reportedShardsKey:
 			err = json.Unmarshal(kv.Value, &heartbeatState.ReportedShards)
 			if err != nil {
 				return nil, nil, fmt.Errorf("unmarshal reported shards: %w", err)
 			}
-		case assignedShardsKey:
-			err = json.Unmarshal(kv.Value, &assignedState.AssignedShards)
+		case assignedStateKey:
+			err = json.Unmarshal(kv.Value, &assignedState)
 			if err != nil {
 				return nil, nil, fmt.Errorf("unmarshal assigned shards: %w", err)
 			}
@@ -180,31 +185,26 @@ func (s *Store) GetState(ctx context.Context, namespace string) (map[string]stor
 		if keyErr != nil {
 			continue
 		}
-		if _, ok := heartbeatStates[executorID]; !ok {
-			heartbeatStates[executorID] = store.HeartbeatState{}
-		}
-		if _, ok := assignedStates[executorID]; !ok {
-			assignedStates[executorID] = store.AssignedState{
-				AssignedShards: make(map[string]store.ShardAssignment),
-			}
-		}
 		heartbeat := heartbeatStates[executorID]
 		assigned := assignedStates[executorID]
 		switch keyType {
 		case heartbeatKey:
 			timestamp, _ := strconv.ParseInt(value, 10, 64)
 			heartbeat.LastHeartbeat = timestamp
-		case stateKey:
-			heartbeat.State = store.ExecutorState(value)
+		case statusKey:
+			err := json.Unmarshal([]byte(value), &heartbeat.Status)
+			if err != nil {
+				return nil, nil, 0, fmt.Errorf("parse heartbeat state: %w, value %s", err, value)
+			}
 		case reportedShardsKey:
 			err = json.Unmarshal(kv.Value, &heartbeat.ReportedShards)
 			if err != nil {
 				return nil, nil, 0, fmt.Errorf("unmarshal reported shards: %w", err)
 			}
-		case assignedShardsKey:
-			err = json.Unmarshal(kv.Value, &assigned.AssignedShards)
+		case assignedStateKey:
+			err = json.Unmarshal(kv.Value, &assigned)
 			if err != nil {
-				return nil, nil, 0, fmt.Errorf("unmarshal assigned shards: %w", err)
+				return nil, nil, 0, fmt.Errorf("unmarshal assigned shards: %w, %s", err, value)
 			}
 		}
 		heartbeatStates[executorID] = heartbeat
@@ -233,7 +233,7 @@ func (s *Store) Subscribe(ctx context.Context, namespace string) (<-chan int64, 
 				if err != nil {
 					continue
 				}
-				if keyType != heartbeatKey && keyType != assignedShardsKey {
+				if keyType != heartbeatKey && keyType != assignedStateKey {
 					isSignificantChange = true
 					break
 				}
@@ -253,8 +253,8 @@ func (s *Store) Subscribe(ctx context.Context, namespace string) (<-chan int64, 
 func (s *Store) AssignShards(ctx context.Context, namespace string, newState map[string]store.AssignedState, guard store.GuardFunc) error {
 	var ops []clientv3.Op
 	for executorID, state := range newState {
-		key := s.buildExecutorKey(namespace, executorID, assignedShardsKey)
-		value, err := json.Marshal(state.AssignedShards)
+		key := s.buildExecutorKey(namespace, executorID, assignedStateKey)
+		value, err := json.Marshal(state)
 		if err != nil {
 			return fmt.Errorf("marshal assigned shards: %w", err)
 		}

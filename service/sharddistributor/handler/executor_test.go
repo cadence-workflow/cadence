@@ -35,9 +35,8 @@ func TestHeartbeat(t *testing.T) {
 
 		mockStore.EXPECT().GetHeartbeat(gomock.Any(), namespace, executorID).Return(nil, nil, store.ErrExecutorNotFound)
 		mockStore.EXPECT().RecordHeartbeat(gomock.Any(), namespace, executorID, store.HeartbeatState{
-			LastHeartbeat:  now.Unix(),
-			State:          store.ExecutorStateActive,
-			ReportedShards: make(map[string]store.ShardInfo),
+			LastHeartbeat: now.Unix(),
+			Status:        types.ExecutorStatusACTIVE,
 		})
 
 		_, err := handler.Heartbeat(ctx, req)
@@ -59,7 +58,7 @@ func TestHeartbeat(t *testing.T) {
 
 		previousHeartbeat := store.HeartbeatState{
 			LastHeartbeat: now.Unix(),
-			State:         store.ExecutorStateActive,
+			Status:        types.ExecutorStatusACTIVE,
 		}
 
 		mockStore.EXPECT().GetHeartbeat(gomock.Any(), namespace, executorID).Return(&previousHeartbeat, nil, nil)
@@ -83,7 +82,7 @@ func TestHeartbeat(t *testing.T) {
 
 		previousHeartbeat := store.HeartbeatState{
 			LastHeartbeat: now.Unix(),
-			State:         store.ExecutorStateActive,
+			Status:        types.ExecutorStatusACTIVE,
 		}
 
 		// Advance time
@@ -91,9 +90,8 @@ func TestHeartbeat(t *testing.T) {
 
 		mockStore.EXPECT().GetHeartbeat(gomock.Any(), namespace, executorID).Return(&previousHeartbeat, nil, nil)
 		mockStore.EXPECT().RecordHeartbeat(gomock.Any(), namespace, executorID, store.HeartbeatState{
-			LastHeartbeat:  mockTimeSource.Now().Unix(),
-			State:          store.ExecutorStateActive,
-			ReportedShards: make(map[string]store.ShardInfo),
+			LastHeartbeat: mockTimeSource.Now().Unix(),
+			Status:        types.ExecutorStatusACTIVE,
 		})
 
 		_, err := handler.Heartbeat(ctx, req)
@@ -115,14 +113,13 @@ func TestHeartbeat(t *testing.T) {
 
 		previousHeartbeat := store.HeartbeatState{
 			LastHeartbeat: now.Unix(),
-			State:         store.ExecutorStateActive,
+			Status:        types.ExecutorStatusACTIVE,
 		}
 
 		mockStore.EXPECT().GetHeartbeat(gomock.Any(), namespace, executorID).Return(&previousHeartbeat, nil, nil)
 		mockStore.EXPECT().RecordHeartbeat(gomock.Any(), namespace, executorID, store.HeartbeatState{
-			LastHeartbeat:  now.Unix(),
-			State:          store.ExecutorStateDraining,
-			ReportedShards: make(map[string]store.ShardInfo),
+			LastHeartbeat: now.Unix(),
+			Status:        types.ExecutorStatusDRAINING,
 		})
 
 		_, err := handler.Heartbeat(ctx, req)
@@ -167,7 +164,7 @@ func TestConvertResponse(t *testing.T) {
 		{
 			name: "Empty input",
 			input: &store.AssignedState{
-				AssignedShards: make(map[string]store.ShardAssignment),
+				AssignedShards: make(map[string]*types.ShardAssignment),
 			},
 			expectedResp: &types.ExecutorHeartbeatResponse{
 				ShardAssignments: make(map[string]*types.ShardAssignment),
@@ -176,9 +173,9 @@ func TestConvertResponse(t *testing.T) {
 		{
 			name: "Populated input",
 			input: &store.AssignedState{
-				AssignedShards: map[string]store.ShardAssignment{
-					"shard-1": {Status: store.ShardStateReady},
-					"shard-2": {Status: store.ShardStateReady},
+				AssignedShards: map[string]*types.ShardAssignment{
+					"shard-1": {Status: types.AssignmentStatusREADY},
+					"shard-2": {Status: types.AssignmentStatusREADY},
 				},
 			},
 			expectedResp: &types.ExecutorHeartbeatResponse{
@@ -204,43 +201,6 @@ func TestConvertResponse(t *testing.T) {
 				res.ShardAssignments = make(map[string]*types.ShardAssignment)
 			}
 			require.Equal(t, tc.expectedResp, res)
-		})
-	}
-}
-
-func TestConvertReportedShards(t *testing.T) {
-	testCases := []struct {
-		name     string
-		input    map[string]*types.ShardStatusReport
-		expected map[string]store.ShardInfo
-	}{
-		{
-			name:     "Nil input",
-			input:    nil,
-			expected: make(map[string]store.ShardInfo),
-		},
-		{
-			name:     "Empty input",
-			input:    make(map[string]*types.ShardStatusReport),
-			expected: make(map[string]store.ShardInfo),
-		},
-		{
-			name: "Populated input",
-			input: map[string]*types.ShardStatusReport{
-				"shard-1": {Status: types.ShardStatusREADY, ShardLoad: 1.23},
-				"shard-2": {Status: types.ShardStatusREADY, ShardLoad: 4.56},
-			},
-			expected: map[string]store.ShardInfo{
-				"shard-1": {Status: store.ShardStateReady, ShardLoad: 1.23},
-				"shard-2": {Status: store.ShardStateReady, ShardLoad: 4.56},
-			},
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			res := _convertReportedShards(tc.input)
-			require.Equal(t, tc.expected, res)
 		})
 	}
 }

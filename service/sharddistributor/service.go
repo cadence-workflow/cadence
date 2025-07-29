@@ -47,10 +47,9 @@ type Service struct {
 	metricsClient metrics.Client
 	dispatcher    *yarpc.Dispatcher
 
-	handler             handler.Handler
-	handlerStartStopper common.Daemon
-	config              *config.Config
-	peerProvider        membership.PeerProvider
+	handler      handler.Handler
+	config       *config.Config
+	peerProvider membership.PeerProvider
 
 	matchingRing membership.SingleProvider
 	historyRing  membership.SingleProvider
@@ -103,12 +102,11 @@ func NewService(
 	grpcHandler.Register(dispatcher)
 
 	return &Service{
-		config:              serviceConfig,
-		logger:              logger,
-		metricsClient:       params.MetricsClient,
-		dispatcher:          dispatcher,
-		handler:             meteredHandler,
-		handlerStartStopper: rawHandler,
+		config:        serviceConfig,
+		logger:        logger,
+		metricsClient: params.MetricsClient,
+		dispatcher:    dispatcher,
+		handler:       meteredHandler,
 
 		matchingRing: matchingRing,
 		historyRing:  historyRing,
@@ -130,8 +128,8 @@ func (s *Service) Start() {
 
 	s.resource.Start()
 
-	if s.handlerStartStopper != nil {
-		s.handlerStartStopper.Start()
+	if s.handler != nil {
+		s.handler.Start()
 	}
 
 	s.logger.Info("started")
@@ -149,7 +147,7 @@ func (s *Service) Stop() {
 
 	close(s.stopC)
 
-	s.handlerStartStopper.Stop()
+	s.handler.Stop()
 
 	s.resource.Stop()
 

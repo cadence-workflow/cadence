@@ -18,6 +18,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/types"
 	shardDistributorCfg "github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/store"
 	"github.com/uber/cadence/testflags"
@@ -35,9 +36,9 @@ func TestRecordHeartbeat(t *testing.T) {
 	executorID := "executor-1"
 	req := store.HeartbeatState{
 		LastHeartbeat: nowTS,
-		State:         store.ExecutorStateActive,
-		ReportedShards: map[string]store.ShardInfo{
-			"shard-1": {Status: store.ShardStateReady},
+		Status:        types.ExecutorStatusACTIVE,
+		ReportedShards: map[string]*types.ShardStatusReport{
+			"shard-1": {Status: types.ShardStatusREADY},
 		},
 	}
 
@@ -57,17 +58,17 @@ func TestRecordHeartbeat(t *testing.T) {
 	resp, err = tc.client.Get(ctx, stateKey)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), resp.Count, "State key should exist")
-	assert.Equal(t, string(store.ExecutorStateActive), string(resp.Kvs[0].Value))
+	assert.Equal(t, stringStatus(types.ExecutorStatusACTIVE), string(resp.Kvs[0].Value))
 
 	resp, err = tc.client.Get(ctx, reportedShardsKey)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), resp.Count, "Reported shards key should exist")
 
-	var reportedShards map[string]store.ShardInfo
+	var reportedShards map[string]*types.ShardStatusReport
 	err = json.Unmarshal(resp.Kvs[0].Value, &reportedShards)
 	require.NoError(t, err)
 	require.Len(t, reportedShards, 1)
-	assert.Equal(t, store.ShardStateReady, reportedShards["shard-1"].Status)
+	assert.Equal(t, types.ShardStatusREADY, reportedShards["shard-1"].Status)
 }
 
 func TestGetHeartbeat(t *testing.T) {
@@ -80,7 +81,7 @@ func TestGetHeartbeat(t *testing.T) {
 	namespace := "test-get-heartbeat-ns"
 	executorID := "executor-get"
 	req := store.HeartbeatState{
-		State:         store.ExecutorStateDraining,
+		Status:        types.ExecutorStatusDRAINING,
 		LastHeartbeat: nowTS,
 	}
 
@@ -91,8 +92,8 @@ func TestGetHeartbeat(t *testing.T) {
 	// Assign shards to one executor
 	assignState := map[string]store.AssignedState{
 		executorID: {
-			AssignedShards: map[string]store.ShardAssignment{
-				"shard-1": {Status: store.ShardStateReady},
+			AssignedShards: map[string]*types.ShardAssignment{
+				"shard-1": {Status: types.AssignmentStatusREADY},
 			},
 		},
 	}
@@ -104,7 +105,7 @@ func TestGetHeartbeat(t *testing.T) {
 	require.NotNil(t, hb)
 
 	// 3. Verify the state
-	assert.Equal(t, store.ExecutorStateDraining, hb.State)
+	assert.Equal(t, types.ExecutorStatusDRAINING, hb.Status)
 	assert.Equal(t, nowTS, hb.LastHeartbeat)
 	require.NotNil(t, assignedFromDB.AssignedShards)
 	assert.Equal(t, assignState[executorID].AssignedShards, assignedFromDB.AssignedShards)
@@ -125,19 +126,19 @@ func TestGetState(t *testing.T) {
 	executorID1 := "exec-1"
 	// Record two heartbeats, one with reported shards
 	require.NoError(t, tc.store.RecordHeartbeat(ctx, namespace, executorID1, store.HeartbeatState{
-		State: store.ExecutorStateActive,
-		ReportedShards: map[string]store.ShardInfo{
-			"shard-10": {Status: store.ShardStateReady},
+		Status: types.ExecutorStatusACTIVE,
+		ReportedShards: map[string]*types.ShardStatusReport{
+			"shard-10": {Status: types.ShardStatusREADY},
 		},
 	}))
 	executorID2 := "exec-2"
-	require.NoError(t, tc.store.RecordHeartbeat(ctx, namespace, executorID2, store.HeartbeatState{State: store.ExecutorStateDraining}))
+	require.NoError(t, tc.store.RecordHeartbeat(ctx, namespace, executorID2, store.HeartbeatState{Status: types.ExecutorStatusDRAINING}))
 
 	// Assign shards to one executor
 	assignState := map[string]store.AssignedState{
 		executorID1: {
-			AssignedShards: map[string]store.ShardAssignment{
-				"shard-1": {Status: store.ShardStateReady},
+			AssignedShards: map[string]*types.ShardAssignment{
+				"shard-1": {Status: types.AssignmentStatusREADY},
 			},
 		},
 	}
@@ -148,8 +149,8 @@ func TestGetState(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Len(t, heartbeats, 2, "Should retrieve two heartbeat states")
-	assert.Equal(t, store.ExecutorStateActive, heartbeats[executorID1].State)
-	assert.Equal(t, store.ExecutorStateDraining, heartbeats[executorID2].State)
+	assert.Equal(t, types.ExecutorStatusACTIVE, heartbeats[executorID1].Status)
+	assert.Equal(t, types.ExecutorStatusDRAINING, heartbeats[executorID2].Status)
 
 	require.Len(t, assignments, 2, "Should retrieve two assignment states")
 	require.Len(t, assignments[executorID1].AssignedShards, 1, "Executor 1 should have one shard assigned")
@@ -158,7 +159,7 @@ func TestGetState(t *testing.T) {
 
 	// Verify reported shards from heartbeat were also retrieved
 	require.Len(t, heartbeats[executorID1].ReportedShards, 1, "Executor 1 should have one shard reported")
-	assert.Equal(t, store.ShardStateReady, heartbeats[executorID1].ReportedShards["shard-10"].Status)
+	assert.Equal(t, types.ShardStatusREADY, heartbeats[executorID1].ReportedShards["shard-10"].Status)
 	require.Len(t, heartbeats[executorID2].ReportedShards, 0, "Executor 2 should have no shards reported")
 }
 
@@ -200,7 +201,7 @@ func TestGuardedOperations(t *testing.T) {
 	require.Error(t, err, "Assigning shards with a stale leader guard should fail")
 
 	// 6. Use the NopGuard to delete an executor - should succeed
-	require.NoError(t, tc.store.RecordHeartbeat(ctx, namespace, executorID, store.HeartbeatState{State: store.ExecutorStateActive}))
+	require.NoError(t, tc.store.RecordHeartbeat(ctx, namespace, executorID, store.HeartbeatState{Status: types.ExecutorStatusACTIVE}))
 	err = tc.store.DeleteExecutors(ctx, namespace, []string{executorID}, store.NopGuard())
 	require.NoError(t, err, "Deleting an executor without a guard should succeed")
 
@@ -332,12 +333,10 @@ func TestParseExecutorKey_Errors(t *testing.T) {
 	assert.Contains(t, err.Error(), "unexpected key format")
 }
 
-func createYamlNode(t *testing.T, cfg map[string]interface{}) *config.YamlNode {
-	t.Helper()
-	yamlCfg, err := yaml.Marshal(cfg)
-	require.NoError(t, err)
-	var res *config.YamlNode
-	err = yaml.Unmarshal(yamlCfg, &res)
-	require.NoError(t, err)
-	return res
+func stringStatus(s types.ExecutorStatus) string {
+	res, err := json.Marshal(s)
+	if err != nil {
+		panic(err)
+	}
+	return string(res)
 }

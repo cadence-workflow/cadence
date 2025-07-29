@@ -36,7 +36,7 @@ func (h *executor) Heartbeat(ctx context.Context, request *types.ExecutorHeartbe
 
 	// If the state has changed we need to update heartbeat data.
 	// Otherwise, we want to do it with controlled frequency - at most every _heartbeatRefreshRate.
-	if previousHeartbeat != nil && !needUpdate(request.Status, previousHeartbeat.State) {
+	if previousHeartbeat != nil && request.Status == previousHeartbeat.Status {
 		lastHeartbeatTime := time.Unix(previousHeartbeat.LastHeartbeat, 0)
 		if now.Sub(lastHeartbeatTime) < _heartbeatRefreshRate {
 			return _convertResponse(assignedShards), nil
@@ -45,8 +45,8 @@ func (h *executor) Heartbeat(ctx context.Context, request *types.ExecutorHeartbe
 
 	newHeartbeat := store.HeartbeatState{
 		LastHeartbeat:  now.Unix(),
-		State:          _executorStatusReverseMapping[request.Status],
-		ReportedShards: _convertReportedShards(request.ShardStatusReports),
+		Status:         request.Status,
+		ReportedShards: request.ShardStatusReports,
 	}
 
 	err = h.storage.RecordHeartbeat(ctx, request.Namespace, request.ExecutorID, newHeartbeat)
@@ -62,46 +62,6 @@ func _convertResponse(shards *store.AssignedState) *types.ExecutorHeartbeatRespo
 	if shards == nil {
 		return res
 	}
-	res.ShardAssignments = make(map[string]*types.ShardAssignment, len(shards.AssignedShards))
-	for shardID, state := range shards.AssignedShards {
-		res.ShardAssignments[shardID] = &types.ShardAssignment{Status: _shardStatusReverseMapping[state.Status]}
-	}
+	res.ShardAssignments = shards.AssignedShards
 	return res
-}
-
-func _convertReportedShards(reports map[string]*types.ShardStatusReport) map[string]store.ShardInfo {
-	res := make(map[string]store.ShardInfo, len(reports))
-	for shardID, report := range reports {
-		res[shardID] = store.ShardInfo{
-			Status:    _shardStatusMapping[report.Status],
-			ShardLoad: report.ShardLoad,
-		}
-	}
-	return res
-}
-
-func needUpdate(status types.ExecutorStatus, state store.ExecutorState) bool {
-	return _executorStatusMapping[status] != state
-}
-
-var _executorStatusMapping = map[types.ExecutorStatus]store.ExecutorState{
-	types.ExecutorStatusACTIVE:   store.ExecutorStateActive,
-	types.ExecutorStatusDRAINED:  store.ExecutorStateDrained,
-	types.ExecutorStatusDRAINING: store.ExecutorStateDraining,
-}
-
-var _executorStatusReverseMapping = map[types.ExecutorStatus]store.ExecutorState{}
-
-var _shardStatusReverseMapping = map[store.ShardState]types.AssignmentStatus{
-	store.ShardStateReady: types.AssignmentStatusREADY,
-}
-
-var _shardStatusMapping = map[types.ShardStatus]store.ShardState{
-	types.ShardStatusREADY: store.ShardStateReady,
-}
-
-func init() {
-	for status, state := range _executorStatusMapping {
-		_executorStatusReverseMapping[status] = state
-	}
 }

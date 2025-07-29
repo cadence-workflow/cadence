@@ -15,6 +15,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
@@ -85,8 +86,8 @@ func TestRebalanceShards_InitialDistribution(t *testing.T) {
 	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
 
 	state := map[string]store.HeartbeatState{
-		"exec-1": {State: store.ExecutorStateActive},
-		"exec-2": {State: store.ExecutorStateActive},
+		"exec-1": {Status: types.ExecutorStatusACTIVE},
+		"exec-2": {Status: types.ExecutorStatusACTIVE},
 	}
 	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(state, nil, int64(1), nil)
 	mocks.election.EXPECT().Guard().Return(store.NopGuard())
@@ -110,14 +111,14 @@ func TestRebalanceShards_ExecutorRemoved(t *testing.T) {
 	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
 
 	heartbeats := map[string]store.HeartbeatState{
-		"exec-1": {State: store.ExecutorStateActive},
-		"exec-2": {State: store.ExecutorStateDraining},
+		"exec-1": {Status: types.ExecutorStatusACTIVE},
+		"exec-2": {Status: types.ExecutorStatusDRAINING},
 	}
 	assignments := map[string]store.AssignedState{
 		"exec-2": {
-			AssignedShards: map[string]store.ShardAssignment{
-				"0": {Status: store.ShardStateReady},
-				"1": {Status: store.ShardStateReady},
+			AssignedShards: map[string]*types.ShardAssignment{
+				"0": {Status: types.AssignmentStatusREADY},
+				"1": {Status: types.AssignmentStatusREADY},
 			},
 		},
 	}
@@ -141,7 +142,7 @@ func TestRebalanceShards_NoActiveExecutors(t *testing.T) {
 	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
 
 	state := map[string]store.HeartbeatState{
-		"exec-1": {State: store.ExecutorStateDraining},
+		"exec-1": {Status: types.ExecutorStatusDRAINING},
 	}
 	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(state, nil, int64(1), nil)
 	mocks.store.EXPECT().AssignShards(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
@@ -192,7 +193,7 @@ func TestRebalance_StoreErrors(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), expectedErr.Error())
 
-	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(map[string]store.HeartbeatState{"e": {State: store.ExecutorStateActive}}, nil, int64(1), nil)
+	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(map[string]store.HeartbeatState{"e": {Status: types.ExecutorStatusACTIVE}}, nil, int64(1), nil)
 	mocks.election.EXPECT().Guard().Return(store.NopGuard())
 	mocks.store.EXPECT().AssignShards(gomock.Any(), mocks.cfg.Name, gomock.Any(), gomock.Any()).Return(expectedErr)
 	err = processor.rebalanceShards(context.Background())
@@ -263,13 +264,13 @@ func TestRebalanceShards_NoShardsToReassign(t *testing.T) {
 	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
 
 	heartbeats := map[string]store.HeartbeatState{
-		"exec-1": {State: store.ExecutorStateActive},
+		"exec-1": {Status: types.ExecutorStatusACTIVE},
 	}
 	assignments := map[string]store.AssignedState{
 		"exec-1": {
-			AssignedShards: map[string]store.ShardAssignment{
-				"0": {Status: store.ShardStateReady},
-				"1": {Status: store.ShardStateReady},
+			AssignedShards: map[string]*types.ShardAssignment{
+				"0": {Status: types.AssignmentStatusREADY},
+				"1": {Status: types.AssignmentStatusREADY},
 			},
 		},
 	}
@@ -287,13 +288,13 @@ func TestRebalanceShards_WithUnassignedShards(t *testing.T) {
 	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
 
 	heartbeats := map[string]store.HeartbeatState{
-		"exec-1": {State: store.ExecutorStateActive},
+		"exec-1": {Status: types.ExecutorStatusACTIVE},
 	}
 	// Note: shard "1" is missing from assignments
 	assignments := map[string]store.AssignedState{
 		"exec-1": {
-			AssignedShards: map[string]store.ShardAssignment{
-				"0": {Status: store.ShardStateReady},
+			AssignedShards: map[string]*types.ShardAssignment{
+				"0": {Status: types.AssignmentStatusREADY},
 			},
 		},
 	}

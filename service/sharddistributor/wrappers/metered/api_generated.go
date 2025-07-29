@@ -50,3 +50,13 @@ func (h *metricsHandler) GetShardOwner(ctx context.Context, gp1 *types.GetShardO
 func (h *metricsHandler) Health(ctx context.Context) (hp1 *types.HealthStatus, err error) {
 	return h.handler.Health(ctx)
 }
+
+func (h *metricsHandler) Start() {
+	h.handler.Start()
+	return
+}
+
+func (h *metricsHandler) Stop() {
+	h.handler.Stop()
+	return
+}

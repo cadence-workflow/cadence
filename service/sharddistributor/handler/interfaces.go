@@ -25,6 +25,7 @@ package handler
 import (
 	"context"
 
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -36,6 +37,8 @@ import (
 
 // Handler is the interface for shard distributor handler
 type Handler interface {
+	common.Daemon
+
 	Health(context.Context) (*types.HealthStatus, error)
 
 	GetShardOwner(context.Context, *types.GetShardOwnerRequest) (*types.GetShardOwnerResponse, error)

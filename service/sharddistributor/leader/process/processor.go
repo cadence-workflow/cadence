@@ -15,6 +15,7 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
@@ -280,7 +281,7 @@ func (p *namespaceProcessor) rebalanceShards(ctx context.Context) (err error) {
 
 	var activeExecutors []string
 	for id, state := range heartbeatStates {
-		if state.State == store.ExecutorStateActive {
+		if state.Status == types.ExecutorStatusACTIVE {
 			activeExecutors = append(activeExecutors, id)
 		}
 	}
@@ -305,7 +306,7 @@ func (p *namespaceProcessor) rebalanceShards(ctx context.Context) (err error) {
 	}
 
 	for executorID, state := range assignedStates {
-		isActive := heartbeatStates[executorID].State == store.ExecutorStateActive
+		isActive := heartbeatStates[executorID].Status == types.ExecutorStatusACTIVE
 		for shardID := range state.AssignedShards {
 			if _, ok := allShards[shardID]; ok {
 				delete(allShards, shardID)
@@ -338,12 +339,13 @@ func (p *namespaceProcessor) rebalanceShards(ctx context.Context) (err error) {
 
 	newState := make(map[string]store.AssignedState)
 	for executorID, shards := range currentAssignments {
-		assignedShardsMap := make(map[string]store.ShardAssignment)
+		assignedShardsMap := make(map[string]*types.ShardAssignment)
 		for _, shardID := range shards {
-			assignedShardsMap[shardID] = store.ShardAssignment{Status: store.ShardStateReady}
+			assignedShardsMap[shardID] = &types.ShardAssignment{Status: types.AssignmentStatusREADY}
 		}
 		newState[executorID] = store.AssignedState{
 			AssignedShards: assignedShardsMap,
+			LastUpdated:    p.timeSource.Now().Unix(),
 		}
 	}
 
