@@ -610,15 +610,38 @@ func getSQLFromCountRequest(request *p.CountWorkflowExecutionsRequest) string {
 }
 
 func getCustomizedDSLFromSQL(sql string, domainID string) (*fastjson.Value, error) {
-	dslStr, _, err := elasticsql.Convert(sql)
-	if err != nil {
+	likeClauses, strippedSQL := extractLikeClauses(sql)
+
+	// Step 1: Convert with elasticsql for the non-LIKE portion
+	var dsl *fastjson.Value
+	if hasRealConditions(strippedSQL) {
+		dslStr, _, err := elasticsql.Convert(strippedSQL)
+		if err != nil {
+			return nil, err
+		}
+		dsl, err = fastjson.Parse(dslStr)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		// Build a minimal query wrapper to attach wildcard clauses
+		dsl = fastjson.MustParse(`{
+			"query": {
+			  "bool": {
+				"must": []
+			  }
+			},
+			"from": 0,
+			"size": 1
+		  }`)
+	}
+
+	// Step 2: Patch wildcard queries back in
+	if err := injectWildcardQueries(dsl, likeClauses); err != nil {
 		return nil, err
 	}
-	dsl, err := fastjson.Parse(dslStr) // dsl.String() will be a compact json without spaces
-	if err != nil {
-		return nil, err
-	}
-	dslStr = dsl.String()
+
+	dslStr := dsl.String()
 	if strings.Contains(dslStr, jsonMissingStartTime) { // isUninitialized
 		dsl = replaceQueryForUninitialized(dsl)
 	}
@@ -994,4 +1017,87 @@ func cleanDSL(input string) string {
 	var re = regexp.MustCompile("(`)(Attr.\\w+)(`)")
 	result := re.ReplaceAllString(input, `$2`)
 	return result
+}
+
+type likeClause struct {
+	Field   string
+	Pattern string
+}
+
+func extractLikeClauses(sql string) ([]likeClause, string) {
+	var clauses []likeClause
+	re := regexp.MustCompile(`(?i)([\w\.]+)\s+LIKE\s+'([^']+)'`)
+	strippedSQL := sql
+
+	matches := re.FindAllStringSubmatch(sql, -1)
+	for _, match := range matches {
+		clauses = append(clauses, likeClause{
+			Field:   match[1],
+			Pattern: match[2],
+		})
+		// Remove LIKE clause from SQL
+		strippedSQL = strings.Replace(strippedSQL, match[0], "1=1", 1)
+	}
+	return clauses, strippedSQL
+}
+
+func injectWildcardQueries(dsl *fastjson.Value, likes []likeClause) error {
+	obj, err := dsl.Object()
+	if err != nil {
+		return err
+	}
+	queryObj := obj.Get("query")
+	if queryObj == nil {
+		return fmt.Errorf("missing 'query' field")
+	}
+
+	boolObj := queryObj.Get("bool")
+	if boolObj == nil {
+		return fmt.Errorf("missing 'bool' query")
+	}
+
+	mustArr := boolObj.GetArray("must")
+	if mustArr == nil {
+		// if must doesn't exist, create it
+		mustArr = []*fastjson.Value{}
+	}
+
+	for _, clause := range likes {
+		wildcardValue := strings.ReplaceAll(clause.Pattern, "%", "*")
+		wildcardValue = strings.ReplaceAll(wildcardValue, "_", "?")
+
+		wildcard := fmt.Sprintf(`{"wildcard": {"%s": {"value": "%s*"}}}`, clause.Field, wildcardValue)
+		v, err := fastjson.Parse(wildcard)
+		if err != nil {
+			return err
+		}
+		mustArr = append(mustArr, v)
+	}
+
+	// Inject updated must array
+	boolObj.Set("must", fastjson.MustParse(fmt.Sprintf("[%s]", joinFastjson(mustArr, ","))))
+	return nil
+}
+
+func joinFastjson(arr []*fastjson.Value, sep string) string {
+	parts := make([]string, len(arr))
+	for i, v := range arr {
+		parts[i] = v.String()
+	}
+	return strings.Join(parts, sep)
+}
+
+func hasRealConditions(sql string) bool {
+	sql = strings.ToLower(sql)
+
+	// Remove SQL keywords and placeholders
+	toRemove := []string{
+		"select", "from", "where", "*", "1=1", "true", "dummy", "dummy_table", "dummy_index",
+	}
+	for _, r := range toRemove {
+		sql = strings.ReplaceAll(sql, r, "")
+	}
+
+	sql = strings.TrimSpace(sql)
+	return len(sql) > 0
 }
