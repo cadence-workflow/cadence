@@ -792,7 +792,7 @@ func (s *ESVisibilitySuite) TestListWorkflowExecutions() {
 		s.True(strings.Contains(input.Query, `{"match_phrase":{"CloseStatus":{"query":"5"}}}`))
 		s.Equal(esIndexMaxResultWindow, input.MaxResultWindow)
 		return true
-	})).Return(testSearchResult, nil).Twice()
+	})).Return(testSearchResult, nil).Once()
 
 	request := &p.ListWorkflowExecutionsByQueryRequest{
 		DomainUUID: testDomainID,
@@ -806,6 +806,12 @@ func (s *ESVisibilitySuite) TestListWorkflowExecutions() {
 
 	_, err := s.visibilityStore.ListWorkflowExecutions(ctx, request)
 	s.NoError(err)
+
+	s.mockESClient.On("SearchByQuery", mock.Anything, mock.MatchedBy(func(input *es.SearchByQueryRequest) bool {
+		s.True(strings.Contains(input.Query, `{"wildcard":{"CloseStatus":"5*"}}`))
+		s.Equal(esIndexMaxResultWindow, input.MaxResultWindow)
+		return true
+	})).Return(testSearchResult, nil).Once()
 
 	requestWithLike := &p.ListWorkflowExecutionsByQueryRequest{
 		DomainUUID: testDomainID,
