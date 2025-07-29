@@ -125,7 +125,7 @@ func newTransferQueueProcessorBase(
 				taskFilter,
 				taskExecutor,
 				taskProcessor,
-				processorBase.redispatcher.AddTask,
+				processorBase.redispatcher,
 				shard.GetConfig().TaskCriticalRetryCount,
 			)
 		},

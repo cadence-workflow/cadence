@@ -38,10 +38,6 @@ import (
 
 const (
 	defaultBufferSize = 200
-
-	redispatchBackoffCoefficient     = 1.05
-	redispatchMaxBackoffInternval    = 2 * time.Minute
-	redispatchFailureBackoffInterval = 2 * time.Second
 )
 
 type (

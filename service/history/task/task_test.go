@@ -100,7 +100,7 @@ func (s *taskSuite) TestExecute_TaskFilterErr() {
 	taskFilterErr := errors.New("some random error")
 	taskBase := s.newTestTask(func(task persistence.Task) (bool, error) {
 		return false, taskFilterErr
-	}, nil)
+	})
 	err := taskBase.Execute()
 	s.Equal(taskFilterErr, err)
 }
@@ -108,7 +108,7 @@ func (s *taskSuite) TestExecute_TaskFilterErr() {
 func (s *taskSuite) TestExecute_ExecutionErr() {
 	task := s.newTestTask(func(task persistence.Task) (bool, error) {
 		return true, nil
-	}, nil)
+	})
 
 	executionErr := errors.New("some random error")
 	s.mockTaskExecutor.EXPECT().Execute(task).Return(ExecuteResponse{
@@ -123,7 +123,7 @@ func (s *taskSuite) TestExecute_ExecutionErr() {
 func (s *taskSuite) TestExecute_Success() {
 	task := s.newTestTask(func(task persistence.Task) (bool, error) {
 		return true, nil
-	}, nil)
+	})
 
 	s.mockTaskExecutor.EXPECT().Execute(task).Return(ExecuteResponse{
 		Scope:        metrics.NoopScope,
@@ -137,7 +137,7 @@ func (s *taskSuite) TestExecute_Success() {
 func (s *taskSuite) TestHandleErr_ErrEntityNotExists() {
 	taskBase := s.newTestTask(func(task persistence.Task) (bool, error) {
 		return true, nil
-	}, nil)
+	})
 
 	err := &types.EntityNotExistsError{}
 	s.NoError(taskBase.HandleErr(err))
@@ -146,7 +146,7 @@ func (s *taskSuite) TestHandleErr_ErrEntityNotExists() {
 func (s *taskSuite) TestHandleErr_ErrTaskRetry() {
 	taskBase := s.newTestTask(func(task persistence.Task) (bool, error) {
 		return true, nil
-	}, nil)
+	})
 
 	err := &redispatchError{Reason: "random-reason"}
 	s.Equal(err, taskBase.HandleErr(err))
@@ -155,7 +155,7 @@ func (s *taskSuite) TestHandleErr_ErrTaskRetry() {
 func (s *taskSuite) TestHandleErr_ErrTaskDiscarded() {
 	taskBase := s.newTestTask(func(task persistence.Task) (bool, error) {
 		return true, nil
-	}, nil)
+	})
 
 	err := ErrTaskDiscarded
 	s.NoError(taskBase.HandleErr(err))
@@ -164,7 +164,7 @@ func (s *taskSuite) TestHandleErr_ErrTaskDiscarded() {
 func (s *taskSuite) TestHandleErr_ErrTargetDomainNotActive() {
 	taskBase := s.newTestTask(func(task persistence.Task) (bool, error) {
 		return true, nil
-	}, nil)
+	})
 
 	err := &types.DomainNotActiveError{}
 
@@ -180,7 +180,7 @@ func (s *taskSuite) TestHandleErr_ErrTargetDomainNotActive() {
 func (s *taskSuite) TestHandleErr_ErrDomainNotActive() {
 	taskBase := s.newTestTask(func(task persistence.Task) (bool, error) {
 		return true, nil
-	}, nil)
+	})
 
 	err := &types.DomainNotActiveError{}
 
@@ -194,7 +194,7 @@ func (s *taskSuite) TestHandleErr_ErrDomainNotActive() {
 func (s *taskSuite) TestHandleErr_ErrWorkflowRateLimited() {
 	taskBase := s.newTestTask(func(task persistence.Task) (bool, error) {
 		return true, nil
-	}, nil)
+	})
 
 	taskBase.initialSubmitTime = time.Now()
 	s.Equal(errWorkflowRateLimited, taskBase.HandleErr(errWorkflowRateLimited))
@@ -203,7 +203,7 @@ func (s *taskSuite) TestHandleErr_ErrWorkflowRateLimited() {
 func (s *taskSuite) TestHandleErr_ErrShardRecentlyClosed() {
 	taskBase := s.newTestTask(func(task persistence.Task) (bool, error) {
 		return true, nil
-	}, nil)
+	})
 
 	taskBase.initialSubmitTime = time.Now()
 
@@ -219,7 +219,7 @@ func (s *taskSuite) TestHandleErr_ErrShardRecentlyClosed() {
 func (s *taskSuite) TestHandleErr_ErrTaskListNotOwnedByHost() {
 	taskBase := s.newTestTask(func(task persistence.Task) (bool, error) {
 		return true, nil
-	}, nil)
+	})
 
 	taskBase.initialSubmitTime = time.Now()
 
@@ -235,7 +235,7 @@ func (s *taskSuite) TestHandleErr_ErrTaskListNotOwnedByHost() {
 func (s *taskSuite) TestHandleErr_ErrCurrentWorkflowConditionFailed() {
 	taskBase := s.newTestTask(func(task persistence.Task) (bool, error) {
 		return true, nil
-	}, nil)
+	})
 
 	err := &persistence.CurrentWorkflowConditionFailedError{}
 	s.NoError(taskBase.HandleErr(err))
@@ -244,7 +244,7 @@ func (s *taskSuite) TestHandleErr_ErrCurrentWorkflowConditionFailed() {
 func (s *taskSuite) TestHandleErr_UnknownErr() {
 	taskBase := s.newTestTask(func(task persistence.Task) (bool, error) {
 		return true, nil
-	}, nil)
+	})
 
 	// Need to mock a return value for function GetTaskType
 	// If don't do, there'll be an error when code goes into the defer function:
@@ -263,7 +263,7 @@ func (s *taskSuite) TestHandleErr_UnknownErr() {
 func (s *taskSuite) TestTaskCancel() {
 	taskBase := s.newTestTask(func(task persistence.Task) (bool, error) {
 		return true, nil
-	}, nil)
+	})
 
 	taskBase.Cancel()
 	s.Equal(ctask.TaskStateCanceled, taskBase.State())
@@ -282,7 +282,7 @@ func (s *taskSuite) TestTaskCancel() {
 func (s *taskSuite) TestTaskState() {
 	taskBase := s.newTestTask(func(task persistence.Task) (bool, error) {
 		return true, nil
-	}, nil)
+	})
 
 	s.Equal(ctask.TaskStatePending, taskBase.State())
 
@@ -296,7 +296,7 @@ func (s *taskSuite) TestTaskState() {
 func (s *taskSuite) TestTaskPriority() {
 	taskBase := s.newTestTask(func(task persistence.Task) (bool, error) {
 		return true, nil
-	}, nil)
+	})
 
 	priority := 10
 	taskBase.SetPriority(priority)
@@ -307,9 +307,6 @@ func (s *taskSuite) TestTaskNack_ResubmitSucceeded() {
 	task := s.newTestTask(
 		func(task persistence.Task) (bool, error) {
 			return true, nil
-		},
-		func(task Task) {
-			s.mockTaskRedispatcher.AddTask(task)
 		},
 	)
 
@@ -324,13 +321,10 @@ func (s *taskSuite) TestTaskNack_ResubmitFailed() {
 		func(task persistence.Task) (bool, error) {
 			return true, nil
 		},
-		func(task Task) {
-			s.mockTaskRedispatcher.AddTask(task)
-		},
 	)
 
 	s.mockTaskProcessor.EXPECT().TrySubmit(task).Return(false, errTaskProcessorNotRunning).Times(1)
-	s.mockTaskRedispatcher.EXPECT().AddTask(task).Times(1)
+	s.mockTaskRedispatcher.EXPECT().RedispatchTask(task, gomock.Any()).Times(1)
 
 	task.Nack()
 	s.Equal(ctask.TaskStatePending, task.State())
@@ -339,7 +333,7 @@ func (s *taskSuite) TestTaskNack_ResubmitFailed() {
 func (s *taskSuite) TestHandleErr_ErrMaxAttempts() {
 	taskBase := s.newTestTask(func(task persistence.Task) (bool, error) {
 		return true, nil
-	}, nil)
+	})
 
 	taskBase.criticalRetryCount = func(i ...dynamicproperties.FilterOption) int { return 0 }
 	s.mockTaskInfo.EXPECT().GetTaskType().Return(0)
@@ -351,7 +345,7 @@ func (s *taskSuite) TestHandleErr_ErrMaxAttempts() {
 func (s *taskSuite) TestRetryErr() {
 	taskBase := s.newTestTask(func(task persistence.Task) (bool, error) {
 		return true, nil
-	}, nil)
+	})
 
 	s.Equal(false, taskBase.RetryErr(&shard.ErrShardClosed{}))
 	s.Equal(false, taskBase.RetryErr(errWorkflowBusy))
@@ -364,13 +358,7 @@ func (s *taskSuite) TestRetryErr() {
 
 func (s *taskSuite) newTestTask(
 	taskFilter Filter,
-	redispatchFn func(task Task),
 ) *taskImpl {
-	if redispatchFn == nil {
-		redispatchFn = func(_ Task) {
-			// noop
-		}
-	}
 	taskBase := NewHistoryTask(
 		s.mockShard,
 		s.mockTaskInfo,
@@ -379,7 +367,7 @@ func (s *taskSuite) newTestTask(
 		taskFilter,
 		s.mockTaskExecutor,
 		s.mockTaskProcessor,
-		redispatchFn,
+		s.mockTaskRedispatcher,
 		s.maxRetryCount,
 	).(*taskImpl)
 	taskBase.scope = s.mockShard.GetMetricsClient().Scope(0)

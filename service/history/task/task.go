@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
@@ -56,11 +57,22 @@ func isRedispatchErr(err error) bool {
 	return errors.As(err, &redispatchErr)
 }
 
+const (
+	activeTaskRedispatchInitialInterval  = 5 * time.Second
+	standbyTaskRedispatchInitialInterval = 30 * time.Second
+	redispatchBackoffCoefficient         = 1.05
+	redispatchMaxBackoffInternval        = 2 * time.Minute
+	redispatchFailureBackoffInterval     = 2 * time.Second
+)
+
 var (
 	// ErrTaskDiscarded is the error indicating that the timer / transfer task is pending for too long and discarded.
 	ErrTaskDiscarded = errors.New("passive task pending for too long")
 	// ErrTaskPendingActive is the error indicating that the task should be re-dispatched
 	ErrTaskPendingActive = errors.New("redispatch the task while the domain is pending-active")
+
+	activeTaskRedispatchPolicy  = createTaskRedispatchPolicy(activeTaskRedispatchInitialInterval)
+	standbyTaskRedispatchPolicy = createTaskRedispatchPolicy(standbyTaskRedispatchInitialInterval)
 )
 
 type (
@@ -79,7 +91,7 @@ type (
 		scope                    metrics.Scope // initialized when processing task to make the initialization parallel
 		taskExecutor             Executor
 		taskProcessor            Processor
-		redispatchFn             func(task Task)
+		redispatcher             Redispatcher
 		criticalRetryCount       dynamicproperties.IntPropertyFn
 		isPreviousExecutorActive bool
 
@@ -98,7 +110,7 @@ func NewHistoryTask(
 	taskFilter Filter,
 	taskExecutor Executor,
 	taskProcessor Processor,
-	redispatchFn func(task Task),
+	redispatcher Redispatcher,
 	criticalRetryCount dynamicproperties.IntPropertyFn,
 ) Task {
 	timeSource := shard.GetTimeSource()
@@ -123,7 +135,7 @@ func NewHistoryTask(
 		initialSubmitTime:  timeSource.Now(),
 		timeSource:         timeSource,
 		criticalRetryCount: criticalRetryCount,
-		redispatchFn:       redispatchFn,
+		redispatcher:       redispatcher,
 		taskFilter:         taskFilter,
 		taskExecutor:       taskExecutor,
 		taskProcessor:      taskProcessor,
@@ -344,7 +356,7 @@ func (t *taskImpl) Nack() {
 		}
 	}
 
-	t.redispatchFn(t)
+	t.redispatcher.RedispatchTask(t, t.timeSource.Now().Add(t.backoffDuration(t.GetAttempt())))
 }
 
 func (t *taskImpl) Cancel() {
@@ -411,6 +423,15 @@ func (t *taskImpl) shouldResubmitOnNack() bool {
 		(t.queueType == QueueTypeActiveTransfer || t.queueType == QueueTypeActiveTimer)
 }
 
+func (t *taskImpl) backoffDuration(attempt int) time.Duration {
+	// TODO: we might need to consider using the same backoff policy for active and standby tasks,
+	// but we keep them separate for now so that we can compare metrics between history queue v1 and v2
+	if t.isPreviousExecutorActive {
+		return activeTaskRedispatchPolicy.ComputeNextDelay(0, attempt)
+	}
+	return standbyTaskRedispatchPolicy.ComputeNextDelay(0, attempt)
+}
+
 func logEvent(
 	eventLogger eventLogger,
 	msg string,
@@ -452,4 +473,12 @@ func getDomainTagByID(
 		return metrics.DomainUnknownTag(), err
 	}
 	return metrics.DomainTag(domainName), nil
+}
+
+func createTaskRedispatchPolicy(initialInterval time.Duration) backoff.RetryPolicy {
+	backoffPolicy := backoff.NewExponentialRetryPolicy(initialInterval)
+	backoffPolicy.SetBackoffCoefficient(redispatchBackoffCoefficient)
+	backoffPolicy.SetMaximumInterval(redispatchMaxBackoffInternval)
+	backoffPolicy.SetExpirationInterval(backoff.NoInterval)
+	return backoffPolicy
 }
