@@ -3633,6 +3633,8 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		ShardDistributorExecutorAssignmentSkipped:         {metricName: "shard_distributor_executor_assignment_skipped", metricType: Counter},
 		ShardDistributorExecutorProcessorCreationFailures: {metricName: "shard_distributor_executor_processor_creation_failures", metricType: Counter},
 
+		ShardDistributorStoreExecutorNotFound:             {metricName: "shard_distributor_store_executor_not_found", metricType: Counter},
+		ShardDistributorStoreFailuresPerNamespace:         {metricName: "shard_distributor_store_failures_per_namespace", metricType: Counter},
 		ShardDistributorStoreRequestsPerNamespace:         {metricName: "shard_distributor_store_requests_per_namespace", metricType: Counter},
 		ShardDistributorStoreLatencyHistogramPerNamespace: {metricName: "shard_distributor_store_latency_histogram_per_namespace", metricType: Histogram, buckets: ShardDistributorExecutorStoreLatencyBuckets},
 	},
