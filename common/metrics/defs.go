@@ -1437,6 +1437,13 @@ const (
 	ShardDistributorHeartbeatScope
 	ShardDistributorAssignLoopScope
 
+	ShardDistributorStoreAssignShardsScope
+	ShardDistributorStoreDeleteExecutorsScope
+	ShardDistributorStoreGetHeartbeatScope
+	ShardDistributorStoreGetStateScope
+	ShardDistributorStoreRecordHeartbeatScope
+	ShardDistributorStoreSubscribeScope
+
 	// The scope for the shard distributor executor
 	ShardDistributorExecutorScope
 
@@ -2098,10 +2105,16 @@ var ScopeDefs = map[ServiceIdx]map[int]scopeDefinition{
 		DiagnosticsWorkflowScope:               {operation: "DiagnosticsWorkflow"},
 	},
 	ShardDistributor: {
-		ShardDistributorGetShardOwnerScope: {operation: "GetShardOwner"},
-		ShardDistributorHeartbeatScope:     {operation: "ExecutorHeartbeat"},
-		ShardDistributorAssignLoopScope:    {operation: "ShardAssignLoop"},
-		ShardDistributorExecutorScope:      {operation: "Executor"},
+		ShardDistributorGetShardOwnerScope:        {operation: "GetShardOwner"},
+		ShardDistributorHeartbeatScope:            {operation: "ExecutorHeartbeat"},
+		ShardDistributorAssignLoopScope:           {operation: "ShardAssignLoop"},
+		ShardDistributorExecutorScope:             {operation: "Executor"},
+		ShardDistributorStoreAssignShardsScope:    {operation: "StoreAssignShards"},
+		ShardDistributorStoreDeleteExecutorsScope: {operation: "StoreDeleteExecutors"},
+		ShardDistributorStoreGetHeartbeatScope:    {operation: "StoreGetHeartbeat"},
+		ShardDistributorStoreGetStateScope:        {operation: "StoreGetState"},
+		ShardDistributorStoreRecordHeartbeatScope: {operation: "StoreRecordHeartbeat"},
+		ShardDistributorStoreSubscribeScope:       {operation: "StoreSubscribe"},
 	},
 }
 
@@ -2860,6 +2873,11 @@ const (
 	ShardDistributorExecutorAssignmentSkipped
 	ShardDistributorExecutorProcessorCreationFailures
 
+	ShardDistributorStoreExecutorNotFound
+	ShardDistributorStoreFailuresPerNamespace
+	ShardDistributorStoreRequestsPerNamespace
+	ShardDistributorStoreLatencyHistogramPerNamespace
+
 	NumShardDistributorMetrics
 )
 
@@ -3614,6 +3632,9 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		ShardDistributorExecutorShardsStopped:             {metricName: "shard_distributor_executor_shards_stopped", metricType: Counter},
 		ShardDistributorExecutorAssignmentSkipped:         {metricName: "shard_distributor_executor_assignment_skipped", metricType: Counter},
 		ShardDistributorExecutorProcessorCreationFailures: {metricName: "shard_distributor_executor_processor_creation_failures", metricType: Counter},
+
+		ShardDistributorStoreRequestsPerNamespace:         {metricName: "shard_distributor_store_requests_per_namespace", metricType: Counter},
+		ShardDistributorStoreLatencyHistogramPerNamespace: {metricName: "shard_distributor_store_latency_histogram_per_namespace", metricType: Histogram, buckets: ShardDistributorExecutorStoreLatencyBuckets},
 	},
 }
 
@@ -3678,6 +3699,47 @@ var (
 	})
 
 	ShardDistributorExecutorAssignLoopLatencyBuckets = PersistenceLatencyBuckets
+
+	ShardDistributorExecutorStoreLatencyBuckets = tally.DurationBuckets([]time.Duration{
+		0,
+		5 * time.Millisecond,
+		10 * time.Millisecond,
+		25 * time.Millisecond,
+		50 * time.Millisecond,
+		75 * time.Millisecond,
+		100 * time.Millisecond,
+		120 * time.Millisecond,
+		150 * time.Millisecond,
+		170 * time.Millisecond,
+		200 * time.Millisecond,
+		250 * time.Millisecond,
+		300 * time.Millisecond,
+		400 * time.Millisecond,
+		500 * time.Millisecond,
+		600 * time.Millisecond,
+		700 * time.Millisecond,
+		800 * time.Millisecond,
+		900 * time.Millisecond,
+		1 * time.Second,
+		2 * time.Second,
+		3 * time.Second,
+		4 * time.Second,
+		5 * time.Second,
+		6 * time.Second,
+		7 * time.Second,
+		8 * time.Second,
+		9 * time.Second,
+		10 * time.Second,
+		12 * time.Second,
+		15 * time.Second,
+		20 * time.Second,
+		25 * time.Second,
+		30 * time.Second,
+		35 * time.Second,
+		40 * time.Second,
+		50 * time.Second,
+		60 * time.Second,
+	})
 
 	// ReplicationTaskDelayBucket contains buckets for replication task delay
 	ReplicationTaskDelayBucket = tally.DurationBuckets([]time.Duration{

@@ -8,6 +8,7 @@ import (
 )
 
 //go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination=store_mock.go Store
+//go:generate gowrap gen -g -p . -i Store -t ./wrappers/templates/metered.tmpl -o ./wrappers/metered/store_generated.go -v handler=Wrapped
 
 // ErrExecutorNotFound is an error that is returned when queries executor is not registered in the storage.
 var ErrExecutorNotFound = fmt.Errorf("executor not found")

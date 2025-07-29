@@ -37,6 +37,7 @@ import (
 	"github.com/uber/cadence/service/sharddistributor/leader/namespace"
 	"github.com/uber/cadence/service/sharddistributor/leader/process"
 	"github.com/uber/cadence/service/sharddistributor/store"
+	meteredStore "github.com/uber/cadence/service/sharddistributor/store/wrappers/metered"
 	"github.com/uber/cadence/service/sharddistributor/wrappers/grpc"
 	"github.com/uber/cadence/service/sharddistributor/wrappers/metered"
 )
@@ -45,6 +46,9 @@ var Module = fx.Module("sharddistributor",
 	namespace.Module,
 	election.Module,
 	process.Module,
+	fx.Decorate(func(s store.Store, metricsClient metrics.Client, logger log.Logger) store.Store {
+		return meteredStore.NewStore(s, metricsClient, logger)
+	}),
 	fx.Invoke(registerHandlers))
 
 type registerHandlersParams struct {
