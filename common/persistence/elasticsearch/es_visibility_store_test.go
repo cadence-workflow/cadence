@@ -807,22 +807,6 @@ func (s *ESVisibilitySuite) TestListWorkflowExecutions() {
 	_, err := s.visibilityStore.ListWorkflowExecutions(ctx, request)
 	s.NoError(err)
 
-	s.mockESClient.On("SearchByQuery", mock.Anything, mock.MatchedBy(func(input *es.SearchByQueryRequest) bool {
-		s.True(strings.Contains(input.Query, `{"wildcard":{"CloseStatus":"5*"}}`))
-		s.Equal(esIndexMaxResultWindow, input.MaxResultWindow)
-		return true
-	})).Return(testSearchResult, nil).Once()
-
-	requestWithLike := &p.ListWorkflowExecutionsByQueryRequest{
-		DomainUUID: testDomainID,
-		Domain:     testDomain,
-		PageSize:   10,
-		Query:      `CloseStatus like '5'`,
-	}
-
-	_, err = s.visibilityStore.ListWorkflowExecutions(ctx, requestWithLike)
-	s.NoError(err)
-
 	s.mockESClient.On("SearchByQuery", mock.Anything, mock.Anything).Return(nil, errTestESSearch).Once()
 	_, err = s.visibilityStore.ListWorkflowExecutions(ctx, request)
 	s.Error(err)
@@ -836,6 +820,27 @@ func (s *ESVisibilitySuite) TestListWorkflowExecutions() {
 	_, ok = err.(*types.BadRequestError)
 	s.True(ok)
 	s.True(strings.Contains(err.Error(), "Error when parse query"))
+}
+
+func (s *ESVisibilitySuite) TestListWorkflowExecutionsWithLike() {
+	s.mockESClient.On("SearchByQuery", mock.Anything, mock.MatchedBy(func(input *es.SearchByQueryRequest) bool {
+		s.True(strings.Contains(input.Query, `{"wildcard":{"WorkflowID":{"value":"wid*"}}}`))
+		s.Equal(esIndexMaxResultWindow, input.MaxResultWindow)
+		return true
+	})).Return(testSearchResult, nil).Once()
+
+	request := &p.ListWorkflowExecutionsByQueryRequest{
+		DomainUUID: testDomainID,
+		Domain:     testDomain,
+		PageSize:   10,
+		Query:      `WorkflowID like 'wid'`,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
+	defer cancel()
+
+	_, err := s.visibilityStore.ListWorkflowExecutions(ctx, request)
+	s.NoError(err)
 }
 
 func (s *ESVisibilitySuite) TestScanWorkflowExecutions() {
