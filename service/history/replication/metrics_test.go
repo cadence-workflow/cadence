@@ -208,6 +208,8 @@ func TestLogHistogramRange(t *testing.T) {
 		t.Logf("\t%v", betterlongrange[i:min(i+4, len(betterlongrange))])
 	}
 	t.Logf("number of buckets needed: %d", len(betterlongrange))
+	// if we really want to get fancy, we can allow a double-ended histogram here
+	// per domain, max 2 scale.  that way they can choose their precision-focus-point.
 }
 
 func makeBuckets(num int, factor func(i int) time.Duration) tally.DurationBuckets {
