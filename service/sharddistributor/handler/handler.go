@@ -26,17 +26,12 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/constants"
-)
-
-const (
-	_heartbeatRefreshRate = 2 * time.Second
 )
 
 func NewHandler(

@@ -11,6 +11,10 @@ import (
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
+const (
+	_heartbeatRefreshRate = 2 * time.Second
+)
+
 type executor struct {
 	timeSource clock.TimeSource
 	storage    store.Store
