@@ -132,6 +132,20 @@ func TestPassThroughMethods(t *testing.T) {
 				assert.Equal(t, healthStatus, healthStatusRet)
 			},
 		},
+		{
+			name: "Start",
+			call: func(t *testing.T, h *metricsHandler, handlerMock *handler.MockHandler) {
+				handlerMock.EXPECT().Start()
+				h.Start()
+			},
+		},
+		{
+			name: "Stop",
+			call: func(t *testing.T, h *metricsHandler, handlerMock *handler.MockHandler) {
+				handlerMock.EXPECT().Stop()
+				h.Stop()
+			},
+		},
 	}
 
 	for _, tt := range tests {
