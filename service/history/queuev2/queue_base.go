@@ -122,7 +122,7 @@ func newQueueBase(
 			func(task persistence.Task) (bool, error) { return true, nil },
 			taskExecutor,
 			taskProcessor,
-			redispatcher.AddTask,
+			redispatcher,
 			shard.GetConfig().TaskCriticalRetryCount,
 		)
 	}
