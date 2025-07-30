@@ -337,6 +337,10 @@ func (p *namespaceProcessor) rebalanceShards(ctx context.Context) (err error) {
 		i++
 	}
 
+	if namespaceState.Shards == nil {
+		namespaceState.Shards = make(map[string]store.ShardState)
+	}
+
 	newState := make(map[string]store.AssignedState)
 	for executorID, shards := range currentAssignments {
 		assignedShardsMap := make(map[string]*types.ShardAssignment)
