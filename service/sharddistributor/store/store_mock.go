@@ -64,6 +64,20 @@ func (m *MockStore) EXPECT() *MockStoreMockRecorder {
 	return m.recorder
 }
 
+// AssignShard mocks base method.
+func (m *MockStore) AssignShard(ctx context.Context, namespace, shardID, executorID string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AssignShard", ctx, namespace, shardID, executorID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// AssignShard indicates an expected call of AssignShard.
+func (mr *MockStoreMockRecorder) AssignShard(ctx, namespace, shardID, executorID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AssignShard", reflect.TypeOf((*MockStore)(nil).AssignShard), ctx, namespace, shardID, executorID)
+}
+
 // AssignShards mocks base method.
 func (m *MockStore) AssignShards(ctx context.Context, namespace string, newState map[string]AssignedState, guard GuardFunc) error {
 	m.ctrl.T.Helper()
@@ -106,6 +120,21 @@ func (m *MockStore) GetHeartbeat(ctx context.Context, namespace, executorID stri
 func (mr *MockStoreMockRecorder) GetHeartbeat(ctx, namespace, executorID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHeartbeat", reflect.TypeOf((*MockStore)(nil).GetHeartbeat), ctx, namespace, executorID)
+}
+
+// GetShardOwner mocks base method.
+func (m *MockStore) GetShardOwner(ctx context.Context, namespace, shardID string) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetShardOwner", ctx, namespace, shardID)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetShardOwner indicates an expected call of GetShardOwner.
+func (mr *MockStoreMockRecorder) GetShardOwner(ctx, namespace, shardID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetShardOwner", reflect.TypeOf((*MockStore)(nil).GetShardOwner), ctx, namespace, shardID)
 }
 
 // GetState mocks base method.

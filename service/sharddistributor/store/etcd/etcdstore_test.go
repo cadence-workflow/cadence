@@ -46,9 +46,9 @@ func TestRecordHeartbeat(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify directly in etcd
-	heartbeatKey := tc.store.buildExecutorKey(namespace, executorID, heartbeatKey)
-	stateKey := tc.store.buildExecutorKey(namespace, executorID, statusKey)
-	reportedShardsKey := tc.store.buildExecutorKey(namespace, executorID, reportedShardsKey)
+	heartbeatKey := tc.store.buildExecutorKey(namespace, executorID, executorHeartbeatKey)
+	stateKey := tc.store.buildExecutorKey(namespace, executorID, executorStatusKey)
+	reportedShardsKey := tc.store.buildExecutorKey(namespace, executorID, executorReportedShardsKey)
 
 	resp, err := tc.client.Get(ctx, heartbeatKey)
 	require.NoError(t, err)
@@ -251,6 +251,104 @@ func TestSubscribe(t *testing.T) {
 	}
 }
 
+func TestDeleteExecutors_Empty(t *testing.T) {
+	tc := setupStoreTestCluster(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	namespace := "test-delete-empty"
+
+	err := tc.store.DeleteExecutors(ctx, namespace, []string{}, store.NopGuard())
+	require.NoError(t, err)
+}
+
+func TestParseExecutorKey_Errors(t *testing.T) {
+	tc := setupStoreTestCluster(t)
+	namespace := "test-parsing-ns"
+
+	_, _, err := tc.store.parseExecutorKey(namespace, "/wrong/prefix/exec/heartbeat")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "does not have expected prefix")
+
+	key := tc.store.buildExecutorPrefix(namespace) + "too/many/parts"
+	_, _, err = tc.store.parseExecutorKey(namespace, key)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unexpected key format")
+}
+
+// TestAssignAndGetShardOwnerRoundtrip verifies the successful assignment and retrieval of a shard owner.
+func TestAssignAndGetShardOwnerRoundtrip(t *testing.T) {
+	tc := setupStoreTestCluster(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	namespace := "test-roundtrip-ns"
+	executorID := "executor-roundtrip"
+	shardID := "shard-roundtrip"
+
+	// Setup: Create an active executor.
+	err := tc.store.RecordHeartbeat(ctx, namespace, executorID, store.HeartbeatState{Status: types.ExecutorStatusACTIVE})
+	require.NoError(t, err)
+
+	// 1. Assign a shard to the active executor.
+	err = tc.store.AssignShard(ctx, namespace, shardID, executorID)
+	require.NoError(t, err, "Should successfully assign shard to an active executor")
+
+	// 2. Get the owner and verify it's the correct executor.
+	owner, err := tc.store.GetShardOwner(ctx, namespace, shardID)
+	require.NoError(t, err, "Should successfully get the shard owner after assignment")
+	assert.Equal(t, executorID, owner, "Owner should be the executor it was assigned to")
+}
+
+// TestAssignShardErrors tests the various error conditions when assigning a shard.
+func TestAssignShardErrors(t *testing.T) {
+	tc := setupStoreTestCluster(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	namespace := "test-assign-errors-ns"
+	activeExecutorID := "executor-active-errors"
+	drainingExecutorID := "executor-draining-errors"
+	shardID1 := "shard-err-1"
+	shardID2 := "shard-err-2"
+
+	// Setup: Create an active and a draining executor, and assign one shard.
+	err := tc.store.RecordHeartbeat(ctx, namespace, activeExecutorID, store.HeartbeatState{Status: types.ExecutorStatusACTIVE})
+	require.NoError(t, err)
+	err = tc.store.RecordHeartbeat(ctx, namespace, drainingExecutorID, store.HeartbeatState{Status: types.ExecutorStatusDRAINING})
+	require.NoError(t, err)
+	err = tc.store.AssignShard(ctx, namespace, shardID1, activeExecutorID)
+	require.NoError(t, err)
+
+	// Case 1: Assigning an already-assigned shard.
+	err = tc.store.AssignShard(ctx, namespace, shardID1, activeExecutorID)
+	require.Error(t, err, "Should fail to assign an already-assigned shard")
+	assert.ErrorIs(t, err, store.ErrVersionConflict, "Error should be ErrVersionConflict for duplicate assignment")
+
+	// Case 2: Assigning to a non-existent executor.
+	err = tc.store.AssignShard(ctx, namespace, shardID2, "non-existent-executor")
+	require.Error(t, err, "Should fail to assign to a non-existent executor")
+	assert.ErrorIs(t, err, store.ErrExecutorNotFound, "Error should be ErrExecutorNotFound")
+
+	// Case 3: Assigning to a non-active (draining) executor.
+	err = tc.store.AssignShard(ctx, namespace, shardID2, drainingExecutorID)
+	require.Error(t, err, "Should fail to assign to a draining executor")
+	assert.ErrorIs(t, err, store.ErrVersionConflict, "Error should be ErrVersionConflict for non-active executor")
+}
+
+// TestGetShardOwnerErrors tests error conditions for getting a shard owner.
+func TestGetShardOwnerErrors(t *testing.T) {
+	tc := setupStoreTestCluster(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	namespace := "test-get-owner-errors-ns"
+
+	// Try to get the owner of a shard that has not been assigned.
+	_, err := tc.store.GetShardOwner(ctx, namespace, "non-existent-shard")
+	require.Error(t, err, "Should return an error for a non-existent shard")
+	assert.ErrorIs(t, err, store.ErrShardNotFound, "Error should be ErrShardNotFound")
+}
+
 // --- Test Setup ---
 
 type storeTestCluster struct {
@@ -307,30 +405,6 @@ func setupStoreTestCluster(t *testing.T) *storeTestCluster {
 		client:    client,
 		lifecycle: lifecycle,
 	}
-}
-
-func TestDeleteExecutors_Empty(t *testing.T) {
-	tc := setupStoreTestCluster(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	namespace := "test-delete-empty"
-
-	err := tc.store.DeleteExecutors(ctx, namespace, []string{}, store.NopGuard())
-	require.NoError(t, err)
-}
-
-func TestParseExecutorKey_Errors(t *testing.T) {
-	tc := setupStoreTestCluster(t)
-	namespace := "test-parsing-ns"
-
-	_, _, err := tc.store.parseExecutorKey(namespace, "/wrong/prefix/exec/heartbeat")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "does not have expected prefix")
-
-	key := tc.store.buildExecutorPrefix(namespace) + "too/many/parts"
-	_, _, err = tc.store.parseExecutorKey(namespace, key)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "unexpected key format")
 }
 
 func stringStatus(s types.ExecutorStatus) string {

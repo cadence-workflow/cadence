@@ -10,8 +10,19 @@ import (
 //go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination=store_mock.go Store
 //go:generate gowrap gen -g -p . -i Store -t ./wrappers/templates/metered.tmpl -o ./wrappers/metered/store_generated.go -v handler=Wrapped
 
-// ErrExecutorNotFound is an error that is returned when queries executor is not registered in the storage.
-var ErrExecutorNotFound = fmt.Errorf("executor not found")
+var (
+	// ErrExecutorNotFound is an error that is returned when queries executor is not registered in the storage.
+	ErrExecutorNotFound = fmt.Errorf("executor not found")
+
+	// ErrShardNotFound is an error that is returned when a shard does not exist.
+	ErrShardNotFound = fmt.Errorf("shard not found")
+
+	// ErrVersionConflict is an error that is returned if during operations some precondition failed.
+	ErrVersionConflict = fmt.Errorf("version conflict")
+
+	// ErrExecutorNotRunning is an error that is returned when shard is attempted to be assigned to a not running executor.
+	ErrExecutorNotRunning = fmt.Errorf("executor not running")
+)
 
 // Txn represents a generic, backend-agnostic transaction.
 // It is used as a vehicle for the GuardFunc to operate on.
@@ -36,6 +47,9 @@ type Store interface {
 	AssignShards(ctx context.Context, namespace string, newState map[string]AssignedState, guard GuardFunc) error
 	Subscribe(ctx context.Context, namespace string) (<-chan int64, error)
 	DeleteExecutors(ctx context.Context, namespace string, executorIDs []string, guard GuardFunc) error
+
+	GetShardOwner(ctx context.Context, namespace, shardID string) (string, error)
+	AssignShard(ctx context.Context, namespace, shardID, executorID string) error
 
 	GetHeartbeat(ctx context.Context, namespace string, executorID string) (*HeartbeatState, *AssignedState, error)
 	RecordHeartbeat(ctx context.Context, namespace, executorID string, state HeartbeatState) error

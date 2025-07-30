@@ -674,6 +674,9 @@ func (y *YamlNode) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 func (y *YamlNode) Decode(out any) error {
+	if y == nil {
+		return nil
+	}
 	return y.unmarshal(out)
 }
 

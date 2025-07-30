@@ -36,6 +36,16 @@ func NewStore(
 	}
 }
 
+func (c *meteredStore) AssignShard(ctx context.Context, namespace string, shardID string, executorID string) (err error) {
+	op := func() error {
+		err = c.wrapped.AssignShard(ctx, namespace, shardID, executorID)
+		return err
+	}
+
+	err = c.call(metrics.ShardDistributorStoreAssignShardScope, op, metrics.NamespaceTag(namespace))
+	return
+}
+
 func (c *meteredStore) AssignShards(ctx context.Context, namespace string, newState map[string]store.AssignedState, guard store.GuardFunc) (err error) {
 	op := func() error {
 		err = c.wrapped.AssignShards(ctx, namespace, newState, guard)
@@ -63,6 +73,16 @@ func (c *meteredStore) GetHeartbeat(ctx context.Context, namespace string, execu
 	}
 
 	err = c.call(metrics.ShardDistributorStoreGetHeartbeatScope, op, metrics.NamespaceTag(namespace))
+	return
+}
+
+func (c *meteredStore) GetShardOwner(ctx context.Context, namespace string, shardID string) (s1 string, err error) {
+	op := func() error {
+		s1, err = c.wrapped.GetShardOwner(ctx, namespace, shardID)
+		return err
+	}
+
+	err = c.call(metrics.ShardDistributorStoreGetShardOwnerScope, op, metrics.NamespaceTag(namespace))
 	return
 }
 
