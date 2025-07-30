@@ -395,9 +395,45 @@ func (s *Store) DeleteExecutors(ctx context.Context, namespace string, executorI
 		return nil
 	}
 	var ops []clientv3.Op
+
+	// For each executor, find all shards it owns and create conditional deletion operations.
 	for _, executorID := range executorIDs {
-		executorPrefix := fmt.Sprintf("%s%s/", s.buildExecutorPrefix(namespace), executorID)
+		// 1. Find the shards currently assigned to this executor.
+		assignedStateKey := s.buildExecutorKey(namespace, executorID, executorAssignedStateKey)
+		resp, err := s.client.Get(ctx, assignedStateKey)
+		if err != nil {
+			return fmt.Errorf("get assigned state for executor %s: %w", executorID, err)
+		}
+
+		if len(resp.Kvs) > 0 {
+			var state store.AssignedState
+			if err := json.Unmarshal(resp.Kvs[0].Value, &state); err != nil {
+				return fmt.Errorf("unmarshal assigned state for executor %s: %w", executorID, err)
+			}
+
+			// 2. For each shard, create a nested transaction to conditionally delete it.
+			for shardID := range state.AssignedShards {
+				shardOwnerKey := s.buildShardKey(namespace, shardID, shardAssignedKey)
+
+				// This is an atomic check-and-delete operation for a single shard.
+				// IF the shard owner is still the executor being deleted,
+				// THEN delete the shard ownership key.
+				conditionalDelete := clientv3.OpTxn(
+					[]clientv3.Cmp{clientv3.Compare(clientv3.Value(shardOwnerKey), "=", executorID)}, // IF condition
+					[]clientv3.Op{clientv3.OpDelete(shardOwnerKey)},                                  // THEN operations
+					nil, // ELSE do nothing
+				)
+				ops = append(ops, conditionalDelete)
+			}
+		}
+
+		// 3. Add the unconditional deletion for the executor's entire record.
+		executorPrefix := s.buildExecutorKey(namespace, executorID, "")
 		ops = append(ops, clientv3.OpDelete(executorPrefix, clientv3.WithPrefix()))
+	}
+
+	if len(ops) == 0 {
+		return nil
 	}
 
 	nativeTxn := s.client.Txn(ctx)

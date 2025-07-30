@@ -32,7 +32,6 @@ func TestRecordHeartbeat(t *testing.T) {
 
 	nowTS := time.Now().Unix()
 
-	namespace := "test-heartbeat-ns"
 	executorID := "executor-TestRecordHeartbeat"
 	req := store.HeartbeatState{
 		LastHeartbeat: nowTS,
@@ -42,13 +41,13 @@ func TestRecordHeartbeat(t *testing.T) {
 		},
 	}
 
-	err := tc.store.RecordHeartbeat(ctx, namespace, executorID, req)
+	err := tc.store.RecordHeartbeat(ctx, tc.namespace, executorID, req)
 	require.NoError(t, err)
 
 	// Verify directly in etcd
-	heartbeatKey := tc.store.buildExecutorKey(namespace, executorID, executorHeartbeatKey)
-	stateKey := tc.store.buildExecutorKey(namespace, executorID, executorStatusKey)
-	reportedShardsKey := tc.store.buildExecutorKey(namespace, executorID, executorReportedShardsKey)
+	heartbeatKey := tc.store.buildExecutorKey(tc.namespace, executorID, executorHeartbeatKey)
+	stateKey := tc.store.buildExecutorKey(tc.namespace, executorID, executorStatusKey)
+	reportedShardsKey := tc.store.buildExecutorKey(tc.namespace, executorID, executorReportedShardsKey)
 
 	resp, err := tc.client.Get(ctx, heartbeatKey)
 	require.NoError(t, err)
@@ -78,7 +77,6 @@ func TestGetHeartbeat(t *testing.T) {
 
 	nowTS := time.Now().Unix()
 
-	namespace := "test-get-heartbeat-ns"
 	executorID := "executor-get"
 	req := store.HeartbeatState{
 		Status:        types.ExecutorStatusDRAINING,
@@ -86,7 +84,7 @@ func TestGetHeartbeat(t *testing.T) {
 	}
 
 	// 1. Record a heartbeat
-	err := tc.store.RecordHeartbeat(ctx, namespace, executorID, req)
+	err := tc.store.RecordHeartbeat(ctx, tc.namespace, executorID, req)
 	require.NoError(t, err)
 
 	// Assign shards to one executor
@@ -97,10 +95,10 @@ func TestGetHeartbeat(t *testing.T) {
 			},
 		},
 	}
-	require.NoError(t, tc.store.AssignShards(ctx, namespace, assignState, store.NopGuard()))
+	require.NoError(t, tc.store.AssignShards(ctx, tc.namespace, assignState, store.NopGuard()))
 
 	// 2. Get the heartbeat back
-	hb, assignedFromDB, err := tc.store.GetHeartbeat(ctx, namespace, executorID)
+	hb, assignedFromDB, err := tc.store.GetHeartbeat(ctx, tc.namespace, executorID)
 	require.NoError(t, err)
 	require.NotNil(t, hb)
 
@@ -111,7 +109,7 @@ func TestGetHeartbeat(t *testing.T) {
 	assert.Equal(t, assignState[executorID].AssignedShards, assignedFromDB.AssignedShards)
 
 	// 4. Test getting a non-existent executor
-	_, _, err = tc.store.GetHeartbeat(ctx, namespace, "executor-non-existent")
+	_, _, err = tc.store.GetHeartbeat(ctx, tc.namespace, "executor-non-existent")
 	require.Error(t, err)
 	assert.ErrorIs(t, err, store.ErrExecutorNotFound)
 }
@@ -122,17 +120,16 @@ func TestGetState(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	namespace := "test-getstate-ns"
 	executorID1 := "exec-TestGetState"
 	// Record two heartbeats, one with reported shards
-	require.NoError(t, tc.store.RecordHeartbeat(ctx, namespace, executorID1, store.HeartbeatState{
+	require.NoError(t, tc.store.RecordHeartbeat(ctx, tc.namespace, executorID1, store.HeartbeatState{
 		Status: types.ExecutorStatusACTIVE,
 		ReportedShards: map[string]*types.ShardStatusReport{
 			"shard-10": {Status: types.ShardStatusREADY},
 		},
 	}))
 	executorID2 := "exec-TestGetState-2"
-	require.NoError(t, tc.store.RecordHeartbeat(ctx, namespace, executorID2, store.HeartbeatState{Status: types.ExecutorStatusDRAINING}))
+	require.NoError(t, tc.store.RecordHeartbeat(ctx, tc.namespace, executorID2, store.HeartbeatState{Status: types.ExecutorStatusDRAINING}))
 
 	// Assign shards to one executor
 	assignState := map[string]store.AssignedState{
@@ -142,10 +139,10 @@ func TestGetState(t *testing.T) {
 			},
 		},
 	}
-	require.NoError(t, tc.store.AssignShards(ctx, namespace, assignState, store.NopGuard()))
+	require.NoError(t, tc.store.AssignShards(ctx, tc.namespace, assignState, store.NopGuard()))
 
 	// Get the state
-	heartbeats, assignments, _, err := tc.store.GetState(ctx, namespace)
+	heartbeats, assignments, _, err := tc.store.GetState(ctx, tc.namespace)
 	require.NoError(t, err)
 
 	require.Len(t, heartbeats, 2, "Should retrieve two heartbeat states")
@@ -189,7 +186,7 @@ func TestGuardedOperations(t *testing.T) {
 
 	// 3. Use the valid guard to assign shards - should succeed
 	assignState := map[string]store.AssignedState{"exec-1": {}}
-	err = tc.store.AssignShards(ctx, namespace, assignState, validGuard)
+	err = tc.store.AssignShards(ctx, tc.namespace, assignState, validGuard)
 	require.NoError(t, err, "Assigning shards with a valid leader guard should succeed")
 
 	// 4. First node resigns, second node becomes leader
@@ -197,12 +194,12 @@ func TestGuardedOperations(t *testing.T) {
 	require.NoError(t, election2.Campaign(ctx, "host-2"))
 
 	// 5. Use the now-invalid guard from the first leader - should fail
-	err = tc.store.AssignShards(ctx, namespace, assignState, validGuard)
+	err = tc.store.AssignShards(ctx, tc.namespace, assignState, validGuard)
 	require.Error(t, err, "Assigning shards with a stale leader guard should fail")
 
 	// 6. Use the NopGuard to delete an executor - should succeed
-	require.NoError(t, tc.store.RecordHeartbeat(ctx, namespace, executorID, store.HeartbeatState{Status: types.ExecutorStatusACTIVE}))
-	err = tc.store.DeleteExecutors(ctx, namespace, []string{executorID}, store.NopGuard())
+	require.NoError(t, tc.store.RecordHeartbeat(ctx, tc.namespace, executorID, store.HeartbeatState{Status: types.ExecutorStatusACTIVE}))
+	err = tc.store.DeleteExecutors(ctx, tc.namespace, []string{executorID}, store.NopGuard())
 	require.NoError(t, err, "Deleting an executor without a guard should succeed")
 
 	// Verify deletion
@@ -218,15 +215,14 @@ func TestSubscribe(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	namespace := "test-subscribe-ns"
 	executorID := "exec-sub"
 
 	// Start subscription
-	sub, err := tc.store.Subscribe(ctx, namespace)
+	sub, err := tc.store.Subscribe(ctx, tc.namespace)
 	require.NoError(t, err)
 
 	// Manually put a heartbeat update, which is an insignificant change
-	heartbeatKey := tc.store.buildExecutorKey(namespace, executorID, "heartbeat")
+	heartbeatKey := tc.store.buildExecutorKey(tc.namespace, executorID, "heartbeat")
 	_, err = tc.client.Put(ctx, heartbeatKey, "timestamp")
 	require.NoError(t, err)
 
@@ -238,7 +234,7 @@ func TestSubscribe(t *testing.T) {
 	}
 
 	// Now update the reported shards, which IS a significant change
-	reportedShardsKey := tc.store.buildExecutorKey(namespace, executorID, "reported_shards")
+	reportedShardsKey := tc.store.buildExecutorKey(tc.namespace, executorID, "reported_shards")
 	_, err = tc.client.Put(ctx, reportedShardsKey, `{"shard-1":{"status":"running"}}`)
 	require.NoError(t, err)
 
@@ -255,22 +251,130 @@ func TestDeleteExecutors_Empty(t *testing.T) {
 	tc := setupStoreTestCluster(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	namespace := "test-delete-empty"
 
-	err := tc.store.DeleteExecutors(ctx, namespace, []string{}, store.NopGuard())
+	err := tc.store.DeleteExecutors(ctx, tc.namespace, []string{}, store.NopGuard())
 	require.NoError(t, err)
+}
+
+// TestDeleteExecutors covers various scenarios for the DeleteExecutors method.
+func TestDeleteExecutors(t *testing.T) {
+	tc := setupStoreTestCluster(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Setup: Create two active executors for the tests.
+	executorID1 := "executor-to-delete-1"
+	executorID2 := "executor-to-delete-2"
+	survivingExecutorID := "executor-survivor"
+	require.NoError(t, tc.store.RecordHeartbeat(ctx, tc.namespace, executorID1, store.HeartbeatState{Status: types.ExecutorStatusACTIVE}))
+	require.NoError(t, tc.store.RecordHeartbeat(ctx, tc.namespace, executorID2, store.HeartbeatState{Status: types.ExecutorStatusACTIVE}))
+	require.NoError(t, tc.store.RecordHeartbeat(ctx, tc.namespace, survivingExecutorID, store.HeartbeatState{Status: types.ExecutorStatusACTIVE}))
+
+	t.Run("DeletesExecutorAndAssignedShards", func(t *testing.T) {
+		shardID := "shard-to-be-deleted"
+		require.NoError(t, tc.store.AssignShard(ctx, tc.namespace, shardID, executorID1), "Setup: Assign shard")
+
+		// Action: Delete the executor.
+		err := tc.store.DeleteExecutors(ctx, tc.namespace, []string{executorID1}, store.NopGuard())
+		require.NoError(t, err)
+
+		// Verification:
+		// 1. Check that the executor is gone.
+		_, _, err = tc.store.GetHeartbeat(ctx, tc.namespace, executorID1)
+		assert.ErrorIs(t, err, store.ErrExecutorNotFound, "Executor should be deleted")
+
+		// 2. Check that its assigned shard is also gone.
+		_, err = tc.store.GetShardOwner(ctx, tc.namespace, shardID)
+		assert.ErrorIs(t, err, store.ErrShardNotFound, "Assigned shard should be deleted")
+	})
+
+	t.Run("DoesNotDeleteShardIfReassigned", func(t *testing.T) {
+		shardID := "shard-reassigned"
+		// Setup:
+		// 1. Assign a shard to executor2.
+		require.NoError(t, tc.store.AssignShard(ctx, tc.namespace, shardID, executorID2))
+
+		// 2. Simulate a race condition: Manually reassign the shard to the 'surviving' executor
+		//    by directly writing to the shard owner key. This mimics a state where the distributor
+		//    reassigns the shard after DeleteExecutors has read the old state but before it commits.
+		shardOwnerKey := tc.store.buildShardKey(tc.namespace, shardID, shardAssignedKey)
+		_, err := tc.client.Put(ctx, shardOwnerKey, survivingExecutorID)
+		require.NoError(t, err, "Setup: Manually reassign shard owner")
+
+		// Action: Attempt to delete executor2. The transaction should proceed but should
+		// fail to delete the shard key because the owner no longer matches.
+		err = tc.store.DeleteExecutors(ctx, tc.namespace, []string{executorID2}, store.NopGuard())
+		require.NoError(t, err)
+
+		// Verification:
+		// 1. Check that executor2 is gone.
+		_, _, err = tc.store.GetHeartbeat(ctx, tc.namespace, executorID2)
+		assert.ErrorIs(t, err, store.ErrExecutorNotFound, "Executor should be deleted")
+
+		// 2. Check that the shard was NOT deleted and is still owned by the survivor.
+		owner, err := tc.store.GetShardOwner(ctx, tc.namespace, shardID)
+		require.NoError(t, err, "Shard should not have been deleted")
+		assert.Equal(t, survivingExecutorID, owner, "Shard ownership should have been preserved")
+	})
+
+	t.Run("SucceedsForNonExistentExecutor", func(t *testing.T) {
+		// Action: Delete a non-existent executor.
+		err := tc.store.DeleteExecutors(ctx, tc.namespace, []string{"non-existent-executor"}, store.NopGuard())
+		// Verification: Should not return an error.
+		require.NoError(t, err)
+	})
+
+	t.Run("DeletesMultipleExecutorsAndShards", func(t *testing.T) {
+		// Setup: Create and assign shards to multiple executors.
+		execToDelete1 := "multi-delete-1"
+		execToDelete2 := "multi-delete-2"
+		execToKeep := "multi-keep-1"
+		shardToDelete1 := "multi-shard-1"
+		shardToDelete2 := "multi-shard-2"
+		shardToKeep := "multi-shard-keep"
+
+		require.NoError(t, tc.store.RecordHeartbeat(ctx, tc.namespace, execToDelete1, store.HeartbeatState{Status: types.ExecutorStatusACTIVE}))
+		require.NoError(t, tc.store.RecordHeartbeat(ctx, tc.namespace, execToDelete2, store.HeartbeatState{Status: types.ExecutorStatusACTIVE}))
+		require.NoError(t, tc.store.RecordHeartbeat(ctx, tc.namespace, execToKeep, store.HeartbeatState{Status: types.ExecutorStatusACTIVE}))
+
+		require.NoError(t, tc.store.AssignShard(ctx, tc.namespace, shardToDelete1, execToDelete1))
+		require.NoError(t, tc.store.AssignShard(ctx, tc.namespace, shardToDelete2, execToDelete2))
+		require.NoError(t, tc.store.AssignShard(ctx, tc.namespace, shardToKeep, execToKeep))
+
+		// Action: Delete two of the three executors in one call.
+		err := tc.store.DeleteExecutors(ctx, tc.namespace, []string{execToDelete1, execToDelete2}, store.NopGuard())
+		require.NoError(t, err)
+
+		// Verification:
+		// 1. Check deleted executors and shards are gone.
+		_, _, err = tc.store.GetHeartbeat(ctx, tc.namespace, execToDelete1)
+		assert.ErrorIs(t, err, store.ErrExecutorNotFound, "Executor 1 should be gone")
+		_, err = tc.store.GetShardOwner(ctx, tc.namespace, shardToDelete1)
+		assert.ErrorIs(t, err, store.ErrShardNotFound, "Shard 1 should be gone")
+
+		_, _, err = tc.store.GetHeartbeat(ctx, tc.namespace, execToDelete2)
+		assert.ErrorIs(t, err, store.ErrExecutorNotFound, "Executor 2 should be gone")
+		_, err = tc.store.GetShardOwner(ctx, tc.namespace, shardToDelete2)
+		assert.ErrorIs(t, err, store.ErrShardNotFound, "Shard 2 should be gone")
+
+		// 2. Check that the surviving executor and its shard remain.
+		_, _, err = tc.store.GetHeartbeat(ctx, tc.namespace, execToKeep)
+		assert.NoError(t, err, "Surviving executor should still exist")
+		owner, err := tc.store.GetShardOwner(ctx, tc.namespace, shardToKeep)
+		assert.NoError(t, err, "Surviving shard should still exist")
+		assert.Equal(t, execToKeep, owner, "Surviving shard should retain its owner")
+	})
 }
 
 func TestParseExecutorKey_Errors(t *testing.T) {
 	tc := setupStoreTestCluster(t)
-	namespace := "test-parsing-ns"
 
-	_, _, err := tc.store.parseExecutorKey(namespace, "/wrong/prefix/exec/heartbeat")
+	_, _, err := tc.store.parseExecutorKey(tc.namespace, "/wrong/prefix/exec/heartbeat")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "does not have expected prefix")
 
-	key := tc.store.buildExecutorPrefix(namespace) + "too/many/parts"
-	_, _, err = tc.store.parseExecutorKey(namespace, key)
+	key := tc.store.buildExecutorPrefix(tc.namespace) + "too/many/parts"
+	_, _, err = tc.store.parseExecutorKey(tc.namespace, key)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unexpected key format")
 }
@@ -281,20 +385,19 @@ func TestAssignAndGetShardOwnerRoundtrip(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	namespace := "test-roundtrip-ns"
 	executorID := "executor-roundtrip"
 	shardID := "shard-roundtrip"
 
 	// Setup: Create an active executor.
-	err := tc.store.RecordHeartbeat(ctx, namespace, executorID, store.HeartbeatState{Status: types.ExecutorStatusACTIVE})
+	err := tc.store.RecordHeartbeat(ctx, tc.namespace, executorID, store.HeartbeatState{Status: types.ExecutorStatusACTIVE})
 	require.NoError(t, err)
 
 	// 1. Assign a shard to the active executor.
-	err = tc.store.AssignShard(ctx, namespace, shardID, executorID)
+	err = tc.store.AssignShard(ctx, tc.namespace, shardID, executorID)
 	require.NoError(t, err, "Should successfully assign shard to an active executor")
 
 	// 2. Get the owner and verify it's the correct executor.
-	owner, err := tc.store.GetShardOwner(ctx, namespace, shardID)
+	owner, err := tc.store.GetShardOwner(ctx, tc.namespace, shardID)
 	require.NoError(t, err, "Should successfully get the shard owner after assignment")
 	assert.Equal(t, executorID, owner, "Owner should be the executor it was assigned to")
 }
@@ -305,32 +408,31 @@ func TestAssignShardErrors(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	namespace := "test-assign-errors-ns"
 	activeExecutorID := "executor-active-errors"
 	drainingExecutorID := "executor-draining-errors"
 	shardID1 := "shard-err-1"
 	shardID2 := "shard-err-2"
 
 	// Setup: Create an active and a draining executor, and assign one shard.
-	err := tc.store.RecordHeartbeat(ctx, namespace, activeExecutorID, store.HeartbeatState{Status: types.ExecutorStatusACTIVE})
+	err := tc.store.RecordHeartbeat(ctx, tc.namespace, activeExecutorID, store.HeartbeatState{Status: types.ExecutorStatusACTIVE})
 	require.NoError(t, err)
-	err = tc.store.RecordHeartbeat(ctx, namespace, drainingExecutorID, store.HeartbeatState{Status: types.ExecutorStatusDRAINING})
+	err = tc.store.RecordHeartbeat(ctx, tc.namespace, drainingExecutorID, store.HeartbeatState{Status: types.ExecutorStatusDRAINING})
 	require.NoError(t, err)
-	err = tc.store.AssignShard(ctx, namespace, shardID1, activeExecutorID)
+	err = tc.store.AssignShard(ctx, tc.namespace, shardID1, activeExecutorID)
 	require.NoError(t, err)
 
 	// Case 1: Assigning an already-assigned shard.
-	err = tc.store.AssignShard(ctx, namespace, shardID1, activeExecutorID)
+	err = tc.store.AssignShard(ctx, tc.namespace, shardID1, activeExecutorID)
 	require.Error(t, err, "Should fail to assign an already-assigned shard")
 	assert.ErrorIs(t, err, store.ErrVersionConflict, "Error should be ErrVersionConflict for duplicate assignment")
 
 	// Case 2: Assigning to a non-existent executor.
-	err = tc.store.AssignShard(ctx, namespace, shardID2, "non-existent-executor")
+	err = tc.store.AssignShard(ctx, tc.namespace, shardID2, "non-existent-executor")
 	require.Error(t, err, "Should fail to assign to a non-existent executor")
 	assert.ErrorIs(t, err, store.ErrExecutorNotFound, "Error should be ErrExecutorNotFound")
 
 	// Case 3: Assigning to a non-active (draining) executor.
-	err = tc.store.AssignShard(ctx, namespace, shardID2, drainingExecutorID)
+	err = tc.store.AssignShard(ctx, tc.namespace, shardID2, drainingExecutorID)
 	require.Error(t, err, "Should fail to assign to a draining executor")
 	assert.ErrorIs(t, err, store.ErrVersionConflict, "Error should be ErrVersionConflict for non-active executor")
 }
@@ -341,10 +443,8 @@ func TestGetShardOwnerErrors(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	namespace := "test-get-owner-errors-ns"
-
 	// Try to get the owner of a shard that has not been assigned.
-	_, err := tc.store.GetShardOwner(ctx, namespace, "non-existent-shard")
+	_, err := tc.store.GetShardOwner(ctx, tc.namespace, "non-existent-shard")
 	require.Error(t, err, "Should return an error for a non-existent shard")
 	assert.ErrorIs(t, err, store.ErrShardNotFound, "Error should be ErrShardNotFound")
 }
@@ -353,6 +453,7 @@ func TestGetShardOwnerErrors(t *testing.T) {
 
 type storeTestCluster struct {
 	store     *Store // Use concrete type to access buildExecutorKey
+	namespace string
 	leaderCfg shardDistributorCfg.LeaderElection
 	client    *clientv3.Client
 	lifecycle *fxtest.Lifecycle
@@ -362,6 +463,8 @@ func setupStoreTestCluster(t *testing.T) *storeTestCluster {
 	t.Helper()
 	flag.Parse()
 	testflags.RequireEtcd(t)
+
+	namespace := fmt.Sprintf("ns-%s", strings.ToLower(t.Name()))
 
 	endpoints := strings.Split(os.Getenv("ETCD_ENDPOINTS"), ",")
 	if endpoints == nil || len(endpoints) == 0 || endpoints[0] == "" {
@@ -399,8 +502,14 @@ func setupStoreTestCluster(t *testing.T) *storeTestCluster {
 	require.NoError(t, err)
 	t.Cleanup(func() { client.Close() })
 
+	rawStore := s.(*Store)
+
+	_, err = client.Delete(context.Background(), rawStore.buildNamespacePrefix(namespace), clientv3.WithPrefix())
+	require.NoError(t, err)
+
 	return &storeTestCluster{
-		store:     s.(*Store),
+		namespace: namespace,
+		store:     rawStore,
 		leaderCfg: leaderCfg,
 		client:    client,
 		lifecycle: lifecycle,
