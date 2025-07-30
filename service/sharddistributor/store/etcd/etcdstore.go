@@ -298,7 +298,7 @@ func (s *Store) GetShardOwner(ctx context.Context, namespace, shardID string) (s
 		return "", fmt.Errorf("etcd get for shard %s: %w", shardID, err)
 	}
 	if resp.Count == 0 {
-		return "", store.ErrShardNotFound // Assuming store.ErrShardNotFound is defined
+		return "", store.ErrShardNotFound
 	}
 	return string(resp.Kvs[0].Value), nil
 }
