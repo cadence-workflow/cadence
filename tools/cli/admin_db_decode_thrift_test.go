@@ -108,6 +108,12 @@ func TestThriftDecodeHelper(t *testing.T) {
 			encoding:  "hex",
 			wantObjFn: generateTestActiveClustersConfig,
 		},
+		{
+			desc:      "Active cluster selection policy",
+			input:     "5908000a000000000b001400000007726567696f6e300b001e000000000b00280000000000",
+			encoding:  "hex",
+			wantObjFn: generateTestActiveClusterSelectionPolicy,
+		},
 	}
 
 	for _, tc := range tests {
@@ -249,6 +255,16 @@ func generateTestTimerInfo(t *testing.T) codec.ThriftObject {
 		StartedID:       common.Int64Ptr(1),
 		ExpiryTimeNanos: common.Int64Ptr(1000),
 		TaskID:          common.Int64Ptr(5),
+	}
+}
+
+func generateTestActiveClusterSelectionPolicy(t *testing.T) codec.ThriftObject {
+	t.Helper()
+	return &shared.ActiveClusterSelectionPolicy{
+		Strategy:           shared.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
+		StickyRegion:       common.StringPtr("region0"),
+		ExternalEntityType: common.StringPtr(""),
+		ExternalEntityKey:  common.StringPtr(""),
 	}
 }
 
