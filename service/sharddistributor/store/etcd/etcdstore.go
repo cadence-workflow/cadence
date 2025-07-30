@@ -174,14 +174,14 @@ func (s *Store) GetHeartbeat(ctx context.Context, namespace string, executorID s
 
 // --- ShardStore Implementation ---
 
-func (s *Store) GetState(ctx context.Context, namespace string) (map[string]store.HeartbeatState, map[string]store.AssignedState, int64, error) {
+func (s *Store) GetState(ctx context.Context, namespace string) (*store.NamespaceState, error) {
 	heartbeatStates := make(map[string]store.HeartbeatState)
 	assignedStates := make(map[string]store.AssignedState)
 
 	executorPrefix := s.buildExecutorPrefix(namespace)
 	resp, err := s.client.Get(ctx, executorPrefix, clientv3.WithPrefix())
 	if err != nil {
-		return nil, nil, 0, fmt.Errorf("get executor data: %w", err)
+		return nil, fmt.Errorf("get executor data: %w", err)
 	}
 
 	for _, kv := range resp.Kvs {
@@ -200,23 +200,49 @@ func (s *Store) GetState(ctx context.Context, namespace string) (map[string]stor
 		case executorStatusKey:
 			err := json.Unmarshal([]byte(value), &heartbeat.Status)
 			if err != nil {
-				return nil, nil, 0, fmt.Errorf("parse heartbeat state: %w, value %s", err, value)
+				return nil, fmt.Errorf("parse heartbeat state: %w, value %s", err, value)
 			}
 		case executorReportedShardsKey:
 			err = json.Unmarshal(kv.Value, &heartbeat.ReportedShards)
 			if err != nil {
-				return nil, nil, 0, fmt.Errorf("unmarshal reported shards: %w", err)
+				return nil, fmt.Errorf("unmarshal reported shards: %w", err)
 			}
 		case executorAssignedStateKey:
 			err = json.Unmarshal(kv.Value, &assigned)
 			if err != nil {
-				return nil, nil, 0, fmt.Errorf("unmarshal assigned shards: %w, %s", err, value)
+				return nil, fmt.Errorf("unmarshal assigned shards: %w, %s", err, value)
 			}
 		}
 		heartbeatStates[executorID] = heartbeat
 		assignedStates[executorID] = assigned
 	}
-	return heartbeatStates, assignedStates, resp.Header.Revision, nil
+
+	shardStates := make(map[string]store.ShardState)
+	shardsPrefix := s.buildShardsPrefix(namespace)
+	shardResp, err := s.client.Get(ctx, shardsPrefix, clientv3.WithPrefix())
+	if err != nil {
+		return nil, fmt.Errorf("get shard ownership data: %w", err)
+	}
+	for _, kv := range shardResp.Kvs {
+		key := string(kv.Key)
+		remainder := strings.TrimPrefix(key, shardsPrefix)
+		parts := strings.Split(remainder, "/")
+		if len(parts) < 2 || parts[1] != shardAssignedKey {
+			continue
+		}
+		shardID := parts[0]
+		shardStates[shardID] = store.ShardState{
+			ExecutorID: string(kv.Value),
+			Revision:   kv.ModRevision,
+		}
+	}
+
+	return &store.NamespaceState{
+		Executors:        heartbeatStates,
+		Shards:           shardStates,
+		ShardAssignments: assignedStates,
+		GlobalRevision:   resp.Header.Revision,
+	}, nil
 }
 
 func (s *Store) Subscribe(ctx context.Context, namespace string) (<-chan int64, error) {
@@ -256,20 +282,45 @@ func (s *Store) Subscribe(ctx context.Context, namespace string) (<-chan int64, 
 	return revisionChan, nil
 }
 
-func (s *Store) AssignShards(ctx context.Context, namespace string, newState map[string]store.AssignedState, guard store.GuardFunc) error {
+func (s *Store) AssignShards(ctx context.Context, namespace string, newState *store.NamespaceState, guard store.GuardFunc) error {
 	var ops []clientv3.Op
-	for executorID, state := range newState {
-		key := s.buildExecutorKey(namespace, executorID, executorAssignedStateKey)
+	var comparisons []clientv3.Cmp
+
+	// 1. Prepare operations to update executor states and shard ownership,
+	// and comparisons to check for concurrent modifications.
+	for executorID, state := range newState.ShardAssignments {
+		// Update the executor's assigned_state key.
+		executorStateKey := s.buildExecutorKey(namespace, executorID, executorAssignedStateKey)
 		value, err := json.Marshal(state)
 		if err != nil {
-			return fmt.Errorf("marshal assigned shards: %w", err)
+			return fmt.Errorf("marshal assigned shards for executor %s: %w", executorID, err)
 		}
-		ops = append(ops, clientv3.OpPut(key, string(value)))
+		ops = append(ops, clientv3.OpPut(executorStateKey, string(value)))
+
+		// For each shard in the new assignment, add a Put operation and a revision check.
+		for shardID := range state.AssignedShards {
+			shardOwnerKey := s.buildShardKey(namespace, shardID, shardAssignedKey)
+			ops = append(ops, clientv3.OpPut(shardOwnerKey, executorID))
+
+			// Check the revision of the shard from the state we read in GetState.
+			previousShardState, ok := newState.Shards[shardID]
+			if ok {
+				// The shard existed before. Check that its revision has not changed.
+				// This handles moves and re-assignments to the same executor.
+				comparisons = append(comparisons, clientv3.Compare(clientv3.ModRevision(shardOwnerKey), "=", previousShardState.Revision))
+			} else {
+				// The shard is new. Check that it has not been created by another process.
+				// A non-existent key has a ModRevision of 0.
+				comparisons = append(comparisons, clientv3.Compare(clientv3.ModRevision(shardOwnerKey), "=", 0))
+			}
+		}
 	}
+
 	if len(ops) == 0 {
 		return nil
 	}
 
+	// 2. Apply the guard function to get the base transaction, which may already have an 'If' condition for leadership.
 	nativeTxn := s.client.Txn(ctx)
 	guardedTxn, err := guard(nativeTxn)
 	if err != nil {
@@ -280,14 +331,38 @@ func (s *Store) AssignShards(ctx context.Context, namespace string, newState map
 		return fmt.Errorf("guard function returned invalid transaction type")
 	}
 
-	etcdGuardedTxn = etcdGuardedTxn.Then(ops...)
-	resp, err := etcdGuardedTxn.Commit()
+	// 3. Create a nested transaction operation. This allows us to add our own 'If' (comparisons)
+	// and 'Then' (ops) logic that will only execute if the outer guard's 'If' condition passes.
+	nestedTxnOp := clientv3.OpTxn(
+		comparisons, // Our IF conditions
+		ops,         // Our THEN operations
+		nil,         // Our ELSE operations
+	)
+
+	// 4. Add the nested transaction to the guarded transaction's THEN clause and commit.
+	etcdGuardedTxn = etcdGuardedTxn.Then(nestedTxnOp)
+	txnResp, err := etcdGuardedTxn.Commit()
 	if err != nil {
-		return fmt.Errorf("commit shard assignments: %w", err)
+		return fmt.Errorf("commit shard assignments transaction: %w", err)
 	}
-	if !resp.Succeeded {
-		return fmt.Errorf("transaction failed, leadership may have changed")
+
+	// 5. Check the results of both the outer and nested transactions.
+	if !txnResp.Succeeded {
+		// This means the guard's condition (e.g., leadership) failed.
+		return fmt.Errorf("%w: transaction failed, leadership may have changed", store.ErrVersionConflict)
 	}
+
+	// The guard's condition passed. Now check if our nested transaction succeeded.
+	// Since we only have one Op in our 'Then', we check the first response.
+	if len(txnResp.Responses) == 0 {
+		return fmt.Errorf("unexpected empty response from transaction")
+	}
+	nestedResp := txnResp.Responses[0].GetResponseTxn()
+	if !nestedResp.Succeeded {
+		// This means our revision checks failed.
+		return fmt.Errorf("%w: transaction failed, a shard may have been concurrently assigned", store.ErrVersionConflict)
+	}
+
 	return nil
 }
 
