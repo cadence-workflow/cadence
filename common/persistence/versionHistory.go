@@ -72,7 +72,7 @@ func (item *VersionHistoryItem) ToInternalType() *types.VersionHistoryItem {
 	}
 }
 
-// Equals test if this version history itme and input version history item  are the same
+// Equals test if this version history item and input version history item are the same
 func (item *VersionHistoryItem) Equals(input *VersionHistoryItem) bool {
 	return item.Version == input.Version && item.EventID == input.EventID
 }

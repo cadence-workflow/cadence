@@ -57,6 +57,7 @@ type (
 			resetReason string,
 			additionalReapplyEvents []*types.HistoryEvent,
 			skipSignalReapply bool,
+			resetEventID *int64,
 		) error
 	}
 
@@ -109,6 +110,7 @@ func (r *workflowResetterImpl) ResetWorkflow(
 	resetReason string,
 	additionalReapplyEvents []*types.HistoryEvent,
 	skipSignalReapply bool,
+	resetEventID *int64,
 ) (retError error) {
 
 	domainEntry, err := r.domainCache.GetDomainByID(domainID)
@@ -145,6 +147,7 @@ func (r *workflowResetterImpl) ResetWorkflow(
 		resetReason,
 		additionalReapplyEvents,
 		skipSignalReapply,
+		resetEventID,
 	)
 	if err != nil {
 		return err
@@ -174,6 +177,7 @@ func (r *workflowResetterImpl) prepareResetWorkflow(
 	resetReason string,
 	additionalReapplyEvents []*types.HistoryEvent,
 	skipSignalReapply bool,
+	resetEventID *int64,
 ) (execution.Workflow, error) {
 
 	resetWorkflow, err := r.replayResetWorkflow(
@@ -186,6 +190,7 @@ func (r *workflowResetterImpl) prepareResetWorkflow(
 		baseRebuildLastEventVersion,
 		resetRunID,
 		resetRequestID,
+		resetEventID,
 	)
 	if err != nil {
 		return nil, err
@@ -318,6 +323,7 @@ func (r *workflowResetterImpl) replayResetWorkflow(
 	baseRebuildLastEventVersion int64,
 	resetRunID string,
 	resetRequestID string,
+	resetEventID *int64,
 ) (execution.Workflow, error) {
 
 	resetContext := execution.NewContext(
@@ -361,6 +367,7 @@ func (r *workflowResetterImpl) replayResetWorkflow(
 		),
 		resetBranchTokenFn,
 		resetRequestID,
+		resetEventID,
 	)
 	if err != nil {
 		return nil, err

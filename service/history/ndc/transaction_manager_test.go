@@ -225,6 +225,7 @@ func (s *transactionManagerSuite) TestBackfillWorkflow_CurrentWorkflow_Active_Cl
 		EventsReapplicationResetWorkflowReason,
 		workflowEvents.Events,
 		false,
+		nil,
 	).Return(nil).Times(1)
 
 	s.mockShard.Resource.DomainCache.EXPECT().GetDomainName(domainID).Return(domainName, nil).AnyTimes()

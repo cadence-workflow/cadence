@@ -2033,7 +2033,8 @@ func (s *transferActiveTaskExecutorSuite) testProcessResetWorkflowWithError(same
 		gomock.Any(),
 		"test-reason",
 		nil,
-		false).Return(resetError).Times(1)
+		false,
+		nil).Return(resetError).Times(1)
 
 	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
 

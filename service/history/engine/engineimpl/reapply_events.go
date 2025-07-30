@@ -147,6 +147,7 @@ func (e *historyEngineImpl) ReapplyEvents(
 					ndc.EventsReapplicationResetWorkflowReason,
 					toReapplyEvents,
 					false,
+					nil,
 				); err != nil {
 					return nil, err
 				}
