@@ -46,8 +46,8 @@ var Module = fx.Module("sharddistributor",
 	namespace.Module,
 	election.Module,
 	process.Module,
-	fx.Decorate(func(s store.Store, metricsClient metrics.Client, logger log.Logger) store.Store {
-		return meteredStore.NewStore(s, metricsClient, logger)
+	fx.Decorate(func(s store.Store, metricsClient metrics.Client, logger log.Logger, timeSource clock.TimeSource) store.Store {
+		return meteredStore.NewStore(s, metricsClient, logger, timeSource)
 	}),
 	fx.Invoke(registerHandlers))
 
