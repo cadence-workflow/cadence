@@ -226,7 +226,7 @@ func (p *namespaceProcessor) runCleanupLoop(ctx context.Context) {
 
 // cleanupStaleExecutors removes executors who have not reported a heartbeat recently.
 func (p *namespaceProcessor) cleanupStaleExecutors(ctx context.Context) {
-	heartbeatStates, _, _, err := p.shardStore.GetState(ctx, p.namespaceCfg.Name)
+	namespaceState, err := p.shardStore.GetState(ctx, p.namespaceCfg.Name)
 	if err != nil {
 		p.logger.Error("Failed to get state for heartbeat cleanup", tag.Error(err))
 		return
@@ -236,7 +236,7 @@ func (p *namespaceProcessor) cleanupStaleExecutors(ctx context.Context) {
 	now := p.timeSource.Now().Unix()
 	heartbeatTTL := int64(p.cfg.HeartbeatTTL.Seconds())
 
-	for executorID, state := range heartbeatStates {
+	for executorID, state := range namespaceState.Executors {
 		if (now - state.LastHeartbeat) > heartbeatTTL {
 			expiredExecutors = append(expiredExecutors, executorID)
 		}
@@ -270,17 +270,17 @@ func (p *namespaceProcessor) rebalanceShards(ctx context.Context) (err error) {
 		metricsLoopScope.RecordHistogramDuration(metrics.ShardDistributorAssignLoopShardRebalanceLatency, p.timeSource.Now().Sub(start))
 	}()
 
-	heartbeatStates, assignedStates, readRevision, err := p.shardStore.GetState(ctx, p.namespaceCfg.Name)
+	namespaceState, err := p.shardStore.GetState(ctx, p.namespaceCfg.Name)
 	if err != nil {
 		return fmt.Errorf("get state: %w", err)
 	}
 
-	if readRevision <= p.lastAppliedRevision {
+	if namespaceState.GlobalRevision <= p.lastAppliedRevision {
 		return nil
 	}
 
 	var activeExecutors []string
-	for id, state := range heartbeatStates {
+	for id, state := range namespaceState.Executors {
 		if state.Status == types.ExecutorStatusACTIVE {
 			activeExecutors = append(activeExecutors, id)
 		}
@@ -305,8 +305,8 @@ func (p *namespaceProcessor) rebalanceShards(ctx context.Context) (err error) {
 		currentAssignments[executorID] = []string{}
 	}
 
-	for executorID, state := range assignedStates {
-		isActive := heartbeatStates[executorID].Status == types.ExecutorStatusACTIVE
+	for executorID, state := range namespaceState.ShardAssignments {
+		isActive := namespaceState.Executors[executorID].Status == types.ExecutorStatusACTIVE
 		for shardID := range state.AssignedShards {
 			if _, ok := allShards[shardID]; ok {
 				delete(allShards, shardID)
@@ -326,7 +326,7 @@ func (p *namespaceProcessor) rebalanceShards(ctx context.Context) (err error) {
 	metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignLoopNumRebalancedShards, float64(len(shardsToReassign)))
 
 	if len(shardsToReassign) == 0 {
-		p.lastAppliedRevision = readRevision
+		p.lastAppliedRevision = namespaceState.GlobalRevision
 		return nil
 	}
 
@@ -342,6 +342,10 @@ func (p *namespaceProcessor) rebalanceShards(ctx context.Context) (err error) {
 		assignedShardsMap := make(map[string]*types.ShardAssignment)
 		for _, shardID := range shards {
 			assignedShardsMap[shardID] = &types.ShardAssignment{Status: types.AssignmentStatusREADY}
+			namespaceState.Shards[shardID] = store.ShardState{
+				ExecutorID: executorID,
+				Revision:   namespaceState.Shards[shardID].Revision,
+			}
 		}
 		newState[executorID] = store.AssignedState{
 			AssignedShards: assignedShardsMap,
@@ -349,14 +353,16 @@ func (p *namespaceProcessor) rebalanceShards(ctx context.Context) (err error) {
 		}
 	}
 
+	namespaceState.ShardAssignments = newState
+
 	p.logger.Info("Applying new shard distribution.")
 	// Use the leader guard for the assign operation.
-	err = p.shardStore.AssignShards(ctx, p.namespaceCfg.Name, newState, p.election.Guard())
+	err = p.shardStore.AssignShards(ctx, p.namespaceCfg.Name, namespaceState, p.election.Guard())
 	if err != nil {
 		return fmt.Errorf("assign shards: %w", err)
 	}
 
-	p.lastAppliedRevision = readRevision
+	p.lastAppliedRevision = namespaceState.GlobalRevision
 
 	return nil
 }

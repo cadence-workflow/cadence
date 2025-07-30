@@ -60,7 +60,7 @@ func TestRunAndTerminate(t *testing.T) {
 	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election)
 	ctx, cancel := context.WithCancel(context.Background())
 
-	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(nil, nil, int64(0), nil).AnyTimes()
+	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{GlobalRevision: 0}, nil).AnyTimes()
 	mocks.store.EXPECT().Subscribe(gomock.Any(), mocks.cfg.Name).Return(make(chan int64), nil).AnyTimes()
 
 	err := processor.Run(ctx)
@@ -89,13 +89,13 @@ func TestRebalanceShards_InitialDistribution(t *testing.T) {
 		"exec-1": {Status: types.ExecutorStatusACTIVE},
 		"exec-2": {Status: types.ExecutorStatusACTIVE},
 	}
-	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(state, nil, int64(1), nil)
+	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{Executors: state, GlobalRevision: 1}, nil)
 	mocks.election.EXPECT().Guard().Return(store.NopGuard())
 	mocks.store.EXPECT().AssignShards(gomock.Any(), mocks.cfg.Name, gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, _ string, newState map[string]store.AssignedState, _ store.GuardFunc) error {
-			assert.Len(t, newState, 2)
-			assert.Len(t, newState["exec-1"].AssignedShards, 1)
-			assert.Len(t, newState["exec-2"].AssignedShards, 1)
+		func(_ context.Context, _ string, newState *store.NamespaceState, _ store.GuardFunc) error {
+			assert.Len(t, newState.ShardAssignments, 2)
+			assert.Len(t, newState.ShardAssignments["exec-1"].AssignedShards, 1)
+			assert.Len(t, newState.ShardAssignments["exec-2"].AssignedShards, 1)
 			return nil
 		},
 	)
@@ -122,12 +122,74 @@ func TestRebalanceShards_ExecutorRemoved(t *testing.T) {
 			},
 		},
 	}
-	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(heartbeats, assignments, int64(1), nil)
+	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{
+		Executors:        heartbeats,
+		Shards:           nil,
+		ShardAssignments: assignments,
+		GlobalRevision:   1,
+	}, nil)
 	mocks.election.EXPECT().Guard().Return(store.NopGuard())
 	mocks.store.EXPECT().AssignShards(gomock.Any(), mocks.cfg.Name, gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, _ string, newState map[string]store.AssignedState, _ store.GuardFunc) error {
-			assert.Len(t, newState["exec-1"].AssignedShards, 2)
-			assert.Len(t, newState["exec-2"].AssignedShards, 0)
+		func(_ context.Context, _ string, newState *store.NamespaceState, _ store.GuardFunc) error {
+			assert.Len(t, newState.ShardAssignments["exec-1"].AssignedShards, 2)
+			assert.Len(t, newState.ShardAssignments["exec-2"].AssignedShards, 0)
+			return nil
+		},
+	)
+
+	err := processor.rebalanceShards(context.Background())
+	require.NoError(t, err)
+}
+
+func TestRebalanceShards_UpdatesShardStateOnReassign(t *testing.T) {
+	mocks := setupProcessorTest(t)
+	defer mocks.ctrl.Finish()
+	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
+
+	// Initial state: exec-2 is draining, exec-1 is active.
+	// Shards "0" and "1" are initially owned by exec-2.
+	heartbeats := map[string]store.HeartbeatState{
+		"exec-1": {Status: types.ExecutorStatusACTIVE},
+		"exec-2": {Status: types.ExecutorStatusDRAINING},
+	}
+	assignments := map[string]store.AssignedState{
+		"exec-2": {
+			AssignedShards: map[string]*types.ShardAssignment{
+				"0": {Status: types.AssignmentStatusREADY},
+				"1": {Status: types.AssignmentStatusREADY},
+			},
+		},
+	}
+	// This is the crucial part for the test: the initial state of the Shards map.
+	shards := map[string]store.ShardState{
+		"0": {ExecutorID: "exec-2", Revision: 101},
+		"1": {ExecutorID: "exec-2", Revision: 102},
+	}
+
+	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{
+		Executors:        heartbeats,
+		Shards:           shards, // Provide the initial shard state.
+		ShardAssignments: assignments,
+		GlobalRevision:   2,
+	}, nil)
+
+	mocks.election.EXPECT().Guard().Return(store.NopGuard())
+
+	// We expect AssignShards to be called with the updated state.
+	mocks.store.EXPECT().AssignShards(gomock.Any(), mocks.cfg.Name, gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, _ string, newState *store.NamespaceState, _ store.GuardFunc) error {
+			// Assert that the assignments were moved to exec-1.
+			assert.Len(t, newState.ShardAssignments["exec-1"].AssignedShards, 2)
+			assert.Len(t, newState.ShardAssignments["exec-2"].AssignedShards, 0)
+
+			// **Assert that the Shards map is correctly updated.**
+			// The ExecutorID should be updated to the new owner.
+			assert.Equal(t, "exec-1", newState.Shards["0"].ExecutorID)
+			assert.Equal(t, "exec-1", newState.Shards["1"].ExecutorID)
+
+			// The Revision should be preserved from the original state.
+			assert.Equal(t, int64(101), newState.Shards["0"].Revision)
+			assert.Equal(t, int64(102), newState.Shards["1"].Revision)
 			return nil
 		},
 	)
@@ -144,8 +206,7 @@ func TestRebalanceShards_NoActiveExecutors(t *testing.T) {
 	state := map[string]store.HeartbeatState{
 		"exec-1": {Status: types.ExecutorStatusDRAINING},
 	}
-	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(state, nil, int64(1), nil)
-	mocks.store.EXPECT().AssignShards(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{Executors: state, GlobalRevision: int64(1)}, nil)
 
 	err := processor.rebalanceShards(context.Background())
 	require.NoError(t, err)
@@ -157,8 +218,7 @@ func TestRebalanceShards_NoRebalanceNeeded(t *testing.T) {
 	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
 	processor.lastAppliedRevision = 1
 
-	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(nil, nil, int64(1), nil)
-	mocks.store.EXPECT().AssignShards(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{GlobalRevision: int64(1)}, nil)
 
 	err := processor.rebalanceShards(context.Background())
 	require.NoError(t, err)
@@ -175,7 +235,7 @@ func TestCleanupStaleExecutors(t *testing.T) {
 		"exec-stale":  {LastHeartbeat: now.Add(-2 * time.Second).Unix()},
 	}
 
-	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(heartbeats, nil, int64(1), nil)
+	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{Executors: heartbeats}, nil)
 	mocks.election.EXPECT().Guard().Return(store.NopGuard())
 	mocks.store.EXPECT().DeleteExecutors(gomock.Any(), mocks.cfg.Name, []string{"exec-stale"}, gomock.Any()).Return(nil)
 
@@ -188,12 +248,15 @@ func TestRebalance_StoreErrors(t *testing.T) {
 	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
 	expectedErr := errors.New("store is down")
 
-	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(nil, nil, int64(0), expectedErr)
+	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(nil, expectedErr)
 	err := processor.rebalanceShards(context.Background())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), expectedErr.Error())
 
-	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(map[string]store.HeartbeatState{"e": {Status: types.ExecutorStatusACTIVE}}, nil, int64(1), nil)
+	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{
+		Executors:      map[string]store.HeartbeatState{"e": {Status: types.ExecutorStatusACTIVE}},
+		GlobalRevision: 1,
+	}, nil)
 	mocks.election.EXPECT().Guard().Return(store.NopGuard())
 	mocks.store.EXPECT().AssignShards(gomock.Any(), mocks.cfg.Name, gomock.Any(), gomock.Any()).Return(expectedErr)
 	err = processor.rebalanceShards(context.Background())
@@ -207,10 +270,13 @@ func TestCleanup_StoreErrors(t *testing.T) {
 	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
 	expectedErr := errors.New("store is down")
 
-	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(nil, nil, int64(0), expectedErr)
+	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(nil, expectedErr)
 	processor.cleanupStaleExecutors(context.Background())
 
-	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(map[string]store.HeartbeatState{"stale": {LastHeartbeat: 0}}, nil, int64(1), nil)
+	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{
+		Executors:      map[string]store.HeartbeatState{"stale": {LastHeartbeat: 0}},
+		GlobalRevision: 1,
+	}, nil)
 	mocks.election.EXPECT().Guard().Return(store.NopGuard())
 	mocks.store.EXPECT().DeleteExecutors(gomock.Any(), mocks.cfg.Name, gomock.Any(), gomock.Any()).Return(expectedErr)
 	processor.cleanupStaleExecutors(context.Background())
@@ -222,7 +288,7 @@ func TestRunLoop_SubscriptionError(t *testing.T) {
 	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
 
 	expectedErr := errors.New("subscription failed")
-	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(nil, nil, int64(0), nil)
+	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{GlobalRevision: 0}, nil)
 	mocks.store.EXPECT().Subscribe(gomock.Any(), mocks.cfg.Name).Return(nil, expectedErr)
 
 	var wg sync.WaitGroup
@@ -241,7 +307,7 @@ func TestRunLoop_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// Setup for the initial call to rebalanceShards and the subscription
-	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(nil, nil, int64(0), nil)
+	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{GlobalRevision: 0}, nil)
 	mocks.store.EXPECT().Subscribe(gomock.Any(), mocks.cfg.Name).Return(make(chan int64), nil)
 
 	processor.wg.Add(1)
@@ -274,8 +340,12 @@ func TestRebalanceShards_NoShardsToReassign(t *testing.T) {
 			},
 		},
 	}
-	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(heartbeats, assignments, int64(2), nil)
-	mocks.store.EXPECT().AssignShards(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{
+		Executors:        heartbeats,
+		Shards:           nil,
+		ShardAssignments: assignments,
+		GlobalRevision:   2,
+	}, nil)
 
 	err := processor.rebalanceShards(context.Background())
 	require.NoError(t, err)
@@ -298,11 +368,15 @@ func TestRebalanceShards_WithUnassignedShards(t *testing.T) {
 			},
 		},
 	}
-	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(heartbeats, assignments, int64(3), nil)
+	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{
+		Executors:        heartbeats,
+		ShardAssignments: assignments,
+		GlobalRevision:   3,
+	}, nil)
 	mocks.election.EXPECT().Guard().Return(store.NopGuard())
 	mocks.store.EXPECT().AssignShards(gomock.Any(), mocks.cfg.Name, gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, _ string, newState map[string]store.AssignedState, _ store.GuardFunc) error {
-			assert.Len(t, newState["exec-1"].AssignedShards, 2, "Both shards should now be assigned to exec-1")
+		func(_ context.Context, _ string, newState *store.NamespaceState, _ store.GuardFunc) error {
+			assert.Len(t, newState.ShardAssignments["exec-1"].AssignedShards, 2, "Both shards should now be assigned to exec-1")
 			return nil
 		},
 	)

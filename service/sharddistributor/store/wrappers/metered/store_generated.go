@@ -46,7 +46,7 @@ func (c *meteredStore) AssignShard(ctx context.Context, namespace string, shardI
 	return
 }
 
-func (c *meteredStore) AssignShards(ctx context.Context, namespace string, newState map[string]store.AssignedState, guard store.GuardFunc) (err error) {
+func (c *meteredStore) AssignShards(ctx context.Context, namespace string, newState *store.NamespaceState, guard store.GuardFunc) (err error) {
 	op := func() error {
 		err = c.wrapped.AssignShards(ctx, namespace, newState, guard)
 		return err
@@ -86,9 +86,9 @@ func (c *meteredStore) GetShardOwner(ctx context.Context, namespace string, shar
 	return
 }
 
-func (c *meteredStore) GetState(ctx context.Context, namespace string) (m1 map[string]store.HeartbeatState, m2 map[string]store.AssignedState, i1 int64, err error) {
+func (c *meteredStore) GetState(ctx context.Context, namespace string) (np1 *store.NamespaceState, err error) {
 	op := func() error {
-		m1, m2, i1, err = c.wrapped.GetState(ctx, namespace)
+		np1, err = c.wrapped.GetState(ctx, namespace)
 		return err
 	}
 

@@ -79,7 +79,7 @@ func (mr *MockStoreMockRecorder) AssignShard(ctx, namespace, shardID, executorID
 }
 
 // AssignShards mocks base method.
-func (m *MockStore) AssignShards(ctx context.Context, namespace string, newState map[string]AssignedState, guard GuardFunc) error {
+func (m *MockStore) AssignShards(ctx context.Context, namespace string, newState *NamespaceState, guard GuardFunc) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AssignShards", ctx, namespace, newState, guard)
 	ret0, _ := ret[0].(error)
@@ -138,14 +138,12 @@ func (mr *MockStoreMockRecorder) GetShardOwner(ctx, namespace, shardID any) *gom
 }
 
 // GetState mocks base method.
-func (m *MockStore) GetState(ctx context.Context, namespace string) (map[string]HeartbeatState, map[string]AssignedState, int64, error) {
+func (m *MockStore) GetState(ctx context.Context, namespace string) (*NamespaceState, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetState", ctx, namespace)
-	ret0, _ := ret[0].(map[string]HeartbeatState)
-	ret1, _ := ret[1].(map[string]AssignedState)
-	ret2, _ := ret[2].(int64)
-	ret3, _ := ret[3].(error)
-	return ret0, ret1, ret2, ret3
+	ret0, _ := ret[0].(*NamespaceState)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // GetState indicates an expected call of GetState.
