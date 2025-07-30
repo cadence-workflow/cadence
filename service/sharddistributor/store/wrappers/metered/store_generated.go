@@ -7,6 +7,7 @@ package metered
 import (
 	"context"
 
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/service/sharddistributor/store"
@@ -23,12 +24,14 @@ func NewStore(
 	wrapped store.Store,
 	metricClient metrics.Client,
 	logger log.Logger,
+	timeSource clock.TimeSource,
 ) store.Store {
 	return &meteredStore{
 		wrapped: wrapped,
 		base: base{
 			metricClient: metricClient,
 			logger:       logger,
+			timeSource:   timeSource,
 		},
 	}
 }

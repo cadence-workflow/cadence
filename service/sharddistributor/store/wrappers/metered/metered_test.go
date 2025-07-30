@@ -9,6 +9,7 @@ import (
 	"github.com/uber-go/tally"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -69,16 +70,17 @@ func TestMeteredStore_GetHeartbeat(t *testing.T) {
 
 			testScope := tally.NewTestScope("test", nil)
 			metricsClient := metrics.NewClient(testScope, metrics.ShardDistributor)
+			timeSource := clock.NewMockedTimeSource()
 			mockHandler := store.NewMockStore(ctrl)
 
 			mockHandler.EXPECT().GetHeartbeat(gomock.Any(), _testNamespace, _testExecutorID).Do(func(ctx context.Context, namespace string, executorID string) {
-				time.Sleep(time.Millisecond)
+				timeSource.Advance(time.Second)
 			}).Return(heartbeatRes, assignedState, tt.error)
 
 			mockLogger := log.NewMockLogger(t)
 			mockLogger.On("Helper").Return(mockLogger)
 
-			wrapped := NewStore(mockHandler, metricsClient, mockLogger).(*meteredStore)
+			wrapped := NewStore(mockHandler, metricsClient, mockLogger, timeSource).(*meteredStore)
 			tt.setupMocks(mockLogger)
 
 			gotHeartbeat, gotAssignedState, err := wrapped.GetHeartbeat(context.Background(), _testNamespace, _testExecutorID)

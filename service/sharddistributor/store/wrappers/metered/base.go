@@ -24,8 +24,8 @@ package metered
 
 import (
 	"errors"
-	"time"
 
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -35,6 +35,7 @@ import (
 type base struct {
 	metricClient metrics.Client
 	logger       log.Logger
+	timeSource   clock.TimeSource
 }
 
 func (p *base) updateErrorMetricPerNamespace(scope int, err error, scopeWithNamespaceTags metrics.Scope, logger log.Logger) {
@@ -54,9 +55,9 @@ func (p *base) call(scope int, op func() error, tags ...metrics.Tag) error {
 	metricsScope := p.metricClient.Scope(scope, tags...)
 
 	metricsScope.IncCounter(metrics.ShardDistributorStoreRequestsPerNamespace)
-	before := time.Now()
+	before := p.timeSource.Now()
 	err := op()
-	duration := time.Since(before)
+	duration := p.timeSource.Since(before)
 	metricsScope.RecordHistogramDuration(metrics.ShardDistributorStoreLatencyHistogramPerNamespace, duration)
 
 	logger := p.logger.Helper()
