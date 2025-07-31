@@ -92,6 +92,65 @@ func And(p1, p2 Predicate) Predicate {
 	}
 }
 
+func Or(p1, p2 Predicate) Predicate {
+	switch p1 := p1.(type) {
+	case *universalPredicate:
+		return p1
+	case *emptyPredicate:
+		return p2
+	case *domainIDPredicate:
+		switch p2 := p2.(type) {
+		case *universalPredicate:
+			return p2
+		case *emptyPredicate:
+			return p1
+		case *domainIDPredicate:
+			if p1.isExclusive {
+				if p2.isExclusive {
+					domainIDs := intersectStringSet(p1.domainIDs, p2.domainIDs)
+					if len(domainIDs) == 0 {
+						return &universalPredicate{}
+					}
+					return &domainIDPredicate{
+						domainIDs:   domainIDs,
+						isExclusive: true,
+					}
+				}
+				domainIDs := diffStringSet(p1.domainIDs, p2.domainIDs)
+				if len(domainIDs) == 0 {
+					return &universalPredicate{}
+				}
+				return &domainIDPredicate{
+					domainIDs:   domainIDs,
+					isExclusive: true,
+				}
+			}
+			if p2.isExclusive {
+				domainIDs := diffStringSet(p2.domainIDs, p1.domainIDs)
+				if len(domainIDs) == 0 {
+					return &universalPredicate{}
+				}
+				return &domainIDPredicate{
+					domainIDs:   domainIDs,
+					isExclusive: true,
+				}
+			}
+			domainIDs := unionStringSet(p1.domainIDs, p2.domainIDs)
+			if len(domainIDs) == 0 {
+				return &emptyPredicate{}
+			}
+			return &domainIDPredicate{
+				domainIDs:   domainIDs,
+				isExclusive: false,
+			}
+		default:
+			panic(fmt.Sprintf("unknown predicate type: %T", p2))
+		}
+	default:
+		panic(fmt.Sprintf("unknown predicate type: %T", p1))
+	}
+}
+
 func unionStringSet(set1, set2 map[string]struct{}) map[string]struct{} {
 	result := make(map[string]struct{})
 	for domainID := range set1 {
@@ -107,6 +166,16 @@ func intersectStringSet(set1, set2 map[string]struct{}) map[string]struct{} {
 	result := make(map[string]struct{})
 	for domainID := range set1 {
 		if _, ok := set2[domainID]; ok {
+			result[domainID] = struct{}{}
+		}
+	}
+	return result
+}
+
+func diffStringSet(set1, set2 map[string]struct{}) map[string]struct{} {
+	result := make(map[string]struct{})
+	for domainID := range set1 {
+		if _, ok := set2[domainID]; !ok {
 			result[domainID] = struct{}{}
 		}
 	}

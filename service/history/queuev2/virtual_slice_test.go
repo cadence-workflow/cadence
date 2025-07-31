@@ -5,13 +5,14 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	gomock "go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/service/history/task"
 )
 
-func TestMergeProgress(t *testing.T) {
+func TestMergeProgressWithSamePredicate(t *testing.T) {
 	tests := []struct {
 		name     string
 		left     *GetTaskProgress
@@ -310,16 +311,16 @@ func TestMergeProgress(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := mergeProgress(tt.left, tt.right)
+			result := mergeProgressWithSamePredicate(tt.left, tt.right)
 			assert.Equal(t, tt.expected, result)
 
-			result = mergeProgress(tt.right, tt.left)
+			result = mergeProgressWithSamePredicate(tt.right, tt.left)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
 
-func TestAppendOrMergeProgress(t *testing.T) {
+func TestAppendOrMergeProgressWithSamePredicate(t *testing.T) {
 	tests := []struct {
 		name           string
 		mergedProgress []*GetTaskProgress
@@ -490,7 +491,7 @@ func TestAppendOrMergeProgress(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := appendOrMergeProgress(tt.mergedProgress, tt.progress)
+			result := appendOrMergeProgressWithSamePredicate(tt.mergedProgress, tt.progress)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -712,10 +713,10 @@ func TestMergeGetTaskProgress(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := mergeGetTaskProgress(tt.left, tt.right)
+			result := mergeGetTaskProgressWithSamePredicate(tt.left, tt.right)
 			assert.Equal(t, tt.expected, result)
 
-			result = mergeGetTaskProgress(tt.right, tt.left)
+			result = mergeGetTaskProgressWithSamePredicate(tt.right, tt.left)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -1567,6 +1568,988 @@ func TestGetTasks(t *testing.T) {
 	}
 }
 
+func TestMergeProgressWithDifferentPredicate(t *testing.T) {
+	tests := []struct {
+		name     string
+		left     *GetTaskProgress
+		right    *GetTaskProgress
+		expected []*GetTaskProgress
+	}{
+		{
+			name: "Case 1: Non-overlapping ranges",
+			left: &GetTaskProgress{
+				Range: Range{
+					InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+					ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(3),
+				},
+				NextTaskKey:   persistence.NewImmediateTaskKey(2),
+				NextPageToken: []byte("token1"),
+			},
+			right: &GetTaskProgress{
+				Range: Range{
+					InclusiveMinTaskKey: persistence.NewImmediateTaskKey(4),
+					ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(6),
+				},
+				NextTaskKey:   persistence.NewImmediateTaskKey(5),
+				NextPageToken: []byte("token2"),
+			},
+			expected: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(2),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(3),
+					},
+					NextPageToken: nil,
+					NextTaskKey:   persistence.NewImmediateTaskKey(2),
+				},
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(5),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(6),
+					},
+					NextPageToken: nil,
+					NextTaskKey:   persistence.NewImmediateTaskKey(5),
+				},
+			},
+		},
+		{
+			name: "Case 1,2: Adjacent ranges",
+			left: &GetTaskProgress{
+				Range: Range{
+					InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+					ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(3),
+				},
+				NextTaskKey:   persistence.NewImmediateTaskKey(2),
+				NextPageToken: []byte("token1"),
+			},
+			right: &GetTaskProgress{
+				Range: Range{
+					InclusiveMinTaskKey: persistence.NewImmediateTaskKey(3),
+					ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(6),
+				},
+				NextTaskKey:   persistence.NewImmediateTaskKey(5),
+				NextPageToken: []byte("token2"),
+			},
+			expected: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(2),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(3),
+					},
+					NextPageToken: nil,
+					NextTaskKey:   persistence.NewImmediateTaskKey(2),
+				},
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(5),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(6),
+					},
+					NextPageToken: nil,
+					NextTaskKey:   persistence.NewImmediateTaskKey(5),
+				},
+			},
+		},
+		{
+			name: "Case 2: Overlapping ranges",
+			left: &GetTaskProgress{
+				Range: Range{
+					InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+					ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(4),
+				},
+				NextTaskKey:   persistence.NewImmediateTaskKey(2),
+				NextPageToken: []byte("token1"),
+			},
+			right: &GetTaskProgress{
+				Range: Range{
+					InclusiveMinTaskKey: persistence.NewImmediateTaskKey(3),
+					ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(6),
+				},
+				NextTaskKey:   persistence.NewImmediateTaskKey(5),
+				NextPageToken: []byte("token2"),
+			},
+			expected: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(2),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(4),
+					},
+					NextPageToken: nil,
+					NextTaskKey:   persistence.NewImmediateTaskKey(2),
+				},
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(5),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(6),
+					},
+					NextPageToken: nil,
+					NextTaskKey:   persistence.NewImmediateTaskKey(5),
+				},
+			},
+		},
+		{
+			name: "Case 3: Adjacent ranges",
+			left: &GetTaskProgress{
+				Range: Range{
+					InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+					ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(3),
+				},
+				NextTaskKey:   persistence.NewImmediateTaskKey(2),
+				NextPageToken: []byte("token1"),
+			},
+			right: &GetTaskProgress{
+				Range: Range{
+					InclusiveMinTaskKey: persistence.NewImmediateTaskKey(3),
+					ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+				},
+				NextTaskKey:   persistence.NewImmediateTaskKey(3),
+				NextPageToken: nil,
+			},
+			expected: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(2),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+					},
+					NextPageToken: nil,
+					NextTaskKey:   persistence.NewImmediateTaskKey(2),
+				},
+			},
+		},
+		{
+			name: "Case 3: Overlapping ranges",
+			left: &GetTaskProgress{
+				Range: Range{
+					InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+					ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+				},
+				NextTaskKey:   persistence.NewImmediateTaskKey(2),
+				NextPageToken: []byte("token1"),
+			},
+			right: &GetTaskProgress{
+				Range: Range{
+					InclusiveMinTaskKey: persistence.NewImmediateTaskKey(3),
+					ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(6),
+				},
+				NextTaskKey:   persistence.NewImmediateTaskKey(4),
+				NextPageToken: []byte("token2"),
+			},
+			expected: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(2),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(6),
+					},
+					NextPageToken: nil,
+					NextTaskKey:   persistence.NewImmediateTaskKey(2),
+				},
+			},
+		},
+		{
+			name: "Case 4: Completely overlapping ranges - left contains right",
+			left: &GetTaskProgress{
+				Range: Range{
+					InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+					ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+				},
+				NextTaskKey:   persistence.NewImmediateTaskKey(3),
+				NextPageToken: []byte("token1"),
+			},
+			right: &GetTaskProgress{
+				Range: Range{
+					InclusiveMinTaskKey: persistence.NewImmediateTaskKey(4),
+					ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(6),
+				},
+				NextTaskKey:   persistence.NewImmediateTaskKey(5),
+				NextPageToken: []byte("token2"),
+			},
+			expected: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(3),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+					},
+					NextPageToken: nil,
+					NextTaskKey:   persistence.NewImmediateTaskKey(3),
+				},
+			},
+		},
+		{
+			name: "Case 3,4: Equal exclusive max task keys",
+			left: &GetTaskProgress{
+				Range: Range{
+					InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+					ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+				},
+				NextTaskKey:   persistence.NewImmediateTaskKey(2),
+				NextPageToken: []byte("token1"),
+			},
+			right: &GetTaskProgress{
+				Range: Range{
+					InclusiveMinTaskKey: persistence.NewImmediateTaskKey(3),
+					ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+				},
+				NextTaskKey:   persistence.NewImmediateTaskKey(4),
+				NextPageToken: []byte("token2"),
+			},
+			expected: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(2),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+					},
+					NextPageToken: nil,
+					NextTaskKey:   persistence.NewImmediateTaskKey(2),
+				},
+			},
+		},
+		{
+			name: "Case 5: Overlapping ranges",
+			left: &GetTaskProgress{
+				Range: Range{
+					InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+					ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(4),
+				},
+				NextTaskKey:   persistence.NewImmediateTaskKey(3),
+				NextPageToken: []byte("token1"),
+			},
+			right: &GetTaskProgress{
+				Range: Range{
+					InclusiveMinTaskKey: persistence.NewImmediateTaskKey(2),
+					ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(8),
+				},
+				NextTaskKey:   persistence.NewImmediateTaskKey(5),
+				NextPageToken: []byte("token2"),
+			},
+			expected: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(3),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(4),
+					},
+					NextPageToken: nil,
+					NextTaskKey:   persistence.NewImmediateTaskKey(3),
+				},
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(5),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(8),
+					},
+					NextPageToken: nil,
+					NextTaskKey:   persistence.NewImmediateTaskKey(5),
+				},
+			},
+		},
+		{
+			name: "Case 6: Overlapping ranges with same next task key",
+			left: &GetTaskProgress{
+				Range: Range{
+					InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+					ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+				},
+				NextTaskKey:   persistence.NewImmediateTaskKey(3),
+				NextPageToken: []byte("token1"),
+			},
+			right: &GetTaskProgress{
+				Range: Range{
+					InclusiveMinTaskKey: persistence.NewImmediateTaskKey(2),
+					ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(8),
+				},
+				NextTaskKey:   persistence.NewImmediateTaskKey(3),
+				NextPageToken: []byte("token2"),
+			},
+			expected: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(3),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(8),
+					},
+					NextPageToken: nil,
+					NextTaskKey:   persistence.NewImmediateTaskKey(3),
+				},
+			},
+		},
+		{
+			name: "Case 7: Completely overlapping ranges - left contains right",
+			left: &GetTaskProgress{
+				Range: Range{
+					InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+					ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+				},
+				NextTaskKey:   persistence.NewImmediateTaskKey(3),
+				NextPageToken: []byte("token1"),
+			},
+			right: &GetTaskProgress{
+				Range: Range{
+					InclusiveMinTaskKey: persistence.NewImmediateTaskKey(2),
+					ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(8),
+				},
+				NextTaskKey:   persistence.NewImmediateTaskKey(3),
+				NextPageToken: []byte("token2"),
+			},
+			expected: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(3),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+					},
+					NextPageToken: nil,
+					NextTaskKey:   persistence.NewImmediateTaskKey(3),
+				},
+			},
+		},
+		{
+			name: "Identical ranges and next task keys",
+			left: &GetTaskProgress{
+				Range: Range{
+					InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+					ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+				},
+				NextTaskKey:   persistence.NewImmediateTaskKey(3),
+				NextPageToken: []byte("token1"),
+			},
+			right: &GetTaskProgress{
+				Range: Range{
+					InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+					ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+				},
+				NextTaskKey:   persistence.NewImmediateTaskKey(3),
+				NextPageToken: []byte("token2"),
+			},
+			expected: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(3),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+					},
+					NextPageToken: nil,
+					NextTaskKey:   persistence.NewImmediateTaskKey(3),
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// make sure that these test inputs are valid
+			if tt.left.NextTaskKey.Compare(tt.left.Range.InclusiveMinTaskKey) == 0 {
+				require.Nil(t, tt.left.NextPageToken)
+			} else {
+				require.NotNil(t, tt.left.NextPageToken)
+			}
+			if tt.right.NextTaskKey.Compare(tt.right.Range.InclusiveMinTaskKey) == 0 {
+				require.Nil(t, tt.right.NextPageToken)
+			} else {
+				require.NotNil(t, tt.right.NextPageToken)
+			}
+
+			// test the merge function
+			result := mergeProgressWithDifferentPredicate(tt.left, tt.right)
+			assert.Equal(t, tt.expected, result)
+
+			// Test commutativity - the function should handle argument order internally
+			result2 := mergeProgressWithDifferentPredicate(tt.right, tt.left)
+			assert.Equal(t, tt.expected, result2)
+		})
+	}
+}
+
+func TestAppendOrMergeProgressWithDifferentPredicate(t *testing.T) {
+	tests := []struct {
+		name           string
+		mergedProgress []*GetTaskProgress
+		progress       *GetTaskProgress
+		expected       []*GetTaskProgress
+	}{
+		{
+			name:           "Empty slice - should append",
+			mergedProgress: []*GetTaskProgress{},
+			progress: &GetTaskProgress{
+				Range: Range{
+					InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+					ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(3),
+				},
+				NextTaskKey:   persistence.NewImmediateTaskKey(2),
+				NextPageToken: []byte("token"),
+			},
+			expected: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(3),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(2),
+					NextPageToken: []byte("token"),
+				},
+			},
+		},
+		{
+			name: "Non-overlapping ranges - should append both with reset tokens",
+			mergedProgress: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(3),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(2),
+					NextPageToken: []byte("token1"),
+				},
+			},
+			progress: &GetTaskProgress{
+				Range: Range{
+					InclusiveMinTaskKey: persistence.NewImmediateTaskKey(4),
+					ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(6),
+				},
+				NextTaskKey:   persistence.NewImmediateTaskKey(5),
+				NextPageToken: []byte("token2"),
+			},
+			expected: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(2),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(3),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(2),
+					NextPageToken: nil,
+				},
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(5),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(6),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(5),
+					NextPageToken: nil,
+				},
+			},
+		},
+		{
+			name: "Adjacent ranges - should merge into single range",
+			mergedProgress: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(3),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(2),
+					NextPageToken: []byte("token1"),
+				},
+			},
+			progress: &GetTaskProgress{
+				Range: Range{
+					InclusiveMinTaskKey: persistence.NewImmediateTaskKey(3),
+					ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+				},
+				NextTaskKey:   persistence.NewImmediateTaskKey(3),
+				NextPageToken: nil,
+			},
+			expected: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(2),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(2),
+					NextPageToken: nil,
+				},
+			},
+		},
+		{
+			name: "Overlapping ranges - should merge with earliest next task key",
+			mergedProgress: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(4),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(2),
+					NextPageToken: []byte("token1"),
+				},
+			},
+			progress: &GetTaskProgress{
+				Range: Range{
+					InclusiveMinTaskKey: persistence.NewImmediateTaskKey(3),
+					ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(6),
+				},
+				NextTaskKey:   persistence.NewImmediateTaskKey(5),
+				NextPageToken: []byte("token2"),
+			},
+			expected: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(2),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(4),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(2),
+					NextPageToken: nil,
+				},
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(5),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(6),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(5),
+					NextPageToken: nil,
+				},
+			},
+		},
+		{
+			name: "Completely contained ranges - should merge to outer range",
+			mergedProgress: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(3),
+					NextPageToken: []byte("token1"),
+				},
+			},
+			progress: &GetTaskProgress{
+				Range: Range{
+					InclusiveMinTaskKey: persistence.NewImmediateTaskKey(4),
+					ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(6),
+				},
+				NextTaskKey:   persistence.NewImmediateTaskKey(5),
+				NextPageToken: []byte("token2"),
+			},
+			expected: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(3),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(3),
+					NextPageToken: nil,
+				},
+			},
+		},
+		{
+			name: "Same next task key - different ranges",
+			mergedProgress: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(3),
+					NextPageToken: []byte("token1"),
+				},
+			},
+			progress: &GetTaskProgress{
+				Range: Range{
+					InclusiveMinTaskKey: persistence.NewImmediateTaskKey(2),
+					ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(8),
+				},
+				NextTaskKey:   persistence.NewImmediateTaskKey(3),
+				NextPageToken: []byte("token2"),
+			},
+			expected: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(3),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(8),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(3),
+					NextPageToken: nil,
+				},
+			},
+		},
+		{
+			name: "Multiple existing progress - should merge with last only",
+			mergedProgress: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(3),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(2),
+					NextPageToken: []byte("token1"),
+				},
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(4),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(6),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(5),
+					NextPageToken: []byte("token2"),
+				},
+			},
+			progress: &GetTaskProgress{
+				Range: Range{
+					InclusiveMinTaskKey: persistence.NewImmediateTaskKey(5),
+					ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(8),
+				},
+				NextTaskKey:   persistence.NewImmediateTaskKey(6),
+				NextPageToken: []byte("token3"),
+			},
+			expected: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(3),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(2),
+					NextPageToken: []byte("token1"),
+				},
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(5),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(8),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(5),
+					NextPageToken: nil,
+				},
+			},
+		},
+		{
+			name: "Multiple existing progress - last range non-overlapping",
+			mergedProgress: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(3),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(2),
+					NextPageToken: []byte("token1"),
+				},
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(4),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(6),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(5),
+					NextPageToken: []byte("token2"),
+				},
+			},
+			progress: &GetTaskProgress{
+				Range: Range{
+					InclusiveMinTaskKey: persistence.NewImmediateTaskKey(8),
+					ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+				},
+				NextTaskKey:   persistence.NewImmediateTaskKey(9),
+				NextPageToken: []byte("token3"),
+			},
+			expected: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(3),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(2),
+					NextPageToken: []byte("token1"),
+				},
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(5),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(6),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(5),
+					NextPageToken: nil,
+				},
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(9),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(9),
+					NextPageToken: nil,
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := appendOrMergeProgressWithDifferentPredicate(tt.mergedProgress, tt.progress)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestMergeGetTaskProgressWithDifferentPredicate(t *testing.T) {
+	tests := []struct {
+		name     string
+		left     []*GetTaskProgress
+		right    []*GetTaskProgress
+		expected []*GetTaskProgress
+	}{
+		{
+			name:     "Empty slices",
+			left:     []*GetTaskProgress{},
+			right:    []*GetTaskProgress{},
+			expected: []*GetTaskProgress{},
+		},
+		{
+			name: "Left empty, right non-empty",
+			left: []*GetTaskProgress{},
+			right: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(3),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(2),
+					NextPageToken: []byte("token"),
+				},
+			},
+			expected: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(3),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(2),
+					NextPageToken: []byte("token"),
+				},
+			},
+		},
+		{
+			name: "Left non-empty, right empty",
+			left: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(3),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(2),
+					NextPageToken: []byte("token"),
+				},
+			},
+			right: []*GetTaskProgress{},
+			expected: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(3),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(2),
+					NextPageToken: []byte("token"),
+				},
+			},
+		},
+		{
+			name: "Non-overlapping ranges - ordered by NextTaskKey",
+			left: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(3),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(2),
+					NextPageToken: []byte("token1"),
+				},
+			},
+			right: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(4),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(6),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(5),
+					NextPageToken: []byte("token2"),
+				},
+			},
+			expected: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(2),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(3),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(2),
+					NextPageToken: nil,
+				},
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(5),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(6),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(5),
+					NextPageToken: nil,
+				},
+			},
+		},
+		{
+			name: "Adjacent ranges by NextTaskKey",
+			left: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(4),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(2),
+					NextPageToken: []byte("token1"),
+				},
+			},
+			right: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(2),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(6),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(4), // comes after left's range
+					NextPageToken: []byte("token2"),
+				},
+			},
+			expected: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(2),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(6),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(2),
+					NextPageToken: nil,
+				},
+			},
+		},
+		{
+			name: "Multiple progress items - complex merge by NextTaskKey",
+			left: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(3),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(2),
+					NextPageToken: []byte("token1"),
+				},
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(6),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(8),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(7),
+					NextPageToken: []byte("token2"),
+				},
+			},
+			right: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(3),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(4),
+					NextPageToken: []byte("token3"),
+				},
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(8),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(9),
+					NextPageToken: []byte("token4"),
+				},
+			},
+			expected: []*GetTaskProgress{
+				// Merged based on NextTaskKey order: 2, 4, 7, 9
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(2),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(3),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(2),
+					NextPageToken: nil,
+				},
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(4),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(4),
+					NextPageToken: nil,
+				},
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(7),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(8),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(7),
+					NextPageToken: nil,
+				},
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(9),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(9),
+					NextPageToken: nil,
+				},
+			},
+		},
+		{
+			name: "Overlapping ranges with interleaved NextTaskKeys",
+			left: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(6),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(3),
+					NextPageToken: []byte("token1"),
+				},
+			},
+			right: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(2),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(8),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(5),
+					NextPageToken: []byte("token2"),
+				},
+			},
+			expected: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(3),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(8),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(3),
+					NextPageToken: nil,
+				},
+			},
+		},
+		{
+			name: "Same NextTaskKey - should merge ranges",
+			left: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(4),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(3),
+					NextPageToken: []byte("token1"),
+				},
+			},
+			right: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(2),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(6),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(3), // Same NextTaskKey
+					NextPageToken: []byte("token2"),
+				},
+			},
+			expected: []*GetTaskProgress{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(3),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(6),
+					},
+					NextTaskKey:   persistence.NewImmediateTaskKey(3),
+					NextPageToken: nil,
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := mergeGetTaskProgressWithDifferentPredicate(tt.left, tt.right)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
 func TestVirtualSliceImpl_TrySplitByPredicate(t *testing.T) {
 	tests := []struct {
 		name                  string
@@ -1816,6 +2799,272 @@ func TestVirtualSliceImpl_TrySplitByPredicate(t *testing.T) {
 			} else {
 				assert.Nil(t, left)
 				assert.Nil(t, right)
+			}
+		})
+	}
+}
+
+func TestMergeVirtualSlicesWithDifferentPredicate(t *testing.T) {
+	tests := []struct {
+		name           string
+		this           *virtualSliceImpl
+		that           *virtualSliceImpl
+		expectedStates []VirtualSliceState
+		expectedOk     bool
+	}{
+		{
+			name: "Case 1: Non-overlapping ranges",
+			this: &virtualSliceImpl{
+				state: VirtualSliceState{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(3),
+					},
+					Predicate: NewDomainIDPredicate([]string{"domain1", "domain2"}, false),
+				},
+				progress: []*GetTaskProgress{
+					{
+						Range: Range{
+							InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+							ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(3),
+						},
+						NextTaskKey: persistence.NewImmediateTaskKey(2),
+					},
+				},
+				pendingTaskTracker: NewPendingTaskTracker(),
+			},
+			that: &virtualSliceImpl{
+				state: VirtualSliceState{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(4),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(6),
+					},
+					Predicate: NewDomainIDPredicate([]string{"domain3", "domain4"}, false),
+				},
+				progress: []*GetTaskProgress{
+					{
+						Range: Range{
+							InclusiveMinTaskKey: persistence.NewImmediateTaskKey(4),
+							ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(6),
+						},
+						NextTaskKey: persistence.NewImmediateTaskKey(5),
+					},
+				},
+				pendingTaskTracker: NewPendingTaskTracker(),
+			},
+			expectedOk: false,
+		},
+		{
+			name: "Case 2: Overlapping ranges",
+			this: &virtualSliceImpl{
+				state: VirtualSliceState{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+					},
+					Predicate: NewDomainIDPredicate([]string{"domain1", "domain2"}, false),
+				},
+				progress: []*GetTaskProgress{
+					{
+						Range: Range{
+							InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+							ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+						},
+						NextTaskKey: persistence.NewImmediateTaskKey(2),
+					},
+				},
+				pendingTaskTracker: NewPendingTaskTracker(),
+			},
+			that: &virtualSliceImpl{
+				state: VirtualSliceState{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(2),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(8),
+					},
+					Predicate: NewDomainIDPredicate([]string{"domain3", "domain4"}, false),
+				},
+				progress: []*GetTaskProgress{
+					{
+						Range: Range{
+							InclusiveMinTaskKey: persistence.NewImmediateTaskKey(2),
+							ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(8),
+						},
+						NextTaskKey: persistence.NewImmediateTaskKey(3),
+					},
+				},
+				pendingTaskTracker: NewPendingTaskTracker(),
+			},
+			expectedOk: true,
+			expectedStates: []VirtualSliceState{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(2),
+					},
+					Predicate: NewDomainIDPredicate([]string{"domain1", "domain2"}, false),
+				},
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(2),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+					},
+					Predicate: NewDomainIDPredicate([]string{"domain1", "domain2", "domain3", "domain4"}, false),
+				},
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(5),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(8),
+					},
+					Predicate: NewDomainIDPredicate([]string{"domain3", "domain4"}, false),
+				},
+			},
+		},
+		{
+			name: "Case 3: Completely overlapping ranges - left contains right and has the same exclusive max task key",
+			this: &virtualSliceImpl{
+				state: VirtualSliceState{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+					},
+					Predicate: NewDomainIDPredicate([]string{"domain1", "domain2"}, false),
+				},
+				progress: []*GetTaskProgress{
+					{
+						Range: Range{
+							InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+							ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+						},
+						NextTaskKey: persistence.NewImmediateTaskKey(2),
+					},
+				},
+				pendingTaskTracker: NewPendingTaskTracker(),
+			},
+			that: &virtualSliceImpl{
+				state: VirtualSliceState{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(2),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+					},
+					Predicate: NewDomainIDPredicate([]string{"domain3", "domain4"}, false),
+				},
+				progress: []*GetTaskProgress{
+					{
+						Range: Range{
+							InclusiveMinTaskKey: persistence.NewImmediateTaskKey(2),
+							ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+						},
+						NextTaskKey: persistence.NewImmediateTaskKey(3),
+					},
+				},
+				pendingTaskTracker: NewPendingTaskTracker(),
+			},
+			expectedOk: true,
+			expectedStates: []VirtualSliceState{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(2),
+					},
+					Predicate: NewDomainIDPredicate([]string{"domain1", "domain2"}, false),
+				},
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(2),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(5),
+					},
+					Predicate: NewDomainIDPredicate([]string{"domain1", "domain2", "domain3", "domain4"}, false),
+				},
+			},
+		},
+		{
+			name: "Case 4: Completely overlapping ranges - left contains right and has different exclusive max task key",
+			this: &virtualSliceImpl{
+				state: VirtualSliceState{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+					},
+					Predicate: NewDomainIDPredicate([]string{"domain1", "domain2"}, false),
+				},
+				progress: []*GetTaskProgress{
+					{
+						Range: Range{
+							InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+							ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+						},
+						NextTaskKey: persistence.NewImmediateTaskKey(2),
+					},
+				},
+				pendingTaskTracker: NewPendingTaskTracker(),
+			},
+			that: &virtualSliceImpl{
+				state: VirtualSliceState{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(2),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(6),
+					},
+					Predicate: NewDomainIDPredicate([]string{"domain3", "domain4"}, false),
+				},
+				progress: []*GetTaskProgress{
+					{
+						Range: Range{
+							InclusiveMinTaskKey: persistence.NewImmediateTaskKey(2),
+							ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(6),
+						},
+						NextTaskKey: persistence.NewImmediateTaskKey(3),
+					},
+				},
+				pendingTaskTracker: NewPendingTaskTracker(),
+			},
+			expectedOk: true,
+			expectedStates: []VirtualSliceState{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(2),
+					},
+					Predicate: NewDomainIDPredicate([]string{"domain1", "domain2"}, false),
+				},
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(2),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(6),
+					},
+					Predicate: NewDomainIDPredicate([]string{"domain1", "domain2", "domain3", "domain4"}, false),
+				},
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(6),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+					},
+					Predicate: NewDomainIDPredicate([]string{"domain1", "domain2"}, false),
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mergedSlices, ok := mergeVirtualSlicesWithDifferentPredicate(tt.this, tt.that)
+			assert.Equal(t, tt.expectedOk, ok)
+			if ok {
+				actualStates := make([]VirtualSliceState, len(mergedSlices))
+				for i, slice := range mergedSlices {
+					actualStates[i] = slice.GetState()
+				}
+				assert.Equal(t, tt.expectedStates, actualStates)
+			}
+			// Test commutativity - the function should handle argument order internally
+
+			mergedSlices, ok = mergeVirtualSlicesWithDifferentPredicate(tt.that, tt.this)
+			assert.Equal(t, tt.expectedOk, ok)
+			if ok {
+				actualStates := make([]VirtualSliceState, len(mergedSlices))
+				for i, slice := range mergedSlices {
+					actualStates[i] = slice.GetState()
+				}
+				assert.Equal(t, tt.expectedStates, actualStates)
 			}
 		})
 	}

@@ -466,3 +466,403 @@ func TestAnd_LogicalCorrectness_FuzzTesting(t *testing.T) {
 		}
 	}
 }
+
+func TestOr(t *testing.T) {
+	tests := []struct {
+		name     string
+		p1       Predicate
+		p2       Predicate
+		expected Predicate
+	}{
+		// universalPredicate cases
+		{
+			name:     "universalPredicate OR universalPredicate",
+			p1:       NewUniversalPredicate(),
+			p2:       NewUniversalPredicate(),
+			expected: NewUniversalPredicate(),
+		},
+		{
+			name:     "universalPredicate OR emptyPredicate",
+			p1:       NewUniversalPredicate(),
+			p2:       NewEmptyPredicate(),
+			expected: NewUniversalPredicate(),
+		},
+		{
+			name:     "universalPredicate OR domainIDPredicate",
+			p1:       NewUniversalPredicate(),
+			p2:       NewDomainIDPredicate([]string{"domain1", "domain2"}, false),
+			expected: NewUniversalPredicate(),
+		},
+
+		// emptyPredicate cases
+		{
+			name:     "emptyPredicate OR universalPredicate",
+			p1:       NewEmptyPredicate(),
+			p2:       NewUniversalPredicate(),
+			expected: NewUniversalPredicate(),
+		},
+		{
+			name:     "emptyPredicate OR emptyPredicate",
+			p1:       NewEmptyPredicate(),
+			p2:       NewEmptyPredicate(),
+			expected: NewEmptyPredicate(),
+		},
+		{
+			name:     "emptyPredicate OR domainIDPredicate",
+			p1:       NewEmptyPredicate(),
+			p2:       NewDomainIDPredicate([]string{"domain1"}, true),
+			expected: NewDomainIDPredicate([]string{"domain1"}, true),
+		},
+
+		// domainIDPredicate OR universalPredicate
+		{
+			name:     "domainIDPredicate OR universalPredicate",
+			p1:       NewDomainIDPredicate([]string{"domain1", "domain2"}, true),
+			p2:       NewUniversalPredicate(),
+			expected: NewUniversalPredicate(),
+		},
+
+		// domainIDPredicate OR emptyPredicate
+		{
+			name:     "domainIDPredicate OR emptyPredicate",
+			p1:       NewDomainIDPredicate([]string{"domain1", "domain2"}, false),
+			p2:       NewEmptyPredicate(),
+			expected: NewDomainIDPredicate([]string{"domain1", "domain2"}, false),
+		},
+
+		// domainIDPredicate OR domainIDPredicate cases
+		{
+			name:     "exclusive OR exclusive - intersection exists",
+			p1:       NewDomainIDPredicate([]string{"domain1", "domain2"}, true),
+			p2:       NewDomainIDPredicate([]string{"domain2", "domain3"}, true),
+			expected: NewDomainIDPredicate([]string{"domain2"}, true),
+		},
+		{
+			name:     "exclusive OR exclusive - no intersection",
+			p1:       NewDomainIDPredicate([]string{"domain1", "domain2"}, true),
+			p2:       NewDomainIDPredicate([]string{"domain3", "domain4"}, true),
+			expected: NewUniversalPredicate(),
+		},
+		{
+			name:     "exclusive OR inclusive - p1 excludes some of p2",
+			p1:       NewDomainIDPredicate([]string{"domain1", "domain2"}, true),
+			p2:       NewDomainIDPredicate([]string{"domain2", "domain3", "domain4"}, false),
+			expected: NewDomainIDPredicate([]string{"domain1"}, true),
+		},
+		{
+			name:     "exclusive OR inclusive - p1 excludes all of p2",
+			p1:       NewDomainIDPredicate([]string{"domain1", "domain2", "domain3"}, true),
+			p2:       NewDomainIDPredicate([]string{"domain1", "domain2"}, false),
+			expected: NewDomainIDPredicate([]string{"domain3"}, true),
+		},
+		{
+			name:     "exclusive OR inclusive - p1 excludes none of p2",
+			p1:       NewDomainIDPredicate([]string{"domain1"}, true),
+			p2:       NewDomainIDPredicate([]string{"domain2", "domain3"}, false),
+			expected: NewDomainIDPredicate([]string{"domain1"}, true),
+		},
+		{
+			name:     "inclusive OR exclusive - p2 excludes some of p1",
+			p1:       NewDomainIDPredicate([]string{"domain1", "domain2", "domain3"}, false),
+			p2:       NewDomainIDPredicate([]string{"domain2", "domain4"}, true),
+			expected: NewDomainIDPredicate([]string{"domain4"}, true),
+		},
+		{
+			name:     "inclusive OR exclusive - p2 excludes all of p1",
+			p1:       NewDomainIDPredicate([]string{"domain1", "domain2"}, false),
+			p2:       NewDomainIDPredicate([]string{"domain1", "domain2", "domain3"}, true),
+			expected: NewDomainIDPredicate([]string{"domain3"}, true),
+		},
+		{
+			name:     "inclusive OR exclusive - p2 excludes none of p1",
+			p1:       NewDomainIDPredicate([]string{"domain1", "domain2"}, false),
+			p2:       NewDomainIDPredicate([]string{"domain3"}, true),
+			expected: NewDomainIDPredicate([]string{"domain3"}, true),
+		},
+		{
+			name:     "inclusive OR inclusive - union",
+			p1:       NewDomainIDPredicate([]string{"domain1", "domain2"}, false),
+			p2:       NewDomainIDPredicate([]string{"domain2", "domain3", "domain4"}, false),
+			expected: NewDomainIDPredicate([]string{"domain1", "domain2", "domain3", "domain4"}, false),
+		},
+		{
+			name:     "inclusive OR inclusive - same domains",
+			p1:       NewDomainIDPredicate([]string{"domain1", "domain2"}, false),
+			p2:       NewDomainIDPredicate([]string{"domain1", "domain2"}, false),
+			expected: NewDomainIDPredicate([]string{"domain1", "domain2"}, false),
+		},
+
+		// Edge cases with empty domain lists
+		{
+			name:     "empty exclusive OR non-empty exclusive",
+			p1:       NewDomainIDPredicate([]string{}, true),
+			p2:       NewDomainIDPredicate([]string{"domain1"}, true),
+			expected: NewUniversalPredicate(),
+		},
+		{
+			name:     "empty inclusive OR non-empty inclusive",
+			p1:       NewDomainIDPredicate([]string{}, false),
+			p2:       NewDomainIDPredicate([]string{"domain1"}, false),
+			expected: NewDomainIDPredicate([]string{"domain1"}, false),
+		},
+		{
+			name:     "empty exclusive OR non-empty inclusive",
+			p1:       NewDomainIDPredicate([]string{}, true),
+			p2:       NewDomainIDPredicate([]string{"domain1"}, false),
+			expected: NewUniversalPredicate(),
+		},
+		{
+			name:     "non-empty inclusive OR empty exclusive",
+			p1:       NewDomainIDPredicate([]string{"domain1"}, false),
+			p2:       NewDomainIDPredicate([]string{}, true),
+			expected: NewUniversalPredicate(),
+		},
+		{
+			name:     "empty exclusive OR empty exclusive",
+			p1:       NewDomainIDPredicate([]string{}, true),
+			p2:       NewDomainIDPredicate([]string{}, true),
+			expected: NewUniversalPredicate(),
+		},
+		{
+			name:     "empty inclusive OR empty inclusive",
+			p1:       NewDomainIDPredicate([]string{}, false),
+			p2:       NewDomainIDPredicate([]string{}, false),
+			expected: NewEmptyPredicate(),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := Or(tt.p1, tt.p2)
+			assert.NotNil(t, result)
+
+			// Use the Equals method to compare predicates
+			assert.True(t, tt.expected.Equals(result),
+				"expected %+v, got %+v", tt.expected, result)
+		})
+	}
+}
+
+func TestOr_Commutativity(t *testing.T) {
+	f := fuzz.New().Funcs(predicateOperationFuzzGenerator)
+	for i := 0; i < 1000; i++ {
+		var p1, p2 Predicate
+		f.Fuzz(&p1)
+		f.Fuzz(&p2)
+
+		result1 := Or(p1, p2)
+		result2 := Or(p2, p1)
+
+		assert.True(t, result1.Equals(result2),
+			"Or should be commutative: Or(p1, p2) should equal Or(p2, p1)")
+	}
+}
+
+func TestOr_LogicalCorrectness(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	// Test data with different domain IDs
+	testTasks := []*persistence.MockTask{
+		// Task with domain1
+		func() *persistence.MockTask {
+			task := persistence.NewMockTask(ctrl)
+			task.EXPECT().GetDomainID().Return("domain1").AnyTimes()
+			return task
+		}(),
+		// Task with domain2
+		func() *persistence.MockTask {
+			task := persistence.NewMockTask(ctrl)
+			task.EXPECT().GetDomainID().Return("domain2").AnyTimes()
+			return task
+		}(),
+		// Task with domain3
+		func() *persistence.MockTask {
+			task := persistence.NewMockTask(ctrl)
+			task.EXPECT().GetDomainID().Return("domain3").AnyTimes()
+			return task
+		}(),
+		// Task with domain4
+		func() *persistence.MockTask {
+			task := persistence.NewMockTask(ctrl)
+			task.EXPECT().GetDomainID().Return("domain4").AnyTimes()
+			return task
+		}(),
+	}
+
+	// Test cases with different predicate combinations
+	testCases := []struct {
+		name string
+		p1   Predicate
+		p2   Predicate
+	}{
+		// Universal and Empty predicates
+		{
+			name: "universal OR universal",
+			p1:   NewUniversalPredicate(),
+			p2:   NewUniversalPredicate(),
+		},
+		{
+			name: "universal OR empty",
+			p1:   NewUniversalPredicate(),
+			p2:   NewEmptyPredicate(),
+		},
+		{
+			name: "empty OR universal",
+			p1:   NewEmptyPredicate(),
+			p2:   NewUniversalPredicate(),
+		},
+		{
+			name: "empty OR empty",
+			p1:   NewEmptyPredicate(),
+			p2:   NewEmptyPredicate(),
+		},
+
+		// Universal with domain predicates
+		{
+			name: "universal OR domain inclusive",
+			p1:   NewUniversalPredicate(),
+			p2:   NewDomainIDPredicate([]string{"domain1", "domain2"}, false),
+		},
+		{
+			name: "universal OR domain exclusive",
+			p1:   NewUniversalPredicate(),
+			p2:   NewDomainIDPredicate([]string{"domain1", "domain2"}, true),
+		},
+		{
+			name: "domain inclusive OR universal",
+			p1:   NewDomainIDPredicate([]string{"domain1", "domain3"}, false),
+			p2:   NewUniversalPredicate(),
+		},
+		{
+			name: "domain exclusive OR universal",
+			p1:   NewDomainIDPredicate([]string{"domain1", "domain3"}, true),
+			p2:   NewUniversalPredicate(),
+		},
+
+		// Empty with domain predicates
+		{
+			name: "empty OR domain inclusive",
+			p1:   NewEmptyPredicate(),
+			p2:   NewDomainIDPredicate([]string{"domain1", "domain2"}, false),
+		},
+		{
+			name: "empty OR domain exclusive",
+			p1:   NewEmptyPredicate(),
+			p2:   NewDomainIDPredicate([]string{"domain1", "domain2"}, true),
+		},
+		{
+			name: "domain inclusive OR empty",
+			p1:   NewDomainIDPredicate([]string{"domain2", "domain4"}, false),
+			p2:   NewEmptyPredicate(),
+		},
+		{
+			name: "domain exclusive OR empty",
+			p1:   NewDomainIDPredicate([]string{"domain2", "domain4"}, true),
+			p2:   NewEmptyPredicate(),
+		},
+
+		// Domain predicate combinations
+		{
+			name: "inclusive OR inclusive - overlapping",
+			p1:   NewDomainIDPredicate([]string{"domain1", "domain2"}, false),
+			p2:   NewDomainIDPredicate([]string{"domain2", "domain3"}, false),
+		},
+		{
+			name: "inclusive OR inclusive - disjoint",
+			p1:   NewDomainIDPredicate([]string{"domain1", "domain2"}, false),
+			p2:   NewDomainIDPredicate([]string{"domain3", "domain4"}, false),
+		},
+		{
+			name: "exclusive OR exclusive - overlapping",
+			p1:   NewDomainIDPredicate([]string{"domain1", "domain2"}, true),
+			p2:   NewDomainIDPredicate([]string{"domain2", "domain3"}, true),
+		},
+		{
+			name: "exclusive OR exclusive - disjoint",
+			p1:   NewDomainIDPredicate([]string{"domain1"}, true),
+			p2:   NewDomainIDPredicate([]string{"domain3"}, true),
+		},
+		{
+			name: "inclusive OR exclusive - overlapping",
+			p1:   NewDomainIDPredicate([]string{"domain1", "domain2", "domain3"}, false),
+			p2:   NewDomainIDPredicate([]string{"domain2", "domain4"}, true),
+		},
+		{
+			name: "exclusive OR inclusive - overlapping",
+			p1:   NewDomainIDPredicate([]string{"domain1", "domain3"}, true),
+			p2:   NewDomainIDPredicate([]string{"domain2", "domain3", "domain4"}, false),
+		},
+
+		// Edge cases with empty domain lists
+		{
+			name: "empty inclusive OR non-empty inclusive",
+			p1:   NewDomainIDPredicate([]string{}, false),
+			p2:   NewDomainIDPredicate([]string{"domain1"}, false),
+		},
+		{
+			name: "empty exclusive OR non-empty exclusive",
+			p1:   NewDomainIDPredicate([]string{}, true),
+			p2:   NewDomainIDPredicate([]string{"domain1"}, true),
+		},
+		{
+			name: "empty inclusive OR empty exclusive",
+			p1:   NewDomainIDPredicate([]string{}, false),
+			p2:   NewDomainIDPredicate([]string{}, true),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			orPredicate := Or(tc.p1, tc.p2)
+
+			// Test the logical property for each task
+			for i, task := range testTasks {
+				p1Result := tc.p1.Check(task)
+				p2Result := tc.p2.Check(task)
+				expectedResult := p1Result || p2Result
+				actualResult := orPredicate.Check(task)
+
+				assert.Equal(t, expectedResult, actualResult,
+					"For task %d (domain=%s): Or(p1, p2).Check(task) should equal p1.Check(task) || p2.Check(task). "+
+						"p1.Check(task)=%t, p2.Check(task)=%t, expected=%t, actual=%t",
+					i, task.GetDomainID(), p1Result, p2Result, expectedResult, actualResult)
+			}
+		})
+	}
+}
+
+func TestOr_LogicalCorrectness_FuzzTesting(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	// Create a variety of test tasks with different domain IDs
+	domains := []string{"domain1", "domain2", "domain3", "domain4", "domain5", ""}
+	testTasks := make([]*persistence.MockTask, len(domains))
+	for i, domain := range domains {
+		task := persistence.NewMockTask(ctrl)
+		task.EXPECT().GetDomainID().Return(domain).AnyTimes()
+		testTasks[i] = task
+	}
+
+	f := fuzz.New().Funcs(predicateOperationFuzzGenerator)
+	for i := 0; i < 500; i++ {
+		var p1, p2 Predicate
+		f.Fuzz(&p1)
+		f.Fuzz(&p2)
+
+		orPredicate := Or(p1, p2)
+
+		// Test the logical property for each task
+		for _, task := range testTasks {
+			p1Result := p1.Check(task)
+			p2Result := p2.Check(task)
+			expectedResult := p1Result || p2Result
+			actualResult := orPredicate.Check(task)
+
+			assert.Equal(t, expectedResult, actualResult,
+				"Fuzz test iteration %d: Or(p1, p2).Check(task) should equal p1.Check(task) || p2.Check(task). "+
+					"Task domain: %s, p1.Check(task)=%t, p2.Check(task)=%t, expected=%t, actual=%t, "+
+					"p1=%+v, p2=%+v",
+				i, task.GetDomainID(), p1Result, p2Result, expectedResult, actualResult, p1, p2)
+		}
+	}
+}
