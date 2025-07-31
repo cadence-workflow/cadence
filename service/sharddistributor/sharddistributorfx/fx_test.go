@@ -13,7 +13,6 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log/testlogger"
-	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/rpc"
 	"github.com/uber/cadence/service/sharddistributor/config"
@@ -44,7 +43,6 @@ func TestFxServiceStartStop(t *testing.T) {
 			func() store.Store {
 				return store.NewMockStore(ctrl)
 			},
-			func() map[string]membership.SingleProvider { return make(map[string]membership.SingleProvider) },
 			func() config.ShardDistribution {
 				return config.ShardDistribution{
 					Enabled: false,

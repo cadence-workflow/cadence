@@ -28,10 +28,9 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
-	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/rpc"
-	"github.com/uber/cadence/common/service"
+	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/handler"
 	"github.com/uber/cadence/service/sharddistributor/leader/election"
 	"github.com/uber/cadence/service/sharddistributor/leader/namespace"
@@ -54,12 +53,12 @@ var Module = fx.Module("sharddistributor",
 type registerHandlersParams struct {
 	fx.In
 
+	ShardDistributionCfg config.ShardDistribution
+
 	Logger            log.Logger
 	MetricsClient     metrics.Client
 	RPCFactory        rpc.Factory
 	DynamicCollection *dynamicconfig.Collection
-
-	MembershipRings map[string]membership.SingleProvider
 
 	TimeSource clock.TimeSource
 	Store      store.Store
@@ -70,10 +69,7 @@ type registerHandlersParams struct {
 func registerHandlers(params registerHandlersParams) error {
 	dispatcher := params.RPCFactory.GetDispatcher()
 
-	matchingRing := params.MembershipRings[service.Matching]
-	historyRing := params.MembershipRings[service.History]
-
-	rawHandler := handler.NewHandler(params.Logger, params.MetricsClient, matchingRing, historyRing)
+	rawHandler := handler.NewHandler(params.Logger, params.ShardDistributionCfg, params.Store)
 	wrappedHandler := metered.NewMetricsHandler(rawHandler, params.Logger, params.MetricsClient)
 
 	executorHandler := handler.NewExecutorHandler(params.Store, params.TimeSource)
