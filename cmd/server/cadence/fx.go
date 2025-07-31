@@ -38,10 +38,8 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/logfx"
 	"github.com/uber/cadence/common/log/tag"
-	"github.com/uber/cadence/common/membership/membershipfx"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/metrics/metricsfx"
-	"github.com/uber/cadence/common/peerprovider/ringpopprovider/ringpopfx"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql"
 	"github.com/uber/cadence/common/rpc/rpcfx"
 	"github.com/uber/cadence/common/service"
@@ -79,9 +77,6 @@ func Module(serviceName string) fx.Option {
 			store.Module("etcd"),
 
 			rpcfx.Module,
-			// PeerProvider could be overriden e.g. with a DNS based internal solution.
-			ringpopfx.Module,
-			membershipfx.Module,
 			sharddistributorfx.Module)
 	}
 	return fx.Options(
