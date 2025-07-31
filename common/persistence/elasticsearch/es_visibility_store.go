@@ -1108,9 +1108,9 @@ func replaceDummyQuery(dsl *fastjson.Value) *fastjson.Value {
 	// Convert to string to find and remove the dummy query
 	dslStr := dsl.String()
 
-	// Remove the dummy match_phrase query
+	// Remove all dummy match_phrase queries
 	dummyQuery := `{"match_phrase":{"__dummy_field__":{"query":"__dummy_value__"}}}`
-	dslStr = strings.Replace(dslStr, dummyQuery, "", 1)
+	dslStr = strings.ReplaceAll(dslStr, dummyQuery, "")
 
 	// Clean up any trailing commas or empty arrays
 	dslStr = strings.Replace(dslStr, ",,", ",", -1)

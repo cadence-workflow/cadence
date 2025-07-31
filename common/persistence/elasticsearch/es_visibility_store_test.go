@@ -1163,4 +1163,9 @@ func (s *ESVisibilitySuite) TestGetCustomizedDSLFromSQL() {
 	dsl, err = getCustomizedDSLFromSQL(sql, testDomainID)
 	s.NoError(err)
 	s.Equal(`{"query":{"bool":{"must":[{"match_phrase":{"DomainID":{"query":"bfd5c907-f899-4baf-a7b2-2ab85e623ebd"}}},{"bool":{"must":[{"match_phrase":{"Attr.CustomizedKeywordField":{"query":"like"}}},{"wildcard":{"WorkflowID":{"value":"like*"}}}]}}]}},"from":0,"size":1}`, dsl.String())
+
+	sql = "select * from dummy where WorkflowID like 'wid' and Attr.CustomizedKeywordField like 'test'"
+	dsl, err = getCustomizedDSLFromSQL(sql, testDomainID)
+	s.NoError(err)
+	s.Equal(`{"query":{"bool":{"must":[{"match_phrase":{"DomainID":{"query":"bfd5c907-f899-4baf-a7b2-2ab85e623ebd"}}},{"bool":{"must":[{"wildcard":{"WorkflowID":{"value":"wid*"}}},{"wildcard":{"Attr.CustomizedKeywordField":{"value":"test*"}}}]}}]}},"from":0,"size":1}`, dsl.String())
 }
