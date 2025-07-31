@@ -70,7 +70,7 @@ func NewTransferStandbyTaskExecutor(
 		clusterName:     clusterName,
 		historyResender: historyResender,
 		getRemoteClusterNameFn: func(ctx context.Context, taskInfo persistence.Task) (string, error) {
-			return getRemoteClusterName(ctx, clusterName, shard.GetDomainCache(), shard.GetActiveClusterManager(), taskInfo)
+			return getRemoteClusterName(ctx, shard.GetClusterMetadata().GetCurrentClusterName(), shard.GetDomainCache(), shard.GetActiveClusterManager(), taskInfo)
 		},
 	}
 }
