@@ -37,10 +37,10 @@ jobs:
       - name: Run unit test
         uses: nick-fields/retry@v3
         with:
-          max_attempts: 1
+          max_attempts: 2
           timeout_minutes: 30
           command: |
-            docker compose -f docker/github_actions/docker-compose.yml run unit-test bash -c "make .just-build && make cover_profile && ./scripts/github_actions/gen_coverage_metadata.sh .build/coverage/metadata.txt && exit 1"
+            docker compose -f docker/github_actions/docker-compose.yml run unit-test bash -c "make .just-build && make cover_profile && ./scripts/github_actions/gen_coverage_metadata.sh .build/coverage/metadata.txt"
 
       - name: Upload coverage artifacts
         if: always()
