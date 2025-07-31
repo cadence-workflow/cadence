@@ -43,7 +43,7 @@ import (
 	"github.com/uber/cadence/testflags"
 )
 
-func TestNotEnabledLeaderElection(t *testing.T) {
+func TestShardDistributionDisabled(t *testing.T) {
 	store, err := NewLeaderStore(StoreParams{
 		Cfg: shardDistributorCfg.ShardDistribution{Enabled: false},
 	})

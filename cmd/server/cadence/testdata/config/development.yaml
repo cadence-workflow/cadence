@@ -1,4 +1,4 @@
-leaderElection:
+shardDistribution:
   enabled: true
   leaderStore:
     storageParams:

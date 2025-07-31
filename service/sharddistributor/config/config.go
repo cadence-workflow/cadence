@@ -42,8 +42,8 @@ type (
 	}
 
 	StaticConfig struct {
-		// LeaderElection is the configuration for leader election mechanism that is used by Shard distributor to handle shard distribution per namespace.
-		LeaderElection ShardDistribution `yaml:"leaderElection"`
+		// ShardDistribution is the configuration for leader election mechanism that is used by Shard distributor to handle shard distribution per namespace.
+		ShardDistribution ShardDistribution `yaml:"shardDistribution"`
 	}
 
 	// ShardDistribution is a configuration for leader election running.

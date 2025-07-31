@@ -90,8 +90,8 @@ type (
 		// Note: This is not recommended for use, it's still experimental
 		ShardDistributorClient ShardDistributorClient `yaml:"shardDistributorClient"`
 
-		// LeaderElection is a config for the shard distributor leader election component that allows to run a single process per region and manage shard namespaces.
-		LeaderElection ShardDistribution `yaml:"leaderElection"`
+		// ShardDistribution is a config for the shard distributor leader election component that allows to run a single process per region and manage shard namespaces.
+		ShardDistribution ShardDistribution `yaml:"shardDistribution"`
 	}
 
 	// Membership holds peer provider configuration.
