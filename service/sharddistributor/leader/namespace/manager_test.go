@@ -22,7 +22,7 @@ func TestNewManager(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	electionFactory := election.NewMockFactory(ctrl)
 
-	cfg := config.LeaderElection{
+	cfg := config.ShardDistribution{
 		Enabled: true,
 		Namespaces: []config.Namespace{
 			{Name: "test-namespace"},
@@ -49,7 +49,7 @@ func TestNewManagerNotEnabled(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	electionFactory := election.NewMockFactory(ctrl)
 
-	cfg := config.LeaderElection{
+	cfg := config.ShardDistribution{
 		Enabled: false,
 		Namespaces: []config.Namespace{
 			{Name: "test-namespace"},
@@ -80,7 +80,7 @@ func TestStartManager(t *testing.T) {
 	leaderCh := make(chan bool)
 	elector.EXPECT().Run(gomock.Any()).Return((<-chan bool)(leaderCh))
 
-	cfg := config.LeaderElection{
+	cfg := config.ShardDistribution{
 		Enabled: true,
 		Namespaces: []config.Namespace{
 			{Name: "test-namespace"},
@@ -114,7 +114,7 @@ func TestStartManagerWithElectorError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	electionFactory := election.NewMockFactory(ctrl)
 
-	cfg := config.LeaderElection{
+	cfg := config.ShardDistribution{
 		Enabled: true,
 		Namespaces: []config.Namespace{
 			{Name: "test-namespace"},
@@ -152,7 +152,7 @@ func TestStopManager(t *testing.T) {
 	leaderCh := make(chan bool)
 	elector.EXPECT().Run(gomock.Any()).Return((<-chan bool)(leaderCh))
 
-	cfg := config.LeaderElection{
+	cfg := config.ShardDistribution{
 		Enabled: true,
 		Namespaces: []config.Namespace{
 			{Name: "test-namespace"},
@@ -187,7 +187,7 @@ func TestHandleNamespaceAlreadyExists(t *testing.T) {
 	mockElector := election.NewMockElector(ctrl)
 
 	manager := &Manager{
-		cfg:             config.LeaderElection{},
+		cfg:             config.ShardDistribution{},
 		logger:          logger,
 		electionFactory: electionFactory,
 		namespaces:      make(map[string]*namespaceHandler),
@@ -220,7 +220,7 @@ func TestRunElection(t *testing.T) {
 	leaderCh := make(chan bool)
 	elector.EXPECT().Run(gomock.Any()).Return((<-chan bool)(leaderCh))
 
-	cfg := config.LeaderElection{
+	cfg := config.ShardDistribution{
 		Enabled: true,
 		Namespaces: []config.Namespace{
 			{Name: "test-namespace"},

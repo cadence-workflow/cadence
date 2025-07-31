@@ -66,7 +66,7 @@ type FactoryParams struct {
 	fx.In
 
 	HostName       string `name:"hostname"`
-	Cfg            config.LeaderElection
+	Cfg            config.ShardDistribution
 	LeaderStore    store.Elector
 	Logger         log.Logger
 	Clock          clock.TimeSource

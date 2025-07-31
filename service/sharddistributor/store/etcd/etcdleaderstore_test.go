@@ -45,7 +45,7 @@ import (
 
 func TestNotEnabledLeaderElection(t *testing.T) {
 	store, err := NewLeaderStore(StoreParams{
-		Cfg: shardDistributorCfg.LeaderElection{Enabled: false},
+		Cfg: shardDistributorCfg.ShardDistribution{Enabled: false},
 	})
 	require.NoError(t, err)
 	assert.Nil(t, store)
@@ -259,7 +259,7 @@ func setupETCDCluster(t *testing.T) *testCluster {
 
 	// Create store
 	storeParams := StoreParams{
-		Cfg:       shardDistributorCfg.LeaderElection{Enabled: true, LeaderStore: shardDistributorCfg.Store{StorageParams: createConfig(t, testConfig)}},
+		Cfg:       shardDistributorCfg.ShardDistribution{Enabled: true, LeaderStore: shardDistributorCfg.Store{StorageParams: createConfig(t, testConfig)}},
 		Lifecycle: fxtest.NewLifecycle(t),
 	}
 

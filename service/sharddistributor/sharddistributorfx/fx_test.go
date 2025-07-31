@@ -45,8 +45,8 @@ func TestFxServiceStartStop(t *testing.T) {
 				return store.NewMockStore(ctrl)
 			},
 			func() map[string]membership.SingleProvider { return make(map[string]membership.SingleProvider) },
-			func() config.LeaderElection {
-				return config.LeaderElection{
+			func() config.ShardDistribution {
+				return config.ShardDistribution{
 					Enabled: false,
 				}
 			},

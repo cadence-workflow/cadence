@@ -43,11 +43,11 @@ type (
 
 	StaticConfig struct {
 		// LeaderElection is the configuration for leader election mechanism that is used by Shard distributor to handle shard distribution per namespace.
-		LeaderElection LeaderElection `yaml:"leaderElection"`
+		LeaderElection ShardDistribution `yaml:"leaderElection"`
 	}
 
-	// LeaderElection is a configuration for leader election running.
-	LeaderElection struct {
+	// ShardDistribution is a configuration for leader election running.
+	ShardDistribution struct {
 		Enabled     bool          `yaml:"enabled"`
 		LeaderStore Store         `yaml:"leaderStore"`
 		Election    Election      `yaml:"election"`
@@ -97,14 +97,14 @@ func NewConfig(dc *dynamicconfig.Collection, hostName string) *Config {
 }
 
 // GetLeaderElectionFromExternal converts other configs to an internal one.
-func GetLeaderElectionFromExternal(in config.LeaderElection) LeaderElection {
+func GetLeaderElectionFromExternal(in config.ShardDistribution) ShardDistribution {
 
 	namespaces := make([]Namespace, 0, len(in.Namespaces))
 	for _, namespace := range in.Namespaces {
 		namespaces = append(namespaces, Namespace(namespace))
 	}
 
-	return LeaderElection{
+	return ShardDistribution{
 		Enabled:     in.Enabled,
 		LeaderStore: Store(in.LeaderStore),
 		Store:       Store(in.Store),

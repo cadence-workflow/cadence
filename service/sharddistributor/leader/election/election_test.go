@@ -62,7 +62,7 @@ func TestElector_Run(t *testing.T) {
 
 	factory := NewElectionFactory(FactoryParams{
 		HostName: _testHost,
-		Cfg: config.LeaderElection{
+		Cfg: config.ShardDistribution{
 			Election: config.Election{
 				LeaderPeriod:           _testLeaderPeriod,
 				MaxRandomDelay:         _testMaxRandomDelay,
@@ -241,7 +241,7 @@ func prepareRun(t *testing.T, onLeader, onResign ProcessFunc) (<-chan bool, runP
 
 	factory := NewElectionFactory(FactoryParams{
 		HostName: _testHost,
-		Cfg: config.LeaderElection{
+		Cfg: config.ShardDistribution{
 			Election: config.Election{
 				LeaderPeriod:           _testLeaderPeriod,
 				MaxRandomDelay:         _testMaxRandomDelay,

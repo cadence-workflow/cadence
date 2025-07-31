@@ -72,7 +72,7 @@ func NewProcessorFactory(
 	logger log.Logger,
 	metricsClient metrics.Client,
 	timeSource clock.TimeSource,
-	cfg config.LeaderElection,
+	cfg config.ShardDistribution,
 ) Factory {
 	if cfg.Process.Period == 0 {
 		cfg.Process.Period = _defaultPeriod

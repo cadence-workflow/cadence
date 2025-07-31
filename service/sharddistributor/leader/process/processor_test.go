@@ -41,7 +41,7 @@ func setupProcessorTest(t *testing.T) *testDependencies {
 			testlogger.New(t),
 			metrics.NewNoopMetricsClient(),
 			mockedClock,
-			config.LeaderElection{
+			config.ShardDistribution{
 				Process: config.LeaderProcess{
 					Period:       time.Second,
 					HeartbeatTTL: time.Second,

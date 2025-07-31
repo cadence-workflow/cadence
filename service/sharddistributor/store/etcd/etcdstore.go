@@ -43,7 +43,7 @@ type StoreParams struct {
 	fx.In
 
 	Client    *clientv3.Client `optional:"true"`
-	Cfg       config.LeaderElection
+	Cfg       config.ShardDistribution
 	Lifecycle fx.Lifecycle
 }
 

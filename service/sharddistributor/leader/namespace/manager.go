@@ -20,7 +20,7 @@ var Module = fx.Module(
 )
 
 type Manager struct {
-	cfg             config.LeaderElection
+	cfg             config.ShardDistribution
 	logger          log.Logger
 	electionFactory election.Factory
 	namespaces      map[string]*namespaceHandler
@@ -39,7 +39,7 @@ type namespaceHandler struct {
 type ManagerParams struct {
 	fx.In
 
-	Cfg             config.LeaderElection
+	Cfg             config.ShardDistribution
 	Logger          log.Logger
 	ElectionFactory election.Factory
 	Lifecycle       fx.Lifecycle

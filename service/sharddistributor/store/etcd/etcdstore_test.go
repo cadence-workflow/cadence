@@ -561,7 +561,7 @@ func TestGetShardOwnerErrors(t *testing.T) {
 type storeTestCluster struct {
 	store     *Store // Use concrete type to access buildExecutorKey
 	namespace string
-	leaderCfg shardDistributorCfg.LeaderElection
+	leaderCfg shardDistributorCfg.ShardDistribution
 	client    *clientv3.Client
 	lifecycle *fxtest.Lifecycle
 }
@@ -592,7 +592,7 @@ func setupStoreTestCluster(t *testing.T) *storeTestCluster {
 	err = yaml.Unmarshal(yamlCfg, &yamlNode)
 	require.NoError(t, err)
 
-	leaderCfg := shardDistributorCfg.LeaderElection{
+	leaderCfg := shardDistributorCfg.ShardDistribution{
 		Enabled:     true,
 		Store:       shardDistributorCfg.Store{StorageParams: yamlNode},
 		LeaderStore: shardDistributorCfg.Store{StorageParams: yamlNode},

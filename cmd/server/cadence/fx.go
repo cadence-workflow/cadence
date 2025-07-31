@@ -68,7 +68,7 @@ func Module(serviceName string) fx.Option {
 				Name:     serviceName,
 				FullName: service.FullName(serviceName),
 			}),
-			fx.Provide(func(cfg config.Config) shardDistributorCfg.LeaderElection {
+			fx.Provide(func(cfg config.Config) shardDistributorCfg.ShardDistribution {
 				return shardDistributorCfg.GetLeaderElectionFromExternal(cfg.LeaderElection)
 			}),
 			// Decorate both logger so all components use proper service name.
