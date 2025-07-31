@@ -96,8 +96,8 @@ func NewConfig(dc *dynamicconfig.Collection, hostName string) *Config {
 	}
 }
 
-// GetLeaderElectionFromExternal converts other configs to an internal one.
-func GetLeaderElectionFromExternal(in config.ShardDistribution) ShardDistribution {
+// GetShardDistributionFromExternal converts other configs to an internal one.
+func GetShardDistributionFromExternal(in config.ShardDistribution) ShardDistribution {
 
 	namespaces := make([]Namespace, 0, len(in.Namespaces))
 	for _, namespace := range in.Namespaces {
