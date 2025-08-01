@@ -509,16 +509,32 @@ func mergeVirtualSlicesByPredicate(this, that *virtualSliceImpl) VirtualSlice {
 // merge slices with different predicates, the general idea is to find the overlap range of the 2 slices,
 // combine the predicates of the overlap range and leave the rest as is
 func mergeVirtualSlicesWithDifferentPredicate(this, that *virtualSliceImpl) ([]VirtualSlice, bool) {
-	if this.state.Range.InclusiveMinTaskKey.Compare(that.state.Range.InclusiveMinTaskKey) > 0 {
+	compareInclusiveMin := this.state.Range.InclusiveMinTaskKey.Compare(that.state.Range.InclusiveMinTaskKey)
+	if compareInclusiveMin > 0 {
 		this, that = that, this
+	} else if compareInclusiveMin == 0 {
+		if this.state.Range.ExclusiveMaxTaskKey.Compare(that.state.Range.ExclusiveMaxTaskKey) > 0 {
+			this, that = that, this
+		}
 	}
 	// Use a, b to to represent the inclusive min task key and exclusive max task key of `this`
 	// Use x, y to to represent the inclusive min task key and exclusive max task key of `that`
-	// At this point, we know that a <= x, (in actual world, we also know that x <= b because we know that the 2 slices can be merged, but it doesn't affect the logic), so there are 4 cases to consider:
-	// 1. {a, b, x, y} (x >= b) -> don't merge
-	// 2. {a, x, b, y} (x < b < y) -> [a, x) and [x, b) and [b, y)
-	// 3. {a, x, b, y} (x < b == y) -> [a, x) and [x, b)
-	// 4. {a, x, y, b} (x < y < b) -> [a, x) and [x, y) and [y, b)
+	// At this point, we know that a <= x, (in actual world, we also know that x <= b because we know that the 2 slices can be merged, but it doesn't affect the logic), so there are 5 cases to consider:
+	// 1. {a, b, x, y} (x >= b, a < x) -> don't merge
+	// 2. {a, x, b, y} (a < x < b < y) -> [a, x) and [x, b) and [b, y)
+	// 3. {a, x, b, y} (a < x < b == y) -> [a, x) and [x, b)
+	// 4. {a, x, y, b} (a < x < y < b) -> [a, x) and [x, y) and [y, b)
+	// 5. {x, a, b, y} (x == a < b < y) -> [x, b) and [b, y)
+	// 6. {x, a, y, b} (x == a < y == b) -> [x, b)
+	if compareInclusiveMin == 0 {
+		thatLeft, thatRight, ok := that.TrySplitByTaskKey(this.state.Range.ExclusiveMaxTaskKey)
+		if !ok {
+			// Case 6
+			return []VirtualSlice{mergeVirtualSlicesByPredicate(this, that)}, true
+		}
+		// Case 5
+		return []VirtualSlice{mergeVirtualSlicesByPredicate(this, thatLeft.(*virtualSliceImpl)), thatRight}, true
+	}
 	thisLeft, thisRight, ok := this.TrySplitByTaskKey(that.state.Range.InclusiveMinTaskKey)
 	if !ok {
 		// Case 1

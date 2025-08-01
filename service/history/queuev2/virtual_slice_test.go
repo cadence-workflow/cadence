@@ -3042,6 +3042,115 @@ func TestMergeVirtualSlicesWithDifferentPredicate(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "Case 5: Completely overlapping ranges - left contains right and has different exclusive max task key",
+			this: &virtualSliceImpl{
+				state: VirtualSliceState{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+					},
+					Predicate: NewDomainIDPredicate([]string{"domain1", "domain2"}, false),
+				},
+				progress: []*GetTaskProgress{
+					{
+						Range: Range{
+							InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+							ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+						},
+						NextTaskKey: persistence.NewImmediateTaskKey(2),
+					},
+				},
+				pendingTaskTracker: NewPendingTaskTracker(),
+			},
+			that: &virtualSliceImpl{
+				state: VirtualSliceState{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(6),
+					},
+					Predicate: NewDomainIDPredicate([]string{"domain3", "domain4"}, false),
+				},
+				progress: []*GetTaskProgress{
+					{
+						Range: Range{
+							InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+							ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(6),
+						},
+						NextTaskKey: persistence.NewImmediateTaskKey(2),
+					},
+				},
+				pendingTaskTracker: NewPendingTaskTracker(),
+			},
+			expectedOk: true,
+			expectedStates: []VirtualSliceState{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(6),
+					},
+					Predicate: NewDomainIDPredicate([]string{"domain1", "domain2", "domain3", "domain4"}, false),
+				},
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(6),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+					},
+					Predicate: NewDomainIDPredicate([]string{"domain1", "domain2"}, false),
+				},
+			},
+		},
+		{
+			name: "Case 6: Same ranges",
+			this: &virtualSliceImpl{
+				state: VirtualSliceState{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+					},
+					Predicate: NewDomainIDPredicate([]string{"domain1", "domain2"}, false),
+				},
+				progress: []*GetTaskProgress{
+					{
+						Range: Range{
+							InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+							ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+						},
+						NextTaskKey: persistence.NewImmediateTaskKey(2),
+					},
+				},
+				pendingTaskTracker: NewPendingTaskTracker(),
+			},
+			that: &virtualSliceImpl{
+				state: VirtualSliceState{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+					},
+					Predicate: NewDomainIDPredicate([]string{"domain3", "domain4"}, false),
+				},
+				progress: []*GetTaskProgress{
+					{
+						Range: Range{
+							InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+							ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+						},
+						NextTaskKey: persistence.NewImmediateTaskKey(2),
+					},
+				},
+				pendingTaskTracker: NewPendingTaskTracker(),
+			},
+			expectedOk: true,
+			expectedStates: []VirtualSliceState{
+				{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+					},
+					Predicate: NewDomainIDPredicate([]string{"domain1", "domain2", "domain3", "domain4"}, false),
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
