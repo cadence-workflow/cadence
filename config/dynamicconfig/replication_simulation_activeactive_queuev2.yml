@@ -1,4 +1,4 @@
-# This file is used as dynamicconfig override for "activeactive" replication simulation scenario configured via simulation/replication/testdata/replication_simulation_activeactive.yaml
+# This file is used as dynamicconfig override for "activeactive_queuev2" replication simulation scenario configured via simulation/replication/testdata/replication_simulation_activeactive_queuev2.yaml
 system.writeVisibilityStoreName:
   - value: "db"
 system.readVisibilityStoreName:
@@ -16,3 +16,7 @@ history.standbyTaskMissingEventsDiscardDelay:
   - value: 10s
 history.standbyClusterDelay:
   - value: 10s
+history.enableTransferQueueV2:
+  - value: true
+history.enableTimerQueueV2:
+  - value: true
