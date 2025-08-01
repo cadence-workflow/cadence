@@ -200,6 +200,7 @@ func (tr *taskReader) getTasksPump() {
 	defer updateAckTimer.Stop()
 getTasksPumpLoop:
 	for {
+		tr.scope.UpdateGauge(metrics.TaskBacklogPerTaskListGauge, float64(tr.taskAckManager.GetBacklogCount()))
 		select {
 		case <-tr.cancelCtx.Done():
 			break getTasksPumpLoop
@@ -253,7 +254,6 @@ getTasksPumpLoop:
 				updateAckTimer.Reset(tr.config.UpdateAckInterval())
 			}
 		}
-		tr.scope.UpdateGauge(metrics.TaskBacklogPerTaskListGauge, float64(tr.taskAckManager.GetBacklogCount()))
 	}
 }
 
