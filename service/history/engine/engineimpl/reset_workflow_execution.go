@@ -23,7 +23,6 @@ package engineimpl
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/pborman/uuid"
 
@@ -43,6 +42,7 @@ func (e *historyEngineImpl) ResetWorkflowExecution(
 	domainID := resetRequest.GetDomainUUID()
 	workflowID := request.WorkflowExecution.GetWorkflowID()
 	baseRunID := request.WorkflowExecution.GetRunID()
+	decisionFinishEventID := request.GetDecisionFinishEventID()
 
 	baseContext, baseReleaseFn, err := e.executionCache.GetOrCreateWorkflowExecution(
 		ctx,
@@ -66,8 +66,8 @@ func (e *historyEngineImpl) ResetWorkflowExecution(
 			Message: "Cannot reset workflow without a decision task schedule.",
 		}
 	}
-	if request.GetDecisionFinishEventID() <= constants.FirstEventID ||
-		request.GetDecisionFinishEventID() > baseMutableState.GetNextEventID() {
+	if decisionFinishEventID <= constants.FirstEventID ||
+		decisionFinishEventID > baseMutableState.GetNextEventID() {
 		return nil, &types.BadRequestError{
 			Message: "Decision finish ID must be > 1 && <= workflow next event ID.",
 		}
@@ -84,13 +84,6 @@ func (e *historyEngineImpl) ResetWorkflowExecution(
 	})
 	if err != nil {
 		return nil, err
-	}
-
-	// validate if workflow is resettable
-	if err := e.isWorkflowResettable(baseMutableState, domainID); err != nil {
-		return nil, &types.BadRequestError{
-			Message: fmt.Sprintf("workflow is not resettable. Error: %v", err),
-		}
 	}
 
 	currentRunID := resp.RunID
@@ -132,7 +125,7 @@ func (e *historyEngineImpl) ResetWorkflowExecution(
 	}
 
 	resetRunID := uuid.New()
-	baseRebuildLastEventID := request.GetDecisionFinishEventID() - 1
+	baseRebuildLastEventID := decisionFinishEventID - 1
 	baseVersionHistories := baseMutableState.GetVersionHistories()
 	baseCurrentBranchToken, err := baseMutableState.GetCurrentBranchToken()
 	if err != nil {
@@ -176,6 +169,7 @@ func (e *historyEngineImpl) ResetWorkflowExecution(
 		request.GetReason(),
 		nil,
 		request.GetSkipSignalReapply(),
+		&decisionFinishEventID,
 	); err != nil {
 		if t, ok := persistence.AsDuplicateRequestError(err); ok {
 			if t.RequestType == persistence.WorkflowRequestTypeReset {
@@ -191,25 +185,4 @@ func (e *historyEngineImpl) ResetWorkflowExecution(
 	return &types.ResetWorkflowExecutionResponse{
 		RunID: resetRunID,
 	}, nil
-}
-
-/*
-If a workflow was started in a different cluster, it is not resettable because replication stack is not able to handle workflow start event.
-*/
-func (e *historyEngineImpl) isWorkflowResettable(baseMutableState execution.MutableState, domainID string) error {
-	startVersion, err := baseMutableState.GetStartVersion()
-	if err != nil {
-		return fmt.Errorf("fail to get failover version of workflow start event: %w", err)
-	}
-
-	startCluster, err := e.shard.GetActiveClusterManager().ClusterNameForFailoverVersion(startVersion, domainID)
-	if err != nil {
-		return fmt.Errorf("fail to get cluster name for failover version: %w", err)
-	}
-
-	if currentCluster := e.clusterMetadata.GetCurrentClusterName(); currentCluster != startCluster {
-		return fmt.Errorf("workflow was not started in the current cluster: failover to workflow start cluster %s before reset", startCluster)
-	}
-
-	return nil
 }

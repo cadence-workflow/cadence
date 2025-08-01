@@ -144,6 +144,7 @@ func (r *workflowResetterImpl) ResetWorkflow(
 		),
 		resetBranchTokenFn,
 		requestID,
+		nil,
 	)
 	if err != nil {
 		return nil, err

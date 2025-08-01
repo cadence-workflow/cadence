@@ -183,7 +183,8 @@ func (s *workflowResetterSuite) TestResetWorkflow_NoError() {
 		),
 		gomock.Any(),
 		gomock.Any(),
-	).DoAndReturn(func(ctx context.Context, now time.Time, baseWorkflowIdentifier definition.WorkflowIdentifier, baseBranchToken []byte, baseRebuildLastEventID int64, baseRebuildLastEventVersion int64, targetWorkflowIdentifier definition.WorkflowIdentifier, targetBranchFn func() ([]byte, error), requestID string) (execution.MutableState, int64, error) {
+		nil,
+	).DoAndReturn(func(ctx context.Context, now time.Time, baseWorkflowIdentifier definition.WorkflowIdentifier, baseBranchToken []byte, baseRebuildLastEventID int64, baseRebuildLastEventVersion int64, targetWorkflowIdentifier definition.WorkflowIdentifier, targetBranchFn func() ([]byte, error), requestID string, resetEventID *int64) (execution.MutableState, int64, error) {
 		targetBranchToken, err := targetBranchFn()
 		s.NoError(err)
 		s.Equal(resetBranchToken, targetBranchToken)

@@ -59,6 +59,7 @@ type (
 			targetWorkflowIdentifier definition.WorkflowIdentifier,
 			targetBranchFn func() ([]byte, error),
 			requestID string,
+			resetEventID *int64,
 		) (MutableState, int64, error)
 	}
 
@@ -109,12 +110,19 @@ func (r *stateRebuilderImpl) Rebuild(
 	targetWorkflowIdentifier definition.WorkflowIdentifier,
 	targetBranchFn func() ([]byte, error),
 	requestID string,
+	resetEventID *int64,
 ) (MutableState, int64, error) {
+	lastEventID := baseLastEventID
+
+	// if resetEventID is provided, use that to include the reset event in the history events retrieved from the database
+	if resetEventID != nil {
+		lastEventID = *resetEventID
+	}
 
 	iter := collection.NewPagingIterator(r.getPaginationFn(
 		ctx,
 		constants.FirstEventID,
-		baseLastEventID+1,
+		lastEventID+1,
 		baseBranchToken,
 		targetWorkflowIdentifier.DomainID,
 	))
@@ -141,13 +149,32 @@ func (r *stateRebuilderImpl) Rebuild(
 		return nil, 0, err
 	}
 
+	// store firstEventBatch in case iter has no next items
+	events := firstEventBatch
+
 	for iter.HasNext() {
 		batch, err := iter.Next()
 		if err != nil {
 			return nil, 0, err
 		}
-		events := batch.(*types.History).Events
+
+		events = batch.(*types.History).Events
+
+		// if resetEventID is provided, check if the first event in the batch is >= to resetEventID
+		// if it is, all events have already been processed up to the reset event and can skip processing this batch
+		if resetEventID != nil && events[0].ID >= *resetEventID {
+			continue
+		}
+
 		if err := r.applyEvents(targetWorkflowIdentifier, stateBuilder, events, requestID); err != nil {
+			return nil, 0, err
+		}
+	}
+
+	// if resetEventID is provided, we need to check if the reset event type is valid
+	if resetEventID != nil {
+		err := checkResetEventType(events, lastEventID)
+		if err != nil {
 			return nil, 0, err
 		}
 	}
@@ -277,4 +304,28 @@ func (r *stateRebuilderImpl) getPaginationFn(
 		}
 		return paginateItems, token, nil
 	}
+}
+
+// checkResetEventType checks the type of the reset event and only allows specific types to be resettable
+func checkResetEventType(events []*types.HistoryEvent, resetEventID int64) error {
+	for _, event := range events {
+		if event.ID == resetEventID {
+			switch *event.EventType {
+			case types.EventTypeDecisionTaskStarted:
+				return nil
+			case types.EventTypeDecisionTaskTimedOut:
+				return nil
+			case types.EventTypeDecisionTaskFailed:
+				return nil
+			case types.EventTypeDecisionTaskCompleted:
+				return nil
+			default:
+				return &types.BadRequestError{
+					Message: fmt.Sprintf("reset event must be of type DecisionTaskStarted, DecisionTaskTimedOut, DecisionTaskFailed, or DecisionTaskCompleted. Attempting to reset on event type: %v", event.EventType.String()),
+				}
+			}
+		}
+	}
+
+	return fmt.Errorf("reset event ID %v not found in the history events", resetEventID)
 }

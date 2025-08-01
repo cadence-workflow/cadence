@@ -153,6 +153,9 @@ func TestResetWorkflowExecution(t *testing.T) {
 						gomock.Eq(testRequestReason),
 						gomock.Nil(),
 						gomock.Eq(testRequestSkipSignalReapply),
+						mock.MatchedBy(func(p *int64) bool {
+							return p != nil && *p == 100
+						}),
 					).Return(nil).Times(1)
 				},
 			},
@@ -219,134 +222,13 @@ func TestResetWorkflowExecution(t *testing.T) {
 						gomock.Eq(testRequestReason),
 						gomock.Nil(),
 						gomock.Eq(testRequestSkipSignalReapply),
+						mock.MatchedBy(func(p *int64) bool {
+							return p != nil && *p == 50
+						}),
 					).Return(nil).Times(1)
 				},
 			},
 			// Can't assert on the result because the runID is random
-		},
-		{
-			name: "Failure using version histories not started in current cluster",
-			// This corresponds to VersionHistories.Histories.Items.EventID
-			request: resetExecutionRequest(latestExecution, 50),
-			init: []InitFn{
-				withCurrentExecution(latestExecution),
-				withState(latestExecution, &persistence.WorkflowMutableState{
-					ExecutionInfo: &persistence.WorkflowExecutionInfo{
-						DomainID:    constants.TestDomainID,
-						WorkflowID:  constants.TestWorkflowID,
-						RunID:       latestRunID,
-						NextEventID: 100,
-						BranchToken: []byte("branch token"),
-					},
-					VersionHistories: &persistence.VersionHistories{
-						CurrentVersionHistoryIndex: 0,
-						Histories: []*persistence.VersionHistory{
-							{
-								BranchToken: []byte("yes"),
-								Items: []*persistence.VersionHistoryItem{
-									{
-										EventID: 1,
-										Version: 1001, // not current cluster
-									},
-									{
-										EventID: 50,
-										Version: 1002,
-									},
-									{
-										EventID: 51,
-										Version: 1003,
-									},
-								},
-							},
-						},
-					},
-					ExecutionStats: &persistence.ExecutionStats{HistorySize: 1},
-				}),
-				func(t *testing.T, engine *testdata.EngineForTest) {
-					ctrl := gomock.NewController(t)
-					mockResetter := reset.NewMockWorkflowResetter(ctrl)
-					engine.Engine.(*historyEngineImpl).workflowResetter = mockResetter
-				},
-			},
-			expectedErr: &types.BadRequestError{
-				Message: "workflow is not resettable. Error: workflow was not started in the current cluster: failover to workflow start cluster standby before reset",
-			},
-		},
-		{
-			name: "Failure using empty version histories",
-			// This corresponds to VersionHistories.Histories.Items.EventID
-			request: resetExecutionRequest(latestExecution, 50),
-			init: []InitFn{
-				withCurrentExecution(latestExecution),
-				withState(latestExecution, &persistence.WorkflowMutableState{
-					ExecutionInfo: &persistence.WorkflowExecutionInfo{
-						DomainID:    constants.TestDomainID,
-						WorkflowID:  constants.TestWorkflowID,
-						RunID:       latestRunID,
-						NextEventID: 100,
-						BranchToken: []byte("branch token"),
-					},
-					VersionHistories: &persistence.VersionHistories{
-						CurrentVersionHistoryIndex: 0,
-						Histories: []*persistence.VersionHistory{
-							{},
-						},
-					},
-					ExecutionStats: &persistence.ExecutionStats{HistorySize: 1},
-				}),
-				func(t *testing.T, engine *testdata.EngineForTest) {
-					ctrl := gomock.NewController(t)
-					mockResetter := reset.NewMockWorkflowResetter(ctrl)
-					engine.Engine.(*historyEngineImpl).workflowResetter = mockResetter
-				},
-			},
-			expectedErr: &types.BadRequestError{
-				Message: "workflow is not resettable. Error: fail to get failover version of workflow start event: version history is empty.",
-			},
-		},
-		{
-			name: "Failure using errorneous version histories",
-			// This corresponds to VersionHistories.Histories.Items.EventID
-			request: resetExecutionRequest(latestExecution, 50),
-			init: []InitFn{
-				withCurrentExecution(latestExecution),
-				withState(latestExecution, &persistence.WorkflowMutableState{
-					ExecutionInfo: &persistence.WorkflowExecutionInfo{
-						DomainID:    constants.TestDomainID,
-						WorkflowID:  constants.TestWorkflowID,
-						RunID:       latestRunID,
-						NextEventID: 100,
-						BranchToken: []byte("branch token"),
-					},
-					VersionHistories: &persistence.VersionHistories{
-						CurrentVersionHistoryIndex: 0,
-						Histories: []*persistence.VersionHistory{
-							{
-								BranchToken: []byte("yes"),
-								Items: []*persistence.VersionHistoryItem{
-									{
-										EventID: 1,
-										Version: 1004, // unknown version
-									},
-									{
-										EventID: 50,
-										Version: 1005, // unknown version
-									},
-								},
-							},
-						},
-					},
-					ExecutionStats: &persistence.ExecutionStats{HistorySize: 1},
-				}),
-				func(t *testing.T, engine *testdata.EngineForTest) {
-					ctrl := gomock.NewController(t)
-					mockResetter := reset.NewMockWorkflowResetter(ctrl)
-					engine.Engine.(*historyEngineImpl).workflowResetter = mockResetter
-				},
-			},
-			expectedErr: &types.BadRequestError{
-				Message: "workflow is not resettable. Error: fail to get cluster name for failover version: failed to resolve failover version to a cluster: could not resolve failover version: 1004",
-			},
 		},
 		{
 			name:    "Success using previous version",
@@ -397,6 +279,9 @@ func TestResetWorkflowExecution(t *testing.T) {
 						gomock.Eq(testRequestReason),
 						gomock.Nil(),
 						gomock.Eq(testRequestSkipSignalReapply),
+						mock.MatchedBy(func(p *int64) bool {
+							return p != nil && *p == 100
+						}),
 					).Return(nil).Times(1)
 				},
 			},
@@ -440,6 +325,9 @@ func TestResetWorkflowExecution(t *testing.T) {
 						gomock.Eq(testRequestReason),
 						gomock.Nil(),
 						gomock.Eq(testRequestSkipSignalReapply),
+						mock.MatchedBy(func(p *int64) bool {
+							return p != nil && *p == 100
+						}),
 					).Return(&persistence.DuplicateRequestError{
 						RequestType: persistence.WorkflowRequestTypeReset,
 						RunID:       "errorID",
@@ -488,6 +376,9 @@ func TestResetWorkflowExecution(t *testing.T) {
 						gomock.Eq(testRequestReason),
 						gomock.Nil(),
 						gomock.Eq(testRequestSkipSignalReapply),
+						mock.MatchedBy(func(p *int64) bool {
+							return p != nil && *p == 100
+						}),
 					).Return(&persistence.DuplicateRequestError{
 						RequestType: persistence.WorkflowRequestTypeStart,
 						RunID:       "errorID",
@@ -537,6 +428,9 @@ func TestResetWorkflowExecution(t *testing.T) {
 						gomock.Eq(testRequestReason),
 						gomock.Nil(),
 						gomock.Eq(testRequestSkipSignalReapply),
+						mock.MatchedBy(func(p *int64) bool {
+							return p != nil && *p == 100
+						}),
 					).Return(&types.BadRequestError{
 						Message: "didn't work",
 					}).Times(1)

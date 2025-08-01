@@ -221,6 +221,7 @@ func (s *workflowResetterSuite) TestReplayResetWorkflow() {
 	baseRebuildLastEventID := int64(1233)
 	baseRebuildLastEventVersion := int64(12)
 	baseNodeID := baseRebuildLastEventID + 1
+	resetEventID := baseRebuildLastEventID + 1
 
 	resetBranchToken := []byte("some random reset branch token")
 	resetRequestID := uuid.New()
@@ -254,7 +255,8 @@ func (s *workflowResetterSuite) TestReplayResetWorkflow() {
 		),
 		gomock.Any(),
 		resetRequestID,
-	).DoAndReturn(func(ctx context.Context, now time.Time, baseWorkflowIdentifier definition.WorkflowIdentifier, baseBranchToken []byte, baseRebuildLastEventID int64, baseRebuildLastEventVersion int64, targetWorkflowIdentifier definition.WorkflowIdentifier, targetBranchFn func() ([]byte, error), requestID string) (execution.MutableState, int64, error) {
+		&resetEventID,
+	).DoAndReturn(func(ctx context.Context, now time.Time, baseWorkflowIdentifier definition.WorkflowIdentifier, baseBranchToken []byte, baseRebuildLastEventID int64, baseRebuildLastEventVersion int64, targetWorkflowIdentifier definition.WorkflowIdentifier, targetBranchFn func() ([]byte, error), requestID string, resetEventID *int64) (execution.MutableState, int64, error) {
 		targetBranchToken, err := targetBranchFn()
 		s.NoError(err)
 		s.Equal(resetBranchToken, targetBranchToken)
@@ -272,6 +274,7 @@ func (s *workflowResetterSuite) TestReplayResetWorkflow() {
 		baseRebuildLastEventVersion,
 		s.resetRunID,
 		resetRequestID,
+		&resetEventID,
 	)
 	s.NoError(err)
 	s.Equal(resetHistorySize, resetWorkflow.GetContext().GetHistorySize())

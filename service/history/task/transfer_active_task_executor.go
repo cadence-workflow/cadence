@@ -1737,6 +1737,7 @@ func (t *transferActiveTaskExecutor) resetWorkflow(
 		reason,
 		nil,
 		false,
+		nil,
 	)
 
 	switch err.(type) {
