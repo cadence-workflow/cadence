@@ -1367,6 +1367,7 @@ func (d *handlerImpl) updateReplicationConfig(
 				// initialize failover version to the initial failover version of the cluster
 				activeCluster.FailoverVersion = d.clusterMetadata.GetNextFailoverVersion(activeCluster.ActiveClusterName, 0, domainName)
 				finalActiveClusters[region] = activeCluster
+				d.logger.Debugf("Setting activeCluster for region %v to %v. a cluster is being activated on a region", region, activeCluster)
 				continue
 			}
 
@@ -1376,9 +1377,11 @@ func (d *handlerImpl) updateReplicationConfig(
 				// set failover version to the next failover version of the newcluster that is greater than the existing active cluster's failover version
 				activeCluster.FailoverVersion = d.clusterMetadata.GetNextFailoverVersion(activeCluster.ActiveClusterName, existingActiveCluster.FailoverVersion, domainName)
 				finalActiveClusters[region] = activeCluster
+				d.logger.Debugf("Setting activeCluster for region %v to %v. a region is being pointed to a new cluster", region, activeCluster)
 			} else {
 				// no update case, just copy the existing active cluster
-				finalActiveClusters[region] = activeCluster
+				finalActiveClusters[region] = existingActiveCluster
+				d.logger.Debugf("Setting activeCluster for region %v to %v. no update case, just copy the existing active cluster", region, activeCluster)
 			}
 		}
 		config.ActiveClusters = &types.ActiveClusters{

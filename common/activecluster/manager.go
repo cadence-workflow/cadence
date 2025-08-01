@@ -257,6 +257,7 @@ func (m *managerImpl) LookupWorkflow(ctx context.Context, domainID, wfID, rID st
 			tag.WorkflowID(wfID),
 			tag.WorkflowRunID(rID),
 			tag.ActiveClusterName(d.GetReplicationConfig().ActiveClusterName),
+			tag.FailoverVersion(d.GetFailoverVersion()),
 		)
 		return &LookupResult{
 			ClusterName:     d.GetReplicationConfig().ActiveClusterName,
@@ -278,6 +279,7 @@ func (m *managerImpl) LookupWorkflow(ctx context.Context, domainID, wfID, rID st
 				tag.WorkflowID(wfID),
 				tag.WorkflowRunID(rID),
 				tag.ActiveClusterName(d.GetReplicationConfig().ActiveClusterName),
+				tag.FailoverVersion(d.GetFailoverVersion()),
 			)
 			return &LookupResult{
 				ClusterName:     d.GetReplicationConfig().ActiveClusterName,
@@ -298,6 +300,7 @@ func (m *managerImpl) LookupWorkflow(ctx context.Context, domainID, wfID, rID st
 			tag.WorkflowRunID(rID),
 			tag.Region(region),
 			tag.ActiveClusterName(cluster.ActiveClusterName),
+			tag.FailoverVersion(cluster.FailoverVersion),
 		)
 		return &LookupResult{
 			Region:          region,
@@ -326,6 +329,7 @@ func (m *managerImpl) LookupWorkflow(ctx context.Context, domainID, wfID, rID st
 			tag.WorkflowExternalEntityKey(plcy.ExternalEntityKey),
 			tag.Region(externalEntity.Region),
 			tag.ActiveClusterName(cluster),
+			tag.FailoverVersion(externalEntity.FailoverVersion),
 		)
 		return &LookupResult{
 			Region:          externalEntity.Region,
@@ -350,6 +354,7 @@ func (m *managerImpl) LookupWorkflow(ctx context.Context, domainID, wfID, rID st
 		tag.WorkflowRunID(rID),
 		tag.Region(region),
 		tag.ActiveClusterName(cluster.ActiveClusterName),
+		tag.FailoverVersion(cluster.FailoverVersion),
 	)
 	return &LookupResult{
 		Region:          region,

@@ -3080,7 +3080,7 @@ func serializeHistoryToken(token *getHistoryContinuationToken) ([]byte, error) {
 }
 
 func isFailoverRequest(updateRequest *types.UpdateDomainRequest) bool {
-	return updateRequest.ActiveClusterName != nil
+	return updateRequest.ActiveClusterName != nil || updateRequest.ActiveClusters != nil
 }
 
 func isGraceFailoverRequest(updateRequest *types.UpdateDomainRequest) bool {

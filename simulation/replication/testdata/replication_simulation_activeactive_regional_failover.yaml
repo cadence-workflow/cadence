@@ -1,7 +1,7 @@
 # This file is a replication simulation scenario spec.
 # It is parsed into ReplicationSimulationConfig struct.
-# Replication simulation for this file can be run via ./simulation/replication/run.sh activeactive
-# Dynamic config overrides can be set via config/dynamicconfig/replication_simulation_activeactive.yml
+# Replication simulation for this file can be run via ./simulation/replication/run.sh activeactive_regional_failover
+# Dynamic config overrides can be set via config/dynamicconfig/replication_simulation_activeactive_regional_failover.yml
 clusters:
   cluster0:
     grpcEndpoint: "cadence-cluster0:7833"
