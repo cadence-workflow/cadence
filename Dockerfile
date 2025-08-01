@@ -33,17 +33,12 @@ RUN make .just-build
 RUN CGO_ENABLED=0 make cadence-cassandra-tool cadence-sql-tool cadence cadence-server cadence-bench cadence-canary
 
 
-# Download dockerize
-FROM alpine:3.18 AS dockerize
+# Build dockerize
+FROM golang:1.23.4-alpine3.21 AS dockerize
 
-RUN apk add --no-cache openssl
-
-ENV DOCKERIZE_VERSION=v0.6.1
-RUN wget https://github.com/jwilder/dockerize/releases/download/$DOCKERIZE_VERSION/dockerize-alpine-linux-amd64-$DOCKERIZE_VERSION.tar.gz \
-    && tar -C /usr/local/bin -xzvf dockerize-alpine-linux-amd64-$DOCKERIZE_VERSION.tar.gz \
-    && rm dockerize-alpine-linux-amd64-$DOCKERIZE_VERSION.tar.gz \
-    && echo "**** fix for host id mapping error ****" \
-    && chown root:root /usr/local/bin/dockerize
+ENV DOCKERIZE_VERSION=v0.9.3
+RUN set -x \
+    && CGO_ENABLED=0 go install github.com/jwilder/dockerize@$DOCKERIZE_VERSION
 
 
 # Alpine base image
@@ -64,7 +59,7 @@ FROM alpine AS cadence-server
 ENV CADENCE_HOME=/etc/cadence
 RUN mkdir -p /etc/cadence
 
-COPY --from=dockerize /usr/local/bin/dockerize /usr/local/bin
+COPY --from=dockerize /go/bin/dockerize /usr/local/bin
 COPY --from=builder /cadence/cadence-cassandra-tool /usr/local/bin
 COPY --from=builder /cadence/cadence-sql-tool /usr/local/bin
 COPY --from=builder /cadence/cadence /usr/local/bin
