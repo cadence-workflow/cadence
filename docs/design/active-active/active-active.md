@@ -298,6 +298,7 @@ Failover version to cluster mapping:
 - Workflows whose task version resolves to region us-west will start using version 6 from now on.
 - Workflows whose task version resolves to region us-east will continue using version 6.
 
+When the domain is in this state, the start workflowrequests (regardless of cluster selection strategy) will be forwarded to cluster3 and they will be sticky to that region.
 
 **2. Within region failover (changing active cluster of a region):**
 
