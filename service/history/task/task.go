@@ -420,7 +420,7 @@ func (t *taskImpl) shouldResubmitOnNack() bool {
 	// we can also consider resubmit standby tasks that fails due to certain error types
 	// this may require change the Nack() interface to Nack(error)
 	return t.GetAttempt() < activeTaskResubmitMaxAttempts &&
-		(t.queueType == QueueTypeActiveTransfer || t.queueType == QueueTypeActiveTimer)
+		(t.queueType == QueueTypeActiveTransfer || t.queueType == QueueTypeActiveTimer || ((t.queueType == QueueTypeTransfer || t.queueType == QueueTypeTimer) && t.isPreviousExecutorActive))
 }
 
 func (t *taskImpl) backoffDuration(attempt int) time.Duration {

@@ -88,7 +88,7 @@ func (a *priorityAssignerImpl) Assign(queueTask Task) error {
 	}
 
 	// timer, transfer or cross cluster task, first check if task is active or not and if domain is active or not
-	isActiveTask := queueType == QueueTypeActiveTimer || queueType == QueueTypeActiveTransfer || queueType == QueueTypeCrossCluster
+	isActiveTask := queueType == QueueTypeActiveTimer || queueType == QueueTypeActiveTransfer
 	domainName, isActiveDomain, err := a.getDomainInfo(queueTask.GetDomainID())
 	if err != nil {
 		return err
@@ -118,8 +118,6 @@ func (a *priorityAssignerImpl) Assign(queueTask Task) error {
 			taggedScope.IncCounter(metrics.TransferTaskThrottledCounter)
 		case QueueTypeActiveTimer, QueueTypeStandbyTimer:
 			taggedScope.IncCounter(metrics.TimerTaskThrottledCounter)
-		case QueueTypeCrossCluster:
-			taggedScope.IncCounter(metrics.CrossClusterTaskThrottledCounter)
 		}
 		return nil
 	}

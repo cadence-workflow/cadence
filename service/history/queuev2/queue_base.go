@@ -109,9 +109,9 @@ func newQueueBase(
 	)
 	var queueType task.QueueType
 	if category == persistence.HistoryTaskCategoryTransfer {
-		queueType = task.QueueTypeActiveTransfer
+		queueType = task.QueueTypeTransfer
 	} else if category == persistence.HistoryTaskCategoryTimer {
-		queueType = task.QueueTypeActiveTimer
+		queueType = task.QueueTypeTimer
 	}
 	taskInitializer := func(t persistence.Task) task.Task {
 		return task.NewHistoryTask(
