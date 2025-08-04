@@ -48,6 +48,12 @@ const (
 
 type DomainIDToDomainFn func(id string) (*cache.DomainCacheEntry, error)
 
+const (
+	LookupNewWorkflowOpName       = "LookupNewWorkflow"
+	LookupWorkflowOpName          = "LookupWorkflow"
+	DomainIDToDomainFnErrorReason = "domain_id_to_name_fn_error"
+)
+
 type managerImpl struct {
 	domainIDToDomainFn          DomainIDToDomainFn
 	clusterMetadata             cluster.Metadata
@@ -191,10 +197,12 @@ func (m *managerImpl) LookupNewWorkflow(ctx context.Context, domainID string, po
 		)
 	}()
 
-	d, err := m.domainIDToDomainFn(domainID)
+	d, scope, err := m.getDomainAndScope(domainID, LookupNewWorkflowOpName)
 	if err != nil {
 		return nil, err
 	}
+	scope = scope.Tagged(metrics.ActiveClusterSelectionStrategyTag(policy.GetStrategy().String()))
+	defer m.handleError(scope, &e, time.Now())
 
 	if !d.GetReplicationConfig().IsActiveActive() {
 		// Not an active-active domain. return failover version of the domain entry
@@ -244,11 +252,12 @@ func (m *managerImpl) LookupNewWorkflow(ctx context.Context, domainID string, po
 	}, nil
 }
 
-func (m *managerImpl) LookupWorkflow(ctx context.Context, domainID, wfID, rID string) (*LookupResult, error) {
-	d, err := m.domainIDToDomainFn(domainID)
+func (m *managerImpl) LookupWorkflow(ctx context.Context, domainID, wfID, rID string) (res *LookupResult, e error) {
+	d, scope, err := m.getDomainAndScope(domainID, LookupWorkflowOpName)
 	if err != nil {
 		return nil, err
 	}
+	defer m.handleError(scope, &e, time.Now())
 
 	if !d.GetReplicationConfig().IsActiveActive() {
 		// Not an active-active domain. return ActiveClusterName from domain entry
@@ -457,4 +466,30 @@ func (m *managerImpl) getClusterSelectionPolicy(ctx context.Context, domainID, w
 	}
 
 	return plcy, nil
+}
+
+func (m *managerImpl) getDomainAndScope(domainID, fn string) (*cache.DomainCacheEntry, metrics.Scope, error) {
+	scope := m.metricsCl.Scope(metrics.ActiveClusterManager).Tagged(metrics.ActiveClusterLookupFnTag(fn))
+
+	d, err := m.domainIDToDomainFn(domainID)
+	if err != nil {
+		scope = scope.Tagged(metrics.ReasonTag(DomainIDToDomainFnErrorReason))
+		scope.IncCounter(metrics.ActiveClusterManagerLookupFailureCount)
+		return nil, nil, err
+	}
+
+	scope = scope.Tagged(metrics.DomainTag(d.GetInfo().Name))
+	scope = scope.Tagged(metrics.IsActiveActiveDomainTag(d.GetReplicationConfig().IsActiveActive()))
+	scope.IncCounter(metrics.ActiveClusterManagerLookupRequestCount)
+
+	return d, scope, nil
+}
+
+func (m *managerImpl) handleError(scope metrics.Scope, err *error, start time.Time) {
+	if err != nil && *err != nil {
+		scope.IncCounter(metrics.ActiveClusterManagerLookupFailureCount)
+	} else {
+		scope.IncCounter(metrics.ActiveClusterManagerLookupSuccessCount)
+	}
+	scope.RecordHistogramDuration(metrics.ActiveClusterManagerLookupLatency, time.Since(start))
 }

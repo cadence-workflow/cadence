@@ -876,6 +876,9 @@ const (
 	// LoadBalancerScope is the metrics scope for Round Robin load balancer
 	LoadBalancerScope
 
+	// ActiveClusterManager is the scope used by active cluster manager
+	ActiveClusterManager
+
 	NumCommonScopes
 )
 
@@ -1831,6 +1834,8 @@ var ScopeDefs = map[ServiceIdx]map[int]scopeDefinition{
 		ShardDistributorExecutorClientHeartbeatScope: {operation: "ShardDistributorExecutorHeartbeat"},
 
 		LoadBalancerScope: {operation: "RRLoadBalancer"},
+
+		ActiveClusterManager: {operation: "ActiveClusterManager"},
 	},
 	// Frontend Scope Names
 	Frontend: {
@@ -2381,6 +2386,12 @@ const (
 	BaseCacheCountLimitGauge
 	BaseCacheFullCounter
 	BaseCacheEvictCounter
+
+	// active cluster manager metrics
+	ActiveClusterManagerLookupRequestCount
+	ActiveClusterManagerLookupSuccessCount
+	ActiveClusterManagerLookupFailureCount
+	ActiveClusterManagerLookupLatency
 
 	NumCommonMetrics // Needs to be last on this list for iota numbering
 )
@@ -3153,6 +3164,11 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		BaseCacheCountLimitGauge:    {metricName: "cache_count_limit", metricType: Gauge},
 		BaseCacheFullCounter:        {metricName: "cache_full", metricType: Counter},
 		BaseCacheEvictCounter:       {metricName: "cache_evict", metricType: Counter},
+
+		ActiveClusterManagerLookupRequestCount: {metricName: "active_cluster_manager_lookup_request_count", metricType: Counter},
+		ActiveClusterManagerLookupSuccessCount: {metricName: "active_cluster_manager_lookup_success_count", metricType: Counter},
+		ActiveClusterManagerLookupFailureCount: {metricName: "active_cluster_manager_lookup_failure_count", metricType: Counter},
+		ActiveClusterManagerLookupLatency:      {metricName: "active_cluster_manager_lookup_latency", metricType: Timer},
 	},
 	History: {
 		TaskRequests:             {metricName: "task_requests", metricType: Counter},

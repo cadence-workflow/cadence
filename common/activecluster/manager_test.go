@@ -654,6 +654,7 @@ func TestLookupWorkflow(t *testing.T) {
 		getClusterSelectionPolicyFn func(ctx context.Context, domainID, wfID, rID string) (*types.ActiveClusterSelectionPolicy, error)
 		mockFn                      func(em *persistence.MockExecutionManager)
 		activeClusterCfg            *types.ActiveClusters
+		domainIdToNameErr           error
 		migratedFromActivePassive   bool
 		expectedResult              *LookupResult
 		expectedError               string
@@ -665,6 +666,23 @@ func TestLookupWorkflow(t *testing.T) {
 				ClusterName:     "cluster0",
 				FailoverVersion: 201,
 			},
+		},
+		{
+			name: "domain id to name fn returns error",
+			activeClusterCfg: &types.ActiveClusters{
+				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+					"us-west": {
+						ActiveClusterName: "cluster0",
+						FailoverVersion:   1,
+					},
+					"us-east": {
+						ActiveClusterName: "cluster1",
+						FailoverVersion:   3,
+					},
+				},
+			},
+			domainIdToNameErr: errors.New("failed to find domain by id"),
+			expectedError:     "failed to find domain by id",
 		},
 		{
 			name: "domain is active-active, failed to fetch workflow activeness metadata",
@@ -827,7 +845,7 @@ func TestLookupWorkflow(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			domainIDToDomainFn := func(id string) (*cache.DomainCacheEntry, error) {
-				return getDomainCacheEntry(tc.activeClusterCfg, tc.migratedFromActivePassive), nil
+				return getDomainCacheEntry(tc.activeClusterCfg, tc.migratedFromActivePassive), tc.domainIdToNameErr
 			}
 
 			timeSrc := clock.NewMockedTimeSource()
@@ -883,7 +901,9 @@ func getDomainCacheEntry(cfg *types.ActiveClusters, migratedFromActivePassive bo
 		activeClusterName = "cluster0"
 	}
 	return cache.NewDomainCacheEntryForTest(
-		nil,
+		&persistence.DomainInfo{
+			Name: "test-domain-id",
+		},
 		nil,
 		true,
 		&persistence.DomainReplicationConfig{
