@@ -654,7 +654,7 @@ func TestLookupWorkflow(t *testing.T) {
 		getClusterSelectionPolicyFn func(ctx context.Context, domainID, wfID, rID string) (*types.ActiveClusterSelectionPolicy, error)
 		mockFn                      func(em *persistence.MockExecutionManager)
 		activeClusterCfg            *types.ActiveClusters
-		domainIdToNameErr           error
+		domainIDToNameErr           error
 		migratedFromActivePassive   bool
 		expectedResult              *LookupResult
 		expectedError               string
@@ -681,7 +681,7 @@ func TestLookupWorkflow(t *testing.T) {
 					},
 				},
 			},
-			domainIdToNameErr: errors.New("failed to find domain by id"),
+			domainIDToNameErr: errors.New("failed to find domain by id"),
 			expectedError:     "failed to find domain by id",
 		},
 		{
@@ -845,7 +845,7 @@ func TestLookupWorkflow(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			domainIDToDomainFn := func(id string) (*cache.DomainCacheEntry, error) {
-				return getDomainCacheEntry(tc.activeClusterCfg, tc.migratedFromActivePassive), tc.domainIdToNameErr
+				return getDomainCacheEntry(tc.activeClusterCfg, tc.migratedFromActivePassive), tc.domainIDToNameErr
 			}
 
 			timeSrc := clock.NewMockedTimeSource()
