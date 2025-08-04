@@ -390,6 +390,52 @@ func TestQueueBase_UpdateQueueState(t *testing.T) {
 	}
 }
 
+func TestQueueBase_HandleAlert(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	mockShard := shard.NewMockContext(ctrl)
+	mockTaskProcessor := task.NewMockProcessor(ctrl)
+	mockTimeSource := clock.NewMockedTimeSource()
+	mockVirtualQueueManager := NewMockVirtualQueueManager(ctrl)
+	mockMitigator := NewMockMitigator(ctrl)
+	mockMitigator.EXPECT().Mitigate(Alert{AlertType: AlertTypeQueuePendingTaskCount})
+
+	updateQueueStateCalled := false
+	queueBase := &queueBase{
+		shard:               mockShard,
+		taskProcessor:       mockTaskProcessor,
+		metricsClient:       metrics.NoopClient,
+		metricsScope:        metrics.NoopScope,
+		logger:              testlogger.New(t),
+		category:            persistence.HistoryTaskCategoryTransfer,
+		timeSource:          mockTimeSource,
+		monitor:             NewMonitor(persistence.HistoryTaskCategoryTransfer),
+		mitigator:           mockMitigator,
+		virtualQueueManager: mockVirtualQueueManager,
+		exclusiveAckLevel:   persistence.NewImmediateTaskKey(100),
+		newVirtualSliceState: VirtualSliceState{
+			Range: Range{
+				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1000),
+				ExclusiveMaxTaskKey: persistence.MaximumHistoryTaskKey,
+			},
+			Predicate: NewUniversalPredicate(),
+		},
+		updateQueueStateTimer: mockTimeSource.NewTimer(time.Second * 10),
+		options: &Options{
+			DeleteBatchSize:                    dynamicproperties.GetIntPropertyFn(100),
+			UpdateAckInterval:                  dynamicproperties.GetDurationPropertyFn(time.Second * 10),
+			UpdateAckIntervalJitterCoefficient: dynamicproperties.GetFloatPropertyFn(0.1),
+		},
+		updateQueueStateFn: func(ctx context.Context) {
+			updateQueueStateCalled = true
+		},
+	}
+
+	queueBase.handleAlert(context.Background(), &Alert{AlertType: AlertTypeQueuePendingTaskCount})
+
+	assert.True(t, updateQueueStateCalled)
+}
+
 func TestNewQueueBase(t *testing.T) {
 	queueState := &types.QueueState{
 		ExclusiveMaxReadLevel: &types.TaskKey{

@@ -184,6 +184,8 @@ func (q *immediateQueue) processEventLoop() {
 			q.processPollTimer()
 		case <-q.base.updateQueueStateTimer.Chan():
 			q.base.updateQueueState(q.ctx)
+		case alert := <-q.base.alertCh:
+			q.base.handleAlert(q.ctx, alert)
 		case <-q.ctx.Done():
 			return
 		}

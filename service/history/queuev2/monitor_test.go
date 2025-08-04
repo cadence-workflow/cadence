@@ -48,3 +48,26 @@ func TestMonitorPendingTaskCount(t *testing.T) {
 	monitor.RemoveSlice(slice3)
 	assert.Equal(t, 0, monitor.GetTotalPendingTaskCount())
 }
+
+func TestMonitorSubscribeAndUnsubscribe(t *testing.T) {
+	monitor := NewMonitor(persistence.HistoryTaskCategoryTimer)
+
+	alertCh := make(chan *Alert, alertChSize)
+	monitor.Subscribe(alertCh)
+	monitor.(*monitorImpl).subscriber <- &Alert{AlertType: AlertTypeQueuePendingTaskCount}
+	alert := <-alertCh
+	assert.Equal(t, AlertTypeQueuePendingTaskCount, alert.AlertType)
+
+	monitor.Unsubscribe()
+	assert.Nil(t, monitor.(*monitorImpl).subscriber)
+}
+
+func TestMonitorResolveAlert(t *testing.T) {
+	monitor := NewMonitor(persistence.HistoryTaskCategoryTimer)
+
+	monitor.(*monitorImpl).pendingAlerts[AlertTypeQueuePendingTaskCount] = struct{}{}
+	assert.Equal(t, 1, len(monitor.(*monitorImpl).pendingAlerts))
+
+	monitor.ResolveAlert(AlertTypeQueuePendingTaskCount)
+	assert.Equal(t, 0, len(monitor.(*monitorImpl).pendingAlerts))
+}
