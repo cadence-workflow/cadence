@@ -211,6 +211,9 @@ $(BIN)/protoc-gen-gogofast: go.mod go.work | $(BIN)
 $(BIN)/protoc-gen-yarpc-go: go.mod go.work | $(BIN)
 	$(call go_mod_build_tool,go.uber.org/yarpc/encoding/protobuf/protoc-gen-yarpc-go)
 
+$(BIN)/metricsgen: internal/tools/go.mod go.work $(wildcard internal/tools/metricsgen/*) | $(BIN)
+	$(call go_build_tool,./metricsgen)
+
 $(BUILD)/go_mod_check: go.mod internal/tools/go.mod go.work
 	$Q # generated == used is occasionally important for gomock / mock libs in general.  this is not a definite problem if violated though.
 	$Q ./scripts/check-gomod-version.sh github.com/golang/mock/gomock $(if $(verbose),-v)
@@ -551,6 +554,11 @@ go-generate: $(BIN)/mockgen $(BIN)/enumer $(BIN)/mockery  $(BIN)/gowrap ## Run `
 	$Q $(MAKE) --no-print-directory fmt
 # 	$Q echo "updating copyright headers"
 # 	$Q $(MAKE) --no-print-directory copyright
+
+metrics: $(BIN)/metricsgen ## metricsgen-only code regen, much faster than go-generate
+	$Q echo "re-generating metrics structs..."
+	$Q $(BIN_PATH) go generate -run=metricsgen ./...
+	$Q $(MAKE) fmt
 
 release: ## Re-generate generated code and run tests
 	$(MAKE) --no-print-directory go-generate

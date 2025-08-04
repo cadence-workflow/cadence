@@ -3,11 +3,13 @@ package replication
 import (
 	"fmt"
 	"math"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/uber-go/tally"
+	"golang.org/x/exp/maps"
 )
 
 func TestHistogramRange(t *testing.T) {
@@ -121,6 +123,11 @@ func TestHistogramRange(t *testing.T) {
 }
 
 func TestLogHistogramRange(t *testing.T) {
+	t.Log("2^1/2 buckets ---")
+	buck := tally.MustMakeExponentialDurationBuckets(time.Millisecond, 1.5, 80)
+	for i := 0; i < len(buck); i += 8 {
+		t.Logf("\t%v", buck[i:i+8])
+	}
 	t.Log("naive compounding exponential ---")
 	// kinda terrible, e.g.
 	//   [1ms 1.090507ms 1.189206ms 1.296838ms 1.414211ms 1.542208ms 1.681789ms 1.834003ms]
@@ -200,8 +207,14 @@ func TestLogHistogramRange(t *testing.T) {
 	}
 	t.Log("half precision starting at 1s, ending at 3y ----")
 	// maybe this works?
+	//
 	// at half precision this gives us 109 buckets for 3.5y of data, which is pretty reasonable.
 	// most won't touch that full range.
+	// main downside is that it drops to 24h detail after only 6 days. (scale=3 gives 11 days)
+	//
+	// likely the only real option here is to either do something totally custom, or have multiple
+	// stacked histograms at / centered around interesting points.
+	// stacked can be inferred from data, might get kinda fiddly with figuring out how many there are.
 	betterlongrange := makeExponentialBuckets(time.Second, 3*365*24*time.Hour, 2)
 	t.Logf("\t%v", betterlongrange[0:1])
 	for i := 1; i < len(betterlongrange); i += 4 {
@@ -287,3 +300,200 @@ does not, however, prevent mixing up tags or changing tags...
 we could add a verifier at each name, but we can't do anything when it fails :\
 it would document expectations though.
 */
+
+/*
+RESULT:
+	yeah I like this.  I think it'll work.
+	now I need to figure out a tagged API that won't make me hate it.
+*/
+
+/*
+stuff to think about:
+- tally subscopes seem not-cheap, and they're created every time you `.Tagged`, whether you use them or not.
+  - scope.go: (*scope).subscope
+  - i.e. intermediate scopes are not cheap
+    - profiling says: they take 1-2% of memory, but that's less than our existing histograms.  not significant enough to fear.
+- tally subscopes do not expose their tags
+  - so we can't rely on them to know what's available at any given time
+- building a ton of custom types is probably a pain, can we simplify it?
+  - compile-time safety would be possible with many types
+  - run-time safety could be built with maps and validators, and e.g. could be done at fx-app startup with reasonable ease
+  - generics probably won't save us as we can't have meaningful names
+  - maybe just build up a list of kv pairs, validate uniqueness?
+
+compile-time safety:
+- we could code-gen a pseudo-JSON serializer, read all tags in self and parents and build a validation / Tagged func.
+  - probably not too hard?  prototype the syntax at least, to show people.
+  - could validate or generate the key names (lowercase, capital means underscore)
+- ... is this actually feasible?  just make structs defining what it needs and the parent type, and a method for semantic data, codegen the rest?
+  - what do tests look like?  likely the same, but with an injected noop tally scope?
+- mockery/v3, how hard would this be?
+  - checking...
+  - nope, definitely not.  it doesn't handle anything except interfaces, no ability to get struct fields/tags/etc (just its name).
+    - this probably also rules it out from other codegen, aside from wrappers.
+  - is there any Analysis-like code generating library?  seems like that should be feasible...
+    - might even be possible with just AST, actually.  and that'd be lightning-fast.
+*/
+
+// --- base stuff ---
+
+type Metadata interface {
+	NumTags() int
+	Tags(into map[string]string)
+}
+
+// type-assert at runtime to figure out if tags or cached-tags are used,
+// it only takes a few nanoseconds to do that type check.
+type CachedMetadata interface {
+	Metadata
+	CachedTags() map[string]string
+}
+
+type Base struct {
+	scope tally.Scope
+}
+
+func (b Base) Histogram(meta Metadata, name string, dur time.Duration) {
+	var tags map[string]string
+	if m, ok := meta.(CachedMetadata); ok {
+		tags = m.CachedTags()
+	} else {
+		tags = make(map[string]string, meta.NumTags())
+		meta.Tags(tags)
+	}
+	b.scope.Tagged(tags).Histogram(name, default1ms100sBuckets).RecordDuration(dur)
+}
+func (b Base) Count(meta Metadata, name string, num int) {
+	var tags map[string]string
+	if m, ok := meta.(CachedMetadata); ok {
+		tags = m.CachedTags()
+	} else {
+		tags = make(map[string]string, meta.NumTags())
+		meta.Tags(tags)
+	}
+	b.scope.Tagged(tags).Counter(name).Inc(int64(num))
+}
+
+// helper for making a CachedMetadata without a backing type
+type OnetimeMetric map[string]string
+
+var _ CachedMetadata = OnetimeMetric{}
+
+func (o OnetimeMetric) NumTags() int                  { return len(o) }
+func (o OnetimeMetric) Tags(into map[string]string)   { maps.Copy(into, o) }
+func (o OnetimeMetric) CachedTags() map[string]string { return o }
+
+// --- types defined elsewhere ---
+
+type Service struct {
+	Base
+	Hostname   string `tag:"host"`
+	RuntimeEnv string `tag:"env"`
+}
+
+type TasklistType int
+
+func (t TasklistType) String() string {
+	if t == 0 {
+		return "decision"
+	} else {
+		return "activity"
+	}
+}
+
+type ShardMetricData struct {
+	Service
+	Shard int          `tag:"shard"`
+	Type  TasklistType `tag:"tasklist_type" convert:"String()"`
+}
+
+// --- this type ---
+
+type ShardDomainMetric struct {
+	// parent thing, exposed for convenience, but it doesn't need to be...
+	// could generate private helpers if `parent Shard`?  though I guess it needs public stuff now...
+	ShardMetricData
+	Domain string // implied: tag:"domain", all fields can be private I think
+
+	// a way to reserve tags for the linter.
+	// theoretically takes no space, and often true in practice, but forces alignment(?) if last field.
+	Username struct{} `tag:"username"`
+
+	// populated if it exists, caches all values.
+	// should exist for things with emitting methods, but not required (and methods do not need to use)
+	cache map[string]string
+}
+
+// alert query:
+func (s ShardDomainMetric) ProcessingLatency(d time.Duration) {
+	s.Histogram(s, "name_with_domain", d)
+	// for rollup
+	s.Histogram(s.ShardMetricData, "name", d)
+}
+
+// for things that aren't worth storing because they don't re-emit anything.
+// ..... but this is still stored by tally, so it's far from free.
+func (s ShardDomainMetric) OneOffCustom(username string, incr int) {
+	tags := make(map[string]string, s.NumTags()+1)
+	s.Tags(tags)
+	tags["username"] = username
+	s.Count(OnetimeMetric(tags), "user_usage", incr)
+}
+
+// or for a fully dynamic value, where there's nothing useful to cache at this level,
+// but we still want a stable method for it.
+type DynamicMetric struct {
+	ShardDomainMetric  // parent
+	SomethingNotReused struct{}
+	// optional cache, if ShardDomain doesn't cache
+}
+
+func (d DynamicMetric) DynamicCount(value string, incr int) {
+	tags := make(map[string]string, d.NumTags()+1)
+	d.Tags(tags)
+	tags["value"] = value
+	d.Count(OnetimeMetric(tags), "value", incr)
+}
+
+// --- generated ---
+
+// intentionally breaks when new fields are added, so all call sites can be found
+func NewShardDomain(shard ShardMetricData, domain string) ShardDomainMetric {
+	s := ShardDomainMetric{
+		ShardMetricData: shard,
+		Domain:          domain,
+	}
+	// if cache field exists
+	s.cache = make(map[string]string, s.NumTags())
+	s.Tags(s.cache)
+
+	return s
+}
+
+func (s Service) NumTags() int {
+	return 2
+}
+func (s ShardMetricData) NumTags() int {
+	return 2 + s.Service.NumTags()
+}
+func (s ShardDomainMetric) NumTags() int {
+	return 1 + s.ShardMetricData.NumTags()
+}
+
+func (s Service) Tags(into map[string]string) {
+	into["host"] = s.Hostname
+	into["env"] = s.RuntimeEnv
+}
+func (s ShardMetricData) Tags(into map[string]string) {
+	s.Service.Tags(into)
+	into["shard"] = strconv.Itoa(s.Shard)
+	into["tasklist_type"] = s.Type.String()
+}
+
+func (s ShardDomainMetric) CachedTags() map[string]string {
+	return s.cache
+}
+func (s ShardDomainMetric) Tags(into map[string]string) {
+	s.ShardMetricData.Tags(into)
+	into["domain"] = s.Domain
+}
