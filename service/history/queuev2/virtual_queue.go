@@ -43,9 +43,18 @@ import (
 type (
 	VirtualQueue interface {
 		common.Daemon
+		// GetState return the current state of the virtual queue
 		GetState() []VirtualSliceState
+		// UpdateAndGetState update the state of the virtual queue and return the current state
 		UpdateAndGetState() []VirtualSliceState
+		// MergeSlices merge the incoming slices into the virtual queue
 		MergeSlices(...VirtualSlice)
+		// IterateSlices iterate over the slices in the virtual queue
+		IterateSlices(func(VirtualSlice))
+		// ClearSlices calls the Clear method of the slices that satisfy the predicate function
+		ClearSlices(func(VirtualSlice) bool)
+		// SplitSlices applies the split function to the slices in the virtual queue and return the remaining slices that should be kept in the virtual queue and whether the split is applied
+		SplitSlices(func(VirtualSlice) (remaining []VirtualSlice, split bool))
 	}
 
 	VirtualQueueOptions struct {
@@ -212,6 +221,56 @@ func (q *virtualQueueImpl) MergeSlices(incomingSlices ...VirtualSlice) {
 
 	q.virtualSlices.Init()
 	q.virtualSlices = mergedSlices
+	q.resetNextReadSliceLocked()
+}
+
+func (q *virtualQueueImpl) IterateSlices(f func(VirtualSlice)) {
+	q.RLock()
+	defer q.RUnlock()
+
+	for e := q.virtualSlices.Front(); e != nil; e = e.Next() {
+		f(e.Value.(VirtualSlice))
+	}
+}
+
+func (q *virtualQueueImpl) ClearSlices(f func(VirtualSlice) bool) {
+	q.Lock()
+	defer q.Unlock()
+
+	for e := q.virtualSlices.Front(); e != nil; e = e.Next() {
+		slice := e.Value.(VirtualSlice)
+		if f(slice) {
+			slice.Clear()
+			q.monitor.SetSlicePendingTaskCount(slice, slice.GetPendingTaskCount())
+		}
+	}
+
+	q.resetNextReadSliceLocked()
+}
+
+func (q *virtualQueueImpl) SplitSlices(f func(VirtualSlice) (remaining []VirtualSlice, split bool)) {
+	q.Lock()
+	defer q.Unlock()
+
+	remainingSlices := list.New()
+	for e := q.virtualSlices.Front(); e != nil; e = e.Next() {
+		slice := e.Value.(VirtualSlice)
+		remaining, split := f(slice)
+		if !split {
+			remainingSlices.PushBack(slice)
+			continue
+		}
+
+		q.monitor.RemoveSlice(slice)
+
+		for _, remainingSlice := range remaining {
+			remainingSlices.PushBack(remainingSlice)
+			q.monitor.SetSlicePendingTaskCount(remainingSlice, remainingSlice.GetPendingTaskCount())
+		}
+	}
+
+	q.virtualSlices.Init()
+	q.virtualSlices = remainingSlices
 	q.resetNextReadSliceLocked()
 }
 
