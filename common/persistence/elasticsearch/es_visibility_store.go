@@ -459,15 +459,17 @@ func (v *esVisibilityStore) ScanWorkflowExecutions(
 		}
 	}
 
-	resp, err := v.esClient.ScanByQuery(ctx, &es.ScanByQueryRequest{
+	scanRequest := &es.ScanByQueryRequest{
 		Index:         v.index,
 		Query:         queryDSL,
 		NextPageToken: request.NextPageToken,
 		PageSize:      request.PageSize,
-	})
+	}
+
+	resp, err := v.esClient.ScanByQuery(ctx, scanRequest)
 	if err != nil {
 		return nil, &types.InternalServiceError{
-			Message: fmt.Sprintf("ScanWorkflowExecutions failed, %v", err),
+			Message: fmt.Sprintf("ScanWorkflowExecutions failed: %v, scanRequest: %+v", err, scanRequest),
 		}
 	}
 	return resp, nil
