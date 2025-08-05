@@ -33,7 +33,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	f, err := parser.ParseFile(FSET, filename, SRC, parser.SkipObjectResolution)
+	f, err := parser.ParseFile(FSET, filename, SRC, parser.SkipObjectResolution|parser.ParseComments)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -52,6 +52,7 @@ func main() {
 	type named struct {
 		Name string
 		Node *ast.StructType
+		Skip map[string]bool
 	}
 	var interesting []named
 	// ast inspector just makes it easy to handle a stack and limited set of types without caring about depth.
@@ -65,6 +66,7 @@ func main() {
 	}, func(n ast.Node, push bool, stack []ast.Node) (proceed bool) {
 		var st *ast.StructType
 		var ts *ast.TypeSpec
+		skip := map[string]bool{}
 		switch n.(type) {
 		case *ast.FuncDecl, *ast.ValueSpec:
 			return false // can only be a func-internal or anonymous type, ignore and do not descend
@@ -81,12 +83,20 @@ func main() {
 				log.Println(notify(n, "warn: expected parent node of struct, must be a typespec: %T: %#v\n", parent, parent))
 				return false
 			}
+			decl, ok := stack[len(stack)-3].(*ast.GenDecl) // afaict always true
+			if ok {
+				comment := decl.Doc.Text()
+				skip["New"] = strings.Contains(comment, "skip:New")
+				skip["NumTags"] = strings.Contains(comment, "skip:NumTags")
+				skip["Tags"] = strings.Contains(comment, "skip:Tags")
+				skip["GetTags"] = strings.Contains(comment, "skip:GetTags")
+			}
 		}
 
 		if ts.Name == nil || ts.Name.Name == "" || !strings.HasSuffix(ts.Name.Name, "Tags") {
 			return false // uninteresting struct
 		}
-		interesting = append(interesting, named{ts.Name.Name, st})
+		interesting = append(interesting, named{ts.Name.Name, st, skip})
 
 		// no need to descend here either.
 		// we don't want nested types, and struct nodes are easy to navigate without recursion.
@@ -116,14 +126,18 @@ func main() {
 	}
 	type genable struct {
 		Name     string
+		Self     string
 		Fields   []genfield
 		Embeds   []embedfield
 		Reserved int
+		Skip     map[string]bool
 	}
 	var gen []genable
 	for _, s := range interesting {
 		g := genable{
 			Name: s.Name,
+			Skip: s.Skip,
+			Self: strings.ToLower(s.Name[0:1]),
 		}
 		for _, f := range s.Node.Fields.List {
 			switch len(f.Names) {
@@ -162,17 +176,17 @@ func main() {
 				convert := convertTag(f)
 				if strings.HasPrefix(convert, ".") {
 					// append it to the field access
-					convert = "self." + fname.Name + convert
+					convert = g.Self + "." + fname.Name + convert
 				}
 				if convert == "" && isInt(f.Type) {
 					needsFmt = true
 					convert = `fmt.Sprintf("%d", {{.}})`
 				}
 				if strings.Contains(convert, "{{.}}") {
-					convert = strings.ReplaceAll(convert, "{{.}}", "self."+fname.Name)
+					convert = strings.ReplaceAll(convert, "{{.}}", g.Self+"."+fname.Name)
 				}
 				if convert == "" {
-					convert = "self." + fname.Name
+					convert = g.Self + "." + fname.Name
 				}
 				g.Fields = append(g.Fields, genfield{
 					Name:     fname.Name,
@@ -186,11 +200,7 @@ func main() {
 				log.Fatalf(notify(f, "cannot have comma-separated fields as struct tags must be unique"))
 			}
 		}
-		if len(g.Fields) > 0 {
-			gen = append(gen, g)
-		} else {
-			log.Fatalf("nothing to gen? %#v", g)
-		}
+		gen = append(gen, g)
 	}
 
 	basename := strings.TrimSuffix(filename, ".go")
@@ -350,26 +360,32 @@ func getsource(node ast.Node) (path string, source string) {
 Sample:
 
 	func NewShardTasklistTags(ServiceTags ServiceTags, Shard int, Type TasklistType, ) ShardTasklistTags {
-	        res := ShardTasklistTags{
+	        s := ShardTasklistTags{
 	                Shard: Shard,
 	                Type: Type,
 	        }
-	        return res
+	        return s
 	}
 
-	func (self ShardTasklistTags) NumTags() int {
+	func (s ShardTasklistTags) NumTags() int {
 	        num := 2 // num of self fields
-	        num += self.ServiceTags.NumTags()
+	        num += s.ServiceTags.NumTags()
 	        return num
 	}
 
-	func (self ShardTasklistTags) Tags(into map[string]string) {
-	        self.ServiceTags.Tags(into)
-	        into["shard"] = fmt.Sprintf("%d", self.Shard)
-	        into["tasklist_type"] = self.Type.String()
+	func (s ShardTasklistTags) Tags(into map[string]string) {
+	        s.ServiceTags.Tags(into)
+	        into["shard"] = fmt.Sprintf("%d", s.Shard)
+	        into["tasklist_type"] = s.Type.String()
 	}
 */
+// $self is used instead of .Self because it gets lost when ranging
 var tmpl = template.Must(template.New("metrics").Parse(`
+{{- $self := .Self }}
+{{- if not .Skip.New }}
+// New{{.Name}} constructs a new metric-tag-holding {{.Name}}, and it must be used
+// instead of custom initialization to ensure newly added tags can be detected
+// at compile time instead of missing them at run time.
 func New{{.Name}}(
 	{{- range .Embeds }}
 		{{ .Name }} {{ .Type }},
@@ -378,7 +394,7 @@ func New{{.Name}}(
 		{{ .Name }} {{ .Type }},
 	{{- end }}
 ) {{ .Name }} {
-	res := {{ .Name }}{
+	{{$self}} := {{ .Name }}{
 		{{- range .Embeds }}
 			{{ .Name }}: {{ .Name }},
 		{{- end }}
@@ -386,24 +402,43 @@ func New{{.Name}}(
 			{{ .Name }}: {{ .Name }},
 		{{- end }}
 	}
-	return res
+	return {{$self}}
 }
+{{- end }}
 
-func (self {{.Name}}) NumTags() int {
+{{- if not .Skip.NumTags }}
+// NumTags returns the number of tags that are intended to be written in all
+// cases.  This will include all embedded parent tags and all reserved tags,
+// and is intended to be used to pre-allocate maps of tags.
+func ({{$self}} {{.Name}}) NumTags() int {
 	num := {{ .Fields | len }} // num of self fields 
 	num += {{ .Reserved }} // num of reserved fields
 	{{- range .Embeds }}
-		num += self.{{ .Name }}.NumTags()
+		num += {{$self}}.{{ .Name }}.NumTags()
 	{{- end }}
 	return num
 }
+{{- end }}
 
-func (self {{.Name}}) Tags(into map[string]string) {
+{{- if not .Skip.Tags }}
+// Tags writes this set of tags (and its embedded parents) to the passed map.
+func ({{$self}} {{.Name}}) Tags(into map[string]string) {
 	{{- range .Embeds }}
-	self.{{ .Name }}.Tags(into)
+	{{$self}}.{{ .Name }}.Tags(into)
 	{{- end }}
 	{{- range .Fields }}
 	into["{{.Tagname}}"] = {{ .Convert }} 
 	{{- end }}
 }
+{{- end }}
+
+{{- if not .Skip.GetTags }}
+// GetTags is a minor helper to get a pre-allocated-and-filled map with room
+// for reserved fields (i.e. 'struct{}' type fields, which only declare intent).
+func ({{$self}} {{.Name}}) GetTags() map[string]string {
+	tags := make(map[string]string, {{$self}}.NumTags())
+	{{$self}}.Tags(tags)
+	return tags
+}
+{{- end }}
 `))
