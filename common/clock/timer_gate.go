@@ -56,11 +56,7 @@ func NewTimerGate(timeSource TimeSource) TimerGate {
 		timeSource: timeSource,
 	}
 	// the timer should be stopped when initialized
-	if !t.timer.Stop() {
-		// drain the existing signal if exist
-		// TODO: the drain can be removed after go 1.23
-		<-t.timer.Chan()
-	}
+	t.timer.Stop()
 	return t
 }
 
@@ -79,11 +75,6 @@ func (t *timerGateImpl) Stop() {
 	defer t.Unlock()
 	t.fireTime = time.Time{}
 	t.timer.Stop()
-	// TODO: the drain can be removed after go 1.23
-	select {
-	case <-t.timer.Chan():
-	default:
-	}
 }
 
 func (t *timerGateImpl) Update(fireTime time.Time) bool {
@@ -96,11 +87,7 @@ func (t *timerGateImpl) Update(fireTime time.Time) bool {
 			return false
 		}
 	}
-	// TODO: the drain can be removed after go 1.23
-	select {
-	case <-t.timer.Chan():
-	default:
-	}
+
 	// this means the timer, before stopped, is active && next wake up time has to be updated
 	// or this means the timer, before stopped, is already fired / never active
 	t.fireTime = fireTime
