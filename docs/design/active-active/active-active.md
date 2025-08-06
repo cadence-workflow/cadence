@@ -495,6 +495,10 @@ history.enableTimerQueueV2:
   - value: true
 ```
 
+- **Cassandra dependency:** Cassandra is the only supported persistence store for active-active domains.
+This is because the new entity region lookup table is stored in Cassandra.
+This is a temporary limitation and we will support other persistence stores in the future.
+
 - **Workflow id conflict:** Multiple clusters can start workflows independently with the same workflow id. This can lead to conflicts in active-active mode.
 Conflict resolution mechanism should take care of this by terminating one of the workflows.
 
