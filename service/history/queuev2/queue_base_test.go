@@ -178,7 +178,7 @@ func TestQueueBase_UpdateQueueState(t *testing.T) {
 		initialVirtualSliceState  VirtualSliceState
 		expectedExclusiveAckLevel persistence.HistoryTaskKey
 		expectError               bool
-		setupMocks                func(*gomock.Controller) (*shard.MockContext, *task.MockProcessor, clock.TimeSource, *MockVirtualQueueManager)
+		setupMocks                func(*gomock.Controller) (*shard.MockContext, *task.MockProcessor, clock.TimeSource, *MockVirtualQueueManager, *MockMonitor, *MockMitigator)
 	}{
 		{
 			name:                     "Successfully update queue state with new ack level",
@@ -193,13 +193,16 @@ func TestQueueBase_UpdateQueueState(t *testing.T) {
 			},
 			expectedExclusiveAckLevel: persistence.NewImmediateTaskKey(200),
 			expectError:               false,
-			setupMocks: func(ctrl *gomock.Controller) (*shard.MockContext, *task.MockProcessor, clock.TimeSource, *MockVirtualQueueManager) {
+			setupMocks: func(ctrl *gomock.Controller) (*shard.MockContext, *task.MockProcessor, clock.TimeSource, *MockVirtualQueueManager, *MockMonitor, *MockMitigator) {
 				mockShard := shard.NewMockContext(ctrl)
 				mockTaskProcessor := task.NewMockProcessor(ctrl)
 				mockTimeSource := clock.NewMockedTimeSource()
 				mockVirtualQueueManager := NewMockVirtualQueueManager(ctrl)
 				mockExecutionManager := persistence.NewMockExecutionManager(ctrl)
+				mockMonitor := NewMockMonitor(ctrl)
+				mockMitigator := NewMockMitigator(ctrl)
 
+				mockMonitor.EXPECT().GetTotalPendingTaskCount().Return(100).Times(1)
 				mockShard.EXPECT().GetExecutionManager().Return(mockExecutionManager).AnyTimes()
 				mockExecutionManager.EXPECT().RangeCompleteHistoryTask(gomock.Any(), &persistence.RangeCompleteHistoryTaskRequest{
 					TaskCategory:        persistence.HistoryTaskCategoryTransfer,
@@ -226,7 +229,7 @@ func TestQueueBase_UpdateQueueState(t *testing.T) {
 					},
 				})
 
-				return mockShard, mockTaskProcessor, mockTimeSource, mockVirtualQueueManager
+				return mockShard, mockTaskProcessor, mockTimeSource, mockVirtualQueueManager, mockMonitor, mockMitigator
 			},
 		},
 		{
@@ -242,13 +245,16 @@ func TestQueueBase_UpdateQueueState(t *testing.T) {
 			},
 			expectedExclusiveAckLevel: persistence.NewImmediateTaskKey(100),
 			expectError:               true,
-			setupMocks: func(ctrl *gomock.Controller) (*shard.MockContext, *task.MockProcessor, clock.TimeSource, *MockVirtualQueueManager) {
+			setupMocks: func(ctrl *gomock.Controller) (*shard.MockContext, *task.MockProcessor, clock.TimeSource, *MockVirtualQueueManager, *MockMonitor, *MockMitigator) {
 				mockShard := shard.NewMockContext(ctrl)
 				mockTaskProcessor := task.NewMockProcessor(ctrl)
 				mockTimeSource := clock.NewMockedTimeSource()
 				mockVirtualQueueManager := NewMockVirtualQueueManager(ctrl)
 				mockExecutionManager := persistence.NewMockExecutionManager(ctrl)
+				mockMonitor := NewMockMonitor(ctrl)
+				mockMitigator := NewMockMitigator(ctrl)
 
+				mockMonitor.EXPECT().GetTotalPendingTaskCount().Return(100).Times(1)
 				mockShard.EXPECT().GetExecutionManager().Return(mockExecutionManager).AnyTimes()
 				mockExecutionManager.EXPECT().RangeCompleteHistoryTask(gomock.Any(), &persistence.RangeCompleteHistoryTaskRequest{
 					TaskCategory:        persistence.HistoryTaskCategoryTransfer,
@@ -269,7 +275,7 @@ func TestQueueBase_UpdateQueueState(t *testing.T) {
 					},
 				})
 
-				return mockShard, mockTaskProcessor, mockTimeSource, mockVirtualQueueManager
+				return mockShard, mockTaskProcessor, mockTimeSource, mockVirtualQueueManager, mockMonitor, mockMitigator
 			},
 		},
 		{
@@ -285,12 +291,15 @@ func TestQueueBase_UpdateQueueState(t *testing.T) {
 			},
 			expectedExclusiveAckLevel: persistence.NewImmediateTaskKey(100),
 			expectError:               false,
-			setupMocks: func(ctrl *gomock.Controller) (*shard.MockContext, *task.MockProcessor, clock.TimeSource, *MockVirtualQueueManager) {
+			setupMocks: func(ctrl *gomock.Controller) (*shard.MockContext, *task.MockProcessor, clock.TimeSource, *MockVirtualQueueManager, *MockMonitor, *MockMitigator) {
 				mockShard := shard.NewMockContext(ctrl)
 				mockTaskProcessor := task.NewMockProcessor(ctrl)
 				mockTimeSource := clock.NewMockedTimeSource()
 				mockVirtualQueueManager := NewMockVirtualQueueManager(ctrl)
+				mockMonitor := NewMockMonitor(ctrl)
+				mockMitigator := NewMockMitigator(ctrl)
 
+				mockMonitor.EXPECT().GetTotalPendingTaskCount().Return(100).Times(1)
 				mockShard.EXPECT().UpdateQueueState(
 					persistence.HistoryTaskCategoryTransfer,
 					gomock.Any(),
@@ -308,7 +317,7 @@ func TestQueueBase_UpdateQueueState(t *testing.T) {
 					},
 				})
 
-				return mockShard, mockTaskProcessor, mockTimeSource, mockVirtualQueueManager
+				return mockShard, mockTaskProcessor, mockTimeSource, mockVirtualQueueManager, mockMonitor, mockMitigator
 			},
 		},
 		{
@@ -324,12 +333,15 @@ func TestQueueBase_UpdateQueueState(t *testing.T) {
 			},
 			expectedExclusiveAckLevel: persistence.NewImmediateTaskKey(200),
 			expectError:               true,
-			setupMocks: func(ctrl *gomock.Controller) (*shard.MockContext, *task.MockProcessor, clock.TimeSource, *MockVirtualQueueManager) {
+			setupMocks: func(ctrl *gomock.Controller) (*shard.MockContext, *task.MockProcessor, clock.TimeSource, *MockVirtualQueueManager, *MockMonitor, *MockMitigator) {
 				mockShard := shard.NewMockContext(ctrl)
 				mockTaskProcessor := task.NewMockProcessor(ctrl)
 				mockTimeSource := clock.NewMockedTimeSource()
 				mockVirtualQueueManager := NewMockVirtualQueueManager(ctrl)
+				mockMonitor := NewMockMonitor(ctrl)
+				mockMitigator := NewMockMitigator(ctrl)
 
+				mockMonitor.EXPECT().GetTotalPendingTaskCount().Return(100).Times(1)
 				mockShard.EXPECT().UpdateQueueState(
 					persistence.HistoryTaskCategoryTransfer,
 					gomock.Any(),
@@ -347,7 +359,7 @@ func TestQueueBase_UpdateQueueState(t *testing.T) {
 					},
 				})
 
-				return mockShard, mockTaskProcessor, mockTimeSource, mockVirtualQueueManager
+				return mockShard, mockTaskProcessor, mockTimeSource, mockVirtualQueueManager, mockMonitor, mockMitigator
 			},
 		},
 	}
@@ -357,7 +369,7 @@ func TestQueueBase_UpdateQueueState(t *testing.T) {
 			// Setup
 			ctrl := gomock.NewController(t)
 
-			mockShard, mockTaskProcessor, mockTimeSource, mockVirtualQueueManager := tt.setupMocks(ctrl)
+			mockShard, mockTaskProcessor, mockTimeSource, mockVirtualQueueManager, mockMonitor, mockMitigator := tt.setupMocks(ctrl)
 
 			queueBase := &queueBase{
 				shard:                 mockShard,
@@ -367,7 +379,8 @@ func TestQueueBase_UpdateQueueState(t *testing.T) {
 				logger:                testlogger.New(t),
 				category:              tt.category,
 				timeSource:            mockTimeSource,
-				monitor:               NewMonitor(tt.category),
+				monitor:               mockMonitor,
+				mitigator:             mockMitigator,
 				virtualQueueManager:   mockVirtualQueueManager,
 				exclusiveAckLevel:     tt.initialExclusiveAckLevel,
 				newVirtualSliceState:  tt.initialVirtualSliceState,
@@ -397,6 +410,7 @@ func TestQueueBase_HandleAlert(t *testing.T) {
 	mockTaskProcessor := task.NewMockProcessor(ctrl)
 	mockTimeSource := clock.NewMockedTimeSource()
 	mockVirtualQueueManager := NewMockVirtualQueueManager(ctrl)
+	mockMonitor := NewMockMonitor(ctrl)
 	mockMitigator := NewMockMitigator(ctrl)
 	mockMitigator.EXPECT().Mitigate(Alert{AlertType: AlertTypeQueuePendingTaskCount})
 
@@ -409,7 +423,7 @@ func TestQueueBase_HandleAlert(t *testing.T) {
 		logger:              testlogger.New(t),
 		category:            persistence.HistoryTaskCategoryTransfer,
 		timeSource:          mockTimeSource,
-		monitor:             NewMonitor(persistence.HistoryTaskCategoryTransfer),
+		monitor:             mockMonitor,
 		mitigator:           mockMitigator,
 		virtualQueueManager: mockVirtualQueueManager,
 		exclusiveAckLevel:   persistence.NewImmediateTaskKey(100),

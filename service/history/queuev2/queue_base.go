@@ -56,6 +56,10 @@ type (
 		MaxPendingTasksCount                 dynamicproperties.IntPropertyFn
 		PollBackoffInterval                  dynamicproperties.DurationPropertyFn
 		PollBackoffIntervalJitterCoefficient dynamicproperties.FloatPropertyFn
+		// monitor & mitigator options
+		CriticalPendingTaskCount    dynamicproperties.IntPropertyFn
+		EnablePendingTaskCountAlert func() bool
+		MaxVirtualQueueCount        dynamicproperties.IntPropertyFn
 
 		EnableValidator        dynamicproperties.BoolPropertyFn
 		ValidationInterval     dynamicproperties.DurationPropertyFn
@@ -137,8 +141,13 @@ func newQueueBase(
 		shard,
 		category,
 	)
-	monitor := NewMonitor(category)
-	mitigator := NewMitigator(monitor, logger, metricsScope)
+	monitor := NewMonitor(
+		category,
+		&MonitorOptions{
+			CriticalPendingTaskCount:    options.CriticalPendingTaskCount,
+			EnablePendingTaskCountAlert: options.EnablePendingTaskCountAlert,
+		},
+	)
 	virtualQueueManager := NewVirtualQueueManager(
 		taskProcessor,
 		redispatcher,
@@ -156,6 +165,15 @@ func newQueueBase(
 			PollBackoffIntervalJitterCoefficient: options.PollBackoffIntervalJitterCoefficient,
 		},
 		queueState.VirtualQueueStates,
+	)
+	mitigator := NewMitigator(
+		virtualQueueManager,
+		monitor,
+		logger,
+		metricsScope,
+		&MitigatorOptions{
+			MaxVirtualQueueCount: options.MaxVirtualQueueCount,
+		},
 	)
 	q := &queueBase{
 		shard:               shard,

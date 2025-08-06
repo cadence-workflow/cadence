@@ -964,6 +964,7 @@ const (
 	// Allowed filters: N/A
 	QueueProcessorSplitMaxLevel
 	QueueMaxPendingTaskCount
+	QueueCriticalPendingTaskCount
 	// TimerTaskBatchSize is batch size for timer processor to process tasks
 	// KeyName: history.timerTaskBatchSize
 	// Value type: Int
@@ -1512,6 +1513,8 @@ const (
 	// Value type: Int
 	// Default value: 30
 	DeleteHistoryEventContextTimeout
+
+	QueueMaxVirtualQueueCount
 
 	// LastIntKey must be the last one in this const group
 	LastIntKey
@@ -2101,6 +2104,8 @@ const (
 
 	EnableTransferQueueV2
 	EnableTimerQueueV2
+	EnableTransferQueueV2PendingTaskCountAlert
+	EnableTimerQueueV2PendingTaskCountAlert
 
 	// LastBoolKey must be the last one in this const group
 	LastBoolKey
@@ -3554,6 +3559,11 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "QueueMaxPendingTaskCount is the max number of pending tasks in the queue",
 		DefaultValue: 10000,
 	},
+	QueueCriticalPendingTaskCount: {
+		KeyName:      "history.queueCriticalPendingTaskCount",
+		Description:  "QueueCriticalPendingTaskCount is the critical pending task count for the queue, which is supposed to be less than QueueMaxPendingTaskCount",
+		DefaultValue: 9000,
+	},
 	TimerTaskBatchSize: {
 		KeyName:      "history.timerTaskBatchSize",
 		Description:  "TimerTaskBatchSize is batch size for timer processor to process tasks",
@@ -4018,10 +4028,15 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "The number of attempts to push Isolation group configuration to the config store",
 		DefaultValue: 2,
 	},
-	DeleteHistoryEventContextTimeout: DynamicInt{
+	DeleteHistoryEventContextTimeout: {
 		KeyName:      "system.deleteHistoryEventContextTimeout",
 		Description:  "This is the number of seconds allowed for a deleteHistoryEvent task to the database",
 		DefaultValue: 30,
+	},
+	QueueMaxVirtualQueueCount: {
+		KeyName:      "history.queueMaxVirtualQueueCount",
+		Description:  "QueueMaxVirtualQueueCount is the max number of virtual queues",
+		DefaultValue: 2,
 	},
 }
 
@@ -4613,6 +4628,18 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	EnableTimerQueueV2: {
 		KeyName:      "history.enableTimerQueueV2",
 		Description:  "EnableTimerQueueV2 is to enable timer queue v2",
+		Filters:      []Filter{ShardID},
+		DefaultValue: false,
+	},
+	EnableTransferQueueV2PendingTaskCountAlert: {
+		KeyName:      "history.enableTransferQueueV2PendingTaskCountAlert",
+		Description:  "EnableTransferQueueV2PendingTaskCountAlert is to enable transfer queue v2 pending task count alert",
+		Filters:      []Filter{ShardID},
+		DefaultValue: false,
+	},
+	EnableTimerQueueV2PendingTaskCountAlert: {
+		KeyName:      "history.enableTimerQueueV2PendingTaskCountAlert",
+		Description:  "EnableTimerQueueV2PendingTaskCountAlert is to enable timer queue v2 pending task count alert",
 		Filters:      []Filter{ShardID},
 		DefaultValue: false,
 	},

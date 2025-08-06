@@ -1211,3 +1211,7 @@ func PendingTaskCount(count int) Tag {
 func VirtualQueueID(id int64) Tag {
 	return newInt64("virtual-queue-id", id)
 }
+
+func AlertType(alertType int) Tag {
+	return newInt("alert-type", alertType)
+}

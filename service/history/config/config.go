@@ -112,9 +112,13 @@ type Config struct {
 	ResurrectionCheckMinDelay                dynamicproperties.DurationPropertyFnWithDomainFilter
 
 	// History Queue (v2) settings
-	EnableTimerQueueV2       dynamicproperties.BoolPropertyFnWithShardIDFilter
-	EnableTransferQueueV2    dynamicproperties.BoolPropertyFnWithShardIDFilter
-	QueueMaxPendingTaskCount dynamicproperties.IntPropertyFn
+	EnableTimerQueueV2                         dynamicproperties.BoolPropertyFnWithShardIDFilter
+	EnableTransferQueueV2                      dynamicproperties.BoolPropertyFnWithShardIDFilter
+	QueueMaxPendingTaskCount                   dynamicproperties.IntPropertyFn
+	EnableTimerQueueV2PendingTaskCountAlert    dynamicproperties.BoolPropertyFnWithShardIDFilter
+	EnableTransferQueueV2PendingTaskCountAlert dynamicproperties.BoolPropertyFnWithShardIDFilter
+	QueueCriticalPendingTaskCount              dynamicproperties.IntPropertyFn
+	QueueMaxVirtualQueueCount                  dynamicproperties.IntPropertyFn
 
 	// QueueProcessor settings
 	QueueProcessorEnableSplit                          dynamicproperties.BoolPropertyFn
@@ -406,7 +410,13 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		EnableDropStuckTaskByDomainID:            dc.GetBoolPropertyFilteredByDomainID(dynamicproperties.EnableDropStuckTaskByDomainID),
 		ResurrectionCheckMinDelay:                dc.GetDurationPropertyFilteredByDomain(dynamicproperties.ResurrectionCheckMinDelay),
 
-		QueueMaxPendingTaskCount: dc.GetIntProperty(dynamicproperties.QueueMaxPendingTaskCount),
+		EnableTimerQueueV2:                         dc.GetBoolPropertyFilteredByShardID(dynamicproperties.EnableTimerQueueV2),
+		EnableTransferQueueV2:                      dc.GetBoolPropertyFilteredByShardID(dynamicproperties.EnableTransferQueueV2),
+		QueueMaxPendingTaskCount:                   dc.GetIntProperty(dynamicproperties.QueueMaxPendingTaskCount),
+		EnableTimerQueueV2PendingTaskCountAlert:    dc.GetBoolPropertyFilteredByShardID(dynamicproperties.EnableTimerQueueV2PendingTaskCountAlert),
+		EnableTransferQueueV2PendingTaskCountAlert: dc.GetBoolPropertyFilteredByShardID(dynamicproperties.EnableTransferQueueV2PendingTaskCountAlert),
+		QueueCriticalPendingTaskCount:              dc.GetIntProperty(dynamicproperties.QueueCriticalPendingTaskCount),
+		QueueMaxVirtualQueueCount:                  dc.GetIntProperty(dynamicproperties.QueueMaxVirtualQueueCount),
 
 		QueueProcessorEnableSplit:                          dc.GetBoolProperty(dynamicproperties.QueueProcessorEnableSplit),
 		QueueProcessorSplitMaxLevel:                        dc.GetIntProperty(dynamicproperties.QueueProcessorSplitMaxLevel),
@@ -442,7 +452,6 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		TimerProcessorHistoryArchivalSizeLimit:               dc.GetIntProperty(dynamicproperties.TimerProcessorHistoryArchivalSizeLimit),
 		TimerProcessorArchivalTimeLimit:                      dc.GetDurationProperty(dynamicproperties.TimerProcessorArchivalTimeLimit),
 		DisableTimerFailoverQueue:                            dc.GetBoolProperty(dynamicproperties.DisableTimerFailoverQueue),
-		EnableTimerQueueV2:                                   dc.GetBoolPropertyFilteredByShardID(dynamicproperties.EnableTimerQueueV2),
 		TransferTaskBatchSize:                                dc.GetIntProperty(dynamicproperties.TransferTaskBatchSize),
 		TransferTaskDeleteBatchSize:                          dc.GetIntProperty(dynamicproperties.TransferTaskDeleteBatchSize),
 		TransferProcessorFailoverMaxStartJitterInterval:      dc.GetDurationProperty(dynamicproperties.TransferProcessorFailoverMaxStartJitterInterval),
@@ -461,7 +470,6 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		TransferProcessorValidationInterval:                  dc.GetDurationProperty(dynamicproperties.TransferProcessorValidationInterval),
 		TransferProcessorVisibilityArchivalTimeLimit:         dc.GetDurationProperty(dynamicproperties.TransferProcessorVisibilityArchivalTimeLimit),
 		DisableTransferFailoverQueue:                         dc.GetBoolProperty(dynamicproperties.DisableTransferFailoverQueue),
-		EnableTransferQueueV2:                                dc.GetBoolPropertyFilteredByShardID(dynamicproperties.EnableTransferQueueV2),
 
 		ReplicatorTaskDeleteBatchSize:          dc.GetIntProperty(dynamicproperties.ReplicatorTaskDeleteBatchSize),
 		ReplicatorReadTaskMaxRetryCount:        dc.GetIntProperty(dynamicproperties.ReplicatorReadTaskMaxRetryCount),
