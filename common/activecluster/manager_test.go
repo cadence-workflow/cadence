@@ -804,6 +804,34 @@ func TestLookupWorkflow(t *testing.T) {
 			},
 		},
 		{
+			name: "domain is active-active, activeness metadata shows region sticky. domain is failed over to cluster1",
+			activeClusterCfg: &types.ActiveClusters{
+				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+					// both regions have cluster1 as active cluster
+					"us-west": {
+						ActiveClusterName: "cluster1",
+						FailoverVersion:   3,
+					},
+					"us-east": {
+						ActiveClusterName: "cluster1",
+						FailoverVersion:   3,
+					},
+				},
+			},
+			mockFn: func(em *persistence.MockExecutionManager) {
+				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&types.ActiveClusterSelectionPolicy{
+						ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
+						StickyRegion:                   "us-west",
+					}, nil)
+			},
+			expectedResult: &LookupResult{
+				Region:          "us-west",
+				ClusterName:     "cluster1",
+				FailoverVersion: 3,
+			},
+		},
+		{
 			name: "domain is active-active, activeness metadata shows external entity",
 			activeClusterCfg: &types.ActiveClusters{
 				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
@@ -877,6 +905,137 @@ func TestLookupWorkflow(t *testing.T) {
 			assert.NoError(t, err)
 
 			result, err := mgr.LookupWorkflow(context.Background(), "test-domain-id", wfID, "test-run-id")
+			if tc.expectedError != "" {
+				assert.EqualError(t, err, tc.expectedError)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			if tc.expectedResult != nil {
+				if result == nil {
+					t.Fatalf("expected result not nil, got nil")
+				}
+				assert.Equal(t, tc.expectedResult, result)
+			}
+		})
+	}
+}
+
+func TestLookupCluster(t *testing.T) {
+	metricsCl := metrics.NewNoopMetricsClient()
+	logger := log.NewNoop()
+	clusterMetadata := cluster.NewMetadata(
+		config.ClusterGroupMetadata{
+			ClusterGroup: map[string]config.ClusterInformation{
+				"cluster0": {
+					InitialFailoverVersion: 1,
+					Region:                 "us-west",
+				},
+				"cluster1": {
+					InitialFailoverVersion: 3,
+					Region:                 "us-east",
+				},
+			},
+			Regions: map[string]config.RegionInformation{
+				"us-west": {
+					InitialFailoverVersion: 0,
+				},
+				"us-east": {
+					InitialFailoverVersion: 2,
+				},
+			},
+			FailoverVersionIncrement: 100,
+			CurrentClusterName:       "cluster0",
+		},
+		func(d string) bool { return false },
+		metricsCl,
+		logger,
+	)
+
+	tests := []struct {
+		name             string
+		activeClusterCfg *types.ActiveClusters
+		clusterName      string
+		expectedResult   *LookupResult
+		expectedError    string
+	}{
+		{
+			name:          "cluster not found",
+			clusterName:   "cluster5",
+			expectedError: "could not find cluster cluster5",
+		},
+		{
+			name:        "domain is not active-active",
+			clusterName: "cluster0",
+			expectedResult: &LookupResult{
+				ClusterName:     "cluster0",
+				FailoverVersion: 1,
+				Region:          "us-west",
+			},
+		},
+		{
+			name: "domain is active-active, given cluster is active cluster in the same region",
+			activeClusterCfg: &types.ActiveClusters{
+				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+					"us-west": {
+						ActiveClusterName: "cluster0",
+						FailoverVersion:   1,
+					},
+					"us-east": {
+						ActiveClusterName: "cluster1",
+						FailoverVersion:   3,
+					},
+				},
+			},
+			clusterName: "cluster0",
+			expectedResult: &LookupResult{
+				ClusterName:     "cluster0",
+				FailoverVersion: 1,
+				Region:          "us-west",
+			},
+		},
+		{
+			name: "domain is active-active, another cluster is active cluster in the same region",
+			activeClusterCfg: &types.ActiveClusters{
+				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+					"us-west": {
+						ActiveClusterName: "cluster1",
+						FailoverVersion:   3,
+					},
+					"us-east": {
+						ActiveClusterName: "cluster1",
+						FailoverVersion:   3,
+					},
+				},
+			},
+			clusterName: "cluster0",
+			expectedResult: &LookupResult{
+				ClusterName:     "cluster1",
+				FailoverVersion: 3,
+				Region:          "us-west",
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			domainIDToDomainFn := func(id string) (*cache.DomainCacheEntry, error) {
+				return getDomainCacheEntry(tc.activeClusterCfg, false), nil
+			}
+
+			mgr, err := NewManager(
+				domainIDToDomainFn,
+				clusterMetadata,
+				metricsCl,
+				logger,
+				nil,
+				nil,
+				1,
+				WithTimeSource(clock.NewMockedTimeSource()),
+			)
+			assert.NoError(t, err)
+
+			result, err := mgr.LookupCluster(context.Background(), "test-domain-id", tc.clusterName)
 			if tc.expectedError != "" {
 				assert.EqualError(t, err, tc.expectedError)
 			} else {
