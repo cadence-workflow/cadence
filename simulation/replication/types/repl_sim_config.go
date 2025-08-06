@@ -81,6 +81,7 @@ type Operation struct {
 	WorkflowExecutionStartToCloseTimeout time.Duration `yaml:"workflowExecutionStartToCloseTimeout"`
 	WorkflowDuration                     time.Duration `yaml:"workflowDuration"`
 	ActivityCount                        int           `yaml:"activityCount"`
+	DelayStartSeconds                    int32         `yaml:"delayStartSeconds"`
 
 	Query            string `yaml:"query"`
 	ConsistencyLevel string `yaml:"consistencyLevel"`

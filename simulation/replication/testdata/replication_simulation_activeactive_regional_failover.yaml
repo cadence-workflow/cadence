@@ -18,37 +18,17 @@ domains:
       region1: cluster1
 
 operations:
-  # start workflow in cluster0
+  # Start wf1 on cluster0 before failover. It should start in cluster0 and complete in cluster1.
   - op: start_workflow
     at: 0s
     workflowID: wf1
     workflowType: timer-activity-loop-workflow
     cluster: cluster0
     domain: test-domain-aa
-    workflowExecutionStartToCloseTimeout: 65s
+    workflowExecutionStartToCloseTimeout: 45s
     workflowDuration: 35s
-
-  # start workflow in cluster1
-  - op: start_workflow
-    at: 0s
-    workflowID: wf2
-    workflowType: timer-activity-loop-workflow
-    cluster: cluster1
-    domain: test-domain-aa
-    workflowExecutionStartToCloseTimeout: 65s
-    workflowDuration: 35s
-
-  # failover from cluster0 to cluster1
-  - op: change_active_clusters
-    at: 20s
-    domain: test-domain-aa
-    newActiveClustersByRegion:
-      region0: cluster1 # this is changed from cluster0 to cluster1
-      region1: cluster1
-
-  # validate that wf1 is started in cluster0 and completed in cluster1
   - op: validate
-    at: 70s
+    at: 60s
     workflowID: wf1
     cluster: cluster0
     domain: test-domain-aa
@@ -57,11 +37,121 @@ operations:
       startedByWorkersInCluster: cluster0
       completedByWorkersInCluster: cluster1
 
-  # validate that wf2 is started and completed in cluster1
+  # Failover from cluster0 to cluster1
+  - op: change_active_clusters
+    at: 10s
+    domain: test-domain-aa
+    newActiveClustersByRegion:
+      region0: cluster1 # this is changed from cluster0 to cluster1
+      region1: cluster1
+
+  # Start wf2 on cluster0 at the same time as failover. It will be started by cluster0 workers and completed by cluster1 workers.
+  - op: start_workflow
+    at: 10s
+    workflowID: wf2
+    workflowType: timer-activity-loop-workflow
+    cluster: cluster0
+    domain: test-domain-aa
+    workflowExecutionStartToCloseTimeout: 45s
+    workflowDuration: 35s
   - op: validate
     at: 70s
     workflowID: wf2
-    cluster: cluster1
+    cluster: cluster0
+    domain: test-domain-aa
+    want:
+      status: completed
+      startedByWorkersInCluster: cluster0
+      completedByWorkersInCluster: cluster1
+
+  # Start a few more workflows on cluster0 right at/after failover time with 10s delay start.
+  # They will be processed by cluster1 workers.
+  - op: start_workflow
+    at: 10s
+    workflowID: wf3
+    workflowType: timer-activity-loop-workflow
+    cluster: cluster0
+    domain: test-domain-aa
+    workflowExecutionStartToCloseTimeout: 45s
+    workflowDuration: 35s
+    delayStartSeconds: 10
+  - op: validate
+    at: 70s
+    workflowID: wf3
+    cluster: cluster0
+    domain: test-domain-aa
+    want:
+      status: completed
+      startedByWorkersInCluster: cluster1
+      completedByWorkersInCluster: cluster1
+  - op: start_workflow
+    at: 11s
+    workflowID: wf4
+    workflowType: timer-activity-loop-workflow
+    cluster: cluster0
+    domain: test-domain-aa
+    workflowExecutionStartToCloseTimeout: 45s
+    workflowDuration: 35s
+    delayStartSeconds: 10
+  - op: validate
+    at: 71s
+    workflowID: wf4
+    cluster: cluster0
+    domain: test-domain-aa
+    want:
+      status: completed
+      startedByWorkersInCluster: cluster1
+      completedByWorkersInCluster: cluster1
+  - op: start_workflow
+    at: 12s
+    workflowID: wf5
+    workflowType: timer-activity-loop-workflow
+    cluster: cluster0
+    domain: test-domain-aa
+    workflowExecutionStartToCloseTimeout: 45s
+    workflowDuration: 35s
+    delayStartSeconds: 10
+  - op: validate
+    at: 72s
+    workflowID: wf5
+    cluster: cluster0
+    domain: test-domain-aa
+    want:
+      status: completed
+      startedByWorkersInCluster: cluster1
+      completedByWorkersInCluster: cluster1
+  - op: start_workflow
+    at: 13s
+    workflowID: wf6
+    workflowType: timer-activity-loop-workflow
+    cluster: cluster0
+    domain: test-domain-aa
+    workflowExecutionStartToCloseTimeout: 45s
+    workflowDuration: 35s
+    delayStartSeconds: 10
+  - op: validate
+    at: 73s
+    workflowID: wf6
+    cluster: cluster0
+    domain: test-domain-aa
+    want:
+      status: completed
+      startedByWorkersInCluster: cluster1
+      completedByWorkersInCluster: cluster1
+
+  # Start a workflow on cluster0 after domain cache is updated (failover time + 10s refresh interval). Request should be forwarded to cluster1.
+  - op: start_workflow
+    at: 25s
+    workflowID: wf7
+    workflowType: timer-activity-loop-workflow
+    cluster: cluster0
+    domain: test-domain-aa
+    workflowExecutionStartToCloseTimeout: 45s
+    workflowDuration: 35s
+  - op: validate
+    at: 75s
+    workflowID: wf7
+    cluster: cluster0
     domain: test-domain-aa
     want:
       status: completed

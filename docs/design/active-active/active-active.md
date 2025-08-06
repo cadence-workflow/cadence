@@ -485,12 +485,24 @@ Below is a list of limitations of active-active domains.
 This is to avoid mixing tasklists of a domain with active and passive tasks. Instead, workflows will resume processing after failover by relying on decision/activity timeout tasks.
 Misconfigured (very high) timeout values can lead to workflows not being processed for a long time which is already a risk in active-passive mode.
 
+- **History Queue V2 dependency:** History Queue V2 must be enabled in the cluster to be able to use active-active domains.
+Legacy queue implementation is not handling initial backoff timer tasks correctly for active-active domains. See comments in `allocateTimerIDsLocked`.
+V2 queues can be enabled via dynamic config.
+```
+history.enableTransferQueueV2:
+  - value: true
+history.enableTimerQueueV2:
+  - value: true
+```
+
 - **Workflow id conflict:** Multiple clusters can start workflows independently with the same workflow id. This can lead to conflicts in active-active mode.
 Conflict resolution mechanism should take care of this by terminating one of the workflows.
 
+- **Graceful failover:** Graceful failover is not supported for active-active domains. It is not a mode that is frequently used for active-passive domains either.
+
 - **External entity cardinality:** All cadence frontend and history services will have to make quick decisions on which cluster a workflow is active in. This requires caching all the domain data (already done for active-passive domains) and also caching the new entity region lookup table. This cache should be manageable in terms of memory usage so there will be a limit to the number of entities. Actual limit is going to be configurable based on available memory but ideally it should be in the order of thousands.
 
-- **Graceful failover:** Graceful failover is not supported for active-active domains. It is not a mode that is frequently used for active-passive domains either.
+
 
 ## Defining a new external entity type
 

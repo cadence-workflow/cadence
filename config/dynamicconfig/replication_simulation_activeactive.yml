@@ -16,3 +16,7 @@ history.standbyTaskMissingEventsDiscardDelay:
   - value: 10s
 history.standbyClusterDelay:
   - value: 10s
+history.enableTransferQueueV2:
+  - value: true
+history.enableTimerQueueV2:
+  - value: true

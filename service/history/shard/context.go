@@ -1290,7 +1290,6 @@ func (s *contextImpl) allocateTransferIDsLocked(
 // NOTE: allocateTimerIDsLocked should always been called after assigning taskID for transferTasks when assigning taskID together,
 // because Cadence Indexer assume timer taskID of deleteWorkflowExecution is larger than transfer taskID of closeWorkflowExecution
 // for a given workflow.
-// TODO(active-active): Write unit tests for this. It's missing tests for both active-active and active-passive.
 func (s *contextImpl) allocateTimerIDsLocked(
 	domainEntry *cache.DomainCacheEntry,
 	workflowID string,
@@ -1309,10 +1308,12 @@ func (s *contextImpl) allocateTimerIDsLocked(
 			// or otherwise, failover + active processing logic may not pick up the task.
 			cluster = domainEntry.GetReplicationConfig().ActiveClusterName
 
-			// if domain is active-active, lookup the workflow to determine the corresponding cluster
 			if domainEntry.GetReplicationConfig().IsActiveActive() {
-				// TODO(active-active): create a contextImpl.ctx which is tied to the shard context lifecycle
-				// and use it here instead of creating a background context
+				// Note: This doesn't work for initial backoff timer task because the workflow's active-cluster-selection-policy row is not stored yet.
+				// Therefore LookupWorkflow returns current cluster (fallback logic in activecluster manager)
+				// Queue v2 doesn't use this logic and it must be enabled to properly handle initial backoff timer task for active-active domains.
+				// Leaving this code block instead of rejecting the whole id allocation request.
+				// Active-active domains should not be used in Cadence clusters that don't have queue v2 enabled.
 				ctx, cancel := context.WithTimeout(context.Background(), activeClusterLookupTimeout)
 				lookupRes, err := s.GetActiveClusterManager().LookupWorkflow(ctx, task.GetDomainID(), task.GetWorkflowID(), task.GetRunID())
 				cancel()
