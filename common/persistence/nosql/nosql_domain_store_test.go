@@ -478,15 +478,20 @@ func TestListDomains(t *testing.T) {
 		{
 			name: "success",
 			setupMock: func(dbMock *nosqlplugin.MockDB) {
-				dbMock.EXPECT().SelectAllDomains(gomock.Any(), 1, []byte("token")).Return([]*nosqlplugin.DomainRow{
-					{
-						Info:              &persistence.DomainInfo{ID: "domain-id-1"},
-						ReplicationConfig: testFixtureDomainReplicationConfig(),
-					},
-				}, []byte("next-token"), nil).Times(1)
+				dbMock.EXPECT().SelectAllDomains(gomock.Any(), 2, []byte("token")).Return(
+					[]*nosqlplugin.DomainRow{
+						{
+							Info:              &persistence.DomainInfo{ID: "domain-id-1"},
+							ReplicationConfig: testFixtureDomainReplicationConfig(),
+						},
+						{
+							Info:              &persistence.DomainInfo{ID: "active-active-domain-id"},
+							ReplicationConfig: testFixtureDomainReplicationConfigActiveActive(),
+						},
+					}, []byte("next-token"), nil).Times(1)
 			},
 			request: &persistence.ListDomainsRequest{
-				PageSize:      1,
+				PageSize:      2,
 				NextPageToken: []byte("token"),
 			},
 			expectError: false,
@@ -495,6 +500,10 @@ func TestListDomains(t *testing.T) {
 					{
 						Info:              &persistence.DomainInfo{ID: "domain-id-1", Data: map[string]string{}},
 						ReplicationConfig: testFixtureDomainReplicationConfig(),
+					},
+					{
+						Info:              &persistence.DomainInfo{ID: "active-active-domain-id", Data: map[string]string{}},
+						ReplicationConfig: testFixtureDomainReplicationConfigActiveActive(),
 					},
 				},
 				NextPageToken: []byte("next-token"),
