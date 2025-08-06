@@ -64,6 +64,7 @@ type (
 		PartitionDownscaleSustainedDuration       dynamicproperties.DurationPropertyFnWithTaskListInfoFilters
 		AdaptiveScalerUpdateInterval              dynamicproperties.DurationPropertyFnWithTaskListInfoFilters
 		EnableAdaptiveScaler                      dynamicproperties.BoolPropertyFnWithTaskListInfoFilters
+		EnablePartitionEmptyCheck                 dynamicproperties.BoolPropertyFnWithTaskListInfoFilters
 		EnableStandbyTaskCompletion               dynamicproperties.BoolPropertyFnWithTaskListInfoFilters
 		EnableClientAutoConfig                    dynamicproperties.BoolPropertyFnWithTaskListInfoFilters
 		QPSTrackerInterval                        dynamicproperties.DurationPropertyFnWithTaskListInfoFilters
@@ -148,6 +149,7 @@ type (
 		NumReadPartitions                    func() int
 		EnableGetNumberOfPartitionsFromCache func() bool
 		EnableAdaptiveScaler                 func() bool
+		EnablePartitionEmptyCheck            func() bool
 		// isolation configuration
 		EnableTasklistIsolation func() bool
 		// A function which returns all the isolation groups
@@ -211,6 +213,7 @@ func NewConfig(dc *dynamicconfig.Collection, hostName string, getIsolationGroups
 		PartitionDownscaleSustainedDuration:       dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.MatchingPartitionDownscaleSustainedDuration),
 		AdaptiveScalerUpdateInterval:              dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.MatchingAdaptiveScalerUpdateInterval),
 		EnableAdaptiveScaler:                      dc.GetBoolPropertyFilteredByTaskListInfo(dynamicproperties.MatchingEnableAdaptiveScaler),
+		EnablePartitionEmptyCheck:                 dc.GetBoolPropertyFilteredByTaskListInfo(dynamicproperties.MatchingEnablePartitionEmptyCheck),
 		QPSTrackerInterval:                        dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.MatchingQPSTrackerInterval),
 		EnablePartitionIsolationGroupAssignment:   dc.GetBoolPropertyFilteredByTaskListInfo(dynamicproperties.EnablePartitionIsolationGroupAssignment),
 		IsolationGroupUpscaleSustainedDuration:    dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.MatchingIsolationGroupUpscaleSustainedDuration),

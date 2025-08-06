@@ -12,3 +12,6 @@ workerconfig:
   enablearchiver: false
   enablereplicator: false
   enableindexer: false
+dynamicclientconfig:
+  filepath: "dynamicconfig/default.yaml"
+  pollInterval: "10s"

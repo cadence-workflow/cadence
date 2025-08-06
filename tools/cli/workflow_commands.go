@@ -183,7 +183,13 @@ func showHistoryHelper(c *cli.Context, wid, rid string) error {
 	if err != nil {
 		return commoncli.Problem("Error creating context: ", err)
 	}
-	history, err := GetHistory(ctx, wfClient, domain, wid, rid)
+
+	consistencyLevel, err := getOptionWithSerializer[types.QueryConsistencyLevel](c, FlagQueryConsistencyLevel, mapQueryConsistencyLevelFromFlag)
+	if err != nil {
+		return commoncli.Problem(err.Error(), nil)
+	}
+
+	history, err := GetHistory(ctx, wfClient, domain, wid, rid, consistencyLevel)
 	if err != nil {
 		return commoncli.Problem(fmt.Sprintf("Failed to get history on workflow id: %s, run id: %s.", wid, rid), err)
 	}
@@ -448,6 +454,10 @@ func constructStartWorkflowRequest(c *cli.Context) (*types.StartWorkflowExecutio
 		startRequest.FirstRunAtTimeStamp = common.Int64Ptr(t.UnixNano())
 	}
 
+	if c.IsSet(FlagCronOverlapPolicy) {
+		startRequest.CronOverlapPolicy = types.CronOverlapPolicy(c.Int(FlagCronOverlapPolicy)).Ptr()
+	}
+
 	headerFields, err := processHeader(c)
 	if err != nil {
 		return nil, fmt.Errorf("error when process header: %w", err)
@@ -586,7 +596,7 @@ func printWorkflowProgress(c *cli.Context, domain, wid, rid string) error {
 	}
 
 	go func() {
-		iterator, err := GetWorkflowHistoryIterator(tcCtx, wfClient, domain, wid, rid, true, types.HistoryEventFilterTypeAllEvent.Ptr())
+		iterator, err := GetWorkflowHistoryIterator(tcCtx, wfClient, domain, wid, rid, true, types.HistoryEventFilterTypeAllEvent.Ptr(), nil)
 		if err != nil {
 			errChan <- fmt.Errorf("unable to get history events: %w", err)
 			return
@@ -822,6 +832,7 @@ func constructSignalWithStartWorkflowRequest(c *cli.Context) (*types.SignalWithS
 		WorkflowIDReusePolicy:               startRequest.WorkflowIDReusePolicy,
 		RetryPolicy:                         startRequest.RetryPolicy,
 		CronSchedule:                        startRequest.CronSchedule,
+		CronOverlapPolicy:                   startRequest.CronOverlapPolicy,
 		Memo:                                startRequest.Memo,
 		SearchAttributes:                    startRequest.SearchAttributes,
 		Header:                              startRequest.Header,
@@ -893,31 +904,19 @@ func queryWorkflowHelper(c *cli.Context, queryType string) error {
 	if input != "" {
 		queryRequest.Query.QueryArgs = []byte(input)
 	}
-	if c.IsSet(FlagQueryRejectCondition) {
-		var rejectCondition types.QueryRejectCondition
-		switch c.String(FlagQueryRejectCondition) {
-		case "not_open":
-			rejectCondition = types.QueryRejectConditionNotOpen
-		case "not_completed_cleanly":
-			rejectCondition = types.QueryRejectConditionNotCompletedCleanly
-		default:
-			return commoncli.Problem(fmt.Sprintf("invalid reject condition %v, valid values are \"not_open\" and \"not_completed_cleanly\"", c.String(FlagQueryRejectCondition)), nil)
-		}
-		queryRequest.QueryRejectCondition = &rejectCondition
+
+	rejectCondition, err := getOptionWithSerializer(c, FlagQueryRejectCondition, mapQueryRejectConditionFromFlag)
+	if err != nil {
+		return commoncli.Problem(err.Error(), nil)
 	}
-	if c.IsSet(FlagQueryConsistencyLevel) {
-		// TODO consider using generic flag for all enum flags https://github.com/urfave/cli/issues/786
-		var consistencyLevel types.QueryConsistencyLevel
-		switch c.String(FlagQueryConsistencyLevel) {
-		case "eventual":
-			consistencyLevel = types.QueryConsistencyLevelEventual
-		case "strong":
-			consistencyLevel = types.QueryConsistencyLevelStrong
-		default:
-			return commoncli.Problem(fmt.Sprintf("invalid query consistency level %v, valid values are \"eventual\" and \"strong\"", c.String(FlagQueryConsistencyLevel)), nil)
-		}
-		queryRequest.QueryConsistencyLevel = &consistencyLevel
+	queryRequest.QueryRejectCondition = rejectCondition
+
+	consistencyLevel, err := getOptionWithSerializer(c, FlagQueryConsistencyLevel, mapQueryConsistencyLevelFromFlag)
+	if err != nil {
+		return commoncli.Problem(err.Error(), nil)
 	}
+	queryRequest.QueryConsistencyLevel = consistencyLevel
+
 	queryResponse, err := serviceClient.QueryWorkflow(tcCtx, queryRequest)
 	if err != nil {
 		return commoncli.Problem("Query workflow failed.", err)
@@ -1061,13 +1060,22 @@ func describeWorkflowHelper(c *cli.Context, wid, rid string) error {
 		return commoncli.Problem("Error creating context: ", err)
 	}
 
-	resp, err := frontendClient.DescribeWorkflowExecution(ctx, &types.DescribeWorkflowExecutionRequest{
+	request := &types.DescribeWorkflowExecutionRequest{
 		Domain: domain,
 		Execution: &types.WorkflowExecution{
 			WorkflowID: wid,
 			RunID:      rid,
 		},
-	})
+	}
+
+	consistencyLevel, err := getOptionWithSerializer[types.QueryConsistencyLevel](c, FlagQueryConsistencyLevel, mapQueryConsistencyLevelFromFlag)
+	if err != nil {
+		return commoncli.Problem(err.Error(), nil)
+	}
+	request.QueryConsistencyLevel = consistencyLevel
+
+	resp, err := frontendClient.DescribeWorkflowExecution(ctx, request)
+
 	if err != nil {
 		return commoncli.Problem("Describe workflow execution failed", err)
 	}
@@ -1125,18 +1133,19 @@ type describeWorkflowExecutionResponse struct {
 
 // workflowExecutionInfo has same fields as types.WorkflowExecutionInfo, but has datetime instead of raw time
 type workflowExecutionInfo struct {
-	Execution        *types.WorkflowExecution
-	Type             *types.WorkflowType
-	StartTime        *string // change from *int64
-	CloseTime        *string // change from *int64
-	CloseStatus      *types.WorkflowExecutionCloseStatus
-	HistoryLength    int64
-	ParentDomainID   *string
-	ParentExecution  *types.WorkflowExecution
-	Memo             *types.Memo
-	SearchAttributes map[string]interface{}
-	AutoResetPoints  *types.ResetPoints
-	PartitionConfig  map[string]string
+	Execution         *types.WorkflowExecution
+	Type              *types.WorkflowType
+	StartTime         *string // change from *int64
+	CloseTime         *string // change from *int64
+	CloseStatus       *types.WorkflowExecutionCloseStatus
+	HistoryLength     int64
+	ParentDomainID    *string
+	ParentExecution   *types.WorkflowExecution
+	Memo              *types.Memo
+	SearchAttributes  map[string]interface{}
+	AutoResetPoints   *types.ResetPoints
+	PartitionConfig   map[string]string
+	CronOverlapPolicy *types.CronOverlapPolicy
 }
 
 // pendingActivityInfo has same fields as types.PendingActivityInfo, but different field type for better display
@@ -1175,18 +1184,19 @@ func convertDescribeWorkflowExecutionResponse(resp *types.DescribeWorkflowExecut
 		return nil, fmt.Errorf("error converting search attributes: %w", err)
 	}
 	executionInfo := workflowExecutionInfo{
-		Execution:        info.Execution,
-		Type:             info.Type,
-		StartTime:        common.StringPtr(timestampToString(info.GetStartTime(), false)),
-		CloseTime:        common.StringPtr(timestampToString(info.GetCloseTime(), false)),
-		CloseStatus:      info.CloseStatus,
-		HistoryLength:    info.HistoryLength,
-		ParentDomainID:   info.ParentDomainID,
-		ParentExecution:  info.ParentExecution,
-		Memo:             info.Memo,
-		SearchAttributes: searchattributes,
-		AutoResetPoints:  info.AutoResetPoints,
-		PartitionConfig:  info.PartitionConfig,
+		Execution:         info.Execution,
+		Type:              info.Type,
+		StartTime:         common.StringPtr(timestampToString(info.GetStartTime(), false)),
+		CloseTime:         common.StringPtr(timestampToString(info.GetCloseTime(), false)),
+		CloseStatus:       info.CloseStatus,
+		HistoryLength:     info.HistoryLength,
+		ParentDomainID:    info.ParentDomainID,
+		ParentExecution:   info.ParentExecution,
+		Memo:              info.Memo,
+		SearchAttributes:  searchattributes,
+		AutoResetPoints:   info.AutoResetPoints,
+		PartitionConfig:   info.PartitionConfig,
+		CronOverlapPolicy: info.CronOverlapPolicy,
 	}
 
 	var pendingActs []*pendingActivityInfo
@@ -1356,7 +1366,7 @@ func newWorkflowRow(workflow *types.WorkflowExecutionInfo) (WorkflowRow, error) 
 		WorkflowType:     workflow.Type.GetName(),
 		WorkflowID:       workflow.Execution.GetWorkflowID(),
 		RunID:            workflow.Execution.GetRunID(),
-		TaskList:         workflow.TaskList,
+		TaskList:         workflow.TaskList.GetName(),
 		IsCron:           workflow.IsCron,
 		StartTime:        time.Unix(0, workflow.GetStartTime()),
 		ExecutionTime:    time.Unix(0, workflow.GetExecutionTime()),
@@ -1777,6 +1787,9 @@ func ObserveHistory(c *cli.Context) error {
 	}
 	rid := c.String(FlagRunID)
 	domain, err := getRequiredOption(c, FlagDomain)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
 
 	printWorkflowProgress(c, domain, wid, rid)
 	return nil
@@ -2633,4 +2646,32 @@ OuterLoop:
 		return 0, printErrorAndReturn("Get DecisionFinishID failed", fmt.Errorf("no DecisionFinishID"))
 	}
 	return
+}
+
+func mapQueryConsistencyLevelFromFlag(flag string) (types.QueryConsistencyLevel, error) {
+	var consistencyLevel types.QueryConsistencyLevel
+	switch flag {
+	case "eventual":
+		consistencyLevel = types.QueryConsistencyLevelEventual
+	case "strong":
+		consistencyLevel = types.QueryConsistencyLevelStrong
+	default:
+		return consistencyLevel, fmt.Errorf("invalid query consistency level %q, valid values are \"eventual\" and \"strong\"", flag)
+	}
+
+	return consistencyLevel, nil
+}
+
+func mapQueryRejectConditionFromFlag(flag string) (types.QueryRejectCondition, error) {
+	var rejectCondition types.QueryRejectCondition
+	switch flag {
+	case "not_open":
+		rejectCondition = types.QueryRejectConditionNotOpen
+	case "not_completed_cleanly":
+		rejectCondition = types.QueryRejectConditionNotCompletedCleanly
+	default:
+		return rejectCondition, fmt.Errorf("invalid reject condition %v, valid values are \"not_open\" and \"not_completed_cleanly\"", flag)
+	}
+
+	return rejectCondition, nil
 }

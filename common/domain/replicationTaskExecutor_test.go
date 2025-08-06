@@ -87,6 +87,16 @@ func TestDomainReplicationTaskExecutor_Execute(t *testing.T) {
 						{ClusterName: "activeClusterName"},
 						{ClusterName: "standbyClusterName"},
 					},
+					ActiveClusters: &types.ActiveClusters{
+						ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+							"region1": {
+								ActiveClusterName: "activeClusterName",
+							},
+							"region2": {
+								ActiveClusterName: "standbyClusterName",
+							},
+						},
+					},
 				},
 				ConfigVersion:   1,
 				FailoverVersion: 1,
@@ -171,10 +181,23 @@ func TestDomainReplicationTaskExecutor_Execute(t *testing.T) {
 					OwnerEmail:  "updatedOwner@example.com",
 					Data:        map[string]string{"updatedKey": "updatedValue"},
 				},
-				Config:            &types.DomainConfiguration{},
-				ReplicationConfig: &types.DomainReplicationConfiguration{},
-				ConfigVersion:     2,
-				FailoverVersion:   100,
+				Config: &types.DomainConfiguration{},
+				ReplicationConfig: &types.DomainReplicationConfiguration{
+					ActiveClusterName: "activeClusterName",
+					Clusters: []*types.ClusterReplicationConfiguration{
+						{ClusterName: "activeClusterName"},
+						{ClusterName: "standbyClusterName"},
+					},
+					ActiveClusters: &types.ActiveClusters{
+						ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+							"region1": {
+								ActiveClusterName: "activeClusterName",
+							},
+						},
+					},
+				},
+				ConfigVersion:   2,
+				FailoverVersion: 100,
 			},
 			wantErr: false,
 		},

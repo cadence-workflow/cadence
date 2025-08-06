@@ -163,6 +163,20 @@ func (mr *MockDBMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockDB)(nil).Close))
 }
 
+// DeleteActiveClusterSelectionPolicy mocks base method.
+func (m *MockDB) DeleteActiveClusterSelectionPolicy(ctx context.Context, shardID int, domainID, workflowID, runID string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteActiveClusterSelectionPolicy", ctx, shardID, domainID, workflowID, runID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteActiveClusterSelectionPolicy indicates an expected call of DeleteActiveClusterSelectionPolicy.
+func (mr *MockDBMockRecorder) DeleteActiveClusterSelectionPolicy(ctx, shardID, domainID, workflowID, runID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteActiveClusterSelectionPolicy", reflect.TypeOf((*MockDB)(nil).DeleteActiveClusterSelectionPolicy), ctx, shardID, domainID, workflowID, runID)
+}
+
 // DeleteCrossClusterTask mocks base method.
 func (m *MockDB) DeleteCrossClusterTask(ctx context.Context, shardID int, targetCluster string, taskID int64) error {
 	m.ctrl.T.Helper()
@@ -1262,6 +1276,20 @@ func NewMocktableCRUD(ctrl *gomock.Controller) *MocktableCRUD {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MocktableCRUD) EXPECT() *MocktableCRUDMockRecorder {
 	return m.recorder
+}
+
+// DeleteActiveClusterSelectionPolicy mocks base method.
+func (m *MocktableCRUD) DeleteActiveClusterSelectionPolicy(ctx context.Context, shardID int, domainID, workflowID, runID string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteActiveClusterSelectionPolicy", ctx, shardID, domainID, workflowID, runID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteActiveClusterSelectionPolicy indicates an expected call of DeleteActiveClusterSelectionPolicy.
+func (mr *MocktableCRUDMockRecorder) DeleteActiveClusterSelectionPolicy(ctx, shardID, domainID, workflowID, runID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteActiveClusterSelectionPolicy", reflect.TypeOf((*MocktableCRUD)(nil).DeleteActiveClusterSelectionPolicy), ctx, shardID, domainID, workflowID, runID)
 }
 
 // DeleteCrossClusterTask mocks base method.
@@ -3114,6 +3142,20 @@ func NewMockWorkflowCRUD(ctrl *gomock.Controller) *MockWorkflowCRUD {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockWorkflowCRUD) EXPECT() *MockWorkflowCRUDMockRecorder {
 	return m.recorder
+}
+
+// DeleteActiveClusterSelectionPolicy mocks base method.
+func (m *MockWorkflowCRUD) DeleteActiveClusterSelectionPolicy(ctx context.Context, shardID int, domainID, workflowID, runID string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteActiveClusterSelectionPolicy", ctx, shardID, domainID, workflowID, runID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteActiveClusterSelectionPolicy indicates an expected call of DeleteActiveClusterSelectionPolicy.
+func (mr *MockWorkflowCRUDMockRecorder) DeleteActiveClusterSelectionPolicy(ctx, shardID, domainID, workflowID, runID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteActiveClusterSelectionPolicy", reflect.TypeOf((*MockWorkflowCRUD)(nil).DeleteActiveClusterSelectionPolicy), ctx, shardID, domainID, workflowID, runID)
 }
 
 // DeleteCrossClusterTask mocks base method.

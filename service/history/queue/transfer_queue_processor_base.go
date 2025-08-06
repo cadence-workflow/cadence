@@ -125,7 +125,7 @@ func newTransferQueueProcessorBase(
 				taskFilter,
 				taskExecutor,
 				taskProcessor,
-				processorBase.redispatcher.AddTask,
+				processorBase.redispatcher,
 				shard.GetConfig().TaskCriticalRetryCount,
 			)
 		},
@@ -422,14 +422,22 @@ func (t *transferQueueProcessorBase) processQueueCollections() {
 
 		tasks := make(map[task.Key]task.Task)
 		taskChFull := false
+		now := t.shard.GetTimeSource().Now()
 		for _, taskInfo := range transferTaskInfos {
 			if !domainFilter.Filter(taskInfo.GetDomainID()) {
 				t.logger.Debug("transfer task filtered", tag.TaskID(taskInfo.GetTaskID()))
 				continue
 			}
 
+			if persistence.IsTaskCorrupted(taskInfo) {
+				t.logger.Error("Processing queue encountered a corrupted task", tag.Dynamic("task", taskInfo))
+				t.metricsScope.IncCounter(metrics.CorruptedHistoryTaskCounter)
+				continue
+			}
+
 			task := t.taskInitializer(taskInfo)
 			tasks[newTransferTaskKey(taskInfo.GetTaskID())] = task
+			t.metricsScope.RecordHistogramDuration(metrics.TaskEnqueueToFetchLatency, now.Sub(taskInfo.GetVisibilityTimestamp()))
 			submitted, err := t.submitTask(task)
 			if err != nil {
 				// only err here is due to the fact that processor has been shutdown

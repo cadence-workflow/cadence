@@ -14,6 +14,8 @@ import (
 
 {{$nonForwardingAPIs := list "Health" "DeprecateDomain" "DeleteDomain" "DescribeDomain" "ListDomains" "RegisterDomain" "UpdateDomain" "GetSearchAttributes" "GetClusterInfo" "DiagnoseWorkflowExecution"}}
 {{$domainIDAPIs := list "RecordActivityTaskHeartbeat" "RespondActivityTaskCanceled" "RespondActivityTaskCompleted" "RespondActivityTaskFailed" "RespondDecisionTaskCompleted" "RespondDecisionTaskFailed" "RespondQueryTaskCompleted"}}
+{{$startWFAPIs := list "StartWorkflowExecution" "StartWorkflowExecutionAsync" "SignalWithStartWorkflowExecution" "SignalWithStartWorkflowExecutionAsync"}}
+{{$nonstartWFAPIs := list "DescribeWorkflowExecutionRequest" "GetWorkflowExecutionHistory" "QueryWorkflowRequest" "RequestCancelWorkflowExecution" "ResetWorkflowExecution" "RestartWorkflowExecution" "SignalWorkflowExecution" "TerminateWorkflowExecution" }}
 {{$queryTaskTokenAPIs := list "RespondQueryTaskCompleted"}}
 {{$readAPIsWithStrongConsistency := list "QueryWorkflow" "DescribeWorkflowExecution" "GetWorkflowExecutionHistory"}}
 
@@ -25,6 +27,7 @@ type (
 		currentClusterName string
 		redirectionPolicy  ClusterRedirectionPolicy
 		tokenSerializer    common.TaskTokenSerializer
+		domainCache        cache.DomainCache
 		frontendHandler    api.Handler
 		callOptions        []yarpc.CallOption
 	}
@@ -40,14 +43,15 @@ func NewAPIHandler(
 	dcRedirectionPolicy := RedirectionPolicyGenerator(
 		resource.GetClusterMetadata(),
 		config,
-		resource.GetDomainCache(),
 		policy,
 		resource.GetLogger(),
+		resource.GetActiveClusterManager(),
 	)
 
 	return &clusterRedirectionHandler{
 		Resource:           resource,
 		currentClusterName: resource.GetClusterMetadata().GetCurrentClusterName(),
+		domainCache:        resource.GetDomainCache(),
 		redirectionPolicy:  dcRedirectionPolicy,
 		tokenSerializer:    common.NewJSONTaskTokenSerializer(),
 		frontendHandler:    wfHandler,
@@ -75,27 +79,25 @@ func (handler *clusterRedirectionHandler) {{$method.Declaration}} {
 	}
 	{{- end}}
 
-    {{$policyMethod := "WithDomainNameRedirect"}}
-    {{$domain := printf "%s.GetDomain()" (index $method.Params 1).Name}}
-    {{- if has $method.Name $domainIDAPIs}}
-    token := domainIDGetter(noopdomainIDGetter{})
-    {{- end}}
+	var domainEntry *cache.DomainCacheEntry
 	scope, startTime := handler.beforeCall(metrics.DCRedirection{{$method.Name}}Scope)
 	defer func() {
-		{{- if has $method.Name $domainIDAPIs}}
-		handler.afterCall(recover(), scope, startTime, "", token.GetDomainID(), cluster, &err)
-		{{- else}}
-		handler.afterCall(recover(), scope, startTime, {{$domain}}, "", cluster, &err)
-        {{- end}}
+		handler.afterCall(recover(), scope, startTime, domainEntry, cluster, &err)
 	}()
 
+
 	{{if has $method.Name $domainIDAPIs}}
-	{{$policyMethod = "WithDomainIDRedirect"}}
-	{{$domain = "token.GetDomainID()"}}
+	var idGetter domainIDGetter
 	{{if has $method.Name $queryTaskTokenAPIs}}
-	token, err = handler.tokenSerializer.DeserializeQueryTaskToken({{(index $method.Params 1).Name}}.TaskToken)
+	idGetter, err = handler.tokenSerializer.DeserializeQueryTaskToken({{(index $method.Params 1).Name}}.TaskToken)
 	{{- else}}
-	token, err = handler.tokenSerializer.Deserialize({{(index $method.Params 1).Name}}.TaskToken)
+	idGetter, err = handler.tokenSerializer.Deserialize({{(index $method.Params 1).Name}}.TaskToken)
+	{{- end}}
+	if err == nil {
+		domainEntry, err = handler.domainCache.GetDomainByID(idGetter.GetDomainID())
+	}
+	{{- else}}
+	domainEntry, err = handler.domainCache.GetDomain({{(index $method.Params 1).Name}}.Domain)
 	{{- end}}
 	if err != nil {
 		{{- if eq (len $method.Results) 1}}
@@ -104,9 +106,17 @@ func (handler *clusterRedirectionHandler) {{$method.Declaration}} {
 		return nil, err
 		{{- end}}
 	}
+
+	var actClSelPolicyForNewWF *types.ActiveClusterSelectionPolicy
+	var workflowExecution *types.WorkflowExecution
+	{{- if has $method.Name $startWFAPIs}}
+	actClSelPolicyForNewWF = {{(index $method.Params 1).Name}}.ActiveClusterSelectionPolicy
+	{{- else if has $method.Name $nonstartWFAPIs}}
+	workflowExecution = {{(index $method.Params 1).Name}}.GetWorkflowExecution()
 	{{- end}}
 
-	err = handler.redirectionPolicy.{{$policyMethod}}(ctx, {{$domain}}, apiName, requestedConsistencyLevel, func(targetDC string) error {
+
+	err = handler.redirectionPolicy.Redirect(ctx, domainEntry, workflowExecution, actClSelPolicyForNewWF, apiName, requestedConsistencyLevel, func(targetDC string) error {
 		cluster = targetDC
 		switch {
 		case targetDC == handler.currentClusterName:

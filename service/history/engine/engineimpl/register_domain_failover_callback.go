@@ -69,12 +69,15 @@ func (e *historyEngineImpl) registerDomainFailoverCallback() {
 		sort.Sort(domains)
 
 		var updatedEntries []*cache.DomainCacheEntry
+		var domainNames []string
 		for _, domain := range domains {
 			if domain.GetNotificationVersion() >= initialNotificationVersion {
 				updatedEntries = append(updatedEntries, domain)
+				domainNames = append(domainNames, domain.GetInfo().Name)
 			}
 		}
 		if len(updatedEntries) > 0 {
+			e.logger.Info("catchUpFn calling prepareCallback and callback", tag.Dynamic("domain-names", domainNames))
 			prepareCallback()
 			callback(updatedEntries)
 		}
@@ -115,22 +118,44 @@ func (e *historyEngineImpl) domainChangeCB(nextDomains []*cache.DomainCacheEntry
 	}
 
 	shardNotificationVersion := e.shard.GetDomainNotificationVersion()
-	failoverDomainIDs := map[string]struct{}{}
+	failoverActivePassiveDomainIDs := map[string]struct{}{}
+	failoverActiveActiveDomainIDs := map[string]struct{}{}
 
 	for _, nextDomain := range nextDomains {
-		e.failoverPredicate(shardNotificationVersion, nextDomain, func() {
-			failoverDomainIDs[nextDomain.GetInfo().ID] = struct{}{}
-		})
+		domainFailoverNotificationVersion := nextDomain.GetFailoverNotificationVersion()
+		domainActiveCluster := nextDomain.GetReplicationConfig().ActiveClusterName
+
+		if !nextDomain.IsGlobalDomain() {
+			continue
+		}
+
+		if !nextDomain.GetReplicationConfig().IsActiveActive() &&
+			domainFailoverNotificationVersion >= shardNotificationVersion &&
+			domainActiveCluster == e.currentClusterName {
+			failoverActivePassiveDomainIDs[nextDomain.GetInfo().ID] = struct{}{}
+		}
+		if nextDomain.GetReplicationConfig().IsActiveActive() &&
+			domainFailoverNotificationVersion >= shardNotificationVersion &&
+			nextDomain.IsActiveIn(e.currentClusterName) {
+			failoverActiveActiveDomainIDs[nextDomain.GetInfo().ID] = struct{}{}
+		}
 	}
 
-	if len(failoverDomainIDs) > 0 {
-		e.logger.Info("Domain Failover Start.", tag.WorkflowDomainIDs(failoverDomainIDs))
+	if len(failoverActivePassiveDomainIDs) > 0 {
+		e.logger.Info("Domain Failover Start.", tag.WorkflowDomainIDs(failoverActivePassiveDomainIDs))
 
 		// Failover queues are not created for active-active domains. Will revisit after new queue framework implementation.
 		for _, processor := range e.queueProcessors {
-			processor.FailoverDomain(failoverDomainIDs)
+			processor.FailoverDomain(failoverActivePassiveDomainIDs)
 		}
+	}
 
+	if len(failoverActiveActiveDomainIDs) > 0 {
+		e.logger.Info("Active-Active Domain updated", tag.WorkflowDomainIDs(failoverActiveActiveDomainIDs))
+	}
+
+	// Notify queues for any domain update. (active-passive and active-active)
+	if len(failoverActivePassiveDomainIDs) > 0 || len(failoverActiveActiveDomainIDs) > 0 {
 		e.notifyQueues()
 	}
 

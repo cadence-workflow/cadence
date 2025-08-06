@@ -39,23 +39,27 @@ import (
 	"github.com/uber/cadence/service/history/task"
 )
 
+const (
+	alertChSize = 10
+)
+
 type (
 	Options struct {
-		PageSize                           dynamicproperties.IntPropertyFn
-		DeleteBatchSize                    dynamicproperties.IntPropertyFn
-		MaxPollRPS                         dynamicproperties.IntPropertyFn
-		MaxPollInterval                    dynamicproperties.DurationPropertyFn
-		MaxPollIntervalJitterCoefficient   dynamicproperties.FloatPropertyFn
-		UpdateAckInterval                  dynamicproperties.DurationPropertyFn
-		UpdateAckIntervalJitterCoefficient dynamicproperties.FloatPropertyFn
-		RedispatchInterval                 dynamicproperties.DurationPropertyFn
-		MaxRedispatchQueueSize             dynamicproperties.IntPropertyFn
-
-		EnableValidator                      dynamicproperties.BoolPropertyFn
-		ValidationInterval                   dynamicproperties.DurationPropertyFn
+		PageSize                             dynamicproperties.IntPropertyFn
+		DeleteBatchSize                      dynamicproperties.IntPropertyFn
+		MaxPollRPS                           dynamicproperties.IntPropertyFn
+		MaxPollInterval                      dynamicproperties.DurationPropertyFn
+		MaxPollIntervalJitterCoefficient     dynamicproperties.FloatPropertyFn
+		UpdateAckInterval                    dynamicproperties.DurationPropertyFn
+		UpdateAckIntervalJitterCoefficient   dynamicproperties.FloatPropertyFn
+		RedispatchInterval                   dynamicproperties.DurationPropertyFn
+		MaxPendingTasksCount                 dynamicproperties.IntPropertyFn
 		PollBackoffInterval                  dynamicproperties.DurationPropertyFn
 		PollBackoffIntervalJitterCoefficient dynamicproperties.FloatPropertyFn
-		MaxStartJitterInterval               dynamicproperties.DurationPropertyFn
+
+		EnableValidator        dynamicproperties.BoolPropertyFn
+		ValidationInterval     dynamicproperties.DurationPropertyFn
+		MaxStartJitterInterval dynamicproperties.DurationPropertyFn
 	}
 
 	queueBase struct {
@@ -71,13 +75,15 @@ type (
 
 		redispatcher          task.Redispatcher
 		queueReader           QueueReader
-		pollTimer             clock.Timer
+		monitor               Monitor
+		mitigator             Mitigator
 		updateQueueStateTimer clock.Timer
-		lastPollTime          time.Time
 		virtualQueueManager   VirtualQueueManager
 		exclusiveAckLevel     persistence.HistoryTaskKey
+		alertCh               chan *Alert
+		newVirtualSliceState  VirtualSliceState
 
-		newVirtualSliceState VirtualSliceState
+		updateQueueStateFn func(ctx context.Context)
 	}
 )
 
@@ -110,9 +116,9 @@ func newQueueBase(
 	)
 	var queueType task.QueueType
 	if category == persistence.HistoryTaskCategoryTransfer {
-		queueType = task.QueueTypeActiveTransfer
+		queueType = task.QueueTypeTransfer
 	} else if category == persistence.HistoryTaskCategoryTimer {
-		queueType = task.QueueTypeActiveTimer
+		queueType = task.QueueTypeTimer
 	}
 	taskInitializer := func(t persistence.Task) task.Task {
 		return task.NewHistoryTask(
@@ -123,7 +129,7 @@ func newQueueBase(
 			func(task persistence.Task) (bool, error) { return true, nil },
 			taskExecutor,
 			taskProcessor,
-			redispatcher.AddTask,
+			redispatcher,
 			shard.GetConfig().TaskCriticalRetryCount,
 		)
 	}
@@ -131,6 +137,8 @@ func newQueueBase(
 		shard,
 		category,
 	)
+	monitor := NewMonitor(category)
+	mitigator := NewMitigator(monitor, logger, metricsScope)
 	virtualQueueManager := NewVirtualQueueManager(
 		taskProcessor,
 		redispatcher,
@@ -140,12 +148,16 @@ func newQueueBase(
 		metricsScope,
 		timeSource,
 		quotas.NewDynamicRateLimiter(options.MaxPollRPS.AsFloat64()),
+		monitor,
 		&VirtualQueueOptions{
-			PageSize: options.PageSize,
+			PageSize:                             options.PageSize,
+			MaxPendingTasksCount:                 options.MaxPendingTasksCount,
+			PollBackoffInterval:                  options.PollBackoffInterval,
+			PollBackoffIntervalJitterCoefficient: options.PollBackoffIntervalJitterCoefficient,
 		},
 		queueState.VirtualQueueStates,
 	)
-	return &queueBase{
+	q := &queueBase{
 		shard:               shard,
 		taskProcessor:       taskProcessor,
 		logger:              logger,
@@ -157,8 +169,11 @@ func newQueueBase(
 		taskInitializer:     taskInitializer,
 		redispatcher:        redispatcher,
 		queueReader:         queueReader,
+		monitor:             monitor,
+		mitigator:           mitigator,
 		exclusiveAckLevel:   exclusiveAckLevel,
 		virtualQueueManager: virtualQueueManager,
+		alertCh:             make(chan *Alert, alertChSize),
 		newVirtualSliceState: VirtualSliceState{
 			Range: Range{
 				InclusiveMinTaskKey: queueState.ExclusiveMaxReadLevel,
@@ -167,25 +182,25 @@ func newQueueBase(
 			Predicate: NewUniversalPredicate(),
 		},
 	}
+	q.updateQueueStateFn = q.updateQueueState
+	return q
 }
 
 func (q *queueBase) Start() {
 	q.redispatcher.Start()
 	q.virtualQueueManager.Start()
 
-	q.pollTimer = q.timeSource.NewTimer(backoff.JitDuration(
-		q.options.MaxPollInterval(),
-		q.options.MaxPollIntervalJitterCoefficient(),
-	))
 	q.updateQueueStateTimer = q.timeSource.NewTimer(backoff.JitDuration(
 		q.options.UpdateAckInterval(),
 		q.options.UpdateAckIntervalJitterCoefficient(),
 	))
+
+	q.monitor.Subscribe(q.alertCh)
 }
 
 func (q *queueBase) Stop() {
+	q.monitor.Unsubscribe()
 	q.updateQueueStateTimer.Stop()
-	q.pollTimer.Stop()
 	q.virtualQueueManager.Stop()
 	q.redispatcher.Stop()
 }
@@ -204,7 +219,7 @@ func (q *queueBase) LockTaskProcessing() {}
 
 func (q *queueBase) UnlockTaskProcessing() {}
 
-func (q *queueBase) processNewTasks() {
+func (q *queueBase) processNewTasks() bool {
 	newExclusiveMaxTaskKey := q.shard.UpdateIfNeededAndGetQueueMaxReadLevel(q.category, q.shard.GetClusterMetadata().GetCurrentClusterName())
 	if q.category.Type() == persistence.HistoryTaskCategoryTypeImmediate {
 		newExclusiveMaxTaskKey = persistence.NewImmediateTaskKey(newExclusiveMaxTaskKey.GetTaskID() + 1)
@@ -212,26 +227,15 @@ func (q *queueBase) processNewTasks() {
 
 	newVirtualSliceState, remainingVirtualSliceState, ok := q.newVirtualSliceState.TrySplitByTaskKey(newExclusiveMaxTaskKey)
 	if !ok {
-		q.logger.Warn("Failed to split new virtual slice", tag.Value(newExclusiveMaxTaskKey), tag.Value(q.newVirtualSliceState))
-		return
+		return false
 	}
 	q.newVirtualSliceState = remainingVirtualSliceState
-	q.lastPollTime = q.timeSource.Now()
 
 	newVirtualSlice := NewVirtualSlice(newVirtualSliceState, q.taskInitializer, q.queueReader, NewPendingTaskTracker())
 
+	q.logger.Debug("processing new tasks", tag.Dynamic("inclusiveMinTaskKey", newVirtualSliceState.Range.InclusiveMinTaskKey), tag.Dynamic("exclusiveMaxTaskKey", newVirtualSliceState.Range.ExclusiveMaxTaskKey))
 	q.virtualQueueManager.AddNewVirtualSliceToRootQueue(newVirtualSlice)
-}
-
-func (q *queueBase) processPollTimer() {
-	if q.lastPollTime.Add(q.options.PollBackoffInterval()).Before(q.timeSource.Now()) {
-		q.processNewTasks()
-	}
-
-	q.pollTimer.Reset(backoff.JitDuration(
-		q.options.MaxPollInterval(),
-		q.options.MaxPollIntervalJitterCoefficient(),
-	))
+	return true
 }
 
 func (q *queueBase) updateQueueState(ctx context.Context) {
@@ -241,6 +245,18 @@ func (q *queueBase) updateQueueState(ctx context.Context) {
 		ExclusiveMaxReadLevel: q.newVirtualSliceState.Range.InclusiveMinTaskKey,
 	}
 	newExclusiveAckLevel := getExclusiveAckLevelFromQueueState(queueState)
+
+	// for backward compatibility, we record the timer metrics in shard info scope
+	pendingTaskCount := q.monitor.GetTotalPendingTaskCount()
+	if q.category == persistence.HistoryTaskCategoryTransfer {
+		q.metricsClient.RecordTimer(metrics.ShardInfoScope, metrics.ShardInfoTransferActivePendingTasksTimer, time.Duration(pendingTaskCount))
+	} else if q.category == persistence.HistoryTaskCategoryTimer {
+		q.metricsClient.RecordTimer(metrics.ShardInfoScope, metrics.ShardInfoTimerActivePendingTasksTimer, time.Duration(pendingTaskCount))
+	}
+
+	// we emit the metrics in the queue scope and experiment with gauge metrics
+	// TODO: review the metrics and remove this comment or change the metric from gauge to histogram
+	q.metricsScope.UpdateGauge(metrics.PendingTaskGauge, float64(pendingTaskCount))
 
 	if newExclusiveAckLevel.Compare(q.exclusiveAckLevel) > 0 {
 		inclusiveMinTaskKey := q.exclusiveAckLevel
@@ -279,6 +295,15 @@ func (q *queueBase) updateQueueState(ctx context.Context) {
 		q.options.UpdateAckInterval(),
 		q.options.UpdateAckIntervalJitterCoefficient(),
 	))
+}
+
+func (q *queueBase) handleAlert(ctx context.Context, alert *Alert) {
+	if alert == nil {
+		return
+	}
+
+	q.mitigator.Mitigate(*alert)
+	q.updateQueueStateFn(ctx)
 }
 
 func getExclusiveAckLevelFromQueueState(state *QueueState) persistence.HistoryTaskKey {

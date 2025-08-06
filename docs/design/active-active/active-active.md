@@ -298,6 +298,7 @@ Failover version to cluster mapping:
 - Workflows whose task version resolves to region us-west will start using version 6 from now on.
 - Workflows whose task version resolves to region us-east will continue using version 6.
 
+When the domain is in this state, the start workflowrequests (regardless of cluster selection strategy) will be forwarded to cluster3 and they will be sticky to that region.
 
 **2. Within region failover (changing active cluster of a region):**
 
@@ -365,6 +366,41 @@ Notice that the failover version is updated to 3. This means that all workflows 
 Failover version to cluster mapping:
 There's no change in the failover version to cluster mapping in entity failovers. Same versions map to same clusters as before.
 However, new task versions of workflows belonging to "seattle" entity will be 3 from now on and therefore they will be active in cluster3.
+
+
+**4. Active-passive to active-active migration:**
+
+When an active-passive domain is migrated to active-active,
+- The domain record will have the `ActiveClusters` field set
+- The existing `ActiveClusterName` field will be left as is.
+- The failover version of the domain will be incremented. Even though this is not used for task versions for active-active domains, it's incremented to indicate there was a change in replication config.
+
+
+Before migration:
+```
+ActiveClusterName: cluster0,
+FailoverVersion: 0
+```
+
+After migration:
+```
+ActiveClusterName: cluster0,
+FailoverVersion: 100,
+ActiveClusters:  {
+    RegionToClusterMap: {
+        us-west: {
+            ActiveClusterName: cluster0,
+            FailoverVersion: 0,
+        },
+        us-east: {
+            ActiveClusterName: cluster3,
+            FailoverVersion: 6,
+        },
+    },
+}
+```
+
+
 
 
 ### API Call Forwarding
@@ -449,9 +485,29 @@ Below is a list of limitations of active-active domains.
 This is to avoid mixing tasklists of a domain with active and passive tasks. Instead, workflows will resume processing after failover by relying on decision/activity timeout tasks.
 Misconfigured (very high) timeout values can lead to workflows not being processed for a long time which is already a risk in active-passive mode.
 
+- **History Queue V2 dependency:** History Queue V2 must be enabled in the cluster to be able to use active-active domains.
+Legacy queue implementation is not handling initial backoff timer tasks correctly for active-active domains. See comments in `allocateTimerIDsLocked`.
+V2 queues can be enabled via dynamic config.
+```
+history.enableTransferQueueV2:
+  - value: true
+history.enableTimerQueueV2:
+  - value: true
+```
+
+- **Cassandra dependency:** Cassandra is the only supported persistence store for active-active domains.
+This is because the new entity region lookup table is stored in Cassandra.
+This is a temporary limitation and we will support other persistence stores in the future.
+
 - **Workflow id conflict:** Multiple clusters can start workflows independently with the same workflow id. This can lead to conflicts in active-active mode.
 Conflict resolution mechanism should take care of this by terminating one of the workflows.
 
+- **Graceful failover:** Graceful failover is not supported for active-active domains. It is not a mode that is frequently used for active-passive domains either.
+
 - **External entity cardinality:** All cadence frontend and history services will have to make quick decisions on which cluster a workflow is active in. This requires caching all the domain data (already done for active-passive domains) and also caching the new entity region lookup table. This cache should be manageable in terms of memory usage so there will be a limit to the number of entities. Actual limit is going to be configurable based on available memory but ideally it should be in the order of thousands.
 
-- **Graceful failover:** Graceful failover is not supported for active-active domains. It is not a mode that is frequently used for active-passive domains either.
+
+
+## Defining a new external entity type
+
+// TODO(active-active): define external entity providers as plugins. See resource_impl.go

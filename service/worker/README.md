@@ -16,7 +16,7 @@ Quickstart for local development with multiple Cadence clusters and replication
 ====================================
 1. Start dependency using docker if you don't have one running:
 ```
-docker-compose -f docker/dev/cassandra.yml up
+docker compose -f docker/dev/cassandra.yml up
 ```
 Then install the schemas:
 ```

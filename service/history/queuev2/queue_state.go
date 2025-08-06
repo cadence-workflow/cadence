@@ -55,3 +55,16 @@ func (s *VirtualSliceState) TrySplitByTaskKey(taskKey persistence.HistoryTaskKey
 			Predicate: s.Predicate,
 		}, true
 }
+
+func (s *VirtualSliceState) TrySplitByPredicate(predicate Predicate) (VirtualSliceState, VirtualSliceState, bool) {
+	if predicate.Equals(&universalPredicate{}) || predicate.Equals(&emptyPredicate{}) || predicate.Equals(s.Predicate) {
+		return VirtualSliceState{}, VirtualSliceState{}, false
+	}
+	return VirtualSliceState{
+			Range:     s.Range,
+			Predicate: And(s.Predicate, predicate),
+		}, VirtualSliceState{
+			Range:     s.Range,
+			Predicate: And(s.Predicate, Not(predicate)),
+		}, true
+}

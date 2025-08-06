@@ -123,5 +123,5 @@ func (lb *multiLoadBalancer) UpdateWeight(
 }
 
 func (lb *multiLoadBalancer) canRedirectToPartition(req ReadRequest) bool {
-	return req.GetForwardedFrom() == "" && req.GetTaskList().GetKind() != types.TaskListKindSticky && !strings.HasPrefix(req.GetTaskList().GetName(), constants.ReservedTaskListPrefix)
+	return req.GetForwardedFrom() == "" && req.GetTaskList().GetKind() == types.TaskListKindNormal && !strings.HasPrefix(req.GetTaskList().GetName(), constants.ReservedTaskListPrefix)
 }

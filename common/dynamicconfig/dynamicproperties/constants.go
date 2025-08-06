@@ -963,6 +963,7 @@ const (
 	// Default value: 2 // 3 levels, start from 0
 	// Allowed filters: N/A
 	QueueProcessorSplitMaxLevel
+	QueueMaxPendingTaskCount
 	// TimerTaskBatchSize is batch size for timer processor to process tasks
 	// KeyName: history.timerTaskBatchSize
 	// Value type: Int
@@ -1672,6 +1673,7 @@ const (
 
 	MatchingEnableGetNumberOfPartitionsFromCache
 	MatchingEnableAdaptiveScaler
+	MatchingEnablePartitionEmptyCheck
 
 	// key for history
 
@@ -2283,6 +2285,13 @@ const (
 	// Allowed filters: N/A
 	ShardDistributorErrorInjectionRate
 
+	// ShardDistributorErrorInjectionRate is rate for injecting random error in shard distributor executor client
+	// KeyName: sharddistributorexecutor.errorInjectionRate
+	// Value type: Float64
+	// Default value: 0
+	// Allowed filters: N/A
+	ShardDistributorExecutorErrorInjectionRate
+
 	// LastFloatKey must be the last one in this const group
 	LastFloatKey
 )
@@ -2373,7 +2382,12 @@ const (
 	// Default value: "disabled"
 	// Allowed filters: RatelimitKey (on global key, e.g. prefixed by collection name)
 	FrontendGlobalRatelimiterMode
-
+	// EnableAuthorizationV2 is the key to enable authorization v2 for a domain, only for extension binary:
+	// KeyName: system.enableAuthorizationV2
+	// Value type: string ["disabled","shadow","enabled"]
+	// Default value: "disabled"
+	// TODO: https://github.com/uber/cadence/issues/3861
+	EnableAuthorizationV2
 	TasklistLoadBalancerStrategy
 
 	// MatchingShardDistributionMode is the mode of shard distribution for matching, we currently have four modes, we _highly_
@@ -2410,6 +2424,12 @@ const (
 	// Default value: 0
 	// Allowed filters: N/A
 	FrontendShutdownDrainDuration
+	// FrontendWarmupDuration is the duration before a frontend host reports its status as healthy
+	// KeyName: frontend.warmupDuration
+	// Value type: Duration
+	// Default value: 30s
+	// Allowed filters: N/A
+	FrontendWarmupDuration
 	// FrontendFailoverCoolDown is duration between two domain failvoers
 	// KeyName: frontend.failoverCoolDown
 	// Value type: Duration
@@ -3529,6 +3549,11 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "QueueProcessorSplitMaxLevel is the max processing queue level",
 		DefaultValue: 2, // 3 levels, start from 0
 	},
+	QueueMaxPendingTaskCount: {
+		KeyName:      "history.queueMaxPendingTaskCount",
+		Description:  "QueueMaxPendingTaskCount is the max number of pending tasks in the queue",
+		DefaultValue: 10000,
+	},
 	TimerTaskBatchSize: {
 		KeyName:      "history.timerTaskBatchSize",
 		Description:  "TimerTaskBatchSize is batch size for timer processor to process tasks",
@@ -4171,6 +4196,12 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "MatchingEnableAdaptiveScaler is to enable adaptive task list scaling",
 		DefaultValue: false,
 	},
+	MatchingEnablePartitionEmptyCheck: {
+		KeyName:      "matching.enablePartitionEmptyCheck",
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
+		Description:  "MatchingEnablePartitionEmptyCheck enables using TaskListStatus.empty to check if a partition is empty",
+		DefaultValue: false,
+	},
 	EventsCacheGlobalEnable: {
 		KeyName:      "history.eventsCacheGlobalEnable",
 		Description:  "EventsCacheGlobalEnable is enables global cache over all history shards",
@@ -4742,6 +4773,11 @@ var FloatKeys = map[FloatKey]DynamicFloat{
 		Description:  "ShardDistributorInjectionRate is rate for injecting random error in shard distributor client",
 		DefaultValue: 0,
 	},
+	ShardDistributorExecutorErrorInjectionRate: {
+		KeyName:      "sharddistributorexecutor.errorInjectionRate",
+		Description:  "ShardDistributorExecutorInjectionRate is rate for injecting random error in shard distributor executor client",
+		DefaultValue: 0,
+	},
 }
 
 var StringKeys = map[StringKey]DynamicString{
@@ -4807,6 +4843,11 @@ var StringKeys = map[StringKey]DynamicString{
 		DefaultValue: "disabled",
 		Filters:      []Filter{RatelimitKey},
 	},
+	EnableAuthorizationV2: {
+		KeyName:      "system.enableAuthorizationV2",
+		Description:  "EnableAuthorizationV2 is the key to enable authorization v2 for a domain, only for extension binary:",
+		DefaultValue: "disabled", // available options: "disabled","shadow","enabled"
+	},
 	TasklistLoadBalancerStrategy: {
 		KeyName:      "system.tasklistLoadBalancerStrategy",
 		Description:  "TasklistLoadBalancerStrategy is the key for tasklist load balancer strategy",
@@ -4864,6 +4905,11 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		KeyName:      "frontend.shutdownDrainDuration",
 		Description:  "FrontendShutdownDrainDuration is the duration of traffic drain during shutdown",
 		DefaultValue: 0,
+	},
+	FrontendWarmupDuration: {
+		KeyName:      "frontend.warmupDuration",
+		Description:  "FrontendWarmupDuration is the duration before a frontend host reports its status as healthy",
+		DefaultValue: 30 * time.Second,
 	},
 	FrontendFailoverCoolDown: {
 		KeyName:      "frontend.failoverCoolDown",

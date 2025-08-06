@@ -1788,6 +1788,7 @@ func FromDescribeTaskListResponse(t *types.DescribeTaskListResponse) *shared.Des
 	return &shared.DescribeTaskListResponse{
 		Pollers:        FromPollerInfoArray(t.Pollers),
 		TaskListStatus: FromTaskListStatus(t.TaskListStatus),
+		TaskList:       FromTaskList(t.TaskList),
 	}
 }
 
@@ -1799,6 +1800,7 @@ func ToDescribeTaskListResponse(t *shared.DescribeTaskListResponse) *types.Descr
 	return &types.DescribeTaskListResponse{
 		Pollers:        ToPollerInfoArray(t.Pollers),
 		TaskListStatus: ToTaskListStatus(t.TaskListStatus),
+		TaskList:       ToTaskList(t.TaskList),
 	}
 }
 
@@ -1808,8 +1810,9 @@ func FromDescribeWorkflowExecutionRequest(t *types.DescribeWorkflowExecutionRequ
 		return nil
 	}
 	return &shared.DescribeWorkflowExecutionRequest{
-		Domain:    &t.Domain,
-		Execution: FromWorkflowExecution(t.Execution),
+		Domain:                &t.Domain,
+		Execution:             FromWorkflowExecution(t.Execution),
+		QueryConsistencyLevel: FromQueryConsistencyLevel(t.QueryConsistencyLevel),
 	}
 }
 
@@ -1819,8 +1822,9 @@ func ToDescribeWorkflowExecutionRequest(t *shared.DescribeWorkflowExecutionReque
 		return nil
 	}
 	return &types.DescribeWorkflowExecutionRequest{
-		Domain:    t.GetDomain(),
-		Execution: ToWorkflowExecution(t.Execution),
+		Domain:                t.GetDomain(),
+		Execution:             ToWorkflowExecution(t.Execution),
+		QueryConsistencyLevel: ToQueryConsistencyLevel(t.QueryConsistencyLevel),
 	}
 }
 
@@ -2614,6 +2618,7 @@ func FromGetWorkflowExecutionHistoryRequest(t *types.GetWorkflowExecutionHistory
 		WaitForNewEvent:        &t.WaitForNewEvent,
 		HistoryEventFilterType: FromHistoryEventFilterType(t.HistoryEventFilterType),
 		SkipArchival:           &t.SkipArchival,
+		QueryConsistencyLevel:  FromQueryConsistencyLevel(t.QueryConsistencyLevel),
 	}
 }
 
@@ -2630,6 +2635,7 @@ func ToGetWorkflowExecutionHistoryRequest(t *shared.GetWorkflowExecutionHistoryR
 		WaitForNewEvent:        t.GetWaitForNewEvent(),
 		HistoryEventFilterType: ToHistoryEventFilterType(t.HistoryEventFilterType),
 		SkipArchival:           t.GetSkipArchival(),
+		QueryConsistencyLevel:  ToQueryConsistencyLevel(t.QueryConsistencyLevel),
 	}
 }
 
@@ -5656,6 +5662,13 @@ func FromTaskList(t *types.TaskList) *shared.TaskList {
 	}
 }
 
+func MigrateTaskList(name string, t *shared.TaskList) *types.TaskList {
+	if t == nil && name != "" {
+		return &types.TaskList{Name: name, Kind: types.TaskListKindNormal.Ptr()}
+	}
+	return ToTaskList(t)
+}
+
 // ToTaskList converts thrift TaskList type to internal
 func ToTaskList(t *shared.TaskList) *types.TaskList {
 	if t == nil {
@@ -5674,11 +5687,11 @@ func FromTaskListKind(t *types.TaskListKind) *shared.TaskListKind {
 	}
 	switch *t {
 	case types.TaskListKindNormal:
-		v := shared.TaskListKindNormal
-		return &v
+		return shared.TaskListKindNormal.Ptr()
 	case types.TaskListKindSticky:
-		v := shared.TaskListKindSticky
-		return &v
+		return shared.TaskListKindSticky.Ptr()
+	case types.TaskListKindEphemeral:
+		return shared.TaskListKindEphemeral.Ptr()
 	}
 	panic("unexpected enum value")
 }
@@ -5690,11 +5703,11 @@ func ToTaskListKind(t *shared.TaskListKind) *types.TaskListKind {
 	}
 	switch *t {
 	case shared.TaskListKindNormal:
-		v := types.TaskListKindNormal
-		return &v
+		return types.TaskListKindNormal.Ptr()
 	case shared.TaskListKindSticky:
-		v := types.TaskListKindSticky
-		return &v
+		return types.TaskListKindSticky.Ptr()
+	case shared.TaskListKindEphemeral:
+		return types.TaskListKindEphemeral.Ptr()
 	}
 	panic("unexpected enum value")
 }
@@ -5754,6 +5767,7 @@ func FromTaskListStatus(t *types.TaskListStatus) *shared.TaskListStatus {
 		TaskIDBlock:           FromTaskIDBlock(t.TaskIDBlock),
 		IsolationGroupMetrics: FromIsolationGroupMetricsMap(t.IsolationGroupMetrics),
 		NewTasksPerSecond:     &t.NewTasksPerSecond,
+		Empty:                 &t.Empty,
 	}
 }
 
@@ -5770,6 +5784,7 @@ func ToTaskListStatus(t *shared.TaskListStatus) *types.TaskListStatus {
 		TaskIDBlock:           ToTaskIDBlock(t.TaskIDBlock),
 		IsolationGroupMetrics: ToIsolationGroupMetricsMap(t.GetIsolationGroupMetrics()),
 		NewTasksPerSecond:     t.GetNewTasksPerSecond(),
+		Empty:                 t.GetEmpty(),
 	}
 }
 
@@ -6530,6 +6545,10 @@ func FromWorkflowExecutionInfo(t *types.WorkflowExecutionInfo) *shared.WorkflowE
 	if t == nil {
 		return nil
 	}
+	tlName := ""
+	if t.TaskList != nil {
+		tlName = t.TaskList.Name
+	}
 	return &shared.WorkflowExecutionInfo{
 		Execution:                    FromWorkflowExecution(t.Execution),
 		Type:                         FromWorkflowType(t.Type),
@@ -6545,7 +6564,8 @@ func FromWorkflowExecutionInfo(t *types.WorkflowExecutionInfo) *shared.WorkflowE
 		Memo:                         FromMemo(t.Memo),
 		SearchAttributes:             FromSearchAttributes(t.SearchAttributes),
 		AutoResetPoints:              FromResetPoints(t.AutoResetPoints),
-		TaskList:                     &t.TaskList,
+		TaskList:                     &tlName,
+		TaskListInfo:                 FromTaskList(t.TaskList),
 		IsCron:                       &t.IsCron,
 		UpdateTime:                   t.UpdateTime,
 		PartitionConfig:              t.PartitionConfig,
@@ -6574,7 +6594,7 @@ func ToWorkflowExecutionInfo(t *shared.WorkflowExecutionInfo) *types.WorkflowExe
 		Memo:                         ToMemo(t.Memo),
 		SearchAttributes:             ToSearchAttributes(t.SearchAttributes),
 		AutoResetPoints:              ToResetPoints(t.AutoResetPoints),
-		TaskList:                     t.GetTaskList(),
+		TaskList:                     MigrateTaskList(t.GetTaskList(), t.TaskListInfo),
 		IsCron:                       t.GetIsCron(),
 		UpdateTime:                   t.UpdateTime,
 		PartitionConfig:              t.PartitionConfig,
@@ -8416,6 +8436,7 @@ func FromVirtualSliceState(t *types.VirtualSliceState) *shared.VirtualSliceState
 	}
 	return &shared.VirtualSliceState{
 		TaskRange: FromTaskRange(t.TaskRange),
+		Predicate: FromPredicate(t.Predicate),
 	}
 }
 
@@ -8425,6 +8446,7 @@ func ToVirtualSliceState(t *shared.VirtualSliceState) *types.VirtualSliceState {
 	}
 	return &types.VirtualSliceState{
 		TaskRange: ToTaskRange(t.TaskRange),
+		Predicate: ToPredicate(t.Predicate),
 	}
 }
 

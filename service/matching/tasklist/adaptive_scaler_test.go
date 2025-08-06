@@ -189,6 +189,64 @@ func TestAdaptiveScalerRun(t *testing.T) {
 			cycles: 2,
 		},
 		{
+			name: "underload sustained then drain - require empty",
+			mockSetup: func(deps *mockAdaptiveScalerDeps) {
+				deps.config.EnablePartitionEmptyCheck = func() bool {
+					return true
+				}
+				// Start of Cycle 1
+				mockDescribeTaskList(deps, 0, withPartitionsAndQPS(3, 0))
+				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(&types.TaskListPartitionConfig{
+					WritePartitions: partitions(3),
+					ReadPartitions:  partitions(3),
+				})
+
+				// Start of Cycle 2
+				mockDescribeTaskList(deps, 0, withPartitionsAndQPS(3, 0))
+				// Partition 2 will be checked but won't be drained because it hasn't received the update yet
+				mockDescribeTaskList(deps, 2, withPartitionsAndQPS(3, 0))
+				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(&types.TaskListPartitionConfig{
+					WritePartitions: partitions(3),
+					ReadPartitions:  partitions(3),
+				})
+				deps.mockManager.EXPECT().UpdateTaskListPartitionConfig(gomock.Any(), &types.TaskListPartitionConfig{
+					WritePartitions: partitions(1),
+					ReadPartitions:  partitions(3),
+				}).Return(nil)
+
+				// Start of cycle 3
+				mockDescribeTaskList(deps, 0, withPartitionsAndBacklog(3, 1, 0))
+				// 2 will be checked and drained because Empty == true, BacklogCountHint is ignored
+				mockDescribeTaskList(deps, 2, &types.DescribeTaskListResponse{
+					Pollers:        nil,
+					TaskListStatus: &types.TaskListStatus{NewTasksPerSecond: 0, BacklogCountHint: 1000, Empty: true},
+					PartitionConfig: &types.TaskListPartitionConfig{
+						ReadPartitions:  partitions(3),
+						WritePartitions: partitions(1),
+					},
+				})
+				// 1 will be checked and won't be drained because Empty == false, even though BacklogCountHint == 0
+				mockDescribeTaskList(deps, 1, &types.DescribeTaskListResponse{
+					Pollers:        nil,
+					TaskListStatus: &types.TaskListStatus{NewTasksPerSecond: 0, BacklogCountHint: 0, Empty: false},
+					PartitionConfig: &types.TaskListPartitionConfig{
+						ReadPartitions:  partitions(3),
+						WritePartitions: partitions(1),
+					},
+				})
+
+				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(&types.TaskListPartitionConfig{
+					WritePartitions: partitions(1),
+					ReadPartitions:  partitions(3),
+				})
+				deps.mockManager.EXPECT().UpdateTaskListPartitionConfig(gomock.Any(), &types.TaskListPartitionConfig{
+					WritePartitions: partitions(1),
+					ReadPartitions:  partitions(2),
+				}).Return(nil)
+			},
+			cycles: 3,
+		},
+		{
 			name: "underload sustained then drain",
 			mockSetup: func(deps *mockAdaptiveScalerDeps) {
 				mockDescribeTaskList(deps, 0, withPartitionsAndQPS(10, 0))

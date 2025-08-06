@@ -44,9 +44,9 @@ type (
 )
 
 const (
-	initialRangeID    int64 = 1 // Id of the first range of a new task list
-	initialAckLevel   int64 = 0
-	stickyTaskListTTL       = int64(24 * time.Hour / time.Second) // if sticky task_list stopped being updated, remove it in one day
+	initialRangeID  int64 = 1 // Id of the first range of a new task list
+	initialAckLevel int64 = 0
+	taskListTTL           = int64(24 * time.Hour / time.Second) // Applied only to kinds that have TTL
 )
 
 // newNoSQLTaskStore is used to create an instance of TaskStore implementation
@@ -230,8 +230,8 @@ func (t *nosqlTaskStore) UpdateTaskList(
 		return nil, err
 	}
 
-	if tli.Kind == persistence.TaskListKindSticky { // if task_list is sticky, then update with TTL
-		err = storeShard.db.UpdateTaskListWithTTL(ctx, stickyTaskListTTL, taskListToUpdate, tli.RangeID)
+	if persistence.TaskListKindHasTTL(tli.Kind) {
+		err = storeShard.db.UpdateTaskListWithTTL(ctx, taskListTTL, taskListToUpdate, tli.RangeID)
 	} else {
 		err = storeShard.db.UpdateTaskList(ctx, taskListToUpdate, tli.RangeID)
 	}

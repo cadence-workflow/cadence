@@ -220,6 +220,7 @@ func FromMatchingDescribeTaskListResponse(t *types.DescribeTaskListResponse) *ma
 		Pollers:         FromPollerInfoArray(t.Pollers),
 		TaskListStatus:  FromTaskListStatus(t.TaskListStatus),
 		PartitionConfig: FromAPITaskListPartitionConfig(t.PartitionConfig),
+		TaskList:        FromTaskList(t.TaskList),
 	}
 }
 
@@ -231,6 +232,7 @@ func ToMatchingDescribeTaskListResponse(t *matchingv1.DescribeTaskListResponse) 
 		Pollers:         ToPollerInfoArray(t.Pollers),
 		TaskListStatus:  ToTaskListStatus(t.TaskListStatus),
 		PartitionConfig: ToAPITaskListPartitionConfig(t.PartitionConfig),
+		TaskList:        ToTaskList(t.TaskList),
 	}
 }
 

@@ -30,6 +30,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/quotas"
 	"github.com/uber/cadence/service/history/task"
@@ -58,12 +59,13 @@ type (
 		metricsScope        metrics.Scope
 		timeSource          clock.TimeSource
 		taskLoadRateLimiter quotas.Limiter
+		monitor             Monitor
 		options             *VirtualQueueOptions
 
 		sync.RWMutex
 		status               int32
 		virtualQueues        map[int64]VirtualQueue
-		createVirtualQueueFn func(VirtualSlice) VirtualQueue
+		createVirtualQueueFn func(VirtualSlice, int64) VirtualQueue
 	}
 )
 
@@ -76,6 +78,7 @@ func NewVirtualQueueManager(
 	metricsScope metrics.Scope,
 	timeSource clock.TimeSource,
 	taskLoadRateLimiter quotas.Limiter,
+	monitor Monitor,
 	options *VirtualQueueOptions,
 	virtualQueueStates map[int64][]VirtualSliceState,
 ) VirtualQueueManager {
@@ -85,7 +88,7 @@ func NewVirtualQueueManager(
 		for i, state := range states {
 			virtualSlices[i] = NewVirtualSlice(state, taskInitializer, queueReader, NewPendingTaskTracker())
 		}
-		virtualQueues[queueID] = NewVirtualQueue(processor, redispatcher, logger, metricsScope, timeSource, taskLoadRateLimiter, virtualSlices, options)
+		virtualQueues[queueID] = NewVirtualQueue(processor, redispatcher, logger.WithTags(tag.VirtualQueueID(queueID)), metricsScope, timeSource, taskLoadRateLimiter, monitor, virtualSlices, options)
 	}
 	return &virtualQueueManagerImpl{
 		processor:           processor,
@@ -96,11 +99,12 @@ func NewVirtualQueueManager(
 		metricsScope:        metricsScope,
 		timeSource:          timeSource,
 		taskLoadRateLimiter: taskLoadRateLimiter,
+		monitor:             monitor,
 		options:             options,
 		status:              common.DaemonStatusInitialized,
 		virtualQueues:       virtualQueues,
-		createVirtualQueueFn: func(s VirtualSlice) VirtualQueue {
-			return NewVirtualQueue(processor, redispatcher, logger, metricsScope, timeSource, taskLoadRateLimiter, []VirtualSlice{s}, options)
+		createVirtualQueueFn: func(s VirtualSlice, queueID int64) VirtualQueue {
+			return NewVirtualQueue(processor, redispatcher, logger.WithTags(tag.VirtualQueueID(queueID)), metricsScope, timeSource, taskLoadRateLimiter, monitor, []VirtualSlice{s}, options)
 		},
 	}
 }
@@ -155,7 +159,7 @@ func (m *virtualQueueManagerImpl) UpdateAndGetState() map[int64][]VirtualSliceSt
 		state := vq.UpdateAndGetState()
 		if len(state) > 0 {
 			virtualQueueStates[key] = state
-		} else {
+		} else if key != rootQueueID {
 			vq.Stop()
 			delete(m.virtualQueues, key)
 		}
@@ -179,6 +183,6 @@ func (m *virtualQueueManagerImpl) AddNewVirtualSliceToRootQueue(s VirtualSlice) 
 		return
 	}
 
-	m.virtualQueues[rootQueueID] = m.createVirtualQueueFn(s)
+	m.virtualQueues[rootQueueID] = m.createVirtualQueueFn(s, rootQueueID)
 	m.virtualQueues[rootQueueID].Start()
 }

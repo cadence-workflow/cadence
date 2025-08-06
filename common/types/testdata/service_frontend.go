@@ -337,6 +337,7 @@ var (
 		WorkflowIDReusePolicy:               &WorkflowIDReusePolicy,
 		RetryPolicy:                         &RetryPolicy,
 		CronSchedule:                        CronSchedule,
+		CronOverlapPolicy:                   &CronOverlapPolicy,
 		Memo:                                &Memo,
 		SearchAttributes:                    &SearchAttributes,
 		Header:                              &Header,
@@ -375,6 +376,7 @@ var (
 		Control:                             Control,
 		RetryPolicy:                         &RetryPolicy,
 		CronSchedule:                        CronSchedule,
+		CronOverlapPolicy:                   &CronOverlapPolicy,
 		Memo:                                &Memo,
 		SearchAttributes:                    &SearchAttributes,
 		Header:                              &Header,
@@ -405,8 +407,9 @@ var (
 		FirstExecutionRunID: RunID,
 	}
 	DescribeWorkflowExecutionRequest = types.DescribeWorkflowExecutionRequest{
-		Domain:    DomainName,
-		Execution: &WorkflowExecution,
+		Domain:                DomainName,
+		Execution:             &WorkflowExecution,
+		QueryConsistencyLevel: &QueryConsistencyLevel,
 	}
 	DescribeWorkflowExecutionResponse = types.DescribeWorkflowExecutionResponse{
 		ExecutionConfiguration: &WorkflowExecutionConfiguration,
@@ -445,6 +448,7 @@ var (
 		Pollers:         PollerInfoArray,
 		TaskListStatus:  &TaskListStatus,
 		PartitionConfig: &TaskListPartitionConfig,
+		TaskList:        &TaskList,
 	}
 	ListTaskListPartitionsRequest = types.ListTaskListPartitionsRequest{
 		Domain:   DomainName,
@@ -467,6 +471,7 @@ var (
 		WaitForNewEvent:        true,
 		HistoryEventFilterType: &HistoryEventFilterType,
 		SkipArchival:           true,
+		QueryConsistencyLevel:  &QueryConsistencyLevel,
 	}
 	GetWorkflowExecutionHistoryResponse = types.GetWorkflowExecutionHistoryResponse{
 		History:       &History,

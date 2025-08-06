@@ -1,0 +1,83 @@
+services:
+  cassandra:
+    image: cassandra:4.1.1
+    ports:
+      - "9042:9042"
+    environment:
+      - "MAX_HEAP_SIZE=256M"
+      - "HEAP_NEWSIZE=128M"
+    healthcheck:
+      test: ["CMD", "cqlsh", "-u cassandra", "-p cassandra" ,"-e describe keyspaces"]
+      interval: 15s
+      timeout: 30s
+      retries: 10
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus:/etc/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    ports:
+      - '9090:9090'
+  node-exporter:
+    image: prom/node-exporter
+    ports:
+      - '9100:9100'
+  cadence:
+    image: ubercadence/server:master-auto-setup
+    ports:
+     - "8000:8000"
+     - "8001:8001"
+     - "8002:8002"
+     - "8003:8003"
+     - "7933:7933"
+     - "7934:7934"
+     - "7935:7935"
+     - "7939:7939"
+     - "7833:7833"
+     - "7936:7936"
+    environment:
+      - "CASSANDRA_SEEDS=cassandra"
+      - "PROMETHEUS_ENDPOINT_0=0.0.0.0:8000"
+      - "PROMETHEUS_ENDPOINT_1=0.0.0.0:8001"
+      - "PROMETHEUS_ENDPOINT_2=0.0.0.0:8002"
+      - "PROMETHEUS_ENDPOINT_3=0.0.0.0:8003"
+      - "DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development.yaml"
+      - "FRONTEND_PPROF_PORT=7936"
+      - "LOG_LEVEL=debug"
+      - "HISTORY_ARCHIVAL_STATUS=enabled"
+      - "HISTORY_ARCHIVAL_ENABLE_READ=true"
+      - "HISTORY_ARCHIVAL_FILE_MODE=0100644"
+      - "HISTORY_ARCHIVAL_DIR_MODE=0040000"
+      - "DOMAIN_DEFAULTS_HISTORY_ARCHIVAL_STATUS=enabled"
+      - "DOMAIN_DEFAULTS_HISTORY_ARCHIVAL_URI=file:///etc/cadence/archival/history"
+      - "VISIBILITY_ARCHIVAL_STATUS=enabled"
+      - "VISIBILITY_ARCHIVAL_ENABLE_READ=true"
+      - "VISIBILITY_ARCHIVAL_FILE_MODE=0100644"
+      - "VISIBILITY_ARCHIVAL_DIR_MODE=0040000"
+      - "DOMAIN_DEFAULTS_VISIBILITY_ARCHIVAL_STATUS=enabled"
+      - "DOMAIN_DEFAULTS_VISIBILITY_ARCHIVAL_URI=file:///etc/cadence/archival/visibility"
+    volumes:
+      - ./archival:/etc/cadence/archival
+    depends_on:
+      cassandra:
+        condition: service_healthy
+      prometheus:
+        condition: service_started
+  cadence-web:
+    image: ubercadence/web:latest
+    environment:
+      - "CADENCE_GRPC_PEERS=cadence:7833"
+    ports:
+      - "8088:8088"
+    depends_on:
+      - cadence
+  grafana:
+    image: grafana/grafana
+    volumes:
+      - ./grafana:/etc/grafana
+    user: "1000"
+    depends_on:
+      - prometheus
+    ports:
+      - '3000:3000'

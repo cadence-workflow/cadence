@@ -72,15 +72,15 @@ We recommend to use [docker-compose](https://docs.docker.com/compose/) to start 
 
 * If you want to start Cassandra dependency, use `./docker/dev/cassandra.yml`:
 ```
-docker-compose -f ./docker/dev/cassandra.yml up
+docker compose -f ./docker/dev/cassandra.yml up
 ```
-You will use `CTRL+C` to stop it. Then `docker-compose -f ./docker/dev/cassandra.yml down` to clean up the resources.
+You will use `CTRL+C` to stop it. Then `docker compose -f ./docker/dev/cassandra.yml down` to clean up the resources.
 
 Or to run in the background
 ```
-docker-compose -f ./docker/dev/cassandra.yml up -d
+docker compose -f ./docker/dev/cassandra.yml up -d
 ```
-Also use `docker-compose -f ./docker/dev/cassandra.yml down` to stop and clean up the resources.
+Also use `docker compose -f ./docker/dev/cassandra.yml down` to stop and clean up the resources.
 
 * Alternatively, use `./docker/dev/mysql.yml` for MySQL dependency. (MySQL has been updated from 5.7 to 8.0)
 * Alternatively, use `./docker/dev/postgres.yml` for PostgreSQL dependency
@@ -224,6 +224,17 @@ If you make changes in the idls submodule and want to test them locally, you can
 ```replace github.com/uber/cadence-idl => ./idls```
 
 Or alternatively, push your idl changes to a branch in your own fork of idl repo and pull that specific commit to idl submodule. Then apply the go.mod change mentioned above.
+
+### Using IDL Changes
+
+Once your [Pull Request](#pull-requests) has been successfully merged you can update cadence to use the new version:
+
+```bash
+# Update the IDLs directory
+git submodule foreach git pull origin master
+# Update go to use the latest idl package
+go get github.com/uber/cadence-idl@latest
+```
 
 ## Pull Requests
 After all the preparation you are about to write code and make a Pull Request for the issue.

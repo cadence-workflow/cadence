@@ -146,6 +146,30 @@ func (c *meteredExecutionManager) CreateWorkflowExecution(ctx context.Context, r
 	return
 }
 
+func (c *meteredExecutionManager) DeleteActiveClusterSelectionPolicy(ctx context.Context, domainID string, workflowID string, runID string) (err error) {
+	op := func() error {
+		err = c.wrapped.DeleteActiveClusterSelectionPolicy(ctx, domainID, workflowID, runID)
+		return err
+	}
+
+	retryCount := getRetryCountFromContext(ctx)
+	if domainName, hasDomainName := getDomainNameFromRequest(domainID); hasDomainName {
+		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(domainID)...)
+		c.logger.SampleInfo("Persistence DeleteActiveClusterSelectionPolicy called", c.sampleLoggingRate(), logTags...)
+		if c.enableShardIDMetrics() {
+			err = c.callWithDomainAndShardScope(metrics.PersistenceDeleteActiveClusterSelectionPolicyScope, op, metrics.DomainTag(domainName),
+				metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
+		} else {
+			err = c.call(metrics.PersistenceDeleteActiveClusterSelectionPolicyScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
+		}
+		return
+	}
+
+	err = c.callWithoutDomainTag(metrics.PersistenceDeleteActiveClusterSelectionPolicyScope, op, append(getCustomMetricTags(domainID), metrics.IsRetryTag(retryCount > 0))...)
+
+	return
+}
+
 func (c *meteredExecutionManager) DeleteCurrentWorkflowExecution(ctx context.Context, request *persistence.DeleteCurrentWorkflowExecutionRequest) (err error) {
 	op := func() error {
 		err = c.wrapped.DeleteCurrentWorkflowExecution(ctx, request)

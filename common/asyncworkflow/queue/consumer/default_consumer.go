@@ -169,32 +169,37 @@ func (c *DefaultConsumer) processMessage(msg messaging.Message) {
 		return
 	}
 
-	if err := c.processRequest(logger, &request); err != nil {
-		logger.Error("Failed to process message", tag.Error(err))
-		if err := msg.Nack(); err != nil {
-			logger.Error("Failed to nack message", tag.Error(err))
+	logTags, err := c.processRequest(logger, &request)
+	if err != nil {
+		logger.Error("Failed to process message", append(logTags, tag.Error(err))...)
+		if nackErr := msg.Nack(); nackErr != nil {
+			logger.Error("Failed to nack message", append(logTags, tag.Dynamic("original-error", err.Error()), tag.Error(nackErr))...)
 		}
 		return
 	}
 
+	logger = logger.WithTags(logTags...)
 	if err := msg.Ack(); err != nil {
 		logger.Error("Failed to ack message", tag.Error(err))
 	}
-	logger.Debug("Processed message successfully")
+	logger.Info("Processed message successfully")
 }
 
-func (c *DefaultConsumer) processRequest(logger log.Logger, request *sqlblobs.AsyncRequestMessage) error {
-	scope := c.scope.Tagged(metrics.AsyncWFRequestTypeTag(request.GetType().String()))
+func (c *DefaultConsumer) processRequest(logger log.Logger, request *sqlblobs.AsyncRequestMessage) ([]tag.Tag, error) {
+	requestType := request.GetType().String()
+	scope := c.scope.Tagged(metrics.AsyncWFRequestTypeTag(requestType))
+	logTags := []tag.Tag{tag.AsyncWFRequestType(requestType)}
 	switch request.GetType() {
 	case sqlblobs.AsyncRequestTypeStartWorkflowExecutionAsyncRequest:
 		startWFReq, err := c.decodeStartWorkflowRequest(request.GetPayload(), request.GetEncoding())
 		if err != nil {
 			scope.IncCounter(metrics.AsyncWorkflowFailureCorruptMsgCount)
-			return err
+			return logTags, err
 		}
 
 		yarpcCallOpts := getYARPCOptions(request.GetHeader())
 		scope := scope.Tagged(metrics.DomainTag(startWFReq.GetDomain()))
+		logTags = append(logTags, tag.WorkflowDomainName(startWFReq.GetDomain()), tag.WorkflowID(startWFReq.GetWorkflowID()))
 
 		var resp *types.StartWorkflowExecutionResponse
 		op := func(ctx1 context.Context) error {
@@ -212,20 +217,21 @@ func (c *DefaultConsumer) processRequest(logger log.Logger, request *sqlblobs.As
 
 		if err := callFrontendWithRetries(c.ctx, op); err != nil {
 			scope.IncCounter(metrics.AsyncWorkflowFailureByFrontendCount)
-			return fmt.Errorf("start workflow execution failed after all attempts: %w", err)
+			return logTags, fmt.Errorf("start workflow execution failed after all attempts: %w", err)
 		}
 
+		logTags = append(logTags, tag.WorkflowRunID(resp.GetRunID()))
 		scope.IncCounter(metrics.AsyncWorkflowSuccessCount)
-		logger.Info("StartWorkflowExecution succeeded", tag.WorkflowID(startWFReq.GetWorkflowID()), tag.WorkflowRunID(resp.GetRunID()))
 	case sqlblobs.AsyncRequestTypeSignalWithStartWorkflowExecutionAsyncRequest:
 		startWFReq, err := c.decodeSignalWithStartWorkflowRequest(request.GetPayload(), request.GetEncoding())
 		if err != nil {
 			c.scope.IncCounter(metrics.AsyncWorkflowFailureCorruptMsgCount)
-			return err
+			return logTags, err
 		}
 
 		yarpcCallOpts := getYARPCOptions(request.GetHeader())
 		scope := c.scope.Tagged(metrics.DomainTag(startWFReq.GetDomain()))
+		logTags = append(logTags, tag.WorkflowDomainName(startWFReq.GetDomain()), tag.WorkflowID(startWFReq.GetWorkflowID()))
 		var resp *types.StartWorkflowExecutionResponse
 		op := func(ctx1 context.Context) error {
 			ctx, cancel := context.WithTimeout(ctx1, c.startWFTimeout)
@@ -242,17 +248,17 @@ func (c *DefaultConsumer) processRequest(logger log.Logger, request *sqlblobs.As
 
 		if err := callFrontendWithRetries(c.ctx, op); err != nil {
 			scope.IncCounter(metrics.AsyncWorkflowFailureByFrontendCount)
-			return fmt.Errorf("signal with start workflow execution failed after all attempts: %w", err)
+			return logTags, fmt.Errorf("signal with start workflow execution failed after all attempts: %w", err)
 		}
 
 		scope.IncCounter(metrics.AsyncWorkflowSuccessCount)
-		logger.Info("SignalWithStartWorkflowExecution succeeded", tag.WorkflowID(startWFReq.GetWorkflowID()), tag.WorkflowRunID(resp.GetRunID()))
+		logTags = append(logTags, tag.WorkflowRunID(resp.GetRunID()))
 	default:
 		c.scope.IncCounter(metrics.AsyncWorkflowFailureCorruptMsgCount)
-		return &UnsupportedRequestType{Type: request.GetType()}
+		return logTags, &UnsupportedRequestType{Type: request.GetType()}
 	}
 
-	return nil
+	return logTags, nil
 }
 
 func callFrontendWithRetries(ctx context.Context, op func(ctx context.Context) error) error {

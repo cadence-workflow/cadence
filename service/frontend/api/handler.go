@@ -154,10 +154,7 @@ func NewWorkflowHandler(
 
 // Start starts the handler
 func (wh *WorkflowHandler) Start() {
-	// TODO: Get warmup duration from config. Even better, run proactive checks such as probing downstream connections.
-	const warmUpDuration = 30 * time.Second
-
-	warmupTimer := time.NewTimer(warmUpDuration)
+	warmupTimer := time.NewTimer(wh.config.WarmupDuration())
 	go func() {
 		<-warmupTimer.C
 		wh.GetLogger().Warn("Service warmup duration has elapsed.")
@@ -1835,7 +1832,7 @@ func (wh *WorkflowHandler) GetWorkflowExecutionHistory(
 	}
 
 	domainName := getRequest.GetDomain()
-	wfExecution := getRequest.GetExecution()
+	wfExecution := getRequest.GetWorkflowExecution()
 
 	if domainName == "" {
 		return nil, validate.ErrDomainNotSet
@@ -3083,7 +3080,7 @@ func serializeHistoryToken(token *getHistoryContinuationToken) ([]byte, error) {
 }
 
 func isFailoverRequest(updateRequest *types.UpdateDomainRequest) bool {
-	return updateRequest.ActiveClusterName != nil
+	return updateRequest.ActiveClusterName != nil || updateRequest.ActiveClusters != nil
 }
 
 func isGraceFailoverRequest(updateRequest *types.UpdateDomainRequest) bool {
@@ -3135,7 +3132,7 @@ func (wh *WorkflowHandler) checkOngoingFailover(
 }
 
 func (wh *WorkflowHandler) historyArchived(ctx context.Context, request *types.GetWorkflowExecutionHistoryRequest, domainID string) bool {
-	if request.GetExecution() == nil || request.GetExecution().GetRunID() == "" {
+	if request.GetWorkflowExecution() == nil || request.GetWorkflowExecution().GetRunID() == "" {
 		return false
 	}
 	getMutableStateRequest := &types.GetMutableStateRequest{
@@ -3184,8 +3181,8 @@ func (wh *WorkflowHandler) getArchivedHistory(
 
 	resp, err := historyArchiver.Get(ctx, URI, &archiver.GetHistoryRequest{
 		DomainID:      domainID,
-		WorkflowID:    request.GetExecution().GetWorkflowID(),
-		RunID:         request.GetExecution().GetRunID(),
+		WorkflowID:    request.GetWorkflowExecution().GetWorkflowID(),
+		RunID:         request.GetWorkflowExecution().GetRunID(),
 		NextPageToken: request.GetNextPageToken(),
 		PageSize:      int(request.GetMaximumPageSize()),
 	})
@@ -3288,7 +3285,6 @@ func (wh *WorkflowHandler) normalizeVersionedErrors(ctx context.Context, err err
 	}
 }
 func constructRestartWorkflowRequest(w *types.WorkflowExecutionStartedEventAttributes, domain string, identity string, workflowID string) *types.StartWorkflowExecutionRequest {
-
 	startRequest := &types.StartWorkflowExecutionRequest{
 		RequestID:  uuid.New().String(),
 		Domain:     domain,
@@ -3298,6 +3294,7 @@ func constructRestartWorkflowRequest(w *types.WorkflowExecutionStartedEventAttri
 		},
 		TaskList: &types.TaskList{
 			Name: w.TaskList.Name,
+			Kind: w.TaskList.Kind,
 		},
 		Input:                               w.Input,
 		ExecutionStartToCloseTimeoutSeconds: w.ExecutionStartToCloseTimeoutSeconds,

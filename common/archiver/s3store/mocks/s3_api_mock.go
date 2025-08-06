@@ -450,6 +450,93 @@ func (_m *S3API) CreateMultipartUploadWithContext(_a0 context.Context, _a1 *s3.C
 	return r0, r1
 }
 
+// CreateSession provides a mock function with given fields: _a0
+func (_m *S3API) CreateSession(_a0 *s3.CreateSessionInput) (*s3.CreateSessionOutput, error) {
+	ret := _m.Called(_a0)
+
+	var r0 *s3.CreateSessionOutput
+	var r1 error
+	if rf, ok := ret.Get(0).(func(*s3.CreateSessionInput) (*s3.CreateSessionOutput, error)); ok {
+		return rf(_a0)
+	}
+	if rf, ok := ret.Get(0).(func(*s3.CreateSessionInput) *s3.CreateSessionOutput); ok {
+		r0 = rf(_a0)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*s3.CreateSessionOutput)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(*s3.CreateSessionInput) error); ok {
+		r1 = rf(_a0)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// CreateSessionRequest provides a mock function with given fields: _a0
+func (_m *S3API) CreateSessionRequest(_a0 *s3.CreateSessionInput) (*request.Request, *s3.CreateSessionOutput) {
+	ret := _m.Called(_a0)
+
+	var r0 *request.Request
+	var r1 *s3.CreateSessionOutput
+	if rf, ok := ret.Get(0).(func(*s3.CreateSessionInput) (*request.Request, *s3.CreateSessionOutput)); ok {
+		return rf(_a0)
+	}
+	if rf, ok := ret.Get(0).(func(*s3.CreateSessionInput) *request.Request); ok {
+		r0 = rf(_a0)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*request.Request)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(*s3.CreateSessionInput) *s3.CreateSessionOutput); ok {
+		r1 = rf(_a0)
+	} else {
+		if ret.Get(1) != nil {
+			r1 = ret.Get(1).(*s3.CreateSessionOutput)
+		}
+	}
+
+	return r0, r1
+}
+
+// CreateSessionWithContext provides a mock function with given fields: _a0, _a1, _a2
+func (_m *S3API) CreateSessionWithContext(_a0 context.Context, _a1 *s3.CreateSessionInput, _a2 ...request.Option) (*s3.CreateSessionOutput, error) {
+	_va := make([]interface{}, len(_a2))
+	for _i := range _a2 {
+		_va[_i] = _a2[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, _a0, _a1)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	var r0 *s3.CreateSessionOutput
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *s3.CreateSessionInput, ...request.Option) (*s3.CreateSessionOutput, error)); ok {
+		return rf(_a0, _a1, _a2...)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *s3.CreateSessionInput, ...request.Option) *s3.CreateSessionOutput); ok {
+		r0 = rf(_a0, _a1, _a2...)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*s3.CreateSessionOutput)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *s3.CreateSessionInput, ...request.Option) error); ok {
+		r1 = rf(_a0, _a1, _a2...)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // DeleteBucket provides a mock function with given fields: _a0
 func (_m *S3API) DeleteBucket(_a0 *s3.DeleteBucketInput) (*s3.DeleteBucketOutput, error) {
 	ret := _m.Called(_a0)
@@ -5227,6 +5314,128 @@ func (_m *S3API) ListBucketsWithContext(_a0 context.Context, _a1 *s3.ListBuckets
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, *s3.ListBucketsInput, ...request.Option) error); ok {
+		r1 = rf(_a0, _a1, _a2...)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// ListDirectoryBuckets provides a mock function with given fields: _a0
+func (_m *S3API) ListDirectoryBuckets(_a0 *s3.ListDirectoryBucketsInput) (*s3.ListDirectoryBucketsOutput, error) {
+	ret := _m.Called(_a0)
+
+	var r0 *s3.ListDirectoryBucketsOutput
+	var r1 error
+	if rf, ok := ret.Get(0).(func(*s3.ListDirectoryBucketsInput) (*s3.ListDirectoryBucketsOutput, error)); ok {
+		return rf(_a0)
+	}
+	if rf, ok := ret.Get(0).(func(*s3.ListDirectoryBucketsInput) *s3.ListDirectoryBucketsOutput); ok {
+		r0 = rf(_a0)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*s3.ListDirectoryBucketsOutput)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(*s3.ListDirectoryBucketsInput) error); ok {
+		r1 = rf(_a0)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// ListDirectoryBucketsPages provides a mock function with given fields: _a0, _a1
+func (_m *S3API) ListDirectoryBucketsPages(_a0 *s3.ListDirectoryBucketsInput, _a1 func(*s3.ListDirectoryBucketsOutput, bool) bool) error {
+	ret := _m.Called(_a0, _a1)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(*s3.ListDirectoryBucketsInput, func(*s3.ListDirectoryBucketsOutput, bool) bool) error); ok {
+		r0 = rf(_a0, _a1)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// ListDirectoryBucketsPagesWithContext provides a mock function with given fields: _a0, _a1, _a2, _a3
+func (_m *S3API) ListDirectoryBucketsPagesWithContext(_a0 context.Context, _a1 *s3.ListDirectoryBucketsInput, _a2 func(*s3.ListDirectoryBucketsOutput, bool) bool, _a3 ...request.Option) error {
+	_va := make([]interface{}, len(_a3))
+	for _i := range _a3 {
+		_va[_i] = _a3[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, _a0, _a1, _a2)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *s3.ListDirectoryBucketsInput, func(*s3.ListDirectoryBucketsOutput, bool) bool, ...request.Option) error); ok {
+		r0 = rf(_a0, _a1, _a2, _a3...)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// ListDirectoryBucketsRequest provides a mock function with given fields: _a0
+func (_m *S3API) ListDirectoryBucketsRequest(_a0 *s3.ListDirectoryBucketsInput) (*request.Request, *s3.ListDirectoryBucketsOutput) {
+	ret := _m.Called(_a0)
+
+	var r0 *request.Request
+	var r1 *s3.ListDirectoryBucketsOutput
+	if rf, ok := ret.Get(0).(func(*s3.ListDirectoryBucketsInput) (*request.Request, *s3.ListDirectoryBucketsOutput)); ok {
+		return rf(_a0)
+	}
+	if rf, ok := ret.Get(0).(func(*s3.ListDirectoryBucketsInput) *request.Request); ok {
+		r0 = rf(_a0)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*request.Request)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(*s3.ListDirectoryBucketsInput) *s3.ListDirectoryBucketsOutput); ok {
+		r1 = rf(_a0)
+	} else {
+		if ret.Get(1) != nil {
+			r1 = ret.Get(1).(*s3.ListDirectoryBucketsOutput)
+		}
+	}
+
+	return r0, r1
+}
+
+// ListDirectoryBucketsWithContext provides a mock function with given fields: _a0, _a1, _a2
+func (_m *S3API) ListDirectoryBucketsWithContext(_a0 context.Context, _a1 *s3.ListDirectoryBucketsInput, _a2 ...request.Option) (*s3.ListDirectoryBucketsOutput, error) {
+	_va := make([]interface{}, len(_a2))
+	for _i := range _a2 {
+		_va[_i] = _a2[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, _a0, _a1)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	var r0 *s3.ListDirectoryBucketsOutput
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *s3.ListDirectoryBucketsInput, ...request.Option) (*s3.ListDirectoryBucketsOutput, error)); ok {
+		return rf(_a0, _a1, _a2...)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *s3.ListDirectoryBucketsInput, ...request.Option) *s3.ListDirectoryBucketsOutput); ok {
+		r0 = rf(_a0, _a1, _a2...)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*s3.ListDirectoryBucketsOutput)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *s3.ListDirectoryBucketsInput, ...request.Option) error); ok {
 		r1 = rf(_a0, _a1, _a2...)
 	} else {
 		r1 = ret.Error(1)

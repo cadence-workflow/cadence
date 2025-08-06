@@ -77,8 +77,8 @@ type (
 
 	partitionMetrics struct {
 		qps      float64
-		backlog  int64
 		readOnly bool
+		empty    bool
 	}
 )
 
@@ -291,9 +291,9 @@ func (a *adaptiveScalerImpl) adjustReadPartitions(m *aggregatePartitionMetrics, 
 				a.logger.Warn("failed to get partition metrics", tag.WorkflowTaskListName(a.taskListID.GetPartition(i)), tag.Error(err))
 				break
 			}
-			p = toPartitionMetrics(i, resp)
+			p = a.toPartitionMetrics(i, resp)
 		}
-		if p.readOnly && p.backlog == 0 {
+		if p.readOnly && p.empty {
 			changed = true
 			delete(result, i)
 			a.scope.IncCounter(metrics.PartitionDrained)
@@ -351,7 +351,7 @@ func (a *adaptiveScalerImpl) fetchMetricsFromPartitions(config *types.TaskListPa
 		return nil, err
 	}
 
-	return toAggregateMetrics(results), err
+	return a.toAggregateMetrics(results), err
 }
 
 func (a *adaptiveScalerImpl) describePartition(partitionID int) (*types.DescribeTaskListResponse, error) {
@@ -371,7 +371,7 @@ func (a *adaptiveScalerImpl) describePartition(partitionID int) (*types.Describe
 	})
 }
 
-func toAggregateMetrics(partitions map[int]*types.DescribeTaskListResponse) *aggregatePartitionMetrics {
+func (a *adaptiveScalerImpl) toAggregateMetrics(partitions map[int]*types.DescribeTaskListResponse) *aggregatePartitionMetrics {
 	total := 0.0
 	byIsolationGroup := make(map[string]float64)
 	hasPollersByIsolationGroup := make(map[string]bool)
@@ -383,7 +383,7 @@ func toAggregateMetrics(partitions map[int]*types.DescribeTaskListResponse) *agg
 		}
 		total += p.TaskListStatus.NewTasksPerSecond
 
-		byPartition[id] = toPartitionMetrics(id, p)
+		byPartition[id] = a.toPartitionMetrics(id, p)
 	}
 	return &aggregatePartitionMetrics{
 		totalQPS:                   total,
@@ -394,14 +394,20 @@ func toAggregateMetrics(partitions map[int]*types.DescribeTaskListResponse) *agg
 	}
 }
 
-func toPartitionMetrics(id int, p *types.DescribeTaskListResponse) *partitionMetrics {
+func (a *adaptiveScalerImpl) toPartitionMetrics(id int, p *types.DescribeTaskListResponse) *partitionMetrics {
 	hasWritePartition := true
 	if p.PartitionConfig != nil {
 		_, hasWritePartition = p.PartitionConfig.WritePartitions[id]
 	}
+	var empty bool
+	if a.config.EnablePartitionEmptyCheck() {
+		empty = p.TaskListStatus.Empty
+	} else {
+		empty = p.TaskListStatus.BacklogCountHint == 0
+	}
 	return &partitionMetrics{
 		qps:      p.TaskListStatus.NewTasksPerSecond,
-		backlog:  p.TaskListStatus.BacklogCountHint,
+		empty:    empty,
 		readOnly: !hasWritePartition,
 	}
 }

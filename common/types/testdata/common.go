@@ -247,6 +247,7 @@ var (
 			},
 		},
 		NewTasksPerSecond: 10,
+		Empty:             true,
 	}
 	TaskIDBlock = types.TaskIDBlock{
 		StartID: 551,
@@ -363,7 +364,26 @@ var (
 		Memo:              &Memo,
 		SearchAttributes:  &SearchAttributes,
 		AutoResetPoints:   &ResetPoints,
-		TaskList:          TaskListName,
+		TaskList:          &types.TaskList{Name: TaskListName, Kind: types.TaskListKindNormal.Ptr()},
+		PartitionConfig:   PartitionConfig,
+		CronOverlapPolicy: &CronOverlapPolicy,
+	}
+	WorkflowExecutionInfoEphemeral = types.WorkflowExecutionInfo{
+		Execution:         &WorkflowExecution,
+		Type:              &WorkflowType,
+		StartTime:         &Timestamp1,
+		CloseTime:         &Timestamp2,
+		CloseStatus:       &WorkflowExecutionCloseStatus,
+		HistoryLength:     HistoryLength,
+		ParentDomainID:    common.StringPtr(DomainID),
+		ParentDomain:      common.StringPtr(DomainName),
+		ParentExecution:   &WorkflowExecution,
+		ParentInitiatedID: common.Int64Ptr(EventID1),
+		ExecutionTime:     &Timestamp3,
+		Memo:              &Memo,
+		SearchAttributes:  &SearchAttributes,
+		AutoResetPoints:   &ResetPoints,
+		TaskList:          &types.TaskList{Name: TaskListName, Kind: types.TaskListKindEphemeral.Ptr()},
 		PartitionConfig:   PartitionConfig,
 		CronOverlapPolicy: &CronOverlapPolicy,
 	}
@@ -382,9 +402,10 @@ var (
 		Memo:              &Memo,
 		SearchAttributes:  &SearchAttributes,
 		AutoResetPoints:   &ResetPoints,
-		TaskList:          TaskListName,
+		TaskList:          &types.TaskList{Name: TaskListName, Kind: types.TaskListKindNormal.Ptr()},
 		PartitionConfig:   PartitionConfig,
 		IsCron:            true,
+		CronOverlapPolicy: &CronOverlapPolicy,
 	}
 	WorkflowExecutionInfoArray = []*types.WorkflowExecutionInfo{&WorkflowExecutionInfo}
 

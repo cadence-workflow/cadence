@@ -20,3 +20,6 @@ matchingconfig:
   nummatchinghosts: 1
 workerconfig:
   enableasyncwfconsumer: true
+dynamicclientconfig:
+  filepath: "testdata/dynamicconfig/integration_test.yaml"
+  pollInterval: "10s"

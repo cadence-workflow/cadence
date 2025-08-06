@@ -9,7 +9,7 @@ frontend on ports 7933 (tchannel) / 7833 (grpc), web on port 8088, and grafana o
 
 ```
 cd $GOPATH/src/github.com/uber/cadence/docker
-docker-compose up
+docker compose up
 ```
 > Note: Above command will run with `master-auto-setup` image, which is a changing image all the time.
 > You can use a released image if you want a stable version. See the below section of "Using a released image".
@@ -24,7 +24,7 @@ docker pull ubercadence/server:master-auto-setup
 
 Using different docker-compose files
 -----------------------
-By default `docker-compose up` will run with `docker-compose.yml` in this folder.
+By default `docker compose up` will run with `docker-compose.yml` in this folder.
 This compose file is running with Cassandra, with basic visibility,
 using Prometheus for emitting metric, with Grafana access.
 
@@ -40,7 +40,7 @@ We also provide several other compose files for different features/modes:
 
 For example:
 ```
-docker-compose -f docker-compose-mysql.yml up
+docker compose -f docker-compose-mysql.yml up
 ```
 
 Also feel free to make your own to combine the above features.
@@ -49,11 +49,11 @@ Run canary and bench(load test)
 -----------------------
 After a local cadence server started, use the below command to run canary ro bench test
 ```
-docker-compose -f docker-compose-bench.yml up
+docker compose -f docker-compose-bench.yml up
 ```
 and
 ```
-docker-compose -f docker-compose-canary.yml up
+docker compose -f docker-compose-canary.yml up
 ```
 
 
@@ -74,7 +74,7 @@ commands to start a pre-built image along with all dependencies.
 ```
 tar -xzvf docker.tar.gz
 cd docker
-docker-compose up
+docker compose up
 ```
 
 DIY: Building an image for any tag or branch
@@ -103,8 +103,8 @@ docker build . -t ubercadence/server:YOUR_TAG-auto-setup --build-arg TARGET=auto
 Replace the tag of **image: ubercadence/server** to **YOUR_TAG** in docker-compose.yml .
 Then stop service and remove all containers using the below commands.
 ```
-docker-compose down
-docker-compose up
+docker compose down
+docker compose up
 ```
 
 DIY: Troubleshooting docker builds
@@ -139,7 +139,7 @@ If you want to test out a custom-built cadence server, while running all the nor
 
 Make your cadence server changes and build using "make bins". Then start everything, stop cadence server, and run your own cadence-server:
 ```
-docker-compose up
+docker compose up
 docker stop docker-cadence-1
 ./cadence-server start
 ```

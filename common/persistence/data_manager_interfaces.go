@@ -174,6 +174,7 @@ const (
 const (
 	TaskListKindNormal = iota
 	TaskListKindSticky
+	TaskListKindEphemeral
 )
 
 // HistoryTaskCategory represents various categories of history tasks
@@ -366,6 +367,7 @@ type (
 		CompletionEventBatchID             int64
 		CompletionEvent                    *types.HistoryEvent
 		TaskList                           string
+		TaskListKind                       types.TaskListKind
 		WorkflowTypeName                   string
 		WorkflowTimeout                    int32
 		DecisionStartToCloseTimeout        int32
@@ -1550,6 +1552,7 @@ type (
 		ListCurrentExecutions(ctx context.Context, request *ListCurrentExecutionsRequest) (*ListCurrentExecutionsResponse, error)
 
 		GetActiveClusterSelectionPolicy(ctx context.Context, domainID, wfID, rID string) (*types.ActiveClusterSelectionPolicy, error)
+		DeleteActiveClusterSelectionPolicy(ctx context.Context, domainID, workflowID, runID string) error
 	}
 
 	// ExecutionManagerFactory creates an instance of ExecutionManager for a given shard
@@ -2197,6 +2200,19 @@ func HasMoreRowsToDelete(rowsDeleted, batchSize int) bool {
 		return false
 	}
 	return true
+}
+
+func TaskListKindHasTTL(taskListKind int) bool {
+	switch taskListKind {
+	case TaskListKindEphemeral:
+		return true
+	case TaskListKindSticky:
+		return true
+	case TaskListKindNormal:
+		return false
+	default:
+		return false
+	}
 }
 
 func (e *WorkflowExecutionInfo) CopyMemo() map[string][]byte {

@@ -25,14 +25,63 @@ package sharddistributorfx
 import (
 	"go.uber.org/fx"
 
-	"github.com/uber/cadence/service/sharddistributor"
+	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/rpc"
+	"github.com/uber/cadence/service/sharddistributor/config"
+	"github.com/uber/cadence/service/sharddistributor/handler"
 	"github.com/uber/cadence/service/sharddistributor/leader/election"
 	"github.com/uber/cadence/service/sharddistributor/leader/namespace"
 	"github.com/uber/cadence/service/sharddistributor/leader/process"
+	"github.com/uber/cadence/service/sharddistributor/store"
+	meteredStore "github.com/uber/cadence/service/sharddistributor/store/wrappers/metered"
+	"github.com/uber/cadence/service/sharddistributor/wrappers/grpc"
+	"github.com/uber/cadence/service/sharddistributor/wrappers/metered"
 )
 
 var Module = fx.Module("sharddistributor",
 	namespace.Module,
 	election.Module,
 	process.Module,
-	fx.Provide(sharddistributor.FXService), fx.Invoke(func(*sharddistributor.Service) {}))
+	fx.Decorate(func(s store.Store, metricsClient metrics.Client, logger log.Logger, timeSource clock.TimeSource) store.Store {
+		return meteredStore.NewStore(s, metricsClient, logger, timeSource)
+	}),
+	fx.Invoke(registerHandlers))
+
+type registerHandlersParams struct {
+	fx.In
+
+	ShardDistributionCfg config.ShardDistribution
+
+	Logger            log.Logger
+	MetricsClient     metrics.Client
+	RPCFactory        rpc.Factory
+	DynamicCollection *dynamicconfig.Collection
+
+	TimeSource clock.TimeSource
+	Store      store.Store
+
+	Lifecycle fx.Lifecycle
+}
+
+func registerHandlers(params registerHandlersParams) error {
+	dispatcher := params.RPCFactory.GetDispatcher()
+
+	rawHandler := handler.NewHandler(params.Logger, params.ShardDistributionCfg, params.Store)
+	wrappedHandler := metered.NewMetricsHandler(rawHandler, params.Logger, params.MetricsClient)
+
+	executorHandler := handler.NewExecutorHandler(params.Store, params.TimeSource)
+	wrappedExecutor := metered.NewExecutorMetricsExecutor(executorHandler, params.Logger, params.MetricsClient)
+
+	grpcHandler := grpc.NewGRPCHandler(wrappedHandler)
+	grpcHandler.Register(dispatcher)
+
+	executorGRPCHander := grpc.NewExecutorGRPCExecutor(wrappedExecutor)
+	executorGRPCHander.Register(dispatcher)
+
+	params.Lifecycle.Append(fx.StartStopHook(rawHandler.Start, rawHandler.Stop))
+
+	return nil
+}

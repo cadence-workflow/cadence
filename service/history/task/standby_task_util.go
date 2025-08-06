@@ -40,7 +40,7 @@ type (
 	standbyActionFn     func(context.Context, execution.Context, execution.MutableState) (interface{}, error)
 	standbyPostActionFn func(context.Context, persistence.Task, interface{}, log.Logger) error
 
-	standbyCurrentTimeFn func() time.Time
+	standbyCurrentTimeFn func(persistence.Task) (time.Time, error)
 )
 
 func standbyTaskPostActionNoOp(
@@ -163,8 +163,6 @@ func getStandbyPostActionFn(
 	discardTaskStandbyPostActionFn standbyPostActionFn,
 ) standbyPostActionFn {
 
-	// this is for task retry, use machine time
-	now := standbyNow()
 	taskTime := taskInfo.GetVisibilityTimestamp()
 	resendTime := taskTime.Add(standbyTaskMissingEventsResendDelay)
 	discardTime := taskTime.Add(standbyTaskMissingEventsDiscardDelay)
@@ -176,6 +174,13 @@ func getStandbyPostActionFn(
 		tag.TaskID(taskInfo.GetTaskID()),
 		tag.TaskType(int(taskInfo.GetTaskType())),
 		tag.Timestamp(taskInfo.GetVisibilityTimestamp()),
+	}
+
+	now, err := standbyNow(taskInfo)
+	if err != nil {
+		tags = append(tags, tag.Error(err))
+		logger.Error("getStandbyPostActionFn error getting current time, fallback to standbyTaskPostActionNoOp", tags...)
+		return standbyTaskPostActionNoOp
 	}
 
 	// now < task start time + StandbyTaskMissingEventsResendDelay

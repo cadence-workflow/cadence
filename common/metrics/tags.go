@@ -359,3 +359,13 @@ func ReasonTag(reason string) Tag {
 func DecisionTag(decision string) Tag {
 	return metricWithUnknown("decision", decision)
 }
+
+// ActiveClusterLookupFnTag returns a new active cluster lookup function tag.
+func ActiveClusterLookupFnTag(fn string) Tag {
+	return metricWithUnknown("fn", fn)
+}
+
+// ActiveClusterSelectionStrategyTag returns a new active cluster selection strategy tag.
+func ActiveClusterSelectionStrategyTag(strategy string) Tag {
+	return metricWithUnknown("strategy", strategy)
+}

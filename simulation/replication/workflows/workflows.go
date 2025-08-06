@@ -1,15 +1,20 @@
 package workflows
 
 import (
-	activityloop "github.com/uber/cadence/simulation/replication/workflows/activity_loop"
-	timeractivityloop "github.com/uber/cadence/simulation/replication/workflows/timer_activity_loop"
+	"github.com/uber/cadence/simulation/replication/workflows/activityloop"
+	"github.com/uber/cadence/simulation/replication/workflows/query"
+	"github.com/uber/cadence/simulation/replication/workflows/timeractivityloop"
 )
 
 // Add workflows and activities to this map to register them with the worker.
 var (
-	Workflows = map[string]any{
-		"timer-activity-loop-workflow": timeractivityloop.Workflow,
-		"activity-loop-workflow":       activityloop.Workflow,
+	Workflows = func(clusterName string) map[string]any {
+		queryWFRunner := &query.Runner{ClusterName: clusterName}
+		return map[string]any{
+			"timer-activity-loop-workflow": timeractivityloop.Workflow,
+			"activity-loop-workflow":       activityloop.Workflow,
+			"query-workflow":               queryWFRunner.Workflow,
+		}
 	}
 	Activities = map[string]any{
 		"timer-activity-loop-format-string-activity": timeractivityloop.FormatStringActivity,

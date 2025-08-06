@@ -28,7 +28,6 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
-	"github.com/uber/cadence/common/persistence"
 	t "github.com/uber/cadence/common/task"
 	"github.com/uber/cadence/service/history/task"
 )
@@ -189,11 +188,6 @@ func (q *processingQueueImpl) AddTasks(tasks map[task.Key]task.Task, newReadLeve
 			// do not submit this task again in transfer/timer queue processor base
 			q.logger.Debug(fmt.Sprintf("Skipping task: %+v. DomainID: %v, WorkflowID: %v, RunID: %v, Type: %v",
 				key, task.GetDomainID(), task.GetWorkflowID(), task.GetRunID(), task.GetTaskType()))
-			continue
-		}
-
-		if persistence.IsTaskCorrupted(task) {
-			q.logger.Error("Processing queue encountered a corrupted task", tag.Dynamic("task", task))
 			continue
 		}
 

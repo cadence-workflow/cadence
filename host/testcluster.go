@@ -69,6 +69,7 @@ type (
 		testBase     *persistencetests.TestBase
 		archiverBase *ArchiverBase
 		host         Cadence
+		doneCh       chan struct{}
 	}
 
 	// ArchiverBase is a base struct for archiver provider being used in integration tests
@@ -97,6 +98,7 @@ type (
 		MockAdminClient       map[string]adminClient.Client
 		PinotConfig           *config.PinotVisibilityConfig
 		AsyncWFQueues         map[string]config.AsyncWorkflowQueueProvider
+		DynamicClientConfig   dynamicconfig.FileBasedClientConfig
 
 		// TimeSource is used to override the time source of internal components.
 		// Note that most components don't respect this, and it's only used in a few places.
@@ -156,6 +158,15 @@ func NewCluster(t *testing.T, options *TestClusterConfig, logger log.Logger, par
 		logger,
 	)
 	aConfig := noopAuthorizationConfig()
+	doneCh := make(chan struct{})
+	dynamicClient, err := dynamicconfig.NewFileBasedClient(
+		&options.DynamicClientConfig,
+		logger,
+		doneCh,
+	)
+	if err != nil {
+		return nil, err
+	}
 	cadenceParams := &CadenceParams{
 		ClusterMetadata:               params.ClusterMetadata,
 		PersistenceConfig:             pConfig,
@@ -178,6 +189,7 @@ func NewCluster(t *testing.T, options *TestClusterConfig, logger log.Logger, par
 		AuthorizationConfig:           aConfig,
 		AsyncWFQueues:                 options.AsyncWFQueues,
 		TimeSource:                    options.TimeSource,
+		DynamicClient:                 dynamicClient,
 		FrontendDynCfgOverrides:       options.FrontendDynamicConfigOverrides,
 		HistoryDynCfgOverrides:        options.HistoryDynamicConfigOverrides,
 		MatchingDynCfgOverrides:       options.MatchingDynamicConfigOverrides,
@@ -188,7 +200,7 @@ func NewCluster(t *testing.T, options *TestClusterConfig, logger log.Logger, par
 		return nil, err
 	}
 
-	return &TestCluster{testBase: testBase, archiverBase: archiverBase, host: cluster}, nil
+	return &TestCluster{testBase: testBase, archiverBase: archiverBase, host: cluster, doneCh: doneCh}, nil
 }
 
 func NewPinotTestCluster(t *testing.T, options *TestClusterConfig, logger log.Logger, params persistencetests.TestBaseParams) (*TestCluster, error) {
@@ -227,6 +239,15 @@ func NewPinotTestCluster(t *testing.T, options *TestClusterConfig, logger log.Lo
 		logger,
 	)
 	aConfig := noopAuthorizationConfig()
+	doneCh := make(chan struct{})
+	dynamicClient, err := dynamicconfig.NewFileBasedClient(
+		&options.DynamicClientConfig,
+		logger,
+		doneCh,
+	)
+	if err != nil {
+		return nil, err
+	}
 	cadenceParams := &CadenceParams{
 		ClusterMetadata:               params.ClusterMetadata,
 		PersistenceConfig:             pConfig,
@@ -249,13 +270,14 @@ func NewPinotTestCluster(t *testing.T, options *TestClusterConfig, logger log.Lo
 		AuthorizationConfig:           aConfig,
 		PinotConfig:                   options.PinotConfig,
 		PinotClient:                   pinotClient,
+		DynamicClient:                 dynamicClient,
 	}
 	cluster := NewCadence(cadenceParams)
 	if err := cluster.Start(); err != nil {
 		return nil, err
 	}
 
-	return &TestCluster{testBase: testBase, archiverBase: archiverBase, host: cluster}, nil
+	return &TestCluster{testBase: testBase, archiverBase: archiverBase, host: cluster, doneCh: doneCh}, nil
 }
 
 func noopAuthorizationConfig() config.Authorization {
@@ -407,6 +429,7 @@ func getMessagingClient(config *MessagingClientConfig, logger log.Logger) messag
 func (tc *TestCluster) TearDownCluster() {
 	tc.host.Stop()
 	tc.host = nil
+	close(tc.doneCh)
 	tc.testBase.TearDownWorkflowStore()
 	os.RemoveAll(tc.archiverBase.historyStoreDirectory)
 	os.RemoveAll(tc.archiverBase.visibilityStoreDirectory)

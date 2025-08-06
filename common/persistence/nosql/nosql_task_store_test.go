@@ -270,66 +270,83 @@ func TestGetTaskList_NotFound(t *testing.T) {
 }
 
 func TestUpdateTaskList(t *testing.T) {
-	store, db := setupNoSQLStoreMocks(t)
-
-	db.EXPECT().UpdateTaskList(gomock.Any(), gomock.Any(), int64(1)).DoAndReturn(
-		func(ctx context.Context, taskList *nosqlplugin.TaskListRow, previousRangeID int64) error {
-			checkTaskListRowExpected(t, getExpectedTaskListRowWithPartitionConfig(), taskList)
-			return nil
+	tc := []struct {
+		name        string
+		info        *persistence.TaskListInfo
+		allowance   func(db *nosqlplugin.MockDB)
+		expectedErr error
+	}{
+		{
+			name: "success - normal",
+			info: getExpectedTaskListInfo(types.TaskListKindNormal),
+			allowance: func(db *nosqlplugin.MockDB) {
+				db.EXPECT().UpdateTaskList(gomock.Any(), gomock.Any(), int64(1)).DoAndReturn(
+					func(ctx context.Context, taskList *nosqlplugin.TaskListRow, previousRangeID int64) error {
+						checkTaskListRowExpected(t, getExpectedTaskListRowWithPartitionConfig(), taskList)
+						return nil
+					},
+				)
+			},
 		},
-	)
-
-	resp, err := store.UpdateTaskList(context.Background(), &persistence.UpdateTaskListRequest{
-		TaskListInfo:     getExpectedTaskListInfo(),
-		CurrentTimeStamp: FixedTime,
-	})
-
-	assert.NoError(t, err)
-	assert.Equal(t, &persistence.UpdateTaskListResponse{}, resp)
-}
-
-func TestUpdateTaskList_Sticky(t *testing.T) {
-	store, db := setupNoSQLStoreMocks(t)
-
-	db.EXPECT().UpdateTaskListWithTTL(gomock.Any(), stickyTaskListTTL, gomock.Any(), int64(1)).DoAndReturn(
-		func(ctx context.Context, ttlSeconds int64, taskList *nosqlplugin.TaskListRow, previousRangeID int64) error {
-			expectedTaskList := getExpectedTaskListRowWithPartitionConfig()
-			expectedTaskList.TaskListKind = int(types.TaskListKindSticky)
-			checkTaskListRowExpected(t, expectedTaskList, taskList)
-			return nil
+		{
+			name: "success - ephemeral",
+			info: getExpectedTaskListInfo(types.TaskListKindEphemeral),
+			allowance: func(db *nosqlplugin.MockDB) {
+				db.EXPECT().UpdateTaskListWithTTL(gomock.Any(), taskListTTL, gomock.Any(), int64(1)).DoAndReturn(
+					func(ctx context.Context, ttlSeconds int64, taskList *nosqlplugin.TaskListRow, previousRangeID int64) error {
+						expectedTaskList := getExpectedTaskListRowWithPartitionConfig()
+						expectedTaskList.TaskListKind = int(types.TaskListKindEphemeral)
+						checkTaskListRowExpected(t, expectedTaskList, taskList)
+						return nil
+					},
+				)
+			},
 		},
-	)
-
-	taskListInfo := getExpectedTaskListInfo()
-	taskListInfo.Kind = int(types.TaskListKindSticky)
-
-	resp, err := store.UpdateTaskList(context.Background(), &persistence.UpdateTaskListRequest{
-		TaskListInfo:     taskListInfo,
-		CurrentTimeStamp: FixedTime,
-	})
-
-	assert.NoError(t, err)
-	assert.Equal(t, &persistence.UpdateTaskListResponse{}, resp)
-}
-
-func TestUpdateTaskList_ConditionFailure(t *testing.T) {
-	store, db := setupNoSQLStoreMocks(t)
-
-	db.EXPECT().UpdateTaskList(gomock.Any(), gomock.Any(), int64(1)).DoAndReturn(
-		func(ctx context.Context, taskList *nosqlplugin.TaskListRow, previousRangeID int64) error {
-			checkTaskListRowExpected(t, getExpectedTaskListRowWithPartitionConfig(), taskList)
-			return &nosqlplugin.TaskOperationConditionFailure{Details: "test-details"}
+		{
+			name: "success - sticky",
+			info: getExpectedTaskListInfo(types.TaskListKindSticky),
+			allowance: func(db *nosqlplugin.MockDB) {
+				db.EXPECT().UpdateTaskListWithTTL(gomock.Any(), taskListTTL, gomock.Any(), int64(1)).DoAndReturn(
+					func(ctx context.Context, ttlSeconds int64, taskList *nosqlplugin.TaskListRow, previousRangeID int64) error {
+						expectedTaskList := getExpectedTaskListRowWithPartitionConfig()
+						expectedTaskList.TaskListKind = int(types.TaskListKindSticky)
+						checkTaskListRowExpected(t, expectedTaskList, taskList)
+						return nil
+					},
+				)
+			},
 		},
-	)
-
-	_, err := store.UpdateTaskList(context.Background(), &persistence.UpdateTaskListRequest{
-		TaskListInfo:     getExpectedTaskListInfo(),
-		CurrentTimeStamp: FixedTime,
-	})
-
-	var expectedErr *persistence.ConditionFailedError
-	assert.ErrorAs(t, err, &expectedErr)
-	assert.ErrorContains(t, err, "Failed to update task list. name: test-tasklist, type: 0, rangeID: 1, columns: (test-details)")
+		{
+			name: "error",
+			info: getExpectedTaskListInfo(types.TaskListKindNormal),
+			allowance: func(db *nosqlplugin.MockDB) {
+				db.EXPECT().UpdateTaskList(gomock.Any(), gomock.Any(), int64(1)).DoAndReturn(
+					func(ctx context.Context, taskList *nosqlplugin.TaskListRow, previousRangeID int64) error {
+						checkTaskListRowExpected(t, getExpectedTaskListRowWithPartitionConfig(), taskList)
+						return &nosqlplugin.TaskOperationConditionFailure{Details: "test-details"}
+					},
+				)
+			},
+			expectedErr: &persistence.ConditionFailedError{Msg: "Failed to update task list. name: test-tasklist, type: 0, rangeID: 1, columns: (test-details)"},
+		},
+	}
+	for _, tt := range tc {
+		t.Run(tt.name, func(t *testing.T) {
+			store, db := setupNoSQLStoreMocks(t)
+			if tt.allowance != nil {
+				tt.allowance(db)
+			}
+			_, err := store.UpdateTaskList(context.Background(), &persistence.UpdateTaskListRequest{
+				TaskListInfo:     tt.info,
+				CurrentTimeStamp: FixedTime,
+			})
+			if tt.expectedErr != nil {
+				assert.Equal(t, err, tt.expectedErr)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }
 
 func TestDeleteTaskList(t *testing.T) {
@@ -775,14 +792,14 @@ func checkTaskListRowExpected(t *testing.T, expectedRow *nosqlplugin.TaskListRow
 	assert.Equal(t, expectedRow, taskList)
 }
 
-func getExpectedTaskListInfo() *persistence.TaskListInfo {
+func getExpectedTaskListInfo(kind types.TaskListKind) *persistence.TaskListInfo {
 	return &persistence.TaskListInfo{
 		DomainID:    TestDomainID,
 		Name:        TestTaskListName,
 		TaskType:    int(types.TaskListTypeDecision),
 		RangeID:     initialRangeID,
 		AckLevel:    initialAckLevel,
-		Kind:        int(types.TaskListKindNormal),
+		Kind:        int(kind),
 		LastUpdated: FixedTime,
 		AdaptivePartitionConfig: &persistence.TaskListPartitionConfig{
 			Version: 1,

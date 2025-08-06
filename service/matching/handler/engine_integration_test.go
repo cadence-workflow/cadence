@@ -214,7 +214,7 @@ func (s *matchingEngineSuite) TestOnlyUnloadMatchingInstance() {
 		"makeToast",
 		persistence.TaskListTypeActivity)
 	tlKind := types.TaskListKindNormal
-	tlm, err := s.matchingEngine.getTaskListManager(taskListID, &tlKind)
+	tlm, err := s.matchingEngine.getTaskListManager(taskListID, tlKind)
 	s.Require().NoError(err)
 
 	tlm2, err := tasklist.NewManager(
@@ -227,7 +227,7 @@ func (s *matchingEngineSuite) TestOnlyUnloadMatchingInstance() {
 		s.matchingEngine.matchingClient,
 		s.matchingEngine.removeTaskListManager,
 		taskListID, // same taskListID as above
-		&tlKind,
+		tlKind,
 		s.matchingEngine.config,
 		s.matchingEngine.timeSource,
 		s.matchingEngine.timeSource.Now(),
@@ -237,7 +237,7 @@ func (s *matchingEngineSuite) TestOnlyUnloadMatchingInstance() {
 	// try to unload a different tlm instance with the same taskListID
 	s.matchingEngine.unloadTaskList(tlm2)
 
-	got, err := s.matchingEngine.getTaskListManager(taskListID, &tlKind)
+	got, err := s.matchingEngine.getTaskListManager(taskListID, tlKind)
 	s.Require().NoError(err)
 	s.Require().Same(tlm, got,
 		"Unload call with non-matching taskListManager should not cause unload")
@@ -245,7 +245,7 @@ func (s *matchingEngineSuite) TestOnlyUnloadMatchingInstance() {
 	// this time unload the right tlm
 	s.matchingEngine.unloadTaskList(tlm)
 
-	got, err = s.matchingEngine.getTaskListManager(taskListID, &tlKind)
+	got, err = s.matchingEngine.getTaskListManager(taskListID, tlKind)
 	s.Require().NoError(err)
 	s.Require().NotSame(tlm, got,
 		"Unload call with matching incarnation should have caused unload")
@@ -732,12 +732,12 @@ func (s *matchingEngineSuite) SyncMatchTasks(taskType int, enableIsolation bool)
 	for i := int64(0); i < throttledTaskCount; i++ {
 		scheduleID := i * 3
 		group := isolationGroups()[int(i)%len(isolationGroups())]
-		var wg sync.WaitGroup
+		var pollerDone sync.WaitGroup
 		var result *pollTaskResponse
 		var pollErr error
-		wg.Add(1)
+		pollerDone.Add(1)
 		go func() {
-			defer wg.Done()
+			defer pollerDone.Done()
 			result, pollErr = pollFunc(0.0, group)
 		}()
 		time.Sleep(20 * time.Millisecond) // Wait for a short period of time to let the poller start so that sync match will happen
@@ -751,13 +751,15 @@ func (s *matchingEngineSuite) SyncMatchTasks(taskType int, enableIsolation bool)
 			PartitionConfig:               map[string]string{isolationgroup.GroupKey: group},
 		}
 		_, err := addTask(s.matchingEngine, s.handlerContext, addRequest)
-		wg.Wait()
+		pollerDone.Wait()
 		s.NoError(err)
 		s.NoError(pollErr)
 		s.NotNil(result)
 		// when ratelimit is set to zero, poller is expected to return empty result
 		// reset ratelimit, poll again and make sure task is returned this time
 		s.True(isEmptyToken(result.TaskToken))
+		// If we don't increment the mockTime then the RateLimiter will never accept a higher RPS
+		s.mockTimeSource.Advance(time.Nanosecond)
 		result, pollErr = pollFunc(_defaultTaskDispatchRPS, group)
 		s.NoError(err)
 		s.NoError(pollErr)
@@ -821,12 +823,12 @@ func (s *matchingEngineSuite) TestConcurrentAddAndPollDecisionsIsolation() {
 func (s *matchingEngineSuite) ConcurrentAddAndPollTasks(taskType int, workerCount int, taskCount int64, throttled, enableIsolation bool) {
 	s.matchingEngine.config.EnableTasklistIsolation = dynamicproperties.GetBoolPropertyFnFilteredByDomainID(enableIsolation)
 	isolationGroups := s.matchingEngine.config.AllIsolationGroups
-	dispatchLimitFn := func(wc int, tc int64) float64 {
+	dispatchLimitFn := func(wc int, attempt int) float64 {
 		return _defaultTaskDispatchRPS
 	}
 	if throttled {
-		dispatchLimitFn = func(wc int, tc int64) float64 {
-			if tc%50 == 0 && wc%5 == 0 { // Gets triggered atleast 20 times
+		dispatchLimitFn = func(wc int, attempt int) float64 {
+			if attempt%50 == 0 && wc%5 == 0 { // Gets triggered atleast 20 times
 				return 0
 			}
 			return _defaultTaskDispatchRPS
@@ -843,8 +845,11 @@ func (s *matchingEngineSuite) ConcurrentAddAndPollTasks(taskType int, workerCoun
 	tlKind := types.TaskListKindNormal
 	s.matchingEngine.config.RangeSize = rangeSize // override to low number for the test
 	s.matchingEngine.config.ReadRangeSize = dynamicproperties.GetIntPropertyFn(rangeSize / 2)
-	s.matchingEngine.config.TaskDispatchRPSTTL = time.Nanosecond
+	// The TaskListLimiter uses the MockTimeSource, which will be incremented by 1ns after each poll
+	s.matchingEngine.config.TaskDispatchRPSTTL = 50 * time.Nanosecond
 	s.matchingEngine.config.MinTaskThrottlingBurstSize = dynamicproperties.GetIntPropertyFilteredByTaskListInfo(_minBurst)
+	// Make the pollers time out relatively quickly if there are no tasks
+	s.matchingEngine.config.LongPollExpirationInterval = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(10 * time.Millisecond)
 	s.taskManager.SetRangeID(testParam.TaskListID, initialRangeID)
 
 	s.setupGetDrainStatus()
@@ -880,8 +885,10 @@ func (s *matchingEngineSuite) ConcurrentAddAndPollTasks(taskType int, workerCoun
 	for p := 0; p < workerCount; p++ {
 		go func(wNum int) {
 			defer wg.Done()
+			attempt := 0
 			for i := int64(0); i < taskCount; {
-				maxDispatch := dispatchLimitFn(wNum, i)
+				attempt++
+				maxDispatch := dispatchLimitFn(wNum, attempt)
 				group := isolationGroups()[int(wNum)%len(isolationGroups())] // let each worker only polls from one isolation group
 				pollReq := &pollTaskRequest{
 					TaskType:         taskType,
@@ -892,6 +899,7 @@ func (s *matchingEngineSuite) ConcurrentAddAndPollTasks(taskType int, workerCoun
 					IsolationGroup:   group,
 				}
 				result, err := pollTask(s.matchingEngine, s.handlerContext, pollReq)
+				s.mockTimeSource.Advance(time.Nanosecond)
 				s.NoError(err)
 				s.NotNil(result)
 				if isEmptyToken(result.TaskToken) {
@@ -910,7 +918,7 @@ func (s *matchingEngineSuite) ConcurrentAddAndPollTasks(taskType int, workerCoun
 	expectedRange := getExpectedRange(initialRangeID, persisted, rangeSize)
 	// Due to conflicts some ids are skipped and more real ranges are used.
 	s.True(expectedRange <= s.taskManager.GetRangeID(testParam.TaskListID))
-	mgr, err := s.matchingEngine.getTaskListManager(testParam.TaskListID, &tlKind)
+	mgr, err := s.matchingEngine.getTaskListManager(testParam.TaskListID, tlKind)
 	s.NoError(err)
 	// stop the tasklist manager to force the acked tasks to be deleted
 	mgr.Stop()
@@ -1091,7 +1099,7 @@ func (s *matchingEngineSuite) TestAddTaskAfterStartFailure() {
 	s.NoError(err)
 	s.EqualValues(1, s.taskManager.GetTaskCount(tlID))
 
-	tlMgr, err := s.matchingEngine.getTaskListManager(tlID, &tlKind)
+	tlMgr, err := s.matchingEngine.getTaskListManager(tlID, tlKind)
 	s.NoError(err)
 	ctx, err := tlMgr.GetTask(context.Background(), nil)
 	s.NoError(err)
@@ -1198,7 +1206,7 @@ func (s *matchingEngineSuite) DrainBacklogNoPollersIsolationGroup(taskType int) 
 	s.taskManager.SetRangeID(testParam.TaskListID, initialRangeID)
 	s.matchingEngine.config.RangeSize = rangeSize // override to low number for the test
 	s.matchingEngine.config.ReadRangeSize = dynamicproperties.GetIntPropertyFn(rangeSize / 2)
-	_, err := s.matchingEngine.getTaskListManager(testParam.TaskListID, testParam.TaskList.Kind)
+	_, err := s.matchingEngine.getTaskListManager(testParam.TaskListID, testParam.TaskList.GetKind())
 	s.NoError(err)
 	// advance the time a bit more than warmup time of new tasklist after the creation of tasklist manager, which is 1 minute
 	s.mockTimeSource.Advance(time.Minute)

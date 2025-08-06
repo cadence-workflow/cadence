@@ -106,6 +106,7 @@ type (
 		taskGC          *taskGC
 		taskAckManager  messaging.AckManager // tracks ackLevel for delivered messages
 		matcher         TaskMatcher          // for matching a task producer with a poller
+		limiter         *taskListLimiter
 		clusterMetadata cluster.Metadata
 		domainCache     cache.DomainCache
 		isolationState  isolationgroup.State
@@ -150,7 +151,7 @@ func NewManager(
 	matchingClient matching.Client,
 	closeCallback func(Manager),
 	taskList *Identifier,
-	taskListKind *types.TaskListKind,
+	taskListKind types.TaskListKind,
 	cfg *config.Config,
 	timeSource clock.TimeSource,
 	createTime time.Time,
@@ -163,14 +164,9 @@ func NewManager(
 
 	taskListConfig := newTaskListConfig(taskList, cfg, domainName)
 
-	if taskListKind == nil {
-		normalTaskListKind := types.TaskListKindNormal
-		taskListKind = &normalTaskListKind
-	}
-
-	scope := common.NewPerTaskListScope(domainName, taskList.GetName(), *taskListKind, metricsClient, metrics.MatchingTaskListMgrScope).
+	scope := common.NewPerTaskListScope(domainName, taskList.GetName(), taskListKind, metricsClient, metrics.MatchingTaskListMgrScope).
 		Tagged(getTaskListTypeTag(taskList.GetType()))
-	db := newTaskListDB(taskManager, taskList.GetDomainID(), domainName, taskList.GetName(), taskList.GetType(), int(*taskListKind), logger)
+	db := newTaskListDB(taskManager, taskList.GetDomainID(), domainName, taskList.GetName(), taskList.GetType(), int(taskListKind), logger)
 
 	tlMgr := &taskListManagerImpl{
 		createTime:      createTime,
@@ -179,7 +175,7 @@ func NewManager(
 		clusterMetadata: clusterMetadata,
 		isolationState:  isolationState,
 		taskListID:      taskList,
-		taskListKind:    *taskListKind,
+		taskListKind:    taskListKind,
 		logger:          logger.WithTags(tag.WorkflowDomainName(domainName), tag.WorkflowTaskListName(taskList.GetName()), tag.WorkflowTaskListType(taskList.GetType())),
 		db:              db,
 		taskAckManager:  messaging.NewAckManager(logger),
@@ -210,13 +206,13 @@ func NewManager(
 
 	baseEvent := event.E{
 		TaskListName: taskList.GetName(),
-		TaskListKind: taskListKind,
+		TaskListKind: &taskListKind,
 		TaskListType: taskList.GetType(),
 	}
 
 	tlMgr.qpsTracker = stats.NewEmaFixedWindowQPSTracker(timeSource, 0.5, taskListConfig.QPSTrackerInterval(), baseEvent)
-	if taskList.IsRoot() && *taskListKind == types.TaskListKindNormal {
-		adaptiveScalerScope := common.NewPerTaskListScope(domainName, taskList.GetName(), *taskListKind, metricsClient, metrics.MatchingAdaptiveScalerScope).
+	if taskList.IsRoot() && taskListKind == types.TaskListKindNormal {
+		adaptiveScalerScope := common.NewPerTaskListScope(domainName, taskList.GetName(), taskListKind, metricsClient, metrics.MatchingAdaptiveScalerScope).
 			Tagged(getTaskListTypeTag(taskList.GetType()))
 		tlMgr.adaptiveScaler = NewAdaptiveScaler(taskList, tlMgr, taskListConfig, timeSource, tlMgr.logger, adaptiveScalerScope, matchingClient, baseEvent)
 	}
@@ -225,11 +221,11 @@ func NewManager(
 		isolationGroups = cfg.AllIsolationGroups()
 	}
 	var fwdr Forwarder
-	if tlMgr.isFowardingAllowed(taskList, *taskListKind) {
-		fwdr = newForwarder(&taskListConfig.ForwarderConfig, taskList, *taskListKind, matchingClient, scope)
+	if tlMgr.isFowardingAllowed(taskList, taskListKind) {
+		fwdr = newForwarder(&taskListConfig.ForwarderConfig, taskList, taskListKind, matchingClient, scope)
 	}
-	numReadPartitionsFn := func(cfg *config.TaskListConfig) int {
-		if cfg.EnableGetNumberOfPartitionsFromCache() {
+	numReadPartitionsFn := func() int {
+		if taskListConfig.EnableGetNumberOfPartitionsFromCache() {
 			partitionConfig := tlMgr.TaskListPartitionConfig()
 			r := 1
 			if partitionConfig != nil {
@@ -237,9 +233,10 @@ func NewManager(
 			}
 			return r
 		}
-		return cfg.NumReadPartitions()
+		return taskListConfig.NumReadPartitions()
 	}
-	tlMgr.matcher = newTaskMatcher(taskListConfig, fwdr, tlMgr.scope, isolationGroups, tlMgr.logger, taskList, *taskListKind, numReadPartitionsFn).(*taskMatcherImpl)
+	tlMgr.limiter = newTaskListLimiter(timeSource, tlMgr.scope, taskListConfig, numReadPartitionsFn)
+	tlMgr.matcher = newTaskMatcher(taskListConfig, fwdr, tlMgr.scope, isolationGroups, tlMgr.logger, taskList, taskListKind, tlMgr.limiter).(*taskMatcherImpl)
 	tlMgr.taskWriter = newTaskWriter(tlMgr)
 	tlMgr.taskReader = newTaskReader(tlMgr, isolationGroups)
 	tlMgr.taskCompleter = newTaskCompleter(tlMgr, historyServiceOperationRetryPolicy)
@@ -554,7 +551,7 @@ func (c *taskListManagerImpl) AddTask(ctx context.Context, params AddTaskParams)
 
 		isForwarded := params.ForwardedFrom != ""
 
-		if _, err := domainEntry.IsActiveIn(c.clusterMetadata.GetCurrentClusterName()); err != nil {
+		if !domainEntry.IsActiveIn(c.clusterMetadata.GetCurrentClusterName()) {
 			// standby task, only persist when task is not forwarded from child partition
 			syncMatch = false
 			if isForwarded {
@@ -608,7 +605,7 @@ func (c *taskListManagerImpl) DispatchTask(ctx context.Context, task *InternalTa
 		return fmt.Errorf("unable to fetch domain from cache: %w", err)
 	}
 
-	if isActive, _ := domainEntry.IsActiveIn(c.clusterMetadata.GetCurrentClusterName()); isActive {
+	if domainEntry.IsActiveIn(c.clusterMetadata.GetCurrentClusterName()) {
 		return c.matcher.MustOffer(ctx, task)
 	}
 
@@ -678,6 +675,7 @@ func (c *taskListManagerImpl) getTask(ctx context.Context, maxDispatchPerSecond 
 	rps := c.config.TaskDispatchRPS
 	if maxDispatchPerSecond != nil {
 		rps = *maxDispatchPerSecond
+		c.limiter.ReportLimit(rps)
 	}
 	c.pollers.StartPoll(pollerID, cancel, &poller.Info{
 		Identity:       identity,
@@ -691,14 +689,7 @@ func (c *taskListManagerImpl) getTask(ctx context.Context, maxDispatchPerSecond 
 		return nil, fmt.Errorf("unable to fetch domain from cache: %w", err)
 	}
 
-	// the desired global rate limit for the task list comes from the
-	// poller, which lives inside the client side worker. There is
-	// one rateLimiter for this entire task list and as we get polls,
-	// we update the ratelimiter rps if it has changed from the last
-	// value. Last poller wins if different pollers provide different values
-	c.matcher.UpdateRatelimit(maxDispatchPerSecond)
-
-	if _, err := domainEntry.IsActiveIn(c.clusterMetadata.GetCurrentClusterName()); err != nil {
+	if !domainEntry.IsActiveIn(c.clusterMetadata.GetCurrentClusterName()) {
 		return c.matcher.PollForQuery(childCtx)
 	}
 
@@ -728,7 +719,13 @@ func (c *taskListManagerImpl) CancelPoller(pollerID string) {
 // pollers which polled this tasklist in last few minutes and status of tasklist's ackManager
 // (readLevel, ackLevel, backlogCountHint and taskIDBlock).
 func (c *taskListManagerImpl) DescribeTaskList(includeTaskListStatus bool) *types.DescribeTaskListResponse {
-	response := &types.DescribeTaskListResponse{Pollers: c.GetAllPollerInfo()}
+	response := &types.DescribeTaskListResponse{
+		Pollers: c.GetAllPollerInfo(),
+		TaskList: &types.TaskList{
+			Name: c.taskListID.GetName(),
+			Kind: &c.taskListKind,
+		},
+	}
 	response.PartitionConfig = c.TaskListPartitionConfig()
 	if !includeTaskListStatus {
 		return response
@@ -748,13 +745,14 @@ func (c *taskListManagerImpl) DescribeTaskList(includeTaskListStatus bool) *type
 		ReadLevel:        c.taskAckManager.GetReadLevel(),
 		AckLevel:         c.taskAckManager.GetAckLevel(),
 		BacklogCountHint: c.taskAckManager.GetBacklogCount(),
-		RatePerSecond:    c.matcher.Rate(),
+		RatePerSecond:    float64(c.limiter.Limit()),
 		TaskIDBlock: &types.TaskIDBlock{
 			StartID: idBlock.start,
 			EndID:   idBlock.end,
 		},
 		IsolationGroupMetrics: isolationGroupMetrics,
 		NewTasksPerSecond:     c.qpsTracker.QPS(),
+		Empty:                 c.taskAckManager.GetAckLevel() == c.taskWriter.GetMaxReadLevel(),
 	}
 
 	return response
@@ -1101,6 +1099,9 @@ func newTaskListConfig(id *Identifier, cfg *config.Config, domainName string) *c
 		},
 		EnableAdaptiveScaler: func() bool {
 			return cfg.EnableAdaptiveScaler(domainName, taskListName, taskType)
+		},
+		EnablePartitionEmptyCheck: func() bool {
+			return cfg.EnablePartitionEmptyCheck(domainName, taskListName, taskType)
 		},
 		TaskIsolationDuration: func() time.Duration {
 			return cfg.TaskIsolationDuration(domainName, taskListName, taskType)

@@ -23,8 +23,8 @@ import (
 {{$permissionMap = set $permissionMap "ListDomains" "PermissionAdmin"}}
 {{$permissionMap = set $permissionMap "ListOpenWorkflowExecutions" "PermissionRead"}}
 {{$permissionMap = set $permissionMap "ListWorkflowExecutions" "PermissionRead"}}
-{{$permissionMap = set $permissionMap "PollForActivityTask" "PermissionWrite"}}
-{{$permissionMap = set $permissionMap "PollForDecisionTask" "PermissionWrite"}}
+{{$permissionMap = set $permissionMap "PollForActivityTask" "PermissionProcess"}}
+{{$permissionMap = set $permissionMap "PollForDecisionTask" "PermissionProcess"}}
 {{$permissionMap = set $permissionMap "QueryWorkflow" "PermissionRead"}}
 {{$permissionMap = set $permissionMap "RegisterDomain" "PermissionAdmin"}}
 {{$permissionMap = set $permissionMap "RequestCancelWorkflowExecution" "PermissionWrite"}}
@@ -48,7 +48,7 @@ import (
 
 {{$nonDomainAuthAPIs := list "RegisterDomain" "DescribeDomain" "UpdateDomain" "DeprecateDomain" "DeleteDomain" "ListDomains" "GetSearchAttributes" "GetClusterInfo" "RecordActivityTaskHeartbeat" "RespondActivityTaskCanceled" "RespondActivityTaskCompleted" "RespondActivityTaskFailed" "RespondDecisionTaskCompleted" "RespondDecisionTaskFailed" "RespondQueryTaskCompleted"}}
 {{$taskListAuthAPIs := list "PollForActivityTask" "PollForDecisionTask"}}
-{{$workflowTypeAuthAPIs := list "SignalWithStartWorkflowExecution" "StartWorkflowExecution"}}
+{{$workflowTypeAuthAPIs := list "SignalWithStartWorkflowExecution" "StartWorkflowExecution" "SignalWithStartWorkflowExecutionAsync" "StartWorkflowExecutionAsync"}}
 
 {{$interfaceName := .Interface.Name}}
 {{$interfaceType := .Interface.Type}}
@@ -116,6 +116,7 @@ func (a *{{$decorator}}) {{$method.Declaration}} {
 		{{- end}}
 		{{- if has $method.Name $workflowTypeAuthAPIs}}
 		WorkflowType: {{(index $method.Params 1).Name}}.WorkflowType,
+		TaskList: {{(index $method.Params 1).Name}}.TaskList,
 		{{- end}}
 		{{- end}}
 	}

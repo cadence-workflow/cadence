@@ -139,11 +139,9 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 				membership.NewDetailedHostInfo("", tc.whoAmIResult, make(membership.PortMap)), tc.whoAmIErr,
 			).AnyTimes()
 
-			taskListKind := types.TaskListKindNormal
-
 			_, err := matchingEngine.getTaskListManager(
 				tasklist.NewTestTaskListID(t, "domain", "tasklist", persistence.TaskListTypeActivity),
-				&taskListKind,
+				types.TaskListKindNormal,
 			)
 			if tc.expectedError != nil {
 				assert.ErrorAs(t, err, &tc.expectedError)
@@ -363,8 +361,7 @@ func TestGetTasklistManagerShutdownScenario(t *testing.T) {
 	e.Stop()
 
 	tl, _ := tasklist.NewIdentifier("domainid", "tl", 0)
-	kind := types.TaskListKindNormal
-	res, err := e.getTaskListManager(tl, &kind)
+	res, err := e.getTaskListManager(tl, types.TaskListKindNormal)
 	assertErr := &cadence_errors.TaskListNotOwnedByHostError{}
 	assert.ErrorAs(t, err, &assertErr)
 	assert.Nil(t, res)

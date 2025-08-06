@@ -1425,3 +1425,12 @@ func (m *sqlExecutionStore) GetActiveClusterSelectionPolicy(
 	// It requires creating a new table in the database to store the active cluster selection policy
 	return nil, &types.InternalServiceError{Message: "Not yet implemented"}
 }
+
+func (m *sqlExecutionStore) DeleteActiveClusterSelectionPolicy(
+	ctx context.Context,
+	domainID, wfID, rID string,
+) error {
+	// TODO(active-active): Active cluster selection policy for SQL stores is not yet implemented
+	// It requires creating a new table in the database to store the active cluster selection policy
+	return nil
+}

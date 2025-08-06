@@ -60,12 +60,13 @@ const (
 
 // Data encoding types
 const (
-	EncodingTypeJSON     EncodingType = "json"
-	EncodingTypeThriftRW EncodingType = "thriftrw"
-	EncodingTypeGob      EncodingType = "gob"
-	EncodingTypeUnknown  EncodingType = "unknow"
-	EncodingTypeEmpty    EncodingType = ""
-	EncodingTypeProto    EncodingType = "proto3"
+	EncodingTypeJSON           EncodingType = "json"
+	EncodingTypeThriftRW       EncodingType = "thriftrw"
+	EncodingTypeThriftRWSnappy EncodingType = "thriftrw_snappy"
+	EncodingTypeGob            EncodingType = "gob"
+	EncodingTypeUnknown        EncodingType = "unknow"
+	EncodingTypeEmpty          EncodingType = ""
+	EncodingTypeProto          EncodingType = "proto3"
 )
 
 type (
@@ -182,6 +183,8 @@ const (
 	DomainDataKeyForReadGroups = "READ_GROUPS"
 	// DomainDataKeyForWriteGroups stores which groups have write permission of the domain API
 	DomainDataKeyForWriteGroups = "WRITE_GROUPS"
+	// DomainDataKeyForProcessGroups stores which groups have process permission of the domain API
+	DomainDataKeyForProcessGroups = "PROCESS_GROUPS"
 )
 
 type (

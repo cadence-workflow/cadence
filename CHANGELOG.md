@@ -9,6 +9,18 @@ You can find a list of previous releases on the [github releases](https://github
 ## [Note]
 There's a new opt-in feature for autoscale of tasklist partitions. It's optional but recommended for large scale use cases. Please refer to [tasklist-partition-config.md](https://github.com/cadence-workflow/cadence/blob/master/docs/migration/tasklist-partition-config.md) for additional details on the migration and its rationale.
 
+## [1.3.3] - 2025-08-06
+See [Release Note](https://github.com/cadence-workflow/cadence/releases/tag/v1.3.3) for details
+
+## [1.3.2] - 2025-07-03
+See [Release Note](https://github.com/cadence-workflow/cadence/releases/tag/v1.3.2) for details
+
+## [1.3.1] - 2025-06-11
+See [Release Note](https://github.com/cadence-workflow/cadence/releases/tag/v1.3.1) for details
+
+## [1.3.0] - 2025-05-14
+See [Release Note](https://github.com/cadence-workflow/cadence/releases/tag/v1.3.0) for details
+
 ## [1.2.18] - 2025-04-03
 See [Release Note](https://github.com/cadence-workflow/cadence/releases/tag/v1.2.18) for details
 

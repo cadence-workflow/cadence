@@ -53,6 +53,10 @@ func TestCron(t *testing.T) {
 		{"@every 5h", "2018-12-17T08:00:00+00:00", "2018-12-17T09:00:00+00:00", time.Hour * 4},
 		{"@every 5h", "2018-12-17T08:00:00+00:00", "2018-12-18T00:00:00+00:00", time.Hour * 4},
 		{"0 3 * * 0-6", "2018-12-17T08:00:00-08:00", "", time.Hour * 11},
+		// At 16:05 East Coast (Day light saving on)
+		{"CRON_TZ=America/New_York 5 16 * * *", "2021-03-14T00:00:00-04:00", "2021-03-14T15:05:00-04:00", time.Hour * 1},
+		// At 04:05 East Coast (Day light saving off)
+		{"CRON_TZ=America/New_York 5 4 * * *", "2021-11-25T00:00:00-05:00", "2021-11-25T03:05:00-05:00", time.Hour * 1},
 	}
 	for idx, tt := range crontests {
 		t.Run(strconv.Itoa(idx), func(t *testing.T) {

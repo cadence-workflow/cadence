@@ -28,6 +28,7 @@ import (
 
 	"github.com/uber-go/tally"
 	"go.uber.org/fx"
+	"go.uber.org/zap"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock/clockfx"
@@ -36,16 +37,15 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig/dynamicconfigfx"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/logfx"
-	"github.com/uber/cadence/common/membership/membershipfx"
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/metrics/metricsfx"
-	"github.com/uber/cadence/common/peerprovider/ringpopprovider/ringpopfx"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql"
 	"github.com/uber/cadence/common/rpc/rpcfx"
 	"github.com/uber/cadence/common/service"
 	shardDistributorCfg "github.com/uber/cadence/service/sharddistributor/config"
-	"github.com/uber/cadence/service/sharddistributor/leader/leaderstore"
 	"github.com/uber/cadence/service/sharddistributor/sharddistributorfx"
+	"github.com/uber/cadence/service/sharddistributor/store"
 	"github.com/uber/cadence/tools/cassandra"
 	"github.com/uber/cadence/tools/sql"
 )
@@ -66,15 +66,17 @@ func Module(serviceName string) fx.Option {
 				Name:     serviceName,
 				FullName: service.FullName(serviceName),
 			}),
-			fx.Provide(func(cfg config.Config) shardDistributorCfg.LeaderElection {
-				return shardDistributorCfg.GetLeaderElectionFromExternal(cfg.LeaderElection)
+			fx.Provide(func(cfg config.Config) shardDistributorCfg.ShardDistribution {
+				return shardDistributorCfg.GetShardDistributionFromExternal(cfg.ShardDistribution)
 			}),
-			leaderstore.StoreModule("etcd"),
+			// Decorate both logger so all components use proper service name.
+			fx.Decorate(func(z *zap.Logger, l log.Logger) (*zap.Logger, log.Logger) {
+				return z.With(zap.String("service", service.ShardDistributor)), l.WithTags(tag.Service(service.ShardDistributor))
+			}),
+			store.LeaderModule("etcd"),
+			store.Module("etcd"),
 
 			rpcfx.Module,
-			// PeerProvider could be overriden e.g. with a DNS based internal solution.
-			ringpopfx.Module,
-			membershipfx.Module,
 			sharddistributorfx.Module)
 	}
 	return fx.Options(

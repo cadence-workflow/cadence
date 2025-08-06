@@ -47,6 +47,11 @@ func ClusterName(clusterName string) Tag {
 	return newStringTag("cluster-name", clusterName)
 }
 
+// Region returns tag for Region
+func Region(region string) Tag {
+	return newStringTag("region", region)
+}
+
 // ActiveClusterName returns tag for ActiveClusterName.
 func ActiveClusterName(activeClusterName string) Tag {
 	return newStringTag("active-cluster-name", activeClusterName)
@@ -295,6 +300,14 @@ func WorkflowNextEventID(nextEventID int64) Tag {
 // WorkflowResetNextEventID returns tag for WorkflowResetNextEventID
 func WorkflowResetNextEventID(resetNextEventID int64) Tag {
 	return newInt64("wf-reset-next-event-id", resetNextEventID)
+}
+
+func WorkflowExternalEntityType(externalEntityType string) Tag {
+	return newStringTag("wf-external-entity-type", externalEntityType)
+}
+
+func WorkflowExternalEntityKey(externalEntityKey string) Tag {
+	return newStringTag("wf-external-entity-key", externalEntityKey)
 }
 
 // history tree
@@ -1071,6 +1084,10 @@ func AsyncWFQueueID(queueID string) Tag {
 	return newStringTag("async-wf-queue-id", queueID)
 }
 
+func AsyncWFRequestType(requestType string) Tag {
+	return newStringTag("async-wf-request-type", requestType)
+}
+
 func GlobalRatelimiterKey(globalKey string) Tag {
 	return newStringTag("global-ratelimit-key", globalKey)
 }
@@ -1151,6 +1168,14 @@ func ShardNamespace(name string) Tag {
 	return newStringTag("shard-namespace", name)
 }
 
+func ShardExecutor(ID string) Tag {
+	return newStringTag("shard-executor", ID)
+}
+
+func ShardExecutors(executorIDs []string) Tag {
+	return newStringsTag("shard-executors", executorIDs)
+}
+
 func ElectionDelay(t time.Duration) Tag {
 	return newDurationTag("election-delay", t)
 }
@@ -1175,4 +1200,14 @@ func ShardDistributorResult(addr string) Tag {
 // PeerHostname returns a tag for peer hostname
 func PeerHostname(hostname string) Tag {
 	return newStringTag("peer-hostname", hostname)
+}
+
+// PendingTaskCount returns a tag for pending task count
+func PendingTaskCount(count int) Tag {
+	return newInt("pending-task-count", count)
+}
+
+// VirtualQueueID returns a tag for virtual queue id
+func VirtualQueueID(id int64) Tag {
+	return newInt64("virtual-queue-id", id)
 }

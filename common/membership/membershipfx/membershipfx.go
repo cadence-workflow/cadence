@@ -73,6 +73,7 @@ func buildMembership(params buildMembershipParams) (buildMembershipResult, error
 	}
 
 	params.Lifecycle.Append(fx.StartStopHook(startResolver(resolver, params.RPCFactory), resolver.Stop))
+	params.Lifecycle.Append(fx.StopHook(params.RPCFactory.Stop))
 
 	return buildMembershipResult{
 		Rings:    rings,
@@ -85,10 +86,6 @@ func startResolver(resolver membership.Resolver, rpcFactory rpc.Factory) func() 
 		err := rpcFactory.Start(resolver)
 		if err != nil {
 			return fmt.Errorf("start rpc factory: %w", err)
-		}
-		err = rpcFactory.GetDispatcher().Start()
-		if err != nil {
-			return fmt.Errorf("start rpc factory dispatcher: %w", err)
 		}
 		resolver.Start()
 		return nil

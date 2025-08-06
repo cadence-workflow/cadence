@@ -263,9 +263,13 @@ func (m *sqlDomainStore) domainRowToGetDomainResponse(row *sqlplugin.DomainRow) 
 		asyncWorkflowsCfg = persistence.NewDataBlob(domainInfo.AsyncWorkflowConfig, constants.EncodingType(domainInfo.AsyncWorkflowConfigEncoding))
 	}
 
+	activeClusterName := cluster.GetOrUseDefaultActiveCluster(m.activeClusterName, domainInfo.GetActiveClusterName())
+
 	var activeClustersConfig *persistence.DataBlob
 	if domainInfo.ActiveClustersConfig != nil {
 		activeClustersConfig = persistence.NewDataBlob(domainInfo.ActiveClustersConfig, constants.EncodingType(domainInfo.ActiveClustersConfigEncoding))
+		// for active-active domains, do not populate active cluster name with current cluster name if it is not set
+		activeClusterName = domainInfo.GetActiveClusterName()
 	}
 
 	return &persistence.InternalGetDomainResponse{
@@ -291,7 +295,7 @@ func (m *sqlDomainStore) domainRowToGetDomainResponse(row *sqlplugin.DomainRow) 
 			AsyncWorkflowsConfig:     asyncWorkflowsCfg,
 		},
 		ReplicationConfig: &persistence.InternalDomainReplicationConfig{
-			ActiveClusterName:    cluster.GetOrUseDefaultActiveCluster(m.activeClusterName, domainInfo.GetActiveClusterName()),
+			ActiveClusterName:    activeClusterName,
 			Clusters:             cluster.GetOrUseDefaultClusters(m.activeClusterName, clusters),
 			ActiveClustersConfig: activeClustersConfig,
 		},

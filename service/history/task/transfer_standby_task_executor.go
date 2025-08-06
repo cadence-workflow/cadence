@@ -70,12 +70,12 @@ func NewTransferStandbyTaskExecutor(
 		clusterName:     clusterName,
 		historyResender: historyResender,
 		getRemoteClusterNameFn: func(ctx context.Context, taskInfo persistence.Task) (string, error) {
-			return getRemoteClusterName(ctx, clusterName, shard.GetDomainCache(), shard.GetActiveClusterManager(), taskInfo)
+			return getRemoteClusterName(ctx, shard.GetClusterMetadata().GetCurrentClusterName(), shard.GetDomainCache(), shard.GetActiveClusterManager(), taskInfo)
 		},
 	}
 }
 
-func (t *transferStandbyTaskExecutor) Execute(task Task) (metrics.Scope, error) {
+func (t *transferStandbyTaskExecutor) Execute(task Task) (ExecuteResponse, error) {
 	simulation.LogEvents(simulation.E{
 		EventName:  simulation.EventNameExecuteHistoryTask,
 		Host:       t.shard.GetConfig().HostName,
@@ -90,41 +90,45 @@ func (t *transferStandbyTaskExecutor) Execute(task Task) (metrics.Scope, error) 
 		},
 	})
 	scope := getOrCreateDomainTaggedScope(t.shard, GetTransferTaskMetricsScope(task.GetTaskType(), false), task.GetDomainID(), t.logger)
+	executeResponse := ExecuteResponse{
+		Scope:        scope,
+		IsActiveTask: false,
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), taskDefaultTimeout)
 	defer cancel()
 
 	switch transferTask := task.GetInfo().(type) {
 	case *persistence.ActivityTask:
-		return scope, t.processActivityTask(ctx, transferTask)
+		return executeResponse, t.processActivityTask(ctx, transferTask)
 	case *persistence.DecisionTask:
-		return scope, t.processDecisionTask(ctx, transferTask)
+		return executeResponse, t.processDecisionTask(ctx, transferTask)
 	case *persistence.CloseExecutionTask:
-		return scope, t.processCloseExecution(ctx, transferTask)
+		return executeResponse, t.processCloseExecution(ctx, transferTask)
 	case *persistence.RecordWorkflowClosedTask:
-		return scope, t.processCloseExecution(ctx, &persistence.CloseExecutionTask{
+		return executeResponse, t.processCloseExecution(ctx, &persistence.CloseExecutionTask{
 			WorkflowIdentifier: transferTask.WorkflowIdentifier,
 			TaskData:           transferTask.TaskData,
 		})
 	case *persistence.RecordChildExecutionCompletedTask:
 		// no action needed for standby
 		// check the comment in t.processCloseExecution()
-		return scope, nil
+		return executeResponse, nil
 	case *persistence.CancelExecutionTask:
-		return scope, t.processCancelExecution(ctx, transferTask)
+		return executeResponse, t.processCancelExecution(ctx, transferTask)
 	case *persistence.SignalExecutionTask:
-		return scope, t.processSignalExecution(ctx, transferTask)
+		return executeResponse, t.processSignalExecution(ctx, transferTask)
 	case *persistence.StartChildExecutionTask:
-		return scope, t.processStartChildExecution(ctx, transferTask)
+		return executeResponse, t.processStartChildExecution(ctx, transferTask)
 	case *persistence.RecordWorkflowStartedTask:
-		return scope, t.processRecordWorkflowStarted(ctx, transferTask)
+		return executeResponse, t.processRecordWorkflowStarted(ctx, transferTask)
 	case *persistence.ResetWorkflowTask:
 		// no reset needed for standby
 		// TODO: add error logs
-		return scope, nil
+		return executeResponse, nil
 	case *persistence.UpsertWorkflowSearchAttributesTask:
-		return scope, t.processUpsertWorkflowSearchAttributes(ctx, transferTask)
+		return executeResponse, t.processUpsertWorkflowSearchAttributes(ctx, transferTask)
 	default:
-		return scope, errUnknownTransferTask
+		return executeResponse, errUnknownTransferTask
 	}
 }
 
@@ -706,6 +710,8 @@ func (t *transferStandbyTaskExecutor) fetchHistoryFromRemote(
 	return &redispatchError{Reason: "fetchHistoryFromRemote"}
 }
 
-func (t *transferStandbyTaskExecutor) getCurrentTime() time.Time {
-	return t.shard.GetCurrentTime(t.clusterName)
+func (t *transferStandbyTaskExecutor) getCurrentTime(taskInfo persistence.Task) (time.Time, error) {
+	// for standby task, we can always use timesource.Now, because they're supposed to be processed immediately after creation,
+	// this is what're doing for queue v2, for queue v1, I just don't bother to change the behavior
+	return t.shard.GetCurrentTime(t.clusterName), nil
 }

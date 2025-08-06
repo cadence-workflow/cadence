@@ -64,8 +64,11 @@ func (c *clientImpl) AddActivityTask(
 		persistence.TaskListTypeActivity,
 		request,
 	)
-	originalTaskListName := request.TaskList.GetName()
-	request.TaskList.Name = partition
+	originalTaskList := request.TaskList
+	request.TaskList = &types.TaskList{
+		Name: partition,
+		Kind: originalTaskList.Kind,
+	}
 	peer, err := c.peerResolver.FromTaskList(request.TaskList.GetName())
 	if err != nil {
 		return nil, err
@@ -74,7 +77,7 @@ func (c *clientImpl) AddActivityTask(
 	if err != nil {
 		return nil, err
 	}
-	request.TaskList.Name = originalTaskListName
+	request.TaskList = originalTaskList
 	c.provider.UpdatePartitionConfig(
 		request.GetDomainUUID(),
 		*request.TaskList,
@@ -93,8 +96,11 @@ func (c *clientImpl) AddDecisionTask(
 		persistence.TaskListTypeDecision,
 		request,
 	)
-	originalTaskListName := request.TaskList.GetName()
-	request.TaskList.Name = partition
+	originalTaskList := request.TaskList
+	request.TaskList = &types.TaskList{
+		Name: partition,
+		Kind: originalTaskList.Kind,
+	}
 	peer, err := c.peerResolver.FromTaskList(request.TaskList.GetName())
 	if err != nil {
 		return nil, err
@@ -103,7 +109,7 @@ func (c *clientImpl) AddDecisionTask(
 	if err != nil {
 		return nil, err
 	}
-	request.TaskList.Name = originalTaskListName
+	request.TaskList = originalTaskList
 	c.provider.UpdatePartitionConfig(
 		request.GetDomainUUID(),
 		*request.TaskList,
@@ -123,8 +129,11 @@ func (c *clientImpl) PollForActivityTask(
 		request,
 		request.GetIsolationGroup(),
 	)
-	originalTaskListName := request.PollRequest.GetTaskList().GetName()
-	request.PollRequest.TaskList.Name = partition
+	originalTaskList := request.PollRequest.TaskList
+	request.PollRequest.TaskList = &types.TaskList{
+		Name: partition,
+		Kind: originalTaskList.Kind,
+	}
 	peer, err := c.peerResolver.FromTaskList(request.PollRequest.TaskList.GetName())
 	if err != nil {
 		return nil, err
@@ -134,7 +143,7 @@ func (c *clientImpl) PollForActivityTask(
 		return nil, errors.NewPeerHostnameError(err, peer)
 	}
 
-	request.PollRequest.TaskList.Name = originalTaskListName
+	request.PollRequest.TaskList = originalTaskList
 	c.provider.UpdatePartitionConfig(
 		request.GetDomainUUID(),
 		*request.PollRequest.GetTaskList(),
@@ -162,8 +171,11 @@ func (c *clientImpl) PollForDecisionTask(
 		request,
 		request.GetIsolationGroup(),
 	)
-	originalTaskListName := request.PollRequest.GetTaskList().GetName()
-	request.PollRequest.TaskList.Name = partition
+	originalTaskList := request.PollRequest.TaskList
+	request.PollRequest.TaskList = &types.TaskList{
+		Name: partition,
+		Kind: originalTaskList.Kind,
+	}
 	peer, err := c.peerResolver.FromTaskList(request.PollRequest.TaskList.GetName())
 	if err != nil {
 		return nil, err
@@ -172,7 +184,7 @@ func (c *clientImpl) PollForDecisionTask(
 	if err != nil {
 		return nil, errors.NewPeerHostnameError(err, peer)
 	}
-	request.PollRequest.TaskList.Name = originalTaskListName
+	request.PollRequest.TaskList = originalTaskList
 	c.provider.UpdatePartitionConfig(
 		request.GetDomainUUID(),
 		*request.PollRequest.GetTaskList(),
@@ -200,8 +212,11 @@ func (c *clientImpl) QueryWorkflow(
 		request,
 		"",
 	)
-	originalTaskListName := request.TaskList.GetName()
-	request.TaskList.Name = partition
+	originalTaskList := request.TaskList
+	request.TaskList = &types.TaskList{
+		Name: partition,
+		Kind: originalTaskList.Kind,
+	}
 	peer, err := c.peerResolver.FromTaskList(request.TaskList.GetName())
 	if err != nil {
 		return nil, err
@@ -210,7 +225,7 @@ func (c *clientImpl) QueryWorkflow(
 	if err != nil {
 		return nil, err
 	}
-	request.TaskList.Name = originalTaskListName
+	request.TaskList = originalTaskList
 	c.provider.UpdatePartitionConfig(
 		request.GetDomainUUID(),
 		*request.TaskList,

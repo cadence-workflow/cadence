@@ -38,7 +38,7 @@ import (
 )
 
 func (h *apiHandler) handleErr(err error, scope metrics.Scope, logger log.Logger) error {
-	logger.Helper()
+	logger = logger.Helper()
 
 	// attempt to extract hostname if possible
 	hostname, err := commonerrors.ExtractPeerHostname(err)
@@ -164,8 +164,8 @@ func toGetTaskListsByDomainRequestTags(req *types.GetTaskListsByDomainRequest) [
 func toGetWorkflowExecutionHistoryRequestTags(req *types.GetWorkflowExecutionHistoryRequest) []tag.Tag {
 	return []tag.Tag{
 		tag.WorkflowDomainName(req.GetDomain()),
-		tag.WorkflowID(req.GetExecution().GetWorkflowID()),
-		tag.WorkflowRunID(req.GetExecution().GetRunID()),
+		tag.WorkflowID(req.GetWorkflowExecution().GetWorkflowID()),
+		tag.WorkflowRunID(req.GetWorkflowExecution().GetRunID()),
 	}
 }
 

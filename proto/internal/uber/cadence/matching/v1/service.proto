@@ -260,6 +260,7 @@ message DescribeTaskListResponse {
   repeated api.v1.PollerInfo pollers = 1;
   api.v1.TaskListStatus task_list_status = 2;
   api.v1.TaskListPartitionConfig partition_config = 3;
+  api.v1.TaskList task_list = 4;
 }
 
 message ListTaskListPartitionsRequest {

@@ -71,19 +71,34 @@ func (mr *MockManagerMockRecorder) CurrentRegion() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CurrentRegion", reflect.TypeOf((*MockManager)(nil).CurrentRegion))
 }
 
-// FailoverVersionOfNewWorkflow mocks base method.
-func (m *MockManager) FailoverVersionOfNewWorkflow(ctx context.Context, req *types.HistoryStartWorkflowExecutionRequest) (int64, error) {
+// LookupCluster mocks base method.
+func (m *MockManager) LookupCluster(ctx context.Context, domainID, clusterName string) (*LookupResult, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FailoverVersionOfNewWorkflow", ctx, req)
-	ret0, _ := ret[0].(int64)
+	ret := m.ctrl.Call(m, "LookupCluster", ctx, domainID, clusterName)
+	ret0, _ := ret[0].(*LookupResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// FailoverVersionOfNewWorkflow indicates an expected call of FailoverVersionOfNewWorkflow.
-func (mr *MockManagerMockRecorder) FailoverVersionOfNewWorkflow(ctx, req any) *gomock.Call {
+// LookupCluster indicates an expected call of LookupCluster.
+func (mr *MockManagerMockRecorder) LookupCluster(ctx, domainID, clusterName any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FailoverVersionOfNewWorkflow", reflect.TypeOf((*MockManager)(nil).FailoverVersionOfNewWorkflow), ctx, req)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LookupCluster", reflect.TypeOf((*MockManager)(nil).LookupCluster), ctx, domainID, clusterName)
+}
+
+// LookupNewWorkflow mocks base method.
+func (m *MockManager) LookupNewWorkflow(ctx context.Context, domainID string, policy *types.ActiveClusterSelectionPolicy) (*LookupResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LookupNewWorkflow", ctx, domainID, policy)
+	ret0, _ := ret[0].(*LookupResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// LookupNewWorkflow indicates an expected call of LookupNewWorkflow.
+func (mr *MockManagerMockRecorder) LookupNewWorkflow(ctx, domainID, policy any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LookupNewWorkflow", reflect.TypeOf((*MockManager)(nil).LookupNewWorkflow), ctx, domainID, policy)
 }
 
 // LookupWorkflow mocks base method.

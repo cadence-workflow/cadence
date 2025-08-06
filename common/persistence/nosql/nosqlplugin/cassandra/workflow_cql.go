@@ -35,6 +35,7 @@ const (
 		`completion_event: ?, ` +
 		`completion_event_data_encoding: ?, ` +
 		`task_list: ?, ` +
+		`task_list_kind: ?, ` +
 		`workflow_type_name: ?, ` +
 		`workflow_timeout: ?, ` +
 		`decision_task_timeout: ?, ` +
@@ -79,6 +80,7 @@ const (
 		`event_store_version: ?, ` +
 		`branch_token: ?, ` +
 		`cron_schedule: ?, ` +
+		`cron_overlap_policy: ?, ` +
 		`expiration_seconds: ?, ` +
 		`search_attributes: ?, ` +
 		`memo: ?, ` +
@@ -590,6 +592,15 @@ const (
 		`and run_id = ? ` +
 		`and visibility_ts = ? ` +
 		`and task_id = ? `
+
+	templateDeleteActiveClusterSelectionPolicyQuery = `DELETE FROM executions ` +
+		`WHERE shard_id = ? ` +
+		`and type = ? ` +
+		`and domain_id = ? ` +
+		`and workflow_id = ? ` +
+		`and run_id = ? ` +
+		`and visibility_ts = ? ` +
+		`and task_id = ?`
 
 	templateGetTransferTasksQuery = `SELECT task_id, transfer, data, data_encoding ` +
 		`FROM executions ` +

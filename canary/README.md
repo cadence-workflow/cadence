@@ -23,7 +23,7 @@ Different ways of start the canary:
 You can [pre-built docker-compose file](../docker/docker-compose-canary.yml) to run against local server
 In the `docker/` directory, run:
 ```
-docker-compose -f docker-compose-canary.yml up
+docker compose -f docker-compose-canary.yml up
 ```
 
 This will start the canary worker and also the cron canary.

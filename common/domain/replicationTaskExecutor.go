@@ -262,9 +262,14 @@ func (h *domainReplicationTaskExecutorImpl) handleDomainUpdateReplicationTask(ct
 		request.ReplicationConfig.Clusters = h.convertClusterReplicationConfigFromThrift(task.ReplicationConfig.Clusters)
 		request.ConfigVersion = task.GetConfigVersion()
 	}
+
+	// TODO(active-active): Domain's failover version has to be updated for the below case.
+	// However active-active domains don't need that field at all. We still increment it in domain handler whenever ActiveClusters change.
+	// Find another mechanism to indicate ActiveClusters changed and don't touch domain's top level failover version for active-active domains.
 	if resp.FailoverVersion < task.GetFailoverVersion() {
 		recordUpdated = true
 		request.ReplicationConfig.ActiveClusterName = task.ReplicationConfig.GetActiveClusterName()
+		request.ReplicationConfig.ActiveClusters = task.ReplicationConfig.GetActiveClusters()
 		request.FailoverVersion = task.GetFailoverVersion()
 		request.FailoverNotificationVersion = notificationVersion
 		request.PreviousFailoverVersion = task.GetPreviousFailoverVersion()

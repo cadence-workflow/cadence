@@ -33,4 +33,29 @@ var (
 		Owner:     "owner",
 		Namespace: "namespace",
 	}
+	ShardDistributorExecutorHeartbeatRequest = types.ExecutorHeartbeatRequest{
+		Namespace:  "namespace",
+		ExecutorID: "executor-id",
+		Status:     types.ExecutorStatusACTIVE,
+		ShardStatusReports: map[string]*types.ShardStatusReport{
+			"shard-key-1": {
+				Status:    types.ShardStatusREADY,
+				ShardLoad: 0.5,
+			},
+			"shard-key-2": {
+				Status:    types.ShardStatusINVALID,
+				ShardLoad: 0.75,
+			},
+		},
+	}
+	ShardDistributorExecutorHeartbeatResponse = types.ExecutorHeartbeatResponse{
+		ShardAssignments: map[string]*types.ShardAssignment{
+			"shard-key-1": {
+				Status: types.AssignmentStatusREADY,
+			},
+			"shard-key-2": {
+				Status: types.AssignmentStatusINVALID,
+			},
+		},
+	}
 )

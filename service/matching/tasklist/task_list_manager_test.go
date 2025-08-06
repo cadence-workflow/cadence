@@ -99,7 +99,7 @@ func setupMocksForTaskListManager(t *testing.T, taskListID *Identifier, taskList
 		deps.mockMatchingClient,
 		func(Manager) {},
 		taskListID,
-		&taskListKind,
+		taskListKind,
 		config,
 		deps.mockTimeSource,
 		deps.mockTimeSource.Now(),
@@ -127,8 +127,7 @@ func TestDeliverBufferTasks(t *testing.T) {
 	tests := []func(tlm *taskListManagerImpl){
 		func(tlm *taskListManagerImpl) { tlm.taskReader.cancelFunc() },
 		func(tlm *taskListManagerImpl) {
-			rps := 0.1
-			tlm.matcher.UpdateRatelimit(&rps)
+			tlm.limiter.ReportLimit(0.1)
 			tlm.taskReader.taskBuffers[defaultTaskBufferIsolationGroup] <- &persistence.TaskInfo{}
 			err := tlm.matcher.(*taskMatcherImpl).ratelimit(context.Background()) // consume the token
 			assert.NoError(t, err)
@@ -239,7 +238,6 @@ func createTestTaskListManagerWithConfig(t *testing.T, logger log.Logger, contro
 	if err != nil {
 		panic(err)
 	}
-	tlKind := types.TaskListKindNormal
 	tlMgr, err := NewManager(
 		mockDomainCache,
 		logger,
@@ -250,7 +248,7 @@ func createTestTaskListManagerWithConfig(t *testing.T, logger log.Logger, contro
 		nil,
 		func(Manager) {},
 		tlID,
-		&tlKind,
+		types.TaskListKindNormal,
 		cfg,
 		timeSource,
 		timeSource.Now(),
@@ -271,6 +269,7 @@ func TestDescribeTaskList(t *testing.T) {
 		StartID: startedID,
 		EndID:   int64(defaultRangeSize),
 	}
+
 	cases := []struct {
 		name           string
 		includeStatus  bool
@@ -318,6 +317,7 @@ func TestDescribeTaskList(t *testing.T) {
 					"datacenterA": {},
 					"datacenterB": {},
 				},
+				Empty: true,
 			},
 		},
 		{
@@ -342,6 +342,7 @@ func TestDescribeTaskList(t *testing.T) {
 					"datacenterA": {},
 					"datacenterB": {},
 				},
+				Empty: false,
 			},
 		},
 		{
@@ -360,7 +361,7 @@ func TestDescribeTaskList(t *testing.T) {
 				mockQPS.EXPECT().GroupQPS("datacenterB").Return(float64(25.0))
 				mockQPS.EXPECT().QPS().Return(float64(100.0))
 				impl.qpsTracker = mockQPS
-				impl.matcher.UpdateRatelimit(common.Float64Ptr(1.0))
+				impl.limiter.ReportLimit(1.0)
 			},
 			expectedStatus: &types.TaskListStatus{
 				RatePerSecond:     1.0, // From poller
@@ -376,12 +377,14 @@ func TestDescribeTaskList(t *testing.T) {
 						NewTasksPerSecond: 25.0,
 					},
 				},
+				Empty: true,
 			},
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			expectedTl := &types.TaskList{Name: "tl", Kind: types.TaskListKindNormal.Ptr()}
 			controller := gomock.NewController(t)
 			logger := testlogger.New(t)
 			tlm := createTestTaskListManager(t, logger, controller)
@@ -402,6 +405,7 @@ func TestDescribeTaskList(t *testing.T) {
 				tc.allowance(controller, tlm)
 			}
 			result := tlm.DescribeTaskList(tc.includeStatus)
+			assert.Equal(t, expectedTl, result.TaskList)
 			assert.Equal(t, tc.expectedStatus, result.TaskListStatus)
 			assert.Equal(t, tc.expectedConfig, result.PartitionConfig)
 			assert.ElementsMatch(t, expectedPollers, result.Pollers)
@@ -872,7 +876,7 @@ func TestTaskListManagerGetTaskBatch(t *testing.T) {
 		nil,
 		func(Manager) {},
 		taskListID,
-		types.TaskListKindNormal.Ptr(),
+		types.TaskListKindNormal,
 		cfg,
 		timeSource,
 		timeSource.Now(),
@@ -943,7 +947,7 @@ func TestTaskListManagerGetTaskBatch(t *testing.T) {
 		nil,
 		func(Manager) {},
 		taskListID,
-		types.TaskListKindNormal.Ptr(),
+		types.TaskListKindNormal,
 		cfg,
 		timeSource,
 		timeSource.Now(),
@@ -1002,7 +1006,7 @@ func TestTaskListReaderPumpAdvancesAckLevelAfterEmptyReads(t *testing.T) {
 		nil,
 		func(Manager) {},
 		taskListID,
-		types.TaskListKindNormal.Ptr(),
+		types.TaskListKindNormal,
 		cfg,
 		timeSource,
 		timeSource.Now(),
@@ -1149,7 +1153,7 @@ func TestTaskExpiryAndCompletion(t *testing.T) {
 				nil,
 				func(Manager) {},
 				taskListID,
-				types.TaskListKindNormal.Ptr(),
+				types.TaskListKindNormal,
 				cfg,
 				timeSource,
 				timeSource.Now(),
@@ -1819,7 +1823,7 @@ func TestGetNumPartitions(t *testing.T) {
 	require.NoError(t, err)
 	tlm, deps := setupMocksForTaskListManager(t, tlID, types.TaskListKindNormal)
 	require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.MatchingEnableGetNumberOfPartitionsFromCache, true))
-	assert.NotPanics(t, func() { tlm.matcher.UpdateRatelimit(common.Ptr(float64(100))) })
+	assert.NotPanics(t, func() { tlm.limiter.ReportLimit(float64(100)) })
 }
 
 func TestDisconnectBlockedPollers(t *testing.T) {

@@ -43,28 +43,31 @@ import (
 type Manager interface {
 	common.Daemon
 
-	// FailoverVersionOfNewWorkflow returns failover version of given new workflow.
+	// LookupNewWorkflow returns active cluster, region and failover version of given new workflow.
 	//  1. If domain is local:
-	//     	Returns domain entry's failover version.
+	//     	Returns info from domain entry.
 	//  2. If domain is active-passive global:
-	//     	Returns domain entry's failover version.
+	//     	Returns info from domain entry.
 	//  3. If domain is active-active global:
-	//     	3.1. if workflow is region sticky, returns failover version of current cluster.
-	//     	3.2. if workflow has external entity, returns failover version of corresponding row in EntityActiveRegion lookup table.
-	FailoverVersionOfNewWorkflow(ctx context.Context, req *types.HistoryStartWorkflowExecutionRequest) (int64, error)
+	//     	3.1. if workflow is region sticky, returns current cluster and its 	failover version.
+	//     	3.2. if workflow has external entity, returns region, cluster name and failover version of corresponding row in EntityActiveRegion lookup table.
+	LookupNewWorkflow(ctx context.Context, domainID string, policy *types.ActiveClusterSelectionPolicy) (*LookupResult, error)
 
-	// LookupWorkflow returns active cluster, region and failover version of given workflow.
+	// LookupWorkflow returns active cluster, region and failover version of given existing workflow.
 	// Returns the info from domain entry for local and active-passive domains
 	//
 	// Active-active domain logic:
 	//  1. Get ActivenessMetadata record of the workflow
 	//     1.a. If it's found, continue with step 2
-	//     1.b. If it's not found, the domain is migrated from active-passive to active-active and workflow is created before migration.
-	//     This case will fallback to active-passive logic and return domain's ActiveClusterName and FailoverVersion.
+	//     1.b. If it's not found and the domain is migrated from active-passive to active-active return domain's ActiveClusterName and FailoverVersion.
+	//     1.c. If it's not found and the domain is not migrated from active-passive to active-active, the workflow must have been retired. Return cluster name and failover version of current region.
 	//  2. Given ActivenessMetadata, return region and failover version
 	//     2.a. If workflow is region sticky (origin=regionA), find active cluster in that region in domain's active cluster config and return its name and failover version.
 	//     2.b. If workflow has external entity, locate the entity from EntityActiveRegion table and return that region and it's failover version.
 	LookupWorkflow(ctx context.Context, domainID, wfID, rID string) (*LookupResult, error)
+
+	// LookupCluster finds the active cluster name and failover version that's in the same region as the given cluster
+	LookupCluster(ctx context.Context, domainID, clusterName string) (*LookupResult, error)
 
 	// ClusterNameForFailoverVersion returns cluster name of given failover version.
 	// For local domains, it returns current cluster name.
@@ -128,6 +131,20 @@ func newRegionNotFoundForDomainError(region, domainID string) *RegionNotFoundFor
 
 func (e *RegionNotFoundForDomainError) Error() string {
 	return fmt.Sprintf("could not find region %s in the domain %s's active cluster config", e.Region, e.DomainID)
+}
+
+type ClusterNotFoundError struct {
+	ClusterName string
+}
+
+func newClusterNotFoundError(clusterName string) *ClusterNotFoundError {
+	return &ClusterNotFoundError{
+		ClusterName: clusterName,
+	}
+}
+
+func (e *ClusterNotFoundError) Error() string {
+	return fmt.Sprintf("could not find cluster %s", e.ClusterName)
 }
 
 type ClusterNotFoundForRegionError struct {

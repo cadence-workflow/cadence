@@ -33,14 +33,11 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
+	ctask "github.com/uber/cadence/common/task"
 )
 
 const (
 	defaultBufferSize = 200
-
-	redispatchBackoffCoefficient     = 1.05
-	redispatchMaxBackoffInternval    = 2 * time.Minute
-	redispatchFailureBackoffInterval = 2 * time.Second
 )
 
 type (
@@ -241,6 +238,13 @@ func (r *redispatcherImpl) redispatchTasks(notification redispatchNotification) 
 			item, _ := pq.Peek() // error is impossible because we've checked that the queue is not empty
 			if item.redispatchTime.After(now) {
 				break
+			}
+			if item.task.State() != ctask.TaskStatePending {
+				pq.Remove()
+				continue
+			}
+			if item.task.GetAttempt() == 0 {
+				item.task.SetInitialSubmitTime(now)
 			}
 			submitted, err := r.taskProcessor.TrySubmit(item.task)
 			if err != nil {

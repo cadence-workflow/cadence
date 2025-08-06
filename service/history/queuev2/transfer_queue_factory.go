@@ -155,7 +155,7 @@ func (f *transferQueueFactory) createQueuev2(
 			MaxPollIntervalJitterCoefficient:     config.TransferProcessorMaxPollIntervalJitterCoefficient,
 			UpdateAckInterval:                    config.TransferProcessorUpdateAckInterval,
 			UpdateAckIntervalJitterCoefficient:   config.TransferProcessorUpdateAckIntervalJitterCoefficient,
-			MaxRedispatchQueueSize:               config.TransferProcessorMaxRedispatchQueueSize,
+			MaxPendingTasksCount:                 config.QueueMaxPendingTaskCount,
 			PollBackoffInterval:                  config.QueueProcessorPollBackoffInterval,
 			PollBackoffIntervalJitterCoefficient: config.QueueProcessorPollBackoffIntervalJitterCoefficient,
 			EnableValidator:                      config.TransferProcessorEnableValidator,

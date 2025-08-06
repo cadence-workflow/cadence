@@ -111,6 +111,11 @@ type Config struct {
 	EnableDropStuckTaskByDomainID            dynamicproperties.BoolPropertyFnWithDomainIDFilter
 	ResurrectionCheckMinDelay                dynamicproperties.DurationPropertyFnWithDomainFilter
 
+	// History Queue (v2) settings
+	EnableTimerQueueV2       dynamicproperties.BoolPropertyFnWithShardIDFilter
+	EnableTransferQueueV2    dynamicproperties.BoolPropertyFnWithShardIDFilter
+	QueueMaxPendingTaskCount dynamicproperties.IntPropertyFn
+
 	// QueueProcessor settings
 	QueueProcessorEnableSplit                          dynamicproperties.BoolPropertyFn
 	QueueProcessorSplitMaxLevel                        dynamicproperties.IntPropertyFn
@@ -147,7 +152,6 @@ type Config struct {
 	TimerProcessorHistoryArchivalSizeLimit            dynamicproperties.IntPropertyFn
 	TimerProcessorArchivalTimeLimit                   dynamicproperties.DurationPropertyFn
 	DisableTimerFailoverQueue                         dynamicproperties.BoolPropertyFn
-	EnableTimerQueueV2                                dynamicproperties.BoolPropertyFnWithShardIDFilter
 
 	// TransferQueueProcessor settings
 	TransferTaskBatchSize                                dynamicproperties.IntPropertyFn
@@ -168,7 +172,6 @@ type Config struct {
 	TransferProcessorValidationInterval                  dynamicproperties.DurationPropertyFn
 	TransferProcessorVisibilityArchivalTimeLimit         dynamicproperties.DurationPropertyFn
 	DisableTransferFailoverQueue                         dynamicproperties.BoolPropertyFn
-	EnableTransferQueueV2                                dynamicproperties.BoolPropertyFnWithShardIDFilter
 
 	// ReplicatorQueueProcessor settings
 	ReplicatorTaskDeleteBatchSize          dynamicproperties.IntPropertyFn
@@ -402,6 +405,8 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		StandbyTaskReReplicationContextTimeout:   dc.GetDurationPropertyFilteredByDomainID(dynamicproperties.StandbyTaskReReplicationContextTimeout),
 		EnableDropStuckTaskByDomainID:            dc.GetBoolPropertyFilteredByDomainID(dynamicproperties.EnableDropStuckTaskByDomainID),
 		ResurrectionCheckMinDelay:                dc.GetDurationPropertyFilteredByDomain(dynamicproperties.ResurrectionCheckMinDelay),
+
+		QueueMaxPendingTaskCount: dc.GetIntProperty(dynamicproperties.QueueMaxPendingTaskCount),
 
 		QueueProcessorEnableSplit:                          dc.GetBoolProperty(dynamicproperties.QueueProcessorEnableSplit),
 		QueueProcessorSplitMaxLevel:                        dc.GetIntProperty(dynamicproperties.QueueProcessorSplitMaxLevel),

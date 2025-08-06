@@ -72,7 +72,7 @@ func FuzzMultiUpdate(f *testing.F) {
 			GcAfter:        func(opts ...dynamicproperties.FilterOption) time.Duration { return time.Hour },
 		})
 		if err != nil {
-			f.Fatal(err)
+			t.Fatal(err)
 		}
 
 		// if it takes more than a couple seconds, fuzz considers it stuck.

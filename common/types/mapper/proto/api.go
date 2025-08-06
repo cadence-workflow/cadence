@@ -1233,6 +1233,7 @@ func FromDescribeTaskListResponse(t *types.DescribeTaskListResponse) *apiv1.Desc
 		Pollers:         FromPollerInfoArray(t.Pollers),
 		TaskListStatus:  FromTaskListStatus(t.TaskListStatus),
 		PartitionConfig: FromAPITaskListPartitionConfig(t.PartitionConfig),
+		TaskList:        FromTaskList(t.TaskList),
 	}
 }
 
@@ -1244,6 +1245,7 @@ func ToDescribeTaskListResponse(t *apiv1.DescribeTaskListResponse) *types.Descri
 		Pollers:         ToPollerInfoArray(t.Pollers),
 		TaskListStatus:  ToTaskListStatus(t.TaskListStatus),
 		PartitionConfig: ToAPITaskListPartitionConfig(t.PartitionConfig),
+		TaskList:        ToTaskList(t.TaskList),
 	}
 }
 
@@ -1252,8 +1254,9 @@ func FromDescribeWorkflowExecutionRequest(t *types.DescribeWorkflowExecutionRequ
 		return nil
 	}
 	return &apiv1.DescribeWorkflowExecutionRequest{
-		Domain:            t.Domain,
-		WorkflowExecution: FromWorkflowExecution(t.Execution),
+		Domain:                t.Domain,
+		WorkflowExecution:     FromWorkflowExecution(t.Execution),
+		QueryConsistencyLevel: FromQueryConsistencyLevel(t.QueryConsistencyLevel),
 	}
 }
 
@@ -1262,8 +1265,9 @@ func ToDescribeWorkflowExecutionRequest(t *apiv1.DescribeWorkflowExecutionReques
 		return nil
 	}
 	return &types.DescribeWorkflowExecutionRequest{
-		Domain:    t.Domain,
-		Execution: ToWorkflowExecution(t.WorkflowExecution),
+		Domain:                t.Domain,
+		Execution:             ToWorkflowExecution(t.WorkflowExecution),
+		QueryConsistencyLevel: ToQueryConsistencyLevel(t.QueryConsistencyLevel),
 	}
 }
 
@@ -1529,6 +1533,7 @@ func FromGetWorkflowExecutionHistoryRequest(t *types.GetWorkflowExecutionHistory
 		WaitForNewEvent:        t.WaitForNewEvent,
 		HistoryEventFilterType: FromEventFilterType(t.HistoryEventFilterType),
 		SkipArchival:           t.SkipArchival,
+		QueryConsistencyLevel:  FromQueryConsistencyLevel(t.QueryConsistencyLevel),
 	}
 }
 
@@ -1544,6 +1549,7 @@ func ToGetWorkflowExecutionHistoryRequest(t *apiv1.GetWorkflowExecutionHistoryRe
 		WaitForNewEvent:        t.WaitForNewEvent,
 		HistoryEventFilterType: ToEventFilterType(t.HistoryEventFilterType),
 		SkipArchival:           t.SkipArchival,
+		QueryConsistencyLevel:  ToQueryConsistencyLevel(t.QueryConsistencyLevel),
 	}
 }
 
@@ -3967,6 +3973,13 @@ func ToTaskIDBlock(t *apiv1.TaskIDBlock) *types.TaskIDBlock {
 	}
 }
 
+func MigrateTaskList(name string, t *apiv1.TaskList) *types.TaskList {
+	if t == nil && name != "" {
+		return &types.TaskList{Name: name, Kind: types.TaskListKindNormal.Ptr()}
+	}
+	return ToTaskList(t)
+}
+
 func FromTaskList(t *types.TaskList) *apiv1.TaskList {
 	if t == nil {
 		return nil
@@ -3996,6 +4009,8 @@ func FromTaskListKind(t *types.TaskListKind) apiv1.TaskListKind {
 		return apiv1.TaskListKind_TASK_LIST_KIND_NORMAL
 	case types.TaskListKindSticky:
 		return apiv1.TaskListKind_TASK_LIST_KIND_STICKY
+	case types.TaskListKindEphemeral:
+		return apiv1.TaskListKind_TASK_LIST_KIND_EPHEMERAL
 	}
 	panic("unexpected enum value")
 }
@@ -4008,6 +4023,8 @@ func ToTaskListKind(t apiv1.TaskListKind) *types.TaskListKind {
 		return types.TaskListKindNormal.Ptr()
 	case apiv1.TaskListKind_TASK_LIST_KIND_STICKY:
 		return types.TaskListKindSticky.Ptr()
+	case apiv1.TaskListKind_TASK_LIST_KIND_EPHEMERAL:
+		return types.TaskListKindEphemeral.Ptr()
 	}
 	panic("unexpected enum value")
 }
@@ -4062,6 +4079,7 @@ func FromTaskListStatus(t *types.TaskListStatus) *apiv1.TaskListStatus {
 		TaskIdBlock:           FromTaskIDBlock(t.TaskIDBlock),
 		IsolationGroupMetrics: FromIsolationGroupMetricsMap(t.IsolationGroupMetrics),
 		NewTasksPerSecond:     t.NewTasksPerSecond,
+		Empty:                 t.Empty,
 	}
 }
 
@@ -4077,6 +4095,7 @@ func ToTaskListStatus(t *apiv1.TaskListStatus) *types.TaskListStatus {
 		TaskIDBlock:           ToTaskIDBlock(t.TaskIdBlock),
 		IsolationGroupMetrics: ToIsolationGroupMetricsMap(t.IsolationGroupMetrics),
 		NewTasksPerSecond:     t.NewTasksPerSecond,
+		Empty:                 t.Empty,
 	}
 }
 
@@ -4898,6 +4917,10 @@ func FromWorkflowExecutionInfo(t *types.WorkflowExecutionInfo) *apiv1.WorkflowEx
 	if t == nil {
 		return nil
 	}
+	tlName := ""
+	if t.TaskList != nil {
+		tlName = t.TaskList.Name
+	}
 	return &apiv1.WorkflowExecutionInfo{
 		WorkflowExecution:            FromWorkflowExecution(t.Execution),
 		Type:                         FromWorkflowType(t.Type),
@@ -4910,7 +4933,8 @@ func FromWorkflowExecutionInfo(t *types.WorkflowExecutionInfo) *apiv1.WorkflowEx
 		Memo:                         FromMemo(t.Memo),
 		SearchAttributes:             FromSearchAttributes(t.SearchAttributes),
 		AutoResetPoints:              FromResetPoints(t.AutoResetPoints),
-		TaskList:                     t.TaskList,
+		TaskList:                     tlName,
+		TaskListInfo:                 FromTaskList(t.TaskList),
 		PartitionConfig:              t.PartitionConfig,
 		IsCron:                       t.IsCron,
 		CronOverlapPolicy:            FromCronOverlapPolicy(t.CronOverlapPolicy),
@@ -4937,7 +4961,7 @@ func ToWorkflowExecutionInfo(t *apiv1.WorkflowExecutionInfo) *types.WorkflowExec
 		Memo:                         ToMemo(t.Memo),
 		SearchAttributes:             ToSearchAttributes(t.SearchAttributes),
 		AutoResetPoints:              ToResetPoints(t.AutoResetPoints),
-		TaskList:                     t.TaskList,
+		TaskList:                     MigrateTaskList(t.TaskList, t.TaskListInfo),
 		PartitionConfig:              t.PartitionConfig,
 		IsCron:                       t.IsCron,
 		CronOverlapPolicy:            ToCronOverlapPolicy(t.CronOverlapPolicy),

@@ -16,7 +16,7 @@ eventLogsFile="$resultFolder/$testName-events.json"
 testSummaryFile="$resultFolder/$testName-summary.txt"
 
 echo "Building test image"
-docker-compose -f docker/buildkite/docker-compose-local-history-simulation.yml \
+DOCKERFILE_SUFFIX=$DOCKERFILE_SUFFIX docker compose -f docker/github_actions/docker-compose-local-history-simulation.yml \
   build history-simulator
 
 function check_test_failure()
@@ -37,8 +37,8 @@ function check_test_failure()
 trap check_test_failure EXIT
 
 echo "Running the test $testCase"
-docker-compose \
-  -f docker/buildkite/docker-compose-local-history-simulation.yml \
+DOCKERFILE_SUFFIX=$DOCKERFILE_SUFFIX docker compose \
+  -f docker/github_actions/docker-compose-local-history-simulation.yml \
   run -e HISTORY_SIMULATION_CONFIG=$testCfg --rm --remove-orphans --service-ports --use-aliases \
   history-simulator \
   | grep -a --line-buffered "History New Event" \

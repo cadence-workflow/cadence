@@ -34,6 +34,7 @@ import (
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/client/sharddistributor"
+	"github.com/uber/cadence/client/sharddistributorexecutor"
 )
 
 type (
@@ -58,6 +59,9 @@ type (
 	}
 	sharddistributorClient struct {
 		c sharddistributorv1.ShardDistributorAPIYARPCClient
+	}
+	sharddistributorexecutorClient struct {
+		c sharddistributorv1.ShardDistributorExecutorAPIYARPCClient
 	}
 )
 
@@ -84,4 +88,8 @@ func NewMatchingClient(c matchingv1.MatchingAPIYARPCClient) matching.Client {
 
 func NewShardDistributorClient(c sharddistributorv1.ShardDistributorAPIYARPCClient) sharddistributor.Client {
 	return sharddistributorClient{c}
+}
+
+func NewShardDistributorExecutorClient(c sharddistributorv1.ShardDistributorExecutorAPIYARPCClient) sharddistributorexecutor.Client {
+	return sharddistributorexecutorClient{c}
 }

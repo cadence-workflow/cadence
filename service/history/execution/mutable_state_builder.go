@@ -39,7 +39,6 @@ import (
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
-	"github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -248,6 +247,7 @@ func newMutableStateBuilder(
 		State:              persistence.WorkflowStateCreated,
 		CloseStatus:        persistence.WorkflowCloseStatusNone,
 		LastProcessedEvent: constants.EmptyEventID,
+		CronOverlapPolicy:  types.CronOverlapPolicySkipped,
 	}
 	s.hBuilder = NewHistoryBuilder(s)
 	s.taskGenerator = NewMutableStateTaskGenerator(shard.GetLogger(), shard.GetClusterMetadata(), shard.GetDomainCache(), s)
@@ -1272,6 +1272,28 @@ func (e *mutableStateBuilder) AddContinueAsNewEvent(
 		e.domainEntry,
 	).(*mutableStateBuilder)
 
+	// New mutable state initializes `currentVersion` to domain's failover version.
+	// This doesn't work for active-active domains.
+	// Set `currentVersion` of the new mutable state builder based on active cluster selection policy
+	// specified on continue-as-new attributes.
+	if e.domainEntry.GetReplicationConfig().IsActiveActive() {
+		res, err := e.shard.GetActiveClusterManager().LookupNewWorkflow(ctx, e.domainEntry.GetInfo().ID, attributes.ActiveClusterSelectionPolicy)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		newStateBuilder.logger.Debug("mutableStateBuilder.AddContinueAsNewEvent created newStateBuilder",
+			tag.WorkflowDomainID(e.domainEntry.GetInfo().ID),
+			tag.WorkflowID(e.executionInfo.WorkflowID),
+			tag.WorkflowRunID(e.executionInfo.RunID),
+			tag.WorkflowRunID(newRunID),
+			tag.CurrentVersion(e.currentVersion),
+			tag.Dynamic("activecluster-sel-policy", attributes.ActiveClusterSelectionPolicy),
+			tag.Dynamic("activecluster-lookup-res", res),
+		)
+		newStateBuilder.UpdateCurrentVersion(res.FailoverVersion, true)
+	}
+
 	if _, err = newStateBuilder.addWorkflowExecutionStartedEventForContinueAsNew(
 		parentInfo,
 		newExecution,
@@ -2056,8 +2078,7 @@ func (e *mutableStateBuilder) closeTransactionWithPolicyCheck(
 
 	if activeCluster != currentCluster {
 		e.logger.Debugf("closeTransactionWithPolicyCheck activeCluster != currentCluster, activeCluster=%v, currentCluster=%v, e.GetCurrentVersion()=%v", activeCluster, currentCluster, e.GetCurrentVersion())
-		domainID := e.GetExecutionInfo().DomainID
-		return errors.NewDomainNotActiveError(domainID, currentCluster, activeCluster)
+		return e.domainEntry.NewDomainNotActiveError(currentCluster, activeCluster)
 	}
 	return nil
 }

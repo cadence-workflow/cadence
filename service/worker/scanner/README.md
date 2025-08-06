@@ -199,10 +199,10 @@ but this is the way I did things when reading and changing this code:
 2. Make your config/code/etc changes locally for scanner / fixer.
 3. `make cadence-server` to ensure it builds
 4. `./cadence-server start --services worker` to start up a worker that will
-   connect to your docker-compose cluster.
+   connect to your docker compose cluster.
 5. Browse history via the web UI, usually http://localhost:8088/domains/cadence-system/workflows
 
-The default docker-compose setup starts a worker instance, but due to the default
+The default docker compose setup starts a worker instance, but due to the default
 dynamic config setup where all but `worker.taskListScannerEnabled` are disabled,
 the in-docker worker will not run (most) scanner/fixer tasklists and will not steal
 any tasks from a local worker.
@@ -210,15 +210,15 @@ any tasks from a local worker.
 So you can often simply run it without any changes, start up your local (customized)
 worker service outside of docker, and everything will Just Work™.
 
-This way you can leverage the normal docker-compose yaml files with minimal effort,
+This way you can leverage the normal docker compose yaml files with minimal effort,
 use the web UI to observe the results, and rapidly change/rebuild/rerun/debug/etc
 without needing to deal with docker.
 
 If you **do** need to debug the tasklist scanner, I would recommend making a custom build,
-and modifying the docker-compose file to use your build.  Details on that are below,
+and modifying the docker compose file to use your build.  Details on that are below,
 but they **are not necessary** for other scanners/fixers.
 
-### Docker-compose changes (tasklist scanner only)
+### Docker compose changes (tasklist scanner only)
 
 There are a few ways to achieve this, but I like modifying the `docker-compose*.yaml`
 file to use a custom local build, and just changing its dynamic config to disable
@@ -226,7 +226,7 @@ the tasklist scanner.
 
 To do that, see the [docker/README.md file](../../../docker/README.md) for instructions.
 Personally I prefer making a unique auto-setup tag so it does not replace any non-customized
-docker-compose runs in the future.  E.g.:
+docker compose runs in the future.  E.g.:
 ```yaml
 services:
   # ...

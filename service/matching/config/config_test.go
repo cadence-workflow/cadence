@@ -83,6 +83,7 @@ func TestNewConfig(t *testing.T) {
 		"AllIsolationGroups":                        {nil, []string{"zone-1", "zone-2"}},
 		"EnableTasklistOwnershipGuard":              {dynamicproperties.MatchingEnableTasklistGuardAgainstOwnershipShardLoss, false},
 		"EnableGetNumberOfPartitionsFromCache":      {dynamicproperties.MatchingEnableGetNumberOfPartitionsFromCache, false},
+		"EnablePartitionEmptyCheck":                 {dynamicproperties.MatchingEnablePartitionEmptyCheck, true},
 		"PartitionUpscaleRPS":                       {dynamicproperties.MatchingPartitionUpscaleRPS, 30},
 		"PartitionDownscaleFactor":                  {dynamicproperties.MatchingPartitionDownscaleFactor, 31.0},
 		"PartitionUpscaleSustainedDuration":         {dynamicproperties.MatchingPartitionUpscaleSustainedDuration, time.Duration(32)},

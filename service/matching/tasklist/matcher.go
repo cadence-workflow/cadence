@@ -27,8 +27,6 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/atomic"
-
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/ctxutils"
 	"github.com/uber/cadence/common/log"
@@ -59,8 +57,6 @@ type taskMatcherImpl struct {
 	queryTaskC chan *InternalTask
 	// ratelimiter that limits the rate at which tasks can be dispatched to consumers
 	limiter quotas.Limiter
-	// The most recently received Dispatch rate from a poller
-	lastReceivedRate atomic.Float64
 
 	fwdr   Forwarder
 	scope  metrics.Scope // domain metric scope
@@ -90,7 +86,7 @@ func newTaskMatcher(
 	log log.Logger,
 	tasklist *Identifier,
 	tasklistKind types.TaskListKind,
-	numReadPartitionsFn func(*config.TaskListConfig) int,
+	limiter quotas.Limiter,
 ) TaskMatcher {
 	isolatedTaskC := make(map[string]chan *InternalTask)
 	for _, g := range isolationGroups {
@@ -100,24 +96,19 @@ func newTaskMatcher(
 	cancelCtx, cancelFunc := context.WithCancel(context.Background())
 
 	matcher := &taskMatcherImpl{
-		log:                 log,
-		scope:               scope,
-		fwdr:                fwdr,
-		taskC:               make(chan *InternalTask),
-		isolatedTaskC:       isolatedTaskC,
-		queryTaskC:          make(chan *InternalTask),
-		config:              config,
-		tasklist:            tasklist,
-		tasklistKind:        tasklistKind,
-		cancelCtx:           cancelCtx,
-		cancelFunc:          cancelFunc,
-		numReadPartitionsFn: numReadPartitionsFn,
+		log:           log,
+		scope:         scope,
+		fwdr:          fwdr,
+		taskC:         make(chan *InternalTask),
+		isolatedTaskC: isolatedTaskC,
+		queryTaskC:    make(chan *InternalTask),
+		config:        config,
+		tasklist:      tasklist,
+		tasklistKind:  tasklistKind,
+		limiter:       limiter,
+		cancelCtx:     cancelCtx,
+		cancelFunc:    cancelFunc,
 	}
-	matcher.lastReceivedRate.Store(config.TaskDispatchRPS)
-	matcher.limiter = quotas.NewDynamicRateLimiterWithOpts(matcher.Rate, quotas.DynamicRateLimiterOpts{
-		TTL:      config.TaskDispatchRPSTTL,
-		MinBurst: config.MinTaskThrottlingBurstSize(),
-	})
 
 	return matcher
 }
@@ -474,24 +465,6 @@ func (tm *taskMatcherImpl) PollForQuery(ctx context.Context) (*InternalTask, err
 	// either for a local poller or a forwarding token to be available. When a
 	// forwarding token becomes available, send this poll to a parent partition
 	return tm.pollOrForward(ctxWithCancelPropagation, startT, "", nil, nil, tm.queryTaskC)
-}
-
-// UpdateRatelimit updates the task dispatch rate
-func (tm *taskMatcherImpl) UpdateRatelimit(rps *float64) {
-	if rps != nil {
-		tm.lastReceivedRate.Store(*rps)
-	}
-}
-
-// Rate returns the current rate at which tasks are dispatched
-func (tm *taskMatcherImpl) Rate() float64 {
-	rate := tm.lastReceivedRate.Load()
-	nPartitions := tm.numReadPartitionsFn(tm.config)
-	if rate > float64(nPartitions) {
-		// divide the rate equally across all partitions
-		rate = rate / float64(nPartitions)
-	}
-	return rate
 }
 
 func (tm *taskMatcherImpl) RefreshCancelContext() {

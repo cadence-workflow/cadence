@@ -51,12 +51,6 @@ func TestHistorySimulation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed creating cluster config from %s, err: %v", confPath, err)
 	}
-	clusterConfig.HistoryDynamicConfigOverrides = map[dynamicproperties.Key]interface{}{
-		dynamicproperties.WorkflowDeletionJitterRange: clusterConfig.HistoryConfig.SimulationConfig.WorkflowDeletionJitterRange,
-		dynamicproperties.EnableTransferQueueV2:       clusterConfig.HistoryConfig.SimulationConfig.EnableTransferQueueV2,
-		dynamicproperties.EnableTimerQueueV2:          clusterConfig.HistoryConfig.SimulationConfig.EnableTimerQueueV2,
-	}
-
 	testCluster := host.NewPersistenceTestCluster(t, clusterConfig)
 
 	s := new(HistorySimulationSuite)

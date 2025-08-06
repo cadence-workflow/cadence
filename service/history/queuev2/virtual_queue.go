@@ -43,13 +43,25 @@ import (
 type (
 	VirtualQueue interface {
 		common.Daemon
+		// GetState return the current state of the virtual queue
 		GetState() []VirtualSliceState
+		// UpdateAndGetState update the state of the virtual queue and return the current state
 		UpdateAndGetState() []VirtualSliceState
+		// MergeSlices merge the incoming slices into the virtual queue
 		MergeSlices(...VirtualSlice)
+		// IterateSlices iterate over the slices in the virtual queue
+		IterateSlices(func(VirtualSlice))
+		// ClearSlices calls the Clear method of the slices that satisfy the predicate function
+		ClearSlices(func(VirtualSlice) bool)
+		// SplitSlices applies the split function to the slices in the virtual queue and return the remaining slices that should be kept in the virtual queue and whether the split is applied
+		SplitSlices(func(VirtualSlice) (remaining []VirtualSlice, split bool))
 	}
 
 	VirtualQueueOptions struct {
-		PageSize dynamicproperties.IntPropertyFn
+		PageSize                             dynamicproperties.IntPropertyFn
+		MaxPendingTasksCount                 dynamicproperties.IntPropertyFn
+		PollBackoffInterval                  dynamicproperties.DurationPropertyFn
+		PollBackoffIntervalJitterCoefficient dynamicproperties.FloatPropertyFn
 	}
 
 	virtualQueueImpl struct {
@@ -60,15 +72,17 @@ type (
 		metricsScope        metrics.Scope
 		timeSource          clock.TimeSource
 		taskLoadRateLimiter quotas.Limiter
+		monitor             Monitor
 
 		sync.RWMutex
-		status        int32
-		wg            sync.WaitGroup
-		ctx           context.Context
-		cancel        func()
-		notifyCh      chan struct{}
-		virtualSlices *list.List
-		sliceToRead   *list.Element
+		status          int32
+		wg              sync.WaitGroup
+		ctx             context.Context
+		cancel          func()
+		notifyCh        chan struct{}
+		pauseController PauseController
+		virtualSlices   *list.List
+		sliceToRead     *list.Element
 	}
 )
 
@@ -79,6 +93,7 @@ func NewVirtualQueue(
 	metricsScope metrics.Scope,
 	timeSource clock.TimeSource,
 	taskLoadRateLimiter quotas.Limiter,
+	monitor Monitor,
 	virtualSlices []VirtualSlice,
 	options *VirtualQueueOptions,
 ) VirtualQueue {
@@ -97,13 +112,15 @@ func NewVirtualQueue(
 		metricsScope:        metricsScope,
 		timeSource:          timeSource,
 		taskLoadRateLimiter: taskLoadRateLimiter,
+		monitor:             monitor,
 
-		status:        common.DaemonStatusInitialized,
-		ctx:           ctx,
-		cancel:        cancel,
-		notifyCh:      make(chan struct{}, 1),
-		virtualSlices: sliceList,
-		sliceToRead:   sliceList.Front(),
+		status:          common.DaemonStatusInitialized,
+		ctx:             ctx,
+		cancel:          cancel,
+		notifyCh:        make(chan struct{}, 1),
+		pauseController: NewPauseController(timeSource),
+		virtualSlices:   sliceList,
+		sliceToRead:     sliceList.Front(),
 	}
 }
 
@@ -112,6 +129,7 @@ func (q *virtualQueueImpl) Start() {
 		return
 	}
 
+	q.pauseController.Subscribe("virtual-queue", q.notifyCh)
 	q.wg.Add(1)
 	go q.run()
 
@@ -125,8 +143,18 @@ func (q *virtualQueueImpl) Stop() {
 		return
 	}
 
+	q.pauseController.Unsubscribe("virtual-queue")
+	q.pauseController.Stop()
+
 	q.cancel()
 	q.wg.Wait()
+
+	q.RLock()
+	defer q.RUnlock()
+	for e := q.virtualSlices.Front(); e != nil; e = e.Next() {
+		slice := e.Value.(VirtualSlice)
+		slice.Clear()
+	}
 
 	q.logger.Info("Virtual queue state changed", tag.LifeCycleStopped)
 }
@@ -154,8 +182,10 @@ func (q *virtualQueueImpl) UpdateAndGetState() []VirtualSliceState {
 		state := slice.UpdateAndGetState()
 		if state.IsEmpty() {
 			q.virtualSlices.Remove(e)
+			q.monitor.RemoveSlice(slice)
 		} else {
 			states = append(states, state)
+			q.monitor.SetSlicePendingTaskCount(slice, slice.GetPendingTaskCount())
 		}
 	}
 	return states
@@ -175,22 +205,72 @@ func (q *virtualQueueImpl) MergeSlices(incomingSlices ...VirtualSlice) {
 		incomingSlice := incomingSlices[incomingSliceIdx]
 
 		if currentSlice.GetState().Range.InclusiveMinTaskKey.Compare(incomingSlice.GetState().Range.InclusiveMinTaskKey) < 0 {
-			appendOrMergeSlice(mergedSlices, currentSlice)
+			q.appendOrMergeSlice(mergedSlices, currentSlice)
 			currentSliceElement = currentSliceElement.Next()
 		} else {
-			appendOrMergeSlice(mergedSlices, incomingSlice)
+			q.appendOrMergeSlice(mergedSlices, incomingSlice)
 			incomingSliceIdx++
 		}
 	}
 	for ; currentSliceElement != nil; currentSliceElement = currentSliceElement.Next() {
-		appendOrMergeSlice(mergedSlices, currentSliceElement.Value.(VirtualSlice))
+		q.appendOrMergeSlice(mergedSlices, currentSliceElement.Value.(VirtualSlice))
 	}
 	for _, slice := range incomingSlices[incomingSliceIdx:] {
-		appendOrMergeSlice(mergedSlices, slice)
+		q.appendOrMergeSlice(mergedSlices, slice)
 	}
 
 	q.virtualSlices.Init()
 	q.virtualSlices = mergedSlices
+	q.resetNextReadSliceLocked()
+}
+
+func (q *virtualQueueImpl) IterateSlices(f func(VirtualSlice)) {
+	q.RLock()
+	defer q.RUnlock()
+
+	for e := q.virtualSlices.Front(); e != nil; e = e.Next() {
+		f(e.Value.(VirtualSlice))
+	}
+}
+
+func (q *virtualQueueImpl) ClearSlices(f func(VirtualSlice) bool) {
+	q.Lock()
+	defer q.Unlock()
+
+	for e := q.virtualSlices.Front(); e != nil; e = e.Next() {
+		slice := e.Value.(VirtualSlice)
+		if f(slice) {
+			slice.Clear()
+			q.monitor.SetSlicePendingTaskCount(slice, slice.GetPendingTaskCount())
+		}
+	}
+
+	q.resetNextReadSliceLocked()
+}
+
+func (q *virtualQueueImpl) SplitSlices(f func(VirtualSlice) (remaining []VirtualSlice, split bool)) {
+	q.Lock()
+	defer q.Unlock()
+
+	remainingSlices := list.New()
+	for e := q.virtualSlices.Front(); e != nil; e = e.Next() {
+		slice := e.Value.(VirtualSlice)
+		remaining, split := f(slice)
+		if !split {
+			remainingSlices.PushBack(slice)
+			continue
+		}
+
+		q.monitor.RemoveSlice(slice)
+
+		for _, remainingSlice := range remaining {
+			remainingSlices.PushBack(remainingSlice)
+			q.monitor.SetSlicePendingTaskCount(remainingSlice, remainingSlice.GetPendingTaskCount())
+		}
+	}
+
+	q.virtualSlices.Init()
+	q.virtualSlices = remainingSlices
 	q.resetNextReadSliceLocked()
 }
 
@@ -223,14 +303,22 @@ func (q *virtualQueueImpl) loadAndSubmitTasks() {
 		q.logger.Error("Virtual queue failed to wait for rate limiter", tag.Error(err))
 	}
 
-	q.RLock()
-	defer q.RUnlock()
+	q.Lock()
+	defer q.Unlock()
 
 	if q.sliceToRead == nil {
 		return
 	}
 
-	// TODO: do not load task if there are too many pending tasks
+	pendingTaskCount := q.monitor.GetTotalPendingTaskCount()
+	if pendingTaskCount > q.options.MaxPendingTasksCount() {
+		q.logger.Warn("Too many pending tasks, pause loading tasks for a while", tag.PendingTaskCount(pendingTaskCount))
+		q.pauseController.Pause(q.options.PollBackoffInterval())
+	}
+
+	if q.pauseController.IsPaused() {
+		return
+	}
 
 	sliceToRead := q.sliceToRead.Value.(VirtualSlice)
 	tasks, err := sliceToRead.GetTasks(q.ctx, q.options.PageSize())
@@ -239,10 +327,14 @@ func (q *virtualQueueImpl) loadAndSubmitTasks() {
 		return
 	}
 
+	q.monitor.SetSlicePendingTaskCount(sliceToRead, sliceToRead.GetPendingTaskCount())
+
 	now := q.timeSource.Now()
 	for _, task := range tasks {
 		if persistence.IsTaskCorrupted(task) {
 			q.logger.Error("Virtual queue encountered a corrupted task", tag.Dynamic("task", task))
+			q.metricsScope.IncCounter(metrics.CorruptedHistoryTaskCounter)
+			task.Ack()
 			continue
 		}
 
@@ -252,7 +344,9 @@ func (q *virtualQueueImpl) loadAndSubmitTasks() {
 			q.redispatcher.RedispatchTask(task, scheduledTime)
 			continue
 		}
-
+		// shard level metrics for the duration between a task being written to a queue and being fetched from it
+		q.metricsScope.RecordHistogramDuration(metrics.TaskEnqueueToFetchLatency, now.Sub(task.GetVisibilityTimestamp()))
+		task.SetInitialSubmitTime(now)
 		submitted, err := q.processor.TrySubmit(task)
 		if err != nil {
 			select {
@@ -293,9 +387,10 @@ func (q *virtualQueueImpl) resetNextReadSliceLocked() {
 	}
 }
 
-func appendOrMergeSlice(slices *list.List, incomingSlice VirtualSlice) {
+func (q *virtualQueueImpl) appendOrMergeSlice(slices *list.List, incomingSlice VirtualSlice) {
 	if slices.Len() == 0 {
 		slices.PushBack(incomingSlice)
+		q.monitor.SetSlicePendingTaskCount(incomingSlice, incomingSlice.GetPendingTaskCount())
 		return
 	}
 
@@ -304,11 +399,15 @@ func appendOrMergeSlice(slices *list.List, incomingSlice VirtualSlice) {
 	mergedSlices, merged := lastSlice.TryMergeWithVirtualSlice(incomingSlice)
 	if !merged {
 		slices.PushBack(incomingSlice)
+		q.monitor.SetSlicePendingTaskCount(incomingSlice, incomingSlice.GetPendingTaskCount())
 		return
 	}
 
 	slices.Remove(lastElement)
+	q.monitor.RemoveSlice(lastSlice)
+	q.monitor.RemoveSlice(incomingSlice) // incomingSlice may already be tracked by the monitor, so we need to remove it if it's tracked
 	for _, mergedSlice := range mergedSlices {
 		slices.PushBack(mergedSlice)
+		q.monitor.SetSlicePendingTaskCount(mergedSlice, mergedSlice.GetPendingTaskCount())
 	}
 }

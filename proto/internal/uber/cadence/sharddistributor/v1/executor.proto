@@ -1,0 +1,79 @@
+// Copyright (c) 2020 Uber Technologies, Inc.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
+syntax = "proto3";
+
+package uber.cadence.sharddistributor.v1;
+
+option go_package = "github.com/uber/cadence/.gen/proto/sharddistributor/v1;sharddistributorv1";
+
+// ShardDistributorExecutionAPI is used update the state of the executor and fetch the next shard assignments.
+service ShardDistributorExecutorAPI {
+
+  // Heartbeat reports the current state of the executor, and fetches the next shard assignments.
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+}
+
+message HeartbeatRequest {
+  string namespace = 1;
+  string executor_id = 2;
+  ExecutorStatus status = 3;
+  map<string, ShardStatusReport> shard_status_reports = 4;
+}
+
+enum ExecutorStatus {
+  EXECUTOR_STATUS_INVALID = 0;
+  EXECUTOR_STATUS_ACTIVE = 1;
+  EXECUTOR_STATUS_DRAINING = 2;
+  EXECUTOR_STATUS_DRAINED = 3;
+}
+
+message ShardStatusReport {
+  ShardStatus status = 1;
+  double shard_load = 2;
+}
+
+// We only have one status for now, but when adding
+// graceful handover, we will need to add more statuses.
+// We do not need an "inactive" status, as we will not include
+// inactive shards in the heartbeat request.
+enum ShardStatus {
+  SHARD_STATUS_INVALID = 0;
+  SHARD_STATUS_READY = 1;
+}
+
+
+
+message HeartbeatResponse {
+  map<string, ShardAssignment> shard_assignments = 1;
+}
+
+message ShardAssignment {
+  AssignmentStatus status = 1;
+}
+
+// We only have one status for now, but when adding
+// graceful handover, we will need to add more statuses.
+// We do not need an "inactive" status, as we will not include
+// inactive shards in the heartbeat request.
+enum AssignmentStatus {
+  ASSIGNMENT_STATUS_INVALID = 0;
+  ASSIGNMENT_STATUS_READY = 1;
+}

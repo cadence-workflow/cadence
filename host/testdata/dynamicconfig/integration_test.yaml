@@ -1,0 +1,3 @@
+frontend.warmupDuration:
+- value: "1s"
+  constraints: {}

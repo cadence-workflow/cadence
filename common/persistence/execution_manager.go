@@ -160,6 +160,7 @@ func (m *executionManagerImpl) DeserializeExecutionInfo(
 		InitiatedID:                        info.InitiatedID,
 		CompletionEventBatchID:             info.CompletionEventBatchID,
 		TaskList:                           info.TaskList,
+		TaskListKind:                       info.TaskListKind,
 		IsCron:                             len(info.CronSchedule) > 0,
 		WorkflowTypeName:                   info.WorkflowTypeName,
 		WorkflowTimeout:                    int32(info.WorkflowTimeout.Seconds()),
@@ -498,6 +499,7 @@ func (m *executionManagerImpl) SerializeExecutionInfo(
 		CompletionEventBatchID:             info.CompletionEventBatchID,
 		CompletionEvent:                    completionEvent,
 		TaskList:                           info.TaskList,
+		TaskListKind:                       info.TaskListKind,
 		WorkflowTypeName:                   info.WorkflowTypeName,
 		WorkflowTimeout:                    common.SecondsToDuration(int64(info.WorkflowTimeout)),
 		DecisionStartToCloseTimeout:        common.SecondsToDuration(int64(info.DecisionStartToCloseTimeout)),
@@ -917,11 +919,23 @@ func (m *executionManagerImpl) GetActiveClusterSelectionPolicy(
 	if err != nil {
 		return nil, err
 	}
+	if blob == nil {
+		return nil, &types.EntityNotExistsError{
+			Message: "active cluster selection policy not found",
+		}
+	}
 	policy, err := m.serializer.DeserializeActiveClusterSelectionPolicy(blob)
 	if err != nil {
 		return nil, err
 	}
 	return policy, nil
+}
+
+func (m *executionManagerImpl) DeleteActiveClusterSelectionPolicy(
+	ctx context.Context,
+	domainID, workflowID, runID string,
+) error {
+	return m.persistence.DeleteActiveClusterSelectionPolicy(ctx, domainID, workflowID, runID)
 }
 
 func (m *executionManagerImpl) Close() {

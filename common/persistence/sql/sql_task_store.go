@@ -42,7 +42,7 @@ type sqlTaskStore struct {
 }
 
 var (
-	stickyTasksListsTTL = time.Hour * 24
+	taskListTTL = time.Hour * 24
 )
 
 // newTaskPersistence creates a new instance of TaskManager
@@ -113,10 +113,10 @@ func (m *sqlTaskStore) LeaseTaskList(
 				DataEncoding: string(blob.Encoding),
 			}
 			rows = []sqlplugin.TaskListsRow{row}
-			if m.db.SupportsTTL() && request.TaskListKind == persistence.TaskListKindSticky {
+			if m.db.SupportsTTL() && persistence.TaskListKindHasTTL(request.TaskListKind) {
 				rowWithTTL := sqlplugin.TaskListsRowWithTTL{
 					TaskListsRow: row,
-					TTL:          stickyTasksListsTTL,
+					TTL:          taskListTTL,
 				}
 				if _, err := m.db.InsertIntoTaskListsWithTTL(ctx, &rowWithTTL); err != nil {
 					return nil, convertCommonErrors(m.db, "LeaseTaskListWithTTL", fmt.Sprintf("Failed to make task list %v of type %v.", request.TaskList, request.TaskType), err)
@@ -171,10 +171,10 @@ func (m *sqlTaskStore) LeaseTaskList(
 			DataEncoding: string(blob.Encoding),
 		}
 		var result sql.Result
-		if tlInfo.GetKind() == persistence.TaskListKindSticky && m.db.SupportsTTL() {
+		if m.db.SupportsTTL() && persistence.TaskListKindHasTTL(int(tlInfo.GetKind())) {
 			result, err1 = tx.UpdateTaskListsWithTTL(ctx, &sqlplugin.TaskListsRowWithTTL{
 				TaskListsRow: *row,
-				TTL:          stickyTasksListsTTL,
+				TTL:          taskListTTL,
 			})
 		} else {
 			result, err1 = tx.UpdateTaskLists(ctx, row)
@@ -252,8 +252,8 @@ func (m *sqlTaskStore) UpdateTaskList(
 		LastUpdated:             time.Now(),
 		AdaptivePartitionConfig: toSerializationTaskListPartitionConfig(request.TaskListInfo.AdaptivePartitionConfig),
 	}
-	if request.TaskListInfo.Kind == persistence.TaskListKindSticky {
-		tlInfo.ExpiryTimestamp = stickyTaskListExpiry()
+	if persistence.TaskListKindHasTTL(request.TaskListInfo.Kind) {
+		tlInfo.ExpiryTimestamp = time.Now().Add(taskListTTL)
 	}
 
 	var resp *persistence.UpdateTaskListResponse
@@ -277,10 +277,10 @@ func (m *sqlTaskStore) UpdateTaskList(
 			Data:         blob.Data,
 			DataEncoding: string(blob.Encoding),
 		}
-		if m.db.SupportsTTL() && request.TaskListInfo.Kind == persistence.TaskListKindSticky {
+		if m.db.SupportsTTL() && persistence.TaskListKindHasTTL(request.TaskListInfo.Kind) {
 			result, err1 = tx.UpdateTaskListsWithTTL(ctx, &sqlplugin.TaskListsRowWithTTL{
 				TaskListsRow: *row,
-				TTL:          stickyTasksListsTTL,
+				TTL:          taskListTTL,
 			})
 		} else {
 			result, err1 = tx.UpdateTaskLists(ctx, row)
@@ -625,10 +625,6 @@ func lockTaskList(ctx context.Context, tx sqlplugin.Tx, shardID int, domainID se
 	default:
 		return convertCommonErrors(tx, "lockTaskList", "", err)
 	}
-}
-
-func stickyTaskListExpiry() time.Time {
-	return time.Now().Add(stickyTasksListsTTL)
 }
 
 func toSerializationTaskListPartitionConfig(c *persistence.TaskListPartitionConfig) *serialization.TaskListPartitionConfig {

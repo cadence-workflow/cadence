@@ -22,8 +22,10 @@ package clusterredirection
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
@@ -32,6 +34,8 @@ import (
 	"github.com/uber/cadence/common/types"
 	frontendcfg "github.com/uber/cadence/service/frontend/config"
 )
+
+//go:generate mockgen -package $GOPACKAGE -destination policy_mock.go -self_package github.com/uber/cadence/service/frontend/wrappers/clusterredirection github.com/uber/cadence/service/frontend/wrappers/clusterredirection ClusterRedirectionPolicy
 
 const (
 	// DCRedirectionPolicyDefault means no redirection
@@ -78,8 +82,22 @@ const (
 type (
 	// ClusterRedirectionPolicy is a DC redirection policy interface
 	ClusterRedirectionPolicy interface {
-		WithDomainIDRedirect(ctx context.Context, domainID string, apiName string, requestedConsistencyLevel types.QueryConsistencyLevel, call func(string) error) error
-		WithDomainNameRedirect(ctx context.Context, domainName string, apiName string, requestedConsistencyLevel types.QueryConsistencyLevel, call func(string) error) error
+		// Redirect redirects applicable API calls to active cluster based on given parameters and configured forwarding policy.
+		// domainEntry (required): domain cache entry
+		// workflowExecution (optional): workflow execution (only used for existing workflow API calls on active-active domains)
+		// actClSelPolicyForNewWF (optional): active cluster selection policy for new workflow (only used for new workflow API calls on active-active domains)
+		// apiName (required): API name
+		// requestedConsistencyLevel (required): requested consistency level
+		// call (required): function to call the API on the target cluster
+		Redirect(
+			ctx context.Context,
+			domainEntry *cache.DomainCacheEntry,
+			workflowExecution *types.WorkflowExecution,
+			actClSelPolicyForNewWF *types.ActiveClusterSelectionPolicy,
+			apiName string,
+			requestedConsistencyLevel types.QueryConsistencyLevel,
+			call func(string) error,
+		) error
 	}
 
 	// noopRedirectionPolicy is DC redirection policy which does nothing
@@ -90,13 +108,13 @@ type (
 	// selectedOrAllAPIsForwardingRedirectionPolicy is a DC redirection policy
 	// which (based on domain) forwards selected APIs calls or all domain APIs to active cluster
 	selectedOrAllAPIsForwardingRedirectionPolicy struct {
-		currentClusterName string
-		config             *frontendcfg.Config
-		domainCache        cache.DomainCache
-		allDomainAPIs      bool
-		selectedAPIs       map[string]struct{}
-		targetCluster      string
-		logger             log.Logger
+		currentClusterName   string
+		config               *frontendcfg.Config
+		allDomainAPIs        bool
+		selectedAPIs         map[string]struct{}
+		targetCluster        string
+		logger               log.Logger
+		activeClusterManager activecluster.Manager
 	}
 )
 
@@ -144,9 +162,9 @@ var allowedAPIsForDeprecatedDomains = map[string]struct{}{
 func RedirectionPolicyGenerator(
 	clusterMetadata cluster.Metadata,
 	config *frontendcfg.Config,
-	domainCache cache.DomainCache,
 	policy config.ClusterRedirectionPolicy,
 	logger log.Logger,
+	activeClusterManager activecluster.Manager,
 ) ClusterRedirectionPolicy {
 	switch policy.Policy {
 	case DCRedirectionPolicyDefault:
@@ -156,16 +174,16 @@ func RedirectionPolicyGenerator(
 		return newNoopRedirectionPolicy(clusterMetadata.GetCurrentClusterName())
 	case DCRedirectionPolicySelectedAPIsForwarding:
 		currentClusterName := clusterMetadata.GetCurrentClusterName()
-		return newSelectedOrAllAPIsForwardingPolicy(currentClusterName, config, domainCache, false, selectedAPIsForwardingRedirectionPolicyAPIAllowlist, "", logger)
+		return newSelectedOrAllAPIsForwardingPolicy(currentClusterName, config, false, selectedAPIsForwardingRedirectionPolicyAPIAllowlist, "", logger, activeClusterManager)
 	case DCRedirectionPolicySelectedAPIsForwardingV2:
 		currentClusterName := clusterMetadata.GetCurrentClusterName()
-		return newSelectedOrAllAPIsForwardingPolicy(currentClusterName, config, domainCache, false, selectedAPIsForwardingRedirectionPolicyAPIAllowlistV2, "", logger)
+		return newSelectedOrAllAPIsForwardingPolicy(currentClusterName, config, false, selectedAPIsForwardingRedirectionPolicyAPIAllowlistV2, "", logger, activeClusterManager)
 	case DCRedirectionPolicyAllDomainAPIsForwarding:
 		currentClusterName := clusterMetadata.GetCurrentClusterName()
-		return newSelectedOrAllAPIsForwardingPolicy(currentClusterName, config, domainCache, true, selectedAPIsForwardingRedirectionPolicyAPIAllowlist, policy.AllDomainApisForwardingTargetCluster, logger)
+		return newSelectedOrAllAPIsForwardingPolicy(currentClusterName, config, true, selectedAPIsForwardingRedirectionPolicyAPIAllowlist, policy.AllDomainApisForwardingTargetCluster, logger, activeClusterManager)
 	case DCRedirectionPolicyAllDomainAPIsForwardingV2:
 		currentClusterName := clusterMetadata.GetCurrentClusterName()
-		return newSelectedOrAllAPIsForwardingPolicy(currentClusterName, config, domainCache, true, selectedAPIsForwardingRedirectionPolicyAPIAllowlistV2, policy.AllDomainApisForwardingTargetCluster, logger)
+		return newSelectedOrAllAPIsForwardingPolicy(currentClusterName, config, true, selectedAPIsForwardingRedirectionPolicyAPIAllowlistV2, policy.AllDomainApisForwardingTargetCluster, logger, activeClusterManager)
 
 	default:
 		panic(fmt.Sprintf("Unknown DC redirection policy %v", policy.Policy))
@@ -179,13 +197,16 @@ func newNoopRedirectionPolicy(currentClusterName string) *noopRedirectionPolicy 
 	}
 }
 
-// WithDomainIDRedirect redirect the API call based on domain ID
-func (policy *noopRedirectionPolicy) WithDomainIDRedirect(ctx context.Context, domainID string, apiName string, requestedConsistencyLevel types.QueryConsistencyLevel, call func(string) error) error {
-	return call(policy.currentClusterName)
-}
-
-// WithDomainNameRedirect redirect the API call based on domain name
-func (policy *noopRedirectionPolicy) WithDomainNameRedirect(ctx context.Context, domainName string, apiName string, requestedConsistencyLevel types.QueryConsistencyLevel, call func(string) error) error {
+// Redirect redirect the API call based on domain ID
+func (policy *noopRedirectionPolicy) Redirect(
+	ctx context.Context,
+	domainEntry *cache.DomainCacheEntry,
+	workflowExecution *types.WorkflowExecution,
+	actClSelPolicyForNewWF *types.ActiveClusterSelectionPolicy,
+	apiName string,
+	requestedConsistencyLevel types.QueryConsistencyLevel,
+	call func(string) error,
+) error {
 	return call(policy.currentClusterName)
 }
 
@@ -193,40 +214,36 @@ func (policy *noopRedirectionPolicy) WithDomainNameRedirect(ctx context.Context,
 func newSelectedOrAllAPIsForwardingPolicy(
 	currentClusterName string,
 	config *frontendcfg.Config,
-	domainCache cache.DomainCache,
 	allDomainAPIs bool,
 	selectedAPIs map[string]struct{},
 	targetCluster string,
 	logger log.Logger,
+	activeClusterManager activecluster.Manager,
 ) *selectedOrAllAPIsForwardingRedirectionPolicy {
 	return &selectedOrAllAPIsForwardingRedirectionPolicy{
-		currentClusterName: currentClusterName,
-		config:             config,
-		domainCache:        domainCache,
-		allDomainAPIs:      allDomainAPIs,
-		selectedAPIs:       selectedAPIs,
-		targetCluster:      targetCluster,
-		logger:             logger,
+		currentClusterName:   currentClusterName,
+		config:               config,
+		allDomainAPIs:        allDomainAPIs,
+		selectedAPIs:         selectedAPIs,
+		targetCluster:        targetCluster,
+		logger:               logger,
+		activeClusterManager: activeClusterManager,
 	}
 }
 
-// WithDomainIDRedirect redirect the API call based on domain ID
-func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) WithDomainIDRedirect(
+func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) Redirect(
 	ctx context.Context,
-	domainID string,
+	domainEntry *cache.DomainCacheEntry,
+	workflowExecution *types.WorkflowExecution,
+	actClSelPolicyForNewWF *types.ActiveClusterSelectionPolicy,
 	apiName string,
 	requestedConsistencyLevel types.QueryConsistencyLevel,
 	call func(string) error,
 ) error {
-	domainEntry, err := policy.domainCache.GetDomainByID(domainID)
-	if err != nil {
-		return err
-	}
-
 	if domainEntry.IsDeprecatedOrDeleted() {
 		if _, ok := allowedAPIsForDeprecatedDomains[apiName]; !ok {
 			return &types.DomainNotActiveError{
-				Message:        "domain is deprecated.",
+				Message:        "domain is deprecated or deleted.",
 				DomainName:     domainEntry.GetInfo().Name,
 				CurrentCluster: policy.currentClusterName,
 				ActiveCluster:  policy.currentClusterName,
@@ -234,66 +251,53 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) WithDomainIDRedirect
 		}
 	}
 
-	return policy.withRedirect(ctx, domainEntry, apiName, requestedConsistencyLevel, call)
+	return policy.withRedirect(ctx, domainEntry, workflowExecution, actClSelPolicyForNewWF, apiName, requestedConsistencyLevel, call)
 }
 
-// WithDomainNameRedirect redirect the API call based on domain name
-func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) WithDomainNameRedirect(
-	ctx context.Context,
-	domainName string,
-	apiName string,
-	requestedConsistencyLevel types.QueryConsistencyLevel,
-	call func(string) error,
-) error {
-	domainEntry, err := policy.domainCache.GetDomain(domainName)
-	if err != nil {
-		return err
-	}
-
-	if domainEntry.IsDeprecatedOrDeleted() {
-		if _, ok := allowedAPIsForDeprecatedDomains[apiName]; !ok {
-			return &types.DomainNotActiveError{
-				Message:        "domain is deprecated or deleted.",
-				DomainName:     domainName,
-				CurrentCluster: policy.currentClusterName,
-				ActiveCluster:  policy.currentClusterName,
-			}
-		}
-	}
-
-	return policy.withRedirect(ctx, domainEntry, apiName, requestedConsistencyLevel, call)
-}
-
+// TODO(active-active): Add unit tests for active-active domains covering all branches in activeClusterForActiveActiveDomainRequest
 func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) withRedirect(
 	ctx context.Context,
 	domainEntry *cache.DomainCacheEntry,
+	workflowExecution *types.WorkflowExecution,
+	actClSelPolicyForNewWF *types.ActiveClusterSelectionPolicy,
 	apiName string,
 	requestedConsistencyLevel types.QueryConsistencyLevel,
 	call func(string) error,
 ) error {
-	targetDC, enableDomainNotActiveForwarding := policy.getTargetClusterAndIsDomainNotActiveAutoForwarding(ctx, domainEntry, apiName, requestedConsistencyLevel)
+	targetDC, enableDomainNotActiveForwarding := policy.getTargetClusterAndIsDomainNotActiveAutoForwarding(ctx, domainEntry, workflowExecution, actClSelPolicyForNewWF, apiName, requestedConsistencyLevel)
 
+	policy.logger.Debugf("Calling API %q on target cluster:%q for domain:%q", apiName, targetDC, domainEntry.GetInfo().Name)
 	err := call(targetDC)
 
-	targetDC, ok := policy.isDomainNotActiveError(err)
+	var domainNotActiveErr *types.DomainNotActiveError
+	ok := errors.As(err, &domainNotActiveErr)
 	if !ok || !enableDomainNotActiveForwarding {
 		return err
 	}
-	return call(targetDC)
-}
 
-func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) isDomainNotActiveError(err error) (string, bool) {
-	domainNotActiveErr, ok := err.(*types.DomainNotActiveError)
-	if !ok {
-		return "", false
+	// TODO(active-active): emit a metric here including apiName, targetDC and newTargetDC tags
+	// This can only happen if there was a failover during the API call.
+	// Forward the request the the active cluster specified in the error
+	if domainNotActiveErr.ActiveCluster == "" {
+		policy.logger.Debugf("No active cluster specified in the error returned from cluster:%q for domain:%q, api: %q so skipping redirect", targetDC, domainEntry.GetInfo().Name, apiName)
+		return err
 	}
-	return domainNotActiveErr.ActiveCluster, true
+
+	if domainNotActiveErr.ActiveCluster == targetDC {
+		policy.logger.Debugf("No need to redirect to new target cluster:%q for domain:%q, api: %q", targetDC, domainEntry.GetInfo().Name, apiName)
+		return err
+	}
+
+	policy.logger.Debugf("Calling API %q on new target cluster:%q for domain:%q as indicated by response from cluster:%q", apiName, domainNotActiveErr.ActiveCluster, domainEntry.GetInfo().Name, targetDC)
+	return call(domainNotActiveErr.ActiveCluster)
 }
 
 // return two values: the target cluster name, and whether or not forwarding to the active cluster
 func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) getTargetClusterAndIsDomainNotActiveAutoForwarding(
-	_ context.Context,
+	ctx context.Context,
 	domainEntry *cache.DomainCacheEntry,
+	workflowExecution *types.WorkflowExecution,
+	actClSelPolicyForNewWF *types.ActiveClusterSelectionPolicy,
 	apiName string,
 	requestedConsistencyLevel types.QueryConsistencyLevel,
 ) (string, bool) {
@@ -308,15 +312,11 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) getTargetClusterAndI
 		return policy.currentClusterName, false
 	}
 
-	isActiveActive := domainEntry.GetReplicationConfig().IsActiveActive()
-	policy.logger.Debugf("Domain %v is active-active: %v", domainEntry.GetInfo().Name, isActiveActive)
-	if isActiveActive {
-		// TODO(active-active): Update generated API code to pass workflow id/run id to this callback and lookup active cluster
-		policy.logger.Debug("Handling active-active domain call in the receiving cluster for now", tag.WorkflowDomainName(domainEntry.GetInfo().Name))
-		return policy.currentClusterName, true
+	currentActiveCluster := domainEntry.GetReplicationConfig().ActiveClusterName
+	if domainEntry.GetReplicationConfig().IsActiveActive() {
+		currentActiveCluster = policy.activeClusterForActiveActiveDomainRequest(ctx, domainEntry, workflowExecution, actClSelPolicyForNewWF, apiName)
 	}
 
-	currentActiveCluster := domainEntry.GetReplicationConfig().ActiveClusterName
 	if policy.allDomainAPIs {
 		if policy.targetCluster == "" {
 			return currentActiveCluster, true
@@ -338,4 +338,58 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) getTargetClusterAndI
 	}
 
 	return currentActiveCluster, true
+}
+
+func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) activeClusterForActiveActiveDomainRequest(
+	ctx context.Context,
+	domainEntry *cache.DomainCacheEntry,
+	workflowExecution *types.WorkflowExecution,
+	actClSelPolicyForNewWF *types.ActiveClusterSelectionPolicy,
+	apiName string,
+) string {
+	policy.logger.Debug("Determining active cluster for active-active domain request", tag.WorkflowDomainName(domainEntry.GetInfo().Name), tag.Dynamic("execution", workflowExecution), tag.OperationName(apiName))
+	if actClSelPolicyForNewWF != nil {
+		policy.logger.Debug("Active cluster selection policy for new workflow", tag.WorkflowDomainName(domainEntry.GetInfo().Name), tag.OperationName(apiName), tag.Dynamic("policy", actClSelPolicyForNewWF))
+		lookupRes, err := policy.activeClusterManager.LookupNewWorkflow(ctx, domainEntry.GetInfo().ID, actClSelPolicyForNewWF)
+		if err != nil {
+			policy.logger.Error("Failed to lookup active cluster of new workflow, using active cluster in the same region", tag.WorkflowDomainName(domainEntry.GetInfo().Name), tag.OperationName(apiName), tag.Error(err))
+			return policy.activeClusterInSameRegion(ctx, domainEntry, policy.currentClusterName)
+		}
+		return lookupRes.ClusterName
+	}
+
+	if workflowExecution == nil {
+		policy.logger.Debug("Workflow execution is nil, using active cluster in the same region", tag.WorkflowDomainName(domainEntry.GetInfo().Name), tag.OperationName(apiName))
+		return policy.activeClusterInSameRegion(ctx, domainEntry, policy.currentClusterName)
+	}
+	if workflowExecution.RunID == "" {
+		policy.logger.Debug("Workflow execution run id is empty, using active cluster in the same region", tag.WorkflowDomainName(domainEntry.GetInfo().Name), tag.OperationName(apiName))
+		return policy.activeClusterInSameRegion(ctx, domainEntry, policy.currentClusterName)
+	}
+
+	lookupRes, err := policy.activeClusterManager.LookupWorkflow(ctx, domainEntry.GetInfo().Name, workflowExecution.WorkflowID, workflowExecution.RunID)
+	if err != nil {
+		policy.logger.Error("Failed to lookup active cluster of workflow, using active cluster in the same region", tag.WorkflowDomainName(domainEntry.GetInfo().Name), tag.WorkflowID(workflowExecution.WorkflowID), tag.WorkflowRunID(workflowExecution.RunID), tag.OperationName(apiName), tag.Error(err))
+		return policy.activeClusterInSameRegion(ctx, domainEntry, policy.currentClusterName)
+	}
+
+	policy.logger.Debug("Lookup workflow result for active-active domain request", tag.WorkflowDomainName(domainEntry.GetInfo().Name), tag.WorkflowID(workflowExecution.WorkflowID), tag.WorkflowRunID(workflowExecution.RunID), tag.OperationName(apiName), tag.ActiveClusterName(lookupRes.ClusterName))
+	return lookupRes.ClusterName
+}
+
+// activeClusterInSameRegion returns the active cluster in the same region as the given cluster name
+// If the lookup fails, it returns current cluster name as fallback
+// In that case, if current cluster is not the active cluster the caller will return an not-active error
+// TODO(active-active): Revisit this logic for strong-consistency requests and potentially reject them instead of serving them from the current cluster
+func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) activeClusterInSameRegion(
+	ctx context.Context,
+	domainEntry *cache.DomainCacheEntry,
+	clusterName string,
+) string {
+	lookupRes, err := policy.activeClusterManager.LookupCluster(ctx, domainEntry.GetInfo().ID, clusterName)
+	if err != nil {
+		policy.logger.Error("Failed to lookup active cluster in same region", tag.WorkflowDomainName(domainEntry.GetInfo().Name), tag.ClusterName(clusterName), tag.Error(err))
+		return policy.currentClusterName
+	}
+	return lookupRes.ClusterName
 }

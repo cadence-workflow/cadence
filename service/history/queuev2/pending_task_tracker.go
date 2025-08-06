@@ -40,17 +40,26 @@ type (
 		GetMinimumTaskKey() (persistence.HistoryTaskKey, bool)
 		// GetTasks returns all the tasks in the pending task tracker, the result should be read-only.
 		GetTasks() map[persistence.HistoryTaskKey]task.Task
+		// GetPendingTaskCount returns the number of pending tasks in the pending task tracker.
+		GetPendingTaskCount() int
+		// GetPerDomainPendingTaskCount returns the number of pending tasks per domain.
+		GetPerDomainPendingTaskCount() map[string]int
+		// Clear clears the pending task tracker.
+		Clear()
 	}
 
 	pendingTaskTrackerImpl struct {
-		taskMap    map[persistence.HistoryTaskKey]task.Task
-		minTaskKey persistence.HistoryTaskKey
+		taskMap            map[persistence.HistoryTaskKey]task.Task
+		taskCountPerDomain map[string]int // domainID -> task count
+		minTaskKey         persistence.HistoryTaskKey
 	}
 )
 
 func NewPendingTaskTracker() PendingTaskTracker {
 	return &pendingTaskTrackerImpl{
-		taskMap: make(map[persistence.HistoryTaskKey]task.Task),
+		taskMap:            make(map[persistence.HistoryTaskKey]task.Task),
+		taskCountPerDomain: make(map[string]int),
+		minTaskKey:         persistence.MaximumHistoryTaskKey,
 	}
 }
 
@@ -62,6 +71,7 @@ func (t *pendingTaskTrackerImpl) AddTask(task task.Task) {
 	}
 
 	t.taskMap[task.GetTaskKey()] = task
+	t.taskCountPerDomain[task.GetDomainID()]++
 }
 
 func (t *pendingTaskTrackerImpl) GetMinimumTaskKey() (persistence.HistoryTaskKey, bool) {
@@ -80,6 +90,7 @@ func (t *pendingTaskTrackerImpl) PruneAckedTasks() {
 	for key, task := range t.taskMap {
 		if task.State() == ctask.TaskStateAcked {
 			delete(t.taskMap, key)
+			t.taskCountPerDomain[task.GetDomainID()]--
 			continue
 		}
 
@@ -88,4 +99,21 @@ func (t *pendingTaskTrackerImpl) PruneAckedTasks() {
 		}
 	}
 	t.minTaskKey = minTaskKey
+}
+
+func (t *pendingTaskTrackerImpl) GetPendingTaskCount() int {
+	return len(t.taskMap)
+}
+
+func (t *pendingTaskTrackerImpl) GetPerDomainPendingTaskCount() map[string]int {
+	return t.taskCountPerDomain
+}
+
+func (t *pendingTaskTrackerImpl) Clear() {
+	for _, task := range t.taskMap {
+		task.Cancel()
+	}
+	t.taskMap = make(map[persistence.HistoryTaskKey]task.Task)
+	t.taskCountPerDomain = make(map[string]int)
+	t.minTaskKey = persistence.MaximumHistoryTaskKey
 }

@@ -5,9 +5,6 @@ messagingclientconfig:
 historyconfig:
   numhistoryshards: 4
   numhistoryhosts: 1
-  simulationconfig:
-    enabletransferqueuev2: true
-    enabletimerqueuev2: true
 matchingconfig:
   nummatchinghosts: 1
 workerconfig:
@@ -15,3 +12,6 @@ workerconfig:
   enablearchiver: false
   enablereplicator: false
   enableindexer: false
+dynamicclientconfig:
+  filepath: "dynamicconfig/queuev2.yaml"
+  pollInterval: "10s"

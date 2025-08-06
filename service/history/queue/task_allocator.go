@@ -168,7 +168,7 @@ func (t *taskAllocatorImpl) verifyTaskActiveness(cluster string, domainID, wfID,
 			return false, err
 		}
 		if resp.ClusterName != cluster {
-			t.logger.Debugf("Skip task because workflow is not active on the given cluster",
+			t.logger.Debug("Skip task because workflow is not active on the given cluster",
 				tag.WorkflowID(wfID),
 				tag.WorkflowDomainID(domainID),
 				tag.ClusterName(cluster),
@@ -176,7 +176,7 @@ func (t *taskAllocatorImpl) verifyTaskActiveness(cluster string, domainID, wfID,
 			return false, nil
 		}
 
-		t.logger.Debugf("Active cluster for given task",
+		t.logger.Debug("Active cluster for given task",
 			tag.WorkflowDomainID(domainID),
 			tag.WorkflowID(wfID),
 			tag.WorkflowRunID(rID),

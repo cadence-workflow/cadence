@@ -97,7 +97,7 @@ func (b *stateBuilderImpl) ApplyEvents(
 	lastEvent := history[len(history)-1]
 	var newRunMutableStateBuilder MutableState
 
-	b.logger.Debugf("Applying events for domain %s, wfID %v, first event [id:%v, version:%v], last event [id:%v, version:%v]",
+	b.logger.Debugf("stateBuilderImpl Applying events for domain %s, wfID %v, first event [id:%v, version:%v], last event [id:%v, version:%v]",
 		domainID, workflowExecution.WorkflowID, firstEvent.ID, firstEvent.Version, lastEvent.ID, lastEvent.Version)
 
 	// need to clear the stickiness since workflow turned to passive
@@ -105,7 +105,7 @@ func (b *stateBuilderImpl) ApplyEvents(
 
 	historyLength := len(history)
 	for i, event := range history {
-		b.logger.Debugf("Applying event %v of %v. Calling UpdateCurrentVersion for domain %s, wfID %v, event [id:%v, version:%v]",
+		b.logger.Debugf("stateBuilderImpl Applying event %v of %v. Calling UpdateCurrentVersion for domain %s, wfID %v, event [id:%v, version:%v]",
 			i+1, historyLength, domainID, workflowExecution.WorkflowID, event.ID, event.Version)
 
 		// NOTE: stateBuilder is also being used in the active side

@@ -519,6 +519,20 @@ func (_m *ExecutionManager) GetActiveClusterSelectionPolicy(ctx context.Context,
 	return r0, r1
 }
 
+// DeleteActiveClusterSelectionPolicy provides a mock function with given fields: ctx, domainID, wfID, rID
+func (_m *ExecutionManager) DeleteActiveClusterSelectionPolicy(ctx context.Context, domainID, wfID, rID string) error {
+	ret := _m.Called(ctx, domainID, wfID, rID)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) error); ok {
+		r0 = rf(ctx, domainID, wfID, rID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // NewExecutionManager creates a new instance of ExecutionManager. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewExecutionManager(t interface {

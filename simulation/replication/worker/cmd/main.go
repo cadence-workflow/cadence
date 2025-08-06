@@ -143,7 +143,7 @@ func main() {
 			workerOptions,
 		)
 
-		for name, wf := range workflows.Workflows {
+		for name, wf := range workflows.Workflows(*clusterName) {
 			w.RegisterWorkflowWithOptions(wf, workflow.RegisterOptions{Name: name})
 		}
 
