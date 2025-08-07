@@ -33,12 +33,16 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
 
 func TestParserRoundTrip(t *testing.T) {
-	thriftParser, err := NewParser(constants.EncodingTypeThriftRW, constants.EncodingTypeThriftRW)
+	dc := &persistence.DynamicConfiguration{
+		SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+	}
+	thriftParser, err := NewParser(dc)
 	assert.NoError(t, err)
 	now := time.Now().Round(time.Second)
 
@@ -355,7 +359,10 @@ func TestParser_WorkflowExecution_with_cron(t *testing.T) {
 		CronSchedule: "@every 1m",
 		IsCron:       true,
 	}
-	parser, err := NewParser(constants.EncodingTypeThriftRW, constants.EncodingTypeThriftRW)
+	dc := &persistence.DynamicConfiguration{
+		SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+	}
+	parser, err := NewParser(dc)
 	require.NoError(t, err)
 	blob, err := parser.WorkflowExecutionInfoToBlob(info)
 	require.NoError(t, err)

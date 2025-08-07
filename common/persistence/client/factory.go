@@ -526,12 +526,12 @@ func (f *factoryImpl) init(clusterName string, limiters map[string]quotas.Limite
 	defaultDataStore := Datastore{ratelimit: limiters[f.config.DefaultStore]}
 	switch {
 	case defaultCfg.NoSQL != nil:
-		parser := getParser(f.logger, constants.EncodingTypeThriftRW, constants.EncodingTypeThriftRW)
+		parser := f.getParser()
 		taskSerializer := serialization.NewTaskSerializer(parser)
 		shardedNoSQLConfig := defaultCfg.NoSQL.ConvertToShardedNoSQLConfig()
 		defaultDataStore.factory = nosql.NewFactory(*shardedNoSQLConfig, clusterName, f.logger, f.metricsClient, taskSerializer, parser, f.dc)
 	case defaultCfg.ShardedNoSQL != nil:
-		parser := getParser(f.logger, constants.EncodingTypeThriftRW, constants.EncodingTypeThriftRW)
+		parser := f.getParser()
 		taskSerializer := serialization.NewTaskSerializer(parser)
 		defaultDataStore.factory = nosql.NewFactory(*defaultCfg.ShardedNoSQL, clusterName, f.logger, f.metricsClient, taskSerializer, parser, f.dc)
 	case defaultCfg.SQL != nil:
@@ -543,16 +543,7 @@ func (f *factoryImpl) init(clusterName string, limiters map[string]quotas.Limite
 				string(constants.EncodingTypeThriftRW),
 			}
 		}
-		var decodingTypes []constants.EncodingType
-		for _, dt := range defaultCfg.SQL.DecodingTypes {
-			decodingTypes = append(decodingTypes, constants.EncodingType(dt))
-		}
-		defaultDataStore.factory = sql.NewFactory(
-			*defaultCfg.SQL,
-			clusterName,
-			f.logger,
-			getParser(f.logger, constants.EncodingType(defaultCfg.SQL.EncodingType), decodingTypes...),
-			f.dc)
+		defaultDataStore.factory = sql.NewFactory(*defaultCfg.SQL, clusterName, f.logger, f.getParser(), f.dc)
 	default:
 		f.logger.Fatal("invalid config: one of nosql or sql params must be specified for defaultDataStore")
 	}
@@ -576,21 +567,12 @@ func (f *factoryImpl) init(clusterName string, limiters map[string]quotas.Limite
 	visibilityDataStore := Datastore{ratelimit: limiters[f.config.VisibilityStore]}
 	switch {
 	case visibilityCfg.NoSQL != nil:
-		parser := getParser(f.logger, constants.EncodingTypeThriftRW, constants.EncodingTypeThriftRW)
+		parser := f.getParser()
 		taskSerializer := serialization.NewTaskSerializer(parser)
 		shardedNoSQLConfig := visibilityCfg.NoSQL.ConvertToShardedNoSQLConfig()
 		visibilityDataStore.factory = nosql.NewFactory(*shardedNoSQLConfig, clusterName, f.logger, f.metricsClient, taskSerializer, parser, f.dc)
 	case visibilityCfg.SQL != nil:
-		var decodingTypes []constants.EncodingType
-		for _, dt := range visibilityCfg.SQL.DecodingTypes {
-			decodingTypes = append(decodingTypes, constants.EncodingType(dt))
-		}
-		visibilityDataStore.factory = sql.NewFactory(
-			*visibilityCfg.SQL,
-			clusterName,
-			f.logger,
-			getParser(f.logger, constants.EncodingType(visibilityCfg.SQL.EncodingType), decodingTypes...),
-			f.dc)
+		visibilityDataStore.factory = sql.NewFactory(*visibilityCfg.SQL, clusterName, f.logger, f.getParser(), f.dc)
 	default:
 		f.logger.Fatal("invalid config: one of nosql or sql params must be specified for visibilityStore")
 	}
@@ -598,10 +580,10 @@ func (f *factoryImpl) init(clusterName string, limiters map[string]quotas.Limite
 	f.datastores[storeTypeVisibility] = visibilityDataStore
 }
 
-func getParser(logger log.Logger, encodingType constants.EncodingType, decodingTypes ...constants.EncodingType) serialization.Parser {
-	parser, err := serialization.NewParser(encodingType, decodingTypes...)
+func (f *factoryImpl) getParser() serialization.Parser {
+	parser, err := serialization.NewParser(f.dc)
 	if err != nil {
-		logger.Fatal("failed to construct parser", tag.Error(err))
+		f.logger.Fatal("failed to construct parser", tag.Error(err))
 	}
 	return parser
 }

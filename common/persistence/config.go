@@ -35,6 +35,7 @@ type (
 		EnableHistoryTaskDualWriteMode           dynamicproperties.BoolPropertyFn
 		ReadNoSQLHistoryTaskFromDataBlob         dynamicproperties.BoolPropertyFn
 		ReadNoSQLShardFromDataBlob               dynamicproperties.BoolPropertyFn
+		SerializationEncoding                    dynamicproperties.StringPropertyFn
 	}
 )
 
@@ -48,5 +49,6 @@ func NewDynamicConfiguration(dc *dynamicconfig.Collection) *DynamicConfiguration
 		EnableHistoryTaskDualWriteMode:           dc.GetBoolProperty(dynamicproperties.EnableNoSQLHistoryTaskDualWriteMode),
 		ReadNoSQLHistoryTaskFromDataBlob:         dc.GetBoolProperty(dynamicproperties.ReadNoSQLHistoryTaskFromDataBlob),
 		ReadNoSQLShardFromDataBlob:               dc.GetBoolProperty(dynamicproperties.ReadNoSQLShardFromDataBlob),
+		SerializationEncoding:                    dc.GetStringProperty(dynamicproperties.SerializationEncoding),
 	}
 }
