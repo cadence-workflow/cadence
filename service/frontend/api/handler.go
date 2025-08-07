@@ -23,6 +23,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync/atomic"
 	"time"
@@ -42,7 +43,7 @@ import (
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/domain"
 	"github.com/uber/cadence/common/elasticsearch/validator"
-	"github.com/uber/cadence/common/errors"
+	cadenceerrors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -247,6 +248,16 @@ func (wh *WorkflowHandler) DiagnoseWorkflowExecution(ctx context.Context, reques
 		WorkflowIDReusePolicy:               types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
 	})
 	if err != nil {
+		var wfExecutionStartedError *types.WorkflowExecutionAlreadyStartedError
+		if errors.As(err, &wfExecutionStartedError) {
+			return &types.DiagnoseWorkflowExecutionResponse{
+				Domain: diagnosticWorkflowDomain,
+				DiagnosticWorkflowExecution: &types.WorkflowExecution{
+					WorkflowID: diagnosticWorkflowID,
+					RunID:      wfExecutionStartedError.RunID,
+				},
+			}, nil
+		}
 		return nil, err
 	}
 
@@ -358,7 +369,7 @@ func (wh *WorkflowHandler) PollForActivityTask(
 			if ok {
 				ctxTimeout = ctxDeadline.Sub(callTime).String()
 			}
-			peerHostname, origErr := errors.ExtractPeerHostname(err)
+			peerHostname, origErr := cadenceerrors.ExtractPeerHostname(err)
 			wh.GetLogger().Error("PollForActivityTask failed.",
 				tag.WorkflowTaskListName(pollRequest.GetTaskList().GetName()),
 				tag.Value(ctxTimeout),
@@ -499,7 +510,7 @@ func (wh *WorkflowHandler) PollForDecisionTask(
 			if ok {
 				ctxTimeout = ctxDeadline.Sub(callTime).String()
 			}
-			peerHostname, origErr := errors.ExtractPeerHostname(err)
+			peerHostname, origErr := cadenceerrors.ExtractPeerHostname(err)
 			wh.GetLogger().Error("PollForDecisionTask failed.",
 				tag.WorkflowTaskListName(pollRequest.GetTaskList().GetName()),
 				tag.Value(ctxTimeout),

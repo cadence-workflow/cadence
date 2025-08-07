@@ -794,6 +794,38 @@ func (s *workflowHandlerSuite) TestDiagnoseWorkflowExecution_Success() {
 	s.Equal(resp, result)
 }
 
+func (s *workflowHandlerSuite) TestDiagnoseWorkflowExecution_Success_WfAlreadyRunning() {
+	wh := s.getWorkflowHandler(s.newConfig(dc.NewInMemoryClient()))
+
+	req := &types.DiagnoseWorkflowExecutionRequest{
+		Domain: testDomain,
+		WorkflowExecution: &types.WorkflowExecution{
+			WorkflowID: testWorkflowID,
+			RunID:      testRunID,
+		},
+		Identity: "",
+	}
+	diagnosticWfDomain := "cadence-system"
+	diagnosticWfID := fmt.Sprintf("%s-%s", testDomain, testRunID)
+	diagnosticWfRunID := "123"
+	resp := &types.DiagnoseWorkflowExecutionResponse{
+		Domain: diagnosticWfDomain,
+		DiagnosticWorkflowExecution: &types.WorkflowExecution{
+			WorkflowID: diagnosticWfID,
+			RunID:      diagnosticWfRunID,
+		},
+	}
+
+	s.mockDomainCache.EXPECT().GetDomainID(diagnosticWfDomain).Return(s.testDomainID, nil).Times(2)
+	s.mockHistoryClient.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil, &types.WorkflowExecutionAlreadyStartedError{
+		Message: "Workflow execution is already running",
+		RunID:   diagnosticWfRunID,
+	})
+	result, err := wh.DiagnoseWorkflowExecution(context.Background(), req)
+	s.NoError(err)
+	s.Equal(resp, result)
+}
+
 func (s *workflowHandlerSuite) TestDiagnoseWorkflowExecution_Failed_RequestNotSet() {
 	wh := s.getWorkflowHandler(s.newConfig(dc.NewInMemoryClient()))
 
