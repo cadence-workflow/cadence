@@ -787,27 +787,24 @@ func TestVirtualQueue_LifeCycle_Pause(t *testing.T) {
 		},
 	).(*virtualQueueImpl)
 
-	mockVirtualSlice1.EXPECT().Clear().Times(1)
-
-	// first time we call loadAndSubmitTasks, we should pause, so set the total pending task count to be larger than MaxPendingTasksCount
-	mockMonitor.EXPECT().GetTotalPendingTaskCount().Return(101).Times(1)
-
-	// then we should resume from pause and load the tasks
-	// to simplify the test, we just assume that there is no more tasks to load
-	mockMonitor.EXPECT().GetTotalPendingTaskCount().Return(0).Times(1)
-	mockVirtualSlice1.EXPECT().GetTasks(gomock.Any(), 10).Return([]task.Task{}, nil).Times(1)
-	mockMonitor.EXPECT().SetSlicePendingTaskCount(mockVirtualSlice1, 0).Times(1)
-	mockVirtualSlice1.EXPECT().HasMoreTasks().Return(false).Times(1)
-	mockVirtualSlice1.EXPECT().GetPendingTaskCount().Return(0).Times(1)
+	gomock.InOrder(
+		// first time we call loadAndSubmitTasks, we should pause, so set the total pending task count to be larger than MaxPendingTasksCount
+		mockMonitor.EXPECT().GetTotalPendingTaskCount().Return(101).Times(1),
+		// then we should resume from pause and load the tasks
+		// to simplify the test, we just assume that there is no more tasks to load
+		mockMonitor.EXPECT().GetTotalPendingTaskCount().Return(0).MaxTimes(1),
+		mockVirtualSlice1.EXPECT().GetTasks(gomock.Any(), 10).Return([]task.Task{}, nil).MaxTimes(1),
+		mockVirtualSlice1.EXPECT().GetPendingTaskCount().Return(0).MaxTimes(1),
+		mockMonitor.EXPECT().SetSlicePendingTaskCount(mockVirtualSlice1, 0).MaxTimes(1),
+		mockVirtualSlice1.EXPECT().HasMoreTasks().Return(false).MaxTimes(1),
+		mockVirtualSlice1.EXPECT().Clear().Times(1),
+	)
 
 	queue.Start()
 
 	// wait for the pause controller to resume
 	mockTimeSource.BlockUntil(1)
 	mockTimeSource.Advance(time.Second * 10)
-
-	// sleep for a while and yield the control to the background goroutine loading tasks from virtual slices
-	time.Sleep(time.Millisecond * 100)
 
 	queue.Stop()
 }
