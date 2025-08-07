@@ -125,8 +125,10 @@ const (
 	FlagQueryConsistencyLevel          = "query_consistency_level"
 	FlagShowDetail                     = "show_detail"
 	FlagActiveClusterName              = "active_cluster"
+	FlagActiveClustersByRegion         = "active_clusters_by_region"
 	FlagClusters                       = "clusters"
-	FlagIsGlobalDomain                 = "global_domain"
+	FlagIsGlobalDomain                 = "global_domain"        // active-passive domain
+	FlagIsActiveActiveDomain           = "active_active_domain" // active-active domain
 	FlagDomainData                     = "domain_data"
 	FlagEventID                        = "event_id"
 	FlagActivityID                     = "activity_id"
@@ -298,6 +300,11 @@ func getFlagsForShowID() []cli.Flag {
 		&cli.BoolFlag{
 			Name:  FlagResetPointsOnly,
 			Usage: "Only show events that are eligible for reset",
+		},
+		&cli.StringFlag{
+			Name:    FlagQueryConsistencyLevel,
+			Aliases: []string{"qcl"},
+			Usage:   "Optional flag to set query consistency level. Valid values are \"eventual\" and \"strong\"",
 		},
 	}
 }
@@ -752,6 +759,11 @@ func getFlagsForDescribeID() []cli.Flag {
 		&cli.BoolFlag{
 			Name:  FlagResetPointsOnly,
 			Usage: "Only show auto-reset points",
+		},
+		&cli.StringFlag{
+			Name:    FlagQueryConsistencyLevel,
+			Aliases: []string{"qcl"},
+			Usage:   "Optional flag to set query consistency level. Valid values are \"eventual\" and \"strong\"",
 		},
 	}
 }

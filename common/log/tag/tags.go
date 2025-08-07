@@ -1084,6 +1084,10 @@ func AsyncWFQueueID(queueID string) Tag {
 	return newStringTag("async-wf-queue-id", queueID)
 }
 
+func AsyncWFRequestType(requestType string) Tag {
+	return newStringTag("async-wf-request-type", requestType)
+}
+
 func GlobalRatelimiterKey(globalKey string) Tag {
 	return newStringTag("global-ratelimit-key", globalKey)
 }
@@ -1162,6 +1166,14 @@ func ActivityTaskState(state int32) Tag {
 
 func ShardNamespace(name string) Tag {
 	return newStringTag("shard-namespace", name)
+}
+
+func ShardExecutor(ID string) Tag {
+	return newStringTag("shard-executor", ID)
+}
+
+func ShardExecutors(executorIDs []string) Tag {
+	return newStringsTag("shard-executors", executorIDs)
 }
 
 func ElectionDelay(t time.Duration) Tag {

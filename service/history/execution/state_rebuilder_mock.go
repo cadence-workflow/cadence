@@ -44,9 +44,9 @@ func (m *MockStateRebuilder) EXPECT() *MockStateRebuilderMockRecorder {
 }
 
 // Rebuild mocks base method.
-func (m *MockStateRebuilder) Rebuild(ctx context.Context, now time.Time, baseWorkflowIdentifier definition.WorkflowIdentifier, baseBranchToken []byte, baseLastEventID, baseLastEventVersion int64, targetWorkflowIdentifier definition.WorkflowIdentifier, targetBranchToken []byte, requestID string) (MutableState, int64, error) {
+func (m *MockStateRebuilder) Rebuild(ctx context.Context, now time.Time, baseWorkflowIdentifier definition.WorkflowIdentifier, baseBranchToken []byte, baseLastEventID, baseLastEventVersion int64, targetWorkflowIdentifier definition.WorkflowIdentifier, targetBranchFn func() ([]byte, error), requestID string) (MutableState, int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Rebuild", ctx, now, baseWorkflowIdentifier, baseBranchToken, baseLastEventID, baseLastEventVersion, targetWorkflowIdentifier, targetBranchToken, requestID)
+	ret := m.ctrl.Call(m, "Rebuild", ctx, now, baseWorkflowIdentifier, baseBranchToken, baseLastEventID, baseLastEventVersion, targetWorkflowIdentifier, targetBranchFn, requestID)
 	ret0, _ := ret[0].(MutableState)
 	ret1, _ := ret[1].(int64)
 	ret2, _ := ret[2].(error)
@@ -54,7 +54,7 @@ func (m *MockStateRebuilder) Rebuild(ctx context.Context, now time.Time, baseWor
 }
 
 // Rebuild indicates an expected call of Rebuild.
-func (mr *MockStateRebuilderMockRecorder) Rebuild(ctx, now, baseWorkflowIdentifier, baseBranchToken, baseLastEventID, baseLastEventVersion, targetWorkflowIdentifier, targetBranchToken, requestID any) *gomock.Call {
+func (mr *MockStateRebuilderMockRecorder) Rebuild(ctx, now, baseWorkflowIdentifier, baseBranchToken, baseLastEventID, baseLastEventVersion, targetWorkflowIdentifier, targetBranchFn, requestID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Rebuild", reflect.TypeOf((*MockStateRebuilder)(nil).Rebuild), ctx, now, baseWorkflowIdentifier, baseBranchToken, baseLastEventID, baseLastEventVersion, targetWorkflowIdentifier, targetBranchToken, requestID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Rebuild", reflect.TypeOf((*MockStateRebuilder)(nil).Rebuild), ctx, now, baseWorkflowIdentifier, baseBranchToken, baseLastEventID, baseLastEventVersion, targetWorkflowIdentifier, targetBranchFn, requestID)
 }

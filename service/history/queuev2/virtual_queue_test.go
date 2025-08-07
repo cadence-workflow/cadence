@@ -811,3 +811,254 @@ func TestVirtualQueue_LifeCycle_Pause(t *testing.T) {
 
 	queue.Stop()
 }
+
+func TestVirtualQueue_IterateSlices(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	mockProcessor := task.NewMockProcessor(ctrl)
+	mockRedispatcher := task.NewMockRedispatcher(ctrl)
+	mockLogger := testlogger.New(t)
+	mockMetricsScope := metrics.NoopScope
+	mockPageSize := dynamicproperties.GetIntPropertyFn(10)
+
+	mockVirtualSlice1 := NewMockVirtualSlice(ctrl)
+	mockVirtualSlice2 := NewMockVirtualSlice(ctrl)
+
+	mockVirtualSlices := []VirtualSlice{
+		mockVirtualSlice1,
+		mockVirtualSlice2,
+	}
+
+	mockVirtualSlice1.EXPECT().GetState().Return(VirtualSliceState{
+		Range: Range{
+			InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+			ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+		},
+		Predicate: NewUniversalPredicate(),
+	})
+	mockVirtualSlice2.EXPECT().GetState().Return(VirtualSliceState{
+		Range: Range{
+			InclusiveMinTaskKey: persistence.NewImmediateTaskKey(11),
+			ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(20),
+		},
+		Predicate: NewUniversalPredicate(),
+	})
+
+	mockTimeSource := clock.NewMockedTimeSource()
+	mockRateLimiter := quotas.NewMockLimiter(ctrl)
+	mockMonitor := NewMockMonitor(ctrl)
+
+	queue := NewVirtualQueue(
+		mockProcessor,
+		mockRedispatcher,
+		mockLogger,
+		mockMetricsScope,
+		mockTimeSource,
+		mockRateLimiter,
+		mockMonitor,
+		mockVirtualSlices,
+		&VirtualQueueOptions{
+			PageSize:                             mockPageSize,
+			MaxPendingTasksCount:                 dynamicproperties.GetIntPropertyFn(100),
+			PollBackoffInterval:                  dynamicproperties.GetDurationPropertyFn(time.Second * 10),
+			PollBackoffIntervalJitterCoefficient: dynamicproperties.GetFloatPropertyFn(0.0),
+		},
+	)
+
+	states := []VirtualSliceState{}
+	queue.IterateSlices(func(slice VirtualSlice) {
+		states = append(states, slice.GetState())
+	})
+
+	expectedStates := []VirtualSliceState{
+		{
+			Range: Range{
+				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+			},
+			Predicate: NewUniversalPredicate(),
+		},
+		{
+			Range: Range{
+				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(11),
+				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(20),
+			},
+			Predicate: NewUniversalPredicate(),
+		},
+	}
+	assert.Equal(t, expectedStates, states)
+}
+
+func TestVirtualQueue_ClearSlices(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	mockProcessor := task.NewMockProcessor(ctrl)
+	mockRedispatcher := task.NewMockRedispatcher(ctrl)
+	mockLogger := testlogger.New(t)
+	mockMetricsScope := metrics.NoopScope
+	mockPageSize := dynamicproperties.GetIntPropertyFn(10)
+	mockMonitor := NewMockMonitor(ctrl)
+
+	mockVirtualSlice1 := NewMockVirtualSlice(ctrl)
+	mockVirtualSlice2 := NewMockVirtualSlice(ctrl)
+
+	mockVirtualSlices := []VirtualSlice{
+		mockVirtualSlice1,
+		mockVirtualSlice2,
+	}
+
+	mockVirtualSlice1.EXPECT().Clear().Times(1)
+	mockVirtualSlice1.EXPECT().GetPendingTaskCount().Return(0).Times(1)
+	mockVirtualSlice1.EXPECT().HasMoreTasks().Return(false).Times(1)
+	mockMonitor.EXPECT().SetSlicePendingTaskCount(mockVirtualSlice1, 0).Times(1)
+	mockVirtualSlice2.EXPECT().Clear().Times(1)
+	mockVirtualSlice2.EXPECT().GetPendingTaskCount().Return(0).Times(1)
+	mockVirtualSlice2.EXPECT().HasMoreTasks().Return(true).Times(1)
+	mockMonitor.EXPECT().SetSlicePendingTaskCount(mockVirtualSlice2, 0).Times(1)
+	mockVirtualSlice1.EXPECT().GetState().Return(VirtualSliceState{
+		Range: Range{
+			InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+			ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+		},
+		Predicate: NewUniversalPredicate(),
+	})
+	mockVirtualSlice2.EXPECT().GetState().Return(VirtualSliceState{
+		Range: Range{
+			InclusiveMinTaskKey: persistence.NewImmediateTaskKey(11),
+			ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(20),
+		},
+		Predicate: NewUniversalPredicate(),
+	})
+
+	mockTimeSource := clock.NewMockedTimeSource()
+	mockRateLimiter := quotas.NewMockLimiter(ctrl)
+
+	queue := NewVirtualQueue(
+		mockProcessor,
+		mockRedispatcher,
+		mockLogger,
+		mockMetricsScope,
+		mockTimeSource,
+		mockRateLimiter,
+		mockMonitor,
+		mockVirtualSlices,
+		&VirtualQueueOptions{
+			PageSize:                             mockPageSize,
+			MaxPendingTasksCount:                 dynamicproperties.GetIntPropertyFn(100),
+			PollBackoffInterval:                  dynamicproperties.GetDurationPropertyFn(time.Second * 10),
+			PollBackoffIntervalJitterCoefficient: dynamicproperties.GetFloatPropertyFn(0.0),
+		},
+	)
+
+	queue.ClearSlices(func(slice VirtualSlice) bool {
+		return true
+	})
+
+	states := queue.GetState()
+	expectedStates := []VirtualSliceState{
+		{
+			Range: Range{
+				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+			},
+			Predicate: NewUniversalPredicate(),
+		},
+		{
+			Range: Range{
+				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(11),
+				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(20),
+			},
+			Predicate: NewUniversalPredicate(),
+		},
+	}
+	assert.Equal(t, expectedStates, states)
+	assert.Equal(t, mockVirtualSlice2, queue.(*virtualQueueImpl).sliceToRead.Value.(VirtualSlice))
+}
+
+func TestVirtualQueue_SplitSlices(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	mockProcessor := task.NewMockProcessor(ctrl)
+	mockRedispatcher := task.NewMockRedispatcher(ctrl)
+	mockLogger := testlogger.New(t)
+	mockMetricsScope := metrics.NoopScope
+	mockPageSize := dynamicproperties.GetIntPropertyFn(10)
+
+	mockVirtualSlice1 := NewMockVirtualSlice(ctrl)
+	mockVirtualSlice2 := NewMockVirtualSlice(ctrl)
+	mockVirtualSlice3 := NewMockVirtualSlice(ctrl)
+
+	mockVirtualSlices := []VirtualSlice{
+		mockVirtualSlice1,
+		mockVirtualSlice2,
+	}
+	mockMonitor := NewMockMonitor(ctrl)
+
+	mockVirtualSlice1.EXPECT().GetState().Return(VirtualSliceState{
+		Range: Range{
+			InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+			ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+		},
+		Predicate: NewUniversalPredicate(),
+	})
+	mockVirtualSlice1.EXPECT().HasMoreTasks().Return(true).Times(1)
+	mockMonitor.EXPECT().RemoveSlice(mockVirtualSlice2).Times(1)
+	mockVirtualSlice3.EXPECT().GetState().Return(VirtualSliceState{
+		Range: Range{
+			InclusiveMinTaskKey: persistence.NewImmediateTaskKey(15),
+			ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(20),
+		},
+		Predicate: NewUniversalPredicate(),
+	})
+	mockVirtualSlice3.EXPECT().GetPendingTaskCount().Return(0).Times(1)
+	mockMonitor.EXPECT().SetSlicePendingTaskCount(mockVirtualSlice3, 0).Times(1)
+
+	mockTimeSource := clock.NewMockedTimeSource()
+	mockRateLimiter := quotas.NewMockLimiter(ctrl)
+
+	queue := NewVirtualQueue(
+		mockProcessor,
+		mockRedispatcher,
+		mockLogger,
+		mockMetricsScope,
+		mockTimeSource,
+		mockRateLimiter,
+		mockMonitor,
+		mockVirtualSlices,
+		&VirtualQueueOptions{
+			PageSize:                             mockPageSize,
+			MaxPendingTasksCount:                 dynamicproperties.GetIntPropertyFn(100),
+			PollBackoffInterval:                  dynamicproperties.GetDurationPropertyFn(time.Second * 10),
+			PollBackoffIntervalJitterCoefficient: dynamicproperties.GetFloatPropertyFn(0.0),
+		},
+	)
+
+	queue.SplitSlices(func(slice VirtualSlice) (remaining []VirtualSlice, split bool) {
+		if slice == mockVirtualSlice1 {
+			return nil, false
+		} else if slice == mockVirtualSlice2 {
+			return []VirtualSlice{mockVirtualSlice3}, true
+		}
+		return nil, false
+	})
+
+	states := queue.GetState()
+	expectedStates := []VirtualSliceState{
+		{
+			Range: Range{
+				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+			},
+			Predicate: NewUniversalPredicate(),
+		},
+		{
+			Range: Range{
+				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(15),
+				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(20),
+			},
+			Predicate: NewUniversalPredicate(),
+		},
+	}
+	assert.Equal(t, expectedStates, states)
+	assert.Equal(t, mockVirtualSlice1, queue.(*virtualQueueImpl).sliceToRead.Value.(VirtualSlice))
+}

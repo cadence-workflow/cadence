@@ -169,6 +169,7 @@ const (
 	logWarnTimerLevelDiff       = time.Duration(30 * time.Minute)
 	historySizeLogThreshold     = 10 * 1024 * 1024
 	minContextTimeout           = 1 * time.Second
+	activeClusterLookupTimeout  = 1 * time.Second
 )
 
 func (s *contextImpl) GetShardID() int {
@@ -1289,7 +1290,6 @@ func (s *contextImpl) allocateTransferIDsLocked(
 // NOTE: allocateTimerIDsLocked should always been called after assigning taskID for transferTasks when assigning taskID together,
 // because Cadence Indexer assume timer taskID of deleteWorkflowExecution is larger than transfer taskID of closeWorkflowExecution
 // for a given workflow.
-// TODO(active-active): Write unit tests for this. It's missing tests for both active-active and active-passive.
 func (s *contextImpl) allocateTimerIDsLocked(
 	domainEntry *cache.DomainCacheEntry,
 	workflowID string,
@@ -1300,15 +1300,23 @@ func (s *contextImpl) allocateTimerIDsLocked(
 	cluster := s.GetClusterMetadata().GetCurrentClusterName()
 	for _, task := range timerTasks {
 		ts := task.GetVisibilityTimestamp().Truncate(persistence.DBTimestampMinPrecision)
-		if task.GetVersion() != constants.EmptyVersion {
+		// always use current cluster's max read level for queue v2, and this is safe for rollback,
+		// because if we go back to queue v1, the standby queue and active queue will start from the same ack level to read tasks
+		if task.GetVersion() != constants.EmptyVersion && !s.GetConfig().EnableTimerQueueV2(s.shardID) {
 			// cannot use version to determine the corresponding cluster for timer task
 			// this is because during failover, timer task should be created as active
 			// or otherwise, failover + active processing logic may not pick up the task.
 			cluster = domainEntry.GetReplicationConfig().ActiveClusterName
 
-			// if domain is active-active, lookup the workflow to determine the corresponding cluster
 			if domainEntry.GetReplicationConfig().IsActiveActive() {
-				lookupRes, err := s.GetActiveClusterManager().LookupWorkflow(context.Background(), task.GetDomainID(), task.GetWorkflowID(), task.GetRunID())
+				// Note: This doesn't work for initial backoff timer task because the workflow's active-cluster-selection-policy row is not stored yet.
+				// Therefore LookupWorkflow returns current cluster (fallback logic in activecluster manager)
+				// Queue v2 doesn't use this logic and it must be enabled to properly handle initial backoff timer task for active-active domains.
+				// Leaving this code block instead of rejecting the whole id allocation request.
+				// Active-active domains should not be used in Cadence clusters that don't have queue v2 enabled.
+				ctx, cancel := context.WithTimeout(context.Background(), activeClusterLookupTimeout)
+				lookupRes, err := s.GetActiveClusterManager().LookupWorkflow(ctx, task.GetDomainID(), task.GetWorkflowID(), task.GetRunID())
+				cancel()
 				if err != nil {
 					return err
 				}
@@ -1435,7 +1443,7 @@ func (s *contextImpl) AddingPendingFailoverMarker(
 		return err
 	}
 	// domain is active, the marker is expired
-	isActive, _ := domainEntry.IsActiveIn(s.GetClusterMetadata().GetCurrentClusterName())
+	isActive := domainEntry.IsActiveIn(s.GetClusterMetadata().GetCurrentClusterName())
 	if isActive || domainEntry.GetFailoverVersion() > marker.GetFailoverVersion() {
 		s.logger.Info("Skipped out-of-date failover marker", tag.WorkflowDomainName(domainEntry.GetInfo().Name))
 		return nil
@@ -1464,8 +1472,14 @@ func (s *contextImpl) ValidateAndUpdateFailoverMarkers() ([]*types.FailoverMarke
 			s.RUnlock()
 			return nil, err
 		}
-		isActive, _ := domainEntry.IsActiveIn(s.GetClusterMetadata().GetCurrentClusterName())
-		if isActive || domainEntry.GetFailoverVersion() > marker.GetFailoverVersion() {
+
+		isActive := domainEntry.IsActiveIn(s.GetClusterMetadata().GetCurrentClusterName())
+		domainStatus := domainEntry.GetInfo().Status
+
+		// Drop failover markers if domain is already active in the currentCluster
+		// or domain have been failed over
+		// or domain is deprecated
+		if isActive || domainEntry.GetFailoverVersion() > marker.GetFailoverVersion() || domainStatus == persistence.DomainStatusDeprecated {
 			completedFailoverMarkers[marker] = struct{}{}
 		}
 	}
@@ -1554,6 +1568,7 @@ func acquireShard(
 
 	// initialize the cluster current time to be the same as ack level
 	remoteClusterCurrentTime := make(map[string]time.Time)
+	// TODO: get this information from QueueState once TimerAckLevel field is deprecated
 	scheduledTaskMaxReadLevelMap := make(map[string]time.Time)
 	for clusterName := range shardItem.GetClusterMetadata().GetEnabledClusterInfo() {
 		if clusterName != shardItem.GetClusterMetadata().GetCurrentClusterName() {

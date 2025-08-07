@@ -39,6 +39,10 @@ import (
 	"github.com/uber/cadence/service/history/task"
 )
 
+const (
+	alertChSize = 10
+)
+
 type (
 	Options struct {
 		PageSize                             dynamicproperties.IntPropertyFn
@@ -72,11 +76,14 @@ type (
 		redispatcher          task.Redispatcher
 		queueReader           QueueReader
 		monitor               Monitor
+		mitigator             Mitigator
 		updateQueueStateTimer clock.Timer
 		virtualQueueManager   VirtualQueueManager
 		exclusiveAckLevel     persistence.HistoryTaskKey
+		alertCh               chan *Alert
+		newVirtualSliceState  VirtualSliceState
 
-		newVirtualSliceState VirtualSliceState
+		updateQueueStateFn func(ctx context.Context)
 	}
 )
 
@@ -109,9 +116,9 @@ func newQueueBase(
 	)
 	var queueType task.QueueType
 	if category == persistence.HistoryTaskCategoryTransfer {
-		queueType = task.QueueTypeActiveTransfer
+		queueType = task.QueueTypeTransfer
 	} else if category == persistence.HistoryTaskCategoryTimer {
-		queueType = task.QueueTypeActiveTimer
+		queueType = task.QueueTypeTimer
 	}
 	taskInitializer := func(t persistence.Task) task.Task {
 		return task.NewHistoryTask(
@@ -122,7 +129,7 @@ func newQueueBase(
 			func(task persistence.Task) (bool, error) { return true, nil },
 			taskExecutor,
 			taskProcessor,
-			redispatcher.AddTask,
+			redispatcher,
 			shard.GetConfig().TaskCriticalRetryCount,
 		)
 	}
@@ -131,6 +138,7 @@ func newQueueBase(
 		category,
 	)
 	monitor := NewMonitor(category)
+	mitigator := NewMitigator(monitor, logger, metricsScope)
 	virtualQueueManager := NewVirtualQueueManager(
 		taskProcessor,
 		redispatcher,
@@ -149,7 +157,7 @@ func newQueueBase(
 		},
 		queueState.VirtualQueueStates,
 	)
-	return &queueBase{
+	q := &queueBase{
 		shard:               shard,
 		taskProcessor:       taskProcessor,
 		logger:              logger,
@@ -162,8 +170,10 @@ func newQueueBase(
 		redispatcher:        redispatcher,
 		queueReader:         queueReader,
 		monitor:             monitor,
+		mitigator:           mitigator,
 		exclusiveAckLevel:   exclusiveAckLevel,
 		virtualQueueManager: virtualQueueManager,
+		alertCh:             make(chan *Alert, alertChSize),
 		newVirtualSliceState: VirtualSliceState{
 			Range: Range{
 				InclusiveMinTaskKey: queueState.ExclusiveMaxReadLevel,
@@ -172,6 +182,8 @@ func newQueueBase(
 			Predicate: NewUniversalPredicate(),
 		},
 	}
+	q.updateQueueStateFn = q.updateQueueState
+	return q
 }
 
 func (q *queueBase) Start() {
@@ -182,9 +194,12 @@ func (q *queueBase) Start() {
 		q.options.UpdateAckInterval(),
 		q.options.UpdateAckIntervalJitterCoefficient(),
 	))
+
+	q.monitor.Subscribe(q.alertCh)
 }
 
 func (q *queueBase) Stop() {
+	q.monitor.Unsubscribe()
 	q.updateQueueStateTimer.Stop()
 	q.virtualQueueManager.Stop()
 	q.redispatcher.Stop()
@@ -204,7 +219,7 @@ func (q *queueBase) LockTaskProcessing() {}
 
 func (q *queueBase) UnlockTaskProcessing() {}
 
-func (q *queueBase) processNewTasks() {
+func (q *queueBase) processNewTasks() bool {
 	newExclusiveMaxTaskKey := q.shard.UpdateIfNeededAndGetQueueMaxReadLevel(q.category, q.shard.GetClusterMetadata().GetCurrentClusterName())
 	if q.category.Type() == persistence.HistoryTaskCategoryTypeImmediate {
 		newExclusiveMaxTaskKey = persistence.NewImmediateTaskKey(newExclusiveMaxTaskKey.GetTaskID() + 1)
@@ -212,13 +227,15 @@ func (q *queueBase) processNewTasks() {
 
 	newVirtualSliceState, remainingVirtualSliceState, ok := q.newVirtualSliceState.TrySplitByTaskKey(newExclusiveMaxTaskKey)
 	if !ok {
-		return
+		return false
 	}
 	q.newVirtualSliceState = remainingVirtualSliceState
 
 	newVirtualSlice := NewVirtualSlice(newVirtualSliceState, q.taskInitializer, q.queueReader, NewPendingTaskTracker())
 
+	q.logger.Debug("processing new tasks", tag.Dynamic("inclusiveMinTaskKey", newVirtualSliceState.Range.InclusiveMinTaskKey), tag.Dynamic("exclusiveMaxTaskKey", newVirtualSliceState.Range.ExclusiveMaxTaskKey))
 	q.virtualQueueManager.AddNewVirtualSliceToRootQueue(newVirtualSlice)
+	return true
 }
 
 func (q *queueBase) updateQueueState(ctx context.Context) {
@@ -278,6 +295,15 @@ func (q *queueBase) updateQueueState(ctx context.Context) {
 		q.options.UpdateAckInterval(),
 		q.options.UpdateAckIntervalJitterCoefficient(),
 	))
+}
+
+func (q *queueBase) handleAlert(ctx context.Context, alert *Alert) {
+	if alert == nil {
+		return
+	}
+
+	q.mitigator.Mitigate(*alert)
+	q.updateQueueStateFn(ctx)
 }
 
 func getExclusiveAckLevelFromQueueState(state *QueueState) persistence.HistoryTaskKey {

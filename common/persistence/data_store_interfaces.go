@@ -129,6 +129,7 @@ type (
 
 		// Active cluster selection policy related methods
 		GetActiveClusterSelectionPolicy(ctx context.Context, domainID, wfID, rID string) (*DataBlob, error)
+		DeleteActiveClusterSelectionPolicy(ctx context.Context, domainID, wfID, rID string) error
 	}
 
 	// HistoryStore is to manager workflow history events
@@ -273,6 +274,7 @@ type (
 		CompletionEventBatchID             int64
 		CompletionEvent                    *DataBlob
 		TaskList                           string
+		TaskListKind                       types.TaskListKind
 		WorkflowTypeName                   string
 		WorkflowTimeout                    time.Duration
 		DecisionStartToCloseTimeout        time.Duration

@@ -23,6 +23,7 @@ package reset
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/mock"
@@ -251,9 +252,15 @@ func (s *workflowResetterSuite) TestReplayResetWorkflow() {
 			s.workflowID,
 			s.resetRunID,
 		),
-		resetBranchToken,
+		gomock.Any(),
 		resetRequestID,
-	).Return(resetMutableState, resetHistorySize, nil).Times(1)
+	).DoAndReturn(func(ctx context.Context, now time.Time, baseWorkflowIdentifier definition.WorkflowIdentifier, baseBranchToken []byte, baseRebuildLastEventID int64, baseRebuildLastEventVersion int64, targetWorkflowIdentifier definition.WorkflowIdentifier, targetBranchFn func() ([]byte, error), requestID string) (execution.MutableState, int64, error) {
+		targetBranchToken, err := targetBranchFn()
+		s.NoError(err)
+		s.Equal(resetBranchToken, targetBranchToken)
+
+		return resetMutableState, resetHistorySize, nil
+	}).Times(1)
 
 	resetWorkflow, err := s.workflowResetter.replayResetWorkflow(
 		ctx,

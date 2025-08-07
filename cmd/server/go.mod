@@ -13,12 +13,12 @@ replace github.com/uber/cadence => ../..
 
 replace github.com/uber/cadence/common/archiver/gcloud => ../../common/archiver/gcloud
 
-replace github.com/uber/cadence/service/sharddistributor/leader/leaderstore/etcd => ../../service/sharddistributor/leader/leaderstore/etcd
+replace github.com/uber/cadence/service/sharddistributor/store/etcd => ../../service/sharddistributor/store/etcd
 
 require (
 	github.com/Shopify/sarama v1.33.0 // indirect
 	github.com/VividCortex/mysqlerr v1.0.0 // indirect
-	github.com/aws/aws-sdk-go v1.44.180 // indirect
+	github.com/aws/aws-sdk-go v1.54.12 // indirect
 	github.com/cactus/go-statsd-client/statsd v0.0.0-20191106001114-12b4e2b38748 // indirect
 	github.com/cch123/elasticsql v0.0.0-20190321073543-a1a440758eb9 // indirect
 	github.com/cristalhq/jwt/v3 v3.1.0 // indirect
@@ -36,7 +36,6 @@ require (
 	github.com/m3db/prometheus_client_golang v0.8.1 // indirect
 	github.com/olivere/elastic v6.2.37+incompatible // indirect
 	github.com/olivere/elastic/v7 v7.0.21 // indirect
-	github.com/opensearch-project/opensearch-go/v2 v2.2.0 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/pborman/uuid v0.0.0-20180906182336-adf5a7427709 // indirect
 	github.com/robfig/cron v1.2.0 // indirect
@@ -44,7 +43,7 @@ require (
 	github.com/startreedata/pinot-client-go v0.2.0 // latest release supports pinot v0.12.0 which is also internal version
 	github.com/stretchr/testify v1.10.0
 	github.com/uber-go/tally v3.3.15+incompatible
-	github.com/uber/cadence-idl v0.0.0-20250701155210-8547525854c1
+	github.com/uber/cadence-idl v0.0.0-20250723222225-7e4e7293fa0b
 	github.com/uber/ringpop-go v0.8.5 // indirect
 	github.com/uber/tchannel-go v1.22.2 // indirect
 	github.com/valyala/fastjson v1.4.1 // indirect
@@ -71,7 +70,7 @@ require (
 require (
 	github.com/uber/cadence v0.0.0-00010101000000-000000000000
 	github.com/uber/cadence/common/archiver/gcloud v0.0.0-00010101000000-000000000000
-	github.com/uber/cadence/service/sharddistributor/leader/leaderstore/etcd v0.0.0-00010101000000-000000000000
+	github.com/uber/cadence/service/sharddistributor/store/etcd v0.0.0-00010101000000-000000000000
 	go.uber.org/automaxprocs v1.6.0
 	go.uber.org/mock v0.5.0
 )
@@ -84,6 +83,8 @@ require (
 	github.com/mattn/go-isatty v0.0.14 // indirect
 	github.com/ncruces/go-sqlite3 v0.22.0 // indirect
 	github.com/ncruces/julianday v1.0.0 // indirect
+	github.com/opensearch-project/opensearch-go/v4 v4.1.0 // indirect
+	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/tetratelabs/wazero v1.8.2 // indirect
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
 	go.etcd.io/etcd/api/v3 v3.5.5 // indirect

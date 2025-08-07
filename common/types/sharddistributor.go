@@ -24,6 +24,8 @@ package types
 
 import "fmt"
 
+//go:generate enumer -type=ExecutorStatus,ShardStatus,AssignmentStatus -json -output sharddistributor_statuses_enumer_generated.go
+
 type GetShardOwnerRequest struct {
 	ShardKey  string
 	Namespace string
@@ -72,3 +74,108 @@ func (n *NamespaceNotFoundError) Error() (o string) {
 	}
 	return
 }
+
+type ExecutorHeartbeatRequest struct {
+	Namespace          string
+	ExecutorID         string
+	Status             ExecutorStatus
+	ShardStatusReports map[string]*ShardStatusReport
+}
+
+func (v *ExecutorHeartbeatRequest) GetNamespace() (o string) {
+	if v != nil {
+		return v.Namespace
+	}
+	return
+}
+
+func (v *ExecutorHeartbeatRequest) GetExecutorID() (o string) {
+	if v != nil {
+		return v.ExecutorID
+	}
+	return
+}
+
+func (v *ExecutorHeartbeatRequest) GetStatus() (o ExecutorStatus) {
+	if v != nil {
+		return v.Status
+	}
+	return
+}
+
+func (v *ExecutorHeartbeatRequest) GetShardStatusReports() (o map[string]*ShardStatusReport) {
+	if v != nil {
+		return v.ShardStatusReports
+	}
+	return
+}
+
+// ExecutorStatus is persisted to the DB with a string value mapping.
+// Beware - if we want to change the name - it should be backward compatible and should be done in two steps.
+type ExecutorStatus int32
+
+const (
+	ExecutorStatusINVALID  ExecutorStatus = 0
+	ExecutorStatusACTIVE   ExecutorStatus = 1
+	ExecutorStatusDRAINING ExecutorStatus = 2
+	ExecutorStatusDRAINED  ExecutorStatus = 3
+)
+
+type ShardStatusReport struct {
+	Status    ShardStatus
+	ShardLoad float64
+}
+
+func (v *ShardStatusReport) GetStatus() (o ShardStatus) {
+	if v != nil {
+		return v.Status
+	}
+	return
+}
+
+func (v *ShardStatusReport) GetShardLoad() (o float64) {
+	if v != nil {
+		return v.ShardLoad
+	}
+	return
+}
+
+// ShardStatus is ppersisted to the DB with a string value mapping.
+// Beware - if we want to change the name - it should be backward compatible and should be done in two steps.
+type ShardStatus int32
+
+const (
+	ShardStatusINVALID ShardStatus = 0
+	ShardStatusREADY   ShardStatus = 1
+)
+
+type ExecutorHeartbeatResponse struct {
+	ShardAssignments map[string]*ShardAssignment
+}
+
+func (v *ExecutorHeartbeatResponse) GetShardAssignments() (o map[string]*ShardAssignment) {
+	if v != nil {
+		return v.ShardAssignments
+	}
+	return
+}
+
+type ShardAssignment struct {
+	Status AssignmentStatus
+}
+
+func (v *ShardAssignment) GetStatus() (o AssignmentStatus) {
+	if v != nil {
+		return v.Status
+	}
+	return
+}
+
+// AssignmentStatus is persisted to the DB with a string value mapping.
+// Beware - if we want to change the name - it should be backward compatible and should be done in two steps.
+type AssignmentStatus int32
+
+const (
+	AssignmentStatusINVALID AssignmentStatus = 0
+	AssignmentStatusREADY   AssignmentStatus = 1
+)

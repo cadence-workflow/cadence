@@ -58,6 +58,34 @@ func (s *cliAppSuite) TestDomainRegister() {
 			},
 		},
 		{
+			"active-active domain",
+			"cadence --do test-domain domain register --active_active_domain true --active_clusters_by_region region1:cluster1,region2:cluster2",
+			"",
+			func() {
+				s.serverFrontendClient.EXPECT().RegisterDomain(gomock.Any(), &types.RegisterDomainRequest{
+					Name:                                   "test-domain",
+					WorkflowExecutionRetentionPeriodInDays: 3,
+					IsGlobalDomain:                         true,
+					ActiveClustersByRegion: map[string]string{
+						"region1": "cluster1",
+						"region2": "cluster2",
+					},
+				}).Return(nil)
+			},
+		},
+		{
+			"active-active domain with invalid active clusters by region",
+			"cadence --do test-domain domain register --active_active_domain true --active_clusters_by_region region1=cluster1",
+			"Option --active_clusters_by_region format is invalid. Expected format is 'region1:cluster1,region2:cluster2'",
+			nil,
+		},
+		{
+			"active-active domain with no active clusters by region",
+			"cadence --do test-domain domain register --active_active_domain true",
+			"Option --active_clusters_by_region is required for active-active domain.",
+			nil,
+		},
+		{
 			"domain with other options",
 			"cadence --do test-domain domain register --global_domain true --retention 5 --desc description --active_cluster c1 --clusters c1,c2 --domain_data key1=value1,key2=value2",
 			"",
@@ -241,7 +269,7 @@ func (s *cliAppSuite) TestDomainUpdate() {
 			},
 		},
 		{
-			"failover",
+			"active-passive domain failover",
 			"cadence --do test-domain domain update --ac c2",
 			"",
 			func() {
@@ -252,7 +280,7 @@ func (s *cliAppSuite) TestDomainUpdate() {
 			},
 		},
 		{
-			"graceful failover",
+			"active-passive domain graceful failover",
 			"cadence --do test-domain domain update --ac c2 --failover_type grace --failover_timeout_seconds 10",
 			"",
 			func() {
@@ -260,6 +288,22 @@ func (s *cliAppSuite) TestDomainUpdate() {
 					Name:                     "test-domain",
 					ActiveClusterName:        common.StringPtr("c2"),
 					FailoverTimeoutInSeconds: common.Int32Ptr(10),
+				}).Return(&types.UpdateDomainResponse{}, nil)
+			},
+		},
+		{
+			"active-active domain failover",
+			"cadence --do test-domain domain update --active_clusters_by_region region1:c1,region2:c2",
+			"",
+			func() {
+				s.serverFrontendClient.EXPECT().UpdateDomain(gomock.Any(), &types.UpdateDomainRequest{
+					Name: "test-domain",
+					ActiveClusters: &types.ActiveClusters{
+						ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+							"region1": {ActiveClusterName: "c1"},
+							"region2": {ActiveClusterName: "c2"},
+						},
+					},
 				}).Return(&types.UpdateDomainResponse{}, nil)
 			},
 		},

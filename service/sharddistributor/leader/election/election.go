@@ -13,7 +13,8 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/service/sharddistributor/config"
-	"github.com/uber/cadence/service/sharddistributor/leader/leaderstore"
+	"github.com/uber/cadence/service/sharddistributor/leader/process"
+	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
 //go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination=election_mock.go Factory,Elector
@@ -30,69 +31,78 @@ type ProcessFunc func(ctx context.Context) error
 
 // Elector handles leader election for a specific namespace
 type Elector interface {
-	Run(ctx context.Context, OnLeader, OnResign ProcessFunc) <-chan bool
+	Run(ctx context.Context) <-chan bool
 }
 
 // Factory creates elector instances
 type Factory interface {
-	CreateElector(ctx context.Context, namespace string) (Elector, error)
+	CreateElector(ctx context.Context, namespaceCfg config.Namespace) (Elector, error)
 }
 
 type electionFactory struct {
-	hostname  string
-	cfg       config.Election
-	store     leaderstore.Store
-	logger    log.Logger
-	serviceID string
-	clock     clock.TimeSource
+	hostname       string
+	cfg            config.Election
+	leaderStore    store.Elector
+	store          store.Store
+	logger         log.Logger
+	serviceID      string
+	clock          clock.TimeSource
+	processFactory process.Factory
 }
 
 type elector struct {
-	hostname      string
-	namespace     string
-	store         leaderstore.Store
-	logger        log.Logger
-	cfg           config.Election
-	leaderStarted time.Time
-	clock         clock.TimeSource
+	hostname       string
+	namespace      config.Namespace
+	leaderStore    store.Elector
+	store          store.Store
+	logger         log.Logger
+	cfg            config.Election
+	leaderStarted  time.Time
+	clock          clock.TimeSource
+	processFactory process.Factory
 }
 
 type FactoryParams struct {
 	fx.In
 
-	HostName string `name:"hostname"`
-	Cfg      config.LeaderElection
-	Store    leaderstore.Store
-	Logger   log.Logger
-	Clock    clock.TimeSource
+	HostName       string `name:"hostname"`
+	Cfg            config.ShardDistribution
+	LeaderStore    store.Elector
+	Logger         log.Logger
+	Clock          clock.TimeSource
+	ProcessFactory process.Factory
+	Store          store.Store
 }
 
 // NewElectionFactory creates a new election factory
 func NewElectionFactory(p FactoryParams) Factory {
 	return &electionFactory{
-		cfg:      p.Cfg.Election,
-		store:    p.Store,
-		logger:   p.Logger,
-		clock:    p.Clock,
-		hostname: p.HostName,
+		cfg:            p.Cfg.Election,
+		leaderStore:    p.LeaderStore,
+		store:          p.Store,
+		logger:         p.Logger,
+		clock:          p.Clock,
+		hostname:       p.HostName,
+		processFactory: p.ProcessFactory,
 	}
 }
 
 // CreateElector creates a new elector for the given namespace
-func (f *electionFactory) CreateElector(ctx context.Context, namespace string) (Elector, error) {
+func (f *electionFactory) CreateElector(ctx context.Context, namespaceCfg config.Namespace) (Elector, error) {
 	return &elector{
-		namespace: namespace,
-		store:     f.store,
-		logger:    f.logger.WithTags(tag.ComponentLeaderElection, tag.ShardNamespace(namespace)),
-		cfg:       f.cfg,
-		clock:     f.clock,
-		hostname:  f.hostname,
+		namespace:      namespaceCfg,
+		leaderStore:    f.leaderStore,
+		store:          f.store,
+		logger:         f.logger.WithTags(tag.ComponentLeaderElection, tag.ShardNamespace(namespaceCfg.Name)),
+		cfg:            f.cfg,
+		clock:          f.clock,
+		hostname:       f.hostname,
+		processFactory: f.processFactory,
 	}, nil
 }
 
 // Run starts the leader election process it returns a channel that will return the value if the current instance becomes the leader or resigns from leadership.
-// OnLeader will be called once leadership is acquired. OnResign will be called once leadership is lost.
-func (e *elector) Run(ctx context.Context, OnLeader, OnResign ProcessFunc) <-chan bool {
+func (e *elector) Run(ctx context.Context) <-chan bool {
 	leaderCh := make(chan bool, 1)
 
 	// Create a child context that we can explicitly cancel when errors occur
@@ -108,7 +118,7 @@ func (e *elector) Run(ctx context.Context, OnLeader, OnResign ProcessFunc) <-cha
 		}()
 
 		for {
-			if err := e.runElection(runCtx, leaderCh, OnLeader, OnResign); err != nil {
+			if err := e.runElection(runCtx, leaderCh); err != nil {
 				// Check if parent context is already canceled
 				if runCtx.Err() != nil {
 					e.logger.Info("Context canceled, stopping election loop", tag.Error(runCtx.Err()))
@@ -137,7 +147,7 @@ func (e *elector) Run(ctx context.Context, OnLeader, OnResign ProcessFunc) <-cha
 }
 
 // runElection runs a single election attempt
-func (e *elector) runElection(ctx context.Context, leaderCh chan<- bool, OnLeader, OnResign ProcessFunc) (err error) {
+func (e *elector) runElection(ctx context.Context, leaderCh chan<- bool) (err error) {
 	// Add random delay before campaigning to spread load across instances
 	delay := time.Duration(rand.Intn(int(e.cfg.MaxRandomDelay)))
 
@@ -150,12 +160,15 @@ func (e *elector) runElection(ctx context.Context, leaderCh chan<- bool, OnLeade
 		return fmt.Errorf("context cancelled during pre-campaign delay: %w", ctx.Err())
 	}
 
-	election, err := e.store.CreateElection(ctx, e.namespace)
+	election, err := e.leaderStore.CreateElection(ctx, e.namespace.Name)
 	if err != nil {
 		return fmt.Errorf("create session: %w", err)
 	}
+
+	var leaderProcess process.Processor
+
 	defer func() {
-		resignErr := e.resign(election, OnResign)
+		resignErr := e.resign(election, leaderProcess)
 		if resignErr != nil {
 			if err == nil {
 				err = resignErr
@@ -175,7 +188,9 @@ func (e *elector) runElection(ctx context.Context, leaderCh chan<- bool, OnLeade
 		return fmt.Errorf("failed to campaign: %w", err)
 	}
 
-	err = OnLeader(ctx)
+	leaderProcess = e.processFactory.CreateProcessor(e.namespace, e.store, election)
+
+	err = leaderProcess.Run(ctx)
 	if err != nil {
 		return fmt.Errorf("onLeader: %w", err)
 	}
@@ -207,12 +222,16 @@ func (e *elector) runElection(ctx context.Context, leaderCh chan<- bool, OnLeade
 	}
 }
 
-func (e *elector) resign(election leaderstore.Election, onResign ProcessFunc) error {
+func (e *elector) resign(election store.Election, processor process.Processor) error {
 	ctx, cancel := e.clock.ContextWithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	// First try to call onResign
-	resignErr := onResign(ctx)
+	var resignErr error
+
+	if processor != nil {
+		// First try to call onResign
+		resignErr = processor.Terminate(ctx)
+	}
 
 	// Then try to resign leadership, regardless of whether onResign succeeded
 	resignElectionErr := election.Resign(ctx)

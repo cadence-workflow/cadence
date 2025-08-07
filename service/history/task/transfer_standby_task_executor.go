@@ -70,7 +70,7 @@ func NewTransferStandbyTaskExecutor(
 		clusterName:     clusterName,
 		historyResender: historyResender,
 		getRemoteClusterNameFn: func(ctx context.Context, taskInfo persistence.Task) (string, error) {
-			return getRemoteClusterName(ctx, clusterName, shard.GetDomainCache(), shard.GetActiveClusterManager(), taskInfo)
+			return getRemoteClusterName(ctx, shard.GetClusterMetadata().GetCurrentClusterName(), shard.GetDomainCache(), shard.GetActiveClusterManager(), taskInfo)
 		},
 	}
 }
@@ -710,6 +710,8 @@ func (t *transferStandbyTaskExecutor) fetchHistoryFromRemote(
 	return &redispatchError{Reason: "fetchHistoryFromRemote"}
 }
 
-func (t *transferStandbyTaskExecutor) getCurrentTime() time.Time {
-	return t.shard.GetCurrentTime(t.clusterName)
+func (t *transferStandbyTaskExecutor) getCurrentTime(taskInfo persistence.Task) (time.Time, error) {
+	// for standby task, we can always use timesource.Now, because they're supposed to be processed immediately after creation,
+	// this is what're doing for queue v2, for queue v1, I just don't bother to change the behavior
+	return t.shard.GetCurrentTime(t.clusterName), nil
 }

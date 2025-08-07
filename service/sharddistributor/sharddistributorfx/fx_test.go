@@ -13,11 +13,10 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log/testlogger"
-	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/rpc"
 	"github.com/uber/cadence/service/sharddistributor/config"
-	"github.com/uber/cadence/service/sharddistributor/leader/leaderstore"
+	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
 func TestFxServiceStartStop(t *testing.T) {
@@ -38,12 +37,14 @@ func TestFxServiceStartStop(t *testing.T) {
 				return dynamicconfig.NewNopCollection()
 			},
 			fx.Annotated{Target: func() string { return "testHost" }, Name: "hostname"},
-			func() leaderstore.Store {
-				return leaderstore.NewMockStore(ctrl)
+			func() store.Elector {
+				return store.NewMockElector(ctrl)
 			},
-			func() map[string]membership.SingleProvider { return make(map[string]membership.SingleProvider) },
-			func() config.LeaderElection {
-				return config.LeaderElection{
+			func() store.Store {
+				return store.NewMockStore(ctrl)
+			},
+			func() config.ShardDistribution {
+				return config.ShardDistribution{
 					Enabled: false,
 				}
 			},
@@ -54,5 +55,5 @@ func TestFxServiceStartStop(t *testing.T) {
 		Module)
 	app.RequireStart().RequireStop()
 	// API should be registered inside dispatcher.
-	assert.True(t, len(testDispatcher.Introspect().Procedures) > 1)
+	assert.True(t, len(testDispatcher.Introspect().Procedures) > 3)
 }

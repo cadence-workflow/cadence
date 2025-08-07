@@ -497,12 +497,14 @@ func getStartRequest(
 		WorkflowIDReusePolicy:               request.WorkflowIDReusePolicy,
 		RetryPolicy:                         request.RetryPolicy,
 		CronSchedule:                        request.CronSchedule,
+		CronOverlapPolicy:                   request.CronOverlapPolicy,
 		Memo:                                request.Memo,
 		SearchAttributes:                    request.SearchAttributes,
 		Header:                              request.Header,
 		DelayStartSeconds:                   request.DelayStartSeconds,
 		JitterStartSeconds:                  request.JitterStartSeconds,
 		FirstRunAtTimeStamp:                 request.FirstRunAtTimestamp,
+		ActiveClusterSelectionPolicy:        request.ActiveClusterSelectionPolicy,
 	}
 
 	return common.CreateHistoryStartWorkflowRequest(domainID, req, time.Now(), partitionConfig)

@@ -102,11 +102,7 @@ services:
   unit-test:
     build:
       context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile
-    environment:
-      - GITHUB_TOKEN # BUILDKITE_AGENT_ACCESS_TOKEN
-      - GITHUB_RUN_ID # BUILDKITE_JOB_ID and BUILDKITE_BUILD_ID
-      - GITHUB_RUN_NUMBER # BUILDKITE_BUILD_NUMBER
+      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
     volumes:
       - ../../:/cadence
     networks:
@@ -117,16 +113,13 @@ services:
   integration-test-cassandra:
     build:
       context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile
+      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
     environment:
       - "CASSANDRA=1"
       - "CASSANDRA_SEEDS=cassandra"
       - "ES_SEEDS=elasticsearch"
       - "KAFKA_SEEDS=kafka"
       - "TEST_TAG=esintegration"
-      - GITHUB_TOKEN
-      - GITHUB_RUN_ID
-      - GITHUB_RUN_NUMBER
     depends_on:
       cassandra:
         condition: service_healthy
@@ -144,7 +137,7 @@ services:
   integration-test-cassandra-queue-v2:
     build:
       context: ../../
-      dockerfile: ./docker/buildkite/Dockerfile
+      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
     environment:
       - "CASSANDRA=1"
       - "CASSANDRA_SEEDS=cassandra"
@@ -152,9 +145,6 @@ services:
       - "KAFKA_SEEDS=kafka"
       - "TEST_TAG=esintegration"
       - "ENABLE_QUEUE_V2=true"
-      - GITHUB_TOKEN
-      - GITHUB_RUN_ID
-      - GITHUB_RUN_NUMBER
     depends_on:
       cassandra:
         condition: service_healthy
@@ -172,7 +162,7 @@ services:
   integration-test-mysql:
     build:
       context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile
+      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
     environment:
       - "MYSQL=1"
       - "MYSQL_SEEDS=mysql"
@@ -181,9 +171,6 @@ services:
       - "PERSISTENCE_TYPE=sql"
       - "PERSISTENCE_PLUGIN=mysql"
       - "TEST_TAG=esintegration"
-      - GITHUB_TOKEN
-      - GITHUB_RUN_ID
-      - GITHUB_RUN_NUMBER
     depends_on:
       - mysql
       - elasticsearch
@@ -198,7 +185,7 @@ services:
   integration-test-postgres:
     build:
       context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile
+      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
     environment:
       - "POSTGRES=1"
       - "POSTGRES_SEEDS=postgres"
@@ -207,9 +194,6 @@ services:
       - "KAFKA_SEEDS=kafka"
       - "PERSISTENCE_TYPE=sql"
       - "TEST_TAG=esintegration"
-      - GITHUB_TOKEN
-      - GITHUB_RUN_ID
-      - GITHUB_RUN_NUMBER
     depends_on:
       - postgres
       - elasticsearch
@@ -224,13 +208,10 @@ services:
   integration-test-sqlite:
     build:
       context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile
+      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
     environment:
       - "PERSISTENCE_PLUGIN=sqlite"
       - "PERSISTENCE_TYPE=sql"
-      - GITHUB_TOKEN
-      - GITHUB_RUN_ID
-      - GITHUB_RUN_NUMBER
     volumes:
       - ../../:/cadence
     networks:
@@ -241,16 +222,13 @@ services:
   integration-test-ndc-cassandra:
     build:
       context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile
+      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
     environment:
       - "CASSANDRA=1"
       - "CASSANDRA_SEEDS=cassandra"
       - "ES_SEEDS=elasticsearch"
       - "KAFKA_SEEDS=kafka"
       - "TEST_TAG=esintegration"
-      - GITHUB_TOKEN
-      - GITHUB_RUN_ID
-      - GITHUB_RUN_NUMBER
     depends_on:
       cassandra:
         condition: service_healthy
@@ -268,7 +246,7 @@ services:
   integration-test-ndc-mysql:
     build:
       context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile
+      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
     environment:
       - "MYSQL=1"
       - "MYSQL_SEEDS=mysql"
@@ -277,9 +255,6 @@ services:
       - "PERSISTENCE_TYPE=sql"
       - "PERSISTENCE_PLUGIN=mysql"
       - "TEST_TAG=esintegration"
-      - GITHUB_TOKEN
-      - GITHUB_RUN_ID
-      - GITHUB_RUN_NUMBER
     depends_on:
       - mysql
       - elasticsearch
@@ -294,7 +269,7 @@ services:
   integration-test-ndc-postgres:
     build:
       context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile
+      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
     environment:
       - "POSTGRES=1"
       - "POSTGRES_SEEDS=postgres"
@@ -303,9 +278,6 @@ services:
       - "PERSISTENCE_TYPE=sql"
       - "PERSISTENCE_PLUGIN=postgres"
       - "TEST_TAG=esintegration"
-      - GITHUB_TOKEN
-      - GITHUB_RUN_ID
-      - GITHUB_RUN_NUMBER
     depends_on:
       - postgres
       - elasticsearch
@@ -320,7 +292,7 @@ services:
   integration-test-async-wf:
     build:
       context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile
+      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
     environment:
       - "ASYNC_WF_KAFKA_QUEUE_TOPIC=async-wf-topic1"
       - "CASSANDRA=1"
@@ -328,9 +300,6 @@ services:
       - "ES_SEEDS=elasticsearch"
       - "KAFKA_SEEDS=kafka"
       - "KAFKA_PORT=9092"
-      - GITHUB_TOKEN
-      - GITHUB_RUN_ID
-      - GITHUB_RUN_NUMBER
     depends_on:
       cassandra:
         condition: service_healthy
@@ -346,13 +315,10 @@ services:
   integration-test-with-etcd:
     build:
       context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile
+      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
     environment:
       - "ETCD=1"
       - "ETCD_ENDPOINTS=http://etcd:2379"
-      - GITHUB_TOKEN
-      - GITHUB_RUN_ID
-      - GITHUB_RUN_NUMBER
     depends_on:
       etcd:
         condition: service_started
@@ -366,12 +332,9 @@ services:
   coverage-report:
     build:
       context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile
+      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
     environment:
       - CI
-      - GITHUB_TOKEN
-      - GITHUB_RUN_ID
-      - GITHUB_RUN_NUMBER
       - GITHUB_BRANCH
       - GITHUB_RUN_URL
       - GITHUB_REPO

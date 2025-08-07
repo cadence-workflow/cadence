@@ -787,6 +787,8 @@ func (t *timerActiveTaskExecutor) executeWorkflowTimeoutTask(
 		Memo:                                startAttributes.Memo,
 		SearchAttributes:                    startAttributes.SearchAttributes,
 		JitterStartSeconds:                  startAttributes.JitterStartSeconds,
+		CronOverlapPolicy:                   startAttributes.CronOverlapPolicy,
+		ActiveClusterSelectionPolicy:        startAttributes.ActiveClusterSelectionPolicy,
 	}
 	newMutableState, err := retryWorkflow(
 		ctx,

@@ -39,19 +39,27 @@ services:
           - kafka
 
   elasticsearch:
-    image: opensearchproject/opensearch:2.5.0
+    image: opensearchproject/opensearch:2.13.0
     networks:
       services-network:
         aliases:
           - elasticsearch
     environment:
       - discovery.type=single-node
+      - OPENSEARCH_SECURITY_SSL_HTTP_ENABLED=false
       - "DISABLE_SECURITY_PLUGIN=true"
+      - cluster.name=opensearch-cluster
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=DevTestInitial123!    # Sets the demo admin user password when using demo configuration, required for OpenSearch 2.12 and later
+    ports:
+      - 9200:9200 # REST API
+      - 9600:9600 # Performance Analyzer
 
   integration-test-cassandra:
     build:
       context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile
+      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
     environment:
       - "CASSANDRA=1"
       - "CASSANDRA_SEEDS=cassandra"
@@ -59,9 +67,6 @@ services:
       - "KAFKA_SEEDS=kafka"
       - "TEST_TAG=esintegration"
       - "ES_VERSION=os2"
-      - GITHUB_TOKEN
-      - GITHUB_RUN_ID
-      - GITHUB_RUN_NUMBER
     depends_on:
       cassandra:
         condition: service_healthy

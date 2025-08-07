@@ -48,7 +48,7 @@ func (h *{{$decorator}}) {{$method.Declaration}} {
         {{$method.ResultsNames}} = h.handler.{{ $method.Call }}
 
         if err != nil {
-            h.handleErr(err, scope, logger)
+            handleErr(err, scope, logger)
         }
 
         return {{ $method.ResultsNames }}

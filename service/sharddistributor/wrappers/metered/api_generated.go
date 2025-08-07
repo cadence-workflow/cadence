@@ -41,7 +41,7 @@ func (h *metricsHandler) GetShardOwner(ctx context.Context, gp1 *types.GetShardO
 	gp2, err = h.handler.GetShardOwner(ctx, gp1)
 
 	if err != nil {
-		h.handleErr(err, scope, logger)
+		handleErr(err, scope, logger)
 	}
 
 	return gp2, err

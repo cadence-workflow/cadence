@@ -90,8 +90,8 @@ type (
 		// Note: This is not recommended for use, it's still experimental
 		ShardDistributorClient ShardDistributorClient `yaml:"shardDistributorClient"`
 
-		// LeaderElection is a config for the shard distributor leader election component that allows to run a single process per region and manage shard namespaces.
-		LeaderElection LeaderElection `yaml:"leaderElection"`
+		// ShardDistribution is a config for the shard distributor leader election component that allows to run a single process per region and manage shard namespaces.
+		ShardDistribution ShardDistribution `yaml:"shardDistribution"`
 	}
 
 	// Membership holds peer provider configuration.
@@ -622,18 +622,19 @@ type (
 		Config *YamlNode `yaml:"config"`
 	}
 
-	// LeaderElection is a configuration for leader election running.
+	// ShardDistribution is a configuration for leader election running.
 	// This configuration should be in sync with sharddistributor.
-	LeaderElection struct {
-		Enabled    bool          `yaml:"enabled"`
-		Store      LeaderStore   `yaml:"leaderStore"`
-		Election   Election      `yaml:"election"`
-		Namespaces []Namespace   `yaml:"namespaces"`
-		Process    LeaderProcess `yaml:"process"`
+	ShardDistribution struct {
+		Enabled     bool          `yaml:"enabled"`
+		LeaderStore Store         `yaml:"leaderStore"`
+		Election    Election      `yaml:"election"`
+		Namespaces  []Namespace   `yaml:"namespaces"`
+		Process     LeaderProcess `yaml:"process"`
+		Store       Store         `yaml:"store"`
 	}
 
-	// LeaderStore provides a config for leader election.
-	LeaderStore struct {
+	// Store is a generic container for any storage configuration that should be parsed by the implementation.
+	Store struct {
 		StorageParams *YamlNode `yaml:"storageParams"`
 	}
 
@@ -641,6 +642,8 @@ type (
 		Name string `yaml:"name"`
 		Type string `yaml:"type"`
 		Mode string `yaml:"mode"`
+		// ShardNum is defined for fixed namespace.
+		ShardNum int64 `yaml:"shardNum"`
 	}
 
 	Election struct {
@@ -650,7 +653,8 @@ type (
 	}
 
 	LeaderProcess struct {
-		Period time.Duration `yaml:"period"`
+		Period       time.Duration `yaml:"period"`
+		HeartbeatTTL time.Duration `yaml:"heartbeatTTL"`
 	}
 )
 
@@ -670,6 +674,9 @@ func (y *YamlNode) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 func (y *YamlNode) Decode(out any) error {
+	if y == nil {
+		return nil
+	}
 	return y.unmarshal(out)
 }
 

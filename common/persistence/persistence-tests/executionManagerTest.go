@@ -5833,6 +5833,7 @@ func copyWorkflowExecutionInfo(sourceInfo *p.WorkflowExecutionInfo) *p.WorkflowE
 		InitiatedID:                 sourceInfo.InitiatedID,
 		CompletionEvent:             sourceInfo.CompletionEvent,
 		TaskList:                    sourceInfo.TaskList,
+		TaskListKind:                sourceInfo.TaskListKind,
 		WorkflowTypeName:            sourceInfo.WorkflowTypeName,
 		WorkflowTimeout:             sourceInfo.WorkflowTimeout,
 		DecisionStartToCloseTimeout: sourceInfo.DecisionStartToCloseTimeout,

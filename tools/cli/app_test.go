@@ -343,6 +343,32 @@ func (s *cliAppSuite) TestShowHistoryWithID() {
 	s.Nil(err)
 }
 
+func (s *cliAppSuite) TestShowHistoryWithQueryConsistencyLevel() {
+	resp := getWorkflowExecutionHistoryResponse
+	s.serverFrontendClient.EXPECT().
+		GetWorkflowExecutionHistory(gomock.Any(), &types.GetWorkflowExecutionHistoryRequest{
+			Domain: domainName,
+			Execution: &types.WorkflowExecution{
+				WorkflowID: "wid",
+			},
+			HistoryEventFilterType: types.HistoryEventFilterTypeAllEvent.Ptr(),
+			QueryConsistencyLevel:  types.QueryConsistencyLevelStrong.Ptr(),
+		}).
+		Return(resp, nil)
+	describeResp := &types.DescribeWorkflowExecutionResponse{
+		WorkflowExecutionInfo: &types.WorkflowExecutionInfo{},
+	}
+	s.serverFrontendClient.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).Return(describeResp, nil)
+	err := s.app.Run([]string{"", "--do", domainName, "workflow", "show", "-w", "wid", "--query_consistency_level", "strong"})
+	s.Nil(err)
+}
+
+func (s *cliAppSuite) TestShowHistoryWithInvalidQueryConsistencyLevel() {
+	err := s.app.Run([]string{"", "--do", domainName, "workflow", "show", "-w", "wid", "--query_consistency_level", "invalid"})
+	s.Error(err)
+	s.Contains(err.Error(), "invalid query consistency level")
+}
+
 func (s *cliAppSuite) TestShowHistory_PrintRawTime() {
 	resp := getWorkflowExecutionHistoryResponse
 	s.serverFrontendClient.EXPECT().GetWorkflowExecutionHistory(gomock.Any(), gomock.Any()).Return(resp, nil)

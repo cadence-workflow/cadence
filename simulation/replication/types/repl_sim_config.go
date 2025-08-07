@@ -44,12 +44,13 @@ import (
 type ReplicationSimulationOperation string
 
 const (
-	ReplicationSimulationOperationStartWorkflow           ReplicationSimulationOperation = "start_workflow"
-	ReplicationSimulationOperationResetWorkflow           ReplicationSimulationOperation = "reset_workflow"
-	ReplicationSimulationOperationChangeActiveClusters    ReplicationSimulationOperation = "change_active_clusters"
-	ReplicationSimulationOperationValidate                ReplicationSimulationOperation = "validate"
-	ReplicationSimulationOperationQueryWorkflow           ReplicationSimulationOperation = "query_workflow"
-	ReplicationSimulationOperationSignalWithStartWorkflow ReplicationSimulationOperation = "signal_with_start_workflow"
+	ReplicationSimulationOperationStartWorkflow               ReplicationSimulationOperation = "start_workflow"
+	ReplicationSimulationOperationResetWorkflow               ReplicationSimulationOperation = "reset_workflow"
+	ReplicationSimulationOperationChangeActiveClusters        ReplicationSimulationOperation = "change_active_clusters"
+	ReplicationSimulationOperationValidate                    ReplicationSimulationOperation = "validate"
+	ReplicationSimulationOperationQueryWorkflow               ReplicationSimulationOperation = "query_workflow"
+	ReplicationSimulationOperationSignalWithStartWorkflow     ReplicationSimulationOperation = "signal_with_start_workflow"
+	ReplicationSimulationOperationMigrateDomainToActiveActive ReplicationSimulationOperation = "migrate_domain_to_active_active"
 )
 
 type ReplicationSimulationConfig struct {
@@ -80,6 +81,7 @@ type Operation struct {
 	WorkflowExecutionStartToCloseTimeout time.Duration `yaml:"workflowExecutionStartToCloseTimeout"`
 	WorkflowDuration                     time.Duration `yaml:"workflowDuration"`
 	ActivityCount                        int           `yaml:"activityCount"`
+	DelayStartSeconds                    int32         `yaml:"delayStartSeconds"`
 
 	Query            string `yaml:"query"`
 	ConsistencyLevel string `yaml:"consistencyLevel"`

@@ -153,7 +153,7 @@ func (r *conflictResolverImpl) rebuild(
 		lastItem.EventID,
 		lastItem.Version,
 		workflowIdentifier,
-		replayVersionHistory.GetBranchToken(),
+		func() ([]byte, error) { return replayVersionHistory.GetBranchToken(), nil },
 		requestID,
 	)
 	if err != nil {

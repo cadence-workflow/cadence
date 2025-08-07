@@ -394,6 +394,7 @@ func (s *ExecutionManagerSuiteForEventsV2) TestContinueAsNew() {
 				RunID:                       newWorkflowExecution.GetRunID(),
 				FirstExecutionRunID:         updatedInfo.FirstExecutionRunID,
 				TaskList:                    updatedInfo.TaskList,
+				TaskListKind:                updatedInfo.TaskListKind,
 				WorkflowTypeName:            updatedInfo.WorkflowTypeName,
 				WorkflowTimeout:             updatedInfo.WorkflowTimeout,
 				DecisionStartToCloseTimeout: updatedInfo.DecisionStartToCloseTimeout,

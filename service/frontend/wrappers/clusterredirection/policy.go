@@ -22,6 +22,7 @@ package clusterredirection
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/uber/cadence/common/activecluster"
@@ -253,6 +254,7 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) Redirect(
 	return policy.withRedirect(ctx, domainEntry, workflowExecution, actClSelPolicyForNewWF, apiName, requestedConsistencyLevel, call)
 }
 
+// TODO(active-active): Add unit tests for active-active domains covering all branches in activeClusterForActiveActiveDomainRequest
 func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) withRedirect(
 	ctx context.Context,
 	domainEntry *cache.DomainCacheEntry,
@@ -267,25 +269,27 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) withRedirect(
 	policy.logger.Debugf("Calling API %q on target cluster:%q for domain:%q", apiName, targetDC, domainEntry.GetInfo().Name)
 	err := call(targetDC)
 
-	targetDC, ok := policy.isDomainNotActiveError(domainEntry, err)
+	var domainNotActiveErr *types.DomainNotActiveError
+	ok := errors.As(err, &domainNotActiveErr)
 	if !ok || !enableDomainNotActiveForwarding {
 		return err
 	}
-	return call(targetDC)
-}
 
-func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) isDomainNotActiveError(domainEntry *cache.DomainCacheEntry, err error) (string, bool) {
-	domainNotActiveErr, ok := err.(*types.DomainNotActiveError)
-	if !ok {
-		return "", false
+	// TODO(active-active): emit a metric here including apiName, targetDC and newTargetDC tags
+	// This can only happen if there was a failover during the API call.
+	// Forward the request the the active cluster specified in the error
+	if domainNotActiveErr.ActiveCluster == "" {
+		policy.logger.Debugf("No active cluster specified in the error returned from cluster:%q for domain:%q, api: %q so skipping redirect", targetDC, domainEntry.GetInfo().Name, apiName)
+		return err
 	}
 
-	// TODO(active-active): handle active-active domain not active error which has multiple other active clusters
-	if domainEntry.GetReplicationConfig().IsActiveActive() {
-		return "", false
+	if domainNotActiveErr.ActiveCluster == targetDC {
+		policy.logger.Debugf("No need to redirect to new target cluster:%q for domain:%q, api: %q", targetDC, domainEntry.GetInfo().Name, apiName)
+		return err
 	}
 
-	return domainNotActiveErr.ActiveCluster, true
+	policy.logger.Debugf("Calling API %q on new target cluster:%q for domain:%q as indicated by response from cluster:%q", apiName, domainNotActiveErr.ActiveCluster, domainEntry.GetInfo().Name, targetDC)
+	return call(domainNotActiveErr.ActiveCluster)
 }
 
 // return two values: the target cluster name, and whether or not forwarding to the active cluster
@@ -348,27 +352,44 @@ func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) activeClusterForActi
 		policy.logger.Debug("Active cluster selection policy for new workflow", tag.WorkflowDomainName(domainEntry.GetInfo().Name), tag.OperationName(apiName), tag.Dynamic("policy", actClSelPolicyForNewWF))
 		lookupRes, err := policy.activeClusterManager.LookupNewWorkflow(ctx, domainEntry.GetInfo().ID, actClSelPolicyForNewWF)
 		if err != nil {
-			policy.logger.Error("Failed to lookup active cluster of new workflow, using current cluster", tag.WorkflowDomainName(domainEntry.GetInfo().Name), tag.OperationName(apiName), tag.Error(err))
-			return policy.currentClusterName
+			policy.logger.Error("Failed to lookup active cluster of new workflow, using active cluster in the same region", tag.WorkflowDomainName(domainEntry.GetInfo().Name), tag.OperationName(apiName), tag.Error(err))
+			return policy.activeClusterInSameRegion(ctx, domainEntry, policy.currentClusterName)
 		}
 		return lookupRes.ClusterName
 	}
 
 	if workflowExecution == nil {
-		policy.logger.Debug("Workflow execution is nil, using current cluster", tag.WorkflowDomainName(domainEntry.GetInfo().Name), tag.OperationName(apiName))
-		return policy.currentClusterName
+		policy.logger.Debug("Workflow execution is nil, using active cluster in the same region", tag.WorkflowDomainName(domainEntry.GetInfo().Name), tag.OperationName(apiName))
+		return policy.activeClusterInSameRegion(ctx, domainEntry, policy.currentClusterName)
 	}
 	if workflowExecution.RunID == "" {
-		policy.logger.Debug("Workflow execution run id is empty, using current cluster", tag.WorkflowDomainName(domainEntry.GetInfo().Name), tag.OperationName(apiName))
-		return policy.currentClusterName
+		policy.logger.Debug("Workflow execution run id is empty, using active cluster in the same region", tag.WorkflowDomainName(domainEntry.GetInfo().Name), tag.OperationName(apiName))
+		return policy.activeClusterInSameRegion(ctx, domainEntry, policy.currentClusterName)
 	}
 
 	lookupRes, err := policy.activeClusterManager.LookupWorkflow(ctx, domainEntry.GetInfo().Name, workflowExecution.WorkflowID, workflowExecution.RunID)
 	if err != nil {
-		policy.logger.Error("Failed to lookup active cluster of workflow, using current cluster", tag.WorkflowDomainName(domainEntry.GetInfo().Name), tag.WorkflowID(workflowExecution.WorkflowID), tag.WorkflowRunID(workflowExecution.RunID), tag.OperationName(apiName), tag.Error(err))
-		return policy.currentClusterName
+		policy.logger.Error("Failed to lookup active cluster of workflow, using active cluster in the same region", tag.WorkflowDomainName(domainEntry.GetInfo().Name), tag.WorkflowID(workflowExecution.WorkflowID), tag.WorkflowRunID(workflowExecution.RunID), tag.OperationName(apiName), tag.Error(err))
+		return policy.activeClusterInSameRegion(ctx, domainEntry, policy.currentClusterName)
 	}
 
 	policy.logger.Debug("Lookup workflow result for active-active domain request", tag.WorkflowDomainName(domainEntry.GetInfo().Name), tag.WorkflowID(workflowExecution.WorkflowID), tag.WorkflowRunID(workflowExecution.RunID), tag.OperationName(apiName), tag.ActiveClusterName(lookupRes.ClusterName))
+	return lookupRes.ClusterName
+}
+
+// activeClusterInSameRegion returns the active cluster in the same region as the given cluster name
+// If the lookup fails, it returns current cluster name as fallback
+// In that case, if current cluster is not the active cluster the caller will return an not-active error
+// TODO(active-active): Revisit this logic for strong-consistency requests and potentially reject them instead of serving them from the current cluster
+func (policy *selectedOrAllAPIsForwardingRedirectionPolicy) activeClusterInSameRegion(
+	ctx context.Context,
+	domainEntry *cache.DomainCacheEntry,
+	clusterName string,
+) string {
+	lookupRes, err := policy.activeClusterManager.LookupCluster(ctx, domainEntry.GetInfo().ID, clusterName)
+	if err != nil {
+		policy.logger.Error("Failed to lookup active cluster in same region", tag.WorkflowDomainName(domainEntry.GetInfo().Name), tag.ClusterName(clusterName), tag.Error(err))
+		return policy.currentClusterName
+	}
 	return lookupRes.ClusterName
 }

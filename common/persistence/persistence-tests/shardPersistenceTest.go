@@ -169,6 +169,13 @@ func (s *ShardPersistenceSuite) TestUpdateShard() {
 									TaskID: updatedCurrentClusterTransferAckLevel + 10,
 								},
 							},
+							Predicate: &types.Predicate{
+								PredicateType: types.PredicateTypeDomainID,
+								DomainIDPredicateAttributes: &types.DomainIDPredicateAttributes{
+									DomainIDs:   []string{"domain1", "domain2"},
+									IsExclusive: common.Ptr(true),
+								},
+							},
 						},
 					},
 				},
@@ -339,6 +346,13 @@ func (s *ShardPersistenceSuite) TestCreateGetUpdateGetShard() {
 									},
 									ExclusiveMax: &types.TaskKey{
 										TaskID: currentClusterTransferAck + 10,
+									},
+								},
+								Predicate: &types.Predicate{
+									PredicateType: types.PredicateTypeDomainID,
+									DomainIDPredicateAttributes: &types.DomainIDPredicateAttributes{
+										DomainIDs:   []string{"domain1", "domain2"},
+										IsExclusive: common.Ptr(true),
 									},
 								},
 							},

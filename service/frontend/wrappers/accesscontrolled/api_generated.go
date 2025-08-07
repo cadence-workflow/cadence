@@ -308,7 +308,7 @@ func (a *apiHandler) PollForActivityTask(ctx context.Context, pp1 *types.PollFor
 	scope := a.getMetricsScopeWithDomain(metrics.FrontendPollForActivityTaskScope, pp1.GetDomain())
 	attr := &authorization.Attributes{
 		APIName:     "PollForActivityTask",
-		Permission:  authorization.PermissionWrite,
+		Permission:  authorization.PermissionProcess,
 		RequestBody: authorization.NewFilteredRequestBody(pp1),
 		DomainName:  pp1.GetDomain(),
 		TaskList:    pp1.TaskList,
@@ -327,7 +327,7 @@ func (a *apiHandler) PollForDecisionTask(ctx context.Context, pp1 *types.PollFor
 	scope := a.getMetricsScopeWithDomain(metrics.FrontendPollForDecisionTaskScope, pp1.GetDomain())
 	attr := &authorization.Attributes{
 		APIName:     "PollForDecisionTask",
-		Permission:  authorization.PermissionWrite,
+		Permission:  authorization.PermissionProcess,
 		RequestBody: authorization.NewFilteredRequestBody(pp1),
 		DomainName:  pp1.GetDomain(),
 		TaskList:    pp1.TaskList,
@@ -537,6 +537,7 @@ func (a *apiHandler) SignalWithStartWorkflowExecution(ctx context.Context, sp1 *
 		RequestBody:  authorization.NewFilteredRequestBody(sp1),
 		DomainName:   sp1.GetDomain(),
 		WorkflowType: sp1.WorkflowType,
+		TaskList:     sp1.TaskList,
 	}
 	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
 	if err != nil {
@@ -551,10 +552,12 @@ func (a *apiHandler) SignalWithStartWorkflowExecution(ctx context.Context, sp1 *
 func (a *apiHandler) SignalWithStartWorkflowExecutionAsync(ctx context.Context, sp1 *types.SignalWithStartWorkflowExecutionAsyncRequest) (sp2 *types.SignalWithStartWorkflowExecutionAsyncResponse, err error) {
 	scope := a.getMetricsScopeWithDomain(metrics.FrontendSignalWithStartWorkflowExecutionAsyncScope, sp1.GetDomain())
 	attr := &authorization.Attributes{
-		APIName:     "SignalWithStartWorkflowExecutionAsync",
-		Permission:  authorization.PermissionWrite,
-		RequestBody: authorization.NewFilteredRequestBody(sp1),
-		DomainName:  sp1.GetDomain(),
+		APIName:      "SignalWithStartWorkflowExecutionAsync",
+		Permission:   authorization.PermissionWrite,
+		RequestBody:  authorization.NewFilteredRequestBody(sp1),
+		DomainName:   sp1.GetDomain(),
+		WorkflowType: sp1.WorkflowType,
+		TaskList:     sp1.TaskList,
 	}
 	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
 	if err != nil {
@@ -592,6 +595,7 @@ func (a *apiHandler) StartWorkflowExecution(ctx context.Context, sp1 *types.Star
 		RequestBody:  authorization.NewFilteredRequestBody(sp1),
 		DomainName:   sp1.GetDomain(),
 		WorkflowType: sp1.WorkflowType,
+		TaskList:     sp1.TaskList,
 	}
 	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
 	if err != nil {
@@ -606,10 +610,12 @@ func (a *apiHandler) StartWorkflowExecution(ctx context.Context, sp1 *types.Star
 func (a *apiHandler) StartWorkflowExecutionAsync(ctx context.Context, sp1 *types.StartWorkflowExecutionAsyncRequest) (sp2 *types.StartWorkflowExecutionAsyncResponse, err error) {
 	scope := a.getMetricsScopeWithDomain(metrics.FrontendStartWorkflowExecutionAsyncScope, sp1.GetDomain())
 	attr := &authorization.Attributes{
-		APIName:     "StartWorkflowExecutionAsync",
-		Permission:  authorization.PermissionWrite,
-		RequestBody: authorization.NewFilteredRequestBody(sp1),
-		DomainName:  sp1.GetDomain(),
+		APIName:      "StartWorkflowExecutionAsync",
+		Permission:   authorization.PermissionWrite,
+		RequestBody:  authorization.NewFilteredRequestBody(sp1),
+		DomainName:   sp1.GetDomain(),
+		WorkflowType: sp1.WorkflowType,
+		TaskList:     sp1.TaskList,
 	}
 	isAuthorized, err := a.isAuthorized(ctx, attr, scope)
 	if err != nil {

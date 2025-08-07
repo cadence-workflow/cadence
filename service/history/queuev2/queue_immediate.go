@@ -153,8 +153,11 @@ func (q *immediateQueue) processPollTimer() {
 	// thus this periodic poll is not needed, but we keep it for now to provide a fallback mechanism in case
 	// there is a bug in the notification mechanism
 	if q.lastPollTime.Add(q.base.options.PollBackoffInterval()).Before(q.base.timeSource.Now()) {
-		q.base.logger.Info("processing new tasks because poll timer fired")
-		q.base.processNewTasks()
+		newTasks := q.base.processNewTasks()
+		if newTasks {
+			// TODO: consider changing it to warn level
+			q.base.logger.Info("processing new tasks because poll timer fired")
+		}
 		q.lastPollTime = q.base.timeSource.Now()
 	}
 
@@ -181,6 +184,8 @@ func (q *immediateQueue) processEventLoop() {
 			q.processPollTimer()
 		case <-q.base.updateQueueStateTimer.Chan():
 			q.base.updateQueueState(q.ctx)
+		case alert := <-q.base.alertCh:
+			q.base.handleAlert(q.ctx, alert)
 		case <-q.ctx.Done():
 			return
 		}

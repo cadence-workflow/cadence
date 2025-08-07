@@ -506,6 +506,8 @@ type (
 
 		// select the active cluster selection policy
 		SelectActiveClusterSelectionPolicy(ctx context.Context, shardID int, domainID, wfID, rID string) (*ActiveClusterSelectionPolicyRow, error)
+		// delete the active cluster selection policy row
+		DeleteActiveClusterSelectionPolicy(ctx context.Context, shardID int, domainID, workflowID, runID string) error
 	}
 
 	/***

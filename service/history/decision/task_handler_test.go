@@ -1671,3 +1671,144 @@ func newTaskHandlerForTest(t *testing.T) *taskHandlerImpl {
 	)
 	return taskHandler
 }
+
+func TestHandleFailWorkflowError(t *testing.T) {
+	tests := []struct {
+		name            string
+		expectMockCalls func(taskHandler *taskHandlerImpl)
+		asserts         func(t *testing.T, taskHandler *taskHandlerImpl, err error)
+	}{
+		{
+			name: "success - workflow fails due to too many pending activities",
+			expectMockCalls: func(taskHandler *taskHandlerImpl) {
+				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().AddFailWorkflowEvent(
+					taskHandler.decisionTaskCompletedID,
+					gomock.Any(),
+				).Return(&types.HistoryEvent{}, nil)
+			},
+			asserts: func(t *testing.T, taskHandler *taskHandlerImpl, err error) {
+				assert.Nil(t, err)
+				assert.True(t, taskHandler.stopProcessing)
+			},
+		},
+		{
+			name: "failure - AddFailWorkflowEvent returns error",
+			expectMockCalls: func(taskHandler *taskHandlerImpl) {
+
+				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().AddFailWorkflowEvent(
+					taskHandler.decisionTaskCompletedID,
+					gomock.Any(),
+				).Return(nil, errors.New("failed to add fail workflow event"))
+			},
+			asserts: func(t *testing.T, taskHandler *taskHandlerImpl, err error) {
+				assert.Error(t, err)
+				assert.Equal(t, "failed to add fail workflow event", err.Error())
+				assert.True(t, taskHandler.stopProcessing)
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			taskHandler := newTaskHandlerForTest(t)
+			if test.expectMockCalls != nil {
+				test.expectMockCalls(taskHandler)
+			}
+
+			err := taskHandler.handleFailWorkflowError(common.FailureReasonPendingActivityExceedsLimit, execution.ErrTooManyPendingActivities.Error())
+			test.asserts(t, taskHandler, err)
+		})
+	}
+}
+
+func TestHandleDecisionScheduleActivityWithTooManyPendingActivities(t *testing.T) {
+	domainEntry := cache.NewLocalDomainCacheEntryForTest(
+		&persistence.DomainInfo{ID: testdata.DomainID, Name: testdata.DomainName},
+		&persistence.DomainConfig{
+			Retention: 1,
+		},
+		cluster.TestCurrentClusterName)
+	executionInfo := &persistence.WorkflowExecutionInfo{
+		DomainID:        testdata.DomainID,
+		WorkflowID:      testdata.WorkflowID,
+		WorkflowTimeout: 100,
+	}
+	validAttr := &types.ScheduleActivityTaskDecisionAttributes{
+		Domain:                        testdata.DomainName,
+		TaskList:                      &types.TaskList{Name: testdata.TaskListName},
+		ActivityID:                    "some-activity-id",
+		ActivityType:                  &types.ActivityType{Name: testdata.ActivityTypeName},
+		ScheduleToCloseTimeoutSeconds: func(i int32) *int32 { return &i }(100),
+		ScheduleToStartTimeoutSeconds: func(i int32) *int32 { return &i }(20),
+		StartToCloseTimeoutSeconds:    func(i int32) *int32 { return &i }(80),
+		Input:                         []byte("some-input"),
+	}
+
+	tests := []struct {
+		name            string
+		expectMockCalls func(taskHandler *taskHandlerImpl, attr *types.ScheduleActivityTaskDecisionAttributes)
+		attributes      *types.ScheduleActivityTaskDecisionAttributes
+		asserts         func(t *testing.T, taskHandler *taskHandlerImpl, attr *types.ScheduleActivityTaskDecisionAttributes, res *decisionResult, err error)
+	}{
+		{
+			name:       "ErrTooManyPendingActivities - workflow fails",
+			attributes: validAttr,
+			expectMockCalls: func(taskHandler *taskHandlerImpl, attr *types.ScheduleActivityTaskDecisionAttributes) {
+				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().GetExecutionInfo().Return(executionInfo).Times(2)
+				taskHandler.domainCache.(*cache.MockDomainCache).EXPECT().GetDomain(attr.GetDomain()).Return(domainEntry, nil)
+
+				// Mock AddActivityTaskScheduledEvent to return ErrTooManyPendingActivities
+				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().AddActivityTaskScheduledEvent(
+					context.Background(),
+					taskHandler.decisionTaskCompletedID,
+					attr,
+					taskHandler.activityCountToDispatch > 0,
+				).Return(nil, nil, nil, false, false, execution.ErrTooManyPendingActivities)
+
+				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().AddFailWorkflowEvent(
+					taskHandler.decisionTaskCompletedID,
+					gomock.Any(),
+				).Return(&types.HistoryEvent{}, nil)
+			},
+			asserts: func(t *testing.T, taskHandler *taskHandlerImpl, attr *types.ScheduleActivityTaskDecisionAttributes, res *decisionResult, err error) {
+				assert.Nil(t, err)
+				assert.Nil(t, res)
+				assert.True(t, taskHandler.stopProcessing)
+			},
+		},
+		{
+			name:       "Other InternalServiceError - passes through",
+			attributes: validAttr,
+			expectMockCalls: func(taskHandler *taskHandlerImpl, attr *types.ScheduleActivityTaskDecisionAttributes) {
+				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().GetExecutionInfo().Return(executionInfo).Times(2)
+				taskHandler.domainCache.(*cache.MockDomainCache).EXPECT().GetDomain(attr.GetDomain()).Return(domainEntry, nil)
+
+				// Mock AddActivityTaskScheduledEvent to return different InternalServiceError
+				taskHandler.mutableState.(*execution.MockMutableState).EXPECT().AddActivityTaskScheduledEvent(
+					context.Background(),
+					taskHandler.decisionTaskCompletedID,
+					attr,
+					taskHandler.activityCountToDispatch > 0,
+				).Return(nil, nil, nil, false, false, &types.InternalServiceError{Message: "Some other internal service error"})
+			},
+			asserts: func(t *testing.T, taskHandler *taskHandlerImpl, attr *types.ScheduleActivityTaskDecisionAttributes, res *decisionResult, err error) {
+				assert.NotNil(t, err)
+				assert.Equal(t, "Some other internal service error", err.Error())
+				assert.Nil(t, res)
+				assert.False(t, taskHandler.stopProcessing)
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			taskHandler := newTaskHandlerForTest(t)
+			if test.expectMockCalls != nil {
+				test.expectMockCalls(taskHandler, test.attributes)
+			}
+
+			res, err := taskHandler.handleDecisionScheduleActivity(context.Background(), test.attributes)
+			test.asserts(t, taskHandler, test.attributes, res, err)
+		})
+	}
+}

@@ -127,8 +127,7 @@ func TestDeliverBufferTasks(t *testing.T) {
 	tests := []func(tlm *taskListManagerImpl){
 		func(tlm *taskListManagerImpl) { tlm.taskReader.cancelFunc() },
 		func(tlm *taskListManagerImpl) {
-			rps := 0.1
-			tlm.matcher.UpdateRatelimit(&rps)
+			tlm.limiter.ReportLimit(0.1)
 			tlm.taskReader.taskBuffers[defaultTaskBufferIsolationGroup] <- &persistence.TaskInfo{}
 			err := tlm.matcher.(*taskMatcherImpl).ratelimit(context.Background()) // consume the token
 			assert.NoError(t, err)
@@ -362,7 +361,7 @@ func TestDescribeTaskList(t *testing.T) {
 				mockQPS.EXPECT().GroupQPS("datacenterB").Return(float64(25.0))
 				mockQPS.EXPECT().QPS().Return(float64(100.0))
 				impl.qpsTracker = mockQPS
-				impl.matcher.UpdateRatelimit(common.Float64Ptr(1.0))
+				impl.limiter.ReportLimit(1.0)
 			},
 			expectedStatus: &types.TaskListStatus{
 				RatePerSecond:     1.0, // From poller
@@ -1824,7 +1823,7 @@ func TestGetNumPartitions(t *testing.T) {
 	require.NoError(t, err)
 	tlm, deps := setupMocksForTaskListManager(t, tlID, types.TaskListKindNormal)
 	require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.MatchingEnableGetNumberOfPartitionsFromCache, true))
-	assert.NotPanics(t, func() { tlm.matcher.UpdateRatelimit(common.Ptr(float64(100))) })
+	assert.NotPanics(t, func() { tlm.limiter.ReportLimit(float64(100)) })
 }
 
 func TestDisconnectBlockedPollers(t *testing.T) {

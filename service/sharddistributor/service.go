@@ -30,7 +30,6 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
-	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/service"
@@ -47,12 +46,7 @@ type Service struct {
 	metricsClient metrics.Client
 	dispatcher    *yarpc.Dispatcher
 
-	handler      handler.Handler
-	config       *config.Config
-	peerProvider membership.PeerProvider
-
-	matchingRing membership.SingleProvider
-	historyRing  membership.SingleProvider
+	handler handler.Handler
 
 	stopC    chan struct{}
 	status   int32
@@ -90,10 +84,7 @@ func NewService(
 		return nil, err
 	}
 
-	matchingRing := params.HashRings[service.Matching]
-	historyRing := params.HashRings[service.History]
-
-	rawHandler := handler.NewHandler(logger, params.MetricsClient, matchingRing, historyRing)
+	rawHandler := handler.NewHandler(logger, config.ShardDistribution{}, nil)
 	meteredHandler := metered.NewMetricsHandler(rawHandler, logger, params.MetricsClient)
 
 	dispatcher := params.RPCFactory.GetDispatcher()
@@ -102,14 +93,10 @@ func NewService(
 	grpcHandler.Register(dispatcher)
 
 	return &Service{
-		config:        serviceConfig,
 		logger:        logger,
 		metricsClient: params.MetricsClient,
 		dispatcher:    dispatcher,
 		handler:       meteredHandler,
-
-		matchingRing: matchingRing,
-		historyRing:  historyRing,
 
 		// legacy components
 		resource: serviceResource,

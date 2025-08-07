@@ -52,6 +52,7 @@ func TestFxStartStop(t *testing.T) {
 		}
 		factory := rpc.NewMockFactory(ctrl)
 		factory.EXPECT().Start(gomock.Any()).Return(nil)
+		factory.EXPECT().Stop().Return(nil)
 		return appParams{
 			Clock:         clock.NewMockedTimeSource(),
 			PeerProvider:  provider,

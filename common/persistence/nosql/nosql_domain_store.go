@@ -161,7 +161,12 @@ func (m *nosqlDomainStore) GetDomain(
 	if row.Info.Data == nil {
 		row.Info.Data = map[string]string{}
 	}
-	row.ReplicationConfig.ActiveClusterName = cluster.GetOrUseDefaultActiveCluster(m.currentClusterName, row.ReplicationConfig.ActiveClusterName)
+
+	// for active-active domains, do not populate active cluster name with current cluster name if it is not set
+	if row.ReplicationConfig.ActiveClustersConfig == nil {
+		row.ReplicationConfig.ActiveClusterName = cluster.GetOrUseDefaultActiveCluster(m.currentClusterName, row.ReplicationConfig.ActiveClusterName)
+	}
+
 	row.ReplicationConfig.Clusters = cluster.GetOrUseDefaultClusters(m.currentClusterName, row.ReplicationConfig.Clusters)
 
 	return &persistence.InternalGetDomainResponse{
@@ -192,7 +197,12 @@ func (m *nosqlDomainStore) ListDomains(
 		if row.Info.Data == nil {
 			row.Info.Data = map[string]string{}
 		}
-		row.ReplicationConfig.ActiveClusterName = cluster.GetOrUseDefaultActiveCluster(m.currentClusterName, row.ReplicationConfig.ActiveClusterName)
+
+		// for active-active domains, do not populate active cluster name with current cluster name if it is not set
+		if row.ReplicationConfig.ActiveClustersConfig == nil {
+			row.ReplicationConfig.ActiveClusterName = cluster.GetOrUseDefaultActiveCluster(m.currentClusterName, row.ReplicationConfig.ActiveClusterName)
+		}
+
 		row.ReplicationConfig.Clusters = cluster.GetOrUseDefaultClusters(m.currentClusterName, row.ReplicationConfig.Clusters)
 
 		domains = append(domains, &persistence.InternalGetDomainResponse{

@@ -77,7 +77,7 @@ func NewTimerStandbyTaskExecutor(
 		clusterName:     clusterName,
 		historyResender: historyResender,
 		getRemoteClusterNameFn: func(ctx context.Context, taskInfo persistence.Task) (string, error) {
-			return getRemoteClusterName(ctx, clusterName, shard.GetDomainCache(), shard.GetActiveClusterManager(), taskInfo)
+			return getRemoteClusterName(ctx, shard.GetClusterMetadata().GetCurrentClusterName(), shard.GetDomainCache(), shard.GetActiveClusterManager(), taskInfo)
 		},
 	}
 }
@@ -567,6 +567,16 @@ func (t *timerStandbyTaskExecutor) fetchHistoryFromRemote(
 	return &redispatchError{Reason: "fetchHistoryFromRemote"}
 }
 
-func (t *timerStandbyTaskExecutor) getCurrentTime() time.Time {
-	return t.shard.GetCurrentTime(t.clusterName)
+func (t *timerStandbyTaskExecutor) getCurrentTime(taskInfo persistence.Task) (time.Time, error) {
+	// the schedule time of a standby task is the time from the active cluster of the task,
+	// for history queue v2, t.clusterName is the current cluster, so we should get remote cluster name of the task
+	// However, this only has an effect when the time skew between the current cluster and the remote cluster is large enough (probably more than 1 minute),
+	// the impact is that the standby task may be discarded too early
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	sourceClusterName, err := t.getRemoteClusterNameFn(ctx, taskInfo)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return t.shard.GetCurrentTime(sourceClusterName), nil
 }

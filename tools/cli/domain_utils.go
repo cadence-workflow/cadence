@@ -73,6 +73,11 @@ var (
 			Usage:   "Active cluster name",
 		},
 		&cli.StringSliceFlag{
+			Name:    FlagActiveClustersByRegion,
+			Aliases: []string{"acbr"},
+			Usage:   "Active clusters by region in the format 'region1:cluster1,region2:cluster2'",
+		},
+		&cli.StringSliceFlag{
 			Name:    FlagClusters,
 			Aliases: []string{"cl"},
 			Usage:   FlagClustersUsage,
@@ -80,8 +85,14 @@ var (
 		&cli.StringFlag{
 			Name:    FlagIsGlobalDomain,
 			Aliases: []string{"gd"},
-			Usage:   "Flag to indicate whether domain is a global domain. Default to true. Local domain is now legacy.",
+			Usage:   "Flag to indicate whether domain is a global domain (active-passive domain). Default to true. Local domain is now legacy.",
 			Value:   "true",
+		},
+		&cli.StringFlag{
+			Name:    FlagIsActiveActiveDomain,
+			Aliases: []string{"aad"},
+			Usage:   "Flag to indicate whether domain is an active-active domain. Default to false.",
+			Value:   "false",
 		},
 		&cli.GenericFlag{
 			Name:    FlagDomainData,
@@ -136,6 +147,11 @@ var (
 			Name:    FlagActiveClusterName,
 			Aliases: []string{"ac"},
 			Usage:   "Active cluster name",
+		},
+		&cli.StringSliceFlag{
+			Name:    FlagActiveClustersByRegion,
+			Aliases: []string{"acbr"},
+			Usage:   "Active clusters by region in the format 'region1:cluster1,region2:cluster2'",
 		},
 		&cli.StringSliceFlag{
 			Name:    FlagClusters,

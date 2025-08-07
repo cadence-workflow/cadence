@@ -316,6 +316,10 @@ func (s *stateRebuilderSuite) TestRebuild() {
 	), nil).AnyTimes()
 	s.mockTaskRefresher.EXPECT().RefreshTasks(gomock.Any(), now, gomock.Any()).Return(nil).Times(1)
 
+	targetBranchTokenFn := func() ([]byte, error) {
+		return targetBranchToken, nil
+	}
+
 	rebuildMutableState, rebuiltHistorySize, err := s.nDCStateRebuilder.Rebuild(
 		context.Background(),
 		now,
@@ -324,7 +328,7 @@ func (s *stateRebuilderSuite) TestRebuild() {
 		lastEventID,
 		version,
 		definition.NewWorkflowIdentifier(targetDomainID, targetWorkflowID, targetRunID),
-		targetBranchToken,
+		targetBranchTokenFn,
 		requestID,
 	)
 	s.NoError(err)
@@ -373,6 +377,10 @@ func (s *stateRebuilderSuite) TestInvalidStateHandling() {
 		1234,
 	), nil).AnyTimes()
 
+	targetBranchTokenFn := func() ([]byte, error) {
+		return targetBranchToken, nil
+	}
+
 	s.nDCStateRebuilder.Rebuild(
 		context.Background(),
 		now,
@@ -381,7 +389,7 @@ func (s *stateRebuilderSuite) TestInvalidStateHandling() {
 		lastEventID,
 		version,
 		definition.NewWorkflowIdentifier(targetDomainID, targetWorkflowID, targetRunID),
-		targetBranchToken,
+		targetBranchTokenFn,
 		requestID,
 	)
 }

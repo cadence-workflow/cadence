@@ -165,6 +165,14 @@ func TestValidateQuery(t *testing.T) {
 				"Custom-Field": types.IndexedValueTypeString,
 			},
 		},
+		{
+			msg:       "custom string search attribute support not like",
+			query:     "CustomStringField not like 'value'",
+			validated: "`Attr.CustomStringField` not like 'value'",
+			dcValid: map[string]interface{}{
+				"CustomStringField": types.IndexedValueTypeString,
+			},
+		},
 	}
 
 	for _, tt := range tests {

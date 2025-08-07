@@ -85,10 +85,6 @@ func rpcStopper(factory rpc.Factory) func() error {
 		if err != nil {
 			return fmt.Errorf("dispatcher stop: %w", err)
 		}
-		err = factory.Stop()
-		if err != nil {
-			return fmt.Errorf("factory stop: %w", err)
-		}
 		return nil
 	}
 }

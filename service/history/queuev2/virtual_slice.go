@@ -40,6 +40,7 @@ type (
 		Clear()
 
 		TrySplitByTaskKey(persistence.HistoryTaskKey) (VirtualSlice, VirtualSlice, bool)
+		TrySplitByPredicate(Predicate) (VirtualSlice, VirtualSlice, bool)
 		TryMergeWithVirtualSlice(VirtualSlice) ([]VirtualSlice, bool)
 	}
 
@@ -233,6 +234,44 @@ func (s *virtualSliceImpl) TrySplitByTaskKey(taskKey persistence.HistoryTaskKey)
 	return leftSlice, rightSlice, true
 }
 
+func (s *virtualSliceImpl) TrySplitByPredicate(predicate Predicate) (VirtualSlice, VirtualSlice, bool) {
+	passState, failState, ok := s.state.TrySplitByPredicate(predicate)
+	if !ok {
+		return nil, nil, false
+	}
+	passTracker := NewPendingTaskTracker()
+	failTracker := NewPendingTaskTracker()
+
+	taskMap := s.pendingTaskTracker.GetTasks()
+	for _, task := range taskMap {
+		if passState.Predicate.Check(task) {
+			passTracker.AddTask(task)
+		} else {
+			failTracker.AddTask(task)
+		}
+	}
+
+	passProgress := make([]*GetTaskProgress, len(s.progress))
+	failProgress := make([]*GetTaskProgress, len(s.progress))
+	copy(passProgress, s.progress)
+	copy(failProgress, s.progress)
+	passSlice := &virtualSliceImpl{
+		state:              passState,
+		taskInitializer:    s.taskInitializer,
+		queueReader:        s.queueReader,
+		pendingTaskTracker: passTracker,
+		progress:           passProgress,
+	}
+	failSlice := &virtualSliceImpl{
+		state:              failState,
+		taskInitializer:    s.taskInitializer,
+		queueReader:        s.queueReader,
+		pendingTaskTracker: failTracker,
+		progress:           failProgress,
+	}
+	return passSlice, failSlice, true
+}
+
 func (s *virtualSliceImpl) TryMergeWithVirtualSlice(other VirtualSlice) ([]VirtualSlice, bool) {
 	otherImpl, ok := other.(*virtualSliceImpl)
 	if !ok {
@@ -246,8 +285,7 @@ func (s *virtualSliceImpl) TryMergeWithVirtualSlice(other VirtualSlice) ([]Virtu
 	if s.state.Predicate.Equals(other.GetState().Predicate) {
 		return []VirtualSlice{mergeVirtualSlicesByRange(s, otherImpl)}, true
 	}
-	// Currently, we only support merging virtual slices with the same predicate
-	return nil, false
+	return mergeVirtualSlicesWithDifferentPredicate(s, otherImpl)
 }
 
 func mergeVirtualSlicesByRange(left, right *virtualSliceImpl) VirtualSlice {
@@ -266,7 +304,7 @@ func mergeVirtualSlicesByRange(left, right *virtualSliceImpl) VirtualSlice {
 	for _, task := range taskMap {
 		pendingTaskTracker.AddTask(task)
 	}
-	mergedProgress := mergeGetTaskProgress(left.progress, right.progress)
+	mergedProgress := mergeGetTaskProgressWithSamePredicate(left.progress, right.progress)
 
 	return &virtualSliceImpl{
 		state:              mergedState,
@@ -277,51 +315,48 @@ func mergeVirtualSlicesByRange(left, right *virtualSliceImpl) VirtualSlice {
 	}
 }
 
-func mergeGetTaskProgress(left, right []*GetTaskProgress) []*GetTaskProgress {
+func mergeGetTaskProgressWithSamePredicate(left, right []*GetTaskProgress) []*GetTaskProgress {
 	mergedProgress := []*GetTaskProgress{}
 	leftIndex := 0
 	rightIndex := 0
 	for leftIndex < len(left) && rightIndex < len(right) {
-		if left[leftIndex].NextTaskKey.Compare(right[rightIndex].NextTaskKey) <= 0 {
-			mergedProgress = appendOrMergeProgress(mergedProgress, left[leftIndex])
+		if left[leftIndex].Range.InclusiveMinTaskKey.Compare(right[rightIndex].Range.InclusiveMinTaskKey) <= 0 {
+			mergedProgress = appendOrMergeProgressWithSamePredicate(mergedProgress, left[leftIndex])
 			leftIndex++
 		} else {
-			mergedProgress = appendOrMergeProgress(mergedProgress, right[rightIndex])
+			mergedProgress = appendOrMergeProgressWithSamePredicate(mergedProgress, right[rightIndex])
 			rightIndex++
 		}
 	}
 	for leftIndex < len(left) {
-		mergedProgress = appendOrMergeProgress(mergedProgress, left[leftIndex])
+		mergedProgress = appendOrMergeProgressWithSamePredicate(mergedProgress, left[leftIndex])
 		leftIndex++
 	}
 	for rightIndex < len(right) {
-		mergedProgress = appendOrMergeProgress(mergedProgress, right[rightIndex])
+		mergedProgress = appendOrMergeProgressWithSamePredicate(mergedProgress, right[rightIndex])
 		rightIndex++
 	}
 	return mergedProgress
 }
 
-func appendOrMergeProgress(mergedProgress []*GetTaskProgress, progress *GetTaskProgress) []*GetTaskProgress {
+func appendOrMergeProgressWithSamePredicate(mergedProgress []*GetTaskProgress, progress *GetTaskProgress) []*GetTaskProgress {
 	if len(mergedProgress) == 0 {
 		return append(mergedProgress, progress)
 	}
 
 	lastProgress := mergedProgress[len(mergedProgress)-1]
 	mergedProgress = mergedProgress[:len(mergedProgress)-1] // remove the last progress
-	if lastProgress.NextTaskKey.Compare(progress.Range.InclusiveMinTaskKey) < 0 {
-		return append(mergedProgress, mergeProgress(lastProgress, progress)...)
-	}
-	return append(mergedProgress, mergeProgress(progress, lastProgress)...)
+	return append(mergedProgress, mergeProgressWithSamePredicate(lastProgress, progress)...)
 }
 
-// mergeProgress merges two progress
+// mergeProgress merges two progress with the same predicate
 // Assuming the inclusive key, next key, max key of the 2 progress are [a, b, c] and [x, y, z] where a <= b <= c and x <= y <= z,
 // also assuming that a <= x, otherwise we can swap the left and right progress
 // There are 10 different cases regarding the order of a, b, c, x, y, z, and here are the cases and merged results:
 // [a, b, c, x, y, z] -> [b, b, c] and [y, y, z]
 // [a, b, x, c, y, z] -> [b, b, x] and [y, y, z]
 // [a, b, x, y, c, z] -> [b, b, x] and [y, y, z]
-// [a, b, x, y ,z, c] -> [b, b, x] and [y, y, c]
+// [a, b, x, y, z, c] -> [b, b, x] and [y, y, c]
 // [a, x, b, c, y ,z] -> [y, y, z]
 // [a, x, b, y, c, z] -> [y, y, z]
 // [a, x, b, y, z, c] -> [y, y, c]
@@ -330,7 +365,7 @@ func appendOrMergeProgress(mergedProgress []*GetTaskProgress, progress *GetTaskP
 // [a, x, y, z, b, c] -> [b, b, c]
 // we only need to consider the range that hasn't been read yet, the merged result can be represented as
 // [b, b, min(c, x)], [max(b, y), max(b, y), max(c, z)], and if b >= x, [b, b, min(c, x)] will be an empty progress so it's omitted
-func mergeProgress(left, right *GetTaskProgress) []*GetTaskProgress {
+func mergeProgressWithSamePredicate(left, right *GetTaskProgress) []*GetTaskProgress {
 	if left.Range.InclusiveMinTaskKey.Compare(right.Range.InclusiveMinTaskKey) > 0 {
 		left, right = right, left
 	}
@@ -364,4 +399,164 @@ func mergeProgress(left, right *GetTaskProgress) []*GetTaskProgress {
 			NextTaskKey:   persistence.MaxHistoryTaskKey(left.NextTaskKey, right.NextTaskKey),
 		},
 	}
+}
+
+func mergeGetTaskProgressWithDifferentPredicate(left, right []*GetTaskProgress) []*GetTaskProgress {
+	mergedProgress := []*GetTaskProgress{}
+	leftIndex := 0
+	rightIndex := 0
+	for leftIndex < len(left) && rightIndex < len(right) {
+		if left[leftIndex].NextTaskKey.Compare(right[rightIndex].NextTaskKey) <= 0 {
+			mergedProgress = appendOrMergeProgressWithDifferentPredicate(mergedProgress, left[leftIndex])
+			leftIndex++
+		} else {
+			mergedProgress = appendOrMergeProgressWithDifferentPredicate(mergedProgress, right[rightIndex])
+			rightIndex++
+		}
+	}
+	for leftIndex < len(left) {
+		mergedProgress = appendOrMergeProgressWithDifferentPredicate(mergedProgress, left[leftIndex])
+		leftIndex++
+	}
+	for rightIndex < len(right) {
+		mergedProgress = appendOrMergeProgressWithDifferentPredicate(mergedProgress, right[rightIndex])
+		rightIndex++
+	}
+	return mergedProgress
+}
+
+func appendOrMergeProgressWithDifferentPredicate(mergedProgress []*GetTaskProgress, progress *GetTaskProgress) []*GetTaskProgress {
+	if len(mergedProgress) == 0 {
+		return append(mergedProgress, progress)
+	}
+
+	lastProgress := mergedProgress[len(mergedProgress)-1]
+	mergedProgress = mergedProgress[:len(mergedProgress)-1] // remove the last progress
+	return append(mergedProgress, mergeProgressWithDifferentPredicate(lastProgress, progress)...)
+}
+
+// mergeProgress merges two progress with different predicates
+// Assuming the inclusive key, next key, max key of the 2 progress are [a, b, c] and [x, y, z] where a <= b <= c and x <= y <= z,
+// also assuming that b <= y, otherwise we can swap the left and right progress
+// There are 7 different cases regarding the order of a, b, c, x, y, z, and here are the cases and merged results:
+// [a, b, c, x, y, z] -> [b, b, c] and [y, y, z], (c < y)
+// [a, b, x, c, y, z] -> [b, b, c] and [y, y, z], (c < y)
+// [a, b, x, y, c, z] -> [b, b, z]
+// [a, b, x, y, z, c] -> [b, b, c]
+// [a, x, b, c, y ,z] -> [b, b, c] and [y, y, z], (c < y)
+// [a, x, b, y, c, z] -> [b, b, z]
+// [a, x, b, y, z, c] -> [b, b, c]
+// the idea is to get the union of [next task key, exclusive max task key) of the 2 progress,
+// and then set inclusive min task key to next task key, next page token to nil
+func mergeProgressWithDifferentPredicate(left, right *GetTaskProgress) []*GetTaskProgress {
+	if left.NextTaskKey.Compare(right.NextTaskKey) > 0 {
+		left, right = right, left
+	}
+
+	if left.Range.ExclusiveMaxTaskKey.Compare(right.NextTaskKey) < 0 {
+		return []*GetTaskProgress{
+			{
+				Range: Range{
+					InclusiveMinTaskKey: left.NextTaskKey,
+					ExclusiveMaxTaskKey: left.ExclusiveMaxTaskKey,
+				},
+				NextPageToken: nil,
+				NextTaskKey:   left.NextTaskKey,
+			},
+			{
+				Range: Range{
+					InclusiveMinTaskKey: right.NextTaskKey,
+					ExclusiveMaxTaskKey: right.ExclusiveMaxTaskKey,
+				},
+				NextPageToken: nil,
+				NextTaskKey:   right.NextTaskKey,
+			},
+		}
+	}
+	return []*GetTaskProgress{
+		{
+			Range: Range{
+				InclusiveMinTaskKey: left.NextTaskKey,
+				ExclusiveMaxTaskKey: persistence.MaxHistoryTaskKey(left.ExclusiveMaxTaskKey, right.ExclusiveMaxTaskKey),
+			},
+			NextPageToken: nil,
+			NextTaskKey:   left.NextTaskKey,
+		},
+	}
+}
+
+func mergeVirtualSlicesByPredicate(this, that *virtualSliceImpl) VirtualSlice {
+	mergedState := VirtualSliceState{
+		Range:     this.state.Range, // this and that have the same range
+		Predicate: Or(this.state.Predicate, that.state.Predicate),
+	}
+	pendingTaskTracker := this.pendingTaskTracker
+	taskMap := that.pendingTaskTracker.GetTasks()
+	for _, task := range taskMap {
+		pendingTaskTracker.AddTask(task)
+	}
+	mergedProgress := mergeGetTaskProgressWithDifferentPredicate(this.progress, that.progress)
+
+	return &virtualSliceImpl{
+		state:              mergedState,
+		taskInitializer:    this.taskInitializer,
+		queueReader:        this.queueReader,
+		pendingTaskTracker: pendingTaskTracker,
+		progress:           mergedProgress,
+	}
+}
+
+// merge slices with different predicates, the general idea is to find the overlap range of the 2 slices,
+// combine the predicates of the overlap range and leave the rest as is
+func mergeVirtualSlicesWithDifferentPredicate(this, that *virtualSliceImpl) ([]VirtualSlice, bool) {
+	compareInclusiveMin := this.state.Range.InclusiveMinTaskKey.Compare(that.state.Range.InclusiveMinTaskKey)
+	if compareInclusiveMin > 0 {
+		this, that = that, this
+	} else if compareInclusiveMin == 0 {
+		if this.state.Range.ExclusiveMaxTaskKey.Compare(that.state.Range.ExclusiveMaxTaskKey) > 0 {
+			this, that = that, this
+		}
+	}
+	// Use a, b to to represent the inclusive min task key and exclusive max task key of `this`
+	// Use x, y to to represent the inclusive min task key and exclusive max task key of `that`
+	// At this point, we know that a <= x, (in actual world, we also know that x <= b because we know that the 2 slices can be merged, but it doesn't affect the logic), so there are 5 cases to consider:
+	// 1. {a, b, x, y} (x >= b, a < x) -> don't merge
+	// 2. {a, x, b, y} (a < x < b < y) -> [a, x) and [x, b) and [b, y)
+	// 3. {a, x, b, y} (a < x < b == y) -> [a, x) and [x, b)
+	// 4. {a, x, y, b} (a < x < y < b) -> [a, x) and [x, y) and [y, b)
+	// 5. {x, a, b, y} (x == a < b < y) -> [x, b) and [b, y)
+	// 6. {x, a, y, b} (x == a < y == b) -> [x, b)
+	if compareInclusiveMin == 0 {
+		thatLeft, thatRight, ok := that.TrySplitByTaskKey(this.state.Range.ExclusiveMaxTaskKey)
+		if !ok {
+			// Case 6
+			return []VirtualSlice{mergeVirtualSlicesByPredicate(this, that)}, true
+		}
+		// Case 5
+		return []VirtualSlice{mergeVirtualSlicesByPredicate(this, thatLeft.(*virtualSliceImpl)), thatRight}, true
+	}
+	thisLeft, thisRight, ok := this.TrySplitByTaskKey(that.state.Range.InclusiveMinTaskKey)
+	if !ok {
+		// Case 1
+		return nil, false
+	}
+	mergedVirtualSlices := make([]VirtualSlice, 0, 3)
+	mergedVirtualSlices = append(mergedVirtualSlices, thisLeft)
+	thatLeft, thatRight, ok := that.TrySplitByTaskKey(this.state.Range.ExclusiveMaxTaskKey)
+	if !ok {
+		thisRightLeft, thisRightRight, ok := thisRight.TrySplitByTaskKey(that.state.Range.ExclusiveMaxTaskKey)
+		if !ok {
+			// Case 3: combine predicates of thisRight and that
+			mergedVirtualSlices = append(mergedVirtualSlices, mergeVirtualSlicesByPredicate(thisRight.(*virtualSliceImpl), that))
+			return mergedVirtualSlices, true
+		}
+		// Case 4: combine predicates of thisRightLeft and that
+		mergedVirtualSlices = append(mergedVirtualSlices, mergeVirtualSlicesByPredicate(thisRightLeft.(*virtualSliceImpl), that))
+		mergedVirtualSlices = append(mergedVirtualSlices, thisRightRight)
+		return mergedVirtualSlices, true
+	}
+	// Case 2: combine predicates of thisRight and thatLeft
+	mergedVirtualSlices = append(mergedVirtualSlices, mergeVirtualSlicesByPredicate(thisRight.(*virtualSliceImpl), thatLeft.(*virtualSliceImpl)))
+	mergedVirtualSlices = append(mergedVirtualSlices, thatRight)
+	return mergedVirtualSlices, true
 }

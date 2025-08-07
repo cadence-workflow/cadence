@@ -26,15 +26,15 @@ To run locally:
 
 1. Stop the previous run if any
 
-	docker compose -f docker/buildkite/docker-compose-cassandra-lwt.yml down
+	docker compose -f docker/github_actions/docker-compose-cassandra-lwt.yml down
 
 2. Build the integration-test-async-wf image
 
-	docker compose -f docker/buildkite/docker-compose-cassandra-lwt.yml build test-cass-lwt
+	docker compose -f docker/github_actions/docker-compose-cassandra-lwt.yml build test-cass-lwt
 
 3. Run the test in the docker container
 
-	docker compose -f docker/buildkite/docker-compose-cassandra-lwt.yml run --rm test-cass-lwt
+	docker compose -f docker/github_actions/docker-compose-cassandra-lwt.yml run --rm test-cass-lwt
 
 4. Full test run logs can be found at test.log file
 */

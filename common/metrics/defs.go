@@ -21,6 +21,7 @@
 package metrics
 
 import (
+	"math"
 	"time"
 
 	"github.com/uber-go/tally"
@@ -307,6 +308,8 @@ const (
 	PersistenceShardRequestCountScope
 	// PersistenceGetActiveClusterSelectionPolicyScope tracks GetActiveClusterSelectionPolicy calls made by service to persistence layer
 	PersistenceGetActiveClusterSelectionPolicyScope
+	// PersistenceDeleteActiveClusterSelectionPolicyScope tracks DeleteActiveClusterSelectionPolicy calls made by service to persistence layer
+	PersistenceDeleteActiveClusterSelectionPolicyScope
 
 	// ResolverHostNotFoundScope is a simple low level error indicating a lookup failed in the membership resolver
 	ResolverHostNotFoundScope
@@ -868,8 +871,14 @@ const (
 	// ShardDistributorClientGetShardOwnerScope tracks GetShardOwner calls made by service to shard distributor
 	ShardDistributorClientGetShardOwnerScope
 
+	// ShardDistributorExecutorClientHeartbeatScope tracks Heartbeat calls made by executor to shard distributor
+	ShardDistributorExecutorClientHeartbeatScope
+
 	// LoadBalancerScope is the metrics scope for Round Robin load balancer
 	LoadBalancerScope
+
+	// ActiveClusterManager is the scope used by active cluster manager
+	ActiveClusterManager
 
 	NumCommonScopes
 )
@@ -1429,6 +1438,20 @@ const (
 const (
 	// ShardDistributorGetShardOwnerScope tracks GetShardOwner API calls received by service
 	ShardDistributorGetShardOwnerScope = iota + NumCommonScopes
+	ShardDistributorHeartbeatScope
+	ShardDistributorAssignLoopScope
+
+	ShardDistributorStoreGetShardOwnerScope
+	ShardDistributorStoreAssignShardScope
+	ShardDistributorStoreAssignShardsScope
+	ShardDistributorStoreDeleteExecutorsScope
+	ShardDistributorStoreGetHeartbeatScope
+	ShardDistributorStoreGetStateScope
+	ShardDistributorStoreRecordHeartbeatScope
+	ShardDistributorStoreSubscribeScope
+
+	// The scope for the shard distributor executor
+	ShardDistributorExecutorScope
 
 	NumShardDistributorScopes
 )
@@ -1531,6 +1554,7 @@ var ScopeDefs = map[ServiceIdx]map[int]scopeDefinition{
 		PersistenceUpdateDynamicConfigScope:                      {operation: "UpdateDynamicConfig"},
 		PersistenceShardRequestCountScope:                        {operation: "ShardIdPersistenceRequest"},
 		PersistenceGetActiveClusterSelectionPolicyScope:          {operation: "GetActiveClusterSelectionPolicy"},
+		PersistenceDeleteActiveClusterSelectionPolicyScope:       {operation: "DeleteActiveClusterSelectionPolicy"},
 		ResolverHostNotFoundScope:                                {operation: "ResolverHostNotFound"},
 
 		ClusterMetadataArchivalConfigScope: {operation: "ArchivalConfig"},
@@ -1807,9 +1831,12 @@ var ScopeDefs = map[ServiceIdx]map[int]scopeDefinition{
 		P2PRPCPeerChooserScope:       {operation: "P2PRPCPeerChooser"},
 		PartitionConfigProviderScope: {operation: "PartitionConfigProvider"},
 
-		ShardDistributorClientGetShardOwnerScope: {operation: "ShardDistributorClientGetShardOwner"},
+		ShardDistributorClientGetShardOwnerScope:     {operation: "ShardDistributorClientGetShardOwner"},
+		ShardDistributorExecutorClientHeartbeatScope: {operation: "ShardDistributorExecutorHeartbeat"},
 
 		LoadBalancerScope: {operation: "RRLoadBalancer"},
+
+		ActiveClusterManager: {operation: "ActiveClusterManager"},
 	},
 	// Frontend Scope Names
 	Frontend: {
@@ -2086,7 +2113,18 @@ var ScopeDefs = map[ServiceIdx]map[int]scopeDefinition{
 		DiagnosticsWorkflowScope:               {operation: "DiagnosticsWorkflow"},
 	},
 	ShardDistributor: {
-		ShardDistributorGetShardOwnerScope: {operation: "GetShardOwner"},
+		ShardDistributorGetShardOwnerScope:        {operation: "GetShardOwner"},
+		ShardDistributorHeartbeatScope:            {operation: "ExecutorHeartbeat"},
+		ShardDistributorAssignLoopScope:           {operation: "ShardAssignLoop"},
+		ShardDistributorExecutorScope:             {operation: "Executor"},
+		ShardDistributorStoreGetShardOwnerScope:   {operation: "StoreGetShardOwner"},
+		ShardDistributorStoreAssignShardScope:     {operation: "StoreAssignShard"},
+		ShardDistributorStoreAssignShardsScope:    {operation: "StoreAssignShards"},
+		ShardDistributorStoreDeleteExecutorsScope: {operation: "StoreDeleteExecutors"},
+		ShardDistributorStoreGetHeartbeatScope:    {operation: "StoreGetHeartbeat"},
+		ShardDistributorStoreGetStateScope:        {operation: "StoreGetState"},
+		ShardDistributorStoreRecordHeartbeatScope: {operation: "StoreRecordHeartbeat"},
+		ShardDistributorStoreSubscribeScope:       {operation: "StoreSubscribe"},
 	},
 }
 
@@ -2349,6 +2387,12 @@ const (
 	BaseCacheCountLimitGauge
 	BaseCacheFullCounter
 	BaseCacheEvictCounter
+
+	// active cluster manager metrics
+	ActiveClusterManagerLookupRequestCount
+	ActiveClusterManagerLookupSuccessCount
+	ActiveClusterManagerLookupFailureCount
+	ActiveClusterManagerLookupLatency
 
 	NumCommonMetrics // Needs to be last on this list for iota numbering
 )
@@ -2697,6 +2741,7 @@ const (
 	TaskLagPerTaskListGauge
 	TaskBacklogPerTaskListGauge
 	TaskCountPerTaskListGauge
+	RateLimitPerTaskListGauge
 	SyncMatchLocalPollLatencyPerTaskList
 	SyncMatchForwardPollLatencyPerTaskList
 	AsyncMatchLocalPollCounterPerTaskList
@@ -2830,6 +2875,18 @@ const (
 	ShardDistributorLatency
 	ShardDistributorErrContextTimeoutCounter
 	ShardDistributorErrNamespaceNotFound
+
+	ShardDistributorAssignLoopNumRebalancedShards
+	ShardDistributorAssignLoopShardRebalanceLatency
+	ShardDistributorAssignLoopAttempts
+	ShardDistributorAssignLoopSuccess
+	ShardDistributorAssignLoopFail
+
+	ShardDistributorStoreExecutorNotFound
+	ShardDistributorStoreFailuresPerNamespace
+	ShardDistributorStoreRequestsPerNamespace
+	ShardDistributorStoreLatencyHistogramPerNamespace
+
 	NumShardDistributorMetrics
 )
 
@@ -3108,6 +3165,11 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		BaseCacheCountLimitGauge:    {metricName: "cache_count_limit", metricType: Gauge},
 		BaseCacheFullCounter:        {metricName: "cache_full", metricType: Counter},
 		BaseCacheEvictCounter:       {metricName: "cache_evict", metricType: Counter},
+
+		ActiveClusterManagerLookupRequestCount: {metricName: "active_cluster_manager_lookup_request_count", metricType: Counter},
+		ActiveClusterManagerLookupSuccessCount: {metricName: "active_cluster_manager_lookup_success_count", metricType: Counter},
+		ActiveClusterManagerLookupFailureCount: {metricName: "active_cluster_manager_lookup_failure_count", metricType: Counter},
+		ActiveClusterManagerLookupLatency:      {metricName: "active_cluster_manager_lookup_latency", metricType: Histogram, buckets: ExponentialDurationBuckets},
 	},
 	History: {
 		TaskRequests:             {metricName: "task_requests", metricType: Counter},
@@ -3444,6 +3506,7 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		TaskLagPerTaskListGauge:                                 {metricName: "task_lag_per_tl", metricType: Gauge},
 		TaskBacklogPerTaskListGauge:                             {metricName: "task_backlog_per_tl", metricType: Gauge},
 		TaskCountPerTaskListGauge:                               {metricName: "task_count_per_tl", metricType: Gauge},
+		RateLimitPerTaskListGauge:                               {metricName: "rate_limit_per_tl", metricType: Gauge},
 		SyncMatchLocalPollLatencyPerTaskList:                    {metricName: "syncmatch_local_poll_latency_per_tl", metricRollupName: "syncmatch_local_poll_latency"},
 		SyncMatchForwardPollLatencyPerTaskList:                  {metricName: "syncmatch_forward_poll_latency_per_tl", metricRollupName: "syncmatch_forward_poll_latency"},
 		AsyncMatchLocalPollCounterPerTaskList:                   {metricName: "asyncmatch_local_poll_per_tl", metricRollupName: "asyncmatch_local_poll"},
@@ -3566,11 +3629,21 @@ var MetricDefs = map[ServiceIdx]map[int]metricDefinition{
 		DiagnosticsWorkflowExecutionLatency:           {metricName: "diagnostics_workflow_execution_latency", metricType: Timer},
 	},
 	ShardDistributor: {
-		ShardDistributorRequests:                 {metricName: "shard_distributor_requests", metricType: Counter},
-		ShardDistributorErrContextTimeoutCounter: {metricName: "shard_distributor_err_context_timeout", metricType: Counter},
-		ShardDistributorFailures:                 {metricName: "shard_distributor_failures", metricType: Counter},
-		ShardDistributorLatency:                  {metricName: "shard_distributor_latency", metricType: Timer},
-		ShardDistributorErrNamespaceNotFound:     {metricName: "shard_distributor_err_namespace_not_found", metricType: Counter},
+		ShardDistributorRequests:                        {metricName: "shard_distributor_requests", metricType: Counter},
+		ShardDistributorErrContextTimeoutCounter:        {metricName: "shard_distributor_err_context_timeout", metricType: Counter},
+		ShardDistributorFailures:                        {metricName: "shard_distributor_failures", metricType: Counter},
+		ShardDistributorLatency:                         {metricName: "shard_distributor_latency", metricType: Timer},
+		ShardDistributorErrNamespaceNotFound:            {metricName: "shard_distributor_err_namespace_not_found", metricType: Counter},
+		ShardDistributorAssignLoopShardRebalanceLatency: {metricName: "shard_distrubutor_shard_assign_latency", metricType: Histogram},
+		ShardDistributorAssignLoopNumRebalancedShards:   {metricName: "shard_distributor_shard_assign_reassigned_shards", metricType: Gauge},
+		ShardDistributorAssignLoopAttempts:              {metricName: "shard_distrubutor_shard_assign_attempt", metricType: Counter},
+		ShardDistributorAssignLoopSuccess:               {metricName: "shard_distrubutor_shard_assign_success", metricType: Counter},
+		ShardDistributorAssignLoopFail:                  {metricName: "shard_distrubutor_shard_assign_fail", metricType: Counter},
+
+		ShardDistributorStoreExecutorNotFound:             {metricName: "shard_distributor_store_executor_not_found", metricType: Counter},
+		ShardDistributorStoreFailuresPerNamespace:         {metricName: "shard_distributor_store_failures_per_namespace", metricType: Counter},
+		ShardDistributorStoreRequestsPerNamespace:         {metricName: "shard_distributor_store_requests_per_namespace", metricType: Counter},
+		ShardDistributorStoreLatencyHistogramPerNamespace: {metricName: "shard_distributor_store_latency_histogram_per_namespace", metricType: Histogram, buckets: ShardDistributorExecutorStoreLatencyBuckets},
 	},
 }
 
@@ -3600,6 +3673,47 @@ var (
 		70 * time.Millisecond,
 		80 * time.Millisecond,
 		90 * time.Millisecond,
+		100 * time.Millisecond,
+		120 * time.Millisecond,
+		150 * time.Millisecond,
+		170 * time.Millisecond,
+		200 * time.Millisecond,
+		250 * time.Millisecond,
+		300 * time.Millisecond,
+		400 * time.Millisecond,
+		500 * time.Millisecond,
+		600 * time.Millisecond,
+		700 * time.Millisecond,
+		800 * time.Millisecond,
+		900 * time.Millisecond,
+		1 * time.Second,
+		2 * time.Second,
+		3 * time.Second,
+		4 * time.Second,
+		5 * time.Second,
+		6 * time.Second,
+		7 * time.Second,
+		8 * time.Second,
+		9 * time.Second,
+		10 * time.Second,
+		12 * time.Second,
+		15 * time.Second,
+		20 * time.Second,
+		25 * time.Second,
+		30 * time.Second,
+		35 * time.Second,
+		40 * time.Second,
+		50 * time.Second,
+		60 * time.Second,
+	})
+
+	ShardDistributorExecutorStoreLatencyBuckets = tally.DurationBuckets([]time.Duration{
+		0,
+		5 * time.Millisecond,
+		10 * time.Millisecond,
+		25 * time.Millisecond,
+		50 * time.Millisecond,
+		75 * time.Millisecond,
 		100 * time.Millisecond,
 		120 * time.Millisecond,
 		150 * time.Millisecond,
@@ -3706,6 +3820,18 @@ var ResponsePayloadSizeBuckets = append(
 	tally.ValueBuckets{0},                                 // need an explicit 0 or zero is reported as 1
 	tally.MustMakeExponentialValueBuckets(1024, 2, 20)..., // 1kB..1GB
 )
+
+// ExponentialDurationBuckets is a set of exponential duration buckets
+var ExponentialDurationBuckets = func() tally.DurationBuckets {
+	// generate 79 buckets, starting from 1ms, with a factor of 2^0.25
+	buckets, err := tally.ExponentialDurationBuckets(1*time.Millisecond, math.Pow(2, 0.25), 79)
+	if err != nil {
+		panic(err)
+	}
+	// add a 0 bucket to the beginning
+	buckets = append([]time.Duration{0}, buckets...)
+	return buckets
+}()
 
 // ErrorClass is an enum to help with classifying SLA vs. non-SLA errors (SLA = "service level agreement")
 type ErrorClass uint8

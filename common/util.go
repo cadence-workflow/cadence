@@ -109,6 +109,8 @@ const (
 	FailureReasonTransactionSizeExceedsLimit = "TRANSACTION_SIZE_EXCEEDS_LIMIT"
 	// FailureReasonDecisionAttemptsExceedsLimit is reason to fail workflow when decision attempts fail too many times
 	FailureReasonDecisionAttemptsExceedsLimit = "DECISION_ATTEMPTS_EXCEEDS_LIMIT"
+	// FailureReasonPendingActivityExceedsLimit is reason to fail overflow when pending activity exceeds limit
+	FailureReasonPendingActivityExceedsLimit = "PENDING_ACTIVITY_EXCEEDS_LIMIT"
 )
 
 var (

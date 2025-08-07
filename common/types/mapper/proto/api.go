@@ -1254,8 +1254,9 @@ func FromDescribeWorkflowExecutionRequest(t *types.DescribeWorkflowExecutionRequ
 		return nil
 	}
 	return &apiv1.DescribeWorkflowExecutionRequest{
-		Domain:            t.Domain,
-		WorkflowExecution: FromWorkflowExecution(t.Execution),
+		Domain:                t.Domain,
+		WorkflowExecution:     FromWorkflowExecution(t.Execution),
+		QueryConsistencyLevel: FromQueryConsistencyLevel(t.QueryConsistencyLevel),
 	}
 }
 
@@ -1264,8 +1265,9 @@ func ToDescribeWorkflowExecutionRequest(t *apiv1.DescribeWorkflowExecutionReques
 		return nil
 	}
 	return &types.DescribeWorkflowExecutionRequest{
-		Domain:    t.Domain,
-		Execution: ToWorkflowExecution(t.WorkflowExecution),
+		Domain:                t.Domain,
+		Execution:             ToWorkflowExecution(t.WorkflowExecution),
+		QueryConsistencyLevel: ToQueryConsistencyLevel(t.QueryConsistencyLevel),
 	}
 }
 
@@ -1531,6 +1533,7 @@ func FromGetWorkflowExecutionHistoryRequest(t *types.GetWorkflowExecutionHistory
 		WaitForNewEvent:        t.WaitForNewEvent,
 		HistoryEventFilterType: FromEventFilterType(t.HistoryEventFilterType),
 		SkipArchival:           t.SkipArchival,
+		QueryConsistencyLevel:  FromQueryConsistencyLevel(t.QueryConsistencyLevel),
 	}
 }
 
@@ -1546,6 +1549,7 @@ func ToGetWorkflowExecutionHistoryRequest(t *apiv1.GetWorkflowExecutionHistoryRe
 		WaitForNewEvent:        t.WaitForNewEvent,
 		HistoryEventFilterType: ToEventFilterType(t.HistoryEventFilterType),
 		SkipArchival:           t.SkipArchival,
+		QueryConsistencyLevel:  ToQueryConsistencyLevel(t.QueryConsistencyLevel),
 	}
 }
 
@@ -3969,6 +3973,13 @@ func ToTaskIDBlock(t *apiv1.TaskIDBlock) *types.TaskIDBlock {
 	}
 }
 
+func MigrateTaskList(name string, t *apiv1.TaskList) *types.TaskList {
+	if t == nil && name != "" {
+		return &types.TaskList{Name: name, Kind: types.TaskListKindNormal.Ptr()}
+	}
+	return ToTaskList(t)
+}
+
 func FromTaskList(t *types.TaskList) *apiv1.TaskList {
 	if t == nil {
 		return nil
@@ -4906,6 +4917,10 @@ func FromWorkflowExecutionInfo(t *types.WorkflowExecutionInfo) *apiv1.WorkflowEx
 	if t == nil {
 		return nil
 	}
+	tlName := ""
+	if t.TaskList != nil {
+		tlName = t.TaskList.Name
+	}
 	return &apiv1.WorkflowExecutionInfo{
 		WorkflowExecution:            FromWorkflowExecution(t.Execution),
 		Type:                         FromWorkflowType(t.Type),
@@ -4918,7 +4933,8 @@ func FromWorkflowExecutionInfo(t *types.WorkflowExecutionInfo) *apiv1.WorkflowEx
 		Memo:                         FromMemo(t.Memo),
 		SearchAttributes:             FromSearchAttributes(t.SearchAttributes),
 		AutoResetPoints:              FromResetPoints(t.AutoResetPoints),
-		TaskList:                     t.TaskList,
+		TaskList:                     tlName,
+		TaskListInfo:                 FromTaskList(t.TaskList),
 		PartitionConfig:              t.PartitionConfig,
 		IsCron:                       t.IsCron,
 		CronOverlapPolicy:            FromCronOverlapPolicy(t.CronOverlapPolicy),
@@ -4945,7 +4961,7 @@ func ToWorkflowExecutionInfo(t *apiv1.WorkflowExecutionInfo) *types.WorkflowExec
 		Memo:                         ToMemo(t.Memo),
 		SearchAttributes:             ToSearchAttributes(t.SearchAttributes),
 		AutoResetPoints:              ToResetPoints(t.AutoResetPoints),
-		TaskList:                     t.TaskList,
+		TaskList:                     MigrateTaskList(t.TaskList, t.TaskListInfo),
 		PartitionConfig:              t.PartitionConfig,
 		IsCron:                       t.IsCron,
 		CronOverlapPolicy:            ToCronOverlapPolicy(t.CronOverlapPolicy),

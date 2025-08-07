@@ -70,9 +70,9 @@ func (j *JSONHistorySerializer) Deserialize(data []byte) (*types.History, error)
 }
 
 // GetHistory helper method to iterate over all pages and return complete list of history events
-func GetHistory(ctx context.Context, workflowClient frontend.Client, domain, workflowID, runID string) (*types.History, error) {
+func GetHistory(ctx context.Context, workflowClient frontend.Client, domain, workflowID, runID string, consistencyLevel *types.QueryConsistencyLevel) (*types.History, error) {
 	events := []*types.HistoryEvent{}
-	iterator, err := GetWorkflowHistoryIterator(ctx, workflowClient, domain, workflowID, runID, false, types.HistoryEventFilterTypeAllEvent.Ptr())
+	iterator, err := GetWorkflowHistoryIterator(ctx, workflowClient, domain, workflowID, runID, false, types.HistoryEventFilterTypeAllEvent.Ptr(), consistencyLevel)
 	for iterator.HasNext() {
 		entity, err := iterator.Next()
 		if err != nil {
@@ -94,6 +94,7 @@ func GetWorkflowHistoryIterator(
 	runID string,
 	isLongPoll bool,
 	filterType *types.HistoryEventFilterType,
+	consistencyLevel *types.QueryConsistencyLevel,
 ) (pagination.Iterator, error) {
 	paginate := func(ctx context.Context, pageToken pagination.PageToken) (pagination.Page, error) {
 		tcCtx, cancel := context.WithTimeout(ctx, 25*time.Second)
@@ -113,6 +114,7 @@ func GetWorkflowHistoryIterator(
 			HistoryEventFilterType: filterType,
 			NextPageToken:          nextPageToken,
 			SkipArchival:           isLongPoll,
+			QueryConsistencyLevel:  consistencyLevel,
 		}
 
 		var resp *types.GetWorkflowExecutionHistoryResponse
@@ -528,6 +530,21 @@ func getWorkflowClient(c *cli.Context) (frontend.Client, error) {
 	return getDeps(c).ServerFrontendClient(c)
 }
 
+// getOptionWithSerializer is a helper function that retrieves a non-required option using a serializer function.
+// To support nil as a valid value, returns nil when the option is not set.
+// Do not use this function with a pointer type (e.g getOptionWithSerializer[*int]).
+// Returns a pointer to the parsed value when the option is serialized.
+// Returns an error when the serializer function is unable to parse the option value.
+func getOptionWithSerializer[T any](c *cli.Context, optionName string, serializer func(string) (T, error)) (*T, error) {
+	if !c.IsSet(optionName) {
+		return nil, nil
+	}
+
+	value, err := serializer(c.String(optionName))
+
+	return &value, err
+}
+
 func getRequiredOption(c *cli.Context, optionName string) (string, error) {
 	value := c.String(optionName)
 	if len(value) == 0 {
@@ -588,8 +605,8 @@ func parseTime(timeStr string, defaultValue int64) (int64, error) {
 	// treat as time range format
 	parsedTime, err = parseTimeRange(timeStr)
 	if err != nil {
-		return 0, fmt.Errorf("Cannot parse time '%s', use UTC format '2006-01-02T15:04:05Z', "+
-			"time range or raw UnixNano directly. See help for more details: %v", timeStr, err)
+		return 0, fmt.Errorf("cannot parse time '%s', use UTC format '2006-01-02T15:04:05Z', "+
+			"time range or raw UnixNano directly. see help for more details: %v", timeStr, err)
 	}
 	return parsedTime.UnixNano(), nil
 }

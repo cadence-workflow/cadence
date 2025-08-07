@@ -2576,6 +2576,7 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 					ParentRunID:          "parentRunID1",
 					WorkflowTypeName:     "workflowType1",
 					TaskList:             "tasklist1",
+					TaskListKind:         types.TaskListKindNormal,
 					StartTimestamp:       ts,
 					LastUpdatedTimestamp: ts.Add(1 * time.Minute),
 					DecisionScheduleID:   2,
@@ -2592,7 +2593,7 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 				`UPDATE executions SET execution = {` +
 					`domain_id: domain1, workflow_id: workflow1, run_id: runid1, first_run_id: , parent_domain_id: , parent_workflow_id: , ` +
 					`parent_run_id: parentRunID1, initiated_id: 0, completion_event_batch_id: 0, completion_event: [], ` +
-					`completion_event_data_encoding: , task_list: tasklist1, workflow_type_name: workflowType1, workflow_timeout: 0, ` +
+					`completion_event_data_encoding: , task_list: tasklist1, task_list_kind: 0, workflow_type_name: workflowType1, workflow_timeout: 0, ` +
 					`decision_task_timeout: 0, execution_context: [], state: 0, close_status: 0, last_first_event_id: 0, last_event_task_id: 0, ` +
 					`next_event_id: 0, last_processed_event: 0, start_time: 2023-12-19T22:08:41Z, last_updated_time: 2023-12-19T22:09:41Z, ` +
 					`create_request_id: , signal_count: 0, history_size: 0, decision_version: 0, decision_schedule_id: 2, decision_started_id: 3, ` +
@@ -2657,6 +2658,7 @@ func TestCreateWorkflowExecution(t *testing.T) {
 					ParentRunID:          "parentRunID1",
 					WorkflowTypeName:     "workflowType1",
 					TaskList:             "tasklist1",
+					TaskListKind:         types.TaskListKindNormal,
 					StartTimestamp:       ts,
 					LastUpdatedTimestamp: ts.Add(1 * time.Minute),
 					DecisionScheduleID:   2,
@@ -2678,7 +2680,7 @@ func TestCreateWorkflowExecution(t *testing.T) {
 					`VALUES(1000, domain1, workflow1, runid1, 1, ` +
 					`{domain_id: domain1, workflow_id: workflow1, run_id: runid1, first_run_id: , parent_domain_id: , parent_workflow_id: , ` +
 					`parent_run_id: parentRunID1, initiated_id: 0, completion_event_batch_id: 0, completion_event: [], completion_event_data_encoding: , ` +
-					`task_list: tasklist1, workflow_type_name: workflowType1, workflow_timeout: 0, decision_task_timeout: 0, execution_context: [], state: 0, ` +
+					`task_list: tasklist1, task_list_kind: 0, workflow_type_name: workflowType1, workflow_timeout: 0, decision_task_timeout: 0, execution_context: [], state: 0, ` +
 					`close_status: 0, last_first_event_id: 0, last_event_task_id: 0, next_event_id: 0, last_processed_event: 0, start_time: 2023-12-19T22:08:41Z, ` +
 					`last_updated_time: 2023-12-19T22:09:41Z, create_request_id: , signal_count: 0, history_size: 0, decision_version: 0, ` +
 					`decision_schedule_id: 2, decision_started_id: 3, decision_request_id: , decision_timeout: 0, decision_attempt: 0, ` +

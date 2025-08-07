@@ -2101,6 +2101,13 @@ type ActiveClusters struct {
 	ActiveClustersByRegion map[string]ActiveClusterInfo `json:"activeClustersByRegion,omitempty"`
 }
 
+func (v *ActiveClusters) GetActiveClustersByRegion() (o map[string]ActiveClusterInfo) {
+	if v != nil && v.ActiveClustersByRegion != nil {
+		return v.ActiveClustersByRegion
+	}
+	return
+}
+
 type ActiveClusterInfo struct {
 	ActiveClusterName string `json:"activeClusterName,omitempty"`
 	FailoverVersion   int64  `json:"failoverVersion,omitempty"`
@@ -7758,7 +7765,7 @@ type WorkflowExecutionInfo struct {
 	Memo                         *Memo                         `json:"memo,omitempty"`
 	SearchAttributes             *SearchAttributes             `json:"searchAttributes,omitempty"`
 	AutoResetPoints              *ResetPoints                  `json:"autoResetPoints,omitempty"`
-	TaskList                     string                        `json:"taskList,omitempty"`
+	TaskList                     *TaskList                     `json:"taskList,omitempty"`
 	IsCron                       bool                          `json:"isCron,omitempty"`
 	UpdateTime                   *int64                        `json:"updateTime,omitempty"`
 	PartitionConfig              map[string]string             `json:"partitionConfig,omitempty"`

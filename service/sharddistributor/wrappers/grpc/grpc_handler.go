@@ -43,3 +43,7 @@ func (g GRPCHandler) Health(ctx context.Context, _ *apiv1.HealthRequest) (*apiv1
 	}
 	return proto.FromHealthResponse(response), proto.FromError(err)
 }
+
+func (g ExecutorGRPCExecutor) Register(dispatcher *yarpc.Dispatcher) {
+	dispatcher.Register(sharddistributorv1.BuildShardDistributorExecutorAPIYARPCProcedures(g))
+}

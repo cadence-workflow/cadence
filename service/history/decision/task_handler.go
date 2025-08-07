@@ -294,9 +294,35 @@ func (handler *taskHandlerImpl) handleDecisionScheduleActivity(
 		return nil, handler.handlerFailDecision(
 			types.DecisionTaskFailedCauseScheduleActivityDuplicateID, "",
 		)
+	case *types.InternalServiceError:
+		// Check if this is ErrTooManyPendingActivities
+		if err.Error() == execution.ErrTooManyPendingActivities.Error() {
+			return nil, handler.handleFailWorkflowError(common.FailureReasonPendingActivityExceedsLimit, err.Error())
+		}
+		return nil, err
 	default:
 		return nil, err
 	}
+}
+
+// handleFailWorkflowError handles the certain types of error by failing the workflow
+func (handler *taskHandlerImpl) handleFailWorkflowError(failReason string, failDetails string) error {
+	// Fail the workflow immediately instead of just returning the error
+	handler.stopProcessing = true
+
+	failAttributes := &types.FailWorkflowExecutionDecisionAttributes{
+		Reason:  common.StringPtr(failReason),
+		Details: []byte(failDetails),
+	}
+
+	if _, failErr := handler.mutableState.AddFailWorkflowEvent(
+		handler.decisionTaskCompletedID,
+		failAttributes,
+	); failErr != nil {
+		return failErr
+	}
+
+	return nil
 }
 
 func (handler *taskHandlerImpl) handleDecisionRequestCancelActivity(
@@ -1052,6 +1078,8 @@ func (handler *taskHandlerImpl) retryCronContinueAsNew(
 		Memo:                                attr.Memo,
 		SearchAttributes:                    attr.SearchAttributes,
 		JitterStartSeconds:                  attr.JitterStartSeconds,
+		CronOverlapPolicy:                   attr.CronOverlapPolicy,
+		ActiveClusterSelectionPolicy:        attr.ActiveClusterSelectionPolicy,
 	}
 
 	_, newStateBuilder, err := handler.mutableState.AddContinueAsNewEvent(

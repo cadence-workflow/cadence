@@ -367,6 +367,7 @@ type (
 		CompletionEventBatchID             int64
 		CompletionEvent                    *types.HistoryEvent
 		TaskList                           string
+		TaskListKind                       types.TaskListKind
 		WorkflowTypeName                   string
 		WorkflowTimeout                    int32
 		DecisionStartToCloseTimeout        int32
@@ -1551,6 +1552,7 @@ type (
 		ListCurrentExecutions(ctx context.Context, request *ListCurrentExecutionsRequest) (*ListCurrentExecutionsResponse, error)
 
 		GetActiveClusterSelectionPolicy(ctx context.Context, domainID, wfID, rID string) (*types.ActiveClusterSelectionPolicy, error)
+		DeleteActiveClusterSelectionPolicy(ctx context.Context, domainID, workflowID, runID string) error
 	}
 
 	// ExecutionManagerFactory creates an instance of ExecutionManager for a given shard
