@@ -259,8 +259,10 @@ func NewContext(
 		emitWorkflowExecutionStatsFn: func(domainName string, stats *persistence.MutableStateStats, historySize int64) {
 			emitWorkflowExecutionStats(shard.GetMetricsClient(), domainName, stats, historySize)
 		},
-		mergeContinueAsNewReplicationTasksFn: mergeContinueAsNewReplicationTasks,
-		createMutableStateFn:                 NewMutableStateBuilder,
+		mergeContinueAsNewReplicationTasksFn: func(updateMode persistence.UpdateWorkflowMode, mutation *persistence.WorkflowMutation, snapshot *persistence.WorkflowSnapshot) error {
+			return mergeContinueAsNewReplicationTasks(logger, updateMode, mutation, snapshot)
+		},
+		createMutableStateFn: NewMutableStateBuilder,
 	}
 	ctx.persistStartWorkflowBatchEventsFn = ctx.PersistStartWorkflowBatchEvents
 	ctx.persistNonStartWorkflowBatchEventsFn = ctx.PersistNonStartWorkflowBatchEvents
@@ -658,7 +660,7 @@ func (c *contextImpl) UpdateWorkflowExecutionAsActive(
 ) error {
 	c.logger.Debug("UpdateWorkflowExecutionAsActive calling UpdateWorkflowExecutionWithNew",
 		tag.WorkflowID(c.workflowExecution.GetWorkflowID()),
-		tag.Dynamic("current policy", TransactionPolicyPassive),
+		tag.Dynamic("current policy", TransactionPolicyActive),
 		tag.Dynamic("new policy", nil),
 	)
 	return c.updateWorkflowExecutionWithNewFn(ctx, now, persistence.UpdateWorkflowModeUpdateCurrent, nil, nil, TransactionPolicyActive, nil, persistence.CreateWorkflowRequestModeNew)
@@ -672,7 +674,7 @@ func (c *contextImpl) UpdateWorkflowExecutionWithNewAsActive(
 ) error {
 	c.logger.Debug("UpdateWorkflowExecutionWithNewAsActive calling UpdateWorkflowExecutionWithNew",
 		tag.WorkflowID(c.workflowExecution.GetWorkflowID()),
-		tag.Dynamic("current policy", TransactionPolicyPassive),
+		tag.Dynamic("current policy", TransactionPolicyActive),
 		tag.Dynamic("new policy", TransactionPolicyActive),
 	)
 	return c.updateWorkflowExecutionWithNewFn(ctx, now, persistence.UpdateWorkflowModeUpdateCurrent, newContext, newMutableState, TransactionPolicyActive, TransactionPolicyActive.Ptr(), persistence.CreateWorkflowRequestModeNew)
@@ -1006,6 +1008,7 @@ func notifyTasks(
 }
 
 func mergeContinueAsNewReplicationTasks(
+	logger log.Logger,
 	updateMode persistence.UpdateWorkflowMode,
 	currentWorkflowMutation *persistence.WorkflowMutation,
 	newWorkflowSnapshot *persistence.WorkflowSnapshot,
@@ -1023,6 +1026,11 @@ func mergeContinueAsNewReplicationTasks(
 
 	// it is possible that continue as new is done as part of passive logic
 	if len(currentWorkflowMutation.TasksByCategory[persistence.HistoryTaskCategoryReplication]) == 0 {
+		logger.Debug("mergeContinueAsNewReplicationTasks: no replication task",
+			tag.WorkflowDomainID(currentWorkflowMutation.ExecutionInfo.DomainID),
+			tag.WorkflowID(currentWorkflowMutation.ExecutionInfo.WorkflowID),
+			tag.WorkflowRunID(currentWorkflowMutation.ExecutionInfo.RunID),
+		)
 		return nil
 	}
 
@@ -1043,6 +1051,14 @@ func mergeContinueAsNewReplicationTasks(
 		if task, ok := replicationTask.(*persistence.HistoryReplicationTask); ok {
 			taskUpdated = true
 			task.NewRunBranchToken = newRunBranchToken
+			logger.Debug("mergeContinueAsNewReplicationTasks: updated replication task",
+				tag.WorkflowDomainID(currentWorkflowMutation.ExecutionInfo.DomainID),
+				tag.WorkflowID(currentWorkflowMutation.ExecutionInfo.WorkflowID),
+				tag.WorkflowRunID(currentWorkflowMutation.ExecutionInfo.RunID),
+				tag.Dynamic("taskid", task.TaskID),
+				tag.Dynamic("version", task.Version),
+				tag.Dynamic("visibility_ts", task.VisibilityTimestamp.Format(time.RFC3339)),
+			)
 		}
 	}
 	if !taskUpdated {

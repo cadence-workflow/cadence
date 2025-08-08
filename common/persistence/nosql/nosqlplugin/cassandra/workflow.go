@@ -120,6 +120,7 @@ func (db *cdb) UpdateWorkflowExecutionWithTasks(
 	currentWorkflowRequest *nosqlplugin.CurrentWorkflowWriteRequest,
 	mutatedExecution *nosqlplugin.WorkflowExecutionRequest,
 	insertedExecution *nosqlplugin.WorkflowExecutionRequest,
+	activeClusterSelectionPolicyRow *nosqlplugin.ActiveClusterSelectionPolicyRow,
 	resetExecution *nosqlplugin.WorkflowExecutionRequest,
 	tasksByCategory map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask,
 	shardCondition *nosqlplugin.ShardCondition,
@@ -165,6 +166,12 @@ func (db *cdb) UpdateWorkflowExecutionWithTasks(
 		if err != nil {
 			return err
 		}
+
+		err = insertWorkflowActiveClusterSelectionPolicyRow(batch, activeClusterSelectionPolicyRow, timeStamp)
+		if err != nil {
+			return err
+		}
+
 	}
 
 	if resetExecution != nil {

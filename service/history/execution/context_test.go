@@ -196,7 +196,8 @@ func TestMergeContinueAsNewReplicationTasks(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := mergeContinueAsNewReplicationTasks(tc.updateMode, tc.currentWorkflowMutation, tc.newWorkflowSnapshot)
+			logger := log.NewNoop()
+			err := mergeContinueAsNewReplicationTasks(logger, tc.updateMode, tc.currentWorkflowMutation, tc.newWorkflowSnapshot)
 			if tc.wantErr {
 				assert.Error(t, err)
 				if tc.assertErr != nil {

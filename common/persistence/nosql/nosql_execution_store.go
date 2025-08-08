@@ -297,6 +297,7 @@ func (d *nosqlExecutionStore) UpdateWorkflowExecution(
 	}
 
 	var mutateExecution, insertExecution *nosqlplugin.WorkflowExecutionRequest
+	var activeClusterSelectionPolicyRow *nosqlplugin.ActiveClusterSelectionPolicyRow
 	var workflowRequests []*nosqlplugin.WorkflowRequestRow
 	tasksByCategory := map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask{}
 
@@ -322,6 +323,13 @@ func (d *nosqlExecutionStore) UpdateWorkflowExecution(
 			return err
 		}
 
+		activeClusterSelectionPolicyRow = d.prepareActiveClusterSelectionPolicyRow(
+			domainID,
+			newWorkflow.ExecutionInfo.WorkflowID,
+			newWorkflow.ExecutionInfo.RunID,
+			newWorkflow.ExecutionInfo.ActiveClusterSelectionPolicy,
+		)
+
 		err = d.prepareNoSQLTasksForWorkflowTxn(
 			domainID, workflowID, newWorkflow.ExecutionInfo.RunID,
 			newWorkflow.TasksByCategory,
@@ -344,10 +352,16 @@ func (d *nosqlExecutionStore) UpdateWorkflowExecution(
 	}
 
 	err = d.db.UpdateWorkflowExecutionWithTasks(
-		ctx, workflowRequestsWriteRequest, currentWorkflowWriteReq,
-		mutateExecution, insertExecution, nil, // no workflow to reset here
+		ctx,
+		workflowRequestsWriteRequest,
+		currentWorkflowWriteReq,
+		mutateExecution,
+		insertExecution,
+		activeClusterSelectionPolicyRow,
+		nil, // no workflow to reset here
 		tasksByCategory,
-		shardCondition)
+		shardCondition,
+	)
 
 	return d.processUpdateWorkflowResult(err, request.RangeID)
 }
@@ -471,6 +485,8 @@ func (d *nosqlExecutionStore) ConflictResolveWorkflowExecution(
 			return err
 		}
 
+		// TODO(active-active): make changes here to insert active cluster selection policy.
+
 		err = d.prepareNoSQLTasksForWorkflowTxn(
 			domainID, workflowID, newWorkflow.ExecutionInfo.RunID,
 			newWorkflow.TasksByCategory,
@@ -494,7 +510,7 @@ func (d *nosqlExecutionStore) ConflictResolveWorkflowExecution(
 
 	err = d.db.UpdateWorkflowExecutionWithTasks(
 		ctx, workflowRequestsWriteRequest, currentWorkflowWriteReq,
-		mutateExecution, insertExecution, resetExecution,
+		mutateExecution, insertExecution, nil, resetExecution,
 		tasksByCategory,
 		shardCondition)
 	return d.processUpdateWorkflowResult(err, request.RangeID)

@@ -299,16 +299,17 @@ func TestSelectCurrentWorkflow(t *testing.T) {
 
 func TestUpdateWorkflowExecutionWithTasks(t *testing.T) {
 	tests := []struct {
-		name                  string
-		workflowRequest       *nosqlplugin.WorkflowRequestsWriteRequest
-		request               *nosqlplugin.CurrentWorkflowWriteRequest
-		mutatedExecution      *nosqlplugin.WorkflowExecutionRequest
-		insertedExecution     *nosqlplugin.WorkflowExecutionRequest
-		resetExecution        *nosqlplugin.WorkflowExecutionRequest
-		tasksByCategory       map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask
-		shardCondition        *nosqlplugin.ShardCondition
-		mapExecuteBatchCASErr error
-		wantErr               bool
+		name                            string
+		workflowRequest                 *nosqlplugin.WorkflowRequestsWriteRequest
+		request                         *nosqlplugin.CurrentWorkflowWriteRequest
+		mutatedExecution                *nosqlplugin.WorkflowExecutionRequest
+		insertedExecution               *nosqlplugin.WorkflowExecutionRequest
+		activeClusterSelectionPolicyRow *nosqlplugin.ActiveClusterSelectionPolicyRow
+		resetExecution                  *nosqlplugin.WorkflowExecutionRequest
+		tasksByCategory                 map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask
+		shardCondition                  *nosqlplugin.ShardCondition
+		mapExecuteBatchCASErr           error
+		wantErr                         bool
 	}{
 		{
 			name: "both mutatedExecution and resetExecution not provided",
@@ -416,6 +417,30 @@ func TestUpdateWorkflowExecutionWithTasks(t *testing.T) {
 			),
 		},
 		{
+			name: "mutatedExecution and insertedExecution and activeClusterSelectionPolicyRow provided - success",
+			request: &nosqlplugin.CurrentWorkflowWriteRequest{
+				WriteMode: nosqlplugin.CurrentWorkflowWriteModeNoop,
+			},
+			shardCondition: &nosqlplugin.ShardCondition{
+				ShardID: 1,
+			},
+			mutatedExecution: testdata.WFExecRequest(
+				testdata.WFExecRequestWithEventBufferWriteMode(nosqlplugin.EventBufferWriteModeNone),
+				testdata.WFExecRequestWithMapsWriteMode(nosqlplugin.WorkflowExecutionMapsWriteModeUpdate),
+			),
+			activeClusterSelectionPolicyRow: &nosqlplugin.ActiveClusterSelectionPolicyRow{
+				ShardID:    1,
+				DomainID:   "test-domain-id",
+				WorkflowID: "test-workflow-id",
+				RunID:      "test-run-id",
+				Policy:     &persistence.DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("test-policy")},
+			},
+			insertedExecution: testdata.WFExecRequest(
+				testdata.WFExecRequestWithEventBufferWriteMode(nosqlplugin.EventBufferWriteModeNone),
+				testdata.WFExecRequestWithMapsWriteMode(nosqlplugin.WorkflowExecutionMapsWriteModeCreate),
+			),
+		},
+		{
 			name:    "resetExecution and insertedExecution provided - insert fails",
 			wantErr: true,
 			request: &nosqlplugin.CurrentWorkflowWriteRequest{
@@ -471,6 +496,7 @@ func TestUpdateWorkflowExecutionWithTasks(t *testing.T) {
 				tc.request,
 				tc.mutatedExecution,
 				tc.insertedExecution,
+				nil, // TODO(active-active): add test cases for activeClusterSelectionPolicyRow
 				tc.resetExecution,
 				tc.tasksByCategory,
 				tc.shardCondition,

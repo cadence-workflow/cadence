@@ -390,6 +390,8 @@ func (b *HistoryBuilder) AddContinuedAsNewEvent(decisionCompletedEventID int64, 
 		Memo:                                attributes.Memo,
 		SearchAttributes:                    attributes.SearchAttributes,
 		JitterStartSeconds:                  attributes.JitterStartSeconds,
+		CronOverlapPolicy:                   attributes.CronOverlapPolicy,
+		ActiveClusterSelectionPolicy:        attributes.ActiveClusterSelectionPolicy,
 	}
 
 	return b.addEventToHistory(event)

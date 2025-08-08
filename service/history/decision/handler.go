@@ -560,6 +560,11 @@ Update_History_Loop:
 		if updateErr != nil {
 			if execution.IsConflictError(updateErr) {
 				scope.IncCounter(metrics.ConcurrencyUpdateFailureCounter)
+				logger.Error("Encounter conflict error while updating workflow execution",
+					tag.WorkflowID(msBuilder.GetExecutionInfo().WorkflowID),
+					tag.WorkflowRunID(msBuilder.GetExecutionInfo().RunID),
+					tag.Error(updateErr),
+				)
 				continue Update_History_Loop
 			}
 
@@ -624,7 +629,7 @@ Update_History_Loop:
 				activitiesToDispatchLocally[dr.activityDispatchInfo.ActivityID] = dr.activityDispatchInfo
 			}
 		}
-		logger.Debugf("%d activities will be dispatched locally on the client side")
+		logger.Debugf("%d activities will be dispatched locally on the client side", len(activitiesToDispatchLocally))
 		resp.ActivitiesToDispatchLocally = activitiesToDispatchLocally
 
 		if request.GetReturnNewDecisionTask() && createNewDecisionTask {
