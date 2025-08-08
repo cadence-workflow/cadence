@@ -43,7 +43,8 @@ const (
 type (
 	VirtualQueueManager interface {
 		common.Daemon
-		GetState() map[int64][]VirtualSliceState
+		VirtualQueues() map[int64]VirtualQueue
+		GetOrCreateVirtualQueue(int64) VirtualQueue
 		UpdateAndGetState() map[int64][]VirtualSliceState
 		// Add a new virtual slice to the root queue. This is used when new tasks are generated and max read level is updated.
 		// By default, all new tasks belong to the root queue, so we need to add a new virtual slice to the root queue.
@@ -135,19 +136,27 @@ func (m *virtualQueueManagerImpl) Stop() {
 	}
 }
 
-func (m *virtualQueueManagerImpl) GetState() map[int64][]VirtualSliceState {
+func (m *virtualQueueManagerImpl) VirtualQueues() map[int64]VirtualQueue {
 	m.RLock()
 	defer m.RUnlock()
+	return m.virtualQueues
+}
 
-	virtualQueueStates := make(map[int64][]VirtualSliceState)
-	for key, vq := range m.virtualQueues {
-		state := vq.GetState()
-		if len(state) > 0 {
-			virtualQueueStates[key] = state
-		}
+func (m *virtualQueueManagerImpl) GetOrCreateVirtualQueue(queueID int64) VirtualQueue {
+	m.RLock()
+	if vq, ok := m.virtualQueues[queueID]; ok {
+		m.RUnlock()
+		return vq
 	}
+	m.RUnlock()
 
-	return virtualQueueStates
+	m.Lock()
+	defer m.Unlock()
+	if vq, ok := m.virtualQueues[queueID]; ok {
+		return vq
+	}
+	m.virtualQueues[queueID] = m.createVirtualQueueFn(nil, queueID)
+	return m.virtualQueues[queueID]
 }
 
 func (m *virtualQueueManagerImpl) UpdateAndGetState() map[int64][]VirtualSliceState {

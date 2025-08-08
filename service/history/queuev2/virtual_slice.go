@@ -38,10 +38,15 @@ type (
 		UpdateAndGetState() VirtualSliceState
 		GetPendingTaskCount() int
 		Clear()
+		PendingTaskStats() PendingTaskStats
 
 		TrySplitByTaskKey(persistence.HistoryTaskKey) (VirtualSlice, VirtualSlice, bool)
 		TrySplitByPredicate(Predicate) (VirtualSlice, VirtualSlice, bool)
 		TryMergeWithVirtualSlice(VirtualSlice) ([]VirtualSlice, bool)
+	}
+
+	PendingTaskStats struct {
+		PendingTaskCountPerDomain map[string]int
 	}
 
 	virtualSliceImpl struct {
@@ -134,6 +139,12 @@ func (s *virtualSliceImpl) GetTasks(ctx context.Context, pageSize int) ([]task.T
 
 func (s *virtualSliceImpl) HasMoreTasks() bool {
 	return len(s.progress) > 0
+}
+
+func (s *virtualSliceImpl) PendingTaskStats() PendingTaskStats {
+	return PendingTaskStats{
+		PendingTaskCountPerDomain: s.pendingTaskTracker.GetPerDomainPendingTaskCount(),
+	}
 }
 
 func (s *virtualSliceImpl) UpdateAndGetState() VirtualSliceState {

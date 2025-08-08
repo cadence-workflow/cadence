@@ -51,18 +51,18 @@ func (mr *MockVirtualQueueManagerMockRecorder) AddNewVirtualSliceToRootQueue(arg
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddNewVirtualSliceToRootQueue", reflect.TypeOf((*MockVirtualQueueManager)(nil).AddNewVirtualSliceToRootQueue), arg0)
 }
 
-// GetState mocks base method.
-func (m *MockVirtualQueueManager) GetState() map[int64][]VirtualSliceState {
+// GetOrCreateVirtualQueue mocks base method.
+func (m *MockVirtualQueueManager) GetOrCreateVirtualQueue(arg0 int64) VirtualQueue {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetState")
-	ret0, _ := ret[0].(map[int64][]VirtualSliceState)
+	ret := m.ctrl.Call(m, "GetOrCreateVirtualQueue", arg0)
+	ret0, _ := ret[0].(VirtualQueue)
 	return ret0
 }
 
-// GetState indicates an expected call of GetState.
-func (mr *MockVirtualQueueManagerMockRecorder) GetState() *gomock.Call {
+// GetOrCreateVirtualQueue indicates an expected call of GetOrCreateVirtualQueue.
+func (mr *MockVirtualQueueManagerMockRecorder) GetOrCreateVirtualQueue(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetState", reflect.TypeOf((*MockVirtualQueueManager)(nil).GetState))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrCreateVirtualQueue", reflect.TypeOf((*MockVirtualQueueManager)(nil).GetOrCreateVirtualQueue), arg0)
 }
 
 // Start mocks base method.
@@ -101,4 +101,18 @@ func (m *MockVirtualQueueManager) UpdateAndGetState() map[int64][]VirtualSliceSt
 func (mr *MockVirtualQueueManagerMockRecorder) UpdateAndGetState() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAndGetState", reflect.TypeOf((*MockVirtualQueueManager)(nil).UpdateAndGetState))
+}
+
+// VirtualQueues mocks base method.
+func (m *MockVirtualQueueManager) VirtualQueues() map[int64]VirtualQueue {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "VirtualQueues")
+	ret0, _ := ret[0].(map[int64]VirtualQueue)
+	return ret0
+}
+
+// VirtualQueues indicates an expected call of VirtualQueues.
+func (mr *MockVirtualQueueManagerMockRecorder) VirtualQueues() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "VirtualQueues", reflect.TypeOf((*MockVirtualQueueManager)(nil).VirtualQueues))
 }
