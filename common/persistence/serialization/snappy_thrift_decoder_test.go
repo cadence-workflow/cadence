@@ -31,10 +31,15 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/persistence"
 )
 
 func TestSnappyThriftDecoderRoundTrip(t *testing.T) {
-	parser, err := NewParser(constants.EncodingTypeThriftRWSnappy, constants.EncodingTypeThriftRWSnappy)
+	dc := &persistence.DynamicConfiguration{
+		SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRWSnappy)),
+	}
+	parser, err := NewParser(dc)
 	require.NoError(t, err)
 
 	testCases := []struct {
