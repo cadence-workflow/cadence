@@ -2,18 +2,20 @@ package metrics
 
 // Code generated ./internal/tools/metricsgen; DO NOT EDIT
 
+import (
+	"time"
+)
+
 // NewServiceTags constructs a new metric-tag-holding ServiceTags, and it must be used
 // instead of custom initialization to ensure newly added tags can be detected
 // at compile time instead of missing them at run time.
 func NewServiceTags(
-	UsernameTags UsernameTags,
 	Hostname string,
 	RuntimeEnv string,
 ) ServiceTags {
 	s := ServiceTags{
-		UsernameTags: UsernameTags,
-		Hostname:     Hostname,
-		RuntimeEnv:   RuntimeEnv,
+		Hostname:   Hostname,
+		RuntimeEnv: RuntimeEnv,
 	}
 	return s
 }
@@ -24,13 +26,11 @@ func NewServiceTags(
 func (s ServiceTags) NumTags() int {
 	num := 2 // num of self fields
 	num += 0 // num of reserved fields
-	num += s.UsernameTags.NumTags()
 	return num
 }
 
 // Tags writes this set of tags (and its embedded parents) to the passed map.
 func (s ServiceTags) Tags(into map[string]string) {
-	s.UsernameTags.Tags(into)
 	into["host"] = s.Hostname
 	into["env"] = s.RuntimeEnv
 }
@@ -41,6 +41,23 @@ func (s ServiceTags) GetTags() map[string]string {
 	tags := make(map[string]string, s.NumTags())
 	s.Tags(tags)
 	return tags
+}
+
+// convenience methods
+
+// Inc increments a named counter with the tags on this struct.
+func (s ServiceTags) Inc(name string) {
+	s.Count(name, 1)
+}
+
+// Count adds to a named counter with the tags on this struct.
+func (s ServiceTags) Count(name string, num int) {
+	s.Emitter.Count(s, name, num)
+}
+
+// Histogram records a histogram at the struct's nearest precision level
+func (s ServiceTags) Histogram(name string, dur time.Duration) {
+	s.Emitter.Histogram(s, name, dur)
 }
 
 // NewUsernameTags constructs a new metric-tag-holding UsernameTags, and it must be used

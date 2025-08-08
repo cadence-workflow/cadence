@@ -4,6 +4,7 @@ package metrics
 
 import (
 	"fmt"
+	"time"
 )
 
 // NewShardTasklistTags constructs a new metric-tag-holding ShardTasklistTags, and it must be used
@@ -48,4 +49,21 @@ func (s ShardTasklistTags) GetTags() map[string]string {
 	tags := make(map[string]string, s.NumTags())
 	s.Tags(tags)
 	return tags
+}
+
+// convenience methods
+
+// Inc increments a named counter with the tags on this struct.
+func (s ShardTasklistTags) Inc(name string) {
+	s.Count(name, 1)
+}
+
+// Count adds to a named counter with the tags on this struct.
+func (s ShardTasklistTags) Count(name string, num int) {
+	s.Emitter.Count(s, name, num)
+}
+
+// Histogram records a histogram at the struct's nearest precision level
+func (s ShardTasklistTags) Histogram(name string, dur time.Duration) {
+	s.Emitter.Histogram(s, name, dur)
 }

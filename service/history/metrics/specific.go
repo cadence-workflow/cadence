@@ -31,13 +31,13 @@ type ShardTasklistTags struct {
 	Shard      int          `tag:"shard"`
 	OtherShard int          `tag:"other_shard" convert:"fmt.Sprintf(\"other-%v\", {{.}})"`
 	Type       TasklistType `tag:"tasklist_type" convert:".String()"`
-	//                                      ^^^^^^^^^^^^^^^^^^
-	//                                   has custom serialization
+	//                                           ^^^^^^^^^^^^^^^^^^
+	//                                       has custom serialization
 	//
-	// doing it like this just simplifies using thrift enums
+	// doing it like this just simplifies using thrift enums,
 	// or reusing convenient (and small/safe) types.
 	//
-	// this is just called verbatim by the code generator, nothing fancy.
+	// `.`-prefixed is just appended verbatim by the code generator, nothing fancy.
 
 	// "reserve" a tag, providing an IDE hint that it's in use,
 	// and saving space in the default tags-population for it.
@@ -49,6 +49,7 @@ type ShardTasklistTags struct {
 }
 
 func (s ShardTasklistTags) ProcessingLatency(emit Emitter, dur time.Duration) {
+	s.Inc("name")
 	tags := s.GetTags()
 	// ^ tags is fully populated, and has room for the reserved tag,
 	// but it must be populated separately because it's custom.
@@ -58,8 +59,13 @@ func (s ShardTasklistTags) ProcessingLatency(emit Emitter, dur time.Duration) {
 	// or you should customize `Tags` to take care of that.
 	tags["reserved"] = fmt.Sprintf("custom-%d", runtime.GOMAXPROCS(0))
 
+	// emit the [whatever] for this ProcessingLatency event.
+	//
+	// in this case it's a histogram, with the name inline because:
+	// 1) it's searchable and readable, and 2) it's used in a single location, no need to share a const.
 	emit.Histogram(DynamicTags(tags), "processing_latency_per_shard_and_tasklist", dur)
-	// also dual-emit a rollup with less info.
-	// for convenience this just uses the parent tags, because they have everything needed
+	// and this also dual-emits a rollup with less info.
+	// for convenience this just uses some parent tags directly, because they have everything needed,
+	// and I expect that to be relatively common (since that's how most of our rollups work).
 	emit.Histogram(s.ServiceTags, "processing_latency", dur)
 }

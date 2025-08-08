@@ -86,10 +86,12 @@ func main() {
 			decl, ok := stack[len(stack)-3].(*ast.GenDecl) // afaict always true
 			if ok {
 				comment := decl.Doc.Text()
-				skip["New"] = strings.Contains(comment, "skip:New")
-				skip["NumTags"] = strings.Contains(comment, "skip:NumTags")
-				skip["Tags"] = strings.Contains(comment, "skip:Tags")
-				skip["GetTags"] = strings.Contains(comment, "skip:GetTags")
+				words := strings.Fields(comment) // splits on any kind of whitespace
+				for _, w := range words {
+					if after, ok := strings.CutPrefix(w, "skip:"); ok {
+						skip[after] = true
+					}
+				}
 			}
 		}
 
@@ -145,6 +147,9 @@ func main() {
 				imported, id, ascode := sourcetype(f.Type)
 				if !id.IsExported() {
 					log.Fatalf("cannot embed private types") // TODO: add source
+				}
+				if id.Name == "Emitter" {
+					continue // ignore the metric-emitter embed
 				}
 				// TODO: arguably a custom name / non-embed makes sense, but it seems possibly bad as it'll be less consistent
 
@@ -441,4 +446,31 @@ func ({{$self}} {{.Name}}) GetTags() map[string]string {
 	return tags
 }
 {{- end }}
+
+{{- if not .Skip.Convenience }}
+
+// convenience methods
+{{/* ---- forcing a blank line */}}
+{{- if not .Skip.Inc }}
+// Inc increments a named counter with the tags on this struct.
+func ({{$self}} {{.Name}}) Inc(name string) {
+	{{$self}}.Count(name, 1)
+}
+{{- end }}
+
+{{- if not .Skip.Count }}
+// Count adds to a named counter with the tags on this struct.
+func ({{$self}} {{.Name}}) Count(name string, num int) {
+	{{$self}}.Emitter.Count({{$self}}, name, num)
+}
+{{- end }}
+
+{{- if not .Skip.Histogram }}
+// Histogram records a histogram at the struct's nearest precision level
+func ({{$self}} {{.Name}}) Histogram(name string, dur time.Duration) {
+	{{$self}}.Emitter.Histogram({{$self}}, name, dur)
+}
+{{- end }}
+
+{{- end }}{{/* convenience */}}
 `))

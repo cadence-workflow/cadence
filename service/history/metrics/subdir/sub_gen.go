@@ -3,6 +3,8 @@ package subdir
 // Code generated ./internal/tools/metricsgen; DO NOT EDIT
 
 import (
+	"time"
+
 	"github.com/uber/cadence/service/history/metrics"
 )
 
@@ -46,4 +48,21 @@ func (d DoesThisWorkTags) GetTags() map[string]string {
 	tags := make(map[string]string, d.NumTags())
 	d.Tags(tags)
 	return tags
+}
+
+// convenience methods
+
+// Inc increments a named counter with the tags on this struct.
+func (d DoesThisWorkTags) Inc(name string) {
+	d.Count(name, 1)
+}
+
+// Count adds to a named counter with the tags on this struct.
+func (d DoesThisWorkTags) Count(name string, num int) {
+	d.Emitter.Count(d, name, num)
+}
+
+// Histogram records a histogram at the struct's nearest precision level
+func (d DoesThisWorkTags) Histogram(name string, dur time.Duration) {
+	d.Emitter.Histogram(d, name, dur)
 }
