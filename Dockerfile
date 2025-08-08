@@ -36,7 +36,7 @@ RUN CGO_ENABLED=0 make cadence-cassandra-tool cadence-sql-tool cadence cadence-s
 # Download dockerize
 FROM alpine:3.18 AS dockerize
 
-# appears to require `docker buildx` or manually passing the target arch at build time
+# appears to require `docker buildx` or an explicit `--platform` at build time
 ARG TARGETARCH
 
 RUN apk add --no-cache openssl
