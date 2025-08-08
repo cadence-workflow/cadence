@@ -2804,6 +2804,99 @@ func TestVirtualSliceImpl_TrySplitByPredicate(t *testing.T) {
 	}
 }
 
+func TestPendingTaskStats(t *testing.T) {
+	tests := []struct {
+		name          string
+		mockSetup     func(*MockPendingTaskTracker)
+		expectedStats PendingTaskStats
+	}{
+		{
+			name: "Empty pending task tracker - should return empty stats",
+			mockSetup: func(mock *MockPendingTaskTracker) {
+				mock.EXPECT().GetPerDomainPendingTaskCount().Return(map[string]int{})
+			},
+			expectedStats: PendingTaskStats{
+				PendingTaskCountPerDomain: map[string]int{},
+			},
+		},
+		{
+			name: "Single domain with tasks - should return correct stats",
+			mockSetup: func(mock *MockPendingTaskTracker) {
+				mock.EXPECT().GetPerDomainPendingTaskCount().Return(map[string]int{
+					"domain1": 5,
+				})
+			},
+			expectedStats: PendingTaskStats{
+				PendingTaskCountPerDomain: map[string]int{
+					"domain1": 5,
+				},
+			},
+		},
+		{
+			name: "Multiple domains with tasks - should return correct stats",
+			mockSetup: func(mock *MockPendingTaskTracker) {
+				mock.EXPECT().GetPerDomainPendingTaskCount().Return(map[string]int{
+					"domain1": 3,
+					"domain2": 7,
+					"domain3": 2,
+				})
+			},
+			expectedStats: PendingTaskStats{
+				PendingTaskCountPerDomain: map[string]int{
+					"domain1": 3,
+					"domain2": 7,
+					"domain3": 2,
+				},
+			},
+		},
+		{
+			name: "Domain with zero tasks - should include zero counts",
+			mockSetup: func(mock *MockPendingTaskTracker) {
+				mock.EXPECT().GetPerDomainPendingTaskCount().Return(map[string]int{
+					"domain1": 5,
+					"domain2": 0,
+					"domain3": 3,
+				})
+			},
+			expectedStats: PendingTaskStats{
+				PendingTaskCountPerDomain: map[string]int{
+					"domain1": 5,
+					"domain2": 0,
+					"domain3": 3,
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockPendingTaskTracker := NewMockPendingTaskTracker(ctrl)
+
+			// Setup the virtual slice with mock dependencies
+			slice := &virtualSliceImpl{
+				state: VirtualSliceState{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+					},
+					Predicate: NewUniversalPredicate(),
+				},
+				pendingTaskTracker: mockPendingTaskTracker,
+			}
+
+			// Setup mock expectations
+			tt.mockSetup(mockPendingTaskTracker)
+
+			// Call the method under test
+			result := slice.PendingTaskStats()
+
+			// Verify the result
+			assert.Equal(t, tt.expectedStats, result)
+		})
+	}
+}
+
 func TestMergeVirtualSlicesWithDifferentPredicate(t *testing.T) {
 	tests := []struct {
 		name           string
