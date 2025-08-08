@@ -1407,7 +1407,6 @@ func (c *contextImpl) ReapplyEvents(
 
 	activeCluster := domainEntry.GetReplicationConfig().ActiveClusterName
 
-	// TODO(active-active): Write unit tests to cover this
 	if domainEntry.GetReplicationConfig().IsActiveActive() {
 		lookupRes, err := c.shard.GetActiveClusterManager().LookupWorkflow(ctx, domainID, workflowID, runID)
 		if err != nil {

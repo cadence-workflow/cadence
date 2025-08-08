@@ -33,6 +33,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
@@ -2785,7 +2786,7 @@ func TestReapplyEvents(t *testing.T) {
 	testCases := []struct {
 		name         string
 		eventBatches []*persistence.WorkflowEvents
-		mockSetup    func(*shard.MockContext, *cache.MockDomainCache, *resource.Test, *engine.MockEngine)
+		mockSetup    func(*shard.MockContext, *cache.MockDomainCache, *resource.Test, *engine.MockEngine, *activecluster.MockManager)
 		wantErr      bool
 	}{
 		{
@@ -2800,7 +2801,7 @@ func TestReapplyEvents(t *testing.T) {
 					DomainID: "test-domain-id",
 				},
 			},
-			mockSetup: func(mockShard *shard.MockContext, mockDomainCache *cache.MockDomainCache, _ *resource.Test, _ *engine.MockEngine) {
+			mockSetup: func(mockShard *shard.MockContext, mockDomainCache *cache.MockDomainCache, _ *resource.Test, _ *engine.MockEngine, _ *activecluster.MockManager) {
 				mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
 				mockDomainCache.EXPECT().GetDomainByID("test-domain-id").Return(nil, errors.New("some error"))
 			},
@@ -2813,7 +2814,7 @@ func TestReapplyEvents(t *testing.T) {
 					DomainID: "test-domain-id",
 				},
 			},
-			mockSetup: func(mockShard *shard.MockContext, mockDomainCache *cache.MockDomainCache, _ *resource.Test, _ *engine.MockEngine) {
+			mockSetup: func(mockShard *shard.MockContext, mockDomainCache *cache.MockDomainCache, _ *resource.Test, _ *engine.MockEngine, _ *activecluster.MockManager) {
 				mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
 				mockDomainCache.EXPECT().GetDomainByID("test-domain-id").Return(cache.NewDomainCacheEntryForTest(nil, nil, true, nil, 0, common.Ptr(int64(1)), 0, 0, 0), nil)
 			},
@@ -2829,7 +2830,7 @@ func TestReapplyEvents(t *testing.T) {
 					DomainID: "test-domain-id2",
 				},
 			},
-			mockSetup: func(mockShard *shard.MockContext, mockDomainCache *cache.MockDomainCache, _ *resource.Test, _ *engine.MockEngine) {
+			mockSetup: func(mockShard *shard.MockContext, mockDomainCache *cache.MockDomainCache, _ *resource.Test, _ *engine.MockEngine, _ *activecluster.MockManager) {
 				mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
 				mockDomainCache.EXPECT().GetDomainByID("test-domain-id").Return(cache.NewDomainCacheEntryForTest(nil, nil, true, nil, 0, nil, 0, 0, 0), nil)
 			},
@@ -2845,11 +2846,127 @@ func TestReapplyEvents(t *testing.T) {
 					DomainID: "test-domain-id",
 				},
 			},
-			mockSetup: func(mockShard *shard.MockContext, mockDomainCache *cache.MockDomainCache, _ *resource.Test, _ *engine.MockEngine) {
+			mockSetup: func(mockShard *shard.MockContext, mockDomainCache *cache.MockDomainCache, _ *resource.Test, _ *engine.MockEngine, _ *activecluster.MockManager) {
 				mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
 				mockDomainCache.EXPECT().GetDomainByID("test-domain-id").Return(cache.NewDomainCacheEntryForTest(nil, nil, true, nil, 0, nil, 0, 0, 0), nil)
 			},
 			wantErr: false,
+		},
+		{
+			name: "lookup workflow error",
+			eventBatches: []*persistence.WorkflowEvents{
+				{
+					DomainID:   "test-domain-id",
+					WorkflowID: "test-workflow-id",
+					RunID:      "test-run-id",
+					Events: []*types.HistoryEvent{
+						{
+							EventType: types.EventTypeWorkflowExecutionSignaled.Ptr(),
+						},
+					},
+				},
+			},
+			mockSetup: func(mockShard *shard.MockContext, mockDomainCache *cache.MockDomainCache, mockResource *resource.Test, mockEngine *engine.MockEngine, mockActiveClusterManager *activecluster.MockManager) {
+				mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
+				mockDomainCache.EXPECT().GetDomainByID("test-domain-id").Return(
+					cache.NewGlobalDomainCacheEntryForTest(nil, nil, &persistence.DomainReplicationConfig{
+						ActiveClusterName: cluster.TestCurrentClusterName,
+						ActiveClusters: &types.ActiveClusters{
+							ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+								"region1": {
+									ActiveClusterName: cluster.TestCurrentClusterName,
+									FailoverVersion:   1,
+								},
+							},
+						},
+					}, 0),
+					nil)
+				mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterManager)
+				mockActiveClusterManager.EXPECT().LookupWorkflow(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id").Return(
+					nil, errors.New("some error"))
+			},
+			wantErr: true,
+		},
+		{
+			name: "success - active-active apply to current cluster",
+			eventBatches: []*persistence.WorkflowEvents{
+				{
+					DomainID:   "test-domain-id",
+					WorkflowID: "test-workflow-id",
+					RunID:      "test-run-id",
+					Events: []*types.HistoryEvent{
+						{
+							EventType: types.EventTypeWorkflowExecutionSignaled.Ptr(),
+						},
+					},
+				},
+			},
+			mockSetup: func(mockShard *shard.MockContext, mockDomainCache *cache.MockDomainCache, mockResource *resource.Test, mockEngine *engine.MockEngine, mockActiveClusterManager *activecluster.MockManager) {
+				mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
+				mockDomainCache.EXPECT().GetDomainByID("test-domain-id").Return(
+					cache.NewGlobalDomainCacheEntryForTest(nil, nil, &persistence.DomainReplicationConfig{
+						ActiveClusterName: cluster.TestCurrentClusterName,
+						ActiveClusters: &types.ActiveClusters{
+							ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+								"region1": {
+									ActiveClusterName: cluster.TestCurrentClusterName,
+									FailoverVersion:   1,
+								},
+							},
+						},
+					}, 0),
+					nil)
+				mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterManager)
+				mockActiveClusterManager.EXPECT().LookupWorkflow(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id").Return(
+					&activecluster.LookupResult{
+						ClusterName: cluster.TestCurrentClusterName,
+					}, nil)
+				mockShard.EXPECT().GetClusterMetadata().Return(cluster.TestActiveClusterMetadata)
+				mockShard.EXPECT().GetEngine().Return(mockEngine)
+				mockEngine.EXPECT().ReapplyEvents(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id", []*types.HistoryEvent{
+					{
+						EventType: types.EventTypeWorkflowExecutionSignaled.Ptr(),
+					},
+				}).Return(nil)
+			},
+		},
+		{
+			name: "success - active-active apply to remote cluster",
+			eventBatches: []*persistence.WorkflowEvents{
+				{
+					DomainID:   "test-domain-id",
+					WorkflowID: "test-workflow-id",
+					RunID:      "test-run-id",
+					Events: []*types.HistoryEvent{
+						{
+							EventType: types.EventTypeWorkflowExecutionSignaled.Ptr(),
+						},
+					},
+				},
+			},
+			mockSetup: func(mockShard *shard.MockContext, mockDomainCache *cache.MockDomainCache, mockResource *resource.Test, mockEngine *engine.MockEngine, mockActiveClusterManager *activecluster.MockManager) {
+				mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
+				mockDomainCache.EXPECT().GetDomainByID("test-domain-id").Return(
+					cache.NewGlobalDomainCacheEntryForTest(&persistence.DomainInfo{Name: "test-domain"}, nil, &persistence.DomainReplicationConfig{
+						ActiveClusterName: cluster.TestCurrentClusterName,
+						ActiveClusters: &types.ActiveClusters{
+							ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+								"region1": {
+									ActiveClusterName: cluster.TestCurrentClusterName,
+									FailoverVersion:   1,
+								},
+							},
+						},
+					}, 0), nil)
+				mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterManager)
+				mockActiveClusterManager.EXPECT().LookupWorkflow(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id").Return(
+					&activecluster.LookupResult{
+						ClusterName: cluster.TestAlternativeClusterName,
+					}, nil)
+				mockShard.EXPECT().GetClusterMetadata().Return(cluster.TestActiveClusterMetadata)
+				mockShard.EXPECT().GetService().Return(mockResource).Times(2)
+				mockResource.RemoteAdminClient.EXPECT().ReapplyEvents(gomock.Any(), gomock.Any()).Return(nil)
+			},
 		},
 		{
 			name: "success - apply to current cluster",
@@ -2865,7 +2982,7 @@ func TestReapplyEvents(t *testing.T) {
 					},
 				},
 			},
-			mockSetup: func(mockShard *shard.MockContext, mockDomainCache *cache.MockDomainCache, _ *resource.Test, mockEngine *engine.MockEngine) {
+			mockSetup: func(mockShard *shard.MockContext, mockDomainCache *cache.MockDomainCache, _ *resource.Test, mockEngine *engine.MockEngine, mockActiveClusterManager *activecluster.MockManager) {
 				mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
 				mockDomainCache.EXPECT().GetDomainByID("test-domain-id").Return(cache.NewGlobalDomainCacheEntryForTest(nil, nil, &persistence.DomainReplicationConfig{ActiveClusterName: cluster.TestCurrentClusterName}, 0), nil)
 				mockShard.EXPECT().GetClusterMetadata().Return(cluster.TestActiveClusterMetadata)
@@ -2892,7 +3009,7 @@ func TestReapplyEvents(t *testing.T) {
 					},
 				},
 			},
-			mockSetup: func(mockShard *shard.MockContext, mockDomainCache *cache.MockDomainCache, mockResource *resource.Test, mockEngine *engine.MockEngine) {
+			mockSetup: func(mockShard *shard.MockContext, mockDomainCache *cache.MockDomainCache, mockResource *resource.Test, mockEngine *engine.MockEngine, mockActiveClusterManager *activecluster.MockManager) {
 				mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
 				mockDomainCache.EXPECT().GetDomainByID("test-domain-id").Return(cache.NewGlobalDomainCacheEntryForTest(&persistence.DomainInfo{Name: "test-domain"}, nil, &persistence.DomainReplicationConfig{ActiveClusterName: cluster.TestAlternativeClusterName}, 0), nil)
 				mockShard.EXPECT().GetClusterMetadata().Return(cluster.TestActiveClusterMetadata)
@@ -2909,9 +3026,10 @@ func TestReapplyEvents(t *testing.T) {
 			mockShard := shard.NewMockContext(mockCtrl)
 			mockDomainCache := cache.NewMockDomainCache(mockCtrl)
 			mockEngine := engine.NewMockEngine(mockCtrl)
+			mockActiveClusterManager := activecluster.NewMockManager(mockCtrl)
 			resource := resource.NewTest(t, mockCtrl, metrics.Common)
 			if tc.mockSetup != nil {
-				tc.mockSetup(mockShard, mockDomainCache, resource, mockEngine)
+				tc.mockSetup(mockShard, mockDomainCache, resource, mockEngine, mockActiveClusterManager)
 			}
 			ctx := &contextImpl{
 				shard: mockShard,
