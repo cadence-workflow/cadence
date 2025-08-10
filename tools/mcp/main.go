@@ -67,6 +67,26 @@ func main() {
 		),
 	), payloadDecoderHandler)
 
+	s.AddTool(mcp.NewTool("command_generator",
+		mcp.WithDescription("Generate WorkflowCLI commands from natural language descriptions"),
+		mcp.WithString("query",
+			mcp.Required(),
+			mcp.Description("Natural language query to generate CLI commands for"),
+		),
+		mcp.WithString("domain",
+			mcp.Required(),
+			mcp.Description("Domain name"),
+		),
+		mcp.WithString("env",
+			mcp.Required(),
+			mcp.Description("Environment name"),
+		),
+		mcp.WithString("proxy_region",
+			mcp.Required(),
+			mcp.Description("Proxy Region name"),
+		),
+	), cadenceCommandGeneratorHandler)
+
 	debugLog("Cadence MCP started")
 
 	// Start the stdio server
@@ -171,4 +191,40 @@ func debugLog(format string, args ...interface{}) {
 
 	logFile.WriteString(fmt.Sprintf(format, args...))
 	logFile.WriteString("\n")
+}
+
+func cadenceCommandGeneratorHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	defer func() {
+		if r := recover(); r != nil {
+			debugLog("Panic in Cadence Command Generator: %v\n", r)
+			debugLog("Stack trace: %s\n", string(debug.Stack()))
+		}
+	}()
+
+	query, ok := request.Params.Arguments["query"].(string)
+	if !ok {
+		return nil, errors.New("query must be a string")
+	}
+
+	domain, ok := request.Params.Arguments["domain"].(string)
+	if !ok {
+		return nil, errors.New("domain must be a string")
+	}
+
+	env, ok := request.Params.Arguments["env"].(string)
+	if !ok {
+		return nil, errors.New("env must be a string")
+	}
+
+	proxyRegion, ok := request.Params.Arguments["proxy_region"].(string)
+	if !ok {
+		return nil, errors.New("proxy_region must be a string")
+	}
+
+	command, err := generateCadenceCommand(query, domain, env, proxyRegion)
+	if err != nil {
+		return nil, errors.New("error generating cadence command: " + err.Error())
+	}
+
+	return mcp.NewToolResultText(command), nil
 }
