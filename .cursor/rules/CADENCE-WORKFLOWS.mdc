@@ -11,7 +11,7 @@ Follow these rules to ensure deterministic, reliable, and maintainable Cadence w
 
 ## 1. Avoid Non-Deterministic Map Iteration
 
-Never iterate directly over Go maps in Cadence workflows. The iteration order is random and breaks determinism required for workflow replay. Always sort map keys before iterating.
+Never iterate directly over Go maps in Cadence workflows. The iteration order is random and breaks the determinism required for workflow replay. Always sort map keys before iterating.
 
 **Good Example:**
 ```go
