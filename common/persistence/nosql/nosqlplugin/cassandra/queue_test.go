@@ -94,7 +94,7 @@ func TestInsertIntoQueue(t *testing.T) {
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
 
-			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
 
 			err := db.InsertIntoQueue(context.Background(), tc.row)
 
@@ -161,7 +161,7 @@ func TestSelectLastEnqueuedMessageID(t *testing.T) {
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
-			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
 
 			gotMsgID, err := db.SelectLastEnqueuedMessageID(context.Background(), tc.queueType)
 
@@ -263,7 +263,7 @@ func TestSelectQueueMetadata(t *testing.T) {
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
 
-			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
 
 			gotRow, err := db.SelectQueueMetadata(context.Background(), tc.queueType)
 
@@ -334,7 +334,7 @@ func TestGetQueueSize(t *testing.T) {
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
-			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
 
 			gotCount, err := db.GetQueueSize(context.Background(), tc.queueType)
 
@@ -434,7 +434,7 @@ func TestSelectMessagesFrom(t *testing.T) {
 			client := gocql.NewMockClient(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			db := newCassandraDBFromSession(cfg, session, logger, nil, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, nil, dbWithClient(client))
 
 			gotRows, err := db.SelectMessagesFrom(context.Background(), tc.queueType, tc.exclusiveBeginMessageID, tc.maxRows)
 
@@ -562,7 +562,7 @@ func TestSelectMessagesBetween(t *testing.T) {
 			client := gocql.NewMockClient(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			db := newCassandraDBFromSession(cfg, session, logger, nil, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, nil, dbWithClient(client))
 
 			gotResp, err := db.SelectMessagesBetween(context.Background(), tc.request)
 
@@ -633,7 +633,7 @@ func TestDeleteMessagesBefore(t *testing.T) {
 			client := gocql.NewMockClient(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			db := newCassandraDBFromSession(cfg, session, logger, nil, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, nil, dbWithClient(client))
 
 			err := db.DeleteMessagesBefore(context.Background(), tc.queueType, tc.exclusiveBeginMessageID)
 
@@ -699,7 +699,7 @@ func TestDeleteMessagesInRange(t *testing.T) {
 			client := gocql.NewMockClient(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			db := newCassandraDBFromSession(cfg, session, logger, nil, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, nil, dbWithClient(client))
 
 			err := db.DeleteMessagesInRange(context.Background(), tc.queueType, tc.exclusiveBeginMessageID, tc.inclusiveEndMsgID)
 
@@ -762,7 +762,7 @@ func TestDeleteMessage(t *testing.T) {
 			client := gocql.NewMockClient(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			db := newCassandraDBFromSession(cfg, session, logger, nil, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, nil, dbWithClient(client))
 
 			err := db.DeleteMessage(context.Background(), tc.queueType, tc.msgID)
 
@@ -826,7 +826,7 @@ func TestInsertQueueMetadata(t *testing.T) {
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
 
-			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
 
 			row := nosqlplugin.QueueMetadataRow{
 				QueueType:        tc.queueType,
@@ -915,7 +915,7 @@ func TestUpdateQueueMetadataCas(t *testing.T) {
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
 
-			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
 
 			err := db.UpdateQueueMetadataCas(context.Background(), tc.row)
 

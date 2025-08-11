@@ -112,7 +112,7 @@ func TestInsertShard(t *testing.T) {
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
-			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
 
 			err := db.InsertShard(context.Background(), tc.row)
 
@@ -265,7 +265,7 @@ func TestSelectShard(t *testing.T) {
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
-			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
 
 			gotRangeID, gotShardInfo, err := db.SelectShard(context.Background(), tc.shardID, tc.cluster)
 
@@ -366,7 +366,7 @@ func TestUpdateRangeID(t *testing.T) {
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
-			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
 
 			err := db.UpdateRangeID(context.Background(), tc.shardID, tc.rangeID, tc.prevRangeID)
 
@@ -482,7 +482,7 @@ func TestUpdateShard(t *testing.T) {
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
-			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
 
 			err := db.UpdateShard(context.Background(), tc.row, tc.prevRangeID)
 

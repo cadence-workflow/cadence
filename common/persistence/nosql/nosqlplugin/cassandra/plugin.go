@@ -78,7 +78,7 @@ func (p *plugin) doCreateDB(cfg *config.NoSQL, logger log.Logger, dc *persistenc
 	if err != nil {
 		return nil, err
 	}
-	db := newCassandraDBFromSession(cfg, session, logger, dc)
+	db := NewCassandraDBFromSession(cfg, session, logger, dc)
 	return db, nil
 }
 

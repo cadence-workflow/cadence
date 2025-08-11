@@ -41,7 +41,7 @@ func TestCDBBasics(t *testing.T) {
 	logger := testlogger.New(t)
 	dc := &persistence.DynamicConfiguration{}
 
-	db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+	db := NewCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
 
 	if db.PluginName() != PluginName {
 		t.Errorf("got plugin name: %v but want %v", db.PluginName(), PluginName)
@@ -174,7 +174,7 @@ func TestExecuteWithConsistencyAll(t *testing.T) {
 				tc.clientMockPrep(client)
 			}
 
-			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
 
 			err := db.executeWithConsistencyAll(query)
 			if (err != nil) != tc.wantErr {
@@ -277,7 +277,7 @@ func TestExecuteBatchWithConsistencyAll(t *testing.T) {
 				tc.clientMockPrep(client)
 			}
 
-			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
 
 			err := db.executeBatchWithConsistencyAll(batch)
 			if (err != nil) != tc.wantErr {

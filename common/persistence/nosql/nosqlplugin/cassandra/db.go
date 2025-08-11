@@ -51,8 +51,8 @@ func dbWithClient(client gocql.Client) cassandraDBOption {
 	}
 }
 
-// newCassandraDBFromSession returns a DB from a session
-func newCassandraDBFromSession(
+// NewCassandraDBFromSession returns a DB from a session
+func NewCassandraDBFromSession(
 	cfg *config.NoSQL,
 	session gocql.Session,
 	logger log.Logger,
