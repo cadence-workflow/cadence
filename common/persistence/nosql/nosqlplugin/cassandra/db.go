@@ -29,8 +29,8 @@ import (
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql"
 )
 
-// cdb represents a logical connection to Cassandra database
-type cdb struct {
+// CDB represents a logical connection to Cassandra database
+type CDB struct {
 	logger  log.Logger
 	client  gocql.Client
 	session gocql.Session
@@ -38,15 +38,15 @@ type cdb struct {
 	dc      *persistence.DynamicConfiguration
 }
 
-var _ nosqlplugin.DB = (*cdb)(nil)
+var _ nosqlplugin.DB = (*CDB)(nil)
 
-// cassandraDBOption is used to provide optional settings for cdb object
-type cassandraDBOption func(*cdb)
+// cassandraDBOption is used to provide optional settings for CDB object
+type cassandraDBOption func(*CDB)
 
-// dbWithClient returns a cdb option to set the gocql client.
+// dbWithClient returns a CDB option to set the gocql client.
 // If this is not used then the globally registered client is used.
 func dbWithClient(client gocql.Client) cassandraDBOption {
-	return func(db *cdb) {
+	return func(db *CDB) {
 		db.client = client
 	}
 }
@@ -58,8 +58,8 @@ func NewCassandraDBFromSession(
 	logger log.Logger,
 	dc *persistence.DynamicConfiguration,
 	opts ...cassandraDBOption,
-) *cdb {
-	res := &cdb{
+) *CDB {
+	res := &CDB{
 		session: session,
 		logger:  logger,
 		cfg:     cfg,
@@ -77,37 +77,37 @@ func NewCassandraDBFromSession(
 	return res
 }
 
-func (db *cdb) Close() {
+func (db *CDB) Close() {
 	if db.session != nil {
 		db.session.Close()
 	}
 }
 
-func (db *cdb) PluginName() string {
+func (db *CDB) PluginName() string {
 	return PluginName
 }
 
-func (db *cdb) IsNotFoundError(err error) bool {
+func (db *CDB) IsNotFoundError(err error) bool {
 	return db.client.IsNotFoundError(err)
 }
 
-func (db *cdb) IsTimeoutError(err error) bool {
+func (db *CDB) IsTimeoutError(err error) bool {
 	return db.client.IsTimeoutError(err)
 }
 
-func (db *cdb) IsThrottlingError(err error) bool {
+func (db *CDB) IsThrottlingError(err error) bool {
 	return db.client.IsThrottlingError(err)
 }
 
-func (db *cdb) IsDBUnavailableError(err error) bool {
+func (db *CDB) IsDBUnavailableError(err error) bool {
 	return db.client.IsDBUnavailableError(err)
 }
 
-func (db *cdb) isCassandraConsistencyError(err error) bool {
+func (db *CDB) isCassandraConsistencyError(err error) bool {
 	return db.client.IsCassandraConsistencyError(err)
 }
 
-func (db *cdb) executeWithConsistencyAll(q gocql.Query) error {
+func (db *CDB) executeWithConsistencyAll(q gocql.Query) error {
 	if db.dc != nil && db.dc.EnableCassandraAllConsistencyLevelDelete() {
 		if err := q.Consistency(cassandraAllConslevel).Exec(); err != nil {
 			if db.isCassandraConsistencyError(err) {
@@ -121,7 +121,7 @@ func (db *cdb) executeWithConsistencyAll(q gocql.Query) error {
 	return q.Exec()
 }
 
-func (db *cdb) executeBatchWithConsistencyAll(b gocql.Batch) error {
+func (db *CDB) executeBatchWithConsistencyAll(b gocql.Batch) error {
 	if db.dc != nil && db.dc.EnableCassandraAllConsistencyLevelDelete() {
 		if err := db.session.ExecuteBatch(b.Consistency(cassandraAllConslevel)); err != nil {
 			if db.isCassandraConsistencyError(err) {

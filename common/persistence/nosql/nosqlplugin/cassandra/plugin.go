@@ -69,7 +69,7 @@ func (p *plugin) CreateAdminDB(cfg *config.NoSQL, logger log.Logger, dc *persist
 	return p.doCreateDB(cfg, logger, dc)
 }
 
-func (p *plugin) doCreateDB(cfg *config.NoSQL, logger log.Logger, dc *persistence.DynamicConfiguration) (*cdb, error) {
+func (p *plugin) doCreateDB(cfg *config.NoSQL, logger log.Logger, dc *persistence.DynamicConfiguration) (*CDB, error) {
 	gocqlConfig, err := toGoCqlConfig(cfg)
 	if err != nil {
 		return nil, err
