@@ -64,21 +64,29 @@ go func() {
 
 ## 3. Limit Concurrency of Activities and Child Workflows
 
-Do not launch many activities or child workflows concurrently without limiting concurrency. Use a semaphore or similar pattern to control parallelism and avoid overwhelming workers.
+Do not launch many activities or child workflows concurrently without limiting concurrency. Use a non-blocking pattern (similar to array) to control parallelism and avoid overwhelming workers.
 
 **Good Example:**
 ```go
 const maxConcurrent = 3
-semaphore := make(chan struct{}, maxConcurrent)
+var futures []workflow.Future
+sem := 0
 for _, input := range inputs {
-    semaphore <- struct{}{}
-    workflow.Go(ctx, func(ctx workflow.Context) {
-        defer func() { <-semaphore }()
-        err := workflow.ExecuteActivity(ctx, YourActivity, input).Get(ctx, nil)
-        if err != nil {
+    if sem == maxConcurrent {
+        if err := futures[0].Get(ctx, nil); err != nil {
             workflow.GetLogger(ctx).Error("Activity failed", "Error", err)
         }
-    })
+        futures = futures[1:]
+        sem--
+    }
+    future := workflow.ExecuteActivity(ctx, YourActivity, input).Get(ctx, nil)
+    futures = append(futures, future)
+    sem++
+}
+for _, future := range futures {
+    if err := future.Get(ctx, nil); err != nil {
+        workflow.GetLogger(ctx).Error("Activity failed", "Error", err)
+    }
 }
 ```
 
