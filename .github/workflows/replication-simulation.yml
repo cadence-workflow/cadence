@@ -19,7 +19,6 @@ jobs:
           - activepassive_to_activeactive
           - clusterredirection
           - default
-          - reset
 
     steps:
       - name: Checkout
