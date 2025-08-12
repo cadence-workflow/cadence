@@ -28,6 +28,7 @@ import (
 	"context"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock"
@@ -55,6 +56,8 @@ type (
 		ClearSlices(func(VirtualSlice) bool)
 		// SplitSlices applies the split function to the slices in the virtual queue and return the remaining slices that should be kept in the virtual queue and whether the split is applied
 		SplitSlices(func(VirtualSlice) (remaining []VirtualSlice, split bool))
+		// Pause pauses the virtual queue for a while
+		Pause(time.Duration)
 	}
 
 	VirtualQueueOptions struct {
@@ -272,6 +275,10 @@ func (q *virtualQueueImpl) SplitSlices(f func(VirtualSlice) (remaining []Virtual
 	q.virtualSlices.Init()
 	q.virtualSlices = remainingSlices
 	q.resetNextReadSliceLocked()
+}
+
+func (q *virtualQueueImpl) Pause(duration time.Duration) {
+	q.pauseController.Pause(duration)
 }
 
 func (q *virtualQueueImpl) notify() {
