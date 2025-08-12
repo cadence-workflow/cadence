@@ -89,7 +89,7 @@ func TestInsertVisibility(t *testing.T) {
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
-			db := NewCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 			err := db.InsertVisibility(context.Background(), test.ttlSeconds, test.row)
 			if test.wantErr {
@@ -159,7 +159,7 @@ func TestUpdateVisibility(t *testing.T) {
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
-			db := NewCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 			err := db.UpdateVisibility(context.Background(), test.ttlSeconds, test.row)
 			if test.wantErr {
 				assert.Error(t, err)
@@ -258,7 +258,7 @@ func TestSelectOneClosedWorkflow(t *testing.T) {
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
-			db := NewCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 			result, err := db.SelectOneClosedWorkflow(context.Background(), test.domainID, test.workflowID, test.runID)
 			if test.wantError {
 				assert.Error(t, err)
@@ -488,7 +488,7 @@ func TestDeleteVisibility(t *testing.T) {
 			}
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			db := NewCassandraDBFromSession(cfg, session, logger, test.dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, test.dc, DbWithClient(client))
 			err := db.DeleteVisibility(test.context, test.domainID, test.workflowID, test.runID)
 			if test.wantError {
 				assert.Error(t, err)
@@ -884,7 +884,7 @@ func TestSelectVisibility(t *testing.T) {
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
-			db := NewCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 			result, err := db.SelectVisibility(context.Background(), test.filter)
 			if test.wantError {
 				assert.Error(t, err)

@@ -248,7 +248,7 @@ func TestInsertDomain(t *testing.T) {
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
-			db := NewCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 			err := db.InsertDomain(context.Background(), tc.row)
 
@@ -381,7 +381,7 @@ func TestUpdateDomain(t *testing.T) {
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
-			db := NewCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 			err := db.UpdateDomain(context.Background(), tc.row)
 
@@ -506,7 +506,7 @@ func TestSelectDomain(t *testing.T) {
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
 
-			db := NewCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 			gotRow, err := db.SelectDomain(context.Background(), tc.domainID, tc.domainName)
 
@@ -655,7 +655,7 @@ func TestSelectAllDomains(t *testing.T) {
 			client := gocql.NewMockClient(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			db := NewCassandraDBFromSession(cfg, session, logger, nil, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, nil, DbWithClient(client))
 
 			gotRows, _, err := db.SelectAllDomains(context.Background(), tc.pageSize, tc.pagetoken)
 
@@ -753,7 +753,7 @@ func TestSelectDomainMetadata(t *testing.T) {
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
 
-			db := NewCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 			gotNtfVer, err := db.SelectDomainMetadata(context.Background())
 
@@ -928,7 +928,7 @@ func TestDeleteDomain(t *testing.T) {
 				},
 			}
 
-			db := NewCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 			err := db.DeleteDomain(context.Background(), tc.domainID, tc.domainName)
 

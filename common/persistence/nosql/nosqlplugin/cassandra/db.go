@@ -43,9 +43,9 @@ var _ nosqlplugin.DB = (*CDB)(nil)
 // cassandraDBOption is used to provide optional settings for CDB object
 type cassandraDBOption func(*CDB)
 
-// dbWithClient returns a CDB option to set the gocql client.
+// DbWithClient returns a CDB option to set the gocql client.
 // If this is not used then the globally registered client is used.
-func dbWithClient(client gocql.Client) cassandraDBOption {
+func DbWithClient(client gocql.Client) cassandraDBOption {
 	return func(db *CDB) {
 		db.client = client
 	}
