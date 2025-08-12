@@ -418,7 +418,7 @@ func (s *mutableStateSuite) TestChecksum() {
 
 	for _, tc := range testCases {
 		s.T().Run(tc.name, func(t *testing.T) {
-			dbState := s.buildWorkflowMutableState()
+			dbState := buildWorkflowMutableState()
 			if !tc.enableBufferedEvents {
 				dbState.BufferedEvents = nil
 			}
@@ -858,7 +858,7 @@ func (s *mutableStateSuite) prepareTransientDecisionCompletionFirstBatchReplicat
 }
 
 func (s *mutableStateSuite) TestLoad_BackwardsCompatibility() {
-	mutableState := s.buildWorkflowMutableState()
+	mutableState := buildWorkflowMutableState()
 
 	s.msBuilder.Load(context.Background(), mutableState)
 
@@ -866,7 +866,7 @@ func (s *mutableStateSuite) TestLoad_BackwardsCompatibility() {
 }
 
 func (s *mutableStateSuite) TestUpdateCurrentVersion_WorkflowOpen() {
-	mutableState := s.buildWorkflowMutableState()
+	mutableState := buildWorkflowMutableState()
 
 	s.msBuilder.Load(context.Background(), mutableState)
 	s.Equal(commonconstants.EmptyVersion, s.msBuilder.GetCurrentVersion())
@@ -877,7 +877,7 @@ func (s *mutableStateSuite) TestUpdateCurrentVersion_WorkflowOpen() {
 }
 
 func (s *mutableStateSuite) TestUpdateCurrentVersion_WorkflowClosed() {
-	mutableState := s.buildWorkflowMutableState()
+	mutableState := buildWorkflowMutableState()
 	mutableState.ExecutionInfo.State = persistence.WorkflowStateCompleted
 	mutableState.ExecutionInfo.CloseStatus = persistence.WorkflowCloseStatusCompleted
 
@@ -909,7 +909,7 @@ func (s *mutableStateSuite) newDomainCacheEntry() *cache.DomainCacheEntry {
 	)
 }
 
-func (s *mutableStateSuite) buildWorkflowMutableState() *persistence.WorkflowMutableState {
+func buildWorkflowMutableState() *persistence.WorkflowMutableState {
 	domainID := constants.TestDomainID
 	we := types.WorkflowExecution{
 		WorkflowID: "wId",
@@ -2157,7 +2157,7 @@ func TestMutableStateBuilder_closeTransactionHandleWorkflowReset(t *testing.T) {
 
 			nowClock := clock.NewMockedTimeSourceAt(now)
 
-			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache)
+			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache, nil)
 
 			td.mutableStateBuilderStartingState(msb)
 
@@ -2267,7 +2267,7 @@ func TestMutableStateBuilder_GetVersionHistoriesStart(t *testing.T) {
 			mockCache := events.NewMockCache(ctrl)
 			mockDomainCache := cache.NewMockDomainCache(ctrl)
 
-			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache)
+			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache, nil)
 
 			td.mutableStateBuilderStartingState(msb)
 
@@ -2483,7 +2483,7 @@ func TestGetCronRetryBackoffDuration(t *testing.T) {
 
 			td.shardContextExpectations(mockCache, shardContext, mockDomainCache)
 
-			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache)
+			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache, nil)
 
 			msb.executionInfo = td.startingExecutionInfo
 			msb.versionHistories = sampleVersionHistory
@@ -3229,7 +3229,7 @@ func TestAssignTaskIDToTransientHistoryEvents(t *testing.T) {
 
 			td.shardContextExpectations(mockCache, shardContext, mockDomainCache)
 
-			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache)
+			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache, nil)
 
 			msb.hBuilder.transientHistory = td.transientHistory
 
@@ -3342,7 +3342,7 @@ func TestAssignTaskIDToHistoryEvents(t *testing.T) {
 
 			td.shardContextExpectations(mockCache, shardContext, mockDomainCache)
 
-			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache)
+			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache, nil)
 
 			msb.hBuilder.history = td.history
 
@@ -3422,7 +3422,7 @@ func TestAddUpsertWorkflowSearchAttributesEvent(t *testing.T) {
 
 			nowClock := clock.NewMockedTimeSourceAt(now)
 
-			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache)
+			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache, nil)
 
 			msb.hBuilder = &HistoryBuilder{
 				history:   []*types.HistoryEvent{},
@@ -3624,7 +3624,7 @@ func TestCloseTransactionAsMutation(t *testing.T) {
 			mockCache := events.NewMockCache(ctrl)
 			mockDomainCache := cache.NewMockDomainCache(ctrl)
 
-			ms := createMSBWithMocks(mockCache, shardContext, mockDomainCache)
+			ms := createMSBWithMocks(mockCache, shardContext, mockDomainCache, nil)
 			td.mutableStateSetup(ms)
 			td.shardContextExpectations(mockCache, shardContext, mockDomainCache)
 
@@ -3855,7 +3855,7 @@ func Test__reorderAndFilterDuplicateEvents(t *testing.T) {
 			shardContext.EXPECT().GetLogger().Return(testlogger.New(t)).AnyTimes()
 			mockDomainCache := cache.NewMockDomainCache(ctrl)
 
-			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache)
+			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache, nil)
 
 			msb.logger = log.NewLogger(zap.New(core))
 
@@ -3875,7 +3875,7 @@ func Test__reorderAndFilterDuplicateEvents(t *testing.T) {
 	}
 }
 
-func createMSBWithMocks(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache) *mutableStateBuilder {
+func createMSBWithMocks(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache, domainEntry *cache.DomainCacheEntry) *mutableStateBuilder {
 	// the MSB constructor calls a bunch of endpoints on the mocks, so
 	// put them in here as a set of fixed expectations so the actual mocking
 	// code can just make expectations on the calls on the returned MSB object
@@ -3897,7 +3897,11 @@ func createMSBWithMocks(mockCache *events.MockCache, shardContext *shardCtx.Mock
 	shardContext.EXPECT().GetMetricsClient().Return(metrics.NewNoopMetricsClient())
 	shardContext.EXPECT().GetDomainCache().Return(mockDomainCache).Times(1)
 
-	msb := newMutableStateBuilder(shardContext, log.NewNoop(), constants.TestGlobalDomainEntry)
+	if domainEntry == nil {
+		domainEntry = constants.TestGlobalDomainEntry
+	}
+
+	msb := newMutableStateBuilder(shardContext, log.NewNoop(), domainEntry)
 	return msb
 }
 
@@ -3956,48 +3960,23 @@ func TestLoad_ActiveActive(t *testing.T) {
 	)
 
 	// Create base mutable state for testing
-	baseMutableState := &persistence.WorkflowMutableState{
-		ExecutionInfo: &persistence.WorkflowExecutionInfo{
-			DomainID:   domainID,
-			WorkflowID: workflowID,
-			RunID:      runID,
-			State:      persistence.WorkflowStateRunning,
-		},
-		ActivityInfos:       make(map[int64]*persistence.ActivityInfo),
-		TimerInfos:          make(map[string]*persistence.TimerInfo),
-		ChildExecutionInfos: make(map[int64]*persistence.ChildExecutionInfo),
-		SignalInfos:         make(map[int64]*persistence.SignalInfo),
-		SignalRequestedIDs:  make(map[string]struct{}),
-		BufferedEvents:      []*types.HistoryEvent{},
-		VersionHistories: &persistence.VersionHistories{
-			CurrentVersionHistoryIndex: 0,
-			Histories: []*persistence.VersionHistory{
-				{
-					BranchToken: []byte("test-branch-token"),
-					Items: []*persistence.VersionHistoryItem{
-						{EventID: 1, Version: 1},
-					},
-				},
-			},
-		},
+	baseMutableState := buildWorkflowMutableState()
+	baseMutableState.ExecutionInfo = &persistence.WorkflowExecutionInfo{
+		DomainID:   domainID,
+		WorkflowID: workflowID,
+		RunID:      runID,
+		State:      persistence.WorkflowStateRunning,
 	}
 
 	// Create base mutable state for testing (without version histories)
-	baseMutableStateNoVersionHistory := &persistence.WorkflowMutableState{
-		ExecutionInfo: &persistence.WorkflowExecutionInfo{
-			DomainID:   domainID,
-			WorkflowID: workflowID,
-			RunID:      runID,
-			State:      persistence.WorkflowStateRunning,
-		},
-		ActivityInfos:       make(map[int64]*persistence.ActivityInfo),
-		TimerInfos:          make(map[string]*persistence.TimerInfo),
-		ChildExecutionInfos: make(map[int64]*persistence.ChildExecutionInfo),
-		SignalInfos:         make(map[int64]*persistence.SignalInfo),
-		SignalRequestedIDs:  make(map[string]struct{}),
-		BufferedEvents:      []*types.HistoryEvent{},
-		VersionHistories:    nil, // Explicitly nil for testing
+	baseMutableStateNoVersionHistory := buildWorkflowMutableState()
+	baseMutableStateNoVersionHistory.ExecutionInfo = &persistence.WorkflowExecutionInfo{
+		DomainID:   domainID,
+		WorkflowID: workflowID,
+		RunID:      runID,
+		State:      persistence.WorkflowStateRunning,
 	}
+	baseMutableStateNoVersionHistory.VersionHistories = nil
 
 	tests := map[string]struct {
 		domainEntry                    *cache.DomainCacheEntry
@@ -4125,33 +4104,19 @@ func TestLoad_ActiveActive(t *testing.T) {
 			activeClusterManager := activecluster.NewMockManager(ctrl)
 
 			// Set up shard context expectations
-			shardContext.EXPECT().GetClusterMetadata().Return(cluster.TestActiveClusterMetadata).Times(2)
-			shardContext.EXPECT().GetEventsCache().Return(mockCache).Times(1)
-			shardContext.EXPECT().GetConfig().Return(&config.Config{
-				NumberOfShards:                        2,
-				IsAdvancedVisConfigExist:              false,
-				MaxResponseSize:                       0,
-				MutableStateChecksumInvalidateBefore:  dynamicproperties.GetFloatPropertyFn(10),
-				MutableStateChecksumVerifyProbability: dynamicproperties.GetIntPropertyFilteredByDomain(0.0),
-				MutableStateChecksumGenProbability:    dynamicproperties.GetIntPropertyFilteredByDomain(0.0),
-				HostName:                              "test-host",
-				EnableReplicationTaskGeneration:       func(string, string) bool { return true },
-				MaximumBufferedEventsBatch:            func(...dynamicproperties.FilterOption) int { return 100 },
-			}).Times(1)
-			shardContext.EXPECT().GetTimeSource().Return(clock.NewMockedTimeSource()).Times(1)
-			shardContext.EXPECT().GetMetricsClient().Return(metrics.NewNoopMetricsClient()).Times(1)
-			shardContext.EXPECT().GetDomainCache().Return(mockDomainCache).Times(1)
 			shardContext.EXPECT().GetLogger().Return(testlogger.New(t)).AnyTimes()
 			shardContext.EXPECT().GetActiveClusterManager().Return(activeClusterManager).AnyTimes()
+
+			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache, td.domainEntry)
+
+			// modify expectation from .Times(1) to .AnyTimes() for the load function
+			shardContext.EXPECT().GetDomainCache().Return(mockDomainCache).AnyTimes()
 
 			// Set up domain cache expectations
 			mockDomainCache.EXPECT().GetDomainID(gomock.Any()).Return("some-domain-id", nil).AnyTimes()
 
 			// Set up active cluster manager expectations based on test case
 			td.activeClusterManagerAffordance(activeClusterManager)
-
-			// Create mutable state builder
-			msb := newMutableStateBuilder(shardContext, log.NewNoop(), td.domainEntry)
 
 			// Execute Load function
 			err := msb.Load(context.Background(), td.mutableState)
@@ -4167,4 +4132,3 @@ func TestLoad_ActiveActive(t *testing.T) {
 		})
 	}
 }
-
