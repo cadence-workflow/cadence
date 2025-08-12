@@ -210,7 +210,7 @@ func Test__identifyIssuesWithPaginatedHistory(t *testing.T) {
 					WorkflowExecutionStartedEventAttributes: &types.WorkflowExecutionStartedEventAttributes{
 						RetryPolicy: &types.RetryPolicy{
 							InitialIntervalInSeconds: 1,
-							MaximumAttempts:          2,
+							MaximumAttempts:          1,
 						},
 						Attempt: 0,
 					},
@@ -254,7 +254,7 @@ func Test__identifyIssuesWithPaginatedHistory(t *testing.T) {
 		EventID: 1,
 		RetryPolicy: &types.RetryPolicy{
 			InitialIntervalInSeconds: 1,
-			MaximumAttempts:          2,
+			MaximumAttempts:          1,
 		},
 	}
 	retryMetadataInBytes, err := json.Marshal(retryMetadata)
@@ -262,8 +262,8 @@ func Test__identifyIssuesWithPaginatedHistory(t *testing.T) {
 	expectedResult := []invariant.InvariantCheckResult{
 		{
 			IssueID:       0,
-			InvariantType: retry.WorkflowRetryInfo.String(),
-			Reason:        "The failure is caused by a timeout during the execution",
+			InvariantType: retry.WorkflowRetryIssue.String(),
+			Reason:        "MaximumAttempts set to 1 will not retry since maximum attempts includes the first attempt.",
 			Metadata:      retryMetadataInBytes,
 		},
 	}
