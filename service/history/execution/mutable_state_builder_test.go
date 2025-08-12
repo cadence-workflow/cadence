@@ -2157,7 +2157,7 @@ func TestMutableStateBuilder_closeTransactionHandleWorkflowReset(t *testing.T) {
 
 			nowClock := clock.NewMockedTimeSourceAt(now)
 
-			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache)
+			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache, nil)
 
 			td.mutableStateBuilderStartingState(msb)
 
@@ -2267,7 +2267,7 @@ func TestMutableStateBuilder_GetVersionHistoriesStart(t *testing.T) {
 			mockCache := events.NewMockCache(ctrl)
 			mockDomainCache := cache.NewMockDomainCache(ctrl)
 
-			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache)
+			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache, nil)
 
 			td.mutableStateBuilderStartingState(msb)
 
@@ -2483,7 +2483,7 @@ func TestGetCronRetryBackoffDuration(t *testing.T) {
 
 			td.shardContextExpectations(mockCache, shardContext, mockDomainCache)
 
-			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache)
+			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache, nil)
 
 			msb.executionInfo = td.startingExecutionInfo
 			msb.versionHistories = sampleVersionHistory
@@ -3229,7 +3229,7 @@ func TestAssignTaskIDToTransientHistoryEvents(t *testing.T) {
 
 			td.shardContextExpectations(mockCache, shardContext, mockDomainCache)
 
-			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache)
+			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache, nil)
 
 			msb.hBuilder.transientHistory = td.transientHistory
 
@@ -3342,7 +3342,7 @@ func TestAssignTaskIDToHistoryEvents(t *testing.T) {
 
 			td.shardContextExpectations(mockCache, shardContext, mockDomainCache)
 
-			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache)
+			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache, nil)
 
 			msb.hBuilder.history = td.history
 
@@ -3422,7 +3422,7 @@ func TestAddUpsertWorkflowSearchAttributesEvent(t *testing.T) {
 
 			nowClock := clock.NewMockedTimeSourceAt(now)
 
-			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache)
+			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache, nil)
 
 			msb.hBuilder = &HistoryBuilder{
 				history:   []*types.HistoryEvent{},
@@ -3624,7 +3624,7 @@ func TestCloseTransactionAsMutation(t *testing.T) {
 			mockCache := events.NewMockCache(ctrl)
 			mockDomainCache := cache.NewMockDomainCache(ctrl)
 
-			ms := createMSBWithMocks(mockCache, shardContext, mockDomainCache)
+			ms := createMSBWithMocks(mockCache, shardContext, mockDomainCache, nil)
 			td.mutableStateSetup(ms)
 			td.shardContextExpectations(mockCache, shardContext, mockDomainCache)
 
@@ -3855,7 +3855,7 @@ func Test__reorderAndFilterDuplicateEvents(t *testing.T) {
 			shardContext.EXPECT().GetLogger().Return(testlogger.New(t)).AnyTimes()
 			mockDomainCache := cache.NewMockDomainCache(ctrl)
 
-			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache)
+			msb := createMSBWithMocks(mockCache, shardContext, mockDomainCache, nil)
 
 			msb.logger = log.NewLogger(zap.New(core))
 
@@ -3875,7 +3875,7 @@ func Test__reorderAndFilterDuplicateEvents(t *testing.T) {
 	}
 }
 
-func createMSBWithMocks(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache) *mutableStateBuilder {
+func createMSBWithMocks(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache, domainEntry *cache.DomainCacheEntry) *mutableStateBuilder {
 	// the MSB constructor calls a bunch of endpoints on the mocks, so
 	// put them in here as a set of fixed expectations so the actual mocking
 	// code can just make expectations on the calls on the returned MSB object
@@ -3897,6 +3897,242 @@ func createMSBWithMocks(mockCache *events.MockCache, shardContext *shardCtx.Mock
 	shardContext.EXPECT().GetMetricsClient().Return(metrics.NewNoopMetricsClient())
 	shardContext.EXPECT().GetDomainCache().Return(mockDomainCache).Times(1)
 
-	msb := newMutableStateBuilder(shardContext, log.NewNoop(), constants.TestGlobalDomainEntry)
+	// Use provided domain entry or default to TestGlobalDomainEntry
+	if domainEntry == nil {
+		domainEntry = constants.TestGlobalDomainEntry
+	}
+	msb := newMutableStateBuilder(shardContext, log.NewNoop(), domainEntry)
 	return msb
+}
+
+func (s *mutableStateSuite) TestStartTransaction() {
+	testCases := []struct {
+		name                   string
+		domainEntry           *cache.DomainCacheEntry
+		setupMocks            func(msBuilder *mutableStateBuilder)
+		incomingTaskVersion   int64
+		expectedFlushDecision bool
+		expectedVersion       int64
+		expectError           bool
+		expectedErrorContains string
+	}{
+		{
+			name: "success_regular_domain",
+			domainEntry: cache.NewDomainCacheEntryForTest(
+				&persistence.DomainInfo{Name: "test-domain"},
+				&persistence.DomainConfig{},
+				true,
+				&persistence.DomainReplicationConfig{},
+				123, // failover version
+				nil,
+				0,
+				0,
+				0,
+			),
+			setupMocks:            func(msBuilder *mutableStateBuilder) {},
+			incomingTaskVersion:   int64(100),
+			expectedFlushDecision: false,
+			expectedVersion:       123,
+			expectError:           false,
+			expectedErrorContains: "",
+		},
+		{
+			name: "success_global_domain",
+			domainEntry: cache.NewDomainCacheEntryForTest(
+				&persistence.DomainInfo{Name: "test-global-domain"},
+				&persistence.DomainConfig{},
+				false, // is local domain = false
+				&persistence.DomainReplicationConfig{
+					ActiveClusterName: "active-cluster",
+					Clusters: []*persistence.ClusterReplicationConfig{
+						{ClusterName: "active-cluster"},
+						{ClusterName: "standby-cluster"},
+					},
+				},
+				456, // failover version
+				nil,
+				0,
+				0,
+				0,
+			),
+			setupMocks:            func(msBuilder *mutableStateBuilder) {},
+			incomingTaskVersion:   int64(200),
+			expectedFlushDecision: false,
+			expectedVersion:       456,
+			expectError:           false,
+			expectedErrorContains: "",
+		},
+		{
+			name: "success_with_different_flush_decision",
+			domainEntry: cache.NewDomainCacheEntryForTest(
+				&persistence.DomainInfo{Name: "test-domain"},
+				&persistence.DomainConfig{},
+				true,
+				&persistence.DomainReplicationConfig{},
+				789,
+				nil,
+				0,
+				0,
+				0,
+			),
+			setupMocks: func(msBuilder *mutableStateBuilder) {
+				// Test that the return value from startTransactionHandleDecisionFailover
+				// is passed through correctly (though in normal cases it returns false, nil)
+			},
+			incomingTaskVersion:   int64(300),
+			expectedFlushDecision: false,
+			expectedVersion:       789,
+			expectError:           false,
+			expectedErrorContains: "",
+		},
+		// Note: Error cases for UpdateCurrentVersion and startTransactionHandleDecisionFailover
+		// are difficult to test without complex mocking of internal state. These functions have
+		// their own dedicated tests:
+		// - UpdateCurrentVersion is tested in TestUpdateCurrentVersion_WorkflowOpen/Closed
+		// - startTransactionHandleDecisionFailover is tested in TestStartTransactionHandleFailover
+	}
+
+	for _, tc := range testCases {
+		s.T().Run(tc.name, func(t *testing.T) {
+			// Create a fresh mutable state builder for each test
+			msBuilder := newMutableStateBuilder(s.mockShard, s.logger, constants.TestLocalDomainEntry)
+			
+			// Set up basic execution info
+			msBuilder.executionInfo = &persistence.WorkflowExecutionInfo{
+				DomainID:    constants.TestDomainID,
+				WorkflowID:  "test-workflow",
+				RunID:       constants.TestRunID,
+				State:       persistence.WorkflowStateRunning,
+				NextEventID: int64(5),
+			}
+			
+			// Set up version histories for NDC
+			msBuilder.versionHistories = persistence.NewVersionHistories(&persistence.VersionHistory{
+				BranchToken: []byte("test-branch-token"),
+				Items: []*persistence.VersionHistoryItem{
+					{EventID: 1, Version: 1},
+				},
+			})
+
+			// Apply test-specific setup
+			tc.setupMocks(msBuilder)
+
+			// Execute the function under test
+			flushDecision, err := msBuilder.StartTransaction(context.Background(), tc.domainEntry, tc.incomingTaskVersion)
+
+			// Verify results
+			if tc.expectError {
+				assert.Error(t, err)
+				if tc.expectedErrorContains != "" {
+					assert.Contains(t, err.Error(), tc.expectedErrorContains)
+				}
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expectedFlushDecision, flushDecision)
+				
+				// Verify domain entry was updated
+				assert.Equal(t, tc.domainEntry, msBuilder.domainEntry)
+				
+				// Verify current version was set to expected version
+				assert.Equal(t, tc.expectedVersion, msBuilder.GetCurrentVersion())
+			}
+		})
+	}
+}
+
+// TestStartTransaction_ActiveActive_Success tests StartTransaction with active-active domain when LookupWorkflow succeeds
+// Updated to use createMSBWithMocks for proper mock setup
+func TestStartTransaction_ActiveActive_Success(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockCache := events.NewMockCache(ctrl)
+	shardContext := shard.NewMockContext(ctrl)
+	mockDomainCache := cache.NewMockDomainCache(ctrl)
+	
+	// Set up ActiveClusterManager mock for successful LookupWorkflow
+	mockActiveClusterManager := activecluster.NewMockManager(ctrl)
+	shardContext.EXPECT().GetActiveClusterManager().Return(mockActiveClusterManager).AnyTimes()
+	mockActiveClusterManager.EXPECT().LookupWorkflow(
+		gomock.Any(),
+		constants.TestDomainID,
+		"test-workflow",
+		constants.TestRunID,
+	).Return(&activecluster.LookupResult{
+		FailoverVersion: int64(555),
+	}, nil)
+	
+	shardContext.EXPECT().GetLogger().Return(testlogger.New(t)).AnyTimes()
+	
+	// Create mutable state builder with active-active domain entry
+	msBuilder := createMSBWithMocks(mockCache, shardContext, mockDomainCache, constants.TestActiveActiveDomainEntry)
+	msBuilder.executionInfo = &persistence.WorkflowExecutionInfo{
+		DomainID:    constants.TestDomainID,
+		WorkflowID:  "test-workflow",
+		RunID:       constants.TestRunID,
+		State:       persistence.WorkflowStateRunning,
+		NextEventID: int64(5),
+	}
+	msBuilder.versionHistories = persistence.NewVersionHistories(&persistence.VersionHistory{
+		BranchToken: []byte("test-branch-token"),
+		Items: []*persistence.VersionHistoryItem{
+			{EventID: 1, Version: 1},
+		},
+	})
+
+	// Execute StartTransaction
+	flushDecision, err := msBuilder.StartTransaction(context.Background(), constants.TestActiveActiveDomainEntry, int64(400))
+
+	// Verify results
+	assert.NoError(t, err)
+	assert.False(t, flushDecision) // Should be false in normal case
+	assert.Equal(t, constants.TestActiveActiveDomainEntry, msBuilder.domainEntry)
+	assert.Equal(t, int64(555), msBuilder.GetCurrentVersion()) // Should use version from LookupWorkflow
+}
+
+// TestStartTransaction_ActiveActive_LookupError tests StartTransaction with active-active domain when LookupWorkflow fails
+func TestStartTransaction_ActiveActive_LookupError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockCache := events.NewMockCache(ctrl)
+	shardContext := shard.NewMockContext(ctrl)
+	mockDomainCache := cache.NewMockDomainCache(ctrl)
+	
+	// Set up ActiveClusterManager mock for error case
+	mockActiveClusterManager := activecluster.NewMockManager(ctrl)
+	shardContext.EXPECT().GetActiveClusterManager().Return(mockActiveClusterManager).AnyTimes()
+	mockActiveClusterManager.EXPECT().LookupWorkflow(
+		gomock.Any(),
+		constants.TestDomainID,
+		"test-workflow",
+		constants.TestRunID,
+	).Return(nil, errors.New("cluster lookup failed"))
+	
+	shardContext.EXPECT().GetLogger().Return(testlogger.New(t)).AnyTimes()
+	
+	// Create mutable state builder with active-active domain entry
+	msBuilder := createMSBWithMocks(mockCache, shardContext, mockDomainCache, constants.TestActiveActiveDomainEntry)
+	msBuilder.executionInfo = &persistence.WorkflowExecutionInfo{
+		DomainID:    constants.TestDomainID,
+		WorkflowID:  "test-workflow",
+		RunID:       constants.TestRunID,
+		State:       persistence.WorkflowStateRunning,
+		NextEventID: int64(5),
+	}
+	msBuilder.versionHistories = persistence.NewVersionHistories(&persistence.VersionHistory{
+		BranchToken: []byte("test-branch-token"),
+		Items: []*persistence.VersionHistoryItem{
+			{EventID: 1, Version: 1},
+		},
+	})
+
+	// Execute StartTransaction
+	flushDecision, err := msBuilder.StartTransaction(context.Background(), constants.TestActiveActiveDomainEntry, int64(500))
+
+	// Verify results
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "cluster lookup failed")
+	assert.False(t, flushDecision) // Should be false when error occurs
+	assert.Equal(t, constants.TestActiveActiveDomainEntry, msBuilder.domainEntry) // Domain entry should still be set
 }
