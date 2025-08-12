@@ -50,6 +50,8 @@ type (
 		UpdateAndGetState() []VirtualSliceState
 		// MergeSlices merge the incoming slices into the virtual queue
 		MergeSlices(...VirtualSlice)
+		// AppendSlices append the incoming slices to the virtual queue
+		AppendSlices(...VirtualSlice)
 		// IterateSlices iterate over the slices in the virtual queue
 		IterateSlices(func(VirtualSlice))
 		// ClearSlices calls the Clear method of the slices that satisfy the predicate function
@@ -195,6 +197,10 @@ func (q *virtualQueueImpl) UpdateAndGetState() []VirtualSliceState {
 }
 
 func (q *virtualQueueImpl) MergeSlices(incomingSlices ...VirtualSlice) {
+	if len(incomingSlices) == 0 {
+		return
+	}
+
 	q.Lock()
 	defer q.Unlock()
 
@@ -224,6 +230,21 @@ func (q *virtualQueueImpl) MergeSlices(incomingSlices ...VirtualSlice) {
 
 	q.virtualSlices.Init()
 	q.virtualSlices = mergedSlices
+	q.resetNextReadSliceLocked()
+}
+
+func (q *virtualQueueImpl) AppendSlices(incomingSlices ...VirtualSlice) {
+	if len(incomingSlices) == 0 {
+		return
+	}
+
+	q.Lock()
+	defer q.Unlock()
+
+	for _, slice := range incomingSlices {
+		q.virtualSlices.PushBack(slice)
+	}
+
 	q.resetNextReadSliceLocked()
 }
 

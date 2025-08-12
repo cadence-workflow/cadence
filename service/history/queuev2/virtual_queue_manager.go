@@ -26,6 +26,7 @@ package queuev2
 import (
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock"
@@ -38,6 +39,17 @@ import (
 
 const (
 	rootQueueID = 0
+	// Force creating new slice every forceNewSliceDuration
+	// so that the last slice in the default reader won't grow
+	// infinitely.
+	// The benefit of forcing new slice is:
+	// 1. As long as the last slice won't grow infinitly, task loading
+	// for that slice will complete and it's scope (both range and
+	// predicate) is able to shrink
+	// 2. Current task loading implementation can only unload the entire
+	// slice. If there's only one slice, we may unload all tasks for a
+	// given namespace.
+	forceNewSliceDuration = 5 * time.Minute
 )
 
 type (
@@ -68,6 +80,8 @@ type (
 		status               int32
 		virtualQueues        map[int64]VirtualQueue
 		createVirtualQueueFn func(VirtualSlice, int64) VirtualQueue
+
+		nextForceNewSliceTime time.Time
 	}
 )
 
@@ -195,7 +209,7 @@ func (m *virtualQueueManagerImpl) AddNewVirtualSliceToRootQueue(s VirtualSlice) 
 	m.RLock()
 	if vq, ok := m.virtualQueues[rootQueueID]; ok {
 		m.RUnlock()
-		vq.MergeSlices(s)
+		m.appendOrMergeSlice(vq, s)
 		return
 	}
 	m.RUnlock()
@@ -203,10 +217,20 @@ func (m *virtualQueueManagerImpl) AddNewVirtualSliceToRootQueue(s VirtualSlice) 
 	m.Lock()
 	defer m.Unlock()
 	if vq, ok := m.virtualQueues[rootQueueID]; ok {
-		vq.MergeSlices(s)
+		m.appendOrMergeSlice(vq, s)
 		return
 	}
 
 	m.virtualQueues[rootQueueID] = m.createVirtualQueueFn(s, rootQueueID)
 	m.virtualQueues[rootQueueID].Start()
+}
+
+func (m *virtualQueueManagerImpl) appendOrMergeSlice(vq VirtualQueue, s VirtualSlice) {
+	now := m.timeSource.Now()
+	if now.After(m.nextForceNewSliceTime) {
+		vq.AppendSlices(s)
+		m.nextForceNewSliceTime = now.Add(forceNewSliceDuration)
+		return
+	}
+	vq.MergeSlices(s)
 }
