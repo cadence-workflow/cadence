@@ -1417,7 +1417,6 @@ func (e *mutableStateBuilder) UpdateWorkflowStateCloseStatus(
 	return e.executionInfo.UpdateWorkflowStateCloseStatus(state, closeStatus)
 }
 
-// TODO(active-active): Write unit tests to cover StartTransaction. It doesn't have any tests.
 func (e *mutableStateBuilder) StartTransaction(
 	ctx context.Context,
 	domainEntry *cache.DomainCacheEntry,
