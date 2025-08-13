@@ -215,7 +215,7 @@ func buildWorkflowQueryFilter(query string) string {
 func buildSearchAttributeFilters(query string) []string {
 	var filters []string
 
-	// Check for common search attribute patterns
+	// Check for common search attribute
 	searchAttributeFilters := map[string]struct {
 		keywords []string
 		filter   string
