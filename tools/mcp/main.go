@@ -75,11 +75,11 @@ func main() {
 		),
 		mcp.WithString("domain",
 			mcp.Required(),
-			mcp.Description("Target domain name for the Cadence command"),
+			mcp.Description("Target domain name for Cadence command"),
 		),
 		mcp.WithString("address",
 			mcp.DefaultString("localhost:7833"),
-			mcp.Description("gRPC endpoint of the cadence domain"),
+			mcp.Description("gRPC endpoint of cadence domain"),
 		),
 	), cadenceCommandGeneratorHandler)
 

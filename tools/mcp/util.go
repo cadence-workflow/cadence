@@ -168,43 +168,32 @@ func buildWorkflowQueryFilter(query string) string {
 	}
 
 	// Check for status filters
-	if strings.Contains(query, "failed") || strings.Contains(query, "failure") {
-		filters = append(filters, "CloseStatus=\"failed\"")
+	statusFilters := map[string][]string{
+		"failed":           {"failed", "failure"},
+		"completed":        {"completed", "success"},
+		"canceled":         {"canceled"},
+		"terminated":       {"terminated"},
+		"timed_out":        {"timed out", "timeout"},
+		"continued_as_new": {"continued as new"},
 	}
 
-	if strings.Contains(query, "completed") || strings.Contains(query, "success") {
-		filters = append(filters, "CloseStatus=\"completed\"")
-	}
-
-	if strings.Contains(query, "canceled") {
-		filters = append(filters, "CloseStatus=\"canceled\"")
-	}
-
-	if strings.Contains(query, "terminated") {
-		filters = append(filters, "CloseStatus=\"terminated\"")
-	}
-
-	if strings.Contains(query, "timed out") || strings.Contains(query, "timeout") {
-		filters = append(filters, "CloseStatus=\"timed_out\"")
-	}
-
-	if strings.Contains(query, "continued as new") {
-		filters = append(filters, "CloseStatus=\"continued_as_new\"")
+	for status, keywords := range statusFilters {
+		if containsAny(query, keywords) {
+			filters = append(filters, fmt.Sprintf("CloseStatus=\"%s\"", status))
+		}
 	}
 
 	// Check for workflow type filters
-	if strings.Contains(query, "workflow type") || strings.Contains(query, "type") {
-		filters = append(filters, "WorkflowType = \"<workflow-type>\"")
+	workflowFilters := map[string][]string{
+		"WorkflowType": {"workflow type", "type"},
+		"WorkflowID":   {"workflow id", "id"},
+		"RunID":        {"run id", "id"},
 	}
 
-	// Check for workflow ID filters
-	if strings.Contains(query, "workflow id") || strings.Contains(query, "id") {
-		filters = append(filters, "WorkflowID = \"<workflow-id>\"")
-	}
-
-	// Check for run ID filters
-	if strings.Contains(query, "run id") || strings.Contains(query, "id") {
-		filters = append(filters, "RunID = \"<run-id>\"")
+	for field, keywords := range workflowFilters {
+		if containsAny(query, keywords) {
+			filters = append(filters, fmt.Sprintf("%s = \"<%s>\"", field, strings.ToLower(field)))
+		}
 	}
 
 	// Check for search attribute filters
@@ -227,27 +216,48 @@ func buildSearchAttributeFilters(query string) []string {
 	var filters []string
 
 	// Check for common search attribute patterns
-	if strings.Contains(query, "customint") || strings.Contains(query, "int field") {
-		filters = append(filters, "CustomIntField >= 0")
+	searchAttributeFilters := map[string]struct {
+		keywords []string
+		filter   string
+	}{
+		"CustomIntField": {
+			keywords: []string{"customint", "int field"},
+			filter:   "CustomIntField >= 0",
+		},
+		"CustomKeywordField": {
+			keywords: []string{"customkeyword", "keyword field"},
+			filter:   "CustomKeywordField = \"<keyword-value>\"",
+		},
+		"CustomStringField": {
+			keywords: []string{"customstring", "string field"},
+			filter:   "CustomStringField = \"<string-value>\"",
+		},
+		"CustomBoolField": {
+			keywords: []string{"custombool", "bool field"},
+			filter:   "CustomBoolField = true",
+		},
+		"CustomDatetimeField": {
+			keywords: []string{"customdatetime", "datetime field"},
+			filter:   "CustomDatetimeField > \"<datetime-value>\"",
+		},
 	}
 
-	if strings.Contains(query, "customkeyword") || strings.Contains(query, "keyword field") {
-		filters = append(filters, "CustomKeywordField = \"<keyword-value>\"")
-	}
-
-	if strings.Contains(query, "customstring") || strings.Contains(query, "string field") {
-		filters = append(filters, "CustomStringField = \"<string-value>\"")
-	}
-
-	if strings.Contains(query, "custombool") || strings.Contains(query, "bool field") {
-		filters = append(filters, "CustomBoolField = true")
-	}
-
-	if strings.Contains(query, "customdatetime") || strings.Contains(query, "datetime field") {
-		filters = append(filters, "CustomDatetimeField > \"<datetime-value>\"")
+	for _, data := range searchAttributeFilters {
+		if containsAny(query, data.keywords) {
+			filters = append(filters, data.filter)
+		}
 	}
 
 	return filters
+}
+
+func containsAny(query string, keywords []string) bool {
+	for _, keyword := range keywords {
+		if strings.Contains(query, keyword) {
+			return true
+		}
+	}
+	return false
 }
 
 func buildTimeFilter(query string) string {
