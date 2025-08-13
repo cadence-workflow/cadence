@@ -521,6 +521,11 @@ func TestNewQueueBase(t *testing.T) {
 	)
 
 	assert.Equal(t, persistence.NewImmediateTaskKey(400), queueBase.newVirtualSliceState.Range.InclusiveMinTaskKey)
+	virtualQueues := queueBase.virtualQueueManager.VirtualQueues()
+	states := make(map[int64][]VirtualSliceState)
+	for queueID, virtualQueue := range virtualQueues {
+		states[queueID] = virtualQueue.GetState()
+	}
 	assert.Equal(t, map[int64][]VirtualSliceState{
 		rootQueueID: {
 			{
@@ -538,5 +543,5 @@ func TestNewQueueBase(t *testing.T) {
 				Predicate: NewUniversalPredicate(),
 			},
 		},
-	}, queueBase.virtualQueueManager.GetState())
+	}, states)
 }

@@ -41,6 +41,10 @@ import (
 
 const (
 	alertChSize = 10
+	// Non-default readers will use critical pending task count * this coefficient
+	// as its max pending task count so that their loading will never trigger pending
+	// task alert & action
+	nonRootQueueMaxPendingTaskCoefficient = 0.8
 )
 
 type (
@@ -161,6 +165,17 @@ func newQueueBase(
 		&VirtualQueueOptions{
 			PageSize:                             options.PageSize,
 			MaxPendingTasksCount:                 options.MaxPendingTasksCount,
+			PollBackoffInterval:                  options.PollBackoffInterval,
+			PollBackoffIntervalJitterCoefficient: options.PollBackoffIntervalJitterCoefficient,
+		},
+		&VirtualQueueOptions{
+			PageSize: options.PageSize,
+			// non-root queues should not trigger task unloading
+			// otherwise those virtual queues will keep loading, hit pending task count limit, unload, throttle, load, etc...
+			// use a limit lower than the critical pending task count instead
+			MaxPendingTasksCount: func(opts ...dynamicproperties.FilterOption) int {
+				return int(float64(options.CriticalPendingTaskCount(opts...)) * nonRootQueueMaxPendingTaskCoefficient)
+			},
 			PollBackoffInterval:                  options.PollBackoffInterval,
 			PollBackoffIntervalJitterCoefficient: options.PollBackoffIntervalJitterCoefficient,
 		},
