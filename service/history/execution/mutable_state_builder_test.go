@@ -4197,15 +4197,13 @@ func TestStartTransaction(t *testing.T) {
 		expectedErrorContains     string
 	}{
 		"it should successfully update the failover version": {
-			domainEntry: regularDomainEntry,
-			setupActiveClusterManager: func(activeClusterManager *activecluster.MockManager) {
-				// No expectations - LookupWorkflow should not be called for regular domains
-			},
-			setupMutableStateBuilder: func(msBuilder *mutableStateBuilder) {},
-			incomingTaskVersion:      int64(100),
-			expectedFlushDecision:    false,
-			expectedVersion:          123, // domain failover version
-			expectedError:            false,
+			domainEntry:               regularDomainEntry,
+			setupActiveClusterManager: func(activeClusterManager *activecluster.MockManager) {},
+			setupMutableStateBuilder:  func(msBuilder *mutableStateBuilder) {},
+			incomingTaskVersion:       int64(100),
+			expectedFlushDecision:     false,
+			expectedVersion:           123, // domain failover version
+			expectedError:             false,
 		},
 		"when the domain is active-active domain it should update the failover version": {
 			domainEntry: activeActiveDomainEntry,
@@ -4243,10 +4241,8 @@ func TestStartTransaction(t *testing.T) {
 			expectedErrorContains:    "cluster lookup failed",
 		},
 		"when the workflow is closed it should return an error": {
-			domainEntry: regularDomainEntry,
-			setupActiveClusterManager: func(activeClusterManager *activecluster.MockManager) {
-				// No expectations - LookupWorkflow should not be called for regular domains
-			},
+			domainEntry:               regularDomainEntry,
+			setupActiveClusterManager: func(activeClusterManager *activecluster.MockManager) {},
 			setupMutableStateBuilder: func(msBuilder *mutableStateBuilder) {
 				// Create empty version histories to trigger GetCurrentVersionHistory error
 				msBuilder.versionHistories = &persistence.VersionHistories{
