@@ -68,22 +68,18 @@ func main() {
 	), payloadDecoderHandler)
 
 	s.AddTool(mcp.NewTool("command_generator",
-		mcp.WithDescription("Generate WorkflowCLI commands from natural language descriptions"),
+		mcp.WithDescription("Convert natural language to Cadence CLI commands. Use this tool when you need to generate Cadence CLI commands from natural language descriptions like 'list failed workflows from past 7 days' or 'start workflow with search attributes'."),
 		mcp.WithString("query",
 			mcp.Required(),
-			mcp.Description("Natural language query to generate CLI commands for"),
+			mcp.Description("Natural language description of Cadence CLI command to be generated (e.g., 'list failed workflows from past 7 days', 'start workflow with search attributes')"),
 		),
 		mcp.WithString("domain",
 			mcp.Required(),
-			mcp.Description("Domain name"),
+			mcp.Description("Target domain name for the Cadence command"),
 		),
-		mcp.WithString("env",
-			mcp.Required(),
-			mcp.Description("Environment name"),
-		),
-		mcp.WithString("proxy_region",
-			mcp.Required(),
-			mcp.Description("Proxy Region name"),
+		mcp.WithString("address",
+			mcp.DefaultString("localhost:7833"),
+			mcp.Description("gRPC endpoint of the cadence domain"),
 		),
 	), cadenceCommandGeneratorHandler)
 
@@ -211,20 +207,16 @@ func cadenceCommandGeneratorHandler(ctx context.Context, request mcp.CallToolReq
 		return nil, errors.New("domain must be a string")
 	}
 
-	env, ok := request.Params.Arguments["env"].(string)
+	address, ok := request.Params.Arguments["address"].(string)
 	if !ok {
-		return nil, errors.New("env must be a string")
+		address = "localhost:7833"
 	}
 
-	proxyRegion, ok := request.Params.Arguments["proxy_region"].(string)
-	if !ok {
-		return nil, errors.New("proxy_region must be a string")
-	}
-
-	command, err := generateCadenceCommand(query, domain, env, proxyRegion)
+	command, err := generateCadenceCommand(query, domain, address)
 	if err != nil {
 		return nil, errors.New("error generating cadence command: " + err.Error())
 	}
 
-	return mcp.NewToolResultText(command), nil
+	formattedCommand := fmt.Sprintf("Command Generated: %s", command)
+	return mcp.NewToolResultText(formattedCommand), nil
 }
