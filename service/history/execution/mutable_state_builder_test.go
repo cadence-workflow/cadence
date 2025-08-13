@@ -4248,9 +4248,6 @@ func TestStartTransaction(t *testing.T) {
 				// No expectations - LookupWorkflow should not be called for regular domains
 			},
 			setupMutableStateBuilder: func(msBuilder *mutableStateBuilder) {
-				// Set workflow to closed state to trigger UpdateCurrentVersion error
-				msBuilder.executionInfo.State = persistence.WorkflowStateCompleted
-				msBuilder.executionInfo.CloseStatus = persistence.WorkflowCloseStatusCompleted
 				// Create empty version histories to trigger GetCurrentVersionHistory error
 				msBuilder.versionHistories = &persistence.VersionHistories{
 					CurrentVersionHistoryIndex: 0,
@@ -4300,7 +4297,7 @@ func TestStartTransaction(t *testing.T) {
 				NextEventID: int64(5),
 			}
 
-			// Set up version histories for NDC
+			// Set up version histories for UdpateCurrentVersion
 			msBuilder.versionHistories = persistence.NewVersionHistories(&persistence.VersionHistory{
 				BranchToken: []byte("test-branch-token"),
 				Items: []*persistence.VersionHistoryItem{
