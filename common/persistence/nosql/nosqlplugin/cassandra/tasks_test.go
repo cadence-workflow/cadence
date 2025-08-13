@@ -186,7 +186,7 @@ func TestSelectTaskList(t *testing.T) {
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
 
-			db := NewCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 			gotRow, err := db.SelectTaskList(context.Background(), tc.filter)
 
@@ -338,7 +338,7 @@ func TestInsertTaskList(t *testing.T) {
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
 
-			db := NewCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 			err := db.InsertTaskList(context.Background(), tc.row)
 
@@ -450,7 +450,7 @@ func TestUpdateTaskList(t *testing.T) {
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
 
-			db := NewCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 			err := db.UpdateTaskList(context.Background(), tc.row, tc.prevRangeID)
 
@@ -551,7 +551,7 @@ func TestUpdateTaskListWithTTL(t *testing.T) {
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
 
-			db := NewCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 			err := db.UpdateTaskListWithTTL(context.Background(), tc.ttlSeconds, tc.row, tc.prevRangeID)
 
 			if (err != nil) != tc.wantErr {
@@ -576,7 +576,7 @@ func TestListTaskList(t *testing.T) {
 	logger := testlogger.New(t)
 	dc := &persistence.DynamicConfiguration{}
 	session := &fakeSession{}
-	db := NewCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+	db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 	_, err := db.ListTaskList(context.Background(), 10, nil)
 	var want *types.InternalServiceError
@@ -719,7 +719,7 @@ func TestDeleteTaskList(t *testing.T) {
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
 
-			db := NewCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 			err := db.DeleteTaskList(context.Background(), tc.filter, tc.prevRangeID)
 
@@ -830,7 +830,7 @@ func TestInsertTasks(t *testing.T) {
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
 
-			db := NewCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 			err := db.InsertTasks(context.Background(), tc.tasksToInsert, tc.tasklistCond)
 
@@ -915,7 +915,7 @@ func TestGetTasksCount(t *testing.T) {
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
 
-			db := NewCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 			queueSize, err := db.GetTasksCount(context.Background(), tc.filter)
 
@@ -1093,7 +1093,7 @@ func TestSelectTasks(t *testing.T) {
 			client := gocql.NewMockClient(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			db := NewCassandraDBFromSession(cfg, session, logger, nil, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, nil, DbWithClient(client))
 
 			gotRows, err := db.SelectTasks(context.Background(), tc.filter)
 
@@ -1179,7 +1179,7 @@ func TestRangeDeleteTasks(t *testing.T) {
 			client := gocql.NewMockClient(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			db := NewCassandraDBFromSession(cfg, session, logger, nil, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, nil, DbWithClient(client))
 
 			rowsDeleted, err := db.RangeDeleteTasks(context.Background(), tc.filter)
 

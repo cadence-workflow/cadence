@@ -104,7 +104,7 @@ func TestThriftDecodeHelper(t *testing.T) {
 		},
 		{
 			desc:      "Active clusters config",
-			input:     "590d000a0b0c0000000200000007726567696f6e300b000a00000008636c7573746572310a001400000000000000020000000007726567696f6e310b000a00000008636c7573746572310a001400000000000000000000",
+			input:     "590d000a0b0c0000000100000007726567696f6e300b000a00000008636c7573746572310a001400000000000000020000",
 			encoding:  "hex",
 			wantObjFn: generateTestActiveClustersConfig,
 		},
@@ -275,10 +275,6 @@ func generateTestActiveClustersConfig(t *testing.T) codec.ThriftObject {
 			"region0": {
 				ActiveClusterName: common.StringPtr("cluster1"),
 				FailoverVersion:   common.Int64Ptr(2),
-			},
-			"region1": {
-				ActiveClusterName: common.StringPtr("cluster1"),
-				FailoverVersion:   common.Int64Ptr(0),
 			},
 		},
 	}
