@@ -223,8 +223,8 @@ func Test__identifyIssuesWithPaginatedHistory(t *testing.T) {
 		History: &types.History{
 			Events: []*types.HistoryEvent{
 				{
-					WorkflowExecutionContinuedAsNewEventAttributes: &types.WorkflowExecutionContinuedAsNewEventAttributes{
-						FailureReason:                common.StringPtr("cadenceInternal:Timeout START_TO_CLOSE"),
+					WorkflowExecutionFailedEventAttributes: &types.WorkflowExecutionFailedEventAttributes{
+						Reason:                       common.StringPtr("cadenceInternal:Timeout START_TO_CLOSE"),
 						DecisionTaskCompletedEventID: 10,
 					},
 				},
@@ -259,6 +259,8 @@ func Test__identifyIssuesWithPaginatedHistory(t *testing.T) {
 	}
 	retryMetadataInBytes, err := json.Marshal(retryMetadata)
 	require.NoError(t, err)
+	failureMetadataInBytes, err := json.Marshal(failure.FailureIssuesMetadata{})
+	require.NoError(t, err)
 	expectedResult := []invariant.InvariantCheckResult{
 		{
 			IssueID:       0,
@@ -266,11 +268,17 @@ func Test__identifyIssuesWithPaginatedHistory(t *testing.T) {
 			Reason:        "MaximumAttempts set to 1 will not retry since maximum attempts includes the first attempt.",
 			Metadata:      retryMetadataInBytes,
 		},
+		{
+			IssueID:       0,
+			InvariantType: failure.WorkflowFailed.String(),
+			Reason:        "The failure is caused by a timeout during the execution",
+			Metadata:      failureMetadataInBytes,
+		},
 	}
 
 	dwtest := &dw{
 		clientBean: mockClientBean,
-		invariants: []invariant.Invariant{retry.NewInvariant()},
+		invariants: []invariant.Invariant{retry.NewInvariant(), failure.NewInvariant()},
 	}
 
 	result, err := dwtest.identifyIssues(context.Background(), identifyIssuesParams{Execution: testExecution})
