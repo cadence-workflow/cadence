@@ -4095,7 +4095,6 @@ func TestLoad_ActiveActive(t *testing.T) {
 	for name, td := range tests {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
 
 			// Setup mocks
 			shardContext := shard.NewMockContext(ctrl)
