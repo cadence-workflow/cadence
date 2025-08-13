@@ -231,10 +231,10 @@ func (g *directPeerChooser) removePeer(addr string) {
 			g.logger.Error("failed to release peer", tag.Error(err), tag.Address(addr))
 		}
 	} else {
-		if g.logger.DebugOn() {
-			g.logger.Debug("peer is nil", tag.Address(addr), tag.Dynamic("stack", string(debug.Stack())))
+		if peer == nil {
+			g.logger.Error("peer is nil", tag.Address(addr), tag.Dynamic("stack", string(debug.Stack())))
 		} else {
-			g.logger.Error("peer is nil", tag.Address(addr))
+			g.logger.Error("peer is not in the peers map", tag.Address(addr), tag.Dynamic("stack", string(debug.Stack())))
 		}
 	}
 	g.mu.RUnlock()
