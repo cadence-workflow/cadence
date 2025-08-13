@@ -35,15 +35,6 @@ import (
 )
 
 func Test__Check(t *testing.T) {
-	retriedWfMetadata := RetryMetadata{
-		EventID: 1,
-		RetryPolicy: &types.RetryPolicy{
-			InitialIntervalInSeconds: 1,
-			MaximumAttempts:          2,
-		},
-	}
-	retriedWfMetadataInBytes, err := json.Marshal(retriedWfMetadata)
-	require.NoError(t, err)
 	invalidAttemptsMetadata := RetryMetadata{
 		EventID: 5,
 		RetryPolicy: &types.RetryPolicy{
@@ -73,19 +64,6 @@ func Test__Check(t *testing.T) {
 		expectedResult []invariant.InvariantCheckResult
 		err            error
 	}{
-		{
-			name:     "workflow execution timeout",
-			testData: retriedWfHistory(),
-			expectedResult: []invariant.InvariantCheckResult{
-				{
-					IssueID:       0,
-					InvariantType: WorkflowRetryInfo.String(),
-					Reason:        "The failure is caused by a timeout during the execution",
-					Metadata:      retriedWfMetadataInBytes,
-				},
-			},
-			err: nil,
-		},
 		{
 			name:     "invalid retry policy",
 			testData: invalidRetryPolicyWfHistory(),

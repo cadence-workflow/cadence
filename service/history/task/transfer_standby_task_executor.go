@@ -156,9 +156,18 @@ func (t *transferStandbyTaskExecutor) processActivityTask(
 			return nil, err
 		}
 
+		taskList := types.TaskList{
+			Name: activityInfo.TaskList,
+			Kind: activityInfo.TaskListKind.Ptr(),
+		}
+		if taskList.Name == "" {
+			taskList.Name = transferTask.TaskList
+		}
+
 		if activityInfo.StartedID == constants.EmptyEventID {
 			return newPushActivityToMatchingInfo(
 				activityInfo.ScheduleToStartTimeout,
+				taskList,
 				mutableState.GetExecutionInfo().PartitionConfig,
 			), nil
 		}
@@ -215,7 +224,7 @@ func (t *transferStandbyTaskExecutor) processDecisionTask(
 		if decisionInfo.StartedID == constants.EmptyEventID {
 			return newPushDecisionToMatchingInfo(
 				decisionTimeout,
-				types.TaskList{Name: executionInfo.TaskList}, // at standby, always use non-sticky tasklist
+				types.TaskList{Name: executionInfo.TaskList, Kind: executionInfo.TaskListKind.Ptr()}, // at standby, always use non-sticky tasklist
 				mutableState.GetExecutionInfo().PartitionConfig,
 			), nil
 		}
@@ -628,9 +637,11 @@ func (t *transferStandbyTaskExecutor) pushActivity(
 
 	pushActivityInfo := postActionInfo.(*pushActivityToMatchingInfo)
 	timeout := min(pushActivityInfo.activityScheduleToStartTimeout, constants.MaxTaskTimeout)
+	taskList := &pushActivityInfo.tasklist
 	return t.transferTaskExecutorBase.pushActivity(
 		ctx,
 		task.(*persistence.ActivityTask),
+		taskList,
 		timeout,
 		pushActivityInfo.partitionConfig,
 	)

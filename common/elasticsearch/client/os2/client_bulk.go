@@ -67,13 +67,9 @@ func (v *bulkProcessor) Add(request *bulk.GenericBulkableAddRequest) {
 	switch request.RequestType {
 	case bulk.BulkableDeleteRequest:
 		req.Action = "delete"
-		req.Version = &request.Version
-		req.VersionType = &request.VersionType
 		callBackRequest = bulk.NewBulkDeleteRequest().
 			ID(request.ID).
-			Index(request.Index).
-			Version(request.Version).
-			VersionType(request.VersionType)
+			Index(request.Index)
 	case bulk.BulkableIndexRequest:
 		body, err := json.Marshal(request.Doc)
 		if err != nil {

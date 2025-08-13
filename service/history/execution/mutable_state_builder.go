@@ -381,7 +381,6 @@ func (e *mutableStateBuilder) Load(
 		}
 	}
 
-	// TODO(active-active): Write unit tests to cover this
 	if e.domainEntry.GetReplicationConfig().IsActiveActive() {
 		res, err := e.shard.GetActiveClusterManager().LookupWorkflow(ctx, e.executionInfo.DomainID, e.executionInfo.WorkflowID, e.executionInfo.RunID)
 		if err != nil {

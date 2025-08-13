@@ -388,7 +388,7 @@ func rootCausePollersRelated(rootCause invariant.RootCause) bool {
 }
 
 func issueRetryRelated(issue invariant.InvariantCheckResult) bool {
-	for _, i := range []string{retry.WorkflowRetryIssue.String(), retry.WorkflowRetryInfo.String(), retry.ActivityRetryIssue.String(), retry.ActivityHeartbeatIssue.String()} {
+	for _, i := range []string{retry.WorkflowRetryIssue.String(), retry.ActivityRetryIssue.String(), retry.ActivityHeartbeatIssue.String()} {
 		if issue.InvariantType == i {
 			return true
 		}

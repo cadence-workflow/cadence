@@ -27,7 +27,6 @@ import "github.com/uber/cadence/common/types"
 type RetryType string
 
 const (
-	WorkflowRetryInfo      RetryType = "Workflow Retry configured and applied"
 	WorkflowRetryIssue     RetryType = "Workflow Retry configured but invalid"
 	ActivityRetryIssue     RetryType = "Activity Retry configured but invalid"
 	ActivityHeartbeatIssue RetryType = "Activity Heartbeat configured but invalid"

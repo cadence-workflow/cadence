@@ -7,6 +7,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
@@ -476,9 +477,10 @@ func TestVirtualQueueManager_AddNewVirtualSlice(t *testing.T) {
 		newSlice        VirtualSlice
 		setupMockQueues func(map[int64]*MockVirtualQueue, *MockVirtualSlice)
 		verifyQueues    func(*testing.T, map[int64]VirtualQueue)
+		appendSlice     bool
 	}{
 		{
-			name: "add slice to existing root queue",
+			name: "merge slice to existing root queue",
 			initialQueues: map[int64]VirtualQueue{
 				rootQueueID: nil, // Will be replaced with mock
 			},
@@ -490,6 +492,21 @@ func TestVirtualQueueManager_AddNewVirtualSlice(t *testing.T) {
 				assert.Contains(t, queues, int64(rootQueueID))
 				assert.Len(t, queues, 1)
 			},
+		},
+		{
+			name: "append slice to existing root queue",
+			initialQueues: map[int64]VirtualQueue{
+				rootQueueID: nil, // Will be replaced with mock
+			},
+			newSlice: nil, // Will be replaced with mock
+			setupMockQueues: func(mocks map[int64]*MockVirtualQueue, slice *MockVirtualSlice) {
+				mocks[rootQueueID].EXPECT().AppendSlices(slice)
+			},
+			verifyQueues: func(t *testing.T, queues map[int64]VirtualQueue) {
+				assert.Contains(t, queues, int64(rootQueueID))
+				assert.Len(t, queues, 1)
+			},
+			appendSlice: true,
 		},
 		{
 			name:          "create new root queue when none exists",
@@ -520,6 +537,7 @@ func TestVirtualQueueManager_AddNewVirtualSlice(t *testing.T) {
 			mockQueueReader := NewMockQueueReader(ctrl)
 			mockLogger := log.NewNoop()
 			mockMetricsScope := metrics.NoopScope
+			mockTimeSource := clock.NewMockedTimeSource()
 
 			// Create mock slice
 			mockSlice := NewMockVirtualSlice(ctrl)
@@ -544,6 +562,7 @@ func TestVirtualQueueManager_AddNewVirtualSlice(t *testing.T) {
 				queueReader:     mockQueueReader,
 				logger:          mockLogger,
 				metricsScope:    mockMetricsScope,
+				timeSource:      mockTimeSource,
 				rootQueueOptions: &VirtualQueueOptions{
 					PageSize: dynamicproperties.GetIntPropertyFn(100),
 				},
@@ -557,9 +576,13 @@ func TestVirtualQueueManager_AddNewVirtualSlice(t *testing.T) {
 					vq.EXPECT().Start()
 					return vq
 				},
+				nextForceNewSliceTime: mockTimeSource.Now(),
 			}
 
 			// Execute test
+			if tt.appendSlice {
+				mockTimeSource.Advance(forceNewSliceDuration)
+			}
 			manager.AddNewVirtualSliceToRootQueue(mockSlice)
 
 			// Verify results

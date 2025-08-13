@@ -42,6 +42,7 @@ type (
 		// taskListManager configuration
 		RangeSize                                 int64
 		ReadRangeSize                             dynamicproperties.IntPropertyFn
+		EnableReturnAllTaskListKinds              dynamicproperties.BoolPropertyFn
 		GetTasksBatchSize                         dynamicproperties.IntPropertyFnWithTaskListInfoFilters
 		UpdateAckInterval                         dynamicproperties.DurationPropertyFnWithTaskListInfoFilters
 		IdleTasklistCheckInterval                 dynamicproperties.DurationPropertyFnWithTaskListInfoFilters
@@ -230,5 +231,6 @@ func NewConfig(dc *dynamicconfig.Collection, hostName string, getIsolationGroups
 		AllIsolationGroups:                        getIsolationGroups,
 		EnableStandbyTaskCompletion:               dc.GetBoolPropertyFilteredByTaskListInfo(dynamicproperties.MatchingEnableStandbyTaskCompletion),
 		EnableClientAutoConfig:                    dc.GetBoolPropertyFilteredByTaskListInfo(dynamicproperties.MatchingEnableClientAutoConfig),
+		EnableReturnAllTaskListKinds:              dc.GetBoolProperty(dynamicproperties.MatchingEnableReturnAllTaskListKinds),
 	}
 }

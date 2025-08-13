@@ -1677,6 +1677,7 @@ const (
 	MatchingEnableGetNumberOfPartitionsFromCache
 	MatchingEnableAdaptiveScaler
 	MatchingEnablePartitionEmptyCheck
+	MatchingEnableReturnAllTaskListKinds
 
 	// key for history
 
@@ -4215,6 +4216,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "matching.enablePartitionEmptyCheck",
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
 		Description:  "MatchingEnablePartitionEmptyCheck enables using TaskListStatus.empty to check if a partition is empty",
+		DefaultValue: false,
+	},
+	MatchingEnableReturnAllTaskListKinds: {
+		KeyName:      "matching.matchingReturnAllTaskListKinds",
+		Description:  "Returns TaskLists of all kinds when GetTaskListsByDomain is called. Useful in testing Cadence",
 		DefaultValue: false,
 	},
 	EventsCacheGlobalEnable: {
