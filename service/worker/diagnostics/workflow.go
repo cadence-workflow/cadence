@@ -329,7 +329,7 @@ func retrieveFailureRootCause(rootCause []invariant.InvariantRootCauseResult) ([
 			})
 		}
 		if rc.RootCause == invariant.RootCauseTypeBlobSizeLimit {
-			var metadata failure.BlobSizeMetadata
+			var metadata failure.FailureRootcauseMetadata
 			err := json.Unmarshal(rc.Metadata, &metadata)
 			if err != nil {
 				return nil, err
@@ -338,7 +338,7 @@ func retrieveFailureRootCause(rootCause []invariant.InvariantRootCauseResult) ([
 				IssueID:       rc.IssueID,
 				RootCauseType: rc.RootCause.String(),
 				Metadata: &failure.FailureRootcauseMetadata{
-					BlobSizeMetadata: &metadata,
+					BlobSizeMetadata: metadata.BlobSizeMetadata,
 				},
 			})
 		}

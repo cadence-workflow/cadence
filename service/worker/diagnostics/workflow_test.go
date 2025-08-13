@@ -364,9 +364,11 @@ func (s *diagnosticsWorkflowTestSuite) Test__retrieveFailureIssues() {
 }
 
 func (s *diagnosticsWorkflowTestSuite) Test__retrieveFailureRootCause() {
-	blobSizeMetadataInBytes, err := json.Marshal(failure.BlobSizeMetadata{
-		BlobSizeWarnLimit:  5,
-		BlobSizeErrorLimit: 10,
+	blobSizeMetadataInBytes, err := json.Marshal(failure.FailureRootcauseMetadata{
+		BlobSizeMetadata: &failure.BlobSizeMetadata{
+			BlobSizeWarnLimit:  5,
+			BlobSizeErrorLimit: 10,
+		},
 	})
 	s.NoError(err)
 	rootCause := []invariant.InvariantRootCauseResult{
