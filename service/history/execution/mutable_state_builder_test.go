@@ -4240,7 +4240,7 @@ func TestStartTransaction(t *testing.T) {
 			expectedError:            true,
 			expectedErrorContains:    "cluster lookup failed",
 		},
-		"when the workflow is closed it should return an error": {
+		"when unable to update current version it should return an error": {
 			domainEntry:               regularDomainEntry,
 			setupActiveClusterManager: func(activeClusterManager *activecluster.MockManager) {},
 			setupMutableStateBuilder: func(msBuilder *mutableStateBuilder) {
