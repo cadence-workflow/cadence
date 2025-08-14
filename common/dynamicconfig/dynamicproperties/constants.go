@@ -4610,7 +4610,7 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	ReadNoSQLShardFromDataBlob: {
 		KeyName:      "history.readNoSQLShardFromDataBlob",
 		Description:  "ReadNoSQLShardFromDataBlob is to read shards from data blob",
-		DefaultValue: false,
+		DefaultValue: true,
 	},
 	EnableSizeBasedHistoryExecutionCache: {
 		KeyName:      "history.enableSizeBasedHistoryExecutionCache",
