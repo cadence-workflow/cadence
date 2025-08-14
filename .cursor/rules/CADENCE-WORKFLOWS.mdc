@@ -71,9 +71,9 @@ Do not launch many activities or child workflows concurrently without limiting c
 const batchSize = 3
 var futures []func(ctx workflow.Context) workflow.Future
 for _, input := range inputs {
-    input := input
+    activityInput := input
     futures = append(futures, func(ctx workflow.Context) workflow.Future {
-        return workflow.ExecuteActivity(ctx, "Activity Name", input)
+        return workflow.ExecuteActivity(ctx, "Activity Name", activityInput)
     })
 }
 batchFuture, err := x.NewBatchFuture(ctx, batchSize, futures)
