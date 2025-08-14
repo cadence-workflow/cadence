@@ -215,7 +215,6 @@ func buildWorkflowQueryFilter(query string) string {
 func buildSearchAttributeFilters(query string) []string {
 	var filters []string
 
-	// Check for common search attribute
 	searchAttributeFilters := map[string]struct {
 		keywords []string
 		filter   string
@@ -261,13 +260,12 @@ func containsAny(query string, keywords []string) bool {
 }
 
 func buildTimeFilter(query string) string {
-	// Extract number of days/weeks/months
+
 	days := extractDays(query)
 	if days == 0 {
 		return ""
 	}
 
-	// Check for reference date like "today is august 11"
 	referenceDate := extractReferenceDate(query)
 	var baseTime time.Time
 	if !referenceDate.IsZero() {
@@ -276,7 +274,6 @@ func buildTimeFilter(query string) string {
 		baseTime = time.Now()
 	}
 
-	// Calculate start time from reference date
 	startTime := baseTime.AddDate(0, 0, -days)
 	endTime := baseTime
 
@@ -288,7 +285,6 @@ func buildTimeFilter(query string) string {
 }
 
 func extractReferenceDate(query string) time.Time {
-	// Look for patterns like "today is august 11", "today is 2025-08-11"
 	patterns := []string{
 		`today is (january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d+)`,
 		`today is (\d{4})-(\d{1,2})-(\d{1,2})`,
@@ -301,11 +297,10 @@ func extractReferenceDate(query string) time.Time {
 		matches := re.FindStringSubmatch(query)
 		if len(matches) > 1 {
 			if len(matches) == 3 {
-				// Month name + day format
+
 				monthStr := matches[1]
 				dayStr := matches[2]
 
-				// Map month names to numbers
 				monthMap := map[string]int{
 					"january": 1, "february": 2, "march": 3, "april": 4,
 					"may": 5, "june": 6, "july": 7, "august": 8,
@@ -314,7 +309,6 @@ func extractReferenceDate(query string) time.Time {
 
 				if month, ok := monthMap[strings.ToLower(monthStr)]; ok {
 					if day, err := strconv.Atoi(dayStr); err == nil {
-						// Use current year
 						year := time.Now().Year()
 						return time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC)
 					}

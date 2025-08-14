@@ -217,6 +217,7 @@ func cadenceCommandGeneratorHandler(ctx context.Context, request mcp.CallToolReq
 		return nil, errors.New("error generating cadence command: " + err.Error())
 	}
 
+	// format the command to be displayed to user
 	formattedCommand := fmt.Sprintf("Command Generated: %s", command)
 	return mcp.NewToolResultText(formattedCommand), nil
 }
