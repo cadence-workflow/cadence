@@ -1417,7 +1417,6 @@ func (e *mutableStateBuilder) UpdateWorkflowStateCloseStatus(
 	return e.executionInfo.UpdateWorkflowStateCloseStatus(state, closeStatus)
 }
 
-// TODO(active-active): Write unit tests to cover StartTransaction. It doesn't have any tests.
 func (e *mutableStateBuilder) StartTransaction(
 	ctx context.Context,
 	domainEntry *cache.DomainCacheEntry,
@@ -1441,12 +1440,7 @@ func (e *mutableStateBuilder) StartTransaction(
 		return false, err
 	}
 
-	flushBeforeReady, err := e.startTransactionHandleDecisionFailover(incomingTaskVersion)
-	if err != nil {
-		return false, err
-	}
-
-	return flushBeforeReady, nil
+	return e.startTransactionHandleDecisionFailover(incomingTaskVersion)
 }
 
 func (e *mutableStateBuilder) CloseTransactionAsMutation(
@@ -1980,7 +1974,7 @@ func (e *mutableStateBuilder) startTransactionHandleDecisionFailover(
 	}
 	currentCluster := e.clusterMetadata.GetCurrentClusterName()
 
-	// there are 4 cases for version changes (based on version from domain cache)
+	// there are 5 cases for version changes (based on version from domain cache)
 	// NOTE: domain cache version change may occur after seeing events with higher version
 	//  meaning that the flush buffer logic in NDC branch manager should be kept.
 	//

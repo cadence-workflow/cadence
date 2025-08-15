@@ -270,6 +270,11 @@ func (p *namespaceProcessor) rebalanceShards(ctx context.Context) (err error) {
 		metricsLoopScope.RecordHistogramDuration(metrics.ShardDistributorAssignLoopShardRebalanceLatency, p.timeSource.Now().Sub(start))
 	}()
 
+	return p.rebalanceShardsImpl(ctx, metricsLoopScope)
+}
+
+func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoopScope metrics.Scope) (err error) {
+
 	namespaceState, err := p.shardStore.GetState(ctx, p.namespaceCfg.Name)
 	if err != nil {
 		return fmt.Errorf("get state: %w", err)
@@ -278,21 +283,36 @@ func (p *namespaceProcessor) rebalanceShards(ctx context.Context) (err error) {
 	if namespaceState.GlobalRevision <= p.lastAppliedRevision {
 		return nil
 	}
+	p.lastAppliedRevision = namespaceState.GlobalRevision
 
-	var activeExecutors []string
-	for id, state := range namespaceState.Executors {
-		if state.Status == types.ExecutorStatusACTIVE {
-			activeExecutors = append(activeExecutors, id)
-		}
-	}
-
+	activeExecutors := p.getActiveExecutors(namespaceState)
 	if len(activeExecutors) == 0 {
 		p.logger.Warn("No active executors found. Cannot assign shards.")
 		return nil
 	}
 
-	sort.Strings(activeExecutors)
+	shardsToReassign, currentAssignments := p.findShardsToReassign(activeExecutors, namespaceState)
 
+	metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignLoopNumRebalancedShards, float64(len(shardsToReassign)))
+
+	distributionChanged := p.updateAssignments(shardsToReassign, activeExecutors, currentAssignments)
+	if !distributionChanged {
+		return nil
+	}
+
+	p.addAssignmentsToNamespaceState(namespaceState, currentAssignments)
+
+	p.logger.Info("Applying new shard distribution.")
+	// Use the leader guard for the assign operation.
+	err = p.shardStore.AssignShards(ctx, p.namespaceCfg.Name, namespaceState, p.election.Guard())
+	if err != nil {
+		return fmt.Errorf("assign shards: %w", err)
+	}
+
+	return nil
+}
+
+func (p *namespaceProcessor) findShardsToReassign(activeExecutors []string, namespaceState *store.NamespaceState) (map[string]struct{}, map[string][]string) {
 	allShards := make(map[string]struct{})
 	for _, shardID := range getShards(p.namespaceCfg) {
 		allShards[strconv.FormatInt(shardID, 10)] = struct{}{}
@@ -322,12 +342,12 @@ func (p *namespaceProcessor) rebalanceShards(ctx context.Context) (err error) {
 	for shardID := range allShards {
 		shardsToReassign[shardID] = struct{}{}
 	}
+	return shardsToReassign, currentAssignments
+}
 
-	metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignLoopNumRebalancedShards, float64(len(shardsToReassign)))
-
+func (*namespaceProcessor) updateAssignments(shardsToReassign map[string]struct{}, activeExecutors []string, currentAssignments map[string][]string) (distributionChanged bool) {
 	if len(shardsToReassign) == 0 {
-		p.lastAppliedRevision = namespaceState.GlobalRevision
-		return nil
+		return false
 	}
 
 	i := rand.Intn(len(activeExecutors))
@@ -336,7 +356,10 @@ func (p *namespaceProcessor) rebalanceShards(ctx context.Context) (err error) {
 		currentAssignments[executorID] = append(currentAssignments[executorID], shardID)
 		i++
 	}
+	return true
+}
 
+func (p *namespaceProcessor) addAssignmentsToNamespaceState(namespaceState *store.NamespaceState, currentAssignments map[string][]string) {
 	if namespaceState.Shards == nil {
 		namespaceState.Shards = make(map[string]store.ShardState)
 	}
@@ -358,17 +381,18 @@ func (p *namespaceProcessor) rebalanceShards(ctx context.Context) (err error) {
 	}
 
 	namespaceState.ShardAssignments = newState
+}
 
-	p.logger.Info("Applying new shard distribution.")
-	// Use the leader guard for the assign operation.
-	err = p.shardStore.AssignShards(ctx, p.namespaceCfg.Name, namespaceState, p.election.Guard())
-	if err != nil {
-		return fmt.Errorf("assign shards: %w", err)
+func (*namespaceProcessor) getActiveExecutors(namespaceState *store.NamespaceState) []string {
+	var activeExecutors []string
+	for id, state := range namespaceState.Executors {
+		if state.Status == types.ExecutorStatusACTIVE {
+			activeExecutors = append(activeExecutors, id)
+		}
 	}
 
-	p.lastAppliedRevision = namespaceState.GlobalRevision
-
-	return nil
+	sort.Strings(activeExecutors)
+	return activeExecutors
 }
 
 func getShards(cfg config.Namespace) []int64 {

@@ -4131,3 +4131,200 @@ func TestLoad_ActiveActive(t *testing.T) {
 		})
 	}
 }
+
+func TestStartTransaction(t *testing.T) {
+	domainID := constants.TestDomainID
+	workflowID := "test-workflow"
+	runID := constants.TestRunID
+
+	// Create domain entries for different test scenarios
+	regularDomainEntry := cache.NewDomainCacheEntryForTest(
+		&persistence.DomainInfo{
+			ID:   domainID,
+			Name: "test-domain",
+		},
+		&persistence.DomainConfig{},
+		true,
+		&persistence.DomainReplicationConfig{
+			ActiveClusterName: "cluster0",
+			Clusters: []*persistence.ClusterReplicationConfig{
+				{ClusterName: "cluster0"},
+			},
+		},
+		123, // failover version
+		nil,
+		0,
+		0,
+		0,
+	)
+
+	activeActiveDomainEntry := cache.NewDomainCacheEntryForTest(
+		&persistence.DomainInfo{
+			ID:   domainID,
+			Name: "test-aa-domain",
+		},
+		&persistence.DomainConfig{},
+		true,
+		&persistence.DomainReplicationConfig{
+			ActiveClusters: &types.ActiveClusters{
+				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+					"region0": {
+						ActiveClusterName: "cluster0",
+						FailoverVersion:   100,
+					},
+					"region1": {
+						ActiveClusterName: "cluster1",
+						FailoverVersion:   200,
+					},
+				},
+			},
+		},
+		456, // failover version
+		nil,
+		0,
+		0,
+		0,
+	)
+
+	testCases := map[string]struct {
+		domainEntry               *cache.DomainCacheEntry
+		setupActiveClusterManager func(activeClusterManager *activecluster.MockManager)
+		setupMutableStateBuilder  func(msBuilder *mutableStateBuilder)
+		incomingTaskVersion       int64
+		expectedFlushDecision     bool
+		expectedVersion           int64
+		expectedError             bool
+		expectedErrorContains     string
+	}{
+		"it should successfully update the failover version": {
+			domainEntry:               regularDomainEntry,
+			setupActiveClusterManager: func(activeClusterManager *activecluster.MockManager) {},
+			setupMutableStateBuilder:  func(msBuilder *mutableStateBuilder) {},
+			incomingTaskVersion:       int64(100),
+			expectedFlushDecision:     false,
+			expectedVersion:           123, // domain failover version
+			expectedError:             false,
+		},
+		"when the domain is active-active domain it should update the failover version": {
+			domainEntry: activeActiveDomainEntry,
+			setupActiveClusterManager: func(activeClusterManager *activecluster.MockManager) {
+				activeClusterManager.EXPECT().LookupWorkflow(
+					gomock.Any(),
+					domainID,
+					workflowID,
+					runID,
+				).Return(&activecluster.LookupResult{
+					FailoverVersion: int64(999),
+				}, nil).Times(1)
+			},
+			setupMutableStateBuilder: func(msBuilder *mutableStateBuilder) {},
+			incomingTaskVersion:      int64(200),
+			expectedFlushDecision:    false,
+			expectedVersion:          999, // from LookupWorkflow result
+			expectedError:            false,
+		},
+		"when the domain is active-active and workflow lookup fails it should return an error": {
+			domainEntry: activeActiveDomainEntry,
+			setupActiveClusterManager: func(activeClusterManager *activecluster.MockManager) {
+				activeClusterManager.EXPECT().LookupWorkflow(
+					gomock.Any(),
+					domainID,
+					workflowID,
+					runID,
+				).Return(nil, errors.New("cluster lookup failed")).Times(1)
+			},
+			setupMutableStateBuilder: func(msBuilder *mutableStateBuilder) {},
+			incomingTaskVersion:      int64(300),
+			expectedFlushDecision:    false,
+			expectedVersion:          0, // version won't be set due to error
+			expectedError:            true,
+			expectedErrorContains:    "cluster lookup failed",
+		},
+		"when unable to update current version it should return an error": {
+			domainEntry:               regularDomainEntry,
+			setupActiveClusterManager: func(activeClusterManager *activecluster.MockManager) {},
+			setupMutableStateBuilder: func(msBuilder *mutableStateBuilder) {
+				// Create empty version histories to trigger GetCurrentVersionHistory error
+				msBuilder.versionHistories = &persistence.VersionHistories{
+					CurrentVersionHistoryIndex: 0,
+					Histories:                  []*persistence.VersionHistory{},
+				}
+			},
+			incomingTaskVersion:   int64(400),
+			expectedFlushDecision: false,
+			expectedVersion:       0, // version won't be updated due to error
+			expectedError:         true,
+			expectedErrorContains: "getting branch index",
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			// Setup mocks
+			shardContext := shard.NewMockContext(ctrl)
+			mockCache := events.NewMockCache(ctrl)
+			mockDomainCache := cache.NewMockDomainCache(ctrl)
+			activeClusterManager := activecluster.NewMockManager(ctrl)
+
+			// Set up shard context expectations
+			shardContext.EXPECT().GetLogger().Return(testlogger.New(t)).AnyTimes()
+			shardContext.EXPECT().GetActiveClusterManager().Return(activeClusterManager).AnyTimes()
+
+			// Create mutable state builder with mocks
+			msBuilder := createMSBWithMocks(mockCache, shardContext, mockDomainCache, tc.domainEntry)
+
+			// Override shard context expectations for multiple calls
+			shardContext.EXPECT().GetDomainCache().Return(mockDomainCache).AnyTimes()
+			shardContext.EXPECT().GetConfig().Return(&config.Config{
+				HostName:                        "test-host",
+				EnableReplicationTaskGeneration: func(string, string) bool { return true },
+				MaximumBufferedEventsBatch:      func(...dynamicproperties.FilterOption) int { return 100 },
+			}).AnyTimes()
+
+			// Set up basic execution info
+			msBuilder.executionInfo = &persistence.WorkflowExecutionInfo{
+				DomainID:    domainID,
+				WorkflowID:  workflowID,
+				RunID:       runID,
+				State:       persistence.WorkflowStateRunning,
+				NextEventID: int64(5),
+			}
+
+			// Set up version histories for UdpateCurrentVersion
+			msBuilder.versionHistories = persistence.NewVersionHistories(&persistence.VersionHistory{
+				BranchToken: []byte("test-branch-token"),
+				Items: []*persistence.VersionHistoryItem{
+					{EventID: 1, Version: 1},
+				},
+			})
+
+			// Apply test-specific setup
+			tc.setupActiveClusterManager(activeClusterManager)
+			tc.setupMutableStateBuilder(msBuilder)
+
+			// Execute the function under test
+			flushDecision, err := msBuilder.StartTransaction(context.Background(), tc.domainEntry, tc.incomingTaskVersion)
+
+			// Verify results
+			if tc.expectedError {
+				assert.Error(t, err)
+				if tc.expectedErrorContains != "" {
+					assert.Contains(t, err.Error(), tc.expectedErrorContains)
+				}
+				assert.Equal(t, tc.expectedFlushDecision, flushDecision)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expectedFlushDecision, flushDecision)
+
+				// Verify domain entry was updated
+				assert.Equal(t, tc.domainEntry, msBuilder.domainEntry)
+
+				// Verify current version was set to expected version
+				assert.Equal(t, tc.expectedVersion, msBuilder.GetCurrentVersion())
+			}
+		})
+	}
+}

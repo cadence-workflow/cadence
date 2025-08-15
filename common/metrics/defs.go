@@ -880,6 +880,9 @@ const (
 	// ActiveClusterManager is the scope used by active cluster manager
 	ActiveClusterManager
 
+	// ActiveClusterManagerWorkflowCacheScope is the scope used by active cluster manager's workflow cache
+	ActiveClusterManagerWorkflowCacheScope
+
 	NumCommonScopes
 )
 
@@ -1836,7 +1839,8 @@ var ScopeDefs = map[ServiceIdx]map[int]scopeDefinition{
 
 		LoadBalancerScope: {operation: "RRLoadBalancer"},
 
-		ActiveClusterManager: {operation: "ActiveClusterManager"},
+		ActiveClusterManager:                   {operation: "ActiveClusterManager"},
+		ActiveClusterManagerWorkflowCacheScope: {operation: "ActiveClusterManagerWorkflowCache"},
 	},
 	// Frontend Scope Names
 	Frontend: {
