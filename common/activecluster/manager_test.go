@@ -25,6 +25,7 @@ package activecluster
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -654,6 +655,7 @@ func TestLookupWorkflow(t *testing.T) {
 		getClusterSelectionPolicyFn func(ctx context.Context, domainID, wfID, rID string) (*types.ActiveClusterSelectionPolicy, error)
 		mockFn                      func(em *persistence.MockExecutionManager)
 		activeClusterCfg            *types.ActiveClusters
+		cachedPolicy                *types.ActiveClusterSelectionPolicy
 		domainIDToNameErr           error
 		migratedFromActivePassive   bool
 		expectedResult              *LookupResult
@@ -685,7 +687,7 @@ func TestLookupWorkflow(t *testing.T) {
 			expectedError:     "failed to find domain by id",
 		},
 		{
-			name: "domain is active-active, failed to fetch workflow activeness metadata",
+			name: "domain is active-active, failed to fetch active cluster policy",
 			activeClusterCfg: &types.ActiveClusters{
 				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
 					"us-west": {
@@ -700,9 +702,9 @@ func TestLookupWorkflow(t *testing.T) {
 			},
 			mockFn: func(em *persistence.MockExecutionManager) {
 				em.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(nil, errors.New("failed to fetch workflow activeness metadata"))
+					Return(nil, errors.New("failed to fetch policy"))
 			},
-			expectedError: "failed to fetch workflow activeness metadata",
+			expectedError: "failed to fetch policy",
 		},
 		{
 			name:                      "domain is migrated from active-passive to active-active, activeness metadata not-found. falls back to domain's active cluster name and failover version",
@@ -729,7 +731,7 @@ func TestLookupWorkflow(t *testing.T) {
 			},
 		},
 		{
-			name: "domain is active-active and NOT migrated from active-passive, activeness metadata not-found. return cluster name and failover version of current region",
+			name: "domain is active-active and NOT migrated from active-passive, policy not-found. return cluster name and failover version of current region",
 			activeClusterCfg: &types.ActiveClusters{
 				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
 					"us-west": {
@@ -753,7 +755,7 @@ func TestLookupWorkflow(t *testing.T) {
 			},
 		},
 		{
-			name: "domain is active-active, activeness metadata is nil means region sticky",
+			name: "domain is active-active, policy is nil means region sticky",
 			activeClusterCfg: &types.ActiveClusters{
 				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
 					"us-west": {
@@ -777,7 +779,7 @@ func TestLookupWorkflow(t *testing.T) {
 			},
 		},
 		{
-			name: "domain is active-active, activeness metadata shows region sticky",
+			name: "domain is active-active, policy shows region sticky",
 			activeClusterCfg: &types.ActiveClusters{
 				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
 					"us-west": {
@@ -804,7 +806,31 @@ func TestLookupWorkflow(t *testing.T) {
 			},
 		},
 		{
-			name: "domain is active-active, activeness metadata shows region sticky. domain is failed over to cluster1",
+			name: "domain is active-active, policy returned from cache",
+			activeClusterCfg: &types.ActiveClusters{
+				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
+					"us-west": {
+						ActiveClusterName: "cluster0",
+						FailoverVersion:   1,
+					},
+					"us-east": {
+						ActiveClusterName: "cluster1",
+						FailoverVersion:   3,
+					},
+				},
+			},
+			cachedPolicy: &types.ActiveClusterSelectionPolicy{
+				ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
+				StickyRegion:                   "us-east",
+			},
+			expectedResult: &LookupResult{
+				Region:          "us-east",
+				ClusterName:     "cluster1",
+				FailoverVersion: 3,
+			},
+		},
+		{
+			name: "domain is active-active, policy shows region sticky. domain is failed over to cluster1",
 			activeClusterCfg: &types.ActiveClusters{
 				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
 					// both regions have cluster1 as active cluster
@@ -832,7 +858,7 @@ func TestLookupWorkflow(t *testing.T) {
 			},
 		},
 		{
-			name: "domain is active-active, activeness metadata shows external entity",
+			name: "domain is active-active, policy shows external entity",
 			activeClusterCfg: &types.ActiveClusters{
 				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
 					"us-west": {
@@ -903,6 +929,11 @@ func TestLookupWorkflow(t *testing.T) {
 				WithTimeSource(timeSrc),
 			)
 			assert.NoError(t, err)
+
+			if tc.cachedPolicy != nil {
+				key := fmt.Sprintf("%s:%s:%s", "test-domain-id", wfID, "test-run-id")
+				mgr.(*managerImpl).workflowPolicyCache.Put(key, tc.cachedPolicy)
+			}
 
 			result, err := mgr.LookupWorkflow(context.Background(), "test-domain-id", wfID, "test-run-id")
 			if tc.expectedError != "" {
