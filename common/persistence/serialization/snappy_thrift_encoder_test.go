@@ -31,6 +31,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/persistence"
 )
 
 func TestSnappyThriftEncoderRoundTrip(t *testing.T) {
@@ -402,8 +404,11 @@ func TestSnappyThriftRWEncode(t *testing.T) {
 }
 
 func TestSnappyThriftEncoderWithParser(t *testing.T) {
+	dc := &persistence.DynamicConfiguration{
+		SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRWSnappy)),
+	}
 	// Test encoder integration with parser
-	parser, err := NewParser(constants.EncodingTypeThriftRWSnappy, constants.EncodingTypeThriftRWSnappy)
+	parser, err := NewParser(dc)
 	require.NoError(t, err)
 
 	testData := shardInfoTestData

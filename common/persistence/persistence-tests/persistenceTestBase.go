@@ -157,6 +157,7 @@ func NewTestBaseWithNoSQL(t *testing.T, options *TestBaseOptions) *TestBase {
 		EnableHistoryTaskDualWriteMode:           dynamicproperties.GetBoolPropertyFn(true),
 		ReadNoSQLHistoryTaskFromDataBlob:         dynamicproperties.GetBoolPropertyFn(false),
 		ReadNoSQLShardFromDataBlob:               dynamicproperties.GetBoolPropertyFn(false),
+		SerializationEncoding:                    dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
 	}
 	params := TestBaseParams{
 		DefaultTestCluster:    testCluster,
@@ -188,6 +189,7 @@ func NewTestBaseWithSQL(t *testing.T, options *TestBaseOptions) *TestBase {
 		EnableHistoryTaskDualWriteMode:           dynamicproperties.GetBoolPropertyFn(true),
 		ReadNoSQLHistoryTaskFromDataBlob:         dynamicproperties.GetBoolPropertyFn(false),
 		ReadNoSQLShardFromDataBlob:               dynamicproperties.GetBoolPropertyFn(false),
+		SerializationEncoding:                    dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
 	}
 	params := TestBaseParams{
 		DefaultTestCluster:    testCluster,

@@ -117,6 +117,7 @@ func (s *IntegrationBase) setupSuite() {
 			EnableHistoryTaskDualWriteMode:           dynamicproperties.GetBoolPropertyFn(true),
 			ReadNoSQLHistoryTaskFromDataBlob:         dynamicproperties.GetBoolPropertyFn(false),
 			ReadNoSQLShardFromDataBlob:               dynamicproperties.GetBoolPropertyFn(false),
+			SerializationEncoding:                    dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
 		}
 		params := pt.TestBaseParams{
 			DefaultTestCluster:    s.DefaultTestCluster,

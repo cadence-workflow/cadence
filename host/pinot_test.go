@@ -56,6 +56,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
@@ -114,6 +115,7 @@ func (s *PinotIntegrationSuite) SetupSuite() {
 		EnableHistoryTaskDualWriteMode:           dynamicproperties.GetBoolPropertyFn(true),
 		ReadNoSQLHistoryTaskFromDataBlob:         dynamicproperties.GetBoolPropertyFn(false),
 		ReadNoSQLShardFromDataBlob:               dynamicproperties.GetBoolPropertyFn(false),
+		SerializationEncoding:                    dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
 	}
 	params := pt.TestBaseParams{
 		DefaultTestCluster:    s.DefaultTestCluster,

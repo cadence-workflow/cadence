@@ -2418,6 +2418,12 @@ const (
 
 	// LastStringKey must be the last one in this const group
 	LastStringKey
+
+	// SerializationEncoding is the encoding type for blobs
+	// KeyName: history.serializationEncoding
+	// Value type: String
+	// Default value: "thriftrw"
+	SerializationEncoding
 )
 
 const (
@@ -4909,6 +4915,11 @@ var StringKeys = map[StringKey]DynamicString{
 		KeyName:      "matching.shardDistributionMode",
 		Description:  "MatchingShardDistributionMode defines which shard distribution mode should be used",
 		DefaultValue: "hash_ring",
+	},
+	SerializationEncoding: {
+		KeyName:      "history.serializationEncoding",
+		Description:  "SerializationEncoding is the encoding type for blobs",
+		DefaultValue: string(constants.EncodingTypeThriftRW),
 	},
 }
 
